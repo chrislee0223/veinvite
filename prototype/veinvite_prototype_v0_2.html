@@ -1,0 +1,644 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>VeInvite Prototype v0.2</title>
+  <style>
+    :root{
+      --bg:#070912;
+      --panel:#0f1220;
+      --panel-2:#15182a;
+      --white:#f7f7fb;
+      --muted:#9ba0b4;
+      --line:rgba(255,255,255,.09);
+      --purple:#6f3cff;
+      --purple-2:#9b66ff;
+      --green:#35c77a;
+      --red:#ff5b61;
+      --amber:#f5b942;
+      --shadow:0 30px 90px rgba(14,5,46,.45);
+      --radius:28px;
+    }
+
+    *{box-sizing:border-box}
+    html,body{margin:0;min-height:100%;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Noto Sans KR",sans-serif;background:
+      radial-gradient(circle at 20% 10%, rgba(111,60,255,.18), transparent 26%),
+      radial-gradient(circle at 85% 80%, rgba(74,39,180,.14), transparent 32%),
+      var(--bg);color:var(--white)}
+    button{font:inherit}
+    .page{
+      min-height:100vh;
+      display:grid;
+      grid-template-columns:minmax(320px,390px) minmax(260px,340px);
+      justify-content:center;
+      align-items:center;
+      gap:36px;
+      padding:28px;
+    }
+
+    .device{
+      width:390px;
+      height:844px;
+      max-width:100%;
+      border:1px solid rgba(255,255,255,.13);
+      border-radius:46px;
+      background:#090b14;
+      box-shadow:var(--shadow);
+      overflow:hidden;
+      position:relative;
+    }
+    .device::before{
+      content:"";
+      position:absolute;z-index:20;top:11px;left:50%;transform:translateX(-50%);
+      width:118px;height:28px;border-radius:22px;background:#03040a;
+      box-shadow:inset 0 0 0 1px rgba(255,255,255,.03);
+      pointer-events:none;
+    }
+
+    .app{height:100%;display:flex;flex-direction:column;background:
+      radial-gradient(circle at 50% -10%, rgba(111,60,255,.12), transparent 36%),#0a0c16}
+    .statusbar{height:50px;padding:18px 24px 0;display:flex;align-items:center;justify-content:space-between;font-size:14px;font-weight:700}
+    .status-icons{display:flex;gap:6px;align-items:center}
+    .signal{display:flex;gap:2px;align-items:end}.signal i{display:block;width:3px;border-radius:3px;background:#fff}.signal i:nth-child(1){height:5px}.signal i:nth-child(2){height:8px}.signal i:nth-child(3){height:11px}.signal i:nth-child(4){height:14px}
+    .battery{width:22px;height:11px;border:1.5px solid #fff;border-radius:3px;position:relative}.battery::after{content:"";position:absolute;right:-4px;top:3px;width:2px;height:5px;background:#fff;border-radius:1px}.battery::before{content:"";position:absolute;inset:2px;background:#fff;border-radius:1px}
+    .wifi{width:15px;height:11px;position:relative}.wifi::before,.wifi::after{content:"";position:absolute;left:50%;transform:translateX(-50%);border:2px solid transparent;border-top-color:#fff;border-radius:50%}.wifi::before{width:15px;height:15px;top:-2px}.wifi::after{width:8px;height:8px;top:3px}.wifi i{position:absolute;width:3px;height:3px;background:#fff;border-radius:50%;left:6px;bottom:0}
+
+    .topbar{height:60px;padding:8px 20px 10px;display:flex;align-items:center;justify-content:space-between}
+    .brand{font-weight:850;font-size:24px;letter-spacing:-1px}.brand .ve{color:var(--purple-2)}
+    .wallet-pill{border:1px solid var(--line);background:rgba(255,255,255,.045);padding:8px 10px;border-radius:14px;color:#d5d6df;font-size:12px}
+    .back{width:38px;height:38px;border-radius:13px;border:1px solid var(--line);background:rgba(255,255,255,.04);color:#fff;display:grid;place-items:center;cursor:pointer}
+
+    .content{flex:1;overflow:auto;padding:0 18px 104px;scrollbar-width:none}
+    .content::-webkit-scrollbar{display:none}
+    .hero{
+      background:
+        radial-gradient(circle at 78% 15%,rgba(183,140,255,.26),transparent 27%),
+        linear-gradient(135deg,#21104e,#4220a1 64%,#26135f);
+      border:1px solid rgba(255,255,255,.12);
+      border-radius:26px;
+      padding:22px;
+      min-height:235px;
+      position:relative;
+      overflow:hidden;
+      box-shadow:0 18px 42px rgba(36,15,96,.34);
+    }
+    .hero::after{content:"";position:absolute;width:200px;height:200px;border:1px solid rgba(181,140,255,.35);border-radius:50%;right:-70px;top:-85px;transform:rotate(-18deg)}
+    .eyebrow{font-size:13px;color:#c7b6ff;margin-bottom:8px;font-weight:700}
+    h1,h2,h3,p{margin:0}
+    .hero h1{font-size:30px;line-height:1.16;letter-spacing:-1.2px;max-width:230px}
+    .hero p{font-size:14px;line-height:1.55;color:#ddd9ec;max-width:190px;margin-top:12px}
+    .mascot{
+      position:absolute;right:16px;bottom:66px;width:106px;height:106px;border-radius:50%;
+      background:linear-gradient(145deg,#f7f3ff,#b9a7ff 70%,#8261ff);
+      box-shadow:0 18px 46px rgba(118,68,255,.42), inset 0 0 0 6px rgba(255,255,255,.35);
+    }
+    .mascot .visor{
+      position:absolute;inset:18px 15px 25px;border-radius:42% 42% 48% 48%;
+      background:radial-gradient(circle at 50% 35%,#252048,#090a18 72%);
+      box-shadow:inset 0 0 20px rgba(126,89,255,.55);
+    }
+    .mascot .eye{position:absolute;top:40px;width:12px;height:12px;background:#fff;transform:rotate(45deg);filter:drop-shadow(0 0 6px #fff)}
+    .mascot .eye.e1{left:35px}.mascot .eye.e2{right:35px}
+    .mascot .badge{position:absolute;bottom:6px;left:50%;transform:translateX(-50%);background:#6f3cff;padding:4px 8px;border-radius:8px;font-weight:850;font-size:14px}
+    .availability{display:inline-flex;align-items:center;gap:8px;margin-top:17px;padding:9px 12px;border-radius:14px;background:rgba(9,5,28,.38);border:1px solid rgba(255,255,255,.14);font-size:13px}
+    .dot{width:8px;height:8px;border-radius:50%;background:var(--green);box-shadow:0 0 0 4px rgba(53,199,122,.13)}
+    .primary{
+      width:100%;height:56px;border:0;border-radius:18px;cursor:pointer;color:white;font-weight:800;font-size:16px;
+      background:linear-gradient(135deg,var(--purple),#7e46ff);
+      box-shadow:0 13px 28px rgba(111,60,255,.25);
+      display:flex;align-items:center;justify-content:center;gap:10px;
+      transition:transform .18s ease,filter .18s ease;
+    }
+    .primary:active{transform:scale(.985);filter:brightness(.95)}
+    .hero .primary{position:absolute;left:20px;right:20px;bottom:18px;width:calc(100% - 40px)}
+    .secondary{width:100%;height:52px;border-radius:17px;border:1px solid var(--line);background:rgba(255,255,255,.04);color:#fff;font-weight:750;cursor:pointer}
+    .danger{width:100%;height:50px;border-radius:16px;border:1px solid rgba(255,91,97,.45);background:transparent;color:#ff7c81;font-weight:760;cursor:pointer}
+    .ghost{border:0;background:transparent;color:#c4b5ff;padding:12px;cursor:pointer;font-weight:750}
+    .primary.green{background:linear-gradient(135deg,#25b96c,#3bd486);box-shadow:0 13px 28px rgba(44,195,116,.24)}
+    .primary:disabled{background:#333747;color:#777b8e;box-shadow:none;cursor:not-allowed}
+
+    .card{
+      margin-top:14px;border:1px solid var(--line);background:linear-gradient(180deg,rgba(255,255,255,.045),rgba(255,255,255,.025));
+      border-radius:22px;padding:18px;
+    }
+    .card-title{font-size:16px;font-weight:800;margin-bottom:12px}
+    .empty{min-height:200px;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;color:#a8abbb}
+    .empty-icon{width:64px;height:64px;border-radius:20px;border:1px solid var(--line);display:grid;place-items:center;margin-bottom:14px;background:rgba(255,255,255,.03)}
+    .empty strong{color:#e9e9f0;font-size:15px}.empty p{font-size:13px;line-height:1.55;margin-top:6px;max-width:230px}
+    .section-title{display:flex;align-items:center;justify-content:space-between;margin:18px 4px 10px}.section-title h2{font-size:18px}.section-title span{font-size:12px;color:#9b9fb0}
+    .row{display:flex;align-items:center;gap:12px}
+    .avatar{width:48px;height:48px;border-radius:16px;background:linear-gradient(145deg,#6f3cff,#a983ff);display:grid;place-items:center;font-weight:850}
+    .grow{flex:1}
+    .row strong{font-size:15px}.sub{font-size:12px;color:#9ba0b4;margin-top:4px;line-height:1.45}
+    .status-chip{padding:7px 10px;border-radius:11px;font-size:11px;font-weight:800;background:rgba(111,60,255,.15);color:#c8b8ff;border:1px solid rgba(111,60,255,.25)}
+    .status-chip.green{background:rgba(53,199,122,.13);color:#75e5aa;border-color:rgba(53,199,122,.23)}
+    .info{display:flex;gap:12px;padding:14px;border-radius:17px;background:rgba(111,60,255,.08);border:1px solid rgba(111,60,255,.17);margin-top:13px}
+    .info .i{width:26px;height:26px;border-radius:50%;background:var(--purple);display:grid;place-items:center;font-weight:900;flex:0 0 auto}
+    .info strong{font-size:13px}.info p{font-size:12px;color:#a9adbe;line-height:1.45;margin-top:3px}
+
+    .bottomnav{
+      position:absolute;left:0;right:0;bottom:0;height:88px;padding:10px 18px 20px;
+      display:grid;grid-template-columns:repeat(4,1fr);background:rgba(9,11,20,.94);backdrop-filter:blur(14px);border-top:1px solid var(--line)
+    }
+    .navitem{border:0;background:transparent;color:#74798d;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:5px;font-size:10px;cursor:pointer}
+    .navitem.active{color:#8c5cff}.navicon{width:23px;height:23px}
+    .home-indicator{position:absolute;z-index:30;bottom:7px;left:50%;transform:translateX(-50%);width:125px;height:5px;background:#fff;border-radius:5px;opacity:.9}
+
+    .screen-title{font-size:23px;letter-spacing:-.6px;margin:10px 2px 6px}
+    .screen-sub{font-size:13px;line-height:1.55;color:#a4a8b8;margin-bottom:18px}
+    .link-box{padding:26px 18px;border-radius:25px;background:#f6f4fb;color:#171823;text-align:center}
+    .link-icon{width:70px;height:70px;margin:0 auto 16px;border-radius:50%;display:grid;place-items:center;background:linear-gradient(145deg,#7e48ff,#9d72ff);box-shadow:0 14px 28px rgba(111,60,255,.27)}
+    .link-url{font-size:17px;font-weight:850;word-break:break-all}.link-note{font-size:12px;color:#6d7180;margin:7px 0 20px}
+    .stack{display:grid;gap:10px}
+    .tip{font-size:12px;color:#898ea1;line-height:1.5;margin-top:14px}
+
+    .landing-hero{text-align:center;padding:22px 8px 10px}
+    .orb{width:116px;height:116px;border-radius:50%;margin:8px auto 22px;background:
+      radial-gradient(circle at 50% 50%,rgba(111,60,255,.65),rgba(111,60,255,.08) 53%,transparent 54%);
+      display:grid;place-items:center}
+    .link-symbol{width:58px;height:58px;border-radius:20px;background:linear-gradient(145deg,#7844ff,#a275ff);display:grid;place-items:center;font-size:29px;box-shadow:0 0 34px rgba(111,60,255,.48)}
+    .landing-hero h1{font-size:29px;line-height:1.25}.landing-hero p{font-size:14px;line-height:1.55;color:#a8acbc;margin:14px auto 0;max-width:285px}
+    .small-note{font-size:12px;color:#8d92a5;line-height:1.5;text-align:center;margin-top:12px}
+
+    .wallet-visual{width:124px;height:92px;border-radius:25px;margin:28px auto 24px;background:linear-gradient(145deg,#8452ff,#5d2dd5);position:relative;box-shadow:0 24px 46px rgba(83,38,196,.35)}
+    .wallet-visual::after{content:"";position:absolute;width:56px;height:38px;right:-10px;top:27px;border-radius:14px;background:#a27eff;border:1px solid rgba(255,255,255,.28)}
+    .wallet-visual::before{content:"";position:absolute;width:10px;height:10px;right:9px;top:41px;background:#fff;border-radius:50%;z-index:1}
+    .center{text-align:center}
+    .center h1{font-size:27px}.center p{color:#a5a9ba;font-size:14px;line-height:1.55;margin:12px auto 0;max-width:290px}
+
+    .check-visual{width:124px;height:124px;margin:24px auto;border-radius:50%;display:grid;place-items:center;border:1px solid rgba(53,199,122,.3);background:radial-gradient(circle,rgba(53,199,122,.18),rgba(53,199,122,.04) 60%,transparent 61%)}
+    .shield{width:68px;height:76px;clip-path:polygon(50% 0,92% 16%,88% 68%,50% 100%,12% 68%,8% 16%);background:linear-gradient(145deg,#39d585,#1e9c5c);display:grid;place-items:center;font-size:32px;box-shadow:0 0 32px rgba(53,199,122,.32)}
+    .checklist{display:grid;gap:10px;margin-top:24px}
+    .checkrow{display:flex;align-items:center;gap:10px;padding:13px 14px;border:1px solid var(--line);border-radius:16px;background:rgba(255,255,255,.03);font-size:13px}
+    .mini-check{width:20px;height:20px;border-radius:50%;display:grid;place-items:center;background:rgba(53,199,122,.16);color:#61db9d;font-weight:900;font-size:12px}
+    .neutral-check{width:20px;height:20px;border-radius:50%;display:grid;place-items:center;border:1px solid rgba(255,255,255,.16);background:rgba(255,255,255,.035);color:#969bad;font-size:10px;flex:0 0 auto}
+    .exception-icon svg{width:44px;height:44px;stroke:currentColor}
+    .danger-text{width:100%;border:0;background:transparent;color:var(--red);font-weight:800;padding:14px;cursor:pointer}
+    .mini-actions{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:14px}
+    .spinner{width:20px;height:20px;border-radius:50%;border:2px solid rgba(255,255,255,.14);border-top-color:#a57bff;animation:spin .8s linear infinite}
+    @keyframes spin{to{transform:rotate(360deg)}}
+
+    .success-visual{width:128px;height:128px;margin:22px auto;border-radius:50%;display:grid;place-items:center;background:radial-gradient(circle,rgba(53,199,122,.28),rgba(53,199,122,.06) 62%,transparent 63%)}
+    .success-core{width:76px;height:76px;border-radius:50%;display:grid;place-items:center;background:linear-gradient(145deg,#39d585,#1fa561);font-size:37px;box-shadow:0 16px 42px rgba(53,199,122,.3);animation:pop .34s ease-out}
+    @keyframes pop{0%{transform:scale(.86);opacity:.5}100%{transform:scale(1);opacity:1}}
+    .next-card{margin-top:22px;border:1px solid var(--line);border-radius:20px;padding:16px;background:rgba(255,255,255,.035)}
+    .next-card h3{font-size:14px;margin-bottom:12px}
+    .nextrow{display:flex;align-items:center;gap:11px;margin-top:11px;color:#d8dae4;font-size:13px}
+    .num{width:26px;height:26px;border-radius:9px;display:grid;place-items:center;background:rgba(111,60,255,.16);color:#bda9ff;font-weight:850}
+
+    .mission{display:flex;align-items:center;gap:12px;padding:15px;border-radius:18px;border:1px solid var(--line);background:rgba(255,255,255,.032);margin-top:10px}
+    .mission.done{border-color:rgba(53,199,122,.2)}
+    .mission.locked{opacity:.48}
+    .mission-icon{width:42px;height:42px;border-radius:14px;display:grid;place-items:center;background:rgba(111,60,255,.14);font-size:18px}
+    .mission strong{font-size:14px}.mission p{font-size:12px;color:#9398ab;line-height:1.4;margin-top:4px}
+    .mission-state{font-size:11px;margin-left:auto;padding:6px 8px;border-radius:10px;background:rgba(111,60,255,.13);color:#bca8ff;font-weight:800}
+    .mission.done .mission-state{background:rgba(53,199,122,.13);color:#68dba1}
+
+    .exception-icon{width:88px;height:88px;border-radius:28px;margin:35px auto 24px;display:grid;place-items:center;font-size:42px;background:rgba(255,91,97,.13);border:1px solid rgba(255,91,97,.22)}
+    .exception-icon.amber{background:rgba(245,185,66,.12);border-color:rgba(245,185,66,.22)}
+    .exception-icon.gray{background:rgba(255,255,255,.06);border-color:var(--line)}
+
+    .modal-backdrop{position:absolute;z-index:100;inset:0;background:rgba(2,3,8,.72);display:grid;place-items:center;padding:24px;backdrop-filter:blur(5px)}
+    .modal{width:100%;border-radius:25px;background:#f8f8fb;color:#14151d;padding:22px;box-shadow:0 32px 80px rgba(0,0,0,.45)}
+    .modal-icon{width:50px;height:50px;border-radius:50%;margin:0 auto 12px;display:grid;place-items:center;color:white;background:var(--red);font-size:24px}
+    .modal h2{text-align:center;font-size:20px}.modal p{text-align:center;color:#626675;font-size:13px;line-height:1.55;margin:10px 0 18px}
+    .modal .primary{background:var(--red);box-shadow:none}.modal .secondary{color:#1c1d25;background:white;border-color:#d8d9e1;margin-top:9px}
+
+    .toast{position:absolute;z-index:120;left:50%;bottom:106px;transform:translate(-50%,14px);opacity:0;pointer-events:none;background:#f8f8fb;color:#161720;padding:11px 15px;border-radius:14px;font-size:13px;font-weight:750;box-shadow:0 16px 40px rgba(0,0,0,.35);transition:.25s ease;white-space:nowrap}
+    .toast.show{opacity:1;transform:translate(-50%,0)}
+
+    .controls{
+      border:1px solid var(--line);background:rgba(13,15,27,.76);backdrop-filter:blur(18px);
+      border-radius:28px;padding:22px;box-shadow:0 25px 70px rgba(0,0,0,.28)
+    }
+    .controls h2{font-size:21px}.controls p{font-size:13px;color:#9da2b5;line-height:1.55;margin-top:7px}
+    .control-group{margin-top:20px}.control-label{font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:#6f7488;margin-bottom:9px;font-weight:850}
+    .control-grid{display:grid;grid-template-columns:1fr 1fr;gap:9px}
+    .control-btn{border:1px solid var(--line);background:rgba(255,255,255,.035);color:#dddfea;border-radius:14px;padding:11px 10px;font-size:12px;cursor:pointer;text-align:left}
+    .control-btn:hover{border-color:rgba(111,60,255,.48);background:rgba(111,60,255,.09)}
+    .legend{margin-top:20px;padding-top:16px;border-top:1px solid var(--line);font-size:12px;color:#8e93a6;line-height:1.6}
+    .version{display:inline-block;margin-top:12px;padding:6px 9px;border-radius:10px;background:rgba(111,60,255,.13);color:#bba7ff;font-size:11px;font-weight:800}
+
+    @media(max-width:820px){
+      .page{display:block;padding:0;background:#090b14}
+      .device{width:100%;max-width:430px;height:100vh;min-height:720px;margin:0 auto;border:0;border-radius:0}
+      .device::before{display:none}
+      .controls{max-width:430px;margin:0 auto;border-radius:0;border-left:0;border-right:0;border-bottom:0}
+      .home-indicator{display:none}
+    }
+  </style>
+</head>
+<body>
+  <div class="page">
+    <div class="device" aria-label="VeInvite clickable prototype">
+      <div id="app" class="app"></div>
+      <div id="toast" class="toast">완료</div>
+      <div class="home-indicator"></div>
+    </div>
+
+    <aside class="controls">
+      <h2>VeInvite Prototype</h2>
+      <p>초대 생성, 수락 대기, 최초 1인 귀속, 자격 확인, 미션 시작까지 직접 눌러볼 수 있습니다.</p>
+      <span class="version">v0.2 · Invite acceptance flow</span>
+
+      <div class="control-group">
+        <div class="control-label">추천인 화면</div>
+        <div class="control-grid">
+          <button class="control-btn" onclick="go('home')">초대 전 홈</button>
+          <button class="control-btn" onclick="go('referrerPending')">수락 대기</button>
+          <button class="control-btn" onclick="go('referrerProgress')">활성화 진행 중</button>
+          <button class="control-btn" onclick="go('referrerCompleted')">활성화 완료</button>
+          <button class="control-btn" onclick="openCancel()">취소 확인창</button>
+        </div>
+      </div>
+
+      <div class="control-group">
+        <div class="control-label">친구 화면</div>
+        <div class="control-grid">
+          <button class="control-btn" onclick="go('landing')">초대 링크 열기</button>
+          <button class="control-btn" onclick="go('wallet')">지갑 연결</button>
+          <button class="control-btn" onclick="runCheck('success')">정상 자격 확인</button>
+          <button class="control-btn" onclick="go('missions')">미션 화면</button>
+        </div>
+      </div>
+
+      <div class="control-group">
+        <div class="control-label">예외 상태</div>
+        <div class="control-grid">
+          <button class="control-btn" onclick="runCheck('existing')">기존 이용자</button>
+          <button class="control-btn" onclick="runCheck('other')">다른 추천인</button>
+          <button class="control-btn" onclick="go('used')">이미 사용된 링크</button>
+          <button class="control-btn" onclick="go('invalid')">취소·오류 링크</button>
+          <button class="control-btn" onclick="runCheck('review')">안전성 검토</button>
+        </div>
+      </div>
+
+      <div class="legend">
+        추천 보상은 초대한 사람에게만 지급되며, 금액은 주간 참여 결과에 따라 결정됩니다. 친구의 세부 활동 진행률은 추천인 화면에 노출하지 않습니다.
+      </div>
+    </aside>
+  </div>
+
+<script>
+  const app = document.getElementById('app');
+  const toast = document.getElementById('toast');
+  let current = 'home';
+  let modalOpen = false;
+  let checkOutcome = 'success';
+  let timer = null;
+
+  const icons = {
+    back:'<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 18l-6-6 6-6"/></svg>',
+    home:'<svg class="navicon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 11l9-8 9 8v9a1 1 0 0 1-1 1h-5v-7H9v7H4a1 1 0 0 1-1-1z"/></svg>',
+    link:'<svg class="navicon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 13a5 5 0 0 0 7.54.54l2-2a5 5 0 0 0-7.07-7.07l-1.15 1.15"/><path d="M14 11a5 5 0 0 0-7.54-.54l-2 2a5 5 0 0 0 7.07 7.07l1.15-1.15"/></svg>',
+    gift:'<svg class="navicon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="8" width="18" height="13" rx="2"/><path d="M12 8v13M3 12h18M7.5 8C5 8 4 6.5 4.8 5.1 6 3 9.6 5 12 8M16.5 8c2.5 0 3.5-1.5 2.7-2.9C18 3 14.4 5 12 8"/></svg>',
+    user:'<svg class="navicon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></svg>',
+    copy:'<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>',
+    share:'<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><path d="M8.6 10.7l6.8-4M8.6 13.3l6.8 4"/></svg>'
+  };
+
+  function shell(content, opts={}){
+    const {back=false, wallet=true, nav=true, title=''} = opts;
+    return `
+      <div class="statusbar">
+        <span>9:41</span>
+        <span class="status-icons"><span class="signal"><i></i><i></i><i></i><i></i></span><span class="wifi"><i></i></span><span class="battery"></span></span>
+      </div>
+      <div class="topbar">
+        ${back ? `<button class="back" onclick="historyBack()">${icons.back}</button>` : `<div class="brand"><span class="ve">Ve</span>Invite</div>`}
+        ${title ? `<strong style="position:absolute;left:50%;transform:translateX(-50%);font-size:15px">${title}</strong>` : ''}
+        ${wallet ? `<div class="wallet-pill">0xC31F···90A2</div>` : `<div style="width:38px"></div>`}
+      </div>
+      <main class="content">${content}</main>
+      ${nav ? bottomNav() : ''}
+      ${modalOpen ? cancelModal() : ''}
+    `;
+  }
+
+  function bottomNav(){
+    return `<nav class="bottomnav">
+      <button class="navitem ${['home','referrerPending','referrerProgress','referrerCompleted'].includes(current)?'active':''}" onclick="go('home')">${icons.home}<span>홈</span></button>
+      <button class="navitem ${current==='invite'?'active':''}" onclick="go('invite')">${icons.link}<span>초대</span></button>
+      <button class="navitem" onclick="notify('보상 화면은 다음 버전에서 연결됩니다.')">${icons.gift}<span>보상</span></button>
+      <button class="navitem" onclick="notify('내 정보 화면은 다음 버전에서 연결됩니다.')">${icons.user}<span>내 정보</span></button>
+    </nav>`;
+  }
+
+  function mascot(){
+    return `<div class="mascot"><div class="visor"></div><i class="eye e1"></i><i class="eye e2"></i><span class="badge">Vi</span></div>`;
+  }
+
+  const views = {
+    home(){
+      return shell(`
+        <section class="hero">
+          <div class="eyebrow">새로운 시작을 연결하세요</div>
+          <h1>1명 초대 가능</h1>
+          <p>VeBetterDAO를 처음 이용하는 친구를 초대하세요.</p>
+          <div class="availability"><span class="dot"></span>현재 초대 가능</div>
+          ${mascot()}
+          <button class="primary" onclick="go('invite')">친구 초대하기 <span>→</span></button>
+        </section>
+        <div class="section-title"><h2>진행 중인 초대</h2></div>
+        <section class="card empty">
+          <div class="empty-icon">◎</div>
+          <strong>아직 진행 중인 초대가 없어요.</strong>
+          <p>친구를 초대하면 진행 상황이 여기에 표시돼요.</p>
+        </section>
+      `);
+    },
+
+    invite(){
+      return shell(`
+        <h1 class="screen-title">초대 링크</h1>
+        <p class="screen-sub">한 명의 친구에게 링크를 보내세요. 처음 자격 확인을 완료한 친구에게 초대가 연결됩니다.</p>
+        <section class="link-box">
+          <div class="link-icon">${icons.link}</div>
+          <div class="link-url">veinvite.app/i/7K9D2X</div>
+          <div class="link-note">VeBetterDAO를 처음 시작하는 친구를 위한 링크</div>
+          <div class="stack">
+            <button class="secondary" onclick="copyLink()">${icons.copy} &nbsp; 링크 복사</button>
+            <button class="primary" onclick="shareLink()">${icons.share} &nbsp; 공유하기</button>
+          </div>
+        </section>
+        <p class="tip">기존 VeChain 지갑이 있어도 VeBetterDAO를 이용한 적이 없다면 참여할 수 있습니다.</p>
+        <div class="mini-actions">
+          <button class="ghost" onclick="go('landing')">친구 화면 미리보기</button>
+          <button class="ghost" onclick="go('referrerPending')">초대 상태 보기</button>
+        </div>
+      `,{back:true,title:'초대 링크',wallet:false,nav:true});
+    },
+
+    landing(){
+      return shell(`
+        <section class="landing-hero">
+          <div class="orb"><div class="link-symbol">↗</div></div>
+          <div class="eyebrow">Chris94님의 초대</div>
+          <h1>VeBetterDAO에<br>초대받았어요</h1>
+          <p>VeBetterDAO를 처음 시작하고 미션을 완료하면 나도 새로운 친구를 초대할 수 있어요.</p>
+        </section>
+        <section class="card">
+          <div class="card-title">참여 가능 안내</div>
+          <div class="sub">기존 VeChain 지갑을 사용 중이어도 VeBetterDAO를 이용한 적이 없다면 참여할 수 있습니다.</div>
+        </section>
+        <button class="primary" style="margin-top:18px" onclick="go('wallet')">시작하기</button>
+        <p class="small-note">계속하면 초대 연결을 위한 자격 확인에 동의하게 됩니다.</p>
+      `,{back:false,wallet:false,nav:false});
+    },
+
+    wallet(){
+      return shell(`
+        <div class="wallet-visual"></div>
+        <section class="center">
+          <h1>지갑을 연결해 주세요</h1>
+          <p>연결된 지갑을 기준으로 VeBetterDAO 이용 여부와 초대 자격을 확인합니다.</p>
+        </section>
+        <button class="primary" style="margin-top:34px" onclick="runCheck('success')">지갑 연결하기</button>
+        <p class="small-note">연결 정보는 안전하게 보호되며, 지갑의 자산을 이동하지 않습니다.</p>
+      `,{back:true,title:'지갑 연결',wallet:false,nav:false});
+    },
+
+    checking(){
+      return shell(`
+        <div class="check-visual"><div class="shield">✓</div></div>
+        <section class="center">
+          <h1>자격을 확인하고 있어요</h1>
+          <p>연결된 지갑의 참여 이력과 초대 상태를 자동으로 확인합니다.</p>
+        </section>
+        <div class="checklist">
+          <div class="checkrow"><span class="neutral-check">•</span> 링크 상태 확인 중</div>
+          <div class="checkrow"><span class="neutral-check">•</span> 기존 참여 이력 확인 중</div>
+          <div class="checkrow"><span class="spinner"></span> 다른 초대 연결 여부 확인 중</div>
+        </div>
+      `,{back:false,wallet:false,nav:false,title:'자격 확인'});
+    },
+
+    success(){
+      return shell(`
+        <div class="success-visual"><div class="success-core">✓</div></div>
+        <section class="center">
+          <h1>초대가 연결됐어요</h1>
+          <p>이제 미션을 완료하고 VeBetterDAO를 직접 경험해 보세요.</p>
+        </section>
+        <div class="next-card">
+          <h3>다음 단계</h3>
+          <div class="nextrow"><span class="num">1</span> 지갑 연결 <span class="status-chip green" style="margin-left:auto">완료</span></div>
+          <div class="nextrow"><span class="num">2</span> VeBetter 앱 3개 체험하기</div>
+          <div class="nextrow"><span class="num">3</span> 투표 참여하기</div>
+        </div>
+        <button class="primary green" style="margin-top:18px" onclick="go('missions')">미션 보기</button>
+      `,{wallet:false,nav:false});
+    },
+
+    missions(){
+      return shell(`
+        <h1 class="screen-title">나의 미션</h1>
+        <p class="screen-sub">지금 해야 할 행동 하나에 집중하세요.</p>
+        <div class="mission done">
+          <div class="mission-icon">✓</div><div class="grow"><strong>지갑 연결</strong><p>참여 지갑이 연결됐어요.</p></div><span class="mission-state">완료</span>
+        </div>
+        <div class="mission">
+          <div class="mission-icon">◎</div><div class="grow"><strong>VeBetter 앱 3개 체험하기</strong><p>서로 다른 앱을 이용하고 B3TR를 획득하세요.</p></div><span class="mission-state">진행 중</span>
+        </div>
+        <div class="mission locked">
+          <div class="mission-icon">◇</div><div class="grow"><strong>투표 참여하기</strong><p>B3TR를 VOT3로 바꾼 뒤 앱 투표에 참여하세요.</p></div><span class="mission-state">잠김</span>
+        </div>
+        <section class="card">
+          <div class="card-title">미션을 완료하면</div>
+          <div class="sub">활성화가 확인된 뒤 나도 새로운 친구 한 명을 초대할 수 있어요.</div>
+        </section>
+        <button class="secondary" style="margin-top:16px" onclick="go('referrerProgress')">추천인 화면 보기</button>
+      `,{back:false,wallet:true,nav:false});
+    },
+
+    referrerPending(){
+      return shell(`
+        <section class="hero" style="min-height:205px">
+          <div class="eyebrow">초대 링크를 보냈어요</div>
+          <h1>초대 수락 대기</h1>
+          <p>친구가 아직 지갑을 연결하고 초대를 수락하지 않았어요.</p>
+          ${mascot()}
+        </section>
+        <div class="section-title"><h2>보낸 초대</h2><span>7월 18일</span></div>
+        <section class="card">
+          <div class="row">
+            <div class="avatar">↗</div>
+            <div class="grow"><strong>veinvite.app/i/7K9D2X</strong><div class="sub">아직 연결된 지갑 없음</div></div>
+            <span class="status-chip">수락 대기</span>
+          </div>
+          <div class="info"><div class="i">i</div><div><strong>처음 자격 확인을 완료한 한 명에게 연결돼요.</strong><p>연결이 완료되면 같은 링크로 다른 사용자는 참여할 수 없습니다.</p></div></div>
+          <div class="mini-actions">
+            <button class="secondary" onclick="copyLink()">링크 복사</button>
+            <button class="primary" onclick="shareLink()">다시 공유</button>
+          </div>
+        </section>
+        <button class="danger" style="margin-top:16px" onclick="openCancel()">초대 취소하기</button>
+      `);
+    },
+
+    referrerProgress(){
+      return shell(`
+        <section class="hero" style="min-height:205px">
+          <div class="eyebrow">현재 한 명을 초대하고 있어요</div>
+          <h1>초대 진행 중</h1>
+          <p>친구의 활성화가 확인되면 다음 친구를 초대할 수 있어요.</p>
+          ${mascot()}
+        </section>
+        <div class="section-title"><h2>초대한 친구</h2><span>7월 18일</span></div>
+        <section class="card">
+          <div class="row">
+            <div class="avatar">0x</div>
+            <div class="grow"><strong>0x12A4···8F21</strong><div class="sub">활성화 진행 중</div></div>
+            <span class="status-chip">진행 중</span>
+          </div>
+          <div class="info"><div class="i">i</div><div><strong>친구가 미션을 진행하고 있어요.</strong><p>모든 조건을 완료하고 활성화가 확인되면 알려드릴게요.</p></div></div>
+        </section>
+        <button class="danger" style="margin-top:16px" onclick="openCancel()">초대 취소하기</button>
+      `);
+    },
+
+    referrerCompleted(){
+      return shell(`
+        <section class="hero" style="min-height:225px">
+          <div class="eyebrow">활성화 확인 완료</div>
+          <h1>새로운 친구<br>초대 가능</h1>
+          <p>친구의 활성화가 확인됐어요. 다음 친구 한 명을 초대할 수 있습니다.</p>
+          <div class="availability"><span class="dot"></span>현재 초대 가능</div>
+          ${mascot()}
+          <button class="primary" onclick="go('invite')">친구 초대하기 <span>→</span></button>
+        </section>
+        <section class="card">
+          <div class="row">
+            <div class="avatar">0x</div>
+            <div class="grow"><strong>0x12A4···8F21</strong><div class="sub">7월 18일 활성화 완료</div></div>
+            <span class="status-chip green">완료</span>
+          </div>
+        </section>
+        <section class="card">
+          <div class="card-title">이번 주 추천 보상</div>
+          <div style="font-size:24px;font-weight:850">정산 참여 중</div>
+          <div class="sub">금액은 주간 참여 결과에 따라 결정됩니다.</div>
+        </section>
+      `);
+    },
+
+    existing(){
+      return exception(
+        '이미 VeBetterDAO를 이용한 지갑이에요',
+        '해당 지갑은 기존 이용 이력이 있어 이 초대에 참여할 수 없습니다.',
+        `<svg viewBox="0 0 24 24" fill="none" stroke-width="1.8"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 12.5-6.6"/><path d="M17 17l2 2 4-5"/></svg>`,
+        ''
+      );
+    },
+    other(){
+      return exception(
+        '이미 다른 추천인과 연결돼 있어요',
+        '한 지갑은 한 명의 추천인에게만 연결될 수 있습니다.',
+        `<svg viewBox="0 0 24 24" fill="none" stroke-width="1.8"><path d="M10 13a5 5 0 0 0 7.5.5l2-2a5 5 0 0 0-7-7l-1.2 1.2"/><path d="M14 11a5 5 0 0 0-7.5-.5l-2 2a5 5 0 0 0 7 7l1.2-1.2"/><path d="M7 3v4M5 5h4"/></svg>`,
+        ''
+      );
+    },
+    used(){
+      return exception(
+        '이미 사용된 초대 링크예요',
+        '이 링크는 먼저 자격 확인을 완료한 다른 한 명에게 이미 연결되었습니다.',
+        `<svg viewBox="0 0 24 24" fill="none" stroke-width="1.8"><path d="M10 13a5 5 0 0 0 7.5.5l2-2a5 5 0 0 0-7-7l-1.2 1.2"/><path d="M15 16l2 2 4-5"/></svg>`,
+        'gray'
+      );
+    },
+    invalid(){
+      return exception(
+        '유효하지 않은 초대 링크예요',
+        '초대가 취소됐거나 링크 주소가 올바르지 않습니다. 추천인에게 새 링크를 요청해 주세요.',
+        `<svg viewBox="0 0 24 24" fill="none" stroke-width="1.8"><path d="M10 13a5 5 0 0 0 7.5.5l2-2a5 5 0 0 0-7-7"/><path d="M14 11a5 5 0 0 0-7.5-.5l-2 2a5 5 0 0 0 7 7"/><path d="M4 4l16 16"/></svg>`,
+        'gray'
+      );
+    },
+    review(){
+      return exception(
+        '계정을 확인하고 있어요',
+        '추가 안전성 검토가 필요합니다. 검토가 완료되면 앱에서 알려드릴게요.',
+        `<svg viewBox="0 0 24 24" fill="none" stroke-width="1.8"><path d="M12 3l8 3v5c0 5-3.4 8.5-8 10-4.6-1.5-8-5-8-10V6z"/><circle cx="12" cy="11" r="3"/><path d="M12 9.5V11l1 1"/></svg>`,
+        'amber',
+        true
+      );
+    }
+  };
+
+  function exception(title, body, icon, cls='', review=false){
+    return shell(`
+      <div class="exception-icon ${cls}">${icon}</div>
+      <section class="center">
+        <h1>${title}</h1>
+        <p>${body}</p>
+      </section>
+      <button class="secondary" style="margin-top:32px" onclick="go('landing')">${review?'확인':'돌아가기'}</button>
+    `,{wallet:false,nav:false});
+  }
+
+  function cancelModal(){
+    return `<div class="modal-backdrop">
+      <div class="modal">
+        <div class="modal-icon">!</div>
+        <h2>초대를 취소할까요?</h2>
+        <p>초대 가능 인원은 즉시 복구됩니다. 친구는 계속 VeBetterDAO를 이용할 수 있지만, 나중에 활성화돼도 이 초대의 추천 보상은 받을 수 없습니다.</p>
+        <button class="primary" onclick="closeCancel()">계속 초대 유지</button>
+        <button class="danger-text" onclick="confirmCancel()">초대 취소</button>
+      </div>
+    </div>`;
+  }
+
+  function render(){
+    if(timer){clearTimeout(timer);timer=null}
+    app.innerHTML = views[current] ? views[current]() : views.home();
+  }
+
+  function go(view){
+    current=view;modalOpen=false;render();
+  }
+
+  function historyBack(){
+    const map={invite:'home',wallet:'landing'};
+    go(map[current]||'home');
+  }
+
+  function notify(message){
+    toast.textContent=message;toast.classList.add('show');
+    setTimeout(()=>toast.classList.remove('show'),1900);
+  }
+
+  async function copyLink(){
+    try{
+      await navigator.clipboard.writeText('https://veinvite.app/i/7K9D2X');
+      notify('초대 링크를 복사했어요.');
+    }catch(e){notify('링크: veinvite.app/i/7K9D2X')}
+  }
+
+  async function shareLink(){
+    const data={title:'VeInvite 초대',text:'VeBetterDAO를 처음 시작해 보세요.',url:'https://veinvite.app/i/7K9D2X'};
+    if(navigator.share){try{await navigator.share(data);notify('공유를 완료했어요.')}catch(e){}}
+    else{copyLink();notify('공유 기능 대신 링크를 복사했어요.')}
+  }
+
+  function runCheck(outcome){
+    checkOutcome=outcome;current='checking';modalOpen=false;render();
+    timer=setTimeout(()=>{
+      const next={success:'success',existing:'existing',other:'other',review:'review'}[checkOutcome]||'success';
+      current=next;render();
+    },1500);
+  }
+
+  function openCancel(){
+    if(!['referrerPending','referrerProgress'].includes(current)) current='referrerPending';
+    modalOpen=true;render();
+  }
+  function closeCancel(){modalOpen=false;render()}
+  function confirmCancel(){
+    modalOpen=false;current='home';render();notify('초대가 취소됐어요. 다시 한 명을 초대할 수 있어요.');
+  }
+
+  render();
+</script>
+</body>
+</html>

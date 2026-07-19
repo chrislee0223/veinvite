@@ -1,0 +1,16 @@
+{
+  "referral_code": "7K9D2X",
+  "activation_version": "v1",
+  "verification": {
+    "distinct_vebetter_apps": 3,
+    "b3tr_earned": true,
+    "vot3_conversion": true,
+    "vote_completed": true,
+    "anti_abuse_passed": true
+  },
+  "settlement": {
+    "model": "weekly_proportional",
+    "reward_pool_percent": 80,
+    "treasury_pool_percent": 20
+  }
+}
