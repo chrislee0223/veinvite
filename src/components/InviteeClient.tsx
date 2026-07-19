@@ -409,7 +409,7 @@ export function InviteeClient({ code }: { code: string }) {
           <button
             type="button"
             className="secondaryButton"
-            onClick={openConnectModal}
+            onClick={() => openConnectModal()}
           >
             {t.connectWallet}
           </button>
