@@ -2,7 +2,7 @@
 
 import { useEffect, useState, type ReactNode } from 'react';
 import Link from 'next/link';
-import { useConnectModal } from '@vechain/vechain-kit';
+import { useConnectModal, useCurrentLanguage } from '@vechain/vechain-kit';
 import { Brand } from './Brand';
 import { useActiveWallet } from './WalletControl';
 import type { InviteRecord } from '@/lib/types';
@@ -163,6 +163,7 @@ const COPY = {
 export function InviteeClient({ code }: { code: string }) {
   const wallet = useActiveWallet();
   const { open: openConnectModal } = useConnectModal();
+  const { setLanguage: setKitLanguage } = useCurrentLanguage();
 
   const [invite, setInvite] = useState<InviteRecord | null>(null);
   const [step, setStep] = useState<Step>('landing');
@@ -218,6 +219,7 @@ export function InviteeClient({ code }: { code: string }) {
 
   const saveLocale = (nextLocale: Locale) => {
     setLocale(nextLocale);
+    setKitLanguage(nextLocale);
     window.localStorage.setItem(LANGUAGE_STORAGE_KEY, nextLocale);
     document.documentElement.lang = nextLocale;
     window.dispatchEvent(
