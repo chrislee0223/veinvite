@@ -4,6 +4,7 @@ import { useEffect, useState, type ReactNode } from 'react';
 import Link from 'next/link';
 import { useConnectModal, useCurrentLanguage } from '@vechain/vechain-kit';
 import { Brand } from './Brand';
+import { InviteLandingV2 } from './InviteLandingV2';
 import { useActiveWallet } from './WalletControl';
 import type { InviteRecord } from '@/lib/types';
 
@@ -168,7 +169,9 @@ export function InviteeClient({ code }: { code: string }) {
   const [invite, setInvite] = useState<InviteRecord | null>(null);
   const [step, setStep] = useState<Step>('landing');
   const [errorCode, setErrorCode] = useState<ErrorCode>('invalidLink');
-  const [demoOutcome, setDemoOutcome] = useState('success');
+  const [demoOutcome, setDemoOutcome] = useState<
+    'success' | 'existing' | 'other' | 'review'
+  >('success');
 
   const [locale, setLocale] = useState<Locale>('en');
   const [languageReady, setLanguageReady] = useState(false);
@@ -537,64 +540,26 @@ export function InviteeClient({ code }: { code: string }) {
   }
 
   return (
-    <main className="inviteLanding">
-      <LanguageSwitcher
-        locale={locale}
-        onChange={changeLocale}
-      />
-
-      <Brand compact />
-
-      <div className="inviteOrb">↗</div>
-
-      <span className="eyebrow">{t.invitationLabel}</span>
-
-      <h1>
-        {t.landingTitle1}
-        <br />
-        {t.landingTitle2}
-      </h1>
-
-      <p>{t.landingDescription}</p>
-
-      <div className="panel eligibilityInfo">
-        <b>{t.eligibilityTitle}</b>
-        <p className="muted">{t.eligibilityDescription}</p>
-      </div>
-
-      <button
-        type="button"
-        className="primaryButton"
-        onClick={() => {
-          if (wallet) {
-            void claim();
-          } else {
-            setStep('wallet');
-          }
-        }}
-        disabled={!invite}
-      >
-        {t.start}
-      </button>
-
-      {process.env.NEXT_PUBLIC_DEMO_MODE === 'true' ? (
-        <label className="demoSelect">
-          {t.demoResult}
-
-          <select
-            value={demoOutcome}
-            onChange={(event) =>
-              setDemoOutcome(event.target.value)
-            }
-          >
-            <option value="success">{t.demoSuccess}</option>
-            <option value="existing">{t.demoExisting}</option>
-            <option value="other">{t.demoOther}</option>
-            <option value="review">{t.demoReview}</option>
-          </select>
-        </label>
-      ) : null}
-    </main>
+    <InviteLandingV2
+      locale={locale}
+      disabled={!invite}
+      demoMode={
+        process.env.NEXT_PUBLIC_DEMO_MODE === 'true'
+      }
+      demoOutcome={demoOutcome}
+      onLocaleChange={changeLocale}
+      onBeginnerStart={() => {
+        setStep('wallet');
+      }}
+      onExistingWallet={() => {
+        if (wallet) {
+          void claim();
+        } else {
+          setStep('wallet');
+        }
+      }}
+      onDemoOutcomeChange={setDemoOutcome}
+    />
   );
 }
 
