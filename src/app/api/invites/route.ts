@@ -18,13 +18,36 @@ type InvitationRow = {
   created_at: string;
 };
 
-const invitationColumns = [
-  'invite_code',
-  'inviter_wallet',
-  'invitee_wallet',
-  'status',
-  'created_at',
-].join(',');
+const invitationColumns = `
+  invite_code,
+  inviter_wallet,
+  invitee_wallet,
+  status,
+  created_at
+` as const;
+
+function toInvitationRows(
+  value: unknown,
+): InvitationRow[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return value as InvitationRow[];
+}
+
+function toInvitationRow(
+  value: unknown,
+): InvitationRow | null {
+  if (
+    value === null ||
+    typeof value !== 'object'
+  ) {
+    return null;
+  }
+
+  return value as InvitationRow;
+}
 
 function toInviteRecord(
   row: InvitationRow,
@@ -33,7 +56,9 @@ function toInviteRecord(
     code: row.invite_code,
     inviterAddress: row.inviter_wallet,
     ...(row.invitee_wallet
-      ? { inviteeAddress: row.invitee_wallet }
+      ? {
+          inviteeAddress: row.invitee_wallet,
+        }
       : {}),
     status: row.status,
     createdAt: row.created_at,
@@ -83,9 +108,9 @@ export async function GET(
     );
   }
 
-  const invites = (
-    (data ?? []) as InvitationRow[]
-  ).map(toInviteRecord);
+  const invites = toInvitationRows(data).map(
+    toInviteRecord,
+  );
 
   return NextResponse.json({ invites });
 }
@@ -110,20 +135,22 @@ export async function POST(
     body.inviterAddress,
   );
 
-  const { data: activeRows, error: activeError } =
-    await supabaseAdmin
-      .from('invitations')
-      .select(invitationColumns)
-      .eq('inviter_wallet', inviterAddress)
-      .in('status', [
-        'PENDING_ACCEPTANCE',
-        'ACTIVATING',
-        'UNDER_REVIEW',
-      ])
-      .order('created_at', {
-        ascending: false,
-      })
-      .limit(1);
+  const {
+    data: activeRows,
+    error: activeError,
+  } = await supabaseAdmin
+    .from('invitations')
+    .select(invitationColumns)
+    .eq('inviter_wallet', inviterAddress)
+    .in('status', [
+      'PENDING_ACCEPTANCE',
+      'ACTIVATING',
+      'UNDER_REVIEW',
+    ])
+    .order('created_at', {
+      ascending: false,
+    })
+    .limit(1);
 
   if (activeError) {
     console.error(
@@ -140,9 +167,8 @@ export async function POST(
     );
   }
 
-  const activeRow = (
-    activeRows as InvitationRow[] | null
-  )?.[0];
+  const activeRow =
+    toInvitationRows(activeRows)[0];
 
   if (activeRow) {
     return NextResponse.json(
@@ -155,31 +181,37 @@ export async function POST(
     );
   }
 
-  for (let attempt = 0; attempt < 5; attempt += 1) {
+  for (
+    let attempt = 0;
+    attempt < 5;
+    attempt += 1
+  ) {
     const code = createCode();
 
-    const { data, error } = await supabaseAdmin
-      .from('invitations')
-      .insert({
-        invite_code: code,
-        inviter_wallet: inviterAddress,
-        status: 'PENDING_ACCEPTANCE',
-      })
-      .select(invitationColumns)
-      .single();
+    const { data, error } =
+      await supabaseAdmin
+        .from('invitations')
+        .insert({
+          invite_code: code,
+          inviter_wallet: inviterAddress,
+          status: 'PENDING_ACCEPTANCE',
+        })
+        .select(invitationColumns)
+        .single();
 
-    if (!error && data) {
+    const insertedRow =
+      toInvitationRow(data);
+
+    if (!error && insertedRow) {
       return NextResponse.json(
         {
-          invite: toInviteRecord(
-            data as InvitationRow,
-          ),
+          invite:
+            toInviteRecord(insertedRow),
         },
         { status: 201 },
       );
     }
 
-    // 초대코드 중복이면 새 코드를 만들어 재시도합니다.
     if (error?.code === '23505') {
       continue;
     }
@@ -191,7 +223,8 @@ export async function POST(
 
     return NextResponse.json(
       {
-        error: 'Failed to create invitation.',
+        error:
+          'Failed to create invitation.',
       },
       { status: 500 },
     );
