@@ -1,65 +1,285 @@
-import { NextRequest, NextResponse } from 'next/server';
+import {
+  NextRequest,
+  NextResponse,
+} from 'next/server';
+
+import {
+  normalizeAddress,
+} from '@/lib/serverStore';
+import { supabaseAdmin } from '@/lib/supabaseServer';
 import { checkEligibility } from '@/lib/vebetter/eligibility';
-import { demoStore, normalizeAddress } from '@/lib/serverStore';
+import type {
+  InviteRecord,
+  InviteStatus,
+} from '@/lib/types';
+
+type InvitationRow = {
+  invite_code: string;
+  inviter_wallet: string;
+  invitee_wallet: string | null;
+  status: InviteStatus;
+  created_at: string;
+};
+
+const invitationColumns = `
+  invite_code,
+  inviter_wallet,
+  invitee_wallet,
+  status,
+  created_at
+` as const;
+
+function toInvitationRow(
+  value: unknown,
+): InvitationRow | null {
+  if (
+    value === null ||
+    typeof value !== 'object'
+  ) {
+    return null;
+  }
+
+  return value as InvitationRow;
+}
+
+function toInvitationRows(
+  value: unknown,
+): InvitationRow[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return value as InvitationRow[];
+}
+
+function toInviteRecord(
+  row: InvitationRow,
+): InviteRecord {
+  return {
+    code: row.invite_code,
+    inviterAddress: row.inviter_wallet,
+    ...(row.invitee_wallet
+      ? {
+          inviteeAddress: row.invitee_wallet,
+        }
+      : {}),
+    status: row.status,
+    createdAt: row.created_at,
+    updatedAt: row.created_at,
+    rewardEligibility:
+      row.status === 'COMPLETED'
+        ? 'ELIGIBLE'
+        : row.status === 'CANCELLED'
+          ? 'FORFEITED'
+          : row.invitee_wallet
+            ? 'PENDING'
+            : 'NONE',
+  };
+}
 
 export async function POST(
   request: NextRequest,
-  context: { params: Promise<{ code: string }> },
+  context: {
+    params: Promise<{
+      code: string;
+    }>;
+  },
 ) {
   const { code } = await context.params;
-  const key = code.toUpperCase();
-  const invite = demoStore.invites.get(key);
-  if (!invite || invite.status === 'CANCELLED') {
-    return NextResponse.json({ error: 'Invite link is invalid or cancelled.' }, { status: 404 });
+  const normalizedCode = code.toUpperCase();
+
+  const { data, error } = await supabaseAdmin
+    .from('invitations')
+    .select(invitationColumns)
+    .eq('invite_code', normalizedCode)
+    .maybeSingle();
+
+  if (error) {
+    console.error(
+      'Failed to load invitation:',
+      error,
+    );
+
+    return NextResponse.json(
+      {
+        error: 'Failed to load invitation.',
+      },
+      { status: 500 },
+    );
   }
-  if (invite.inviteeAddress) {
-    return NextResponse.json({ error: 'This invite link has already been used.' }, { status: 409 });
+
+  const invitation = toInvitationRow(data);
+
+  if (
+    !invitation ||
+    invitation.status === 'CANCELLED'
+  ) {
+    return NextResponse.json(
+      {
+        error:
+          'Invite link is invalid or cancelled.',
+      },
+      { status: 404 },
+    );
+  }
+
+  if (invitation.invitee_wallet) {
+    return NextResponse.json(
+      {
+        error:
+          'This invite link has already been used.',
+      },
+      { status: 409 },
+    );
   }
 
   const body = (await request.json()) as {
     inviteeAddress?: string;
     demoOutcome?: string;
   };
+
   if (!body.inviteeAddress) {
-    return NextResponse.json({ error: 'inviteeAddress is required' }, { status: 400 });
+    return NextResponse.json(
+      {
+        error: 'inviteeAddress is required',
+      },
+      { status: 400 },
+    );
   }
 
-  const inviteeAddress = normalizeAddress(body.inviteeAddress);
-  if (demoStore.inviteeToCode.has(inviteeAddress)) {
+  const inviteeAddress = normalizeAddress(
+    body.inviteeAddress,
+  );
+
+  if (
+    inviteeAddress ===
+    normalizeAddress(invitation.inviter_wallet)
+  ) {
     return NextResponse.json(
-      { outcome: 'already_referred', message: '이미 다른 추천인에게 연결된 지갑입니다.' },
+      {
+        outcome: 'ineligible',
+        message:
+          '초대자 본인의 지갑은 연결할 수 없습니다.',
+      },
+      { status: 422 },
+    );
+  }
+
+  const {
+    data: existingRows,
+    error: existingError,
+  } = await supabaseAdmin
+    .from('invitations')
+    .select(invitationColumns)
+    .eq('invitee_wallet', inviteeAddress)
+    .limit(1);
+
+  if (existingError) {
+    console.error(
+      'Failed to check existing invitee:',
+      existingError,
+    );
+
+    return NextResponse.json(
+      {
+        error:
+          'Failed to check existing referral.',
+      },
+      { status: 500 },
+    );
+  }
+
+  if (
+    toInvitationRows(existingRows).length > 0
+  ) {
+    return NextResponse.json(
+      {
+        outcome: 'already_referred',
+        message:
+          '이미 다른 추천인에게 연결된 지갑입니다.',
+      },
       { status: 422 },
     );
   }
 
   const eligibility = await checkEligibility({
-    inviterAddress: invite.inviterAddress,
+    inviterAddress:
+      invitation.inviter_wallet,
     inviteeAddress,
-    requestedDemoOutcome: body.demoOutcome,
+    requestedDemoOutcome:
+      body.demoOutcome,
   });
 
-  if (eligibility.outcome === 'review') {
-    // Reserve the link for the first wallet while the account is reviewed.
-    invite.inviteeAddress = inviteeAddress;
-    invite.status = 'UNDER_REVIEW';
-    invite.updatedAt = new Date().toISOString();
-    invite.rewardEligibility = 'PENDING';
-    demoStore.invites.set(key, invite);
-    demoStore.inviteeToCode.set(inviteeAddress, key);
-    return NextResponse.json({ outcome: eligibility.outcome, message: eligibility.message, invite }, { status: 202 });
+  if (
+    eligibility.outcome !== 'eligible' &&
+    eligibility.outcome !== 'review'
+  ) {
+    return NextResponse.json(
+      eligibility,
+      { status: 422 },
+    );
   }
 
-  if (eligibility.outcome !== 'eligible') {
-    return NextResponse.json(eligibility, { status: 422 });
+  const nextStatus: InviteStatus =
+    eligibility.outcome === 'review'
+      ? 'UNDER_REVIEW'
+      : 'ACTIVATING';
+
+  const {
+    data: claimedData,
+    error: claimError,
+  } = await supabaseAdmin
+    .from('invitations')
+    .update({
+      invitee_wallet: inviteeAddress,
+      status: nextStatus,
+    })
+    .eq('invite_code', normalizedCode)
+    .is('invitee_wallet', null)
+    .neq('status', 'CANCELLED')
+    .select(invitationColumns)
+    .maybeSingle();
+
+  if (claimError) {
+    console.error(
+      'Failed to claim invitation:',
+      claimError,
+    );
+
+    return NextResponse.json(
+      {
+        error: 'Failed to claim invitation.',
+      },
+      { status: 500 },
+    );
   }
 
-  // The first successful claimant wins. A production database must enforce this atomically.
-  invite.inviteeAddress = inviteeAddress;
-  invite.status = 'ACTIVATING';
-  invite.updatedAt = new Date().toISOString();
-  invite.rewardEligibility = 'PENDING';
-  demoStore.invites.set(key, invite);
-  demoStore.inviteeToCode.set(inviteeAddress, key);
+  const claimedInvitation =
+    toInvitationRow(claimedData);
 
-  return NextResponse.json({ outcome: 'eligible', message: eligibility.message, invite });
+  if (!claimedInvitation) {
+    return NextResponse.json(
+      {
+        error:
+          'This invite link has already been used.',
+      },
+      { status: 409 },
+    );
+  }
+
+  return NextResponse.json(
+    {
+      outcome: eligibility.outcome,
+      message: eligibility.message,
+      invite: toInviteRecord(
+        claimedInvitation,
+      ),
+    },
+    {
+      status:
+        eligibility.outcome === 'review'
+          ? 202
+          : 200,
+    },
+  );
 }
