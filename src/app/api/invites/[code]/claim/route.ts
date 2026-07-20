@@ -233,6 +233,7 @@ export async function POST(
     .update({
       invitee_wallet: inviteeAddress,
       status: nextStatus,
+      reward_status: 'PENDING',
     })
     .eq('invite_code', normalizedCode)
     .is('invitee_wallet', null)
