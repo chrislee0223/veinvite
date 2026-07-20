@@ -16,6 +16,11 @@ type InvitationRow = {
   invitee_wallet: string | null;
   status: InviteStatus;
   created_at: string;
+  updated_at: string;
+  apps_completed: number;
+  rewards_received: number;
+  vote_completed: boolean;
+  reward_status: string;
 };
 
 const invitationColumns = `
@@ -23,7 +28,12 @@ const invitationColumns = `
   inviter_wallet,
   invitee_wallet,
   status,
-  created_at
+  created_at,
+  updated_at,
+  apps_completed,
+  rewards_received,
+  vote_completed,
+  reward_status
 ` as const;
 
 function toInvitationRow(
@@ -52,11 +62,12 @@ function toInviteRecord(
       : {}),
     status: row.status,
     createdAt: row.created_at,
-    updatedAt: new Date().toISOString(),
+    updatedAt: row.updated_at,
     rewardEligibility:
-      row.status === 'COMPLETED'
+      row.reward_status === 'ELIGIBLE' ||
+      row.reward_status === 'PAID'
         ? 'ELIGIBLE'
-        : row.status === 'CANCELLED'
+        : row.reward_status === 'FORFEITED'
           ? 'FORFEITED'
           : row.invitee_wallet
             ? 'PENDING'
@@ -119,6 +130,7 @@ export async function POST(
     });
   }
 
+  // 현재는 실제 온체인 조회 전의 데모 검증입니다.
   const verification = verifyActivation({
     walletConnected: true,
     distinctVeBetterAppsUsed: 3,
@@ -143,6 +155,10 @@ export async function POST(
     .from('invitations')
     .update({
       status: 'COMPLETED',
+      apps_completed: 3,
+      rewards_received: 3,
+      vote_completed: true,
+      reward_status: 'ELIGIBLE',
     })
     .eq('invite_code', normalizedCode)
     .neq('status', 'CANCELLED')
