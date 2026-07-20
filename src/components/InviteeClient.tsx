@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useConnectModal, useCurrentLanguage } from '@vechain/vechain-kit';
 import { Brand } from './Brand';
 import { InviteLandingV2 } from './InviteLandingV2';
+import { LanguageSelectV2 } from './LanguageSelectV2';
 import { useActiveWallet } from './WalletControl';
 import type { InviteRecord } from '@/lib/types';
 
@@ -308,59 +309,11 @@ export function InviteeClient({ code }: { code: string }) {
 
   if (showLanguageSetup) {
     return (
-      <main className="centeredFlow">
-        <Brand compact />
-
-        <div className="inviteOrb" aria-hidden="true">
-          🌐
-        </div>
-
-        <span className="eyebrow">VeInvite</span>
-
-        <h1>
-          언어를 선택하세요
-          <br />
-          Choose your language
-        </h1>
-
-        <p className="muted">
-          선택한 언어는 다음 화면부터 유지됩니다.
-          <br />
-          Your choice will be used throughout VeInvite.
-        </p>
-
-        <div className="panel" style={{ width: '100%' }}>
-          <div className="buttonGrid">
-            <button
-              type="button"
-              className={
-                locale === 'ko' ? 'primaryButton inline' : 'secondaryButton'
-              }
-              onClick={() => setLocale('ko')}
-            >
-              한국어
-            </button>
-
-            <button
-              type="button"
-              className={
-                locale === 'en' ? 'primaryButton inline' : 'secondaryButton'
-              }
-              onClick={() => setLocale('en')}
-            >
-              English
-            </button>
-          </div>
-        </div>
-
-        <button
-          type="button"
-          className="primaryButton"
-          onClick={confirmLanguage}
-        >
-          {t.languageContinue}
-        </button>
-      </main>
+      <LanguageSelectV2
+        locale={locale}
+        onSelect={setLocale}
+        onContinue={confirmLanguage}
+      />
     );
   }
 
