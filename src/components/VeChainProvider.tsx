@@ -3,9 +3,16 @@
 import type { ReactNode } from 'react';
 import { useEffect, useState } from 'react';
 import dynamic from 'next/dynamic';
+import {
+  QueryClient,
+  QueryClientProvider,
+} from '@tanstack/react-query';
 
 const VeChainKitProvider = dynamic(
-  () => import('@vechain/vechain-kit').then((mod) => mod.VeChainKitProvider),
+  () =>
+    import('@vechain/vechain-kit').then(
+      (mod) => mod.VeChainKitProvider,
+    ),
   { ssr: false },
 );
 
@@ -13,7 +20,13 @@ type Locale = 'ko' | 'en';
 
 const LANGUAGE_STORAGE_KEY = 'veinvite-language';
 
-export function VeChainProvider({ children }: { children: ReactNode }) {
+export function VeChainProvider({
+  children,
+}: {
+  children: ReactNode;
+}) {
+  const [queryClient] = useState(() => new QueryClient());
+
   const walletConnectProjectId =
     process.env.NEXT_PUBLIC_WALLET_CONNECT_PROJECT_ID;
   const privyAppId = process.env.NEXT_PUBLIC_PRIVY_APP_ID;
@@ -23,13 +36,17 @@ export function VeChainProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     const resolveLanguage = (): Locale => {
-      const saved = window.localStorage.getItem(LANGUAGE_STORAGE_KEY);
+      const saved = window.localStorage.getItem(
+        LANGUAGE_STORAGE_KEY,
+      );
 
       if (saved === 'ko' || saved === 'en') {
         return saved;
       }
 
-      return window.navigator.language.toLowerCase().startsWith('ko')
+      return window.navigator.language
+        .toLowerCase()
+        .startsWith('ko')
         ? 'ko'
         : 'en';
     };
@@ -52,7 +69,10 @@ export function VeChainProvider({ children }: { children: ReactNode }) {
     const handleStorageChange = (event: StorageEvent) => {
       if (event.key !== LANGUAGE_STORAGE_KEY) return;
 
-      if (event.newValue === 'ko' || event.newValue === 'en') {
+      if (
+        event.newValue === 'ko' ||
+        event.newValue === 'en'
+      ) {
         setLanguage(event.newValue);
       }
     };
@@ -61,14 +81,20 @@ export function VeChainProvider({ children }: { children: ReactNode }) {
       'veinvite-language-change',
       handleLanguageChange,
     );
-    window.addEventListener('storage', handleStorageChange);
+    window.addEventListener(
+      'storage',
+      handleStorageChange,
+    );
 
     return () => {
       window.removeEventListener(
         'veinvite-language-change',
         handleLanguageChange,
       );
-      window.removeEventListener('storage', handleStorageChange);
+      window.removeEventListener(
+        'storage',
+        handleStorageChange,
+      );
     };
   }, []);
 
@@ -82,7 +108,9 @@ export function VeChainProvider({ children }: { children: ReactNode }) {
     ? ['veworld', 'wallet-connect']
     : ['veworld'];
 
-  const dappKit: Record<string, unknown> = { allowedWallets };
+  const dappKit: Record<string, unknown> = {
+    allowedWallets,
+  };
 
   if (walletConnectProjectId) {
     dappKit.walletConnectOptions = {
@@ -110,65 +138,73 @@ export function VeChainProvider({ children }: { children: ReactNode }) {
                 : 'Sign in to VeInvite',
             logo: `${appUrl}/icon.svg`,
           },
-          embeddedWallets: { createOnLogin: 'all-users' },
+          embeddedWallets: {
+            createOnLogin: 'all-users',
+          },
         }
       : undefined;
 
   return (
-    <VeChainKitProvider
-      language={language}
-      privy={privy as never}
-      dappKit={dappKit as never}
-      loginMethods={[
-        { method: 'veworld', gridColumn: 4 },
-        ...(walletConnectProjectId
-          ? [
-              {
-                method: 'wallet-connect' as const,
-                gridColumn: 4,
-              },
-            ]
-          : []),
-        ...(privy
-          ? [
-              {
-                method: 'google' as const,
-                gridColumn: 4,
-              },
-              {
-                method: 'email' as const,
-                gridColumn: 4,
-              },
-            ]
-          : []),
-      ]}
-      darkMode
-      network={{
-        type: (
-          process.env.NEXT_PUBLIC_NETWORK_TYPE || 'test'
-        ) as never,
-      }}
-      theme={{ accent: '#7448ff' }}
-      legalDocuments={{
-        termsAndConditions: [
+    <QueryClientProvider client={queryClient}>
+      <VeChainKitProvider
+        language={language}
+        privy={privy as never}
+        dappKit={dappKit as never}
+        loginMethods={[
           {
-            url: `${appUrl}/terms`,
-            version: 1,
-            required: true,
-            displayName: 'VeInvite Terms',
+            method: 'veworld',
+            gridColumn: 4,
           },
-        ],
-        privacyPolicy: [
-          {
-            url: `${appUrl}/privacy`,
-            version: 1,
-            required: true,
-            displayName: 'VeInvite Privacy',
-          },
-        ],
-      }}
-    >
-      {children}
-    </VeChainKitProvider>
+          ...(walletConnectProjectId
+            ? [
+                {
+                  method: 'wallet-connect' as const,
+                  gridColumn: 4,
+                },
+              ]
+            : []),
+          ...(privy
+            ? [
+                {
+                  method: 'google' as const,
+                  gridColumn: 4,
+                },
+                {
+                  method: 'email' as const,
+                  gridColumn: 4,
+                },
+              ]
+            : []),
+        ]}
+        darkMode
+        network={{
+          type: (
+            process.env.NEXT_PUBLIC_NETWORK_TYPE ||
+            'test'
+          ) as never,
+        }}
+        theme={{ accent: '#7448ff' }}
+        legalDocuments={{
+          termsAndConditions: [
+            {
+              url: `${appUrl}/terms`,
+              version: 1,
+              required: true,
+              displayName: 'VeInvite Terms',
+            },
+          ],
+          privacyPolicy: [
+            {
+              url: `${appUrl}/privacy`,
+              version: 1,
+              required: true,
+              displayName: 'VeInvite Privacy',
+            },
+          ],
+        }}
+      >
+        {children}
+      </VeChainKitProvider>
+    </QueryClientProvider>
   );
 }
