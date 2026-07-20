@@ -1,16 +1,122 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { demoStore } from '@/lib/serverStore';
+import {
+  NextRequest,
+  NextResponse,
+} from 'next/server';
+
+import { supabaseAdmin } from '@/lib/supabaseServer';
 import { verifyActivation } from '@/lib/vebetter/missionVerifier';
+import type {
+  InviteRecord,
+  InviteStatus,
+} from '@/lib/types';
+
+type InvitationRow = {
+  invite_code: string;
+  inviter_wallet: string;
+  invitee_wallet: string | null;
+  status: InviteStatus;
+  created_at: string;
+};
+
+const invitationColumns = `
+  invite_code,
+  inviter_wallet,
+  invitee_wallet,
+  status,
+  created_at
+` as const;
+
+function toInvitationRow(
+  value: unknown,
+): InvitationRow | null {
+  if (
+    value === null ||
+    typeof value !== 'object'
+  ) {
+    return null;
+  }
+
+  return value as InvitationRow;
+}
+
+function toInviteRecord(
+  row: InvitationRow,
+): InviteRecord {
+  return {
+    code: row.invite_code,
+    inviterAddress: row.inviter_wallet,
+    ...(row.invitee_wallet
+      ? {
+          inviteeAddress: row.invitee_wallet,
+        }
+      : {}),
+    status: row.status,
+    createdAt: row.created_at,
+    updatedAt: new Date().toISOString(),
+    rewardEligibility:
+      row.status === 'COMPLETED'
+        ? 'ELIGIBLE'
+        : row.status === 'CANCELLED'
+          ? 'FORFEITED'
+          : row.invitee_wallet
+            ? 'PENDING'
+            : 'NONE',
+  };
+}
 
 export async function POST(
   _request: NextRequest,
-  context: { params: Promise<{ code: string }> },
+  context: {
+    params: Promise<{
+      code: string;
+    }>;
+  },
 ) {
   const { code } = await context.params;
-  const key = code.toUpperCase();
-  const invite = demoStore.invites.get(key);
-  if (!invite || !invite.inviteeAddress) {
-    return NextResponse.json({ error: 'Active invite not found.' }, { status: 404 });
+  const normalizedCode = code.toUpperCase();
+
+  const { data, error } = await supabaseAdmin
+    .from('invitations')
+    .select(invitationColumns)
+    .eq('invite_code', normalizedCode)
+    .maybeSingle();
+
+  if (error) {
+    console.error(
+      'Failed to load invitation:',
+      error,
+    );
+
+    return NextResponse.json(
+      {
+        error: 'Failed to load invitation.',
+      },
+      { status: 500 },
+    );
+  }
+
+  const invitation = toInvitationRow(data);
+
+  if (
+    !invitation ||
+    !invitation.invitee_wallet ||
+    invitation.status === 'CANCELLED'
+  ) {
+    return NextResponse.json(
+      {
+        error: 'Active invite not found.',
+      },
+      { status: 404 },
+    );
+  }
+
+  if (invitation.status === 'COMPLETED') {
+    return NextResponse.json({
+      invite: toInviteRecord(invitation),
+      verification: {
+        complete: true,
+      },
+    });
   }
 
   const verification = verifyActivation({
@@ -22,13 +128,58 @@ export async function POST(
   });
 
   if (!verification.complete) {
-    return NextResponse.json({ error: verification.reason }, { status: 422 });
+    return NextResponse.json(
+      {
+        error: verification.reason,
+      },
+      { status: 422 },
+    );
   }
 
-  invite.status = 'COMPLETED';
-  invite.rewardEligibility = 'ELIGIBLE';
-  invite.updatedAt = new Date().toISOString();
-  demoStore.invites.set(key, invite);
+  const {
+    data: completedData,
+    error: updateError,
+  } = await supabaseAdmin
+    .from('invitations')
+    .update({
+      status: 'COMPLETED',
+    })
+    .eq('invite_code', normalizedCode)
+    .neq('status', 'CANCELLED')
+    .select(invitationColumns)
+    .maybeSingle();
 
-  return NextResponse.json({ invite, verification });
+  if (updateError) {
+    console.error(
+      'Failed to complete invitation:',
+      updateError,
+    );
+
+    return NextResponse.json(
+      {
+        error:
+          'Failed to complete invitation.',
+      },
+      { status: 500 },
+    );
+  }
+
+  const completedInvitation =
+    toInvitationRow(completedData);
+
+  if (!completedInvitation) {
+    return NextResponse.json(
+      {
+        error: 'Active invite not found.',
+      },
+      { status: 404 },
+    );
+  }
+
+  return NextResponse.json({
+    invite: toInviteRecord(
+      completedInvitation,
+    ),
+    verification,
+  });
 }
