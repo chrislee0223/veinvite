@@ -7,6 +7,9 @@ import { supabaseAdmin } from '@/lib/supabaseServer';
 import {
   getVeBetterActivityProgress,
 } from '@/lib/vebetter/activity';
+import {
+  getVeBetterVoteProgress,
+} from '@/lib/vebetter/vote';
 import type {
   InviteRecord,
   InviteStatus,
@@ -19,12 +22,27 @@ type InvitationRow = {
   status: InviteStatus;
   created_at: string;
   activated_at: string | null;
-  activation_block: number | string | null;
+  activation_block:
+    | number
+    | string
+    | null;
   apps_completed: number | null;
   rewards_received: number | null;
   vote_completed: boolean | null;
   apps_completed_at: string | null;
-  apps_completed_block: number | string | null;
+  apps_completed_block:
+    | number
+    | string
+    | null;
+  vote_completed_at: string | null;
+  vote_completed_block:
+    | number
+    | string
+    | null;
+  vote_round_id:
+    | number
+    | string
+    | null;
 };
 
 const invitationColumns = `
@@ -39,7 +57,10 @@ const invitationColumns = `
   rewards_received,
   vote_completed,
   apps_completed_at,
-  apps_completed_block
+  apps_completed_block,
+  vote_completed_at,
+  vote_completed_block,
+  vote_round_id
 ` as const;
 
 function toInvitationRow(
@@ -60,7 +81,8 @@ function toInviteRecord(
 ): InviteRecord {
   return {
     code: row.invite_code,
-    inviterAddress: row.inviter_wallet,
+    inviterAddress:
+      row.inviter_wallet,
     ...(row.invitee_wallet
       ? {
           inviteeAddress:
@@ -75,7 +97,8 @@ function toInviteRecord(
     rewardEligibility:
       row.status === 'COMPLETED'
         ? 'ELIGIBLE'
-        : row.status === 'CANCELLED'
+        : row.status ===
+            'CANCELLED'
           ? 'FORFEITED'
           : row.invitee_wallet
             ? 'PENDING'
@@ -165,6 +188,9 @@ export async function GET(
     );
   }
 
+  let effectiveStatus =
+    row.status;
+
   let appsCompleted =
     row.apps_completed ?? 0;
 
@@ -185,11 +211,32 @@ export async function GET(
       row.apps_completed_block,
     );
 
+  let voteCompleted =
+    row.vote_completed ?? false;
+
+  let voteCompletedAt =
+    row.vote_completed_at;
+
+  let voteCompletedBlock =
+    parseBlockNumber(
+      row.vote_completed_block,
+    );
+
+  let voteRoundId =
+    parseBlockNumber(
+      row.vote_round_id,
+    );
+
   const activationBlock =
     parseBlockNumber(
       row.activation_block,
     );
 
+  /*
+   * STEP 1:
+   * Verify B3TR activity from
+   * different VeBetter apps.
+   */
   if (
     row.invitee_wallet &&
     activationBlock !== null
@@ -294,22 +341,121 @@ export async function GET(
     }
   }
 
+  /*
+   * STEP 2:
+   * Once 3 different apps have
+   * been completed, look for an
+   * allocation governance vote.
+   */
+  if (
+    row.invitee_wallet &&
+    appsCompleted >= 3 &&
+    appsCompletedBlock !== null &&
+    !voteCompleted
+  ) {
+    try {
+      const vote =
+        await getVeBetterVoteProgress(
+          {
+            voterAddress:
+              row.invitee_wallet,
+            fromBlock:
+              appsCompletedBlock,
+          },
+        );
+
+      if (vote.voteCompleted) {
+        voteCompleted = true;
+
+        voteCompletedAt =
+          new Date().toISOString();
+
+        voteCompletedBlock =
+          vote.voteCompletedBlock;
+
+        voteRoundId =
+          vote.voteRoundId;
+
+        effectiveStatus =
+          'COMPLETED';
+
+        const {
+          error: voteUpdateError,
+        } = await supabaseAdmin
+          .from('invitations')
+          .update({
+            vote_completed: true,
+            vote_completed_at:
+              voteCompletedAt,
+            vote_completed_block:
+              voteCompletedBlock,
+            vote_round_id:
+              voteRoundId,
+            status: 'COMPLETED',
+          })
+          .eq(
+            'invite_code',
+            normalizedCode,
+          );
+
+        if (voteUpdateError) {
+          console.error(
+            'Failed to save vote completion:',
+            voteUpdateError,
+          );
+        }
+      }
+    } catch (
+      voteError
+    ) {
+      console.error(
+        'Failed to verify VeBetter vote:',
+        voteError,
+      );
+    }
+  }
+
+  const responseRow: InvitationRow = {
+    ...row,
+    status:
+      effectiveStatus,
+    apps_completed:
+      appsCompleted,
+    rewards_received:
+      rewardsReceived,
+    vote_completed:
+      voteCompleted,
+    apps_completed_at:
+      appsCompletedAt,
+    apps_completed_block:
+      appsCompletedBlock,
+    vote_completed_at:
+      voteCompletedAt,
+    vote_completed_block:
+      voteCompletedBlock,
+    vote_round_id:
+      voteRoundId,
+  };
+
   return NextResponse.json({
     invite:
-      toInviteRecord(row),
+      toInviteRecord(
+        responseRow,
+      ),
 
     progress: {
       appsCompleted,
       appsRequired: 3,
       rewardsReceived,
-      voteCompleted:
-        row.vote_completed ??
-        false,
+      voteCompleted,
       uniqueAppIds,
       activationBlock,
       latestBlock,
       appsCompletedAt,
       appsCompletedBlock,
+      voteCompletedAt,
+      voteCompletedBlock,
+      voteRoundId,
     },
   });
 }
