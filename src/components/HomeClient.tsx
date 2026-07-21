@@ -71,8 +71,9 @@ const COPY = {
       'Invite cancelled. You can create a new one.',
     noActive: 'No active invite',
     createLink: 'Invite',
-    linkCreated: 'Invite sent',
-    friendJoins: 'Friend joins',
+    linkCreated: 'Link ready',
+    waitingForFriendStep: 'Waiting for friend',
+    friendJoins: 'Friend joined',
     activation: 'Reward unlocks',
     waiting: 'Waiting for friend',
     inProgress: 'In progress',
@@ -138,8 +139,9 @@ const COPY = {
       '초대가 취소됐어요. 새 초대를 만들 수 있어요.',
     noActive: '진행 중인 초대 없음',
     createLink: '초대',
-    linkCreated: '초대 완료',
-    friendJoins: '친구 참여',
+    linkCreated: '링크 준비 완료',
+    waitingForFriendStep: '친구 기다리는 중',
+    friendJoins: '친구 참여 완료',
     activation: '보상 해제',
     waiting: '친구 대기 중',
     inProgress: '진행 중',
@@ -689,12 +691,16 @@ export function HomeClient() {
 
           <ProgressStep
             number="2"
-            label={t.friendJoins}
+            label={
+              stageIndex === 1
+                ? t.waitingForFriendStep
+                : t.friendJoins
+            }
             state={
               stageIndex >= 2
                 ? 'complete'
                 : stageIndex === 1
-                  ? 'active'
+                  ? 'waiting'
                   : 'idle'
             }
           />
@@ -1422,7 +1428,7 @@ function ProgressStep({
 }: {
   number: string;
   label: string;
-  state: 'idle' | 'active' | 'complete';
+  state: 'idle' | 'active' | 'waiting' | 'complete';
 }) {
   return (
     <div className={`step ${state}`}>
@@ -1466,6 +1472,7 @@ function ProgressStep({
         }
 
         .step.active,
+        .step.waiting,
         .step.complete {
           color: #d9d0ff;
         }
@@ -1477,10 +1484,35 @@ function ProgressStep({
           box-shadow: 0 0 22px rgba(117, 72, 255, 0.45);
         }
 
+        .step.waiting .stepCircle {
+          border-color: #875fff;
+          background: #171927;
+          color: #cfc2ff;
+          box-shadow:
+            0 0 0 4px rgba(117, 72, 255, 0.09),
+            0 0 20px rgba(117, 72, 255, 0.28);
+          animation: waitingPulse 1.7s ease-in-out infinite;
+        }
+
         .step.complete .stepCircle {
           border-color: rgba(117, 72, 255, 0.5);
           background: rgba(117, 72, 255, 0.2);
           color: #cfc2ff;
+        }
+
+        @keyframes waitingPulse {
+          0%,
+          100% {
+            box-shadow:
+              0 0 0 3px rgba(117, 72, 255, 0.07),
+              0 0 14px rgba(117, 72, 255, 0.2);
+          }
+
+          50% {
+            box-shadow:
+              0 0 0 7px rgba(117, 72, 255, 0.12),
+              0 0 24px rgba(117, 72, 255, 0.38);
+          }
         }
       `}</style>
     </div>
