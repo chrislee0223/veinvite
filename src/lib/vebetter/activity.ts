@@ -35,6 +35,7 @@ function getSingleTopic(
   topic:
     | `0x${string}`
     | `0x${string}`[]
+    | null
     | undefined,
 ): string | undefined {
   if (typeof topic === 'string') {
