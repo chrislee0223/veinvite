@@ -8,7 +8,7 @@ import {
 } from 'react';
 import Link from 'next/link';
 
-import { Brand, Mascot } from './Brand';
+import { Brand } from './Brand';
 import {
   useActiveWallet,
   WalletControl,
@@ -65,6 +65,7 @@ const COPY = {
     cancelled:
       'Invite cancelled. You can create a new one.',
     noActive: 'No active invite',
+    createLink: 'Create link',
     linkCreated: 'Link ready',
     friendJoins: 'Friend joins',
     activation: 'Activation',
@@ -125,6 +126,7 @@ const COPY = {
     cancelled:
       '초대가 취소됐어요. 새 초대를 만들 수 있어요.',
     noActive: '진행 중인 초대 없음',
+    createLink: '링크 만들기',
     linkCreated: '링크 생성',
     friendJoins: '친구 참여',
     activation: '활성화',
@@ -575,19 +577,13 @@ export function HomeClient() {
         <div className="cardGlow" />
 
         <div className="missionHeader">
-          <div>
-            <span className="badge">
-              {badge}
-            </span>
+          <span className="badge">
+            {badge}
+          </span>
 
-            <span className="missionLabel">
-              {t.inviteMission}
-            </span>
-          </div>
-
-          <div className="mascotWrap">
-            <Mascot />
-          </div>
+          <span className="missionLabel">
+            {t.inviteMission}
+          </span>
         </div>
 
         <div className="missionCopy">
@@ -625,7 +621,11 @@ export function HomeClient() {
 
           <ProgressStep
             number="1"
-            label={t.linkCreated}
+            label={
+              stageIndex >= 1
+                ? t.linkCreated
+                : t.createLink
+            }
             state={
               stageIndex >= 1
                 ? 'complete'
@@ -867,14 +867,9 @@ export function HomeClient() {
           position: relative;
           z-index: 1;
           display: flex;
-          align-items: flex-start;
+          align-items: center;
           justify-content: space-between;
-          gap: 16px;
-        }
-
-        .missionHeader > div:first-child {
-          display: grid;
-          gap: 12px;
+          gap: 14px;
         }
 
         .badge {
@@ -899,25 +894,16 @@ export function HomeClient() {
           letter-spacing: 0.16em;
         }
 
-        .mascotWrap {
-          width: 92px;
-          height: 92px;
-          display: grid;
-          place-items: center;
-          transform: scale(0.84);
-          transform-origin: top right;
-        }
-
         .missionCopy {
           position: relative;
           z-index: 1;
-          margin-top: 18px;
+          margin-top: 34px;
         }
 
         .missionCopy h1 {
-          max-width: 420px;
+          max-width: 100%;
           margin: 0;
-          font-size: clamp(2rem, 8vw, 3rem);
+          font-size: clamp(2.15rem, 8vw, 3.15rem);
           line-height: 1.02;
           letter-spacing: -0.055em;
         }
@@ -1253,18 +1239,16 @@ export function HomeClient() {
             border-radius: 26px;
           }
 
-          .mascotWrap {
-            width: 76px;
-            height: 76px;
-            transform: scale(0.72);
+          .missionHeader {
+            align-items: flex-start;
           }
 
           .missionCopy {
-            margin-top: 12px;
+            margin-top: 30px;
           }
 
           .missionCopy h1 {
-            font-size: clamp(2rem, 11vw, 2.65rem);
+            font-size: clamp(2.1rem, 11vw, 2.8rem);
           }
         }
       `}</style>
