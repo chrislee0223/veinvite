@@ -19,6 +19,12 @@ type InvitationRow = {
   invitee_wallet: string | null;
   status: InviteStatus;
   created_at: string;
+  activated_at: string | null;
+  activation_block: number | null;
+};
+
+type BestBlockResponse = {
+  number?: unknown;
 };
 
 const invitationColumns = `
@@ -26,7 +32,9 @@ const invitationColumns = `
   inviter_wallet,
   invitee_wallet,
   status,
-  created_at
+  created_at,
+  activated_at,
+  activation_block
 ` as const;
 
 function toInvitationRow(
@@ -65,7 +73,8 @@ function toInviteRecord(
       : {}),
     status: row.status,
     createdAt: row.created_at,
-    updatedAt: row.created_at,
+    updatedAt:
+      row.activated_at ?? row.created_at,
     rewardEligibility:
       row.status === 'COMPLETED'
         ? 'ELIGIBLE'
@@ -75,6 +84,45 @@ function toInviteRecord(
             ? 'PENDING'
             : 'NONE',
   };
+}
+
+async function getBestBlockNumber(): Promise<number> {
+  const nodeUrl = (
+    process.env.VECHAIN_NODE_URL ??
+    'https://mainnet.vechain.org'
+  ).replace(/\/+$/, '');
+
+  const response = await fetch(
+    `${nodeUrl}/blocks/best`,
+    {
+      method: 'GET',
+      headers: {
+        Accept: 'application/json',
+      },
+      cache: 'no-store',
+    },
+  );
+
+  if (!response.ok) {
+    throw new Error(
+      `VeChain node returned HTTP ${response.status}`,
+    );
+  }
+
+  const block =
+    (await response.json()) as BestBlockResponse;
+
+  if (
+    typeof block.number !== 'number' ||
+    !Number.isSafeInteger(block.number) ||
+    block.number < 0
+  ) {
+    throw new Error(
+      'VeChain node returned an invalid block number.',
+    );
+  }
+
+  return block.number;
 }
 
 export async function POST(
@@ -225,6 +273,29 @@ export async function POST(
       ? 'UNDER_REVIEW'
       : 'ACTIVATING';
 
+  let activationBlock: number;
+
+  try {
+    activationBlock =
+      await getBestBlockNumber();
+  } catch (blockError) {
+    console.error(
+      'Failed to get VeChain activation block:',
+      blockError,
+    );
+
+    return NextResponse.json(
+      {
+        error:
+          'Failed to record the VeChain activation block. Please try again.',
+      },
+      { status: 503 },
+    );
+  }
+
+  const activatedAt =
+    new Date().toISOString();
+
   const {
     data: claimedData,
     error: claimError,
@@ -234,6 +305,8 @@ export async function POST(
       invitee_wallet: inviteeAddress,
       status: nextStatus,
       reward_status: 'PENDING',
+      activated_at: activatedAt,
+      activation_block: activationBlock,
     })
     .eq('invite_code', normalizedCode)
     .is('invitee_wallet', null)
