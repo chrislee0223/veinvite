@@ -108,7 +108,7 @@ const COPY = {
     locked: '잠김',
     unlocked: '해제',
     inviteReadyBadge: '초대 준비 완료',
-    inviteReadyTitle: '초대 링크가 준비됐어요',
+    inviteReadyTitle: '초대가 준비됐어요',
     inviteReadyDescription:
       '친구 한 명에게 공유하세요. 처음 자격을 충족한 사용자가 연결됩니다.',
     friendJoinedBadge: '친구 참여 완료',
@@ -140,7 +140,7 @@ const COPY = {
     noActive: '진행 중인 초대 없음',
     createLink: '초대',
     linkCreated: '링크 준비 완료',
-    waitingForFriendStep: '친구 기다리는 중',
+    waitingForFriendStep: '친구 대기',
     friendJoins: '친구 참여 완료',
     activation: '보상 해제',
     waiting: '친구 대기 중',
@@ -615,7 +615,13 @@ export function HomeClient() {
           </span>
         </div>
 
-        <div className="missionCopy">
+        <div
+          className={
+            locale === 'ko'
+              ? 'missionCopy koreanCopy'
+              : 'missionCopy'
+          }
+        >
           <h1>{title}</h1>
           <p>{description}</p>
         </div>
@@ -999,6 +1005,16 @@ export function HomeClient() {
           font-size: clamp(2.15rem, 8vw, 3.15rem);
           line-height: 1.02;
           letter-spacing: -0.055em;
+          word-break: keep-all;
+          overflow-wrap: normal;
+          text-wrap: balance;
+          hyphens: none;
+        }
+
+        .missionCopy.koreanCopy h1 {
+          font-size: clamp(2.15rem, 7vw, 2.9rem);
+          line-height: 1.08;
+          letter-spacing: -0.045em;
         }
 
         .missionCopy p {
@@ -1413,7 +1429,11 @@ export function HomeClient() {
           }
 
           .missionCopy h1 {
-            font-size: clamp(2.1rem, 11vw, 2.8rem);
+            font-size: clamp(2.05rem, 10.5vw, 2.7rem);
+          }
+
+          .missionCopy.koreanCopy h1 {
+            font-size: clamp(2rem, 9.4vw, 2.45rem);
           }
         }
       `}</style>
