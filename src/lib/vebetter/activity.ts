@@ -31,6 +31,19 @@ function getThorClient() {
   return ThorClient.at(nodeUrl);
 }
 
+function getSingleTopic(
+  topic:
+    | `0x${string}`
+    | `0x${string}`[]
+    | undefined,
+): string | undefined {
+  if (typeof topic === 'string') {
+    return topic;
+  }
+
+  return undefined;
+}
+
 export async function getVeBetterActivityProgress({
   receiverAddress,
   activationBlock,
@@ -96,13 +109,13 @@ export async function getVeBetterActivityProgress({
           {
             address: X2EARN_REWARDS_POOL,
             topic0:
-              topics[0] ?? undefined,
+              getSingleTopic(topics[0]),
             topic1:
-              topics[1] ?? undefined,
+              getSingleTopic(topics[1]),
             topic2:
-              topics[2] ?? undefined,
+              getSingleTopic(topics[2]),
             topic3:
-              topics[3] ?? undefined,
+              getSingleTopic(topics[3]),
           },
         ],
         order: 'asc',
@@ -112,6 +125,14 @@ export async function getVeBetterActivityProgress({
       logs as RawEventLog[];
 
     for (const log of rawLogs) {
+      /*
+       * RewardDistributed topics:
+       *
+       * topic0 = event signature
+       * topic1 = appId
+       * topic2 = receiver
+       * topic3 = distributor
+       */
       const appId =
         log.topics?.[1];
 
