@@ -10,8 +10,7 @@ import Link from 'next/link';
 
 import { Brand } from './Brand';
 import {
-  useActiveWallet,
-  WalletControl,
+  useWalletLauncher,
 } from './WalletControl';
 import type { InviteRecord } from '@/lib/types';
 
@@ -26,14 +25,20 @@ const VERCEL_SHARE_STORAGE_KEY =
 const COPY = {
   en: {
     language: 'English',
-    inviteAvailable: '1 INVITE AVAILABLE',
-    inviteMission: 'INVITE MISSION',
-    emptyTitle: 'Bring one friend to VeBetterDAO',
+    inviteAvailable: '1 INVITE SLOT READY',
+    inviteMission: 'QUEST 01',
+    emptyTitle: 'Invite Your First Friend',
     emptyDescription:
-      'Create one invite, share it, and help a new user complete their first activation.',
+      'Create one invite and help a new user complete their first VeBetterDAO activation.',
     createInvite: 'Create Invite',
     creating: 'Creating…',
-    connectFirst: 'Connect your wallet to create an invite.',
+    connectStart: 'Connect Wallet & Start',
+    connecting: 'Opening wallet…',
+    rewardLabel: 'MISSION REWARD',
+    rewardLocked: 'Referral reward eligibility',
+    rewardUnlocked: 'Reward eligibility unlocked',
+    locked: 'LOCKED',
+    unlocked: 'UNLOCKED',
     inviteReadyBadge: 'INVITE READY',
     inviteReadyTitle: 'Your invite is ready',
     inviteReadyDescription:
@@ -65,10 +70,10 @@ const COPY = {
     cancelled:
       'Invite cancelled. You can create a new one.',
     noActive: 'No active invite',
-    createLink: 'Create link',
-    linkCreated: 'Link ready',
+    createLink: 'Invite',
+    linkCreated: 'Invite sent',
     friendJoins: 'Friend joins',
-    activation: 'Activation',
+    activation: 'Reward unlocks',
     waiting: 'Waiting for friend',
     inProgress: 'In progress',
     checking: 'Checking',
@@ -87,14 +92,20 @@ const COPY = {
   },
   ko: {
     language: '한국어',
-    inviteAvailable: '초대 1회 가능',
-    inviteMission: '초대 미션',
-    emptyTitle: '새로운 친구 한 명을 초대하세요',
+    inviteAvailable: '초대 슬롯 1개 준비',
+    inviteMission: '퀘스트 01',
+    emptyTitle: '첫 친구를 초대하세요',
     emptyDescription:
-      '초대 링크를 만들고 공유해 친구의 첫 VeBetterDAO 활성화를 도와주세요.',
+      '초대 링크를 만들고 친구의 첫 VeBetterDAO 활성화를 도와주세요.',
     createInvite: '초대 만들기',
     creating: '만드는 중…',
-    connectFirst: '초대를 만들려면 먼저 지갑을 연결하세요.',
+    connectStart: '지갑 연결하고 시작하기',
+    connecting: '지갑 여는 중…',
+    rewardLabel: '미션 보상',
+    rewardLocked: '추천 보상 자격',
+    rewardUnlocked: '보상 자격 해제 완료',
+    locked: '잠김',
+    unlocked: '해제',
     inviteReadyBadge: '초대 준비 완료',
     inviteReadyTitle: '초대 링크가 준비됐어요',
     inviteReadyDescription:
@@ -126,10 +137,10 @@ const COPY = {
     cancelled:
       '초대가 취소됐어요. 새 초대를 만들 수 있어요.',
     noActive: '진행 중인 초대 없음',
-    createLink: '링크 만들기',
-    linkCreated: '링크 생성',
+    createLink: '초대',
+    linkCreated: '초대 완료',
     friendJoins: '친구 참여',
-    activation: '활성화',
+    activation: '보상 해제',
     waiting: '친구 대기 중',
     inProgress: '진행 중',
     checking: '확인 중',
@@ -149,7 +160,11 @@ const COPY = {
 } as const;
 
 export function HomeClient() {
-  const wallet = useActiveWallet();
+  const {
+    wallet,
+    openWallet,
+    isWalletModalOpen,
+  } = useWalletLauncher();
 
   const [locale, setLocale] =
     useState<Locale>('en');
@@ -569,7 +584,19 @@ export function HomeClient() {
             </option>
           </select>
 
-          <WalletControl />
+          {wallet ? (
+            <button
+              type="button"
+              className="accountChip"
+              onClick={openWallet}
+              aria-label="Open wallet account"
+            >
+              <span className="accountDot" />
+              {wallet.slice(0, 6)}
+              ···
+              {wallet.slice(-4)}
+            </button>
+          ) : null}
         </div>
       </header>
 
@@ -589,6 +616,33 @@ export function HomeClient() {
         <div className="missionCopy">
           <h1>{title}</h1>
           <p>{description}</p>
+        </div>
+
+        <div
+          className={
+            completed
+              ? 'rewardObjective unlocked'
+              : 'rewardObjective'
+          }
+        >
+          <span className="rewardIcon">
+            {completed ? '✓' : '◇'}
+          </span>
+
+          <div className="rewardCopy">
+            <small>{t.rewardLabel}</small>
+            <strong>
+              {completed
+                ? t.rewardUnlocked
+                : t.rewardLocked}
+            </strong>
+          </div>
+
+          <span className="rewardState">
+            {completed
+              ? t.unlocked
+              : t.locked}
+          </span>
         </div>
 
         {active ? (
@@ -629,7 +683,7 @@ export function HomeClient() {
             state={
               stageIndex >= 1
                 ? 'complete'
-                : 'active'
+                : 'idle'
             }
           />
 
@@ -662,12 +716,23 @@ export function HomeClient() {
           <button
             type="button"
             className="primaryAction"
-            disabled={!wallet || loading}
-            onClick={createInvite}
+            disabled={
+              loading ||
+              isWalletModalOpen
+            }
+            onClick={
+              wallet
+                ? createInvite
+                : openWallet
+            }
           >
-            {loading
-              ? t.creating
-              : t.createInvite}
+            {wallet
+              ? loading
+                ? t.creating
+                : t.createInvite
+              : isWalletModalOpen
+                ? t.connecting
+                : t.connectStart}
             <span aria-hidden="true">›</span>
           </button>
         ) : null}
@@ -715,12 +780,6 @@ export function HomeClient() {
               </p>
             </div>
           </div>
-        ) : null}
-
-        {!wallet ? (
-          <p className="walletHint">
-            {t.connectFirst}
-          </p>
         ) : null}
 
         {active ? (
@@ -831,6 +890,30 @@ export function HomeClient() {
           cursor: pointer;
         }
 
+        .accountChip {
+          min-height: 40px;
+          padding: 0 13px;
+          display: inline-flex;
+          align-items: center;
+          gap: 8px;
+          border: 1px solid rgba(255, 255, 255, 0.1);
+          border-radius: 13px;
+          background: #141625;
+          color: #ffffff;
+          font: inherit;
+          font-size: 0.72rem;
+          font-weight: 850;
+          cursor: pointer;
+        }
+
+        .accountDot {
+          width: 9px;
+          height: 9px;
+          border-radius: 50%;
+          background: #7448ff;
+          box-shadow: 0 0 14px rgba(116, 72, 255, 0.85);
+        }
+
         .missionCard {
           position: relative;
           overflow: hidden;
@@ -872,6 +955,10 @@ export function HomeClient() {
           gap: 14px;
         }
 
+        .missionHeader .missionLabel {
+          order: -1;
+        }
+
         .badge {
           width: fit-content;
           display: inline-flex;
@@ -897,7 +984,7 @@ export function HomeClient() {
         .missionCopy {
           position: relative;
           z-index: 1;
-          margin-top: 34px;
+          margin-top: 24px;
         }
 
         .missionCopy h1 {
@@ -915,6 +1002,81 @@ export function HomeClient() {
           font-size: 0.95rem;
           font-weight: 650;
           line-height: 1.58;
+        }
+
+        .rewardObjective {
+          position: relative;
+          z-index: 1;
+          margin-top: 22px;
+          padding: 14px 15px;
+          display: grid;
+          grid-template-columns: auto 1fr auto;
+          align-items: center;
+          gap: 12px;
+          border: 1px solid rgba(255, 255, 255, 0.09);
+          border-radius: 17px;
+          background: rgba(255, 255, 255, 0.045);
+        }
+
+        .rewardObjective.unlocked {
+          border-color: rgba(82, 225, 164, 0.22);
+          background: rgba(37, 170, 115, 0.09);
+        }
+
+        .rewardIcon {
+          width: 38px;
+          height: 38px;
+          display: grid;
+          place-items: center;
+          border-radius: 13px;
+          background: rgba(116, 72, 255, 0.16);
+          color: #cdbfff;
+          font-size: 1.25rem;
+          font-weight: 950;
+        }
+
+        .rewardObjective.unlocked .rewardIcon {
+          background: rgba(52, 212, 142, 0.16);
+          color: #75efb8;
+        }
+
+        .rewardCopy {
+          min-width: 0;
+          display: grid;
+          gap: 3px;
+        }
+
+        .rewardCopy small {
+          color: #858097;
+          font-size: 0.62rem;
+          font-weight: 900;
+          letter-spacing: 0.12em;
+        }
+
+        .rewardCopy strong {
+          overflow: hidden;
+          color: #f5f2ff;
+          font-size: 0.83rem;
+          text-overflow: ellipsis;
+          white-space: nowrap;
+        }
+
+        .rewardState {
+          min-height: 25px;
+          padding: 0 9px;
+          display: inline-flex;
+          align-items: center;
+          border: 1px solid rgba(255, 255, 255, 0.08);
+          border-radius: 999px;
+          color: #777184;
+          font-size: 0.58rem;
+          font-weight: 950;
+          letter-spacing: 0.08em;
+        }
+
+        .rewardObjective.unlocked .rewardState {
+          border-color: rgba(82, 225, 164, 0.2);
+          color: #77efb9;
         }
 
         .inviteCodeCard {
@@ -1089,16 +1251,6 @@ export function HomeClient() {
           line-height: 1.45;
         }
 
-        .walletHint {
-          position: relative;
-          z-index: 1;
-          margin: 13px 0 0;
-          text-align: center;
-          color: #8a8497;
-          font-size: 0.75rem;
-          font-weight: 750;
-        }
-
         .cancelLink {
           position: relative;
           z-index: 1;
@@ -1232,6 +1384,13 @@ export function HomeClient() {
             height: 34px;
             border-radius: 11px;
             font-size: 0.7rem;
+          }
+
+          .accountChip {
+            min-height: 34px;
+            padding: 0 10px;
+            border-radius: 11px;
+            font-size: 0.66rem;
           }
 
           .missionCard {
