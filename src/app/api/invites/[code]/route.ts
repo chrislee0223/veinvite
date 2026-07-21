@@ -23,6 +23,8 @@ type InvitationRow = {
   apps_completed: number | null;
   rewards_received: number | null;
   vote_completed: boolean | null;
+  apps_completed_at: string | null;
+  apps_completed_block: number | string | null;
 };
 
 const invitationColumns = `
@@ -35,7 +37,9 @@ const invitationColumns = `
   activation_block,
   apps_completed,
   rewards_received,
-  vote_completed
+  vote_completed,
+  apps_completed_at,
+  apps_completed_block
 ` as const;
 
 function toInvitationRow(
@@ -59,13 +63,15 @@ function toInviteRecord(
     inviterAddress: row.inviter_wallet,
     ...(row.invitee_wallet
       ? {
-          inviteeAddress: row.invitee_wallet,
+          inviteeAddress:
+            row.invitee_wallet,
         }
       : {}),
     status: row.status,
     createdAt: row.created_at,
     updatedAt:
-      row.activated_at ?? row.created_at,
+      row.activated_at ??
+      row.created_at,
     rewardEligibility:
       row.status === 'COMPLETED'
         ? 'ELIGIBLE'
@@ -77,8 +83,11 @@ function toInviteRecord(
   };
 }
 
-function parseActivationBlock(
-  value: number | string | null,
+function parseBlockNumber(
+  value:
+    | number
+    | string
+    | null,
 ): number | null {
   if (value === null) {
     return null;
@@ -107,13 +116,22 @@ export async function GET(
     }>;
   },
 ) {
-  const { code } = await context.params;
-  const normalizedCode = code.toUpperCase();
+  const { code } =
+    await context.params;
 
-  const { data, error } = await supabaseAdmin
+  const normalizedCode =
+    code.toUpperCase();
+
+  const {
+    data,
+    error,
+  } = await supabaseAdmin
     .from('invitations')
     .select(invitationColumns)
-    .eq('invite_code', normalizedCode)
+    .eq(
+      'invite_code',
+      normalizedCode,
+    )
     .maybeSingle();
 
   if (error) {
@@ -124,15 +142,20 @@ export async function GET(
 
     return NextResponse.json(
       {
-        error: 'Failed to load invitation.',
+        error:
+          'Failed to load invitation.',
       },
       { status: 500 },
     );
   }
 
-  const row = toInvitationRow(data);
+  const row =
+    toInvitationRow(data);
 
-  if (!row || row.status === 'CANCELLED') {
+  if (
+    !row ||
+    row.status === 'CANCELLED'
+  ) {
     return NextResponse.json(
       {
         error:
@@ -148,11 +171,22 @@ export async function GET(
   let rewardsReceived =
     row.rewards_received ?? 0;
 
-  let uniqueAppIds: string[] = [];
-  let latestBlock: number | null = null;
+  let uniqueAppIds:
+    string[] = [];
+
+  let latestBlock:
+    number | null = null;
+
+  let appsCompletedAt =
+    row.apps_completed_at;
+
+  let appsCompletedBlock =
+    parseBlockNumber(
+      row.apps_completed_block,
+    );
 
   const activationBlock =
-    parseActivationBlock(
+    parseBlockNumber(
       row.activation_block,
     );
 
@@ -162,24 +196,17 @@ export async function GET(
   ) {
     try {
       const activity =
-        await getVeBetterActivityProgress({
-          receiverAddress:
-            row.invitee_wallet,
-          activationBlock,
-        });
+        await getVeBetterActivityProgress(
+          {
+            receiverAddress:
+              row.invitee_wallet,
+            activationBlock,
+          },
+        );
 
       appsCompleted =
         activity.appsCompleted;
 
-      /*
-       * A counted app only qualifies after
-       * at least one B3TR reward was received
-       * from that unique VeBetter app.
-       *
-       * Therefore the minimum qualifying
-       * reward progress is the same as the
-       * unique-app progress, capped at 3.
-       */
       rewardsReceived =
         activity.appsCompleted;
 
@@ -189,22 +216,62 @@ export async function GET(
       latestBlock =
         activity.latestBlock;
 
-      if (
+      const reachedThreeApps =
+        appsCompleted >= 3;
+
+      const needsProgressUpdate =
         appsCompleted !==
-          (row.apps_completed ?? 0) ||
+          (row.apps_completed ??
+            0) ||
         rewardsReceived !==
-          (row.rewards_received ?? 0)
+          (row.rewards_received ??
+            0);
+
+      const needsCompletionStamp =
+        reachedThreeApps &&
+        (
+          !appsCompletedAt ||
+          appsCompletedBlock ===
+            null
+        );
+
+      if (
+        needsProgressUpdate ||
+        needsCompletionStamp
       ) {
+        const updatePayload: {
+          apps_completed: number;
+          rewards_received: number;
+          apps_completed_at?: string;
+          apps_completed_block?: number;
+        } = {
+          apps_completed:
+            appsCompleted,
+          rewards_received:
+            rewardsReceived,
+        };
+
+        if (
+          needsCompletionStamp
+        ) {
+          appsCompletedAt =
+            new Date().toISOString();
+
+          appsCompletedBlock =
+            activity.latestBlock;
+
+          updatePayload.apps_completed_at =
+            appsCompletedAt;
+
+          updatePayload.apps_completed_block =
+            appsCompletedBlock;
+        }
+
         const {
           error: updateError,
         } = await supabaseAdmin
           .from('invitations')
-          .update({
-            apps_completed:
-              appsCompleted,
-            rewards_received:
-              rewardsReceived,
-          })
+          .update(updatePayload)
           .eq(
             'invite_code',
             normalizedCode,
@@ -217,7 +284,9 @@ export async function GET(
           );
         }
       }
-    } catch (activityError) {
+    } catch (
+      activityError
+    ) {
       console.error(
         'Failed to verify VeBetter activity:',
         activityError,
@@ -226,17 +295,21 @@ export async function GET(
   }
 
   return NextResponse.json({
-    invite: toInviteRecord(row),
+    invite:
+      toInviteRecord(row),
 
     progress: {
       appsCompleted,
       appsRequired: 3,
       rewardsReceived,
       voteCompleted:
-        row.vote_completed ?? false,
+        row.vote_completed ??
+        false,
       uniqueAppIds,
       activationBlock,
       latestBlock,
+      appsCompletedAt,
+      appsCompletedBlock,
     },
   });
 }
