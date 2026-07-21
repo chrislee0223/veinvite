@@ -33,131 +33,145 @@ const COPY = {
   ko: {
     languageContinue: '한국어로 계속',
     languageChanged: '한국어',
-    invitationLabel: 'VeInvite 초대',
-    landingTitle1: 'VeBetterDAO에',
-    landingTitle2: '초대받았어요',
+    invitationLabel: '친구 초대',
+    landingTitle1: '친구가 보낸',
+    landingTitle2: 'VeInvite',
     landingDescription:
-      'VeBetterDAO를 처음 시작하고 미션을 완료하면 나도 새로운 친구 한 명을 초대할 수 있어요.',
-    eligibilityTitle: '참여 가능 안내',
+      '지갑을 연결하고 첫 미션을 완료하면 나도 친구 한 명을 초대할 수 있어요.',
+    eligibilityTitle: '누가 시작할 수 있나요?',
     eligibilityDescription:
-      '기존 VeChain 지갑을 사용 중이어도 VeBetterDAO를 이용한 적이 없다면 참여할 수 있습니다.',
+      'VeBetterDAO를 아직 시작하지 않았다면 기존 VeChain 지갑으로도 참여할 수 있어요.',
     start: '시작하기',
-    connectWalletTitle: '지갑을 연결해 주세요',
+    connectWalletTitle: '지갑을 연결하고 시작하세요',
     connectWalletDescription:
-      '연결된 지갑을 기준으로 VeBetterDAO 이용 여부와 초대 자격을 확인합니다.',
-    connectWallet: '지갑 연결하기',
+      '지갑을 연결하면 초대가 이어지고 첫 미션이 열려요.',
+    connectWallet: '지갑 연결',
     walletConnected: '연결된 지갑',
-    checkEligibility: '자격 확인하기',
-    connectThenContinue: '지갑 연결 후 계속',
-    checkingTitle: '자격을 확인하고 있어요',
+    checkEligibility: '퀘스트 시작',
+    connectThenContinue: '지갑을 연결해 주세요',
+    checkingTitle: '퀘스트를 준비하고 있어요',
     checkingDescription:
-      '기존 이용 이력, 다른 초대 연결 여부, 링크 상태를 확인합니다.',
-    checkingLink: '링크 상태 확인 중',
-    checkingHistory: '기존 참여 이력 확인 중',
-    checkingOtherInvite: '다른 초대 연결 여부 확인 중',
-    reviewTitle: '계정을 확인하고 있어요',
+      '초대 링크와 지갑을 확인하고 미션을 불러오는 중이에요.',
+    checkingLink: '초대 링크 확인',
+    checkingHistory: '지갑 연결 확인',
+    checkingOtherInvite: '미션 준비',
+    reviewTitle: '조금 더 확인이 필요해요',
     reviewDescription:
-      '검토가 완료되면 앱에서 알려드릴게요. 반복해서 연결할 필요는 없습니다.',
-    successTitle: '초대가 연결됐어요',
+      '확인이 끝나면 이 화면에서 바로 이어서 시작할 수 있어요.',
+    successTitle: '퀘스트가 시작됐어요',
     successDescription:
-      '이제 미션을 완료하고 VeBetterDAO를 직접 경험해 보세요.',
+      '미션을 하나씩 완료하면 마지막에 보상이 열려요.',
     walletMission: '지갑 연결',
-    appMission: 'VeBetter 앱 3개 체험하기',
-    voteMission: '투표 참여하기',
-    viewMissions: '미션 보기',
+    appMission: 'VeBetter 앱 3개 체험',
+    voteMission: '첫 투표 참여',
+    viewMissions: '미션 시작',
     invitedFriend: '초대받은 친구',
-    myMissions: '나의 미션',
-    allMissionsComplete: '모든 미션 완료',
-    oneThingToDo: '지금 해야 할 한 가지',
-    walletMissionDescription: '참여 지갑이 연결됐어요.',
+    myMissions: '나의 퀘스트',
+    allMissionsComplete: '모든 미션 완료!',
+    oneThingToDo: '다음 미션',
+    walletMissionDescription: '시작 준비가 끝났어요.',
     appMissionDescription:
-      '서로 다른 앱을 이용하고 B3TR를 획득하세요.',
+      '서로 다른 앱 3개에서 활동하고 B3TR를 받아보세요.',
     voteMissionDescription:
-      'B3TR를 VOT3로 바꾼 뒤 앱 투표에 참여하세요.',
+      'B3TR를 VOT3로 바꾸고 한 번 투표하세요.',
     complete: '완료',
     inProgress: '진행 중',
     locked: '잠김',
-    demoComplete: '데모: 모든 조건 완료 처리',
+    demoComplete: '데모: 미션 완료 보기',
+    autoProgress:
+      '미션 진행 상황은 실제 활동 후 자동으로 반영돼요.',
     activationConfirmed:
-      '활성화가 확인됐어요. 이제 나도 한 명을 초대할 수 있어요.',
-    requestNewLink: '추천인에게 새로운 링크를 요청해 주세요.',
+      '모든 미션 완료! 이제 초대 1회가 열렸어요.',
+    requestNewLink: '친구에게 새 초대 링크를 요청해 주세요.',
+    existingHelp:
+      '이 지갑은 초대 없이도 VeBetterDAO를 계속 이용할 수 있어요.',
+    otherHelp:
+      '먼저 연결된 초대에서 미션을 계속해 주세요.',
+    tryAgain: '잠시 후 다시 시도해 주세요.',
     home: '홈으로',
     demoResult: '데모 결과',
-    demoSuccess: '정상 연결',
-    demoExisting: '기존 VeBetter 이용자',
-    demoOther: '다른 추천인 연결',
-    demoReview: '안전성 검토',
+    demoSuccess: '시작 가능',
+    demoExisting: '이미 시작한 지갑',
+    demoOther: '다른 초대에 연결됨',
+    demoReview: '추가 확인',
     errors: {
-      invalidLink: '유효하지 않거나 사용할 수 없는 초대 링크입니다.',
-      eligibility: '초대 자격을 확인하지 못했습니다.',
-      existing: '이미 VeBetterDAO를 이용한 기록이 있는 지갑입니다.',
-      other: '이미 다른 추천인과 연결된 지갑입니다.',
-      complete: '완료 상태를 확인하지 못했습니다.',
+      invalidLink: '이 링크는 더 이상 사용할 수 없어요.',
+      eligibility: '지금은 이 초대를 시작할 수 없어요.',
+      existing: '이 지갑은 이미 VeBetterDAO를 시작했어요.',
+      other: '이 지갑은 이미 다른 초대와 연결돼 있어요.',
+      complete: '미션 완료 상태를 불러오지 못했어요.',
     },
   },
   en: {
     languageContinue: 'Continue in English',
     languageChanged: 'English',
-    invitationLabel: 'VeInvite Invitation',
-    landingTitle1: "You've been invited to",
-    landingTitle2: 'VeBetterDAO',
+    invitationLabel: 'Friend Invite',
+    landingTitle1: 'Your friend sent',
+    landingTitle2: 'a VeInvite',
     landingDescription:
-      'Start using VeBetterDAO, complete the missions, and unlock one invitation for a new friend.',
-    eligibilityTitle: 'Who can join?',
+      'Connect your wallet and finish the first mission to unlock one invite of your own.',
+    eligibilityTitle: 'Who can start?',
     eligibilityDescription:
-      'You can participate even if you already use a VeChain wallet, as long as you have never used VeBetterDAO.',
-    start: 'Get Started',
-    connectWalletTitle: 'Connect your wallet',
+      'You can use an existing VeChain wallet if you have not started VeBetterDAO yet.',
+    start: 'Start',
+    connectWalletTitle: 'Connect your wallet to start',
     connectWalletDescription:
-      'We use the connected wallet to check VeBetterDAO activity and invitation eligibility.',
+      'Connect your wallet to continue the invite and unlock your first mission.',
     connectWallet: 'Connect Wallet',
     walletConnected: 'Connected wallet',
-    checkEligibility: 'Check Eligibility',
-    connectThenContinue: 'Connect wallet to continue',
-    checkingTitle: 'Checking your eligibility',
+    checkEligibility: 'Start Quest',
+    connectThenContinue: 'Connect your wallet first',
+    checkingTitle: 'Preparing your quest',
     checkingDescription:
-      'We are checking previous activity, other invitation links, and the status of this invitation.',
-    checkingLink: 'Checking invitation status',
-    checkingHistory: 'Checking previous participation',
-    checkingOtherInvite: 'Checking other invitation links',
-    reviewTitle: 'Your account is being reviewed',
+      'We are checking the invite link, connecting your wallet, and loading the missions.',
+    checkingLink: 'Checking invite link',
+    checkingHistory: 'Connecting wallet',
+    checkingOtherInvite: 'Preparing missions',
+    reviewTitle: 'One more check is needed',
     reviewDescription:
-      'We will update you in the app when the review is complete. You do not need to reconnect repeatedly.',
-    successTitle: 'Your invitation is connected',
+      'You can continue from this screen as soon as the check is complete.',
+    successTitle: 'Quest started!',
     successDescription:
-      'Complete the missions and experience VeBetterDAO for yourself.',
+      'Complete each mission to unlock the reward at the end.',
     walletMission: 'Connect wallet',
     appMission: 'Try 3 VeBetter apps',
-    voteMission: 'Participate in voting',
-    viewMissions: 'View Missions',
+    voteMission: 'Cast your first vote',
+    viewMissions: 'Start Missions',
     invitedFriend: 'Invited Friend',
-    myMissions: 'My Missions',
-    allMissionsComplete: 'All missions complete',
-    oneThingToDo: 'Your next mission',
-    walletMissionDescription: 'Your participation wallet is connected.',
+    myMissions: 'My Quest',
+    allMissionsComplete: 'All missions complete!',
+    oneThingToDo: 'Next Mission',
+    walletMissionDescription: 'You are ready to begin.',
     appMissionDescription:
-      'Use three different apps and earn B3TR.',
+      'Use three different apps and collect B3TR.',
     voteMissionDescription:
-      'Convert B3TR to VOT3 and participate in an app vote.',
+      'Convert B3TR to VOT3 and cast one vote.',
     complete: 'Complete',
     inProgress: 'In progress',
     locked: 'Locked',
-    demoComplete: 'Demo: Mark all conditions complete',
+    demoComplete: 'Demo: Show mission completion',
+    autoProgress:
+      'Mission progress updates automatically after your activity.',
     activationConfirmed:
-      'Activation confirmed. You can now invite one new friend.',
-    requestNewLink: 'Ask your inviter for a new invitation link.',
+      'Quest complete! You have unlocked one invite.',
+    requestNewLink: 'Ask your friend for a new invite link.',
+    existingHelp:
+      'You can keep using VeBetterDAO without this invite.',
+    otherHelp:
+      'Continue the mission from the invite already connected to this wallet.',
+    tryAgain: 'Please try again in a moment.',
     home: 'Home',
     demoResult: 'Demo result',
-    demoSuccess: 'Eligible',
-    demoExisting: 'Existing VeBetter user',
-    demoOther: 'Connected to another inviter',
-    demoReview: 'Security review',
+    demoSuccess: 'Ready to start',
+    demoExisting: 'Already started',
+    demoOther: 'Connected to another invite',
+    demoReview: 'Extra check',
     errors: {
-      invalidLink: 'This invitation link is invalid or no longer available.',
-      eligibility: 'We could not confirm your invitation eligibility.',
-      existing: 'This wallet has already used VeBetterDAO.',
-      other: 'This wallet is already connected to another inviter.',
-      complete: 'We could not confirm mission completion.',
+      invalidLink: 'This link is no longer available.',
+      eligibility: 'This invite cannot be started right now.',
+      existing: 'This wallet has already started VeBetterDAO.',
+      other: 'This wallet is already connected to another invite.',
+      complete: 'We could not load the mission result.',
     },
   },
 } as const;
@@ -179,6 +193,8 @@ export function InviteeClient({ code }: { code: string }) {
   const [showLanguageSetup, setShowLanguageSetup] = useState(true);
 
   const t = COPY[locale];
+  const demoMode =
+    process.env.NEXT_PUBLIC_DEMO_MODE === 'true';
 
   useEffect(() => {
     const saved = window.localStorage.getItem(LANGUAGE_STORAGE_KEY);
@@ -199,10 +215,18 @@ export function InviteeClient({ code }: { code: string }) {
     const initialLocale = queryLocale ?? savedLocale ?? browserLocale;
 
     setLocale(initialLocale);
-    setShowLanguageSetup(!savedLocale);
+    setShowLanguageSetup(!savedLocale && !queryLocale);
     document.documentElement.lang = initialLocale;
     setLanguageReady(true);
   }, []);
+
+  useEffect(() => {
+    if (!languageReady) {
+      return;
+    }
+
+    setKitLanguage(locale);
+  }, [languageReady, locale, setKitLanguage]);
 
   useEffect(() => {
     void fetch(`/api/invites/${code}`, { cache: 'no-store' })
@@ -322,7 +346,15 @@ export function InviteeClient({ code }: { code: string }) {
       <Centered locale={locale} onLocaleChange={changeLocale}>
         <div className="errorIcon">×</div>
         <h1>{t.errors[errorCode]}</h1>
-        <p className="muted">{t.requestNewLink}</p>
+        <p className="muted">
+          {errorCode === 'invalidLink'
+            ? t.requestNewLink
+            : errorCode === 'existing'
+              ? t.existingHelp
+              : errorCode === 'other'
+                ? t.otherHelp
+                : t.tryAgain}
+        </p>
         <Link className="secondaryButton linkButton" href="/">
           {t.home}
         </Link>
@@ -474,7 +506,7 @@ export function InviteeClient({ code }: { code: string }) {
             <em>{completed ? t.complete : t.locked}</em>
           </div>
 
-          {!completed ? (
+          {!completed && demoMode ? (
             <button
               type="button"
               className="secondaryButton"
@@ -482,6 +514,10 @@ export function InviteeClient({ code }: { code: string }) {
             >
               {t.demoComplete}
             </button>
+          ) : !completed ? (
+            <div className="notice">
+              {t.autoProgress}
+            </div>
           ) : (
             <div className="notice successNotice">
               {t.activationConfirmed}
@@ -496,9 +532,7 @@ export function InviteeClient({ code }: { code: string }) {
     <InviteLandingV2
       locale={locale}
       disabled={!invite}
-      demoMode={
-        process.env.NEXT_PUBLIC_DEMO_MODE === 'true'
-      }
+      demoMode={demoMode}
       demoOutcome={demoOutcome}
       onLocaleChange={changeLocale}
       onBeginnerStart={() => {
