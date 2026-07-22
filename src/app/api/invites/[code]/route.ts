@@ -106,7 +106,7 @@ function toInviteRecord(
   };
 }
 
-function parseBlockNumber(
+function parseNonNegativeInteger(
   value:
     | number
     | string
@@ -207,7 +207,7 @@ export async function GET(
     row.apps_completed_at;
 
   let appsCompletedBlock =
-    parseBlockNumber(
+    parseNonNegativeInteger(
       row.apps_completed_block,
     );
 
@@ -218,24 +218,31 @@ export async function GET(
     row.vote_completed_at;
 
   let voteCompletedBlock =
-    parseBlockNumber(
+    parseNonNegativeInteger(
       row.vote_completed_block,
     );
 
   let voteRoundId =
-    parseBlockNumber(
+    parseNonNegativeInteger(
       row.vote_round_id,
     );
 
   const activationBlock =
-    parseBlockNumber(
+    parseNonNegativeInteger(
       row.activation_block,
     );
 
+  let activityCheckpointSaved =
+    true;
+
+  let voteSyncPending =
+    false;
+
   /*
-   * STEP 1:
-   * Verify B3TR activity from
-   * different VeBetter apps.
+   * STEP 1
+   *
+   * Scan B3TR rewards received
+   * after the invitation started.
    */
   if (
     row.invitee_wallet &&
@@ -266,6 +273,30 @@ export async function GET(
       const reachedThreeApps =
         appsCompleted >= 3;
 
+      if (
+        reachedThreeApps &&
+        activity.thirdAppCompletedBlock ===
+          null
+      ) {
+        throw new Error(
+          'Three apps were detected without a valid third-app completion block.',
+        );
+      }
+
+      /*
+       * Always use the actual block of
+       * the third distinct app reward.
+       *
+       * This also repairs Preview rows
+       * that previously stored the block
+       * at which VeInvite refreshed.
+       */
+      const correctCompletionBlock =
+        reachedThreeApps
+          ? activity
+              .thirdAppCompletedBlock
+          : null;
+
       const needsProgressUpdate =
         appsCompleted !==
           (row.apps_completed ??
@@ -274,17 +305,29 @@ export async function GET(
           (row.rewards_received ??
             0);
 
-      const needsCompletionStamp =
-        reachedThreeApps &&
+      const needsCheckpointUpdate =
+        correctCompletionBlock !==
+          null &&
         (
           !appsCompletedAt ||
-          appsCompletedBlock ===
-            null
+          appsCompletedBlock !==
+            correctCompletionBlock
         );
 
       if (
+        correctCompletionBlock !==
+        null
+      ) {
+        appsCompletedAt ??=
+          new Date().toISOString();
+
+        appsCompletedBlock =
+          correctCompletionBlock;
+      }
+
+      if (
         needsProgressUpdate ||
-        needsCompletionStamp
+        needsCheckpointUpdate
       ) {
         const updatePayload: {
           apps_completed: number;
@@ -299,19 +342,15 @@ export async function GET(
         };
 
         if (
-          needsCompletionStamp
+          correctCompletionBlock !==
+          null &&
+          appsCompletedAt
         ) {
-          appsCompletedAt =
-            new Date().toISOString();
-
-          appsCompletedBlock =
-            activity.latestBlock;
-
           updatePayload.apps_completed_at =
             appsCompletedAt;
 
           updatePayload.apps_completed_block =
-            appsCompletedBlock;
+            correctCompletionBlock;
         }
 
         const {
@@ -325,6 +364,9 @@ export async function GET(
           );
 
         if (updateError) {
+          activityCheckpointSaved =
+            false;
+
           console.error(
             'Failed to save activity progress:',
             updateError,
@@ -342,9 +384,10 @@ export async function GET(
   }
 
   /*
-   * STEP 2:
-   * Once 3 different apps have
-   * been completed, look for an
+   * STEP 2
+   *
+   * After the third distinct app
+   * reward, scan for the first
    * allocation governance vote.
    */
   if (
@@ -365,32 +408,29 @@ export async function GET(
         );
 
       if (vote.voteCompleted) {
-        voteCompleted = true;
-
-        voteCompletedAt =
+        const detectedVoteAt =
           new Date().toISOString();
-
-        voteCompletedBlock =
-          vote.voteCompletedBlock;
-
-        voteRoundId =
-          vote.voteRoundId;
-
-        effectiveStatus =
-          'COMPLETED';
 
         const {
           error: voteUpdateError,
         } = await supabaseAdmin
           .from('invitations')
           .update({
+            apps_completed:
+              appsCompleted,
+            rewards_received:
+              rewardsReceived,
+            apps_completed_at:
+              appsCompletedAt,
+            apps_completed_block:
+              appsCompletedBlock,
             vote_completed: true,
             vote_completed_at:
-              voteCompletedAt,
+              detectedVoteAt,
             vote_completed_block:
-              voteCompletedBlock,
+              vote.voteCompletedBlock,
             vote_round_id:
-              voteRoundId,
+              vote.voteRoundId,
             status: 'COMPLETED',
           })
           .eq(
@@ -398,11 +438,35 @@ export async function GET(
             normalizedCode,
           );
 
+        /*
+         * Do not show COMPLETED unless
+         * the completion was actually
+         * stored in Supabase.
+         */
         if (voteUpdateError) {
+          voteSyncPending = true;
+
           console.error(
-            'Failed to save vote completion:',
+            'Vote was found but completion could not be saved:',
             voteUpdateError,
           );
+        } else {
+          voteCompleted = true;
+
+          voteCompletedAt =
+            detectedVoteAt;
+
+          voteCompletedBlock =
+            vote.voteCompletedBlock;
+
+          voteRoundId =
+            vote.voteRoundId;
+
+          effectiveStatus =
+            'COMPLETED';
+
+          activityCheckpointSaved =
+            true;
         }
       }
     } catch (
@@ -456,6 +520,8 @@ export async function GET(
       voteCompletedAt,
       voteCompletedBlock,
       voteRoundId,
+      activityCheckpointSaved,
+      voteSyncPending,
     },
   });
 }
