@@ -15,12 +15,16 @@ const rewardDistributedEvent = new ABIEvent(
 
 type RawEventLog = {
   topics?: string[];
+  meta?: {
+    blockNumber?: number;
+  };
 };
 
 export type ActivityProgress = {
   appsCompleted: number;
   uniqueAppIds: string[];
   latestBlock: number;
+  thirdAppCompletedBlock: number | null;
 };
 
 function getThorClient() {
@@ -43,6 +47,25 @@ function getSingleTopic(
   }
 
   return undefined;
+}
+
+function getEventBlockNumber(
+  log: RawEventLog,
+): number {
+  const blockNumber =
+    log.meta?.blockNumber;
+
+  if (
+    typeof blockNumber !== 'number' ||
+    !Number.isSafeInteger(blockNumber) ||
+    blockNumber < 0
+  ) {
+    throw new Error(
+      'VeChain reward event is missing a valid block number.',
+    );
+  }
+
+  return blockNumber;
 }
 
 export async function getVeBetterActivityProgress({
@@ -72,13 +95,15 @@ export async function getVeBetterActivityProgress({
     );
   }
 
-  const latestBlock = bestBlock.number;
+  const latestBlock =
+    bestBlock.number;
 
   if (activationBlock > latestBlock) {
     return {
       appsCompleted: 0,
       uniqueAppIds: [],
       latestBlock,
+      thirdAppCompletedBlock: null,
     };
   }
 
@@ -91,6 +116,9 @@ export async function getVeBetterActivityProgress({
 
   const uniqueAppIds =
     new Set<string>();
+
+  let thirdAppCompletedBlock:
+    number | null = null;
 
   let offset = 0;
 
@@ -108,15 +136,24 @@ export async function getVeBetterActivityProgress({
         },
         criteriaSet: [
           {
-            address: X2EARN_REWARDS_POOL,
+            address:
+              X2EARN_REWARDS_POOL,
             topic0:
-              getSingleTopic(topics[0]),
+              getSingleTopic(
+                topics[0],
+              ),
             topic1:
-              getSingleTopic(topics[1]),
+              getSingleTopic(
+                topics[1],
+              ),
             topic2:
-              getSingleTopic(topics[2]),
+              getSingleTopic(
+                topics[2],
+              ),
             topic3:
-              getSingleTopic(topics[3]),
+              getSingleTopic(
+                topics[3],
+              ),
           },
         ],
         order: 'asc',
@@ -137,14 +174,49 @@ export async function getVeBetterActivityProgress({
       const appId =
         log.topics?.[1];
 
-      if (appId) {
-        uniqueAppIds.add(
-          appId.toLowerCase(),
-        );
+      if (!appId) {
+        continue;
+      }
+
+      const normalizedAppId =
+        appId.toLowerCase();
+
+      /*
+       * Several reward transactions from
+       * the same dApp still count as one app.
+       */
+      if (
+        uniqueAppIds.has(
+          normalizedAppId,
+        )
+      ) {
+        continue;
+      }
+
+      const eventBlock =
+        getEventBlockNumber(log);
+
+      uniqueAppIds.add(
+        normalizedAppId,
+      );
+
+      /*
+       * Logs are ordered from oldest to newest.
+       * Therefore this is the actual block where
+       * the third distinct dApp rewarded the user.
+       */
+      if (
+        uniqueAppIds.size === 3 &&
+        thirdAppCompletedBlock === null
+      ) {
+        thirdAppCompletedBlock =
+          eventBlock;
       }
     }
 
-    if (rawLogs.length < PAGE_SIZE) {
+    if (
+      rawLogs.length < PAGE_SIZE
+    ) {
       break;
     }
 
@@ -161,5 +233,6 @@ export async function getVeBetterActivityProgress({
     ),
     uniqueAppIds: appIds,
     latestBlock,
+    thirdAppCompletedBlock,
   };
 }
