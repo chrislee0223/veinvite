@@ -75,6 +75,24 @@ function toInviteRecord(
   };
 }
 
+function isDemoCompletionEnabled() {
+  const explicitlyEnabled =
+    process.env.VEINVITE_ALLOW_DEMO_COMPLETION ===
+    'true';
+
+  const isPreviewDeployment =
+    process.env.VERCEL_ENV === 'preview';
+
+  const isLocalDevelopment =
+    process.env.VERCEL !== '1' &&
+    process.env.NODE_ENV === 'development';
+
+  return (
+    explicitlyEnabled &&
+    (isPreviewDeployment || isLocalDevelopment)
+  );
+}
+
 export async function POST(
   _request: NextRequest,
   context: {
@@ -83,6 +101,37 @@ export async function POST(
     }>;
   },
 ) {
+  /*
+   * This endpoint force-completes demo missions.
+   * It must never run in a Production deployment.
+   *
+   * It is enabled only when:
+   * 1. VEINVITE_ALLOW_DEMO_COMPLETION=true, and
+   * 2. the deployment is Vercel Preview or local development.
+   */
+  if (!isDemoCompletionEnabled()) {
+    console.warn(
+      'Blocked demo completion request.',
+      {
+        vercelEnvironment:
+          process.env.VERCEL_ENV ?? 'unknown',
+      },
+    );
+
+    return NextResponse.json(
+      {
+        error:
+          'Demo completion is disabled in this environment.',
+      },
+      {
+        status: 403,
+        headers: {
+          'Cache-Control': 'no-store',
+        },
+      },
+    );
+  }
+
   const { code } = await context.params;
   const normalizedCode = code.toUpperCase();
 
@@ -130,7 +179,7 @@ export async function POST(
     });
   }
 
-  // 현재는 실제 온체인 조회 전의 데모 검증입니다.
+  // Demo-only verification until real on-chain checks are connected.
   const verification = verifyActivation({
     walletConnected: true,
     distinctVeBetterAppsUsed: 3,
@@ -161,7 +210,10 @@ export async function POST(
       reward_status: 'ELIGIBLE',
     })
     .eq('invite_code', normalizedCode)
-    .neq('status', 'CANCELLED')
+    .in('status', [
+      'ACTIVATING',
+      'UNDER_REVIEW',
+    ])
     .select(invitationColumns)
     .maybeSingle();
 
@@ -186,16 +238,24 @@ export async function POST(
   if (!completedInvitation) {
     return NextResponse.json(
       {
-        error: 'Active invite not found.',
+        error:
+          'Invitation is not in a completable state.',
       },
-      { status: 404 },
+      { status: 409 },
     );
   }
 
-  return NextResponse.json({
-    invite: toInviteRecord(
-      completedInvitation,
-    ),
-    verification,
-  });
+  return NextResponse.json(
+    {
+      invite: toInviteRecord(
+        completedInvitation,
+      ),
+      verification,
+    },
+    {
+      headers: {
+        'Cache-Control': 'no-store',
+      },
+    },
+  );
 }
