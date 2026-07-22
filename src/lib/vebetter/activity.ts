@@ -4,7 +4,7 @@ import { ThorClient } from '@vechain/sdk-network';
 const DEFAULT_VECHAIN_NODE_URL =
   'https://mainnet.vechain.org';
 
-const X2EARN_REWARDS_POOL =
+const DEFAULT_X2EARN_REWARDS_POOL =
   '0x6Bee7DDab6c99d5B2Af0554EaEA484CE18F52631';
 
 const PAGE_SIZE = 1000;
@@ -33,6 +33,13 @@ function getThorClient() {
     DEFAULT_VECHAIN_NODE_URL;
 
   return ThorClient.at(nodeUrl);
+}
+
+function getRewardsPoolAddress() {
+  return (
+    process.env.X2EARN_REWARDS_POOL_ADDRESS ??
+    DEFAULT_X2EARN_REWARDS_POOL
+  );
 }
 
 function getSingleTopic(
@@ -137,7 +144,7 @@ export async function getVeBetterActivityProgress({
         criteriaSet: [
           {
             address:
-              X2EARN_REWARDS_POOL,
+              getRewardsPoolAddress(),
             topic0:
               getSingleTopic(
                 topics[0],
@@ -163,14 +170,6 @@ export async function getVeBetterActivityProgress({
       logs as RawEventLog[];
 
     for (const log of rawLogs) {
-      /*
-       * RewardDistributed topics:
-       *
-       * topic0 = event signature
-       * topic1 = appId
-       * topic2 = receiver
-       * topic3 = distributor
-       */
       const appId =
         log.topics?.[1];
 
@@ -181,10 +180,6 @@ export async function getVeBetterActivityProgress({
       const normalizedAppId =
         appId.toLowerCase();
 
-      /*
-       * Several reward transactions from
-       * the same dApp still count as one app.
-       */
       if (
         uniqueAppIds.has(
           normalizedAppId,
@@ -200,11 +195,6 @@ export async function getVeBetterActivityProgress({
         normalizedAppId,
       );
 
-      /*
-       * Logs are ordered from oldest to newest.
-       * Therefore this is the actual block where
-       * the third distinct dApp rewarded the user.
-       */
       if (
         uniqueAppIds.size === 3 &&
         thirdAppCompletedBlock === null
