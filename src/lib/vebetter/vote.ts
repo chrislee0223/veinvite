@@ -48,11 +48,21 @@ function getSingleTopic(
   return undefined;
 }
 
-function parseRoundId(
+function isValidAddress(
+  address: string,
+): boolean {
+  return /^0x[0-9a-fA-F]{40}$/.test(
+    address,
+  );
+}
+
+function getRequiredRoundId(
   topic: string | undefined,
-): number | null {
+): number {
   if (!topic) {
-    return null;
+    throw new Error(
+      'Vote event is missing its round ID.',
+    );
   }
 
   try {
@@ -64,13 +74,42 @@ function parseRoundId(
       !Number.isSafeInteger(value) ||
       value < 0
     ) {
-      return null;
+      throw new Error(
+        'Vote round ID is outside the supported range.',
+      );
     }
 
     return value;
-  } catch {
-    return null;
+  } catch (error) {
+    if (error instanceof Error) {
+      throw error;
+    }
+
+    throw new Error(
+      'Vote event contains an invalid round ID.',
+    );
   }
+}
+
+function getRequiredBlockNumber(
+  log: RawVoteLog,
+): number {
+  const blockNumber =
+    log.meta?.blockNumber;
+
+  if (
+    typeof blockNumber !== 'number' ||
+    !Number.isSafeInteger(
+      blockNumber,
+    ) ||
+    blockNumber < 0
+  ) {
+    throw new Error(
+      'Vote event is missing a valid block number.',
+    );
+  }
+
+  return blockNumber;
 }
 
 export async function getVeBetterVoteProgress({
@@ -81,6 +120,14 @@ export async function getVeBetterVoteProgress({
   fromBlock: number;
 }): Promise<VoteProgress> {
   if (
+    !isValidAddress(voterAddress)
+  ) {
+    throw new Error(
+      'Invalid voter address.',
+    );
+  }
+
+  if (
     !Number.isSafeInteger(fromBlock) ||
     fromBlock < 0
   ) {
@@ -89,10 +136,12 @@ export async function getVeBetterVoteProgress({
     );
   }
 
-  const thor = getThorClient();
+  const thor =
+    getThorClient();
 
   const bestBlock =
-    await thor.blocks.getBestBlockCompressed();
+    await thor.blocks
+      .getBestBlockCompressed();
 
   if (!bestBlock) {
     throw new Error(
@@ -113,44 +162,51 @@ export async function getVeBetterVoteProgress({
   }
 
   const topics =
-    allocationVoteCastEvent.encodeFilterTopics(
-      [
+    allocationVoteCastEvent
+      .encodeFilterTopics([
         voterAddress,
         null,
-      ],
-    );
+      ]);
 
+  /*
+   * AllocationVoteCast topics:
+   *
+   * topic0 = event signature
+   * topic1 = voter
+   * topic2 = roundId
+   */
   const logs =
-    await thor.logs.filterRawEventLogs({
-      range: {
-        unit: 'block',
-        from: fromBlock,
-        to: latestBlock,
-      },
-      options: {
-        offset: 0,
-        limit: 1,
-      },
-      criteriaSet: [
-        {
-          address:
-            X_ALLOCATION_VOTING,
-          topic0:
-            getSingleTopic(
-              topics[0],
-            ),
-          topic1:
-            getSingleTopic(
-              topics[1],
-            ),
-          topic2:
-            getSingleTopic(
-              topics[2],
-            ),
+    await thor.logs
+      .filterRawEventLogs({
+        range: {
+          unit: 'block',
+          from: fromBlock,
+          to: latestBlock,
         },
-      ],
-      order: 'asc',
-    });
+        options: {
+          offset: 0,
+          limit: 1,
+        },
+        criteriaSet: [
+          {
+            address:
+              X_ALLOCATION_VOTING,
+            topic0:
+              getSingleTopic(
+                topics[0],
+              ),
+            topic1:
+              getSingleTopic(
+                topics[1],
+              ),
+            topic2:
+              getSingleTopic(
+                topics[2],
+              ),
+          },
+        ],
+        order: 'asc',
+      });
 
   const firstVote =
     (logs as RawVoteLog[])[0];
@@ -165,13 +221,14 @@ export async function getVeBetterVoteProgress({
   }
 
   const voteRoundId =
-    parseRoundId(
+    getRequiredRoundId(
       firstVote.topics?.[2],
     );
 
   const voteCompletedBlock =
-    firstVote.meta?.blockNumber ??
-    null;
+    getRequiredBlockNumber(
+      firstVote,
+    );
 
   return {
     voteCompleted: true,
