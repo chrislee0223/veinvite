@@ -9,6 +9,7 @@ import {
   useAccountModal,
   useConnectModal,
 } from '@vechain/vechain-kit';
+
 import {
   useWallet,
 } from '@vechain/dapp-kit-react';
@@ -79,15 +80,38 @@ export function useWalletLauncher() {
 
 export function WalletControl() {
   const wallet = useActiveWallet();
+  const { disconnect } = useWallet();
+
+  const handleDisconnect =
+    useCallback(async () => {
+      try {
+        await disconnect();
+      } catch (error) {
+        console.error(
+          'Failed to disconnect wallet:',
+          error,
+        );
+      }
+    }, [disconnect]);
 
   return (
     <div className="walletControl">
       {wallet ? (
-        <span className="walletAddress">
-          {wallet.slice(0, 6)}
-          ···
-          {wallet.slice(-4)}
-        </span>
+        <>
+          <span className="walletAddress">
+            {wallet.slice(0, 6)}
+            ···
+            {wallet.slice(-4)}
+          </span>
+
+          <button
+            type="button"
+            className="walletDisconnect"
+            onClick={handleDisconnect}
+          >
+            Disconnect
+          </button>
+        </>
       ) : null}
 
       <WalletButton />
