@@ -31,6 +31,7 @@ type Locale = 'ko' | 'en';
 
 type ErrorCode =
   | 'invalidLink'
+  | 'used'
   | 'eligibility'
   | 'existing'
   | 'other'
@@ -144,6 +145,8 @@ const COPY = {
     errors: {
       invalidLink:
         '이 링크는 더 이상 사용할 수 없어요.',
+      used:
+        '이 초대 링크는 이미 다른 지갑에서 사용됐어요.',
       eligibility:
         '지금은 이 초대를 시작할 수 없어요.',
       existing:
@@ -239,6 +242,8 @@ const COPY = {
     errors: {
       invalidLink:
         'This link is no longer available.',
+      used:
+        'This invitation has already been claimed.',
       eligibility:
         'This invite cannot be started right now.',
       existing:
@@ -578,6 +583,12 @@ export function InviteeClient({
     }
 
     if (!response.ok) {
+      if (response.status === 409) {
+        setErrorCode('used');
+        setStep('error');
+        return;
+      }
+
       if (
         demoOutcome === 'existing'
       ) {
@@ -673,7 +684,8 @@ export function InviteeClient({
 
         <p className="muted">
           {errorCode ===
-          'invalidLink'
+            'invalidLink' ||
+          errorCode === 'used'
             ? t.requestNewLink
             : errorCode ===
                 'existing'
