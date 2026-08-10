@@ -5,6 +5,7 @@ import { useEffect, useState } from 'react';
 import dynamic from 'next/dynamic';
 import {
   QueryClient,
+  QueryClientProvider,
 } from '@tanstack/react-query';
 
 const VeChainKitProvider = dynamic(
@@ -24,13 +25,14 @@ export function VeChainProvider({
 }: {
   children: ReactNode;
 }) {
-  useState(() => new QueryClient());
+  const [queryClient] = useState(() => new QueryClient());
 
   const walletConnectProjectId =
     process.env.NEXT_PUBLIC_WALLET_CONNECT_PROJECT_ID;
+  const privyAppId = process.env.NEXT_PUBLIC_PRIVY_APP_ID;
+  const privyClientId = process.env.NEXT_PUBLIC_PRIVY_CLIENT_ID;
 
-  const [language, setLanguage] =
-    useState<Locale>('en');
+  const [language, setLanguage] = useState<Locale>('en');
 
   useEffect(() => {
     const resolveLanguage = (): Locale => {
@@ -51,11 +53,8 @@ export function VeChainProvider({
 
     setLanguage(resolveLanguage());
 
-    const handleLanguageChange = (
-      event: Event,
-    ) => {
-      const customEvent =
-        event as CustomEvent<Locale>;
+    const handleLanguageChange = (event: Event) => {
+      const customEvent = event as CustomEvent<Locale>;
 
       if (
         customEvent.detail === 'ko' ||
@@ -67,14 +66,8 @@ export function VeChainProvider({
       }
     };
 
-    const handleStorageChange = (
-      event: StorageEvent,
-    ) => {
-      if (
-        event.key !== LANGUAGE_STORAGE_KEY
-      ) {
-        return;
-      }
+    const handleStorageChange = (event: StorageEvent) => {
+      if (event.key !== LANGUAGE_STORAGE_KEY) return;
 
       if (
         event.newValue === 'ko' ||
@@ -88,7 +81,6 @@ export function VeChainProvider({
       'veinvite-language-change',
       handleLanguageChange,
     );
-
     window.addEventListener(
       'storage',
       handleStorageChange,
@@ -99,7 +91,6 @@ export function VeChainProvider({
         'veinvite-language-change',
         handleLanguageChange,
       );
-
       window.removeEventListener(
         'storage',
         handleStorageChange,
@@ -113,10 +104,9 @@ export function VeChainProvider({
       : process.env.NEXT_PUBLIC_APP_URL ||
         'https://veinvite.vercel.app';
 
-  const allowedWallets =
-    walletConnectProjectId
-      ? ['veworld', 'wallet-connect']
-      : ['veworld'];
+  const allowedWallets = walletConnectProjectId
+    ? ['veworld', 'wallet-connect']
+    : ['veworld'];
 
   const dappKit: Record<string, unknown> = {
     allowedWallets,
@@ -135,53 +125,86 @@ export function VeChainProvider({
     };
   }
 
+  const privy =
+    privyAppId && privyClientId
+      ? {
+          appId: privyAppId,
+          clientId: privyClientId,
+          loginMethods: ['google', 'email'],
+          appearance: {
+            loginMessage:
+              language === 'ko'
+                ? 'VeInvite에 로그인하세요'
+                : 'Sign in to VeInvite',
+            logo: `${appUrl}/icon.svg`,
+          },
+          embeddedWallets: {
+            createOnLogin: 'all-users',
+          },
+        }
+      : undefined;
+
   return (
-    <VeChainKitProvider
-      language={language}
-      dappKit={dappKit as never}
-      loginMethods={[
-        {
-          method: 'veworld',
-          gridColumn: 4,
-        },
-        ...(walletConnectProjectId
-          ? [
-              {
-                method:
-                  'wallet-connect' as const,
-                gridColumn: 4,
-              },
-            ]
-          : []),
-      ]}
-      darkMode
-      network={{
-        type: (
-          process.env.NEXT_PUBLIC_NETWORK_TYPE ||
-          'test'
-        ) as never,
-      }}
-      theme={{ accent: '#7448ff' }}
-      legalDocuments={{
-        termsAndConditions: [
+    <QueryClientProvider client={queryClient}>
+      <VeChainKitProvider
+        language={language}
+        privy={privy as never}
+        dappKit={dappKit as never}
+        loginMethods={[
           {
-            url: `${appUrl}/terms`,
-            version: 1,
-            required: true,
-            displayName: 'VeInvite Terms',
+            method: 'veworld',
+            gridColumn: 4,
           },
-        ],
-        privacyPolicy: [
-          {
-            url: `${appUrl}/privacy`,
-            version: 1,
-            required: true,
-            displayName: 'VeInvite Privacy',
-          },
-        ],
-      }}
-    >
-      {children}
-    </VeChainKitProvider>
+          ...(walletConnectProjectId
+            ? [
+                {
+                  method: 'wallet-connect' as const,
+                  gridColumn: 4,
+                },
+              ]
+            : []),
+          ...(privy
+            ? [
+                {
+                  method: 'google' as const,
+                  gridColumn: 4,
+                },
+                {
+                  method: 'email' as const,
+                  gridColumn: 4,
+                },
+              ]
+            : []),
+        ]}
+        darkMode
+        network={{
+          type: (
+            process.env.NEXT_PUBLIC_NETWORK_TYPE ||
+            'test'
+          ) as never,
+        }}
+        theme={{ accent: '#7448ff' }}
+        legalDocuments={{
+          termsAndConditions: [
+            {
+              url: `${appUrl}/terms`,
+              version: 1,
+              required: true,
+              displayName: 'VeInvite Terms',
+            },
+          ],
+          privacyPolicy: [
+            {
+              url: `${appUrl}/privacy`,
+              version: 1,
+              required: true,
+              displayName: 'VeInvite Privacy',
+            },
+          ],
+        }}
+      >
+        {children}
+      </VeChainKitProvider>
+    </QueryClientProvider>
   );
 }
