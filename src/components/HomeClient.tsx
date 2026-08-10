@@ -90,6 +90,9 @@ const COPY = {
     loadError: 'Could not load invitation data.',
     createError: 'Could not create an invitation.',
     cancelError: 'Could not cancel the invitation.',
+    dappTitle: 'For VeBetter dApps',
+    dappDescription:
+      'VeInvite currently focuses on ecosystem-wide onboarding for new VeBetter users. Dedicated referral campaigns and customizable campaign tools for individual dApps are planned as a future extension.',
   },
   ko: {
     language: '한국어',
@@ -158,6 +161,9 @@ const COPY = {
     loadError: '초대 정보를 불러오지 못했습니다.',
     createError: '초대 링크를 만들지 못했습니다.',
     cancelError: '초대를 취소하지 못했습니다.',
+    dappTitle: 'VeBetter dApp을 위한 VeInvite',
+    dappDescription:
+      '현재 VeInvite는 VeBetter 생태계 전체의 신규 사용자 온보딩에 초점을 맞추고 있습니다. 개별 dApp이 자체 추천 캠페인을 만들고 설정할 수 있는 기능은 향후 확장 기능으로 계획하고 있습니다.',
   },
 } as const;
 
@@ -813,6 +819,13 @@ export function HomeClient() {
         </div>
       ) : null}
 
+      <section className="dappInfo">
+        <span className="dappInfoLabel">
+          {t.dappTitle}
+        </span>
+        <p>{t.dappDescription}</p>
+      </section>
+
       <footer className="footerLinks">
         <Link href="/privacy">
           {t.privacy}
@@ -1298,6 +1311,30 @@ export function HomeClient() {
           color: #7cefc0;
           font-size: 0.82rem;
           font-weight: 800;
+        }
+
+        .dappInfo {
+          width: min(100%, 520px);
+          box-sizing: border-box;
+          margin: 18px auto 0;
+          padding: 16px 18px;
+          border: 1px solid rgba(255, 255, 255, 0.08);
+          border-radius: 16px;
+          background: rgba(255, 255, 255, 0.035);
+        }
+
+        .dappInfoLabel {
+          display: block;
+          color: #d4c9ff;
+          font-size: 0.78rem;
+          font-weight: 900;
+        }
+
+        .dappInfo p {
+          margin: 7px 0 0;
+          color: #8f899e;
+          font-size: 0.74rem;
+          line-height: 1.55;
         }
 
         .footerLinks {
