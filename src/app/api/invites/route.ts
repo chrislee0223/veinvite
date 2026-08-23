@@ -5,6 +5,10 @@ import {
   normalizeAddress,
 } from '@/lib/serverStore';
 import { supabaseAdmin } from '@/lib/supabaseServer';
+import {
+  requireWalletSession,
+  WalletAuthenticationError,
+} from '@/lib/walletAuthServer';
 import type {
   InviteRecord,
   InviteStatus,
@@ -72,6 +76,26 @@ function toInviteRecord(
   };
 }
 
+function walletAuthResponse(
+  error: unknown,
+): NextResponse | null {
+  if (error instanceof WalletAuthenticationError) {
+    return NextResponse.json(
+      {
+        error: error.message,
+      },
+      {
+        status: error.status,
+        headers: {
+          'Cache-Control': 'no-store',
+        },
+      },
+    );
+  }
+
+  return null;
+}
+
 export async function GET(
   request: NextRequest,
 ) {
@@ -90,6 +114,33 @@ export async function GET(
 
   const normalized =
     normalizeAddress(inviterAddress);
+
+  try {
+    await requireWalletSession({
+      request,
+      expectedWallet: normalized,
+    });
+  } catch (error) {
+    const response =
+      walletAuthResponse(error);
+
+    if (response) {
+      return response;
+    }
+
+    console.error(
+      'Failed to validate inviter wallet session:',
+      error,
+    );
+
+    return NextResponse.json(
+      {
+        error:
+          'Failed to validate wallet verification.',
+      },
+      { status: 500 },
+    );
+  }
 
   const { data, error } = await supabaseAdmin
     .from('invitations')
@@ -117,15 +168,35 @@ export async function GET(
     toInviteRecord,
   );
 
-  return NextResponse.json({ invites });
+  return NextResponse.json(
+    { invites },
+    {
+      headers: {
+        'Cache-Control': 'no-store',
+      },
+    },
+  );
 }
 
 export async function POST(
   request: NextRequest,
 ) {
-  const body = (await request.json()) as {
+  let body: {
     inviterAddress?: string;
   };
+
+  try {
+    body = (await request.json()) as {
+      inviterAddress?: string;
+    };
+  } catch {
+    return NextResponse.json(
+      {
+        error: 'Invalid JSON body.',
+      },
+      { status: 400 },
+    );
+  }
 
   if (!body.inviterAddress) {
     return NextResponse.json(
@@ -139,6 +210,33 @@ export async function POST(
   const inviterAddress = normalizeAddress(
     body.inviterAddress,
   );
+
+  try {
+    await requireWalletSession({
+      request,
+      expectedWallet: inviterAddress,
+    });
+  } catch (error) {
+    const response =
+      walletAuthResponse(error);
+
+    if (response) {
+      return response;
+    }
+
+    console.error(
+      'Failed to validate inviter wallet session:',
+      error,
+    );
+
+    return NextResponse.json(
+      {
+        error:
+          'Failed to validate wallet verification.',
+      },
+      { status: 500 },
+    );
+  }
 
   const {
     data: activeRows,
