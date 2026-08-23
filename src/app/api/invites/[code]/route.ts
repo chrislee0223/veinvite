@@ -4,70 +4,13 @@ import {
 } from 'next/server';
 
 import {
-  recordQualifyingRewardImpact,
-  recordVoteImpact,
-} from '@/lib/impact/record';
+  syncInvitationEvidence,
+  type InvitationEvidenceRow,
+} from '@/lib/impact/syncInvitation';
 import { supabaseAdmin } from '@/lib/supabaseServer';
-import {
-  evaluatePostVoteSybilRisk,
-} from '@/lib/sybil/risk';
-import type {
-  SybilRiskLevel,
-  SybilSource,
-  SybilStatus,
-} from '@/lib/sybil/risk';
-import {
-  getVeBetterActivityProgress,
-} from '@/lib/vebetter/activity';
-import {
-  getVeBetterNetworkConfig,
-} from '@/lib/vebetter/network';
-import {
-  getVeBetterVoteProgress,
-} from '@/lib/vebetter/vote';
 import type {
   InviteRecord,
-  InviteStatus,
-  RewardEligibility,
 } from '@/lib/types';
-
-type InvitationRow = {
-  invite_code: string;
-  inviter_wallet: string;
-  invitee_wallet: string | null;
-  status: InviteStatus;
-  reward_status: RewardEligibility;
-  created_at: string;
-  updated_at: string;
-  activated_at: string | null;
-  activation_block:
-    | number
-    | string
-    | null;
-  apps_completed: number | null;
-  rewards_received: number | null;
-  vote_completed: boolean | null;
-  apps_completed_at: string | null;
-  apps_completed_block:
-    | number
-    | string
-    | null;
-  vote_completed_at: string | null;
-  vote_completed_block:
-    | number
-    | string
-    | null;
-  vote_round_id:
-    | number
-    | string
-    | null;
-  sybil_status: SybilStatus;
-  sybil_risk_level: SybilRiskLevel;
-  sybil_risk_score: number;
-  sybil_reason: string | null;
-  sybil_checked_at: string | null;
-  sybil_source: SybilSource;
-};
 
 const invitationColumns = `
   invite_code,
@@ -79,6 +22,7 @@ const invitationColumns = `
   updated_at,
   activated_at,
   activation_block,
+  activation_network,
   apps_completed,
   rewards_received,
   vote_completed,
@@ -92,12 +36,15 @@ const invitationColumns = `
   sybil_risk_score,
   sybil_reason,
   sybil_checked_at,
-  sybil_source
+  sybil_source,
+  impact_last_synced_block,
+  impact_last_synced_at,
+  impact_sync_complete_at
 ` as const;
 
 function toInvitationRow(
   value: unknown,
-): InvitationRow | null {
+): InvitationEvidenceRow | null {
   if (
     value === null ||
     typeof value !== 'object'
@@ -105,11 +52,11 @@ function toInvitationRow(
     return null;
   }
 
-  return value as InvitationRow;
+  return value as InvitationEvidenceRow;
 }
 
 function toInviteRecord(
-  row: InvitationRow,
+  row: InvitationEvidenceRow,
 ): InviteRecord {
   return {
     code: row.invite_code,
@@ -129,31 +76,6 @@ function toInviteRecord(
   };
 }
 
-function parseNonNegativeInteger(
-  value:
-    | number
-    | string
-    | null,
-): number | null {
-  if (value === null) {
-    return null;
-  }
-
-  const parsed =
-    typeof value === 'number'
-      ? value
-      : Number(value);
-
-  if (
-    !Number.isSafeInteger(parsed) ||
-    parsed < 0
-  ) {
-    return null;
-  }
-
-  return parsed;
-}
-
 export async function GET(
   _request: NextRequest,
   context: {
@@ -166,10 +88,7 @@ export async function GET(
     await context.params;
 
   const normalizedCode =
-    code.toUpperCase();
-
-  const { network } =
-    getVeBetterNetworkConfig();
+    code.trim().toUpperCase();
 
   const {
     data,
@@ -214,454 +133,47 @@ export async function GET(
     );
   }
 
-  let effectiveStatus =
-    row.status;
-
-  let effectiveRewardEligibility =
-    row.reward_status;
-
-  let effectiveUpdatedAt =
-    row.updated_at;
-
-  let appsCompleted =
-    row.apps_completed ?? 0;
-
-  let rewardsReceived =
-    row.rewards_received ?? 0;
-
-  let uniqueAppIds:
-    string[] = [];
-
-  let latestBlock:
-    number | null = null;
-
-  let appsCompletedAt =
-    row.apps_completed_at;
-
-  let appsCompletedBlock =
-    parseNonNegativeInteger(
-      row.apps_completed_block,
-    );
-
-  let voteCompleted =
-    row.vote_completed ?? false;
-
-  let voteCompletedAt =
-    row.vote_completed_at;
-
-  let voteCompletedBlock =
-    parseNonNegativeInteger(
-      row.vote_completed_block,
-    );
-
-  let voteRoundId =
-    parseNonNegativeInteger(
-      row.vote_round_id,
-    );
-
-  const activationBlock =
-    parseNonNegativeInteger(
-      row.activation_block,
-    );
-
-  let activityCheckpointSaved =
-    true;
-
-  let impactCheckpointSaved =
-    true;
-
-  let voteSyncPending =
-    false;
-
-  /*
-   * STEP 1
-   *
-   * Scan B3TR rewards received
-   * after the invitation started.
-   */
-  if (
-    row.invitee_wallet &&
-    activationBlock !== null
-  ) {
-    try {
-      const activity =
-        await getVeBetterActivityProgress(
-          {
-            receiverAddress:
-              row.invitee_wallet,
-            activationBlock,
-          },
-        );
-
-      appsCompleted =
-        activity.appsCompleted;
-
-      rewardsReceived =
-        activity.appsCompleted;
-
-      uniqueAppIds =
-        activity.uniqueAppIds;
-
-      latestBlock =
-        activity.latestBlock;
-
-      impactCheckpointSaved =
-        await recordQualifyingRewardImpact({
-          inviteCode: normalizedCode,
-          network,
-          walletAddress:
-            row.invitee_wallet,
-          events:
-            activity.qualifyingRewardEvents,
-        });
-
-      const reachedThreeApps =
-        appsCompleted >= 3;
-
-      if (
-        reachedThreeApps &&
-        activity.thirdAppCompletedBlock ===
-          null
-      ) {
-        throw new Error(
-          'Three apps were detected without a valid third-app completion block.',
-        );
-      }
-
-      /*
-       * Always use the actual block of
-       * the third distinct app reward.
-       *
-       * This also repairs Preview rows
-       * that previously stored the block
-       * at which VeInvite refreshed.
-       */
-      const correctCompletionBlock =
-        reachedThreeApps
-          ? activity
-              .thirdAppCompletedBlock
-          : null;
-
-      const needsProgressUpdate =
-        appsCompleted !==
-          (row.apps_completed ??
-            0) ||
-        rewardsReceived !==
-          (row.rewards_received ??
-            0);
-
-      const needsCheckpointUpdate =
-        correctCompletionBlock !==
-          null &&
-        (
-          !appsCompletedAt ||
-          appsCompletedBlock !==
-            correctCompletionBlock
-        );
-
-      if (
-        correctCompletionBlock !==
-        null
-      ) {
-        appsCompletedAt ??=
-          new Date().toISOString();
-
-        appsCompletedBlock =
-          correctCompletionBlock;
-      }
-
-      if (
-        needsProgressUpdate ||
-        needsCheckpointUpdate
-      ) {
-        const updatePayload: {
-          apps_completed: number;
-          rewards_received: number;
-          apps_completed_at?: string;
-          apps_completed_block?: number;
-        } = {
-          apps_completed:
-            appsCompleted,
-          rewards_received:
-            rewardsReceived,
-        };
-
-        if (
-          correctCompletionBlock !==
-          null &&
-          appsCompletedAt
-        ) {
-          updatePayload.apps_completed_at =
-            appsCompletedAt;
-
-          updatePayload.apps_completed_block =
-            correctCompletionBlock;
-        }
-
-        const {
-          data: persistedProgress,
-          error: updateError,
-        } = await supabaseAdmin
-          .from('invitations')
-          .update(updatePayload)
-          .eq(
-            'invite_code',
-            normalizedCode,
-          )
-          .select(
-            'reward_status, updated_at',
-          )
-          .maybeSingle();
-
-        if (updateError) {
-          activityCheckpointSaved =
-            false;
-
-          console.error(
-            'Failed to save activity progress:',
-            updateError,
-          );
-        } else if (persistedProgress) {
-          effectiveRewardEligibility =
-            persistedProgress.reward_status as RewardEligibility;
-
-          effectiveUpdatedAt =
-            persistedProgress.updated_at;
-        }
-      }
-    } catch (
-      activityError
-    ) {
-      console.error(
-        'Failed to verify VeBetter activity:',
-        activityError,
+  try {
+    const synced =
+      await syncInvitationEvidence(
+        row,
       );
-    }
+
+    return NextResponse.json(
+      {
+        invite:
+          toInviteRecord(
+            synced.row,
+          ),
+        progress:
+          synced.progress,
+      },
+      {
+        headers: {
+          'Cache-Control': 'no-store',
+        },
+      },
+    );
+  } catch (syncError) {
+    console.error(
+      'Failed to reconcile invitation evidence:',
+      syncError,
+    );
+
+    // Do not pretend stale or partially reconciled data is current. The
+    // invitation remains intact and can be retried without consuming any
+    // additional invite or reward state.
+    return NextResponse.json(
+      {
+        error:
+          'Invitation activity could not be verified right now. Please try again.',
+      },
+      {
+        status: 503,
+        headers: {
+          'Cache-Control': 'no-store',
+        },
+      },
+    );
   }
-
-  /*
-   * STEP 2
-   *
-   * After the third distinct app
-   * reward, scan for the first
-   * allocation governance vote.
-   *
-   * The post-vote Sybil gate runs in
-   * the same persisted update. Only a
-   * fresh CLEAR decision can become
-   * reward eligible in the DB trigger.
-   */
-  if (
-    row.invitee_wallet &&
-    appsCompleted >= 3 &&
-    appsCompletedBlock !== null &&
-    !voteCompleted
-  ) {
-    try {
-      const vote =
-        await getVeBetterVoteProgress(
-          {
-            voterAddress:
-              row.invitee_wallet,
-            fromBlock:
-              appsCompletedBlock,
-          },
-        );
-
-      if (vote.voteCompleted) {
-        const detectedVoteAt =
-          new Date().toISOString();
-
-        const sybilDecision =
-          evaluatePostVoteSybilRisk({
-            currentStatus:
-              row.sybil_status,
-            inviteStatus: row.status,
-            currentRiskLevel:
-              row.sybil_risk_level,
-            currentRiskScore:
-              row.sybil_risk_score,
-            currentReason:
-              row.sybil_reason,
-            currentSource:
-              row.sybil_source,
-          });
-
-        const nextInviteStatus: InviteStatus =
-          sybilDecision.status === 'CLEAR'
-            ? 'COMPLETED'
-            : 'UNDER_REVIEW';
-
-        const {
-          data: persistedCompletion,
-          error: voteUpdateError,
-        } = await supabaseAdmin
-          .from('invitations')
-          .update({
-            apps_completed:
-              appsCompleted,
-            rewards_received:
-              rewardsReceived,
-            apps_completed_at:
-              appsCompletedAt,
-            apps_completed_block:
-              appsCompletedBlock,
-            vote_completed: true,
-            vote_completed_at:
-              detectedVoteAt,
-            vote_completed_block:
-              vote.voteCompletedBlock,
-            vote_round_id:
-              vote.voteRoundId,
-            status: nextInviteStatus,
-            sybil_status:
-              sybilDecision.status,
-            sybil_risk_level:
-              sybilDecision.riskLevel,
-            sybil_risk_score:
-              sybilDecision.riskScore,
-            sybil_reason:
-              sybilDecision.reason,
-            sybil_checked_at:
-              detectedVoteAt,
-            sybil_source:
-              sybilDecision.source,
-          })
-          .eq(
-            'invite_code',
-            normalizedCode,
-          )
-          .select(
-            'reward_status, updated_at',
-          )
-          .maybeSingle();
-
-        /*
-         * Do not show completion/review
-         * unless the vote and Sybil gate
-         * were actually stored in Supabase.
-         */
-        if (voteUpdateError) {
-          voteSyncPending = true;
-
-          console.error(
-            'Vote was found but completion could not be saved:',
-            voteUpdateError,
-          );
-        } else {
-          voteCompleted = true;
-
-          voteCompletedAt =
-            detectedVoteAt;
-
-          voteCompletedBlock =
-            vote.voteCompletedBlock;
-
-          voteRoundId =
-            vote.voteRoundId;
-
-          effectiveStatus =
-            nextInviteStatus;
-
-          if (persistedCompletion) {
-            effectiveRewardEligibility =
-              persistedCompletion.reward_status as RewardEligibility;
-
-            effectiveUpdatedAt =
-              persistedCompletion.updated_at;
-          }
-
-          if (
-            vote.voteTxId &&
-            vote.voteCompletedBlock !== null &&
-            vote.voteBlockTimestamp !== null &&
-            vote.voteRoundId !== null
-          ) {
-            const voteImpactSaved =
-              await recordVoteImpact({
-                inviteCode: normalizedCode,
-                network,
-                walletAddress:
-                  row.invitee_wallet,
-                txId: vote.voteTxId,
-                blockNumber:
-                  vote.voteCompletedBlock,
-                blockTimestamp:
-                  vote.voteBlockTimestamp,
-                voteRoundId:
-                  vote.voteRoundId,
-              });
-
-            impactCheckpointSaved =
-              impactCheckpointSaved &&
-              voteImpactSaved;
-          } else {
-            impactCheckpointSaved =
-              false;
-          }
-
-          activityCheckpointSaved =
-            true;
-        }
-      }
-    } catch (
-      voteError
-    ) {
-      console.error(
-        'Failed to verify VeBetter vote:',
-        voteError,
-      );
-    }
-  }
-
-  const responseRow: InvitationRow = {
-    ...row,
-    status:
-      effectiveStatus,
-    reward_status:
-      effectiveRewardEligibility,
-    updated_at:
-      effectiveUpdatedAt,
-    apps_completed:
-      appsCompleted,
-    rewards_received:
-      rewardsReceived,
-    vote_completed:
-      voteCompleted,
-    apps_completed_at:
-      appsCompletedAt,
-    apps_completed_block:
-      appsCompletedBlock,
-    vote_completed_at:
-      voteCompletedAt,
-    vote_completed_block:
-      voteCompletedBlock,
-    vote_round_id:
-      voteRoundId,
-  };
-
-  return NextResponse.json({
-    invite:
-      toInviteRecord(
-        responseRow,
-      ),
-
-    progress: {
-      appsCompleted,
-      appsRequired: 3,
-      rewardsReceived,
-      voteCompleted,
-      uniqueAppIds,
-      activationBlock,
-      latestBlock,
-      appsCompletedAt,
-      appsCompletedBlock,
-      voteCompletedAt,
-      voteCompletedBlock,
-      voteRoundId,
-      activityCheckpointSaved,
-      impactCheckpointSaved,
-      voteSyncPending,
-    },
-  });
 }
