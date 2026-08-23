@@ -8,6 +8,14 @@ Do not claim that VeInvite literally created a wallet unless wallet creation can
 
 Do not describe all later activity by those wallets as caused by VeInvite. Transaction metrics are intentionally conservative and count only the verified on-chain actions required by the VeInvite onboarding flow.
 
+## Public reporting baseline
+
+Pre-launch/test activity must not be mixed into public weekly impact posts. `operator_reporting_config.reporting_start_at` is therefore `NULL` until an explicit launch baseline is approved. While it is `NULL`, `operator_public_weekly_impact` returns no public-report rows.
+
+When public reporting begins, set the baseline deliberately. Prefer a Monday 00:00 UTC boundary so the first public week is complete and comparable with later weeks.
+
+Use `operator_weekly_impact` for internal operational analysis, and `operator_public_weekly_impact` for numbers intended for X or other public reporting.
+
 ## Weekly period
 
 `operator_weekly_impact` groups data by UTC calendar week, Monday 00:00 UTC through the next Monday 00:00 UTC. This aligns cleanly with global VeBetter reporting and avoids mixing operator local time zones.
@@ -32,12 +40,29 @@ VeInvite records only the minimum verified on-chain onboarding actions that it d
 
 The raw events are stored in `invite_impact_events` with an idempotent `event_key`, network, invite code, wallet address, event type, transaction ID, block number, block timestamp, app ID or vote round ID, and detection timestamp.
 
-## Operator query
+## Operator queries
+
+Internal weekly data:
 
 ```sql
 select *
 from public.operator_weekly_impact
 order by week_start desc;
+```
+
+Public-report data after the launch baseline is enabled:
+
+```sql
+select *
+from public.operator_public_weekly_impact
+order by week_start desc;
+```
+
+Lifetime totals:
+
+```sql
+select *
+from public.operator_impact_totals;
 ```
 
 For a custom period, query `invitations`, `invite_impact_events`, and `reward_payouts` using the exact UTC start/end timestamps rather than approximating from current counters.
