@@ -4,6 +4,9 @@ import {
   syncInvitationEvidence,
   type InvitationEvidenceRow,
 } from '@/lib/impact/syncInvitation';
+import {
+  observeVeBetterBotSignals,
+} from '@/lib/sybil/botSignals';
 import { supabaseAdmin } from '@/lib/supabaseServer';
 import {
   getVeBetterNetworkConfig,
@@ -53,6 +56,10 @@ export type ReconciliationResult = {
   impactCheckpointSaved: boolean;
   impactSyncComplete: boolean;
   networkMismatch: boolean;
+  botSignalAvailable: boolean;
+  botSignalCount: number | null;
+  botSignalObservationSaved: boolean;
+  botSignalError?: string;
   error?: string;
 };
 
@@ -78,6 +85,126 @@ function validateLimit(limit: number) {
     throw new Error(
       `limit must be an integer from 1 to ${MAX_RECONCILIATION_BATCH_SIZE}.`,
     );
+  }
+}
+
+function safeErrorMessage(error: unknown): string {
+  const message =
+    error instanceof Error
+      ? error.message
+      : 'Unexpected bot signal observation failure.';
+
+  return message.slice(0, 500);
+}
+
+async function observeAndPersistBotSignals({
+  inviteCode,
+  walletAddress,
+}: {
+  inviteCode: string;
+  walletAddress: string;
+}): Promise<{
+  available: boolean;
+  signalCount: number | null;
+  saved: boolean;
+  error?: string;
+}> {
+  try {
+    const observation =
+      await observeVeBetterBotSignals(
+        walletAddress,
+      );
+
+    const { error } = await supabaseAdmin
+      .from('sybil_signal_observations')
+      .upsert(
+        {
+          invite_code: inviteCode,
+          wallet_address:
+            observation.walletAddress,
+          network: observation.network,
+          available: observation.available,
+          signal_count:
+            observation.signalCount,
+          checked_at: observation.checkedAt,
+          source: observation.source,
+          last_error: null,
+          updated_at:
+            new Date().toISOString(),
+        },
+        {
+          onConflict: 'invite_code',
+        },
+      );
+
+    if (error) {
+      console.error(
+        `Failed to persist bot signal observation for ${inviteCode}:`,
+        error,
+      );
+
+      return {
+        available: observation.available,
+        signalCount:
+          observation.signalCount,
+        saved: false,
+        error:
+          'Bot signal observation could not be persisted.',
+      };
+    }
+
+    return {
+      available: observation.available,
+      signalCount: observation.signalCount,
+      saved: true,
+    };
+  } catch (observationError) {
+    const message =
+      safeErrorMessage(observationError);
+    const { network } =
+      getVeBetterNetworkConfig();
+    const normalizedWallet =
+      walletAddress.trim().toLowerCase();
+    const checkedAt =
+      new Date().toISOString();
+
+    const { error } = await supabaseAdmin
+      .from('sybil_signal_observations')
+      .upsert(
+        {
+          invite_code: inviteCode,
+          wallet_address: normalizedWallet,
+          network,
+          available: false,
+          signal_count: null,
+          checked_at: checkedAt,
+          source: 'VEBETTER_PASSPORT',
+          last_error: message,
+          updated_at: checkedAt,
+        },
+        {
+          onConflict: 'invite_code',
+        },
+      );
+
+    if (error) {
+      console.error(
+        `Failed to persist bot signal observation error for ${inviteCode}:`,
+        error,
+      );
+    }
+
+    console.error(
+      `Failed to observe VeBetter bot signals for ${inviteCode}:`,
+      observationError,
+    );
+
+    return {
+      available: false,
+      signalCount: null,
+      saved: !error,
+      error: message,
+    };
   }
 }
 
@@ -191,6 +318,19 @@ export async function runReconciliationBatch(
       try {
         const synced =
           await syncInvitationEvidence(row);
+        const botSignal =
+          synced.row.invitee_wallet
+            ? await observeAndPersistBotSignals({
+                inviteCode:
+                  row.invite_code,
+                walletAddress:
+                  synced.row.invitee_wallet,
+              })
+            : {
+                available: false,
+                signalCount: null,
+                saved: false,
+              };
 
         results.push({
           inviteCode: row.invite_code,
@@ -211,6 +351,18 @@ export async function runReconciliationBatch(
             ),
           networkMismatch:
             synced.progress.networkMismatch,
+          botSignalAvailable:
+            botSignal.available,
+          botSignalCount:
+            botSignal.signalCount,
+          botSignalObservationSaved:
+            botSignal.saved,
+          ...(botSignal.error
+            ? {
+                botSignalError:
+                  botSignal.error,
+              }
+            : {}),
         });
       } catch (syncError) {
         console.error(
@@ -229,6 +381,9 @@ export async function runReconciliationBatch(
           impactCheckpointSaved: false,
           impactSyncComplete: false,
           networkMismatch: false,
+          botSignalAvailable: false,
+          botSignalCount: null,
+          botSignalObservationSaved: false,
           error:
             syncError instanceof Error
               ? syncError.message
