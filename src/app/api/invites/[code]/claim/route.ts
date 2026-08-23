@@ -7,6 +7,10 @@ import {
   normalizeAddress,
 } from '@/lib/serverStore';
 import { supabaseAdmin } from '@/lib/supabaseServer';
+import {
+  requireWalletSession,
+  WalletAuthenticationError,
+} from '@/lib/walletAuthServer';
 import { checkEligibility } from '@/lib/vebetter/eligibility';
 import {
   getVeBetterNetworkConfig,
@@ -180,10 +184,24 @@ export async function POST(
     );
   }
 
-  const body = (await request.json()) as {
+  let body: {
     inviteeAddress?: string;
     demoOutcome?: string;
   };
+
+  try {
+    body = (await request.json()) as {
+      inviteeAddress?: string;
+      demoOutcome?: string;
+    };
+  } catch {
+    return NextResponse.json(
+      {
+        error: 'Invalid JSON body.',
+      },
+      { status: 400 },
+    );
+  }
 
   if (!body.inviteeAddress) {
     return NextResponse.json(
@@ -197,6 +215,43 @@ export async function POST(
   const inviteeAddress = normalizeAddress(
     body.inviteeAddress,
   );
+
+  try {
+    await requireWalletSession({
+      request,
+      expectedWallet: inviteeAddress,
+    });
+  } catch (authError) {
+    if (
+      authError instanceof
+      WalletAuthenticationError
+    ) {
+      return NextResponse.json(
+        {
+          error: authError.message,
+        },
+        {
+          status: authError.status,
+          headers: {
+            'Cache-Control': 'no-store',
+          },
+        },
+      );
+    }
+
+    console.error(
+      'Failed to validate invitee wallet session:',
+      authError,
+    );
+
+    return NextResponse.json(
+      {
+        error:
+          'Failed to validate wallet verification.',
+      },
+      { status: 500 },
+    );
+  }
 
   if (
     inviteeAddress ===
