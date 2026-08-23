@@ -8,9 +8,13 @@ import {
 } from '@/lib/serverStore';
 import { supabaseAdmin } from '@/lib/supabaseServer';
 import { checkEligibility } from '@/lib/vebetter/eligibility';
+import {
+  getVeBetterNetworkConfig,
+} from '@/lib/vebetter/network';
 import type {
   InviteRecord,
   InviteStatus,
+  RewardEligibility,
 } from '@/lib/types';
 
 type InvitationRow = {
@@ -18,7 +22,9 @@ type InvitationRow = {
   inviter_wallet: string;
   invitee_wallet: string | null;
   status: InviteStatus;
+  reward_status: RewardEligibility;
   created_at: string;
+  updated_at: string;
   activated_at: string | null;
   activation_block: number | null;
 };
@@ -32,7 +38,9 @@ const invitationColumns = `
   inviter_wallet,
   invitee_wallet,
   status,
+  reward_status,
   created_at,
+  updated_at,
   activated_at,
   activation_block
 ` as const;
@@ -73,24 +81,15 @@ function toInviteRecord(
       : {}),
     status: row.status,
     createdAt: row.created_at,
-    updatedAt:
-      row.activated_at ?? row.created_at,
+    updatedAt: row.updated_at,
     rewardEligibility:
-      row.status === 'COMPLETED'
-        ? 'ELIGIBLE'
-        : row.status === 'CANCELLED'
-          ? 'FORFEITED'
-          : row.invitee_wallet
-            ? 'PENDING'
-            : 'NONE',
+      row.reward_status,
   };
 }
 
 async function getBestBlockNumber(): Promise<number> {
-  const nodeUrl = (
-    process.env.VECHAIN_NODE_URL ??
-    'https://mainnet.vechain.org'
-  ).replace(/\/+$/, '');
+  const { nodeUrl } =
+    getVeBetterNetworkConfig();
 
   const response = await fetch(
     `${nodeUrl}/blocks/best`,
