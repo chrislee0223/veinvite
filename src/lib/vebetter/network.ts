@@ -5,6 +5,8 @@ const ADDRESS_PATTERN = /^0x[0-9a-fA-F]{40}$/;
 const OFFICIAL_DEFAULTS = {
   mainnet: {
     nodeUrl: 'https://mainnet.vechain.org',
+    x2EarnAppsAddress:
+      '0x8392B7CCc763dB03b47afcD8E8f5e24F9cf0554D',
     x2EarnRewardsPoolAddress:
       '0x6Bee7DDab6c99d5B2Af0554EaEA484CE18F52631',
     xAllocationVotingAddress:
@@ -12,6 +14,8 @@ const OFFICIAL_DEFAULTS = {
   },
   testnet: {
     nodeUrl: 'https://testnet.vechain.org',
+    x2EarnAppsAddress:
+      '0x1ae6eee231bcf8229d42626b4d663d45a6abd889',
     x2EarnRewardsPoolAddress:
       '0x23bca0fa2e0028c09bd962ec7f521e84b3b2561a',
     xAllocationVotingAddress:
@@ -132,6 +136,17 @@ export function getVeBetterNetworkConfig() {
     process.env.VECHAIN_NODE_URL ?? defaults.nodeUrl
   ).replace(/\/+$/, '');
 
+  const x2EarnAppsAddress =
+    resolveContractAddress({
+      envValue:
+        process.env.X2EARN_APPS_ADDRESS,
+      officialValue:
+        defaults.x2EarnAppsAddress,
+      fieldName:
+        'X2EARN_APPS_ADDRESS',
+      network,
+    });
+
   const x2EarnRewardsPoolAddress =
     resolveContractAddress({
       envValue:
@@ -157,6 +172,7 @@ export function getVeBetterNetworkConfig() {
   return {
     network,
     nodeUrl,
+    x2EarnAppsAddress,
     x2EarnRewardsPoolAddress,
     xAllocationVotingAddress,
   } as const;
