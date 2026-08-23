@@ -14,6 +14,8 @@ type RawVoteLog = {
   topics?: string[];
   meta?: {
     blockNumber?: number;
+    blockTimestamp?: number;
+    txID?: string;
   };
 };
 
@@ -21,6 +23,8 @@ export type VoteProgress = {
   voteCompleted: boolean;
   voteCompletedBlock: number | null;
   voteRoundId: number | null;
+  voteTxId: string | null;
+  voteBlockTimestamp: number | null;
   latestBlock: number;
 };
 
@@ -102,6 +106,43 @@ function getRequiredBlockNumber(
   return blockNumber;
 }
 
+function getRequiredBlockTimestamp(
+  log: RawVoteLog,
+): number {
+  const timestamp =
+    log.meta?.blockTimestamp;
+
+  if (
+    typeof timestamp !== 'number' ||
+    !Number.isSafeInteger(timestamp) ||
+    timestamp < 0
+  ) {
+    throw new Error(
+      'Vote event is missing a valid block timestamp.',
+    );
+  }
+
+  return timestamp;
+}
+
+function getRequiredTxId(
+  log: RawVoteLog,
+): string {
+  const txId =
+    log.meta?.txID?.toLowerCase();
+
+  if (
+    !txId ||
+    !/^0x[0-9a-f]{64}$/.test(txId)
+  ) {
+    throw new Error(
+      'Vote event is missing a valid transaction ID.',
+    );
+  }
+
+  return txId;
+}
+
 export async function getVeBetterVoteProgress({
   voterAddress,
   fromBlock,
@@ -151,6 +192,8 @@ export async function getVeBetterVoteProgress({
       voteCompleted: false,
       voteCompletedBlock: null,
       voteRoundId: null,
+      voteTxId: null,
+      voteBlockTimestamp: null,
       latestBlock,
     };
   }
@@ -203,6 +246,8 @@ export async function getVeBetterVoteProgress({
       voteCompleted: false,
       voteCompletedBlock: null,
       voteRoundId: null,
+      voteTxId: null,
+      voteBlockTimestamp: null,
       latestBlock,
     };
   }
@@ -221,6 +266,10 @@ export async function getVeBetterVoteProgress({
     voteCompleted: true,
     voteCompletedBlock,
     voteRoundId,
+    voteTxId:
+      getRequiredTxId(firstVote),
+    voteBlockTimestamp:
+      getRequiredBlockTimestamp(firstVote),
     latestBlock,
   };
 }
