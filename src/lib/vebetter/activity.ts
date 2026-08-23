@@ -1,11 +1,9 @@
 import { ABIEvent } from '@vechain/sdk-core';
 import { ThorClient } from '@vechain/sdk-network';
 
-const DEFAULT_VECHAIN_NODE_URL =
-  'https://mainnet.vechain.org';
-
-const DEFAULT_X2EARN_REWARDS_POOL =
-  '0x6Bee7DDab6c99d5B2Af0554EaEA484CE18F52631';
+import {
+  getVeBetterNetworkConfig,
+} from '@/lib/vebetter/network';
 
 const PAGE_SIZE = 1000;
 
@@ -26,21 +24,6 @@ export type ActivityProgress = {
   latestBlock: number;
   thirdAppCompletedBlock: number | null;
 };
-
-function getThorClient() {
-  const nodeUrl =
-    process.env.VECHAIN_NODE_URL ??
-    DEFAULT_VECHAIN_NODE_URL;
-
-  return ThorClient.at(nodeUrl);
-}
-
-function getRewardsPoolAddress() {
-  return (
-    process.env.X2EARN_REWARDS_POOL_ADDRESS ??
-    DEFAULT_X2EARN_REWARDS_POOL
-  );
-}
 
 function getSingleTopic(
   topic:
@@ -91,7 +74,12 @@ export async function getVeBetterActivityProgress({
     );
   }
 
-  const thor = getThorClient();
+  const {
+    nodeUrl,
+    x2EarnRewardsPoolAddress,
+  } = getVeBetterNetworkConfig();
+
+  const thor = ThorClient.at(nodeUrl);
 
   const bestBlock =
     await thor.blocks.getBestBlockCompressed();
@@ -144,7 +132,7 @@ export async function getVeBetterActivityProgress({
         criteriaSet: [
           {
             address:
-              getRewardsPoolAddress(),
+              x2EarnRewardsPoolAddress,
             topic0:
               getSingleTopic(
                 topics[0],
