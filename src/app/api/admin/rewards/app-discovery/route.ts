@@ -192,11 +192,14 @@ export async function GET() {
     x2EarnAppsAddress,
   } = getVeBetterNetworkConfig();
 
-  if (network !== 'testnet') {
+  if (
+    network !== 'testnet' &&
+    network !== 'testnet-staging'
+  ) {
     return NextResponse.json(
       {
         error:
-          'App discovery is restricted to VeChain testnet.',
+          'App discovery is restricted to VeChain test environments.',
         network,
       },
       { status: 403 },
