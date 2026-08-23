@@ -15,7 +15,16 @@ type RawEventLog = {
   topics?: string[];
   meta?: {
     blockNumber?: number;
+    blockTimestamp?: number;
+    txID?: string;
   };
+};
+
+export type QualifyingRewardEvent = {
+  appId: string;
+  txId: string;
+  blockNumber: number;
+  blockTimestamp: number;
 };
 
 export type ActivityProgress = {
@@ -23,6 +32,7 @@ export type ActivityProgress = {
   uniqueAppIds: string[];
   latestBlock: number;
   thirdAppCompletedBlock: number | null;
+  qualifyingRewardEvents: QualifyingRewardEvent[];
 };
 
 function getSingleTopic(
@@ -56,6 +66,43 @@ function getEventBlockNumber(
   }
 
   return blockNumber;
+}
+
+function getEventBlockTimestamp(
+  log: RawEventLog,
+): number {
+  const timestamp =
+    log.meta?.blockTimestamp;
+
+  if (
+    typeof timestamp !== 'number' ||
+    !Number.isSafeInteger(timestamp) ||
+    timestamp < 0
+  ) {
+    throw new Error(
+      'VeChain reward event is missing a valid block timestamp.',
+    );
+  }
+
+  return timestamp;
+}
+
+function getEventTxId(
+  log: RawEventLog,
+): string {
+  const txId =
+    log.meta?.txID?.toLowerCase();
+
+  if (
+    !txId ||
+    !/^0x[0-9a-f]{64}$/.test(txId)
+  ) {
+    throw new Error(
+      'VeChain reward event is missing a valid transaction ID.',
+    );
+  }
+
+  return txId;
 }
 
 export async function getVeBetterActivityProgress({
@@ -99,6 +146,7 @@ export async function getVeBetterActivityProgress({
       uniqueAppIds: [],
       latestBlock,
       thirdAppCompletedBlock: null,
+      qualifyingRewardEvents: [],
     };
   }
 
@@ -111,6 +159,9 @@ export async function getVeBetterActivityProgress({
 
   const uniqueAppIds =
     new Set<string>();
+
+  const qualifyingRewardEvents:
+    QualifyingRewardEvent[] = [];
 
   let thirdAppCompletedBlock:
     number | null = null;
@@ -183,6 +234,20 @@ export async function getVeBetterActivityProgress({
         normalizedAppId,
       );
 
+      // Weekly impact reporting intentionally records only the first reward
+      // from each of the first three distinct dApps. Those are the minimum
+      // verified on-chain activities required by the VeInvite onboarding
+      // mission, so later unrelated activity is not over-attributed to us.
+      if (qualifyingRewardEvents.length < 3) {
+        qualifyingRewardEvents.push({
+          appId: normalizedAppId,
+          txId: getEventTxId(log),
+          blockNumber: eventBlock,
+          blockTimestamp:
+            getEventBlockTimestamp(log),
+        });
+      }
+
       if (
         uniqueAppIds.size === 3 &&
         thirdAppCompletedBlock === null
@@ -212,5 +277,6 @@ export async function getVeBetterActivityProgress({
     uniqueAppIds: appIds,
     latestBlock,
     thirdAppCompletedBlock,
+    qualifyingRewardEvents,
   };
 }
