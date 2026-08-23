@@ -8,6 +8,7 @@ import { supabaseAdmin } from '@/lib/supabaseServer';
 import type {
   InviteRecord,
   InviteStatus,
+  RewardEligibility,
 } from '@/lib/types';
 
 type InvitationRow = {
@@ -15,7 +16,9 @@ type InvitationRow = {
   inviter_wallet: string;
   invitee_wallet: string | null;
   status: InviteStatus;
+  reward_status: RewardEligibility;
   created_at: string;
+  updated_at: string;
 };
 
 const invitationColumns = `
@@ -23,7 +26,9 @@ const invitationColumns = `
   inviter_wallet,
   invitee_wallet,
   status,
-  created_at
+  reward_status,
+  created_at,
+  updated_at
 ` as const;
 
 function toInvitationRows(
@@ -62,8 +67,8 @@ function toInviteRecord(
       : {}),
     status: row.status,
     createdAt: row.created_at,
-    updatedAt: row.created_at,
-    rewardEligibility: 'NONE',
+    updatedAt: row.updated_at,
+    rewardEligibility: row.reward_status,
   };
 }
 
