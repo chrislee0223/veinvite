@@ -35,32 +35,83 @@ export interface RewardDryRunResult {
 
 const WALLET_PATTERN = /^0x[0-9a-f]{40}$/;
 const INTEGER_PATTERN = /^\d+$/;
+const PAYOUT_STATUSES = new Set<RewardPayoutStatus>([
+  'PENDING',
+  'SENDING',
+  'PAID',
+  'FAILED',
+]);
 
-function parseWei(value: string, fieldName: string): bigint {
+function parseWei(
+  value: string,
+  fieldName: string,
+): bigint {
   if (!INTEGER_PATTERN.test(value)) {
-    throw new Error(`${fieldName} must be a non-negative integer string.`);
+    throw new Error(
+      `${fieldName} must be a non-negative integer string.`,
+    );
   }
 
   return BigInt(value);
 }
 
-function normalizeCandidate(candidate: RewardCandidate): RewardCandidate {
-  const recipientWallet = candidate.recipientWallet.toLowerCase();
+function normalizeInviteCode(
+  value: string,
+  fieldName: string,
+): string {
+  const inviteCode =
+    value.trim().toUpperCase();
 
-  if (!WALLET_PATTERN.test(recipientWallet)) {
+  if (!inviteCode) {
     throw new Error(
-      `Invalid reward recipient wallet for invite ${candidate.inviteCode}.`,
+      `${fieldName} cannot be empty.`,
     );
   }
 
-  if (!candidate.inviteCode.trim()) {
-    throw new Error('Reward candidate inviteCode cannot be empty.');
+  return inviteCode;
+}
+
+function normalizeCandidate(
+  candidate: RewardCandidate,
+): RewardCandidate {
+  const inviteCode = normalizeInviteCode(
+    candidate.inviteCode,
+    'Reward candidate inviteCode',
+  );
+
+  const recipientWallet =
+    candidate.recipientWallet.toLowerCase();
+
+  if (!WALLET_PATTERN.test(recipientWallet)) {
+    throw new Error(
+      `Invalid reward recipient wallet for invite ${inviteCode}.`,
+    );
+  }
+
+  if (!candidate.eligibleAt) {
+    throw new Error(
+      `Reward candidate ${inviteCode} is missing reward_eligible_at.`,
+    );
+  }
+
+  const eligibleAt =
+    candidate.eligibleAt.trim();
+  const eligibleAtMs =
+    Date.parse(eligibleAt);
+
+  if (
+    !eligibleAt ||
+    Number.isNaN(eligibleAtMs)
+  ) {
+    throw new Error(
+      `Reward candidate ${inviteCode} has an invalid reward_eligible_at.`,
+    );
   }
 
   return {
-    ...candidate,
-    inviteCode: candidate.inviteCode.trim().toUpperCase(),
+    inviteCode,
     recipientWallet,
+    eligibleAt,
   };
 }
 
@@ -74,6 +125,7 @@ function normalizeCandidate(candidate: RewardCandidate): RewardCandidate {
  * - An invitation with any prior payout record is never included again.
  * - Every candidate in a round receives exactly the same integer amount.
  * - Any indivisible remainder stays in the pool for a future round.
+ * - Malformed accounting data fails closed instead of being silently ignored.
  */
 export function calculateRewardDryRun(input: {
   poolBalanceWei: string;
@@ -85,27 +137,47 @@ export function calculateRewardDryRun(input: {
     'poolBalanceWei',
   );
 
-  const existingInviteCodes = new Set<string>();
+  const existingInviteCodes =
+    new Set<string>();
   let reservedExisting = 0n;
 
   for (const payout of input.existingPayouts) {
-    const inviteCode = payout.inviteCode.trim().toUpperCase();
+    const inviteCode = normalizeInviteCode(
+      payout.inviteCode,
+      'Existing payout inviteCode',
+    );
 
-    if (!inviteCode) {
-      throw new Error('Existing payout inviteCode cannot be empty.');
+    if (existingInviteCodes.has(inviteCode)) {
+      throw new Error(
+        `Duplicate existing payout for invite ${inviteCode}.`,
+      );
     }
 
     existingInviteCodes.add(inviteCode);
+
+    if (!PAYOUT_STATUSES.has(payout.status)) {
+      throw new Error(
+        `Invalid payout status for invite ${inviteCode}.`,
+      );
+    }
+
+    const amountWei = parseWei(
+      payout.amountWei,
+      `amountWei for ${inviteCode}`,
+    );
+
+    if (amountWei < 1n) {
+      throw new Error(
+        `Existing payout ${inviteCode} must have a positive amount.`,
+      );
+    }
 
     if (
       payout.status === 'PENDING' ||
       payout.status === 'SENDING' ||
       payout.status === 'FAILED'
     ) {
-      reservedExisting += parseWei(
-        payout.amountWei,
-        `amountWei for ${inviteCode}`,
-      );
+      reservedExisting += amountWei;
     }
   }
 
@@ -114,66 +186,94 @@ export function calculateRewardDryRun(input: {
       ? observedPoolBalance - reservedExisting
       : 0n;
 
-  const seenCandidates = new Set<string>();
+  const seenCandidates =
+    new Set<string>();
+  const eligibleCandidates:
+    RewardCandidate[] = [];
 
-  const eligibleCandidates = input.candidates
-    .map(normalizeCandidate)
-    .filter((candidate) => {
-      if (existingInviteCodes.has(candidate.inviteCode)) {
-        return false;
-      }
+  for (const rawCandidate of input.candidates) {
+    const inviteCode = normalizeInviteCode(
+      rawCandidate.inviteCode,
+      'Reward candidate inviteCode',
+    );
 
-      if (seenCandidates.has(candidate.inviteCode)) {
-        throw new Error(
-          `Duplicate reward candidate invite ${candidate.inviteCode}.`,
-        );
-      }
+    if (seenCandidates.has(inviteCode)) {
+      throw new Error(
+        `Duplicate reward candidate invite ${inviteCode}.`,
+      );
+    }
 
-      seenCandidates.add(candidate.inviteCode);
-      return true;
-    })
-    .sort((a, b) => {
-      const aTime = a.eligibleAt
-        ? Date.parse(a.eligibleAt)
-        : Number.MAX_SAFE_INTEGER;
-      const bTime = b.eligibleAt
-        ? Date.parse(b.eligibleAt)
-        : Number.MAX_SAFE_INTEGER;
+    seenCandidates.add(inviteCode);
 
-      if (aTime !== bTime) {
-        return aTime - bTime;
-      }
+    if (existingInviteCodes.has(inviteCode)) {
+      continue;
+    }
 
-      return a.inviteCode.localeCompare(b.inviteCode);
-    });
+    eligibleCandidates.push(
+      normalizeCandidate({
+        ...rawCandidate,
+        inviteCode,
+      }),
+    );
+  }
 
-  const eligibleCount = eligibleCandidates.length;
+  eligibleCandidates.sort((a, b) => {
+    const aTime = Date.parse(
+      a.eligibleAt as string,
+    );
+    const bTime = Date.parse(
+      b.eligibleAt as string,
+    );
 
-  if (eligibleCount === 0 || availableToReserve === 0n) {
+    if (aTime !== bTime) {
+      return aTime - bTime;
+    }
+
+    return a.inviteCode.localeCompare(
+      b.inviteCode,
+    );
+  });
+
+  const eligibleCount =
+    eligibleCandidates.length;
+
+  if (
+    eligibleCount === 0 ||
+    availableToReserve === 0n
+  ) {
     return {
-      observedPoolBalanceWei: observedPoolBalance.toString(),
-      reservedExistingWei: reservedExisting.toString(),
-      availableToReserveWei: availableToReserve.toString(),
+      observedPoolBalanceWei:
+        observedPoolBalance.toString(),
+      reservedExistingWei:
+        reservedExisting.toString(),
+      availableToReserveWei:
+        availableToReserve.toString(),
       eligibleCount,
       perRewardWei: '0',
       distributableWei: '0',
-      remainderWei: availableToReserve.toString(),
+      remainderWei:
+        availableToReserve.toString(),
       payouts: [],
     };
   }
 
   const perReward =
-    availableToReserve / BigInt(eligibleCount);
+    availableToReserve /
+    BigInt(eligibleCount);
 
   if (perReward < 1n) {
     return {
-      observedPoolBalanceWei: observedPoolBalance.toString(),
-      reservedExistingWei: reservedExisting.toString(),
-      availableToReserveWei: availableToReserve.toString(),
+      observedPoolBalanceWei:
+        observedPoolBalance.toString(),
+      reservedExistingWei:
+        reservedExisting.toString(),
+      availableToReserveWei:
+        availableToReserve.toString(),
       eligibleCount,
       perRewardWei: '0',
       distributableWei: '0',
-      remainderWei: availableToReserve.toString(),
+      remainderWei:
+        availableToReserve.toString(),
       payouts: [],
     };
   }
@@ -184,17 +284,24 @@ export function calculateRewardDryRun(input: {
     availableToReserve - distributable;
 
   return {
-    observedPoolBalanceWei: observedPoolBalance.toString(),
-    reservedExistingWei: reservedExisting.toString(),
-    availableToReserveWei: availableToReserve.toString(),
+    observedPoolBalanceWei:
+      observedPoolBalance.toString(),
+    reservedExistingWei:
+      reservedExisting.toString(),
+    availableToReserveWei:
+      availableToReserve.toString(),
     eligibleCount,
     perRewardWei: perReward.toString(),
-    distributableWei: distributable.toString(),
+    distributableWei:
+      distributable.toString(),
     remainderWei: remainder.toString(),
-    payouts: eligibleCandidates.map((candidate) => ({
-      inviteCode: candidate.inviteCode,
-      recipientWallet: candidate.recipientWallet,
-      amountWei: perReward.toString(),
-    })),
+    payouts: eligibleCandidates.map(
+      (candidate) => ({
+        inviteCode: candidate.inviteCode,
+        recipientWallet:
+          candidate.recipientWallet,
+        amountWei: perReward.toString(),
+      }),
+    ),
   };
 }
