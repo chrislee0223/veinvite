@@ -15,10 +15,17 @@ function toIsoTimestamp(unixSeconds: number): string {
 
 export async function recordQualifyingRewardImpact(args: {
   inviteCode: string;
-  network: VeBetterNetwork;
+  network: VeBetterNetwork | null;
   walletAddress: string;
   events: QualifyingRewardEvent[];
 }): Promise<boolean> {
+  if (!args.network) {
+    console.error(
+      'Refusing to record dApp impact without invitation network provenance.',
+    );
+    return false;
+  }
+
   if (args.events.length === 0) {
     return true;
   }
@@ -57,13 +64,20 @@ export async function recordQualifyingRewardImpact(args: {
 
 export async function recordVoteImpact(args: {
   inviteCode: string;
-  network: VeBetterNetwork;
+  network: VeBetterNetwork | null;
   walletAddress: string;
   txId: string;
   blockNumber: number;
   blockTimestamp: number;
   voteRoundId: number;
 }): Promise<boolean> {
+  if (!args.network) {
+    console.error(
+      'Refusing to record vote impact without invitation network provenance.',
+    );
+    return false;
+  }
+
   const normalizedTxId = args.txId.toLowerCase();
 
   const { error } = await supabaseAdmin
