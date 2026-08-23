@@ -4,7 +4,7 @@ import { ThorClient } from '@vechain/sdk-network';
 const DEFAULT_VECHAIN_NODE_URL =
   'https://mainnet.vechain.org';
 
-const X_ALLOCATION_VOTING =
+const DEFAULT_X_ALLOCATION_VOTING =
   '0x89A00Bb0947a30FF95BEeF77a66AEdE3842Fe5B7';
 
 const allocationVoteCastEvent =
@@ -32,6 +32,13 @@ function getThorClient() {
     DEFAULT_VECHAIN_NODE_URL;
 
   return ThorClient.at(nodeUrl);
+}
+
+function getAllocationVotingAddress() {
+  return (
+    process.env.X_ALLOCATION_VOTING_ADDRESS ??
+    DEFAULT_X_ALLOCATION_VOTING
+  );
 }
 
 function getSingleTopic(
@@ -168,13 +175,6 @@ export async function getVeBetterVoteProgress({
         null,
       ]);
 
-  /*
-   * AllocationVoteCast topics:
-   *
-   * topic0 = event signature
-   * topic1 = voter
-   * topic2 = roundId
-   */
   const logs =
     await thor.logs
       .filterRawEventLogs({
@@ -190,7 +190,7 @@ export async function getVeBetterVoteProgress({
         criteriaSet: [
           {
             address:
-              X_ALLOCATION_VOTING,
+              getAllocationVotingAddress(),
             topic0:
               getSingleTopic(
                 topics[0],
