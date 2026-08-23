@@ -7,7 +7,7 @@ import './globals.css';
 const siteUrl = 'https://veinvite.vercel.app';
 const title = 'VeInvite | Verified onboarding for VeBetterDAO';
 const description =
-  'VeInvite helps onboard genuinely new users into VeBetterDAO through referral journeys verified with on-chain activity.';
+  'VeInvite verifies referral onboarding using wallet entry history, qualifying VeBetter activity, and governance participation.';
 
 export const metadata: Metadata = {
   metadataBase: new URL(siteUrl),
