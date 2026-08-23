@@ -3,6 +3,10 @@ import {
   NextResponse,
 } from 'next/server';
 
+import {
+  recordQualifyingRewardImpact,
+  recordVoteImpact,
+} from '@/lib/impact/record';
 import { supabaseAdmin } from '@/lib/supabaseServer';
 import {
   evaluatePostVoteSybilRisk,
@@ -15,6 +19,9 @@ import type {
 import {
   getVeBetterActivityProgress,
 } from '@/lib/vebetter/activity';
+import {
+  getVeBetterNetworkConfig,
+} from '@/lib/vebetter/network';
 import {
   getVeBetterVoteProgress,
 } from '@/lib/vebetter/vote';
@@ -161,6 +168,9 @@ export async function GET(
   const normalizedCode =
     code.toUpperCase();
 
+  const { network } =
+    getVeBetterNetworkConfig();
+
   const {
     data,
     error,
@@ -257,6 +267,9 @@ export async function GET(
   let activityCheckpointSaved =
     true;
 
+  let impactCheckpointSaved =
+    true;
+
   let voteSyncPending =
     false;
 
@@ -291,6 +304,16 @@ export async function GET(
 
       latestBlock =
         activity.latestBlock;
+
+      impactCheckpointSaved =
+        await recordQualifyingRewardImpact({
+          inviteCode: normalizedCode,
+          network,
+          walletAddress:
+            row.invitee_wallet,
+          events:
+            activity.qualifyingRewardEvents,
+        });
 
       const reachedThreeApps =
         appsCompleted >= 3;
@@ -548,6 +571,35 @@ export async function GET(
               persistedCompletion.updated_at;
           }
 
+          if (
+            vote.voteTxId &&
+            vote.voteCompletedBlock !== null &&
+            vote.voteBlockTimestamp !== null &&
+            vote.voteRoundId !== null
+          ) {
+            const voteImpactSaved =
+              await recordVoteImpact({
+                inviteCode: normalizedCode,
+                network,
+                walletAddress:
+                  row.invitee_wallet,
+                txId: vote.voteTxId,
+                blockNumber:
+                  vote.voteCompletedBlock,
+                blockTimestamp:
+                  vote.voteBlockTimestamp,
+                voteRoundId:
+                  vote.voteRoundId,
+              });
+
+            impactCheckpointSaved =
+              impactCheckpointSaved &&
+              voteImpactSaved;
+          } else {
+            impactCheckpointSaved =
+              false;
+          }
+
           activityCheckpointSaved =
             true;
         }
@@ -608,6 +660,7 @@ export async function GET(
       voteCompletedBlock,
       voteRoundId,
       activityCheckpointSaved,
+      impactCheckpointSaved,
       voteSyncPending,
     },
   });
