@@ -16,6 +16,39 @@ const CANDIDATE_APP_NAMES = [
   'VEINVITE',
 ] as const;
 
+const APP_TUPLE_COMPONENTS = [
+  {
+    internalType: 'bytes32',
+    name: 'id',
+    type: 'bytes32',
+  },
+  {
+    internalType: 'address',
+    name: 'teamWalletAddress',
+    type: 'address',
+  },
+  {
+    internalType: 'string',
+    name: 'name',
+    type: 'string',
+  },
+  {
+    internalType: 'string',
+    name: 'metadataURI',
+    type: 'string',
+  },
+  {
+    internalType: 'uint256',
+    name: 'createdAtTimestamp',
+    type: 'uint256',
+  },
+  {
+    internalType: 'bool',
+    name: 'appAvailableForAllocationVoting',
+    type: 'bool',
+  },
+] as const;
+
 const X2EARN_APPS_READ_ABI = [
   {
     inputs: [
@@ -28,42 +61,26 @@ const X2EARN_APPS_READ_ABI = [
     name: 'app',
     outputs: [
       {
-        components: [
-          {
-            internalType: 'bytes32',
-            name: 'id',
-            type: 'bytes32',
-          },
-          {
-            internalType: 'address',
-            name: 'teamWalletAddress',
-            type: 'address',
-          },
-          {
-            internalType: 'string',
-            name: 'name',
-            type: 'string',
-          },
-          {
-            internalType: 'string',
-            name: 'metadataURI',
-            type: 'string',
-          },
-          {
-            internalType: 'uint256',
-            name: 'createdAtTimestamp',
-            type: 'uint256',
-          },
-          {
-            internalType: 'bool',
-            name: 'appAvailableForAllocationVoting',
-            type: 'bool',
-          },
-        ],
+        components: APP_TUPLE_COMPONENTS,
         internalType:
           'struct X2EarnAppsDataTypes.AppWithDetailsReturnType',
         name: '',
         type: 'tuple',
+      },
+    ],
+    stateMutability: 'view',
+    type: 'function',
+  },
+  {
+    inputs: [],
+    name: 'apps',
+    outputs: [
+      {
+        components: APP_TUPLE_COMPONENTS,
+        internalType:
+          'struct X2EarnAppsDataTypes.AppWithDetailsReturnType[]',
+        name: '',
+        type: 'tuple[]',
       },
     ],
     stateMutability: 'view',
@@ -81,6 +98,15 @@ type AppTuple = readonly [
   bigint,
   boolean,
 ];
+
+type DiscoveredApp = {
+  appId: string;
+  registeredName: string;
+  teamWalletAddress: string;
+  createdAtTimestamp: string;
+  appAvailableForAllocationVoting: boolean;
+  rewardPool: Awaited<ReturnType<typeof getRewardPoolSnapshot>>;
+};
 
 function isProductionDeployment() {
   return process.env.VERCEL_ENV === 'production';
@@ -125,6 +151,30 @@ function parseAppTuple(value: unknown): AppTuple | null {
   ];
 }
 
+async function toDiscoveredApp(
+  tuple: AppTuple,
+): Promise<DiscoveredApp> {
+  const [
+    appId,
+    teamWalletAddress,
+    registeredName,
+    _metadataURI,
+    createdAtTimestamp,
+    appAvailableForAllocationVoting,
+  ] = tuple;
+
+  return {
+    appId,
+    registeredName,
+    teamWalletAddress,
+    createdAtTimestamp:
+      createdAtTimestamp.toString(),
+    appAvailableForAllocationVoting,
+    rewardPool:
+      await getRewardPoolSnapshot(appId),
+  };
+}
+
 export async function GET() {
   if (isProductionDeployment()) {
     return NextResponse.json(
@@ -159,7 +209,7 @@ export async function GET() {
     X2EARN_APPS_READ_ABI,
   );
 
-  const attempts = [] as Array<{
+  const candidateAttempts = [] as Array<{
     candidateName: string;
     appId: string;
     exists: boolean;
@@ -179,29 +229,11 @@ export async function GET() {
       const tuple =
         parseAppTuple(result?.[0]);
 
-      if (!tuple) {
-        attempts.push({
-          candidateName,
-          appId,
-          exists: false,
-        });
-        continue;
-      }
-
-      const [
-        registeredId,
-        teamWalletAddress,
-        registeredName,
-        _metadataURI,
-        createdAtTimestamp,
-        appAvailableForAllocationVoting,
-      ] = tuple;
-
       if (
-        registeredId.toLowerCase() !==
-        appId.toLowerCase()
+        !tuple ||
+        tuple[0].toLowerCase() !== appId.toLowerCase()
       ) {
-        attempts.push({
+        candidateAttempts.push({
           candidateName,
           appId,
           exists: false,
@@ -209,22 +241,16 @@ export async function GET() {
         continue;
       }
 
-      const rewardPool =
-        await getRewardPoolSnapshot(appId);
+      const discovered =
+        await toDiscoveredApp(tuple);
 
-      attempts.push({
+      candidateAttempts.push({
         candidateName,
-        appId,
         exists: true,
-        registeredName,
-        teamWalletAddress,
-        createdAtTimestamp:
-          createdAtTimestamp.toString(),
-        appAvailableForAllocationVoting,
-        rewardPool,
+        ...discovered,
       });
     } catch {
-      attempts.push({
+      candidateAttempts.push({
         candidateName,
         appId,
         exists: false,
@@ -232,8 +258,62 @@ export async function GET() {
     }
   }
 
-  const matches =
-    attempts.filter((attempt) => attempt.exists);
+  let registryScanned = false;
+  let registryAppCount: number | null = null;
+  const registryMatches: DiscoveredApp[] = [];
+
+  try {
+    const registryResult =
+      await contract.read.apps();
+    const rawApps = registryResult?.[0];
+
+    if (Array.isArray(rawApps)) {
+      registryScanned = true;
+      registryAppCount = rawApps.length;
+
+      for (const rawApp of rawApps) {
+        const tuple = parseAppTuple(rawApp);
+
+        if (!tuple) {
+          continue;
+        }
+
+        const registeredName =
+          tuple[2].trim().toLowerCase();
+
+        if (!registeredName.includes('invite')) {
+          continue;
+        }
+
+        try {
+          registryMatches.push(
+            await toDiscoveredApp(tuple),
+          );
+        } catch {
+          // If a pool read fails, do not claim the app is safe to use.
+        }
+      }
+    }
+  } catch {
+    registryScanned = false;
+  }
+
+  const directMatches =
+    candidateAttempts.filter(
+      (attempt) => attempt.exists,
+    );
+
+  const uniqueMatches = new Map<string, unknown>();
+
+  for (const match of [
+    ...directMatches,
+    ...registryMatches,
+  ]) {
+    uniqueMatches.set(
+      match.appId.toLowerCase(),
+      match,
+    );
+  }
 
   return NextResponse.json(
     {
@@ -244,9 +324,12 @@ export async function GET() {
       transfersPerformed: false,
       candidateCount:
         CANDIDATE_APP_NAMES.length,
-      matchCount: matches.length,
-      matches,
-      attempts,
+      registryScanned,
+      registryAppCount,
+      matchCount: uniqueMatches.size,
+      matches:
+        Array.from(uniqueMatches.values()),
+      candidateAttempts,
     },
     {
       headers: {
