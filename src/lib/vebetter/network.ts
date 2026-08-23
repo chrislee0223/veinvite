@@ -77,6 +77,53 @@ function requireAddress(
   return value;
 }
 
+function resolveContractAddress({
+  envValue,
+  officialValue,
+  fieldName,
+  network,
+}: {
+  envValue: string | undefined;
+  officialValue: string;
+  fieldName: string;
+  network: VeBetterNetwork;
+}): string {
+  const officialAddress =
+    requireAddress(officialValue, `${fieldName} official default`);
+
+  if (!envValue) {
+    return officialAddress;
+  }
+
+  const override =
+    requireAddress(envValue, fieldName);
+
+  if (
+    override.toLowerCase() ===
+    officialAddress.toLowerCase()
+  ) {
+    return officialAddress;
+  }
+
+  if (
+    process.env.VEBETTER_ALLOW_CONTRACT_OVERRIDE === 'true'
+  ) {
+    console.warn(
+      `${fieldName} overrides the reviewed ${network} VeBetter address.`,
+    );
+    return override;
+  }
+
+  // Testnet contracts can be redeployed. A stale Vercel variable must never
+  // silently redirect reward verification or accounting to an old contract.
+  console.warn(
+    `${fieldName} does not match the reviewed ${network} VeBetter address; ` +
+      'ignoring the stale override.',
+  );
+
+  return officialAddress;
+}
+
 export function getVeBetterNetworkConfig() {
   const network = getVeBetterNetwork();
   const defaults = OFFICIAL_DEFAULTS[network];
@@ -85,17 +132,27 @@ export function getVeBetterNetworkConfig() {
     process.env.VECHAIN_NODE_URL ?? defaults.nodeUrl
   ).replace(/\/+$/, '');
 
-  const x2EarnRewardsPoolAddress = requireAddress(
-    process.env.X2EARN_REWARDS_POOL_ADDRESS ??
-      defaults.x2EarnRewardsPoolAddress,
-    'X2EARN_REWARDS_POOL_ADDRESS',
-  );
+  const x2EarnRewardsPoolAddress =
+    resolveContractAddress({
+      envValue:
+        process.env.X2EARN_REWARDS_POOL_ADDRESS,
+      officialValue:
+        defaults.x2EarnRewardsPoolAddress,
+      fieldName:
+        'X2EARN_REWARDS_POOL_ADDRESS',
+      network,
+    });
 
-  const xAllocationVotingAddress = requireAddress(
-    process.env.X_ALLOCATION_VOTING_ADDRESS ??
-      defaults.xAllocationVotingAddress,
-    'X_ALLOCATION_VOTING_ADDRESS',
-  );
+  const xAllocationVotingAddress =
+    resolveContractAddress({
+      envValue:
+        process.env.X_ALLOCATION_VOTING_ADDRESS,
+      officialValue:
+        defaults.xAllocationVotingAddress,
+      fieldName:
+        'X_ALLOCATION_VOTING_ADDRESS',
+      network,
+    });
 
   return {
     network,
