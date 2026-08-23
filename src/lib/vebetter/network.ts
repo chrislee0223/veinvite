@@ -1,4 +1,7 @@
-export type VeBetterNetwork = 'mainnet' | 'testnet';
+export type VeBetterNetwork =
+  | 'mainnet'
+  | 'testnet'
+  | 'testnet-staging';
 
 const ADDRESS_PATTERN = /^0x[0-9a-fA-F]{40}$/;
 
@@ -21,12 +24,38 @@ const OFFICIAL_DEFAULTS = {
     xAllocationVotingAddress:
       '0xe3c043786e991bd446be5242e79dff757fbda348',
   },
+  'testnet-staging': {
+    nodeUrl: 'https://testnet.vechain.org',
+    x2EarnAppsAddress:
+      '0x0b54a094b877a25bdc95b4431eaa1e2206b1ddfe',
+    x2EarnRewardsPoolAddress:
+      '0x2d2a2207c68a46fc79325d7718e639d1047b0d8b',
+    xAllocationVotingAddress:
+      '0x8800592c463f0b21ae08732559ee8e146db1d7b2',
+  },
 } as const;
+
+function sameAddress(
+  left: string | undefined,
+  right: string,
+): boolean {
+  return Boolean(
+    left &&
+      left.toLowerCase() === right.toLowerCase(),
+  );
+}
 
 function normalizeNetworkValue(
   value: string | undefined,
 ): VeBetterNetwork | null {
   const normalized = value?.trim().toLowerCase();
+
+  if (
+    normalized === 'testnet-staging' ||
+    normalized === 'staging'
+  ) {
+    return 'testnet-staging';
+  }
 
   if (
     normalized === 'test' ||
@@ -45,13 +74,46 @@ function normalizeNetworkValue(
   return null;
 }
 
+function inferReviewedStagingProfile(): boolean {
+  const staging =
+    OFFICIAL_DEFAULTS['testnet-staging'];
+
+  return (
+    sameAddress(
+      process.env.X2EARN_REWARDS_POOL_ADDRESS,
+      staging.x2EarnRewardsPoolAddress,
+    ) ||
+    sameAddress(
+      process.env.X_ALLOCATION_VOTING_ADDRESS,
+      staging.xAllocationVotingAddress,
+    ) ||
+    sameAddress(
+      process.env.X2EARN_APPS_ADDRESS,
+      staging.x2EarnAppsAddress,
+    )
+  );
+}
+
 export function getVeBetterNetwork(): VeBetterNetwork {
-  const explicitNetwork =
-    normalizeNetworkValue(process.env.VECHAIN_NETWORK) ??
+  const serverNetwork =
+    normalizeNetworkValue(process.env.VECHAIN_NETWORK);
+
+  if (serverNetwork) {
+    return serverNetwork;
+  }
+
+  // The VeBetter staging governance site runs on VeChain testnet but uses a
+  // separate reviewed contract set. Existing Vercel variables identify that
+  // profile even when NEXT_PUBLIC_NETWORK_TYPE only says "test".
+  if (inferReviewedStagingProfile()) {
+    return 'testnet-staging';
+  }
+
+  const publicNetwork =
     normalizeNetworkValue(process.env.NEXT_PUBLIC_NETWORK_TYPE);
 
-  if (explicitNetwork) {
-    return explicitNetwork;
+  if (publicNetwork) {
+    return publicNetwork;
   }
 
   const nodeUrl = process.env.VECHAIN_NODE_URL?.toLowerCase();
@@ -65,8 +127,6 @@ export function getVeBetterNetwork(): VeBetterNetwork {
   }
 
   // Preserve the existing production behavior when no network hint exists.
-  // Test/preview deployments should explicitly use NEXT_PUBLIC_NETWORK_TYPE=test,
-  // VECHAIN_NETWORK=testnet, or a testnet VECHAIN_NODE_URL.
   return 'mainnet';
 }
 
@@ -118,11 +178,9 @@ function resolveContractAddress({
     return override;
   }
 
-  // Testnet contracts can be redeployed. A stale Vercel variable must never
-  // silently redirect reward verification or accounting to an old contract.
   console.warn(
     `${fieldName} does not match the reviewed ${network} VeBetter address; ` +
-      'ignoring the stale override.',
+      'ignoring the unreviewed override.',
   );
 
   return officialAddress;
