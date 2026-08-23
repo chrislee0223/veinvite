@@ -9,10 +9,13 @@ import {
   useAccountModal,
   useConnectModal,
 } from '@vechain/vechain-kit';
-
 import {
   useWallet,
 } from '@vechain/dapp-kit-react';
+
+import {
+  useWalletAuthentication,
+} from '@/hooks/useWalletAuthentication';
 
 const WalletButton = dynamic(
   () =>
@@ -29,18 +32,10 @@ export function useActiveWallet():
   | null {
   const { account } = useWallet();
 
-  const demoMode =
-    process.env.NEXT_PUBLIC_DEMO_MODE ===
-    'true';
-
-  return (
-    account ??
-    (demoMode
-      ? process.env
-          .NEXT_PUBLIC_DEMO_WALLET ??
-        null
-      : null)
-  );
+  // Never synthesize an authenticated identity from a public demo variable.
+  // Preview testing should use a real test wallet and the same ownership proof
+  // as production.
+  return account ?? null;
 }
 
 export function useWalletLauncher() {
@@ -81,9 +76,20 @@ export function useWalletLauncher() {
 export function WalletControl() {
   const wallet = useActiveWallet();
   const { disconnect } = useWallet();
+  const { clearWalletSession } =
+    useWalletAuthentication();
 
   const handleDisconnect =
     useCallback(async () => {
+      try {
+        await clearWalletSession();
+      } catch (error) {
+        console.error(
+          'Failed to clear VeInvite wallet session:',
+          error,
+        );
+      }
+
       try {
         await disconnect();
       } catch (error) {
@@ -92,7 +98,10 @@ export function WalletControl() {
           error,
         );
       }
-    }, [disconnect]);
+    }, [
+      clearWalletSession,
+      disconnect,
+    ]);
 
   return (
     <div className="walletControl">
