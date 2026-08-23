@@ -1,11 +1,9 @@
 import { ABIEvent } from '@vechain/sdk-core';
 import { ThorClient } from '@vechain/sdk-network';
 
-const DEFAULT_VECHAIN_NODE_URL =
-  'https://mainnet.vechain.org';
-
-const DEFAULT_X_ALLOCATION_VOTING =
-  '0x89A00Bb0947a30FF95BEeF77a66AEdE3842Fe5B7';
+import {
+  getVeBetterNetworkConfig,
+} from '@/lib/vebetter/network';
 
 const allocationVoteCastEvent =
   new ABIEvent(
@@ -25,21 +23,6 @@ export type VoteProgress = {
   voteRoundId: number | null;
   latestBlock: number;
 };
-
-function getThorClient() {
-  const nodeUrl =
-    process.env.VECHAIN_NODE_URL ??
-    DEFAULT_VECHAIN_NODE_URL;
-
-  return ThorClient.at(nodeUrl);
-}
-
-function getAllocationVotingAddress() {
-  return (
-    process.env.X_ALLOCATION_VOTING_ADDRESS ??
-    DEFAULT_X_ALLOCATION_VOTING
-  );
-}
 
 function getSingleTopic(
   topic:
@@ -143,8 +126,12 @@ export async function getVeBetterVoteProgress({
     );
   }
 
-  const thor =
-    getThorClient();
+  const {
+    nodeUrl,
+    xAllocationVotingAddress,
+  } = getVeBetterNetworkConfig();
+
+  const thor = ThorClient.at(nodeUrl);
 
   const bestBlock =
     await thor.blocks
@@ -190,7 +177,7 @@ export async function getVeBetterVoteProgress({
         criteriaSet: [
           {
             address:
-              getAllocationVotingAddress(),
+              xAllocationVotingAddress,
             topic0:
               getSingleTopic(
                 topics[0],
