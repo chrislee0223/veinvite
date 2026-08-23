@@ -8,6 +8,7 @@ import { verifyActivation } from '@/lib/vebetter/missionVerifier';
 import type {
   InviteRecord,
   InviteStatus,
+  RewardEligibility,
 } from '@/lib/types';
 
 type InvitationRow = {
@@ -20,7 +21,7 @@ type InvitationRow = {
   apps_completed: number;
   rewards_received: number;
   vote_completed: boolean;
-  reward_status: string;
+  reward_status: RewardEligibility;
 };
 
 const invitationColumns = `
@@ -64,14 +65,7 @@ function toInviteRecord(
     createdAt: row.created_at,
     updatedAt: row.updated_at,
     rewardEligibility:
-      row.reward_status === 'ELIGIBLE' ||
-      row.reward_status === 'PAID'
-        ? 'ELIGIBLE'
-        : row.reward_status === 'FORFEITED'
-          ? 'FORFEITED'
-          : row.invitee_wallet
-            ? 'PENDING'
-            : 'NONE',
+      row.reward_status,
   };
 }
 
@@ -108,6 +102,10 @@ export async function POST(
    * It is enabled only when:
    * 1. VEINVITE_ALLOW_DEMO_COMPLETION=true, and
    * 2. the deployment is Vercel Preview or local development.
+   *
+   * Demo mission completion is intentionally NOT enough to make a referral
+   * reward-eligible. The database trigger keeps reward_status=PENDING until
+   * real on-chain app and vote evidence exists.
    */
   if (!isDemoCompletionEnabled()) {
     console.warn(
@@ -179,7 +177,6 @@ export async function POST(
     });
   }
 
-  // Demo-only verification until real on-chain checks are connected.
   const verification = verifyActivation({
     walletConnected: true,
     distinctVeBetterAppsUsed: 3,
@@ -207,7 +204,9 @@ export async function POST(
       apps_completed: 3,
       rewards_received: 3,
       vote_completed: true,
-      reward_status: 'ELIGIBLE',
+      // The eligibility trigger deliberately keeps this PENDING because demo
+      // completion does not contain on-chain block/round evidence.
+      reward_status: 'PENDING',
     })
     .eq('invite_code', normalizedCode)
     .in('status', [
