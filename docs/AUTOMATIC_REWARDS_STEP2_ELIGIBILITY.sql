@@ -16,7 +16,7 @@ begin
   -- A completed invitation becomes eligible exactly once unless it has
   -- already been paid or explicitly forfeited.
   if new.status = 'COMPLETED'
-     and coalesce(new.reward_status, '') not in ('PAID', 'FORFEITED') then
+     and coalesce(new.reward_status::text, '') not in ('PAID', 'FORFEITED') then
     new.reward_status := 'ELIGIBLE';
     new.reward_eligible_at := coalesce(
       new.reward_eligible_at,
@@ -33,7 +33,7 @@ drop trigger if exists invitations_sync_reward_eligibility
   on public.invitations;
 
 create trigger invitations_sync_reward_eligibility
-before insert or update of status, reward_status, vote_completed_at
+before insert or update
 on public.invitations
 for each row
 execute function public.sync_invitation_reward_eligibility();
@@ -50,6 +50,6 @@ set
     now()
   )
 where status = 'COMPLETED'
-  and coalesce(reward_status, '') not in ('PAID', 'FORFEITED');
+  and coalesce(reward_status::text, '') not in ('PAID', 'FORFEITED');
 
 commit;
