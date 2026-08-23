@@ -67,6 +67,48 @@ Use this for questions such as:
 - "Which wallet has created the most invites?"
 - "Which inviter has the most flagged referrals?"
 
+## Operator Sybil decisions
+
+Use the service-role-only `set_invitation_sybil_decision` function instead of manually changing several invitation fields. It keeps invite status and reward status consistent and the audit trigger records the decision automatically.
+
+Put a referral under review:
+
+```sql
+select * from public.set_invitation_sybil_decision(
+  '<invite_code>',
+  'REVIEW',
+  'MEDIUM',
+  '<reason>',
+  0
+);
+```
+
+Clear a referral after review:
+
+```sql
+select * from public.set_invitation_sybil_decision(
+  '<invite_code>',
+  'CLEAR',
+  'NONE',
+  '<optional note>',
+  0
+);
+```
+
+Confirm abuse and block the referral from rewards:
+
+```sql
+select * from public.set_invitation_sybil_decision(
+  '<invite_code>',
+  'BLOCKED',
+  'HIGH',
+  '<confirmed reason>',
+  0
+);
+```
+
+A CLEAR decision only returns the invite to `COMPLETED` when all mission and vote evidence is already valid. Otherwise it returns to `ACTIVATING`. BLOCKED never changes an already-paid payout; paid settlement history remains immutable.
+
 ## Wallet-specific investigation
 
 For a specific wallet, inspect all three areas instead of drawing conclusions from one table:
