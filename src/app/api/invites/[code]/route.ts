@@ -13,6 +13,7 @@ import {
 import type {
   InviteRecord,
   InviteStatus,
+  RewardEligibility,
 } from '@/lib/types';
 
 type InvitationRow = {
@@ -20,7 +21,9 @@ type InvitationRow = {
   inviter_wallet: string;
   invitee_wallet: string | null;
   status: InviteStatus;
+  reward_status: RewardEligibility;
   created_at: string;
+  updated_at: string;
   activated_at: string | null;
   activation_block:
     | number
@@ -50,7 +53,9 @@ const invitationColumns = `
   inviter_wallet,
   invitee_wallet,
   status,
+  reward_status,
   created_at,
+  updated_at,
   activated_at,
   activation_block,
   apps_completed,
@@ -91,18 +96,9 @@ function toInviteRecord(
       : {}),
     status: row.status,
     createdAt: row.created_at,
-    updatedAt:
-      row.activated_at ??
-      row.created_at,
+    updatedAt: row.updated_at,
     rewardEligibility:
-      row.status === 'COMPLETED'
-        ? 'ELIGIBLE'
-        : row.status ===
-            'CANCELLED'
-          ? 'FORFEITED'
-          : row.invitee_wallet
-            ? 'PENDING'
-            : 'NONE',
+      row.reward_status,
   };
 }
 
@@ -190,6 +186,12 @@ export async function GET(
 
   let effectiveStatus =
     row.status;
+
+  let effectiveRewardEligibility =
+    row.reward_status;
+
+  let effectiveUpdatedAt =
+    row.updated_at;
 
   let appsCompleted =
     row.apps_completed ?? 0;
@@ -354,6 +356,7 @@ export async function GET(
         }
 
         const {
+          data: persistedProgress,
           error: updateError,
         } = await supabaseAdmin
           .from('invitations')
@@ -361,7 +364,11 @@ export async function GET(
           .eq(
             'invite_code',
             normalizedCode,
-          );
+          )
+          .select(
+            'reward_status, updated_at',
+          )
+          .maybeSingle();
 
         if (updateError) {
           activityCheckpointSaved =
@@ -371,6 +378,12 @@ export async function GET(
             'Failed to save activity progress:',
             updateError,
           );
+        } else if (persistedProgress) {
+          effectiveRewardEligibility =
+            persistedProgress.reward_status as RewardEligibility;
+
+          effectiveUpdatedAt =
+            persistedProgress.updated_at;
         }
       }
     } catch (
@@ -412,6 +425,7 @@ export async function GET(
           new Date().toISOString();
 
         const {
+          data: persistedCompletion,
           error: voteUpdateError,
         } = await supabaseAdmin
           .from('invitations')
@@ -436,7 +450,11 @@ export async function GET(
           .eq(
             'invite_code',
             normalizedCode,
-          );
+          )
+          .select(
+            'reward_status, updated_at',
+          )
+          .maybeSingle();
 
         /*
          * Do not show COMPLETED unless
@@ -465,6 +483,14 @@ export async function GET(
           effectiveStatus =
             'COMPLETED';
 
+          if (persistedCompletion) {
+            effectiveRewardEligibility =
+              persistedCompletion.reward_status as RewardEligibility;
+
+            effectiveUpdatedAt =
+              persistedCompletion.updated_at;
+          }
+
           activityCheckpointSaved =
             true;
         }
@@ -483,6 +509,10 @@ export async function GET(
     ...row,
     status:
       effectiveStatus,
+    reward_status:
+      effectiveRewardEligibility,
+    updated_at:
+      effectiveUpdatedAt,
     apps_completed:
       appsCompleted,
     rewards_received:
