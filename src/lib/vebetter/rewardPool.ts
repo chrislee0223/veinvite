@@ -6,6 +6,8 @@ import {
 
 const APP_ID_PATTERN = /^0x[0-9a-fA-F]{64}$/;
 
+type AppIdHex = `0x${string}`;
+
 const X2EARN_REWARDS_POOL_READ_ABI = [
   {
     inputs: [
@@ -115,7 +117,7 @@ export type RewardPoolSnapshot = {
   distributionPaused: boolean;
 };
 
-function normalizeAppId(appId: string): string {
+function normalizeAppId(appId: string): AppIdHex {
   const normalized = appId.trim().toLowerCase();
 
   if (!APP_ID_PATTERN.test(normalized)) {
@@ -124,7 +126,7 @@ function normalizeAppId(appId: string): string {
     );
   }
 
-  return normalized;
+  return normalized as AppIdHex;
 }
 
 function requireBigInt(
