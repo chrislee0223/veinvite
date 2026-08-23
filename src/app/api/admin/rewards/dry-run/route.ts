@@ -12,11 +12,18 @@ import {
   type RewardCandidate,
   type RewardPayoutStatus,
 } from '@/lib/rewards/dryRun';
+import {
+  getVeBetterNetworkConfig,
+} from '@/lib/vebetter/network';
 
 type InvitationRewardRow = {
   invite_code: string;
   inviter_wallet: string;
   reward_eligible_at: string | null;
+};
+
+type RewardRoundIdRow = {
+  id: number | string;
 };
 
 type RewardPayoutRow = {
@@ -26,6 +33,12 @@ type RewardPayoutRow = {
 };
 
 const NON_NEGATIVE_INTEGER = /^\d+$/;
+
+// VeInvite uses the same bytes32 app id in the reviewed VeBetter environments.
+// Keeping this explicit prevents a dry run for one app from reserving another
+// app's payouts if a shared database is ever used for multiple pools.
+const VEINVITE_APP_ID =
+  '0x29acc8863cf2ab7a82d16c62d61ca84b6650cede4c4fd69073148c875349021e';
 
 function isProductionDeployment() {
   return process.env.VERCEL_ENV === 'production';
@@ -95,6 +108,25 @@ function toExistingPayouts(
   }));
 }
 
+function parseRoundIds(
+  rows: RewardRoundIdRow[],
+): number[] {
+  return rows.map((row) => {
+    const id =
+      typeof row.id === 'number'
+        ? row.id
+        : Number(row.id);
+
+    if (!Number.isSafeInteger(id) || id < 1) {
+      throw new Error(
+        'Reward dry-run encountered an invalid reward round id.',
+      );
+    }
+
+    return id;
+  });
+}
+
 export async function POST(
   request: NextRequest,
 ) {
@@ -161,9 +193,12 @@ export async function POST(
     );
   }
 
+  const { network } =
+    getVeBetterNetworkConfig();
+
   const [
     invitationResult,
-    payoutResult,
+    roundResult,
   ] = await Promise.all([
     supabaseAdmin
       .from('invitations')
@@ -172,6 +207,7 @@ export async function POST(
       )
       .eq('status', 'COMPLETED')
       .eq('reward_status', 'ELIGIBLE')
+      .eq('activation_network', network)
       .order('reward_eligible_at', {
         ascending: true,
         nullsFirst: false,
@@ -181,10 +217,10 @@ export async function POST(
       }),
 
     supabaseAdmin
-      .from('reward_payouts')
-      .select(
-        'invite_code, amount_wei, status',
-      ),
+      .from('reward_rounds')
+      .select('id')
+      .eq('network', network)
+      .eq('app_id', VEINVITE_APP_ID),
   ]);
 
   if (invitationResult.error) {
@@ -202,19 +238,70 @@ export async function POST(
     );
   }
 
-  if (payoutResult.error) {
+  if (roundResult.error) {
     console.error(
-      'Reward dry-run failed to load existing payouts:',
-      payoutResult.error,
+      'Reward dry-run failed to load matching reward rounds:',
+      roundResult.error,
     );
 
     return NextResponse.json(
       {
         error:
-          'Failed to load existing reward payouts.',
+          'Failed to load matching reward rounds.',
       },
       { status: 500 },
     );
+  }
+
+  let roundIds: number[];
+
+  try {
+    roundIds = parseRoundIds(
+      (roundResult.data ?? []) as RewardRoundIdRow[],
+    );
+  } catch (error) {
+    console.error(
+      'Reward dry-run found malformed round data:',
+      error,
+    );
+
+    return NextResponse.json(
+      {
+        error:
+          'Reward dry-run round data failed validation.',
+      },
+      { status: 500 },
+    );
+  }
+
+  let payoutRows: RewardPayoutRow[] = [];
+
+  if (roundIds.length > 0) {
+    const payoutResult =
+      await supabaseAdmin
+        .from('reward_payouts')
+        .select(
+          'invite_code, amount_wei, status',
+        )
+        .in('round_id', roundIds);
+
+    if (payoutResult.error) {
+      console.error(
+        'Reward dry-run failed to load scoped payouts:',
+        payoutResult.error,
+      );
+
+      return NextResponse.json(
+        {
+          error:
+            'Failed to load scoped reward payouts.',
+        },
+        { status: 500 },
+      );
+    }
+
+    payoutRows =
+      (payoutResult.data ?? []) as RewardPayoutRow[];
   }
 
   try {
@@ -224,13 +311,15 @@ export async function POST(
         (invitationResult.data ?? []) as InvitationRewardRow[],
       ),
       existingPayouts: toExistingPayouts(
-        (payoutResult.data ?? []) as RewardPayoutRow[],
+        payoutRows,
       ),
     });
 
     return NextResponse.json(
       {
         mode: 'DRY_RUN',
+        network,
+        appId: VEINVITE_APP_ID,
         writesPerformed: false,
         transfersPerformed: false,
         result,
