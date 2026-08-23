@@ -107,7 +107,10 @@ const X2EARN_REWARDS_POOL_READ_ABI = [
 ] as const;
 
 export type RewardPoolSnapshot = {
-  network: 'mainnet' | 'testnet';
+  network:
+    | 'mainnet'
+    | 'testnet'
+    | 'testnet-staging';
   appId: string;
   rewardsPoolAddress: string;
   rewardsPoolBalanceWei: string;
