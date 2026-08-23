@@ -9,7 +9,8 @@ import {
   useSignMessage,
 } from '@vechain/vechain-kit';
 
-const WALLET_PATTERN = /^0x[0-9a-fA-F]{40}$/;
+const WALLET_PATTERN =
+  /^0x[0-9a-fA-F]{40}$/;
 
 type SessionResponse = {
   authenticated?: boolean;
@@ -32,6 +33,11 @@ type VerifyResponse = {
   error?: string;
 };
 
+type InFlightAuthentication = {
+  walletAddress: string;
+  promise: Promise<void>;
+};
+
 async function readJson<T>(
   response: Response,
 ): Promise<T> {
@@ -45,15 +51,16 @@ async function readJson<T>(
 }
 
 export function useWalletAuthentication() {
-  const {
-    signMessage,
-  } = useSignMessage();
+  const { signMessage } =
+    useSignMessage();
 
-  const [isAuthenticating, setIsAuthenticating] =
-    useState(false);
+  const [
+    isAuthenticating,
+    setIsAuthenticating,
+  ] = useState(false);
 
   const inFlightRef = useRef<
-    Promise<void> | null
+    InFlightAuthentication | null
   >(null);
 
   const ensureWalletSession =
@@ -62,29 +69,57 @@ export function useWalletAuthentication() {
         rawWalletAddress: string,
       ): Promise<void> => {
         const walletAddress =
-          rawWalletAddress.trim().toLowerCase();
+          rawWalletAddress
+            .trim()
+            .toLowerCase();
 
-        if (!WALLET_PATTERN.test(walletAddress)) {
+        if (
+          !WALLET_PATTERN.test(
+            walletAddress,
+          )
+        ) {
           throw new Error(
             'Connected wallet address is invalid.',
           );
         }
 
-        if (inFlightRef.current) {
-          return inFlightRef.current;
+        // Only one signature flow may own the session cookie at a time. If
+        // account A is being verified and the user switches to B, wait for A
+        // to settle and then independently verify B. Never reuse A's promise
+        // as proof for B.
+        while (inFlightRef.current) {
+          const current =
+            inFlightRef.current;
+
+          if (
+            current.walletAddress ===
+            walletAddress
+          ) {
+            return current.promise;
+          }
+
+          try {
+            await current.promise;
+          } catch {
+            // A failed previous-wallet proof does not prevent verifying the
+            // newly connected wallet.
+          }
         }
 
-        const run = (async () => {
+        let run!: Promise<void>;
+
+        run = (async () => {
           setIsAuthenticating(true);
 
           try {
-            const sessionResponse = await fetch(
-              '/api/auth/session',
-              {
-                method: 'GET',
-                cache: 'no-store',
-              },
-            );
+            const sessionResponse =
+              await fetch(
+                '/api/auth/session',
+                {
+                  method: 'GET',
+                  cache: 'no-store',
+                },
+              );
 
             const session =
               await readJson<SessionResponse>(
@@ -100,21 +135,21 @@ export function useWalletAuthentication() {
 
             if (
               session.authenticated &&
-              session.walletAddress?.toLowerCase() ===
+              session.walletAddress
+                ?.toLowerCase() ===
                 walletAddress
             ) {
               return;
             }
 
-            // A cookie for a different wallet must not be reused after the
-            // user switches accounts. Revoke it before creating a new proof.
             if (session.authenticated) {
-              const logoutResponse = await fetch(
-                '/api/auth/session',
-                {
-                  method: 'DELETE',
-                },
-              );
+              const logoutResponse =
+                await fetch(
+                  '/api/auth/session',
+                  {
+                    method: 'DELETE',
+                  },
+                );
 
               if (!logoutResponse.ok) {
                 throw new Error(
@@ -123,19 +158,20 @@ export function useWalletAuthentication() {
               }
             }
 
-            const challengeResponse = await fetch(
-              '/api/auth/challenge',
-              {
-                method: 'POST',
-                headers: {
-                  'Content-Type':
-                    'application/json',
+            const challengeResponse =
+              await fetch(
+                '/api/auth/challenge',
+                {
+                  method: 'POST',
+                  headers: {
+                    'Content-Type':
+                      'application/json',
+                  },
+                  body: JSON.stringify({
+                    walletAddress,
+                  }),
                 },
-                body: JSON.stringify({
-                  walletAddress,
-                }),
-              },
-            );
+              );
 
             const challenge =
               await readJson<ChallengeResponse>(
@@ -165,21 +201,23 @@ export function useWalletAuthentication() {
               );
             }
 
-            const verifyResponse = await fetch(
-              '/api/auth/verify',
-              {
-                method: 'POST',
-                headers: {
-                  'Content-Type':
-                    'application/json',
+            const verifyResponse =
+              await fetch(
+                '/api/auth/verify',
+                {
+                  method: 'POST',
+                  headers: {
+                    'Content-Type':
+                      'application/json',
+                  },
+                  body: JSON.stringify({
+                    walletAddress,
+                    nonce:
+                      challenge.nonce,
+                    signature,
+                  }),
                 },
-                body: JSON.stringify({
-                  walletAddress,
-                  nonce: challenge.nonce,
-                  signature,
-                }),
-              },
-            );
+              );
 
             const verified =
               await readJson<VerifyResponse>(
@@ -188,7 +226,8 @@ export function useWalletAuthentication() {
 
             if (
               !verifyResponse.ok ||
-              verified.walletAddress?.toLowerCase() !==
+              verified.walletAddress
+                ?.toLowerCase() !==
                 walletAddress
             ) {
               throw new Error(
@@ -201,12 +240,18 @@ export function useWalletAuthentication() {
           }
         })();
 
-        inFlightRef.current = run;
+        inFlightRef.current = {
+          walletAddress,
+          promise: run,
+        };
 
         try {
           await run;
         } finally {
-          if (inFlightRef.current === run) {
+          if (
+            inFlightRef.current
+              ?.promise === run
+          ) {
             inFlightRef.current = null;
           }
         }
@@ -216,6 +261,17 @@ export function useWalletAuthentication() {
 
   const clearWalletSession =
     useCallback(async () => {
+      const current =
+        inFlightRef.current;
+
+      if (current) {
+        try {
+          await current.promise;
+        } catch {
+          // Clear whatever session remains after a failed verification flow.
+        }
+      }
+
       const response = await fetch(
         '/api/auth/session',
         {
