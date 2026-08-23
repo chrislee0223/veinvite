@@ -7,19 +7,13 @@ import {
   normalizeAddress,
 } from '@/lib/serverStore';
 import { supabaseAdmin } from '@/lib/supabaseServer';
-import type {
-  SybilRiskLevel,
-  SybilSource,
-  SybilStatus,
-} from '@/lib/sybil/risk';
 import {
   requireWalletSession,
   WalletAuthenticationError,
 } from '@/lib/walletAuthServer';
-import { checkEligibility } from '@/lib/vebetter/eligibility';
 import {
-  getVeBetterNetworkConfig,
-} from '@/lib/vebetter/network';
+  checkVeBetterEntryEligibility,
+} from '@/lib/vebetter/entryEligibility';
 import type {
   InviteRecord,
   InviteStatus,
@@ -34,18 +28,23 @@ type InvitationRow = {
   reward_status: RewardEligibility;
   created_at: string;
   updated_at: string;
-  activated_at: string | null;
-  activation_block: number | null;
-  sybil_status: SybilStatus;
-  sybil_risk_level: SybilRiskLevel;
-  sybil_risk_score: number;
-  sybil_reason: string | null;
-  sybil_checked_at: string | null;
-  sybil_source: SybilSource;
 };
 
-type BestBlockResponse = {
-  number?: unknown;
+type ClaimRpcResult = {
+  result?:
+    | 'CLAIMED'
+    | 'NOT_FOUND'
+    | 'CANCELLED'
+    | 'ALREADY_USED'
+    | 'SELF_REFERRAL'
+    | 'ALREADY_REFERRED';
+  invite_code?: string;
+  inviter_wallet?: string;
+  invitee_wallet?: string;
+  status?: InviteStatus;
+  reward_status?: RewardEligibility;
+  created_at?: string;
+  updated_at?: string;
 };
 
 const invitationColumns = `
@@ -55,15 +54,7 @@ const invitationColumns = `
   status,
   reward_status,
   created_at,
-  updated_at,
-  activated_at,
-  activation_block,
-  sybil_status,
-  sybil_risk_level,
-  sybil_risk_score,
-  sybil_reason,
-  sybil_checked_at,
-  sybil_source
+  updated_at
 ` as const;
 
 function toInvitationRow(
@@ -77,16 +68,6 @@ function toInvitationRow(
   }
 
   return value as InvitationRow;
-}
-
-function toInvitationRows(
-  value: unknown,
-): InvitationRow[] {
-  if (!Array.isArray(value)) {
-    return [];
-  }
-
-  return value as InvitationRow[];
 }
 
 function toInviteRecord(
@@ -108,41 +89,122 @@ function toInviteRecord(
   };
 }
 
-async function getBestBlockNumber(): Promise<number> {
-  const { nodeUrl } =
-    getVeBetterNetworkConfig();
-
-  const response = await fetch(
-    `${nodeUrl}/blocks/best`,
-    {
-      method: 'GET',
-      headers: {
-        Accept: 'application/json',
-      },
-      cache: 'no-store',
-    },
-  );
-
-  if (!response.ok) {
-    throw new Error(
-      `VeChain node returned HTTP ${response.status}`,
-    );
-  }
-
-  const block =
-    (await response.json()) as BestBlockResponse;
-
+function rpcResultToInvitation(
+  value: ClaimRpcResult,
+): InvitationRow | null {
   if (
-    typeof block.number !== 'number' ||
-    !Number.isSafeInteger(block.number) ||
-    block.number < 0
+    value.result !== 'CLAIMED' ||
+    !value.invite_code ||
+    !value.inviter_wallet ||
+    !value.invitee_wallet ||
+    !value.status ||
+    !value.reward_status ||
+    !value.created_at ||
+    !value.updated_at
   ) {
-    throw new Error(
-      'VeChain node returned an invalid block number.',
-    );
+    return null;
   }
 
-  return block.number;
+  return {
+    invite_code: value.invite_code,
+    inviter_wallet: value.inviter_wallet,
+    invitee_wallet: value.invitee_wallet,
+    status: value.status,
+    reward_status: value.reward_status,
+    created_at: value.created_at,
+    updated_at: value.updated_at,
+  };
+}
+
+async function recordRejectedEntryCheck({
+  inviteCode,
+  walletAddress,
+  network,
+  checkedBlock,
+  priorRewardTxId,
+  priorVoteTxId,
+}: {
+  inviteCode: string;
+  walletAddress: string;
+  network: string;
+  checkedBlock: number;
+  priorRewardTxId: string | null;
+  priorVoteTxId: string | null;
+}) {
+  const { error } = await supabaseAdmin
+    .from('eligibility_check_events')
+    .insert({
+      invite_code: inviteCode,
+      wallet_address: walletAddress,
+      network,
+      checked_block: checkedBlock,
+      outcome: 'EXISTING_VEBETTER_USER',
+      prior_reward_tx_id:
+        priorRewardTxId,
+      prior_vote_tx_id:
+        priorVoteTxId,
+      details: {
+        ruleVersion:
+          'entry-history-v1',
+        definition:
+          'No prior rewarded or allocation-voting VeBetter history through the checked block.',
+      },
+    });
+
+  if (error) {
+    // Rejected attempts do not consume the invite even if this audit append
+    // fails. Log loudly so the operator can investigate data-quality health.
+    console.error(
+      'Failed to record rejected VeBetter entry check:',
+      error,
+    );
+  }
+}
+
+function claimConflictResponse(
+  result: ClaimRpcResult['result'],
+) {
+  switch (result) {
+    case 'NOT_FOUND':
+    case 'CANCELLED':
+      return NextResponse.json(
+        {
+          error:
+            'Invite link is invalid or cancelled.',
+        },
+        { status: 404 },
+      );
+
+    case 'SELF_REFERRAL':
+      return NextResponse.json(
+        {
+          outcome: 'self_referral',
+          message:
+            '초대자 본인의 지갑은 연결할 수 없습니다.',
+        },
+        { status: 422 },
+      );
+
+    case 'ALREADY_REFERRED':
+      return NextResponse.json(
+        {
+          outcome: 'already_referred',
+          message:
+            '이미 다른 추천인에게 연결된 지갑입니다.',
+        },
+        { status: 422 },
+      );
+
+    case 'ALREADY_USED':
+    default:
+      return NextResponse.json(
+        {
+          error:
+            'This invite link has already been used.',
+        },
+        { status: 409 },
+      );
+  }
 }
 
 export async function POST(
@@ -154,7 +216,8 @@ export async function POST(
   },
 ) {
   const { code } = await context.params;
-  const normalizedCode = code.toUpperCase();
+  const normalizedCode =
+    code.trim().toUpperCase();
 
   const { data, error } = await supabaseAdmin
     .from('invitations')
@@ -176,7 +239,8 @@ export async function POST(
     );
   }
 
-  const invitation = toInvitationRow(data);
+  const invitation =
+    toInvitationRow(data);
 
   if (
     !invitation ||
@@ -203,13 +267,11 @@ export async function POST(
 
   let body: {
     inviteeAddress?: string;
-    demoOutcome?: string;
   };
 
   try {
     body = (await request.json()) as {
       inviteeAddress?: string;
-      demoOutcome?: string;
     };
   } catch {
     return NextResponse.json(
@@ -229,9 +291,21 @@ export async function POST(
     );
   }
 
-  const inviteeAddress = normalizeAddress(
-    body.inviteeAddress,
-  );
+  const inviteeAddress =
+    normalizeAddress(body.inviteeAddress);
+
+  if (
+    !/^0x[0-9a-f]{40}$/.test(
+      inviteeAddress,
+    )
+  ) {
+    return NextResponse.json(
+      {
+        error: 'Invalid invitee wallet.',
+      },
+      { status: 400 },
+    );
+  }
 
   try {
     await requireWalletSession({
@@ -272,11 +346,15 @@ export async function POST(
 
   if (
     inviteeAddress ===
-    normalizeAddress(invitation.inviter_wallet)
+    normalizeAddress(
+      invitation.inviter_wallet,
+    )
   ) {
+    // Friendly rejection only: no ban, no penalty, and the invite is not
+    // consumed.
     return NextResponse.json(
       {
-        outcome: 'ineligible',
+        outcome: 'self_referral',
         message:
           '초대자 본인의 지갑은 연결할 수 없습니다.',
       },
@@ -284,12 +362,14 @@ export async function POST(
     );
   }
 
+  // Cheap local duplicate check before the chain scan. The atomic RPC repeats
+  // this check under the invitation lock to close the race window.
   const {
     data: existingRows,
     error: existingError,
   } = await supabaseAdmin
     .from('invitations')
-    .select(invitationColumns)
+    .select('invite_code')
     .eq('invitee_wallet', inviteeAddress)
     .limit(1);
 
@@ -309,7 +389,8 @@ export async function POST(
   }
 
   if (
-    toInvitationRows(existingRows).length > 0
+    Array.isArray(existingRows) &&
+    existingRows.length > 0
   ) {
     return NextResponse.json(
       {
@@ -321,94 +402,89 @@ export async function POST(
     );
   }
 
-  const eligibility = await checkEligibility({
-    inviterAddress:
-      invitation.inviter_wallet,
-    inviteeAddress,
-    requestedDemoOutcome:
-      body.demoOutcome,
-  });
-
-  if (
-    eligibility.outcome !== 'eligible' &&
-    eligibility.outcome !== 'review'
-  ) {
-    return NextResponse.json(
-      eligibility,
-      { status: 422 },
-    );
-  }
-
-  const needsReview =
-    eligibility.outcome === 'review';
-
-  const nextStatus: InviteStatus =
-    needsReview
-      ? 'UNDER_REVIEW'
-      : 'ACTIVATING';
-
-  let activationBlock: number;
+  let entryCheck:
+    Awaited<
+      ReturnType<
+        typeof checkVeBetterEntryEligibility
+      >
+    >;
 
   try {
-    activationBlock =
-      await getBestBlockNumber();
-  } catch (blockError) {
+    entryCheck =
+      await checkVeBetterEntryEligibility({
+        walletAddress: inviteeAddress,
+      });
+  } catch (eligibilityError) {
     console.error(
-      'Failed to get VeChain activation block:',
-      blockError,
+      'Failed to verify VeBetter entry history:',
+      eligibilityError,
     );
 
+    // Fail closed. A chain/indexing problem must never silently classify an
+    // existing VeBetter wallet as new.
     return NextResponse.json(
       {
         error:
-          'Failed to record the VeChain activation block. Please try again.',
+          'VeBetter activity history could not be verified. The invite was not used. Please try again.',
       },
       { status: 503 },
     );
   }
 
-  const activatedAt =
-    new Date().toISOString();
+  if (
+    entryCheck.outcome ===
+    'existing_vebetter_user'
+  ) {
+    await recordRejectedEntryCheck({
+      inviteCode: normalizedCode,
+      walletAddress: inviteeAddress,
+      network: entryCheck.network,
+      checkedBlock:
+        entryCheck.checkedBlock,
+      priorRewardTxId:
+        entryCheck.priorRewardEvent
+          ?.txId ?? null,
+      priorVoteTxId:
+        entryCheck.priorVoteEvent
+          ?.txId ?? null,
+    });
+
+    return NextResponse.json(
+      {
+        outcome:
+          'existing_vebetter_user',
+        message:
+          '이미 VeBetterDAO에서 보상 또는 거버넌스 활동 이력이 확인된 지갑입니다.',
+      },
+      { status: 422 },
+    );
+  }
 
   const {
-    data: claimedData,
+    data: claimData,
     error: claimError,
-  } = await supabaseAdmin
-    .from('invitations')
-    .update({
-      invitee_wallet: inviteeAddress,
-      status: nextStatus,
-      reward_status: 'PENDING',
-      activated_at: activatedAt,
-      activation_block: activationBlock,
-      sybil_status:
-        needsReview
-          ? 'REVIEW'
-          : 'NOT_CHECKED',
-      sybil_risk_level:
-        needsReview
-          ? 'MEDIUM'
-          : 'NONE',
-      sybil_risk_score: 0,
-      sybil_reason:
-        needsReview
-          ? eligibility.message
-          : null,
-      sybil_checked_at:
-        needsReview
-          ? activatedAt
-          : null,
-      sybil_source: 'SYSTEM',
-    })
-    .eq('invite_code', normalizedCode)
-    .is('invitee_wallet', null)
-    .neq('status', 'CANCELLED')
-    .select(invitationColumns)
-    .maybeSingle();
+  } = await supabaseAdmin.rpc(
+    'claim_invitation_with_entry_proof',
+    {
+      p_invite_code: normalizedCode,
+      p_invitee_wallet: inviteeAddress,
+      p_network: entryCheck.network,
+      p_checked_block:
+        entryCheck.checkedBlock,
+      p_prior_reward_tx_id: null,
+      p_prior_vote_tx_id: null,
+      p_details: {
+        ruleVersion:
+          'entry-history-v1',
+        definition:
+          'No prior rewarded or allocation-voting VeBetter history through the checked block.',
+      },
+    },
+  );
 
   if (claimError) {
     console.error(
-      'Failed to claim invitation:',
+      'Failed to atomically claim invitation:',
       claimError,
     );
 
@@ -420,32 +496,47 @@ export async function POST(
     );
   }
 
+  const claimResult =
+    claimData as ClaimRpcResult | null;
+
+  if (
+    !claimResult ||
+    claimResult.result !== 'CLAIMED'
+  ) {
+    return claimConflictResponse(
+      claimResult?.result,
+    );
+  }
+
   const claimedInvitation =
-    toInvitationRow(claimedData);
+    rpcResultToInvitation(
+      claimResult,
+    );
 
   if (!claimedInvitation) {
+    console.error(
+      'Atomic claim returned malformed invitation data:',
+      claimResult,
+    );
+
     return NextResponse.json(
       {
         error:
-          'This invite link has already been used.',
+          'Invitation was claimed but its stored state could not be verified.',
       },
-      { status: 409 },
+      { status: 500 },
     );
   }
 
   return NextResponse.json(
     {
-      outcome: eligibility.outcome,
-      message: eligibility.message,
+      outcome: 'eligible',
+      message:
+        '참여 자격을 확인했습니다.',
       invite: toInviteRecord(
         claimedInvitation,
       ),
     },
-    {
-      status:
-        needsReview
-          ? 202
-          : 200,
-    },
+    { status: 200 },
   );
 }
