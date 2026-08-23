@@ -41,6 +41,8 @@ export function WalletSessionGate({
   const [errorMessage, setErrorMessage] =
     useState('');
   const attemptRef = useRef(0);
+  const autoAttemptedWalletRef =
+    useRef<string | null>(null);
 
   const verify = useCallback(async () => {
     if (!walletAddress) {
@@ -91,24 +93,30 @@ export function WalletSessionGate({
   useEffect(() => {
     if (!walletAddress) {
       attemptRef.current += 1;
+      autoAttemptedWalletRef.current = null;
       setState('idle');
       setVerifiedWallet(null);
       setErrorMessage('');
       return;
     }
 
+    // Automatically verify once for each newly connected wallet. If the user
+    // rejects or a verification attempt fails, remain on the error screen and
+    // wait for the explicit Try again button instead of repeatedly opening the
+    // wallet signature prompt.
     if (
-      verifiedWallet === walletAddress &&
-      state === 'verified'
+      autoAttemptedWalletRef.current ===
+      walletAddress
     ) {
       return;
     }
 
+    autoAttemptedWalletRef.current =
+      walletAddress;
+    setVerifiedWallet(null);
     void verify();
   }, [
     walletAddress,
-    verifiedWallet,
-    state,
     verify,
   ]);
 
