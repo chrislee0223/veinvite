@@ -7,6 +7,11 @@ import {
   normalizeAddress,
 } from '@/lib/serverStore';
 import { supabaseAdmin } from '@/lib/supabaseServer';
+import type {
+  SybilRiskLevel,
+  SybilSource,
+  SybilStatus,
+} from '@/lib/sybil/risk';
 import {
   requireWalletSession,
   WalletAuthenticationError,
@@ -31,6 +36,12 @@ type InvitationRow = {
   updated_at: string;
   activated_at: string | null;
   activation_block: number | null;
+  sybil_status: SybilStatus;
+  sybil_risk_level: SybilRiskLevel;
+  sybil_risk_score: number;
+  sybil_reason: string | null;
+  sybil_checked_at: string | null;
+  sybil_source: SybilSource;
 };
 
 type BestBlockResponse = {
@@ -46,7 +57,13 @@ const invitationColumns = `
   created_at,
   updated_at,
   activated_at,
-  activation_block
+  activation_block,
+  sybil_status,
+  sybil_risk_level,
+  sybil_risk_score,
+  sybil_reason,
+  sybil_checked_at,
+  sybil_source
 ` as const;
 
 function toInvitationRow(
@@ -322,8 +339,11 @@ export async function POST(
     );
   }
 
+  const needsReview =
+    eligibility.outcome === 'review';
+
   const nextStatus: InviteStatus =
-    eligibility.outcome === 'review'
+    needsReview
       ? 'UNDER_REVIEW'
       : 'ACTIVATING';
 
@@ -361,6 +381,24 @@ export async function POST(
       reward_status: 'PENDING',
       activated_at: activatedAt,
       activation_block: activationBlock,
+      sybil_status:
+        needsReview
+          ? 'REVIEW'
+          : 'NOT_CHECKED',
+      sybil_risk_level:
+        needsReview
+          ? 'MEDIUM'
+          : 'NONE',
+      sybil_risk_score: 0,
+      sybil_reason:
+        needsReview
+          ? eligibility.message
+          : null,
+      sybil_checked_at:
+        needsReview
+          ? activatedAt
+          : null,
+      sybil_source: 'SYSTEM',
     })
     .eq('invite_code', normalizedCode)
     .is('invitee_wallet', null)
@@ -405,7 +443,7 @@ export async function POST(
     },
     {
       status:
-        eligibility.outcome === 'review'
+        needsReview
           ? 202
           : 200,
     },
