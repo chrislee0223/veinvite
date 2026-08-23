@@ -5,6 +5,14 @@ import {
 
 import { supabaseAdmin } from '@/lib/supabaseServer';
 import {
+  evaluatePostVoteSybilRisk,
+} from '@/lib/sybil/risk';
+import type {
+  SybilRiskLevel,
+  SybilSource,
+  SybilStatus,
+} from '@/lib/sybil/risk';
+import {
   getVeBetterActivityProgress,
 } from '@/lib/vebetter/activity';
 import {
@@ -46,6 +54,12 @@ type InvitationRow = {
     | number
     | string
     | null;
+  sybil_status: SybilStatus;
+  sybil_risk_level: SybilRiskLevel;
+  sybil_risk_score: number;
+  sybil_reason: string | null;
+  sybil_checked_at: string | null;
+  sybil_source: SybilSource;
 };
 
 const invitationColumns = `
@@ -65,7 +79,13 @@ const invitationColumns = `
   apps_completed_block,
   vote_completed_at,
   vote_completed_block,
-  vote_round_id
+  vote_round_id,
+  sybil_status,
+  sybil_risk_level,
+  sybil_risk_score,
+  sybil_reason,
+  sybil_checked_at,
+  sybil_source
 ` as const;
 
 function toInvitationRow(
@@ -402,6 +422,11 @@ export async function GET(
    * After the third distinct app
    * reward, scan for the first
    * allocation governance vote.
+   *
+   * The post-vote Sybil gate runs in
+   * the same persisted update. Only a
+   * fresh CLEAR decision can become
+   * reward eligible in the DB trigger.
    */
   if (
     row.invitee_wallet &&
@@ -424,6 +449,26 @@ export async function GET(
         const detectedVoteAt =
           new Date().toISOString();
 
+        const sybilDecision =
+          evaluatePostVoteSybilRisk({
+            currentStatus:
+              row.sybil_status,
+            inviteStatus: row.status,
+            currentRiskLevel:
+              row.sybil_risk_level,
+            currentRiskScore:
+              row.sybil_risk_score,
+            currentReason:
+              row.sybil_reason,
+            currentSource:
+              row.sybil_source,
+          });
+
+        const nextInviteStatus: InviteStatus =
+          sybilDecision.status === 'CLEAR'
+            ? 'COMPLETED'
+            : 'UNDER_REVIEW';
+
         const {
           data: persistedCompletion,
           error: voteUpdateError,
@@ -445,7 +490,19 @@ export async function GET(
               vote.voteCompletedBlock,
             vote_round_id:
               vote.voteRoundId,
-            status: 'COMPLETED',
+            status: nextInviteStatus,
+            sybil_status:
+              sybilDecision.status,
+            sybil_risk_level:
+              sybilDecision.riskLevel,
+            sybil_risk_score:
+              sybilDecision.riskScore,
+            sybil_reason:
+              sybilDecision.reason,
+            sybil_checked_at:
+              detectedVoteAt,
+            sybil_source:
+              sybilDecision.source,
           })
           .eq(
             'invite_code',
@@ -457,9 +514,9 @@ export async function GET(
           .maybeSingle();
 
         /*
-         * Do not show COMPLETED unless
-         * the completion was actually
-         * stored in Supabase.
+         * Do not show completion/review
+         * unless the vote and Sybil gate
+         * were actually stored in Supabase.
          */
         if (voteUpdateError) {
           voteSyncPending = true;
@@ -481,7 +538,7 @@ export async function GET(
             vote.voteRoundId;
 
           effectiveStatus =
-            'COMPLETED';
+            nextInviteStatus;
 
           if (persistedCompletion) {
             effectiveRewardEligibility =
