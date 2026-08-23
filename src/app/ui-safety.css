@@ -1,0 +1,9 @@
+/*
+ * Once an invitee has accepted an invitation the backend intentionally locks
+ * cancellation so referral history cannot be rewritten. Keep the UI aligned
+ * with that invariant: the cancel link remains available only while waiting
+ * for a friend to accept the invite.
+ */
+.liveStatus ~ .cancelLink {
+  display: none !important;
+}
