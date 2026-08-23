@@ -1,11 +1,9 @@
 import { ABIEvent } from '@vechain/sdk-core';
 import { ThorClient } from '@vechain/sdk-network';
 
-const DEFAULT_VECHAIN_NODE_URL =
-  'https://mainnet.vechain.org';
-
-const X2EARN_REWARDS_POOL =
-  '0x6Bee7DDab6c99d5B2Af0554EaEA484CE18F52631';
+import {
+  getVeBetterNetworkConfig,
+} from '@/lib/vebetter/network';
 
 const PAGE_SIZE = 1000;
 
@@ -17,7 +15,16 @@ type RawEventLog = {
   topics?: string[];
   meta?: {
     blockNumber?: number;
+    blockTimestamp?: number;
+    txID?: string;
   };
+};
+
+export type QualifyingRewardEvent = {
+  appId: string;
+  txId: string;
+  blockNumber: number;
+  blockTimestamp: number;
 };
 
 export type ActivityProgress = {
@@ -25,15 +32,9 @@ export type ActivityProgress = {
   uniqueAppIds: string[];
   latestBlock: number;
   thirdAppCompletedBlock: number | null;
+  thirdAppCompletedTimestamp: number | null;
+  qualifyingRewardEvents: QualifyingRewardEvent[];
 };
-
-function getThorClient() {
-  const nodeUrl =
-    process.env.VECHAIN_NODE_URL ??
-    DEFAULT_VECHAIN_NODE_URL;
-
-  return ThorClient.at(nodeUrl);
-}
 
 function getSingleTopic(
   topic:
@@ -42,11 +43,9 @@ function getSingleTopic(
     | null
     | undefined,
 ): string | undefined {
-  if (typeof topic === 'string') {
-    return topic;
-  }
-
-  return undefined;
+  return typeof topic === 'string'
+    ? topic
+    : undefined;
 }
 
 function getEventBlockNumber(
@@ -68,6 +67,43 @@ function getEventBlockNumber(
   return blockNumber;
 }
 
+function getEventBlockTimestamp(
+  log: RawEventLog,
+): number {
+  const timestamp =
+    log.meta?.blockTimestamp;
+
+  if (
+    typeof timestamp !== 'number' ||
+    !Number.isSafeInteger(timestamp) ||
+    timestamp < 0
+  ) {
+    throw new Error(
+      'VeChain reward event is missing a valid block timestamp.',
+    );
+  }
+
+  return timestamp;
+}
+
+function getEventTxId(
+  log: RawEventLog,
+): string {
+  const txId =
+    log.meta?.txID?.toLowerCase();
+
+  if (
+    !txId ||
+    !/^0x[0-9a-f]{64}$/.test(txId)
+  ) {
+    throw new Error(
+      'VeChain reward event is missing a valid transaction ID.',
+    );
+  }
+
+  return txId;
+}
+
 export async function getVeBetterActivityProgress({
   receiverAddress,
   activationBlock,
@@ -84,7 +120,12 @@ export async function getVeBetterActivityProgress({
     );
   }
 
-  const thor = getThorClient();
+  const {
+    nodeUrl,
+    x2EarnRewardsPoolAddress,
+  } = getVeBetterNetworkConfig();
+
+  const thor = ThorClient.at(nodeUrl);
 
   const bestBlock =
     await thor.blocks.getBestBlockCompressed();
@@ -104,6 +145,8 @@ export async function getVeBetterActivityProgress({
       uniqueAppIds: [],
       latestBlock,
       thirdAppCompletedBlock: null,
+      thirdAppCompletedTimestamp: null,
+      qualifyingRewardEvents: [],
     };
   }
 
@@ -117,7 +160,12 @@ export async function getVeBetterActivityProgress({
   const uniqueAppIds =
     new Set<string>();
 
+  const qualifyingRewardEvents:
+    QualifyingRewardEvent[] = [];
+
   let thirdAppCompletedBlock:
+    number | null = null;
+  let thirdAppCompletedTimestamp:
     number | null = null;
 
   let offset = 0;
@@ -137,7 +185,7 @@ export async function getVeBetterActivityProgress({
         criteriaSet: [
           {
             address:
-              X2EARN_REWARDS_POOL,
+              x2EarnRewardsPoolAddress,
             topic0:
               getSingleTopic(
                 topics[0],
@@ -163,14 +211,6 @@ export async function getVeBetterActivityProgress({
       logs as RawEventLog[];
 
     for (const log of rawLogs) {
-      /*
-       * RewardDistributed topics:
-       *
-       * topic0 = event signature
-       * topic1 = appId
-       * topic2 = receiver
-       * topic3 = distributor
-       */
       const appId =
         log.topics?.[1];
 
@@ -181,10 +221,6 @@ export async function getVeBetterActivityProgress({
       const normalizedAppId =
         appId.toLowerCase();
 
-      /*
-       * Several reward transactions from
-       * the same dApp still count as one app.
-       */
       if (
         uniqueAppIds.has(
           normalizedAppId,
@@ -195,22 +231,36 @@ export async function getVeBetterActivityProgress({
 
       const eventBlock =
         getEventBlockNumber(log);
+      const eventTimestamp =
+        getEventBlockTimestamp(log);
+      const eventTxId =
+        getEventTxId(log);
 
       uniqueAppIds.add(
         normalizedAppId,
       );
 
-      /*
-       * Logs are ordered from oldest to newest.
-       * Therefore this is the actual block where
-       * the third distinct dApp rewarded the user.
-       */
+      // Record only the first reward from each of the first three distinct
+      // dApps. These are the minimum verified activities VeInvite requires;
+      // later unrelated activity is deliberately not attributed to VeInvite.
+      if (qualifyingRewardEvents.length < 3) {
+        qualifyingRewardEvents.push({
+          appId: normalizedAppId,
+          txId: eventTxId,
+          blockNumber: eventBlock,
+          blockTimestamp:
+            eventTimestamp,
+        });
+      }
+
       if (
         uniqueAppIds.size === 3 &&
         thirdAppCompletedBlock === null
       ) {
         thirdAppCompletedBlock =
           eventBlock;
+        thirdAppCompletedTimestamp =
+          eventTimestamp;
       }
     }
 
@@ -234,5 +284,7 @@ export async function getVeBetterActivityProgress({
     uniqueAppIds: appIds,
     latestBlock,
     thirdAppCompletedBlock,
+    thirdAppCompletedTimestamp,
+    qualifyingRewardEvents,
   };
 }

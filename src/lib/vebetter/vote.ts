@@ -1,11 +1,9 @@
 import { ABIEvent } from '@vechain/sdk-core';
 import { ThorClient } from '@vechain/sdk-network';
 
-const DEFAULT_VECHAIN_NODE_URL =
-  'https://mainnet.vechain.org';
-
-const X_ALLOCATION_VOTING =
-  '0x89A00Bb0947a30FF95BEeF77a66AEdE3842Fe5B7';
+import {
+  getVeBetterNetworkConfig,
+} from '@/lib/vebetter/network';
 
 const allocationVoteCastEvent =
   new ABIEvent(
@@ -16,6 +14,8 @@ type RawVoteLog = {
   topics?: string[];
   meta?: {
     blockNumber?: number;
+    blockTimestamp?: number;
+    txID?: string;
   };
 };
 
@@ -23,16 +23,10 @@ export type VoteProgress = {
   voteCompleted: boolean;
   voteCompletedBlock: number | null;
   voteRoundId: number | null;
+  voteTxId: string | null;
+  voteBlockTimestamp: number | null;
   latestBlock: number;
 };
-
-function getThorClient() {
-  const nodeUrl =
-    process.env.VECHAIN_NODE_URL ??
-    DEFAULT_VECHAIN_NODE_URL;
-
-  return ThorClient.at(nodeUrl);
-}
 
 function getSingleTopic(
   topic:
@@ -112,6 +106,43 @@ function getRequiredBlockNumber(
   return blockNumber;
 }
 
+function getRequiredBlockTimestamp(
+  log: RawVoteLog,
+): number {
+  const timestamp =
+    log.meta?.blockTimestamp;
+
+  if (
+    typeof timestamp !== 'number' ||
+    !Number.isSafeInteger(timestamp) ||
+    timestamp < 0
+  ) {
+    throw new Error(
+      'Vote event is missing a valid block timestamp.',
+    );
+  }
+
+  return timestamp;
+}
+
+function getRequiredTxId(
+  log: RawVoteLog,
+): string {
+  const txId =
+    log.meta?.txID?.toLowerCase();
+
+  if (
+    !txId ||
+    !/^0x[0-9a-f]{64}$/.test(txId)
+  ) {
+    throw new Error(
+      'Vote event is missing a valid transaction ID.',
+    );
+  }
+
+  return txId;
+}
+
 export async function getVeBetterVoteProgress({
   voterAddress,
   fromBlock,
@@ -136,8 +167,12 @@ export async function getVeBetterVoteProgress({
     );
   }
 
-  const thor =
-    getThorClient();
+  const {
+    nodeUrl,
+    xAllocationVotingAddress,
+  } = getVeBetterNetworkConfig();
+
+  const thor = ThorClient.at(nodeUrl);
 
   const bestBlock =
     await thor.blocks
@@ -157,6 +192,8 @@ export async function getVeBetterVoteProgress({
       voteCompleted: false,
       voteCompletedBlock: null,
       voteRoundId: null,
+      voteTxId: null,
+      voteBlockTimestamp: null,
       latestBlock,
     };
   }
@@ -168,13 +205,6 @@ export async function getVeBetterVoteProgress({
         null,
       ]);
 
-  /*
-   * AllocationVoteCast topics:
-   *
-   * topic0 = event signature
-   * topic1 = voter
-   * topic2 = roundId
-   */
   const logs =
     await thor.logs
       .filterRawEventLogs({
@@ -190,7 +220,7 @@ export async function getVeBetterVoteProgress({
         criteriaSet: [
           {
             address:
-              X_ALLOCATION_VOTING,
+              xAllocationVotingAddress,
             topic0:
               getSingleTopic(
                 topics[0],
@@ -216,6 +246,8 @@ export async function getVeBetterVoteProgress({
       voteCompleted: false,
       voteCompletedBlock: null,
       voteRoundId: null,
+      voteTxId: null,
+      voteBlockTimestamp: null,
       latestBlock,
     };
   }
@@ -234,6 +266,10 @@ export async function getVeBetterVoteProgress({
     voteCompleted: true,
     voteCompletedBlock,
     voteRoundId,
+    voteTxId:
+      getRequiredTxId(firstVote),
+    voteBlockTimestamp:
+      getRequiredBlockTimestamp(firstVote),
     latestBlock,
   };
 }

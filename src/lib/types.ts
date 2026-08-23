@@ -5,7 +5,12 @@ export type InviteStatus =
   | 'COMPLETED'
   | 'CANCELLED';
 
-export type RewardEligibility = 'NONE' | 'PENDING' | 'ELIGIBLE' | 'FORFEITED';
+export type RewardEligibility =
+  | 'NONE'
+  | 'PENDING'
+  | 'ELIGIBLE'
+  | 'PAID'
+  | 'FORFEITED';
 
 export interface InviteRecord {
   code: string;

@@ -7,9 +7,14 @@ import {
   normalizeAddress,
 } from '@/lib/serverStore';
 import { supabaseAdmin } from '@/lib/supabaseServer';
+import {
+  requireWalletSession,
+  WalletAuthenticationError,
+} from '@/lib/walletAuthServer';
 import type {
   InviteRecord,
   InviteStatus,
+  RewardEligibility,
 } from '@/lib/types';
 
 type InvitationRow = {
@@ -17,7 +22,9 @@ type InvitationRow = {
   inviter_wallet: string;
   invitee_wallet: string | null;
   status: InviteStatus;
+  reward_status: RewardEligibility;
   created_at: string;
+  updated_at: string;
 };
 
 const invitationColumns = `
@@ -25,7 +32,9 @@ const invitationColumns = `
   inviter_wallet,
   invitee_wallet,
   status,
-  created_at
+  reward_status,
+  created_at,
+  updated_at
 ` as const;
 
 function toInvitationRow(
@@ -54,15 +63,9 @@ function toInviteRecord(
       : {}),
     status: row.status,
     createdAt: row.created_at,
-    updatedAt: new Date().toISOString(),
+    updatedAt: row.updated_at,
     rewardEligibility:
-      row.status === 'COMPLETED'
-        ? 'ELIGIBLE'
-        : row.status === 'CANCELLED'
-          ? 'FORFEITED'
-          : row.invitee_wallet
-            ? 'PENDING'
-            : 'NONE',
+      row.reward_status,
   };
 }
 
@@ -75,11 +78,25 @@ export async function POST(
   },
 ) {
   const { code } = await context.params;
-  const normalizedCode = code.toUpperCase();
+  const normalizedCode =
+    code.trim().toUpperCase();
 
-  const body = (await request.json()) as {
+  let body: {
     inviterAddress?: string;
   };
+
+  try {
+    body = (await request.json()) as {
+      inviterAddress?: string;
+    };
+  } catch {
+    return NextResponse.json(
+      {
+        error: 'Invalid JSON body.',
+      },
+      { status: 400 },
+    );
+  }
 
   if (!body.inviterAddress) {
     return NextResponse.json(
@@ -92,6 +109,43 @@ export async function POST(
 
   const normalizedInviter =
     normalizeAddress(body.inviterAddress);
+
+  try {
+    await requireWalletSession({
+      request,
+      expectedWallet: normalizedInviter,
+    });
+  } catch (authError) {
+    if (
+      authError instanceof
+      WalletAuthenticationError
+    ) {
+      return NextResponse.json(
+        {
+          error: authError.message,
+        },
+        {
+          status: authError.status,
+          headers: {
+            'Cache-Control': 'no-store',
+          },
+        },
+      );
+    }
+
+    console.error(
+      'Failed to validate inviter wallet session:',
+      authError,
+    );
+
+    return NextResponse.json(
+      {
+        error:
+          'Failed to validate wallet verification.',
+      },
+      { status: 500 },
+    );
+  }
 
   const { data, error } = await supabaseAdmin
     .from('invitations')
@@ -126,7 +180,9 @@ export async function POST(
 
   if (
     normalizedInviter !==
-    normalizeAddress(invitation.inviter_wallet)
+    normalizeAddress(
+      invitation.inviter_wallet,
+    )
   ) {
     return NextResponse.json(
       {
@@ -137,20 +193,27 @@ export async function POST(
     );
   }
 
-  if (invitation.status === 'COMPLETED') {
-    return NextResponse.json(
-      {
-        error:
-          'Completed invitations cannot be cancelled.',
-      },
-      { status: 409 },
-    );
-  }
-
   if (invitation.status === 'CANCELLED') {
     return NextResponse.json({
       invite: toInviteRecord(invitation),
     });
+  }
+
+  // Once an invitee has accepted the referral, the inviter must not be able
+  // to cancel the journey underneath them or evade an UNDER_REVIEW state.
+  // Cancellation is only for an unused PENDING_ACCEPTANCE link.
+  if (
+    invitation.status !==
+      'PENDING_ACCEPTANCE' ||
+    invitation.invitee_wallet !== null
+  ) {
+    return NextResponse.json(
+      {
+        error:
+          'Accepted invitations cannot be cancelled.',
+      },
+      { status: 409 },
+    );
   }
 
   const {
@@ -163,7 +226,8 @@ export async function POST(
     })
     .eq('invite_code', normalizedCode)
     .eq('inviter_wallet', normalizedInviter)
-    .neq('status', 'COMPLETED')
+    .eq('status', 'PENDING_ACCEPTANCE')
+    .is('invitee_wallet', null)
     .select(invitationColumns)
     .maybeSingle();
 
