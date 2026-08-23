@@ -32,6 +32,7 @@ export type ActivityProgress = {
   uniqueAppIds: string[];
   latestBlock: number;
   thirdAppCompletedBlock: number | null;
+  thirdAppCompletedTimestamp: number | null;
   qualifyingRewardEvents: QualifyingRewardEvent[];
 };
 
@@ -42,11 +43,9 @@ function getSingleTopic(
     | null
     | undefined,
 ): string | undefined {
-  if (typeof topic === 'string') {
-    return topic;
-  }
-
-  return undefined;
+  return typeof topic === 'string'
+    ? topic
+    : undefined;
 }
 
 function getEventBlockNumber(
@@ -146,6 +145,7 @@ export async function getVeBetterActivityProgress({
       uniqueAppIds: [],
       latestBlock,
       thirdAppCompletedBlock: null,
+      thirdAppCompletedTimestamp: null,
       qualifyingRewardEvents: [],
     };
   }
@@ -164,6 +164,8 @@ export async function getVeBetterActivityProgress({
     QualifyingRewardEvent[] = [];
 
   let thirdAppCompletedBlock:
+    number | null = null;
+  let thirdAppCompletedTimestamp:
     number | null = null;
 
   let offset = 0;
@@ -229,22 +231,25 @@ export async function getVeBetterActivityProgress({
 
       const eventBlock =
         getEventBlockNumber(log);
+      const eventTimestamp =
+        getEventBlockTimestamp(log);
+      const eventTxId =
+        getEventTxId(log);
 
       uniqueAppIds.add(
         normalizedAppId,
       );
 
-      // Weekly impact reporting intentionally records only the first reward
-      // from each of the first three distinct dApps. Those are the minimum
-      // verified on-chain activities required by the VeInvite onboarding
-      // mission, so later unrelated activity is not over-attributed to us.
+      // Record only the first reward from each of the first three distinct
+      // dApps. These are the minimum verified activities VeInvite requires;
+      // later unrelated activity is deliberately not attributed to VeInvite.
       if (qualifyingRewardEvents.length < 3) {
         qualifyingRewardEvents.push({
           appId: normalizedAppId,
-          txId: getEventTxId(log),
+          txId: eventTxId,
           blockNumber: eventBlock,
           blockTimestamp:
-            getEventBlockTimestamp(log),
+            eventTimestamp,
         });
       }
 
@@ -254,6 +259,8 @@ export async function getVeBetterActivityProgress({
       ) {
         thirdAppCompletedBlock =
           eventBlock;
+        thirdAppCompletedTimestamp =
+          eventTimestamp;
       }
     }
 
@@ -277,6 +284,7 @@ export async function getVeBetterActivityProgress({
     uniqueAppIds: appIds,
     latestBlock,
     thirdAppCompletedBlock,
+    thirdAppCompletedTimestamp,
     qualifyingRewardEvents,
   };
 }
