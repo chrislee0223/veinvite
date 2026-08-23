@@ -9,7 +9,7 @@ export async function GET() {
   try {
     const { error } = await supabaseAdmin
       .from('invitations')
-      .select('id', {
+      .select('invite_code', {
         head: true,
         count: 'exact',
       });
