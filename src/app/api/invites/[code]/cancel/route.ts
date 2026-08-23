@@ -78,7 +78,8 @@ export async function POST(
   },
 ) {
   const { code } = await context.params;
-  const normalizedCode = code.toUpperCase();
+  const normalizedCode =
+    code.trim().toUpperCase();
 
   let body: {
     inviterAddress?: string;
@@ -179,7 +180,9 @@ export async function POST(
 
   if (
     normalizedInviter !==
-    normalizeAddress(invitation.inviter_wallet)
+    normalizeAddress(
+      invitation.inviter_wallet,
+    )
   ) {
     return NextResponse.json(
       {
@@ -190,20 +193,27 @@ export async function POST(
     );
   }
 
-  if (invitation.status === 'COMPLETED') {
-    return NextResponse.json(
-      {
-        error:
-          'Completed invitations cannot be cancelled.',
-      },
-      { status: 409 },
-    );
-  }
-
   if (invitation.status === 'CANCELLED') {
     return NextResponse.json({
       invite: toInviteRecord(invitation),
     });
+  }
+
+  // Once an invitee has accepted the referral, the inviter must not be able
+  // to cancel the journey underneath them or evade an UNDER_REVIEW state.
+  // Cancellation is only for an unused PENDING_ACCEPTANCE link.
+  if (
+    invitation.status !==
+      'PENDING_ACCEPTANCE' ||
+    invitation.invitee_wallet !== null
+  ) {
+    return NextResponse.json(
+      {
+        error:
+          'Accepted invitations cannot be cancelled.',
+      },
+      { status: 409 },
+    );
   }
 
   const {
@@ -216,7 +226,8 @@ export async function POST(
     })
     .eq('invite_code', normalizedCode)
     .eq('inviter_wallet', normalizedInviter)
-    .neq('status', 'COMPLETED')
+    .eq('status', 'PENDING_ACCEPTANCE')
+    .is('invitee_wallet', null)
     .select(invitationColumns)
     .maybeSingle();
 
