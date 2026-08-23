@@ -1,27 +1,55 @@
-'use client';
-
+import type { Metadata } from 'next';
 import type { ReactNode } from 'react';
-import { ChakraProvider, extendTheme } from '@chakra-ui/react';
-import dynamic from 'next/dynamic';
+
+import { AppProviders } from '@/components/AppProviders';
 import './globals.css';
 
-const VeChainProvider = dynamic(
-  () => import('@/components/VeChainProvider').then((mod) => mod.VeChainProvider),
-  { ssr: false },
-);
+const siteUrl = 'https://veinvite.vercel.app';
+const title = 'VeInvite | Verified onboarding for VeBetterDAO';
+const description =
+  'VeInvite helps onboard genuinely new users into VeBetterDAO through referral journeys verified with on-chain activity.';
 
-const theme = extendTheme({
-  config: { initialColorMode: 'dark', useSystemColorMode: false },
-  styles: { global: { body: { bg: '#070912', color: '#f8f7ff' } } },
-});
+export const metadata: Metadata = {
+  metadataBase: new URL(siteUrl),
+  title,
+  description,
+  applicationName: 'VeInvite',
+  alternates: {
+    canonical: '/',
+  },
+  icons: {
+    icon: '/icon.svg',
+    shortcut: '/icon.svg',
+  },
+  openGraph: {
+    title,
+    description,
+    url: siteUrl,
+    siteName: 'VeInvite',
+    type: 'website',
+  },
+  twitter: {
+    card: 'summary',
+    title,
+    description,
+  },
+  robots: {
+    index: true,
+    follow: true,
+  },
+};
 
-export default function RootLayout({ children }: { children: ReactNode }) {
+export default function RootLayout({
+  children,
+}: {
+  children: ReactNode;
+}) {
   return (
-    <html lang="ko" suppressHydrationWarning>
+    <html lang="en" suppressHydrationWarning>
       <body>
-        <ChakraProvider theme={theme}>
-          <VeChainProvider>{children}</VeChainProvider>
-        </ChakraProvider>
+        <AppProviders>
+          {children}
+        </AppProviders>
       </body>
     </html>
   );
