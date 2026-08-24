@@ -18,45 +18,23 @@ const allocationVoteCastEvent = new ABIEvent(
   'event AllocationVoteCast(address indexed voter, uint256 indexed roundId, bytes32[] appsIds, uint256[] voteWeights)',
 );
 
-// Minimal read ABI for the official XAllocationVoting round clock. VeBetterDAO
-// defines getRound(uint256) as (address proposer, uint48 voteStart,
-// uint32 voteDuration), where voteStart/duration are VeChain block values.
 const xAllocationVotingRoundAbi = [
   {
     inputs: [],
     name: 'currentRoundId',
-    outputs: [
-      {
-        name: '',
-        type: 'uint256',
-      },
-    ],
+    outputs: [{ name: '', type: 'uint256' }],
     stateMutability: 'view',
     type: 'function',
   },
   {
-    inputs: [
-      {
-        name: 'roundId',
-        type: 'uint256',
-      },
-    ],
+    inputs: [{ name: 'roundId', type: 'uint256' }],
     name: 'getRound',
     outputs: [
       {
         components: [
-          {
-            name: 'proposer',
-            type: 'address',
-          },
-          {
-            name: 'voteStart',
-            type: 'uint48',
-          },
-          {
-            name: 'voteDuration',
-            type: 'uint32',
-          },
+          { name: 'proposer', type: 'address' },
+          { name: 'voteStart', type: 'uint48' },
+          { name: 'voteDuration', type: 'uint32' },
         ],
         name: '',
         type: 'tuple',
@@ -94,9 +72,7 @@ export type DormancyRoundWindow = {
 };
 
 export type EntryEligibilityResult = {
-  outcome:
-    | 'eligible'
-    | 'existing_vebetter_user';
+  outcome: 'eligible' | 'existing_vebetter_user';
   entryClass: EntryClass;
   network: VeBetterNetwork;
   checkedBlock: number;
@@ -124,9 +100,7 @@ function getSingleTopic(
     | null
     | undefined,
 ): string | undefined {
-  return typeof topic === 'string'
-    ? topic
-    : undefined;
+  return typeof topic === 'string' ? topic : undefined;
 }
 
 function toSafeInteger(
@@ -134,9 +108,7 @@ function toSafeInteger(
   label: string,
 ): number {
   const numberValue =
-    typeof value === 'bigint'
-      ? Number(value)
-      : value;
+    typeof value === 'bigint' ? Number(value) : value;
 
   if (
     !Number.isSafeInteger(numberValue) ||
@@ -158,10 +130,8 @@ function parseChainEvent(
     return null;
   }
 
-  const txId =
-    log.meta?.txID?.toLowerCase();
-  const blockNumber =
-    log.meta?.blockNumber;
+  const txId = log.meta?.txID?.toLowerCase();
+  const blockNumber = log.meta?.blockNumber;
 
   if (
     !txId ||
@@ -175,10 +145,7 @@ function parseChainEvent(
     );
   }
 
-  return {
-    txId,
-    blockNumber,
-  };
+  return { txId, blockNumber };
 }
 
 async function getDormancyRoundWindow({
@@ -195,47 +162,38 @@ async function getDormancyRoundWindow({
     xAllocationVotingRoundAbi,
   );
 
+  const currentRoundResult =
+    await contract.read.currentRoundId();
   const currentRoundId = toSafeInteger(
-    await contract.read.currentRoundId(),
+    currentRoundResult[0],
     'Current VeBetter round id',
   );
 
   if (
-    currentRoundId <
-    RETURNING_USER_DORMANCY_ROUNDS
+    currentRoundId < RETURNING_USER_DORMANCY_ROUNDS
   ) {
     throw new Error(
       'VeBetter does not have enough completed rounds for the returning-user dormancy rule.',
     );
   }
 
-  // At most one current round can still be open, so current + the previous 12
-  // ids are sufficient to obtain the nearest 12 completed rounds. We still
-  // validate completion against the sealed entry-check block rather than
-  // assuming currentRoundId is open.
+  // currentRoundId plus the previous 12 ids is enough to find the nearest
+  // 12 completed rounds. Completion is verified against the sealed best block.
   const lowestRoundId = Math.max(
     1,
-    currentRoundId -
-      RETURNING_USER_DORMANCY_ROUNDS,
+    currentRoundId - RETURNING_USER_DORMANCY_ROUNDS,
   );
 
   const roundIds = Array.from(
-    {
-      length:
-        currentRoundId -
-        lowestRoundId +
-        1,
-    },
-    (_, index) =>
-      currentRoundId - index,
+    { length: currentRoundId - lowestRoundId + 1 },
+    (_, index) => currentRoundId - index,
   );
 
   const rounds = await Promise.all(
     roundIds.map(async (roundId) => {
-      const round =
-        await contract.read.getRound(
-          BigInt(roundId),
-        );
+      const roundResult =
+        await contract.read.getRound(BigInt(roundId));
+      const round = roundResult[0];
 
       const voteStart = toSafeInteger(
         round.voteStart,
@@ -245,8 +203,7 @@ async function getDormancyRoundWindow({
         round.voteDuration,
         `VeBetter round ${roundId} voteDuration`,
       );
-      const voteEnd =
-        voteStart + voteDuration;
+      const voteEnd = voteStart + voteDuration;
 
       if (!Number.isSafeInteger(voteEnd)) {
         throw new Error(
@@ -268,14 +225,8 @@ async function getDormancyRoundWindow({
         round.voteStart > 0 &&
         round.voteEnd < checkedBlock,
     )
-    .sort(
-      (left, right) =>
-        right.roundId - left.roundId,
-    )
-    .slice(
-      0,
-      RETURNING_USER_DORMANCY_ROUNDS,
-    );
+    .sort((left, right) => right.roundId - left.roundId)
+    .slice(0, RETURNING_USER_DORMANCY_ROUNDS);
 
   if (
     completedRounds.length !==
@@ -287,33 +238,23 @@ async function getDormancyRoundWindow({
   }
 
   const oldestCompletedRound =
-    completedRounds.reduce(
-      (oldest, round) =>
-        round.roundId < oldest.roundId
-          ? round
-          : oldest,
+    completedRounds.reduce((oldest, round) =>
+      round.roundId < oldest.roundId ? round : oldest,
     );
   const newestCompletedRound =
-    completedRounds.reduce(
-      (newest, round) =>
-        round.roundId > newest.roundId
-          ? round
-          : newest,
+    completedRounds.reduce((newest, round) =>
+      round.roundId > newest.roundId ? round : newest,
     );
 
   return {
     currentRoundId,
-    oldestCompletedRoundId:
-      oldestCompletedRound.roundId,
-    newestCompletedRoundId:
-      newestCompletedRound.roundId,
+    oldestCompletedRoundId: oldestCompletedRound.roundId,
+    newestCompletedRoundId: newestCompletedRound.roundId,
     completedRoundIds: completedRounds
       .map((round) => round.roundId)
       .sort((left, right) => left - right),
-    dormancyStartBlock:
-      oldestCompletedRound.voteStart,
-    newestCompletedRoundEndBlock:
-      newestCompletedRound.voteEnd,
+    dormancyStartBlock: oldestCompletedRound.voteStart,
+    newestCompletedRoundEndBlock: newestCompletedRound.voteEnd,
   };
 }
 
@@ -338,41 +279,24 @@ async function findFirstRewardEvent({
     return null;
   }
 
-  const logs =
-    await thor.logs.filterRawEventLogs({
-      range: {
-        unit: 'block',
-        from: fromBlock,
-        to: toBlock,
+  const logs = await thor.logs.filterRawEventLogs({
+    range: {
+      unit: 'block',
+      from: fromBlock,
+      to: toBlock,
+    },
+    options: { offset: 0, limit: 1 },
+    criteriaSet: [
+      {
+        address: x2EarnRewardsPoolAddress,
+        topic0: getSingleTopic(rewardTopics[0]),
+        topic1: getSingleTopic(rewardTopics[1]),
+        topic2: getSingleTopic(rewardTopics[2]),
+        topic3: getSingleTopic(rewardTopics[3]),
       },
-      options: {
-        offset: 0,
-        limit: 1,
-      },
-      criteriaSet: [
-        {
-          address:
-            x2EarnRewardsPoolAddress,
-          topic0:
-            getSingleTopic(
-              rewardTopics[0],
-            ),
-          topic1:
-            getSingleTopic(
-              rewardTopics[1],
-            ),
-          topic2:
-            getSingleTopic(
-              rewardTopics[2],
-            ),
-          topic3:
-            getSingleTopic(
-              rewardTopics[3],
-            ),
-        },
-      ],
-      order: 'asc',
-    });
+    ],
+    order: 'asc',
+  });
 
   return parseChainEvent(
     (logs as RawLog[])[0],
@@ -401,37 +325,23 @@ async function findFirstVoteEvent({
     return null;
   }
 
-  const logs =
-    await thor.logs.filterRawEventLogs({
-      range: {
-        unit: 'block',
-        from: fromBlock,
-        to: toBlock,
+  const logs = await thor.logs.filterRawEventLogs({
+    range: {
+      unit: 'block',
+      from: fromBlock,
+      to: toBlock,
+    },
+    options: { offset: 0, limit: 1 },
+    criteriaSet: [
+      {
+        address: xAllocationVotingAddress,
+        topic0: getSingleTopic(voteTopics[0]),
+        topic1: getSingleTopic(voteTopics[1]),
+        topic2: getSingleTopic(voteTopics[2]),
       },
-      options: {
-        offset: 0,
-        limit: 1,
-      },
-      criteriaSet: [
-        {
-          address:
-            xAllocationVotingAddress,
-          topic0:
-            getSingleTopic(
-              voteTopics[0],
-            ),
-          topic1:
-            getSingleTopic(
-              voteTopics[1],
-            ),
-          topic2:
-            getSingleTopic(
-              voteTopics[2],
-            ),
-        },
-      ],
-      order: 'asc',
-    });
+    ],
+    order: 'asc',
+  });
 
   return parseChainEvent(
     (logs as RawLog[])[0],
@@ -448,9 +358,9 @@ async function findFirstVoteEvent({
  * ACTIVE EXISTING: at least one reward or allocation vote exists in that
  * recent window.
  *
- * The recent scan deliberately continues past the latest completed round up
- * to the sealed checked block. This prevents a wallet active in an ongoing
- * round from bypassing the 12-completed-round dormancy rule.
+ * The recent scan deliberately continues through the sealed checked block,
+ * including any activity in an ongoing round. This prevents a recently active
+ * wallet from bypassing the 12-completed-round dormancy rule.
  *
  * This proves rewarded/voting VeBetter history only. It does not claim
  * one-human-one-wallet identity or detect every possible un-rewarded dApp
@@ -479,9 +389,7 @@ export async function checkVeBetterEntryEligibility({
   } = getVeBetterNetworkConfig();
 
   const thor = ThorClient.at(nodeUrl);
-
-  const bestBlock =
-    await thor.blocks.getBestBlockCompressed();
+  const bestBlock = await thor.blocks.getBestBlockCompressed();
 
   if (
     !bestBlock ||
@@ -494,12 +402,11 @@ export async function checkVeBetterEntryEligibility({
   }
 
   const checkedBlock = bestBlock.number;
-  const dormancyWindow =
-    await getDormancyRoundWindow({
-      thor,
-      xAllocationVotingAddress,
-      checkedBlock,
-    });
+  const dormancyWindow = await getDormancyRoundWindow({
+    thor,
+    xAllocationVotingAddress,
+    checkedBlock,
+  });
 
   const rewardTopics =
     rewardDistributedEvent.encodeFilterTopics([
@@ -507,13 +414,11 @@ export async function checkVeBetterEntryEligibility({
       walletAddress,
       null,
     ]);
-
   const voteTopics =
     allocationVoteCastEvent.encodeFilterTopics([
       walletAddress,
       null,
     ]);
-
   const historicalToBlock =
     dormancyWindow.dormancyStartBlock - 1;
 
@@ -543,8 +448,7 @@ export async function checkVeBetterEntryEligibility({
       thor,
       x2EarnRewardsPoolAddress,
       rewardTopics,
-      fromBlock:
-        dormancyWindow.dormancyStartBlock,
+      fromBlock: dormancyWindow.dormancyStartBlock,
       toBlock: checkedBlock,
       label: 'Recent VeBetter reward',
     }),
@@ -552,8 +456,7 @@ export async function checkVeBetterEntryEligibility({
       thor,
       xAllocationVotingAddress,
       voteTopics,
-      fromBlock:
-        dormancyWindow.dormancyStartBlock,
+      fromBlock: dormancyWindow.dormancyStartBlock,
       toBlock: checkedBlock,
       label: 'Recent VeBetter vote',
     }),
