@@ -60,11 +60,8 @@ const COPY = {
     copied: 'Invite link copied.',
     cancelInvite: 'Cancel invite',
     cancelTitleWaiting: 'Cancel this invite link?',
-    cancelTitleActive: 'Cancel this invitation?',
     cancelDescriptionWaiting:
       'This link will stop working and your invite slot will be restored.',
-    cancelDescriptionActive:
-      'The friend may continue using VeBetterDAO, but this invitation will no longer qualify for a referral reward.',
     keepInvite: 'Keep Invite',
     confirmCancel: 'Cancel Invite',
     cancelled:
@@ -131,11 +128,8 @@ const COPY = {
     copied: '초대 링크를 복사했어요.',
     cancelInvite: '초대 취소',
     cancelTitleWaiting: '이 초대 링크를 취소할까요?',
-    cancelTitleActive: '이 초대를 취소할까요?',
     cancelDescriptionWaiting:
       '현재 링크는 더 이상 작동하지 않고 초대 가능 횟수가 복구됩니다.',
-    cancelDescriptionActive:
-      '친구는 VeBetterDAO를 계속 이용할 수 있지만 이 초대의 추천 보상 대상에서는 제외됩니다.',
     keepInvite: '초대 유지',
     confirmCancel: '초대 취소',
     cancelled:
@@ -403,7 +397,7 @@ export function HomeClient() {
   };
 
   const cancelInvite = async () => {
-    if (!wallet || !active) {
+    if (!wallet || !active || !waitingForFriend) {
       return;
     }
 
@@ -557,15 +551,6 @@ export function HomeClient() {
         : completed
           ? t.completed
           : t.noActive;
-
-  const cancelTitle = waitingForFriend
-    ? t.cancelTitleWaiting
-    : t.cancelTitleActive;
-
-  const cancelDescription =
-    waitingForFriend
-      ? t.cancelDescriptionWaiting
-      : t.cancelDescriptionActive;
 
   return (
     <main className="screen">
@@ -800,7 +785,7 @@ export function HomeClient() {
           </div>
         ) : null}
 
-        {active ? (
+        {waitingForFriend ? (
           <button
             type="button"
             className="cancelLink"
@@ -836,7 +821,7 @@ export function HomeClient() {
         </Link>
       </footer>
 
-      {showCancel ? (
+      {showCancel && waitingForFriend ? (
         <div
           className="modalBackdrop"
           role="dialog"
@@ -847,8 +832,8 @@ export function HomeClient() {
               !
             </div>
 
-            <h2>{cancelTitle}</h2>
-            <p>{cancelDescription}</p>
+            <h2>{t.cancelTitleWaiting}</h2>
+            <p>{t.cancelDescriptionWaiting}</p>
 
             <button
               type="button"
