@@ -29,11 +29,16 @@ type Step =
 
 type Locale = 'ko' | 'en';
 
+type EntryClass =
+  | 'new_user'
+  | 'returning_user';
+
 type ErrorCode =
   | 'invalidLink'
   | 'used'
   | 'eligibility'
   | 'existing'
+  | 'selfReferral'
   | 'other'
   | 'complete';
 
@@ -50,6 +55,10 @@ type InviteProgress = {
 type InviteApiResponse = {
   invite?: InviteRecord;
   progress?: InviteProgress;
+  outcome?: string;
+  entryClass?:
+    | EntryClass
+    | 'active_existing_user';
 };
 
 const LANGUAGE_STORAGE_KEY =
@@ -73,37 +82,42 @@ const COPY = {
     landingTitle1: '친구가 보낸',
     landingTitle2: 'VeInvite',
     landingDescription:
-      '지갑을 연결하고 첫 미션을 완료하면 나도 친구 한 명을 초대할 수 있어요.',
+      '지갑을 연결하고 미션을 완료하면 나도 친구 한 명을 초대할 수 있어요.',
     eligibilityTitle: '누가 시작할 수 있나요?',
     eligibilityDescription:
-      'VeBetterDAO를 아직 시작하지 않았다면 기존 VeChain 지갑으로도 참여할 수 있어요.',
+      'VeBetter가 처음이거나 최근 12개 완료 라운드 동안 보상·투표 활동이 없었던 복귀 사용자라면 참여할 수 있어요.',
     start: '시작하기',
     connectWalletTitle:
       '지갑을 연결하고 시작하세요',
     connectWalletDescription:
-      '지갑을 연결하면 초대가 이어지고 첫 미션이 열려요.',
+      '지갑을 연결하면 초대 자격을 확인하고 미션을 열어요.',
     connectWallet: '지갑 연결',
     walletConnected: '연결된 지갑',
-    checkEligibility: '퀘스트 시작',
+    checkEligibility: '참여 자격 확인',
     connectThenContinue:
       '지갑을 연결해 주세요',
     checkingTitle:
-      '퀘스트를 준비하고 있어요',
+      '참여 자격을 확인하고 있어요',
     checkingDescription:
-      '초대 링크와 지갑을 확인하고 미션을 불러오는 중이에요.',
+      '초대 링크와 지갑, VeBetter 활동 이력을 안전하게 확인하는 중이에요.',
     checkingLink: '초대 링크 확인',
-    checkingHistory: '지갑 연결 확인',
-    checkingOtherInvite: '미션 준비',
+    checkingHistory: 'VeBetter 활동 이력 확인',
+    checkingOtherInvite: '다른 초대 연결 여부 확인',
     reviewTitle:
       '조금 더 확인이 필요해요',
     reviewDescription:
       '확인이 끝나면 이 화면에서 바로 이어서 시작할 수 있어요.',
-    successTitle: '퀘스트가 시작됐어요',
-    successDescription:
-      '미션을 하나씩 완료하면 마지막에 보상이 열려요.',
+    newSuccessTitle:
+      '참여 자격 확인 완료',
+    newSuccessDescription:
+      '이 지갑에서는 이전 VeBetter 보상·투표 이력이 확인되지 않았습니다. VeInvite 미션을 진행할 수 있어요.',
+    returningSuccessTitle:
+      '복귀 사용자 자격 확인 완료',
+    returningSuccessDescription:
+      '과거 VeBetter 활동은 있지만 최근 12개 완료 라운드 동안 보상·투표 이력이 없습니다. VeInvite 미션을 진행할 수 있어요.',
     walletMission: '지갑 연결',
     appMission: 'VeBetter 앱 3개 체험',
-    voteMission: '첫 투표 참여',
+    voteMission: '투표 참여',
     viewMissions: '미션 시작',
     invitedFriend: '초대받은 친구',
     myMissions: '나의 퀘스트',
@@ -129,7 +143,9 @@ const COPY = {
     requestNewLink:
       '친구에게 새 초대 링크를 요청해 주세요.',
     existingHelp:
-      '이 지갑은 초대 없이도 VeBetterDAO를 계속 이용할 수 있어요.',
+      '최근 VeBetter 활동 이력이 있어 현재는 VeInvite 대상이 아니지만 VeBetterDAO는 계속 이용할 수 있어요.',
+    selfReferralHelp:
+      '자기 초대는 허용되지 않아요. 다른 친구에게 초대 링크를 보내주세요.',
     otherHelp:
       '먼저 연결된 초대에서 미션을 계속해 주세요.',
     tryAgain:
@@ -138,7 +154,7 @@ const COPY = {
     demoResult: '데모 결과',
     demoSuccess: '시작 가능',
     demoExisting:
-      '이미 시작한 지갑',
+      '최근 활동 사용자',
     demoOther:
       '다른 초대에 연결됨',
     demoReview: '추가 확인',
@@ -148,9 +164,11 @@ const COPY = {
       used:
         '이 초대 링크는 이미 다른 지갑에서 사용됐어요.',
       eligibility:
-        '지금은 이 초대를 시작할 수 없어요.',
+        '활동 이력을 확인할 수 없어요.',
       existing:
-        '이 지갑은 이미 VeBetterDAO를 시작했어요.',
+        '현재 VeInvite 참여 기준에 해당하지 않아요.',
+      selfReferral:
+        '본인의 초대 링크에는 참여할 수 없어요.',
       other:
         '이 지갑은 이미 다른 초대와 연결돼 있어요.',
       complete:
@@ -166,42 +184,47 @@ const COPY = {
     landingTitle1: 'Your friend sent',
     landingTitle2: 'a VeInvite',
     landingDescription:
-      'Connect your wallet and finish the first mission to unlock one invite of your own.',
+      'Connect your wallet and complete the missions to unlock one invite of your own.',
     eligibilityTitle: 'Who can start?',
     eligibilityDescription:
-      'You can use an existing VeChain wallet if you have not started VeBetterDAO yet.',
+      'You can participate if you are new to VeBetter or returning after no reward or voting activity during the previous 12 completed rounds.',
     start: 'Start',
     connectWalletTitle:
       'Connect your wallet to start',
     connectWalletDescription:
-      'Connect your wallet to continue the invite and unlock your first mission.',
+      'Connect your wallet so we can verify eligibility and unlock the missions.',
     connectWallet: 'Connect Wallet',
     walletConnected: 'Connected wallet',
-    checkEligibility: 'Start Quest',
+    checkEligibility: 'Check Eligibility',
     connectThenContinue:
       'Connect your wallet first',
     checkingTitle:
-      'Preparing your quest',
+      'Checking your eligibility',
     checkingDescription:
-      'We are checking the invite link, connecting your wallet, and loading the missions.',
+      'We are securely checking the invite link, wallet, and VeBetter activity history.',
     checkingLink:
       'Checking invite link',
     checkingHistory:
-      'Connecting wallet',
+      'Checking VeBetter activity history',
     checkingOtherInvite:
-      'Preparing missions',
+      'Checking other invite connections',
     reviewTitle:
       'One more check is needed',
     reviewDescription:
       'You can continue from this screen as soon as the check is complete.',
-    successTitle: 'Quest started!',
-    successDescription:
-      'Complete each mission to unlock the reward at the end.',
+    newSuccessTitle:
+      'Eligibility confirmed',
+    newSuccessDescription:
+      'No prior VeBetter reward or voting activity was found for this wallet. You can continue with the VeInvite missions.',
+    returningSuccessTitle:
+      'Returning-user eligibility confirmed',
+    returningSuccessDescription:
+      'This wallet has older VeBetter activity, but none during the previous 12 completed rounds. You can continue with the VeInvite missions.',
     walletMission: 'Connect wallet',
     appMission:
       'Try 3 VeBetter apps',
     voteMission:
-      'Cast your first vote',
+      'Cast a vote',
     viewMissions: 'Start Missions',
     invitedFriend: 'Invited Friend',
     myMissions: 'My Quest',
@@ -227,7 +250,9 @@ const COPY = {
     requestNewLink:
       'Ask your friend for a new invite link.',
     existingHelp:
-      'You can keep using VeBetterDAO without this invite.',
+      'Recent VeBetter activity was found, so this wallet is not currently eligible for VeInvite. You can keep using VeBetterDAO normally.',
+    selfReferralHelp:
+      'Self-referrals are not allowed. Share your invite with another person instead.',
     otherHelp:
       'Continue the mission from the invite already connected to this wallet.',
     tryAgain:
@@ -235,7 +260,7 @@ const COPY = {
     home: 'Home',
     demoResult: 'Demo result',
     demoSuccess: 'Ready to start',
-    demoExisting: 'Already started',
+    demoExisting: 'Recently active',
     demoOther:
       'Connected to another invite',
     demoReview: 'Extra check',
@@ -245,9 +270,11 @@ const COPY = {
       used:
         'This invitation has already been claimed.',
       eligibility:
-        'This invite cannot be started right now.',
+        'We could not verify this wallet’s activity history.',
       existing:
-        'This wallet has already started VeBetterDAO.',
+        'This wallet does not currently meet VeInvite eligibility requirements.',
+      selfReferral:
+        'You cannot use your own invite link.',
       other:
         'This wallet is already connected to another invite.',
       complete:
@@ -286,6 +313,11 @@ export function InviteeClient({
     useState<ErrorCode>(
       'invalidLink',
     );
+
+  const [
+    entryClass,
+    setEntryClass,
+  ] = useState<EntryClass>('new_user');
 
   const [
     demoOutcome,
@@ -572,7 +604,8 @@ export function InviteeClient({
     );
 
     const data =
-      await response.json();
+      (await response.json()) as
+        InviteApiResponse;
 
     if (
       response.status === 202 ||
@@ -583,13 +616,25 @@ export function InviteeClient({
     }
 
     if (!response.ok) {
-      if (response.status === 409) {
-        setErrorCode('used');
-        setStep('error');
-        return;
-      }
-
       if (
+        response.status === 409 ||
+        data.outcome === 'already_used'
+      ) {
+        setErrorCode('used');
+      } else if (
+        data.outcome ===
+        'active_existing_user'
+      ) {
+        setErrorCode('existing');
+      } else if (
+        data.outcome === 'self_referral'
+      ) {
+        setErrorCode('selfReferral');
+      } else if (
+        data.outcome === 'already_referred'
+      ) {
+        setErrorCode('other');
+      } else if (
         demoOutcome === 'existing'
       ) {
         setErrorCode('existing');
@@ -598,9 +643,7 @@ export function InviteeClient({
       ) {
         setErrorCode('other');
       } else {
-        setErrorCode(
-          'eligibility',
-        );
+        setErrorCode('eligibility');
       }
 
       setStep('error');
@@ -609,7 +652,16 @@ export function InviteeClient({
 
     setClaimedThisSession(true);
 
-    setInvite(data.invite);
+    if (
+      data.entryClass === 'new_user' ||
+      data.entryClass === 'returning_user'
+    ) {
+      setEntryClass(data.entryClass);
+    }
+
+    if (data.invite) {
+      setInvite(data.invite);
+    }
 
     setProgress(
       DEFAULT_PROGRESS,
@@ -691,9 +743,12 @@ export function InviteeClient({
                 'existing'
               ? t.existingHelp
               : errorCode ===
-                  'other'
-                ? t.otherHelp
-                : t.tryAgain}
+                  'selfReferral'
+                ? t.selfReferralHelp
+                : errorCode ===
+                    'other'
+                  ? t.otherHelp
+                  : t.tryAgain}
         </p>
 
         <Link
@@ -816,6 +871,9 @@ export function InviteeClient({
   }
 
   if (step === 'success') {
+    const isReturning =
+      entryClass === 'returning_user';
+
     return (
       <Centered
         locale={locale}
@@ -828,11 +886,15 @@ export function InviteeClient({
         </div>
 
         <h1>
-          {t.successTitle}
+          {isReturning
+            ? t.returningSuccessTitle
+            : t.newSuccessTitle}
         </h1>
 
         <p className="muted">
-          {t.successDescription}
+          {isReturning
+            ? t.returningSuccessDescription
+            : t.newSuccessDescription}
         </p>
 
         <div className="missionSummary">
