@@ -26,7 +26,7 @@ type InviteLandingV2Props = {
 const COPY = {
   ko: {
     inviteBadge: '친구 초대',
-    rewardLabel: 'VEBETTER MISSION',
+    rewardLabel: 'VEBETTERDAO MISSION',
     rewardTitle: 'B3TR 미션 시작',
     title: '세 단계만 완료하면 돼요',
     step1: '계정',
@@ -37,16 +37,16 @@ const COPY = {
     start: '시작하기',
     existingWallet: '이미 VeWorld 지갑이 있어요',
     reassurance:
-      'VeBetter가 처음이거나 오랜만이어도 괜찮아요. 자격 확인 후 한 단계씩 안내해 드려요.',
+      'VeBetterDAO가 처음이거나 오랜만이어도 괜찮아요. 자격 확인 후 한 단계씩 안내해 드려요.',
     demoResult: '데모 결과',
     demoSuccess: '참여 가능',
-    demoExisting: '최근 활동 사용자',
+    demoExisting: '기존 사용자',
     demoOther: '다른 추천인 연결',
     demoReview: '안전성 검토',
   },
   en: {
     inviteBadge: 'FRIEND INVITE',
-    rewardLabel: 'VEBETTER MISSION',
+    rewardLabel: 'VEBETTERDAO MISSION',
     rewardTitle: 'Start your B3TR mission',
     title: 'Just three simple steps',
     step1: 'Account',
@@ -57,10 +57,10 @@ const COPY = {
     start: 'Start',
     existingWallet: 'I already have a VeWorld wallet',
     reassurance:
-      'New to VeBetter or returning after a break? We check eligibility and guide you step by step.',
+      'New to VeBetterDAO or returning after a break? We check eligibility and guide you step by step.',
     demoResult: 'Demo result',
     demoSuccess: 'Eligible',
-    demoExisting: 'Recently active user',
+    demoExisting: 'Existing user',
     demoOther: 'Connected to another inviter',
     demoReview: 'Security review',
   },
