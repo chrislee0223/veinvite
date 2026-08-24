@@ -104,11 +104,25 @@ function getSingleTopic(
 }
 
 function toSafeInteger(
-  value: bigint | number,
+  value: unknown,
   label: string,
 ): number {
-  const numberValue =
-    typeof value === 'bigint' ? Number(value) : value;
+  let numberValue: number;
+
+  if (typeof value === 'bigint') {
+    numberValue = Number(value);
+  } else if (typeof value === 'number') {
+    numberValue = value;
+  } else if (
+    typeof value === 'string' &&
+    /^\d+$/.test(value)
+  ) {
+    numberValue = Number(value);
+  } else {
+    throw new Error(
+      `${label} has an unsupported chain value type.`,
+    );
+  }
 
   if (
     !Number.isSafeInteger(numberValue) ||
@@ -120,6 +134,34 @@ function toSafeInteger(
   }
 
   return numberValue;
+}
+
+function readRoundTupleValue(
+  round: unknown,
+  fieldName: 'voteStart' | 'voteDuration',
+  tupleIndex: 1 | 2,
+): unknown {
+  if (Array.isArray(round)) {
+    return round[tupleIndex];
+  }
+
+  if (
+    round !== null &&
+    typeof round === 'object'
+  ) {
+    const record = round as Record<
+      string | number,
+      unknown
+    >;
+
+    if (record[fieldName] !== undefined) {
+      return record[fieldName];
+    }
+
+    return record[tupleIndex];
+  }
+
+  return undefined;
 }
 
 function parseChainEvent(
@@ -166,19 +208,20 @@ async function getDormancyRoundWindow({
     await contract.read.currentRoundId();
   const currentRoundId = toSafeInteger(
     currentRoundResult[0],
-    'Current VeBetter round id',
+    'Current VeBetterDAO round id',
   );
 
   if (
     currentRoundId < RETURNING_USER_DORMANCY_ROUNDS
   ) {
     throw new Error(
-      'VeBetter does not have enough completed rounds for the returning-user dormancy rule.',
+      'VeBetterDAO does not have enough completed rounds for the returning-user dormancy rule.',
     );
   }
 
-  // currentRoundId plus the previous 12 ids is enough to find the nearest
-  // 12 completed rounds. Completion is verified against the sealed best block.
+  // The current round plus the preceding 12 ids are enough to find the
+  // nearest 12 completed rounds. Completion is verified against the sealed
+  // best block rather than assumed from the round id.
   const lowestRoundId = Math.max(
     1,
     currentRoundId - RETURNING_USER_DORMANCY_ROUNDS,
@@ -193,21 +236,32 @@ async function getDormancyRoundWindow({
     roundIds.map(async (roundId) => {
       const roundResult =
         await contract.read.getRound(BigInt(roundId));
-      const round = roundResult[0];
+      const round = roundResult[0] as unknown;
 
+      // VeChain SDK versions may expose tuple outputs either with named fields
+      // or as positional array values at runtime. Accept both representations
+      // while still validating the numeric values strictly.
       const voteStart = toSafeInteger(
-        round.voteStart,
-        `VeBetter round ${roundId} voteStart`,
+        readRoundTupleValue(
+          round,
+          'voteStart',
+          1,
+        ),
+        `VeBetterDAO round ${roundId} voteStart`,
       );
       const voteDuration = toSafeInteger(
-        round.voteDuration,
-        `VeBetter round ${roundId} voteDuration`,
+        readRoundTupleValue(
+          round,
+          'voteDuration',
+          2,
+        ),
+        `VeBetterDAO round ${roundId} voteDuration`,
       );
       const voteEnd = voteStart + voteDuration;
 
       if (!Number.isSafeInteger(voteEnd)) {
         throw new Error(
-          `VeBetter round ${roundId} end block is invalid.`,
+          `VeBetterDAO round ${roundId} end block is invalid.`,
         );
       }
 
@@ -233,7 +287,7 @@ async function getDormancyRoundWindow({
     RETURNING_USER_DORMANCY_ROUNDS
   ) {
     throw new Error(
-      'Unable to establish the previous 12 completed VeBetter rounds.',
+      'Unable to establish the previous 12 completed VeBetterDAO rounds.',
     );
   }
 
@@ -352,7 +406,7 @@ async function findFirstVoteEvent({
 /**
  * Classifies a wallet at the sealed invitation-entry block.
  *
- * NEW: no rewarded/voting VeBetter history before entry.
+ * NEW: no rewarded/voting VeBetterDAO history before entry.
  * RETURNING: historical rewarded/voting activity exists, but none from the
  * start of the oldest of the previous 12 completed rounds through entry.
  * ACTIVE EXISTING: at least one reward or allocation vote exists in that
@@ -362,7 +416,7 @@ async function findFirstVoteEvent({
  * including any activity in an ongoing round. This prevents a recently active
  * wallet from bypassing the 12-completed-round dormancy rule.
  *
- * This proves rewarded/voting VeBetter history only. It does not claim
+ * This proves rewarded/voting VeBetterDAO history only. It does not claim
  * one-human-one-wallet identity or detect every possible un-rewarded dApp
  * interaction. Any node/indexing/round-read failure throws and fails closed,
  * leaving the invitation unconsumed.
@@ -434,7 +488,7 @@ export async function checkVeBetterEntryEligibility({
       rewardTopics,
       fromBlock: 0,
       toBlock: historicalToBlock,
-      label: 'Historical VeBetter reward',
+      label: 'Historical VeBetterDAO reward',
     }),
     findFirstVoteEvent({
       thor,
@@ -442,7 +496,7 @@ export async function checkVeBetterEntryEligibility({
       voteTopics,
       fromBlock: 0,
       toBlock: historicalToBlock,
-      label: 'Historical VeBetter vote',
+      label: 'Historical VeBetterDAO vote',
     }),
     findFirstRewardEvent({
       thor,
@@ -450,7 +504,7 @@ export async function checkVeBetterEntryEligibility({
       rewardTopics,
       fromBlock: dormancyWindow.dormancyStartBlock,
       toBlock: checkedBlock,
-      label: 'Recent VeBetter reward',
+      label: 'Recent VeBetterDAO reward',
     }),
     findFirstVoteEvent({
       thor,
@@ -458,7 +512,7 @@ export async function checkVeBetterEntryEligibility({
       voteTopics,
       fromBlock: dormancyWindow.dormancyStartBlock,
       toBlock: checkedBlock,
-      label: 'Recent VeBetter vote',
+      label: 'Recent VeBetterDAO vote',
     }),
   ]);
 
