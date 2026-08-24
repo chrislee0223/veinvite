@@ -13,6 +13,10 @@ import {
 } from '@/lib/walletAuthServer';
 import {
   checkVeBetterEntryEligibility,
+  ENTRY_ELIGIBILITY_RULE_VERSION,
+  RETURNING_USER_DORMANCY_ROUNDS,
+  type EntryClass,
+  type EntryEligibilityResult,
 } from '@/lib/vebetter/entryEligibility';
 import type {
   InviteRecord,
@@ -38,6 +42,9 @@ type ClaimRpcResult = {
     | 'ALREADY_USED'
     | 'SELF_REFERRAL'
     | 'ALREADY_REFERRED';
+  entry_class?:
+    | 'NEW'
+    | 'RETURNING';
   invite_code?: string;
   inviter_wallet?: string;
   invitee_wallet?: string;
@@ -116,39 +123,91 @@ function rpcResultToInvitation(
   };
 }
 
+function toStoredEntryClass(
+  entryClass: EntryClass,
+): 'NEW' | 'RETURNING' | 'ACTIVE_EXISTING' {
+  switch (entryClass) {
+    case 'new_user':
+      return 'NEW';
+    case 'returning_user':
+      return 'RETURNING';
+    case 'active_existing_user':
+      return 'ACTIVE_EXISTING';
+  }
+}
+
+function buildEntryCheckDetails(
+  entryCheck: EntryEligibilityResult,
+) {
+  return {
+    ruleVersion:
+      ENTRY_ELIGIBILITY_RULE_VERSION,
+    definition:
+      'NEW has no prior rewarded/allocation-voting VeBetter history. RETURNING has historical activity but none from the start of the previous 12 completed rounds through the sealed check block. ACTIVE_EXISTING has activity in that recent window.',
+    entryClass:
+      toStoredEntryClass(
+        entryCheck.entryClass,
+      ),
+    dormancyRoundCount:
+      RETURNING_USER_DORMANCY_ROUNDS,
+    currentRoundId:
+      entryCheck.dormancyWindow
+        .currentRoundId,
+    oldestCompletedRoundId:
+      entryCheck.dormancyWindow
+        .oldestCompletedRoundId,
+    newestCompletedRoundId:
+      entryCheck.dormancyWindow
+        .newestCompletedRoundId,
+    completedRoundIds:
+      entryCheck.dormancyWindow
+        .completedRoundIds,
+    dormancyStartBlock:
+      entryCheck.dormancyWindow
+        .dormancyStartBlock,
+    newestCompletedRoundEndBlock:
+      entryCheck.dormancyWindow
+        .newestCompletedRoundEndBlock,
+    checkedThroughBlock:
+      entryCheck.checkedBlock,
+    ongoingRoundGuard: true,
+  };
+}
+
 async function recordRejectedEntryCheck({
   inviteCode,
   walletAddress,
-  network,
-  checkedBlock,
-  priorRewardTxId,
-  priorVoteTxId,
+  entryCheck,
 }: {
   inviteCode: string;
   walletAddress: string;
-  network: string;
-  checkedBlock: number;
-  priorRewardTxId: string | null;
-  priorVoteTxId: string | null;
+  entryCheck: EntryEligibilityResult;
 }) {
+  const rewardEvidence =
+    entryCheck.recentRewardEvent ??
+    entryCheck.priorRewardEvent;
+  const voteEvidence =
+    entryCheck.recentVoteEvent ??
+    entryCheck.priorVoteEvent;
+
   const { error } = await supabaseAdmin
     .from('eligibility_check_events')
     .insert({
       invite_code: inviteCode,
       wallet_address: walletAddress,
-      network,
-      checked_block: checkedBlock,
+      network: entryCheck.network,
+      checked_block:
+        entryCheck.checkedBlock,
       outcome: 'EXISTING_VEBETTER_USER',
+      entry_class: 'ACTIVE_EXISTING',
       prior_reward_tx_id:
-        priorRewardTxId,
+        rewardEvidence?.txId ?? null,
       prior_vote_tx_id:
-        priorVoteTxId,
-      details: {
-        ruleVersion:
-          'entry-history-v1',
-        definition:
-          'No prior rewarded or allocation-voting VeBetter history through the checked block.',
-      },
+        voteEvidence?.txId ?? null,
+      details:
+        buildEntryCheckDetails(
+          entryCheck,
+        ),
     });
 
   if (error) {
@@ -169,6 +228,7 @@ function claimConflictResponse(
     case 'CANCELLED':
       return NextResponse.json(
         {
+          outcome: 'invalid_or_cancelled',
           error:
             'Invite link is invalid or cancelled.',
         },
@@ -179,8 +239,6 @@ function claimConflictResponse(
       return NextResponse.json(
         {
           outcome: 'self_referral',
-          message:
-            '초대자 본인의 지갑은 연결할 수 없습니다.',
         },
         { status: 422 },
       );
@@ -189,8 +247,6 @@ function claimConflictResponse(
       return NextResponse.json(
         {
           outcome: 'already_referred',
-          message:
-            '이미 다른 추천인에게 연결된 지갑입니다.',
         },
         { status: 422 },
       );
@@ -199,6 +255,7 @@ function claimConflictResponse(
     default:
       return NextResponse.json(
         {
+          outcome: 'already_used',
           error:
             'This invite link has already been used.',
         },
@@ -233,6 +290,7 @@ export async function POST(
 
     return NextResponse.json(
       {
+        outcome: 'server_error',
         error: 'Failed to load invitation.',
       },
       { status: 500 },
@@ -248,6 +306,7 @@ export async function POST(
   ) {
     return NextResponse.json(
       {
+        outcome: 'invalid_or_cancelled',
         error:
           'Invite link is invalid or cancelled.',
       },
@@ -258,6 +317,7 @@ export async function POST(
   if (invitation.invitee_wallet) {
     return NextResponse.json(
       {
+        outcome: 'already_used',
         error:
           'This invite link has already been used.',
       },
@@ -276,6 +336,7 @@ export async function POST(
   } catch {
     return NextResponse.json(
       {
+        outcome: 'invalid_request',
         error: 'Invalid JSON body.',
       },
       { status: 400 },
@@ -285,6 +346,7 @@ export async function POST(
   if (!body.inviteeAddress) {
     return NextResponse.json(
       {
+        outcome: 'invalid_request',
         error: 'inviteeAddress is required',
       },
       { status: 400 },
@@ -301,6 +363,7 @@ export async function POST(
   ) {
     return NextResponse.json(
       {
+        outcome: 'invalid_request',
         error: 'Invalid invitee wallet.',
       },
       { status: 400 },
@@ -319,6 +382,8 @@ export async function POST(
     ) {
       return NextResponse.json(
         {
+          outcome:
+            'wallet_verification_failed',
           error: authError.message,
         },
         {
@@ -337,6 +402,7 @@ export async function POST(
 
     return NextResponse.json(
       {
+        outcome: 'server_error',
         error:
           'Failed to validate wallet verification.',
       },
@@ -355,8 +421,6 @@ export async function POST(
     return NextResponse.json(
       {
         outcome: 'self_referral',
-        message:
-          '초대자 본인의 지갑은 연결할 수 없습니다.',
       },
       { status: 422 },
     );
@@ -381,6 +445,7 @@ export async function POST(
 
     return NextResponse.json(
       {
+        outcome: 'server_error',
         error:
           'Failed to check existing referral.',
       },
@@ -395,8 +460,6 @@ export async function POST(
     return NextResponse.json(
       {
         outcome: 'already_referred',
-        message:
-          '이미 다른 추천인에게 연결된 지갑입니다.',
       },
       { status: 422 },
     );
@@ -420,10 +483,12 @@ export async function POST(
       eligibilityError,
     );
 
-    // Fail closed. A chain/indexing problem must never silently classify an
-    // existing VeBetter wallet as new.
+    // Fail closed. Chain/indexing/round-clock failures must never silently
+    // classify a recently active VeBetter wallet as NEW or RETURNING.
     return NextResponse.json(
       {
+        outcome:
+          'eligibility_check_failed',
         error:
           'VeBetter activity history could not be verified. The invite was not used. Please try again.',
       },
@@ -432,33 +497,30 @@ export async function POST(
   }
 
   if (
-    entryCheck.outcome ===
-    'existing_vebetter_user'
+    entryCheck.entryClass ===
+    'active_existing_user'
   ) {
     await recordRejectedEntryCheck({
       inviteCode: normalizedCode,
       walletAddress: inviteeAddress,
-      network: entryCheck.network,
-      checkedBlock:
-        entryCheck.checkedBlock,
-      priorRewardTxId:
-        entryCheck.priorRewardEvent
-          ?.txId ?? null,
-      priorVoteTxId:
-        entryCheck.priorVoteEvent
-          ?.txId ?? null,
+      entryCheck,
     });
 
     return NextResponse.json(
       {
         outcome:
-          'existing_vebetter_user',
-        message:
-          '이미 VeBetterDAO에서 보상 또는 거버넌스 활동 이력이 확인된 지갑입니다.',
+          'active_existing_user',
+        entryClass:
+          'active_existing_user',
       },
       { status: 422 },
     );
   }
+
+  const storedEntryClass =
+    toStoredEntryClass(
+      entryCheck.entryClass,
+    );
 
   const {
     data: claimData,
@@ -471,13 +533,24 @@ export async function POST(
       p_network: entryCheck.network,
       p_checked_block:
         entryCheck.checkedBlock,
-      p_prior_reward_tx_id: null,
-      p_prior_vote_tx_id: null,
+      p_prior_reward_tx_id:
+        entryCheck.entryClass ===
+        'returning_user'
+          ? entryCheck.priorRewardEvent
+              ?.txId ?? null
+          : null,
+      p_prior_vote_tx_id:
+        entryCheck.entryClass ===
+        'returning_user'
+          ? entryCheck.priorVoteEvent
+              ?.txId ?? null
+          : null,
       p_details: {
-        ruleVersion:
-          'entry-history-v1',
-        definition:
-          'No prior rewarded or allocation-voting VeBetter history through the checked block.',
+        ...buildEntryCheckDetails(
+          entryCheck,
+        ),
+        entryClass:
+          storedEntryClass,
       },
     },
   );
@@ -490,6 +563,7 @@ export async function POST(
 
     return NextResponse.json(
       {
+        outcome: 'server_error',
         error: 'Failed to claim invitation.',
       },
       { status: 500 },
@@ -521,6 +595,7 @@ export async function POST(
 
     return NextResponse.json(
       {
+        outcome: 'server_error',
         error:
           'Invitation was claimed but its stored state could not be verified.',
       },
@@ -531,8 +606,8 @@ export async function POST(
   return NextResponse.json(
     {
       outcome: 'eligible',
-      message:
-        '참여 자격을 확인했습니다.',
+      entryClass:
+        entryCheck.entryClass,
       invite: toInviteRecord(
         claimedInvitation,
       ),

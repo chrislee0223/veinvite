@@ -29,7 +29,7 @@ const COPY = {
     inviteMission: 'QUEST 01',
     emptyTitle: 'Invite Your First Friend',
     emptyDescription:
-      'Create one invite and help a new user complete their first VeBetterDAO activation.',
+      'Create one invite and help a new or returning user complete a VeInvite onboarding mission.',
     createInvite: 'Create Invite',
     creating: 'Creating…',
     connectStart: 'Connect Wallet & Start',
@@ -46,7 +46,7 @@ const COPY = {
     friendJoinedBadge: 'FRIEND JOINED',
     friendJoinedTitle: 'Your friend joined',
     friendJoinedDescription:
-      'Your friend is completing their first mission now.',
+      'Your friend is completing their VeInvite missions now.',
     reviewBadge: 'ACTIVATION CHECK',
     reviewTitle: 'Checking the final step',
     reviewDescription:
@@ -60,11 +60,8 @@ const COPY = {
     copied: 'Invite link copied.',
     cancelInvite: 'Cancel invite',
     cancelTitleWaiting: 'Cancel this invite link?',
-    cancelTitleActive: 'Cancel this invitation?',
     cancelDescriptionWaiting:
       'This link will stop working and your invite slot will be restored.',
-    cancelDescriptionActive:
-      'The friend may continue using VeBetterDAO, but this invitation will no longer qualify for a referral reward.',
     keepInvite: 'Keep Invite',
     confirmCancel: 'Cancel Invite',
     cancelled:
@@ -90,9 +87,9 @@ const COPY = {
     loadError: 'Could not load invitation data.',
     createError: 'Could not create an invitation.',
     cancelError: 'Could not cancel the invitation.',
-    dappTitle: 'For VeBetter dApps',
+    dappTitle: 'For VeBetterDAO dApps',
     dappDescription:
-      'VeInvite currently focuses on ecosystem-wide onboarding for new VeBetter users. Dedicated referral campaigns and customizable campaign tools for individual dApps are planned as a future extension.',
+      'VeInvite currently focuses on ecosystem-wide onboarding and reactivation for eligible VeBetterDAO users. Dedicated referral campaigns and customizable campaign tools for individual dApps are planned as a future extension.',
   },
   ko: {
     language: '한국어',
@@ -100,7 +97,7 @@ const COPY = {
     inviteMission: '퀘스트 01',
     emptyTitle: '첫 친구를 초대하세요',
     emptyDescription:
-      '초대 링크를 만들고 친구의 첫 VeBetterDAO 활성화를 도와주세요.',
+      '초대 링크를 만들고 신규 또는 복귀 사용자의 VeBetterDAO 참여를 도와주세요.',
     createInvite: '초대 만들기',
     creating: '만드는 중…',
     connectStart: '지갑 연결하고 시작하기',
@@ -117,7 +114,7 @@ const COPY = {
     friendJoinedBadge: '친구 참여 완료',
     friendJoinedTitle: '친구가 참여했어요',
     friendJoinedDescription:
-      '친구가 첫 미션을 진행하고 있어요.',
+      '친구가 VeInvite 미션을 진행하고 있어요.',
     reviewBadge: '활성화 확인 중',
     reviewTitle: '마지막 단계를 확인하고 있어요',
     reviewDescription:
@@ -131,11 +128,8 @@ const COPY = {
     copied: '초대 링크를 복사했어요.',
     cancelInvite: '초대 취소',
     cancelTitleWaiting: '이 초대 링크를 취소할까요?',
-    cancelTitleActive: '이 초대를 취소할까요?',
     cancelDescriptionWaiting:
       '현재 링크는 더 이상 작동하지 않고 초대 가능 횟수가 복구됩니다.',
-    cancelDescriptionActive:
-      '친구는 VeBetterDAO를 계속 이용할 수 있지만 이 초대의 추천 보상 대상에서는 제외됩니다.',
     keepInvite: '초대 유지',
     confirmCancel: '초대 취소',
     cancelled:
@@ -161,9 +155,9 @@ const COPY = {
     loadError: '초대 정보를 불러오지 못했습니다.',
     createError: '초대 링크를 만들지 못했습니다.',
     cancelError: '초대를 취소하지 못했습니다.',
-    dappTitle: 'VeBetter dApp을 위한 VeInvite',
+    dappTitle: 'VeBetterDAO dApp을 위한 VeInvite',
     dappDescription:
-      '현재 VeInvite는 VeBetter 생태계 전체의 신규 사용자 온보딩에 초점을 맞추고 있습니다. 개별 dApp이 자체 추천 캠페인을 만들고 설정할 수 있는 기능은 향후 확장 기능으로 계획하고 있습니다.',
+      '현재 VeInvite는 VeBetterDAO 생태계 전체에서 신규 사용자 온보딩과 휴면 사용자 복귀에 초점을 맞추고 있습니다. 개별 dApp이 자체 추천 캠페인을 만들고 설정할 수 있는 기능은 향후 확장 기능으로 계획하고 있습니다.',
   },
 } as const;
 
@@ -403,7 +397,7 @@ export function HomeClient() {
   };
 
   const cancelInvite = async () => {
-    if (!wallet || !active) {
+    if (!wallet || !active || !waitingForFriend) {
       return;
     }
 
@@ -494,8 +488,8 @@ export function HomeClient() {
           title: 'VeInvite',
           text:
             locale === 'ko'
-              ? 'VeBetterDAO를 처음 시작해 보세요.'
-              : 'Start your first VeBetterDAO mission.',
+              ? 'VeInvite와 함께 VeBetterDAO 미션에 참여해 보세요.'
+              : 'Join a VeBetterDAO mission with VeInvite.',
           url: inviteUrl,
         });
       } catch {
@@ -557,15 +551,6 @@ export function HomeClient() {
         : completed
           ? t.completed
           : t.noActive;
-
-  const cancelTitle = waitingForFriend
-    ? t.cancelTitleWaiting
-    : t.cancelTitleActive;
-
-  const cancelDescription =
-    waitingForFriend
-      ? t.cancelDescriptionWaiting
-      : t.cancelDescriptionActive;
 
   return (
     <main className="screen">
@@ -800,7 +785,7 @@ export function HomeClient() {
           </div>
         ) : null}
 
-        {active ? (
+        {waitingForFriend ? (
           <button
             type="button"
             className="cancelLink"
@@ -836,7 +821,7 @@ export function HomeClient() {
         </Link>
       </footer>
 
-      {showCancel ? (
+      {showCancel && waitingForFriend ? (
         <div
           className="modalBackdrop"
           role="dialog"
@@ -847,8 +832,8 @@ export function HomeClient() {
               !
             </div>
 
-            <h2>{cancelTitle}</h2>
-            <p>{cancelDescription}</p>
+            <h2>{t.cancelTitleWaiting}</h2>
+            <p>{t.cancelDescriptionWaiting}</p>
 
             <button
               type="button"
