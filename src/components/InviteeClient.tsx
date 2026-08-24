@@ -85,7 +85,7 @@ const COPY = {
       '지갑을 연결하고 미션을 완료하면 나도 친구 한 명을 초대할 수 있어요.',
     eligibilityTitle: '누가 시작할 수 있나요?',
     eligibilityDescription:
-      'VeBetter가 처음이거나 최근 12개 완료 라운드 동안 보상·투표 활동이 없었던 복귀 사용자라면 참여할 수 있어요.',
+      'VeBetterDAO가 처음이거나 최근 12개 완료 라운드 동안 보상·투표 활동이 없었던 복귀 사용자라면 참여할 수 있어요.',
     start: '시작하기',
     connectWalletTitle:
       '지갑을 연결하고 시작하세요',
@@ -99,9 +99,9 @@ const COPY = {
     checkingTitle:
       '참여 자격을 확인하고 있어요',
     checkingDescription:
-      '초대 링크와 지갑, VeBetter 활동 이력을 안전하게 확인하는 중이에요.',
+      '초대 링크와 지갑, VeBetterDAO 활동 이력을 안전하게 확인하는 중이에요.',
     checkingLink: '초대 링크 확인',
-    checkingHistory: 'VeBetter 활동 이력 확인',
+    checkingHistory: 'VeBetterDAO 활동 이력 확인',
     checkingOtherInvite: '다른 초대 연결 여부 확인',
     reviewTitle:
       '조금 더 확인이 필요해요',
@@ -110,13 +110,13 @@ const COPY = {
     newSuccessTitle:
       '참여 자격 확인 완료',
     newSuccessDescription:
-      '이 지갑에서는 이전 VeBetter 보상·투표 이력이 확인되지 않았습니다. VeInvite 미션을 진행할 수 있어요.',
+      '이 지갑에서는 이전 VeBetterDAO 보상·투표 이력이 확인되지 않았습니다. VeInvite 미션을 진행할 수 있어요.',
     returningSuccessTitle:
       '복귀 사용자 자격 확인 완료',
     returningSuccessDescription:
-      '과거 VeBetter 활동은 있지만 최근 12개 완료 라운드 동안 보상·투표 이력이 없습니다. VeInvite 미션을 진행할 수 있어요.',
+      '과거 VeBetterDAO 활동은 있지만 최근 12개 완료 라운드 동안 보상·투표 이력이 없습니다. VeInvite 미션을 진행할 수 있어요.',
     walletMission: '지갑 연결',
-    appMission: 'VeBetter 앱 3개 체험',
+    appMission: 'VeBetterDAO 앱 3개 체험',
     voteMission: '투표 참여',
     viewMissions: '미션 시작',
     invitedFriend: '초대받은 친구',
@@ -143,7 +143,7 @@ const COPY = {
     requestNewLink:
       '친구에게 새 초대 링크를 요청해 주세요.',
     existingHelp:
-      '최근 VeBetter 활동 이력이 있어 현재는 VeInvite 대상이 아니지만 VeBetterDAO는 계속 이용할 수 있어요.',
+      '최근 VeBetterDAO 활동 이력이 있어 현재는 VeInvite 대상이 아니지만 VeBetterDAO는 계속 이용할 수 있어요.',
     selfReferralHelp:
       '자기 초대는 허용되지 않아요. 다른 친구에게 초대 링크를 보내주세요.',
     otherHelp:
@@ -154,7 +154,7 @@ const COPY = {
     demoResult: '데모 결과',
     demoSuccess: '시작 가능',
     demoExisting:
-      '최근 활동 사용자',
+      '기존 사용자',
     demoOther:
       '다른 초대에 연결됨',
     demoReview: '추가 확인',
@@ -187,7 +187,7 @@ const COPY = {
       'Connect your wallet and complete the missions to unlock one invite of your own.',
     eligibilityTitle: 'Who can start?',
     eligibilityDescription:
-      'You can participate if you are new to VeBetter or returning after no reward or voting activity during the previous 12 completed rounds.',
+      'You can participate if you are new to VeBetterDAO or returning after no reward or voting activity during the previous 12 completed rounds.',
     start: 'Start',
     connectWalletTitle:
       'Connect your wallet to start',
@@ -201,11 +201,11 @@ const COPY = {
     checkingTitle:
       'Checking your eligibility',
     checkingDescription:
-      'We are securely checking the invite link, wallet, and VeBetter activity history.',
+      'We are securely checking the invite link, wallet, and VeBetterDAO activity history.',
     checkingLink:
       'Checking invite link',
     checkingHistory:
-      'Checking VeBetter activity history',
+      'Checking VeBetterDAO activity history',
     checkingOtherInvite:
       'Checking other invite connections',
     reviewTitle:
@@ -215,14 +215,14 @@ const COPY = {
     newSuccessTitle:
       'Eligibility confirmed',
     newSuccessDescription:
-      'No prior VeBetter reward or voting activity was found for this wallet. You can continue with the VeInvite missions.',
+      'No prior VeBetterDAO reward or voting activity was found for this wallet. You can continue with the VeInvite missions.',
     returningSuccessTitle:
       'Returning-user eligibility confirmed',
     returningSuccessDescription:
-      'This wallet has older VeBetter activity, but none during the previous 12 completed rounds. You can continue with the VeInvite missions.',
+      'This wallet has older VeBetterDAO activity, but none during the previous 12 completed rounds. You can continue with the VeInvite missions.',
     walletMission: 'Connect wallet',
     appMission:
-      'Try 3 VeBetter apps',
+      'Try 3 VeBetterDAO apps',
     voteMission:
       'Cast a vote',
     viewMissions: 'Start Missions',
@@ -250,7 +250,7 @@ const COPY = {
     requestNewLink:
       'Ask your friend for a new invite link.',
     existingHelp:
-      'Recent VeBetter activity was found, so this wallet is not currently eligible for VeInvite. You can keep using VeBetterDAO normally.',
+      'Recent VeBetterDAO activity was found, so this wallet is not currently eligible for VeInvite. You can keep using VeBetterDAO normally.',
     selfReferralHelp:
       'Self-referrals are not allowed. Share your invite with another person instead.',
     otherHelp:
@@ -260,7 +260,7 @@ const COPY = {
     home: 'Home',
     demoResult: 'Demo result',
     demoSuccess: 'Ready to start',
-    demoExisting: 'Recently active',
+    demoExisting: 'Existing user',
     demoOther:
       'Connected to another invite',
     demoReview: 'Extra check',
@@ -882,7 +882,7 @@ export function InviteeClient({
         }
       >
         <div className="successCircle">
-          ✓
+          {isReturning ? '↻' : '✓'}
         </div>
 
         <h1>
