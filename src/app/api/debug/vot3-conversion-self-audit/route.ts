@@ -116,6 +116,21 @@ export async function GET() {
       });
 
     if (result.matchedConversionEvents.length > 0) {
+      const nextBlock =
+        blockNumber < best.number
+          ? blockNumber + 1
+          : blockNumber;
+      const beforeFirstDappResult =
+        nextBlock > blockNumber
+          ? await getVeBetterVot3ConversionProgress({
+              walletAddress: wallet,
+              activationBlock: blockNumber,
+              firstQualifyingRewardBlock:
+                nextBlock,
+              checkedBlock: nextBlock,
+            })
+          : null;
+
       return NextResponse.json({
         mode: 'READ_ONLY_VOT3_CONVERSION_SELF_AUDIT',
         writesPerformed: false,
@@ -124,6 +139,15 @@ export async function GET() {
         wallet,
         blockNumber,
         result,
+        policyChecks: {
+          directConversionDetected:
+            result.converted,
+          beforeFirstDappRejected:
+            beforeFirstDappResult
+              ? !beforeFirstDappResult.converted &&
+                beforeFirstDappResult.beforeFirstDappEvents.length > 0
+              : null,
+        },
       }, {
         headers: {
           'Cache-Control': 'no-store',
