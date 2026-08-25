@@ -8,6 +8,10 @@ const ADDRESS_PATTERN = /^0x[0-9a-fA-F]{40}$/;
 const REVIEWED_NETWORKS = {
   mainnet: {
     nodeUrl: 'https://mainnet.vechain.org',
+    b3trAddress:
+      '0x5ef79995FE8a89e0812330E4378eB2660ceDe699',
+    vot3Address:
+      '0x76Ca782B59C74d088C7D2Cce2f211BC00836c602',
     x2EarnAppsAddress:
       '0x8392B7CCc763dB03b47afcD8E8f5e24F9cf0554D',
     x2EarnRewardsPoolAddress:
@@ -17,6 +21,10 @@ const REVIEWED_NETWORKS = {
   },
   testnet: {
     nodeUrl: 'https://testnet.vechain.org',
+    b3trAddress:
+      '0x026771d1be764467f8bdb78bb230df10c924b00d',
+    vot3Address:
+      '0xf7a08af15cb3501feee53ebe11f4428a966fa459',
     x2EarnAppsAddress:
       '0x1ae6eee231bcf8229d42626b4d663d45a6abd889',
     x2EarnRewardsPoolAddress:
@@ -26,6 +34,10 @@ const REVIEWED_NETWORKS = {
   },
   'testnet-staging': {
     nodeUrl: 'https://testnet.vechain.org',
+    b3trAddress:
+      '0x95761346d18244bb91664181bf91193376197088',
+    vot3Address:
+      '0x6e8b4a88d37897fc11f6ba12c805695f1c41f40e',
     x2EarnAppsAddress:
       '0x0b54a094b877a25bdc95b4431eaa1e2206b1ddfe',
     x2EarnRewardsPoolAddress:
@@ -268,6 +280,18 @@ export function getVeBetterNetworkConfig() {
     network,
   );
 
+  const b3trAddress =
+    requireAddress(
+      reviewed.b3trAddress,
+      'B3TR_ADDRESS reviewed default',
+    );
+
+  const vot3Address =
+    requireAddress(
+      reviewed.vot3Address,
+      'VOT3_ADDRESS reviewed default',
+    );
+
   const x2EarnAppsAddress =
     resolveContractAddress({
       envValue:
@@ -304,6 +328,8 @@ export function getVeBetterNetworkConfig() {
   return {
     network,
     nodeUrl,
+    b3trAddress,
+    vot3Address,
     x2EarnAppsAddress,
     x2EarnRewardsPoolAddress,
     xAllocationVotingAddress,
