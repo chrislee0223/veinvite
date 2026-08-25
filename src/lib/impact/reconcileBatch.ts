@@ -27,9 +27,14 @@ const invitationEvidenceColumns = `
   activation_network,
   apps_completed,
   rewards_received,
-  vote_completed,
   apps_completed_at,
   apps_completed_block,
+  vot3_converted,
+  vot3_converted_at,
+  vot3_converted_block,
+  vot3_conversion_tx_id,
+  vot3_conversion_amount_wei,
+  vote_completed,
   vote_completed_at,
   vote_completed_block,
   vote_round_id,
@@ -49,6 +54,7 @@ export type ReconciliationResult = {
   status: string;
   rewardStatus: string;
   appsCompleted: number;
+  vot3Converted: boolean;
   voteCompleted: boolean;
   impactCheckpointSaved: boolean;
   impactSyncComplete: boolean;
@@ -199,6 +205,8 @@ export async function runReconciliationBatch(
             synced.row.reward_status,
           appsCompleted:
             synced.progress.appsCompleted,
+          vot3Converted:
+            synced.progress.vot3Converted,
           voteCompleted:
             synced.progress.voteCompleted,
           impactCheckpointSaved:
@@ -224,6 +232,8 @@ export async function runReconciliationBatch(
           rewardStatus: row.reward_status,
           appsCompleted:
             row.apps_completed ?? 0,
+          vot3Converted:
+            row.vot3_converted ?? false,
           voteCompleted:
             row.vote_completed ?? false,
           impactCheckpointSaved: false,
