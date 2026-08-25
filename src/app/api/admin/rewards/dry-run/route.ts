@@ -16,10 +16,10 @@ import {
   getVeBetterNetworkConfig,
 } from '@/lib/vebetter/network';
 
-type InvitationRewardRow = {
+type RewardQueueRow = {
   invite_code: string;
-  inviter_wallet: string;
-  reward_eligible_at: string | null;
+  recipient_wallet: string;
+  eligible_at: string;
 };
 
 type RewardRoundIdRow = {
@@ -89,12 +89,12 @@ function authorizeDryRun(request: NextRequest) {
 }
 
 function toCandidates(
-  rows: InvitationRewardRow[],
+  rows: RewardQueueRow[],
 ): RewardCandidate[] {
   return rows.map((row) => ({
     inviteCode: row.invite_code,
-    recipientWallet: row.inviter_wallet,
-    eligibleAt: row.reward_eligible_at,
+    recipientWallet: row.recipient_wallet,
+    eligibleAt: row.eligible_at,
   }));
 }
 
@@ -196,43 +196,40 @@ export async function POST(
   const { network } =
     getVeBetterNetworkConfig();
 
-  const [
-    invitationResult,
-    roundResult,
-  ] = await Promise.all([
-    supabaseAdmin
-      .from('invitations')
-      .select(
-        'invite_code, inviter_wallet, reward_eligible_at',
-      )
-      .eq('status', 'COMPLETED')
-      .eq('reward_status', 'ELIGIBLE')
-      .eq('activation_network', network)
-      .order('reward_eligible_at', {
-        ascending: true,
-        nullsFirst: false,
-      })
-      .order('invite_code', {
-        ascending: true,
-      }),
+  const [queueResult, roundResult] =
+    await Promise.all([
+      supabaseAdmin
+        .from('reward_queue_entries')
+        .select(
+          'invite_code, recipient_wallet, eligible_at',
+        )
+        .eq('network', network)
+        .eq('status', 'QUEUED')
+        .is('assigned_round_id', null)
+        .order('eligible_at', {
+          ascending: true,
+        })
+        .order('invite_code', {
+          ascending: true,
+        }),
 
-    supabaseAdmin
-      .from('reward_rounds')
-      .select('id')
-      .eq('network', network)
-      .eq('app_id', VEINVITE_APP_ID),
-  ]);
+      supabaseAdmin
+        .from('reward_rounds')
+        .select('id')
+        .eq('network', network)
+        .eq('app_id', VEINVITE_APP_ID),
+    ]);
 
-  if (invitationResult.error) {
+  if (queueResult.error) {
     console.error(
-      'Reward dry-run failed to load eligible invitations:',
-      invitationResult.error,
+      'Reward dry-run failed to load queued candidates:',
+      queueResult.error,
     );
 
     return NextResponse.json(
       {
         error:
-          'Failed to load eligible invitations.',
+          'Failed to load queued reward candidates.',
       },
       { status: 500 },
     );
@@ -308,7 +305,7 @@ export async function POST(
     const result = calculateRewardDryRun({
       poolBalanceWei,
       candidates: toCandidates(
-        (invitationResult.data ?? []) as InvitationRewardRow[],
+        (queueResult.data ?? []) as RewardQueueRow[],
       ),
       existingPayouts: toExistingPayouts(
         payoutRows,
@@ -320,6 +317,8 @@ export async function POST(
         mode: 'DRY_RUN',
         network,
         appId: VEINVITE_APP_ID,
+        candidateSource:
+          'reward_queue_entries',
         writesPerformed: false,
         transfersPerformed: false,
         result,
