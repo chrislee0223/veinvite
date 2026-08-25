@@ -48,6 +48,7 @@ export type Vot3ConversionProgress = {
   beforeFirstDappEvents:
     Vot3ConversionEvent[];
   latestBlock: number;
+  checkedBlock: number;
   minimumAmountWei: string;
 };
 
@@ -199,10 +200,12 @@ export async function getVeBetterVot3ConversionProgress({
   walletAddress,
   activationBlock,
   firstQualifyingRewardBlock,
+  checkedBlock,
 }: {
   walletAddress: string;
   activationBlock: number;
   firstQualifyingRewardBlock: number;
+  checkedBlock?: number;
 }): Promise<Vot3ConversionProgress> {
   if (!isValidAddress(walletAddress)) {
     throw new Error(
@@ -233,6 +236,20 @@ export async function getVeBetterVot3ConversionProgress({
     );
   }
 
+  if (
+    checkedBlock !== undefined &&
+    (
+      !Number.isSafeInteger(
+        checkedBlock,
+      ) ||
+      checkedBlock < activationBlock
+    )
+  ) {
+    throw new Error(
+      'Invalid sealed block for VOT3 conversion verification.',
+    );
+  }
+
   const {
     nodeUrl,
     b3trAddress,
@@ -254,8 +271,15 @@ export async function getVeBetterVot3ConversionProgress({
 
   const latestBlock =
     bestBlock.number;
+  const scanEndBlock =
+    checkedBlock === undefined
+      ? latestBlock
+      : Math.min(
+          checkedBlock,
+          latestBlock,
+        );
 
-  if (activationBlock > latestBlock) {
+  if (activationBlock > scanEndBlock) {
     return {
       converted: false,
       qualifyingConversion: null,
@@ -263,6 +287,7 @@ export async function getVeBetterVot3ConversionProgress({
       belowMinimumEvents: [],
       beforeFirstDappEvents: [],
       latestBlock,
+      checkedBlock: scanEndBlock,
       minimumAmountWei:
         MIN_VOT3_CONVERSION_WEI
           .toString(),
@@ -289,7 +314,7 @@ export async function getVeBetterVot3ConversionProgress({
             range: {
               unit: 'block',
               from: activationBlock,
-              to: latestBlock,
+              to: scanEndBlock,
             },
             options: {
               offset,
@@ -428,6 +453,7 @@ export async function getVeBetterVot3ConversionProgress({
     belowMinimumEvents,
     beforeFirstDappEvents,
     latestBlock,
+    checkedBlock: scanEndBlock,
     minimumAmountWei:
       MIN_VOT3_CONVERSION_WEI
         .toString(),
