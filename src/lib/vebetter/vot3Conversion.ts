@@ -3,7 +3,6 @@ import { ThorClient } from '@vechain/sdk-network';
 
 import {
   getVeBetterNetworkConfig,
-  type VeBetterNetwork,
 } from '@/lib/vebetter/network';
 
 const PAGE_SIZE = 1000;
@@ -12,33 +11,6 @@ const ZERO_ADDRESS =
 
 export const MIN_VOT3_CONVERSION_WEI =
   1_000_000_000_000_000_000n;
-
-const TOKEN_CONTRACTS: Record<
-  VeBetterNetwork,
-  {
-    b3trAddress: string;
-    vot3Address: string;
-  }
-> = {
-  mainnet: {
-    b3trAddress:
-      '0x5ef79995FE8a89e0812330E4378eB2660ceDe699',
-    vot3Address:
-      '0x76Ca782B59C74d088C7D2Cce2f211BC00836c602',
-  },
-  testnet: {
-    b3trAddress:
-      '0x026771d1be764467f8bdb78bb230df10c924b00d',
-    vot3Address:
-      '0xf7a08af15cb3501feee53ebe11f4428a966fa459',
-  },
-  'testnet-staging': {
-    b3trAddress:
-      '0x95761346d18244bb91664181bf91193376197088',
-    vot3Address:
-      '0x6e8b4a88d37897fc11f6ba12c805695f1c41f40e',
-  },
-};
 
 const transferEvent = new ABIEvent(
   'event Transfer(address indexed from, address indexed to, uint256 value)',
@@ -262,14 +234,10 @@ export async function getVeBetterVot3ConversionProgress({
   }
 
   const {
-    network,
     nodeUrl,
-  } = getVeBetterNetworkConfig();
-
-  const {
     b3trAddress,
     vot3Address,
-  } = TOKEN_CONTRACTS[network];
+  } = getVeBetterNetworkConfig();
 
   const thor =
     ThorClient.at(nodeUrl);
