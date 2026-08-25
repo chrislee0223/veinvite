@@ -46,6 +46,9 @@ type InviteProgress = {
   appsCompleted: number;
   appsRequired: number;
   rewardsReceived: number;
+  vot3Converted: boolean;
+  vot3MinimumAmountWei: string;
+  vot3ConversionAmountWei: string | null;
   voteCompleted: boolean;
   uniqueAppIds: string[];
   activationBlock: number | null;
@@ -68,6 +71,10 @@ const DEFAULT_PROGRESS: InviteProgress = {
   appsCompleted: 0,
   appsRequired: 3,
   rewardsReceived: 0,
+  vot3Converted: false,
+  vot3MinimumAmountWei:
+    '1000000000000000000',
+  vot3ConversionAmountWei: null,
   voteCompleted: false,
   uniqueAppIds: [],
   activationBlock: null,
@@ -101,8 +108,10 @@ const COPY = {
     checkingDescription:
       '초대 링크와 지갑, VeBetterDAO 활동 이력을 안전하게 확인하는 중이에요.',
     checkingLink: '초대 링크 확인',
-    checkingHistory: 'VeBetterDAO 활동 이력 확인',
-    checkingOtherInvite: '다른 초대 연결 여부 확인',
+    checkingHistory:
+      'VeBetterDAO 활동 이력 확인',
+    checkingOtherInvite:
+      '다른 초대 연결 여부 확인',
     reviewTitle:
       '조금 더 확인이 필요해요',
     reviewDescription:
@@ -116,28 +125,32 @@ const COPY = {
     returningSuccessDescription:
       '과거 VeBetterDAO 활동은 있지만 최근 12개 완료 라운드 동안 보상·투표 이력이 없습니다. VeInvite 미션을 진행할 수 있어요.',
     walletMission: '지갑 연결',
-    appMission: 'VeBetterDAO 앱 3개 체험',
+    appMission:
+      'VeBetterDAO 앱 3개 체험',
+    conversionMission:
+      'B3TR → VOT3 전환',
     voteMission: '투표 참여',
     viewMissions: '미션 시작',
     invitedFriend: '초대받은 친구',
     myMissions: '나의 퀘스트',
     allMissionsComplete:
       '모든 미션 완료!',
-    oneThingToDo: '다음 미션',
+    oneThingToDo: '나의 미션',
     walletMissionDescription:
       '시작 준비가 끝났어요.',
     appMissionDescription:
-      '서로 다른 앱 3개에서 활동하고 B3TR를 받아보세요.',
+      '서로 다른 앱 3개에서 활동하고 B3TR 보상을 받으세요. 첫 보상 후에는 다음 미션도 함께 진행할 수 있어요.',
+    conversionMissionDescription:
+      '첫 번째 인정 dApp 보상 이후 최소 1 B3TR을 VOT3로 새로 전환하세요.',
     voteMissionDescription:
-      'B3TR를 VOT3로 바꾸고 한 번 투표하세요.',
+      '인정된 B3TR → VOT3 전환 이후 Allocation Voting에 한 번 참여하세요.',
     complete: '완료',
-    inProgress: '진행 중',
     locked: '잠김',
     ready: '도전 가능',
     demoComplete:
       '데모: 미션 완료 보기',
     autoProgress:
-      'B3TR 활동 기록을 자동으로 확인하고 있어요.',
+      'dApp 보상, VOT3 전환, 투표 기록을 온체인에서 자동으로 확인하고 있어요.',
     activationConfirmed:
       '모든 미션 완료! 이제 초대 1회가 열렸어요.',
     requestNewLink:
@@ -151,13 +164,6 @@ const COPY = {
     tryAgain:
       '잠시 후 다시 시도해 주세요.',
     home: '홈으로',
-    demoResult: '데모 결과',
-    demoSuccess: '시작 가능',
-    demoExisting:
-      '기존 사용자',
-    demoOther:
-      '다른 초대에 연결됨',
-    demoReview: '추가 확인',
     errors: {
       invalidLink:
         '이 링크는 더 이상 사용할 수 없어요.',
@@ -223,28 +229,31 @@ const COPY = {
     walletMission: 'Connect wallet',
     appMission:
       'Try 3 VeBetterDAO apps',
+    conversionMission:
+      'Convert B3TR → VOT3',
     voteMission:
-      'Cast a vote',
+      'Cast an allocation vote',
     viewMissions: 'Start Missions',
     invitedFriend: 'Invited Friend',
     myMissions: 'My Quest',
     allMissionsComplete:
       'All missions complete!',
-    oneThingToDo: 'Next Mission',
+    oneThingToDo: 'My Missions',
     walletMissionDescription:
       'You are ready to begin.',
     appMissionDescription:
-      'Use three different apps and collect B3TR.',
+      'Earn B3TR from three different apps. After the first qualifying reward, you may continue with the next missions too.',
+    conversionMissionDescription:
+      'After your first qualifying dApp reward, newly convert at least 1 B3TR to VOT3.',
     voteMissionDescription:
-      'Convert B3TR to VOT3 and cast one vote.',
+      'After the qualifying B3TR → VOT3 conversion, participate in Allocation Voting once.',
     complete: 'Complete',
-    inProgress: 'In progress',
     locked: 'Locked',
     ready: 'Ready',
     demoComplete:
       'Demo: Show mission completion',
     autoProgress:
-      'Your B3TR activity is checked automatically.',
+      'Your dApp rewards, VOT3 conversion, and vote are verified automatically on-chain.',
     activationConfirmed:
       'Quest complete! You have unlocked one invite.',
     requestNewLink:
@@ -258,12 +267,6 @@ const COPY = {
     tryAgain:
       'Please try again in a moment.',
     home: 'Home',
-    demoResult: 'Demo result',
-    demoSuccess: 'Ready to start',
-    demoExisting: 'Existing user',
-    demoOther:
-      'Connected to another invite',
-    demoReview: 'Extra check',
     errors: {
       invalidLink:
         'This link is no longer available.',
@@ -289,66 +292,47 @@ export function InviteeClient({
   code: string;
 }) {
   const wallet = useActiveWallet();
-
-  const {
-    open: openConnectModal,
-  } = useConnectModal();
-
+  const { open: openConnectModal } =
+    useConnectModal();
   const {
     setLanguage: setKitLanguage,
   } = useCurrentLanguage();
 
   const [invite, setInvite] =
     useState<InviteRecord | null>(null);
-
   const [progress, setProgress] =
     useState<InviteProgress>(
       DEFAULT_PROGRESS,
     );
-
   const [step, setStep] =
     useState<Step>('landing');
-
   const [errorCode, setErrorCode] =
     useState<ErrorCode>(
       'invalidLink',
     );
-
-  const [
-    entryClass,
-    setEntryClass,
-  ] = useState<EntryClass>('new_user');
-
-  const [
-    demoOutcome,
-    setDemoOutcome,
-  ] = useState<
-    | 'success'
-    | 'existing'
-    | 'other'
-    | 'review'
-  >('success');
-
+  const [entryClass, setEntryClass] =
+    useState<EntryClass>('new_user');
+  const [demoOutcome, setDemoOutcome] =
+    useState<
+      | 'success'
+      | 'existing'
+      | 'other'
+      | 'review'
+    >('success');
   const [locale, setLocale] =
     useState<Locale>('en');
-
-  const [
-    languageReady,
-    setLanguageReady,
-  ] = useState(false);
-
+  const [languageReady, setLanguageReady] =
+    useState(false);
   const [
     showLanguageSetup,
     setShowLanguageSetup,
   ] = useState(true);
-
   const [
     claimedThisSession,
     setClaimedThisSession,
   ] = useState(false);
 
   const t = COPY[locale];
-
   const demoMode =
     process.env
       .NEXT_PUBLIC_DEMO_MODE ===
@@ -359,11 +343,8 @@ export function InviteeClient({
       try {
         const response = await fetch(
           `/api/invites/${code}`,
-          {
-            cache: 'no-store',
-          },
+          { cache: 'no-store' },
         );
-
         const data =
           (await response.json()) as
             InviteApiResponse;
@@ -377,18 +358,15 @@ export function InviteeClient({
         if (data.invite) {
           setInvite(data.invite);
         }
-
         if (data.progress) {
           setProgress(data.progress);
         }
-
         return data;
       } catch (error) {
         console.error(
           'Failed to load invite progress:',
           error,
         );
-
         throw error;
       }
     }, [code]);
@@ -398,59 +376,44 @@ export function InviteeClient({
       window.localStorage.getItem(
         LANGUAGE_STORAGE_KEY,
       );
-
     const queryLanguage =
       new URLSearchParams(
         window.location.search,
       ).get('lang');
 
-    const savedLocale:
-      | Locale
-      | null =
-      saved === 'ko' ||
-      saved === 'en'
+    const savedLocale: Locale | null =
+      saved === 'ko' || saved === 'en'
         ? saved
         : null;
-
-    const queryLocale:
-      | Locale
-      | null =
+    const queryLocale: Locale | null =
       queryLanguage === 'ko' ||
       queryLanguage === 'en'
         ? queryLanguage
         : null;
-
     const browserLocale: Locale =
       window.navigator.language
         .toLowerCase()
         .startsWith('ko')
         ? 'ko'
         : 'en';
-
     const initialLocale =
       queryLocale ??
       savedLocale ??
       browserLocale;
 
     setLocale(initialLocale);
-
     setShowLanguageSetup(
-      !savedLocale &&
-        !queryLocale,
+      !savedLocale && !queryLocale,
     );
-
     document.documentElement.lang =
       initialLocale;
-
     setLanguageReady(true);
   }, []);
 
   useEffect(() => {
-    if (!languageReady) {
-      return;
+    if (languageReady) {
+      setKitLanguage(locale);
     }
-
-    setKitLanguage(locale);
   }, [
     languageReady,
     locale,
@@ -491,10 +454,8 @@ export function InviteeClient({
     }
 
     if (
-      invite.status ===
-        'ACTIVATING' ||
-      invite.status ===
-        'COMPLETED'
+      invite.status === 'ACTIVATING' ||
+      invite.status === 'COMPLETED'
     ) {
       setStep('missions');
     }
@@ -510,20 +471,13 @@ export function InviteeClient({
     }
 
     void loadInviteProgress().catch(
-      () => {
-        // Temporary refresh failures
-        // should not remove the current
-        // mission screen.
-      },
+      () => undefined,
     );
 
     const intervalId =
       window.setInterval(() => {
         void loadInviteProgress().catch(
-          () => {
-            // Keep the existing progress
-            // and retry automatically.
-          },
+          () => undefined,
         );
       }, 30_000);
 
@@ -532,31 +486,23 @@ export function InviteeClient({
         intervalId,
       );
     };
-  }, [
-    step,
-    loadInviteProgress,
-  ]);
+  }, [step, loadInviteProgress]);
 
   const saveLocale = (
     nextLocale: Locale,
   ) => {
     setLocale(nextLocale);
     setKitLanguage(nextLocale);
-
     window.localStorage.setItem(
       LANGUAGE_STORAGE_KEY,
       nextLocale,
     );
-
     document.documentElement.lang =
       nextLocale;
-
     window.dispatchEvent(
       new CustomEvent(
         'veinvite-language-change',
-        {
-          detail: nextLocale,
-        },
+        { detail: nextLocale },
       ),
     );
   };
@@ -566,12 +512,6 @@ export function InviteeClient({
     setShowLanguageSetup(false);
   };
 
-  const changeLocale = (
-    nextLocale: Locale,
-  ) => {
-    saveLocale(nextLocale);
-  };
-
   const claim = async () => {
     if (!wallet) {
       setStep('wallet');
@@ -579,7 +519,6 @@ export function InviteeClient({
     }
 
     setStep('checking');
-
     await new Promise(
       (resolve) =>
         setTimeout(resolve, 850),
@@ -602,7 +541,6 @@ export function InviteeClient({
         }),
       },
     );
-
     const data =
       (await response.json()) as
         InviteApiResponse;
@@ -627,11 +565,13 @@ export function InviteeClient({
       ) {
         setErrorCode('existing');
       } else if (
-        data.outcome === 'self_referral'
+        data.outcome ===
+        'self_referral'
       ) {
         setErrorCode('selfReferral');
       } else if (
-        data.outcome === 'already_referred'
+        data.outcome ===
+        'already_referred'
       ) {
         setErrorCode('other');
       } else if (
@@ -645,28 +585,22 @@ export function InviteeClient({
       } else {
         setErrorCode('eligibility');
       }
-
       setStep('error');
       return;
     }
 
     setClaimedThisSession(true);
-
     if (
       data.entryClass === 'new_user' ||
-      data.entryClass === 'returning_user'
+      data.entryClass ===
+        'returning_user'
     ) {
       setEntryClass(data.entryClass);
     }
-
     if (data.invite) {
       setInvite(data.invite);
     }
-
-    setProgress(
-      DEFAULT_PROGRESS,
-    );
-
+    setProgress(DEFAULT_PROGRESS);
     setStep('success');
   };
 
@@ -674,11 +608,8 @@ export function InviteeClient({
     async () => {
       const response = await fetch(
         `/api/invites/${code}/complete`,
-        {
-          method: 'POST',
-        },
+        { method: 'POST' },
       );
-
       const data =
         await response.json();
 
@@ -689,11 +620,14 @@ export function InviteeClient({
       }
 
       setInvite(data.invite);
-
       setProgress({
         ...DEFAULT_PROGRESS,
         appsCompleted: 3,
         rewardsReceived: 3,
+        vot3Converted: true,
+        vot3ConversionAmountWei:
+          DEFAULT_PROGRESS
+            .vot3MinimumAmountWei,
         voteCompleted: true,
       });
     };
@@ -711,9 +645,7 @@ export function InviteeClient({
       <LanguageSelectV2
         locale={locale}
         onSelect={setLocale}
-        onContinue={
-          confirmLanguage
-        }
+        onContinue={confirmLanguage}
       />
     );
   }
@@ -722,35 +654,23 @@ export function InviteeClient({
     return (
       <Centered
         locale={locale}
-        onLocaleChange={
-          changeLocale
-        }
+        onLocaleChange={saveLocale}
       >
-        <div className="errorIcon">
-          ×
-        </div>
-
-        <h1>
-          {t.errors[errorCode]}
-        </h1>
-
+        <div className="errorIcon">×</div>
+        <h1>{t.errors[errorCode]}</h1>
         <p className="muted">
-          {errorCode ===
-            'invalidLink' ||
+          {errorCode === 'invalidLink' ||
           errorCode === 'used'
             ? t.requestNewLink
-            : errorCode ===
-                'existing'
+            : errorCode === 'existing'
               ? t.existingHelp
               : errorCode ===
                   'selfReferral'
                 ? t.selfReferralHelp
-                : errorCode ===
-                    'other'
+                : errorCode === 'other'
                   ? t.otherHelp
                   : t.tryAgain}
         </p>
-
         <Link
           className="secondaryButton linkButton"
           href="/"
@@ -765,18 +685,10 @@ export function InviteeClient({
     return (
       <Centered
         locale={locale}
-        onLocaleChange={
-          changeLocale
-        }
+        onLocaleChange={saveLocale}
       >
-        <div className="reviewIcon">
-          ◷
-        </div>
-
-        <h1>
-          {t.reviewTitle}
-        </h1>
-
+        <div className="reviewIcon">◷</div>
+        <h1>{t.reviewTitle}</h1>
         <p className="muted">
           {t.reviewDescription}
         </p>
@@ -788,29 +700,16 @@ export function InviteeClient({
     return (
       <Centered
         locale={locale}
-        onLocaleChange={
-          changeLocale
-        }
+        onLocaleChange={saveLocale}
       >
         <div className="spinnerLarge" />
-
-        <h1>
-          {t.checkingTitle}
-        </h1>
-
+        <h1>{t.checkingTitle}</h1>
         <p className="muted">
           {t.checkingDescription}
         </p>
-
         <div className="checkList">
-          <span>
-            ○ {t.checkingLink}
-          </span>
-
-          <span>
-            ○ {t.checkingHistory}
-          </span>
-
+          <span>○ {t.checkingLink}</span>
+          <span>○ {t.checkingHistory}</span>
           <span>
             ○ {t.checkingOtherInvite}
           </span>
@@ -823,20 +722,15 @@ export function InviteeClient({
     return (
       <Centered
         locale={locale}
-        onLocaleChange={
-          changeLocale
-        }
+        onLocaleChange={saveLocale}
       >
         <div className="walletVisual" />
-
         <h1>
           {t.connectWalletTitle}
         </h1>
-
         <p className="muted">
           {t.connectWalletDescription}
         </p>
-
         {!wallet ? (
           <button
             type="button"
@@ -853,7 +747,6 @@ export function InviteeClient({
             {shortAddress(wallet)}
           </div>
         )}
-
         <button
           type="button"
           className="primaryButton"
@@ -877,40 +770,29 @@ export function InviteeClient({
     return (
       <Centered
         locale={locale}
-        onLocaleChange={
-          changeLocale
-        }
+        onLocaleChange={saveLocale}
       >
         <div className="successCircle">
           {isReturning ? '↻' : '✓'}
         </div>
-
         <h1>
           {isReturning
             ? t.returningSuccessTitle
             : t.newSuccessTitle}
         </h1>
-
         <p className="muted">
           {isReturning
             ? t.returningSuccessDescription
             : t.newSuccessDescription}
         </p>
-
         <div className="missionSummary">
+          <span>✓ {t.walletMission}</span>
+          <span>2. {t.appMission}</span>
           <span>
-            ✓ {t.walletMission}
+            3. {t.conversionMission}
           </span>
-
-          <span>
-            2. {t.appMission}
-          </span>
-
-          <span>
-            3. {t.voteMission}
-          </span>
+          <span>4. {t.voteMission}</span>
         </div>
-
         <button
           type="button"
           className="primaryButton greenButton"
@@ -926,49 +808,42 @@ export function InviteeClient({
 
   if (step === 'missions') {
     const completed =
-      invite?.status ===
-      'COMPLETED';
-
-    const appsCompleted =
-      Math.min(
-        progress.appsCompleted,
-        progress.appsRequired,
-      );
-
+      invite?.status === 'COMPLETED';
+    const appsCompleted = Math.min(
+      progress.appsCompleted,
+      progress.appsRequired,
+    );
     const appsDone =
       appsCompleted >=
       progress.appsRequired;
-
+    const firstAppDone =
+      appsCompleted >= 1;
+    const conversionDone =
+      completed || progress.vot3Converted;
+    const conversionUnlocked =
+      firstAppDone || conversionDone;
     const voteDone =
-      completed ||
-      progress.voteCompleted;
-
+      completed || progress.voteCompleted;
     const voteUnlocked =
-      appsDone ||
-      voteDone;
+      conversionDone || voteDone;
 
     return (
       <main className="appShell">
         <header className="appHeader">
           <Brand />
-
           <div
             style={{
               display: 'flex',
-              alignItems:
-                'center',
+              alignItems: 'center',
               gap: '10px',
             }}
           >
             <span className="chip">
               {t.invitedFriend}
             </span>
-
             <LanguageSwitcher
               locale={locale}
-              onChange={
-                changeLocale
-              }
+              onChange={saveLocale}
               inline
             />
           </div>
@@ -978,105 +853,79 @@ export function InviteeClient({
           <span className="eyebrow">
             {t.myMissions}
           </span>
-
           <h1>
             {completed
               ? t.allMissionsComplete
               : t.oneThingToDo}
           </h1>
 
-          <div className="mission done">
-            <span>✓</span>
+          <MissionCard
+            state="done"
+            title={t.walletMission}
+            description={
+              t.walletMissionDescription
+            }
+            status={t.complete}
+          />
 
-            <div>
-              <b>
-                {t.walletMission}
-              </b>
-
-              <p>
-                {
-                  t.walletMissionDescription
-                }
-              </p>
-            </div>
-
-            <em>
-              {t.complete}
-            </em>
-          </div>
-
-          <div
-            className={`mission ${
+          <MissionCard
+            state={
+              appsDone ? 'done' : 'current'
+            }
+            title={t.appMission}
+            description={
+              t.appMissionDescription
+            }
+            status={
               appsDone
-                ? 'done'
-                : 'current'
-            }`}
-          >
-            <span>
-              {appsDone
-                ? '✓'
-                : '◎'}
-            </span>
-
-            <div>
-              <b>
-                {t.appMission}
-              </b>
-
-              <p>
-                {
-                  t.appMissionDescription
-                }
-              </p>
-            </div>
-
-            <em>
-              {appsDone
                 ? t.complete
-                : `${appsCompleted}/${progress.appsRequired}`}
-            </em>
-          </div>
+                : `${appsCompleted}/${progress.appsRequired}`
+            }
+          />
 
-          <div
-            className={`mission ${
+          <MissionCard
+            state={
+              conversionDone
+                ? 'done'
+                : conversionUnlocked
+                  ? 'current'
+                  : 'locked'
+            }
+            title={t.conversionMission}
+            description={
+              t.conversionMissionDescription
+            }
+            status={
+              conversionDone
+                ? t.complete
+                : conversionUnlocked
+                  ? t.ready
+                  : t.locked
+            }
+          />
+
+          <MissionCard
+            state={
               voteDone
                 ? 'done'
                 : voteUnlocked
                   ? 'current'
                   : 'locked'
-            }`}
-          >
-            <span>
-              {voteDone
-                ? '✓'
-                : voteUnlocked
-                  ? '◎'
-                  : '◇'}
-            </span>
-
-            <div>
-              <b>
-                {t.voteMission}
-              </b>
-
-              <p>
-                {
-                  t.voteMissionDescription
-                }
-              </p>
-            </div>
-
-            <em>
-              {voteDone
+            }
+            title={t.voteMission}
+            description={
+              t.voteMissionDescription
+            }
+            status={
+              voteDone
                 ? t.complete
                 : voteUnlocked
                   ? t.ready
-                  : t.locked}
-            </em>
-          </div>
+                  : t.locked
+            }
+          />
 
-          {!completed &&
-          demoMode ? (
+          {!completed && demoMode ? (
             <button
               type="button"
               className="secondaryButton"
@@ -1092,9 +941,7 @@ export function InviteeClient({
             </div>
           ) : (
             <div className="notice successNotice">
-              {
-                t.activationConfirmed
-              }
+              {t.activationConfirmed}
             </div>
           )}
         </section>
@@ -1107,12 +954,8 @@ export function InviteeClient({
       locale={locale}
       disabled={!invite}
       demoMode={demoMode}
-      demoOutcome={
-        demoOutcome
-      }
-      onLocaleChange={
-        changeLocale
-      }
+      demoOutcome={demoOutcome}
+      onLocaleChange={saveLocale}
       onBeginnerStart={() => {
         setStep('wallet');
       }}
@@ -1127,6 +970,35 @@ export function InviteeClient({
         setDemoOutcome
       }
     />
+  );
+}
+
+function MissionCard({
+  state,
+  title,
+  description,
+  status,
+}: {
+  state: 'done' | 'current' | 'locked';
+  title: string;
+  description: string;
+  status: string;
+}) {
+  return (
+    <div className={`mission ${state}`}>
+      <span>
+        {state === 'done'
+          ? '✓'
+          : state === 'current'
+            ? '◎'
+            : '◇'}
+      </span>
+      <div>
+        <b>{title}</b>
+        <p>{description}</p>
+      </div>
+      <em>{status}</em>
+    </div>
   );
 }
 
@@ -1145,13 +1017,9 @@ function Centered({
     <main className="centeredFlow">
       <LanguageSwitcher
         locale={locale}
-        onChange={
-          onLocaleChange
-        }
+        onChange={onLocaleChange}
       />
-
       <Brand compact />
-
       {children}
     </main>
   );
@@ -1173,65 +1041,49 @@ function LanguageSwitcher({
       style={
         inline
           ? {
-              display:
-                'inline-flex',
-              alignItems:
-                'center',
+              display: 'inline-flex',
+              alignItems: 'center',
               gap: '6px',
-              padding:
-                '8px 10px',
+              padding: '8px 10px',
               border:
                 '1px solid rgba(255,255,255,0.14)',
-              borderRadius:
-                '12px',
+              borderRadius: '12px',
               background:
                 'rgba(255,255,255,0.06)',
-              color:
-                '#f8f7ff',
+              color: '#f8f7ff',
               zIndex: 20,
             }
           : {
-              position:
-                'fixed',
+              position: 'fixed',
               top: '18px',
               right: '18px',
-              display:
-                'inline-flex',
-              alignItems:
-                'center',
+              display: 'inline-flex',
+              alignItems: 'center',
               gap: '6px',
-              padding:
-                '8px 10px',
+              padding: '8px 10px',
               border:
                 '1px solid rgba(255,255,255,0.14)',
-              borderRadius:
-                '12px',
+              borderRadius: '12px',
               background:
                 'rgba(17,20,33,0.92)',
-              color:
-                '#f8f7ff',
+              color: '#f8f7ff',
               zIndex: 20,
             }
       }
     >
-      <span aria-hidden="true">
-        🌐
-      </span>
-
+      <span aria-hidden="true">🌐</span>
       <select
         aria-label="Language"
         value={locale}
         onChange={(event) =>
           onChange(
-            event.target
-              .value as Locale,
+            event.target.value as Locale,
           )
         }
         style={{
           border: 0,
           outline: 0,
-          background:
-            'transparent',
+          background: 'transparent',
           color: 'inherit',
           font: 'inherit',
           cursor: 'pointer',
@@ -1239,20 +1091,13 @@ function LanguageSwitcher({
       >
         <option
           value="ko"
-          style={{
-            color:
-              '#111421',
-          }}
+          style={{ color: '#111421' }}
         >
           한국어
         </option>
-
         <option
           value="en"
-          style={{
-            color:
-              '#111421',
-          }}
+          style={{ color: '#111421' }}
         >
           English
         </option>
