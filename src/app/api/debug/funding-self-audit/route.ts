@@ -26,6 +26,17 @@ const x2EarnAppsAbi = [
     inputs: [
       { internalType: 'bytes32', name: 'appId', type: 'bytes32' },
     ],
+    name: 'appAdmin',
+    outputs: [
+      { internalType: 'address', name: '', type: 'address' },
+    ],
+    stateMutability: 'view',
+    type: 'function',
+  },
+  {
+    inputs: [
+      { internalType: 'bytes32', name: 'appId', type: 'bytes32' },
+    ],
     name: 'teamWalletAddress',
     outputs: [
       { internalType: 'address', name: '', type: 'address' },
@@ -40,6 +51,17 @@ const x2EarnAppsAbi = [
     name: 'teamAllocationPercentage',
     outputs: [
       { internalType: 'uint256', name: '', type: 'uint256' },
+    ],
+    stateMutability: 'view',
+    type: 'function',
+  },
+  {
+    inputs: [
+      { internalType: 'bytes32', name: 'appId', type: 'bytes32' },
+    ],
+    name: 'rewardDistributors',
+    outputs: [
+      { internalType: 'address[]', name: '', type: 'address[]' },
     ],
     stateMutability: 'view',
     type: 'function',
@@ -132,16 +154,20 @@ export async function GET() {
 
   const [
     appExists,
+    appAdmin,
     teamWallet,
     teamAllocationPercentage,
+    rewardDistributors,
     availableFunds,
     rewardsPoolBalance,
     rewardsPoolEnabled,
     totalBalance,
   ] = await Promise.all([
     apps.read.appExists(VEINVITE_APP_ID),
+    apps.read.appAdmin(VEINVITE_APP_ID),
     apps.read.teamWalletAddress(VEINVITE_APP_ID),
     apps.read.teamAllocationPercentage(VEINVITE_APP_ID),
+    apps.read.rewardDistributors(VEINVITE_APP_ID),
     pool.read.availableFunds(VEINVITE_APP_ID),
     pool.read.rewardsPoolBalance(VEINVITE_APP_ID),
     pool.read.isRewardsPoolEnabled(VEINVITE_APP_ID),
@@ -158,8 +184,10 @@ export async function GET() {
     x2EarnRewardsPoolAddress,
     values: jsonSafe({
       appExists,
+      appAdmin,
       teamWallet,
       teamAllocationPercentage,
+      rewardDistributors,
       availableFunds,
       rewardsPoolBalance,
       rewardsPoolEnabled,
