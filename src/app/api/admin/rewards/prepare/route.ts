@@ -142,6 +142,44 @@ export async function POST(
       );
     }
 
+    const openRoundResult =
+      await supabaseAdmin
+        .from('reward_rounds')
+        .select('id, status')
+        .eq('network', pool.network)
+        .eq('app_id', pool.appId)
+        .in('status', ['CREATED', 'PAYING'])
+        .order('id', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+    if (openRoundResult.error) {
+      throw new Error(
+        `Open reward round could not be checked: ${openRoundResult.error.message}`,
+      );
+    }
+
+    if (openRoundResult.data) {
+      return NextResponse.json(
+        {
+          error:
+            'Finish the current reward round before preparing another one.',
+          code: 'ACTIVE_REWARD_ROUND_EXISTS',
+          activeRound: openRoundResult.data,
+          pool,
+          roundCreated: false,
+          writesPerformed: false,
+          transfersPerformed: false,
+        },
+        {
+          status: 409,
+          headers: {
+            'Cache-Control': 'no-store',
+          },
+        },
+      );
+    }
+
     const { data, error } =
       await supabaseAdmin.rpc(
         'prepare_reward_round',
