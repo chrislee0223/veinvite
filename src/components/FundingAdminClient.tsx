@@ -35,6 +35,63 @@ function shortAddress(value: string) {
   return `${value.slice(0, 8)}…${value.slice(-6)}`;
 }
 
+async function readResponseBody(
+  response: Response,
+): Promise<unknown> {
+  const text = await response.text();
+
+  if (!text) {
+    return null;
+  }
+
+  try {
+    return JSON.parse(text) as unknown;
+  } catch {
+    return text;
+  }
+}
+
+function getApiError(
+  body: unknown,
+  status: number,
+): string {
+  if (
+    body &&
+    typeof body === 'object' &&
+    'error' in body &&
+    typeof body.error === 'string' &&
+    body.error.trim()
+  ) {
+    return body.error;
+  }
+
+  return `Funding configuration could not be loaded (${status}).`;
+}
+
+function isFundingConfig(
+  value: unknown,
+): value is FundingConfig {
+  if (!value || typeof value !== 'object') {
+    return false;
+  }
+
+  const record = value as Record<string, unknown>;
+
+  return (
+    typeof record.network === 'string' &&
+    typeof record.appId === 'string' &&
+    typeof record.x2EarnAppsAddress === 'string' &&
+    typeof record.appAdmin === 'string' &&
+    typeof record.teamWallet === 'string' &&
+    typeof record.teamAllocationPercentage === 'number' &&
+    Array.isArray(record.rewardDistributors) &&
+    record.rewardDistributors.every(
+      (item) => typeof item === 'string',
+    ) &&
+    typeof record.targetTeamAllocationPercentage === 'number'
+  );
+}
+
 export function FundingAdminClient() {
   const { account } = useWallet();
   const wallet =
@@ -62,16 +119,22 @@ export function FundingAdminClient() {
           cache: 'no-store',
         },
       );
-      const body = await response.json();
+      const body =
+        await readResponseBody(response);
 
       if (!response.ok) {
         throw new Error(
-          body?.error ||
-            'Funding configuration could not be loaded.',
+          getApiError(body, response.status),
         );
       }
 
-      setConfig(body as FundingConfig);
+      if (!isFundingConfig(body)) {
+        throw new Error(
+          'Funding configuration returned an invalid response.',
+        );
+      }
+
+      setConfig(body);
     } catch (error) {
       setReadError(
         error instanceof Error
