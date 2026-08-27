@@ -21,6 +21,56 @@ type VerificationState =
   | 'verified'
   | 'error';
 
+type Locale = 'ko' | 'en';
+
+const LANGUAGE_STORAGE_KEY =
+  'veinvite-language';
+
+const COPY = {
+  ko: {
+    checkingTitle: '지갑을 확인하고 있어요',
+    checkingDescription:
+      '연결한 지갑의 소유권을 확인하려면 서명 요청을 승인해 주세요.',
+    checkingSafety:
+      '이 서명은 거래를 만들지 않으며 가스비가 들지 않아요.',
+    errorTitle: '지갑 확인이 필요해요',
+    errorDescription:
+      '서명이 취소되었거나 지갑 확인에 실패했어요. 다시 시도해 주세요.',
+    tryAgain: '다시 시도',
+  },
+  en: {
+    checkingTitle: 'Verifying your wallet',
+    checkingDescription:
+      'Approve the signature request to confirm that you control the connected wallet.',
+    checkingSafety:
+      'This signature does not create a transaction or cost gas.',
+    errorTitle: 'Wallet verification needed',
+    errorDescription:
+      'The signature was cancelled or wallet verification failed. Please try again.',
+    tryAgain: 'Try again',
+  },
+} as const;
+
+function initialLocale(): Locale {
+  if (typeof window === 'undefined') {
+    return 'en';
+  }
+
+  const saved = window.localStorage.getItem(
+    LANGUAGE_STORAGE_KEY,
+  );
+
+  if (saved === 'ko' || saved === 'en') {
+    return saved;
+  }
+
+  return window.navigator.language
+    .toLowerCase()
+    .startsWith('ko')
+    ? 'ko'
+    : 'en';
+}
+
 export function WalletSessionGate({
   children,
 }: {
@@ -38,17 +88,43 @@ export function WalletSessionGate({
     useState<VerificationState>('idle');
   const [verifiedWallet, setVerifiedWallet] =
     useState<string | null>(null);
-  const [errorMessage, setErrorMessage] =
-    useState('');
+  const [locale, setLocale] =
+    useState<Locale>('en');
   const attemptRef = useRef(0);
   const autoAttemptedWalletRef =
     useRef<string | null>(null);
+
+  useEffect(() => {
+    setLocale(initialLocale());
+
+    const handleLanguageChange = (
+      event: Event,
+    ) => {
+      const detail =
+        (event as CustomEvent<Locale>).detail;
+
+      if (detail === 'ko' || detail === 'en') {
+        setLocale(detail);
+      }
+    };
+
+    window.addEventListener(
+      'veinvite-language-change',
+      handleLanguageChange,
+    );
+
+    return () => {
+      window.removeEventListener(
+        'veinvite-language-change',
+        handleLanguageChange,
+      );
+    };
+  }, []);
 
   const verify = useCallback(async () => {
     if (!walletAddress) {
       setState('idle');
       setVerifiedWallet(null);
-      setErrorMessage('');
       return;
     }
 
@@ -56,7 +132,6 @@ export function WalletSessionGate({
     attemptRef.current = attempt;
 
     setState('checking');
-    setErrorMessage('');
 
     try {
       await ensureWalletSession(walletAddress);
@@ -78,11 +153,6 @@ export function WalletSessionGate({
       );
 
       setVerifiedWallet(null);
-      setErrorMessage(
-        error instanceof Error
-          ? error.message
-          : 'Wallet verification failed.',
-      );
       setState('error');
     }
   }, [
@@ -96,13 +166,12 @@ export function WalletSessionGate({
       autoAttemptedWalletRef.current = null;
       setState('idle');
       setVerifiedWallet(null);
-      setErrorMessage('');
       return;
     }
 
     // Automatically verify once for each newly connected wallet. If the user
     // rejects or a verification attempt fails, remain on the error screen and
-    // wait for the explicit Try again button instead of repeatedly opening the
+    // wait for the explicit retry button instead of repeatedly opening the
     // wallet signature prompt.
     if (
       autoAttemptedWalletRef.current ===
@@ -131,58 +200,118 @@ export function WalletSessionGate({
     return children;
   }
 
+  const t = COPY[locale];
+  const hasError = state === 'error';
+
   return (
     <div
       style={{
         minHeight: '100dvh',
         display: 'grid',
         placeItems: 'center',
+        boxSizing: 'border-box',
         padding: '24px',
-        background: '#120d20',
+        background:
+          'radial-gradient(circle at 50% 32%, rgba(116,72,255,0.18), transparent 34%), #070914',
         color: '#ffffff',
         textAlign: 'center',
       }}
     >
       <div
+        aria-live="polite"
         style={{
           width: 'min(420px, 100%)',
+          boxSizing: 'border-box',
           display: 'grid',
           gap: '14px',
+          padding: '26px 22px',
+          border:
+            '1px solid rgba(158,122,255,0.24)',
+          borderRadius: '24px',
+          background:
+            'rgba(18,20,33,0.92)',
+          boxShadow:
+            '0 24px 70px rgba(0,0,0,0.34)',
         }}
       >
-        <strong>
-          {state === 'error'
-            ? 'Wallet verification needed'
-            : 'Verifying your wallet'}
+        <div
+          aria-hidden="true"
+          style={{
+            width: '48px',
+            height: '48px',
+            margin: '0 auto 2px',
+            display: 'grid',
+            placeItems: 'center',
+            borderRadius: '16px',
+            background: hasError
+              ? 'rgba(255,113,134,0.12)'
+              : 'rgba(116,72,255,0.18)',
+            color: hasError
+              ? '#ff8da0'
+              : '#d7ccff',
+            fontSize: '1.35rem',
+            fontWeight: 900,
+          }}
+        >
+          {hasError ? '!' : '✓'}
+        </div>
+
+        <strong
+          style={{
+            fontSize: '1.25rem',
+            letterSpacing: '-0.02em',
+          }}
+        >
+          {hasError
+            ? t.errorTitle
+            : t.checkingTitle}
         </strong>
 
         <span
           style={{
-            opacity: 0.78,
-            lineHeight: 1.5,
+            opacity: 0.82,
+            lineHeight: 1.55,
+            fontSize: '0.92rem',
           }}
         >
-          {state === 'error'
-            ? errorMessage ||
-              'Please verify that you control the connected wallet.'
-            : 'Confirm the signature request to prove ownership. This does not create a transaction or cost gas.'}
+          {hasError
+            ? t.errorDescription
+            : t.checkingDescription}
         </span>
 
-        {state === 'error' ? (
+        {!hasError ? (
+          <span
+            style={{
+              opacity: 0.58,
+              lineHeight: 1.5,
+              fontSize: '0.78rem',
+            }}
+          >
+            {t.checkingSafety}
+          </span>
+        ) : null}
+
+        {hasError ? (
           <button
             type="button"
             onClick={() => {
               void verify();
             }}
             style={{
-              minHeight: '44px',
-              borderRadius: '12px',
+              width: '100%',
+              minHeight: '48px',
+              marginTop: '4px',
+              borderRadius: '14px',
               border: 0,
+              background:
+                'linear-gradient(135deg, #8255ff, #6d3fff)',
+              color: '#ffffff',
               cursor: 'pointer',
-              fontWeight: 700,
+              font: 'inherit',
+              fontWeight: 800,
             }}
           >
-            Try again
+            {t.tryAgain}
           </button>
         ) : null}
       </div>
