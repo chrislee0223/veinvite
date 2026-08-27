@@ -3,7 +3,6 @@
 import {
   useCallback,
   useEffect,
-  useMemo,
   useState,
 } from 'react';
 import { Interface } from 'ethers';
@@ -88,17 +87,16 @@ export function FundingAdminClient() {
     void refresh();
   }, [refresh]);
 
-  const transaction = useSendTransaction({
-    signerAccountAddress:
-      account?.address,
-    onTxConfirmed: async () => {
-      setActionError('');
-      setConfirmedMessage(
-        '20% 운영 / 80% 사용자 배분 설정이 온체인에서 확인되었습니다. / The 20% team / 80% user split was confirmed on-chain.',
-      );
-      await refresh();
-    },
-    onTxFailedOrCancelled: (error) => {
+  const handleTxConfirmed = useCallback(async () => {
+    setActionError('');
+    setConfirmedMessage(
+      '20% 운영 / 80% 사용자 배분 설정이 온체인에서 확인되었습니다. / The 20% team / 80% user split was confirmed on-chain.',
+    );
+    await refresh();
+  }, [refresh]);
+
+  const handleTxFailedOrCancelled = useCallback(
+    (error?: Error | string) => {
       setConfirmedMessage('');
       setActionError(
         error instanceof Error
@@ -106,6 +104,15 @@ export function FundingAdminClient() {
           : String(error || 'Transaction cancelled.'),
       );
     },
+    [],
+  );
+
+  const transaction = useSendTransaction({
+    signerAccountAddress:
+      account?.address,
+    onTxConfirmed: handleTxConfirmed,
+    onTxFailedOrCancelled:
+      handleTxFailedOrCancelled,
   });
 
   const isAdmin = Boolean(
@@ -148,23 +155,19 @@ export function FundingAdminClient() {
       !transactionBusy,
   );
 
-  const statusText = useMemo(() => {
-    if (!config) {
-      return '';
-    }
-
+  let statusText = '';
+  if (config) {
     if (alreadyConfigured) {
-      return '설정 완료 / Configured';
-    }
-
-    if (
+      statusText = '설정 완료 / Configured';
+    } else if (
       config.teamAllocationPercentage !== 0
     ) {
-      return '예상하지 못한 기존 값 — 변경 중지 / Unexpected existing value — blocked';
+      statusText =
+        '예상하지 못한 기존 값 — 변경 중지 / Unexpected existing value — blocked';
+    } else {
+      statusText = '변경 준비 완료 / Ready to update';
     }
-
-    return '변경 준비 완료 / Ready to update';
-  }, [config, alreadyConfigured]);
+  }
 
   const setTwentyPercent =
     useCallback(async () => {
@@ -291,7 +294,7 @@ export function FundingAdminClient() {
             gap: '12px',
           }}
         >
-          {loading ? (
+          {loading && !config ? (
             <span>
               온체인 설정 확인 중… / Reading on-chain configuration…
             </span>
