@@ -8,6 +8,7 @@ import {
   NextResponse,
 } from 'next/server';
 import { verifyMessage } from 'ethers';
+import { Certificate } from '@vechain/sdk-core';
 
 import {
   normalizeAddress,
@@ -22,6 +23,10 @@ import {
 const SESSION_COOKIE_NAME =
   'veinvite_session';
 const SESSION_LIFETIME_DAYS = 7;
+const CERTIFICATE_CLOCK_SKEW_MS =
+  2 * 60 * 1000;
+const CERTIFICATE_CHALLENGE_WINDOW_MS =
+  10 * 60 * 1000;
 
 type WalletChallengeRow = {
   id: number;
@@ -32,6 +37,25 @@ type WalletChallengeRow = {
   message: string | null;
   origin: string | null;
   network: string | null;
+};
+
+type WalletCertificate = {
+  purpose?: string;
+  payload?: {
+    type?: string;
+    content?: string;
+  };
+  domain?: string;
+  timestamp?: number;
+  signer?: string;
+  signature?: string;
+};
+
+type VerifyRequestBody = {
+  walletAddress?: string;
+  nonce?: string;
+  signature?: string;
+  certificate?: WalletCertificate;
 };
 
 function isValidWalletAddress(
@@ -73,21 +97,157 @@ function jsonError(
   );
 }
 
+function certificateDomainMatchesOrigin(
+  domain: string,
+  origin: string,
+): boolean {
+  const rawDomain =
+    domain.trim().toLowerCase();
+
+  if (!rawDomain) {
+    return false;
+  }
+
+  try {
+    const originUrl =
+      new URL(origin);
+    let certificateHost = rawDomain;
+
+    if (
+      /^[a-z][a-z0-9+.-]*:\/\//i.test(
+        rawDomain,
+      )
+    ) {
+      certificateHost =
+        new URL(rawDomain).host
+          .toLowerCase();
+    } else if (
+      rawDomain.includes('/') ||
+      rawDomain.includes('?') ||
+      rawDomain.includes('#')
+    ) {
+      return false;
+    }
+
+    return (
+      certificateHost ===
+        originUrl.host.toLowerCase() ||
+      certificateHost ===
+        originUrl.hostname.toLowerCase()
+    );
+  } catch {
+    return false;
+  }
+}
+
+function verifyVeWorldCertificate({
+  certificate,
+  challenge,
+  walletAddress,
+  now,
+}: {
+  certificate: WalletCertificate;
+  challenge: WalletChallengeRow;
+  walletAddress: string;
+  now: Date;
+}): string | null {
+  if (
+    certificate.purpose !==
+      'agreement' ||
+    certificate.payload?.type !==
+      'text' ||
+    certificate.payload.content !==
+      challenge.message ||
+    !certificate.domain ||
+    !certificate.signer ||
+    !certificate.signature ||
+    !Number.isSafeInteger(
+      certificate.timestamp,
+    ) ||
+    !certificate.timestamp ||
+    certificate.timestamp <= 0
+  ) {
+    return 'Invalid VeWorld certificate payload.';
+  }
+
+  let certificateSigner: string;
+
+  try {
+    certificateSigner =
+      normalizeAddress(
+        certificate.signer,
+      );
+  } catch {
+    return 'Invalid VeWorld certificate signer.';
+  }
+
+  if (
+    certificateSigner !==
+    walletAddress
+  ) {
+    return 'The certificate does not match the connected wallet.';
+  }
+
+  if (
+    !certificateDomainMatchesOrigin(
+      certificate.domain,
+      challenge.origin || '',
+    )
+  ) {
+    return 'The VeWorld certificate was signed for a different site.';
+  }
+
+  const expiresAtMs =
+    new Date(
+      challenge.expires_at,
+    ).getTime();
+  const certificateTimestamp =
+    certificate.timestamp;
+
+  if (
+    certificateTimestamp <
+      expiresAtMs -
+        CERTIFICATE_CHALLENGE_WINDOW_MS ||
+    certificateTimestamp >
+      now.getTime() +
+        CERTIFICATE_CLOCK_SKEW_MS
+  ) {
+    return 'The VeWorld certificate timestamp is outside the verification window.';
+  }
+
+  try {
+    Certificate.of({
+      purpose: 'agreement',
+      payload: {
+        type: 'text',
+        content:
+          certificate.payload.content,
+      },
+      domain:
+        certificate.domain,
+      timestamp:
+        certificateTimestamp,
+      signer:
+        certificateSigner,
+      signature:
+        certificate.signature,
+    }).verify();
+  } catch {
+    return 'Invalid VeWorld certificate signature.';
+  }
+
+  return null;
+}
+
 export async function POST(
   request: NextRequest,
 ) {
-  let body: {
-    walletAddress?: string;
-    nonce?: string;
-    signature?: string;
-  };
+  let body: VerifyRequestBody;
 
   try {
-    body = (await request.json()) as {
-      walletAddress?: string;
-      nonce?: string;
-      signature?: string;
-    };
+    body =
+      (await request.json()) as
+        VerifyRequestBody;
   } catch {
     return jsonError(
       'Invalid JSON body.',
@@ -98,10 +258,11 @@ export async function POST(
   if (
     !body.walletAddress ||
     !body.nonce ||
-    !body.signature
+    (!body.signature &&
+      !body.certificate?.signature)
   ) {
     return jsonError(
-      'walletAddress, nonce, and signature are required.',
+      'walletAddress, nonce, and wallet proof are required.',
       400,
     );
   }
@@ -211,37 +372,68 @@ export async function POST(
     );
   }
 
-  let recoveredAddress: string;
-
-  try {
-    recoveredAddress =
-      normalizeAddress(
-        verifyMessage(
-          challenge.message,
-          body.signature,
-        ),
+  if (body.certificate) {
+    if (
+      body.signature &&
+      body.certificate.signature &&
+      body.signature.toLowerCase() !==
+        body.certificate.signature
+          .toLowerCase()
+    ) {
+      return jsonError(
+        'Wallet proof signatures do not match.',
+        401,
       );
-  } catch {
-    return jsonError(
-      'Invalid wallet signature.',
-      401,
-    );
-  }
+    }
 
-  if (
-    recoveredAddress !==
-    walletAddress
-  ) {
-    return jsonError(
-      'The signature does not match the connected wallet.',
-      401,
-    );
+    const certificateError =
+      verifyVeWorldCertificate({
+        certificate:
+          body.certificate,
+        challenge,
+        walletAddress,
+        now,
+      });
+
+    if (certificateError) {
+      return jsonError(
+        certificateError,
+        401,
+      );
+    }
+  } else {
+    let recoveredAddress: string;
+
+    try {
+      recoveredAddress =
+        normalizeAddress(
+          verifyMessage(
+            challenge.message,
+            body.signature!,
+          ),
+        );
+    } catch {
+      return jsonError(
+        'Invalid wallet signature.',
+        401,
+      );
+    }
+
+    if (
+      recoveredAddress !==
+      walletAddress
+    ) {
+      return jsonError(
+        'The signature does not match the connected wallet.',
+        401,
+      );
+    }
   }
 
   const usedAt =
     now.toISOString();
 
-  // Consume exactly once after a valid signature. The conditional update also
+  // Consume exactly once after a valid proof. The conditional update also
   // closes concurrent verification attempts using the same challenge.
   const {
     data: consumedChallenge,

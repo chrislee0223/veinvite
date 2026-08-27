@@ -7,7 +7,11 @@ import {
 } from 'react';
 import {
   useSignMessage,
+  useWallet as useVeChainKitWallet,
 } from '@vechain/vechain-kit';
+import {
+  useWallet as useDappKitWallet,
+} from '@vechain/dapp-kit-react';
 
 const WALLET_PATTERN =
   /^0x[0-9a-fA-F]{40}$/;
@@ -33,6 +37,18 @@ type VerifyResponse = {
   error?: string;
 };
 
+type WalletCertificate = {
+  purpose: 'agreement';
+  payload: {
+    type: 'text';
+    content: string;
+  };
+  domain: string;
+  timestamp: number;
+  signer: string;
+  signature: string;
+};
+
 type InFlightAuthentication = {
   walletAddress: string;
   promise: Promise<void>;
@@ -53,6 +69,13 @@ async function readJson<T>(
 export function useWalletAuthentication() {
   const { signMessage } =
     useSignMessage();
+  const {
+    connection,
+    account,
+  } = useVeChainKitWallet();
+  const {
+    requestCertificate,
+  } = useDappKitWallet();
 
   const [
     isAuthenticating,
@@ -190,10 +213,60 @@ export function useWalletAuthentication() {
               );
             }
 
-            const signature =
-              await signMessage(
-                challenge.message,
-              );
+            let signature: string | undefined;
+            let certificate:
+              | WalletCertificate
+              | undefined;
+
+            // VeWorld/DAppKit signs a VeChain certificate, not an Ethereum
+            // personal_sign message. Preserve the certificate annex so the
+            // backend can verify it with the VeChain SDK. Other connection
+            // types keep the existing EIP-191 verification path.
+            if (
+              connection.isConnectedWithDappKit
+            ) {
+              const signer =
+                account?.address ||
+                walletAddress;
+              const certResponse =
+                await requestCertificate(
+                  {
+                    purpose: 'agreement',
+                    payload: {
+                      type: 'text',
+                      content:
+                        challenge.message,
+                    },
+                  },
+                  {
+                    signer,
+                  },
+                );
+
+              signature =
+                certResponse.signature;
+              certificate = {
+                purpose: 'agreement',
+                payload: {
+                  type: 'text',
+                  content:
+                    challenge.message,
+                },
+                domain:
+                  certResponse.annex.domain,
+                timestamp:
+                  certResponse.annex.timestamp,
+                signer:
+                  certResponse.annex.signer,
+                signature:
+                  certResponse.signature,
+              };
+            } else {
+              signature =
+                await signMessage(
+                  challenge.message,
+                );
+            }
 
             if (!signature) {
               throw new Error(
@@ -215,6 +288,7 @@ export function useWalletAuthentication() {
                     nonce:
                       challenge.nonce,
                     signature,
+                    certificate,
                   }),
                 },
               );
@@ -256,7 +330,12 @@ export function useWalletAuthentication() {
           }
         }
       },
-      [signMessage],
+      [
+        account?.address,
+        connection.isConnectedWithDappKit,
+        requestCertificate,
+        signMessage,
+      ],
     );
 
   const clearWalletSession =
