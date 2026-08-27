@@ -53,8 +53,108 @@ type RewardQueueRow = {
   assigned_at: string | null;
 };
 
+const ADMIN_PAGE_SIZE = 1000;
+
 function idKey(value: string | number | null) {
   return value === null ? '' : String(value);
+}
+
+function normalizedWallet(value: string | null) {
+  return value?.trim().toLowerCase() ?? null;
+}
+
+async function loadEligibilityChecks(
+  network: string,
+): Promise<EligibilityCheckRow[]> {
+  const rows: EligibilityCheckRow[] = [];
+
+  for (let from = 0; ; from += ADMIN_PAGE_SIZE) {
+    const { data, error } = await supabaseAdmin
+      .from('eligibility_check_events')
+      .select(
+        'id, invite_code, wallet_address, network, checked_block, outcome, entry_class, created_at',
+      )
+      .eq('network', network)
+      .order('created_at', { ascending: false })
+      .order('id', { ascending: false })
+      .range(from, from + ADMIN_PAGE_SIZE - 1);
+
+    if (error) {
+      throw new Error(
+        `Eligibility checks could not be loaded: ${error.message}`,
+      );
+    }
+
+    const page = (data ?? []) as EligibilityCheckRow[];
+    rows.push(...page);
+
+    if (page.length < ADMIN_PAGE_SIZE) {
+      break;
+    }
+  }
+
+  return rows;
+}
+
+async function loadInvitations(): Promise<InvitationRow[]> {
+  const rows: InvitationRow[] = [];
+
+  for (let from = 0; ; from += ADMIN_PAGE_SIZE) {
+    const { data, error } = await supabaseAdmin
+      .from('invitations')
+      .select(
+        'invite_code, inviter_wallet, invitee_wallet, status, reward_status, apps_completed, rewards_received, vot3_converted, vote_completed, reward_eligible_at, reward_paid_at, sybil_status, sybil_risk_level, impact_last_synced_at, activated_at, updated_at, eligibility_check_id',
+      )
+      .order('created_at', { ascending: false })
+      .range(from, from + ADMIN_PAGE_SIZE - 1);
+
+    if (error) {
+      throw new Error(
+        `Invitations could not be loaded: ${error.message}`,
+      );
+    }
+
+    const page = (data ?? []) as InvitationRow[];
+    rows.push(...page);
+
+    if (page.length < ADMIN_PAGE_SIZE) {
+      break;
+    }
+  }
+
+  return rows;
+}
+
+async function loadRewardQueue(
+  network: string,
+): Promise<RewardQueueRow[]> {
+  const rows: RewardQueueRow[] = [];
+
+  for (let from = 0; ; from += ADMIN_PAGE_SIZE) {
+    const { data, error } = await supabaseAdmin
+      .from('reward_queue_entries')
+      .select(
+        'invite_code, entry_class, status, assigned_round_id, queued_at, assigned_at',
+      )
+      .eq('network', network)
+      .order('created_at', { ascending: false })
+      .range(from, from + ADMIN_PAGE_SIZE - 1);
+
+    if (error) {
+      throw new Error(
+        `Reward queue could not be loaded: ${error.message}`,
+      );
+    }
+
+    const page = (data ?? []) as RewardQueueRow[];
+    rows.push(...page);
+
+    if (page.length < ADMIN_PAGE_SIZE) {
+      break;
+    }
+  }
+
+  return rows;
 }
 
 export async function GET(request: NextRequest) {
@@ -83,59 +183,14 @@ export async function GET(request: NextRequest) {
     }
 
     const [
-      eligibilityResult,
-      invitationsResult,
-      queueResult,
+      eligibilityChecks,
+      invitations,
+      queueEntries,
     ] = await Promise.all([
-      supabaseAdmin
-        .from('eligibility_check_events')
-        .select(
-          'id, invite_code, wallet_address, network, checked_block, outcome, entry_class, created_at',
-        )
-        .eq('network', pool.network)
-        .order('created_at', { ascending: false })
-        .limit(250),
-      supabaseAdmin
-        .from('invitations')
-        .select(
-          'invite_code, inviter_wallet, invitee_wallet, status, reward_status, apps_completed, rewards_received, vot3_converted, vote_completed, reward_eligible_at, reward_paid_at, sybil_status, sybil_risk_level, impact_last_synced_at, activated_at, updated_at, eligibility_check_id',
-        )
-        .order('created_at', { ascending: false })
-        .limit(500),
-      supabaseAdmin
-        .from('reward_queue_entries')
-        .select(
-          'invite_code, entry_class, status, assigned_round_id, queued_at, assigned_at',
-        )
-        .eq('network', pool.network)
-        .order('created_at', { ascending: false })
-        .limit(500),
+      loadEligibilityChecks(pool.network),
+      loadInvitations(),
+      loadRewardQueue(pool.network),
     ]);
-
-    if (eligibilityResult.error) {
-      throw new Error(
-        `Eligibility checks could not be loaded: ${eligibilityResult.error.message}`,
-      );
-    }
-
-    if (invitationsResult.error) {
-      throw new Error(
-        `Invitations could not be loaded: ${invitationsResult.error.message}`,
-      );
-    }
-
-    if (queueResult.error) {
-      throw new Error(
-        `Reward queue could not be loaded: ${queueResult.error.message}`,
-      );
-    }
-
-    const eligibilityChecks =
-      (eligibilityResult.data ?? []) as EligibilityCheckRow[];
-    const invitations =
-      (invitationsResult.data ?? []) as InvitationRow[];
-    const queueEntries =
-      (queueResult.data ?? []) as RewardQueueRow[];
 
     const invitationByEligibilityCheck = new Map(
       invitations
@@ -162,6 +217,9 @@ export async function GET(request: NextRequest) {
       ]),
     );
 
+    // eligibilityChecks is ordered newest-first. Keep one latest decision per
+    // wallet so a wallet that later becomes RETURNING is not double-counted
+    // with an older ACTIVE_EXISTING attempt.
     const seenWallets = new Set<string>();
     const participants = eligibilityChecks
       .filter((check) => {
@@ -175,12 +233,21 @@ export async function GET(request: NextRequest) {
         return true;
       })
       .map((check) => {
-        const invitation =
+        const directInvitation =
           invitationByEligibilityCheck.get(
             idKey(check.id),
-          ) ??
-          invitationByCode.get(check.invite_code) ??
-          null;
+          ) ?? null;
+        const codeInvitation =
+          invitationByCode.get(check.invite_code) ?? null;
+        // Rejected eligibility attempts do not consume an invite. That same
+        // invite code may later be claimed by a different wallet. Never attach
+        // that later claimant's mission/reward state to the rejected wallet.
+        const invitation =
+          directInvitation ??
+          (normalizedWallet(codeInvitation?.invitee_wallet ?? null) ===
+          normalizedWallet(check.wallet_address)
+            ? codeInvitation
+            : null);
         const queue = invitation
           ? queueByInviteCode.get(
               invitation.invite_code,
