@@ -2,14 +2,10 @@ import { ABIEvent } from '@vechain/sdk-core';
 import { ThorClient } from '@vechain/sdk-network';
 
 import {
-  createTransactionIndexResolver,
-  isStrictlyAfter,
-} from '@/lib/vebetter/eventOrder';
-import {
   getVeBetterNetworkConfig,
 } from '@/lib/vebetter/network';
-import type {
-  Vot3ConversionEvent,
+import {
+  getVeBetterVot3ConversionProgress,
 } from '@/lib/vebetter/vot3Conversion';
 
 const PAGE_SIZE = 1000;
@@ -35,8 +31,6 @@ export type VoteProgress = {
   voteRoundId: number | null;
   voteTxId: string | null;
   voteBlockTimestamp: number | null;
-  voteTxIndex: number | null;
-  voteClauseIndex: number | null;
   latestBlock: number;
 };
 
@@ -185,18 +179,93 @@ function emptyProgress(
     voteRoundId: null,
     voteTxId: null,
     voteBlockTimestamp: null,
-    voteTxIndex: null,
-    voteClauseIndex: null,
     latestBlock,
   };
 }
 
+async function sameBlockVoteIsAfterConversion(args: {
+  thor: ThorClient;
+  voterAddress: string;
+  blockNumber: number;
+  vote: RawVoteLog;
+}): Promise<boolean> {
+  // `fromBlock` is the already-verified >=1 B3TR conversion checkpoint used
+  // by VeInvite. Re-read that exact block so a vote earlier in the same block
+  // cannot accidentally satisfy the "convert, then vote" ordering rule.
+  const conversion =
+    await getVeBetterVot3ConversionProgress({
+      walletAddress:
+        args.voterAddress,
+      activationBlock:
+        args.blockNumber,
+      firstQualifyingRewardBlock:
+        args.blockNumber,
+      checkedBlock:
+        args.blockNumber,
+    });
+
+  const proof =
+    conversion.qualifyingConversion;
+
+  if (!proof) {
+    return false;
+  }
+
+  const voteTxId =
+    getRequiredTxId(args.vote);
+  const voteClauseIndex =
+    getRequiredClauseIndex(args.vote);
+
+  if (voteTxId === proof.txId) {
+    return voteClauseIndex >
+      proof.clauseIndex;
+  }
+
+  const block =
+    await args.thor.blocks
+      .getBlockCompressed(
+        args.blockNumber,
+      );
+
+  if (!block) {
+    throw new Error(
+      'Unable to load the conversion block to verify vote ordering.',
+    );
+  }
+
+  const transactions =
+    block.transactions.map(
+      (txId) =>
+        txId.toLowerCase(),
+    );
+  const conversionTxIndex =
+    transactions.indexOf(
+      proof.txId.toLowerCase(),
+    );
+  const voteTxIndex =
+    transactions.indexOf(
+      voteTxId,
+    );
+
+  if (
+    conversionTxIndex < 0 ||
+    voteTxIndex < 0
+  ) {
+    throw new Error(
+      'Unable to locate conversion and vote transactions in their shared block.',
+    );
+  }
+
+  return voteTxIndex >
+    conversionTxIndex;
+}
+
 export async function getVeBetterVoteProgress({
   voterAddress,
-  conversion,
+  fromBlock,
 }: {
   voterAddress: string;
-  conversion: Vot3ConversionEvent;
+  fromBlock: number;
 }): Promise<VoteProgress> {
   if (
     !isValidAddress(voterAddress)
@@ -207,16 +276,11 @@ export async function getVeBetterVoteProgress({
   }
 
   if (
-    !Number.isSafeInteger(conversion.blockNumber) ||
-    conversion.blockNumber < 0 ||
-    !Number.isSafeInteger(conversion.txIndex) ||
-    conversion.txIndex < 0 ||
-    !Number.isSafeInteger(conversion.clauseIndex) ||
-    conversion.clauseIndex < 0 ||
-    !/^0x[0-9a-f]{64}$/.test(conversion.txId)
+    !Number.isSafeInteger(fromBlock) ||
+    fromBlock < 0
   ) {
     throw new Error(
-      'Invalid VOT3 conversion checkpoint for vote verification.',
+      'Invalid vote checkpoint block.',
     );
   }
 
@@ -226,8 +290,6 @@ export async function getVeBetterVoteProgress({
   } = getVeBetterNetworkConfig();
 
   const thor = ThorClient.at(nodeUrl);
-  const resolveTxIndex =
-    createTransactionIndexResolver(thor);
 
   const bestBlock =
     await thor.blocks
@@ -242,7 +304,7 @@ export async function getVeBetterVoteProgress({
   const latestBlock =
     bestBlock.number;
 
-  if (conversion.blockNumber > latestBlock) {
+  if (fromBlock > latestBlock) {
     return emptyProgress(
       latestBlock,
     );
@@ -263,7 +325,7 @@ export async function getVeBetterVoteProgress({
         .filterRawEventLogs({
           range: {
             unit: 'block',
-            from: conversion.blockNumber,
+            from: fromBlock,
             to: latestBlock,
           },
           options: {
@@ -296,28 +358,24 @@ export async function getVeBetterVoteProgress({
 
     for (const vote of rawLogs) {
       const voteBlock =
-        getRequiredBlockNumber(vote);
-      const voteTxId =
-        getRequiredTxId(vote);
-      const voteClauseIndex =
-        getRequiredClauseIndex(vote);
-      const voteTxIndex =
-        await resolveTxIndex(
-          voteBlock,
-          voteTxId,
+        getRequiredBlockNumber(
+          vote,
         );
 
-      if (
-        !isStrictlyAfter(
-          {
-            blockNumber: voteBlock,
-            txId: voteTxId,
-            txIndex: voteTxIndex,
-            clauseIndex: voteClauseIndex,
-          },
-          conversion,
-        )
-      ) {
+      const isAfterConversion =
+        voteBlock > fromBlock ||
+        (
+          voteBlock === fromBlock &&
+          await sameBlockVoteIsAfterConversion({
+            thor,
+            voterAddress,
+            blockNumber:
+              fromBlock,
+            vote,
+          })
+        );
+
+      if (!isAfterConversion) {
         continue;
       }
 
@@ -329,13 +387,12 @@ export async function getVeBetterVoteProgress({
           getRequiredRoundId(
             vote.topics?.[2],
           ),
-        voteTxId,
+        voteTxId:
+          getRequiredTxId(vote),
         voteBlockTimestamp:
           getRequiredBlockTimestamp(
             vote,
           ),
-        voteTxIndex,
-        voteClauseIndex,
         latestBlock,
       };
     }
