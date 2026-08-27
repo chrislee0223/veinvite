@@ -47,7 +47,7 @@ VeInvite는 VeBetterDAO에 처음 참여하거나 오랜 기간 활동하지 않
 최근 활동 때문에 현재 참여 대상이 아닌 기존 활성 사용자가 거절된 경우, 해당 초대가 자동으로 소비되지 않도록 설계되어 있습니다.
 
 ### 보상은 언제, 얼마나 받나요?
-미션 완료만으로 즉시 지급이 확정되는 것은 아닙니다. 온체인 미션 증빙과 최종 Sybil 검토가 모두 통과된 참여자는 사용 가능한 funded reward round의 지급 대상 큐에 들어갈 수 있습니다. 실제 지급 여부, 시점, 금액은 해당 라운드의 가용 보상 풀과 최종 검증 상태에 따라 달라질 수 있습니다.
+미션 완료만으로 즉시 지급이 확정되는 것은 아닙니다. 온체인 미션 증빙과 최종 Sybil 검토가 모두 통과된 참여자는 보상 기능이 운영상 활성화되고 실제 funded reward round가 마련된 경우 지급 대상 큐에 들어갈 수 있습니다. 실제 지급 여부, 시점, 금액은 해당 라운드의 가용 보상 풀과 최종 검증 상태에 따라 달라질 수 있습니다. Mainnet funded rewards가 비활성 상태인 기간에는 미션 완료가 곧 지급 개시를 의미하지 않습니다.
 
 ### VeInvite가 개인키나 시드 문구를 요구하나요?
 아니요. VeInvite는 개인키나 시드 문구를 요구하지 않습니다. 지갑 인증이 필요한 경우에도 사용자가 자신의 지갑에서 직접 서명합니다.
@@ -101,7 +101,7 @@ No. An invitation that has already been accepted cannot be cancelled. Only an un
 If a wallet is rejected because recent VeBetterDAO activity makes it an active existing user, the invitation is designed not to be consumed by that rejection.
 
 ### When and how much reward will I receive?
-Completing the missions does not guarantee an immediate payout. A participant must have complete on-chain mission evidence and pass the final Sybil review before becoming eligible for a funded reward round. Actual payout timing and amount can vary based on the available funded pool and final verification state.
+Completing the missions does not guarantee an immediate payout. A participant must have complete on-chain mission evidence and pass the final Sybil review. They can enter a payout queue only when rewards are operationally enabled and a funded reward round is available. Actual payout timing and amount can vary based on the available funded pool and final verification state. While mainnet funded rewards are disabled, completing the missions does not mean payouts have started.
 
 ### Does VeInvite ever ask for my seed phrase or private key?
 No. VeInvite never asks for a seed phrase or private key. When wallet verification is required, the user signs directly in their own wallet.
