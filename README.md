@@ -1,7 +1,13 @@
-# VeInvite MVP
+# VeInvite
 
-VeInvite is a verified onboarding and ecosystem-growth dApp concept for VeBetterDAO. This repository contains a testnet-oriented Next.js MVP scaffold with VeChain Kit wallet connectivity, a one-active-invite state machine, first-eligible-claimant link ownership, exception states, weekly settlement helpers, and submission documentation.
+VeInvite is a verified onboarding and reactivation dApp for the VeBetterDAO ecosystem.
 
-See `README_KO.md` and the `docs/` directory.
+The current repository includes a production-oriented VeChain Mainnet architecture with VeChain Kit / VeWorld wallet verification, Supabase-backed invitation state, NEW / RETURNING / ACTIVE EXISTING entry classification, on-chain mission evidence, B3TR → VOT3 conversion verification, allocation-vote verification, Sybil gating, reward eligibility constraints, and an automatic reward queue.
 
-> The current persistence and eligibility checks are demo implementations. Do not use them for production rewards.
+Key safety properties include one active invite per inviter, one VeInvite lifecycle per invitee wallet, self-referral rejection, fail-closed chain verification, immutable eligibility evidence, raw impact-event provenance, execution-order checks, and database-enforced reward eligibility.
+
+The current working VeBetterDAO funding split is 20% team / operations and 80% user rewards.
+
+**Automatic B3TR transfers are not enabled in Production yet.** Reward-round settlement, retry/idempotency behavior, Sybil controls, and a real post-v2 end-to-end Production case should be fully verified before payout automation is enabled.
+
+See `README_KO.md` and the `docs/` directory for additional project notes.
