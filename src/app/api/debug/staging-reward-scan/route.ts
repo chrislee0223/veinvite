@@ -31,6 +31,14 @@ type AppSummary = {
   sampleReceiver: string | null;
 };
 
+type ReceiverAccumulator = {
+  receiver: string;
+  appIds: Set<string>;
+  eventCount: number;
+  firstBlock: number;
+  lastBlock: number;
+};
+
 function topicValue(
   topic:
     | `0x${string}`
@@ -92,6 +100,7 @@ export async function GET(request: Request) {
       ]);
 
     const summaries = new Map<string, AppSummary>();
+    const receivers = new Map<string, ReceiverAccumulator>();
     let totalEvents = 0;
     let pagesRead = 0;
     let lastPageWasFull = false;
@@ -123,6 +132,7 @@ export async function GET(request: Request) {
 
       for (const log of logs) {
         const appId = log.topics?.[1]?.toLowerCase();
+        const receiver = receiverFromTopic(log.topics?.[2]);
         const blockNumber = log.meta?.blockNumber;
 
         if (
@@ -133,29 +143,67 @@ export async function GET(request: Request) {
           continue;
         }
 
-        const existing = summaries.get(appId);
-        if (existing) {
-          existing.eventCount += 1;
-          continue;
+        const existingApp = summaries.get(appId);
+        if (existingApp) {
+          existingApp.eventCount += 1;
+        } else {
+          summaries.set(appId, {
+            appId,
+            eventCount: 1,
+            lastBlock: blockNumber,
+            lastTimestamp:
+              typeof log.meta?.blockTimestamp === 'number'
+                ? log.meta.blockTimestamp
+                : null,
+            sampleReceiver: receiver,
+          });
         }
 
-        summaries.set(appId, {
-          appId,
-          eventCount: 1,
-          lastBlock: blockNumber,
-          lastTimestamp:
-            typeof log.meta?.blockTimestamp === 'number'
-              ? log.meta.blockTimestamp
-              : null,
-          sampleReceiver:
-            receiverFromTopic(log.topics?.[2]),
-        });
+        if (receiver) {
+          const existingReceiver = receivers.get(receiver);
+          if (existingReceiver) {
+            existingReceiver.appIds.add(appId);
+            existingReceiver.eventCount += 1;
+            existingReceiver.firstBlock = Math.min(
+              existingReceiver.firstBlock,
+              blockNumber,
+            );
+            existingReceiver.lastBlock = Math.max(
+              existingReceiver.lastBlock,
+              blockNumber,
+            );
+          } else {
+            receivers.set(receiver, {
+              receiver,
+              appIds: new Set([appId]),
+              eventCount: 1,
+              firstBlock: blockNumber,
+              lastBlock: blockNumber,
+            });
+          }
+        }
       }
 
       if (!lastPageWasFull) {
         break;
       }
     }
+
+    const multiAppReceivers = Array.from(receivers.values())
+      .filter((entry) => entry.appIds.size >= 2)
+      .map((entry) => ({
+        receiver: entry.receiver,
+        appCount: entry.appIds.size,
+        appIds: Array.from(entry.appIds).sort(),
+        eventCount: entry.eventCount,
+        firstBlock: entry.firstBlock,
+        lastBlock: entry.lastBlock,
+      }))
+      .sort(
+        (a, b) =>
+          b.appCount - a.appCount ||
+          b.eventCount - a.eventCount,
+      );
 
     return NextResponse.json(
       {
@@ -167,11 +215,13 @@ export async function GET(request: Request) {
         lookbackBlocks,
         pagesRead,
         totalEvents,
+        uniqueReceivers: receivers.size,
         truncated:
           pagesRead === MAX_PAGES && lastPageWasFull,
         apps: Array.from(summaries.values()).sort(
           (a, b) => b.lastBlock - a.lastBlock,
         ),
+        multiAppReceivers,
       },
       {
         headers: {
