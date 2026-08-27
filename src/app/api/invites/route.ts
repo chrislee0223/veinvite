@@ -35,6 +35,12 @@ const invitationColumns = `
   updated_at
 ` as const;
 
+const activeInviteStatuses: InviteStatus[] = [
+  'PENDING_ACCEPTANCE',
+  'ACTIVATING',
+  'UNDER_REVIEW',
+];
+
 function toInvitationRows(
   value: unknown,
 ): InvitationRow[] {
@@ -94,6 +100,45 @@ function walletAuthResponse(
   }
 
   return null;
+}
+
+async function loadActiveInvite(
+  inviterAddress: string,
+): Promise<{
+  invitation: InvitationRow | null;
+  error: unknown | null;
+}> {
+  const {
+    data,
+    error,
+  } = await supabaseAdmin
+    .from('invitations')
+    .select(invitationColumns)
+    .eq('inviter_wallet', inviterAddress)
+    .in('status', activeInviteStatuses)
+    .order('created_at', {
+      ascending: false,
+    })
+    .limit(1);
+
+  return {
+    invitation:
+      toInvitationRows(data)[0] ?? null,
+    error: error ?? null,
+  };
+}
+
+function activeInviteConflict(
+  invitation: InvitationRow,
+) {
+  return NextResponse.json(
+    {
+      error:
+        'Only one active invitation is allowed.',
+      invite: toInviteRecord(invitation),
+    },
+    { status: 409 },
+  );
 }
 
 export async function GET(
@@ -238,27 +283,13 @@ export async function POST(
     );
   }
 
-  const {
-    data: activeRows,
-    error: activeError,
-  } = await supabaseAdmin
-    .from('invitations')
-    .select(invitationColumns)
-    .eq('inviter_wallet', inviterAddress)
-    .in('status', [
-      'PENDING_ACCEPTANCE',
-      'ACTIVATING',
-      'UNDER_REVIEW',
-    ])
-    .order('created_at', {
-      ascending: false,
-    })
-    .limit(1);
+  const activeCheck =
+    await loadActiveInvite(inviterAddress);
 
-  if (activeError) {
+  if (activeCheck.error) {
     console.error(
       'Failed to check active invitation:',
-      activeError,
+      activeCheck.error,
     );
 
     return NextResponse.json(
@@ -270,17 +301,9 @@ export async function POST(
     );
   }
 
-  const activeRow =
-    toInvitationRows(activeRows)[0];
-
-  if (activeRow) {
-    return NextResponse.json(
-      {
-        error:
-          'Only one active invitation is allowed.',
-        invite: toInviteRecord(activeRow),
-      },
-      { status: 409 },
+  if (activeCheck.invitation) {
+    return activeInviteConflict(
+      activeCheck.invitation,
     );
   }
 
@@ -316,6 +339,34 @@ export async function POST(
     }
 
     if (error?.code === '23505') {
+      // A unique violation can mean either a rare invite-code collision or a
+      // concurrent request that won the one-active-invite race. Re-read the
+      // invariant so the latter returns the correct 409 instead of retrying
+      // until it becomes a misleading 500.
+      const conflictCheck =
+        await loadActiveInvite(inviterAddress);
+
+      if (conflictCheck.error) {
+        console.error(
+          'Failed to resolve invitation uniqueness conflict:',
+          conflictCheck.error,
+        );
+
+        return NextResponse.json(
+          {
+            error:
+              'Failed to resolve invitation conflict.',
+          },
+          { status: 500 },
+        );
+      }
+
+      if (conflictCheck.invitation) {
+        return activeInviteConflict(
+          conflictCheck.invitation,
+        );
+      }
+
       continue;
     }
 

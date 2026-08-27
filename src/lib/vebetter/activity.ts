@@ -2,6 +2,10 @@ import { ABIEvent } from '@vechain/sdk-core';
 import { ThorClient } from '@vechain/sdk-network';
 
 import {
+  createTransactionIndexResolver,
+  type ChainEventPosition,
+} from '@/lib/vebetter/eventOrder';
+import {
   getVeBetterNetworkConfig,
 } from '@/lib/vebetter/network';
 
@@ -17,15 +21,15 @@ type RawEventLog = {
     blockNumber?: number;
     blockTimestamp?: number;
     txID?: string;
+    clauseIndex?: number;
   };
 };
 
-export type QualifyingRewardEvent = {
-  appId: string;
-  txId: string;
-  blockNumber: number;
-  blockTimestamp: number;
-};
+export type QualifyingRewardEvent =
+  ChainEventPosition & {
+    appId: string;
+    blockTimestamp: number;
+  };
 
 export type ActivityProgress = {
   appsCompleted: number;
@@ -86,6 +90,25 @@ function getEventBlockTimestamp(
   return timestamp;
 }
 
+function getEventClauseIndex(
+  log: RawEventLog,
+): number {
+  const clauseIndex =
+    log.meta?.clauseIndex;
+
+  if (
+    typeof clauseIndex !== 'number' ||
+    !Number.isSafeInteger(clauseIndex) ||
+    clauseIndex < 0
+  ) {
+    throw new Error(
+      'VeChain reward event is missing a valid clause index.',
+    );
+  }
+
+  return clauseIndex;
+}
+
 function getEventTxId(
   log: RawEventLog,
 ): string {
@@ -126,6 +149,8 @@ export async function getVeBetterActivityProgress({
   } = getVeBetterNetworkConfig();
 
   const thor = ThorClient.at(nodeUrl);
+  const resolveTxIndex =
+    createTransactionIndexResolver(thor);
 
   const bestBlock =
     await thor.blocks.getBestBlockCompressed();
@@ -235,6 +260,13 @@ export async function getVeBetterActivityProgress({
         getEventBlockTimestamp(log);
       const eventTxId =
         getEventTxId(log);
+      const clauseIndex =
+        getEventClauseIndex(log);
+      const txIndex =
+        await resolveTxIndex(
+          eventBlock,
+          eventTxId,
+        );
 
       uniqueAppIds.add(
         normalizedAppId,
@@ -250,6 +282,8 @@ export async function getVeBetterActivityProgress({
           blockNumber: eventBlock,
           blockTimestamp:
             eventTimestamp,
+          txIndex,
+          clauseIndex,
         });
       }
 

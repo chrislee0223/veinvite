@@ -2,6 +2,12 @@ import { ABIEvent } from '@vechain/sdk-core';
 import { ThorClient } from '@vechain/sdk-network';
 
 import {
+  compareChainEventPosition,
+  createTransactionIndexResolver,
+  isStrictlyAfter,
+  type ChainEventPosition,
+} from '@/lib/vebetter/eventOrder';
+import {
   getVeBetterNetworkConfig,
 } from '@/lib/vebetter/network';
 
@@ -14,6 +20,9 @@ export const MIN_VOT3_CONVERSION_WEI =
 
 const transferEvent = new ABIEvent(
   'event Transfer(address indexed from, address indexed to, uint256 value)',
+);
+const rewardDistributedEvent = new ABIEvent(
+  'event RewardDistributed(uint256 amount, bytes32 indexed appId, address indexed receiver, string proof, address indexed distributor)',
 );
 
 type RawTransferLog = {
@@ -28,13 +37,11 @@ type RawTransferLog = {
   };
 };
 
-export type Vot3ConversionEvent = {
-  txId: string;
-  blockNumber: number;
-  blockTimestamp: number;
-  clauseIndex: number;
-  amountWei: string;
-};
+export type Vot3ConversionEvent =
+  ChainEventPosition & {
+    blockTimestamp: number;
+    amountWei: string;
+  };
 
 export type Vot3ConversionProgress = {
   converted: boolean;
@@ -126,9 +133,14 @@ function parseAmountWei(
   return BigInt(data);
 }
 
+type ParsedTransferEvent = Omit<
+  Vot3ConversionEvent,
+  'txIndex'
+>;
+
 function normalizeTransferLog(
   log: RawTransferLog,
-): Vot3ConversionEvent {
+): ParsedTransferEvent {
   return {
     txId:
       parseRequiredTxId(
@@ -157,7 +169,7 @@ function normalizeTransferLog(
 }
 
 function eventMatchKey(
-  event: Vot3ConversionEvent,
+  event: ParsedTransferEvent,
 ): string {
   return [
     event.txId,
@@ -166,19 +178,85 @@ function eventMatchKey(
   ].join(':');
 }
 
-function sortEvents(
-  events: Vot3ConversionEvent[],
-) {
-  return [...events].sort(
-    (left, right) =>
-      left.blockNumber -
-        right.blockNumber ||
-      left.clauseIndex -
-        right.clauseIndex ||
-      left.txId.localeCompare(
-        right.txId,
-      ),
+async function findFirstRewardPositionInBlock(args: {
+  thor: ReturnType<typeof ThorClient.at>;
+  rewardsPoolAddress: string;
+  walletAddress: string;
+  blockNumber: number;
+  resolveTxIndex: (
+    blockNumber: number,
+    txId: string,
+  ) => Promise<number>;
+}): Promise<ChainEventPosition> {
+  const topics =
+    rewardDistributedEvent.encodeFilterTopics([
+      null,
+      args.walletAddress,
+      null,
+    ]);
+
+  const logs =
+    await args.thor.logs.filterRawEventLogs({
+      range: {
+        unit: 'block',
+        from: args.blockNumber,
+        to: args.blockNumber,
+      },
+      options: {
+        offset: 0,
+        limit: PAGE_SIZE,
+      },
+      criteriaSet: [
+        {
+          address: args.rewardsPoolAddress,
+          topic0: getSingleTopic(topics[0]),
+          topic1: getSingleTopic(topics[1]),
+          topic2: getSingleTopic(topics[2]),
+          topic3: getSingleTopic(topics[3]),
+        },
+      ],
+      order: 'asc',
+    });
+
+  const positions = await Promise.all(
+    (logs as RawTransferLog[]).map(
+      async (log): Promise<ChainEventPosition> => {
+        const txId =
+          parseRequiredTxId(log.meta?.txID);
+        const blockNumber =
+          parseRequiredInteger(
+            log.meta?.blockNumber,
+            'reward block number',
+          );
+        const clauseIndex =
+          parseRequiredInteger(
+            log.meta?.clauseIndex,
+            'reward clause index',
+          );
+
+        return {
+          txId,
+          blockNumber,
+          clauseIndex,
+          txIndex: await args.resolveTxIndex(
+            blockNumber,
+            txId,
+          ),
+        };
+      },
+    ),
   );
+
+  positions.sort(compareChainEventPosition);
+
+  const first = positions[0];
+  if (!first) {
+    throw new Error(
+      'Unable to resolve the first qualifying dApp reward execution order.',
+    );
+  }
+
+  return first;
 }
 
 /**
@@ -191,10 +269,10 @@ function sortEvents(
  * Both events must share the same transaction and clause. Receiving VOT3 from
  * another wallet therefore cannot satisfy this mission.
  *
- * VeInvite's current policy accepts the first matched conversion of at least
- * 1 B3TR that occurs after the invitation is active AND no earlier than the
- * first qualifying dApp reward. The other two dApp rewards may happen before
- * or after the conversion/vote sequence.
+ * A qualifying conversion must be at least 1 B3TR and strictly after the first
+ * qualifying dApp reward in VeChain execution order (block -> transaction ->
+ * clause). This closes the same-block ordering edge case while preserving the
+ * policy that dApps #2 and #3 may be completed later.
  */
 export async function getVeBetterVot3ConversionProgress({
   walletAddress,
@@ -254,10 +332,13 @@ export async function getVeBetterVot3ConversionProgress({
     nodeUrl,
     b3trAddress,
     vot3Address,
+    x2EarnRewardsPoolAddress,
   } = getVeBetterNetworkConfig();
 
   const thor =
     ThorClient.at(nodeUrl);
+  const resolveTxIndex =
+    createTransactionIndexResolver(thor);
 
   const bestBlock =
     await thor.blocks
@@ -293,6 +374,17 @@ export async function getVeBetterVot3ConversionProgress({
           .toString(),
     };
   }
+
+  const firstRewardPosition =
+    await findFirstRewardPositionInBlock({
+      thor,
+      rewardsPoolAddress:
+        x2EarnRewardsPoolAddress,
+      walletAddress,
+      blockNumber:
+        firstQualifyingRewardBlock,
+      resolveTxIndex,
+    });
 
   const loadLogs = async ({
     address,
@@ -396,43 +488,54 @@ export async function getVeBetterVot3ConversionProgress({
       b3trDebitLogs.map(
         (log) =>
           eventMatchKey(
-            normalizeTransferLog(
-              log,
-            ),
+            normalizeTransferLog(log),
           ),
       ),
     );
 
+  const matchedWithoutTxIndex =
+    vot3MintLogs
+      .map(normalizeTransferLog)
+      .filter(
+        (event) =>
+          b3trDebitKeys.has(
+            eventMatchKey(event),
+          ),
+      );
+
   const matched =
-    sortEvents(
-      vot3MintLogs
-        .map(
-          normalizeTransferLog,
-        )
-        .filter(
-          (event) =>
-            b3trDebitKeys.has(
-              eventMatchKey(
-                event,
-              ),
-            ),
-        ),
+    await Promise.all(
+      matchedWithoutTxIndex.map(
+        async (event): Promise<Vot3ConversionEvent> => ({
+          ...event,
+          txIndex: await resolveTxIndex(
+            event.blockNumber,
+            event.txId,
+          ),
+        }),
+      ),
     );
 
+  matched.sort(compareChainEventPosition);
+
+  const afterFirstDapp = matched.filter(
+    (event) =>
+      isStrictlyAfter(
+        event,
+        firstRewardPosition,
+      ),
+  );
+
   const qualifyingConversion =
-    matched.find(
+    afterFirstDapp.find(
       (event) =>
-        event.blockNumber >=
-          firstQualifyingRewardBlock &&
         BigInt(event.amountWei) >=
           MIN_VOT3_CONVERSION_WEI,
     ) ?? null;
 
   const belowMinimumEvents =
-    matched.filter(
+    afterFirstDapp.filter(
       (event) =>
-        event.blockNumber >=
-          firstQualifyingRewardBlock &&
         BigInt(event.amountWei) <
           MIN_VOT3_CONVERSION_WEI,
     );
@@ -440,8 +543,10 @@ export async function getVeBetterVot3ConversionProgress({
   const beforeFirstDappEvents =
     matched.filter(
       (event) =>
-        event.blockNumber <
-          firstQualifyingRewardBlock,
+        !isStrictlyAfter(
+          event,
+          firstRewardPosition,
+        ),
     );
 
   return {
