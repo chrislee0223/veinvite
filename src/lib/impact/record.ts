@@ -41,6 +41,8 @@ export async function recordQualifyingRewardImpact(args: {
     tx_id: event.txId.toLowerCase(),
     block_number: event.blockNumber,
     block_timestamp: toIsoTimestamp(event.blockTimestamp),
+    tx_index: event.txIndex,
+    clause_index: event.clauseIndex,
     app_id: event.appId.toLowerCase(),
     vote_round_id: null,
     amount_wei: null,
@@ -50,7 +52,7 @@ export async function recordQualifyingRewardImpact(args: {
     .from('invite_impact_events')
     .upsert(rows, {
       onConflict: 'event_key',
-      ignoreDuplicates: true,
+      ignoreDuplicates: false,
     });
 
   if (error) {
@@ -92,6 +94,8 @@ export async function recordVot3ConversionImpact(args: {
     block_number: event.blockNumber,
     block_timestamp:
       toIsoTimestamp(event.blockTimestamp),
+    tx_index: event.txIndex,
+    clause_index: event.clauseIndex,
     app_id: null,
     vote_round_id: null,
     amount_wei: event.amountWei,
@@ -101,7 +105,7 @@ export async function recordVot3ConversionImpact(args: {
     .from('invite_impact_events')
     .upsert(rows, {
       onConflict: 'event_key',
-      ignoreDuplicates: true,
+      ignoreDuplicates: false,
     });
 
   if (error) {
@@ -122,6 +126,8 @@ export async function recordVoteImpact(args: {
   txId: string;
   blockNumber: number;
   blockTimestamp: number;
+  txIndex: number;
+  clauseIndex: number;
   voteRoundId: number;
 }): Promise<boolean> {
   if (!args.network) {
@@ -147,13 +153,15 @@ export async function recordVoteImpact(args: {
         block_number: args.blockNumber,
         block_timestamp:
           toIsoTimestamp(args.blockTimestamp),
+        tx_index: args.txIndex,
+        clause_index: args.clauseIndex,
         app_id: null,
         vote_round_id: args.voteRoundId,
         amount_wei: null,
       },
       {
         onConflict: 'event_key',
-        ignoreDuplicates: true,
+        ignoreDuplicates: false,
       },
     );
 
