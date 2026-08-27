@@ -1,7 +1,39 @@
+import { ABIEvent } from '@vechain/sdk-core';
+import { ThorClient } from '@vechain/sdk-network';
+
 import { supabaseAdmin } from '@/lib/supabaseServer';
-import type { VeBetterNetwork } from '@/lib/vebetter/network';
 import type { QualifyingRewardEvent } from '@/lib/vebetter/activity';
+import {
+  createTransactionIndexResolver,
+} from '@/lib/vebetter/eventOrder';
+import {
+  getVeBetterNetworkConfig,
+  type VeBetterNetwork,
+} from '@/lib/vebetter/network';
 import type { Vot3ConversionEvent } from '@/lib/vebetter/vot3Conversion';
+
+const allocationVoteCastEvent = new ABIEvent(
+  'event AllocationVoteCast(address indexed voter, uint256 indexed roundId, bytes32[] appsIds, uint256[] voteWeights)',
+);
+
+type RawVoteLog = {
+  topics?: string[];
+  meta?: {
+    blockNumber?: number;
+    txID?: string;
+    clauseIndex?: number;
+  };
+};
+
+function getSingleTopic(
+  topic:
+    | `0x${string}`
+    | `0x${string}`[]
+    | null
+    | undefined,
+): string | undefined {
+  return typeof topic === 'string' ? topic : undefined;
+}
 
 function toIsoTimestamp(unixSeconds: number): string {
   if (
@@ -119,6 +151,75 @@ export async function recordVot3ConversionImpact(args: {
   return true;
 }
 
+async function resolveVoteExecutionPosition(args: {
+  walletAddress: string;
+  txId: string;
+  blockNumber: number;
+  voteRoundId: number;
+}): Promise<{
+  txIndex: number;
+  clauseIndex: number;
+}> {
+  const {
+    nodeUrl,
+    xAllocationVotingAddress,
+  } = getVeBetterNetworkConfig();
+  const thor = ThorClient.at(nodeUrl);
+  const resolveTxIndex =
+    createTransactionIndexResolver(thor);
+  const topics =
+    allocationVoteCastEvent.encodeFilterTopics([
+      args.walletAddress,
+      BigInt(args.voteRoundId),
+    ]);
+
+  const logs = await thor.logs.filterRawEventLogs({
+    range: {
+      unit: 'block',
+      from: args.blockNumber,
+      to: args.blockNumber,
+    },
+    options: {
+      offset: 0,
+      limit: 100,
+    },
+    criteriaSet: [
+      {
+        address: xAllocationVotingAddress,
+        topic0: getSingleTopic(topics[0]),
+        topic1: getSingleTopic(topics[1]),
+        topic2: getSingleTopic(topics[2]),
+      },
+    ],
+    order: 'asc',
+  });
+
+  const normalizedTxId = args.txId.toLowerCase();
+  const matched = (logs as RawVoteLog[]).find(
+    (log) =>
+      log.meta?.txID?.toLowerCase() === normalizedTxId,
+  );
+
+  const clauseIndex = matched?.meta?.clauseIndex;
+  if (
+    typeof clauseIndex !== 'number' ||
+    !Number.isSafeInteger(clauseIndex) ||
+    clauseIndex < 0
+  ) {
+    throw new Error(
+      'Unable to resolve governance vote clause index.',
+    );
+  }
+
+  return {
+    txIndex: await resolveTxIndex(
+      args.blockNumber,
+      normalizedTxId,
+    ),
+    clauseIndex,
+  };
+}
+
 export async function recordVoteImpact(args: {
   inviteCode: string;
   network: VeBetterNetwork | null;
@@ -137,6 +238,26 @@ export async function recordVoteImpact(args: {
 
   const normalizedTxId = args.txId.toLowerCase();
 
+  let position: {
+    txIndex: number;
+    clauseIndex: number;
+  };
+
+  try {
+    position = await resolveVoteExecutionPosition({
+      walletAddress: args.walletAddress,
+      txId: normalizedTxId,
+      blockNumber: args.blockNumber,
+      voteRoundId: args.voteRoundId,
+    });
+  } catch (error) {
+    console.error(
+      'Failed to resolve governance vote execution position:',
+      error,
+    );
+    return false;
+  }
+
   const { error } = await supabaseAdmin
     .from('invite_impact_events')
     .upsert(
@@ -151,8 +272,8 @@ export async function recordVoteImpact(args: {
         block_number: args.blockNumber,
         block_timestamp:
           toIsoTimestamp(args.blockTimestamp),
-        tx_index: null,
-        clause_index: null,
+        tx_index: position.txIndex,
+        clause_index: position.clauseIndex,
         app_id: null,
         vote_round_id: args.voteRoundId,
         amount_wei: null,
