@@ -1,11 +1,7 @@
-import {
-  NextResponse,
-} from 'next/server';
+import { NextResponse } from 'next/server';
 import { Interface } from 'ethers';
 
-import {
-  buildPayoutManifest,
-} from '@/lib/rewards/payoutManifest';
+import { buildPayoutManifest } from '@/lib/rewards/payoutManifest';
 import {
   type FinalizedRewardTransactionEvidence,
   RewardTransactionVerificationError,
@@ -28,9 +24,7 @@ function rewardEvent(
   recipient: string,
 ) {
   const event =
-    eventInterface.getEvent(
-      'RewardDistributed',
-    );
+    eventInterface.getEvent('RewardDistributed');
 
   if (!event) {
     throw new Error(
@@ -76,10 +70,7 @@ function expectVerificationError(
 }
 
 export async function GET() {
-  if (
-    process.env.VERCEL_ENV ===
-      'production'
-  ) {
+  if (process.env.VERCEL_ENV === 'production') {
     return NextResponse.json(
       {
         error:
@@ -122,19 +113,19 @@ export async function GET() {
           tx_id: null,
         },
       ],
-      x2EarnRewardsPoolAddress:
-        poolAddress,
+      x2EarnRewardsPoolAddress: poolAddress,
     });
 
     const blockTimestamp = 1_800_000_000;
+    const manifestCreatedAt = new Date(
+      (blockTimestamp - 10) * 1000,
+    );
 
     const evidence:
       FinalizedRewardTransactionEvidence = {
-        txId:
-          `0x${'11'.repeat(32)}`,
+        txId: `0x${'11'.repeat(32)}`,
         txOrigin: operatorWallet,
-        blockId:
-          `0x${'22'.repeat(32)}`,
+        blockId: `0x${'22'.repeat(32)}`,
         blockNumber: 500,
         blockTimestamp,
         finalizedHeadId:
@@ -164,48 +155,16 @@ export async function GET() {
       verifyPayoutTransactionEvidence({
         manifest,
         operatorWallet,
-        manifestCreatedAt:
-          new Date(
-            (blockTimestamp - 10) *
-              1000,
-          ),
+        manifestCreatedAt,
         evidence,
       });
 
-    const wrongClause = {
-      ...evidence,
-      clauses: evidence.clauses.map(
-        (clause, index) =>
-          index === 0
-            ? {
-                ...clause,
-                data: `${clause.data.slice(
-                  0,
-                  -2,
-                )}00`,
-              }
-            : clause,
-      ),
-    };
-
-    const wrongEvent = {
-      ...evidence,
-      outputs: evidence.outputs.map(
-        (output, index) =>
-          index === 0
-            ? {
-                events: [
-                  rewardEvent(
-                    '999000000000000000000',
-                    manifest.clauses[0]
-                      ?.recipientWallet ??
-                      '0x0000000000000000000000000000000000000011',
-                  ),
-                ],
-              }
-            : output,
-      ),
-    };
+    const firstData =
+      evidence.clauses[0]?.data ?? '0x';
+    const definitelyWrongData =
+      firstData.startsWith('0x00')
+        ? `0x01${firstData.slice(4)}`
+        : `0x00${firstData.slice(4)}`;
 
     const checks = {
       exactManifestPasses:
@@ -216,102 +175,103 @@ export async function GET() {
       revertedFails:
         expectVerificationError(
           'TX_REVERTED',
-          () =>
-            verifyPayoutTransactionEvidence({
-              manifest,
-              operatorWallet,
-              manifestCreatedAt:
-                new Date(
-                  (blockTimestamp - 10) *
-                    1000,
-                ),
-              evidence: {
-                ...evidence,
-                reverted: true,
-              },
-            }),
+          () => verifyPayoutTransactionEvidence({
+            manifest,
+            operatorWallet,
+            manifestCreatedAt,
+            evidence: {
+              ...evidence,
+              reverted: true,
+            },
+          }),
         ),
       wrongOperatorFails:
         expectVerificationError(
           'TX_OPERATOR_MISMATCH',
-          () =>
-            verifyPayoutTransactionEvidence({
-              manifest,
-              operatorWallet,
-              manifestCreatedAt:
-                new Date(
-                  (blockTimestamp - 10) *
-                    1000,
-                ),
-              evidence: {
-                ...evidence,
-                txOrigin:
-                  '0x0000000000000000000000000000000000000099',
-              },
-            }),
+          () => verifyPayoutTransactionEvidence({
+            manifest,
+            operatorWallet,
+            manifestCreatedAt,
+            evidence: {
+              ...evidence,
+              txOrigin:
+                '0x0000000000000000000000000000000000000099',
+            },
+          }),
         ),
       unfinalizedFails:
         expectVerificationError(
           'TX_NOT_FINALIZED',
-          () =>
-            verifyPayoutTransactionEvidence({
-              manifest,
-              operatorWallet,
-              manifestCreatedAt:
-                new Date(
-                  (blockTimestamp - 10) *
-                    1000,
-                ),
-              evidence: {
-                ...evidence,
-                finalizedHeadNumber: 499,
-              },
-            }),
+          () => verifyPayoutTransactionEvidence({
+            manifest,
+            operatorWallet,
+            manifestCreatedAt,
+            evidence: {
+              ...evidence,
+              finalizedHeadNumber: 499,
+            },
+          }),
         ),
       wrongClauseFails:
         expectVerificationError(
           'TX_MANIFEST_MISMATCH',
-          () =>
-            verifyPayoutTransactionEvidence({
-              manifest,
-              operatorWallet,
-              manifestCreatedAt:
-                new Date(
-                  (blockTimestamp - 10) *
-                    1000,
-                ),
-              evidence: wrongClause,
-            }),
+          () => verifyPayoutTransactionEvidence({
+            manifest,
+            operatorWallet,
+            manifestCreatedAt,
+            evidence: {
+              ...evidence,
+              clauses: evidence.clauses.map(
+                (clause, index) =>
+                  index === 0
+                    ? {
+                        ...clause,
+                        data:
+                          definitelyWrongData,
+                      }
+                    : clause,
+              ),
+            },
+          }),
         ),
       wrongRewardEventFails:
         expectVerificationError(
           'TX_EVENT_MISMATCH',
-          () =>
-            verifyPayoutTransactionEvidence({
-              manifest,
-              operatorWallet,
-              manifestCreatedAt:
-                new Date(
-                  (blockTimestamp - 10) *
-                    1000,
-                ),
-              evidence: wrongEvent,
-            }),
+          () => verifyPayoutTransactionEvidence({
+            manifest,
+            operatorWallet,
+            manifestCreatedAt,
+            evidence: {
+              ...evidence,
+              outputs: evidence.outputs.map(
+                (output, index) =>
+                  index === 0
+                    ? {
+                        events: [
+                          rewardEvent(
+                            '999000000000000000000',
+                            manifest.clauses[0]
+                              ?.recipientWallet ??
+                              '0x0000000000000000000000000000000000000011',
+                          ),
+                        ],
+                      }
+                    : output,
+              ),
+            },
+          }),
         ),
       oldTransactionReplayFails:
         expectVerificationError(
           'TX_PREDATES_MANIFEST',
-          () =>
-            verifyPayoutTransactionEvidence({
-              manifest,
-              operatorWallet,
-              manifestCreatedAt:
-                new Date(
-                  (blockTimestamp + 120) *
-                    1000,
-                ),
-              evidence,
-            }),
+          () => verifyPayoutTransactionEvidence({
+            manifest,
+            operatorWallet,
+            manifestCreatedAt: new Date(
+              (blockTimestamp + 120) * 1000,
+            ),
+            evidence,
+          }),
         ),
     };
 
