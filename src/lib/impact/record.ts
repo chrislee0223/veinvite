@@ -126,8 +126,6 @@ export async function recordVoteImpact(args: {
   txId: string;
   blockNumber: number;
   blockTimestamp: number;
-  txIndex: number;
-  clauseIndex: number;
   voteRoundId: number;
 }): Promise<boolean> {
   if (!args.network) {
@@ -153,8 +151,8 @@ export async function recordVoteImpact(args: {
         block_number: args.blockNumber,
         block_timestamp:
           toIsoTimestamp(args.blockTimestamp),
-        tx_index: args.txIndex,
-        clause_index: args.clauseIndex,
+        tx_index: null,
+        clause_index: null,
         app_id: null,
         vote_round_id: args.voteRoundId,
         amount_wei: null,
