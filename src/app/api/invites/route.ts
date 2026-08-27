@@ -23,6 +23,8 @@ type InvitationRow = {
   reward_status: RewardEligibility;
   created_at: string;
   updated_at: string;
+  eligibility_check_id: string | number | null;
+  activation_network: string | null;
 };
 
 const invitationColumns = `
@@ -32,7 +34,9 @@ const invitationColumns = `
   status,
   reward_status,
   created_at,
-  updated_at
+  updated_at,
+  eligibility_check_id,
+  activation_network
 ` as const;
 
 const activeInviteStatuses: InviteStatus[] = [
@@ -102,6 +106,31 @@ function walletAuthResponse(
   return null;
 }
 
+function isCurrentActiveInvite(
+  invitation: InvitationRow,
+): boolean {
+  if (
+    invitation.status ===
+    'PENDING_ACCEPTANCE'
+  ) {
+    return true;
+  }
+
+  if (
+    invitation.status === 'ACTIVATING' ||
+    invitation.status === 'UNDER_REVIEW'
+  ) {
+    // Invitations accepted before entry-proof enforcement are kept as audit
+    // history, but must not permanently consume the inviter's active slot.
+    return (
+      invitation.eligibility_check_id !== null &&
+      Boolean(invitation.activation_network)
+    );
+  }
+
+  return false;
+}
+
 async function loadActiveInvite(
   inviterAddress: string,
 ): Promise<{
@@ -118,12 +147,13 @@ async function loadActiveInvite(
     .in('status', activeInviteStatuses)
     .order('created_at', {
       ascending: false,
-    })
-    .limit(1);
+    });
 
   return {
     invitation:
-      toInvitationRows(data)[0] ?? null,
+      toInvitationRows(data).find(
+        isCurrentActiveInvite,
+      ) ?? null,
     error: error ?? null,
   };
 }
