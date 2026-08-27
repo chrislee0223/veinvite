@@ -84,7 +84,7 @@ export async function recordQualifyingRewardImpact(args: {
     .from('invite_impact_events')
     .upsert(rows, {
       onConflict: 'event_key',
-      ignoreDuplicates: false,
+      ignoreDuplicates: true,
     });
 
   if (error) {
@@ -137,7 +137,7 @@ export async function recordVot3ConversionImpact(args: {
     .from('invite_impact_events')
     .upsert(rows, {
       onConflict: 'event_key',
-      ignoreDuplicates: false,
+      ignoreDuplicates: true,
     });
 
   if (error) {
@@ -280,7 +280,7 @@ export async function recordVoteImpact(args: {
       },
       {
         onConflict: 'event_key',
-        ignoreDuplicates: false,
+        ignoreDuplicates: true,
       },
     );
 
