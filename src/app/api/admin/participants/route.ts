@@ -59,6 +59,10 @@ function idKey(value: string | number | null) {
   return value === null ? '' : String(value);
 }
 
+function normalizedWallet(value: string | null) {
+  return value?.trim().toLowerCase() ?? null;
+}
+
 async function loadEligibilityChecks(
   network: string,
 ): Promise<EligibilityCheckRow[]> {
@@ -229,12 +233,21 @@ export async function GET(request: NextRequest) {
         return true;
       })
       .map((check) => {
-        const invitation =
+        const directInvitation =
           invitationByEligibilityCheck.get(
             idKey(check.id),
-          ) ??
-          invitationByCode.get(check.invite_code) ??
-          null;
+          ) ?? null;
+        const codeInvitation =
+          invitationByCode.get(check.invite_code) ?? null;
+        // Rejected eligibility attempts do not consume an invite. That same
+        // invite code may later be claimed by a different wallet. Never attach
+        // that later claimant's mission/reward state to the rejected wallet.
+        const invitation =
+          directInvitation ??
+          (normalizedWallet(codeInvitation?.invitee_wallet ?? null) ===
+          normalizedWallet(check.wallet_address)
+            ? codeInvitation
+            : null);
         const queue = invitation
           ? queueByInviteCode.get(
               invitation.invite_code,
