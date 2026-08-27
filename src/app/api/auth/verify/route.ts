@@ -201,14 +201,19 @@ function verifyVeWorldCertificate({
     new Date(
       challenge.expires_at,
     ).getTime();
-  const certificateTimestamp =
+  // VeWorld certificates use Unix seconds. Convert only for local Date-based
+  // freshness checks; the SDK signature verifier must receive the original
+  // seconds value because that exact timestamp is part of the signed payload.
+  const certificateTimestampSeconds =
     certificate.timestamp;
+  const certificateTimestampMs =
+    certificateTimestampSeconds * 1000;
 
   if (
-    certificateTimestamp <
+    certificateTimestampMs <
       expiresAtMs -
         CERTIFICATE_CHALLENGE_WINDOW_MS ||
-    certificateTimestamp >
+    certificateTimestampMs >
       now.getTime() +
         CERTIFICATE_CLOCK_SKEW_MS
   ) {
@@ -226,7 +231,7 @@ function verifyVeWorldCertificate({
       domain:
         certificate.domain,
       timestamp:
-        certificateTimestamp,
+        certificateTimestampSeconds,
       signer:
         certificateSigner,
       signature:
