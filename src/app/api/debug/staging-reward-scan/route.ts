@@ -6,8 +6,9 @@ const STAGING_NODE_URL = 'https://testnet.vechain.org';
 const STAGING_REWARDS_POOL =
   '0x2d2a2207c68a46fc79325d7718e639d1047b0d8b';
 const DEFAULT_LOOKBACK_BLOCKS = 100_000;
+const MAX_LOOKBACK_BLOCKS = 1_000_000;
 const PAGE_SIZE = 1_000;
-const MAX_PAGES = 10;
+const MAX_PAGES = 20;
 
 const rewardDistributedEvent = new ABIEvent(
   'event RewardDistributed(uint256 amount, bytes32 indexed appId, address indexed receiver, string proof, address indexed distributor)',
@@ -52,12 +53,25 @@ function receiverFromTopic(
   return `0x${topic.slice(-40)}`.toLowerCase();
 }
 
-export async function GET() {
+function readLookbackBlocks(request: Request): number {
+  const requested = Number(
+    new URL(request.url).searchParams.get('blocks'),
+  );
+
+  if (!Number.isSafeInteger(requested) || requested <= 0) {
+    return DEFAULT_LOOKBACK_BLOCKS;
+  }
+
+  return Math.min(requested, MAX_LOOKBACK_BLOCKS);
+}
+
+export async function GET(request: Request) {
   if (process.env.VERCEL_ENV === 'production') {
     return new NextResponse(null, { status: 404 });
   }
 
   try {
+    const lookbackBlocks = readLookbackBlocks(request);
     const thor = ThorClient.at(STAGING_NODE_URL);
     const bestBlock =
       await thor.blocks.getBestBlockCompressed();
@@ -68,7 +82,7 @@ export async function GET() {
 
     const fromBlock = Math.max(
       0,
-      bestBlock.number - DEFAULT_LOOKBACK_BLOCKS,
+      bestBlock.number - lookbackBlocks,
     );
     const topics =
       rewardDistributedEvent.encodeFilterTopics([
@@ -80,6 +94,7 @@ export async function GET() {
     const summaries = new Map<string, AppSummary>();
     let totalEvents = 0;
     let pagesRead = 0;
+    let lastPageWasFull = false;
 
     for (let page = 0; page < MAX_PAGES; page += 1) {
       const logs =
@@ -104,6 +119,7 @@ export async function GET() {
 
       pagesRead += 1;
       totalEvents += logs.length;
+      lastPageWasFull = logs.length === PAGE_SIZE;
 
       for (const log of logs) {
         const appId = log.topics?.[1]?.toLowerCase();
@@ -136,7 +152,7 @@ export async function GET() {
         });
       }
 
-      if (logs.length < PAGE_SIZE) {
+      if (!lastPageWasFull) {
         break;
       }
     }
@@ -148,9 +164,11 @@ export async function GET() {
         rewardsPool: STAGING_REWARDS_POOL,
         bestBlock: bestBlock.number,
         fromBlock,
+        lookbackBlocks,
         pagesRead,
         totalEvents,
-        truncated: pagesRead === MAX_PAGES,
+        truncated:
+          pagesRead === MAX_PAGES && lastPageWasFull,
         apps: Array.from(summaries.values()).sort(
           (a, b) => b.lastBlock - a.lastBlock,
         ),
