@@ -3,6 +3,7 @@ import { NextResponse } from 'next/server';
 import {
   buildPayoutManifest,
   decodePayoutClause,
+  PAYOUT_MANIFEST_VERSION,
 } from '@/lib/rewards/payoutManifest';
 import { VEINVITE_APP_ID } from '@/lib/rewards/onchainPool';
 
@@ -100,6 +101,11 @@ export async function GET() {
     });
 
     expectEqual(
+      first.version,
+      PAYOUT_MANIFEST_VERSION,
+      'manifest version',
+    );
+    expectEqual(
       first.manifestHash,
       second.manifestHash,
       'manifest hash must be deterministic regardless of input row order',
@@ -145,8 +151,13 @@ export async function GET() {
         `clause ${clause.payoutId} recipient`,
       );
       expectEqual(
+        clause.proof,
+        `veinvite:referral-onboarding:v1:payout:${clause.payoutId}`,
+        `clause ${clause.payoutId} deterministic proof`,
+      );
+      expectEqual(
         decoded.proof,
-        '',
+        clause.proof,
         `clause ${clause.payoutId} proof`,
       );
       expectEqual(
@@ -215,6 +226,7 @@ export async function GET() {
       {
         mode: 'PREVIEW_SELF_TEST',
         passed: true,
+        version: first.version,
         manifestHash:
           first.manifestHash,
         payoutCount:
@@ -227,6 +239,7 @@ export async function GET() {
             recipientWallet:
               clause.recipientWallet,
             amountWei: clause.amountWei,
+            proof: clause.proof,
             to: clause.to,
             value: clause.value,
           })),

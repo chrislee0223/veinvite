@@ -60,6 +60,32 @@ function readManifestId(
   return BigInt(normalized).toString();
 }
 
+async function fundedRewardsMayBeSigned(
+  network: string,
+): Promise<boolean> {
+  if (network !== 'mainnet') {
+    return true;
+  }
+
+  const { data, error } =
+    await supabaseAdmin
+      .from('reward_runtime_config')
+      .select('mainnet_funded_rewards_enabled')
+      .eq('id', 1)
+      .maybeSingle();
+
+  if (error) {
+    throw new Error(
+      `Funded reward runtime gate could not be loaded: ${error.message}`,
+    );
+  }
+
+  return (
+    data?.mainnet_funded_rewards_enabled ===
+    true
+  );
+}
+
 export async function POST(
   request: NextRequest,
 ) {
@@ -140,6 +166,29 @@ export async function POST(
         },
         {
           status: 403,
+          headers: {
+            'Cache-Control': 'no-store',
+          },
+        },
+      );
+    }
+
+    if (
+      !(await fundedRewardsMayBeSigned(
+        pool.network,
+      ))
+    ) {
+      return NextResponse.json(
+        {
+          readyToSign: false,
+          code: 'FUNDED_REWARDS_DISABLED',
+          error:
+            'Mainnet funded rewards are disabled by the VeInvite runtime safety gate. Do not sign a payout transaction.',
+          transactionSubmitted: false,
+          transfersPerformed: false,
+        },
+        {
+          status: 409,
           headers: {
             'Cache-Control': 'no-store',
           },

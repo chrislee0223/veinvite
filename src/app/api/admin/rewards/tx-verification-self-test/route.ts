@@ -22,6 +22,7 @@ const eventInterface = new Interface([
 function rewardEvent(
   amountWei: string,
   recipient: string,
+  proof: string,
 ) {
   const event =
     eventInterface.getEvent('RewardDistributed');
@@ -39,7 +40,7 @@ function rewardEvent(
         amountWei,
         appId,
         recipient,
-        '',
+        proof,
         operatorWallet,
       ],
     );
@@ -144,6 +145,7 @@ export async function GET() {
               rewardEvent(
                 clause.amountWei,
                 clause.recipientWallet,
+                clause.proof,
               ),
             ],
           }),
@@ -253,6 +255,38 @@ export async function GET() {
                             manifest.clauses[0]
                               ?.recipientWallet ??
                               '0x0000000000000000000000000000000000000011',
+                            manifest.clauses[0]
+                              ?.proof ?? '',
+                          ),
+                        ],
+                      }
+                    : output,
+              ),
+            },
+          }),
+        ),
+      wrongProofFails:
+        expectVerificationError(
+          'TX_EVENT_MISMATCH',
+          () => verifyPayoutTransactionEvidence({
+            manifest,
+            operatorWallet,
+            manifestCreatedAt,
+            evidence: {
+              ...evidence,
+              outputs: evidence.outputs.map(
+                (output, index) =>
+                  index === 0
+                    ? {
+                        events: [
+                          rewardEvent(
+                            manifest.clauses[0]
+                              ?.amountWei ??
+                              '1000000000000000000',
+                            manifest.clauses[0]
+                              ?.recipientWallet ??
+                              '0x0000000000000000000000000000000000000011',
+                            'veinvite:wrong-proof',
                           ),
                         ],
                       }

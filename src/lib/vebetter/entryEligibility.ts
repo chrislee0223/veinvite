@@ -8,7 +8,9 @@ import {
 
 export const RETURNING_USER_DORMANCY_ROUNDS = 12;
 export const ENTRY_ELIGIBILITY_RULE_VERSION =
-  'entry-history-v2-12-completed-rounds';
+  'entry-history-v3-positive-rewards-12-completed-rounds';
+
+const PAGE_SIZE = 1000;
 
 const rewardDistributedEvent = new ABIEvent(
   'event RewardDistributed(uint256 amount, bytes32 indexed appId, address indexed receiver, string proof, address indexed distributor)',
@@ -46,6 +48,7 @@ const xAllocationVotingRoundAbi = [
 ] as const;
 
 type RawLog = {
+  data?: string;
   meta?: {
     blockNumber?: number;
     txID?: string;
@@ -188,6 +191,25 @@ function parseChainEvent(
   }
 
   return { txId, blockNumber };
+}
+
+function parseRewardAmountWei(
+  log: RawLog,
+  label: string,
+): bigint {
+  const normalized =
+    log.data?.trim().toLowerCase().replace(/^0x/, '') ?? '';
+
+  if (
+    normalized.length < 64 ||
+    !/^[0-9a-f]+$/.test(normalized)
+  ) {
+    throw new Error(
+      `${label} history returned malformed reward amount data.`,
+    );
+  }
+
+  return BigInt(`0x${normalized.slice(0, 64)}`);
 }
 
 async function getDormancyRoundWindow({
@@ -333,29 +355,47 @@ async function findFirstRewardEvent({
     return null;
   }
 
-  const logs = await thor.logs.filterRawEventLogs({
-    range: {
-      unit: 'block',
-      from: fromBlock,
-      to: toBlock,
-    },
-    options: { offset: 0, limit: 1 },
-    criteriaSet: [
-      {
-        address: x2EarnRewardsPoolAddress,
-        topic0: getSingleTopic(rewardTopics[0]),
-        topic1: getSingleTopic(rewardTopics[1]),
-        topic2: getSingleTopic(rewardTopics[2]),
-        topic3: getSingleTopic(rewardTopics[3]),
-      },
-    ],
-    order: 'asc',
-  });
+  let offset = 0;
 
-  return parseChainEvent(
-    (logs as RawLog[])[0],
-    label,
-  );
+  while (true) {
+    const logs = await thor.logs.filterRawEventLogs({
+      range: {
+        unit: 'block',
+        from: fromBlock,
+        to: toBlock,
+      },
+      options: {
+        offset,
+        limit: PAGE_SIZE,
+      },
+      criteriaSet: [
+        {
+          address: x2EarnRewardsPoolAddress,
+          topic0: getSingleTopic(rewardTopics[0]),
+          topic1: getSingleTopic(rewardTopics[1]),
+          topic2: getSingleTopic(rewardTopics[2]),
+          topic3: getSingleTopic(rewardTopics[3]),
+        },
+      ],
+      order: 'asc',
+    });
+
+    const rawLogs = logs as RawLog[];
+
+    for (const log of rawLogs) {
+      if (parseRewardAmountWei(log, label) <= 0n) {
+        continue;
+      }
+
+      return parseChainEvent(log, label);
+    }
+
+    if (rawLogs.length < PAGE_SIZE) {
+      return null;
+    }
+
+    offset += PAGE_SIZE;
+  }
 }
 
 async function findFirstVoteEvent({
@@ -406,20 +446,21 @@ async function findFirstVoteEvent({
 /**
  * Classifies a wallet at the sealed invitation-entry block.
  *
- * NEW: no rewarded/voting VeBetterDAO history before entry.
- * RETURNING: historical rewarded/voting activity exists, but none from the
- * start of the oldest of the previous 12 completed rounds through entry.
- * ACTIVE EXISTING: at least one reward or allocation vote exists in that
- * recent window.
+ * NEW: no positive B3TR reward or allocation-voting VeBetterDAO history
+ * before entry.
+ * RETURNING: historical positive-reward/voting activity exists, but none from
+ * the start of the oldest of the previous 12 completed rounds through entry.
+ * ACTIVE EXISTING: at least one positive reward or allocation vote exists in
+ * that recent window.
  *
  * The recent scan deliberately continues through the sealed checked block,
  * including any activity in an ongoing round. This prevents a recently active
  * wallet from bypassing the 12-completed-round dormancy rule.
  *
- * This proves rewarded/voting VeBetterDAO history only. It does not claim
- * one-human-one-wallet identity or detect every possible un-rewarded dApp
- * interaction. Any node/indexing/round-read failure throws and fails closed,
- * leaving the invitation unconsumed.
+ * This proves positive rewarded/voting VeBetterDAO history only. It does not
+ * claim one-human-one-wallet identity or detect every possible un-rewarded
+ * dApp interaction. Any node/indexing/round-read failure throws and fails
+ * closed, leaving the invitation unconsumed.
  */
 export async function checkVeBetterEntryEligibility({
   walletAddress: rawWalletAddress,
