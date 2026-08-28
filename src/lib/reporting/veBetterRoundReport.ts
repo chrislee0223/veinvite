@@ -3,8 +3,9 @@ import { formatWeiAsB3tr } from '@/lib/reporting/roundReport';
 type JsonObject = Record<string, unknown>;
 
 export type VeBetterRoundReport = {
-  reportVersion: string;
+  reportVersion: 'veinvite-vebetter-round-report-v2';
   reportComplete: boolean;
+  queuedCandidatesAwaitingReward: number;
   network: string;
   appId: string;
   veBetterRoundId: string;
@@ -109,6 +110,20 @@ export function normalizeVeBetterRoundReport(
   value: unknown,
 ): VeBetterRoundReport {
   const root = asObject(value, 'VeBetter round report');
+  const reportVersion = stringValue(
+    root.reportVersion,
+    'Report version',
+  );
+
+  if (
+    reportVersion !==
+    'veinvite-vebetter-round-report-v2'
+  ) {
+    throw new Error(
+      `Unsupported VeBetter round report version: ${reportVersion}`,
+    );
+  }
+
   const funding = asObject(root.funding, 'Funding report');
   const participation = asObject(root.participation, 'Participation report');
   const rewards = asObject(root.rewards, 'Reward report');
@@ -159,8 +174,14 @@ export function normalizeVeBetterRoundReport(
         ).toString();
 
   return {
-    reportVersion: stringValue(root.reportVersion, 'Report version'),
+    reportVersion:
+      'veinvite-vebetter-round-report-v2',
     reportComplete: root.reportComplete === true,
+    queuedCandidatesAwaitingReward:
+      safeCount(
+        root.queuedCandidatesAwaitingReward,
+        'Queued candidates awaiting reward',
+      ),
     network: stringValue(root.network, 'Network'),
     appId: stringValue(root.appId, 'App id'),
     veBetterRoundId: unsignedInteger(root.veBetterRoundId, 'VeBetter round id'),
@@ -291,10 +312,10 @@ export function buildVeBetterRoundReportPosts(
 
   const statusEn = report.reportComplete
     ? ''
-    : '\n⏳ Reward processing is not final yet.';
+    : `\n⏳ Reward processing is not final yet (${report.queuedCandidatesAwaitingReward} queued).`;
   const statusKo = report.reportComplete
     ? ''
-    : '\n⏳ 아직 보상 처리가 최종 완료되지 않았습니다.';
+    : `\n⏳ 아직 보상 처리가 최종 완료되지 않았습니다 (대기 ${report.queuedCandidatesAwaitingReward}건).`;
 
   return {
     en: [
