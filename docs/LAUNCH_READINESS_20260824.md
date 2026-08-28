@@ -33,13 +33,15 @@ Existing accepted referrals created before the audited entry-proof system must n
 
 - [ ] Background reconciliation meets the one-hour freshness target independently of page visits. A daily fallback exists, but its frequency is not yet sufficient for that target.
 - [ ] Data-quality gate is clean before operator/public metrics are reported.
-- [ ] Public weekly reporting is mainnet-only, UTC-scoped, launch-baselined, and based on raw chain evidence.
-- [ ] Published weekly reports are immutable snapshots with explicit revisions rather than silent rewrites.
+- [x] Public NEW/RETURNING reporting is fail-closed until a one-way VeBetterDAO round baseline is locked, and pre-baseline eligibility events are excluded.
+- [ ] Select and lock the first official Production VeBetterDAO reporting round.
+- [x] Completed-round growth reports are append-only snapshots; changed evidence creates a new version with a required revision reason.
 
 ## Launch-day operations
 
 - [ ] Confirm VeInvite appears in the new mainnet allocation voting list.
 - [ ] Confirm production health after deployment.
 - [ ] Watch Vercel runtime errors and Supabase data-quality state during first traffic.
+- [ ] Confirm the first completed post-baseline growth snapshot is created by the reconciliation cron and matches the live operator view.
 - [ ] Keep automatic payouts disabled.
 - [ ] Have a rollback target ready (last known-good production deployment).
