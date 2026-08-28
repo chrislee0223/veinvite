@@ -53,6 +53,26 @@ type Participant = {
   } | null;
 };
 
+type GrowthRow = {
+  roundId: string;
+  verifiedNewUsers: string;
+  activatedNewUsers: string;
+  flaggedNewUsers: string;
+  verifiedReturningUsers: string;
+  activatedReturningUsers: string;
+  activeExistingRejectedUsers: string;
+  activeExistingRejectionAttempts: string;
+  cumulativeVerifiedNewUsers: string;
+  cumulativeActivatedNewUsers: string;
+  cumulativeFlaggedNewUsers: string;
+  cumulativeVerifiedReturningUsers: string;
+  cumulativeActivatedReturningUsers: string;
+  cumulativeActiveExistingRejectedUsers: string;
+  cumulativeActiveExistingRejectionAttempts: string;
+  firstVerifiedEntryAt: string | null;
+  latestVerifiedEntryAt: string | null;
+};
+
 type ParticipantOverview = {
   network: string;
   verifiedOperator: string;
@@ -62,6 +82,20 @@ type ParticipantOverview = {
     returningUsers: number;
     activeExistingUsers: number;
     queuedRewards: number;
+  };
+  growth: {
+    metricDefinition: string;
+    currentRound: {
+      id: string;
+      status: string;
+      startAt: string;
+      endAt: string;
+      endAtEstimated: boolean;
+      checkedThroughBlock: string;
+    };
+    current: GrowthRow | null;
+    previous: GrowthRow | null;
+    trend: GrowthRow[];
   };
   participants: Participant[];
 };
@@ -130,6 +164,14 @@ function yesNo(value: boolean) {
   return value ? '완료 / Done' : '대기 / Pending';
 }
 
+function formatCount(value: string) {
+  const parsed = Number(value);
+
+  return Number.isSafeInteger(parsed)
+    ? parsed.toLocaleString('ko-KR')
+    : value;
+}
+
 export function ParticipantsAdminClient() {
   const { account } = useWallet();
   const walletAddress =
@@ -143,6 +185,8 @@ export function ParticipantsAdminClient() {
     useState(false);
   const [error, setError] =
     useState('');
+  const [copiedLanguage, setCopiedLanguage] =
+    useState<'ko' | 'en' | null>(null);
 
   const load = useCallback(async () => {
     if (!walletAddress) {
@@ -214,6 +258,61 @@ export function ParticipantsAdminClient() {
     'ACTIVE_EXISTING',
   ];
 
+  const growthCopy = useMemo(() => {
+    const current = overview?.growth.current;
+
+    if (!overview || !current) {
+      return null;
+    }
+
+    const roundId =
+      overview.growth.currentRound.id;
+    const currentActivatedNew = formatCount(
+      current.activatedNewUsers,
+    );
+    const currentActivatedReturning = formatCount(
+      current.activatedReturningUsers,
+    );
+    const cumulativeActivatedNew = formatCount(
+      current.cumulativeActivatedNewUsers,
+    );
+    const cumulativeActivatedReturning = formatCount(
+      current.cumulativeActivatedReturningUsers,
+    );
+
+    return {
+      ko:
+        `VeBetterDAO 라운드 ${roundId}에 VeInvite로 유입된 사용자 중 신규 ${currentActivatedNew}명과 복귀 ${currentActivatedReturning}명이 마지막 미션까지 모두 완료하고 Sybil 검증을 통과했습니다. ` +
+        `지금까지 누적 완료자는 신규 ${cumulativeActivatedNew}명, 복귀 ${cumulativeActivatedReturning}명입니다.`,
+      en:
+        `Among users who entered through VeInvite in VeBetterDAO Round ${roundId}, ${currentActivatedNew} new user(s) and ${currentActivatedReturning} returning user(s) completed every onboarding mission and passed Sybil screening. ` +
+        `Cumulative completions are ${cumulativeActivatedNew} new user(s) and ${cumulativeActivatedReturning} returning user(s).`,
+    };
+  }, [overview]);
+
+  const copyGrowthMessage = useCallback(
+    async (language: 'ko' | 'en') => {
+      const message = growthCopy?.[language];
+
+      if (!message) {
+        return;
+      }
+
+      try {
+        await window.navigator.clipboard.writeText(
+          message,
+        );
+        setCopiedLanguage(language);
+      } catch (copyError) {
+        console.error(
+          'Failed to copy growth message:',
+          copyError,
+        );
+      }
+    },
+    [growthCopy],
+  );
+
   return (
     <main
       style={{
@@ -258,7 +357,7 @@ export function ParticipantsAdminClient() {
                 fontSize: 'clamp(26px, 5vw, 40px)',
               }}
             >
-              참가자 현황 / Participants
+              성장·참가자 현황 / Growth & Participants
             </h1>
             <p
               style={{
@@ -267,9 +366,9 @@ export function ParticipantsAdminClient() {
                 lineHeight: 1.5,
               }}
             >
-              신규·복귀·활성 기존 유저 판정과 미션·보상 상태를 확인합니다.
+              라운드별 신규 유입 성장과 유저 판정·미션·보상 상태를 확인합니다.
               <br />
-              View entry classification, mission progress, and reward status.
+              View round-based growth, entry classification, missions, and rewards.
             </p>
           </div>
 
@@ -363,6 +462,310 @@ export function ParticipantsAdminClient() {
 
         {overview ? (
           <>
+            {overview.growth.current ? (
+              <section
+                style={{
+                  border: '1px solid rgba(255,184,77,0.28)',
+                  background:
+                    'linear-gradient(145deg, rgba(255,184,77,0.12), rgba(116,72,255,0.09))',
+                  borderRadius: '22px',
+                  padding: '20px',
+                  display: 'grid',
+                  gap: '18px',
+                }}
+              >
+                <div
+                  style={{
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'flex-start',
+                    gap: '12px',
+                    flexWrap: 'wrap',
+                  }}
+                >
+                  <div>
+                    <div
+                      style={{
+                        color: '#ffca78',
+                        fontSize: '12px',
+                        fontWeight: 900,
+                        letterSpacing: '0.06em',
+                      }}
+                    >
+                      VERIFIED GROWTH
+                    </div>
+                    <h2
+                      style={{
+                        margin: '5px 0 4px',
+                        fontSize: '24px',
+                      }}
+                    >
+                      신규 유입 성장 / New-user growth
+                    </h2>
+                    <div
+                      style={{
+                        opacity: 0.68,
+                        fontSize: '13px',
+                      }}
+                    >
+                      VeBetterDAO Round {overview.growth.currentRound.id} ·{' '}
+                      {overview.growth.currentRound.status}
+                    </div>
+                  </div>
+                  <div
+                    style={{
+                      border: '1px solid rgba(255,255,255,0.14)',
+                      borderRadius: '12px',
+                      padding: '9px 12px',
+                      fontSize: '12px',
+                      opacity: 0.75,
+                    }}
+                  >
+                    기준 블록 / Through block{' '}
+                    {overview.growth.currentRound.checkedThroughBlock}
+                  </div>
+                </div>
+
+                <div
+                  style={{
+                    display: 'grid',
+                    gridTemplateColumns:
+                      'repeat(auto-fit, minmax(155px, 1fr))',
+                    gap: '10px',
+                  }}
+                >
+                  {[
+                    [
+                      '이번 라운드 유입 신규 완료',
+                      'Completed new · entry cohort',
+                      overview.growth.current.activatedNewUsers,
+                    ],
+                    [
+                      '누적 완료 신규',
+                      'Cumulative completed new',
+                      overview.growth.current.cumulativeActivatedNewUsers,
+                    ],
+                    [
+                      '이번 라운드 유입 복귀 완료',
+                      'Completed returning · entry cohort',
+                      overview.growth.current.activatedReturningUsers,
+                    ],
+                    [
+                      '누적 완료 복귀',
+                      'Cumulative completed returning',
+                      overview.growth.current.cumulativeActivatedReturningUsers,
+                    ],
+                    [
+                      '검증 신규 진입 · 내부 퍼널',
+                      'Verified new entries · internal',
+                      overview.growth.current.verifiedNewUsers,
+                    ],
+                    [
+                      '검증 복귀 진입 · 내부 퍼널',
+                      'Verified returning entries · internal',
+                      overview.growth.current.verifiedReturningUsers,
+                    ],
+                    [
+                      'Sybil 확인 필요 신규',
+                      'Flagged new users',
+                      overview.growth.current.flaggedNewUsers,
+                    ],
+                    [
+                      '조건 미충족 거절 지갑',
+                      `Rejected wallets · ${formatCount(overview.growth.current.activeExistingRejectionAttempts)} attempts`,
+                      overview.growth.current.activeExistingRejectedUsers,
+                    ],
+                  ].map(([ko, en, value]) => (
+                    <div
+                      key={String(ko)}
+                      style={{
+                        border: '1px solid rgba(255,255,255,0.1)',
+                        borderRadius: '15px',
+                        background: 'rgba(7,9,18,0.34)',
+                        padding: '15px',
+                      }}
+                    >
+                      <div
+                        style={{
+                          fontSize: '12px',
+                          opacity: 0.72,
+                          lineHeight: 1.4,
+                        }}
+                      >
+                        {ko}
+                        <br />
+                        {en}
+                      </div>
+                      <strong
+                        style={{
+                          display: 'block',
+                          marginTop: '6px',
+                          fontSize: '28px',
+                        }}
+                      >
+                        {formatCount(String(value))}
+                      </strong>
+                    </div>
+                  ))}
+                </div>
+
+                <div
+                  style={{
+                    overflowX: 'auto',
+                    border: '1px solid rgba(255,255,255,0.09)',
+                    borderRadius: '15px',
+                  }}
+                >
+                  <table
+                    style={{
+                      width: '100%',
+                      minWidth: '1100px',
+                      borderCollapse: 'collapse',
+                      fontSize: '13px',
+                    }}
+                  >
+                    <thead>
+                      <tr
+                        style={{
+                          background: 'rgba(0,0,0,0.2)',
+                          textAlign: 'left',
+                        }}
+                      >
+                        {[
+                          'Round',
+                          '유입 신규 완료 / Completed new cohort',
+                          '유입 복귀 완료 / Completed returning cohort',
+                          '검증 신규 / Verified new (internal)',
+                          '검증 복귀 / Verified returning (internal)',
+                          '거절 지갑 / Rejected',
+                          '누적 완료 신규 / Cumulative new',
+                          '누적 완료 복귀 / Cumulative returning',
+                        ].map((label) => (
+                          <th
+                            key={label}
+                            style={{
+                              padding: '11px 12px',
+                              whiteSpace: 'nowrap',
+                            }}
+                          >
+                            {label}
+                          </th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {overview.growth.trend
+                        .slice(0, 8)
+                        .map((row) => (
+                          <tr
+                            key={row.roundId}
+                            style={{
+                              borderTop:
+                                '1px solid rgba(255,255,255,0.08)',
+                            }}
+                          >
+                            {[
+                              row.roundId,
+                              row.activatedNewUsers,
+                              row.activatedReturningUsers,
+                              row.verifiedNewUsers,
+                              row.verifiedReturningUsers,
+                              row.activeExistingRejectedUsers,
+                              row.cumulativeActivatedNewUsers,
+                              row.cumulativeActivatedReturningUsers,
+                            ].map((value, index) => (
+                              <td
+                                key={`${row.roundId}-${index}`}
+                                style={{
+                                  padding: '11px 12px',
+                                }}
+                              >
+                                {formatCount(value)}
+                              </td>
+                            ))}
+                          </tr>
+                        ))}
+                    </tbody>
+                  </table>
+                </div>
+
+                {growthCopy ? (
+                  <div
+                    style={{
+                      display: 'grid',
+                      gap: '10px',
+                    }}
+                  >
+                    {(['ko', 'en'] as const).map(
+                      (language) => (
+                        <div
+                          key={language}
+                          style={{
+                            display: 'flex',
+                            alignItems: 'flex-start',
+                            justifyContent: 'space-between',
+                            gap: '12px',
+                            padding: '13px',
+                            borderRadius: '14px',
+                            background: 'rgba(0,0,0,0.2)',
+                            fontSize: '13px',
+                            lineHeight: 1.55,
+                          }}
+                        >
+                          <span>{growthCopy[language]}</span>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              void copyGrowthMessage(language);
+                            }}
+                            style={{
+                              flex: '0 0 auto',
+                              border:
+                                '1px solid rgba(255,255,255,0.14)',
+                              background: 'rgba(255,255,255,0.05)',
+                              color: '#ffffff',
+                              borderRadius: '10px',
+                              padding: '8px 10px',
+                            }}
+                          >
+                            {copiedLanguage === language
+                              ? '복사됨 / Copied'
+                              : '복사 / Copy'}
+                          </button>
+                        </div>
+                      ),
+                    )}
+                  </div>
+                ) : null}
+
+                <p
+                  style={{
+                    margin: 0,
+                    opacity: 0.62,
+                    fontSize: '12px',
+                    lineHeight: 1.55,
+                  }}
+                >
+                  {overview.growth.metricDefinition}
+                  <br />
+                  공개 성과는 마지막 미션까지 완료하고 Sybil CLEAR인 신규·복귀
+                  사용자만 사용합니다. 검증 진입 수는 내부 퍼널로만 표시합니다. /
+                  Public impact includes only new and returning users who
+                  completed every mission and received Sybil CLEAR; verified
+                  entries remain an internal funnel metric.
+                </p>
+              </section>
+            ) : null}
+
+            <h2
+              style={{
+                margin: '4px 0 -8px',
+                fontSize: '20px',
+              }}
+            >
+              참가자 기록 / Participant records
+            </h2>
+
             <section
               style={{
                 display: 'grid',
