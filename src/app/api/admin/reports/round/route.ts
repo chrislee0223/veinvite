@@ -53,14 +53,12 @@ type QueueRow = {
   entry_class: string;
 };
 
-type WeeklyImpactRow = {
-  successful_referrals_completed: number | string | null;
-  paid_referral_rewards: number | string | null;
-  rewarded_wallets: number | string | null;
-  b3tr_distributed_wei: string | number | null;
+type SybilReviewRow = {
+  invite_code: string;
+  resulting_status: string;
 };
 
-function countDistinct(
+function distinctWalletCount(
   rows: EligibilityRow[],
   predicate: (row: EligibilityRow) => boolean,
 ): number {
@@ -71,20 +69,32 @@ function countDistinct(
   ).size;
 }
 
-function toSafeCount(value: unknown): number {
-  const parsed = Number(value ?? 0);
-  if (!Number.isSafeInteger(parsed) || parsed < 0) {
-    throw new Error('Report count is not a safe non-negative integer.');
-  }
-  return parsed;
-}
-
 function toUnsignedIntegerString(value: unknown): string {
   const normalized = String(value ?? '0');
+
   if (!/^\d+$/.test(normalized)) {
-    throw new Error('Report amount is not an unsigned integer string.');
+    throw new Error(
+      'Report amount is not an unsigned integer string.',
+    );
   }
+
   return BigInt(normalized).toString();
+}
+
+function sameStringSet(
+  left: string[],
+  right: string[],
+): boolean {
+  const leftSet = new Set(left);
+  const rightSet = new Set(right);
+
+  if (leftSet.size !== rightSet.size) {
+    return false;
+  }
+
+  return [...leftSet].every((value) =>
+    rightSet.has(value),
+  );
 }
 
 async function loadCompletedRound({
@@ -108,7 +118,9 @@ async function loadCompletedRound({
   if (requestedRoundId) {
     query = query.eq('id', requestedRoundId);
   } else {
-    query = query.order('id', { ascending: false }).limit(1);
+    query = query
+      .order('id', { ascending: false })
+      .limit(1);
   }
 
   const { data, error } = await query.maybeSingle();
@@ -122,15 +134,44 @@ async function loadCompletedRound({
   return (data as RewardRoundRow | null) ?? null;
 }
 
+async function loadReportingBaseline(
+  network: string,
+): Promise<string | null> {
+  const { data, error } = await supabaseAdmin
+    .from('operator_reporting_config')
+    .select('reporting_start_at, reporting_network')
+    .eq('id', 1)
+    .maybeSingle();
+
+  if (error) {
+    throw new Error(
+      `Reporting baseline could not be loaded: ${error.message}`,
+    );
+  }
+
+  if (
+    data?.reporting_network !== network ||
+    !data.reporting_start_at
+  ) {
+    return null;
+  }
+
+  return data.reporting_start_at;
+}
+
 async function loadPeriodStart({
   round,
+  baseline,
 }: {
   round: RewardRoundRow;
+  baseline: string;
 }): Promise<{
-  periodStart: string | null;
-  source: 'PREVIOUS_REWARD_ROUND' | 'LAUNCH_BASELINE' | 'MISSING';
+  periodStart: string;
+  source:
+    | 'PREVIOUS_REWARD_ROUND'
+    | 'LAUNCH_BASELINE';
 }> {
-  const previousRoundResult = await supabaseAdmin
+  const { data, error } = await supabaseAdmin
     .from('reward_rounds')
     .select('id, created_at')
     .eq('network', round.network)
@@ -140,44 +181,26 @@ async function loadPeriodStart({
     .limit(1)
     .maybeSingle();
 
-  if (previousRoundResult.error) {
+  if (error) {
     throw new Error(
-      `Previous reward round could not be loaded: ${previousRoundResult.error.message}`,
-    );
-  }
-
-  if (previousRoundResult.data?.created_at) {
-    return {
-      periodStart: previousRoundResult.data.created_at,
-      source: 'PREVIOUS_REWARD_ROUND',
-    };
-  }
-
-  const configResult = await supabaseAdmin
-    .from('operator_reporting_config')
-    .select('reporting_start_at, reporting_network')
-    .eq('id', 1)
-    .maybeSingle();
-
-  if (configResult.error) {
-    throw new Error(
-      `Reporting baseline could not be loaded: ${configResult.error.message}`,
+      `Previous reward round could not be loaded: ${error.message}`,
     );
   }
 
   if (
-    configResult.data?.reporting_network === round.network &&
-    configResult.data.reporting_start_at
+    data?.created_at &&
+    new Date(data.created_at).getTime() >=
+      new Date(baseline).getTime()
   ) {
     return {
-      periodStart: configResult.data.reporting_start_at,
-      source: 'LAUNCH_BASELINE',
+      periodStart: data.created_at,
+      source: 'PREVIOUS_REWARD_ROUND',
     };
   }
 
   return {
-    periodStart: null,
-    source: 'MISSING',
+    periodStart: baseline,
+    source: 'LAUNCH_BASELINE',
   };
 }
 
@@ -209,7 +232,7 @@ export async function GET(request: NextRequest) {
 
     if (
       requestedRoundId &&
-      !/^\d+$/.test(requestedRoundId)
+      !/^[1-9]\d*$/.test(requestedRoundId)
     ) {
       return NextResponse.json(
         { error: 'roundId must be a positive integer.' },
@@ -229,10 +252,9 @@ export async function GET(request: NextRequest) {
     if (!round) {
       return NextResponse.json(
         {
-          error:
-            requestedRoundId
-              ? 'The requested completed reward round was not found.'
-              : 'No completed reward round is available yet.',
+          error: requestedRoundId
+            ? 'The requested completed reward round was not found.'
+            : 'No completed reward round is available yet.',
         },
         {
           status: 404,
@@ -241,17 +263,16 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    const { periodStart, source } =
-      await loadPeriodStart({ round });
+    const baseline =
+      await loadReportingBaseline(round.network);
 
-    if (!periodStart) {
+    if (!baseline) {
       return NextResponse.json(
         {
           error:
-            'The first public reporting window has no launch baseline yet.',
+            'Public reporting has no launch baseline yet.',
           code: 'REPORTING_BASELINE_REQUIRED',
           rewardRoundId: String(round.id),
-          periodEnd: round.created_at,
           writesPerformed: false,
           transfersPerformed: false,
         },
@@ -262,14 +283,58 @@ export async function GET(request: NextRequest) {
       );
     }
 
+    if (
+      new Date(round.created_at).getTime() <
+      new Date(baseline).getTime()
+    ) {
+      return NextResponse.json(
+        {
+          error:
+            'The requested reward round predates the public reporting baseline.',
+          code: 'ROUND_PREDATES_REPORTING_BASELINE',
+          rewardRoundId: String(round.id),
+          writesPerformed: false,
+          transfersPerformed: false,
+        },
+        {
+          status: 409,
+          headers: { 'Cache-Control': 'no-store' },
+        },
+      );
+    }
+
+    const { periodStart, source } =
+      await loadPeriodStart({
+        round,
+        baseline,
+      });
+
+    const cumulativeRoundsResult = await supabaseAdmin
+      .from('reward_rounds')
+      .select('id')
+      .eq('network', round.network)
+      .eq('app_id', round.app_id)
+      .eq('status', 'COMPLETED')
+      .gte('completed_at', baseline);
+
+    if (cumulativeRoundsResult.error) {
+      throw new Error(
+        `Cumulative reward rounds could not be loaded: ${cumulativeRoundsResult.error.message}`,
+      );
+    }
+
+    const cumulativeRoundIds = (
+      cumulativeRoundsResult.data ?? []
+    ).map((row) => String(row.id));
+
     const [
       eligibilityResult,
       payoutResult,
       queueResult,
       completedInPeriodResult,
-      blockedResult,
+      sybilReviewResult,
       cumulativeEligibilityResult,
-      cumulativeWeeklyResult,
+      cumulativeCompletedResult,
     ] = await Promise.all([
       supabaseAdmin
         .from('eligibility_check_events')
@@ -299,26 +364,24 @@ export async function GET(request: NextRequest) {
         .gte('eligible_at', periodStart)
         .lt('eligible_at', round.created_at),
       supabaseAdmin
-        .from('invitations')
-        .select('invite_code', {
-          count: 'exact',
-          head: true,
-        })
-        .eq('activation_network', round.network)
-        .eq('sybil_status', 'BLOCKED')
-        .gte('sybil_checked_at', periodStart)
-        .lt('sybil_checked_at', round.created_at),
+        .from('sybil_review_events')
+        .select('invite_code, resulting_status')
+        .eq('resulting_status', 'BLOCKED')
+        .gte('created_at', periodStart)
+        .lt('created_at', round.created_at),
       supabaseAdmin
         .from('eligibility_check_events')
         .select('wallet_address, outcome, entry_class')
         .eq('network', round.network)
-        .gte('created_at', periodStart),
+        .gte('created_at', baseline),
       supabaseAdmin
-        .from('operator_public_weekly_impact')
-        .select(
-          'successful_referrals_completed, paid_referral_rewards, rewarded_wallets, b3tr_distributed_wei',
-        )
-        .eq('network', round.network),
+        .from('reward_queue_entries')
+        .select('invite_code', {
+          count: 'exact',
+          head: true,
+        })
+        .eq('network', round.network)
+        .gte('eligible_at', baseline),
     ]);
 
     const queryErrors = [
@@ -326,9 +389,9 @@ export async function GET(request: NextRequest) {
       payoutResult.error,
       queueResult.error,
       completedInPeriodResult.error,
-      blockedResult.error,
+      sybilReviewResult.error,
       cumulativeEligibilityResult.error,
-      cumulativeWeeklyResult.error,
+      cumulativeCompletedResult.error,
     ].filter(Boolean);
 
     if (queryErrors.length > 0) {
@@ -339,12 +402,36 @@ export async function GET(request: NextRequest) {
       );
     }
 
+    let cumulativePayoutRows: PayoutRow[] = [];
+
+    if (cumulativeRoundIds.length > 0) {
+      const cumulativePayoutResult = await supabaseAdmin
+        .from('reward_payouts')
+        .select(
+          'invite_code, recipient_wallet, amount_wei, status, paid_at',
+        )
+        .in('round_id', cumulativeRoundIds)
+        .eq('status', 'PAID')
+        .gte('paid_at', baseline);
+
+      if (cumulativePayoutResult.error) {
+        throw new Error(
+          `Cumulative payouts could not be loaded: ${cumulativePayoutResult.error.message}`,
+        );
+      }
+
+      cumulativePayoutRows =
+        (cumulativePayoutResult.data ?? []) as PayoutRow[];
+    }
+
     const eligibilityRows =
       (eligibilityResult.data ?? []) as EligibilityRow[];
     const payoutRows =
       (payoutResult.data ?? []) as PayoutRow[];
     const queueRows =
       (queueResult.data ?? []) as QueueRow[];
+    const sybilRows =
+      (sybilReviewResult.data ?? []) as SybilReviewRow[];
 
     const paidRows = payoutRows.filter(
       (row) => row.status === 'PAID' && row.paid_at,
@@ -373,39 +460,17 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    const distributedWei = paidRows
-      .reduce(
-        (sum, row) =>
-          sum + BigInt(toUnsignedIntegerString(row.amount_wei)),
-        0n,
-      )
-      .toString();
+    const payoutCodes = paidRows.map((row) => row.invite_code);
+    const queueCodes = queueRows.map((row) => row.invite_code);
 
     if (
-      distributedWei !==
-      toUnsignedIntegerString(round.distributable_wei)
+      queueRows.length !== paidRows.length ||
+      !sameStringSet(payoutCodes, queueCodes)
     ) {
       return NextResponse.json(
         {
           error:
-            'The completed reward round payout total does not match its immutable distributable amount.',
-          code: 'ROUND_REPORT_AMOUNT_MISMATCH',
-          rewardRoundId: String(round.id),
-          writesPerformed: false,
-          transfersPerformed: false,
-        },
-        {
-          status: 409,
-          headers: { 'Cache-Control': 'no-store' },
-        },
-      );
-    }
-
-    if (queueRows.length !== paidRows.length) {
-      return NextResponse.json(
-        {
-          error:
-            'The reward queue assignment count does not match the settled payout count.',
+            'The assigned reward queue does not match the settled payout set.',
           code: 'ROUND_REPORT_QUEUE_MISMATCH',
           rewardRoundId: String(round.id),
           writesPerformed: false,
@@ -418,23 +483,61 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    const checkedWallets = countDistinct(
+    const distributedWei = paidRows
+      .reduce(
+        (sum, row) =>
+          sum +
+          BigInt(
+            toUnsignedIntegerString(row.amount_wei),
+          ),
+        0n,
+      )
+      .toString();
+
+    if (
+      distributedWei !==
+      toUnsignedIntegerString(round.distributable_wei)
+    ) {
+      return NextResponse.json(
+        {
+          error:
+            'The settled payout total does not match the immutable distributable amount.',
+          code: 'ROUND_REPORT_AMOUNT_MISMATCH',
+          rewardRoundId: String(round.id),
+          writesPerformed: false,
+          transfersPerformed: false,
+        },
+        {
+          status: 409,
+          headers: { 'Cache-Control': 'no-store' },
+        },
+      );
+    }
+
+    const checkedWallets = distinctWalletCount(
       eligibilityRows,
       () => true,
     );
-    const newUsers = countDistinct(
+    const newUsers = distinctWalletCount(
       eligibilityRows,
       (row) =>
         row.outcome === 'ELIGIBLE' &&
         row.entry_class === 'NEW',
     );
-    const returningUsers = countDistinct(
+    const returningUsers = distinctWalletCount(
       eligibilityRows,
       (row) =>
         row.outcome === 'ELIGIBLE' &&
         row.entry_class === 'RETURNING',
     );
-    const activeExistingUsers = countDistinct(
+    const eligibleUsers = distinctWalletCount(
+      eligibilityRows,
+      (row) =>
+        row.outcome === 'ELIGIBLE' &&
+        (row.entry_class === 'NEW' ||
+          row.entry_class === 'RETURNING'),
+    );
+    const activeExistingUsers = distinctWalletCount(
       eligibilityRows,
       (row) =>
         row.outcome === 'EXISTING_VEBETTER_USER' &&
@@ -476,49 +579,43 @@ export async function GET(request: NextRequest) {
 
     const cumulativeEligibilityRows =
       (cumulativeEligibilityResult.data ?? []) as EligibilityRow[];
-    const cumulativeNew = countDistinct(
+    const cumulativeNew = distinctWalletCount(
       cumulativeEligibilityRows,
       (row) =>
         row.outcome === 'ELIGIBLE' &&
         row.entry_class === 'NEW',
     );
-    const cumulativeReturning = countDistinct(
+    const cumulativeReturning = distinctWalletCount(
       cumulativeEligibilityRows,
       (row) =>
         row.outcome === 'ELIGIBLE' &&
         row.entry_class === 'RETURNING',
     );
+    const cumulativeEligible = distinctWalletCount(
+      cumulativeEligibilityRows,
+      (row) =>
+        row.outcome === 'ELIGIBLE' &&
+        (row.entry_class === 'NEW' ||
+          row.entry_class === 'RETURNING'),
+    );
 
-    const cumulativeWeeklyRows =
-      (cumulativeWeeklyResult.data ?? []) as WeeklyImpactRow[];
-    const cumulativeCompleted = cumulativeWeeklyRows.reduce(
-      (sum, row) =>
-        sum + toSafeCount(row.successful_referrals_completed),
-      0,
-    );
-    const cumulativePaid = cumulativeWeeklyRows.reduce(
-      (sum, row) =>
-        sum + toSafeCount(row.paid_referral_rewards),
-      0,
-    );
-    const cumulativeRewardedWallets = cumulativeWeeklyRows.reduce(
-      (sum, row) => sum + toSafeCount(row.rewarded_wallets),
-      0,
-    );
-    const cumulativeB3trWei = cumulativeWeeklyRows
+    const cumulativeB3trWei = cumulativePayoutRows
       .reduce(
         (sum, row) =>
           sum +
           BigInt(
-            toUnsignedIntegerString(
-              row.b3tr_distributed_wei,
-            ),
+            toUnsignedIntegerString(row.amount_wei),
           ),
         0n,
       )
       .toString();
+    const cumulativeRewardedWallets = new Set(
+      cumulativePayoutRows.map((row) =>
+        row.recipient_wallet.toLowerCase(),
+      ),
+    ).size;
 
-    const avgWei = averageWei(
+    const averageRewardWei = averageWei(
       distributedWei,
       paidRows.length,
     );
@@ -533,11 +630,18 @@ export async function GET(request: NextRequest) {
         checkedWallets,
         newUsers,
         returningUsers,
-        eligibleUsers: newUsers + returningUsers,
+        eligibleUsers,
         activeExistingUsers,
         completedOnboardings:
           completedInPeriodResult.count ?? 0,
-        sybilBlocked: blockedResult.count ?? 0,
+        sybilBlocked: new Set(
+          sybilRows
+            .filter(
+              (row) =>
+                row.resulting_status === 'BLOCKED',
+            )
+            .map((row) => row.invite_code),
+        ).size,
       },
       rewards: {
         successfulReferralsPaid: paidRows.length,
@@ -549,20 +653,22 @@ export async function GET(request: NextRequest) {
           distributedWei,
           2,
         ),
-        averageRewardWei: avgWei,
+        averageRewardWei,
         averageRewardB3tr: formatWeiAsB3tr(
-          avgWei,
+          averageRewardWei,
           2,
         ),
       },
       cumulative: {
         newUsers: cumulativeNew,
         returningUsers: cumulativeReturning,
-        eligibleUsers:
-          cumulativeNew + cumulativeReturning,
-        completedOnboardings: cumulativeCompleted,
-        paidReferralRewards: cumulativePaid,
-        rewardedWallets: cumulativeRewardedWallets,
+        eligibleUsers: cumulativeEligible,
+        completedOnboardings:
+          cumulativeCompletedResult.count ?? 0,
+        paidReferralRewards:
+          cumulativePayoutRows.length,
+        rewardedWallets:
+          cumulativeRewardedWallets,
         b3trDistributedWei: cumulativeB3trWei,
         b3trDistributed: formatWeiAsB3tr(
           cumulativeB3trWei,
@@ -576,6 +682,7 @@ export async function GET(request: NextRequest) {
         report,
         posts: buildRoundReportPosts(report),
         reportingWindowSource: source,
+        launchBaseline: baseline,
         observedPoolBalanceWei:
           toUnsignedIntegerString(
             round.observed_pool_balance_wei,
@@ -608,11 +715,15 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    console.error('Failed to build VeInvite round report:', error);
+    console.error(
+      'Failed to build VeInvite round report:',
+      error,
+    );
 
     return NextResponse.json(
       {
-        error: 'VeInvite round report could not be generated.',
+        error:
+          'VeInvite round report could not be generated.',
       },
       {
         status: 500,
