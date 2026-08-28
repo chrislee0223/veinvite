@@ -31,6 +31,21 @@ Do not use a weak signal by itself as proof of abuse. Shared funding, shared net
 
 ## Operator views
 
+For normal leaderboard questions, prefer the authenticated
+`/api/admin/analytics` endpoint. It defaults to one VeBetterDAO round and
+supports `scope=cumulative` for all-time totals. The service-role-only database
+functions are:
+
+- `get_operator_round_overview`
+- `get_operator_round_inviter_analytics`
+- `get_operator_round_reward_recipients`
+- `get_operator_round_dapp_rewards`
+- the matching `get_operator_cumulative_*` functions
+
+The older global views remain internal compatibility surfaces. Verified
+completion excludes legacy rows that only contain a historical `COMPLETED`
+label without raw-chain proof.
+
 ### Current suspicious referrals
 
 ```sql
@@ -137,3 +152,8 @@ When reporting to the operator, clearly distinguish:
 - and conclusions that still require review.
 
 Never describe a wallet as Sybil/abusive solely because it shares a funding source or transfers assets to another wallet.
+
+General B3TR transfers between wallets are not currently indexed. A future
+consolidation report must label many-to-one transfers as a review signal, not
+automatic proof, and should combine timing, referral relationships, mission
+history, and repeated destination patterns.
