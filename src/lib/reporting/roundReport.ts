@@ -49,7 +49,9 @@ export function formatWeiAsB3tr(
   maximumFractionDigits = 2,
 ): string {
   if (!/^\d+$/.test(rawWei)) {
-    throw new Error('B3TR wei value must be an unsigned integer string.');
+    throw new Error(
+      'B3TR wei value must be an unsigned integer string.',
+    );
   }
 
   if (
@@ -57,14 +59,19 @@ export function formatWeiAsB3tr(
     maximumFractionDigits < 0 ||
     maximumFractionDigits > 18
   ) {
-    throw new Error('maximumFractionDigits must be between 0 and 18.');
+    throw new Error(
+      'maximumFractionDigits must be between 0 and 18.',
+    );
   }
 
   const wei = BigInt(rawWei);
   const whole = wei / B3TR_SCALE;
   const remainder = wei % B3TR_SCALE;
 
-  if (maximumFractionDigits === 0 || remainder === 0n) {
+  if (
+    maximumFractionDigits === 0 ||
+    remainder === 0n
+  ) {
     return whole.toString();
   }
 
@@ -84,24 +91,36 @@ export function averageWei(
   count: number,
 ): string {
   if (!/^\d+$/.test(totalWei)) {
-    throw new Error('Total wei must be an unsigned integer string.');
+    throw new Error(
+      'Total wei must be an unsigned integer string.',
+    );
   }
 
   if (!Number.isSafeInteger(count) || count < 0) {
-    throw new Error('Reward count must be a safe non-negative integer.');
+    throw new Error(
+      'Reward count must be a safe non-negative integer.',
+    );
   }
 
   if (count === 0) {
     return '0';
   }
 
-  return (BigInt(totalWei) / BigInt(count)).toString();
+  return (
+    BigInt(totalWei) / BigInt(count)
+  ).toString();
 }
 
 function withThousands(value: string): string {
   const [whole, fraction] = value.split('.');
-  const grouped = whole.replace(/\B(?=(\d{3})+(?!\d))/g, ',');
-  return fraction ? `${grouped}.${fraction}` : grouped;
+  const grouped = whole.replace(
+    /\B(?=(\d{3})+(?!\d))/g,
+    ',',
+  );
+
+  return fraction
+    ? `${grouped}.${fraction}`
+    : grouped;
 }
 
 export function buildRoundReportPosts(
@@ -109,10 +128,16 @@ export function buildRoundReportPosts(
 ): { en: string; ko: string } {
   const p = report.participation;
   const r = report.rewards;
-  const distributed = withThousands(r.distributedB3tr);
+  const c = report.cumulative;
+  const distributed = withThousands(
+    r.distributedB3tr,
+  );
+  const cumulativeEligible = withThousands(
+    String(c.eligibleUsers),
+  );
 
   const en = [
-    `VeInvite — Reward Round ${report.rewardRoundId}`,
+    'VeInvite — Round Report',
     '',
     `👥 Invitees checked: ${p.checkedWallets}`,
     `🆕 New: ${p.newUsers} | 🔄 Returning: ${p.returningUsers}`,
@@ -121,10 +146,11 @@ export function buildRoundReportPosts(
     `🤝 Referrals rewarded: ${r.successfulReferralsPaid}`,
     `💰 B3TR distributed: ${distributed}`,
     `🛡️ Sybil / abuse blocked: ${p.sybilBlocked}`,
+    `📈 Cumulative eligible onboarded: ${cumulativeEligible}`,
   ].join('\n');
 
   const ko = [
-    `VeInvite — 보상 라운드 ${report.rewardRoundId}`,
+    'VeInvite — 라운드 리포트',
     '',
     `👥 참여 확인 지갑: ${p.checkedWallets}`,
     `🆕 신규: ${p.newUsers} | 🔄 복귀: ${p.returningUsers}`,
@@ -133,6 +159,7 @@ export function buildRoundReportPosts(
     `🤝 보상 지급 추천: ${r.successfulReferralsPaid}`,
     `💰 지급 B3TR: ${distributed}`,
     `🛡️ Sybil / 부정 이용 차단: ${p.sybilBlocked}`,
+    `📈 누적 신규·복귀 온보딩: ${cumulativeEligible}`,
   ].join('\n');
 
   return { en, ko };
