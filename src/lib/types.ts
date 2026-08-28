@@ -12,6 +12,12 @@ export type RewardEligibility =
   | 'PAID'
   | 'FORFEITED';
 
+export type RewardQueueStatus =
+  | 'AWAITING_CLAIM'
+  | 'QUEUED'
+  | 'ASSIGNED'
+  | 'CANCELLED';
+
 export interface InviteRecord {
   code: string;
   inviterAddress: string;
@@ -20,6 +26,8 @@ export interface InviteRecord {
   createdAt: string;
   updatedAt: string;
   rewardEligibility: RewardEligibility;
+  rewardQueueStatus?: RewardQueueStatus;
+  rewardClaimRequestedAt?: string;
 }
 
 export type EligibilityOutcome =
