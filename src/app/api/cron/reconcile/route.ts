@@ -9,6 +9,9 @@ import {
   DEFAULT_RECONCILIATION_BATCH_SIZE,
   runReconciliationBatch,
 } from '@/lib/impact/reconcileBatch';
+import {
+  syncVeInviteAllocationReceipts,
+} from '@/lib/rewards/allocationAccounting';
 
 function secureEquals(a: string, b: string) {
   const left = Buffer.from(a);
@@ -53,7 +56,8 @@ function authorizeCron(request: NextRequest) {
 /**
  * Vercel Cron entrypoint.
  *
- * This worker only reconciles immutable/derived onboarding evidence. It never
+ * This worker reconciles immutable/derived onboarding evidence and records
+ * official VeBetterDAO allocation-claim evidence for VeInvite. It never
  * prepares a reward round and cannot transfer B3TR. Vercel automatically sends
  * `Authorization: Bearer <CRON_SECRET>` when CRON_SECRET is configured.
  */
@@ -76,6 +80,8 @@ export async function GET(
   }
 
   try {
+    const allocationSync =
+      await syncVeInviteAllocationReceipts();
     const summary =
       await runReconciliationBatch(
         DEFAULT_RECONCILIATION_BATCH_SIZE,
@@ -84,6 +90,16 @@ export async function GET(
     return NextResponse.json(
       {
         ...summary,
+        allocationSync: {
+          network: allocationSync.network,
+          observedClaims:
+            allocationSync.observedClaims,
+          insertedCount:
+            allocationSync.insertedCount,
+          latestVeBetterRoundId:
+            allocationSync.latestReceipt
+              ?.vebetter_round_id ?? null,
+        },
         trigger: 'VERCEL_CRON',
       },
       {
