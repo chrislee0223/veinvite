@@ -4,6 +4,9 @@ import {
 } from 'next/server';
 
 import {
+  syncVeInviteAllocationReceipts,
+} from '@/lib/rewards/allocationAccounting';
+import {
   canOperateVeInviteRewards,
   readVeInviteRewardPoolStatus,
 } from '@/lib/rewards/onchainPool';
@@ -50,7 +53,7 @@ function parseRoundId(
     BigInt(normalized) < 1n
   ) {
     throw new Error(
-      'prepare_reward_round returned an invalid round id.',
+      'prepare_reward_round_with_allocation returned an invalid round id.',
     );
   }
 
@@ -145,7 +148,7 @@ export async function POST(
     const openRoundResult =
       await supabaseAdmin
         .from('reward_rounds')
-        .select('id, status')
+        .select('id, status, vebetter_round_id')
         .eq('network', pool.network)
         .eq('app_id', pool.appId)
         .in('status', ['CREATED', 'PAYING'])
@@ -180,20 +183,161 @@ export async function POST(
       );
     }
 
+    // Record any official AllocationRewardsClaimed events before reserving a
+    // payout round. This is idempotent and stores only immutable chain proof.
+    const allocationSync =
+      await syncVeInviteAllocationReceipts();
+    const allocationReceipt =
+      allocationSync.latestReceipt;
+
+    if (!allocationReceipt) {
+      return NextResponse.json(
+        {
+          error:
+            'No official VeBetterDAO allocation claim has been observed for VeInvite yet.',
+          code: 'NO_VEBETTER_ALLOCATION_RECEIPT',
+          pool,
+          roundCreated: false,
+          writesPerformed:
+            allocationSync.insertedCount > 0,
+          transfersPerformed: false,
+        },
+        {
+          status: 409,
+          headers: {
+            'Cache-Control': 'no-store',
+          },
+        },
+      );
+    }
+
+    if (
+      allocationReceipt.network !== pool.network ||
+      allocationReceipt.app_id !== pool.appId.toLowerCase()
+    ) {
+      throw new Error(
+        'Latest VeBetter allocation receipt does not match the active reward pool.',
+      );
+    }
+
+    const alreadyProcessedResult =
+      await supabaseAdmin
+        .from('reward_rounds')
+        .select('id, status, vebetter_round_id, allocation_receipt_id')
+        .eq('network', pool.network)
+        .eq('app_id', pool.appId)
+        .eq(
+          'vebetter_round_id',
+          allocationReceipt.vebetter_round_id,
+        )
+        .limit(1)
+        .maybeSingle();
+
+    if (alreadyProcessedResult.error) {
+      throw new Error(
+        `VeBetter allocation round could not be checked: ${alreadyProcessedResult.error.message}`,
+      );
+    }
+
+    if (alreadyProcessedResult.data) {
+      return NextResponse.json(
+        {
+          error:
+            'This VeBetterDAO allocation round has already been processed by VeInvite.',
+          code: 'ALLOCATION_ROUND_ALREADY_PROCESSED',
+          veBetterRoundId:
+            allocationReceipt.vebetter_round_id,
+          rewardRound:
+            alreadyProcessedResult.data,
+          pool,
+          roundCreated: false,
+          writesPerformed:
+            allocationSync.insertedCount > 0,
+          transfersPerformed: false,
+        },
+        {
+          status: 409,
+          headers: {
+            'Cache-Control': 'no-store',
+          },
+        },
+      );
+    }
+
+    if (
+      BigInt(
+        allocationReceipt.rewards_allocation_amount_wei,
+      ) <= 0n
+    ) {
+      return NextResponse.json(
+        {
+          error:
+            'The latest VeBetterDAO round did not fund the VeInvite user reward pool.',
+          code: 'NO_FUNDED_ALLOCATION',
+          veBetterRoundId:
+            allocationReceipt.vebetter_round_id,
+          allocationReceipt,
+          pool,
+          roundCreated: false,
+          writesPerformed:
+            allocationSync.insertedCount > 0,
+          transfersPerformed: false,
+        },
+        {
+          status: 409,
+          headers: {
+            'Cache-Control': 'no-store',
+          },
+        },
+      );
+    }
+
+    if (
+      BigInt(
+        allocationReceipt.rewards_allocation_amount_wei,
+      ) > BigInt(pool.effectiveRewardPoolWei)
+    ) {
+      return NextResponse.json(
+        {
+          error:
+            'The official allocation receipt exceeds the currently available VeInvite reward pool.',
+          code: 'ALLOCATION_POOL_BALANCE_MISMATCH',
+          veBetterRoundId:
+            allocationReceipt.vebetter_round_id,
+          allocationReceipt,
+          pool,
+          roundCreated: false,
+          writesPerformed:
+            allocationSync.insertedCount > 0,
+          transfersPerformed: false,
+        },
+        {
+          status: 409,
+          headers: {
+            'Cache-Control': 'no-store',
+          },
+        },
+      );
+    }
+
     const { data, error } =
       await supabaseAdmin.rpc(
-        'prepare_reward_round',
+        'prepare_reward_round_with_allocation',
         {
           p_network: pool.network,
           p_app_id: pool.appId,
           p_pool_balance_wei:
             pool.effectiveRewardPoolWei,
+          p_vebetter_round_id:
+            allocationReceipt.vebetter_round_id,
+          p_allocation_receipt_id:
+            allocationReceipt.id,
         },
       );
 
     if (error) {
       throw new Error(
-        `prepare_reward_round failed: ${error.message}`,
+        `prepare_reward_round_with_allocation failed: ${error.message}`,
       );
     }
 
@@ -207,10 +351,14 @@ export async function POST(
             BigInt(pool.effectiveRewardPoolWei) === 0n
               ? 'NO_REWARD_POOL_BALANCE'
               : 'NO_SETTLEABLE_CANDIDATES_OR_AVAILABLE_BALANCE',
+          veBetterRoundId:
+            allocationReceipt.vebetter_round_id,
+          allocationReceipt,
           pool,
           verifiedOperator:
             session.walletAddress,
-          writesPerformed: false,
+          writesPerformed:
+            allocationSync.insertedCount > 0,
           transfersPerformed: false,
         },
         {
@@ -226,7 +374,7 @@ export async function POST(
         supabaseAdmin
           .from('reward_rounds')
           .select(
-            'id, network, app_id, status, observed_pool_balance_wei, reserved_before_round_wei, distributable_wei, eligible_count, per_reward_wei, remainder_wei, created_at',
+            'id, network, app_id, status, vebetter_round_id, allocation_receipt_id, allocation_rewards_wei, opening_carryover_wei, observed_pool_balance_wei, reserved_before_round_wei, distributable_wei, eligible_count, per_reward_wei, remainder_wei, created_at',
           )
           .eq('id', roundId)
           .single(),
@@ -256,6 +404,15 @@ export async function POST(
     return NextResponse.json(
       {
         roundCreated: true,
+        veBetterRoundId:
+          allocationReceipt.vebetter_round_id,
+        allocationReceipt,
+        allocationSync: {
+          insertedCount:
+            allocationSync.insertedCount,
+          observedClaims:
+            allocationSync.observedClaims,
+        },
         pool,
         verifiedOperator:
           session.walletAddress,
