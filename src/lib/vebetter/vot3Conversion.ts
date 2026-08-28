@@ -21,9 +21,6 @@ export const MIN_VOT3_CONVERSION_WEI =
 const transferEvent = new ABIEvent(
   'event Transfer(address indexed from, address indexed to, uint256 value)',
 );
-const rewardDistributedEvent = new ABIEvent(
-  'event RewardDistributed(uint256 amount, bytes32 indexed appId, address indexed receiver, string proof, address indexed distributor)',
-);
 
 type RawTransferLog = {
   data?: string;
@@ -133,6 +130,47 @@ function parseAmountWei(
   return BigInt(data);
 }
 
+function validateKnownPosition(
+  position: ChainEventPosition,
+  activationBlock: number,
+): ChainEventPosition {
+  const txId = position.txId.toLowerCase();
+
+  if (!/^0x[0-9a-f]{64}$/.test(txId)) {
+    throw new Error(
+      'First qualifying dApp reward has an invalid transaction ID.',
+    );
+  }
+
+  for (const [label, value] of [
+    ['block number', position.blockNumber],
+    ['transaction index', position.txIndex],
+    ['clause index', position.clauseIndex],
+  ] as const) {
+    if (
+      !Number.isSafeInteger(value) ||
+      value < 0
+    ) {
+      throw new Error(
+        `First qualifying dApp reward has an invalid ${label}.`,
+      );
+    }
+  }
+
+  if (position.blockNumber < activationBlock) {
+    throw new Error(
+      'First qualifying dApp reward predates invitation activation.',
+    );
+  }
+
+  return {
+    txId,
+    blockNumber: position.blockNumber,
+    txIndex: position.txIndex,
+    clauseIndex: position.clauseIndex,
+  };
+}
+
 type ParsedTransferEvent = Omit<
   Vot3ConversionEvent,
   'txIndex'
@@ -178,87 +216,6 @@ function eventMatchKey(
   ].join(':');
 }
 
-async function findFirstRewardPositionInBlock(args: {
-  thor: ReturnType<typeof ThorClient.at>;
-  rewardsPoolAddress: string;
-  walletAddress: string;
-  blockNumber: number;
-  resolveTxIndex: (
-    blockNumber: number,
-    txId: string,
-  ) => Promise<number>;
-}): Promise<ChainEventPosition> {
-  const topics =
-    rewardDistributedEvent.encodeFilterTopics([
-      null,
-      args.walletAddress,
-      null,
-    ]);
-
-  const logs =
-    await args.thor.logs.filterRawEventLogs({
-      range: {
-        unit: 'block',
-        from: args.blockNumber,
-        to: args.blockNumber,
-      },
-      options: {
-        offset: 0,
-        limit: PAGE_SIZE,
-      },
-      criteriaSet: [
-        {
-          address: args.rewardsPoolAddress,
-          topic0: getSingleTopic(topics[0]),
-          topic1: getSingleTopic(topics[1]),
-          topic2: getSingleTopic(topics[2]),
-          topic3: getSingleTopic(topics[3]),
-        },
-      ],
-      order: 'asc',
-    });
-
-  const positions = await Promise.all(
-    (logs as RawTransferLog[]).map(
-      async (log): Promise<ChainEventPosition> => {
-        const txId =
-          parseRequiredTxId(log.meta?.txID);
-        const blockNumber =
-          parseRequiredInteger(
-            log.meta?.blockNumber,
-            'reward block number',
-          );
-        const clauseIndex =
-          parseRequiredInteger(
-            log.meta?.clauseIndex,
-            'reward clause index',
-          );
-
-        return {
-          txId,
-          blockNumber,
-          clauseIndex,
-          txIndex: await args.resolveTxIndex(
-            blockNumber,
-            txId,
-          ),
-        };
-      },
-    ),
-  );
-
-  positions.sort(compareChainEventPosition);
-
-  const first = positions[0];
-  if (!first) {
-    throw new Error(
-      'Unable to resolve the first qualifying dApp reward execution order.',
-    );
-  }
-
-  return first;
-}
-
 /**
  * Verifies a real B3TR -> VOT3 conversion by requiring both sides of the
  * official conversion transaction:
@@ -269,20 +226,20 @@ async function findFirstRewardPositionInBlock(args: {
  * Both events must share the same transaction and clause. Receiving VOT3 from
  * another wallet therefore cannot satisfy this mission.
  *
- * A qualifying conversion must be at least 1 B3TR and strictly after the first
- * qualifying dApp reward in VeChain execution order (block -> transaction ->
- * clause). This closes the same-block ordering edge case while preserving the
- * policy that dApps #2 and #3 may be completed later.
+ * A qualifying conversion must be at least 1 B3TR and strictly after the exact
+ * first positive dApp reward already verified by the activity scanner in
+ * VeChain execution order (block -> transaction -> clause). Passing the exact
+ * event position avoids re-discovering a different same-block reward.
  */
 export async function getVeBetterVot3ConversionProgress({
   walletAddress,
   activationBlock,
-  firstQualifyingRewardBlock,
+  firstQualifyingReward,
   checkedBlock,
 }: {
   walletAddress: string;
   activationBlock: number;
-  firstQualifyingRewardBlock: number;
+  firstQualifyingReward: ChainEventPosition;
   checkedBlock?: number;
 }): Promise<Vot3ConversionProgress> {
   if (!isValidAddress(walletAddress)) {
@@ -302,17 +259,11 @@ export async function getVeBetterVot3ConversionProgress({
     );
   }
 
-  if (
-    !Number.isSafeInteger(
-      firstQualifyingRewardBlock,
-    ) ||
-    firstQualifyingRewardBlock <
-      activationBlock
-  ) {
-    throw new Error(
-      'Invalid first dApp reward block for VOT3 conversion.',
+  const firstRewardPosition =
+    validateKnownPosition(
+      firstQualifyingReward,
+      activationBlock,
     );
-  }
 
   if (
     checkedBlock !== undefined &&
@@ -332,7 +283,6 @@ export async function getVeBetterVot3ConversionProgress({
     nodeUrl,
     b3trAddress,
     vot3Address,
-    x2EarnRewardsPoolAddress,
   } = getVeBetterNetworkConfig();
 
   const thor =
@@ -360,7 +310,10 @@ export async function getVeBetterVot3ConversionProgress({
           latestBlock,
         );
 
-  if (activationBlock > scanEndBlock) {
+  if (
+    activationBlock > scanEndBlock ||
+    firstRewardPosition.blockNumber > scanEndBlock
+  ) {
     return {
       converted: false,
       qualifyingConversion: null,
@@ -374,17 +327,6 @@ export async function getVeBetterVot3ConversionProgress({
           .toString(),
     };
   }
-
-  const firstRewardPosition =
-    await findFirstRewardPositionInBlock({
-      thor,
-      rewardsPoolAddress:
-        x2EarnRewardsPoolAddress,
-      walletAddress,
-      blockNumber:
-        firstQualifyingRewardBlock,
-      resolveTxIndex,
-    });
 
   const loadLogs = async ({
     address,
