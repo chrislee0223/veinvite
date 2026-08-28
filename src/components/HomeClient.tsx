@@ -80,7 +80,28 @@ const COPY = {
     rewardTitle: 'Referral result',
     rewardPending: 'Onboarding verified',
     rewardDescription:
-      'Reward eligibility is evaluated separately when funded rewards are enabled.',
+      'The final reward and anti-abuse checks are still in progress.',
+    rewardClaimReady:
+      'Your reward is ready to claim',
+    rewardClaimDescription:
+      'Your referral passed the final checks. Request the reward now and it will be included in the next funded reward round.',
+    claimReward: 'Request Reward',
+    claimingReward: 'Requesting…',
+    rewardClaimed:
+      'Reward request received',
+    rewardClaimedDescription:
+      'Your reward is queued for the next funded reward round. No additional action is needed.',
+    rewardAssigned:
+      'Reward payout is being prepared',
+    rewardAssignedDescription:
+      'Your amount has been reserved in a payout round and is awaiting finalized distribution.',
+    rewardPaid: 'Reward paid',
+    rewardPaidDescription:
+      'The B3TR reward was verified on-chain and recorded in your reward history.',
+    claimSuccess:
+      'Reward requested. It will be included in the next funded reward round.',
+    claimError:
+      'Could not request the reward.',
     privacy: 'Privacy',
     terms: 'Terms',
     genericError: 'Something went wrong.',
@@ -148,7 +169,28 @@ const COPY = {
     rewardTitle: '추천 결과',
     rewardPending: '온보딩 확인 완료',
     rewardDescription:
-      '보상 자격은 funded rewards 활성화 후 최종 검증을 거쳐 별도로 판단됩니다.',
+      '현재 최종 보상 자격과 부정 활동 여부를 확인하고 있어요.',
+    rewardClaimReady:
+      '보상을 수령할 수 있어요',
+    rewardClaimDescription:
+      '추천 활동이 최종 검증을 통과했어요. 지금 수령 요청하면 다음 보상 라운드에 자동 반영됩니다.',
+    claimReward: '보상 수령 요청',
+    claimingReward: '요청하는 중…',
+    rewardClaimed:
+      '보상 수령 요청 완료',
+    rewardClaimedDescription:
+      '다음 보상 라운드 지급 대기열에 등록됐어요. 추가로 할 일은 없습니다.',
+    rewardAssigned:
+      '보상 지급 준비 중',
+    rewardAssignedDescription:
+      '받을 금액이 지급 라운드에 배정됐으며 최종 전송을 준비하고 있어요.',
+    rewardPaid: '보상 지급 완료',
+    rewardPaidDescription:
+      'B3TR 지급이 온체인에서 확인되고 보상 내역에 기록됐어요.',
+    claimSuccess:
+      '보상 수령을 요청했어요. 다음 보상 라운드에 자동 반영됩니다.',
+    claimError:
+      '보상 수령을 요청하지 못했습니다.',
     privacy: '개인정보처리방침',
     terms: '이용약관',
     genericError: '오류가 발생했습니다.',
@@ -175,6 +217,10 @@ export function HomeClient() {
   >([]);
   const [loading, setLoading] =
     useState(false);
+  const [
+    claimingReward,
+    setClaimingReward,
+  ] = useState(false);
   const [message, setMessage] =
     useState('');
   const [showCancel, setShowCancel] =
@@ -307,6 +353,45 @@ export function HomeClient() {
 
   const underReview =
     active?.status === 'UNDER_REVIEW';
+
+  const claimAvailable =
+    completed?.rewardEligibility ===
+      'ELIGIBLE' &&
+    completed.rewardQueueStatus ===
+      'AWAITING_CLAIM';
+
+  const claimRequested =
+    completed?.rewardQueueStatus ===
+      'QUEUED';
+
+  const rewardAssigned =
+    completed?.rewardQueueStatus ===
+      'ASSIGNED';
+
+  const rewardPaid =
+    completed?.rewardEligibility ===
+      'PAID';
+
+  const rewardPanelTitle = rewardPaid
+    ? t.rewardPaid
+    : rewardAssigned
+      ? t.rewardAssigned
+      : claimRequested
+        ? t.rewardClaimed
+        : claimAvailable
+          ? t.rewardClaimReady
+          : t.rewardPending;
+
+  const rewardPanelDescription =
+    rewardPaid
+      ? t.rewardPaidDescription
+      : rewardAssigned
+        ? t.rewardAssignedDescription
+        : claimRequested
+          ? t.rewardClaimedDescription
+          : claimAvailable
+            ? t.rewardClaimDescription
+            : t.rewardDescription;
 
   const load = useCallback(async () => {
     if (!wallet) {
@@ -500,6 +585,55 @@ export function HomeClient() {
     }
 
     await copyInvite();
+  };
+
+  const claimReward = async () => {
+    if (
+      !completed ||
+      !claimAvailable ||
+      claimingReward
+    ) {
+      return;
+    }
+
+    setClaimingReward(true);
+    setMessage('');
+
+    try {
+      const response = await fetch(
+        '/api/rewards/claims',
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type':
+              'application/json',
+          },
+          body: JSON.stringify({
+            inviteCode: completed.code,
+          }),
+        },
+      );
+      const data = (await response.json()) as {
+        error?: string;
+      };
+
+      if (!response.ok) {
+        throw new Error(
+          data.error ?? t.claimError,
+        );
+      }
+
+      setMessage(t.claimSuccess);
+      await load();
+    } catch (error) {
+      setMessage(
+        error instanceof Error
+          ? error.message
+          : t.claimError,
+      );
+    } finally {
+      setClaimingReward(false);
+    }
   };
 
   const stageIndex = waitingForFriend
@@ -776,11 +910,29 @@ export function HomeClient() {
 
             <div>
               <strong>
-                {t.rewardPending}
+                {rewardPanelTitle}
               </strong>
               <p>
-                {t.rewardDescription}
+                {rewardPanelDescription}
               </p>
+
+              {claimAvailable ? (
+                <button
+                  type="button"
+                  className="primaryAction claimAction"
+                  disabled={claimingReward}
+                  onClick={() => {
+                    void claimReward();
+                  }}
+                >
+                  {claimingReward
+                    ? t.claimingReward
+                    : t.claimReward}
+                  <span aria-hidden="true">
+                    ›
+                  </span>
+                </button>
+              ) : null}
             </div>
           </div>
         ) : null}
@@ -1264,11 +1416,23 @@ export function HomeClient() {
           font-size: 0.9rem;
         }
 
+        .completePanel > div {
+          min-width: 0;
+          flex: 1;
+        }
+
         .completePanel p {
           margin: 4px 0 0;
           color: #9eaa9f;
           font-size: 0.75rem;
           line-height: 1.45;
+        }
+
+        .claimAction {
+          min-height: 46px;
+          margin-top: 13px;
+          border-radius: 14px;
+          font-size: 0.84rem;
         }
 
         .cancelLink {

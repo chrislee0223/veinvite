@@ -13,6 +13,7 @@ import type {
   InviteRecord,
   InviteStatus,
   RewardEligibility,
+  RewardQueueStatus,
 } from '@/lib/types';
 
 type InvitationRow = {
@@ -25,6 +26,12 @@ type InvitationRow = {
   updated_at: string;
   eligibility_check_id: string | number | null;
   activation_network: string | null;
+};
+
+type RewardQueueRow = {
+  invite_code: string;
+  status: RewardQueueStatus;
+  claim_requested_at: string | null;
 };
 
 const invitationColumns = `
@@ -70,6 +77,7 @@ function toInvitationRow(
 
 function toInviteRecord(
   row: InvitationRow,
+  rewardQueue?: RewardQueueRow,
 ): InviteRecord {
   return {
     code: row.invite_code,
@@ -83,6 +91,18 @@ function toInviteRecord(
     createdAt: row.created_at,
     updatedAt: row.updated_at,
     rewardEligibility: row.reward_status,
+    ...(rewardQueue
+      ? {
+          rewardQueueStatus:
+            rewardQueue.status,
+        }
+      : {}),
+    ...(rewardQueue?.claim_requested_at
+      ? {
+          rewardClaimRequestedAt:
+            rewardQueue.claim_requested_at,
+        }
+      : {}),
   };
 }
 
@@ -239,8 +259,58 @@ export async function GET(
     );
   }
 
-  const invites = toInvitationRows(data).map(
-    toInviteRecord,
+  const invitationRows =
+    toInvitationRows(data);
+  const inviteCodes = invitationRows.map(
+    (invitation) =>
+      invitation.invite_code,
+  );
+  const queueResult =
+    inviteCodes.length > 0
+      ? await supabaseAdmin
+          .from('reward_queue_entries')
+          .select(
+            'invite_code, status, claim_requested_at',
+          )
+          .in('invite_code', inviteCodes)
+      : {
+          data: [] as RewardQueueRow[],
+          error: null,
+        };
+
+  if (queueResult.error) {
+    console.error(
+      'Failed to load invitation reward claims:',
+      queueResult.error,
+    );
+
+    return NextResponse.json(
+      {
+        error:
+          'Failed to load invitation reward status.',
+      },
+      { status: 500 },
+    );
+  }
+
+  const rewardQueueByInvite =
+    new Map<string, RewardQueueRow>(
+      (
+        (queueResult.data ??
+          []) as RewardQueueRow[]
+      ).map((entry) => [
+        entry.invite_code,
+        entry,
+      ]),
+    );
+  const invites = invitationRows.map(
+    (invitation) =>
+      toInviteRecord(
+        invitation,
+        rewardQueueByInvite.get(
+          invitation.invite_code,
+        ),
+      ),
   );
 
   return NextResponse.json(

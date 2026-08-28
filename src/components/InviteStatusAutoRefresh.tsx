@@ -23,6 +23,8 @@ function inviteFingerprint(
     invite.status,
     invite.inviteeAddress ?? '',
     invite.rewardEligibility,
+    invite.rewardQueueStatus ?? '',
+    invite.rewardClaimRequestedAt ?? '',
   ].join(':');
 }
 
