@@ -28,6 +28,9 @@
 - [x] allocation 없는 구형 reward-round 생성 경로 차단
 - [x] 라운드별 신규·복귀·기존 활성·온보딩·성공 추천·실지급 통계 엔진
 - [x] 라운드별 보고와 누계 리더보드/API 분리
+- [x] 공식 신규·복귀 통계의 변경 불가 시작 라운드 잠금 장치
+- [x] 완료 라운드 성장 보고서의 불변 스냅샷·명시적 수정 버전
+- [x] 일일 reconciliation cron의 누락 라운드 자동 확정·변경 감지
 - [x] 동일 피추천 지갑의 동시 다중 초대 수락을 DB 고유 제약으로 차단
 - [x] 라운드 통계에 실제 VeBetterDAO Round와 allocation/이월 정보 연결
 - [x] Privacy / Terms 및 기본 공개 메타데이터
@@ -77,8 +80,8 @@ VeInvite는 피추천자의 dApp 활동, B3TR → VOT3 전환, Allocation Voting
 
 ## 5. 실제 출시 시 한 번 설정할 항목
 
-- [ ] `operator_reporting_config.reporting_start_at`에 공식 공개 통계 시작 기준일 설정
-- [ ] 해당 기준일 이전 개발/테스트 기록이 공개 누적 통계에 포함되지 않는지 확인
+- [x] 공식 시작 라운드 이전 개발/테스트 기록을 공개 누계에서 제외하는 구조와 검증 완료
+- [ ] 첫 공식 Production VeBetterDAO 라운드를 선택하고 변경 불가 기준선 잠금
 - [ ] 첫 실제 VeBetterDAO allocation receipt가 장부에 자동 기록되는지 확인
 - [ ] 다수 피추천 지갑에서 한 지갑으로 모이는 B3TR 전송을 찾는 별도 인덱서/검토 보고서 구축
 

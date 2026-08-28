@@ -46,6 +46,31 @@ The older global views remain internal compatibility surfaces. Verified
 completion excludes legacy rows that only contain a historical `COMPLETED`
 label without raw-chain proof.
 
+## Official NEW/RETURNING growth reports
+
+Public growth reporting is disabled until the operator locks one exact
+VeBetterDAO round as the launch baseline. The lock is one-way: the network,
+round, timestamp, operator wallet, and lock time cannot later be moved to add
+or remove historical activity.
+
+- `get_operator_new_user_growth`: internal funnel, including pre-launch data.
+- `get_operator_public_new_user_growth`: baseline-scoped public metrics.
+- `operator_round_growth_report_snapshots`: append-only versions for completed rounds.
+- `operator_latest_round_growth_report_snapshots`: latest version per round.
+- `/api/admin/reports/growth-round`: operator-authenticated baseline, finalization, snapshot, and revision API.
+
+Official NEW and RETURNING counts use only wallets that completed all three
+dApps, B3TR→VOT3 conversion, the later Allocation Vote, and Sybil `CLEAR`.
+Verified entry counts remain internal funnel metrics and must not be described
+as completed public users.
+
+The daily reconciliation worker finalizes missing completed rounds and checks
+existing snapshots again. Identical metrics reuse the existing snapshot.
+Late chain evidence creates a new version with
+`AUTOMATED_POST_RECONCILIATION`; it never overwrites the number previously
+published. Production remains fail-closed until the first official baseline
+round is explicitly approved.
+
 ### Current suspicious referrals
 
 ```sql

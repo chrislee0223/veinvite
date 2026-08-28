@@ -12,6 +12,9 @@ import {
 import {
   syncVeInviteAllocationReceipts,
 } from '@/lib/rewards/allocationAccounting';
+import {
+  maintainRoundGrowthSnapshots,
+} from '@/lib/reporting/roundGrowthSnapshots';
 
 function secureEquals(a: string, b: string) {
   const left = Buffer.from(a);
@@ -86,6 +89,8 @@ export async function GET(
       await runReconciliationBatch(
         DEFAULT_RECONCILIATION_BATCH_SIZE,
       );
+    const roundGrowthReports =
+      await maintainRoundGrowthSnapshots();
 
     return NextResponse.json(
       {
@@ -100,6 +105,7 @@ export async function GET(
             allocationSync.latestReceipt
               ?.vebetter_round_id ?? null,
         },
+        roundGrowthReports,
         trigger: 'VERCEL_CRON',
       },
       {
