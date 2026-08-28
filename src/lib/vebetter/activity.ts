@@ -16,6 +16,7 @@ const rewardDistributedEvent = new ABIEvent(
 );
 
 type RawEventLog = {
+  data?: string;
   topics?: string[];
   meta?: {
     blockNumber?: number;
@@ -28,6 +29,7 @@ type RawEventLog = {
 export type QualifyingRewardEvent =
   ChainEventPosition & {
     appId: string;
+    amountWei: string;
     blockTimestamp: number;
   };
 
@@ -50,6 +52,29 @@ function getSingleTopic(
   return typeof topic === 'string'
     ? topic
     : undefined;
+}
+
+function getEventAmountWei(
+  log: RawEventLog,
+): string {
+  const normalized =
+    log.data?.toLowerCase().replace(/^0x/, '') ?? '';
+
+  // RewardDistributed has `amount` as the first non-indexed ABI word.
+  // Proof data may follow, but the first 32 bytes are always the uint256
+  // reward amount. Malformed chain data fails closed instead of being counted.
+  if (
+    normalized.length < 64 ||
+    !/^[0-9a-f]+$/.test(normalized)
+  ) {
+    throw new Error(
+      'VeChain reward event is missing a valid reward amount.',
+    );
+  }
+
+  return BigInt(
+    `0x${normalized.slice(0, 64)}`,
+  ).toString();
 }
 
 function getEventBlockNumber(
@@ -243,6 +268,15 @@ export async function getVeBetterActivityProgress({
         continue;
       }
 
+      const amountWei =
+        getEventAmountWei(log);
+
+      // A RewardDistributed event with a zero transfer is not a B3TR reward
+      // and must never advance the VeInvite three-dApp mission.
+      if (BigInt(amountWei) <= 0n) {
+        continue;
+      }
+
       const normalizedAppId =
         appId.toLowerCase();
 
@@ -272,12 +306,13 @@ export async function getVeBetterActivityProgress({
         normalizedAppId,
       );
 
-      // Record only the first reward from each of the first three distinct
-      // dApps. These are the minimum verified activities VeInvite requires;
-      // later unrelated activity is deliberately not attributed to VeInvite.
+      // Record only the first positive B3TR reward from each of the first three
+      // distinct dApps. Later unrelated activity is deliberately not
+      // attributed to VeInvite.
       if (qualifyingRewardEvents.length < 3) {
         qualifyingRewardEvents.push({
           appId: normalizedAppId,
+          amountWei,
           txId: eventTxId,
           blockNumber: eventBlock,
           blockTimestamp:
