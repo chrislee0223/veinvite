@@ -9,7 +9,7 @@ const HEX_DATA_PATTERN = /^0x[0-9a-f]+$/;
 const INTEGER_PATTERN = /^\d+$/;
 
 export const PAYOUT_MANIFEST_VERSION =
-  'veinvite-payout-manifest-v1';
+  'veinvite-payout-manifest-v2';
 
 const rewardsPoolInterface = new Interface([
   'function distributeReward(bytes32 appId,uint256 amount,address receiver,string proof)',
@@ -38,6 +38,7 @@ export type PayoutManifestClause = {
   inviteCode: string;
   recipientWallet: string;
   amountWei: string;
+  proof: string;
   to: string;
   value: '0x0';
   data: string;
@@ -185,6 +186,10 @@ function hashManifest(
     .digest('hex')}`;
 }
 
+function buildPayoutProof(payoutId: string): string {
+  return `veinvite:referral-onboarding:v1:payout:${payoutId}`;
+}
+
 export function buildPayoutManifest({
   round,
   payouts,
@@ -298,6 +303,10 @@ export function buildPayoutManifest({
     seenInviteCodes.add(inviteKey);
     totalAmount += BigInt(payout.amountWei);
 
+    // The proof deliberately contains no wallet or invitee identity. It gives
+    // every on-chain reward an explicit, deterministic economic reason while
+    // the immutable DB manifest retains the full audited payout mapping.
+    const proof = buildPayoutProof(payout.id);
     const data = rewardsPoolInterface
       .encodeFunctionData(
         'distributeReward',
@@ -305,7 +314,7 @@ export function buildPayoutManifest({
           appId,
           payout.amountWei,
           payout.recipientWallet,
-          '',
+          proof,
         ],
       )
       .toLowerCase();
@@ -322,6 +331,7 @@ export function buildPayoutManifest({
       recipientWallet:
         payout.recipientWallet,
       amountWei: payout.amountWei,
+      proof,
       to: poolAddress,
       value: '0x0' as const,
       data,
