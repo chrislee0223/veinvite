@@ -46,6 +46,10 @@ The older global views remain internal compatibility surfaces. Verified
 completion excludes legacy rows that only contain a historical `COMPLETED`
 label without raw-chain proof.
 
+The retired UTC-calendar-week reporting views and snapshot function are not
+operator data surfaces. Official growth reporting uses VeBetterDAO rounds
+only.
+
 ## Official NEW/RETURNING growth reports
 
 Public growth reporting is disabled until the operator locks one exact
