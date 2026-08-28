@@ -12,6 +12,9 @@ import {
   requireWalletSession,
   WalletAuthenticationError,
 } from '@/lib/walletAuthServer';
+import {
+  readVeBetterRoundWindow,
+} from '@/lib/vebetter/entryEligibility';
 
 type EligibilityCheckRow = {
   id: string | number;
@@ -53,7 +56,84 @@ type RewardQueueRow = {
   assigned_at: string | null;
 };
 
+type GrowthRow = {
+  round_id: string | number;
+  verified_new_users: string | number;
+  activated_new_users: string | number;
+  flagged_new_users: string | number;
+  verified_returning_users: string | number;
+  activated_returning_users: string | number;
+  active_existing_rejected_users: string | number;
+  active_existing_rejection_attempts: string | number;
+  cumulative_verified_new_users: string | number;
+  cumulative_activated_new_users: string | number;
+  cumulative_flagged_new_users: string | number;
+  cumulative_verified_returning_users: string | number;
+  cumulative_activated_returning_users: string | number;
+  cumulative_active_existing_rejected_users: string | number;
+  cumulative_active_existing_rejection_attempts: string | number;
+  first_verified_entry_at: string | null;
+  latest_verified_entry_at: string | null;
+};
+
 const ADMIN_PAGE_SIZE = 1000;
+const GROWTH_HISTORY_ROUNDS = 52;
+
+function countString(value: string | number) {
+  return String(value);
+}
+
+function normalizeGrowthRow(row: GrowthRow) {
+  return {
+    roundId: countString(row.round_id),
+    verifiedNewUsers: countString(
+      row.verified_new_users,
+    ),
+    activatedNewUsers: countString(
+      row.activated_new_users,
+    ),
+    flaggedNewUsers: countString(
+      row.flagged_new_users,
+    ),
+    verifiedReturningUsers: countString(
+      row.verified_returning_users,
+    ),
+    activatedReturningUsers: countString(
+      row.activated_returning_users,
+    ),
+    activeExistingRejectedUsers: countString(
+      row.active_existing_rejected_users,
+    ),
+    activeExistingRejectionAttempts: countString(
+      row.active_existing_rejection_attempts,
+    ),
+    cumulativeVerifiedNewUsers: countString(
+      row.cumulative_verified_new_users,
+    ),
+    cumulativeActivatedNewUsers: countString(
+      row.cumulative_activated_new_users,
+    ),
+    cumulativeFlaggedNewUsers: countString(
+      row.cumulative_flagged_new_users,
+    ),
+    cumulativeVerifiedReturningUsers: countString(
+      row.cumulative_verified_returning_users,
+    ),
+    cumulativeActivatedReturningUsers: countString(
+      row.cumulative_activated_returning_users,
+    ),
+    cumulativeActiveExistingRejectedUsers: countString(
+      row.cumulative_active_existing_rejected_users,
+    ),
+    cumulativeActiveExistingRejectionAttempts: countString(
+      row.cumulative_active_existing_rejection_attempts,
+    ),
+    firstVerifiedEntryAt:
+      row.first_verified_entry_at,
+    latestVerifiedEntryAt:
+      row.latest_verified_entry_at,
+  };
+}
 
 function idKey(value: string | number | null) {
   return value === null ? '' : String(value);
@@ -157,10 +237,38 @@ async function loadRewardQueue(
   return rows;
 }
 
+async function loadGrowth(
+  network: string,
+  currentRoundId: number,
+) {
+  const { data, error } =
+    await supabaseAdmin.rpc(
+      'get_operator_new_user_growth',
+      {
+        p_network: network,
+        p_current_round_id:
+          currentRoundId,
+        p_limit: GROWTH_HISTORY_ROUNDS,
+      },
+    );
+
+  if (error) {
+    throw new Error(
+      `New-user growth could not be loaded: ${error.message}`,
+    );
+  }
+
+  return ((data ?? []) as GrowthRow[]).map(
+    normalizeGrowthRow,
+  );
+}
+
 export async function GET(request: NextRequest) {
   try {
-    const session = await requireWalletSession({ request });
-    const pool = await readVeInviteRewardPoolStatus();
+    const [session, pool] = await Promise.all([
+      requireWalletSession({ request }),
+      readVeInviteRewardPoolStatus(),
+    ]);
 
     if (
       !canOperateVeInviteRewards(
@@ -182,14 +290,28 @@ export async function GET(request: NextRequest) {
       );
     }
 
+    const round =
+      await readVeBetterRoundWindow();
+
+    if (round.network !== pool.network) {
+      throw new Error(
+        'Participant growth round network does not match the reward pool network.',
+      );
+    }
+
     const [
       eligibilityChecks,
       invitations,
       queueEntries,
+      growthTrend,
     ] = await Promise.all([
       loadEligibilityChecks(pool.network),
       loadInvitations(),
       loadRewardQueue(pool.network),
+      loadGrowth(
+        pool.network,
+        round.roundId,
+      ),
     ]);
 
     const invitationByEligibilityCheck = new Map(
@@ -359,6 +481,34 @@ export async function GET(request: NextRequest) {
           session.walletAddress,
         generatedAt: new Date().toISOString(),
         summary,
+        growth: {
+          metricDefinition:
+            '검증 신규·복귀 진입은 운영용 진행 퍼널입니다. 공식 공개 성과인 활성화 신규·복귀는 각 분류에서 모든 미션을 완료하고 Sybil 판정이 CLEAR인 고유 지갑만 집계합니다. 라운드별 완료자는 완료 시점이 아니라 최초 유입 라운드 코호트에 귀속됩니다.',
+          currentRound: {
+            id: String(round.roundId),
+            status: round.status,
+            startAt:
+              round.roundStartAt,
+            endAt: round.roundEndAt,
+            endAtEstimated:
+              round.roundEndAtEstimated,
+            checkedThroughBlock:
+              String(round.bestBlock),
+          },
+          current:
+            growthTrend.find(
+              (row) =>
+                row.roundId ===
+                String(round.roundId),
+            ) ?? null,
+          previous:
+            growthTrend.find(
+              (row) =>
+                row.roundId ===
+                String(round.roundId - 1),
+            ) ?? null,
+          trend: growthTrend,
+        },
         participants,
       },
       {
