@@ -96,6 +96,15 @@ type ParticipantOverview = {
     current: GrowthRow | null;
     previous: GrowthRow | null;
     trend: GrowthRow[];
+    publicReporting: {
+      enabled: boolean;
+      startAt: string | null;
+      baselineRoundId: string | null;
+      lockedAt: string | null;
+      current: GrowthRow | null;
+      previous: GrowthRow | null;
+      trend: GrowthRow[];
+    };
   };
   participants: Participant[];
 };
@@ -259,9 +268,15 @@ export function ParticipantsAdminClient() {
   ];
 
   const growthCopy = useMemo(() => {
-    const current = overview?.growth.current;
+    const publicReporting =
+      overview?.growth.publicReporting;
+    const current = publicReporting?.current;
 
-    if (!overview || !current) {
+    if (
+      !overview ||
+      !publicReporting?.enabled ||
+      !current
+    ) {
       return null;
     }
 
@@ -279,14 +294,23 @@ export function ParticipantsAdminClient() {
     const cumulativeActivatedReturning = formatCount(
       current.cumulativeActivatedReturningUsers,
     );
+    const isActive =
+      overview.growth.currentRound.status ===
+      'ACTIVE';
 
     return {
       ko:
-        `VeBetterDAO 라운드 ${roundId}에 VeInvite로 유입된 사용자 중 신규 ${currentActivatedNew}명과 복귀 ${currentActivatedReturning}명이 마지막 미션까지 모두 완료하고 Sybil 검증을 통과했습니다. ` +
-        `지금까지 누적 완료자는 신규 ${cumulativeActivatedNew}명, 복귀 ${cumulativeActivatedReturning}명입니다.`,
+        `VeBetterDAO 라운드 ${roundId}에 VeInvite로 유입된 사용자 중 현재까지 신규 ${currentActivatedNew}명과 복귀 ${currentActivatedReturning}명이 마지막 미션까지 모두 완료하고 Sybil 검증을 통과했습니다. ` +
+        `공식 집계 시작 이후 누적 완료자는 신규 ${cumulativeActivatedNew}명, 복귀 ${cumulativeActivatedReturning}명입니다.` +
+        (isActive
+          ? ' 이번 라운드 수치는 종료 전 잠정치입니다.'
+          : ''),
       en:
-        `Among users who entered through VeInvite in VeBetterDAO Round ${roundId}, ${currentActivatedNew} new user(s) and ${currentActivatedReturning} returning user(s) completed every onboarding mission and passed Sybil screening. ` +
-        `Cumulative completions are ${cumulativeActivatedNew} new user(s) and ${cumulativeActivatedReturning} returning user(s).`,
+        `Among users who entered through VeInvite in VeBetterDAO Round ${roundId}, ${currentActivatedNew} new user(s) and ${currentActivatedReturning} returning user(s) have completed every onboarding mission and passed Sybil screening so far. ` +
+        `Since the official reporting baseline, cumulative completions are ${cumulativeActivatedNew} new user(s) and ${cumulativeActivatedReturning} returning user(s).` +
+        (isActive
+          ? ' This round is provisional until it closes.'
+          : ''),
     };
   }, [overview]);
 
@@ -528,6 +552,42 @@ export function ParticipantsAdminClient() {
 
                 <div
                   style={{
+                    border: overview.growth.publicReporting.enabled
+                      ? '1px solid rgba(88,214,141,0.35)'
+                      : '1px solid rgba(255,184,77,0.35)',
+                    borderRadius: '13px',
+                    padding: '11px 13px',
+                    background: overview.growth.publicReporting.enabled
+                      ? 'rgba(88,214,141,0.08)'
+                      : 'rgba(255,184,77,0.08)',
+                    fontSize: '13px',
+                    lineHeight: 1.5,
+                  }}
+                >
+                  {overview.growth.publicReporting.enabled ? (
+                    <>
+                      공식 집계 기준선 잠금 완료: Round{' '}
+                      {overview.growth.publicReporting.baselineRoundId} ·{' '}
+                      {formatDate(
+                        overview.growth.publicReporting.startAt,
+                      )}
+                      <br />
+                      Official reporting baseline locked.
+                    </>
+                  ) : (
+                    <>
+                      공식 공개 통계는 아직 비활성입니다. 시작 라운드를 승인해
+                      기준선을 잠그기 전에는 아래 완료 수치를 외부에 공개하지
+                      않습니다.
+                      <br />
+                      Public reporting remains disabled until the launch round
+                      is approved and locked.
+                    </>
+                  )}
+                </div>
+
+                <div
+                  style={{
                     display: 'grid',
                     gridTemplateColumns:
                       'repeat(auto-fit, minmax(155px, 1fr))',
@@ -538,22 +598,26 @@ export function ParticipantsAdminClient() {
                     [
                       '이번 라운드 유입 신규 완료',
                       'Completed new · entry cohort',
-                      overview.growth.current.activatedNewUsers,
+                      overview.growth.publicReporting.current
+                        ?.activatedNewUsers ?? '—',
                     ],
                     [
                       '누적 완료 신규',
                       'Cumulative completed new',
-                      overview.growth.current.cumulativeActivatedNewUsers,
+                      overview.growth.publicReporting.current
+                        ?.cumulativeActivatedNewUsers ?? '—',
                     ],
                     [
                       '이번 라운드 유입 복귀 완료',
                       'Completed returning · entry cohort',
-                      overview.growth.current.activatedReturningUsers,
+                      overview.growth.publicReporting.current
+                        ?.activatedReturningUsers ?? '—',
                     ],
                     [
                       '누적 완료 복귀',
                       'Cumulative completed returning',
-                      overview.growth.current.cumulativeActivatedReturningUsers,
+                      overview.growth.publicReporting.current
+                        ?.cumulativeActivatedReturningUsers ?? '—',
                     ],
                     [
                       '검증 신규 진입 · 내부 퍼널',
@@ -656,35 +720,44 @@ export function ParticipantsAdminClient() {
                     <tbody>
                       {overview.growth.trend
                         .slice(0, 8)
-                        .map((row) => (
-                          <tr
-                            key={row.roundId}
-                            style={{
-                              borderTop:
-                                '1px solid rgba(255,255,255,0.08)',
-                            }}
-                          >
-                            {[
-                              row.roundId,
-                              row.activatedNewUsers,
-                              row.activatedReturningUsers,
-                              row.verifiedNewUsers,
-                              row.verifiedReturningUsers,
-                              row.activeExistingRejectedUsers,
-                              row.cumulativeActivatedNewUsers,
-                              row.cumulativeActivatedReturningUsers,
-                            ].map((value, index) => (
-                              <td
-                                key={`${row.roundId}-${index}`}
-                                style={{
-                                  padding: '11px 12px',
-                                }}
-                              >
-                                {formatCount(value)}
-                              </td>
-                            ))}
-                          </tr>
-                        ))}
+                        .map((row) => {
+                          const publicRow =
+                            overview.growth.publicReporting.trend.find(
+                              (candidate) =>
+                                candidate.roundId === row.roundId,
+                            ) ?? null;
+
+                          return (
+                            <tr
+                              key={row.roundId}
+                              style={{
+                                borderTop:
+                                  '1px solid rgba(255,255,255,0.08)',
+                              }}
+                            >
+                              {[
+                                row.roundId,
+                                publicRow?.activatedNewUsers ?? '—',
+                                publicRow?.activatedReturningUsers ?? '—',
+                                row.verifiedNewUsers,
+                                row.verifiedReturningUsers,
+                                row.activeExistingRejectedUsers,
+                                publicRow?.cumulativeActivatedNewUsers ?? '—',
+                                publicRow?.cumulativeActivatedReturningUsers ??
+                                  '—',
+                              ].map((value, index) => (
+                                <td
+                                  key={`${row.roundId}-${index}`}
+                                  style={{
+                                    padding: '11px 12px',
+                                  }}
+                                >
+                                  {formatCount(value)}
+                                </td>
+                              ))}
+                            </tr>
+                          );
+                        })}
                     </tbody>
                   </table>
                 </div>
