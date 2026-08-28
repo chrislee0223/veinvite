@@ -7,6 +7,7 @@ import {
   canOperateVeInviteRewards,
   readVeInviteRewardPoolStatus,
 } from '@/lib/rewards/onchainPool';
+import { loadRoundGrowthReportingConfig } from '@/lib/reporting/roundGrowthSnapshots';
 import { supabaseAdmin } from '@/lib/supabaseServer';
 import {
   requireWalletSession,
@@ -240,10 +241,13 @@ async function loadRewardQueue(
 async function loadGrowth(
   network: string,
   currentRoundId: number,
+  scope: 'INTERNAL' | 'PUBLIC' = 'INTERNAL',
 ) {
   const { data, error } =
     await supabaseAdmin.rpc(
-      'get_operator_new_user_growth',
+      scope === 'PUBLIC'
+        ? 'get_operator_public_new_user_growth'
+        : 'get_operator_new_user_growth',
       {
         p_network: network,
         p_current_round_id:
@@ -254,7 +258,7 @@ async function loadGrowth(
 
   if (error) {
     throw new Error(
-      `New-user growth could not be loaded: ${error.message}`,
+      `${scope === 'PUBLIC' ? 'Public' : 'Internal'} new-user growth could not be loaded: ${error.message}`,
     );
   }
 
@@ -299,11 +303,18 @@ export async function GET(request: NextRequest) {
       );
     }
 
+    const reporting =
+      await loadRoundGrowthReportingConfig();
+    const publicReportingEnabled =
+      reporting.enabled &&
+      reporting.network === pool.network;
+
     const [
       eligibilityChecks,
       invitations,
       queueEntries,
       growthTrend,
+      publicGrowthTrend,
     ] = await Promise.all([
       loadEligibilityChecks(pool.network),
       loadInvitations(),
@@ -312,6 +323,13 @@ export async function GET(request: NextRequest) {
         pool.network,
         round.roundId,
       ),
+      publicReportingEnabled
+        ? loadGrowth(
+            pool.network,
+            round.roundId,
+            'PUBLIC',
+          )
+        : Promise.resolve([]),
     ]);
 
     const invitationByEligibilityCheck = new Map(
@@ -508,6 +526,29 @@ export async function GET(request: NextRequest) {
                 String(round.roundId - 1),
             ) ?? null,
           trend: growthTrend,
+          publicReporting: {
+            enabled:
+              publicReportingEnabled,
+            startAt: reporting.startAt,
+            baselineRoundId:
+              reporting.roundId === null
+                ? null
+                : String(reporting.roundId),
+            lockedAt: reporting.lockedAt,
+            current:
+              publicGrowthTrend.find(
+                (row) =>
+                  row.roundId ===
+                  String(round.roundId),
+              ) ?? null,
+            previous:
+              publicGrowthTrend.find(
+                (row) =>
+                  row.roundId ===
+                  String(round.roundId - 1),
+              ) ?? null,
+            trend: publicGrowthTrend,
+          },
         },
         participants,
       },
