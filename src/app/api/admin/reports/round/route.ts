@@ -263,6 +263,23 @@ export async function GET(request: NextRequest) {
       );
     }
 
+    if (!round.completed_at) {
+      return NextResponse.json(
+        {
+          error:
+            'The completed reward round has no completion timestamp.',
+          code: 'ROUND_COMPLETION_TIMESTAMP_MISSING',
+          rewardRoundId: String(round.id),
+          writesPerformed: false,
+          transfersPerformed: false,
+        },
+        {
+          status: 409,
+          headers: { 'Cache-Control': 'no-store' },
+        },
+      );
+    }
+
     const baseline =
       await loadReportingBaseline(round.network);
 
@@ -315,7 +332,8 @@ export async function GET(request: NextRequest) {
       .eq('network', round.network)
       .eq('app_id', round.app_id)
       .eq('status', 'COMPLETED')
-      .gte('completed_at', baseline);
+      .gte('completed_at', baseline)
+      .lte('completed_at', round.completed_at);
 
     if (cumulativeRoundsResult.error) {
       throw new Error(
@@ -373,7 +391,8 @@ export async function GET(request: NextRequest) {
         .from('eligibility_check_events')
         .select('wallet_address, outcome, entry_class')
         .eq('network', round.network)
-        .gte('created_at', baseline),
+        .gte('created_at', baseline)
+        .lte('created_at', round.completed_at),
       supabaseAdmin
         .from('reward_queue_entries')
         .select('invite_code', {
@@ -381,7 +400,8 @@ export async function GET(request: NextRequest) {
           head: true,
         })
         .eq('network', round.network)
-        .gte('eligible_at', baseline),
+        .gte('eligible_at', baseline)
+        .lte('eligible_at', round.completed_at),
     ]);
 
     const queryErrors = [
@@ -402,6 +422,41 @@ export async function GET(request: NextRequest) {
       );
     }
 
+    const sybilRows =
+      (sybilReviewResult.data ?? []) as SybilReviewRow[];
+    const sybilCodes = [
+      ...new Set(
+        sybilRows
+          .filter(
+            (row) =>
+              row.resulting_status === 'BLOCKED',
+          )
+          .map((row) => row.invite_code),
+      ),
+    ];
+
+    let networkSybilBlocked = 0;
+
+    if (sybilCodes.length > 0) {
+      const sybilInvitationResult = await supabaseAdmin
+        .from('invitations')
+        .select('invite_code')
+        .eq('activation_network', round.network)
+        .in('invite_code', sybilCodes);
+
+      if (sybilInvitationResult.error) {
+        throw new Error(
+          `Sybil invitation network check failed: ${sybilInvitationResult.error.message}`,
+        );
+      }
+
+      networkSybilBlocked = new Set(
+        (sybilInvitationResult.data ?? []).map(
+          (row) => row.invite_code,
+        ),
+      ).size;
+    }
+
     let cumulativePayoutRows: PayoutRow[] = [];
 
     if (cumulativeRoundIds.length > 0) {
@@ -412,7 +467,8 @@ export async function GET(request: NextRequest) {
         )
         .in('round_id', cumulativeRoundIds)
         .eq('status', 'PAID')
-        .gte('paid_at', baseline);
+        .gte('paid_at', baseline)
+        .lte('paid_at', round.completed_at);
 
       if (cumulativePayoutResult.error) {
         throw new Error(
@@ -430,8 +486,6 @@ export async function GET(request: NextRequest) {
       (payoutResult.data ?? []) as PayoutRow[];
     const queueRows =
       (queueResult.data ?? []) as QueueRow[];
-    const sybilRows =
-      (sybilReviewResult.data ?? []) as SybilReviewRow[];
 
     const paidRows = payoutRows.filter(
       (row) => row.status === 'PAID' && row.paid_at,
@@ -634,14 +688,7 @@ export async function GET(request: NextRequest) {
         activeExistingUsers,
         completedOnboardings:
           completedInPeriodResult.count ?? 0,
-        sybilBlocked: new Set(
-          sybilRows
-            .filter(
-              (row) =>
-                row.resulting_status === 'BLOCKED',
-            )
-            .map((row) => row.invite_code),
-        ).size,
+        sybilBlocked: networkSybilBlocked,
       },
       rewards: {
         successfulReferralsPaid: paidRows.length,
@@ -683,6 +730,7 @@ export async function GET(request: NextRequest) {
         posts: buildRoundReportPosts(report),
         reportingWindowSource: source,
         launchBaseline: baseline,
+        reportFinalizedAt: round.completed_at,
         observedPoolBalanceWei:
           toUnsignedIntegerString(
             round.observed_pool_balance_wei,
