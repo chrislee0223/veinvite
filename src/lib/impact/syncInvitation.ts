@@ -21,6 +21,7 @@ import {
 import {
   getVeBetterVot3ConversionProgress,
   MIN_VOT3_CONVERSION_WEI,
+  type Vot3ConversionEvent,
 } from '@/lib/vebetter/vot3Conversion';
 import {
   getVeBetterVoteProgress,
@@ -510,6 +511,8 @@ export async function syncInvitationEvidence(
   let conversionScanSucceeded =
     qualifyingRewardEvents.length === 0;
   let conversionImpactSaved = false;
+  let qualifyingConversionProof:
+    Vot3ConversionEvent | null = null;
 
   const firstQualifyingReward =
     qualifyingRewardEvents[0] ?? null;
@@ -525,8 +528,7 @@ export async function syncInvitationEvidence(
           walletAddress:
             row.invitee_wallet,
           activationBlock,
-          firstQualifyingRewardBlock:
-            firstQualifyingReward.blockNumber,
+          firstQualifyingReward,
         });
 
       conversionScanSucceeded = true;
@@ -570,6 +572,7 @@ export async function syncInvitationEvidence(
       ) {
         const proof =
           conversion.qualifyingConversion;
+        qualifyingConversionProof = proof;
 
         vot3Converted = true;
         vot3ConvertedAt =
@@ -668,15 +671,15 @@ export async function syncInvitationEvidence(
     !conversionSyncPending &&
     row.invitee_wallet &&
     vot3Converted &&
-    vot3ConvertedBlock !== null
+    qualifyingConversionProof
   ) {
     try {
       const vote =
         await getVeBetterVoteProgress({
           voterAddress:
             row.invitee_wallet,
-          fromBlock:
-            vot3ConvertedBlock,
+          conversionPosition:
+            qualifyingConversionProof,
         });
 
       voteScanSucceeded = true;
