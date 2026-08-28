@@ -28,13 +28,23 @@ export default function TermsPage() {
           수 있습니다.
         </p>
 
+        <h3>추천 보상의 대상</h3>
+        <p>
+          초대받은 사용자의 dApp 활동, B3TR에서 VOT3로의 전환 및 Allocation
+          Voting은 온보딩 검증 기준입니다. VeInvite는 이러한 행동을 이유로
+          피추천자에게 동일 행동에 대한 별도의 B3TR 보상을 추가 지급하지
+          않습니다. funded referral rewards가 활성화된 경우, 자격을 갖춘 신규
+          또는 복귀 사용자를 실제 온보딩 완료까지 연결한 초대자가 최종 검증 후
+          추천 보상 대상이 될 수 있습니다.
+        </p>
+
         <h3>보상은 보장되지 않습니다</h3>
         <p>
-          B3TR 추천 보상은 고정되거나 보장되지 않습니다. 참여 자격, 지급 시점,
-          보상 금액은 검증 결과, VeInvite 보상 풀의 가용 자금, VeBetterDAO
-          배분 결과 및 현재 생태계 규칙에 따라 달라질 수 있습니다. 보안,
-          기술적 안정성 또는 규칙 준수를 위해 보상 배분이 일시 중단되거나
-          변경될 수 있습니다.
+          B3TR 추천 보상은 고정되거나 보장되지 않습니다. 초대자의 지급 자격,
+          지급 시점, 보상 금액은 온보딩 검증 결과, 최종 Sybil 검토, VeInvite
+          추천 보상 풀의 가용 자금과 이월분, VeBetterDAO 배분 결과 및 현재
+          생태계 규칙에 따라 달라질 수 있습니다. 보안, 기술적 안정성 또는 규칙
+          준수를 위해 보상 배분이 일시 중단되거나 변경될 수 있습니다.
         </p>
 
         <h3>초대 취소</h3>
@@ -86,13 +96,24 @@ export default function TermsPage() {
           rejected or excluded from rewards.
         </p>
 
+        <h3>Who a referral reward is for</h3>
+        <p>
+          The invitee&apos;s dApp activity, B3TR-to-VOT3 conversion, and Allocation
+          Voting are onboarding-verification criteria. VeInvite does not pay the
+          invitee additional B3TR merely for those same actions. When funded
+          referral rewards are enabled, the inviter who successfully brings an
+          eligible new or returning user through verified onboarding may qualify
+          for a referral reward after final verification.
+        </p>
+
         <h3>Rewards are not guaranteed</h3>
         <p>
-          B3TR referral rewards are not fixed or guaranteed. Eligibility,
-          timing, and amounts may depend on verification results, available
-          VeInvite reward-pool funds, VeBetterDAO allocation outcomes, and
-          current ecosystem rules. Reward distribution may be paused or changed
-          when needed for security, technical reliability, or rule compliance.
+          B3TR referral rewards are not fixed or guaranteed. Inviter eligibility,
+          timing, and amounts may depend on onboarding evidence, final Sybil
+          review, available VeInvite referral-reward pool funds and carry-over,
+          VeBetterDAO allocation outcomes, and current ecosystem rules. Reward
+          distribution may be paused or changed when needed for security,
+          technical reliability, or rule compliance.
         </p>
 
         <h3>Invite cancellation</h3>
