@@ -624,7 +624,8 @@ export function verifyPayoutTransactionEvidence({
             .toLowerCase() ||
         rewardEvent.amountWei !==
           expectedClause.amountWei ||
-        rewardEvent.proof !== '' ||
+        rewardEvent.proof !==
+          expectedClause.proof ||
         rewardEvent.distributor !==
           normalizedOperator
       ) {
