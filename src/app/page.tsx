@@ -8,6 +8,7 @@ export default function HomePage() {
     <WalletSessionGate>
       <InviteStatusAutoRefresh />
       <HomeClient />
+      {/* Paid referral receipts are isolated from the core invitation layout. */}
       <RewardReceiptNotice />
     </WalletSessionGate>
   );
