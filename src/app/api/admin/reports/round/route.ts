@@ -24,6 +24,10 @@ type RewardRoundRow = {
   network: string;
   app_id: string;
   status: string;
+  vebetter_round_id: string | number | null;
+  allocation_receipt_id: string | number | null;
+  allocation_rewards_wei: string | null;
+  opening_carryover_wei: string | null;
   observed_pool_balance_wei: string;
   reserved_before_round_wei: string;
   distributable_wei: string;
@@ -32,6 +36,20 @@ type RewardRoundRow = {
   remainder_wei: string;
   created_at: string;
   completed_at: string | null;
+};
+
+type AllocationRow = {
+  id: string | number;
+  network: string;
+  app_id: string;
+  vebetter_round_id: string | number;
+  total_amount_wei: string;
+  unallocated_amount_wei: string;
+  team_allocation_amount_wei: string;
+  rewards_allocation_amount_wei: string;
+  claim_tx_id: string;
+  claim_block_number: string | number;
+  claim_block_timestamp: string;
 };
 
 type EligibilityRow = {
@@ -109,7 +127,7 @@ async function loadCompletedRound({
   let query = supabaseAdmin
     .from('reward_rounds')
     .select(
-      'id, network, app_id, status, observed_pool_balance_wei, reserved_before_round_wei, distributable_wei, eligible_count, per_reward_wei, remainder_wei, created_at, completed_at',
+      'id, network, app_id, status, vebetter_round_id, allocation_receipt_id, allocation_rewards_wei, opening_carryover_wei, observed_pool_balance_wei, reserved_before_round_wei, distributable_wei, eligible_count, per_reward_wei, remainder_wei, created_at, completed_at',
     )
     .eq('network', network)
     .eq('app_id', appId)
@@ -132,6 +150,58 @@ async function loadCompletedRound({
   }
 
   return (data as RewardRoundRow | null) ?? null;
+}
+
+async function loadAllocationReceipt(
+  round: RewardRoundRow,
+): Promise<AllocationRow | null> {
+  if (
+    round.allocation_receipt_id === null ||
+    round.vebetter_round_id === null ||
+    round.allocation_rewards_wei === null ||
+    round.opening_carryover_wei === null
+  ) {
+    return null;
+  }
+
+  const { data, error } = await supabaseAdmin
+    .from('vebetter_round_allocations')
+    .select(
+      'id, network, app_id, vebetter_round_id, total_amount_wei, unallocated_amount_wei, team_allocation_amount_wei, rewards_allocation_amount_wei, claim_tx_id, claim_block_number, claim_block_timestamp',
+    )
+    .eq('id', String(round.allocation_receipt_id))
+    .maybeSingle();
+
+  if (error) {
+    throw new Error(
+      `VeBetter allocation receipt could not be loaded: ${error.message}`,
+    );
+  }
+
+  const receipt = (data as AllocationRow | null) ?? null;
+
+  if (!receipt) {
+    return null;
+  }
+
+  if (
+    receipt.network !== round.network ||
+    receipt.app_id !== round.app_id ||
+    String(receipt.vebetter_round_id) !==
+      String(round.vebetter_round_id) ||
+    toUnsignedIntegerString(
+      receipt.rewards_allocation_amount_wei,
+    ) !==
+      toUnsignedIntegerString(
+        round.allocation_rewards_wei,
+      )
+  ) {
+    throw new Error(
+      'VeBetter allocation receipt does not match the completed VeInvite reward round.',
+    );
+  }
+
+  return receipt;
 }
 
 async function loadReportingBaseline(
@@ -269,6 +339,26 @@ export async function GET(request: NextRequest) {
           error:
             'The completed reward round has no completion timestamp.',
           code: 'ROUND_COMPLETION_TIMESTAMP_MISSING',
+          rewardRoundId: String(round.id),
+          writesPerformed: false,
+          transfersPerformed: false,
+        },
+        {
+          status: 409,
+          headers: { 'Cache-Control': 'no-store' },
+        },
+      );
+    }
+
+    const allocationReceipt =
+      await loadAllocationReceipt(round);
+
+    if (!allocationReceipt) {
+      return NextResponse.json(
+        {
+          error:
+            'The completed reward round is missing immutable VeBetterDAO allocation evidence.',
+          code: 'ROUND_ALLOCATION_EVIDENCE_MISSING',
           rewardRoundId: String(round.id),
           writesPerformed: false,
           transfersPerformed: false,
@@ -663,7 +753,7 @@ export async function GET(request: NextRequest) {
         0n,
       )
       .toString();
-    const cumulativeRewardedWallets = new Set(
+    const cumulativeRewardedInviters = new Set(
       cumulativePayoutRows.map((row) =>
         row.recipient_wallet.toLowerCase(),
       ),
@@ -674,11 +764,51 @@ export async function GET(request: NextRequest) {
       paidRows.length,
     );
 
+    const totalAppAllocationWei =
+      toUnsignedIntegerString(
+        allocationReceipt.total_amount_wei,
+      );
+    const teamAllocationWei =
+      toUnsignedIntegerString(
+        allocationReceipt.team_allocation_amount_wei,
+      );
+    const rewardPoolAllocationWei =
+      toUnsignedIntegerString(
+        allocationReceipt.rewards_allocation_amount_wei,
+      );
+    const openingCarryoverWei =
+      toUnsignedIntegerString(
+        round.opening_carryover_wei,
+      );
+    const closingCarryoverWei =
+      toUnsignedIntegerString(
+        round.remainder_wei,
+      );
+
     const report: RoundReport = {
       rewardRoundId: String(round.id),
       network: round.network,
       periodStart,
       periodEnd: round.created_at,
+      funding: {
+        veBetterRoundId:
+          String(allocationReceipt.vebetter_round_id),
+        totalAppAllocationWei,
+        totalAppAllocationB3tr:
+          formatWeiAsB3tr(totalAppAllocationWei, 2),
+        teamAllocationWei,
+        teamAllocationB3tr:
+          formatWeiAsB3tr(teamAllocationWei, 2),
+        rewardPoolAllocationWei,
+        rewardPoolAllocationB3tr:
+          formatWeiAsB3tr(rewardPoolAllocationWei, 2),
+        openingCarryoverWei,
+        openingCarryoverB3tr:
+          formatWeiAsB3tr(openingCarryoverWei, 2),
+        closingCarryoverWei,
+        closingCarryoverB3tr:
+          formatWeiAsB3tr(closingCarryoverWei, 2),
+      },
       participation: {
         eligibilityChecks: eligibilityRows.length,
         checkedWallets,
@@ -714,8 +844,8 @@ export async function GET(request: NextRequest) {
           cumulativeCompletedResult.count ?? 0,
         paidReferralRewards:
           cumulativePayoutRows.length,
-        rewardedWallets:
-          cumulativeRewardedWallets,
+        rewardedInviters:
+          cumulativeRewardedInviters,
         b3trDistributedWei: cumulativeB3trWei,
         b3trDistributed: formatWeiAsB3tr(
           cumulativeB3trWei,
@@ -731,6 +861,20 @@ export async function GET(request: NextRequest) {
         reportingWindowSource: source,
         launchBaseline: baseline,
         reportFinalizedAt: round.completed_at,
+        allocationEvidence: {
+          receiptId:
+            String(allocationReceipt.id),
+          claimTxId:
+            allocationReceipt.claim_tx_id,
+          claimBlockNumber:
+            String(allocationReceipt.claim_block_number),
+          claimBlockTimestamp:
+            allocationReceipt.claim_block_timestamp,
+          unallocatedAmountWei:
+            toUnsignedIntegerString(
+              allocationReceipt.unallocated_amount_wei,
+            ),
+        },
         observedPoolBalanceWei:
           toUnsignedIntegerString(
             round.observed_pool_balance_wei,
@@ -739,12 +883,8 @@ export async function GET(request: NextRequest) {
           toUnsignedIntegerString(
             round.reserved_before_round_wei,
           ),
-        plannedRemainderWei:
-          toUnsignedIntegerString(
-            round.remainder_wei,
-          ),
         note:
-          'Public copy reports actual settled B3TR distributed. It does not label the observed pool balance as a single-round allocation because balances can include carry-over or prior remainder.',
+          'Public copy uses the immutable VeBetterDAO allocation receipt and actual settled referral payouts. Carry-over is shown separately so a prior balance is never mislabeled as the current-round allocation.',
         writesPerformed: false,
         transfersPerformed: false,
       },
