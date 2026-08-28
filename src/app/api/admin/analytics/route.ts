@@ -12,6 +12,10 @@ import {
   requireWalletSession,
   WalletAuthenticationError,
 } from '@/lib/walletAuthServer';
+import {
+  readVeBetterRoundWindow,
+  type VeBetterRoundWindow,
+} from '@/lib/vebetter/entryEligibility';
 
 export const dynamic = 'force-dynamic';
 
@@ -20,25 +24,26 @@ const MAX_REPORT_ROWS = 100;
 const REPORT_DEFINITIONS = {
   overview: {
     metricDefinition:
-      '전체 초대 흐름 요약입니다. 지급 보상은 확정 영수증, dApp 보상은 검증된 미션 이벤트만 집계합니다.',
-    source: 'operator_analytics_overview',
+      '선택한 VeBetterDAO 한 라운드의 초대 흐름입니다. 신규·복귀는 진입 증거, 지급 보상은 확정 영수증, dApp 보상은 해당 라운드 블록의 검증 이벤트만 집계합니다.',
+    source: 'get_operator_round_overview',
   },
   inviters: {
     metricDefinition:
-      '초대 생성 수 기준 순위입니다. 실제 참여, 완료, 지급, 의심 표시 수를 함께 제공합니다.',
-    source: 'operator_inviter_analytics',
+      '선택한 VeBetterDAO 한 라운드의 초대 생성 수 기준 순위입니다. 해당 라운드의 실제 참여, 완료, 지급, 의심 표시 수를 함께 제공합니다.',
+    source:
+      'get_operator_round_inviter_analytics',
   },
   'reward-recipients': {
     metricDefinition:
-      'VeInvite가 실제 지급한 추천 보상의 누적 금액 순위입니다. 확정된 불변 보상 영수증만 집계합니다.',
+      '선택한 VeBetterDAO 한 라운드에서 VeInvite가 실제 지급한 추천 보상 순위입니다. 확정된 불변 보상 영수증만 집계합니다.',
     source:
-      'operator_reward_recipient_leaderboard',
+      'get_operator_round_reward_recipients',
   },
   'qualifying-dapp-rewards': {
     metricDefinition:
-      'VeInvite 미션 증거로 검증된 dApp B3TR 보상 합계 순위입니다. 지갑의 전체 B3TR 수령 내역은 아닙니다.',
+      '선택한 VeBetterDAO 한 라운드 블록 안에서 VeInvite 미션 증거로 검증된 dApp B3TR 보상 순위입니다. 지갑의 전체 B3TR 수령 내역은 아닙니다.',
     source:
-      'operator_qualifying_dapp_reward_leaderboard',
+      'get_operator_round_dapp_rewards',
   },
 } as const;
 
@@ -74,18 +79,47 @@ function readLimit(
   return limit;
 }
 
+function readRoundId(
+  rawRoundId: string | null,
+): number | null | undefined {
+  if (rawRoundId === null) {
+    return undefined;
+  }
+
+  if (!/^[1-9]\d*$/.test(rawRoundId)) {
+    return null;
+  }
+
+  const roundId = Number(rawRoundId);
+
+  if (!Number.isSafeInteger(roundId)) {
+    return null;
+  }
+
+  return roundId;
+}
+
 async function loadReport(
   report: AnalyticsReport,
   limit: number,
   network: string,
+  round: VeBetterRoundWindow,
 ) {
+  const roundParameters = {
+    p_network: network,
+    p_vebetter_round_id: round.roundId,
+    p_round_start_at: round.roundStartAt,
+    p_round_end_at: round.roundEndAt,
+    p_round_start_block: round.voteStartBlock,
+    p_round_end_block: round.voteEndBlock,
+  };
+
   if (report === 'overview') {
-    const { data, error } = await supabaseAdmin
-      .from('operator_analytics_overview')
-      .select(
-        'total_invitations, unique_inviters, claimed_invitations, completed_referrals, currently_eligible_referrals, paid_referrals, total_veinvite_reward_wei, qualifying_dapp_reward_events, total_qualifying_dapp_reward_wei, flagged_referrals, latest_recorded_activity_at',
-      )
-      .maybeSingle();
+    const { data, error } =
+      await supabaseAdmin.rpc(
+        'get_operator_round_overview',
+        roundParameters,
+      );
 
     if (error) {
       throw new Error(
@@ -93,25 +127,18 @@ async function loadReport(
       );
     }
 
-    return data ? [data] : [];
+    return data ?? [];
   }
 
   if (report === 'inviters') {
-    const { data, error } = await supabaseAdmin
-      .from('operator_inviter_analytics')
-      .select(
-        'wallet_address, invitations_created, claimed_invitations, unique_invitees, verified_new_invitees, verified_returning_invitees, completed_referrals, currently_eligible_referrals, paid_referrals, reward_receipt_count, total_veinvite_reward_wei, cancelled_invitations, flagged_referrals, first_invite_at, last_activity_at, last_reward_paid_at',
-      )
-      .order('invitations_created', {
-        ascending: false,
-      })
-      .order('completed_referrals', {
-        ascending: false,
-      })
-      .order('wallet_address', {
-        ascending: true,
-      })
-      .limit(limit);
+    const { data, error } =
+      await supabaseAdmin.rpc(
+        'get_operator_round_inviter_analytics',
+        {
+          ...roundParameters,
+          p_limit: limit,
+        },
+      );
 
     if (error) {
       throw new Error(
@@ -123,24 +150,16 @@ async function loadReport(
   }
 
   if (report === 'reward-recipients') {
-    const { data, error } = await supabaseAdmin
-      .from(
-        'operator_reward_recipient_leaderboard',
-      )
-      .select(
-        'network, wallet_address, reward_receipt_count, paid_referral_count, paid_round_count, total_reward_wei, first_paid_at, last_paid_at',
-      )
-      .eq('network', network)
-      .order('total_reward_wei', {
-        ascending: false,
-      })
-      .order('reward_receipt_count', {
-        ascending: false,
-      })
-      .order('wallet_address', {
-        ascending: true,
-      })
-      .limit(limit);
+    const { data, error } =
+      await supabaseAdmin.rpc(
+        'get_operator_round_reward_recipients',
+        {
+          p_network: network,
+          p_vebetter_round_id:
+            round.roundId,
+          p_limit: limit,
+        },
+      );
 
     if (error) {
       throw new Error(
@@ -151,24 +170,20 @@ async function loadReport(
     return data ?? [];
   }
 
-  const { data, error } = await supabaseAdmin
-    .from(
-      'operator_qualifying_dapp_reward_leaderboard',
-    )
-    .select(
-      'network, wallet_address, qualifying_reward_event_count, invite_count, distinct_dapp_count, total_qualifying_reward_wei, first_reward_at, last_reward_at',
-    )
-    .eq('network', network)
-    .order('total_qualifying_reward_wei', {
-      ascending: false,
-    })
-    .order('qualifying_reward_event_count', {
-      ascending: false,
-    })
-    .order('wallet_address', {
-      ascending: true,
-    })
-    .limit(limit);
+  const { data, error } =
+    await supabaseAdmin.rpc(
+      'get_operator_round_dapp_rewards',
+      {
+        p_network: network,
+        p_vebetter_round_id:
+          round.roundId,
+        p_round_start_block:
+          round.voteStartBlock,
+        p_round_end_block:
+          round.voteEndBlock,
+        p_limit: limit,
+      },
+    );
 
   if (error) {
     throw new Error(
@@ -182,11 +197,45 @@ async function loadReport(
 export async function GET(
   request: NextRequest,
 ) {
+  const requestedRoundId = readRoundId(
+    request.nextUrl.searchParams.get(
+      'roundId',
+    ),
+  );
+
+  if (requestedRoundId === null) {
+    return NextResponse.json(
+      {
+        error:
+          'roundId must be a positive safe integer.',
+      },
+      {
+        status: 400,
+        headers: {
+          'Cache-Control': 'no-store',
+        },
+      },
+    );
+  }
+
   try {
     const session =
       await requireWalletSession({ request });
-    const pool =
-      await readVeInviteRewardPoolStatus();
+    const [pool, round] =
+      await Promise.all([
+        readVeInviteRewardPoolStatus(),
+        readVeBetterRoundWindow({
+          ...(requestedRoundId === undefined
+            ? {}
+            : { roundId: requestedRoundId }),
+        }),
+      ]);
+
+    if (round.network !== pool.network) {
+      throw new Error(
+        'Analytics round network does not match the reward pool network.',
+      );
+    }
 
     if (
       !canOperateVeInviteRewards(
@@ -243,6 +292,7 @@ export async function GET(
       rawReport,
       limit,
       pool.network,
+      round,
     );
     const definition =
       REPORT_DEFINITIONS[rawReport];
@@ -251,6 +301,22 @@ export async function GET(
       {
         report: rawReport,
         network: pool.network,
+        scope: 'VEBETTER_ROUND',
+        round: {
+          id: round.roundId,
+          currentRoundId:
+            round.currentRoundId,
+          status: round.status,
+          startBlock:
+            round.voteStartBlock,
+          endBlock: round.voteEndBlock,
+          startAt: round.roundStartAt,
+          endAt: round.roundEndAt,
+          endAtEstimated:
+            round.roundEndAtEstimated,
+          checkedThroughBlock:
+            round.bestBlock,
+        },
         generatedAt: new Date().toISOString(),
         verifiedOperator:
           session.walletAddress,
