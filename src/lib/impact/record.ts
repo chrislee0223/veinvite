@@ -77,7 +77,7 @@ export async function recordQualifyingRewardImpact(args: {
     clause_index: event.clauseIndex,
     app_id: event.appId.toLowerCase(),
     vote_round_id: null,
-    amount_wei: null,
+    amount_wei: event.amountWei,
   }));
 
   const { error } = await supabaseAdmin
