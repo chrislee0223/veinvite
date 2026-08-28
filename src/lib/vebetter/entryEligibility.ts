@@ -92,6 +92,19 @@ type RoundRecord = {
   voteEnd: number;
 };
 
+export type VeBetterRoundWindow = {
+  network: VeBetterNetwork;
+  currentRoundId: number;
+  roundId: number;
+  voteStartBlock: number;
+  voteEndBlock: number;
+  roundStartAt: string;
+  roundEndAt: string;
+  roundEndAtEstimated: boolean;
+  bestBlock: number;
+  status: 'UPCOMING' | 'ACTIVE' | 'COMPLETED';
+};
+
 function isValidAddress(address: string): boolean {
   return /^0x[0-9a-fA-F]{40}$/.test(address);
 }
@@ -165,6 +178,42 @@ function readRoundTupleValue(
   }
 
   return undefined;
+}
+
+function parseRoundRecord(
+  roundId: number,
+  roundResult: readonly unknown[],
+): RoundRecord {
+  const round = roundResult[0] as unknown;
+  const voteStart = toSafeInteger(
+    readRoundTupleValue(
+      round,
+      'voteStart',
+      1,
+    ),
+    `VeBetterDAO round ${roundId} voteStart`,
+  );
+  const voteDuration = toSafeInteger(
+    readRoundTupleValue(
+      round,
+      'voteDuration',
+      2,
+    ),
+    `VeBetterDAO round ${roundId} voteDuration`,
+  );
+  const voteEnd = voteStart + voteDuration;
+
+  if (!Number.isSafeInteger(voteEnd)) {
+    throw new Error(
+      `VeBetterDAO round ${roundId} end block is invalid.`,
+    );
+  }
+
+  return {
+    roundId,
+    voteStart,
+    voteEnd,
+  };
 }
 
 function parseChainEvent(
@@ -258,40 +307,14 @@ async function getDormancyRoundWindow({
     roundIds.map(async (roundId) => {
       const roundResult =
         await contract.read.getRound(BigInt(roundId));
-      const round = roundResult[0] as unknown;
 
       // VeChain SDK versions may expose tuple outputs either with named fields
-      // or as positional array values at runtime. Accept both representations
-      // while still validating the numeric values strictly.
-      const voteStart = toSafeInteger(
-        readRoundTupleValue(
-          round,
-          'voteStart',
-          1,
-        ),
-        `VeBetterDAO round ${roundId} voteStart`,
-      );
-      const voteDuration = toSafeInteger(
-        readRoundTupleValue(
-          round,
-          'voteDuration',
-          2,
-        ),
-        `VeBetterDAO round ${roundId} voteDuration`,
-      );
-      const voteEnd = voteStart + voteDuration;
-
-      if (!Number.isSafeInteger(voteEnd)) {
-        throw new Error(
-          `VeBetterDAO round ${roundId} end block is invalid.`,
-        );
-      }
-
-      return {
+      // or as positional array values at runtime. The shared parser accepts
+      // both while still validating every numeric value strictly.
+      return parseRoundRecord(
         roundId,
-        voteStart,
-        voteEnd,
-      } satisfies RoundRecord;
+        roundResult as readonly unknown[],
+      );
     }),
   );
 
@@ -331,6 +354,130 @@ async function getDormancyRoundWindow({
       .sort((left, right) => left - right),
     dormancyStartBlock: oldestCompletedRound.voteStart,
     newestCompletedRoundEndBlock: newestCompletedRound.voteEnd,
+  };
+}
+
+/**
+ * Resolves one exact VeBetterDAO voting round from the reviewed chain.
+ *
+ * Round membership is block-based. The timestamp of a future end block is a
+ * display/reporting projection using VeChain's ten-second block cadence; once
+ * the block exists, its sealed timestamp is returned instead.
+ */
+export async function readVeBetterRoundWindow({
+  roundId: requestedRoundId,
+}: {
+  roundId?: number;
+} = {}): Promise<VeBetterRoundWindow> {
+  const {
+    network,
+    nodeUrl,
+    xAllocationVotingAddress,
+  } = getVeBetterNetworkConfig();
+  const thor = ThorClient.at(nodeUrl);
+  const bestBlock =
+    await thor.blocks.getBestBlockCompressed();
+
+  if (
+    !bestBlock ||
+    !Number.isSafeInteger(bestBlock.number) ||
+    bestBlock.number < 0
+  ) {
+    throw new Error(
+      'Unable to establish the current VeChain block.',
+    );
+  }
+
+  const contract = thor.contracts.load(
+    xAllocationVotingAddress,
+    xAllocationVotingRoundAbi,
+  );
+  const currentRoundResult =
+    await contract.read.currentRoundId();
+  const currentRoundId = toSafeInteger(
+    currentRoundResult[0],
+    'Current VeBetterDAO round id',
+  );
+  const roundId =
+    requestedRoundId ?? currentRoundId;
+
+  if (
+    !Number.isSafeInteger(roundId) ||
+    roundId < 1 ||
+    roundId > currentRoundId
+  ) {
+    throw new Error(
+      `VeBetterDAO round id must be between 1 and ${currentRoundId}.`,
+    );
+  }
+
+  const roundResult =
+    await contract.read.getRound(BigInt(roundId));
+  const round = parseRoundRecord(
+    roundId,
+    roundResult as readonly unknown[],
+  );
+
+  if (round.voteStart < 1) {
+    throw new Error(
+      `VeBetterDAO round ${roundId} does not have a valid start block.`,
+    );
+  }
+
+  const startBlock =
+    await thor.blocks.getBlockCompressed(
+      round.voteStart,
+    );
+
+  if (
+    !startBlock ||
+    !Number.isSafeInteger(startBlock.timestamp) ||
+    startBlock.timestamp < 0
+  ) {
+    throw new Error(
+      `VeBetterDAO round ${roundId} start block is unavailable.`,
+    );
+  }
+
+  const sealedEndBlock =
+    round.voteEnd <= bestBlock.number
+      ? await thor.blocks.getBlockCompressed(
+          round.voteEnd,
+        )
+      : null;
+  const sealedEndTimestamp =
+    sealedEndBlock?.timestamp;
+  const hasSealedEndTimestamp =
+    Number.isSafeInteger(sealedEndTimestamp) &&
+    (sealedEndTimestamp ?? -1) >= 0;
+  const roundEndTimestamp =
+    hasSealedEndTimestamp
+      ? (sealedEndTimestamp as number)
+      : startBlock.timestamp +
+        (round.voteEnd - round.voteStart) * 10;
+  const status =
+    bestBlock.number < round.voteStart
+      ? 'UPCOMING'
+      : bestBlock.number > round.voteEnd
+        ? 'COMPLETED'
+        : 'ACTIVE';
+
+  return {
+    network,
+    currentRoundId,
+    roundId,
+    voteStartBlock: round.voteStart,
+    voteEndBlock: round.voteEnd,
+    roundStartAt: new Date(
+      startBlock.timestamp * 1000,
+    ).toISOString(),
+    roundEndAt: new Date(
+      roundEndTimestamp * 1000,
+    ).toISOString(),
+    roundEndAtEstimated:
+      !hasSealedEndTimestamp,
+    bestBlock: bestBlock.number,
+    status,
   };
 }
 
