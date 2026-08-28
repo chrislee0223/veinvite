@@ -7,7 +7,8 @@
 ## 1. 현재 완료된 핵심 영역
 
 - [x] Next.js / Vercel Production 배포 구조
-- [x] Production / Preview Supabase 분리
+- [x] Production / Preview Supabase 프로젝트 분리 및 Preview의 Production 접근 차단
+- [ ] Vercel Preview 환경 변수를 Preview Supabase 프로젝트로 교정
 - [x] VeWorld 지갑 연결 및 지갑 서명 기반 세션 인증
 - [x] 신규 사용자 / 복귀 사용자 / 활성 기존 사용자 분류
 - [x] 최근 12개 완료 라운드 기준 복귀 사용자 판정
@@ -26,6 +27,8 @@
 - [x] 동일 VeBetterDAO 라운드 및 allocation 영수증 중복 사용 방지
 - [x] allocation 없는 구형 reward-round 생성 경로 차단
 - [x] 라운드별 신규·복귀·기존 활성·온보딩·성공 추천·실지급 통계 엔진
+- [x] 라운드별 보고와 누계 리더보드/API 분리
+- [x] 동일 피추천 지갑의 동시 다중 초대 수락을 DB 고유 제약으로 차단
 - [x] 라운드 통계에 실제 VeBetterDAO Round와 allocation/이월 정보 연결
 - [x] Privacy / Terms 및 기본 공개 메타데이터
 - [x] Production에서 Preview 전용 진단 경로 차단
@@ -51,6 +54,8 @@ VeInvite는 피추천자의 dApp 활동, B3TR → VOT3 전환, Allocation Voting
 
 세부 근거는 `docs/STAGING_E2E_READINESS_20260828.md`를 따릅니다.
 
+독립 백그라운드 동기화는 현재 일 1회 fallback cron이다. 페이지가 열려 있을 때는 더 자주 동기화되지만, 닫힌 페이지의 미완료 건까지 1시간 이내에 갱신하려면 더 높은 빈도의 외부 스케줄러 또는 호스팅 플랜이 필요하다.
+
 ## 4. Mainnet funded referral rewards — 별도 게이트
 
 공개 온보딩과 추천 보상 지급은 같은 단계가 아닙니다.
@@ -75,6 +80,7 @@ VeInvite는 피추천자의 dApp 활동, B3TR → VOT3 전환, Allocation Voting
 - [ ] `operator_reporting_config.reporting_start_at`에 공식 공개 통계 시작 기준일 설정
 - [ ] 해당 기준일 이전 개발/테스트 기록이 공개 누적 통계에 포함되지 않는지 확인
 - [ ] 첫 실제 VeBetterDAO allocation receipt가 장부에 자동 기록되는지 확인
+- [ ] 다수 피추천 지갑에서 한 지갑으로 모이는 B3TR 전송을 찾는 별도 인덱서/검토 보고서 구축
 
 ## 6. 공개 후 첫 주
 

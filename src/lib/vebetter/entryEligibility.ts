@@ -105,6 +105,13 @@ export type VeBetterRoundWindow = {
   status: 'UPCOMING' | 'ACTIVE' | 'COMPLETED';
 };
 
+export class VeBetterRoundInputError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'VeBetterRoundInputError';
+  }
+}
+
 function isValidAddress(address: string): boolean {
   return /^0x[0-9a-fA-F]{40}$/.test(address);
 }
@@ -406,7 +413,7 @@ export async function readVeBetterRoundWindow({
     roundId < 1 ||
     roundId > currentRoundId
   ) {
-    throw new Error(
+    throw new VeBetterRoundInputError(
       `VeBetterDAO round id must be between 1 and ${currentRoundId}.`,
     );
   }
