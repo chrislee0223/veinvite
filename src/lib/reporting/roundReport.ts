@@ -9,6 +9,20 @@ export type RoundReportParticipation = {
   sybilBlocked: number;
 };
 
+export type RoundReportFunding = {
+  veBetterRoundId: string;
+  totalAppAllocationWei: string;
+  totalAppAllocationB3tr: string;
+  teamAllocationWei: string;
+  teamAllocationB3tr: string;
+  rewardPoolAllocationWei: string;
+  rewardPoolAllocationB3tr: string;
+  openingCarryoverWei: string;
+  openingCarryoverB3tr: string;
+  closingCarryoverWei: string;
+  closingCarryoverB3tr: string;
+};
+
 export type RoundReportRewards = {
   successfulReferralsPaid: number;
   rewardedInviters: number;
@@ -26,7 +40,7 @@ export type RoundReportCumulative = {
   eligibleUsers: number;
   completedOnboardings: number;
   paidReferralRewards: number;
-  rewardedWallets: number;
+  rewardedInviters: number;
   b3trDistributedWei: string;
   b3trDistributed: string;
 };
@@ -36,6 +50,7 @@ export type RoundReport = {
   network: string;
   periodStart: string;
   periodEnd: string;
+  funding: RoundReportFunding;
   participation: RoundReportParticipation;
   rewards: RoundReportRewards;
   cumulative: RoundReportCumulative;
@@ -126,39 +141,62 @@ function withThousands(value: string): string {
 export function buildRoundReportPosts(
   report: RoundReport,
 ): { en: string; ko: string } {
+  const f = report.funding;
   const p = report.participation;
   const r = report.rewards;
   const c = report.cumulative;
+  const allocated = withThousands(
+    f.totalAppAllocationB3tr,
+  );
+  const rewardPool = withThousands(
+    f.rewardPoolAllocationB3tr,
+  );
+  const operations = withThousands(
+    f.teamAllocationB3tr,
+  );
   const distributed = withThousands(
     r.distributedB3tr,
+  );
+  const openingCarryover = withThousands(
+    f.openingCarryoverB3tr,
+  );
+  const closingCarryover = withThousands(
+    f.closingCarryoverB3tr,
   );
   const cumulativeEligible = withThousands(
     String(c.eligibleUsers),
   );
+  const hasCarryover =
+    BigInt(f.openingCarryoverWei) > 0n ||
+    BigInt(f.closingCarryoverWei) > 0n;
 
   const en = [
-    'VeInvite — Round Report',
+    `VeInvite — VeBetterDAO Round ${f.veBetterRoundId}`,
     '',
-    `👥 Invitees checked: ${p.checkedWallets}`,
-    `🆕 New: ${p.newUsers} | 🔄 Returning: ${p.returningUsers}`,
-    `🚫 Not eligible — active users: ${p.activeExistingUsers}`,
-    `✅ Onboarding completed: ${p.completedOnboardings}`,
-    `🤝 Referrals rewarded: ${r.successfulReferralsPaid}`,
-    `💰 B3TR distributed: ${distributed}`,
-    `🛡️ Sybil / abuse blocked: ${p.sybilBlocked}`,
-    `📈 Cumulative eligible onboarded: ${cumulativeEligible}`,
+    `👥 Checked ${p.checkedWallets} | ✅ Onboarded ${p.completedOnboardings}`,
+    `🆕 New ${p.newUsers} | 🔄 Returning ${p.returningUsers} | 🚫 Active ${p.activeExistingUsers}`,
+    `🤝 Referrals paid: ${r.successfulReferralsPaid}`,
+    `🏦 Allocation: ${allocated} B3TR (Rewards ${rewardPool} / Ops ${operations})`,
+    `💰 Referral rewards paid: ${distributed} B3TR`,
+    ...(hasCarryover
+      ? [`↪️ Carryover: ${openingCarryover} → ${closingCarryover} B3TR`]
+      : []),
+    `🛡️ Sybil blocked: ${p.sybilBlocked}`,
+    `📈 Cumulative onboarded: ${cumulativeEligible}`,
   ].join('\n');
 
   const ko = [
-    'VeInvite — 라운드 리포트',
+    `VeInvite — VeBetterDAO ${f.veBetterRoundId} 라운드`,
     '',
-    `👥 참여 확인 지갑: ${p.checkedWallets}`,
-    `🆕 신규: ${p.newUsers} | 🔄 복귀: ${p.returningUsers}`,
-    `🚫 참여 대상 아님 — 기존 활성: ${p.activeExistingUsers}`,
-    `✅ 온보딩 완료: ${p.completedOnboardings}`,
-    `🤝 보상 지급 추천: ${r.successfulReferralsPaid}`,
-    `💰 지급 B3TR: ${distributed}`,
-    `🛡️ Sybil / 부정 이용 차단: ${p.sybilBlocked}`,
+    `👥 참여 확인 ${p.checkedWallets} | ✅ 온보딩 완료 ${p.completedOnboardings}`,
+    `🆕 신규 ${p.newUsers} | 🔄 복귀 ${p.returningUsers} | 🚫 기존 활성 ${p.activeExistingUsers}`,
+    `🤝 추천 보상 지급: ${r.successfulReferralsPaid}건`,
+    `🏦 할당: ${allocated} B3TR (추천 보상 ${rewardPool} / 운영 ${operations})`,
+    `💰 실제 추천 보상 지급: ${distributed} B3TR`,
+    ...(hasCarryover
+      ? [`↪️ 이월: ${openingCarryover} → ${closingCarryover} B3TR`]
+      : []),
+    `🛡️ Sybil 차단: ${p.sybilBlocked}`,
     `📈 누적 신규·복귀 온보딩: ${cumulativeEligible}`,
   ].join('\n');
 
