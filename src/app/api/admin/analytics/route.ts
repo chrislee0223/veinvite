@@ -14,6 +14,7 @@ import {
 } from '@/lib/walletAuthServer';
 import {
   readVeBetterRoundWindow,
+  VeBetterRoundInputError,
   type VeBetterRoundWindow,
 } from '@/lib/vebetter/entryEligibility';
 
@@ -23,32 +24,64 @@ const MAX_REPORT_ROWS = 100;
 
 const REPORT_DEFINITIONS = {
   overview: {
-    metricDefinition:
-      '선택한 VeBetterDAO 한 라운드의 초대 흐름입니다. 신규·복귀는 진입 증거, 지급 보상은 확정 영수증, dApp 보상은 해당 라운드 블록의 검증 이벤트만 집계합니다.',
-    source: 'get_operator_round_overview',
+    round: {
+      metricDefinition:
+        '선택한 VeBetterDAO 한 라운드의 초대 흐름입니다. 신규·복귀는 진입 증거, 지급 보상은 확정 영수증, dApp 보상은 해당 라운드 블록의 검증 이벤트만 집계합니다.',
+      source: 'get_operator_round_overview',
+    },
+    cumulative: {
+      metricDefinition:
+        '현재 네트워크의 누계 초대 흐름입니다. 증빙 없는 과거 데모 완료는 성공 추천에서 제외하고 별도 미분류 건으로 표시합니다.',
+      source: 'get_operator_cumulative_overview',
+    },
   },
   inviters: {
-    metricDefinition:
-      '선택한 VeBetterDAO 한 라운드의 초대 생성 수 기준 순위입니다. 해당 라운드의 실제 참여, 완료, 지급, 의심 표시 수를 함께 제공합니다.',
-    source:
-      'get_operator_round_inviter_analytics',
+    round: {
+      metricDefinition:
+        '선택한 VeBetterDAO 한 라운드의 초대 생성 수 기준 순위입니다. 해당 라운드의 실제 참여, 완료, 지급, 의심 표시 수를 함께 제공합니다.',
+      source:
+        'get_operator_round_inviter_analytics',
+    },
+    cumulative: {
+      metricDefinition:
+        '전체 기간의 초대 생성 수 기준 순위입니다. 현재 네트워크에서 증명된 참여, 완료, 지급, 의심 표시 수를 함께 제공합니다.',
+      source:
+        'get_operator_cumulative_inviter_analytics',
+    },
   },
   'reward-recipients': {
-    metricDefinition:
-      '선택한 VeBetterDAO 한 라운드에서 VeInvite가 실제 지급한 추천 보상 순위입니다. 확정된 불변 보상 영수증만 집계합니다.',
-    source:
-      'get_operator_round_reward_recipients',
+    round: {
+      metricDefinition:
+        '선택한 VeBetterDAO 한 라운드에서 VeInvite가 실제 지급한 추천 보상 순위입니다. 확정된 불변 보상 영수증만 집계합니다.',
+      source:
+        'get_operator_round_reward_recipients',
+    },
+    cumulative: {
+      metricDefinition:
+        '전체 기간 동안 VeInvite가 실제 지급한 추천 보상 누계 순위입니다. 확정된 불변 보상 영수증만 집계합니다.',
+      source:
+        'get_operator_cumulative_reward_recipients',
+    },
   },
   'qualifying-dapp-rewards': {
-    metricDefinition:
-      '선택한 VeBetterDAO 한 라운드 블록 안에서 VeInvite 미션 증거로 검증된 dApp B3TR 보상 순위입니다. 지갑의 전체 B3TR 수령 내역은 아닙니다.',
-    source:
-      'get_operator_round_dapp_rewards',
+    round: {
+      metricDefinition:
+        '선택한 VeBetterDAO 한 라운드 블록 안에서 VeInvite 미션 증거로 검증된 dApp B3TR 보상 순위입니다. 지갑의 전체 B3TR 수령 내역은 아닙니다.',
+      source:
+        'get_operator_round_dapp_rewards',
+    },
+    cumulative: {
+      metricDefinition:
+        '전체 기간 동안 VeInvite 미션 증거로 검증된 dApp B3TR 보상 누계 순위입니다. 지갑의 전체 B3TR 수령 내역은 아닙니다.',
+      source:
+        'get_operator_cumulative_dapp_rewards',
+    },
   },
 } as const;
 
 type AnalyticsReport =
   keyof typeof REPORT_DEFINITIONS;
+type AnalyticsScope = 'round' | 'cumulative';
 
 function isAnalyticsReport(
   value: string,
@@ -57,6 +90,18 @@ function isAnalyticsReport(
     REPORT_DEFINITIONS,
     value,
   );
+}
+
+function readScope(
+  rawScope: string | null,
+): AnalyticsScope | null {
+  if (rawScope === null || rawScope === 'round') {
+    return 'round';
+  }
+
+  return rawScope === 'cumulative'
+    ? 'cumulative'
+    : null;
 }
 
 function readLimit(
@@ -92,14 +137,12 @@ function readRoundId(
 
   const roundId = Number(rawRoundId);
 
-  if (!Number.isSafeInteger(roundId)) {
-    return null;
-  }
-
-  return roundId;
+  return Number.isSafeInteger(roundId)
+    ? roundId
+    : null;
 }
 
-async function loadReport(
+async function loadRoundReport(
   report: AnalyticsReport,
   limit: number,
   network: string,
@@ -114,80 +157,71 @@ async function loadReport(
     p_round_end_block: round.voteEndBlock,
   };
 
-  if (report === 'overview') {
-    const { data, error } =
-      await supabaseAdmin.rpc(
-        'get_operator_round_overview',
-        roundParameters,
-      );
+  const parameters =
+    report === 'overview'
+      ? roundParameters
+      : report === 'inviters'
+        ? {
+            ...roundParameters,
+            p_limit: limit,
+          }
+        : report === 'reward-recipients'
+          ? {
+              p_network: network,
+              p_vebetter_round_id:
+                round.roundId,
+              p_limit: limit,
+            }
+          : {
+              p_network: network,
+              p_vebetter_round_id:
+                round.roundId,
+              p_round_start_block:
+                round.voteStartBlock,
+              p_round_end_block:
+                round.voteEndBlock,
+              p_limit: limit,
+            };
 
-    if (error) {
-      throw new Error(
-        `Analytics overview could not be loaded: ${error.message}`,
-      );
-    }
-
-    return data ?? [];
-  }
-
-  if (report === 'inviters') {
-    const { data, error } =
-      await supabaseAdmin.rpc(
-        'get_operator_round_inviter_analytics',
-        {
-          ...roundParameters,
-          p_limit: limit,
-        },
-      );
-
-    if (error) {
-      throw new Error(
-        `Inviter analytics could not be loaded: ${error.message}`,
-      );
-    }
-
-    return data ?? [];
-  }
-
-  if (report === 'reward-recipients') {
-    const { data, error } =
-      await supabaseAdmin.rpc(
-        'get_operator_round_reward_recipients',
-        {
-          p_network: network,
-          p_vebetter_round_id:
-            round.roundId,
-          p_limit: limit,
-        },
-      );
-
-    if (error) {
-      throw new Error(
-        `Reward recipient leaderboard could not be loaded: ${error.message}`,
-      );
-    }
-
-    return data ?? [];
-  }
-
+  const functionName =
+    REPORT_DEFINITIONS[report].round.source;
   const { data, error } =
     await supabaseAdmin.rpc(
-      'get_operator_round_dapp_rewards',
-      {
-        p_network: network,
-        p_vebetter_round_id:
-          round.roundId,
-        p_round_start_block:
-          round.voteStartBlock,
-        p_round_end_block:
-          round.voteEndBlock,
-        p_limit: limit,
-      },
+      functionName,
+      parameters,
     );
 
   if (error) {
     throw new Error(
-      `Qualifying dApp reward leaderboard could not be loaded: ${error.message}`,
+      `Round analytics could not be loaded: ${error.message}`,
+    );
+  }
+
+  return data ?? [];
+}
+
+async function loadCumulativeReport(
+  report: AnalyticsReport,
+  limit: number,
+  network: string,
+) {
+  const functionName =
+    REPORT_DEFINITIONS[report].cumulative
+      .source;
+  const { data, error } =
+    await supabaseAdmin.rpc(
+      functionName,
+      report === 'overview'
+        ? { p_network: network }
+        : {
+            p_network: network,
+            p_limit: limit,
+          },
+    );
+
+  if (error) {
+    throw new Error(
+      `Cumulative analytics could not be loaded: ${error.message}`,
     );
   }
 
@@ -197,17 +231,41 @@ async function loadReport(
 export async function GET(
   request: NextRequest,
 ) {
+  const rawReport =
+    request.nextUrl.searchParams.get(
+      'report',
+    ) ?? 'overview';
+  const scope = readScope(
+    request.nextUrl.searchParams.get(
+      'scope',
+    ),
+  );
+  const limit = readLimit(
+    request.nextUrl.searchParams.get(
+      'limit',
+    ),
+  );
   const requestedRoundId = readRoundId(
     request.nextUrl.searchParams.get(
       'roundId',
     ),
   );
 
-  if (requestedRoundId === null) {
+  if (
+    !isAnalyticsReport(rawReport) ||
+    scope === null ||
+    limit === null ||
+    requestedRoundId === null ||
+    (scope === 'cumulative' &&
+      requestedRoundId !== undefined)
+  ) {
     return NextResponse.json(
       {
         error:
-          'roundId must be a positive safe integer.',
+          'Invalid report, scope, limit, or roundId. scope must be round or cumulative; limit must be 1-100; roundId is only valid for round scope.',
+        allowedReports: Object.keys(
+          REPORT_DEFINITIONS,
+        ),
       },
       {
         status: 400,
@@ -219,23 +277,10 @@ export async function GET(
   }
 
   try {
-    const session =
-      await requireWalletSession({ request });
-    const [pool, round] =
-      await Promise.all([
-        readVeInviteRewardPoolStatus(),
-        readVeBetterRoundWindow({
-          ...(requestedRoundId === undefined
-            ? {}
-            : { roundId: requestedRoundId }),
-        }),
-      ]);
-
-    if (round.network !== pool.network) {
-      throw new Error(
-        'Analytics round network does not match the reward pool network.',
-      );
-    }
+    const [session, pool] = await Promise.all([
+      requireWalletSession({ request }),
+      readVeInviteRewardPoolStatus(),
+    ]);
 
     if (
       !canOperateVeInviteRewards(
@@ -257,66 +302,71 @@ export async function GET(
       );
     }
 
-    const rawReport =
-      request.nextUrl.searchParams.get(
-        'report',
-      ) ?? 'overview';
-    const limit = readLimit(
-      request.nextUrl.searchParams.get(
-        'limit',
-      ),
-    );
+    const round =
+      scope === 'round'
+        ? await readVeBetterRoundWindow({
+            ...(requestedRoundId === undefined
+              ? {}
+              : {
+                  roundId:
+                    requestedRoundId,
+                }),
+          })
+        : null;
 
     if (
-      !isAnalyticsReport(rawReport) ||
-      limit === null
+      round &&
+      round.network !== pool.network
     ) {
-      return NextResponse.json(
-        {
-          error:
-            'Invalid analytics report or limit. Limit must be between 1 and 100.',
-          allowedReports: Object.keys(
-            REPORT_DEFINITIONS,
-          ),
-        },
-        {
-          status: 400,
-          headers: {
-            'Cache-Control': 'no-store',
-          },
-        },
+      throw new Error(
+        'Analytics round network does not match the reward pool network.',
       );
     }
 
-    const rows = await loadReport(
-      rawReport,
-      limit,
-      pool.network,
-      round,
-    );
+    const rows = round
+      ? await loadRoundReport(
+          rawReport,
+          limit,
+          pool.network,
+          round,
+        )
+      : await loadCumulativeReport(
+          rawReport,
+          limit,
+          pool.network,
+        );
     const definition =
-      REPORT_DEFINITIONS[rawReport];
+      REPORT_DEFINITIONS[rawReport][scope];
 
     return NextResponse.json(
       {
         report: rawReport,
         network: pool.network,
-        scope: 'VEBETTER_ROUND',
-        round: {
-          id: round.roundId,
-          currentRoundId:
-            round.currentRoundId,
-          status: round.status,
-          startBlock:
-            round.voteStartBlock,
-          endBlock: round.voteEndBlock,
-          startAt: round.roundStartAt,
-          endAt: round.roundEndAt,
-          endAtEstimated:
-            round.roundEndAtEstimated,
-          checkedThroughBlock:
-            round.bestBlock,
-        },
+        scope:
+          scope === 'round'
+            ? 'VEBETTER_ROUND'
+            : 'CUMULATIVE',
+        ...(round
+          ? {
+              round: {
+                id: round.roundId,
+                currentRoundId:
+                  round.currentRoundId,
+                status: round.status,
+                startBlock:
+                  round.voteStartBlock,
+                endBlock:
+                  round.voteEndBlock,
+                startAt:
+                  round.roundStartAt,
+                endAt: round.roundEndAt,
+                endAtEstimated:
+                  round.roundEndAtEstimated,
+                checkedThroughBlock:
+                  round.bestBlock,
+              },
+            }
+          : {}),
         generatedAt: new Date().toISOString(),
         verifiedOperator:
           session.walletAddress,
@@ -339,12 +389,16 @@ export async function GET(
     );
   } catch (error) {
     if (
-      error instanceof WalletAuthenticationError
+      error instanceof WalletAuthenticationError ||
+      error instanceof VeBetterRoundInputError
     ) {
       return NextResponse.json(
         { error: error.message },
         {
-          status: error.status,
+          status:
+            error instanceof WalletAuthenticationError
+              ? error.status
+              : 400,
           headers: {
             'Cache-Control': 'no-store',
           },
