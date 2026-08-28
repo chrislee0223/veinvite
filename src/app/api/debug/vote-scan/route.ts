@@ -18,7 +18,7 @@ function isValidAddress(
   );
 }
 
-function parseFromBlock(
+function parseNonNegativeInteger(
   value: string | null,
 ): number | null {
   if (!value) {
@@ -35,6 +35,19 @@ function parseFromBlock(
   }
 
   return parsed;
+}
+
+function parseTxId(
+  value: string | null,
+): string | null {
+  const normalized =
+    value?.trim().toLowerCase() ?? '';
+
+  return /^0x[0-9a-f]{64}$/.test(
+    normalized,
+  )
+    ? normalized
+    : null;
 }
 
 export async function GET(
@@ -62,11 +75,27 @@ export async function GET(
     request.nextUrl.searchParams.get(
       'voter',
     );
-
-  const fromBlock =
-    parseFromBlock(
+  const blockNumber =
+    parseNonNegativeInteger(
       request.nextUrl.searchParams.get(
         'fromBlock',
+      ),
+    );
+  const txId = parseTxId(
+    request.nextUrl.searchParams.get(
+      'conversionTxId',
+    ),
+  );
+  const txIndex =
+    parseNonNegativeInteger(
+      request.nextUrl.searchParams.get(
+        'conversionTxIndex',
+      ),
+    );
+  const clauseIndex =
+    parseNonNegativeInteger(
+      request.nextUrl.searchParams.get(
+        'conversionClauseIndex',
       ),
     );
 
@@ -85,11 +114,16 @@ export async function GET(
     );
   }
 
-  if (fromBlock === null) {
+  if (
+    blockNumber === null ||
+    txId === null ||
+    txIndex === null ||
+    clauseIndex === null
+  ) {
     return NextResponse.json(
       {
         error:
-          'A valid fromBlock is required.',
+          'fromBlock, conversionTxId, conversionTxIndex, and conversionClauseIndex are required.',
       },
       {
         status: 400,
@@ -97,11 +131,18 @@ export async function GET(
     );
   }
 
+  const conversionPosition = {
+    blockNumber,
+    txId,
+    txIndex,
+    clauseIndex,
+  };
+
   try {
     const progress =
       await getVeBetterVoteProgress({
         voterAddress,
-        fromBlock,
+        conversionPosition,
       });
 
     return NextResponse.json(
@@ -110,7 +151,7 @@ export async function GET(
         databaseUpdated: false,
         voterAddress:
           voterAddress.toLowerCase(),
-        fromBlock,
+        conversionPosition,
         ...progress,
       },
       {
