@@ -14,7 +14,7 @@ alter table public.invite_impact_events
       and app_id is not null
       and vote_round_id is null
       and amount_wei is not null
-      and amount_wei ~ '^[0-9]+'
+      and amount_wei ~ '^[0-9]+$'
       and amount_wei::numeric > 0
     )
     or (
@@ -22,7 +22,7 @@ alter table public.invite_impact_events
       and app_id is null
       and vote_round_id is null
       and amount_wei is not null
-      and amount_wei ~ '^[0-9]+'
+      and amount_wei ~ '^[0-9]+$'
       and amount_wei::numeric > 0
     )
     or (
