@@ -17,11 +17,13 @@ const RESOLVE_REVIEW_INTENT = 'RESOLVE_SYBIL_REVIEW';
 const INVITE_CODE_PATTERN = /^[A-Z0-9]{7}$/;
 const MIN_REASON_LENGTH = 12;
 const MAX_REASON_LENGTH = 500;
+const REVIEW_LIST_LIMIT = 100;
 
 type ReviewDecision = 'CLEAR' | 'BLOCKED';
 
 type InvitationReviewRow = {
   invite_code: string;
+  inviter_wallet: string;
   invitee_wallet: string | null;
   activation_network: string | null;
   status: string;
@@ -32,6 +34,8 @@ type InvitationReviewRow = {
   sybil_reason: string | null;
   sybil_checked_at: string | null;
   sybil_source: string;
+  activated_at: string | null;
+  updated_at: string;
 };
 
 function noStoreHeaders() {
@@ -104,7 +108,7 @@ async function loadInvitationReview(
   const { data, error } = await supabaseAdmin
     .from('invitations')
     .select(
-      'invite_code, invitee_wallet, activation_network, status, reward_status, sybil_status, sybil_risk_level, sybil_risk_score, sybil_reason, sybil_checked_at, sybil_source',
+      'invite_code, inviter_wallet, invitee_wallet, activation_network, status, reward_status, sybil_status, sybil_risk_level, sybil_risk_score, sybil_reason, sybil_checked_at, sybil_source, activated_at, updated_at',
     )
     .eq('invite_code', inviteCode)
     .maybeSingle();
@@ -116,6 +120,28 @@ async function loadInvitationReview(
   }
 
   return (data as InvitationReviewRow | null) ?? null;
+}
+
+async function loadOpenReviews(network: string) {
+  const { data, error } = await supabaseAdmin
+    .from('invitations')
+    .select(
+      'invite_code, inviter_wallet, invitee_wallet, activation_network, status, reward_status, sybil_status, sybil_risk_level, sybil_risk_score, sybil_reason, sybil_checked_at, sybil_source, activated_at, updated_at',
+    )
+    .eq('activation_network', network)
+    .eq('status', 'UNDER_REVIEW')
+    .eq('sybil_status', 'REVIEW')
+    .order('sybil_checked_at', { ascending: true, nullsFirst: true })
+    .order('updated_at', { ascending: true })
+    .limit(REVIEW_LIST_LIMIT);
+
+  if (error) {
+    throw new Error(
+      `Open Sybil reviews could not be loaded: ${error.message}`,
+    );
+  }
+
+  return (data ?? []) as InvitationReviewRow[];
 }
 
 async function loadReviewEvents(inviteCode: string) {
@@ -139,11 +165,12 @@ async function loadReviewEvents(inviteCode: string) {
 }
 
 export async function GET(request: NextRequest) {
-  const inviteCode = normalizeInviteCode(
-    request.nextUrl.searchParams.get('inviteCode'),
-  );
+  const rawInviteCode = request.nextUrl.searchParams.get('inviteCode');
+  const inviteCode = rawInviteCode
+    ? normalizeInviteCode(rawInviteCode)
+    : null;
 
-  if (!inviteCode) {
+  if (rawInviteCode && !inviteCode) {
     return NextResponse.json(
       { error: 'A valid 7-character inviteCode is required.' },
       {
@@ -158,6 +185,25 @@ export async function GET(request: NextRequest) {
 
     if (operator.response) {
       return operator.response;
+    }
+
+    if (!inviteCode) {
+      const reviews = await loadOpenReviews(operator.pool!.network);
+
+      return NextResponse.json(
+        {
+          network: operator.pool!.network,
+          verifiedOperator: operator.session!.walletAddress,
+          reviews,
+          reviewCount: reviews.length,
+          resultLimit: REVIEW_LIST_LIMIT,
+          allowedDecisions: ['CLEAR', 'BLOCKED'],
+          transfersPerformed: false,
+        },
+        {
+          headers: noStoreHeaders(),
+        },
+      );
     }
 
     const invitation = await loadInvitationReview(inviteCode);
