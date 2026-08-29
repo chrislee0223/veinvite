@@ -6,6 +6,10 @@ import {
 } from 'next/server';
 
 import {
+  cleanupEphemeralSecurityState,
+  type EphemeralCleanupSummary,
+} from '@/lib/housekeeping/ephemeralCleanup';
+import {
   DEFAULT_RECONCILIATION_BATCH_SIZE,
   runReconciliationBatch,
 } from '@/lib/impact/reconcileBatch';
@@ -64,10 +68,11 @@ function authorizeCron(request: NextRequest) {
  *
  * This worker reconciles immutable/derived onboarding evidence, records
  * official VeBetterDAO allocation-claim evidence, maintains growth snapshots,
- * and appends an operator anomaly-monitoring snapshot. It never prepares a
- * reward round, changes Sybil decisions, pauses rewards, or transfers B3TR.
- * Vercel automatically sends `Authorization: Bearer <CRON_SECRET>` when
- * CRON_SECRET is configured.
+ * appends an operator anomaly-monitoring snapshot, and removes only expired
+ * authentication/rate-limit runtime state. It never prepares a reward round,
+ * changes Sybil decisions, pauses rewards, deletes audit/reward evidence, or
+ * transfers B3TR. Vercel automatically sends
+ * `Authorization: Bearer <CRON_SECRET>` when CRON_SECRET is configured.
  */
 export async function GET(
   request: NextRequest,
@@ -96,6 +101,21 @@ export async function GET(
       );
     const roundGrowthReports =
       await maintainRoundGrowthSnapshots();
+
+    let housekeeping: EphemeralCleanupSummary | null = null;
+
+    try {
+      housekeeping =
+        await cleanupEphemeralSecurityState();
+    } catch (cleanupError) {
+      // Housekeeping is deliberately best-effort. A cleanup failure must not
+      // block evidence reconciliation, allocation sync, or anomaly monitoring.
+      console.warn(
+        'VeInvite ephemeral housekeeping failed:',
+        cleanupError,
+      );
+    }
+
     const monitoring =
       await runOperatorMonitoringAudit(
         'VERCEL_CRON',
@@ -141,6 +161,7 @@ export async function GET(
               ?.vebetter_round_id ?? null,
         },
         roundGrowthReports,
+        housekeeping,
         monitoring: {
           snapshotId: monitoring.snapshotId,
           severity: monitoring.severity,
