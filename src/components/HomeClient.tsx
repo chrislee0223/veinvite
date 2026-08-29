@@ -371,13 +371,17 @@ export function HomeClient() {
     });
   };
 
-  const active = invites.find((invite) =>
+  const latest = invites[0];
+
+  const active =
+    latest &&
     [
       'PENDING_ACCEPTANCE',
       'ACTIVATING',
       'UNDER_REVIEW',
-    ].includes(invite.status),
-  );
+    ].includes(latest.status)
+      ? latest
+      : undefined;
 
   const completedInvites = invites.filter(
     (invite) => invite.status === 'COMPLETED',
