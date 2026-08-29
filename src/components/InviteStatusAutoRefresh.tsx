@@ -36,6 +36,27 @@ function invitationsFingerprint(
     .join('|');
 }
 
+function shouldDeferHomeRefresh(): boolean {
+  const activeNavigation =
+    document.querySelector<HTMLElement>(
+      '[data-veinvite-active-tab]',
+    );
+  const activeTab =
+    activeNavigation?.dataset
+      .veinviteActiveTab;
+  const modalOpen = Boolean(
+    document.querySelector(
+      '[role="dialog"][aria-modal="true"]',
+    ),
+  );
+
+  return (
+    modalOpen ||
+    (activeTab !== undefined &&
+      activeTab !== 'home')
+  );
+}
+
 /**
  * Keeps the inviter home screen in sync when the invitee or reward state
  * changes in a different browser/device. HomeClient can keep an older
@@ -55,7 +76,8 @@ export function InviteStatusAutoRefresh() {
     if (
       !walletAddress ||
       checkingRef.current ||
-      document.visibilityState === 'hidden'
+      document.visibilityState === 'hidden' ||
+      shouldDeferHomeRefresh()
     ) {
       return;
     }
@@ -88,6 +110,11 @@ export function InviteStatusAutoRefresh() {
       }
 
       if (lastFingerprintRef.current !== fingerprint) {
+        // A full reload remains the safest way to refresh every Home-derived
+        // state at once. The check itself pauses while another app tab or a
+        // modal is active, so users are not unexpectedly pulled out of Guide,
+        // Leaderboard, Settings, or a confirmation/details flow. The old
+        // fingerprint is intentionally preserved until Home can refresh.
         window.location.reload();
       }
     } catch {

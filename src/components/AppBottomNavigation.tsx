@@ -42,6 +42,7 @@ export function AppBottomNavigation({
   return (
     <nav
       className="bottomNavigation"
+      data-veinvite-active-tab={activeTab}
       aria-label={
         locale === 'ko'
           ? '주요 메뉴'

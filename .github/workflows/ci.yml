@@ -1,0 +1,48 @@
+name: VeInvite CI
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+concurrency:
+  group: veinvite-ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    env:
+      # Build against the reviewed non-production project identity. The key is
+      # intentionally a non-secret placeholder: CI must never read or mutate a
+      # live Supabase database.
+      NEXT_PUBLIC_SUPABASE_URL: https://bpppslplhmppxzvdkwxs.supabase.co
+      SUPABASE_SECRET_KEY: ci-placeholder-not-a-real-key
+      VERCEL_ENV: preview
+      VECHAIN_NETWORK: testnet
+      NEXT_PUBLIC_NETWORK_TYPE: test
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Use Node.js 24
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Production build
+        run: npm run build
