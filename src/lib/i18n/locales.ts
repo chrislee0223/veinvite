@@ -24,6 +24,8 @@ export type LanguageOption = {
   symbol: string;
 };
 
+// `symbol` is intentionally a flag emoji because app-controlled language
+// pickers render it directly next to each native language name.
 export const LANGUAGE_OPTIONS: LanguageOption[] = [
   { locale: 'en', nativeName: 'English', symbol: '🇺🇸' },
   { locale: 'ko', nativeName: '한국어', symbol: '🇰🇷' },
