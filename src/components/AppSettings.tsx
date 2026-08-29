@@ -1,11 +1,17 @@
 'use client';
 
-import { useState } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+} from 'react';
 import Link from 'next/link';
 
 import { SETTINGS_COPY } from '@/lib/i18n/settingsCopy';
 import {
   LANGUAGE_OPTIONS,
+  getLanguageOption,
   type Locale,
 } from '@/lib/i18n/locales';
 
@@ -31,7 +37,12 @@ export function AppSettings({
   onDisconnect: () => Promise<void>;
 }) {
   const [error, setError] = useState('');
+  const [languageOpen, setLanguageOpen] = useState(false);
+  const languageTriggerRef = useRef<HTMLButtonElement | null>(null);
+  const languageDialogRef = useRef<HTMLDivElement | null>(null);
+  const selectedLanguageRef = useRef<HTMLButtonElement | null>(null);
   const t = SETTINGS_COPY[locale];
+  const currentLanguage = getLanguageOption(locale);
 
   const runWalletAction = async (action: () => Promise<void>) => {
     setError('');
@@ -41,6 +52,60 @@ export function AppSettings({
       console.error('Wallet settings action failed:', actionError);
       setError(t.actionError);
     }
+  };
+
+  const closeLanguagePicker = useCallback(() => {
+    setLanguageOpen(false);
+    window.requestAnimationFrame(() => languageTriggerRef.current?.focus());
+  }, []);
+
+  useEffect(() => {
+    if (!languageOpen) return;
+
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    window.requestAnimationFrame(() => selectedLanguageRef.current?.focus());
+
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        closeLanguagePicker();
+        return;
+      }
+
+      if (event.key !== 'Tab' || !languageDialogRef.current) return;
+
+      const focusable = Array.from(
+        languageDialogRef.current.querySelectorAll<HTMLElement>(
+          'button:not([disabled]), [tabindex]:not([tabindex="-1"])',
+        ),
+      );
+
+      if (focusable.length < 1) return;
+
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first.focus();
+      }
+    };
+
+    document.addEventListener('keydown', onKeyDown);
+
+    return () => {
+      document.removeEventListener('keydown', onKeyDown);
+      document.body.style.overflow = previousOverflow;
+    };
+  }, [languageOpen, closeLanguagePicker]);
+
+  const selectLanguage = (nextLocale: Locale) => {
+    onLocaleChange(nextLocale);
+    closeLanguagePicker();
   };
 
   return (
@@ -76,23 +141,23 @@ export function AppSettings({
         {error ? <p className="errorMessage" role="alert">{error}</p> : null}
       </section>
 
-      <section className="settingsCard">
+      <section className="settingsCard languageCard">
         <h2>{t.languageTitle}</h2>
-        <p>{t.languageNote}</p>
-        <div className="languageButtons">
-          {LANGUAGE_OPTIONS.map((option) => (
-            <button
-              key={option.locale}
-              type="button"
-              className={locale === option.locale ? 'selected' : ''}
-              aria-pressed={locale === option.locale}
-              onClick={() => onLocaleChange(option.locale)}
-            >
-              <span aria-hidden="true">{option.symbol}</span>
-              {option.nativeName}
-            </button>
-          ))}
-        </div>
+        <button
+          ref={languageTriggerRef}
+          type="button"
+          className="languagePickerTrigger"
+          aria-haspopup="dialog"
+          aria-expanded={languageOpen}
+          onClick={() => setLanguageOpen(true)}
+        >
+          <span className="languageSymbol" aria-hidden="true">{currentLanguage.symbol}</span>
+          <span className="languagePickerCopy">
+            <strong>{currentLanguage.nativeName}</strong>
+            <small>{t.languageNote}</small>
+          </span>
+          <span className="languageChevron" aria-hidden="true">›</span>
+        </button>
       </section>
 
       <section className="settingsCard legalCard">
@@ -100,6 +165,53 @@ export function AppSettings({
         <Link href="/privacy">{t.privacy}<span aria-hidden="true">›</span></Link>
         <Link href="/terms">{t.terms}<span aria-hidden="true">›</span></Link>
       </section>
+
+      {languageOpen ? (
+        <div
+          className="languageModalBackdrop"
+          role="presentation"
+          onMouseDown={(event) => {
+            if (event.target === event.currentTarget) closeLanguagePicker();
+          }}
+        >
+          <div
+            ref={languageDialogRef}
+            className="languageModal"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="settings-language-dialog-title"
+            aria-describedby="settings-language-dialog-note"
+          >
+            <div className="languageModalHeader">
+              <div>
+                <h2 id="settings-language-dialog-title">{t.languageTitle}</h2>
+                <p id="settings-language-dialog-note">{t.languageNote}</p>
+              </div>
+              <button type="button" className="languageClose" aria-label={t.close} onClick={closeLanguagePicker}>×</button>
+            </div>
+
+            <div className="languageOptionList" role="group" aria-label={t.languageTitle}>
+              {LANGUAGE_OPTIONS.map((option) => {
+                const selected = option.locale === locale;
+                return (
+                  <button
+                    key={option.locale}
+                    ref={selected ? selectedLanguageRef : undefined}
+                    type="button"
+                    className={selected ? 'languageOption selected' : 'languageOption'}
+                    aria-pressed={selected}
+                    onClick={() => selectLanguage(option.locale)}
+                  >
+                    <span className="languageOptionSymbol" aria-hidden="true">{option.symbol}</span>
+                    <strong>{option.nativeName}</strong>
+                    <span className="languageCheck" aria-hidden="true">{selected ? '✓' : ''}</span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      ) : null}
 
       <style jsx>{`
         .settingsPage { width:min(100%,560px); margin:0 auto; padding-bottom:12px; }
@@ -119,13 +231,38 @@ export function AppSettings({
         .secondarySettingAction { border:1px solid rgba(255,255,255,.1); background:rgba(255,255,255,.04); color:#ddd9cf; }
         button:disabled { opacity:.48; cursor:not-allowed; }
         .errorMessage { color:#ff8d9d; }
-        .languageButtons { margin-top:14px; display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:9px; max-height:330px; overflow:auto; padding-right:2px; }
-        .languageButtons button { min-width:0; min-height:48px; padding:8px 10px; display:flex; align-items:center; gap:8px; border:1px solid rgba(255,255,255,.09); border-radius:14px; background:rgba(255,255,255,.035); color:#aaa69d; font:inherit; font-size:.75rem; font-weight:850; cursor:pointer; overflow-wrap:anywhere; text-align:left; }
-        .languageButtons button > span { flex:0 0 auto; width:25px; height:25px; display:grid; place-items:center; border-radius:8px; background:rgba(255,201,61,.09); color:#f4c54b; font-size:.65rem; }
-        .languageButtons button.selected { border-color:rgba(255,205,80,.45); background:rgba(255,201,61,.1); color:#ffd45f; }
+        .languageCard { padding-bottom:16px; }
+        .languagePickerTrigger { width:100%; min-height:66px; margin-top:13px; padding:10px 12px; display:grid; grid-template-columns:34px minmax(0,1fr) 24px; align-items:center; gap:11px; border:1px solid rgba(255,255,255,.09); border-radius:15px; background:rgba(255,255,255,.035); color:#f5f2e9; font:inherit; cursor:pointer; text-align:left; }
+        .languagePickerTrigger:hover { border-color:rgba(255,205,80,.3); background:rgba(255,201,61,.055); }
+        .languagePickerTrigger:focus-visible { outline:2px solid rgba(255,205,80,.75); outline-offset:2px; }
+        .languageSymbol,.languageOptionSymbol { display:grid; place-items:center; border-radius:10px; background:rgba(255,201,61,.1); color:#f4c54b; font-weight:950; }
+        .languageSymbol { width:34px; height:34px; font-size:.7rem; }
+        .languagePickerCopy { min-width:0; display:grid; gap:3px; }
+        .languagePickerCopy strong { font-size:.82rem; overflow-wrap:anywhere; }
+        .languagePickerCopy small { color:#817d75; font-size:.67rem; line-height:1.35; overflow-wrap:anywhere; }
+        .languageChevron { color:#a49f94; font-size:1.45rem; line-height:1; text-align:center; }
         .legalCard :global(a) { min-height:48px; display:flex; align-items:center; justify-content:space-between; gap:12px; border-top:1px solid rgba(255,255,255,.06); color:#e7e3d8; font-size:.78rem; font-weight:800; text-decoration:none; }
         .legalCard h2 { margin-bottom:8px; }
-        @media (max-width:390px) { .languageButtons { grid-template-columns:1fr; max-height:310px; } }
+        .languageModalBackdrop { position:fixed; z-index:1450; inset:0; box-sizing:border-box; display:grid; place-items:center; padding:20px; background:rgba(0,0,0,.72); backdrop-filter:blur(8px); }
+        .languageModal { width:min(100%,430px); max-height:min(78svh,680px); box-sizing:border-box; padding:20px; display:flex; flex-direction:column; border:1px solid rgba(255,205,80,.24); border-radius:24px; background:linear-gradient(155deg,#241b0d,#11110f 56%); box-shadow:0 30px 90px rgba(0,0,0,.58),inset 0 1px 0 rgba(255,255,255,.06); }
+        .languageModalHeader { display:flex; align-items:flex-start; justify-content:space-between; gap:16px; }
+        .languageModalHeader > div { min-width:0; }
+        .languageModalHeader p { margin-top:6px; }
+        .languageClose { flex:0 0 auto; width:36px; height:36px; display:grid; place-items:center; border:1px solid rgba(255,255,255,.1); border-radius:11px; background:rgba(255,255,255,.04); color:#d9d4ca; font:inherit; font-size:1.2rem; cursor:pointer; }
+        .languageClose:focus-visible,.languageOption:focus-visible { outline:2px solid rgba(255,205,80,.75); outline-offset:2px; }
+        .languageOptionList { min-height:0; margin-top:16px; display:grid; gap:8px; overflow:auto; padding-right:3px; scrollbar-width:thin; }
+        .languageOption { width:100%; min-height:52px; padding:8px 11px; display:grid; grid-template-columns:32px minmax(0,1fr) 26px; align-items:center; gap:10px; border:1px solid rgba(255,255,255,.09); border-radius:14px; background:rgba(255,255,255,.035); color:#aaa69d; font:inherit; text-align:left; cursor:pointer; }
+        .languageOption:hover { border-color:rgba(255,205,80,.28); }
+        .languageOption.selected { border-color:rgba(255,205,80,.52); background:rgba(255,201,61,.11); color:#ffd45f; }
+        .languageOptionSymbol { width:32px; height:32px; font-size:.68rem; }
+        .languageOption.selected .languageOptionSymbol { background:#f4b728; color:#17120a; }
+        .languageOption strong { min-width:0; font-size:.78rem; overflow-wrap:anywhere; }
+        .languageCheck { width:24px; height:24px; display:grid; place-items:center; border-radius:50%; color:#17120a; font-size:.72rem; font-weight:950; }
+        .languageOption.selected .languageCheck { background:#f4b728; }
+        @media (max-width:560px) {
+          .languageModalBackdrop { place-items:end center; padding:0; }
+          .languageModal { width:100%; max-height:82svh; padding:20px 18px calc(20px + env(safe-area-inset-bottom)); border-radius:26px 26px 0 0; border-bottom:0; }
+        }
       `}</style>
     </section>
   );
