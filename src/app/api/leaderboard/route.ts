@@ -15,6 +15,7 @@ export const dynamic = 'force-dynamic';
 const WALLET_PATTERN = /^0x[0-9a-fA-F]{40}$/;
 const LEADERBOARD_SIZE = 5;
 const MAX_GROWTH_ROUNDS = 260;
+const TRANSIENT_AUTH_RETRY_MS = 750;
 
 type LeaderboardRow = {
   rank_position: number | string;
@@ -26,30 +27,18 @@ type LeaderboardRow = {
 
 type GrowthRow = {
   round_id: number | string;
-  cumulative_activated_new_users:
-    | number
-    | string;
-  cumulative_activated_returning_users:
-    | number
-    | string;
+  cumulative_activated_new_users: number | string;
+  cumulative_activated_returning_users: number | string;
 };
 
 function parseCount(
   value: number | string,
   fieldName: string,
 ): number {
-  const parsed =
-    typeof value === 'number'
-      ? value
-      : Number(value);
+  const parsed = typeof value === 'number' ? value : Number(value);
 
-  if (
-    !Number.isSafeInteger(parsed) ||
-    parsed < 0
-  ) {
-    throw new Error(
-      `${fieldName} returned an invalid count.`,
-    );
+  if (!Number.isSafeInteger(parsed) || parsed < 0) {
+    throw new Error(`${fieldName} returned an invalid count.`);
   }
 
   return parsed;
@@ -58,49 +47,53 @@ function parseCount(
 function normalizeLeaderboardRow(
   row: LeaderboardRow,
 ): PublicLeaderboardEntry {
-  const walletAddress =
-    row.wallet_address.trim().toLowerCase();
+  const walletAddress = row.wallet_address.trim().toLowerCase();
 
   if (!WALLET_PATTERN.test(walletAddress)) {
-    throw new Error(
-      'Leaderboard returned an invalid wallet address.',
-    );
+    throw new Error('Leaderboard returned an invalid wallet address.');
   }
 
   if (!/^\d+$/.test(row.total_reward_wei)) {
-    throw new Error(
-      'Leaderboard returned an invalid reward amount.',
-    );
+    throw new Error('Leaderboard returned an invalid reward amount.');
   }
 
   return {
-    rank: parseCount(
-      row.rank_position,
-      'Leaderboard rank',
-    ),
+    rank: parseCount(row.rank_position, 'Leaderboard rank'),
     walletAddress,
     completedReferrals: parseCount(
       row.completed_referrals,
       'Completed referrals',
     ),
     totalRewardWei: row.total_reward_wei,
-    isCurrentWallet:
-      row.is_current_wallet === true,
+    isCurrentWallet: row.is_current_wallet === true,
   };
 }
 
 function normalizeWallet(
   value: string | null,
 ): string | null | undefined {
-  if (value === null || value.trim() === '') {
-    return null;
-  }
+  if (value === null || value.trim() === '') return null;
 
   const normalized = value.trim().toLowerCase();
+  return WALLET_PATTERN.test(normalized) ? normalized : undefined;
+}
 
-  return WALLET_PATTERN.test(normalized)
-    ? normalized
-    : undefined;
+function isTransientAuthClockSkew(
+  error: unknown,
+): boolean {
+  if (!error || typeof error !== 'object') return false;
+
+  const message = String(
+    (error as { message?: unknown }).message ?? '',
+  ).toLowerCase();
+
+  return message.includes('jwt issued at future');
+}
+
+function wait(milliseconds: number) {
+  return new Promise<void>((resolve) => {
+    setTimeout(resolve, milliseconds);
+  });
 }
 
 export async function GET(
@@ -115,37 +108,54 @@ export async function GET(
       { error: 'Invalid wallet address.' },
       {
         status: 400,
-        headers: {
-          'Cache-Control': 'no-store',
-        },
+        headers: { 'Cache-Control': 'no-store' },
       },
     );
   }
 
   try {
-    const round =
-      await readVeBetterRoundWindow();
+    const round = await readVeBetterRoundWindow();
 
-    const [leaderboardResult, growthResult] =
+    const readLeaderboard = () =>
+      supabaseAdmin.rpc(
+        'get_public_lifetime_leaderboard',
+        {
+          p_network: round.network,
+          p_wallet: wallet,
+          p_limit: LEADERBOARD_SIZE,
+        },
+      );
+
+    const readGrowth = () =>
+      supabaseAdmin.rpc(
+        'get_operator_public_new_user_growth',
+        {
+          p_network: round.network,
+          p_current_round_id: round.currentRoundId,
+          p_limit: MAX_GROWTH_ROUNDS,
+        },
+      );
+
+    let [leaderboardResult, growthResult] =
       await Promise.all([
-        supabaseAdmin.rpc(
-          'get_public_lifetime_leaderboard',
-          {
-            p_network: round.network,
-            p_wallet: wallet,
-            p_limit: LEADERBOARD_SIZE,
-          },
-        ),
-        supabaseAdmin.rpc(
-          'get_operator_public_new_user_growth',
-          {
-            p_network: round.network,
-            p_current_round_id:
-              round.currentRoundId,
-            p_limit: MAX_GROWTH_ROUNDS,
-          },
-        ),
+        readLeaderboard(),
+        readGrowth(),
       ]);
+
+    // Supabase can rarely reject a read when the request and auth clocks are
+    // separated by a very small amount. Retry only that known transient,
+    // read-only failure once. All other DB/auth errors remain fail-closed.
+    if (
+      isTransientAuthClockSkew(leaderboardResult.error) ||
+      isTransientAuthClockSkew(growthResult.error)
+    ) {
+      await wait(TRANSIENT_AUTH_RETRY_MS);
+      [leaderboardResult, growthResult] =
+        await Promise.all([
+          readLeaderboard(),
+          readGrowth(),
+        ]);
+    }
 
     if (leaderboardResult.error) {
       throw new Error(
@@ -166,10 +176,7 @@ export async function GET(
     const growthRows = (
       (growthResult.data ?? []) as GrowthRow[]
     ).map((row) => ({
-      roundId: parseCount(
-        row.round_id,
-        'Growth round',
-      ),
+      roundId: parseCount(row.round_id, 'Growth round'),
       newUsers: parseCount(
         row.cumulative_activated_new_users,
         'Activated new users',
@@ -184,8 +191,7 @@ export async function GET(
       (typeof growthRows)[number] | null
     >(
       (latest, row) =>
-        latest === null ||
-        row.roundId > latest.roundId
+        latest === null || row.roundId > latest.roundId
           ? row
           : latest,
       null,
@@ -193,11 +199,7 @@ export async function GET(
 
     const reportingStartRound =
       growthRows.length > 0
-        ? Math.min(
-            ...growthRows.map(
-              (row) => row.roundId,
-            ),
-          )
+        ? Math.min(...growthRows.map((row) => row.roundId))
         : null;
 
     const response: PublicLeaderboardResponse = {
@@ -210,17 +212,13 @@ export async function GET(
           (latestGrowth?.newUsers ?? 0) +
           (latestGrowth?.returningUsers ?? 0),
         newUsers: latestGrowth?.newUsers ?? 0,
-        returningUsers:
-          latestGrowth?.returningUsers ?? 0,
+        returningUsers: latestGrowth?.returningUsers ?? 0,
       },
       leaders: entries.filter(
-        (entry) =>
-          entry.rank <= LEADERBOARD_SIZE,
+        (entry) => entry.rank <= LEADERBOARD_SIZE,
       ),
       currentUser:
-        entries.find(
-          (entry) => entry.isCurrentWallet,
-        ) ?? null,
+        entries.find((entry) => entry.isCurrentWallet) ?? null,
     };
 
     return NextResponse.json(response, {
@@ -242,9 +240,7 @@ export async function GET(
       },
       {
         status: 503,
-        headers: {
-          'Cache-Control': 'no-store',
-        },
+        headers: { 'Cache-Control': 'no-store' },
       },
     );
   }
