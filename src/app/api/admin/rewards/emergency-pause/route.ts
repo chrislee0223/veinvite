@@ -97,9 +97,9 @@ export async function GET(
       {
         runtime,
         onChainDistributionPaused:
-          operator.pool!.distributionPaused,
+          operator.pool!
+            .onChainDistributionPaused,
         effectivePause:
-          runtime.emergencyRewardsPaused ||
           operator.pool!.distributionPaused,
         verifiedOperator:
           operator.session!.walletAddress,
@@ -263,10 +263,12 @@ export async function POST(
           ),
         runtime,
         onChainDistributionPaused:
-          operator.pool!.distributionPaused,
+          operator.pool!
+            .onChainDistributionPaused,
         effectivePause:
           runtime.emergencyRewardsPaused ||
-          operator.pool!.distributionPaused,
+          operator.pool!
+            .onChainDistributionPaused,
         verifiedOperator:
           operator.session!.walletAddress,
         transfersPerformed: false,
