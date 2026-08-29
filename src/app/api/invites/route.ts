@@ -151,6 +151,24 @@ function isCurrentActiveInvite(
   return false;
 }
 
+function isUserVisibleInvite(
+  invitation: InvitationRow,
+): boolean {
+  if (
+    invitation.status !== 'ACTIVATING' &&
+    invitation.status !== 'UNDER_REVIEW'
+  ) {
+    return true;
+  }
+
+  // Proofless legacy activation rows remain in the database for operator
+  // audit, but exposing them to HomeClient makes the UI treat them as a live
+  // invite and incorrectly blocks a slot that the backend already considers
+  // available. Keep user-facing state aligned with the authoritative active
+  // invite rule without mutating historical records.
+  return isCurrentActiveInvite(invitation);
+}
+
 async function loadActiveInvite(
   inviterAddress: string,
 ): Promise<{
@@ -260,7 +278,9 @@ export async function GET(
   }
 
   const invitationRows =
-    toInvitationRows(data);
+    toInvitationRows(data).filter(
+      isUserVisibleInvite,
+    );
   const inviteCodes = invitationRows.map(
     (invitation) =>
       invitation.invite_code,
