@@ -36,7 +36,7 @@ function invitationsFingerprint(
     .join('|');
 }
 
-function shouldDeferReload(): boolean {
+function shouldDeferHomeRefresh(): boolean {
   const activeNavigation =
     document.querySelector<HTMLElement>(
       '[data-veinvite-active-tab]',
@@ -76,7 +76,8 @@ export function InviteStatusAutoRefresh() {
     if (
       !walletAddress ||
       checkingRef.current ||
-      document.visibilityState === 'hidden'
+      document.visibilityState === 'hidden' ||
+      shouldDeferHomeRefresh()
     ) {
       return;
     }
@@ -109,15 +110,11 @@ export function InviteStatusAutoRefresh() {
       }
 
       if (lastFingerprintRef.current !== fingerprint) {
-        // A full reload is still the safest way to refresh every Home-derived
-        // state at once, but it must not yank someone out of Guide,
-        // Leaderboard, Settings, or an open confirmation/details dialog. Keep
-        // the old fingerprint so the next interval/focus check retries once
-        // the user returns to Home and no modal is open.
-        if (shouldDeferReload()) {
-          return;
-        }
-
+        // A full reload remains the safest way to refresh every Home-derived
+        // state at once. The check itself pauses while another app tab or a
+        // modal is active, so users are not unexpectedly pulled out of Guide,
+        // Leaderboard, Settings, or a confirmation/details flow. The old
+        // fingerprint is intentionally preserved until Home can refresh.
         window.location.reload();
       }
     } catch {
