@@ -12,12 +12,8 @@ import type { InviteRecord } from '@/lib/types';
 const POLL_INTERVAL_MS = 15_000;
 
 function inviteFingerprint(
-  invite: InviteRecord | undefined,
+  invite: InviteRecord,
 ) {
-  if (!invite) {
-    return 'none';
-  }
-
   return [
     invite.code,
     invite.status,
@@ -28,11 +24,24 @@ function inviteFingerprint(
   ].join(':');
 }
 
+function invitationsFingerprint(
+  invites: InviteRecord[] | undefined,
+) {
+  if (!invites?.length) {
+    return 'none';
+  }
+
+  return invites
+    .map(inviteFingerprint)
+    .join('|');
+}
+
 /**
- * Keeps the inviter home screen in sync when the invitee changes state in a
- * different browser/device. HomeClient owns the visible UI and already loads
- * authoritative server state on mount; this watcher only reloads when the
- * server-observed invite state actually changes.
+ * Keeps the inviter home screen in sync when the invitee or reward state
+ * changes in a different browser/device. HomeClient can keep an older
+ * completed referral visible while a newer invite is active, so the watcher
+ * fingerprints the full user-facing invite list rather than only its first
+ * row. This makes later claim/assignment/payment changes refresh reliably.
  */
 export function InviteStatusAutoRefresh() {
   const { account } = useWallet();
@@ -70,9 +79,8 @@ export function InviteStatusAutoRefresh() {
       const data = (await response.json()) as {
         invites?: InviteRecord[];
       };
-      const fingerprint = inviteFingerprint(
-        data.invites?.[0],
-      );
+      const fingerprint =
+        invitationsFingerprint(data.invites);
 
       if (lastFingerprintRef.current === null) {
         lastFingerprintRef.current = fingerprint;
