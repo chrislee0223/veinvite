@@ -212,7 +212,7 @@ export function WalletSessionGate({
         boxSizing: 'border-box',
         padding: '24px',
         background:
-          'radial-gradient(circle at 50% 32%, rgba(116,72,255,0.18), transparent 34%), #070914',
+          'radial-gradient(circle at 50% 32%, rgba(244,183,40,0.16), transparent 34%), #080807',
         color: '#ffffff',
         textAlign: 'center',
       }}
@@ -226,7 +226,7 @@ export function WalletSessionGate({
           gap: '14px',
           padding: '26px 22px',
           border:
-            '1px solid rgba(158,122,255,0.24)',
+            '1px solid rgba(255,205,80,0.22)',
           borderRadius: '24px',
           background:
             'rgba(18,20,33,0.92)',
@@ -245,10 +245,10 @@ export function WalletSessionGate({
             borderRadius: '16px',
             background: hasError
               ? 'rgba(255,113,134,0.12)'
-              : 'rgba(116,72,255,0.18)',
+              : 'rgba(244,183,40,0.14)',
             color: hasError
               ? '#ff8da0'
-              : '#d7ccff',
+              : '#ffd66e',
             fontSize: '1.35rem',
             fontWeight: 900,
           }}
@@ -304,8 +304,8 @@ export function WalletSessionGate({
               borderRadius: '14px',
               border: 0,
               background:
-                'linear-gradient(135deg, #8255ff, #6d3fff)',
-              color: '#ffffff',
+                'linear-gradient(135deg, #ffd24d, #efa718)',
+              color: '#17120a',
               cursor: 'pointer',
               font: 'inherit',
               fontWeight: 800,

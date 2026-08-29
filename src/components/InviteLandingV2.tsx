@@ -220,10 +220,10 @@ export function InviteLandingV2({
           background:
             radial-gradient(
               circle at 50% 24%,
-              rgba(116, 72, 255, 0.19),
+              rgba(244, 183, 40, 0.16),
               transparent 34%
             ),
-            #070914;
+            #080807;
         }
 
         .topBar {
@@ -243,7 +243,7 @@ export function InviteLandingV2({
           border: 1px solid rgba(255, 255, 255, 0.1);
           border-radius: 12px;
           background: rgba(255, 255, 255, 0.06);
-          color: #ded8ff;
+          color: #eee8d6;
         }
 
         .language select {
@@ -267,13 +267,13 @@ export function InviteLandingV2({
           width: min(100%, 430px);
           box-sizing: border-box;
           padding: 24px 22px 20px;
-          border: 1px solid rgba(158, 122, 255, 0.3);
+          border: 1px solid rgba(255, 205, 80, 0.25);
           border-radius: 28px;
           background:
             linear-gradient(
               160deg,
-              rgba(37, 28, 82, 0.98),
-              rgba(15, 17, 31, 0.98) 64%
+              rgba(54, 40, 14, 0.98),
+              rgba(16, 16, 14, 0.98) 64%
             );
           box-shadow:
             0 24px 70px rgba(0, 0, 0, 0.42),
@@ -288,7 +288,7 @@ export function InviteLandingV2({
           right: -110px;
           top: -120px;
           border-radius: 50%;
-          background: rgba(123, 75, 255, 0.22);
+          background: rgba(244, 183, 40, 0.19);
           filter: blur(4px);
         }
 
@@ -299,10 +299,10 @@ export function InviteLandingV2({
           align-items: center;
           height: 28px;
           padding: 0 11px;
-          border: 1px solid rgba(171, 139, 255, 0.28);
+          border: 1px solid rgba(255, 205, 80, 0.28);
           border-radius: 999px;
-          background: rgba(116, 72, 255, 0.13);
-          color: #cfc1ff;
+          background: rgba(244, 183, 40, 0.12);
+          color: #ffd66e;
           font-size: 0.72rem;
           font-weight: 800;
           letter-spacing: 0.08em;
@@ -324,14 +324,14 @@ export function InviteLandingV2({
 
         .haloOne {
           inset: 0;
-          border: 1px solid rgba(164, 129, 255, 0.32);
-          background: rgba(116, 72, 255, 0.08);
+          border: 1px solid rgba(255, 205, 80, 0.3);
+          background: rgba(244, 183, 40, 0.07);
         }
 
         .haloTwo {
           inset: 14px;
-          border: 1px solid rgba(194, 173, 255, 0.3);
-          background: rgba(116, 72, 255, 0.1);
+          border: 1px solid rgba(255, 222, 132, 0.28);
+          background: rgba(244, 183, 40, 0.09);
         }
 
         .token {
@@ -346,11 +346,11 @@ export function InviteLandingV2({
           background:
             linear-gradient(
               135deg,
-              #9a74ff,
-              #6d3fff
+              #ffd45c,
+              #e7a51e
             );
           box-shadow:
-            0 14px 34px rgba(92, 49, 255, 0.46),
+            0 14px 34px rgba(190, 126, 12, 0.36),
             inset 0 1px 0 rgba(255, 255, 255, 0.34);
         }
 
@@ -363,7 +363,7 @@ export function InviteLandingV2({
 
         .rewardLabel {
           text-align: center;
-          color: #a995f4;
+          color: #e5b94c;
           font-size: 0.7rem;
           font-weight: 900;
           letter-spacing: 0.16em;
@@ -421,9 +421,10 @@ export function InviteLandingV2({
         }
 
         .step.active span {
-          border-color: #9b78ff;
-          background: #7448ff;
-          box-shadow: 0 0 22px rgba(116, 72, 255, 0.54);
+          border-color: #ffd24d;
+          background: #f4b728;
+          color: #17120a;
+          box-shadow: 0 0 22px rgba(244, 183, 40, 0.46);
         }
 
         .line {
@@ -462,16 +463,16 @@ export function InviteLandingV2({
           background:
             linear-gradient(
               135deg,
-              #8255ff,
-              #6d3fff
+              #ffd24d,
+              #efa718
             );
-          color: #ffffff;
+          color: #17120a;
           font: inherit;
           font-size: 1.08rem;
           font-weight: 950;
           cursor: pointer;
           box-shadow:
-            0 15px 34px rgba(87, 45, 255, 0.36),
+            0 15px 34px rgba(190, 126, 12, 0.28),
             inset 0 1px 0 rgba(255, 255, 255, 0.22);
           transition:
             transform 150ms ease,

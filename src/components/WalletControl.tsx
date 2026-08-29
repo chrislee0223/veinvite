@@ -2,6 +2,7 @@
 
 import {
   useCallback,
+  useState,
 } from 'react';
 import dynamic from 'next/dynamic';
 
@@ -40,6 +41,11 @@ export function useActiveWallet():
 
 export function useWalletLauncher() {
   const wallet = useActiveWallet();
+  const { disconnect } = useWallet();
+  const { clearWalletSession } =
+    useWalletAuthentication();
+  const [isWalletActionPending, setIsWalletActionPending] =
+    useState(false);
 
   const {
     open: openConnectModal,
@@ -64,9 +70,56 @@ export function useWalletLauncher() {
     openConnectModal,
   ]);
 
+  const disconnectWallet = useCallback(async () => {
+    setIsWalletActionPending(true);
+    let firstError: unknown;
+
+    try {
+      await clearWalletSession();
+    } catch (error) {
+      firstError = error;
+      console.error(
+        'Failed to clear VeInvite wallet session:',
+        error,
+      );
+    }
+
+    try {
+      await disconnect();
+    } catch (error) {
+      firstError ??= error;
+      console.error(
+        'Failed to disconnect wallet:',
+        error,
+      );
+    } finally {
+      setIsWalletActionPending(false);
+    }
+
+    if (firstError) {
+      throw firstError;
+    }
+  }, [clearWalletSession, disconnect]);
+
+  const connectAnotherWallet =
+    useCallback(async () => {
+      if (wallet) {
+        await disconnectWallet();
+      }
+
+      openConnectModal();
+    }, [
+      disconnectWallet,
+      openConnectModal,
+      wallet,
+    ]);
+
   return {
     wallet,
     openWallet,
+    connectAnotherWallet,
+    disconnectWallet,
+    isWalletActionPending,
     isWalletModalOpen:
       isConnectModalOpen ||
       isAccountModalOpen,
