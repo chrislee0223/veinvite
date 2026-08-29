@@ -131,7 +131,10 @@ async function loadOpenReviews(network: string) {
     .eq('activation_network', network)
     .eq('status', 'UNDER_REVIEW')
     .eq('sybil_status', 'REVIEW')
-    .order('sybil_checked_at', { ascending: true, nullsFirst: true })
+    .order('sybil_checked_at', {
+      ascending: true,
+      nullsFirst: true,
+    })
     .order('updated_at', { ascending: true })
     .limit(REVIEW_LIST_LIMIT);
 
@@ -165,7 +168,8 @@ async function loadReviewEvents(inviteCode: string) {
 }
 
 export async function GET(request: NextRequest) {
-  const rawInviteCode = request.nextUrl.searchParams.get('inviteCode');
+  const rawInviteCode =
+    request.nextUrl.searchParams.get('inviteCode');
   const inviteCode = rawInviteCode
     ? normalizeInviteCode(rawInviteCode)
     : null;
@@ -188,12 +192,14 @@ export async function GET(request: NextRequest) {
     }
 
     if (!inviteCode) {
-      const reviews = await loadOpenReviews(operator.pool!.network);
+      const reviews =
+        await loadOpenReviews(operator.pool!.network);
 
       return NextResponse.json(
         {
           network: operator.pool!.network,
-          verifiedOperator: operator.session!.walletAddress,
+          verifiedOperator:
+            operator.session!.walletAddress,
           reviews,
           reviewCount: reviews.length,
           resultLimit: REVIEW_LIST_LIMIT,
@@ -206,7 +212,8 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    const invitation = await loadInvitationReview(inviteCode);
+    const invitation =
+      await loadInvitationReview(inviteCode);
 
     if (!invitation) {
       return NextResponse.json(
@@ -223,7 +230,10 @@ export async function GET(request: NextRequest) {
       invitation.activation_network !== operator.pool!.network
     ) {
       return NextResponse.json(
-        { error: 'Invitation network does not match the operator network.' },
+        {
+          error:
+            'Invitation network does not match the operator network.',
+        },
         {
           status: 409,
           headers: noStoreHeaders(),
@@ -236,7 +246,8 @@ export async function GET(request: NextRequest) {
     return NextResponse.json(
       {
         network: operator.pool!.network,
-        verifiedOperator: operator.session!.walletAddress,
+        verifiedOperator:
+          operator.session!.walletAddress,
         invitation,
         reviewEvents: events,
         canResolve:
@@ -260,10 +271,16 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    console.error('Failed to load manual Sybil review:', error);
+    console.error(
+      'Failed to load manual Sybil review:',
+      error,
+    );
 
     return NextResponse.json(
-      { error: 'Manual Sybil review could not be loaded.' },
+      {
+        error:
+          'Manual Sybil review could not be loaded.',
+      },
       {
         status: 500,
         headers: noStoreHeaders(),
@@ -304,14 +321,19 @@ export async function POST(request: NextRequest) {
     body.intent !== RESOLVE_REVIEW_INTENT ||
     !('inviteCode' in body) ||
     !('decision' in body) ||
-    (body.decision !== 'CLEAR' && body.decision !== 'BLOCKED') ||
+    (body.decision !== 'CLEAR' &&
+      body.decision !== 'BLOCKED') ||
     !('reason' in body) ||
-    typeof body.reason !== 'string'
+    typeof body.reason !== 'string' ||
+    !('confirmation' in body) ||
+    typeof body.confirmation !== 'string' ||
+    !('expectedCheckedAt' in body) ||
+    typeof body.expectedCheckedAt !== 'string'
   ) {
     return NextResponse.json(
       {
         error:
-          `intent must be ${RESOLVE_REVIEW_INTENT}; inviteCode, decision (CLEAR or BLOCKED), and reason are required.`,
+          `intent must be ${RESOLVE_REVIEW_INTENT}; inviteCode, decision (CLEAR or BLOCKED), reason, confirmation, and expectedCheckedAt are required.`,
       },
       {
         status: 400,
@@ -323,10 +345,26 @@ export async function POST(request: NextRequest) {
   const inviteCode = normalizeInviteCode(body.inviteCode);
   const decision = body.decision as ReviewDecision;
   const reason = body.reason.trim();
+  const expectedCheckedAt = body.expectedCheckedAt.trim();
 
   if (!inviteCode) {
     return NextResponse.json(
       { error: 'A valid 7-character inviteCode is required.' },
+      {
+        status: 400,
+        headers: noStoreHeaders(),
+      },
+    );
+  }
+
+  if (
+    body.confirmation.trim().toUpperCase() !== inviteCode
+  ) {
+    return NextResponse.json(
+      {
+        error:
+          'confirmation must exactly match the invitation code.',
+      },
       {
         status: 400,
         headers: noStoreHeaders(),
@@ -343,6 +381,16 @@ export async function POST(request: NextRequest) {
         error:
           `reason must be between ${MIN_REASON_LENGTH} and ${MAX_REASON_LENGTH} characters.`,
       },
+      {
+        status: 400,
+        headers: noStoreHeaders(),
+      },
+    );
+  }
+
+  if (Number.isNaN(Date.parse(expectedCheckedAt))) {
+    return NextResponse.json(
+      { error: 'expectedCheckedAt must be a valid timestamp.' },
       {
         status: 400,
         headers: noStoreHeaders(),
@@ -371,7 +419,10 @@ export async function POST(request: NextRequest) {
 
     if (!before.invitee_wallet) {
       return NextResponse.json(
-        { error: 'Invitation has no invitee wallet to review.' },
+        {
+          error:
+            'Invitation has no invitee wallet to review.',
+        },
         {
           status: 409,
           headers: noStoreHeaders(),
@@ -381,7 +432,10 @@ export async function POST(request: NextRequest) {
 
     if (before.activation_network !== operator.pool!.network) {
       return NextResponse.json(
-        { error: 'Invitation network does not match the operator network.' },
+        {
+          error:
+            'Invitation network does not match the operator network.',
+        },
         {
           status: 409,
           headers: noStoreHeaders(),
@@ -405,20 +459,55 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    if (
+      !before.sybil_checked_at ||
+      before.sybil_checked_at !== expectedCheckedAt
+    ) {
+      return NextResponse.json(
+        {
+          error:
+            'This review changed after it was opened. Reload the latest review state before deciding.',
+        },
+        {
+          status: 409,
+          headers: noStoreHeaders(),
+        },
+      );
+    }
+
     const { error: rpcError } = await supabaseAdmin.rpc(
-      'set_invitation_sybil_decision',
+      'resolve_invitation_sybil_review',
       {
         p_invite_code: inviteCode,
-        p_sybil_status: decision,
-        p_risk_level: decision === 'CLEAR' ? 'NONE' : 'HIGH',
+        p_decision: decision,
         p_reason: reason,
-        p_risk_score: decision === 'CLEAR' ? 0 : 100,
+        p_expected_checked_at: expectedCheckedAt,
+        p_operator_wallet:
+          operator.session!.walletAddress,
+        p_network: operator.pool!.network,
       },
     );
 
     if (rpcError) {
+      if (
+        rpcError.message.includes(
+          'manual Sybil review state changed',
+        )
+      ) {
+        return NextResponse.json(
+          {
+            error:
+              'This review changed after it was opened. Reload the latest review state before deciding.',
+          },
+          {
+            status: 409,
+            headers: noStoreHeaders(),
+          },
+        );
+      }
+
       throw new Error(
-        `set_invitation_sybil_decision failed: ${rpcError.message}`,
+        `resolve_invitation_sybil_review failed: ${rpcError.message}`,
       );
     }
 
@@ -441,7 +530,8 @@ export async function POST(request: NextRequest) {
       {
         changed: true,
         network: operator.pool!.network,
-        verifiedOperator: operator.session!.walletAddress,
+        verifiedOperator:
+          operator.session!.walletAddress,
         decision,
         invitation: after,
         latestReviewEvent: events[0] ?? null,
@@ -463,10 +553,16 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    console.error('Failed to resolve manual Sybil review:', error);
+    console.error(
+      'Failed to resolve manual Sybil review:',
+      error,
+    );
 
     return NextResponse.json(
-      { error: 'Manual Sybil review could not be resolved.' },
+      {
+        error:
+          'Manual Sybil review could not be resolved.',
+      },
       {
         status: 500,
         headers: noStoreHeaders(),
