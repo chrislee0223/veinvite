@@ -2,9 +2,11 @@ import { NextResponse } from 'next/server';
 
 import {
   readVeInviteRewardPoolStatus,
+  type VeInviteRewardPoolStatus,
 } from '@/lib/rewards/onchainPool';
 import {
   readRewardRuntimeSafety,
+  type RewardRuntimeSafety,
 } from '@/lib/rewards/runtimeSafety';
 
 function isProductionDeployment() {
@@ -46,17 +48,64 @@ export async function GET() {
     passed: boolean;
     error?: string;
   }> = [];
+  let runtime: RewardRuntimeSafety | null = null;
+  let pool: VeInviteRewardPoolStatus | null = null;
 
-  const test = async (
-    name: string,
-    run: () => void | Promise<void>,
-  ) => {
+  try {
+    runtime = await readRewardRuntimeSafety();
+    results.push({
+      name:
+        'runtime safety configuration is readable',
+      passed: true,
+    });
+  } catch (error) {
+    results.push({
+      name:
+        'runtime safety configuration is readable',
+      passed: false,
+      error:
+        error instanceof Error
+          ? error.message
+          : 'Unknown test failure',
+    });
+  }
+
+  try {
+    pool = await readVeInviteRewardPoolStatus();
+    results.push({
+      name:
+        'reward pool and pause state are readable',
+      passed: true,
+    });
+  } catch (error) {
+    results.push({
+      name:
+        'reward pool and pause state are readable',
+      passed: false,
+      error:
+        error instanceof Error
+          ? error.message
+          : 'Unknown test failure',
+    });
+  }
+
+  if (runtime && pool) {
     try {
-      await run();
-      results.push({ name, passed: true });
+      expectEqual(
+        pool.distributionPaused,
+        runtime.emergencyRewardsPaused ||
+          pool.onChainDistributionPaused,
+        'distributionPaused',
+      );
+      results.push({
+        name:
+          'effective pause is the OR of local and on-chain controls',
+        passed: true,
+      });
     } catch (error) {
       results.push({
-        name,
+        name:
+          'effective pause is the OR of local and on-chain controls',
         passed: false,
         error:
           error instanceof Error
@@ -64,74 +113,40 @@ export async function GET() {
             : 'Unknown test failure',
       });
     }
-  };
 
-  let runtime:
-    Awaited<
-      ReturnType<
-        typeof readRewardRuntimeSafety
-      >
-    > | null = null;
-  let pool:
-    Awaited<
-      ReturnType<
-        typeof readVeInviteRewardPoolStatus
-      >
-    > | null = null;
+    const reasonValid =
+      !runtime.emergencyRewardsPaused ||
+      Boolean(runtime.emergencyPauseReason);
 
-  await test(
-    'runtime safety configuration is readable',
-    async () => {
-      runtime =
-        await readRewardRuntimeSafety();
-    },
-  );
-
-  await test(
-    'reward pool and pause state are readable',
-    async () => {
-      pool =
-        await readVeInviteRewardPoolStatus();
-    },
-  );
-
-  await test(
-    'effective pause is the OR of local and on-chain controls',
-    () => {
-      if (!runtime || !pool) {
-        throw new Error(
+    results.push({
+      name:
+        'active local pause always has an operator reason',
+      passed: reasonValid,
+      ...(reasonValid
+        ? {}
+        : {
+            error:
+              'Emergency pause is active without a reason.',
+          }),
+    });
+  } else {
+    results.push(
+      {
+        name:
+          'effective pause is the OR of local and on-chain controls',
+        passed: false,
+        error:
           'Pause state dependencies were not loaded.',
-        );
-      }
-
-      expectEqual(
-        pool.distributionPaused,
-        runtime.emergencyRewardsPaused ||
-          pool.onChainDistributionPaused,
-        'distributionPaused',
-      );
-    },
-  );
-
-  await test(
-    'active local pause always has an operator reason',
-    () => {
-      if (!runtime) {
-        throw new Error(
+      },
+      {
+        name:
+          'active local pause always has an operator reason',
+        passed: false,
+        error:
           'Runtime safety state was not loaded.',
-        );
-      }
-
-      if (
-        runtime.emergencyRewardsPaused &&
-        !runtime.emergencyPauseReason
-      ) {
-        throw new Error(
-          'Emergency pause is active without a reason.',
-        );
-      }
-    },
-  );
+      },
+    );
+  }
 
   const failed = results.filter(
     (result) => !result.passed,
