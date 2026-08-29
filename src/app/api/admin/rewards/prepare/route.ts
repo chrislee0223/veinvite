@@ -10,6 +10,9 @@ import {
   canOperateVeInviteRewards,
   readVeInviteRewardPoolStatus,
 } from '@/lib/rewards/onchainPool';
+import {
+  refreshQueuedReferralSignalChecks,
+} from '@/lib/sybil/vePassportSignals';
 import { supabaseAdmin } from '@/lib/supabaseServer';
 import {
   requireWalletSession,
@@ -320,6 +323,15 @@ export async function POST(
       );
     }
 
+    // Community security guidance recommends checking the shared Signal Admin
+    // immediately before rewards are granted. Revalidate every queued referral
+    // against the reviewed VePassport contract here, after funding is proven
+    // but before the database can reserve any payout.
+    const signalPreflight =
+      await refreshQueuedReferralSignalChecks({
+        network: pool.network,
+      });
+
     const { data, error } =
       await supabaseAdmin.rpc(
         'prepare_reward_round_with_allocation',
@@ -354,11 +366,13 @@ export async function POST(
           veBetterRoundId:
             allocationReceipt.vebetter_round_id,
           allocationReceipt,
+          signalPreflight,
           pool,
           verifiedOperator:
             session.walletAddress,
           writesPerformed:
-            allocationSync.insertedCount > 0,
+            allocationSync.insertedCount > 0 ||
+            signalPreflight.checkedCount > 0,
           transfersPerformed: false,
         },
         {
@@ -413,6 +427,7 @@ export async function POST(
           observedClaims:
             allocationSync.observedClaims,
         },
+        signalPreflight,
         pool,
         verifiedOperator:
           session.walletAddress,
