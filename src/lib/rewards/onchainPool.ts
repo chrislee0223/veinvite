@@ -1,6 +1,9 @@
 import { ThorClient } from '@vechain/sdk-network';
 
 import {
+  readRewardRuntimeSafety,
+} from '@/lib/rewards/runtimeSafety';
+import {
   getVeBetterNetworkConfig,
 } from '@/lib/vebetter/network';
 
@@ -193,6 +196,9 @@ export type VeInviteRewardPoolStatus = {
   availableFundsWei: string;
   totalBalanceWei: string;
   effectiveRewardPoolWei: string;
+  onChainDistributionPaused: boolean;
+  emergencyRewardsPaused: boolean;
+  emergencyPauseReason: string | null;
   distributionPaused: boolean;
   contractVersion: string;
   appAdmin: string;
@@ -200,12 +206,17 @@ export type VeInviteRewardPoolStatus = {
 };
 
 /**
- * Reads the app-scoped VeBetterDAO reward pool directly from chain.
- * No database writes or token transfers are performed here.
+ * Reads the app-scoped VeBetterDAO reward pool plus VeInvite's local runtime
+ * safety gate. No database writes or token transfers are performed here.
  *
  * VeBetterDAO v7+ separates rewardsPoolBalance from availableFunds when the
  * dual-pool feature is enabled. The active pool is therefore selected from the
  * contract flag instead of an operator-supplied balance.
+ *
+ * `distributionPaused` is deliberately effective/fail-closed: either the
+ * on-chain VeBetterDAO pause or VeInvite's operator emergency pause blocks new
+ * reward preparation/signing paths. Existing submitted transactions may still
+ * be reconciled and finalized so accounting evidence is never lost.
  */
 export async function readVeInviteRewardPoolStatus():
 Promise<VeInviteRewardPoolStatus> {
@@ -235,6 +246,7 @@ Promise<VeInviteRewardPoolStatus> {
     versionResult,
     appAdminResult,
     distributorsResult,
+    runtimeSafety,
   ] = await Promise.all([
     pool.read.isRewardsPoolEnabled(
       VEINVITE_APP_ID,
@@ -258,6 +270,7 @@ Promise<VeInviteRewardPoolStatus> {
     apps.read.rewardDistributors(
       VEINVITE_APP_ID,
     ),
+    readRewardRuntimeSafety(),
   ]);
 
   const rewardsPoolEnabled =
@@ -284,6 +297,14 @@ Promise<VeInviteRewardPoolStatus> {
     rewardsPoolEnabled
       ? rewardsPoolBalanceWei
       : availableFundsWei;
+  const onChainDistributionPaused =
+    readBoolean(
+      pausedResult,
+      'isDistributionPaused',
+    );
+  const distributionPaused =
+    onChainDistributionPaused ||
+    runtimeSafety.emergencyRewardsPaused;
 
   if (
     BigInt(effectiveRewardPoolWei) >
@@ -303,11 +324,12 @@ Promise<VeInviteRewardPoolStatus> {
     availableFundsWei,
     totalBalanceWei,
     effectiveRewardPoolWei,
-    distributionPaused:
-      readBoolean(
-        pausedResult,
-        'isDistributionPaused',
-      ),
+    onChainDistributionPaused,
+    emergencyRewardsPaused:
+      runtimeSafety.emergencyRewardsPaused,
+    emergencyPauseReason:
+      runtimeSafety.emergencyPauseReason,
+    distributionPaused,
     contractVersion:
       readString(
         versionResult,
