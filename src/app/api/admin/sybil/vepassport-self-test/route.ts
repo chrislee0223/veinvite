@@ -66,6 +66,7 @@ export async function GET() {
       const result =
         evaluateVePassportSignalRisk({
           signalCount: 0,
+          protocolSignalThreshold: 1,
           veInviteReviewThreshold: 2,
           blacklisted: false,
         });
@@ -84,34 +85,12 @@ export async function GET() {
   );
 
   await test(
-    'one signal stays clear below threshold',
+    'stricter protocol threshold cannot be weakened by VeInvite',
     () => {
       const result =
         evaluateVePassportSignalRisk({
           signalCount: 1,
-          veInviteReviewThreshold: 2,
-          blacklisted: false,
-        });
-
-      expectEqual(
-        result.status,
-        'CLEAR',
-        'status',
-      );
-      expectEqual(
-        result.riskLevel,
-        'LOW',
-        'riskLevel',
-      );
-    },
-  );
-
-  await test(
-    'signal threshold moves referral to review',
-    () => {
-      const result =
-        evaluateVePassportSignalRisk({
-          signalCount: 2,
+          protocolSignalThreshold: 1,
           veInviteReviewThreshold: 2,
           blacklisted: false,
         });
@@ -130,11 +109,55 @@ export async function GET() {
   );
 
   await test(
+    'VeInvite can be stricter than a looser protocol threshold',
+    () => {
+      const result =
+        evaluateVePassportSignalRisk({
+          signalCount: 2,
+          protocolSignalThreshold: 3,
+          veInviteReviewThreshold: 2,
+          blacklisted: false,
+        });
+
+      expectEqual(
+        result.status,
+        'REVIEW',
+        'status',
+      );
+    },
+  );
+
+  await test(
+    'signal below both thresholds remains low risk',
+    () => {
+      const result =
+        evaluateVePassportSignalRisk({
+          signalCount: 1,
+          protocolSignalThreshold: 3,
+          veInviteReviewThreshold: 2,
+          blacklisted: false,
+        });
+
+      expectEqual(
+        result.status,
+        'CLEAR',
+        'status',
+      );
+      expectEqual(
+        result.riskLevel,
+        'LOW',
+        'riskLevel',
+      );
+    },
+  );
+
+  await test(
     'blacklisted wallet is blocked',
     () => {
       const result =
         evaluateVePassportSignalRisk({
           signalCount: 0,
+          protocolSignalThreshold: 1,
           veInviteReviewThreshold: 2,
           blacklisted: true,
         });
