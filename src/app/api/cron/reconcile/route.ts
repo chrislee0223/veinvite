@@ -10,6 +10,9 @@ import {
   runReconciliationBatch,
 } from '@/lib/impact/reconcileBatch';
 import {
+  runOperatorMonitoringAudit,
+} from '@/lib/monitoring/operatorMonitoring';
+import {
   syncVeInviteAllocationReceipts,
 } from '@/lib/rewards/allocationAccounting';
 import {
@@ -59,10 +62,12 @@ function authorizeCron(request: NextRequest) {
 /**
  * Vercel Cron entrypoint.
  *
- * This worker reconciles immutable/derived onboarding evidence and records
- * official VeBetterDAO allocation-claim evidence for VeInvite. It never
- * prepares a reward round and cannot transfer B3TR. Vercel automatically sends
- * `Authorization: Bearer <CRON_SECRET>` when CRON_SECRET is configured.
+ * This worker reconciles immutable/derived onboarding evidence, records
+ * official VeBetterDAO allocation-claim evidence, maintains growth snapshots,
+ * and appends an operator anomaly-monitoring snapshot. It never prepares a
+ * reward round, changes Sybil decisions, pauses rewards, or transfers B3TR.
+ * Vercel automatically sends `Authorization: Bearer <CRON_SECRET>` when
+ * CRON_SECRET is configured.
  */
 export async function GET(
   request: NextRequest,
@@ -91,6 +96,36 @@ export async function GET(
       );
     const roundGrowthReports =
       await maintainRoundGrowthSnapshots();
+    const monitoring =
+      await runOperatorMonitoringAudit(
+        'VERCEL_CRON',
+      );
+
+    if (monitoring.severity === 'CRITICAL') {
+      console.error(
+        'VeInvite operator monitoring detected critical anomalies:',
+        {
+          snapshotId: monitoring.snapshotId,
+          network: monitoring.network,
+          alerts: monitoring.alerts.map(
+            (alert) => alert.code,
+          ),
+        },
+      );
+    } else if (
+      monitoring.severity === 'WARNING'
+    ) {
+      console.warn(
+        'VeInvite operator monitoring detected warning signals:',
+        {
+          snapshotId: monitoring.snapshotId,
+          network: monitoring.network,
+          alerts: monitoring.alerts.map(
+            (alert) => alert.code,
+          ),
+        },
+      );
+    }
 
     return NextResponse.json(
       {
@@ -106,6 +141,14 @@ export async function GET(
               ?.vebetter_round_id ?? null,
         },
         roundGrowthReports,
+        monitoring: {
+          snapshotId: monitoring.snapshotId,
+          severity: monitoring.severity,
+          alertCount: monitoring.alertCount,
+          alerts: monitoring.alerts.map(
+            (alert) => alert.code,
+          ),
+        },
         trigger: 'VERCEL_CRON',
       },
       {
