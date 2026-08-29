@@ -62,13 +62,13 @@ export const NAV_COPY: Record<
   tr: {
     home: 'Ana Sayfa',
     guide: 'Rehber',
-    leaderboard: 'Liderlik',
+    leaderboard: 'Sıralama',
     settings: 'Ayarlar',
     ariaLabel: 'Ana gezinme',
   },
   nl: {
     home: 'Home',
-    guide: 'Uitleg',
+    guide: 'Gids',
     leaderboard: 'Ranglijst',
     settings: 'Instellingen',
     ariaLabel: 'Hoofdnavigatie',
@@ -84,7 +84,7 @@ export const NAV_COPY: Record<
     home: 'Accueil',
     guide: 'Guide',
     leaderboard: 'Classement',
-    settings: 'Réglages',
+    settings: 'Paramètres',
     ariaLabel: 'Navigation principale',
   },
 };

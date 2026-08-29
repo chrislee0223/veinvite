@@ -51,7 +51,7 @@ export const LANGUAGE_SELECT_COPY: Record<Locale, LanguageSelectCopy> = {
     chooseAria: 'Elegir idioma',
   },
   ja: {
-    badge: 'STEP 1',
+    badge: 'ステップ 1',
     title: '言語を選択',
     subtitle: '使いやすい言語を選んでください',
     continue: '日本語で続ける',
