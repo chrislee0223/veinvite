@@ -9,10 +9,8 @@ import dynamic from 'next/dynamic';
 import {
   useAccountModal,
   useConnectModal,
-} from '@vechain/vechain-kit';
-import {
   useWallet,
-} from '@vechain/dapp-kit-react';
+} from '@vechain/vechain-kit';
 
 import {
   useWalletAuthentication,
@@ -33,10 +31,10 @@ export function useActiveWallet():
   | null {
   const { account } = useWallet();
 
-  // Never synthesize an authenticated identity from a public demo variable.
-  // Preview testing should use a real test wallet and the same ownership proof
-  // as production.
-  return account ?? null;
+  // VeChainKit is the canonical connection state for VeInvite because it
+  // unifies VeWorld and WalletConnect. Keeping every screen on this same
+  // source prevents stale DAppKit/VeChainKit connection state from diverging.
+  return account?.address ?? null;
 }
 
 export function useWalletLauncher() {
