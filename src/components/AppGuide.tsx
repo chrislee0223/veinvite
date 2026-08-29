@@ -10,12 +10,12 @@ const COPY = {
       {
         title: '친구 한 명 초대',
         description:
-          '활성 초대 슬롯은 한 개예요. 초대가 끝나면 다음 친구를 초대할 수 있어요.',
+          '활성 초대 슬롯은 한 개예요. 친구가 미션을 모두 완료하고 최종 확인이 끝나면 다음 친구를 초대할 수 있어요.',
       },
       {
         title: '친구가 모든 미션 완료',
         description:
-          '신규 또는 복귀 사용자가 dApp 3개를 이용하고, VOT3 전환과 투표까지 마쳐야 해요.',
+          '서로 다른 VeBetterDAO dApp 3개에서 활동해 B3TR 보상을 받고, B3TR → VOT3 전환과 투표까지 완료해야 해요.',
       },
       {
         title: '검증 후 보상 수령',
@@ -43,12 +43,12 @@ const COPY = {
       {
         title: 'Invite one friend',
         description:
-          'One invite can be active at a time. Once it is complete, you can invite someone else.',
+          'Only one invite can be active at a time. Once your friend completes every mission and the final check is finished, you can invite someone else.',
       },
       {
         title: 'They finish every mission',
         description:
-          'An eligible new or returning user completes three dApps, converts to VOT3 and votes.',
+          'They earn B3TR from three different VeBetterDAO dApps, convert B3TR to VOT3, and vote.',
       },
       {
         title: 'Claim after verification',
