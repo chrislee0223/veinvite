@@ -25,17 +25,17 @@ export type LanguageOption = {
 };
 
 export const LANGUAGE_OPTIONS: LanguageOption[] = [
-  { locale: 'en', nativeName: 'English', symbol: 'A' },
-  { locale: 'ko', nativeName: '한국어', symbol: '가' },
-  { locale: 'zh', nativeName: '简体中文', symbol: '文' },
-  { locale: 'hi', nativeName: 'हिन्दी', symbol: 'अ' },
-  { locale: 'es', nativeName: 'Español', symbol: 'ES' },
-  { locale: 'ja', nativeName: '日本語', symbol: '日' },
-  { locale: 'it', nativeName: 'Italiano', symbol: 'IT' },
-  { locale: 'tr', nativeName: 'Türkçe', symbol: 'TR' },
-  { locale: 'nl', nativeName: 'Nederlands', symbol: 'NL' },
-  { locale: 'de', nativeName: 'Deutsch', symbol: 'DE' },
-  { locale: 'fr', nativeName: 'Français', symbol: 'FR' },
+  { locale: 'en', nativeName: 'English', symbol: '🇺🇸' },
+  { locale: 'ko', nativeName: '한국어', symbol: '🇰🇷' },
+  { locale: 'zh', nativeName: '简体中文', symbol: '🇨🇳' },
+  { locale: 'hi', nativeName: 'हिन्दी', symbol: '🇮🇳' },
+  { locale: 'es', nativeName: 'Español', symbol: '🇪🇸' },
+  { locale: 'ja', nativeName: '日本語', symbol: '🇯🇵' },
+  { locale: 'it', nativeName: 'Italiano', symbol: '🇮🇹' },
+  { locale: 'tr', nativeName: 'Türkçe', symbol: '🇹🇷' },
+  { locale: 'nl', nativeName: 'Nederlands', symbol: '🇳🇱' },
+  { locale: 'de', nativeName: 'Deutsch', symbol: '🇩🇪' },
+  { locale: 'fr', nativeName: 'Français', symbol: '🇫🇷' },
 ];
 
 const SUPPORTED_LOCALE_SET =
