@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 
 import {
+  enforceRateLimits,
+} from '@/lib/rateLimitServer';
+import {
   createCode,
   normalizeAddress,
 } from '@/lib/serverStore';
@@ -408,6 +411,20 @@ export async function POST(
       },
       { status: 500 },
     );
+  }
+
+  const rateLimitResponse =
+    await enforceRateLimits([
+      {
+        scope: 'invite_create_wallet',
+        subject: inviterAddress,
+        limit: 6,
+        windowSeconds: 60,
+      },
+    ]);
+
+  if (rateLimitResponse) {
+    return rateLimitResponse;
   }
 
   const activeCheck =
