@@ -8,6 +8,8 @@ import {
 const ADDRESS_PATTERN = /^0x[0-9a-fA-F]{40}$/;
 const VTHO_ADDRESS =
   '0x0000000000000000000000000000456e65726779';
+const TRANSFER_TOPIC =
+  '0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef';
 const APPROX_BLOCK_SECONDS = 10;
 const SIX_HOURS_BLOCKS = Math.floor(
   (6 * 60 * 60) / APPROX_BLOCK_SECONDS,
@@ -15,31 +17,6 @@ const SIX_HOURS_BLOCKS = Math.floor(
 const ONE_HOUR_BLOCKS = Math.floor(
   (60 * 60) / APPROX_BLOCK_SECONDS,
 );
-
-const vthoAbi = [
-  {
-    anonymous: false,
-    inputs: [
-      {
-        indexed: true,
-        name: 'from',
-        type: 'address',
-      },
-      {
-        indexed: true,
-        name: 'to',
-        type: 'address',
-      },
-      {
-        indexed: false,
-        name: 'value',
-        type: 'uint256',
-      },
-    ],
-    name: 'Transfer',
-    type: 'event',
-  },
-] as const;
 
 export type FundingTransferObservation = {
   blockNumber: number;
@@ -151,6 +128,33 @@ function normalizeAddress(value: string | null) {
     : null;
 }
 
+function addressTopic(address: string) {
+  const normalized = address.toLowerCase().replace(/^0x/, '');
+  return `0x${'0'.repeat(24)}${normalized}`;
+}
+
+function addressFromTopic(value: unknown) {
+  if (
+    typeof value !== 'string' ||
+    !/^0x[0-9a-fA-F]{64}$/.test(value)
+  ) {
+    return null;
+  }
+
+  return normalizeAddress(`0x${value.slice(-40)}`);
+}
+
+function readTopics(value: unknown): string[] {
+  const record = asRecord(value);
+  if (!record || !Array.isArray(record.topics)) {
+    return [];
+  }
+
+  return record.topics.filter(
+    (topic): topic is string => typeof topic === 'string',
+  );
+}
+
 function parseBlockNumber(value: unknown): number | null {
   const record = asRecord(value);
   const meta = record
@@ -197,28 +201,24 @@ function parseVetTransfer(
   };
 }
 
-function parseVthoTransfer(
+function parseRawVthoTransfer(
   value: unknown,
 ): FundingTransferObservation | null {
-  const record = asRecord(value);
-  if (!record) return null;
-
-  const decoded =
-    readNestedRecord(record, 'decodedData') ??
-    readNestedRecord(record, 'decoded') ??
-    record;
   const blockNumber = parseBlockNumber(value);
+  const topics = readTopics(value);
 
-  if (blockNumber === null) return null;
+  if (
+    blockNumber === null ||
+    topics.length < 3 ||
+    topics[0]?.toLowerCase() !== TRANSFER_TOPIC
+  ) {
+    return null;
+  }
 
   return {
     blockNumber,
-    sender: normalizeAddress(
-      readString(decoded, 'from', '_from', 'sender'),
-    ),
-    recipient: normalizeAddress(
-      readString(decoded, 'to', '_to', 'recipient'),
-    ),
+    sender: addressFromTopic(topics[1]),
+    recipient: addressFromTopic(topics[2]),
     txId: parseTxId(value),
     asset: 'VTHO',
   };
@@ -269,13 +269,13 @@ export async function readOnchainFundingSnapshot({
   const normalizedWallet = walletAddress.toLowerCase();
   const { network, nodeUrl } = getVeBetterNetworkConfig();
   const thor = ThorClient.at(nodeUrl);
-  const vtho = thor.contracts.load(VTHO_ADDRESS, vthoAbi);
   const range = {
     unit: 'block' as const,
     from: 0,
     to: activationBlock,
   };
   const options = { offset: 0, limit: 1 };
+  const walletTopic = addressTopic(normalizedWallet);
 
   const [
     inboundVetLogs,
@@ -295,12 +295,26 @@ export async function readOnchainFundingSnapshot({
       options,
       order: 'asc',
     }),
-    vtho.filters.Transfer(null, normalizedWallet).get({
+    thor.logs.filterRawEventLogs({
+      criteriaSet: [
+        {
+          address: VTHO_ADDRESS,
+          topic0: TRANSFER_TOPIC,
+          topic2: walletTopic,
+        },
+      ],
       range,
       options,
       order: 'asc',
     }),
-    vtho.filters.Transfer(normalizedWallet, null).get({
+    thor.logs.filterRawEventLogs({
+      criteriaSet: [
+        {
+          address: VTHO_ADDRESS,
+          topic0: TRANSFER_TOPIC,
+          topic1: walletTopic,
+        },
+      ],
       range,
       options,
       order: 'asc',
@@ -312,9 +326,9 @@ export async function readOnchainFundingSnapshot({
   const firstOutboundVet =
     parseVetTransfer(outboundVetLogs[0]);
   const firstInboundVtho =
-    parseVthoTransfer(inboundVthoLogs[0]);
+    parseRawVthoTransfer(inboundVthoLogs[0]);
   const firstOutboundVtho =
-    parseVthoTransfer(outboundVthoLogs[0]);
+    parseRawVthoTransfer(outboundVthoLogs[0]);
   const firstObservedActivityBlock = firstBlock(
     firstInboundVet,
     firstOutboundVet,
