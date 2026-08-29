@@ -431,7 +431,6 @@ export function InviteeClient({
 
   useEffect(() => {
     if (
-      claimedThisSession ||
       !wallet ||
       !invite?.inviteeAddress
     ) {
@@ -445,11 +444,33 @@ export function InviteeClient({
       return;
     }
 
+    // A post-mission Sybil decision can move a referral to UNDER_REVIEW while
+    // the same browser session is still open. Review must override the normal
+    // "claimed this session" resume guard so the invitee never keeps seeing a
+    // stale in-progress mission screen after the backend has paused them.
     if (
       invite.status ===
       'UNDER_REVIEW'
     ) {
       setStep('review');
+      return;
+    }
+
+    // Review is operator-resolvable. If the current review screen observes a
+    // CLEAR decision, continue immediately from the authoritative status
+    // rather than asking the user to manually reload the invite page.
+    if (
+      step === 'review' &&
+      (
+        invite.status === 'ACTIVATING' ||
+        invite.status === 'COMPLETED'
+      )
+    ) {
+      setStep('missions');
+      return;
+    }
+
+    if (claimedThisSession) {
       return;
     }
 
@@ -462,11 +483,22 @@ export function InviteeClient({
   }, [
     claimedThisSession,
     invite,
+    step,
     wallet,
   ]);
 
   useEffect(() => {
-    if (step !== 'missions') {
+    const shouldPollMissions =
+      step === 'missions' &&
+      invite?.status !== 'COMPLETED' &&
+      invite?.status !== 'UNDER_REVIEW';
+    const shouldPollReview =
+      step === 'review';
+
+    if (
+      !shouldPollMissions &&
+      !shouldPollReview
+    ) {
       return;
     }
 
@@ -486,7 +518,11 @@ export function InviteeClient({
         intervalId,
       );
     };
-  }, [step, loadInviteProgress]);
+  }, [
+    step,
+    invite?.status,
+    loadInviteProgress,
+  ]);
 
   const saveLocale = (
     nextLocale: Locale,
