@@ -126,6 +126,15 @@ function walletAuthResponse(
   return null;
 }
 
+function hasEntryProof(
+  invitation: InvitationRow,
+): boolean {
+  return (
+    invitation.eligibility_check_id !== null &&
+    Boolean(invitation.activation_network)
+  );
+}
+
 function isCurrentActiveInvite(
   invitation: InvitationRow,
 ): boolean {
@@ -142,10 +151,7 @@ function isCurrentActiveInvite(
   ) {
     // Invitations accepted before entry-proof enforcement are kept as audit
     // history, but must not permanently consume the inviter's active slot.
-    return (
-      invitation.eligibility_check_id !== null &&
-      Boolean(invitation.activation_network)
-    );
+    return hasEntryProof(invitation);
   }
 
   return false;
@@ -155,18 +161,19 @@ function isUserVisibleInvite(
   invitation: InvitationRow,
 ): boolean {
   if (
-    invitation.status !== 'ACTIVATING' &&
-    invitation.status !== 'UNDER_REVIEW'
+    invitation.status === 'ACTIVATING' ||
+    invitation.status === 'UNDER_REVIEW' ||
+    invitation.status === 'COMPLETED'
   ) {
-    return true;
+    // Accepted/completed rows from the old demo period that have no immutable
+    // entry proof cannot become a modern VeInvite referral or reward. Keep
+    // them in the database for operator analytics, but do not present them as
+    // live/completed referrals in Home because that creates a permanently
+    // pending reward card and misleading "invite another friend" history.
+    return hasEntryProof(invitation);
   }
 
-  // Proofless legacy activation rows remain in the database for operator
-  // audit, but exposing them to HomeClient makes the UI treat them as a live
-  // invite and incorrectly blocks a slot that the backend already considers
-  // available. Keep user-facing state aligned with the authoritative active
-  // invite rule without mutating historical records.
-  return isCurrentActiveInvite(invitation);
+  return true;
 }
 
 async function loadActiveInvite(
