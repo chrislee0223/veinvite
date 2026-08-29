@@ -49,5 +49,8 @@ jobs:
       - name: Typecheck
         run: npm run typecheck
 
+      - name: Reward accounting regression tests
+        run: npm run test:rewards
+
       - name: Production build
         run: npm run build
