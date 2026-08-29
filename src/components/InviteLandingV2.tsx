@@ -1,14 +1,10 @@
 'use client';
 
 import { Brand } from './Brand';
+import { INVITE_LANDING_COPY } from '@/lib/i18n/inviteLandingCopy';
+import { LANGUAGE_OPTIONS, type Locale } from '@/lib/i18n/locales';
 
-type Locale = 'ko' | 'en';
-
-type DemoOutcome =
-  | 'success'
-  | 'existing'
-  | 'other'
-  | 'review';
+type DemoOutcome = 'success' | 'existing' | 'other' | 'review';
 
 type InviteLandingV2Props = {
   locale: Locale;
@@ -18,53 +14,8 @@ type InviteLandingV2Props = {
   onLocaleChange: (locale: Locale) => void;
   onBeginnerStart: () => void;
   onExistingWallet: () => void;
-  onDemoOutcomeChange: (
-    outcome: DemoOutcome,
-  ) => void;
+  onDemoOutcomeChange: (outcome: DemoOutcome) => void;
 };
-
-const COPY = {
-  ko: {
-    inviteBadge: '친구 초대',
-    rewardLabel: 'VEBETTERDAO MISSION',
-    rewardTitle: 'B3TR 미션 시작',
-    title: '세 단계만 완료하면 돼요',
-    step1: '계정',
-    step2: '활동',
-    step3: '응원',
-    time: '약 10분',
-    free: '무료',
-    start: '시작하기',
-    existingWallet: '이미 VeWorld 지갑이 있어요',
-    reassurance:
-      'VeBetterDAO가 처음이거나 오랜만이어도 괜찮아요. 자격 확인 후 한 단계씩 안내해 드려요.',
-    demoResult: '데모 결과',
-    demoSuccess: '참여 가능',
-    demoExisting: '기존 사용자',
-    demoOther: '다른 추천인 연결',
-    demoReview: '안전성 검토',
-  },
-  en: {
-    inviteBadge: 'FRIEND INVITE',
-    rewardLabel: 'VEBETTERDAO MISSION',
-    rewardTitle: 'Start your B3TR mission',
-    title: 'Just three simple steps',
-    step1: 'Account',
-    step2: 'Activity',
-    step3: 'Support',
-    time: 'About 10 min',
-    free: 'Free',
-    start: 'Start',
-    existingWallet: 'I already have a VeWorld wallet',
-    reassurance:
-      'New to VeBetterDAO or returning after a break? We check eligibility and guide you step by step.',
-    demoResult: 'Demo result',
-    demoSuccess: 'Eligible',
-    demoExisting: 'Existing user',
-    demoOther: 'Connected to another inviter',
-    demoReview: 'Security review',
-  },
-} as const;
 
 export function InviteLandingV2({
   locale,
@@ -76,497 +27,88 @@ export function InviteLandingV2({
   onExistingWallet,
   onDemoOutcomeChange,
 }: InviteLandingV2Props) {
-  const t = COPY[locale];
+  const t = INVITE_LANDING_COPY[locale];
 
   return (
     <main className="screen">
       <header className="topBar">
         <Brand compact />
-
         <label className="language">
           <span aria-hidden="true">◎</span>
-          <select
-            aria-label="Language"
-            value={locale}
-            onChange={(event) =>
-              onLocaleChange(
-                event.target.value as Locale,
-              )
-            }
-          >
-            <option value="ko">한국어</option>
-            <option value="en">English</option>
+          <select aria-label={t.languageAria} value={locale} onChange={(event) => onLocaleChange(event.target.value as Locale)}>
+            {LANGUAGE_OPTIONS.map((option) => (
+              <option key={option.locale} value={option.locale}>{option.nativeName}</option>
+            ))}
           </select>
         </label>
       </header>
 
       <section className="gameCard">
-        <div className="inviteBadge">
-          {t.inviteBadge}
+        <div className="inviteBadge">{t.inviteBadge}</div>
+        <div className="rewardVisual" aria-hidden="true">
+          <div className="halo haloOne" /><div className="halo haloTwo" />
+          <div className="token"><span>V</span></div>
         </div>
-
-        <div
-          className="rewardVisual"
-          aria-hidden="true"
-        >
-          <div className="halo haloOne" />
-          <div className="halo haloTwo" />
-          <div className="token">
-            <span>V</span>
-          </div>
-        </div>
-
-        <div className="rewardLabel">
-          {t.rewardLabel}
-        </div>
-
+        <div className="rewardLabel">{t.rewardLabel}</div>
         <h1>{t.rewardTitle}</h1>
-
         <p className="title">{t.title}</p>
-
-        <div
-          className="steps"
-          aria-label={t.title}
-        >
-          <div className="step active">
-            <span>1</span>
-            <b>{t.step1}</b>
-          </div>
-
-          <div className="line" />
-
-          <div className="step">
-            <span>2</span>
-            <b>{t.step2}</b>
-          </div>
-
-          <div className="line" />
-
-          <div className="step">
-            <span>3</span>
-            <b>{t.step3}</b>
-          </div>
+        <div className="steps" aria-label={t.title}>
+          <div className="step active"><span>1</span><b>{t.step1}</b></div><div className="line" />
+          <div className="step"><span>2</span><b>{t.step2}</b></div><div className="line" />
+          <div className="step"><span>3</span><b>{t.step3}</b></div>
         </div>
-
-        <div className="meta">
-          <span>{t.time}</span>
-          <i />
-          <span>{t.free}</span>
-        </div>
-
-        <button
-          type="button"
-          className="startButton"
-          onClick={onBeginnerStart}
-          disabled={disabled}
-        >
-          {t.start}
-          <span aria-hidden="true">›</span>
-        </button>
-
-        <button
-          type="button"
-          className="walletLink"
-          onClick={onExistingWallet}
-          disabled={disabled}
-        >
-          {t.existingWallet}
-        </button>
+        <div className="meta"><span>{t.time}</span><i /><span>{t.free}</span></div>
+        <button type="button" className="startButton" onClick={onBeginnerStart} disabled={disabled}>{t.start}<span aria-hidden="true">›</span></button>
+        <button type="button" className="walletLink" onClick={onExistingWallet} disabled={disabled}>{t.existingWallet}</button>
       </section>
-
-      <p className="reassurance">
-        {t.reassurance}
-      </p>
+      <p className="reassurance">{t.reassurance}</p>
 
       {demoMode ? (
         <label className="demoSelect">
           {t.demoResult}
-
-          <select
-            value={demoOutcome}
-            onChange={(event) =>
-              onDemoOutcomeChange(
-                event.target
-                  .value as DemoOutcome,
-              )
-            }
-          >
-            <option value="success">
-              {t.demoSuccess}
-            </option>
-            <option value="existing">
-              {t.demoExisting}
-            </option>
-            <option value="other">
-              {t.demoOther}
-            </option>
-            <option value="review">
-              {t.demoReview}
-            </option>
+          <select value={demoOutcome} onChange={(event) => onDemoOutcomeChange(event.target.value as DemoOutcome)}>
+            <option value="success">{t.demoSuccess}</option>
+            <option value="existing">{t.demoExisting}</option>
+            <option value="other">{t.demoOther}</option>
+            <option value="review">{t.demoReview}</option>
           </select>
         </label>
       ) : null}
 
       <style jsx>{`
-        .screen {
-          min-height: 100svh;
-          width: 100%;
-          box-sizing: border-box;
-          display: flex;
-          flex-direction: column;
-          align-items: center;
-          padding: 20px 18px 32px;
-          color: #ffffff;
-          background:
-            radial-gradient(
-              circle at 50% 24%,
-              rgba(244, 183, 40, 0.16),
-              transparent 34%
-            ),
-            #080807;
-        }
-
-        .topBar {
-          width: min(100%, 430px);
-          display: flex;
-          align-items: center;
-          justify-content: space-between;
-          margin-bottom: 22px;
-        }
-
-        .language {
-          display: inline-flex;
-          align-items: center;
-          gap: 6px;
-          height: 38px;
-          padding: 0 10px;
-          border: 1px solid rgba(255, 255, 255, 0.1);
-          border-radius: 12px;
-          background: rgba(255, 255, 255, 0.06);
-          color: #eee8d6;
-        }
-
-        .language select {
-          border: 0;
-          outline: 0;
-          background: transparent;
-          color: inherit;
-          font: inherit;
-          font-size: 0.84rem;
-          font-weight: 700;
-          cursor: pointer;
-        }
-
-        .language option {
-          color: #111421;
-        }
-
-        .gameCard {
-          position: relative;
-          overflow: hidden;
-          width: min(100%, 430px);
-          box-sizing: border-box;
-          padding: 24px 22px 20px;
-          border: 1px solid rgba(255, 205, 80, 0.25);
-          border-radius: 28px;
-          background:
-            linear-gradient(
-              160deg,
-              rgba(54, 40, 14, 0.98),
-              rgba(16, 16, 14, 0.98) 64%
-            );
-          box-shadow:
-            0 24px 70px rgba(0, 0, 0, 0.42),
-            inset 0 1px 0 rgba(255, 255, 255, 0.08);
-        }
-
-        .gameCard::before {
-          content: '';
-          position: absolute;
-          width: 240px;
-          height: 240px;
-          right: -110px;
-          top: -120px;
-          border-radius: 50%;
-          background: rgba(244, 183, 40, 0.19);
-          filter: blur(4px);
-        }
-
-        .inviteBadge {
-          position: relative;
-          z-index: 1;
-          display: inline-flex;
-          align-items: center;
-          height: 28px;
-          padding: 0 11px;
-          border: 1px solid rgba(255, 205, 80, 0.28);
-          border-radius: 999px;
-          background: rgba(244, 183, 40, 0.12);
-          color: #ffd66e;
-          font-size: 0.72rem;
-          font-weight: 800;
-          letter-spacing: 0.08em;
-        }
-
-        .rewardVisual {
-          position: relative;
-          width: 128px;
-          height: 128px;
-          margin: 20px auto 12px;
-          display: grid;
-          place-items: center;
-        }
-
-        .halo {
-          position: absolute;
-          border-radius: 50%;
-        }
-
-        .haloOne {
-          inset: 0;
-          border: 1px solid rgba(255, 205, 80, 0.3);
-          background: rgba(244, 183, 40, 0.07);
-        }
-
-        .haloTwo {
-          inset: 14px;
-          border: 1px solid rgba(255, 222, 132, 0.28);
-          background: rgba(244, 183, 40, 0.09);
-        }
-
-        .token {
-          position: relative;
-          z-index: 2;
-          width: 72px;
-          height: 72px;
-          border-radius: 24px;
-          display: grid;
-          place-items: center;
-          transform: rotate(45deg);
-          background:
-            linear-gradient(
-              135deg,
-              #ffd45c,
-              #e7a51e
-            );
-          box-shadow:
-            0 14px 34px rgba(190, 126, 12, 0.36),
-            inset 0 1px 0 rgba(255, 255, 255, 0.34);
-        }
-
-        .token span {
-          transform: rotate(-45deg);
-          font-size: 1.8rem;
-          font-weight: 950;
-          letter-spacing: -0.08em;
-        }
-
-        .rewardLabel {
-          text-align: center;
-          color: #e5b94c;
-          font-size: 0.7rem;
-          font-weight: 900;
-          letter-spacing: 0.16em;
-        }
-
-        h1 {
-          margin: 6px 0 0;
-          text-align: center;
-          font-size: clamp(2rem, 8vw, 2.7rem);
-          line-height: 1.08;
-          letter-spacing: -0.055em;
-        }
-
-        .title {
-          margin: 10px 0 20px;
-          text-align: center;
-          color: #cbc7dc;
-          font-size: 0.98rem;
-          font-weight: 700;
-        }
-
-        .steps {
-          display: grid;
-          grid-template-columns: auto 1fr auto 1fr auto;
-          align-items: center;
-          gap: 8px;
-          margin: 0 2px 18px;
-        }
-
-        .step {
-          display: grid;
-          justify-items: center;
-          gap: 6px;
-          color: #858196;
-        }
-
-        .step span {
-          width: 34px;
-          height: 34px;
-          display: grid;
-          place-items: center;
-          border: 1px solid rgba(255, 255, 255, 0.12);
-          border-radius: 50%;
-          background: rgba(255, 255, 255, 0.05);
-          font-size: 0.82rem;
-          font-weight: 900;
-        }
-
-        .step b {
-          font-size: 0.72rem;
-        }
-
-        .step.active {
-          color: #ffffff;
-        }
-
-        .step.active span {
-          border-color: #ffd24d;
-          background: #f4b728;
-          color: #17120a;
-          box-shadow: 0 0 22px rgba(244, 183, 40, 0.46);
-        }
-
-        .line {
-          height: 2px;
-          border-radius: 999px;
-          background: rgba(255, 255, 255, 0.08);
-        }
-
-        .meta {
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          gap: 10px;
-          margin-bottom: 16px;
-          color: #b4afc2;
-          font-size: 0.78rem;
-          font-weight: 800;
-        }
-
-        .meta i {
-          width: 3px;
-          height: 3px;
-          border-radius: 50%;
-          background: #786f91;
-        }
-
-        .startButton {
-          width: 100%;
-          min-height: 58px;
-          border: 0;
-          border-radius: 18px;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          gap: 12px;
-          background:
-            linear-gradient(
-              135deg,
-              #ffd24d,
-              #efa718
-            );
-          color: #17120a;
-          font: inherit;
-          font-size: 1.08rem;
-          font-weight: 950;
-          cursor: pointer;
-          box-shadow:
-            0 15px 34px rgba(190, 126, 12, 0.28),
-            inset 0 1px 0 rgba(255, 255, 255, 0.22);
-          transition:
-            transform 150ms ease,
-            filter 150ms ease;
-        }
-
-        .startButton span {
-          font-size: 1.75rem;
-          line-height: 1;
-          margin-top: -2px;
-        }
-
-        .startButton:hover:not(:disabled) {
-          transform: translateY(-1px);
-          filter: brightness(1.07);
-        }
-
-        .startButton:active:not(:disabled) {
-          transform: translateY(1px) scale(0.995);
-        }
-
-        .startButton:disabled,
-        .walletLink:disabled {
-          opacity: 0.48;
-          cursor: not-allowed;
-        }
-
-        .walletLink {
-          display: block;
-          width: 100%;
-          margin: 15px 0 0;
-          border: 0;
-          background: transparent;
-          color: #a9a4bb;
-          font: inherit;
-          font-size: 0.8rem;
-          font-weight: 800;
-          text-decoration: underline;
-          text-decoration-color: rgba(169, 164, 187, 0.44);
-          text-underline-offset: 4px;
-          cursor: pointer;
-        }
-
-        .reassurance {
-          width: min(100%, 430px);
-          margin: 15px 0 0;
-          text-align: center;
-          color: #777387;
-          font-size: 0.75rem;
-          line-height: 1.5;
-        }
-
-        .demoSelect {
-          width: min(100%, 430px);
-          box-sizing: border-box;
-          display: grid;
-          gap: 7px;
-          margin-top: 18px;
-          padding: 12px;
-          border: 1px dashed rgba(255, 255, 255, 0.12);
-          border-radius: 14px;
-          color: #777387;
-          font-size: 0.7rem;
-        }
-
-        .demoSelect select {
-          width: 100%;
-          border: 1px solid rgba(255, 255, 255, 0.1);
-          border-radius: 10px;
-          padding: 9px;
-          background: #111421;
-          color: #ffffff;
-        }
-
-        @media (max-width: 380px) {
-          .screen {
-            padding-inline: 14px;
-          }
-
-          .gameCard {
-            padding-inline: 18px;
-          }
-
-          .rewardVisual {
-            width: 112px;
-            height: 112px;
-          }
-
-          .token {
-            width: 64px;
-            height: 64px;
-            border-radius: 21px;
-          }
-        }
+        .screen { min-height:100svh; width:100%; box-sizing:border-box; display:flex; flex-direction:column; align-items:center; padding:20px 18px 32px; color:#fff; background:radial-gradient(circle at 50% 24%,rgba(244,183,40,.16),transparent 34%),#080807; }
+        .topBar { width:min(100%,430px); display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:22px; }
+        .language { max-width:54%; display:inline-flex; align-items:center; gap:6px; height:38px; padding:0 10px; border:1px solid rgba(255,255,255,.1); border-radius:12px; background:rgba(255,255,255,.06); color:#eee8d6; }
+        .language select { min-width:0; max-width:150px; border:0; outline:0; background:transparent; color:inherit; font:inherit; font-size:.78rem; font-weight:700; cursor:pointer; }
+        .language option { color:#111421; }
+        .gameCard { position:relative; overflow:hidden; width:min(100%,430px); box-sizing:border-box; padding:24px 22px 20px; border:1px solid rgba(255,205,80,.25); border-radius:28px; background:linear-gradient(160deg,rgba(54,40,14,.98),rgba(16,16,14,.98) 64%); box-shadow:0 24px 70px rgba(0,0,0,.42),inset 0 1px 0 rgba(255,255,255,.08); }
+        .gameCard::before { content:''; position:absolute; width:240px; height:240px; right:-110px; top:-120px; border-radius:50%; background:rgba(244,183,40,.19); }
+        .inviteBadge { position:relative; z-index:1; display:inline-flex; align-items:center; min-height:28px; padding:0 11px; border:1px solid rgba(255,205,80,.28); border-radius:999px; background:rgba(244,183,40,.12); color:#ffd66e; font-size:.7rem; font-weight:800; letter-spacing:.06em; }
+        .rewardVisual { position:relative; width:116px; height:116px; margin:18px auto 10px; display:grid; place-items:center; }
+        .halo { position:absolute; border-radius:50%; }
+        .haloOne { inset:0; border:1px solid rgba(255,205,80,.3); background:rgba(244,183,40,.07); }
+        .haloTwo { inset:14px; border:1px solid rgba(255,222,132,.28); background:rgba(244,183,40,.09); }
+        .token { position:relative; z-index:2; width:66px; height:66px; border-radius:22px; display:grid; place-items:center; transform:rotate(45deg); background:linear-gradient(135deg,#ffd45c,#e7a51e); box-shadow:0 14px 34px rgba(190,126,12,.36); }
+        .token span { transform:rotate(-45deg); font-size:1.65rem; font-weight:950; }
+        .rewardLabel { text-align:center; color:#e5b94c; font-size:.68rem; font-weight:900; letter-spacing:.12em; }
+        h1 { margin:6px 0 0; text-align:center; font-size:clamp(1.9rem,8vw,2.55rem); line-height:1.08; letter-spacing:-.045em; overflow-wrap:anywhere; }
+        .title { margin:10px 0 20px; text-align:center; color:#cbc7dc; font-size:.94rem; font-weight:700; overflow-wrap:anywhere; }
+        .steps { display:grid; grid-template-columns:auto 1fr auto 1fr auto; align-items:start; gap:7px; margin:0 2px 18px; }
+        .step { min-width:52px; display:grid; justify-items:center; gap:6px; color:#858196; text-align:center; }
+        .step span { width:34px; height:34px; display:grid; place-items:center; border:1px solid rgba(255,255,255,.12); border-radius:50%; background:rgba(255,255,255,.05); font-size:.82rem; font-weight:900; }
+        .step b { max-width:82px; font-size:.67rem; line-height:1.2; overflow-wrap:anywhere; }
+        .step.active { color:#fff; }
+        .step.active span { border-color:#ffd24d; background:#f4b728; color:#17120a; }
+        .line { height:2px; margin-top:16px; border-radius:999px; background:rgba(255,255,255,.08); }
+        .meta { display:flex; align-items:center; justify-content:center; gap:10px; margin-bottom:16px; color:#b4afc2; font-size:.76rem; font-weight:800; }
+        .meta i { width:3px; height:3px; border-radius:50%; background:#786f91; }
+        .startButton { width:100%; min-height:58px; border:0; border-radius:18px; display:flex; align-items:center; justify-content:center; gap:12px; background:linear-gradient(135deg,#ffd24d,#efa718); color:#17120a; font:inherit; font-size:1rem; font-weight:950; cursor:pointer; }
+        .startButton span { font-size:1.75rem; line-height:1; }
+        .walletLink { display:block; width:100%; margin:15px 0 0; border:0; background:transparent; color:#a9a4bb; font:inherit; font-size:.78rem; font-weight:800; text-decoration:underline; text-underline-offset:4px; cursor:pointer; overflow-wrap:anywhere; }
+        .startButton:disabled,.walletLink:disabled { opacity:.48; cursor:not-allowed; }
+        .reassurance { width:min(100%,430px); margin:15px 0 0; text-align:center; color:#777387; font-size:.74rem; line-height:1.5; overflow-wrap:anywhere; }
+        .demoSelect { width:min(100%,430px); margin-top:16px; color:#9994a7; font-size:.72rem; }
+        .demoSelect select { width:100%; margin-top:6px; min-height:42px; border:1px solid rgba(255,255,255,.1); border-radius:12px; background:#151520; color:#fff; padding:0 10px; }
       `}</style>
     </main>
   );
