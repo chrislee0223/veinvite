@@ -3,6 +3,7 @@ import type { ReactNode } from 'react';
 
 import { AppProviders } from '@/components/AppProviders';
 import './globals.css';
+import './header-language-flags.css';
 import './ui-safety.css';
 
 const siteUrl = 'https://veinvite.vercel.app';
