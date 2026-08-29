@@ -4,6 +4,10 @@ import {
 } from 'next/server';
 
 import {
+  enforceRateLimits,
+  getClientIpSubject,
+} from '@/lib/rateLimitServer';
+import {
   normalizeAddress,
 } from '@/lib/serverStore';
 import { supabaseAdmin } from '@/lib/supabaseServer';
@@ -408,6 +412,30 @@ export async function POST(
       },
       { status: 500 },
     );
+  }
+
+  const clientIp =
+    getClientIpSubject(request);
+  const rateLimitResponse =
+    await enforceRateLimits([
+      clientIp
+        ? {
+            scope: 'invite_claim_ip',
+            subject: clientIp,
+            limit: 20,
+            windowSeconds: 300,
+          }
+        : null,
+      {
+        scope: 'invite_claim_wallet',
+        subject: inviteeAddress,
+        limit: 6,
+        windowSeconds: 300,
+      },
+    ]);
+
+  if (rateLimitResponse) {
+    return rateLimitResponse;
   }
 
   if (
