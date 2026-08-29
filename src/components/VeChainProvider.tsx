@@ -59,7 +59,28 @@ export function VeChainProvider({
           : 'en';
       };
 
-    setLanguage(resolveLanguage());
+    const applyLanguage = (
+      nextLanguage: Locale,
+      notifyApp: boolean,
+    ) => {
+      setLanguage(nextLanguage);
+      document.documentElement.lang =
+        nextLanguage;
+
+      if (notifyApp) {
+        window.dispatchEvent(
+          new CustomEvent(
+            'veinvite-language-change',
+            { detail: nextLanguage },
+          ),
+        );
+      }
+    };
+
+    // HomeClient and the wallet provider previously chose different defaults
+    // on a first visit from a Korean browser. Publish the provider's resolved
+    // language so the whole app starts in one locale.
+    applyLanguage(resolveLanguage(), true);
 
     const handleLanguageChange = (
       event: Event,
@@ -71,12 +92,14 @@ export function VeChainProvider({
         customEvent.detail === 'ko' ||
         customEvent.detail === 'en'
       ) {
-        setLanguage(
+        applyLanguage(
           customEvent.detail,
+          false,
         );
       } else {
-        setLanguage(
+        applyLanguage(
           resolveLanguage(),
+          false,
         );
       }
     };
@@ -95,8 +118,16 @@ export function VeChainProvider({
         event.newValue === 'ko' ||
         event.newValue === 'en'
       ) {
-        setLanguage(
+        // Storage events fire in the other open tabs. Notify HomeClient there
+        // as well so the visible app and VeChainKit modal never drift apart.
+        applyLanguage(
           event.newValue,
+          true,
+        );
+      } else {
+        applyLanguage(
+          resolveLanguage(),
+          true,
         );
       }
     };
