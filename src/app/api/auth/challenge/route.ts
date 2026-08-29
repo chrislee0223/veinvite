@@ -1,6 +1,10 @@
 import { randomBytes } from 'node:crypto';
 import { NextRequest, NextResponse } from 'next/server';
 
+import {
+  enforceRateLimits,
+  getClientIpSubject,
+} from '@/lib/rateLimitServer';
 import { normalizeAddress } from '@/lib/serverStore';
 import { supabaseAdmin } from '@/lib/supabaseServer';
 import { getVeBetterNetworkConfig } from '@/lib/vebetter/network';
@@ -40,6 +44,24 @@ type ChallengeRow = {
 };
 
 export async function POST(request: NextRequest) {
+  const clientIp =
+    getClientIpSubject(request);
+  const rateLimitResponse =
+    await enforceRateLimits([
+      clientIp
+        ? {
+            scope: 'auth_challenge_ip',
+            subject: clientIp,
+            limit: 12,
+            windowSeconds: 60,
+          }
+        : null,
+    ]);
+
+  if (rateLimitResponse) {
+    return rateLimitResponse;
+  }
+
   let body: { walletAddress?: string };
 
   try {
