@@ -3,6 +3,7 @@ import {
   NextResponse,
 } from 'next/server';
 
+import { enforceRateLimits } from '@/lib/rateLimitServer';
 import {
   canOperateVeInviteRewards,
   readVeInviteRewardPoolStatus,
@@ -19,6 +20,9 @@ import {
 
 const RUN_ANALYTICS_INTENT = 'RUN_ONCHAIN_SYBIL_ANALYTICS';
 const INVITE_CODE_PATTERN = /^[A-Z0-9]{7}$/;
+const ANALYTICS_RATE_LIMIT_WINDOW_SECONDS = 10 * 60;
+const ANALYTICS_PER_INVITE_LIMIT = 2;
+const ANALYTICS_PER_OPERATOR_LIMIT = 20;
 
 type InvitationRow = {
   invite_code: string;
@@ -319,6 +323,25 @@ export async function POST(request: NextRequest) {
         },
         { status: 409, headers: noStoreHeaders() },
       );
+    }
+
+    const rateLimitResponse = await enforceRateLimits([
+      {
+        scope: 'admin_sybil_onchain_operator',
+        subject: operator.session!.walletAddress.toLowerCase(),
+        limit: ANALYTICS_PER_OPERATOR_LIMIT,
+        windowSeconds: ANALYTICS_RATE_LIMIT_WINDOW_SECONDS,
+      },
+      {
+        scope: 'admin_sybil_onchain_invite',
+        subject: `${operator.pool!.network}:${inviteCode}`,
+        limit: ANALYTICS_PER_INVITE_LIMIT,
+        windowSeconds: ANALYTICS_RATE_LIMIT_WINDOW_SECONDS,
+      },
+    ]);
+
+    if (rateLimitResponse) {
+      return rateLimitResponse;
     }
 
     const snapshot = await readOnchainFundingSnapshot({
