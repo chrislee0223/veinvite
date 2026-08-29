@@ -1,0 +1,39 @@
+name: Mainnet Reward Configuration Audit
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+    paths:
+      - '.github/workflows/mainnet-reward-config-audit.yml'
+      - 'scripts/audit-mainnet-reward-config.mjs'
+      - 'src/lib/vebetter/network.ts'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: veinvite-mainnet-reward-config-audit
+  cancel-in-progress: true
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Use Node.js 24
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Audit VeInvite mainnet reward configuration
+        run: node --experimental-strip-types scripts/audit-mainnet-reward-config.mjs
