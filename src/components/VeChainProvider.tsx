@@ -152,7 +152,7 @@ export function VeChainProvider({
           'Verified onboarding for the VeBetterDAO ecosystem.',
         url: appUrl,
         icons: [
-          `${appUrl}/icon.svg`,
+          `${appUrl}/veinvite-logo.webp`,
         ],
       },
     };
@@ -199,7 +199,7 @@ export function VeChainProvider({
           ) as never,
         }}
         theme={{
-          accent: '#7448ff',
+          accent: '#f4b728',
         }}
         legalDocuments={{
           termsAndConditions: [

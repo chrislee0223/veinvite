@@ -1,7 +1,18 @@
+import Image from 'next/image';
+
 export function Brand({ compact = false }: { compact?: boolean }) {
   return (
     <span className={compact ? 'brand brandCompact' : 'brand'} aria-label="VeInvite">
-      <span>Ve</span>Invite
+      <Image
+        src="/veinvite-logo.webp"
+        alt=""
+        width={compact ? 32 : 38}
+        height={compact ? 32 : 38}
+        priority={!compact}
+      />
+      <span className="brandName">
+        Ve<span>Invite</span>
+      </span>
     </span>
   );
 }

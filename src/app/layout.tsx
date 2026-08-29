@@ -19,8 +19,8 @@ export const metadata: Metadata = {
     canonical: '/',
   },
   icons: {
-    icon: '/icon.svg',
-    shortcut: '/icon.svg',
+    icon: '/veinvite-logo.webp',
+    shortcut: '/veinvite-logo.webp',
   },
   openGraph: {
     title,

@@ -6,13 +6,36 @@ import {
   useMemo,
   useState,
 } from 'react';
+import dynamic from 'next/dynamic';
 import Link from 'next/link';
 
+import {
+  AppBottomNavigation,
+  type AppTab,
+} from './AppBottomNavigation';
 import { Brand } from './Brand';
 import {
   useWalletLauncher,
 } from './WalletControl';
 import type { InviteRecord } from '@/lib/types';
+
+const AppGuide = dynamic(() =>
+  import('./AppGuide').then(
+    (module) => module.AppGuide,
+  ),
+);
+
+const AppSettings = dynamic(() =>
+  import('./AppSettings').then(
+    (module) => module.AppSettings,
+  ),
+);
+
+const PublicLeaderboard = dynamic(() =>
+  import('./PublicLeaderboard').then(
+    (module) => module.PublicLeaderboard,
+  ),
+);
 
 type Locale = 'en' | 'ko';
 
@@ -31,6 +54,7 @@ const COPY = {
     emptyDescription:
       'Create one invite and help a new or returning user complete a VeInvite onboarding mission.',
     createInvite: 'Create Invite',
+    createNextInvite: 'Invite another friend',
     creating: 'Creating…',
     connectStart: 'Connect Wallet & Start',
     connecting: 'Opening wallet…',
@@ -77,7 +101,7 @@ const COPY = {
     checking: 'Checking',
     completed: 'Completed',
     codeLabel: 'Invite code',
-    rewardTitle: 'Referral result',
+    rewardTitle: 'Referral status',
     rewardPending: 'Onboarding verified',
     rewardDescription:
       'The final reward and anti-abuse checks are still in progress.',
@@ -85,10 +109,10 @@ const COPY = {
       'Your reward is ready to claim',
     rewardClaimDescription:
       'Your referral passed the final checks. Request the reward now and it will be included in the next funded reward round.',
-    claimReward: 'Request Reward',
-    claimingReward: 'Requesting…',
+    claimReward: 'Claim reward',
+    claimingReward: 'Claiming…',
     rewardClaimed:
-      'Reward request received',
+      'Reward claim submitted',
     rewardClaimedDescription:
       'Your reward is queued for the next funded reward round. No additional action is needed.',
     rewardAssigned:
@@ -98,6 +122,9 @@ const COPY = {
     rewardPaid: 'Reward paid',
     rewardPaidDescription:
       'The B3TR reward was verified on-chain and recorded in your reward history.',
+    rewardForfeited: 'Reward not approved',
+    rewardForfeitedDescription:
+      'This referral did not pass the final reward checks. Your invite slot is ready for another friend.',
     claimSuccess:
       'Reward requested. It will be included in the next funded reward round.',
     claimError:
@@ -108,9 +135,9 @@ const COPY = {
     loadError: 'Could not load invitation data.',
     createError: 'Could not create an invitation.',
     cancelError: 'Could not cancel the invitation.',
-    dappTitle: 'For VeBetterDAO dApps',
+    dappTitle: 'Built for the VeBetterDAO ecosystem',
     dappDescription:
-      'VeInvite currently focuses on ecosystem-wide onboarding and reactivation for eligible VeBetterDAO users. Dedicated referral campaigns and customizable campaign tools for individual dApps are planned as a future extension.',
+      'VeInvite helps new users get started and gives returning users a clear path back. Support for dApp-specific referral campaigns is planned for a future update.',
   },
   ko: {
     language: '한국어',
@@ -120,6 +147,7 @@ const COPY = {
     emptyDescription:
       '초대 링크를 만들고 신규 또는 복귀 사용자의 VeBetterDAO 참여를 도와주세요.',
     createInvite: '초대 만들기',
+    createNextInvite: '다음 친구 초대하기',
     creating: '만드는 중…',
     connectStart: '지갑 연결하고 시작하기',
     connecting: '지갑 여는 중…',
@@ -132,7 +160,7 @@ const COPY = {
     inviteReadyTitle: '초대가 준비됐어요',
     inviteReadyDescription:
       '친구 한 명에게 링크를 보내세요. 친구가 참여하면 다음 단계가 시작돼요.',
-    friendJoinedBadge: '친구 참여 완료',
+    friendJoinedBadge: '친구 참여',
     friendJoinedTitle: '친구가 참여했어요',
     friendJoinedDescription:
       '친구가 VeInvite 미션을 진행하고 있어요.',
@@ -187,6 +215,9 @@ const COPY = {
     rewardPaid: '보상 지급 완료',
     rewardPaidDescription:
       'B3TR 지급이 온체인에서 확인되고 보상 내역에 기록됐어요.',
+    rewardForfeited: '보상 지급 대상이 아니에요',
+    rewardForfeitedDescription:
+      '이번 초대는 최종 보상 검토를 통과하지 못했어요. 다른 친구를 새로 초대할 수 있어요.',
     claimSuccess:
       '보상 수령을 요청했어요. 다음 보상 라운드에 자동 반영됩니다.',
     claimError:
@@ -197,9 +228,9 @@ const COPY = {
     loadError: '초대 정보를 불러오지 못했습니다.',
     createError: '초대 링크를 만들지 못했습니다.',
     cancelError: '초대를 취소하지 못했습니다.',
-    dappTitle: 'VeBetterDAO dApp을 위한 VeInvite',
+    dappTitle: 'VeBetterDAO 생태계를 위한 VeInvite',
     dappDescription:
-      '현재 VeInvite는 VeBetterDAO 생태계 전체에서 신규 사용자 온보딩과 휴면 사용자 복귀에 초점을 맞추고 있습니다. 개별 dApp이 자체 추천 캠페인을 만들고 설정할 수 있는 기능은 향후 확장 기능으로 계획하고 있습니다.',
+      'VeInvite는 신규 사용자가 생태계를 처음 경험하고, 쉬었던 사용자가 다시 돌아오도록 돕는 초대 앱이에요. dApp별 추천 캠페인 기능도 차차 지원할 예정이에요.',
   },
 } as const;
 
@@ -207,6 +238,9 @@ export function HomeClient() {
   const {
     wallet,
     openWallet,
+    connectAnotherWallet,
+    disconnectWallet,
+    isWalletActionPending,
     isWalletModalOpen,
   } = useWalletLauncher();
 
@@ -225,6 +259,8 @@ export function HomeClient() {
     useState('');
   const [showCancel, setShowCancel] =
     useState(false);
+  const [activeTab, setActiveTab] =
+    useState<AppTab>('home');
   const [
     vercelShareToken,
     setVercelShareToken,
@@ -326,6 +362,15 @@ export function HomeClient() {
     );
   };
 
+  const changeTab = (nextTab: AppTab) => {
+    setActiveTab(nextTab);
+    setShowCancel(false);
+    window.scrollTo({
+      top: 0,
+      behavior: 'smooth',
+    });
+  };
+
   const latest = invites[0];
 
   const active =
@@ -372,26 +417,40 @@ export function HomeClient() {
     completed?.rewardEligibility ===
       'PAID';
 
-  const rewardPanelTitle = rewardPaid
-    ? t.rewardPaid
-    : rewardAssigned
-      ? t.rewardAssigned
-      : claimRequested
-        ? t.rewardClaimed
-        : claimAvailable
-          ? t.rewardClaimReady
-          : t.rewardPending;
+  const rewardForfeited =
+    completed?.rewardEligibility ===
+      'FORFEITED';
+
+  const inviteSlotAvailable =
+    !active &&
+    (!completed ||
+      rewardPaid ||
+      rewardForfeited);
+
+  const rewardPanelTitle = rewardForfeited
+    ? t.rewardForfeited
+    : rewardPaid
+      ? t.rewardPaid
+      : rewardAssigned
+        ? t.rewardAssigned
+        : claimRequested
+          ? t.rewardClaimed
+          : claimAvailable
+            ? t.rewardClaimReady
+            : t.rewardPending;
 
   const rewardPanelDescription =
-    rewardPaid
-      ? t.rewardPaidDescription
-      : rewardAssigned
-        ? t.rewardAssignedDescription
-        : claimRequested
-          ? t.rewardClaimedDescription
-          : claimAvailable
-            ? t.rewardClaimDescription
-            : t.rewardDescription;
+    rewardForfeited
+      ? t.rewardForfeitedDescription
+      : rewardPaid
+        ? t.rewardPaidDescription
+        : rewardAssigned
+          ? t.rewardAssignedDescription
+          : claimRequested
+            ? t.rewardClaimedDescription
+            : claimAvailable
+              ? t.rewardClaimDescription
+              : t.rewardDescription;
 
   const load = useCallback(async () => {
     if (!wallet) {
@@ -727,6 +786,8 @@ export function HomeClient() {
         </div>
       </header>
 
+      {activeTab === 'home' ? (
+        <>
       <section className="missionCard">
         <div className="cardGlow" />
 
@@ -849,7 +910,7 @@ export function HomeClient() {
           />
         </div>
 
-        {!active && !completed ? (
+        {inviteSlotAvailable ? (
           <button
             type="button"
             className="primaryAction"
@@ -866,7 +927,9 @@ export function HomeClient() {
             {wallet
               ? loading
                 ? t.creating
-                : t.createInvite
+                : completed
+                  ? t.createNextInvite
+                  : t.createInvite
               : isWalletModalOpen
                 ? t.connecting
                 : t.connectStart}
@@ -972,6 +1035,29 @@ export function HomeClient() {
           {t.terms}
         </Link>
       </footer>
+        </>
+      ) : activeTab === 'guide' ? (
+        <AppGuide locale={locale} />
+      ) : activeTab === 'leaderboard' ? (
+        <PublicLeaderboard
+          locale={locale}
+          wallet={wallet}
+        />
+      ) : (
+        <AppSettings
+          locale={locale}
+          wallet={wallet}
+          isWalletActionPending={
+            isWalletActionPending
+          }
+          onLocaleChange={changeLocale}
+          onConnect={openWallet}
+          onConnectAnother={
+            connectAnotherWallet
+          }
+          onDisconnect={disconnectWallet}
+        />
+      )}
 
       {showCancel && waitingForFriend ? (
         <div
@@ -1009,19 +1095,25 @@ export function HomeClient() {
         </div>
       ) : null}
 
+      <AppBottomNavigation
+        activeTab={activeTab}
+        locale={locale}
+        onChange={changeTab}
+      />
+
       <style jsx>{`
         .screen {
           min-height: 100svh;
           box-sizing: border-box;
-          padding: 22px 18px 36px;
+          padding: 22px 18px 118px;
           color: #ffffff;
           background:
             radial-gradient(
               circle at 50% 16%,
-              rgba(116, 72, 255, 0.16),
+              rgba(244, 183, 40, 0.14),
               transparent 32%
             ),
-            #070914;
+            #080807;
         }
 
         .topBar {
@@ -1072,8 +1164,8 @@ export function HomeClient() {
           width: 9px;
           height: 9px;
           border-radius: 50%;
-          background: #7448ff;
-          box-shadow: 0 0 14px rgba(116, 72, 255, 0.85);
+          background: #f4b728;
+          box-shadow: 0 0 14px rgba(244, 183, 40, 0.68);
         }
 
         .missionCard {
@@ -1083,13 +1175,13 @@ export function HomeClient() {
           box-sizing: border-box;
           margin: 0 auto;
           padding: 24px;
-          border: 1px solid rgba(155, 120, 255, 0.34);
+          border: 1px solid rgba(255, 201, 61, 0.28);
           border-radius: 30px;
           background:
             linear-gradient(
               155deg,
-              rgba(43, 31, 92, 0.98),
-              rgba(14, 16, 30, 0.99) 66%
+              rgba(54, 40, 14, 0.98),
+              rgba(16, 16, 14, 0.99) 66%
             );
           box-shadow:
             0 28px 80px rgba(0, 0, 0, 0.44),
@@ -1103,7 +1195,7 @@ export function HomeClient() {
           width: 250px;
           height: 250px;
           border-radius: 50%;
-          background: rgba(118, 71, 255, 0.25);
+          background: rgba(244, 183, 40, 0.22);
           filter: blur(4px);
           pointer-events: none;
         }
@@ -1127,10 +1219,10 @@ export function HomeClient() {
           align-items: center;
           min-height: 28px;
           padding: 0 11px;
-          border: 1px solid rgba(171, 139, 255, 0.32);
+          border: 1px solid rgba(255, 205, 80, 0.3);
           border-radius: 999px;
-          background: rgba(116, 72, 255, 0.16);
-          color: #d2c7ff;
+          background: rgba(244, 183, 40, 0.12);
+          color: #ffd66e;
           font-size: 0.68rem;
           font-weight: 950;
           letter-spacing: 0.08em;
@@ -1201,8 +1293,8 @@ export function HomeClient() {
           display: grid;
           place-items: center;
           border-radius: 13px;
-          background: rgba(116, 72, 255, 0.16);
-          color: #cdbfff;
+          background: rgba(244, 183, 40, 0.13);
+          color: #ffd66e;
           font-size: 1.25rem;
           font-weight: 950;
         }
@@ -1272,7 +1364,7 @@ export function HomeClient() {
         }
 
         .inviteCodeCard strong {
-          color: #d9d0ff;
+          color: #ffd66e;
           font-size: 1rem;
           letter-spacing: 0.1em;
         }
@@ -1304,8 +1396,8 @@ export function HomeClient() {
 
         .lineFill.stageOne,
         .lineFill.stageTwo {
-          background: #8056ff;
-          box-shadow: 0 0 12px rgba(128, 86, 255, 0.5);
+          background: #f4b728;
+          box-shadow: 0 0 12px rgba(244, 183, 40, 0.45);
         }
 
         .primaryAction,
@@ -1331,12 +1423,12 @@ export function HomeClient() {
           background:
             linear-gradient(
               135deg,
-              #8255ff,
-              #6d3fff
+              #ffd24d,
+              #efa718
             );
-          color: #ffffff;
+          color: #17120a;
           box-shadow:
-            0 16px 35px rgba(84, 42, 243, 0.34),
+            0 16px 35px rgba(190, 126, 12, 0.25),
             inset 0 1px 0 rgba(255, 255, 255, 0.22);
         }
 
@@ -1372,18 +1464,18 @@ export function HomeClient() {
           align-items: center;
           justify-content: center;
           gap: 10px;
-          border: 1px solid rgba(133, 92, 255, 0.26);
+          border: 1px solid rgba(255, 201, 61, 0.24);
           border-radius: 18px;
-          background: rgba(116, 72, 255, 0.1);
-          color: #d9d0ff;
+          background: rgba(244, 183, 40, 0.08);
+          color: #ffd66e;
         }
 
         .pulseDot {
           width: 9px;
           height: 9px;
           border-radius: 50%;
-          background: #8358ff;
-          box-shadow: 0 0 18px rgba(131, 88, 255, 0.85);
+          background: #f4b728;
+          box-shadow: 0 0 18px rgba(244, 183, 40, 0.72);
           animation: pulse 1.6s ease-in-out infinite;
         }
 
@@ -1474,7 +1566,7 @@ export function HomeClient() {
 
         .dappInfoLabel {
           display: block;
-          color: #d4c9ff;
+          color: #ffd66e;
           font-size: 0.78rem;
           font-weight: 900;
         }
@@ -1575,7 +1667,7 @@ export function HomeClient() {
 
         @media (max-width: 560px) {
           .screen {
-            padding: 18px 14px 30px;
+            padding: 18px 14px 116px;
           }
 
           .topBar {
@@ -1680,44 +1772,44 @@ function ProgressStep({
         .step.active,
         .step.waiting,
         .step.complete {
-          color: #d9d0ff;
+          color: #ffd66e;
         }
 
         .step.active .stepCircle {
-          border-color: #875fff;
-          background: #7548ff;
-          color: #ffffff;
-          box-shadow: 0 0 22px rgba(117, 72, 255, 0.45);
+          border-color: #ffd24d;
+          background: #f4b728;
+          color: #17120a;
+          box-shadow: 0 0 22px rgba(244, 183, 40, 0.38);
         }
 
         .step.waiting .stepCircle {
-          border-color: #875fff;
+          border-color: #f4b728;
           background: #171927;
-          color: #cfc2ff;
+          color: #ffd66e;
           box-shadow:
-            0 0 0 4px rgba(117, 72, 255, 0.09),
-            0 0 20px rgba(117, 72, 255, 0.28);
+            0 0 0 4px rgba(244, 183, 40, 0.08),
+            0 0 20px rgba(244, 183, 40, 0.24);
           animation: waitingPulse 1.7s ease-in-out infinite;
         }
 
         .step.complete .stepCircle {
-          border-color: rgba(117, 72, 255, 0.5);
-          background: rgba(117, 72, 255, 0.2);
-          color: #cfc2ff;
+          border-color: rgba(244, 183, 40, 0.46);
+          background: rgba(244, 183, 40, 0.14);
+          color: #ffd66e;
         }
 
         @keyframes waitingPulse {
           0%,
           100% {
             box-shadow:
-              0 0 0 3px rgba(117, 72, 255, 0.07),
-              0 0 14px rgba(117, 72, 255, 0.2);
+              0 0 0 3px rgba(244, 183, 40, 0.06),
+              0 0 14px rgba(244, 183, 40, 0.18);
           }
 
           50% {
             box-shadow:
-              0 0 0 7px rgba(117, 72, 255, 0.12),
-              0 0 24px rgba(117, 72, 255, 0.38);
+              0 0 0 7px rgba(244, 183, 40, 0.1),
+              0 0 24px rgba(244, 183, 40, 0.3);
           }
         }
       `}</style>

@@ -125,10 +125,10 @@ export function LanguageSelectV2({
           background:
             radial-gradient(
               circle at 50% 24%,
-              rgba(116, 72, 255, 0.2),
+              rgba(244, 183, 40, 0.17),
               transparent 36%
             ),
-            #070914;
+            #080807;
         }
 
         .topBar {
@@ -145,13 +145,13 @@ export function LanguageSelectV2({
           width: min(100%, 430px);
           box-sizing: border-box;
           padding: 28px 22px 22px;
-          border: 1px solid rgba(158, 122, 255, 0.3);
+          border: 1px solid rgba(255, 205, 80, 0.25);
           border-radius: 28px;
           background:
             linear-gradient(
               160deg,
-              rgba(37, 28, 82, 0.98),
-              rgba(15, 17, 31, 0.98) 64%
+              rgba(54, 40, 14, 0.98),
+              rgba(16, 16, 14, 0.98) 64%
             );
           box-shadow:
             0 24px 70px rgba(0, 0, 0, 0.42),
@@ -166,7 +166,7 @@ export function LanguageSelectV2({
           right: -110px;
           top: -120px;
           border-radius: 50%;
-          background: rgba(123, 75, 255, 0.2);
+          background: rgba(244, 183, 40, 0.18);
         }
 
         .badge {
@@ -176,10 +176,10 @@ export function LanguageSelectV2({
           align-items: center;
           height: 28px;
           padding: 0 11px;
-          border: 1px solid rgba(171, 139, 255, 0.28);
+          border: 1px solid rgba(255, 205, 80, 0.28);
           border-radius: 999px;
-          background: rgba(116, 72, 255, 0.13);
-          color: #cfc1ff;
+          background: rgba(244, 183, 40, 0.12);
+          color: #ffd66e;
           font-size: 0.7rem;
           font-weight: 900;
           letter-spacing: 0.12em;
@@ -235,20 +235,20 @@ export function LanguageSelectV2({
 
         .languageCard:hover {
           transform: translateY(-1px);
-          border-color: rgba(159, 123, 255, 0.38);
+          border-color: rgba(255, 205, 80, 0.36);
         }
 
         .languageCard.selected {
-          border-color: #8c67ff;
+          border-color: #f4b728;
           background:
             linear-gradient(
               135deg,
-              rgba(116, 72, 255, 0.26),
-              rgba(116, 72, 255, 0.09)
+              rgba(244, 183, 40, 0.22),
+              rgba(244, 183, 40, 0.07)
             );
           box-shadow:
-            0 0 0 1px rgba(116, 72, 255, 0.18),
-            0 12px 30px rgba(73, 39, 178, 0.18);
+            0 0 0 1px rgba(244, 183, 40, 0.16),
+            0 12px 30px rgba(190, 126, 12, 0.16);
         }
 
         .symbol {
@@ -257,16 +257,16 @@ export function LanguageSelectV2({
           display: grid;
           place-items: center;
           border-radius: 15px;
-          background: rgba(116, 72, 255, 0.18);
-          color: #d7ccff;
+          background: rgba(244, 183, 40, 0.14);
+          color: #ffd66e;
           font-size: 1.25rem;
           font-weight: 950;
         }
 
         .selected .symbol {
-          background: #7448ff;
-          color: #ffffff;
-          box-shadow: 0 0 20px rgba(116, 72, 255, 0.38);
+          background: #f4b728;
+          color: #17120a;
+          box-shadow: 0 0 20px rgba(244, 183, 40, 0.34);
         }
 
         .languageText {
@@ -286,7 +286,7 @@ export function LanguageSelectV2({
         }
 
         .selected .languageText small {
-          color: #beb2e8;
+          color: #d9c68e;
         }
 
         .check {
@@ -302,8 +302,9 @@ export function LanguageSelectV2({
         }
 
         .selected .check {
-          border-color: #8c67ff;
-          background: #7448ff;
+          border-color: #f4b728;
+          background: #f4b728;
+          color: #17120a;
         }
 
         .continueButton {
@@ -321,16 +322,16 @@ export function LanguageSelectV2({
           background:
             linear-gradient(
               135deg,
-              #8255ff,
-              #6d3fff
+              #ffd24d,
+              #efa718
             );
-          color: #ffffff;
+          color: #17120a;
           font: inherit;
           font-size: 1.05rem;
           font-weight: 950;
           cursor: pointer;
           box-shadow:
-            0 15px 34px rgba(87, 45, 255, 0.34),
+            0 15px 34px rgba(190, 126, 12, 0.28),
             inset 0 1px 0 rgba(255, 255, 255, 0.22);
         }
 
