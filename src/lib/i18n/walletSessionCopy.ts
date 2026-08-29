@@ -7,6 +7,8 @@ type WalletSessionCopy = {
   errorTitle: string;
   errorDescription: string;
   tryAgain: string;
+  disconnectWallet: string;
+  disconnectingWallet: string;
 };
 
 export const WALLET_SESSION_COPY: Record<Locale, WalletSessionCopy> = {
@@ -20,6 +22,8 @@ export const WALLET_SESSION_COPY: Record<Locale, WalletSessionCopy> = {
     errorDescription:
       'The signature was cancelled or wallet verification failed. Please try again.',
     tryAgain: 'Try again',
+    disconnectWallet: 'Disconnect wallet',
+    disconnectingWallet: 'Disconnecting…',
   },
   ko: {
     checkingTitle: '지갑을 확인하고 있어요',
@@ -31,6 +35,8 @@ export const WALLET_SESSION_COPY: Record<Locale, WalletSessionCopy> = {
     errorDescription:
       '서명이 취소되었거나 지갑 확인에 실패했어요. 다시 시도해 주세요.',
     tryAgain: '다시 시도',
+    disconnectWallet: '지갑 연결 해제',
+    disconnectingWallet: '연결 해제 중…',
   },
   zh: {
     checkingTitle: '正在验证钱包',
@@ -42,6 +48,8 @@ export const WALLET_SESSION_COPY: Record<Locale, WalletSessionCopy> = {
     errorDescription:
       '签名已取消或钱包验证失败，请重试。',
     tryAgain: '重试',
+    disconnectWallet: '断开钱包连接',
+    disconnectingWallet: '正在断开连接…',
   },
   hi: {
     checkingTitle: 'वॉलेट की पुष्टि हो रही है',
@@ -53,6 +61,8 @@ export const WALLET_SESSION_COPY: Record<Locale, WalletSessionCopy> = {
     errorDescription:
       'सिग्नेचर रद्द हो गया या वॉलेट की पुष्टि नहीं हो सकी। कृपया फिर कोशिश करें।',
     tryAgain: 'फिर कोशिश करें',
+    disconnectWallet: 'वॉलेट डिस्कनेक्ट करें',
+    disconnectingWallet: 'डिस्कनेक्ट हो रहा है…',
   },
   es: {
     checkingTitle: 'Verificando tu cartera',
@@ -64,6 +74,8 @@ export const WALLET_SESSION_COPY: Record<Locale, WalletSessionCopy> = {
     errorDescription:
       'La firma se canceló o no se pudo verificar la cartera. Inténtalo de nuevo.',
     tryAgain: 'Intentar de nuevo',
+    disconnectWallet: 'Desconectar cartera',
+    disconnectingWallet: 'Desconectando…',
   },
   ja: {
     checkingTitle: 'ウォレットを確認しています',
@@ -75,6 +87,8 @@ export const WALLET_SESSION_COPY: Record<Locale, WalletSessionCopy> = {
     errorDescription:
       '署名がキャンセルされたか、ウォレットを確認できませんでした。もう一度お試しください。',
     tryAgain: 'もう一度試す',
+    disconnectWallet: 'ウォレットの接続を解除',
+    disconnectingWallet: '接続を解除しています…',
   },
   it: {
     checkingTitle: 'Verifica del wallet in corso',
@@ -86,6 +100,8 @@ export const WALLET_SESSION_COPY: Record<Locale, WalletSessionCopy> = {
     errorDescription:
       'La firma è stata annullata oppure non è stato possibile verificare il wallet. Riprova.',
     tryAgain: 'Riprova',
+    disconnectWallet: 'Disconnetti wallet',
+    disconnectingWallet: 'Disconnessione…',
   },
   tr: {
     checkingTitle: 'Cüzdanın doğrulanıyor',
@@ -97,6 +113,8 @@ export const WALLET_SESSION_COPY: Record<Locale, WalletSessionCopy> = {
     errorDescription:
       'İmza iptal edildi veya cüzdan doğrulanamadı. Lütfen tekrar dene.',
     tryAgain: 'Tekrar dene',
+    disconnectWallet: 'Cüzdan bağlantısını kes',
+    disconnectingWallet: 'Bağlantı kesiliyor…',
   },
   nl: {
     checkingTitle: 'Je wallet wordt geverifieerd',
@@ -108,6 +126,8 @@ export const WALLET_SESSION_COPY: Record<Locale, WalletSessionCopy> = {
     errorDescription:
       'De handtekening is geannuleerd of de wallet kon niet worden geverifieerd. Probeer het opnieuw.',
     tryAgain: 'Opnieuw proberen',
+    disconnectWallet: 'Wallet loskoppelen',
+    disconnectingWallet: 'Wallet wordt losgekoppeld…',
   },
   de: {
     checkingTitle: 'Wallet wird verifiziert',
@@ -119,6 +139,8 @@ export const WALLET_SESSION_COPY: Record<Locale, WalletSessionCopy> = {
     errorDescription:
       'Die Signatur wurde abgebrochen oder die Wallet konnte nicht verifiziert werden. Bitte versuche es erneut.',
     tryAgain: 'Erneut versuchen',
+    disconnectWallet: 'Wallet trennen',
+    disconnectingWallet: 'Wallet wird getrennt…',
   },
   fr: {
     checkingTitle: 'Vérification du wallet',
@@ -130,5 +152,7 @@ export const WALLET_SESSION_COPY: Record<Locale, WalletSessionCopy> = {
     errorDescription:
       'La signature a été annulée ou le wallet n’a pas pu être vérifié. Veuillez réessayer.',
     tryAgain: 'Réessayer',
+    disconnectWallet: 'Déconnecter le wallet',
+    disconnectingWallet: 'Déconnexion…',
   },
 };

@@ -54,12 +54,16 @@ export function WalletSessionGate({
 }: {
   children: ReactNode;
 }) {
-  const { account } = useWallet();
+  const {
+    account,
+    disconnect,
+  } = useWallet();
   const walletAddress =
     account?.address?.toLowerCase() ?? null;
 
   const {
     ensureWalletSession,
+    clearWalletSession,
   } = useWalletAuthentication();
 
   const [state, setState] =
@@ -68,6 +72,8 @@ export function WalletSessionGate({
     useState<string | null>(null);
   const [locale, setLocale] =
     useState<Locale>('en');
+  const [isDisconnecting, setIsDisconnecting] =
+    useState(false);
   const attemptRef = useRef(0);
   const autoAttemptedWalletRef =
     useRef<string | null>(null);
@@ -138,6 +144,53 @@ export function WalletSessionGate({
     walletAddress,
   ]);
 
+  const disconnectFromVerification =
+    useCallback(async () => {
+      if (isDisconnecting) {
+        return;
+      }
+
+      // Invalidate any result from the failed attempt before clearing the
+      // VeInvite session and the wallet-provider connection.
+      attemptRef.current += 1;
+      autoAttemptedWalletRef.current = null;
+      setVerifiedWallet(null);
+      setIsDisconnecting(true);
+
+      let disconnectFailed = false;
+
+      try {
+        await clearWalletSession();
+      } catch (error) {
+        disconnectFailed = true;
+        console.error(
+          'Failed to clear VeInvite wallet session from verification screen:',
+          error,
+        );
+      }
+
+      try {
+        await disconnect();
+      } catch (error) {
+        disconnectFailed = true;
+        console.error(
+          'Failed to disconnect wallet from verification screen:',
+          error,
+        );
+      } finally {
+        setIsDisconnecting(false);
+      }
+
+      // A successful provider disconnect makes walletAddress null and returns
+      // the user to the normal connect screen. If the provider itself failed,
+      // keep this recovery screen available so the user can try again.
+      setState(disconnectFailed ? 'error' : 'idle');
+    }, [
+      clearWalletSession,
+      disconnect,
+      isDisconnecting,
+    ]);
+
   useEffect(() => {
     if (!walletAddress) {
       attemptRef.current += 1;
@@ -149,8 +202,8 @@ export function WalletSessionGate({
 
     // Automatically verify once for each newly connected wallet. If the user
     // rejects or a verification attempt fails, remain on the error screen and
-    // wait for the explicit retry button instead of repeatedly opening the
-    // wallet signature prompt.
+    // wait for the explicit retry/disconnect actions instead of repeatedly
+    // opening the wallet signature prompt.
     if (
       autoAttemptedWalletRef.current ===
       walletAddress
@@ -270,27 +323,66 @@ export function WalletSessionGate({
         ) : null}
 
         {hasError ? (
-          <button
-            type="button"
-            onClick={() => {
-              void verify();
-            }}
+          <div
             style={{
-              width: '100%',
-              minHeight: '48px',
+              display: 'grid',
+              gap: '10px',
               marginTop: '4px',
-              borderRadius: '14px',
-              border: 0,
-              background:
-                'linear-gradient(135deg, #ffd24d, #efa718)',
-              color: '#17120a',
-              cursor: 'pointer',
-              font: 'inherit',
-              fontWeight: 800,
             }}
           >
-            {t.tryAgain}
-          </button>
+            <button
+              type="button"
+              disabled={isDisconnecting}
+              onClick={() => {
+                void verify();
+              }}
+              style={{
+                width: '100%',
+                minHeight: '48px',
+                borderRadius: '14px',
+                border: 0,
+                background:
+                  'linear-gradient(135deg, #ffd24d, #efa718)',
+                color: '#17120a',
+                cursor: isDisconnecting
+                  ? 'wait'
+                  : 'pointer',
+                font: 'inherit',
+                fontWeight: 800,
+                opacity: isDisconnecting ? 0.62 : 1,
+              }}
+            >
+              {t.tryAgain}
+            </button>
+
+            <button
+              type="button"
+              disabled={isDisconnecting}
+              onClick={() => {
+                void disconnectFromVerification();
+              }}
+              style={{
+                width: '100%',
+                minHeight: '46px',
+                borderRadius: '14px',
+                border:
+                  '1px solid rgba(255,255,255,0.16)',
+                background:
+                  'rgba(255,255,255,0.04)',
+                color: '#f8f6ef',
+                cursor: isDisconnecting
+                  ? 'wait'
+                  : 'pointer',
+                font: 'inherit',
+                fontWeight: 750,
+                opacity: isDisconnecting ? 0.62 : 0.9,
+              }}
+            >
+              {isDisconnecting
+                ? t.disconnectingWallet
+                : t.disconnectWallet}
+            </button>
+          </div>
         ) : null}
       </div>
     </div>
