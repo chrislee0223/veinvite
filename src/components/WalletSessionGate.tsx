@@ -14,42 +14,21 @@ import {
 import {
   useWalletAuthentication,
 } from '@/hooks/useWalletAuthentication';
+import {
+  LANGUAGE_STORAGE_KEY,
+  isLocale,
+  resolveBrowserLocale,
+  type Locale,
+} from '@/lib/i18n/locales';
+import {
+  WALLET_SESSION_COPY,
+} from '@/lib/i18n/walletSessionCopy';
 
 type VerificationState =
   | 'idle'
   | 'checking'
   | 'verified'
   | 'error';
-
-type Locale = 'ko' | 'en';
-
-const LANGUAGE_STORAGE_KEY =
-  'veinvite-language';
-
-const COPY = {
-  ko: {
-    checkingTitle: '지갑을 확인하고 있어요',
-    checkingDescription:
-      '연결한 지갑의 소유권을 확인하려면 서명 요청을 승인해 주세요.',
-    checkingSafety:
-      '이 서명은 거래를 만들지 않으며 가스비가 들지 않아요.',
-    errorTitle: '지갑 확인이 필요해요',
-    errorDescription:
-      '서명이 취소되었거나 지갑 확인에 실패했어요. 다시 시도해 주세요.',
-    tryAgain: '다시 시도',
-  },
-  en: {
-    checkingTitle: 'Verifying your wallet',
-    checkingDescription:
-      'Approve the signature request to confirm that you control the connected wallet.',
-    checkingSafety:
-      'This signature does not create a transaction or cost gas.',
-    errorTitle: 'Wallet verification needed',
-    errorDescription:
-      'The signature was cancelled or wallet verification failed. Please try again.',
-    tryAgain: 'Try again',
-  },
-} as const;
 
 function initialLocale(): Locale {
   if (typeof window === 'undefined') {
@@ -60,15 +39,14 @@ function initialLocale(): Locale {
     LANGUAGE_STORAGE_KEY,
   );
 
-  if (saved === 'ko' || saved === 'en') {
+  if (isLocale(saved)) {
     return saved;
   }
 
-  return window.navigator.language
-    .toLowerCase()
-    .startsWith('ko')
-    ? 'ko'
-    : 'en';
+  return resolveBrowserLocale(
+    window.navigator.languages,
+    'en',
+  );
 }
 
 export function WalletSessionGate({
@@ -101,9 +79,9 @@ export function WalletSessionGate({
       event: Event,
     ) => {
       const detail =
-        (event as CustomEvent<Locale>).detail;
+        (event as CustomEvent<unknown>).detail;
 
-      if (detail === 'ko' || detail === 'en') {
+      if (isLocale(detail)) {
         setLocale(detail);
       }
     };
@@ -200,7 +178,7 @@ export function WalletSessionGate({
     return children;
   }
 
-  const t = COPY[locale];
+  const t = WALLET_SESSION_COPY[locale];
   const hasError = state === 'error';
 
   return (

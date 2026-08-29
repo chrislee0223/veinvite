@@ -11,6 +11,7 @@ import {
   resolveBrowserLocale,
   type Locale,
 } from '@/lib/i18n/locales';
+import { SETTINGS_COPY } from '@/lib/i18n/settingsCopy';
 
 const VeChainKitProvider = dynamic(
   () => import('@vechain/vechain-kit').then((mod) => mod.VeChainKitProvider),
@@ -86,6 +87,7 @@ export function VeChainProvider({ children }: { children: ReactNode }) {
       ? [{ method: 'wallet-connect' as const, gridColumn: 4 }]
       : []),
   ];
+  const legalCopy = SETTINGS_COPY[language];
 
   return (
     <QueryClientProvider client={queryClient}>
@@ -101,13 +103,13 @@ export function VeChainProvider({ children }: { children: ReactNode }) {
             url: `${appUrl}/terms`,
             version: 1,
             required: true,
-            displayName: 'VeInvite Terms',
+            displayName: `VeInvite · ${legalCopy.terms}`,
           }],
           privacyPolicy: [{
             url: `${appUrl}/privacy`,
             version: 1,
             required: true,
-            displayName: 'VeInvite Privacy',
+            displayName: `VeInvite · ${legalCopy.privacy}`,
           }],
         }}
       >
