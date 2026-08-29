@@ -141,10 +141,32 @@ function getVeInviteReviewThreshold(): number {
   return parsed;
 }
 
+function effectiveSignalThreshold(
+  snapshot: Pick<
+    VePassportSignalSnapshot,
+    | 'protocolSignalThreshold'
+    | 'veInviteReviewThreshold'
+  >,
+): number {
+  // Never let an app-specific setting weaken the shared VePassport policy.
+  // If the protocol exposes a positive threshold, use the stricter of the
+  // protocol and VeInvite values. A zero protocol threshold is treated as
+  // unset to avoid turning every wallet into an automatic review.
+  if (snapshot.protocolSignalThreshold > 0) {
+    return Math.min(
+      snapshot.protocolSignalThreshold,
+      snapshot.veInviteReviewThreshold,
+    );
+  }
+
+  return snapshot.veInviteReviewThreshold;
+}
+
 export function evaluateVePassportSignalRisk(
   snapshot: Pick<
     VePassportSignalSnapshot,
     | 'signalCount'
+    | 'protocolSignalThreshold'
     | 'veInviteReviewThreshold'
     | 'blacklisted'
   >,
@@ -160,9 +182,12 @@ export function evaluateVePassportSignalRisk(
     };
   }
 
+  const reviewThreshold =
+    effectiveSignalThreshold(snapshot);
+
   if (
     snapshot.signalCount >=
-    snapshot.veInviteReviewThreshold
+    reviewThreshold
   ) {
     return {
       status: 'REVIEW',
@@ -172,7 +197,7 @@ export function evaluateVePassportSignalRisk(
         60 + snapshot.signalCount * 10,
       ),
       reason:
-        `VePassport signal count ${snapshot.signalCount} reached the VeInvite review threshold ${snapshot.veInviteReviewThreshold}.`,
+        `VePassport signal count ${snapshot.signalCount} reached the effective review threshold ${reviewThreshold}.`,
       source: 'VEPASSPORT',
     };
   }
@@ -186,7 +211,7 @@ export function evaluateVePassportSignalRisk(
         snapshot.signalCount * 20,
       ),
       reason:
-        `VePassport signal count ${snapshot.signalCount} remains below the VeInvite review threshold ${snapshot.veInviteReviewThreshold}.`,
+        `VePassport signal count ${snapshot.signalCount} remains below the effective review threshold ${reviewThreshold}.`,
       source: 'VEPASSPORT',
     };
   }
