@@ -11,6 +11,10 @@ import { verifyMessage } from 'ethers';
 import { Certificate } from '@vechain/sdk-core';
 
 import {
+  enforceRateLimits,
+  getClientIpSubject,
+} from '@/lib/rateLimitServer';
+import {
   normalizeAddress,
 } from '@/lib/serverStore';
 import {
@@ -27,6 +31,10 @@ const CERTIFICATE_CLOCK_SKEW_MS =
   2 * 60 * 1000;
 const CERTIFICATE_CHALLENGE_WINDOW_MS =
   10 * 60 * 1000;
+const VERIFY_IP_LIMIT = 30;
+const VERIFY_IP_WINDOW_SECONDS = 60;
+const VERIFY_WALLET_LIMIT = 10;
+const VERIFY_WALLET_WINDOW_SECONDS = 5 * 60;
 
 type WalletChallengeRow = {
   id: number;
@@ -247,6 +255,25 @@ function verifyVeWorldCertificate({
 export async function POST(
   request: NextRequest,
 ) {
+  const clientIp =
+    getClientIpSubject(request);
+  const ipRateLimitResponse =
+    await enforceRateLimits([
+      clientIp
+        ? {
+            scope: 'auth_verify_ip',
+            subject: clientIp,
+            limit: VERIFY_IP_LIMIT,
+            windowSeconds:
+              VERIFY_IP_WINDOW_SECONDS,
+          }
+        : null,
+    ]);
+
+  if (ipRateLimitResponse) {
+    return ipRateLimitResponse;
+  }
+
   let body: VerifyRequestBody;
 
   try {
@@ -289,6 +316,21 @@ export async function POST(
       'Invalid wallet authentication request.',
       400,
     );
+  }
+
+  const walletRateLimitResponse =
+    await enforceRateLimits([
+      {
+        scope: 'auth_verify_wallet',
+        subject: walletAddress,
+        limit: VERIFY_WALLET_LIMIT,
+        windowSeconds:
+          VERIFY_WALLET_WINDOW_SECONDS,
+      },
+    ]);
+
+  if (walletRateLimitResponse) {
+    return walletRateLimitResponse;
   }
 
   const {
