@@ -16,31 +16,20 @@ import { Brand } from './Brand';
 import { InviteLandingV2 } from './InviteLandingV2';
 import { LanguageSelectV2 } from './LanguageSelectV2';
 import { useActiveWallet } from './WalletControl';
+import { INVITEE_COPY } from '@/lib/i18n/inviteeCopy';
+import {
+  LANGUAGE_OPTIONS,
+  LANGUAGE_STORAGE_KEY,
+  isLocale,
+  localeFromLanguageTag,
+  resolveBrowserLocale,
+  type Locale,
+} from '@/lib/i18n/locales';
 import type { InviteRecord } from '@/lib/types';
 
-type Step =
-  | 'landing'
-  | 'wallet'
-  | 'checking'
-  | 'success'
-  | 'missions'
-  | 'error'
-  | 'review';
-
-type Locale = 'ko' | 'en';
-
-type EntryClass =
-  | 'new_user'
-  | 'returning_user';
-
-type ErrorCode =
-  | 'invalidLink'
-  | 'used'
-  | 'eligibility'
-  | 'existing'
-  | 'selfReferral'
-  | 'other'
-  | 'complete';
+type Step = 'landing' | 'wallet' | 'checking' | 'success' | 'missions' | 'error' | 'review';
+type EntryClass = 'new_user' | 'returning_user';
+type ErrorCode = 'invalidLink' | 'used' | 'eligibility' | 'existing' | 'selfReferral' | 'other' | 'complete';
 
 type InviteProgress = {
   appsCompleted: number;
@@ -59,21 +48,15 @@ type InviteApiResponse = {
   invite?: InviteRecord;
   progress?: InviteProgress;
   outcome?: string;
-  entryClass?:
-    | EntryClass
-    | 'active_existing_user';
+  entryClass?: EntryClass | 'active_existing_user';
 };
-
-const LANGUAGE_STORAGE_KEY =
-  'veinvite-language';
 
 const DEFAULT_PROGRESS: InviteProgress = {
   appsCompleted: 0,
   appsRequired: 3,
   rewardsReceived: 0,
   vot3Converted: false,
-  vot3MinimumAmountWei:
-    '1000000000000000000',
+  vot3MinimumAmountWei: '1000000000000000000',
   vot3ConversionAmountWei: null,
   voteCompleted: false,
   uniqueAppIds: [],
@@ -81,466 +64,100 @@ const DEFAULT_PROGRESS: InviteProgress = {
   latestBlock: null,
 };
 
-const COPY = {
-  ko: {
-    languageContinue: '한국어로 계속',
-    languageChanged: '한국어',
-    invitationLabel: '친구 초대',
-    landingTitle1: '친구가 보낸',
-    landingTitle2: 'VeInvite',
-    landingDescription:
-      '지갑을 연결하고 미션을 완료하면 나도 친구 한 명을 초대할 수 있어요.',
-    eligibilityTitle: '누가 시작할 수 있나요?',
-    eligibilityDescription:
-      'VeBetterDAO가 처음이거나 최근 12개 완료 라운드 동안 보상·투표 활동이 없었던 복귀 사용자라면 참여할 수 있어요.',
-    start: '시작하기',
-    connectWalletTitle:
-      '지갑을 연결하고 시작하세요',
-    connectWalletDescription:
-      '지갑을 연결하면 초대 자격을 확인하고 미션을 열어요.',
-    connectWallet: '지갑 연결',
-    walletConnected: '연결된 지갑',
-    checkEligibility: '참여 자격 확인',
-    connectThenContinue:
-      '지갑을 연결해 주세요',
-    checkingTitle:
-      '참여 자격을 확인하고 있어요',
-    checkingDescription:
-      '초대 링크와 지갑, VeBetterDAO 활동 이력을 안전하게 확인하는 중이에요.',
-    checkingLink: '초대 링크 확인',
-    checkingHistory:
-      'VeBetterDAO 활동 이력 확인',
-    checkingOtherInvite:
-      '다른 초대 연결 여부 확인',
-    reviewTitle:
-      '조금 더 확인이 필요해요',
-    reviewDescription:
-      '확인이 끝나면 이 화면에서 바로 이어서 시작할 수 있어요.',
-    newSuccessTitle:
-      '참여 자격 확인 완료',
-    newSuccessDescription:
-      '이 지갑에서는 이전 VeBetterDAO 보상·투표 이력이 확인되지 않았습니다. VeInvite 미션을 진행할 수 있어요.',
-    returningSuccessTitle:
-      '복귀 사용자 자격 확인 완료',
-    returningSuccessDescription:
-      '과거 VeBetterDAO 활동은 있지만 최근 12개 완료 라운드 동안 보상·투표 이력이 없습니다. VeInvite 미션을 진행할 수 있어요.',
-    walletMission: '지갑 연결',
-    appMission:
-      'VeBetterDAO 앱 3개 체험',
-    conversionMission:
-      'B3TR → VOT3 전환',
-    voteMission: '투표 참여',
-    viewMissions: '미션 시작',
-    invitedFriend: '초대받은 친구',
-    myMissions: '나의 퀘스트',
-    allMissionsComplete:
-      '모든 미션 완료!',
-    oneThingToDo: '나의 미션',
-    walletMissionDescription:
-      '시작 준비가 끝났어요.',
-    appMissionDescription:
-      '서로 다른 앱 3개에서 활동하고 B3TR 보상을 받으세요. 첫 보상 후에는 다음 미션도 함께 진행할 수 있어요.',
-    conversionMissionDescription:
-      '첫 번째 인정 dApp 보상 이후 최소 1 B3TR을 VOT3로 새로 전환하세요.',
-    voteMissionDescription:
-      '인정된 B3TR → VOT3 전환 이후 Allocation Voting에 한 번 참여하세요.',
-    complete: '완료',
-    locked: '잠김',
-    ready: '도전 가능',
-    demoComplete:
-      '데모: 미션 완료 보기',
-    autoProgress:
-      'dApp 보상, VOT3 전환, 투표 기록을 온체인에서 자동으로 확인하고 있어요.',
-    activationConfirmed:
-      '모든 미션 완료! 이제 초대 1회가 열렸어요.',
-    requestNewLink:
-      '친구에게 새 초대 링크를 요청해 주세요.',
-    existingHelp:
-      '최근 VeBetterDAO 활동 이력이 있어 현재는 VeInvite 대상이 아니지만 VeBetterDAO는 계속 이용할 수 있어요.',
-    selfReferralHelp:
-      '자기 초대는 허용되지 않아요. 다른 친구에게 초대 링크를 보내주세요.',
-    otherHelp:
-      '먼저 연결된 초대에서 미션을 계속해 주세요.',
-    tryAgain:
-      '잠시 후 다시 시도해 주세요.',
-    home: '홈으로',
-    errors: {
-      invalidLink:
-        '이 링크는 더 이상 사용할 수 없어요.',
-      used:
-        '이 초대 링크는 이미 다른 지갑에서 사용됐어요.',
-      eligibility:
-        '활동 이력을 확인할 수 없어요.',
-      existing:
-        '현재 VeInvite 참여 기준에 해당하지 않아요.',
-      selfReferral:
-        '본인의 초대 링크에는 참여할 수 없어요.',
-      other:
-        '이 지갑은 이미 다른 초대와 연결돼 있어요.',
-      complete:
-        '미션 완료 상태를 불러오지 못했어요.',
-    },
-  },
-
-  en: {
-    languageContinue:
-      'Continue in English',
-    languageChanged: 'English',
-    invitationLabel: 'Friend Invite',
-    landingTitle1: 'Your friend sent',
-    landingTitle2: 'a VeInvite',
-    landingDescription:
-      'Connect your wallet and complete the missions to unlock one invite of your own.',
-    eligibilityTitle: 'Who can start?',
-    eligibilityDescription:
-      'You can participate if you are new to VeBetterDAO or returning after no reward or voting activity during the previous 12 completed rounds.',
-    start: 'Start',
-    connectWalletTitle:
-      'Connect your wallet to start',
-    connectWalletDescription:
-      'Connect your wallet so we can verify eligibility and unlock the missions.',
-    connectWallet: 'Connect Wallet',
-    walletConnected: 'Connected wallet',
-    checkEligibility: 'Check Eligibility',
-    connectThenContinue:
-      'Connect your wallet first',
-    checkingTitle:
-      'Checking your eligibility',
-    checkingDescription:
-      'We are securely checking the invite link, wallet, and VeBetterDAO activity history.',
-    checkingLink:
-      'Checking invite link',
-    checkingHistory:
-      'Checking VeBetterDAO activity history',
-    checkingOtherInvite:
-      'Checking other invite connections',
-    reviewTitle:
-      'One more check is needed',
-    reviewDescription:
-      'You can continue from this screen as soon as the check is complete.',
-    newSuccessTitle:
-      'Eligibility confirmed',
-    newSuccessDescription:
-      'No prior VeBetterDAO reward or voting activity was found for this wallet. You can continue with the VeInvite missions.',
-    returningSuccessTitle:
-      'Returning-user eligibility confirmed',
-    returningSuccessDescription:
-      'This wallet has older VeBetterDAO activity, but none during the previous 12 completed rounds. You can continue with the VeInvite missions.',
-    walletMission: 'Connect wallet',
-    appMission:
-      'Try 3 VeBetterDAO apps',
-    conversionMission:
-      'Convert B3TR → VOT3',
-    voteMission:
-      'Cast an allocation vote',
-    viewMissions: 'Start Missions',
-    invitedFriend: 'Invited Friend',
-    myMissions: 'My Quest',
-    allMissionsComplete:
-      'All missions complete!',
-    oneThingToDo: 'My Missions',
-    walletMissionDescription:
-      'You are ready to begin.',
-    appMissionDescription:
-      'Earn B3TR from three different apps. After the first qualifying reward, you may continue with the next missions too.',
-    conversionMissionDescription:
-      'After your first qualifying dApp reward, newly convert at least 1 B3TR to VOT3.',
-    voteMissionDescription:
-      'After the qualifying B3TR → VOT3 conversion, participate in Allocation Voting once.',
-    complete: 'Complete',
-    locked: 'Locked',
-    ready: 'Ready',
-    demoComplete:
-      'Demo: Show mission completion',
-    autoProgress:
-      'Your dApp rewards, VOT3 conversion, and vote are verified automatically on-chain.',
-    activationConfirmed:
-      'Quest complete! You have unlocked one invite.',
-    requestNewLink:
-      'Ask your friend for a new invite link.',
-    existingHelp:
-      'Recent VeBetterDAO activity was found, so this wallet is not currently eligible for VeInvite. You can keep using VeBetterDAO normally.',
-    selfReferralHelp:
-      'Self-referrals are not allowed. Share your invite with another person instead.',
-    otherHelp:
-      'Continue the mission from the invite already connected to this wallet.',
-    tryAgain:
-      'Please try again in a moment.',
-    home: 'Home',
-    errors: {
-      invalidLink:
-        'This link is no longer available.',
-      used:
-        'This invitation has already been claimed.',
-      eligibility:
-        'We could not verify this wallet’s activity history.',
-      existing:
-        'This wallet does not currently meet VeInvite eligibility requirements.',
-      selfReferral:
-        'You cannot use your own invite link.',
-      other:
-        'This wallet is already connected to another invite.',
-      complete:
-        'We could not load the mission result.',
-    },
-  },
-} as const;
-
-export function InviteeClient({
-  code,
-}: {
-  code: string;
-}) {
+export function InviteeClient({ code }: { code: string }) {
   const wallet = useActiveWallet();
-  const { open: openConnectModal } =
-    useConnectModal();
-  const {
-    setLanguage: setKitLanguage,
-  } = useCurrentLanguage();
+  const { open: openConnectModal } = useConnectModal();
+  const { setLanguage: setKitLanguage } = useCurrentLanguage();
 
-  const [invite, setInvite] =
-    useState<InviteRecord | null>(null);
-  const [progress, setProgress] =
-    useState<InviteProgress>(
-      DEFAULT_PROGRESS,
-    );
-  const [step, setStep] =
-    useState<Step>('landing');
-  const [errorCode, setErrorCode] =
-    useState<ErrorCode>(
-      'invalidLink',
-    );
-  const [entryClass, setEntryClass] =
-    useState<EntryClass>('new_user');
-  const [demoOutcome, setDemoOutcome] =
-    useState<
-      | 'success'
-      | 'existing'
-      | 'other'
-      | 'review'
-    >('success');
-  const [locale, setLocale] =
-    useState<Locale>('en');
-  const [languageReady, setLanguageReady] =
-    useState(false);
-  const [
-    showLanguageSetup,
-    setShowLanguageSetup,
-  ] = useState(true);
-  const [
-    claimedThisSession,
-    setClaimedThisSession,
-  ] = useState(false);
+  const [invite, setInvite] = useState<InviteRecord | null>(null);
+  const [progress, setProgress] = useState<InviteProgress>(DEFAULT_PROGRESS);
+  const [step, setStep] = useState<Step>('landing');
+  const [errorCode, setErrorCode] = useState<ErrorCode>('invalidLink');
+  const [entryClass, setEntryClass] = useState<EntryClass>('new_user');
+  const [demoOutcome, setDemoOutcome] = useState<'success' | 'existing' | 'other' | 'review'>('success');
+  const [locale, setLocale] = useState<Locale>('en');
+  const [languageReady, setLanguageReady] = useState(false);
+  const [showLanguageSetup, setShowLanguageSetup] = useState(true);
+  const [claimedThisSession, setClaimedThisSession] = useState(false);
 
-  const t = COPY[locale];
-  const demoMode =
-    process.env
-      .NEXT_PUBLIC_DEMO_MODE ===
-    'true';
+  const t = INVITEE_COPY[locale];
+  const demoMode = process.env.NEXT_PUBLIC_DEMO_MODE === 'true';
 
-  const loadInviteProgress =
-    useCallback(async () => {
-      try {
-        const response = await fetch(
-          `/api/invites/${code}`,
-          { cache: 'no-store' },
-        );
-        const data =
-          (await response.json()) as
-            InviteApiResponse;
-
-        if (!response.ok) {
-          throw new Error(
-            'INVALID_INVITE',
-          );
-        }
-
-        if (data.invite) {
-          setInvite(data.invite);
-        }
-        if (data.progress) {
-          setProgress(data.progress);
-        }
-        return data;
-      } catch (error) {
-        console.error(
-          'Failed to load invite progress:',
-          error,
-        );
-        throw error;
-      }
-    }, [code]);
+  const loadInviteProgress = useCallback(async () => {
+    try {
+      const response = await fetch(`/api/invites/${code}`, { cache: 'no-store' });
+      const data = (await response.json()) as InviteApiResponse;
+      if (!response.ok) throw new Error('INVALID_INVITE');
+      if (data.invite) setInvite(data.invite);
+      if (data.progress) setProgress(data.progress);
+      return data;
+    } catch (error) {
+      console.error('Failed to load invite progress:', error);
+      throw error;
+    }
+  }, [code]);
 
   useEffect(() => {
-    const saved =
-      window.localStorage.getItem(
-        LANGUAGE_STORAGE_KEY,
-      );
-    const queryLanguage =
-      new URLSearchParams(
-        window.location.search,
-      ).get('lang');
-
-    const savedLocale: Locale | null =
-      saved === 'ko' || saved === 'en'
-        ? saved
-        : null;
-    const queryLocale: Locale | null =
-      queryLanguage === 'ko' ||
-      queryLanguage === 'en'
-        ? queryLanguage
-        : null;
-    const browserLocale: Locale =
-      window.navigator.language
-        .toLowerCase()
-        .startsWith('ko')
-        ? 'ko'
-        : 'en';
-    const initialLocale =
-      queryLocale ??
-      savedLocale ??
-      browserLocale;
+    const saved = window.localStorage.getItem(LANGUAGE_STORAGE_KEY);
+    const queryLanguage = new URLSearchParams(window.location.search).get('lang');
+    const savedLocale = isLocale(saved) ? saved : null;
+    const queryLocale = localeFromLanguageTag(queryLanguage);
+    const browserLocale = resolveBrowserLocale(window.navigator.languages, 'en');
+    const initialLocale = queryLocale ?? savedLocale ?? browserLocale;
 
     setLocale(initialLocale);
-    setShowLanguageSetup(
-      !savedLocale && !queryLocale,
-    );
-    document.documentElement.lang =
-      initialLocale;
+    setShowLanguageSetup(!savedLocale && !queryLocale);
+    document.documentElement.lang = initialLocale;
     setLanguageReady(true);
   }, []);
 
   useEffect(() => {
-    if (languageReady) {
-      setKitLanguage(locale);
-    }
-  }, [
-    languageReady,
-    locale,
-    setKitLanguage,
-  ]);
+    if (languageReady) setKitLanguage(locale);
+  }, [languageReady, locale, setKitLanguage]);
 
   useEffect(() => {
-    void loadInviteProgress().catch(
-      () => {
-        setErrorCode('invalidLink');
-        setStep('error');
-      },
-    );
+    void loadInviteProgress().catch(() => {
+      setErrorCode('invalidLink');
+      setStep('error');
+    });
   }, [loadInviteProgress]);
 
   useEffect(() => {
-    if (
-      !wallet ||
-      !invite?.inviteeAddress
-    ) {
-      return;
-    }
+    if (!wallet || !invite?.inviteeAddress) return;
+    if (invite.inviteeAddress.toLowerCase() !== wallet.toLowerCase()) return;
 
-    if (
-      invite.inviteeAddress.toLowerCase() !==
-      wallet.toLowerCase()
-    ) {
-      return;
-    }
-
-    // A post-mission Sybil decision can move a referral to UNDER_REVIEW while
-    // the same browser session is still open. Review must override the normal
-    // "claimed this session" resume guard so the invitee never keeps seeing a
-    // stale in-progress mission screen after the backend has paused them.
-    if (
-      invite.status ===
-      'UNDER_REVIEW'
-    ) {
+    if (invite.status === 'UNDER_REVIEW') {
       setStep('review');
       return;
     }
 
-    // Review is operator-resolvable. If the current review screen observes a
-    // CLEAR decision, continue immediately from the authoritative status
-    // rather than asking the user to manually reload the invite page.
-    if (
-      step === 'review' &&
-      (
-        invite.status === 'ACTIVATING' ||
-        invite.status === 'COMPLETED'
-      )
-    ) {
+    if (step === 'review' && (invite.status === 'ACTIVATING' || invite.status === 'COMPLETED')) {
       setStep('missions');
       return;
     }
 
-    if (claimedThisSession) {
-      return;
-    }
-
-    if (
-      invite.status === 'ACTIVATING' ||
-      invite.status === 'COMPLETED'
-    ) {
-      setStep('missions');
-    }
-  }, [
-    claimedThisSession,
-    invite,
-    step,
-    wallet,
-  ]);
+    if (claimedThisSession) return;
+    if (invite.status === 'ACTIVATING' || invite.status === 'COMPLETED') setStep('missions');
+  }, [claimedThisSession, invite, step, wallet]);
 
   useEffect(() => {
-    const shouldPollMissions =
-      step === 'missions' &&
-      invite?.status !== 'COMPLETED' &&
-      invite?.status !== 'UNDER_REVIEW';
-    const shouldPollReview =
-      step === 'review';
+    const shouldPollMissions = step === 'missions' && invite?.status !== 'COMPLETED' && invite?.status !== 'UNDER_REVIEW';
+    const shouldPollReview = step === 'review';
+    if (!shouldPollMissions && !shouldPollReview) return;
 
-    if (
-      !shouldPollMissions &&
-      !shouldPollReview
-    ) {
-      return;
-    }
+    void loadInviteProgress().catch(() => undefined);
+    const intervalId = window.setInterval(() => {
+      void loadInviteProgress().catch(() => undefined);
+    }, 30_000);
+    return () => window.clearInterval(intervalId);
+  }, [step, invite?.status, loadInviteProgress]);
 
-    void loadInviteProgress().catch(
-      () => undefined,
-    );
-
-    const intervalId =
-      window.setInterval(() => {
-        void loadInviteProgress().catch(
-          () => undefined,
-        );
-      }, 30_000);
-
-    return () => {
-      window.clearInterval(
-        intervalId,
-      );
-    };
-  }, [
-    step,
-    invite?.status,
-    loadInviteProgress,
-  ]);
-
-  const saveLocale = (
-    nextLocale: Locale,
-  ) => {
+  const saveLocale = (nextLocale: Locale) => {
     setLocale(nextLocale);
     setKitLanguage(nextLocale);
-    window.localStorage.setItem(
-      LANGUAGE_STORAGE_KEY,
-      nextLocale,
-    );
-    document.documentElement.lang =
-      nextLocale;
-    window.dispatchEvent(
-      new CustomEvent(
-        'veinvite-language-change',
-        { detail: nextLocale },
-      ),
-    );
+    window.localStorage.setItem(LANGUAGE_STORAGE_KEY, nextLocale);
+    document.documentElement.lang = nextLocale;
+    window.dispatchEvent(new CustomEvent('veinvite-language-change', { detail: nextLocale }));
   };
 
   const confirmLanguage = () => {
@@ -555,200 +172,110 @@ export function InviteeClient({
     }
 
     setStep('checking');
-    await new Promise(
-      (resolve) =>
-        setTimeout(resolve, 850),
-    );
+    await new Promise((resolve) => setTimeout(resolve, 850));
 
-    const response = await fetch(
-      `/api/invites/${code}/claim`,
-      {
-        method: 'POST',
-        headers: {
-          'Content-Type':
-            'application/json',
-        },
-        body: JSON.stringify({
-          inviteeAddress: wallet,
-          demoOutcome:
-            demoOutcome === 'success'
-              ? undefined
-              : demoOutcome,
-        }),
-      },
-    );
-    const data =
-      (await response.json()) as
-        InviteApiResponse;
+    const response = await fetch(`/api/invites/${code}/claim`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        inviteeAddress: wallet,
+        demoOutcome: demoOutcome === 'success' ? undefined : demoOutcome,
+      }),
+    });
+    const data = (await response.json()) as InviteApiResponse;
 
-    if (
-      response.status === 202 ||
-      data.outcome === 'review'
-    ) {
+    if (response.status === 202 || data.outcome === 'review') {
       setStep('review');
       return;
     }
 
     if (!response.ok) {
-      if (
-        response.status === 409 ||
-        data.outcome === 'already_used'
-      ) {
-        setErrorCode('used');
-      } else if (
-        data.outcome ===
-        'active_existing_user'
-      ) {
-        setErrorCode('existing');
-      } else if (
-        data.outcome ===
-        'self_referral'
-      ) {
-        setErrorCode('selfReferral');
-      } else if (
-        data.outcome ===
-        'already_referred'
-      ) {
-        setErrorCode('other');
-      } else if (
-        demoOutcome === 'existing'
-      ) {
-        setErrorCode('existing');
-      } else if (
-        demoOutcome === 'other'
-      ) {
-        setErrorCode('other');
-      } else {
-        setErrorCode('eligibility');
-      }
+      if (response.status === 409 || data.outcome === 'already_used') setErrorCode('used');
+      else if (data.outcome === 'active_existing_user') setErrorCode('existing');
+      else if (data.outcome === 'self_referral') setErrorCode('selfReferral');
+      else if (data.outcome === 'already_referred') setErrorCode('other');
+      else if (demoOutcome === 'existing') setErrorCode('existing');
+      else if (demoOutcome === 'other') setErrorCode('other');
+      else setErrorCode('eligibility');
       setStep('error');
       return;
     }
 
     setClaimedThisSession(true);
-    if (
-      data.entryClass === 'new_user' ||
-      data.entryClass ===
-        'returning_user'
-    ) {
-      setEntryClass(data.entryClass);
-    }
-    if (data.invite) {
-      setInvite(data.invite);
-    }
+    if (data.entryClass === 'new_user' || data.entryClass === 'returning_user') setEntryClass(data.entryClass);
+    if (data.invite) setInvite(data.invite);
     setProgress(DEFAULT_PROGRESS);
     setStep('success');
   };
 
-  const completeMissions =
-    async () => {
-      const response = await fetch(
-        `/api/invites/${code}/complete`,
-        { method: 'POST' },
-      );
-      const data =
-        await response.json();
-
-      if (!response.ok) {
-        setErrorCode('complete');
-        setStep('error');
-        return;
-      }
-
-      setInvite(data.invite);
-      setProgress({
-        ...DEFAULT_PROGRESS,
-        appsCompleted: 3,
-        rewardsReceived: 3,
-        vot3Converted: true,
-        vot3ConversionAmountWei:
-          DEFAULT_PROGRESS
-            .vot3MinimumAmountWei,
-        voteCompleted: true,
-      });
-    };
+  const completeMissions = async () => {
+    const response = await fetch(`/api/invites/${code}/complete`, { method: 'POST' });
+    const data = await response.json();
+    if (!response.ok) {
+      setErrorCode('complete');
+      setStep('error');
+      return;
+    }
+    setInvite(data.invite);
+    setProgress({
+      ...DEFAULT_PROGRESS,
+      appsCompleted: 3,
+      rewardsReceived: 3,
+      vot3Converted: true,
+      vot3ConversionAmountWei: DEFAULT_PROGRESS.vot3MinimumAmountWei,
+      voteCompleted: true,
+    });
+  };
 
   if (!languageReady) {
-    return (
-      <main className="centeredFlow">
-        <Brand compact />
-      </main>
-    );
+    return <main className="centeredFlow"><Brand compact /></main>;
   }
 
   if (showLanguageSetup) {
-    return (
-      <LanguageSelectV2
-        locale={locale}
-        onSelect={setLocale}
-        onContinue={confirmLanguage}
-      />
-    );
+    return <LanguageSelectV2 locale={locale} onSelect={setLocale} onContinue={confirmLanguage} />;
   }
 
   if (step === 'error') {
     return (
-      <Centered
-        locale={locale}
-        onLocaleChange={saveLocale}
-      >
+      <Centered locale={locale} onLocaleChange={saveLocale}>
         <div className="errorIcon">×</div>
         <h1>{t.errors[errorCode]}</h1>
         <p className="muted">
-          {errorCode === 'invalidLink' ||
-          errorCode === 'used'
+          {errorCode === 'invalidLink' || errorCode === 'used'
             ? t.requestNewLink
             : errorCode === 'existing'
               ? t.existingHelp
-              : errorCode ===
-                  'selfReferral'
+              : errorCode === 'selfReferral'
                 ? t.selfReferralHelp
                 : errorCode === 'other'
                   ? t.otherHelp
                   : t.tryAgain}
         </p>
-        <Link
-          className="secondaryButton linkButton"
-          href="/"
-        >
-          {t.home}
-        </Link>
+        <Link className="secondaryButton linkButton" href="/">{t.home}</Link>
       </Centered>
     );
   }
 
   if (step === 'review') {
     return (
-      <Centered
-        locale={locale}
-        onLocaleChange={saveLocale}
-      >
+      <Centered locale={locale} onLocaleChange={saveLocale}>
         <div className="reviewIcon">◷</div>
         <h1>{t.reviewTitle}</h1>
-        <p className="muted">
-          {t.reviewDescription}
-        </p>
+        <p className="muted">{t.reviewDescription}</p>
       </Centered>
     );
   }
 
   if (step === 'checking') {
     return (
-      <Centered
-        locale={locale}
-        onLocaleChange={saveLocale}
-      >
+      <Centered locale={locale} onLocaleChange={saveLocale}>
         <div className="spinnerLarge" />
         <h1>{t.checkingTitle}</h1>
-        <p className="muted">
-          {t.checkingDescription}
-        </p>
+        <p className="muted">{t.checkingDescription}</p>
         <div className="checkList">
           <span>○ {t.checkingLink}</span>
           <span>○ {t.checkingHistory}</span>
-          <span>
-            ○ {t.checkingOtherInvite}
-          </span>
+          <span>○ {t.checkingOtherInvite}</span>
         </div>
       </Centered>
     );
@@ -756,229 +283,73 @@ export function InviteeClient({
 
   if (step === 'wallet') {
     return (
-      <Centered
-        locale={locale}
-        onLocaleChange={saveLocale}
-      >
+      <Centered locale={locale} onLocaleChange={saveLocale}>
         <div className="walletVisual" />
-        <h1>
-          {t.connectWalletTitle}
-        </h1>
-        <p className="muted">
-          {t.connectWalletDescription}
-        </p>
+        <h1>{t.connectWalletTitle}</h1>
+        <p className="muted">{t.connectWalletDescription}</p>
         {!wallet ? (
-          <button
-            type="button"
-            className="secondaryButton"
-            onClick={() =>
-              openConnectModal()
-            }
-          >
-            {t.connectWallet}
-          </button>
+          <button type="button" className="secondaryButton" onClick={() => openConnectModal()}>{t.connectWallet}</button>
         ) : (
-          <div className="notice successNotice">
-            {t.walletConnected}:{' '}
-            {shortAddress(wallet)}
-          </div>
+          <div className="notice successNotice">{t.walletConnected}: {shortAddress(wallet)}</div>
         )}
-        <button
-          type="button"
-          className="primaryButton"
-          disabled={!wallet}
-          onClick={() =>
-            void claim()
-          }
-        >
-          {wallet
-            ? t.checkEligibility
-            : t.connectThenContinue}
+        <button type="button" className="primaryButton" disabled={!wallet} onClick={() => void claim()}>
+          {wallet ? t.checkEligibility : t.connectThenContinue}
         </button>
       </Centered>
     );
   }
 
   if (step === 'success') {
-    const isReturning =
-      entryClass === 'returning_user';
-
+    const isReturning = entryClass === 'returning_user';
     return (
-      <Centered
-        locale={locale}
-        onLocaleChange={saveLocale}
-      >
-        <div className="successCircle">
-          {isReturning ? '↻' : '✓'}
-        </div>
-        <h1>
-          {isReturning
-            ? t.returningSuccessTitle
-            : t.newSuccessTitle}
-        </h1>
-        <p className="muted">
-          {isReturning
-            ? t.returningSuccessDescription
-            : t.newSuccessDescription}
-        </p>
+      <Centered locale={locale} onLocaleChange={saveLocale}>
+        <div className="successCircle">{isReturning ? '↻' : '✓'}</div>
+        <h1>{isReturning ? t.returningSuccessTitle : t.newSuccessTitle}</h1>
+        <p className="muted">{isReturning ? t.returningSuccessDescription : t.newSuccessDescription}</p>
         <div className="missionSummary">
           <span>✓ {t.walletMission}</span>
           <span>2. {t.appMission}</span>
-          <span>
-            3. {t.conversionMission}
-          </span>
+          <span>3. {t.conversionMission}</span>
           <span>4. {t.voteMission}</span>
         </div>
-        <button
-          type="button"
-          className="primaryButton greenButton"
-          onClick={() =>
-            setStep('missions')
-          }
-        >
-          {t.viewMissions}
-        </button>
+        <button type="button" className="primaryButton greenButton" onClick={() => setStep('missions')}>{t.viewMissions}</button>
       </Centered>
     );
   }
 
   if (step === 'missions') {
-    const completed =
-      invite?.status === 'COMPLETED';
-    const appsCompleted = Math.min(
-      progress.appsCompleted,
-      progress.appsRequired,
-    );
-    const appsDone =
-      appsCompleted >=
-      progress.appsRequired;
-    const firstAppDone =
-      appsCompleted >= 1;
-    const conversionDone =
-      completed || progress.vot3Converted;
-    const conversionUnlocked =
-      firstAppDone || conversionDone;
-    const voteDone =
-      completed || progress.voteCompleted;
-    const voteUnlocked =
-      conversionDone || voteDone;
+    const completed = invite?.status === 'COMPLETED';
+    const appsCompleted = Math.min(progress.appsCompleted, progress.appsRequired);
+    const appsDone = appsCompleted >= progress.appsRequired;
+    const firstAppDone = appsCompleted >= 1;
+    const conversionDone = completed || progress.vot3Converted;
+    const conversionUnlocked = firstAppDone || conversionDone;
+    const voteDone = completed || progress.voteCompleted;
+    const voteUnlocked = conversionDone || voteDone;
 
     return (
       <main className="appShell">
         <header className="appHeader">
           <Brand />
-          <div
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: '10px',
-            }}
-          >
-            <span className="chip">
-              {t.invitedFriend}
-            </span>
-            <LanguageSwitcher
-              locale={locale}
-              onChange={saveLocale}
-              inline
-            />
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <span className="chip">{t.invitedFriend}</span>
+            <LanguageSwitcher locale={locale} onChange={saveLocale} inline />
           </div>
         </header>
 
         <section className="panel missionPanel">
-          <span className="eyebrow">
-            {t.myMissions}
-          </span>
-          <h1>
-            {completed
-              ? t.allMissionsComplete
-              : t.oneThingToDo}
-          </h1>
-
-          <MissionCard
-            state="done"
-            title={t.walletMission}
-            description={
-              t.walletMissionDescription
-            }
-            status={t.complete}
-          />
-
-          <MissionCard
-            state={
-              appsDone ? 'done' : 'current'
-            }
-            title={t.appMission}
-            description={
-              t.appMissionDescription
-            }
-            status={
-              appsDone
-                ? t.complete
-                : `${appsCompleted}/${progress.appsRequired}`
-            }
-          />
-
-          <MissionCard
-            state={
-              conversionDone
-                ? 'done'
-                : conversionUnlocked
-                  ? 'current'
-                  : 'locked'
-            }
-            title={t.conversionMission}
-            description={
-              t.conversionMissionDescription
-            }
-            status={
-              conversionDone
-                ? t.complete
-                : conversionUnlocked
-                  ? t.ready
-                  : t.locked
-            }
-          />
-
-          <MissionCard
-            state={
-              voteDone
-                ? 'done'
-                : voteUnlocked
-                  ? 'current'
-                  : 'locked'
-            }
-            title={t.voteMission}
-            description={
-              t.voteMissionDescription
-            }
-            status={
-              voteDone
-                ? t.complete
-                : voteUnlocked
-                  ? t.ready
-                  : t.locked
-            }
-          />
-
+          <span className="eyebrow">{t.myMissions}</span>
+          <h1>{completed ? t.allMissionsComplete : t.oneThingToDo}</h1>
+          <MissionCard state="done" title={t.walletMission} description={t.walletMissionDescription} status={t.complete} />
+          <MissionCard state={appsDone ? 'done' : 'current'} title={t.appMission} description={t.appMissionDescription} status={appsDone ? t.complete : `${appsCompleted}/${progress.appsRequired}`} />
+          <MissionCard state={conversionDone ? 'done' : conversionUnlocked ? 'current' : 'locked'} title={t.conversionMission} description={t.conversionMissionDescription} status={conversionDone ? t.complete : conversionUnlocked ? t.ready : t.locked} />
+          <MissionCard state={voteDone ? 'done' : voteUnlocked ? 'current' : 'locked'} title={t.voteMission} description={t.voteMissionDescription} status={voteDone ? t.complete : voteUnlocked ? t.ready : t.locked} />
           {!completed && demoMode ? (
-            <button
-              type="button"
-              className="secondaryButton"
-              onClick={() =>
-                void completeMissions()
-              }
-            >
-              {t.demoComplete}
-            </button>
+            <button type="button" className="secondaryButton" onClick={() => void completeMissions()}>{t.demoComplete}</button>
           ) : !completed ? (
-            <div className="notice">
-              {t.autoProgress}
-            </div>
+            <div className="notice">{t.autoProgress}</div>
           ) : (
-            <div className="notice successNotice">
-              {t.activationConfirmed}
-            </div>
+            <div className="notice successNotice">{t.activationConfirmed}</div>
           )}
         </section>
       </main>
@@ -992,19 +363,9 @@ export function InviteeClient({
       demoMode={demoMode}
       demoOutcome={demoOutcome}
       onLocaleChange={saveLocale}
-      onBeginnerStart={() => {
-        setStep('wallet');
-      }}
-      onExistingWallet={() => {
-        if (wallet) {
-          void claim();
-        } else {
-          setStep('wallet');
-        }
-      }}
-      onDemoOutcomeChange={
-        setDemoOutcome
-      }
+      onBeginnerStart={() => setStep('wallet')}
+      onExistingWallet={() => { if (wallet) void claim(); else setStep('wallet'); }}
+      onDemoOutcomeChange={setDemoOutcome}
     />
   );
 }
@@ -1022,17 +383,8 @@ function MissionCard({
 }) {
   return (
     <div className={`mission ${state}`}>
-      <span>
-        {state === 'done'
-          ? '✓'
-          : state === 'current'
-            ? '◎'
-            : '◇'}
-      </span>
-      <div>
-        <b>{title}</b>
-        <p>{description}</p>
-      </div>
+      <span>{state === 'done' ? '✓' : state === 'current' ? '◎' : '◇'}</span>
+      <div><b>{title}</b><p>{description}</p></div>
       <em>{status}</em>
     </div>
   );
@@ -1045,16 +397,11 @@ function Centered({
 }: {
   children: ReactNode;
   locale: Locale;
-  onLocaleChange: (
-    locale: Locale,
-  ) => void;
+  onLocaleChange: (locale: Locale) => void;
 }) {
   return (
     <main className="centeredFlow">
-      <LanguageSwitcher
-        locale={locale}
-        onChange={onLocaleChange}
-      />
+      <LanguageSwitcher locale={locale} onChange={onLocaleChange} />
       <Brand compact />
       {children}
     </main>
@@ -1067,86 +414,37 @@ function LanguageSwitcher({
   inline = false,
 }: {
   locale: Locale;
-  onChange: (
-    locale: Locale,
-  ) => void;
+  onChange: (locale: Locale) => void;
   inline?: boolean;
 }) {
   return (
     <label
-      style={
-        inline
-          ? {
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: '6px',
-              padding: '8px 10px',
-              border:
-                '1px solid rgba(255,255,255,0.14)',
-              borderRadius: '12px',
-              background:
-                'rgba(255,255,255,0.06)',
-              color: '#f8f7ff',
-              zIndex: 20,
-            }
-          : {
-              position: 'fixed',
-              top: '18px',
-              right: '18px',
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: '6px',
-              padding: '8px 10px',
-              border:
-                '1px solid rgba(255,255,255,0.14)',
-              borderRadius: '12px',
-              background:
-                'rgba(17,20,33,0.92)',
-              color: '#f8f7ff',
-              zIndex: 20,
-            }
-      }
+      style={inline ? {
+        display: 'inline-flex', alignItems: 'center', gap: '6px', padding: '8px 10px',
+        border: '1px solid rgba(255,255,255,0.14)', borderRadius: '12px',
+        background: 'rgba(255,255,255,0.06)', color: '#f8f7ff', zIndex: 20,
+      } : {
+        position: 'fixed', top: '18px', right: '18px', display: 'inline-flex',
+        alignItems: 'center', gap: '6px', padding: '8px 10px',
+        border: '1px solid rgba(255,255,255,0.14)', borderRadius: '12px',
+        background: 'rgba(17,20,33,0.92)', color: '#f8f7ff', zIndex: 20,
+      }}
     >
       <span aria-hidden="true">🌐</span>
       <select
-        aria-label="Language"
+        aria-label={INVITEE_COPY[locale].languageChanged}
         value={locale}
-        onChange={(event) =>
-          onChange(
-            event.target.value as Locale,
-          )
-        }
-        style={{
-          border: 0,
-          outline: 0,
-          background: 'transparent',
-          color: 'inherit',
-          font: 'inherit',
-          cursor: 'pointer',
-        }}
+        onChange={(event) => onChange(event.target.value as Locale)}
+        style={{ border: 0, outline: 0, maxWidth: inline ? '120px' : '150px', background: 'transparent', color: 'inherit', font: 'inherit', cursor: 'pointer' }}
       >
-        <option
-          value="ko"
-          style={{ color: '#111421' }}
-        >
-          한국어
-        </option>
-        <option
-          value="en"
-          style={{ color: '#111421' }}
-        >
-          English
-        </option>
+        {LANGUAGE_OPTIONS.map((option) => (
+          <option key={option.locale} value={option.locale} style={{ color: '#111421' }}>{option.nativeName}</option>
+        ))}
       </select>
     </label>
   );
 }
 
-function shortAddress(
-  address: string,
-) {
-  return `${address.slice(
-    0,
-    8,
-  )}···${address.slice(-6)}`;
+function shortAddress(address: string) {
+  return `${address.slice(0, 8)}···${address.slice(-6)}`;
 }
