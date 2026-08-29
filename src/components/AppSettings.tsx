@@ -8,6 +8,7 @@ import {
 } from 'react';
 import Link from 'next/link';
 
+import { LanguageFlag } from './LanguageFlag';
 import { SETTINGS_COPY } from '@/lib/i18n/settingsCopy';
 import {
   LANGUAGE_OPTIONS,
@@ -151,7 +152,7 @@ export function AppSettings({
           aria-expanded={languageOpen}
           onClick={() => setLanguageOpen(true)}
         >
-          <span className="languageSymbol" aria-hidden="true">{currentLanguage.symbol}</span>
+          <span className="languageSymbol" aria-hidden="true"><LanguageFlag locale={currentLanguage.locale} /></span>
           <span className="languagePickerCopy">
             <strong>{currentLanguage.nativeName}</strong>
             <small>{t.languageNote}</small>
@@ -202,7 +203,7 @@ export function AppSettings({
                     aria-pressed={selected}
                     onClick={() => selectLanguage(option.locale)}
                   >
-                    <span className="languageOptionSymbol" aria-hidden="true">{option.symbol}</span>
+                    <span className="languageOptionSymbol" aria-hidden="true"><LanguageFlag locale={option.locale} /></span>
                     <strong>{option.nativeName}</strong>
                     <span className="languageCheck" aria-hidden="true">{selected ? '✓' : ''}</span>
                   </button>
@@ -235,8 +236,10 @@ export function AppSettings({
         .languagePickerTrigger { width:100%; min-height:66px; margin-top:13px; padding:10px 12px; display:grid; grid-template-columns:34px minmax(0,1fr) 24px; align-items:center; gap:11px; border:1px solid rgba(255,255,255,.09); border-radius:15px; background:rgba(255,255,255,.035); color:#f5f2e9; font:inherit; cursor:pointer; text-align:left; }
         .languagePickerTrigger:hover { border-color:rgba(255,205,80,.3); background:rgba(255,201,61,.055); }
         .languagePickerTrigger:focus-visible { outline:2px solid rgba(255,205,80,.75); outline-offset:2px; }
-        .languageSymbol,.languageOptionSymbol { display:grid; place-items:center; border-radius:10px; background:rgba(255,201,61,.1); color:#f4c54b; font-weight:950; }
-        .languageSymbol { width:34px; height:34px; font-size:.7rem; }
+        .languageSymbol,.languageOptionSymbol { display:grid; place-items:center; overflow:hidden; border-radius:7px; background:#fff; box-shadow:0 0 0 1px rgba(255,255,255,.12); }
+        .languageSymbol { width:34px; height:23px; }
+        .languageOptionSymbol { width:32px; height:22px; }
+        .languageSymbol :global(svg),.languageOptionSymbol :global(svg) { width:100%; height:100%; display:block; }
         .languagePickerCopy { min-width:0; display:grid; gap:3px; }
         .languagePickerCopy strong { font-size:.82rem; overflow-wrap:anywhere; }
         .languagePickerCopy small { color:#817d75; font-size:.67rem; line-height:1.35; overflow-wrap:anywhere; }
@@ -254,8 +257,6 @@ export function AppSettings({
         .languageOption { width:100%; min-height:52px; padding:8px 11px; display:grid; grid-template-columns:32px minmax(0,1fr) 26px; align-items:center; gap:10px; border:1px solid rgba(255,255,255,.09); border-radius:14px; background:rgba(255,255,255,.035); color:#aaa69d; font:inherit; text-align:left; cursor:pointer; }
         .languageOption:hover { border-color:rgba(255,205,80,.28); }
         .languageOption.selected { border-color:rgba(255,205,80,.52); background:rgba(255,201,61,.11); color:#ffd45f; }
-        .languageOptionSymbol { width:32px; height:32px; font-size:.68rem; }
-        .languageOption.selected .languageOptionSymbol { background:#f4b728; color:#17120a; }
         .languageOption strong { min-width:0; font-size:.78rem; overflow-wrap:anywhere; }
         .languageCheck { width:24px; height:24px; display:grid; place-items:center; border-radius:50%; color:#17120a; font-size:.72rem; font-weight:950; }
         .languageOption.selected .languageCheck { background:#f4b728; }

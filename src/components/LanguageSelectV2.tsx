@@ -1,6 +1,7 @@
 'use client';
 
 import { Brand } from './Brand';
+import { LanguageFlag } from './LanguageFlag';
 import { LANGUAGE_SELECT_COPY } from '@/lib/i18n/languageSelectCopy';
 import { LANGUAGE_OPTIONS, type Locale } from '@/lib/i18n/locales';
 
@@ -32,7 +33,7 @@ export function LanguageSelectV2({ locale, onSelect, onContinue }: LanguageSelec
                 onClick={() => onSelect(option.locale)}
                 aria-pressed={selected}
               >
-                <span className="symbol">{option.symbol}</span>
+                <span className="symbol" aria-hidden="true"><LanguageFlag locale={option.locale} /></span>
                 <span className="languageText"><strong>{option.nativeName}</strong></span>
                 <span className="check">{selected ? '✓' : ''}</span>
               </button>
@@ -58,8 +59,8 @@ export function LanguageSelectV2({ locale, onSelect, onContinue }: LanguageSelec
         .languageCard { width:100%; min-height:60px; box-sizing:border-box; display:grid; grid-template-columns:42px 1fr 28px; align-items:center; gap:12px; padding:9px 13px; border:1px solid rgba(255,255,255,.1); border-radius:16px; background:rgba(255,255,255,.045); color:#fff; text-align:left; cursor:pointer; }
         .languageCard:hover { border-color:rgba(255,205,80,.36); }
         .languageCard.selected { border-color:#f4b728; background:linear-gradient(135deg,rgba(244,183,40,.22),rgba(244,183,40,.07)); box-shadow:0 0 0 1px rgba(244,183,40,.16); }
-        .symbol { width:40px; height:40px; display:grid; place-items:center; border-radius:13px; background:rgba(244,183,40,.14); color:#ffd66e; font-size:.95rem; font-weight:950; }
-        .selected .symbol { background:#f4b728; color:#17120a; }
+        .symbol { width:40px; height:27px; display:grid; place-items:center; overflow:hidden; border-radius:8px; background:#fff; box-shadow:0 0 0 1px rgba(255,255,255,.15); }
+        .symbol :global(svg) { width:100%; height:100%; display:block; }
         .languageText { min-width:0; }
         .languageText strong { display:block; font-size:.94rem; font-weight:900; overflow-wrap:anywhere; }
         .check { width:26px; height:26px; display:grid; place-items:center; border:1px solid rgba(255,255,255,.1); border-radius:50%; font-size:.8rem; }
