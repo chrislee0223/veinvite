@@ -348,7 +348,7 @@ export default function SybilReviewPage() {
 
     if (
       !invitation ||
-      !detail.canResolve ||
+      !detail?.canResolve ||
       !invitation.sybil_checked_at ||
       submitting
     ) {
@@ -423,6 +423,7 @@ export default function SybilReviewPage() {
   };
 
   const selected = detail?.invitation ?? null;
+  const reviewEvents = detail?.reviewEvents ?? [];
   const indicators = parseIndicators(onchainSnapshot?.indicators);
   const analyticsStale = snapshotIsStale(onchainSnapshot);
   const actionReady = Boolean(
@@ -664,8 +665,8 @@ export default function SybilReviewPage() {
 
                     <div className="history">
                       <h3>판정 이력 / Review history</h3>
-                      {detail.reviewEvents.length > 0 ? (
-                        detail.reviewEvents.map((event) => (
+                      {reviewEvents.length > 0 ? (
+                        reviewEvents.map((event) => (
                           <div className="historyItem" key={event.id}>
                             <div>
                               <strong>{event.resulting_status}</strong>
