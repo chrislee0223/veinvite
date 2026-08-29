@@ -383,10 +383,32 @@ export function HomeClient() {
       ? latest
       : undefined;
 
-  const completed =
-    latest?.status === 'COMPLETED'
-      ? latest
-      : undefined;
+  const completedInvites = invites.filter(
+    (invite) => invite.status === 'COMPLETED',
+  );
+
+  const latestCompleted = completedInvites[0];
+  const displayCompleted = active
+    ? undefined
+    : latestCompleted;
+
+  const claimableReward = completedInvites.find(
+    (invite) =>
+      invite.rewardEligibility === 'ELIGIBLE' &&
+      invite.rewardQueueStatus ===
+        'AWAITING_CLAIM',
+  );
+
+  const unsettledReward = completedInvites.find(
+    (invite) =>
+      invite.rewardEligibility !== 'PAID' &&
+      invite.rewardEligibility !== 'FORFEITED',
+  );
+
+  const rewardRecord =
+    claimableReward ??
+    unsettledReward ??
+    (active ? undefined : latestCompleted);
 
   const waitingForFriend =
     active?.status ===
@@ -400,32 +422,28 @@ export function HomeClient() {
     active?.status === 'UNDER_REVIEW';
 
   const claimAvailable =
-    completed?.rewardEligibility ===
+    rewardRecord?.rewardEligibility ===
       'ELIGIBLE' &&
-    completed.rewardQueueStatus ===
+    rewardRecord.rewardQueueStatus ===
       'AWAITING_CLAIM';
 
   const claimRequested =
-    completed?.rewardQueueStatus ===
+    rewardRecord?.rewardQueueStatus ===
       'QUEUED';
 
   const rewardAssigned =
-    completed?.rewardQueueStatus ===
+    rewardRecord?.rewardQueueStatus ===
       'ASSIGNED';
 
   const rewardPaid =
-    completed?.rewardEligibility ===
+    rewardRecord?.rewardEligibility ===
       'PAID';
 
   const rewardForfeited =
-    completed?.rewardEligibility ===
+    rewardRecord?.rewardEligibility ===
       'FORFEITED';
 
-  const inviteSlotAvailable =
-    !active &&
-    (!completed ||
-      rewardPaid ||
-      rewardForfeited);
+  const inviteSlotAvailable = !active;
 
   const rewardPanelTitle = rewardForfeited
     ? t.rewardForfeited
@@ -648,7 +666,7 @@ export function HomeClient() {
 
   const claimReward = async () => {
     if (
-      !completed ||
+      !rewardRecord ||
       !claimAvailable ||
       claimingReward
     ) {
@@ -668,7 +686,7 @@ export function HomeClient() {
               'application/json',
           },
           body: JSON.stringify({
-            inviteCode: completed.code,
+            inviteCode: rewardRecord.code,
           }),
         },
       );
@@ -701,7 +719,7 @@ export function HomeClient() {
       ? 2
       : underReview
         ? 2
-        : completed
+        : displayCompleted
           ? 3
           : 0;
 
@@ -711,7 +729,7 @@ export function HomeClient() {
       ? t.friendJoinedBadge
       : underReview
         ? t.reviewBadge
-        : completed
+        : displayCompleted
           ? t.completeBadge
           : t.inviteAvailable;
 
@@ -721,7 +739,7 @@ export function HomeClient() {
       ? t.friendJoinedTitle
       : underReview
         ? t.reviewTitle
-        : completed
+        : displayCompleted
           ? t.completeTitle
           : t.emptyTitle;
 
@@ -731,7 +749,7 @@ export function HomeClient() {
       ? t.friendJoinedDescription
       : underReview
         ? t.reviewDescription
-        : completed
+        : displayCompleted
           ? t.completeDescription
           : t.emptyDescription;
 
@@ -741,7 +759,7 @@ export function HomeClient() {
       ? t.inProgress
       : underReview
         ? t.checking
-        : completed
+        : displayCompleted
           ? t.completed
           : t.noActive;
 
@@ -814,26 +832,26 @@ export function HomeClient() {
 
         <div
           className={
-            completed
+            displayCompleted
               ? 'rewardObjective unlocked'
               : 'rewardObjective'
           }
         >
           <span className="rewardIcon">
-            {completed ? '✓' : '◇'}
+            {displayCompleted ? '✓' : '◇'}
           </span>
 
           <div className="rewardCopy">
             <small>{t.rewardLabel}</small>
             <strong>
-              {completed
+              {displayCompleted
                 ? t.rewardUnlocked
                 : t.rewardLocked}
             </strong>
           </div>
 
           <span className="rewardState">
-            {completed
+            {displayCompleted
               ? t.unlocked
               : t.locked}
           </span>
@@ -927,7 +945,7 @@ export function HomeClient() {
             {wallet
               ? loading
                 ? t.creating
-                : completed
+                : completedInvites.length > 0
                   ? t.createNextInvite
                   : t.createInvite
               : isWalletModalOpen
@@ -965,7 +983,7 @@ export function HomeClient() {
           </div>
         ) : null}
 
-        {completed ? (
+        {rewardRecord ? (
           <div className="completePanel">
             <span className="completeIcon">
               ✓
