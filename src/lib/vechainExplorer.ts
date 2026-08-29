@@ -6,8 +6,8 @@ type PublicNetwork =
   PublicLeaderboardResponse['network'];
 
 export function getVeChainExplorerAddressUrl(
-  network: PublicNetwork,
   walletAddress: string,
+  network: PublicNetwork = 'mainnet',
 ): string {
   const origin =
     network === 'mainnet'
