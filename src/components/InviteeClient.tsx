@@ -456,6 +456,20 @@ export function InviteeClient({
       return;
     }
 
+    // Review is operator-resolvable. If the current review screen observes a
+    // CLEAR decision, continue immediately from the authoritative status
+    // rather than asking the user to manually reload the invite page.
+    if (
+      step === 'review' &&
+      (
+        invite.status === 'ACTIVATING' ||
+        invite.status === 'COMPLETED'
+      )
+    ) {
+      setStep('missions');
+      return;
+    }
+
     if (claimedThisSession) {
       return;
     }
@@ -469,14 +483,21 @@ export function InviteeClient({
   }, [
     claimedThisSession,
     invite,
+    step,
     wallet,
   ]);
 
   useEffect(() => {
+    const shouldPollMissions =
+      step === 'missions' &&
+      invite?.status !== 'COMPLETED' &&
+      invite?.status !== 'UNDER_REVIEW';
+    const shouldPollReview =
+      step === 'review';
+
     if (
-      step !== 'missions' ||
-      invite?.status === 'COMPLETED' ||
-      invite?.status === 'UNDER_REVIEW'
+      !shouldPollMissions &&
+      !shouldPollReview
     ) {
       return;
     }
