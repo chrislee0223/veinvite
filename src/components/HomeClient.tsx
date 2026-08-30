@@ -16,6 +16,7 @@ import {
 } from './AppBottomNavigation';
 import { Brand } from './Brand';
 import { useWalletLauncher } from './WalletControl';
+import { GUIDE_REWARD_STEP_COPY } from '@/lib/i18n/guideRewardStepCopy';
 import { HOME_COPY } from '@/lib/i18n/homeCopy';
 import {
   LANGUAGE_OPTIONS,
@@ -62,6 +63,7 @@ export function HomeClient() {
   const cancelKeepRef = useRef<HTMLButtonElement | null>(null);
 
   const t = HOME_COPY[locale];
+  const automaticRewardCopy = GUIDE_REWARD_STEP_COPY[locale];
 
   useEffect(() => {
     const saved = window.localStorage.getItem(LANGUAGE_STORAGE_KEY);
@@ -137,7 +139,7 @@ export function HomeClient() {
       : rewardAssigned
         ? t.rewardAssigned
         : claimRequested
-          ? t.rewardClaimed
+          ? automaticRewardCopy.title
           : claimAvailable
             ? t.rewardClaimReady
             : t.rewardPending;
@@ -149,7 +151,7 @@ export function HomeClient() {
       : rewardAssigned
         ? t.rewardAssignedDescription
         : claimRequested
-          ? t.rewardClaimedDescription
+          ? automaticRewardCopy.description
           : claimAvailable
             ? t.rewardClaimDescription
             : t.rewardDescription;

@@ -29,7 +29,7 @@ export const INVITE_LANDING_COPY: Record<Locale, InviteLandingCopy> = {
     title: 'Just three simple steps',
     step1: 'Account',
     step2: 'Activity',
-    step3: 'Support',
+    step3: 'Participate',
     time: 'About 10 min',
     free: 'Free',
     start: 'Start',
@@ -45,7 +45,7 @@ export const INVITE_LANDING_COPY: Record<Locale, InviteLandingCopy> = {
   },
   ko: {
     inviteBadge: '친구 초대',
-    rewardLabel: 'VEBETTERDAO MISSION',
+    rewardLabel: 'VEBETTERDAO 미션',
     rewardTitle: 'B3TR 미션 시작',
     title: '세 단계만 완료하면 돼요',
     step1: '계정',
@@ -61,7 +61,7 @@ export const INVITE_LANDING_COPY: Record<Locale, InviteLandingCopy> = {
     demoSuccess: '참여 가능',
     demoExisting: '기존 사용자',
     demoOther: '다른 추천인 연결',
-    demoReview: '안전성 검토',
+    demoReview: '보안 검토',
     languageAria: '언어',
   },
   zh: {
@@ -129,7 +129,7 @@ export const INVITE_LANDING_COPY: Record<Locale, InviteLandingCopy> = {
   },
   ja: {
     inviteBadge: '友だちからの招待',
-    rewardLabel: 'VEBETTERDAO MISSION',
+    rewardLabel: 'VEBETTERDAO ミッション',
     rewardTitle: 'B3TRミッションを始めよう',
     title: '3つのステップで完了',
     step1: 'アカウント',
@@ -165,7 +165,7 @@ export const INVITE_LANDING_COPY: Record<Locale, InviteLandingCopy> = {
     demoResult: 'Risultato demo',
     demoSuccess: 'Idoneo',
     demoExisting: 'Utente esistente',
-    demoOther: 'Collegato a un altro invitante',
+    demoOther: 'Collegato a un altro referente',
     demoReview: 'Controllo di sicurezza',
     languageAria: 'Lingua',
   },
@@ -205,7 +205,7 @@ export const INVITE_LANDING_COPY: Record<Locale, InviteLandingCopy> = {
     reassurance:
       'Nieuw bij VeBetterDAO of terug na een pauze? We controleren eerst of je in aanmerking komt en begeleiden je daarna stap voor stap.',
     demoResult: 'Demoresultaat',
-    demoSuccess: 'Geschikt',
+    demoSuccess: 'Komt in aanmerking',
     demoExisting: 'Bestaande gebruiker',
     demoOther: 'Gekoppeld aan een andere uitnodiger',
     demoReview: 'Veiligheidscontrole',
