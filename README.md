@@ -12,4 +12,6 @@ The current on-chain funding split is 20% team / operations and 80% VeInvite use
 
 Public round reporting is designed to reconcile the actual VeBetterDAO round, immutable allocation receipt, team/reward-pool split, carry-over, verified referral counts, and settled B3TR payouts. The public reporting baseline remains disabled until explicitly set at launch.
 
+Language selectors use app-owned country SVG assets and intentionally avoid artificial white background tiles around flags.
+
 See `README_KO.md` and the `docs/` directory for additional project notes.
