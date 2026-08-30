@@ -93,6 +93,44 @@ if (!/\^\[A-HJ-NP-Z2-9\]\{7\}\$/.test(inviteCodeMigration)) {
   );
 }
 
+const authChallengeRoute = read(
+  'src/app/api/auth/challenge/route.ts',
+);
+
+if (
+  !/insertError\.code\s*===\s*'23505'/.test(authChallengeRoute) ||
+  !/loadActiveChallenge\(/.test(authChallengeRoute)
+) {
+  failures.push(
+    'Wallet challenge creation must recover the existing challenge after a concurrent unique-index race.',
+  );
+}
+
+const authVerifyRoute = read(
+  'src/app/api/auth/verify/route.ts',
+);
+
+if (!/issue_wallet_session_after_verified_challenge/.test(authVerifyRoute)) {
+  failures.push(
+    'Wallet verification must atomically consume the challenge and issue its replacement session.',
+  );
+}
+
+const authMigration = read(
+  'supabase/migrations/20260830090238_harden_wallet_auth_atomicity.sql',
+);
+
+if (
+  !/wallet_auth_challenges_one_unused_per_context_idx/.test(authMigration) ||
+  !/issue_wallet_session_after_verified_challenge/.test(authMigration) ||
+  !/revoke all on function public\.issue_wallet_session_after_verified_challenge[\s\S]*from authenticated;/.test(authMigration) ||
+  !/grant execute on function public\.issue_wallet_session_after_verified_challenge[\s\S]*to service_role;/.test(authMigration)
+) {
+  failures.push(
+    'Wallet authentication migration is missing its concurrency, atomicity, or privilege hardening.',
+  );
+}
+
 if (failures.length > 0) {
   console.error('Server stability gate failed:');
   for (const failure of failures) {
