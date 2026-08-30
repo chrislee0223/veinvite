@@ -16,6 +16,8 @@ VeInvite keeps Production and Preview infrastructure separated. A non-production
 
 Mainnet-funded reward preparation remains controlled by explicit runtime safety switches and is not enabled by ordinary UI or deployment changes.
 
+Language selectors use app-owned country SVG assets and intentionally avoid artificial white background tiles around flags.
+
 ## Development
 
 ```bash
