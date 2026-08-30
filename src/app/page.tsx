@@ -1,5 +1,6 @@
 import { HomeClient } from '@/components/HomeClient';
 import { InviteStatusAutoRefresh } from '@/components/InviteStatusAutoRefresh';
+import { RewardReceiptNotice } from '@/components/RewardReceiptNotice';
 import { WalletSessionGate } from '@/components/WalletSessionGate';
 
 export default function HomePage() {
@@ -7,6 +8,7 @@ export default function HomePage() {
     <WalletSessionGate>
       <InviteStatusAutoRefresh />
       <HomeClient />
+      <RewardReceiptNotice />
     </WalletSessionGate>
   );
 }
