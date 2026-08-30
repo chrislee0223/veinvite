@@ -53,7 +53,6 @@ export function HomeClient() {
   const [locale, setLocale] = useState<Locale>('en');
   const [invites, setInvites] = useState<InviteRecord[]>([]);
   const [loading, setLoading] = useState(false);
-  const [claimingReward, setClaimingReward] = useState(false);
   const [message, setMessage] = useState('');
   const [showCancel, setShowCancel] = useState(false);
   const [activeTab, setActiveTab] = useState<AppTab>('home');
@@ -114,19 +113,15 @@ export function HomeClient() {
   const latestCompleted = completedInvites[0];
   const displayCompleted = active ? undefined : latestCompleted;
 
-  const claimableReward = completedInvites.find(
-    (invite) => invite.rewardEligibility === 'ELIGIBLE' && invite.rewardQueueStatus === 'AWAITING_CLAIM',
-  );
   const unsettledReward = completedInvites.find(
     (invite) => invite.rewardEligibility !== 'PAID' && invite.rewardEligibility !== 'FORFEITED',
   );
-  const rewardRecord = claimableReward ?? unsettledReward ?? (active ? undefined : latestCompleted);
+  const rewardRecord = unsettledReward ?? (active ? undefined : latestCompleted);
 
   const waitingForFriend = active?.status === 'PENDING_ACCEPTANCE' && !active.inviteeAddress;
   const activating = active?.status === 'ACTIVATING';
   const underReview = active?.status === 'UNDER_REVIEW';
-  const claimAvailable = rewardRecord?.rewardEligibility === 'ELIGIBLE' && rewardRecord.rewardQueueStatus === 'AWAITING_CLAIM';
-  const claimRequested = rewardRecord?.rewardQueueStatus === 'QUEUED';
+  const rewardQueued = rewardRecord?.rewardQueueStatus === 'QUEUED';
   const rewardAssigned = rewardRecord?.rewardQueueStatus === 'ASSIGNED';
   const rewardPaid = rewardRecord?.rewardEligibility === 'PAID';
   const rewardForfeited = rewardRecord?.rewardEligibility === 'FORFEITED';
@@ -138,11 +133,9 @@ export function HomeClient() {
       ? t.rewardPaid
       : rewardAssigned
         ? t.rewardAssigned
-        : claimRequested
+        : rewardQueued
           ? automaticRewardCopy.title
-          : claimAvailable
-            ? t.rewardClaimReady
-            : t.rewardPending;
+          : t.rewardPending;
 
   const rewardPanelDescription = rewardForfeited
     ? t.rewardForfeitedDescription
@@ -150,11 +143,9 @@ export function HomeClient() {
       ? t.rewardPaidDescription
       : rewardAssigned
         ? t.rewardAssignedDescription
-        : claimRequested
+        : rewardQueued
           ? automaticRewardCopy.description
-          : claimAvailable
-            ? t.rewardClaimDescription
-            : t.rewardDescription;
+          : t.rewardDescription;
 
   const load = useCallback(async () => {
     if (!wallet) {
@@ -279,27 +270,6 @@ export function HomeClient() {
     await copyInvite();
   };
 
-  const claimReward = async () => {
-    if (!rewardRecord || !claimAvailable || claimingReward) return;
-    setClaimingReward(true);
-    setMessage('');
-    try {
-      const response = await fetch('/api/rewards/claims', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ inviteCode: rewardRecord.code }),
-      });
-      const data = (await response.json()) as { error?: string };
-      if (!response.ok) throw new Error(data.error ?? t.claimError);
-      setMessage(t.claimSuccess);
-      await load();
-    } catch (error) {
-      setMessage(error instanceof Error ? error.message : t.claimError);
-    } finally {
-      setClaimingReward(false);
-    }
-  };
-
   const stageIndex = waitingForFriend ? 1 : activating || underReview ? 2 : displayCompleted ? 3 : 0;
   const badge = waitingForFriend ? t.inviteReadyBadge : activating ? t.friendJoinedBadge : underReview ? t.reviewBadge : displayCompleted ? t.completeBadge : t.inviteAvailable;
   const title = waitingForFriend ? t.inviteReadyTitle : activating ? t.friendJoinedTitle : underReview ? t.reviewTitle : displayCompleted ? t.completeTitle : t.emptyTitle;
@@ -373,13 +343,7 @@ export function HomeClient() {
             {rewardRecord ? (
               <div className="completePanel">
                 <span className="completeIcon">✓</span>
-                <div><strong>{rewardPanelTitle}</strong><p>{rewardPanelDescription}</p>
-                  {claimAvailable ? (
-                    <button type="button" className="primaryAction claimAction" disabled={claimingReward} onClick={() => void claimReward()}>
-                      {claimingReward ? t.claimingReward : t.claimReward}<span aria-hidden="true">›</span>
-                    </button>
-                  ) : null}
-                </div>
+                <div><strong>{rewardPanelTitle}</strong><p>{rewardPanelDescription}</p></div>
               </div>
             ) : null}
 
@@ -464,7 +428,6 @@ export function HomeClient() {
         .completePanel { position:relative; z-index:1; margin-top:24px; padding:16px; display:flex; align-items:flex-start; gap:13px; border:1px solid rgba(90,222,166,.2); border-radius:18px; background:rgba(40,170,118,.08); }
         .completeIcon { flex:0 0 auto; width:38px; height:38px; display:grid; place-items:center; border-radius:50%; background:rgba(64,222,156,.18); color:#77efb9; font-weight:950; }
         .completePanel > div { min-width:0; flex:1; }.completePanel strong { font-size:.9rem; overflow-wrap:anywhere; }.completePanel p { margin:4px 0 0; color:#9eaa9f; font-size:.75rem; line-height:1.45; overflow-wrap:anywhere; }
-        .claimAction { min-height:46px; margin-top:13px; border-radius:14px; font-size:.84rem; }
         .cancelLink { position:relative; z-index:1; display:block; margin:18px auto 0; border:0; background:transparent; color:#8d879a; font:inherit; font-size:.74rem; font-weight:800; cursor:pointer; }
         .toast { width:min(100%,520px); box-sizing:border-box; margin:14px auto 0; padding:13px 15px; border:1px solid rgba(77,224,167,.18); border-radius:15px; background:rgba(33,159,111,.1); color:#7cefc0; font-size:.82rem; font-weight:800; overflow-wrap:anywhere; }
         .dappInfo { width:min(100%,520px); box-sizing:border-box; margin:18px auto 0; padding:16px 18px; border:1px solid rgba(255,255,255,.08); border-radius:16px; background:rgba(255,255,255,.035); }
