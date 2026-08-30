@@ -14,7 +14,7 @@ import {
 } from '@/lib/walletAuthServer';
 
 const RESOLVE_REVIEW_INTENT = 'RESOLVE_SYBIL_REVIEW';
-const INVITE_CODE_PATTERN = /^[A-Z0-9]{7}$/;
+const INVITE_CODE_PATTERN = /^[A-HJ-NP-Z2-9]{7}$/;
 const MIN_REASON_LENGTH = 12;
 const MAX_REASON_LENGTH = 500;
 const REVIEW_LIST_LIMIT = 100;
