@@ -3,11 +3,19 @@ import {
   NextResponse,
 } from 'next/server';
 
+import {
+  enforceRateLimits,
+} from '@/lib/rateLimitServer';
 import { supabaseAdmin } from '@/lib/supabaseServer';
 import {
   requireWalletSession,
   WalletAuthenticationError,
 } from '@/lib/walletAuthServer';
+
+const INVITE_CODE_PATTERN = /^[A-HJ-NP-Z2-9]{7}$/;
+const CLAIM_RATE_LIMIT_WINDOW_SECONDS = 60;
+const CLAIM_PER_WALLET_LIMIT = 10;
+const CLAIM_PER_INVITE_LIMIT = 4;
 
 type RewardClaimRow = {
   invite_code: string;
@@ -93,10 +101,11 @@ export async function POST(
       ?.trim()
       .toUpperCase() ?? '';
 
-  if (!inviteCode) {
+  if (!INVITE_CODE_PATTERN.test(inviteCode)) {
     return NextResponse.json(
       {
-        error: 'inviteCode is required.',
+        error:
+          'A valid 7-character inviteCode is required.',
       },
       {
         status: 400,
@@ -110,6 +119,30 @@ export async function POST(
   try {
     const session =
       await requireWalletSession({ request });
+
+    const rateLimitResponse =
+      await enforceRateLimits([
+        {
+          scope: 'reward_claim_wallet',
+          subject:
+            session.walletAddress.toLowerCase(),
+          limit: CLAIM_PER_WALLET_LIMIT,
+          windowSeconds:
+            CLAIM_RATE_LIMIT_WINDOW_SECONDS,
+        },
+        {
+          scope: 'reward_claim_invite',
+          subject: inviteCode,
+          limit: CLAIM_PER_INVITE_LIMIT,
+          windowSeconds:
+            CLAIM_RATE_LIMIT_WINDOW_SECONDS,
+        },
+      ]);
+
+    if (rateLimitResponse) {
+      return rateLimitResponse;
+    }
+
     const {
       data,
       error,
