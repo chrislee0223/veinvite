@@ -1,6 +1,12 @@
 'use client';
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type KeyboardEvent as ReactKeyboardEvent,
+} from 'react';
 import { createPortal } from 'react-dom';
 
 import { LanguageFlag } from './LanguageFlag';
@@ -21,6 +27,7 @@ export function HeaderLanguagePickerPortal() {
   const [open, setOpen] = useState(false);
   const pickerRef = useRef<HTMLDivElement | null>(null);
   const triggerRef = useRef<HTMLButtonElement | null>(null);
+  const menuRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     let activeSelect: HTMLSelectElement | null = null;
@@ -106,6 +113,16 @@ export function HeaderLanguagePickerPortal() {
     };
   }, [open]);
 
+  useEffect(() => {
+    if (!open) return;
+    window.requestAnimationFrame(() => {
+      const selected = menuRef.current?.querySelector<HTMLButtonElement>(
+        '.headerLanguageOption[aria-selected="true"]',
+      );
+      selected?.focus();
+    });
+  }, [open]);
+
   const chooseLocale = useCallback((nextLocale: Locale) => {
     if (!host) return;
     host.select.value = nextLocale;
@@ -114,6 +131,32 @@ export function HeaderLanguagePickerPortal() {
     setOpen(false);
     window.requestAnimationFrame(() => triggerRef.current?.focus());
   }, [host]);
+
+  const handleTriggerKeyDown = (event: ReactKeyboardEvent<HTMLButtonElement>) => {
+    if (event.key !== 'ArrowDown' && event.key !== 'ArrowUp') return;
+    event.preventDefault();
+    setOpen(true);
+  };
+
+  const handleMenuKeyDown = (event: ReactKeyboardEvent<HTMLDivElement>) => {
+    if (!['ArrowDown', 'ArrowUp', 'Home', 'End'].includes(event.key)) return;
+
+    const options = Array.from(
+      menuRef.current?.querySelectorAll<HTMLButtonElement>('.headerLanguageOption') ?? [],
+    );
+    if (options.length === 0) return;
+
+    event.preventDefault();
+    const currentIndex = Math.max(0, options.indexOf(document.activeElement as HTMLButtonElement));
+    let nextIndex = currentIndex;
+
+    if (event.key === 'ArrowDown') nextIndex = (currentIndex + 1) % options.length;
+    if (event.key === 'ArrowUp') nextIndex = (currentIndex - 1 + options.length) % options.length;
+    if (event.key === 'Home') nextIndex = 0;
+    if (event.key === 'End') nextIndex = options.length - 1;
+
+    options[nextIndex]?.focus();
+  };
 
   if (!host) return null;
 
@@ -131,6 +174,7 @@ export function HeaderLanguagePickerPortal() {
         aria-haspopup="listbox"
         aria-expanded={open}
         onClick={() => setOpen((value) => !value)}
+        onKeyDown={handleTriggerKeyDown}
       >
         <span className="headerLanguageFlag" aria-hidden="true">
           <LanguageFlag locale={current.locale} />
@@ -140,7 +184,13 @@ export function HeaderLanguagePickerPortal() {
       </button>
 
       {open ? (
-        <div className="headerLanguageMenu" role="listbox" aria-label={ariaLabel}>
+        <div
+          ref={menuRef}
+          className="headerLanguageMenu"
+          role="listbox"
+          aria-label={ariaLabel}
+          onKeyDown={handleMenuKeyDown}
+        >
           {LANGUAGE_OPTIONS.map((option) => {
             const selected = option.locale === locale;
             return (
