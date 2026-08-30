@@ -44,7 +44,7 @@ export const GUIDE_REWARD_STEP_COPY: Record<Locale, GuideRewardStepCopy> = {
   tr: {
     title: 'Doğrulamadan sonra ödül otomatik sıraya alınır',
     description:
-      'Son kontroller tamamlandığında ödülün otomatik olarak ödeme sırasına alınır. Ayrıca talep etmene gerek yok.',
+      'Son kontroller tamamlandığında ödülün otomatik olarak ödeme sırasına alınır. Ayrı bir talepte bulunmana gerek yok.',
   },
   nl: {
     title: 'Beloning wordt na controle automatisch klaargezet',
