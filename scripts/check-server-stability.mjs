@@ -8,21 +8,46 @@ function read(path) {
   return readFileSync(join(root, path), 'utf8');
 }
 
-const monitoringRoute = read(
-  'src/app/api/admin/monitoring/route.ts',
-);
-const authIndex = monitoringRoute.indexOf(
-  'await requireWalletSession',
-);
-const poolIndex = monitoringRoute.indexOf(
-  'await readVeInviteRewardPoolStatus',
-);
-
-if (authIndex < 0 || poolIndex < 0 || authIndex > poolIndex) {
-  failures.push(
-    'Operator monitoring must authenticate before starting VeChain reward-pool RPC reads.',
+function assertAuthBeforePool(path, label) {
+  const source = read(path);
+  const authIndex = source.indexOf(
+    'await requireWalletSession',
   );
+  const poolIndex = source.indexOf(
+    'await readVeInviteRewardPoolStatus',
+  );
+
+  if (
+    authIndex < 0 ||
+    poolIndex < 0 ||
+    authIndex > poolIndex
+  ) {
+    failures.push(
+      `${label} must authenticate before starting VeChain reward-pool RPC reads.`,
+    );
+  }
 }
+
+assertAuthBeforePool(
+  'src/app/api/admin/monitoring/route.ts',
+  'Operator monitoring',
+);
+assertAuthBeforePool(
+  'src/app/api/admin/analytics/route.ts',
+  'Operator analytics',
+);
+assertAuthBeforePool(
+  'src/app/api/admin/participants/route.ts',
+  'Participant overview',
+);
+assertAuthBeforePool(
+  'src/app/api/admin/reports/growth-round/route.ts',
+  'Round growth reporting',
+);
+assertAuthBeforePool(
+  'src/app/api/admin/sybil/onchain/route.ts',
+  'On-chain Sybil analytics',
+);
 
 const fundingRoute = read(
   'src/app/api/admin/funding-config/route.ts',
@@ -36,6 +61,16 @@ if (!/scope:\s*'admin_funding_config_ip'/.test(fundingRoute)) {
 if (!/getClientIpSubject\(request\)/.test(fundingRoute)) {
   failures.push(
     'Funding configuration endpoint is not deriving the reviewed client-IP rate-limit subject.',
+  );
+}
+
+const sybilRoute = read(
+  'src/app/api/admin/sybil/onchain/route.ts',
+);
+
+if (!/INVITE_CODE_PATTERN\s*=\s*\/\^\[A-HJ-NP-Z2-9\]\{7\}\$\//.test(sybilRoute)) {
+  failures.push(
+    'On-chain Sybil analytics invite-code validation is not aligned with the ambiguity-safe public format.',
   );
 }
 
