@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import type { ReactNode } from 'react';
 
 import { AppProviders } from '@/components/AppProviders';
+import { LocaleDocumentSync } from '@/components/LocaleDocumentSync';
 import './globals.css';
 import './header-language-flags.css';
 import './localized-typography.css';
@@ -51,6 +52,7 @@ export default function RootLayout({
     <html lang="en" suppressHydrationWarning>
       <body>
         <AppProviders>
+          <LocaleDocumentSync />
           {children}
         </AppProviders>
       </body>
