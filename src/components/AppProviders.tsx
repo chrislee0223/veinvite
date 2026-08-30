@@ -4,6 +4,8 @@ import type { ReactNode } from 'react';
 import { ChakraProvider, extendTheme } from '@chakra-ui/react';
 import dynamic from 'next/dynamic';
 
+import { HeaderLanguagePickerPortal } from './HeaderLanguagePickerPortal';
+
 const VeChainProvider = dynamic(
   () =>
     import('@/components/VeChainProvider').then(
@@ -36,6 +38,7 @@ export function AppProviders({
     <ChakraProvider theme={theme}>
       <VeChainProvider>
         {children}
+        <HeaderLanguagePickerPortal />
       </VeChainProvider>
     </ChakraProvider>
   );
