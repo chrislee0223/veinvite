@@ -91,7 +91,7 @@ export const LEADERBOARD_COPY: Record<Locale, LeaderboardCopy> = {
     loading: '리더보드를 불러오는 중이에요…',
     loadError: '리더보드를 불러오지 못했어요.',
     retry: '다시 불러오기',
-    walletDetails: '지갑 활동 확인',
+    walletDetails: '지갑 상세 정보',
     fullAddress: '전체 지갑 주소',
     viewExplorer: 'VeChain Explorer에서 확인',
     explorerNote:
@@ -229,7 +229,7 @@ export const LEADERBOARD_COPY: Record<Locale, LeaderboardCopy> = {
     loadError: 'ランキングを読み込めませんでした。',
     retry: 'もう一度試す',
     walletDetails: 'ウォレット詳細',
-    fullAddress: 'ウォレットの全アドレス',
+    fullAddress: 'ウォレットアドレス（全体）',
     viewExplorer: 'VeChain Explorerで確認',
     explorerNote:
       'Explorerには公開されているオンチェーン活動のみ表示されます。',
@@ -238,7 +238,7 @@ export const LEADERBOARD_COPY: Record<Locale, LeaderboardCopy> = {
       `ウォレット ${address} の詳細を表示`,
   },
   it: {
-    eyebrow: 'DA SEMPRE',
+    eyebrow: 'CLASSIFICA GENERALE',
     title: 'Classifica VeInvite',
     description:
       'Un invito entra in classifica solo quando l’amico ha completato tutte le missioni e chi lo ha invitato ha già ricevuto la ricompensa verificata.',
@@ -274,7 +274,7 @@ export const LEADERBOARD_COPY: Record<Locale, LeaderboardCopy> = {
   },
   tr: {
     eyebrow: 'TÜM ZAMANLAR',
-    title: 'VeInvite Liderlik Tablosu',
+    title: 'VeInvite Sıralaması',
     description:
       'Bir davet, yalnızca arkadaş tüm görevleri tamamladığında ve davet eden kişi doğrulanmış ödül ödemesini gerçekten aldığında sıralamaya dahil edilir.',
     impactTitle: 'VeInvite ile katılan kullanıcılar',
@@ -294,8 +294,8 @@ export const LEADERBOARD_COPY: Record<Locale, LeaderboardCopy> = {
     connectForRank:
       'Sıranı görmek için cüzdanını bağla.',
     empty: 'Henüz ödemesi tamamlanan bir davet ödülü yok.',
-    loading: 'Liderlik tablosu yükleniyor…',
-    loadError: 'Liderlik tablosu yüklenemedi.',
+    loading: 'Sıralama yükleniyor…',
+    loadError: 'Sıralama yüklenemedi.',
     retry: 'Tekrar dene',
     walletDetails: 'Cüzdan ayrıntıları',
     fullAddress: 'Tam cüzdan adresi',
@@ -307,7 +307,7 @@ export const LEADERBOARD_COPY: Record<Locale, LeaderboardCopy> = {
       `${address} cüzdanının ayrıntılarını görüntüle`,
   },
   nl: {
-    eyebrow: 'ALTIJD',
+    eyebrow: 'ALLER TIJDEN',
     title: 'VeInvite-ranglijst',
     description:
       'Een uitnodiging telt pas mee voor de ranglijst nadat de vriend alle missies heeft afgerond én de uitnodiger de geverifieerde beloning daadwerkelijk heeft ontvangen.',
