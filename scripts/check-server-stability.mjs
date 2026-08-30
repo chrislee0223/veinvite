@@ -147,6 +147,20 @@ if (
   );
 }
 
+const rewardClaimRoute = read(
+  'src/app/api/rewards/claims/route.ts',
+);
+
+if (
+  !/INVITE_CODE_PATTERN\s*=\s*\/\^\[A-HJ-NP-Z2-9\]\{7\}\$\//.test(rewardClaimRoute) ||
+  !/scope:\s*'reward_claim_wallet'/.test(rewardClaimRoute) ||
+  !/scope:\s*'reward_claim_invite'/.test(rewardClaimRoute)
+) {
+  failures.push(
+    'Legacy reward claims must reject malformed invite codes before DB work and remain throttled by authenticated wallet and invite code.',
+  );
+}
+
 if (failures.length > 0) {
   console.error('Server stability gate failed:');
   for (const failure of failures) {
