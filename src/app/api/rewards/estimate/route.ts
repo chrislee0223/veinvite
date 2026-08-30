@@ -1,5 +1,12 @@
-import { NextResponse } from 'next/server';
+import {
+  NextRequest,
+  NextResponse,
+} from 'next/server';
 
+import { enforceRateLimits } from '@/lib/rateLimitServer';
+import {
+  syncVeInviteAllocationReceipts,
+} from '@/lib/rewards/allocationAccounting';
 import {
   readVeInviteRewardPoolStatus,
   VEINVITE_APP_ID,
@@ -10,7 +17,8 @@ import { getVeBetterNetworkConfig } from '@/lib/vebetter/network';
 
 export const dynamic = 'force-dynamic';
 
-const CACHE_CONTROL = 'public, s-maxage=300, stale-while-revalidate=900';
+const CACHE_CONTROL = 'no-store';
+const ALLOCATION_SYNC_WINDOW_SECONDS = 60;
 
 type EstimateReason =
   | 'awaiting_first_allocation'
@@ -45,13 +53,44 @@ function readRoundId(value: string | number): number {
   return roundId;
 }
 
-export async function GET() {
+async function syncAllocationIfDue() {
+  const limited = await enforceRateLimits([
+    {
+      scope: 'public-reward-estimate-allocation-sync',
+      subject: 'global',
+      limit: 1,
+      windowSeconds: ALLOCATION_SYNC_WINDOW_SECONDS,
+    },
+  ]);
+
+  // A public estimate request must remain available even when another request
+  // already performed the shared sync or the limiter is temporarily degraded.
+  if (limited) {
+    return;
+  }
+
+  try {
+    await syncVeInviteAllocationReceipts();
+  } catch (error) {
+    // Allocation sync is best-effort here. The scheduled reconciliation worker
+    // remains the durable fallback, and stale data is safer than a fabricated
+    // reward estimate.
+    console.warn(
+      'Public reward estimate allocation sync failed:',
+      error,
+    );
+  }
+}
+
+export async function GET(_request: NextRequest) {
   try {
     const { network } = getVeBetterNetworkConfig();
 
-    // Avoid public VeChain RPC reads until VeInvite has a real allocation to
-    // base an estimate on. This also guarantees that we never invent a reward
-    // number before the first funded observation exists.
+    // Keep the public estimate close to the chain without allowing every page
+    // view to trigger an expensive allocation scan. The database-backed global
+    // throttle permits at most one best-effort sync per minute across users.
+    await syncAllocationIfDue();
+
     const { data: latestAllocation, error: allocationError } =
       await supabaseAdmin
         .from('vebetter_round_allocations')
