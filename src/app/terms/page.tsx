@@ -4,7 +4,7 @@ export default function TermsPage() {
   return (
     <main className="legalPage">
       <h1>VeInvite 이용약관 / Terms of Use</h1>
-      <p>최종 업데이트: 2026년 8월 28일 / Last updated: August 28, 2026</p>
+      <p>최종 업데이트: 2026년 8월 30일 / Last updated: August 30, 2026</p>
 
       <section lang="ko">
         <h2>한국어</h2>
@@ -33,8 +33,8 @@ export default function TermsPage() {
           초대받은 사용자의 dApp 활동, B3TR에서 VOT3로의 전환 및 Allocation
           Voting은 온보딩 검증 기준입니다. VeInvite는 이러한 행동을 이유로
           피추천자에게 동일 행동에 대한 별도의 B3TR 보상을 추가 지급하지
-          않습니다. funded referral rewards가 활성화된 경우, 자격을 갖춘 신규
-          또는 복귀 사용자를 실제 온보딩 완료까지 연결한 초대자가 최종 검증 후
+          않습니다. 추천 보상 재원이 활성화된 경우, 자격을 갖춘 신규 또는
+          복귀 사용자를 실제 온보딩 완료까지 연결한 초대자가 최종 검증 후
           추천 보상 대상이 될 수 있습니다.
         </p>
 

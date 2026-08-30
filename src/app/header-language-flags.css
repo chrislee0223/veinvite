@@ -1,47 +1,68 @@
 /*
- * The compact header uses a native <select> for maximum mobile reliability.
- * Native option rows cannot render our React SVG flag component consistently,
- * so show the selected language's flag inside the closed control instead.
- * The full first-run and Settings language pickers continue to render SVG flags
- * for every option.
+ * Compact language controls use native <select> elements for mobile reliability.
+ * Native option rows cannot render React SVG children consistently, so show the
+ * selected locale as an SVG background inside the closed control. Apply the same
+ * treatment to invitee language controls so no emoji/globe fallback appears.
  */
-select.languageSelect {
+:is(
+  select.languageSelect,
+  label.language select,
+  .centeredFlow label select,
+  .appHeader label select
+) {
   padding-left: 39px !important;
   background-repeat: no-repeat !important;
   background-position: 10px center !important;
   background-size: 22px 15px !important;
 }
 
-select.languageSelect:has(option[value='en']:checked) {
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 30 20'%3E%3Crect width='30' height='20' fill='%23fff'/%3E%3Cpath d='M0 0h30v1.54H0zm0 3.08h30v1.54H0zm0 3.08h30V7.7H0zm0 3.08h30v1.54H0zm0 3.08h30v1.54H0zm0 3.08h30v1.54H0zm0 3.08h30V20H0z' fill='%23b22234'/%3E%3Crect width='12' height='9' fill='%233c3b6e'/%3E%3C/svg%3E") !important;
+/* Remove the old globe/target glyphs beside invitee language selects. */
+label.language > span[aria-hidden='true'],
+.centeredFlow label > span[aria-hidden='true'],
+.appHeader label > span[aria-hidden='true'] {
+  display: none !important;
 }
-select.languageSelect:has(option[value='ko']:checked) {
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 30 20'%3E%3Crect width='30' height='20' fill='%23fff'/%3E%3Cpath d='M10 10a5 5 0 0 1 10 0z' fill='%23cd2e3a'/%3E%3Cpath d='M10 10a5 5 0 0 0 10 0z' fill='%230047a0'/%3E%3C/svg%3E") !important;
+
+:is(select.languageSelect, label.language select, .centeredFlow label select, .appHeader label select):has(option[value='en']:checked) {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 30 20'%3E%3Crect width='30' height='20' fill='%23fff'/%3E%3Cpath d='M0 0h30v1.54H0zm0 3.08h30v1.54H0zm0 3.08h30V7.7H0zm0 3.08h30v1.54H0zm0 3.08h30v1.54H0zm0 3.08h30v1.54H0zm0 3.08h30V20H0z' fill='%23b31942'/%3E%3Crect width='12.2' height='10.77' fill='%230a3161'/%3E%3C/svg%3E") !important;
 }
-select.languageSelect:has(option[value='zh']:checked) {
+
+:is(select.languageSelect, label.language select, .centeredFlow label select, .appHeader label select):has(option[value='ko']:checked) {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 30 20'%3E%3Crect width='30' height='20' fill='%23fff'/%3E%3Cg transform='rotate(-8 15 10)'%3E%3Cpath d='M11.25 10a3.75 3.75 0 0 1 7.5 0h-7.5z' fill='%23cd2e3a'/%3E%3Cpath d='M11.25 10a3.75 3.75 0 0 0 7.5 0h-7.5z' fill='%230047a0'/%3E%3Ccircle cx='13.125' cy='10' r='1.875' fill='%23cd2e3a'/%3E%3Ccircle cx='16.875' cy='10' r='1.875' fill='%230047a0'/%3E%3C/g%3E%3Cg fill='%23111' stroke='%23111' stroke-width='.58'%3E%3Cpath d='M3.8 3.1l4.1 2.65M3.5 4.15l4.1 2.65M3.2 5.2l4.1 2.65'/%3E%3Cpath d='M22.1 13.25l4.1 2.65M21.8 14.3l4.1 2.65M21.5 15.35l4.1 2.65'/%3E%3Cpath d='M22.1 6.75l4.1-2.65M21.8 5.7l4.1-2.65M21.5 4.65l4.1-2.65'/%3E%3Cpath d='M3.8 16.9l4.1-2.65M3.5 15.85l4.1-2.65M3.2 14.8l4.1-2.65'/%3E%3C/g%3E%3C/svg%3E") !important;
+}
+
+:is(select.languageSelect, label.language select, .centeredFlow label select, .appHeader label select):has(option[value='zh']:checked) {
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 30 20'%3E%3Crect width='30' height='20' fill='%23de2910'/%3E%3Cpolygon points='6,3 7.2,5.5 10,5.5 7.8,7.2 8.7,10 6,8.3 3.3,10 4.2,7.2 2,5.5 4.8,5.5' fill='%23ffde00'/%3E%3C/svg%3E") !important;
 }
-select.languageSelect:has(option[value='hi']:checked) {
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 30 20'%3E%3Crect width='30' height='6.67' fill='%23ff9933'/%3E%3Crect y='6.67' width='30' height='6.66' fill='%23fff'/%3E%3Crect y='13.33' width='30' height='6.67' fill='%23138808'/%3E%3Ccircle cx='15' cy='10' r='2' fill='none' stroke='%23000080' stroke-width='.6'/%3E%3C/svg%3E") !important;
+
+:is(select.languageSelect, label.language select, .centeredFlow label select, .appHeader label select):has(option[value='hi']:checked) {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 30 20'%3E%3Crect width='30' height='6.67' fill='%23ff671f'/%3E%3Crect y='6.67' width='30' height='6.66' fill='%23fff'/%3E%3Crect y='13.33' width='30' height='6.67' fill='%23046a38'/%3E%3Ccircle cx='15' cy='10' r='2' fill='none' stroke='%2306038d' stroke-width='.5'/%3E%3Ccircle cx='15' cy='10' r='.3' fill='%2306038d'/%3E%3C/svg%3E") !important;
 }
-select.languageSelect:has(option[value='es']:checked) {
+
+:is(select.languageSelect, label.language select, .centeredFlow label select, .appHeader label select):has(option[value='es']:checked) {
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 30 20'%3E%3Crect width='30' height='20' fill='%23aa151b'/%3E%3Crect y='5' width='30' height='10' fill='%23f1bf00'/%3E%3C/svg%3E") !important;
 }
-select.languageSelect:has(option[value='ja']:checked) {
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 30 20'%3E%3Crect width='30' height='20' fill='%23fff'/%3E%3Ccircle cx='15' cy='10' r='5' fill='%23bc002d'/%3E%3C/svg%3E") !important;
+
+:is(select.languageSelect, label.language select, .centeredFlow label select, .appHeader label select):has(option[value='ja']:checked) {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 30 20'%3E%3Crect width='30' height='20' fill='%23fff'/%3E%3Ccircle cx='15' cy='10' r='6' fill='%23bc002d'/%3E%3C/svg%3E") !important;
 }
-select.languageSelect:has(option[value='it']:checked) {
+
+:is(select.languageSelect, label.language select, .centeredFlow label select, .appHeader label select):has(option[value='it']:checked) {
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 30 20'%3E%3Crect width='10' height='20' fill='%23009246'/%3E%3Crect x='10' width='10' height='20' fill='%23fff'/%3E%3Crect x='20' width='10' height='20' fill='%23ce2b37'/%3E%3C/svg%3E") !important;
 }
-select.languageSelect:has(option[value='tr']:checked) {
+
+:is(select.languageSelect, label.language select, .centeredFlow label select, .appHeader label select):has(option[value='tr']:checked) {
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 30 20'%3E%3Crect width='30' height='20' fill='%23e30a17'/%3E%3Ccircle cx='12' cy='10' r='5' fill='%23fff'/%3E%3Ccircle cx='14' cy='10' r='4' fill='%23e30a17'/%3E%3Ccircle cx='19' cy='10' r='1.3' fill='%23fff'/%3E%3C/svg%3E") !important;
 }
-select.languageSelect:has(option[value='nl']:checked) {
+
+:is(select.languageSelect, label.language select, .centeredFlow label select, .appHeader label select):has(option[value='nl']:checked) {
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 30 20'%3E%3Crect width='30' height='6.67' fill='%23ae1c28'/%3E%3Crect y='6.67' width='30' height='6.66' fill='%23fff'/%3E%3Crect y='13.33' width='30' height='6.67' fill='%2321468b'/%3E%3C/svg%3E") !important;
 }
-select.languageSelect:has(option[value='de']:checked) {
+
+:is(select.languageSelect, label.language select, .centeredFlow label select, .appHeader label select):has(option[value='de']:checked) {
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 30 20'%3E%3Crect width='30' height='6.67' fill='%23000'/%3E%3Crect y='6.67' width='30' height='6.66' fill='%23dd0000'/%3E%3Crect y='13.33' width='30' height='6.67' fill='%23ffce00'/%3E%3C/svg%3E") !important;
 }
-select.languageSelect:has(option[value='fr']:checked) {
+
+:is(select.languageSelect, label.language select, .centeredFlow label select, .appHeader label select):has(option[value='fr']:checked) {
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 30 20'%3E%3Crect width='10' height='20' fill='%230055a4'/%3E%3Crect x='10' width='10' height='20' fill='%23fff'/%3E%3Crect x='20' width='10' height='20' fill='%23ef4135'/%3E%3C/svg%3E") !important;
 }

@@ -7,3 +7,13 @@
 .liveStatus ~ .cancelLink {
   display: none !important;
 }
+
+/*
+ * Referral rewards are enrolled automatically after final verification.
+ * The legacy manual-claim handler remains server-side only for recovery and
+ * compatibility, so a future status-mapping regression must never resurrect a
+ * user-facing Claim button.
+ */
+.claimAction {
+  display: none !important;
+}
