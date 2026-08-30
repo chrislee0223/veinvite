@@ -127,7 +127,21 @@ if (
   !/grant execute on function public\.issue_wallet_session_after_verified_challenge[\s\S]*to service_role;/.test(authMigration)
 ) {
   failures.push(
-    'Wallet authentication migration is missing its concurrency, atomicity, or privilege hardening.',
+    'Wallet authentication migration is missing its challenge concurrency, atomicity, or privilege hardening.',
+  );
+}
+
+const sessionSerializationMigration = read(
+  'supabase/migrations/20260830092018_serialize_wallet_session_issuance.sql',
+);
+
+if (
+  !/wallet_auth_sessions_one_unrevoked_per_wallet_idx/.test(sessionSerializationMigration) ||
+  !/pg_advisory_xact_lock/.test(sessionSerializationMigration) ||
+  !/veinvite_wallet_session_/.test(sessionSerializationMigration)
+) {
+  failures.push(
+    'Wallet session issuance must serialize concurrent logins and enforce one unrevoked session per wallet.',
   );
 }
 
