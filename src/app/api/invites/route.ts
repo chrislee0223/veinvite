@@ -78,6 +78,17 @@ function toInvitationRow(
   return value as InvitationRow;
 }
 
+function userVisibleRewardQueueStatus(
+  status: RewardQueueStatus,
+): RewardQueueStatus {
+  // `AWAITING_CLAIM` is retained only for backward-compatible database/API
+  // recovery. Modern VeInvite automatically queues a fully verified reward,
+  // so users must never be told that a separate claim action is required.
+  return status === 'AWAITING_CLAIM'
+    ? 'QUEUED'
+    : status;
+}
+
 function toInviteRecord(
   row: InvitationRow,
   rewardQueue?: RewardQueueRow,
@@ -97,7 +108,9 @@ function toInviteRecord(
     ...(rewardQueue
       ? {
           rewardQueueStatus:
-            rewardQueue.status,
+            userVisibleRewardQueueStatus(
+              rewardQueue.status,
+            ),
         }
       : {}),
     ...(rewardQueue?.claim_requested_at

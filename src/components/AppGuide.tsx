@@ -1,8 +1,15 @@
 import { GUIDE_COPY } from '@/lib/i18n/guideCopy';
+import { GUIDE_REWARD_STEP_COPY } from '@/lib/i18n/guideRewardStepCopy';
 import type { Locale } from '@/lib/i18n/locales';
 
 export function AppGuide({ locale }: { locale: Locale }) {
   const t = GUIDE_COPY[locale];
+  const rewardStep = GUIDE_REWARD_STEP_COPY[locale];
+  const steps = [
+    t.steps[0],
+    t.steps[1],
+    rewardStep,
+  ];
 
   return (
     <section className="guidePage">
@@ -13,7 +20,7 @@ export function AppGuide({ locale }: { locale: Locale }) {
       </header>
 
       <ol className="steps">
-        {t.steps.map((step, index) => (
+        {steps.map((step, index) => (
           <li key={step.title}>
             <span className="stepNumber">{index + 1}</span>
             <div>
