@@ -1,7 +1,3 @@
-create unique index if not exists wallet_auth_challenges_one_unused_per_context_idx
-on public.wallet_auth_challenges (wallet_address, origin, network)
-where used_at is null and origin is not null and network is not null;
-
 create or replace function public.issue_wallet_session_after_verified_challenge(
   p_challenge_id bigint,
   p_wallet_address text,
