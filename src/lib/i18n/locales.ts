@@ -21,23 +21,23 @@ export const LANGUAGE_STORAGE_KEY =
 export type LanguageOption = {
   locale: Locale;
   nativeName: string;
-  symbol: string;
 };
 
-// `symbol` is intentionally a flag emoji because app-controlled language
-// pickers render it directly next to each native language name.
+// Country flags are rendered exclusively through the app-owned LanguageFlag
+// SVG component. Keeping emoji metadata here would make it too easy for a
+// future picker to accidentally fall back to platform-dependent flag artwork.
 export const LANGUAGE_OPTIONS: LanguageOption[] = [
-  { locale: 'en', nativeName: 'English', symbol: '🇺🇸' },
-  { locale: 'ko', nativeName: '한국어', symbol: '🇰🇷' },
-  { locale: 'zh', nativeName: '简体中文', symbol: '🇨🇳' },
-  { locale: 'hi', nativeName: 'हिन्दी', symbol: '🇮🇳' },
-  { locale: 'es', nativeName: 'Español', symbol: '🇪🇸' },
-  { locale: 'ja', nativeName: '日本語', symbol: '🇯🇵' },
-  { locale: 'it', nativeName: 'Italiano', symbol: '🇮🇹' },
-  { locale: 'tr', nativeName: 'Türkçe', symbol: '🇹🇷' },
-  { locale: 'nl', nativeName: 'Nederlands', symbol: '🇳🇱' },
-  { locale: 'de', nativeName: 'Deutsch', symbol: '🇩🇪' },
-  { locale: 'fr', nativeName: 'Français', symbol: '🇫🇷' },
+  { locale: 'en', nativeName: 'English' },
+  { locale: 'ko', nativeName: '한국어' },
+  { locale: 'zh', nativeName: '简体中文' },
+  { locale: 'hi', nativeName: 'हिन्दी' },
+  { locale: 'es', nativeName: 'Español' },
+  { locale: 'ja', nativeName: '日本語' },
+  { locale: 'it', nativeName: 'Italiano' },
+  { locale: 'tr', nativeName: 'Türkçe' },
+  { locale: 'nl', nativeName: 'Nederlands' },
+  { locale: 'de', nativeName: 'Deutsch' },
+  { locale: 'fr', nativeName: 'Français' },
 ];
 
 const SUPPORTED_LOCALE_SET =

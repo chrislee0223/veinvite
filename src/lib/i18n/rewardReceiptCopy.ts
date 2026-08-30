@@ -138,7 +138,7 @@ export const REWARD_RECEIPT_COPY: Record<Locale, RewardReceiptCopy> = {
     eyebrow: 'RÉCOMPENSE DE PARRAINAGE VERSÉE',
     title: 'Votre récompense B3TR est arrivée',
     description: 'La récompense VeInvite vérifiée liée à votre invitation a été versée sur ce wallet.',
-    round: 'Round VeBetterDAO',
+    round: 'Cycle VeBetterDAO',
     invite: 'Code d’invitation',
     transaction: 'Transaction',
     viewTransaction: 'Voir dans VeChain Explorer',
