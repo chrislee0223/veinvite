@@ -1,0 +1,177 @@
+/*
+ * Locale-aware wrapping for user-facing VeInvite copy.
+ *
+ * Several component styles intentionally used `overflow-wrap: anywhere` as a
+ * defensive mobile fallback. That can split ordinary translated words in the
+ * middle, which looks broken in languages such as German, Dutch, Spanish, and
+ * Turkish. Keep normal word boundaries for prose and controls instead, while
+ * leaving technical fields such as `code` elements free to use their own
+ * overflow rules.
+ */
+:is(
+  .screen,
+  .guidePage,
+  .settingsPage,
+  .leaderboardPage,
+  .rewardReceiptNotice,
+  .centeredFlow,
+  .appShell
+) :where(
+  h1,
+  h2,
+  h3,
+  p,
+  button,
+  a,
+  strong,
+  b,
+  small,
+  span,
+  dt,
+  dd,
+  em,
+  label
+) {
+  overflow-wrap: normal !important;
+  word-break: normal !important;
+  hyphens: none;
+}
+
+/* Korean should wrap by words/phrases rather than between Hangul syllables. */
+html[lang='ko'] :is(
+  .screen,
+  .guidePage,
+  .settingsPage,
+  .leaderboardPage,
+  .rewardReceiptNotice,
+  .centeredFlow,
+  .appShell
+) :where(
+  h1,
+  h2,
+  h3,
+  p,
+  button,
+  a,
+  strong,
+  b,
+  small,
+  span,
+  dt,
+  dd,
+  em,
+  label
+) {
+  word-break: keep-all !important;
+}
+
+/* Chinese and Japanese do not rely on spaces for normal line opportunities. */
+html[lang='zh'] :is(
+  .screen,
+  .guidePage,
+  .settingsPage,
+  .leaderboardPage,
+  .rewardReceiptNotice,
+  .centeredFlow,
+  .appShell
+),
+html[lang='ja'] :is(
+  .screen,
+  .guidePage,
+  .settingsPage,
+  .leaderboardPage,
+  .rewardReceiptNotice,
+  .centeredFlow,
+  .appShell
+) {
+  line-break: strict;
+  word-break: normal;
+}
+
+/* Balanced headlines and prettier paragraph endings reduce awkward 1-word rows. */
+:is(
+  .screen,
+  .guidePage,
+  .settingsPage,
+  .leaderboardPage,
+  .rewardReceiptNotice,
+  .centeredFlow,
+  .appShell
+) :where(h1, h2, h3) {
+  text-wrap: balance;
+}
+
+:is(
+  .screen,
+  .guidePage,
+  .settingsPage,
+  .leaderboardPage,
+  .rewardReceiptNotice,
+  .centeredFlow,
+  .appShell
+) :where(p) {
+  text-wrap: pretty;
+}
+
+/* Two-line-capable controls should stay vertically comfortable. */
+:is(.screen, .centeredFlow, .appShell, .settingsPage, .rewardReceiptNotice) button {
+  line-height: 1.25;
+}
+
+/* Home and invite landing progress labels keep their icons aligned even when
+ * one locale needs two lines and another needs only one. */
+.screen .step b,
+.screen .stepLabel {
+  min-height: 2.5em;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  text-align: center;
+  line-height: 1.25;
+  text-wrap: balance;
+}
+
+/* Long translated badges need vertical breathing room when they wrap. */
+.screen .badge,
+.screen .inviteBadge {
+  padding-top: 5px;
+  padding-bottom: 5px;
+  line-height: 1.25;
+  text-align: center;
+}
+
+/* Bottom navigation: allow a second line instead of clipping a translated
+ * label, while keeping every tab label on the same two-line baseline. */
+.bottomNavigation button span {
+  min-height: 2.2em;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+  text-overflow: clip !important;
+  white-space: normal !important;
+  overflow-wrap: normal !important;
+  word-break: normal !important;
+  line-height: 1.1;
+  text-align: center;
+}
+
+html[lang='ko'] .bottomNavigation button span {
+  word-break: keep-all !important;
+}
+
+html[lang='zh'] .bottomNavigation button span,
+html[lang='ja'] .bottomNavigation button span {
+  line-break: strict;
+  word-break: normal !important;
+}
+
+/* Keep the three receipt fact values aligned when one translated label wraps. */
+@media (min-width: 421px) {
+  .rewardReceiptNotice dt {
+    min-height: 2.3em;
+    display: flex;
+    align-items: flex-end;
+    line-height: 1.15;
+  }
+}
