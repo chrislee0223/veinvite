@@ -28,6 +28,16 @@ function assertAuthBeforePool(path, label) {
   }
 }
 
+function assertSafeInviteCodePattern(path, label) {
+  const source = read(path);
+
+  if (!/INVITE_CODE_PATTERN\s*=\s*\/\^\[A-HJ-NP-Z2-9\]\{7\}\$\//.test(source)) {
+    failures.push(
+      `${label} invite-code validation is not aligned with the ambiguity-safe public format.`,
+    );
+  }
+}
+
 assertAuthBeforePool(
   'src/app/api/admin/monitoring/route.ts',
   'Operator monitoring',
@@ -64,15 +74,14 @@ if (!/getClientIpSubject\(request\)/.test(fundingRoute)) {
   );
 }
 
-const sybilRoute = read(
+assertSafeInviteCodePattern(
   'src/app/api/admin/sybil/onchain/route.ts',
+  'On-chain Sybil analytics',
 );
-
-if (!/INVITE_CODE_PATTERN\s*=\s*\/\^\[A-HJ-NP-Z2-9\]\{7\}\$\//.test(sybilRoute)) {
-  failures.push(
-    'On-chain Sybil analytics invite-code validation is not aligned with the ambiguity-safe public format.',
-  );
-}
+assertSafeInviteCodePattern(
+  'src/app/api/admin/sybil/review/route.ts',
+  'Manual Sybil review',
+);
 
 const inviteCodeMigration = read(
   'supabase/migrations/20260830083500_align_invite_code_constraint.sql',
