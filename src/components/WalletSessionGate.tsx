@@ -105,6 +105,42 @@ export function WalletSessionGate({
     };
   }, []);
 
+  useEffect(() => {
+    const handleWalletDisconnected = () => {
+      // VeChainKit emits this event for genuine wallet disconnects. Unlike a
+      // temporary null account during initial auto-reconnect, it is therefore
+      // safe to revoke the server-side VeInvite session here. If a signature
+      // flow is still settling, clearWalletSession waits for it and then
+      // revokes whatever session was created, preventing a disconnected wallet
+      // from leaving a valid authentication cookie behind.
+      attemptRef.current += 1;
+      autoAttemptedWalletRef.current = null;
+      setVerifiedWallet(null);
+      setState('idle');
+
+      void clearWalletSession().catch(
+        (error) => {
+          console.error(
+            'Failed to clear VeInvite session after wallet disconnect event:',
+            error,
+          );
+        },
+      );
+    };
+
+    window.addEventListener(
+      'wallet_disconnected',
+      handleWalletDisconnected,
+    );
+
+    return () => {
+      window.removeEventListener(
+        'wallet_disconnected',
+        handleWalletDisconnected,
+      );
+    };
+  }, [clearWalletSession]);
+
   const verify = useCallback(async () => {
     if (!walletAddress) {
       setState('idle');
