@@ -131,6 +131,22 @@ if (
   );
 }
 
+const cronRoute = read(
+  'src/app/api/cron/reconcile/route.ts',
+);
+
+if (
+  !/failedStages/.test(cronRoute) ||
+  !/ALLOCATION_SYNC/.test(cronRoute) ||
+  !/RECONCILIATION/.test(cronRoute) ||
+  !/if \(summary\)/.test(cronRoute) ||
+  !/status:\s*hasCoreFailure\s*\?\s*500\s*:\s*200/.test(cronRoute)
+) {
+  failures.push(
+    'Scheduled reconciliation must isolate independent stage failures, gate growth reporting on successful reconciliation, and surface partial core failures as HTTP 500.',
+  );
+}
+
 if (failures.length > 0) {
   console.error('Server stability gate failed:');
   for (const failure of failures) {
