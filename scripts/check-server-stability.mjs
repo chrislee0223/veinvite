@@ -116,6 +116,21 @@ if (!/issue_wallet_session_after_verified_challenge/.test(authVerifyRoute)) {
   );
 }
 
+const authPredeployMigration = read(
+  'supabase/migrations/20260830085000_prepare_wallet_auth_rpc_predeploy.sql',
+);
+
+if (
+  !/issue_wallet_session_after_verified_challenge/.test(authPredeployMigration) ||
+  !/pg_advisory_xact_lock/.test(authPredeployMigration) ||
+  !/veinvite_wallet_session_/.test(authPredeployMigration) ||
+  /create\s+unique\s+index/i.test(authPredeployMigration)
+) {
+  failures.push(
+    'Wallet authentication predeploy migration must provide the serialized RPC without introducing uniqueness constraints before the compatible app code is live.',
+  );
+}
+
 const authMigration = read(
   'supabase/migrations/20260830090238_harden_wallet_auth_atomicity.sql',
 );
