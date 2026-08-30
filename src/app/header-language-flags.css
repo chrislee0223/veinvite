@@ -16,6 +16,32 @@
   background-size: 22px 15px !important;
 }
 
+/*
+ * Flag artwork must render on its own canvas. Do not paint a white tile behind
+ * every country: that creates a visible white sticker around flags whose real
+ * field is not white. Korea and Japan still keep their legitimate white field
+ * because it is part of their SVG artwork.
+ */
+:is(
+  .headerLanguageFlag,
+  .headerLanguageOptionFlag,
+  .languageSymbol,
+  .languageOptionSymbol,
+  .languageGrid .symbol
+) {
+  background: transparent !important;
+}
+
+/* LanguageFlag now renders an <img>. Size it consistently in every picker,
+ * including older component CSS that still targets inline svg elements only. */
+.flagSvg {
+  width: 100% !important;
+  height: 100% !important;
+  display: block !important;
+  object-fit: contain !important;
+  background: transparent !important;
+}
+
 /* Remove the old globe/target glyphs beside invitee language selects. */
 label.language > span[aria-hidden='true'],
 .centeredFlow label > span[aria-hidden='true'],
