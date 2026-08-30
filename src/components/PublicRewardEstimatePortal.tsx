@@ -258,25 +258,48 @@ export function PublicRewardEstimatePortal() {
   useEffect(() => {
     if (!mount) return;
 
-    const controller = new AbortController();
-    setUnavailable(false);
-    setEstimate(null);
+    let active = true;
+    let controller: AbortController | null = null;
 
-    void fetch('/api/rewards/estimate', {
-      cache: 'no-store',
-      signal: controller.signal,
-    })
-      .then(async (response) => {
-        if (!response.ok) throw new Error('Reward estimate request failed.');
-        return (await response.json()) as RewardEstimateResponse;
+    const loadEstimate = () => {
+      controller?.abort();
+      controller = new AbortController();
+      setUnavailable(false);
+
+      void fetch('/api/rewards/estimate', {
+        cache: 'no-store',
+        signal: controller.signal,
       })
-      .then((result) => setEstimate(result))
-      .catch((error: unknown) => {
-        if (error instanceof DOMException && error.name === 'AbortError') return;
-        setUnavailable(true);
-      });
+        .then(async (response) => {
+          if (!response.ok) throw new Error('Reward estimate request failed.');
+          return (await response.json()) as RewardEstimateResponse;
+        })
+        .then((result) => {
+          if (active) setEstimate(result);
+        })
+        .catch((error: unknown) => {
+          if (error instanceof DOMException && error.name === 'AbortError') return;
+          if (active) setUnavailable(true);
+        });
+    };
 
-    return () => controller.abort();
+    setEstimate(null);
+    loadEstimate();
+
+    const intervalId = window.setInterval(loadEstimate, 60_000);
+    const refreshWhenVisible = () => {
+      if (document.visibilityState === 'visible') {
+        loadEstimate();
+      }
+    };
+    document.addEventListener('visibilitychange', refreshWhenVisible);
+
+    return () => {
+      active = false;
+      window.clearInterval(intervalId);
+      document.removeEventListener('visibilitychange', refreshWhenVisible);
+      controller?.abort();
+    };
   }, [mount]);
 
   if (!mount) return null;
