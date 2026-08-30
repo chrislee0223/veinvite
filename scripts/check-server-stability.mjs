@@ -38,6 +38,18 @@ function assertSafeInviteCodePattern(path, label) {
   }
 }
 
+const nextConfig = read('next.config.mjs');
+if (
+  !/X-Content-Type-Options/.test(nextConfig) ||
+  !/strict-origin-when-cross-origin/.test(nextConfig) ||
+  !/Permissions-Policy/.test(nextConfig) ||
+  !/camera=\(\), microphone=\(\), geolocation=\(\)/.test(nextConfig)
+) {
+  failures.push(
+    'Reviewed low-risk browser security headers must remain enabled without adding wallet-breaking CSP or cross-origin opener restrictions.',
+  );
+}
+
 assertAuthBeforePool(
   'src/app/api/admin/monitoring/route.ts',
   'Operator monitoring',
