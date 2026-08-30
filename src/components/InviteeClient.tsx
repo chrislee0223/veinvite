@@ -51,6 +51,16 @@ type InviteApiResponse = {
   entryClass?: EntryClass | 'active_existing_user';
 };
 
+class InviteRequestError extends Error {
+  readonly status: number;
+
+  constructor(status: number) {
+    super(`Invite request failed with status ${status}.`);
+    this.name = 'InviteRequestError';
+    this.status = status;
+  }
+}
+
 const DEFAULT_PROGRESS: InviteProgress = {
   appsCompleted: 0,
   appsRequired: 3,
@@ -63,6 +73,28 @@ const DEFAULT_PROGRESS: InviteProgress = {
   activationBlock: null,
   latestBlock: null,
 };
+
+async function readInviteResponse(
+  response: Response,
+): Promise<InviteApiResponse> {
+  let data: InviteApiResponse = {};
+
+  try {
+    data = (await response.json()) as InviteApiResponse;
+  } catch {
+    if (!response.ok) {
+      throw new InviteRequestError(response.status);
+    }
+
+    throw new InviteRequestError(502);
+  }
+
+  if (!response.ok) {
+    throw new InviteRequestError(response.status);
+  }
+
+  return data;
+}
 
 export function InviteeClient({ code }: { code: string }) {
   const wallet = useActiveWallet();
@@ -85,9 +117,10 @@ export function InviteeClient({ code }: { code: string }) {
 
   const loadInviteProgress = useCallback(async () => {
     try {
-      const response = await fetch(`/api/invites/${code}`, { cache: 'no-store' });
-      const data = (await response.json()) as InviteApiResponse;
-      if (!response.ok) throw new Error('INVALID_INVITE');
+      const response = await fetch(`/api/invites/${code}`, {
+        cache: 'no-store',
+      });
+      const data = await readInviteResponse(response);
       if (data.invite) setInvite(data.invite);
       if (data.progress) setProgress(data.progress);
       return data;
@@ -116,8 +149,19 @@ export function InviteeClient({ code }: { code: string }) {
   }, [languageReady, locale, setKitLanguage]);
 
   useEffect(() => {
-    void loadInviteProgress().catch(() => {
-      setErrorCode('invalidLink');
+    void loadInviteProgress().catch((error: unknown) => {
+      const status = error instanceof InviteRequestError
+        ? error.status
+        : null;
+
+      // Only a real 404/410 means the invitation is unavailable. Temporary
+      // node, database, throttling, or network failures must not tell the user
+      // that a valid invite has expired.
+      setErrorCode(
+        status === 404 || status === 410
+          ? 'invalidLink'
+          : 'eligibility',
+      );
       setStep('error');
     });
   }, [loadInviteProgress]);
@@ -174,57 +218,79 @@ export function InviteeClient({ code }: { code: string }) {
     setStep('checking');
     await new Promise((resolve) => setTimeout(resolve, 850));
 
-    const response = await fetch(`/api/invites/${code}/claim`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        inviteeAddress: wallet,
-        demoOutcome: demoOutcome === 'success' ? undefined : demoOutcome,
-      }),
-    });
-    const data = (await response.json()) as InviteApiResponse;
+    try {
+      const response = await fetch(`/api/invites/${code}/claim`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          inviteeAddress: wallet,
+          demoOutcome: demoOutcome === 'success' ? undefined : demoOutcome,
+        }),
+      });
 
-    if (response.status === 202 || data.outcome === 'review') {
-      setStep('review');
-      return;
-    }
+      let data: InviteApiResponse = {};
+      try {
+        data = (await response.json()) as InviteApiResponse;
+      } catch {
+        // A malformed/transient server response is retryable and must never
+        // leave the interface permanently stuck on the checking screen.
+      }
 
-    if (!response.ok) {
-      if (response.status === 409 || data.outcome === 'already_used') setErrorCode('used');
-      else if (data.outcome === 'active_existing_user') setErrorCode('existing');
-      else if (data.outcome === 'self_referral') setErrorCode('selfReferral');
-      else if (data.outcome === 'already_referred') setErrorCode('other');
-      else if (demoOutcome === 'existing') setErrorCode('existing');
-      else if (demoOutcome === 'other') setErrorCode('other');
-      else setErrorCode('eligibility');
+      if (response.status === 202 || data.outcome === 'review') {
+        setStep('review');
+        return;
+      }
+
+      if (!response.ok) {
+        if (response.status === 404) setErrorCode('invalidLink');
+        else if (response.status === 409 || data.outcome === 'already_used') setErrorCode('used');
+        else if (data.outcome === 'active_existing_user') setErrorCode('existing');
+        else if (data.outcome === 'self_referral') setErrorCode('selfReferral');
+        else if (data.outcome === 'already_referred') setErrorCode('other');
+        else if (demoOutcome === 'existing') setErrorCode('existing');
+        else if (demoOutcome === 'other') setErrorCode('other');
+        else setErrorCode('eligibility');
+        setStep('error');
+        return;
+      }
+
+      setClaimedThisSession(true);
+      if (data.entryClass === 'new_user' || data.entryClass === 'returning_user') setEntryClass(data.entryClass);
+      if (data.invite) setInvite(data.invite);
+      setProgress(DEFAULT_PROGRESS);
+      setStep('success');
+    } catch (error) {
+      console.error('Failed to claim invite:', error);
+      setErrorCode('eligibility');
       setStep('error');
-      return;
     }
-
-    setClaimedThisSession(true);
-    if (data.entryClass === 'new_user' || data.entryClass === 'returning_user') setEntryClass(data.entryClass);
-    if (data.invite) setInvite(data.invite);
-    setProgress(DEFAULT_PROGRESS);
-    setStep('success');
   };
 
   const completeMissions = async () => {
-    const response = await fetch(`/api/invites/${code}/complete`, { method: 'POST' });
-    const data = await response.json();
-    if (!response.ok) {
+    try {
+      const response = await fetch(`/api/invites/${code}/complete`, {
+        method: 'POST',
+      });
+      const data = await response.json();
+      if (!response.ok) {
+        setErrorCode('complete');
+        setStep('error');
+        return;
+      }
+      setInvite(data.invite);
+      setProgress({
+        ...DEFAULT_PROGRESS,
+        appsCompleted: 3,
+        rewardsReceived: 3,
+        vot3Converted: true,
+        vot3ConversionAmountWei: DEFAULT_PROGRESS.vot3MinimumAmountWei,
+        voteCompleted: true,
+      });
+    } catch (error) {
+      console.error('Failed to complete demo missions:', error);
       setErrorCode('complete');
       setStep('error');
-      return;
     }
-    setInvite(data.invite);
-    setProgress({
-      ...DEFAULT_PROGRESS,
-      appsCompleted: 3,
-      rewardsReceived: 3,
-      vot3Converted: true,
-      vot3ConversionAmountWei: DEFAULT_PROGRESS.vot3MinimumAmountWei,
-      voteCompleted: true,
-    });
   };
 
   if (!languageReady) {
@@ -432,6 +498,7 @@ function LanguageSwitcher({
     >
       <span aria-hidden="true">🌐</span>
       <select
+        className="languageSelect"
         aria-label={INVITEE_COPY[locale].languageChanged}
         value={locale}
         onChange={(event) => onChange(event.target.value as Locale)}

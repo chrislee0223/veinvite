@@ -1,8 +1,8 @@
 /*
  * Native language selects remain as a resilient data/control fallback, while the
- * top-bar selector is progressively enhanced by HeaderLanguagePickerPortal.
- * Any native selector that remains visible uses the same app-owned flag assets,
- * so selected flags cannot drift away from LanguageFlag.
+ * app-owned picker progressively enhances them. Any native selector that remains
+ * visible uses the same flag assets, so selected flags cannot drift away from
+ * LanguageFlag.
  */
 :is(
   select.languageSelect,
@@ -14,6 +14,19 @@
   background-repeat: no-repeat !important;
   background-position: 10px center !important;
   background-size: 22px 15px !important;
+}
+
+/*
+ * Once the native select has been enhanced, remove the old label chrome so the
+ * custom trigger does not sit inside a second border/background. Keep positioning
+ * (fixed/inline/header layout) owned by the original label.
+ */
+label:has(> select.languageSelect.languageSelectNativeEnhanced) {
+  height: auto !important;
+  padding: 0 !important;
+  gap: 0 !important;
+  border: 0 !important;
+  background: transparent !important;
 }
 
 /*
@@ -32,8 +45,8 @@
   background: transparent !important;
 }
 
-/* LanguageFlag now renders an <img>. Size it consistently in every picker,
- * including older component CSS that still targets inline svg elements only. */
+/* LanguageFlag renders an <img>. Size it consistently in every picker,
+ * including older component CSS that may still target inline svg elements. */
 .flagSvg {
   width: 100% !important;
   height: 100% !important;
@@ -60,3 +73,23 @@ label.language > span[aria-hidden='true'],
 :is(select.languageSelect, label.language select, .centeredFlow label select, .appHeader label select):has(option[value='nl']:checked) { background-image:url('/flags/nl.svg') !important; }
 :is(select.languageSelect, label.language select, .centeredFlow label select, .appHeader label select):has(option[value='de']:checked) { background-image:url('/flags/de.svg') !important; }
 :is(select.languageSelect, label.language select, .centeredFlow label select, .appHeader label select):has(option[value='fr']:checked) { background-image:url('/flags/fr.svg') !important; }
+
+/* Very narrow phones cannot fit the full brand + invitee chip + 155px picker on
+ * one row. Stack only the right-hand actions and trim the picker width. */
+@media (max-width: 380px) {
+  .appHeader {
+    align-items: flex-start !important;
+  }
+
+  .appHeader > div {
+    max-width: 58%;
+    flex-direction: column-reverse !important;
+    align-items: flex-end !important;
+    gap: 6px !important;
+  }
+
+  .appHeader .headerLanguagePickerMount,
+  .appHeader .headerLanguagePicker {
+    width: 132px !important;
+  }
+}

@@ -35,7 +35,7 @@ export function InviteLandingV2({
         <Brand compact />
         <label className="language">
           <span aria-hidden="true">◎</span>
-          <select aria-label={t.languageAria} value={locale} onChange={(event) => onLocaleChange(event.target.value as Locale)}>
+          <select className="languageSelect" aria-label={t.languageAria} value={locale} onChange={(event) => onLocaleChange(event.target.value as Locale)}>
             {LANGUAGE_OPTIONS.map((option) => (
               <option key={option.locale} value={option.locale}>{option.nativeName}</option>
             ))}
