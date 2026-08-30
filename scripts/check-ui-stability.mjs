@@ -85,6 +85,18 @@ if (!/EVIDENCE_SYNC_INTERVAL_MS\s*=\s*5 \* 60_000/.test(homeRefresh)) {
   failures.push('Inviter evidence reconciliation fallback is missing or unbounded.');
 }
 
+const walletSessionGate = read(
+  'src/components/WalletSessionGate.tsx',
+);
+if (
+  !/addEventListener\(\s*'wallet_disconnected'/.test(walletSessionGate) ||
+  !/clearWalletSession\(\)/.test(walletSessionGate)
+) {
+  failures.push(
+    'Wallet disconnect events must revoke the VeInvite server session instead of leaving a stale authentication cookie.',
+  );
+}
+
 const uiSafety = read('src/app/ui-safety.css');
 if (!/\.claimAction\s*\{[^}]*display\s*:\s*none\s*!important/i.test(uiSafety)) {
   failures.push('Legacy manual Claim UI safety rule is missing.');
