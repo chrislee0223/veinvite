@@ -24,6 +24,16 @@ for (const code of [
   requireFile(`public/flags/${code}.svg`);
 }
 
+const spainFlag = read('public/flags/es.svg');
+if (
+  !/viewBox="0 0 750 500"/.test(spainFlag) ||
+  !/translate\(170 182\)/.test(spainFlag)
+) {
+  failures.push(
+    'Spain flag must retain its reviewed small-screen crest detail instead of regressing to a plain red-yellow-red placeholder.',
+  );
+}
+
 const pickerFiles = {
   'src/components/LanguageSelectV2.tsx': [
     /\.symbol\s*\{[^}]*background\s*:\s*#fff/i,
