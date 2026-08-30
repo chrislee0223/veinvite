@@ -60,7 +60,7 @@ export function LanguageSelectV2({ locale, onSelect, onContinue }: LanguageSelec
         .languageCard:hover { border-color:rgba(255,205,80,.36); }
         .languageCard.selected { border-color:#f4b728; background:linear-gradient(135deg,rgba(244,183,40,.22),rgba(244,183,40,.07)); box-shadow:0 0 0 1px rgba(244,183,40,.16); }
         .symbol { width:42px; height:28px; display:grid; place-items:center; overflow:hidden; border-radius:6px; background:#fff; box-shadow:0 0 0 1px rgba(0,0,0,.22),0 1px 4px rgba(0,0,0,.22); }
-        .symbol :global(svg) { width:100%; height:100%; display:block; }
+        .symbol :global(svg), .symbol :global(img) { width:100%; height:100%; display:block; object-fit:contain; }
         .languageText { min-width:0; }
         .languageText strong { display:block; font-size:.94rem; font-weight:900; overflow-wrap:anywhere; }
         .check { width:26px; height:26px; display:grid; place-items:center; border:1px solid rgba(255,255,255,.1); border-radius:50%; font-size:.8rem; }
