@@ -1,15 +1,39 @@
 # VeInvite
 
-VeInvite is a verified referral-onboarding and reactivation dApp for the VeBetterDAO ecosystem.
+VeInvite is a verified onboarding and growth dApp for the VeBetterDAO ecosystem.
 
-The repository includes a production-oriented VeChain Mainnet architecture with VeChain Kit / VeWorld wallet verification, Supabase-backed invitation state, NEW / RETURNING / ACTIVE EXISTING entry classification, positive-B3TR dApp reward evidence, B3TR → VOT3 conversion verification, Allocation Voting verification, Sybil gating, reward eligibility constraints, an automatic referral-reward queue, immutable payout manifests, finalized transaction verification, and VeBetterDAO round/allocation accounting.
+## Core flow
 
-Key safety properties include one active invite per inviter, one VeInvite lifecycle per invitee wallet, self-referral rejection, fail-closed chain verification, immutable eligibility evidence, raw impact-event provenance, execution-order checks, database-enforced reward eligibility, one payout per successful referral, and reward rounds that must be bound to an actual on-chain VeBetterDAO allocation receipt.
+- An inviter creates one invite.
+- The invitee connects a wallet and is checked against VeInvite entry rules.
+- Progress is verified from VeChain / VeBetterDAO evidence rather than self-reported completion.
+- Qualified referrals enter the automatic reward queue.
+- Public reporting and leaderboard surfaces expose aggregate and wallet-level audit context.
 
-The current on-chain funding split is 20% team / operations and 80% VeInvite user reward pool. VeInvite's intended funded reward recipient is the **inviter** for successful verified onboarding; the invitee does not receive an additional VeInvite B3TR payout for the dApp, B3TR-to-VOT3, or Allocation Voting actions used as onboarding evidence.
+## Safety model
 
-**Mainnet funded referral payouts are not enabled yet.** When enabled, VeInvite will not hold an unattended server private key: the operator must approve the immutable multi-clause payout transaction in VeWorld, register the transaction ID, and complete finalized chain verification before settlement can be marked PAID.
+VeInvite keeps Production and Preview infrastructure separated. A non-production deployment is not allowed to access the reviewed Production Supabase project, and a Production deployment is not allowed to silently fall back to a non-mainnet VeBetter network.
 
-Public round reporting is designed to reconcile the actual VeBetterDAO round, immutable allocation receipt, team/reward-pool split, carry-over, verified referral counts, and settled B3TR payouts. The public reporting baseline remains disabled until explicitly set at launch.
+Mainnet-funded reward preparation remains controlled by explicit runtime safety switches and is not enabled by ordinary UI or deployment changes.
 
-See `README_KO.md` and the `docs/` directory for additional project notes.
+## Development
+
+```bash
+npm install
+npm run dev
+```
+
+Validation before release:
+
+```bash
+npm run typecheck
+npm run test:rewards
+npm run build
+node scripts/check-migration-history.mjs
+node scripts/check-ui-stability.mjs
+node scripts/check-server-stability.mjs
+```
+
+## Deployment note
+
+Preview deployments must use the dedicated Preview Supabase project. Wallet authentication rollout uses a compatibility migration that installs the atomic session RPC before the application depends on it; uniqueness constraints are applied only once the compatible application code is live.
