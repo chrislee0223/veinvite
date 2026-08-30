@@ -11,6 +11,9 @@ import {
   readVeInviteRewardPoolStatus,
 } from '@/lib/rewards/onchainPool';
 import {
+  readPredictiveRewardPlanning,
+} from '@/lib/rewards/predictivePlanning';
+import {
   refreshQueuedReferralSignalChecks,
 } from '@/lib/sybil/vePassportSignals';
 import { supabaseAdmin } from '@/lib/supabaseServer';
@@ -19,7 +22,7 @@ import {
   WalletAuthenticationError,
 } from '@/lib/walletAuthServer';
 
-const ROUND_ID_PATTERN = /^\d+$/;
+const POSITIVE_INTEGER_PATTERN = /^\d+$/;
 const PREPARE_INTENT =
   'PREPARE_REWARD_ROUND';
 
@@ -42,8 +45,20 @@ function requestHasSameOrigin(
   }
 }
 
-function parseRoundId(
+function readRecord(
   value: unknown,
+  fieldName: string,
+): Record<string, unknown> {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    throw new Error(`${fieldName} is malformed.`);
+  }
+
+  return value as Record<string, unknown>;
+}
+
+function readOptionalId(
+  value: unknown,
+  fieldName: string,
 ): string | null {
   if (value === null || value === undefined) {
     return null;
@@ -52,12 +67,10 @@ function parseRoundId(
   const normalized = String(value);
 
   if (
-    !ROUND_ID_PATTERN.test(normalized) ||
+    !POSITIVE_INTEGER_PATTERN.test(normalized) ||
     BigInt(normalized) < 1n
   ) {
-    throw new Error(
-      'prepare_reward_round_with_allocation returned an invalid round id.',
-    );
+    throw new Error(`${fieldName} must be a positive integer.`);
   }
 
   return BigInt(normalized).toString();
@@ -151,7 +164,7 @@ export async function POST(
     const openRoundResult =
       await supabaseAdmin
         .from('reward_rounds')
-        .select('id, status, vebetter_round_id')
+        .select('id, status, reward_budget_epoch_id, vebetter_round_id')
         .eq('network', pool.network)
         .eq('app_id', pool.appId)
         .in('status', ['CREATED', 'PAYING'])
@@ -169,7 +182,7 @@ export async function POST(
       return NextResponse.json(
         {
           error:
-            'Finish the current reward round before preparing another one.',
+            'Finish the current reward batch before preparing another one.',
           code: 'ACTIVE_REWARD_ROUND_EXISTS',
           activeRound: openRoundResult.data,
           pool,
@@ -186,8 +199,8 @@ export async function POST(
       );
     }
 
-    // Record any official AllocationRewardsClaimed events before reserving a
-    // payout round. This is idempotent and stores only immutable chain proof.
+    // Keep official funding evidence current before calculating any reward.
+    // This never transfers B3TR and only records immutable on-chain proof.
     const allocationSync =
       await syncVeInviteAllocationReceipts();
     const allocationReceipt =
@@ -223,50 +236,6 @@ export async function POST(
       );
     }
 
-    const alreadyProcessedResult =
-      await supabaseAdmin
-        .from('reward_rounds')
-        .select('id, status, vebetter_round_id, allocation_receipt_id')
-        .eq('network', pool.network)
-        .eq('app_id', pool.appId)
-        .eq(
-          'vebetter_round_id',
-          allocationReceipt.vebetter_round_id,
-        )
-        .limit(1)
-        .maybeSingle();
-
-    if (alreadyProcessedResult.error) {
-      throw new Error(
-        `VeBetter allocation round could not be checked: ${alreadyProcessedResult.error.message}`,
-      );
-    }
-
-    if (alreadyProcessedResult.data) {
-      return NextResponse.json(
-        {
-          error:
-            'This VeBetterDAO allocation round has already been processed by VeInvite.',
-          code: 'ALLOCATION_ROUND_ALREADY_PROCESSED',
-          veBetterRoundId:
-            allocationReceipt.vebetter_round_id,
-          rewardRound:
-            alreadyProcessedResult.data,
-          pool,
-          roundCreated: false,
-          writesPerformed:
-            allocationSync.insertedCount > 0,
-          transfersPerformed: false,
-        },
-        {
-          status: 409,
-          headers: {
-            'Cache-Control': 'no-store',
-          },
-        },
-      );
-    }
-
     if (
       BigInt(
         allocationReceipt.rewards_allocation_amount_wei,
@@ -295,84 +264,106 @@ export async function POST(
       );
     }
 
-    if (
-      BigInt(
-        allocationReceipt.rewards_allocation_amount_wei,
-      ) > BigInt(pool.effectiveRewardPoolWei)
-    ) {
-      return NextResponse.json(
-        {
-          error:
-            'The official allocation receipt exceeds the currently available VeInvite reward pool.',
-          code: 'ALLOCATION_POOL_BALANCE_MISMATCH',
-          veBetterRoundId:
-            allocationReceipt.vebetter_round_id,
-          allocationReceipt,
-          pool,
-          roundCreated: false,
-          writesPerformed:
-            allocationSync.insertedCount > 0,
-          transfersPerformed: false,
-        },
-        {
-          status: 409,
-          headers: {
-            'Cache-Control': 'no-store',
-          },
-        },
-      );
-    }
-
-    // Community security guidance recommends checking the shared Signal Admin
-    // immediately before rewards are granted. Revalidate every queued referral
-    // against the reviewed VePassport contract here, after funding is proven
-    // but before the database can reserve any payout.
+    // Revalidate every queued referral immediately before financial
+    // reservation. The predictor never weakens the existing Sybil gate.
     const signalPreflight =
       await refreshQueuedReferralSignalChecks({
         network: pool.network,
       });
 
+    const planning =
+      await readPredictiveRewardPlanning({
+        network: pool.network,
+        appId: pool.appId,
+        observedPoolBalanceWei:
+          pool.effectiveRewardPoolWei,
+      });
+
+    if (
+      !planning.latestAllocation ||
+      planning.latestAllocation.id !==
+        String(allocationReceipt.id)
+    ) {
+      throw new Error(
+        'Predictive reward planning did not resolve the latest allocation receipt.',
+      );
+    }
+
+    if (!planning.forecast) {
+      throw new Error(
+        'Predictive reward forecast could not be calculated.',
+      );
+    }
+
     const { data, error } =
       await supabaseAdmin.rpc(
-        'prepare_reward_round_with_allocation',
+        'prepare_predictive_reward_batch',
         {
           p_network: pool.network,
           p_app_id: pool.appId,
           p_pool_balance_wei:
             pool.effectiveRewardPoolWei,
-          p_vebetter_round_id:
-            allocationReceipt.vebetter_round_id,
           p_allocation_receipt_id:
-            allocationReceipt.id,
+            planning.latestAllocation.id,
+          p_expected_completions:
+            planning.forecast.expectedCompletions,
+          p_stress_completions:
+            planning.forecast.stressCompletions,
+          p_reward_per_invite_wei:
+            planning.forecast.rewardPerInviteWei,
+          p_algorithm_version:
+            planning.forecast.algorithmVersion,
+          p_pipeline_snapshot:
+            planning.forecast.pipeline,
         },
       );
 
     if (error) {
       throw new Error(
-        `prepare_reward_round_with_allocation failed: ${error.message}`,
+        `prepare_predictive_reward_batch failed: ${error.message}`,
       );
     }
 
-    const roundId = parseRoundId(data);
+    const prepareResult = readRecord(
+      data,
+      'prepare_predictive_reward_batch result',
+    );
+    const roundId = readOptionalId(
+      prepareResult.roundId,
+      'roundId',
+    );
+    const epochId = readOptionalId(
+      prepareResult.epochId,
+      'epochId',
+    );
+    const reason = String(
+      prepareResult.reason ?? 'UNKNOWN',
+    );
 
     if (!roundId) {
       return NextResponse.json(
         {
           roundCreated: false,
-          reason:
-            BigInt(pool.effectiveRewardPoolWei) === 0n
-              ? 'NO_REWARD_POOL_BALANCE'
-              : 'NO_SETTLEABLE_CANDIDATES_OR_AVAILABLE_BALANCE',
+          reason,
+          rewardBudgetEpochId: epochId,
           veBetterRoundId:
             allocationReceipt.vebetter_round_id,
           allocationReceipt,
+          allocationSync: {
+            insertedCount:
+              allocationSync.insertedCount,
+            observedClaims:
+              allocationSync.observedClaims,
+          },
           signalPreflight,
+          planning,
           pool,
           verifiedOperator:
             session.walletAddress,
           writesPerformed:
             allocationSync.insertedCount > 0 ||
-            signalPreflight.checkedCount > 0,
+            signalPreflight.checkedCount > 0 ||
+            epochId !== null,
           transfersPerformed: false,
         },
         {
@@ -388,7 +379,7 @@ export async function POST(
         supabaseAdmin
           .from('reward_rounds')
           .select(
-            'id, network, app_id, status, vebetter_round_id, allocation_receipt_id, allocation_rewards_wei, opening_carryover_wei, observed_pool_balance_wei, reserved_before_round_wei, distributable_wei, eligible_count, per_reward_wei, remainder_wei, created_at',
+            'id, network, app_id, status, reward_budget_epoch_id, observed_pool_balance_wei, reserved_before_round_wei, distributable_wei, eligible_count, per_reward_wei, remainder_wei, created_at',
           )
           .eq('id', roundId)
           .single(),
@@ -405,7 +396,7 @@ export async function POST(
 
     if (roundResult.error) {
       throw new Error(
-        `Prepared reward round could not be reloaded: ${roundResult.error.message}`,
+        `Prepared reward batch could not be reloaded: ${roundResult.error.message}`,
       );
     }
 
@@ -418,6 +409,8 @@ export async function POST(
     return NextResponse.json(
       {
         roundCreated: true,
+        reason,
+        rewardBudgetEpochId: epochId,
         veBetterRoundId:
           allocationReceipt.vebetter_round_id,
         allocationReceipt,
@@ -428,6 +421,7 @@ export async function POST(
             allocationSync.observedClaims,
         },
         signalPreflight,
+        planning,
         pool,
         verifiedOperator:
           session.walletAddress,
@@ -459,14 +453,14 @@ export async function POST(
     }
 
     console.error(
-      'Failed to prepare VeInvite reward round:',
+      'Failed to prepare predictive VeInvite reward batch:',
       error,
     );
 
     return NextResponse.json(
       {
         error:
-          'VeInvite reward round could not be prepared.',
+          'VeInvite predictive reward batch could not be prepared.',
       },
       {
         status: 500,
