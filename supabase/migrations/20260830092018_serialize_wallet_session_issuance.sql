@@ -1,7 +1,3 @@
-create unique index if not exists wallet_auth_sessions_one_unrevoked_per_wallet_idx
-on public.wallet_auth_sessions (wallet_address)
-where revoked_at is null;
-
 create or replace function public.issue_wallet_session_after_verified_challenge(
   p_challenge_id bigint,
   p_wallet_address text,
