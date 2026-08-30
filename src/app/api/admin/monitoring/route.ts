@@ -62,10 +62,12 @@ export async function GET(
   }
 
   try {
-    const [session, pool] = await Promise.all([
-      requireWalletSession({ request }),
-      readVeInviteRewardPoolStatus(),
-    ]);
+    // Authenticate before any external RPC work. This keeps unauthenticated
+    // traffic from using the operator endpoint as a VeChain RPC amplifier.
+    const session =
+      await requireWalletSession({ request });
+    const pool =
+      await readVeInviteRewardPoolStatus();
 
     if (
       !canOperateVeInviteRewards(
