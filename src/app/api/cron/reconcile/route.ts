@@ -12,6 +12,7 @@ import {
 import {
   DEFAULT_RECONCILIATION_BATCH_SIZE,
   runReconciliationBatch,
+  type ReconciliationBatchSummary,
 } from '@/lib/impact/reconcileBatch';
 import {
   runOperatorMonitoringAudit,
@@ -63,6 +64,22 @@ function authorizeCron(request: NextRequest) {
   return { ok: true as const };
 }
 
+type CronStageFailure =
+  | 'ALLOCATION_SYNC'
+  | 'RECONCILIATION'
+  | 'ROUND_GROWTH_REPORTING'
+  | 'MONITORING';
+
+function logStageFailure(
+  stage: CronStageFailure,
+  error: unknown,
+) {
+  console.error(
+    `Scheduled reconciliation stage ${stage} failed:`,
+    error,
+  );
+}
+
 /**
  * Vercel Cron entrypoint.
  *
@@ -73,6 +90,13 @@ function authorizeCron(request: NextRequest) {
  * changes Sybil decisions, pauses rewards, deletes audit/reward evidence, or
  * transfers B3TR. Vercel automatically sends
  * `Authorization: Bearer <CRON_SECRET>` when CRON_SECRET is configured.
+ *
+ * Independent stages are deliberately isolated. A transient allocation RPC
+ * failure must not prevent invitation reconciliation or anomaly monitoring.
+ * Growth reporting is the exception: it runs only after reconciliation has
+ * succeeded so a partially refreshed evidence set cannot be snapshotted as a
+ * completed reporting round. Any core-stage failure still returns HTTP 500 so
+ * the deployment remains visibly unhealthy even when later stages complete.
  */
 export async function GET(
   request: NextRequest,
@@ -92,111 +116,143 @@ export async function GET(
     );
   }
 
+  const failedStages: CronStageFailure[] = [];
+  let allocationSync: Awaited<
+    ReturnType<typeof syncVeInviteAllocationReceipts>
+  > | null = null;
+  let summary: ReconciliationBatchSummary | null = null;
+  let roundGrowthReports: Awaited<
+    ReturnType<typeof maintainRoundGrowthSnapshots>
+  > | null = null;
+  let housekeeping: EphemeralCleanupSummary | null = null;
+  let monitoring: Awaited<
+    ReturnType<typeof runOperatorMonitoringAudit>
+  > | null = null;
+
   try {
-    const allocationSync =
+    allocationSync =
       await syncVeInviteAllocationReceipts();
-    const summary =
+  } catch (error) {
+    failedStages.push('ALLOCATION_SYNC');
+    logStageFailure('ALLOCATION_SYNC', error);
+  }
+
+  try {
+    summary =
       await runReconciliationBatch(
         DEFAULT_RECONCILIATION_BATCH_SIZE,
       );
-    const roundGrowthReports =
-      await maintainRoundGrowthSnapshots();
+  } catch (error) {
+    failedStages.push('RECONCILIATION');
+    logStageFailure('RECONCILIATION', error);
+  }
 
-    let housekeeping: EphemeralCleanupSummary | null = null;
-
+  if (summary) {
     try {
-      housekeeping =
-        await cleanupEphemeralSecurityState();
-    } catch (cleanupError) {
-      // Housekeeping is deliberately best-effort. A cleanup failure must not
-      // block evidence reconciliation, allocation sync, or anomaly monitoring.
-      console.warn(
-        'VeInvite ephemeral housekeeping failed:',
-        cleanupError,
+      roundGrowthReports =
+        await maintainRoundGrowthSnapshots();
+    } catch (error) {
+      failedStages.push(
+        'ROUND_GROWTH_REPORTING',
+      );
+      logStageFailure(
+        'ROUND_GROWTH_REPORTING',
+        error,
       );
     }
+  }
 
-    const monitoring =
+  try {
+    housekeeping =
+      await cleanupEphemeralSecurityState();
+  } catch (cleanupError) {
+    // Housekeeping is deliberately best-effort. A cleanup failure must not
+    // block evidence reconciliation, allocation sync, or anomaly monitoring.
+    console.warn(
+      'VeInvite ephemeral housekeeping failed:',
+      cleanupError,
+    );
+  }
+
+  try {
+    monitoring =
       await runOperatorMonitoringAudit(
         'VERCEL_CRON',
       );
-
-    if (monitoring.severity === 'CRITICAL') {
-      console.error(
-        'VeInvite operator monitoring detected critical anomalies:',
-        {
-          snapshotId: monitoring.snapshotId,
-          network: monitoring.network,
-          alerts: monitoring.alerts.map(
-            (alert) => alert.code,
-          ),
-        },
-      );
-    } else if (
-      monitoring.severity === 'WARNING'
-    ) {
-      console.warn(
-        'VeInvite operator monitoring detected warning signals:',
-        {
-          snapshotId: monitoring.snapshotId,
-          network: monitoring.network,
-          alerts: monitoring.alerts.map(
-            (alert) => alert.code,
-          ),
-        },
-      );
-    }
-
-    return NextResponse.json(
-      {
-        ...summary,
-        allocationSync: {
-          network: allocationSync.network,
-          observedClaims:
-            allocationSync.observedClaims,
-          insertedCount:
-            allocationSync.insertedCount,
-          latestVeBetterRoundId:
-            allocationSync.latestReceipt
-              ?.vebetter_round_id ?? null,
-        },
-        roundGrowthReports,
-        housekeeping,
-        monitoring: {
-          snapshotId: monitoring.snapshotId,
-          severity: monitoring.severity,
-          alertCount: monitoring.alertCount,
-          alerts: monitoring.alerts.map(
-            (alert) => alert.code,
-          ),
-        },
-        trigger: 'VERCEL_CRON',
-      },
-      {
-        headers: {
-          'Cache-Control': 'no-store',
-        },
-      },
-    );
   } catch (error) {
-    console.error(
-      'Scheduled reconciliation failed:',
-      error,
-    );
+    failedStages.push('MONITORING');
+    logStageFailure('MONITORING', error);
+  }
 
-    return NextResponse.json(
+  if (monitoring?.severity === 'CRITICAL') {
+    console.error(
+      'VeInvite operator monitoring detected critical anomalies:',
       {
-        error:
-          'Scheduled reconciliation failed.',
-        rewardRoundsPrepared: false,
-        transfersPerformed: false,
+        snapshotId: monitoring.snapshotId,
+        network: monitoring.network,
+        alerts: monitoring.alerts.map(
+          (alert) => alert.code,
+        ),
       },
+    );
+  } else if (
+    monitoring?.severity === 'WARNING'
+  ) {
+    console.warn(
+      'VeInvite operator monitoring detected warning signals:',
       {
-        status: 500,
-        headers: {
-          'Cache-Control': 'no-store',
-        },
+        snapshotId: monitoring.snapshotId,
+        network: monitoring.network,
+        alerts: monitoring.alerts.map(
+          (alert) => alert.code,
+        ),
       },
     );
   }
+
+  const hasCoreFailure =
+    failedStages.length > 0;
+
+  return NextResponse.json(
+    {
+      ...(summary ?? {
+        rewardRoundsPrepared: false,
+        transfersPerformed: false,
+      }),
+      reconciliation: summary,
+      allocationSync: allocationSync
+        ? {
+            network: allocationSync.network,
+            observedClaims:
+              allocationSync.observedClaims,
+            insertedCount:
+              allocationSync.insertedCount,
+            latestVeBetterRoundId:
+              allocationSync.latestReceipt
+                ?.vebetter_round_id ?? null,
+          }
+        : null,
+      roundGrowthReports,
+      housekeeping,
+      monitoring: monitoring
+        ? {
+            snapshotId: monitoring.snapshotId,
+            severity: monitoring.severity,
+            alertCount: monitoring.alertCount,
+            alerts: monitoring.alerts.map(
+              (alert) => alert.code,
+            ),
+          }
+        : null,
+      trigger: 'VERCEL_CRON',
+      partialFailure: hasCoreFailure,
+      failedStages,
+    },
+    {
+      status: hasCoreFailure ? 500 : 200,
+      headers: {
+        'Cache-Control': 'no-store',
+      },
+    },
+  );
 }
