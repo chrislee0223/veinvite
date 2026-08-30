@@ -9,6 +9,8 @@ import {
 } from '@/lib/vebetter/network';
 
 const PAGE_SIZE = 250;
+const SCAN_OVERLAP_BLOCKS = 24;
+const INITIAL_SCAN_LOOKBACK_BLOCKS = 500_000;
 const UINT_WORD_PATTERN = /^[0-9a-f]{64}$/;
 const TX_ID_PATTERN = /^0x[0-9a-f]{64}$/;
 const ADDRESS_PATTERN = /^0x[0-9a-f]{40}$/;
@@ -68,6 +70,12 @@ export type StoredVeBetterAllocation = {
   observed_at: string;
 };
 
+type StoredAllocationScanCheckpoint = {
+  network: VeBetterNetwork;
+  last_scanned_block: string | number;
+  updated_at: string;
+};
+
 function getSingleTopic(
   topic: `0x${string}` | `0x${string}`[] | null | undefined,
 ): string | undefined {
@@ -99,6 +107,19 @@ function parseAddressWord(word: string, label: string): string {
 function parseIndexedAddress(topic: string | undefined, label: string): string {
   const normalized = topic?.toLowerCase().replace(/^0x/, '') ?? '';
   return parseAddressWord(normalized, label);
+}
+
+function parseBlockNumber(
+  value: string | number,
+  label: string,
+): number {
+  const parsed = Number(value);
+
+  if (!Number.isSafeInteger(parsed) || parsed < 0) {
+    throw new Error(`${label} is invalid.`);
+  }
+
+  return parsed;
 }
 
 function decodeAllocationData(data: string | undefined) {
@@ -198,23 +219,38 @@ function parseLog({
 
 export async function readVeInviteAllocationEvidence({
   fromBlock = 0,
+  toBlock,
 }: {
   fromBlock?: number;
+  toBlock?: number;
 } = {}): Promise<VeBetterAllocationEvidence[]> {
   if (!Number.isSafeInteger(fromBlock) || fromBlock < 0) {
     throw new Error('Allocation scan start block is invalid.');
   }
 
+  if (
+    toBlock !== undefined &&
+    (!Number.isSafeInteger(toBlock) || toBlock < 0)
+  ) {
+    throw new Error('Allocation scan end block is invalid.');
+  }
+
   const { network, nodeUrl } = getVeBetterNetworkConfig();
   const xAllocationPoolAddress = X_ALLOCATION_POOL_ADDRESSES[network];
   const thor = ThorClient.at(nodeUrl);
-  const bestBlock = await thor.blocks.getBestBlockCompressed();
+  let scanToBlock = toBlock;
 
-  if (!bestBlock || !Number.isSafeInteger(bestBlock.number) || bestBlock.number < 0) {
-    throw new Error('Unable to establish a valid allocation scan head.');
+  if (scanToBlock === undefined) {
+    const bestBlock = await thor.blocks.getBestBlockCompressed();
+
+    if (!bestBlock || !Number.isSafeInteger(bestBlock.number) || bestBlock.number < 0) {
+      throw new Error('Unable to establish a valid allocation scan head.');
+    }
+
+    scanToBlock = bestBlock.number;
   }
 
-  if (fromBlock > bestBlock.number) {
+  if (fromBlock > scanToBlock) {
     return [];
   }
 
@@ -230,7 +266,7 @@ export async function readVeInviteAllocationEvidence({
       range: {
         unit: 'block',
         from: fromBlock,
-        to: bestBlock.number,
+        to: scanToBlock,
       },
       options: {
         offset,
@@ -381,9 +417,60 @@ async function persistEvidence(
   );
 }
 
+async function loadAllocationScanCheckpoint(
+  network: VeBetterNetwork,
+): Promise<StoredAllocationScanCheckpoint | null> {
+  const { data, error } = await supabaseAdmin
+    .from('vebetter_allocation_scan_checkpoints')
+    .select('network, last_scanned_block, updated_at')
+    .eq('network', network)
+    .maybeSingle();
+
+  if (error) {
+    throw new Error(
+      `VeBetter allocation scan checkpoint could not be loaded: ${error.message}`,
+    );
+  }
+
+  return (data as StoredAllocationScanCheckpoint | null) ?? null;
+}
+
+async function saveAllocationScanCheckpoint(
+  network: VeBetterNetwork,
+  lastScannedBlock: number,
+) {
+  if (!Number.isSafeInteger(lastScannedBlock) || lastScannedBlock < 0) {
+    throw new Error('VeBetter allocation scan checkpoint block is invalid.');
+  }
+
+  const { error } = await supabaseAdmin
+    .from('vebetter_allocation_scan_checkpoints')
+    .upsert(
+      {
+        network,
+        last_scanned_block: lastScannedBlock,
+        updated_at: new Date().toISOString(),
+      },
+      { onConflict: 'network' },
+    );
+
+  if (error) {
+    throw new Error(
+      `VeBetter allocation scan checkpoint could not be saved: ${error.message}`,
+    );
+  }
+}
+
 export async function syncVeInviteAllocationReceipts() {
-  const { network } = getVeBetterNetworkConfig();
+  const { network, nodeUrl } = getVeBetterNetworkConfig();
   const appId = VEINVITE_APP_ID.toLowerCase();
+  const thor = ThorClient.at(nodeUrl);
+  const bestBlock = await thor.blocks.getBestBlockCompressed();
+
+  if (!bestBlock || !Number.isSafeInteger(bestBlock.number) || bestBlock.number < 0) {
+    throw new Error('Unable to establish a valid allocation sync head.');
+  }
+
   const latestStored = await supabaseAdmin
     .from('vebetter_round_allocations')
     .select('claim_block_number')
@@ -399,15 +486,35 @@ export async function syncVeInviteAllocationReceipts() {
     );
   }
 
-  const fromBlock = latestStored.data?.claim_block_number
-    ? Number(latestStored.data.claim_block_number)
-    : 0;
+  const checkpoint = await loadAllocationScanCheckpoint(network);
+  const latestStoredBlock = latestStored.data?.claim_block_number === null ||
+    latestStored.data?.claim_block_number === undefined
+    ? null
+    : parseBlockNumber(
+        latestStored.data.claim_block_number,
+        'Stored allocation block',
+      );
+  const checkpointBlock = checkpoint === null
+    ? null
+    : parseBlockNumber(
+        checkpoint.last_scanned_block,
+        'Stored allocation scan checkpoint',
+      );
 
-  if (!Number.isSafeInteger(fromBlock) || fromBlock < 0) {
-    throw new Error('Stored allocation block is invalid.');
-  }
+  const anchorCandidates = [latestStoredBlock, checkpointBlock]
+    .filter((value): value is number => value !== null)
+    .map((value) => Math.min(value, bestBlock.number));
+  const anchorBlock = anchorCandidates.length > 0
+    ? Math.max(...anchorCandidates)
+    : null;
+  const fromBlock = anchorBlock === null
+    ? Math.max(0, bestBlock.number - INITIAL_SCAN_LOOKBACK_BLOCKS)
+    : Math.max(0, anchorBlock - SCAN_OVERLAP_BLOCKS);
 
-  const chainEvidence = await readVeInviteAllocationEvidence({ fromBlock });
+  const chainEvidence = await readVeInviteAllocationEvidence({
+    fromBlock,
+    toBlock: bestBlock.number,
+  });
   let insertedCount = 0;
 
   for (const evidence of chainEvidence) {
@@ -416,6 +523,11 @@ export async function syncVeInviteAllocationReceipts() {
       insertedCount += 1;
     }
   }
+
+  // Move the cursor only after every event in the scanned range has been
+  // validated and persisted. A short overlap is rescanned next time so a
+  // near-head reorg cannot silently hide a changed immutable event.
+  await saveAllocationScanCheckpoint(network, bestBlock.number);
 
   const latest = await supabaseAdmin
     .from('vebetter_round_allocations')
@@ -436,6 +548,7 @@ export async function syncVeInviteAllocationReceipts() {
     network,
     appId,
     scannedFromBlock: fromBlock,
+    scannedToBlock: bestBlock.number,
     observedClaims: chainEvidence.length,
     insertedCount,
     latestReceipt: (latest.data as StoredVeBetterAllocation | null) ?? null,
