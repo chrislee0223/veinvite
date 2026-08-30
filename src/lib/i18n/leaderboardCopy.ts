@@ -81,7 +81,7 @@ export const LEADERBOARD_COPY: Record<Locale, LeaderboardCopy> = {
     rank: '순위',
     wallet: '지갑',
     completed: '완료한 친구',
-    earned: '누적 보상',
+    earned: '누적 B3TR',
     myRank: '내 순위',
     unranked: '순위 없음',
     connectForRank:
@@ -105,7 +105,7 @@ export const LEADERBOARD_COPY: Record<Locale, LeaderboardCopy> = {
     title: 'VeInvite 排行榜',
     description:
       '只有好友完成全部任务，并且邀请人已经收到经验证的实际奖励后，这次邀请才会计入排名。',
-    impactTitle: '通过 VeInvite 完成引导的用户',
+    impactTitle: '通过 VeInvite 加入的用户',
     totalUsers: '总计',
     newUsers: '新用户',
     returningUsers: '回归用户',
@@ -173,7 +173,7 @@ export const LEADERBOARD_COPY: Record<Locale, LeaderboardCopy> = {
     title: 'Clasificación de VeInvite',
     description:
       'Una invitación solo entra en la clasificación cuando el amigo completa todas las misiones y el invitador ya ha recibido la recompensa verificada.',
-    impactTitle: 'Usuarios incorporados mediante VeInvite',
+    impactTitle: 'Usuarios que se unieron a través de VeInvite',
     totalUsers: 'Total',
     newUsers: 'Usuarios nuevos',
     returningUsers: 'Usuarios que regresan',
@@ -229,7 +229,7 @@ export const LEADERBOARD_COPY: Record<Locale, LeaderboardCopy> = {
     loadError: 'ランキングを読み込めませんでした。',
     retry: 'もう一度試す',
     walletDetails: 'ウォレット詳細',
-    fullAddress: 'ウォレットアドレス（全体）',
+    fullAddress: 'ウォレットアドレス全体',
     viewExplorer: 'VeChain Explorerで確認',
     explorerNote:
       'Explorerには公開されているオンチェーン活動のみ表示されます。',
@@ -242,14 +242,14 @@ export const LEADERBOARD_COPY: Record<Locale, LeaderboardCopy> = {
     title: 'Classifica VeInvite',
     description:
       'Un invito entra in classifica solo quando l’amico ha completato tutte le missioni e chi lo ha invitato ha già ricevuto la ricompensa verificata.',
-    impactTitle: 'Utenti entrati tramite VeInvite',
+    impactTitle: 'Utenti che si sono uniti tramite VeInvite',
     totalUsers: 'Totale',
     newUsers: 'Nuovi utenti',
     returningUsers: 'Utenti di ritorno',
     impactNote:
       'Vengono conteggiati solo i wallet che hanno completato tutte le missioni e superato la verifica.',
     reportingSince: (round) =>
-      `I totali ufficiali vengono conteggiati dalla tornata ${round}.`,
+      `I totali ufficiali vengono conteggiati dal round ${round}.`,
     rank: 'Posizione',
     wallet: 'Wallet',
     completed: 'Completati',
@@ -311,7 +311,7 @@ export const LEADERBOARD_COPY: Record<Locale, LeaderboardCopy> = {
     title: 'VeInvite-ranglijst',
     description:
       'Een uitnodiging telt pas mee voor de ranglijst nadat de vriend alle missies heeft afgerond én de uitnodiger de geverifieerde beloning daadwerkelijk heeft ontvangen.',
-    impactTitle: 'Gebruikers gestart via VeInvite',
+    impactTitle: 'Gebruikers die via VeInvite zijn gestart',
     totalUsers: 'Totaal',
     newUsers: 'Nieuwe gebruikers',
     returningUsers: 'Terugkerende gebruikers',
@@ -346,7 +346,7 @@ export const LEADERBOARD_COPY: Record<Locale, LeaderboardCopy> = {
     title: 'VeInvite-Rangliste',
     description:
       'Eine Einladung zählt erst dann für die Rangliste, wenn der Freund alle Missionen abgeschlossen hat und die einladende Person die verifizierte Belohnung tatsächlich erhalten hat.',
-    impactTitle: 'Über VeInvite gestartete Nutzer',
+    impactTitle: 'Nutzer, die über VeInvite eingestiegen sind',
     totalUsers: 'Gesamt',
     newUsers: 'Neue Nutzer',
     returningUsers: 'Zurückkehrende Nutzer',
@@ -381,7 +381,7 @@ export const LEADERBOARD_COPY: Record<Locale, LeaderboardCopy> = {
     title: 'Classement VeInvite',
     description:
       'Une invitation n’entre dans le classement qu’après la fin de toutes les missions et le versement effectif de la récompense vérifiée à la personne qui a invité.',
-    impactTitle: 'Utilisateurs intégrés via VeInvite',
+    impactTitle: 'Utilisateurs ayant rejoint VeInvite',
     totalUsers: 'Total',
     newUsers: 'Nouveaux utilisateurs',
     returningUsers: 'Utilisateurs de retour',
