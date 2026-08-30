@@ -19,7 +19,7 @@ import {
 } from '@/lib/walletAuthServer';
 
 const RUN_ANALYTICS_INTENT = 'RUN_ONCHAIN_SYBIL_ANALYTICS';
-const INVITE_CODE_PATTERN = /^[A-Z0-9]{7}$/;
+const INVITE_CODE_PATTERN = /^[A-HJ-NP-Z2-9]{7}$/;
 const ANALYTICS_RATE_LIMIT_WINDOW_SECONDS = 10 * 60;
 const ANALYTICS_PER_INVITE_LIMIT = 2;
 const ANALYTICS_PER_OPERATOR_LIMIT = 20;
@@ -75,10 +75,10 @@ function toPositiveBlock(value: string | number | null) {
 }
 
 async function loadVerifiedOperator(request: NextRequest) {
-  const [session, pool] = await Promise.all([
-    requireWalletSession({ request }),
-    readVeInviteRewardPoolStatus(),
-  ]);
+  const session =
+    await requireWalletSession({ request });
+  const pool =
+    await readVeInviteRewardPoolStatus();
 
   if (!canOperateVeInviteRewards(session.walletAddress, pool)) {
     return {
