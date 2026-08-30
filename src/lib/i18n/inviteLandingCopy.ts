@@ -50,7 +50,7 @@ export const INVITE_LANDING_COPY: Record<Locale, InviteLandingCopy> = {
     title: '세 단계만 완료하면 돼요',
     step1: '계정',
     step2: '활동',
-    step3: '응원',
+    step3: '참여',
     time: '약 10분',
     free: '무료',
     start: '시작하기',
