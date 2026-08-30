@@ -281,6 +281,7 @@ declare
   v_remainder numeric(78,0) := 0;
   v_payout_count integer := 0;
   v_assigned_count integer := 0;
+  v_epoch_created boolean := false;
   v_now timestamptz := now();
 begin
   p_network := lower(btrim(p_network));
@@ -428,13 +429,15 @@ begin
       p_pipeline_snapshot
     )
     returning * into v_epoch;
+
+    v_epoch_created := true;
   end if;
 
   if v_epoch.reward_per_invite_wei <= 0 or v_available <= 0 then
     return jsonb_build_object(
       'epochId', v_epoch.id,
       'roundId', null,
-      'epochCreated', v_epoch.created_at = v_now,
+      'epochCreated', v_epoch_created,
       'reason', 'NO_AVAILABLE_REWARD_CAPACITY',
       'rewardPerInviteWei', v_epoch.reward_per_invite_wei::text,
       'availableWei', v_available::text
@@ -447,7 +450,7 @@ begin
     return jsonb_build_object(
       'epochId', v_epoch.id,
       'roundId', null,
-      'epochCreated', false,
+      'epochCreated', v_epoch_created,
       'reason', 'NO_AVAILABLE_REWARD_CAPACITY',
       'rewardPerInviteWei', v_epoch.reward_per_invite_wei::text,
       'availableWei', v_available::text
@@ -594,7 +597,7 @@ begin
     return jsonb_build_object(
       'epochId', v_epoch.id,
       'roundId', null,
-      'epochCreated', false,
+      'epochCreated', v_epoch_created,
       'reason', 'NO_SETTLEABLE_CANDIDATES',
       'rewardPerInviteWei', v_epoch.reward_per_invite_wei::text,
       'availableWei', v_available::text
@@ -678,7 +681,7 @@ begin
   return jsonb_build_object(
     'epochId', v_epoch.id,
     'roundId', v_round_id,
-    'epochCreated', false,
+    'epochCreated', v_epoch_created,
     'reason', 'BATCH_PREPARED',
     'rewardPerInviteWei', v_epoch.reward_per_invite_wei::text,
     'recipientCount', v_eligible_count,
