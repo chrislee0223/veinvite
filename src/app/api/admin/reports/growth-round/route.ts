@@ -76,10 +76,10 @@ function optionalText(
 async function requireOperator(
   request: NextRequest,
 ) {
-  const [session, pool] = await Promise.all([
-    requireWalletSession({ request }),
-    readVeInviteRewardPoolStatus(),
-  ]);
+  const session =
+    await requireWalletSession({ request });
+  const pool =
+    await readVeInviteRewardPoolStatus();
 
   if (
     !canOperateVeInviteRewards(
