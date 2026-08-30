@@ -1,40 +1,33 @@
-# VeInvite Security Plan
+# VeInvite Security Notes
 
-## Core controls
+## Environment isolation
 
-1. One active invitation per inviter.
-2. One inviter per invitee wallet.
-3. The first eligible claimant atomically owns the invitation link.
-4. Existing VeBetterDAO participants are excluded from referral eligibility.
-5. Self-referrals and duplicate/refarmed wallets are rejected.
-6. A cancelled invite permanently forfeits the corresponding referral reward.
-7. Rewards are settled weekly after verification, not paid immediately.
-8. Suspicious cases are held for review rather than silently rewarded.
-9. Queued reward candidates are re-checked against VePassport Signal Admin / blacklist state before reward-round reservation.
-10. Sensitive API paths use server-side per-wallet and/or hashed-IP rate limits.
-11. Either the official VeBetterDAO distribution pause or VeInvite's operator emergency pause blocks new reward preparation and signing.
+Production and Preview databases are intentionally separated. Server-side Supabase access fails closed when a non-production deployment is configured with the Production project, or when Production is configured with an unreviewed project.
 
-## Emergency reward pause
+Production also refuses to silently verify VeBetter activity against a non-mainnet network.
 
-VeInvite maintains a second, operator-controlled runtime pause in addition to VeBetterDAO's on-chain distribution pause. The effective reward gate is fail-closed: either pause blocks new reward rounds, new payout manifests, and payout preflight/signing.
+## Wallet authentication
 
-Pause and resume changes require a reason and are stored in an append-only operator audit trail. Already-broadcast payout transactions may still be registered and finalized during a pause so accounting evidence remains accurate and duplicate replacement payments are avoided.
+Wallet authentication is bound to the VeInvite origin, network, wallet address, nonce, and expiration time. Challenges are single-use. The reviewed rollout serializes session issuance per wallet and atomically consumes the verified challenge while revoking the prior session and creating its replacement.
 
-The bilingual incident and recovery runbook is documented in `docs/EMERGENCY_REWARD_PAUSE_KO_EN.md`.
+The Production rollout uses a compatibility RPC migration before the application deploy, then applies uniqueness constraints after the compatible challenge route is live.
 
-## API security
+Wallet disconnect events clear the VeInvite server session rather than leaving the authentication cookie active until natural expiration.
 
-- Signed wallet session/certificate verification
-- Server-side schema validation
-- Per-IP and per-wallet rate limits
-- CAPTCHA or equivalent bot mitigation on high-risk actions
-- Restricted CORS and secure headers
-- Audit logging without private keys or seed phrases
+## API abuse controls
 
-## Key management
+Public and authenticated high-cost endpoints use database-backed rate limiting. Operator endpoints authenticate before starting expensive VeChain reward-pool reads.
 
-The application must never request or store user private keys. Reward distributor keys must be stored in a managed secret store and only accessed by a restricted server-side reward worker.
+Raw client IP values are not persisted as rate-limit subjects; the server derives a hashed subject.
 
-## Device data
+## Browser response policy
 
-Device identification is optional and must be used only as a supporting risk signal. Raw fingerprint data should be minimized, salted/hashed where possible, retained for a defined period, and disclosed in the privacy policy.
+VeInvite sends `X-Content-Type-Options: nosniff`, `Referrer-Policy: strict-origin-when-cross-origin`, and a restrictive `Permissions-Policy` for camera, microphone, and geolocation.
+
+A broad Content Security Policy, `Cross-Origin-Opener-Policy`, or blanket frame denial is not added without an explicit wallet/embed compatibility test because wallet SDK and VeBetter/VeWorld integration flows may depend on cross-origin communication.
+
+## Reward safety
+
+Reward accounting is evidence-based and fail-closed. Mainnet funded reward preparation remains behind explicit runtime safety controls. Ordinary UI updates, migrations, or deployment changes must not enable funded reward preparation or transfer B3TR.
+
+Reward transaction registration and finalization preserve immutable manifest and settlement evidence, and reconciliation may continue for already-submitted transactions even when new preparation is paused.

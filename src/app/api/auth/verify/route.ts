@@ -479,49 +479,12 @@ export async function POST(
 
   const usedAt =
     now.toISOString();
-
-  // Consume exactly once after a valid proof. The conditional update also
-  // closes concurrent verification attempts using the same challenge.
-  const {
-    data: consumedChallenge,
-    error: consumeError,
-  } = await supabaseAdmin
-    .from('wallet_auth_challenges')
-    .update({
-      used_at: usedAt,
-    })
-    .eq('id', challenge.id)
-    .is('used_at', null)
-    .gt('expires_at', usedAt)
-    .select('id')
-    .maybeSingle();
-
-  if (consumeError) {
-    console.error(
-      'Failed to consume wallet challenge:',
-      consumeError,
-    );
-
-    return jsonError(
-      'Failed to complete wallet verification.',
-      500,
-    );
-  }
-
-  if (!consumedChallenge) {
-    return jsonError(
-      'Wallet verification request is no longer valid.',
-      409,
-    );
-  }
-
   const sessionToken =
     randomBytes(32).toString('hex');
   const tokenHash =
     hashSessionToken(
       sessionToken,
     );
-
   const sessionExpiresAt =
     new Date(
       now.getTime() +
@@ -532,22 +495,31 @@ export async function POST(
           1000,
     );
 
-  const { error: revokeError } =
-    await supabaseAdmin
-      .from('wallet_auth_sessions')
-      .update({
-        revoked_at: usedAt,
-      })
-      .eq(
-        'wallet_address',
+  // Consume the verified challenge, revoke older sessions, and create the new
+  // session inside one database transaction. Any failure rolls the entire
+  // operation back, so a valid proof is never consumed without a usable
+  // replacement session being persisted.
+  const {
+    data: sessionIssued,
+    error: sessionIssueError,
+  } = await supabaseAdmin.rpc(
+    'issue_wallet_session_after_verified_challenge',
+    {
+      p_challenge_id:
+        challenge.id,
+      p_wallet_address:
         walletAddress,
-      )
-      .is('revoked_at', null);
+      p_used_at: usedAt,
+      p_token_hash: tokenHash,
+      p_expires_at:
+        sessionExpiresAt.toISOString(),
+    },
+  );
 
-  if (revokeError) {
+  if (sessionIssueError) {
     console.error(
-      'Failed to revoke old wallet sessions:',
-      revokeError,
+      'Failed to atomically issue wallet session:',
+      sessionIssueError,
     );
 
     return jsonError(
@@ -556,26 +528,10 @@ export async function POST(
     );
   }
 
-  const { error: sessionError } =
-    await supabaseAdmin
-      .from('wallet_auth_sessions')
-      .insert({
-        wallet_address:
-          walletAddress,
-        token_hash: tokenHash,
-        expires_at:
-          sessionExpiresAt.toISOString(),
-      });
-
-  if (sessionError) {
-    console.error(
-      'Failed to store wallet session:',
-      sessionError,
-    );
-
+  if (sessionIssued !== true) {
     return jsonError(
-      'Failed to create wallet session.',
-      500,
+      'Wallet verification request is no longer valid.',
+      409,
     );
   }
 

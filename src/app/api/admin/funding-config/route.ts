@@ -1,6 +1,13 @@
 import { ThorClient } from '@vechain/sdk-network';
-import { NextResponse } from 'next/server';
+import {
+  NextRequest,
+  NextResponse,
+} from 'next/server';
 
+import {
+  enforceRateLimits,
+  getClientIpSubject,
+} from '@/lib/rateLimitServer';
 import {
   getVeBetterNetworkConfig,
 } from '@/lib/vebetter/network';
@@ -93,7 +100,27 @@ function firstString(
   return String(value[0]);
 }
 
-export async function GET() {
+export async function GET(
+  request: NextRequest,
+) {
+  const clientIp =
+    getClientIpSubject(request);
+  const limited = await enforceRateLimits([
+    clientIp
+      ? {
+          scope:
+            'admin_funding_config_ip',
+          subject: clientIp,
+          limit: 30,
+          windowSeconds: 60,
+        }
+      : null,
+  ]);
+
+  if (limited) {
+    return limited;
+  }
+
   try {
     const {
       network,

@@ -9,7 +9,8 @@ import { useWallet } from '@vechain/vechain-kit';
 
 import type { InviteRecord } from '@/lib/types';
 
-const POLL_INTERVAL_MS = 15_000;
+const POLL_INTERVAL_MS = 30_000;
+const EVIDENCE_SYNC_INTERVAL_MS = 5 * 60_000;
 
 function inviteFingerprint(
   invite: InviteRecord,
@@ -57,12 +58,24 @@ function shouldDeferHomeRefresh(): boolean {
   );
 }
 
+function evidenceSyncCandidate(
+  invites: InviteRecord[] | undefined,
+): InviteRecord | null {
+  return invites?.find(
+    (invite) =>
+      invite.status === 'ACTIVATING' ||
+      invite.status === 'UNDER_REVIEW',
+  ) ?? null;
+}
+
 /**
- * Keeps the inviter home screen in sync when the invitee or reward state
- * changes in a different browser/device. HomeClient can keep an older
- * completed referral visible while a newer invite is active, so the watcher
- * fingerprints the full user-facing invite list rather than only its first
- * row. This makes later claim/assignment/payment changes refresh reliably.
+ * Keeps the inviter home screen in sync when invitee/reward state changes in a
+ * different browser or device. A lightweight invite-list check runs every 30s.
+ * While an accepted referral is still active, the inviter also provides a
+ * bounded five-minute fallback that asks the existing public invite endpoint to
+ * reconcile chain evidence. This complements (rather than replaces) the daily
+ * scheduled worker and the invitee page's own polling, so one missed scheduler
+ * run cannot leave active progress stale indefinitely.
  */
 export function InviteStatusAutoRefresh() {
   const { account } = useWallet();
@@ -71,6 +84,34 @@ export function InviteStatusAutoRefresh() {
   const lastFingerprintRef =
     useRef<string | null>(null);
   const checkingRef = useRef(false);
+  const lastEvidenceSyncRef =
+    useRef<{
+      code: string;
+      at: number;
+    } | null>(null);
+
+  const loadInvites = useCallback(async () => {
+    if (!walletAddress) {
+      return null;
+    }
+
+    const response = await fetch(
+      `/api/invites?inviter=${encodeURIComponent(
+        walletAddress,
+      )}`,
+      {
+        cache: 'no-store',
+      },
+    );
+
+    if (!response.ok) {
+      return null;
+    }
+
+    return (await response.json()) as {
+      invites?: InviteRecord[];
+    };
+  }, [walletAddress]);
 
   const check = useCallback(async () => {
     if (
@@ -85,22 +126,59 @@ export function InviteStatusAutoRefresh() {
     checkingRef.current = true;
 
     try {
-      const response = await fetch(
-        `/api/invites?inviter=${encodeURIComponent(
-          walletAddress,
-        )}`,
-        {
-          cache: 'no-store',
-        },
-      );
+      let data = await loadInvites();
 
-      if (!response.ok) {
+      if (!data) {
         return;
       }
 
-      const data = (await response.json()) as {
-        invites?: InviteRecord[];
-      };
+      const candidate =
+        evidenceSyncCandidate(data.invites);
+      const previousSync =
+        lastEvidenceSyncRef.current;
+      const now = Date.now();
+      const shouldSyncEvidence =
+        Boolean(candidate) &&
+        (
+          previousSync?.code !==
+            candidate?.code ||
+          !previousSync ||
+          now - previousSync.at >=
+            EVIDENCE_SYNC_INTERVAL_MS
+        );
+
+      if (candidate && shouldSyncEvidence) {
+        // Record the attempt before the request so a temporary node/API failure
+        // cannot create a tight retry loop on focus/visibility events.
+        lastEvidenceSyncRef.current = {
+          code: candidate.code,
+          at: now,
+        };
+
+        try {
+          const syncResponse = await fetch(
+            `/api/invites/${encodeURIComponent(
+              candidate.code,
+            )}`,
+            {
+              cache: 'no-store',
+            },
+          );
+
+          if (syncResponse.ok) {
+            const refreshed =
+              await loadInvites();
+            if (refreshed) {
+              data = refreshed;
+            }
+          }
+        } catch {
+          // This is a best-effort fallback. The regular scheduler and invitee
+          // polling remain available, and another fallback attempt is allowed
+          // after the bounded interval.
+        }
+      }
+
       const fingerprint =
         invitationsFingerprint(data.invites);
 
@@ -111,10 +189,8 @@ export function InviteStatusAutoRefresh() {
 
       if (lastFingerprintRef.current !== fingerprint) {
         // A full reload remains the safest way to refresh every Home-derived
-        // state at once. The check itself pauses while another app tab or a
-        // modal is active, so users are not unexpectedly pulled out of Guide,
-        // Leaderboard, Settings, or a confirmation/details flow. The old
-        // fingerprint is intentionally preserved until Home can refresh.
+        // state at once. Checks pause while another tab/modal is active so the
+        // user is not pulled out of Guide, Leaderboard, Settings, or a dialog.
         window.location.reload();
       }
     } catch {
@@ -123,10 +199,14 @@ export function InviteStatusAutoRefresh() {
     } finally {
       checkingRef.current = false;
     }
-  }, [walletAddress]);
+  }, [
+    loadInvites,
+    walletAddress,
+  ]);
 
   useEffect(() => {
     lastFingerprintRef.current = null;
+    lastEvidenceSyncRef.current = null;
 
     if (!walletAddress) {
       return;

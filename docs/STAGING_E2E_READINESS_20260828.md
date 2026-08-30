@@ -1,54 +1,46 @@
-# VeInvite staging E2E readiness — 2026-08-28
+# VeInvite Staging / Preview E2E Readiness
 
-## Scope
+## Purpose
 
-This note records the final staging E2E investigation so the same wallet and chain checks do not need to be repeated from scratch.
+This checklist keeps Preview validation isolated from Production and makes the wallet-auth rollout order explicit.
 
-## Environment verified
+## Preview environment
 
-- Preview database is isolated from Production.
-- VeInvite Preview health returned `database=ready` and `network=testnet-staging`.
-- The reviewed VeBetterDAO staging profile matches the official public testnet-staging contracts used by VeInvite.
-- Fresh invite `MQJWLUX` remained `PENDING_ACCEPTANCE` with no invitee or eligibility proof at the time of this review, so it was not consumed merely for diagnostics.
+Preview must use the dedicated Preview Supabase project rather than the Production project. The server-side database guard intentionally fails closed if a Preview deployment is pointed at Production.
 
-## Reward activity observed on official staging X2EarnRewardsPool
+Required Preview variables include the Preview values for:
 
-A temporary Preview-only diagnostic branch scanned `RewardDistributed` events from the official staging X2EarnRewardsPool. The diagnostic was never merged to `main`; Production returned 404 for its route.
+- `NEXT_PUBLIC_SUPABASE_URL`
+- `NEXT_PUBLIC_SUPABASE_ANON_KEY`
+- `SUPABASE_SECRET_KEY`
 
-Recent 100,000-block scan:
+Production values must remain Production-only.
 
-- 3 reward events total.
-- All 3 came from one app: Green Utility Log.
+## Wallet-auth rollout order
 
-1,000,000-block scan:
+The new application verifies signatures and asks the database RPC `issue_wallet_session_after_verified_challenge` to consume the challenge, revoke old sessions, and create the replacement session atomically.
 
-- 134 reward events.
-- 5 distinct app IDs.
-- 25 distinct receiver wallets.
-- No receiver wallet had rewards from two or more distinct apps in the scanned period.
+For Production, use this order:
 
-Identified historical reward apps included Green Utility Log, ReCircle, B3TR Beach, and EVearn. Current public product state indicates that several of those historical test flows have moved to mainnet, changed product flow, or require real-world proof, so they cannot be treated as three reliable immediate staging reward sources.
+1. Apply `20260830085000_prepare_wallet_auth_rpc_predeploy.sql`. It installs the serialized RPC only and deliberately adds no uniqueness constraint, so the currently deployed application remains compatible.
+2. Deploy the reviewed application code that recovers concurrent challenge uniqueness races and calls the atomic RPC.
+3. Apply `20260830090238_harden_wallet_auth_atomicity.sql`.
+4. Apply `20260830092018_serialize_wallet_session_issuance.sql`.
+5. Re-run health, authentication, release-integrity, and reward-accounting checks.
 
-## E2E conclusion
+Do not reverse steps 1 and 2 by adding the challenge uniqueness index while the old challenge route is still live.
 
-A new-wallet claim, eligibility classification, mission UI, database proof linkage, reward queue accounting, payout manifest, transaction verification, and settlement logic have already been covered through the existing Preview/DB tests and hardening work.
+## Smoke checks
 
-The remaining literal live-wallet scenario — one fresh staging wallet earning qualifying B3TR from three distinct external staging dApps, then converting B3TR to VOT3 and voting — cannot currently be completed reliably because the external staging ecosystem does not expose three actively rewarding dApps for one tester.
+- `/api/health` returns HTTP 200 and reports database availability.
+- Wallet connect and wallet signature verification complete normally.
+- Wallet disconnect clears the VeInvite server session.
+- Invite landing and progress views distinguish invalid links from temporary failures.
+- Language selectors show the reviewed country flag assets without artificial white tiles.
+- Admin endpoints reject unauthenticated requests before expensive VeChain RPC reads.
+- Leaderboard wallet details remain inspectable and explorer links work.
+- Mainnet funded-reward preparation stays disabled unless it is explicitly approved and enabled.
 
-This is an external test-environment limitation, not evidence of a VeInvite defect. Do not weaken the production mission rule or count repeated rewards from the same app merely to make staging E2E pass.
+## Release gate
 
-## When to rerun the live 3-app test
-
-Rerun only when at least three distinct apps are confirmed to emit `RewardDistributed` events on the official staging X2EarnRewardsPool and are practically usable by the same fresh tester wallet. At that point:
-
-1. Claim a fresh VeInvite staging invitation with a wallet never previously used as a Preview invitee.
-2. Verify `entry_class=NEW`, `outcome=ELIGIBLE`, and `activation_network=testnet-staging`.
-3. Earn qualifying rewards from three distinct staging apps.
-4. After the first qualifying dApp reward, convert at least 1 B3TR to VOT3.
-5. After that conversion, cast one Allocation Voting vote.
-6. Confirm mission completion, Sybil CLEAR, reward queue entry, and round eligibility.
-7. Stop before any real payout transfer unless a deliberate payout test is explicitly approved.
-
-## Safety note
-
-The temporary staging-reward scanner remains isolated on an unmerged test branch and is explicitly blocked in Production. It must not be merged into `main`.
+Do not merge into Production while Preview health is failing or while Preview is connected to Production data. Passing GitHub CI alone is not enough; the current PR head must also pass a real Preview smoke test against the isolated Preview database.

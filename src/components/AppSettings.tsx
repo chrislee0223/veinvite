@@ -236,10 +236,10 @@ export function AppSettings({
         .languagePickerTrigger { width:100%; min-height:66px; margin-top:13px; padding:10px 12px; display:grid; grid-template-columns:34px minmax(0,1fr) 24px; align-items:center; gap:11px; border:1px solid rgba(255,255,255,.09); border-radius:15px; background:rgba(255,255,255,.035); color:#f5f2e9; font:inherit; cursor:pointer; text-align:left; }
         .languagePickerTrigger:hover { border-color:rgba(255,205,80,.3); background:rgba(255,201,61,.055); }
         .languagePickerTrigger:focus-visible { outline:2px solid rgba(255,205,80,.75); outline-offset:2px; }
-        .languageSymbol,.languageOptionSymbol { display:grid; place-items:center; overflow:hidden; border-radius:7px; background:#fff; box-shadow:0 0 0 1px rgba(255,255,255,.12); }
+        .languageSymbol,.languageOptionSymbol { display:grid; place-items:center; overflow:hidden; border-radius:7px; background:transparent; box-shadow:0 0 0 1px rgba(255,255,255,.14); }
         .languageSymbol { width:34px; height:23px; }
         .languageOptionSymbol { width:32px; height:22px; }
-        .languageSymbol :global(svg),.languageOptionSymbol :global(svg) { width:100%; height:100%; display:block; }
+        .languageSymbol :global(svg),.languageOptionSymbol :global(svg),.languageSymbol :global(img),.languageOptionSymbol :global(img) { width:100%; height:100%; display:block; object-fit:contain; }
         .languagePickerCopy { min-width:0; display:grid; gap:3px; }
         .languagePickerCopy strong { font-size:.82rem; overflow-wrap:anywhere; }
         .languagePickerCopy small { color:#817d75; font-size:.67rem; line-height:1.35; overflow-wrap:anywhere; }

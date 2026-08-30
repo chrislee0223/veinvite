@@ -7,10 +7,19 @@ import {
   syncInvitationEvidence,
   type InvitationEvidenceRow,
 } from '@/lib/impact/syncInvitation';
+import {
+  enforceRateLimits,
+  getClientIpSubject,
+} from '@/lib/rateLimitServer';
 import { supabaseAdmin } from '@/lib/supabaseServer';
 import type {
   InviteRecord,
 } from '@/lib/types';
+
+const INVITE_CODE_PATTERN = /^[A-HJ-NP-Z2-9]{7}$/;
+const INVITE_READ_CODE_LIMIT = 360;
+const INVITE_READ_IP_LIMIT = 720;
+const INVITE_READ_WINDOW_SECONDS = 60 * 60;
 
 const invitationColumns = `
   invite_code,
@@ -82,7 +91,7 @@ function toInviteRecord(
 }
 
 export async function GET(
-  _request: NextRequest,
+  request: NextRequest,
   context: {
     params: Promise<{
       code: string;
@@ -94,6 +103,55 @@ export async function GET(
 
   const normalizedCode =
     code.trim().toUpperCase();
+
+  // Reject impossible codes before touching shared rate-limit storage, the
+  // database, or VeChain. Generated VeInvite codes are exactly seven symbols
+  // from the ambiguity-safe alphabet in createCode().
+  if (!INVITE_CODE_PATTERN.test(normalizedCode)) {
+    return NextResponse.json(
+      {
+        error:
+          'Invite link is invalid or cancelled.',
+      },
+      {
+        status: 404,
+        headers: {
+          'Cache-Control': 'no-store',
+        },
+      },
+    );
+  }
+
+  const clientIp =
+    getClientIpSubject(request);
+
+  // This public endpoint can perform multiple on-chain reads while an accepted
+  // invitation is active. Keep normal 30-second polling and a few open tabs
+  // comfortably below the limit while bounding accidental refresh loops and
+  // deliberate repeated scans. The shared limiter stores hashes only.
+  const rateLimitResponse =
+    await enforceRateLimits([
+      {
+        scope: 'invite_progress_code',
+        subject: normalizedCode,
+        limit: INVITE_READ_CODE_LIMIT,
+        windowSeconds:
+          INVITE_READ_WINDOW_SECONDS,
+      },
+      clientIp
+        ? {
+            scope: 'invite_progress_ip',
+            subject: clientIp,
+            limit: INVITE_READ_IP_LIMIT,
+            windowSeconds:
+              INVITE_READ_WINDOW_SECONDS,
+          }
+        : null,
+    ]);
+
+  if (rateLimitResponse) {
+    return rateLimitResponse;
+  }
 
   const {
     data,
@@ -118,7 +176,12 @@ export async function GET(
         error:
           'Failed to load invitation.',
       },
-      { status: 500 },
+      {
+        status: 500,
+        headers: {
+          'Cache-Control': 'no-store',
+        },
+      },
     );
   }
 
@@ -134,7 +197,12 @@ export async function GET(
         error:
           'Invite link is invalid or cancelled.',
       },
-      { status: 404 },
+      {
+        status: 404,
+        headers: {
+          'Cache-Control': 'no-store',
+        },
+      },
     );
   }
 
@@ -177,6 +245,7 @@ export async function GET(
         status: 503,
         headers: {
           'Cache-Control': 'no-store',
+          'Retry-After': '10',
         },
       },
     );

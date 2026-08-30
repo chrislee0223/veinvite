@@ -43,6 +43,76 @@ type ChallengeRow = {
   message: string | null;
 };
 
+async function loadActiveChallenge({
+  walletAddress,
+  origin,
+  network,
+  nowIso,
+}: {
+  walletAddress: string;
+  origin: string;
+  network: string;
+  nowIso: string;
+}): Promise<ChallengeRow | null> {
+  const {
+    data,
+    error,
+  } = await supabaseAdmin
+    .from('wallet_auth_challenges')
+    .select('nonce, expires_at, message')
+    .eq('wallet_address', walletAddress)
+    .eq('origin', origin)
+    .eq('network', network)
+    .is('used_at', null)
+    .gt('expires_at', nowIso)
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (error) {
+    throw new Error(
+      `Failed to load active wallet challenge: ${error.message}`,
+    );
+  }
+
+  return (data as ChallengeRow | null) ?? null;
+}
+
+function challengeResponse({
+  walletAddress,
+  challenge,
+  status,
+}: {
+  walletAddress: string;
+  challenge: ChallengeRow;
+  status: 200 | 201;
+}) {
+  return NextResponse.json(
+    {
+      walletAddress,
+      nonce: challenge.nonce,
+      expiresAt: challenge.expires_at,
+      message: challenge.message,
+    },
+    {
+      status,
+      headers: {
+        'Cache-Control': 'no-store',
+      },
+    },
+  );
+}
+
+function isUsableChallenge(
+  challenge: ChallengeRow | null,
+): challenge is ChallengeRow & { message: string } {
+  return Boolean(
+    challenge?.message &&
+      /^[0-9a-f]{64}$/.test(challenge.nonce) &&
+      !Number.isNaN(Date.parse(challenge.expires_at)),
+  );
+}
+
 export async function POST(request: NextRequest) {
   const clientIp =
     getClientIpSubject(request);
@@ -93,54 +163,52 @@ export async function POST(request: NextRequest) {
   const { network } = getVeBetterNetworkConfig();
   const nowIso = new Date().toISOString();
 
-  const {
-    data: activeChallengeData,
-    error: activeChallengeError,
-  } = await supabaseAdmin
-    .from('wallet_auth_challenges')
-    .select('nonce, expires_at, message')
-    .eq('wallet_address', walletAddress)
-    .eq('origin', origin)
-    .eq('network', network)
-    .is('used_at', null)
-    .gt('expires_at', nowIso)
-    .order('created_at', { ascending: false })
-    .limit(1)
-    .maybeSingle();
+  let activeChallenge: ChallengeRow | null;
 
-  if (activeChallengeError) {
-    console.error('Failed to load active wallet challenge:', activeChallengeError);
+  try {
+    activeChallenge = await loadActiveChallenge({
+      walletAddress,
+      origin,
+      network,
+      nowIso,
+    });
+  } catch (error) {
+    console.error(
+      'Failed to load active wallet challenge:',
+      error,
+    );
     return NextResponse.json(
       { error: 'Failed to prepare wallet verification.' },
       { status: 500, headers: { 'Cache-Control': 'no-store' } },
     );
   }
 
-  const activeChallenge = activeChallengeData as ChallengeRow | null;
-
-  if (
-    activeChallenge?.message &&
-    /^[0-9a-f]{64}$/.test(activeChallenge.nonce)
-  ) {
-    return NextResponse.json(
-      {
-        walletAddress,
-        nonce: activeChallenge.nonce,
-        expiresAt: activeChallenge.expires_at,
-        message: activeChallenge.message,
-      },
-      { status: 200, headers: { 'Cache-Control': 'no-store' } },
-    );
+  if (isUsableChallenge(activeChallenge)) {
+    return challengeResponse({
+      walletAddress,
+      challenge: activeChallenge,
+      status: 200,
+    });
   }
 
   const { error: cleanupError } = await supabaseAdmin
     .from('wallet_auth_challenges')
     .delete()
     .eq('wallet_address', walletAddress)
-    .lt('expires_at', nowIso);
+    .eq('origin', origin)
+    .eq('network', network)
+    .is('used_at', null)
+    .lte('expires_at', nowIso);
 
   if (cleanupError) {
-    console.error('Failed to clear expired wallet challenges:', cleanupError);
+    console.error(
+      'Failed to clear expired wallet challenges:',
+      cleanupError,
+    );
+    return NextResponse.json(
+      { error: 'Failed to prepare wallet verification.' },
+      { status: 500, headers: { 'Cache-Control': 'no-store' } },
+    );
   }
 
   const nonce = randomBytes(32).toString('hex');
@@ -156,6 +224,12 @@ export async function POST(request: NextRequest) {
     expiresAt,
   });
 
+  const newChallenge: ChallengeRow = {
+    nonce,
+    expires_at: expiresAt,
+    message,
+  };
+
   const { error: insertError } = await supabaseAdmin
     .from('wallet_auth_challenges')
     .insert({
@@ -167,16 +241,47 @@ export async function POST(request: NextRequest) {
       network,
     });
 
-  if (insertError) {
-    console.error('Failed to create wallet challenge:', insertError);
-    return NextResponse.json(
-      { error: 'Failed to create wallet verification.' },
-      { status: 500, headers: { 'Cache-Control': 'no-store' } },
-    );
+  if (!insertError) {
+    return challengeResponse({
+      walletAddress,
+      challenge: newChallenge,
+      status: 201,
+    });
   }
 
+  // A concurrent request can win the one-unused-challenge unique index after
+  // this request's initial lookup. In that case, return the winner rather than
+  // surfacing a transient 500 to the wallet UI.
+  if (insertError.code === '23505') {
+    try {
+      const concurrentChallenge = await loadActiveChallenge({
+        walletAddress,
+        origin,
+        network,
+        nowIso: new Date().toISOString(),
+      });
+
+      if (isUsableChallenge(concurrentChallenge)) {
+        return challengeResponse({
+          walletAddress,
+          challenge: concurrentChallenge,
+          status: 200,
+        });
+      }
+    } catch (error) {
+      console.error(
+        'Failed to recover concurrent wallet challenge:',
+        error,
+      );
+    }
+  }
+
+  console.error(
+    'Failed to create wallet challenge:',
+    insertError,
+  );
   return NextResponse.json(
-    { walletAddress, nonce, expiresAt, message },
-    { status: 201, headers: { 'Cache-Control': 'no-store' } },
+    { error: 'Failed to create wallet verification.' },
+    { status: 500, headers: { 'Cache-Control': 'no-store' } },
   );
 }

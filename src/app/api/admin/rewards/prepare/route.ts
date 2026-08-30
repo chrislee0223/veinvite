@@ -14,6 +14,9 @@ import {
   readPredictiveRewardPlanning,
 } from '@/lib/rewards/predictivePlanning';
 import {
+  readRewardRuntimeSafety,
+} from '@/lib/rewards/runtimeSafety';
+import {
   refreshQueuedReferralSignalChecks,
 } from '@/lib/sybil/vePassportSignals';
 import { supabaseAdmin } from '@/lib/supabaseServer';
@@ -136,6 +139,52 @@ export async function POST(
         },
         {
           status: 403,
+          headers: {
+            'Cache-Control': 'no-store',
+          },
+        },
+      );
+    }
+
+    const runtimeSafety =
+      await readRewardRuntimeSafety();
+
+    if (runtimeSafety.emergencyRewardsPaused) {
+      return NextResponse.json(
+        {
+          error:
+            'VeInvite reward operations are paused by the emergency control.',
+          code: 'EMERGENCY_REWARDS_PAUSED',
+          pool,
+          roundCreated: false,
+          writesPerformed: false,
+          transfersPerformed: false,
+        },
+        {
+          status: 409,
+          headers: {
+            'Cache-Control': 'no-store',
+          },
+        },
+      );
+    }
+
+    if (
+      pool.network === 'mainnet' &&
+      !runtimeSafety.mainnetFundedRewardsEnabled
+    ) {
+      return NextResponse.json(
+        {
+          error:
+            'Mainnet funded rewards are disabled. Reward round preparation is blocked.',
+          code: 'FUNDED_REWARDS_DISABLED',
+          pool,
+          roundCreated: false,
+          writesPerformed: false,
+          transfersPerformed: false,
+        },
+        {
+          status: 409,
           headers: {
             'Cache-Control': 'no-store',
           },

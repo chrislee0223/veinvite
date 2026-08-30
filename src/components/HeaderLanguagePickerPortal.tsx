@@ -48,7 +48,13 @@ export function HeaderLanguagePickerPortal() {
 
     const attach = () => {
       const select = document.querySelector<HTMLSelectElement>('select.languageSelect');
-      if (!select || select === activeSelect) return;
+
+      if (!select) {
+        if (activeSelect && !activeSelect.isConnected) detach();
+        return;
+      }
+
+      if (select === activeSelect) return;
 
       detach();
       const mount = document.createElement('span');
@@ -230,7 +236,7 @@ export function HeaderLanguagePickerPortal() {
         .headerLanguagePicker { position:relative; width:155px; max-width:100%; font:inherit; }
         .headerLanguageTrigger { width:100%; height:40px; box-sizing:border-box; display:grid; grid-template-columns:24px minmax(0,1fr) 14px; align-items:center; gap:8px; padding:0 10px; border:1px solid rgba(255,255,255,.1); border-radius:13px; background:#141625; color:#fff; font:inherit; font-size:.76rem; font-weight:800; cursor:pointer; text-align:left; }
         .headerLanguageTrigger:hover,.headerLanguageTrigger:focus-visible { border-color:rgba(244,183,40,.55); outline:none; box-shadow:0 0 0 3px rgba(244,183,40,.1); }
-        .headerLanguageFlag,.headerLanguageOptionFlag { overflow:hidden; display:grid; place-items:center; border-radius:4px; background:#fff; box-shadow:0 0 0 1px rgba(0,0,0,.22); }
+        .headerLanguageFlag,.headerLanguageOptionFlag { overflow:hidden; display:grid; place-items:center; border-radius:4px; background:transparent; box-shadow:0 0 0 1px rgba(255,255,255,.14); }
         .headerLanguageFlag { width:24px; height:16px; }
         .headerLanguageOptionFlag { width:30px; height:20px; }
         .headerLanguageFlag .flagSvg,.headerLanguageOptionFlag .flagSvg { width:100%; height:100%; object-fit:contain; display:block; }
