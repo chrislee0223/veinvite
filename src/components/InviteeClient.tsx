@@ -82,15 +82,17 @@ async function readInviteResponse(
   try {
     data = (await response.json()) as InviteApiResponse;
   } catch {
-    if (!response.ok) {
-      throw new InviteRequestError(response.status);
-    }
-
-    throw new InviteRequestError(502);
+    throw new InviteRequestError(
+      response.ok ? 502 : response.status,
+    );
   }
 
   if (!response.ok) {
     throw new InviteRequestError(response.status);
+  }
+
+  if (!data.invite || !data.progress) {
+    throw new InviteRequestError(502);
   }
 
   return data;
@@ -121,8 +123,8 @@ export function InviteeClient({ code }: { code: string }) {
         cache: 'no-store',
       });
       const data = await readInviteResponse(response);
-      if (data.invite) setInvite(data.invite);
-      if (data.progress) setProgress(data.progress);
+      setInvite(data.invite!);
+      setProgress(data.progress!);
       return data;
     } catch (error) {
       console.error('Failed to load invite progress:', error);
@@ -228,12 +230,11 @@ export function InviteeClient({ code }: { code: string }) {
         }),
       });
 
-      let data: InviteApiResponse = {};
+      let data: InviteApiResponse;
       try {
         data = (await response.json()) as InviteApiResponse;
       } catch {
-        // A malformed/transient server response is retryable and must never
-        // leave the interface permanently stuck on the checking screen.
+        throw new Error('Malformed invite claim response.');
       }
 
       if (response.status === 202 || data.outcome === 'review') {
@@ -254,9 +255,17 @@ export function InviteeClient({ code }: { code: string }) {
         return;
       }
 
+      if (
+        !data.invite ||
+        (data.entryClass !== 'new_user' &&
+          data.entryClass !== 'returning_user')
+      ) {
+        throw new Error('Incomplete invite claim response.');
+      }
+
       setClaimedThisSession(true);
-      if (data.entryClass === 'new_user' || data.entryClass === 'returning_user') setEntryClass(data.entryClass);
-      if (data.invite) setInvite(data.invite);
+      setEntryClass(data.entryClass);
+      setInvite(data.invite);
       setProgress(DEFAULT_PROGRESS);
       setStep('success');
     } catch (error) {
