@@ -40,3 +40,24 @@
 .legalPage p {
   text-wrap: pretty;
 }
+
+/* Keep native flag proportions without showing a framed empty rectangle. */
+.languageSymbol,
+.languageOptionSymbol,
+.headerLanguageFlag,
+.headerLanguageOptionFlag,
+.languageCard > .symbol {
+  background: transparent !important;
+  box-shadow: none !important;
+  border-radius: 0 !important;
+  overflow: visible !important;
+}
+
+.flagSvg {
+  display: block !important;
+  width: 100% !important;
+  height: 100% !important;
+  object-fit: contain !important;
+  object-position: left center !important;
+  background: transparent !important;
+}
