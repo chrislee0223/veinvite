@@ -269,10 +269,10 @@ async function loadGrowth(
 
 export async function GET(request: NextRequest) {
   try {
-    const [session, pool] = await Promise.all([
-      requireWalletSession({ request }),
-      readVeInviteRewardPoolStatus(),
-    ]);
+    const session =
+      await requireWalletSession({ request });
+    const pool =
+      await readVeInviteRewardPoolStatus();
 
     if (
       !canOperateVeInviteRewards(
