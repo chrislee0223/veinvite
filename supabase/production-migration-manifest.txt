@@ -76,3 +76,4 @@
 20260830025316_index_reward_audit_foreign_keys.sql
 20260830042541_add_release_health_observability.sql
 20260830061138_distinguish_scheduled_cron_observability.sql
+20260830083500_align_invite_code_constraint.sql
