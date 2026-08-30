@@ -8,7 +8,6 @@ import {
   useState,
 } from 'react';
 import dynamic from 'next/dynamic';
-import Link from 'next/link';
 
 import {
   AppBottomNavigation,
@@ -353,8 +352,6 @@ export function HomeClient() {
           </section>
 
           {message ? <div className="toast" role="status">{message}</div> : null}
-          <section className="dappInfo"><span className="dappInfoLabel">{t.dappTitle}</span><p>{t.dappDescription}</p></section>
-          <footer className="footerLinks"><Link href="/privacy">{t.privacy}</Link><Link href="/terms">{t.terms}</Link></footer>
         </>
       ) : activeTab === 'guide' ? (
         <AppGuide locale={locale} />
@@ -430,9 +427,6 @@ export function HomeClient() {
         .completePanel > div { min-width:0; flex:1; }.completePanel strong { font-size:.9rem; overflow-wrap:anywhere; }.completePanel p { margin:4px 0 0; color:#9eaa9f; font-size:.75rem; line-height:1.45; overflow-wrap:anywhere; }
         .cancelLink { position:relative; z-index:1; display:block; margin:18px auto 0; border:0; background:transparent; color:#8d879a; font:inherit; font-size:.74rem; font-weight:800; cursor:pointer; }
         .toast { width:min(100%,520px); box-sizing:border-box; margin:14px auto 0; padding:13px 15px; border:1px solid rgba(77,224,167,.18); border-radius:15px; background:rgba(33,159,111,.1); color:#7cefc0; font-size:.82rem; font-weight:800; overflow-wrap:anywhere; }
-        .dappInfo { width:min(100%,520px); box-sizing:border-box; margin:18px auto 0; padding:16px 18px; border:1px solid rgba(255,255,255,.08); border-radius:16px; background:rgba(255,255,255,.035); }
-        .dappInfoLabel { display:block; color:#ffd66e; font-size:.78rem; font-weight:900; overflow-wrap:anywhere; }.dappInfo p { margin:7px 0 0; color:#8f899e; font-size:.74rem; line-height:1.55; overflow-wrap:anywhere; }
-        .footerLinks { width:min(100%,520px); margin:24px auto 0; display:flex; justify-content:center; flex-wrap:wrap; gap:20px; }.footerLinks :global(a) { color:#706b7d; font-size:.72rem; font-weight:750; text-decoration:none; }
         .modalBackdrop { position:fixed; z-index:100; inset:0; display:grid; place-items:center; padding:20px; background:rgba(2,3,10,.78); backdrop-filter:blur(10px); }
         .modalCard { width:min(100%,410px); box-sizing:border-box; padding:25px; border:1px solid rgba(255,255,255,.1); border-radius:25px; background:#121421; text-align:center; box-shadow:0 30px 90px rgba(0,0,0,.5); }
         .warningIcon { width:50px; height:50px; margin:0 auto 15px; display:grid; place-items:center; border-radius:17px; background:rgba(255,91,111,.1); color:#ff7186; font-size:1.2rem; font-weight:950; }.modalCard h2 { margin:0; font-size:1.4rem; letter-spacing:-.03em; overflow-wrap:anywhere; }.modalCard p { margin:11px 0 0; color:#a39eaf; font-size:.88rem; line-height:1.55; overflow-wrap:anywhere; }.cancelConfirm { margin-top:16px; border:0; background:transparent; color:#ff7186; font:inherit; font-size:.8rem; font-weight:900; cursor:pointer; }
