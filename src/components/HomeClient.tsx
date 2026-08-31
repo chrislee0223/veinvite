@@ -14,6 +14,7 @@ import {
   type AppTab,
 } from './AppBottomNavigation';
 import { Brand } from './Brand';
+import { InAppInviteNotifications } from './InAppInviteNotifications';
 import { useWalletLauncher } from './WalletControl';
 import { GUIDE_REWARD_STEP_COPY } from '@/lib/i18n/guideRewardStepCopy';
 import { HOME_COPY } from '@/lib/i18n/homeCopy';
@@ -280,16 +281,19 @@ export function HomeClient() {
       <header className="topBar">
         <Brand />
         <div className="topActions">
-          <select
-            className="languageSelect"
-            value={locale}
-            onChange={(event) => changeLocale(event.target.value as Locale)}
-            aria-label={t.languageAria}
-          >
-            {LANGUAGE_OPTIONS.map((option) => (
-              <option key={option.locale} value={option.locale}>{option.nativeName}</option>
-            ))}
-          </select>
+          <div className="utilityActions">
+            <InAppInviteNotifications locale={locale} />
+            <select
+              className="languageSelect"
+              value={locale}
+              onChange={(event) => changeLocale(event.target.value as Locale)}
+              aria-label={t.languageAria}
+            >
+              {LANGUAGE_OPTIONS.map((option) => (
+                <option key={option.locale} value={option.locale}>{option.nativeName}</option>
+              ))}
+            </select>
+          </div>
           {wallet ? (
             <button type="button" className="accountChip" onClick={openWallet} aria-label={t.walletAria}>
               <span className="accountDot" />{wallet.slice(0, 6)}···{wallet.slice(-4)}
@@ -387,6 +391,7 @@ export function HomeClient() {
         .screen { min-height:100svh; box-sizing:border-box; padding:22px 18px 118px; color:#fff; background:radial-gradient(circle at 50% 16%,rgba(244,183,40,.14),transparent 32%),#080807; }
         .topBar { width:min(100%,520px); margin:0 auto 26px; display:flex; align-items:center; justify-content:space-between; gap:16px; }
         .topActions { min-width:0; display:flex; align-items:center; gap:10px; }
+        .utilityActions { min-width:0; display:flex; align-items:center; justify-content:flex-end; gap:8px; }
         .languageSelect { max-width:155px; height:40px; padding:0 28px 0 11px; border:1px solid rgba(255,255,255,.1); border-radius:13px; background:#141625; color:#fff; font:inherit; font-size:.76rem; font-weight:800; cursor:pointer; }
         .accountChip { min-height:40px; padding:0 13px; display:inline-flex; align-items:center; gap:8px; border:1px solid rgba(255,255,255,.1); border-radius:13px; background:#141625; color:#fff; font:inherit; font-size:.72rem; font-weight:850; cursor:pointer; }
         .accountDot { width:9px; height:9px; border-radius:50%; background:#f4b728; box-shadow:0 0 14px rgba(244,183,40,.68); }
@@ -431,7 +436,7 @@ export function HomeClient() {
         .modalCard { width:min(100%,410px); box-sizing:border-box; padding:25px; border:1px solid rgba(255,255,255,.1); border-radius:25px; background:#121421; text-align:center; box-shadow:0 30px 90px rgba(0,0,0,.5); }
         .warningIcon { width:50px; height:50px; margin:0 auto 15px; display:grid; place-items:center; border-radius:17px; background:rgba(255,91,111,.1); color:#ff7186; font-size:1.2rem; font-weight:950; }.modalCard h2 { margin:0; font-size:1.4rem; letter-spacing:-.03em; overflow-wrap:anywhere; }.modalCard p { margin:11px 0 0; color:#a39eaf; font-size:.88rem; line-height:1.55; overflow-wrap:anywhere; }.cancelConfirm { margin-top:16px; border:0; background:transparent; color:#ff7186; font:inherit; font-size:.8rem; font-weight:900; cursor:pointer; }
         @keyframes pulse { 0%,100% { opacity:.55; transform:scale(.9); } 50% { opacity:1; transform:scale(1.08); } }
-        @media (max-width:560px) { .screen { padding:18px 14px 116px; }.topBar { align-items:flex-start; }.topActions { max-width:58%; align-items:flex-end; flex-direction:column-reverse; gap:7px; }.languageSelect { width:100%; max-width:155px; height:34px; border-radius:11px; font-size:.68rem; }.accountChip { min-height:34px; padding:0 10px; border-radius:11px; font-size:.66rem; }.missionCard { padding:21px 18px; border-radius:26px; }.missionHeader { align-items:flex-start; }.missionCopy { margin-top:30px; }.missionCopy h1 { font-size:clamp(1.9rem,10vw,2.6rem); }.missionCopy.cjkCopy h1 { font-size:clamp(1.9rem,9vw,2.4rem); } }
+        @media (max-width:560px) { .screen { padding:18px 14px 116px; }.topBar { align-items:flex-start; }.topActions { max-width:58%; align-items:flex-end; flex-direction:column-reverse; gap:7px; }.utilityActions { width:100%; }.utilityActions .languageSelect { min-width:0; width:auto; flex:1; }.languageSelect { width:100%; max-width:155px; height:34px; border-radius:11px; font-size:.68rem; }.accountChip { min-height:34px; padding:0 10px; border-radius:11px; font-size:.66rem; }.missionCard { padding:21px 18px; border-radius:26px; }.missionHeader { align-items:flex-start; }.missionCopy { margin-top:30px; }.missionCopy h1 { font-size:clamp(1.9rem,10vw,2.6rem); }.missionCopy.cjkCopy h1 { font-size:clamp(1.9rem,9vw,2.4rem); } }
       `}</style>
     </main>
   );
