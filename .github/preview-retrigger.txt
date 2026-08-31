@@ -1,1 +1,1 @@
-Preview retrigger marker for PR #122 final production-parity UI validation. No application behavior changes.
+Preview retrigger marker for the deployed final UI snapshot on 2026-09-01. No application behavior changes.
