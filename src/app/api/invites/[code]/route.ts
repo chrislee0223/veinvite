@@ -13,7 +13,7 @@ import {
 } from '@/lib/rateLimitServer';
 import {
   runAutomaticRewardPayout,
-} from '@/lib/rewards/automaticRewardPayout';
+} from '@/lib/rewards/automaticRewardPayoutWithMnemonic';
 import { supabaseAdmin } from '@/lib/supabaseServer';
 import type {
   InviteRecord,

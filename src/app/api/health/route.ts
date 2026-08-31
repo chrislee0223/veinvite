@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 
 import {
   readAutomaticRewardDistributorReadiness,
-} from '@/lib/rewards/automaticRewardPayout';
+} from '@/lib/rewards/automaticRewardPayoutWithMnemonic';
 import {
   readVeInviteRewardPoolStatus,
 } from '@/lib/rewards/onchainPool';

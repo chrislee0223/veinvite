@@ -23,7 +23,7 @@ import {
 import {
   runAutomaticRewardPayout,
   type AutomaticRewardPayoutResult,
-} from '@/lib/rewards/automaticRewardPayout';
+} from '@/lib/rewards/automaticRewardPayoutWithMnemonic';
 import {
   maintainRoundGrowthSnapshots,
 } from '@/lib/reporting/roundGrowthSnapshots';
