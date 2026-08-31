@@ -1,3 +1,5 @@
+import 'server-only';
+
 import { randomUUID } from 'node:crypto';
 
 import {
@@ -33,6 +35,7 @@ import {
 import { supabaseAdmin } from '@/lib/supabaseServer';
 import {
   getVeBetterNetworkConfig,
+  type VeBetterNetwork,
 } from '@/lib/vebetter/network';
 
 const AUTO_PAYOUT_LOCK_SECONDS = 180;
@@ -378,7 +381,7 @@ async function prepareRewardRound({
   appId,
   poolBalanceWei,
 }: {
-  network: string;
+  network: VeBetterNetwork;
   appId: string;
   poolBalanceWei: string;
 }): Promise<string | null> {
