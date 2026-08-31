@@ -40,6 +40,16 @@ if (!/Signals are forensic context only and never change reward eligibility or p
   failures.push('Recipient forensic analytics must remain explicitly observation-only.');
 }
 
+const recipientIndexMigration = read(
+  'supabase/migrations/20260901021500_index_reward_recipient_audit_foreign_keys.sql',
+);
+if (
+  !/reward_recipient_audit_ledger_payout_id_idx/.test(recipientIndexMigration) ||
+  !/reward_recipient_risk_events_related_receipt_id_idx/.test(recipientIndexMigration)
+) {
+  failures.push('Reward recipient audit foreign keys must retain covering indexes.');
+}
+
 const limitations = read('docs/KNOWN_LIMITATIONS.md');
 if (/mainnet funded referral rewards are intentionally disabled/i.test(limitations)) {
   failures.push('Known limitations still claim mainnet funded rewards are disabled.');
