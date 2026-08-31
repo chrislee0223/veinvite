@@ -315,16 +315,11 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    if (invitation.reward_status === 'PAID') {
-      return NextResponse.json(
-        {
-          error:
-            'Paid referrals are immutable; on-chain review must be completed before payout settlement.',
-        },
-        { status: 409, headers: noStoreHeaders() },
-      );
-    }
-
+    // Historical funding analysis is append-only and observation-only. It is
+    // safe and useful after a payout as well: a later operator investigation
+    // can backfill forensic context for a previously paid recipient without
+    // rewriting the invitation, reward decision, payout, receipt, or chain
+    // settlement. Paid state therefore must not prevent this read-only scan.
     const rateLimitResponse = await enforceRateLimits([
       {
         scope: 'admin_sybil_onchain_operator',
