@@ -38,6 +38,13 @@ function readRecord(value: unknown, fieldName: string): Record<string, unknown> 
   return value as Record<string, unknown>;
 }
 
+function readArray(value: unknown, fieldName: string): unknown[] {
+  if (!Array.isArray(value)) {
+    throw new Error(`${fieldName} is malformed.`);
+  }
+  return value;
+}
+
 function readIntegerString(value: unknown, fieldName: string): string {
   const normalized = String(value ?? '');
   if (!INTEGER_PATTERN.test(normalized)) {
@@ -147,6 +154,47 @@ export async function readLatestRewardForecastSnapshot(input: {
   return mapSnapshotRow(readRecord(data, 'latest reward forecast snapshot'));
 }
 
+async function readForecastHistory(input: {
+  network: string;
+  appId: string;
+}): Promise<{
+  recentAllocationWeiNewestFirst: string[];
+  completedRewardRoundRecipientCounts: number[];
+}> {
+  const { data, error } = await supabaseAdmin.rpc(
+    'read_reward_forecast_history',
+    {
+      p_network: input.network,
+      p_app_id: input.appId,
+      p_allocation_limit: ALLOCATION_HISTORY_LIMIT,
+      p_recipient_limit: RECIPIENT_HISTORY_LIMIT,
+    },
+  );
+
+  if (error) {
+    throw new Error(`Reward forecast history could not be loaded: ${error.message}`);
+  }
+
+  const record = readRecord(data, 'reward forecast history');
+  const allocationValues = readArray(
+    record.allocationWeiNewestFirst,
+    'allocationWeiNewestFirst',
+  );
+  const recipientValues = readArray(
+    record.completedRecipientCountsNewestFirst,
+    'completedRecipientCountsNewestFirst',
+  );
+
+  return {
+    recentAllocationWeiNewestFirst: allocationValues.map((value, index) =>
+      readIntegerString(value, `allocationHistory[${index}]`),
+    ),
+    completedRewardRoundRecipientCounts: recipientValues.map((value, index) =>
+      readCount(value, `rewardRecipientHistory[${index}]`),
+    ),
+  };
+}
+
 function pendingAgeWeights(createdAt: string, nowMs: number): {
   expectedBps: number;
   stressBps: number;
@@ -223,41 +271,11 @@ export async function refreshRewardForecastSnapshot(input: {
 
   if (!planning.latestAllocation) return null;
 
-  const { data: allocationRows, error: allocationError } = await supabaseAdmin
-    .from('vebetter_round_allocations')
-    .select('vebetter_round_id,rewards_allocation_amount_wei')
-    .eq('network', input.network)
-    .eq('app_id', input.appId)
-    .gt('rewards_allocation_amount_wei', 0)
-    .order('vebetter_round_id', { ascending: false })
-    .limit(ALLOCATION_HISTORY_LIMIT);
-
-  if (allocationError) {
-    throw new Error(`Reward allocation history could not be loaded: ${allocationError.message}`);
-  }
-
-  const recentAllocationWeiNewestFirst = (allocationRows ?? []).map((row, index) =>
-    readIntegerString(row.rewards_allocation_amount_wei, `allocationHistory[${index}]`),
-  );
+  const {
+    recentAllocationWeiNewestFirst,
+    completedRewardRoundRecipientCounts,
+  } = await readForecastHistory(input);
   if (recentAllocationWeiNewestFirst.length === 0) return null;
-
-  const { data: rewardRoundRows, error: rewardRoundError } = await supabaseAdmin
-    .from('reward_rounds')
-    .select('eligible_count')
-    .eq('network', input.network)
-    .eq('app_id', input.appId)
-    .in('status', ['COMPLETED', 'PARTIAL'])
-    .gt('eligible_count', 0)
-    .order('vebetter_round_id', { ascending: false, nullsFirst: false })
-    .limit(RECIPIENT_HISTORY_LIMIT);
-
-  if (rewardRoundError) {
-    throw new Error(`Reward recipient history could not be loaded: ${rewardRoundError.message}`);
-  }
-
-  const completedRewardRoundRecipientCounts = (rewardRoundRows ?? []).map((row, index) =>
-    readCount(row.eligible_count, `rewardRecipientHistory[${index}]`),
-  );
 
   const { pipeline, ageBuckets } = await readForecastPipeline({
     network: input.network,
