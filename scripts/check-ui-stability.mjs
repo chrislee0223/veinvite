@@ -81,6 +81,9 @@ if (!/class InviteRequestError extends Error/.test(inviteeClient)) {
 if (!/console\.error\('Failed to claim invite:'/m.test(inviteeClient)) {
   failures.push('Invite claim flow can regress to an unhandled checking-state failure.');
 }
+if (!/active_existing_user/.test(inviteeClient) || !/setErrorCode\('existing'\)/.test(inviteeClient)) {
+  failures.push('Active-existing users must continue to receive a dedicated ineligibility state.');
+}
 
 const invitePage = read('src/app/i/[code]/page.tsx');
 if (/InviteeReviewAutoRefresh/.test(invitePage)) {
@@ -151,9 +154,31 @@ if (!/!select\.closest\('\.utilityActions'\)/.test(headerLanguagePortal)) {
 }
 
 const copyHardening = read('src/lib/i18n/copyHardening.ts');
-if (!/B3TR reward or Allocation Voting activity/.test(copyHardening)) {
-  failures.push('Existing-user rejection copy is not aligned with the actual reward/voting eligibility rule.');
+if (!/ENTRY_REJECTION_COPY/.test(copyHardening)) {
+  failures.push('Invite rejection copy must use the reviewed shared privacy-safe source.');
 }
+
+const entryRejectionCopy = read('src/lib/i18n/entryRejectionCopy.ts');
+for (const locale of [
+  'en', 'ko', 'zh', 'hi', 'es', 'ja',
+  'it', 'tr', 'nl', 'de', 'fr',
+]) {
+  if (!new RegExp(`\\b${locale}:\\s*\\{`).test(entryRejectionCopy)) {
+    failures.push(`Invite rejection copy is incomplete for locale: ${locale}`);
+  }
+}
+if (/B3TR|Allocation Voting|12\s*(completed|round|rounds)|12개|transaction|txId|checkedBlock|dormancy/i.test(entryRejectionCopy)) {
+  failures.push('Public invite rejection copy exposes eligibility evidence or timing details that could help users reverse-engineer the rule.');
+}
+if (!/Recent VeBetterDAO activity was found/.test(entryRejectionCopy) || !/최근 VeBetterDAO 활동 이력이 확인/.test(entryRejectionCopy)) {
+  failures.push('Invite rejection copy no longer gives users a clear high-level reason.');
+}
+
+const uiTestPage = read('src/app/ui-test/page.tsx');
+if (!/InviteRejectionPreview/.test(uiTestPage)) {
+  failures.push('UI test page must mirror the production invite-ineligibility feedback.');
+}
+requireFile('src/components/InviteRejectionPreview.tsx');
 
 const legalCopy = read('src/lib/i18n/legalCopy.ts');
 for (const locale of [
