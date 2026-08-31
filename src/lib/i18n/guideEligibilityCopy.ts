@@ -10,7 +10,7 @@ export const GUIDE_ELIGIBILITY_COPY: Record<Locale, GuideEligibilityCopy> = {
     newDescription:
       'A wallet with no previous VeBetterDAO reward or Allocation Voting history.',
     returningDescription:
-      'A user with no reward or Allocation Voting activity since the earliest of the last 12 completed rounds began.',
+      'A user with no reward or Allocation Voting activity from the start of the last 12 completed rounds through now.',
   },
   ko: {
     newDescription:
@@ -22,7 +22,7 @@ export const GUIDE_ELIGIBILITY_COPY: Record<Locale, GuideEligibilityCopy> = {
     newDescription:
       '此前没有 VeBetterDAO 奖励或 Allocation Voting 记录的钱包。',
     returningDescription:
-      '在最近 12 个已完成轮次以及当前轮次中都没有奖励或 Allocation Voting 活动的用户。',
+      '从最近 12 个已完成轮次的起始时点到现在，都没有奖励或 Allocation Voting 活动的用户。',
   },
   hi: {
     newDescription:
@@ -34,7 +34,7 @@ export const GUIDE_ELIGIBILITY_COPY: Record<Locale, GuideEligibilityCopy> = {
     newDescription:
       'Una cartera sin historial previo de recompensas de VeBetterDAO ni de Allocation Voting.',
     returningDescription:
-      'Un usuario que no ha recibido recompensas ni participado en Allocation Voting desde el inicio de las últimas 12 rondas completadas hasta ahora.',
+      'Un usuario que no ha recibido recompensas ni participado en Allocation Voting desde el inicio del periodo que abarca las últimas 12 rondas completadas.',
   },
   ja: {
     newDescription:
@@ -46,30 +46,30 @@ export const GUIDE_ELIGIBILITY_COPY: Record<Locale, GuideEligibilityCopy> = {
     newDescription:
       'Un wallet senza precedenti ricompense VeBetterDAO né attività di Allocation Voting.',
     returningDescription:
-      'Un utente che non ha ricevuto ricompense né partecipato ad Allocation Voting dall’inizio delle ultime 12 tornate completate fino a oggi.',
+      'Un utente che non ha ricevuto ricompense né partecipato ad Allocation Voting dall’inizio del periodo che comprende le ultime 12 tornate completate.',
   },
   tr: {
     newDescription:
       'Daha önce VeBetterDAO ödülü veya Allocation Voting geçmişi olmayan bir cüzdan.',
     returningDescription:
-      'Son 12 tamamlanmış tur boyunca ve şu ana kadar ödül veya Allocation Voting etkinliği olmayan bir kullanıcı.',
+      'Son 12 tamamlanmış turu kapsayan dönemin başlangıcından bugüne kadar ödül veya Allocation Voting etkinliği olmayan bir kullanıcı.',
   },
   nl: {
     newDescription:
       'Een wallet zonder eerdere VeBetterDAO-beloningen of Allocation Voting-geschiedenis.',
     returningDescription:
-      'Een gebruiker die sinds het begin van de laatste 12 voltooide rondes geen beloning heeft ontvangen en niet via Allocation Voting heeft gestemd.',
+      'Een gebruiker die sinds het begin van de periode van de laatste 12 voltooide rondes geen beloning heeft ontvangen en niet via Allocation Voting heeft gestemd.',
   },
   de: {
     newDescription:
       'Eine Wallet ohne frühere VeBetterDAO-Belohnungen oder Allocation-Voting-Historie.',
     returningDescription:
-      'Ein Nutzer, der seit Beginn der letzten 12 abgeschlossenen Runden keine Belohnung erhalten und nicht am Allocation Voting teilgenommen hat.',
+      'Ein Nutzer, der seit Beginn des Zeitraums der letzten 12 abgeschlossenen Runden keine Belohnung erhalten und nicht am Allocation Voting teilgenommen hat.',
   },
   fr: {
     newDescription:
       'Un wallet sans historique de récompense VeBetterDAO ni d’Allocation Voting.',
     returningDescription:
-      'Un utilisateur qui n’a reçu aucune récompense et n’a participé à aucun vote d’Allocation Voting depuis le début des 12 derniers rounds terminés.',
+      'Un utilisateur qui n’a reçu aucune récompense et n’a participé à aucun vote d’Allocation Voting depuis le début de la période couvrant les 12 derniers rounds terminés.',
   },
 };
