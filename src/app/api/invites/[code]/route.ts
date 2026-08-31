@@ -194,7 +194,7 @@ async function enforceInviteRateLimit({
     {
       scope: sync
         ? 'invite_progress_sync_code'
-        : 'invite_progress_read_code',
+        : 'invite_progress_code',
       subject: normalizedCode,
       limit: sync
         ? INVITE_SYNC_CODE_LIMIT
@@ -205,7 +205,7 @@ async function enforceInviteRateLimit({
       ? {
           scope: sync
             ? 'invite_progress_sync_ip'
-            : 'invite_progress_read_ip',
+            : 'invite_progress_ip',
           subject: clientIp,
           limit: sync
             ? INVITE_SYNC_IP_LIMIT
