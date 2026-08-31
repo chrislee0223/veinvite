@@ -4,6 +4,9 @@ import {
   RewardPayoutAdminClient,
 } from '@/components/RewardPayoutAdminClient';
 import {
+  RewardPayoutAutomationClient,
+} from '@/components/RewardPayoutAutomationClient';
+import {
   WalletSessionGate,
 } from '@/components/WalletSessionGate';
 
@@ -18,6 +21,7 @@ export const metadata: Metadata = {
 export default function RewardPayoutAdminPage() {
   return (
     <WalletSessionGate>
+      <RewardPayoutAutomationClient />
       <RewardPayoutAdminClient />
     </WalletSessionGate>
   );
