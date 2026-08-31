@@ -151,6 +151,12 @@ if (!/labScreen[\s\S]*missionCard[\s\S]*width\s*:\s*min\(100%,560px\)\s*!importa
 if (!/labScreen[\s\S]*previewNavigation[\s\S]*left\s*:\s*16px\s*!important/.test(finalUi) || !/labScreen[\s\S]*previewNavigation[\s\S]*right\s*:\s*16px\s*!important/.test(finalUi)) {
   failures.push('UI test bottom navigation no longer mirrors the reviewed production gutter.');
 }
+if (!/min-height\s*:\s*100svh/.test(finalUi)) {
+  failures.push('Invite and mission shells are missing the reviewed stable mobile viewport fallback.');
+}
+if (!/@media\s*\(prefers-reduced-motion:\s*reduce\)[\s\S]*\.pulseDot[\s\S]*\.spinnerLarge[\s\S]*animation\s*:\s*none\s*!important/i.test(finalUi)) {
+  failures.push('Motion-heavy progress indicators must respect the OS reduced-motion preference.');
+}
 
 const localizedTypography = read('src/app/localized-typography.css');
 if (!/\.labScreen/.test(localizedTypography)) {
@@ -168,6 +174,25 @@ const headerLanguagePortal = read(
 );
 if (!/!select\.closest\('\.utilityActions'\)/.test(headerLanguagePortal)) {
   failures.push('Global flag picker can re-create the removed main home language control.');
+}
+if (
+  !/new MutationObserver\(scheduleAttach\)/.test(headerLanguagePortal) ||
+  !/requestAnimationFrame/.test(headerLanguagePortal) ||
+  !/cancelAnimationFrame/.test(headerLanguagePortal)
+) {
+  failures.push('Header language picker DOM observation must stay frame-bounded.');
+}
+
+const rewardForecastPortal = read(
+  'src/components/PublicRewardForecastPortal.tsx',
+);
+if (
+  !/new MutationObserver\(scheduleAttach\)/.test(rewardForecastPortal) ||
+  !/requestAnimationFrame/.test(rewardForecastPortal) ||
+  !/cancelAnimationFrame/.test(rewardForecastPortal) ||
+  !/if \(!impactCard\)[\s\S]*detach\(\)/.test(rewardForecastPortal)
+) {
+  failures.push('Reward forecast portal must detach cleanly and keep DOM observation frame-bounded.');
 }
 
 const copyHardening = read('src/lib/i18n/copyHardening.ts');
