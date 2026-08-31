@@ -32,6 +32,7 @@ export function HeaderLanguagePickerPortal() {
   useEffect(() => {
     let activeSelect: HTMLSelectElement | null = null;
     let activeMount: HTMLSpanElement | null = null;
+    let attachFrame: number | null = null;
 
     const detach = () => {
       if (activeSelect) {
@@ -88,12 +89,23 @@ export function HeaderLanguagePickerPortal() {
       setHost({ mount, select });
     };
 
+    const scheduleAttach = () => {
+      if (attachFrame !== null) return;
+      attachFrame = window.requestAnimationFrame(() => {
+        attachFrame = null;
+        attach();
+      });
+    };
+
     attach();
-    const observer = new MutationObserver(attach);
+    const observer = new MutationObserver(scheduleAttach);
     observer.observe(document.body, { childList: true, subtree: true });
 
     return () => {
       observer.disconnect();
+      if (attachFrame !== null) {
+        window.cancelAnimationFrame(attachFrame);
+      }
       detach();
     };
   }, []);

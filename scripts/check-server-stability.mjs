@@ -86,6 +86,49 @@ if (!/getClientIpSubject\(request\)/.test(fundingRoute)) {
   );
 }
 
+const leaderboardRoute = read(
+  'src/app/api/leaderboard/route.ts',
+);
+if (!/scope:\s*'public_leaderboard_ip'/.test(leaderboardRoute)) {
+  failures.push(
+    'Public leaderboard is missing its per-IP RPC throttle.',
+  );
+}
+if (!/getClientIpSubject\(request\)/.test(leaderboardRoute)) {
+  failures.push(
+    'Public leaderboard is not deriving the reviewed client-IP rate-limit subject before expensive public reads.',
+  );
+}
+
+const fundedOneWayMigration = read(
+  'supabase/migrations/20260831231500_lock_mainnet_funded_rewards_one_way.sql',
+);
+if (
+  !/guard_mainnet_funded_rewards_one_way/.test(fundedOneWayMigration) ||
+  !/old\.mainnet_funded_rewards_enabled\s*=\s*true/.test(fundedOneWayMigration) ||
+  !/new\.mainnet_funded_rewards_enabled\s*=\s*false/.test(fundedOneWayMigration)
+) {
+  failures.push(
+    'Mainnet funded-reward activation must remain one-way after activation.',
+  );
+}
+
+const emergencyPauseAuditMigration = read(
+  'supabase/migrations/20260901003500_require_emergency_pause_audit_metadata.sql',
+);
+if (
+  !/guard_reward_emergency_pause_audit_metadata/.test(emergencyPauseAuditMigration) ||
+  !/emergency_pause_changed_by/.test(emergencyPauseAuditMigration) ||
+  !/emergency_pause_reason/.test(emergencyPauseAuditMigration) ||
+  !/emergency_pause_network/.test(emergencyPauseAuditMigration) ||
+  !/emergency_pause_changed_at/.test(emergencyPauseAuditMigration) ||
+  !/before update of emergency_rewards_paused/i.test(emergencyPauseAuditMigration)
+) {
+  failures.push(
+    'Emergency reward-pause mutations must require complete audit metadata at the database layer.',
+  );
+}
+
 assertSafeInviteCodePattern(
   'src/app/api/admin/sybil/onchain/route.ts',
   'On-chain Sybil analytics',

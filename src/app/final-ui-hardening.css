@@ -9,6 +9,14 @@ body:has(.notificationBackdrop) {
   overflow:hidden;
 }
 
+/* Prefer the stable mobile viewport for invite/onboarding screens. The older
+ * global stylesheet still provides a 100vh fallback for browsers without svh. */
+.appShell,
+.centeredFlow,
+.inviteLanding {
+  min-height:100svh;
+}
+
 /* Language selection lives in Settings on the main app. The invite landing
  * flow keeps its own language control because it can be opened directly and
  * does not expose the main Settings tab yet. */
@@ -75,6 +83,14 @@ main.screen .bottomNavigation > div {
   flex-wrap:wrap;
   row-gap:5px;
   text-align:center;
+}
+
+/* Respect OS accessibility preferences without changing functional states. */
+@media (prefers-reduced-motion: reduce) {
+  .pulseDot,
+  .spinnerLarge {
+    animation:none !important;
+  }
 }
 
 /* Use one mobile gutter across the main app, invite onboarding, legal pages,
