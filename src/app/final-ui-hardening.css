@@ -113,6 +113,15 @@ main.screen .bottomNavigation > div {
   }
 }
 
+/* Invitee mission screens are phone-first. The contextual "invited friend"
+ * chip is useful on wider screens but competes with the language control on
+ * 320–420px phones, so keep only the brand and language control there. */
+@media (max-width:420px) {
+  .appHeader .chip {
+    display:none !important;
+  }
+}
+
 @media (max-width:380px) {
   .topBar {
     gap:8px !important;
@@ -125,11 +134,13 @@ main.screen .bottomNavigation > div {
     padding-left:9px !important;
     padding-right:9px !important;
   }
-  .topBar .brand {
+  .topBar .brand,
+  .appHeader .brand {
     gap:7px;
     font-size:20px;
   }
-  .topBar .brand img {
+  .topBar .brand img,
+  .appHeader .brand img {
     width:32px;
     height:32px;
   }
@@ -140,7 +151,8 @@ main.screen .bottomNavigation > div {
     max-width:96px;
     font-size:.66rem !important;
   }
-  .topBar .brand {
+  .topBar .brand,
+  .appHeader .brand {
     font-size:18px;
   }
 }
