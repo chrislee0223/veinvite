@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
 
+import { InviteRejectionPreview } from '@/components/InviteRejectionPreview';
 import { UiTestLab } from '@/components/UiTestLab';
 
 export const dynamic = 'force-dynamic';
@@ -22,5 +23,10 @@ export default function UiTestPage() {
     notFound();
   }
 
-  return <UiTestLab />;
+  return (
+    <>
+      <UiTestLab />
+      <InviteRejectionPreview />
+    </>
+  );
 }
