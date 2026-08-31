@@ -37,9 +37,9 @@ export const GUIDE_COPY: Record<Locale, GuideCopy> = {
           'They earn B3TR from three different VeBetterDAO dApps, convert B3TR to VOT3, and vote.',
       },
       {
-        title: 'Claim after verification',
+        title: 'Reward queued automatically',
         description:
-          "Once the final checks are complete, you'll get a notice and can request your reward from Home.",
+          'After final verification, your reward is automatically queued for payout. No claim is needed.',
       },
     ],
     eligibilityTitle: 'Who can take part?',
@@ -70,9 +70,9 @@ export const GUIDE_COPY: Record<Locale, GuideCopy> = {
           '서로 다른 VeBetterDAO dApp 3개에서 활동해 B3TR 보상을 받고, B3TR → VOT3 전환과 투표까지 완료해야 해요.',
       },
       {
-        title: '검증 후 보상 수령',
+        title: '검증 후 보상 자동 등록',
         description:
-          '최종 검토를 통과하면 알림을 받고 홈에서 보상 수령을 요청할 수 있어요.',
+          '최종 검증을 통과하면 보상 지급 대기열에 자동으로 등록돼요. 따로 수령 신청할 필요가 없어요.',
       },
     ],
     eligibilityTitle: '누가 참여할 수 있나요?',
@@ -103,9 +103,9 @@ export const GUIDE_COPY: Record<Locale, GuideCopy> = {
           '好友需要在 3 个不同的 VeBetterDAO dApp 中获得 B3TR 奖励，再把 B3TR 转为 VOT3，并完成一次投票。',
       },
       {
-        title: '验证通过后领取奖励',
+        title: '验证后自动进入奖励队列',
         description:
-          '最终检查通过后，你会收到提示，并可在首页提交奖励领取请求。',
+          '通过最终检查后，奖励会自动进入发放队列，无需手动领取。',
       },
     ],
     eligibilityTitle: '哪些用户可以参加？',
@@ -136,9 +136,9 @@ export const GUIDE_COPY: Record<Locale, GuideCopy> = {
           'उसे तीन अलग-अलग VeBetterDAO dApps से B3TR कमाना, B3TR को VOT3 में बदलना और एक वोट करना होगा।',
       },
       {
-        title: 'सत्यापन के बाद इनाम माँगें',
+        title: 'सत्यापन के बाद इनाम अपने-आप कतार में',
         description:
-          'अंतिम जाँच पूरी होने पर आपको सूचना मिलेगी और आप होम से अपना इनाम अनुरोध कर सकेंगे।',
+          'अंतिम जाँच पूरी होने के बाद आपका इनाम भुगतान की कतार में अपने-आप जुड़ जाएगा। आपको अलग से क्लेम करने की ज़रूरत नहीं है।',
       },
     ],
     eligibilityTitle: 'कौन भाग ले सकता है?',
@@ -164,14 +164,14 @@ export const GUIDE_COPY: Record<Locale, GuideCopy> = {
           'Solo puede haber una invitación activa a la vez. Cuando tu amigo complete todas las misiones y termine la verificación final, podrás invitar a otra persona.',
       },
       {
-        title: 'Completa todas las misiones',
+        title: 'Tu amigo completa todas las misiones',
         description:
           'Tu amigo debe ganar B3TR en tres dApps distintas de VeBetterDAO, convertir B3TR a VOT3 y votar.',
       },
       {
-        title: 'Solicita la recompensa tras verificar',
+        title: 'Recompensa en cola automáticamente',
         description:
-          'Cuando terminen las comprobaciones finales, recibirás un aviso y podrás solicitar la recompensa desde Inicio.',
+          'Cuando terminen las comprobaciones finales, la recompensa entrará automáticamente en la cola de pago. No tienes que solicitarla.',
       },
     ],
     eligibilityTitle: '¿Quién puede participar?',
@@ -197,14 +197,14 @@ export const GUIDE_COPY: Record<Locale, GuideCopy> = {
           '有効にできる招待は同時に1件だけです。友だちが全ミッションを終え、最終確認が完了すると次の友だちを招待できます。',
       },
       {
-        title: 'すべてのミッションを完了',
+        title: '友だちがすべてのミッションを完了',
         description:
           '異なる3つのVeBetterDAO dAppでB3TRを獲得し、B3TRをVOT3へ変換して、1回投票します。',
       },
       {
-        title: '確認後に報酬を申請',
+        title: '確認後は報酬が自動で支払い待ちに',
         description:
-          '最終確認が終わると通知が表示され、ホームから報酬を申請できます。',
+          '最終確認を通過すると、報酬は自動で支払い待ちに登録されます。申請は不要です。',
       },
     ],
     eligibilityTitle: '参加できるのは？',
@@ -230,14 +230,14 @@ export const GUIDE_COPY: Record<Locale, GuideCopy> = {
           'Può esserci un solo invito attivo alla volta. Quando il tuo amico completa tutte le missioni e il controllo finale, puoi invitare un’altra persona.',
       },
       {
-        title: 'Completa tutte le missioni',
+        title: 'Il tuo amico completa tutte le missioni',
         description:
           'Il tuo amico deve guadagnare B3TR da tre dApp VeBetterDAO diverse, convertire B3TR in VOT3 e votare.',
       },
       {
-        title: 'Richiedi la ricompensa dopo la verifica',
+        title: 'Ricompensa in coda automaticamente',
         description:
-          'Al termine dei controlli finali riceverai un avviso e potrai richiedere la ricompensa dalla Home.',
+          'Al termine dei controlli finali, la ricompensa viene inserita automaticamente nella coda di pagamento. Non devi richiederla.',
       },
     ],
     eligibilityTitle: 'Chi può partecipare?',
@@ -263,14 +263,14 @@ export const GUIDE_COPY: Record<Locale, GuideCopy> = {
           'Aynı anda yalnızca bir aktif davet olabilir. Arkadaşın tüm görevleri ve son kontrolü tamamladığında başka birini davet edebilirsin.',
       },
       {
-        title: 'Tüm görevleri tamamlasın',
+        title: 'Arkadaşın tüm görevleri tamamlasın',
         description:
           'Üç farklı VeBetterDAO dApp’inden B3TR kazanmalı, B3TR’yi VOT3’e dönüştürmeli ve oy kullanmalı.',
       },
       {
-        title: 'Doğrulamadan sonra ödülü iste',
+        title: 'Doğrulamadan sonra ödül otomatik sıraya alınır',
         description:
-          'Son kontroller tamamlandığında bildirim alırsın ve Ana Sayfa’dan ödülünü talep edebilirsin.',
+          'Son kontroller tamamlandığında ödülün otomatik olarak ödeme sırasına alınır. Ayrı bir talepte bulunmana gerek yok.',
       },
     ],
     eligibilityTitle: 'Kimler katılabilir?',
@@ -296,14 +296,14 @@ export const GUIDE_COPY: Record<Locale, GuideCopy> = {
           'Er kan maar één uitnodiging tegelijk actief zijn. Zodra je vriend alle missies en de laatste controle heeft afgerond, kun je iemand anders uitnodigen.',
       },
       {
-        title: 'Laat alle missies afronden',
+        title: 'Je vriend rondt alle missies af',
         description:
           'Je vriend verdient B3TR bij drie verschillende VeBetterDAO-dApps, zet B3TR om naar VOT3 en brengt een stem uit.',
       },
       {
-        title: 'Vraag de beloning aan na controle',
+        title: 'Beloning automatisch in de wachtrij',
         description:
-          'Na de laatste controles krijg je een melding en kun je op Home je beloning aanvragen.',
+          'Na de laatste controles wordt je beloning automatisch in de uitbetalingswachtrij geplaatst. Je hoeft niets aan te vragen.',
       },
     ],
     eligibilityTitle: 'Wie kan meedoen?',
@@ -329,14 +329,14 @@ export const GUIDE_COPY: Record<Locale, GuideCopy> = {
           'Es kann immer nur eine Einladung aktiv sein. Sobald dein Freund alle Missionen und die abschließende Prüfung erledigt hat, kannst du die nächste Person einladen.',
       },
       {
-        title: 'Alle Missionen abschließen',
+        title: 'Dein Freund schließt alle Missionen ab',
         description:
           'Dein Freund verdient B3TR bei drei verschiedenen VeBetterDAO-dApps, wandelt B3TR in VOT3 um und gibt eine Stimme ab.',
       },
       {
-        title: 'Belohnung nach Prüfung anfordern',
+        title: 'Belohnung wird automatisch eingeplant',
         description:
-          'Nach den abschließenden Prüfungen bekommst du einen Hinweis und kannst die Belohnung auf der Startseite anfordern.',
+          'Nach den abschließenden Prüfungen wird deine Belohnung automatisch zur Auszahlung vorgemerkt. Du musst sie nicht selbst anfordern.',
       },
     ],
     eligibilityTitle: 'Wer kann teilnehmen?',
@@ -367,20 +367,20 @@ export const GUIDE_COPY: Record<Locale, GuideCopy> = {
           'Votre ami doit gagner du B3TR sur trois dApps VeBetterDAO différentes, convertir du B3TR en VOT3 et voter.',
       },
       {
-        title: 'Demandez la récompense après vérification',
+        title: 'Récompense mise en paiement automatiquement',
         description:
-          'Une fois les contrôles finaux terminés, vous recevez une notification et pouvez demander votre récompense depuis l’accueil.',
+          'Une fois les contrôles finaux terminés, votre récompense est automatiquement placée dans la file de paiement. Aucune demande n’est nécessaire.',
       },
     ],
     eligibilityTitle: 'Qui peut participer ?',
     newTitle: 'Nouvel utilisateur',
     newDescription:
       'Un wallet sans historique de récompense ou de vote VeBetterDAO.',
-    returningTitle: 'Utilisateur de retour',
+    returningTitle: 'Utilisateur qui revient',
     returningDescription:
       'Un utilisateur sans récompense ni vote au cours des 12 dernières manches terminées.',
     countTitle: 'Ce que comptent les chiffres publics',
     countDescription:
-      'Les totaux des nouveaux utilisateurs et des utilisateurs de retour incluent uniquement les wallets ayant terminé toutes les missions et passé la vérification.',
+      'Les totaux des nouveaux utilisateurs et des utilisateurs qui reviennent incluent uniquement les wallets ayant terminé toutes les missions et passé la vérification.',
   },
 };
