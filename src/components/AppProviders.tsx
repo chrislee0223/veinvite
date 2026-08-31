@@ -5,7 +5,7 @@ import { ChakraProvider, extendTheme } from '@chakra-ui/react';
 import dynamic from 'next/dynamic';
 
 import { HeaderLanguagePickerPortal } from './HeaderLanguagePickerPortal';
-import { PublicRewardEstimatePortal } from './PublicRewardEstimatePortal';
+import { PublicRewardForecastPortal } from './PublicRewardForecastPortal';
 
 const VeChainProvider = dynamic(
   () =>
@@ -40,7 +40,7 @@ export function AppProviders({
       <VeChainProvider>
         {children}
         <HeaderLanguagePickerPortal />
-        <PublicRewardEstimatePortal />
+        <PublicRewardForecastPortal />
       </VeChainProvider>
     </ChakraProvider>
   );
