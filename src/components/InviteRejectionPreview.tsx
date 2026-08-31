@@ -6,7 +6,8 @@ import {
 } from 'react';
 
 import { Brand } from './Brand';
-import { ENTRY_REJECTION_COPY } from '@/lib/i18n/entryRejectionCopy';
+import '@/lib/i18n/copyHardening';
+import { INVITEE_COPY } from '@/lib/i18n/inviteeCopy';
 import {
   isLocale,
   type Locale,
@@ -45,7 +46,7 @@ export function InviteRejectionPreview() {
     };
   }, []);
 
-  const copy = ENTRY_REJECTION_COPY[locale];
+  const t = INVITEE_COPY[locale];
 
   return (
     <section className="rejectionLab" lang={locale}>
@@ -59,7 +60,7 @@ export function InviteRejectionPreview() {
 
       <p className="rejectionDescription">
         위 테스트 패널에서 언어를 바꾸면 이 화면도 같은 언어로 바뀝니다.
-        실제 앱의 기존 활성 사용자 거절 문구와 동일한 문구를 사용합니다.
+        실제 앱의 기존 활성 사용자 거절 화면과 동일한 제목·사유·홈 문구를 사용합니다.
       </p>
 
       <div className="phonePreview">
@@ -69,16 +70,9 @@ export function InviteRejectionPreview() {
 
         <div className="errorSurface">
           <div className="errorIcon" aria-hidden="true">×</div>
-          <h3>{copy.title}</h3>
-
-          <div className="reasonCard">
-            <strong>{copy.reasonLabel}</strong>
-            <p>{copy.reason}</p>
-          </div>
-
-          <p className="helpText">{copy.help}</p>
-
-          <button type="button">VeInvite</button>
+          <h3>{t.errors.existing}</h3>
+          <p className="muted">{t.existingHelp}</p>
+          <button type="button">{t.home}</button>
         </div>
       </div>
 
@@ -92,9 +86,9 @@ export function InviteRejectionPreview() {
 
       <style jsx>{`
         .rejectionLab {
-          width:min(100%,760px);
+          width:min(calc(100% - 32px),760px);
           box-sizing:border-box;
-          margin:24px auto 0;
+          margin:24px auto 48px;
           padding:24px;
           border:1px solid rgba(255,255,255,.08);
           border-radius:24px;
@@ -171,38 +165,15 @@ export function InviteRejectionPreview() {
           line-height:1.28;
           text-wrap:balance;
         }
-        .reasonCard {
-          margin:18px auto 0;
-          padding:15px 16px;
-          border:1px solid rgba(255,255,255,.08);
-          border-radius:16px;
-          background:#12120f;
-          text-align:left;
-        }
-        .reasonCard strong {
-          display:block;
-          color:#f4c85a;
-          font-size:.72rem;
-          letter-spacing:.02em;
-        }
-        .reasonCard p,
-        .helpText {
+        .muted {
+          max-width:340px;
+          margin:12px auto 0;
+          color:#9f9b92;
+          font-size:.86rem;
+          line-height:1.65;
           overflow-wrap:normal;
           word-break:normal;
           text-wrap:pretty;
-        }
-        .reasonCard p {
-          margin:7px 0 0;
-          color:#d1cdc4;
-          font-size:.86rem;
-          line-height:1.65;
-        }
-        .helpText {
-          margin:14px auto 0;
-          max-width:340px;
-          color:#8f8b82;
-          font-size:.78rem;
-          line-height:1.6;
         }
         .errorSurface button {
           width:100%;
@@ -232,7 +203,7 @@ export function InviteRejectionPreview() {
           font-size:.74rem;
           line-height:1.55;
         }
-        .rejectionLab:lang(ko) :where(h2,h3,p,span,strong,small) {
+        .rejectionLab:lang(ko) :where(h2,h3,p,span,strong,small,button) {
           word-break:keep-all;
         }
         .rejectionLab:lang(zh),
@@ -241,6 +212,7 @@ export function InviteRejectionPreview() {
         }
         @media (max-width:560px) {
           .rejectionLab {
+            width:100%;
             padding:20px 16px;
             border-radius:0;
             border-left:0;
@@ -251,9 +223,6 @@ export function InviteRejectionPreview() {
           }
           .rejectionHeading small {
             width:fit-content;
-          }
-          .phonePreview {
-            padding:16px;
           }
         }
       `}</style>
