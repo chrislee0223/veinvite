@@ -32,6 +32,13 @@ main.screen .bottomNavigation > div {
   width:min(100%,560px) !important;
 }
 
+/* Keep /ui-test visually aligned with the production shell so it remains a
+ * reliable post-release reference instead of drifting into a separate mock. */
+.labScreen .phoneCanvas > .topBar,
+.labScreen .phoneCanvas > .missionCard {
+  width:min(100%,560px) !important;
+}
+
 /* Keep the connected-wallet chip from pushing the header off very narrow
  * phones while retaining enough address context to identify the wallet. */
 .topBar .accountChip {
@@ -68,6 +75,16 @@ main.screen .bottomNavigation > div {
   .bottomNavigation {
     padding-left:16px !important;
     padding-right:16px !important;
+  }
+
+  /* /ui-test uses the same reviewed mobile gutter and bottom-nav inset. */
+  .labScreen .phoneCanvas {
+    padding-left:16px !important;
+    padding-right:16px !important;
+  }
+  .labScreen .previewNavigation {
+    left:16px !important;
+    right:16px !important;
   }
 
   /* The old mobile layout stacked wallet and utility controls because the
