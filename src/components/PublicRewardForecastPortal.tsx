@@ -178,6 +178,7 @@ export function PublicRewardForecastPortal() {
 
   useEffect(() => {
     let activeMount: HTMLDivElement | null = null;
+    let attachFrame: number | null = null;
 
     const detach = () => {
       activeMount?.remove();
@@ -190,7 +191,10 @@ export function PublicRewardForecastPortal() {
       const impactCard = document.querySelector<HTMLElement>(
         '.leaderboardPage .impactCard',
       );
-      if (!impactCard) return;
+      if (!impactCard) {
+        if (activeMount) detach();
+        return;
+      }
       if (
         activeMount?.isConnected &&
         activeMount.previousElementSibling === impactCard
@@ -209,11 +213,22 @@ export function PublicRewardForecastPortal() {
       setMount(nextMount);
     };
 
+    const scheduleAttach = () => {
+      if (attachFrame !== null) return;
+      attachFrame = window.requestAnimationFrame(() => {
+        attachFrame = null;
+        attach();
+      });
+    };
+
     attach();
-    const observer = new MutationObserver(attach);
+    const observer = new MutationObserver(scheduleAttach);
     observer.observe(document.body, { childList: true, subtree: true });
     return () => {
       observer.disconnect();
+      if (attachFrame !== null) {
+        window.cancelAnimationFrame(attachFrame);
+      }
       detach();
     };
   }, []);
