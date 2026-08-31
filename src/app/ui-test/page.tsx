@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 
+import { GuideUiPreview } from '@/components/GuideUiPreview';
 import { InviteRejectionPreview } from '@/components/InviteRejectionPreview';
 import { LeaderboardUiPreview } from '@/components/LeaderboardUiPreview';
 import { UiTestLab } from '@/components/UiTestLab';
@@ -48,6 +49,7 @@ export default function UiTestPage() {
       </div>
 
       <UiTestLab />
+      <GuideUiPreview />
       <LeaderboardUiPreview />
       <InviteRejectionPreview />
 
@@ -55,7 +57,7 @@ export default function UiTestPage() {
         <span>LEGAL NAVIGATION</span>
         <h2>약관 · 개인정보처리방침 뒤로가기 확인</h2>
         <p>
-          아래 실제 Legal 페이지를 열면 상단에 새 뒤로가기 버튼이 표시됩니다.
+          아래 실제 Legal 페이지를 열면 상단에 뒤로가기 버튼이 표시됩니다.
           Preview 내부에서 열었을 때는 이 테스트 화면으로 돌아옵니다.
         </p>
         <div>
