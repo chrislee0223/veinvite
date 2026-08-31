@@ -130,6 +130,18 @@ if (!/\.topBar\s+\.utilityActions\s+\.languageSelect\s*\{[^}]*display\s*:\s*none
 if (!/max-width\s*:\s*112px/.test(finalUi)) {
   failures.push('Narrow-screen wallet-chip safeguard is missing.');
 }
+if (!/flex-direction\s*:\s*row\s*!important/.test(finalUi)) {
+  failures.push('Mobile wallet and notification controls can regress to a stacked header layout.');
+}
+if (!/padding-left\s*:\s*16px\s*!important/.test(finalUi) || !/padding-right\s*:\s*16px\s*!important/.test(finalUi)) {
+  failures.push('Reviewed 16px mobile horizontal gutter is missing.');
+}
+if (!/missionCard[\s\S]*width\s*:\s*min\(100%,560px\)\s*!important/.test(finalUi)) {
+  failures.push('Main home content width is not aligned to the reviewed 560px app rhythm.');
+}
+if (!/bottomNavigation[\s\S]*width\s*:\s*min\(100%,560px\)\s*!important/.test(finalUi)) {
+  failures.push('Bottom navigation width is not aligned to the reviewed core app width.');
+}
 
 const headerLanguagePortal = read(
   'src/components/HeaderLanguagePickerPortal.tsx',
