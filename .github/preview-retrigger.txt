@@ -1,1 +1,1 @@
-Preview retrigger marker for PR #118 final UI validation. No application behavior changes.
+Preview retrigger marker for PR #122 final production-parity UI validation. No application behavior changes.

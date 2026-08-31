@@ -18,6 +18,27 @@
   order:2;
 }
 
+/* Keep the core app width stable when switching Home / Guide / Settings.
+ * Leaderboard intentionally remains wider because its four-column table
+ * benefits from the extra room. */
+main.screen > .missionCard,
+main.screen > .toast {
+  width:min(100%,560px) !important;
+}
+main.screen > .topBar:has(~ .missionCard) {
+  width:min(100%,560px) !important;
+}
+main.screen .bottomNavigation > div {
+  width:min(100%,560px) !important;
+}
+
+/* Keep /ui-test visually aligned with the production shell so it remains a
+ * reliable post-release reference instead of drifting into a separate mock. */
+.labScreen .phoneCanvas > .topBar,
+.labScreen .phoneCanvas > .missionCard {
+  width:min(100%,560px) !important;
+}
+
 /* Keep the connected-wallet chip from pushing the header off very narrow
  * phones while retaining enough address context to identify the wallet. */
 .topBar .accountChip {
@@ -34,6 +55,51 @@
   flex-wrap:wrap;
   row-gap:5px;
   text-align:center;
+}
+
+/* Use one mobile gutter across the main app, invite onboarding, legal pages,
+ * and bottom navigation. This prevents the screen edges from moving by a few
+ * pixels as users move through different parts of VeInvite. */
+@media (max-width:560px) {
+  main.screen {
+    padding-left:16px !important;
+    padding-right:16px !important;
+  }
+  .appShell,
+  .centeredFlow,
+  .inviteLanding,
+  .legalPage {
+    padding-left:16px !important;
+    padding-right:16px !important;
+  }
+  .bottomNavigation {
+    padding-left:16px !important;
+    padding-right:16px !important;
+  }
+
+  /* /ui-test uses the same reviewed mobile gutter and bottom-nav inset. */
+  .labScreen .phoneCanvas {
+    padding-left:16px !important;
+    padding-right:16px !important;
+  }
+  .labScreen .previewNavigation {
+    left:16px !important;
+    right:16px !important;
+  }
+
+  /* The old mobile layout stacked wallet and utility controls because the
+   * header also contained a language picker. Language now lives in Settings,
+   * so wallet + notifications should stay in one compact row. */
+  .topBar .topActions {
+    max-width:none !important;
+    flex-direction:row !important;
+    align-items:center !important;
+    gap:8px !important;
+  }
+  .topBar .utilityActions {
+    width:auto !important;
+    flex:0 0 auto;
+  }
 }
 
 @media (max-width:380px) {

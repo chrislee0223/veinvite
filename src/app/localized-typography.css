@@ -15,7 +15,8 @@
   .leaderboardPage,
   .rewardReceiptNotice,
   .centeredFlow,
-  .appShell
+  .appShell,
+  .labScreen
 ) :where(
   h1,
   h2,
@@ -45,7 +46,8 @@ html[lang='ko'] :is(
   .leaderboardPage,
   .rewardReceiptNotice,
   .centeredFlow,
-  .appShell
+  .appShell,
+  .labScreen
 ) :where(
   h1,
   h2,
@@ -73,7 +75,8 @@ html[lang='zh'] :is(
   .leaderboardPage,
   .rewardReceiptNotice,
   .centeredFlow,
-  .appShell
+  .appShell,
+  .labScreen
 ),
 html[lang='ja'] :is(
   .screen,
@@ -82,7 +85,8 @@ html[lang='ja'] :is(
   .leaderboardPage,
   .rewardReceiptNotice,
   .centeredFlow,
-  .appShell
+  .appShell,
+  .labScreen
 ) {
   line-break: strict;
   word-break: normal;
@@ -96,7 +100,8 @@ html[lang='ja'] :is(
   .leaderboardPage,
   .rewardReceiptNotice,
   .centeredFlow,
-  .appShell
+  .appShell,
+  .labScreen
 ) :where(h1, h2, h3) {
   text-wrap: balance;
 }
@@ -108,20 +113,22 @@ html[lang='ja'] :is(
   .leaderboardPage,
   .rewardReceiptNotice,
   .centeredFlow,
-  .appShell
+  .appShell,
+  .labScreen
 ) :where(p) {
   text-wrap: pretty;
 }
 
 /* Two-line-capable controls should stay vertically comfortable. */
-:is(.screen, .centeredFlow, .appShell, .settingsPage, .rewardReceiptNotice) button {
+:is(.screen, .centeredFlow, .appShell, .settingsPage, .rewardReceiptNotice, .labScreen) button {
   line-height: 1.25;
 }
 
 /* Home and invite landing progress labels keep their icons aligned even when
  * one locale needs two lines and another needs only one. */
 .screen .step b,
-.screen .stepLabel {
+.screen .stepLabel,
+.labScreen .stepLabel {
   min-height: 2.5em;
   display: flex;
   align-items: flex-start;
@@ -133,37 +140,28 @@ html[lang='ja'] :is(
 
 /* Long translated badges need vertical breathing room when they wrap. */
 .screen .badge,
-.screen .inviteBadge {
+.screen .inviteBadge,
+.labScreen .badge {
   padding-top: 5px;
   padding-bottom: 5px;
   line-height: 1.25;
   text-align: center;
 }
 
-/* Bottom navigation: allow a second line instead of clipping a translated
- * label, while keeping every tab label on the same two-line baseline. */
-.bottomNavigation button span {
-  min-height: 2.2em;
-  display: -webkit-box;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 2;
+/* Bottom navigation labels are intentionally single-line. These are short,
+ * persistent destinations, so wrapping makes the navigation jump vertically
+ * between locales. Extremely narrow screens may truncate with an ellipsis. */
+.bottomNavigation button span,
+.labScreen .previewNavigation button span {
+  min-height: 0;
+  display: block;
   overflow: hidden;
-  text-overflow: clip !important;
-  white-space: normal !important;
+  text-overflow: ellipsis !important;
+  white-space: nowrap !important;
   overflow-wrap: normal !important;
   word-break: normal !important;
-  line-height: 1.1;
+  line-height: 1.15;
   text-align: center;
-}
-
-html[lang='ko'] .bottomNavigation button span {
-  word-break: keep-all !important;
-}
-
-html[lang='zh'] .bottomNavigation button span,
-html[lang='ja'] .bottomNavigation button span {
-  line-break: strict;
-  word-break: normal !important;
 }
 
 /* Keep the three receipt fact values aligned when one translated label wraps. */
