@@ -106,3 +106,12 @@ for (const locale of Object.keys(REWARD_STATUS_COPY) as Locale[]) {
   HOME_COPY[locale].rewardDescription = reward.description;
   NOTIFICATION_COPY[locale].allMissionsHint = reward.missionHint;
 }
+
+// Natural Korean particles for the token name. These messages are visible in
+// the notification surface and should read like native Korean copy.
+NOTIFICATION_COPY.ko.dappBody =
+  '초대받은 사용자가 서로 다른 VeBetter dApp 3개에서 B3TR을 획득했습니다.';
+NOTIFICATION_COPY.ko.vot3Body =
+  '초대받은 사용자가 B3TR을 VOT3로 전환했습니다.';
+NOTIFICATION_COPY.ko.progressVot3Body =
+  '초대받은 사용자가 dApp 미션을 완료하고 B3TR을 VOT3로 전환했습니다.';
