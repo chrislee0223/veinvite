@@ -2,6 +2,7 @@ import 'server-only';
 
 import {
   Address,
+  HDKey,
   Hex,
   Mnemonic,
 } from '@vechain/sdk-core';
@@ -21,6 +22,54 @@ const VALID_MNEMONIC_WORD_COUNTS = new Set([
   21,
   24,
 ]);
+const MAX_VEWORLD_ACCOUNT_INDEX = 50;
+
+function addressOfPrivateKey(privateKey: Uint8Array) {
+  return Address
+    .ofPrivateKey(privateKey)
+    .toString()
+    .toLowerCase();
+}
+
+function deriveMatchingPrivateKey(
+  words: string[],
+  expectedAddress: string,
+): Uint8Array {
+  const basePrivateKey = Mnemonic.toPrivateKey(words);
+
+  if (addressOfPrivateKey(basePrivateKey) === expectedAddress) {
+    return basePrivateKey;
+  }
+
+  basePrivateKey.fill(0);
+
+  const hdKey = HDKey.fromMnemonic(words);
+
+  try {
+    for (let index = 0; index < MAX_VEWORLD_ACCOUNT_INDEX; index += 1) {
+      const child = hdKey.deriveChild(index);
+      const childPrivateKey = child.privateKey;
+
+      if (!childPrivateKey) {
+        continue;
+      }
+
+      const candidate = Uint8Array.from(childPrivateKey);
+
+      if (addressOfPrivateKey(candidate) === expectedAddress) {
+        return candidate;
+      }
+
+      candidate.fill(0);
+    }
+  } finally {
+    hdKey.wipePrivateData();
+  }
+
+  throw new Error(
+    'Automatic reward distributor mnemonic does not derive the configured public address in the supported VeWorld account range.',
+  );
+}
 
 function prepareRewardDistributorSecret() {
   const rawSecret =
@@ -42,8 +91,6 @@ function prepareRewardDistributorSecret() {
   let privateKeyBytes: Uint8Array | null = null;
 
   try {
-    privateKeyBytes = Mnemonic.toPrivateKey(words);
-
     const expectedAddress =
       process.env.VEINVITE_REWARD_DISTRIBUTOR_ADDRESS
         ?.trim()
@@ -58,16 +105,10 @@ function prepareRewardDistributorSecret() {
       );
     }
 
-    const derivedAddress = Address
-      .ofPrivateKey(privateKeyBytes)
-      .toString()
-      .toLowerCase();
-
-    if (derivedAddress !== expectedAddress) {
-      throw new Error(
-        'Automatic reward distributor mnemonic does not derive the configured public address.',
-      );
-    }
+    privateKeyBytes = deriveMatchingPrivateKey(
+      words,
+      expectedAddress,
+    );
 
     process.env.VEINVITE_REWARD_DISTRIBUTOR_PRIVATE_KEY =
       Hex.of(privateKeyBytes).toString();
