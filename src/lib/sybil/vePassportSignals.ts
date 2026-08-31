@@ -1,10 +1,11 @@
 import { ThorClient } from '@vechain/sdk-network';
 
 import { supabaseAdmin } from '@/lib/supabaseServer';
-import type {
-  SybilDecision,
-  SybilRiskLevel,
-  SybilStatus,
+import {
+  combineReferralPartySybilDecisions,
+  type SybilDecision,
+  type SybilRiskLevel,
+  type SybilStatus,
 } from '@/lib/sybil/risk';
 import {
   getVeBetterNetworkConfig,
@@ -13,6 +14,7 @@ import {
 
 const ADDRESS_PATTERN = /^0x[0-9a-fA-F]{40}$/;
 const DEFAULT_REVIEW_THRESHOLD = 2;
+const PASSPORT_WALLET_BATCH_SIZE = 8;
 
 const REVIEWED_PASSPORT_ADDRESSES: Record<
   VeBetterNetwork,
@@ -63,6 +65,7 @@ export type VePassportSignalSnapshot = {
 
 type QueuedInvitationRow = {
   invite_code: string;
+  inviter_wallet: string;
   invitee_wallet: string | null;
   status: string;
   sybil_status: SybilStatus;
@@ -116,6 +119,18 @@ function toBoolean(
   }
 
   return value;
+}
+
+function normalizeCheckedWallet(
+  walletAddress: string,
+): string {
+  if (!ADDRESS_PATTERN.test(walletAddress)) {
+    throw new Error(
+      'VePassport signal check received an invalid wallet address.',
+    );
+  }
+
+  return walletAddress.toLowerCase();
 }
 
 function getVeInviteReviewThreshold(): number {
@@ -225,13 +240,17 @@ export function evaluateVePassportSignalRisk(
   };
 }
 
-export async function readVePassportSignalSnapshot(
-  walletAddress: string,
-): Promise<VePassportSignalSnapshot> {
-  if (!ADDRESS_PATTERN.test(walletAddress)) {
-    throw new Error(
-      'VePassport signal check received an invalid wallet address.',
-    );
+async function readVePassportSignalSnapshots(
+  walletAddresses: string[],
+): Promise<Map<string, VePassportSignalSnapshot>> {
+  const normalizedWallets = Array.from(
+    new Set(
+      walletAddresses.map(normalizeCheckedWallet),
+    ),
+  );
+
+  if (normalizedWallets.length === 0) {
+    return new Map();
   }
 
   const {
@@ -245,52 +264,105 @@ export async function readVePassportSignalSnapshot(
     passportAddress,
     veBetterPassportAbi,
   );
+  const thresholdResult =
+    await contract.read.signalingThreshold();
+  const protocolSignalThreshold =
+    toSafeInteger(
+      thresholdResult[0],
+      'VePassport signalingThreshold',
+    );
+  const veInviteReviewThreshold =
+    getVeInviteReviewThreshold();
+  const checkedAt = new Date().toISOString();
+  const snapshots =
+    new Map<string, VePassportSignalSnapshot>();
 
-  const [
-    signalResult,
-    thresholdResult,
-    blacklistedResult,
-  ] = await Promise.all([
-    contract.read.signaledCounter(
-      walletAddress,
-    ),
-    contract.read.signalingThreshold(),
-    contract.read.isBlacklisted(
-      walletAddress,
-    ),
-  ]);
+  // Bound RPC fan-out so a large reward queue cannot create an unbounded
+  // request burst against the VeChain node. The protocol threshold is read
+  // once per preflight run rather than once per wallet.
+  for (
+    let offset = 0;
+    offset < normalizedWallets.length;
+    offset += PASSPORT_WALLET_BATCH_SIZE
+  ) {
+    const batch = normalizedWallets.slice(
+      offset,
+      offset + PASSPORT_WALLET_BATCH_SIZE,
+    );
+    const batchSnapshots = await Promise.all(
+      batch.map(async (walletAddress) => {
+        const [
+          signalResult,
+          blacklistedResult,
+        ] = await Promise.all([
+          contract.read.signaledCounter(
+            walletAddress,
+          ),
+          contract.read.isBlacklisted(
+            walletAddress,
+          ),
+        ]);
 
-  return {
-    walletAddress:
-      walletAddress.toLowerCase(),
-    network,
-    passportAddress,
-    signalCount: toSafeInteger(
-      signalResult[0],
-      'VePassport signaledCounter',
-    ),
-    protocolSignalThreshold:
-      toSafeInteger(
-        thresholdResult[0],
-        'VePassport signalingThreshold',
-      ),
-    veInviteReviewThreshold:
-      getVeInviteReviewThreshold(),
-    blacklisted: toBoolean(
-      blacklistedResult[0],
-      'VePassport isBlacklisted',
-    ),
-    checkedAt: new Date().toISOString(),
-  };
+        return {
+          walletAddress,
+          network,
+          passportAddress,
+          signalCount: toSafeInteger(
+            signalResult[0],
+            'VePassport signaledCounter',
+          ),
+          protocolSignalThreshold,
+          veInviteReviewThreshold,
+          blacklisted: toBoolean(
+            blacklistedResult[0],
+            'VePassport isBlacklisted',
+          ),
+          checkedAt,
+        } satisfies VePassportSignalSnapshot;
+      }),
+    );
+
+    for (const snapshot of batchSnapshots) {
+      snapshots.set(
+        snapshot.walletAddress,
+        snapshot,
+      );
+    }
+  }
+
+  return snapshots;
+}
+
+export async function readVePassportSignalSnapshot(
+  walletAddress: string,
+): Promise<VePassportSignalSnapshot> {
+  const normalizedWallet =
+    normalizeCheckedWallet(walletAddress);
+  const snapshots =
+    await readVePassportSignalSnapshots([
+      normalizedWallet,
+    ]);
+  const snapshot =
+    snapshots.get(normalizedWallet);
+
+  if (!snapshot) {
+    throw new Error(
+      'VePassport signal snapshot could not be loaded.',
+    );
+  }
+
+  return snapshot;
 }
 
 /**
  * Re-check every currently queued referral against the shared VePassport
  * signal/blacklist state immediately before a reward round is reserved.
  *
- * Existing operator REVIEW/BLOCKED decisions are never cleared here because
- * only referrals already marked CLEAR are selected. Any VePassport read
- * failure throws and prevents reward-round preparation (fail closed).
+ * Both the inviter (the B3TR recipient) and invitee (the mission actor) are
+ * checked. A stricter decision on either party wins. Existing operator
+ * REVIEW/BLOCKED decisions are never cleared here because only referrals
+ * already marked CLEAR are selected. Any missing queue evidence or VePassport
+ * read failure throws and prevents reward-round preparation (fail closed).
  */
 export async function refreshQueuedReferralSignalChecks({
   network,
@@ -341,7 +413,7 @@ export async function refreshQueuedReferralSignalChecks({
     await supabaseAdmin
       .from('invitations')
       .select(
-        'invite_code, invitee_wallet, status, sybil_status, sybil_risk_level, sybil_risk_score, sybil_reason, sybil_source',
+        'invite_code, inviter_wallet, invitee_wallet, status, sybil_status, sybil_risk_level, sybil_risk_score, sybil_reason, sybil_source',
       )
       .in('invite_code', inviteCodes)
       .eq('activation_network', network)
@@ -354,45 +426,103 @@ export async function refreshQueuedReferralSignalChecks({
     );
   }
 
+  const invitationRows =
+    (invitationResult.data ?? []) as QueuedInvitationRow[];
+  const loadedInviteCodes = new Set(
+    invitationRows.map((row) => row.invite_code),
+  );
+  const missingInviteCodes = inviteCodes.filter(
+    (code) => !loadedInviteCodes.has(code),
+  );
+
+  if (missingInviteCodes.length > 0) {
+    throw new Error(
+      `Queued reward candidates changed before VePassport preflight: ${missingInviteCodes.join(', ')}.`,
+    );
+  }
+
+  const walletsToCheck: string[] = [];
+
+  for (const row of invitationRows) {
+    const inviterWallet =
+      normalizeCheckedWallet(row.inviter_wallet);
+
+    if (!row.invitee_wallet) {
+      throw new Error(
+        `Queued invitation ${row.invite_code} is missing an invitee wallet.`,
+      );
+    }
+
+    const inviteeWallet =
+      normalizeCheckedWallet(row.invitee_wallet);
+
+    if (inviterWallet === inviteeWallet) {
+      throw new Error(
+        `Queued invitation ${row.invite_code} resolves to a self-invite at payout preflight.`,
+      );
+    }
+
+    walletsToCheck.push(
+      inviterWallet,
+      inviteeWallet,
+    );
+  }
+
+  const snapshots =
+    await readVePassportSignalSnapshots(
+      walletsToCheck,
+    );
+
   let checkedCount = 0;
   let clearCount = 0;
   let reviewCount = 0;
   let blockedCount = 0;
 
-  for (const value of invitationResult.data ?? []) {
-    const row =
-      value as QueuedInvitationRow;
+  for (const row of invitationRows) {
+    const inviterWallet =
+      row.inviter_wallet.toLowerCase();
+    const inviteeWallet =
+      row.invitee_wallet?.toLowerCase() ?? '';
+    const inviterSnapshot =
+      snapshots.get(inviterWallet);
+    const inviteeSnapshot =
+      snapshots.get(inviteeWallet);
 
-    if (
-      !row.invitee_wallet ||
-      !ADDRESS_PATTERN.test(
-        row.invitee_wallet,
-      )
-    ) {
+    if (!inviterSnapshot || !inviteeSnapshot) {
       throw new Error(
-        `Queued invitation ${row.invite_code} is missing a valid invitee wallet.`,
+        `VePassport party snapshot is missing for invitation ${row.invite_code}.`,
       );
     }
 
-    const snapshot =
-      await readVePassportSignalSnapshot(
-        row.invitee_wallet,
-      );
-
-    if (snapshot.network !== network) {
+    if (
+      inviterSnapshot.network !== network ||
+      inviteeSnapshot.network !== network
+    ) {
       throw new Error(
         `VePassport network mismatch for invitation ${row.invite_code}.`,
       );
     }
 
     const decision =
-      evaluateVePassportSignalRisk(
-        snapshot,
-      );
+      combineReferralPartySybilDecisions({
+        inviter:
+          evaluateVePassportSignalRisk(
+            inviterSnapshot,
+          ),
+        invitee:
+          evaluateVePassportSignalRisk(
+            inviteeSnapshot,
+          ),
+      });
     const nextStatus =
       decision.status === 'CLEAR'
         ? 'COMPLETED'
         : 'UNDER_REVIEW';
+    const checkedAt =
+      inviterSnapshot.checkedAt >=
+      inviteeSnapshot.checkedAt
+        ? inviterSnapshot.checkedAt
+        : inviteeSnapshot.checkedAt;
 
     const updateResult =
       await supabaseAdmin
@@ -407,18 +537,25 @@ export async function refreshQueuedReferralSignalChecks({
             decision.riskScore,
           sybil_reason:
             decision.reason,
-          sybil_checked_at:
-            snapshot.checkedAt,
+          sybil_checked_at: checkedAt,
           sybil_source:
             decision.source,
         })
         .eq('invite_code', row.invite_code)
         .eq('status', 'COMPLETED')
-        .eq('sybil_status', 'CLEAR');
+        .eq('sybil_status', 'CLEAR')
+        .select('invite_code')
+        .maybeSingle();
 
     if (updateResult.error) {
       throw new Error(
         `VePassport decision could not be persisted for invitation ${row.invite_code}: ${updateResult.error.message}`,
+      );
+    }
+
+    if (!updateResult.data) {
+      throw new Error(
+        `Invitation ${row.invite_code} changed during VePassport payout preflight.`,
       );
     }
 
