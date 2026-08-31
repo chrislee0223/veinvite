@@ -44,6 +44,9 @@ jobs:
       - name: UI stability gate
         run: node scripts/check-ui-stability.mjs
 
+      - name: User-facing copy and UX gate
+        run: node scripts/check-user-facing-copy.mjs
+
       - name: Forecast stability gate
         run: node scripts/check-forecast-stability.mjs
 

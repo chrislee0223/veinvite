@@ -6,6 +6,7 @@ import dynamic from 'next/dynamic';
 
 import '@/lib/i18n/copyHardening';
 import { HeaderLanguagePickerPortal } from './HeaderLanguagePickerPortal';
+import { LegalNavigationMemory } from './LegalNavigationMemory';
 import { PublicRewardForecastPortal } from './PublicRewardForecastPortal';
 
 const VeChainProvider = dynamic(
@@ -40,6 +41,7 @@ export function AppProviders({
     <ChakraProvider theme={theme}>
       <VeChainProvider>
         {children}
+        <LegalNavigationMemory />
         <HeaderLanguagePickerPortal />
         <PublicRewardForecastPortal />
       </VeChainProvider>

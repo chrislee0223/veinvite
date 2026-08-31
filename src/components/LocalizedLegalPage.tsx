@@ -6,6 +6,7 @@ import {
   useState,
 } from 'react';
 
+import { LEGAL_RETURN_STORAGE_KEY } from './LegalNavigationMemory';
 import {
   LEGAL_COPY,
   type LegalDocumentKind,
@@ -80,7 +81,12 @@ export function LocalizedLegalPage({
   }, []);
 
   const handleBack = () => {
-    if (window.history.length > 1) {
+    const returnOrigin = window.sessionStorage.getItem(
+      LEGAL_RETURN_STORAGE_KEY,
+    );
+    window.sessionStorage.removeItem(LEGAL_RETURN_STORAGE_KEY);
+
+    if (returnOrigin && window.history.length > 1) {
       window.history.back();
       return;
     }
@@ -119,7 +125,13 @@ export function LocalizedLegalPage({
         ))}
       </div>
 
-      <Link className="legalBack" href="/">
+      <Link
+        className="legalBack"
+        href="/"
+        onClick={() =>
+          window.sessionStorage.removeItem(LEGAL_RETURN_STORAGE_KEY)
+        }
+      >
         <span aria-hidden="true">←</span>
         {copy.back}
       </Link>

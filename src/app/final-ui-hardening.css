@@ -1,5 +1,14 @@
 /* Final reviewed UI safeguards for the production shell. */
 
+/* Prevent background content from moving while a full-screen dialog is open.
+ * This matters most on touch devices where swipe-scrolling can otherwise move
+ * the page behind a modal. */
+body:has(.modalBackdrop),
+body:has(.languageModalBackdrop),
+body:has(.notificationBackdrop) {
+  overflow:hidden;
+}
+
 /* Language selection lives in Settings on the main app. The invite landing
  * flow keeps its own language control because it can be opened directly and
  * does not expose the main Settings tab yet. */
@@ -35,6 +44,14 @@ main.screen .bottomNavigation > div {
   width:min(100%,560px) !important;
 }
 
+/* Keep the public impact summary intentionally simple. The default card shows
+ * the total only; tapping it reveals just the new/returning breakdown. */
+.leaderboardPage .impactCard > p,
+.leaderboardPage .impactDialog > p,
+.leaderboardPage .impactDialog .reportingSince {
+  display:none !important;
+}
+
 /* Keep /ui-test visually aligned with the production shell so it remains a
  * reliable post-release reference instead of drifting into a separate mock. */
 .labScreen .phoneCanvas > .topBar,
@@ -61,19 +78,32 @@ main.screen .bottomNavigation > div {
 }
 
 /* Use one mobile gutter across the main app, invite onboarding, legal pages,
- * and bottom navigation. This prevents the screen edges from moving by a few
- * pixels as users move through different parts of VeInvite. */
+ * and bottom navigation. Safe-area padding is zero in ordinary desktop/mobile
+ * browser layouts and becomes active only in edge-to-edge/PWA/app contexts. */
 @media (max-width:560px) {
   main.screen {
+    padding-top:calc(22px + env(safe-area-inset-top)) !important;
     padding-left:16px !important;
     padding-right:16px !important;
   }
-  .appShell,
-  .centeredFlow,
-  .inviteLanding,
-  .legalPage {
+  .appShell {
+    padding-top:calc(22px + env(safe-area-inset-top)) !important;
     padding-left:16px !important;
     padding-right:16px !important;
+    padding-bottom:calc(42px + env(safe-area-inset-bottom)) !important;
+  }
+  .centeredFlow,
+  .inviteLanding {
+    padding-top:calc(28px + env(safe-area-inset-top)) !important;
+    padding-left:16px !important;
+    padding-right:16px !important;
+    padding-bottom:calc(42px + env(safe-area-inset-bottom)) !important;
+  }
+  .legalPage {
+    padding-top:calc(20px + env(safe-area-inset-top)) !important;
+    padding-left:16px !important;
+    padding-right:16px !important;
+    padding-bottom:calc(58px + env(safe-area-inset-bottom)) !important;
   }
   .bottomNavigation {
     padding-left:16px !important;
@@ -105,6 +135,15 @@ main.screen .bottomNavigation > div {
   }
 }
 
+/* Invitee mission screens are phone-first. The contextual "invited friend"
+ * chip is useful on wider screens but competes with the language control on
+ * 320–420px phones, so keep only the brand and language control there. */
+@media (max-width:420px) {
+  .appHeader .chip {
+    display:none !important;
+  }
+}
+
 @media (max-width:380px) {
   .topBar {
     gap:8px !important;
@@ -117,11 +156,13 @@ main.screen .bottomNavigation > div {
     padding-left:9px !important;
     padding-right:9px !important;
   }
-  .topBar .brand {
+  .topBar .brand,
+  .appHeader .brand {
     gap:7px;
     font-size:20px;
   }
-  .topBar .brand img {
+  .topBar .brand img,
+  .appHeader .brand img {
     width:32px;
     height:32px;
   }
@@ -132,7 +173,8 @@ main.screen .bottomNavigation > div {
     max-width:96px;
     font-size:.66rem !important;
   }
-  .topBar .brand {
+  .topBar .brand,
+  .appHeader .brand {
     font-size:18px;
   }
 }
