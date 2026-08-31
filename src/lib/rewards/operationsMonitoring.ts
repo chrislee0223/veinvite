@@ -1,5 +1,6 @@
 import 'server-only';
 
+import { Address } from '@vechain/sdk-core';
 import { ThorClient } from '@vechain/sdk-network';
 
 import {
@@ -242,7 +243,7 @@ Promise<RewardOperationsHealth> {
     const thor = ThorClient.at(networkConfig.nodeUrl);
     const account =
       await thor.accounts.getAccount(
-        distributorAddress,
+        Address.of(distributorAddress),
       );
     const energyWei = BigInt(account.energy);
     vthoWei = energyWei.toString();
