@@ -31,6 +31,13 @@ export type RewardForecastSnapshot = {
   modelVersion: string;
 };
 
+function readRecord(value: unknown, fieldName: string): Record<string, unknown> {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    throw new Error(`${fieldName} is malformed.`);
+  }
+  return value as Record<string, unknown>;
+}
+
 function readIntegerString(value: unknown, fieldName: string): string {
   const normalized = String(value ?? '');
   if (!INTEGER_PATTERN.test(normalized)) {
@@ -124,21 +131,20 @@ export async function readLatestRewardForecastSnapshot(input: {
   network: string;
   appId: string;
 }): Promise<RewardForecastSnapshot | null> {
-  const { data, error } = await supabaseAdmin
-    .from('reward_forecast_snapshots')
-    .select('*')
-    .eq('network', input.network)
-    .eq('app_id', input.appId)
-    .order('generated_at', { ascending: false })
-    .order('id', { ascending: false })
-    .limit(1)
-    .maybeSingle();
+  const { data, error } = await supabaseAdmin.rpc(
+    'read_latest_reward_forecast_snapshot',
+    {
+      p_network: input.network,
+      p_app_id: input.appId,
+    },
+  );
 
   if (error) {
     throw new Error(`Latest reward forecast snapshot could not be loaded: ${error.message}`);
   }
 
-  return data ? mapSnapshotRow(data as Record<string, unknown>) : null;
+  if (data === null || data === undefined) return null;
+  return mapSnapshotRow(readRecord(data, 'latest reward forecast snapshot'));
 }
 
 function pendingAgeWeights(createdAt: string, nowMs: number): {
@@ -298,7 +304,7 @@ export async function refreshRewardForecastSnapshot(input: {
     pricingCapacityWei: forecast.pricingCapacityWei,
   };
 
-  const { data: inserted, error: insertError } = await supabaseAdmin
+  const { error: insertError } = await supabaseAdmin
     .from('reward_forecast_snapshots')
     .insert({
       network: input.network,
@@ -322,15 +328,30 @@ export async function refreshRewardForecastSnapshot(input: {
       estimated_reward_high_wei: forecast.estimatedRewardHighWei,
       model_version: forecast.modelVersion,
       input_snapshot: inputSnapshot,
-    })
-    .select('*')
-    .single();
+    });
 
-  if (insertError || !inserted) {
-    throw new Error(
-      `Reward forecast snapshot could not be stored: ${insertError?.message ?? 'missing inserted row'}`,
-    );
+  if (insertError) {
+    throw new Error(`Reward forecast snapshot could not be stored: ${insertError.message}`);
   }
 
-  return mapSnapshotRow(inserted as Record<string, unknown>);
+  return {
+    generatedAt,
+    basisAllocationRoundId,
+    projectedFundingRoundId,
+    earliestCompletionRoundId,
+    allocationSampleCount: forecast.allocationSampleCount,
+    recipientHistoryRoundCount: forecast.recipientHistoryRoundCount,
+    projectedAllocationWei: forecast.projectedAllocationWei,
+    projectedAllocationLowWei: forecast.projectedAllocationLowWei,
+    projectedAllocationHighWei: forecast.projectedAllocationHighWei,
+    observedPoolBalanceWei: pool.effectiveRewardPoolWei,
+    reservedExistingWei: planning.reservedExistingWei,
+    expectedRecipients: forecast.expectedRecipients,
+    recipientLow: forecast.recipientLow,
+    recipientHigh: forecast.recipientHigh,
+    estimatedRewardWei: forecast.estimatedRewardWei,
+    estimatedRewardLowWei: forecast.estimatedRewardLowWei,
+    estimatedRewardHighWei: forecast.estimatedRewardHighWei,
+    modelVersion: forecast.modelVersion,
+  };
 }
