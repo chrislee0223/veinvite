@@ -57,11 +57,35 @@ function positiveIntegerString(value: string): boolean {
   return /^\d+$/u.test(value) && BigInt(value) > 0n;
 }
 
+function validTransactionId(
+  value: string | null,
+): value is string {
+  return /^0x[0-9a-f]{64}$/u.test(value ?? '');
+}
+
+function validTimestamp(
+  value: string | null,
+): value is string {
+  return Boolean(value) && !Number.isNaN(Date.parse(value as string));
+}
+
 function meaningfulEventAt(
   preferred: string | null,
   fallback: string,
 ): string {
   return preferred || fallback;
+}
+
+function latestEventAt(values: string[]): string {
+  let latest = values[0];
+
+  for (const value of values.slice(1)) {
+    if (Date.parse(value) > Date.parse(latest)) {
+      latest = value;
+    }
+  }
+
+  return latest;
 }
 
 export function deriveInviteNotification(
@@ -74,9 +98,10 @@ export function deriveInviteNotification(
 
   if (
     invitation.reward_status === 'PAID' &&
-    paidReward?.status === 'PAID' &&
-    paidReward.paid_at &&
-    paidReward.tx_id &&
+    paidReward?.invite_code === invitation.invite_code &&
+    paidReward.status === 'PAID' &&
+    validTimestamp(paidReward.paid_at) &&
+    validTransactionId(paidReward.tx_id) &&
     positiveIntegerString(paidReward.amount_wei)
   ) {
     return {
@@ -88,41 +113,63 @@ export function deriveInviteNotification(
     };
   }
 
+  const dappCompletedAt =
+    invitation.apps_completed >= 3
+      ? invitation.apps_completed_at
+      : null;
+  const vot3CompletedAt = invitation.vot3_converted
+    ? invitation.vot3_converted_at
+    : null;
+  const voteCompletedAt = invitation.vote_completed
+    ? invitation.vote_completed_at
+    : null;
+
   if (
-    invitation.vote_completed === true &&
-    invitation.vote_completed_at
+    dappCompletedAt &&
+    vot3CompletedAt &&
+    voteCompletedAt
   ) {
+    // The on-chain mission scanner intentionally allows conversion/vote
+    // before the third dApp reward. Only call all missions complete once
+    // all three user-facing milestones are actually present. Once the
+    // referral is ELIGIBLE, final verification has already passed, so the
+    // "final checks" notice must not be shown or replay earlier progress.
+    if (invitation.reward_status !== 'PENDING') {
+      return null;
+    }
+
     return {
       inviteCode: invitation.invite_code,
       kind: 'ALL_MISSIONS_COMPLETED',
       stage: INVITE_NOTIFICATION_STAGE.allMissionsCompleted,
-      eventAt: invitation.vote_completed_at,
+      eventAt: latestEventAt([
+        dappCompletedAt,
+        vot3CompletedAt,
+        voteCompletedAt,
+      ]),
       rewardAmountWei: null,
     };
   }
 
-  if (
-    invitation.vot3_converted === true &&
-    invitation.vot3_converted_at
-  ) {
+  if (dappCompletedAt && vot3CompletedAt) {
     return {
       inviteCode: invitation.invite_code,
       kind: 'VOT3_CONVERTED',
       stage: INVITE_NOTIFICATION_STAGE.vot3Converted,
-      eventAt: invitation.vot3_converted_at,
+      eventAt: latestEventAt([
+        dappCompletedAt,
+        vot3CompletedAt,
+      ]),
       rewardAmountWei: null,
     };
   }
 
-  if (
-    invitation.apps_completed >= 3 &&
-    invitation.apps_completed_at
-  ) {
+  if (dappCompletedAt) {
     return {
       inviteCode: invitation.invite_code,
       kind: 'DAPP_MISSION_COMPLETED',
       stage: INVITE_NOTIFICATION_STAGE.dappMissionCompleted,
-      eventAt: invitation.apps_completed_at,
+      eventAt: dappCompletedAt,
       rewardAmountWei: null,
     };
   }
