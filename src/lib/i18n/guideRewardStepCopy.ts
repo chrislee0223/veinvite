@@ -7,58 +7,58 @@ type GuideRewardStepCopy = {
 
 export const GUIDE_REWARD_STEP_COPY: Record<Locale, GuideRewardStepCopy> = {
   en: {
-    title: 'Reward is sent automatically after the missions',
+    title: 'Receive your reward after the missions',
     description:
-      'When your friend completes all missions and the invitation is eligible, VeInvite processes your reward automatically. No claim is needed.',
+      'Once your friend completes every mission, you can receive your reward through VeInvite.',
   },
   ko: {
-    title: '미션 완료 후 보상 자동 지급',
+    title: '미션 완료 후 보상 받기',
     description:
-      '친구가 모든 미션을 완료하고 초대가 보상 대상이 되면 VeInvite가 보상을 자동으로 지급해요. 따로 신청할 필요가 없어요.',
+      '친구가 모든 미션을 완료하면, 초대한 사람은 VeInvite에서 보상을 받을 수 있어요.',
   },
   zh: {
-    title: '完成任务后自动发放奖励',
+    title: '完成任务后领取奖励',
     description:
-      '好友完成全部任务且邀请符合奖励条件后，VeInvite 会自动处理奖励，无需手动领取。',
+      '好友完成全部任务后，邀请人就可以通过 VeInvite 获得奖励。',
   },
   hi: {
-    title: 'मिशन पूरे होने के बाद इनाम अपने-आप मिलेगा',
+    title: 'मिशन पूरे होने के बाद इनाम पाएँ',
     description:
-      'जब आपका दोस्त सभी मिशन पूरे कर लेता है और आमंत्रण इनाम के लिए पात्र होता है, VeInvite इनाम अपने-आप प्रोसेस करता है। अलग से क्लेम करने की जरूरत नहीं है।',
+      'दोस्त के सभी मिशन पूरे होने के बाद आप VeInvite के ज़रिए अपना इनाम पा सकते हैं।',
   },
   es: {
-    title: 'La recompensa se envía automáticamente al completar las misiones',
+    title: 'Recibe tu recompensa al completar las misiones',
     description:
-      'Cuando tu amigo completa todas las misiones y la invitación cumple los requisitos, VeInvite procesa la recompensa automáticamente. No tienes que solicitarla.',
+      'Cuando tu amigo complete todas las misiones, podrás recibir tu recompensa a través de VeInvite.',
   },
   ja: {
-    title: 'ミッション完了後、報酬は自動で支払われます',
+    title: 'ミッション完了後に報酬を受け取る',
     description:
-      '友だちがすべてのミッションを完了し、招待が報酬対象になると、VeInviteが報酬を自動で処理します。受け取り申請は不要です。',
+      '友だちがすべてのミッションを完了すると、招待した人はVeInviteで報酬を受け取れます。',
   },
   it: {
-    title: 'La ricompensa viene inviata automaticamente dopo le missioni',
+    title: 'Ricevi la ricompensa dopo le missioni',
     description:
-      'Quando il tuo amico completa tutte le missioni e l’invito risulta idoneo, VeInvite elabora automaticamente la ricompensa. Non serve richiederla.',
+      'Quando il tuo amico completa tutte le missioni, puoi ricevere la ricompensa tramite VeInvite.',
   },
   tr: {
-    title: 'Görevler tamamlanınca ödül otomatik gönderilir',
+    title: 'Görevler tamamlandıktan sonra ödülünü al',
     description:
-      'Arkadaşın tüm görevleri tamamladığında ve davet ödüle uygun olduğunda VeInvite ödülü otomatik olarak işler. Ayrı bir talep gerekmez.',
+      'Arkadaşın tüm görevleri tamamladığında ödülünü VeInvite üzerinden alabilirsin.',
   },
   nl: {
-    title: 'Je beloning wordt automatisch verstuurd na de missies',
+    title: 'Ontvang je beloning na de missies',
     description:
-      'Zodra je vriend alle missies heeft voltooid en de uitnodiging aan de voorwaarden voldoet, verwerkt VeInvite je beloning automatisch. Je hoeft niets te claimen.',
+      'Zodra je vriend alle missies heeft voltooid, kun je je beloning via VeInvite ontvangen.',
   },
   de: {
-    title: 'Die Belohnung wird nach den Missionen automatisch ausgezahlt',
+    title: 'Belohnung nach Abschluss der Missionen erhalten',
     description:
-      'Sobald dein Freund alle Missionen abgeschlossen hat und die Einladung die Voraussetzungen erfüllt, verarbeitet VeInvite die Belohnung automatisch. Ein separater Antrag ist nicht nötig.',
+      'Sobald dein Freund alle Missionen abgeschlossen hat, kannst du deine Belohnung über VeInvite erhalten.',
   },
   fr: {
-    title: 'La récompense est envoyée automatiquement après les missions',
+    title: 'Recevez votre récompense après les missions',
     description:
-      'Lorsque votre ami a terminé toutes les missions et que l’invitation est éligible, VeInvite traite automatiquement la récompense. Aucune demande n’est nécessaire.',
+      'Lorsque votre ami a terminé toutes les missions, vous pouvez recevoir votre récompense via VeInvite.',
   },
 };
