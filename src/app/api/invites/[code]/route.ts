@@ -11,6 +11,9 @@ import {
   enforceRateLimits,
   getClientIpSubject,
 } from '@/lib/rateLimitServer';
+import {
+  runAutomaticRewardPayout,
+} from '@/lib/rewards/automaticRewardPayout';
 import { supabaseAdmin } from '@/lib/supabaseServer';
 import type {
   InviteRecord,
@@ -211,6 +214,26 @@ export async function GET(
       await syncInvitationEvidence(
         row,
       );
+
+    // Once immutable on-chain evidence has promoted the referral to a verified
+    // completed/eligible state, make one fail-closed automatic payout attempt.
+    // Repeated polling is safe: the worker uses a DB lease, immutable manifest,
+    // deterministic signed transaction journal and unique settlement records.
+    // Any payout infrastructure failure must not turn a valid invite-progress
+    // read into an error, so this remains best-effort and independently logged.
+    if (
+      synced.row.status === 'COMPLETED' &&
+      synced.row.reward_status === 'ELIGIBLE'
+    ) {
+      try {
+        await runAutomaticRewardPayout();
+      } catch (rewardError) {
+        console.error(
+          'Automatic VeInvite reward payout iteration failed:',
+          rewardError,
+        );
+      }
+    }
 
     return NextResponse.json(
       {
