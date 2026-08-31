@@ -46,11 +46,30 @@ export function HeaderLanguagePickerPortal() {
       setOpen(false);
     };
 
+    const findEligibleSelect = () => {
+      const selects = Array.from(
+        document.querySelectorAll<HTMLSelectElement>(
+          'select.languageSelect',
+        ),
+      );
+
+      // The main app keeps language selection in Settings. Its old native
+      // select remains temporarily in HomeClient for compatibility, but must
+      // not be enhanced back into a visible header picker. Direct invite
+      // flows do not expose the main Settings tab, so their language controls
+      // remain eligible for this flag-based picker.
+      return (
+        selects.find(
+          (select) => !select.closest('.utilityActions'),
+        ) ?? null
+      );
+    };
+
     const attach = () => {
-      const select = document.querySelector<HTMLSelectElement>('select.languageSelect');
+      const select = findEligibleSelect();
 
       if (!select) {
-        if (activeSelect && !activeSelect.isConnected) detach();
+        if (activeSelect) detach();
         return;
       }
 

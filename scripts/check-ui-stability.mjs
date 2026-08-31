@@ -60,6 +60,17 @@ if (!/<select\s+className="languageSelect"/.test(inviteLanding)) {
   failures.push('Invite landing language control is not enhanced with app flags.');
 }
 
+const inviteLandingCopy = read('src/lib/i18n/inviteLandingCopy.ts');
+if (/About 10 min|약 10분|Unos 10 min|約10分|Circa 10 min|Yaklaşık 10 dk|Ongeveer 10 min|Etwa 10 Min|Environ 10 min/.test(inviteLandingCopy)) {
+  failures.push('Invite landing must not promise a fixed completion time.');
+}
+if (!/No VeInvite fee/.test(inviteLandingCopy) || !/VeInvite 이용료 없음/.test(inviteLandingCopy)) {
+  failures.push('Invite landing must describe cost as no VeInvite fee instead of claiming all activity is free.');
+}
+if (/Just three simple steps|세 단계만 완료하면 돼요|只需完成三个步骤|Solo tres pasos sencillos|3つのステップで完了|Solo tre semplici passaggi|Yalnızca üç kolay adım|Slechts drie eenvoudige stappen|Nur drei einfache Schritte|Trois étapes simples/.test(inviteLandingCopy)) {
+  failures.push('Invite landing must not imply the detailed onboarding contains exactly three missions.');
+}
+
 const inviteeClient = read('src/components/InviteeClient.tsx');
 if (!/className="languageSelect"/.test(inviteeClient)) {
   failures.push('Invitee language control is not enhanced with app flags.');
@@ -110,6 +121,54 @@ if (
 const uiSafety = read('src/app/ui-safety.css');
 if (!/\.claimAction\s*\{[^}]*display\s*:\s*none\s*!important/i.test(uiSafety)) {
   failures.push('Legacy manual Claim UI safety rule is missing.');
+}
+
+const finalUi = read('src/app/final-ui-hardening.css');
+if (!/\.topBar\s+\.utilityActions\s+\.languageSelect\s*\{[^}]*display\s*:\s*none\s*!important/is.test(finalUi)) {
+  failures.push('Main home header language selector is visible outside Settings.');
+}
+if (!/max-width\s*:\s*112px/.test(finalUi)) {
+  failures.push('Narrow-screen wallet-chip safeguard is missing.');
+}
+
+const headerLanguagePortal = read(
+  'src/components/HeaderLanguagePickerPortal.tsx',
+);
+if (!/!select\.closest\('\.utilityActions'\)/.test(headerLanguagePortal)) {
+  failures.push('Global flag picker can re-create the removed main home language control.');
+}
+
+const copyHardening = read('src/lib/i18n/copyHardening.ts');
+if (!/B3TR reward or Allocation Voting activity/.test(copyHardening)) {
+  failures.push('Existing-user rejection copy is not aligned with the actual reward/voting eligibility rule.');
+}
+
+const legalCopy = read('src/lib/i18n/legalCopy.ts');
+for (const locale of [
+  'en', 'ko', 'zh', 'hi', 'es', 'ja',
+  'it', 'tr', 'nl', 'de', 'fr',
+]) {
+  const matches = legalCopy.match(new RegExp(`\\b${locale}:\\s*\\{`, 'g')) ?? [];
+  if (matches.length < 2) {
+    failures.push(`Legal privacy and terms copy is incomplete for locale: ${locale}`);
+  }
+}
+
+const privacyPage = read('src/app/privacy/page.tsx');
+const termsPage = read('src/app/terms/page.tsx');
+if (!/LocalizedLegalPage kind="privacy"/.test(privacyPage)) {
+  failures.push('Privacy page is not routed through the localized legal renderer.');
+}
+if (!/LocalizedLegalPage kind="terms"/.test(termsPage)) {
+  failures.push('Terms page is not routed through the localized legal renderer.');
+}
+
+const layout = read('src/app/layout.tsx');
+if (!/LocaleHydrationShield/.test(layout)) {
+  failures.push('Initial locale hydration shield is missing and can expose an English first-paint flash.');
+}
+if (!/final-ui-hardening\.css/.test(layout)) {
+  failures.push('Final production UI safeguards are not loaded by the root layout.');
 }
 
 if (failures.length > 0) {

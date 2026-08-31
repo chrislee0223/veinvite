@@ -3,10 +3,12 @@ import type { ReactNode } from 'react';
 
 import { AppProviders } from '@/components/AppProviders';
 import { LocaleDocumentSync } from '@/components/LocaleDocumentSync';
+import { LocaleHydrationShield } from '@/components/LocaleHydrationShield';
 import './globals.css';
 import './header-language-flags.css';
 import './localized-typography.css';
 import './ui-safety.css';
+import './final-ui-hardening.css';
 
 const siteUrl = 'https://veinvite.vercel.app';
 const title = 'VeInvite | Verified onboarding for VeBetterDAO';
@@ -52,6 +54,7 @@ export default function RootLayout({
     <html lang="en" suppressHydrationWarning>
       <body>
         <AppProviders>
+          <LocaleHydrationShield />
           <LocaleDocumentSync />
           {children}
         </AppProviders>
