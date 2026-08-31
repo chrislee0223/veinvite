@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
 
 import { UiTestLab } from '@/components/UiTestLab';
+import './ui-test.css';
 
 export const dynamic = 'force-dynamic';
 
