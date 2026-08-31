@@ -27,7 +27,7 @@ export const GUIDE_REWARD_STEP_COPY: Record<Locale, GuideRewardStepCopy> = {
       'दोस्त के सभी मिशन पूरे होने के बाद आप VeInvite के ज़रिए अपना इनाम पा सकते हैं।',
   },
   es: {
-    title: 'Recibe tu recompensa al completar las misiones',
+    title: 'Recibe tu recompensa cuando tu amigo termine las misiones',
     description:
       'Cuando tu amigo complete todas las misiones, podrás recibir tu recompensa a través de VeInvite.',
   },
