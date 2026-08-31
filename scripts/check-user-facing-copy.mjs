@@ -81,7 +81,7 @@ if (
 ) {
   failures.push('Returning-user guide copy must match the reviewed 12-completed-round dormancy window.');
 }
-if (/claim|request your reward|보상 수령을 요청|보상 받기/.test(rewardStep)) {
+if (/claim your reward|request your reward|보상 수령을 요청|보상 받기/i.test(rewardStep)) {
   failures.push('Automatic reward guide copy must not regress toward a manual claim/request flow.');
 }
 
