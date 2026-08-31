@@ -50,6 +50,21 @@ if (
   failures.push('Reward recipient audit foreign keys must retain covering indexes.');
 }
 
+const onchainAnalyticsRoute = read(
+  'src/app/api/admin/sybil/onchain/route.ts',
+);
+if (/invitation\.reward_status\s*===\s*'PAID'[\s\S]{0,500}status:\s*409/.test(onchainAnalyticsRoute)) {
+  failures.push('Paid referrals must remain eligible for observation-only historical forensics.');
+}
+if (
+  !/observationOnly:\s*true/.test(onchainAnalyticsRoute) ||
+  !/sybilStatusChanged:\s*false/.test(onchainAnalyticsRoute) ||
+  !/rewardStatusChanged:\s*false/.test(onchainAnalyticsRoute) ||
+  !/transfersPerformed:\s*false/.test(onchainAnalyticsRoute)
+) {
+  failures.push('Post-payout on-chain analytics must remain explicitly observation-only with no reward or transfer mutation.');
+}
+
 const limitations = read('docs/KNOWN_LIMITATIONS.md');
 if (/mainnet funded referral rewards are intentionally disabled/i.test(limitations)) {
   failures.push('Known limitations still claim mainnet funded rewards are disabled.');
