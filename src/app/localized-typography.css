@@ -140,30 +140,20 @@ html[lang='ja'] :is(
   text-align: center;
 }
 
-/* Bottom navigation: allow a second line instead of clipping a translated
- * label, while keeping every tab label on the same two-line baseline. */
+/* Bottom navigation labels are short navigation terms. Keep them on one line
+ * like native mobile apps; ellipsis is a last-resort safeguard on very narrow
+ * screens rather than splitting one tab label into two rows. */
 .bottomNavigation button span {
-  min-height: 2.2em;
-  display: -webkit-box;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 2;
+  min-height: 0;
+  display: block;
+  max-width: 100%;
   overflow: hidden;
-  text-overflow: clip !important;
-  white-space: normal !important;
+  text-overflow: ellipsis !important;
+  white-space: nowrap !important;
   overflow-wrap: normal !important;
   word-break: normal !important;
   line-height: 1.1;
   text-align: center;
-}
-
-html[lang='ko'] .bottomNavigation button span {
-  word-break: keep-all !important;
-}
-
-html[lang='zh'] .bottomNavigation button span,
-html[lang='ja'] .bottomNavigation button span {
-  line-break: strict;
-  word-break: normal !important;
 }
 
 /* Keep the three receipt fact values aligned when one translated label wraps. */
