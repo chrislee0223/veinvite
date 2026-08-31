@@ -24,7 +24,7 @@ export const GUIDE_MISSION_STEP_COPY: Record<Locale, GuideMissionStepCopy> = {
   hi: {
     title: 'आपका दोस्त सभी मिशन पूरे करे',
     description:
-      'उसे तीन अलग-अलग VeBetterDAO dApps से B3TR इनाम पाना, B3TR को VOT3 में बदलना और एक Allocation Vote करना होगा।',
+      'उसे तीन अलग-अलग VeBetterDAO dApps से B3TR इनाम पाना, B3TR को VOT3 में बदलना और Allocation Voting में एक वोट करना होगा।',
   },
   es: {
     title: 'Tu amigo completa todas las misiones',
