@@ -32,9 +32,13 @@ if (getStart < 0 || postStart < 0 || getStart > postStart) {
   if (!/runAutomaticRewardPayout\s*\(/.test(postSection)) {
     failures.push('Explicit invite POST must retain the guarded immediate payout attempt.');
   }
-  if (!/invite_progress_sync_code/.test(postSection) || !/invite_progress_sync_ip/.test(postSection)) {
-    failures.push('Expensive invite reconciliation POST must remain independently rate-limited.');
+  if (!/mode:\s*'sync'/.test(postSection)) {
+    failures.push('Explicit invite POST must select the dedicated reconciliation limiter mode.');
   }
+}
+
+if (!/scope:\s*'invite_progress_sync_code'/.test(route) || !/scope:\s*'invite_progress_sync_ip'/.test(route)) {
+  failures.push('Expensive invite reconciliation must remain independently rate-limited by invite and IP.');
 }
 
 if (!/method:\s*mode === 'sync' \? 'POST' : 'GET'/.test(client)) {
