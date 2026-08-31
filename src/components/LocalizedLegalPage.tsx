@@ -29,7 +29,11 @@ export function LocalizedLegalPage({
 }: {
   kind: LegalDocumentKind;
 }) {
-  const [locale, setLocale] = useState<Locale | null>(null);
+  // Render a complete English document on the server for accessibility,
+  // crawlers, no-JS clients, and stable metadata. The global locale shield
+  // covers the brief hydration window while the saved/browser locale is
+  // resolved on the client.
+  const [locale, setLocale] = useState<Locale>('en');
 
   useEffect(() => {
     const applyLocale = (value?: unknown) => {
@@ -64,14 +68,6 @@ export function LocalizedLegalPage({
       window.removeEventListener('storage', handleStorage);
     };
   }, []);
-
-  if (!locale) {
-    return (
-      <main className="legalPage legalLoading" aria-busy="true">
-        <div className="legalLoadingMark">VeInvite</div>
-      </main>
-    );
-  }
 
   const copy = LEGAL_COPY[kind][locale];
 
@@ -173,16 +169,6 @@ export function LocalizedLegalPage({
         .legalBack:hover {
           text-decoration:underline;
           text-underline-offset:4px;
-        }
-        .legalLoading {
-          display:grid;
-          place-items:center;
-        }
-        .legalLoadingMark {
-          color:#ffd66e;
-          font-size:1.25rem;
-          font-weight:950;
-          letter-spacing:-.04em;
         }
         .legalPage :where(h1,h2,p,a) {
           overflow-wrap:normal;
