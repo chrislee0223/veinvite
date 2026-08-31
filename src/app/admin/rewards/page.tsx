@@ -1,6 +1,9 @@
 import type { Metadata } from 'next';
 
 import {
+  RewardOperationsStatusClient,
+} from '@/components/RewardOperationsStatusClient';
+import {
   RewardPayoutAdminClient,
 } from '@/components/RewardPayoutAdminClient';
 import {
@@ -21,6 +24,7 @@ export const metadata: Metadata = {
 export default function RewardPayoutAdminPage() {
   return (
     <WalletSessionGate>
+      <RewardOperationsStatusClient />
       <RewardPayoutAutomationClient />
       <RewardPayoutAdminClient />
     </WalletSessionGate>
