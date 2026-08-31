@@ -1,13 +1,9 @@
 import { NextResponse } from 'next/server';
 
 import {
-  readAutomaticRewardDistributorReadiness,
-} from '@/lib/rewards/automaticRewardPayoutWithMnemonic';
-import {
-  readVeInviteRewardPoolStatus,
-} from '@/lib/rewards/onchainPool';
+  readRewardOperationsHealth,
+} from '@/lib/rewards/operationsMonitoring';
 import { supabaseAdmin } from '@/lib/supabaseServer';
-import { getVeBetterNetworkConfig } from '@/lib/vebetter/network';
 
 export const dynamic = 'force-dynamic';
 
@@ -24,47 +20,96 @@ export async function GET() {
       throw error;
     }
 
-    const [automaticRewards, pool] = await Promise.all([
-      Promise.resolve(
-        readAutomaticRewardDistributorReadiness(),
-      ),
-      readVeInviteRewardPoolStatus(),
-    ]);
-
-    const distributorRegistered = Boolean(
-      automaticRewards.distributorAddress &&
-      pool.rewardDistributors.includes(
-        automaticRewards.distributorAddress,
-      ),
-    );
+    const operations =
+      await readRewardOperationsHealth();
     const automaticRewardsReady = Boolean(
-      automaticRewards.enabled &&
-      automaticRewards.configured &&
-      distributorRegistered &&
-      !pool.distributionPaused,
+      operations.operational &&
+      operations.distributor
+        .automaticRewardsEnabled &&
+      operations.distributor.configured &&
+      operations.distributor.registered &&
+      !operations.runtime.distributionPaused,
     );
+    const alertCodes = operations.alerts.map(
+      (alert) => alert.code,
+    );
+
+    if (operations.severity === 'CRITICAL') {
+      console.error(
+        'VeInvite reward operations health is critical:',
+        { alertCodes },
+      );
+    } else if (
+      operations.severity === 'WARNING'
+    ) {
+      console.warn(
+        'VeInvite reward operations health has warnings:',
+        { alertCodes },
+      );
+    }
 
     return NextResponse.json(
       {
-        ok: true,
+        ok: operations.operational,
         app: 'VeInvite',
         version: '0.1.0',
         database: 'ready',
-        network:
-          getVeBetterNetworkConfig()
-            .network,
+        network: operations.network,
         automaticRewards: {
-          enabled: automaticRewards.enabled,
-          configured: automaticRewards.configured,
+          enabled:
+            operations.distributor
+              .automaticRewardsEnabled,
+          configured:
+            operations.distributor.configured,
           distributorAddress:
-            automaticRewards.distributorAddress,
-          distributorRegistered,
+            operations.distributor.address,
+          distributorRegistered:
+            operations.distributor.registered,
           distributionPaused:
-            pool.distributionPaused,
+            operations.runtime
+              .distributionPaused,
           ready: automaticRewardsReady,
+        },
+        operations: {
+          severity: operations.severity,
+          operational:
+            operations.operational,
+          alertCodes,
+          gasStatus:
+            operations.distributor.gasStatus,
+          queueHealthy:
+            !alertCodes.includes(
+              'REWARD_QUEUE_DELAYED',
+            ) &&
+            !alertCodes.includes(
+              'REWARD_QUEUE_STALLED',
+            ),
+          payoutPipelineHealthy:
+            !alertCodes.includes(
+              'REWARD_ROUND_DELAYED',
+            ) &&
+            !alertCodes.includes(
+              'REWARD_ROUND_STALLED',
+            ) &&
+            !alertCodes.includes(
+              'SIGNED_PAYOUT_WAITING_FINALITY',
+            ) &&
+            !alertCodes.includes(
+              'SIGNED_PAYOUT_UNSETTLED',
+            ),
+          poolCapacityHealthy:
+            !alertCodes.includes(
+              'REWARD_POOL_EMPTY_WITH_QUEUE',
+            ) &&
+            !alertCodes.includes(
+              'REWARD_POOL_CAPACITY_INSUFFICIENT',
+            ),
+          checkedAt: operations.capturedAt,
         },
       },
       {
+        status:
+          operations.operational ? 200 : 503,
         headers: {
           'Cache-Control': 'no-store',
         },
