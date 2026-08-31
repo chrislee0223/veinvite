@@ -35,6 +35,14 @@ main.screen .bottomNavigation > div {
   width:min(100%,560px) !important;
 }
 
+/* Keep the public impact summary intentionally simple. The default card shows
+ * the total only; tapping it reveals just the new/returning breakdown. */
+.leaderboardPage .impactCard > p,
+.leaderboardPage .impactDialog > p,
+.leaderboardPage .impactDialog .reportingSince {
+  display:none !important;
+}
+
 /* Keep /ui-test visually aligned with the production shell so it remains a
  * reliable post-release reference instead of drifting into a separate mock. */
 .labScreen .phoneCanvas > .topBar,
