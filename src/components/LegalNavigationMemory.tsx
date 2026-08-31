@@ -7,10 +7,24 @@ export const LEGAL_RETURN_STORAGE_KEY = 'veinvite-legal-return';
 export function LegalNavigationMemory() {
   useEffect(() => {
     const rememberLegalOrigin = (event: MouseEvent) => {
+      // Record only a normal same-tab navigation. Modified clicks/new tabs
+      // should not leave a stale return marker in the current app session.
+      if (
+        event.defaultPrevented ||
+        event.button !== 0 ||
+        event.metaKey ||
+        event.ctrlKey ||
+        event.shiftKey ||
+        event.altKey
+      ) {
+        return;
+      }
+
       const target = event.target;
       if (!(target instanceof Element)) return;
       const anchor = target.closest<HTMLAnchorElement>('a[href]');
       if (!anchor) return;
+      if (anchor.target && anchor.target !== '_self') return;
 
       let url: URL;
       try {
