@@ -9,11 +9,19 @@ revoke delete on table public.invitations from service_role;
 
 -- Trigger functions are invoked by their owning triggers, not directly by
 -- clients. Remove PostgreSQL's default PUBLIC execute privilege to keep the
--- public schema least-privilege even though these functions return trigger.
-revoke all on function public.guard_mainnet_funded_rewards_one_way()
-  from public, anon, authenticated;
-revoke all on function public.guard_reward_emergency_pause_audit_metadata()
-  from public, anon, authenticated;
+-- public schema least-privilege. Preview may intentionally lag production on
+-- reward-runtime migrations, so guard these revokes by function existence.
+do $$
+begin
+  if to_regprocedure('public.guard_mainnet_funded_rewards_one_way()') is not null then
+    execute 'revoke all on function public.guard_mainnet_funded_rewards_one_way() from public, anon, authenticated';
+  end if;
+
+  if to_regprocedure('public.guard_reward_emergency_pause_audit_metadata()') is not null then
+    execute 'revoke all on function public.guard_reward_emergency_pause_audit_metadata() from public, anon, authenticated';
+  end if;
+end;
+$$;
 
 -- Operator views are read models. Some historical migrations left harmless but
 -- unnecessary non-SELECT view privileges on service_role. Normalize every
