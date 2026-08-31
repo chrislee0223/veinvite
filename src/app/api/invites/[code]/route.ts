@@ -18,11 +18,16 @@ import { supabaseAdmin } from '@/lib/supabaseServer';
 import type {
   InviteRecord,
 } from '@/lib/types';
+import {
+  MIN_VOT3_CONVERSION_WEI,
+} from '@/lib/vebetter/vot3Conversion';
 
 const INVITE_CODE_PATTERN = /^[A-HJ-NP-Z2-9]{7}$/;
-const INVITE_READ_CODE_LIMIT = 360;
-const INVITE_READ_IP_LIMIT = 720;
-const INVITE_READ_WINDOW_SECONDS = 60 * 60;
+const INVITE_READ_CODE_LIMIT = 720;
+const INVITE_READ_IP_LIMIT = 1440;
+const INVITE_SYNC_CODE_LIMIT = 240;
+const INVITE_SYNC_IP_LIMIT = 480;
+const INVITE_WINDOW_SECONDS = 60 * 60;
 
 const invitationColumns = `
   invite_code,
@@ -93,69 +98,60 @@ function toInviteRecord(
   };
 }
 
-export async function GET(
-  request: NextRequest,
-  context: {
-    params: Promise<{
-      code: string;
-    }>;
-  },
+function parseNonNegativeInteger(
+  value: number | string | null,
+): number | null {
+  if (value === null) return null;
+  const parsed =
+    typeof value === 'number'
+      ? value
+      : Number(value);
+  return Number.isSafeInteger(parsed) && parsed >= 0
+    ? parsed
+    : null;
+}
+
+function toStoredProgress(
+  row: InvitationEvidenceRow,
 ) {
-  const { code } =
-    await context.params;
+  return {
+    appsCompleted: row.apps_completed ?? 0,
+    appsRequired: 3 as const,
+    rewardsReceived: row.rewards_received ?? 0,
+    vot3Converted: row.vot3_converted ?? false,
+    vot3MinimumAmountWei:
+      MIN_VOT3_CONVERSION_WEI.toString(),
+    vot3ConversionAmountWei:
+      row.vot3_conversion_amount_wei,
+    voteCompleted: row.vote_completed ?? false,
+    uniqueAppIds: [] as string[],
+    activationBlock:
+      parseNonNegativeInteger(row.activation_block),
+    latestBlock:
+      parseNonNegativeInteger(
+        row.impact_last_synced_block,
+      ),
+  };
+}
 
-  const normalizedCode =
-    code.trim().toUpperCase();
-
-  // Reject impossible codes before touching shared rate-limit storage, the
-  // database, or VeChain. Generated VeInvite codes are exactly seven symbols
-  // from the ambiguity-safe alphabet in createCode().
-  if (!INVITE_CODE_PATTERN.test(normalizedCode)) {
-    return NextResponse.json(
-      {
-        error:
-          'Invite link is invalid or cancelled.',
+function invalidInviteResponse() {
+  return NextResponse.json(
+    {
+      error:
+        'Invite link is invalid or cancelled.',
+    },
+    {
+      status: 404,
+      headers: {
+        'Cache-Control': 'no-store',
       },
-      {
-        status: 404,
-        headers: {
-          'Cache-Control': 'no-store',
-        },
-      },
-    );
-  }
+    },
+  );
+}
 
-  const clientIp =
-    getClientIpSubject(request);
-
-  // This public endpoint can perform multiple on-chain reads while an accepted
-  // invitation is active. Keep normal 30-second polling and a few open tabs
-  // comfortably below the limit while bounding accidental refresh loops and
-  // deliberate repeated scans. The shared limiter stores hashes only.
-  const rateLimitResponse =
-    await enforceRateLimits([
-      {
-        scope: 'invite_progress_code',
-        subject: normalizedCode,
-        limit: INVITE_READ_CODE_LIMIT,
-        windowSeconds:
-          INVITE_READ_WINDOW_SECONDS,
-      },
-      clientIp
-        ? {
-            scope: 'invite_progress_ip',
-            subject: clientIp,
-            limit: INVITE_READ_IP_LIMIT,
-            windowSeconds:
-              INVITE_READ_WINDOW_SECONDS,
-          }
-        : null,
-    ]);
-
-  if (rateLimitResponse) {
-    return rateLimitResponse;
-  }
-
+async function loadInvitation(
+  normalizedCode: string,
+): Promise<InvitationEvidenceRow | null> {
   const {
     data,
     error,
@@ -169,6 +165,114 @@ export async function GET(
     .maybeSingle();
 
   if (error) {
+    throw new Error(
+      `Failed to load invitation: ${error.message}`,
+    );
+  }
+
+  const row = toInvitationRow(data);
+  if (!row || row.status === 'CANCELLED') {
+    return null;
+  }
+
+  return row;
+}
+
+async function enforceInviteRateLimit({
+  request,
+  normalizedCode,
+  mode,
+}: {
+  request: NextRequest;
+  normalizedCode: string;
+  mode: 'read' | 'sync';
+}) {
+  const clientIp = getClientIpSubject(request);
+  const sync = mode === 'sync';
+
+  return enforceRateLimits([
+    {
+      scope: sync
+        ? 'invite_progress_sync_code'
+        : 'invite_progress_read_code',
+      subject: normalizedCode,
+      limit: sync
+        ? INVITE_SYNC_CODE_LIMIT
+        : INVITE_READ_CODE_LIMIT,
+      windowSeconds: INVITE_WINDOW_SECONDS,
+    },
+    clientIp
+      ? {
+          scope: sync
+            ? 'invite_progress_sync_ip'
+            : 'invite_progress_read_ip',
+          subject: clientIp,
+          limit: sync
+            ? INVITE_SYNC_IP_LIMIT
+            : INVITE_READ_IP_LIMIT,
+          windowSeconds: INVITE_WINDOW_SECONDS,
+        }
+      : null,
+  ]);
+}
+
+async function resolveCode(
+  context: {
+    params: Promise<{
+      code: string;
+    }>;
+  },
+) {
+  const { code } = await context.params;
+  const normalizedCode = code.trim().toUpperCase();
+
+  return INVITE_CODE_PATTERN.test(normalizedCode)
+    ? normalizedCode
+    : null;
+}
+
+/**
+ * Passive public read.
+ *
+ * GET deliberately never performs chain reconciliation or starts the reward
+ * worker. This prevents link previews, crawlers, browser prefetchers and
+ * cross-site navigations from causing expensive RPC work or payout attempts.
+ */
+export async function GET(
+  request: NextRequest,
+  context: {
+    params: Promise<{
+      code: string;
+    }>;
+  },
+) {
+  const normalizedCode = await resolveCode(context);
+  if (!normalizedCode) return invalidInviteResponse();
+
+  const rateLimitResponse =
+    await enforceInviteRateLimit({
+      request,
+      normalizedCode,
+      mode: 'read',
+    });
+  if (rateLimitResponse) return rateLimitResponse;
+
+  try {
+    const row = await loadInvitation(normalizedCode);
+    if (!row) return invalidInviteResponse();
+
+    return NextResponse.json(
+      {
+        invite: toInviteRecord(row),
+        progress: toStoredProgress(row),
+      },
+      {
+        headers: {
+          'Cache-Control': 'no-store',
+        },
+      },
+    );
+  } catch (error) {
     console.error(
       'Failed to load invitation:',
       error,
@@ -187,21 +291,52 @@ export async function GET(
       },
     );
   }
+}
 
-  const row =
-    toInvitationRow(data);
+/**
+ * Explicit reconciliation request.
+ *
+ * Browser POSTs are covered by the centralized same-origin / Fetch Metadata
+ * guard in src/proxy.ts. This route remains public because the invitee mission
+ * page must be able to reconcile before a reward exists; valid invite codes,
+ * bounded rate limits and the underlying immutable evidence checks remain the
+ * authorization boundary for progress observation.
+ */
+export async function POST(
+  request: NextRequest,
+  context: {
+    params: Promise<{
+      code: string;
+    }>;
+  },
+) {
+  const normalizedCode = await resolveCode(context);
+  if (!normalizedCode) return invalidInviteResponse();
 
-  if (
-    !row ||
-    row.status === 'CANCELLED'
-  ) {
+  const rateLimitResponse =
+    await enforceInviteRateLimit({
+      request,
+      normalizedCode,
+      mode: 'sync',
+    });
+  if (rateLimitResponse) return rateLimitResponse;
+
+  let row: InvitationEvidenceRow | null;
+  try {
+    row = await loadInvitation(normalizedCode);
+  } catch (error) {
+    console.error(
+      'Failed to load invitation for reconciliation:',
+      error,
+    );
+
     return NextResponse.json(
       {
         error:
-          'Invite link is invalid or cancelled.',
+          'Failed to load invitation.',
       },
       {
-        status: 404,
+        status: 500,
         headers: {
           'Cache-Control': 'no-store',
         },
@@ -209,18 +344,17 @@ export async function GET(
     );
   }
 
+  if (!row) return invalidInviteResponse();
+
   try {
     const synced =
-      await syncInvitationEvidence(
-        row,
-      );
+      await syncInvitationEvidence(row);
 
     // Once immutable on-chain evidence has promoted the referral to a verified
     // completed/eligible state, make one fail-closed automatic payout attempt.
-    // Repeated polling is safe: the worker uses a DB lease, immutable manifest,
-    // deterministic signed transaction journal and unique settlement records.
-    // Any payout infrastructure failure must not turn a valid invite-progress
-    // read into an error, so this remains best-effort and independently logged.
+    // The payout worker remains independently protected by its DB lease,
+    // immutable manifest/checkpoint, signed-transaction journal, chain finality
+    // verification and reward runtime gates.
     if (
       synced.row.status === 'COMPLETED' &&
       synced.row.reward_status === 'ELIGIBLE'
@@ -237,12 +371,8 @@ export async function GET(
 
     return NextResponse.json(
       {
-        invite:
-          toInviteRecord(
-            synced.row,
-          ),
-        progress:
-          synced.progress,
+        invite: toInviteRecord(synced.row),
+        progress: synced.progress,
       },
       {
         headers: {
@@ -256,9 +386,6 @@ export async function GET(
       syncError,
     );
 
-    // Do not pretend stale or partially reconciled data is current. The
-    // invitation remains intact and can be retried without consuming any
-    // additional invite or reward state.
     return NextResponse.json(
       {
         error:
