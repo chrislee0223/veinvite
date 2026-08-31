@@ -16,7 +16,7 @@ for (const locale of locales) {
     failures.push(`Guide reward step is incomplete for locale: ${locale}`);
   }
 }
-if (!/Get your reward after the mission/.test(rewardStep) || !/미션 완료 후 보상 받기/.test(rewardStep)) {
+if (!/Get your reward after all missions are complete/.test(rewardStep) || !/미션 완료 후 보상 받기/.test(rewardStep)) {
   failures.push('Guide step 3 no longer matches the reviewed mission-complete reward wording.');
 }
 if (/queued automatically|payment queue|payout queue|reward queue|대기열|자동 등록|최종 검증|final verification|final checks/i.test(rewardStep)) {
