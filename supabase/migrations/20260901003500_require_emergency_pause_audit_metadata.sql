@@ -21,8 +21,10 @@ begin
       raise exception 'emergency reward pause changes require a valid network';
     end if;
 
-    if new.emergency_pause_changed_at is null then
-      raise exception 'emergency reward pause changes require a change timestamp';
+    if new.emergency_pause_changed_at is null
+       or new.emergency_pause_changed_at is not distinct from old.emergency_pause_changed_at
+       or new.updated_at is distinct from new.emergency_pause_changed_at then
+      raise exception 'emergency reward pause changes require a fresh change timestamp';
     end if;
   end if;
 
@@ -40,4 +42,4 @@ for each row
 execute function public.guard_reward_emergency_pause_audit_metadata();
 
 comment on function public.guard_reward_emergency_pause_audit_metadata() is
-  'Requires complete operator, reason, network, and timestamp metadata whenever the emergency reward pause changes, preventing unaudited direct state mutations.';
+  'Requires complete operator, reason, network, and a newly refreshed timestamp whenever the emergency reward pause changes, preventing unaudited direct state mutations.';
