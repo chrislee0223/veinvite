@@ -3,6 +3,10 @@ import {
   NextResponse,
 } from 'next/server';
 
+import {
+  enforceRateLimits,
+  getClientIpSubject,
+} from '@/lib/rateLimitServer';
 import { supabaseAdmin } from '@/lib/supabaseServer';
 import type {
   PublicLeaderboardEntry,
@@ -111,6 +115,22 @@ export async function GET(
         headers: { 'Cache-Control': 'no-store' },
       },
     );
+  }
+
+  const clientIp = getClientIpSubject(request);
+  const limited = await enforceRateLimits([
+    clientIp
+      ? {
+          scope: 'public_leaderboard_ip',
+          subject: clientIp,
+          limit: 120,
+          windowSeconds: 60,
+        }
+      : null,
+  ]);
+
+  if (limited) {
+    return limited;
   }
 
   try {
