@@ -22,13 +22,13 @@ const forecastPortal = readFileSync(
   'utf8',
 );
 
-if (!/setInterval\(\s*loadForecast,\s*15\s*\*\s*60_000\s*\)/s.test(forecastPortal)) {
+if (!/setInterval\(\s*loadForecast,\s*15\s*\*\s*60_000\s*,?\s*\)/s.test(forecastPortal)) {
   failures.push(
     'Public reward forecast polling must stay at the reviewed 15-minute cadence.',
   );
 }
 
-if (/setInterval\([^)]*,\s*60_000\s*\)/s.test(forecastPortal)) {
+if (/setInterval\([^)]*,\s*60_000\s*,?\s*\)/s.test(forecastPortal)) {
   failures.push(
     'Public reward forecast must not regress to one-minute client polling.',
   );
