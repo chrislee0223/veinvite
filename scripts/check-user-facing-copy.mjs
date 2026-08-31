@@ -56,6 +56,20 @@ if (!/\.leaderboardPage \.impactCard > p/.test(finalUi)) {
 if (!/\.leaderboardPage \.impactDialog \.reportingSince/.test(finalUi)) {
   failures.push('Leaderboard impact breakdown exposes retired reporting detail.');
 }
+if (!/@media \(max-width:420px\)[\s\S]*\.appHeader \.chip[\s\S]*display:none\s*!important/.test(finalUi)) {
+  failures.push('Invitee mission header can regress to an overcrowded small-phone layout.');
+}
+if (!/body:has\(\.modalBackdrop\)/.test(finalUi) || !/overflow:hidden/.test(finalUi)) {
+  failures.push('Full-screen dialogs can regress to background scrolling on touch devices.');
+}
+if (!/env\(safe-area-inset-top\)/.test(finalUi) || !/env\(safe-area-inset-bottom\)/.test(finalUi)) {
+  failures.push('Phone/app safe-area padding is missing from the reviewed mobile shell.');
+}
+
+const layout = read('src/app/layout.tsx');
+if (!/viewportFit:\s*'cover'/.test(layout)) {
+  failures.push('Viewport is not prepared for edge-to-edge app safe areas.');
+}
 
 const legalMemory = read('src/components/LegalNavigationMemory.tsx');
 const legalPage = read('src/components/LocalizedLegalPage.tsx');
@@ -64,6 +78,12 @@ if (!/veinvite-legal-return/.test(legalMemory)) {
 }
 if (!/LEGAL_RETURN_STORAGE_KEY/.test(legalPage) || !/window\.history\.back\(\)/.test(legalPage)) {
   failures.push('Legal back navigation can no longer safely return to the prior VeInvite screen.');
+}
+
+const uiTestPage = read('src/app/ui-test/page.tsx');
+const guidePreview = read('src/components/GuideUiPreview.tsx');
+if (!/GuideUiPreview/.test(uiTestPage) || !/<AppGuide locale=\{locale\}/.test(guidePreview)) {
+  failures.push('UI test page is not rendering the real production Guide component.');
 }
 
 if (failures.length > 0) {
