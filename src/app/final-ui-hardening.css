@@ -18,9 +18,9 @@
   order:2;
 }
 
-/* Keep the core app width stable when switching Home / Guide / Settings.
- * Leaderboard intentionally remains wider because its four-column table
- * benefits from the extra room. */
+/* Keep the core app width stable when switching Home / Guide / Leaderboard /
+ * Settings. The leaderboard is mobile-first and no longer needs a wider
+ * horizontal-scroll table on desktop. */
 main.screen > .missionCard,
 main.screen > .toast {
   width:min(100%,560px) !important;
@@ -29,6 +29,9 @@ main.screen > .topBar:has(~ .missionCard) {
   width:min(100%,560px) !important;
 }
 main.screen .bottomNavigation > div {
+  width:min(100%,560px) !important;
+}
+.leaderboardPage {
   width:min(100%,560px) !important;
 }
 

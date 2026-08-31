@@ -22,15 +22,39 @@ const forecastPortal = readFileSync(
   'utf8',
 );
 
-if (!/setInterval\(loadForecast,\s*15\s*\*\s*60_000\)/.test(forecastPortal)) {
+if (!/setInterval\(\s*loadForecast,\s*15\s*\*\s*60_000\s*,?\s*\)/s.test(forecastPortal)) {
   failures.push(
     'Public reward forecast polling must stay at the reviewed 15-minute cadence.',
   );
 }
 
-if (/setInterval\([^)]*,\s*60_000\s*\)/.test(forecastPortal)) {
+if (/setInterval\([^)]*,\s*60_000\s*,?\s*\)/s.test(forecastPortal)) {
   failures.push(
     'Public reward forecast must not regress to one-minute client polling.',
+  );
+}
+
+for (const legacyDetail of [
+  'estimateRange',
+  'estimateMeta',
+  'formatUpdatedAt',
+]) {
+  if (forecastPortal.includes(legacyDetail)) {
+    failures.push(
+      `Public reward forecast UI must stay simplified; legacy detail returned: ${legacyDetail}.`,
+    );
+  }
+}
+
+if (!/text-align:center/.test(forecastPortal)) {
+  failures.push(
+    'Public reward forecast disclaimer must keep the reviewed centered mobile presentation.',
+  );
+}
+
+if (!/data\.rewardForecastPreview|rewardForecastPreview/.test(forecastPortal)) {
+  failures.push(
+    'UI test reward forecast must keep its fake-data preview path instead of fetching production data.',
   );
 }
 

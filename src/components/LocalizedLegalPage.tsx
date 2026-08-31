@@ -17,6 +17,20 @@ import {
   type Locale,
 } from '@/lib/i18n/locales';
 
+const BACK_LABEL: Record<Locale, string> = {
+  en: 'Back',
+  ko: '뒤로가기',
+  zh: '返回',
+  hi: 'वापस',
+  es: 'Volver',
+  ja: '戻る',
+  it: 'Indietro',
+  tr: 'Geri',
+  nl: 'Terug',
+  de: 'Zurück',
+  fr: 'Retour',
+};
+
 function resolveInitialLocale(): Locale {
   const saved = window.localStorage.getItem(LANGUAGE_STORAGE_KEY);
   return isLocale(saved)
@@ -29,10 +43,6 @@ export function LocalizedLegalPage({
 }: {
   kind: LegalDocumentKind;
 }) {
-  // Render a complete English document on the server for accessibility,
-  // crawlers, no-JS clients, and stable metadata. The global locale shield
-  // covers the brief hydration window while the saved/browser locale is
-  // resolved on the client.
   const [locale, setLocale] = useState<Locale>('en');
 
   useEffect(() => {
@@ -69,10 +79,29 @@ export function LocalizedLegalPage({
     };
   }, []);
 
+  const handleBack = () => {
+    if (window.history.length > 1) {
+      window.history.back();
+      return;
+    }
+
+    window.location.assign('/');
+  };
+
   const copy = LEGAL_COPY[kind][locale];
 
   return (
     <main className="legalPage" lang={locale}>
+      <button
+        type="button"
+        className="legalBackTop"
+        onClick={handleBack}
+        aria-label={BACK_LABEL[locale]}
+      >
+        <span aria-hidden="true">←</span>
+        {BACK_LABEL[locale]}
+      </button>
+
       <header className="legalHeader">
         <span>{copy.eyebrow}</span>
         <h1>{copy.title}</h1>
@@ -101,10 +130,36 @@ export function LocalizedLegalPage({
           min-height:100svh;
           box-sizing:border-box;
           margin:0 auto;
-          padding:54px 22px 72px;
+          padding:34px 22px 72px;
           color:#f8f6ef;
         }
+        .legalBackTop {
+          min-height:44px;
+          padding:0 13px;
+          display:inline-flex;
+          align-items:center;
+          gap:8px;
+          border:1px solid rgba(255,255,255,.09);
+          border-radius:13px;
+          background:rgba(255,255,255,.035);
+          color:#d9d4c8;
+          font:inherit;
+          font-size:.8rem;
+          font-weight:850;
+          cursor:pointer;
+        }
+        .legalBackTop:hover,.legalBackTop:focus-visible {
+          border-color:rgba(244,183,40,.42);
+          color:#f4c85a;
+          outline:none;
+          box-shadow:0 0 0 3px rgba(244,183,40,.08);
+        }
+        .legalBackTop span {
+          color:#f4c85a;
+          font-size:1rem;
+        }
         .legalHeader {
+          margin-top:24px;
           padding-bottom:22px;
           border-bottom:1px solid rgba(255,255,255,.09);
         }
@@ -157,6 +212,7 @@ export function LocalizedLegalPage({
         }
         .legalBack {
           width:fit-content;
+          min-height:44px;
           margin-top:42px;
           display:inline-flex;
           align-items:center;
@@ -170,12 +226,12 @@ export function LocalizedLegalPage({
           text-decoration:underline;
           text-underline-offset:4px;
         }
-        .legalPage :where(h1,h2,p,a) {
+        .legalPage :where(h1,h2,p,a,button) {
           overflow-wrap:normal;
           word-break:normal;
           hyphens:none;
         }
-        .legalPage:lang(ko) :where(h1,h2,p,a) {
+        .legalPage:lang(ko) :where(h1,h2,p,a,button) {
           word-break:keep-all;
         }
         .legalPage:lang(zh),
@@ -184,7 +240,10 @@ export function LocalizedLegalPage({
         }
         @media (max-width:480px) {
           .legalPage {
-            padding:38px 19px 58px;
+            padding:20px 16px calc(58px + env(safe-area-inset-bottom));
+          }
+          .legalHeader {
+            margin-top:20px;
           }
           .legalSections {
             gap:24px;
