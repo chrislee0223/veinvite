@@ -34,7 +34,7 @@ export const GUIDE_COPY: Record<Locale, GuideCopy> = {
       {
         title: 'They finish every mission',
         description:
-          'They earn B3TR from three different VeBetterDAO dApps, convert B3TR to VOT3, and vote.',
+          'They earn B3TR from three different VeBetterDAO dApps, convert B3TR to VOT3, and cast one governance vote.',
       },
       {
         title: 'Reward queued automatically',
@@ -67,7 +67,7 @@ export const GUIDE_COPY: Record<Locale, GuideCopy> = {
       {
         title: '친구가 모든 미션 완료',
         description:
-          '서로 다른 VeBetterDAO dApp 3개에서 활동해 B3TR 보상을 받고, B3TR → VOT3 전환과 투표까지 완료해야 해요.',
+          '서로 다른 VeBetterDAO dApp 3개에서 B3TR 보상을 받고, B3TR을 VOT3로 전환한 뒤 거버넌스 투표에 한 번 참여해야 해요.',
       },
       {
         title: '검증 후 보상 자동 등록',
@@ -100,7 +100,7 @@ export const GUIDE_COPY: Record<Locale, GuideCopy> = {
       {
         title: '好友完成全部任务',
         description:
-          '好友需要在 3 个不同的 VeBetterDAO dApp 中获得 B3TR 奖励，再把 B3TR 转为 VOT3，并完成一次投票。',
+          '好友需要在 3 个不同的 VeBetterDAO dApp 中获得 B3TR 奖励，把 B3TR 转为 VOT3，并参加一次治理投票。',
       },
       {
         title: '验证后自动进入奖励队列',
@@ -133,7 +133,7 @@ export const GUIDE_COPY: Record<Locale, GuideCopy> = {
       {
         title: 'दोस्त सभी मिशन पूरा करे',
         description:
-          'उसे तीन अलग-अलग VeBetterDAO dApps से B3TR कमाना, B3TR को VOT3 में बदलना और एक वोट करना होगा।',
+          'उसे तीन अलग-अलग VeBetterDAO dApps से B3TR कमाना, B3TR को VOT3 में बदलना और एक गवर्नेंस वोट में भाग लेना होगा।',
       },
       {
         title: 'सत्यापन के बाद इनाम अपने-आप कतार में',
@@ -166,7 +166,7 @@ export const GUIDE_COPY: Record<Locale, GuideCopy> = {
       {
         title: 'Tu amigo completa todas las misiones',
         description:
-          'Tu amigo debe ganar B3TR en tres dApps distintas de VeBetterDAO, convertir B3TR a VOT3 y votar.',
+          'Tu amigo debe ganar B3TR en tres dApps distintas de VeBetterDAO, convertir B3TR a VOT3 y participar una vez en una votación de gobernanza.',
       },
       {
         title: 'Recompensa en cola automáticamente',
@@ -199,7 +199,7 @@ export const GUIDE_COPY: Record<Locale, GuideCopy> = {
       {
         title: '友だちがすべてのミッションを完了',
         description:
-          '異なる3つのVeBetterDAO dAppでB3TRを獲得し、B3TRをVOT3へ変換して、1回投票します。',
+          '異なる3つのVeBetterDAO dAppでB3TRを獲得し、B3TRをVOT3へ変換して、ガバナンス投票に1回参加します。',
       },
       {
         title: '確認後は報酬が自動で支払い待ちに',
@@ -232,7 +232,7 @@ export const GUIDE_COPY: Record<Locale, GuideCopy> = {
       {
         title: 'Il tuo amico completa tutte le missioni',
         description:
-          'Il tuo amico deve guadagnare B3TR da tre dApp VeBetterDAO diverse, convertire B3TR in VOT3 e votare.',
+          'Il tuo amico deve guadagnare B3TR da tre dApp VeBetterDAO diverse, convertire B3TR in VOT3 e partecipare a una votazione di governance.',
       },
       {
         title: 'Ricompensa in coda automaticamente',
@@ -265,7 +265,7 @@ export const GUIDE_COPY: Record<Locale, GuideCopy> = {
       {
         title: 'Arkadaşın tüm görevleri tamamlasın',
         description:
-          'Üç farklı VeBetterDAO dApp’inden B3TR kazanmalı, B3TR’yi VOT3’e dönüştürmeli ve oy kullanmalı.',
+          'Üç farklı VeBetterDAO dApp’inden B3TR kazanmalı, B3TR’yi VOT3’e dönüştürmeli ve bir yönetişim oylamasına katılmalı.',
       },
       {
         title: 'Doğrulamadan sonra ödül otomatik sıraya alınır',
@@ -298,7 +298,7 @@ export const GUIDE_COPY: Record<Locale, GuideCopy> = {
       {
         title: 'Je vriend rondt alle missies af',
         description:
-          'Je vriend verdient B3TR bij drie verschillende VeBetterDAO-dApps, zet B3TR om naar VOT3 en brengt een stem uit.',
+          'Je vriend verdient B3TR bij drie verschillende VeBetterDAO-dApps, zet B3TR om naar VOT3 en neemt één keer deel aan een governance-stemming.',
       },
       {
         title: 'Beloning automatisch in de wachtrij',
@@ -331,7 +331,7 @@ export const GUIDE_COPY: Record<Locale, GuideCopy> = {
       {
         title: 'Dein Freund schließt alle Missionen ab',
         description:
-          'Dein Freund verdient B3TR bei drei verschiedenen VeBetterDAO-dApps, wandelt B3TR in VOT3 um und gibt eine Stimme ab.',
+          'Dein Freund verdient B3TR bei drei verschiedenen VeBetterDAO-dApps, wandelt B3TR in VOT3 um und nimmt einmal an einer Governance-Abstimmung teil.',
       },
       {
         title: 'Belohnung wird automatisch eingeplant',
@@ -364,7 +364,7 @@ export const GUIDE_COPY: Record<Locale, GuideCopy> = {
       {
         title: 'Il termine toutes les missions',
         description:
-          'Votre ami doit gagner du B3TR sur trois dApps VeBetterDAO différentes, convertir du B3TR en VOT3 et voter.',
+          'Votre ami doit gagner du B3TR sur trois dApps VeBetterDAO différentes, convertir du B3TR en VOT3 et participer une fois à un vote de gouvernance.',
       },
       {
         title: 'Récompense mise en paiement automatiquement',
