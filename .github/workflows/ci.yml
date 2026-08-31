@@ -62,6 +62,9 @@ jobs:
       - name: Invite reconciliation gate
         run: node scripts/check-progress-reconciliation.mjs
 
+      - name: Recipient B3TR forensic gate
+        run: node scripts/check-recipient-b3tr-forensics.mjs
+
       - name: Install dependencies
         run: npm ci
 
