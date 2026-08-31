@@ -58,9 +58,41 @@ if (/final verification|final check|passes verification|최종 검증|최종 확
   failures.push('Simplified guide flow exposes internal verification jargon.');
 }
 
+const missionStep = read('src/lib/i18n/guideMissionStepCopy.ts');
+const eligibilityStep = read('src/lib/i18n/guideEligibilityCopy.ts');
+for (const locale of locales) {
+  if (!new RegExp(`\\b${locale}:\\s*\\{`).test(missionStep)) {
+    failures.push(`Guide mission step is incomplete for locale: ${locale}`);
+  }
+  if (!new RegExp(`\\b${locale}:\\s*\\{`).test(eligibilityStep)) {
+    failures.push(`Guide eligibility copy is incomplete for locale: ${locale}`);
+  }
+}
+if (
+  !/three different VeBetterDAO dApps/.test(missionStep) ||
+  !/서로 다른 VeBetterDAO dApp 3개/.test(missionStep) ||
+  !/Allocation Voting/.test(missionStep)
+) {
+  failures.push('Guide mission step must preserve the exact three-dApp, VOT3, and Allocation Voting journey.');
+}
+if (
+  !/oldest of the last 12 completed rounds/.test(eligibilityStep) ||
+  !/최근 완료된 12개 라운드 중 가장 오래된 라운드의 시작 시점부터 지금까지/.test(eligibilityStep)
+) {
+  failures.push('Returning-user guide copy must match the reviewed 12-completed-round dormancy window.');
+}
+if (/claim your reward|request your reward|보상 수령을 요청|보상 받기/i.test(rewardStep)) {
+  failures.push('Automatic reward guide copy must not regress toward a manual claim/request flow.');
+}
+
 const appGuide = read('src/components/AppGuide.tsx');
-if (!/GUIDE_FLOW_COPY/.test(appGuide) || !/GUIDE_REWARD_STEP_COPY/.test(appGuide)) {
-  failures.push('AppGuide is not using the reviewed simplified guide sources.');
+if (
+  !/GUIDE_FLOW_COPY/.test(appGuide) ||
+  !/GUIDE_MISSION_STEP_COPY/.test(appGuide) ||
+  !/GUIDE_ELIGIBILITY_COPY/.test(appGuide) ||
+  !/GUIDE_REWARD_STEP_COPY/.test(appGuide)
+) {
+  failures.push('AppGuide is not using all reviewed multilingual guide sources.');
 }
 
 const copyHardening = read('src/lib/i18n/copyHardening.ts');

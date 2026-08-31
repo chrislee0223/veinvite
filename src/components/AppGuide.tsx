@@ -1,18 +1,22 @@
 import { GUIDE_COPY } from '@/lib/i18n/guideCopy';
+import { GUIDE_ELIGIBILITY_COPY } from '@/lib/i18n/guideEligibilityCopy';
 import { GUIDE_FLOW_COPY } from '@/lib/i18n/guideFlowCopy';
+import { GUIDE_MISSION_STEP_COPY } from '@/lib/i18n/guideMissionStepCopy';
 import { GUIDE_REWARD_STEP_COPY } from '@/lib/i18n/guideRewardStepCopy';
 import type { Locale } from '@/lib/i18n/locales';
 
 export function AppGuide({ locale }: { locale: Locale }) {
   const t = GUIDE_COPY[locale];
   const flow = GUIDE_FLOW_COPY[locale];
+  const eligibility = GUIDE_ELIGIBILITY_COPY[locale];
+  const missionStep = GUIDE_MISSION_STEP_COPY[locale];
   const rewardStep = GUIDE_REWARD_STEP_COPY[locale];
   const steps = [
     {
       ...t.steps[0],
       description: flow.inviteDescription,
     },
-    t.steps[1],
+    missionStep,
     rewardStep,
   ];
 
@@ -38,8 +42,8 @@ export function AppGuide({ locale }: { locale: Locale }) {
 
       <section className="eligibilityCard">
         <h2>{t.eligibilityTitle}</h2>
-        <Definition title={t.newTitle} description={t.newDescription} icon="N" />
-        <Definition title={t.returningTitle} description={t.returningDescription} icon="R" />
+        <Definition title={t.newTitle} description={eligibility.newDescription} icon="N" />
+        <Definition title={t.returningTitle} description={eligibility.returningDescription} icon="R" />
         <Definition title={t.countTitle} description={flow.countDescription} icon="✓" />
       </section>
 
