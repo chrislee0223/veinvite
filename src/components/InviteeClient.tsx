@@ -30,6 +30,7 @@ import type { InviteRecord } from '@/lib/types';
 type Step = 'landing' | 'wallet' | 'checking' | 'success' | 'missions' | 'error' | 'review';
 type EntryClass = 'new_user' | 'returning_user';
 type ErrorCode = 'invalidLink' | 'used' | 'eligibility' | 'existing' | 'selfReferral' | 'other' | 'complete';
+type ProgressReadMode = 'read' | 'sync';
 
 type InviteProgress = {
   appsCompleted: number;
@@ -117,9 +118,12 @@ export function InviteeClient({ code }: { code: string }) {
   const t = INVITEE_COPY[locale];
   const demoMode = process.env.NEXT_PUBLIC_DEMO_MODE === 'true';
 
-  const loadInviteProgress = useCallback(async () => {
+  const loadInviteProgress = useCallback(async (
+    mode: ProgressReadMode = 'read',
+  ) => {
     try {
       const response = await fetch(`/api/invites/${code}`, {
+        method: mode === 'sync' ? 'POST' : 'GET',
         cache: 'no-store',
       });
       const data = await readInviteResponse(response);
@@ -151,14 +155,14 @@ export function InviteeClient({ code }: { code: string }) {
   }, [languageReady, locale, setKitLanguage]);
 
   useEffect(() => {
-    void loadInviteProgress().catch((error: unknown) => {
+    void loadInviteProgress('read').catch((error: unknown) => {
       const status = error instanceof InviteRequestError
         ? error.status
         : null;
 
       // Only a real 404/410 means the invitation is unavailable. Temporary
-      // node, database, throttling, or network failures must not tell the user
-      // that a valid invite has expired.
+      // database, throttling, or network failures must not tell the user that
+      // a valid invite has expired.
       setErrorCode(
         status === 404 || status === 410
           ? 'invalidLink'
@@ -187,16 +191,43 @@ export function InviteeClient({ code }: { code: string }) {
   }, [claimedThisSession, invite, step, wallet]);
 
   useEffect(() => {
-    const shouldPollMissions = step === 'missions' && invite?.status !== 'COMPLETED' && invite?.status !== 'UNDER_REVIEW';
+    const shouldPollMissions =
+      step === 'missions' &&
+      invite?.status !== 'COMPLETED' &&
+      invite?.status !== 'UNDER_REVIEW';
     const shouldPollReview = step === 'review';
-    if (!shouldPollMissions && !shouldPollReview) return;
+    const shouldRecoverCompleted =
+      step === 'missions' &&
+      invite?.status === 'COMPLETED' &&
+      invite.rewardEligibility !== 'PAID' &&
+      invite.rewardEligibility !== 'FORFEITED';
 
-    void loadInviteProgress().catch(() => undefined);
-    const intervalId = window.setInterval(() => {
-      void loadInviteProgress().catch(() => undefined);
-    }, 30_000);
+    if (
+      !shouldPollMissions &&
+      !shouldPollReview &&
+      !shouldRecoverCompleted
+    ) {
+      return;
+    }
+
+    const reconcile = () => {
+      void loadInviteProgress('sync').catch(() => undefined);
+    };
+
+    // A completed-but-unsettled referral gets one explicit recovery attempt on
+    // page open. Active/review states keep the normal 30-second reconciliation
+    // cadence while the page is visible.
+    reconcile();
+    if (shouldRecoverCompleted) return;
+
+    const intervalId = window.setInterval(reconcile, 30_000);
     return () => window.clearInterval(intervalId);
-  }, [step, invite?.status, loadInviteProgress]);
+  }, [
+    step,
+    invite?.status,
+    invite?.rewardEligibility,
+    loadInviteProgress,
+  ]);
 
   const saveLocale = (nextLocale: Locale) => {
     setLocale(nextLocale);
