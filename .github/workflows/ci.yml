@@ -53,6 +53,9 @@ jobs:
       - name: Server stability gate
         run: node scripts/check-server-stability.mjs
 
+      - name: Audit hardening gate
+        run: node scripts/check-audit-hardening.mjs
+
       - name: Install dependencies
         run: npm ci
 

@@ -16,11 +16,33 @@ for (const locale of locales) {
     failures.push(`Guide reward step is incomplete for locale: ${locale}`);
   }
 }
-if (!/Get your reward after all missions are complete/.test(rewardStep) || !/미션 완료 후 보상 받기/.test(rewardStep)) {
-  failures.push('Guide step 3 no longer matches the reviewed mission-complete reward wording.');
+if (
+  !/Reward is sent automatically after the missions/.test(rewardStep) ||
+  !/미션 완료 후 보상 자동 지급/.test(rewardStep) ||
+  !/No claim is needed/.test(rewardStep) ||
+  !/따로 신청할 필요가 없어요/.test(rewardStep)
+) {
+  failures.push('Guide reward step must clearly explain automatic payout with no manual claim.');
 }
-if (/queued automatically|payment queue|payout queue|reward queue|대기열|자동 등록|최종 검증|final verification|final checks/i.test(rewardStep)) {
-  failures.push('Guide step 3 exposes retired queue or final-verification jargon.');
+if (/payment queue|payout queue|reward queue|대기열|자동 등록|최종 검증|final verification|final checks/i.test(rewardStep)) {
+  failures.push('Guide reward step exposes internal queue or final-verification jargon.');
+}
+
+const inviteLanding = read('src/lib/i18n/inviteLandingCopy.ts');
+for (const locale of locales) {
+  if (!new RegExp(`\\b${locale}:\\s*\\{`).test(inviteLanding)) {
+    failures.push(`Invite landing copy is incomplete for locale: ${locale}`);
+  }
+}
+if (
+  !/소요 시간은 달라질 수 있어요/.test(inviteLanding) ||
+  !/所要時間は状況により異なります/.test(inviteLanding) ||
+  !/El tiempo puede variar/.test(inviteLanding)
+) {
+  failures.push('Reviewed natural-language timing copy is missing from key locales.');
+}
+if (/About 10 min|약 10분|約10分|10 minutos/i.test(inviteLanding)) {
+  failures.push('Invite landing must not promise a fixed mission completion time.');
 }
 
 const guideFlow = read('src/lib/i18n/guideFlowCopy.ts');

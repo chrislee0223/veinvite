@@ -27,9 +27,9 @@ export const REWARD_RECEIPT_COPY: Record<Locale, RewardReceiptCopy> = {
     error: 'We could not mark this reward receipt as seen. Please try again.',
   },
   ko: {
-    eyebrow: '추천 보상 지급 완료',
+    eyebrow: '초대 보상 지급 완료',
     title: 'B3TR 보상이 도착했어요',
-    description: '검증을 통과한 VeInvite 추천 보상이 이 지갑으로 지급됐어요.',
+    description: '검증을 통과한 VeInvite 초대 보상이 이 지갑으로 지급됐어요.',
     round: 'VeBetterDAO 라운드',
     invite: '초대 코드',
     transaction: '트랜잭션',
@@ -39,9 +39,9 @@ export const REWARD_RECEIPT_COPY: Record<Locale, RewardReceiptCopy> = {
     error: '보상 지급 내역을 확인한 것으로 표시하지 못했어요. 다시 시도해 주세요.',
   },
   zh: {
-    eyebrow: '推荐奖励已发放',
+    eyebrow: '邀请奖励已发放',
     title: 'B3TR 奖励已到账',
-    description: '经验证的 VeInvite 推荐奖励已发放到这个钱包。',
+    description: '经验证的 VeInvite 邀请奖励已发放到这个钱包。',
     round: 'VeBetterDAO 轮次',
     invite: '邀请码',
     transaction: '交易',
