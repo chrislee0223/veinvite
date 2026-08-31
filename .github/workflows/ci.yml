@@ -44,6 +44,9 @@ jobs:
       - name: UI stability gate
         run: node scripts/check-ui-stability.mjs
 
+      - name: Forecast stability gate
+        run: node scripts/check-forecast-stability.mjs
+
       - name: Server stability gate
         run: node scripts/check-server-stability.mjs
 
