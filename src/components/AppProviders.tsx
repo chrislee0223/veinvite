@@ -4,6 +4,7 @@ import type { ReactNode } from 'react';
 import { ChakraProvider, extendTheme } from '@chakra-ui/react';
 import dynamic from 'next/dynamic';
 
+import '@/lib/i18n/copyHardening';
 import { HeaderLanguagePickerPortal } from './HeaderLanguagePickerPortal';
 import { PublicRewardForecastPortal } from './PublicRewardForecastPortal';
 
