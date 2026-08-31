@@ -145,6 +145,23 @@ if (!/missionCard[\s\S]*width\s*:\s*min\(100%,560px\)\s*!important/.test(finalUi
 if (!/bottomNavigation[\s\S]*width\s*:\s*min\(100%,560px\)\s*!important/.test(finalUi)) {
   failures.push('Bottom navigation width is not aligned to the reviewed core app width.');
 }
+if (!/labScreen[\s\S]*missionCard[\s\S]*width\s*:\s*min\(100%,560px\)\s*!important/.test(finalUi)) {
+  failures.push('UI test home width can drift from the reviewed production width.');
+}
+if (!/labScreen[\s\S]*previewNavigation[\s\S]*left\s*:\s*16px\s*!important/.test(finalUi) || !/labScreen[\s\S]*previewNavigation[\s\S]*right\s*:\s*16px\s*!important/.test(finalUi)) {
+  failures.push('UI test bottom navigation no longer mirrors the reviewed production gutter.');
+}
+
+const localizedTypography = read('src/app/localized-typography.css');
+if (!/\.labScreen/.test(localizedTypography)) {
+  failures.push('UI test typography is not covered by the production locale-aware wrapping rules.');
+}
+if (!/bottomNavigation button span,[\s\S]*previewNavigation button span[\s\S]*white-space\s*:\s*nowrap\s*!important/i.test(localizedTypography)) {
+  failures.push('Persistent navigation labels must remain single-line in production and UI test views.');
+}
+if (/bottomNavigation button span[\s\S]*-webkit-line-clamp\s*:\s*2/i.test(localizedTypography)) {
+  failures.push('Legacy two-line bottom-navigation behavior returned.');
+}
 
 const headerLanguagePortal = read(
   'src/components/HeaderLanguagePickerPortal.tsx',
@@ -178,7 +195,15 @@ const uiTestPage = read('src/app/ui-test/page.tsx');
 if (!/InviteRejectionPreview/.test(uiTestPage)) {
   failures.push('UI test page must mirror the production invite-ineligibility feedback.');
 }
+if (!/PRODUCTION PARITY/.test(uiTestPage)) {
+  failures.push('UI test page must state that it mirrors the production UI baseline.');
+}
 requireFile('src/components/InviteRejectionPreview.tsx');
+
+const rejectionPreview = read('src/components/InviteRejectionPreview.tsx');
+if (!/INVITEE_COPY/.test(rejectionPreview) || !/t\.errors\.existing/.test(rejectionPreview) || !/t\.existingHelp/.test(rejectionPreview)) {
+  failures.push('UI test rejection preview is not using the exact production rejection copy.');
+}
 
 const legalCopy = read('src/lib/i18n/legalCopy.ts');
 for (const locale of [
