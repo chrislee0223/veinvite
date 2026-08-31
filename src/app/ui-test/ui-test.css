@@ -1,0 +1,96 @@
+/* UI-test-only multilingual wrapping QA overrides.
+   These styles intentionally keep real app data/logic untouched while letting us
+   validate production-like components with safer language-specific line breaking. */
+
+.phoneCanvas .badge,
+.phoneCanvas .missionCopy h1,
+.phoneCanvas .missionCopy p,
+.phoneCanvas .rewardCopy small,
+.phoneCanvas .rewardCopy strong,
+.phoneCanvas .primaryAction,
+.phoneCanvas .secondaryAction,
+.phoneCanvas .stepLabel,
+.notificationCopy h2,
+.notificationCopy p {
+  word-break: normal !important;
+  overflow-wrap: break-word !important;
+  hyphens: none !important;
+}
+
+.phoneCanvas .missionCopy h1,
+.notificationCopy h2 {
+  text-wrap: balance;
+}
+
+.phoneCanvas .missionCopy p,
+.notificationCopy p {
+  text-wrap: pretty;
+}
+
+html[lang="ko"] .phoneCanvas .badge,
+html[lang="ko"] .phoneCanvas .missionCopy h1,
+html[lang="ko"] .phoneCanvas .missionCopy p,
+html[lang="ko"] .phoneCanvas .rewardCopy small,
+html[lang="ko"] .phoneCanvas .rewardCopy strong,
+html[lang="ko"] .phoneCanvas .primaryAction,
+html[lang="ko"] .phoneCanvas .secondaryAction,
+html[lang="ko"] .phoneCanvas .stepLabel,
+html[lang="ko"] .notificationCopy h2,
+html[lang="ko"] .notificationCopy p {
+  word-break: keep-all !important;
+}
+
+html[lang="zh"] .phoneCanvas .badge,
+html[lang="zh"] .phoneCanvas .missionCopy h1,
+html[lang="zh"] .phoneCanvas .missionCopy p,
+html[lang="zh"] .phoneCanvas .rewardCopy small,
+html[lang="zh"] .phoneCanvas .rewardCopy strong,
+html[lang="zh"] .phoneCanvas .primaryAction,
+html[lang="zh"] .phoneCanvas .secondaryAction,
+html[lang="zh"] .phoneCanvas .stepLabel,
+html[lang="zh"] .notificationCopy h2,
+html[lang="zh"] .notificationCopy p,
+html[lang="ja"] .phoneCanvas .badge,
+html[lang="ja"] .phoneCanvas .missionCopy h1,
+html[lang="ja"] .phoneCanvas .missionCopy p,
+html[lang="ja"] .phoneCanvas .rewardCopy small,
+html[lang="ja"] .phoneCanvas .rewardCopy strong,
+html[lang="ja"] .phoneCanvas .primaryAction,
+html[lang="ja"] .phoneCanvas .secondaryAction,
+html[lang="ja"] .phoneCanvas .stepLabel,
+html[lang="ja"] .notificationCopy h2,
+html[lang="ja"] .notificationCopy p {
+  word-break: normal !important;
+  line-break: strict;
+}
+
+.phoneCanvas .badge {
+  min-height: 28px;
+  padding-top: 6px !important;
+  padding-bottom: 6px !important;
+  line-height: 1.2;
+  text-align: center;
+}
+
+.phoneCanvas .previewNavigation button span {
+  max-width: 100%;
+  overflow: hidden !important;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  overflow-wrap: normal !important;
+  word-break: normal !important;
+}
+
+.notificationCopy .rewardAmount,
+.phoneCanvas .inviteCodeCard strong,
+.phoneCanvas .walletText {
+  white-space: nowrap;
+  overflow-wrap: normal !important;
+  word-break: normal !important;
+}
+
+@media (max-width: 390px) {
+  .phoneCanvas .previewNavigation button span {
+    font-size: .53rem;
+  }
+}
