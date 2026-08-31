@@ -19,7 +19,7 @@ export const GUIDE_FLOW_COPY: Record<Locale, GuideFlowCopy> = {
     description:
       'VeInvite는 링크만 열었다고 보상을 주지 않아요. 친구가 모든 미션을 완료해야 초대가 완료돼요.',
     inviteDescription:
-      '활성 초대 슬롯은 한 개예요. 친구가 모든 미션을 완료하면 다음 친구를 초대할 수 있어요.',
+      '한 번에 초대 한 건만 진행할 수 있어요. 친구가 모든 미션을 완료하면 다음 친구를 초대할 수 있어요.',
     countDescription:
       '모든 미션을 완료한 지갑만 신규·복귀 사용자 수에 포함해요.',
   },
