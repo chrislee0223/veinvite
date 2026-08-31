@@ -108,7 +108,7 @@ begin
     new.invite_code,
     lower(btrim(new.recipient_wallet)),
     case
-      when v_invitation.id is null or v_invitation.invitee_wallet is null then null
+      when v_invitation.invite_code is null or v_invitation.invitee_wallet is null then null
       else lower(btrim(v_invitation.invitee_wallet))
     end,
     new.amount_wei,
@@ -121,7 +121,7 @@ begin
     v_invitation.sybil_reason,
     v_invitation.sybil_checked_at,
     v_invitation.sybil_source,
-    v_invitation.id is not null
+    v_invitation.invite_code is not null
       and v_invitation.invitee_wallet is not null
       and lower(btrim(v_invitation.inviter_wallet)) = lower(btrim(new.recipient_wallet))
   )
@@ -178,7 +178,7 @@ select
   i.sybil_reason,
   i.sybil_checked_at,
   i.sybil_source,
-  i.id is not null
+  i.invite_code is not null
     and i.invitee_wallet is not null
     and lower(btrim(i.inviter_wallet)) = lower(btrim(r.recipient_wallet))
 from public.reward_receipts r
