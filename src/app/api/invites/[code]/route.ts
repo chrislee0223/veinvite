@@ -188,28 +188,38 @@ async function enforceInviteRateLimit({
   mode: 'read' | 'sync';
 }) {
   const clientIp = getClientIpSubject(request);
-  const sync = mode === 'sync';
+
+  if (mode === 'read') {
+    return enforceRateLimits([
+      {
+        scope: 'invite_progress_code',
+        subject: normalizedCode,
+        limit: INVITE_READ_CODE_LIMIT,
+        windowSeconds: INVITE_WINDOW_SECONDS,
+      },
+      clientIp
+        ? {
+            scope: 'invite_progress_ip',
+            subject: clientIp,
+            limit: INVITE_READ_IP_LIMIT,
+            windowSeconds: INVITE_WINDOW_SECONDS,
+          }
+        : null,
+    ]);
+  }
 
   return enforceRateLimits([
     {
-      scope: sync
-        ? 'invite_progress_sync_code'
-        : 'invite_progress_code',
+      scope: 'invite_progress_sync_code',
       subject: normalizedCode,
-      limit: sync
-        ? INVITE_SYNC_CODE_LIMIT
-        : INVITE_READ_CODE_LIMIT,
+      limit: INVITE_SYNC_CODE_LIMIT,
       windowSeconds: INVITE_WINDOW_SECONDS,
     },
     clientIp
       ? {
-          scope: sync
-            ? 'invite_progress_sync_ip'
-            : 'invite_progress_ip',
+          scope: 'invite_progress_sync_ip',
           subject: clientIp,
-          limit: sync
-            ? INVITE_SYNC_IP_LIMIT
-            : INVITE_READ_IP_LIMIT,
+          limit: INVITE_SYNC_IP_LIMIT,
           windowSeconds: INVITE_WINDOW_SECONDS,
         }
       : null,
