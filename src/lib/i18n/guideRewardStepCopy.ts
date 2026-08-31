@@ -7,58 +7,58 @@ type GuideRewardStepCopy = {
 
 export const GUIDE_REWARD_STEP_COPY: Record<Locale, GuideRewardStepCopy> = {
   en: {
-    title: 'Reward queued automatically after verification',
+    title: 'Get your reward after the mission',
     description:
-      "After the final checks, your reward is automatically queued for payout. You don't need to claim it.",
+      'When your friend completes all missions, you can receive your reward in VeInvite.',
   },
   ko: {
-    title: '검증 후 보상 자동 등록',
+    title: '미션 완료 후 보상 받기',
     description:
-      '최종 검증을 통과하면 보상 지급 대기열에 자동으로 등록돼요. 따로 수령 신청할 필요가 없어요.',
+      '친구가 모든 미션을 완료하면, 초대한 사람은 VeInvite에서 보상을 받을 수 있어요.',
   },
   zh: {
-    title: '验证后自动进入奖励队列',
+    title: '完成任务后领取奖励',
     description:
-      '通过最终检查后，奖励会自动进入发放队列，无需手动领取。',
+      '好友完成所有任务后，邀请人即可在 VeInvite 中领取奖励。',
   },
   hi: {
-    title: 'सत्यापन के बाद इनाम अपने-आप कतार में',
+    title: 'मिशन पूरा होने के बाद इनाम पाएं',
     description:
-      'अंतिम जाँच पूरी होने के बाद आपका इनाम भुगतान की कतार में अपने-आप जुड़ जाएगा। आपको अलग से क्लेम करने की ज़रूरत नहीं है।',
+      'जब आपका दोस्त सभी मिशन पूरे कर लेता है, तो आमंत्रित करने वाला VeInvite में अपना इनाम प्राप्त कर सकता है।',
   },
   es: {
-    title: 'Recompensa en cola automáticamente tras la verificación',
+    title: 'Recibe tu recompensa al completar la misión',
     description:
-      'Cuando terminen las comprobaciones finales, tu recompensa entrará automáticamente en la cola de pago. No tienes que solicitarla.',
+      'Cuando tu amigo complete todas las misiones, podrás recibir tu recompensa en VeInvite.',
   },
   ja: {
-    title: '確認後は報酬が自動で支払い待ちに',
+    title: 'ミッション完了後に報酬を受け取る',
     description:
-      '最終確認を通過すると、報酬は自動で支払い待ちに登録されます。申請は不要です。',
+      '友だちがすべてのミッションを完了すると、招待した人は VeInvite で報酬を受け取れます。',
   },
   it: {
-    title: 'Ricompensa in coda automaticamente dopo la verifica',
+    title: 'Ricevi la ricompensa dopo la missione',
     description:
-      'Al termine dei controlli finali, la ricompensa viene inserita automaticamente nella coda di pagamento. Non devi richiederla.',
+      'Quando il tuo amico completa tutte le missioni, puoi ricevere la ricompensa su VeInvite.',
   },
   tr: {
-    title: 'Doğrulamadan sonra ödül otomatik sıraya alınır',
+    title: 'Görev tamamlanınca ödülünü al',
     description:
-      'Son kontroller tamamlandığında ödülün otomatik olarak ödeme sırasına alınır. Ayrı bir talepte bulunmana gerek yok.',
+      'Arkadaşın tüm görevleri tamamladığında, davet eden kişi ödülünü VeInvite üzerinden alabilir.',
   },
   nl: {
-    title: 'Beloning wordt na controle automatisch klaargezet',
+    title: 'Ontvang je beloning na de missie',
     description:
-      'Na de laatste controles wordt je beloning automatisch in de uitbetalingswachtrij geplaatst. Je hoeft niets aan te vragen.',
+      'Wanneer je vriend alle missies heeft voltooid, kun je je beloning in VeInvite ontvangen.',
   },
   de: {
-    title: 'Belohnung wird nach Prüfung automatisch eingeplant',
+    title: 'Belohnung nach Abschluss der Mission erhalten',
     description:
-      'Nach den abschließenden Prüfungen wird deine Belohnung automatisch zur Auszahlung vorgemerkt. Du musst sie nicht selbst anfordern.',
+      'Wenn dein Freund alle Missionen abgeschlossen hat, kannst du deine Belohnung in VeInvite erhalten.',
   },
   fr: {
-    title: 'Récompense mise en paiement automatiquement après vérification',
+    title: 'Recevez votre récompense après la mission',
     description:
-      'Une fois les contrôles finaux terminés, votre récompense est automatiquement placée dans la file de paiement. Aucune demande n’est nécessaire.',
+      'Lorsque votre ami a terminé toutes les missions, vous pouvez recevoir votre récompense dans VeInvite.',
   },
 };
