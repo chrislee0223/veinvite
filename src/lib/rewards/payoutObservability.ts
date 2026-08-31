@@ -73,7 +73,16 @@ export type RewardPayoutObservability = {
   }>;
 };
 
-type DbRecord = Record<string, unknown>;
+type Row = Record<string, unknown>;
+
+type ActiveDetails = {
+  manifest: Row | null;
+  checkpoint: Row | null;
+  signedTransaction: Row | null;
+  submission: Row | null;
+  settlement: Row | null;
+  payouts: Row[];
+};
 
 function text(value: unknown): string {
   return String(value ?? '');
@@ -83,7 +92,6 @@ function optionalText(value: unknown): string | null {
   if (value === null || value === undefined) {
     return null;
   }
-
   const normalized = String(value).trim();
   return normalized || null;
 }
@@ -93,32 +101,6 @@ function integerText(value: unknown): string | null {
   return /^\d+$/.test(normalized)
     ? BigInt(normalized).toString()
     : null;
-}
-
-function nonNegativeInteger(value: unknown): number {
-  const parsed = Number(value ?? 0);
-  return Number.isSafeInteger(parsed) && parsed >= 0
-    ? parsed
-    : 0;
-}
-
-function timestamp(value: unknown): string | null {
-  if (
-    typeof value !== 'string' ||
-    Number.isNaN(Date.parse(value))
-  ) {
-    return null;
-  }
-
-  return value;
-}
-
-function requireTimestamp(value: unknown, label: string): string {
-  const parsed = timestamp(value);
-  if (!parsed) {
-    throw new Error(`${label} is malformed.`);
-  }
-  return parsed;
 }
 
 function requireId(value: unknown, label: string): string {
@@ -137,36 +119,34 @@ function requireWei(value: unknown): string {
   return parsed;
 }
 
-async function readRowsForRoundIds(
-  table: string,
-  columns: string,
-  roundIds: string[],
-  orderColumn: string,
-  limit: number,
-): Promise<DbRecord[]> {
-  if (roundIds.length < 1) {
-    return [];
+function timestamp(value: unknown): string | null {
+  if (
+    typeof value !== 'string' ||
+    Number.isNaN(Date.parse(value))
+  ) {
+    return null;
   }
-
-  const { data, error } = await supabaseAdmin
-    .from(table)
-    .select(columns)
-    .in('round_id', roundIds)
-    .order(orderColumn, { ascending: false })
-    .limit(limit);
-
-  if (error) {
-    throw new Error(
-      `${table} could not be loaded for payout observability: ${error.message}`,
-    );
-  }
-
-  return (data ?? []) as DbRecord[];
+  return value;
 }
 
-async function readActivePipelineDetails(
-  activeRound: DbRecord | null,
-) {
+function requireTimestamp(value: unknown, label: string): string {
+  const parsed = timestamp(value);
+  if (!parsed) {
+    throw new Error(`${label} is malformed.`);
+  }
+  return parsed;
+}
+
+function count(value: unknown): number {
+  const parsed = Number(value ?? 0);
+  return Number.isSafeInteger(parsed) && parsed >= 0
+    ? parsed
+    : 0;
+}
+
+async function readActiveDetails(
+  activeRound: Row | null,
+): Promise<ActiveDetails> {
   if (!activeRound) {
     return {
       manifest: null,
@@ -174,7 +154,7 @@ async function readActivePipelineDetails(
       signedTransaction: null,
       submission: null,
       settlement: null,
-      payouts: [] as DbRecord[],
+      payouts: [],
     };
   }
 
@@ -203,7 +183,9 @@ async function readActivePipelineDetails(
     );
   }
 
-  const manifest = manifestResult.data as DbRecord | null;
+  const manifest = manifestResult.data as unknown as Row | null;
+  const payouts = (payoutResult.data ?? []) as unknown as Row[];
+
   if (!manifest) {
     return {
       manifest: null,
@@ -211,7 +193,7 @@ async function readActivePipelineDetails(
       signedTransaction: null,
       submission: null,
       settlement: null,
-      payouts: (payoutResult.data ?? []) as DbRecord[],
+      payouts,
     };
   }
 
@@ -240,127 +222,115 @@ async function readActivePipelineDetails(
         .maybeSingle(),
     ]);
 
-  for (const [label, result] of [
-    ['checkpoint', checkpointResult],
-    ['signed transaction', signedResult],
-    ['submission', submissionResult],
-    ['settlement', settlementResult],
-  ] as const) {
-    if (result.error) {
-      throw new Error(
-        `Active payout ${label} could not be loaded: ${result.error.message}`,
-      );
-    }
+  if (checkpointResult.error) {
+    throw new Error(`Active payout checkpoint could not be loaded: ${checkpointResult.error.message}`);
+  }
+  if (signedResult.error) {
+    throw new Error(`Active signed payout transaction could not be loaded: ${signedResult.error.message}`);
+  }
+  if (submissionResult.error) {
+    throw new Error(`Active payout submission could not be loaded: ${submissionResult.error.message}`);
+  }
+  if (settlementResult.error) {
+    throw new Error(`Active payout settlement could not be loaded: ${settlementResult.error.message}`);
   }
 
   return {
     manifest,
-    checkpoint: checkpointResult.data as DbRecord | null,
-    signedTransaction: signedResult.data as DbRecord | null,
-    submission: submissionResult.data as DbRecord | null,
-    settlement: settlementResult.data as DbRecord | null,
-    payouts: (payoutResult.data ?? []) as DbRecord[],
+    checkpoint: checkpointResult.data as unknown as Row | null,
+    signedTransaction: signedResult.data as unknown as Row | null,
+    submission: submissionResult.data as unknown as Row | null,
+    settlement: settlementResult.data as unknown as Row | null,
+    payouts,
   };
 }
 
-function diagnosePipeline(input: {
-  queuedCount: number;
-  activeRound: DbRecord | null;
-  details: Awaited<ReturnType<typeof readActivePipelineDetails>>;
-}): {
-  stage: RewardPayoutPipelineStage;
-  diagnosis: string;
-  latestError: string | null;
-} {
-  const latestError = input.details.payouts
+function diagnose(
+  queuedCount: number,
+  activeRound: Row | null,
+  details: ActiveDetails,
+) {
+  const latestError = details.payouts
     .map((row) => optionalText(row.error_message))
     .find((value): value is string => Boolean(value)) ?? null;
 
   if (latestError) {
     return {
-      stage: 'ATTENTION_REQUIRED',
+      stage: 'ATTENTION_REQUIRED' as const,
       diagnosis:
         '지급 레코드에 오류가 기록되어 있습니다. 아래 오류와 TX 상태를 확인하세요. / A payout error is recorded. Review the stored error and transaction state below.',
       latestError,
     };
   }
 
-  if (!input.activeRound) {
-    if (input.queuedCount > 0) {
-      return {
-        stage: 'QUEUED',
-        diagnosis:
-          '적격 보상이 대기열에 있으며 자동 지급 워커가 다음 배치를 준비할 수 있습니다. / Eligible rewards are queued and waiting for the automatic worker to prepare the next batch.',
-        latestError: null,
-      };
-    }
+  if (!activeRound) {
+    return queuedCount > 0
+      ? {
+          stage: 'QUEUED' as const,
+          diagnosis:
+            '적격 보상이 대기열에 있으며 자동 지급 워커가 다음 배치를 준비할 수 있습니다. / Eligible rewards are queued for the automatic payout worker.',
+          latestError: null,
+        }
+      : {
+          stage: 'IDLE' as const,
+          diagnosis:
+            '현재 처리할 보상이 없습니다. / There are no rewards waiting to be processed.',
+          latestError: null,
+        };
+  }
 
+  if (text(activeRound.status) === 'PAYING') {
     return {
-      stage: 'IDLE',
+      stage: 'ATTENTION_REQUIRED' as const,
       diagnosis:
-        '현재 처리할 보상이 없습니다. / There are no rewards waiting to be processed.',
+        '레거시/수동 PAYING 라운드가 열려 있습니다. 자동 워커가 이 상태를 건너뜁니다. / A legacy/manual PAYING round is open and requires operator review.',
       latestError: null,
     };
   }
-
-  if (text(input.activeRound.status) === 'PAYING') {
-    return {
-      stage: 'ATTENTION_REQUIRED',
-      diagnosis:
-        '레거시/수동 PAYING 라운드가 열려 있습니다. 자동 워커가 이 상태를 건너뜁니다. / A legacy/manual PAYING round is open and the automatic worker will not take it over.',
-      latestError: null,
-    };
-  }
-
-  const { details } = input;
 
   if (details.settlement) {
     return {
-      stage: 'SETTLED',
+      stage: 'SETTLED' as const,
       diagnosis:
         '온체인 finality 검증과 DB 정산이 완료되었습니다. / On-chain finality verification and database settlement are complete.',
       latestError: null,
     };
   }
-
   if (details.submission) {
     return {
-      stage: 'WAITING_FINALITY',
+      stage: 'WAITING_FINALITY' as const,
       diagnosis:
-        'TX가 제출되었고 VeChain finality 확인을 기다리고 있습니다. / The transaction was submitted and is waiting for VeChain finality.',
+        'TX가 제출되었고 VeChain finality 확인을 기다리고 있습니다. / The transaction is waiting for VeChain finality.',
       latestError: null,
     };
   }
-
   if (details.signedTransaction) {
     return {
-      stage: 'SIGNED',
+      stage: 'SIGNED' as const,
       diagnosis:
-        '동일 TX 재시도가 가능하도록 서명 TX가 안전하게 기록되었습니다. 제출/재전송을 기다립니다. / The signed transaction is journaled for idempotent recovery and is waiting for submission or rebroadcast.',
+        '서명 TX가 안전하게 기록되었고 제출 또는 동일 TX 재전송을 기다립니다. / The signed transaction is journaled and waiting for submission or rebroadcast.',
       latestError: null,
     };
   }
-
   if (details.checkpoint) {
     return {
-      stage: 'CHECKPOINTED',
+      stage: 'CHECKPOINTED' as const,
       diagnosis:
-        '불변 체인 체크포인트가 생성되었고 서명 전 단계입니다. / The immutable chain checkpoint exists and the batch is ready for signing.',
+        '불변 체인 체크포인트가 생성되었고 서명 전 단계입니다. / The immutable checkpoint exists and the batch is ready for signing.',
       latestError: null,
     };
   }
-
   if (details.manifest) {
     return {
-      stage: 'MANIFEST_CREATED',
+      stage: 'MANIFEST_CREATED' as const,
       diagnosis:
-        '불변 지급 manifest가 생성되었고 체인 체크포인트를 기다립니다. / The immutable payout manifest exists and is waiting for its chain checkpoint.',
+        '불변 지급 manifest가 생성되었고 체인 체크포인트를 기다립니다. / The immutable payout manifest is waiting for its chain checkpoint.',
       latestError: null,
     };
   }
 
   return {
-    stage: 'ROUND_PREPARED',
+    stage: 'ROUND_PREPARED' as const,
     diagnosis:
       '지급 라운드가 준비되었고 manifest 생성을 기다립니다. / The reward round is prepared and waiting for manifest creation.',
     latestError: null,
@@ -375,53 +345,22 @@ export async function readRewardPayoutObservability(
   }
 
   const network = getVeBetterNetwork();
-  const [roundResult, queueResult] = await Promise.all([
-    supabaseAdmin
-      .from('reward_rounds')
-      .select('id, network, status, vebetter_round_id, created_at, started_at, completed_at')
-      .eq('network', network)
-      .order('id', { ascending: false })
-      .limit(60),
-    supabaseAdmin
-      .from('reward_queue_entries')
-      .select('id, queued_at', { count: 'exact' })
-      .eq('network', network)
-      .eq('status', 'QUEUED')
-      .is('assigned_round_id', null)
-      .order('queued_at', { ascending: true })
-      .limit(1),
-  ]);
-
-  if (roundResult.error) {
-    throw new Error(
-      `Reward rounds could not be loaded for payout observability: ${roundResult.error.message}`,
-    );
-  }
-  if (queueResult.error) {
-    throw new Error(
-      `Reward queue could not be loaded for payout observability: ${queueResult.error.message}`,
-    );
-  }
-
-  const rounds = (roundResult.data ?? []) as DbRecord[];
-  const roundIds = rounds
-    .map((row) => integerText(row.id))
-    .filter((value): value is string => Boolean(value));
-  const roundMap = new Map(
-    rounds.map((row) => [requireId(row.id, 'reward round id'), row]),
-  );
-  const activeRound =
-    rounds.find((row) => ['CREATED', 'PAYING'].includes(text(row.status))) ?? null;
-
-  const [payoutRows, settlementRows, receiptRows, failureRows, activeDetails] =
+  const [roundResult, queueResult, settlementResult, receiptResult] =
     await Promise.all([
-      readRowsForRoundIds(
-        'reward_payouts',
-        'id, round_id, invite_code, recipient_wallet, amount_wei, status, tx_id, attempt_count, error_message, created_at, updated_at, paid_at',
-        roundIds,
-        'created_at',
-        limit,
-      ),
+      supabaseAdmin
+        .from('reward_rounds')
+        .select('id, network, status, vebetter_round_id, created_at, started_at, completed_at')
+        .eq('network', network)
+        .order('id', { ascending: false })
+        .limit(60),
+      supabaseAdmin
+        .from('reward_queue_entries')
+        .select('id, queued_at', { count: 'exact' })
+        .eq('network', network)
+        .eq('status', 'QUEUED')
+        .is('assigned_round_id', null)
+        .order('queued_at', { ascending: true })
+        .limit(1),
       supabaseAdmin
         .from('reward_payout_transaction_settlements')
         .select('id, round_id, network, tx_id, block_number, finalized_head_number, verified_at, paid_at')
@@ -434,44 +373,80 @@ export async function readRewardPayoutObservability(
         .eq('network', network)
         .order('paid_at', { ascending: false })
         .limit(100),
-      readRowsForRoundIds(
-        'reward_payout_status_events',
-        'id, payout_id, round_id, invite_code, from_status, to_status, attempt_count, tx_id, error_message, recorded_at',
-        roundIds,
-        'recorded_at',
-        100,
-      ),
-      readActivePipelineDetails(activeRound),
     ]);
 
-  for (const [label, result] of [
-    ['settlements', settlementRows],
-    ['receipts', receiptRows],
-  ] as const) {
-    if (result.error) {
-      throw new Error(
-        `Reward ${label} could not be loaded for payout observability: ${result.error.message}`,
-      );
+  if (roundResult.error) {
+    throw new Error(`Reward rounds could not be loaded: ${roundResult.error.message}`);
+  }
+  if (queueResult.error) {
+    throw new Error(`Reward queue could not be loaded: ${queueResult.error.message}`);
+  }
+  if (settlementResult.error) {
+    throw new Error(`Reward settlements could not be loaded: ${settlementResult.error.message}`);
+  }
+  if (receiptResult.error) {
+    throw new Error(`Reward receipts could not be loaded: ${receiptResult.error.message}`);
+  }
+
+  const rounds = (roundResult.data ?? []) as unknown as Row[];
+  const roundIds = rounds
+    .map((row) => integerText(row.id))
+    .filter((value): value is string => Boolean(value));
+  const roundMap = new Map(
+    rounds.map((row) => [requireId(row.id, 'reward round id'), row]),
+  );
+  const activeRound =
+    rounds.find((row) => ['CREATED', 'PAYING'].includes(text(row.status))) ?? null;
+
+  let payoutRows: Row[] = [];
+  let failureRows: Row[] = [];
+
+  if (roundIds.length > 0) {
+    const [payoutResult, failureResult] = await Promise.all([
+      supabaseAdmin
+        .from('reward_payouts')
+        .select('id, round_id, invite_code, recipient_wallet, amount_wei, status, tx_id, attempt_count, error_message, created_at, updated_at, paid_at')
+        .in('round_id', roundIds)
+        .order('created_at', { ascending: false })
+        .limit(limit),
+      supabaseAdmin
+        .from('reward_payout_status_events')
+        .select('id, payout_id, round_id, invite_code, from_status, to_status, attempt_count, tx_id, error_message, recorded_at')
+        .in('round_id', roundIds)
+        .not('error_message', 'is', null)
+        .order('recorded_at', { ascending: false })
+        .limit(20),
+    ]);
+
+    if (payoutResult.error) {
+      throw new Error(`Reward payouts could not be loaded: ${payoutResult.error.message}`);
+    }
+    if (failureResult.error) {
+      throw new Error(`Reward payout failures could not be loaded: ${failureResult.error.message}`);
+    }
+
+    payoutRows = (payoutResult.data ?? []) as unknown as Row[];
+    failureRows = (failureResult.data ?? []) as unknown as Row[];
+  }
+
+  const settlements = (settlementResult.data ?? []) as unknown as Row[];
+  const receipts = (receiptResult.data ?? []) as unknown as Row[];
+  const settlementByRound = new Map<string, Row>();
+  for (const row of settlements) {
+    const id = integerText(row.round_id);
+    if (id && !settlementByRound.has(id)) {
+      settlementByRound.set(id, row);
+    }
+  }
+  const receiptByPayout = new Map<string, Row>();
+  for (const row of receipts) {
+    const id = integerText(row.payout_id);
+    if (id && !receiptByPayout.has(id)) {
+      receiptByPayout.set(id, row);
     }
   }
 
-  const settlementByRound = new Map<string, DbRecord>();
-  for (const row of (settlementRows.data ?? []) as DbRecord[]) {
-    const roundId = integerText(row.round_id);
-    if (roundId && !settlementByRound.has(roundId)) {
-      settlementByRound.set(roundId, row);
-    }
-  }
-
-  const receiptByPayout = new Map<string, DbRecord>();
-  for (const row of (receiptRows.data ?? []) as DbRecord[]) {
-    const payoutId = integerText(row.payout_id);
-    if (payoutId && !receiptByPayout.has(payoutId)) {
-      receiptByPayout.set(payoutId, row);
-    }
-  }
-
-  const recentPayouts: RewardPayoutHistoryItem[] = payoutRows.map((row) => {
+  const recentPayouts = payoutRows.map((row): RewardPayoutHistoryItem => {
     const payoutId = requireId(row.id, 'payout id');
     const roundId = requireId(row.round_id, 'payout round id');
     const round = roundMap.get(roundId);
@@ -481,75 +456,47 @@ export async function readRewardPayoutObservability(
     return {
       payoutId,
       roundId,
-      veBetterRoundId: round
-        ? integerText(round.vebetter_round_id)
-        : null,
+      veBetterRoundId: round ? integerText(round.vebetter_round_id) : null,
       inviteCode: text(row.invite_code),
       recipientWallet: text(row.recipient_wallet).toLowerCase(),
       amountWei: requireWei(row.amount_wei),
       status: text(row.status),
       txId: optionalText(row.tx_id)?.toLowerCase() ?? null,
-      attemptCount: nonNegativeInteger(row.attempt_count),
+      attemptCount: count(row.attempt_count),
       errorMessage: optionalText(row.error_message),
       createdAt: requireTimestamp(row.created_at, 'payout created_at'),
       updatedAt: requireTimestamp(row.updated_at, 'payout updated_at'),
       paidAt: timestamp(row.paid_at),
       receiptId: receipt ? integerText(receipt.id) : null,
       settlementId: settlement ? integerText(settlement.id) : null,
-      finalizedBlockNumber: settlement
-        ? integerText(settlement.block_number)
-        : null,
-      finalizedHeadNumber: settlement
-        ? integerText(settlement.finalized_head_number)
-        : null,
+      finalizedBlockNumber: settlement ? integerText(settlement.block_number) : null,
+      finalizedHeadNumber: settlement ? integerText(settlement.finalized_head_number) : null,
       verifiedAt: settlement ? timestamp(settlement.verified_at) : null,
     };
   });
 
-  const recentFailures = failureRows
-    .filter((row) => optionalText(row.error_message))
-    .slice(0, 20)
-    .map((row) => ({
-      eventId: requireId(row.id, 'payout status event id'),
-      payoutId: requireId(row.payout_id, 'payout status event payout id'),
-      roundId: requireId(row.round_id, 'payout status event round id'),
-      inviteCode: text(row.invite_code),
-      fromStatus: optionalText(row.from_status),
-      toStatus: text(row.to_status),
-      attemptCount: nonNegativeInteger(row.attempt_count),
-      txId: optionalText(row.tx_id)?.toLowerCase() ?? null,
-      errorMessage: optionalText(row.error_message) as string,
-      recordedAt: requireTimestamp(row.recorded_at, 'payout status event timestamp'),
-    }));
+  const recentFailures = failureRows.map((row) => ({
+    eventId: requireId(row.id, 'payout status event id'),
+    payoutId: requireId(row.payout_id, 'payout status event payout id'),
+    roundId: requireId(row.round_id, 'payout status event round id'),
+    inviteCode: text(row.invite_code),
+    fromStatus: optionalText(row.from_status),
+    toStatus: text(row.to_status),
+    attemptCount: count(row.attempt_count),
+    txId: optionalText(row.tx_id)?.toLowerCase() ?? null,
+    errorMessage: optionalText(row.error_message) ?? 'Unknown payout error.',
+    recordedAt: requireTimestamp(row.recorded_at, 'payout status event timestamp'),
+  }));
 
+  const activeDetails = await readActiveDetails(activeRound);
   const queuedCount = queueResult.count ?? 0;
-  const oldestQueueRow = ((queueResult.data ?? []) as DbRecord[])[0] ?? null;
-  const oldestQueuedAt = oldestQueueRow
-    ? timestamp(oldestQueueRow.queued_at)
-    : null;
-  const diagnosed = diagnosePipeline({
-    queuedCount,
-    activeRound,
-    details: activeDetails,
-  });
-
-  const paidPayouts = recentPayouts.filter(
-    (payout) => payout.status === 'PAID',
-  );
-  const payoutsWithErrors = recentPayouts.filter(
-    (payout) => Boolean(payout.errorMessage),
-  );
-  const pendingPayouts = recentPayouts.filter(
-    (payout) => payout.status !== 'PAID',
-  );
-  const latestPaid = paidPayouts[0] ?? null;
-  const activeRoundId = activeRound
-    ? requireId(activeRound.id, 'active round id')
-    : null;
-  const activeManifestId = activeDetails.manifest
-    ? requireId(activeDetails.manifest.id, 'active manifest id')
-    : null;
-  const activeTxId = optionalText(
+  const oldestQueue = ((queueResult.data ?? []) as unknown as Row[])[0] ?? null;
+  const diagnosed = diagnose(queuedCount, activeRound, activeDetails);
+  const paid = recentPayouts.filter((item) => item.status === 'PAID');
+  const pending = recentPayouts.filter((item) => item.status !== 'PAID');
+  const withErrors = recentPayouts.filter((item) => Boolean(item.errorMessage));
+  const latestPaid = paid[0] ?? null;
+  const txId = optionalText(
     activeDetails.settlement?.tx_id ??
       activeDetails.submission?.tx_id ??
       activeDetails.signedTransaction?.tx_id,
@@ -562,20 +509,20 @@ export async function readRewardPayoutObservability(
       stage: diagnosed.stage,
       diagnosis: diagnosed.diagnosis,
       queuedCount,
-      oldestQueuedAt,
-      roundId: activeRoundId,
-      veBetterRoundId: activeRound
-        ? integerText(activeRound.vebetter_round_id)
+      oldestQueuedAt: oldestQueue ? timestamp(oldestQueue.queued_at) : null,
+      roundId: activeRound ? requireId(activeRound.id, 'active reward round id') : null,
+      veBetterRoundId: activeRound ? integerText(activeRound.vebetter_round_id) : null,
+      manifestId: activeDetails.manifest
+        ? requireId(activeDetails.manifest.id, 'active payout manifest id')
         : null,
-      manifestId: activeManifestId,
-      txId: activeTxId,
+      txId,
       latestError: diagnosed.latestError,
     },
     summary: {
       trackedPayouts: recentPayouts.length,
-      paidPayouts: paidPayouts.length,
-      pendingPayouts: pendingPayouts.length,
-      payoutsWithErrors: payoutsWithErrors.length,
+      paidPayouts: paid.length,
+      pendingPayouts: pending.length,
+      payoutsWithErrors: withErrors.length,
       latestPaidAt: latestPaid?.paidAt ?? null,
       latestPaidTxId: latestPaid?.txId ?? null,
     },
