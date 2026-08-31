@@ -1,5 +1,14 @@
 /* Final reviewed UI safeguards for the production shell. */
 
+/* Prevent background content from moving while a full-screen dialog is open.
+ * This matters most on touch devices where swipe-scrolling can otherwise move
+ * the page behind a modal. */
+body:has(.modalBackdrop),
+body:has(.languageModalBackdrop),
+body:has(.notificationBackdrop) {
+  overflow:hidden;
+}
+
 /* Language selection lives in Settings on the main app. The invite landing
  * flow keeps its own language control because it can be opened directly and
  * does not expose the main Settings tab yet. */
@@ -69,19 +78,32 @@ main.screen .bottomNavigation > div {
 }
 
 /* Use one mobile gutter across the main app, invite onboarding, legal pages,
- * and bottom navigation. This prevents the screen edges from moving by a few
- * pixels as users move through different parts of VeInvite. */
+ * and bottom navigation. Safe-area padding is zero in ordinary desktop/mobile
+ * browser layouts and becomes active only in edge-to-edge/PWA/app contexts. */
 @media (max-width:560px) {
   main.screen {
+    padding-top:calc(22px + env(safe-area-inset-top)) !important;
     padding-left:16px !important;
     padding-right:16px !important;
   }
-  .appShell,
-  .centeredFlow,
-  .inviteLanding,
-  .legalPage {
+  .appShell {
+    padding-top:calc(22px + env(safe-area-inset-top)) !important;
     padding-left:16px !important;
     padding-right:16px !important;
+    padding-bottom:calc(42px + env(safe-area-inset-bottom)) !important;
+  }
+  .centeredFlow,
+  .inviteLanding {
+    padding-top:calc(28px + env(safe-area-inset-top)) !important;
+    padding-left:16px !important;
+    padding-right:16px !important;
+    padding-bottom:calc(42px + env(safe-area-inset-bottom)) !important;
+  }
+  .legalPage {
+    padding-top:calc(20px + env(safe-area-inset-top)) !important;
+    padding-left:16px !important;
+    padding-right:16px !important;
+    padding-bottom:calc(58px + env(safe-area-inset-bottom)) !important;
   }
   .bottomNavigation {
     padding-left:16px !important;
