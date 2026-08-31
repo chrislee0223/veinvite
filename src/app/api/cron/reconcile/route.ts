@@ -21,6 +21,10 @@ import {
   syncVeInviteAllocationReceipts,
 } from '@/lib/rewards/allocationAccounting';
 import {
+  runAutomaticRewardPayout,
+  type AutomaticRewardPayoutResult,
+} from '@/lib/rewards/automaticRewardPayout';
+import {
   maintainRoundGrowthSnapshots,
 } from '@/lib/reporting/roundGrowthSnapshots';
 
@@ -67,6 +71,7 @@ function authorizeCron(request: NextRequest) {
 type CronStageFailure =
   | 'ALLOCATION_SYNC'
   | 'RECONCILIATION'
+  | 'AUTOMATIC_REWARD_PAYOUT'
   | 'ROUND_GROWTH_REPORTING'
   | 'MONITORING';
 
@@ -85,11 +90,12 @@ function logStageFailure(
  *
  * This worker reconciles immutable/derived onboarding evidence, records
  * official VeBetterDAO allocation-claim evidence, maintains growth snapshots,
- * appends an operator anomaly-monitoring snapshot, and removes only expired
- * authentication/rate-limit runtime state. It never prepares a reward round,
- * changes Sybil decisions, pauses rewards, deletes audit/reward evidence, or
- * transfers B3TR. Vercel automatically sends
- * `Authorization: Bearer <CRON_SECRET>` when CRON_SECRET is configured.
+ * appends an operator anomaly-monitoring snapshot, removes only expired
+ * authentication/rate-limit runtime state, and provides a recovery trigger for
+ * the dedicated automatic Reward Distributor. Automatic reward execution is
+ * itself fail-closed and remains disabled unless its explicit server gate,
+ * matching signer address, on-chain distributor registration and every reward
+ * safety check pass. The operations/admin wallet key is never used here.
  *
  * Independent stages are deliberately isolated. A transient allocation RPC
  * failure must not prevent invitation reconciliation or anomaly monitoring.
@@ -121,6 +127,8 @@ export async function GET(
     ReturnType<typeof syncVeInviteAllocationReceipts>
   > | null = null;
   let summary: ReconciliationBatchSummary | null = null;
+  let automaticRewardPayout:
+    AutomaticRewardPayoutResult | null = null;
   let roundGrowthReports: Awaited<
     ReturnType<typeof maintainRoundGrowthSnapshots>
   > | null = null;
@@ -145,6 +153,23 @@ export async function GET(
   } catch (error) {
     failedStages.push('RECONCILIATION');
     logStageFailure('RECONCILIATION', error);
+  }
+
+  // A normal invite-progress request triggers immediate payout as soon as a
+  // referral becomes verified/eligible. Cron is the recovery path: it can
+  // resume a journaled broadcast or finalize a transaction if the browser was
+  // closed or an earlier serverless invocation ended before finality.
+  try {
+    automaticRewardPayout =
+      await runAutomaticRewardPayout();
+  } catch (error) {
+    failedStages.push(
+      'AUTOMATIC_REWARD_PAYOUT',
+    );
+    logStageFailure(
+      'AUTOMATIC_REWARD_PAYOUT',
+      error,
+    );
   }
 
   if (summary) {
@@ -232,6 +257,7 @@ export async function GET(
                 ?.vebetter_round_id ?? null,
           }
         : null,
+      automaticRewardPayout,
       roundGrowthReports,
       housekeeping,
       monitoring: monitoring
