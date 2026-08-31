@@ -10,6 +10,9 @@ import {
   RewardPayoutAutomationClient,
 } from '@/components/RewardPayoutAutomationClient';
 import {
+  RewardPayoutHistoryClient,
+} from '@/components/RewardPayoutHistoryClient';
+import {
   WalletSessionGate,
 } from '@/components/WalletSessionGate';
 
@@ -25,6 +28,7 @@ export default function RewardPayoutAdminPage() {
   return (
     <WalletSessionGate>
       <RewardOperationsStatusClient />
+      <RewardPayoutHistoryClient />
       <RewardPayoutAutomationClient />
       <RewardPayoutAdminClient />
     </WalletSessionGate>
