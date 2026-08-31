@@ -80,17 +80,7 @@ export function LocalizedLegalPage({
   }, []);
 
   const handleBack = () => {
-    const referrer = document.referrer;
-    const cameFromVeInvite = (() => {
-      if (!referrer) return false;
-      try {
-        return new URL(referrer).origin === window.location.origin;
-      } catch {
-        return false;
-      }
-    })();
-
-    if (cameFromVeInvite && window.history.length > 1) {
+    if (window.history.length > 1) {
       window.history.back();
       return;
     }
