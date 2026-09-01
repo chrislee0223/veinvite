@@ -45,6 +45,8 @@ export interface EligibilityResult {
 export type PublicLeaderboardEntry = {
   rank: number;
   walletAddress: string;
+  displayName: string | null;
+  avatarUrl: string | null;
   completedReferrals: number;
   totalRewardWei: string;
   isCurrentWallet: boolean;
