@@ -44,6 +44,9 @@ jobs:
       - name: UI stability gate
         run: node scripts/check-ui-stability.mjs
 
+      - name: Leaderboard stability gate
+        run: node scripts/check-leaderboard-stability.mjs
+
       - name: User-facing copy and UX gate
         run: node scripts/check-user-facing-copy.mjs
 

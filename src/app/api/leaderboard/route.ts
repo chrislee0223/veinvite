@@ -17,7 +17,7 @@ import { readVeBetterRoundWindow } from '@/lib/vebetter/entryEligibility';
 export const dynamic = 'force-dynamic';
 
 const WALLET_PATTERN = /^0x[0-9a-fA-F]{40}$/;
-const LEADERBOARD_SIZE = 5;
+const LEADERBOARD_SIZE = 100;
 const MAX_GROWTH_ROUNDS = 260;
 const TRANSIENT_AUTH_RETRY_MS = 750;
 

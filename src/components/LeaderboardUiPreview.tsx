@@ -1,76 +1,84 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import {
+  useEffect,
+  useMemo,
+  useState,
+} from 'react';
 
 import { PublicLeaderboard } from './PublicLeaderboard';
 import {
   localeFromLanguageTag,
   type Locale,
 } from '@/lib/i18n/locales';
-import type { PublicLeaderboardResponse } from '@/lib/types';
+import type {
+  PublicLeaderboardEntry,
+  PublicLeaderboardResponse,
+} from '@/lib/types';
 
 const TEST_WALLET =
   '0x1234567890abcdef1234567890abcdef12345678';
+const TOKEN_WEI = 10n ** 18n;
 
-const PREVIEW_DATA: PublicLeaderboardResponse = {
-  generatedAt: '2026-08-31T12:00:00.000Z',
-  network: 'mainnet',
-  currentRoundId: 114,
-  reportingStartRound: 113,
-  impact: {
-    totalActivatedUsers: 128,
-    newUsers: 93,
-    returningUsers: 35,
-  },
-  leaders: [
-    {
-      rank: 1,
-      walletAddress:
-        '0x9a2d35cc7e28f0b9aa735e1098267a3ce880aa11',
-      completedReferrals: 12,
-      totalRewardWei: '1245000000000000000000',
-      isCurrentWallet: false,
+type PreviewScenario = 'inside' | 'outside';
+
+function walletForRank(rank: number): string {
+  return `0x${rank.toString(16).padStart(40, '0')}`;
+}
+
+function rewardWeiForRank(rank: number): string {
+  return (BigInt(1300 - rank * 8) * TOKEN_WEI).toString();
+}
+
+function referralsForRank(rank: number): number {
+  return Math.max(1, 18 - Math.floor((rank - 1) / 6));
+}
+
+function buildLeaders(
+  scenario: PreviewScenario,
+): PublicLeaderboardEntry[] {
+  return Array.from({ length: 100 }, (_, index) => {
+    const rank = index + 1;
+    const current = scenario === 'inside' && rank === 37;
+
+    return {
+      rank,
+      walletAddress: current ? TEST_WALLET : walletForRank(rank),
+      completedReferrals: referralsForRank(rank),
+      totalRewardWei: rewardWeiForRank(rank),
+      isCurrentWallet: current,
+    };
+  });
+}
+
+function buildPreviewData(
+  scenario: PreviewScenario,
+): PublicLeaderboardResponse {
+  const leaders = buildLeaders(scenario);
+  const currentUser = scenario === 'inside'
+    ? leaders.find((entry) => entry.isCurrentWallet) ?? null
+    : {
+        rank: 137,
+        walletAddress: TEST_WALLET,
+        completedReferrals: 1,
+        totalRewardWei: (245n * TOKEN_WEI).toString(),
+        isCurrentWallet: true,
+      };
+
+  return {
+    generatedAt: '2026-09-01T12:00:00.000Z',
+    network: 'mainnet',
+    currentRoundId: 114,
+    reportingStartRound: 113,
+    impact: {
+      totalActivatedUsers: 128,
+      newUsers: 93,
+      returningUsers: 35,
     },
-    {
-      rank: 2,
-      walletAddress:
-        '0x38ef4af4c72c018653d547861940676a96bc2202',
-      completedReferrals: 8,
-      totalRewardWei: '881500000000000000000',
-      isCurrentWallet: false,
-    },
-    {
-      rank: 3,
-      walletAddress: TEST_WALLET,
-      completedReferrals: 5,
-      totalRewardWei: '604250000000000000000',
-      isCurrentWallet: true,
-    },
-    {
-      rank: 4,
-      walletAddress:
-        '0x7f293fcb1767136c7b58588eb81834f1182cab40',
-      completedReferrals: 4,
-      totalRewardWei: '487000000000000000000',
-      isCurrentWallet: false,
-    },
-    {
-      rank: 5,
-      walletAddress:
-        '0x11a4b662993863356199e36cc04a948a213e2d55',
-      completedReferrals: 3,
-      totalRewardWei: '332500000000000000000',
-      isCurrentWallet: false,
-    },
-  ],
-  currentUser: {
-    rank: 3,
-    walletAddress: TEST_WALLET,
-    completedReferrals: 5,
-    totalRewardWei: '604250000000000000000',
-    isCurrentWallet: true,
-  },
-};
+    leaders,
+    currentUser,
+  };
+}
 
 function currentLocale(): Locale {
   return (
@@ -80,6 +88,12 @@ function currentLocale(): Locale {
 
 export function LeaderboardUiPreview() {
   const [locale, setLocale] = useState<Locale>('en');
+  const [scenario, setScenario] =
+    useState<PreviewScenario>('inside');
+  const previewData = useMemo(
+    () => buildPreviewData(scenario),
+    [scenario],
+  );
 
   useEffect(() => {
     const sync = () => setLocale(currentLocale());
@@ -102,18 +116,36 @@ export function LeaderboardUiPreview() {
     <section className="leaderboardPreview">
       <div className="previewHeading">
         <span>PRODUCTION LEADERBOARD</span>
-        <h2>폰 우선 리더보드 미리보기</h2>
+        <h2>Top 100 리더보드 미리보기</h2>
         <p>
-          실제 리더보드 컴포넌트에 가짜 데이터만 넣은 화면입니다.
-          가로 스크롤 없이 모바일과 PC 비율을 함께 확인할 수 있어요.
+          실제 리더보드 컴포넌트에 가짜 데이터 100개를 넣은 화면입니다.
+          별도 내부 스크롤 없이 페이지를 아래로 내려 100위까지 확인하고,
+          내 순위가 100위 안과 밖일 때의 배치도 비교할 수 있어요.
         </p>
+
+        <div className="scenarioToggle" aria-label="내 순위 테스트 상태">
+          <button
+            type="button"
+            className={scenario === 'inside' ? 'selected' : ''}
+            onClick={() => setScenario('inside')}
+          >
+            100위 안 · 37위
+          </button>
+          <button
+            type="button"
+            className={scenario === 'outside' ? 'selected' : ''}
+            onClick={() => setScenario('outside')}
+          >
+            100위 밖 · 137위
+          </button>
+        </div>
       </div>
 
       <div className="previewFrame">
         <PublicLeaderboard
           locale={locale}
           wallet={TEST_WALLET}
-          previewData={PREVIEW_DATA}
+          previewData={previewData}
         />
       </div>
 
@@ -149,6 +181,37 @@ export function LeaderboardUiPreview() {
           font-size:.76rem;
           line-height:1.6;
         }
+        .scenarioToggle {
+          margin-top:14px;
+          padding:4px;
+          display:grid;
+          grid-template-columns:1fr 1fr;
+          gap:4px;
+          border:1px solid rgba(255,255,255,.07);
+          border-radius:14px;
+          background:rgba(255,255,255,.025);
+        }
+        .scenarioToggle button {
+          min-height:42px;
+          padding:0 10px;
+          border:1px solid transparent;
+          border-radius:10px;
+          background:transparent;
+          color:#878279;
+          font:inherit;
+          font-size:.7rem;
+          font-weight:900;
+          cursor:pointer;
+        }
+        .scenarioToggle button.selected {
+          border-color:rgba(255,205,80,.25);
+          background:rgba(244,183,40,.1);
+          color:#f3ca58;
+        }
+        .scenarioToggle button:focus-visible {
+          outline:2px solid rgba(255,205,80,.7);
+          outline-offset:2px;
+        }
         .previewFrame {
           width:min(100%,560px);
           margin:0 auto;
@@ -161,6 +224,11 @@ export function LeaderboardUiPreview() {
             border-right:0;
             border-left:0;
             border-radius:0;
+          }
+        }
+        @media (max-width:380px) {
+          .scenarioToggle {
+            grid-template-columns:1fr;
           }
         }
       `}</style>
