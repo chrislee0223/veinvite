@@ -18,6 +18,17 @@ function assertEveryLocale(source, label) {
   }
 }
 
+const guideLabels = read('src/lib/i18n/guideCopy.ts');
+assertEveryLocale(guideLabels, 'Guide labels');
+if (!/inviteStepTitle/.test(guideLabels)) {
+  failures.push('Guide labels must expose the first-step title without duplicating step descriptions.');
+}
+if (
+  /Claim after verification|request your reward|검증 후 보상 수령|보상 수령을 요청|验证通过后领取奖励|सत्यापन के बाद इनाम माँगें|Solicita la recompensa|確認後に報酬を申請|Richiedi la ricompensa|Doğrulamadan sonra ödülü iste|Vraag de beloning aan|Belohnung nach Prüfung anfordern|Demandez la récompense/i.test(guideLabels)
+) {
+  failures.push('Retired manual-claim/final-verification guide copy must not return to the labels-only source.');
+}
+
 const rewardStep = read('src/lib/i18n/guideRewardStepCopy.ts');
 assertEveryLocale(rewardStep, 'Guide reward step');
 if (
@@ -124,9 +135,13 @@ if (
   !/GUIDE_FLOW_COPY/.test(appGuide) ||
   !/GUIDE_MISSION_STEP_COPY/.test(appGuide) ||
   !/GUIDE_ELIGIBILITY_COPY/.test(appGuide) ||
-  !/GUIDE_REWARD_STEP_COPY/.test(appGuide)
+  !/GUIDE_REWARD_STEP_COPY/.test(appGuide) ||
+  !/title:\s*t\.inviteStepTitle/.test(appGuide)
 ) {
-  failures.push('AppGuide is not using all reviewed multilingual guide sources.');
+  failures.push('AppGuide is not using all reviewed multilingual guide sources and the labels-only first-step title.');
+}
+if (/t\.steps/.test(appGuide)) {
+  failures.push('AppGuide must not depend on the retired duplicated guide step structure.');
 }
 
 const copyHardening = read('src/lib/i18n/copyHardening.ts');
