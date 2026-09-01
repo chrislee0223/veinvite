@@ -20,6 +20,8 @@ function maskWallet(address: string): string {
   return `${address.slice(0, 8)}···${address.slice(-6)}`;
 }
 
+type WalletConfirmation = 'switch' | 'disconnect' | null;
+
 export function AppSettings({
   locale,
   wallet,
@@ -39,9 +41,14 @@ export function AppSettings({
 }) {
   const [error, setError] = useState('');
   const [languageOpen, setLanguageOpen] = useState(false);
+  const [walletConfirmation, setWalletConfirmation] =
+    useState<WalletConfirmation>(null);
   const languageTriggerRef = useRef<HTMLButtonElement | null>(null);
   const languageDialogRef = useRef<HTMLDivElement | null>(null);
   const selectedLanguageRef = useRef<HTMLButtonElement | null>(null);
+  const walletConfirmationDialogRef = useRef<HTMLDivElement | null>(null);
+  const walletConfirmationCancelRef = useRef<HTMLButtonElement | null>(null);
+  const walletConfirmationOpenerRef = useRef<HTMLButtonElement | null>(null);
   const t = SETTINGS_COPY[locale];
   const currentLanguage = getLanguageOption(locale);
 
@@ -59,6 +66,21 @@ export function AppSettings({
     setLanguageOpen(false);
     window.requestAnimationFrame(() => languageTriggerRef.current?.focus());
   }, []);
+
+  const closeWalletConfirmation = useCallback(() => {
+    setWalletConfirmation(null);
+    window.requestAnimationFrame(() =>
+      walletConfirmationOpenerRef.current?.focus(),
+    );
+  }, []);
+
+  const openWalletConfirmation = (
+    action: Exclude<WalletConfirmation, null>,
+    opener: HTMLButtonElement,
+  ) => {
+    walletConfirmationOpenerRef.current = opener;
+    setWalletConfirmation(action);
+  };
 
   useEffect(() => {
     if (!languageOpen) return;
@@ -104,10 +126,75 @@ export function AppSettings({
     };
   }, [languageOpen, closeLanguagePicker]);
 
+  useEffect(() => {
+    if (!walletConfirmation) return;
+
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    window.requestAnimationFrame(() =>
+      walletConfirmationCancelRef.current?.focus(),
+    );
+
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        closeWalletConfirmation();
+        return;
+      }
+
+      if (
+        event.key !== 'Tab' ||
+        !walletConfirmationDialogRef.current
+      ) {
+        return;
+      }
+
+      const focusable = Array.from(
+        walletConfirmationDialogRef.current.querySelectorAll<HTMLElement>(
+          'button:not([disabled]), [tabindex]:not([tabindex="-1"])',
+        ),
+      );
+
+      if (focusable.length < 1) return;
+
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first.focus();
+      }
+    };
+
+    document.addEventListener('keydown', onKeyDown);
+
+    return () => {
+      document.removeEventListener('keydown', onKeyDown);
+      document.body.style.overflow = previousOverflow;
+    };
+  }, [walletConfirmation, closeWalletConfirmation]);
+
   const selectLanguage = (nextLocale: Locale) => {
     onLocaleChange(nextLocale);
     closeLanguagePicker();
   };
+
+  const confirmWalletAction = async () => {
+    const action = walletConfirmation;
+    if (!action) return;
+
+    setWalletConfirmation(null);
+    if (action === 'switch') {
+      await runWalletAction(onConnectAnother);
+      return;
+    }
+    await runWalletAction(onDisconnect);
+  };
+
+  const switchConfirmation = walletConfirmation === 'switch';
 
   return (
     <section className="settingsPage">
@@ -125,10 +212,24 @@ export function AppSettings({
             <p>{t.walletNote}</p>
             <p>{t.switchNote}</p>
             <div className="walletActions">
-              <button type="button" className="primarySettingAction" disabled={isWalletActionPending} onClick={() => void runWalletAction(onConnectAnother)}>
+              <button
+                type="button"
+                className="primarySettingAction"
+                disabled={isWalletActionPending}
+                onClick={(event) =>
+                  openWalletConfirmation('switch', event.currentTarget)
+                }
+              >
                 {isWalletActionPending ? t.working : t.connectAnother}
               </button>
-              <button type="button" className="secondarySettingAction" disabled={isWalletActionPending} onClick={() => void runWalletAction(onDisconnect)}>
+              <button
+                type="button"
+                className="secondarySettingAction"
+                disabled={isWalletActionPending}
+                onClick={(event) =>
+                  openWalletConfirmation('disconnect', event.currentTarget)
+                }
+              >
                 {t.disconnect}
               </button>
             </div>
@@ -166,6 +267,67 @@ export function AppSettings({
         <Link href="/privacy">{t.privacy}<span aria-hidden="true">›</span></Link>
         <Link href="/terms">{t.terms}<span aria-hidden="true">›</span></Link>
       </section>
+
+      {walletConfirmation ? (
+        <div
+          className="confirmationBackdrop"
+          role="presentation"
+          onMouseDown={(event) => {
+            if (event.target === event.currentTarget) {
+              closeWalletConfirmation();
+            }
+          }}
+        >
+          <div
+            ref={walletConfirmationDialogRef}
+            className="confirmationModal"
+            role="alertdialog"
+            aria-modal="true"
+            aria-labelledby="wallet-confirmation-title"
+            aria-describedby="wallet-confirmation-body"
+          >
+            <div className="confirmationIcon" aria-hidden="true">
+              {switchConfirmation ? '↔' : '⏻'}
+            </div>
+            <h2 id="wallet-confirmation-title">
+              {switchConfirmation
+                ? t.switchConfirmTitle
+                : t.disconnectConfirmTitle}
+            </h2>
+            <p id="wallet-confirmation-body">
+              {switchConfirmation
+                ? t.switchConfirmBody
+                : t.disconnectConfirmBody}
+            </p>
+            <div className="confirmationActions">
+              <button
+                ref={walletConfirmationCancelRef}
+                type="button"
+                className="confirmationCancel"
+                onClick={closeWalletConfirmation}
+              >
+                {t.cancel}
+              </button>
+              <button
+                type="button"
+                className={
+                  switchConfirmation
+                    ? 'confirmationConfirm'
+                    : 'confirmationConfirm disconnectConfirm'
+                }
+                disabled={isWalletActionPending}
+                onClick={() => void confirmWalletAction()}
+              >
+                {isWalletActionPending
+                  ? t.working
+                  : switchConfirmation
+                    ? t.switchConfirmAction
+                    : t.disconnectConfirmAction}
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
 
       {languageOpen ? (
         <div
@@ -246,7 +408,17 @@ export function AppSettings({
         .languageChevron { color:#a49f94; font-size:1.45rem; line-height:1; text-align:center; }
         .legalCard :global(a) { min-height:48px; display:flex; align-items:center; justify-content:space-between; gap:12px; border-top:1px solid rgba(255,255,255,.06); color:#e7e3d8; font-size:.78rem; font-weight:800; text-decoration:none; }
         .legalCard h2 { margin-bottom:8px; }
-        .languageModalBackdrop { position:fixed; z-index:1450; inset:0; box-sizing:border-box; display:grid; place-items:center; padding:20px; background:rgba(0,0,0,.72); backdrop-filter:blur(8px); }
+        .confirmationBackdrop,.languageModalBackdrop { position:fixed; z-index:1450; inset:0; box-sizing:border-box; display:grid; place-items:center; padding:20px; background:rgba(0,0,0,.72); backdrop-filter:blur(8px); }
+        .confirmationModal { width:min(100%,410px); box-sizing:border-box; padding:22px; border:1px solid rgba(255,205,80,.24); border-radius:24px; background:linear-gradient(155deg,#241b0d,#11110f 56%); box-shadow:0 30px 90px rgba(0,0,0,.58),inset 0 1px 0 rgba(255,255,255,.06); text-align:center; }
+        .confirmationIcon { width:42px; height:42px; margin:0 auto 13px; display:grid; place-items:center; border:1px solid rgba(255,205,80,.25); border-radius:13px; background:rgba(244,183,40,.09); color:#f4bd35; font-size:1.1rem; font-weight:900; }
+        .confirmationModal h2 { font-size:1.05rem; }
+        .confirmationModal p { max-width:330px; margin:9px auto 0; color:#969188; }
+        .confirmationActions { margin-top:18px; display:grid; grid-template-columns:1fr 1.25fr; gap:9px; }
+        .confirmationCancel,.confirmationConfirm { min-height:46px; border-radius:14px; font:inherit; font-size:.75rem; font-weight:900; cursor:pointer; }
+        .confirmationCancel { border:1px solid rgba(255,255,255,.1); background:rgba(255,255,255,.04); color:#d8d4ca; }
+        .confirmationConfirm { border:0; background:linear-gradient(135deg,#ffd24d,#efa718); color:#17120a; }
+        .confirmationConfirm.disconnectConfirm { border:1px solid rgba(255,170,120,.28); background:rgba(255,130,80,.11); color:#ffc19a; }
+        .confirmationCancel:focus-visible,.confirmationConfirm:focus-visible { outline:2px solid rgba(255,205,80,.75); outline-offset:2px; }
         .languageModal { width:min(100%,430px); max-height:min(78svh,680px); box-sizing:border-box; padding:20px; display:flex; flex-direction:column; border:1px solid rgba(255,205,80,.24); border-radius:24px; background:linear-gradient(155deg,#241b0d,#11110f 56%); box-shadow:0 30px 90px rgba(0,0,0,.58),inset 0 1px 0 rgba(255,255,255,.06); }
         .languageModalHeader { display:flex; align-items:flex-start; justify-content:space-between; gap:16px; }
         .languageModalHeader > div { min-width:0; }
@@ -261,8 +433,11 @@ export function AppSettings({
         .languageCheck { width:24px; height:24px; display:grid; place-items:center; border-radius:50%; color:#17120a; font-size:.72rem; font-weight:950; }
         .languageOption.selected .languageCheck { background:#f4b728; }
         @media (max-width:560px) {
-          .languageModalBackdrop { place-items:end center; padding:0; }
-          .languageModal { width:100%; max-height:82svh; padding:20px 18px calc(20px + env(safe-area-inset-bottom)); border-radius:26px 26px 0 0; border-bottom:0; }
+          .confirmationBackdrop,.languageModalBackdrop { place-items:end center; padding:0; }
+          .confirmationModal,.languageModal { width:100%; padding:20px 18px calc(20px + env(safe-area-inset-bottom)); border-radius:26px 26px 0 0; border-bottom:0; }
+          .languageModal { max-height:82svh; }
+          .confirmationActions { grid-template-columns:1fr; }
+          .confirmationCancel { order:2; }
         }
       `}</style>
     </section>
