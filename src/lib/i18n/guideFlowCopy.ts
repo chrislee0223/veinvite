@@ -89,7 +89,7 @@ export const GUIDE_FLOW_COPY: Record<Locale, GuideFlowCopy> = {
   },
   fr: {
     description:
-      'VeInvite ne récompense pas le simple fait d’ouvrir un lien. Une invitation compte lorsque votre ami a terminé toutes les missions.',
+      'VeInvite ne récompense pas le simple fait d’ouvrir un lien. Une invitation ne compte qu’une fois que votre ami a terminé toutes les missions.',
     inviteDescription:
       'Une seule invitation peut être active à la fois. Lorsque votre ami a terminé toutes les missions, vous pouvez inviter une autre personne.',
     countDescription:
