@@ -27,6 +27,9 @@ if (!/requireWalletSession/.test(legalRoute) || !/requestHasSameOrigin/.test(leg
 if (!/fetch\(\s*['"]\/api\/legal\/consent['"]/.test(legalGate) || !/result\.accepted/.test(legalGate)) {
   failures.push('The legal-consent gate must resolve current acceptance from the server before prompting again.');
 }
+if (!/state\s*===\s*['"]checking['"]/.test(legalGate) || /t\.checkingTitle|t\.checkingDescription/.test(legalGate)) {
+  failures.push('Routine legal-consent checks must stay visually quiet and must not surface a checking-status dialog.');
+}
 if (!/20260901110000_persist_wallet_legal_consent\.sql/.test(migrationManifest)) {
   failures.push('The production migration manifest must retain the legal-consent persistence migration.');
 }
