@@ -56,7 +56,7 @@ export const SETTINGS_COPY: Record<Locale, SettingsCopy> = {
     cancel: 'Cancel',
     languageTitle: 'Language',
     languageNote:
-      'Your language choice is saved on this device.',
+      'Your language choice is saved and restored when you return.',
     close: 'Close',
     legalTitle: 'Legal',
     privacy: 'Privacy Policy',
@@ -89,7 +89,7 @@ export const SETTINGS_COPY: Record<Locale, SettingsCopy> = {
     cancel: '취소',
     languageTitle: '언어',
     languageNote:
-      '선택한 언어는 이 기기에 저장돼요.',
+      '선택한 언어는 저장되어 다시 접속해도 유지돼요.',
     close: '닫기',
     legalTitle: '약관 및 정책',
     privacy: '개인정보처리방침',
@@ -122,7 +122,7 @@ export const SETTINGS_COPY: Record<Locale, SettingsCopy> = {
     cancel: '取消',
     languageTitle: '语言',
     languageNote:
-      '你选择的语言会保存在这台设备上。',
+      '你选择的语言会保存，下次回来时自动恢复。',
     close: '关闭',
     legalTitle: '条款与政策',
     privacy: '隐私政策',
@@ -155,7 +155,7 @@ export const SETTINGS_COPY: Record<Locale, SettingsCopy> = {
     cancel: 'रद्द करें',
     languageTitle: 'भाषा',
     languageNote:
-      'आपकी चुनी हुई भाषा इस डिवाइस पर सेव रहती है।',
+      'आपकी चुनी हुई भाषा सेव रहती है और अगली बार लौटने पर फिर लागू हो जाती है।',
     close: 'बंद करें',
     legalTitle: 'नियम और नीतियाँ',
     privacy: 'गोपनीयता नीति',
@@ -188,7 +188,7 @@ export const SETTINGS_COPY: Record<Locale, SettingsCopy> = {
     cancel: 'Cancelar',
     languageTitle: 'Idioma',
     languageNote:
-      'El idioma que elijas se guarda en este dispositivo.',
+      'El idioma que elijas se guarda y se restaura cuando vuelves.',
     close: 'Cerrar',
     legalTitle: 'Información legal',
     privacy: 'Política de privacidad',
@@ -221,7 +221,7 @@ export const SETTINGS_COPY: Record<Locale, SettingsCopy> = {
     cancel: 'キャンセル',
     languageTitle: '言語',
     languageNote:
-      '選んだ言語はこの端末に保存されます。',
+      '選んだ言語は保存され、次回アクセス時にも自動で復元されます。',
     close: '閉じる',
     legalTitle: '規約・ポリシー',
     privacy: 'プライバシーポリシー',
@@ -254,7 +254,7 @@ export const SETTINGS_COPY: Record<Locale, SettingsCopy> = {
     cancel: 'Annulla',
     languageTitle: 'Lingua',
     languageNote:
-      'La lingua scelta viene salvata su questo dispositivo.',
+      'La lingua scelta viene salvata e ripristinata quando torni.',
     close: 'Chiudi',
     legalTitle: 'Note legali',
     privacy: 'Informativa sulla privacy',
@@ -287,7 +287,7 @@ export const SETTINGS_COPY: Record<Locale, SettingsCopy> = {
     cancel: 'İptal',
     languageTitle: 'Dil',
     languageNote:
-      'Seçtiğin dil bu cihazda saklanır.',
+      'Seçtiğin dil kaydedilir ve tekrar geldiğinde geri yüklenir.',
     close: 'Kapat',
     legalTitle: 'Yasal',
     privacy: 'Gizlilik Politikası',
@@ -320,7 +320,7 @@ export const SETTINGS_COPY: Record<Locale, SettingsCopy> = {
     cancel: 'Annuleren',
     languageTitle: 'Taal',
     languageNote:
-      'Je taalkeuze wordt op dit apparaat opgeslagen.',
+      'Je taalkeuze wordt opgeslagen en hersteld wanneer je terugkomt.',
     close: 'Sluiten',
     legalTitle: 'Juridisch',
     privacy: 'Privacybeleid',
@@ -353,7 +353,7 @@ export const SETTINGS_COPY: Record<Locale, SettingsCopy> = {
     cancel: 'Abbrechen',
     languageTitle: 'Sprache',
     languageNote:
-      'Deine Sprachauswahl wird auf diesem Gerät gespeichert.',
+      'Deine Sprachauswahl wird gespeichert und bei deiner Rückkehr wiederhergestellt.',
     close: 'Schließen',
     legalTitle: 'Rechtliches',
     privacy: 'Datenschutzerklärung',
@@ -386,7 +386,7 @@ export const SETTINGS_COPY: Record<Locale, SettingsCopy> = {
     cancel: 'Annuler',
     languageTitle: 'Langue',
     languageNote:
-      'La langue choisie est enregistrée sur cet appareil.',
+      'La langue choisie est enregistrée et restaurée lors de votre prochaine visite.',
     close: 'Fermer',
     legalTitle: 'Mentions légales',
     privacy: 'Politique de confidentialité',
