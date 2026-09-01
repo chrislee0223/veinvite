@@ -56,7 +56,7 @@ export const SETTINGS_COPY: Record<Locale, SettingsCopy> = {
     cancel: 'Cancel',
     languageTitle: 'Language',
     languageNote:
-      'Your language choice is saved and restored when you return.',
+      'Your language choice is saved for your next visit.',
     close: 'Close',
     legalTitle: 'Legal',
     privacy: 'Privacy Policy',
@@ -188,7 +188,7 @@ export const SETTINGS_COPY: Record<Locale, SettingsCopy> = {
     cancel: 'Cancelar',
     languageTitle: 'Idioma',
     languageNote:
-      'El idioma que elijas se guarda y se restaura cuando vuelves.',
+      'El idioma que elijas queda guardado para tu próxima visita.',
     close: 'Cerrar',
     legalTitle: 'Información legal',
     privacy: 'Política de privacidad',
@@ -254,7 +254,7 @@ export const SETTINGS_COPY: Record<Locale, SettingsCopy> = {
     cancel: 'Annulla',
     languageTitle: 'Lingua',
     languageNote:
-      'La lingua scelta viene salvata e ripristinata quando torni.',
+      'La lingua scelta resta salvata anche quando torni.',
     close: 'Chiudi',
     legalTitle: 'Note legali',
     privacy: 'Informativa sulla privacy',
@@ -287,7 +287,7 @@ export const SETTINGS_COPY: Record<Locale, SettingsCopy> = {
     cancel: 'İptal',
     languageTitle: 'Dil',
     languageNote:
-      'Seçtiğin dil kaydedilir ve tekrar geldiğinde geri yüklenir.',
+      'Seçtiğin dil kaydedilir ve bir sonraki ziyaretinde de kullanılır.',
     close: 'Kapat',
     legalTitle: 'Yasal',
     privacy: 'Gizlilik Politikası',
@@ -320,7 +320,7 @@ export const SETTINGS_COPY: Record<Locale, SettingsCopy> = {
     cancel: 'Annuleren',
     languageTitle: 'Taal',
     languageNote:
-      'Je taalkeuze wordt opgeslagen en hersteld wanneer je terugkomt.',
+      'Je taalkeuze wordt opgeslagen en blijft behouden als je later terugkomt.',
     close: 'Sluiten',
     legalTitle: 'Juridisch',
     privacy: 'Privacybeleid',
@@ -353,7 +353,7 @@ export const SETTINGS_COPY: Record<Locale, SettingsCopy> = {
     cancel: 'Abbrechen',
     languageTitle: 'Sprache',
     languageNote:
-      'Deine Sprachauswahl wird gespeichert und bei deiner Rückkehr wiederhergestellt.',
+      'Deine Sprachauswahl wird gespeichert und bleibt bei deinem nächsten Besuch erhalten.',
     close: 'Schließen',
     legalTitle: 'Rechtliches',
     privacy: 'Datenschutzerklärung',
