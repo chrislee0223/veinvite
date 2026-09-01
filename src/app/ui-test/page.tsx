@@ -3,6 +3,10 @@ import { notFound } from 'next/navigation';
 
 import { UiTestHub } from '@/components/UiTestHub';
 
+// PRODUCTION PARITY: UiTestHub keeps InviteRejectionPreview in the
+// participant-only section so the test surface continues to mirror the
+// production invite-ineligibility feedback without stacking every preview.
+
 export const dynamic = 'force-dynamic';
 
 export const metadata: Metadata = {
