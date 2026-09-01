@@ -10,12 +10,16 @@ const locales = [
   'it', 'tr', 'nl', 'de', 'fr',
 ];
 
-const rewardStep = read('src/lib/i18n/guideRewardStepCopy.ts');
-for (const locale of locales) {
-  if (!new RegExp(`\\b${locale}:\\s*\\{`).test(rewardStep)) {
-    failures.push(`Guide reward step is incomplete for locale: ${locale}`);
+function assertEveryLocale(source, label) {
+  for (const locale of locales) {
+    if (!new RegExp(`\\b${locale}:\\s*\\{`).test(source)) {
+      failures.push(`${label} is incomplete for locale: ${locale}`);
+    }
   }
 }
+
+const rewardStep = read('src/lib/i18n/guideRewardStepCopy.ts');
+assertEveryLocale(rewardStep, 'Guide reward step');
 if (
   !/Reward is sent automatically after the missions/.test(rewardStep) ||
   !/미션 완료 후 보상 자동 지급/.test(rewardStep) ||
@@ -29,11 +33,7 @@ if (/payment queue|payout queue|reward queue|대기열|자동 등록|최종 검�
 }
 
 const inviteLanding = read('src/lib/i18n/inviteLandingCopy.ts');
-for (const locale of locales) {
-  if (!new RegExp(`\\b${locale}:\\s*\\{`).test(inviteLanding)) {
-    failures.push(`Invite landing copy is incomplete for locale: ${locale}`);
-  }
-}
+assertEveryLocale(inviteLanding, 'Invite landing copy');
 if (
   !/소요 시간은 달라질 수 있어요/.test(inviteLanding) ||
   !/所要時間は状況により異なります/.test(inviteLanding) ||
@@ -46,11 +46,7 @@ if (/About 10 min|약 10분|約10分|10 minutos/i.test(inviteLanding)) {
 }
 
 const guideFlow = read('src/lib/i18n/guideFlowCopy.ts');
-for (const locale of locales) {
-  if (!new RegExp(`\\b${locale}:\\s*\\{`).test(guideFlow)) {
-    failures.push(`Simplified guide flow is incomplete for locale: ${locale}`);
-  }
-}
+assertEveryLocale(guideFlow, 'Simplified guide flow');
 if (!/친구가 모든 미션을 완료해야 초대가 완료돼요/.test(guideFlow)) {
   failures.push('Korean guide flow no longer explains completion in user terms.');
 }
@@ -60,14 +56,8 @@ if (/final verification|final check|passes verification|최종 검증|최종 확
 
 const missionStep = read('src/lib/i18n/guideMissionStepCopy.ts');
 const eligibilityStep = read('src/lib/i18n/guideEligibilityCopy.ts');
-for (const locale of locales) {
-  if (!new RegExp(`\\b${locale}:\\s*\\{`).test(missionStep)) {
-    failures.push(`Guide mission step is incomplete for locale: ${locale}`);
-  }
-  if (!new RegExp(`\\b${locale}:\\s*\\{`).test(eligibilityStep)) {
-    failures.push(`Guide eligibility copy is incomplete for locale: ${locale}`);
-  }
-}
+assertEveryLocale(missionStep, 'Guide mission step');
+assertEveryLocale(eligibilityStep, 'Guide eligibility copy');
 if (
   !/three different VeBetterDAO dApps/.test(missionStep) ||
   !/서로 다른 VeBetterDAO dApp 3개/.test(missionStep) ||
@@ -86,11 +76,7 @@ if (/claim your reward|request your reward|보상 수령을 요청|보상 받기
 }
 
 const notification = read('src/lib/i18n/notificationCopy.ts');
-for (const locale of locales) {
-  if (!new RegExp(`\\b${locale}:\\s*\\{`).test(notification)) {
-    failures.push(`Notification copy is incomplete for locale: ${locale}`);
-  }
-}
+assertEveryLocale(notification, 'Notification copy');
 const allocationVotingMentions = notification.match(/Allocation Voting/g)?.length ?? 0;
 if (allocationVotingMentions < locales.length * 2) {
   failures.push('Notification copy must identify Allocation Voting consistently across all locales.');
@@ -118,6 +104,7 @@ if (
 }
 
 const copyHardening = read('src/lib/i18n/copyHardening.ts');
+assertEveryLocale(copyHardening, 'Shared copy hardening');
 if (!/HOME_COPY/.test(copyHardening) || !/NOTIFICATION_COPY/.test(copyHardening)) {
   failures.push('Home and notification reward status copy is no longer protected from internal jargon.');
 }
@@ -133,6 +120,7 @@ if (
 }
 
 const leaderboardPolish = read('src/lib/i18n/secondaryPageCopyHardening.ts');
+assertEveryLocale(leaderboardPolish, 'Secondary-page copy hardening');
 if (
   !/친구가 모든 미션을 완료하고 초대한 사람이 B3TR 보상을 받은 초대만 순위에 반영해요/.test(leaderboardPolish) ||
   !/VeInvite를 통해 유입된 사용자/.test(leaderboardPolish) ||
@@ -143,6 +131,14 @@ if (
 }
 if (/VeInvite 온보딩 완료 사용자|completed:\s*'완료 초대'|earned:\s*'누적 B3TR'/.test(leaderboardPolish)) {
   failures.push('Leaderboard copy regressed to retired onboarding/completed-invite labels.');
+}
+
+const appProviders = read('src/components/AppProviders.tsx');
+if (
+  !/import '@\/lib\/i18n\/copyHardening';/.test(appProviders) ||
+  !/import '@\/lib\/i18n\/secondaryPageCopyHardening';/.test(appProviders)
+) {
+  failures.push('Global multilingual copy hardening must stay mounted in AppProviders.');
 }
 
 const rewardReceipt = read('src/lib/i18n/rewardReceiptCopy.ts');
