@@ -10,6 +10,7 @@ import { HeaderLanguagePickerPortal } from './HeaderLanguagePickerPortal';
 import { LegalNavigationMemory } from './LegalNavigationMemory';
 import { PublicRewardForecastPortal } from './PublicRewardForecastPortal';
 import { SecondaryPageLayoutPolish } from './SecondaryPageLayoutPolish';
+import { WalletLanguagePreferenceSync } from './WalletLanguagePreferenceSync';
 
 const VeChainProvider = dynamic(
   () =>
@@ -43,6 +44,7 @@ export function AppProviders({
     <ChakraProvider theme={theme}>
       <VeChainProvider>
         {children}
+        <WalletLanguagePreferenceSync />
         <SecondaryPageLayoutPolish />
         <LegalNavigationMemory />
         <HeaderLanguagePickerPortal />
