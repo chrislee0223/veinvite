@@ -11,6 +11,8 @@ const profile = read('src/lib/publicProfile.ts');
 const leaderboardRoute = read('src/app/api/leaderboard/route.ts');
 const leaderboard = read('src/components/PublicLeaderboard.tsx');
 const settings = read('src/components/PublicProfileSettings.tsx');
+const legalPage = read('src/components/LocalizedLegalPage.tsx');
+const privacyCopy = read('src/lib/i18n/profilePrivacyCopy.ts');
 
 if (!/public_wallet_profiles/.test(migration) || !/enable row level security/i.test(migration)) {
   failures.push('Public profile data must remain behind RLS.');
@@ -44,6 +46,12 @@ if (!/fullAddress/.test(leaderboard) || !/getVeChainExplorerAddressUrl/.test(lea
 }
 if (!/publicNotice/.test(settings) || !/profile-avatars|avatar/.test(settings)) {
   failures.push('Settings must tell users that profile data is public and keep avatar controls available.');
+}
+if (!/PROFILE_PRIVACY_COPY/.test(legalPage) || !/kind === 'privacy'/.test(legalPage)) {
+  failures.push('The Privacy page must retain the optional public-profile disclosure.');
+}
+if (!/선택적 공개 프로필/.test(privacyCopy) || !/profile image|프로필 이미지/i.test(privacyCopy)) {
+  failures.push('Public profile privacy copy must explain that profile names/images are stored for public display.');
 }
 
 if (failures.length > 0) {
