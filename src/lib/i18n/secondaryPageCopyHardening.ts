@@ -67,7 +67,7 @@ const POLISHED_LEADERBOARD_COPY: Record<Locale, LeaderboardPolish> = {
     rank: 'रैंक',
     wallet: 'आमंत्रक',
     completed: 'आमंत्रण',
-    earned: 'कुल पुरस्कार',
+    earned: 'कुल इनाम',
     myRank: 'मेरी रैंक',
     unranked: 'अभी तक कोई आमंत्रण आपकी रैंक में नहीं जुड़ा है।',
     connectForRank: 'अपनी गतिविधि और रैंक देखने के लिए वॉलेट कनेक्ट करें।',
