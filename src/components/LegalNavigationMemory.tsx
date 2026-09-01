@@ -4,11 +4,48 @@ import { useEffect } from 'react';
 
 export const LEGAL_RETURN_STORAGE_KEY = 'veinvite-legal-return';
 
+const RESTORABLE_TABS = new Set(['home', 'guide', 'leaderboard', 'settings']);
+
+function cleanTabParam() {
+  const url = new URL(window.location.href);
+  if (!url.searchParams.has('tab')) return;
+  url.searchParams.delete('tab');
+  const next = `${url.pathname}${url.search}${url.hash}`;
+  window.history.replaceState(window.history.state, '', next || '/');
+}
+
 export function LegalNavigationMemory() {
   useEffect(() => {
+    let restoreFrame = 0;
+
+    const restoreRequestedTab = () => {
+      window.cancelAnimationFrame(restoreFrame);
+
+      const requestedTab = new URLSearchParams(window.location.search).get('tab');
+      if (!requestedTab || !RESTORABLE_TABS.has(requestedTab)) return;
+
+      let attempts = 0;
+      const tryRestore = () => {
+        const button = document.querySelector<HTMLButtonElement>(
+          `button[data-veinvite-tab="${requestedTab}"]`,
+        );
+
+        if (button) {
+          button.click();
+          cleanTabParam();
+          return;
+        }
+
+        attempts += 1;
+        if (attempts < 20) {
+          restoreFrame = window.requestAnimationFrame(tryRestore);
+        }
+      };
+
+      tryRestore();
+    };
+
     const rememberLegalOrigin = (event: MouseEvent) => {
-      // Record only a normal same-tab navigation. Modified clicks/new tabs
-      // should not leave a stale return marker in the current app session.
       if (
         event.defaultPrevented ||
         event.button !== 0 ||
@@ -36,15 +73,32 @@ export function LegalNavigationMemory() {
       if (url.origin !== window.location.origin) return;
       if (url.pathname !== '/privacy' && url.pathname !== '/terms') return;
 
+      const returnToSettings =
+        Boolean(anchor.closest('.legalCard')) ||
+        anchor.dataset.legalReturn === 'settings';
+
+      const currentUrl = new URL(window.location.href);
+      if (returnToSettings) {
+        currentUrl.searchParams.set('tab', 'settings');
+        const markedUrl = `${currentUrl.pathname}${currentUrl.search}${currentUrl.hash}`;
+        window.history.replaceState(window.history.state, '', markedUrl);
+      }
+
       window.sessionStorage.setItem(
         LEGAL_RETURN_STORAGE_KEY,
-        window.location.pathname + window.location.search,
+        `${currentUrl.pathname}${currentUrl.search}${currentUrl.hash}`,
       );
     };
 
+    restoreRequestedTab();
+    window.addEventListener('popstate', restoreRequestedTab);
     document.addEventListener('click', rememberLegalOrigin, true);
-    return () =>
+
+    return () => {
+      window.cancelAnimationFrame(restoreFrame);
+      window.removeEventListener('popstate', restoreRequestedTab);
       document.removeEventListener('click', rememberLegalOrigin, true);
+    };
   }, []);
 
   return null;
