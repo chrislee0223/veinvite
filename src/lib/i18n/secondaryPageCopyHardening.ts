@@ -17,7 +17,7 @@ type LeaderboardPolish = {
 const POLISHED_LEADERBOARD_COPY: Record<Locale, LeaderboardPolish> = {
   en: {
     impactTitle: 'Users who completed VeInvite onboarding',
-    totalUsers: 'Total completed',
+    totalUsers: 'Total',
     rank: 'Rank',
     wallet: 'Inviter',
     completed: 'Completed invites',
@@ -29,7 +29,7 @@ const POLISHED_LEADERBOARD_COPY: Record<Locale, LeaderboardPolish> = {
   },
   ko: {
     impactTitle: 'VeInvite 온보딩 완료 사용자',
-    totalUsers: '누적 완료',
+    totalUsers: '전체',
     rank: '순위',
     wallet: '초대자',
     completed: '완료 초대',
@@ -40,8 +40,8 @@ const POLISHED_LEADERBOARD_COPY: Record<Locale, LeaderboardPolish> = {
     empty: '아직 순위에 반영된 완료 초대가 없어요.',
   },
   zh: {
-    impactTitle: '已完成 VeInvite 引导的用户',
-    totalUsers: '累计完成',
+    impactTitle: '完成 VeInvite 新手流程的用户',
+    totalUsers: '总计',
     rank: '排名',
     wallet: '邀请人',
     completed: '已完成邀请',
@@ -53,7 +53,7 @@ const POLISHED_LEADERBOARD_COPY: Record<Locale, LeaderboardPolish> = {
   },
   hi: {
     impactTitle: 'VeInvite ऑनबोर्डिंग पूरा करने वाले उपयोगकर्ता',
-    totalUsers: 'कुल पूर्ण',
+    totalUsers: 'कुल',
     rank: 'रैंक',
     wallet: 'आमंत्रक',
     completed: 'पूरे हुए आमंत्रण',
@@ -65,7 +65,7 @@ const POLISHED_LEADERBOARD_COPY: Record<Locale, LeaderboardPolish> = {
   },
   es: {
     impactTitle: 'Usuarios que completaron el onboarding de VeInvite',
-    totalUsers: 'Total completado',
+    totalUsers: 'Total',
     rank: 'Puesto',
     wallet: 'Invitador',
     completed: 'Invitaciones completadas',
@@ -77,7 +77,7 @@ const POLISHED_LEADERBOARD_COPY: Record<Locale, LeaderboardPolish> = {
   },
   ja: {
     impactTitle: 'VeInviteのオンボーディング完了ユーザー',
-    totalUsers: '累計完了',
+    totalUsers: '合計',
     rank: '順位',
     wallet: '招待者',
     completed: '完了した招待',
@@ -89,9 +89,9 @@ const POLISHED_LEADERBOARD_COPY: Record<Locale, LeaderboardPolish> = {
   },
   it: {
     impactTitle: 'Utenti che hanno completato l’onboarding di VeInvite',
-    totalUsers: 'Totale completato',
+    totalUsers: 'Totale',
     rank: 'Posizione',
-    wallet: 'Invitante',
+    wallet: 'Chi invita',
     completed: 'Inviti completati',
     earned: 'B3TR totali',
     myRank: 'La mia posizione',
@@ -101,7 +101,7 @@ const POLISHED_LEADERBOARD_COPY: Record<Locale, LeaderboardPolish> = {
   },
   tr: {
     impactTitle: 'VeInvite onboarding sürecini tamamlayan kullanıcılar',
-    totalUsers: 'Toplam tamamlanan',
+    totalUsers: 'Toplam',
     rank: 'Sıra',
     wallet: 'Davet eden',
     completed: 'Tamamlanan davetler',
@@ -113,7 +113,7 @@ const POLISHED_LEADERBOARD_COPY: Record<Locale, LeaderboardPolish> = {
   },
   nl: {
     impactTitle: 'Gebruikers die de VeInvite-onboarding hebben voltooid',
-    totalUsers: 'Totaal voltooid',
+    totalUsers: 'Totaal',
     rank: 'Positie',
     wallet: 'Uitnodiger',
     completed: 'Voltooide uitnodigingen',
@@ -125,7 +125,7 @@ const POLISHED_LEADERBOARD_COPY: Record<Locale, LeaderboardPolish> = {
   },
   de: {
     impactTitle: 'Nutzer mit abgeschlossenem VeInvite-Onboarding',
-    totalUsers: 'Insgesamt abgeschlossen',
+    totalUsers: 'Gesamt',
     rank: 'Rang',
     wallet: 'Einladender',
     completed: 'Abgeschlossene Einladungen',
@@ -137,9 +137,9 @@ const POLISHED_LEADERBOARD_COPY: Record<Locale, LeaderboardPolish> = {
   },
   fr: {
     impactTitle: 'Utilisateurs ayant terminé l’onboarding VeInvite',
-    totalUsers: 'Total terminé',
+    totalUsers: 'Total',
     rank: 'Rang',
-    wallet: 'Inviteur',
+    wallet: 'Parrain',
     completed: 'Invitations terminées',
     earned: 'B3TR cumulés',
     myRank: 'Mon rang',
