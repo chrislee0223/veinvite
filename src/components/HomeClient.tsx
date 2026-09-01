@@ -32,9 +32,7 @@ const AppGuide = dynamic(() =>
   import('./AppGuide').then((module) => module.AppGuide),
 );
 const AppSettings = dynamic(() =>
-  import('./AppSettingsWithProfile').then(
-    (module) => module.AppSettingsWithProfile,
-  ),
+  import('./AppSettings').then((module) => module.AppSettings),
 );
 const PublicLeaderboard = dynamic(() =>
   import('./PublicLeaderboard').then((module) => module.PublicLeaderboard),
