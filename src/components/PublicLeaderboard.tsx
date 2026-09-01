@@ -16,6 +16,8 @@ import type {
 } from '@/lib/types';
 import { getVeChainExplorerAddressUrl } from '@/lib/vechainExplorer';
 
+const PUBLIC_RANK_LIMIT = 100;
+
 function maskWallet(address: string): string {
   return `${address.slice(0, 6)}···${address.slice(-4)}`;
 }
@@ -168,11 +170,63 @@ export function PublicLeaderboard({
   }, [selectedEntry, impactOpen, closeDialog]);
 
   const displayedLeaders = useMemo(
-    () => data?.leaders.slice(0, 5) ?? [],
+    () => data?.leaders.slice(0, PUBLIC_RANK_LIMIT) ?? [],
     [data],
   );
   const currentUser = data?.currentUser ?? null;
+  const currentUserInList = currentUser
+    ? displayedLeaders.some(
+        (entry) =>
+          entry.walletAddress.toLowerCase() ===
+          currentUser.walletAddress.toLowerCase(),
+      )
+    : false;
+  const trailingCurrentUser =
+    currentUser && !currentUserInList ? currentUser : null;
   const totalUsers = data?.impact.totalActivatedUsers ?? 0;
+
+  const renderRankRow = (
+    entry: PublicLeaderboardEntry,
+    trailing = false,
+  ) => {
+    const classes = [
+      'rankRow',
+      entry.rank <= 5 ? 'featured' : 'compact',
+      entry.isCurrentWallet ? 'current' : '',
+      trailing ? 'trailingCurrent' : '',
+    ]
+      .filter(Boolean)
+      .join(' ');
+
+    return (
+      <button
+        key={entry.walletAddress}
+        type="button"
+        className={classes}
+        onClick={(event) =>
+          openWalletDetails(entry, event.currentTarget)
+        }
+        aria-label={t.openWallet(entry.walletAddress)}
+      >
+        <div className="rankPrimary">
+          <strong className="rankValue">
+            {rankLabel(entry.rank)}
+          </strong>
+          <span className="walletCell">
+            {maskWallet(entry.walletAddress)}
+          </span>
+        </div>
+        <span className="rankMetric completedMetric">
+          <small>{t.completed}</small>
+          <b>{entry.completedReferrals}</b>
+        </span>
+        <span className="rankMetric rewardMetric">
+          <small>{t.earned}</small>
+          <b>{formatRewardWei(entry.totalRewardWei)} B3TR</b>
+        </span>
+      </button>
+    );
+  };
 
   if (loading && !data) {
     return (
@@ -222,6 +276,10 @@ export function PublicLeaderboard({
       </section>
 
       <section className="rankingCard">
+        <div className="rankingTopline">
+          <span>TOP {PUBLIC_RANK_LIMIT}</span>
+        </div>
+
         <div className="tableHeader" aria-hidden="true">
           <span>{t.rank}</span>
           <span>{t.wallet}</span>
@@ -231,67 +289,25 @@ export function PublicLeaderboard({
 
         {displayedLeaders.length ? (
           <div className="rows">
-            {displayedLeaders.map((entry) => (
-              <button
-                key={entry.walletAddress}
-                type="button"
-                className={
-                  entry.isCurrentWallet
-                    ? 'rankRow current'
-                    : 'rankRow'
-                }
-                onClick={(event) =>
-                  openWalletDetails(entry, event.currentTarget)
-                }
-                aria-label={t.openWallet(entry.walletAddress)}
-              >
-                <div className="rankPrimary">
-                  <strong className="rankValue">
-                    {rankLabel(entry.rank)}
-                  </strong>
-                  <span className="walletCell">
-                    {maskWallet(entry.walletAddress)}
-                  </span>
+            {displayedLeaders.map((entry) => renderRankRow(entry))}
+            {trailingCurrentUser ? (
+              <>
+                <div className="rankDivider" aria-hidden="true">
+                  <span>···</span>
                 </div>
-                <span className="rankMetric completedMetric">
-                  <small>{t.completed}</small>
-                  <b>{entry.completedReferrals}</b>
-                </span>
-                <span className="rankMetric rewardMetric">
-                  <small>{t.earned}</small>
-                  <b>{formatRewardWei(entry.totalRewardWei)} B3TR</b>
-                </span>
-              </button>
-            ))}
+                {renderRankRow(trailingCurrentUser, true)}
+              </>
+            ) : null}
           </div>
         ) : (
           <p className="empty">{t.empty}</p>
         )}
-      </section>
 
-      <section className="myRankCard">
-        <h2>{t.myRank}</h2>
         {!wallet ? (
-          <p>{t.connectForRank}</p>
-        ) : currentUser ? (
-          <button
-            type="button"
-            className="myRankButton"
-            onClick={(event) =>
-              openWalletDetails(currentUser, event.currentTarget)
-            }
-            aria-label={t.openWallet(currentUser.walletAddress)}
-          >
-            <strong>{rankLabel(currentUser.rank)}</strong>
-            <span>{maskWallet(currentUser.walletAddress)}</span>
-            <span>
-              {currentUser.completedReferrals} ·{' '}
-              {formatRewardWei(currentUser.totalRewardWei)} B3TR
-            </span>
-          </button>
-        ) : (
-          <p>{t.unranked}</p>
-        )}
+          <p className="rankContextNote">{t.connectForRank}</p>
+        ) : !currentUser ? (
+          <p className="rankContextNote">{t.unranked}</p>
+        ) : null}
       </section>
 
       {impactOpen ? (
@@ -435,7 +451,7 @@ export function PublicLeaderboard({
           font-size:.88rem;
           line-height:1.58;
         }
-        .impactCard,.rankingCard,.myRankCard {
+        .impactCard,.rankingCard {
           margin-top:18px;
           padding:18px;
           border:1px solid rgba(255,205,80,.14);
@@ -488,26 +504,43 @@ export function PublicLeaderboard({
           font-size:1.55rem;
           font-weight:500;
         }
-        .impactCard > p,.myRankCard > p {
+        .impactCard > p {
           margin:13px 0 0;
           color:#8f8b83;
           font-size:.73rem;
           line-height:1.5;
+        }
+        .rankingTopline {
+          min-height:24px;
+          display:flex;
+          align-items:center;
+          justify-content:flex-end;
+          margin-bottom:8px;
+        }
+        .rankingTopline span {
+          padding:5px 8px;
+          border:1px solid rgba(255,205,80,.14);
+          border-radius:999px;
+          background:rgba(244,183,40,.06);
+          color:#a98c3d;
+          font-size:.58rem;
+          font-weight:950;
+          letter-spacing:.08em;
         }
         .tableHeader {
           display:none;
         }
         .rows {
           display:grid;
-          gap:8px;
+          gap:7px;
         }
         .rankRow {
           width:100%;
           min-width:0;
-          padding:12px;
+          padding:11px 12px;
           display:grid;
           grid-template-columns:1fr 1fr;
-          gap:10px 12px;
+          gap:9px 12px;
           border:1px solid rgba(255,255,255,.07);
           border-radius:15px;
           background:rgba(255,255,255,.025);
@@ -516,13 +549,25 @@ export function PublicLeaderboard({
           text-align:left;
           cursor:pointer;
         }
+        .rankRow.compact {
+          padding-top:9px;
+          padding-bottom:9px;
+        }
         .rankRow:hover,.rankRow:focus-visible {
           border-color:rgba(255,205,80,.38);
           outline:none;
         }
         .rankRow.current {
-          background:rgba(244,183,40,.08);
-          border-color:rgba(255,205,80,.22);
+          border-color:rgba(255,205,80,.52);
+          background:linear-gradient(135deg,rgba(244,183,40,.14),rgba(244,183,40,.055));
+          box-shadow:inset 3px 0 0 rgba(255,203,66,.78);
+        }
+        .rankRow.current .rankValue,
+        .rankRow.current .rankMetric b {
+          color:#ffd45f;
+        }
+        .rankRow.trailingCurrent {
+          margin-top:1px;
         }
         .rankPrimary {
           grid-column:1 / -1;
@@ -533,7 +578,9 @@ export function PublicLeaderboard({
         }
         .rankValue {
           flex:0 0 auto;
-          min-width:34px;
+          min-width:36px;
+          color:#f0ede6;
+          font-variant-numeric:tabular-nums;
         }
         .walletCell {
           min-width:0;
@@ -561,35 +608,30 @@ export function PublicLeaderboard({
           font-weight:850;
           font-variant-numeric:tabular-nums;
         }
-        .rewardMetric {
+        .completedMetric,.rewardMetric {
           text-align:right;
         }
-        .empty {
+        .rankDivider {
+          display:flex;
+          align-items:center;
+          gap:10px;
+          padding:6px 4px 2px;
+          color:#6f6a61;
+          font-size:.85rem;
+          letter-spacing:.18em;
+        }
+        .rankDivider::before,.rankDivider::after {
+          content:'';
+          height:1px;
+          flex:1;
+          background:rgba(255,255,255,.07);
+        }
+        .rankContextNote,.empty {
           margin:14px 0 0;
           color:#827e76;
-          font-size:.75rem;
-        }
-        .myRankButton {
-          width:100%;
-          margin-top:12px;
-          padding:13px;
-          display:grid;
-          grid-template-columns:auto 1fr;
-          gap:6px 10px;
-          align-items:center;
-          border:1px solid rgba(255,205,80,.2);
-          border-radius:14px;
-          background:rgba(244,183,40,.07);
-          color:#eee8d8;
-          font:inherit;
-          text-align:left;
-          cursor:pointer;
-        }
-        .myRankButton span:last-child {
-          grid-column:2;
-          color:#b8ad8c;
-          font-size:.68rem;
-          text-align:left;
+          font-size:.72rem;
+          line-height:1.5;
+          text-align:center;
         }
         .modalBackdrop {
           position:fixed;
@@ -719,8 +761,8 @@ export function PublicLeaderboard({
         }
         @media (min-width:620px) {
           .tableHeader,.rankRow {
-            grid-template-columns:50px minmax(0,1fr) 88px 112px;
-            gap:8px;
+            grid-template-columns:52px minmax(0,1fr) 100px 130px;
+            gap:10px;
             align-items:center;
           }
           .tableHeader {
@@ -731,9 +773,17 @@ export function PublicLeaderboard({
             font-weight:900;
             text-transform:uppercase;
           }
-          .rankRow {
+          .tableHeader span:nth-child(3),
+          .tableHeader span:nth-child(4) {
+            text-align:right;
+          }
+          .rankRow.featured {
             min-height:56px;
             padding:10px 12px;
+          }
+          .rankRow.compact {
+            min-height:48px;
+            padding:8px 12px;
           }
           .rankPrimary {
             display:contents;
@@ -751,24 +801,20 @@ export function PublicLeaderboard({
           .rewardMetric b {
             white-space:nowrap;
           }
-          .myRankButton {
-            grid-template-columns:auto 1fr auto;
-          }
-          .myRankButton span:last-child {
-            grid-column:auto;
-            text-align:right;
-          }
         }
         @media (max-width:420px) {
-          .impactCard,.rankingCard,.myRankCard {
+          .impactCard,.rankingCard {
             padding:15px;
             border-radius:19px;
           }
           .impactBreakdown {
             grid-template-columns:1fr;
           }
-          .rankRow {
+          .rankRow.featured {
             padding:11px;
+          }
+          .rankRow.compact {
+            padding:9px 11px;
           }
           .walletDialog {
             padding:18px;
