@@ -107,12 +107,11 @@ function hasLegacyCurrentConsent(
       return false;
     }
 
-    const agreements =
-      parsed.filter(
-        (value): value is LegacyAgreement =>
-          typeof value === 'object' &&
-          value !== null,
-      );
+    const agreements = parsed.filter(
+      (value): value is LegacyAgreement =>
+        typeof value === 'object' &&
+        value !== null,
+    );
 
     const termsAccepted = agreements.some(
       (agreement) =>
@@ -166,8 +165,7 @@ export function LegalConsentGate({
         {
           method: 'POST',
           headers: {
-            'Content-Type':
-              'application/json',
+            'Content-Type': 'application/json',
           },
           cache: 'no-store',
           body: JSON.stringify({
@@ -315,8 +313,23 @@ export function LegalConsentGate({
     return children;
   }
 
+  // Consent status still has to be checked server-side, but a normal re-entry
+  // should not surface a full-screen legal-status card. Keep the gate closed
+  // until the result is known, then only show UI when consent is actually
+  // required or the check failed.
+  if (state === 'checking') {
+    return (
+      <div
+        aria-hidden="true"
+        style={{
+          minHeight: '100dvh',
+          background: '#080807',
+        }}
+      />
+    );
+  }
+
   const t = LEGAL_CONSENT_COPY[locale];
-  const checking = state === 'checking';
   const failed = state === 'error';
   const busy =
     isAccepting || isDisconnecting;
@@ -382,11 +395,9 @@ export function LegalConsentGate({
             letterSpacing: '-0.02em',
           }}
         >
-          {checking
-            ? t.checkingTitle
-            : failed
-              ? t.errorTitle
-              : t.title}
+          {failed
+            ? t.errorTitle
+            : t.title}
         </strong>
 
         <span
@@ -396,11 +407,9 @@ export function LegalConsentGate({
             fontSize: '0.92rem',
           }}
         >
-          {checking
-            ? t.checkingDescription
-            : failed
-              ? t.errorDescription
-              : t.description}
+          {failed
+            ? t.errorDescription
+            : t.description}
         </span>
 
         {state === 'required' ? (
@@ -519,35 +528,33 @@ export function LegalConsentGate({
             </button>
           ) : null}
 
-          {!checking ? (
-            <button
-              type="button"
-              disabled={busy}
-              onClick={() => {
-                void onDisconnect();
-              }}
-              style={{
-                width: '100%',
-                minHeight: '46px',
-                borderRadius: '14px',
-                border:
-                  '1px solid rgba(255,255,255,0.16)',
-                background:
-                  'rgba(255,255,255,0.04)',
-                color: '#f8f6ef',
-                cursor: busy
-                  ? 'wait'
-                  : 'pointer',
-                font: 'inherit',
-                fontWeight: 750,
-                opacity: busy ? 0.62 : 0.9,
-              }}
-            >
-              {isDisconnecting
-                ? t.disconnectingWallet
-                : t.disconnectWallet}
-            </button>
-          ) : null}
+          <button
+            type="button"
+            disabled={busy}
+            onClick={() => {
+              void onDisconnect();
+            }}
+            style={{
+              width: '100%',
+              minHeight: '46px',
+              borderRadius: '14px',
+              border:
+                '1px solid rgba(255,255,255,0.16)',
+              background:
+                'rgba(255,255,255,0.04)',
+              color: '#f8f6ef',
+              cursor: busy
+                ? 'wait'
+                : 'pointer',
+              font: 'inherit',
+              fontWeight: 750,
+              opacity: busy ? 0.62 : 0.9,
+            }}
+          >
+            {isDisconnecting
+              ? t.disconnectingWallet
+              : t.disconnectWallet}
+          </button>
         </div>
       </div>
     </div>
