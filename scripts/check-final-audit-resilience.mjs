@@ -29,21 +29,21 @@ for (const locale of localeKeys) {
   }
 }
 
-const restoredLanguageCopy = [
-  'Your language choice is saved and restored when you return.',
+const persistedLanguageCopy = [
+  'Your language choice is saved for your next visit.',
   '선택한 언어는 저장되어 다시 접속해도 유지돼요.',
   '你选择的语言会保存，下次回来时自动恢复。',
   'आपकी चुनी हुई भाषा सेव रहती है और अगली बार लौटने पर फिर लागू हो जाती है।',
-  'El idioma que elijas se guarda y se restaura cuando vuelves.',
+  'El idioma que elijas queda guardado para tu próxima visita.',
   '選んだ言語は保存され、次回アクセス時にも自動で復元されます。',
-  'La lingua scelta viene salvata e ripristinata quando torni.',
-  'Seçtiğin dil kaydedilir ve tekrar geldiğinde geri yüklenir.',
-  'Je taalkeuze wordt opgeslagen en hersteld wanneer je terugkomt.',
-  'Deine Sprachauswahl wird gespeichert und bei deiner Rückkehr wiederhergestellt.',
+  'La lingua scelta resta salvata anche quando torni.',
+  'Seçtiğin dil kaydedilir ve bir sonraki ziyaretinde de kullanılır.',
+  'Je taalkeuze wordt opgeslagen en blijft behouden als je later terugkomt.',
+  'Deine Sprachauswahl wird gespeichert und bleibt bei deinem nächsten Besuch erhalten.',
   'La langue choisie est enregistrée et restaurée lors de votre prochaine visite.',
 ];
 
-for (const copy of restoredLanguageCopy) {
+for (const copy of persistedLanguageCopy) {
   if (!settings.includes(copy)) {
     failures.push(
       `Settings language persistence copy is missing: ${copy}`,
@@ -58,6 +58,16 @@ if (
 ) {
   failures.push(
     'Settings still describes language persistence as device-only even though verified-wallet persistence is enabled.',
+  );
+}
+
+if (
+  /saved and restored when you return|se guarda y se restaura cuando vuelves|viene salvata e ripristinata quando torni|tekrar geldiğinde geri yüklenir|opgeslagen en hersteld wanneer je terugkomt|bei deiner Rückkehr wiederhergestellt/i.test(
+    settings,
+  )
+) {
+  failures.push(
+    'Settings language persistence copy regressed to the reviewed mechanical translation wording.',
   );
 }
 

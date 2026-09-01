@@ -66,7 +66,7 @@ const COPY: Record<Locale, ForecastCopy> = {
   hi: {
     eyebrow: 'अनुमानित इनाम',
     title: 'अगर आप अभी आमंत्रित करना शुरू करें',
-    perInvite: 'हर सफल आमंत्रण का अनुमान',
+    perInvite: 'हर सफल आमंत्रण पर अनुमानित इनाम',
     disclaimer:
       'अनुमानित इनाम वास्तविक आवंटन और भागीदारी के अनुसार बदल सकता है और इसकी गारंटी नहीं है।',
     pendingTitle: 'अनुमान तैयार हो रहा है',
@@ -88,7 +88,7 @@ const COPY: Record<Locale, ForecastCopy> = {
   ja: {
     eyebrow: '予想報酬',
     title: '今から招待を始めた場合',
-    perInvite: '招待成功1件あたりの予想',
+    perInvite: '招待成功1件あたりの予想報酬',
     disclaimer:
       '予想報酬は実際の配分額や参加人数によって変動し、確定した報酬ではありません。',
     pendingTitle: '予想報酬を準備中',
@@ -105,7 +105,7 @@ const COPY: Record<Locale, ForecastCopy> = {
     pendingTitle: 'Stima in preparazione',
     pendingDescription:
       'La stima apparirà automaticamente quando VeInvite avrà dati reali sufficienti sulle allocazioni.',
-    unavailable: 'La stima della ricompensa non è temporaneamente disponibile.',
+    unavailable: 'La stima della ricompensa è temporaneamente non disponibile.',
   },
   tr: {
     eyebrow: 'TAHMİNİ ÖDÜL',
@@ -126,7 +126,7 @@ const COPY: Record<Locale, ForecastCopy> = {
       'De geschatte beloning kan veranderen op basis van de werkelijke toewijzing en het aantal deelnemers en is niet gegarandeerd.',
     pendingTitle: 'Schatting wordt voorbereid',
     pendingDescription:
-      'De schatting verschijnt automatisch zodra VeInvite voldoende echte allocatiegegevens heeft.',
+      'De schatting verschijnt automatisch zodra VeInvite voldoende werkelijke toewijzingsgegevens heeft.',
     unavailable: 'De beloningsschatting is tijdelijk niet beschikbaar.',
   },
   de: {
@@ -137,7 +137,7 @@ const COPY: Record<Locale, ForecastCopy> = {
       'Die geschätzte Belohnung kann sich je nach tatsächlicher Zuteilung und Teilnehmerzahl ändern und ist nicht garantiert.',
     pendingTitle: 'Schätzung wird vorbereitet',
     pendingDescription:
-      'Die Schätzung erscheint automatisch, sobald VeInvite genügend echte Zuteilungsdaten hat.',
+      'Die Schätzung erscheint automatisch, sobald VeInvite über ausreichend tatsächliche Zuteilungsdaten verfügt.',
     unavailable: 'Die Belohnungsschätzung ist vorübergehend nicht verfügbar.',
   },
   fr: {

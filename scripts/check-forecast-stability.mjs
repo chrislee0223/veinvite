@@ -58,6 +58,30 @@ if (!/data\.rewardForecastPreview|rewardForecastPreview/.test(forecastPortal)) {
   );
 }
 
+if (
+  !/हर सफल आमंत्रण पर अनुमानित इनाम/.test(forecastPortal) ||
+  !/招待成功1件あたりの予想報酬/.test(forecastPortal) ||
+  !/è temporaneamente non disponibile/.test(forecastPortal) ||
+  !/voldoende werkelijke toewijzingsgegevens/.test(forecastPortal) ||
+  !/ausreichend tatsächliche Zuteilungsdaten/.test(forecastPortal)
+) {
+  failures.push(
+    'Public reward forecast copy regressed to previously reviewed awkward Hindi, Japanese, Italian, Dutch, or German wording.',
+  );
+}
+
+if (
+  /हर सफल आमंत्रण का अनुमान/.test(forecastPortal) ||
+  /招待成功1件あたりの予想'/.test(forecastPortal) ||
+  /non è temporaneamente disponibile/.test(forecastPortal) ||
+  /echte allocatiegegevens/.test(forecastPortal) ||
+  /genügend echte Zuteilungsdaten/.test(forecastPortal)
+) {
+  failures.push(
+    'Public reward forecast copy contains a retired mechanical translation.',
+  );
+}
+
 const forecastRoute = readFileSync(
   join(root, 'src/app/api/rewards/estimate/route.ts'),
   'utf8',

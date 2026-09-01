@@ -24,7 +24,7 @@ export const GUIDE_MISSION_STEP_COPY: Record<Locale, GuideMissionStepCopy> = {
   hi: {
     title: 'आपका दोस्त सभी मिशन पूरे करे',
     description:
-      'उसे तीन अलग-अलग VeBetterDAO dApps से B3TR इनाम पाना, B3TR को VOT3 में बदलना और Allocation Voting में एक वोट करना होगा।',
+      'उसे तीन अलग-अलग VeBetterDAO dApps से B3TR इनाम पाना, B3TR को VOT3 में बदलना और Allocation Voting में एक बार वोट करना होगा।',
   },
   es: {
     title: 'Tu amigo completa todas las misiones',
@@ -39,7 +39,7 @@ export const GUIDE_MISSION_STEP_COPY: Record<Locale, GuideMissionStepCopy> = {
   it: {
     title: 'Il tuo amico completa tutte le missioni',
     description:
-      'Deve ricevere ricompense B3TR da tre dApp VeBetterDAO diverse, convertire B3TR in VOT3 e votare una volta in Allocation Voting.',
+      'Deve ricevere ricompense B3TR da tre dApp VeBetterDAO diverse, convertire B3TR in VOT3 e partecipare una volta all’Allocation Voting.',
   },
   tr: {
     title: 'Arkadaşın tüm görevleri tamamlasın',
@@ -59,6 +59,6 @@ export const GUIDE_MISSION_STEP_COPY: Record<Locale, GuideMissionStepCopy> = {
   fr: {
     title: 'Votre ami termine toutes les missions',
     description:
-      'Il doit recevoir des récompenses B3TR depuis trois dApps VeBetterDAO différentes, convertir le B3TR en VOT3 et voter une fois dans l’Allocation Voting.',
+      'Il doit recevoir des récompenses B3TR dans trois dApps VeBetterDAO différentes, convertir le B3TR en VOT3 et participer une fois à l’Allocation Voting.',
   },
 };

@@ -76,7 +76,7 @@ export const ENTRY_REJECTION_COPY: Record<Locale, EntryRejectionCopy> = {
     reasonLabel: 'Grund',
     reason:
       'Es wurde kürzlich VeBetterDAO-Aktivität festgestellt. Daher erfüllt diese Wallet nicht die Kriterien für neue oder zurückkehrende Nutzer.',
-    help: 'VeBetterDAO kann weiterhin normal genutzt werden.',
+    help: 'Du kannst VeBetterDAO weiterhin ganz normal nutzen.',
   },
   fr: {
     title: 'Ce wallet n’est actuellement pas éligible à VeInvite.',

@@ -22,13 +22,13 @@ export const GUIDE_ELIGIBILITY_COPY: Record<Locale, GuideEligibilityCopy> = {
     newDescription:
       '此前没有 VeBetterDAO 奖励或 Allocation Voting 记录的钱包。',
     returningDescription:
-      '从最近 12 个已完成轮次中最早一轮的开始时点至今，都没有 VeBetterDAO 奖励或 Allocation Voting 活动的用户。',
+      '从最近 12 个已完成轮次中最早一轮的开始时间至今，都没有 VeBetterDAO 奖励或 Allocation Voting 活动的用户。',
   },
   hi: {
     newDescription:
       'ऐसा वॉलेट जिसका पहले कोई VeBetterDAO इनाम या Allocation Voting इतिहास नहीं है।',
     returningDescription:
-      'ऐसा उपयोगकर्ता जिसने पिछली 12 पूरी हुई राउंड में सबसे पुरानी राउंड की शुरुआत से अब तक कोई VeBetterDAO इनाम नहीं लिया और Allocation Voting में भाग नहीं लिया।',
+      'ऐसा उपयोगकर्ता जिसने पिछले 12 पूरे हो चुके राउंड में से सबसे पुराने राउंड की शुरुआत से अब तक कोई VeBetterDAO इनाम नहीं लिया और Allocation Voting में भाग नहीं लिया।',
   },
   es: {
     newDescription:
@@ -46,13 +46,13 @@ export const GUIDE_ELIGIBILITY_COPY: Record<Locale, GuideEligibilityCopy> = {
     newDescription:
       'Un wallet senza precedenti ricompense VeBetterDAO né attività di Allocation Voting.',
     returningDescription:
-      'Un utente senza ricompense VeBetterDAO né attività di Allocation Voting dall’inizio della più vecchia delle ultime 12 tornate completate.',
+      'Un utente senza ricompense VeBetterDAO né attività di Allocation Voting dall’inizio della meno recente delle ultime 12 tornate completate.',
   },
   tr: {
     newDescription:
       'Daha önce VeBetterDAO ödülü veya Allocation Voting geçmişi olmayan bir cüzdan.',
     returningDescription:
-      'Son 12 tamamlanmış turun en eskisinin başlangıcından bugüne kadar VeBetterDAO ödülü veya Allocation Voting etkinliği olmayan bir kullanıcı.',
+      'Tamamlanan son 12 turun en eskisinin başlangıcından bugüne kadar VeBetterDAO ödülü veya Allocation Voting etkinliği olmayan bir kullanıcı.',
   },
   nl: {
     newDescription:
