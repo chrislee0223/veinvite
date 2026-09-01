@@ -23,6 +23,7 @@ export function AppBottomNavigation({
           <button
             key={tab}
             type="button"
+            data-veinvite-tab={tab}
             className={activeTab === tab ? 'active' : ''}
             aria-current={activeTab === tab ? 'page' : undefined}
             onClick={() => onChange(tab)}
