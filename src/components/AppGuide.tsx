@@ -13,7 +13,7 @@ export function AppGuide({ locale }: { locale: Locale }) {
   const rewardStep = GUIDE_REWARD_STEP_COPY[locale];
   const steps = [
     {
-      ...t.steps[0],
+      title: t.inviteStepTitle,
       description: flow.inviteDescription,
     },
     missionStep,
