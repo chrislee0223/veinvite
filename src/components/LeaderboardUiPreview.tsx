@@ -34,6 +34,14 @@ function referralsForRank(rank: number): number {
   return Math.max(1, 18 - Math.floor((rank - 1) / 6));
 }
 
+function previewName(rank: number, current: boolean): string | null {
+  if (current) return 'Chris';
+  if (rank === 1) return 'Seasick.vet';
+  if (rank === 2) return 'VeFriend';
+  if (rank === 3) return 'BetterBuilder';
+  return null;
+}
+
 function buildLeaders(
   scenario: PreviewScenario,
 ): PublicLeaderboardEntry[] {
@@ -44,6 +52,8 @@ function buildLeaders(
     return {
       rank,
       walletAddress: current ? TEST_WALLET : walletForRank(rank),
+      displayName: previewName(rank, current),
+      avatarUrl: null,
       completedReferrals: referralsForRank(rank),
       totalRewardWei: rewardWeiForRank(rank),
       isCurrentWallet: current,
@@ -60,6 +70,8 @@ function buildPreviewData(
     : {
         rank: 137,
         walletAddress: TEST_WALLET,
+        displayName: 'Chris',
+        avatarUrl: null,
         completedReferrals: 1,
         totalRewardWei: (245n * TOKEN_WEI).toString(),
         isCurrentWallet: true,
@@ -77,6 +89,10 @@ function buildPreviewData(
     },
     leaders,
     currentUser,
+    viewerProfile: {
+      displayName: 'Chris',
+      avatarUrl: null,
+    },
   };
 }
 
@@ -119,8 +135,8 @@ export function LeaderboardUiPreview() {
         <h2>Top 100 리더보드 미리보기</h2>
         <p>
           실제 리더보드 컴포넌트에 가짜 데이터 100개를 넣은 화면입니다.
-          별도 내부 스크롤 없이 페이지를 아래로 내려 100위까지 확인하고,
-          내 순위가 100위 안과 밖일 때의 배치도 비교할 수 있어요.
+          프로필을 설정한 사용자는 이름으로, 설정하지 않은 사용자는 마스킹된
+          지갑 주소로 표시되며 내 순위가 100위 안과 밖일 때도 비교할 수 있어요.
         </p>
 
         <div className="scenarioToggle" aria-label="내 순위 테스트 상태">
