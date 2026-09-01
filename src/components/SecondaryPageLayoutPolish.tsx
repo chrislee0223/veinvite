@@ -25,6 +25,12 @@ export function SecondaryPageLayoutPolish() {
         margin-top:18px !important;
       }
 
+      /* The list still supports ranks 1-100, but the visible TOP 100 badge is
+       * redundant once the leaderboard itself makes the ranking clear. */
+      .leaderboardPage .rankingTopline {
+        display:none !important;
+      }
+
       .leaderboardPage .tableHeader,
       .leaderboardPage .rankRow {
         grid-template-columns:34px minmax(0,1fr) 76px 94px !important;
@@ -40,6 +46,11 @@ export function SecondaryPageLayoutPolish() {
         font-weight:900 !important;
       }
 
+      .leaderboardPage .tableHeader span {
+        min-width:0 !important;
+        white-space:nowrap !important;
+      }
+
       .leaderboardPage .tableHeader span:nth-child(3),
       .leaderboardPage .tableHeader span:nth-child(4) {
         text-align:right !important;
@@ -50,15 +61,28 @@ export function SecondaryPageLayoutPolish() {
         padding:9px 12px !important;
       }
 
+      /* rankPrimary contains both rank and inviter. display:contents makes
+       * those two items participate directly in the same four-column grid as
+       * the header so values cannot drift into the wrong metric column. */
       .leaderboardPage .rankPrimary {
         display:contents !important;
       }
 
       .leaderboardPage .rankValue {
         min-width:0 !important;
+        text-align:left !important;
+      }
+
+      .leaderboardPage .walletCell {
+        min-width:0 !important;
+        overflow:hidden !important;
+        text-overflow:ellipsis !important;
+        white-space:nowrap !important;
+        text-align:left !important;
       }
 
       .leaderboardPage .rankMetric {
+        min-width:0 !important;
         display:block !important;
         text-align:right !important;
       }
@@ -70,13 +94,14 @@ export function SecondaryPageLayoutPolish() {
       .leaderboardPage .rankMetric b {
         display:block !important;
         font-size:.7rem !important;
+        font-variant-numeric:tabular-nums !important;
         white-space:nowrap !important;
       }
 
       @media (max-width:420px) {
         .leaderboardPage .tableHeader,
         .leaderboardPage .rankRow {
-          grid-template-columns:30px minmax(0,1fr) 70px 88px !important;
+          grid-template-columns:30px minmax(0,1fr) 70px 90px !important;
           gap:6px !important;
         }
 
@@ -94,6 +119,23 @@ export function SecondaryPageLayoutPolish() {
         .leaderboardPage .walletCell,
         .leaderboardPage .rankMetric b {
           font-size:.66rem !important;
+        }
+      }
+
+      @media (max-width:360px) {
+        .leaderboardPage .tableHeader,
+        .leaderboardPage .rankRow {
+          grid-template-columns:28px minmax(0,1fr) 64px 84px !important;
+          gap:5px !important;
+        }
+
+        .leaderboardPage .tableHeader {
+          font-size:.51rem !important;
+        }
+
+        .leaderboardPage .walletCell,
+        .leaderboardPage .rankMetric b {
+          font-size:.62rem !important;
         }
       }
     `}</style>
