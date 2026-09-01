@@ -68,6 +68,10 @@ export function SecondaryPageLayoutPolish() {
         text-align:left !important;
       }
 
+      .leaderboardPage .tableHeader span:nth-child(2) {
+        padding-left:27px !important;
+      }
+
       .leaderboardPage .tableHeader span:nth-child(3),
       .leaderboardPage .tableHeader span:nth-child(4) {
         text-align:center !important;
@@ -186,6 +190,10 @@ export function SecondaryPageLayoutPolish() {
           font-size:.53rem !important;
         }
 
+        .leaderboardPage .tableHeader span:nth-child(2) {
+          padding-left:24px !important;
+        }
+
         .leaderboardPage .rankRow {
           min-height:50px !important;
           padding-left:10px !important;
@@ -219,6 +227,10 @@ export function SecondaryPageLayoutPolish() {
 
         .leaderboardPage .tableHeader {
           font-size:.49rem !important;
+        }
+
+        .leaderboardPage .tableHeader span:nth-child(2) {
+          padding-left:22px !important;
         }
 
         .leaderboardPage .walletCell {
