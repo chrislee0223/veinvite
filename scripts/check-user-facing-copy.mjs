@@ -85,6 +85,28 @@ if (/claim your reward|request your reward|보상 수령을 요청|보상 받기
   failures.push('Automatic reward guide copy must not regress toward a manual claim/request flow.');
 }
 
+const notification = read('src/lib/i18n/notificationCopy.ts');
+for (const locale of locales) {
+  if (!new RegExp(`\\b${locale}:\\s*\\{`).test(notification)) {
+    failures.push(`Notification copy is incomplete for locale: ${locale}`);
+  }
+}
+const allocationVotingMentions = notification.match(/Allocation Voting/g)?.length ?? 0;
+if (allocationVotingMentions < locales.length * 2) {
+  failures.push('Notification copy must identify Allocation Voting consistently across all locales.');
+}
+if (/governance vote|거버넌스 투표|VeBetter dApps|VeBetter dApp 3개/i.test(notification)) {
+  failures.push('Notification copy regressed to generic governance or VeBetter-only mission wording.');
+}
+if (
+  !/Your friend earned B3TR from 3 different VeBetterDAO dApps/.test(notification) ||
+  !/초대한 친구가 서로 다른 VeBetterDAO dApp 3개에서 B3TR을 받았어요/.test(notification) ||
+  !/Your B3TR reward has been sent to your wallet/.test(notification) ||
+  !/B3TR 보상이 지갑으로 지급됐어요/.test(notification)
+) {
+  failures.push('Reviewed notification mission/reward wording is missing.');
+}
+
 const appGuide = read('src/components/AppGuide.tsx');
 if (
   !/GUIDE_FLOW_COPY/.test(appGuide) ||
@@ -101,6 +123,42 @@ if (!/HOME_COPY/.test(copyHardening) || !/NOTIFICATION_COPY/.test(copyHardening)
 }
 if (!/VeInvite에서 보상 상태를 확인할 수 있어요/.test(copyHardening)) {
   failures.push('Korean mission-complete reward status guidance regressed.');
+}
+if (
+  !/INVITEE_ELIGIBILITY_COPY/.test(copyHardening) ||
+  !/oldest of the last 12 completed rounds/.test(copyHardening) ||
+  !/Allocation Voting 참여 기록/.test(copyHardening)
+) {
+  failures.push('Invitee eligibility copy is no longer aligned with the reviewed public rule in all locales.');
+}
+
+const leaderboardPolish = read('src/lib/i18n/secondaryPageCopyHardening.ts');
+if (
+  !/친구가 모든 미션을 완료하고 초대한 사람이 B3TR 보상을 받은 초대만 순위에 반영해요/.test(leaderboardPolish) ||
+  !/모든 미션을 완료한 지갑만 온보딩 완료 사용자 수에 포함해요/.test(leaderboardPolish)
+) {
+  failures.push('Leaderboard explanatory copy no longer matches the reviewed completion and reward semantics.');
+}
+
+const rewardReceipt = read('src/lib/i18n/rewardReceiptCopy.ts');
+if (/verified VeInvite referral reward|검증을 통과한 VeInvite 초대 보상/i.test(rewardReceipt)) {
+  failures.push('Reward receipt copy exposes unnecessary verification jargon.');
+}
+if (!/VeInvite 초대 보상이 이 지갑으로 지급됐어요/.test(rewardReceipt)) {
+  failures.push('Korean reward receipt copy regressed.');
+}
+
+const legalConsent = read('src/lib/i18n/legalConsentCopy.ts');
+if (!/acceptAll:\s*'모두 동의'/.test(legalConsent)) {
+  failures.push('Korean legal consent action should use natural agreement wording.');
+}
+
+const profilePrivacy = read('src/lib/i18n/profilePrivacyCopy.ts');
+if (/publicly displayed on VeInvite surfaces/.test(profilePrivacy) || /superficies de VeInvite/.test(profilePrivacy)) {
+  failures.push('Public profile privacy copy contains literal UX-jargon translations.');
+}
+if (!/Dernière mise à jour : 1er septembre 2026/.test(profilePrivacy)) {
+  failures.push('French public-profile privacy date is not grammatically polished.');
 }
 
 const finalUi = read('src/app/final-ui-hardening.css');
