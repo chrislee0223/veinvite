@@ -3,6 +3,7 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 
 import { GuideUiPreview } from '@/components/GuideUiPreview';
+import { InfiniteReferralCanvasPreview } from '@/components/InfiniteReferralCanvasPreview';
 import { InviteRejectionPreview } from '@/components/InviteRejectionPreview';
 import { LeaderboardUiPreview } from '@/components/LeaderboardUiPreview';
 import { NotificationUiPreview } from '@/components/NotificationUiPreview';
@@ -53,6 +54,7 @@ export default function UiTestPage() {
       <NotificationUiPreview />
       <GuideUiPreview />
       <LeaderboardUiPreview />
+      <InfiniteReferralCanvasPreview />
       <InviteRejectionPreview />
 
       <section className="legalPreviewLinks">
