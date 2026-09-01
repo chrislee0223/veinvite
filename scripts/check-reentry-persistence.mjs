@@ -53,6 +53,15 @@ if (!/WALLET_SIGNATURE_TIMEOUT_MS\s*=\s*15_000/.test(walletAuth) || !/withTimeou
 if (!/disconnectFromVerification/.test(walletSessionGate) || !/t\.disconnectWallet/.test(walletSessionGate)) {
   failures.push('The wallet verification gate must retain a visible disconnect recovery path.');
 }
+if (!/pagehide/.test(walletSessionGate) || !/pageLifecycleRef/.test(walletSessionGate) || !/document\.visibilityState\s*===\s*['"]hidden['"]/.test(walletSessionGate)) {
+  failures.push('Page refresh/navigation must not be mistaken for an explicit wallet logout that revokes the server session.');
+}
+if (!/SESSION_CHECK_SURFACE_DELAY_MS\s*=\s*450/.test(walletSessionGate) || !/showCheckingSurface/.test(walletSessionGate)) {
+  failures.push('Normal session restoration should stay visually quiet instead of flashing the full verification card on every refresh.');
+}
+if (!/\/api\/auth\/session/.test(walletAuth) || !/session\.authenticated/.test(walletAuth)) {
+  failures.push('Wallet authentication must reuse a valid existing server session before requesting a fresh wallet signature.');
+}
 
 if (!/\/api\/notifications/.test(notifications) || !/method:\s*['"]POST['"]/.test(notifications) || !/acknowledgeAndClose/.test(notifications)) {
   failures.push('Notification acknowledgement must remain server-backed so read state survives app re-entry.');
