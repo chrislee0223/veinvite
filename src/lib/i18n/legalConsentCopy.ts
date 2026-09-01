@@ -39,7 +39,7 @@ export const LEGAL_CONSENT_COPY: Record<Locale, LegalConsentCopy> = {
     description: 'VeInvite를 계속 사용하려면 이용약관과 개인정보 처리방침을 확인하고 동의해 주세요.',
     terms: '이용약관',
     privacy: '개인정보 처리방침',
-    acceptAll: '전체 수락',
+    acceptAll: '모두 동의',
     accepting: '저장 중…',
     errorTitle: '동의 상태를 확인할 수 없어요',
     errorDescription: '다시 시도해 주세요. 한 번 저장된 동의는 같은 지갑과 같은 약관 버전에서 다시 요청하지 않아요.',
