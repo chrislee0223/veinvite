@@ -62,6 +62,9 @@ jobs:
       - name: Server stability gate
         run: node scripts/check-server-stability.mjs
 
+      - name: Vercel deployment policy gate
+        run: node scripts/check-vercel-deployment-policy.mjs
+
       - name: Audit hardening gate
         run: node scripts/check-audit-hardening.mjs
 
