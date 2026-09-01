@@ -50,6 +50,20 @@ if (
   );
 }
 
+const healthRoute = read('src/app/api/health/route.ts');
+if (
+  !/VERCEL_GIT_COMMIT_SHA/.test(healthRoute) ||
+  !/gitCommitShortSha/.test(healthRoute) ||
+  !/deployment,/.test(healthRoute)
+) {
+  failures.push(
+    'Health responses must expose the running deployment revision so stale production builds can be detected immediately.',
+  );
+}
+if (!/Cache-Control': 'no-store'/.test(healthRoute)) {
+  failures.push('Health responses must remain uncached.');
+}
+
 assertAuthBeforePool(
   'src/app/api/admin/monitoring/route.ts',
   'Operator monitoring',

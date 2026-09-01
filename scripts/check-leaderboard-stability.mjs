@@ -10,6 +10,8 @@ function read(path) {
 
 const route = read('src/app/api/leaderboard/route.ts');
 const leaderboard = read('src/components/PublicLeaderboard.tsx');
+const layoutPolish = read('src/components/SecondaryPageLayoutPolish.tsx');
+const appProviders = read('src/components/AppProviders.tsx');
 const preview = read('src/components/LeaderboardUiPreview.tsx');
 const migration = read(
   'supabase/migrations/20260829043433_add_public_lifetime_leaderboard.sql',
@@ -40,11 +42,8 @@ if (
 ) {
   failures.push('Outside-Top-100 current-wallet fallback row is missing.');
 }
-if (!/entry\.rank\s*<=\s*5\s*\?\s*'featured'\s*:\s*'compact'/.test(leaderboard)) {
+if (!/entry\.rank\s*>\s*0\s*&&\s*entry\.rank\s*<=\s*5\s*\?\s*'featured'\s*:\s*'compact'/.test(leaderboard)) {
   failures.push('Top 5 and ranks 6-100 no longer use the reviewed density split.');
-}
-if (!/\.tableHeader span:nth-child\(3\)[\s\S]*\.tableHeader span:nth-child\(4\)[\s\S]*text-align:right/.test(leaderboard)) {
-  failures.push('Completed-friend and B3TR headers must align right with their numeric columns.');
 }
 if (!/font-variant-numeric:tabular-nums/.test(leaderboard)) {
   failures.push('Leaderboard numeric columns must keep tabular numerals.');
@@ -52,6 +51,52 @@ if (!/font-variant-numeric:tabular-nums/.test(leaderboard)) {
 if (/\.rows\s*\{[^}]*overflow(?:-y)?\s*:/s.test(leaderboard)) {
   failures.push('Leaderboard must use normal page scrolling, not a nested row scroller.');
 }
+
+// The effective production layout is intentionally hardened by a mounted
+// global style layer. Guard the final presentation, not only the base JSX
+// component, so a future refactor cannot silently recreate the misaligned
+// unranked row that was visible in production on 2026-09-01.
+if (!/import \{ SecondaryPageLayoutPolish \} from '\.\/SecondaryPageLayoutPolish';/.test(appProviders)) {
+  failures.push('AppProviders must import the final secondary-page layout polish layer.');
+}
+if (!/<SecondaryPageLayoutPolish\s*\/>/.test(appProviders)) {
+  failures.push('AppProviders must mount the final secondary-page layout polish layer.');
+}
+if (!/\.leaderboardPage \.rankingTopline\s*\{[\s\S]*?display:none\s*!important/.test(layoutPolish)) {
+  failures.push('The redundant visible Top 100 badge returned.');
+}
+if (
+  !/--rank-column:34px/.test(layoutPolish) ||
+  !/--completed-column:78px/.test(layoutPolish) ||
+  !/--reward-column:98px/.test(layoutPolish) ||
+  !/grid-template-columns:[\s\S]*var\(--rank-column\)[\s\S]*minmax\(0,1fr\)[\s\S]*var\(--completed-column\)[\s\S]*var\(--reward-column\)\s*!important/.test(layoutPolish)
+) {
+  failures.push('Leaderboard header and rows no longer share the reviewed four-column geometry.');
+}
+if (
+  !/\.tableHeader span:nth-child\(2\)[\s\S]*padding-left:27px\s*!important/.test(layoutPolish) ||
+  !/\.walletCell\s*\{[\s\S]*padding-left:27px\s*!important/.test(layoutPolish)
+) {
+  failures.push('Inviter header and wallet text can drift out of alignment again.');
+}
+if (!/\.tableHeader span:nth-child\(3\),[\s\S]*\.tableHeader span:nth-child\(4\)[\s\S]*text-align:center\s*!important/.test(layoutPolish)) {
+  failures.push('Invite-count and reward headers must stay centered over their numeric columns.');
+}
+if (!/\.leaderboardPage \.walletCell::before\s*\{/.test(layoutPolish)) {
+  failures.push('Neutral wallet-avatar fallback is missing from leaderboard rows.');
+}
+if (
+  !/\.rankRow\.trailingCurrent \.completedMetric b::after\s*\{[\s\S]*content:'—'\s*!important/.test(layoutPolish)
+) {
+  failures.push('Unranked connected wallets must show a dash instead of a misleading invite-count zero.');
+}
+if (!/@media \(max-width:420px\)[\s\S]*--completed-column:64px[\s\S]*--reward-column:84px/.test(layoutPolish)) {
+  failures.push('Reviewed narrow-phone leaderboard geometry is missing.');
+}
+if (!/@media \(max-width:360px\)[\s\S]*--completed-column:58px[\s\S]*--reward-column:78px/.test(layoutPolish)) {
+  failures.push('Reviewed extra-narrow-phone leaderboard geometry is missing.');
+}
+
 if (!/Array\.from\(\{\s*length:\s*100\s*\}/.test(preview)) {
   failures.push('UI test leaderboard must exercise a full 100-row preview.');
 }

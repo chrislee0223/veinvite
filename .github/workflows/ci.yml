@@ -50,6 +50,9 @@ jobs:
       - name: User-facing copy and UX gate
         run: node scripts/check-user-facing-copy.mjs
 
+      - name: Profile cleanup regression gate
+        run: node scripts/check-profile-cleanup.mjs
+
       - name: Forecast stability gate
         run: node scripts/check-forecast-stability.mjs
 
