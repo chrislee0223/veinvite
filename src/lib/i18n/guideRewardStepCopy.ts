@@ -7,7 +7,7 @@ type GuideRewardStepCopy = {
 
 export const GUIDE_REWARD_STEP_COPY: Record<Locale, GuideRewardStepCopy> = {
   en: {
-    title: 'Reward is sent automatically after the missions',
+    title: 'Reward is sent automatically after all missions are complete',
     description:
       'When your friend completes all missions and the invitation is eligible, VeInvite sends your reward automatically. No claim is needed.',
   },
@@ -27,37 +27,37 @@ export const GUIDE_REWARD_STEP_COPY: Record<Locale, GuideRewardStepCopy> = {
       'जब आपका दोस्त सभी मिशन पूरे कर लेता है और आमंत्रण इनाम के लिए पात्र होता है, VeInvite इनाम अपने-आप भेज देता है। अलग से क्लेम करने की जरूरत नहीं है।',
   },
   es: {
-    title: 'La recompensa se envía automáticamente al completar las misiones',
+    title: 'La recompensa se envía automáticamente al completar todas las misiones',
     description:
       'Cuando tu amigo completa todas las misiones y la invitación cumple los requisitos, VeInvite envía la recompensa automáticamente. No tienes que solicitarla.',
   },
   ja: {
-    title: 'ミッション完了後、報酬は自動で支払われます',
+    title: 'すべてのミッション完了後、報酬は自動で送られます',
     description:
-      '友だちがすべてのミッションを完了し、招待が報酬対象になると、VeInviteから報酬が自動で支払われます。受け取り申請は不要です。',
+      '友だちがすべてのミッションを完了し、招待が報酬対象になると、VeInviteから報酬が自動で送られます。受け取り申請は不要です。',
   },
   it: {
-    title: 'La ricompensa viene inviata automaticamente dopo le missioni',
+    title: 'La ricompensa viene inviata automaticamente dopo aver completato tutte le missioni',
     description:
       'Quando il tuo amico completa tutte le missioni e l’invito risulta idoneo, VeInvite invia automaticamente la ricompensa. Non serve richiederla.',
   },
   tr: {
-    title: 'Görevler tamamlanınca ödül otomatik gönderilir',
+    title: 'Tüm görevler tamamlanınca ödül otomatik gönderilir',
     description:
       'Arkadaşın tüm görevleri tamamladığında ve davet ödüle uygun olduğunda VeInvite ödülü otomatik olarak gönderir. Ayrı bir talep gerekmez.',
   },
   nl: {
-    title: 'Je beloning wordt automatisch verstuurd na de missies',
+    title: 'Je beloning wordt automatisch verstuurd zodra alle missies zijn voltooid',
     description:
       'Zodra je vriend alle missies heeft voltooid en de uitnodiging aan de voorwaarden voldoet, stuurt VeInvite je beloning automatisch. Je hoeft niets te claimen.',
   },
   de: {
-    title: 'Die Belohnung wird nach den Missionen automatisch ausgezahlt',
+    title: 'Die Belohnung wird nach Abschluss aller Missionen automatisch ausgezahlt',
     description:
       'Sobald dein Freund alle Missionen abgeschlossen hat und die Einladung die Voraussetzungen erfüllt, zahlt VeInvite die Belohnung automatisch aus. Ein separater Antrag ist nicht nötig.',
   },
   fr: {
-    title: 'La récompense est envoyée automatiquement après les missions',
+    title: 'La récompense est envoyée automatiquement une fois toutes les missions terminées',
     description:
       'Lorsque votre ami a terminé toutes les missions et que l’invitation est éligible, VeInvite envoie automatiquement la récompense. Aucune demande n’est nécessaire.',
   },
