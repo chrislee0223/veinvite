@@ -23,6 +23,9 @@ import {
 import {
   WALLET_SESSION_COPY,
 } from '@/lib/i18n/walletSessionCopy';
+import {
+  LegalConsentGate,
+} from '@/components/LegalConsentGate';
 
 type VerificationState =
   | 'idle'
@@ -264,7 +267,16 @@ export function WalletSessionGate({
     state === 'verified' &&
     verifiedWallet === walletAddress
   ) {
-    return children;
+    return (
+      <LegalConsentGate
+        walletAddress={walletAddress}
+        locale={locale}
+        onDisconnect={disconnectFromVerification}
+        isDisconnecting={isDisconnecting}
+      >
+        {children}
+      </LegalConsentGate>
+    );
   }
 
   const t = WALLET_SESSION_COPY[locale];
