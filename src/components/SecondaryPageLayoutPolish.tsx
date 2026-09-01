@@ -31,10 +31,25 @@ export function SecondaryPageLayoutPolish() {
         display:none !important;
       }
 
+      /* One set of column measurements drives both the header and every row.
+       * rankPrimary intentionally spans the first two outer columns and uses
+       * the same rank width/gap internally, so rank + inviter can never drift
+       * away from the header even if row contents change later. */
+      .leaderboardPage .rankingCard {
+        --rank-column:34px;
+        --completed-column:76px;
+        --reward-column:94px;
+        --leaderboard-gap:7px;
+      }
+
       .leaderboardPage .tableHeader,
       .leaderboardPage .rankRow {
-        grid-template-columns:34px minmax(0,1fr) 76px 94px !important;
-        gap:7px !important;
+        grid-template-columns:
+          var(--rank-column)
+          minmax(0,1fr)
+          var(--completed-column)
+          var(--reward-column) !important;
+        gap:var(--leaderboard-gap) !important;
         align-items:center !important;
       }
 
@@ -61,11 +76,21 @@ export function SecondaryPageLayoutPolish() {
         padding:9px 12px !important;
       }
 
-      /* rankPrimary contains both rank and inviter. display:contents makes
-       * those two items participate directly in the same four-column grid as
-       * the header so values cannot drift into the wrong metric column. */
       .leaderboardPage .rankPrimary {
-        display:contents !important;
+        grid-column:1 / 3 !important;
+        min-width:0 !important;
+        display:grid !important;
+        grid-template-columns:var(--rank-column) minmax(0,1fr) !important;
+        gap:var(--leaderboard-gap) !important;
+        align-items:center !important;
+      }
+
+      .leaderboardPage .completedMetric {
+        grid-column:3 !important;
+      }
+
+      .leaderboardPage .rewardMetric {
+        grid-column:4 !important;
       }
 
       .leaderboardPage .rankValue {
@@ -99,10 +124,11 @@ export function SecondaryPageLayoutPolish() {
       }
 
       @media (max-width:420px) {
-        .leaderboardPage .tableHeader,
-        .leaderboardPage .rankRow {
-          grid-template-columns:30px minmax(0,1fr) 70px 90px !important;
-          gap:6px !important;
+        .leaderboardPage .rankingCard {
+          --rank-column:30px;
+          --completed-column:70px;
+          --reward-column:90px;
+          --leaderboard-gap:6px;
         }
 
         .leaderboardPage .tableHeader {
@@ -123,10 +149,11 @@ export function SecondaryPageLayoutPolish() {
       }
 
       @media (max-width:360px) {
-        .leaderboardPage .tableHeader,
-        .leaderboardPage .rankRow {
-          grid-template-columns:28px minmax(0,1fr) 64px 84px !important;
-          gap:5px !important;
+        .leaderboardPage .rankingCard {
+          --rank-column:28px;
+          --completed-column:64px;
+          --reward-column:84px;
+          --leaderboard-gap:5px;
         }
 
         .leaderboardPage .tableHeader {
