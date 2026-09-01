@@ -10,7 +10,7 @@ export const PROFILE_PRIVACY_COPY: Record<Locale, ProfilePrivacyCopy> = {
   en: {
     updated: 'Last updated: September 1, 2026',
     heading: 'Optional public profile',
-    body: 'If you choose to create a VeInvite public profile, VeInvite stores the profile name and profile image you provide and associates them with your wallet address. This information is intended to be publicly displayed on VeInvite surfaces such as the leaderboard and Network. Creating a profile is optional; if no profile is set, VeInvite may display a shortened wallet address instead. Profile data does not affect referral eligibility, ranking calculations, Sybil decisions, or rewards.',
+    body: 'If you choose to create a VeInvite public profile, VeInvite stores the profile name and profile image you provide and associates them with your wallet address. This information may be displayed publicly in VeInvite, including on the leaderboard and Network. Creating a profile is optional; if no profile is set, VeInvite may display a shortened wallet address instead. Profile data does not affect referral eligibility, ranking calculations, Sybil decisions, or rewards.',
   },
   ko: {
     updated: '최종 업데이트: 2026년 9월 1일',
@@ -30,7 +30,7 @@ export const PROFILE_PRIVACY_COPY: Record<Locale, ProfilePrivacyCopy> = {
   es: {
     updated: 'Última actualización: 1 de septiembre de 2026',
     heading: 'Perfil público opcional',
-    body: 'Si decides crear un perfil público de VeInvite, VeInvite guarda el nombre y la imagen de perfil que proporciones y los asocia a la dirección de tu cartera. Esta información está destinada a mostrarse públicamente en superficies de VeInvite como la clasificación y Network. Crear un perfil es opcional; si no lo configuras, VeInvite puede mostrar una dirección de cartera abreviada. Los datos del perfil no afectan a la elegibilidad de las invitaciones, el cálculo de la clasificación, las decisiones Sybil ni las recompensas.',
+    body: 'Si decides crear un perfil público de VeInvite, VeInvite guarda el nombre y la imagen de perfil que proporciones y los asocia a la dirección de tu cartera. Esta información puede mostrarse públicamente en áreas de VeInvite como la clasificación y Network. Crear un perfil es opcional; si no lo configuras, VeInvite puede mostrar una dirección de cartera abreviada. Los datos del perfil no afectan a la elegibilidad de las invitaciones, el cálculo de la clasificación, las decisiones Sybil ni las recompensas.',
   },
   ja: {
     updated: '最終更新：2026年9月1日',
@@ -58,7 +58,7 @@ export const PROFILE_PRIVACY_COPY: Record<Locale, ProfilePrivacyCopy> = {
     body: 'Wenn du ein öffentliches VeInvite-Profil erstellst, speichert VeInvite den von dir angegebenen Profilnamen und das Profilbild und verknüpft sie mit deiner Wallet-Adresse. Diese Informationen sind für die öffentliche Anzeige in VeInvite vorgesehen, etwa in der Rangliste und im Network. Ein Profil ist freiwillig; ohne Profil kann VeInvite stattdessen eine gekürzte Wallet-Adresse anzeigen. Profildaten beeinflussen weder Einladungsberechtigung noch Rangberechnung, Sybil-Entscheidungen oder Belohnungen.',
   },
   fr: {
-    updated: 'Dernière mise à jour : 1 septembre 2026',
+    updated: 'Dernière mise à jour : 1er septembre 2026',
     heading: 'Profil public facultatif',
     body: 'Si vous choisissez de créer un profil public VeInvite, VeInvite enregistre le nom et l’image de profil que vous fournissez et les associe à votre adresse de wallet. Ces informations sont destinées à être affichées publiquement dans VeInvite, notamment dans le classement et le Network. La création d’un profil est facultative ; sans profil, VeInvite peut afficher une adresse de wallet abrégée. Les données du profil n’influencent ni l’éligibilité des invitations, ni le calcul du classement, ni les décisions Sybil, ni les récompenses.',
   },
