@@ -29,7 +29,7 @@ export function SecondaryPageLayoutPolish() {
         display:none !important;
       }
 
-      /* Header and rows share the exact same four-column measurements. */
+      /* Header and rows share one exact four-column track definition. */
       .leaderboardPage .rankingCard {
         --rank-column:34px;
         --completed-column:78px;
@@ -82,28 +82,39 @@ export function SecondaryPageLayoutPolish() {
         padding:10px 12px !important;
       }
 
+      /*
+       * Keep the four visible cells as direct grid participants. The previous
+       * global override turned rankPrimary back into a nested grid, which made
+       * the two metric cells auto-place onto the same visual track at desktop
+       * widths. display:contents removes that wrapper from grid layout while
+       * preserving the existing accessible button DOM.
+       */
       .leaderboardPage .rankPrimary {
-        grid-column:1 / 3 !important;
-        min-width:0 !important;
-        display:grid !important;
-        grid-template-columns:var(--rank-column) minmax(0,1fr) !important;
-        column-gap:var(--leaderboard-gap) !important;
-        align-items:center !important;
-      }
-
-      .leaderboardPage .completedMetric {
-        grid-column:3 !important;
-      }
-
-      .leaderboardPage .rewardMetric {
-        grid-column:4 !important;
+        display:contents !important;
       }
 
       .leaderboardPage .rankValue {
+        grid-column:1 !important;
+        grid-row:1 !important;
         min-width:0 !important;
         text-align:left !important;
         font-size:.72rem !important;
         line-height:1 !important;
+      }
+
+      .leaderboardPage .walletCell {
+        grid-column:2 !important;
+        grid-row:1 !important;
+      }
+
+      .leaderboardPage .completedMetric {
+        grid-column:3 !important;
+        grid-row:1 !important;
+      }
+
+      .leaderboardPage .rewardMetric {
+        grid-column:4 !important;
+        grid-row:1 !important;
       }
 
       /* VeWorld's user-selected PFP is not exposed to dApps. Keep a neutral
