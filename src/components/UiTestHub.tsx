@@ -68,14 +68,6 @@ function buildLeaderboardPreview(): PublicLeaderboardResponse {
       return {
         rank,
         walletAddress: current ? TEST_WALLET : walletForRank(rank),
-        displayName: current
-          ? 'Chris'
-          : rank === 1
-            ? 'Seasick.vet'
-            : rank === 2
-              ? 'VeFriend'
-              : null,
-        avatarUrl: null,
         completedReferrals: Math.max(1, 18 - Math.floor((rank - 1) / 6)),
         totalRewardWei: (BigInt(1300 - rank * 8) * TOKEN_WEI).toString(),
         isCurrentWallet: current,
@@ -95,10 +87,6 @@ function buildLeaderboardPreview(): PublicLeaderboardResponse {
     },
     leaders,
     currentUser: leaders.find((entry) => entry.isCurrentWallet) ?? null,
-    viewerProfile: {
-      displayName: 'Chris',
-      avatarUrl: null,
-    },
   };
 }
 

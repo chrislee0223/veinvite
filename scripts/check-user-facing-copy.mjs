@@ -135,9 +135,14 @@ if (
 const leaderboardPolish = read('src/lib/i18n/secondaryPageCopyHardening.ts');
 if (
   !/친구가 모든 미션을 완료하고 초대한 사람이 B3TR 보상을 받은 초대만 순위에 반영해요/.test(leaderboardPolish) ||
-  !/모든 미션을 완료한 지갑만 온보딩 완료 사용자 수에 포함해요/.test(leaderboardPolish)
+  !/VeInvite를 통해 유입된 사용자/.test(leaderboardPolish) ||
+  !/completed:\s*'초대 횟수'/.test(leaderboardPolish) ||
+  !/earned:\s*'누적 보상'/.test(leaderboardPolish)
 ) {
-  failures.push('Leaderboard explanatory copy no longer matches the reviewed completion and reward semantics.');
+  failures.push('Leaderboard copy no longer matches the reviewed acquisition, invite-count, and reward labels.');
+}
+if (/VeInvite 온보딩 완료 사용자|completed:\s*'완료 초대'|earned:\s*'누적 B3TR'/.test(leaderboardPolish)) {
+  failures.push('Leaderboard copy regressed to retired onboarding/completed-invite labels.');
 }
 
 const rewardReceipt = read('src/lib/i18n/rewardReceiptCopy.ts');
@@ -151,14 +156,6 @@ if (!/VeInvite 초대 보상이 이 지갑으로 지급됐어요/.test(rewardRec
 const legalConsent = read('src/lib/i18n/legalConsentCopy.ts');
 if (!/acceptAll:\s*'모두 동의'/.test(legalConsent)) {
   failures.push('Korean legal consent action should use natural agreement wording.');
-}
-
-const profilePrivacy = read('src/lib/i18n/profilePrivacyCopy.ts');
-if (/publicly displayed on VeInvite surfaces/.test(profilePrivacy) || /superficies de VeInvite/.test(profilePrivacy)) {
-  failures.push('Public profile privacy copy contains literal UX-jargon translations.');
-}
-if (!/Dernière mise à jour : 1er septembre 2026/.test(profilePrivacy)) {
-  failures.push('French public-profile privacy date is not grammatically polished.');
 }
 
 const finalUi = read('src/app/final-ui-hardening.css');

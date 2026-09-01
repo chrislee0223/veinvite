@@ -17,7 +17,6 @@ import {
   resolveBrowserLocale,
   type Locale,
 } from '@/lib/i18n/locales';
-import { PROFILE_PRIVACY_COPY } from '@/lib/i18n/profilePrivacyCopy';
 
 const BACK_LABEL: Record<Locale, string> = {
   en: 'Back',
@@ -96,8 +95,6 @@ export function LocalizedLegalPage({
   };
 
   const copy = LEGAL_COPY[kind][locale];
-  const profilePrivacy =
-    kind === 'privacy' ? PROFILE_PRIVACY_COPY[locale] : null;
 
   return (
     <main className="legalPage" lang={locale}>
@@ -114,7 +111,7 @@ export function LocalizedLegalPage({
       <header className="legalHeader">
         <span>{copy.eyebrow}</span>
         <h1>{copy.title}</h1>
-        <p>{profilePrivacy?.updated ?? copy.updated}</p>
+        <p>{copy.updated}</p>
       </header>
 
       <p className="legalIntro">{copy.intro}</p>
@@ -126,12 +123,6 @@ export function LocalizedLegalPage({
             <p>{section.body}</p>
           </section>
         ))}
-        {profilePrivacy ? (
-          <section>
-            <h2>{profilePrivacy.heading}</h2>
-            <p>{profilePrivacy.body}</p>
-          </section>
-        ) : null}
       </div>
 
       <Link
