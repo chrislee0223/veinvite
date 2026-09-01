@@ -66,7 +66,7 @@ const COPY: Record<Locale, ForecastCopy> = {
   hi: {
     eyebrow: 'अनुमानित इनाम',
     title: 'अगर आप अभी आमंत्रित करना शुरू करें',
-    perInvite: 'हर सफल आमंत्रण का अनुमान',
+    perInvite: 'हर सफल आमंत्रण पर अनुमानित इनाम',
     disclaimer:
       'अनुमानित इनाम वास्तविक आवंटन और भागीदारी के अनुसार बदल सकता है और इसकी गारंटी नहीं है।',
     pendingTitle: 'अनुमान तैयार हो रहा है',
@@ -88,7 +88,7 @@ const COPY: Record<Locale, ForecastCopy> = {
   ja: {
     eyebrow: '予想報酬',
     title: '今から招待を始めた場合',
-    perInvite: '招待成功1件あたりの予想',
+    perInvite: '招待成功1件あたりの予想報酬',
     disclaimer:
       '予想報酬は実際の配分額や参加人数によって変動し、確定した報酬ではありません。',
     pendingTitle: '予想報酬を準備中',
@@ -105,7 +105,7 @@ const COPY: Record<Locale, ForecastCopy> = {
     pendingTitle: 'Stima in preparazione',
     pendingDescription:
       'La stima apparirà automaticamente quando VeInvite avrà dati reali sufficienti sulle allocazioni.',
-    unavailable: 'La stima della ricompensa non è temporaneamente disponibile.',
+    unavailable: 'La stima della ricompensa è temporaneamente non disponibile.',
   },
   tr: {
     eyebrow: 'TAHMİNİ ÖDÜL',
@@ -126,7 +126,7 @@ const COPY: Record<Locale, ForecastCopy> = {
       'De geschatte beloning kan veranderen op basis van de werkelijke toewijzing en het aantal deelnemers en is niet gegarandeerd.',
     pendingTitle: 'Schatting wordt voorbereid',
     pendingDescription:
-      'De schatting verschijnt automatisch zodra VeInvite voldoende echte allocatiegegevens heeft.',
+      'De schatting verschijnt automatisch zodra VeInvite voldoende werkelijke toewijzingsgegevens heeft.',
     unavailable: 'De beloningsschatting is tijdelijk niet beschikbaar.',
   },
   de: {
@@ -137,7 +137,7 @@ const COPY: Record<Locale, ForecastCopy> = {
       'Die geschätzte Belohnung kann sich je nach tatsächlicher Zuteilung und Teilnehmerzahl ändern und ist nicht garantiert.',
     pendingTitle: 'Schätzung wird vorbereitet',
     pendingDescription:
-      'Die Schätzung erscheint automatisch, sobald VeInvite genügend echte Zuteilungsdaten hat.',
+      'Die Schätzung erscheint automatisch, sobald VeInvite über ausreichend tatsächliche Zuteilungsdaten verfügt.',
     unavailable: 'Die Belohnungsschätzung ist vorübergehend nicht verfügbar.',
   },
   fr: {
@@ -378,75 +378,54 @@ export function PublicRewardForecastPortal() {
         .estimateEyebrow {
           color:#f8bc2e;
           font-size:.66rem;
-          font-weight:950;
-          letter-spacing:.1em;
-          text-transform:uppercase;
+          font-weight:900;
+          letter-spacing:.11em;
         }
         h2 {
           margin:5px 0 0;
-          color:#f7f3e8;
-          font-size:1.02rem;
-          line-height:1.3;
-          letter-spacing:-.025em;
+          color:#f4f0e7;
+          font-size:.93rem;
+          font-weight:850;
+          letter-spacing:-.02em;
         }
         .estimateBadge {
           flex:0 0 auto;
-          min-height:27px;
-          padding:0 9px;
-          display:inline-flex;
-          align-items:center;
-          border:1px solid rgba(255,205,80,.26);
+          padding:6px 8px;
+          border:1px solid rgba(255,205,80,.18);
           border-radius:999px;
-          background:rgba(244,183,40,.11);
-          color:#ffd45f;
-          font-size:.66rem;
-          font-weight:950;
+          background:rgba(255,196,42,.08);
+          color:#f4c64b;
+          font-size:.58rem;
+          font-weight:900;
+          letter-spacing:.06em;
         }
         .estimateAmount {
-          margin-top:17px;
-          padding:17px 15px;
-          border:1px solid rgba(255,205,80,.16);
-          border-radius:16px;
-          background:rgba(244,183,40,.07);
-          text-align:center;
+          margin-top:15px;
         }
         .estimateAmount strong {
           display:block;
-          color:#ffd45f;
-          font-size:clamp(1.45rem,7vw,2rem);
-          line-height:1.12;
-          font-variant-numeric:tabular-nums;
-          letter-spacing:-.04em;
+          color:#f9f5eb;
+          font-size:1.28rem;
+          font-weight:950;
+          line-height:1.15;
+          letter-spacing:-.035em;
         }
         .estimateAmount span {
           display:block;
-          margin-top:7px;
-          color:#aca697;
-          font-size:.72rem;
-          font-weight:800;
+          margin-top:5px;
+          color:#9c978d;
+          font-size:.7rem;
+          font-weight:700;
         }
-        .estimateDisclaimer,.estimatePending {
-          max-width:440px;
-          margin:13px auto 0;
-          color:#8f8a80;
-          font-size:.69rem;
-          line-height:1.6;
-          text-align:center;
+        .estimateDisclaimer,
+        .estimatePending {
+          margin:13px 0 0;
+          color:#77736b;
+          font-size:.64rem;
+          line-height:1.5;
         }
         .estimatePending {
-          color:#a49e91;
-        }
-        @media (max-width:420px) {
-          .publicRewardEstimateCard {
-            padding:15px;
-            border-radius:19px;
-          }
-          .estimateTop {
-            gap:10px;
-          }
-          .estimateAmount {
-            padding:16px 12px;
-          }
+          color:#a09b90;
         }
       `}</style>
     </section>,
