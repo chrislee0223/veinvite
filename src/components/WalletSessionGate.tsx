@@ -107,12 +107,10 @@ export function WalletSessionGate({
 
   useEffect(() => {
     const handleWalletDisconnected = () => {
-      // VeChainKit emits this event for genuine wallet disconnects. Unlike a
-      // temporary null account during initial auto-reconnect, it is therefore
-      // safe to revoke the server-side VeInvite session here. If a signature
-      // flow is still settling, clearWalletSession waits for it and then
-      // revokes whatever session was created, preventing a disconnected wallet
-      // from leaving a valid authentication cookie behind.
+      // VeChainKit emits this event for genuine wallet disconnects. Cancel any
+      // ownership proof immediately and revoke the server-side VeInvite
+      // session. clearWalletSession is deliberately bounded so a wallet prompt
+      // that stopped responding cannot trap the app on this gate.
       attemptRef.current += 1;
       autoAttemptedWalletRef.current = null;
       setVerifiedWallet(null);
@@ -186,8 +184,10 @@ export function WalletSessionGate({
         return;
       }
 
-      // Invalidate any result from the failed attempt before clearing the
-      // VeInvite session and the wallet-provider connection.
+      // Invalidate any result from the current attempt before clearing the
+      // VeInvite session and the wallet-provider connection. This button stays
+      // available even while a signature request is pending so the user always
+      // has a recovery path from a stuck wallet provider.
       attemptRef.current += 1;
       autoAttemptedWalletRef.current = null;
       setVerifiedWallet(null);
@@ -358,14 +358,14 @@ export function WalletSessionGate({
           </span>
         ) : null}
 
-        {hasError ? (
-          <div
-            style={{
-              display: 'grid',
-              gap: '10px',
-              marginTop: '4px',
-            }}
-          >
+        <div
+          style={{
+            display: 'grid',
+            gap: '10px',
+            marginTop: '4px',
+          }}
+        >
+          {hasError ? (
             <button
               type="button"
               disabled={isDisconnecting}
@@ -390,36 +390,36 @@ export function WalletSessionGate({
             >
               {t.tryAgain}
             </button>
+          ) : null}
 
-            <button
-              type="button"
-              disabled={isDisconnecting}
-              onClick={() => {
-                void disconnectFromVerification();
-              }}
-              style={{
-                width: '100%',
-                minHeight: '46px',
-                borderRadius: '14px',
-                border:
-                  '1px solid rgba(255,255,255,0.16)',
-                background:
-                  'rgba(255,255,255,0.04)',
-                color: '#f8f6ef',
-                cursor: isDisconnecting
-                  ? 'wait'
-                  : 'pointer',
-                font: 'inherit',
-                fontWeight: 750,
-                opacity: isDisconnecting ? 0.62 : 0.9,
-              }}
-            >
-              {isDisconnecting
-                ? t.disconnectingWallet
-                : t.disconnectWallet}
-            </button>
-          </div>
-        ) : null}
+          <button
+            type="button"
+            disabled={isDisconnecting}
+            onClick={() => {
+              void disconnectFromVerification();
+            }}
+            style={{
+              width: '100%',
+              minHeight: '46px',
+              borderRadius: '14px',
+              border:
+                '1px solid rgba(255,255,255,0.16)',
+              background:
+                'rgba(255,255,255,0.04)',
+              color: '#f8f6ef',
+              cursor: isDisconnecting
+                ? 'wait'
+                : 'pointer',
+              font: 'inherit',
+              fontWeight: 750,
+              opacity: isDisconnecting ? 0.62 : 0.9,
+            }}
+          >
+            {isDisconnecting
+              ? t.disconnectingWallet
+              : t.disconnectWallet}
+          </button>
+        </div>
       </div>
     </div>
   );
