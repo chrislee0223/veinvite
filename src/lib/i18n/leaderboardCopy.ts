@@ -35,7 +35,7 @@ export const LEADERBOARD_COPY: Record<Locale, LeaderboardCopy> = {
     title: 'VeInvite Leaderboard',
     description:
       'Rankings count referrals only after every mission is complete and the inviter has received the verified reward payout.',
-    impactTitle: 'People onboarded through VeInvite',
+    impactTitle: 'Users brought in through VeInvite',
     totalUsers: 'Total',
     newUsers: 'New users',
     returningUsers: 'Returning users',
@@ -44,33 +44,33 @@ export const LEADERBOARD_COPY: Record<Locale, LeaderboardCopy> = {
     reportingSince: (round) =>
       `Official totals are tracked from Round ${round}.`,
     rank: 'Rank',
-    wallet: 'Wallet',
-    completed: 'Completed',
-    earned: 'B3TR earned',
+    wallet: 'Inviter',
+    completed: 'Invites',
+    earned: 'Rewards',
     myRank: 'My rank',
     unranked: 'Not ranked',
     connectForRank:
       'Connect your wallet to see your rank here.',
     empty:
-      'No referral rewards have been paid yet.',
+      'No invitations are ranked yet.',
     loading: 'Loading the leaderboard…',
     loadError: 'The leaderboard could not be loaded.',
     retry: 'Try again',
-    walletDetails: 'Wallet details',
+    walletDetails: 'Inviter details',
     fullAddress: 'Full wallet address',
     viewExplorer: 'View on VeChain Explorer',
     explorerNote:
       'The Explorer shows public on-chain activity.',
     close: 'Close',
     openWallet: (address) =>
-      `View details for wallet ${address}`,
+      `View details for inviter ${address}`,
   },
   ko: {
     eyebrow: '전체 누계',
     title: 'VeInvite 리더보드',
     description:
       '친구가 모든 미션을 완료하고, 초대한 사람이 실제 보상까지 받은 건만 순위에 반영해요.',
-    impactTitle: 'VeInvite를 통해 참여한 사용자',
+    impactTitle: 'VeInvite를 통해 유입된 사용자',
     totalUsers: '전체',
     newUsers: '신규 사용자',
     returningUsers: '복귀 사용자',
@@ -79,26 +79,26 @@ export const LEADERBOARD_COPY: Record<Locale, LeaderboardCopy> = {
     reportingSince: (round) =>
       `공식 누계는 ${round} 라운드부터 집계해요.`,
     rank: '순위',
-    wallet: '지갑',
-    completed: '완료한 친구',
-    earned: '누적 B3TR',
+    wallet: '초대자',
+    completed: '초대 횟수',
+    earned: '누적 보상',
     myRank: '내 순위',
     unranked: '순위 없음',
     connectForRank:
       '지갑을 연결하면 내 순위를 바로 확인할 수 있어요.',
     empty:
-      '아직 지급까지 완료된 초대 보상이 없어요.',
+      '아직 순위에 반영된 초대가 없어요.',
     loading: '리더보드를 불러오는 중이에요…',
     loadError: '리더보드를 불러오지 못했어요.',
     retry: '다시 불러오기',
-    walletDetails: '지갑 상세 정보',
+    walletDetails: '초대자 정보',
     fullAddress: '전체 지갑 주소',
     viewExplorer: 'VeChain Explorer에서 확인',
     explorerNote:
       'Explorer에는 공개된 온체인 활동만 표시돼요.',
     close: '닫기',
     openWallet: (address) =>
-      `${address} 지갑 상세 보기`,
+      `${address} 초대자 정보 보기`,
   },
   zh: {
     eyebrow: '历史累计',
@@ -114,9 +114,9 @@ export const LEADERBOARD_COPY: Record<Locale, LeaderboardCopy> = {
     reportingSince: (round) =>
       `官方累计数据从第 ${round} 轮开始统计。`,
     rank: '排名',
-    wallet: '钱包',
-    completed: '完成邀请',
-    earned: '累计 B3TR',
+    wallet: '邀请人',
+    completed: '邀请次数',
+    earned: '累计奖励',
     myRank: '我的排名',
     unranked: '暂无排名',
     connectForRank:
@@ -148,9 +148,9 @@ export const LEADERBOARD_COPY: Record<Locale, LeaderboardCopy> = {
     reportingSince: (round) =>
       `आधिकारिक आँकड़े राउंड ${round} से गिने जा रहे हैं।`,
     rank: 'रैंक',
-    wallet: 'वॉलेट',
-    completed: 'पूरा किया',
-    earned: 'कमाया B3TR',
+    wallet: 'आमंत्रक',
+    completed: 'आमंत्रण',
+    earned: 'कुल इनाम',
     myRank: 'मेरी रैंक',
     unranked: 'रैंक नहीं है',
     connectForRank:
@@ -182,9 +182,9 @@ export const LEADERBOARD_COPY: Record<Locale, LeaderboardCopy> = {
     reportingSince: (round) =>
       `Los totales oficiales se contabilizan desde la ronda ${round}.`,
     rank: 'Puesto',
-    wallet: 'Cartera',
-    completed: 'Completadas',
-    earned: 'B3TR acumulado',
+    wallet: 'Invitador',
+    completed: 'Invitaciones',
+    earned: 'Recompensas',
     myRank: 'Mi puesto',
     unranked: 'Sin clasificar',
     connectForRank:
@@ -208,7 +208,7 @@ export const LEADERBOARD_COPY: Record<Locale, LeaderboardCopy> = {
     title: 'VeInvite ランキング',
     description:
       '友だちがすべてのミッションを完了し、招待した人への確認済み報酬の支払いまで完了した招待だけがランキングに反映されます。',
-    impactTitle: 'VeInviteから参加したユーザー',
+    impactTitle: 'VeInvite経由で参加したユーザー',
     totalUsers: '合計',
     newUsers: '新規ユーザー',
     returningUsers: '復帰ユーザー',
@@ -217,9 +217,9 @@ export const LEADERBOARD_COPY: Record<Locale, LeaderboardCopy> = {
     reportingSince: (round) =>
       `公式集計はラウンド${round}から開始しています。`,
     rank: '順位',
-    wallet: 'ウォレット',
-    completed: '完了数',
-    earned: '累計B3TR',
+    wallet: '招待者',
+    completed: '招待数',
+    earned: '累計報酬',
     myRank: '自分の順位',
     unranked: '順位なし',
     connectForRank:
@@ -251,9 +251,9 @@ export const LEADERBOARD_COPY: Record<Locale, LeaderboardCopy> = {
     reportingSince: (round) =>
       `I totali ufficiali vengono conteggiati dal round ${round}.`,
     rank: 'Posizione',
-    wallet: 'Wallet',
-    completed: 'Completati',
-    earned: 'B3TR accumulati',
+    wallet: 'Invitante',
+    completed: 'Inviti',
+    earned: 'Ricompense',
     myRank: 'La mia posizione',
     unranked: 'Non in classifica',
     connectForRank:
@@ -286,9 +286,9 @@ export const LEADERBOARD_COPY: Record<Locale, LeaderboardCopy> = {
     reportingSince: (round) =>
       `Resmî toplamlar ${round}. turdan itibaren tutuluyor.`,
     rank: 'Sıra',
-    wallet: 'Cüzdan',
-    completed: 'Tamamlanan',
-    earned: 'Toplam B3TR',
+    wallet: 'Davet eden',
+    completed: 'Davetler',
+    earned: 'Toplam ödül',
     myRank: 'Sıram',
     unranked: 'Sıralamada yok',
     connectForRank:
@@ -320,9 +320,9 @@ export const LEADERBOARD_COPY: Record<Locale, LeaderboardCopy> = {
     reportingSince: (round) =>
       `De officiële totalen worden bijgehouden vanaf ronde ${round}.`,
     rank: 'Positie',
-    wallet: 'Wallet',
-    completed: 'Voltooid',
-    earned: 'B3TR verdiend',
+    wallet: 'Uitnodiger',
+    completed: 'Uitnodigingen',
+    earned: 'Beloningen',
     myRank: 'Mijn positie',
     unranked: 'Niet gerangschikt',
     connectForRank:
@@ -355,9 +355,9 @@ export const LEADERBOARD_COPY: Record<Locale, LeaderboardCopy> = {
     reportingSince: (round) =>
       `Die offiziellen Gesamtwerte werden ab Runde ${round} erfasst.`,
     rank: 'Rang',
-    wallet: 'Wallet',
-    completed: 'Abgeschlossen',
-    earned: 'B3TR gesamt',
+    wallet: 'Einladender',
+    completed: 'Einladungen',
+    earned: 'Belohnungen',
     myRank: 'Mein Rang',
     unranked: 'Nicht platziert',
     connectForRank:
@@ -390,9 +390,9 @@ export const LEADERBOARD_COPY: Record<Locale, LeaderboardCopy> = {
     reportingSince: (round) =>
       `Les totaux officiels sont comptabilisés à partir de la manche ${round}.`,
     rank: 'Rang',
-    wallet: 'Wallet',
-    completed: 'Terminées',
-    earned: 'B3TR cumulés',
+    wallet: 'Inviteur',
+    completed: 'Invitations',
+    earned: 'Récompenses',
     myRank: 'Mon rang',
     unranked: 'Non classé',
     connectForRank:
