@@ -4,6 +4,11 @@ const PRODUCTION_SUPABASE_PROJECT_REF =
   'upfjvkidaqtnbmmnhupz';
 const PREVIEW_SUPABASE_PROJECT_REF =
   'bpppslplhmppxzvdkwxs';
+const JWT_FUTURE_RETRY_DELAY_MS = 750;
+const RETRIABLE_READ_METHODS = new Set([
+  'GET',
+  'HEAD',
+]);
 
 const supabaseUrl =
   process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -91,10 +96,67 @@ function assertSafeDatabaseEnvironment() {
   }
 }
 
+function getRequestMethod(
+  input: Parameters<typeof fetch>[0],
+  init?: Parameters<typeof fetch>[1],
+): string {
+  const configuredMethod =
+    init?.method?.trim();
+
+  if (configuredMethod) {
+    return configuredMethod.toUpperCase();
+  }
+
+  if (input instanceof Request) {
+    return input.method.toUpperCase();
+  }
+
+  return 'GET';
+}
+
+async function wait(
+  milliseconds: number,
+): Promise<void> {
+  await new Promise<void>((resolve) => {
+    setTimeout(resolve, milliseconds);
+  });
+}
+
+async function hasJwtIssuedAtFuture(
+  response: Response,
+): Promise<boolean> {
+  if (response.ok) {
+    return false;
+  }
+
+  try {
+    const body = await response.clone().text();
+    return body.includes('JWT issued at future');
+  } catch {
+    return false;
+  }
+}
+
 const guardedFetch: typeof fetch = async (
   input,
   init,
 ) => {
+  assertSafeDatabaseEnvironment();
+
+  const method = getRequestMethod(input, init);
+  const response = await fetch(input, init);
+
+  // Supabase can very occasionally reject a valid server-side JWT while
+  // clocks are converging. Retry only an idempotent read, only once, and only
+  // for the exact transient error. Mutations are never retried here.
+  if (
+    !RETRIABLE_READ_METHODS.has(method) ||
+    !(await hasJwtIssuedAtFuture(response))
+  ) {
+    return response;
+  }
+
+  await wait(JWT_FUTURE_RETRY_DELAY_MS);
   assertSafeDatabaseEnvironment();
   return fetch(input, init);
 };

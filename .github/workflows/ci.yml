@@ -53,6 +53,9 @@ jobs:
       - name: Profile cleanup regression gate
         run: node scripts/check-profile-cleanup.mjs
 
+      - name: Final audit resilience gate
+        run: node scripts/check-final-audit-resilience.mjs
+
       - name: Forecast stability gate
         run: node scripts/check-forecast-stability.mjs
 
