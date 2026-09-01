@@ -3,6 +3,7 @@ import {
   NextResponse,
 } from 'next/server';
 
+import { readPublicProfiles } from '@/lib/publicProfileServer';
 import {
   enforceRateLimits,
   getClientIpSubject,
@@ -64,6 +65,8 @@ function normalizeLeaderboardRow(
   return {
     rank: parseCount(row.rank_position, 'Leaderboard rank'),
     walletAddress,
+    displayName: null,
+    avatarUrl: null,
     completedReferrals: parseCount(
       row.completed_referrals,
       'Completed referrals',
@@ -193,6 +196,20 @@ export async function GET(
       (leaderboardResult.data ?? []) as LeaderboardRow[]
     ).map(normalizeLeaderboardRow);
 
+    const profileWallets = [
+      ...entries.map((entry) => entry.walletAddress),
+      ...(wallet ? [wallet] : []),
+    ];
+    const profiles = await readPublicProfiles(profileWallets);
+    const entriesWithProfiles = entries.map((entry) => {
+      const profile = profiles.get(entry.walletAddress);
+      return {
+        ...entry,
+        displayName: profile?.displayName ?? null,
+        avatarUrl: profile?.avatarUrl ?? null,
+      };
+    });
+
     const growthRows = (
       (growthResult.data ?? []) as GrowthRow[]
     ).map((row) => ({
@@ -222,6 +239,7 @@ export async function GET(
         ? Math.min(...growthRows.map((row) => row.roundId))
         : null;
 
+    const viewerProfile = wallet ? profiles.get(wallet) ?? null : null;
     const response: PublicLeaderboardResponse = {
       generatedAt: new Date().toISOString(),
       network: round.network,
@@ -234,11 +252,17 @@ export async function GET(
         newUsers: latestGrowth?.newUsers ?? 0,
         returningUsers: latestGrowth?.returningUsers ?? 0,
       },
-      leaders: entries.filter(
+      leaders: entriesWithProfiles.filter(
         (entry) => entry.rank <= LEADERBOARD_SIZE,
       ),
       currentUser:
-        entries.find((entry) => entry.isCurrentWallet) ?? null,
+        entriesWithProfiles.find((entry) => entry.isCurrentWallet) ?? null,
+      viewerProfile: viewerProfile
+        ? {
+            displayName: viewerProfile.displayName,
+            avatarUrl: viewerProfile.avatarUrl,
+          }
+        : null,
     };
 
     return NextResponse.json(response, {

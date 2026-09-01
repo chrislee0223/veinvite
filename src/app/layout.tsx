@@ -9,6 +9,7 @@ import './header-language-flags.css';
 import './localized-typography.css';
 import './ui-safety.css';
 import './final-ui-hardening.css';
+import './wallet-confirmation-unified.css';
 
 const siteUrl = 'https://veinvite.vercel.app';
 const title = 'VeInvite | Verified onboarding for VeBetterDAO';

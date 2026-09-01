@@ -40,6 +40,55 @@ function rankLabel(rank: number): string {
   return `#${rank}`;
 }
 
+function profileLabel(entry: PublicLeaderboardEntry): string {
+  return entry.displayName?.trim() || maskWallet(entry.walletAddress);
+}
+
+function profileInitial(entry: PublicLeaderboardEntry): string {
+  const value = entry.displayName?.trim() || entry.walletAddress.slice(2, 4);
+  return Array.from(value)[0]?.toUpperCase() ?? 'V';
+}
+
+function ProfileAvatar({
+  entry,
+  compact = false,
+}: {
+  entry: PublicLeaderboardEntry;
+  compact?: boolean;
+}) {
+  return (
+    <span className={compact ? 'profileAvatar compactAvatar' : 'profileAvatar'} aria-hidden="true">
+      {entry.avatarUrl ? (
+        <img src={entry.avatarUrl} alt="" loading="lazy" />
+      ) : (
+        profileInitial(entry)
+      )}
+      <style jsx>{`
+        .profileAvatar {
+          flex:0 0 auto;
+          width:30px;
+          height:30px;
+          display:grid;
+          place-items:center;
+          overflow:hidden;
+          border:1px solid rgba(255,205,80,.17);
+          border-radius:10px;
+          background:linear-gradient(135deg,rgba(244,183,40,.18),rgba(255,255,255,.04));
+          color:#f0cd68;
+          font-family:inherit;
+          font-size:.72rem;
+          font-weight:950;
+        }
+        .profileAvatar.compactAvatar { width:38px; height:38px; border-radius:12px; font-size:.88rem; }
+        .profileAvatar img { width:100%; height:100%; object-fit:cover; }
+        @media (max-width:420px) {
+          .profileAvatar { width:26px; height:26px; border-radius:9px; font-size:.66rem; }
+        }
+      `}</style>
+    </span>
+  );
+}
+
 export function PublicLeaderboard({
   locale,
   wallet,
@@ -116,6 +165,13 @@ export function PublicLeaderboard({
     }
   }, [previewData]);
 
+  useEffect(() => {
+    if (previewData) return;
+    const onProfileUpdate = () => void load();
+    window.addEventListener('veinvite-profile-updated', onProfileUpdate);
+    return () => window.removeEventListener('veinvite-profile-updated', onProfileUpdate);
+  }, [load, previewData]);
+
   const closeDialog = useCallback(() => {
     setSelectedEntry(null);
     setImpactOpen(false);
@@ -181,6 +237,8 @@ export function PublicLeaderboard({
       ? {
           rank: 0,
           walletAddress: wallet,
+          displayName: data?.viewerProfile?.displayName ?? null,
+          avatarUrl: data?.viewerProfile?.avatarUrl ?? null,
           completedReferrals: 0,
           totalRewardWei: '0',
           isCurrentWallet: true,
@@ -209,6 +267,7 @@ export function PublicLeaderboard({
     ]
       .filter(Boolean)
       .join(' ');
+    const label = profileLabel(entry);
 
     return (
       <button
@@ -218,14 +277,17 @@ export function PublicLeaderboard({
         onClick={(event) =>
           openWalletDetails(entry, event.currentTarget)
         }
-        aria-label={t.openWallet(entry.walletAddress)}
+        aria-label={`${label}. ${t.openWallet(entry.walletAddress)}`}
       >
         <div className="rankPrimary">
           <strong className="rankValue">
             {rankLabel(entry.rank)}
           </strong>
           <span className="walletCell">
-            {maskWallet(entry.walletAddress)}
+            <ProfileAvatar entry={entry} />
+            <span className={entry.displayName ? 'profileName' : 'walletFallback'}>
+              {label}
+            </span>
           </span>
         </div>
         <span className="rankMetric completedMetric">
@@ -385,12 +447,19 @@ export function PublicLeaderboard({
             aria-labelledby="wallet-dialog-title"
           >
             <div className="dialogTop">
-              <div>
-                <small>{t.walletDetails}</small>
-                <h2 id="wallet-dialog-title">
-                  {rankLabel(selectedEntry.rank)}{' '}
-                  {maskWallet(selectedEntry.walletAddress)}
-                </h2>
+              <div className="dialogIdentity">
+                <ProfileAvatar entry={selectedEntry} compact />
+                <div>
+                  <small>{t.walletDetails}</small>
+                  <h2 id="wallet-dialog-title">
+                    {rankLabel(selectedEntry.rank)} {profileLabel(selectedEntry)}
+                  </h2>
+                  {selectedEntry.displayName ? (
+                    <span className="dialogWalletFallback">
+                      {maskWallet(selectedEntry.walletAddress)}
+                    </span>
+                  ) : null}
+                </div>
               </div>
               <button
                 ref={closeButtonRef}
@@ -446,359 +515,85 @@ export function PublicLeaderboard({
           border-radius:21px;
           background:rgba(255,255,255,.035);
         }
-        .impactCard {
-          margin-top:0;
-        }
-        h2 {
-          margin:0;
-          font-size:1rem;
-          letter-spacing:-.02em;
-        }
+        .impactCard { margin-top:0; }
+        h2 { margin:0; font-size:1rem; letter-spacing:-.02em; }
         .impactSummaryButton {
-          width:100%;
-          min-height:104px;
-          margin-top:14px;
-          padding:16px 18px;
-          display:grid;
-          grid-template-columns:1fr auto;
-          grid-template-rows:auto 1fr;
-          align-items:center;
-          gap:4px 12px;
-          border:1px solid rgba(255,205,80,.16);
-          border-radius:17px;
-          background:linear-gradient(135deg,rgba(244,183,40,.11),rgba(255,255,255,.025));
-          color:#f8f4e8;
-          text-align:left;
-          cursor:pointer;
+          width:100%; min-height:104px; margin-top:14px; padding:16px 18px;
+          display:grid; grid-template-columns:1fr auto; grid-template-rows:auto 1fr;
+          align-items:center; gap:4px 12px; border:1px solid rgba(255,205,80,.16);
+          border-radius:17px; background:linear-gradient(135deg,rgba(244,183,40,.11),rgba(255,255,255,.025));
+          color:#f8f4e8; text-align:left; cursor:pointer;
         }
-        .impactSummaryButton:hover,.impactSummaryButton:focus-visible {
-          border-color:rgba(255,205,80,.4);
-          outline:none;
-          box-shadow:0 0 0 3px rgba(244,183,40,.08);
-        }
-        .impactSummaryButton span {
-          color:#928c80;
-          font-size:.7rem;
-          font-weight:850;
-        }
-        .impactSummaryButton strong {
-          grid-row:2;
-          color:#ffd35c;
-          font-size:2rem;
-          line-height:1;
-          font-variant-numeric:tabular-nums;
-        }
-        .impactSummaryButton b {
-          grid-column:2;
-          grid-row:1 / span 2;
-          color:#d9b956;
-          font-size:1.55rem;
-          font-weight:500;
-        }
-        .rankingTopline {
-          min-height:24px;
-          display:flex;
-          align-items:center;
-          justify-content:flex-end;
-          margin-bottom:8px;
-        }
-        .rankingTopline span {
-          padding:5px 8px;
-          border:1px solid rgba(255,205,80,.14);
-          border-radius:999px;
-          background:rgba(244,183,40,.06);
-          color:#a98c3d;
-          font-size:.58rem;
-          font-weight:950;
-          letter-spacing:.08em;
-        }
-        .tableHeader {
-          display:none;
-        }
-        .rows {
-          display:grid;
-          gap:7px;
-        }
+        .impactSummaryButton:hover,.impactSummaryButton:focus-visible { border-color:rgba(255,205,80,.4); outline:none; box-shadow:0 0 0 3px rgba(244,183,40,.08); }
+        .impactSummaryButton span { color:#928c80; font-size:.7rem; font-weight:850; }
+        .impactSummaryButton strong { grid-row:2; color:#ffd35c; font-size:2rem; line-height:1; font-variant-numeric:tabular-nums; }
+        .impactSummaryButton b { grid-column:2; grid-row:1 / span 2; color:#d9b956; font-size:1.55rem; font-weight:500; }
+        .rankingTopline { min-height:24px; display:flex; align-items:center; justify-content:flex-end; margin-bottom:8px; }
+        .rankingTopline span { padding:5px 8px; border:1px solid rgba(255,205,80,.14); border-radius:999px; background:rgba(244,183,40,.06); color:#a98c3d; font-size:.58rem; font-weight:950; letter-spacing:.08em; }
+        .tableHeader { display:none; }
+        .rows { display:grid; gap:7px; }
         .rankRow {
-          width:100%;
-          min-width:0;
-          padding:11px 12px;
-          display:grid;
-          grid-template-columns:1fr 1fr;
-          gap:9px 12px;
-          border:1px solid rgba(255,255,255,.07);
-          border-radius:15px;
-          background:rgba(255,255,255,.025);
-          color:#e9e5dc;
-          font:inherit;
-          text-align:left;
-          cursor:pointer;
+          width:100%; min-width:0; padding:11px 12px; display:grid; grid-template-columns:1fr 1fr;
+          gap:9px 12px; border:1px solid rgba(255,255,255,.07); border-radius:15px;
+          background:rgba(255,255,255,.025); color:#e9e5dc; font:inherit; text-align:left; cursor:pointer;
         }
-        .rankRow.compact {
-          padding-top:9px;
-          padding-bottom:9px;
-        }
-        .rankRow:hover,.rankRow:focus-visible {
-          border-color:rgba(255,205,80,.38);
-          outline:none;
-        }
-        .rankRow.current {
-          border-color:rgba(255,205,80,.52);
-          background:linear-gradient(135deg,rgba(244,183,40,.14),rgba(244,183,40,.055));
-          box-shadow:inset 3px 0 0 rgba(255,203,66,.78);
-        }
-        .rankRow.current .rankValue,
-        .rankRow.current .rankMetric b {
-          color:#ffd45f;
-        }
-        .rankRow.trailingCurrent {
-          margin-top:1px;
-        }
-        .rankPrimary {
-          grid-column:1 / -1;
-          min-width:0;
-          display:flex;
-          align-items:center;
-          gap:10px;
-        }
-        .rankValue {
-          flex:0 0 auto;
-          min-width:36px;
-          color:#f0ede6;
-          font-variant-numeric:tabular-nums;
-        }
-        .walletCell {
-          min-width:0;
-          overflow:hidden;
-          color:#bcb6aa;
-          font-family:ui-monospace,SFMono-Regular,Menlo,monospace;
-          font-size:.72rem;
-          text-overflow:ellipsis;
-          white-space:nowrap;
-        }
-        .rankMetric {
-          min-width:0;
-          display:grid;
-          gap:4px;
-        }
-        .rankMetric small {
-          color:#777269;
-          font-size:.59rem;
-          font-weight:850;
-        }
-        .rankMetric b {
-          min-width:0;
-          color:#e9e5dc;
-          font-size:.72rem;
-          font-weight:850;
-          font-variant-numeric:tabular-nums;
-        }
-        .completedMetric,.rewardMetric {
-          text-align:right;
-        }
-        .rankDivider {
-          display:flex;
-          align-items:center;
-          gap:10px;
-          padding:6px 4px 2px;
-          color:#6f6a61;
-          font-size:.85rem;
-          letter-spacing:.18em;
-        }
-        .rankDivider::before,.rankDivider::after {
-          content:'';
-          height:1px;
-          flex:1;
-          background:rgba(255,255,255,.07);
-        }
-        .rankContextNote,.empty {
-          margin:14px 0 0;
-          color:#827e76;
-          font-size:.72rem;
-          line-height:1.5;
-          text-align:center;
-        }
-        .modalBackdrop {
-          position:fixed;
-          z-index:120;
-          inset:0;
-          display:grid;
-          place-items:center;
-          padding:16px;
-          background:rgba(2,3,8,.82);
-          backdrop-filter:blur(10px);
-        }
-        .walletDialog {
-          width:min(100%,460px);
-          max-height:min(82svh,720px);
-          overflow:auto;
-          box-sizing:border-box;
-          padding:20px;
-          border:1px solid rgba(255,205,80,.22);
-          border-radius:24px;
-          background:#11120f;
-          box-shadow:0 28px 90px rgba(0,0,0,.55);
-        }
-        .dialogTop {
-          display:flex;
-          align-items:flex-start;
-          justify-content:space-between;
-          gap:14px;
-        }
-        .dialogTop small {
-          color:#f4bd35;
-          font-size:.68rem;
-          font-weight:900;
-          letter-spacing:.08em;
-        }
-        .dialogTop h2 {
-          margin-top:5px;
-        }
-        .closeButton {
-          flex:0 0 auto;
-          width:42px;
-          height:42px;
-          border:1px solid rgba(255,255,255,.1);
-          border-radius:13px;
-          background:rgba(255,255,255,.04);
-          color:#fff;
-          font-size:1.3rem;
-          cursor:pointer;
-        }
-        .walletDialog > label {
-          display:block;
-          margin-top:18px;
-          color:#817d74;
-          font-size:.68rem;
-          font-weight:800;
-        }
-        .walletDialog code {
-          display:block;
-          margin-top:7px;
-          padding:12px;
-          border-radius:13px;
-          background:#080906;
-          color:#e9c457;
-          font-size:.7rem;
-          line-height:1.5;
-          overflow-wrap:anywhere;
-        }
-        .dialogStats,.impactBreakdown {
-          margin-top:14px;
-          display:grid;
-          grid-template-columns:1fr 1fr;
-          gap:8px;
-        }
-        .dialogStats span,.impactBreakdown span {
-          min-width:0;
-          padding:12px;
-          display:grid;
-          gap:5px;
-          border:1px solid rgba(255,255,255,.06);
-          border-radius:13px;
-          background:rgba(255,255,255,.025);
-        }
-        .dialogStats small,.impactBreakdown small {
-          color:#7e796f;
-          font-size:.64rem;
-        }
-        .dialogStats strong,.impactBreakdown strong {
-          font-size:.86rem;
-          font-variant-numeric:tabular-nums;
-        }
-        .impactBreakdown strong {
-          color:#ffd35c;
-          font-size:1.35rem;
-        }
-        .reportingSince {
-          display:block;
-          margin-top:12px;
-          color:#706c65;
-          font-size:.65rem;
-        }
-        .walletDialog :global(a) {
-          min-height:50px;
-          margin-top:14px;
-          padding:0 15px;
-          display:flex;
-          align-items:center;
-          justify-content:center;
-          gap:8px;
-          border-radius:15px;
-          background:linear-gradient(135deg,#ffd24d,#efa718);
-          color:#17120a;
-          font-size:.82rem;
-          font-weight:950;
-          text-decoration:none;
-          text-align:center;
-        }
-        .walletDialog > p {
-          margin:9px 0 0;
-          text-align:center;
-          color:#777269;
-          font-size:.66rem;
-        }
+        .rankRow.compact { padding-top:9px; padding-bottom:9px; }
+        .rankRow:hover,.rankRow:focus-visible { border-color:rgba(255,205,80,.38); outline:none; }
+        .rankRow.current { border-color:rgba(255,205,80,.52); background:linear-gradient(135deg,rgba(244,183,40,.14),rgba(244,183,40,.055)); box-shadow:inset 3px 0 0 rgba(255,203,66,.78); }
+        .rankRow.current .rankValue,.rankRow.current .rankMetric b { color:#ffd45f; }
+        .rankRow.trailingCurrent { margin-top:1px; }
+        .rankPrimary { grid-column:1 / -1; min-width:0; display:flex; align-items:center; gap:10px; }
+        .rankValue { flex:0 0 auto; min-width:36px; color:#f0ede6; font-variant-numeric:tabular-nums; }
+        .walletCell { min-width:0; overflow:hidden; display:flex; align-items:center; gap:8px; color:#bcb6aa; text-overflow:ellipsis; white-space:nowrap; }
+        .profileName,.walletFallback { min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+        .profileName { color:#e9e5dc; font-size:.72rem; font-weight:850; }
+        .walletFallback { color:#a8a297; font-family:ui-monospace,SFMono-Regular,Menlo,monospace; font-size:.68rem; }
+        .rankMetric { min-width:0; display:grid; gap:4px; }
+        .rankMetric small { color:#777269; font-size:.59rem; font-weight:850; }
+        .rankMetric b { min-width:0; color:#e9e5dc; font-size:.72rem; font-weight:850; font-variant-numeric:tabular-nums; }
+        .completedMetric,.rewardMetric { text-align:right; }
+        .rankDivider { display:flex; align-items:center; gap:10px; padding:6px 4px 2px; color:#6f6a61; font-size:.85rem; letter-spacing:.18em; }
+        .rankDivider::before,.rankDivider::after { content:''; height:1px; flex:1; background:rgba(255,255,255,.07); }
+        .rankContextNote,.empty { margin:14px 0 0; color:#827e76; font-size:.72rem; line-height:1.5; text-align:center; }
+        .modalBackdrop { position:fixed; z-index:120; inset:0; display:grid; place-items:center; padding:16px; background:rgba(2,3,8,.82); backdrop-filter:blur(10px); }
+        .walletDialog { width:min(100%,460px); max-height:min(82svh,720px); overflow:auto; box-sizing:border-box; padding:20px; border:1px solid rgba(255,205,80,.22); border-radius:24px; background:#11120f; box-shadow:0 28px 90px rgba(0,0,0,.55); }
+        .dialogTop { display:flex; align-items:flex-start; justify-content:space-between; gap:14px; }
+        .dialogIdentity { min-width:0; display:flex; align-items:center; gap:11px; }
+        .dialogIdentity > div { min-width:0; }
+        .dialogTop small { color:#f4bd35; font-size:.68rem; font-weight:900; letter-spacing:.08em; }
+        .dialogTop h2 { margin-top:5px; overflow-wrap:anywhere; }
+        .dialogWalletFallback { display:block; margin-top:4px; color:#777269; font-family:ui-monospace,SFMono-Regular,Menlo,monospace; font-size:.64rem; }
+        .closeButton { flex:0 0 auto; width:42px; height:42px; border:1px solid rgba(255,255,255,.1); border-radius:13px; background:rgba(255,255,255,.04); color:#fff; font-size:1.3rem; cursor:pointer; }
+        .walletDialog > label { display:block; margin-top:18px; color:#817d74; font-size:.68rem; font-weight:800; }
+        .walletDialog code { display:block; margin-top:7px; padding:12px; border-radius:13px; background:#080906; color:#e9c457; font-size:.7rem; line-height:1.5; overflow-wrap:anywhere; }
+        .dialogStats,.impactBreakdown { margin-top:14px; display:grid; grid-template-columns:1fr 1fr; gap:8px; }
+        .dialogStats span,.impactBreakdown span { min-width:0; padding:12px; display:grid; gap:5px; border:1px solid rgba(255,255,255,.06); border-radius:13px; background:rgba(255,255,255,.025); }
+        .dialogStats small,.impactBreakdown small { color:#7e796f; font-size:.64rem; }
+        .dialogStats strong,.impactBreakdown strong { font-size:.86rem; font-variant-numeric:tabular-nums; }
+        .impactBreakdown strong { color:#ffd35c; font-size:1.35rem; }
+        .reportingSince { display:block; margin-top:12px; color:#706c65; font-size:.65rem; }
+        .walletDialog :global(a) { min-height:50px; margin-top:14px; padding:0 15px; display:flex; align-items:center; justify-content:center; gap:8px; border-radius:15px; background:linear-gradient(135deg,#ffd24d,#efa718); color:#17120a; font-size:.82rem; font-weight:950; text-decoration:none; text-align:center; }
+        .walletDialog > p { margin:9px 0 0; text-align:center; color:#777269; font-size:.66rem; }
         @media (min-width:620px) {
-          .tableHeader,.rankRow {
-            grid-template-columns:52px minmax(0,1fr) 112px 130px;
-            gap:10px;
-            align-items:center;
-          }
-          .tableHeader {
-            padding:0 12px 9px;
-            display:grid;
-            color:#777269;
-            font-size:.61rem;
-            font-weight:900;
-            text-transform:uppercase;
-          }
-          .tableHeader span:nth-child(3),
-          .tableHeader span:nth-child(4) {
-            text-align:right;
-          }
-          .rankRow.featured {
-            min-height:56px;
-            padding:10px 12px;
-          }
-          .rankRow.compact {
-            min-height:48px;
-            padding:8px 12px;
-          }
-          .rankPrimary {
-            display:contents;
-          }
-          .rankMetric {
-            display:block;
-            text-align:right;
-          }
-          .rankMetric small {
-            display:none;
-          }
-          .rankMetric b {
-            font-size:.72rem;
-          }
-          .rewardMetric b {
-            white-space:nowrap;
-          }
+          .tableHeader,.rankRow { grid-template-columns:52px minmax(0,1fr) 112px 130px; gap:10px; align-items:center; }
+          .tableHeader { padding:0 12px 9px; display:grid; color:#777269; font-size:.61rem; font-weight:900; text-transform:uppercase; }
+          .tableHeader span:nth-child(3),.tableHeader span:nth-child(4) { text-align:right; }
+          .rankRow.featured { min-height:56px; padding:10px 12px; }
+          .rankRow.compact { min-height:48px; padding:8px 12px; }
+          .rankPrimary { display:contents; }
+          .rankMetric { display:block; text-align:right; }
+          .rankMetric small { display:none; }
+          .rankMetric b { font-size:.72rem; }
+          .rewardMetric b { white-space:nowrap; }
         }
         @media (max-width:420px) {
-          .impactCard,.rankingCard {
-            padding:15px;
-            border-radius:19px;
-          }
-          .impactBreakdown {
-            grid-template-columns:1fr;
-          }
-          .rankRow.featured {
-            padding:11px;
-          }
-          .rankRow.compact {
-            padding:9px 11px;
-          }
-          .walletDialog {
-            padding:18px;
-            border-radius:21px;
-          }
+          .impactCard,.rankingCard { padding:15px; border-radius:19px; }
+          .impactBreakdown { grid-template-columns:1fr; }
+          .rankRow.featured { padding:11px; }
+          .rankRow.compact { padding:9px 11px; }
+          .walletDialog { padding:18px; border-radius:21px; }
+          .profileName { font-size:.68rem; }
+          .walletFallback { font-size:.61rem; }
         }
       `}</style>
     </section>
