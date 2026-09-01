@@ -5,6 +5,7 @@ import { notFound } from 'next/navigation';
 import { GuideUiPreview } from '@/components/GuideUiPreview';
 import { InviteRejectionPreview } from '@/components/InviteRejectionPreview';
 import { LeaderboardUiPreview } from '@/components/LeaderboardUiPreview';
+import { NotificationUiPreview } from '@/components/NotificationUiPreview';
 import { UiTestLab } from '@/components/UiTestLab';
 
 export const dynamic = 'force-dynamic';
@@ -49,6 +50,7 @@ export default function UiTestPage() {
       </div>
 
       <UiTestLab />
+      <NotificationUiPreview />
       <GuideUiPreview />
       <LeaderboardUiPreview />
       <InviteRejectionPreview />
@@ -58,11 +60,11 @@ export default function UiTestPage() {
         <h2>약관 · 개인정보처리방침 뒤로가기 확인</h2>
         <p>
           아래 실제 Legal 페이지를 열면 상단에 뒤로가기 버튼이 표시됩니다.
-          Preview 내부에서 열었을 때는 이 테스트 화면으로 돌아옵니다.
+          Settings에서 진입한 경우 Settings로, 직접 URL로 진입한 경우 홈으로 돌아가는 흐름을 확인합니다.
         </p>
         <div>
-          <Link href="/privacy">개인정보처리방침 열기</Link>
-          <Link href="/terms">이용약관 열기</Link>
+          <Link href="/privacy?from=settings">개인정보처리방침 열기</Link>
+          <Link href="/terms?from=settings">이용약관 열기</Link>
         </div>
       </section>
 
