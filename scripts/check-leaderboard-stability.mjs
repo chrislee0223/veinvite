@@ -88,6 +88,11 @@ if (/\.leaderboardPage \.rankPrimary\s*\{[\s\S]*display:grid\s*!important/.test(
   failures.push('Do not restore the nested rankPrimary grid; it causes metric columns to drift and stack.');
 }
 if (
+  !/\.leaderboardPage \.tableHeader\s*\{[\s\S]*border-left:1px solid transparent\s*!important[\s\S]*border-right:1px solid transparent\s*!important/.test(layoutPolish)
+) {
+  failures.push('Leaderboard header must retain transparent 1px inline borders so its content box exactly matches bordered data rows.');
+}
+if (
   !/\.tableHeader span:nth-child\(2\)[\s\S]*padding-left:27px\s*!important/.test(layoutPolish) ||
   !/\.walletCell\s*\{[\s\S]*padding-left:27px\s*!important/.test(layoutPolish)
 ) {
