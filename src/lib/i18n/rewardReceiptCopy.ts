@@ -17,7 +17,7 @@ export const REWARD_RECEIPT_COPY: Record<Locale, RewardReceiptCopy> = {
   en: {
     eyebrow: 'REFERRAL REWARD PAID',
     title: 'Your B3TR reward arrived',
-    description: 'Your verified VeInvite referral reward has been paid to this wallet.',
+    description: 'Your VeInvite referral reward has been paid to this wallet.',
     round: 'VeBetterDAO round',
     invite: 'Invite',
     transaction: 'Transaction',
@@ -29,7 +29,7 @@ export const REWARD_RECEIPT_COPY: Record<Locale, RewardReceiptCopy> = {
   ko: {
     eyebrow: '초대 보상 지급 완료',
     title: 'B3TR 보상이 도착했어요',
-    description: '검증을 통과한 VeInvite 초대 보상이 이 지갑으로 지급됐어요.',
+    description: 'VeInvite 초대 보상이 이 지갑으로 지급됐어요.',
     round: 'VeBetterDAO 라운드',
     invite: '초대 코드',
     transaction: '트랜잭션',
@@ -41,7 +41,7 @@ export const REWARD_RECEIPT_COPY: Record<Locale, RewardReceiptCopy> = {
   zh: {
     eyebrow: '邀请奖励已发放',
     title: 'B3TR 奖励已到账',
-    description: '经验证的 VeInvite 邀请奖励已发放到这个钱包。',
+    description: 'VeInvite 邀请奖励已发放到这个钱包。',
     round: 'VeBetterDAO 轮次',
     invite: '邀请码',
     transaction: '交易',
@@ -53,7 +53,7 @@ export const REWARD_RECEIPT_COPY: Record<Locale, RewardReceiptCopy> = {
   hi: {
     eyebrow: 'रेफ़रल इनाम का भुगतान हो गया',
     title: 'आपका B3TR इनाम आ गया',
-    description: 'सत्यापित VeInvite रेफ़रल इनाम इस वॉलेट में भेज दिया गया है।',
+    description: 'VeInvite रेफ़रल इनाम इस वॉलेट में भेज दिया गया है।',
     round: 'VeBetterDAO राउंड',
     invite: 'आमंत्रण कोड',
     transaction: 'ट्रांज़ैक्शन',
@@ -65,7 +65,7 @@ export const REWARD_RECEIPT_COPY: Record<Locale, RewardReceiptCopy> = {
   es: {
     eyebrow: 'RECOMPENSA DE INVITACIÓN PAGADA',
     title: 'Tu recompensa en B3TR ha llegado',
-    description: 'La recompensa verificada de tu invitación de VeInvite se ha enviado a esta cartera.',
+    description: 'La recompensa de tu invitación de VeInvite se ha enviado a esta cartera.',
     round: 'Ronda de VeBetterDAO',
     invite: 'Código de invitación',
     transaction: 'Transacción',
@@ -77,7 +77,7 @@ export const REWARD_RECEIPT_COPY: Record<Locale, RewardReceiptCopy> = {
   ja: {
     eyebrow: '招待報酬の支払い完了',
     title: 'B3TR報酬が届きました',
-    description: '確認済みのVeInvite招待報酬がこのウォレットに支払われました。',
+    description: 'VeInviteの招待報酬がこのウォレットに支払われました。',
     round: 'VeBetterDAOラウンド',
     invite: '招待コード',
     transaction: 'トランザクション',
@@ -89,7 +89,7 @@ export const REWARD_RECEIPT_COPY: Record<Locale, RewardReceiptCopy> = {
   it: {
     eyebrow: 'RICOMPENSA INVITO PAGATA',
     title: 'La tua ricompensa B3TR è arrivata',
-    description: 'La ricompensa verificata del tuo invito VeInvite è stata pagata su questo wallet.',
+    description: 'La ricompensa del tuo invito VeInvite è stata pagata su questo wallet.',
     round: 'Round VeBetterDAO',
     invite: 'Codice invito',
     transaction: 'Transazione',
@@ -101,7 +101,7 @@ export const REWARD_RECEIPT_COPY: Record<Locale, RewardReceiptCopy> = {
   tr: {
     eyebrow: 'DAVET ÖDÜLÜ ÖDENDİ',
     title: 'B3TR ödülün geldi',
-    description: 'Doğrulanan VeInvite davet ödülün bu cüzdana ödendi.',
+    description: 'VeInvite davet ödülün bu cüzdana ödendi.',
     round: 'VeBetterDAO turu',
     invite: 'Davet kodu',
     transaction: 'İşlem',
@@ -113,7 +113,7 @@ export const REWARD_RECEIPT_COPY: Record<Locale, RewardReceiptCopy> = {
   nl: {
     eyebrow: 'UITNODIGINGSBELONING UITBETAALD',
     title: 'Je B3TR-beloning is binnen',
-    description: 'De geverifieerde VeInvite-beloning voor je uitnodiging is naar deze wallet uitbetaald.',
+    description: 'De VeInvite-beloning voor je uitnodiging is naar deze wallet uitbetaald.',
     round: 'VeBetterDAO-ronde',
     invite: 'Uitnodigingscode',
     transaction: 'Transactie',
@@ -125,7 +125,7 @@ export const REWARD_RECEIPT_COPY: Record<Locale, RewardReceiptCopy> = {
   de: {
     eyebrow: 'EINLADUNGSBELOHNUNG AUSGEZAHLT',
     title: 'Deine B3TR-Belohnung ist da',
-    description: 'Die verifizierte VeInvite-Belohnung für deine Einladung wurde an diese Wallet ausgezahlt.',
+    description: 'Die VeInvite-Belohnung für deine Einladung wurde an diese Wallet ausgezahlt.',
     round: 'VeBetterDAO-Runde',
     invite: 'Einladungscode',
     transaction: 'Transaktion',
@@ -137,7 +137,7 @@ export const REWARD_RECEIPT_COPY: Record<Locale, RewardReceiptCopy> = {
   fr: {
     eyebrow: 'RÉCOMPENSE DE PARRAINAGE VERSÉE',
     title: 'Votre récompense B3TR est arrivée',
-    description: 'La récompense VeInvite vérifiée liée à votre invitation a été versée sur ce wallet.',
+    description: 'La récompense VeInvite liée à votre invitation a été versée sur ce wallet.',
     round: 'Cycle VeBetterDAO',
     invite: 'Code d’invitation',
     transaction: 'Transaction',

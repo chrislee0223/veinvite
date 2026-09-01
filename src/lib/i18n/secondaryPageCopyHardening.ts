@@ -2,8 +2,10 @@ import { LEADERBOARD_COPY } from './leaderboardCopy';
 import type { Locale } from './locales';
 
 type LeaderboardPolish = {
+  description: string;
   impactTitle: string;
   totalUsers: string;
+  impactNote: string;
   rank: string;
   wallet: string;
   completed: string;
@@ -16,8 +18,10 @@ type LeaderboardPolish = {
 
 const POLISHED_LEADERBOARD_COPY: Record<Locale, LeaderboardPolish> = {
   en: {
+    description: 'Rankings count a referral after every mission is complete and the inviter has received the B3TR reward.',
     impactTitle: 'Users who completed VeInvite onboarding',
     totalUsers: 'Total',
+    impactNote: 'Only wallets that completed every mission are included in the onboarding total.',
     rank: 'Rank',
     wallet: 'Inviter',
     completed: 'Completed invites',
@@ -28,8 +32,10 @@ const POLISHED_LEADERBOARD_COPY: Record<Locale, LeaderboardPolish> = {
     empty: 'No completed invites have been reflected in the ranking yet.',
   },
   ko: {
+    description: '친구가 모든 미션을 완료하고 초대한 사람이 B3TR 보상을 받은 초대만 순위에 반영해요.',
     impactTitle: 'VeInvite 온보딩 완료 사용자',
     totalUsers: '전체',
+    impactNote: '모든 미션을 완료한 지갑만 온보딩 완료 사용자 수에 포함해요.',
     rank: '순위',
     wallet: '초대자',
     completed: '완료 초대',
@@ -40,8 +46,10 @@ const POLISHED_LEADERBOARD_COPY: Record<Locale, LeaderboardPolish> = {
     empty: '아직 순위에 반영된 완료 초대가 없어요.',
   },
   zh: {
+    description: '好友完成全部任务且邀请人收到 B3TR 奖励后，该邀请才会计入排名。',
     impactTitle: '完成 VeInvite 新手流程的用户',
     totalUsers: '总计',
+    impactNote: '只有完成全部任务的钱包才会计入新手流程完成用户总数。',
     rank: '排名',
     wallet: '邀请人',
     completed: '已完成邀请',
@@ -52,8 +60,10 @@ const POLISHED_LEADERBOARD_COPY: Record<Locale, LeaderboardPolish> = {
     empty: '目前还没有已完成的邀请计入排名。',
   },
   hi: {
+    description: 'रेफ़रल रैंकिंग में तभी जुड़ता है जब दोस्त सभी मिशन पूरे कर ले और आमंत्रक को B3TR इनाम मिल जाए।',
     impactTitle: 'VeInvite ऑनबोर्डिंग पूरा करने वाले उपयोगकर्ता',
     totalUsers: 'कुल',
+    impactNote: 'ऑनबोर्डिंग कुल में केवल सभी मिशन पूरे करने वाले वॉलेट शामिल होते हैं।',
     rank: 'रैंक',
     wallet: 'आमंत्रक',
     completed: 'पूरे हुए आमंत्रण',
@@ -64,8 +74,10 @@ const POLISHED_LEADERBOARD_COPY: Record<Locale, LeaderboardPolish> = {
     empty: 'अभी तक कोई पूरा हुआ आमंत्रण रैंकिंग में नहीं जुड़ा है।',
   },
   es: {
+    description: 'Una invitación entra en la clasificación cuando el amigo completa todas las misiones y el invitador recibe la recompensa en B3TR.',
     impactTitle: 'Usuarios que completaron el onboarding de VeInvite',
     totalUsers: 'Total',
+    impactNote: 'Solo se incluyen en el total de onboarding las carteras que completaron todas las misiones.',
     rank: 'Puesto',
     wallet: 'Invitador',
     completed: 'Invitaciones completadas',
@@ -76,8 +88,10 @@ const POLISHED_LEADERBOARD_COPY: Record<Locale, LeaderboardPolish> = {
     empty: 'Aún no hay invitaciones completadas reflejadas en la clasificación.',
   },
   ja: {
+    description: '友だちがすべてのミッションを完了し、招待者がB3TR報酬を受け取った招待だけがランキングに反映されます。',
     impactTitle: 'VeInviteのオンボーディング完了ユーザー',
     totalUsers: '合計',
+    impactNote: 'すべてのミッションを完了したウォレットだけをオンボーディング完了ユーザー数に含めます。',
     rank: '順位',
     wallet: '招待者',
     completed: '完了した招待',
@@ -88,8 +102,10 @@ const POLISHED_LEADERBOARD_COPY: Record<Locale, LeaderboardPolish> = {
     empty: 'まだランキングに反映された完了済みの招待はありません。',
   },
   it: {
+    description: 'Un invito entra in classifica quando l’amico completa tutte le missioni e chi lo ha invitato riceve la ricompensa B3TR.',
     impactTitle: 'Utenti che hanno completato l’onboarding di VeInvite',
     totalUsers: 'Totale',
+    impactNote: 'Nel totale dell’onboarding rientrano solo i wallet che hanno completato tutte le missioni.',
     rank: 'Posizione',
     wallet: 'Chi invita',
     completed: 'Inviti completati',
@@ -100,8 +116,10 @@ const POLISHED_LEADERBOARD_COPY: Record<Locale, LeaderboardPolish> = {
     empty: 'Non ci sono ancora inviti completati inclusi nella classifica.',
   },
   tr: {
+    description: 'Bir davet, arkadaşın tüm görevleri tamamladığında ve davet eden kişi B3TR ödülünü aldığında sıralamaya yansır.',
     impactTitle: 'VeInvite onboarding sürecini tamamlayan kullanıcılar',
     totalUsers: 'Toplam',
+    impactNote: 'Onboarding toplamına yalnızca tüm görevleri tamamlayan cüzdanlar dahil edilir.',
     rank: 'Sıra',
     wallet: 'Davet eden',
     completed: 'Tamamlanan davetler',
@@ -112,8 +130,10 @@ const POLISHED_LEADERBOARD_COPY: Record<Locale, LeaderboardPolish> = {
     empty: 'Henüz sıralamaya yansıyan tamamlanmış bir davet yok.',
   },
   nl: {
+    description: 'Een uitnodiging telt mee in de ranglijst zodra je vriend alle missies heeft voltooid en de uitnodiger de B3TR-beloning heeft ontvangen.',
     impactTitle: 'Gebruikers die de VeInvite-onboarding hebben voltooid',
     totalUsers: 'Totaal',
+    impactNote: 'Alleen wallets die alle missies hebben voltooid, tellen mee in het onboardingtotaal.',
     rank: 'Positie',
     wallet: 'Uitnodiger',
     completed: 'Voltooide uitnodigingen',
@@ -124,8 +144,10 @@ const POLISHED_LEADERBOARD_COPY: Record<Locale, LeaderboardPolish> = {
     empty: 'Er zijn nog geen voltooide uitnodigingen in de ranglijst verwerkt.',
   },
   de: {
+    description: 'Eine Einladung zählt in der Rangliste, sobald dein Freund alle Missionen abgeschlossen und der Einladende die B3TR-Belohnung erhalten hat.',
     impactTitle: 'Nutzer mit abgeschlossenem VeInvite-Onboarding',
     totalUsers: 'Gesamt',
+    impactNote: 'In die Onboarding-Gesamtzahl fließen nur Wallets ein, die alle Missionen abgeschlossen haben.',
     rank: 'Rang',
     wallet: 'Einladender',
     completed: 'Abgeschlossene Einladungen',
@@ -136,8 +158,10 @@ const POLISHED_LEADERBOARD_COPY: Record<Locale, LeaderboardPolish> = {
     empty: 'Noch keine abgeschlossenen Einladungen wurden in der Rangliste berücksichtigt.',
   },
   fr: {
+    description: 'Une invitation entre dans le classement lorsque votre ami a terminé toutes les missions et que le parrain a reçu la récompense B3TR.',
     impactTitle: 'Utilisateurs ayant terminé l’onboarding VeInvite',
     totalUsers: 'Total',
+    impactNote: 'Seuls les wallets ayant terminé toutes les missions sont inclus dans le total de l’onboarding.',
     rank: 'Rang',
     wallet: 'Parrain',
     completed: 'Invitations terminées',
