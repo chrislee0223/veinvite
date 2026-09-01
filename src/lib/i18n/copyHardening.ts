@@ -47,21 +47,21 @@ const INVITEE_ELIGIBILITY_COPY: Record<
   },
   zh: {
     eligibilityDescription:
-      '如果你是第一次使用 VeBetterDAO，或从最近 12 个已完成轮次中最早一轮的开始时点至今没有 VeBetterDAO 奖励或 Allocation Voting 活动的回归用户，就可以参加。',
+      '如果你是第一次使用 VeBetterDAO，或从最近 12 个已完成轮次中最早一轮的开始时间至今没有 VeBetterDAO 奖励或 Allocation Voting 活动的回归用户，就可以参加。',
     newSuccessDescription:
       '未发现这个钱包此前有 VeBetterDAO 奖励或 Allocation Voting 记录，可以继续完成 VeInvite 任务。',
     returningSuccessDescription:
-      '这个钱包过去有 VeBetterDAO 活动，但从最近 12 个已完成轮次中最早一轮的开始时点至今没有 VeBetterDAO 奖励或 Allocation Voting 活动，可以继续完成 VeInvite 任务。',
+      '这个钱包过去有 VeBetterDAO 活动，但从最近 12 个已完成轮次中最早一轮的开始时间至今没有 VeBetterDAO 奖励或 Allocation Voting 活动，可以继续完成 VeInvite 任务。',
     autoProgress:
       'dApp 奖励、VOT3 转换和 Allocation Voting 参与记录会自动从链上验证。',
   },
   hi: {
     eligibilityDescription:
-      'अगर आप VeBetterDAO पर नए हैं, या वापस लौट रहे हैं और पिछली 12 पूरी हुई राउंड में सबसे पुरानी राउंड की शुरुआत से अब तक कोई VeBetterDAO इनाम या Allocation Voting गतिविधि नहीं रही है, तो आप भाग ले सकते हैं।',
+      'अगर आप VeBetterDAO पर नए हैं, या वापस लौट रहे हैं और पिछले 12 पूरे हो चुके राउंड में से सबसे पुराने राउंड की शुरुआत से अब तक कोई VeBetterDAO इनाम या Allocation Voting गतिविधि नहीं रही है, तो आप भाग ले सकते हैं।',
     newSuccessDescription:
       'इस वॉलेट पर पहले कोई VeBetterDAO इनाम या Allocation Voting इतिहास नहीं मिला। आप VeInvite मिशन जारी रख सकते हैं।',
     returningSuccessDescription:
-      'इस वॉलेट पर पुरानी VeBetterDAO गतिविधि है, लेकिन पिछली 12 पूरी हुई राउंड में सबसे पुरानी राउंड की शुरुआत से अब तक कोई VeBetterDAO इनाम या Allocation Voting गतिविधि नहीं है। आप VeInvite मिशन जारी रख सकते हैं।',
+      'इस वॉलेट पर पुरानी VeBetterDAO गतिविधि है, लेकिन पिछले 12 पूरे हो चुके राउंड में से सबसे पुराने राउंड की शुरुआत से अब तक कोई VeBetterDAO इनाम या Allocation Voting गतिविधि नहीं है। आप VeInvite मिशन जारी रख सकते हैं।',
     autoProgress:
       'आपकी dApp रिवार्ड, VOT3 कन्वर्ज़न और Allocation Voting भागीदारी ऑन-चेन अपने-आप सत्यापित होती है।',
   },
@@ -87,21 +87,21 @@ const INVITEE_ELIGIBILITY_COPY: Record<
   },
   it: {
     eligibilityDescription:
-      'Puoi partecipare se sei nuovo su VeBetterDAO o se stai tornando senza ricompense VeBetterDAO né attività di Allocation Voting dall’inizio della più vecchia delle ultime 12 tornate completate.',
+      'Puoi partecipare se sei nuovo su VeBetterDAO o se stai tornando senza ricompense VeBetterDAO né attività di Allocation Voting dall’inizio della meno recente delle ultime 12 tornate completate.',
     newSuccessDescription:
       'Non risultano precedenti ricompense VeBetterDAO né attività di Allocation Voting per questo wallet. Puoi continuare con le missioni VeInvite.',
     returningSuccessDescription:
-      'Questo wallet presenta attività VeBetterDAO più vecchie, ma nessuna ricompensa VeBetterDAO né attività di Allocation Voting dall’inizio della più vecchia delle ultime 12 tornate completate. Puoi continuare con le missioni VeInvite.',
+      'Questo wallet presenta attività VeBetterDAO più vecchie, ma nessuna ricompensa VeBetterDAO né attività di Allocation Voting dall’inizio della meno recente delle ultime 12 tornate completate. Puoi continuare con le missioni VeInvite.',
     autoProgress:
       'Le ricompense dApp, la conversione in VOT3 e la partecipazione all’Allocation Voting vengono verificate automaticamente on-chain.',
   },
   tr: {
     eligibilityDescription:
-      'VeBetterDAO’da yeniysen veya son 12 tamamlanmış turun en eskisinin başlangıcından bugüne kadar VeBetterDAO ödülü ya da Allocation Voting etkinliği olmayan geri dönen bir kullanıcıysan katılabilirsin.',
+      'VeBetterDAO’da yeniysen veya tamamlanan son 12 turun en eskisinin başlangıcından bugüne kadar VeBetterDAO ödülü ya da Allocation Voting etkinliği olmayan geri dönen bir kullanıcıysan katılabilirsin.',
     newSuccessDescription:
       'Bu cüzdanda daha önce VeBetterDAO ödülü veya Allocation Voting geçmişi bulunmadı. VeInvite görevlerine devam edebilirsin.',
     returningSuccessDescription:
-      'Bu cüzdanda daha eski VeBetterDAO etkinliği var, ancak son 12 tamamlanmış turun en eskisinin başlangıcından bugüne kadar VeBetterDAO ödülü veya Allocation Voting etkinliği yok. VeInvite görevlerine devam edebilirsin.',
+      'Bu cüzdanda daha eski VeBetterDAO etkinliği var, ancak tamamlanan son 12 turun en eskisinin başlangıcından bugüne kadar VeBetterDAO ödülü veya Allocation Voting etkinliği yok. VeInvite görevlerine devam edebilirsin.',
     autoProgress:
       'dApp ödüllerin, VOT3 dönüşümün ve Allocation Voting katılımın zincir üzerinde otomatik olarak doğrulanır.',
   },
