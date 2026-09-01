@@ -33,6 +33,8 @@ type VerificationState =
   | 'verified'
   | 'error';
 
+const SESSION_CHECK_SURFACE_DELAY_MS = 450;
+
 function initialLocale(): Locale {
   if (typeof window === 'undefined') {
     return 'en';
@@ -77,9 +79,12 @@ export function WalletSessionGate({
     useState<Locale>('en');
   const [isDisconnecting, setIsDisconnecting] =
     useState(false);
+  const [showCheckingSurface, setShowCheckingSurface] =
+    useState(false);
   const attemptRef = useRef(0);
   const autoAttemptedWalletRef =
     useRef<string | null>(null);
+  const pageLifecycleRef = useRef(false);
 
   useEffect(() => {
     setLocale(initialLocale());
@@ -109,7 +114,38 @@ export function WalletSessionGate({
   }, []);
 
   useEffect(() => {
+    const handlePageHide = () => {
+      // A browser refresh/navigation can make the wallet provider emit a
+      // transient disconnect while React is being torn down. That is not an
+      // explicit logout and must never revoke the 7-day VeInvite session.
+      pageLifecycleRef.current = true;
+    };
+    const handlePageShow = () => {
+      pageLifecycleRef.current = false;
+    };
+
+    window.addEventListener('pagehide', handlePageHide);
+    window.addEventListener('pageshow', handlePageShow);
+
+    return () => {
+      window.removeEventListener('pagehide', handlePageHide);
+      window.removeEventListener('pageshow', handlePageShow);
+    };
+  }, []);
+
+  useEffect(() => {
     const handleWalletDisconnected = () => {
+      // Ignore provider teardown signals caused by page refresh/navigation.
+      // The server session cookie is intentionally persistent and will be
+      // checked again on the next page load. Explicit disconnect/switch flows
+      // still clear it through clearWalletSession before disconnecting.
+      if (
+        pageLifecycleRef.current ||
+        document.visibilityState === 'hidden'
+      ) {
+        return;
+      }
+
       // VeChainKit emits this event for genuine wallet disconnects. Cancel any
       // ownership proof immediately and revoke the server-side VeInvite
       // session. clearWalletSession is deliberately bounded so a wallet prompt
@@ -141,6 +177,24 @@ export function WalletSessionGate({
       );
     };
   }, [clearWalletSession]);
+
+  useEffect(() => {
+    if (state !== 'checking') {
+      setShowCheckingSurface(false);
+      return;
+    }
+
+    // Existing server sessions normally resolve very quickly. Avoid flashing a
+    // full-screen ownership-verification card during a normal refresh; only
+    // show it when verification is actually taking long enough to matter.
+    const timeoutId = window.setTimeout(() => {
+      setShowCheckingSurface(true);
+    }, SESSION_CHECK_SURFACE_DELAY_MS);
+
+    return () => {
+      window.clearTimeout(timeoutId);
+    };
+  }, [state]);
 
   const verify = useCallback(async () => {
     if (!walletAddress) {
@@ -239,10 +293,11 @@ export function WalletSessionGate({
       return;
     }
 
-    // Automatically verify once for each newly connected wallet. If the user
-    // rejects or a verification attempt fails, remain on the error screen and
-    // wait for the explicit retry/disconnect actions instead of repeatedly
-    // opening the wallet signature prompt.
+    // Automatically verify once for each newly connected wallet. The first
+    // action inside ensureWalletSession is a server-session lookup, so a valid
+    // 7-day session is silently reused without opening a fresh wallet proof.
+    // If a proof is genuinely required and the user rejects/fails it, remain on
+    // the error screen until an explicit retry/disconnect action.
     if (
       autoAttemptedWalletRef.current ===
       walletAddress
@@ -276,6 +331,23 @@ export function WalletSessionGate({
       >
         {children}
       </LegalConsentGate>
+    );
+  }
+
+  // During normal refreshes, preserve a quiet transition while the existing
+  // cookie is checked instead of flashing the ownership-verification card.
+  if (
+    state === 'idle' ||
+    (state === 'checking' && !showCheckingSurface)
+  ) {
+    return (
+      <div
+        aria-hidden="true"
+        style={{
+          minHeight: '100dvh',
+          background: '#080807',
+        }}
+      />
     );
   }
 
