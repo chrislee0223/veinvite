@@ -7,7 +7,24 @@ import { supabaseAdmin } from '@/lib/supabaseServer';
 
 export const dynamic = 'force-dynamic';
 
+function readDeploymentMetadata() {
+  const gitCommitSha =
+    process.env.VERCEL_GIT_COMMIT_SHA?.trim() || null;
+
+  return {
+    environment:
+      process.env.VERCEL_ENV ??
+      process.env.NODE_ENV ??
+      'unknown',
+    gitCommitSha,
+    gitCommitShortSha:
+      gitCommitSha?.slice(0, 12) ?? null,
+  };
+}
+
 export async function GET() {
+  const deployment = readDeploymentMetadata();
+
   try {
     const { error } = await supabaseAdmin
       .from('invitations')
@@ -53,6 +70,7 @@ export async function GET() {
         ok: operations.operational,
         app: 'VeInvite',
         version: '0.1.0',
+        deployment,
         database: 'ready',
         network: operations.network,
         automaticRewards: {
@@ -126,6 +144,7 @@ export async function GET() {
         ok: false,
         app: 'VeInvite',
         version: '0.1.0',
+        deployment,
         database: 'unavailable',
       },
       {
