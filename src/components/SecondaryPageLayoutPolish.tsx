@@ -52,6 +52,11 @@ export function SecondaryPageLayoutPolish() {
       .leaderboardPage .tableHeader {
         display:grid !important;
         padding:0 12px 10px !important;
+        /* The data row has a 1px outline on each side. Give the header the
+         * same invisible inline border so both grids have an identical content
+         * box and every column center lands on the exact same pixel. */
+        border-left:1px solid transparent !important;
+        border-right:1px solid transparent !important;
         color:#777269 !important;
         font-size:.58rem !important;
         font-weight:900 !important;
