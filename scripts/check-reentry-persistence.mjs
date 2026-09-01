@@ -31,7 +31,7 @@ if (!/20260901110000_persist_wallet_legal_consent\.sql/.test(migrationManifest))
   failures.push('The production migration manifest must retain the legal-consent persistence migration.');
 }
 
-if (!/wallet_language_preferences/.test(languageMigration) || !/enable row level security/i.test(languageMigration)) {
+if (!/wallet_preferences/.test(languageMigration) || !/enable row level security/i.test(languageMigration)) {
   failures.push('Wallet language preference must remain persisted server-side behind RLS.');
 }
 if (!/requireWalletSession/.test(languageRoute) || !/requestHasSameOrigin/.test(languageRoute)) {
