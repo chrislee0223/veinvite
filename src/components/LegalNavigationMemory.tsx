@@ -63,6 +63,20 @@ export function LegalNavigationMemory() {
       if (!anchor) return;
       if (anchor.target && anchor.target !== '_self') return;
 
+      const savedReturn = window.sessionStorage.getItem(
+        LEGAL_RETURN_STORAGE_KEY,
+      );
+
+      if (
+        anchor.classList.contains('legalBack') &&
+        savedReturn?.includes('tab=settings')
+      ) {
+        event.preventDefault();
+        window.sessionStorage.removeItem(LEGAL_RETURN_STORAGE_KEY);
+        window.history.back();
+        return;
+      }
+
       let url: URL;
       try {
         url = new URL(anchor.href, window.location.href);
