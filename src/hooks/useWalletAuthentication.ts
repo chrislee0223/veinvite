@@ -15,6 +15,9 @@ import {
 
 const WALLET_PATTERN =
   /^0x[0-9a-fA-F]{40}$/;
+const WALLET_SIGNATURE_TIMEOUT_MS = 15_000;
+const WALLET_SIGNATURE_SETTLE_MS = 350;
+const CANCEL_SETTLE_TIMEOUT_MS = 1_000;
 
 type SessionResponse = {
   authenticated?: boolean;
@@ -52,7 +55,44 @@ type WalletCertificate = {
 type InFlightAuthentication = {
   walletAddress: string;
   promise: Promise<void>;
+  cancel: () => void;
 };
+
+function wait(
+  milliseconds: number,
+): Promise<void> {
+  return new Promise((resolve) => {
+    window.setTimeout(resolve, milliseconds);
+  });
+}
+
+async function withTimeout<T>(
+  promise: Promise<T>,
+  timeoutMs: number,
+  message: string,
+): Promise<T> {
+  let timeoutId: number | undefined;
+
+  const timeout = new Promise<never>(
+    (_, reject) => {
+      timeoutId = window.setTimeout(
+        () => reject(new Error(message)),
+        timeoutMs,
+      );
+    },
+  );
+
+  try {
+    return await Promise.race([
+      promise,
+      timeout,
+    ]);
+  } finally {
+    if (timeoutId !== undefined) {
+      window.clearTimeout(timeoutId);
+    }
+  }
+}
 
 async function readJson<T>(
   response: Response,
@@ -74,6 +114,7 @@ export function useWalletAuthentication() {
     account,
   } = useVeChainKitWallet();
   const {
+    account: dappKitAccount,
     requestCertificate,
   } = useDappKitWallet();
 
@@ -85,6 +126,7 @@ export function useWalletAuthentication() {
   const inFlightRef = useRef<
     InFlightAuthentication | null
   >(null);
+  const authGenerationRef = useRef(0);
 
   const ensureWalletSession =
     useCallback(
@@ -106,10 +148,10 @@ export function useWalletAuthentication() {
           );
         }
 
-        // Only one signature flow may own the session cookie at a time. If
-        // account A is being verified and the user switches to B, wait for A
-        // to settle and then independently verify B. Never reuse A's promise
-        // as proof for B.
+        // Only one signature flow may own the session cookie at a time. A
+        // reconnect/switch explicitly cancels the previous flow through
+        // clearWalletSession, so this wait is bounded by the signature timeout
+        // even if a wallet provider becomes unresponsive.
         while (inFlightRef.current) {
           const current =
             inFlightRef.current;
@@ -129,6 +171,23 @@ export function useWalletAuthentication() {
           }
         }
 
+        const generation =
+          authGenerationRef.current + 1;
+        authGenerationRef.current = generation;
+        const controller =
+          new AbortController();
+
+        const assertStillCurrent = () => {
+          if (
+            authGenerationRef.current !==
+            generation
+          ) {
+            throw new Error(
+              'Wallet verification was cancelled.',
+            );
+          }
+        };
+
         let run!: Promise<void>;
 
         run = (async () => {
@@ -141,6 +200,7 @@ export function useWalletAuthentication() {
                 {
                   method: 'GET',
                   cache: 'no-store',
+                  signal: controller.signal,
                 },
               );
 
@@ -155,6 +215,8 @@ export function useWalletAuthentication() {
                   'Could not check wallet verification.',
               );
             }
+
+            assertStillCurrent();
 
             if (
               session.authenticated &&
@@ -171,6 +233,7 @@ export function useWalletAuthentication() {
                   '/api/auth/session',
                   {
                     method: 'DELETE',
+                    signal: controller.signal,
                   },
                 );
 
@@ -179,6 +242,8 @@ export function useWalletAuthentication() {
                   'Could not clear the previous wallet verification.',
                 );
               }
+
+              assertStillCurrent();
             }
 
             const challengeResponse =
@@ -193,6 +258,7 @@ export function useWalletAuthentication() {
                   body: JSON.stringify({
                     walletAddress,
                   }),
+                  signal: controller.signal,
                 },
               );
 
@@ -213,6 +279,8 @@ export function useWalletAuthentication() {
               );
             }
 
+            assertStillCurrent();
+
             let signature: string | undefined;
             let certificate:
               | WalletCertificate
@@ -220,28 +288,59 @@ export function useWalletAuthentication() {
 
             // VeWorld/DAppKit signs a VeChain certificate, not an Ethereum
             // personal_sign message. Preserve the certificate annex so the
-            // backend can verify it with the VeChain SDK. Other connection
-            // types keep the existing EIP-191 verification path.
+            // backend can verify it with the VeChain SDK. A reconnect can leave
+            // VeChainKit and DAppKit briefly out of sync, so reject a mismatched
+            // signer instead of opening a request against stale wallet state.
             if (
               connection.isConnectedWithDappKit
             ) {
               const signer =
-                account?.address ||
+                account?.address
+                  ?.trim()
+                  .toLowerCase() ||
                 walletAddress;
-              const certResponse =
-                await requestCertificate(
-                  {
-                    purpose: 'agreement',
-                    payload: {
-                      type: 'text',
-                      content:
-                        challenge.message,
-                    },
-                  },
-                  {
-                    signer,
-                  },
+              const dappSigner =
+                dappKitAccount
+                  ?.trim()
+                  .toLowerCase() || null;
+
+              if (
+                signer !== walletAddress ||
+                dappSigner !== walletAddress
+              ) {
+                throw new Error(
+                  'Wallet connection is still synchronizing. Please disconnect and reconnect the wallet.',
                 );
+              }
+
+              // Let the newly established provider transport settle before the
+              // ownership prompt is opened. VeWorld/VeChainKit can report the
+              // account slightly before the signing channel is fully ready.
+              await wait(
+                WALLET_SIGNATURE_SETTLE_MS,
+              );
+              assertStillCurrent();
+
+              const certResponse =
+                await withTimeout(
+                  requestCertificate(
+                    {
+                      purpose: 'agreement',
+                      payload: {
+                        type: 'text',
+                        content:
+                          challenge.message,
+                      },
+                    },
+                    {
+                      signer,
+                    },
+                  ),
+                  WALLET_SIGNATURE_TIMEOUT_MS,
+                  'Wallet signature request timed out.',
+                );
+
+              assertStillCurrent();
 
               signature =
                 certResponse.signature;
@@ -263,9 +362,14 @@ export function useWalletAuthentication() {
               };
             } else {
               signature =
-                await signMessage(
-                  challenge.message,
+                await withTimeout(
+                  signMessage(
+                    challenge.message,
+                  ),
+                  WALLET_SIGNATURE_TIMEOUT_MS,
+                  'Wallet signature request timed out.',
                 );
+              assertStillCurrent();
             }
 
             if (!signature) {
@@ -273,6 +377,8 @@ export function useWalletAuthentication() {
                 'Wallet verification signature was not returned.',
               );
             }
+
+            assertStillCurrent();
 
             const verifyResponse =
               await fetch(
@@ -290,6 +396,7 @@ export function useWalletAuthentication() {
                     signature,
                     certificate,
                   }),
+                  signal: controller.signal,
                 },
               );
 
@@ -297,6 +404,8 @@ export function useWalletAuthentication() {
               await readJson<VerifyResponse>(
                 verifyResponse,
               );
+
+            assertStillCurrent();
 
             if (
               !verifyResponse.ok ||
@@ -317,6 +426,9 @@ export function useWalletAuthentication() {
         inFlightRef.current = {
           walletAddress,
           promise: run,
+          cancel: () => {
+            controller.abort();
+          },
         };
 
         try {
@@ -333,6 +445,7 @@ export function useWalletAuthentication() {
       [
         account?.address,
         connection.isConnectedWithDappKit,
+        dappKitAccount,
         requestCertificate,
         signMessage,
       ],
@@ -343,25 +456,64 @@ export function useWalletAuthentication() {
       const current =
         inFlightRef.current;
 
+      // Invalidate the proof first. A wallet signature request is controlled by
+      // the wallet and cannot always be programmatically dismissed, but any
+      // late result must be unable to create a VeInvite session after logout.
+      authGenerationRef.current += 1;
+      inFlightRef.current = null;
+      current?.cancel();
+
+      let firstError: unknown;
+
+      const clearServerSession =
+        async () => {
+          const response = await fetch(
+            '/api/auth/session',
+            {
+              method: 'DELETE',
+            },
+          );
+
+          if (!response.ok) {
+            throw new Error(
+              'Could not clear wallet verification.',
+            );
+          }
+        };
+
+      try {
+        await clearServerSession();
+      } catch (error) {
+        firstError = error;
+      }
+
       if (current) {
+        // Do not let a frozen wallet prompt freeze the disconnect button. Give
+        // an already-finishing verification a short bounded window, then clear
+        // the cookie once more to cover a verify request that was already in
+        // flight when cancellation started.
         try {
-          await current.promise;
+          await Promise.race([
+            current.promise.catch(
+              () => undefined,
+            ),
+            wait(
+              CANCEL_SETTLE_TIMEOUT_MS,
+            ),
+          ]);
         } catch {
-          // Clear whatever session remains after a failed verification flow.
+          // The final session clear below is authoritative.
+        }
+
+        try {
+          await clearServerSession();
+        } catch (error) {
+          firstError ??= error;
         }
       }
 
-      const response = await fetch(
-        '/api/auth/session',
-        {
-          method: 'DELETE',
-        },
-      );
-
-      if (!response.ok) {
-        throw new Error(
-          'Could not clear wallet verification.',
-        );
+      if (firstError) {
+        throw firstError;
       }
     }, []);
 
