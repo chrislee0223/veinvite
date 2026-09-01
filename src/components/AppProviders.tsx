@@ -5,9 +5,11 @@ import { ChakraProvider, extendTheme } from '@chakra-ui/react';
 import dynamic from 'next/dynamic';
 
 import '@/lib/i18n/copyHardening';
+import '@/lib/i18n/secondaryPageCopyHardening';
 import { HeaderLanguagePickerPortal } from './HeaderLanguagePickerPortal';
 import { LegalNavigationMemory } from './LegalNavigationMemory';
 import { PublicRewardForecastPortal } from './PublicRewardForecastPortal';
+import { SecondaryPageLayoutPolish } from './SecondaryPageLayoutPolish';
 
 const VeChainProvider = dynamic(
   () =>
@@ -41,6 +43,7 @@ export function AppProviders({
     <ChakraProvider theme={theme}>
       <VeChainProvider>
         {children}
+        <SecondaryPageLayoutPolish />
         <LegalNavigationMemory />
         <HeaderLanguagePickerPortal />
         <PublicRewardForecastPortal />
