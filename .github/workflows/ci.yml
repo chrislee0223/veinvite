@@ -47,6 +47,9 @@ jobs:
       - name: Leaderboard stability gate
         run: node scripts/check-leaderboard-stability.mjs
 
+      - name: Public profile stability gate
+        run: node scripts/check-public-profile-stability.mjs
+
       - name: User-facing copy and UX gate
         run: node scripts/check-user-facing-copy.mjs
 
