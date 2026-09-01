@@ -33,6 +33,7 @@ function formatRewardWei(value: string): string {
 }
 
 function rankLabel(rank: number): string {
+  if (rank <= 0) return '—';
   if (rank === 1) return '🥇';
   if (rank === 2) return '🥈';
   if (rank === 3) return '🥉';
@@ -173,7 +174,18 @@ export function PublicLeaderboard({
     () => data?.leaders.slice(0, PUBLIC_RANK_LIMIT) ?? [],
     [data],
   );
-  const currentUser = data?.currentUser ?? null;
+  const rankedCurrentUser = data?.currentUser ?? null;
+  const currentUser: PublicLeaderboardEntry | null =
+    rankedCurrentUser ??
+    (wallet
+      ? {
+          rank: 0,
+          walletAddress: wallet,
+          completedReferrals: 0,
+          totalRewardWei: '0',
+          isCurrentWallet: true,
+        }
+      : null);
   const currentUserInList = currentUser
     ? displayedLeaders.some(
         (entry) =>
@@ -191,7 +203,7 @@ export function PublicLeaderboard({
   ) => {
     const classes = [
       'rankRow',
-      entry.rank <= 5 ? 'featured' : 'compact',
+      entry.rank > 0 && entry.rank <= 5 ? 'featured' : 'compact',
       entry.isCurrentWallet ? 'current' : '',
       trailing ? 'trailingCurrent' : '',
     ]
@@ -251,12 +263,6 @@ export function PublicLeaderboard({
 
   return (
     <section className="leaderboardPage">
-      <header>
-        <span>{t.eyebrow}</span>
-        <h1>{t.title}</h1>
-        <p>{t.description}</p>
-      </header>
-
       <section
         className="impactCard"
         data-reward-forecast-preview={previewData ? 'true' : undefined}
@@ -272,7 +278,6 @@ export function PublicLeaderboard({
           <strong>{totalUsers.toLocaleString()}</strong>
           <b aria-hidden="true">›</b>
         </button>
-        <p>{t.impactNote}</p>
       </section>
 
       <section className="rankingCard">
@@ -287,14 +292,16 @@ export function PublicLeaderboard({
           <span>{t.earned}</span>
         </div>
 
-        {displayedLeaders.length ? (
+        {displayedLeaders.length || trailingCurrentUser ? (
           <div className="rows">
             {displayedLeaders.map((entry) => renderRankRow(entry))}
             {trailingCurrentUser ? (
               <>
-                <div className="rankDivider" aria-hidden="true">
-                  <span>···</span>
-                </div>
+                {displayedLeaders.length ? (
+                  <div className="rankDivider" aria-hidden="true">
+                    <span>···</span>
+                  </div>
+                ) : null}
                 {renderRankRow(trailingCurrentUser, true)}
               </>
             ) : null}
@@ -305,7 +312,7 @@ export function PublicLeaderboard({
 
         {!wallet ? (
           <p className="rankContextNote">{t.connectForRank}</p>
-        ) : !currentUser ? (
+        ) : !rankedCurrentUser ? (
           <p className="rankContextNote">{t.unranked}</p>
         ) : null}
       </section>
@@ -353,7 +360,6 @@ export function PublicLeaderboard({
                 </strong>
               </span>
             </div>
-            <p>{t.impactNote}</p>
             {data?.reportingStartRound ? (
               <small className="reportingSince">
                 {t.reportingSince(data.reportingStartRound)}
@@ -429,27 +435,9 @@ export function PublicLeaderboard({
 
       <style jsx>{`
         .leaderboardPage {
-          width:min(100%,560px);
+          width:min(100%,520px);
           margin:0 auto;
           padding-bottom:12px;
-        }
-        header > span {
-          color:#f8bc2e;
-          font-size:.7rem;
-          font-weight:950;
-          letter-spacing:.12em;
-        }
-        h1 {
-          margin:8px 0 0;
-          font-size:clamp(2rem,8vw,2.75rem);
-          line-height:1.05;
-          letter-spacing:-.05em;
-        }
-        header p {
-          margin:12px 0 0;
-          color:#aaa69d;
-          font-size:.88rem;
-          line-height:1.58;
         }
         .impactCard,.rankingCard {
           margin-top:18px;
@@ -457,6 +445,9 @@ export function PublicLeaderboard({
           border:1px solid rgba(255,205,80,.14);
           border-radius:21px;
           background:rgba(255,255,255,.035);
+        }
+        .impactCard {
+          margin-top:0;
         }
         h2 {
           margin:0;
@@ -503,12 +494,6 @@ export function PublicLeaderboard({
           color:#d9b956;
           font-size:1.55rem;
           font-weight:500;
-        }
-        .impactCard > p {
-          margin:13px 0 0;
-          color:#8f8b83;
-          font-size:.73rem;
-          line-height:1.5;
         }
         .rankingTopline {
           min-height:24px;
@@ -725,15 +710,9 @@ export function PublicLeaderboard({
           color:#ffd35c;
           font-size:1.35rem;
         }
-        .impactDialog > p {
-          margin:14px 0 0;
-          color:#8f8b83;
-          font-size:.72rem;
-          line-height:1.55;
-        }
         .reportingSince {
           display:block;
-          margin-top:8px;
+          margin-top:12px;
           color:#706c65;
           font-size:.65rem;
         }
@@ -761,7 +740,7 @@ export function PublicLeaderboard({
         }
         @media (min-width:620px) {
           .tableHeader,.rankRow {
-            grid-template-columns:52px minmax(0,1fr) 100px 130px;
+            grid-template-columns:52px minmax(0,1fr) 112px 130px;
             gap:10px;
             align-items:center;
           }
@@ -828,7 +807,7 @@ export function PublicLeaderboard({
 
 const stateStyles = `
   .statePage {
-    width:min(100%,560px);
+    width:min(100%,520px);
     margin:0 auto;
     min-height:260px;
     display:grid;
