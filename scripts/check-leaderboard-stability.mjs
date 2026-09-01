@@ -55,7 +55,7 @@ if (/\.rows\s*\{[^}]*overflow(?:-y)?\s*:/s.test(leaderboard)) {
 // The effective production layout is intentionally hardened by a mounted
 // global style layer. Guard the final presentation, not only the base JSX
 // component, so a future refactor cannot silently recreate the misaligned
-// unranked row that was visible in production on 2026-09-01.
+// unranked row that was visible in production on 2026-09-01/02.
 if (!/import \{ SecondaryPageLayoutPolish \} from '\.\/SecondaryPageLayoutPolish';/.test(appProviders)) {
   failures.push('AppProviders must import the final secondary-page layout polish layer.');
 }
@@ -72,6 +72,20 @@ if (
   !/grid-template-columns:[\s\S]*var\(--rank-column\)[\s\S]*minmax\(0,1fr\)[\s\S]*var\(--completed-column\)[\s\S]*var\(--reward-column\)\s*!important/.test(layoutPolish)
 ) {
   failures.push('Leaderboard header and rows no longer share the reviewed four-column geometry.');
+}
+if (!/\.leaderboardPage \.rankPrimary\s*\{[\s\S]*display:contents\s*!important/.test(layoutPolish)) {
+  failures.push('Leaderboard rankPrimary wrapper must stay layout-transparent so all four visible cells share one parent grid.');
+}
+if (
+  !/\.leaderboardPage \.rankValue\s*\{[\s\S]*grid-column:1\s*!important[\s\S]*grid-row:1\s*!important/.test(layoutPolish) ||
+  !/\.leaderboardPage \.walletCell\s*\{[\s\S]*grid-column:2\s*!important[\s\S]*grid-row:1\s*!important/.test(layoutPolish) ||
+  !/\.leaderboardPage \.completedMetric\s*\{[\s\S]*grid-column:3\s*!important[\s\S]*grid-row:1\s*!important/.test(layoutPolish) ||
+  !/\.leaderboardPage \.rewardMetric\s*\{[\s\S]*grid-column:4\s*!important[\s\S]*grid-row:1\s*!important/.test(layoutPolish)
+) {
+  failures.push('Leaderboard visible cells must be explicitly pinned to columns 1-4 on the same grid row.');
+}
+if (/\.leaderboardPage \.rankPrimary\s*\{[\s\S]*display:grid\s*!important/.test(layoutPolish)) {
+  failures.push('Do not restore the nested rankPrimary grid; it causes metric columns to drift and stack.');
 }
 if (
   !/\.tableHeader span:nth-child\(2\)[\s\S]*padding-left:27px\s*!important/.test(layoutPolish) ||
