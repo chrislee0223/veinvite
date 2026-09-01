@@ -3,11 +3,13 @@ import { supabaseAdmin } from '@/lib/supabaseServer';
 const CHALLENGE_RETENTION_MS = 60 * 60 * 1000;
 const SESSION_RETENTION_MS = 24 * 60 * 60 * 1000;
 const RATE_LIMIT_RETENTION_MS = 24 * 60 * 60 * 1000;
+const RUNTIME_LOCK_RETENTION_MS = 60 * 60 * 1000;
 
 export type EphemeralCleanupSummary = {
   expiredChallengesDeleted: number;
   staleSessionsDeleted: number;
   oldRateLimitBucketsDeleted: number;
+  expiredRuntimeLocksDeleted: number;
 };
 
 function countDeleted(value: number | null) {
@@ -19,6 +21,8 @@ function countDeleted(value: number | null) {
  *
  * This intentionally never touches invitations, impact proofs, Sybil audit
  * events, reward/accounting records, monitoring snapshots, or payout data.
+ * Expired operator leases are retained for one extra hour before deletion so
+ * cleanup cannot race a lease that has only just crossed its expiry boundary.
  */
 export async function cleanupEphemeralSecurityState(): Promise<EphemeralCleanupSummary> {
   const now = Date.now();
@@ -30,6 +34,9 @@ export async function cleanupEphemeralSecurityState(): Promise<EphemeralCleanupS
   ).toISOString();
   const rateLimitCutoff = new Date(
     now - RATE_LIMIT_RETENTION_MS,
+  ).toISOString();
+  const runtimeLockCutoff = new Date(
+    now - RUNTIME_LOCK_RETENTION_MS,
   ).toISOString();
 
   const challengeDelete = await supabaseAdmin
@@ -67,9 +74,21 @@ export async function cleanupEphemeralSecurityState(): Promise<EphemeralCleanupS
     );
   }
 
+  const runtimeLockDelete = await supabaseAdmin
+    .from('operator_runtime_locks')
+    .delete({ count: 'exact' })
+    .lt('locked_until', runtimeLockCutoff);
+
+  if (runtimeLockDelete.error) {
+    throw new Error(
+      `Expired operator runtime locks could not be cleaned: ${runtimeLockDelete.error.message}`,
+    );
+  }
+
   return {
     expiredChallengesDeleted: countDeleted(challengeDelete.count),
     staleSessionsDeleted: countDeleted(sessionDelete.count),
     oldRateLimitBucketsDeleted: countDeleted(rateLimitDelete.count),
+    expiredRuntimeLocksDeleted: countDeleted(runtimeLockDelete.count),
   };
 }
