@@ -11,6 +11,7 @@ import {
   useWallet,
 } from '@vechain/vechain-kit';
 
+import { Brand } from '@/components/Brand';
 import {
   useWalletAuthentication,
 } from '@/hooks/useWalletAuthentication';
@@ -35,6 +36,8 @@ type VerificationState =
 
 const SESSION_CHECK_SURFACE_DELAY_MS = 3_000;
 const PASSIVE_DISCONNECT_GRACE_MS = 8_000;
+const SESSION_CLEARED_EVENT =
+  'veinvite-wallet-session-cleared';
 const WALLET_SESSION_INVALID_EVENT =
   'veinvite-wallet-session-invalid';
 const WALLET_SESSION_READY_EVENT =
@@ -61,9 +64,13 @@ function initialLocale(): Locale {
 
 export function WalletSessionGate({
   children,
+  initialSessionWallet = null,
 }: {
   children: ReactNode;
+  initialSessionWallet?: string | null;
 }) {
+  const initialWallet =
+    initialSessionWallet?.toLowerCase() ?? null;
   const {
     account,
     disconnect,
@@ -77,9 +84,11 @@ export function WalletSessionGate({
   } = useWalletAuthentication();
 
   const [state, setState] =
-    useState<VerificationState>('idle');
+    useState<VerificationState>(
+      initialWallet ? 'verified' : 'idle',
+    );
   const [verifiedWallet, setVerifiedWallet] =
-    useState<string | null>(null);
+    useState<string | null>(initialWallet);
   const [locale, setLocale] =
     useState<Locale>('en');
   const [isDisconnecting, setIsDisconnecting] =
@@ -88,12 +97,13 @@ export function WalletSessionGate({
     useState(false);
   const attemptRef = useRef(0);
   const autoAttemptedWalletRef =
-    useRef<string | null>(null);
+    useRef<string | null>(initialWallet);
   const pageLifecycleRef = useRef(false);
   const walletAddressRef =
     useRef<string | null>(walletAddress);
   const pendingDisconnectTimerRef =
     useRef<number | null>(null);
+  const bootReadyDispatchedRef = useRef(false);
 
   useEffect(() => {
     setLocale(initialLocale());
@@ -143,6 +153,28 @@ export function WalletSessionGate({
   }, []);
 
   useEffect(() => {
+    const handleSessionCleared = () => {
+      attemptRef.current += 1;
+      autoAttemptedWalletRef.current = null;
+      bootReadyDispatchedRef.current = false;
+      setVerifiedWallet(null);
+      setState('idle');
+    };
+
+    window.addEventListener(
+      SESSION_CLEARED_EVENT,
+      handleSessionCleared,
+    );
+
+    return () => {
+      window.removeEventListener(
+        SESSION_CLEARED_EVENT,
+        handleSessionCleared,
+      );
+    };
+  }, []);
+
+  useEffect(() => {
     walletAddressRef.current = walletAddress;
 
     // WalletConnect/VeWorld can briefly report a disconnect while restoring
@@ -178,7 +210,8 @@ export function WalletSessionGate({
       // even just after pageshow. Never revoke the persistent browser session
       // immediately from a provider event; first give the transport time to
       // restore the same wallet. Explicit VeInvite disconnect/switch actions
-      // still clear the server session synchronously before disconnecting.
+      // clear the server session through clearWalletSession and emit the
+      // session-cleared event immediately.
       if (
         pageLifecycleRef.current ||
         document.visibilityState === 'hidden'
@@ -207,13 +240,6 @@ export function WalletSessionGate({
           ) {
             return;
           }
-
-          // The wallet stayed disconnected for the whole grace window, so now
-          // treat the provider event as genuine and revoke the browser session.
-          attemptRef.current += 1;
-          autoAttemptedWalletRef.current = null;
-          setVerifiedWallet(null);
-          setState('idle');
 
           void clearWalletSession().catch(
             (error) => {
@@ -260,8 +286,6 @@ export function WalletSessionGate({
 
   const verify = useCallback(async () => {
     if (!walletAddress) {
-      setState('idle');
-      setVerifiedWallet(null);
       return;
     }
 
@@ -279,6 +303,7 @@ export function WalletSessionGate({
 
       setVerifiedWallet(walletAddress);
       setState('verified');
+      bootReadyDispatchedRef.current = true;
       window.dispatchEvent(
         new Event(WALLET_SESSION_READY_EVENT),
       );
@@ -302,7 +327,13 @@ export function WalletSessionGate({
 
   useEffect(() => {
     const handleInvalidWalletSession = () => {
+      attemptRef.current += 1;
+      autoAttemptedWalletRef.current = null;
+      bootReadyDispatchedRef.current = false;
+      setVerifiedWallet(null);
+
       if (!walletAddress) {
+        setState('idle');
         return;
       }
 
@@ -310,7 +341,6 @@ export function WalletSessionGate({
       // valid. Unmount protected children immediately and reuse the normal
       // wallet-verification path rather than allowing each child to keep
       // polling with a known-invalid cookie.
-      setVerifiedWallet(null);
       void verify();
     };
 
@@ -327,6 +357,32 @@ export function WalletSessionGate({
     };
   }, [verify, walletAddress]);
 
+  useEffect(() => {
+    if (
+      bootReadyDispatchedRef.current ||
+      !initialWallet ||
+      walletAddress !== initialWallet ||
+      state !== 'verified' ||
+      verifiedWallet !== initialWallet
+    ) {
+      return;
+    }
+
+    // A server-validated session can skip verify() entirely on refresh. Once
+    // the same wallet transport has restored, publish the same readiness event
+    // that a fresh verification would publish so dependent sync work remains
+    // event-driven without forcing another phone signature.
+    bootReadyDispatchedRef.current = true;
+    window.dispatchEvent(
+      new Event(WALLET_SESSION_READY_EVENT),
+    );
+  }, [
+    initialWallet,
+    state,
+    verifiedWallet,
+    walletAddress,
+  ]);
+
   const disconnectFromVerification =
     useCallback(async () => {
       if (isDisconnecting) {
@@ -339,6 +395,7 @@ export function WalletSessionGate({
       // has a recovery path from a stuck wallet provider.
       attemptRef.current += 1;
       autoAttemptedWalletRef.current = null;
+      bootReadyDispatchedRef.current = false;
       setVerifiedWallet(null);
       setIsDisconnecting(true);
 
@@ -378,18 +435,17 @@ export function WalletSessionGate({
 
   useEffect(() => {
     if (!walletAddress) {
-      attemptRef.current += 1;
-      autoAttemptedWalletRef.current = null;
-      setState('idle');
-      setVerifiedWallet(null);
+      // Do not erase a valid bootstrapped/verified session merely because the
+      // WalletConnect transport is briefly absent during refresh. The passive
+      // disconnect grace path or an explicit session-cleared event owns that
+      // transition instead.
       return;
     }
 
-    // Automatically verify once for each newly connected wallet. The first
-    // action inside ensureWalletSession is a server-session lookup, so a valid
-    // 7-day session is silently reused without opening a fresh wallet proof.
-    // If a proof is genuinely required and the user rejects/fails it, remain on
-    // the error screen until an explicit retry/disconnect action.
+    // A server-validated session is bootstrapped into autoAttemptedWalletRef on
+    // navigation. When VeChainKit restores that same wallet, no client proof or
+    // phone signature is needed at all. A genuinely new/different wallet still
+    // runs the normal ownership proof exactly once.
     if (
       autoAttemptedWalletRef.current ===
       walletAddress
@@ -426,8 +482,8 @@ export function WalletSessionGate({
     );
   }
 
-  // During normal refreshes, preserve a quiet transition while the existing
-  // cookie is checked instead of flashing the ownership-verification card.
+  // Keep the transition branded instead of replacing the entire app with a
+  // featureless black frame while the wallet provider/session initializes.
   if (
     state === 'idle' ||
     (state === 'checking' && !showCheckingSurface)
@@ -437,9 +493,14 @@ export function WalletSessionGate({
         aria-hidden="true"
         style={{
           minHeight: '100dvh',
-          background: '#080807',
+          display: 'grid',
+          placeItems: 'center',
+          background:
+            'radial-gradient(circle at 50% 38%, rgba(244,183,40,0.10), transparent 32%), #080807',
         }}
-      />
+      >
+        <Brand compact />
+      </div>
     );
   }
 

@@ -5,9 +5,32 @@ import {
 
 import {
   getWalletSession,
+  getWalletSessionCookieCount,
+  LEGACY_WALLET_SESSION_COOKIE_NAME,
   revokeWalletSession,
   WALLET_SESSION_COOKIE_NAME,
 } from '@/lib/walletAuthServer';
+
+function clearSessionCookie({
+  response,
+  name,
+}: {
+  response: NextResponse;
+  name: string;
+}) {
+  response.cookies.set({
+    name,
+    value: '',
+    httpOnly: true,
+    secure:
+      process.env.NODE_ENV ===
+      'production',
+    sameSite: 'lax',
+    path: '/',
+    maxAge: 0,
+    expires: new Date(0),
+  });
+}
 
 export async function GET(
   request: NextRequest,
@@ -17,6 +40,20 @@ export async function GET(
       await getWalletSession(request);
 
     if (!session) {
+      const cookieCount =
+        getWalletSessionCookieCount(request);
+
+      // Safe diagnostics only: never log cookie values or wallet addresses.
+      // This lets production logs distinguish a browser that did not return a
+      // session cookie from one that returned only stale/invalid cookies.
+      console.info(
+        'Wallet session lookup returned unauthenticated.',
+        {
+          cookieCount,
+          host: request.nextUrl.host,
+        },
+      );
+
       return NextResponse.json(
         {
           authenticated: false,
@@ -102,17 +139,21 @@ export async function DELETE(
     },
   );
 
-  response.cookies.set({
+  clearSessionCookie({
+    response,
     name: WALLET_SESSION_COOKIE_NAME,
-    value: '',
-    httpOnly: true,
-    secure:
-      process.env.NODE_ENV ===
-      'production',
-    sameSite: 'lax',
-    path: '/',
-    expires: new Date(0),
   });
+
+  if (
+    LEGACY_WALLET_SESSION_COOKIE_NAME !==
+    WALLET_SESSION_COOKIE_NAME
+  ) {
+    clearSessionCookie({
+      response,
+      name:
+        LEGACY_WALLET_SESSION_COOKIE_NAME,
+    });
+  }
 
   return response;
 }

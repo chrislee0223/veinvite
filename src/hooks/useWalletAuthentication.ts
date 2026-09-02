@@ -188,33 +188,37 @@ export function useWalletAuthentication() {
           }
         };
 
+        const readCurrentSession = async () => {
+          const response = await fetch(
+            '/api/auth/session',
+            {
+              method: 'GET',
+              cache: 'no-store',
+              credentials: 'include',
+              signal: controller.signal,
+            },
+          );
+          const session =
+            await readJson<SessionResponse>(response);
+
+          if (!response.ok) {
+            throw new Error(
+              session.error ||
+                'Could not check wallet verification.',
+            );
+          }
+
+          return session;
+        };
+
         let run!: Promise<void>;
 
         run = (async () => {
           setIsAuthenticating(true);
 
           try {
-            const sessionResponse =
-              await fetch(
-                '/api/auth/session',
-                {
-                  method: 'GET',
-                  cache: 'no-store',
-                  signal: controller.signal,
-                },
-              );
-
             const session =
-              await readJson<SessionResponse>(
-                sessionResponse,
-              );
-
-            if (!sessionResponse.ok) {
-              throw new Error(
-                session.error ||
-                  'Could not check wallet verification.',
-              );
-            }
+              await readCurrentSession();
 
             assertStillCurrent();
 
@@ -233,6 +237,7 @@ export function useWalletAuthentication() {
                   '/api/auth/session',
                   {
                     method: 'DELETE',
+                    credentials: 'include',
                     signal: controller.signal,
                   },
                 );
@@ -251,6 +256,7 @@ export function useWalletAuthentication() {
                 '/api/auth/challenge',
                 {
                   method: 'POST',
+                  credentials: 'include',
                   headers: {
                     'Content-Type':
                       'application/json',
@@ -385,6 +391,7 @@ export function useWalletAuthentication() {
                 '/api/auth/verify',
                 {
                   method: 'POST',
+                  credentials: 'include',
                   headers: {
                     'Content-Type':
                       'application/json',
@@ -416,6 +423,26 @@ export function useWalletAuthentication() {
               throw new Error(
                 verified.error ||
                   'Wallet verification failed.',
+              );
+            }
+
+            // Do not claim the wallet is verified until the browser actually
+            // returns the newly issued persistent cookie. This catches cookie
+            // storage problems immediately instead of surprising the user with
+            // another phone signature after the next refresh.
+            const persistedSession =
+              await readCurrentSession();
+
+            assertStillCurrent();
+
+            if (
+              !persistedSession.authenticated ||
+              persistedSession.walletAddress
+                ?.toLowerCase() !==
+                walletAddress
+            ) {
+              throw new Error(
+                'The browser did not retain the VeInvite wallet session. Please allow site cookies and try once more.',
               );
             }
           } finally {
@@ -456,6 +483,15 @@ export function useWalletAuthentication() {
       const current =
         inFlightRef.current;
 
+      // This event represents an explicit VeInvite session clear. The wallet
+      // gate uses it to distinguish real logout/switch actions from passive
+      // WalletConnect transport churn during refresh.
+      window.dispatchEvent(
+        new Event(
+          'veinvite-wallet-session-cleared',
+        ),
+      );
+
       // Invalidate the proof first. A wallet signature request is controlled by
       // the wallet and cannot always be programmatically dismissed, but any
       // late result must be unable to create a VeInvite session after logout.
@@ -471,6 +507,7 @@ export function useWalletAuthentication() {
             '/api/auth/session',
             {
               method: 'DELETE',
+              credentials: 'include',
             },
           );
 
