@@ -76,15 +76,29 @@ type UsagePayload = {
 };
 
 function createUuid(): string {
+  const cryptoApi = globalThis.crypto;
+
   if (
-    typeof crypto !== 'undefined' &&
-    typeof crypto.randomUUID === 'function'
+    cryptoApi &&
+    typeof cryptoApi.randomUUID === 'function'
   ) {
-    return crypto.randomUUID();
+    return cryptoApi.randomUUID();
   }
 
   const bytes = new Uint8Array(16);
-  crypto.getRandomValues(bytes);
+  if (
+    cryptoApi &&
+    typeof cryptoApi.getRandomValues === 'function'
+  ) {
+    cryptoApi.getRandomValues(bytes);
+  } else {
+    // This identifier is analytics-only and never used for auth or rewards.
+    // Keep tracking non-fatal in restricted/legacy WebViews without Web Crypto.
+    for (let index = 0; index < bytes.length; index += 1) {
+      bytes[index] = Math.floor(Math.random() * 256);
+    }
+  }
+
   bytes[6] = (bytes[6] & 0x0f) | 0x40;
   bytes[8] = (bytes[8] & 0x3f) | 0x80;
   const hex = Array.from(
@@ -700,9 +714,23 @@ export function UsageAnalyticsTracker() {
       ) {
         return;
       }
-      flushEngaged('heartbeat');
+
+      // A tab transition used to emit a heartbeat and then a pageview. The
+      // pageview can carry the same active-time delta, preserving session time
+      // while avoiding one serverless/Supabase write per internal tab switch.
+      const started = activeSinceRef.current;
+      const now = Date.now();
+      const delta =
+        started === null
+          ? 0
+          : Math.max(
+              0,
+              (now - started) / 1000,
+            );
+      activeSinceRef.current =
+        isEngaged() ? now : null;
       currentViewRef.current = nextView;
-      send('pageview', nextView);
+      send('pageview', nextView, delta);
     };
 
     const onLanguageChange = (
@@ -711,10 +739,9 @@ export function UsageAnalyticsTracker() {
       const detail =
         (event as CustomEvent<unknown>).detail;
       if (!isLocale(detail)) return;
+      // The next heartbeat/pageview/end event persists the new locale. Avoid
+      // an extra zero-duration analytics request solely for a language change.
       localeRef.current = detail;
-      if (mountedRef.current) {
-        send('heartbeat');
-      }
     };
 
     document.addEventListener(
