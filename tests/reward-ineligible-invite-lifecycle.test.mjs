@@ -87,8 +87,14 @@ test('a confirmed ACTIVE_EXISTING result is not reported as terminal unless its 
   assert.match(claimRoute, /Retry-After': '10'/u);
 });
 
-test('terminal ineligible links remain unusable while reopening shows the explicit participation result', () => {
+test('new terminal ineligible links reopen as neutral ended links rather than claiming the next visitor is ineligible', () => {
   assert.match(inviteRoute, /ineligibility_check_id/u);
+  assert.match(inviteRoute, /outcome:\s*'ineligible_invite_closed'/u);
+  assert.match(inviteRoute, /status: 410/u);
+  assert.match(inviteeClient, /status === 404 \|\| status === 410/u);
+});
+
+test('verified legacy ACTIVE_EXISTING invitations still show their historical participation result and never enter mission reconciliation', () => {
   assert.match(inviteRoute, /legacy_entry_classification_backfill/u);
   assert.match(inviteRoute, /outcome:\s*'active_existing_user'/u);
   assert.match(inviteeClient, /readonly outcome:\s*string \| undefined/u);
