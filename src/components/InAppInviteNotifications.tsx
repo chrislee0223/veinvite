@@ -123,6 +123,9 @@ export function InAppInviteNotifications({
         return;
       }
 
+      const terminalInviteReleased =
+        notification.kind === 'INVITE_INELIGIBLE';
+
       setAcknowledging(true);
       setErrorMessage('');
 
@@ -163,6 +166,17 @@ export function InAppInviteNotifications({
         setUnreadCount((current) =>
           Math.max(0, current - 1),
         );
+
+        // A terminal rejection releases the inviter slot in the database while
+        // Home may still hold the old pending invite in client memory. This is a
+        // rare event, so one deterministic reload is safer and simpler than a
+        // second permanent synchronization channel. The refreshed Home then
+        // immediately exposes the normal "invite another friend" action.
+        if (terminalInviteReleased) {
+          window.location.reload();
+          return;
+        }
+
         await refresh(false);
       } catch (error) {
         console.warn(
