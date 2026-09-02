@@ -186,7 +186,7 @@ async function recordRejectedEntryCheck({
   inviteCode: string;
   walletAddress: string;
   entryCheck: EntryEligibilityResult;
-}) {
+}): Promise<boolean> {
   const rewardEvidence =
     entryCheck.recentRewardEvent ??
     entryCheck.priorRewardEvent;
@@ -215,13 +215,17 @@ async function recordRejectedEntryCheck({
     });
 
   if (error) {
-    // Rejected attempts do not consume the invite even if this audit append
-    // fails. Log loudly so the operator can investigate data-quality health.
+    // The rejection and the invitation closure are one database transaction via
+    // the eligibility trigger. If persistence fails, do not claim the terminal
+    // rejection succeeded: keep the invitation untouched and ask for a retry.
     console.error(
-      'Failed to record rejected VeBetter entry check:',
+      'Failed to persist rejected VeBetter entry check:',
       error,
     );
+    return false;
   }
+
+  return true;
 }
 
 function claimConflictResponse(
@@ -528,11 +532,29 @@ export async function POST(
     entryCheck.entryClass ===
     'active_existing_user'
   ) {
-    await recordRejectedEntryCheck({
-      inviteCode: normalizedCode,
-      walletAddress: inviteeAddress,
-      entryCheck,
-    });
+    const recorded =
+      await recordRejectedEntryCheck({
+        inviteCode: normalizedCode,
+        walletAddress: inviteeAddress,
+        entryCheck,
+      });
+
+    if (!recorded) {
+      return NextResponse.json(
+        {
+          outcome:
+            'eligibility_record_failed',
+          error:
+            'The eligibility result could not be saved. The invite was not used. Please try again.',
+        },
+        {
+          status: 503,
+          headers: {
+            'Retry-After': '10',
+          },
+        },
+      );
+    }
 
     return NextResponse.json(
       {
