@@ -7,6 +7,7 @@ import dynamic from 'next/dynamic';
 import '@/lib/i18n/copyHardening';
 import '@/lib/i18n/secondaryPageCopyHardening';
 import { HeaderLanguagePickerPortal } from './HeaderLanguagePickerPortal';
+import { LeaderboardLaurelPreviewOverride } from './LeaderboardLaurelPreviewOverride';
 import { LegalNavigationMemory } from './LegalNavigationMemory';
 import { PublicRewardForecastPortal } from './PublicRewardForecastPortal';
 import { SecondaryPageLayoutPolish } from './SecondaryPageLayoutPolish';
@@ -46,6 +47,7 @@ export function AppProviders({
         {children}
         <WalletLanguagePreferenceSync />
         <SecondaryPageLayoutPolish />
+        <LeaderboardLaurelPreviewOverride />
         <LegalNavigationMemory />
         <HeaderLanguagePickerPortal />
         <PublicRewardForecastPortal />
