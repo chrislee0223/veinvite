@@ -237,7 +237,10 @@ export async function GET(
     );
   }
 
-  const hasStageFailure =
+  // Keep the established stability-gate contract name. HOUSEKEEPING is now a
+  // member of failedStages too, so privacy-retention failures are surfaced by
+  // the same final health signal without weakening the existing cron checks.
+  const hasCoreFailure =
     failedStages.length > 0;
 
   return NextResponse.json(
@@ -273,11 +276,11 @@ export async function GET(
           }
         : null,
       trigger: 'VERCEL_CRON',
-      partialFailure: hasStageFailure,
+      partialFailure: hasCoreFailure,
       failedStages,
     },
     {
-      status: hasStageFailure ? 500 : 200,
+      status: hasCoreFailure ? 500 : 200,
       headers: {
         'Cache-Control': 'no-store',
       },
