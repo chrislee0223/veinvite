@@ -131,7 +131,7 @@ if (/veinvite-app-ready/.test(appProviders)) {
 if (!/veinvite-app-ready/.test(walletRuntime) || !/veinvite-app-ready/.test(hydrationShield)) {
   failures.push('The home startup shield must release only from the wallet/session lifecycle final-readiness signal.');
 }
-if (!/MutationObserver/.test(walletRuntime) || !/main\.screen/.test(walletRuntime) || !/aria-live=\\"polite\\"/.test(walletRuntime)) {
+if (!/MutationObserver/.test(walletRuntime) || !/main\.screen/.test(walletRuntime) || !/aria-live=["']polite["']/.test(walletRuntime)) {
   failures.push('Home readiness must observe the real mounted home/gate surfaces rather than releasing on provider initialization alone.');
 }
 if (!/HOME_STABILITY_MS/.test(walletRuntime) || !/DISCONNECTED_STABILITY_MS/.test(walletRuntime) || !/BOOTSTRAPPED_SESSION_GRACE_MS/.test(walletRuntime)) {
