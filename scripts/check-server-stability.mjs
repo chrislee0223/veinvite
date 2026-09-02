@@ -80,6 +80,23 @@ if (
   );
 }
 
+const languagePreferenceSync = read(
+  'src/components/WalletLanguagePreferenceSync.tsx',
+);
+if (
+  /SESSION_RETRY_MS|SESSION_RETRY_LIMIT|waitForWalletSession/.test(
+    languagePreferenceSync,
+  ) ||
+  !/veinvite-wallet-session-ready/.test(languagePreferenceSync) ||
+  !/handleWalletSessionReady/.test(languagePreferenceSync) ||
+  !/veinvite-wallet-session-ready/.test(walletSessionGate) ||
+  !/WALLET_SESSION_READY_EVENT/.test(walletSessionGate)
+) {
+  failures.push(
+    'Wallet language preference synchronization must remain event-driven after session verification instead of repeatedly polling /api/auth/session.',
+  );
+}
+
 const healthRoute = read('src/app/api/health/route.ts');
 if (
   !/VERCEL_GIT_COMMIT_SHA/.test(healthRoute) ||
