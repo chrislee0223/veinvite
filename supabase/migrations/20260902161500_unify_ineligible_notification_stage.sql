@@ -1,6 +1,17 @@
 -- Keep invite notifications on one monotonic acknowledgement stream. Stage 6
 -- represents the terminal ACTIVE_EXISTING rejection and is only emitted for an
 -- invitation already closed with explicit ineligibility evidence.
+
+alter table public.invite_notification_state
+  drop constraint if exists invite_notification_state_stage_check;
+
+alter table public.invite_notification_state
+  add constraint invite_notification_state_stage_check
+  check (highest_stage between 1 and 6) not valid;
+
+alter table public.invite_notification_state
+  validate constraint invite_notification_state_stage_check;
+
 create or replace function public.acknowledge_invite_notification(
   p_invite_code text,
   p_inviter_wallet text,
