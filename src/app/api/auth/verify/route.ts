@@ -28,7 +28,7 @@ import {
   WALLET_SESSION_COOKIE_NAME,
 } from '@/lib/walletAuthServer';
 
-const SESSION_LIFETIME_DAYS = 7;
+const SESSION_LIFETIME_DAYS = 30;
 const SESSION_LIFETIME_SECONDS =
   SESSION_LIFETIME_DAYS * 24 * 60 * 60;
 const CERTIFICATE_CLOCK_SKEW_MS =
@@ -495,10 +495,10 @@ export async function POST(
         SESSION_LIFETIME_SECONDS * 1000,
     );
 
-  // Consume the verified challenge, revoke older sessions, and create the new
-  // session inside one database transaction. Any failure rolls the entire
-  // operation back, so a valid proof is never consumed without a usable
-  // replacement session being persisted.
+  // Consume the verified challenge and create this browser/device session in
+  // one database transaction. The database keeps a small bounded set of
+  // independent sessions for the same wallet, so signing in on another device
+  // does not log out an already active VeInvite session.
   const {
     data: sessionIssued,
     error: sessionIssueError,
