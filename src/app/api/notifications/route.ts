@@ -174,9 +174,14 @@ export async function GET(request: NextRequest) {
     const inviteCodes = invitations.map(
       (invitation) => invitation.invite_code,
     );
+    const paidInviteCodes = invitations
+      .filter(
+        (invitation) => invitation.reward_status === 'PAID',
+      )
+      .map((invitation) => invitation.invite_code);
 
     const [paidRewards, stateResult] = await Promise.all([
-      loadPaidRewards(inviteCodes),
+      loadPaidRewards(paidInviteCodes),
       inviteCodes.length > 0
         ? supabaseAdmin
             .from('invite_notification_state')
@@ -341,9 +346,10 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const paidRewards = await loadPaidRewards([
-      inviteCode,
-    ]);
+    const paidRewards =
+      invitation.reward_status === 'PAID'
+        ? await loadPaidRewards([inviteCode])
+        : new Map<string, PaidRewardEvidence>();
     const current = deriveInviteNotification(
       invitation,
       paidRewards.get(inviteCode) ?? null,
