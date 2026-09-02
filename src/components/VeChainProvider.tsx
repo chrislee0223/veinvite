@@ -25,6 +25,31 @@ const VeChainKitProvider = dynamic(
   { ssr: false },
 );
 
+// These are the VeInvite locales already exercised with VeChain Kit. VeInvite
+// may support additional app-only locales; those safely keep the wallet modal
+// in English rather than passing an unknown language into the live provider.
+const VECHAIN_KIT_LANGUAGES = new Set<string>([
+  'en',
+  'ko',
+  'zh',
+  'hi',
+  'es',
+  'ja',
+  'it',
+  'tr',
+  'nl',
+  'de',
+  'fr',
+]);
+
+function resolveVeChainKitLanguage(
+  locale: string,
+): string {
+  return VECHAIN_KIT_LANGUAGES.has(locale)
+    ? locale
+    : 'en';
+}
+
 function resolveVeInviteLanguage(): Locale {
   if (typeof window === 'undefined') {
     return 'en';
@@ -52,8 +77,11 @@ function VeChainLanguageSync() {
 
   useEffect(() => {
     const syncLanguage = (nextLanguage: Locale) => {
-      if (currentLanguage !== nextLanguage) {
-        setKitLanguage(nextLanguage);
+      const kitLanguage =
+        resolveVeChainKitLanguage(nextLanguage);
+
+      if (currentLanguage !== kitLanguage) {
+        setKitLanguage(kitLanguage as never);
       }
     };
 
@@ -112,8 +140,11 @@ export function VeChainProvider({
   const [queryClient] = useState(
     () => new QueryClient(),
   );
-  const [initialLanguage] = useState<Locale>(
-    resolveVeInviteLanguage,
+  const [initialLanguage] = useState(
+    () =>
+      resolveVeChainKitLanguage(
+        resolveVeInviteLanguage(),
+      ),
   );
   const walletConnectProjectId =
     process.env.NEXT_PUBLIC_WALLET_CONNECT_PROJECT_ID;
@@ -193,7 +224,7 @@ export function VeChainProvider({
   return (
     <QueryClientProvider client={queryClient}>
       <VeChainKitProvider
-        language={initialLanguage}
+        language={initialLanguage as never}
         dappKit={dappKit as never}
         loginMethods={loginMethods as never}
         darkMode
