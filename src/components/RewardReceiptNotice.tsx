@@ -20,6 +20,9 @@ type ReceiptResponse = {
   latestUnseen?: RewardReceipt | null;
 };
 
+const REWARD_RECEIPT_ACKNOWLEDGED_EVENT =
+  'veinvite-reward-receipt-acknowledged';
+
 function shortTx(txId: string): string {
   if (txId.length < 18) {
     return txId;
@@ -113,6 +116,9 @@ export function RewardReceiptNotice() {
       }
 
       setReceipt(null);
+      window.dispatchEvent(
+        new Event(REWARD_RECEIPT_ACKNOWLEDGED_EVENT),
+      );
     } catch {
       setError(t.error);
     } finally {

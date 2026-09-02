@@ -9,6 +9,7 @@ import { UsageAnalyticsTracker } from '@/components/UsageAnalyticsTracker';
 import './globals.css';
 import './header-language-flags.css';
 import './localized-typography.css';
+import './notification-i18n-hardening.css';
 import './ui-safety.css';
 import './final-ui-hardening.css';
 import './wallet-confirmation-unified.css';

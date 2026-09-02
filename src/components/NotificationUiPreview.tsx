@@ -28,6 +28,7 @@ const SCENARIOS: Scenario[] = [
   { id: 'collapsed', label: '3-A. 여러 단계 동시 확인', description: '앱을 보지 않는 사이 dApp + VOT3가 함께 진행됐을 때', kind: 'VOT3_CONVERTED', stage: 3, collapsedProgress: true },
   { id: 'complete', label: '4. 모든 미션 완료', description: '친구가 마지막 미션까지 모두 완료했을 때', kind: 'ALL_MISSIONS_COMPLETED', stage: 4 },
   { id: 'reward', label: '5. 보상 지급 완료', description: 'B3TR 보상이 실제 지급됐을 때의 강조형 알림', kind: 'REWARD_PAID', stage: 5, rewardAmountWei: '147740500000000000000' },
+  { id: 'ineligible', label: '6. 참여 조건 미충족', description: '초대한 친구가 참여 조건에 맞지 않아 초대 슬롯이 다시 열렸을 때', kind: 'INVITE_INELIGIBLE', stage: 6 },
 ];
 
 export function NotificationUiPreview() {

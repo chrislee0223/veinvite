@@ -1,0 +1,110 @@
+/* Last-mile safeguards for translated transient notification surfaces. */
+
+/* These surfaces already use nearly opaque fills. Avoid full-screen/fixed
+ * backdrop blur layers, which add GPU compositing cost without meaningful
+ * visual benefit and can flash during first paint on some desktop browsers. */
+.notificationBackdrop,
+.transientSnackbar {
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+
+.notificationBackdrop {
+  background: rgba(2, 2, 2, .80) !important;
+}
+
+/* Long translations (especially Indic and Arabic-family scripts) must never
+ * push the action button below the viewport. The card becomes internally
+ * scrollable only when the available height is genuinely too small. */
+.notificationRoot .notificationCard {
+  max-height: calc(100dvh - 40px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+/* Natural-language copy should wrap at language-appropriate boundaries.
+ * Technical token amounts remain independently breakable below. */
+.notificationRoot :is(
+  .notificationCopy h2,
+  .notificationCopy p,
+  .notificationHint,
+  .notificationError
+),
+.rewardReceiptNotice :is(
+  .receiptEyebrow,
+  h2,
+  .receiptDescription,
+  dt,
+  .receiptError
+),
+.transientSnackbar .feedbackText {
+  overflow-wrap: normal !important;
+  word-break: normal !important;
+  hyphens: none !important;
+}
+
+html[lang='ko'] :is(
+  .notificationRoot .notificationCopy h2,
+  .notificationRoot .notificationCopy p,
+  .notificationRoot .notificationHint,
+  .notificationRoot .notificationError,
+  .rewardReceiptNotice .receiptEyebrow,
+  .rewardReceiptNotice h2,
+  .rewardReceiptNotice .receiptDescription,
+  .rewardReceiptNotice dt,
+  .rewardReceiptNotice .receiptError,
+  .transientSnackbar .feedbackText
+) {
+  word-break: keep-all !important;
+  overflow-wrap: normal !important;
+}
+
+html:is([lang='zh'], [lang='zh-tw'], [lang='ja']) :is(
+  .notificationRoot .notificationCopy h2,
+  .notificationRoot .notificationCopy p,
+  .notificationRoot .notificationHint,
+  .notificationRoot .notificationError,
+  .rewardReceiptNotice .receiptEyebrow,
+  .rewardReceiptNotice h2,
+  .rewardReceiptNotice .receiptDescription,
+  .rewardReceiptNotice dt,
+  .rewardReceiptNotice .receiptError,
+  .transientSnackbar .feedbackText
+) {
+  line-break: strict;
+  word-break: normal !important;
+}
+
+/* Amounts are technical strings: preserve them as LTR in RTL locales while
+ * still allowing a very large value to fit a narrow device safely. */
+.notificationRoot .rewardAmount,
+.rewardReceiptNotice .receiptAmount strong {
+  overflow-wrap: anywhere !important;
+  word-break: normal !important;
+  font-variant-numeric: tabular-nums;
+}
+
+html[dir='rtl'] :is(
+  .notificationRoot .rewardAmount,
+  .rewardReceiptNotice .receiptAmount strong
+) {
+  direction: ltr;
+  unicode-bidi: isolate;
+}
+
+@media (max-width: 560px) {
+  .notificationRoot .notificationCard {
+    max-height: calc(100dvh - 12px);
+  }
+
+  .notificationRoot .notificationBackdrop:not(.rewardMode) .notificationCard {
+    max-height: 100dvh;
+  }
+}
+
+@media (max-height: 520px) {
+  .notificationRoot .notificationCard {
+    max-height: calc(100dvh - 12px);
+    gap: 12px;
+  }
+}
