@@ -37,6 +37,13 @@ const notificationSurface = readFileSync(
   ),
   'utf8',
 );
+const inAppNotifications = readFileSync(
+  new URL(
+    '../src/components/InAppInviteNotifications.tsx',
+    import.meta.url,
+  ),
+  'utf8',
+);
 const claimRoute = readFileSync(
   new URL(
     '../src/app/api/invites/[code]/claim/route.ts',
@@ -115,10 +122,23 @@ test('ineligible alerts reuse the authenticated existing notification API and be
   );
 });
 
-test('notification acknowledgement accepts exactly the new terminal stage range', () => {
+test('notification acknowledgement expands both the function and table constraint to stage 6', () => {
+  assert.match(notificationMigration, /highest_stage between 1 and 6/u);
   assert.match(notificationMigration, /p_stage not between 1 and 6/u);
+  assert.match(notificationMigration, /validate constraint invite_notification_state_stage_check/u);
   assert.match(notificationMigration, /security definer/iu);
   assert.match(notificationMigration, /grant execute[\s\S]*service_role/iu);
+});
+
+test('terminal rejection acknowledgement refreshes stale Home invite state exactly once', () => {
+  assert.match(inAppNotifications, /notification\.kind === 'INVITE_INELIGIBLE'/u);
+  assert.match(inAppNotifications, /window\.location\.reload\(\)/u);
+  assert.match(inAppNotifications, /if \(terminalInviteReleased\)/u);
+});
+
+test('notification reward evidence is skipped for non-paid pending and rejected invitations', () => {
+  assert.match(notificationRoute, /invitation\.reward_status === 'PAID'/u);
+  assert.match(notificationRoute, /loadPaidRewards\(paidInviteCodes\)/u);
 });
 
 test('a confirmed ACTIVE_EXISTING result is not reported as terminal unless its atomic transition persists', () => {
