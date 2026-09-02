@@ -16,6 +16,20 @@ const notificationRoute = readFileSync(
   ),
   'utf8',
 );
+const ineligibleNotification = readFileSync(
+  new URL(
+    '../src/components/IneligibleInviteNotification.tsx',
+    import.meta.url,
+  ),
+  'utf8',
+);
+const claimRoute = readFileSync(
+  new URL(
+    '../src/app/api/invites/[code]/claim/route.ts',
+    import.meta.url,
+  ),
+  'utf8',
+);
 const inviteRoute = readFileSync(
   new URL(
     '../src/app/api/invites/[code]/route.ts',
@@ -53,6 +67,21 @@ test('ineligible notification endpoint is wallet-authenticated and only reads ex
   assert.match(notificationRoute, /\.eq\('inviter_wallet',\s*wallet\)/u);
   assert.match(notificationRoute, /\.not\('ineligibility_check_id',\s*'is',\s*null\)/u);
   assert.match(notificationRoute, /acknowledge_invite_notification/u);
+});
+
+test('ineligible notification polling is limited to the Home surface', () => {
+  assert.match(ineligibleNotification, /usePathname/u);
+  assert.match(ineligibleNotification, /pathname === '\/'/u);
+  assert.match(ineligibleNotification, /const REFRESH_MS = 60_000/u);
+  assert.match(ineligibleNotification, /!wallet \|\| !isHomeSurface/u);
+});
+
+test('a confirmed ACTIVE_EXISTING result is not reported as terminal unless its audit outcome persists', () => {
+  assert.match(claimRoute, /Promise<boolean>/u);
+  assert.match(claimRoute, /return false;/u);
+  assert.match(claimRoute, /eligibility_record_failed/u);
+  assert.match(claimRoute, /status: 503/u);
+  assert.match(claimRoute, /Retry-After': '10'/u);
 });
 
 test('terminal ineligible links remain unusable while reopening shows the explicit participation result', () => {
