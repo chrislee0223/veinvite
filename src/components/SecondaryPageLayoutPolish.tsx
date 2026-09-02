@@ -40,7 +40,7 @@ export function SecondaryPageLayoutPolish() {
         width:100% !important;
         min-width:0 !important;
         display:grid !important;
-        grid-template-columns:12% 40% 20% 28% !important;
+        grid-template-columns:12fr 40fr 20fr 28fr !important;
         column-gap:0 !important;
         align-items:center !important;
         box-sizing:border-box !important;
@@ -67,7 +67,31 @@ export function SecondaryPageLayoutPolish() {
         display:flex !important;
         align-items:center !important;
         justify-content:center !important;
+        gap:9px !important;
         overflow:hidden !important;
+      }
+
+      .leaderboardPage .walletAvatar {
+        flex:0 0 22px !important;
+        width:22px !important;
+        height:22px !important;
+        display:block !important;
+        border:1px solid rgba(255,205,80,.22) !important;
+        border-radius:50% !important;
+        background:
+          radial-gradient(circle at 50% 35%,#eec04c 0 20%,transparent 22%),
+          radial-gradient(ellipse at 50% 82%,#eec04c 0 31%,transparent 33%),
+          #242116 !important;
+        box-shadow:inset 0 0 0 1px rgba(255,255,255,.025) !important;
+      }
+
+      .leaderboardPage .walletText {
+        flex:0 1 auto !important;
+        max-width:calc(100% - 31px) !important;
+        min-width:0 !important;
+        overflow:hidden !important;
+        text-overflow:ellipsis !important;
+        white-space:nowrap !important;
       }
 
       .leaderboardPage .completedMetric {
@@ -84,18 +108,8 @@ export function SecondaryPageLayoutPolish() {
         justify-content:center !important;
       }
 
-      .leaderboardPage .walletText,
       .leaderboardPage .rankMetric b {
         min-width:0 !important;
-      }
-
-      .leaderboardPage .walletText {
-        overflow:hidden !important;
-        text-overflow:ellipsis !important;
-        white-space:nowrap !important;
-      }
-
-      .leaderboardPage .rankMetric b {
         white-space:nowrap !important;
       }
 
@@ -105,6 +119,17 @@ export function SecondaryPageLayoutPolish() {
           padding-left:8px !important;
           padding-right:8px !important;
         }
+        .leaderboardPage .walletCell {
+          gap:6px !important;
+        }
+        .leaderboardPage .walletAvatar {
+          flex-basis:18px !important;
+          width:18px !important;
+          height:18px !important;
+        }
+        .leaderboardPage .walletText {
+          max-width:calc(100% - 24px) !important;
+        }
       }
 
       @media (max-width:360px) {
@@ -112,6 +137,17 @@ export function SecondaryPageLayoutPolish() {
         .leaderboardPage .rankRow {
           padding-left:6px !important;
           padding-right:6px !important;
+        }
+        .leaderboardPage .walletCell {
+          gap:5px !important;
+        }
+        .leaderboardPage .walletAvatar {
+          flex-basis:16px !important;
+          width:16px !important;
+          height:16px !important;
+        }
+        .leaderboardPage .walletText {
+          max-width:calc(100% - 21px) !important;
         }
       }
     `}</style>
