@@ -1,3 +1,5 @@
+import 'server-only';
+
 import { createClient } from '@supabase/supabase-js';
 
 const PRODUCTION_SUPABASE_PROJECT_REF =
