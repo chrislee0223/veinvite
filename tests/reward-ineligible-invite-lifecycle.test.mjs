@@ -16,6 +16,13 @@ const notificationMigration = readFileSync(
   ),
   'utf8',
 );
+const funnelMigration = readFileSync(
+  new URL(
+    '../supabase/migrations/20260902162500_align_operator_funnel_with_legacy_classification.sql',
+    import.meta.url,
+  ),
+  'utf8',
+);
 const notificationRoute = readFileSync(
   new URL(
     '../src/app/api/notifications/route.ts',
@@ -91,6 +98,16 @@ test('operator funnel keeps rejection and pending buckets mutually exclusive', (
   assert.match(migration, /then\s+'PENDING_ACCEPTANCE'/u);
   assert.match(migration, /as\s+ineligible_rejections/u);
   assert.match(migration, /as\s+pending_acceptance/u);
+});
+
+test('operator funnel includes verified legacy NEW and RETURNING participants while separating legacy ineligibility', () => {
+  assert.match(funnelMigration, /ACCEPTED_LEGACY/u);
+  assert.match(funnelMigration, /INELIGIBLE_LEGACY/u);
+  assert.match(funnelMigration, /coalesce\(modern_entry_class, legacy_entry_class\) = 'NEW'/u);
+  assert.match(funnelMigration, /coalesce\(modern_entry_class, legacy_entry_class\) = 'RETURNING'/u);
+  assert.match(funnelMigration, /as accepted_legacy/u);
+  assert.match(funnelMigration, /as ineligible_legacy_reclassifications/u);
+  assert.match(funnelMigration, /as legacy_excluded/u);
 });
 
 test('ineligible alerts reuse the authenticated existing notification API and bell surface', () => {
