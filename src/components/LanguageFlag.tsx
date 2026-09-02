@@ -1,10 +1,10 @@
 import {
   getLanguageOption,
-  type Locale,
+  type SupportedLocale,
 } from '@/lib/i18n/locales';
 
 type LanguageFlagProps = {
-  locale: Locale;
+  locale: SupportedLocale;
 };
 
 export function LanguageFlag({ locale }: LanguageFlagProps) {
