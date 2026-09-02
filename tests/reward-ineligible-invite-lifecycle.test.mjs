@@ -16,6 +16,20 @@ const notificationRoute = readFileSync(
   ),
   'utf8',
 );
+const inviteRoute = readFileSync(
+  new URL(
+    '../src/app/api/invites/[code]/route.ts',
+    import.meta.url,
+  ),
+  'utf8',
+);
+const inviteeClient = readFileSync(
+  new URL(
+    '../src/components/InviteeClient.tsx',
+    import.meta.url,
+  ),
+  'utf8',
+);
 
 test('only verified ACTIVE_EXISTING entry checks close an unconsumed pending invitation', () => {
   assert.match(migration, /new\.outcome\s*=\s*'EXISTING_VEBETTER_USER'/u);
@@ -39,4 +53,13 @@ test('ineligible notification endpoint is wallet-authenticated and only reads ex
   assert.match(notificationRoute, /\.eq\('inviter_wallet',\s*wallet\)/u);
   assert.match(notificationRoute, /\.not\('ineligibility_check_id',\s*'is',\s*null\)/u);
   assert.match(notificationRoute, /acknowledge_invite_notification/u);
+});
+
+test('terminal ineligible links remain unusable while reopening shows the explicit participation result', () => {
+  assert.match(inviteRoute, /ineligibility_check_id/u);
+  assert.match(inviteRoute, /legacy_entry_classification_backfill/u);
+  assert.match(inviteRoute, /outcome:\s*'active_existing_user'/u);
+  assert.match(inviteeClient, /readonly outcome:\s*string \| undefined/u);
+  assert.match(inviteeClient, /outcome === 'active_existing_user'/u);
+  assert.match(inviteeClient, /\? 'existing'/u);
 });
