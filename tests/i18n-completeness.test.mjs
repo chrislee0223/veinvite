@@ -102,6 +102,17 @@ test('locale registry keeps every core locale and has no duplicates', () => {
   );
 });
 
+test('browser language detection prefers exact supported tags before base fallback', () => {
+  const exactMatchIndex = localeSource.indexOf('if (isLocale(normalized))');
+  const baseFallbackIndex = localeSource.indexOf("const base = normalized.split('-')[0]");
+
+  assert.ok(exactMatchIndex >= 0, 'exact locale-tag matching is missing');
+  assert.ok(
+    baseFallbackIndex > exactMatchIndex,
+    'base-language fallback must run only after exact locale-tag matching',
+  );
+});
+
 test('every registered locale points to an app-owned flag asset', () => {
   for (const definition of definitions) {
     assert.ok(definition.flagSource.startsWith('/flags/'));
