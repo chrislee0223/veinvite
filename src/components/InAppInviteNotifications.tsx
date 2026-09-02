@@ -22,6 +22,8 @@ type NotificationResponse = {
 };
 
 const REFRESH_MS = 60_000;
+const WALLET_SESSION_INVALID_EVENT =
+  'veinvite-wallet-session-invalid';
 
 export function InAppInviteNotifications({
   locale,
@@ -41,6 +43,17 @@ export function InAppInviteNotifications({
   const shownKeyRef = useRef<string | null>(null);
   const copy = NOTIFICATION_COPY[locale];
 
+  const invalidateWalletSession = useCallback(() => {
+    setNotification(null);
+    setUnreadCount(0);
+    setOpen(false);
+    setErrorMessage('');
+    shownKeyRef.current = null;
+    window.dispatchEvent(
+      new Event(WALLET_SESSION_INVALID_EVENT),
+    );
+  }, []);
+
   const refresh = useCallback(
     async (autoOpen: boolean) => {
       if (!wallet) {
@@ -56,6 +69,16 @@ export function InAppInviteNotifications({
           '/api/notifications',
           { cache: 'no-store' },
         );
+
+        // A connected wallet can outlive the 7-day VeInvite browser session.
+        // Stop the polling surface immediately and return ownership control to
+        // WalletSessionGate instead of retrying this protected endpoint every
+        // minute with a known-invalid session.
+        if (response.status === 401) {
+          invalidateWalletSession();
+          return;
+        }
+
         const body =
           (await response.json()) as NotificationResponse;
 
@@ -91,7 +114,7 @@ export function InAppInviteNotifications({
         );
       }
     },
-    [wallet],
+    [invalidateWalletSession, wallet],
   );
 
   const acknowledgeAndClose = useCallback(
@@ -117,6 +140,12 @@ export function InAppInviteNotifications({
             }),
           },
         );
+
+        if (response.status === 401) {
+          invalidateWalletSession();
+          return;
+        }
+
         const body =
           (await response.json()) as {
             error?: string;
@@ -150,6 +179,7 @@ export function InAppInviteNotifications({
     [
       acknowledging,
       copy.acknowledgementError,
+      invalidateWalletSession,
       notification,
       refresh,
     ],
