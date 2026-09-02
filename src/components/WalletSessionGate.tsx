@@ -35,6 +35,10 @@ type VerificationState =
 
 const SESSION_CHECK_SURFACE_DELAY_MS = 3_000;
 const PASSIVE_DISCONNECT_GRACE_MS = 8_000;
+const WALLET_SESSION_INVALID_EVENT =
+  'veinvite-wallet-session-invalid';
+const WALLET_SESSION_READY_EVENT =
+  'veinvite-wallet-session-ready';
 
 function initialLocale(): Locale {
   if (typeof window === 'undefined') {
@@ -275,6 +279,9 @@ export function WalletSessionGate({
 
       setVerifiedWallet(walletAddress);
       setState('verified');
+      window.dispatchEvent(
+        new Event(WALLET_SESSION_READY_EVENT),
+      );
     } catch (error) {
       if (attemptRef.current !== attempt) {
         return;
@@ -292,6 +299,33 @@ export function WalletSessionGate({
     ensureWalletSession,
     walletAddress,
   ]);
+
+  useEffect(() => {
+    const handleInvalidWalletSession = () => {
+      if (!walletAddress) {
+        return;
+      }
+
+      // A protected API has confirmed that the browser session is no longer
+      // valid. Unmount protected children immediately and reuse the normal
+      // wallet-verification path rather than allowing each child to keep
+      // polling with a known-invalid cookie.
+      setVerifiedWallet(null);
+      void verify();
+    };
+
+    window.addEventListener(
+      WALLET_SESSION_INVALID_EVENT,
+      handleInvalidWalletSession,
+    );
+
+    return () => {
+      window.removeEventListener(
+        WALLET_SESSION_INVALID_EVENT,
+        handleInvalidWalletSession,
+      );
+    };
+  }, [verify, walletAddress]);
 
   const disconnectFromVerification =
     useCallback(async () => {

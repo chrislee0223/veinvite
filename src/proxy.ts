@@ -54,7 +54,7 @@ function isCrossSiteApiMutation(
 
 export function proxy(request: NextRequest) {
   if (
-    request.nextUrl.pathname === '/ui-test' &&
+    request.nextUrl.pathname.startsWith('/ui-test') &&
     !uiTestAllowed()
   ) {
     return new NextResponse('Not Found', {
@@ -86,5 +86,9 @@ export function proxy(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ['/ui-test', '/api/:path*'],
+  matcher: [
+    '/ui-test',
+    '/ui-test/:path*',
+    '/api/:path*',
+  ],
 };

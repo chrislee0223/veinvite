@@ -50,6 +50,53 @@ if (
   );
 }
 
+const proxySource = read('src/proxy.ts');
+if (
+  !/pathname\.startsWith\('\/ui-test'\)/.test(proxySource) ||
+  !/'\/ui-test\/:path\*'/.test(proxySource) ||
+  !/!uiTestAllowed\(\)/.test(proxySource)
+) {
+  failures.push(
+    'Production must block the entire /ui-test route family at the proxy boundary while keeping reviewed preview/development access.',
+  );
+}
+
+const notificationSurface = read(
+  'src/components/InAppInviteNotifications.tsx',
+);
+const walletSessionGate = read(
+  'src/components/WalletSessionGate.tsx',
+);
+if (
+  !/response\.status\s*===\s*401/.test(notificationSurface) ||
+  !/veinvite-wallet-session-invalid/.test(notificationSurface) ||
+  !/dispatchEvent/.test(notificationSurface) ||
+  !/veinvite-wallet-session-invalid/.test(walletSessionGate) ||
+  !/handleInvalidWalletSession/.test(walletSessionGate) ||
+  !/void verify\(\)/.test(walletSessionGate)
+) {
+  failures.push(
+    'Expired wallet sessions must stop protected notification polling and return control to WalletSessionGate for re-verification.',
+  );
+}
+
+const languagePreferenceSync = read(
+  'src/components/WalletLanguagePreferenceSync.tsx',
+);
+if (
+  /SESSION_RETRY_MS|SESSION_RETRY_LIMIT|waitForWalletSession/.test(
+    languagePreferenceSync,
+  ) ||
+  !/veinvite-wallet-session-ready/.test(languagePreferenceSync) ||
+  !/handleWalletSessionReady/.test(languagePreferenceSync) ||
+  !/veinvite-wallet-session-ready/.test(walletSessionGate) ||
+  !/WALLET_SESSION_READY_EVENT/.test(walletSessionGate)
+) {
+  failures.push(
+    'Wallet language preference synchronization must remain event-driven after session verification instead of repeatedly polling /api/auth/session.',
+  );
+}
+
 const healthRoute = read('src/app/api/health/route.ts');
 if (
   !/VERCEL_GIT_COMMIT_SHA/.test(healthRoute) ||
