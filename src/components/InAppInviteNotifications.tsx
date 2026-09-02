@@ -24,6 +24,8 @@ type NotificationResponse = {
 const REFRESH_MS = 60_000;
 const WALLET_SESSION_INVALID_EVENT =
   'veinvite-wallet-session-invalid';
+const REWARD_RECEIPT_ACKNOWLEDGED_EVENT =
+  'veinvite-reward-receipt-acknowledged';
 
 export function InAppInviteNotifications({
   locale,
@@ -231,6 +233,29 @@ export function InAppInviteNotifications({
       );
     };
   }, [wallet, refresh]);
+
+  useEffect(() => {
+    const onRewardReceiptAcknowledged = () => {
+      // The receipt endpoint acknowledges the matching stage-5 notification in
+      // the same user action. Refresh immediately so the bell never keeps a
+      // stale unread payout after the richer receipt has been dismissed.
+      setOpen(false);
+      setErrorMessage('');
+      void refresh(false);
+    };
+
+    window.addEventListener(
+      REWARD_RECEIPT_ACKNOWLEDGED_EVENT,
+      onRewardReceiptAcknowledged,
+    );
+
+    return () => {
+      window.removeEventListener(
+        REWARD_RECEIPT_ACKNOWLEDGED_EVENT,
+        onRewardReceiptAcknowledged,
+      );
+    };
+  }, [refresh]);
 
   if (!wallet) {
     return null;
