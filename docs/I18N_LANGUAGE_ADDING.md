@@ -57,6 +57,14 @@ Then register the pack in `src/lib/i18n/localePacks/registerExpandedLocales.ts`.
 
 `LocalePack` is typed against the current English copy shapes. If a product update adds a required field, TypeScript should force every new-style locale pack to be updated instead of silently leaving a missing string.
 
+### Standalone typed copy surfaces
+
+A small number of UI surfaces can live outside the shared copy modules for implementation reasons. They must still be exhaustive over `SupportedLocale` rather than silently falling back to English.
+
+Currently `src/components/PublicRewardForecastPortal.tsx` owns the compact reward-estimate card copy as `Record<SupportedLocale, ForecastCopy>`. Add the new locale there as well. TypeScript and `test:i18n` both guard this surface, so a newly registered locale cannot be merged while its forecast copy is missing.
+
+When another standalone localized surface is introduced, either move it into `LocalePack` or give it the same exhaustive `SupportedLocale` protection and add it to the i18n completeness audit. Do not create an unguarded 11-language-only table inside a component.
+
 ## Translation rules that must not drift
 
 Keep these product and ecosystem names intact unless the product decision changes:
@@ -143,9 +151,10 @@ npm run build
 - every non-core locale has a registered typed locale pack with all required copy sections;
 - required VeInvite protocol terminology has not disappeared from a locale pack;
 - legal navigation covers every registered locale;
+- the standalone reward forecast card covers every registered locale;
 - new localization boundaries use the strict `SupportedLocale` type instead of the legacy string-key compatibility type.
 
-Do not maintain a second hard-coded list of expansion locales in the test. A future locale added to `LOCALE_DEFINITIONS` is discovered automatically and must have its flag, locale pack, registration, and legal navigation completed before `test:i18n` can pass.
+Do not maintain a second hard-coded list of expansion locales in the test. A future locale added to `LOCALE_DEFINITIONS` is discovered automatically and must have its flag, locale pack, registration, legal navigation, and guarded standalone copy completed before `test:i18n` can pass.
 
 The GitHub CI workflow runs `test:i18n` on pull requests, so incomplete locale integration should be blocked before merge.
 
@@ -159,10 +168,10 @@ Before merging a language expansion:
 4. every new locale can be selected in Settings;
 5. its flag and native name are correct;
 6. refresh preserves selection;
-7. main app, direct invite flow, and legal pages all use the locale;
+7. main app, direct invite flow, legal pages, and standalone localized cards all use the locale;
 8. no untranslated English UI leaks remain except intentional product names and established Web3 terminology;
 9. mobile widths are reviewed for clipping, wrapping, overlap, and modal overflow;
 10. RTL locale is reviewed separately when applicable;
 11. existing Korean, English, Chinese, Hindi, Spanish, Japanese, Italian, Turkish, Dutch, German, and French flows are smoke-tested for regressions.
 
-This process is deliberately reusable: adding the next language should mean adding registry metadata, one flag asset, one typed locale pack, one registration line, and performing the visual review. The automated audit discovers the new locale from the registry; it should not require editing every existing translation module or maintaining a duplicate expansion-locale list.
+This process is deliberately reusable: adding the next language should mean adding registry metadata, one flag asset, one typed locale pack, registering it, completing any explicitly guarded standalone copy, and performing the visual review. The automated audit discovers the new locale from the registry; it should not require editing every existing translation module or maintaining a duplicate expansion-locale list.
