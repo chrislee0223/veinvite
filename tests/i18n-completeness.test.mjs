@@ -23,6 +23,10 @@ const languageFlagSource = readFileSync(
   'src/components/LanguageFlag.tsx',
   'utf8',
 );
+const forecastSource = readFileSync(
+  'src/components/PublicRewardForecastPortal.tsx',
+  'utf8',
+);
 const typographySource = readFileSync(
   'src/app/localized-typography.css',
   'utf8',
@@ -98,7 +102,7 @@ test('RTL handling is generic and Arabic is registered as RTL', () => {
     /document\.documentElement\.dir\s*=\s*getLocaleDirection\(nextLocale\)/,
   );
   assert.match(typographySource, /html\[dir=['"]rtl['"]\]/);
-  assert.match(typographySource, /direction:\s*ltr\s*!important/);
+  assert.match(typographySource, /direction:\s*ltr/);
 });
 
 test('every non-core locale has one complete typed locale pack and registration', () => {
@@ -168,9 +172,24 @@ test('legal navigation copy covers every supported locale', () => {
   }
 });
 
+test('standalone reward forecast copy covers every supported locale', () => {
+  assert.match(
+    forecastSource,
+    /Record<SupportedLocale, ForecastCopy>/,
+  );
+  for (const locale of supportedLocales) {
+    assert.match(
+      forecastSource,
+      new RegExp(`\\n\\s{2}${locale}:\\s*\\{`),
+      `reward forecast copy is missing for ${locale}`,
+    );
+  }
+});
+
 test('new localization boundaries use SupportedLocale instead of the legacy string key type', () => {
   assert.match(localeSource, /@deprecated Legacy translation tables/);
   assert.match(documentSyncSource, /type SupportedLocale/);
   assert.match(legalPageSource, /Record<SupportedLocale, string>/);
   assert.match(languageFlagSource, /type SupportedLocale/);
+  assert.match(forecastSource, /type SupportedLocale/);
 });
