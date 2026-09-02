@@ -6,6 +6,7 @@ import {
   useRef,
   useState,
 } from 'react';
+import { usePathname } from 'next/navigation';
 
 import { useWalletLauncher } from './WalletControl';
 import { INELIGIBLE_INVITER_COPY } from '@/lib/i18n/ineligibleInviterCopy';
@@ -28,7 +29,7 @@ type NotificationResponse = {
   error?: string;
 };
 
-const REFRESH_MS = 30_000;
+const REFRESH_MS = 60_000;
 const WALLET_SESSION_INVALID_EVENT =
   'veinvite-wallet-session-invalid';
 
@@ -38,6 +39,7 @@ function readDocumentLocale(): SupportedLocale {
 }
 
 export function IneligibleInviteNotification() {
+  const pathname = usePathname();
   const { wallet } = useWalletLauncher();
   const [locale, setLocale] =
     useState<SupportedLocale>('en');
@@ -48,6 +50,7 @@ export function IneligibleInviteNotification() {
   const [errorMessage, setErrorMessage] =
     useState('');
   const shownKeyRef = useRef<string | null>(null);
+  const isHomeSurface = pathname === '/';
 
   const copy =
     INELIGIBLE_INVITER_COPY[locale] ??
@@ -56,21 +59,23 @@ export function IneligibleInviteNotification() {
     NOTIFICATION_COPY[locale] ?? NOTIFICATION_COPY.en;
   const rtl = isRtlLocale(locale);
 
-  const invalidateWalletSession = useCallback(() => {
+  const clearNotificationState = useCallback(() => {
     setNotification(null);
     setOpen(false);
     setErrorMessage('');
     shownKeyRef.current = null;
+  }, []);
+
+  const invalidateWalletSession = useCallback(() => {
+    clearNotificationState();
     window.dispatchEvent(
       new Event(WALLET_SESSION_INVALID_EVENT),
     );
-  }, []);
+  }, [clearNotificationState]);
 
   const refresh = useCallback(async () => {
-    if (!wallet) {
-      setNotification(null);
-      setOpen(false);
-      shownKeyRef.current = null;
+    if (!wallet || !isHomeSurface) {
+      clearNotificationState();
       return;
     }
 
@@ -111,7 +116,12 @@ export function IneligibleInviteNotification() {
         error,
       );
     }
-  }, [invalidateWalletSession, wallet]);
+  }, [
+    clearNotificationState,
+    invalidateWalletSession,
+    isHomeSurface,
+    wallet,
+  ]);
 
   const acknowledge = useCallback(async () => {
     if (!notification || busy) return;
@@ -154,7 +164,7 @@ export function IneligibleInviteNotification() {
 
       // Home keeps its invite list in client state. A single reload after this
       // rare terminal event guarantees the released slot and fresh invite CTA
-      // are visible immediately without adding a permanent polling loop there.
+      // are visible immediately without adding another Home data subscription.
       window.location.reload();
     } catch (error) {
       console.warn(
@@ -193,9 +203,12 @@ export function IneligibleInviteNotification() {
   }, []);
 
   useEffect(() => {
-    void refresh();
+    if (!wallet || !isHomeSurface) {
+      clearNotificationState();
+      return;
+    }
 
-    if (!wallet) return;
+    void refresh();
 
     const timer = window.setInterval(() => {
       if (document.visibilityState === 'visible') {
@@ -221,7 +234,12 @@ export function IneligibleInviteNotification() {
         onVisibilityChange,
       );
     };
-  }, [refresh, wallet]);
+  }, [
+    clearNotificationState,
+    isHomeSurface,
+    refresh,
+    wallet,
+  ]);
 
   useEffect(() => {
     if (!open) return;
@@ -238,7 +256,12 @@ export function IneligibleInviteNotification() {
       document.removeEventListener('keydown', onKeyDown);
   }, [acknowledge, open]);
 
-  if (!wallet || !notification || !open) {
+  if (
+    !isHomeSurface ||
+    !wallet ||
+    !notification ||
+    !open
+  ) {
     return null;
   }
 
