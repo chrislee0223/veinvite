@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef } from 'react';
+import { startTransition, useEffect, useRef } from 'react';
 
 import { NAV_COPY } from '@/lib/i18n/navCopy';
 import type { Locale } from '@/lib/i18n/locales';
@@ -49,9 +49,6 @@ export function AppBottomNavigation({
   useEffect(() => {
     let cancelled = false;
 
-    // Warm every lazy tab immediately after the first stable paint. HomeClient
-    // keeps these views code-split, but a first tap should never temporarily
-    // remove the current view while its JavaScript chunk is still downloading.
     const moduleTimer = window.setTimeout(() => {
       if (cancelled) return;
       void Promise.allSettled(
@@ -59,8 +56,6 @@ export function AppBottomNavigation({
       );
     }, 0);
 
-    // Keep the existing leaderboard data warm-up slightly deferred so startup
-    // network work does not compete with the initial Home experience.
     const leaderboardTimer = window.setTimeout(() => {
       if (cancelled) return;
       void prefetchPublicLeaderboard(wallet).catch(() => undefined);
@@ -80,8 +75,23 @@ export function AppBottomNavigation({
     }
   };
 
-  const commitTab = (tab: AppTab) => {
-    onChange(tab);
+  const commitTab = (tab: AppTab, requestId: number) => {
+    if (navigationRequestRef.current !== requestId) return;
+
+    // HomeClient also normalizes scroll position on a tab change. Do it here
+    // synchronously first so its legacy smooth-scroll call has no distance to
+    // animate across after a large content-height swap on desktop browsers.
+    if (window.scrollY !== 0) {
+      window.scrollTo({ top: 0, left: 0, behavior: 'auto' });
+    }
+
+    // A first render of a code-split tab can briefly suspend even after its
+    // chunk promise resolves. Mark the update as a React transition so the
+    // currently visible tab stays painted until the next tab is actually ready
+    // instead of revealing the root dark background for a frame.
+    startTransition(() => {
+      onChange(tab);
+    });
     reportAnalyticsView(tab);
   };
 
@@ -90,24 +100,13 @@ export function AppBottomNavigation({
 
     if (tab === activeTab) return;
     if (tab === 'home') {
-      commitTab(tab);
+      commitTab(tab, requestId);
       return;
     }
 
-    // If the user taps before the background warm-up has finished, keep the
-    // current tab rendered until the target module is ready. This removes the
-    // one-frame black/empty surface that only occurred on first navigation.
     void preloadTabModule(tab)
-      .then(() => {
-        if (navigationRequestRef.current === requestId) {
-          commitTab(tab);
-        }
-      })
-      .catch(() => {
-        if (navigationRequestRef.current === requestId) {
-          commitTab(tab);
-        }
-      });
+      .then(() => commitTab(tab, requestId))
+      .catch(() => commitTab(tab, requestId));
   };
 
   return (
@@ -133,7 +132,7 @@ export function AppBottomNavigation({
 
       <style jsx>{`
         .bottomNavigation { position: fixed; z-index: 90; right: 0; bottom: 0; left: 0; padding: 0 12px calc(10px + env(safe-area-inset-bottom)); pointer-events: none; background: linear-gradient(to top,rgba(7,7,7,.98) 58%,transparent); }
-        .bottomNavigation > div { width: min(100%,520px); min-height: 70px; margin: 0 auto; padding: 6px; display: grid; grid-template-columns: repeat(4,1fr); border: 1px solid rgba(255,205,80,.16); border-radius: 23px; background: rgba(22,22,20,.96); box-shadow: 0 18px 55px rgba(0,0,0,.5); backdrop-filter: blur(18px); pointer-events: auto; }
+        .bottomNavigation > div { width: min(100%,520px); min-height: 70px; margin: 0 auto; padding: 6px; display: grid; grid-template-columns: repeat(4,1fr); border: 1px solid rgba(255,205,80,.16); border-radius: 23px; background: rgba(22,22,20,.985); box-shadow: 0 18px 55px rgba(0,0,0,.5); pointer-events: auto; isolation: isolate; }
         button { min-width: 0; min-height: 56px; padding: 6px 3px; display: grid; place-items: center; align-content: center; gap: 4px; border: 0; border-radius: 17px; background: transparent; color: #77736c; font: inherit; font-size: .6rem; font-weight: 850; cursor: pointer; }
         button span { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
         button.active { background: rgba(255,201,61,.1); color: #ffd45f; }
