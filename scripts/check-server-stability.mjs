@@ -50,6 +50,17 @@ if (
   );
 }
 
+const proxySource = read('src/proxy.ts');
+if (
+  !/pathname\.startsWith\('\/ui-test'\)/.test(proxySource) ||
+  !/'\/ui-test\/:path\*'/.test(proxySource) ||
+  !/!uiTestAllowed\(\)/.test(proxySource)
+) {
+  failures.push(
+    'Production must block the entire /ui-test route family at the proxy boundary while keeping reviewed preview/development access.',
+  );
+}
+
 const healthRoute = read('src/app/api/health/route.ts');
 if (
   !/VERCEL_GIT_COMMIT_SHA/.test(healthRoute) ||
