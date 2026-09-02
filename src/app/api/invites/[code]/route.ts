@@ -156,7 +156,23 @@ function invalidInviteResponse() {
   );
 }
 
-function ineligibleInviteResponse() {
+function closedIneligibleInviteResponse() {
+  return NextResponse.json(
+    {
+      error:
+        'This invitation has ended. Please ask the inviter for a new link.',
+      outcome: 'ineligible_invite_closed',
+    },
+    {
+      status: 410,
+      headers: {
+        'Cache-Control': 'no-store',
+      },
+    },
+  );
+}
+
+function legacyIneligibleInviteResponse() {
   return NextResponse.json(
     {
       error:
@@ -196,9 +212,9 @@ async function loadInvitation(
   const row = toInvitationRow(data);
   if (!row) return null;
 
-  // A normal inviter cancellation remains a generic unavailable link. A
-  // system-closed ineligible attempt stays addressable only so the invitee can
-  // see the correct participation message when reopening the old link.
+  // A normal inviter cancellation is a generic unavailable link. A system-
+  // closed ineligible link is retained long enough to return a neutral terminal
+  // response without pretending that a future visitor is the rejected wallet.
   if (
     row.status === 'CANCELLED' &&
     row.ineligibility_check_id === null
@@ -209,11 +225,14 @@ async function loadInvitation(
   return row;
 }
 
-async function isVerifiedIneligibleInvitation(
+async function isVerifiedLegacyIneligibleInvitation(
   row: InvitationRouteRow,
 ): Promise<boolean> {
+  // New terminal rejections have their own explicit marker and use the neutral
+  // closed-link response because the rejected wallet is intentionally not bound
+  // to the invitation row.
   if (row.ineligibility_check_id !== null) {
-    return true;
+    return false;
   }
 
   // Modern accepted invitations have immutable eligible entry proof and must
@@ -339,8 +358,11 @@ export async function GET(
   try {
     const row = await loadInvitation(normalizedCode);
     if (!row) return invalidInviteResponse();
-    if (await isVerifiedIneligibleInvitation(row)) {
-      return ineligibleInviteResponse();
+    if (row.ineligibility_check_id !== null) {
+      return closedIneligibleInviteResponse();
+    }
+    if (await isVerifiedLegacyIneligibleInvitation(row)) {
+      return legacyIneligibleInviteResponse();
     }
 
     return NextResponse.json(
@@ -429,8 +451,11 @@ export async function POST(
   if (!row) return invalidInviteResponse();
 
   try {
-    if (await isVerifiedIneligibleInvitation(row)) {
-      return ineligibleInviteResponse();
+    if (row.ineligibility_check_id !== null) {
+      return closedIneligibleInviteResponse();
+    }
+    if (await isVerifiedLegacyIneligibleInvitation(row)) {
+      return legacyIneligibleInviteResponse();
     }
 
     const synced =
