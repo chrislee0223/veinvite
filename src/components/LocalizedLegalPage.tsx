@@ -17,10 +17,10 @@ import {
   getLocaleDirection,
   isLocale,
   resolveBrowserLocale,
-  type Locale,
+  type SupportedLocale,
 } from '@/lib/i18n/locales';
 
-const BACK_LABEL: Record<string, string> = {
+const BACK_LABEL: Record<SupportedLocale, string> = {
   en: 'Back',
   ko: '뒤로가기',
   zh: '返回',
@@ -40,7 +40,7 @@ const BACK_LABEL: Record<string, string> = {
   vi: 'Quay lại',
 };
 
-function resolveInitialLocale(): Locale {
+function resolveInitialLocale(): SupportedLocale {
   const saved = window.localStorage.getItem(LANGUAGE_STORAGE_KEY);
   return isLocale(saved)
     ? saved
@@ -52,7 +52,7 @@ export function LocalizedLegalPage({
 }: {
   kind: LegalDocumentKind;
 }) {
-  const [locale, setLocale] = useState<Locale>('en');
+  const [locale, setLocale] = useState<SupportedLocale>('en');
 
   useEffect(() => {
     const applyLocale = (value?: unknown) => {
@@ -104,7 +104,7 @@ export function LocalizedLegalPage({
   };
 
   const copy = LEGAL_COPY[kind][locale] ?? LEGAL_COPY[kind].en;
-  const backLabel = BACK_LABEL[locale] ?? BACK_LABEL.en;
+  const backLabel = BACK_LABEL[locale];
   const backArrow = getLocaleDirection(locale) === 'rtl' ? '→' : '←';
 
   return (
