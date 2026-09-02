@@ -38,10 +38,11 @@ export const SUPPORTED_LOCALES = LOCALE_DEFINITIONS.map(
 export type SupportedLocale =
   (typeof LOCALE_DEFINITIONS)[number]['locale'];
 
-// Older copy modules use Record<Locale, CopyShape>. Keeping Locale string-like
-// lets the existing translations remain isolated while new locale packs are
-// registered centrally. Runtime safety is enforced by isLocale() plus the
-// i18n completeness audit, which checks every supported locale and copy surface.
+/**
+ * @deprecated Legacy translation tables still use string-keyed records while
+ * expanded locale packs are registered at runtime. New user-facing state,
+ * component props, selectors, and APIs should use SupportedLocale instead.
+ */
 export type Locale = string;
 
 export const LANGUAGE_STORAGE_KEY =
