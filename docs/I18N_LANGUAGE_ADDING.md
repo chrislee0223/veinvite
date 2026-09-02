@@ -135,15 +135,19 @@ npm run test:i18n
 npm run build
 ```
 
-`test:i18n` checks that:
+`test:i18n` derives the supported locale set from `LOCALE_DEFINITIONS` and checks that:
 
-- the expected locale registry is complete and unique;
+- the original core locales have not disappeared and the registry has no duplicates;
 - each locale points to an existing app-owned flag;
-- RTL metadata is correct;
-- every new-style expansion locale has a registered typed locale pack;
-- required VeInvite protocol terminology has not disappeared from a locale pack.
+- generic RTL handling remains wired and Arabic remains marked RTL;
+- every non-core locale has a registered typed locale pack with all required copy sections;
+- required VeInvite protocol terminology has not disappeared from a locale pack;
+- legal navigation covers every registered locale;
+- new localization boundaries use the strict `SupportedLocale` type instead of the legacy string-key compatibility type.
 
-When a future language is added, update the expected locale list in the test. A failed test is intentional: it forces the developer to finish the language integration rather than shipping an incomplete picker entry.
+Do not maintain a second hard-coded list of expansion locales in the test. A future locale added to `LOCALE_DEFINITIONS` is discovered automatically and must have its flag, locale pack, registration, and legal navigation completed before `test:i18n` can pass.
+
+The GitHub CI workflow runs `test:i18n` on pull requests, so incomplete locale integration should be blocked before merge.
 
 ## Release checklist
 
@@ -156,9 +160,9 @@ Before merging a language expansion:
 5. its flag and native name are correct;
 6. refresh preserves selection;
 7. main app, direct invite flow, and legal pages all use the locale;
-8. no untranslated English UI leaks remain except intentional product names;
+8. no untranslated English UI leaks remain except intentional product names and established Web3 terminology;
 9. mobile widths are reviewed for clipping, wrapping, overlap, and modal overflow;
 10. RTL locale is reviewed separately when applicable;
 11. existing Korean, English, Chinese, Hindi, Spanish, Japanese, Italian, Turkish, Dutch, German, and French flows are smoke-tested for regressions.
 
-This process is deliberately reusable: adding the next language should mean adding registry metadata, one flag asset, one typed locale pack, one registration line, updating the i18n test expectation, and performing the visual review—not editing every existing translation module.
+This process is deliberately reusable: adding the next language should mean adding registry metadata, one flag asset, one typed locale pack, one registration line, and performing the visual review. The automated audit discovers the new locale from the registry; it should not require editing every existing translation module or maintaining a duplicate expansion-locale list.
