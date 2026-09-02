@@ -37,6 +37,8 @@ const invitationColumns = `
   reward_status,
   created_at,
   updated_at,
+  eligibility_check_id,
+  ineligibility_check_id,
   activated_at,
   activation_block,
   activation_network,
@@ -64,9 +66,14 @@ const invitationColumns = `
   impact_sync_complete_at
 ` as const;
 
+type InvitationRouteRow = InvitationEvidenceRow & {
+  eligibility_check_id: string | number | null;
+  ineligibility_check_id: string | number | null;
+};
+
 function toInvitationRow(
   value: unknown,
-): InvitationEvidenceRow | null {
+): InvitationRouteRow | null {
   if (
     value === null ||
     typeof value !== 'object'
@@ -74,7 +81,7 @@ function toInvitationRow(
     return null;
   }
 
-  return value as InvitationEvidenceRow;
+  return value as InvitationRouteRow;
 }
 
 function toInviteRecord(
@@ -149,9 +156,25 @@ function invalidInviteResponse() {
   );
 }
 
+function ineligibleInviteResponse() {
+  return NextResponse.json(
+    {
+      error:
+        'This wallet does not currently meet VeInvite participation requirements.',
+      outcome: 'active_existing_user',
+    },
+    {
+      status: 422,
+      headers: {
+        'Cache-Control': 'no-store',
+      },
+    },
+  );
+}
+
 async function loadInvitation(
   normalizedCode: string,
-): Promise<InvitationEvidenceRow | null> {
+): Promise<InvitationRouteRow | null> {
   const {
     data,
     error,
@@ -171,11 +194,57 @@ async function loadInvitation(
   }
 
   const row = toInvitationRow(data);
-  if (!row || row.status === 'CANCELLED') {
+  if (!row) return null;
+
+  // A normal inviter cancellation remains a generic unavailable link. A
+  // system-closed ineligible attempt stays addressable only so the invitee can
+  // see the correct participation message when reopening the old link.
+  if (
+    row.status === 'CANCELLED' &&
+    row.ineligibility_check_id === null
+  ) {
     return null;
   }
 
   return row;
+}
+
+async function isVerifiedIneligibleInvitation(
+  row: InvitationRouteRow,
+): Promise<boolean> {
+  if (row.ineligibility_check_id !== null) {
+    return true;
+  }
+
+  // Modern accepted invitations have immutable eligible entry proof and must
+  // never be overridden by a legacy backfill lookup.
+  if (row.eligibility_check_id !== null) {
+    return false;
+  }
+
+  // A fresh pending invitation has not been consumed or historically accepted.
+  if (row.status === 'PENDING_ACCEPTANCE') {
+    return false;
+  }
+
+  const { data, error } = await supabaseAdmin
+    .from('legacy_entry_classification_backfill')
+    .select('id')
+    .eq('invite_code', row.invite_code)
+    .eq('classification_status', 'VERIFIED')
+    .eq('entry_class', 'ACTIVE_EXISTING')
+    .eq('outcome', 'EXISTING_VEBETTER_USER')
+    .order('recorded_at', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (error) {
+    throw new Error(
+      `Failed to load historical invitation eligibility: ${error.message}`,
+    );
+  }
+
+  return Boolean(data);
 }
 
 async function enforceInviteRateLimit({
@@ -270,6 +339,9 @@ export async function GET(
   try {
     const row = await loadInvitation(normalizedCode);
     if (!row) return invalidInviteResponse();
+    if (await isVerifiedIneligibleInvitation(row)) {
+      return ineligibleInviteResponse();
+    }
 
     return NextResponse.json(
       {
@@ -331,7 +403,7 @@ export async function POST(
     });
   if (rateLimitResponse) return rateLimitResponse;
 
-  let row: InvitationEvidenceRow | null;
+  let row: InvitationRouteRow | null;
   try {
     row = await loadInvitation(normalizedCode);
   } catch (error) {
@@ -357,6 +429,10 @@ export async function POST(
   if (!row) return invalidInviteResponse();
 
   try {
+    if (await isVerifiedIneligibleInvitation(row)) {
+      return ineligibleInviteResponse();
+    }
+
     const synced =
       await syncInvitationEvidence(row);
 
