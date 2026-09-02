@@ -12,6 +12,7 @@ import { LegalNavigationMemory } from './LegalNavigationMemory';
 import { PublicRewardForecastPortal } from './PublicRewardForecastPortal';
 import { SecondaryPageLayoutPolish } from './SecondaryPageLayoutPolish';
 import { WalletLanguagePreferenceSync } from './WalletLanguagePreferenceSync';
+import { WalletRuntimeLifecycle } from './WalletRuntimeLifecycle';
 
 const VeChainProvider = dynamic(
   () =>
@@ -21,19 +22,20 @@ const VeChainProvider = dynamic(
   { ssr: false },
 );
 
-const APP_READY_EVENT = 'veinvite-app-ready';
+const PROVIDER_READY_EVENT =
+  'veinvite-provider-ready';
 
-function AppReadySignal() {
+function ProviderReadySignal() {
   useEffect(() => {
-    document.documentElement.dataset.veinviteAppReady =
+    document.documentElement.dataset.veinviteProviderReady =
       'true';
     window.dispatchEvent(
-      new Event(APP_READY_EVENT),
+      new Event(PROVIDER_READY_EVENT),
     );
 
     return () => {
       delete document.documentElement.dataset
-        .veinviteAppReady;
+        .veinviteProviderReady;
     };
   }, []);
 
@@ -63,7 +65,8 @@ export function AppProviders({
   return (
     <ChakraProvider theme={theme}>
       <VeChainProvider>
-        <AppReadySignal />
+        <ProviderReadySignal />
+        <WalletRuntimeLifecycle />
         {children}
         <WalletLanguagePreferenceSync />
         <SecondaryPageLayoutPolish />
