@@ -89,6 +89,7 @@ export function TransientSnackbar({
           align-items: center;
           gap: 10px;
           padding: 8px 6px 8px 12px;
+          direction: inherit;
           border: 1px solid rgba(255,255,255,.12);
           border-radius: 17px;
           background: rgba(24,26,30,.97);
@@ -119,6 +120,7 @@ export function TransientSnackbar({
           font-size: .8rem;
           font-weight: 800;
           line-height: 1.4;
+          text-align: start;
           word-break: keep-all;
           overflow-wrap: break-word;
         }
@@ -143,7 +145,7 @@ export function TransientSnackbar({
           to { opacity: 1; transform: translate(-50%, 0); }
         }
         @media (max-width: 360px) {
-          .transientSnackbar { width: calc(100vw - 20px); grid-template-columns: 30px minmax(0,1fr) 42px; gap: 8px; padding-left: 10px; }
+          .transientSnackbar { width: calc(100vw - 20px); grid-template-columns: 30px minmax(0,1fr) 42px; gap: 8px; padding-inline-start: 10px; }
           .feedbackText { font-size: .75rem; }
           .feedbackClose { width: 42px; height: 42px; }
         }
