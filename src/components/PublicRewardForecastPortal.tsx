@@ -1,11 +1,12 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { createPortal } from 'react-dom';
+import { createPortal, flushSync } from 'react-dom';
 
 import {
   isLocale,
   localeFromLanguageTag,
+  type Locale,
   type SupportedLocale,
 } from '@/lib/i18n/locales';
 
@@ -223,6 +224,9 @@ const PREVIEW_FORECAST: RewardForecastResponse = {
   estimatedRewardWei: '147740500000000000000',
 };
 
+let cachedForecast: RewardForecastResponse | null = null;
+let inFlightForecast: Promise<RewardForecastResponse> | null = null;
+
 function formatRewardWei(value: string): string {
   if (!/^\d+$/.test(value)) return '0.00';
 
@@ -242,136 +246,39 @@ function formatRewardWei(value: string): string {
   return `${groupedWhole}.${fraction}`;
 }
 
-export function PublicRewardForecastPortal() {
-  const [mount, setMount] = useState<HTMLDivElement | null>(null);
-  const [locale, setLocale] = useState<SupportedLocale>('en');
-  const [forecast, setForecast] =
-    useState<RewardForecastResponse | null>(null);
-  const [unavailable, setUnavailable] = useState(false);
-  const [preview, setPreview] = useState(false);
+function requestForecast(): Promise<RewardForecastResponse> {
+  if (inFlightForecast) return inFlightForecast;
 
+  inFlightForecast = fetch('/api/rewards/estimate')
+    .then(async (response) => {
+      if (!response.ok) {
+        throw new Error('Reward forecast request failed.');
+      }
+      return (await response.json()) as RewardForecastResponse;
+    })
+    .then((result) => {
+      cachedForecast = result;
+      return result;
+    })
+    .finally(() => {
+      inFlightForecast = null;
+    });
+
+  return inFlightForecast;
+}
+
+export function PublicRewardForecastWarmup() {
   useEffect(() => {
-    let activeMount: HTMLDivElement | null = null;
-    let attachFrame: number | null = null;
+    if (window.location.pathname !== '/') return;
 
-    const detach = () => {
-      activeMount?.remove();
-      activeMount = null;
-      setMount(null);
-      setPreview(false);
-    };
+    let active = true;
 
-    const attach = () => {
-      const impactCard = document.querySelector<HTMLElement>(
-        '.leaderboardPage .impactCard',
-      );
-      if (!impactCard) {
-        if (activeMount) detach();
-        return;
-      }
-      if (
-        activeMount?.isConnected &&
-        activeMount.previousElementSibling === impactCard
-      ) {
-        return;
-      }
-
-      detach();
-      const nextMount = document.createElement('div');
-      nextMount.className = 'leaderboardRewardEstimateMount';
-      impactCard.insertAdjacentElement('afterend', nextMount);
-      activeMount = nextMount;
-      setPreview(
-        impactCard.dataset.rewardForecastPreview === 'true',
-      );
-      setMount(nextMount);
-    };
-
-    const scheduleAttach = () => {
-      if (attachFrame !== null) return;
-      attachFrame = window.requestAnimationFrame(() => {
-        attachFrame = null;
-        attach();
+    const loadForecast = () => {
+      void requestForecast().catch(() => {
+        if (!active) return;
       });
     };
 
-    attach();
-    const observer = new MutationObserver(scheduleAttach);
-    observer.observe(document.body, { childList: true, subtree: true });
-    return () => {
-      observer.disconnect();
-      if (attachFrame !== null) {
-        window.cancelAnimationFrame(attachFrame);
-      }
-      detach();
-    };
-  }, []);
-
-  useEffect(() => {
-    const syncFromDocument = () => {
-      const next = localeFromLanguageTag(
-        document.documentElement.lang,
-      );
-      if (next) setLocale(next);
-    };
-    const syncFromEvent = (event: Event) => {
-      const detail = (event as CustomEvent<unknown>).detail;
-      if (isLocale(detail)) setLocale(detail);
-    };
-
-    syncFromDocument();
-    window.addEventListener(
-      'veinvite-language-change',
-      syncFromEvent,
-    );
-    return () =>
-      window.removeEventListener(
-        'veinvite-language-change',
-        syncFromEvent,
-      );
-  }, []);
-
-  useEffect(() => {
-    if (!mount) return;
-
-    if (preview) {
-      setUnavailable(false);
-      setForecast(PREVIEW_FORECAST);
-      return;
-    }
-
-    let active = true;
-    let controller: AbortController | null = null;
-
-    const loadForecast = () => {
-      controller?.abort();
-      controller = new AbortController();
-      setUnavailable(false);
-
-      void fetch('/api/rewards/estimate', {
-        signal: controller.signal,
-      })
-        .then(async (response) => {
-          if (!response.ok) {
-            throw new Error('Reward forecast request failed.');
-          }
-          return (await response.json()) as RewardForecastResponse;
-        })
-        .then((result) => {
-          if (active) setForecast(result);
-        })
-        .catch((error: unknown) => {
-          if (
-            error instanceof DOMException &&
-            error.name === 'AbortError'
-          ) {
-            return;
-          }
-          if (active) setUnavailable(true);
-        });
-    };
-
-    setForecast(null);
     loadForecast();
     const intervalId = window.setInterval(
       loadForecast,
@@ -392,47 +299,99 @@ export function PublicRewardForecastPortal() {
         'visibilitychange',
         refreshWhenVisible,
       );
-      controller?.abort();
     };
-  }, [mount, preview]);
+  }, []);
 
-  if (!mount) return null;
-  const t = COPY[locale];
+  return null;
+}
 
-  return createPortal(
+export function PublicRewardForecastCard({
+  locale,
+  rewardForecastPreview = false,
+}: {
+  locale: Locale;
+  rewardForecastPreview?: boolean;
+}) {
+  const resolvedLocale: SupportedLocale = isLocale(locale)
+    ? locale
+    : 'en';
+  const [forecast, setForecast] = useState<RewardForecastResponse | null>(
+    () => rewardForecastPreview ? PREVIEW_FORECAST : cachedForecast,
+  );
+  const [unavailable, setUnavailable] = useState(false);
+
+  useEffect(() => {
+    if (rewardForecastPreview) {
+      setUnavailable(false);
+      setForecast(PREVIEW_FORECAST);
+      return;
+    }
+
+    if (cachedForecast) {
+      setForecast(cachedForecast);
+    }
+
+    let active = true;
+    void requestForecast()
+      .then((result) => {
+        if (!active) return;
+        setUnavailable(false);
+        setForecast(result);
+      })
+      .catch(() => {
+        if (!active) return;
+        setUnavailable(true);
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [rewardForecastPreview]);
+
+  const t = COPY[resolvedLocale];
+  const amount =
+    forecast?.status === 'ready'
+      ? `${formatRewardWei(forecast.estimatedRewardWei)} B3TR`
+      : '— B3TR';
+  const note = unavailable
+    ? t.unavailable
+    : forecast?.status === 'pending'
+      ? t.pendingDescription
+      : t.disclaimer;
+
+  return (
     <section
       className="publicRewardEstimateCard"
       aria-live="polite"
-      lang={locale}
+      aria-busy={!forecast && !unavailable}
+      lang={resolvedLocale}
+      dir={resolvedLocale === 'ar' ? 'rtl' : 'ltr'}
     >
       <div className="estimateTop">
         <span className="estimateEyebrow">{t.eyebrow}</span>
-        <h2>
-          {forecast?.status === 'ready'
-            ? t.eligibility
-            : t.pendingTitle}
-        </h2>
+        <h2>{t.eligibility}</h2>
       </div>
 
-      {unavailable ? (
-        <p className="estimatePending">{t.unavailable}</p>
-      ) : forecast?.status === 'ready' ? (
-        <>
-          <div className="estimateAmount">
-            <strong>
-              {formatRewardWei(forecast.estimatedRewardWei)} B3TR
-            </strong>
-          </div>
-          <p className="estimateDisclaimer">{t.disclaimer}</p>
-        </>
-      ) : (
-        <p className="estimatePending">
-          {t.pendingDescription}
-        </p>
-      )}
+      <div
+        className="estimateAmount"
+        aria-label={
+          forecast?.status === 'ready'
+            ? amount
+            : t.pendingTitle
+        }
+      >
+        <strong>{amount}</strong>
+      </div>
+
+      <p className={unavailable || forecast?.status === 'pending'
+        ? 'estimateDisclaimer estimatePending'
+        : 'estimateDisclaimer'}>
+        {note}
+      </p>
 
       <style jsx>{`
         .publicRewardEstimateCard {
+          box-sizing:border-box;
           margin-top:18px;
           padding:18px;
           border:1px solid rgba(255,205,80,.24);
@@ -472,13 +431,19 @@ export function PublicRewardForecastPortal() {
           text-wrap:pretty;
         }
         .estimateAmount {
+          box-sizing:border-box;
           min-width:0;
+          min-height:72px;
           margin-top:17px;
           padding:17px 15px;
+          display:grid;
+          place-items:center;
           border:1px solid rgba(255,205,80,.16);
           border-radius:16px;
           background:rgba(244,183,40,.07);
           text-align:center;
+          direction:ltr;
+          unicode-bidi:isolate;
         }
         .estimateAmount strong {
           display:block;
@@ -490,8 +455,9 @@ export function PublicRewardForecastPortal() {
           letter-spacing:-.04em;
           white-space:nowrap;
         }
-        .estimateDisclaimer,.estimatePending {
+        .estimateDisclaimer {
           max-width:440px;
+          min-height:1.65em;
           margin:13px auto 0;
           color:#8f8a80;
           font-size:.69rem;
@@ -511,6 +477,7 @@ export function PublicRewardForecastPortal() {
             border-radius:19px;
           }
           .estimateAmount {
+            min-height:68px;
             padding:16px 10px;
           }
           .estimateAmount strong {
@@ -519,17 +486,142 @@ export function PublicRewardForecastPortal() {
         }
         @media (max-width:340px) {
           .publicRewardEstimateCard {
-            padding:13px;
+            padding:14px 12px;
+          }
+          .estimateEyebrow {
+            font-size:.56rem;
+            letter-spacing:.055em;
+          }
+          h2 {
+            font-size:.9rem;
           }
           .estimateAmount {
+            min-height:64px;
             padding:15px 8px;
           }
           .estimateAmount strong {
-            font-size:1.2rem;
+            font-size:clamp(1.12rem,6.4vw,1.55rem);
+          }
+          .estimateDisclaimer {
+            font-size:.66rem;
           }
         }
       `}</style>
-    </section>,
-    mount,
+    </section>
+  );
+}
+
+type ForecastPortalTarget = {
+  mount: HTMLDivElement;
+  rewardForecastPreview: boolean;
+};
+
+export function PublicRewardForecastPortal() {
+  const [target, setTarget] = useState<ForecastPortalTarget | null>(null);
+  const [locale, setLocale] = useState<SupportedLocale>('en');
+
+  useEffect(() => {
+    const syncFromDocument = () => {
+      const next = localeFromLanguageTag(document.documentElement.lang);
+      if (next) setLocale(next);
+    };
+    const syncFromEvent = (event: Event) => {
+      const detail = (event as CustomEvent<unknown>).detail;
+      if (isLocale(detail)) setLocale(detail);
+    };
+
+    syncFromDocument();
+    window.addEventListener('veinvite-language-change', syncFromEvent);
+    return () =>
+      window.removeEventListener('veinvite-language-change', syncFromEvent);
+  }, []);
+
+  useEffect(() => {
+    let activeMount: HTMLDivElement | null = null;
+    let attachFrame: number | null = null;
+
+    const commitTarget = (
+      nextTarget: ForecastPortalTarget | null,
+      synchronous: boolean,
+    ) => {
+      if (synchronous) {
+        flushSync(() => setTarget(nextTarget));
+      } else {
+        setTarget(nextTarget);
+      }
+    };
+
+    const detach = () => {
+      activeMount?.remove();
+      activeMount = null;
+      setTarget(null);
+    };
+
+    const attach = (synchronous = false) => {
+      const impactCard = document.querySelector<HTMLElement>(
+        '.leaderboardPage .impactCard',
+      );
+      if (!impactCard) {
+        if (activeMount) detach();
+        return;
+      }
+      if (
+        activeMount?.isConnected &&
+        activeMount.previousElementSibling === impactCard
+      ) {
+        return;
+      }
+
+      if (activeMount) {
+        activeMount.remove();
+      }
+      const nextMount = document.createElement('div');
+      nextMount.className = 'leaderboardRewardEstimateMount';
+      impactCard.insertAdjacentElement('afterend', nextMount);
+      activeMount = nextMount;
+      commitTarget(
+        {
+          mount: nextMount,
+          rewardForecastPreview:
+            impactCard.dataset.rewardForecastPreview === 'true',
+        },
+        synchronous,
+      );
+    };
+
+    const scheduleAttach = () => {
+      attach(true);
+      if (attachFrame !== null) return;
+      attachFrame = window.requestAnimationFrame(() => {
+        attachFrame = null;
+      });
+    };
+
+    attach(false);
+    const observer = new MutationObserver(scheduleAttach);
+    observer.observe(document.body, { childList: true, subtree: true });
+
+    return () => {
+      observer.disconnect();
+      if (attachFrame !== null) {
+        window.cancelAnimationFrame(attachFrame);
+      }
+      detach();
+    };
+  }, []);
+
+  return (
+    <>
+      <PublicRewardForecastWarmup />
+      {target
+        ? createPortal(
+            <PublicRewardForecastCard
+              locale={locale}
+              rewardForecastPreview={target.rewardForecastPreview}
+            />,
+            target.mount,
+          )
+        : null}
+    </>
   );
 }
