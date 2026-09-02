@@ -16,6 +16,19 @@
   background-size: 22px 15px !important;
 }
 
+/* Native-select fallback follows RTL too. The enhanced picker uses LanguageFlag
+ * directly and is covered by localized-typography.css. */
+html[dir='rtl'] :is(
+  select.languageSelect,
+  label.language select,
+  .centeredFlow label select,
+  .appHeader label select
+) {
+  padding-left: 10px !important;
+  padding-right: 39px !important;
+  background-position: calc(100% - 10px) center !important;
+}
+
 /*
  * Once the native select has been enhanced, remove the old label chrome so the
  * custom trigger does not sit inside a second border/background. Keep positioning
@@ -73,6 +86,12 @@ label.language > span[aria-hidden='true'],
 :is(select.languageSelect, label.language select, .centeredFlow label select, .appHeader label select):has(option[value='nl']:checked) { background-image:url('/flags/nl.svg') !important; }
 :is(select.languageSelect, label.language select, .centeredFlow label select, .appHeader label select):has(option[value='de']:checked) { background-image:url('/flags/de.svg') !important; }
 :is(select.languageSelect, label.language select, .centeredFlow label select, .appHeader label select):has(option[value='fr']:checked) { background-image:url('/flags/fr.svg') !important; }
+:is(select.languageSelect, label.language select, .centeredFlow label select, .appHeader label select):has(option[value='ar']:checked) { background-image:url('/flags/ae.svg') !important; }
+:is(select.languageSelect, label.language select, .centeredFlow label select, .appHeader label select):has(option[value='bn']:checked) { background-image:url('/flags/bd.svg') !important; }
+:is(select.languageSelect, label.language select, .centeredFlow label select, .appHeader label select):has(option[value='pt']:checked) { background-image:url('/flags/br.svg') !important; }
+:is(select.languageSelect, label.language select, .centeredFlow label select, .appHeader label select):has(option[value='ru']:checked) { background-image:url('/flags/ru.svg') !important; }
+:is(select.languageSelect, label.language select, .centeredFlow label select, .appHeader label select):has(option[value='id']:checked) { background-image:url('/flags/id.svg') !important; }
+:is(select.languageSelect, label.language select, .centeredFlow label select, .appHeader label select):has(option[value='vi']:checked) { background-image:url('/flags/vn.svg') !important; }
 
 /* Very narrow phones cannot fit the full brand + invitee chip + 155px picker on
  * one row. Stack only the right-hand actions and trim the picker width. */
