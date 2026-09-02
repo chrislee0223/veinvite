@@ -59,8 +59,11 @@ if (!/disconnectFromVerification/.test(walletSessionGate) || !/t\.disconnectWall
 if (!/pagehide/.test(walletSessionGate) || !/pageLifecycleRef/.test(walletSessionGate) || !/document\.visibilityState\s*===\s*['"]hidden['"]/.test(walletSessionGate)) {
   failures.push('Page refresh/navigation must not be mistaken for an explicit wallet logout that revokes the server session.');
 }
-if (!/SESSION_CHECK_SURFACE_DELAY_MS\s*=\s*450/.test(walletSessionGate) || !/showCheckingSurface/.test(walletSessionGate)) {
-  failures.push('Normal session restoration should stay visually quiet instead of flashing the full verification card on every refresh.');
+if (!/PASSIVE_DISCONNECT_GRACE_MS\s*=\s*8_000/.test(walletSessionGate) || !/pendingDisconnectTimerRef/.test(walletSessionGate) || !/walletAddressRef\.current/.test(walletSessionGate)) {
+  failures.push('Transient WalletConnect/VeWorld disconnect events must receive a reconnect grace window before the persistent session is revoked.');
+}
+if (!/SESSION_CHECK_SURFACE_DELAY_MS\s*=\s*3_000/.test(walletSessionGate) || !/showCheckingSurface/.test(walletSessionGate)) {
+  failures.push('Normal session restoration should remain visually quiet long enough to avoid flashing ownership verification during a refresh.');
 }
 if (!/\/api\/auth\/session/.test(walletAuth) || !/session\.authenticated/.test(walletAuth)) {
   failures.push('Wallet authentication must reuse a valid existing server session before requesting a fresh wallet signature.');
