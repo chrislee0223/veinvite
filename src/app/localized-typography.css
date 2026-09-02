@@ -3,10 +3,8 @@
  *
  * Several component styles intentionally used `overflow-wrap: anywhere` as a
  * defensive mobile fallback. That can split ordinary translated words in the
- * middle, which looks broken in languages such as German, Dutch, Spanish, and
- * Turkish. Keep normal word boundaries for prose and controls instead, while
- * leaving technical fields such as `code` elements free to use their own
- * overflow rules.
+ * middle. Keep normal word boundaries for prose and controls, while technical
+ * identifiers keep their own explicit overflow rules.
  */
 :is(
   .screen,
@@ -17,7 +15,11 @@
   .centeredFlow,
   .appShell,
   .labScreen,
-  .legalPage
+  .legalPage,
+  .notificationRoot,
+  [role='dialog'],
+  [role='alertdialog'],
+  [aria-live='polite']
 ) :where(
   h1,
   h2,
@@ -36,10 +38,11 @@
 ) {
   overflow-wrap: normal !important;
   word-break: normal !important;
-  hyphens: none;
+  hyphens: none !important;
 }
 
-/* Korean should wrap by words/phrases rather than between Hangul syllables. */
+/* Korean should wrap only at normal word/phrase boundaries. Never split a
+ * Hangul word merely because a compact dialog or button is narrow. */
 html[lang='ko'] :is(
   .screen,
   .guidePage,
@@ -49,7 +52,11 @@ html[lang='ko'] :is(
   .centeredFlow,
   .appShell,
   .labScreen,
-  .legalPage
+  .legalPage,
+  .notificationRoot,
+  [role='dialog'],
+  [role='alertdialog'],
+  [aria-live='polite']
 ) :where(
   h1,
   h2,
@@ -67,6 +74,7 @@ html[lang='ko'] :is(
   label
 ) {
   word-break: keep-all !important;
+  overflow-wrap: normal !important;
 }
 
 /* Chinese and Japanese do not rely on spaces for normal line opportunities. */
@@ -79,13 +87,18 @@ html:is([lang='zh'], [lang='zh-tw'], [lang='ja']) :is(
   .centeredFlow,
   .appShell,
   .labScreen,
-  .legalPage
+  .legalPage,
+  .notificationRoot,
+  [role='dialog'],
+  [role='alertdialog'],
+  [aria-live='polite']
 ) {
   line-break: strict;
   word-break: normal;
 }
 
-/* Balanced headlines and prettier paragraph endings reduce awkward 1-word rows. */
+/* Balanced headings and prettier paragraph endings reduce awkward orphan rows
+ * in both persistent screens and transient dialogs. */
 :is(
   .screen,
   .guidePage,
@@ -95,8 +108,12 @@ html:is([lang='zh'], [lang='zh-tw'], [lang='ja']) :is(
   .centeredFlow,
   .appShell,
   .labScreen,
-  .legalPage
-) :where(h1, h2, h3) {
+  .legalPage,
+  .notificationRoot,
+  [role='dialog'],
+  [role='alertdialog'],
+  [aria-live='polite']
+) :where(h1, h2, h3, strong) {
   text-wrap: balance;
 }
 
@@ -109,19 +126,34 @@ html:is([lang='zh'], [lang='zh-tw'], [lang='ja']) :is(
   .centeredFlow,
   .appShell,
   .labScreen,
-  .legalPage
+  .legalPage,
+  .notificationRoot,
+  [role='dialog'],
+  [role='alertdialog'],
+  [aria-live='polite']
 ) :where(p) {
   text-wrap: pretty;
 }
 
-/* Two-line-capable controls should stay vertically comfortable. */
-:is(.screen, .centeredFlow, .appShell, .settingsPage, .rewardReceiptNotice, .labScreen, .legalPage) button {
-  line-height: 1.25;
+/* Controls may grow to two lines when a natural translation needs it. */
+:is(
+  .screen,
+  .centeredFlow,
+  .appShell,
+  .settingsPage,
+  .rewardReceiptNotice,
+  .labScreen,
+  .legalPage,
+  .notificationRoot,
+  [role='dialog'],
+  [role='alertdialog'],
+  [aria-live='polite']
+) button {
+  line-height: 1.3;
+  height: auto;
 }
 
-/* Flex/grid children containing translated copy must be allowed to shrink.
- * Without min-width:0, longer languages can overflow even when wrapping is
- * otherwise configured correctly. */
+/* Flex/grid children containing translated copy must be allowed to shrink. */
 :is(
   .languagePickerCopy,
   .headerLanguageName,
@@ -130,7 +162,9 @@ html:is([lang='zh'], [lang='zh-tw'], [lang='ja']) :is(
   .cardHeading > *,
   .rewardPanel > *,
   .topBar > *,
-  .appHeader > *
+  .appHeader > *,
+  .notificationCopy,
+  .receiptHeading
 ) {
   min-width: 0;
 }
@@ -159,8 +193,8 @@ html:is([lang='zh'], [lang='zh-tw'], [lang='ja']) :is(
   text-align: center;
 }
 
-/* Script-aware fallback stacks. These do not ship or expose font files; they
- * simply prefer an installed system font with the right glyph coverage. */
+/* Script-aware fallback stacks. These do not ship font files; they simply
+ * prefer an installed system font with suitable glyph coverage. */
 html[data-locale-typography='arabic'] body {
   font-family: "Noto Naskh Arabic", "Noto Sans Arabic", Tahoma, Arial, sans-serif;
 }
@@ -181,8 +215,8 @@ html[lang='te'] body {
   font-family: "Noto Sans Telugu", "Nirmala UI", system-ui, sans-serif;
 }
 
-/* Arabic-family scripts and Indic scripts require more vertical breathing room
- * than compact Latin UI text. Urdu receives extra room for Nastaliq metrics. */
+/* Arabic-family and Indic scripts need more vertical room than compact Latin
+ * UI. Urdu receives extra space for Nastaliq metrics. */
 html[data-locale-typography='arabic'] :where(
   button,
   .badge,
@@ -228,9 +262,9 @@ html[data-locale-typography='indic'] :where(
   line-height: 1.48;
 }
 
-/* Bottom navigation labels are intentionally single-line. These are short,
- * persistent destinations, so wrapping makes the navigation jump vertically
- * between locales. Extremely narrow screens may truncate with an ellipsis. */
+/* Bottom navigation is intentionally single-line. These destination names are
+ * short; on exceptionally narrow screens ellipsis is preferable to a jumping
+ * navigation bar. */
 .bottomNavigation button span,
 .labScreen .previewNavigation button span {
   min-height: 0;
@@ -244,9 +278,7 @@ html[data-locale-typography='indic'] :where(
   text-align: center;
 }
 
-/* Full right-to-left support for every RTL locale. Logical document direction
- * is set by LocaleDocumentSync; these overrides fix legacy physical left/right
- * styles that predate generic RTL support. */
+/* Full right-to-left support for every RTL locale. */
 html[dir='rtl'] body {
   direction: rtl;
 }
@@ -258,7 +290,11 @@ html[dir='rtl'] :is(
   .mission,
   .legalPage,
   .settingsPage,
-  .leaderboardPage
+  .leaderboardPage,
+  .notificationRoot,
+  [role='dialog'],
+  [role='alertdialog'],
+  [aria-live='polite']
 ) {
   text-align: right !important;
 }
@@ -287,18 +323,24 @@ html[dir='rtl'] .flagSvg {
 }
 
 /* Wallet addresses, transaction hashes, invite codes and token amounts are
- * technical LTR identifiers even while the surrounding interface is RTL. */
-html[dir='rtl'] :is(code, .walletAddress, .estimateAmount) {
+ * technical LTR identifiers even in an RTL interface. */
+html[dir='rtl'] :is(
+  code,
+  .walletAddress,
+  .estimateAmount,
+  .rewardAmount,
+  .receiptAmount,
+  .receiptFacts dd
+) {
   direction: ltr;
   unicode-bidi: isolate;
-  text-align: left;
 }
 
-html[dir='rtl'] .estimateAmount {
-  text-align: center;
+html[dir='rtl'] :is(.estimateAmount, .rewardAmount) {
+  text-align: center !important;
 }
 
-/* Keep the three receipt fact values aligned when one translated label wraps. */
+/* Keep receipt fact labels aligned when one translation needs a second line. */
 @media (min-width: 421px) {
   .rewardReceiptNotice dt {
     min-height: 2.3em;
