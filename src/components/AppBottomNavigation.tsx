@@ -1,5 +1,11 @@
+'use client';
+
+import { useEffect } from 'react';
+
 import { NAV_COPY } from '@/lib/i18n/navCopy';
 import type { Locale } from '@/lib/i18n/locales';
+import { prefetchPublicLeaderboard } from '@/lib/leaderboardClientCache';
+import { useActiveWallet } from './WalletControl';
 
 export type AppTab = 'home' | 'guide' | 'leaderboard' | 'settings';
 
@@ -15,6 +21,27 @@ export function AppBottomNavigation({
   onChange: (tab: AppTab) => void;
 }) {
   const labels = NAV_COPY[locale];
+  const wallet = useActiveWallet();
+
+  useEffect(() => {
+    let cancelled = false;
+    const timer = window.setTimeout(() => {
+      if (cancelled) return;
+
+      void import('./PublicLeaderboard').catch(() => undefined);
+      void prefetchPublicLeaderboard(wallet).catch(() => undefined);
+    }, 450);
+
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timer);
+    };
+  }, [wallet]);
+
+  const warmLeaderboard = () => {
+    void import('./PublicLeaderboard').catch(() => undefined);
+    void prefetchPublicLeaderboard(wallet).catch(() => undefined);
+  };
 
   return (
     <nav className="bottomNavigation" data-veinvite-active-tab={activeTab} aria-label={labels.ariaLabel}>
@@ -26,6 +53,9 @@ export function AppBottomNavigation({
             data-veinvite-tab={tab}
             className={activeTab === tab ? 'active' : ''}
             aria-current={activeTab === tab ? 'page' : undefined}
+            onPointerEnter={tab === 'leaderboard' ? warmLeaderboard : undefined}
+            onFocus={tab === 'leaderboard' ? warmLeaderboard : undefined}
+            onPointerDown={tab === 'leaderboard' ? warmLeaderboard : undefined}
             onClick={() => onChange(tab)}
           >
             <NavIcon name={tab} />
