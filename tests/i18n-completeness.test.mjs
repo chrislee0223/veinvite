@@ -31,10 +31,22 @@ const typographySource = readFileSync(
   'src/app/localized-typography.css',
   'utf8',
 );
+const languageRouteSource = readFileSync(
+  'src/app/api/preferences/language/route.ts',
+  'utf8',
+);
+const languageConstraintMigrationSource = readFileSync(
+  'supabase/migrations/20260902074759_future_proof_wallet_language_constraint.sql',
+  'utf8',
+);
 
+const LOCALE_TAG_PATTERN = '[a-z]{2,3}(?:-[a-z0-9]{2,8})*';
 const definitions = [
   ...localeSource.matchAll(
-    /locale:\s*'([a-z]{2})'.*?flagSource:\s*'([^']+)'.*?direction:\s*'(ltr|rtl)'/g,
+    new RegExp(
+      `locale:\\s*'(${LOCALE_TAG_PATTERN})'.*?flagSource:\\s*'([^']+)'.*?direction:\\s*'(ltr|rtl)'`,
+      'g',
+    ),
   ),
 ].map((match) => ({
   locale: match[1],
@@ -69,6 +81,12 @@ const REQUIRED_PACK_SECTIONS = [
   'settings',
   'walletSession',
 ];
+
+function objectKeyPattern(locale, suffix) {
+  return new RegExp(
+    `\\n\\s{2}(?:${locale}|['\"]${locale}['\"]):\\s*${suffix}`,
+  );
+}
 
 test('locale registry keeps every core locale and has no duplicates', () => {
   assert.equal(new Set(supportedLocales).size, supportedLocales.length);
@@ -166,7 +184,7 @@ test('legal navigation copy covers every supported locale', () => {
   for (const locale of supportedLocales) {
     assert.match(
       legalPageSource,
-      new RegExp(`\\n\\s{2}${locale}:\\s*['"]`),
+      objectKeyPattern(locale, `['\"]`),
       `legal back label is missing for ${locale}`,
     );
   }
@@ -180,10 +198,26 @@ test('standalone reward forecast copy covers every supported locale', () => {
   for (const locale of supportedLocales) {
     assert.match(
       forecastSource,
-      new RegExp(`\\n\\s{2}${locale}:\\s*\\{`),
+      objectKeyPattern(locale, '\\{'),
       `reward forecast copy is missing for ${locale}`,
     );
   }
+});
+
+test('wallet language persistence stays future-proof and registry-gated', () => {
+  assert.match(languageRouteSource, /isLocale\(language\)/);
+  assert.match(
+    languageConstraintMigrationSource,
+    /char_length\(language\)\s*<=\s*35/i,
+  );
+  assert.match(
+    languageConstraintMigrationSource,
+    /\^\[a-z\]\{2,3\}\(-\[a-z0-9\]\{2,8\}\)\*\$/,
+  );
+  assert.doesNotMatch(
+    languageConstraintMigrationSource,
+    /language\s+in\s*\(/i,
+  );
 });
 
 test('new localization boundaries use SupportedLocale instead of the legacy string key type', () => {
