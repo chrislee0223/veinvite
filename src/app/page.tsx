@@ -42,14 +42,24 @@ export default async function HomePage() {
   }
 
   return (
-    <WalletSessionGate
-      initialSessionWallet={
-        initialSessionWallet
-      }
-    >
-      <InviteStatusAutoRefresh />
-      <HomeClient />
-      <ActiveWalletRewardReceiptNotice />
-    </WalletSessionGate>
+    <>
+      <span
+        hidden
+        data-veinvite-session-bootstrap={
+          initialSessionWallet
+            ? 'verified'
+            : 'none'
+        }
+      />
+      <WalletSessionGate
+        initialSessionWallet={
+          initialSessionWallet
+        }
+      >
+        <InviteStatusAutoRefresh />
+        <HomeClient />
+        <ActiveWalletRewardReceiptNotice />
+      </WalletSessionGate>
+    </>
   );
 }

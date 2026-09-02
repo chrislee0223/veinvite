@@ -15,6 +15,7 @@ const appProviders = read('src/components/AppProviders.tsx');
 const rootLayout = read('src/app/layout.tsx');
 const homePage = read('src/app/page.tsx');
 const hydrationShield = read('src/components/LocaleHydrationShield.tsx');
+const walletRuntime = read('src/components/WalletRuntimeLifecycle.tsx');
 const walletControl = read('src/components/WalletControl.tsx');
 const walletAuth = read('src/hooks/useWalletAuthentication.ts');
 const walletSessionGate = read('src/components/WalletSessionGate.tsx');
@@ -78,13 +79,16 @@ if (!/veinvite-wallet-session-cleared/.test(walletSessionGate) || !/veinvite-wal
   failures.push('Explicit wallet logout/switch must remain distinguishable from passive provider disconnect churn.');
 }
 if (!/SESSION_CHECK_SURFACE_DELAY_MS\s*=\s*3_000/.test(walletSessionGate) || !/showCheckingSurface/.test(walletSessionGate) || !/<Brand compact \/>/.test(walletSessionGate)) {
-  failures.push('Wallet/session initialization must use a branded transition instead of a featureless black frame.');
+  failures.push('Wallet/session initialization must retain its branded recovery transition instead of a featureless black frame.');
 }
 if (!/\/api\/auth\/session/.test(walletAuth) || !/session\.authenticated/.test(walletAuth)) {
   failures.push('Wallet authentication must reuse a valid existing server session before requesting a fresh wallet signature.');
 }
 if (!/cookies\(\)/.test(homePage) || !/getWalletSessionFromTokens/.test(homePage) || !/initialSessionWallet/.test(homePage)) {
   failures.push('The home page must validate the persistent wallet session server-side before the client wallet provider reconnects.');
+}
+if (!/data-veinvite-session-bootstrap/.test(homePage)) {
+  failures.push('The startup coordinator must receive a non-secret server-session bootstrap marker so it can suppress a disconnected-home flash during wallet restoration.');
 }
 if (!/getAll\(name\)/.test(walletAuthServer) || !/getWalletSessionFromTokens/.test(walletAuthServer)) {
   failures.push('Wallet-session lookup must tolerate duplicate/stale cookie headers and select a valid unrevoked session token.');
@@ -96,8 +100,45 @@ if (!/getWalletSessionCookieCount/.test(walletSessionRoute) || !/LEGACY_WALLET_S
   failures.push('Wallet-session diagnostics and explicit logout must safely handle current and legacy session cookies.');
 }
 
-if (!/veinvite-app-ready/.test(appProviders) || !/veinvite-app-ready/.test(hydrationShield)) {
-  failures.push('The startup shield must remain until the client wallet-provider tree signals that it is ready.');
+if (!/SLIDING_SESSION_LIFETIME_DAYS\s*=\s*30/.test(walletSessionRoute) || !/SLIDING_SESSION_LIFETIME_SECONDS/.test(walletSessionRoute) || !/export async function POST/.test(walletSessionRoute)) {
+  failures.push('A valid wallet session must support the reviewed 30-day sliding renewal window.');
+}
+if (!/x-veinvite-session-intent/.test(walletSessionRoute) || !/SESSION_RENEWAL_INTENT\s*=\s*['"]renew['"]/.test(walletSessionRoute) || !/session\.walletAddress\s*!==\s*expectedWallet/.test(walletSessionRoute)) {
+  failures.push('Sliding renewal must require the reviewed renewal intent and must never extend a session for a different connected wallet.');
+}
+if (!/\.update\(\{[\s\S]*expires_at:[\s\S]*newExpiresAt/.test(walletSessionRoute) || !/maxAge:\s*SLIDING_SESSION_LIFETIME_SECONDS/.test(walletSessionRoute) || !/setSessionCookie/.test(walletSessionRoute)) {
+  failures.push('Sliding renewal must extend both the server-side expiry and hardened browser cookie to the same 30-day horizon.');
+}
+if (!/readWalletSessionTokens/.test(walletSessionRoute) || !/hashSessionToken/.test(walletSessionRoute) || !/token_hash/.test(walletSessionRoute)) {
+  failures.push('Sliding renewal must preserve the exact validated session token even when duplicate or legacy cookie headers are present.');
+}
+if (!/method:\s*['"]POST['"]/.test(walletRuntime) || !/X-VeInvite-Session-Intent/.test(walletRuntime) || !/credentials:\s*['"]include['"]/.test(walletRuntime)) {
+  failures.push('Normal app re-entry must silently request sliding renewal with credentials and the reviewed renewal intent.');
+}
+if (!/veinvite-wallet-session-ready/.test(walletRuntime) || !/renewSession/.test(walletRuntime) || !/RENEWAL_DEDUPE_MS/.test(walletRuntime)) {
+  failures.push('A first successful wallet proof and routine re-entry must both feed the bounded, deduplicated silent-renewal path.');
+}
+if (/\/api\/auth\/challenge|\/api\/auth\/verify|\/api\/legal\/consent/.test(walletRuntime)) {
+  failures.push('Routine sliding renewal must not request another wallet proof or legal re-consent.');
+}
+
+if (!/veinvite-provider-ready/.test(appProviders) || !/veinvite-provider-ready/.test(hydrationShield)) {
+  failures.push('Provider readiness must remain distinct from final home readiness so the startup shield is not released before wallet restoration settles.');
+}
+if (/veinvite-app-ready/.test(appProviders)) {
+  failures.push('AppProviders must not publish final app readiness immediately when the wallet provider first mounts.');
+}
+if (!/veinvite-app-ready/.test(walletRuntime) || !/veinvite-app-ready/.test(hydrationShield)) {
+  failures.push('The home startup shield must release only from the wallet/session lifecycle final-readiness signal.');
+}
+if (!/MutationObserver/.test(walletRuntime) || !/main\.screen/.test(walletRuntime) || !/aria-live=\\"polite\\"/.test(walletRuntime)) {
+  failures.push('Home readiness must observe the real mounted home/gate surfaces rather than releasing on provider initialization alone.');
+}
+if (!/HOME_STABILITY_MS/.test(walletRuntime) || !/DISCONNECTED_STABILITY_MS/.test(walletRuntime) || !/BOOTSTRAPPED_SESSION_GRACE_MS/.test(walletRuntime)) {
+  failures.push('Startup must keep bounded stability/grace windows that suppress home-to-loading-to-home flicker during VeWorld restoration.');
+}
+if (!/APP_READY_FALLBACK_MS\s*=\s*8_000/.test(hydrationShield) || !/circle at 50% 38%/.test(hydrationShield)) {
+  failures.push('The single branded startup surface must remain bounded and visually aligned with the wallet-session transition.');
 }
 if (!/<LocaleHydrationShield \/>[\s\S]*<AppProviders>/.test(rootLayout) || !/<Brand compact \/>/.test(hydrationShield)) {
   failures.push('The branded hydration shield must render outside the client-only wallet provider so startup never falls through to a blank black body.');
