@@ -1,73 +1,86 @@
 # VeInvite language expansion guide
 
-This guide is the checklist for adding any future language to VeInvite without leaving a partially translated or visually broken experience.
+This is the reusable checklist for adding a language or regional language variant without leaving a partially translated or visually broken VeInvite experience.
 
-## Goal
+## Definition of supported
 
-A locale is considered supported only when an ordinary user can use the same VeInvite flow in that language from start to finish: language selection, invitation, eligibility, missions, rewards, leaderboard, settings, notifications, wallet verification, and legal pages.
+A locale is supported only when an ordinary user can complete the same VeInvite flow in it from start to finish: language selection, invitation, eligibility, missions, rewards, leaderboard, settings, notifications, wallet verification, and legal pages.
 
-Do not mark a language as supported after translating only the home screen.
+Do not call a locale supported after translating only a landing page or the main screen.
 
-## Single source of truth
+## 1. Start from the single locale registry
 
-Start in `src/lib/i18n/locales.ts`.
+Edit `src/lib/i18n/locales.ts` and add one `LOCALE_DEFINITIONS` entry with:
 
-Add one `LOCALE_DEFINITIONS` entry containing:
+- locale code;
+- native display name;
+- app-owned flag SVG path;
+- writing direction (`ltr` or `rtl`);
+- typography group (`latin`, `cjk`, `arabic`, or `indic`).
 
-- ISO-style locale code used by VeInvite
-- native language name shown to the user
-- app-owned flag SVG path
-- writing direction (`ltr` or `rtl`)
-- `cjk: true` only when CJK line-breaking behavior is required
+The registry drives language pickers, flags, browser detection, wallet preference validation, document direction, and script-aware typography. Do not create a second locale list in a component.
 
-The registry drives the Settings picker, invite-flow picker, browser-language detection, flag rendering, persisted wallet language preference validation, and document direction.
+Exact regional tags are resolved before base-language fallback. For example, a browser reporting `zh-TW` resolves to the reviewed `zh-tw` pack, while another unsupported `zh-*` tag can still fall back to `zh`.
 
-`LanguageFlag` must not maintain a second locale-to-flag table. The registry is the source of truth.
+## 2. Flags are a visual aid, not a language identity
 
-## Add the flag
+Store flag SVGs under `public/flags/` and reference them from the registry. Do not use platform emoji flags.
 
-Place an app-owned SVG under `public/flags/` and reference it from the registry.
+The same country flag may intentionally appear beside more than one language. Current examples include:
 
-Flags are a visual aid for the language picker, not a claim that a language belongs to only one country. Use a representative market consistently. VeInvite currently uses, for example, US for English, Brazil for Portuguese, and UAE for Arabic.
+- India: हिन्दी, मराठी, తెలుగు;
+- Nigeria: Nigerian Pidgin, Hausa.
 
-Do not fall back to platform emoji flags; their appearance differs by OS and browser.
+A language can also be represented by one major market even when it is spoken in several countries. The user-visible identity is always `flag + native language name`, not the flag alone.
 
-## Add one complete locale pack
+## 3. Add one complete locale pack
 
-Create `src/lib/i18n/localePacks/<locale>.ts` and implement the `LocalePack` type.
+Create `src/lib/i18n/localePacks/<locale>.ts` implementing `LocalePack`, then register it in `registerExpandedLocales.ts`.
 
-A locale pack intentionally groups every user-facing copy surface for one language in a single file:
+The pack covers:
 
-- entry rejection
-- guide labels, flow, eligibility, mission and reward explanations
-- home
-- invite landing
-- invitee onboarding and errors
-- initial language selection
-- leaderboard
-- consent dialog
-- privacy policy and terms of use
-- navigation
-- notifications
-- reward receipt
-- settings
-- wallet verification
+- rejection and eligibility copy;
+- guide and mission flow;
+- home and invite landing;
+- invitee onboarding and errors;
+- language selection;
+- leaderboard;
+- consent, privacy policy and terms;
+- navigation and notifications;
+- reward receipt;
+- settings;
+- wallet verification.
 
-Then register the pack in `src/lib/i18n/localePacks/registerExpandedLocales.ts`.
+`LocalePack` is typed against the current copy shapes so new required fields cannot silently disappear from a new-style locale.
 
-`LocalePack` is typed against the current English copy shapes. If a product update adds a required field, TypeScript should force every new-style locale pack to be updated instead of silently leaving a missing string.
+### Regional variants and formal registers
 
-### Standalone typed copy surfaces
+Do not mechanically convert a base language into a regional version.
 
-A small number of UI surfaces can live outside the shared copy modules for implementation reasons. They must still be exhaustive over `SupportedLocale` rather than silently falling back to English.
+Examples from the reviewed 27-locale baseline:
 
-Currently `src/components/PublicRewardForecastPortal.tsx` owns the compact reward-estimate card copy as `Record<SupportedLocale, ForecastCopy>`. Add the new locale there as well. TypeScript and `test:i18n` both guard this surface, so a newly registered locale cannot be merged while its forecast copy is missing.
+- `zh-tw` is Taiwan Traditional Chinese with Taiwan UI terminology such as `使用者`, `錢包`, and `隱私權政策`, not a Simplified Chinese character swap.
+- `arz` uses natural Egyptian Arabic for day-to-day UI while formal legal/security copy deliberately uses Modern Standard Arabic, which is the appropriate formal register.
+- `pcm` uses Nigerian Pidgin for ordinary product UI while formal legal/security copy deliberately stays in clear English to avoid ambiguity in a context where English is the normal formal register.
 
-When another standalone localized surface is introduced, either move it into `LocalePack` or give it the same exhaustive `SupportedLocale` protection and add it to the i18n completeness audit. Do not create an unguarded 11-language-only table inside a component.
+When formal-copy inheritance is intentional, document it in the locale pack. Never let an English or base-language fallback happen accidentally.
 
-## Translation rules that must not drift
+## 4. Standalone localized surfaces are centralized too
 
-Keep these product and ecosystem names intact unless the product decision changes:
+Do not keep hidden locale tables inside components.
+
+Current standalone copy lives in:
+
+- `src/lib/i18n/rewardForecastCopy.ts` — reward estimate card;
+- `src/lib/i18n/legalNavigationCopy.ts` — legal-page navigation.
+
+Both are exhaustive `Record<SupportedLocale, ...>` tables and are included in `test:i18n`. Adding a locale without these strings must fail CI.
+
+If another standalone localized surface is introduced later, either move it into `LocalePack` or give it the same exhaustive `SupportedLocale` protection and add it to the completeness audit.
+
+## 5. Product semantics must not drift
+
+Keep these names intact unless the product itself changes:
 
 - VeInvite
 - VeBetterDAO
@@ -79,63 +92,65 @@ Keep these product and ecosystem names intact unless the product decision change
 - Allocation Voting
 - VeChain Explorer
 
-Preserve these VeInvite meanings in every language:
+Every locale must preserve these rules:
 
-1. **New user**: no previous VeBetterDAO reward or Allocation Voting history is found.
-2. **Returning user**: older activity may exist, but there has been no VeBetterDAO reward or Allocation Voting activity since the start of the oldest of the last 12 completed rounds.
-3. **Mission completion**: the invitee receives B3TR rewards from 3 different VeBetterDAO dApps, makes the required B3TR → VOT3 conversion, and participates once in Allocation Voting.
-4. **Public new/returning totals**: only wallets that completed every mission are included.
-5. **Leaderboard referral**: appears after all missions are complete and the inviter receives the verified B3TR reward.
-6. **Reward UX**: eligible referral rewards are handled automatically; user-facing text must not incorrectly teach users that a manual claim is required.
-7. **Self-referrals and duplicate invite relationships** remain disallowed.
+1. New user: no previous VeBetterDAO reward or Allocation Voting history is found.
+2. Returning user: older activity may exist, but there has been no VeBetterDAO reward or Allocation Voting activity since the start of the oldest of the last 12 completed rounds.
+3. Mission completion: B3TR rewards from 3 different VeBetterDAO dApps, the required B3TR-to-VOT3 conversion, and one Allocation Voting participation.
+4. Public new/returning totals include only wallets that completed every mission.
+5. A leaderboard referral appears after all missions are complete and the inviter receives the verified B3TR reward.
+6. Eligible referral rewards are handled automatically; copy must not teach users that a manual claim is required.
+7. Self-referrals and duplicate invite relationships remain disallowed.
 
-Translate for natural local usage, not word-for-word similarity. Shorten UI copy when needed while preserving the product meaning.
+Translate for natural local usage rather than word-for-word similarity. Established local Web3 loanwords are preferable to awkward invented translations when they are what real users expect.
 
-## Layout and typography review
+## 6. Typography and layout are part of localization
 
-Every newly added language must be checked at phone and desktop widths.
+`src/app/localized-typography.css` contains cross-language safeguards. The document receives `data-locale-typography` from the central registry so a future language can inherit script-level behavior instead of adding one-off pixel hacks.
 
-Review at least:
+Review phone and desktop widths for:
 
-- buttons: no clipped labels or accidental fixed-height overflow
-- headings: no bad one-word orphan rows when avoidable
-- cards and dialogs: no horizontal overflow
-- progress steps and badges: two-line text remains vertically aligned
-- bottom navigation: short labels remain identifiable at narrow widths
-- language picker: native name and flag remain visible
-- leaderboard columns/cards: long labels do not push values off-screen
-- wallet addresses and transaction hashes: remain readable and unmodified
-- legal pages: paragraphs retain comfortable line-height
+- clipped or overly tall buttons;
+- awkward one-word headline rows;
+- horizontal overflow in cards and dialogs;
+- step labels and badges wrapping to two lines;
+- bottom navigation truncation;
+- language picker scrolling with a large language list;
+- leaderboard column pressure;
+- legal paragraph readability;
+- wallet addresses, hashes, invite codes and token values remaining intact.
 
-`src/app/localized-typography.css` owns cross-language wrapping and script-specific safeguards. Prefer logical layout behavior over language-specific pixel hacks.
+Script-specific rules in the reviewed baseline:
 
-## RTL languages
+- CJK: strict line-breaking for Chinese (including `zh-tw`) and Japanese; Korean keeps word/phrase boundaries.
+- Arabic-script: extra line-height and appropriate installed-font fallbacks; Urdu receives additional Nastaliq vertical room.
+- Indic: extra line-height plus Devanagari, Bengali and Telugu system-font fallbacks.
+- Latin/Cyrillic: normal word boundaries; do not split ordinary translated words in the middle just to avoid overflow.
 
-For Arabic, Hebrew, Persian, Urdu, or any future RTL locale:
+## 7. RTL requires a separate review
 
-1. mark the locale `direction: 'rtl'` in the registry;
-2. `LocaleDocumentSync` will set `<html dir="rtl">` automatically;
-3. review any legacy component using physical `left`, `right`, `text-align:left`, or absolute positioning;
-4. keep wallet addresses, transaction hashes, invite codes, B3TR/VOT3 values, and similar technical identifiers LTR with bidi isolation;
-5. verify flag/menu placement and dialog actions visually.
+Arabic, Egyptian Arabic and Urdu are currently RTL.
 
-Do not simulate RTL by reversing strings.
+For any RTL locale:
 
-## Persistence and browser detection
+1. set `direction: 'rtl'` in the registry;
+2. `LocaleDocumentSync` sets `<html dir="rtl">` automatically;
+3. inspect legacy physical `left/right` positioning;
+4. keep wallet addresses, transaction hashes, invite codes and token amounts LTR with bidi isolation;
+5. avoid bidi-sensitive arrow copy such as `B3TR → VOT3` when a natural written phrase is safer;
+6. review menu placement, back arrows, dialogs and numeric values separately.
 
-No new API or database allow-list should be created per language. The wallet language preference endpoint validates through `isLocale()`, which reads the central registry. Browser language detection also resolves through the same list.
+Never simulate RTL by reversing strings.
 
-The 17-language expansion includes the one-time migration `20260902074759_future_proof_wallet_language_constraint.sql`. It replaces the original 11-language database allow-list with a locale-tag shape constraint. Apply that migration to Production **before** deploying the 17-language app code. After it is in Production, ordinary future language additions should not require another database migration; the server registry remains authoritative for the actually supported locales.
+## 8. Persistence stays future-proof
 
-After adding a locale, verify:
+The Production migration `20260902074759_future_proof_wallet_language_constraint.sql` already replaced the old hard-coded language allow-list with a locale-tag format constraint.
 
-- first visit with a matching browser language
-- manual language change
-- page refresh
-- reconnecting a wallet with a saved preference
-- cross-tab storage synchronization
+Ordinary future language additions therefore should not need a new database migration. The language preference endpoint uses `isLocale()` from the central registry as the authoritative supported-language check.
 
-## Automated checks
+After adding a locale, verify browser detection, manual switching, refresh persistence, wallet preference restoration and cross-tab storage synchronization.
+
+## 9. Automated checks
 
 Run:
 
@@ -145,39 +160,38 @@ npm run test:i18n
 npm run build
 ```
 
-`test:i18n` derives the supported locale set from `LOCALE_DEFINITIONS` and checks that:
+The i18n gate checks, among other things:
 
-- the original core locales have not disappeared and the registry has no duplicates;
-- locale definitions are discoverable using reusable locale-tag syntax rather than a two-letter-only audit;
-- each locale points to an existing app-owned flag;
-- generic RTL handling remains wired and Arabic remains marked RTL;
-- every non-core locale has a registered typed locale pack with all required copy sections;
-- required VeInvite protocol terminology has not disappeared from a locale pack;
-- legal navigation covers every registered locale;
-- the standalone reward forecast card covers every registered locale;
-- wallet-language writes remain gated by `isLocale()` and the database constraint does not regress to a hard-coded language allow-list;
-- new localization boundaries use the strict `SupportedLocale` type instead of the legacy string-key compatibility type.
+- the reviewed 27-locale baseline does not shrink;
+- locale codes are unique and regional tags are supported;
+- every flag asset exists;
+- shared flags for India/Nigeria remain valid language choices;
+- RTL and typography metadata are correct for Arabic, Urdu, Egyptian Arabic, Indic and CJK scripts;
+- every non-core locale has a typed pack and registration;
+- product terminology and the 12-completed-round rule remain present;
+- Taiwan copy does not regress to obvious Simplified Chinese UI wording;
+- Urdu/Egyptian token-conversion copy avoids bidi-sensitive arrows;
+- intentional formal-register reuse for Egyptian Arabic and Nigerian Pidgin is explicitly documented;
+- legal navigation and reward forecast copy cover every locale;
+- wrapping, script font fallbacks and bidi isolation remain present;
+- wallet-language persistence remains registry-gated instead of reverting to a database allow-list.
 
-Do not maintain a second hard-coded list of expansion locales in the test. A future locale added to `LOCALE_DEFINITIONS` is discovered automatically and must have its flag, locale pack, registration, legal navigation, and guarded standalone copy completed before `test:i18n` can pass.
+The GitHub CI workflow runs the i18n gate on pull requests.
 
-The GitHub CI workflow runs `test:i18n` on pull requests, so incomplete locale integration should be blocked before merge.
+## 10. Release checklist
 
-## Release checklist
-
-Before merging a language expansion:
+Before merge:
 
 1. typecheck passes;
-2. i18n completeness tests pass;
-3. production build passes;
-4. for the initial 17-language rollout, the future-proof wallet-language constraint migration is applied and verified in Production before the app deployment;
-5. every new locale can be selected in Settings;
-6. its flag and native name are correct;
-7. refresh preserves selection;
-8. main app, direct invite flow, legal pages, and standalone localized cards all use the locale;
-9. no untranslated English UI leaks remain except intentional product names and established Web3 terminology;
-10. mobile widths are reviewed for clipping, wrapping, overlap, and modal overflow;
-11. RTL locale is reviewed separately when applicable;
-12. existing Korean, English, Chinese, Hindi, Spanish, Japanese, Italian, Turkish, Dutch, German, and French flows are smoke-tested for regressions;
-13. after the Production deployment is READY, perform one live language-save/reload smoke test before announcing availability publicly.
+2. i18n quality/completeness tests pass;
+3. reward and existing app regression gates pass;
+4. production build passes;
+5. all new languages appear in Settings with the intended flag and native name;
+6. the longest/newest scripts are reviewed for mobile and desktop wrapping;
+7. all RTL locales are reviewed separately;
+8. no accidental fallback language leaks remain;
+9. existing 17-language behavior is regression-tested;
+10. Production is deployed only after the reviewed branch is stable;
+11. after Production is READY, perform live language switch/save/reload checks before announcing the update publicly.
 
-This process is deliberately reusable: adding the next language should mean adding registry metadata, one flag asset, one typed locale pack, registering it, completing any explicitly guarded standalone copy, and performing the visual review. The automated audit discovers the new locale from the registry; it should not require editing every existing translation module, maintaining a duplicate expansion-locale list, or changing the database allow-list again.
+The intended future workflow is therefore: add one registry entry, one flag (or intentionally reuse an existing one), one complete locale pack, register it, add the two centrally guarded standalone copy entries, then run automated and visual QA. A normal new language should not require editing the database allow-list or scattering locale metadata across unrelated components.
