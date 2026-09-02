@@ -16,7 +16,8 @@
   .rewardReceiptNotice,
   .centeredFlow,
   .appShell,
-  .labScreen
+  .labScreen,
+  .legalPage
 ) :where(
   h1,
   h2,
@@ -47,7 +48,8 @@ html[lang='ko'] :is(
   .rewardReceiptNotice,
   .centeredFlow,
   .appShell,
-  .labScreen
+  .labScreen,
+  .legalPage
 ) :where(
   h1,
   h2,
@@ -68,7 +70,7 @@ html[lang='ko'] :is(
 }
 
 /* Chinese and Japanese do not rely on spaces for normal line opportunities. */
-html[lang='zh'] :is(
+html:is([lang='zh'], [lang='zh-tw'], [lang='ja']) :is(
   .screen,
   .guidePage,
   .settingsPage,
@@ -76,17 +78,8 @@ html[lang='zh'] :is(
   .rewardReceiptNotice,
   .centeredFlow,
   .appShell,
-  .labScreen
-),
-html[lang='ja'] :is(
-  .screen,
-  .guidePage,
-  .settingsPage,
-  .leaderboardPage,
-  .rewardReceiptNotice,
-  .centeredFlow,
-  .appShell,
-  .labScreen
+  .labScreen,
+  .legalPage
 ) {
   line-break: strict;
   word-break: normal;
@@ -101,7 +94,8 @@ html[lang='ja'] :is(
   .rewardReceiptNotice,
   .centeredFlow,
   .appShell,
-  .labScreen
+  .labScreen,
+  .legalPage
 ) :where(h1, h2, h3) {
   text-wrap: balance;
 }
@@ -114,13 +108,14 @@ html[lang='ja'] :is(
   .rewardReceiptNotice,
   .centeredFlow,
   .appShell,
-  .labScreen
+  .labScreen,
+  .legalPage
 ) :where(p) {
   text-wrap: pretty;
 }
 
 /* Two-line-capable controls should stay vertically comfortable. */
-:is(.screen, .centeredFlow, .appShell, .settingsPage, .rewardReceiptNotice, .labScreen) button {
+:is(.screen, .centeredFlow, .appShell, .settingsPage, .rewardReceiptNotice, .labScreen, .legalPage) button {
   line-height: 1.25;
 }
 
@@ -164,10 +159,73 @@ html[lang='ja'] :is(
   text-align: center;
 }
 
-/* Arabic and Bengali glyphs need slightly more vertical room than Latin UI
- * copy, especially inside compact buttons and chips. */
-html:is([lang='ar'], [lang='bn']) :where(button, .badge, .inviteBadge, .chip, p, small) {
-  line-height: 1.4;
+/* Script-aware fallback stacks. These do not ship or expose font files; they
+ * simply prefer an installed system font with the right glyph coverage. */
+html[data-locale-typography='arabic'] body {
+  font-family: "Noto Naskh Arabic", "Noto Sans Arabic", Tahoma, Arial, sans-serif;
+}
+
+html[lang='ur'] body {
+  font-family: "Noto Nastaliq Urdu", "Noto Naskh Arabic", "Noto Sans Arabic", Tahoma, Arial, sans-serif;
+}
+
+html:is([lang='hi'], [lang='mr']) body {
+  font-family: "Noto Sans Devanagari", "Kohinoor Devanagari", "Mangal", system-ui, sans-serif;
+}
+
+html[lang='bn'] body {
+  font-family: "Noto Sans Bengali", "Kohinoor Bangla", system-ui, sans-serif;
+}
+
+html[lang='te'] body {
+  font-family: "Noto Sans Telugu", "Nirmala UI", system-ui, sans-serif;
+}
+
+/* Arabic-family scripts and Indic scripts require more vertical breathing room
+ * than compact Latin UI text. Urdu receives extra room for Nastaliq metrics. */
+html[data-locale-typography='arabic'] :where(
+  button,
+  .badge,
+  .inviteBadge,
+  .chip,
+  p,
+  small,
+  dt,
+  dd,
+  .headerLanguageOption,
+  .headerLanguageTrigger
+) {
+  line-height: 1.48;
+}
+
+html[lang='ur'] :where(
+  button,
+  .badge,
+  .inviteBadge,
+  .chip,
+  p,
+  small,
+  dt,
+  dd,
+  .headerLanguageOption,
+  .headerLanguageTrigger
+) {
+  line-height: 1.6;
+}
+
+html[data-locale-typography='indic'] :where(
+  button,
+  .badge,
+  .inviteBadge,
+  .chip,
+  p,
+  small,
+  dt,
+  dd,
+  .headerLanguageOption,
+  .headerLanguageTrigger
+) {
+  line-height: 1.48;
 }
 
 /* Bottom navigation labels are intentionally single-line. These are short,
@@ -186,9 +244,9 @@ html:is([lang='ar'], [lang='bn']) :where(button, .badge, .inviteBadge, .chip, p,
   text-align: center;
 }
 
-/* Full right-to-left support for Arabic. Logical document direction is set by
- * LocaleDocumentSync; these overrides fix legacy physical left/right styles
- * that predate RTL support. */
+/* Full right-to-left support for every RTL locale. Logical document direction
+ * is set by LocaleDocumentSync; these overrides fix legacy physical left/right
+ * styles that predate generic RTL support. */
 html[dir='rtl'] body {
   direction: rtl;
 }
@@ -228,12 +286,16 @@ html[dir='rtl'] .flagSvg {
   object-position: right center !important;
 }
 
-/* Wallet addresses, transaction hashes and invite codes are technical LTR
- * identifiers even while the surrounding Arabic interface is RTL. */
-html[dir='rtl'] :is(code, .walletAddress) {
+/* Wallet addresses, transaction hashes, invite codes and token amounts are
+ * technical LTR identifiers even while the surrounding interface is RTL. */
+html[dir='rtl'] :is(code, .walletAddress, .estimateAmount) {
   direction: ltr;
   unicode-bidi: isolate;
   text-align: left;
+}
+
+html[dir='rtl'] .estimateAmount {
+  text-align: center;
 }
 
 /* Keep the three receipt fact values aligned when one translated label wraps. */
