@@ -3,6 +3,7 @@ import {
   NextResponse,
 } from 'next/server';
 
+import { INVITE_NOTIFICATION_STAGE } from '@/lib/notifications/inviteNotificationState';
 import {
   toRewardReceipt,
   type RewardReceiptRow,
@@ -171,6 +172,28 @@ export async function POST(
     const receipt = toRewardReceipt(
       data as RewardReceiptRow,
     );
+
+    // The rich reward receipt and the notification bell describe the same
+    // finalized payout. Reading the receipt therefore acknowledges stage 5 for
+    // that invite too, so the user never has to dismiss the same reward twice.
+    // The RPC is idempotent and validates that the invitation belongs to this
+    // verified inviter wallet.
+    const { error: notificationError } =
+      await supabaseAdmin.rpc(
+        'acknowledge_invite_notification',
+        {
+          p_invite_code: receipt.inviteCode,
+          p_inviter_wallet: walletAddress,
+          p_stage:
+            INVITE_NOTIFICATION_STAGE.rewardPaid,
+        },
+      );
+
+    if (notificationError) {
+      throw new Error(
+        `Reward notification acknowledgement failed: ${notificationError.message}`,
+      );
+    }
 
     return NextResponse.json(
       {
