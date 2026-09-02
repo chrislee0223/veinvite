@@ -2,6 +2,10 @@
 -- classification backfill. Legacy rows remain immutable in invitations, but
 -- verified NEW/RETURNING participants count as accepted and the one verified
 -- ACTIVE_EXISTING legacy participant counts as ineligible for reporting.
+--
+-- The first ten columns intentionally preserve the existing view names/order so
+-- CREATE OR REPLACE remains backward compatible for current operator readers.
+-- New source-detail counters are appended after those stable columns.
 create or replace view public.operator_invitation_funnel
 with (security_invoker = true)
 as
@@ -68,12 +72,6 @@ select
     where funnel_bucket in ('INELIGIBLE_LIVE', 'INELIGIBLE_LEGACY')
   )::bigint as ineligible_rejections,
   count(*) filter (
-    where funnel_bucket = 'INELIGIBLE_LIVE'
-  )::bigint as ineligible_live_rejections,
-  count(*) filter (
-    where funnel_bucket = 'INELIGIBLE_LEGACY'
-  )::bigint as ineligible_legacy_reclassifications,
-  count(*) filter (
     where funnel_bucket in ('ACCEPTED_MODERN', 'ACCEPTED_LEGACY')
   )::bigint as accepted_total,
   count(*) filter (
@@ -85,20 +83,26 @@ select
       and coalesce(modern_entry_class, legacy_entry_class) = 'RETURNING'
   )::bigint as accepted_returning,
   count(*) filter (
-    where funnel_bucket = 'ACCEPTED_MODERN'
-  )::bigint as accepted_modern,
-  count(*) filter (
-    where funnel_bucket = 'ACCEPTED_LEGACY'
-  )::bigint as accepted_legacy,
-  count(*) filter (
     where funnel_bucket = 'CANCELLED_BY_INVITER'
   )::bigint as cancelled_by_inviter,
   count(*) filter (
     where funnel_bucket = 'LEGACY_UNCLASSIFIED'
-  )::bigint as legacy_unclassified,
+  )::bigint as legacy_excluded,
   count(*) filter (
     where funnel_bucket = 'OTHER'
-  )::bigint as other_rows
+  )::bigint as other_rows,
+  count(*) filter (
+    where funnel_bucket = 'INELIGIBLE_LIVE'
+  )::bigint as ineligible_live_rejections,
+  count(*) filter (
+    where funnel_bucket = 'INELIGIBLE_LEGACY'
+  )::bigint as ineligible_legacy_reclassifications,
+  count(*) filter (
+    where funnel_bucket = 'ACCEPTED_MODERN'
+  )::bigint as accepted_modern,
+  count(*) filter (
+    where funnel_bucket = 'ACCEPTED_LEGACY'
+  )::bigint as accepted_legacy
 from classified;
 
 revoke all on public.operator_invitation_funnel from anon, authenticated;
