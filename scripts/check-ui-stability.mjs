@@ -139,14 +139,16 @@ if (!/flex-direction\s*:\s*row\s*!important/.test(finalUi)) {
 if (!/padding-left\s*:\s*16px\s*!important/.test(finalUi) || !/padding-right\s*:\s*16px\s*!important/.test(finalUi)) {
   failures.push('Reviewed 16px mobile horizontal gutter is missing.');
 }
-if (!/missionCard[\s\S]*width\s*:\s*min\(100%,560px\)\s*!important/.test(finalUi)) {
-  failures.push('Main home content width is not aligned to the reviewed 560px app rhythm.');
+if (
+  !/main\.screen\s*>\s*\.topBar,[\s\S]*main\.screen\s*>\s*\.missionCard,[\s\S]*main\.screen\s*>\s*\.guidePage,[\s\S]*main\.screen\s*>\s*\.leaderboardPage,[\s\S]*main\.screen\s*>\s*\.settingsPage,[\s\S]*bottomNavigation\s*>\s*div\s*\{[\s\S]*width\s*:\s*min\(100%,520px\)\s*!important/.test(finalUi)
+) {
+  failures.push('Home, header, Guide, Leaderboard, Settings, and bottom navigation must share the same reviewed 520px desktop rail.');
 }
-if (!/bottomNavigation[\s\S]*width\s*:\s*min\(100%,560px\)\s*!important/.test(finalUi)) {
-  failures.push('Bottom navigation width is not aligned to the reviewed core app width.');
+if (/width\s*:\s*min\(100%,560px\)\s*!important/.test(finalUi)) {
+  failures.push('A retired 560px main-app width override returned and can make tabs jump horizontally on desktop.');
 }
-if (!/labScreen[\s\S]*missionCard[\s\S]*width\s*:\s*min\(100%,560px\)\s*!important/.test(finalUi)) {
-  failures.push('UI test home width can drift from the reviewed production width.');
+if (!/labScreen[\s\S]*missionCard[\s\S]*width\s*:\s*min\(100%,520px\)\s*!important/.test(finalUi)) {
+  failures.push('UI test home width can drift from the reviewed production 520px rail.');
 }
 if (!/labScreen[\s\S]*previewNavigation[\s\S]*left\s*:\s*16px\s*!important/.test(finalUi) || !/labScreen[\s\S]*previewNavigation[\s\S]*right\s*:\s*16px\s*!important/.test(finalUi)) {
   failures.push('UI test bottom navigation no longer mirrors the reviewed production gutter.');
