@@ -3,7 +3,8 @@
   "git": {
     "deploymentEnabled": {
       "**": false,
-      "main": true
+      "main": true,
+      "preview/leaderboard-laurel-avatar-20260902": true
     }
   },
   "crons": [
