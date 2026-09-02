@@ -1,0 +1,42 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+
+const migration = readFileSync(
+  new URL(
+    '../supabase/migrations/20260902152000_close_ineligible_invites_and_record_outcome.sql',
+    import.meta.url,
+  ),
+  'utf8',
+);
+const notificationRoute = readFileSync(
+  new URL(
+    '../src/app/api/notifications/ineligible/route.ts',
+    import.meta.url,
+  ),
+  'utf8',
+);
+
+test('only verified ACTIVE_EXISTING entry checks close an unconsumed pending invitation', () => {
+  assert.match(migration, /new\.outcome\s*=\s*'EXISTING_VEBETTER_USER'/u);
+  assert.match(migration, /new\.entry_class\s*=\s*'ACTIVE_EXISTING'/u);
+  assert.match(migration, /i\.status\s*=\s*'PENDING_ACCEPTANCE'/u);
+  assert.match(migration, /i\.invitee_wallet\s+is\s+null/iu);
+  assert.match(migration, /status\s*=\s*'CANCELLED'/u);
+  assert.match(migration, /ineligibility_check_id\s*=\s*new\.id/u);
+  assert.match(migration, /ineligible_at\s*=\s*new\.created_at/u);
+});
+
+test('operator funnel keeps rejection and pending buckets mutually exclusive', () => {
+  assert.match(migration, /then\s+'INELIGIBLE'/u);
+  assert.match(migration, /then\s+'PENDING_ACCEPTANCE'/u);
+  assert.match(migration, /as\s+ineligible_rejections/u);
+  assert.match(migration, /as\s+pending_acceptance/u);
+});
+
+test('ineligible notification endpoint is wallet-authenticated and only reads explicit rejection evidence', () => {
+  assert.match(notificationRoute, /requireWalletSession/u);
+  assert.match(notificationRoute, /\.eq\('inviter_wallet',\s*wallet\)/u);
+  assert.match(notificationRoute, /\.not\('ineligibility_check_id',\s*'is',\s*null\)/u);
+  assert.match(notificationRoute, /acknowledge_invite_notification/u);
+});
