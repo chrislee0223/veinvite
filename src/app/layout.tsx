@@ -4,6 +4,7 @@ import type { ReactNode } from 'react';
 import { AppProviders } from '@/components/AppProviders';
 import { LocaleDocumentSync } from '@/components/LocaleDocumentSync';
 import { LocaleHydrationShield } from '@/components/LocaleHydrationShield';
+import { UsageAnalyticsPreferenceControl } from '@/components/UsageAnalyticsPreferenceControl';
 import { UsageAnalyticsTracker } from '@/components/UsageAnalyticsTracker';
 import './globals.css';
 import './header-language-flags.css';
@@ -69,6 +70,9 @@ export default function RootLayout({
           <LocaleDocumentSync />
           {usageAnalyticsEnabled ? <UsageAnalyticsTracker /> : null}
           {children}
+          {usageAnalyticsEnabled ? (
+            <UsageAnalyticsPreferenceControl />
+          ) : null}
         </AppProviders>
       </body>
     </html>
