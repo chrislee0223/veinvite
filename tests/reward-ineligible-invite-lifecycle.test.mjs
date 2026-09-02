@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 
 const migration = readFileSync(
   new URL(
@@ -9,16 +9,30 @@ const migration = readFileSync(
   ),
   'utf8',
 );
-const notificationRoute = readFileSync(
+const notificationMigration = readFileSync(
   new URL(
-    '../src/app/api/notifications/ineligible/route.ts',
+    '../supabase/migrations/20260902161500_unify_ineligible_notification_stage.sql',
     import.meta.url,
   ),
   'utf8',
 );
-const ineligibleNotification = readFileSync(
+const notificationRoute = readFileSync(
   new URL(
-    '../src/components/IneligibleInviteNotification.tsx',
+    '../src/app/api/notifications/route.ts',
+    import.meta.url,
+  ),
+  'utf8',
+);
+const notificationState = readFileSync(
+  new URL(
+    '../src/lib/notifications/inviteNotificationState.ts',
+    import.meta.url,
+  ),
+  'utf8',
+);
+const notificationSurface = readFileSync(
+  new URL(
+    '../src/components/InviteNotificationSurface.tsx',
     import.meta.url,
   ),
   'utf8',
@@ -72,21 +86,39 @@ test('operator funnel keeps rejection and pending buckets mutually exclusive', (
   assert.match(migration, /as\s+pending_acceptance/u);
 });
 
-test('ineligible notification endpoint is wallet-authenticated and only reads explicit rejection evidence', () => {
+test('ineligible alerts reuse the authenticated existing notification API and bell surface', () => {
   assert.match(notificationRoute, /requireWalletSession/u);
-  assert.match(notificationRoute, /\.eq\('inviter_wallet',\s*wallet\)/u);
-  assert.match(notificationRoute, /\.not\('ineligibility_check_id',\s*'is',\s*null\)/u);
-  assert.match(notificationRoute, /acknowledge_invite_notification/u);
+  assert.match(notificationRoute, /ineligibility_check_id/u);
+  assert.match(notificationRoute, /ineligible_at/u);
+  assert.match(notificationRoute, /INVITE_NOTIFICATION_STAGE\.ineligible/u);
+  assert.match(notificationState, /INVITE_INELIGIBLE/u);
+  assert.match(notificationState, /ineligibility_check_id !== null/u);
+  assert.match(notificationSurface, /INVITE_INELIGIBLE/u);
+  assert.match(notificationSurface, /INELIGIBLE_INVITER_COPY/u);
+  assert.equal(
+    existsSync(
+      new URL(
+        '../src/app/api/notifications/ineligible/route.ts',
+        import.meta.url,
+      ),
+    ),
+    false,
+  );
+  assert.equal(
+    existsSync(
+      new URL(
+        '../src/components/IneligibleInviteNotification.tsx',
+        import.meta.url,
+      ),
+    ),
+    false,
+  );
 });
 
-test('ineligible notification polling is limited to the Home surface', () => {
-  assert.match(ineligibleNotification, /usePathname/u);
-  assert.equal(
-    ineligibleNotification.includes("pathname === '/'"),
-    true,
-  );
-  assert.match(ineligibleNotification, /const REFRESH_MS = 60_000/u);
-  assert.match(ineligibleNotification, /!wallet \|\| !isHomeSurface/u);
+test('notification acknowledgement accepts exactly the new terminal stage range', () => {
+  assert.match(notificationMigration, /p_stage not between 1 and 6/u);
+  assert.match(notificationMigration, /security definer/iu);
+  assert.match(notificationMigration, /grant execute[\s\S]*service_role/iu);
 });
 
 test('a confirmed ACTIVE_EXISTING result is not reported as terminal unless its atomic transition persists', () => {
