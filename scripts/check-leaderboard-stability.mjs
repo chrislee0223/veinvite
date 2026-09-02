@@ -47,11 +47,6 @@ if (!/\.leaderboardPage \.rankingTopline\s*\{[\s\S]*?display:none\s*!important/.
   failures.push('The redundant visible Top 100 badge returned.');
 }
 
-// The final rendered leaderboard geometry is intentionally global and scoped
-// by .leaderboardPage. This avoids styled-jsx helper-renderer scoping gaps while
-// keeping the header and every row on one proportional, screenshot-independent
-// grid. The wallet avatar/text spacing is guarded here because that exact pair
-// previously overlapped on narrow cards.
 if (!/\.leaderboardPage \.tableHeader,[\s\S]*\.leaderboardPage \.rankRow\s*\{[\s\S]*display:grid\s*!important[\s\S]*grid-template-columns:12fr 40fr 20fr 28fr\s*!important[\s\S]*column-gap:0\s*!important/.test(layoutPolish)) {
   failures.push('Leaderboard header and rows must share the reviewed proportional 12/40/20/28 grid.');
 }
@@ -72,8 +67,14 @@ if (!/\.leaderboardPage \.rankScroll\s*\{[\s\S]*height:calc\(var\(--leaderboard-
 if (!/\.leaderboardPage \.rankRow,[\s\S]*\.leaderboardPage \.rankRow\.compact\s*\{[\s\S]*height:var\(--leaderboard-row-height\)\s*!important[\s\S]*min-height:var\(--leaderboard-row-height\)\s*!important/.test(layoutPolish)) {
   failures.push('Every rank slot must use the same fixed row height so the five-row viewport cannot collapse.');
 }
-if (!/nth-child\(-n\+3\)[\s\S]*border:1px solid currentColor\s*!important/.test(layoutPolish) || !/nth-child\(1\)[\s\S]*#f1bd34\s*!important/.test(layoutPolish) || !/nth-child\(2\)[\s\S]*#c8cbd0\s*!important/.test(layoutPolish) || !/nth-child\(3\)[\s\S]*#c98252\s*!important/.test(layoutPolish)) {
-  failures.push('Top three ranks must retain the restrained gold, silver, and bronze treatment.');
+if (
+  !/nth-child\(-n\+3\)[\s\S]*width:52px\s*!important[\s\S]*align-items:center\s*!important[\s\S]*justify-content:center\s*!important/.test(layoutPolish) ||
+  !/rankValue::before,[\s\S]*rankValue::after[\s\S]*-webkit-mask:url/.test(layoutPolish) ||
+  !/nth-child\(1\)[\s\S]*#f1bd34\s*!important/.test(layoutPolish) ||
+  !/nth-child\(2\)[\s\S]*#c8cbd0\s*!important/.test(layoutPolish) ||
+  !/nth-child\(3\)[\s\S]*#c98252\s*!important/.test(layoutPolish)
+) {
+  failures.push('Top three ranks must retain centered vector laurels with gold, silver, and bronze treatment.');
 }
 if (!/\.leaderboardPage \.rankDivider\s*\{[\s\S]*min-height:18px\s*!important[\s\S]*place-items:center\s*!important/.test(layoutPolish) || !/\.leaderboardPage \.rankRow\.trailingCurrent\s*\{[\s\S]*height:var\(--leaderboard-row-height\)\s*!important/.test(layoutPolish)) {
   failures.push('Outside-Top-100 current-wallet display must stay compact and visually connected to the table.');
@@ -81,17 +82,23 @@ if (!/\.leaderboardPage \.rankDivider\s*\{[\s\S]*min-height:18px\s*!important[\s
 if (!/\.leaderboardPage \.walletCell\s*\{[\s\S]*gap:9px\s*!important[\s\S]*overflow:hidden\s*!important/.test(layoutPolish)) {
   failures.push('Inviter avatar and wallet address must retain a real gap and clipped cell boundary.');
 }
-if (!/\.leaderboardPage \.walletAvatar\s*\{[\s\S]*flex:0 0 22px\s*!important[\s\S]*width:22px\s*!important[\s\S]*height:22px\s*!important/.test(layoutPolish)) {
-  failures.push('Neutral wallet avatar must keep a non-shrinking desktop footprint.');
+if (!/\.leaderboardPage \.walletAvatar\s*\{[\s\S]*flex:0 0 22px\s*!important[\s\S]*background:transparent\s*!important[\s\S]*box-shadow:none\s*!important/.test(layoutPolish)) {
+  failures.push('Resolved wallet avatars must not have a VeInvite-colored layer behind them.');
+}
+if (!/\.leaderboardPage \.walletAvatar:empty\s*\{[\s\S]*radial-gradient/.test(layoutPolish)) {
+  failures.push('Neutral wallet fallback must appear only while the avatar host is empty.');
+}
+if (!/\.leaderboardPage \.walletAvatar img\s*\{[\s\S]*object-fit:contain\s*!important[\s\S]*object-position:center\s*!important/.test(layoutPolish)) {
+  failures.push('Resolved VET Domains avatar must be shown without enlargement or crop.');
 }
 if (!/\.leaderboardPage \.walletText\s*\{[\s\S]*max-width:calc\(100% - 31px\)\s*!important[\s\S]*text-overflow:ellipsis\s*!important[\s\S]*white-space:nowrap\s*!important/.test(layoutPolish)) {
   failures.push('Wallet text must reserve avatar space instead of overlapping it.');
 }
-if (!/@media \(max-width:420px\)[\s\S]*--leaderboard-row-height:46px[\s\S]*gap:6px\s*!important[\s\S]*flex-basis:18px\s*!important/.test(layoutPolish)) {
-  failures.push('Reviewed 420px row height and inviter identity spacing are missing.');
+if (!/@media \(max-width:420px\)[\s\S]*--leaderboard-row-height:46px[\s\S]*gap:6px\s*!important[\s\S]*flex-basis:18px\s*!important[\s\S]*width:46px\s*!important/.test(layoutPolish)) {
+  failures.push('Reviewed 420px row height, inviter spacing, and centered podium geometry are missing.');
 }
-if (!/@media \(max-width:360px\)[\s\S]*--leaderboard-row-height:44px[\s\S]*gap:5px\s*!important[\s\S]*flex-basis:16px\s*!important/.test(layoutPolish)) {
-  failures.push('Reviewed 360px row height and inviter identity spacing are missing.');
+if (!/@media \(max-width:360px\)[\s\S]*--leaderboard-row-height:44px[\s\S]*gap:5px\s*!important[\s\S]*flex-basis:16px\s*!important[\s\S]*width:42px\s*!important/.test(layoutPolish)) {
+  failures.push('Reviewed 360px row height, inviter spacing, and centered podium geometry are missing.');
 }
 
 if (!/<strong className="rankValue">[\s\S]*<span className="walletCell">[\s\S]*<span className="rankMetric completedMetric">[\s\S]*<span className="rankMetric rewardMetric">/.test(leaderboard)) {
