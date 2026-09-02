@@ -4,6 +4,7 @@ import { useEffect } from 'react';
 
 import {
   LANGUAGE_STORAGE_KEY,
+  getLocaleDirection,
   isLocale,
   resolveBrowserLocale,
   type Locale,
@@ -22,6 +23,7 @@ export function LocaleDocumentSync() {
         ? value
         : resolveCurrentLocale();
       document.documentElement.lang = nextLocale;
+      document.documentElement.dir = getLocaleDirection(nextLocale);
     };
 
     applyLocale();
