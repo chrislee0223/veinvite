@@ -538,6 +538,7 @@ export function PublicRewardForecastPortal() {
 
   useEffect(() => {
     let activeMount: HTMLDivElement | null = null;
+    let attachFrame: number | null = null;
 
     const commitTarget = (
       nextTarget: ForecastPortalTarget | null,
@@ -550,10 +551,10 @@ export function PublicRewardForecastPortal() {
       }
     };
 
-    const detach = (synchronous: boolean) => {
+    const detach = () => {
       activeMount?.remove();
       activeMount = null;
-      commitTarget(null, synchronous);
+      setTarget(null);
     };
 
     const attach = (synchronous = false) => {
@@ -561,7 +562,7 @@ export function PublicRewardForecastPortal() {
         '.leaderboardPage .impactCard',
       );
       if (!impactCard) {
-        if (activeMount) detach(synchronous);
+        if (activeMount) detach();
         return;
       }
       if (
@@ -588,15 +589,24 @@ export function PublicRewardForecastPortal() {
       );
     };
 
+    const scheduleAttach = () => {
+      attach(true);
+      if (attachFrame !== null) return;
+      attachFrame = window.requestAnimationFrame(() => {
+        attachFrame = null;
+      });
+    };
+
     attach(false);
-    const observer = new MutationObserver(() => attach(true));
+    const observer = new MutationObserver(scheduleAttach);
     observer.observe(document.body, { childList: true, subtree: true });
 
     return () => {
       observer.disconnect();
-      activeMount?.remove();
-      activeMount = null;
-      setTarget(null);
+      if (attachFrame !== null) {
+        window.cancelAnimationFrame(attachFrame);
+      }
+      detach();
     };
   }, []);
 
