@@ -23,10 +23,14 @@ import {
 import {
   getVeBetterNetworkConfig,
 } from '@/lib/vebetter/network';
+import {
+  LEGACY_WALLET_SESSION_COOKIE_NAME,
+  WALLET_SESSION_COOKIE_NAME,
+} from '@/lib/walletAuthServer';
 
-const SESSION_COOKIE_NAME =
-  'veinvite_session';
 const SESSION_LIFETIME_DAYS = 7;
+const SESSION_LIFETIME_SECONDS =
+  SESSION_LIFETIME_DAYS * 24 * 60 * 60;
 const CERTIFICATE_CLOCK_SKEW_MS =
   2 * 60 * 1000;
 const CERTIFICATE_CHALLENGE_WINDOW_MS =
@@ -488,11 +492,7 @@ export async function POST(
   const sessionExpiresAt =
     new Date(
       now.getTime() +
-        SESSION_LIFETIME_DAYS *
-          24 *
-          60 *
-          60 *
-          1000,
+        SESSION_LIFETIME_SECONDS * 1000,
     );
 
   // Consume the verified challenge, revoke older sessions, and create the new
@@ -550,8 +550,10 @@ export async function POST(
       },
     );
 
+  // __Host- on production prevents Domain/path shadowing. In local/dev the
+  // legacy name is retained because __Host- cookies require HTTPS + Secure.
   response.cookies.set({
-    name: SESSION_COOKIE_NAME,
+    name: WALLET_SESSION_COOKIE_NAME,
     value: sessionToken,
     httpOnly: true,
     secure:
@@ -559,8 +561,31 @@ export async function POST(
       'production',
     sameSite: 'lax',
     path: '/',
+    maxAge: SESSION_LIFETIME_SECONDS,
     expires: sessionExpiresAt,
   });
+
+  // Remove the old cookie only after the hardened replacement has been issued
+  // in the same response. The next client request verifies persistence before
+  // VeInvite considers the wallet session established.
+  if (
+    LEGACY_WALLET_SESSION_COOKIE_NAME !==
+    WALLET_SESSION_COOKIE_NAME
+  ) {
+    response.cookies.set({
+      name:
+        LEGACY_WALLET_SESSION_COOKIE_NAME,
+      value: '',
+      httpOnly: true,
+      secure:
+        process.env.NODE_ENV ===
+        'production',
+      sameSite: 'lax',
+      path: '/',
+      maxAge: 0,
+      expires: new Date(0),
+    });
+  }
 
   return response;
 }

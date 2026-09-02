@@ -60,8 +60,8 @@ export default function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning>
       <body>
+        <LocaleHydrationShield />
         <AppProviders>
-          <LocaleHydrationShield />
           <LocaleDocumentSync />
           {children}
         </AppProviders>

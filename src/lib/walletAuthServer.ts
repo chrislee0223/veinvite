@@ -5,8 +5,12 @@ import type { NextRequest } from 'next/server';
 import { normalizeAddress } from '@/lib/serverStore';
 import { supabaseAdmin } from '@/lib/supabaseServer';
 
-export const WALLET_SESSION_COOKIE_NAME =
+export const LEGACY_WALLET_SESSION_COOKIE_NAME =
   'veinvite_session';
+export const WALLET_SESSION_COOKIE_NAME =
+  process.env.NODE_ENV === 'production'
+    ? '__Host-veinvite_session'
+    : LEGACY_WALLET_SESSION_COOKIE_NAME;
 
 const SESSION_TOKEN_PATTERN = /^[0-9a-f]{64}$/;
 const WALLET_PATTERN = /^0x[0-9a-f]{40}$/;
@@ -23,37 +27,62 @@ function hashSessionToken(token: string) {
     .digest('hex');
 }
 
-function readSessionToken(
-  request: NextRequest,
-): string | null {
-  const token = request.cookies.get(
-    WALLET_SESSION_COOKIE_NAME,
-  )?.value;
-
-  if (!token) {
-    return null;
-  }
-
-  const normalized =
-    token.trim().toLowerCase();
-
-  if (!SESSION_TOKEN_PATTERN.test(normalized)) {
-    return null;
-  }
-
-  return normalized;
+function walletSessionCookieNames() {
+  return Array.from(
+    new Set([
+      WALLET_SESSION_COOKIE_NAME,
+      LEGACY_WALLET_SESSION_COOKIE_NAME,
+    ]),
+  );
 }
 
-export async function getWalletSession(
+export function getWalletSessionCookieCount(
   request: NextRequest,
-): Promise<WalletSession | null> {
-  const token = readSessionToken(request);
+): number {
+  return walletSessionCookieNames().reduce(
+    (count, name) =>
+      count + request.cookies.getAll(name).length,
+    0,
+  );
+}
 
-  if (!token) {
+export function readWalletSessionTokens(
+  request: NextRequest,
+): string[] {
+  const tokens = walletSessionCookieNames()
+    .flatMap((name) =>
+      request.cookies
+        .getAll(name)
+        .map((cookie) => cookie.value),
+    )
+    .map((token) => token.trim().toLowerCase())
+    .filter((token) =>
+      SESSION_TOKEN_PATTERN.test(token),
+    );
+
+  return Array.from(new Set(tokens));
+}
+
+export async function getWalletSessionFromTokens(
+  tokens: string[],
+): Promise<WalletSession | null> {
+  const normalizedTokens = Array.from(
+    new Set(
+      tokens
+        .map((token) => token.trim().toLowerCase())
+        .filter((token) =>
+          SESSION_TOKEN_PATTERN.test(token),
+        ),
+    ),
+  );
+
+  if (normalizedTokens.length < 1) {
     return null;
   }
 
-  const tokenHash = hashSessionToken(token);
+  const tokenHashes = normalizedTokens.map(
+    hashSessionToken,
+  );
   const now = new Date().toISOString();
 
   const {
@@ -61,10 +90,16 @@ export async function getWalletSession(
     error,
   } = await supabaseAdmin
     .from('wallet_auth_sessions')
-    .select('id, wallet_address, expires_at')
-    .eq('token_hash', tokenHash)
+    .select(
+      'id, wallet_address, expires_at, created_at',
+    )
+    .in('token_hash', tokenHashes)
     .is('revoked_at', null)
     .gt('expires_at', now)
+    .order('created_at', {
+      ascending: false,
+    })
+    .limit(1)
     .maybeSingle();
 
   if (error) {
@@ -107,6 +142,14 @@ export async function getWalletSession(
   };
 }
 
+export async function getWalletSession(
+  request: NextRequest,
+): Promise<WalletSession | null> {
+  return getWalletSessionFromTokens(
+    readWalletSessionTokens(request),
+  );
+}
+
 export async function requireWalletSession({
   request,
   expectedWallet,
@@ -144,20 +187,22 @@ export async function requireWalletSession({
 export async function revokeWalletSession(
   request: NextRequest,
 ): Promise<void> {
-  const token = readSessionToken(request);
+  const tokens = readWalletSessionTokens(request);
 
-  if (!token) {
+  if (tokens.length < 1) {
     return;
   }
 
-  const tokenHash = hashSessionToken(token);
+  const tokenHashes = tokens.map(
+    hashSessionToken,
+  );
 
   const { error } = await supabaseAdmin
     .from('wallet_auth_sessions')
     .update({
       revoked_at: new Date().toISOString(),
     })
-    .eq('token_hash', tokenHash)
+    .in('token_hash', tokenHashes)
     .is('revoked_at', null);
 
   if (error) {
