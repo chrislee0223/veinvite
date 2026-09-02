@@ -102,25 +102,18 @@ export function LocaleHydrationShield() {
     <div
       className="localeHydrationShield"
       aria-hidden="true"
+      style={{
+        position: 'fixed',
+        inset: 0,
+        zIndex: 9999,
+        display: 'grid',
+        placeItems: 'center',
+        background:
+          'radial-gradient(circle at 50% 38%, rgba(244, 183, 40, 0.1), transparent 32%), #080807',
+        pointerEvents: 'none',
+      }}
     >
       <Brand compact />
-      <style jsx>{`
-        .localeHydrationShield {
-          position: fixed;
-          inset: 0;
-          z-index: 9999;
-          display: grid;
-          place-items: center;
-          background:
-            radial-gradient(
-              circle at 50% 38%,
-              rgba(244, 183, 40, 0.1),
-              transparent 32%
-            ),
-            #080807;
-          pointer-events: none;
-        }
-      `}</style>
     </div>
   );
 }
