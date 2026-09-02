@@ -6,7 +6,7 @@ import { createPortal } from 'react-dom';
 import {
   isLocale,
   localeFromLanguageTag,
-  type Locale,
+  type SupportedLocale,
 } from '@/lib/i18n/locales';
 
 type RewardForecastResponse =
@@ -28,7 +28,7 @@ type ForecastCopy = {
   unavailable: string;
 };
 
-const COPY: Record<Locale, ForecastCopy> = {
+const COPY: Record<SupportedLocale, ForecastCopy> = {
   en: {
     eyebrow: 'ESTIMATED INVITE REWARD',
     eligibility:
@@ -150,6 +150,72 @@ const COPY: Record<Locale, ForecastCopy> = {
       'L’estimation apparaîtra automatiquement lorsque VeInvite disposera de suffisamment de données réelles d’allocation.',
     unavailable: 'L’estimation de récompense est temporairement indisponible.',
   },
+  ar: {
+    eyebrow: 'مكافأة الدعوة التقديرية',
+    eligibility:
+      'يمكنك الحصول عليها عندما يُكمل صديقك المدعو جميع المهام.',
+    disclaimer:
+      'قد تتغير المكافأة التقديرية حسب التخصيص والمشاركة.',
+    pendingTitle: 'تقدير مكافأة الدعوة قيد الإعداد',
+    pendingDescription:
+      'سيظهر التقدير تلقائيًا عندما تتوفر لدى VeInvite بيانات فعلية كافية عن التخصيص.',
+    unavailable: 'تقدير المكافأة غير متاح مؤقتًا.',
+  },
+  bn: {
+    eyebrow: 'আনুমানিক আমন্ত্রণ রিওয়ার্ড',
+    eligibility:
+      'আপনার আমন্ত্রিত বন্ধু সব মিশন সম্পন্ন করলে আপনি এই রিওয়ার্ড পেতে পারেন।',
+    disclaimer:
+      'বরাদ্দ ও অংশগ্রহণের ওপর ভিত্তি করে আনুমানিক রিওয়ার্ড পরিবর্তিত হতে পারে।',
+    pendingTitle: 'আমন্ত্রণ রিওয়ার্ডের হিসাব প্রস্তুত হচ্ছে',
+    pendingDescription:
+      'VeInvite-এর পর্যাপ্ত বাস্তব বরাদ্দ তথ্য পাওয়া গেলে আনুমানিক রিওয়ার্ড স্বয়ংক্রিয়ভাবে দেখা যাবে।',
+    unavailable: 'আনুমানিক রিওয়ার্ড সাময়িকভাবে পাওয়া যাচ্ছে না।',
+  },
+  pt: {
+    eyebrow: 'RECOMPENSA ESTIMADA POR CONVITE',
+    eligibility:
+      'Você pode recebê-la quando o amigo que convidou concluir todas as missões.',
+    disclaimer:
+      'A recompensa estimada pode mudar conforme a alocação e a participação.',
+    pendingTitle: 'Estimativa da recompensa em preparação',
+    pendingDescription:
+      'A estimativa aparecerá automaticamente quando o VeInvite tiver dados reais suficientes de alocação.',
+    unavailable: 'A estimativa da recompensa está temporariamente indisponível.',
+  },
+  ru: {
+    eyebrow: 'ОЦЕНОЧНАЯ НАГРАДА ЗА ПРИГЛАШЕНИЕ',
+    eligibility:
+      'Вы сможете получить её, когда приглашённый друг выполнит все задания.',
+    disclaimer:
+      'Оценочная награда может меняться в зависимости от распределения и участия.',
+    pendingTitle: 'Оценка награды за приглашение готовится',
+    pendingDescription:
+      'Оценка появится автоматически, когда у VeInvite будет достаточно фактических данных о распределении.',
+    unavailable: 'Оценка награды временно недоступна.',
+  },
+  id: {
+    eyebrow: 'ESTIMASI REWARD UNDANGAN',
+    eligibility:
+      'Anda dapat menerimanya setelah teman yang diundang menyelesaikan semua misi.',
+    disclaimer:
+      'Estimasi reward dapat berubah sesuai alokasi dan tingkat partisipasi.',
+    pendingTitle: 'Estimasi reward undangan sedang disiapkan',
+    pendingDescription:
+      'Estimasi akan tampil otomatis setelah VeInvite memiliki cukup data alokasi aktual.',
+    unavailable: 'Estimasi reward sementara tidak tersedia.',
+  },
+  vi: {
+    eyebrow: 'PHẦN THƯỞNG MỜI ƯỚC TÍNH',
+    eligibility:
+      'Bạn có thể nhận phần thưởng khi người bạn được mời hoàn thành tất cả nhiệm vụ.',
+    disclaimer:
+      'Phần thưởng ước tính có thể thay đổi theo mức phân bổ và số người tham gia.',
+    pendingTitle: 'Đang chuẩn bị ước tính phần thưởng mời',
+    pendingDescription:
+      'Ước tính sẽ tự động xuất hiện khi VeInvite có đủ dữ liệu phân bổ thực tế.',
+    unavailable: 'Ước tính phần thưởng hiện tạm thời không khả dụng.',
+  },
 };
 
 const PREVIEW_FORECAST: RewardForecastResponse = {
@@ -178,7 +244,7 @@ function formatRewardWei(value: string): string {
 
 export function PublicRewardForecastPortal() {
   const [mount, setMount] = useState<HTMLDivElement | null>(null);
-  const [locale, setLocale] = useState<Locale>('en');
+  const [locale, setLocale] = useState<SupportedLocale>('en');
   const [forecast, setForecast] =
     useState<RewardForecastResponse | null>(null);
   const [unavailable, setUnavailable] = useState(false);

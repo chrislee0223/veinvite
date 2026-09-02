@@ -124,6 +124,22 @@ html[lang='ja'] :is(
   line-height: 1.25;
 }
 
+/* Flex/grid children containing translated copy must be allowed to shrink.
+ * Without min-width:0, longer languages can overflow even when wrapping is
+ * otherwise configured correctly. */
+:is(
+  .languagePickerCopy,
+  .headerLanguageName,
+  .mission > div,
+  .panelHeading > *,
+  .cardHeading > *,
+  .rewardPanel > *,
+  .topBar > *,
+  .appHeader > *
+) {
+  min-width: 0;
+}
+
 /* Home and invite landing progress labels keep their icons aligned even when
  * one locale needs two lines and another needs only one. */
 .screen .step b,
@@ -148,6 +164,12 @@ html[lang='ja'] :is(
   text-align: center;
 }
 
+/* Arabic and Bengali glyphs need slightly more vertical room than Latin UI
+ * copy, especially inside compact buttons and chips. */
+html:is([lang='ar'], [lang='bn']) :where(button, .badge, .inviteBadge, .chip, p, small) {
+  line-height: 1.4;
+}
+
 /* Bottom navigation labels are intentionally single-line. These are short,
  * persistent destinations, so wrapping makes the navigation jump vertically
  * between locales. Extremely narrow screens may truncate with an ellipsis. */
@@ -162,6 +184,56 @@ html[lang='ja'] :is(
   word-break: normal !important;
   line-height: 1.15;
   text-align: center;
+}
+
+/* Full right-to-left support for Arabic. Logical document direction is set by
+ * LocaleDocumentSync; these overrides fix legacy physical left/right styles
+ * that predate RTL support. */
+html[dir='rtl'] body {
+  direction: rtl;
+}
+
+html[dir='rtl'] :is(
+  .eligibilityInfo,
+  .checkList,
+  .missionSummary,
+  .mission,
+  .legalPage,
+  .settingsPage,
+  .leaderboardPage
+) {
+  text-align: right !important;
+}
+
+html[dir='rtl'] :is(
+  .headerLanguageTrigger,
+  .headerLanguageOption,
+  .languagePickerTrigger,
+  .languageOption
+) {
+  direction: rtl !important;
+  text-align: right !important;
+}
+
+html[dir='rtl'] .headerLanguageMenu {
+  right: auto !important;
+  left: 0 !important;
+}
+
+html[dir='rtl'] .headerLanguageChevron {
+  text-align: left !important;
+}
+
+html[dir='rtl'] .flagSvg {
+  object-position: right center !important;
+}
+
+/* Wallet addresses, transaction hashes and invite codes are technical LTR
+ * identifiers even while the surrounding Arabic interface is RTL. */
+html[dir='rtl'] :is(code, .walletAddress) {
+  direction: ltr;
+  unicode-bidi: isolate;
+  text-align: left;
 }
 
 /* Keep the three receipt fact values aligned when one translated label wraps. */

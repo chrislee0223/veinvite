@@ -97,6 +97,9 @@ jobs:
       - name: Typecheck
         run: npm run typecheck
 
+      - name: Localization completeness gate
+        run: npm run test:i18n
+
       - name: Reward accounting regression tests
         run: npm run test:rewards
 

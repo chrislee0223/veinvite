@@ -4,12 +4,13 @@ import { useEffect } from 'react';
 
 import {
   LANGUAGE_STORAGE_KEY,
+  getLocaleDirection,
   isLocale,
   resolveBrowserLocale,
-  type Locale,
+  type SupportedLocale,
 } from '@/lib/i18n/locales';
 
-function resolveCurrentLocale(): Locale {
+function resolveCurrentLocale(): SupportedLocale {
   const saved = window.localStorage.getItem(LANGUAGE_STORAGE_KEY);
   if (isLocale(saved)) return saved;
   return resolveBrowserLocale(window.navigator.languages, 'en');
@@ -22,6 +23,7 @@ export function LocaleDocumentSync() {
         ? value
         : resolveCurrentLocale();
       document.documentElement.lang = nextLocale;
+      document.documentElement.dir = getLocaleDirection(nextLocale);
     };
 
     applyLocale();
