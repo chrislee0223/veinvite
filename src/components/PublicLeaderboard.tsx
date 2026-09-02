@@ -220,20 +220,19 @@ export function PublicLeaderboard({
         }
         aria-label={t.openWallet(entry.walletAddress)}
       >
-        <div className="rankPrimary">
-          <strong className="rankValue">
-            {rankLabel(entry.rank)}
-          </strong>
-          <span className="walletCell">
+        <strong className="rankValue">
+          {rankLabel(entry.rank)}
+        </strong>
+        <span className="walletCell">
+          <span className="walletAvatar" aria-hidden="true" />
+          <span className="walletText">
             {maskWallet(entry.walletAddress)}
           </span>
-        </div>
+        </span>
         <span className="rankMetric completedMetric">
-          <small>{t.completed}</small>
           <b>{entry.completedReferrals}</b>
         </span>
         <span className="rankMetric rewardMetric">
-          <small>{t.earned}</small>
           <b>{formatRewardWei(entry.totalRewardWei)} B3TR</b>
         </span>
       </button>
@@ -496,111 +495,149 @@ export function PublicLeaderboard({
           font-weight:500;
         }
         .rankingTopline {
-          min-height:24px;
-          display:flex;
-          align-items:center;
-          justify-content:flex-end;
-          margin-bottom:8px;
-        }
-        .rankingTopline span {
-          padding:5px 8px;
-          border:1px solid rgba(255,205,80,.14);
-          border-radius:999px;
-          background:rgba(244,183,40,.06);
-          color:#a98c3d;
-          font-size:.58rem;
-          font-weight:950;
-          letter-spacing:.08em;
-        }
-        .tableHeader {
           display:none;
         }
-        .rows {
-          display:grid;
-          gap:7px;
+        .rankingCard {
+          --rank-column:42px;
+          --completed-column:86px;
+          --reward-column:104px;
+          --leaderboard-gap:10px;
         }
-        .rankRow {
+        .tableHeader,.rankRow {
           width:100%;
           min-width:0;
-          padding:11px 12px;
           display:grid;
-          grid-template-columns:1fr 1fr;
-          gap:9px 12px;
-          border:1px solid rgba(255,255,255,.07);
-          border-radius:15px;
-          background:rgba(255,255,255,.025);
+          grid-template-columns:
+            var(--rank-column)
+            minmax(0,1fr)
+            var(--completed-column)
+            var(--reward-column);
+          column-gap:var(--leaderboard-gap);
+          align-items:center;
+          box-sizing:border-box;
+        }
+        .tableHeader {
+          min-height:38px;
+          padding:0 12px 12px;
+          border-bottom:1px solid rgba(255,205,80,.09);
+          color:#777269;
+          font-size:.61rem;
+          font-weight:900;
+        }
+        .tableHeader span {
+          min-width:0;
+          line-height:1.2;
+          overflow-wrap:anywhere;
+          text-align:center;
+        }
+        .rows {
+          width:100%;
+          display:grid;
+          gap:0;
+        }
+        .rankRow {
+          min-height:62px;
+          padding:0 12px;
+          border:0;
+          border-bottom:1px solid rgba(255,255,255,.055);
+          border-radius:0;
+          background:transparent;
           color:#e9e5dc;
           font:inherit;
-          text-align:left;
           cursor:pointer;
         }
+        .rankRow.featured {
+          min-height:68px;
+        }
         .rankRow.compact {
-          padding-top:9px;
-          padding-bottom:9px;
+          min-height:58px;
+        }
+        .rankRow.trailingCurrent {
+          min-height:72px;
         }
         .rankRow:hover,.rankRow:focus-visible {
-          border-color:rgba(255,205,80,.38);
+          background:rgba(255,205,80,.045);
           outline:none;
         }
+        .rankRow:focus-visible {
+          box-shadow:inset 0 0 0 1px rgba(255,205,80,.38);
+        }
         .rankRow.current {
-          border-color:rgba(255,205,80,.52);
-          background:linear-gradient(135deg,rgba(244,183,40,.14),rgba(244,183,40,.055));
-          box-shadow:inset 3px 0 0 rgba(255,203,66,.78);
+          background:linear-gradient(135deg,rgba(244,183,40,.10),rgba(244,183,40,.025));
+          box-shadow:inset 3px 0 0 rgba(255,203,66,.72);
         }
         .rankRow.current .rankValue,
         .rankRow.current .rankMetric b {
           color:#ffd45f;
         }
-        .rankRow.trailingCurrent {
-          margin-top:1px;
+        .rankValue {
+          grid-column:1;
+          min-width:0;
+          color:#f0ede6;
+          font-size:.74rem;
+          line-height:1;
+          font-variant-numeric:tabular-nums;
+          text-align:center;
         }
-        .rankPrimary {
-          grid-column:1 / -1;
+        .walletCell {
+          grid-column:2;
           min-width:0;
           display:flex;
           align-items:center;
-          gap:10px;
-        }
-        .rankValue {
-          flex:0 0 auto;
-          min-width:36px;
-          color:#f0ede6;
-          font-variant-numeric:tabular-nums;
-        }
-        .walletCell {
-          min-width:0;
+          justify-content:center;
+          gap:7px;
           overflow:hidden;
           color:#bcb6aa;
           font-family:ui-monospace,SFMono-Regular,Menlo,monospace;
           font-size:.72rem;
+          line-height:1.2;
+          text-align:center;
+        }
+        .walletAvatar {
+          flex:0 0 22px;
+          width:22px;
+          height:22px;
+          border:1px solid rgba(255,205,80,.22);
+          border-radius:50%;
+          background:
+            radial-gradient(circle at 50% 35%,#eec04c 0 20%,transparent 22%),
+            radial-gradient(ellipse at 50% 82%,#eec04c 0 31%,transparent 33%),
+            #242116;
+          box-shadow:inset 0 0 0 1px rgba(255,255,255,.025);
+        }
+        .walletText {
+          min-width:0;
+          overflow:hidden;
           text-overflow:ellipsis;
           white-space:nowrap;
         }
         .rankMetric {
           min-width:0;
-          display:grid;
-          gap:4px;
+          display:flex;
+          align-items:center;
+          justify-content:center;
+          text-align:center;
         }
-        .rankMetric small {
-          color:#777269;
-          font-size:.59rem;
-          font-weight:850;
+        .completedMetric {
+          grid-column:3;
+        }
+        .rewardMetric {
+          grid-column:4;
         }
         .rankMetric b {
           min-width:0;
           color:#e9e5dc;
           font-size:.72rem;
           font-weight:850;
+          line-height:1;
           font-variant-numeric:tabular-nums;
-        }
-        .completedMetric,.rewardMetric {
-          text-align:right;
+          white-space:nowrap;
         }
         .rankDivider {
           display:flex;
           align-items:center;
           gap:10px;
-          padding:6px 4px 2px;
+          padding:7px 4px;
           color:#6f6a61;
           font-size:.85rem;
           letter-spacing:.18em;
@@ -612,7 +649,7 @@ export function PublicLeaderboard({
           background:rgba(255,255,255,.07);
         }
         .rankContextNote,.empty {
-          margin:14px 0 0;
+          margin:22px 0 2px;
           color:#827e76;
           font-size:.72rem;
           line-height:1.5;
@@ -738,66 +775,80 @@ export function PublicLeaderboard({
           color:#777269;
           font-size:.66rem;
         }
-        @media (min-width:620px) {
-          .tableHeader,.rankRow {
-            grid-template-columns:52px minmax(0,1fr) 112px 130px;
-            gap:10px;
-            align-items:center;
-          }
-          .tableHeader {
-            padding:0 12px 9px;
-            display:grid;
-            color:#777269;
-            font-size:.61rem;
-            font-weight:900;
-            text-transform:uppercase;
-          }
-          .tableHeader span:nth-child(3),
-          .tableHeader span:nth-child(4) {
-            text-align:right;
-          }
-          .rankRow.featured {
-            min-height:56px;
-            padding:10px 12px;
-          }
-          .rankRow.compact {
-            min-height:48px;
-            padding:8px 12px;
-          }
-          .rankPrimary {
-            display:contents;
-          }
-          .rankMetric {
-            display:block;
-            text-align:right;
-          }
-          .rankMetric small {
-            display:none;
-          }
-          .rankMetric b {
-            font-size:.72rem;
-          }
-          .rewardMetric b {
-            white-space:nowrap;
-          }
-        }
         @media (max-width:420px) {
           .impactCard,.rankingCard {
             padding:15px;
             border-radius:19px;
           }
-          .impactBreakdown {
-            grid-template-columns:1fr;
+          .rankingCard {
+            --rank-column:30px;
+            --completed-column:62px;
+            --reward-column:82px;
+            --leaderboard-gap:5px;
           }
-          .rankRow.featured {
-            padding:11px;
+          .tableHeader {
+            min-height:36px;
+            padding:0 8px 10px;
+            font-size:.52rem;
+          }
+          .rankRow {
+            padding-left:8px;
+            padding-right:8px;
+          }
+          .rankRow.featured,
+          .rankRow.trailingCurrent {
+            min-height:62px;
           }
           .rankRow.compact {
-            padding:9px 11px;
+            min-height:54px;
+          }
+          .rankValue,.rankMetric b {
+            font-size:.65rem;
+          }
+          .walletCell {
+            gap:5px;
+            font-size:.64rem;
+          }
+          .walletAvatar {
+            flex-basis:18px;
+            width:18px;
+            height:18px;
+          }
+          .impactBreakdown {
+            grid-template-columns:1fr;
           }
           .walletDialog {
             padding:18px;
             border-radius:21px;
+          }
+        }
+        @media (max-width:360px) {
+          .rankingCard {
+            --rank-column:26px;
+            --completed-column:58px;
+            --reward-column:76px;
+            --leaderboard-gap:4px;
+          }
+          .tableHeader {
+            padding-left:6px;
+            padding-right:6px;
+            font-size:.48rem;
+          }
+          .rankRow {
+            padding-left:6px;
+            padding-right:6px;
+          }
+          .rankValue,.rankMetric b {
+            font-size:.61rem;
+          }
+          .walletCell {
+            gap:4px;
+            font-size:.59rem;
+          }
+          .walletAvatar {
+            flex-basis:16px;
+            width:16px;
+            height:16px;
           }
         }
       `}</style>
