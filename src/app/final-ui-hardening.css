@@ -35,21 +35,21 @@ body:has(.notificationBackdrop) {
   order:2;
 }
 
-/* Keep the core app width stable when switching Home / Guide / Leaderboard /
- * Settings. The leaderboard is mobile-first and no longer needs a wider
- * horizontal-scroll table on desktop. */
+/*
+ * Keep one desktop content rail for every persistent main-app tab.
+ * Home used to be globally widened to 560px while Guide/Leaderboard/Settings
+ * stayed at 520px, which made the brand and wallet controls visibly jump when
+ * switching tabs on desktop. 520px is now the single app rail; mobile still
+ * remains fluid through min(100%, 520px).
+ */
+main.screen > .topBar,
 main.screen > .missionCard,
-main.screen > .toast {
-  width:min(100%,560px) !important;
-}
-main.screen > .topBar:has(~ .missionCard) {
-  width:min(100%,560px) !important;
-}
+main.screen > .toast,
+main.screen > .guidePage,
+main.screen > .leaderboardPage,
+main.screen > .settingsPage,
 main.screen .bottomNavigation > div {
-  width:min(100%,560px) !important;
-}
-.leaderboardPage {
-  width:min(100%,560px) !important;
+  width:min(100%,520px) !important;
 }
 
 /* Keep the public impact summary intentionally simple. The default card shows
@@ -64,7 +64,7 @@ main.screen .bottomNavigation > div {
  * reliable post-release reference instead of drifting into a separate mock. */
 .labScreen .phoneCanvas > .topBar,
 .labScreen .phoneCanvas > .missionCard {
-  width:min(100%,560px) !important;
+  width:min(100%,520px) !important;
 }
 
 /* Keep the connected-wallet chip from pushing the header off very narrow
