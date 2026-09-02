@@ -123,7 +123,9 @@ Do not simulate RTL by reversing strings.
 
 ## Persistence and browser detection
 
-No new API allow-list should be created elsewhere. The wallet language preference endpoint validates through `isLocale()`, which reads the central registry. Browser language detection also resolves through the same list.
+No new API or database allow-list should be created per language. The wallet language preference endpoint validates through `isLocale()`, which reads the central registry. Browser language detection also resolves through the same list.
+
+The 17-language expansion includes the one-time migration `20260902074759_future_proof_wallet_language_constraint.sql`. It replaces the original 11-language database allow-list with a locale-tag shape constraint. Apply that migration to Production **before** deploying the 17-language app code. After it is in Production, ordinary future language additions should not require another database migration; the server registry remains authoritative for the actually supported locales.
 
 After adding a locale, verify:
 
@@ -146,12 +148,14 @@ npm run build
 `test:i18n` derives the supported locale set from `LOCALE_DEFINITIONS` and checks that:
 
 - the original core locales have not disappeared and the registry has no duplicates;
+- locale definitions are discoverable using reusable locale-tag syntax rather than a two-letter-only audit;
 - each locale points to an existing app-owned flag;
 - generic RTL handling remains wired and Arabic remains marked RTL;
 - every non-core locale has a registered typed locale pack with all required copy sections;
 - required VeInvite protocol terminology has not disappeared from a locale pack;
 - legal navigation covers every registered locale;
 - the standalone reward forecast card covers every registered locale;
+- wallet-language writes remain gated by `isLocale()` and the database constraint does not regress to a hard-coded language allow-list;
 - new localization boundaries use the strict `SupportedLocale` type instead of the legacy string-key compatibility type.
 
 Do not maintain a second hard-coded list of expansion locales in the test. A future locale added to `LOCALE_DEFINITIONS` is discovered automatically and must have its flag, locale pack, registration, legal navigation, and guarded standalone copy completed before `test:i18n` can pass.
@@ -165,13 +169,15 @@ Before merging a language expansion:
 1. typecheck passes;
 2. i18n completeness tests pass;
 3. production build passes;
-4. every new locale can be selected in Settings;
-5. its flag and native name are correct;
-6. refresh preserves selection;
-7. main app, direct invite flow, legal pages, and standalone localized cards all use the locale;
-8. no untranslated English UI leaks remain except intentional product names and established Web3 terminology;
-9. mobile widths are reviewed for clipping, wrapping, overlap, and modal overflow;
-10. RTL locale is reviewed separately when applicable;
-11. existing Korean, English, Chinese, Hindi, Spanish, Japanese, Italian, Turkish, Dutch, German, and French flows are smoke-tested for regressions.
+4. for the initial 17-language rollout, the future-proof wallet-language constraint migration is applied and verified in Production before the app deployment;
+5. every new locale can be selected in Settings;
+6. its flag and native name are correct;
+7. refresh preserves selection;
+8. main app, direct invite flow, legal pages, and standalone localized cards all use the locale;
+9. no untranslated English UI leaks remain except intentional product names and established Web3 terminology;
+10. mobile widths are reviewed for clipping, wrapping, overlap, and modal overflow;
+11. RTL locale is reviewed separately when applicable;
+12. existing Korean, English, Chinese, Hindi, Spanish, Japanese, Italian, Turkish, Dutch, German, and French flows are smoke-tested for regressions;
+13. after the Production deployment is READY, perform one live language-save/reload smoke test before announcing availability publicly.
 
-This process is deliberately reusable: adding the next language should mean adding registry metadata, one flag asset, one typed locale pack, registering it, completing any explicitly guarded standalone copy, and performing the visual review. The automated audit discovers the new locale from the registry; it should not require editing every existing translation module or maintaining a duplicate expansion-locale list.
+This process is deliberately reusable: adding the next language should mean adding registry metadata, one flag asset, one typed locale pack, registering it, completing any explicitly guarded standalone copy, and performing the visual review. The automated audit discovers the new locale from the registry; it should not require editing every existing translation module, maintaining a duplicate expansion-locale list, or changing the database allow-list again.
