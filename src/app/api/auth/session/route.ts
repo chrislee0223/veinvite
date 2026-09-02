@@ -117,6 +117,9 @@ export async function GET(
       const cookieCount =
         getWalletSessionCookieCount(request);
 
+      // Safe diagnostics only: never log cookie values or wallet addresses.
+      // This lets production logs distinguish a browser that did not return a
+      // session cookie from one that returned only stale/invalid cookies.
       console.info(
         'Wallet session lookup returned unauthenticated.',
         {
@@ -239,6 +242,8 @@ export async function POST(
       );
     }
 
+    // Never extend a stale session that belongs to a different wallet while a
+    // wallet provider is switching/restoring accounts.
     if (session.walletAddress !== expectedWallet) {
       return NextResponse.json(
         {
@@ -365,6 +370,9 @@ export async function POST(
       },
     );
 
+    // A normal app re-entry silently moves the same verified session's expiry
+    // to 30 days from today. No wallet signature or legal re-consent is part of
+    // this renewal path.
     setSessionCookie({
       response,
       token: sessionToken,
