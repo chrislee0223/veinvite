@@ -1,9 +1,11 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { createPortal, flushSync } from 'react-dom';
 
 import {
   isLocale,
+  localeFromLanguageTag,
   type Locale,
   type SupportedLocale,
 } from '@/lib/i18n/locales';
@@ -506,5 +508,110 @@ export function PublicRewardForecastCard({
         }
       `}</style>
     </section>
+  );
+}
+
+type ForecastPortalTarget = {
+  mount: HTMLDivElement;
+  rewardForecastPreview: boolean;
+};
+
+export function PublicRewardForecastPortal() {
+  const [target, setTarget] = useState<ForecastPortalTarget | null>(null);
+  const [locale, setLocale] = useState<SupportedLocale>('en');
+
+  useEffect(() => {
+    const syncFromDocument = () => {
+      const next = localeFromLanguageTag(document.documentElement.lang);
+      if (next) setLocale(next);
+    };
+    const syncFromEvent = (event: Event) => {
+      const detail = (event as CustomEvent<unknown>).detail;
+      if (isLocale(detail)) setLocale(detail);
+    };
+
+    syncFromDocument();
+    window.addEventListener('veinvite-language-change', syncFromEvent);
+    return () =>
+      window.removeEventListener('veinvite-language-change', syncFromEvent);
+  }, []);
+
+  useEffect(() => {
+    let activeMount: HTMLDivElement | null = null;
+
+    const commitTarget = (
+      nextTarget: ForecastPortalTarget | null,
+      synchronous: boolean,
+    ) => {
+      if (synchronous) {
+        flushSync(() => setTarget(nextTarget));
+      } else {
+        setTarget(nextTarget);
+      }
+    };
+
+    const detach = (synchronous: boolean) => {
+      activeMount?.remove();
+      activeMount = null;
+      commitTarget(null, synchronous);
+    };
+
+    const attach = (synchronous = false) => {
+      const impactCard = document.querySelector<HTMLElement>(
+        '.leaderboardPage .impactCard',
+      );
+      if (!impactCard) {
+        if (activeMount) detach(synchronous);
+        return;
+      }
+      if (
+        activeMount?.isConnected &&
+        activeMount.previousElementSibling === impactCard
+      ) {
+        return;
+      }
+
+      if (activeMount) {
+        activeMount.remove();
+      }
+      const nextMount = document.createElement('div');
+      nextMount.className = 'leaderboardRewardEstimateMount';
+      impactCard.insertAdjacentElement('afterend', nextMount);
+      activeMount = nextMount;
+      commitTarget(
+        {
+          mount: nextMount,
+          rewardForecastPreview:
+            impactCard.dataset.rewardForecastPreview === 'true',
+        },
+        synchronous,
+      );
+    };
+
+    attach(false);
+    const observer = new MutationObserver(() => attach(true));
+    observer.observe(document.body, { childList: true, subtree: true });
+
+    return () => {
+      observer.disconnect();
+      activeMount?.remove();
+      activeMount = null;
+      setTarget(null);
+    };
+  }, []);
+
+  return (
+    <>
+      <PublicRewardForecastWarmup />
+      {target
+        ? createPortal(
+            <PublicRewardForecastCard
+              locale={locale}
+              rewardForecastPreview={target.rewardForecastPreview}
+            />,
+            target.mount,
+          )
+        : null}
+    </>
   );
 }
