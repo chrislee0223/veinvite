@@ -86,6 +86,9 @@ jobs:
       - name: Wallet session continuity gate
         run: node scripts/check-wallet-session-continuity.mjs
 
+      - name: Usage analytics privacy gate
+        run: node --test tests/usage-analytics-privacy.test.mjs
+
       - name: Install dependencies
         run: npm ci
 

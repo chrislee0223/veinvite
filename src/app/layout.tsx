@@ -4,6 +4,8 @@ import type { ReactNode } from 'react';
 import { AppProviders } from '@/components/AppProviders';
 import { LocaleDocumentSync } from '@/components/LocaleDocumentSync';
 import { LocaleHydrationShield } from '@/components/LocaleHydrationShield';
+import { UsageAnalyticsPreferenceControl } from '@/components/UsageAnalyticsPreferenceControl';
+import { UsageAnalyticsTracker } from '@/components/UsageAnalyticsTracker';
 import './globals.css';
 import './header-language-flags.css';
 import './localized-typography.css';
@@ -57,13 +59,20 @@ export default function RootLayout({
 }: {
   children: ReactNode;
 }) {
+  const usageAnalyticsEnabled =
+    process.env.VERCEL_ENV === 'production';
+
   return (
     <html lang="en" suppressHydrationWarning>
       <body>
         <LocaleHydrationShield />
         <AppProviders>
           <LocaleDocumentSync />
+          {usageAnalyticsEnabled ? <UsageAnalyticsTracker /> : null}
           {children}
+          {usageAnalyticsEnabled ? (
+            <UsageAnalyticsPreferenceControl />
+          ) : null}
         </AppProviders>
       </body>
     </html>
