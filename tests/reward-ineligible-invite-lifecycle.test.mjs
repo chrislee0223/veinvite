@@ -71,7 +71,10 @@ test('ineligible notification endpoint is wallet-authenticated and only reads ex
 
 test('ineligible notification polling is limited to the Home surface', () => {
   assert.match(ineligibleNotification, /usePathname/u);
-  assert.match(ineligibleNotification, /pathname === '\/'/u);
+  assert.equal(
+    ineligibleNotification.includes("pathname === '/'"),
+    true,
+  );
   assert.match(ineligibleNotification, /const REFRESH_MS = 60_000/u);
   assert.match(ineligibleNotification, /!wallet \|\| !isHomeSurface/u);
 });
