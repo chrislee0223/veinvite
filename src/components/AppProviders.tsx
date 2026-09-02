@@ -65,6 +65,7 @@ export function AppProviders({
 }) {
   return (
     <ChakraProvider theme={theme}>
+      <PublicRewardForecastPortal />
       <VeChainProvider>
         <ProviderReadySignal />
         <WalletRuntimeLifecycle />
@@ -73,7 +74,6 @@ export function AppProviders({
         <SecondaryPageLayoutPolish />
         <LegalNavigationMemory />
         <HeaderLanguagePickerPortal />
-        <PublicRewardForecastPortal />
       </VeChainProvider>
     </ChakraProvider>
   );
