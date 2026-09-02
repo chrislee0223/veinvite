@@ -278,7 +278,9 @@ html[data-locale-typography='indic'] :where(
   text-align: center;
 }
 
-/* Full right-to-left support for every RTL locale. */
+/* Full right-to-left support for every RTL locale. Document direction handles
+ * ordinary dialog text automatically. Only content that was deliberately
+ * left/right aligned in the legacy LTR layout is physically corrected here. */
 html[dir='rtl'] body {
   direction: rtl;
 }
@@ -290,11 +292,7 @@ html[dir='rtl'] :is(
   .mission,
   .legalPage,
   .settingsPage,
-  .leaderboardPage,
-  .notificationRoot,
-  [role='dialog'],
-  [role='alertdialog'],
-  [aria-live='polite']
+  .leaderboardPage
 ) {
   text-align: right !important;
 }
@@ -320,6 +318,23 @@ html[dir='rtl'] .headerLanguageChevron {
 
 html[dir='rtl'] .flagSvg {
   object-position: right center !important;
+}
+
+/* Transient notification controls use physical positioning in the legacy
+ * component; mirror only those controls without changing its centered copy. */
+html[dir='rtl'] .notificationRoot .closeButton {
+  right: auto !important;
+  left: 15px !important;
+}
+
+html[dir='rtl'] .notificationRoot .unreadDot {
+  right: auto !important;
+  left: -3px !important;
+}
+
+html[dir='rtl'] .languageOptionList {
+  padding-right: 0 !important;
+  padding-left: 3px !important;
 }
 
 /* Wallet addresses, transaction hashes, invite codes and token amounts are
