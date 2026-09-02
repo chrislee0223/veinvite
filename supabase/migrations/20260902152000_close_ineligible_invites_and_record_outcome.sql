@@ -16,8 +16,8 @@ alter table public.invitations
   references public.eligibility_check_events(id)
   on delete restrict;
 
-create index if not exists invitations_ineligibility_check_id_idx
-  on public.invitations (ineligibility_check_id)
+create index if not exists invitations_inviter_ineligible_idx
+  on public.invitations (inviter_wallet, ineligible_at desc)
   where ineligibility_check_id is not null;
 
 create or replace function public.close_invitation_on_ineligible_entry_check()
