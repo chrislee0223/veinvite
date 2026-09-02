@@ -52,67 +52,64 @@ if (/\.rows\s*\{[^}]*overflow(?:-y)?\s*:/s.test(leaderboard)) {
   failures.push('Leaderboard must use normal page scrolling, not a nested row scroller.');
 }
 
-// The effective production layout is intentionally hardened by a mounted
-// global style layer. Guard the final presentation, not only the base JSX
-// component, so a future refactor cannot silently recreate the misaligned
-// unranked row that was visible in production on 2026-09-01/02.
 if (!/import \{ SecondaryPageLayoutPolish \} from '\.\/SecondaryPageLayoutPolish';/.test(appProviders)) {
-  failures.push('AppProviders must import the final secondary-page layout polish layer.');
+  failures.push('AppProviders must keep the shared secondary-page polish layer mounted.');
 }
 if (!/<SecondaryPageLayoutPolish\s*\/>/.test(appProviders)) {
-  failures.push('AppProviders must mount the final secondary-page layout polish layer.');
+  failures.push('AppProviders must mount the shared secondary-page polish layer.');
 }
 if (!/\.leaderboardPage \.rankingTopline\s*\{[\s\S]*?display:none\s*!important/.test(layoutPolish)) {
   failures.push('The redundant visible Top 100 badge returned.');
 }
-if (
-  !/--rank-column:34px/.test(layoutPolish) ||
-  !/--completed-column:78px/.test(layoutPolish) ||
-  !/--reward-column:98px/.test(layoutPolish) ||
-  !/grid-template-columns:[\s\S]*var\(--rank-column\)[\s\S]*minmax\(0,1fr\)[\s\S]*var\(--completed-column\)[\s\S]*var\(--reward-column\)\s*!important/.test(layoutPolish)
-) {
-  failures.push('Leaderboard header and rows no longer share the reviewed four-column geometry.');
+
+// The leaderboard now owns its row geometry in one component. Global layout
+// overrides previously fought the scoped component CSS and repeatedly caused
+// the unranked wallet values to collapse toward the center of the card.
+if (/\.leaderboardPage \.rankRow\s*\{|\.leaderboardPage \.tableHeader\s*\{/.test(layoutPolish)) {
+  failures.push('SecondaryPageLayoutPolish must not override leaderboard row/header geometry.');
 }
-if (!/\.leaderboardPage \.rankPrimary\s*\{[\s\S]*display:contents\s*!important/.test(layoutPolish)) {
-  failures.push('Leaderboard rankPrimary wrapper must stay layout-transparent so all four visible cells share one parent grid.');
-}
-if (
-  !/\.leaderboardPage \.rankValue\s*\{[\s\S]*grid-column:1\s*!important[\s\S]*grid-row:1\s*!important/.test(layoutPolish) ||
-  !/\.leaderboardPage \.walletCell\s*\{[\s\S]*grid-column:2\s*!important[\s\S]*grid-row:1\s*!important/.test(layoutPolish) ||
-  !/\.leaderboardPage \.completedMetric\s*\{[\s\S]*grid-column:3\s*!important[\s\S]*grid-row:1\s*!important/.test(layoutPolish) ||
-  !/\.leaderboardPage \.rewardMetric\s*\{[\s\S]*grid-column:4\s*!important[\s\S]*grid-row:1\s*!important/.test(layoutPolish)
-) {
-  failures.push('Leaderboard visible cells must be explicitly pinned to columns 1-4 on the same grid row.');
-}
-if (/\.leaderboardPage \.rankPrimary\s*\{[\s\S]*display:grid\s*!important/.test(layoutPolish)) {
-  failures.push('Do not restore the nested rankPrimary grid; it causes metric columns to drift and stack.');
+if (/className="rankPrimary"/.test(leaderboard) || /\.rankPrimary\s*\{/.test(leaderboard)) {
+  failures.push('The retired nested rankPrimary wrapper must not return.');
 }
 if (
-  !/\.leaderboardPage \.tableHeader\s*\{[\s\S]*border-left:1px solid transparent\s*!important[\s\S]*border-right:1px solid transparent\s*!important/.test(layoutPolish)
+  !/--rank-column:42px/.test(leaderboard) ||
+  !/--completed-column:86px/.test(leaderboard) ||
+  !/--reward-column:104px/.test(leaderboard) ||
+  !/\.tableHeader,\.rankRow\s*\{[\s\S]*grid-template-columns:[\s\S]*var\(--rank-column\)[\s\S]*minmax\(0,1fr\)[\s\S]*var\(--completed-column\)[\s\S]*var\(--reward-column\)/.test(leaderboard)
 ) {
-  failures.push('Leaderboard header must retain transparent 1px inline borders so its content box exactly matches bordered data rows.');
+  failures.push('Header and rows must share the same source-owned four-column geometry.');
 }
 if (
-  !/\.tableHeader span:nth-child\(2\)[\s\S]*padding-left:27px\s*!important/.test(layoutPolish) ||
-  !/\.walletCell\s*\{[\s\S]*padding-left:27px\s*!important/.test(layoutPolish)
+  !/<strong className="rankValue">[\s\S]*<span className="walletCell">[\s\S]*<span className="rankMetric completedMetric">[\s\S]*<span className="rankMetric rewardMetric">/.test(leaderboard)
 ) {
-  failures.push('Inviter header and wallet text can drift out of alignment again.');
+  failures.push('Rank, inviter, invite count, and reward must remain direct sibling cells in that exact order.');
 }
-if (!/\.tableHeader span:nth-child\(3\),[\s\S]*\.tableHeader span:nth-child\(4\)[\s\S]*text-align:center\s*!important/.test(layoutPolish)) {
-  failures.push('Invite-count and reward headers must stay centered over their numeric columns.');
+if (
+  !/\.rankValue\s*\{[\s\S]*grid-column:1/.test(leaderboard) ||
+  !/\.walletCell\s*\{[\s\S]*grid-column:2/.test(leaderboard) ||
+  !/\.completedMetric\s*\{[\s\S]*grid-column:3/.test(leaderboard) ||
+  !/\.rewardMetric\s*\{[\s\S]*grid-column:4/.test(leaderboard)
+) {
+  failures.push('Leaderboard visible values must stay pinned to columns 1-4.');
 }
-if (!/\.leaderboardPage \.walletCell::before\s*\{/.test(layoutPolish)) {
+if (!/\.tableHeader span\s*\{[\s\S]*text-align:center/.test(leaderboard)) {
+  failures.push('All four leaderboard headers must stay centered over their value columns.');
+}
+if (!/className="walletAvatar"/.test(leaderboard) || !/\.walletAvatar\s*\{/.test(leaderboard)) {
   failures.push('Neutral wallet-avatar fallback is missing from leaderboard rows.');
 }
 if (
-  !/\.rankRow\.trailingCurrent \.completedMetric b::after\s*\{[\s\S]*content:'—'\s*!important/.test(layoutPolish)
+  !/rank:\s*0,[\s\S]*completedReferrals:\s*0,[\s\S]*totalRewardWei:\s*'0'/.test(leaderboard)
 ) {
-  failures.push('Unranked connected wallets must show a dash instead of a misleading invite-count zero.');
+  failures.push('Unranked connected wallet must retain rank dash, invite count 0, and reward 0 B3TR source data.');
 }
-if (!/@media \(max-width:420px\)[\s\S]*--completed-column:64px[\s\S]*--reward-column:84px/.test(layoutPolish)) {
+if (/trailingCurrent[\s\S]*completedMetric[\s\S]*content:\s*['"]—['"]/.test(leaderboard)) {
+  failures.push('Approved unranked layout shows invite count 0; do not replace it with a CSS dash.');
+}
+if (!/@media \(max-width:420px\)[\s\S]*--completed-column:62px[\s\S]*--reward-column:82px/.test(leaderboard)) {
   failures.push('Reviewed narrow-phone leaderboard geometry is missing.');
 }
-if (!/@media \(max-width:360px\)[\s\S]*--completed-column:58px[\s\S]*--reward-column:78px/.test(layoutPolish)) {
+if (!/@media \(max-width:360px\)[\s\S]*--completed-column:58px[\s\S]*--reward-column:76px/.test(leaderboard)) {
   failures.push('Reviewed extra-narrow-phone leaderboard geometry is missing.');
 }
 
@@ -121,6 +118,14 @@ if (!/Array\.from\(\{\s*length:\s*100\s*\}/.test(preview)) {
 }
 if (!/rank:\s*137/.test(preview) || !/100위 밖/.test(preview)) {
   failures.push('UI test leaderboard must cover the current-wallet outside-Top-100 state.');
+}
+if (
+  !/PreviewScenario = 'inside' \| 'outside' \| 'unranked'/.test(preview) ||
+  !/scenario === 'unranked'\) return \[\]/.test(preview) ||
+  !/useState<PreviewScenario>\('unranked'\)/.test(preview) ||
+  !/미순위 · 초대 0건/.test(preview)
+) {
+  failures.push('UI test must default to the exact unranked zero-invite state that previously regressed in production.');
 }
 
 if (failures.length > 0) {
