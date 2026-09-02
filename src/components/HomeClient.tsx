@@ -15,9 +15,15 @@ import {
 } from './AppBottomNavigation';
 import { Brand } from './Brand';
 import { InAppInviteNotifications } from './InAppInviteNotifications';
+import {
+  TransientSnackbar,
+  type TransientFeedback,
+  type TransientFeedbackKind,
+} from './TransientSnackbar';
 import { useWalletLauncher } from './WalletControl';
 import { GUIDE_REWARD_STEP_COPY } from '@/lib/i18n/guideRewardStepCopy';
 import { HOME_COPY } from '@/lib/i18n/homeCopy';
+import { NOTIFICATION_COPY } from '@/lib/i18n/notificationCopy';
 import {
   LANGUAGE_OPTIONS,
   LANGUAGE_STORAGE_KEY,
@@ -53,16 +59,26 @@ export function HomeClient() {
   const [locale, setLocale] = useState<Locale>('en');
   const [invites, setInvites] = useState<InviteRecord[]>([]);
   const [loading, setLoading] = useState(false);
-  const [message, setMessage] = useState('');
+  const [feedback, setFeedback] = useState<TransientFeedback | null>(null);
   const [showCancel, setShowCancel] = useState(false);
   const [activeTab, setActiveTab] = useState<AppTab>('home');
   const [vercelShareToken, setVercelShareToken] = useState('');
+  const feedbackIdRef = useRef(0);
   const cancelTriggerRef = useRef<HTMLButtonElement | null>(null);
   const cancelDialogRef = useRef<HTMLDivElement | null>(null);
   const cancelKeepRef = useRef<HTMLButtonElement | null>(null);
 
   const t = HOME_COPY[locale];
   const automaticRewardCopy = GUIDE_REWARD_STEP_COPY[locale];
+
+  const clearFeedback = useCallback(() => {
+    setFeedback(null);
+  }, []);
+
+  const showFeedback = useCallback((kind: TransientFeedbackKind, text: string) => {
+    feedbackIdRef.current += 1;
+    setFeedback({ id: feedbackIdRef.current, kind, text });
+  }, []);
 
   useEffect(() => {
     const saved = window.localStorage.getItem(LANGUAGE_STORAGE_KEY);
@@ -93,6 +109,7 @@ export function HomeClient() {
   }, []);
 
   const changeLocale = (nextLocale: Locale) => {
+    clearFeedback();
     setLocale(nextLocale);
     window.localStorage.setItem(LANGUAGE_STORAGE_KEY, nextLocale);
     document.documentElement.lang = nextLocale;
@@ -100,6 +117,7 @@ export function HomeClient() {
   };
 
   const changeTab = (nextTab: AppTab) => {
+    clearFeedback();
     setActiveTab(nextTab);
     setShowCancel(false);
     window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -159,18 +177,18 @@ export function HomeClient() {
       if (!response.ok) throw new Error(data.error ?? t.loadError);
       setInvites(data.invites ?? []);
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : t.genericError);
+      showFeedback('error', error instanceof Error ? error.message : t.genericError);
     } finally {
       setLoading(false);
     }
-  }, [wallet, t.loadError, t.genericError]);
+  }, [wallet, t.loadError, t.genericError, showFeedback]);
 
   useEffect(() => { void load(); }, [load]);
 
   const createInvite = async () => {
     if (!wallet) return;
+    clearFeedback();
     setLoading(true);
-    setMessage('');
     try {
       const response = await fetch('/api/invites', {
         method: 'POST',
@@ -181,7 +199,7 @@ export function HomeClient() {
       if (!response.ok) throw new Error(data.error ?? t.createError);
       await load();
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : t.genericError);
+      showFeedback('error', error instanceof Error ? error.message : t.genericError);
     } finally {
       setLoading(false);
     }
@@ -224,8 +242,8 @@ export function HomeClient() {
 
   const cancelInvite = async () => {
     if (!wallet || !active || !waitingForFriend) return;
+    clearFeedback();
     setLoading(true);
-    setMessage('');
     try {
       const response = await fetch(`/api/invites/${active.code}/cancel`, {
         method: 'POST',
@@ -235,10 +253,10 @@ export function HomeClient() {
       const data = await response.json();
       if (!response.ok) throw new Error(data.error ?? t.cancelError);
       closeCancelModal();
-      setMessage(t.cancelled);
+      showFeedback('success', t.cancelled);
       await load();
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : t.genericError);
+      showFeedback('error', error instanceof Error ? error.message : t.genericError);
     } finally {
       setLoading(false);
     }
@@ -253,12 +271,18 @@ export function HomeClient() {
 
   const copyInvite = async () => {
     if (!inviteUrl) return;
-    await navigator.clipboard.writeText(inviteUrl);
-    setMessage(t.copied);
+    clearFeedback();
+    try {
+      await navigator.clipboard.writeText(inviteUrl);
+      showFeedback('success', t.copied);
+    } catch {
+      showFeedback('error', t.genericError);
+    }
   };
 
   const shareInvite = async () => {
     if (!inviteUrl) return;
+    clearFeedback();
     if (navigator.share) {
       try {
         await navigator.share({ title: 'VeInvite', text: t.shareText, url: inviteUrl });
@@ -295,7 +319,7 @@ export function HomeClient() {
             </select>
           </div>
           {wallet ? (
-            <button type="button" className="accountChip" onClick={openWallet} aria-label={t.walletAria}>
+            <button type="button" className="accountChip" onClick={() => { clearFeedback(); openWallet(); }} aria-label={t.walletAria}>
               <span className="accountDot" />{wallet.slice(0, 6)}···{wallet.slice(-4)}
             </button>
           ) : null}
@@ -328,7 +352,7 @@ export function HomeClient() {
             </div>
 
             {inviteSlotAvailable ? (
-              <button type="button" className="primaryAction" disabled={loading || isWalletModalOpen} onClick={wallet ? createInvite : openWallet}>
+              <button type="button" className="primaryAction" disabled={loading || isWalletModalOpen} onClick={wallet ? createInvite : () => { clearFeedback(); openWallet(); }}>
                 {wallet ? (loading ? t.creating : completedInvites.length > 0 ? t.createNextInvite : t.createInvite) : isWalletModalOpen ? t.connecting : t.connectStart}
                 <span aria-hidden="true">›</span>
               </button>
@@ -351,11 +375,9 @@ export function HomeClient() {
             ) : null}
 
             {waitingForFriend ? (
-              <button ref={cancelTriggerRef} type="button" className="cancelLink" onClick={() => setShowCancel(true)}>{t.cancelInvite}</button>
+              <button ref={cancelTriggerRef} type="button" className="cancelLink" onClick={() => { clearFeedback(); setShowCancel(true); }}>{t.cancelInvite}</button>
             ) : null}
           </section>
-
-          {message ? <div className="toast" role="status">{message}</div> : null}
         </>
       ) : activeTab === 'guide' ? (
         <AppGuide locale={locale} />
@@ -384,6 +406,12 @@ export function HomeClient() {
           </div>
         </div>
       ) : null}
+
+      <TransientSnackbar
+        feedback={feedback}
+        closeLabel={NOTIFICATION_COPY[locale].closeAria}
+        onDismiss={clearFeedback}
+      />
 
       <AppBottomNavigation activeTab={activeTab} locale={locale} onChange={changeTab} />
 
@@ -431,10 +459,9 @@ export function HomeClient() {
         .completeIcon { flex:0 0 auto; width:38px; height:38px; display:grid; place-items:center; border-radius:50%; background:rgba(64,222,156,.18); color:#77efb9; font-weight:950; }
         .completePanel > div { min-width:0; flex:1; }.completePanel strong { font-size:.9rem; overflow-wrap:anywhere; }.completePanel p { margin:4px 0 0; color:#9eaa9f; font-size:.75rem; line-height:1.45; overflow-wrap:anywhere; }
         .cancelLink { position:relative; z-index:1; display:block; margin:18px auto 0; border:0; background:transparent; color:#8d879a; font:inherit; font-size:.74rem; font-weight:800; cursor:pointer; }
-        .toast { width:min(100%,520px); box-sizing:border-box; margin:14px auto 0; padding:13px 15px; border:1px solid rgba(77,224,167,.18); border-radius:15px; background:rgba(33,159,111,.1); color:#7cefc0; font-size:.82rem; font-weight:800; overflow-wrap:anywhere; }
         .modalBackdrop { position:fixed; z-index:100; inset:0; display:grid; place-items:center; padding:20px; background:rgba(2,3,10,.78); backdrop-filter:blur(10px); }
         .modalCard { width:min(100%,410px); box-sizing:border-box; padding:25px; border:1px solid rgba(255,255,255,.1); border-radius:25px; background:#121421; text-align:center; box-shadow:0 30px 90px rgba(0,0,0,.5); }
-        .warningIcon { width:50px; height:50px; margin:0 auto 15px; display:grid; place-items:center; border-radius:17px; background:rgba(255,91,111,.1); color:#ff7186; font-size:1.2rem; font-weight:950; }.modalCard h2 { margin:0; font-size:1.4rem; letter-spacing:-.03em; overflow-wrap:anywhere; }.modalCard p { margin:11px 0 0; color:#a39eaf; font-size:.88rem; line-height:1.55; overflow-wrap:anywhere; }.cancelConfirm { margin-top:16px; border:0; background:transparent; color:#ff7186; font:inherit; font-size:.8rem; font-weight:900; cursor:pointer; }
+        .warningIcon { width:50px; height:50px; margin:0 auto 15px; border-radius:17px; display:grid; place-items:center; background:rgba(255,91,111,.1); color:#ff7186; font-size:1.2rem; font-weight:950; }.modalCard h2 { margin:0; font-size:1.4rem; letter-spacing:-.03em; overflow-wrap:anywhere; }.modalCard p { margin:11px 0 0; color:#a39eaf; font-size:.88rem; line-height:1.55; overflow-wrap:anywhere; }.cancelConfirm { margin-top:16px; border:0; background:transparent; color:#ff7186; font:inherit; font-size:.8rem; font-weight:900; cursor:pointer; }
         @keyframes pulse { 0%,100% { opacity:.55; transform:scale(.9); } 50% { opacity:1; transform:scale(1.08); } }
         @media (max-width:560px) { .screen { padding:18px 14px 116px; }.topBar { align-items:flex-start; }.topActions { max-width:58%; align-items:flex-end; flex-direction:column-reverse; gap:7px; }.utilityActions { width:100%; }.utilityActions .languageSelect { min-width:0; width:auto; flex:1; }.languageSelect { width:100%; max-width:155px; height:34px; border-radius:11px; font-size:.68rem; }.accountChip { min-height:34px; padding:0 10px; border-radius:11px; font-size:.66rem; }.missionCard { padding:21px 18px; border-radius:26px; }.missionHeader { align-items:flex-start; }.missionCopy { margin-top:30px; }.missionCopy h1 { font-size:clamp(1.9rem,10vw,2.6rem); }.missionCopy.cjkCopy h1 { font-size:clamp(1.9rem,9vw,2.4rem); } }
       `}</style>
