@@ -1,28 +1,19 @@
-import type { Locale } from '@/lib/i18n/locales';
+import {
+  getLanguageOption,
+  type SupportedLocale,
+} from '@/lib/i18n/locales';
 
 type LanguageFlagProps = {
-  locale: Locale;
-};
-
-const FLAG_SOURCE: Record<Locale, string> = {
-  en: '/flags/us.svg',
-  ko: '/flags/kr.svg',
-  zh: '/flags/cn.svg',
-  hi: '/flags/in.svg',
-  es: '/flags/es.svg',
-  ja: '/flags/jp.svg',
-  it: '/flags/it.svg',
-  tr: '/flags/tr.svg',
-  nl: '/flags/nl.svg',
-  de: '/flags/de.svg',
-  fr: '/flags/fr.svg',
+  locale: SupportedLocale;
 };
 
 export function LanguageFlag({ locale }: LanguageFlagProps) {
+  const language = getLanguageOption(locale);
+
   return (
     <img
       className="flagSvg"
-      src={FLAG_SOURCE[locale]}
+      src={language.flagSource}
       alt=""
       aria-hidden="true"
       draggable={false}

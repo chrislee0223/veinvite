@@ -7,18 +7,20 @@ import {
 } from 'react';
 
 import { LEGAL_RETURN_STORAGE_KEY } from './LegalNavigationMemory';
+import '@/lib/i18n/localePacks/registerExpandedLocales';
 import {
   LEGAL_COPY,
   type LegalDocumentKind,
 } from '@/lib/i18n/legalCopy';
 import {
   LANGUAGE_STORAGE_KEY,
+  getLocaleDirection,
   isLocale,
   resolveBrowserLocale,
-  type Locale,
+  type SupportedLocale,
 } from '@/lib/i18n/locales';
 
-const BACK_LABEL: Record<Locale, string> = {
+const BACK_LABEL: Record<SupportedLocale, string> = {
   en: 'Back',
   ko: '뒤로가기',
   zh: '返回',
@@ -30,9 +32,15 @@ const BACK_LABEL: Record<Locale, string> = {
   nl: 'Terug',
   de: 'Zurück',
   fr: 'Retour',
+  ar: 'رجوع',
+  bn: 'ফিরে যান',
+  pt: 'Voltar',
+  ru: 'Назад',
+  id: 'Kembali',
+  vi: 'Quay lại',
 };
 
-function resolveInitialLocale(): Locale {
+function resolveInitialLocale(): SupportedLocale {
   const saved = window.localStorage.getItem(LANGUAGE_STORAGE_KEY);
   return isLocale(saved)
     ? saved
@@ -44,7 +52,7 @@ export function LocalizedLegalPage({
 }: {
   kind: LegalDocumentKind;
 }) {
-  const [locale, setLocale] = useState<Locale>('en');
+  const [locale, setLocale] = useState<SupportedLocale>('en');
 
   useEffect(() => {
     const applyLocale = (value?: unknown) => {
@@ -53,6 +61,7 @@ export function LocalizedLegalPage({
         : resolveInitialLocale();
       setLocale(nextLocale);
       document.documentElement.lang = nextLocale;
+      document.documentElement.dir = getLocaleDirection(nextLocale);
     };
 
     applyLocale();
@@ -94,18 +103,20 @@ export function LocalizedLegalPage({
     window.location.assign('/');
   };
 
-  const copy = LEGAL_COPY[kind][locale];
+  const copy = LEGAL_COPY[kind][locale] ?? LEGAL_COPY[kind].en;
+  const backLabel = BACK_LABEL[locale];
+  const backArrow = getLocaleDirection(locale) === 'rtl' ? '→' : '←';
 
   return (
-    <main className="legalPage" lang={locale}>
+    <main className="legalPage" lang={locale} dir={getLocaleDirection(locale)}>
       <button
         type="button"
         className="legalBackTop"
         onClick={handleBack}
-        aria-label={BACK_LABEL[locale]}
+        aria-label={backLabel}
       >
-        <span aria-hidden="true">←</span>
-        {BACK_LABEL[locale]}
+        <span aria-hidden="true">{backArrow}</span>
+        {backLabel}
       </button>
 
       <header className="legalHeader">
@@ -132,7 +143,7 @@ export function LocalizedLegalPage({
           window.sessionStorage.removeItem(LEGAL_RETURN_STORAGE_KEY)
         }
       >
-        <span aria-hidden="true">←</span>
+        <span aria-hidden="true">{backArrow}</span>
         {copy.back}
       </Link>
 
@@ -218,47 +229,38 @@ export function LocalizedLegalPage({
         .legalSections p {
           margin:9px 0 0;
           color:#b7b2a8;
-          font-size:.9rem;
+          font-size:.91rem;
           line-height:1.82;
           text-wrap:pretty;
         }
         .legalBack {
-          width:fit-content;
-          min-height:44px;
-          margin-top:42px;
+          width:max-content;
+          max-width:100%;
+          min-height:46px;
+          margin-top:38px;
+          padding:0 14px;
           display:inline-flex;
           align-items:center;
           gap:8px;
+          border:1px solid rgba(244,183,40,.22);
+          border-radius:13px;
+          background:rgba(244,183,40,.07);
           color:#f4c85a;
-          font-size:.82rem;
+          font-size:.81rem;
           font-weight:850;
           text-decoration:none;
         }
-        .legalBack:hover {
-          text-decoration:underline;
-          text-underline-offset:4px;
+        .legalBack:hover,.legalBack:focus-visible {
+          border-color:rgba(244,183,40,.5);
+          outline:none;
+          box-shadow:0 0 0 3px rgba(244,183,40,.08);
         }
-        .legalPage :where(h1,h2,p,a,button) {
-          overflow-wrap:normal;
-          word-break:normal;
-          hyphens:none;
-        }
-        .legalPage:lang(ko) :where(h1,h2,p,a,button) {
-          word-break:keep-all;
-        }
-        .legalPage:lang(zh),
-        .legalPage:lang(ja) {
-          line-break:strict;
-        }
-        @media (max-width:480px) {
+        @media (max-width:560px) {
           .legalPage {
-            padding:20px 16px calc(58px + env(safe-area-inset-bottom));
+            padding:20px 16px 58px;
           }
           .legalHeader {
             margin-top:20px;
-          }
-          .legalSections {
-            gap:24px;
           }
         }
       `}</style>
