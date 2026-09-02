@@ -7,6 +7,7 @@ import {
   useRef,
   useState,
 } from 'react';
+import { useGetAvatarOfAddress } from '@vechain/vechain-kit';
 
 import { LEADERBOARD_COPY } from '@/lib/i18n/leaderboardCopy';
 import type { Locale } from '@/lib/i18n/locales';
@@ -17,9 +18,16 @@ import type {
 import { getVeChainExplorerAddressUrl } from '@/lib/vechainExplorer';
 
 const PUBLIC_RANK_LIMIT = 100;
+const WALLET_PREFIX_LENGTH = 5;
+const WALLET_SUFFIX_LENGTH = 3;
+const FIXED_RANKS = [1, 2, 3, 4, 5] as const;
+const SCROLLABLE_RANKS = Array.from(
+  { length: PUBLIC_RANK_LIMIT - FIXED_RANKS.length },
+  (_, index) => index + FIXED_RANKS.length + 1,
+);
 
 function maskWallet(address: string): string {
-  return `${address.slice(0, 6)}···${address.slice(-4)}`;
+  return `${address.slice(0, WALLET_PREFIX_LENGTH)}…${address.slice(-WALLET_SUFFIX_LENGTH)}`;
 }
 
 function formatRewardWei(value: string): string {
@@ -38,6 +46,61 @@ function rankLabel(rank: number): string {
   if (rank === 2) return '🥈';
   if (rank === 3) return '🥉';
   return `#${rank}`;
+}
+
+function WalletAvatar({ address }: { address: string }) {
+  const avatarHostRef = useRef<HTMLSpanElement | null>(null);
+  const [shouldLoad, setShouldLoad] = useState(false);
+  const [imageFailed, setImageFailed] = useState(false);
+  const { data: avatarUrl } = useGetAvatarOfAddress(
+    shouldLoad ? address : undefined,
+  );
+
+  useEffect(() => {
+    const node = avatarHostRef.current;
+    if (!node) return;
+
+    if (typeof IntersectionObserver === 'undefined') {
+      setShouldLoad(true);
+      return;
+    }
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries.some((entry) => entry.isIntersecting)) {
+          setShouldLoad(true);
+          observer.disconnect();
+        }
+      },
+      { rootMargin: '120px' },
+    );
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, []);
+
+  useEffect(() => {
+    setImageFailed(false);
+  }, [avatarUrl]);
+
+  return (
+    <span ref={avatarHostRef} className="walletAvatar" aria-hidden="true">
+      {avatarUrl && !imageFailed ? (
+        <img
+          src={avatarUrl}
+          alt=""
+          loading="lazy"
+          onError={() => setImageFailed(true)}
+          style={{
+            width: '100%',
+            height: '100%',
+            display: 'block',
+            objectFit: 'cover',
+            borderRadius: 'inherit',
+          }}
+        />
+      ) : null}
+    </span>
+  );
 }
 
 export function PublicLeaderboard({
@@ -186,12 +249,28 @@ export function PublicLeaderboard({
           isCurrentWallet: true,
         }
       : null);
+  const leadersByRank = useMemo(() => {
+    const map = new Map<number, PublicLeaderboardEntry>();
+    for (const entry of displayedLeaders) {
+      if (entry.rank >= 1 && entry.rank <= PUBLIC_RANK_LIMIT) {
+        map.set(entry.rank, entry);
+      }
+    }
+    if (
+      rankedCurrentUser &&
+      rankedCurrentUser.rank >= 1 &&
+      rankedCurrentUser.rank <= PUBLIC_RANK_LIMIT &&
+      !map.has(rankedCurrentUser.rank)
+    ) {
+      map.set(rankedCurrentUser.rank, rankedCurrentUser);
+    }
+    return map;
+  }, [displayedLeaders, rankedCurrentUser]);
   const currentUserInList = currentUser
-    ? displayedLeaders.some(
-        (entry) =>
-          entry.walletAddress.toLowerCase() ===
-          currentUser.walletAddress.toLowerCase(),
-      )
+    ? currentUser.rank >= 1 &&
+      currentUser.rank <= PUBLIC_RANK_LIMIT &&
+      leadersByRank.get(currentUser.rank)?.walletAddress.toLowerCase() ===
+        currentUser.walletAddress.toLowerCase()
     : false;
   const trailingCurrentUser =
     currentUser && !currentUserInList ? currentUser : null;
@@ -224,7 +303,7 @@ export function PublicLeaderboard({
           {rankLabel(entry.rank)}
         </strong>
         <span className="walletCell">
-          <span className="walletAvatar" aria-hidden="true" />
+          <WalletAvatar address={entry.walletAddress} />
           <span className="walletText">
             {maskWallet(entry.walletAddress)}
           </span>
@@ -237,6 +316,30 @@ export function PublicLeaderboard({
         </span>
       </button>
     );
+  };
+
+  const renderPlaceholderRow = (rank: number) => (
+    <div
+      key={`rank-placeholder-${rank}`}
+      className={`rankRow placeholderRow ${rank <= 5 ? 'featured' : 'compact'}`}
+      aria-hidden="true"
+    >
+      <strong className="rankValue">{rankLabel(rank)}</strong>
+      <span className="walletCell">
+        <span className="walletText">—</span>
+      </span>
+      <span className="rankMetric completedMetric">
+        <b>—</b>
+      </span>
+      <span className="rankMetric rewardMetric">
+        <b>—</b>
+      </span>
+    </div>
+  );
+
+  const renderSlot = (rank: number) => {
+    const entry = leadersByRank.get(rank);
+    return entry ? renderRankRow(entry) : renderPlaceholderRow(rank);
   };
 
   if (loading && !data) {
@@ -291,23 +394,24 @@ export function PublicLeaderboard({
           <span>{t.earned}</span>
         </div>
 
-        {displayedLeaders.length || trailingCurrentUser ? (
+        <div className="rows topRows">
+          {FIXED_RANKS.map((rank) => renderSlot(rank))}
+        </div>
+
+        <div className="rankScroll" aria-label={`6-${PUBLIC_RANK_LIMIT}`}>
           <div className="rows">
-            {displayedLeaders.map((entry) => renderRankRow(entry))}
-            {trailingCurrentUser ? (
-              <>
-                {displayedLeaders.length ? (
-                  <div className="rankDivider" aria-hidden="true">
-                    <span>···</span>
-                  </div>
-                ) : null}
-                {renderRankRow(trailingCurrentUser, true)}
-              </>
-            ) : null}
+            {SCROLLABLE_RANKS.map((rank) => renderSlot(rank))}
           </div>
-        ) : (
-          <p className="empty">{t.empty}</p>
-        )}
+        </div>
+
+        {trailingCurrentUser ? (
+          <>
+            <div className="rankDivider" aria-hidden="true">
+              <span>···</span>
+            </div>
+            {renderRankRow(trailingCurrentUser, true)}
+          </>
+        ) : null}
 
         {!wallet ? (
           <p className="rankContextNote">{t.connectForRank}</p>
@@ -535,6 +639,29 @@ export function PublicLeaderboard({
           display:grid;
           gap:0;
         }
+        .topRows {
+          padding-top:8px;
+        }
+        .rankScroll {
+          width:100%;
+          max-height:320px;
+          overflow-y:auto;
+          overscroll-behavior:contain;
+          scrollbar-gutter:stable;
+          scrollbar-width:thin;
+          scrollbar-color:rgba(244,183,40,.45) transparent;
+          border-top:1px solid rgba(255,205,80,.08);
+        }
+        .rankScroll::-webkit-scrollbar {
+          width:5px;
+        }
+        .rankScroll::-webkit-scrollbar-track {
+          background:transparent;
+        }
+        .rankScroll::-webkit-scrollbar-thumb {
+          border-radius:999px;
+          background:rgba(244,183,40,.45);
+        }
         .rankRow {
           min-height:62px;
           padding:0 12px;
@@ -545,6 +672,17 @@ export function PublicLeaderboard({
           color:#e9e5dc;
           font:inherit;
           cursor:pointer;
+        }
+        .placeholderRow {
+          cursor:default;
+        }
+        .placeholderRow:hover {
+          background:transparent;
+        }
+        .placeholderRow .walletText,
+        .placeholderRow .rankMetric b {
+          color:#68645d;
+          font-weight:700;
         }
         .rankRow.featured {
           min-height:68px;
@@ -597,6 +735,7 @@ export function PublicLeaderboard({
           flex:0 0 22px;
           width:22px;
           height:22px;
+          overflow:hidden;
           border:1px solid rgba(255,205,80,.22);
           border-radius:50%;
           background:
@@ -637,7 +776,7 @@ export function PublicLeaderboard({
           display:flex;
           align-items:center;
           gap:10px;
-          padding:7px 4px;
+          padding:11px 4px 7px;
           color:#6f6a61;
           font-size:.85rem;
           letter-spacing:.18em;
@@ -813,6 +952,9 @@ export function PublicLeaderboard({
             flex-basis:18px;
             width:18px;
             height:18px;
+          }
+          .rankScroll {
+            max-height:297px;
           }
           .impactBreakdown {
             grid-template-columns:1fr;
