@@ -32,7 +32,7 @@ test('latest ineligible-invite notification stays explicitly translated for all 
 
   assert.match(
     ineligibleCopy,
-    /The friend you invited does not currently meet VeInvite participation requirements/,
+    /Your friend does not currently meet VeInvite participation requirements, so this invite has ended/,
   );
   assert.doesNotMatch(
     ineligibleCopy,
