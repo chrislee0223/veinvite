@@ -13,7 +13,7 @@ if (!/useVeChainKitConfig/.test(provider) || !/VeChainLanguageSync/.test(provide
   failures.push('VeInvite language changes must use VeChain Kit runtime language synchronization inside the existing provider.');
 }
 
-if (!/language=\{initialLanguage\}/.test(provider)) {
+if (!/language=\{initialLanguage as never\}/.test(provider)) {
   failures.push('VeChain Kit must receive an initialization-only language prop instead of a live parent language state.');
 }
 
@@ -28,8 +28,12 @@ for (const stableConfig of ['dappKit', 'loginMethods', 'network', 'theme']) {
   }
 }
 
-if (!/veinvite-language-change/.test(provider) || !/setKitLanguage\(nextLanguage\)/.test(provider)) {
-  failures.push('The locale event must update VeChain Kit in place without touching wallet connection state.');
+if (!/veinvite-language-change/.test(provider) || !/resolveVeChainKitLanguage/.test(provider) || !/setKitLanguage\(kitLanguage as never\)/.test(provider)) {
+  failures.push('The locale event must update VeChain Kit in place through a supported wallet-language mapping without touching wallet connection state.');
+}
+
+if (!/VECHAIN_KIT_LANGUAGES/.test(provider) || !/return VECHAIN_KIT_LANGUAGES\.has\(locale\)[\s\S]*:\s*['"]en['"]/.test(provider)) {
+  failures.push('App-only locales must fall back safely instead of sending an unsupported language into the live wallet provider.');
 }
 
 if (!/window\.localStorage\.setItem\(LANGUAGE_STORAGE_KEY, nextLocale\)/.test(home) || !/veinvite-language-change/.test(home)) {
