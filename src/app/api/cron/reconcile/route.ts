@@ -73,6 +73,7 @@ type CronStageFailure =
   | 'RECONCILIATION'
   | 'AUTOMATIC_REWARD_PAYOUT'
   | 'ROUND_GROWTH_REPORTING'
+  | 'HOUSEKEEPING'
   | 'MONITORING';
 
 function logStageFailure(
@@ -101,8 +102,9 @@ function logStageFailure(
  * failure must not prevent invitation reconciliation or anomaly monitoring.
  * Growth reporting is the exception: it runs only after reconciliation has
  * succeeded so a partially refreshed evidence set cannot be snapshotted as a
- * completed reporting round. Any core-stage failure still returns HTTP 500 so
- * the deployment remains visibly unhealthy even when later stages complete.
+ * completed reporting round. Any scheduled-stage failure still returns HTTP
+ * 500 after later independent stages finish, so cleanup/retention failures are
+ * visible to operations without blocking reward or evidence work.
  */
 export async function GET(
   request: NextRequest,
@@ -191,12 +193,12 @@ export async function GET(
     housekeeping =
       await cleanupEphemeralSecurityState();
   } catch (cleanupError) {
-    // Housekeeping is deliberately best-effort. A cleanup failure must not
-    // block evidence reconciliation, allocation sync, or anomaly monitoring.
-    console.warn(
-      'VeInvite ephemeral housekeeping failed:',
-      cleanupError,
-    );
+    // Cleanup remains non-blocking for later stages, but failed auth/rate-limit
+    // cleanup or analytics retention must make the scheduled run visibly
+    // unhealthy so the operator can investigate instead of silently retaining
+    // stale runtime or raw analytics data beyond policy.
+    failedStages.push('HOUSEKEEPING');
+    logStageFailure('HOUSEKEEPING', cleanupError);
   }
 
   try {
@@ -235,7 +237,7 @@ export async function GET(
     );
   }
 
-  const hasCoreFailure =
+  const hasStageFailure =
     failedStages.length > 0;
 
   return NextResponse.json(
@@ -271,11 +273,11 @@ export async function GET(
           }
         : null,
       trigger: 'VERCEL_CRON',
-      partialFailure: hasCoreFailure,
+      partialFailure: hasStageFailure,
       failedStages,
     },
     {
-      status: hasCoreFailure ? 500 : 200,
+      status: hasStageFailure ? 500 : 200,
       headers: {
         'Cache-Control': 'no-store',
       },
