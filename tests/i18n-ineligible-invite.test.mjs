@@ -38,3 +38,19 @@ test('ineligible inviter copy includes both a title and explanation for every lo
     assert.match(block, /body:\s*'[^']+'/u);
   }
 });
+
+test('ineligible inviter explanations stay concise enough for notification UI', () => {
+  const bodies = Array.from(
+    copySource.matchAll(/body:\s*'([^']+)'/gu),
+    (match) => match[1],
+  );
+
+  assert.equal(bodies.length, supportedLocales.length);
+
+  for (const body of bodies) {
+    assert.ok(
+      Array.from(body).length <= 140,
+      `ineligible notification body is too long (${Array.from(body).length} characters): ${body}`,
+    );
+  }
+});
