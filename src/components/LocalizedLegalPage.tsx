@@ -10,6 +10,7 @@ import {
   LEGAL_COPY,
   type LegalDocumentKind,
 } from '@/lib/i18n/legalCopy';
+import { PRIVACY_USAGE_ANALYTICS_COPY } from '@/lib/i18n/privacyUsageAnalyticsCopy';
 import {
   LANGUAGE_STORAGE_KEY,
   getLocaleDirection,
@@ -85,6 +86,8 @@ export function LocalizedLegalPage({
   };
 
   const copy = LEGAL_COPY[kind][locale] ?? LEGAL_COPY[kind].en;
+  const usageAnalyticsCopy =
+    kind === 'privacy' ? PRIVACY_USAGE_ANALYTICS_COPY[locale] : null;
   const backLabel = LEGAL_BACK_LABEL[locale];
   const backArrow = getLocaleDirection(locale) === 'rtl' ? '→' : '←';
 
@@ -103,7 +106,7 @@ export function LocalizedLegalPage({
       <header className="legalHeader">
         <span>{copy.eyebrow}</span>
         <h1>{copy.title}</h1>
-        <p>{copy.updated}</p>
+        <p>{usageAnalyticsCopy?.updated ?? copy.updated}</p>
       </header>
 
       <p className="legalIntro">{copy.intro}</p>
@@ -115,6 +118,12 @@ export function LocalizedLegalPage({
             <p>{section.body}</p>
           </section>
         ))}
+        {usageAnalyticsCopy ? (
+          <section key="usage-analytics-privacy">
+            <h2>{usageAnalyticsCopy.heading}</h2>
+            <p>{usageAnalyticsCopy.body}</p>
+          </section>
+        ) : null}
       </div>
 
       <Link

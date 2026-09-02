@@ -25,6 +25,14 @@ function preloadTabModule(tab: AppTab) {
   return Promise.resolve();
 }
 
+function reportAnalyticsView(tab: AppTab) {
+  window.dispatchEvent(
+    new CustomEvent('veinvite-analytics-view', {
+      detail: tab,
+    }),
+  );
+}
+
 export function AppBottomNavigation({
   activeTab,
   locale,
@@ -84,6 +92,7 @@ export function AppBottomNavigation({
     startTransition(() => {
       onChange(tab);
     });
+    reportAnalyticsView(tab);
   };
 
   const selectTab = (tab: AppTab) => {
