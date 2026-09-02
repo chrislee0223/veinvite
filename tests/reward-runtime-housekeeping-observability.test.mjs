@@ -25,8 +25,8 @@ test('scheduled housekeeping failure is visible without skipping later monitorin
   assert.ok(housekeepingIndex >= 0);
   assert.ok(monitoringIndex > housekeepingIndex);
 
-  assert.match(cronRoute, /status: hasStageFailure \? 500 : 200/);
-  assert.match(cronRoute, /partialFailure: hasStageFailure/);
+  assert.match(cronRoute, /status: hasCoreFailure \? 500 : 200/);
+  assert.match(cronRoute, /partialFailure: hasCoreFailure/);
 });
 
 test('analytics optimization stays isolated from reward and referral tables', () => {
