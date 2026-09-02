@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 
 import { NAV_COPY } from '@/lib/i18n/navCopy';
 import type { Locale } from '@/lib/i18n/locales';
@@ -10,6 +10,20 @@ import { useActiveWallet } from './WalletControl';
 export type AppTab = 'home' | 'guide' | 'leaderboard' | 'settings';
 
 const TABS: AppTab[] = ['home', 'guide', 'leaderboard', 'settings'];
+const LAZY_TABS: AppTab[] = ['guide', 'leaderboard', 'settings'];
+
+function preloadTabModule(tab: AppTab) {
+  if (tab === 'guide') {
+    return import('./AppGuide');
+  }
+  if (tab === 'leaderboard') {
+    return import('./PublicLeaderboard');
+  }
+  if (tab === 'settings') {
+    return import('./AppSettings');
+  }
+  return Promise.resolve();
+}
 
 export function AppBottomNavigation({
   activeTab,
@@ -22,25 +36,65 @@ export function AppBottomNavigation({
 }) {
   const labels = NAV_COPY[locale];
   const wallet = useActiveWallet();
+  const navigationRequestRef = useRef(0);
 
   useEffect(() => {
     let cancelled = false;
-    const timer = window.setTimeout(() => {
-      if (cancelled) return;
 
-      void import('./PublicLeaderboard').catch(() => undefined);
+    // Warm every lazy tab immediately after the first stable paint. HomeClient
+    // keeps these views code-split, but a first tap should never temporarily
+    // remove the current view while its JavaScript chunk is still downloading.
+    const moduleTimer = window.setTimeout(() => {
+      if (cancelled) return;
+      void Promise.allSettled(
+        LAZY_TABS.map((tab) => preloadTabModule(tab)),
+      );
+    }, 0);
+
+    // Keep the existing leaderboard data warm-up slightly deferred so startup
+    // network work does not compete with the initial Home experience.
+    const leaderboardTimer = window.setTimeout(() => {
+      if (cancelled) return;
       void prefetchPublicLeaderboard(wallet).catch(() => undefined);
     }, 450);
 
     return () => {
       cancelled = true;
-      window.clearTimeout(timer);
+      window.clearTimeout(moduleTimer);
+      window.clearTimeout(leaderboardTimer);
     };
   }, [wallet]);
 
-  const warmLeaderboard = () => {
-    void import('./PublicLeaderboard').catch(() => undefined);
-    void prefetchPublicLeaderboard(wallet).catch(() => undefined);
+  const warmTab = (tab: AppTab) => {
+    void preloadTabModule(tab).catch(() => undefined);
+    if (tab === 'leaderboard') {
+      void prefetchPublicLeaderboard(wallet).catch(() => undefined);
+    }
+  };
+
+  const selectTab = (tab: AppTab) => {
+    const requestId = ++navigationRequestRef.current;
+
+    if (tab === activeTab) return;
+    if (tab === 'home') {
+      onChange(tab);
+      return;
+    }
+
+    // If the user taps before the background warm-up has finished, keep the
+    // current tab rendered until the target module is ready. This removes the
+    // one-frame black/empty surface that only occurred on first navigation.
+    void preloadTabModule(tab)
+      .then(() => {
+        if (navigationRequestRef.current === requestId) {
+          onChange(tab);
+        }
+      })
+      .catch(() => {
+        if (navigationRequestRef.current === requestId) {
+          onChange(tab);
+        }
+      });
   };
 
   return (
@@ -53,10 +107,10 @@ export function AppBottomNavigation({
             data-veinvite-tab={tab}
             className={activeTab === tab ? 'active' : ''}
             aria-current={activeTab === tab ? 'page' : undefined}
-            onPointerEnter={tab === 'leaderboard' ? warmLeaderboard : undefined}
-            onFocus={tab === 'leaderboard' ? warmLeaderboard : undefined}
-            onPointerDown={tab === 'leaderboard' ? warmLeaderboard : undefined}
-            onClick={() => onChange(tab)}
+            onPointerEnter={tab === 'home' ? undefined : () => warmTab(tab)}
+            onFocus={tab === 'home' ? undefined : () => warmTab(tab)}
+            onPointerDown={tab === 'home' ? undefined : () => warmTab(tab)}
+            onClick={() => selectTab(tab)}
           >
             <NavIcon name={tab} />
             <span>{labels[tab]}</span>
