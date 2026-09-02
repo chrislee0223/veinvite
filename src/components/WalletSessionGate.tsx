@@ -33,8 +33,8 @@ type VerificationState =
   | 'verified'
   | 'error';
 
-const SESSION_CHECK_SURFACE_DELAY_MS = 1_500;
-const PASSIVE_DISCONNECT_GRACE_MS = 4_000;
+const SESSION_CHECK_SURFACE_DELAY_MS = 3_000;
+const PASSIVE_DISCONNECT_GRACE_MS = 8_000;
 
 function initialLocale(): Locale {
   if (typeof window === 'undefined') {
