@@ -11,8 +11,8 @@ import {
 
 const SET_LANGUAGE_INTENT =
   'SET_WALLET_LANGUAGE_PREFERENCE';
-const SESSION_RETRY_MS = 400;
-const SESSION_RETRY_LIMIT = 30;
+const WALLET_SESSION_READY_EVENT =
+  'veinvite-wallet-session-ready';
 
 type PreferenceResponse = {
   language?: unknown;
@@ -23,12 +23,6 @@ type SessionResponse = {
   authenticated?: boolean;
   walletAddress?: string;
 };
-
-function wait(milliseconds: number) {
-  return new Promise<void>((resolve) => {
-    window.setTimeout(resolve, milliseconds);
-  });
-}
 
 async function saveLanguage(
   language: Locale,
@@ -73,46 +67,6 @@ function applyLanguage(
   );
 }
 
-async function waitForWalletSession(
-  walletAddress: string,
-  isCancelled: () => boolean,
-): Promise<boolean> {
-  for (
-    let attempt = 0;
-    attempt < SESSION_RETRY_LIMIT;
-    attempt += 1
-  ) {
-    if (isCancelled()) {
-      return false;
-    }
-
-    try {
-      const response = await fetch(
-        '/api/auth/session',
-        { cache: 'no-store' },
-      );
-      const body =
-        (await response.json()) as SessionResponse;
-      const sessionWallet =
-        body.walletAddress?.toLowerCase();
-
-      if (
-        response.ok &&
-        body.authenticated === true &&
-        sessionWallet === walletAddress
-      ) {
-        return true;
-      }
-    } catch {
-      // Wallet verification may still be in progress. Retry below.
-    }
-
-    await wait(SESSION_RETRY_MS);
-  }
-
-  return false;
-}
-
 export function WalletLanguagePreferenceSync() {
   const { account } = useWallet();
   const walletAddress =
@@ -127,6 +81,7 @@ export function WalletLanguagePreferenceSync() {
     let applyingRemote = false;
     let changedAfterMount = false;
     let serverReady = false;
+    let syncStarted = false;
 
     const handleLanguageChange = (
       event: Event,
@@ -154,21 +109,12 @@ export function WalletLanguagePreferenceSync() {
       );
     };
 
-    window.addEventListener(
-      'veinvite-language-change',
-      handleLanguageChange,
-    );
-
-    const sync = async () => {
-      const sessionReady =
-        await waitForWalletSession(
-          walletAddress,
-          () => cancelled,
-        );
-
-      if (!sessionReady || cancelled) {
+    const syncPreference = async () => {
+      if (cancelled || syncStarted) {
         return;
       }
+
+      syncStarted = true;
 
       try {
         const response = await fetch(
@@ -227,13 +173,56 @@ export function WalletLanguagePreferenceSync() {
       }
     };
 
-    void sync();
+    const handleWalletSessionReady = () => {
+      void syncPreference();
+    };
+
+    window.addEventListener(
+      'veinvite-language-change',
+      handleLanguageChange,
+    );
+    window.addEventListener(
+      WALLET_SESSION_READY_EVENT,
+      handleWalletSessionReady,
+    );
+
+    // Cover the case where WalletSessionGate restored an existing cookie just
+    // before this sibling effect subscribed to the ready event. This is a
+    // single session lookup; a session still being established will notify us
+    // through WALLET_SESSION_READY_EVENT instead of being polled repeatedly.
+    void (async () => {
+      try {
+        const response = await fetch(
+          '/api/auth/session',
+          { cache: 'no-store' },
+        );
+        const body =
+          (await response.json()) as SessionResponse;
+        const sessionWallet =
+          body.walletAddress?.toLowerCase();
+
+        if (
+          response.ok &&
+          body.authenticated === true &&
+          sessionWallet === walletAddress
+        ) {
+          await syncPreference();
+        }
+      } catch {
+        // Wallet verification may still be in progress. WalletSessionGate will
+        // publish the ready event after verification succeeds.
+      }
+    })();
 
     return () => {
       cancelled = true;
       window.removeEventListener(
         'veinvite-language-change',
         handleLanguageChange,
+      );
+      window.removeEventListener(
+        WALLET_SESSION_READY_EVENT,
+        handleWalletSessionReady,
       );
     };
   }, [walletAddress]);
