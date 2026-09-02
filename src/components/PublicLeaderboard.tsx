@@ -20,10 +20,9 @@ import { getVeChainExplorerAddressUrl } from '@/lib/vechainExplorer';
 const PUBLIC_RANK_LIMIT = 100;
 const WALLET_PREFIX_LENGTH = 5;
 const WALLET_SUFFIX_LENGTH = 3;
-const FIXED_RANKS = [1, 2, 3, 4, 5] as const;
-const SCROLLABLE_RANKS = Array.from(
-  { length: PUBLIC_RANK_LIMIT - FIXED_RANKS.length },
-  (_, index) => index + FIXED_RANKS.length + 1,
+const RANK_SLOTS = Array.from(
+  { length: PUBLIC_RANK_LIMIT },
+  (_, index) => index + 1,
 );
 
 function maskWallet(address: string): string {
@@ -41,11 +40,7 @@ function formatRewardWei(value: string): string {
 }
 
 function rankLabel(rank: number): string {
-  if (rank <= 0) return '—';
-  if (rank === 1) return '🥇';
-  if (rank === 2) return '🥈';
-  if (rank === 3) return '🥉';
-  return `#${rank}`;
+  return rank <= 0 ? '—' : String(rank);
 }
 
 function WalletAvatar({ address }: { address: string }) {
@@ -394,20 +389,16 @@ export function PublicLeaderboard({
           <span>{t.earned}</span>
         </div>
 
-        <div className="rows topRows">
-          {FIXED_RANKS.map((rank) => renderSlot(rank))}
-        </div>
-
-        <div className="rankScroll" aria-label={`6-${PUBLIC_RANK_LIMIT}`}>
+        <div className="rankScroll" aria-label={`1-${PUBLIC_RANK_LIMIT}`}>
           <div className="rows">
-            {SCROLLABLE_RANKS.map((rank) => renderSlot(rank))}
+            {RANK_SLOTS.map((rank) => renderSlot(rank))}
           </div>
         </div>
 
         {trailingCurrentUser ? (
           <>
             <div className="rankDivider" aria-hidden="true">
-              <span>···</span>
+              <span>⋮</span>
             </div>
             {renderRankRow(trailingCurrentUser, true)}
           </>
@@ -606,6 +597,8 @@ export function PublicLeaderboard({
           --completed-column:86px;
           --reward-column:104px;
           --leaderboard-gap:10px;
+          --rank-row-height:50px;
+          padding:14px 14px 12px;
         }
         .tableHeader,.rankRow {
           width:100%;
@@ -621,8 +614,9 @@ export function PublicLeaderboard({
           box-sizing:border-box;
         }
         .tableHeader {
-          min-height:38px;
-          padding:0 12px 12px;
+          min-height:34px;
+          margin-bottom:8px;
+          padding:0 12px 9px;
           border-bottom:1px solid rgba(255,205,80,.09);
           color:#777269;
           font-size:.61rem;
@@ -639,18 +633,14 @@ export function PublicLeaderboard({
           display:grid;
           gap:0;
         }
-        .topRows {
-          padding-top:8px;
-        }
         .rankScroll {
           width:100%;
-          max-height:320px;
+          max-height:calc(var(--rank-row-height) * 5);
           overflow-y:auto;
           overscroll-behavior:contain;
           scrollbar-gutter:stable;
           scrollbar-width:thin;
           scrollbar-color:rgba(244,183,40,.45) transparent;
-          border-top:1px solid rgba(255,205,80,.08);
         }
         .rankScroll::-webkit-scrollbar {
           width:5px;
@@ -662,8 +652,10 @@ export function PublicLeaderboard({
           border-radius:999px;
           background:rgba(244,183,40,.45);
         }
-        .rankRow {
-          min-height:62px;
+        .rankRow,
+        .rankRow.featured,
+        .rankRow.compact {
+          min-height:var(--rank-row-height);
           padding:0 12px;
           border:0;
           border-bottom:1px solid rgba(255,255,255,.055);
@@ -684,14 +676,8 @@ export function PublicLeaderboard({
           color:#68645d;
           font-weight:700;
         }
-        .rankRow.featured {
-          min-height:68px;
-        }
-        .rankRow.compact {
-          min-height:58px;
-        }
         .rankRow.trailingCurrent {
-          min-height:72px;
+          min-height:54px;
         }
         .rankRow:hover,.rankRow:focus-visible {
           background:rgba(255,205,80,.045);
@@ -773,25 +759,23 @@ export function PublicLeaderboard({
           white-space:nowrap;
         }
         .rankDivider {
-          display:flex;
-          align-items:center;
-          gap:10px;
-          padding:11px 4px 7px;
-          color:#6f6a61;
-          font-size:.85rem;
-          letter-spacing:.18em;
+          min-height:28px;
+          display:grid;
+          place-items:center;
+          padding:3px 0 1px;
+          color:#7d786f;
+          font-size:1.2rem;
+          line-height:1;
+          letter-spacing:0;
         }
         .rankDivider::before,.rankDivider::after {
-          content:'';
-          height:1px;
-          flex:1;
-          background:rgba(255,255,255,.07);
+          display:none;
         }
         .rankContextNote,.empty {
-          margin:22px 0 2px;
+          margin:10px 0 0;
           color:#827e76;
-          font-size:.72rem;
-          line-height:1.5;
+          font-size:.7rem;
+          line-height:1.45;
           text-align:center;
         }
         .modalBackdrop {
@@ -924,22 +908,23 @@ export function PublicLeaderboard({
             --completed-column:62px;
             --reward-column:82px;
             --leaderboard-gap:5px;
+            --rank-row-height:46px;
+            padding:12px 12px 10px;
           }
           .tableHeader {
-            min-height:36px;
-            padding:0 8px 10px;
+            min-height:32px;
+            margin-bottom:6px;
+            padding:0 8px 8px;
             font-size:.52rem;
           }
-          .rankRow {
+          .rankRow,
+          .rankRow.featured,
+          .rankRow.compact {
             padding-left:8px;
             padding-right:8px;
           }
-          .rankRow.featured,
           .rankRow.trailingCurrent {
-            min-height:62px;
-          }
-          .rankRow.compact {
-            min-height:54px;
+            min-height:50px;
           }
           .rankValue,.rankMetric b {
             font-size:.65rem;
@@ -952,9 +937,6 @@ export function PublicLeaderboard({
             flex-basis:18px;
             width:18px;
             height:18px;
-          }
-          .rankScroll {
-            max-height:297px;
           }
           .impactBreakdown {
             grid-template-columns:1fr;
@@ -970,13 +952,16 @@ export function PublicLeaderboard({
             --completed-column:58px;
             --reward-column:76px;
             --leaderboard-gap:4px;
+            --rank-row-height:44px;
           }
           .tableHeader {
             padding-left:6px;
             padding-right:6px;
             font-size:.48rem;
           }
-          .rankRow {
+          .rankRow,
+          .rankRow.featured,
+          .rankRow.compact {
             padding-left:6px;
             padding-right:6px;
           }
