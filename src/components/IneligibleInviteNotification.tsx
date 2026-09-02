@@ -8,7 +8,6 @@ import {
 } from 'react';
 
 import { useWalletLauncher } from './WalletControl';
-import { HOME_COPY } from '@/lib/i18n/homeCopy';
 import { INELIGIBLE_INVITER_COPY } from '@/lib/i18n/ineligibleInviterCopy';
 import {
   isLocale,
@@ -53,7 +52,6 @@ export function IneligibleInviteNotification() {
   const copy =
     INELIGIBLE_INVITER_COPY[locale] ??
     INELIGIBLE_INVITER_COPY.en;
-  const homeCopy = HOME_COPY[locale] ?? HOME_COPY.en;
   const notificationCopy =
     NOTIFICATION_COPY[locale] ?? NOTIFICATION_COPY.en;
   const rtl = isRtlLocale(locale);
@@ -260,6 +258,7 @@ export function IneligibleInviteNotification() {
         aria-modal="true"
         aria-labelledby="ineligible-invite-title"
         aria-describedby="ineligible-invite-body"
+        lang={locale}
         dir={rtl ? 'rtl' : 'ltr'}
       >
         <button
@@ -295,7 +294,7 @@ export function IneligibleInviteNotification() {
           disabled={busy}
           onClick={() => void acknowledge()}
         >
-          {homeCopy.createNextInvite}
+          {notificationCopy.confirm}
         </button>
       </section>
 
