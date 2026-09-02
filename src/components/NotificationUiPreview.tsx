@@ -9,6 +9,7 @@ import {
   type InviteNotificationPayload,
 } from './InviteNotificationSurface';
 import { LANGUAGE_OPTIONS, type Locale } from '@/lib/i18n/locales';
+import { NOTIFICATION_COPY } from '@/lib/i18n/notificationCopy';
 
 type Scenario = {
   id: string;
@@ -79,7 +80,7 @@ export function NotificationUiPreview() {
                 unreadCount={enabled && unread ? 1 : 0}
                 open={open}
                 busy={mode === 'busy'}
-                errorMessage={mode === 'error' ? '테스트용 오류 메시지 · 실제 요청은 실행되지 않았어요.' : ''}
+                errorMessage={mode === 'error' ? NOTIFICATION_COPY[locale].acknowledgementError : ''}
                 onOpen={() => setOpen(true)}
                 onClose={() => {
                   if (mode === 'busy') return;
