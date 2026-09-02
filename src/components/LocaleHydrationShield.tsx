@@ -28,6 +28,9 @@ export function LocaleHydrationShield() {
       }
       released = true;
 
+      // Keep one stable painted frame between the final app-ready signal and
+      // removing the SSR-visible shield. This prevents a black/home flash while
+      // the wallet provider, session gate, and legal gate settle underneath it.
       firstFrame = window.requestAnimationFrame(() => {
         secondFrame = window.requestAnimationFrame(() => {
           setReady(true);
@@ -39,6 +42,9 @@ export function LocaleHydrationShield() {
       release();
     };
     const handleProviderReady = () => {
+      // Non-home informational routes do not use the wallet/session lifecycle,
+      // so provider readiness is sufficient there. The home route deliberately
+      // waits for WalletRuntimeLifecycle's stronger final readiness signal.
       if (!isHome) {
         release();
       }
@@ -67,6 +73,9 @@ export function LocaleHydrationShield() {
       );
     }
 
+    // Never trap the user behind the startup surface if a third-party wallet
+    // provider fails to initialize. The app's own recovery UI remains available
+    // after this bounded fallback.
     fallbackTimer = window.setTimeout(
       release,
       APP_READY_FALLBACK_MS,
