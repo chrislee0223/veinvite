@@ -10,7 +10,10 @@ import '@/lib/i18n/secondaryPageCopyHardening';
 import '@/lib/i18n/localePacks/registerExpandedLocales';
 import { HeaderLanguagePickerPortal } from './HeaderLanguagePickerPortal';
 import { LegalNavigationMemory } from './LegalNavigationMemory';
-import { PublicRewardForecastPortal } from './PublicRewardForecastPortal';
+import {
+  PublicRewardForecastPortal,
+  PublicRewardForecastWarmup,
+} from './PublicRewardForecastPortal';
 import { SecondaryPageLayoutPolish } from './SecondaryPageLayoutPolish';
 import { WalletLanguagePreferenceSync } from './WalletLanguagePreferenceSync';
 import { WalletRuntimeLifecycle } from './WalletRuntimeLifecycle';
@@ -65,6 +68,7 @@ export function AppProviders({
 }) {
   return (
     <ChakraProvider theme={theme}>
+      <PublicRewardForecastWarmup />
       <VeChainProvider>
         <ProviderReadySignal />
         <WalletRuntimeLifecycle />
