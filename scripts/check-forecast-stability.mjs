@@ -58,21 +58,76 @@ if (!/data\.rewardForecastPreview|rewardForecastPreview/.test(forecastPortal)) {
   );
 }
 
+const locales = [
+  'en', 'ko', 'zh', 'hi', 'es', 'ja',
+  'it', 'tr', 'nl', 'de', 'fr',
+];
+for (const locale of locales) {
+  if (!new RegExp(`\\b${locale}:\\s*\\{`).test(forecastPortal)) {
+    failures.push(
+      `Public reward forecast copy is incomplete for locale: ${locale}.`,
+    );
+  }
+}
+
 if (
-  !/हर सफल आमंत्रण पर अनुमानित इनाम/.test(forecastPortal) ||
-  !/招待成功1件あたりの予想報酬/.test(forecastPortal) ||
-  !/è temporaneamente non disponibile/.test(forecastPortal) ||
-  !/voldoende werkelijke toewijzingsgegevens/.test(forecastPortal) ||
-  !/ausreichend tatsächliche Zuteilungsdaten/.test(forecastPortal)
+  !/친구가 모든 미션을 완료하면 받을 수 있습니다/.test(forecastPortal) ||
+  !/आपके आमंत्रित मित्र के सभी मिशन पूरे करने पर आप यह इनाम पा सकते हैं/.test(forecastPortal) ||
+  !/招待した友だちがすべてのミッションを完了すると受け取れます/.test(forecastPortal) ||
+  !/Puoi riceverla quando l’amico che hai invitato completa tutte le missioni/.test(forecastPortal) ||
+  !/Je kunt deze ontvangen zodra de vriend die je hebt uitgenodigd alle missies voltooit/.test(forecastPortal) ||
+  !/Du kannst sie erhalten, sobald dein eingeladener Freund alle Missionen abgeschlossen hat/.test(forecastPortal)
 ) {
   failures.push(
-    'Public reward forecast copy regressed to previously reviewed awkward Hindi, Japanese, Italian, Dutch, or German wording.',
+    'Public reward forecast mission-completion wording regressed in one or more reviewed locales.',
   );
 }
 
 if (
-  /हर सफल आमंत्रण का अनुमान/.test(forecastPortal) ||
-  /招待成功1件あたりの予想'/.test(forecastPortal) ||
+  /If you start inviting now/.test(forecastPortal) ||
+  /지금 초대를 시작한다면/.test(forecastPortal) ||
+  /Estimated per successful invite/.test(forecastPortal) ||
+  /성공한 초대 1건 예상/.test(forecastPortal) ||
+  /招待成功1件あたり/.test(forecastPortal) ||
+  /हर सफल आमंत्रण पर/.test(forecastPortal)
+) {
+  failures.push(
+    'Public reward forecast must not imply that invite start time or a per-invite count is the reward basis.',
+  );
+}
+
+if (/estimateBadge/.test(forecastPortal)) {
+  failures.push(
+    'Public reward forecast must not restore the redundant top-right B3TR badge.',
+  );
+}
+
+if (/≈\s*\{formatRewardWei/.test(forecastPortal)) {
+  failures.push(
+    'Public reward forecast amount must not repeat estimate semantics with an approximation symbol.',
+  );
+}
+
+if (
+  !/hundredthWei\s*=\s*10n\s*\*\*\s*16n/.test(forecastPortal) ||
+  !/padStart\(2,\s*'0'\)/.test(forecastPortal)
+) {
+  failures.push(
+    'Public reward forecast display must keep two-decimal B3TR formatting without reducing internal precision.',
+  );
+}
+
+if (
+  !/overflow-wrap:break-word/.test(forecastPortal) ||
+  !/hyphens:auto/.test(forecastPortal) ||
+  !/@media \(max-width:340px\)/.test(forecastPortal)
+) {
+  failures.push(
+    'Public reward forecast must retain multilingual wrapping safeguards for narrow screens.',
+  );
+}
+
+if (
   /non è temporaneamente disponibile/.test(forecastPortal) ||
   /echte allocatiegegevens/.test(forecastPortal) ||
   /genügend echte Zuteilungsdaten/.test(forecastPortal)
