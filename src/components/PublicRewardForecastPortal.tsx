@@ -26,7 +26,9 @@ const PREVIEW_FORECAST: RewardForecastResponse = {
   estimatedRewardWei: '147740500000000000000',
 };
 
+const CLIENT_FORECAST_CACHE_MS = 15 * 60_000;
 let cachedForecast: RewardForecastResponse | null = null;
+let cachedForecastAt = 0;
 let inFlightForecast: Promise<RewardForecastResponse> | null = null;
 
 function formatRewardWei(value: string): string {
@@ -49,6 +51,13 @@ function formatRewardWei(value: string): string {
 }
 
 function requestForecast(): Promise<RewardForecastResponse> {
+  if (
+    cachedForecast &&
+    Date.now() - cachedForecastAt < CLIENT_FORECAST_CACHE_MS
+  ) {
+    return Promise.resolve(cachedForecast);
+  }
+
   if (inFlightForecast) return inFlightForecast;
 
   inFlightForecast = fetch('/api/rewards/estimate')
@@ -60,6 +69,7 @@ function requestForecast(): Promise<RewardForecastResponse> {
     })
     .then((result) => {
       cachedForecast = result;
+      cachedForecastAt = Date.now();
       return result;
     })
     .finally(() => {
