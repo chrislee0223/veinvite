@@ -5,15 +5,21 @@ import {
   useRef,
 } from 'react';
 
+import { INELIGIBLE_INVITER_COPY } from '@/lib/i18n/ineligibleInviterCopy';
 import { NOTIFICATION_COPY } from '@/lib/i18n/notificationCopy';
-import type { Locale } from '@/lib/i18n/locales';
+import {
+  isRtlLocale,
+  type Locale,
+  type SupportedLocale,
+} from '@/lib/i18n/locales';
 
 export type InviteNotificationKind =
   | 'INVITE_ACCEPTED'
   | 'DAPP_MISSION_COMPLETED'
   | 'VOT3_CONVERTED'
   | 'ALL_MISSIONS_COMPLETED'
-  | 'REWARD_PAID';
+  | 'REWARD_PAID'
+  | 'INVITE_INELIGIBLE';
 
 export type InviteNotificationPayload = {
   inviteCode: string;
@@ -48,6 +54,10 @@ function formatB3trWei(value: string): string {
 function notificationText(
   notification: InviteNotificationPayload,
   copy: (typeof NOTIFICATION_COPY)[Locale],
+  ineligibleCopy: {
+    title: string;
+    body: string;
+  },
 ) {
   switch (notification.kind) {
     case 'INVITE_ACCEPTED':
@@ -86,6 +96,12 @@ function notificationText(
         body: copy.rewardBody,
         hint: null,
       };
+    case 'INVITE_INELIGIBLE':
+      return {
+        title: ineligibleCopy.title,
+        body: ineligibleCopy.body,
+        hint: null,
+      };
   }
 }
 
@@ -110,6 +126,11 @@ export function InviteNotificationSurface({
 }) {
   const confirmRef = useRef<HTMLButtonElement | null>(null);
   const copy = NOTIFICATION_COPY[locale];
+  const supportedLocale = locale as SupportedLocale;
+  const ineligibleCopy =
+    INELIGIBLE_INVITER_COPY[supportedLocale] ??
+    INELIGIBLE_INVITER_COPY.en;
+  const rtl = isRtlLocale(supportedLocale);
 
   useEffect(() => {
     if (!open) {
@@ -136,7 +157,11 @@ export function InviteNotificationSurface({
   }, [open, onClose]);
 
   const text = notification
-    ? notificationText(notification, copy)
+    ? notificationText(
+        notification,
+        copy,
+        ineligibleCopy,
+      )
     : null;
   const isReward =
     notification?.kind === 'REWARD_PAID';
@@ -189,6 +214,8 @@ export function InviteNotificationSurface({
             aria-modal="true"
             aria-labelledby="invite-notification-title"
             aria-describedby="invite-notification-body"
+            lang={supportedLocale}
+            dir={rtl ? 'rtl' : 'ltr'}
           >
             <button
               type="button"
@@ -262,7 +289,7 @@ export function InviteNotificationSurface({
         .notificationBackdrop.rewardMode { align-items:center; }
         .notificationCard { position:relative; width:min(100%,520px); box-sizing:border-box; padding:28px 24px 24px; display:grid; justify-items:center; gap:17px; border:1px solid rgba(255,205,80,.24); border-radius:28px; background:linear-gradient(155deg,#211b10,#11110f 66%); color:#fff; text-align:center; box-shadow:0 32px 90px rgba(0,0,0,.58),inset 0 1px 0 rgba(255,255,255,.07); }
         .rewardCard { width:min(100%,410px); border-color:rgba(255,205,80,.4); background:radial-gradient(circle at 50% 16%,rgba(244,183,40,.18),transparent 36%),linear-gradient(155deg,#211a0c,#10100e 70%); box-shadow:0 32px 100px rgba(0,0,0,.64),0 0 45px rgba(244,183,40,.08),inset 0 1px 0 rgba(255,255,255,.08); }
-        .closeButton { position:absolute; top:13px; right:15px; width:34px; height:34px; display:grid; place-items:center; padding:0; border:0; background:transparent; color:#77736f; font:inherit; font-size:1.65rem; line-height:1; cursor:pointer; }
+        .closeButton { position:absolute; top:13px; inset-inline-end:15px; width:34px; height:34px; display:grid; place-items:center; padding:0; border:0; background:transparent; color:#77736f; font:inherit; font-size:1.65rem; line-height:1; cursor:pointer; }
         .closeButton:disabled,.confirmButton:disabled { opacity:.5; cursor:not-allowed; }
         .stageIcon { width:62px; height:62px; display:grid; place-items:center; border-radius:20px; }
         .stage1 { background:rgba(163,113,255,.15); color:#b58aff; }
@@ -270,6 +297,7 @@ export function InviteNotificationSurface({
         .stage3 { background:rgba(62,215,142,.14); color:#75efb8; }
         .stage4 { background:rgba(244,183,40,.15); color:#ffd04a; }
         .stage5 { background:rgba(244,183,40,.18); color:#ffd04a; box-shadow:0 0 30px rgba(244,183,40,.11); }
+        .stage6 { background:rgba(244,183,40,.15); color:#ffd04a; }
         .notificationCopy { min-width:0; width:100%; }
         .notificationCopy h2 { margin:0; color:#fff; font-size:1.25rem; line-height:1.25; letter-spacing:-.025em; overflow-wrap:anywhere; }
         .notificationCopy p { margin:9px auto 0; max-width:390px; color:#b5b0ba; font-size:.88rem; font-weight:650; line-height:1.55; overflow-wrap:anywhere; }
@@ -322,6 +350,14 @@ function StageIcon({
 }: {
   kind: InviteNotificationKind;
 }) {
+  if (kind === 'INVITE_INELIGIBLE') {
+    return (
+      <svg width="34" height="34" viewBox="0 0 36 36" fill="none" aria-hidden="true">
+        <path d="M9 11h15m0 0-4-4m4 4-4 4M27 25H12m0 0 4 4m-4-4 4-4" stroke="currentColor" strokeWidth="2.8" strokeLinecap="round" strokeLinejoin="round" />
+      </svg>
+    );
+  }
+
   if (kind === 'DAPP_MISSION_COMPLETED') {
     return (
       <svg width="31" height="31" viewBox="0 0 32 32" fill="currentColor" aria-hidden="true">

@@ -58,6 +58,16 @@ type ClaimRpcResult = {
   updated_at?: string;
 };
 
+type RejectRpcResult = {
+  result?:
+    | 'REJECTED'
+    | 'NOT_FOUND'
+    | 'CANCELLED'
+    | 'ALREADY_USED'
+    | 'SELF_REFERRAL'
+    | 'ALREADY_REFERRED';
+};
+
 const invitationColumns = `
   invite_code,
   inviter_wallet,
@@ -186,7 +196,7 @@ async function recordRejectedEntryCheck({
   inviteCode: string;
   walletAddress: string;
   entryCheck: EntryEligibilityResult;
-}) {
+}): Promise<RejectRpcResult | null> {
   const rewardEvidence =
     entryCheck.recentRewardEvent ??
     entryCheck.priorRewardEvent;
@@ -194,38 +204,40 @@ async function recordRejectedEntryCheck({
     entryCheck.recentVoteEvent ??
     entryCheck.priorVoteEvent;
 
-  const { error } = await supabaseAdmin
-    .from('eligibility_check_events')
-    .insert({
-      invite_code: inviteCode,
-      wallet_address: walletAddress,
-      network: entryCheck.network,
-      checked_block:
+  const { data, error } = await supabaseAdmin.rpc(
+    'reject_invitation_with_entry_proof',
+    {
+      p_invite_code: inviteCode,
+      p_wallet_address: walletAddress,
+      p_network: entryCheck.network,
+      p_checked_block:
         entryCheck.checkedBlock,
-      outcome: 'EXISTING_VEBETTER_USER',
-      entry_class: 'ACTIVE_EXISTING',
-      prior_reward_tx_id:
+      p_prior_reward_tx_id:
         rewardEvidence?.txId ?? null,
-      prior_vote_tx_id:
+      p_prior_vote_tx_id:
         voteEvidence?.txId ?? null,
-      details:
+      p_details:
         buildEntryCheckDetails(
           entryCheck,
         ),
-    });
+    },
+  );
 
   if (error) {
-    // Rejected attempts do not consume the invite even if this audit append
-    // fails. Log loudly so the operator can investigate data-quality health.
+    // The RPC owns both the immutable rejection evidence and the invitation
+    // terminal transition. Any database error rolls the whole operation back.
     console.error(
-      'Failed to record rejected VeBetter entry check:',
+      'Failed to atomically persist rejected VeBetter entry check:',
       error,
     );
+    return null;
   }
+
+  return data as RejectRpcResult | null;
 }
 
 function claimConflictResponse(
-  result: ClaimRpcResult['result'],
+  result: ClaimRpcResult['result'] | RejectRpcResult['result'],
 ) {
   switch (result) {
     case 'NOT_FOUND':
@@ -528,11 +540,35 @@ export async function POST(
     entryCheck.entryClass ===
     'active_existing_user'
   ) {
-    await recordRejectedEntryCheck({
-      inviteCode: normalizedCode,
-      walletAddress: inviteeAddress,
-      entryCheck,
-    });
+    const rejectionResult =
+      await recordRejectedEntryCheck({
+        inviteCode: normalizedCode,
+        walletAddress: inviteeAddress,
+        entryCheck,
+      });
+
+    if (!rejectionResult) {
+      return NextResponse.json(
+        {
+          outcome:
+            'eligibility_record_failed',
+          error:
+            'The eligibility result could not be saved. The invite was not used. Please try again.',
+        },
+        {
+          status: 503,
+          headers: {
+            'Retry-After': '10',
+          },
+        },
+      );
+    }
+
+    if (rejectionResult.result !== 'REJECTED') {
+      return claimConflictResponse(
+        rejectionResult.result,
+      );
+    }
 
     return NextResponse.json(
       {

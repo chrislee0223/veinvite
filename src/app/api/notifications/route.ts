@@ -32,7 +32,9 @@ const invitationColumns = `
   vote_completed_at,
   reward_status,
   eligibility_check_id,
-  activation_network
+  activation_network,
+  ineligibility_check_id,
+  ineligible_at
 ` as const;
 
 type InvitationRow = InviteNotificationSource & {
@@ -172,9 +174,14 @@ export async function GET(request: NextRequest) {
     const inviteCodes = invitations.map(
       (invitation) => invitation.invite_code,
     );
+    const paidInviteCodes = invitations
+      .filter(
+        (invitation) => invitation.reward_status === 'PAID',
+      )
+      .map((invitation) => invitation.invite_code);
 
     const [paidRewards, stateResult] = await Promise.all([
-      loadPaidRewards(inviteCodes),
+      loadPaidRewards(paidInviteCodes),
       inviteCodes.length > 0
         ? supabaseAdmin
             .from('invite_notification_state')
@@ -280,7 +287,7 @@ export async function POST(request: NextRequest) {
     !INVITE_CODE_PATTERN.test(inviteCode) ||
     !Number.isInteger(stage) ||
     stage < INVITE_NOTIFICATION_STAGE.accepted ||
-    stage > INVITE_NOTIFICATION_STAGE.rewardPaid
+    stage > INVITE_NOTIFICATION_STAGE.ineligible
   ) {
     return noStoreJson(
       { error: 'Invalid notification acknowledgement.' },
@@ -339,9 +346,10 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const paidRewards = await loadPaidRewards([
-      inviteCode,
-    ]);
+    const paidRewards =
+      invitation.reward_status === 'PAID'
+        ? await loadPaidRewards([inviteCode])
+        : new Map<string, PaidRewardEvidence>();
     const current = deriveInviteNotification(
       invitation,
       paidRewards.get(inviteCode) ?? null,
