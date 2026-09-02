@@ -11,6 +11,11 @@ import { useGetAvatarOfAddress } from '@vechain/vechain-kit';
 
 import { LEADERBOARD_COPY } from '@/lib/i18n/leaderboardCopy';
 import type { Locale } from '@/lib/i18n/locales';
+import {
+  getCachedPublicLeaderboard,
+  getPublicLeaderboardCacheKey,
+  loadPublicLeaderboard,
+} from '@/lib/leaderboardClientCache';
 import type {
   PublicLeaderboardEntry,
   PublicLeaderboardResponse,
@@ -107,11 +112,22 @@ export function PublicLeaderboard({
   wallet: string | null;
   previewData?: PublicLeaderboardResponse;
 }) {
-  const [data, setData] = useState<PublicLeaderboardResponse | null>(
-    previewData ?? null,
+  const cacheKey = getPublicLeaderboardCacheKey(wallet);
+  const cachedData = previewData ?? getCachedPublicLeaderboard(wallet);
+  const [dataState, setDataState] = useState<{
+    cacheKey: string;
+    data: PublicLeaderboardResponse | null;
+  }>(() => ({
+    cacheKey,
+    data: cachedData,
+  }));
+  const [loadingKey, setLoadingKey] = useState<string | null>(
+    cachedData ? null : cacheKey,
   );
-  const [loading, setLoading] = useState(!previewData);
-  const [error, setError] = useState('');
+  const [errorState, setErrorState] = useState<{
+    cacheKey: string;
+    message: string;
+  }>({ cacheKey, message: '' });
   const [selectedEntry, setSelectedEntry] =
     useState<PublicLeaderboardEntry | null>(null);
   const [impactOpen, setImpactOpen] = useState(false);
@@ -120,59 +136,52 @@ export function PublicLeaderboard({
   const openerRef = useRef<HTMLElement | null>(null);
   const t = LEADERBOARD_COPY[locale];
 
-  const load = useCallback(async (signal?: AbortSignal) => {
+  const data =
+    dataState.cacheKey === cacheKey
+      ? dataState.data
+      : cachedData;
+  const loading =
+    loadingKey === cacheKey ||
+    (dataState.cacheKey !== cacheKey && !cachedData);
+  const error =
+    errorState.cacheKey === cacheKey
+      ? errorState.message
+      : '';
+
+  const load = useCallback(async (force = false) => {
     if (previewData) {
-      setData(previewData);
-      setLoading(false);
+      setDataState({ cacheKey, data: previewData });
+      setLoadingKey(null);
+      setErrorState({ cacheKey, message: '' });
       return;
     }
 
-    setLoading(true);
-    setError('');
+    const cached = getCachedPublicLeaderboard(wallet);
+    if (cached) {
+      setDataState({ cacheKey, data: cached });
+      setLoadingKey(null);
+    } else {
+      setLoadingKey(cacheKey);
+    }
+    setErrorState({ cacheKey, message: '' });
+
     try {
-      const search = new URLSearchParams();
-      if (wallet) search.set('wallet', wallet);
-      const query = search.toString();
-      const response = await fetch(
-        `/api/leaderboard${query ? `?${query}` : ''}`,
-        { cache: 'no-store', signal },
-      );
-      const result = (await response.json()) as
-        | PublicLeaderboardResponse
-        | { error?: string };
-      if (!response.ok) {
-        throw new Error(
-          'error' in result && result.error
-            ? result.error
-            : t.loadError,
-        );
-      }
-      setData(result as PublicLeaderboardResponse);
-    } catch (loadError) {
-      if (
-        loadError instanceof DOMException &&
-        loadError.name === 'AbortError'
-      ) {
-        return;
-      }
-      setError(t.loadError);
+      const result = await loadPublicLeaderboard(wallet, { force });
+      setDataState({ cacheKey, data: result });
+    } catch {
+      setErrorState({ cacheKey, message: t.loadError });
     } finally {
-      if (!signal?.aborted) setLoading(false);
+      setLoadingKey((current) =>
+        current === cacheKey ? null : current,
+      );
     }
-  }, [previewData, t.loadError, wallet]);
+  }, [cacheKey, previewData, t.loadError, wallet]);
 
   useEffect(() => {
-    const controller = new AbortController();
-    void load(controller.signal);
-    return () => controller.abort();
+    setSelectedEntry(null);
+    setImpactOpen(false);
+    void load(false);
   }, [load]);
-
-  useEffect(() => {
-    if (previewData) {
-      setData(previewData);
-      setLoading(false);
-    }
-  }, [previewData]);
 
   const closeDialog = useCallback(() => {
     setSelectedEntry(null);
@@ -235,7 +244,7 @@ export function PublicLeaderboard({
   const rankedCurrentUser = data?.currentUser ?? null;
   const currentUser: PublicLeaderboardEntry | null =
     rankedCurrentUser ??
-    (wallet
+    (wallet && !loading
       ? {
           rank: 0,
           walletAddress: wallet,
@@ -337,29 +346,12 @@ export function PublicLeaderboard({
     return entry ? renderRankRow(entry) : renderPlaceholderRow(rank);
   };
 
-  if (loading && !data) {
-    return (
-      <section className="statePage">
-        <p>{t.loading}</p>
-        <style jsx>{stateStyles}</style>
-      </section>
-    );
-  }
-
-  if (error && !data) {
-    return (
-      <section className="statePage">
-        <p>{error}</p>
-        <button type="button" onClick={() => void load()}>
-          {t.retry}
-        </button>
-        <style jsx>{stateStyles}</style>
-      </section>
-    );
-  }
-
   return (
-    <section className="leaderboardPage">
+    <section
+      className="leaderboardPage"
+      aria-busy={loading}
+      data-leaderboard-refreshing={loading ? 'true' : undefined}
+    >
       <section
         className="impactCard"
         data-reward-forecast-preview={previewData ? 'true' : undefined}
@@ -368,11 +360,16 @@ export function PublicLeaderboard({
         <button
           type="button"
           className="impactSummaryButton"
+          disabled={!data}
           onClick={(event) => openImpactDetails(event.currentTarget)}
-          aria-label={`${t.impactTitle}: ${totalUsers.toLocaleString()}`}
+          aria-label={
+            data
+              ? `${t.impactTitle}: ${totalUsers.toLocaleString()}`
+              : t.loading
+          }
         >
           <span>{t.totalUsers}</span>
-          <strong>{totalUsers.toLocaleString()}</strong>
+          <strong>{data ? totalUsers.toLocaleString() : '—'}</strong>
           <b aria-hidden="true">›</b>
         </button>
       </section>
@@ -406,10 +403,19 @@ export function PublicLeaderboard({
 
         {!wallet ? (
           <p className="rankContextNote">{t.connectForRank}</p>
-        ) : !rankedCurrentUser ? (
+        ) : !rankedCurrentUser && !loading ? (
           <p className="rankContextNote">{t.unranked}</p>
         ) : null}
       </section>
+
+      {error ? (
+        <div className="leaderboardInlineError" role="status">
+          <span>{error}</span>
+          <button type="button" onClick={() => void load(true)}>
+            {t.retry}
+          </button>
+        </div>
+      ) : null}
 
       {impactOpen ? (
         <div
@@ -569,6 +575,14 @@ export function PublicLeaderboard({
           border-color:rgba(255,205,80,.4);
           outline:none;
           box-shadow:0 0 0 3px rgba(244,183,40,.08);
+        }
+        .impactSummaryButton:disabled {
+          cursor:default;
+          opacity:.72;
+        }
+        .impactSummaryButton:disabled:hover {
+          border-color:rgba(255,205,80,.16);
+          box-shadow:none;
         }
         .impactSummaryButton span {
           color:#928c80;
@@ -778,6 +792,33 @@ export function PublicLeaderboard({
           line-height:1.45;
           text-align:center;
         }
+        .leaderboardInlineError {
+          margin-top:12px;
+          padding:10px 12px;
+          display:flex;
+          align-items:center;
+          justify-content:center;
+          gap:10px;
+          border:1px solid rgba(255,116,116,.16);
+          border-radius:14px;
+          background:rgba(150,45,45,.08);
+          color:#b99595;
+          font-size:.7rem;
+          line-height:1.4;
+          text-align:center;
+        }
+        .leaderboardInlineError button {
+          flex:0 0 auto;
+          min-height:34px;
+          padding:0 10px;
+          border:1px solid rgba(255,205,80,.22);
+          border-radius:10px;
+          background:rgba(244,183,40,.08);
+          color:#e7c86d;
+          font:inherit;
+          font-weight:850;
+          cursor:pointer;
+        }
         .modalBackdrop {
           position:fixed;
           z-index:120;
@@ -945,6 +986,10 @@ export function PublicLeaderboard({
             padding:18px;
             border-radius:21px;
           }
+          .leaderboardInlineError {
+            align-items:stretch;
+            flex-direction:column;
+          }
         }
         @media (max-width:360px) {
           .rankingCard {
@@ -982,26 +1027,3 @@ export function PublicLeaderboard({
     </section>
   );
 }
-
-const stateStyles = `
-  .statePage {
-    width:min(100%,520px);
-    margin:0 auto;
-    min-height:260px;
-    display:grid;
-    place-items:center;
-    text-align:center;
-    color:#8f8b83;
-  }
-  .statePage button {
-    margin-top:12px;
-    min-height:46px;
-    padding:0 16px;
-    border:1px solid rgba(255,205,80,.25);
-    border-radius:13px;
-    background:rgba(244,183,40,.08);
-    color:#f5d36f;
-    font:inherit;
-    font-weight:850;
-  }
-`;
