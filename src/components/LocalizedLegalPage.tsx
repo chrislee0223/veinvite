@@ -1,13 +1,11 @@
 'use client';
 
 import Link from 'next/link';
-import {
-  useEffect,
-  useState,
-} from 'react';
+import { useEffect, useState } from 'react';
 
 import { LEGAL_RETURN_STORAGE_KEY } from './LegalNavigationMemory';
 import '@/lib/i18n/localePacks/registerExpandedLocales';
+import { LEGAL_BACK_LABEL } from '@/lib/i18n/legalNavigationCopy';
 import {
   LEGAL_COPY,
   type LegalDocumentKind,
@@ -15,30 +13,11 @@ import {
 import {
   LANGUAGE_STORAGE_KEY,
   getLocaleDirection,
+  getLocaleTypography,
   isLocale,
   resolveBrowserLocale,
   type SupportedLocale,
 } from '@/lib/i18n/locales';
-
-const BACK_LABEL: Record<SupportedLocale, string> = {
-  en: 'Back',
-  ko: '뒤로가기',
-  zh: '返回',
-  hi: 'वापस',
-  es: 'Volver',
-  ja: '戻る',
-  it: 'Indietro',
-  tr: 'Geri',
-  nl: 'Terug',
-  de: 'Zurück',
-  fr: 'Retour',
-  ar: 'رجوع',
-  bn: 'ফিরে যান',
-  pt: 'Voltar',
-  ru: 'Назад',
-  id: 'Kembali',
-  vi: 'Quay lại',
-};
 
 function resolveInitialLocale(): SupportedLocale {
   const saved = window.localStorage.getItem(LANGUAGE_STORAGE_KEY);
@@ -62,6 +41,8 @@ export function LocalizedLegalPage({
       setLocale(nextLocale);
       document.documentElement.lang = nextLocale;
       document.documentElement.dir = getLocaleDirection(nextLocale);
+      document.documentElement.dataset.localeTypography =
+        getLocaleTypography(nextLocale);
     };
 
     applyLocale();
@@ -104,7 +85,7 @@ export function LocalizedLegalPage({
   };
 
   const copy = LEGAL_COPY[kind][locale] ?? LEGAL_COPY[kind].en;
-  const backLabel = BACK_LABEL[locale];
+  const backLabel = LEGAL_BACK_LABEL[locale];
   const backArrow = getLocaleDirection(locale) === 'rtl' ? '→' : '←';
 
   return (
