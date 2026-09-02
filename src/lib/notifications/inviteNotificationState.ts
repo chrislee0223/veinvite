@@ -4,6 +4,7 @@ export const INVITE_NOTIFICATION_STAGE = {
   vot3Converted: 3,
   allMissionsCompleted: 4,
   rewardPaid: 5,
+  ineligible: 6,
 } as const;
 
 export type InviteNotificationStage =
@@ -14,7 +15,8 @@ export type InviteNotificationKind =
   | 'DAPP_MISSION_COMPLETED'
   | 'VOT3_CONVERTED'
   | 'ALL_MISSIONS_COMPLETED'
-  | 'REWARD_PAID';
+  | 'REWARD_PAID'
+  | 'INVITE_INELIGIBLE';
 
 export type InviteNotificationSource = {
   invite_code: string;
@@ -29,6 +31,8 @@ export type InviteNotificationSource = {
   vote_completed: boolean;
   vote_completed_at: string | null;
   reward_status: string;
+  ineligibility_check_id: string | number | null;
+  ineligible_at: string | null;
 };
 
 export type PaidRewardEvidence = {
@@ -92,6 +96,20 @@ export function deriveInviteNotification(
   invitation: InviteNotificationSource,
   paidReward: PaidRewardEvidence | null,
 ): DerivedInviteNotification | null {
+  if (
+    invitation.ineligibility_check_id !== null &&
+    invitation.status === 'CANCELLED' &&
+    validTimestamp(invitation.ineligible_at)
+  ) {
+    return {
+      inviteCode: invitation.invite_code,
+      kind: 'INVITE_INELIGIBLE',
+      stage: INVITE_NOTIFICATION_STAGE.ineligible,
+      eventAt: invitation.ineligible_at,
+      rewardAmountWei: null,
+    };
+  }
+
   if (invitation.reward_status === 'FORFEITED') {
     return null;
   }
