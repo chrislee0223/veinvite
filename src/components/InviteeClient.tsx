@@ -54,11 +54,16 @@ type InviteApiResponse = {
 
 class InviteRequestError extends Error {
   readonly status: number;
+  readonly outcome: string | undefined;
 
-  constructor(status: number) {
+  constructor(
+    status: number,
+    outcome?: string,
+  ) {
     super(`Invite request failed with status ${status}.`);
     this.name = 'InviteRequestError';
     this.status = status;
+    this.outcome = outcome;
   }
 }
 
@@ -89,7 +94,10 @@ async function readInviteResponse(
   }
 
   if (!response.ok) {
-    throw new InviteRequestError(response.status);
+    throw new InviteRequestError(
+      response.status,
+      data.outcome,
+    );
   }
 
   if (!data.invite || !data.progress) {
@@ -159,14 +167,20 @@ export function InviteeClient({ code }: { code: string }) {
       const status = error instanceof InviteRequestError
         ? error.status
         : null;
+      const outcome = error instanceof InviteRequestError
+        ? error.outcome
+        : undefined;
 
-      // Only a real 404/410 means the invitation is unavailable. Temporary
-      // database, throttling, or network failures must not tell the user that
-      // a valid invite has expired.
+      // A system-closed ineligible invite keeps its explicit participation
+      // result when the old link is reopened. Only a real 404/410 means the
+      // invitation is unavailable. Temporary database, throttling, or network
+      // failures must not tell the user that a valid invite has expired.
       setErrorCode(
-        status === 404 || status === 410
-          ? 'invalidLink'
-          : 'eligibility',
+        outcome === 'active_existing_user'
+          ? 'existing'
+          : status === 404 || status === 410
+            ? 'invalidLink'
+            : 'eligibility',
       );
       setStep('error');
     });
