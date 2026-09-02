@@ -122,6 +122,9 @@ export function WalletRuntimeLifecycle() {
               return true;
             }
 
+            // Before a first-time ownership proof there is intentionally no
+            // server session yet. WalletSessionGate will emit its ready event
+            // after Sign succeeds, which retries renewal without another Sign.
             if (
               response.status === 401 ||
               response.status === 403
@@ -283,6 +286,10 @@ export function WalletRuntimeLifecycle() {
       const homeVisible = hasHome();
 
       if (wallet) {
+        // A genuine verification/legal-consent screen is actionable and should
+        // replace the startup shield. Otherwise require the final home tree to
+        // stay mounted briefly so a transient pre-restoration home frame never
+        // flashes through in VeWorld.
         if (
           !homeVisible &&
           hasInteractiveGate()
@@ -308,6 +315,10 @@ export function WalletRuntimeLifecycle() {
         return;
       }
 
+      // Wallet providers can report no account for a short period while
+      // restoring VeWorld/WalletConnect. If the server already validated a
+      // persistent session, keep the single branded startup surface longer so
+      // the disconnected home cannot flash before that wallet comes back.
       scheduleStableRelease(
         hasBootstrappedSession()
           ? BOOTSTRAPPED_SESSION_GRACE_MS
