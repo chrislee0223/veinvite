@@ -63,9 +63,8 @@ export function SecondaryPageLayoutPolish() {
       }
 
       /*
-       * Styled-jsx does not reliably reach rows created inside helper renderers.
-       * Keep the five-row viewport and row height authoritative here so exactly
-       * five ranks are visible before the user scrolls through ranks 1-100.
+       * Keep the five-row viewport authoritative here so exactly five ranks are
+       * visible before the user scrolls through ranks 1-100 on every viewport.
        */
       .leaderboardPage .rankScroll {
         width:100% !important;
@@ -102,34 +101,45 @@ export function SecondaryPageLayoutPolish() {
         grid-column:1 !important;
       }
 
-      /* Restrained podium treatment: color and a thin halo, no oversized medal UI. */
+      /*
+       * Keep the podium understated: ranks 1-3 use only gold, silver, and bronze
+       * numerals. No circle, laurel, badge, image, or pseudo-element decoration.
+       * The number stays centered by the same rank column geometry as every row.
+       */
       .leaderboardPage .rankScroll .rows > .rankRow:nth-child(-n+3) .rankValue {
-        width:27px !important;
-        height:27px !important;
-        justify-self:center !important;
-        display:grid !important;
-        place-items:center !important;
-        border:1px solid currentColor !important;
-        border-radius:999px !important;
+        width:100% !important;
+        height:auto !important;
+        justify-self:stretch !important;
+        display:flex !important;
+        align-items:center !important;
+        justify-content:center !important;
+        box-sizing:border-box !important;
+        padding:0 !important;
+        border:0 !important;
+        border-radius:0 !important;
+        background:transparent !important;
+        box-shadow:none !important;
         font-weight:950 !important;
+        line-height:1 !important;
+        font-variant-numeric:tabular-nums !important;
+      }
+
+      .leaderboardPage .rankScroll .rows > .rankRow:nth-child(-n+3) .rankValue::before,
+      .leaderboardPage .rankScroll .rows > .rankRow:nth-child(-n+3) .rankValue::after {
+        content:none !important;
+        display:none !important;
       }
 
       .leaderboardPage .rankScroll .rows > .rankRow:nth-child(1) .rankValue {
         color:#f1bd34 !important;
-        background:rgba(241,189,52,.08) !important;
-        box-shadow:0 0 12px rgba(241,189,52,.08) !important;
       }
 
       .leaderboardPage .rankScroll .rows > .rankRow:nth-child(2) .rankValue {
         color:#c8cbd0 !important;
-        background:rgba(200,203,208,.06) !important;
-        box-shadow:0 0 10px rgba(200,203,208,.05) !important;
       }
 
       .leaderboardPage .rankScroll .rows > .rankRow:nth-child(3) .rankValue {
         color:#c98252 !important;
-        background:rgba(201,130,82,.07) !important;
-        box-shadow:0 0 10px rgba(201,130,82,.05) !important;
       }
 
       .leaderboardPage .walletCell {
@@ -141,19 +151,39 @@ export function SecondaryPageLayoutPolish() {
         overflow:hidden !important;
       }
 
+      /*
+       * When VeChain Kit resolves an avatar, show that image by itself. No
+       * VeInvite-colored layer sits behind it and the image is not enlarged or
+       * cropped. The neutral fallback appears only while the avatar host is empty.
+       */
       .leaderboardPage .walletAvatar {
         flex:0 0 22px !important;
         width:22px !important;
         height:22px !important;
         display:block !important;
         overflow:hidden !important;
-        border:1px solid rgba(255,205,80,.22) !important;
+        border:0 !important;
         border-radius:50% !important;
+        background:transparent !important;
+        box-shadow:none !important;
+      }
+
+      .leaderboardPage .walletAvatar:empty {
+        border:1px solid rgba(255,205,80,.22) !important;
         background:
           radial-gradient(circle at 50% 35%,#eec04c 0 20%,transparent 22%),
           radial-gradient(ellipse at 50% 82%,#eec04c 0 31%,transparent 33%),
           #242116 !important;
         box-shadow:inset 0 0 0 1px rgba(255,255,255,.025) !important;
+      }
+
+      .leaderboardPage .walletAvatar img {
+        width:100% !important;
+        height:100% !important;
+        display:block !important;
+        object-fit:contain !important;
+        object-position:center !important;
+        border-radius:inherit !important;
       }
 
       .leaderboardPage .walletText {
@@ -182,6 +212,39 @@ export function SecondaryPageLayoutPolish() {
       .leaderboardPage .rankMetric b {
         min-width:0 !important;
         white-space:nowrap !important;
+      }
+
+      /*
+       * A ranked connected wallet stays in the normal table geometry and is
+       * identified only by a restrained translucent fill. No outline, side rule,
+       * shadow, or extra label is added.
+       */
+      .leaderboardPage .rankRow.current,
+      .leaderboardPage .rankRow.current:hover,
+      .leaderboardPage .rankRow.current:focus,
+      .leaderboardPage .rankRow.current:focus-visible {
+        background:linear-gradient(
+          90deg,
+          rgba(244,183,40,.10) 0%,
+          rgba(244,183,40,.055) 52%,
+          rgba(244,183,40,.08) 100%
+        ) !important;
+        border:0 !important;
+        outline:0 !important;
+        box-shadow:none !important;
+        border-radius:10px !important;
+      }
+
+      .leaderboardPage .rankRow.current::before,
+      .leaderboardPage .rankRow.current::after {
+        border:0 !important;
+        outline:0 !important;
+        box-shadow:none !important;
+      }
+
+      .leaderboardPage .rankRow.current .walletText,
+      .leaderboardPage .rankRow.current .rankMetric b {
+        color:#fff8e7 !important;
       }
 
       /*
@@ -241,10 +304,6 @@ export function SecondaryPageLayoutPolish() {
         .leaderboardPage .walletText {
           max-width:calc(100% - 24px) !important;
         }
-        .leaderboardPage .rankScroll .rows > .rankRow:nth-child(-n+3) .rankValue {
-          width:24px !important;
-          height:24px !important;
-        }
       }
 
       @media (max-width:360px) {
@@ -266,10 +325,6 @@ export function SecondaryPageLayoutPolish() {
         }
         .leaderboardPage .walletText {
           max-width:calc(100% - 21px) !important;
-        }
-        .leaderboardPage .rankScroll .rows > .rankRow:nth-child(-n+3) .rankValue {
-          width:22px !important;
-          height:22px !important;
         }
       }
     `}</style>
