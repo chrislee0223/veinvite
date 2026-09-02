@@ -55,6 +55,16 @@ test('only verified ACTIVE_EXISTING entry checks close an unconsumed pending inv
   assert.match(migration, /ineligible_at\s*=\s*new\.created_at/u);
 });
 
+test('live ineligible rejection is serialized with the invitation row lock and one RPC transaction', () => {
+  assert.match(migration, /reject_invitation_with_entry_proof/u);
+  assert.match(migration, /for update;/u);
+  assert.match(migration, /'EXISTING_VEBETTER_USER'/u);
+  assert.match(migration, /'ACTIVE_EXISTING'/u);
+  assert.match(migration, /'result', 'REJECTED'/u);
+  assert.match(claimRoute, /reject_invitation_with_entry_proof/u);
+  assert.match(claimRoute, /rejectionResult\.result !== 'REJECTED'/u);
+});
+
 test('operator funnel keeps rejection and pending buckets mutually exclusive', () => {
   assert.match(migration, /then\s+'INELIGIBLE'/u);
   assert.match(migration, /then\s+'PENDING_ACCEPTANCE'/u);
@@ -79,9 +89,9 @@ test('ineligible notification polling is limited to the Home surface', () => {
   assert.match(ineligibleNotification, /!wallet \|\| !isHomeSurface/u);
 });
 
-test('a confirmed ACTIVE_EXISTING result is not reported as terminal unless its audit outcome persists', () => {
-  assert.match(claimRoute, /Promise<boolean>/u);
-  assert.match(claimRoute, /return false;/u);
+test('a confirmed ACTIVE_EXISTING result is not reported as terminal unless its atomic transition persists', () => {
+  assert.match(claimRoute, /Promise<RejectRpcResult \| null>/u);
+  assert.match(claimRoute, /return null;/u);
   assert.match(claimRoute, /eligibility_record_failed/u);
   assert.match(claimRoute, /status: 503/u);
   assert.match(claimRoute, /Retry-After': '10'/u);
