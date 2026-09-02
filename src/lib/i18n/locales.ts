@@ -107,10 +107,20 @@ export function localeFromLanguageTag(
   }
 
   // Prefer an explicitly supported locale tag (for example zh-tw) before
-  // falling back to its base language. This lets Taiwan users resolve to the
-  // reviewed Traditional Chinese pack while other zh tags still use zh.
+  // falling back to its base language.
   if (isLocale(normalized)) {
     return normalized;
+  }
+
+  // Some browsers expose Traditional Chinese by script instead of region,
+  // e.g. zh-Hant or zh-Hant-TW. Treat the Hant script as the reviewed Taiwan
+  // Traditional Chinese experience rather than accidentally falling through
+  // to Simplified Chinese via the base `zh` locale.
+  if (
+    normalized === 'zh-hant' ||
+    normalized.startsWith('zh-hant-')
+  ) {
+    return 'zh-tw';
   }
 
   const base = normalized.split('-')[0];
