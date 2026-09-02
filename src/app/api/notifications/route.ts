@@ -32,7 +32,9 @@ const invitationColumns = `
   vote_completed_at,
   reward_status,
   eligibility_check_id,
-  activation_network
+  activation_network,
+  ineligibility_check_id,
+  ineligible_at
 ` as const;
 
 type InvitationRow = InviteNotificationSource & {
@@ -280,7 +282,7 @@ export async function POST(request: NextRequest) {
     !INVITE_CODE_PATTERN.test(inviteCode) ||
     !Number.isInteger(stage) ||
     stage < INVITE_NOTIFICATION_STAGE.accepted ||
-    stage > INVITE_NOTIFICATION_STAGE.rewardPaid
+    stage > INVITE_NOTIFICATION_STAGE.ineligible
   ) {
     return noStoreJson(
       { error: 'Invalid notification acknowledgement.' },
