@@ -12,7 +12,7 @@ import type {
   PublicLeaderboardEntry,
   PublicLeaderboardResponse,
 } from '@/lib/types';
-import { readVeBetterRoundWindow } from '@/lib/vebetter/entryEligibility';
+import { readCurrentVeBetterRound } from '@/lib/vebetter/currentRound';
 
 export const dynamic = 'force-dynamic';
 
@@ -134,7 +134,7 @@ export async function GET(
   }
 
   try {
-    const round = await readVeBetterRoundWindow();
+    const round = await readCurrentVeBetterRound();
 
     const readLeaderboard = () =>
       supabaseAdmin.rpc(
