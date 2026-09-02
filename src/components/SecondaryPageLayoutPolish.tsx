@@ -63,9 +63,8 @@ export function SecondaryPageLayoutPolish() {
       }
 
       /*
-       * Styled-jsx does not reliably reach rows created inside helper renderers.
-       * Keep the five-row viewport and row height authoritative here so exactly
-       * five ranks are visible before the user scrolls through ranks 1-100.
+       * Keep the five-row viewport authoritative here so exactly five ranks are
+       * visible before the user scrolls through ranks 1-100 on every viewport.
        */
       .leaderboardPage .rankScroll {
         width:100% !important;
@@ -102,34 +101,62 @@ export function SecondaryPageLayoutPolish() {
         grid-column:1 !important;
       }
 
-      /* Restrained podium treatment: color and a thin halo, no oversized medal UI. */
+      /*
+       * Top-three podium marks are vector CSS, not an image. The number owns the
+       * exact center of a fixed box and mirrored laurel branches sit around that
+       * center, so PC and mobile keep identical optical alignment.
+       */
       .leaderboardPage .rankScroll .rows > .rankRow:nth-child(-n+3) .rankValue {
-        width:27px !important;
-        height:27px !important;
+        width:52px !important;
+        height:28px !important;
         justify-self:center !important;
-        display:grid !important;
-        place-items:center !important;
-        border:1px solid currentColor !important;
-        border-radius:999px !important;
+        display:flex !important;
+        align-items:center !important;
+        justify-content:center !important;
+        position:relative !important;
+        box-sizing:border-box !important;
+        padding:0 !important;
+        border:0 !important;
+        border-radius:0 !important;
+        background:transparent !important;
+        box-shadow:none !important;
         font-weight:950 !important;
+        line-height:1 !important;
+        font-variant-numeric:tabular-nums !important;
+      }
+
+      .leaderboardPage .rankScroll .rows > .rankRow:nth-child(-n+3) .rankValue::before,
+      .leaderboardPage .rankScroll .rows > .rankRow:nth-child(-n+3) .rankValue::after {
+        content:'' !important;
+        position:absolute !important;
+        top:50% !important;
+        width:12px !important;
+        height:22px !important;
+        background:currentColor !important;
+        -webkit-mask:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 14 26'%3E%3Cg fill='black'%3E%3Cellipse cx='9.8' cy='3.4' rx='1.6' ry='3' transform='rotate(31 9.8 3.4)'/%3E%3Cellipse cx='7.2' cy='7.4' rx='1.5' ry='2.8' transform='rotate(24 7.2 7.4)'/%3E%3Cellipse cx='5.6' cy='11.8' rx='1.45' ry='2.7' transform='rotate(16 5.6 11.8)'/%3E%3Cellipse cx='5' cy='16.4' rx='1.4' ry='2.6' transform='rotate(5 5 16.4)'/%3E%3Cellipse cx='5.4' cy='20.8' rx='1.35' ry='2.5' transform='rotate(-8 5.4 20.8)'/%3E%3C/g%3E%3Cpath d='M11.4 2.2C7 7.2 4.7 15.1 6.1 23.8' fill='none' stroke='black' stroke-width='1.35' stroke-linecap='round'/%3E%3C/svg%3E") center / contain no-repeat !important;
+        mask:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 14 26'%3E%3Cg fill='black'%3E%3Cellipse cx='9.8' cy='3.4' rx='1.6' ry='3' transform='rotate(31 9.8 3.4)'/%3E%3Cellipse cx='7.2' cy='7.4' rx='1.5' ry='2.8' transform='rotate(24 7.2 7.4)'/%3E%3Cellipse cx='5.6' cy='11.8' rx='1.45' ry='2.7' transform='rotate(16 5.6 11.8)'/%3E%3Cellipse cx='5' cy='16.4' rx='1.4' ry='2.6' transform='rotate(5 5 16.4)'/%3E%3Cellipse cx='5.4' cy='20.8' rx='1.35' ry='2.5' transform='rotate(-8 5.4 20.8)'/%3E%3C/g%3E%3Cpath d='M11.4 2.2C7 7.2 4.7 15.1 6.1 23.8' fill='none' stroke='black' stroke-width='1.35' stroke-linecap='round'/%3E%3C/svg%3E") center / contain no-repeat !important;
+      }
+
+      .leaderboardPage .rankScroll .rows > .rankRow:nth-child(-n+3) .rankValue::before {
+        left:1px !important;
+        transform:translateY(-50%) !important;
+      }
+
+      .leaderboardPage .rankScroll .rows > .rankRow:nth-child(-n+3) .rankValue::after {
+        right:1px !important;
+        transform:translateY(-50%) scaleX(-1) !important;
       }
 
       .leaderboardPage .rankScroll .rows > .rankRow:nth-child(1) .rankValue {
         color:#f1bd34 !important;
-        background:rgba(241,189,52,.08) !important;
-        box-shadow:0 0 12px rgba(241,189,52,.08) !important;
       }
 
       .leaderboardPage .rankScroll .rows > .rankRow:nth-child(2) .rankValue {
         color:#c8cbd0 !important;
-        background:rgba(200,203,208,.06) !important;
-        box-shadow:0 0 10px rgba(200,203,208,.05) !important;
       }
 
       .leaderboardPage .rankScroll .rows > .rankRow:nth-child(3) .rankValue {
         color:#c98252 !important;
-        background:rgba(201,130,82,.07) !important;
-        box-shadow:0 0 10px rgba(201,130,82,.05) !important;
       }
 
       .leaderboardPage .walletCell {
@@ -141,19 +168,39 @@ export function SecondaryPageLayoutPolish() {
         overflow:hidden !important;
       }
 
+      /*
+       * When VeChain Kit resolves an avatar, show that image by itself. No
+       * VeInvite-colored layer sits behind it and the image is not enlarged or
+       * cropped. The neutral fallback appears only while the avatar host is empty.
+       */
       .leaderboardPage .walletAvatar {
         flex:0 0 22px !important;
         width:22px !important;
         height:22px !important;
         display:block !important;
         overflow:hidden !important;
-        border:1px solid rgba(255,205,80,.22) !important;
+        border:0 !important;
         border-radius:50% !important;
+        background:transparent !important;
+        box-shadow:none !important;
+      }
+
+      .leaderboardPage .walletAvatar:empty {
+        border:1px solid rgba(255,205,80,.22) !important;
         background:
           radial-gradient(circle at 50% 35%,#eec04c 0 20%,transparent 22%),
           radial-gradient(ellipse at 50% 82%,#eec04c 0 31%,transparent 33%),
           #242116 !important;
         box-shadow:inset 0 0 0 1px rgba(255,255,255,.025) !important;
+      }
+
+      .leaderboardPage .walletAvatar img {
+        width:100% !important;
+        height:100% !important;
+        display:block !important;
+        object-fit:contain !important;
+        object-position:center !important;
+        border-radius:inherit !important;
       }
 
       .leaderboardPage .walletText {
@@ -242,8 +289,13 @@ export function SecondaryPageLayoutPolish() {
           max-width:calc(100% - 24px) !important;
         }
         .leaderboardPage .rankScroll .rows > .rankRow:nth-child(-n+3) .rankValue {
-          width:24px !important;
+          width:46px !important;
           height:24px !important;
+        }
+        .leaderboardPage .rankScroll .rows > .rankRow:nth-child(-n+3) .rankValue::before,
+        .leaderboardPage .rankScroll .rows > .rankRow:nth-child(-n+3) .rankValue::after {
+          width:10px !important;
+          height:19px !important;
         }
       }
 
@@ -268,8 +320,13 @@ export function SecondaryPageLayoutPolish() {
           max-width:calc(100% - 21px) !important;
         }
         .leaderboardPage .rankScroll .rows > .rankRow:nth-child(-n+3) .rankValue {
-          width:22px !important;
+          width:42px !important;
           height:22px !important;
+        }
+        .leaderboardPage .rankScroll .rows > .rankRow:nth-child(-n+3) .rankValue::before,
+        .leaderboardPage .rankScroll .rows > .rankRow:nth-child(-n+3) .rankValue::after {
+          width:9px !important;
+          height:17px !important;
         }
       }
     `}</style>
