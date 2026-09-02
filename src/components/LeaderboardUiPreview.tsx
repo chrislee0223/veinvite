@@ -20,7 +20,7 @@ const TEST_WALLET =
   '0x1234567890abcdef1234567890abcdef12345678';
 const TOKEN_WEI = 10n ** 18n;
 
-type PreviewScenario = 'inside' | 'outside';
+type PreviewScenario = 'inside' | 'outside' | 'unranked';
 
 function walletForRank(rank: number): string {
   return `0x${rank.toString(16).padStart(40, '0')}`;
@@ -37,6 +37,8 @@ function referralsForRank(rank: number): number {
 function buildLeaders(
   scenario: PreviewScenario,
 ): PublicLeaderboardEntry[] {
+  if (scenario === 'unranked') return [];
+
   return Array.from({ length: 100 }, (_, index) => {
     const rank = index + 1;
     const current = scenario === 'inside' && rank === 37;
@@ -57,13 +59,15 @@ function buildPreviewData(
   const leaders = buildLeaders(scenario);
   const currentUser = scenario === 'inside'
     ? leaders.find((entry) => entry.isCurrentWallet) ?? null
-    : {
-        rank: 137,
-        walletAddress: TEST_WALLET,
-        completedReferrals: 1,
-        totalRewardWei: (245n * TOKEN_WEI).toString(),
-        isCurrentWallet: true,
-      };
+    : scenario === 'outside'
+      ? {
+          rank: 137,
+          walletAddress: TEST_WALLET,
+          completedReferrals: 1,
+          totalRewardWei: (245n * TOKEN_WEI).toString(),
+          isCurrentWallet: true,
+        }
+      : null;
 
   return {
     generatedAt: '2026-09-01T12:00:00.000Z',
@@ -71,9 +75,9 @@ function buildPreviewData(
     currentRoundId: 114,
     reportingStartRound: 113,
     impact: {
-      totalActivatedUsers: 128,
-      newUsers: 93,
-      returningUsers: 35,
+      totalActivatedUsers: scenario === 'unranked' ? 0 : 128,
+      newUsers: scenario === 'unranked' ? 0 : 93,
+      returningUsers: scenario === 'unranked' ? 0 : 35,
     },
     leaders,
     currentUser,
@@ -89,7 +93,7 @@ function currentLocale(): Locale {
 export function LeaderboardUiPreview() {
   const [locale, setLocale] = useState<Locale>('en');
   const [scenario, setScenario] =
-    useState<PreviewScenario>('inside');
+    useState<PreviewScenario>('unranked');
   const previewData = useMemo(
     () => buildPreviewData(scenario),
     [scenario],
@@ -118,12 +122,19 @@ export function LeaderboardUiPreview() {
         <span>PRODUCTION LEADERBOARD</span>
         <h2>Top 100 리더보드 미리보기</h2>
         <p>
-          실제 리더보드 컴포넌트에 가짜 데이터 100개를 넣은 화면입니다.
-          별도 내부 스크롤 없이 페이지를 아래로 내려 100위까지 확인하고,
-          내 순위가 100위 안과 밖일 때의 배치도 비교할 수 있어요.
+          실제 리더보드 컴포넌트에 테스트 데이터를 넣은 화면입니다.
+          미순위 상태에서는 순위 —, 초대 0, 보상 0 B3TR이 각 헤더 바로 아래에
+          정렬되는지 확인할 수 있고, 100위 안팎의 배치도 함께 비교할 수 있어요.
         </p>
 
         <div className="scenarioToggle" aria-label="내 순위 테스트 상태">
+          <button
+            type="button"
+            className={scenario === 'unranked' ? 'selected' : ''}
+            onClick={() => setScenario('unranked')}
+          >
+            미순위 · 초대 0건
+          </button>
           <button
             type="button"
             className={scenario === 'inside' ? 'selected' : ''}
@@ -185,7 +196,7 @@ export function LeaderboardUiPreview() {
           margin-top:14px;
           padding:4px;
           display:grid;
-          grid-template-columns:1fr 1fr;
+          grid-template-columns:repeat(3,minmax(0,1fr));
           gap:4px;
           border:1px solid rgba(255,255,255,.07);
           border-radius:14px;
@@ -226,7 +237,7 @@ export function LeaderboardUiPreview() {
             border-radius:0;
           }
         }
-        @media (max-width:380px) {
+        @media (max-width:430px) {
           .scenarioToggle {
             grid-template-columns:1fr;
           }
