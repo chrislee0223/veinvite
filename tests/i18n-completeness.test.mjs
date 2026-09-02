@@ -347,7 +347,7 @@ test('standalone reward forecast copy is centralized and exhaustive for supporte
   }
   assert.match(
     forecastComponentSource,
-    /REWARD_FORECAST_COPY\[locale\]/,
+    /REWARD_FORECAST_COPY\[(?:resolvedLocale|locale)\]/,
   );
   assert.doesNotMatch(forecastComponentSource, /const COPY:/);
 });
