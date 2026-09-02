@@ -85,10 +85,18 @@ export function localeFromLanguageTag(
   const normalized = value
     .trim()
     .toLowerCase()
-    .replace('_', '-');
+    .replaceAll('_', '-');
 
   if (!normalized) {
     return null;
+  }
+
+  // Prefer an explicitly supported locale tag (for example pt-br) before
+  // falling back to its base language. This keeps today's base-language
+  // behavior while allowing future regional variants without another browser
+  // detection rewrite.
+  if (isLocale(normalized)) {
+    return normalized;
   }
 
   const base = normalized.split('-')[0];
