@@ -21,8 +21,7 @@ type RewardForecastResponse =
 
 type ForecastCopy = {
   eyebrow: string;
-  title: string;
-  perInvite: string;
+  eligibility: string;
   disclaimer: string;
   pendingTitle: string;
   pendingDescription: string;
@@ -31,122 +30,122 @@ type ForecastCopy = {
 
 const COPY: Record<Locale, ForecastCopy> = {
   en: {
-    eyebrow: 'ESTIMATED REWARD',
-    title: 'If you start inviting now',
-    perInvite: 'Estimated per successful invite',
+    eyebrow: 'ESTIMATED INVITE REWARD',
+    eligibility:
+      'You can receive it when your invited friend completes all missions.',
     disclaimer:
-      'Estimated rewards can change with actual allocation amounts and participation, and are not guaranteed.',
-    pendingTitle: 'Estimate coming soon',
+      'The estimated reward may change with allocation and participation.',
+    pendingTitle: 'Invite reward estimate coming soon',
     pendingDescription:
       'The estimate will appear automatically when VeInvite has enough real allocation data.',
     unavailable: 'The reward estimate is temporarily unavailable.',
   },
   ko: {
-    eyebrow: '예상 보상',
-    title: '지금 초대를 시작한다면',
-    perInvite: '성공한 초대 1건 예상',
+    eyebrow: '예상 초대 보상',
+    eligibility:
+      '친구가 모든 미션을 완료하면 받을 수 있습니다.',
     disclaimer:
-      '예상 보상은 실제 배정량과 참여자 수에 따라 달라질 수 있으며 확정 보상이 아닙니다.',
-    pendingTitle: '예상 보상 준비 중',
+      '예상 보상은 할당량과 참여 현황에 따라 달라질 수 있습니다.',
+    pendingTitle: '예상 초대 보상 준비 중',
     pendingDescription:
-      'VeInvite의 실제 배정 데이터가 충분해지면 예상 보상이 자동으로 표시돼요.',
-    unavailable: '지금은 예상 보상을 불러올 수 없어요.',
+      'VeInvite의 실제 할당 데이터가 충분해지면 예상 보상이 자동으로 표시됩니다.',
+    unavailable: '지금은 예상 보상을 불러올 수 없습니다.',
   },
   zh: {
-    eyebrow: '预计奖励',
-    title: '如果现在开始邀请',
-    perInvite: '每次成功邀请的预计奖励',
+    eyebrow: '预计邀请奖励',
+    eligibility:
+      '你邀请的好友完成全部任务后，你就可以获得奖励。',
     disclaimer:
-      '预计奖励会根据实际分配金额和参与人数发生变化，并非保证金额。',
-    pendingTitle: '预计奖励准备中',
+      '预计奖励会根据分配额度和参与情况发生变化。',
+    pendingTitle: '邀请奖励预估准备中',
     pendingDescription:
       '当 VeInvite 积累足够的实际分配数据后，预计奖励会自动显示。',
     unavailable: '暂时无法获取预计奖励。',
   },
   hi: {
-    eyebrow: 'अनुमानित इनाम',
-    title: 'अगर आप अभी आमंत्रित करना शुरू करें',
-    perInvite: 'हर सफल आमंत्रण पर अनुमानित इनाम',
+    eyebrow: 'अनुमानित आमंत्रण इनाम',
+    eligibility:
+      'आपके आमंत्रित मित्र के सभी मिशन पूरे करने पर आप यह इनाम पा सकते हैं।',
     disclaimer:
-      'अनुमानित इनाम वास्तविक आवंटन और भागीदारी के अनुसार बदल सकता है और इसकी गारंटी नहीं है।',
-    pendingTitle: 'अनुमान तैयार हो रहा है',
+      'अनुमानित इनाम आवंटन और भागीदारी के अनुसार बदल सकता है।',
+    pendingTitle: 'आमंत्रण इनाम का अनुमान तैयार हो रहा है',
     pendingDescription:
       'पर्याप्त वास्तविक आवंटन डेटा मिलने के बाद अनुमान अपने-आप दिखाई देगा।',
     unavailable: 'फिलहाल इनाम का अनुमान उपलब्ध नहीं है।',
   },
   es: {
-    eyebrow: 'RECOMPENSA ESTIMADA',
-    title: 'Si empiezas a invitar ahora',
-    perInvite: 'Estimación por invitación completada',
+    eyebrow: 'RECOMPENSA ESTIMADA POR INVITACIÓN',
+    eligibility:
+      'Puedes recibirla cuando el amigo que invitaste complete todas las misiones.',
     disclaimer:
-      'La recompensa estimada puede cambiar según la asignación real y el número de participantes, y no está garantizada.',
-    pendingTitle: 'Estimación en preparación',
+      'La estimación puede variar según la asignación y la participación.',
+    pendingTitle: 'Estimación de recompensa en preparación',
     pendingDescription:
       'La estimación aparecerá automáticamente cuando VeInvite tenga suficientes datos reales de asignación.',
     unavailable: 'La estimación de recompensa no está disponible temporalmente.',
   },
   ja: {
-    eyebrow: '予想報酬',
-    title: '今から招待を始めた場合',
-    perInvite: '招待成功1件あたりの予想報酬',
+    eyebrow: '招待報酬の予想',
+    eligibility:
+      '招待した友だちがすべてのミッションを完了すると受け取れます。',
     disclaimer:
-      '予想報酬は実際の配分額や参加人数によって変動し、確定した報酬ではありません。',
-    pendingTitle: '予想報酬を準備中',
+      '予想報酬は配分額や参加状況により変動する場合があります。',
+    pendingTitle: '招待報酬を予想中',
     pendingDescription:
       'VeInviteに十分な実配分データが蓄積されると、予想報酬が自動表示されます。',
     unavailable: '現在、予想報酬を取得できません。',
   },
   it: {
-    eyebrow: 'RICOMPENSA STIMATA',
-    title: 'Se inizi a invitare ora',
-    perInvite: 'Stima per invito completato',
+    eyebrow: 'RICOMPENSA INVITO STIMATA',
+    eligibility:
+      'Puoi riceverla quando l’amico che hai invitato completa tutte le missioni.',
     disclaimer:
-      'La ricompensa stimata può variare in base all’allocazione effettiva e al numero di partecipanti e non è garantita.',
-    pendingTitle: 'Stima in preparazione',
+      'La stima può variare in base all’allocazione e alla partecipazione.',
+    pendingTitle: 'Stima della ricompensa in preparazione',
     pendingDescription:
       'La stima apparirà automaticamente quando VeInvite avrà dati reali sufficienti sulle allocazioni.',
     unavailable: 'La stima della ricompensa è temporaneamente non disponibile.',
   },
   tr: {
-    eyebrow: 'TAHMİNİ ÖDÜL',
-    title: 'Şimdi davet etmeye başlarsan',
-    perInvite: 'Başarılı davet başına tahmin',
+    eyebrow: 'TAHMİNİ DAVET ÖDÜLÜ',
+    eligibility:
+      'Davet ettiğin arkadaşın tüm görevleri tamamladığında bu ödülü alabilirsin.',
     disclaimer:
-      'Tahmini ödül gerçek tahsis miktarına ve katılımcı sayısına göre değişebilir ve garanti edilmez.',
-    pendingTitle: 'Tahmin hazırlanıyor',
+      'Tahmini ödül, tahsis ve katılıma göre değişebilir.',
+    pendingTitle: 'Davet ödülü tahmini hazırlanıyor',
     pendingDescription:
       'VeInvite yeterli gerçek tahsis verisine ulaştığında tahmin otomatik olarak görünecek.',
     unavailable: 'Ödül tahmini geçici olarak kullanılamıyor.',
   },
   nl: {
-    eyebrow: 'GESCHATTE BELONING',
-    title: 'Als je nu begint met uitnodigen',
-    perInvite: 'Schatting per voltooide uitnodiging',
+    eyebrow: 'GESCHATTE UITNODIGINGSBELONING',
+    eligibility:
+      'Je kunt deze ontvangen zodra de vriend die je hebt uitgenodigd alle missies voltooit.',
     disclaimer:
-      'De geschatte beloning kan veranderen op basis van de werkelijke toewijzing en het aantal deelnemers en is niet gegarandeerd.',
-    pendingTitle: 'Schatting wordt voorbereid',
+      'De schatting kan veranderen door de toewijzing en deelname.',
+    pendingTitle: 'Beloningsschatting wordt voorbereid',
     pendingDescription:
       'De schatting verschijnt automatisch zodra VeInvite voldoende werkelijke toewijzingsgegevens heeft.',
     unavailable: 'De beloningsschatting is tijdelijk niet beschikbaar.',
   },
   de: {
-    eyebrow: 'GESCHÄTZTE BELOHNUNG',
-    title: 'Wenn du jetzt mit dem Einladen beginnst',
-    perInvite: 'Schätzung pro erfolgreicher Einladung',
+    eyebrow: 'GESCHÄTZTE EINLADUNGSBELOHNUNG',
+    eligibility:
+      'Du kannst sie erhalten, sobald dein eingeladener Freund alle Missionen abgeschlossen hat.',
     disclaimer:
-      'Die geschätzte Belohnung kann sich je nach tatsächlicher Zuteilung und Teilnehmerzahl ändern und ist nicht garantiert.',
-    pendingTitle: 'Schätzung wird vorbereitet',
+      'Die Schätzung kann sich je nach Zuteilung und Teilnahme ändern.',
+    pendingTitle: 'Belohnungsschätzung wird vorbereitet',
     pendingDescription:
       'Die Schätzung erscheint automatisch, sobald VeInvite über ausreichend tatsächliche Zuteilungsdaten verfügt.',
     unavailable: 'Die Belohnungsschätzung ist vorübergehend nicht verfügbar.',
   },
   fr: {
-    eyebrow: 'RÉCOMPENSE ESTIMÉE',
-    title: 'Si vous commencez à inviter maintenant',
-    perInvite: 'Estimation par invitation réussie',
+    eyebrow: 'RÉCOMPENSE D’INVITATION ESTIMÉE',
+    eligibility:
+      'Vous pouvez la recevoir lorsque votre ami invité termine toutes les missions.',
     disclaimer:
-      'La récompense estimée peut varier selon l’allocation réelle et le nombre de participants et n’est pas garantie.',
-    pendingTitle: 'Estimation en préparation',
+      'L’estimation peut varier selon l’allocation et la participation.',
+    pendingTitle: 'Estimation de la récompense en préparation',
     pendingDescription:
       'L’estimation apparaîtra automatiquement lorsque VeInvite disposera de suffisamment de données réelles d’allocation.',
     unavailable: 'L’estimation de récompense est temporairement indisponible.',
@@ -159,13 +158,22 @@ const PREVIEW_FORECAST: RewardForecastResponse = {
 };
 
 function formatRewardWei(value: string): string {
-  if (!/^\d+$/.test(value)) return '0';
-  const normalized = value.replace(/^0+(?=\d)/, '');
-  const padded = normalized.padStart(19, '0');
-  const whole = padded.slice(0, -18);
-  const fraction = padded.slice(-18, -14).replace(/0+$/, '');
-  const groupedWhole = whole.replace(/\B(?=(\d{3})+(?!\d))/g, ',');
-  return fraction ? `${groupedWhole}.${fraction}` : groupedWhole;
+  if (!/^\d+$/.test(value)) return '0.00';
+
+  const wei = BigInt(value);
+  const hundredthWei = 10n ** 16n;
+  const roundedHundredths =
+    (wei + hundredthWei / 2n) / hundredthWei;
+  const whole = (roundedHundredths / 100n).toString();
+  const fraction = (roundedHundredths % 100n)
+    .toString()
+    .padStart(2, '0');
+  const groupedWhole = whole.replace(
+    /\B(?=(\d{3})+(?!\d))/g,
+    ',',
+  );
+
+  return `${groupedWhole}.${fraction}`;
 }
 
 export function PublicRewardForecastPortal() {
@@ -329,17 +337,15 @@ export function PublicRewardForecastPortal() {
     <section
       className="publicRewardEstimateCard"
       aria-live="polite"
+      lang={locale}
     >
       <div className="estimateTop">
-        <div>
-          <span className="estimateEyebrow">{t.eyebrow}</span>
-          <h2>
-            {forecast?.status === 'ready'
-              ? t.title
-              : t.pendingTitle}
-          </h2>
-        </div>
-        <span className="estimateBadge">B3TR</span>
+        <span className="estimateEyebrow">{t.eyebrow}</span>
+        <h2>
+          {forecast?.status === 'ready'
+            ? t.eligibility
+            : t.pendingTitle}
+        </h2>
       </div>
 
       {unavailable ? (
@@ -348,9 +354,8 @@ export function PublicRewardForecastPortal() {
         <>
           <div className="estimateAmount">
             <strong>
-              ≈ {formatRewardWei(forecast.estimatedRewardWei)} B3TR
+              {formatRewardWei(forecast.estimatedRewardWei)} B3TR
             </strong>
-            <span>{t.perInvite}</span>
           </div>
           <p className="estimateDisclaimer">{t.disclaimer}</p>
         </>
@@ -368,41 +373,40 @@ export function PublicRewardForecastPortal() {
           border-radius:21px;
           background:radial-gradient(circle at 90% 10%,rgba(244,183,40,.16),transparent 38%),linear-gradient(145deg,rgba(45,33,10,.82),rgba(18,18,15,.92));
           box-shadow:inset 0 1px 0 rgba(255,255,255,.04);
+          min-width:0;
         }
         .estimateTop {
-          display:flex;
-          align-items:flex-start;
-          justify-content:space-between;
-          gap:14px;
+          display:block;
+          min-width:0;
+          max-width:100%;
         }
         .estimateEyebrow {
+          display:block;
+          max-width:100%;
           color:#f8bc2e;
-          font-size:.66rem;
+          font-size:clamp(.58rem,2.6vw,.66rem);
           font-weight:950;
-          letter-spacing:.1em;
+          line-height:1.45;
+          letter-spacing:.08em;
           text-transform:uppercase;
+          overflow-wrap:anywhere;
+          word-break:normal;
+          hyphens:auto;
         }
         h2 {
+          max-width:100%;
           margin:5px 0 0;
           color:#f7f3e8;
-          font-size:1.02rem;
-          line-height:1.3;
+          font-size:clamp(.92rem,4vw,1.02rem);
+          line-height:1.45;
           letter-spacing:-.025em;
-        }
-        .estimateBadge {
-          flex:0 0 auto;
-          min-height:27px;
-          padding:0 9px;
-          display:inline-flex;
-          align-items:center;
-          border:1px solid rgba(255,205,80,.26);
-          border-radius:999px;
-          background:rgba(244,183,40,.11);
-          color:#ffd45f;
-          font-size:.66rem;
-          font-weight:950;
+          overflow-wrap:break-word;
+          word-break:normal;
+          hyphens:auto;
+          text-wrap:pretty;
         }
         .estimateAmount {
+          min-width:0;
           margin-top:17px;
           padding:17px 15px;
           border:1px solid rgba(255,205,80,.16);
@@ -412,26 +416,25 @@ export function PublicRewardForecastPortal() {
         }
         .estimateAmount strong {
           display:block;
+          max-width:100%;
           color:#ffd45f;
-          font-size:clamp(1.45rem,7vw,2rem);
-          line-height:1.12;
+          font-size:clamp(1.3rem,7vw,2rem);
+          line-height:1.15;
           font-variant-numeric:tabular-nums;
           letter-spacing:-.04em;
-        }
-        .estimateAmount span {
-          display:block;
-          margin-top:7px;
-          color:#aca697;
-          font-size:.72rem;
-          font-weight:800;
+          white-space:nowrap;
         }
         .estimateDisclaimer,.estimatePending {
           max-width:440px;
           margin:13px auto 0;
           color:#8f8a80;
           font-size:.69rem;
-          line-height:1.6;
+          line-height:1.65;
           text-align:center;
+          overflow-wrap:break-word;
+          word-break:normal;
+          hyphens:auto;
+          text-wrap:pretty;
         }
         .estimatePending {
           color:#a49e91;
@@ -441,11 +444,22 @@ export function PublicRewardForecastPortal() {
             padding:15px;
             border-radius:19px;
           }
-          .estimateTop {
-            gap:10px;
+          .estimateAmount {
+            padding:16px 10px;
+          }
+          .estimateAmount strong {
+            font-size:clamp(1.22rem,6.7vw,1.75rem);
+          }
+        }
+        @media (max-width:340px) {
+          .publicRewardEstimateCard {
+            padding:13px;
           }
           .estimateAmount {
-            padding:16px 12px;
+            padding:15px 8px;
+          }
+          .estimateAmount strong {
+            font-size:1.2rem;
           }
         }
       `}</style>
