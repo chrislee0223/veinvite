@@ -148,10 +148,9 @@ export function useWalletAuthentication() {
           );
         }
 
-        // Only one signature flow may own the session cookie at a time. A
-        // reconnect/switch explicitly cancels the previous flow through
-        // clearWalletSession, so this wait is bounded by the signature timeout
-        // even if a wallet provider becomes unresponsive.
+        // Only one signature flow may own the current browser cookie at a
+        // time. Other devices are allowed to keep their own independent
+        // VeInvite sessions.
         while (inFlightRef.current) {
           const current =
             inFlightRef.current;
@@ -232,23 +231,16 @@ export function useWalletAuthentication() {
             }
 
             if (session.authenticated) {
-              const logoutResponse =
-                await fetch(
-                  '/api/auth/session',
-                  {
-                    method: 'DELETE',
-                    credentials: 'include',
-                    signal: controller.signal,
-                  },
-                );
-
-              if (!logoutResponse.ok) {
-                throw new Error(
-                  'Could not clear the previous wallet verification.',
-                );
-              }
-
-              assertStillCurrent();
+              // A provider can momentarily report a different account while
+              // VeWorld/WalletConnect is restoring or while locale/UI state is
+              // changing. Never destroy the known-good browser session or open
+              // a new phone Sign prompt from that transient mismatch. A real
+              // wallet switch must go through VeInvite's explicit switch flow,
+              // which clears this browser session before connecting the next
+              // wallet.
+              throw new Error(
+                'The connected wallet changed while a verified VeInvite session is active. Use Connect another wallet to switch wallets.',
+              );
             }
 
             const challengeResponse =
@@ -480,6 +472,26 @@ export function useWalletAuthentication() {
 
   const clearWalletSession =
     useCallback(async () => {
+      const connectedWallet =
+        account?.address
+          ?.trim()
+          .toLowerCase() ?? null;
+
+      // VeWorld/WalletConnect can emit a passive disconnect after refresh,
+      // backgrounding, navigation, or provider reconstruction. By the time the
+      // passive-disconnect grace handler runs there is no connected account.
+      // That transport event is not user logout, so it must never revoke the
+      // persistent VeInvite browser session or reset the verified UI state.
+      // VeInvite's explicit disconnect/switch controls call this function while
+      // the current account is still connected, before disconnecting provider
+      // transport, so intentional logout continues to clear this device only.
+      if (
+        !connectedWallet ||
+        !WALLET_PATTERN.test(connectedWallet)
+      ) {
+        return;
+      }
+
       const current =
         inFlightRef.current;
 
@@ -552,7 +564,7 @@ export function useWalletAuthentication() {
       if (firstError) {
         throw firstError;
       }
-    }, []);
+    }, [account?.address]);
 
   return {
     ensureWalletSession,
