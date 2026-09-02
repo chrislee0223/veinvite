@@ -33,7 +33,8 @@ type VerificationState =
   | 'verified'
   | 'error';
 
-const SESSION_CHECK_SURFACE_DELAY_MS = 450;
+const SESSION_CHECK_SURFACE_DELAY_MS = 1_500;
+const PASSIVE_DISCONNECT_GRACE_MS = 4_000;
 
 function initialLocale(): Locale {
   if (typeof window === 'undefined') {
@@ -85,6 +86,10 @@ export function WalletSessionGate({
   const autoAttemptedWalletRef =
     useRef<string | null>(null);
   const pageLifecycleRef = useRef(false);
+  const walletAddressRef =
+    useRef<string | null>(walletAddress);
+  const pendingDisconnectTimerRef =
+    useRef<number | null>(null);
 
   useEffect(() => {
     setLocale(initialLocale());
@@ -134,11 +139,42 @@ export function WalletSessionGate({
   }, []);
 
   useEffect(() => {
+    walletAddressRef.current = walletAddress;
+
+    // WalletConnect/VeWorld can briefly report a disconnect while restoring
+    // the same transport after refresh. Once the wallet reappears, cancel the
+    // pending passive-disconnect check and keep the existing 7-day session.
+    if (
+      walletAddress &&
+      pendingDisconnectTimerRef.current !== null
+    ) {
+      window.clearTimeout(
+        pendingDisconnectTimerRef.current,
+      );
+      pendingDisconnectTimerRef.current = null;
+    }
+  }, [walletAddress]);
+
+  useEffect(() => {
+    return () => {
+      if (
+        pendingDisconnectTimerRef.current !== null
+      ) {
+        window.clearTimeout(
+          pendingDisconnectTimerRef.current,
+        );
+        pendingDisconnectTimerRef.current = null;
+      }
+    };
+  }, []);
+
+  useEffect(() => {
     const handleWalletDisconnected = () => {
-      // Ignore provider teardown signals caused by page refresh/navigation.
-      // The server session cookie is intentionally persistent and will be
-      // checked again on the next page load. Explicit disconnect/switch flows
-      // still clear it through clearWalletSession before disconnecting.
+      // Refresh/navigation teardown can emit wallet_disconnected before or
+      // even just after pageshow. Never revoke the persistent browser session
+      // immediately from a provider event; first give the transport time to
+      // restore the same wallet. Explicit VeInvite disconnect/switch actions
+      // still clear the server session synchronously before disconnecting.
       if (
         pageLifecycleRef.current ||
         document.visibilityState === 'hidden'
@@ -146,23 +182,44 @@ export function WalletSessionGate({
         return;
       }
 
-      // VeChainKit emits this event for genuine wallet disconnects. Cancel any
-      // ownership proof immediately and revoke the server-side VeInvite
-      // session. clearWalletSession is deliberately bounded so a wallet prompt
-      // that stopped responding cannot trap the app on this gate.
-      attemptRef.current += 1;
-      autoAttemptedWalletRef.current = null;
-      setVerifiedWallet(null);
-      setState('idle');
+      if (
+        pendingDisconnectTimerRef.current !== null
+      ) {
+        window.clearTimeout(
+          pendingDisconnectTimerRef.current,
+        );
+      }
 
-      void clearWalletSession().catch(
-        (error) => {
-          console.error(
-            'Failed to clear VeInvite session after wallet disconnect event:',
-            error,
+      pendingDisconnectTimerRef.current =
+        window.setTimeout(() => {
+          pendingDisconnectTimerRef.current = null;
+
+          // A restored wallet means this was only transport churn. Keep both
+          // the provider login and the existing 7-day VeInvite session intact.
+          if (
+            pageLifecycleRef.current ||
+            document.visibilityState === 'hidden' ||
+            walletAddressRef.current
+          ) {
+            return;
+          }
+
+          // The wallet stayed disconnected for the whole grace window, so now
+          // treat the provider event as genuine and revoke the browser session.
+          attemptRef.current += 1;
+          autoAttemptedWalletRef.current = null;
+          setVerifiedWallet(null);
+          setState('idle');
+
+          void clearWalletSession().catch(
+            (error) => {
+              console.error(
+                'Failed to clear VeInvite session after confirmed wallet disconnect:',
+                error,
+              );
+            },
           );
-        },
-      );
+        }, PASSIVE_DISCONNECT_GRACE_MS);
     };
 
     window.addEventListener(
@@ -184,9 +241,10 @@ export function WalletSessionGate({
       return;
     }
 
-    // Existing server sessions normally resolve very quickly. Avoid flashing a
-    // full-screen ownership-verification card during a normal refresh; only
-    // show it when verification is actually taking long enough to matter.
+    // A valid browser session should restore silently on refresh. Give the
+    // server-session lookup enough time to finish before surfacing ownership
+    // verification UI; a real first-time proof remains visible if it takes
+    // longer and genuinely needs user attention.
     const timeoutId = window.setTimeout(() => {
       setShowCheckingSurface(true);
     }, SESSION_CHECK_SURFACE_DELAY_MS);
