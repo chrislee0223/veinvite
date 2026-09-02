@@ -7,6 +7,26 @@ const registrationSource = readFileSync(
   'src/lib/i18n/localePacks/registerExpandedLocales.ts',
   'utf8',
 );
+const appProvidersSource = readFileSync(
+  'src/components/AppProviders.tsx',
+  'utf8',
+);
+const legalPageSource = readFileSync(
+  'src/components/LocalizedLegalPage.tsx',
+  'utf8',
+);
+const documentSyncSource = readFileSync(
+  'src/components/LocaleDocumentSync.tsx',
+  'utf8',
+);
+const languageFlagSource = readFileSync(
+  'src/components/LanguageFlag.tsx',
+  'utf8',
+);
+const typographySource = readFileSync(
+  'src/app/localized-typography.css',
+  'utf8',
+);
 
 const definitions = [
   ...localeSource.matchAll(
@@ -18,11 +38,13 @@ const definitions = [
   direction: match[3],
 }));
 
-const EXPECTED_LOCALES = [
+const CORE_LOCALES = [
   'en', 'ko', 'zh', 'hi', 'es', 'ja', 'it', 'tr', 'nl', 'de', 'fr',
-  'ar', 'bn', 'pt', 'ru', 'id', 'vi',
 ];
-const EXPANDED_LOCALES = ['ar', 'bn', 'pt', 'ru', 'id', 'vi'];
+const supportedLocales = definitions.map(({ locale }) => locale);
+const expandedLocales = supportedLocales.filter(
+  (locale) => !CORE_LOCALES.includes(locale),
+);
 const REQUIRED_PACK_SECTIONS = [
   'entryRejection',
   'guide',
@@ -44,12 +66,18 @@ const REQUIRED_PACK_SECTIONS = [
   'walletSession',
 ];
 
-test('locale registry contains the complete supported locale set exactly once', () => {
-  assert.deepEqual(
-    definitions.map(({ locale }) => locale),
-    EXPECTED_LOCALES,
+test('locale registry keeps every core locale and has no duplicates', () => {
+  assert.equal(new Set(supportedLocales).size, supportedLocales.length);
+  for (const locale of CORE_LOCALES) {
+    assert.ok(
+      supportedLocales.includes(locale),
+      `core locale ${locale} was removed from the registry`,
+    );
+  }
+  assert.ok(
+    supportedLocales.length >= 17,
+    'the reviewed 17-language baseline must not shrink',
   );
-  assert.equal(new Set(EXPECTED_LOCALES).size, EXPECTED_LOCALES.length);
 });
 
 test('every registered locale points to an app-owned flag asset', () => {
@@ -62,15 +90,21 @@ test('every registered locale points to an app-owned flag asset', () => {
   }
 });
 
-test('Arabic is the only current RTL locale', () => {
-  const rtlLocales = definitions
-    .filter(({ direction }) => direction === 'rtl')
-    .map(({ locale }) => locale);
-  assert.deepEqual(rtlLocales, ['ar']);
+test('RTL handling is generic and Arabic is registered as RTL', () => {
+  const arabic = definitions.find(({ locale }) => locale === 'ar');
+  assert.equal(arabic?.direction, 'rtl');
+  assert.match(
+    documentSyncSource,
+    /document\.documentElement\.dir\s*=\s*getLocaleDirection\(nextLocale\)/,
+  );
+  assert.match(typographySource, /html\[dir=['"]rtl['"]\]/);
+  assert.match(typographySource, /direction:\s*ltr\s*!important/);
 });
 
-test('every expansion locale has one complete typed locale pack and registration', () => {
-  for (const locale of EXPANDED_LOCALES) {
+test('every non-core locale has one complete typed locale pack and registration', () => {
+  assert.ok(expandedLocales.length >= 6);
+
+  for (const locale of expandedLocales) {
     const path = `src/lib/i18n/localePacks/${locale}.ts`;
     assert.ok(existsSync(path), `${locale} locale pack is missing`);
 
@@ -92,8 +126,8 @@ test('every expansion locale has one complete typed locale pack and registration
   }
 });
 
-test('new locale packs preserve VeInvite protocol terminology', () => {
-  for (const locale of EXPANDED_LOCALES) {
+test('expanded locale packs preserve VeInvite protocol terminology', () => {
+  for (const locale of expandedLocales) {
     const source = readFileSync(
       `src/lib/i18n/localePacks/${locale}.ts`,
       'utf8',
@@ -112,5 +146,31 @@ test('new locale packs preserve VeInvite protocol terminology', () => {
         `${locale} locale pack lost required product term: ${term}`,
       );
     }
+
+    assert.doesNotMatch(source, /\b(?:TODO|FIXME)\b/);
   }
+});
+
+test('expanded locales are registered before main app children render', () => {
+  assert.match(
+    appProvidersSource,
+    /import ['"]@\/lib\/i18n\/localePacks\/registerExpandedLocales['"];?/,
+  );
+});
+
+test('legal navigation copy covers every supported locale', () => {
+  for (const locale of supportedLocales) {
+    assert.match(
+      legalPageSource,
+      new RegExp(`\\n\\s{2}${locale}:\\s*['"]`),
+      `legal back label is missing for ${locale}`,
+    );
+  }
+});
+
+test('new localization boundaries use SupportedLocale instead of the legacy string key type', () => {
+  assert.match(localeSource, /@deprecated Legacy translation tables/);
+  assert.match(documentSyncSource, /type SupportedLocale/);
+  assert.match(legalPageSource, /Record<SupportedLocale, string>/);
+  assert.match(languageFlagSource, /type SupportedLocale/);
 });
