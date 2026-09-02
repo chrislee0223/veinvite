@@ -61,6 +61,25 @@ if (
   );
 }
 
+const notificationSurface = read(
+  'src/components/InAppInviteNotifications.tsx',
+);
+const walletSessionGate = read(
+  'src/components/WalletSessionGate.tsx',
+);
+if (
+  !/response\.status\s*===\s*401/.test(notificationSurface) ||
+  !/veinvite-wallet-session-invalid/.test(notificationSurface) ||
+  !/dispatchEvent/.test(notificationSurface) ||
+  !/veinvite-wallet-session-invalid/.test(walletSessionGate) ||
+  !/handleInvalidWalletSession/.test(walletSessionGate) ||
+  !/void verify\(\)/.test(walletSessionGate)
+) {
+  failures.push(
+    'Expired wallet sessions must stop protected notification polling and return control to WalletSessionGate for re-verification.',
+  );
+}
+
 const healthRoute = read('src/app/api/health/route.ts');
 if (
   !/VERCEL_GIT_COMMIT_SHA/.test(healthRoute) ||
