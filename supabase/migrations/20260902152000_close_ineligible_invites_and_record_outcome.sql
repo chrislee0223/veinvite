@@ -64,6 +64,150 @@ when (
 )
 execute function public.close_invitation_on_ineligible_entry_check();
 
+-- The live claim path uses the same row-locking discipline as an eligible
+-- claim. This prevents two wallets from racing the same pending invite and
+-- guarantees that the rejection evidence and terminal slot release commit as
+-- one transaction. The trigger above remains a defense for direct audit
+-- inserts, while this RPC is the authoritative live transition.
+create or replace function public.reject_invitation_with_entry_proof(
+  p_invite_code text,
+  p_wallet_address text,
+  p_network text,
+  p_checked_block bigint,
+  p_prior_reward_tx_id text default null,
+  p_prior_vote_tx_id text default null,
+  p_details jsonb default '{}'::jsonb
+)
+returns jsonb
+language plpgsql
+security definer
+set search_path = 'public'
+as $function$
+declare
+  v_code text := upper(btrim(p_invite_code));
+  v_wallet text := lower(btrim(p_wallet_address));
+  v_network text := lower(btrim(p_network));
+  v_invitation public.invitations%rowtype;
+  v_check_id bigint;
+begin
+  if v_code !~ '^[A-HJ-NP-Z2-9]{7}$' then
+    raise exception 'invalid invite code';
+  end if;
+
+  if v_wallet !~ '^0x[0-9a-f]{40}$' then
+    raise exception 'invalid wallet';
+  end if;
+
+  if v_network not in ('mainnet', 'testnet', 'testnet-staging') then
+    raise exception 'unsupported network';
+  end if;
+
+  if p_checked_block is null or p_checked_block < 0 then
+    raise exception 'invalid checked block';
+  end if;
+
+  if p_details is null or jsonb_typeof(p_details) <> 'object' then
+    raise exception 'details must be a JSON object';
+  end if;
+
+  if upper(coalesce(nullif(btrim(p_details ->> 'entryClass'), ''), ''))
+     <> 'ACTIVE_EXISTING' then
+    raise exception 'rejected claim requires ACTIVE_EXISTING evidence';
+  end if;
+
+  select * into v_invitation
+  from public.invitations i
+  where i.invite_code = v_code
+  for update;
+
+  if not found then
+    return jsonb_build_object('result', 'NOT_FOUND');
+  end if;
+
+  if v_invitation.status = 'CANCELLED' then
+    return jsonb_build_object('result', 'CANCELLED');
+  end if;
+
+  if v_invitation.invitee_wallet is not null then
+    return jsonb_build_object('result', 'ALREADY_USED');
+  end if;
+
+  if lower(v_invitation.inviter_wallet) = v_wallet then
+    return jsonb_build_object('result', 'SELF_REFERRAL');
+  end if;
+
+  if exists (
+    select 1
+    from public.invitations i
+    where i.invitee_wallet = v_wallet
+  ) then
+    return jsonb_build_object('result', 'ALREADY_REFERRED');
+  end if;
+
+  insert into public.eligibility_check_events (
+    invite_code,
+    wallet_address,
+    network,
+    checked_block,
+    outcome,
+    entry_class,
+    prior_reward_tx_id,
+    prior_vote_tx_id,
+    details
+  ) values (
+    v_code,
+    v_wallet,
+    v_network,
+    p_checked_block,
+    'EXISTING_VEBETTER_USER',
+    'ACTIVE_EXISTING',
+    p_prior_reward_tx_id,
+    p_prior_vote_tx_id,
+    p_details
+  ) returning id into v_check_id;
+
+  -- The AFTER INSERT trigger normally performs this update. Keep the explicit
+  -- guarded update as an invariant backstop so the RPC remains self-contained
+  -- if trigger ordering changes in a future migration.
+  update public.invitations i
+  set
+    status = 'CANCELLED',
+    ineligibility_check_id = v_check_id,
+    ineligible_at = coalesce(i.ineligible_at, now())
+  where i.invite_code = v_code
+    and i.status = 'PENDING_ACCEPTANCE'
+    and i.invitee_wallet is null
+    and i.eligibility_check_id is null
+    and i.ineligibility_check_id is null;
+
+  select * into v_invitation
+  from public.invitations i
+  where i.invite_code = v_code;
+
+  if v_invitation.status <> 'CANCELLED'
+     or v_invitation.ineligibility_check_id is distinct from v_check_id
+     or v_invitation.ineligible_at is null
+     or v_invitation.invitee_wallet is not null
+     or v_invitation.eligibility_check_id is not null then
+    raise exception 'ineligible invitation closure did not reach its terminal state';
+  end if;
+
+  return jsonb_build_object(
+    'result', 'REJECTED',
+    'invite_code', v_invitation.invite_code,
+    'ineligibility_check_id', v_check_id,
+    'ineligible_at', v_invitation.ineligible_at
+  );
+end;
+$function$;
+
+revoke all on function public.reject_invitation_with_entry_proof(
+  text, text, text, bigint, text, text, jsonb
+) from public, anon, authenticated;
+grant execute on function public.reject_invitation_with_entry_proof(
+  text, text, text, bigint, text, text, jsonb
+) to service_role;
+
 -- Reclassify prior live rejection attempts that were left as reusable pending
 -- links by the old behavior. Historical accepted legacy rows are intentionally
 -- untouched because the WHERE clause only targets unconsumed pending invites.
