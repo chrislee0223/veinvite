@@ -1,34 +1,47 @@
 export type LocaleDirection = 'ltr' | 'rtl';
+export type LocaleTypography = 'latin' | 'cjk' | 'arabic' | 'indic';
 
 export type LocaleDefinition = {
   locale: string;
   nativeName: string;
   flagSource: string;
   direction: LocaleDirection;
-  cjk?: boolean;
+  typography: LocaleTypography;
 };
 
 // Single source of truth for every locale shown by VeInvite.
 // Adding a language should start here: code, native name, app-owned flag,
-// writing direction, and (when relevant) CJK line-breaking behavior.
+// writing direction, and typography group. The typography group lets layout
+// safeguards follow a script family instead of hard-coding every locale into
+// CSS as the language list grows.
 export const LOCALE_DEFINITIONS = [
-  { locale: 'en', nativeName: 'English', flagSource: '/flags/us.svg', direction: 'ltr' },
-  { locale: 'ko', nativeName: '한국어', flagSource: '/flags/kr.svg', direction: 'ltr', cjk: true },
-  { locale: 'zh', nativeName: '简体中文', flagSource: '/flags/cn.svg', direction: 'ltr', cjk: true },
-  { locale: 'hi', nativeName: 'हिन्दी', flagSource: '/flags/in.svg', direction: 'ltr' },
-  { locale: 'es', nativeName: 'Español', flagSource: '/flags/es.svg', direction: 'ltr' },
-  { locale: 'ja', nativeName: '日本語', flagSource: '/flags/jp.svg', direction: 'ltr', cjk: true },
-  { locale: 'it', nativeName: 'Italiano', flagSource: '/flags/it.svg', direction: 'ltr' },
-  { locale: 'tr', nativeName: 'Türkçe', flagSource: '/flags/tr.svg', direction: 'ltr' },
-  { locale: 'nl', nativeName: 'Nederlands', flagSource: '/flags/nl.svg', direction: 'ltr' },
-  { locale: 'de', nativeName: 'Deutsch', flagSource: '/flags/de.svg', direction: 'ltr' },
-  { locale: 'fr', nativeName: 'Français', flagSource: '/flags/fr.svg', direction: 'ltr' },
-  { locale: 'ar', nativeName: 'العربية', flagSource: '/flags/ae.svg', direction: 'rtl' },
-  { locale: 'bn', nativeName: 'বাংলা', flagSource: '/flags/bd.svg', direction: 'ltr' },
-  { locale: 'pt', nativeName: 'Português', flagSource: '/flags/br.svg', direction: 'ltr' },
-  { locale: 'ru', nativeName: 'Русский', flagSource: '/flags/ru.svg', direction: 'ltr' },
-  { locale: 'id', nativeName: 'Bahasa Indonesia', flagSource: '/flags/id.svg', direction: 'ltr' },
-  { locale: 'vi', nativeName: 'Tiếng Việt', flagSource: '/flags/vn.svg', direction: 'ltr' },
+  { locale: 'en', nativeName: 'English', flagSource: '/flags/us.svg', direction: 'ltr', typography: 'latin' },
+  { locale: 'ko', nativeName: '한국어', flagSource: '/flags/kr.svg', direction: 'ltr', typography: 'cjk' },
+  { locale: 'zh', nativeName: '简体中文', flagSource: '/flags/cn.svg', direction: 'ltr', typography: 'cjk' },
+  { locale: 'hi', nativeName: 'हिन्दी', flagSource: '/flags/in.svg', direction: 'ltr', typography: 'indic' },
+  { locale: 'es', nativeName: 'Español', flagSource: '/flags/es.svg', direction: 'ltr', typography: 'latin' },
+  { locale: 'ja', nativeName: '日本語', flagSource: '/flags/jp.svg', direction: 'ltr', typography: 'cjk' },
+  { locale: 'it', nativeName: 'Italiano', flagSource: '/flags/it.svg', direction: 'ltr', typography: 'latin' },
+  { locale: 'tr', nativeName: 'Türkçe', flagSource: '/flags/tr.svg', direction: 'ltr', typography: 'latin' },
+  { locale: 'nl', nativeName: 'Nederlands', flagSource: '/flags/nl.svg', direction: 'ltr', typography: 'latin' },
+  { locale: 'de', nativeName: 'Deutsch', flagSource: '/flags/de.svg', direction: 'ltr', typography: 'latin' },
+  { locale: 'fr', nativeName: 'Français', flagSource: '/flags/fr.svg', direction: 'ltr', typography: 'latin' },
+  { locale: 'ar', nativeName: 'العربية', flagSource: '/flags/ae.svg', direction: 'rtl', typography: 'arabic' },
+  { locale: 'bn', nativeName: 'বাংলা', flagSource: '/flags/bd.svg', direction: 'ltr', typography: 'indic' },
+  { locale: 'pt', nativeName: 'Português', flagSource: '/flags/br.svg', direction: 'ltr', typography: 'latin' },
+  { locale: 'ru', nativeName: 'Русский', flagSource: '/flags/ru.svg', direction: 'ltr', typography: 'latin' },
+  { locale: 'id', nativeName: 'Bahasa Indonesia', flagSource: '/flags/id.svg', direction: 'ltr', typography: 'latin' },
+  { locale: 'vi', nativeName: 'Tiếng Việt', flagSource: '/flags/vn.svg', direction: 'ltr', typography: 'latin' },
+  { locale: 'zh-tw', nativeName: '繁體中文（台灣）', flagSource: '/flags/tw.svg', direction: 'ltr', typography: 'cjk' },
+  { locale: 'sv', nativeName: 'Svenska', flagSource: '/flags/se.svg', direction: 'ltr', typography: 'latin' },
+  { locale: 'ro', nativeName: 'Română', flagSource: '/flags/ro.svg', direction: 'ltr', typography: 'latin' },
+  { locale: 'ur', nativeName: 'اردو', flagSource: '/flags/pk.svg', direction: 'rtl', typography: 'arabic' },
+  { locale: 'pcm', nativeName: 'Nigerian Pidgin', flagSource: '/flags/ng.svg', direction: 'ltr', typography: 'latin' },
+  { locale: 'arz', nativeName: 'العربية المصرية', flagSource: '/flags/eg.svg', direction: 'rtl', typography: 'arabic' },
+  { locale: 'mr', nativeName: 'मराठी', flagSource: '/flags/in.svg', direction: 'ltr', typography: 'indic' },
+  { locale: 'te', nativeName: 'తెలుగు', flagSource: '/flags/in.svg', direction: 'ltr', typography: 'indic' },
+  { locale: 'sw', nativeName: 'Kiswahili', flagSource: '/flags/ke.svg', direction: 'ltr', typography: 'latin' },
+  { locale: 'ha', nativeName: 'Hausa', flagSource: '/flags/ng.svg', direction: 'ltr', typography: 'latin' },
 ] as const satisfies readonly LocaleDefinition[];
 
 export const SUPPORTED_LOCALES = LOCALE_DEFINITIONS.map(
@@ -53,6 +66,7 @@ export type LanguageOption = {
   nativeName: string;
   flagSource: string;
   direction: LocaleDirection;
+  typography: LocaleTypography;
 };
 
 export const LANGUAGE_OPTIONS: LanguageOption[] =
@@ -61,6 +75,7 @@ export const LANGUAGE_OPTIONS: LanguageOption[] =
     nativeName: definition.nativeName,
     flagSource: definition.flagSource,
     direction: definition.direction,
+    typography: definition.typography,
   }));
 
 const SUPPORTED_LOCALE_SET =
@@ -91,12 +106,21 @@ export function localeFromLanguageTag(
     return null;
   }
 
-  // Prefer an explicitly supported locale tag (for example pt-br) before
-  // falling back to its base language. This keeps today's base-language
-  // behavior while allowing future regional variants without another browser
-  // detection rewrite.
+  // Prefer an explicitly supported locale tag (for example zh-tw) before
+  // falling back to its base language.
   if (isLocale(normalized)) {
     return normalized;
+  }
+
+  // Some browsers expose Traditional Chinese by script instead of region,
+  // e.g. zh-Hant or zh-Hant-TW. Treat the Hant script as the reviewed Taiwan
+  // Traditional Chinese experience rather than accidentally falling through
+  // to Simplified Chinese via the base `zh` locale.
+  if (
+    normalized === 'zh-hant' ||
+    normalized.startsWith('zh-hant-')
+  ) {
+    return 'zh-tw';
   }
 
   const base = normalized.split('-')[0];
@@ -139,6 +163,12 @@ export function getLocaleDirection(
   return getLanguageOption(locale).direction;
 }
 
+export function getLocaleTypography(
+  locale: string,
+): LocaleTypography {
+  return getLanguageOption(locale).typography;
+}
+
 export function isRtlLocale(
   locale: string,
 ): boolean {
@@ -148,10 +178,5 @@ export function isRtlLocale(
 export function isCjkLocale(
   locale: string,
 ): boolean {
-  return LOCALE_DEFINITIONS.some(
-    (definition) =>
-      definition.locale === locale &&
-      'cjk' in definition &&
-      definition.cjk === true,
-  );
+  return getLocaleTypography(locale) === 'cjk';
 }

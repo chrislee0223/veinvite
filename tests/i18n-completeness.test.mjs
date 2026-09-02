@@ -15,6 +15,10 @@ const legalPageSource = readFileSync(
   'src/components/LocalizedLegalPage.tsx',
   'utf8',
 );
+const legalNavigationSource = readFileSync(
+  'src/lib/i18n/legalNavigationCopy.ts',
+  'utf8',
+);
 const documentSyncSource = readFileSync(
   'src/components/LocaleDocumentSync.tsx',
   'utf8',
@@ -23,8 +27,12 @@ const languageFlagSource = readFileSync(
   'src/components/LanguageFlag.tsx',
   'utf8',
 );
-const forecastSource = readFileSync(
+const forecastComponentSource = readFileSync(
   'src/components/PublicRewardForecastPortal.tsx',
+  'utf8',
+);
+const forecastCopySource = readFileSync(
+  'src/lib/i18n/rewardForecastCopy.ts',
   'utf8',
 );
 const typographySource = readFileSync(
@@ -44,7 +52,7 @@ const LOCALE_TAG_PATTERN = '[a-z]{2,3}(?:-[a-z0-9]{2,8})*';
 const definitions = [
   ...localeSource.matchAll(
     new RegExp(
-      `locale:\\s*'(${LOCALE_TAG_PATTERN})'.*?flagSource:\\s*'([^']+)'.*?direction:\\s*'(ltr|rtl)'`,
+      `locale:\\s*'(${LOCALE_TAG_PATTERN})'.*?flagSource:\\s*'([^']+)'.*?direction:\\s*'(ltr|rtl)'.*?typography:\\s*'(latin|cjk|arabic|indic)'`,
       'g',
     ),
   ),
@@ -52,10 +60,19 @@ const definitions = [
   locale: match[1],
   flagSource: match[2],
   direction: match[3],
+  typography: match[4],
 }));
 
 const CORE_LOCALES = [
   'en', 'ko', 'zh', 'hi', 'es', 'ja', 'it', 'tr', 'nl', 'de', 'fr',
+];
+const REVIEWED_27_LOCALES = [
+  ...CORE_LOCALES,
+  'ar', 'bn', 'pt', 'ru', 'id', 'vi',
+  'zh-tw', 'sv', 'ro', 'ur', 'pcm', 'arz', 'mr', 'te', 'sw', 'ha',
+];
+const NEW_27_EXPANSION = [
+  'zh-tw', 'sv', 'ro', 'ur', 'pcm', 'arz', 'mr', 'te', 'sw', 'ha',
 ];
 const supportedLocales = definitions.map(({ locale }) => locale);
 const expandedLocales = supportedLocales.filter(
@@ -82,27 +99,48 @@ const REQUIRED_PACK_SECTIONS = [
   'walletSession',
 ];
 
+const INTENTIONAL_SECTION_INHERITANCE = {
+  arz: new Set(['legalConsent', 'legal', 'walletSession']),
+};
+
+// Some reviewed localizations use their native decimal digits in prose.
+// Treat the different written forms of the number twelve as the same policy
+// marker rather than forcing a Latin "12" into otherwise natural copy.
+const ROUND_TWELVE_MARKERS = [
+  '12',
+  '১২', // Bengali
+  '१२', // Devanagari
+  '۱۲', // Persian/Urdu digits
+  '١٢', // Arabic-Indic
+  '౧౨', // Telugu
+];
+
 function objectKeyPattern(locale, suffix) {
+  const escaped = locale.replaceAll('-', '\\-');
   return new RegExp(
-    `\\n\\s{2}(?:${locale}|['\"]${locale}['\"]):\\s*${suffix}`,
+    `\\n\\s{2}(?:${escaped}|['\"]${escaped}['\"]):\\s*${suffix}`,
   );
 }
 
-test('locale registry keeps every core locale and has no duplicates', () => {
+function localeDefinition(locale) {
+  return definitions.find((definition) => definition.locale === locale);
+}
+
+test('locale registry keeps the reviewed 27-language baseline with no duplicates', () => {
   assert.equal(new Set(supportedLocales).size, supportedLocales.length);
-  for (const locale of CORE_LOCALES) {
+  for (const locale of REVIEWED_27_LOCALES) {
     assert.ok(
       supportedLocales.includes(locale),
-      `core locale ${locale} was removed from the registry`,
+      `reviewed locale ${locale} is missing from the registry`,
     );
   }
   assert.ok(
-    supportedLocales.length >= 17,
-    'the reviewed 17-language baseline must not shrink',
+    supportedLocales.length >= 27,
+    'the reviewed 27-language baseline must not shrink',
   );
 });
 
-test('browser language detection prefers exact supported tags before base fallback', () => {
+test('browser language detection prefers exact regional tags before base fallback', () => {
   const exactMatchIndex = localeSource.indexOf('if (isLocale(normalized))');
   const baseFallbackIndex = localeSource.indexOf("const base = normalized.split('-')[0]");
 
@@ -110,6 +148,10 @@ test('browser language detection prefers exact supported tags before base fallba
   assert.ok(
     baseFallbackIndex > exactMatchIndex,
     'base-language fallback must run only after exact locale-tag matching',
+  );
+  assert.ok(
+    supportedLocales.includes('zh-tw'),
+    'Taiwan Traditional Chinese must be an exact supported browser locale',
   );
 });
 
@@ -123,19 +165,52 @@ test('every registered locale points to an app-owned flag asset', () => {
   }
 });
 
-test('RTL handling is generic and Arabic is registered as RTL', () => {
-  const arabic = definitions.find(({ locale }) => locale === 'ar');
-  assert.equal(arabic?.direction, 'rtl');
+test('same-country language choices remain distinct while safely sharing flags', () => {
+  assert.equal(localeDefinition('hi')?.flagSource, '/flags/in.svg');
+  assert.equal(localeDefinition('mr')?.flagSource, '/flags/in.svg');
+  assert.equal(localeDefinition('te')?.flagSource, '/flags/in.svg');
+  assert.equal(localeDefinition('pcm')?.flagSource, '/flags/ng.svg');
+  assert.equal(localeDefinition('ha')?.flagSource, '/flags/ng.svg');
+});
+
+test('RTL and script typography metadata cover every new script family', () => {
+  for (const locale of ['ar', 'ur', 'arz']) {
+    assert.equal(localeDefinition(locale)?.direction, 'rtl');
+    assert.equal(localeDefinition(locale)?.typography, 'arabic');
+  }
+  for (const locale of ['hi', 'bn', 'mr', 'te']) {
+    assert.equal(localeDefinition(locale)?.direction, 'ltr');
+    assert.equal(localeDefinition(locale)?.typography, 'indic');
+  }
+  for (const locale of ['zh', 'zh-tw', 'ja', 'ko']) {
+    assert.equal(localeDefinition(locale)?.typography, 'cjk');
+  }
+
   assert.match(
     documentSyncSource,
     /document\.documentElement\.dir\s*=\s*getLocaleDirection\(nextLocale\)/,
   );
+  assert.match(
+    documentSyncSource,
+    /dataset\.localeTypography\s*=\s*\n?\s*getLocaleTypography\(nextLocale\)/,
+  );
   assert.match(typographySource, /html\[dir=['"]rtl['"]\]/);
+  assert.match(
+    typographySource,
+    /data-locale-typography=['"]arabic['"]/,
+  );
+  assert.match(
+    typographySource,
+    /data-locale-typography=['"]indic['"]/,
+  );
+  assert.match(typographySource, /lang=['"]zh-tw['"]/);
+  assert.match(typographySource, /lang=['"]ur['"]/);
   assert.match(typographySource, /direction:\s*ltr/);
+  assert.match(typographySource, /unicode-bidi:\s*isolate/);
 });
 
-test('every non-core locale has one complete typed locale pack and registration', () => {
-  assert.ok(expandedLocales.length >= 6);
+test('every non-core locale has a typed pack and is registered', () => {
+  assert.ok(expandedLocales.length >= 16);
 
   for (const locale of expandedLocales) {
     const path = `src/lib/i18n/localePacks/${locale}.ts`;
@@ -145,9 +220,13 @@ test('every non-core locale has one complete typed locale pack and registration'
     assert.match(source, /LocalePack\s*=\s*\{/);
 
     for (const section of REQUIRED_PACK_SECTIONS) {
-      assert.match(
-        source,
-        new RegExp(`\\n\\s{2}${section}:\\s*\\{`),
+      const hasLiteralSection = new RegExp(
+        `\\n\\s{2}${section}:\\s*\\{`,
+      ).test(source);
+      const inherited =
+        INTENTIONAL_SECTION_INHERITANCE[locale]?.has(section) ?? false;
+      assert.ok(
+        hasLiteralSection || inherited,
         `${locale} locale pack is missing the ${section} section`,
       );
     }
@@ -159,7 +238,7 @@ test('every non-core locale has one complete typed locale pack and registration'
   }
 });
 
-test('expanded locale packs preserve VeInvite protocol terminology', () => {
+test('expanded locale packs preserve VeInvite protocol terminology and mission semantics', () => {
   for (const locale of expandedLocales) {
     const source = readFileSync(
       `src/lib/i18n/localePacks/${locale}.ts`,
@@ -180,8 +259,55 @@ test('expanded locale packs preserve VeInvite protocol terminology', () => {
       );
     }
 
+    assert.ok(
+      ROUND_TWELVE_MARKERS.some((marker) => source.includes(marker)),
+      `${locale} locale pack lost the reviewed 12-completed-round returning-user rule`,
+    );
     assert.doesNotMatch(source, /\b(?:TODO|FIXME)\b/);
   }
+});
+
+test('Taiwan pack uses reviewed Traditional Chinese product wording, not Simplified leakage', () => {
+  const source = readFileSync(
+    'src/lib/i18n/localePacks/zh-tw.ts',
+    'utf8',
+  );
+  assert.match(source, /繁體中文（台灣）/);
+  assert.match(source, /使用者/);
+  assert.match(source, /錢包/);
+  assert.match(source, /隱私權政策/);
+  assert.doesNotMatch(source, /钱包|用户|奖励|邀请|隐私政策/);
+});
+
+test('RTL localized UI avoids bidi-ambiguous mission arrows in the new Urdu and Egyptian packs', () => {
+  for (const locale of ['ur', 'arz']) {
+    const source = readFileSync(
+      `src/lib/i18n/localePacks/${locale}.ts`,
+      'utf8',
+    );
+    assert.doesNotMatch(
+      source,
+      /B3TR\s*→\s*VOT3/,
+      `${locale} should describe token conversion in words instead of a bidi-sensitive arrow`,
+    );
+  }
+});
+
+test('regional-register reuse is explicit rather than accidental untranslated fallback', () => {
+  const egyptian = readFileSync(
+    'src/lib/i18n/localePacks/arz.ts',
+    'utf8',
+  );
+  const pidgin = readFileSync(
+    'src/lib/i18n/localePacks/pcm.ts',
+    'utf8',
+  );
+  assert.match(egyptian, /Formal legal, consent, and wallet-security copy intentionally stays in MSA/);
+  assert.match(
+    pidgin,
+    /Formal legal, consent,[\s\S]*wallet-security text intentionally stays in clear English/,
+  );
+  assert.match(pidgin, /deliberate locale choice, not a missing translation/);
 });
 
 test('expanded locales are registered before main app children render', () => {
@@ -191,28 +317,50 @@ test('expanded locales are registered before main app children render', () => {
   );
 });
 
-test('legal navigation copy covers every supported locale', () => {
+test('legal navigation copy is centralized and exhaustive for supported locales', () => {
+  assert.match(
+    legalNavigationSource,
+    /Record<SupportedLocale, string>/,
+  );
   for (const locale of supportedLocales) {
     assert.match(
-      legalPageSource,
+      legalNavigationSource,
       objectKeyPattern(locale, `['\"]`),
       `legal back label is missing for ${locale}`,
     );
   }
+  assert.match(legalPageSource, /LEGAL_BACK_LABEL\[locale\]/);
+  assert.doesNotMatch(legalPageSource, /const BACK_LABEL/);
 });
 
-test('standalone reward forecast copy covers every supported locale', () => {
+test('standalone reward forecast copy is centralized and exhaustive for supported locales', () => {
   assert.match(
-    forecastSource,
-    /Record<SupportedLocale, ForecastCopy>/,
+    forecastCopySource,
+    /Record<\s*SupportedLocale,\s*RewardForecastCopy\s*>/,
   );
   for (const locale of supportedLocales) {
     assert.match(
-      forecastSource,
+      forecastCopySource,
       objectKeyPattern(locale, '\\{'),
       `reward forecast copy is missing for ${locale}`,
     );
   }
+  assert.match(
+    forecastComponentSource,
+    /REWARD_FORECAST_COPY\[locale\]/,
+  );
+  assert.doesNotMatch(forecastComponentSource, /const COPY:/);
+});
+
+test('multilingual layout safeguards protect long text and script metrics', () => {
+  assert.match(typographySource, /min-width:\s*0/);
+  assert.match(typographySource, /text-wrap:\s*balance/);
+  assert.match(typographySource, /text-wrap:\s*pretty/);
+  assert.match(typographySource, /overflow-wrap:\s*normal/);
+  assert.match(typographySource, /word-break:\s*keep-all/);
+  assert.match(typographySource, /Noto Nastaliq Urdu/);
+  assert.match(typographySource, /Noto Sans Devanagari/);
+  assert.match(typographySource, /Noto Sans Telugu/);
 });
 
 test('wallet language persistence stays future-proof and registry-gated', () => {
@@ -234,7 +382,14 @@ test('wallet language persistence stays future-proof and registry-gated', () => 
 test('new localization boundaries use SupportedLocale instead of the legacy string key type', () => {
   assert.match(localeSource, /@deprecated Legacy translation tables/);
   assert.match(documentSyncSource, /type SupportedLocale/);
-  assert.match(legalPageSource, /Record<SupportedLocale, string>/);
+  assert.match(legalNavigationSource, /type \{ SupportedLocale \}/);
   assert.match(languageFlagSource, /type SupportedLocale/);
-  assert.match(forecastSource, /type SupportedLocale/);
+  assert.match(forecastCopySource, /type \{ SupportedLocale \}/);
+});
+
+test('the ten new expansion locales are all covered by the quality gate', () => {
+  assert.deepEqual(
+    NEW_27_EXPANSION.filter((locale) => !supportedLocales.includes(locale)),
+    [],
+  );
 });
