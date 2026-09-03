@@ -21,6 +21,7 @@ import {
   type TransientFeedbackKind,
 } from './TransientSnackbar';
 import { useWalletLauncher } from './WalletControl';
+import { GUIDE_COPY } from '@/lib/i18n/guideCopy';
 import { GUIDE_REWARD_STEP_COPY } from '@/lib/i18n/guideRewardStepCopy';
 import { HOME_COPY } from '@/lib/i18n/homeCopy';
 import { NOTIFICATION_COPY } from '@/lib/i18n/notificationCopy';
@@ -38,6 +39,11 @@ import type { InviteRecord } from '@/lib/types';
 
 const AppGuide = dynamic(() =>
   import('./AppGuide').then((module) => module.AppGuide),
+);
+const AppNetworkComingSoon = dynamic(() =>
+  import('./AppNetworkComingSoon').then(
+    (module) => module.AppNetworkComingSoon,
+  ),
 );
 const AppSettings = dynamic(() =>
   import('./AppSettings').then((module) => module.AppSettings),
@@ -71,15 +77,20 @@ export function HomeClient() {
   const [feedback, setFeedback] =
     useState<TransientFeedback | null>(null);
   const [activeTab, setActiveTab] = useState<AppTab>('home');
+  const [guideOpen, setGuideOpen] = useState(false);
   const [vercelShareToken, setVercelShareToken] = useState('');
   const [legacyCancelTarget, setLegacyCancelTarget] =
     useState<InviteRecord | null>(null);
   const feedbackIdRef = useRef(0);
+  const guideTriggerRef = useRef<HTMLButtonElement | null>(null);
+  const guideDialogRef = useRef<HTMLDivElement | null>(null);
+  const guideCloseRef = useRef<HTMLButtonElement | null>(null);
   const cancelTriggerRef = useRef<HTMLButtonElement | null>(null);
   const cancelDialogRef = useRef<HTMLDivElement | null>(null);
   const cancelKeepRef = useRef<HTMLButtonElement | null>(null);
 
   const t = HOME_COPY[locale];
+  const guide = GUIDE_COPY[locale];
   const referral = REFERRAL_LINK_COPY[locale];
   const automaticRewardCopy = GUIDE_REWARD_STEP_COPY[locale];
 
@@ -145,6 +156,7 @@ export function HomeClient() {
 
   const changeTab = (nextTab: AppTab) => {
     clearFeedback();
+    setGuideOpen(false);
     setActiveTab(nextTab);
     setLegacyCancelTarget(null);
     window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -338,6 +350,45 @@ export function HomeClient() {
     await copyUrl(url);
   };
 
+  const closeGuide = useCallback(() => {
+    setGuideOpen(false);
+    window.requestAnimationFrame(() =>
+      guideTriggerRef.current?.focus(),
+    );
+  }, []);
+
+  useEffect(() => {
+    if (!guideOpen) return;
+    guideCloseRef.current?.focus();
+
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        closeGuide();
+        return;
+      }
+      if (event.key !== 'Tab' || !guideDialogRef.current) return;
+      const focusable = Array.from(
+        guideDialogRef.current.querySelectorAll<HTMLElement>(
+          'button:not([disabled]), a[href], select, [tabindex]:not([tabindex="-1"])',
+        ),
+      );
+      if (focusable.length < 1) return;
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first.focus();
+      }
+    };
+
+    document.addEventListener('keydown', onKeyDown);
+    return () => document.removeEventListener('keydown', onKeyDown);
+  }, [guideOpen, closeGuide]);
+
   const closeCancelModal = useCallback(() => {
     setLegacyCancelTarget(null);
     window.requestAnimationFrame(() =>
@@ -457,14 +508,30 @@ export function HomeClient() {
         <section className="missionCard">
           <div className="cardGlow" />
 
-          <div
-            className={
-              isCjkLocale(locale)
-                ? 'missionCopy cjkCopy'
-                : 'missionCopy'
-            }
-          >
-            <h1>{referral.homeTitle}</h1>
+          <div className="missionHeader">
+            <div
+              className={
+                isCjkLocale(locale)
+                  ? 'missionCopy cjkCopy'
+                  : 'missionCopy'
+              }
+            >
+              <h1>{referral.homeTitle}</h1>
+            </div>
+            <button
+              ref={guideTriggerRef}
+              type="button"
+              className="guideInfoButton"
+              aria-label={guide.title}
+              title={guide.title}
+              onClick={() => {
+                clearFeedback();
+                setLegacyCancelTarget(null);
+                setGuideOpen(true);
+              }}
+            >
+              <span aria-hidden="true">ⓘ</span>
+            </button>
           </div>
 
           {!wallet ? (
@@ -516,6 +583,7 @@ export function HomeClient() {
                   onCopyLegacy={(invite) =>
                     void copyUrl(legacyInviteUrl(invite))}
                   onCancelLegacy={(invite, trigger) => {
+                    guideOpen && setGuideOpen(false);
                     cancelTriggerRef.current = trigger;
                     setLegacyCancelTarget(invite);
                   }}
@@ -529,6 +597,7 @@ export function HomeClient() {
                   onCopyLegacy={(invite) =>
                     void copyUrl(legacyInviteUrl(invite))}
                   onCancelLegacy={(invite, trigger) => {
+                    guideOpen && setGuideOpen(false);
                     cancelTriggerRef.current = trigger;
                     setLegacyCancelTarget(invite);
                   }}
@@ -555,7 +624,7 @@ export function HomeClient() {
           ) : null}
         </section>
       ) : activeTab === 'guide' ? (
-        <AppGuide locale={locale} />
+        <AppNetworkComingSoon locale={locale} />
       ) : activeTab === 'leaderboard' ? (
         <PublicLeaderboard locale={locale} wallet={wallet} />
       ) : (
@@ -569,6 +638,37 @@ export function HomeClient() {
           onDisconnect={disconnectWallet}
         />
       )}
+
+      {guideOpen ? (
+        <div
+          className="guideBackdrop"
+          role="presentation"
+          onMouseDown={(event) => {
+            if (event.target === event.currentTarget) closeGuide();
+          }}
+        >
+          <div
+            ref={guideDialogRef}
+            className="guideDialog"
+            role="dialog"
+            aria-modal="true"
+            aria-label={guide.title}
+          >
+            <div className="guideDialogTop">
+              <button
+                ref={guideCloseRef}
+                type="button"
+                className="guideCloseButton"
+                onClick={closeGuide}
+                aria-label={NOTIFICATION_COPY[locale].closeAria}
+              >
+                ×
+              </button>
+            </div>
+            <AppGuide locale={locale} />
+          </div>
+        </div>
+      ) : null}
 
       {legacyCancelTarget ? (
         <div
@@ -633,9 +733,12 @@ export function HomeClient() {
         .accountDot { width:9px; height:9px; border-radius:50%; background:#f4b728; box-shadow:0 0 14px rgba(244,183,40,.68); }
         .missionCard { position:relative; overflow:hidden; width:min(100%,520px); box-sizing:border-box; margin:0 auto; padding:24px; border:1px solid rgba(255,201,61,.28); border-radius:30px; background:linear-gradient(155deg,rgba(54,40,14,.98),rgba(16,16,14,.99) 66%); box-shadow:0 28px 80px rgba(0,0,0,.44),inset 0 1px 0 rgba(255,255,255,.08); }
         .cardGlow { position:absolute; top:-110px; right:-90px; width:250px; height:250px; border-radius:50%; background:rgba(244,183,40,.22); filter:blur(4px); pointer-events:none; }
-        .missionCopy { position:relative; z-index:1; }
+        .missionHeader { position:relative; z-index:2; display:flex; align-items:flex-start; gap:12px; }
+        .missionCopy { min-width:0; flex:1; position:relative; z-index:1; }
         .missionCopy h1 { max-width:100%; margin:0; font-size:clamp(2.05rem,8vw,3.05rem); line-height:1.04; letter-spacing:-.05em; text-wrap:balance; overflow-wrap:anywhere; hyphens:auto; }
         .missionCopy.cjkCopy h1 { font-size:clamp(2rem,7vw,2.85rem); line-height:1.1; letter-spacing:-.035em; }
+        .guideInfoButton { flex:0 0 auto; width:38px; height:38px; display:grid; place-items:center; border:1px solid rgba(255,211,92,.24); border-radius:13px; background:rgba(255,205,80,.075); color:#f6ca59; font:inherit; font-size:1.05rem; cursor:pointer; }
+        .guideInfoButton:hover,.guideInfoButton:focus-visible { border-color:rgba(255,211,92,.48); outline:none; box-shadow:0 0 0 3px rgba(244,183,40,.08); }
         .permanentLinkCard { position:relative; z-index:1; margin-top:18px; padding:16px; border:1px solid rgba(255,205,80,.2); border-radius:19px; background:rgba(255,205,80,.055); }
         .linkPreview { padding:11px 12px; overflow:hidden; border:1px solid rgba(255,255,255,.08); border-radius:13px; background:rgba(3,4,5,.42); color:#b8b2c2; font-size:.68rem; font-weight:750; white-space:nowrap; text-overflow:ellipsis; direction:ltr; text-align:left; }
         .linkActions { margin-top:11px; display:grid; grid-template-columns:1fr 1fr; gap:9px; }
@@ -656,6 +759,11 @@ export function HomeClient() {
         .completePanel > div { min-width:0; flex:1; }
         .completePanel strong { font-size:.9rem; overflow-wrap:anywhere; }
         .completePanel p { margin:4px 0 0; color:#9eaa9f; font-size:.75rem; line-height:1.45; overflow-wrap:anywhere; }
+        .guideBackdrop { position:fixed; z-index:130; inset:0; display:grid; place-items:center; padding:16px; background:rgba(2,3,8,.84); backdrop-filter:blur(10px); }
+        .guideDialog { width:min(100%,600px); max-height:min(88svh,820px); overflow:auto; box-sizing:border-box; padding:20px 22px 24px; border:1px solid rgba(255,205,80,.2); border-radius:26px; background:#11120f; box-shadow:0 30px 90px rgba(0,0,0,.58); }
+        .guideDialogTop { display:flex; justify-content:flex-end; margin-bottom:2px; }
+        .guideCloseButton { width:40px; height:40px; display:grid; place-items:center; border:1px solid rgba(255,255,255,.1); border-radius:13px; background:rgba(255,255,255,.04); color:#fff; font:inherit; font-size:1.25rem; cursor:pointer; }
+        .guideCloseButton:focus-visible { outline:none; box-shadow:0 0 0 3px rgba(244,183,40,.1); }
         .modalBackdrop { position:fixed; z-index:100; inset:0; display:grid; place-items:center; padding:20px; background:rgba(2,3,10,.78); backdrop-filter:blur(10px); }
         .modalCard { width:min(100%,410px); max-height:calc(100dvh - 40px); overflow-y:auto; box-sizing:border-box; padding:25px; border:1px solid rgba(255,255,255,.1); border-radius:25px; background:#121421; text-align:center; box-shadow:0 30px 90px rgba(0,0,0,.5); }
         .warningIcon { width:50px; height:50px; margin:0 auto 15px; border-radius:17px; display:grid; place-items:center; background:rgba(255,91,111,.1); color:#ff7186; font-size:1.2rem; font-weight:950; }
@@ -674,6 +782,8 @@ export function HomeClient() {
           .missionCard { padding:21px 18px; border-radius:26px; }
           .missionCopy h1 { font-size:clamp(1.9rem,10vw,2.6rem); }
           .missionCopy.cjkCopy h1 { font-size:clamp(1.9rem,9vw,2.4rem); }
+          .guideInfoButton { width:36px; height:36px; border-radius:12px; }
+          .guideDialog { padding:16px 17px 20px; border-radius:22px; }
         }
         @media (max-width:340px) {
           .linkActions { grid-template-columns:1fr; }
