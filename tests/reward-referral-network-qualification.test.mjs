@@ -2,8 +2,9 @@ import assert from 'node:assert/strict';
 import { readdir, readFile } from 'node:fs/promises';
 import { join, relative } from 'node:path';
 import test from 'node:test';
+import { fileURLToPath } from 'node:url';
 
-const root = new URL('../', import.meta.url);
+const root = fileURLToPath(new URL('../', import.meta.url));
 const migrationPath =
   'supabase/migrations/20260903033000_qualify_referral_network_edges.sql';
 const migration = await readFile(
@@ -103,10 +104,10 @@ test('legacy operator referral completion uses the current mission definition', 
 });
 
 test('every admin self-test route fails closed before Production work begins', async () => {
-  const adminApi = new URL(
+  const adminApi = fileURLToPath(new URL(
     '../src/app/api/admin',
     import.meta.url,
-  );
+  ));
   const routes = await findSelfTestRoutes(adminApi);
 
   assert.ok(
@@ -116,10 +117,7 @@ test('every admin self-test route fails closed before Production work begins', a
 
   for (const path of routes) {
     const source = await readFile(path, 'utf8');
-    const displayPath = relative(
-      new URL(root).pathname,
-      path,
-    );
+    const displayPath = relative(root, path);
     const functionIndex = source.search(
       /export\s+async\s+function\s+(?:GET|POST|PUT|PATCH|DELETE)/,
     );
