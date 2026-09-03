@@ -372,6 +372,7 @@ export function PublicLeaderboard({
           <strong>{data ? totalUsers.toLocaleString() : '—'}</strong>
           <b aria-hidden="true">›</b>
         </button>
+        <p className="impactNote">{t.impactNote}</p>
       </section>
 
       <section className="rankingCard">
@@ -602,6 +603,13 @@ export function PublicLeaderboard({
           color:#d9b956;
           font-size:1.55rem;
           font-weight:500;
+        }
+        .impactNote {
+          margin:11px 2px 0;
+          color:#817c73;
+          font-size:.7rem;
+          line-height:1.5;
+          overflow-wrap:anywhere;
         }
         .rankingTopline {
           display:none;
