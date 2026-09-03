@@ -76,11 +76,17 @@ function statusText(
         hint: null,
       };
     case 'REWARD_PAID':
-      return {
-        title: copy.rewardTitle,
-        body: copy.rewardBody,
-        hint: null,
-      };
+      return notification.collapsedProgress
+        ? {
+            title: copy.rewardTitle,
+            body: `${v2.rewardReadyBody} ${copy.rewardBody}`,
+            hint: null,
+          }
+        : {
+            title: copy.rewardTitle,
+            body: copy.rewardBody,
+            hint: null,
+          };
     case 'INVITE_INELIGIBLE':
       return {
         title: ineligible.title,
