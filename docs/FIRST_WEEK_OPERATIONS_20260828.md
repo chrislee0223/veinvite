@@ -6,7 +6,8 @@ Purpose: operate Production without weakening eligibility, Sybil, reward, payout
 
 ## Before announcement or major release
 
-- [ ] Production `/api/health` returns HTTP 200 and reports the expected mainnet/revision/readiness state.
+- [ ] Public Production `/api/health` returns HTTP 200 and reports the expected mainnet/database/deployment revision state.
+- [ ] Authenticated operator reward-operations health reports expected distributor, pause, gas, queue, pool, and payout readiness.
 - [ ] Latest Production deployment is READY and has no unresolved build/runtime errors.
 - [ ] Production Supabase is the live database; Preview data is not used for public reporting.
 - [ ] Privacy and Terms pages are reachable.
@@ -19,7 +20,7 @@ Purpose: operate Production without weakening eligibility, Sybil, reward, payout
 
 Check at deployment, then periodically during the first day:
 
-- [ ] Production health remains healthy and on mainnet.
+- [ ] Public Production health remains healthy and on mainnet without performing reward-pool/distributor diagnostics for anonymous callers.
 - [ ] No sustained 5xx errors in wallet auth, invite creation/claim/status, reconciliation, or reward routes.
 - [ ] New invitation rows have expected status transitions and network provenance.
 - [ ] Active-existing-user rejections do not consume otherwise valid unused invitations.
@@ -73,7 +74,8 @@ Do not report Preview/testnet records as Production activity. Do not report proj
 
 Pause affected operations and investigate if any of the following occurs:
 
-- Production health is not mainnet or database readiness fails.
+- Public Production health is not mainnet or database readiness fails.
+- Authenticated operator reward-operations health reports a critical distributor, pause, gas, queue, pool, or payout condition.
 - Wallet authentication signatures are failing broadly.
 - Eligible/ineligible classifications look inconsistent across similar requests.
 - Invitations are being consumed on failed eligibility checks.
