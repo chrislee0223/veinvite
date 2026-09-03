@@ -39,8 +39,16 @@ export function HomeGuideInfoPortal({ locale }: { locale: Locale }) {
 
   useEffect(() => {
     if (!dialogMounted) return;
-    const frame = window.requestAnimationFrame(() => setDialogVisible(true));
-    return () => window.cancelAnimationFrame(frame);
+
+    let revealFrame: number | null = null;
+    const mountFrame = window.requestAnimationFrame(() => {
+      revealFrame = window.requestAnimationFrame(() => setDialogVisible(true));
+    });
+
+    return () => {
+      window.cancelAnimationFrame(mountFrame);
+      if (revealFrame !== null) window.cancelAnimationFrame(revealFrame);
+    };
   }, [dialogMounted]);
 
   const closeGuide = useCallback(() => {
@@ -192,14 +200,18 @@ export function HomeGuideInfoPortal({ locale }: { locale: Locale }) {
             aria-modal="true"
             aria-label={guide.title}
           >
-            <button
-              ref={closeRef}
-              type="button"
-              className="veinviteSoftFocusClose"
-              onClick={closeGuide}
-              aria-label={NOTIFICATION_COPY[locale].closeAria}
-            />
-            <InviteGuideContent locale={locale} />
+            <div className="veinviteSoftFocusHeader">
+              <button
+                ref={closeRef}
+                type="button"
+                className="veinviteSoftFocusClose"
+                onClick={closeGuide}
+                aria-label={NOTIFICATION_COPY[locale].closeAria}
+              />
+            </div>
+            <div className="veinviteSoftFocusScroll veinviteGuideScroll">
+              <InviteGuideContent locale={locale} />
+            </div>
           </div>
           <style>{`
             ${SOFT_FOCUS_MOTION_CSS}
@@ -216,24 +228,23 @@ export function HomeGuideInfoPortal({ locale }: { locale: Locale }) {
             .veinviteGuideDialog {
               width: min(100%,600px);
               max-height: min(88svh,820px);
-              overflow: auto;
               box-sizing: border-box;
-              padding: 20px 22px 24px;
+              padding: 0;
               border: 1px solid rgba(255,205,80,.2);
               border-radius: 26px;
               background: #11120f;
               color: #fff;
               box-shadow: 0 30px 90px rgba(0,0,0,.58);
             }
-            .veinviteGuideDialog .guidePage > header > span,
-            .veinviteGuideDialog .guidePage > header > h1 {
-              display: block;
-              max-width: calc(100% - 54px);
+            .veinviteGuideScroll {
+              padding: 0 22px 24px;
             }
             @media (max-width: 560px) {
               .veinviteGuideDialog {
-                padding: 16px 17px 20px;
                 border-radius: 22px;
+              }
+              .veinviteGuideScroll {
+                padding: 0 17px 20px;
               }
             }
           `}</style>
