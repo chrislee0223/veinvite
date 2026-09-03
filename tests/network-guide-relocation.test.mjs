@@ -8,6 +8,7 @@ const [
   guidePortal,
   impactPortal,
   infoIcon,
+  softFocusMotion,
   networkPage,
   networkCopy,
   leaderboard,
@@ -18,6 +19,7 @@ const [
   readFile(new URL('../src/components/HomeGuideInfoPortal.tsx', import.meta.url), 'utf8'),
   readFile(new URL('../src/components/LeaderboardImpactInfoPortal.tsx', import.meta.url), 'utf8'),
   readFile(new URL('../src/components/InfoCircleIcon.tsx', import.meta.url), 'utf8'),
+  readFile(new URL('../src/components/SoftFocusMotion.ts', import.meta.url), 'utf8'),
   readFile(new URL('../src/components/AppNetworkComingSoon.tsx', import.meta.url), 'utf8'),
   readFile(new URL('../src/lib/i18n/networkCopy.ts', import.meta.url), 'utf8'),
   readFile(new URL('../src/components/PublicLeaderboard.tsx', import.meta.url), 'utf8'),
@@ -81,6 +83,37 @@ test('Home and Leaderboard info controls use the same SVG icon geometry', () => 
   assert.match(infoIcon, /<circle cx="12" cy="12" r="9" \/>/i);
   assert.match(guidePortal, /InfoCircleIcon/i);
   assert.match(impactPortal, /InfoCircleIcon/i);
+});
+
+test('Home and Leaderboard dialogs share the same soft-focus entrance and exit lifecycle', () => {
+  for (const portal of [guidePortal, impactPortal]) {
+    assert.match(portal, /SOFT_FOCUS_MOTION_CSS/i);
+    assert.match(portal, /softFocusCloseDelay/i);
+    assert.match(portal, /dialogMounted/i);
+    assert.match(portal, /dialogVisible/i);
+    assert.match(portal, /data-open=\{dialogVisible \? 'true' : 'false'\}/i);
+    assert.match(portal, /veinviteSoftFocusBackdrop/i);
+    assert.match(portal, /veinviteSoftFocusPanel/i);
+  }
+
+  assert.match(softFocusMotion, /opacity:\s*0;/i);
+  assert.match(softFocusMotion, /translate3d\(0, 4px, 0\) scale\(\.97\)/i);
+  assert.match(softFocusMotion, /data-open="true"/i);
+  assert.match(softFocusMotion, /transition-duration:\s*180ms/i);
+  assert.match(softFocusMotion, /SOFT_FOCUS_CLOSE_MS\s*=\s*140/i);
+  assert.match(softFocusMotion, /prefers-reduced-motion:\s*reduce/i);
+});
+
+test('Home and Leaderboard dialogs use identical close-button spacing and optical centering', () => {
+  for (const portal of [guidePortal, impactPortal]) {
+    assert.match(portal, /className="veinviteSoftFocusClose"/i);
+    assert.doesNotMatch(portal, />\s*×\s*<\/button>/i);
+  }
+
+  assert.match(softFocusMotion, /\.veinviteSoftFocusClose \{[\s\S]*top:\s*16px;[\s\S]*right:\s*16px;[\s\S]*width:\s*38px;[\s\S]*height:\s*38px;/i);
+  assert.match(softFocusMotion, /\.veinviteSoftFocusClose::before,[\s\S]*\.veinviteSoftFocusClose::after/i);
+  assert.match(softFocusMotion, /translate\(-50%, -50%\) rotate\(45deg\)/i);
+  assert.match(softFocusMotion, /translate\(-50%, -50%\) rotate\(-45deg\)/i);
 });
 
 test('Network placeholder copy covers every supported locale', () => {
