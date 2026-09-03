@@ -18,6 +18,10 @@ import {
   runOperatorMonitoringAudit,
 } from '@/lib/monitoring/operatorMonitoring';
 import {
+  reconcileOperatorFastStatus,
+  type OperatorFastStatusReconciliation,
+} from '@/lib/reporting/operatorFastStatus';
+import {
   syncVeInviteAllocationReceipts,
 } from '@/lib/rewards/allocationAccounting';
 import {
@@ -74,6 +78,7 @@ type CronStageFailure =
   | 'AUTOMATIC_REWARD_PAYOUT'
   | 'ROUND_GROWTH_REPORTING'
   | 'HOUSEKEEPING'
+  | 'FAST_STATUS_RECONCILIATION'
   | 'MONITORING';
 
 function logStageFailure(
@@ -91,20 +96,22 @@ function logStageFailure(
  *
  * This worker reconciles immutable/derived onboarding evidence, records
  * official VeBetterDAO allocation-claim evidence, maintains growth snapshots,
- * appends an operator anomaly-monitoring snapshot, removes only expired
- * authentication/rate-limit runtime state, and provides a recovery trigger for
- * the dedicated automatic Reward Distributor. Automatic reward execution is
- * itself fail-closed and remains disabled unless its explicit server gate,
- * matching signer address, on-chain distributor registration and every reward
- * safety check pass. The operations/admin wallet key is never used here.
+ * verifies the read-optimized operator status projection against authoritative
+ * source tables, appends an operator anomaly-monitoring snapshot, removes only
+ * expired authentication/rate-limit runtime state, and provides a recovery
+ * trigger for the dedicated automatic Reward Distributor. Automatic reward
+ * execution is itself fail-closed and remains disabled unless its explicit
+ * server gate, matching signer address, on-chain distributor registration and
+ * every reward safety check pass. The operations/admin wallet key is never
+ * used here.
  *
  * Independent stages are deliberately isolated. A transient allocation RPC
  * failure must not prevent invitation reconciliation or anomaly monitoring.
  * Growth reporting is the exception: it runs only after reconciliation has
  * succeeded so a partially refreshed evidence set cannot be snapshotted as a
  * completed reporting round. Any scheduled-stage failure still returns HTTP
- * 500 after later independent stages finish, so cleanup/retention failures are
- * visible to operations without blocking reward or evidence work.
+ * 500 after later independent stages finish, so cleanup/retention or fast
+ * status drift remains visible without blocking reward or evidence work.
  */
 export async function GET(
   request: NextRequest,
@@ -135,6 +142,8 @@ export async function GET(
     ReturnType<typeof maintainRoundGrowthSnapshots>
   > | null = null;
   let housekeeping: EphemeralCleanupSummary | null = null;
+  let fastStatusReconciliation:
+    OperatorFastStatusReconciliation | null = null;
   let monitoring: Awaited<
     ReturnType<typeof runOperatorMonitoringAudit>
   > | null = null;
@@ -202,6 +211,22 @@ export async function GET(
   }
 
   try {
+    fastStatusReconciliation =
+      await reconcileOperatorFastStatus();
+  } catch (error) {
+    // The projection never authorizes rewards or eligibility. A mismatch is an
+    // operational reporting failure only, but it must be visible so operators
+    // can rebuild the derived layer before relying on its fast counters.
+    failedStages.push(
+      'FAST_STATUS_RECONCILIATION',
+    );
+    logStageFailure(
+      'FAST_STATUS_RECONCILIATION',
+      error,
+    );
+  }
+
+  try {
     monitoring =
       await runOperatorMonitoringAudit(
         'VERCEL_CRON',
@@ -237,9 +262,10 @@ export async function GET(
     );
   }
 
-  // Keep the established stability-gate contract name. HOUSEKEEPING is now a
-  // member of failedStages too, so privacy-retention failures are surfaced by
-  // the same final health signal without weakening the existing cron checks.
+  // Keep the established stability-gate contract name. HOUSEKEEPING and fast
+  // status drift are members of failedStages too, so privacy-retention and
+  // reporting-integrity failures are surfaced by the same final health signal
+  // without weakening the existing cron checks.
   const hasCoreFailure =
     failedStages.length > 0;
 
@@ -265,6 +291,7 @@ export async function GET(
       automaticRewardPayout,
       roundGrowthReports,
       housekeeping,
+      fastStatusReconciliation,
       monitoring: monitoring
         ? {
             snapshotId: monitoring.snapshotId,
