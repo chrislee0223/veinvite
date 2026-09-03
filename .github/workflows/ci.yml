@@ -56,6 +56,9 @@ jobs:
       - name: Final audit resilience gate
         run: node scripts/check-final-audit-resilience.mjs
 
+      - name: Admin dynamic rendering gate
+        run: node scripts/check-admin-dynamic.mjs
+
       - name: Forecast stability gate
         run: node scripts/check-forecast-stability.mjs
 

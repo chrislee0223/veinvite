@@ -14,6 +14,12 @@ import {
   WALLET_SESSION_COOKIE_NAME,
 } from '@/lib/walletAuthServer';
 
+// Every admin request depends on the caller's wallet-session cookie and live
+// operator membership. Prevent Next.js from attempting a build-time static
+// render, which would both be meaningless for authorization and emit
+// DYNAMIC_SERVER_USAGE noise during Production builds.
+export const dynamic = 'force-dynamic';
+
 export const metadata: Metadata = {
   robots: {
     index: false,
