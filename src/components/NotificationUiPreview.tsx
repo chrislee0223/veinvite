@@ -3,32 +3,99 @@
 import { useMemo, useState } from 'react';
 
 import { Brand } from './Brand';
-import {
-  InviteNotificationSurface,
-  type InviteNotificationKind,
-  type InviteNotificationPayload,
-} from './InviteNotificationSurface';
+import { InviteNotificationSurfaceV2 } from './InviteNotificationSurfaceV2';
 import { LANGUAGE_OPTIONS, type Locale } from '@/lib/i18n/locales';
 import { NOTIFICATION_COPY } from '@/lib/i18n/notificationCopy';
+import type {
+  InviteNotificationKindV2,
+  InviteNotificationPayloadV2,
+} from '@/lib/notifications/inviteNotificationStateV2';
 
 type Scenario = {
   id: string;
   label: string;
   description: string;
-  kind: InviteNotificationKind;
+  kind: InviteNotificationKindV2;
   stage: number;
+  dappProgress?: number | null;
   collapsedProgress?: boolean;
   rewardAmountWei?: string | null;
 };
 
 const SCENARIOS: Scenario[] = [
-  { id: 'accepted', label: '1. 초대 수락', description: '친구가 초대를 수락하고 미션을 시작했을 때', kind: 'INVITE_ACCEPTED', stage: 1 },
-  { id: 'dapp', label: '2. dApp 미션 완료', description: '서로 다른 VeBetterDAO dApp 3개 조건을 채웠을 때', kind: 'DAPP_MISSION_COMPLETED', stage: 2 },
-  { id: 'vot3', label: '3. VOT3 전환 완료', description: 'B3TR → VOT3 전환을 완료했을 때', kind: 'VOT3_CONVERTED', stage: 3 },
-  { id: 'collapsed', label: '3-A. 여러 단계 동시 확인', description: '앱을 보지 않는 사이 dApp + VOT3가 함께 진행됐을 때', kind: 'VOT3_CONVERTED', stage: 3, collapsedProgress: true },
-  { id: 'complete', label: '4. 모든 미션 완료', description: '친구가 마지막 미션까지 모두 완료했을 때', kind: 'ALL_MISSIONS_COMPLETED', stage: 4 },
-  { id: 'reward', label: '5. 보상 지급 완료', description: 'B3TR 보상이 실제 지급됐을 때의 강조형 알림', kind: 'REWARD_PAID', stage: 5, rewardAmountWei: '147740500000000000000' },
-  { id: 'ineligible', label: '6. 참여 조건 미충족', description: '초대한 친구가 참여 조건에 맞지 않아 초대 슬롯이 다시 열렸을 때', kind: 'INVITE_INELIGIBLE', stage: 6 },
+  {
+    id: 'accepted',
+    label: '1. 초대 수락',
+    description: '친구가 초대를 수락하고 미션을 시작했을 때',
+    kind: 'INVITE_ACCEPTED',
+    stage: 1,
+  },
+  {
+    id: 'dapp1',
+    label: '2-A. dApp 1/3',
+    description: '첫 번째 VeBetterDAO dApp 진행이 확인됐을 때',
+    kind: 'DAPP_PROGRESS',
+    stage: 2,
+    dappProgress: 1,
+  },
+  {
+    id: 'dapp2',
+    label: '2-B. dApp 2/3',
+    description: '두 번째 서로 다른 dApp 진행이 확인됐을 때',
+    kind: 'DAPP_PROGRESS',
+    stage: 2,
+    dappProgress: 2,
+  },
+  {
+    id: 'dapp3',
+    label: '2-C. dApp 3/3',
+    description: '서로 다른 VeBetterDAO dApp 3개 조건을 채웠을 때',
+    kind: 'DAPP_PROGRESS',
+    stage: 2,
+    dappProgress: 3,
+  },
+  {
+    id: 'vot3',
+    label: '3. VOT3 전환 완료',
+    description: 'B3TR → VOT3 전환을 완료했을 때',
+    kind: 'VOT3_CONVERTED',
+    stage: 3,
+    dappProgress: 3,
+  },
+  {
+    id: 'collapsed',
+    label: '3-A. 여러 단계 동시 확인',
+    description: '앱을 보지 않는 사이 dApp + VOT3가 함께 진행됐을 때',
+    kind: 'VOT3_CONVERTED',
+    stage: 3,
+    dappProgress: 3,
+    collapsedProgress: true,
+  },
+  {
+    id: 'reward-ready',
+    label: '4. 보상 예약 완료',
+    description: '모든 미션과 최종 검증이 끝나 고정 보상이 예약됐을 때',
+    kind: 'REWARD_READY',
+    stage: 4,
+    dappProgress: 3,
+    rewardAmountWei: '147740500000000000000',
+  },
+  {
+    id: 'reward-paid',
+    label: '5. 보상 지급 완료',
+    description: '예약된 B3TR 보상이 실제 지급됐을 때의 강조형 알림',
+    kind: 'REWARD_PAID',
+    stage: 5,
+    dappProgress: 3,
+    rewardAmountWei: '147740500000000000000',
+  },
+  {
+    id: 'ineligible',
+    label: '6. 참여 조건 미충족',
+    description: '초대한 친구가 참여 조건에 맞지 않아 초대 슬롯이 다시 열렸을 때',
+    kind: 'INVITE_INELIGIBLE',
+    stage: 6,
+  },
 ];
 
 export function NotificationUiPreview() {
@@ -40,18 +107,19 @@ export function NotificationUiPreview() {
   const [mode, setMode] = useState<'normal' | 'busy' | 'error'>('normal');
 
   const scenario = SCENARIOS.find((item) => item.id === scenarioId) ?? SCENARIOS[0];
-  const notification = useMemo<InviteNotificationPayload | null>(() => {
-    if (!enabled) return null;
-    return {
-      inviteCode: 'TEST234',
-      kind: scenario.kind,
-      stage: scenario.stage,
-      eventAt: '2026-09-01T00:00:00.000Z',
-      rewardAmountWei: scenario.rewardAmountWei ?? null,
-      acknowledgedStage: unread ? 0 : scenario.stage,
-      collapsedProgress: Boolean(scenario.collapsedProgress),
-    };
-  }, [enabled, scenario, unread]);
+  const notification = useMemo<InviteNotificationPayloadV2>(() => ({
+    inviteCode: 'TEST234',
+    kind: scenario.kind,
+    stage: scenario.stage,
+    eventAt: '2026-09-04T00:00:00.000Z',
+    rewardAmountWei: scenario.rewardAmountWei ?? null,
+    dappProgress: scenario.dappProgress ?? null,
+    collapsedProgress: Boolean(scenario.collapsedProgress),
+  }), [scenario]);
+
+  const visibleNotifications = enabled && unread
+    ? [notification]
+    : [];
 
   const openScenario = (item: Scenario) => {
     setScenarioId(item.id);
@@ -66,7 +134,7 @@ export function NotificationUiPreview() {
       <header className="intro">
         <span>NOTIFICATION UI / UX LAB</span>
         <h2>실제 참여 없이 모든 알림 확인</h2>
-        <p>Production과 같은 알림 컴포넌트에 테스트 데이터만 넣습니다. 지갑·DB·Sybil 검사·온체인 조회·보상 지급은 실행하지 않습니다.</p>
+        <p>Production과 같은 V2 알림 컴포넌트에 테스트 데이터만 넣습니다. 지갑·DB·Sybil 검사·온체인 조회·보상 지급은 실행하지 않습니다.</p>
       </header>
 
       <div className="layout">
@@ -75,10 +143,9 @@ export function NotificationUiPreview() {
             <Brand />
             <div className="actions">
               <span className="wallet"><i />0x1234···5678</span>
-              <InviteNotificationSurface
+              <InviteNotificationSurfaceV2
                 locale={locale}
-                notification={notification}
-                unreadCount={enabled && unread ? 1 : 0}
+                notifications={visibleNotifications}
                 open={open}
                 busy={mode === 'busy'}
                 errorMessage={mode === 'error' ? NOTIFICATION_COPY[locale].acknowledgementError : ''}
@@ -96,10 +163,19 @@ export function NotificationUiPreview() {
             <small>현재 테스트</small>
             <strong>{scenario.label}</strong>
             <p>{scenario.description}</p>
-            <button type="button" disabled={!enabled} onClick={() => setOpen(true)}>선택한 알림 다시 열기</button>
+            <button
+              type="button"
+              disabled={!enabled}
+              onClick={() => {
+                setUnread(true);
+                setOpen(true);
+              }}
+            >
+              선택한 알림 다시 열기
+            </button>
           </div>
 
-          <p className="responsiveNote">일반 진행 알림은 모바일에서 하단 시트, 보상 지급 알림은 중앙 강조 모달로 표시됩니다.</p>
+          <p className="responsiveNote">일반 진행 알림은 모바일에서 하단 시트, 보상 준비·지급 알림은 중앙 강조 모달로 표시됩니다.</p>
         </div>
 
         <aside className="controls">
@@ -134,8 +210,8 @@ export function NotificationUiPreview() {
             <strong>예외 UI</strong>
             <div className="buttonRow">
               <button type="button" onClick={() => setMode('normal')}>정상</button>
-              <button type="button" onClick={() => { setEnabled(true); setMode('busy'); setOpen(true); }}>처리 중</button>
-              <button type="button" onClick={() => { setEnabled(true); setMode('error'); setOpen(true); }}>오류 표시</button>
+              <button type="button" onClick={() => { setEnabled(true); setUnread(true); setMode('busy'); setOpen(true); }}>처리 중</button>
+              <button type="button" onClick={() => { setEnabled(true); setUnread(true); setMode('error'); setOpen(true); }}>오류 표시</button>
             </div>
           </section>
         </aside>

@@ -59,9 +59,15 @@ test('fixed notification surfaces avoid compositor-heavy backdrop blur', () => {
   assert.match(hardening, /-webkit-backdrop-filter:\s*none\s*!important/);
 });
 
-test('notification QA lab includes the new terminal ineligible scenario', () => {
+test('notification QA lab tracks the same v2 lifecycle as Production', () => {
+  assert.match(preview, /InviteNotificationSurfaceV2/);
+  assert.match(preview, /kind:\s*'DAPP_PROGRESS'/);
+  assert.match(preview, /kind:\s*'REWARD_READY',\s*stage:\s*4/);
   assert.match(preview, /kind:\s*'INVITE_INELIGIBLE',\s*stage:\s*6/);
   assert.match(preview, /id:\s*'ineligible'/);
+  assert.doesNotMatch(preview, /DAPP_MISSION_COMPLETED/);
+  assert.doesNotMatch(preview, /ALL_MISSIONS_COMPLETED/);
+  assert.doesNotMatch(preview, /InviteNotificationSurface\s*[,}]/);
 });
 
 test('reading the rich reward receipt also clears the duplicate paid bell notification', () => {
