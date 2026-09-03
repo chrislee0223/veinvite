@@ -2,6 +2,9 @@
 
 import { useEffect, useRef } from 'react';
 
+import { HOME_COPY } from '@/lib/i18n/homeCopy';
+import { isLocale, type Locale } from '@/lib/i18n/locales';
+
 export type TransientFeedbackKind = 'success' | 'info' | 'error';
 
 export type TransientFeedback = {
@@ -11,6 +14,62 @@ export type TransientFeedback = {
 };
 
 const AUTO_DISMISS_MS = 4_000;
+
+const BACKEND_ERROR_PATTERNS = [
+  /^Failed to /i,
+  /^Only one active invitation is allowed\.$/i,
+  /^inviter(?:Address| query parameter) is required\.?$/i,
+  /^Invalid JSON body\.$/i,
+  /^Wallet verification is required\.$/i,
+  /^The verified wallet does not match this request\.$/i,
+  /^Invite not found\.$/i,
+  /^Not authorized to cancel this invite\.$/i,
+  /^Accepted invitations cannot be cancelled\.$/i,
+  /^Invitation could not be cancelled\.$/i,
+  /^Too many requests\./i,
+  /^Request protection is temporarily unavailable\./i,
+  /JWT issued at future/i,
+  /permission denied/i,
+] as const;
+
+function currentLocale(): Locale {
+  if (typeof document === 'undefined') return 'en';
+  const value = document.documentElement.lang;
+  return isLocale(value) ? value : 'en';
+}
+
+function safeErrorText(text: string): string {
+  if (!BACKEND_ERROR_PATTERNS.some((pattern) => pattern.test(text))) {
+    return text;
+  }
+
+  const copy = HOME_COPY[currentLocale()] ?? HOME_COPY.en;
+  const normalized = text.toLowerCase();
+
+  if (normalized.includes('cancel')) {
+    return copy.cancelError;
+  }
+
+  if (
+    normalized.includes('active invitation') ||
+    normalized.includes('create invitation') ||
+    normalized.includes('unique invitation') ||
+    normalized.includes('invitation conflict') ||
+    normalized.includes('too many requests') ||
+    normalized.includes('request protection')
+  ) {
+    return copy.createError;
+  }
+
+  if (
+    normalized.includes('load invitation') ||
+    normalized.includes('inviter query parameter')
+  ) {
+    return copy.loadError;
+  }
+
+  return copy.genericError;
+}
 
 export function TransientSnackbar({
   feedback,
@@ -59,6 +118,10 @@ export function TransientSnackbar({
 
   if (!feedback) return null;
 
+  const visibleText = feedback.kind === 'error'
+    ? safeErrorText(feedback.text)
+    : feedback.text;
+
   return (
     <aside
       className={`transientSnackbar ${feedback.kind}`}
@@ -69,7 +132,7 @@ export function TransientSnackbar({
       <span className="feedbackIcon" aria-hidden="true">
         {feedback.kind === 'error' ? '!' : feedback.kind === 'info' ? 'i' : '✓'}
       </span>
-      <span className="feedbackText">{feedback.text}</span>
+      <span className="feedbackText">{visibleText}</span>
       <button type="button" className="feedbackClose" aria-label={closeLabel} onClick={onDismiss}>
         ×
       </button>
