@@ -293,12 +293,19 @@ const walletAuthServer = read(
 );
 if (
   !/__Host-veinvite_session/.test(walletAuthServer) ||
-  !/httpOnly:\s*true/.test(walletAuthServer) ||
-  !/sameSite:\s*'lax'/.test(walletAuthServer) ||
-  !/secure:\s*isProduction/.test(walletAuthServer)
+  !/process\.env\.NODE_ENV\s*===\s*'production'[\s\S]*'__Host-veinvite_session'/.test(
+    walletAuthServer,
+  ) ||
+  !/name:\s*WALLET_SESSION_COOKIE_NAME/.test(authVerifyRoute) ||
+  !/httpOnly:\s*true/.test(authVerifyRoute) ||
+  !/secure:\s*[\s\S]*process\.env\.NODE_ENV\s*===\s*[\s\S]*'production'/.test(
+    authVerifyRoute,
+  ) ||
+  !/sameSite:\s*'lax'/.test(authVerifyRoute) ||
+  !/path:\s*'\/'/.test(authVerifyRoute)
 ) {
   failures.push(
-    'Production wallet sessions must retain the hardened __Host- cookie boundary.',
+    'Production wallet sessions must retain the hardened __Host-, HttpOnly, Secure, SameSite=Lax, Path=/ cookie boundary at issuance.',
   );
 }
 
