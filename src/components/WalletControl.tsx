@@ -17,6 +17,9 @@ import {
 import {
   useWalletAuthentication,
 } from '@/hooks/useWalletAuthentication';
+import {
+  markWalletConnectIntent,
+} from '@/lib/walletConnectionResume';
 
 const WalletButton = dynamic(
   () =>
@@ -85,6 +88,10 @@ export function useWalletLauncher() {
       return;
     }
 
+    // Mobile browsers can suspend JavaScript while VeWorld is approving the
+    // connection. Record this explicit attempt so the provider can reconcile
+    // persisted dapp-kit state as soon as the browser becomes active again.
+    markWalletConnectIntent();
     openConnectModal();
   }, [
     isWalletActionPending,
@@ -211,6 +218,7 @@ export function useWalletLauncher() {
         // At this point the previous VeChainKit account has been released and
         // the old wallet transport has had time to settle, so the connect modal
         // starts a genuinely new login instead of reusing a half-closed session.
+        markWalletConnectIntent();
         openConnectModal();
       } finally {
         setIsWalletActionPending(false);
