@@ -7,24 +7,12 @@ import { supabaseAdmin } from '@/lib/supabaseServer';
 
 export const dynamic = 'force-dynamic';
 
-function readDeploymentMetadata() {
-  const gitCommitSha =
-    process.env.VERCEL_GIT_COMMIT_SHA?.trim() || null;
-
-  return {
-    environment:
-      process.env.VERCEL_ENV ??
-      process.env.NODE_ENV ??
-      'unknown',
-    gitCommitSha,
-    gitCommitShortSha:
-      gitCommitSha?.slice(0, 12) ?? null,
-  };
-}
+const HEALTH_HEADERS = {
+  'Cache-Control': 'no-store',
+  'X-Robots-Tag': 'noindex, nofollow, noarchive',
+} as const;
 
 export async function GET() {
-  const deployment = readDeploymentMetadata();
-
   try {
     const { error } = await supabaseAdmin
       .from('invitations')
@@ -65,72 +53,31 @@ export async function GET() {
       );
     }
 
+    // Public readiness deliberately exposes only the minimum information an
+    // uptime check needs. Distributor addresses, gas state, queue internals,
+    // alert codes and deployment commit metadata remain available through the
+    // verified-operator operations API instead of being broadcast publicly.
     return NextResponse.json(
       {
         ok: operations.operational,
         app: 'VeInvite',
         version: '0.1.0',
-        deployment,
         database: 'ready',
         network: operations.network,
         automaticRewards: {
-          enabled:
-            operations.distributor
-              .automaticRewardsEnabled,
-          configured:
-            operations.distributor.configured,
-          distributorAddress:
-            operations.distributor.address,
-          distributorRegistered:
-            operations.distributor.registered,
-          distributionPaused:
-            operations.runtime
-              .distributionPaused,
           ready: automaticRewardsReady,
         },
         operations: {
           severity: operations.severity,
           operational:
             operations.operational,
-          alertCodes,
-          gasStatus:
-            operations.distributor.gasStatus,
-          queueHealthy:
-            !alertCodes.includes(
-              'REWARD_QUEUE_DELAYED',
-            ) &&
-            !alertCodes.includes(
-              'REWARD_QUEUE_STALLED',
-            ),
-          payoutPipelineHealthy:
-            !alertCodes.includes(
-              'REWARD_ROUND_DELAYED',
-            ) &&
-            !alertCodes.includes(
-              'REWARD_ROUND_STALLED',
-            ) &&
-            !alertCodes.includes(
-              'SIGNED_PAYOUT_WAITING_FINALITY',
-            ) &&
-            !alertCodes.includes(
-              'SIGNED_PAYOUT_UNSETTLED',
-            ),
-          poolCapacityHealthy:
-            !alertCodes.includes(
-              'REWARD_POOL_EMPTY_WITH_QUEUE',
-            ) &&
-            !alertCodes.includes(
-              'REWARD_POOL_CAPACITY_INSUFFICIENT',
-            ),
           checkedAt: operations.capturedAt,
         },
       },
       {
         status:
           operations.operational ? 200 : 503,
-        headers: {
-          'Cache-Control': 'no-store',
-        },
+        headers: HEALTH_HEADERS,
       },
     );
   } catch (error) {
@@ -144,14 +91,11 @@ export async function GET() {
         ok: false,
         app: 'VeInvite',
         version: '0.1.0',
-        deployment,
         database: 'unavailable',
       },
       {
         status: 503,
-        headers: {
-          'Cache-Control': 'no-store',
-        },
+        headers: HEALTH_HEADERS,
       },
     );
   }
