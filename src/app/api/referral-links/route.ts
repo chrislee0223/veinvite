@@ -162,22 +162,27 @@ export async function POST(request: NextRequest) {
   const owner = await requireOwner(request, body.inviterAddress ?? null);
   if (owner.response || !owner.wallet) return owner.response!;
 
-  const rateLimitResponse = await enforceRateLimits([
-    {
-      scope: 'referral_link_ensure_wallet',
-      subject: owner.wallet,
-      limit: 8,
-      windowSeconds: 60,
-    },
-  ]);
-  if (rateLimitResponse) return rateLimitResponse;
-
   try {
-    const existing = await loadActiveReferralLink(owner.wallet);
-    const slotsAvailable = await loadSlotsAvailable(owner.wallet);
+    // Home uses this endpoint as an idempotent "ensure link" operation. Reading
+    // an already-existing permanent link must not consume the creation-rate
+    // budget merely because the user reopened or refreshed the app.
+    const [existing, slotsAvailable] = await Promise.all([
+      loadActiveReferralLink(owner.wallet),
+      loadSlotsAvailable(owner.wallet),
+    ]);
     if (existing) {
       return NextResponse.json(responsePayload(existing, slotsAvailable));
     }
+
+    const rateLimitResponse = await enforceRateLimits([
+      {
+        scope: 'referral_link_ensure_wallet',
+        subject: owner.wallet,
+        limit: 8,
+        windowSeconds: 60,
+      },
+    ]);
+    if (rateLimitResponse) return rateLimitResponse;
 
     for (let attempt = 0; attempt < 5; attempt += 1) {
       const key = createReferralKey();
