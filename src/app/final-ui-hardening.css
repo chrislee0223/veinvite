@@ -9,6 +9,17 @@ body:has(.notificationBackdrop) {
   overflow:hidden;
 }
 
+/* Long translated confirmation copy must remain reachable on short landscape
+ * phones and compact embedded browsers. These dialogs are normally short, but
+ * 27-language copy can add several lines; scroll the card instead of allowing
+ * the destructive/confirm action to fall below the viewport. */
+.modalBackdrop .modalCard,
+.settingsPage .confirmationModal {
+  max-height:calc(100dvh - 40px);
+  overflow-y:auto;
+  overscroll-behavior:contain;
+}
+
 /* Prefer the stable mobile viewport for invite/onboarding screens. The older
  * global stylesheet still provides a 100vh fallback for browsers without svh. */
 .appShell,
