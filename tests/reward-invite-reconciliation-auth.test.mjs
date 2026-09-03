@@ -16,17 +16,34 @@ const invitePage = readFileSync(
   ),
   'utf8',
 );
+const homePage = readFileSync(
+  new URL(
+    '../src/app/page.tsx',
+    import.meta.url,
+  ),
+  'utf8',
+);
+const inviterRefresh = readFileSync(
+  new URL(
+    '../src/components/InviteStatusAutoRefresh.tsx',
+    import.meta.url,
+  ),
+  'utf8',
+);
 
-test('mission reconciliation requires the authenticated invitee before consuming shared sync budget', () => {
+test('mission reconciliation requires an authenticated referral owner before consuming shared sync budget', () => {
   assert.match(inviteRoute, /requireWalletSession/u);
   assert.match(inviteRoute, /sessionWallet\s*=\s*session\.walletAddress\.toLowerCase\(\)/u);
-  assert.match(inviteRoute, /row\.invitee_wallet\.toLowerCase\(\) !== sessionWallet/u);
+  assert.match(inviteRoute, /normalizedInvitee === sessionWallet/u);
+  assert.match(inviteRoute, /normalizedInviter === sessionWallet/u);
+  assert.match(inviteRoute, /const sessionOwnsReferral/u);
+  assert.match(inviteRoute, /if \(!sessionOwnsReferral\)/u);
   assert.match(inviteRoute, /The verified wallet does not match this invitation\./u);
 
   const postStart = inviteRoute.indexOf('export async function POST');
   const authStart = inviteRoute.indexOf('requireWalletSession({ request })', postStart);
   const rowLoad = inviteRoute.indexOf('row = await loadInvitation(normalizedCode)', postStart);
-  const walletMatch = inviteRoute.indexOf("row.invitee_wallet.toLowerCase() !== sessionWallet", postStart);
+  const walletMatch = inviteRoute.indexOf('const sessionOwnsReferral', postStart);
   const syncRateLimit = inviteRoute.indexOf("mode: 'sync'", postStart);
   const reconciliation = inviteRoute.indexOf('syncInvitationEvidence(row)', postStart);
 
@@ -36,6 +53,25 @@ test('mission reconciliation requires the authenticated invitee before consuming
   assert.ok(walletMatch > rowLoad);
   assert.ok(syncRateLimit > walletMatch);
   assert.ok(reconciliation > syncRateLimit);
+});
+
+test('inviter home can perform only its authenticated low-frequency recovery sync', () => {
+  assert.match(homePage, /<WalletSessionGate/u);
+  assert.match(homePage, /<InviteStatusAutoRefresh \/>/u);
+  assert.match(inviterRefresh, /const EVIDENCE_SYNC_INTERVAL_MS = 5 \* 60_000/u);
+  assert.match(inviterRefresh, /evidenceSyncCandidate/u);
+  assert.match(inviterRefresh, /method: 'POST'/u);
+  assert.match(inviterRefresh, /credentials: 'same-origin'/u);
+  assert.match(inviterRefresh, /lastEvidenceSyncRef\.current = \{/u);
+});
+
+test('shared-network headroom grows without weakening per-invite reconciliation limits', () => {
+  assert.match(inviteRoute, /const INVITE_READ_CODE_LIMIT = 720;/u);
+  assert.match(inviteRoute, /const INVITE_SYNC_CODE_LIMIT = 240;/u);
+  assert.match(inviteRoute, /const INVITE_READ_IP_LIMIT = 7200;/u);
+  assert.match(inviteRoute, /const INVITE_SYNC_IP_LIMIT = 2400;/u);
+  assert.match(inviteRoute, /scope: 'invite_progress_code'/u);
+  assert.match(inviteRoute, /scope: 'invite_progress_sync_code'/u);
 });
 
 test('passive invite reads remain public while the invite page retains its wallet-session gate', () => {
