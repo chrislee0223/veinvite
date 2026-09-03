@@ -83,7 +83,11 @@ test('VeWorld refresh shield stays up through wallet restore and Home data hydra
   assert.match(walletRuntime, /if \(hasPendingHomeData\(\)\) \{\s*clearReadinessTimer\(\);\s*return;/);
   assert.match(
     walletRuntime,
-    /hasPersistedVeWorldWallet\(\) \|\|\s*hasBootstrappedSession\(\)/,
+    /if \(hasPersistedVeWorldWallet\(\)\) \{\s*clearReadinessTimer\(\);\s*return;/,
+  );
+  assert.match(
+    walletRuntime,
+    /if \(hasBootstrappedSession\(\)\) \{[\s\S]*BOOTSTRAPPED_SESSION_GRACE_MS/,
   );
   assert.doesNotMatch(walletRuntime, /HOME_DATA_MAX_WAIT_MS/);
   assert.match(walletRuntime, /HOME_STABILITY_MS/);
