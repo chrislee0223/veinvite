@@ -133,15 +133,16 @@ test('home uses one permanent link, two independently rendered slots, and an act
   assert.doesNotMatch(home, /createInvite\s*=\s*async/i);
 });
 
-test('home keeps referral rules in the guide and removes redundant card chrome without leaving spacer CSS', () => {
-  assert.doesNotMatch(home, /className="missionHeader"/i);
+test('home keeps referral rules behind contextual Guide info without restoring redundant card chrome', () => {
+  assert.match(home, /className="guideInfoButton"/i);
+  assert.match(home, /setGuideOpen\(true\)/i);
+  assert.match(home, /<AppGuide locale=\{locale\} \/>/i);
   assert.doesNotMatch(home, /\{referral\.badge\}/i);
   assert.doesNotMatch(home, /\{referral\.homeDescription\}/i);
   assert.doesNotMatch(home, /\{referral\.linkLabel\}/i);
   assert.doesNotMatch(home, /\{referral\.linkHelp\}/i);
   assert.doesNotMatch(home, /className="linkMark"/i);
   assert.doesNotMatch(home, />∞</i);
-  assert.match(home, /\.missionCopy \{ position:relative; z-index:1; \}/i);
   assert.match(home, /\.permanentLinkCard \{[^}]*margin-top:18px/i);
   assert.match(home, /\.linkPreview \{ padding:11px 12px/i);
   assert.doesNotMatch(home, /\.missionCopy \{[^}]*margin-top/i);
