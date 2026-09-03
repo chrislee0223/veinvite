@@ -22,6 +22,7 @@ import {
   MIN_VOT3_CONVERSION_WEI,
 } from '@/lib/vebetter/vot3Conversion';
 import {
+  getWalletSession,
   requireWalletSession,
   WalletAuthenticationError,
 } from '@/lib/walletAuthServer';
@@ -109,6 +110,25 @@ function toInviteRecord(
   };
 }
 
+function toPublicInviteRecord(
+  row: InvitationEvidenceRow,
+): InviteRecord {
+  // Anonymous link visitors need only enough state to render the invite flow.
+  // Wallet relationship data is intentionally omitted until the requester has
+  // a verified session belonging to the inviter or bound invitee.
+  return {
+    code: row.invite_code,
+    inviterAddress: '',
+    status: row.status,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+    rewardEligibility:
+      row.status === 'PENDING_ACCEPTANCE'
+        ? 'NONE'
+        : 'PENDING',
+  };
+}
+
 function parseNonNegativeInteger(
   value: number | string | null,
 ): number | null {
@@ -143,6 +163,41 @@ function toStoredProgress(
         row.impact_last_synced_block,
       ),
   };
+}
+
+function toPublicProgress() {
+  return {
+    appsCompleted: 0,
+    appsRequired: 3 as const,
+    rewardsReceived: 0,
+    vot3Converted: false,
+    vot3MinimumAmountWei:
+      MIN_VOT3_CONVERSION_WEI.toString(),
+    vot3ConversionAmountWei: null,
+    voteCompleted: false,
+    uniqueAppIds: [] as string[],
+    activationBlock: null,
+    latestBlock: null,
+  };
+}
+
+function sessionCanReadInvitationDetails(
+  row: InvitationEvidenceRow,
+  walletAddress: string | null,
+): boolean {
+  if (!walletAddress) {
+    return false;
+  }
+
+  const normalizedWallet =
+    walletAddress.toLowerCase();
+
+  return (
+    row.inviter_wallet.toLowerCase() ===
+      normalizedWallet ||
+    row.invitee_wallet?.toLowerCase() ===
+      normalizedWallet
+  );
 }
 
 function invalidInviteResponse() {
@@ -352,11 +407,13 @@ async function resolveCode(
 }
 
 /**
- * Passive public read.
+ * Passive read with privacy minimization.
  *
- * GET deliberately never performs chain reconciliation or starts the reward
- * worker. This prevents link previews, crawlers, browser prefetchers and
- * cross-site navigations from causing expensive RPC work or payout attempts.
+ * Anonymous visitors receive only link/rendering state. Detailed wallet
+ * relationship and mission progress are returned only when the browser already
+ * has a valid VeInvite session for the inviter or bound invitee. GET never
+ * performs chain reconciliation or starts the reward worker, so previews,
+ * crawlers and prefetchers cannot trigger expensive RPC or payout work.
  */
 export async function GET(
   request: NextRequest,
@@ -387,10 +444,21 @@ export async function GET(
       return legacyIneligibleInviteResponse();
     }
 
+    const session = await getWalletSession(request);
+    const canReadDetails =
+      sessionCanReadInvitationDetails(
+        row,
+        session?.walletAddress ?? null,
+      );
+
     return NextResponse.json(
       {
-        invite: toInviteRecord(row),
-        progress: toStoredProgress(row),
+        invite: canReadDetails
+          ? toInviteRecord(row)
+          : toPublicInviteRecord(row),
+        progress: canReadDetails
+          ? toStoredProgress(row)
+          : toPublicProgress(),
       },
       {
         headers: {
@@ -516,13 +584,13 @@ export async function POST(
     );
   }
 
-  const rateLimitResponse =
+  const syncRateLimitResponse =
     await enforceInviteRateLimit({
       request,
       normalizedCode,
       mode: 'sync',
     });
-  if (rateLimitResponse) return rateLimitResponse;
+  if (syncRateLimitResponse) return syncRateLimitResponse;
 
   try {
     if (row.ineligibility_check_id !== null) {
