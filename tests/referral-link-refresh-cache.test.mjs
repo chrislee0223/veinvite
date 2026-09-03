@@ -76,10 +76,15 @@ test('wallet resume recovery is mounted inside the VeChain provider', () => {
   );
 });
 
-test('startup shield waits for referral link and friend slots to settle', () => {
-  assert.match(walletRuntime, /HOME_DATA_MAX_WAIT_MS = 4_500/);
+test('VeWorld refresh shield stays up through wallet restore and Home data hydration', () => {
+  assert.match(walletRuntime, /readPersistedDappKitAccount/);
+  assert.match(walletRuntime, /hasPersistedVeWorldWallet/);
   assert.match(walletRuntime, /\.linkPreviewSkeleton, \.slotsSkeleton/);
-  assert.match(walletRuntime, /hasPendingHomeData\(\)/);
-  assert.match(walletRuntime, /HOME_DATA_MAX_WAIT_MS - elapsed/);
+  assert.match(walletRuntime, /if \(hasPendingHomeData\(\)\) \{\s*clearReadinessTimer\(\);\s*return;/);
+  assert.match(
+    walletRuntime,
+    /hasPersistedVeWorldWallet\(\) \|\|\s*hasBootstrappedSession\(\)/,
+  );
+  assert.doesNotMatch(walletRuntime, /HOME_DATA_MAX_WAIT_MS/);
   assert.match(walletRuntime, /HOME_STABILITY_MS/);
 });
