@@ -1,30 +1,39 @@
 import Image from 'next/image';
 
 export function Brand({ compact = false }: { compact?: boolean }) {
+  const size = compact ? 32 : 38;
+
   return (
-    <span className={compact ? 'brand brandCompact' : 'brand'} aria-label="VeInvite">
+    <div className={compact ? 'brand brandCompact' : 'brand'}>
       <Image
         src="/veinvite-logo.webp"
-        alt=""
-        width={compact ? 32 : 38}
-        height={compact ? 32 : 38}
-        priority={!compact}
+        width={size}
+        height={size}
+        alt="VeInvite"
+        priority
+        style={
+          compact
+            ? {
+                width: size,
+                height: size,
+                minWidth: size,
+                minHeight: size,
+                maxWidth: size,
+                maxHeight: size,
+                flex: `0 0 ${size}px`,
+                display: 'block',
+                objectFit: 'cover',
+                transition: 'none',
+                transform: 'none',
+                animation: 'none',
+              }
+            : undefined
+        }
       />
-      <span className="brandName">
-        Ve<span>Invite</span>
+      <span>
+        <strong>Ve</strong>
+        <b>Invite</b>
       </span>
-    </span>
-  );
-}
-
-export function Mascot() {
-  return (
-    <div className="mascot" aria-hidden="true">
-      <div className="helmet">
-        <span className="eye eyeOne" />
-        <span className="eye eyeTwo" />
-      </div>
-      <div className="mascotBadge">Vi</div>
     </div>
   );
 }
