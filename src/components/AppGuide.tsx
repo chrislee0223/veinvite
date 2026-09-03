@@ -1,3 +1,4 @@
+import { AppNetworkComingSoon } from './AppNetworkComingSoon';
 import { GUIDE_COPY } from '@/lib/i18n/guideCopy';
 import { GUIDE_ELIGIBILITY_COPY } from '@/lib/i18n/guideEligibilityCopy';
 import { GUIDE_FLOW_COPY } from '@/lib/i18n/guideFlowCopy';
@@ -5,7 +6,14 @@ import { GUIDE_MISSION_STEP_COPY } from '@/lib/i18n/guideMissionStepCopy';
 import { GUIDE_REWARD_STEP_COPY } from '@/lib/i18n/guideRewardStepCopy';
 import type { Locale } from '@/lib/i18n/locales';
 
+// HomeClient still owns the legacy `guide` tab key for analytics compatibility.
+// While Network is only a placeholder, that tab renders Network here. The actual
+// invitation guide is exposed contextually from the Home invite card.
 export function AppGuide({ locale }: { locale: Locale }) {
+  return <AppNetworkComingSoon locale={locale} />;
+}
+
+export function InviteGuideContent({ locale }: { locale: Locale }) {
   const t = GUIDE_COPY[locale];
   const flow = GUIDE_FLOW_COPY[locale];
   const eligibility = GUIDE_ELIGIBILITY_COPY[locale];
