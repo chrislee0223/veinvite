@@ -31,7 +31,7 @@ const [
     'supabase/migrations/20260903013000_harden_usage_analytics_privacy_retention.sql',
   ),
   read(
-    'supabase/migrations/20260903130000_exclude_admin_wallets_from_usage_analytics.sql',
+    'supabase/migrations/20260903164000_exclude_admin_wallets_from_usage_analytics.sql',
   ),
   read('src/components/UsageAnalyticsTracker.tsx'),
   read('src/lib/usageAnalyticsPreference.ts'),

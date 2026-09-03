@@ -6,10 +6,10 @@ const read = (path) =>
   readFile(new URL(`../${path}`, import.meta.url), 'utf8');
 
 const [projection, reconciliation, compaction, alignment] = await Promise.all([
-  read('supabase/migrations/20260903150000_add_fast_operator_status_projections.sql'),
-  read('supabase/migrations/20260903151000_add_fast_operator_reconciliation.sql'),
-  read('supabase/migrations/20260903152000_align_usage_compaction_with_fast_projection.sql'),
-  read('supabase/migrations/20260903153000_align_final_locale_and_reconciliation_guard.sql'),
+  read('supabase/migrations/20260903164300_add_fast_operator_status_projections.sql'),
+  read('supabase/migrations/20260903164400_add_fast_operator_reconciliation.sql'),
+  read('supabase/migrations/20260903164500_align_usage_compaction_with_fast_projection.sql'),
+  read('supabase/migrations/20260903164600_align_final_locale_and_reconciliation_guard.sql'),
 ]);
 
 test('fast status remains a private derived layer', () => {

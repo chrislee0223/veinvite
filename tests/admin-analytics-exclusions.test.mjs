@@ -11,10 +11,10 @@ const [
   reportsMigration,
   concurrencyMigration,
 ] = await Promise.all([
-  read('supabase/migrations/20260903130000_exclude_admin_wallets_from_usage_analytics.sql'),
-  read('supabase/migrations/20260903131000_exclude_admin_wallets_from_operator_views.sql'),
-  read('supabase/migrations/20260903132000_exclude_admin_wallets_from_operator_reports.sql'),
-  read('supabase/migrations/20260903154000_serialize_admin_usage_exclusion.sql'),
+  read('supabase/migrations/20260903164000_exclude_admin_wallets_from_usage_analytics.sql'),
+  read('supabase/migrations/20260903164100_exclude_admin_wallets_from_operator_views.sql'),
+  read('supabase/migrations/20260903164200_exclude_admin_wallets_from_operator_reports.sql'),
+  read('supabase/migrations/20260903164700_serialize_admin_usage_exclusion.sql'),
 ]);
 
 const ADMIN_WALLETS = [
