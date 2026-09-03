@@ -210,8 +210,6 @@ if (
 }
 
 for (const field of [
-  'gitCommitSha',
-  'gitCommitShortSha',
   'distributorAddress',
   'gasStatus',
   'queueHealthy',
@@ -227,12 +225,15 @@ for (const field of [
 
 if (
   !/X-Robots-Tag/.test(healthRoute) ||
+  !/VERCEL_GIT_COMMIT_SHA/.test(healthRoute) ||
+  !/gitCommitShortSha/.test(healthRoute) ||
+  !/deployment,/.test(healthRoute) ||
   !/automaticRewards:\s*\{\s*ready:\s*automaticRewardsReady/s.test(
     healthRoute,
   )
 ) {
   failures.push(
-    'Public health route must remain minimal and non-indexable.',
+    'Public health route must remain minimal, non-indexable, and revision-aware.',
   );
 }
 
