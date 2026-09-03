@@ -18,6 +18,9 @@ export const SOFT_FOCUS_MOTION_CSS = `
   }
   .veinviteSoftFocusPanel {
     position: relative;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
     opacity: 0;
     transform: translate3d(0, 4px, 0) scale(.97);
     transform-origin: center;
@@ -30,19 +33,35 @@ export const SOFT_FOCUS_MOTION_CSS = `
     transform: translate3d(0, 0, 0) scale(1);
     transition-duration: 180ms;
   }
+  .veinviteSoftFocusHeader {
+    flex: 0 0 auto;
+    min-height: 56px;
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    box-sizing: border-box;
+    padding: 10px 12px 8px;
+    border-bottom: 1px solid rgba(255,255,255,.045);
+    background: rgba(255,255,255,.012);
+  }
+  .veinviteSoftFocusScroll {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow: auto;
+    overscroll-behavior: contain;
+    -webkit-overflow-scrolling: touch;
+  }
   .veinviteSoftFocusClose {
-    position: absolute;
-    z-index: 3;
-    top: 16px;
-    right: 16px;
-    width: 38px;
-    height: 38px;
+    position: relative;
+    flex: 0 0 auto;
+    width: 36px;
+    height: 36px;
     display: grid;
     place-items: center;
     padding: 0;
-    border: 1px solid rgba(255,255,255,.1);
+    border: 1px solid rgba(255,255,255,.12);
     border-radius: 12px;
-    background: rgba(255,255,255,.04);
+    background: rgba(255,255,255,.055);
     color: #fff;
     cursor: pointer;
     line-height: 0;
@@ -53,7 +72,7 @@ export const SOFT_FOCUS_MOTION_CSS = `
     position: absolute;
     left: 50%;
     top: 50%;
-    width: 14px;
+    width: 13px;
     height: 1.8px;
     border-radius: 999px;
     background: currentColor;
@@ -64,6 +83,10 @@ export const SOFT_FOCUS_MOTION_CSS = `
   }
   .veinviteSoftFocusClose::after {
     transform: translate(-50%, -50%) rotate(-45deg);
+  }
+  .veinviteSoftFocusClose:hover {
+    border-color: rgba(255,255,255,.2);
+    background: rgba(255,255,255,.085);
   }
   .veinviteSoftFocusClose:focus-visible {
     outline: none;
