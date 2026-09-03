@@ -93,7 +93,7 @@ jobs:
         run: npm ci
 
       - name: Dependency security gate
-        # Keep low/modate transitive findings visible in CI, but fail the
+        # Keep low/moderate transitive findings visible in CI, but fail the
         # merge gate only when npm reports a high or critical vulnerability.
         run: npm audit --audit-level=high
 
