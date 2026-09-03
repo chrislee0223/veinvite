@@ -72,6 +72,20 @@ export function HomeGuideInfoPortal({ locale }: { locale: Locale }) {
     ? createPortal(
         <>
           <style>{`
+            .missionCard {
+              overflow: hidden;
+              overflow: clip;
+            }
+            .missionCard > .cardGlow {
+              background: radial-gradient(
+                circle,
+                rgba(244,183,40,.18) 0%,
+                rgba(244,183,40,.13) 44%,
+                rgba(244,183,40,.05) 68%,
+                transparent 76%
+              );
+              filter: none;
+            }
             .missionCard > .missionCopy {
               box-sizing: border-box;
               padding-right: 44px;
