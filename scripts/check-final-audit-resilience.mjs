@@ -21,6 +21,9 @@ const inviteProgressRoute = read(
 const adminLayout = read(
   'src/app/admin/layout.tsx',
 );
+const operatorAccess = read(
+  'src/lib/rewards/operatorAccess.ts',
+);
 const healthRoute = read(
   'src/app/api/health/route.ts',
 );
@@ -199,13 +202,27 @@ if (
 if (
   !/cookies\(\)/.test(adminLayout) ||
   !/getWalletSessionFromTokens/.test(adminLayout) ||
-  !/canOperateVeInviteRewards/.test(adminLayout) ||
+  !/readVeInviteOperatorAccess/.test(adminLayout) ||
+  !/isVeInviteRewardOperator/.test(adminLayout) ||
   !/notFound\(\)/.test(adminLayout) ||
   !/initialSessionWallet/.test(adminLayout) ||
   !/WalletSessionGate/.test(adminLayout)
 ) {
   failures.push(
     'Every /admin route must remain behind the shared server-validated operator layout.',
+  );
+}
+
+if (
+  !/apps\.read\.appAdmin\(VEINVITE_APP_ID\)/.test(operatorAccess) ||
+  !/apps\.read\.rewardDistributors\(VEINVITE_APP_ID\)/.test(operatorAccess) ||
+  !/Promise\.all/.test(operatorAccess) ||
+  /rewardsPoolBalance|availableFunds|totalBalance|isDistributionPaused|readRewardRuntimeSafety/.test(
+    operatorAccess,
+  )
+) {
+  failures.push(
+    'Admin access checks must stay limited to the two on-chain operator membership reads.',
   );
 }
 
