@@ -21,6 +21,7 @@ import {
   PublicRewardForecastPortal,
   PublicRewardForecastWarmup,
 } from './PublicRewardForecastPortal';
+import { RewardReservationRecovery } from './RewardReservationRecovery';
 import { SecondaryPageLayoutPolish } from './SecondaryPageLayoutPolish';
 import { WalletLanguagePreferenceSync } from './WalletLanguagePreferenceSync';
 import { WalletRuntimeLifecycle } from './WalletRuntimeLifecycle';
@@ -79,6 +80,7 @@ export function AppProviders({
       <VeChainProvider>
         <ProviderReadySignal />
         <WalletRuntimeLifecycle />
+        <RewardReservationRecovery />
         {children}
         <WalletLanguagePreferenceSync />
         <SecondaryPageLayoutPolish />
