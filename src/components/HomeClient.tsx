@@ -159,7 +159,7 @@ export function HomeClient() {
 
     setLoading(true);
     try {
-      const [inviteResponse, linkResponse] = await Promise.all([
+      const [inviteResult, linkResult] = await Promise.allSettled([
         fetch(
           `/api/invites?inviter=${encodeURIComponent(wallet)}`,
           { cache: 'no-store' },
@@ -171,23 +171,51 @@ export function HomeClient() {
         }),
       ]);
 
+      if (inviteResult.status === 'rejected') {
+        throw new Error(t.loadError);
+      }
+
+      const inviteResponse = inviteResult.value;
       const inviteData = (await inviteResponse.json()) as {
         invites?: InviteRecord[];
         error?: string;
       };
-      const linkData = (await linkResponse.json()) as {
-        referralLink?: ReferralLinkRecord | null;
-        error?: string;
-      };
-
       if (!inviteResponse.ok) {
         throw new Error(inviteData.error ?? t.loadError);
       }
-      if (!linkResponse.ok || !linkData.referralLink) {
-        throw new Error(linkData.error ?? t.createError);
+
+      // Invitation/reward state remains useful even if ensuring the permanent
+      // link has a transient failure. Do not hide existing referral history.
+      setInvites(inviteData.invites ?? []);
+
+      if (linkResult.status === 'rejected') {
+        setReferralLink(null);
+        showFeedback('error', t.createError);
+        return;
       }
 
-      setInvites(inviteData.invites ?? []);
+      const linkResponse = linkResult.value;
+      let linkData: {
+        referralLink?: ReferralLinkRecord | null;
+        error?: string;
+      };
+      try {
+        linkData = (await linkResponse.json()) as {
+          referralLink?: ReferralLinkRecord | null;
+          error?: string;
+        };
+      } catch {
+        setReferralLink(null);
+        showFeedback('error', t.createError);
+        return;
+      }
+
+      if (!linkResponse.ok || !linkData.referralLink) {
+        setReferralLink(null);
+        showFeedback('error', linkData.error ?? t.createError);
+        return;
+      }
+
       setReferralLink(linkData.referralLink);
     } catch (error) {
       showFeedback(
@@ -491,7 +519,7 @@ export function HomeClient() {
               <div className="slotsBlock">
                 <div className="slotsHeading">
                   <strong>{referral.slotsLabel}</strong>
-                  <span>{2 - slotInvites.size}/2</span>
+                  <span>{slotInvites.size}/2</span>
                 </div>
                 <FriendSlot
                   number={1}
