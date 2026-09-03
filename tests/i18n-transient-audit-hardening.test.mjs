@@ -35,7 +35,7 @@ test('backend and infrastructure errors are sanitized before transient feedback 
 });
 
 test('notification aria-modal dialogs keep keyboard focus inside and restore the opener', () => {
-  assert.match(focusGuard, /aria-modal=\\"true\\"/);
+  assert.match(focusGuard, /aria-modal="true"/);
   assert.match(focusGuard, /event\.key !== 'Tab'/);
   assert.match(focusGuard, /event\.shiftKey/);
   assert.match(focusGuard, /activeDialog\.contains/);
