@@ -1,9 +1,9 @@
 import { NextResponse } from 'next/server';
 
-import {
-  readRewardOperationsHealth,
-} from '@/lib/rewards/operationsMonitoring';
 import { supabaseAdmin } from '@/lib/supabaseServer';
+import {
+  getVeBetterNetworkConfig,
+} from '@/lib/vebetter/network';
 
 export const dynamic = 'force-dynamic';
 
@@ -29,71 +29,35 @@ function readDeploymentMetadata() {
 
 export async function GET() {
   const deployment = readDeploymentMetadata();
+  let network: string | null = null;
 
   try {
+    // Public health is intentionally a lightweight app/database readiness
+    // probe. Full reward-pool, distributor, gas, queue and payout diagnostics
+    // live behind the verified-operator operations API so anonymous uptime
+    // probes cannot repeatedly trigger expensive VeChain RPC/planning work.
+    network = getVeBetterNetworkConfig().network;
+
     const { error } = await supabaseAdmin
       .from('invitations')
-      .select('invite_code', {
-        head: true,
-        count: 'exact',
-      });
+      .select('invite_code')
+      .limit(1);
 
     if (error) {
       throw error;
     }
 
-    const operations =
-      await readRewardOperationsHealth();
-    const automaticRewardsReady = Boolean(
-      operations.operational &&
-      operations.distributor
-        .automaticRewardsEnabled &&
-      operations.distributor.configured &&
-      operations.distributor.registered &&
-      !operations.runtime.distributionPaused,
-    );
-    const alertCodes = operations.alerts.map(
-      (alert) => alert.code,
-    );
-
-    if (operations.severity === 'CRITICAL') {
-      console.error(
-        'VeInvite reward operations health is critical:',
-        { alertCodes },
-      );
-    } else if (
-      operations.severity === 'WARNING'
-    ) {
-      console.warn(
-        'VeInvite reward operations health has warnings:',
-        { alertCodes },
-      );
-    }
-
-    // Keep the deployment revision public so stale Production builds can be
-    // detected immediately, but leave distributor addresses, gas state, queue
-    // internals and alert codes on the verified-operator operations endpoint.
     return NextResponse.json(
       {
-        ok: operations.operational,
+        ok: true,
         app: 'VeInvite',
         version: '0.1.0',
         deployment,
         database: 'ready',
-        network: operations.network,
-        automaticRewards: {
-          ready: automaticRewardsReady,
-        },
-        operations: {
-          severity: operations.severity,
-          operational:
-            operations.operational,
-          checkedAt: operations.capturedAt,
-        },
+        network,
       },
       {
-        status:
-          operations.operational ? 200 : 503,
+        status: 200,
         headers: HEALTH_HEADERS,
       },
     );
@@ -110,6 +74,7 @@ export async function GET() {
         version: '0.1.0',
         deployment,
         database: 'unavailable',
+        network,
       },
       {
         status: 503,
