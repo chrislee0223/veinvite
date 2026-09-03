@@ -3,7 +3,8 @@
   "git": {
     "deploymentEnabled": {
       "**": false,
-      "main": true
+      "main": true,
+      "preview/final-ui-20260901": true
     }
   },
   "crons": [
