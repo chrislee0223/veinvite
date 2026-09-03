@@ -1,12 +1,8 @@
 import { NETWORK_COPY } from '@/lib/i18n/networkCopy';
-import type { SupportedLocale } from '@/lib/i18n/locales';
+import type { Locale, SupportedLocale } from '@/lib/i18n/locales';
 
-export function AppNetworkComingSoon({
-  locale,
-}: {
-  locale: SupportedLocale;
-}) {
-  const t = NETWORK_COPY[locale];
+export function AppNetworkComingSoon({ locale }: { locale: Locale }) {
+  const t = NETWORK_COPY[locale as SupportedLocale];
 
   return (
     <section className="networkPage">
