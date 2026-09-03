@@ -34,6 +34,11 @@ export interface InviteRecord {
   rewardEligibility: RewardEligibility;
   rewardQueueStatus?: RewardQueueStatus;
   rewardClaimRequestedAt?: string;
+  rewardReservedAmountWei?: string;
+  rewardReservedAt?: string;
+  appsCompleted?: number;
+  vot3Converted?: boolean;
+  voteCompleted?: boolean;
   inviteSlot?: 1 | 2;
   sybilStatus?: SybilStatus;
   referralLinkId?: string;
