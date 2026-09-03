@@ -21,6 +21,9 @@ const inviteProgressRoute = read(
 const adminLayout = read(
   'src/app/admin/layout.tsx',
 );
+const healthRoute = read(
+  'src/app/api/health/route.ts',
+);
 
 const localeKeys = [
   'en', 'ko', 'zh', 'hi', 'es', 'ja',
@@ -203,6 +206,33 @@ if (
 ) {
   failures.push(
     'Every /admin route must remain behind the shared server-validated operator layout.',
+  );
+}
+
+for (const field of [
+  'gitCommitSha',
+  'gitCommitShortSha',
+  'distributorAddress',
+  'gasStatus',
+  'queueHealthy',
+  'payoutPipelineHealthy',
+  'poolCapacityHealthy',
+]) {
+  if (healthRoute.includes(field)) {
+    failures.push(
+      `Public health route exposes operator-only detail: ${field}`,
+    );
+  }
+}
+
+if (
+  !/X-Robots-Tag/.test(healthRoute) ||
+  !/automaticRewards:\s*\{\s*ready:\s*automaticRewardsReady/s.test(
+    healthRoute,
+  )
+) {
+  failures.push(
+    'Public health route must remain minimal and non-indexable.',
   );
 }
 
