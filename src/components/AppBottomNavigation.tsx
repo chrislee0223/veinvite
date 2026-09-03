@@ -3,10 +3,15 @@
 import { startTransition, useEffect, useRef } from 'react';
 
 import { NAV_COPY } from '@/lib/i18n/navCopy';
-import type { Locale } from '@/lib/i18n/locales';
+import { NETWORK_COPY } from '@/lib/i18n/networkCopy';
+import type { Locale, SupportedLocale } from '@/lib/i18n/locales';
 import { prefetchPublicLeaderboard } from '@/lib/leaderboardClientCache';
+import { HomeGuideInfoPortal } from './HomeGuideInfoPortal';
 import { useActiveWallet } from './WalletControl';
 
+// Keep the legacy `guide` tab key while Network is only a Coming Soon surface.
+// This preserves the existing analytics/database contract until the real
+// Network experience is launched. The user-facing label and content are Network.
 export type AppTab = 'home' | 'guide' | 'leaderboard' | 'settings';
 
 const TABS: AppTab[] = ['home', 'guide', 'leaderboard', 'settings'];
@@ -43,6 +48,7 @@ export function AppBottomNavigation({
   onChange: (tab: AppTab) => void;
 }) {
   const labels = NAV_COPY[locale];
+  const network = NETWORK_COPY[locale as SupportedLocale];
   const wallet = useActiveWallet();
   const navigationRequestRef = useRef(0);
 
@@ -110,36 +116,41 @@ export function AppBottomNavigation({
   };
 
   return (
-    <nav className="bottomNavigation" data-veinvite-active-tab={activeTab} aria-label={labels.ariaLabel}>
-      <div>
-        {TABS.map((tab) => (
-          <button
-            key={tab}
-            type="button"
-            data-veinvite-tab={tab}
-            className={activeTab === tab ? 'active' : ''}
-            aria-current={activeTab === tab ? 'page' : undefined}
-            onPointerEnter={tab === 'home' ? undefined : () => warmTab(tab)}
-            onFocus={tab === 'home' ? undefined : () => warmTab(tab)}
-            onPointerDown={tab === 'home' ? undefined : () => warmTab(tab)}
-            onClick={() => selectTab(tab)}
-          >
-            <NavIcon name={tab} />
-            <span>{labels[tab]}</span>
-          </button>
-        ))}
-      </div>
+    <>
+      {activeTab === 'home' ? (
+        <HomeGuideInfoPortal locale={locale} />
+      ) : null}
+      <nav className="bottomNavigation" data-veinvite-active-tab={activeTab} aria-label={labels.ariaLabel}>
+        <div>
+          {TABS.map((tab) => (
+            <button
+              key={tab}
+              type="button"
+              data-veinvite-tab={tab}
+              className={activeTab === tab ? 'active' : ''}
+              aria-current={activeTab === tab ? 'page' : undefined}
+              onPointerEnter={tab === 'home' ? undefined : () => warmTab(tab)}
+              onFocus={tab === 'home' ? undefined : () => warmTab(tab)}
+              onPointerDown={tab === 'home' ? undefined : () => warmTab(tab)}
+              onClick={() => selectTab(tab)}
+            >
+              <NavIcon name={tab} />
+              <span>{tab === 'guide' ? network.navLabel : labels[tab]}</span>
+            </button>
+          ))}
+        </div>
 
-      <style jsx>{`
-        .bottomNavigation { position: fixed; z-index: 90; right: 0; bottom: 0; left: 0; padding: 0 12px calc(10px + env(safe-area-inset-bottom)); pointer-events: none; background: linear-gradient(to top,rgba(7,7,7,.98) 58%,transparent); }
-        .bottomNavigation > div { width: min(100%,520px); min-height: 70px; margin: 0 auto; padding: 6px; display: grid; grid-template-columns: repeat(4,1fr); border: 1px solid rgba(255,205,80,.16); border-radius: 23px; background: rgba(22,22,20,.985); box-shadow: 0 18px 55px rgba(0,0,0,.5); pointer-events: auto; isolation: isolate; }
-        button { min-width: 0; min-height: 56px; padding: 6px 3px; display: grid; place-items: center; align-content: center; gap: 4px; border: 0; border-radius: 17px; background: transparent; color: #77736c; font: inherit; font-size: .6rem; font-weight: 850; cursor: pointer; }
-        button span { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-        button.active { background: rgba(255,201,61,.1); color: #ffd45f; }
-        button :global(svg) { width: 21px; height: 21px; }
-        @media (max-width: 360px) { button { font-size: .53rem; } }
-      `}</style>
-    </nav>
+        <style jsx>{`
+          .bottomNavigation { position: fixed; z-index: 90; right: 0; bottom: 0; left: 0; padding: 0 12px calc(10px + env(safe-area-inset-bottom)); pointer-events: none; background: linear-gradient(to top,rgba(7,7,7,.98) 58%,transparent); }
+          .bottomNavigation > div { width: min(100%,520px); min-height: 70px; margin: 0 auto; padding: 6px; display: grid; grid-template-columns: repeat(4,1fr); border: 1px solid rgba(255,205,80,.16); border-radius: 23px; background: rgba(22,22,20,.985); box-shadow: 0 18px 55px rgba(0,0,0,.5); pointer-events: auto; isolation: isolate; }
+          button { min-width: 0; min-height: 56px; padding: 6px 3px; display: grid; place-items: center; align-content: center; gap: 4px; border: 0; border-radius: 17px; background: transparent; color: #77736c; font: inherit; font-size: .6rem; font-weight: 850; cursor: pointer; }
+          button span { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+          button.active { background: rgba(255,201,61,.1); color: #ffd45f; }
+          button :global(svg) { width: 21px; height: 21px; }
+          @media (max-width: 360px) { button { font-size: .53rem; } }
+        `}</style>
+      </nav>
+    </>
   );
 }
 
@@ -160,7 +171,7 @@ function NavIcon({ name }: { name: AppTab }) {
     return <svg {...common}><path d="m3 11 9-8 9 8" /><path d="M5 10v10h14V10" /><path d="M9 20v-6h6v6" /></svg>;
   }
   if (name === 'guide') {
-    return <svg {...common}><path d="M4 5.5A2.5 2.5 0 0 1 6.5 3H11v16H6.5A2.5 2.5 0 0 0 4 21.5z" /><path d="M20 5.5A2.5 2.5 0 0 0 17.5 3H13v16h4.5a2.5 2.5 0 0 1 2.5 2.5z" /></svg>;
+    return <svg {...common}><circle cx="12" cy="5" r="2.2" /><circle cx="6" cy="17" r="2.2" /><circle cx="18" cy="17" r="2.2" /><path d="M10.8 6.9 7.2 15" /><path d="m13.2 6.9 3.6 8.1" /><path d="M8.2 17h7.6" /></svg>;
   }
   if (name === 'leaderboard') {
     return <svg {...common}><path d="M8 21h8" /><path d="M12 17v4" /><path d="M7 4h10v4a5 5 0 0 1-10 0z" /><path d="M7 6H4v1a4 4 0 0 0 4 4" /><path d="M17 6h3v1a4 4 0 0 1-4 4" /></svg>;

@@ -1,3 +1,4 @@
+import { AppNetworkComingSoon } from './AppNetworkComingSoon';
 import { GUIDE_COPY } from '@/lib/i18n/guideCopy';
 import { GUIDE_ELIGIBILITY_COPY } from '@/lib/i18n/guideEligibilityCopy';
 import { GUIDE_FLOW_COPY } from '@/lib/i18n/guideFlowCopy';
@@ -5,7 +6,14 @@ import { GUIDE_MISSION_STEP_COPY } from '@/lib/i18n/guideMissionStepCopy';
 import { GUIDE_REWARD_STEP_COPY } from '@/lib/i18n/guideRewardStepCopy';
 import type { Locale } from '@/lib/i18n/locales';
 
+// HomeClient still owns the legacy `guide` tab key for analytics compatibility.
+// While Network is only a placeholder, that tab renders Network here. The actual
+// invitation guide is exposed contextually from the Home invite card.
 export function AppGuide({ locale }: { locale: Locale }) {
+  return <AppNetworkComingSoon locale={locale} />;
+}
+
+export function InviteGuideContent({ locale }: { locale: Locale }) {
   const t = GUIDE_COPY[locale];
   const flow = GUIDE_FLOW_COPY[locale];
   const eligibility = GUIDE_ELIGIBILITY_COPY[locale];
@@ -46,11 +54,6 @@ export function AppGuide({ locale }: { locale: Locale }) {
         <Definition title={t.returningTitle} description={eligibility.returningDescription} icon="R" />
       </section>
 
-      <section className="countCard">
-        <h2>{t.countTitle}</h2>
-        <p>{flow.countDescription}</p>
-      </section>
-
       <style jsx>{`
         .guidePage { width:min(100%,560px); margin:0 auto; padding-bottom:12px; }
         header > span { color:#f8bc2e; font-size:.7rem; font-weight:950; letter-spacing:.12em; }
@@ -62,9 +65,7 @@ export function AppGuide({ locale }: { locale: Locale }) {
         .steps strong { display:block; font-size:.91rem; }
         .steps p { margin:5px 0 0; color:#96928a; font-size:.76rem; line-height:1.55; }
         .eligibilityCard { margin-top:18px; padding:20px; border:1px solid rgba(255,205,80,.14); border-radius:22px; background:radial-gradient(circle at 90% 0,rgba(255,194,41,.12),transparent 34%),rgba(255,255,255,.03); }
-        .eligibilityCard h2, .countCard h2 { margin:0 0 14px; font-size:1.08rem; letter-spacing:-.025em; }
-        .countCard { margin-top:12px; padding:18px 20px; border:1px solid rgba(255,255,255,.08); border-radius:20px; background:rgba(255,255,255,.025); }
-        .countCard p { margin:0; color:#8f8b83; font-size:.76rem; line-height:1.55; }
+        .eligibilityCard h2 { margin:0 0 14px; font-size:1.08rem; letter-spacing:-.025em; }
       `}</style>
     </section>
   );
