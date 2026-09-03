@@ -84,12 +84,17 @@ test('blocked-slot corrections stay possible until an active replacement reuses 
   assert.doesNotMatch(blockedSlotRefinement, /BLOCKED permanent-referral decision is final/i);
 });
 
-test('public referral GET is passive and never creates invitations', () => {
+test('public referral GET is passive and stays open even when both friend slots are busy', () => {
   assert.match(publicApi, /export async function GET/i);
   assert.doesNotMatch(publicApi, /\.insert\(/i);
   assert.doesNotMatch(publicApi, /\.update\(/i);
   assert.doesNotMatch(publicApi, /claim_permanent_referral_with_entry_proof/i);
-  assert.match(publicApi, /slots_full/i);
+  assert.match(publicApi, /outcome:\s*'available'/i);
+  assert.match(publicApi, /slotsFull:\s*slotsAvailable === 0/i);
+  assert.doesNotMatch(
+    publicApi,
+    /outcome:\s*slotsAvailable\s*>\s*0\s*\?\s*'available'\s*:\s*'slots_full'/i,
+  );
 });
 
 test('owner API creates one permanent link idempotently behind wallet auth', () => {
@@ -103,9 +108,13 @@ test('owner API creates one permanent link idempotently behind wallet auth', () 
   );
 });
 
-test('claim API checks eligibility before atomically creating an invitation', () => {
-  assert.match(claimApi, /checkVeBetterEntryEligibility/i);
-  assert.match(claimApi, /active_existing_user/i);
+test('claim API resumes the same sponsor before checking capacity and only then scans eligibility for new wallets', () => {
+  assert.match(claimApi, /outcome:\s*'already_claimed'/i);
+  assert.match(claimApi, /isResumableForSponsor/i);
+  assert.match(
+    claimApi,
+    /if \(existingCheck\.invitation\)[\s\S]*isResumableForSponsor[\s\S]*hasFreeSlot[\s\S]*checkVeBetterEntryEligibility/i,
+  );
   assert.match(claimApi, /claim_permanent_referral_with_entry_proof/i);
   assert.doesNotMatch(claimApi, /\.from\('invitations'\)\s*\.insert/i);
 });
@@ -127,10 +136,14 @@ test('home preserves invitation and reward history when permanent-link ensure ha
   assert.match(home, /linkResult\.status === 'rejected'/i);
 });
 
-test('permanent link landing is noindex and transitions into the existing mission route after claim', () => {
+test('permanent link landing is noindex and both new claims and returning participants enter the existing mission route', () => {
   assert.match(permanentPage, /index:\s*false/i);
   assert.match(permanentPage, /follow:\s*false/i);
   assert.match(permanentClient, /\/api\/referral-links\/\$\{encodeURIComponent\(referralKey\)\}\/claim/i);
+  assert.match(permanentClient, /data\.outcome === 'already_claimed'/i);
+  assert.match(permanentClient, /data\.inviteCode/i);
+  assert.match(permanentClient, /`\/i\/\$\{data\.inviteCode\}`/i);
+  assert.match(permanentClient, /window\.location\.assign\(resumeUrl\.toString\(\)\)/i);
   assert.match(permanentClient, /`\/i\/\$\{claimedInviteCode\}`/i);
   assert.match(permanentClient, /slotsFullTitle/i);
 });
