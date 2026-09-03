@@ -27,6 +27,8 @@ const WALLET_SESSION_INVALID_EVENT =
   'veinvite-wallet-session-invalid';
 const REWARD_RECEIPT_ACKNOWLEDGED_EVENT =
   'veinvite-reward-receipt-acknowledged';
+const REWARD_RESERVATION_READY_EVENT =
+  'veinvite-reward-reservation-ready';
 
 function notificationSetKey(
   notifications: InviteNotificationPayloadV2[],
@@ -129,7 +131,8 @@ export function InAppInviteNotifications({
         notifications.some(
           (notification) =>
             notification.kind === 'INVITE_INELIGIBLE' ||
-            notification.kind === 'REWARD_READY',
+            notification.kind === 'REWARD_READY' ||
+            notification.kind === 'REWARD_PAID',
         );
 
       setAcknowledging(true);
@@ -240,16 +243,27 @@ export function InAppInviteNotifications({
       setErrorMessage('');
       void refresh(false);
     };
+    const onRewardReservationReady = () => {
+      void refresh(true);
+    };
 
     window.addEventListener(
       REWARD_RECEIPT_ACKNOWLEDGED_EVENT,
       onRewardReceiptAcknowledged,
+    );
+    window.addEventListener(
+      REWARD_RESERVATION_READY_EVENT,
+      onRewardReservationReady,
     );
 
     return () => {
       window.removeEventListener(
         REWARD_RECEIPT_ACKNOWLEDGED_EVENT,
         onRewardReceiptAcknowledged,
+      );
+      window.removeEventListener(
+        REWARD_RESERVATION_READY_EVENT,
+        onRewardReservationReady,
       );
     };
   }, [refresh]);
