@@ -21,9 +21,9 @@ import {
   type TransientFeedbackKind,
 } from './TransientSnackbar';
 import { useWalletLauncher } from './WalletControl';
-import { GUIDE_REWARD_STEP_COPY } from '@/lib/i18n/guideRewardStepCopy';
 import { HOME_COPY } from '@/lib/i18n/homeCopy';
 import { NOTIFICATION_COPY } from '@/lib/i18n/notificationCopy';
+import { PROGRESS_CLAIM_COPY } from '@/lib/i18n/progressClaimCopy';
 import { REFERRAL_LINK_COPY } from '@/lib/i18n/referralLinkCopy';
 import {
   LANGUAGE_OPTIONS,
@@ -52,6 +52,44 @@ const ACTIVE_STATUSES = new Set([
   'ACTIVATING',
   'UNDER_REVIEW',
 ]);
+const HOME_REFRESH_MS = 60_000;
+const EVIDENCE_REFRESH_MS = 120_000;
+const B3TR_DECIMALS = 18n;
+const B3TR_SCALE = 10n ** B3TR_DECIMALS;
+
+function formatB3trWei(value: string): string {
+  if (!/^\d+$/.test(value)) return '—';
+  const wei = BigInt(value);
+  const whole = wei / B3TR_SCALE;
+  const fraction = (wei % B3TR_SCALE)
+    .toString()
+    .padStart(Number(B3TR_DECIMALS), '0')
+    .slice(0, 2)
+    .replace(/0+$/, '');
+  return fraction ? `${whole}.${fraction}` : whole.toString();
+}
+
+function missionFlags(invite: InviteRecord): boolean[] {
+  const apps = Math.max(0, Math.min(3, invite.appsCompleted ?? 0));
+  return [
+    apps >= 1,
+    apps >= 2,
+    apps >= 3,
+    invite.vot3Converted === true,
+    invite.voteCompleted === true,
+  ];
+}
+
+function nextMissionLabel(invite: InviteRecord): string {
+  const flags = missionFlags(invite);
+  const next = flags.findIndex((done) => !done);
+  if (next === 0) return 'dApp 1/3';
+  if (next === 1) return 'dApp 2/3';
+  if (next === 2) return 'dApp 3/3';
+  if (next === 3) return 'VOT3';
+  if (next === 4) return 'Vote';
+  return '';
+}
 
 export function HomeClient() {
   const {
@@ -74,6 +112,8 @@ export function HomeClient() {
   const [vercelShareToken, setVercelShareToken] = useState('');
   const [legacyCancelTarget, setLegacyCancelTarget] =
     useState<InviteRecord | null>(null);
+  const [claimPendingCode, setClaimPendingCode] =
+    useState<string | null>(null);
   const feedbackIdRef = useRef(0);
   const cancelTriggerRef = useRef<HTMLButtonElement | null>(null);
   const cancelDialogRef = useRef<HTMLDivElement | null>(null);
@@ -81,7 +121,7 @@ export function HomeClient() {
 
   const t = HOME_COPY[locale];
   const referral = REFERRAL_LINK_COPY[locale];
-  const automaticRewardCopy = GUIDE_REWARD_STEP_COPY[locale];
+  const progressCopy = PROGRESS_CLAIM_COPY[locale];
 
   const clearFeedback = useCallback(() => {
     setFeedback(null);
@@ -150,14 +190,14 @@ export function HomeClient() {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (quiet = false) => {
     if (!wallet) {
       setInvites([]);
       setReferralLink(null);
       return;
     }
 
-    setLoading(true);
+    if (!quiet) setLoading(true);
     try {
       const [inviteResult, linkResult] = await Promise.allSettled([
         fetch(
@@ -183,47 +223,40 @@ export function HomeClient() {
       if (!inviteResponse.ok) {
         throw new Error(inviteData.error ?? t.loadError);
       }
-
-      // Invitation/reward state remains useful even if ensuring the permanent
-      // link has a transient failure. Do not hide existing referral history.
       setInvites(inviteData.invites ?? []);
 
       if (linkResult.status === 'rejected') {
-        setReferralLink(null);
-        showFeedback('error', t.createError);
+        if (!quiet) {
+          setReferralLink(null);
+          showFeedback('error', t.createError);
+        }
         return;
       }
 
       const linkResponse = linkResult.value;
-      let linkData: {
+      const linkData = (await linkResponse.json()) as {
         referralLink?: ReferralLinkRecord | null;
         error?: string;
       };
-      try {
-        linkData = (await linkResponse.json()) as {
-          referralLink?: ReferralLinkRecord | null;
-          error?: string;
-        };
-      } catch {
-        setReferralLink(null);
-        showFeedback('error', t.createError);
-        return;
-      }
 
       if (!linkResponse.ok || !linkData.referralLink) {
-        setReferralLink(null);
-        showFeedback('error', linkData.error ?? t.createError);
+        if (!quiet) {
+          setReferralLink(null);
+          showFeedback('error', linkData.error ?? t.createError);
+        }
         return;
       }
 
       setReferralLink(linkData.referralLink);
     } catch (error) {
-      showFeedback(
-        'error',
-        error instanceof Error ? error.message : t.genericError,
-      );
+      if (!quiet) {
+        showFeedback(
+          'error',
+          error instanceof Error ? error.message : t.genericError,
+        );
+      }
     } finally {
-      setLoading(false);
+      if (!quiet) setLoading(false);
     }
   }, [wallet, t.loadError, t.createError, t.genericError, showFeedback]);
 
@@ -231,12 +264,37 @@ export function HomeClient() {
     void load();
   }, [load]);
 
-  const activeInvites = useMemo(
+  useEffect(() => {
+    if (!wallet) return;
+
+    const refreshIfVisible = () => {
+      if (document.visibilityState === 'visible') {
+        void load(true);
+      }
+    };
+
+    const timer = window.setInterval(
+      refreshIfVisible,
+      HOME_REFRESH_MS,
+    );
+    document.addEventListener('visibilitychange', refreshIfVisible);
+
+    return () => {
+      window.clearInterval(timer);
+      document.removeEventListener('visibilitychange', refreshIfVisible);
+    };
+  }, [wallet, load]);
+
+  const slotOccupyingInvites = useMemo(
     () => invites
-      .filter((invite) =>
-        ACTIVE_STATUSES.has(invite.status) &&
-        invite.sybilStatus !== 'BLOCKED',
-      )
+      .filter((invite) => {
+        if (invite.sybilStatus === 'BLOCKED') return false;
+        if (ACTIVE_STATUSES.has(invite.status)) return true;
+        return (
+          invite.status === 'COMPLETED' &&
+          !invite.slotReleasedAt
+        );
+      })
       .sort((a, b) =>
         (a.inviteSlot ?? 1) - (b.inviteSlot ?? 1) ||
         b.createdAt.localeCompare(a.createdAt),
@@ -246,47 +304,86 @@ export function HomeClient() {
 
   const slotInvites = useMemo(() => {
     const slots = new Map<1 | 2, InviteRecord>();
-    for (const invite of activeInvites) {
+    for (const invite of slotOccupyingInvites) {
       const slot = invite.inviteSlot === 2 ? 2 : 1;
       if (!slots.has(slot)) slots.set(slot, invite);
     }
     return slots;
-  }, [activeInvites]);
+  }, [slotOccupyingInvites]);
 
-  const completedInvites = useMemo(
-    () => invites.filter((invite) => invite.status === 'COMPLETED'),
+  const acceptedActiveInvites = useMemo(
+    () => slotOccupyingInvites.filter(
+      (invite) =>
+        Boolean(invite.inviteeAddress) &&
+        invite.status !== 'PENDING_ACCEPTANCE' &&
+        invite.status !== 'COMPLETED',
+    ),
+    [slotOccupyingInvites],
+  );
+
+  useEffect(() => {
+    if (!wallet || acceptedActiveInvites.length < 1) return;
+
+    let running = false;
+    const reconcile = async () => {
+      if (
+        running ||
+        document.visibilityState !== 'visible'
+      ) {
+        return;
+      }
+
+      running = true;
+      try {
+        await Promise.allSettled(
+          acceptedActiveInvites.slice(0, 2).map((invite) =>
+            fetch(`/api/invites/${invite.code}`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: '{}',
+              cache: 'no-store',
+            }),
+          ),
+        );
+        await load(true);
+      } finally {
+        running = false;
+      }
+    };
+
+    const timer = window.setInterval(
+      () => void reconcile(),
+      EVIDENCE_REFRESH_MS,
+    );
+    const onVisible = () => {
+      if (document.visibilityState === 'visible') {
+        void reconcile();
+      }
+    };
+    document.addEventListener('visibilitychange', onVisible);
+
+    return () => {
+      window.clearInterval(timer);
+      document.removeEventListener('visibilitychange', onVisible);
+    };
+  }, [wallet, acceptedActiveInvites, load]);
+
+  const rewardItems = useMemo(
+    () => invites.filter((invite) =>
+      invite.status === 'COMPLETED' &&
+      Boolean(invite.rewardReservedAmountWei) &&
+      invite.rewardEligibility !== 'FORFEITED' &&
+      invite.rewardQueueStatus !== 'CANCELLED',
+    ),
     [invites],
   );
-  const latestCompleted = completedInvites[0];
-  const unsettledReward = completedInvites.find(
-    (invite) =>
-      invite.rewardEligibility !== 'PAID' &&
-      invite.rewardEligibility !== 'FORFEITED',
-  );
-  const rewardRecord = unsettledReward ?? latestCompleted;
-  const rewardQueued = rewardRecord?.rewardQueueStatus === 'QUEUED';
-  const rewardAssigned = rewardRecord?.rewardQueueStatus === 'ASSIGNED';
-  const rewardPaid = rewardRecord?.rewardEligibility === 'PAID';
-  const rewardForfeited = rewardRecord?.rewardEligibility === 'FORFEITED';
 
-  const rewardPanelTitle = rewardForfeited
-    ? t.rewardForfeited
-    : rewardPaid
-      ? t.rewardPaid
-      : rewardAssigned
-        ? t.rewardAssigned
-        : rewardQueued
-          ? automaticRewardCopy.title
-          : t.rewardPending;
-  const rewardPanelDescription = rewardForfeited
-    ? t.rewardForfeitedDescription
-    : rewardPaid
-      ? t.rewardPaidDescription
-      : rewardAssigned
-        ? t.rewardAssignedDescription
-        : rewardQueued
-          ? automaticRewardCopy.description
-          : t.rewardDescription;
+  const outstandingRewards = useMemo(
+    () => rewardItems.filter(
+      (invite) => invite.rewardEligibility !== 'PAID',
+    ),
+    [rewardItems],
+  );
 
   const permanentInviteUrl = useMemo(() => {
     if (!referralLink || typeof window === 'undefined') return '';
@@ -336,6 +433,38 @@ export function HomeClient() {
       return;
     }
     await copyUrl(url);
+  };
+
+  const claimReward = async (invite: InviteRecord) => {
+    if (
+      claimPendingCode ||
+      invite.rewardQueueStatus !== 'AWAITING_CLAIM'
+    ) {
+      return;
+    }
+
+    clearFeedback();
+    setClaimPendingCode(invite.code);
+    try {
+      const response = await fetch('/api/rewards/claims', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ inviteCode: invite.code }),
+      });
+      const data = (await response.json()) as { error?: string };
+      if (!response.ok) {
+        throw new Error(data.error ?? progressCopy.claimFailed);
+      }
+      showFeedback('success', progressCopy.claimQueued);
+      await load(true);
+    } catch (error) {
+      showFeedback(
+        'error',
+        error instanceof Error ? error.message : progressCopy.claimFailed,
+      );
+    } finally {
+      setClaimPendingCode(null);
+    }
   };
 
   const closeCancelModal = useCallback(() => {
@@ -513,6 +642,8 @@ export function HomeClient() {
                   number={1}
                   invite={slotInvites.get(1)}
                   copy={referral}
+                  progressCopy={progressCopy}
+                  onShare={() => void shareUrl(permanentInviteUrl)}
                   onCopyLegacy={(invite) =>
                     void copyUrl(legacyInviteUrl(invite))}
                   onCancelLegacy={(invite, trigger) => {
@@ -526,6 +657,8 @@ export function HomeClient() {
                   number={2}
                   invite={slotInvites.get(2)}
                   copy={referral}
+                  progressCopy={progressCopy}
+                  onShare={() => void shareUrl(permanentInviteUrl)}
                   onCopyLegacy={(invite) =>
                     void copyUrl(legacyInviteUrl(invite))}
                   onCancelLegacy={(invite, trigger) => {
@@ -544,14 +677,56 @@ export function HomeClient() {
             </div>
           )}
 
-          {rewardRecord ? (
-            <div className="completePanel">
-              <span className="completeIcon">✓</span>
-              <div>
-                <strong>{rewardPanelTitle}</strong>
-                <p>{rewardPanelDescription}</p>
+          {outstandingRewards.length > 0 ? (
+            <section className="rewardsPanel">
+              <div className="rewardsHeading">
+                <div>
+                  <span className="rewardIcon">◆</span>
+                  <div>
+                    <strong>{progressCopy.rewardsTitle}</strong>
+                    <small>{progressCopy.rewardsCount(outstandingRewards.length)}</small>
+                  </div>
+                </div>
               </div>
-            </div>
+
+              <div className="rewardList">
+                {outstandingRewards.map((invite) => {
+                  const amount = formatB3trWei(
+                    invite.rewardReservedAmountWei ?? '0',
+                  );
+                  const waiting = invite.rewardQueueStatus === 'AWAITING_CLAIM';
+                  const processing =
+                    invite.rewardQueueStatus === 'QUEUED' ||
+                    invite.rewardQueueStatus === 'ASSIGNED';
+                  const pending = claimPendingCode === invite.code;
+
+                  return (
+                    <article key={invite.code} className="rewardItem">
+                      <div className="rewardMeta">
+                        <small>
+                          {invite.inviteeAddress
+                            ? `${invite.inviteeAddress.slice(0, 7)}…${invite.inviteeAddress.slice(-5)}`
+                            : invite.code}
+                        </small>
+                        <strong>{progressCopy.fixedReward} · {amount} B3TR</strong>
+                      </div>
+                      {waiting ? (
+                        <button
+                          type="button"
+                          className="claimButton"
+                          disabled={Boolean(claimPendingCode)}
+                          onClick={() => void claimReward(invite)}
+                        >
+                          {pending ? progressCopy.claiming : progressCopy.claimReward}
+                        </button>
+                      ) : processing ? (
+                        <span className="processingBadge">{progressCopy.claimQueued}</span>
+                      ) : null}
+                    </article>
+                  );
+                })}
+              </div>
+            </section>
           ) : null}
         </section>
       ) : activeTab === 'guide' ? (
@@ -651,11 +826,21 @@ export function HomeClient() {
         .slotsHeading span { flex:0 0 auto; min-width:42px; padding:5px 8px; border:1px solid rgba(255,255,255,.08); border-radius:999px; color:#ffd66e; text-align:center; font-size:.66rem; font-weight:950; }
         .loadingCard { position:relative; z-index:1; min-height:58px; margin-top:22px; padding:12px 14px; display:flex; align-items:center; justify-content:center; gap:10px; border:1px solid rgba(255,201,61,.18); border-radius:17px; background:rgba(244,183,40,.06); color:#ffd66e; text-align:center; }
         .pulseDot { flex:0 0 auto; width:9px; height:9px; border-radius:50%; background:#f4b728; box-shadow:0 0 18px rgba(244,183,40,.72); animation:pulse 1.6s ease-in-out infinite; }
-        .completePanel { position:relative; z-index:1; margin-top:20px; padding:16px; display:flex; align-items:flex-start; gap:13px; border:1px solid rgba(90,222,166,.2); border-radius:18px; background:rgba(40,170,118,.08); }
-        .completeIcon { flex:0 0 auto; width:38px; height:38px; display:grid; place-items:center; border-radius:50%; background:rgba(64,222,156,.18); color:#77efb9; font-weight:950; }
-        .completePanel > div { min-width:0; flex:1; }
-        .completePanel strong { font-size:.9rem; overflow-wrap:anywhere; }
-        .completePanel p { margin:4px 0 0; color:#9eaa9f; font-size:.75rem; line-height:1.45; overflow-wrap:anywhere; }
+        .rewardsPanel { position:relative; z-index:1; margin-top:18px; padding:15px; border:1px solid rgba(90,222,166,.18); border-radius:18px; background:linear-gradient(145deg,rgba(35,139,99,.12),rgba(255,255,255,.025)); }
+        .rewardsHeading { display:flex; align-items:center; justify-content:space-between; gap:12px; }
+        .rewardsHeading > div { display:flex; align-items:center; gap:9px; }
+        .rewardsHeading > div > div { display:grid; gap:2px; }
+        .rewardsHeading strong { font-size:.84rem; }
+        .rewardsHeading small { color:#84948a; font-size:.62rem; }
+        .rewardIcon { width:33px; height:33px; display:grid; place-items:center; border-radius:11px; background:rgba(64,222,156,.13); color:#77efb9; font-size:.68rem; }
+        .rewardList { margin-top:11px; display:grid; gap:8px; }
+        .rewardItem { min-width:0; padding:12px; display:grid; grid-template-columns:minmax(0,1fr) auto; align-items:center; gap:11px; border:1px solid rgba(255,255,255,.07); border-radius:14px; background:rgba(5,8,7,.36); }
+        .rewardMeta { min-width:0; display:grid; gap:3px; }
+        .rewardMeta small { color:#777e79; font-size:.59rem; direction:ltr; overflow:hidden; text-overflow:ellipsis; }
+        .rewardMeta strong { color:#e4eee8; font-size:.75rem; overflow-wrap:anywhere; }
+        .claimButton { min-height:38px; padding:0 12px; border:0; border-radius:11px; background:linear-gradient(135deg,#ffd24d,#efa718); color:#17120a; font:inherit; font-size:.65rem; font-weight:950; cursor:pointer; white-space:nowrap; }
+        .claimButton:disabled { opacity:.55; cursor:not-allowed; }
+        .processingBadge { max-width:130px; padding:6px 8px; border:1px solid rgba(255,255,255,.08); border-radius:10px; background:rgba(255,255,255,.035); color:#9b979f; font-size:.58rem; font-weight:850; text-align:center; overflow-wrap:anywhere; }
         .modalBackdrop { position:fixed; z-index:100; inset:0; display:grid; place-items:center; padding:20px; background:rgba(2,3,10,.78); backdrop-filter:blur(10px); }
         .modalCard { width:min(100%,410px); max-height:calc(100dvh - 40px); overflow-y:auto; box-sizing:border-box; padding:25px; border:1px solid rgba(255,255,255,.1); border-radius:25px; background:#121421; text-align:center; box-shadow:0 30px 90px rgba(0,0,0,.5); }
         .warningIcon { width:50px; height:50px; margin:0 auto 15px; border-radius:17px; display:grid; place-items:center; background:rgba(255,91,111,.1); color:#ff7186; font-size:1.2rem; font-weight:950; }
@@ -675,6 +860,10 @@ export function HomeClient() {
           .missionCopy h1 { font-size:clamp(1.9rem,10vw,2.6rem); }
           .missionCopy.cjkCopy h1 { font-size:clamp(1.9rem,9vw,2.4rem); }
         }
+        @media (max-width:420px) {
+          .rewardItem { grid-template-columns:1fr; }
+          .claimButton,.processingBadge { width:100%; max-width:none; box-sizing:border-box; }
+        }
         @media (max-width:340px) {
           .linkActions { grid-template-columns:1fr; }
         }
@@ -683,10 +872,37 @@ export function HomeClient() {
   );
 }
 
+function MissionDots({ invite }: { invite: InviteRecord }) {
+  const flags = missionFlags(invite);
+  const current = flags.findIndex((done) => !done);
+
+  return (
+    <div className="missionDots" aria-label={`${flags.filter(Boolean).length}/5`}>
+      {flags.map((done, index) => (
+        <span
+          key={index}
+          className={`missionDot ${done ? 'done' : ''} ${index === current ? 'current' : ''}`}
+        />
+      ))}
+      <style jsx>{`
+        .missionDots { display:flex; align-items:center; gap:9px; }
+        .missionDot { position:relative; width:9px; height:9px; border-radius:50%; background:rgba(255,255,255,.13); }
+        .missionDot.done { background:#f4b728; box-shadow:0 0 10px rgba(244,183,40,.32); }
+        .missionDot.current { background:#f4b728; }
+        .missionDot.current::after { content:''; position:absolute; inset:-5px; border:1px solid rgba(244,183,40,.48); border-radius:50%; animation:stagePulse 1.8s ease-in-out infinite; }
+        @keyframes stagePulse { 0%,100% { transform:scale(.82); opacity:.3; } 50% { transform:scale(1.08); opacity:.9; } }
+        @media (prefers-reduced-motion: reduce) { .missionDot.current::after { animation:none; opacity:.65; } }
+      `}</style>
+    </div>
+  );
+}
+
 function FriendSlot({
   number,
   invite,
   copy,
+  progressCopy,
+  onShare,
   onCopyLegacy,
   onCancelLegacy,
   copyLabel,
@@ -695,6 +911,8 @@ function FriendSlot({
   number: 1 | 2;
   invite?: InviteRecord;
   copy: (typeof REFERRAL_LINK_COPY)[SupportedLocale];
+  progressCopy: (typeof PROGRESS_CLAIM_COPY)[SupportedLocale];
+  onShare: () => void;
   onCopyLegacy: (invite: InviteRecord) => void;
   onCancelLegacy: (
     invite: InviteRecord,
@@ -707,37 +925,34 @@ function FriendSlot({
     Boolean(invite) &&
     invite?.status === 'PENDING_ACCEPTANCE' &&
     !invite.inviteeAddress;
-  const state = !invite
-    ? 'available'
-    : legacyWaiting
-      ? 'legacy'
-      : invite.status === 'UNDER_REVIEW'
-        ? 'review'
-        : 'progress';
-  const text = state === 'available'
-    ? copy.slotAvailable
-    : state === 'legacy'
-      ? copy.slotLegacyWaiting
-      : state === 'review'
-        ? copy.slotReview
-        : copy.slotInProgress;
-  const shortInvitee = invite?.inviteeAddress
-    ? `${invite.inviteeAddress.slice(0, 7)}…${invite.inviteeAddress.slice(-5)}`
-    : '';
 
-  return (
-    <div className={`friendSlot ${state}`}>
-      <span className="slotNumber">{number}</span>
-      <div className="slotCopy">
-        <strong>{text}</strong>
-        {shortInvitee ? <small>{shortInvitee}</small> : null}
-      </div>
-      {legacyWaiting && invite ? (
+  if (!invite) {
+    return (
+      <button
+        type="button"
+        className="friendSlot available"
+        onClick={onShare}
+      >
+        <span className="slotNumber">{number}</span>
+        <span className="slotCopy">
+          <strong>{progressCopy.inviteFriend}</strong>
+          <small>{progressCopy.sharePermanentLink} ↗</small>
+        </span>
+        <span className="slotState" aria-hidden="true">↗</span>
+        <style jsx>{slotStyles}</style>
+      </button>
+    );
+  }
+
+  if (legacyWaiting) {
+    return (
+      <div className="friendSlot legacy">
+        <span className="slotNumber">{number}</span>
+        <div className="slotCopy">
+          <strong>{copy.slotLegacyWaiting}</strong>
+        </div>
         <div className="legacyActions">
-          <button
-            type="button"
-            onClick={() => onCopyLegacy(invite)}
-          >
+          <button type="button" onClick={() => onCopyLegacy(invite)}>
             {copyLabel}
           </button>
           <button
@@ -749,33 +964,72 @@ function FriendSlot({
             {cancelLabel}
           </button>
         </div>
-      ) : (
-        <span className="slotState" aria-hidden="true">
-          {state === 'available' ? '+' : state === 'review' ? '◷' : '•'}
-        </span>
-      )}
+        <style jsx>{slotStyles}</style>
+      </div>
+    );
+  }
 
-      <style jsx>{`
-        .friendSlot { min-width:0; min-height:68px; padding:12px; display:grid; grid-template-columns:auto minmax(0,1fr) auto; align-items:center; gap:11px; border:1px solid rgba(255,255,255,.085); border-radius:16px; background:rgba(255,255,255,.035); }
-        .friendSlot.available { border-style:dashed; background:rgba(255,255,255,.022); }
-        .friendSlot.review { border-color:rgba(255,205,80,.2); background:rgba(244,183,40,.055); }
-        .friendSlot.progress { border-color:rgba(91,212,162,.16); background:rgba(42,164,116,.05); }
-        .slotNumber { width:36px; height:36px; display:grid; place-items:center; border-radius:12px; background:rgba(244,183,40,.12); color:#ffd66e; font-size:.76rem; font-weight:950; }
-        .available .slotNumber { background:rgba(255,255,255,.045); color:#8d8797; }
-        .slotCopy { min-width:0; display:grid; gap:4px; }
-        .slotCopy strong { color:#ded9e7; font-size:.74rem; line-height:1.38; overflow-wrap:anywhere; }
-        .slotCopy small { direction:ltr; color:#837e8e; font-size:.62rem; font-weight:750; overflow-wrap:anywhere; }
-        .slotState { width:28px; height:28px; display:grid; place-items:center; border-radius:10px; color:#ffd66e; background:rgba(244,183,40,.08); font-weight:950; }
-        .available .slotState { color:#8d8797; background:rgba(255,255,255,.035); }
-        .legacyActions { display:grid; gap:5px; }
-        .legacyActions button { min-height:28px; max-width:110px; padding:4px 8px; border:1px solid rgba(255,255,255,.09); border-radius:9px; background:rgba(255,255,255,.04); color:#d9d5df; font:inherit; font-size:.58rem; font-weight:850; overflow-wrap:anywhere; }
-        .legacyActions button.danger { color:#ff8292; border-color:rgba(255,113,134,.13); background:rgba(255,91,111,.045); }
-        @media (max-width:360px) {
-          .friendSlot.legacy { grid-template-columns:auto minmax(0,1fr); }
-          .legacyActions { grid-column:1 / -1; grid-template-columns:1fr 1fr; }
-          .legacyActions button { max-width:none; }
-        }
-      `}</style>
+  const allMissions = missionFlags(invite).every(Boolean);
+  const finalChecking =
+    allMissions &&
+    !invite.slotReleasedAt;
+  const shortInvitee = invite.inviteeAddress
+    ? `${invite.inviteeAddress.slice(0, 7)}…${invite.inviteeAddress.slice(-5)}`
+    : '';
+  const statusText = finalChecking
+    ? progressCopy.finalCheck
+    : invite.status === 'UNDER_REVIEW'
+      ? copy.slotReview
+      : copy.slotInProgress;
+  const nextLabel = nextMissionLabel(invite);
+
+  return (
+    <div className={`friendSlot detailed ${finalChecking ? 'review' : 'progress'}`}>
+      <span className="slotNumber">{number}</span>
+      <div className="slotCopy detailedCopy">
+        <div className="slotTop">
+          <strong>{statusText}</strong>
+          {shortInvitee ? <small>{shortInvitee}</small> : null}
+        </div>
+        <MissionDots invite={invite} />
+        <span className="stageText">
+          {finalChecking
+            ? progressCopy.finalCheck
+            : nextLabel
+              ? `${progressCopy.currentStep} · ${nextLabel}`
+              : progressCopy.finalCheck}
+        </span>
+      </div>
+      <style jsx>{slotStyles}</style>
     </div>
   );
 }
+
+const slotStyles = `
+  .friendSlot { width:100%; box-sizing:border-box; min-width:0; min-height:68px; padding:12px; display:grid; grid-template-columns:auto minmax(0,1fr) auto; align-items:center; gap:11px; border:1px solid rgba(255,255,255,.085); border-radius:16px; background:rgba(255,255,255,.035); color:#fff; text-align:left; }
+  button.friendSlot { font:inherit; cursor:pointer; }
+  .friendSlot.available { border-style:dashed; background:rgba(255,255,255,.022); }
+  .friendSlot.review { border-color:rgba(255,205,80,.2); background:rgba(244,183,40,.055); }
+  .friendSlot.progress { border-color:rgba(91,212,162,.16); background:rgba(42,164,116,.05); }
+  .friendSlot.detailed { align-items:start; min-height:94px; grid-template-columns:auto minmax(0,1fr); }
+  .slotNumber { width:36px; height:36px; display:grid; place-items:center; border-radius:12px; background:rgba(244,183,40,.12); color:#ffd66e; font-size:.76rem; font-weight:950; }
+  .available .slotNumber { background:rgba(255,255,255,.045); color:#8d8797; }
+  .slotCopy { min-width:0; display:grid; gap:4px; }
+  .slotCopy strong { color:#ded9e7; font-size:.74rem; line-height:1.38; overflow-wrap:anywhere; }
+  .slotCopy small { direction:ltr; color:#837e8e; font-size:.62rem; font-weight:750; overflow-wrap:anywhere; }
+  .detailedCopy { gap:8px; }
+  .slotTop { min-width:0; display:flex; align-items:center; justify-content:space-between; gap:8px; }
+  .stageText { color:#8f9b91; font-size:.63rem; line-height:1.4; overflow-wrap:anywhere; }
+  .review .stageText { color:#b3a681; }
+  .slotState { width:28px; height:28px; display:grid; place-items:center; border-radius:10px; color:#ffd66e; background:rgba(244,183,40,.08); font-weight:950; }
+  .available .slotState { color:#ffd66e; }
+  .legacyActions { display:grid; gap:5px; }
+  .legacyActions button { min-height:28px; max-width:110px; padding:4px 8px; border:1px solid rgba(255,255,255,.09); border-radius:9px; background:rgba(255,255,255,.04); color:#d9d5df; font:inherit; font-size:.58rem; font-weight:850; overflow-wrap:anywhere; }
+  .legacyActions button.danger { color:#ff8292; border-color:rgba(255,113,134,.13); background:rgba(255,91,111,.045); }
+  @media (max-width:360px) {
+    .friendSlot.legacy { grid-template-columns:auto minmax(0,1fr); }
+    .legacyActions { grid-column:1 / -1; grid-template-columns:1fr 1fr; }
+    .legacyActions button { max-width:none; }
+    .slotTop { align-items:flex-start; flex-direction:column; gap:3px; }
+  }
+`;

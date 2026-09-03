@@ -37,9 +37,16 @@ const notificationState = readFileSync(
   ),
   'utf8',
 );
-const notificationSurface = readFileSync(
+const notificationStateV2 = readFileSync(
   new URL(
-    '../src/components/InviteNotificationSurface.tsx',
+    '../src/lib/notifications/inviteNotificationStateV2.ts',
+    import.meta.url,
+  ),
+  'utf8',
+);
+const notificationSurfaceV2 = readFileSync(
+  new URL(
+    '../src/components/InviteNotificationSurfaceV2.tsx',
     import.meta.url,
   ),
   'utf8',
@@ -110,15 +117,16 @@ test('operator funnel includes verified legacy NEW and RETURNING participants wh
   assert.match(funnelMigration, /as legacy_excluded/u);
 });
 
-test('ineligible alerts reuse the authenticated existing notification API and bell surface', () => {
+test('ineligible alerts reuse the authenticated V2 notification API and bell surface', () => {
   assert.match(notificationRoute, /requireWalletSession/u);
   assert.match(notificationRoute, /ineligibility_check_id/u);
   assert.match(notificationRoute, /ineligible_at/u);
-  assert.match(notificationRoute, /INVITE_NOTIFICATION_STAGE\.ineligible/u);
-  assert.match(notificationState, /INVITE_INELIGIBLE/u);
-  assert.match(notificationState, /ineligibility_check_id !== null/u);
-  assert.match(notificationSurface, /INVITE_INELIGIBLE/u);
-  assert.match(notificationSurface, /INELIGIBLE_INVITER_COPY/u);
+  assert.match(notificationState, /ineligible:\s*6/u);
+  assert.match(notificationStateV2, /INVITE_NOTIFICATION_STAGE\.ineligible/u);
+  assert.match(notificationStateV2, /INVITE_INELIGIBLE/u);
+  assert.match(notificationStateV2, /ineligibility_check_id !== null/u);
+  assert.match(notificationSurfaceV2, /INVITE_INELIGIBLE/u);
+  assert.match(notificationSurfaceV2, /INELIGIBLE_INVITER_COPY/u);
   assert.equal(
     existsSync(
       new URL(
@@ -149,13 +157,15 @@ test('notification acknowledgement expands both the function and table constrain
 
 test('terminal rejection acknowledgement refreshes stale Home invite state exactly once', () => {
   assert.match(inAppNotifications, /notification\.kind === 'INVITE_INELIGIBLE'/u);
+  assert.match(inAppNotifications, /const refreshHomeAfterAcknowledgement/u);
+  assert.match(inAppNotifications, /if \(refreshHomeAfterAcknowledgement\)/u);
   assert.match(inAppNotifications, /window\.location\.reload\(\)/u);
-  assert.match(inAppNotifications, /if \(terminalInviteReleased\)/u);
 });
 
 test('notification reward evidence is skipped for non-paid pending and rejected invitations', () => {
   assert.match(notificationRoute, /invitation\.reward_status === 'PAID'/u);
   assert.match(notificationRoute, /loadPaidRewards\(paidInviteCodes\)/u);
+  assert.match(notificationRoute, /\.eq\('status', 'PAID'\)/u);
 });
 
 test('a confirmed ACTIVE_EXISTING result is not reported as terminal unless its atomic transition persists', () => {

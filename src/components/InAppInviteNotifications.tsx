@@ -7,16 +7,17 @@ import {
   useState,
 } from 'react';
 
-import {
-  InviteNotificationSurface,
-  type InviteNotificationPayload,
-} from './InviteNotificationSurface';
+import { InviteNotificationSurfaceV2 } from './InviteNotificationSurfaceV2';
 import { useWalletLauncher } from './WalletControl';
 import { NOTIFICATION_COPY } from '@/lib/i18n/notificationCopy';
 import type { Locale } from '@/lib/i18n/locales';
+import type {
+  InviteNotificationPayloadV2,
+} from '@/lib/notifications/inviteNotificationStateV2';
 
 type NotificationResponse = {
-  notification?: InviteNotificationPayload | null;
+  notification?: InviteNotificationPayloadV2 | null;
+  notifications?: InviteNotificationPayloadV2[];
   unreadCount?: number;
   error?: string;
 };
@@ -26,6 +27,18 @@ const WALLET_SESSION_INVALID_EVENT =
   'veinvite-wallet-session-invalid';
 const REWARD_RECEIPT_ACKNOWLEDGED_EVENT =
   'veinvite-reward-receipt-acknowledged';
+const REWARD_RESERVATION_READY_EVENT =
+  'veinvite-reward-reservation-ready';
+
+function notificationSetKey(
+  notifications: InviteNotificationPayloadV2[],
+): string {
+  return notifications
+    .map((item) =>
+      `${item.inviteCode}:${item.kind}:${item.stage}:${item.dappProgress ?? '-'}:${item.eventAt}`,
+    )
+    .join('|');
+}
 
 export function InAppInviteNotifications({
   locale,
@@ -33,10 +46,8 @@ export function InAppInviteNotifications({
   locale: Locale;
 }) {
   const { wallet } = useWalletLauncher();
-  const [notification, setNotification] =
-    useState<InviteNotificationPayload | null>(null);
-  const [unreadCount, setUnreadCount] =
-    useState(0);
+  const [notifications, setNotifications] =
+    useState<InviteNotificationPayloadV2[]>([]);
   const [open, setOpen] = useState(false);
   const [acknowledging, setAcknowledging] =
     useState(false);
@@ -46,8 +57,7 @@ export function InAppInviteNotifications({
   const copy = NOTIFICATION_COPY[locale];
 
   const invalidateWalletSession = useCallback(() => {
-    setNotification(null);
-    setUnreadCount(0);
+    setNotifications([]);
     setOpen(false);
     setErrorMessage('');
     shownKeyRef.current = null;
@@ -59,8 +69,7 @@ export function InAppInviteNotifications({
   const refresh = useCallback(
     async (autoOpen: boolean) => {
       if (!wallet) {
-        setNotification(null);
-        setUnreadCount(0);
+        setNotifications([]);
         setOpen(false);
         shownKeyRef.current = null;
         return;
@@ -72,10 +81,6 @@ export function InAppInviteNotifications({
           { cache: 'no-store' },
         );
 
-        // A connected wallet can outlive the 7-day VeInvite browser session.
-        // Stop the polling surface immediately and return ownership control to
-        // WalletSessionGate instead of retrying this protected endpoint every
-        // minute with a known-invalid session.
         if (response.status === 401) {
           invalidateWalletSession();
           return;
@@ -90,21 +95,18 @@ export function InAppInviteNotifications({
           );
         }
 
-        const next = body.notification ?? null;
-        setNotification(next);
-        setUnreadCount(
-          Math.max(0, body.unreadCount ?? 0),
-        );
+        const next = Array.isArray(body.notifications)
+          ? body.notifications
+          : body.notification
+            ? [body.notification]
+            : [];
 
-        if (!next) {
-          return;
-        }
+        setNotifications(next);
 
-        const key = `${next.inviteCode}:${next.stage}`;
-        if (
-          autoOpen &&
-          shownKeyRef.current !== key
-        ) {
+        if (next.length < 1) return;
+
+        const key = notificationSetKey(next);
+        if (autoOpen && shownKeyRef.current !== key) {
           shownKeyRef.current = key;
           setErrorMessage('');
           setOpen(true);
@@ -121,12 +123,17 @@ export function InAppInviteNotifications({
 
   const acknowledgeAndClose = useCallback(
     async () => {
-      if (!notification || acknowledging) {
+      if (notifications.length < 1 || acknowledging) {
         return;
       }
 
-      const terminalInviteReleased =
-        notification.kind === 'INVITE_INELIGIBLE';
+      const refreshHomeAfterAcknowledgement =
+        notifications.some(
+          (notification) =>
+            notification.kind === 'INVITE_INELIGIBLE' ||
+            notification.kind === 'REWARD_READY' ||
+            notification.kind === 'REWARD_PAID',
+        );
 
       setAcknowledging(true);
       setErrorMessage('');
@@ -140,8 +147,15 @@ export function InAppInviteNotifications({
               'Content-Type': 'application/json',
             },
             body: JSON.stringify({
-              inviteCode: notification.inviteCode,
-              stage: notification.stage,
+              acknowledgements: notifications.map(
+                (notification) => ({
+                  inviteCode: notification.inviteCode,
+                  stage: notification.stage,
+                  dappProgress: notification.dappProgress,
+                  rewardReady:
+                    notification.kind === 'REWARD_READY',
+                }),
+              ),
             }),
           },
         );
@@ -158,23 +172,14 @@ export function InAppInviteNotifications({
 
         if (!response.ok) {
           throw new Error(
-            body.error ||
-              copy.acknowledgementError,
+            body.error || copy.acknowledgementError,
           );
         }
 
         setOpen(false);
-        setNotification(null);
-        setUnreadCount((current) =>
-          Math.max(0, current - 1),
-        );
+        setNotifications([]);
 
-        // A terminal rejection releases the inviter slot in the database while
-        // Home may still hold the old pending invite in client memory. This is a
-        // rare event, so one deterministic reload is safer and simpler than a
-        // second permanent synchronization channel. The refreshed Home then
-        // immediately exposes the normal "invite another friend" action.
-        if (terminalInviteReleased) {
+        if (refreshHomeAfterAcknowledgement) {
           window.location.reload();
           return;
         }
@@ -196,7 +201,7 @@ export function InAppInviteNotifications({
       acknowledging,
       copy.acknowledgementError,
       invalidateWalletSession,
-      notification,
+      notifications,
       refresh,
     ],
   );
@@ -204,9 +209,7 @@ export function InAppInviteNotifications({
   useEffect(() => {
     void refresh(true);
 
-    if (!wallet) {
-      return;
-    }
+    if (!wallet) return;
 
     const timer = window.setInterval(() => {
       if (document.visibilityState === 'visible') {
@@ -236,17 +239,21 @@ export function InAppInviteNotifications({
 
   useEffect(() => {
     const onRewardReceiptAcknowledged = () => {
-      // The receipt endpoint acknowledges the matching stage-5 notification in
-      // the same user action. Refresh immediately so the bell never keeps a
-      // stale unread payout after the richer receipt has been dismissed.
       setOpen(false);
       setErrorMessage('');
       void refresh(false);
+    };
+    const onRewardReservationReady = () => {
+      void refresh(true);
     };
 
     window.addEventListener(
       REWARD_RECEIPT_ACKNOWLEDGED_EVENT,
       onRewardReceiptAcknowledged,
+    );
+    window.addEventListener(
+      REWARD_RESERVATION_READY_EVENT,
+      onRewardReservationReady,
     );
 
     return () => {
@@ -254,23 +261,24 @@ export function InAppInviteNotifications({
         REWARD_RECEIPT_ACKNOWLEDGED_EVENT,
         onRewardReceiptAcknowledged,
       );
+      window.removeEventListener(
+        REWARD_RESERVATION_READY_EVENT,
+        onRewardReservationReady,
+      );
     };
   }, [refresh]);
 
-  if (!wallet) {
-    return null;
-  }
+  if (!wallet) return null;
 
   return (
-    <InviteNotificationSurface
+    <InviteNotificationSurfaceV2
       locale={locale}
-      notification={notification}
-      unreadCount={unreadCount}
+      notifications={notifications}
       open={open}
       busy={acknowledging}
       errorMessage={errorMessage}
       onOpen={() => {
-        if (notification) {
+        if (notifications.length > 0) {
           setErrorMessage('');
           setOpen(true);
         }
