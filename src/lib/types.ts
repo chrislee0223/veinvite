@@ -18,6 +18,12 @@ export type RewardQueueStatus =
   | 'ASSIGNED'
   | 'CANCELLED';
 
+export type SybilStatus =
+  | 'NOT_CHECKED'
+  | 'CLEAR'
+  | 'REVIEW'
+  | 'BLOCKED';
+
 export interface InviteRecord {
   code: string;
   inviterAddress: string;
@@ -28,6 +34,9 @@ export interface InviteRecord {
   rewardEligibility: RewardEligibility;
   rewardQueueStatus?: RewardQueueStatus;
   rewardClaimRequestedAt?: string;
+  inviteSlot?: 1 | 2;
+  sybilStatus?: SybilStatus;
+  referralLinkId?: string;
 }
 
 export type EligibilityOutcome =
