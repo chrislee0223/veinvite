@@ -40,7 +40,7 @@ test('scheduled housekeeping failure is visible without skipping later monitorin
 test('runtime lock housekeeping stays narrow and service-role-only', () => {
   assert.match(
     cleanup,
-    /supabaseAdmin\.rpc\(\s*['"]cleanup_expired_operator_runtime_locks['"]\s*\)/,
+    /supabaseAdmin\.rpc\(\s*['"]cleanup_expired_operator_runtime_locks['"]\s*,?\s*\)/,
   );
   assert.doesNotMatch(
     cleanup,
