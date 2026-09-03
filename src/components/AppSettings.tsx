@@ -9,7 +9,12 @@ import {
 import Link from 'next/link';
 
 import { LanguageFlag } from './LanguageFlag';
+import {
+  TransientSnackbar,
+  type TransientFeedback,
+} from './TransientSnackbar';
 import { SETTINGS_COPY } from '@/lib/i18n/settingsCopy';
+import { NOTIFICATION_COPY } from '@/lib/i18n/notificationCopy';
 import {
   LANGUAGE_OPTIONS,
   getLanguageOption,
@@ -39,10 +44,11 @@ export function AppSettings({
   onConnectAnother: () => Promise<void>;
   onDisconnect: () => Promise<void>;
 }) {
-  const [error, setError] = useState('');
+  const [feedback, setFeedback] = useState<TransientFeedback | null>(null);
   const [languageOpen, setLanguageOpen] = useState(false);
   const [walletConfirmation, setWalletConfirmation] =
     useState<WalletConfirmation>(null);
+  const feedbackIdRef = useRef(0);
   const languageTriggerRef = useRef<HTMLButtonElement | null>(null);
   const languageDialogRef = useRef<HTMLDivElement | null>(null);
   const selectedLanguageRef = useRef<HTMLButtonElement | null>(null);
@@ -52,13 +58,26 @@ export function AppSettings({
   const t = SETTINGS_COPY[locale];
   const currentLanguage = getLanguageOption(locale);
 
+  const clearFeedback = useCallback(() => {
+    setFeedback(null);
+  }, []);
+
+  const showWalletError = useCallback((text: string) => {
+    feedbackIdRef.current += 1;
+    setFeedback({
+      id: feedbackIdRef.current,
+      kind: 'error',
+      text,
+    });
+  }, []);
+
   const runWalletAction = async (action: () => Promise<void>) => {
-    setError('');
+    clearFeedback();
     try {
       await action();
     } catch (actionError) {
       console.error('Wallet settings action failed:', actionError);
-      setError(t.actionError);
+      showWalletError(t.actionError);
     }
   };
 
@@ -78,6 +97,7 @@ export function AppSettings({
     action: Exclude<WalletConfirmation, null>,
     opener: HTMLButtonElement,
   ) => {
+    clearFeedback();
     walletConfirmationOpenerRef.current = opener;
     setWalletConfirmation(action);
   };
@@ -178,6 +198,7 @@ export function AppSettings({
   }, [walletConfirmation, closeWalletConfirmation]);
 
   const selectLanguage = (nextLocale: Locale) => {
+    clearFeedback();
     onLocaleChange(nextLocale);
     closeLanguagePicker();
   };
@@ -237,10 +258,18 @@ export function AppSettings({
         ) : (
           <>
             <p>{t.notConnected}</p>
-            <button type="button" className="primarySettingAction" onClick={onConnect}>{t.connect}</button>
+            <button
+              type="button"
+              className="primarySettingAction"
+              onClick={() => {
+                clearFeedback();
+                onConnect();
+              }}
+            >
+              {t.connect}
+            </button>
           </>
         )}
-        {error ? <p className="errorMessage" role="alert">{error}</p> : null}
       </section>
 
       <section className="settingsCard languageCard">
@@ -251,7 +280,10 @@ export function AppSettings({
           className="languagePickerTrigger"
           aria-haspopup="dialog"
           aria-expanded={languageOpen}
-          onClick={() => setLanguageOpen(true)}
+          onClick={() => {
+            clearFeedback();
+            setLanguageOpen(true);
+          }}
         >
           <span className="languageSymbol" aria-hidden="true"><LanguageFlag locale={currentLanguage.locale} /></span>
           <span className="languagePickerCopy">
@@ -376,6 +408,12 @@ export function AppSettings({
         </div>
       ) : null}
 
+      <TransientSnackbar
+        feedback={feedback}
+        closeLabel={NOTIFICATION_COPY[locale].closeAria}
+        onDismiss={clearFeedback}
+      />
+
       <style jsx>{`
         .settingsPage { width:min(100%,560px); margin:0 auto; padding-bottom:12px; }
         header > span { color:#f8bc2e; font-size:.7rem; font-weight:950; letter-spacing:.12em; }
@@ -393,7 +431,6 @@ export function AppSettings({
         .walletActions .primarySettingAction { margin-top:0; }
         .secondarySettingAction { border:1px solid rgba(255,255,255,.1); background:rgba(255,255,255,.04); color:#ddd9cf; }
         button:disabled { opacity:.48; cursor:not-allowed; }
-        .errorMessage { color:#ff8d9d; }
         .languageCard { padding-bottom:16px; }
         .languagePickerTrigger { width:100%; min-height:66px; margin-top:13px; padding:10px 12px; display:grid; grid-template-columns:34px minmax(0,1fr) 24px; align-items:center; gap:11px; border:1px solid rgba(255,255,255,.09); border-radius:15px; background:rgba(255,255,255,.035); color:#f5f2e9; font:inherit; cursor:pointer; text-align:left; }
         .languagePickerTrigger:hover { border-color:rgba(255,205,80,.3); background:rgba(255,201,61,.055); }
