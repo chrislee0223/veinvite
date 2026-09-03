@@ -15,6 +15,7 @@ import '@/lib/i18n/transientCopyHardening';
 // Run terminology last so targeted copy overrides cannot accidentally restore
 // English-only product jargon after the 27-locale packs are registered.
 import '@/lib/i18n/terminologyHardening';
+import '@/lib/i18n/terminologyPolish';
 import { HeaderLanguagePickerPortal } from './HeaderLanguagePickerPortal';
 import { LegalNavigationMemory } from './LegalNavigationMemory';
 import { NotificationDialogFocusGuard } from './NotificationDialogFocusGuard';
