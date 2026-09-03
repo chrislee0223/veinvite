@@ -65,6 +65,13 @@ export function readPersistedDappKitAccount(): string | null {
   }
 
   try {
+    const source = window.localStorage
+      .getItem(DAPPKIT_SOURCE_STORAGE_KEY)
+      ?.toLowerCase();
+    if (source !== 'veworld') {
+      return null;
+    }
+
     const raw = window.localStorage.getItem(
       DAPPKIT_ACCOUNT_STORAGE_KEY,
     );
@@ -74,21 +81,5 @@ export function readPersistedDappKitAccount(): string | null {
     return raw.toLowerCase();
   } catch {
     return null;
-  }
-}
-
-export function hasPersistedVeWorldSource(): boolean {
-  if (typeof window === 'undefined') {
-    return false;
-  }
-
-  try {
-    return (
-      window.localStorage
-        .getItem(DAPPKIT_SOURCE_STORAGE_KEY)
-        ?.toLowerCase() === 'veworld'
-    );
-  } catch {
-    return false;
   }
 }
