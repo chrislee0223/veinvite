@@ -7,6 +7,7 @@ import { NETWORK_COPY } from '@/lib/i18n/networkCopy';
 import type { Locale, SupportedLocale } from '@/lib/i18n/locales';
 import { prefetchPublicLeaderboard } from '@/lib/leaderboardClientCache';
 import { HomeGuideInfoPortal } from './HomeGuideInfoPortal';
+import { LeaderboardImpactInfoPortal } from './LeaderboardImpactInfoPortal';
 import { useActiveWallet } from './WalletControl';
 
 // Keep the legacy `guide` tab key while Network is only a Coming Soon surface.
@@ -119,6 +120,9 @@ export function AppBottomNavigation({
     <>
       {activeTab === 'home' ? (
         <HomeGuideInfoPortal locale={locale} />
+      ) : null}
+      {activeTab === 'leaderboard' ? (
+        <LeaderboardImpactInfoPortal locale={locale} />
       ) : null}
       <nav className="bottomNavigation" data-veinvite-active-tab={activeTab} aria-label={labels.ariaLabel}>
         <div>

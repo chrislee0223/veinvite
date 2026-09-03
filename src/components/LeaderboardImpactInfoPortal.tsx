@@ -3,27 +3,50 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 
-import { InviteGuideContent } from './AppGuide';
-import { InfoCircleIcon } from './InfoCircleIcon';
 import { GUIDE_COPY } from '@/lib/i18n/guideCopy';
-import { NOTIFICATION_COPY } from '@/lib/i18n/notificationCopy';
+import { LEADERBOARD_COPY } from '@/lib/i18n/leaderboardCopy';
 import type { Locale } from '@/lib/i18n/locales';
+import { InfoCircleIcon } from './InfoCircleIcon';
 
-export function HomeGuideInfoPortal({ locale }: { locale: Locale }) {
+export function LeaderboardImpactInfoPortal({ locale }: { locale: Locale }) {
   const [host, setHost] = useState<HTMLElement | null>(null);
   const [open, setOpen] = useState(false);
   const triggerRef = useRef<HTMLButtonElement | null>(null);
   const dialogRef = useRef<HTMLDivElement | null>(null);
   const closeRef = useRef<HTMLButtonElement | null>(null);
+  const t = LEADERBOARD_COPY[locale];
   const guide = GUIDE_COPY[locale];
 
   useEffect(() => {
-    const target = document.querySelector<HTMLElement>('.missionCard');
-    setHost(target);
-    return () => setHost(null);
+    let frame: number | null = null;
+
+    const attach = () => {
+      const target = document.querySelector<HTMLElement>(
+        '.leaderboardPage .impactCard',
+      );
+      setHost((current) => (current === target ? current : target));
+    };
+
+    const scheduleAttach = () => {
+      if (frame !== null) return;
+      frame = window.requestAnimationFrame(() => {
+        frame = null;
+        attach();
+      });
+    };
+
+    attach();
+    const observer = new MutationObserver(scheduleAttach);
+    observer.observe(document.body, { childList: true, subtree: true });
+
+    return () => {
+      observer.disconnect();
+      if (frame !== null) window.cancelAnimationFrame(frame);
+      setHost(null);
+    };
   }, []);
 
-  const closeGuide = useCallback(() => {
+  const closeInfo = useCallback(() => {
     setOpen(false);
     window.requestAnimationFrame(() => triggerRef.current?.focus());
   }, []);
@@ -38,14 +61,14 @@ export function HomeGuideInfoPortal({ locale }: { locale: Locale }) {
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {
         event.preventDefault();
-        closeGuide();
+        closeInfo();
         return;
       }
       if (event.key !== 'Tab' || !dialogRef.current) return;
 
       const focusable = Array.from(
         dialogRef.current.querySelectorAll<HTMLElement>(
-          'button:not([disabled]), a[href], select, [tabindex]:not([tabindex="-1"])',
+          'button:not([disabled]), a[href], [tabindex]:not([tabindex="-1"])',
         ),
       );
       if (focusable.length < 1) return;
@@ -66,62 +89,68 @@ export function HomeGuideInfoPortal({ locale }: { locale: Locale }) {
       document.body.style.overflow = previousOverflow;
       document.removeEventListener('keydown', onKeyDown);
     };
-  }, [open, closeGuide]);
+  }, [open, closeInfo]);
 
   const launcher = host
     ? createPortal(
         <>
           <style>{`
-            .missionCard > .missionCopy {
-              box-sizing: border-box;
-              padding-right: 44px;
+            .leaderboardPage .impactCard {
+              position: relative;
             }
-            .veinviteGuideInfoButton {
+            .leaderboardPage .impactCard > h2 {
+              box-sizing: border-box;
+              padding-right: 42px;
+            }
+            .leaderboardPage .impactCard > .impactNote {
+              display: none;
+            }
+            .veinviteImpactInfoButton {
               position: absolute;
               z-index: 4;
-              top: 32px;
-              right: 24px;
-              width: 32px;
-              height: 32px;
+              top: 15px;
+              right: 18px;
+              width: 30px;
+              height: 30px;
               display: grid;
               place-items: center;
               padding: 0;
               border: 1px solid rgba(255,211,92,.2);
-              border-radius: 11px;
+              border-radius: 10px;
               background: rgba(255,205,80,.06);
               color: #f6ca59;
               line-height: 0;
               cursor: pointer;
             }
-            .veinviteGuideInfoButton:hover,
-            .veinviteGuideInfoButton:focus-visible {
+            .veinviteImpactInfoButton:hover,
+            .veinviteImpactInfoButton:focus-visible {
               border-color: rgba(255,211,92,.46);
               outline: none;
               box-shadow: 0 0 0 3px rgba(244,183,40,.08);
             }
-            .veinviteGuideInfoButton svg {
+            .veinviteImpactInfoButton svg {
               display: block;
             }
-            @media (max-width: 560px) {
-              .missionCard > .missionCopy { padding-right: 40px; }
-              .veinviteGuideInfoButton {
-                top: 26px;
-                right: 18px;
-                width: 30px;
-                height: 30px;
-                border-radius: 10px;
+            @media (max-width: 420px) {
+              .leaderboardPage .impactCard > h2 { padding-right: 38px; }
+              .veinviteImpactInfoButton {
+                top: 13px;
+                right: 15px;
+                width: 28px;
+                height: 28px;
+                border-radius: 9px;
               }
             }
           `}</style>
           <button
             ref={triggerRef}
             type="button"
-            className="veinviteGuideInfoButton"
-            aria-label={guide.title}
-            title={guide.title}
+            className="veinviteImpactInfoButton"
+            aria-label={guide.countTitle}
+            title={guide.countTitle}
             onClick={() => setOpen(true)}
           >
-            <InfoCircleIcon size={18} />
+            <InfoCircleIcon size={17} />
           </button>
         </>,
         host,
@@ -131,36 +160,40 @@ export function HomeGuideInfoPortal({ locale }: { locale: Locale }) {
   const dialog = open && typeof document !== 'undefined'
     ? createPortal(
         <div
-          className="veinviteGuideBackdrop"
+          className="veinviteImpactInfoBackdrop"
           role="presentation"
           onMouseDown={(event) => {
-            if (event.target === event.currentTarget) closeGuide();
+            if (event.target === event.currentTarget) closeInfo();
           }}
         >
           <div
             ref={dialogRef}
-            className="veinviteGuideDialog"
+            className="veinviteImpactInfoDialog"
             role="dialog"
             aria-modal="true"
-            aria-label={guide.title}
+            aria-labelledby="veinvite-impact-info-title"
           >
-            <div className="veinviteGuideDialogTop">
+            <div className="veinviteImpactInfoTop">
+              <div>
+                <span>{t.impactTitle}</span>
+                <h2 id="veinvite-impact-info-title">{guide.countTitle}</h2>
+              </div>
               <button
                 ref={closeRef}
                 type="button"
-                className="veinviteGuideCloseButton"
-                onClick={closeGuide}
-                aria-label={NOTIFICATION_COPY[locale].closeAria}
+                className="veinviteImpactInfoCloseButton"
+                onClick={closeInfo}
+                aria-label={t.close}
               >
                 ×
               </button>
             </div>
-            <InviteGuideContent locale={locale} />
+            <p>{t.impactNote}</p>
           </div>
           <style>{`
-            .veinviteGuideBackdrop {
+            .veinviteImpactInfoBackdrop {
               position: fixed;
-              z-index: 140;
+              z-index: 145;
               inset: 0;
               display: grid;
               place-items: center;
@@ -168,46 +201,57 @@ export function HomeGuideInfoPortal({ locale }: { locale: Locale }) {
               background: rgba(2,3,8,.84);
               backdrop-filter: blur(10px);
             }
-            .veinviteGuideDialog {
-              width: min(100%,600px);
-              max-height: min(88svh,820px);
-              overflow: auto;
+            .veinviteImpactInfoDialog {
+              width: min(100%,440px);
               box-sizing: border-box;
-              padding: 20px 22px 24px;
+              padding: 20px;
               border: 1px solid rgba(255,205,80,.2);
-              border-radius: 26px;
+              border-radius: 24px;
               background: #11120f;
               color: #fff;
               box-shadow: 0 30px 90px rgba(0,0,0,.58);
             }
-            .veinviteGuideDialogTop {
+            .veinviteImpactInfoTop {
               display: flex;
-              justify-content: flex-end;
-              margin-bottom: 2px;
+              align-items: flex-start;
+              justify-content: space-between;
+              gap: 14px;
             }
-            .veinviteGuideCloseButton {
-              width: 40px;
-              height: 40px;
+            .veinviteImpactInfoTop span {
+              color: #f4bd35;
+              font-size: .68rem;
+              font-weight: 900;
+            }
+            .veinviteImpactInfoTop h2 {
+              margin: 5px 0 0;
+              font-size: 1.15rem;
+              letter-spacing: -.025em;
+            }
+            .veinviteImpactInfoDialog p {
+              margin: 16px 0 0;
+              color: #aaa69d;
+              font-size: .82rem;
+              line-height: 1.6;
+              overflow-wrap: anywhere;
+            }
+            .veinviteImpactInfoCloseButton {
+              flex: 0 0 auto;
+              width: 38px;
+              height: 38px;
               display: grid;
               place-items: center;
               padding: 0;
               border: 1px solid rgba(255,255,255,.1);
-              border-radius: 13px;
+              border-radius: 12px;
               background: rgba(255,255,255,.04);
               color: #fff;
               font: inherit;
-              font-size: 1.25rem;
+              font-size: 1.2rem;
               cursor: pointer;
             }
-            .veinviteGuideCloseButton:focus-visible {
+            .veinviteImpactInfoCloseButton:focus-visible {
               outline: none;
               box-shadow: 0 0 0 3px rgba(244,183,40,.1);
-            }
-            @media (max-width: 560px) {
-              .veinviteGuideDialog {
-                padding: 16px 17px 20px;
-                border-radius: 22px;
-              }
             }
           `}</style>
         </div>,

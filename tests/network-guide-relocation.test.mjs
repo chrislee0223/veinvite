@@ -6,6 +6,8 @@ const [
   navigation,
   guide,
   guidePortal,
+  impactPortal,
+  infoIcon,
   networkPage,
   networkCopy,
   leaderboard,
@@ -14,6 +16,8 @@ const [
   readFile(new URL('../src/components/AppBottomNavigation.tsx', import.meta.url), 'utf8'),
   readFile(new URL('../src/components/AppGuide.tsx', import.meta.url), 'utf8'),
   readFile(new URL('../src/components/HomeGuideInfoPortal.tsx', import.meta.url), 'utf8'),
+  readFile(new URL('../src/components/LeaderboardImpactInfoPortal.tsx', import.meta.url), 'utf8'),
+  readFile(new URL('../src/components/InfoCircleIcon.tsx', import.meta.url), 'utf8'),
   readFile(new URL('../src/components/AppNetworkComingSoon.tsx', import.meta.url), 'utf8'),
   readFile(new URL('../src/lib/i18n/networkCopy.ts', import.meta.url), 'utf8'),
   readFile(new URL('../src/components/PublicLeaderboard.tsx', import.meta.url), 'utf8'),
@@ -40,11 +44,14 @@ test('the legacy Guide tab renders only the Network placeholder while guide cont
 test('Home exposes the invitation guide contextually without modifying the new progress and reward-claim Home implementation', () => {
   assert.match(guidePortal, /querySelector<HTMLElement>\('\.missionCard'\)/i);
   assert.match(guidePortal, /createPortal/i);
-  assert.match(guidePortal, /ⓘ/i);
+  assert.match(guidePortal, /<InfoCircleIcon size=\{18\} \/>/i);
+  assert.doesNotMatch(guidePortal, /ⓘ/i);
+  assert.match(guidePortal, /top:\s*32px/i);
+  assert.match(guidePortal, /right:\s*24px/i);
   assert.match(guidePortal, /<InviteGuideContent locale=\{locale\} \/>/i);
   assert.match(guidePortal, /aria-modal="true"/i);
 
-  // The latest #233 progress/claim behavior must remain present in HomeClient.
+  // The latest referral progress/claim behavior must remain present in HomeClient.
   assert.match(home, /PROGRESS_CLAIM_COPY/i);
   assert.match(home, /rewardQueueStatus !== 'AWAITING_CLAIM'/i);
   assert.match(home, /slotReleasedAt/i);
@@ -52,9 +59,22 @@ test('Home exposes the invitation guide contextually without modifying the new p
   assert.doesNotMatch(home, /HomeGuideInfoPortal/i);
 });
 
-test('public counting guidance is shown with the VeInvite onboarding impact card', () => {
+test('Leaderboard exposes public counting guidance through a contextual info control', () => {
+  assert.match(navigation, /<LeaderboardImpactInfoPortal locale=\{locale\} \/>/i);
+  assert.match(navigation, /activeTab === 'leaderboard'/i);
+  assert.match(impactPortal, /\.leaderboardPage \.impactCard/i);
+  assert.match(impactPortal, /guide\.countTitle/i);
+  assert.match(impactPortal, /t\.impactNote/i);
+  assert.match(impactPortal, /<InfoCircleIcon size=\{17\} \/>/i);
+  assert.match(impactPortal, /\.impactCard > \.impactNote \{\s*display:\s*none;/i);
   assert.match(leaderboard, /<p className="impactNote">\{t\.impactNote\}<\/p>/i);
-  assert.match(leaderboard, /\.impactNote \{/i);
+});
+
+test('Home and Leaderboard info controls use the same SVG icon geometry', () => {
+  assert.match(infoIcon, /viewBox="0 0 24 24"/i);
+  assert.match(infoIcon, /<circle cx="12" cy="12" r="9" \/>/i);
+  assert.match(guidePortal, /InfoCircleIcon/i);
+  assert.match(impactPortal, /InfoCircleIcon/i);
 });
 
 test('Network placeholder copy covers every supported locale', () => {
