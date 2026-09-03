@@ -33,7 +33,7 @@ import {
   resolveBrowserLocale,
   type SupportedLocale,
 } from '@/lib/i18n/locales';
-import type { ReferralLinkRecord } from '@/lib/referralLinks';
+import { isReferralKey, type ReferralLinkRecord } from '@/lib/referralLinks';
 import type { InviteRecord } from '@/lib/types';
 
 const AppGuide = dynamic(() =>
@@ -47,6 +47,7 @@ const PublicLeaderboard = dynamic(() =>
 );
 
 const VERCEL_SHARE_STORAGE_KEY = 'veinvite_vercel_share';
+const REFERRAL_LINK_SESSION_PREFIX = 'veinvite_referral_link_v1:';
 const ACTIVE_STATUSES = new Set([
   'PENDING_ACCEPTANCE',
   'ACTIVATING',
@@ -56,6 +57,55 @@ const HOME_REFRESH_MS = 60_000;
 const EVIDENCE_REFRESH_MS = 120_000;
 const B3TR_DECIMALS = 18n;
 const B3TR_SCALE = 10n ** B3TR_DECIMALS;
+
+function referralLinkSessionKey(wallet: string): string {
+  return `${REFERRAL_LINK_SESSION_PREFIX}${wallet.toLowerCase()}`;
+}
+
+function readCachedReferralLink(wallet: string): ReferralLinkRecord | null {
+  try {
+    const raw = window.sessionStorage.getItem(referralLinkSessionKey(wallet));
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as {
+      key?: unknown;
+      createdAt?: unknown;
+    };
+    if (
+      typeof parsed.key !== 'string' ||
+      !isReferralKey(parsed.key) ||
+      typeof parsed.createdAt !== 'string'
+    ) {
+      window.sessionStorage.removeItem(referralLinkSessionKey(wallet));
+      return null;
+    }
+    return {
+      key: parsed.key,
+      createdAt: parsed.createdAt,
+      slotsAvailable: 0,
+    };
+  } catch {
+    return null;
+  }
+}
+
+function writeCachedReferralLink(
+  wallet: string,
+  link: ReferralLinkRecord,
+): void {
+  try {
+    window.sessionStorage.setItem(
+      referralLinkSessionKey(wallet),
+      JSON.stringify({ key: link.key, createdAt: link.createdAt }),
+    );
+  } catch {
+    // Storage can be unavailable in hardened/private browser modes. The server
+    // remains authoritative, so cache failure should never block the Home UI.
+  }
+}
+
+function sameWallet(left: string | null, right: string): boolean {
+  return left?.toLowerCase() === right.toLowerCase();
+}
 
 function formatB3trWei(value: string): string {
   if (!/^\d+$/.test(value)) return '—';
@@ -105,6 +155,9 @@ export function HomeClient() {
   const [invites, setInvites] = useState<InviteRecord[]>([]);
   const [referralLink, setReferralLink] =
     useState<ReferralLinkRecord | null>(null);
+  const [invitesReady, setInvitesReady] = useState(false);
+  const [referralLinkVerified, setReferralLinkVerified] = useState(false);
+  const [referralLinkFailed, setReferralLinkFailed] = useState(false);
   const [loading, setLoading] = useState(false);
   const [feedback, setFeedback] =
     useState<TransientFeedback | null>(null);
@@ -115,6 +168,7 @@ export function HomeClient() {
   const [claimPendingCode, setClaimPendingCode] =
     useState<string | null>(null);
   const feedbackIdRef = useRef(0);
+  const activeWalletRef = useRef<string | null>(wallet);
   const cancelTriggerRef = useRef<HTMLButtonElement | null>(null);
   const cancelDialogRef = useRef<HTMLDivElement | null>(null);
   const cancelKeepRef = useRef<HTMLButtonElement | null>(null);
@@ -171,6 +225,15 @@ export function HomeClient() {
     setVercelShareToken(token);
   }, []);
 
+  useEffect(() => {
+    activeWalletRef.current = wallet;
+    setInvites([]);
+    setInvitesReady(false);
+    setReferralLinkVerified(false);
+    setReferralLinkFailed(false);
+    setReferralLink(wallet ? readCachedReferralLink(wallet) : null);
+  }, [wallet]);
+
   const changeLocale = (nextLocale: SupportedLocale) => {
     clearFeedback();
     setLocale(nextLocale);
@@ -191,72 +254,98 @@ export function HomeClient() {
   };
 
   const load = useCallback(async (quiet = false) => {
-    if (!wallet) {
-      setInvites([]);
-      setReferralLink(null);
-      return;
-    }
+    if (!wallet) return;
+    const requestWallet = wallet;
 
-    if (!quiet) setLoading(true);
     try {
       const [inviteResult, linkResult] = await Promise.allSettled([
         fetch(
-          `/api/invites?inviter=${encodeURIComponent(wallet)}`,
+          `/api/invites?inviter=${encodeURIComponent(requestWallet)}`,
           { cache: 'no-store' },
         ),
         fetch('/api/referral-links', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ inviterAddress: wallet }),
+          body: JSON.stringify({ inviterAddress: requestWallet }),
         }),
       ]);
 
+      if (!sameWallet(activeWalletRef.current, requestWallet)) return;
+
       if (inviteResult.status === 'rejected') {
-        throw new Error(t.loadError);
+        if (!quiet) {
+          setInvitesReady(false);
+          showFeedback('error', t.loadError);
+        }
+      } else {
+        try {
+          const inviteResponse = inviteResult.value;
+          const inviteData = (await inviteResponse.json()) as {
+            invites?: InviteRecord[];
+            error?: string;
+          };
+          if (!inviteResponse.ok) {
+            throw new Error(inviteData.error ?? t.loadError);
+          }
+          if (!sameWallet(activeWalletRef.current, requestWallet)) return;
+          setInvites(inviteData.invites ?? []);
+          setInvitesReady(true);
+        } catch (error) {
+          if (!quiet && sameWallet(activeWalletRef.current, requestWallet)) {
+            setInvitesReady(false);
+            showFeedback(
+              'error',
+              error instanceof Error ? error.message : t.loadError,
+            );
+          }
+        }
       }
 
-      const inviteResponse = inviteResult.value;
-      const inviteData = (await inviteResponse.json()) as {
-        invites?: InviteRecord[];
-        error?: string;
-      };
-      if (!inviteResponse.ok) {
-        throw new Error(inviteData.error ?? t.loadError);
-      }
-      setInvites(inviteData.invites ?? []);
+      if (!sameWallet(activeWalletRef.current, requestWallet)) return;
 
       if (linkResult.status === 'rejected') {
         if (!quiet) {
-          setReferralLink(null);
+          setReferralLinkVerified(false);
+          setReferralLinkFailed(true);
           showFeedback('error', t.createError);
         }
         return;
       }
 
-      const linkResponse = linkResult.value;
-      const linkData = (await linkResponse.json()) as {
-        referralLink?: ReferralLinkRecord | null;
-        error?: string;
-      };
-
-      if (!linkResponse.ok || !linkData.referralLink) {
-        if (!quiet) {
-          setReferralLink(null);
-          showFeedback('error', linkData.error ?? t.createError);
+      try {
+        const linkResponse = linkResult.value;
+        const linkData = (await linkResponse.json()) as {
+          referralLink?: ReferralLinkRecord | null;
+          error?: string;
+        };
+        if (!linkResponse.ok || !linkData.referralLink) {
+          throw new Error(linkData.error ?? t.createError);
         }
-        return;
-      }
+        if (!sameWallet(activeWalletRef.current, requestWallet)) return;
 
-      setReferralLink(linkData.referralLink);
+        setReferralLink(linkData.referralLink);
+        setReferralLinkVerified(true);
+        setReferralLinkFailed(false);
+        writeCachedReferralLink(requestWallet, linkData.referralLink);
+      } catch (error) {
+        if (!quiet && sameWallet(activeWalletRef.current, requestWallet)) {
+          setReferralLinkVerified(false);
+          setReferralLinkFailed(true);
+          showFeedback(
+            'error',
+            error instanceof Error ? error.message : t.createError,
+          );
+        }
+      }
     } catch (error) {
-      if (!quiet) {
+      if (!quiet && sameWallet(activeWalletRef.current, requestWallet)) {
+        setReferralLinkVerified(false);
+        setReferralLinkFailed(true);
         showFeedback(
           'error',
           error instanceof Error ? error.message : t.genericError,
         );
       }
-    } finally {
-      if (!quiet) setLoading(false);
     }
   }, [wallet, t.loadError, t.createError, t.genericError, showFeedback]);
 
@@ -609,72 +698,95 @@ export function HomeClient() {
               {isWalletModalOpen ? t.connecting : t.connectStart}
               <span aria-hidden="true">›</span>
             </button>
-          ) : referralLink ? (
-            <>
-              <div className="permanentLinkCard">
-                <div className="linkPreview" title={permanentInviteUrl}>
-                  {permanentInviteUrl || '—'}
-                </div>
-                <div className="linkActions">
-                  <button
-                    type="button"
-                    className="primaryAction compactAction"
-                    onClick={() => void shareUrl(permanentInviteUrl)}
-                  >
-                    {t.shareInvite}
-                  </button>
-                  <button
-                    type="button"
-                    className="secondaryAction compactAction"
-                    onClick={() => void copyUrl(permanentInviteUrl)}
-                  >
-                    {t.copyLink}
-                  </button>
-                </div>
-              </div>
-
-              <div className="slotsBlock">
-                <div className="slotsHeading">
-                  <strong>{referral.slotsLabel}</strong>
-                  <span>{slotInvites.size}/2</span>
-                </div>
-                <FriendSlot
-                  number={1}
-                  invite={slotInvites.get(1)}
-                  copy={referral}
-                  progressCopy={progressCopy}
-                  onShare={() => void shareUrl(permanentInviteUrl)}
-                  onCopyLegacy={(invite) =>
-                    void copyUrl(legacyInviteUrl(invite))}
-                  onCancelLegacy={(invite, trigger) => {
-                    cancelTriggerRef.current = trigger;
-                    setLegacyCancelTarget(invite);
-                  }}
-                  copyLabel={t.copyLink}
-                  cancelLabel={t.cancelInvite}
-                />
-                <FriendSlot
-                  number={2}
-                  invite={slotInvites.get(2)}
-                  copy={referral}
-                  progressCopy={progressCopy}
-                  onShare={() => void shareUrl(permanentInviteUrl)}
-                  onCopyLegacy={(invite) =>
-                    void copyUrl(legacyInviteUrl(invite))}
-                  onCancelLegacy={(invite, trigger) => {
-                    cancelTriggerRef.current = trigger;
-                    setLegacyCancelTarget(invite);
-                  }}
-                  copyLabel={t.copyLink}
-                  cancelLabel={t.cancelInvite}
-                />
-              </div>
-            </>
           ) : (
-            <div className="loadingCard" aria-live="polite">
-              <span className="pulseDot" />
-              <strong>{loading ? t.creating : t.loadError}</strong>
-            </div>
+            <>
+              {referralLinkFailed && !referralLink ? (
+                <div className="linkErrorCard" role="status">
+                  <strong>{t.loadError}</strong>
+                </div>
+              ) : (
+                <div className="permanentLinkCard">
+                  {referralLink ? (
+                    <div className="linkPreview" title={permanentInviteUrl}>
+                      {permanentInviteUrl || '—'}
+                    </div>
+                  ) : (
+                    <div
+                      className="linkPreview linkPreviewSkeleton"
+                      aria-hidden="true"
+                    />
+                  )}
+                  <div className="linkActions">
+                    <button
+                      type="button"
+                      className="primaryAction compactAction"
+                      disabled={!referralLinkVerified || !permanentInviteUrl}
+                      onClick={() => void shareUrl(permanentInviteUrl)}
+                    >
+                      {t.shareInvite}
+                    </button>
+                    <button
+                      type="button"
+                      className="secondaryAction compactAction"
+                      disabled={!referralLinkVerified || !permanentInviteUrl}
+                      onClick={() => void copyUrl(permanentInviteUrl)}
+                    >
+                      {t.copyLink}
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {invitesReady ? (
+                <div className="slotsBlock">
+                  <div className="slotsHeading">
+                    <strong>{referral.slotsLabel}</strong>
+                    <span>{slotInvites.size}/2</span>
+                  </div>
+                  <FriendSlot
+                    number={1}
+                    invite={slotInvites.get(1)}
+                    copy={referral}
+                    progressCopy={progressCopy}
+                    onShare={() => void shareUrl(permanentInviteUrl)}
+                    shareDisabled={!referralLinkVerified || !permanentInviteUrl}
+                    onCopyLegacy={(invite) =>
+                      void copyUrl(legacyInviteUrl(invite))}
+                    onCancelLegacy={(invite, trigger) => {
+                      cancelTriggerRef.current = trigger;
+                      setLegacyCancelTarget(invite);
+                    }}
+                    copyLabel={t.copyLink}
+                    cancelLabel={t.cancelInvite}
+                  />
+                  <FriendSlot
+                    number={2}
+                    invite={slotInvites.get(2)}
+                    copy={referral}
+                    progressCopy={progressCopy}
+                    onShare={() => void shareUrl(permanentInviteUrl)}
+                    shareDisabled={!referralLinkVerified || !permanentInviteUrl}
+                    onCopyLegacy={(invite) =>
+                      void copyUrl(legacyInviteUrl(invite))}
+                    onCancelLegacy={(invite, trigger) => {
+                      cancelTriggerRef.current = trigger;
+                      setLegacyCancelTarget(invite);
+                    }}
+                    copyLabel={t.copyLink}
+                    cancelLabel={t.cancelInvite}
+                  />
+                </div>
+              ) : (
+                <div className="slotsBlock slotsSkeleton" aria-hidden="true">
+                  <div className="slotsHeading">
+                    <strong>{referral.slotsLabel}</strong>
+                    <span>—/2</span>
+                  </div>
+                  <div className="slotSkeleton" />
+                  <div className="slotSkeleton" />
+                </div>
+              )}
+            </>
           )}
 
           {outstandingRewards.length > 0 ? (
@@ -813,19 +925,23 @@ export function HomeClient() {
         .missionCopy.cjkCopy h1 { font-size:clamp(2rem,7vw,2.85rem); line-height:1.1; letter-spacing:-.035em; }
         .permanentLinkCard { position:relative; z-index:1; margin-top:18px; padding:16px; border:1px solid rgba(255,205,80,.2); border-radius:19px; background:rgba(255,205,80,.055); }
         .linkPreview { padding:11px 12px; overflow:hidden; border:1px solid rgba(255,255,255,.08); border-radius:13px; background:rgba(3,4,5,.42); color:#b8b2c2; font-size:.68rem; font-weight:750; white-space:nowrap; text-overflow:ellipsis; direction:ltr; text-align:left; }
+        .linkPreviewSkeleton { min-height:38px; box-sizing:border-box; position:relative; overflow:hidden; }
+        .linkPreviewSkeleton::after { content:''; position:absolute; top:50%; left:12px; width:68%; height:8px; border-radius:999px; background:rgba(255,255,255,.09); transform:translateY(-50%); animation:skeletonPulse 1.5s ease-in-out infinite; }
         .linkActions { margin-top:11px; display:grid; grid-template-columns:1fr 1fr; gap:9px; }
         .primaryAction,.secondaryAction { position:relative; z-index:1; width:100%; min-height:56px; border-radius:18px; font:inherit; font-size:.92rem; font-weight:950; cursor:pointer; overflow-wrap:anywhere; }
         .primaryAction { margin-top:24px; border:0; display:flex; align-items:center; justify-content:center; gap:10px; padding:10px 16px; background:linear-gradient(135deg,#ffd24d,#efa718); color:#17120a; box-shadow:0 16px 35px rgba(190,126,12,.25),inset 0 1px 0 rgba(255,255,255,.22); }
         .primaryAction span { font-size:1.55rem; line-height:1; }
         .primaryAction:disabled { opacity:.42; cursor:not-allowed; box-shadow:none; }
         .secondaryAction { border:1px solid rgba(255,255,255,.11); background:rgba(255,255,255,.045); color:#fff; }
+        .secondaryAction:disabled { opacity:.42; cursor:not-allowed; }
         .compactAction { min-height:44px; margin-top:0; border-radius:13px; font-size:.75rem; box-shadow:none; }
         .slotsBlock { position:relative; z-index:1; margin-top:16px; display:grid; gap:9px; }
         .slotsHeading { display:flex; align-items:center; justify-content:space-between; gap:12px; color:#c7c2d0; font-size:.78rem; }
         .slotsHeading strong { overflow-wrap:anywhere; }
         .slotsHeading span { flex:0 0 auto; min-width:42px; padding:5px 8px; border:1px solid rgba(255,255,255,.08); border-radius:999px; color:#ffd66e; text-align:center; font-size:.66rem; font-weight:950; }
-        .loadingCard { position:relative; z-index:1; min-height:58px; margin-top:22px; padding:12px 14px; display:flex; align-items:center; justify-content:center; gap:10px; border:1px solid rgba(255,201,61,.18); border-radius:17px; background:rgba(244,183,40,.06); color:#ffd66e; text-align:center; }
-        .pulseDot { flex:0 0 auto; width:9px; height:9px; border-radius:50%; background:#f4b728; box-shadow:0 0 18px rgba(244,183,40,.72); animation:pulse 1.6s ease-in-out infinite; }
+        .slotSkeleton { min-height:68px; box-sizing:border-box; position:relative; overflow:hidden; border:1px solid rgba(255,255,255,.07); border-radius:16px; background:rgba(255,255,255,.022); }
+        .slotSkeleton::after { content:''; position:absolute; top:50%; left:14px; width:54%; height:9px; border-radius:999px; background:rgba(255,255,255,.075); transform:translateY(-50%); animation:skeletonPulse 1.5s ease-in-out infinite; }
+        .linkErrorCard { position:relative; z-index:1; min-height:58px; margin-top:18px; padding:12px 14px; display:flex; align-items:center; justify-content:center; border:1px solid rgba(255,201,61,.18); border-radius:17px; background:rgba(244,183,40,.06); color:#ffd66e; text-align:center; }
         .rewardsPanel { position:relative; z-index:1; margin-top:18px; padding:15px; border:1px solid rgba(90,222,166,.18); border-radius:18px; background:linear-gradient(145deg,rgba(35,139,99,.12),rgba(255,255,255,.025)); }
         .rewardsHeading { display:flex; align-items:center; justify-content:space-between; gap:12px; }
         .rewardsHeading > div { display:flex; align-items:center; gap:9px; }
@@ -847,7 +963,7 @@ export function HomeClient() {
         .modalCard h2 { margin:0; font-size:1.4rem; letter-spacing:-.03em; overflow-wrap:anywhere; }
         .modalCard p { margin:11px 0 0; color:#a39eaf; font-size:.88rem; line-height:1.55; overflow-wrap:anywhere; }
         .cancelConfirm { margin-top:16px; border:0; background:transparent; color:#ff7186; font:inherit; font-size:.8rem; font-weight:900; cursor:pointer; }
-        @keyframes pulse { 0%,100% { opacity:.55; transform:scale(.9); } 50% { opacity:1; transform:scale(1.08); } }
+        @keyframes skeletonPulse { 0%,100% { opacity:.5; } 50% { opacity:1; } }
         @media (max-width:560px) {
           .screen { padding:18px 14px 116px; }
           .topBar { align-items:flex-start; }
@@ -903,6 +1019,7 @@ function FriendSlot({
   copy,
   progressCopy,
   onShare,
+  shareDisabled,
   onCopyLegacy,
   onCancelLegacy,
   copyLabel,
@@ -913,6 +1030,7 @@ function FriendSlot({
   copy: (typeof REFERRAL_LINK_COPY)[SupportedLocale];
   progressCopy: (typeof PROGRESS_CLAIM_COPY)[SupportedLocale];
   onShare: () => void;
+  shareDisabled: boolean;
   onCopyLegacy: (invite: InviteRecord) => void;
   onCancelLegacy: (
     invite: InviteRecord,
@@ -931,6 +1049,7 @@ function FriendSlot({
       <button
         type="button"
         className="friendSlot available"
+        disabled={shareDisabled}
         onClick={onShare}
       >
         <span className="slotNumber">{number}</span>
@@ -1008,6 +1127,7 @@ function FriendSlot({
 const slotStyles = `
   .friendSlot { width:100%; box-sizing:border-box; min-width:0; min-height:68px; padding:12px; display:grid; grid-template-columns:auto minmax(0,1fr) auto; align-items:center; gap:11px; border:1px solid rgba(255,255,255,.085); border-radius:16px; background:rgba(255,255,255,.035); color:#fff; text-align:left; }
   button.friendSlot { font:inherit; cursor:pointer; }
+  button.friendSlot:disabled { opacity:.55; cursor:not-allowed; }
   .friendSlot.available { border-style:dashed; background:rgba(255,255,255,.022); }
   .friendSlot.review { border-color:rgba(255,205,80,.2); background:rgba(244,183,40,.055); }
   .friendSlot.progress { border-color:rgba(91,212,162,.16); background:rgba(42,164,116,.05); }
