@@ -15,6 +15,12 @@ const languageSync = read(
 const supabaseServer = read(
   'src/lib/supabaseServer.ts',
 );
+const inviteProgressRoute = read(
+  'src/app/api/invites/[code]/route.ts',
+);
+const participantsAdminPage = read(
+  'src/app/admin/participants/page.tsx',
+);
 
 const localeKeys = [
   'en', 'ko', 'zh', 'hi', 'es', 'ja',
@@ -113,6 +119,95 @@ const environmentGuardMentions =
 if (environmentGuardMentions < 3) {
   failures.push(
     'Supabase environment safety must be checked before the initial request and before a transient retry.',
+  );
+}
+
+const publicInviteStart =
+  inviteProgressRoute.indexOf(
+    'function toPublicInviteRecord',
+  );
+const publicInviteEnd =
+  inviteProgressRoute.indexOf(
+    'function parseNonNegativeInteger',
+  );
+const publicInviteSource =
+  publicInviteStart >= 0 &&
+  publicInviteEnd > publicInviteStart
+    ? inviteProgressRoute.slice(
+        publicInviteStart,
+        publicInviteEnd,
+      )
+    : '';
+
+const publicProgressStart =
+  inviteProgressRoute.indexOf(
+    'function toPublicProgress',
+  );
+const publicProgressEnd =
+  inviteProgressRoute.indexOf(
+    'function sessionCanReadInvitationDetails',
+  );
+const publicProgressSource =
+  publicProgressStart >= 0 &&
+  publicProgressEnd > publicProgressStart
+    ? inviteProgressRoute.slice(
+        publicProgressStart,
+        publicProgressEnd,
+      )
+    : '';
+
+if (
+  !/getWalletSession/.test(inviteProgressRoute) ||
+  !/sessionCanReadInvitationDetails/.test(
+    inviteProgressRoute,
+  ) ||
+  !/canReadDetails\s*\?\s*toInviteRecord\(row\)\s*:\s*toPublicInviteRecord\(row\)/s.test(
+    inviteProgressRoute,
+  ) ||
+  !/canReadDetails\s*\?\s*toStoredProgress\(row\)\s*:\s*toPublicProgress\(\)/s.test(
+    inviteProgressRoute,
+  )
+) {
+  failures.push(
+    'Invite GET must keep detailed wallet/progress data behind an owner wallet session.',
+  );
+}
+
+if (
+  !publicInviteSource ||
+  /row\.inviter_wallet|row\.invitee_wallet/.test(
+    publicInviteSource,
+  )
+) {
+  failures.push(
+    'Anonymous invite records must not expose inviter or invitee wallet addresses.',
+  );
+}
+
+if (
+  !publicProgressSource ||
+  /row\./.test(publicProgressSource)
+) {
+  failures.push(
+    'Anonymous invite progress must remain detached from stored mission progress.',
+  );
+}
+
+if (
+  !/cookies\(\)/.test(participantsAdminPage) ||
+  !/getWalletSessionFromTokens/.test(
+    participantsAdminPage,
+  ) ||
+  !/canOperateVeInviteRewards/.test(
+    participantsAdminPage,
+  ) ||
+  !/notFound\(\)/.test(participantsAdminPage) ||
+  !/initialSessionWallet/.test(
+    participantsAdminPage,
+  )
+) {
+  failures.push(
+    'Participant admin UI must remain hidden behind server-validated operator access.',
   );
 }
 
