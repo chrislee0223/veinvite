@@ -1,6 +1,16 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
+  // Demo rendering is a preview/development aid only. Even if a stale Vercel
+  // project variable is accidentally left enabled, Production bundles must
+  // compile the public demo flag to false. The demo completion API has its own
+  // independent server-side Production block as a second line of defense.
+  env: {
+    NEXT_PUBLIC_DEMO_MODE:
+      process.env.VERCEL_ENV === 'production'
+        ? 'false'
+        : process.env.NEXT_PUBLIC_DEMO_MODE ?? 'false',
+  },
   async headers() {
     return [
       {
