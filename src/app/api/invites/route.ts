@@ -30,6 +30,9 @@ type InvitationRow = {
   updated_at: string;
   eligibility_check_id: string | number | null;
   activation_network: string | null;
+  apps_completed: number | null;
+  vot3_converted: boolean | null;
+  vote_completed: boolean | null;
   invite_slot: number;
   sybil_status: SybilStatus;
   referral_link_id: string | null;
@@ -39,6 +42,8 @@ type RewardQueueRow = {
   invite_code: string;
   status: RewardQueueStatus;
   claim_requested_at: string | null;
+  reserved_amount_wei: string | null;
+  reserved_at: string | null;
 };
 
 const invitationColumns = `
@@ -51,6 +56,9 @@ const invitationColumns = `
   updated_at,
   eligibility_check_id,
   activation_network,
+  apps_completed,
+  vot3_converted,
+  vote_completed,
   invite_slot,
   sybil_status,
   referral_link_id
@@ -71,12 +79,6 @@ function toInvitationRow(value: unknown): InvitationRow | null {
   return value as InvitationRow;
 }
 
-function userVisibleRewardQueueStatus(
-  status: RewardQueueStatus,
-): RewardQueueStatus {
-  return status === 'AWAITING_CLAIM' ? 'QUEUED' : status;
-}
-
 function toInviteRecord(
   row: InvitationRow,
   rewardQueue?: RewardQueueRow,
@@ -89,16 +91,21 @@ function toInviteRecord(
     createdAt: row.created_at,
     updatedAt: row.updated_at,
     rewardEligibility: row.reward_status,
+    appsCompleted: Math.max(0, Math.min(3, row.apps_completed ?? 0)),
+    vot3Converted: row.vot3_converted ?? false,
+    voteCompleted: row.vote_completed ?? false,
     inviteSlot: row.invite_slot === 2 ? 2 : 1,
     sybilStatus: row.sybil_status,
     ...(row.referral_link_id ? { referralLinkId: row.referral_link_id } : {}),
-    ...(rewardQueue
-      ? {
-          rewardQueueStatus: userVisibleRewardQueueStatus(rewardQueue.status),
-        }
-      : {}),
+    ...(rewardQueue ? { rewardQueueStatus: rewardQueue.status } : {}),
     ...(rewardQueue?.claim_requested_at
       ? { rewardClaimRequestedAt: rewardQueue.claim_requested_at }
+      : {}),
+    ...(rewardQueue?.reserved_amount_wei
+      ? { rewardReservedAmountWei: rewardQueue.reserved_amount_wei }
+      : {}),
+    ...(rewardQueue?.reserved_at
+      ? { rewardReservedAt: rewardQueue.reserved_at }
       : {}),
   };
 }
@@ -212,7 +219,9 @@ export async function GET(request: NextRequest) {
   const queueResult = inviteCodes.length > 0
     ? await supabaseAdmin
         .from('reward_queue_entries')
-        .select('invite_code, status, claim_requested_at')
+        .select(
+          'invite_code, status, claim_requested_at, reserved_amount_wei, reserved_at',
+        )
         .in('invite_code', inviteCodes)
     : { data: [] as RewardQueueRow[], error: null };
 
