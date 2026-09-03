@@ -74,9 +74,20 @@ test('shared-network headroom grows without weakening per-invite reconciliation 
   assert.match(inviteRoute, /scope: 'invite_progress_sync_code'/u);
 });
 
-test('passive invite reads remain public while the invite page retains its wallet-session gate', () => {
-  assert.match(inviteRoute, /export async function GET/u);
-  assert.match(inviteRoute, /Passive public read\./u);
+test('passive invite reads stay public but reveal details only to the verified referral owner', () => {
+  const getStart = inviteRoute.indexOf('export async function GET');
+  const postStart = inviteRoute.indexOf('export async function POST');
+  const getBody = inviteRoute.slice(getStart, postStart);
+
+  assert.ok(getStart >= 0);
+  assert.ok(postStart > getStart);
+  assert.doesNotMatch(getBody, /requireWalletSession\(\{ request \}\)/u);
+  assert.match(getBody, /getWalletSession\(request\)/u);
+  assert.match(getBody, /sessionCanReadInvitationDetails/u);
+  assert.match(getBody, /toPublicInviteRecord\(row\)/u);
+  assert.match(getBody, /toPublicProgress\(\)/u);
+  assert.match(inviteRoute, /inviterAddress: ''/u);
+  assert.match(inviteRoute, /row\.invitee_wallet\?\.toLowerCase\(\)/u);
   assert.match(invitePage, /<WalletSessionGate>/u);
   assert.match(invitePage, /<InviteeClient code=\{normalizedCode\} \/>/u);
 });
