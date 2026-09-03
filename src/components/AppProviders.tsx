@@ -13,6 +13,7 @@ import '@/lib/i18n/copyHardening';
 import '@/lib/i18n/secondaryPageCopyHardening';
 import { HeaderLanguagePickerPortal } from './HeaderLanguagePickerPortal';
 import { LegalNavigationMemory } from './LegalNavigationMemory';
+import { NotificationDialogFocusGuard } from './NotificationDialogFocusGuard';
 import {
   PublicRewardForecastPortal,
   PublicRewardForecastWarmup,
@@ -76,6 +77,7 @@ export function AppProviders({
         <ProviderReadySignal />
         <WalletRuntimeLifecycle />
         {children}
+        <NotificationDialogFocusGuard />
         <WalletLanguagePreferenceSync />
         <SecondaryPageLayoutPolish />
         <LegalNavigationMemory />
