@@ -5,6 +5,7 @@ import test from 'node:test';
 const [
   migration,
   sourceKindMigration,
+  hardeningMigration,
   ownerApi,
   publicApi,
   claimApi,
@@ -18,6 +19,7 @@ const [
 ] = await Promise.all([
   readFile(new URL('../supabase/migrations/20260903190000_enable_permanent_referral_links_two_slots.sql', import.meta.url), 'utf8'),
   readFile(new URL('../supabase/migrations/20260903190500_allow_v2_referral_source_kind.sql', import.meta.url), 'utf8'),
+  readFile(new URL('../supabase/migrations/20260903191000_harden_permanent_referral_tables.sql', import.meta.url), 'utf8'),
   readFile(new URL('../src/app/api/referral-links/route.ts', import.meta.url), 'utf8'),
   readFile(new URL('../src/app/api/referral-links/[key]/route.ts', import.meta.url), 'utf8'),
   readFile(new URL('../src/app/api/referral-links/[key]/claim/route.ts', import.meta.url), 'utf8'),
@@ -58,6 +60,19 @@ test('v2 sponsor provenance is explicitly allowed by the immutable referral ledg
   assert.match(migration, /v2_permanent_referral/i);
   assert.match(migration, /live_v2_permanent_link/i);
   assert.match(sourceKindMigration, /'live_v2_permanent_link'/i);
+});
+
+test('new referral tables use the same server-only RLS posture as sensitive VeInvite tables', () => {
+  assert.match(hardeningMigration, /alter table public\.referral_links enable row level security/i);
+  assert.match(hardeningMigration, /alter table public\.referral_link_attempts enable row level security/i);
+  assert.match(hardeningMigration, /create index referral_link_attempts_invitation_idx[\s\S]*invitation_id/i);
+});
+
+test('a blocked permanent-link referral cannot be resurrected after its slot is released', () => {
+  assert.match(hardeningMigration, /old\.referral_link_id is not null/i);
+  assert.match(hardeningMigration, /old\.sybil_status = 'BLOCKED'/i);
+  assert.match(hardeningMigration, /new\.sybil_status is distinct from old\.sybil_status/i);
+  assert.match(hardeningMigration, /invitations_lock_released_v2_blocked_slot/i);
 });
 
 test('public referral GET is passive and never creates invitations', () => {
@@ -126,7 +141,10 @@ test('two payouts in one session can show consecutive unseen reward receipts', (
 });
 
 test('analytics classifies permanent links without sending raw referral paths', () => {
-  assert.match(analyticsTracker, /pathname\.startsWith\('\/r\/'\)/i);
+  assert.match(analyticsTracker, /pathname\.startsWith\('\/i\/'\)\s*\)/i);
+  assert.match(analyticsTracker, /pathname\.startsWith\('\/r\/'\)\s*\)/i);
   assert.match(analyticsTracker, /return 'invite_landing'/i);
   assert.doesNotMatch(analyticsTracker, /payload[^\n]*pathname/i);
+  assert.match(analyticsTracker, /const ensureSession =/i);
+  assert.match(analyticsTracker, /const isEngaged =/i);
 });
