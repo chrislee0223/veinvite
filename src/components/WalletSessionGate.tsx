@@ -136,7 +136,7 @@ export function WalletSessionGate({
     const handlePageHide = () => {
       // A browser refresh/navigation can make the wallet provider emit a
       // transient disconnect while React is being torn down. That is not an
-      // explicit logout and must never revoke the 7-day VeInvite session.
+      // explicit logout and must never revoke the 30-day VeInvite session.
       pageLifecycleRef.current = true;
     };
     const handlePageShow = () => {
@@ -179,7 +179,7 @@ export function WalletSessionGate({
 
     // WalletConnect/VeWorld can briefly report a disconnect while restoring
     // the same transport after refresh. Once the wallet reappears, cancel the
-    // pending passive-disconnect check and keep the existing 7-day session.
+    // pending passive-disconnect check and keep the existing 30-day session.
     if (
       walletAddress &&
       pendingDisconnectTimerRef.current !== null
@@ -232,7 +232,7 @@ export function WalletSessionGate({
           pendingDisconnectTimerRef.current = null;
 
           // A restored wallet means this was only transport churn. Keep both
-          // the provider login and the existing 7-day VeInvite session intact.
+          // the provider login and the existing 30-day VeInvite session intact.
           if (
             pageLifecycleRef.current ||
             document.visibilityState === 'hidden' ||
