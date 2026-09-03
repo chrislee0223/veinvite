@@ -57,9 +57,17 @@ const nextSteps = readFileSync(
   join(root, 'docs/NEXT_STEPS_KO.md'),
   'utf8',
 );
+const nextStepsHasEnabledPipeline =
+  /자동 추천 보상 파이프라인은 활성화/.test(nextSteps);
+const nextStepsHasUncompletedFirstPayout =
+  /최초 genuine automatic B3TR payout은 아직 발생하지 않았습니다/i.test(
+    nextSteps,
+  ) &&
+  /genuine automatic payout E2E 검증/i.test(nextSteps);
+
 if (
-  !/자동 추천 보상 파이프라인은 활성화/.test(nextSteps) ||
-  !/first genuine automatic payout E2E/i.test(nextSteps)
+  !nextStepsHasEnabledPipeline ||
+  !nextStepsHasUncompletedFirstPayout
 ) {
   failures.push(
     'NEXT_STEPS_KO.md must distinguish the enabled automatic pipeline from the still-uncompleted first genuine Production payout E2E.',
