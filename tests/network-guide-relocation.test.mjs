@@ -59,6 +59,12 @@ test('Home exposes the invitation guide contextually without modifying the new p
   assert.doesNotMatch(home, /HomeGuideInfoPortal/i);
 });
 
+test('Home decorative glow stays clipped inside the rounded invitation card', () => {
+  assert.match(guidePortal, /\.missionCard \{[\s\S]*overflow:\s*hidden;[\s\S]*overflow:\s*clip;/i);
+  assert.match(guidePortal, /\.missionCard > \.cardGlow \{[\s\S]*radial-gradient/i);
+  assert.match(guidePortal, /\.missionCard > \.cardGlow \{[\s\S]*filter:\s*none;/i);
+});
+
 test('Leaderboard exposes public counting guidance through a contextual info control', () => {
   assert.match(navigation, /<LeaderboardImpactInfoPortal locale=\{locale\} \/>/i);
   assert.match(navigation, /activeTab === 'leaderboard'/i);
