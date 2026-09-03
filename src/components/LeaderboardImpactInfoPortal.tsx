@@ -62,8 +62,16 @@ export function LeaderboardImpactInfoPortal({ locale }: { locale: Locale }) {
 
   useEffect(() => {
     if (!dialogMounted) return;
-    const frame = window.requestAnimationFrame(() => setDialogVisible(true));
-    return () => window.cancelAnimationFrame(frame);
+
+    let revealFrame: number | null = null;
+    const mountFrame = window.requestAnimationFrame(() => {
+      revealFrame = window.requestAnimationFrame(() => setDialogVisible(true));
+    });
+
+    return () => {
+      window.cancelAnimationFrame(mountFrame);
+      if (revealFrame !== null) window.cancelAnimationFrame(revealFrame);
+    };
   }, [dialogMounted]);
 
   const closeInfo = useCallback(() => {
@@ -207,20 +215,24 @@ export function LeaderboardImpactInfoPortal({ locale }: { locale: Locale }) {
             aria-modal="true"
             aria-labelledby="veinvite-impact-info-title"
           >
-            <button
-              ref={closeRef}
-              type="button"
-              className="veinviteSoftFocusClose"
-              onClick={closeInfo}
-              aria-label={t.close}
-            />
-            <div className="veinviteImpactInfoTop">
-              <div>
-                <span>{t.impactTitle}</span>
-                <h2 id="veinvite-impact-info-title">{guide.countTitle}</h2>
-              </div>
+            <div className="veinviteSoftFocusHeader">
+              <button
+                ref={closeRef}
+                type="button"
+                className="veinviteSoftFocusClose"
+                onClick={closeInfo}
+                aria-label={t.close}
+              />
             </div>
-            <p>{t.impactNote}</p>
+            <div className="veinviteSoftFocusScroll veinviteImpactInfoBody">
+              <div className="veinviteImpactInfoTop">
+                <div>
+                  <span>{t.impactTitle}</span>
+                  <h2 id="veinvite-impact-info-title">{guide.countTitle}</h2>
+                </div>
+              </div>
+              <p>{t.impactNote}</p>
+            </div>
           </div>
           <style>{`
             ${SOFT_FOCUS_MOTION_CSS}
@@ -236,16 +248,17 @@ export function LeaderboardImpactInfoPortal({ locale }: { locale: Locale }) {
             }
             .veinviteImpactInfoDialog {
               width: min(100%,440px);
+              max-height: min(80svh,620px);
               box-sizing: border-box;
-              padding: 20px;
+              padding: 0;
               border: 1px solid rgba(255,205,80,.2);
               border-radius: 24px;
               background: #11120f;
               color: #fff;
               box-shadow: 0 30px 90px rgba(0,0,0,.58);
             }
-            .veinviteImpactInfoTop {
-              padding-right: 54px;
+            .veinviteImpactInfoBody {
+              padding: 0 20px 20px;
             }
             .veinviteImpactInfoTop span {
               color: #f4bd35;
@@ -257,7 +270,7 @@ export function LeaderboardImpactInfoPortal({ locale }: { locale: Locale }) {
               font-size: 1.15rem;
               letter-spacing: -.025em;
             }
-            .veinviteImpactInfoDialog p {
+            .veinviteImpactInfoBody p {
               margin: 16px 0 0;
               color: #aaa69d;
               font-size: .82rem;
