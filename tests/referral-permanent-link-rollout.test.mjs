@@ -133,6 +133,21 @@ test('home uses one permanent link, two independently rendered slots, and an act
   assert.doesNotMatch(home, /createInvite\s*=\s*async/i);
 });
 
+test('home keeps referral rules in the guide and removes redundant card chrome without leaving spacer CSS', () => {
+  assert.doesNotMatch(home, /className="missionHeader"/i);
+  assert.doesNotMatch(home, /\{referral\.badge\}/i);
+  assert.doesNotMatch(home, /\{referral\.homeDescription\}/i);
+  assert.doesNotMatch(home, /\{referral\.linkLabel\}/i);
+  assert.doesNotMatch(home, /\{referral\.linkHelp\}/i);
+  assert.doesNotMatch(home, /className="linkMark"/i);
+  assert.doesNotMatch(home, />∞</i);
+  assert.match(home, /\.missionCopy \{ position:relative; z-index:1; \}/i);
+  assert.match(home, /\.permanentLinkCard \{[^}]*margin-top:18px/i);
+  assert.match(home, /\.linkPreview \{ padding:11px 12px/i);
+  assert.doesNotMatch(home, /\.missionCopy \{[^}]*margin-top/i);
+  assert.doesNotMatch(home, /\.linkPreview \{[^}]*margin-top/i);
+});
+
 test('home preserves invitation and reward history when permanent-link ensure has a transient failure', () => {
   assert.match(home, /Promise\.allSettled/i);
   assert.match(home, /setInvites\(inviteData\.invites \?\? \[\]\)/i);
@@ -173,6 +188,8 @@ test('all supported locales receive permanent-link and two-slot runtime copy', (
   assert.match(referralCopy, /home\.inviteAvailable = referral\.badge/i);
   assert.match(referralCopy, /flow\.inviteDescription = referral\.guideInviteDescription/i);
   assert.match(referralCopyFinalHardening, /HOME_COPY\[locale\]\.cancelDescriptionWaiting/i);
+  assert.match(referralCopyFinalHardening, /REFERRAL_LINK_COPY\[locale\]\.homeTitle = REFERRAL_HOME_TITLE\[locale\]/i);
+  assert.match(referralCopyFinalHardening, /ko:\s*'내 초대 링크'/i);
   assert.match(referralCopyFinalHardening, /REFERRAL_LINK_COPY\.ko\.slotsLabel = '진행 중인 친구'/i);
   assert.match(appProviders, /referralLinkCopyFinalHardening/i);
 });
