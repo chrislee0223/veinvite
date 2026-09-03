@@ -6,6 +6,7 @@ const [
   migration,
   sourceKindMigration,
   hardeningMigration,
+  blockedSlotRefinement,
   ownerApi,
   publicApi,
   claimApi,
@@ -20,6 +21,7 @@ const [
   readFile(new URL('../supabase/migrations/20260903190000_enable_permanent_referral_links_two_slots.sql', import.meta.url), 'utf8'),
   readFile(new URL('../supabase/migrations/20260903190500_allow_v2_referral_source_kind.sql', import.meta.url), 'utf8'),
   readFile(new URL('../supabase/migrations/20260903191000_harden_permanent_referral_tables.sql', import.meta.url), 'utf8'),
+  readFile(new URL('../supabase/migrations/20260903191500_refine_released_v2_blocked_slot_reactivation.sql', import.meta.url), 'utf8'),
   readFile(new URL('../src/app/api/referral-links/route.ts', import.meta.url), 'utf8'),
   readFile(new URL('../src/app/api/referral-links/[key]/route.ts', import.meta.url), 'utf8'),
   readFile(new URL('../src/app/api/referral-links/[key]/claim/route.ts', import.meta.url), 'utf8'),
@@ -68,11 +70,14 @@ test('new referral tables use the same server-only RLS posture as sensitive VeIn
   assert.match(hardeningMigration, /create index referral_link_attempts_invitation_idx[\s\S]*invitation_id/i);
 });
 
-test('a blocked permanent-link referral cannot be resurrected after its slot is released', () => {
-  assert.match(hardeningMigration, /old\.referral_link_id is not null/i);
-  assert.match(hardeningMigration, /old\.sybil_status = 'BLOCKED'/i);
-  assert.match(hardeningMigration, /new\.sybil_status is distinct from old\.sybil_status/i);
-  assert.match(hardeningMigration, /invitations_lock_released_v2_blocked_slot/i);
+test('blocked-slot corrections stay possible until an active replacement reuses that slot', () => {
+  assert.match(blockedSlotRefinement, /old\.referral_link_id is not null/i);
+  assert.match(blockedSlotRefinement, /old\.sybil_status = 'BLOCKED'/i);
+  assert.match(blockedSlotRefinement, /new\.status in \('ACTIVATING', 'UNDER_REVIEW'\)/i);
+  assert.match(blockedSlotRefinement, /i\.invite_slot = old\.invite_slot/i);
+  assert.match(blockedSlotRefinement, /i\.sybil_status <> 'BLOCKED'/i);
+  assert.match(blockedSlotRefinement, /has already been reused by another active invitation/i);
+  assert.doesNotMatch(blockedSlotRefinement, /BLOCKED permanent-referral decision is final/i);
 });
 
 test('public referral GET is passive and never creates invitations', () => {
@@ -88,6 +93,10 @@ test('owner API creates one permanent link idempotently behind wallet auth', () 
   assert.match(ownerApi, /loadActiveReferralLink/i);
   assert.match(ownerApi, /referral_link_ensure_wallet/i);
   assert.match(ownerApi, /\.from\('referral_links'\)/i);
+  assert.match(
+    ownerApi,
+    /const \[existing, slotsAvailable\][\s\S]*if \(existing\)[\s\S]*referral_link_ensure_wallet/i,
+  );
 });
 
 test('claim API checks eligibility before atomically creating an invitation', () => {
