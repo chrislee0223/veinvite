@@ -28,9 +28,9 @@ import {
 
 const INVITE_CODE_PATTERN = /^[A-HJ-NP-Z2-9]{7}$/;
 const INVITE_READ_CODE_LIMIT = 720;
-const INVITE_READ_IP_LIMIT = 1440;
+const INVITE_READ_IP_LIMIT = 7200;
 const INVITE_SYNC_CODE_LIMIT = 240;
-const INVITE_SYNC_IP_LIMIT = 480;
+const INVITE_SYNC_IP_LIMIT = 2400;
 const INVITE_WINDOW_SECONDS = 60 * 60;
 
 const invitationColumns = `
@@ -422,11 +422,11 @@ export async function GET(
 /**
  * Explicit reconciliation request.
  *
- * Reconciliation is available only to the wallet already bound to this
- * accepted invitation. The invite page is wrapped in WalletSessionGate, so
- * normal users already have this session before mission polling starts. This
- * prevents a leaked/shared invite code from being used by unauthenticated
- * scripts to consume the code-level sync budget or trigger chain scans.
+ * Reconciliation is available only to an authenticated wallet that owns this
+ * accepted referral: either the bound invitee or its inviter. The invite page
+ * and Home are both wrapped in WalletSessionGate. This lets the verified
+ * inviter provide a low-frequency recovery sync without reopening expensive
+ * chain scans to leaked/shared invite codes or anonymous scripts.
  */
 export async function POST(
   request: NextRequest,
@@ -490,10 +490,18 @@ export async function POST(
 
   if (!row) return invalidInviteResponse();
 
-  if (
-    !row.invitee_wallet ||
-    row.invitee_wallet.toLowerCase() !== sessionWallet
-  ) {
+  const normalizedInvitee =
+    row.invitee_wallet?.toLowerCase() ?? null;
+  const normalizedInviter =
+    row.inviter_wallet.toLowerCase();
+  const sessionOwnsReferral =
+    normalizedInvitee !== null &&
+    (
+      normalizedInvitee === sessionWallet ||
+      normalizedInviter === sessionWallet
+    );
+
+  if (!sessionOwnsReferral) {
     return NextResponse.json(
       {
         error:
