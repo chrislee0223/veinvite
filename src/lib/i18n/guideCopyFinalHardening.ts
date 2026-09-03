@@ -1,0 +1,541 @@
+import { GUIDE_COPY } from './guideCopy';
+import { GUIDE_FLOW_COPY } from './guideFlowCopy';
+import { GUIDE_MISSION_STEP_COPY } from './guideMissionStepCopy';
+import { GUIDE_REWARD_STEP_COPY } from './guideRewardStepCopy';
+import {
+  SUPPORTED_LOCALES,
+  type SupportedLocale,
+} from './locales';
+
+type GuidePolish = {
+  title: string;
+  inviteStepTitle: string;
+  eligibilityTitle: string;
+  countTitle: string;
+  flowDescription: string;
+  inviteDescription: string;
+  countDescription: string;
+  missionTitle: string;
+  missionDescription: string;
+  rewardTitle: string;
+  rewardDescription: string;
+};
+
+// Final, user-facing Guide wording. Expanded locale packs are registered before
+// this module runs, so this table keeps the same product meaning across every
+// supported language without duplicating Guide layout logic in each locale pack.
+const FINAL_GUIDE_COPY: Record<SupportedLocale, GuidePolish> = {
+  en: {
+    title: "How do invitations work?",
+    inviteStepTitle: "Share your invite link",
+    eligibilityTitle: "Who can take part?",
+    countTitle: "How are public totals counted?",
+    flowDescription:
+      "Sharing a link alone doesn't complete an invitation. Your friend must pass the eligibility check and complete every mission.",
+    inviteDescription:
+      "You have 1 permanent invite link and 2 reusable friend slots. Up to 2 eligible friends can progress at the same time, and simply opening the link does not use a slot.",
+    countDescription:
+      "Only wallets that complete every mission are included in the public new and returning user totals.",
+    missionTitle: "Your friend completes every mission",
+    missionDescription:
+      "They earn B3TR rewards from at least 3 different VeBetterDAO dApps, convert B3TR to VOT3, and take part in Allocation Voting once.",
+    rewardTitle: "Reward is paid automatically",
+    rewardDescription:
+      "Once your friend's invitation is completed and qualifies for a reward, VeInvite pays the reward automatically through the payout process. The completed friend's slot opens again so you can invite someone new.",
+  },
+  ko: {
+    title: "초대는 어떻게 진행되나요?",
+    inviteStepTitle: "초대 링크 공유",
+    eligibilityTitle: "누가 참여할 수 있나요?",
+    countTitle: "어떻게 집계되나요?",
+    flowDescription:
+      "링크를 공유하기만 해서는 초대가 완료되지 않아요. 친구가 자격 확인을 통과하고 모든 미션을 완료해야 초대가 완료돼요.",
+    inviteDescription:
+      "영구 초대 링크 1개와 재사용 가능한 친구 슬롯 2개가 있어요. 자격을 통과한 친구는 동시에 최대 2명까지 진행할 수 있고, 링크를 열기만 해서는 슬롯이 사용되지 않아요.",
+    countDescription:
+      "모든 미션을 완료한 지갑만 신규·복귀 사용자 공개 집계에 포함해요.",
+    missionTitle: "친구가 모든 미션 완료",
+    missionDescription:
+      "서로 다른 VeBetterDAO dApp 3개 이상에서 각각 B3TR 보상을 받고, B3TR을 VOT3로 전환한 뒤 Allocation Voting에 1회 참여해요.",
+    rewardTitle: "보상 자동 지급",
+    rewardDescription:
+      "친구의 초대가 완료되어 보상 대상이 되면 VeInvite가 지급 절차에 따라 보상을 자동으로 지급해요. 완료된 친구의 슬롯은 다시 열려 새로운 친구를 초대할 수 있어요.",
+  },
+  zh: {
+    title: "邀请是如何进行的？",
+    inviteStepTitle: "分享邀请链接",
+    eligibilityTitle: "哪些用户可以参加？",
+    countTitle: "公开数据如何统计？",
+    flowDescription:
+      "仅分享链接并不算完成邀请。好友需要通过资格检查并完成所有任务，邀请才算完成。",
+    inviteDescription:
+      "你有 1 个永久邀请链接和 2 个可重复使用的好友名额。最多可有 2 位符合资格的好友同时进行，仅打开链接不会占用名额。",
+    countDescription:
+      "只有完成所有任务的钱包才会计入公开的新用户和回归用户数据。",
+    missionTitle: "好友完成所有任务",
+    missionDescription:
+      "在至少 3 个不同的 VeBetterDAO dApp 中分别获得 B3TR 奖励，将 B3TR 转换为 VOT3，并参与 1 次 Allocation Voting。",
+    rewardTitle: "奖励自动发放",
+    rewardDescription:
+      "好友的邀请完成并符合奖励条件后，VeInvite 会按奖励流程自动发放奖励。已完成好友占用的名额会重新开放，可继续邀请新好友。",
+  },
+  hi: {
+    title: "निमंत्रण कैसे आगे बढ़ता है?",
+    inviteStepTitle: "अपना निमंत्रण लिंक साझा करें",
+    eligibilityTitle: "कौन भाग ले सकता है?",
+    countTitle: "सार्वजनिक आँकड़े कैसे गिने जाते हैं?",
+    flowDescription:
+      "सिर्फ लिंक साझा करने से निमंत्रण पूरा नहीं होता। आपके दोस्त को पात्रता जाँच पास करनी होगी और सभी मिशन पूरे करने होंगे।",
+    inviteDescription:
+      "आपके पास 1 स्थायी निमंत्रण लिंक और 2 दोबारा इस्तेमाल होने वाले मित्र स्लॉट हैं। एक समय में अधिकतम 2 पात्र मित्र आगे बढ़ सकते हैं, और सिर्फ लिंक खोलने से स्लॉट इस्तेमाल नहीं होता।",
+    countDescription:
+      "सिर्फ वे वॉलेट सार्वजनिक नए और लौटने वाले उपयोगकर्ता आँकड़ों में शामिल होते हैं जो सभी मिशन पूरे करते हैं।",
+    missionTitle: "आपका दोस्त सभी मिशन पूरे करे",
+    missionDescription:
+      "कम से कम 3 अलग-अलग VeBetterDAO dApps से B3TR इनाम पाएं, B3TR को VOT3 में बदलें और Allocation Voting में एक बार भाग लें।",
+    rewardTitle: "इनाम अपने-आप दिया जाता है",
+    rewardDescription:
+      "जब आपके दोस्त का निमंत्रण पूरा हो जाता है और इनाम के लिए पात्र होता है, VeInvite भुगतान प्रक्रिया के अनुसार इनाम अपने-आप देता है। पूरा हुआ स्लॉट फिर खुल जाता है ताकि आप नए दोस्त को आमंत्रित कर सकें।",
+  },
+  es: {
+    title: "¿Cómo funcionan las invitaciones?",
+    inviteStepTitle: "Comparte tu enlace de invitación",
+    eligibilityTitle: "¿Quién puede participar?",
+    countTitle: "¿Cómo se calculan los datos públicos?",
+    flowDescription:
+      "Compartir el enlace no completa la invitación. Tu amigo debe superar la comprobación de elegibilidad y completar todas las misiones.",
+    inviteDescription:
+      "Tienes 1 enlace de invitación permanente y 2 cupos reutilizables. Hasta 2 amigos elegibles pueden avanzar al mismo tiempo, y abrir el enlace por sí solo no ocupa un cupo.",
+    countDescription:
+      "Solo las carteras que completan todas las misiones se incluyen en los totales públicos de usuarios nuevos y que regresan.",
+    missionTitle: "Tu amigo completa todas las misiones",
+    missionDescription:
+      "Recibe recompensas B3TR en al menos 3 dApps distintas de VeBetterDAO, convierte B3TR a VOT3 y participa una vez en Allocation Voting.",
+    rewardTitle: "La recompensa se paga automáticamente",
+    rewardDescription:
+      "Cuando la invitación de tu amigo se completa y cumple los requisitos de recompensa, VeInvite paga la recompensa automáticamente siguiendo el proceso de distribución. El cupo del amigo completado vuelve a quedar libre para invitar a otra persona.",
+  },
+  ja: {
+    title: "招待はどのように進みますか？",
+    inviteStepTitle: "招待リンクを共有",
+    eligibilityTitle: "参加できるのは？",
+    countTitle: "公開集計はどう数えますか？",
+    flowDescription:
+      "リンクを共有しただけでは招待完了にはなりません。友だちが参加資格の確認を通過し、すべてのミッションを完了すると招待完了です。",
+    inviteDescription:
+      "永久招待リンクは1つ、再利用できる友だち枠は2つです。対象の友だちは同時に最大2人まで進められ、リンクを開くだけでは枠は使用されません。",
+    countDescription:
+      "すべてのミッションを完了したウォレットだけを、新規・復帰ユーザーの公開集計に含めます。",
+    missionTitle: "友だちがすべてのミッションを完了",
+    missionDescription:
+      "異なるVeBetterDAO dApp 3つ以上でそれぞれB3TR報酬を受け取り、B3TRをVOT3に変換して、Allocation Votingに1回参加します。",
+    rewardTitle: "報酬は自動で支払われます",
+    rewardDescription:
+      "友だちの招待が完了して報酬対象になると、VeInviteが支払い手続きに沿って報酬を自動で支払います。完了した友だちの枠は再び空き、新しい友だちを招待できます。",
+  },
+  it: {
+    title: "Come funzionano gli inviti?",
+    inviteStepTitle: "Condividi il link di invito",
+    eligibilityTitle: "Chi può partecipare?",
+    countTitle: "Come vengono conteggiati i dati pubblici?",
+    flowDescription:
+      "Condividere il link non completa l’invito. Il tuo amico deve superare il controllo di idoneità e completare tutte le missioni.",
+    inviteDescription:
+      "Hai 1 link di invito permanente e 2 posti riutilizzabili. Fino a 2 amici idonei possono procedere contemporaneamente e aprire il link, da solo, non occupa un posto.",
+    countDescription:
+      "Nei totali pubblici dei nuovi utenti e degli utenti di ritorno rientrano solo i wallet che completano tutte le missioni.",
+    missionTitle: "Il tuo amico completa tutte le missioni",
+    missionDescription:
+      "Riceve ricompense B3TR da almeno 3 dApp VeBetterDAO diverse, converte B3TR in VOT3 e partecipa una volta all’Allocation Voting.",
+    rewardTitle: "La ricompensa viene pagata automaticamente",
+    rewardDescription:
+      "Quando l’invito del tuo amico è completato e risulta idoneo alla ricompensa, VeInvite effettua automaticamente il pagamento secondo il processo di distribuzione. Il posto dell’amico completato torna disponibile per invitare una nuova persona.",
+  },
+  tr: {
+    title: "Davetler nasıl ilerliyor?",
+    inviteStepTitle: "Davet bağlantını paylaş",
+    eligibilityTitle: "Kimler katılabilir?",
+    countTitle: "Herkese açık sayılar nasıl hesaplanıyor?",
+    flowDescription:
+      "Bağlantıyı paylaşmak daveti tamamlamaz. Arkadaşın uygunluk kontrolünü geçmeli ve tüm görevleri tamamlamalıdır.",
+    inviteDescription:
+      "1 kalıcı davet bağlantın ve yeniden kullanılabilen 2 arkadaş yuvan var. Aynı anda en fazla 2 uygun arkadaş ilerleyebilir; yalnızca bağlantıyı açmak bir yuva kullanmaz.",
+    countDescription:
+      "Herkese açık yeni ve geri dönen kullanıcı toplamlarına yalnızca tüm görevleri tamamlayan cüzdanlar dahil edilir.",
+    missionTitle: "Arkadaşın tüm görevleri tamamlasın",
+    missionDescription:
+      "En az 3 farklı VeBetterDAO dApp’inden ayrı ayrı B3TR ödülü alır, B3TR’yi VOT3’e dönüştürür ve Allocation Voting’e bir kez katılır.",
+    rewardTitle: "Ödül otomatik olarak ödenir",
+    rewardDescription:
+      "Arkadaşının daveti tamamlanıp ödüle uygun olduğunda VeInvite ödeme sürecine göre ödülü otomatik olarak gönderir. Tamamlanan arkadaşın yuvası yeniden açılır ve yeni bir arkadaş davet edebilirsin.",
+  },
+  nl: {
+    title: "Hoe werken uitnodigingen?",
+    inviteStepTitle: "Deel je uitnodigingslink",
+    eligibilityTitle: "Wie kan meedoen?",
+    countTitle: "Hoe worden de openbare cijfers geteld?",
+    flowDescription:
+      "Alleen de link delen rondt een uitnodiging niet af. Je vriend moet de geschiktheidscontrole doorstaan en alle missies voltooien.",
+    inviteDescription:
+      "Je hebt 1 permanente uitnodigingslink en 2 herbruikbare vriendplekken. Maximaal 2 geschikte vrienden kunnen tegelijk doorgaan en alleen de link openen gebruikt geen plek.",
+    countDescription:
+      "Alleen wallets die alle missies voltooien, tellen mee in de openbare totalen voor nieuwe en terugkerende gebruikers.",
+    missionTitle: "Je vriend voltooit alle missies",
+    missionDescription:
+      "Ontvang B3TR-beloningen via minimaal 3 verschillende VeBetterDAO-dApps, zet B3TR om naar VOT3 en neem één keer deel aan Allocation Voting.",
+    rewardTitle: "Je beloning wordt automatisch uitbetaald",
+    rewardDescription:
+      "Zodra de uitnodiging van je vriend is voltooid en voor een beloning in aanmerking komt, betaalt VeInvite de beloning automatisch uit volgens het uitbetalingsproces. De plek van de voltooide vriend komt weer vrij voor een nieuwe uitnodiging.",
+  },
+  de: {
+    title: "Wie funktionieren Einladungen?",
+    inviteStepTitle: "Einladungslink teilen",
+    eligibilityTitle: "Wer kann teilnehmen?",
+    countTitle: "Wie werden die öffentlichen Zahlen gezählt?",
+    flowDescription:
+      "Das Teilen des Links allein schließt eine Einladung nicht ab. Dein Freund muss die Berechtigungsprüfung bestehen und alle Missionen abschließen.",
+    inviteDescription:
+      "Du hast 1 permanenten Einladungslink und 2 wiederverwendbare Freund-Plätze. Bis zu 2 berechtigte Freunde können gleichzeitig teilnehmen; nur das Öffnen des Links belegt keinen Platz.",
+    countDescription:
+      "Nur Wallets, die alle Missionen abschließen, werden in den öffentlichen Zahlen für neue und zurückkehrende Nutzer berücksichtigt.",
+    missionTitle: "Dein Freund schließt alle Missionen ab",
+    missionDescription:
+      "Er erhält B3TR-Belohnungen aus mindestens 3 verschiedenen VeBetterDAO-dApps, wandelt B3TR in VOT3 um und nimmt einmal am Allocation Voting teil.",
+    rewardTitle: "Die Belohnung wird automatisch ausgezahlt",
+    rewardDescription:
+      "Sobald die Einladung deines Freundes abgeschlossen und für eine Belohnung berechtigt ist, zahlt VeInvite die Belohnung gemäß dem Auszahlungsprozess automatisch aus. Der Platz des abgeschlossenen Freundes wird wieder frei, sodass du jemand Neues einladen kannst.",
+  },
+  fr: {
+    title: "Comment fonctionnent les invitations ?",
+    inviteStepTitle: "Partagez votre lien d’invitation",
+    eligibilityTitle: "Qui peut participer ?",
+    countTitle: "Comment les chiffres publics sont-ils comptabilisés ?",
+    flowDescription:
+      "Partager le lien ne suffit pas à terminer une invitation. Votre ami doit réussir la vérification d’éligibilité et terminer toutes les missions.",
+    inviteDescription:
+      "Vous disposez d’1 lien d’invitation permanent et de 2 places réutilisables. Jusqu’à 2 amis éligibles peuvent avancer en même temps, et ouvrir simplement le lien n’utilise aucune place.",
+    countDescription:
+      "Seuls les wallets qui terminent toutes les missions sont inclus dans les totaux publics des nouveaux utilisateurs et des utilisateurs de retour.",
+    missionTitle: "Votre ami termine toutes les missions",
+    missionDescription:
+      "Il reçoit des récompenses B3TR dans au moins 3 dApps VeBetterDAO différentes, convertit le B3TR en VOT3 et participe une fois à l’Allocation Voting.",
+    rewardTitle: "La récompense est versée automatiquement",
+    rewardDescription:
+      "Lorsque l’invitation de votre ami est terminée et éligible à une récompense, VeInvite verse automatiquement la récompense selon le processus de paiement. La place de l’ami ayant terminé se libère à nouveau pour inviter une nouvelle personne.",
+  },
+  ar: {
+    title: "كيف تسير الدعوات؟",
+    inviteStepTitle: "شارك رابط الدعوة",
+    eligibilityTitle: "من يمكنه المشاركة؟",
+    countTitle: "كيف تُحتسب الأرقام العامة؟",
+    flowDescription:
+      "مشاركة الرابط وحدها لا تُكمل الدعوة. يجب أن يجتاز صديقك فحص الأهلية ويُكمل جميع المهام.",
+    inviteDescription:
+      "لديك رابط دعوة دائم واحد ومكانان قابلان لإعادة الاستخدام للأصدقاء. يمكن لما يصل إلى صديقين مؤهلين التقدم في الوقت نفسه، ومجرد فتح الرابط لا يشغل مكانًا.",
+    countDescription:
+      "لا تُدرج في الأعداد العامة للمستخدمين الجدد والعائدين إلا المحافظ التي تُكمل جميع المهام.",
+    missionTitle: "يُكمل صديقك جميع المهام",
+    missionDescription:
+      "يحصل على مكافآت B3TR من 3 dApps مختلفة على الأقل في VeBetterDAO، ويحوّل B3TR إلى VOT3، ثم يشارك مرة واحدة في Allocation Voting.",
+    rewardTitle: "تُدفع المكافأة تلقائيًا",
+    rewardDescription:
+      "بعد اكتمال دعوة صديقك وتأهلها للمكافأة، يدفع VeInvite المكافأة تلقائيًا وفق عملية التوزيع. ويصبح مكان الصديق الذي أكمل الدعوة متاحًا من جديد لدعوة شخص آخر.",
+  },
+  bn: {
+    title: "আমন্ত্রণ কীভাবে এগোয়?",
+    inviteStepTitle: "আমন্ত্রণ লিংক শেয়ার করুন",
+    eligibilityTitle: "কারা অংশ নিতে পারবেন?",
+    countTitle: "পাবলিক হিসাব কীভাবে করা হয়?",
+    flowDescription:
+      "শুধু লিংক শেয়ার করলেই আমন্ত্রণ সম্পন্ন হয় না। আপনার বন্ধুকে যোগ্যতা যাচাই পাস করে সব মিশন শেষ করতে হবে।",
+    inviteDescription:
+      "আপনার ১টি স্থায়ী আমন্ত্রণ লিংক ও পুনরায় ব্যবহারযোগ্য ২টি ফ্রেন্ড স্লট আছে। একসঙ্গে সর্বোচ্চ ২ জন যোগ্য বন্ধু এগোতে পারবেন, আর শুধু লিংক খুললে কোনো স্লট ব্যবহার হবে না।",
+    countDescription:
+      "সব মিশন সম্পন্ন করা ওয়ালেটগুলোকেই শুধু নতুন ও ফিরে আসা ব্যবহারকারীর পাবলিক মোট সংখ্যায় ধরা হয়।",
+    missionTitle: "আপনার বন্ধু সব মিশন সম্পন্ন করেন",
+    missionDescription:
+      "কমপক্ষে ৩টি ভিন্ন VeBetterDAO dApp থেকে আলাদাভাবে B3TR পুরস্কার নেন, B3TR-কে VOT3-এ রূপান্তর করেন এবং Allocation Voting-এ একবার অংশ নেন।",
+    rewardTitle: "পুরস্কার স্বয়ংক্রিয়ভাবে দেওয়া হয়",
+    rewardDescription:
+      "আপনার বন্ধুর আমন্ত্রণ সম্পন্ন হয়ে পুরস্কারের যোগ্য হলে, VeInvite পেমেন্ট প্রক্রিয়া অনুযায়ী পুরস্কার স্বয়ংক্রিয়ভাবে দেয়। সম্পন্ন বন্ধুর স্লট আবার খালি হয়, তাই নতুন বন্ধুকে আমন্ত্রণ জানাতে পারবেন।",
+  },
+  pt: {
+    title: "Como funcionam os convites?",
+    inviteStepTitle: "Compartilhe seu link de convite",
+    eligibilityTitle: "Quem pode participar?",
+    countTitle: "Como os números públicos são contabilizados?",
+    flowDescription:
+      "Só compartilhar o link não conclui o convite. Seu amigo precisa passar pela verificação de elegibilidade e completar todas as missões.",
+    inviteDescription:
+      "Você tem 1 link de convite permanente e 2 vagas reutilizáveis. Até 2 amigos elegíveis podem avançar ao mesmo tempo, e apenas abrir o link não ocupa uma vaga.",
+    countDescription:
+      "Somente carteiras que completam todas as missões entram nos totais públicos de usuários novos e retornando.",
+    missionTitle: "Seu amigo completa todas as missões",
+    missionDescription:
+      "Recebe recompensas B3TR em pelo menos 3 dApps diferentes da VeBetterDAO, converte B3TR em VOT3 e participa uma vez do Allocation Voting.",
+    rewardTitle: "A recompensa é paga automaticamente",
+    rewardDescription:
+      "Quando o convite do seu amigo é concluído e se torna elegível à recompensa, a VeInvite faz o pagamento automaticamente de acordo com o processo de distribuição. A vaga do amigo concluído fica disponível novamente para convidar outra pessoa.",
+  },
+  ru: {
+    title: "Как работают приглашения?",
+    inviteStepTitle: "Поделитесь ссылкой-приглашением",
+    eligibilityTitle: "Кто может участвовать?",
+    countTitle: "Как считаются публичные показатели?",
+    flowDescription:
+      "Одной отправки ссылки недостаточно, чтобы завершить приглашение. Друг должен пройти проверку соответствия и выполнить все задания.",
+    inviteDescription:
+      "У вас есть 1 постоянная ссылка-приглашение и 2 повторно используемых слота для друзей. Одновременно могут проходить до 2 подходящих друзей, а простое открытие ссылки слот не занимает.",
+    countDescription:
+      "В публичную статистику новых и вернувшихся пользователей входят только кошельки, выполнившие все задания.",
+    missionTitle: "Друг выполняет все задания",
+    missionDescription:
+      "Получает B3TR-награды как минимум в 3 разных dApp VeBetterDAO, конвертирует B3TR в VOT3 и один раз участвует в Allocation Voting.",
+    rewardTitle: "Награда выплачивается автоматически",
+    rewardDescription:
+      "Когда приглашение друга завершено и соответствует условиям награды, VeInvite автоматически выплачивает награду по установленному процессу. Освободившийся слот снова становится доступен для нового приглашения.",
+  },
+  id: {
+    title: "Bagaimana proses undangan berjalan?",
+    inviteStepTitle: "Bagikan tautan undangan",
+    eligibilityTitle: "Siapa yang bisa ikut?",
+    countTitle: "Bagaimana angka publik dihitung?",
+    flowDescription:
+      "Membagikan tautan saja belum menyelesaikan undangan. Temanmu harus lolos pemeriksaan kelayakan dan menyelesaikan semua misi.",
+    inviteDescription:
+      "Kamu memiliki 1 tautan undangan permanen dan 2 slot teman yang dapat digunakan kembali. Hingga 2 teman yang memenuhi syarat dapat berjalan bersamaan, dan sekadar membuka tautan tidak memakai slot.",
+    countDescription:
+      "Hanya wallet yang menyelesaikan semua misi yang masuk dalam total publik pengguna baru dan pengguna yang kembali.",
+    missionTitle: "Temanmu menyelesaikan semua misi",
+    missionDescription:
+      "Mendapatkan reward B3TR dari setidaknya 3 dApp VeBetterDAO yang berbeda, mengonversi B3TR ke VOT3, lalu berpartisipasi sekali dalam Allocation Voting.",
+    rewardTitle: "Reward dibayar otomatis",
+    rewardDescription:
+      "Setelah undangan temanmu selesai dan memenuhi syarat reward, VeInvite membayar reward secara otomatis sesuai proses pembayaran. Slot teman yang sudah selesai akan terbuka lagi sehingga kamu bisa mengundang teman baru.",
+  },
+  vi: {
+    title: "Lời mời được thực hiện như thế nào?",
+    inviteStepTitle: "Chia sẻ liên kết mời",
+    eligibilityTitle: "Ai có thể tham gia?",
+    countTitle: "Số liệu công khai được tính như thế nào?",
+    flowDescription:
+      "Chỉ chia sẻ liên kết chưa hoàn tất lời mời. Bạn của bạn phải vượt qua kiểm tra điều kiện và hoàn thành tất cả nhiệm vụ.",
+    inviteDescription:
+      "Bạn có 1 liên kết mời vĩnh viễn và 2 suất bạn bè có thể tái sử dụng. Tối đa 2 người bạn đủ điều kiện có thể cùng tham gia, và chỉ mở liên kết sẽ không chiếm suất.",
+    countDescription:
+      "Chỉ những ví hoàn thành tất cả nhiệm vụ mới được tính vào tổng số công khai của người dùng mới và người dùng quay lại.",
+    missionTitle: "Bạn của bạn hoàn thành tất cả nhiệm vụ",
+    missionDescription:
+      "Nhận phần thưởng B3TR từ ít nhất 3 dApp VeBetterDAO khác nhau, chuyển B3TR sang VOT3 và tham gia Allocation Voting 1 lần.",
+    rewardTitle: "Phần thưởng được trả tự động",
+    rewardDescription:
+      "Khi lời mời của bạn bè hoàn tất và đủ điều kiện nhận thưởng, VeInvite sẽ tự động trả thưởng theo quy trình chi trả. Suất của người đã hoàn tất sẽ mở lại để bạn mời người mới.",
+  },
+  'zh-tw': {
+    title: "邀請是怎麼進行的？",
+    inviteStepTitle: "分享邀請連結",
+    eligibilityTitle: "誰可以參加？",
+    countTitle: "公開數據如何計算？",
+    flowDescription:
+      "只分享連結並不算完成邀請。好友需要通過資格檢查並完成所有任務，邀請才算完成。",
+    inviteDescription:
+      "你有 1 個永久邀請連結和 2 個可重複使用的好友名額。最多可有 2 位符合資格的好友同時進行，只打開連結不會占用名額。",
+    countDescription:
+      "只有完成所有任務的錢包才會計入公開的新用戶與回歸用戶數據。",
+    missionTitle: "好友完成所有任務",
+    missionDescription:
+      "在至少 3 個不同的 VeBetterDAO dApp 中分別獲得 B3TR 獎勵，將 B3TR 轉換為 VOT3，並參與 1 次 Allocation Voting。",
+    rewardTitle: "獎勵自動發放",
+    rewardDescription:
+      "好友的邀請完成並符合獎勵條件後，VeInvite 會依照發放流程自動支付獎勵。已完成好友的名額會重新開放，可繼續邀請新好友。",
+  },
+  sv: {
+    title: "Hur fungerar inbjudningar?",
+    inviteStepTitle: "Dela din inbjudningslänk",
+    eligibilityTitle: "Vem kan delta?",
+    countTitle: "Hur räknas de offentliga siffrorna?",
+    flowDescription:
+      "Att bara dela länken slutför inte en inbjudan. Din vän måste klara behörighetskontrollen och slutföra alla uppdrag.",
+    inviteDescription:
+      "Du har 1 permanent inbjudningslänk och 2 återanvändbara vänplatser. Upp till 2 behöriga vänner kan gå vidare samtidigt, och att bara öppna länken använder ingen plats.",
+    countDescription:
+      "Endast plånböcker som slutför alla uppdrag ingår i de offentliga totalerna för nya och återvändande användare.",
+    missionTitle: "Din vän slutför alla uppdrag",
+    missionDescription:
+      "Får B3TR-belöningar från minst 3 olika VeBetterDAO-dApps, konverterar B3TR till VOT3 och deltar en gång i Allocation Voting.",
+    rewardTitle: "Belöningen betalas automatiskt",
+    rewardDescription:
+      "När din väns inbjudan är klar och berättigar till belöning betalar VeInvite ut belöningen automatiskt enligt utbetalningsprocessen. Den färdiga vänens plats blir ledig igen så att du kan bjuda in någon ny.",
+  },
+  ro: {
+    title: "Cum funcționează invitațiile?",
+    inviteStepTitle: "Distribuie linkul de invitație",
+    eligibilityTitle: "Cine poate participa?",
+    countTitle: "Cum sunt calculate cifrele publice?",
+    flowDescription:
+      "Doar distribuirea linkului nu finalizează invitația. Prietenul tău trebuie să treacă verificarea eligibilității și să finalizeze toate misiunile.",
+    inviteDescription:
+      "Ai 1 link de invitație permanent și 2 locuri reutilizabile pentru prieteni. Până la 2 prieteni eligibili pot progresa simultan, iar simpla deschidere a linkului nu ocupă un loc.",
+    countDescription:
+      "Doar portofelele care finalizează toate misiunile sunt incluse în totalurile publice pentru utilizatori noi și reveniți.",
+    missionTitle: "Prietenul tău finalizează toate misiunile",
+    missionDescription:
+      "Primește recompense B3TR din cel puțin 3 dApp-uri VeBetterDAO diferite, convertește B3TR în VOT3 și participă o dată la Allocation Voting.",
+    rewardTitle: "Recompensa este plătită automat",
+    rewardDescription:
+      "Când invitația prietenului tău este finalizată și eligibilă pentru recompensă, VeInvite plătește automat recompensa conform procesului de distribuție. Locul prietenului finalizat devine din nou disponibil pentru o nouă invitație.",
+  },
+  ur: {
+    title: "دعوت کیسے آگے بڑھتی ہے؟",
+    inviteStepTitle: "دعوتی لنک شیئر کریں",
+    eligibilityTitle: "کون حصہ لے سکتا ہے؟",
+    countTitle: "عوامی اعداد کیسے شمار ہوتے ہیں؟",
+    flowDescription:
+      "صرف لنک شیئر کرنے سے دعوت مکمل نہیں ہوتی۔ آپ کے دوست کو اہلیت کی جانچ پاس کرنی اور تمام مشنز مکمل کرنے ہوتے ہیں۔",
+    inviteDescription:
+      "آپ کے پاس 1 مستقل دعوتی لنک اور دوبارہ استعمال ہونے والے 2 فرینڈ سلاٹس ہیں۔ ایک وقت میں زیادہ سے زیادہ 2 اہل دوست آگے بڑھ سکتے ہیں، اور صرف لنک کھولنے سے کوئی سلاٹ استعمال نہیں ہوتا۔",
+    countDescription:
+      "صرف وہ والیٹس نئے اور واپس آنے والے صارفین کے عوامی مجموعے میں شامل ہوتے ہیں جو تمام مشنز مکمل کریں۔",
+    missionTitle: "آپ کا دوست تمام مشنز مکمل کرے",
+    missionDescription:
+      "کم از کم 3 مختلف VeBetterDAO dApps سے الگ الگ B3TR انعام حاصل کرے، B3TR کو VOT3 میں تبدیل کرے اور Allocation Voting میں ایک بار حصہ لے۔",
+    rewardTitle: "انعام خودکار طور پر ادا ہوتا ہے",
+    rewardDescription:
+      "جب آپ کے دوست کی دعوت مکمل ہو جائے اور انعام کی اہل ہو، VeInvite ادائیگی کے عمل کے مطابق انعام خودکار طور پر ادا کرتا ہے۔ مکمل ہونے والے دوست کا سلاٹ دوبارہ کھل جاتا ہے تاکہ آپ کسی نئے دوست کو دعوت دے سکیں۔",
+  },
+  pcm: {
+    title: "How invitation dey work?",
+    inviteStepTitle: "Share your invite link",
+    eligibilityTitle: "Who fit join?",
+    countTitle: "How public numbers dey count?",
+    flowDescription:
+      "To share link alone no mean say invitation don complete. Your friend need pass eligibility check and finish all the missions.",
+    inviteDescription:
+      "You get 1 permanent invite link and 2 friend slots wey you fit use again. Up to 2 eligible friends fit dey progress same time, and just opening the link no go use slot.",
+    countDescription:
+      "Na only wallets wey finish all missions dey enter public total for new and returning users.",
+    missionTitle: "Your friend finish all missions",
+    missionDescription:
+      "Dem collect B3TR reward from at least 3 different VeBetterDAO dApps, change B3TR to VOT3, then join Allocation Voting one time.",
+    rewardTitle: "Reward go pay automatically",
+    rewardDescription:
+      "Once your friend invitation complete and qualify for reward, VeInvite go pay the reward automatically through the payout process. The slot for the friend wey finish go open again so you fit invite another person.",
+  },
+  arz: {
+    title: "الدعوة بتمشي إزاي؟",
+    inviteStepTitle: "شارك لينك الدعوة",
+    eligibilityTitle: "مين يقدر يشارك؟",
+    countTitle: "الأرقام العامة بتتحسب إزاي؟",
+    flowDescription:
+      "مجرد مشاركة اللينك مش بيكمل الدعوة. صاحبك لازم يعدّي فحص الأهلية ويكمل كل المهام.",
+    inviteDescription:
+      "عندك لينك دعوة دائم واحد و2 مكان للأصحاب تقدر تستخدمهم تاني. لحد 2 من أصحابك المؤهلين يقدروا يكملوا في نفس الوقت، ومجرد فتح اللينك مش بيشغل مكان.",
+    countDescription:
+      "المحافظ اللي بتكمل كل المهام بس هي اللي بتدخل في العدد العام للمستخدمين الجدد والراجعين.",
+    missionTitle: "صاحبك يكمل كل المهام",
+    missionDescription:
+      "ياخد مكافآت B3TR من 3 dApps مختلفة على الأقل في VeBetterDAO، ويحوّل B3TR لـ VOT3، ويشارك مرة واحدة في Allocation Voting.",
+    rewardTitle: "المكافأة بتتدفع تلقائي",
+    rewardDescription:
+      "لما دعوة صاحبك تكتمل وتبقى مؤهلة للمكافأة، VeInvite بيدفع المكافأة تلقائي حسب عملية الدفع. مكان صاحبك اللي خلص بيفتح تاني عشان تقدر تدعو شخص جديد.",
+  },
+  mr: {
+    title: "आमंत्रण कसे पुढे जाते?",
+    inviteStepTitle: "आमंत्रण लिंक शेअर करा",
+    eligibilityTitle: "कोण सहभागी होऊ शकते?",
+    countTitle: "सार्वजनिक आकडे कसे मोजले जातात?",
+    flowDescription:
+      "फक्त लिंक शेअर केल्याने आमंत्रण पूर्ण होत नाही. तुमच्या मित्राने पात्रता तपासणी पास करून सर्व मिशन्स पूर्ण करणे आवश्यक आहे.",
+    inviteDescription:
+      "तुमच्याकडे 1 कायमस्वरूपी आमंत्रण लिंक आणि पुन्हा वापरता येणारे 2 मित्र स्लॉट आहेत. एकावेळी जास्तीत जास्त 2 पात्र मित्र पुढे जाऊ शकतात, आणि फक्त लिंक उघडल्याने स्लॉट वापरला जात नाही.",
+    countDescription:
+      "सर्व मिशन्स पूर्ण करणारी वॉलेट्सच नवीन आणि परत आलेल्या वापरकर्त्यांच्या सार्वजनिक एकूण संख्येत धरली जातात.",
+    missionTitle: "तुमचा मित्र सर्व मिशन्स पूर्ण करतो",
+    missionDescription:
+      "किमान 3 वेगवेगळ्या VeBetterDAO dApps मधून स्वतंत्रपणे B3TR बक्षिसे मिळवतो, B3TR चे VOT3 मध्ये रूपांतर करतो आणि Allocation Voting मध्ये एकदा सहभागी होतो.",
+    rewardTitle: "बक्षीस आपोआप दिले जाते",
+    rewardDescription:
+      "तुमच्या मित्राचे आमंत्रण पूर्ण होऊन बक्षिसासाठी पात्र झाल्यावर VeInvite देयक प्रक्रियेनुसार बक्षीस आपोआप देते. पूर्ण झालेल्या मित्राचा स्लॉट पुन्हा मोकळा होतो, त्यामुळे तुम्ही नवीन मित्राला आमंत्रित करू शकता.",
+  },
+  te: {
+    title: "ఆహ్వానం ఎలా కొనసాగుతుంది?",
+    inviteStepTitle: "ఆహ్వాన లింక్‌ను షేర్ చేయండి",
+    eligibilityTitle: "ఎవరు పాల్గొనవచ్చు?",
+    countTitle: "పబ్లిక్ సంఖ్యలు ఎలా లెక్కించబడతాయి?",
+    flowDescription:
+      "లింక్‌ను షేర్ చేయడం మాత్రమే ఆహ్వానాన్ని పూర్తి చేయదు. మీ స్నేహితుడు అర్హత తనిఖీని దాటి అన్ని మిషన్లను పూర్తి చేయాలి.",
+    inviteDescription:
+      "మీకు 1 శాశ్వత ఆహ్వాన లింక్ మరియు మళ్లీ ఉపయోగించగల 2 ఫ్రెండ్ స్లాట్లు ఉన్నాయి. ఒకేసారి గరిష్ఠంగా 2 అర్హులైన స్నేహితులు ముందుకు సాగవచ్చు, లింక్‌ను తెరవడం మాత్రమే స్లాట్‌ను ఉపయోగించదు.",
+    countDescription:
+      "అన్ని మిషన్లు పూర్తి చేసిన వాలెట్లు మాత్రమే కొత్త మరియు తిరిగి వచ్చిన వినియోగదారుల పబ్లిక్ మొత్తాల్లో లెక్కించబడతాయి.",
+    missionTitle: "మీ స్నేహితుడు అన్ని మిషన్లను పూర్తి చేస్తాడు",
+    missionDescription:
+      "కనీసం 3 వేర్వేరు VeBetterDAO dApps నుంచి విడివిడిగా B3TR రివార్డులు పొంది, B3TRను VOT3గా మార్చి, Allocation Votingలో ఒకసారి పాల్గొంటాడు.",
+    rewardTitle: "రివార్డ్ ఆటోమేటిక్‌గా చెల్లించబడుతుంది",
+    rewardDescription:
+      "మీ స్నేహితుడి ఆహ్వానం పూర్తై రివార్డ్‌కు అర్హత సాధించిన తర్వాత, VeInvite చెల్లింపు ప్రక్రియ ప్రకారం రివార్డ్‌ను ఆటోమేటిక్‌గా చెల్లిస్తుంది. పూర్తైన స్నేహితుడి స్లాట్ మళ్లీ ఖాళీ అవుతుంది, కాబట్టి కొత్త స్నేహితుడిని ఆహ్వానించవచ్చు.",
+  },
+  sw: {
+    title: "Mwaliko unaendeleaje?",
+    inviteStepTitle: "Shiriki kiungo cha mwaliko",
+    eligibilityTitle: "Nani anaweza kushiriki?",
+    countTitle: "Takwimu za umma zinahesabiwaje?",
+    flowDescription:
+      "Kushiriki kiungo pekee hakumalizi mwaliko. Rafiki yako lazima apite ukaguzi wa ustahiki na amalize misheni zote.",
+    inviteDescription:
+      "Una kiungo 1 cha kudumu cha mwaliko na nafasi 2 za marafiki zinazoweza kutumika tena. Hadi marafiki 2 wanaostahiki wanaweza kuendelea kwa wakati mmoja, na kufungua tu kiungo hakutumii nafasi.",
+    countDescription:
+      "Ni wallet zinazomaliza misheni zote pekee zinazojumuishwa katika jumla za umma za watumiaji wapya na wanaorudi.",
+    missionTitle: "Rafiki yako anamaliza misheni zote",
+    missionDescription:
+      "Anapata zawadi za B3TR kutoka angalau dApp 3 tofauti za VeBetterDAO, anabadilisha B3TR kuwa VOT3, kisha anashiriki mara moja katika Allocation Voting.",
+    rewardTitle: "Zawadi inalipwa kiotomatiki",
+    rewardDescription:
+      "Mwaliko wa rafiki yako ukikamilika na kustahiki zawadi, VeInvite inalipa zawadi kiotomatiki kulingana na mchakato wa malipo. Nafasi ya rafiki aliyekamilisha inafunguka tena ili uweze kumwalika mtu mpya.",
+  },
+  ha: {
+    title: "Ta yaya gayyata ke gudana?",
+    inviteStepTitle: "Raba hanyar gayyatarka",
+    eligibilityTitle: "Wa zai iya shiga?",
+    countTitle: "Ta yaya ake ƙididdige bayanan jama’a?",
+    flowDescription:
+      "Raba hanyar kawai ba ya kammala gayyata. Abokinka dole ya wuce tantance cancanta kuma ya kammala duk ayyuka.",
+    inviteDescription:
+      "Kana da hanyar gayyata ta dindindin 1 da wuraren abokai 2 da za a iya sake amfani da su. Har zuwa abokai 2 masu cancanta za su iya ci gaba a lokaci guda, kuma buɗe hanyar kawai ba ya amfani da wuri.",
+    countDescription:
+      "Wallets da suka kammala duk ayyuka ne kawai ake haɗawa cikin jimillar jama’a na sabbin masu amfani da masu dawowa.",
+    missionTitle: "Abokinka ya kammala duk ayyuka",
+    missionDescription:
+      "Ya karɓi ladan B3TR daga aƙalla dApps 3 daban-daban na VeBetterDAO, ya maida B3TR zuwa VOT3, sannan ya shiga Allocation Voting sau ɗaya.",
+    rewardTitle: "Ana biyan lada ta atomatik",
+    rewardDescription:
+      "Da zarar gayyatar abokinka ta kammala kuma ta cancanci lada, VeInvite zai bi tsarin biyan kuɗi ya biya ladan ta atomatik. Wurin abokin da ya kammala zai sake buɗewa domin ka gayyaci wani sabon aboki.",
+  },
+};
+
+for (const locale of SUPPORTED_LOCALES) {
+  const copy = FINAL_GUIDE_COPY[locale];
+
+  Object.assign(GUIDE_COPY[locale], {
+    title: copy.title,
+    inviteStepTitle: copy.inviteStepTitle,
+    eligibilityTitle: copy.eligibilityTitle,
+    countTitle: copy.countTitle,
+  });
+
+  Object.assign(GUIDE_FLOW_COPY[locale], {
+    description: copy.flowDescription,
+    inviteDescription: copy.inviteDescription,
+    countDescription: copy.countDescription,
+  });
+
+  Object.assign(GUIDE_MISSION_STEP_COPY[locale], {
+    title: copy.missionTitle,
+    description: copy.missionDescription,
+  });
+
+  Object.assign(GUIDE_REWARD_STEP_COPY[locale], {
+    title: copy.rewardTitle,
+    description: copy.rewardDescription,
+  });
+}
