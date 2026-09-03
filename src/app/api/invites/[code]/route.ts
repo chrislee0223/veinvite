@@ -21,6 +21,10 @@ import type {
 import {
   MIN_VOT3_CONVERSION_WEI,
 } from '@/lib/vebetter/vot3Conversion';
+import {
+  requireWalletSession,
+  WalletAuthenticationError,
+} from '@/lib/walletAuthServer';
 
 const INVITE_CODE_PATTERN = /^[A-HJ-NP-Z2-9]{7}$/;
 const INVITE_READ_CODE_LIMIT = 720;
@@ -186,6 +190,24 @@ function legacyIneligibleInviteResponse() {
       },
     },
   );
+}
+
+function walletAuthResponse(
+  error: unknown,
+): NextResponse | null {
+  if (error instanceof WalletAuthenticationError) {
+    return NextResponse.json(
+      { error: error.message },
+      {
+        status: error.status,
+        headers: {
+          'Cache-Control': 'no-store',
+        },
+      },
+    );
+  }
+
+  return null;
 }
 
 async function loadInvitation(
@@ -400,11 +422,11 @@ export async function GET(
 /**
  * Explicit reconciliation request.
  *
- * Browser POSTs are covered by the centralized same-origin / Fetch Metadata
- * guard in src/proxy.ts. This route remains public because the invitee mission
- * page must be able to reconcile before a reward exists; valid invite codes,
- * bounded rate limits and the underlying immutable evidence checks remain the
- * authorization boundary for progress observation.
+ * Reconciliation is available only to the wallet already bound to this
+ * accepted invitation. The invite page is wrapped in WalletSessionGate, so
+ * normal users already have this session before mission polling starts. This
+ * prevents a leaked/shared invite code from being used by unauthenticated
+ * scripts to consume the code-level sync budget or trigger chain scans.
  */
 export async function POST(
   request: NextRequest,
@@ -417,13 +439,31 @@ export async function POST(
   const normalizedCode = await resolveCode(context);
   if (!normalizedCode) return invalidInviteResponse();
 
-  const rateLimitResponse =
-    await enforceInviteRateLimit({
-      request,
-      normalizedCode,
-      mode: 'sync',
-    });
-  if (rateLimitResponse) return rateLimitResponse;
+  let sessionWallet: string;
+  try {
+    const session = await requireWalletSession({ request });
+    sessionWallet = session.walletAddress.toLowerCase();
+  } catch (error) {
+    const response = walletAuthResponse(error);
+    if (response) return response;
+
+    console.error(
+      'Failed to validate invitation reconciliation session:',
+      error,
+    );
+    return NextResponse.json(
+      {
+        error:
+          'Failed to validate wallet verification.',
+      },
+      {
+        status: 500,
+        headers: {
+          'Cache-Control': 'no-store',
+        },
+      },
+    );
+  }
 
   let row: InvitationRouteRow | null;
   try {
@@ -449,6 +489,32 @@ export async function POST(
   }
 
   if (!row) return invalidInviteResponse();
+
+  if (
+    !row.invitee_wallet ||
+    row.invitee_wallet.toLowerCase() !== sessionWallet
+  ) {
+    return NextResponse.json(
+      {
+        error:
+          'The verified wallet does not match this invitation.',
+      },
+      {
+        status: 403,
+        headers: {
+          'Cache-Control': 'no-store',
+        },
+      },
+    );
+  }
+
+  const rateLimitResponse =
+    await enforceInviteRateLimit({
+      request,
+      normalizedCode,
+      mode: 'sync',
+    });
+  if (rateLimitResponse) return rateLimitResponse;
 
   try {
     if (row.ineligibility_check_id !== null) {
