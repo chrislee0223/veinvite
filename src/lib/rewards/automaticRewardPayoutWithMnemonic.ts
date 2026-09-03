@@ -12,6 +12,7 @@ import {
   runAutomaticRewardPayout as runBaseAutomaticRewardPayout,
   type AutomaticRewardPayoutResult,
 } from './automaticRewardPayout';
+import { reserveEligibleReferralRewards } from './rewardReservation';
 
 const PRIVATE_KEY_PATTERN = /^(?:0x)?[0-9a-fA-F]{64}$/;
 const ADDRESS_PATTERN = /^0x[0-9a-f]{40}$/;
@@ -136,5 +137,12 @@ export function readAutomaticRewardDistributorReadiness() {
 export async function runAutomaticRewardPayout():
 Promise<AutomaticRewardPayoutResult> {
   prepareRewardDistributorSecret();
+
+  // Reservation and transfer are intentionally separate. This sweep fixes the
+  // amount for newly verified referrals even when the inviter is offline. Only
+  // entries later moved to QUEUED by an explicit claim can reach the base payout
+  // worker, so completing a mission never causes an automatic token transfer.
+  await reserveEligibleReferralRewards();
+
   return runBaseAutomaticRewardPayout();
 }
