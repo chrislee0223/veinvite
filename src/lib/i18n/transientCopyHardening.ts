@@ -3,11 +3,9 @@ import { REWARD_RECEIPT_COPY } from './rewardReceiptCopy';
 import { SETTINGS_COPY } from './settingsCopy';
 
 // Final product-copy review for transient/high-attention surfaces.
-// Product and protocol terms (VeInvite, VeBetterDAO, B3TR, VOT3,
-// Allocation Voting, dApp, VeChain Explorer) intentionally remain unchanged.
-// These overrides remove avoidable English UI scaffolding from a few expanded
-// locales while keeping familiar crypto terms where a forced translation would
-// be less natural for users.
+// Only VeChain, B3TR, VOT3, VeBetterDAO and VeInvite are treated as fixed
+// product/protocol names. A final terminology pass runs after these overrides
+// to localize generic crypto/UI vocabulary naturally for every locale.
 
 Object.assign(NOTIFICATION_COPY.mr, {
   bellAria: 'सूचना उघडा',
@@ -16,7 +14,7 @@ Object.assign(NOTIFICATION_COPY.mr, {
   vot3Body: 'तुमच्या मित्राने B3TR चे VOT3 मध्ये रूपांतरण केले आहे.',
   progressTitle: 'VOT3 रूपांतरण पूर्ण!',
   progressVot3Body:
-    'तुमच्या मित्राने dApp मिशन पूर्ण करून B3TR चे VOT3 मध्ये रूपांतरण केले आहे.',
+    'तुमच्या मित्राने अॅपचे मिशन पूर्ण करून B3TR चे VOT3 मध्ये रूपांतरण केले आहे.',
   allMissionsHint:
     'आता तुम्ही VeInvite मध्ये बक्षिसाची स्थिती पाहू शकता.',
   rewardTitle: 'बक्षीस दिले गेले!',
@@ -26,9 +24,9 @@ Object.assign(NOTIFICATION_COPY.mr, {
 });
 
 Object.assign(REWARD_RECEIPT_COPY.mr, {
-  eyebrow: 'रेफरल बक्षीस दिले गेले',
+  eyebrow: 'आमंत्रण बक्षीस दिले गेले',
   title: 'तुमचे B3TR बक्षीस आले आहे',
-  description: 'VeInvite रेफरल बक्षीस या वॉलेटमध्ये जमा झाले आहे.',
+  description: 'VeInvite आमंत्रण बक्षीस या वॉलेटमध्ये जमा झाले आहे.',
   transaction: 'व्यवहार',
   acknowledging: 'जतन करत आहे…',
   error:
@@ -76,15 +74,15 @@ Object.assign(NOTIFICATION_COPY.ha, {
   allMissionsHint:
     'Yanzu za ka iya duba matsayin ladan ka a VeInvite.',
   rewardTitle: 'An biya lada!',
-  rewardBody: 'An aika ladan B3TR zuwa wallet ɗinka.',
+  rewardBody: 'An aika ladan B3TR zuwa jakar kuɗinka.',
   acknowledgementError:
     'Ba a iya nuna wannan sanarwar a matsayin an karanta ba. Sake gwadawa.',
 });
 
 Object.assign(REWARD_RECEIPT_COPY.ha, {
-  eyebrow: 'AN BIYA LADAN REFERRAL',
+  eyebrow: 'AN BIYA LADAN GAYYATA',
   title: 'Ladan B3TR ɗinka ya iso',
-  description: 'An biya ladan referral na VeInvite zuwa wannan wallet.',
+  description: 'An biya ladan gayyatar VeInvite zuwa wannan jakar kuɗi.',
   acknowledging: 'Ana ajiyewa…',
   error:
     'Ba a iya nuna wannan takardar lada a matsayin an gani ba. Sake gwadawa.',
@@ -92,7 +90,7 @@ Object.assign(REWARD_RECEIPT_COPY.ha, {
 
 Object.assign(SETTINGS_COPY.ha, {
   working: 'Ana aiki…',
-  actionError: 'Ba a iya canza haɗin wallet ba. Sake gwadawa.',
+  actionError: 'Ba a iya canza haɗin jakar kuɗi ba. Sake gwadawa.',
   languageNote: 'Za a ajiye harshen da ka zaɓa don ziyara ta gaba.',
 });
 
