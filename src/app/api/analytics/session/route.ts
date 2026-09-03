@@ -28,6 +28,7 @@ const EVENT_KINDS = new Set([
   'pageview',
   'heartbeat',
   'end',
+  'wallet_authenticated',
 ]);
 const DEVICE_BUCKETS = new Set([
   'mobile',
@@ -106,6 +107,45 @@ function readBodyRecord(
     return null;
   }
   return value as Record<string, unknown>;
+}
+
+async function excludeAdminVisitor(
+  walletAddress: string,
+  hashedVisitor: string,
+): Promise<boolean> {
+  const { data, error } = await supabaseAdmin
+    .from('analytics_excluded_wallets')
+    .select('wallet_address')
+    .eq(
+      'wallet_address',
+      walletAddress.trim().toLowerCase(),
+    )
+    .eq('active', true)
+    .maybeSingle();
+
+  if (error) {
+    throw new Error(
+      `Analytics exclusion policy could not be checked: ${error.message}`,
+    );
+  }
+
+  if (!data) return false;
+
+  const { error: exclusionError } =
+    await supabaseAdmin.rpc(
+      'exclude_app_usage_visitor',
+      {
+        p_visitor_key: hashedVisitor,
+      },
+    );
+
+  if (exclusionError) {
+    throw new Error(
+      `Admin usage visitor could not be excluded: ${exclusionError.message}`,
+    );
+  }
+
+  return true;
 }
 
 export async function POST(
@@ -205,15 +245,37 @@ export async function POST(
   let walletConnected = false;
   if (kind !== 'heartbeat') {
     try {
+      const walletSession =
+        await getWalletSession(request);
       walletConnected = Boolean(
-        await getWalletSession(request),
+        walletSession,
       );
+
+      if (
+        walletSession &&
+        (await excludeAdminVisitor(
+          walletSession.walletAddress,
+          hashedVisitor,
+        ))
+      ) {
+        return noStore();
+      }
     } catch (error) {
       console.warn(
-        'Usage analytics wallet-session check failed:',
+        'Usage analytics wallet-session/exclusion check failed:',
         error,
       );
+
+      if (kind === 'wallet_authenticated') {
+        return noStore(503);
+      }
     }
+  }
+
+  // This signal exists only to resolve the privacy-safe anonymous visitor after
+  // wallet authentication. Non-admin wallets do not create an analytics row.
+  if (kind === 'wallet_authenticated') {
+    return noStore();
   }
 
   const { error } =
