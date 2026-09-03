@@ -5,16 +5,22 @@ import { createPortal } from 'react-dom';
 
 import { InviteGuideContent } from './AppGuide';
 import { InfoCircleIcon } from './InfoCircleIcon';
+import {
+  SOFT_FOCUS_MOTION_CSS,
+  softFocusCloseDelay,
+} from './SoftFocusMotion';
 import { GUIDE_COPY } from '@/lib/i18n/guideCopy';
 import { NOTIFICATION_COPY } from '@/lib/i18n/notificationCopy';
 import type { Locale } from '@/lib/i18n/locales';
 
 export function HomeGuideInfoPortal({ locale }: { locale: Locale }) {
   const [host, setHost] = useState<HTMLElement | null>(null);
-  const [open, setOpen] = useState(false);
+  const [dialogMounted, setDialogMounted] = useState(false);
+  const [dialogVisible, setDialogVisible] = useState(false);
   const triggerRef = useRef<HTMLButtonElement | null>(null);
   const dialogRef = useRef<HTMLDivElement | null>(null);
   const closeRef = useRef<HTMLButtonElement | null>(null);
+  const closeTimerRef = useRef<number | null>(null);
   const guide = GUIDE_COPY[locale];
 
   useEffect(() => {
@@ -23,13 +29,40 @@ export function HomeGuideInfoPortal({ locale }: { locale: Locale }) {
     return () => setHost(null);
   }, []);
 
-  const closeGuide = useCallback(() => {
-    setOpen(false);
-    window.requestAnimationFrame(() => triggerRef.current?.focus());
+  const openGuide = useCallback(() => {
+    if (closeTimerRef.current !== null) {
+      window.clearTimeout(closeTimerRef.current);
+      closeTimerRef.current = null;
+    }
+    setDialogMounted(true);
   }, []);
 
   useEffect(() => {
-    if (!open) return;
+    if (!dialogMounted) return;
+    const frame = window.requestAnimationFrame(() => setDialogVisible(true));
+    return () => window.cancelAnimationFrame(frame);
+  }, [dialogMounted]);
+
+  const closeGuide = useCallback(() => {
+    setDialogVisible(false);
+    if (closeTimerRef.current !== null) {
+      window.clearTimeout(closeTimerRef.current);
+    }
+    closeTimerRef.current = window.setTimeout(() => {
+      closeTimerRef.current = null;
+      setDialogMounted(false);
+      window.requestAnimationFrame(() => triggerRef.current?.focus());
+    }, softFocusCloseDelay());
+  }, []);
+
+  useEffect(() => () => {
+    if (closeTimerRef.current !== null) {
+      window.clearTimeout(closeTimerRef.current);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!dialogMounted) return;
 
     const previousOverflow = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
@@ -66,7 +99,7 @@ export function HomeGuideInfoPortal({ locale }: { locale: Locale }) {
       document.body.style.overflow = previousOverflow;
       document.removeEventListener('keydown', onKeyDown);
     };
-  }, [open, closeGuide]);
+  }, [dialogMounted, closeGuide]);
 
   const launcher = host
     ? createPortal(
@@ -133,7 +166,7 @@ export function HomeGuideInfoPortal({ locale }: { locale: Locale }) {
             className="veinviteGuideInfoButton"
             aria-label={guide.title}
             title={guide.title}
-            onClick={() => setOpen(true)}
+            onClick={openGuide}
           >
             <InfoCircleIcon size={18} />
           </button>
@@ -142,10 +175,11 @@ export function HomeGuideInfoPortal({ locale }: { locale: Locale }) {
       )
     : null;
 
-  const dialog = open && typeof document !== 'undefined'
+  const dialog = dialogMounted && typeof document !== 'undefined'
     ? createPortal(
         <div
-          className="veinviteGuideBackdrop"
+          className="veinviteGuideBackdrop veinviteSoftFocusBackdrop"
+          data-open={dialogVisible ? 'true' : 'false'}
           role="presentation"
           onMouseDown={(event) => {
             if (event.target === event.currentTarget) closeGuide();
@@ -153,25 +187,22 @@ export function HomeGuideInfoPortal({ locale }: { locale: Locale }) {
         >
           <div
             ref={dialogRef}
-            className="veinviteGuideDialog"
+            className="veinviteGuideDialog veinviteSoftFocusPanel"
             role="dialog"
             aria-modal="true"
             aria-label={guide.title}
           >
-            <div className="veinviteGuideDialogTop">
-              <button
-                ref={closeRef}
-                type="button"
-                className="veinviteGuideCloseButton"
-                onClick={closeGuide}
-                aria-label={NOTIFICATION_COPY[locale].closeAria}
-              >
-                ×
-              </button>
-            </div>
+            <button
+              ref={closeRef}
+              type="button"
+              className="veinviteSoftFocusClose"
+              onClick={closeGuide}
+              aria-label={NOTIFICATION_COPY[locale].closeAria}
+            />
             <InviteGuideContent locale={locale} />
           </div>
           <style>{`
+            ${SOFT_FOCUS_MOTION_CSS}
             .veinviteGuideBackdrop {
               position: fixed;
               z-index: 140;
@@ -194,28 +225,10 @@ export function HomeGuideInfoPortal({ locale }: { locale: Locale }) {
               color: #fff;
               box-shadow: 0 30px 90px rgba(0,0,0,.58);
             }
-            .veinviteGuideDialogTop {
-              display: flex;
-              justify-content: flex-end;
-              margin-bottom: 2px;
-            }
-            .veinviteGuideCloseButton {
-              width: 40px;
-              height: 40px;
-              display: grid;
-              place-items: center;
-              padding: 0;
-              border: 1px solid rgba(255,255,255,.1);
-              border-radius: 13px;
-              background: rgba(255,255,255,.04);
-              color: #fff;
-              font: inherit;
-              font-size: 1.25rem;
-              cursor: pointer;
-            }
-            .veinviteGuideCloseButton:focus-visible {
-              outline: none;
-              box-shadow: 0 0 0 3px rgba(244,183,40,.1);
+            .veinviteGuideDialog .guidePage > header > span,
+            .veinviteGuideDialog .guidePage > header > h1 {
+              display: block;
+              max-width: calc(100% - 54px);
             }
             @media (max-width: 560px) {
               .veinviteGuideDialog {
