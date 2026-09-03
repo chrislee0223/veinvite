@@ -5,14 +5,15 @@ import test from 'node:test';
 const read = (path) =>
   readFile(new URL(`../${path}`, import.meta.url), 'utf8');
 
-const [projection, reconciliation, compaction] = await Promise.all([
+const [projection, reconciliation, compaction, alignment] = await Promise.all([
   read('supabase/migrations/20260903150000_add_fast_operator_status_projections.sql'),
   read('supabase/migrations/20260903151000_add_fast_operator_reconciliation.sql'),
   read('supabase/migrations/20260903152000_align_usage_compaction_with_fast_projection.sql'),
+  read('supabase/migrations/20260903153000_align_final_locale_and_reconciliation_guard.sql'),
 ]);
 
 test('fast status remains a private derived layer', () => {
-  for (const sql of [projection, reconciliation, compaction]) {
+  for (const sql of [projection, reconciliation, compaction, alignment]) {
     assert.doesNotMatch(sql, /security\s+definer/iu);
   }
 
@@ -66,6 +67,17 @@ test('usage projection records one daily visitor with their latest current langu
   assert.match(projection, /set excluded = true/u);
 });
 
+test('all locale reporting uses one final locale per daily anonymous visitor', () => {
+  assert.match(alignment, /raw_final_locale_visitors/u);
+  assert.match(alignment, /group by usage_date, visitor_key/u);
+  assert.match(
+    alignment,
+    /array_agg\([\s\S]*current_locale[\s\S]*order by last_seen_at desc, updated_at desc, session_id desc/u,
+  );
+  assert.match(alignment, /where p_dimension = 'locale'/u);
+  assert.match(alignment, /count\(\*\)::bigint as unique_visitors/u);
+});
+
 test('fast read applies KST and centralized administrator exclusions', () => {
   assert.match(reconciliation, /Asia\/Seoul/u);
   assert.match(reconciliation, /analytics_excluded_wallets/u);
@@ -94,6 +106,15 @@ test('raw reconciliation remains independent of fast projection', () => {
   assert.match(raw, /invitations/u);
   assert.match(reconciliation, /ok\s*:=\s*fc\s*=\s*s/u);
   assert.match(reconciliation, /operator_fast_reconciliation_log/u);
+});
+
+test('reconciliation refuses compacted dates instead of reporting false drift', () => {
+  assert.match(alignment, /from public\.app_usage_daily_rollups/u);
+  assert.match(
+    alignment,
+    /fast status reconciliation is only supported while raw usage data is retained/u,
+  );
+  assert.match(alignment, /ok\s*:=\s*fc\s*=\s*s/u);
 });
 
 test('30-day compaction keeps only identifier-free final-language rollups', () => {
