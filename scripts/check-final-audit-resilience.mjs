@@ -242,15 +242,26 @@ for (const field of [
 
 if (
   !/X-Robots-Tag/.test(healthRoute) ||
+  !/Cache-Control': 'no-store'/.test(healthRoute) ||
   !/VERCEL_GIT_COMMIT_SHA/.test(healthRoute) ||
   !/gitCommitShortSha/.test(healthRoute) ||
   !/deployment,/.test(healthRoute) ||
-  !/automaticRewards:\s*\{\s*ready:\s*automaticRewardsReady/s.test(
-    healthRoute,
-  )
+  !/database:\s*'ready'/.test(healthRoute) ||
+  !/getVeBetterNetworkConfig\(\)\.network/.test(healthRoute)
 ) {
   failures.push(
-    'Public health route must remain minimal, non-indexable, and revision-aware.',
+    'Public health route must remain lightweight, non-indexable, uncached, database-aware, network-aware, and revision-aware.',
+  );
+}
+
+if (
+  /readRewardOperationsHealth|readVeInviteRewardPoolStatus|readPredictiveRewardPlanning|readAutomaticRewardDistributorReadiness/.test(
+    healthRoute,
+  ) ||
+  /count:\s*'exact'/.test(healthRoute)
+) {
+  failures.push(
+    'Anonymous health checks must not trigger reward-pool, signer, gas, queue, payout, predictive-planning, or exact-count work.',
   );
 }
 
