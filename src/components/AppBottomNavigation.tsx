@@ -4,7 +4,7 @@ import { startTransition, useEffect, useRef } from 'react';
 
 import { NAV_COPY } from '@/lib/i18n/navCopy';
 import { NETWORK_COPY } from '@/lib/i18n/networkCopy';
-import type { Locale } from '@/lib/i18n/locales';
+import type { SupportedLocale } from '@/lib/i18n/locales';
 import { prefetchPublicLeaderboard } from '@/lib/leaderboardClientCache';
 import { useActiveWallet } from './WalletControl';
 
@@ -43,7 +43,7 @@ export function AppBottomNavigation({
   onChange,
 }: {
   activeTab: AppTab;
-  locale: Locale;
+  locale: SupportedLocale;
   onChange: (tab: AppTab) => void;
 }) {
   const labels = NAV_COPY[locale];
