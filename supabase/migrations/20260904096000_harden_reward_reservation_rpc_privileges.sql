@@ -1,8 +1,6 @@
--- Keep all financial reservation and claim mutations server-only. The initial
--- reservation migration intentionally revoked PUBLIC execution from the new
--- commit RPC; this follow-up explicitly grants the application service role and
--- narrows helper RPCs so deployment cannot fail closed from a missing grant or
--- accidentally expose a financial mutation to anon/authenticated clients.
+-- Keep financial reservation/claim mutations and notification read-state
+-- mutations server-only. Explicit grants avoid both accidental browser access
+-- and fail-closed runtime errors after PUBLIC execution is revoked.
 
 alter function public.commit_reward_reservation(
   text,text,numeric,numeric,numeric,text,bigint,bigint,jsonb
@@ -44,6 +42,16 @@ grant execute on function public.prepare_predictive_reward_batch(
   text,text,numeric,bigint,integer,integer,numeric,text,jsonb
 ) to service_role;
 
+alter function public.acknowledge_invite_notification_v2(
+  text,text,integer,integer,boolean
+) set search_path to 'pg_catalog','public';
+revoke all on function public.acknowledge_invite_notification_v2(
+  text,text,integer,integer,boolean
+) from public, anon, authenticated;
+grant execute on function public.acknowledge_invite_notification_v2(
+  text,text,integer,integer,boolean
+) to service_role;
+
 alter function public.release_invitation_slot_after_reward_reservation()
   set search_path to 'pg_catalog','public';
 revoke all on function public.release_invitation_slot_after_reward_reservation()
@@ -52,3 +60,6 @@ revoke all on function public.release_invitation_slot_after_reward_reservation()
 comment on function public.commit_reward_reservation(
   text,text,numeric,numeric,numeric,text,bigint,bigint,jsonb
 ) is 'Server-only serialized commit of a finalized, fixed referral reward reservation.';
+comment on function public.acknowledge_invite_notification_v2(
+  text,text,integer,integer,boolean
+) is 'Server-only additive acknowledgement for referral notification progress without renumbering legacy stages.';
