@@ -2,7 +2,12 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import test from 'node:test';
 
-const [migration, auditMigration, placementMigration] = await Promise.all([
+const [
+  migration,
+  auditMigration,
+  placementMigration,
+  sponsorPlacementMigration,
+] = await Promise.all([
   readFile(
     new URL(
       '../supabase/migrations/20260903160000_prepare_two_invite_slot_foundation.sql',
@@ -20,6 +25,13 @@ const [migration, auditMigration, placementMigration] = await Promise.all([
   readFile(
     new URL(
       '../supabase/migrations/20260903162000_harden_binary_referral_placement.sql',
+      import.meta.url,
+    ),
+    'utf8',
+  ),
+  readFile(
+    new URL(
+      '../supabase/migrations/20260903163000_separate_sponsor_and_network_placement.sql',
       import.meta.url,
     ),
     'utf8',
@@ -103,24 +115,57 @@ test('slot audit trigger functions are not callable by application roles', () =>
 });
 
 test('permanent network placement is strictly binary and qualified', () => {
-  assert.match(
-    placementMigration,
-    /check \(slot in \(1, 2\)\)/i,
-  );
+  assert.match(placementMigration, /check \(slot in \(1, 2\)\)/i);
   assert.match(
     placementMigration,
     /only a qualified VeInvite referral relationship can receive a network placement slot/i,
   );
+  assert.match(placementMigration, /from public\.qualified_referral_relationships q/i);
+  assert.match(placementMigration, /new\.assigned_at < v_relationship_effective_at/i);
+});
+
+test('sponsorship and binary placement parent are separate graph concepts', () => {
   assert.match(
-    placementMigration,
-    /from public\.qualified_referral_relationships q/i,
+    sponsorPlacementMigration,
+    /rename column parent_wallet to sponsor_wallet/i,
   );
   assert.match(
-    placementMigration,
-    /new\.assigned_at < v_relationship_effective_at/i,
+    sponsorPlacementMigration,
+    /add column placement_parent_wallet text not null/i,
   );
   assert.match(
-    placementMigration,
-    /revoke all on function public\.validate_referral_slot_assignment\(\)[\s\S]*from public, anon, authenticated, service_role/i,
+    sponsorPlacementMigration,
+    /qualified referral relationship/i,
+  );
+  assert.match(
+    sponsorPlacementMigration,
+    /placement parent must be the sponsor or an existing wallet in the sponsor placement downline/i,
+  );
+  assert.match(
+    sponsorPlacementMigration,
+    /referral network placement would create a cycle/i,
+  );
+  assert.match(
+    sponsorPlacementMigration,
+    /q\.parent_wallet as sponsor_wallet/i,
+  );
+  assert.match(
+    sponsorPlacementMigration,
+    /a\.placement_parent_wallet/i,
+  );
+});
+
+test('placement redesign refuses to rewrite any existing placement history', () => {
+  assert.match(
+    sponsorPlacementMigration,
+    /if exists \(select 1 from public\.referral_slot_assignments limit 1\)/i,
+  );
+  assert.match(
+    sponsorPlacementMigration,
+    /must be empty before sponsor\/placement separation/i,
+  );
+  assert.doesNotMatch(
+    sponsorPlacementMigration,
+    /update public\.referral_slot_assignments/i,
   );
 });
