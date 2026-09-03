@@ -23,6 +23,7 @@ import {
 } from './PublicRewardForecastPortal';
 import { RewardReservationRecovery } from './RewardReservationRecovery';
 import { SecondaryPageLayoutPolish } from './SecondaryPageLayoutPolish';
+import { WalletConnectionResume } from './WalletConnectionResume';
 import { WalletLanguagePreferenceSync } from './WalletLanguagePreferenceSync';
 import { WalletRuntimeLifecycle } from './WalletRuntimeLifecycle';
 
@@ -79,6 +80,7 @@ export function AppProviders({
       <PublicRewardForecastWarmup />
       <VeChainProvider>
         <ProviderReadySignal />
+        <WalletConnectionResume />
         <WalletRuntimeLifecycle />
         <RewardReservationRecovery />
         {children}

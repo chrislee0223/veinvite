@@ -13,6 +13,7 @@ const WALLET_SESSION_READY_EVENT =
 const SESSION_RENEWAL_INTENT = 'renew';
 const RENEWAL_DEDUPE_MS = 60_000;
 const HOME_STABILITY_MS = 160;
+const HOME_DATA_MAX_WAIT_MS = 4_500;
 const DISCONNECTED_STABILITY_MS = 900;
 const BOOTSTRAPPED_SESSION_GRACE_MS = 4_500;
 
@@ -56,6 +57,7 @@ export function WalletRuntimeLifecycle() {
   const walletRef = useRef<string | null>(walletAddress);
   const releasedRef = useRef(false);
   const readinessTimerRef = useRef<number | null>(null);
+  const homeDataPendingSinceRef = useRef<number | null>(null);
   const lastRenewalRef =
     useRef<SuccessfulRenewal | null>(null);
   const inFlightRenewalRef =
@@ -239,6 +241,12 @@ export function WalletRuntimeLifecycle() {
 
     const hasHome = () =>
       Boolean(document.querySelector('main.screen'));
+    const hasPendingHomeData = () =>
+      Boolean(
+        document.querySelector(
+          '.linkPreviewSkeleton, .slotsSkeleton',
+        ),
+      );
     const hasInteractiveGate = () =>
       Boolean(
         document.querySelector(
@@ -287,18 +295,36 @@ export function WalletRuntimeLifecycle() {
 
       if (wallet) {
         // A genuine verification/legal-consent screen is actionable and should
-        // replace the startup shield. Otherwise require the final home tree to
-        // stay mounted briefly so a transient pre-restoration home frame never
-        // flashes through in VeWorld.
+        // replace the startup shield. Otherwise keep the one branded startup
+        // surface until the permanent-link and friend-slot data have settled,
+        // so refresh never reveals a half-built Home with skeleton slots.
         if (
           !homeVisible &&
           hasInteractiveGate()
         ) {
+          homeDataPendingSinceRef.current = null;
           releaseApp();
           return;
         }
 
         if (homeVisible) {
+          if (hasPendingHomeData()) {
+            const now = Date.now();
+            homeDataPendingSinceRef.current ??= now;
+            const elapsed =
+              now - homeDataPendingSinceRef.current;
+
+            scheduleStableRelease(
+              Math.max(
+                0,
+                HOME_DATA_MAX_WAIT_MS - elapsed,
+              ),
+              wallet,
+            );
+            return;
+          }
+
+          homeDataPendingSinceRef.current = null;
           scheduleStableRelease(
             HOME_STABILITY_MS,
             wallet,
@@ -306,9 +332,12 @@ export function WalletRuntimeLifecycle() {
           return;
         }
 
+        homeDataPendingSinceRef.current = null;
         clearReadinessTimer();
         return;
       }
+
+      homeDataPendingSinceRef.current = null;
 
       if (!homeVisible) {
         clearReadinessTimer();
@@ -339,6 +368,7 @@ export function WalletRuntimeLifecycle() {
     return () => {
       observer.disconnect();
       clearReadinessTimer();
+      homeDataPendingSinceRef.current = null;
     };
   }, [walletAddress]);
 
