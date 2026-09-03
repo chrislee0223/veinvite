@@ -7,13 +7,16 @@ import {
 } from 'react';
 import { useWallet } from '@vechain/vechain-kit';
 
+import {
+  readPersistedDappKitAccount,
+} from '@/lib/walletConnectionResume';
+
 const APP_READY_EVENT = 'veinvite-app-ready';
 const WALLET_SESSION_READY_EVENT =
   'veinvite-wallet-session-ready';
 const SESSION_RENEWAL_INTENT = 'renew';
 const RENEWAL_DEDUPE_MS = 60_000;
 const HOME_STABILITY_MS = 160;
-const HOME_DATA_MAX_WAIT_MS = 4_500;
 const DISCONNECTED_STABILITY_MS = 900;
 const BOOTSTRAPPED_SESSION_GRACE_MS = 4_500;
 
@@ -57,7 +60,6 @@ export function WalletRuntimeLifecycle() {
   const walletRef = useRef<string | null>(walletAddress);
   const releasedRef = useRef(false);
   const readinessTimerRef = useRef<number | null>(null);
-  const homeDataPendingSinceRef = useRef<number | null>(null);
   const lastRenewalRef =
     useRef<SuccessfulRenewal | null>(null);
   const inFlightRenewalRef =
@@ -261,6 +263,8 @@ export function WalletRuntimeLifecycle() {
         ?.getAttribute(
           'data-veinvite-session-bootstrap',
         ) === 'verified';
+    const hasPersistedVeWorldWallet = () =>
+      Boolean(readPersistedDappKitAccount());
 
     const scheduleStableRelease = (
       delayMs: number,
@@ -296,35 +300,23 @@ export function WalletRuntimeLifecycle() {
       if (wallet) {
         // A genuine verification/legal-consent screen is actionable and should
         // replace the startup shield. Otherwise keep the one branded startup
-        // surface until the permanent-link and friend-slot data have settled,
-        // so refresh never reveals a half-built Home with skeleton slots.
+        // surface until the permanent-link and friend-slot data have actually
+        // settled. Do not use a local timeout that can expose the skeleton UI;
+        // LocaleHydrationShield owns the global provider-failure fallback.
         if (
           !homeVisible &&
           hasInteractiveGate()
         ) {
-          homeDataPendingSinceRef.current = null;
           releaseApp();
           return;
         }
 
         if (homeVisible) {
           if (hasPendingHomeData()) {
-            const now = Date.now();
-            homeDataPendingSinceRef.current ??= now;
-            const elapsed =
-              now - homeDataPendingSinceRef.current;
-
-            scheduleStableRelease(
-              Math.max(
-                0,
-                HOME_DATA_MAX_WAIT_MS - elapsed,
-              ),
-              wallet,
-            );
+            clearReadinessTimer();
             return;
           }
 
-          homeDataPendingSinceRef.current = null;
           scheduleStableRelease(
             HOME_STABILITY_MS,
             wallet,
@@ -332,26 +324,37 @@ export function WalletRuntimeLifecycle() {
           return;
         }
 
-        homeDataPendingSinceRef.current = null;
         clearReadinessTimer();
         return;
       }
-
-      homeDataPendingSinceRef.current = null;
 
       if (!homeVisible) {
         clearReadinessTimer();
         return;
       }
 
-      // Wallet providers can report no account for a short period while
-      // restoring VeWorld/WalletConnect. If the server already validated a
-      // persistent session, keep the single branded startup surface longer so
-      // the disconnected home cannot flash before that wallet comes back.
+      // A persisted VeWorld account is direct browser evidence that this Home
+      // is in the middle of wallet restoration. Never release the shield during
+      // that gap; wait for the provider to republish the wallet, then wait for
+      // the link/slot skeletons to disappear. The outer hydration shield still
+      // has its global 8-second failure escape hatch.
+      if (hasPersistedVeWorldWallet()) {
+        clearReadinessTimer();
+        return;
+      }
+
+      // A verified server session can outlive cleared browser wallet storage.
+      // Preserve the existing bounded grace window for that distinct case.
+      if (hasBootstrappedSession()) {
+        scheduleStableRelease(
+          BOOTSTRAPPED_SESSION_GRACE_MS,
+          null,
+        );
+        return;
+      }
+
       scheduleStableRelease(
-        hasBootstrappedSession()
-          ? BOOTSTRAPPED_SESSION_GRACE_MS
-          : DISCONNECTED_STABILITY_MS,
+        DISCONNECTED_STABILITY_MS,
         null,
       );
     };
@@ -368,7 +371,6 @@ export function WalletRuntimeLifecycle() {
     return () => {
       observer.disconnect();
       clearReadinessTimer();
-      homeDataPendingSinceRef.current = null;
     };
   }, [walletAddress]);
 
