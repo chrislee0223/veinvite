@@ -18,6 +18,7 @@ import { NOTIFICATION_COPY } from '@/lib/i18n/notificationCopy';
 import {
   LANGUAGE_OPTIONS,
   getLanguageOption,
+  type Locale,
   type SupportedLocale,
 } from '@/lib/i18n/locales';
 
@@ -36,7 +37,7 @@ export function AppSettings({
   onConnectAnother,
   onDisconnect,
 }: {
-  locale: SupportedLocale;
+  locale: Locale;
   wallet: string | null;
   isWalletActionPending: boolean;
   onLocaleChange: (locale: SupportedLocale) => void;
