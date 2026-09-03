@@ -84,17 +84,16 @@ test('blocked-slot corrections stay possible until an active replacement reuses 
   assert.doesNotMatch(blockedSlotRefinement, /BLOCKED permanent-referral decision is final/i);
 });
 
-test('public referral GET is passive and stays open even when both friend slots are busy', () => {
+test('public referral GET is passive, keeps valid links open, and avoids pre-auth capacity reads', () => {
   assert.match(publicApi, /export async function GET/i);
+  assert.match(publicApi, /\.from\('referral_links'\)/i);
+  assert.doesNotMatch(publicApi, /\.from\('invitations'\)/i);
   assert.doesNotMatch(publicApi, /\.insert\(/i);
   assert.doesNotMatch(publicApi, /\.update\(/i);
   assert.doesNotMatch(publicApi, /claim_permanent_referral_with_entry_proof/i);
   assert.match(publicApi, /outcome:\s*'available'/i);
-  assert.match(publicApi, /slotsFull:\s*slotsAvailable === 0/i);
-  assert.doesNotMatch(
-    publicApi,
-    /outcome:\s*slotsAvailable\s*>\s*0\s*\?\s*'available'\s*:\s*'slots_full'/i,
-  );
+  assert.doesNotMatch(publicApi, /slotsAvailable/i);
+  assert.doesNotMatch(publicApi, /slotsFull/i);
 });
 
 test('owner API creates one permanent link idempotently behind wallet auth', () => {
@@ -114,6 +113,10 @@ test('claim API resumes the same sponsor before checking capacity and only then 
   assert.match(
     claimApi,
     /if \(existingCheck\.invitation\)[\s\S]*isResumableForSponsor[\s\S]*hasFreeSlot[\s\S]*checkVeBetterEntryEligibility/i,
+  );
+  assert.match(
+    claimApi,
+    /if \(!\(await hasFreeSlot\(link\.inviter_wallet\)\)\)[\s\S]*recordAttempt\([\s\S]*outcome:\s*'SLOTS_FULL'[\s\S]*outcome:\s*'slots_full'/i,
   );
   assert.match(claimApi, /claim_permanent_referral_with_entry_proof/i);
   assert.doesNotMatch(claimApi, /\.from\('invitations'\)\s*\.insert/i);
