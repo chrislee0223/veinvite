@@ -2,12 +2,16 @@
 
 import { Brand } from './Brand';
 import { INVITE_LANDING_COPY } from '@/lib/i18n/inviteLandingCopy';
-import { LANGUAGE_OPTIONS, type SupportedLocale } from '@/lib/i18n/locales';
+import {
+  LANGUAGE_OPTIONS,
+  type Locale,
+  type SupportedLocale,
+} from '@/lib/i18n/locales';
 
 type DemoOutcome = 'success' | 'existing' | 'other' | 'review';
 
 type InviteLandingV2Props = {
-  locale: SupportedLocale;
+  locale: Locale;
   disabled?: boolean;
   demoMode?: boolean;
   demoOutcome: DemoOutcome;
