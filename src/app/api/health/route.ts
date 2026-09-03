@@ -12,7 +12,24 @@ const HEALTH_HEADERS = {
   'X-Robots-Tag': 'noindex, nofollow, noarchive',
 } as const;
 
+function readDeploymentMetadata() {
+  const gitCommitSha =
+    process.env.VERCEL_GIT_COMMIT_SHA?.trim() || null;
+
+  return {
+    environment:
+      process.env.VERCEL_ENV ??
+      process.env.NODE_ENV ??
+      'unknown',
+    gitCommitSha,
+    gitCommitShortSha:
+      gitCommitSha?.slice(0, 12) ?? null,
+  };
+}
+
 export async function GET() {
+  const deployment = readDeploymentMetadata();
+
   try {
     const { error } = await supabaseAdmin
       .from('invitations')
@@ -53,15 +70,15 @@ export async function GET() {
       );
     }
 
-    // Public readiness deliberately exposes only the minimum information an
-    // uptime check needs. Distributor addresses, gas state, queue internals,
-    // alert codes and deployment commit metadata remain available through the
-    // verified-operator operations API instead of being broadcast publicly.
+    // Keep the deployment revision public so stale Production builds can be
+    // detected immediately, but leave distributor addresses, gas state, queue
+    // internals and alert codes on the verified-operator operations endpoint.
     return NextResponse.json(
       {
         ok: operations.operational,
         app: 'VeInvite',
         version: '0.1.0',
+        deployment,
         database: 'ready',
         network: operations.network,
         automaticRewards: {
@@ -91,6 +108,7 @@ export async function GET() {
         ok: false,
         app: 'VeInvite',
         version: '0.1.0',
+        deployment,
         database: 'unavailable',
       },
       {
