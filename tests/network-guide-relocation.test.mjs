@@ -116,8 +116,7 @@ test('Home and Leaderboard dialogs keep close controls in identical non-scrollin
 
   assert.match(softFocusMotion, /\.veinviteSoftFocusHeader \{[\s\S]*min-height:\s*56px;[\s\S]*justify-content:\s*flex-end;[\s\S]*padding:\s*10px 12px 8px;/i);
   assert.match(softFocusMotion, /\.veinviteSoftFocusScroll \{[\s\S]*overflow:\s*auto;/i);
-  assert.match(softFocusMotion, /\.veinviteSoftFocusClose \{[\s\S]*position:\s*relative;[\s\S]*width:\s*36px;[\s\S]*height:\s*36px;/i);
-  assert.doesNotMatch(softFocusMotion, /\.veinviteSoftFocusClose \{[\s\S]*position:\s*absolute;/i);
+  assert.match(softFocusMotion, /\.veinviteSoftFocusClose \{\s*position:\s*relative;[\s\S]*width:\s*36px;[\s\S]*height:\s*36px;/i);
   assert.match(softFocusMotion, /\.veinviteSoftFocusClose::before,[\s\S]*\.veinviteSoftFocusClose::after/i);
   assert.match(softFocusMotion, /translate\(-50%, -50%\) rotate\(45deg\)/i);
   assert.match(softFocusMotion, /translate\(-50%, -50%\) rotate\(-45deg\)/i);
