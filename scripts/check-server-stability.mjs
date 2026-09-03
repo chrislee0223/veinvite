@@ -272,7 +272,31 @@ if (
   !/veinvite_wallet_session_/.test(sessionSerializationMigration)
 ) {
   failures.push(
-    'Wallet session issuance must serialize concurrent logins and enforce one unrevoked session per wallet.',
+    'Historical wallet-session serialization migration must preserve the original atomic-login transition.',
+  );
+}
+
+const multiDeviceSessionMigration = read(
+  'supabase/migrations/20260902090000_allow_multi_device_wallet_sessions.sql',
+);
+
+if (
+  !/drop index if exists public\.wallet_auth_sessions_one_unrevoked_per_wallet_idx/.test(
+    multiDeviceSessionMigration,
+  ) ||
+  !/wallet_auth_sessions_active_wallet_created_idx/.test(
+    multiDeviceSessionMigration,
+  ) ||
+  !/pg_advisory_xact_lock/.test(multiDeviceSessionMigration) ||
+  !/veinvite_wallet_session_/.test(multiDeviceSessionMigration) ||
+  !/row_number\(\) over/.test(multiDeviceSessionMigration) ||
+  !/session_rank\s*>\s*5/.test(multiDeviceSessionMigration) ||
+  !/grant execute on function public\.issue_wallet_session_after_verified_challenge[\s\S]*to service_role;/.test(
+    multiDeviceSessionMigration,
+  )
+) {
+  failures.push(
+    'Current wallet-session policy must keep serialized issuance, allow independent devices, cap each wallet at five active sessions, and remain service-role-only.',
   );
 }
 
