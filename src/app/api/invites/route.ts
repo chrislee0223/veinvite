@@ -34,6 +34,7 @@ type InvitationRow = {
   vot3_converted: boolean | null;
   vote_completed: boolean | null;
   invite_slot: number;
+  slot_released_at: string | null;
   sybil_status: SybilStatus;
   referral_link_id: string | null;
 };
@@ -60,6 +61,7 @@ const invitationColumns = `
   vot3_converted,
   vote_completed,
   invite_slot,
+  slot_released_at,
   sybil_status,
   referral_link_id
 ` as const;
@@ -95,6 +97,7 @@ function toInviteRecord(
     vot3Converted: row.vot3_converted ?? false,
     voteCompleted: row.vote_completed ?? false,
     inviteSlot: row.invite_slot === 2 ? 2 : 1,
+    ...(row.slot_released_at ? { slotReleasedAt: row.slot_released_at } : {}),
     sybilStatus: row.sybil_status,
     ...(row.referral_link_id ? { referralLinkId: row.referral_link_id } : {}),
     ...(rewardQueue ? { rewardQueueStatus: rewardQueue.status } : {}),
