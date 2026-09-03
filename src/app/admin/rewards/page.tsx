@@ -12,25 +12,18 @@ import {
 import {
   RewardPayoutHistoryClient,
 } from '@/components/RewardPayoutHistoryClient';
-import {
-  WalletSessionGate,
-} from '@/components/WalletSessionGate';
 
 export const metadata: Metadata = {
   title: 'VeInvite Admin | Reward Payouts',
-  robots: {
-    index: false,
-    follow: false,
-  },
 };
 
 export default function RewardPayoutAdminPage() {
   return (
-    <WalletSessionGate>
+    <>
       <RewardOperationsStatusClient />
       <RewardPayoutHistoryClient />
       <RewardPayoutAutomationClient />
       <RewardPayoutAdminClient />
-    </WalletSessionGate>
+    </>
   );
 }

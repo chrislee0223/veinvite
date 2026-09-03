@@ -1,11 +1,16 @@
 import { NextResponse } from 'next/server';
 
-import {
-  readRewardOperationsHealth,
-} from '@/lib/rewards/operationsMonitoring';
 import { supabaseAdmin } from '@/lib/supabaseServer';
+import {
+  getVeBetterNetworkConfig,
+} from '@/lib/vebetter/network';
 
 export const dynamic = 'force-dynamic';
+
+const HEALTH_HEADERS = {
+  'Cache-Control': 'no-store',
+  'X-Robots-Tag': 'noindex, nofollow, noarchive',
+} as const;
 
 function readDeploymentMetadata() {
   const gitCommitSha =
@@ -24,113 +29,36 @@ function readDeploymentMetadata() {
 
 export async function GET() {
   const deployment = readDeploymentMetadata();
+  let network: string | null = null;
 
   try {
+    // Public health is intentionally a lightweight app/database readiness
+    // probe. Full reward-pool, distributor, gas, queue and payout diagnostics
+    // live behind the verified-operator operations API so anonymous uptime
+    // probes cannot repeatedly trigger expensive VeChain RPC/planning work.
+    network = getVeBetterNetworkConfig().network;
+
     const { error } = await supabaseAdmin
       .from('invitations')
-      .select('invite_code', {
-        head: true,
-        count: 'exact',
-      });
+      .select('invite_code')
+      .limit(1);
 
     if (error) {
       throw error;
     }
 
-    const operations =
-      await readRewardOperationsHealth();
-    const automaticRewardsReady = Boolean(
-      operations.operational &&
-      operations.distributor
-        .automaticRewardsEnabled &&
-      operations.distributor.configured &&
-      operations.distributor.registered &&
-      !operations.runtime.distributionPaused,
-    );
-    const alertCodes = operations.alerts.map(
-      (alert) => alert.code,
-    );
-
-    if (operations.severity === 'CRITICAL') {
-      console.error(
-        'VeInvite reward operations health is critical:',
-        { alertCodes },
-      );
-    } else if (
-      operations.severity === 'WARNING'
-    ) {
-      console.warn(
-        'VeInvite reward operations health has warnings:',
-        { alertCodes },
-      );
-    }
-
     return NextResponse.json(
       {
-        ok: operations.operational,
+        ok: true,
         app: 'VeInvite',
         version: '0.1.0',
         deployment,
         database: 'ready',
-        network: operations.network,
-        automaticRewards: {
-          enabled:
-            operations.distributor
-              .automaticRewardsEnabled,
-          configured:
-            operations.distributor.configured,
-          distributorAddress:
-            operations.distributor.address,
-          distributorRegistered:
-            operations.distributor.registered,
-          distributionPaused:
-            operations.runtime
-              .distributionPaused,
-          ready: automaticRewardsReady,
-        },
-        operations: {
-          severity: operations.severity,
-          operational:
-            operations.operational,
-          alertCodes,
-          gasStatus:
-            operations.distributor.gasStatus,
-          queueHealthy:
-            !alertCodes.includes(
-              'REWARD_QUEUE_DELAYED',
-            ) &&
-            !alertCodes.includes(
-              'REWARD_QUEUE_STALLED',
-            ),
-          payoutPipelineHealthy:
-            !alertCodes.includes(
-              'REWARD_ROUND_DELAYED',
-            ) &&
-            !alertCodes.includes(
-              'REWARD_ROUND_STALLED',
-            ) &&
-            !alertCodes.includes(
-              'SIGNED_PAYOUT_WAITING_FINALITY',
-            ) &&
-            !alertCodes.includes(
-              'SIGNED_PAYOUT_UNSETTLED',
-            ),
-          poolCapacityHealthy:
-            !alertCodes.includes(
-              'REWARD_POOL_EMPTY_WITH_QUEUE',
-            ) &&
-            !alertCodes.includes(
-              'REWARD_POOL_CAPACITY_INSUFFICIENT',
-            ),
-          checkedAt: operations.capturedAt,
-        },
+        network,
       },
       {
-        status:
-          operations.operational ? 200 : 503,
-        headers: {
-          'Cache-Control': 'no-store',
-        },
+        status: 200,
+        headers: HEALTH_HEADERS,
       },
     );
   } catch (error) {
@@ -146,12 +74,11 @@ export async function GET() {
         version: '0.1.0',
         deployment,
         database: 'unavailable',
+        network,
       },
       {
         status: 503,
-        headers: {
-          'Cache-Control': 'no-store',
-        },
+        headers: HEALTH_HEADERS,
       },
     );
   }

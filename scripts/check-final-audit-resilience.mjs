@@ -15,6 +15,18 @@ const languageSync = read(
 const supabaseServer = read(
   'src/lib/supabaseServer.ts',
 );
+const inviteProgressRoute = read(
+  'src/app/api/invites/[code]/route.ts',
+);
+const adminLayout = read(
+  'src/app/admin/layout.tsx',
+);
+const operatorAccess = read(
+  'src/lib/rewards/operatorAccess.ts',
+);
+const healthRoute = read(
+  'src/app/api/health/route.ts',
+);
 
 const localeKeys = [
   'en', 'ko', 'zh', 'hi', 'es', 'ja',
@@ -113,6 +125,143 @@ const environmentGuardMentions =
 if (environmentGuardMentions < 3) {
   failures.push(
     'Supabase environment safety must be checked before the initial request and before a transient retry.',
+  );
+}
+
+const publicInviteStart =
+  inviteProgressRoute.indexOf(
+    'function toPublicInviteRecord',
+  );
+const publicInviteEnd =
+  inviteProgressRoute.indexOf(
+    'function parseNonNegativeInteger',
+  );
+const publicInviteSource =
+  publicInviteStart >= 0 &&
+  publicInviteEnd > publicInviteStart
+    ? inviteProgressRoute.slice(
+        publicInviteStart,
+        publicInviteEnd,
+      )
+    : '';
+
+const publicProgressStart =
+  inviteProgressRoute.indexOf(
+    'function toPublicProgress',
+  );
+const publicProgressEnd =
+  inviteProgressRoute.indexOf(
+    'function sessionCanReadInvitationDetails',
+  );
+const publicProgressSource =
+  publicProgressStart >= 0 &&
+  publicProgressEnd > publicProgressStart
+    ? inviteProgressRoute.slice(
+        publicProgressStart,
+        publicProgressEnd,
+      )
+    : '';
+
+if (
+  !/getWalletSession/.test(inviteProgressRoute) ||
+  !/sessionCanReadInvitationDetails/.test(
+    inviteProgressRoute,
+  ) ||
+  !/canReadDetails\s*\?\s*toInviteRecord\(row\)\s*:\s*toPublicInviteRecord\(row\)/s.test(
+    inviteProgressRoute,
+  ) ||
+  !/canReadDetails\s*\?\s*toStoredProgress\(row\)\s*:\s*toPublicProgress\(\)/s.test(
+    inviteProgressRoute,
+  )
+) {
+  failures.push(
+    'Invite GET must keep detailed wallet/progress data behind an owner wallet session.',
+  );
+}
+
+if (
+  !publicInviteSource ||
+  /row\.inviter_wallet|row\.invitee_wallet/.test(
+    publicInviteSource,
+  )
+) {
+  failures.push(
+    'Anonymous invite records must not expose inviter or invitee wallet addresses.',
+  );
+}
+
+if (
+  !publicProgressSource ||
+  /row\./.test(publicProgressSource)
+) {
+  failures.push(
+    'Anonymous invite progress must remain detached from stored mission progress.',
+  );
+}
+
+if (
+  !/cookies\(\)/.test(adminLayout) ||
+  !/getWalletSessionFromTokens/.test(adminLayout) ||
+  !/readVeInviteOperatorAccess/.test(adminLayout) ||
+  !/isVeInviteRewardOperator/.test(adminLayout) ||
+  !/notFound\(\)/.test(adminLayout) ||
+  !/initialSessionWallet/.test(adminLayout) ||
+  !/WalletSessionGate/.test(adminLayout)
+) {
+  failures.push(
+    'Every /admin route must remain behind the shared server-validated operator layout.',
+  );
+}
+
+if (
+  !/apps\.read\.appAdmin\(VEINVITE_APP_ID\)/.test(operatorAccess) ||
+  !/apps\.read\.rewardDistributors\(VEINVITE_APP_ID\)/.test(operatorAccess) ||
+  !/Promise\.all/.test(operatorAccess) ||
+  /rewardsPoolBalance|availableFunds|totalBalance|isDistributionPaused|readRewardRuntimeSafety/.test(
+    operatorAccess,
+  )
+) {
+  failures.push(
+    'Admin access checks must stay limited to the two on-chain operator membership reads.',
+  );
+}
+
+for (const field of [
+  'distributorAddress',
+  'gasStatus',
+  'queueHealthy',
+  'payoutPipelineHealthy',
+  'poolCapacityHealthy',
+]) {
+  if (healthRoute.includes(field)) {
+    failures.push(
+      `Public health route exposes operator-only detail: ${field}`,
+    );
+  }
+}
+
+if (
+  !/X-Robots-Tag/.test(healthRoute) ||
+  !/Cache-Control': 'no-store'/.test(healthRoute) ||
+  !/VERCEL_GIT_COMMIT_SHA/.test(healthRoute) ||
+  !/gitCommitShortSha/.test(healthRoute) ||
+  !/deployment,/.test(healthRoute) ||
+  !/database:\s*'ready'/.test(healthRoute) ||
+  !/getVeBetterNetworkConfig\(\)\.network/.test(healthRoute)
+) {
+  failures.push(
+    'Public health route must remain lightweight, non-indexable, uncached, database-aware, network-aware, and revision-aware.',
+  );
+}
+
+if (
+  /readRewardOperationsHealth|readVeInviteRewardPoolStatus|readPredictiveRewardPlanning|readAutomaticRewardDistributorReadiness/.test(
+    healthRoute,
+  ) ||
+  /count:\s*'exact'/.test(healthRoute)
+) {
+  failures.push(
+    'Anonymous health checks must not trigger reward-pool, signer, gas, queue, payout, predictive-planning, or exact-count work.',
   );
 }
 

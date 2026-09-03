@@ -4,8 +4,19 @@ import { join } from 'node:path';
 const config = JSON.parse(
   readFileSync(join(process.cwd(), 'vercel.json'), 'utf8'),
 );
+const nextConfig = readFileSync(
+  join(process.cwd(), 'next.config.mjs'),
+  'utf8',
+);
 const cronRoute = readFileSync(
   join(process.cwd(), 'src/app/api/cron/reconcile/route.ts'),
+  'utf8',
+);
+const demoCompletionRoute = readFileSync(
+  join(
+    process.cwd(),
+    'src/app/api/invites/[code]/complete/route.ts',
+  ),
   'utf8',
 );
 
@@ -60,6 +71,32 @@ if (!/timingSafeEqual/.test(cronRoute)) {
 if (!/cleanupEphemeralSecurityState/.test(cronRoute)) {
   failures.push(
     'The reconciliation cron must continue running ephemeral security-state housekeeping.',
+  );
+}
+
+if (
+  !/NEXT_PUBLIC_DEMO_MODE/.test(nextConfig) ||
+  !/process\.env\.VERCEL_ENV\s*===\s*'production'[\s\S]*\?\s*'false'/.test(
+    nextConfig,
+  )
+) {
+  failures.push(
+    'Production bundles must force NEXT_PUBLIC_DEMO_MODE=false even if a stale project variable is enabled.',
+  );
+}
+
+if (
+  !/VEINVITE_ALLOW_DEMO_COMPLETION/.test(demoCompletionRoute) ||
+  !/process\.env\.VERCEL_ENV\s*===\s*'preview'/.test(
+    demoCompletionRoute,
+  ) ||
+  !/isLocalDevelopment/.test(demoCompletionRoute) ||
+  !/if \(!isDemoCompletionEnabled\(\)\)/.test(
+    demoCompletionRoute,
+  )
+) {
+  failures.push(
+    'Demo mission completion must remain independently blocked outside Preview/local development.',
   );
 }
 

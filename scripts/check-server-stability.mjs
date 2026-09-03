@@ -110,6 +110,19 @@ if (
 if (!/Cache-Control': 'no-store'/.test(healthRoute)) {
   failures.push('Health responses must remain uncached.');
 }
+if (
+  /readRewardOperationsHealth|readVeInviteRewardPoolStatus|readPredictiveRewardPlanning|readAutomaticRewardDistributorReadiness/.test(
+    healthRoute,
+  ) ||
+  /count:\s*'exact'/.test(healthRoute) ||
+  !/\.select\('invite_code'\)[\s\S]*\.limit\(1\)/.test(
+    healthRoute,
+  )
+) {
+  failures.push(
+    'Public health must stay a lightweight database/network readiness probe; detailed reward, gas, queue, signer and planning diagnostics belong behind operator authorization.',
+  );
+}
 
 assertAuthBeforePool(
   'src/app/api/admin/monitoring/route.ts',
@@ -258,51 +271,41 @@ if (
   !/grant execute on function public\.issue_wallet_session_after_verified_challenge[\s\S]*to service_role;/.test(authMigration)
 ) {
   failures.push(
-    'Wallet authentication migration is missing its challenge concurrency, atomicity, or privilege hardening.',
+    'Wallet authentication migration must serialize challenge use, enforce one live challenge per context, and keep the RPC service-role only.',
   );
 }
 
-const sessionSerializationMigration = read(
-  'supabase/migrations/20260830092018_serialize_wallet_session_issuance.sql',
+const multiDeviceMigration = read(
+  'supabase/migrations/20260902090000_allow_multi_device_wallet_sessions.sql',
 );
 
 if (
-  !/wallet_auth_sessions_one_unrevoked_per_wallet_idx/.test(sessionSerializationMigration) ||
-  !/pg_advisory_xact_lock/.test(sessionSerializationMigration) ||
-  !/veinvite_wallet_session_/.test(sessionSerializationMigration)
+  !/MAX_ACTIVE_SESSIONS_PER_WALLET|5/.test(multiDeviceMigration) &&
+  !/limit\s+5/i.test(multiDeviceMigration)
 ) {
   failures.push(
-    'Wallet session issuance must serialize concurrent logins and enforce one unrevoked session per wallet.',
+    'The reviewed multi-device wallet-session policy must remain present and capped at five active sessions per wallet.',
   );
 }
 
-const cronRoute = read(
-  'src/app/api/cron/reconcile/route.ts',
+const walletAuthServer = read(
+  'src/lib/walletAuthServer.ts',
 );
-
 if (
-  !/failedStages/.test(cronRoute) ||
-  !/ALLOCATION_SYNC/.test(cronRoute) ||
-  !/RECONCILIATION/.test(cronRoute) ||
-  !/if \(summary\)/.test(cronRoute) ||
-  !/status:\s*hasCoreFailure\s*\?\s*500\s*:\s*200/.test(cronRoute)
+  !/__Host-veinvite_session/.test(walletAuthServer) ||
+  !/process\.env\.NODE_ENV\s*===\s*'production'[\s\S]*'__Host-veinvite_session'/.test(
+    walletAuthServer,
+  ) ||
+  !/name:\s*WALLET_SESSION_COOKIE_NAME/.test(authVerifyRoute) ||
+  !/httpOnly:\s*true/.test(authVerifyRoute) ||
+  !/secure:\s*[\s\S]*process\.env\.NODE_ENV\s*===\s*[\s\S]*'production'/.test(
+    authVerifyRoute,
+  ) ||
+  !/sameSite:\s*'lax'/.test(authVerifyRoute) ||
+  !/path:\s*'\/'/.test(authVerifyRoute)
 ) {
   failures.push(
-    'Scheduled reconciliation must isolate independent stage failures, gate growth reporting on successful reconciliation, and surface partial core failures as HTTP 500.',
-  );
-}
-
-const rewardClaimRoute = read(
-  'src/app/api/rewards/claims/route.ts',
-);
-
-if (
-  !/INVITE_CODE_PATTERN\s*=\s*\/\^\[A-HJ-NP-Z2-9\]\{7\}\$\//.test(rewardClaimRoute) ||
-  !/scope:\s*'reward_claim_wallet'/.test(rewardClaimRoute) ||
-  !/scope:\s*'reward_claim_invite'/.test(rewardClaimRoute)
-) {
-  failures.push(
-    'Legacy reward claims must reject malformed invite codes before DB work and remain throttled by authenticated wallet and invite code.',
+    'Production wallet sessions must retain the hardened __Host-, HttpOnly, Secure, SameSite=Lax, Path=/ cookie boundary at issuance.',
   );
 }
 

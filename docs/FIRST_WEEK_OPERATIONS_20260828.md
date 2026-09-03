@@ -1,26 +1,27 @@
 # VeInvite First-Week Operations Checklist
 
-Last updated: 2026-08-28
+Last updated: 2026-09-03
 
-Purpose: operate the first public week without weakening eligibility, Sybil, reward, or payout controls.
+Purpose: operate Production without weakening eligibility, Sybil, reward, payout, privacy, or recovery controls.
 
-## Before announcement
+## Before announcement or major release
 
-- [ ] Production `/api/health` returns HTTP 200, `database: ready`, `network: mainnet`.
-- [ ] Latest production deployment is READY and has no unresolved build/runtime errors.
+- [ ] Public Production `/api/health` returns HTTP 200 and reports the expected mainnet/database/deployment revision state.
+- [ ] Authenticated operator reward-operations health reports expected distributor, pause, gas, queue, pool, and payout readiness.
+- [ ] Latest Production deployment is READY and has no unresolved build/runtime errors.
 - [ ] Production Supabase is the live database; Preview data is not used for public reporting.
 - [ ] Privacy and Terms pages are reachable.
-- [ ] Public copy uses the onboarding-launch wording while mainnet funded rewards remain disabled.
-- [ ] Do not publish a fixed B3TR reward amount or guaranteed payout date.
-- [ ] Keep any Preview/debug-only route out of main and Production.
+- [ ] Public reward copy does not promise a fixed B3TR amount or guaranteed payout date.
+- [ ] Public copy makes clear that the inviter, not the invitee, is the VeInvite referral-reward recipient after verified onboarding.
+- [ ] Preview/debug/demo completion paths remain blocked in Production.
 - [ ] Confirm the last known-good Production deployment is identifiable for rollback.
 
-## First 24 hours
+## First 24 hours after a meaningful release
 
-Check at launch, then periodically during the first day:
+Check at deployment, then periodically during the first day:
 
-- [ ] Production health remains 200 / database ready / mainnet.
-- [ ] No sustained 5xx errors in wallet auth, invite creation, invite claim, invite status, or reconciliation routes.
+- [ ] Public Production health remains healthy and on mainnet without performing reward-pool/distributor diagnostics for anonymous callers.
+- [ ] No sustained 5xx errors in wallet auth, invite creation/claim/status, reconciliation, or reward routes.
 - [ ] New invitation rows have expected status transitions and network provenance.
 - [ ] Active-existing-user rejections do not consume otherwise valid unused invitations.
 - [ ] Self-referral attempts are rejected without consuming the invitation.
@@ -28,9 +29,11 @@ Check at launch, then periodically during the first day:
 - [ ] Accepted invitations cannot be cancelled.
 - [ ] Eligibility read failures fail closed rather than admitting users.
 - [ ] Mission progress is sourced from on-chain evidence, not manual completion.
-- [ ] Sybil REVIEW/BLOCKED cases are visible to the operator and are not automatically paid.
+- [ ] Sybil REVIEW/BLOCKED cases remain excluded from automatic payout.
+- [ ] Anonymous invite lookup does not expose inviter/invitee wallet relationships or stored mission progress.
+- [ ] Non-operator wallets cannot render `/admin/*` pages or access operator APIs.
 
-## Daily checks — days 2 to 7
+## Daily checks
 
 - [ ] Review participant totals: NEW, RETURNING, ACTIVE_EXISTING, mission-complete, reward-queued.
 - [ ] Review `operator_sybil_watchlist` for REVIEW/BLOCKED cases.
@@ -39,8 +42,20 @@ Check at launch, then periodically during the first day:
 - [ ] Verify reward queue entries contain complete eligibility and mission evidence.
 - [ ] Confirm no reward round is prepared while another round is still open.
 - [ ] Confirm Sybil decisions cannot change after a reward entry is assigned to a round.
-- [ ] If mainnet funded rewards are still disabled, verify no user payout transaction is initiated.
-- [ ] If funded rewards are later enabled, require the full manifest → VeWorld approval → tx registration → finalized verification → settlement path; never mark PAID before final verification.
+- [ ] Confirm automatic reward readiness is configured/registered/not paused before any payout iteration.
+- [ ] Verify the automatic payout lock prevents overlapping payout workers.
+- [ ] Verify no payout becomes PAID before submitted transaction finality is independently confirmed.
+- [ ] Review housekeeping for expired wallet challenges, expired/revoked sessions, and stale rate-limit buckets.
+
+## Automatic reward operating rule
+
+The Production automatic reward pipeline is enabled, but it is fail-closed. An eligible-looking referral must not be paid unless the complete path is valid:
+
+`entry proof → mission evidence → Sybil CLEAR → reward queue → funded reward round → immutable manifest → dedicated Reward Distributor signing/submission → finalized-chain verification → PAID + immutable receipt`
+
+The dedicated Reward Distributor is separate from the app-admin wallet. Never expose its signing secret, seed phrase, or private key through client code, logs, support messages, screenshots, or public APIs.
+
+As of 2026-09-03, no genuine Production referral has completed every payout requirement, so the first genuine automatic B3TR payout remains an operational E2E milestone. Do not fabricate a referral solely to exercise payout.
 
 ## What to record publicly
 
@@ -51,14 +66,16 @@ Safe public metrics should be factual and clearly scoped. Examples:
 - number of eligible returning users
 - number of users who completed each mission stage
 - number of fully completed onboarding quests
+- finalized referral payouts actually paid
 
-Do not report Preview/testnet records as Production activity. Do not report pending or queued amounts as rewards actually received. Only finalized PAID settlement may be described as paid.
+Do not report Preview/testnet records as Production activity. Do not report projected, pending, queued, prepared, or submitted amounts as rewards actually received. Only finalized PAID settlement may be described as paid.
 
 ## Stop / investigate conditions
 
-Pause promotion and investigate if any of the following occurs:
+Pause affected operations and investigate if any of the following occurs:
 
-- Production health is not mainnet or database is not ready.
+- Public Production health is not mainnet or database readiness fails.
+- Authenticated operator reward-operations health reports a critical distributor, pause, gas, queue, pool, or payout condition.
 - Wallet authentication signatures are failing broadly.
 - Eligible/ineligible classifications look inconsistent across similar requests.
 - Invitations are being consumed on failed eligibility checks.
@@ -67,6 +84,9 @@ Pause promotion and investigate if any of the following occurs:
 - Reward eligibility appears while Sybil status is not CLEAR.
 - A reward assignment changes after the round has been sealed.
 - A payout is marked PAID before the submitted transaction is finalized and verified.
+- Automatic payout runs overlap despite the operator lock.
+- Reward distributor identity/readiness no longer matches configured expectations.
+- Anonymous/public APIs expose wallet relationships or sensitive operator internals that are not required for their public purpose.
 
 ## Support response principles
 
@@ -77,13 +97,13 @@ Pause promotion and investigate if any of the following occurs:
 - Do not describe a wallet as abusive based on one weak signal alone.
 - If a case is ambiguous, keep it under REVIEW until evidence is sufficient.
 
-## End-of-week review
+## Review cadence
 
-At the end of week 1:
+Periodically:
 
-- [ ] Compare invitation creation → eligible claim → mission completion conversion rates.
-- [ ] Review top user drop-off points.
-- [ ] Review support questions and add recurring issues to the public FAQ.
-- [ ] Review Sybil false-positive/false-negative signals before changing thresholds.
-- [ ] Review whether any UI/UX change is warranted; preview non-text visual changes before implementation.
-- [ ] Decide whether public promotion should expand, remain limited, or pause for fixes.
+- compare invitation creation → eligible claim → mission completion conversion rates
+- review top user drop-off points
+- review support questions and update the FAQ when rules or wording change
+- review Sybil false-positive/false-negative signals before changing thresholds
+- verify docs and CI still describe the actual Production reward architecture
+- review whether UI/UX changes are warranted and validate mobile/multilingual impact before release

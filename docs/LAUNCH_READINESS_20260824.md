@@ -1,47 +1,72 @@
-# VeInvite Launch Readiness — reviewed 2026-08-28
+# VeInvite Launch Readiness — reviewed 2026-09-03
 
-This checklist is a hard gate for the first allocation-voting launch. Do not treat an endorsed app or funded reward pool as permission to bypass these checks.
+This checklist is a hard gate for Production changes. Do not treat app endorsement, allocation, or a funded reward pool as permission to bypass eligibility, Sybil, payout, privacy, or deployment checks.
 
-## P0 — Must pass before public production cutover
+## P0 — Must remain true in Production
 
-- [x] Production code no longer uses demo eligibility outcomes.
+- [x] Production code does not use demo eligibility outcomes.
+- [x] Production demo-completion API is blocked even if a public demo flag is misconfigured.
 - [x] Every inviter/invitee mutation requires a verified wallet session.
+- [x] Wallet sessions are revocable and support up to five independent active devices per wallet.
 - [x] Self-referral is rejected without consuming the invite or penalizing the wallet.
 - [x] Accepted invitations cannot be cancelled by the inviter.
-- [x] New-user entry eligibility is verified against real VeBetter reward/voting history and fails closed on node/indexing errors.
+- [x] Entry eligibility is verified against real VeBetter reward/voting history and fails closed on node/indexing errors.
 - [x] Production database has network provenance, atomic entry-proof storage, append-only impact/Sybil evidence, and hardened reward eligibility.
-- [x] No referral can become ELIGIBLE without: eligible entry proof + 3 distinct dApp reward events + B3TR→VOT3 conversion + later allocation vote + fresh Sybil CLEAR + complete reconciliation evidence.
-- [ ] Vercel Preview variables point to Preview Supabase. The fail-closed guard is verified, but the current Preview wiring must still be corrected.
-- [ ] VeWorld wallet flow is tested end-to-end on the launch candidate.
-- [ ] Mobile invite creation, link opening, wallet switching, disconnect/reconnect, and error states are tested.
-- [x] Terms and Privacy pages contain no draft/testnet placeholder language. Final legal review remains external.
+- [x] No referral can become ELIGIBLE without eligible entry proof + 3 distinct dApp reward events + B3TR→VOT3 conversion + later Allocation Vote + fresh Sybil CLEAR + complete reconciliation evidence.
+- [x] Anonymous invite status lookup does not expose inviter/invitee wallet addresses or stored mission progress.
+- [x] `/admin/*` rendering is protected by a server-side operator gate; operator APIs remain independently authorized.
+- [x] Terms and Privacy pages contain no draft/testnet placeholder language. Final jurisdiction-specific legal review remains external.
 - [x] Site title/description/canonical/social metadata are present.
 
-## Legacy production referrals
+## Infrastructure boundary
 
-Existing accepted referrals created before the audited entry-proof system must never be auto-grandfathered into rewards. Preserve them for audit, then either reconstruct valid entry evidence against their original activation boundary or keep them non-eligible. Historical rows missing a trustworthy activation boundary must remain non-eligible.
+- [x] Production and Preview Supabase identities are separated and protected by fail-closed environment/project guards.
+- [x] Production cannot silently fall back to a non-mainnet VeBetter network.
+- [x] Only `main` auto-deploys to Production under the reviewed Vercel deployment policy.
+- [x] Public `/api/health` is a lightweight database/network/deployment probe for uptime and stale-deployment checks. Reward-pool, distributor, gas, queue, payout, and planning diagnostics remain behind operator authorization.
+- [x] Preview/debug diagnostic paths are blocked in Production.
 
-## Reward launch gate
+## Legacy Production referrals
 
-- [x] Mainnet user reward distribution remains OFF until VeBetterDAO RuleBook interpretation is explicitly cleared or the qualification design is changed to be clearly compliant.
-- [x] Receiving an X-Allocation does not automatically enable user payouts.
-- [x] Only the Rewards Distribution Pool may be distributed; operations funds stay outside it.
-- [x] No admin/treasury/distributor private key is exposed to the app; the operator signs in VeWorld.
-- [x] Payment path has SENDING state, idempotency, transaction persistence, receipt verification, crash recovery, and a kill switch before mainnet transfer code is enabled.
+Existing accepted/completed referrals created before the audited entry-proof system must never be auto-grandfathered into rewards. Preserve them for audit, but keep rows without trustworthy immutable entry proof non-eligible. `status=COMPLETED` alone is never sufficient for payout.
+
+## Automatic reward safety gate
+
+The automatic Production reward pipeline is enabled but fail-closed. It uses a dedicated Reward Distributor rather than the app-admin wallet.
+
+- [x] Automatic payout requires an explicit enabled flag plus a configured distributor address and signing secret.
+- [x] The signing secret must cryptographically derive to the configured distributor address.
+- [x] Distributor registration and pause/readiness state are checked before transfer work.
+- [x] Reward rounds freeze validated queue entries into an immutable payout manifest.
+- [x] Automatic worker overlap is prevented by an operator lease/lock.
+- [x] Signed transaction, submission, settlement, and recovery state are persisted for crash-safe reconciliation.
+- [x] A payout becomes PAID only after finalized-chain verification and immutable receipt/accounting updates.
+- [x] Operations funds remain outside the referral reward distribution path.
+- [x] No distributor signing secret is exposed to browser/client bundles or public APIs.
+- [ ] First genuine Production eligible referral → automatic B3TR payout E2E has occurred and been independently reconciled. As of 2026-09-03 there is no Production referral that satisfies every payout condition, so this remains intentionally unforced.
 
 ## Data/reporting gate
 
-- [ ] Background reconciliation meets the one-hour freshness target independently of page visits. A daily fallback exists, but its frequency is not yet sufficient for that target.
-- [ ] Data-quality gate is clean before operator/public metrics are reported.
-- [x] Public NEW/RETURNING reporting is fail-closed until a one-way VeBetterDAO round baseline is locked, and pre-baseline eligibility events are excluded.
-- [ ] Select and lock the first official Production VeBetterDAO reporting round.
+- [ ] Background recovery reaches the desired freshness target independently of page visits. The current independent fallback cron is daily on the existing hosting plan.
+- [x] Public NEW/RETURNING reporting is fail-closed around the reviewed reporting baseline and excludes unqualified legacy history.
 - [x] Completed-round growth reports are append-only snapshots; changed evidence creates a new version with a required revision reason.
+- [x] Public leaderboard data is intentionally auditable, while invitation relationship/progress data is not publicly exposed through invite-link lookup.
+- [x] Durable reward/accounting/audit rows are preserved; housekeeping only removes transient challenge/session/rate-limit data according to retention rules.
 
-## Launch-day operations
+## Release-day operations
 
-- [ ] Confirm VeInvite appears in the new mainnet allocation voting list.
-- [ ] Confirm production health after deployment.
-- [ ] Watch Vercel runtime errors and Supabase data-quality state during first traffic.
-- [ ] Confirm the first completed post-baseline growth snapshot is created by the reconciliation cron and matches the live operator view.
-- [ ] Keep automatic payouts disabled.
-- [ ] Have a rollback target ready (last known-good production deployment).
+- [ ] Latest PR CI is fully green before merge.
+- [ ] Merged `main` commit SHA matches the Production deployment revision.
+- [ ] Vercel Production deployment reaches READY with no unresolved build/runtime errors.
+- [ ] Public Production health returns HTTP 200 with expected mainnet/database/deployment revision state.
+- [ ] Authenticated operator reward-operations health reports the expected distributor, pause, gas, queue, pool, and payout readiness state.
+- [ ] Anonymous invite smoke test confirms no wallet relationship or detailed progress leakage.
+- [ ] Verified invite owner smoke test still restores required detailed progress.
+- [ ] Non-operator `/admin/*` access is rejected while the operator path still works.
+- [ ] Production demo-completion path remains blocked.
+- [ ] Current reward queue/round/payout state matches the database and no unexpected transfer is initiated.
+- [ ] Last known-good Production deployment remains identifiable for rollback.
+
+## Next QA upgrade
+
+Add browser-level Playwright coverage for mobile/desktop invite opening, wallet/session recovery, language switching, admin denial, and key layout/error states. Current CI is strong on static/server/data invariants but does not yet replace real-browser regression coverage.
