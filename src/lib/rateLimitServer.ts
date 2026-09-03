@@ -21,6 +21,8 @@ export type RateLimitCheck = {
   windowSeconds: number;
 };
 
+const JWT_FUTURE_RETRY_MS = 750;
+
 function hashSubject(
   scope: string,
   subject: string,
@@ -31,6 +33,20 @@ function hashSubject(
       'utf8',
     )
     .digest('hex');
+}
+
+function isJwtIssuedAtFutureError(
+  error: { message?: string } | null,
+): boolean {
+  return error?.message?.includes(
+    'JWT issued at future',
+  ) === true;
+}
+
+function wait(milliseconds: number) {
+  return new Promise<void>((resolve) => {
+    setTimeout(resolve, milliseconds);
+  });
 }
 
 export function getClientIpSubject(
@@ -60,22 +76,35 @@ export function getClientIpSubject(
 async function consumeRateLimit(
   check: RateLimitCheck,
 ): Promise<RateLimitRpcRow> {
-  const {
+  const consume = () =>
+    supabaseAdmin.rpc(
+      'consume_api_rate_limit',
+      {
+        p_scope: check.scope,
+        p_subject_hash: hashSubject(
+          check.scope,
+          check.subject,
+        ),
+        p_limit: check.limit,
+        p_window_seconds:
+          check.windowSeconds,
+      },
+    );
+
+  let {
     data,
     error,
-  } = await supabaseAdmin.rpc(
-    'consume_api_rate_limit',
-    {
-      p_scope: check.scope,
-      p_subject_hash: hashSubject(
-        check.scope,
-        check.subject,
-      ),
-      p_limit: check.limit,
-      p_window_seconds:
-        check.windowSeconds,
-    },
-  );
+  } = await consume();
+
+  // Supabase can very briefly reject a freshly issued service JWT when its
+  // auth gateway clock lags the issuer. That rejection happens before the
+  // database RPC executes, so retry exactly this pre-execution auth error once.
+  // Every other failure remains non-retriable and fail-closed so rate limits
+  // cannot be bypassed or double-consumed by generic mutation retries.
+  if (isJwtIssuedAtFutureError(error)) {
+    await wait(JWT_FUTURE_RETRY_MS);
+    ({ data, error } = await consume());
+  }
 
   if (error) {
     throw new Error(
