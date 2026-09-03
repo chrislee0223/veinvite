@@ -11,6 +11,7 @@ const read = (path) =>
 const [
   migration,
   privacyRetentionMigration,
+  adminExclusionMigration,
   tracker,
   preference,
   preferenceControl,
@@ -28,6 +29,9 @@ const [
   ),
   read(
     'supabase/migrations/20260903013000_harden_usage_analytics_privacy_retention.sql',
+  ),
+  read(
+    'supabase/migrations/20260903164000_exclude_admin_wallets_from_usage_analytics.sql',
   ),
   read('src/components/UsageAnalyticsTracker.tsx'),
   read('src/lib/usageAnalyticsPreference.ts'),
@@ -75,6 +79,14 @@ test(
     assert.match(
       privacyRetentionMigration,
       /alter table public\.app_usage_daily_dimension_rollups enable row level security;/,
+    );
+    assert.match(
+      adminExclusionMigration,
+      /alter table public\.app_usage_excluded_visitors enable row level security;/,
+    );
+    assert.match(
+      adminExclusionMigration,
+      /alter table public\.app_usage_session_view_counts enable row level security;/,
     );
     assert.match(
       migration,
@@ -129,16 +141,58 @@ test(
       ingestion,
       /p_returning_visitor/,
     );
+    assert.match(
+      ingestion,
+      /analytics_excluded_wallets/,
+    );
+    assert.match(
+      ingestion,
+      /exclude_app_usage_visitor/,
+    );
+    assert.doesNotMatch(
+      ingestion,
+      /p_wallet_address/,
+    );
     assert.doesNotMatch(
       ingestion,
       /@\/lib\/rewards\//,
     );
-    assert.doesNotMatch(
-      ingestion,
-      /walletAddress/,
-    );
     assert.doesNotMatch(ingestion, /inviteCode/);
     assert.doesNotMatch(ingestion, /searchParams/);
+  },
+);
+
+test(
+  'admin exclusion resolves only the anonymous daily visitor and never stores wallet identity in usage rows',
+  () => {
+    assert.match(
+      adminExclusionMigration,
+      /create table if not exists public\.analytics_excluded_wallets/,
+    );
+    assert.match(
+      adminExclusionMigration,
+      /create table if not exists public\.app_usage_excluded_visitors/,
+    );
+    assert.match(
+      adminExclusionMigration,
+      /No wallet address or wallet hash is stored here/,
+    );
+    assert.match(
+      adminExclusionMigration,
+      /create or replace function public\.exclude_app_usage_visitor/,
+    );
+    assert.match(
+      adminExclusionMigration,
+      /returning_visitor/,
+    );
+    assert.match(
+      tracker,
+      /USAGE_ANALYTICS_WALLET_AUTH_EVENT/,
+    );
+    assert.match(
+      tracker,
+      /'wallet_authenticated'/,
+    );
   },
 );
 
@@ -243,6 +297,10 @@ test(
     assert.match(
       privacyRetentionMigration,
       /create or replace function public\.compact_app_usage_analytics/,
+    );
+    assert.match(
+      adminExclusionMigration,
+      /not exists \(select 1 from public\.app_usage_excluded_visitors/,
     );
     assert.match(
       privacyRetentionMigration,

@@ -13,6 +13,8 @@ import {
   useWallet as useDappKitWallet,
 } from '@vechain/dapp-kit-react';
 
+import { USAGE_ANALYTICS_WALLET_AUTH_EVENT } from '@/lib/usageAnalyticsPreference';
+
 const WALLET_PATTERN =
   /^0x[0-9a-fA-F]{40}$/;
 const WALLET_SIGNATURE_TIMEOUT_MS = 15_000;
@@ -452,6 +454,11 @@ export function useWalletAuthentication() {
 
         try {
           await run;
+          window.dispatchEvent(
+            new Event(
+              USAGE_ANALYTICS_WALLET_AUTH_EVENT,
+            ),
+          );
         } finally {
           if (
             inFlightRef.current

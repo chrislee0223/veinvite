@@ -95,6 +95,12 @@ jobs:
       - name: Usage analytics privacy gate
         run: node --test tests/usage-analytics-privacy.test.mjs
 
+      - name: Admin analytics exclusion gate
+        run: node --test tests/admin-analytics-exclusions.test.mjs
+
+      - name: Fast operator status gate
+        run: node --test tests/operator-fast-status*.test.mjs
+
       - name: Install dependencies
         run: npm ci
 

@@ -2,6 +2,8 @@
 
 export const USAGE_ANALYTICS_PREFERENCE_EVENT =
   'veinvite-usage-analytics-preference-change';
+export const USAGE_ANALYTICS_WALLET_AUTH_EVENT =
+  'veinvite-wallet-authenticated';
 
 export const USAGE_ANALYTICS_ENABLED_STORAGE_KEY =
   'veinvite.analytics.enabled.v1';

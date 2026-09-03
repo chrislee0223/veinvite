@@ -14,6 +14,7 @@ import {
   USAGE_ANALYTICS_PREFERENCE_EVENT,
   USAGE_ANALYTICS_SEEN_STORAGE_KEY,
   USAGE_ANALYTICS_SESSION_STORAGE_KEY,
+  USAGE_ANALYTICS_WALLET_AUTH_EVENT,
 } from '@/lib/usageAnalyticsPreference';
 
 const HEARTBEAT_MS = 30_000;
@@ -27,7 +28,8 @@ type UsageEventKind =
   | 'start'
   | 'pageview'
   | 'heartbeat'
-  | 'end';
+  | 'end'
+  | 'wallet_authenticated';
 type UsageView =
   | 'home'
   | 'guide'
@@ -572,7 +574,8 @@ export function UsageAnalyticsTracker() {
       if (!resolved) return;
       if (
         resolved.created &&
-        kind !== 'start'
+        kind !== 'start' &&
+        kind !== 'wallet_authenticated'
       ) {
         rawSend(
           'start',
@@ -744,6 +747,15 @@ export function UsageAnalyticsTracker() {
       localeRef.current = detail;
     };
 
+    const onWalletAuthenticated = () => {
+      if (!mountedRef.current) return;
+      send(
+        'wallet_authenticated',
+        currentViewRef.current,
+        0,
+      );
+    };
+
     document.addEventListener(
       'visibilitychange',
       onVisibilityChange,
@@ -761,6 +773,10 @@ export function UsageAnalyticsTracker() {
     window.addEventListener(
       'veinvite-language-change',
       onLanguageChange,
+    );
+    window.addEventListener(
+      USAGE_ANALYTICS_WALLET_AUTH_EVENT,
+      onWalletAuthenticated,
     );
 
     return () => {
@@ -792,6 +808,10 @@ export function UsageAnalyticsTracker() {
       window.removeEventListener(
         'veinvite-language-change',
         onLanguageChange,
+      );
+      window.removeEventListener(
+        USAGE_ANALYTICS_WALLET_AUTH_EVENT,
+        onWalletAuthenticated,
       );
       mountedRef.current = false;
       activeSinceRef.current = null;
