@@ -3,7 +3,6 @@ import { supabaseAdmin } from '@/lib/supabaseServer';
 const CHALLENGE_RETENTION_MS = 60 * 60 * 1000;
 const SESSION_RETENTION_MS = 24 * 60 * 60 * 1000;
 const RATE_LIMIT_RETENTION_MS = 24 * 60 * 60 * 1000;
-const RUNTIME_LOCK_RETENTION_MS = 60 * 60 * 1000;
 const USAGE_ANALYTICS_RETENTION_DAYS = 30;
 
 export type EphemeralCleanupSummary = {
@@ -32,6 +31,15 @@ function readNumericField(
     : 0;
 }
 
+function readNumericResult(value: unknown): number {
+  const parsed = Number(
+    Array.isArray(value) ? value[0] : value,
+  );
+  return Number.isFinite(parsed) && parsed > 0
+    ? Math.floor(parsed)
+    : 0;
+}
+
 /**
  * Removes only short-lived security/runtime state that is no longer usable.
  *
@@ -39,6 +47,9 @@ function readNumericField(
  * events, reward/accounting records, monitoring snapshots, or payout data.
  * Expired operator leases are retained for one extra hour before deletion so
  * cleanup cannot race a lease that has only just crossed its expiry boundary.
+ * The lock table remains direct-access restricted: cleanup goes through a
+ * narrow service-role-only SECURITY DEFINER function that can remove only
+ * leases expired by more than one hour.
  * Usage analytics is handled separately: raw anonymous session rows older than
  * 30 Seoul-calendar days are first finalized into identifier-free daily
  * rollups, then the raw sessions and orphaned daily visitor hashes are removed.
@@ -53,9 +64,6 @@ export async function cleanupEphemeralSecurityState(): Promise<EphemeralCleanupS
   ).toISOString();
   const rateLimitCutoff = new Date(
     now - RATE_LIMIT_RETENTION_MS,
-  ).toISOString();
-  const runtimeLockCutoff = new Date(
-    now - RUNTIME_LOCK_RETENTION_MS,
   ).toISOString();
 
   const challengeDelete = await supabaseAdmin
@@ -93,14 +101,13 @@ export async function cleanupEphemeralSecurityState(): Promise<EphemeralCleanupS
     );
   }
 
-  const runtimeLockDelete = await supabaseAdmin
-    .from('operator_runtime_locks')
-    .delete({ count: 'exact' })
-    .lt('locked_until', runtimeLockCutoff);
+  const runtimeLockCleanup = await supabaseAdmin.rpc(
+    'cleanup_expired_operator_runtime_locks',
+  );
 
-  if (runtimeLockDelete.error) {
+  if (runtimeLockCleanup.error) {
     throw new Error(
-      `Expired operator runtime locks could not be cleaned: ${runtimeLockDelete.error.message}`,
+      `Expired operator runtime locks could not be cleaned: ${runtimeLockCleanup.error.message}`,
     );
   }
 
@@ -128,7 +135,7 @@ export async function cleanupEphemeralSecurityState(): Promise<EphemeralCleanupS
     expiredChallengesDeleted: countDeleted(challengeDelete.count),
     staleSessionsDeleted: countDeleted(sessionDelete.count),
     oldRateLimitBucketsDeleted: countDeleted(rateLimitDelete.count),
-    expiredRuntimeLocksDeleted: countDeleted(runtimeLockDelete.count),
+    expiredRuntimeLocksDeleted: readNumericResult(runtimeLockCleanup.data),
     analyticsCompactedDays: readNumericField(
       analyticsRow,
       'compacted_days',

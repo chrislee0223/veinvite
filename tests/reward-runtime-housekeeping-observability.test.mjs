@@ -5,10 +5,18 @@ import test from 'node:test';
 const read = (path) =>
   readFile(new URL(`../${path}`, import.meta.url), 'utf8');
 
-const [cronRoute, analyticsMigration, tracker] = await Promise.all([
+const [
+  cronRoute,
+  analyticsMigration,
+  tracker,
+  cleanup,
+  runtimeLockMigration,
+] = await Promise.all([
   read('src/app/api/cron/reconcile/route.ts'),
   read('supabase/migrations/20260903022000_optimize_usage_analytics_date_scans.sql'),
   read('src/components/UsageAnalyticsTracker.tsx'),
+  read('src/lib/housekeeping/ephemeralCleanup.ts'),
+  read('supabase/migrations/20260903103000_add_runtime_lock_cleanup_rpc.sql'),
 ]);
 
 test('scheduled housekeeping failure is visible without skipping later monitoring', () => {
@@ -27,6 +35,41 @@ test('scheduled housekeeping failure is visible without skipping later monitorin
 
   assert.match(cronRoute, /status: hasCoreFailure \? 500 : 200/);
   assert.match(cronRoute, /partialFailure: hasCoreFailure/);
+});
+
+test('runtime lock housekeeping stays narrow and service-role-only', () => {
+  assert.match(
+    cleanup,
+    /supabaseAdmin\.rpc\(\s*['"]cleanup_expired_operator_runtime_locks['"]\s*,?\s*\)/,
+  );
+  assert.doesNotMatch(
+    cleanup,
+    /from\(['"]operator_runtime_locks['"]\)[\s\S]{0,250}\.delete\(/,
+  );
+
+  assert.match(
+    runtimeLockMigration,
+    /create or replace function public\.cleanup_expired_operator_runtime_locks\(\)/i,
+  );
+  assert.match(runtimeLockMigration, /security definer/i);
+  assert.match(runtimeLockMigration, /set search_path = public/i);
+  assert.match(
+    runtimeLockMigration,
+    /locked_until < now\(\) - interval '1 hour'/i,
+  );
+  assert.doesNotMatch(runtimeLockMigration, /\bp_[a-z0-9_]+\b/i);
+  assert.match(
+    runtimeLockMigration,
+    /revoke all on function public\.cleanup_expired_operator_runtime_locks\(\)[\s\S]*from public, anon, authenticated/i,
+  );
+  assert.match(
+    runtimeLockMigration,
+    /grant execute on function public\.cleanup_expired_operator_runtime_locks\(\)[\s\S]*to service_role/i,
+  );
+  assert.doesNotMatch(
+    runtimeLockMigration,
+    /grant\s+(?:delete|all)[\s\S]*operator_runtime_locks/i,
+  );
 });
 
 test('analytics optimization stays isolated from reward and referral tables', () => {
