@@ -18,8 +18,8 @@ const supabaseServer = read(
 const inviteProgressRoute = read(
   'src/app/api/invites/[code]/route.ts',
 );
-const participantsAdminPage = read(
-  'src/app/admin/participants/page.tsx',
+const adminLayout = read(
+  'src/app/admin/layout.tsx',
 );
 
 const localeKeys = [
@@ -194,20 +194,15 @@ if (
 }
 
 if (
-  !/cookies\(\)/.test(participantsAdminPage) ||
-  !/getWalletSessionFromTokens/.test(
-    participantsAdminPage,
-  ) ||
-  !/canOperateVeInviteRewards/.test(
-    participantsAdminPage,
-  ) ||
-  !/notFound\(\)/.test(participantsAdminPage) ||
-  !/initialSessionWallet/.test(
-    participantsAdminPage,
-  )
+  !/cookies\(\)/.test(adminLayout) ||
+  !/getWalletSessionFromTokens/.test(adminLayout) ||
+  !/canOperateVeInviteRewards/.test(adminLayout) ||
+  !/notFound\(\)/.test(adminLayout) ||
+  !/initialSessionWallet/.test(adminLayout) ||
+  !/WalletSessionGate/.test(adminLayout)
 ) {
   failures.push(
-    'Participant admin UI must remain hidden behind server-validated operator access.',
+    'Every /admin route must remain behind the shared server-validated operator layout.',
   );
 }
 
