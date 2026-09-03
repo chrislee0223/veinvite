@@ -23,7 +23,7 @@ This checklist is a hard gate for Production changes. Do not treat app endorseme
 - [x] Production and Preview Supabase identities are separated and protected by fail-closed environment/project guards.
 - [x] Production cannot silently fall back to a non-mainnet VeBetter network.
 - [x] Only `main` auto-deploys to Production under the reviewed Vercel deployment policy.
-- [x] Public `/api/health` exposes only deployment/readiness information needed for uptime and stale-deployment checks; detailed reward operations remain behind operator authorization.
+- [x] Public `/api/health` is a lightweight database/network/deployment probe for uptime and stale-deployment checks. Reward-pool, distributor, gas, queue, payout, and planning diagnostics remain behind operator authorization.
 - [x] Preview/debug diagnostic paths are blocked in Production.
 
 ## Legacy Production referrals
@@ -58,7 +58,8 @@ The automatic Production reward pipeline is enabled but fail-closed. It uses a d
 - [ ] Latest PR CI is fully green before merge.
 - [ ] Merged `main` commit SHA matches the Production deployment revision.
 - [ ] Vercel Production deployment reaches READY with no unresolved build/runtime errors.
-- [ ] Production health returns expected mainnet/database/revision/automatic-readiness state.
+- [ ] Public Production health returns HTTP 200 with expected mainnet/database/deployment revision state.
+- [ ] Authenticated operator reward-operations health reports the expected distributor, pause, gas, queue, pool, and payout readiness state.
 - [ ] Anonymous invite smoke test confirms no wallet relationship or detailed progress leakage.
 - [ ] Verified invite owner smoke test still restores required detailed progress.
 - [ ] Non-operator `/admin/*` access is rejected while the operator path still works.
