@@ -6,6 +6,8 @@ export const WALLET_CONNECT_INTENT_STORAGE_KEY =
   'veinvite_wallet_connect_intent_at';
 export const DAPPKIT_ACCOUNT_STORAGE_KEY =
   'dappkit@vechain/v2/account';
+export const DAPPKIT_SOURCE_STORAGE_KEY =
+  'dappkit@vechain/v2/source';
 
 export function markWalletConnectIntent(): void {
   if (typeof window === 'undefined') {
@@ -72,5 +74,21 @@ export function readPersistedDappKitAccount(): string | null {
     return raw.toLowerCase();
   } catch {
     return null;
+  }
+}
+
+export function hasPersistedVeWorldSource(): boolean {
+  if (typeof window === 'undefined') {
+    return false;
+  }
+
+  try {
+    return (
+      window.localStorage
+        .getItem(DAPPKIT_SOURCE_STORAGE_KEY)
+        ?.toLowerCase() === 'veworld'
+    );
+  } catch {
+    return false;
   }
 }
