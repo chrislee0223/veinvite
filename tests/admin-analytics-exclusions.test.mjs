@@ -5,10 +5,16 @@ import test from 'node:test';
 const read = (path) =>
   readFile(new URL(`../${path}`, import.meta.url), 'utf8');
 
-const [usageMigration, viewsMigration, reportsMigration] = await Promise.all([
+const [
+  usageMigration,
+  viewsMigration,
+  reportsMigration,
+  concurrencyMigration,
+] = await Promise.all([
   read('supabase/migrations/20260903130000_exclude_admin_wallets_from_usage_analytics.sql'),
   read('supabase/migrations/20260903131000_exclude_admin_wallets_from_operator_views.sql'),
   read('supabase/migrations/20260903132000_exclude_admin_wallets_from_operator_reports.sql'),
+  read('supabase/migrations/20260903154000_serialize_admin_usage_exclusion.sql'),
 ]);
 
 const ADMIN_WALLETS = [
@@ -75,7 +81,7 @@ test('analytics exclusion migrations never mutate or delete canonical VeInvite r
     /update\s+public\.reward_(?:queue_entries|payouts|receipts)\s+set/i,
   ];
 
-  const combined = `${usageMigration}\n${viewsMigration}\n${reportsMigration}`;
+  const combined = `${usageMigration}\n${viewsMigration}\n${reportsMigration}\n${concurrencyMigration}`;
   for (const pattern of canonicalMutationPatterns) {
     assert.doesNotMatch(combined, pattern);
   }
@@ -88,5 +94,25 @@ test('anonymous usage suppression stores no wallet identity in visitor telemetry
   assert.doesNotMatch(
     usageMigration.match(/create table if not exists public\.app_usage_excluded_visitors[\s\S]*?\);/)?.[0] ?? '',
     /wallet_address/i,
+  );
+});
+
+test('admin suppression and usage ingestion serialize on the same anonymous visitor lock', () => {
+  const advisoryLockPattern = /pg_catalog\.pg_advisory_xact_lock\([\s\S]*pg_catalog\.hashtextextended\(p_visitor_key, 0\)/gu;
+  assert.equal(
+    [...concurrencyMigration.matchAll(advisoryLockPattern)].length,
+    2,
+  );
+  assert.match(
+    concurrencyMigration,
+    /Always clean any remaining per-session view rows/i,
+  );
+  assert.doesNotMatch(
+    concurrencyMigration,
+    /if not v_inserted then[\s\S]*return false/iu,
+  );
+  assert.match(
+    concurrencyMigration,
+    /delete from public\.app_usage_session_view_counts[\s\S]*where visitor_key = p_visitor_key/u,
   );
 });
