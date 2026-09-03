@@ -103,8 +103,14 @@ export function deriveUnreadInviteNotificationV2({
       stage: INVITE_NOTIFICATION_STAGE.rewardPaid,
       eventAt: paidReward.paid_at,
       rewardAmountWei: paidReward.amount_wei,
-      dappProgress: null,
-      collapsedProgress: false,
+      dappProgress: 3,
+      // If the inviter was away until after settlement, one paid notice should
+      // summarize the skipped completion / reward-ready lifecycle instead of
+      // replaying old progress popups before the already-final paid state.
+      collapsedProgress:
+        readState.rewardReadyAcknowledgedAt === null ||
+        readState.highestStage < INVITE_NOTIFICATION_STAGE.allMissionsCompleted ||
+        readState.dappProgressAcknowledged < 3,
     };
   }
 
