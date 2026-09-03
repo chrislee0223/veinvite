@@ -105,7 +105,8 @@ function createUuid(): string {
   bytes[8] = (bytes[8] & 0x3f) | 0x80;
   const hex = Array.from(
     bytes,
-    (value) => value.toString(16).padStart(2, '0'),
+    (value) =>
+      value.toString(16).padStart(2, '0'),
   ).join('');
   return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
 }
@@ -120,8 +121,12 @@ function seoulDayKey(): string {
       day: '2-digit',
     },
   ).formatToParts(new Date());
-  const read = (type: 'year' | 'month' | 'day') =>
-    parts.find((part) => part.type === type)?.value ?? '';
+  const read = (
+    type: 'year' | 'month' | 'day',
+  ) =>
+    parts.find(
+      (part) => part.type === type,
+    )?.value ?? '';
   return `${read('year')}-${read('month')}-${read('day')}`;
 }
 
@@ -134,7 +139,9 @@ function readOrCreateDailyVisitor(): DailyVisitorIdentity {
     );
 
     if (raw) {
-      const parsed = JSON.parse(raw) as Partial<DailyVisitorIdentity>;
+      const parsed = JSON.parse(raw) as Partial<
+        DailyVisitorIdentity
+      >;
       if (
         parsed.dayKey === dayKey &&
         typeof parsed.id === 'string' &&
@@ -183,9 +190,14 @@ function acquisitionSourceFromReferrer(): AcquisitionSource {
 
   try {
     const referrer = new URL(document.referrer);
-    if (referrer.origin === window.location.origin) return 'direct';
+    if (
+      referrer.origin === window.location.origin
+    ) {
+      return 'direct';
+    }
 
     const host = referrer.hostname.toLowerCase();
+
     if (
       host === 'x.com' ||
       host.endsWith('.x.com') ||
@@ -248,21 +260,26 @@ function readOrCreateSession(
       USAGE_ANALYTICS_SESSION_STORAGE_KEY,
     );
     if (raw) {
-      const parsed = JSON.parse(raw) as Partial<SessionState>;
+      const parsed = JSON.parse(raw) as Partial<
+        SessionState
+      >;
       if (
         typeof parsed.id === 'string' &&
         parsed.dayKey === dayKey &&
         typeof parsed.startedAt === 'number' &&
         typeof parsed.lastActivityAt === 'number' &&
         typeof parsed.source === 'string' &&
-        now - parsed.lastActivityAt < SESSION_IDLE_MS
+        now - parsed.lastActivityAt <
+          SESSION_IDLE_MS
       ) {
         return {
           id: parsed.id,
           dayKey,
           startedAt: parsed.startedAt,
-          lastActivityAt: parsed.lastActivityAt,
-          source: parsed.source as AcquisitionSource,
+          lastActivityAt:
+            parsed.lastActivityAt,
+          source:
+            parsed.source as AcquisitionSource,
         };
       }
     }
@@ -273,7 +290,9 @@ function readOrCreateSession(
   return createSession(source, dayKey);
 }
 
-function persistSession(session: SessionState) {
+function persistSession(
+  session: SessionState,
+) {
   try {
     window.sessionStorage.setItem(
       USAGE_ANALYTICS_SESSION_STORAGE_KEY,
@@ -290,8 +309,11 @@ function currentLocale(): SupportedLocale {
   );
   if (fromDocument) return fromDocument;
 
-  for (const language of navigator.languages ?? []) {
-    const fromBrowser = localeFromLanguageTag(language);
+  for (
+    const language of navigator.languages ?? []
+  ) {
+    const fromBrowser =
+      localeFromLanguageTag(language);
     if (fromBrowser) return fromBrowser;
   }
 
@@ -308,25 +330,34 @@ function deviceBucket(): DeviceBucket {
   return 'desktop';
 }
 
-function viewFromPath(pathname: string): UsageView {
+function viewFromPath(
+  pathname: string,
+): UsageView {
   if (pathname === '/') return 'home';
-  if (pathname === '/privacy') return 'privacy';
+  if (pathname === '/privacy') {
+    return 'privacy';
+  }
   if (pathname === '/terms') return 'terms';
   if (
     pathname === '/i' ||
-    pathname.startsWith('/i/') ||
+    pathname.startsWith('/i/')
+  ) {
+    return 'invite_landing';
+  }
+  if (
     pathname === '/r' ||
     pathname.startsWith('/r/')
   ) {
-    // Both legacy one-time links and permanent referral links intentionally
-    // collapse into the same privacy-safe analytics bucket. Never send the raw
-    // /r/<key> path or the referral key to analytics storage.
+    // Permanent referral paths intentionally collapse into the same coarse
+    // analytics bucket as legacy invite links. The raw key/path is never sent.
     return 'invite_landing';
   }
   return 'other';
 }
 
-function shouldExcludePath(pathname: string): boolean {
+function shouldExcludePath(
+  pathname: string,
+): boolean {
   return (
     pathname === '/admin' ||
     pathname.startsWith('/admin/') ||
@@ -372,13 +403,20 @@ function sendUsagePayload(
 
 export function UsageAnalyticsTracker() {
   const pathname = usePathname();
-  const [preferenceReady, setPreferenceReady] = useState(false);
-  const [enabled, setEnabled] = useState(false);
-  const visitorRef = useRef<DailyVisitorIdentity | null>(null);
-  const sessionRef = useRef<SessionState | null>(null);
-  const currentViewRef = useRef<UsageView>('home');
-  const localeRef = useRef<SupportedLocale>('en');
-  const activeSinceRef = useRef<number | null>(null);
+  const [preferenceReady, setPreferenceReady] =
+    useState(false);
+  const [enabled, setEnabled] =
+    useState(false);
+  const visitorRef =
+    useRef<DailyVisitorIdentity | null>(null);
+  const sessionRef =
+    useRef<SessionState | null>(null);
+  const currentViewRef =
+    useRef<UsageView>('home');
+  const localeRef =
+    useRef<SupportedLocale>('en');
+  const activeSinceRef =
+    useRef<number | null>(null);
   const mountedRef = useRef(false);
   const excludedRef = useRef(false);
 
@@ -386,12 +424,13 @@ export function UsageAnalyticsTracker() {
     setEnabled(readUsageAnalyticsEnabled());
     setPreferenceReady(true);
 
-    const onPreferenceChange = (event: Event) => {
-      const detail = (event as CustomEvent<unknown>).detail;
+    const onPreferenceChange = (
+      event: Event,
+    ) => {
+      const detail =
+        (event as CustomEvent<unknown>).detail;
       if (typeof detail === 'boolean') {
         setEnabled(detail);
-      } else {
-        setEnabled(readUsageAnalyticsEnabled());
       }
     };
 
@@ -399,65 +438,432 @@ export function UsageAnalyticsTracker() {
       USAGE_ANALYTICS_PREFERENCE_EVENT,
       onPreferenceChange,
     );
-    return () => window.removeEventListener(
-      USAGE_ANALYTICS_PREFERENCE_EVENT,
-      onPreferenceChange,
-    );
+    return () => {
+      window.removeEventListener(
+        USAGE_ANALYTICS_PREFERENCE_EVENT,
+        onPreferenceChange,
+      );
+    };
   }, []);
 
   useEffect(() => {
-    excludedRef.current = shouldExcludePath(pathname);
-  }, [pathname]);
+    if (!preferenceReady || !enabled) {
+      mountedRef.current = false;
+      visitorRef.current = null;
+      sessionRef.current = null;
+      activeSinceRef.current = null;
+      return;
+    }
+
+    const initialPath =
+      window.location.pathname || '/';
+    excludedRef.current =
+      shouldExcludePath(initialPath);
+    if (excludedRef.current) return;
+
+    let cancelled = false;
+    let heartbeatTimer: number | null = null;
+
+    const source =
+      acquisitionSourceFromReferrer();
+    visitorRef.current =
+      readOrCreateDailyVisitor();
+    sessionRef.current = readOrCreateSession(
+      source,
+      visitorRef.current.dayKey,
+    );
+    currentViewRef.current =
+      viewFromPath(initialPath);
+
+    const isEngaged = () =>
+      document.visibilityState === 'visible' &&
+      document.hasFocus();
+
+    const ensureSession = (): {
+      session: SessionState;
+      created: boolean;
+    } | null => {
+      const daily =
+        readOrCreateDailyVisitor();
+      const existing = sessionRef.current;
+      const now = Date.now();
+
+      if (
+        !visitorRef.current ||
+        visitorRef.current.id !== daily.id ||
+        visitorRef.current.dayKey !==
+          daily.dayKey
+      ) {
+        visitorRef.current = daily;
+        const created = createSession(
+          existing?.source ?? source,
+          daily.dayKey,
+        );
+        sessionRef.current = created;
+        persistSession(created);
+        activeSinceRef.current =
+          isEngaged() ? now : null;
+        return {
+          session: created,
+          created: true,
+        };
+      }
+
+      if (!existing) return null;
+
+      if (
+        existing.dayKey === daily.dayKey &&
+        now - existing.lastActivityAt <
+          SESSION_IDLE_MS
+      ) {
+        return {
+          session: existing,
+          created: false,
+        };
+      }
+
+      const created = createSession(
+        existing.source,
+        daily.dayKey,
+      );
+      sessionRef.current = created;
+      persistSession(created);
+      activeSinceRef.current =
+        isEngaged() ? now : null;
+      return {
+        session: created,
+        created: true,
+      };
+    };
+
+    const rawSend = (
+      kind: UsageEventKind,
+      session: SessionState,
+      view: UsageView,
+      activeDeltaSeconds: number,
+      useBeacon = false,
+    ) => {
+      const visitor = visitorRef.current;
+      if (!visitor) return;
+      const now = Date.now();
+      session.lastActivityAt = now;
+      persistSession(session);
+      sendUsagePayload(
+        {
+          kind,
+          visitorId: visitor.id,
+          sessionId: session.id,
+          view,
+          locale: localeRef.current,
+          device: deviceBucket(),
+          source: session.source,
+          activeDeltaSeconds: Math.max(
+            0,
+            Math.min(
+              MAX_ACTIVE_DELTA_SECONDS,
+              Math.floor(activeDeltaSeconds),
+            ),
+          ),
+          returningVisitor:
+            visitor.returning,
+        },
+        useBeacon,
+      );
+    };
+
+    const send = (
+      kind: UsageEventKind,
+      view: UsageView =
+        currentViewRef.current,
+      activeDeltaSeconds = 0,
+      useBeacon = false,
+    ) => {
+      const resolved = ensureSession();
+      if (!resolved) return;
+      if (
+        resolved.created &&
+        kind !== 'start' &&
+        kind !== 'wallet_authenticated'
+      ) {
+        rawSend(
+          'start',
+          resolved.session,
+          view,
+          0,
+          useBeacon,
+        );
+      }
+      rawSend(
+        kind,
+        resolved.session,
+        view,
+        activeDeltaSeconds,
+        useBeacon,
+      );
+    };
+
+    const flushEngaged = (
+      kind: 'heartbeat' | 'end',
+      useBeacon = false,
+    ) => {
+      const started = activeSinceRef.current;
+      const now = Date.now();
+      const delta =
+        started === null
+          ? 0
+          : Math.max(
+              0,
+              (now - started) / 1000,
+            );
+      activeSinceRef.current =
+        isEngaged() ? now : null;
+      if (delta > 0 || kind === 'end') {
+        send(
+          kind,
+          currentViewRef.current,
+          delta,
+          useBeacon,
+        );
+      }
+    };
+
+    const start = () => {
+      if (cancelled) return;
+      localeRef.current = currentLocale();
+      const session = sessionRef.current;
+      if (!session) return;
+      persistSession(session);
+      rawSend(
+        'start',
+        session,
+        currentViewRef.current,
+        0,
+      );
+      activeSinceRef.current =
+        isEngaged() ? Date.now() : null;
+      mountedRef.current = true;
+
+      heartbeatTimer = window.setInterval(
+        () => {
+          if (!isEngaged()) return;
+          flushEngaged('heartbeat');
+        },
+        HEARTBEAT_MS,
+      );
+    };
+
+    const startTimer =
+      window.setTimeout(start, 0);
+
+    const onVisibilityChange = () => {
+      if (!mountedRef.current) return;
+      if (
+        document.visibilityState === 'hidden'
+      ) {
+        flushEngaged('heartbeat', true);
+      } else if (document.hasFocus()) {
+        const resolved = ensureSession();
+        if (resolved?.created) {
+          rawSend(
+            'start',
+            resolved.session,
+            currentViewRef.current,
+            0,
+          );
+        }
+        activeSinceRef.current = Date.now();
+      }
+    };
+
+    const onFocus = () => {
+      if (
+        !mountedRef.current ||
+        document.visibilityState !== 'visible'
+      ) {
+        return;
+      }
+      const resolved = ensureSession();
+      if (resolved?.created) {
+        rawSend(
+          'start',
+          resolved.session,
+          currentViewRef.current,
+          0,
+        );
+      }
+      activeSinceRef.current = Date.now();
+    };
+
+    const onBlur = () => {
+      if (!mountedRef.current) return;
+      flushEngaged('heartbeat', true);
+      activeSinceRef.current = null;
+    };
+
+    const onPageHide = () => {
+      if (!mountedRef.current) return;
+      flushEngaged('end', true);
+    };
+
+    const onAnalyticsView = (
+      event: Event,
+    ) => {
+      if (!mountedRef.current) return;
+      const detail =
+        (event as CustomEvent<unknown>).detail;
+      if (
+        detail !== 'home' &&
+        detail !== 'guide' &&
+        detail !== 'leaderboard' &&
+        detail !== 'settings'
+      ) {
+        return;
+      }
+      const nextView = detail as UsageView;
+      if (
+        nextView === currentViewRef.current
+      ) {
+        return;
+      }
+
+      // A tab transition used to emit a heartbeat and then a pageview. The
+      // pageview can carry the same active-time delta, preserving session time
+      // while avoiding one serverless/Supabase write per internal tab switch.
+      const started = activeSinceRef.current;
+      const now = Date.now();
+      const delta =
+        started === null
+          ? 0
+          : Math.max(
+              0,
+              (now - started) / 1000,
+            );
+      activeSinceRef.current =
+        isEngaged() ? now : null;
+      currentViewRef.current = nextView;
+      send('pageview', nextView, delta);
+    };
+
+    const onLanguageChange = (
+      event: Event,
+    ) => {
+      const detail =
+        (event as CustomEvent<unknown>).detail;
+      if (!isLocale(detail)) return;
+      // The next heartbeat/pageview/end event persists the new locale. Avoid
+      // an extra zero-duration analytics request solely for a language change.
+      localeRef.current = detail;
+    };
+
+    const onWalletAuthenticated = () => {
+      if (!mountedRef.current) return;
+      send(
+        'wallet_authenticated',
+        currentViewRef.current,
+        0,
+      );
+    };
+
+    document.addEventListener(
+      'visibilitychange',
+      onVisibilityChange,
+    );
+    window.addEventListener('focus', onFocus);
+    window.addEventListener('blur', onBlur);
+    window.addEventListener(
+      'pagehide',
+      onPageHide,
+    );
+    window.addEventListener(
+      USAGE_ANALYTICS_VIEW_EVENT,
+      onAnalyticsView,
+    );
+    window.addEventListener(
+      'veinvite-language-change',
+      onLanguageChange,
+    );
+    window.addEventListener(
+      USAGE_ANALYTICS_WALLET_AUTH_EVENT,
+      onWalletAuthenticated,
+    );
+
+    return () => {
+      cancelled = true;
+      window.clearTimeout(startTimer);
+      if (heartbeatTimer !== null) {
+        window.clearInterval(heartbeatTimer);
+      }
+      document.removeEventListener(
+        'visibilitychange',
+        onVisibilityChange,
+      );
+      window.removeEventListener(
+        'focus',
+        onFocus,
+      );
+      window.removeEventListener(
+        'blur',
+        onBlur,
+      );
+      window.removeEventListener(
+        'pagehide',
+        onPageHide,
+      );
+      window.removeEventListener(
+        USAGE_ANALYTICS_VIEW_EVENT,
+        onAnalyticsView,
+      );
+      window.removeEventListener(
+        'veinvite-language-change',
+        onLanguageChange,
+      );
+      window.removeEventListener(
+        USAGE_ANALYTICS_WALLET_AUTH_EVENT,
+        onWalletAuthenticated,
+      );
+      mountedRef.current = false;
+      activeSinceRef.current = null;
+    };
+  }, [enabled, preferenceReady]);
 
   useEffect(() => {
-    if (!preferenceReady || !enabled || excludedRef.current) return;
+    if (
+      !enabled ||
+      !mountedRef.current ||
+      excludedRef.current ||
+      !pathname ||
+      shouldExcludePath(pathname)
+    ) {
+      return;
+    }
 
-    const source = acquisitionSourceFromReferrer();
+    const nextView = viewFromPath(pathname);
+    if (
+      nextView === currentViewRef.current
+    ) {
+      return;
+    }
+    currentViewRef.current = nextView;
+
     const visitor = readOrCreateDailyVisitor();
-    const session = readOrCreateSession(source, visitor.dayKey);
-    const view = viewFromPath(pathname);
-    const locale = currentLocale();
+    const existingSession = sessionRef.current;
+    const session =
+      existingSession &&
+      existingSession.dayKey === visitor.dayKey &&
+      Date.now() -
+        existingSession.lastActivityAt <
+        SESSION_IDLE_MS
+        ? existingSession
+        : createSession(
+            existingSession?.source ??
+              acquisitionSourceFromReferrer(),
+            visitor.dayKey,
+          );
 
     visitorRef.current = visitor;
     sessionRef.current = session;
-    currentViewRef.current = view;
-    localeRef.current = locale;
-    activeSinceRef.current = document.visibilityState === 'visible'
-      ? Date.now()
-      : null;
-    mountedRef.current = true;
+    session.lastActivityAt = Date.now();
     persistSession(session);
-
-    sendUsagePayload({
-      kind: 'start',
-      visitorId: visitor.id,
-      sessionId: session.id,
-      view,
-      locale,
-      device: deviceBucket(),
-      source: session.source,
-      activeDeltaSeconds: 0,
-      returningVisitor: visitor.returning,
-    });
-
-    return () => {
-      mountedRef.current = false;
-    };
-  }, [enabled, pathname, preferenceReady]);
-
-  useEffect(() => {
-    if (!preferenceReady || !enabled || !mountedRef.current || excludedRef.current) {
-      return;
-    }
-    const visitor = visitorRef.current;
-    const session = sessionRef.current;
-    if (!visitor || !session) return;
-
-    const nextView = viewFromPath(pathname);
-    if (nextView === currentViewRef.current) return;
-    currentViewRef.current = nextView;
-    localeRef.current = currentLocale();
-
     sendUsagePayload({
       kind: 'pageview',
       visitorId: visitor.id,
@@ -469,168 +875,7 @@ export function UsageAnalyticsTracker() {
       activeDeltaSeconds: 0,
       returningVisitor: visitor.returning,
     });
-  }, [enabled, pathname, preferenceReady]);
-
-  useEffect(() => {
-    if (!preferenceReady || !enabled || excludedRef.current) return;
-
-    const onLanguageChange = (event: Event) => {
-      const detail = (event as CustomEvent<unknown>).detail;
-      if (isLocale(detail)) localeRef.current = detail;
-    };
-
-    window.addEventListener(
-      'veinvite-language-change',
-      onLanguageChange,
-    );
-    return () => window.removeEventListener(
-      'veinvite-language-change',
-      onLanguageChange,
-    );
-  }, [enabled, preferenceReady]);
-
-  useEffect(() => {
-    if (!preferenceReady || !enabled || excludedRef.current) return;
-
-    const flushActiveTime = (
-      kind: 'heartbeat' | 'end',
-      useBeacon = false,
-    ) => {
-      const visitor = visitorRef.current;
-      const session = sessionRef.current;
-      if (!visitor || !session) return;
-
-      const now = Date.now();
-      const activeSince = activeSinceRef.current;
-      const deltaSeconds = activeSince === null
-        ? 0
-        : Math.max(
-            0,
-            Math.min(
-              MAX_ACTIVE_DELTA_SECONDS,
-              Math.floor((now - activeSince) / 1000),
-            ),
-          );
-      session.lastActivityAt = now;
-      persistSession(session);
-      if (document.visibilityState === 'visible') {
-        activeSinceRef.current = now;
-      }
-
-      sendUsagePayload(
-        {
-          kind,
-          visitorId: visitor.id,
-          sessionId: session.id,
-          view: currentViewRef.current,
-          locale: localeRef.current,
-          device: deviceBucket(),
-          source: session.source,
-          activeDeltaSeconds: deltaSeconds,
-          returningVisitor: visitor.returning,
-        },
-        useBeacon,
-      );
-    };
-
-    const onVisibilityChange = () => {
-      if (document.visibilityState === 'hidden') {
-        flushActiveTime('heartbeat', true);
-        activeSinceRef.current = null;
-      } else {
-        activeSinceRef.current = Date.now();
-      }
-    };
-    const onPageHide = () => flushActiveTime('end', true);
-    const intervalId = window.setInterval(
-      () => {
-        if (document.visibilityState === 'visible') {
-          flushActiveTime('heartbeat');
-        }
-      },
-      HEARTBEAT_MS,
-    );
-
-    document.addEventListener('visibilitychange', onVisibilityChange);
-    window.addEventListener('pagehide', onPageHide);
-    return () => {
-      window.clearInterval(intervalId);
-      document.removeEventListener('visibilitychange', onVisibilityChange);
-      window.removeEventListener('pagehide', onPageHide);
-    };
-  }, [enabled, preferenceReady]);
-
-  useEffect(() => {
-    if (!preferenceReady || !enabled || excludedRef.current) return;
-
-    const onWalletAuthenticated = () => {
-      const visitor = visitorRef.current;
-      const session = sessionRef.current;
-      if (!visitor || !session) return;
-
-      sendUsagePayload({
-        kind: 'wallet_authenticated',
-        visitorId: visitor.id,
-        sessionId: session.id,
-        view: currentViewRef.current,
-        locale: localeRef.current,
-        device: deviceBucket(),
-        source: session.source,
-        activeDeltaSeconds: 0,
-        returningVisitor: visitor.returning,
-      });
-    };
-
-    window.addEventListener(
-      USAGE_ANALYTICS_WALLET_AUTH_EVENT,
-      onWalletAuthenticated,
-    );
-    return () => window.removeEventListener(
-      USAGE_ANALYTICS_WALLET_AUTH_EVENT,
-      onWalletAuthenticated,
-    );
-  }, [enabled, preferenceReady]);
-
-  useEffect(() => {
-    if (!preferenceReady || !enabled || excludedRef.current) return;
-
-    const onVirtualView = (event: Event) => {
-      const detail = (event as CustomEvent<unknown>).detail;
-      if (
-        detail !== 'home' &&
-        detail !== 'guide' &&
-        detail !== 'leaderboard' &&
-        detail !== 'settings'
-      ) {
-        return;
-      }
-      const visitor = visitorRef.current;
-      const session = sessionRef.current;
-      if (!visitor || !session || currentViewRef.current === detail) return;
-      currentViewRef.current = detail;
-
-      sendUsagePayload({
-        kind: 'pageview',
-        visitorId: visitor.id,
-        sessionId: session.id,
-        view: detail,
-        locale: localeRef.current,
-        device: deviceBucket(),
-        source: session.source,
-        activeDeltaSeconds: 0,
-        returningVisitor: visitor.returning,
-      });
-    };
-
-    window.addEventListener(
-      USAGE_ANALYTICS_VIEW_EVENT,
-      onVirtualView,
-    );
-    return () => window.removeEventListener(
-      USAGE_ANALYTICS_VIEW_EVENT,
-      onVirtualView,
-    );
-  }, [enabled, preferenceReady]);
+  }, [enabled, pathname]);
 
   return null;
 }
