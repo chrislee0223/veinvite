@@ -6,6 +6,9 @@ import {
 import {
   enforceRateLimits,
 } from '@/lib/rateLimitServer';
+import {
+  runAutomaticRewardPayout,
+} from '@/lib/rewards/automaticRewardPayoutWithMnemonic';
 import { supabaseAdmin } from '@/lib/supabaseServer';
 import {
   requireWalletSession,
@@ -23,6 +26,17 @@ type RewardClaimRow = {
   claim_requested_at: string;
   claim_requested_by_wallet: string;
 };
+
+function sameOrigin(request: NextRequest): boolean {
+  const origin = request.headers.get('origin');
+  if (!origin) return false;
+
+  try {
+    return new URL(origin).origin === request.nextUrl.origin;
+  } catch {
+    return false;
+  }
+}
 
 function claimErrorResponse(
   message: string,
@@ -74,6 +88,16 @@ function claimErrorResponse(
 export async function POST(
   request: NextRequest,
 ) {
+  if (!sameOrigin(request)) {
+    return NextResponse.json(
+      { error: 'Invalid request origin.' },
+      {
+        status: 403,
+        headers: { 'Cache-Control': 'no-store' },
+      },
+    );
+  }
+
   let body: {
     inviteCode?: string;
   };
@@ -178,10 +202,23 @@ export async function POST(
       claim.invite_code !== inviteCode ||
       claim.claim_requested_by_wallet
         .toLowerCase() !==
-        session.walletAddress
+        session.walletAddress.toLowerCase()
     ) {
       throw new Error(
         'Reward claim request returned an invalid result.',
+      );
+    }
+
+    // Claiming changes only transfer state. The fixed reward amount was already
+    // reserved when the friend passed final verification. Make one immediate,
+    // fail-closed payout attempt for a responsive UX; the existing scheduled
+    // worker remains the retry path if the network/pool is temporarily blocked.
+    try {
+      await runAutomaticRewardPayout();
+    } catch (rewardError) {
+      console.error(
+        'Immediate reward payout iteration failed after claim:',
+        rewardError,
       );
     }
 
