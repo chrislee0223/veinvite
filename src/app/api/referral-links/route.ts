@@ -31,6 +31,7 @@ type ActiveInvitationRow = {
   eligibility_check_id: string | number | null;
   activation_network: string | null;
   sybil_status: string;
+  slot_released_at: string | null;
 };
 
 function walletAuthResponse(error: unknown): NextResponse | null {
@@ -46,20 +47,32 @@ function walletAuthResponse(error: unknown): NextResponse | null {
 
 function isSlotOccupying(invitation: ActiveInvitationRow): boolean {
   if (invitation.status === 'PENDING_ACCEPTANCE') return true;
-  return (
-    (invitation.status === 'ACTIVATING' || invitation.status === 'UNDER_REVIEW') &&
+
+  const hasActiveProof =
     invitation.eligibility_check_id !== null &&
     Boolean(invitation.activation_network) &&
-    invitation.sybil_status !== 'BLOCKED'
+    invitation.sybil_status !== 'BLOCKED';
+
+  if (
+    invitation.status === 'ACTIVATING' ||
+    invitation.status === 'UNDER_REVIEW'
+  ) {
+    return hasActiveProof;
+  }
+
+  return (
+    invitation.status === 'COMPLETED' &&
+    hasActiveProof &&
+    invitation.slot_released_at === null
   );
 }
 
 async function loadSlotsAvailable(inviterWallet: string): Promise<number> {
   const { data, error } = await supabaseAdmin
     .from('invitations')
-    .select('invite_slot,status,eligibility_check_id,activation_network,sybil_status')
+    .select('invite_slot,status,eligibility_check_id,activation_network,sybil_status,slot_released_at')
     .eq('inviter_wallet', inviterWallet)
-    .in('status', ['PENDING_ACCEPTANCE', 'ACTIVATING', 'UNDER_REVIEW']);
+    .in('status', ['PENDING_ACCEPTANCE', 'ACTIVATING', 'UNDER_REVIEW', 'COMPLETED']);
 
   if (error) throw error;
 
