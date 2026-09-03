@@ -29,6 +29,22 @@ type ReferralLinkRow = {
   inviter_wallet: string;
 };
 
+type ExistingInvitationRow = {
+  invite_code: string;
+  inviter_wallet: string;
+  status: InviteStatus;
+  eligibility_check_id: string | number | null;
+  activation_network: string | null;
+};
+
+type SlotInvitationRow = {
+  invite_slot: number;
+  status: InviteStatus;
+  eligibility_check_id: string | number | null;
+  activation_network: string | null;
+  sybil_status: string;
+};
+
 type PermanentClaimResult = {
   result?:
     | 'CLAIMED'
@@ -147,6 +163,76 @@ function toInviteRecord(result: PermanentClaimResult): InviteRecord | null {
   };
 }
 
+async function loadExistingInvitation(
+  inviteeAddress: string,
+): Promise<{
+  invitation: ExistingInvitationRow | null;
+  error: unknown | null;
+}> {
+  const { data, error } = await supabaseAdmin
+    .from('invitations')
+    .select('invite_code,inviter_wallet,status,eligibility_check_id,activation_network')
+    .eq('invitee_wallet', inviteeAddress)
+    .order('created_at', { ascending: false })
+    .limit(1);
+
+  return {
+    invitation:
+      Array.isArray(data) && data.length > 0
+        ? data[0] as ExistingInvitationRow
+        : null,
+    error: error ?? null,
+  };
+}
+
+function isResumableForSponsor(
+  invitation: ExistingInvitationRow,
+  inviterWallet: string,
+): boolean {
+  return (
+    normalizeAddress(invitation.inviter_wallet) === normalizeAddress(inviterWallet) &&
+    ['ACTIVATING', 'UNDER_REVIEW', 'COMPLETED'].includes(invitation.status) &&
+    invitation.eligibility_check_id !== null &&
+    Boolean(invitation.activation_network)
+  );
+}
+
+function resumeResponse(invitation: ExistingInvitationRow) {
+  return NextResponse.json(
+    {
+      outcome: 'already_claimed',
+      inviteCode: invitation.invite_code,
+    },
+    { headers: { 'Cache-Control': 'no-store' } },
+  );
+}
+
+function occupiesSlot(invitation: SlotInvitationRow): boolean {
+  if (invitation.status === 'PENDING_ACCEPTANCE') return true;
+  return (
+    (invitation.status === 'ACTIVATING' || invitation.status === 'UNDER_REVIEW') &&
+    invitation.eligibility_check_id !== null &&
+    Boolean(invitation.activation_network) &&
+    invitation.sybil_status !== 'BLOCKED'
+  );
+}
+
+async function hasFreeSlot(inviterWallet: string): Promise<boolean> {
+  const { data, error } = await supabaseAdmin
+    .from('invitations')
+    .select('invite_slot,status,eligibility_check_id,activation_network,sybil_status')
+    .eq('inviter_wallet', normalizeAddress(inviterWallet))
+    .in('status', ['PENDING_ACCEPTANCE', 'ACTIVATING', 'UNDER_REVIEW']);
+
+  if (error) throw error;
+
+  const occupied = new Set<number>();
+  for (const row of (data ?? []) as SlotInvitationRow[]) {
+    if (occupiesSlot(row)) occupied.add(Number(row.invite_slot));
+  }
+  return occupied.size < 2;
+}
+
 export async function POST(
   request: NextRequest,
   context: { params: Promise<{ key: string }> },
@@ -235,18 +321,17 @@ export async function POST(
     return NextResponse.json({ outcome: 'self_referral' }, { status: 422 });
   }
 
-  const { data: existingRows, error: existingError } = await supabaseAdmin
-    .from('invitations')
-    .select('invite_code')
-    .eq('invitee_wallet', inviteeAddress)
-    .limit(1);
-
-  if (existingError) {
-    console.error('Failed to check existing permanent referral:', existingError);
+  const existingCheck = await loadExistingInvitation(inviteeAddress);
+  if (existingCheck.error) {
+    console.error('Failed to check existing permanent referral:', existingCheck.error);
     return NextResponse.json({ outcome: 'server_error' }, { status: 500 });
   }
 
-  if (Array.isArray(existingRows) && existingRows.length > 0) {
+  if (existingCheck.invitation) {
+    if (isResumableForSponsor(existingCheck.invitation, link.inviter_wallet)) {
+      return resumeResponse(existingCheck.invitation);
+    }
+
     await recordAttempt({
       linkId: link.id,
       walletAddress: inviteeAddress,
@@ -254,6 +339,18 @@ export async function POST(
       details: { source: 'precheck' },
     });
     return NextResponse.json({ outcome: 'already_referred' }, { status: 422 });
+  }
+
+  // Do a cheap authenticated concurrency check before the expensive chain
+  // eligibility scan. This is only an early exit; the atomic database RPC is
+  // still authoritative and closes races between this read and reservation.
+  try {
+    if (!(await hasFreeSlot(link.inviter_wallet))) {
+      return NextResponse.json({ outcome: 'slots_full' }, { status: 409 });
+    }
+  } catch (error) {
+    console.error('Failed to check permanent-referral slot capacity:', error);
+    return NextResponse.json({ outcome: 'server_error' }, { status: 500 });
   }
 
   let entryCheck: EntryEligibilityResult;
@@ -333,7 +430,20 @@ export async function POST(
         return NextResponse.json({ outcome: 'slots_full' }, { status: 409 });
       case 'SELF_REFERRAL':
         return NextResponse.json({ outcome: 'self_referral' }, { status: 422 });
-      case 'ALREADY_REFERRED':
+      case 'ALREADY_REFERRED': {
+        // Another request may have claimed between the precheck and the atomic
+        // RPC. If it is this same sponsor relationship, resume it rather than
+        // mislabeling the user's own successful concurrent claim as a conflict.
+        const racedExisting = await loadExistingInvitation(inviteeAddress);
+        if (
+          !racedExisting.error &&
+          racedExisting.invitation &&
+          isResumableForSponsor(racedExisting.invitation, link.inviter_wallet)
+        ) {
+          return resumeResponse(racedExisting.invitation);
+        }
+        return NextResponse.json({ outcome: 'already_referred' }, { status: 422 });
+      }
       case 'RELATIONSHIP_CYCLE':
         return NextResponse.json({ outcome: 'already_referred' }, { status: 422 });
       case 'NOT_FOUND':
