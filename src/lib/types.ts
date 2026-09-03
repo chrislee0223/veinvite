@@ -40,6 +40,7 @@ export interface InviteRecord {
   vot3Converted?: boolean;
   voteCompleted?: boolean;
   inviteSlot?: 1 | 2;
+  slotReleasedAt?: string;
   sybilStatus?: SybilStatus;
   referralLinkId?: string;
 }
