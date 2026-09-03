@@ -94,6 +94,8 @@ test('Home and Leaderboard dialogs share the same soft-focus entrance and exit l
     assert.match(portal, /data-open=\{dialogVisible \? 'true' : 'false'\}/i);
     assert.match(portal, /veinviteSoftFocusBackdrop/i);
     assert.match(portal, /veinviteSoftFocusPanel/i);
+    assert.match(portal, /revealFrame/i);
+    assert.match(portal, /requestAnimationFrame\(\(\) => \{[\s\S]*requestAnimationFrame\(\(\) => setDialogVisible\(true\)\)/i);
   }
 
   assert.match(softFocusMotion, /opacity:\s*0;/i);
@@ -104,13 +106,18 @@ test('Home and Leaderboard dialogs share the same soft-focus entrance and exit l
   assert.match(softFocusMotion, /prefers-reduced-motion:\s*reduce/i);
 });
 
-test('Home and Leaderboard dialogs use identical close-button spacing and optical centering', () => {
+test('Home and Leaderboard dialogs keep close controls in identical non-scrolling chrome', () => {
   for (const portal of [guidePortal, impactPortal]) {
+    assert.match(portal, /className="veinviteSoftFocusHeader"/i);
     assert.match(portal, /className="veinviteSoftFocusClose"/i);
+    assert.match(portal, /className="veinviteSoftFocusScroll/i);
     assert.doesNotMatch(portal, />\s*×\s*<\/button>/i);
   }
 
-  assert.match(softFocusMotion, /\.veinviteSoftFocusClose \{[\s\S]*top:\s*16px;[\s\S]*right:\s*16px;[\s\S]*width:\s*38px;[\s\S]*height:\s*38px;/i);
+  assert.match(softFocusMotion, /\.veinviteSoftFocusHeader \{[\s\S]*min-height:\s*56px;[\s\S]*justify-content:\s*flex-end;[\s\S]*padding:\s*10px 12px 8px;/i);
+  assert.match(softFocusMotion, /\.veinviteSoftFocusScroll \{[\s\S]*overflow:\s*auto;/i);
+  assert.match(softFocusMotion, /\.veinviteSoftFocusClose \{[\s\S]*position:\s*relative;[\s\S]*width:\s*36px;[\s\S]*height:\s*36px;/i);
+  assert.doesNotMatch(softFocusMotion, /\.veinviteSoftFocusClose \{[\s\S]*position:\s*absolute;/i);
   assert.match(softFocusMotion, /\.veinviteSoftFocusClose::before,[\s\S]*\.veinviteSoftFocusClose::after/i);
   assert.match(softFocusMotion, /translate\(-50%, -50%\) rotate\(45deg\)/i);
   assert.match(softFocusMotion, /translate\(-50%, -50%\) rotate\(-45deg\)/i);
