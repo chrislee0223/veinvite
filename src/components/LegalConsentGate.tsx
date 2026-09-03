@@ -7,6 +7,7 @@ import {
   type ReactNode,
 } from 'react';
 
+import { Brand } from './Brand';
 import {
   LEGAL_CONSENT_COPY,
 } from '@/lib/i18n/legalConsentCopy';
@@ -313,19 +314,23 @@ export function LegalConsentGate({
     return children;
   }
 
-  // Consent status still has to be checked server-side, but a normal re-entry
-  // should not surface a full-screen legal-status card. Keep the gate closed
-  // until the result is known, then only show UI when consent is actually
-  // required or the check failed.
+  // Keep the exact startup brand surface visible while the server-side legal
+  // consent check completes. This prevents the startup shield from revealing a
+  // blank black frame before Home is ready.
   if (state === 'checking') {
     return (
       <div
         aria-hidden="true"
         style={{
           minHeight: '100dvh',
-          background: '#080807',
+          display: 'grid',
+          placeItems: 'center',
+          background:
+            'radial-gradient(circle at 50% 38%, rgba(244, 183, 40, 0.1), transparent 32%), #080807',
         }}
-      />
+      >
+        <Brand compact />
+      </div>
     );
   }
 
