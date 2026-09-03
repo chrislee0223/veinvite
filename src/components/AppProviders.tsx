@@ -14,6 +14,7 @@ import '@/lib/i18n/guideCopyFinalHardening';
 import '@/lib/i18n/secondaryPageCopyHardening';
 import '@/lib/i18n/referralLinkCopy';
 import '@/lib/i18n/referralLinkCopyFinalHardening';
+import '@/lib/i18n/guideRewardClaimHardening';
 import { HeaderLanguagePickerPortal } from './HeaderLanguagePickerPortal';
 import { LegalNavigationMemory } from './LegalNavigationMemory';
 import {
