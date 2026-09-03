@@ -39,9 +39,40 @@ const LEGACY_CANCEL_DESCRIPTION: Record<SupportedLocale, string> = {
   ha: 'Wannan tsohuwar mahadar gayyata ta amfani sau ɗaya ba za ta ƙara aiki ba. Dindindin mahadar gayyatarka za ta ci gaba da aiki, kuma wannan wurin aboki zai sake samuwa.',
 };
 
+const LEGACY_CANCEL_SUCCESS: Record<SupportedLocale, string> = {
+  en: 'Old invite link cancelled. Your permanent invite link is unchanged, and this friend slot is available again.',
+  ko: '기존 1회용 초대 링크를 취소했어요. 영구 초대 링크는 그대로이며, 이 친구 슬롯을 다시 사용할 수 있어요.',
+  zh: '旧的一次性邀请链接已取消。你的永久邀请链接保持不变，这个好友名额现在可以再次使用。',
+  hi: 'पुराना एक बार उपयोग होने वाला आमंत्रण लिंक रद्द कर दिया गया है। आपका स्थायी आमंत्रण लिंक वही है और यह मित्र स्लॉट फिर उपलब्ध है।',
+  es: 'Se canceló el antiguo enlace de un solo uso. Tu enlace de invitación permanente no cambia y este cupo vuelve a estar disponible.',
+  ja: '旧1回限りの招待リンクをキャンセルしました。永久招待リンクはそのままで、この友だち枠を再び利用できます。',
+  it: 'Il vecchio link monouso è stato annullato. Il link di invito permanente non cambia e questo posto è di nuovo disponibile.',
+  tr: 'Eski tek kullanımlık davet bağlantısı iptal edildi. Kalıcı davet bağlantın değişmedi ve bu arkadaş yuvası yeniden kullanılabilir.',
+  nl: 'De oude eenmalige uitnodigingslink is geannuleerd. Je permanente uitnodigingslink blijft hetzelfde en deze vriendplek is weer beschikbaar.',
+  de: 'Der alte Einmal-Einladungslink wurde abgebrochen. Dein permanenter Einladungslink bleibt unverändert und dieser Freund-Platz ist wieder verfügbar.',
+  fr: 'L’ancien lien d’invitation à usage unique a été annulé. Votre lien permanent reste inchangé et cette place est de nouveau disponible.',
+  ar: 'تم إلغاء رابط الدعوة القديم ذي الاستخدام الواحد. رابط دعوتك الدائم لم يتغير، وأصبح مكان هذا الصديق متاحًا من جديد.',
+  bn: 'পুরোনো একবার ব্যবহারযোগ্য আমন্ত্রণ লিংকটি বাতিল করা হয়েছে। আপনার স্থায়ী আমন্ত্রণ লিংক অপরিবর্তিত আছে এবং এই বন্ধুর স্লটটি আবার ব্যবহার করা যাবে।',
+  pt: 'O antigo link de convite de uso único foi cancelado. Seu link de convite permanente não mudou e esta vaga está disponível novamente.',
+  ru: 'Старая одноразовая ссылка-приглашение отменена. Постоянная ссылка не изменилась, и это место для друга снова доступно.',
+  id: 'Tautan undangan sekali pakai lama telah dibatalkan. Tautan undangan permanenmu tetap sama dan slot teman ini tersedia lagi.',
+  vi: 'Đã hủy liên kết mời dùng một lần cũ. Liên kết mời vĩnh viễn của bạn vẫn giữ nguyên và suất bạn bè này đã có thể dùng lại.',
+  'zh-tw': '舊的一次性邀請連結已取消。你的永久邀請連結維持不變，這個好友名額現在可以再次使用。',
+  sv: 'Den gamla engångslänken har avbrutits. Din permanenta inbjudningslänk är oförändrad och den här vänplatsen är ledig igen.',
+  ro: 'Linkul vechi de invitație de unică folosință a fost anulat. Linkul tău permanent rămâne neschimbat, iar acest loc este din nou disponibil.',
+  ur: 'پرانا ایک بار استعمال ہونے والا دعوتی لنک منسوخ کر دیا گیا ہے۔ آپ کا مستقل دعوتی لنک وہی رہے گا اور یہ دوست سلاٹ دوبارہ دستیاب ہے۔',
+  pcm: 'We don cancel di old one-time invite link. Your permanent invite link still remain di same, and dis friend slot don free again.',
+  arz: 'لينك الدعوة القديم اللي بيتستخدم مرة واحدة اتلغى. لينك دعوتك الدائم زي ما هو، والمكان ده متاح تاني.',
+  mr: 'जुनी एकदाच वापरायची आमंत्रण लिंक रद्द केली आहे. तुमची कायमची आमंत्रण लिंक तशीच आहे आणि हा मित्र स्लॉट पुन्हा उपलब्ध आहे.',
+  te: 'పాత ఒక్కసారి ఉపయోగించే ఆహ్వాన లింక్‌ను రద్దు చేశాం. మీ శాశ్వత ఆహ్వాన లింక్ మారదు, ఈ స్నేహితుడి స్లాట్ మళ్లీ అందుబాటులో ఉంది.',
+  sw: 'Kiungo cha zamani cha mwaliko wa matumizi ya mara moja kimeghairiwa. Kiungo chako cha kudumu hakijabadilika na nafasi hii ya rafiki inapatikana tena.',
+  ha: 'An soke tsohuwar mahadar gayyata ta amfani sau ɗaya. Mahadar gayyatarka ta dindindin ba ta canza ba, kuma wannan wurin aboki ya sake samuwa.',
+};
+
 for (const locale of SUPPORTED_LOCALES) {
   HOME_COPY[locale].cancelDescriptionWaiting =
     LEGACY_CANCEL_DESCRIPTION[locale];
+  HOME_COPY[locale].cancelled = LEGACY_CANCEL_SUCCESS[locale];
 }
 
 // The numeric badge on Home is an active-friend count (0/2 → 2/2), not a
