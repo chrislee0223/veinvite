@@ -18,8 +18,9 @@ const SESSION_RENEWAL_INTENT = 'renew';
 const RENEWAL_DEDUPE_MS = 60_000;
 const HOME_STABILITY_MS = 160;
 const DISCONNECTED_STABILITY_MS = 900;
+const BOOTSTRAPPED_SESSION_GRACE_MS = 4_500;
 
- type SessionResponse = {
+type SessionResponse = {
   authenticated?: boolean;
   walletAddress?: string;
   expiresAt?: string;
@@ -332,18 +333,23 @@ export function WalletRuntimeLifecycle() {
         return;
       }
 
-      // On a VeWorld refresh, dapp-kit persistence exists before the React
-      // provider republishes the wallet account. Releasing the startup shield
-      // during that gap is what exposed the disconnected Home and `—/2`
-      // skeleton on mobile. If either persisted VeWorld state or a verified
-      // server bootstrap says a wallet is expected, wait for provider restore.
-      // LocaleHydrationShield's bounded global fallback still prevents a
-      // permanently stuck startup screen if the wallet provider fails.
-      if (
-        hasPersistedVeWorldWallet() ||
-        hasBootstrappedSession()
-      ) {
+      // A persisted VeWorld account is direct browser evidence that this Home
+      // is in the middle of wallet restoration. Never release the shield during
+      // that gap; wait for the provider to republish the wallet, then wait for
+      // the link/slot skeletons to disappear. The outer hydration shield still
+      // has its global 8-second failure escape hatch.
+      if (hasPersistedVeWorldWallet()) {
         clearReadinessTimer();
+        return;
+      }
+
+      // A verified server session can outlive cleared browser wallet storage.
+      // Preserve the existing bounded grace window for that distinct case.
+      if (hasBootstrappedSession()) {
+        scheduleStableRelease(
+          BOOTSTRAPPED_SESSION_GRACE_MS,
+          null,
+        );
         return;
       }
 
