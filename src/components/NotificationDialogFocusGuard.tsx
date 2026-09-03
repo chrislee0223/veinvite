@@ -27,11 +27,21 @@ export function NotificationDialogFocusGuard() {
   useEffect(() => {
     let activeDialog: HTMLElement | null = null;
     let previousFocus: HTMLElement | null = null;
+    let temporaryTabIndex = false;
 
     const focusables = (dialog: HTMLElement) =>
       Array.from(
         dialog.querySelectorAll<HTMLElement>(FOCUSABLE_SELECTOR),
       );
+
+    const focusDialogFallback = () => {
+      if (!activeDialog) return;
+      if (!activeDialog.hasAttribute('tabindex')) {
+        activeDialog.setAttribute('tabindex', '-1');
+        temporaryTabIndex = true;
+      }
+      activeDialog.focus();
+    };
 
     const activate = (dialog: HTMLElement) => {
       if (activeDialog === dialog) return;
@@ -45,18 +55,24 @@ export function NotificationDialogFocusGuard() {
       window.requestAnimationFrame(() => {
         const items = focusables(dialog);
         const current = document.activeElement;
-        if (!dialog.contains(current) && items[0]) {
-          items[0].focus();
-        }
+        if (dialog.contains(current)) return;
+        if (items[0]) items[0].focus();
+        else focusDialogFallback();
       });
     };
 
     const deactivate = () => {
       if (!activeDialog) return;
 
+      const dialog = activeDialog;
       const restoreTarget = previousFocus;
       activeDialog = null;
       previousFocus = null;
+
+      if (temporaryTabIndex) {
+        dialog.removeAttribute('tabindex');
+        temporaryTabIndex = false;
+      }
 
       if (restoreTarget?.isConnected) {
         window.requestAnimationFrame(() => restoreTarget.focus());
@@ -75,7 +91,7 @@ export function NotificationDialogFocusGuard() {
       const items = focusables(activeDialog);
       if (items.length === 0) {
         event.preventDefault();
-        activeDialog.focus();
+        focusDialogFallback();
         return;
       }
 
@@ -103,7 +119,8 @@ export function NotificationDialogFocusGuard() {
       if (target instanceof Node && activeDialog.contains(target)) return;
 
       const first = focusables(activeDialog)[0];
-      (first ?? activeDialog).focus();
+      if (first) first.focus();
+      else focusDialogFallback();
     };
 
     const observer = new MutationObserver(sync);
