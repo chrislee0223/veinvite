@@ -344,6 +344,14 @@ function viewFromPath(
   ) {
     return 'invite_landing';
   }
+  if (
+    pathname === '/r' ||
+    pathname.startsWith('/r/')
+  ) {
+    // Permanent referral paths intentionally collapse into the same coarse
+    // analytics bucket as legacy invite links. The raw key/path is never sent.
+    return 'invite_landing';
+  }
   return 'other';
 }
 

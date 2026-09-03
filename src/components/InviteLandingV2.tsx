@@ -2,7 +2,11 @@
 
 import { Brand } from './Brand';
 import { INVITE_LANDING_COPY } from '@/lib/i18n/inviteLandingCopy';
-import { LANGUAGE_OPTIONS, type Locale } from '@/lib/i18n/locales';
+import {
+  LANGUAGE_OPTIONS,
+  type Locale,
+  type SupportedLocale,
+} from '@/lib/i18n/locales';
 
 type DemoOutcome = 'success' | 'existing' | 'other' | 'review';
 
@@ -11,7 +15,7 @@ type InviteLandingV2Props = {
   disabled?: boolean;
   demoMode?: boolean;
   demoOutcome: DemoOutcome;
-  onLocaleChange: (locale: Locale) => void;
+  onLocaleChange: (locale: SupportedLocale) => void;
   onBeginnerStart: () => void;
   onExistingWallet: () => void;
   onDemoOutcomeChange: (outcome: DemoOutcome) => void;
@@ -35,7 +39,7 @@ export function InviteLandingV2({
         <Brand compact />
         <label className="language">
           <span aria-hidden="true">◎</span>
-          <select className="languageSelect" aria-label={t.languageAria} value={locale} onChange={(event) => onLocaleChange(event.target.value as Locale)}>
+          <select className="languageSelect" aria-label={t.languageAria} value={locale} onChange={(event) => onLocaleChange(event.target.value as SupportedLocale)}>
             {LANGUAGE_OPTIONS.map((option) => (
               <option key={option.locale} value={option.locale}>{option.nativeName}</option>
             ))}

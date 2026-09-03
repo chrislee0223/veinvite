@@ -19,6 +19,7 @@ import {
   LANGUAGE_OPTIONS,
   getLanguageOption,
   type Locale,
+  type SupportedLocale,
 } from '@/lib/i18n/locales';
 
 function maskWallet(address: string): string {
@@ -39,7 +40,7 @@ export function AppSettings({
   locale: Locale;
   wallet: string | null;
   isWalletActionPending: boolean;
-  onLocaleChange: (locale: Locale) => void;
+  onLocaleChange: (locale: SupportedLocale) => void;
   onConnect: () => void;
   onConnectAnother: () => Promise<void>;
   onDisconnect: () => Promise<void>;
@@ -197,7 +198,7 @@ export function AppSettings({
     };
   }, [walletConfirmation, closeWalletConfirmation]);
 
-  const selectLanguage = (nextLocale: Locale) => {
+  const selectLanguage = (nextLocale: SupportedLocale) => {
     clearFeedback();
     onLocaleChange(nextLocale);
     closeLanguagePicker();

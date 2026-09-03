@@ -3,11 +3,15 @@
 import { Brand } from './Brand';
 import { LanguageFlag } from './LanguageFlag';
 import { LANGUAGE_SELECT_COPY } from '@/lib/i18n/languageSelectCopy';
-import { LANGUAGE_OPTIONS, type Locale } from '@/lib/i18n/locales';
+import {
+  LANGUAGE_OPTIONS,
+  type Locale,
+  type SupportedLocale,
+} from '@/lib/i18n/locales';
 
 type LanguageSelectV2Props = {
   locale: Locale;
-  onSelect: (locale: Locale) => void;
+  onSelect: (locale: SupportedLocale) => void;
   onContinue: () => void;
 };
 

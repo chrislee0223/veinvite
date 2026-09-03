@@ -119,6 +119,9 @@ export function RewardReceiptNotice() {
       window.dispatchEvent(
         new Event(REWARD_RECEIPT_ACKNOWLEDGED_EVENT),
       );
+      // Two simultaneous friend slots can produce more than one unseen reward
+      // receipt. Load the next one immediately instead of requiring a refresh.
+      await loadReceipt();
     } catch {
       setError(t.error);
     } finally {
