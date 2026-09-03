@@ -4,9 +4,16 @@ import test from 'node:test';
 
 const read = (path) => readFile(new URL(`../${path}`, import.meta.url), 'utf8');
 
-const [locales, terminology, providers, transientCopy] = await Promise.all([
+const [
+  locales,
+  terminology,
+  terminologyPolish,
+  providers,
+  transientCopy,
+] = await Promise.all([
   read('src/lib/i18n/locales.ts'),
   read('src/lib/i18n/terminologyHardening.ts'),
+  read('src/lib/i18n/terminologyPolish.ts'),
   read('src/components/AppProviders.tsx'),
   read('src/lib/i18n/transientCopyHardening.ts'),
 ]);
@@ -30,7 +37,7 @@ test('terminology policy covers every supported locale', () => {
   }
 });
 
-test('only the five agreed product and protocol names are fixed across locales', () => {
+test('only the five agreed core product and protocol names are fixed by the locale pass', () => {
   assert.match(
     terminology,
     /Only VeChain, B3TR, VOT3, VeBetterDAO and VeInvite are fixed product\//,
@@ -67,6 +74,18 @@ test('generic product jargon is localized by the last-mile pass', () => {
   assert.match(terminology, /allocationVoting: 'upigaji kura wa mgao'/);
 });
 
+test('locale-specific polish removes avoidable legacy English marketing terms', () => {
+  assert.match(terminologyPolish, /\['Round', 'Tornata'\]/);
+  assert.match(terminologyPolish, /\['rounds', 'cycles'\]/);
+  assert.match(terminologyPolish, /rewardLabel: 'STATO INIZIALE'/);
+  assert.match(terminologyPolish, /rewardTitle: 'Stato dell’invito'/);
+  assert.match(terminologyPolish, /campagne di invito dedicate a singole app/);
+  assert.match(terminologyPolish, /rewardLabel: 'STARTSTATUS'/);
+  assert.match(terminologyPolish, /rewardLabel: 'EINSTIEGSSTATUS'/);
+  assert.match(terminologyPolish, /rewardLabel: 'ÉTAT DE PRISE EN MAIN'/);
+  assert.match(terminologyPolish, /\['VeChain-Blockübersicht', 'VeChain-Explorer'\]/);
+});
+
 test('canonical brand spelling is normalized after generic terminology', () => {
   assert.match(terminology, /\\bvechain\\b\/gi, 'VeChain'/);
   assert.match(terminology, /\\bb3tr\\b\/gi, 'B3TR'/);
@@ -75,16 +94,18 @@ test('canonical brand spelling is normalized after generic terminology', () => {
   assert.match(terminology, /\\bveinvite\\b\/gi, 'VeInvite'/);
 });
 
-test('terminology hardening runs after locale registration and targeted copy overrides', () => {
+test('terminology hardening and grammar polish run after locale registration and targeted overrides', () => {
   const registration = providers.indexOf("localePacks/registerExpandedLocales");
   const baseHardening = providers.indexOf("i18n/copyHardening");
   const secondaryHardening = providers.indexOf("i18n/secondaryPageCopyHardening");
   const transientHardening = providers.indexOf("i18n/transientCopyHardening");
   const terminologyHardening = providers.indexOf("i18n/terminologyHardening");
+  const terminologyPolishIndex = providers.indexOf("i18n/terminologyPolish");
 
   assert.ok(registration >= 0);
   assert.ok(baseHardening > registration);
   assert.ok(secondaryHardening > baseHardening);
   assert.ok(transientHardening > secondaryHardening);
   assert.ok(terminologyHardening > transientHardening);
+  assert.ok(terminologyPolishIndex > terminologyHardening);
 });
