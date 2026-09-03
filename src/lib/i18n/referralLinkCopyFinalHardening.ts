@@ -69,10 +69,43 @@ const LEGACY_CANCEL_SUCCESS: Record<SupportedLocale, string> = {
   ha: 'An soke tsohuwar mahadar gayyata ta amfani sau ɗaya. Mahadar gayyatarka ta dindindin ba ta canza ba, kuma wannan wurin aboki ya sake samuwa.',
 };
 
+// Home intentionally stays concise. Detailed permanent-link and slot rules
+// remain in the guide, while the primary card only names the action itself.
+const REFERRAL_HOME_TITLE: Record<SupportedLocale, string> = {
+  en: 'Your invite link',
+  ko: '내 초대 링크',
+  zh: '你的邀请链接',
+  hi: 'आपका आमंत्रण लिंक',
+  es: 'Tu enlace de invitación',
+  ja: 'あなたの招待リンク',
+  it: 'Il tuo link di invito',
+  tr: 'Davet bağlantın',
+  nl: 'Je uitnodigingslink',
+  de: 'Dein Einladungslink',
+  fr: 'Votre lien d’invitation',
+  ar: 'رابط دعوتك',
+  bn: 'আপনার আমন্ত্রণ লিংক',
+  pt: 'Seu link de convite',
+  ru: 'Ваша ссылка-приглашение',
+  id: 'Tautan undanganmu',
+  vi: 'Liên kết mời của bạn',
+  'zh-tw': '你的邀請連結',
+  sv: 'Din inbjudningslänk',
+  ro: 'Linkul tău de invitație',
+  ur: 'آپ کا دعوتی لنک',
+  pcm: 'Your invite link',
+  arz: 'لينك دعوتك',
+  mr: 'तुमची आमंत्रण लिंक',
+  te: 'మీ ఆహ్వాన లింక్',
+  sw: 'Kiungo chako cha mwaliko',
+  ha: 'Mahadar gayyatarka',
+};
+
 for (const locale of SUPPORTED_LOCALES) {
   HOME_COPY[locale].cancelDescriptionWaiting =
     LEGACY_CANCEL_DESCRIPTION[locale];
   HOME_COPY[locale].cancelled = LEGACY_CANCEL_SUCCESS[locale];
+  REFERRAL_LINK_COPY[locale].homeTitle = REFERRAL_HOME_TITLE[locale];
 }
 
 // The numeric badge on Home is an active-friend count (0/2 → 2/2), not a
