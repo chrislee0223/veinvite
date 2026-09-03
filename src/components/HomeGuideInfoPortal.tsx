@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 
 import { InviteGuideContent } from './AppGuide';
+import { InfoCircleIcon } from './InfoCircleIcon';
 import { GUIDE_COPY } from '@/lib/i18n/guideCopy';
 import { NOTIFICATION_COPY } from '@/lib/i18n/notificationCopy';
 import type { Locale } from '@/lib/i18n/locales';
@@ -73,40 +74,42 @@ export function HomeGuideInfoPortal({ locale }: { locale: Locale }) {
           <style>{`
             .missionCard > .missionCopy {
               box-sizing: border-box;
-              padding-right: 52px;
+              padding-right: 44px;
             }
             .veinviteGuideInfoButton {
               position: absolute;
               z-index: 4;
-              top: 24px;
+              top: 32px;
               right: 24px;
-              width: 38px;
-              height: 38px;
+              width: 32px;
+              height: 32px;
               display: grid;
               place-items: center;
               padding: 0;
-              border: 1px solid rgba(255,211,92,.24);
-              border-radius: 13px;
-              background: rgba(255,205,80,.075);
+              border: 1px solid rgba(255,211,92,.2);
+              border-radius: 11px;
+              background: rgba(255,205,80,.06);
               color: #f6ca59;
-              font: inherit;
-              font-size: 1.05rem;
+              line-height: 0;
               cursor: pointer;
             }
             .veinviteGuideInfoButton:hover,
             .veinviteGuideInfoButton:focus-visible {
-              border-color: rgba(255,211,92,.48);
+              border-color: rgba(255,211,92,.46);
               outline: none;
               box-shadow: 0 0 0 3px rgba(244,183,40,.08);
             }
+            .veinviteGuideInfoButton svg {
+              display: block;
+            }
             @media (max-width: 560px) {
-              .missionCard > .missionCopy { padding-right: 48px; }
+              .missionCard > .missionCopy { padding-right: 40px; }
               .veinviteGuideInfoButton {
-                top: 21px;
+                top: 26px;
                 right: 18px;
-                width: 36px;
-                height: 36px;
-                border-radius: 12px;
+                width: 30px;
+                height: 30px;
+                border-radius: 10px;
               }
             }
           `}</style>
@@ -118,7 +121,7 @@ export function HomeGuideInfoPortal({ locale }: { locale: Locale }) {
             title={guide.title}
             onClick={() => setOpen(true)}
           >
-            <span aria-hidden="true">ⓘ</span>
+            <InfoCircleIcon size={18} />
           </button>
         </>,
         host,
