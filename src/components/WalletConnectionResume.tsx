@@ -25,6 +25,7 @@ import {
 const CONNECT_INTENT_TTL_MS = 2 * 60_000;
 const RECONCILE_SETTLE_MS = 450;
 const RECONCILE_COOLDOWN_MS = 750;
+const RESUME_RETRY_WINDOW_MS = 12_000;
 const RELOAD_GUARD_TTL_MS = 30_000;
 const RELOAD_GUARD_STORAGE_KEY =
   'veinvite_wallet_resume_reload_v1';
@@ -114,6 +115,8 @@ export function WalletConnectionResume() {
   const modalOpenRef = useRef(isConnectModalOpen);
   const inFlightRef = useRef(false);
   const lastAttemptAtRef = useRef(0);
+  const leftPageForWalletRef = useRef(false);
+  const resumeWindowUntilRef = useRef(0);
 
   useEffect(() => {
     veChainKitWalletRef.current = normalizeWallet(
@@ -138,6 +141,8 @@ export function WalletConnectionResume() {
 
     clearWalletConnectIntent();
     clearReloadGuard();
+    leftPageForWalletRef.current = false;
+    resumeWindowUntilRef.current = 0;
     setRecovering(false);
 
     if (isConnectModalOpen) {
@@ -149,25 +154,32 @@ export function WalletConnectionResume() {
     veChainKitAccount?.address,
   ]);
 
+  const hasRecentConnectIntent = useCallback(() => {
+    const intentAt = readWalletConnectIntentAt();
+    if (intentAt === null) {
+      return false;
+    }
+
+    if (Date.now() - intentAt > CONNECT_INTENT_TTL_MS) {
+      clearWalletConnectIntent();
+      return false;
+    }
+
+    return true;
+  }, []);
+
   const reconcile = useCallback(async () => {
     if (
       document.visibilityState === 'hidden' ||
       veChainKitWalletRef.current ||
-      inFlightRef.current
+      inFlightRef.current ||
+      Date.now() > resumeWindowUntilRef.current
     ) {
       return;
     }
 
     const now = Date.now();
-    const intentAt = readWalletConnectIntentAt();
-    const hasRecentIntent =
-      intentAt !== null &&
-      now - intentAt <= CONNECT_INTENT_TTL_MS;
-
-    if (!modalOpenRef.current && !hasRecentIntent) {
-      if (intentAt !== null) {
-        clearWalletConnectIntent();
-      }
+    if (!hasRecentConnectIntent() && !modalOpenRef.current) {
       return;
     }
 
@@ -175,8 +187,9 @@ export function WalletConnectionResume() {
       readPersistedDappKitAccount();
     const directWallet = dappKitWalletRef.current;
 
-    // Until VeWorld has actually returned a wallet address there is nothing
-    // to recover. The normal connect modal continues to own the handshake.
+    // Do not use an old persisted account merely because the connect modal is
+    // open. This path is armed only after the browser actually left for a
+    // wallet app and returned, and still requires dapp-kit evidence to exist.
     if (!persistedWallet && !directWallet) {
       return;
     }
@@ -210,6 +223,8 @@ export function WalletConnectionResume() {
     if (veChainKitWalletRef.current) {
       clearWalletConnectIntent();
       clearReloadGuard();
+      leftPageForWalletRef.current = false;
+      resumeWindowUntilRef.current = 0;
       if (modalOpenRef.current) {
         closeConnectModal();
       }
@@ -228,10 +243,10 @@ export function WalletConnectionResume() {
         guard?.walletAddress === recoverableWallet &&
         Date.now() - guard.at <= RELOAD_GUARD_TTL_MS;
 
-      // A persisted connection proves VeWorld completed the handshake. If the
-      // provider still did not publish it after an explicit rehydrate, perform
-      // one bounded automatic reload. The startup shield covers this fallback,
-      // and the session guard prevents reload loops.
+      // A wallet-app return plus persisted connection evidence means VeWorld
+      // completed enough of the handshake to survive reload. If the provider
+      // still did not publish it after an explicit rehydrate, perform one
+      // bounded automatic reload. The guard prevents reload loops.
       if (!alreadyReloaded) {
         writeReloadGuard(recoverableWallet);
         window.location.reload();
@@ -241,60 +256,95 @@ export function WalletConnectionResume() {
 
     setRecovering(false);
     inFlightRef.current = false;
-  }, [closeConnectModal, initializeAsync]);
+  }, [
+    closeConnectModal,
+    hasRecentConnectIntent,
+    initializeAsync,
+  ]);
 
   useEffect(() => {
-    const handleResume = () => {
-      if (document.visibilityState !== 'hidden') {
-        window.setTimeout(
-          () => void reconcile(),
-          120,
-        );
+    const armDeparture = () => {
+      if (
+        modalOpenRef.current ||
+        hasRecentConnectIntent()
+      ) {
+        leftPageForWalletRef.current = true;
       }
     };
 
+    const handleConnectIntent = () => {
+      // Opening the connect modal itself is not proof that the user left for
+      // VeWorld. Wait for pagehide/hidden/blur before recovery is allowed.
+      leftPageForWalletRef.current = false;
+      resumeWindowUntilRef.current = 0;
+    };
+
+    const handleResume = () => {
+      if (
+        document.visibilityState === 'hidden' ||
+        veChainKitWalletRef.current ||
+        !leftPageForWalletRef.current
+      ) {
+        return;
+      }
+
+      if (!hasRecentConnectIntent() && !modalOpenRef.current) {
+        leftPageForWalletRef.current = false;
+        return;
+      }
+
+      leftPageForWalletRef.current = false;
+      resumeWindowUntilRef.current =
+        Date.now() + RESUME_RETRY_WINDOW_MS;
+      window.setTimeout(
+        () => void reconcile(),
+        120,
+      );
+      window.setTimeout(
+        () => void reconcile(),
+        950,
+      );
+    };
+
     const handleVisibilityChange = () => {
-      if (document.visibilityState === 'visible') {
+      if (document.visibilityState === 'hidden') {
+        armDeparture();
+      } else {
         handleResume();
       }
     };
 
+    window.addEventListener('pagehide', armDeparture);
+    window.addEventListener('blur', armDeparture);
     window.addEventListener('pageshow', handleResume);
     window.addEventListener('focus', handleResume);
     window.addEventListener(
       WALLET_CONNECT_INTENT_EVENT,
-      handleResume,
+      handleConnectIntent,
     );
     document.addEventListener(
       'visibilitychange',
       handleVisibilityChange,
     );
 
-    const intervalId = isConnectModalOpen
-      ? window.setInterval(
-          () => void reconcile(),
-          650,
-        )
-      : 0;
-
-    handleResume();
-
     return () => {
+      window.removeEventListener('pagehide', armDeparture);
+      window.removeEventListener('blur', armDeparture);
       window.removeEventListener('pageshow', handleResume);
       window.removeEventListener('focus', handleResume);
       window.removeEventListener(
         WALLET_CONNECT_INTENT_EVENT,
-        handleResume,
+        handleConnectIntent,
       );
       document.removeEventListener(
         'visibilitychange',
         handleVisibilityChange,
       );
-      if (intervalId) {
-        window.clearInterval(intervalId);
-      }
     };
-  }, [isConnectModalOpen, reconcile]);
+  }, [
+    hasRecentConnectIntent,
+    reconcile,
+  ]);
 
   if (!recovering) {
     return null;
