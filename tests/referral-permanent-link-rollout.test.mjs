@@ -14,6 +14,8 @@ const [
   permanentClient,
   permanentPage,
   referralCopy,
+  referralCopyFinalHardening,
+  appProviders,
   guideFlow,
   receiptNotice,
   analyticsTracker,
@@ -29,6 +31,8 @@ const [
   readFile(new URL('../src/components/PermanentReferralClient.tsx', import.meta.url), 'utf8'),
   readFile(new URL('../src/app/r/[key]/page.tsx', import.meta.url), 'utf8'),
   readFile(new URL('../src/lib/i18n/referralLinkCopy.ts', import.meta.url), 'utf8'),
+  readFile(new URL('../src/lib/i18n/referralLinkCopyFinalHardening.ts', import.meta.url), 'utf8'),
+  readFile(new URL('../src/components/AppProviders.tsx', import.meta.url), 'utf8'),
   readFile(new URL('../src/lib/i18n/guideFlowCopy.ts', import.meta.url), 'utf8'),
   readFile(new URL('../src/components/RewardReceiptNotice.tsx', import.meta.url), 'utf8'),
   readFile(new URL('../src/components/UsageAnalyticsTracker.tsx', import.meta.url), 'utf8'),
@@ -106,13 +110,21 @@ test('claim API checks eligibility before atomically creating an invitation', ()
   assert.doesNotMatch(claimApi, /\.from\('invitations'\)\s*\.insert/i);
 });
 
-test('home uses one permanent link and two independently rendered friend slots', () => {
+test('home uses one permanent link, two independently rendered slots, and an active-friend count', () => {
   assert.match(home, /\/api\/referral-links/i);
   assert.match(home, /`\/r\/\$\{referralLink\.key\}`/i);
   assert.match(home, /<FriendSlot[\s\S]*number=\{1\}/i);
   assert.match(home, /<FriendSlot[\s\S]*number=\{2\}/i);
   assert.match(home, /legacyInviteUrl/i);
+  assert.match(home, /<span>\{slotInvites\.size\}\/2<\/span>/i);
+  assert.doesNotMatch(home, /2\s*-\s*slotInvites\.size/i);
   assert.doesNotMatch(home, /createInvite\s*=\s*async/i);
+});
+
+test('home preserves invitation and reward history when permanent-link ensure has a transient failure', () => {
+  assert.match(home, /Promise\.allSettled/i);
+  assert.match(home, /setInvites\(inviteData\.invites \?\? \[\]\)/i);
+  assert.match(home, /linkResult\.status === 'rejected'/i);
 });
 
 test('permanent link landing is noindex and transitions into the existing mission route after claim', () => {
@@ -132,10 +144,30 @@ test('all supported locales receive permanent-link and two-slot runtime copy', (
       ? /'zh-tw':\s*\{/i
       : new RegExp(`\\n\\s*${locale}:\\s*\\{`, 'i');
     assert.match(referralCopy, pattern, `missing permanent-referral copy for ${locale}`);
+    const cancelPattern = locale === 'zh-tw'
+      ? /'zh-tw':\s*'/i
+      : new RegExp(`\\n\\s*${locale}:\\s*'`, 'i');
+    assert.match(
+      referralCopyFinalHardening,
+      cancelPattern,
+      `missing legacy-cancel copy for ${locale}`,
+    );
   }
   assert.match(referralCopy, /for \(const locale of SUPPORTED_LOCALES\)/i);
   assert.match(referralCopy, /home\.inviteAvailable = referral\.badge/i);
   assert.match(referralCopy, /flow\.inviteDescription = referral\.guideInviteDescription/i);
+  assert.match(referralCopyFinalHardening, /HOME_COPY\[locale\]\.cancelDescriptionWaiting/i);
+  assert.match(referralCopyFinalHardening, /REFERRAL_LINK_COPY\.ko\.slotsLabel = '진행 중인 친구'/i);
+  assert.match(appProviders, /referralLinkCopyFinalHardening/i);
+});
+
+test('legacy cancel copy explains that the permanent link survives and the one slot is released', () => {
+  assert.match(referralCopyFinalHardening, /old one-time link will stop working/i);
+  assert.match(referralCopyFinalHardening, /permanent invite link stays valid/i);
+  assert.match(referralCopyFinalHardening, /friend slot becomes available again/i);
+  assert.match(referralCopyFinalHardening, /기존 1회용 링크는 더 이상 사용할 수 없어요/i);
+  assert.match(referralCopyFinalHardening, /영구 초대 링크는 그대로 유지되고/i);
+  assert.match(referralCopyFinalHardening, /친구 슬롯은 다시 사용할 수 있어요/i);
 });
 
 test('core guide no longer teaches the one-active-invite rule', () => {
