@@ -26,10 +26,11 @@ jobs:
           git diff --check
           node --test tests/referral-link-refresh-cache.test.mjs
 
-      - name: Commit patch
+      - name: Commit source patch
         run: |
+          git checkout -- .github/workflows/ci.yml
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add src/components/HomeClient.tsx tests/referral-link-refresh-cache.test.mjs .github/workflows/ci.yml
+          git add src/components/HomeClient.tsx tests/referral-link-refresh-cache.test.mjs
           git commit -m "Restore permanent referral link instantly on refresh"
           git push origin HEAD:fix/referral-link-instant-refresh-20260904
