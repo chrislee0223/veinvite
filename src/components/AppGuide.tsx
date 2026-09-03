@@ -44,7 +44,11 @@ export function AppGuide({ locale }: { locale: Locale }) {
         <h2>{t.eligibilityTitle}</h2>
         <Definition title={t.newTitle} description={eligibility.newDescription} icon="N" />
         <Definition title={t.returningTitle} description={eligibility.returningDescription} icon="R" />
-        <Definition title={t.countTitle} description={flow.countDescription} icon="✓" />
+      </section>
+
+      <section className="countCard">
+        <h2>{t.countTitle}</h2>
+        <p>{flow.countDescription}</p>
       </section>
 
       <style jsx>{`
@@ -58,7 +62,9 @@ export function AppGuide({ locale }: { locale: Locale }) {
         .steps strong { display:block; font-size:.91rem; }
         .steps p { margin:5px 0 0; color:#96928a; font-size:.76rem; line-height:1.55; }
         .eligibilityCard { margin-top:18px; padding:20px; border:1px solid rgba(255,205,80,.14); border-radius:22px; background:radial-gradient(circle at 90% 0,rgba(255,194,41,.12),transparent 34%),rgba(255,255,255,.03); }
-        .eligibilityCard h2 { margin:0 0 14px; font-size:1.08rem; letter-spacing:-.025em; }
+        .eligibilityCard h2, .countCard h2 { margin:0 0 14px; font-size:1.08rem; letter-spacing:-.025em; }
+        .countCard { margin-top:12px; padding:18px 20px; border:1px solid rgba(255,255,255,.08); border-radius:20px; background:rgba(255,255,255,.025); }
+        .countCard p { margin:0; color:#8f8b83; font-size:.76rem; line-height:1.55; }
       `}</style>
     </section>
   );
