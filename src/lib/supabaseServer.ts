@@ -11,6 +11,10 @@ const RETRIABLE_READ_METHODS = new Set([
   'GET',
   'HEAD',
 ]);
+const RETRIABLE_READ_RPC_PATHS = new Set([
+  '/rest/v1/rpc/read_latest_reward_forecast_snapshot',
+  '/rest/v1/rpc/read_reward_forecast_history',
+]);
 
 const supabaseUrl =
   process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -57,6 +61,8 @@ function getSupabaseProjectRef(
 
 const configuredProjectRef =
   getSupabaseProjectRef(supabaseUrl);
+const configuredSupabaseOrigin =
+  new URL(supabaseUrl).origin;
 
 function assertSafeDatabaseEnvironment() {
   const vercelEnvironment =
@@ -116,6 +122,49 @@ function getRequestMethod(
   return 'GET';
 }
 
+function getRequestUrl(
+  input: Parameters<typeof fetch>[0],
+): URL | null {
+  try {
+    if (input instanceof Request) {
+      return new URL(input.url);
+    }
+
+    if (input instanceof URL) {
+      return input;
+    }
+
+    return new URL(String(input));
+  } catch {
+    return null;
+  }
+}
+
+function isRetriableReadRequest(
+  input: Parameters<typeof fetch>[0],
+  init?: Parameters<typeof fetch>[1],
+): boolean {
+  const method = getRequestMethod(input, init);
+
+  if (RETRIABLE_READ_METHODS.has(method)) {
+    return true;
+  }
+
+  // Supabase RPC calls use POST even for read-only functions. Only the exact
+  // reviewed forecast readers are safe to retry; every mutation remains
+  // non-retriable by default.
+  if (method !== 'POST') {
+    return false;
+  }
+
+  const url = getRequestUrl(input);
+  return Boolean(
+    url &&
+      url.origin === configuredSupabaseOrigin &&
+      RETRIABLE_READ_RPC_PATHS.has(url.pathname),
+  );
+}
+
 async function wait(
   milliseconds: number,
 ): Promise<void> {
@@ -145,14 +194,13 @@ const guardedFetch: typeof fetch = async (
 ) => {
   assertSafeDatabaseEnvironment();
 
-  const method = getRequestMethod(input, init);
   const response = await fetch(input, init);
 
   // Supabase can very occasionally reject a valid server-side JWT while
   // clocks are converging. Retry only an idempotent read, only once, and only
   // for the exact transient error. Mutations are never retried here.
   if (
-    !RETRIABLE_READ_METHODS.has(method) ||
+    !isRetriableReadRequest(input, init) ||
     !(await hasJwtIssuedAtFuture(response))
   ) {
     return response;
