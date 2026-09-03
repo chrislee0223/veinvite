@@ -90,11 +90,16 @@ export async function GET(
     PERMANENT_REFERRAL_SLOT_LIMIT - occupied.size,
   );
 
+  // A valid permanent link remains open even while both concurrency slots are
+  // busy. An already-participating wallet may be revisiting this same link and
+  // must be able to authenticate and resume its existing invitation. The claim
+  // endpoint distinguishes that case from a genuinely new third participant.
   return NextResponse.json(
     {
-      outcome: slotsAvailable > 0 ? 'available' : 'slots_full',
+      outcome: 'available',
       slotsAvailable,
       slotLimit: PERMANENT_REFERRAL_SLOT_LIMIT,
+      slotsFull: slotsAvailable === 0,
     },
     { headers: { 'Cache-Control': 'no-store' } },
   );
