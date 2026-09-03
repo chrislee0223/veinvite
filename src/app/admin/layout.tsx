@@ -5,9 +5,9 @@ import type { ReactNode } from 'react';
 
 import { WalletSessionGate } from '@/components/WalletSessionGate';
 import {
-  canOperateVeInviteRewards,
-  readVeInviteRewardPoolStatus,
-} from '@/lib/rewards/onchainPool';
+  isVeInviteRewardOperator,
+  readVeInviteOperatorAccess,
+} from '@/lib/rewards/operatorAccess';
 import {
   getWalletSessionFromTokens,
   LEGACY_WALLET_SESSION_COOKIE_NAME,
@@ -44,11 +44,12 @@ async function readVerifiedOperatorSession() {
     return null;
   }
 
-  const pool = await readVeInviteRewardPoolStatus();
+  const operatorAccess =
+    await readVeInviteOperatorAccess();
 
-  return canOperateVeInviteRewards(
+  return isVeInviteRewardOperator(
     session.walletAddress,
-    pool,
+    operatorAccess,
   )
     ? session
     : null;
