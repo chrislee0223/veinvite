@@ -22,6 +22,14 @@ const claimRoute = await readFile(
   new URL('../src/app/api/rewards/claims/route.ts', import.meta.url),
   'utf8',
 );
+const reservationRetryRoute = await readFile(
+  new URL('../src/app/api/rewards/reservations/retry/route.ts', import.meta.url),
+  'utf8',
+);
+const reservationRecovery = await readFile(
+  new URL('../src/components/RewardReservationRecovery.tsx', import.meta.url),
+  'utf8',
+);
 
 test('completion fixes a durable reward before any explicit claim', () => {
   assert.match(reservationMigration, /reserved_amount_wei numeric\(78,0\)/);
@@ -81,6 +89,18 @@ test('financial RPCs are server-only and explicit claim is origin protected', ()
   assert.match(claimRoute, /if \(!sameOrigin\(request\)\)/);
   assert.match(claimRoute, /requireWalletSession/);
   assert.match(claimRoute, /request_reward_claim/);
+});
+
+test('completed referrals retry finality without waiting for the daily cron', () => {
+  assert.match(reservationRetryRoute, /if \(!sameOrigin\(request\)\)/);
+  assert.match(reservationRetryRoute, /requireWalletSession/);
+  assert.match(reservationRetryRoute, /slot_released_at/);
+  assert.match(reservationRetryRoute, /reserveEligibleReferralRewards/);
+  assert.match(reservationRecovery, /RETRY_MS = 120_000/);
+  assert.match(
+    reservationRecovery,
+    /veinvite-reward-reservation-ready/,
+  );
 });
 
 test('historical completions are explicitly excluded from retroactive reservations', () => {
