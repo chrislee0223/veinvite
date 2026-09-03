@@ -51,6 +51,7 @@ type StatusResponse = {
 type ClaimResponse = {
   outcome?: string;
   invite?: InviteRecord;
+  inviteCode?: string;
   entryClass?: EntryClass | 'active_existing_user';
 };
 
@@ -157,6 +158,20 @@ export function PermanentReferralClient({
         },
       );
       const data = (await response.json()) as ClaimResponse;
+
+      if (
+        response.ok &&
+        data.outcome === 'already_claimed' &&
+        data.inviteCode
+      ) {
+        const resumeUrl = new URL(
+          `/i/${data.inviteCode}`,
+          window.location.origin,
+        );
+        resumeUrl.searchParams.set('lang', locale);
+        window.location.assign(resumeUrl.toString());
+        return;
+      }
 
       if (!response.ok) {
         if (response.status === 404 || data.outcome === 'invalid_link') {
