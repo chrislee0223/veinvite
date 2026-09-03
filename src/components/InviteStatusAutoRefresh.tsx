@@ -71,10 +71,10 @@ function evidenceSyncCandidate(
 /**
  * Keeps the inviter home screen in sync when invitee/reward state changes in a
  * different browser or device. A lightweight invite-list check runs every 30s.
- * While an accepted referral is still active, the inviter also provides a
- * bounded five-minute fallback that asks the existing public invite endpoint to
- * reconcile chain evidence. This complements (rather than replaces) the daily
- * scheduled worker and the invitee page's own polling, so one missed scheduler
+ * While an accepted referral is still active, the verified inviter also
+ * provides a bounded five-minute reconciliation fallback for their own invite.
+ * This complements (rather than replaces) the daily scheduled worker and the
+ * invitee page's own polling, so a closed invitee tab or one missed scheduler
  * run cannot leave active progress stale indefinitely.
  */
 export function InviteStatusAutoRefresh() {
@@ -161,6 +161,8 @@ export function InviteStatusAutoRefresh() {
               candidate.code,
             )}`,
             {
+              method: 'POST',
+              credentials: 'same-origin',
               cache: 'no-store',
             },
           );
