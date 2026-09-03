@@ -10,6 +10,7 @@ import dynamic from 'next/dynamic';
 // time, so this order keeps newly added locale packs inside those safeguards.
 import '@/lib/i18n/localePacks/registerExpandedLocales';
 import '@/lib/i18n/copyHardening';
+import '@/lib/i18n/guideCopyFinalHardening';
 import '@/lib/i18n/secondaryPageCopyHardening';
 import '@/lib/i18n/referralLinkCopy';
 import '@/lib/i18n/referralLinkCopyFinalHardening';
