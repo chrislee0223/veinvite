@@ -30,10 +30,10 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Use Node.js 24
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
           node-version: 24
           cache: npm
@@ -93,7 +93,7 @@ jobs:
         run: npm ci
 
       - name: Dependency security gate
-        # Keep low/moderate transitive findings visible in CI, but fail the
+        # Keep low/modate transitive findings visible in CI, but fail the
         # merge gate only when npm reports a high or critical vulnerability.
         run: npm audit --audit-level=high
 
