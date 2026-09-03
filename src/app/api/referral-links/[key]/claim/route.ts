@@ -111,6 +111,7 @@ async function recordAttempt({
     | 'ACTIVE_EXISTING'
     | 'ALREADY_REFERRED'
     | 'SELF_REFERRAL'
+    | 'SLOTS_FULL'
     | 'CHECK_FAILED';
   entryCheck?: EntryEligibilityResult;
   details?: Record<string, unknown>;
@@ -346,6 +347,12 @@ export async function POST(
   // still authoritative and closes races between this read and reservation.
   try {
     if (!(await hasFreeSlot(link.inviter_wallet))) {
+      await recordAttempt({
+        linkId: link.id,
+        walletAddress: inviteeAddress,
+        outcome: 'SLOTS_FULL',
+        details: { source: 'capacity_precheck' },
+      });
       return NextResponse.json({ outcome: 'slots_full' }, { status: 409 });
     }
   } catch (error) {
