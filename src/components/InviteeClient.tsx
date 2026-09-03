@@ -438,14 +438,16 @@ export function InviteeClient({ code }: { code: string }) {
   }
 
   if (step === 'missions') {
-    const completed = invite?.status === 'COMPLETED';
     const appsCompleted = Math.min(progress.appsCompleted, progress.appsRequired);
     const appsDone = appsCompleted >= progress.appsRequired;
     const firstAppDone = appsCompleted >= 1;
-    const conversionDone = completed || progress.vot3Converted;
+    const conversionDone = progress.vot3Converted;
     const conversionUnlocked = firstAppDone || conversionDone;
-    const voteDone = completed || progress.voteCompleted;
+    const voteDone = progress.voteCompleted;
     const voteUnlocked = conversionDone || voteDone;
+    const completed = appsDone && conversionDone && voteDone;
+    const legacyIncomplete =
+      invite?.status === 'COMPLETED' && !completed;
 
     return (
       <main className="appShell">
@@ -466,6 +468,8 @@ export function InviteeClient({ code }: { code: string }) {
           <MissionCard state={voteDone ? 'done' : voteUnlocked ? 'current' : 'locked'} title={t.voteMission} description={t.voteMissionDescription} status={voteDone ? t.complete : voteUnlocked ? t.ready : t.locked} />
           {!completed && demoMode ? (
             <button type="button" className="secondaryButton" onClick={() => void completeMissions()}>{t.demoComplete}</button>
+          ) : legacyIncomplete ? (
+            <div className="notice">{t.errors.complete}</div>
           ) : !completed ? (
             <div className="notice">{t.autoProgress}</div>
           ) : (
