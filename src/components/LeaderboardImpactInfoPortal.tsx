@@ -7,13 +7,19 @@ import { GUIDE_COPY } from '@/lib/i18n/guideCopy';
 import { LEADERBOARD_COPY } from '@/lib/i18n/leaderboardCopy';
 import type { Locale } from '@/lib/i18n/locales';
 import { InfoCircleIcon } from './InfoCircleIcon';
+import {
+  SOFT_FOCUS_MOTION_CSS,
+  softFocusCloseDelay,
+} from './SoftFocusMotion';
 
 export function LeaderboardImpactInfoPortal({ locale }: { locale: Locale }) {
   const [host, setHost] = useState<HTMLElement | null>(null);
-  const [open, setOpen] = useState(false);
+  const [dialogMounted, setDialogMounted] = useState(false);
+  const [dialogVisible, setDialogVisible] = useState(false);
   const triggerRef = useRef<HTMLButtonElement | null>(null);
   const dialogRef = useRef<HTMLDivElement | null>(null);
   const closeRef = useRef<HTMLButtonElement | null>(null);
+  const closeTimerRef = useRef<number | null>(null);
   const t = LEADERBOARD_COPY[locale];
   const guide = GUIDE_COPY[locale];
 
@@ -46,13 +52,40 @@ export function LeaderboardImpactInfoPortal({ locale }: { locale: Locale }) {
     };
   }, []);
 
-  const closeInfo = useCallback(() => {
-    setOpen(false);
-    window.requestAnimationFrame(() => triggerRef.current?.focus());
+  const openInfo = useCallback(() => {
+    if (closeTimerRef.current !== null) {
+      window.clearTimeout(closeTimerRef.current);
+      closeTimerRef.current = null;
+    }
+    setDialogMounted(true);
   }, []);
 
   useEffect(() => {
-    if (!open) return;
+    if (!dialogMounted) return;
+    const frame = window.requestAnimationFrame(() => setDialogVisible(true));
+    return () => window.cancelAnimationFrame(frame);
+  }, [dialogMounted]);
+
+  const closeInfo = useCallback(() => {
+    setDialogVisible(false);
+    if (closeTimerRef.current !== null) {
+      window.clearTimeout(closeTimerRef.current);
+    }
+    closeTimerRef.current = window.setTimeout(() => {
+      closeTimerRef.current = null;
+      setDialogMounted(false);
+      window.requestAnimationFrame(() => triggerRef.current?.focus());
+    }, softFocusCloseDelay());
+  }, []);
+
+  useEffect(() => () => {
+    if (closeTimerRef.current !== null) {
+      window.clearTimeout(closeTimerRef.current);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!dialogMounted) return;
 
     const previousOverflow = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
@@ -89,7 +122,7 @@ export function LeaderboardImpactInfoPortal({ locale }: { locale: Locale }) {
       document.body.style.overflow = previousOverflow;
       document.removeEventListener('keydown', onKeyDown);
     };
-  }, [open, closeInfo]);
+  }, [dialogMounted, closeInfo]);
 
   const launcher = host
     ? createPortal(
@@ -148,7 +181,7 @@ export function LeaderboardImpactInfoPortal({ locale }: { locale: Locale }) {
             className="veinviteImpactInfoButton"
             aria-label={guide.countTitle}
             title={guide.countTitle}
-            onClick={() => setOpen(true)}
+            onClick={openInfo}
           >
             <InfoCircleIcon size={17} />
           </button>
@@ -157,10 +190,11 @@ export function LeaderboardImpactInfoPortal({ locale }: { locale: Locale }) {
       )
     : null;
 
-  const dialog = open && typeof document !== 'undefined'
+  const dialog = dialogMounted && typeof document !== 'undefined'
     ? createPortal(
         <div
-          className="veinviteImpactInfoBackdrop"
+          className="veinviteImpactInfoBackdrop veinviteSoftFocusBackdrop"
+          data-open={dialogVisible ? 'true' : 'false'}
           role="presentation"
           onMouseDown={(event) => {
             if (event.target === event.currentTarget) closeInfo();
@@ -168,29 +202,28 @@ export function LeaderboardImpactInfoPortal({ locale }: { locale: Locale }) {
         >
           <div
             ref={dialogRef}
-            className="veinviteImpactInfoDialog"
+            className="veinviteImpactInfoDialog veinviteSoftFocusPanel"
             role="dialog"
             aria-modal="true"
             aria-labelledby="veinvite-impact-info-title"
           >
+            <button
+              ref={closeRef}
+              type="button"
+              className="veinviteSoftFocusClose"
+              onClick={closeInfo}
+              aria-label={t.close}
+            />
             <div className="veinviteImpactInfoTop">
               <div>
                 <span>{t.impactTitle}</span>
                 <h2 id="veinvite-impact-info-title">{guide.countTitle}</h2>
               </div>
-              <button
-                ref={closeRef}
-                type="button"
-                className="veinviteImpactInfoCloseButton"
-                onClick={closeInfo}
-                aria-label={t.close}
-              >
-                ×
-              </button>
             </div>
             <p>{t.impactNote}</p>
           </div>
           <style>{`
+            ${SOFT_FOCUS_MOTION_CSS}
             .veinviteImpactInfoBackdrop {
               position: fixed;
               z-index: 145;
@@ -212,10 +245,7 @@ export function LeaderboardImpactInfoPortal({ locale }: { locale: Locale }) {
               box-shadow: 0 30px 90px rgba(0,0,0,.58);
             }
             .veinviteImpactInfoTop {
-              display: flex;
-              align-items: flex-start;
-              justify-content: space-between;
-              gap: 14px;
+              padding-right: 54px;
             }
             .veinviteImpactInfoTop span {
               color: #f4bd35;
@@ -233,25 +263,6 @@ export function LeaderboardImpactInfoPortal({ locale }: { locale: Locale }) {
               font-size: .82rem;
               line-height: 1.6;
               overflow-wrap: anywhere;
-            }
-            .veinviteImpactInfoCloseButton {
-              flex: 0 0 auto;
-              width: 38px;
-              height: 38px;
-              display: grid;
-              place-items: center;
-              padding: 0;
-              border: 1px solid rgba(255,255,255,.1);
-              border-radius: 12px;
-              background: rgba(255,255,255,.04);
-              color: #fff;
-              font: inherit;
-              font-size: 1.2rem;
-              cursor: pointer;
-            }
-            .veinviteImpactInfoCloseButton:focus-visible {
-              outline: none;
-              box-shadow: 0 0 0 3px rgba(244,183,40,.1);
             }
           `}</style>
         </div>,
