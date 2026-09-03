@@ -98,9 +98,16 @@ test('anonymous usage suppression stores no wallet identity in visitor telemetry
 });
 
 test('admin suppression and usage ingestion serialize on the same anonymous visitor lock', () => {
-  const advisoryLockPattern = /pg_catalog\.pg_advisory_xact_lock\([\s\S]*pg_catalog\.hashtextextended\(p_visitor_key, 0\)/gu;
+  const advisoryLockCall =
+    'pg_catalog.pg_advisory_xact_lock(';
   assert.equal(
-    [...concurrencyMigration.matchAll(advisoryLockPattern)].length,
+    concurrencyMigration.split(advisoryLockCall).length - 1,
+    2,
+  );
+  assert.equal(
+    concurrencyMigration.split(
+      'pg_catalog.hashtextextended(p_visitor_key, 0)',
+    ).length - 1,
     2,
   );
   assert.match(
