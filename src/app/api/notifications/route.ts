@@ -112,6 +112,28 @@ function defaultReadState(): InviteNotificationReadStateV2 {
   };
 }
 
+async function loadPaidRewards(
+  paidInviteCodes: string[],
+): Promise<PaidRewardEvidence[]> {
+  if (paidInviteCodes.length === 0) return [];
+
+  const payoutResult = await supabaseAdmin
+    .from('reward_payouts')
+    .select(
+      'invite_code, amount_wei, status, tx_id, paid_at',
+    )
+    .eq('status', 'PAID')
+    .in('invite_code', paidInviteCodes);
+
+  if (payoutResult.error) {
+    throw new Error(
+      `Notification reward evidence could not be loaded: ${payoutResult.error.message}`,
+    );
+  }
+
+  return (payoutResult.data ?? []) as PaidRewardEvidence[];
+}
+
 async function loadUnreadNotifications(
   wallet: string,
 ): Promise<InviteNotificationPayloadV2[]> {
@@ -136,7 +158,11 @@ async function loadUnreadNotifications(
 
   if (inviteCodes.length === 0) return [];
 
-  const [stateResult, queueResult, payoutResult] = await Promise.all([
+  const paidInviteCodes = invitations
+    .filter((invitation) => invitation.reward_status === 'PAID')
+    .map((invitation) => invitation.invite_code);
+
+  const [stateResult, queueResult, paidRewards] = await Promise.all([
     supabaseAdmin
       .from('invite_notification_state')
       .select(
@@ -150,12 +176,7 @@ async function loadUnreadNotifications(
         'invite_code, status, reserved_amount_wei, reserved_at',
       )
       .in('invite_code', inviteCodes),
-    supabaseAdmin
-      .from('reward_payouts')
-      .select(
-        'invite_code, amount_wei, status, tx_id, paid_at',
-      )
-      .in('invite_code', inviteCodes),
+    loadPaidRewards(paidInviteCodes),
   ]);
 
   if (stateResult.error) {
@@ -166,11 +187,6 @@ async function loadUnreadNotifications(
   if (queueResult.error) {
     throw new Error(
       `Notification reward reservation could not be loaded: ${queueResult.error.message}`,
-    );
-  }
-  if (payoutResult.error) {
-    throw new Error(
-      `Notification reward evidence could not be loaded: ${payoutResult.error.message}`,
     );
   }
 
@@ -193,9 +209,7 @@ async function loadUnreadNotifications(
     ]),
   );
   const paidByInvite = new Map<string, PaidRewardEvidence>(
-    ((payoutResult.data ?? []) as PaidRewardEvidence[])
-      .filter((entry) => entry.status === 'PAID')
-      .map((entry) => [entry.invite_code, entry]),
+    paidRewards.map((entry) => [entry.invite_code, entry]),
   );
 
   const unread = invitations
