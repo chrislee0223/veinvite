@@ -18,6 +18,13 @@ type ReferralLinkRow = {
   created_at: string;
 };
 
+type EnsureReferralLinkResult = {
+  created?: boolean;
+  referralKey?: string;
+  createdAt?: string;
+  reason?: string;
+};
+
 type ActiveInvitationRow = {
   invite_slot: number;
   status: string;
@@ -83,6 +90,22 @@ function responsePayload(link: ReferralLinkRow, slotsAvailable: number) {
       createdAt: link.created_at,
       slotsAvailable,
     },
+  };
+}
+
+function ensuredRow(result: EnsureReferralLinkResult): ReferralLinkRow | null {
+  if (
+    typeof result.referralKey !== 'string' ||
+    result.referralKey.length < 1 ||
+    typeof result.createdAt !== 'string' ||
+    Number.isNaN(Date.parse(result.createdAt))
+  ) {
+    return null;
+  }
+
+  return {
+    referral_key: result.referralKey,
+    created_at: result.createdAt,
   };
 }
 
@@ -186,32 +209,32 @@ export async function POST(request: NextRequest) {
 
     for (let attempt = 0; attempt < 5; attempt += 1) {
       const key = createReferralKey();
-      const { data, error } = await supabaseAdmin
-        .from('referral_links')
-        .insert({
-          inviter_wallet: owner.wallet,
-          referral_key: key,
-          status: 'ACTIVE',
-        })
-        .select('referral_key,created_at')
-        .single();
+      const { data, error } = await supabaseAdmin.rpc(
+        'ensure_active_referral_link',
+        {
+          p_inviter_wallet: owner.wallet,
+          p_referral_key: key,
+        },
+      );
 
-      if (!error && data) {
+      if (error) throw error;
+
+      const result = (data ?? {}) as EnsureReferralLinkResult;
+      const link = ensuredRow(result);
+      if (link) {
         return NextResponse.json(
-          responsePayload(data as ReferralLinkRow, slotsAvailable),
-          { status: 201 },
+          responsePayload(link, slotsAvailable),
+          { status: result.created ? 201 : 200 },
         );
       }
 
-      if (error?.code === '23505') {
-        const concurrent = await loadActiveReferralLink(owner.wallet);
-        if (concurrent) {
-          return NextResponse.json(responsePayload(concurrent, slotsAvailable));
-        }
+      if (result.reason === 'KEY_COLLISION') {
         continue;
       }
 
-      throw error;
+      throw new Error(
+        `Unexpected referral-link ensure result: ${result.reason ?? 'UNKNOWN'}`,
+      );
     }
 
     return NextResponse.json(
