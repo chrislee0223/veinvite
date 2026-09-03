@@ -102,7 +102,7 @@ jobs:
         run: node --test tests/operator-fast-status*.test.mjs
 
       - name: Referral v2 regression gate
-        run: node --test tests/referral-permanent-link-rollout.test.mjs tests/referral-v2-legacy-cancel-copy.test.mjs
+        run: node --test tests/referral-permanent-link-rollout.test.mjs tests/referral-v2-legacy-cancel-copy.test.mjs tests/referral-link-refresh-cache.test.mjs
 
       - name: Install dependencies
         run: npm ci
