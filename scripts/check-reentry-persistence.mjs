@@ -24,6 +24,7 @@ const walletAuthServer = read('src/lib/walletAuthServer.ts');
 const walletSessionRoute = read('src/app/api/auth/session/route.ts');
 const walletVerifyRoute = read('src/app/api/auth/verify/route.ts');
 const notifications = read('src/components/InAppInviteNotifications.tsx');
+const notificationHistoryRoute = read('src/app/api/notifications/history/route.ts');
 const migrationManifest = read('supabase/production-migration-manifest.txt');
 
 if (!/wallet_legal_consents/.test(legalMigration) || !/enable row level security/i.test(legalMigration)) {
@@ -80,7 +81,7 @@ if (!/veinvite-wallet-session-cleared/.test(walletSessionGate) || !/veinvite-wal
   failures.push('Explicit wallet logout/switch must remain distinguishable from passive provider disconnect churn.');
 }
 if (!/SESSION_CHECK_SURFACE_DELAY_MS\s*=\s*3_000/.test(walletSessionGate) || !/showCheckingSurface/.test(walletSessionGate) || !/<Brand compact \/>/.test(walletSessionGate)) {
-  failures.push('Wallet/session initialization must retain its branded recovery transition instead of a featureless black frame.');
+  failures.push('Wallet verification gate must retain its branded recovery transition instead of a featureless black frame.');
 }
 if (!/\/api\/auth\/session/.test(walletAuth) || !/session\.authenticated/.test(walletAuth)) {
   failures.push('Wallet authentication must reuse a valid existing server session before requesting a fresh wallet signature.');
@@ -145,7 +146,13 @@ if (!/<LocaleHydrationShield \/>[\s\S]*<AppProviders>/.test(rootLayout) || !/<Br
   failures.push('The branded hydration shield must render outside the client-only wallet provider so startup never falls through to a blank black body.');
 }
 
-if (!/\/api\/notifications/.test(notifications) || !/method:\s*['"]POST['"]/.test(notifications) || !/acknowledgeAndClose/.test(notifications)) {
+if (
+  !/\/api\/notifications/.test(notifications) ||
+  !/\/api\/notifications\/history/.test(notifications) ||
+  !/method:\s*['"]POST['"]/.test(notifications) ||
+  !/requireWalletSession/.test(notificationHistoryRoute) ||
+  !/acknowledge_invite_notification_history/.test(notificationHistoryRoute)
+) {
   failures.push('Notification acknowledgement must remain server-backed so read state survives app re-entry.');
 }
 
