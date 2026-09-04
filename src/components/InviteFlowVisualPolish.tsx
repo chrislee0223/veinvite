@@ -24,11 +24,33 @@ export function InviteFlowVisualPolish() {
         flex: 0 0 38px !important;
       }
 
-      .centeredFlow > label,
-      .appHeader label {
+      .centeredFlow > label {
         box-sizing: border-box !important;
         width: 155px !important;
         max-width: 48% !important;
+        padding: 0 !important;
+        border: 0 !important;
+        border-radius: 0 !important;
+        background: transparent !important;
+      }
+
+      /* On the mission screen the legacy role-chip wrapper must not become a
+         second layout box. Let the language control participate directly in
+         the header flex row, so its right edge is the exact app content edge. */
+      .appHeader:has(+ .missionPanel) > div {
+        display: contents !important;
+      }
+
+      .appHeader:has(+ .missionPanel) .chip {
+        display: none !important;
+      }
+
+      .appHeader label {
+        box-sizing: border-box !important;
+        width: 155px !important;
+        max-width: 155px !important;
+        min-width: 128px !important;
+        flex: 0 1 155px !important;
         padding: 0 !important;
         border: 0 !important;
         border-radius: 0 !important;
@@ -55,26 +77,28 @@ export function InviteFlowVisualPolish() {
         font-weight: 800 !important;
       }
 
-      /* Mission screen: keep the header intentionally minimal and aligned to
-         the same outer edges as the mission panel below it. */
-      .appHeader:has(+ .missionPanel) .chip {
-        display: none !important;
-      }
-
-      /* The small “My Quest” eyebrow duplicates the main mission heading.
-         Hiding it here also lets the title reclaim the space cleanly. */
+      /* The small quest eyebrow duplicates the primary page heading. */
       .missionPanel > .eyebrow {
         display: none !important;
       }
 
-      .missionPanel > .eyebrow + h1 {
+      .missionPanel > h1 {
         margin: 0 0 14px !important;
       }
 
-      /* Locked missions should read as unavailable without becoming hard to
-         read, especially on dim mobile displays. */
+      /* Locked missions stay clearly unavailable without becoming illegible. */
       .missionPanel .mission.locked {
         opacity: .62 !important;
+      }
+
+      .missionPanel .mission > div {
+        min-width: 0 !important;
+      }
+
+      /* Status badges are real touch targets, not just visual pills. */
+      .missionPanel .mission > a,
+      .missionPanel .mission > em {
+        min-height: 44px !important;
       }
 
       .errorIcon {
@@ -106,8 +130,7 @@ export function InviteFlowVisualPolish() {
       }
 
       @media (max-width: 560px) {
-        .centeredFlow > label,
-        .appHeader label {
+        .centeredFlow > label {
           width: 155px !important;
         }
 
@@ -118,6 +141,43 @@ export function InviteFlowVisualPolish() {
           padding: 7px 34px 7px 12px !important;
           border-radius: 13px !important;
           font-size: .76rem !important;
+        }
+      }
+
+      @media (max-width: 360px) {
+        .appShell {
+          padding-left: 14px !important;
+          padding-right: 14px !important;
+        }
+
+        .appHeader {
+          gap: 8px !important;
+        }
+
+        .appHeader label {
+          min-width: 128px !important;
+        }
+
+        .missionPanel {
+          padding: 16px !important;
+        }
+
+        .missionPanel .mission {
+          gap: 8px !important;
+          padding: 12px !important;
+        }
+
+        .missionPanel .mission > span {
+          width: 34px !important;
+          height: 34px !important;
+          flex-basis: 34px !important;
+        }
+
+        .missionPanel .mission > a,
+        .missionPanel .mission > em {
+          min-width: 64px !important;
+          padding-left: 8px !important;
+          padding-right: 8px !important;
         }
       }
     `}</style>
