@@ -55,10 +55,10 @@ test('Korean Guide explains 3+ dApps and reusable slots precisely', () => {
   assert.match(hardeningSource, /완료된 친구의 슬롯은 다시 열려/);
 });
 
-test('Home and Leaderboard info dialogs use a clean close mark without the two-bar artifact', () => {
+test('Home and Leaderboard info dialogs render one explicit close glyph and suppress generated bars', () => {
   for (const source of [homeGuideInfoSource, leaderboardInfoSource]) {
-    assert.match(source, /\.veinviteSoftFocusClose::before\s*\{[\s\S]*content: '×'/u);
-    assert.match(source, /\.veinviteSoftFocusClose::after\s*\{[\s\S]*content: none/u);
+    assert.match(source, /<span className="veinviteDialogCloseGlyph" aria-hidden="true">×<\/span>/u);
+    assert.match(source, /\.veinviteSoftFocusClose::before,[\s\S]*\.veinviteSoftFocusClose::after\s*\{[\s\S]*content: none !important;[\s\S]*display: none !important;/u);
     assert.match(source, /\.veinviteSoftFocusClose\s*\{[\s\S]*border: 0/u);
   }
 });
