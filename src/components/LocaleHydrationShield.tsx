@@ -13,7 +13,7 @@ import {
   LANGUAGE_STORAGE_KEY,
   isLocale,
   resolveBrowserLocale,
-  type Locale,
+  type SupportedLocale,
 } from '@/lib/i18n/locales';
 import { STARTUP_COPY } from '@/lib/i18n/startupCopy';
 
@@ -27,7 +27,7 @@ type ShieldState =
   | { status: 'error'; message?: string }
   | { status: 'ready' };
 
-function resolveStartupLocale(): Locale {
+function resolveStartupLocale(): SupportedLocale {
   const saved = window.localStorage.getItem(
     LANGUAGE_STORAGE_KEY,
   );
@@ -46,7 +46,7 @@ export function LocaleHydrationShield() {
   const [state, setState] = useState<ShieldState>({
     status: 'loading',
   });
-  const [locale, setLocale] = useState<Locale>('en');
+  const [locale, setLocale] = useState<SupportedLocale>('en');
 
   useEffect(() => {
     setLocale(resolveStartupLocale());
@@ -183,7 +183,7 @@ export function LocaleHydrationShield() {
 
   if (state.status === 'ready') return null;
 
-  const t = STARTUP_COPY[locale] ?? STARTUP_COPY.en;
+  const t = STARTUP_COPY[locale];
   const hasError = state.status === 'error';
 
   return (
