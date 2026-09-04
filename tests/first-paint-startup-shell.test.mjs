@@ -40,11 +40,11 @@ test('the first paint and hydrated startup use one continuous VeInvite shield', 
   );
   assert.match(
     shield,
-    /data-veinvite-wallet-session-gate=\\"interactive\\"/,
+    /data-veinvite-wallet-session-gate="interactive"/,
   );
   assert.match(
     runtime,
-    /data-veinvite-wallet-session-gate=\\"interactive\\"/,
+    /data-veinvite-wallet-session-gate="interactive"/,
   );
 
   assert.equal(
