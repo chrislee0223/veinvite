@@ -14,6 +14,16 @@ export function InviteFlowVisualPolish() {
         width: min(100%, 520px) !important;
       }
 
+      .centeredFlow > .brandCompact img {
+        width: 38px !important;
+        height: 38px !important;
+        min-width: 38px !important;
+        min-height: 38px !important;
+        max-width: 38px !important;
+        max-height: 38px !important;
+        flex: 0 0 38px !important;
+      }
+
       .centeredFlow > label,
       .appHeader label {
         box-sizing: border-box !important;
