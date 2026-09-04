@@ -11,6 +11,9 @@ import {
   VEINVITE_APP_ID,
 } from '@/lib/rewards/onchainPool';
 import {
+  REWARD_FORECAST_MODEL_VERSION,
+} from '@/lib/rewards/rewardForecastPolicy';
+import {
   readLatestRewardForecastSnapshot,
   refreshRewardForecastSnapshot,
   type RewardForecastSnapshot,
@@ -83,6 +86,10 @@ function readyResponse(snapshot: RewardForecastSnapshot, stale: boolean) {
 }
 
 function isFresh(snapshot: RewardForecastSnapshot): boolean {
+  if (snapshot.modelVersion !== REWARD_FORECAST_MODEL_VERSION) {
+    return false;
+  }
+
   const generatedAt = Date.parse(snapshot.generatedAt);
   if (Number.isNaN(generatedAt)) return false;
   return Date.now() - generatedAt < FORECAST_REFRESH_WINDOW_SECONDS * 1_000;
@@ -120,9 +127,10 @@ export async function GET(_request: NextRequest) {
     ]);
 
     // Only one server request per hour performs chain/database forecasting work.
-    // Everyone else reads the latest stored snapshot. If no snapshot exists yet,
-    // allow bootstrap creation even if the limiter is temporarily degraded.
-    if (!limited || !previousSnapshot) {
+    // Everyone else reads the latest stored snapshot. A snapshot from an older
+    // model is deliberately stale so a rollout can publish the new estimate
+    // immediately instead of serving the previous formula for up to an hour.
+    if (!limited || !previousSnapshot || previousSnapshot.modelVersion !== REWARD_FORECAST_MODEL_VERSION) {
       await bestEffortAllocationSync();
 
       try {

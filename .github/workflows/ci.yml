@@ -16,7 +16,7 @@ concurrency:
 jobs:
   validate:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 20
 
     env:
       # Build against the reviewed non-production project identity. The key is
@@ -108,12 +108,72 @@ jobs:
         run: node --test tests/referral-permanent-link-rollout.test.mjs tests/referral-v2-legacy-cancel-copy.test.mjs tests/network-guide-relocation.test.mjs tests/referral-link-refresh-cache.test.mjs tests/invite-flow-visual-parity.test.mjs tests/mission-dapp-action.test.mjs
 
       - name: Install dependencies
-        run: npm ci
+        shell: bash
+        run: |
+          for attempt in 1 2; do
+            set +e
+            timeout 300s npm ci 2>&1 | tee .ci-npm-ci.log
+            status=${PIPESTATUS[0]}
+            set -e
+
+            if [ "$status" -eq 0 ]; then
+              exit 0
+            fi
+            if [ "$status" -eq 124 ] && [ "$attempt" -lt 2 ]; then
+              rm -rf node_modules
+              sleep 5
+              continue
+            fi
+            exit "$status"
+          done
+          exit 1
 
       - name: Dependency security gate
-        # Keep low/moderate transitive findings visible in CI, but fail the
-        # merge gate only when npm reports a high or critical vulnerability.
-        run: npm audit --audit-level=high
+        # npm ci already performs an audit and prints its severity summary. We
+        # still run npm audit as the primary high/critical gate, but if the npm
+        # audit service itself times out repeatedly, accept only a captured npm
+        # ci summary that proves no high/critical findings were reported.
+        shell: bash
+        run: |
+          for attempt in 1 2 3; do
+            if output="$(timeout 60s npm audit --audit-level=high 2>&1)"; then
+              printf '%s\n' "$output"
+              exit 0
+            else
+              status=$?
+              printf '%s\n' "$output"
+            fi
+
+            transport_failure=false
+            if [ "$status" -eq 124 ] || printf '%s\n' "$output" | grep -Eqi '503|Service Unavailable|ECONNRESET|ETIMEDOUT|audit endpoint returned an error'; then
+              transport_failure=true
+            fi
+
+            if [ "$transport_failure" = true ] && [ "$attempt" -lt 3 ]; then
+              sleep $((attempt * 5))
+              continue
+            fi
+
+            if [ "$transport_failure" = true ]; then
+              summary="$(grep -E '([0-9]+ vulnerabilities|found 0 vulnerabilities)' .ci-npm-ci.log | tail -1 || true)"
+              if [ -z "$summary" ]; then
+                echo 'npm audit service was unavailable and npm ci produced no auditable vulnerability summary.' >&2
+                exit 1
+              fi
+              if printf '%s\n' "$summary" | grep -Eqi '([1-9][0-9]*) high|([1-9][0-9]*) critical'; then
+                echo "npm ci reported a high/critical vulnerability: $summary" >&2
+                exit 1
+              fi
+              echo "npm audit service unavailable after retries; npm ci audit summary accepted: $summary"
+              exit 0
+            fi
+
+            # A non-transport npm audit failure is an actual audit result and
+            # must keep blocking the merge.
+            exit "$status"
+          done
+
+          exit 1
 
       - name: Typecheck
         run: npm run typecheck
