@@ -19,6 +19,7 @@ import {
 import { STARTUP_COPY } from '@/lib/i18n/startupCopy';
 
 const APP_READY_EVENT = 'veinvite-app-ready';
+const APP_LOADING_EVENT = 'veinvite-app-loading';
 const PROVIDER_READY_EVENT =
   'veinvite-provider-ready';
 const STARTUP_RECOVERY_MS = 8_000;
@@ -89,6 +90,7 @@ export function LocaleHydrationShield() {
     let firstFrame = 0;
     let secondFrame = 0;
     let fallbackTimer = 0;
+    let loadingFrame = 0;
     let released = false;
     let interactiveGateVisible = false;
     const isHome = window.location.pathname === '/';
@@ -159,6 +161,27 @@ export function LocaleHydrationShield() {
     const handleAppReady = () => {
       release();
     };
+    const handleAppLoading = () => {
+      if (!isHome) {
+        return;
+      }
+
+      released = false;
+      clearFallbackTimer();
+      window.cancelAnimationFrame(firstFrame);
+      window.cancelAnimationFrame(secondFrame);
+      setState({ status: 'loading' });
+
+      interactiveGateVisible = hasInteractiveWalletGate();
+      loadingFrame = window.requestAnimationFrame(() => {
+        setShieldVisible(!interactiveGateVisible);
+        if (interactiveGateVisible) {
+          clearFallbackTimer();
+        } else {
+          armFallbackTimer();
+        }
+      });
+    };
     const handleStartupError = (event: Event) => {
       if (released) {
         return;
@@ -191,21 +214,24 @@ export function LocaleHydrationShield() {
         .veinviteProviderReady === 'true'
     ) {
       release();
-    } else {
-      window.addEventListener(
-        APP_READY_EVENT,
-        handleAppReady,
-        { once: true },
-      );
-      window.addEventListener(
-        APP_STARTUP_ERROR_EVENT,
-        handleStartupError,
-      );
-      window.addEventListener(
-        PROVIDER_READY_EVENT,
-        handleProviderReady,
-      );
     }
+
+    window.addEventListener(
+      APP_READY_EVENT,
+      handleAppReady,
+    );
+    window.addEventListener(
+      APP_LOADING_EVENT,
+      handleAppLoading,
+    );
+    window.addEventListener(
+      APP_STARTUP_ERROR_EVENT,
+      handleStartupError,
+    );
+    window.addEventListener(
+      PROVIDER_READY_EVENT,
+      handleProviderReady,
+    );
 
     interactiveGateVisible =
       isHome && hasInteractiveWalletGate();
@@ -230,6 +256,10 @@ export function LocaleHydrationShield() {
         handleAppReady,
       );
       window.removeEventListener(
+        APP_LOADING_EVENT,
+        handleAppLoading,
+      );
+      window.removeEventListener(
         APP_STARTUP_ERROR_EVENT,
         handleStartupError,
       );
@@ -241,6 +271,7 @@ export function LocaleHydrationShield() {
       clearFallbackTimer();
       window.cancelAnimationFrame(firstFrame);
       window.cancelAnimationFrame(secondFrame);
+      window.cancelAnimationFrame(loadingFrame);
     };
   }, []);
 
