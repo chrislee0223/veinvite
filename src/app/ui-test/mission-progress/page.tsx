@@ -1,6 +1,6 @@
 import type { Metadata } from 'next';
 
-import { MissionProgressLivePreview } from '@/components/MissionProgressLivePreview';
+import { InviteeClient } from '@/components/InviteeClient';
 
 export const metadata: Metadata = {
   title: 'VeInvite Mission Progress Preview',
@@ -11,5 +11,5 @@ export const metadata: Metadata = {
 };
 
 export default function MissionProgressPreviewPage() {
-  return <MissionProgressLivePreview />;
+  return <InviteeClient code="PREVIEW" />;
 }
