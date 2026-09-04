@@ -6,6 +6,7 @@ const read = (path) => readFileSync(path, 'utf8');
 const locales = read('src/lib/i18n/locales.ts');
 const historyCopy = read('src/lib/i18n/notificationHistoryCopy.ts');
 const preview = read('src/components/NotificationUiPreview.tsx');
+const developerPreview = read('src/components/DeveloperPreview.tsx');
 const surface = read('src/components/InviteNotificationSurface.tsx');
 const receipt = read('src/components/RewardReceiptNotice.tsx');
 const typography = read('src/app/localized-typography.css');
@@ -41,6 +42,15 @@ test('notification history preview protects RTL direction and mobile safe areas'
   assert.match(preview, /padding-inline-start:/);
   assert.match(preview, /env\(safe-area-inset-bottom\)/);
   assert.match(preview, /prefers-reduced-motion:reduce/);
+});
+
+test('developer live-app preview blocks pointer and keyboard interaction', () => {
+  assert.match(
+    developerPreview,
+    /className="livePreviewFrame"[\s\S]*?inert/,
+  );
+  assert.match(developerPreview, /클릭·키보드 조작은 잠겨 있습니다/);
+  assert.match(developerPreview, /className="interactionLock"/);
 });
 
 test('transient surfaces stay fluid on narrow mobile screens', () => {
