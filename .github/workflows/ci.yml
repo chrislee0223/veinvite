@@ -113,12 +113,12 @@ jobs:
       - name: Dependency security gate
         # Keep low/moderate transitive findings visible in CI, but fail the
         # merge gate only when npm reports a high or critical vulnerability.
-        # Retry only registry/service transport failures; a real vulnerability
-        # result still fails immediately with npm's original exit status.
+        # Retry only registry/service transport failures or a bounded service
+        # hang; a real vulnerability result still fails immediately.
         shell: bash
         run: |
           for attempt in 1 2 3; do
-            if output="$(npm audit --audit-level=high 2>&1)"; then
+            if output="$(timeout 60s npm audit --audit-level=high 2>&1)"; then
               printf '%s\n' "$output"
               exit 0
             else
@@ -126,7 +126,7 @@ jobs:
               printf '%s\n' "$output"
             fi
 
-            if printf '%s\n' "$output" | grep -Eqi '503|Service Unavailable|ECONNRESET|ETIMEDOUT|audit endpoint returned an error'; then
+            if [ "$status" -eq 124 ] || printf '%s\n' "$output" | grep -Eqi '503|Service Unavailable|ECONNRESET|ETIMEDOUT|audit endpoint returned an error'; then
               if [ "$attempt" -lt 3 ]; then
                 sleep $((attempt * 5))
                 continue
