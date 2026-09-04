@@ -59,6 +59,15 @@ if (
 }
 
 if (
+  !/await observeDisplayLanguage\(\s*localLanguage,\s*'local_storage'/s.test(languageSync) ||
+  /saveLanguage\(\s*localLanguage,\s*'local_storage'/s.test(languageSync)
+) {
+  failures.push(
+    'Browser-local language state must not be promoted into another wallet’s persistent preference.',
+  );
+}
+
+if (
   !/SET_WALLET_LANGUAGE_PREFERENCE/.test(languageRoute) ||
   !/OBSERVE_WALLET_DISPLAY_LANGUAGE/.test(languageRoute) ||
   !/wallet_language_usage/.test(languageRoute) ||
@@ -66,6 +75,17 @@ if (
 ) {
   failures.push(
     'The language API must keep explicit wallet preferences separate from observed display-language state.',
+  );
+}
+
+if (
+  !/body\.intent === SET_LANGUAGE_INTENT[\s\S]{0,120}requestedSource !== 'manual_selection'/s.test(
+    languageRoute,
+  ) ||
+  !/source:\s*'manual_selection'/.test(languageRoute)
+) {
+  failures.push(
+    'Only an explicit language selection may write the cross-device wallet preference.',
   );
 }
 
