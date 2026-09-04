@@ -108,6 +108,52 @@ test('returning VeWorld session stays covered until wallet, link, and slots are 
   assert.equal(releaseCount, 1);
 });
 
+test('wallet verification surface is temporary and can never count as final Home readiness', () => {
+  // A wallet/session verification surface may need to be shown to the user,
+  // but showing it must not permanently remove the startup shield.
+  assert.equal(
+    decide({
+      walletAddress: RETURNING_WALLET,
+      state: homeState({
+        status: 'ready',
+        invitesReady: true,
+        referralLinkReady: true,
+      }),
+      interactiveGateVisible: true,
+    }),
+    'hold',
+  );
+
+  // When verification finishes, Home mounts and begins wallet-scoped loading.
+  // The shield must be back before this partial state can paint.
+  assert.equal(
+    decide({
+      walletAddress: RETURNING_WALLET,
+      state: homeState({
+        status: 'loading',
+        invitesReady: false,
+        referralLinkReady: true,
+      }),
+      interactiveGateVisible: false,
+    }),
+    'hold',
+  );
+
+  // Only the complete Home can finally release.
+  assert.equal(
+    decide({
+      walletAddress: RETURNING_WALLET,
+      state: homeState({
+        status: 'ready',
+        invitesReady: true,
+        referralLinkReady: true,
+      }),
+      interactiveGateVisible: false,
+    }),
+    'release',
+  );
+});
+
 test('Preview-origin VeWorld restore cannot be mistaken for a real anonymous visitor', () => {
   // A Preview URL has a different origin, so it can legitimately have neither
   // the Production VeInvite session cookie nor origin-scoped dapp persistence.
@@ -251,6 +297,19 @@ test('Home startup reveal has one owner and normal Home live regions cannot rele
   );
 });
 
+test('wallet verification temporarily steps the shield aside without final release', async () => {
+  const source = await readFile(
+    new URL('../src/components/LocaleHydrationShield.tsx', import.meta.url),
+    'utf8',
+  );
+
+  assert.match(source, /function hasInteractiveWalletGate\(\)/);
+  assert.match(source, /new MutationObserver\(syncInteractiveGate\)/);
+  assert.match(source, /setShieldVisible\(false\)/);
+  assert.match(source, /setShieldVisible\(true\)/);
+  assert.match(source, /interactiveGateVisible/);
+});
+
 test('referral hydration placeholders have a visual fail-safe', async () => {
   const source = await readFile(
     new URL('../src/app/globals.css', import.meta.url),
@@ -275,7 +334,7 @@ test('8-second watchdog does not forcibly release an incomplete Home', async () 
   );
   assert.match(
     source,
-    /if \(isHome\) \{\s*setState\(\{ status: 'error' \}\);/s,
+    /if \(isHome\) \{[\s\S]*setState\(\{ status: 'error' \}\);/,
   );
   assert.doesNotMatch(
     source,
