@@ -2,6 +2,7 @@
 
 import {
   useEffect,
+  useRef,
   useState,
 } from 'react';
 
@@ -42,11 +43,19 @@ function resolveStartupLocale(): SupportedLocale {
   );
 }
 
+function hasInteractiveWalletGate(): boolean {
+  return Boolean(
+    !document.querySelector('main.screen') &&
+    document.querySelector('[aria-live="polite"]'),
+  );
+}
+
 export function LocaleHydrationShield() {
   const [state, setState] = useState<ShieldState>({
     status: 'loading',
   });
   const [locale, setLocale] = useState<SupportedLocale>('en');
+  const shieldRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     setLocale(resolveStartupLocale());
@@ -78,14 +87,28 @@ export function LocaleHydrationShield() {
     let secondFrame = 0;
     let fallbackTimer = 0;
     let released = false;
+    let interactiveGateVisible = false;
     const isHome = window.location.pathname === '/';
+
+    const clearFallbackTimer = () => {
+      window.clearTimeout(fallbackTimer);
+      fallbackTimer = 0;
+    };
+
+    const setShieldVisible = (visible: boolean) => {
+      if (shieldRef.current) {
+        shieldRef.current.style.visibility = visible
+          ? 'visible'
+          : 'hidden';
+      }
+    };
 
     const release = () => {
       if (released) {
         return;
       }
       released = true;
-      window.clearTimeout(fallbackTimer);
+      clearFallbackTimer();
 
       // Keep one stable painted frame between the final app-ready signal and
       // removing the SSR-visible shield. This prevents a black/home flash while
@@ -95,6 +118,46 @@ export function LocaleHydrationShield() {
           setState({ status: 'ready' });
         });
       });
+    };
+
+    const armFallbackTimer = () => {
+      clearFallbackTimer();
+      if (released || interactiveGateVisible) {
+        return;
+      }
+
+      fallbackTimer = window.setTimeout(() => {
+        if (isHome) {
+          setShieldVisible(true);
+          setState({ status: 'error' });
+        } else {
+          release();
+        }
+      }, STARTUP_RECOVERY_MS);
+    };
+
+    const syncInteractiveGate = () => {
+      const nextVisible =
+        isHome && hasInteractiveWalletGate();
+
+      if (nextVisible === interactiveGateVisible) {
+        return;
+      }
+
+      interactiveGateVisible = nextVisible;
+
+      if (interactiveGateVisible) {
+        // Verification/recovery is a temporary actionable surface. Step the
+        // startup shield aside without marking the application ready. When the
+        // gate disappears, the same shield immediately covers Home again until
+        // the wallet-scoped referral link and slots are both ready.
+        clearFallbackTimer();
+        setShieldVisible(false);
+        return;
+      }
+
+      setShieldVisible(true);
+      armFallbackTimer();
     };
 
     const handleAppReady = () => {
@@ -108,7 +171,8 @@ export function LocaleHydrationShield() {
       const detail = (
         event as CustomEvent<{ message?: string }>
       ).detail;
-      window.clearTimeout(fallbackTimer);
+      clearFallbackTimer();
+      setShieldVisible(true);
       setState({
         status: 'error',
         message: detail?.message,
@@ -150,17 +214,22 @@ export function LocaleHydrationShield() {
       );
     }
 
-    // The old behavior forcibly exposed the underlying Home after 8 seconds.
-    // On slow VeWorld restoration that could reveal a disconnected or skeleton
-    // Home. Home now stays covered; the same bounded watchdog switches to an
-    // explicit retry surface instead of releasing incomplete UI.
-    fallbackTimer = window.setTimeout(() => {
-      if (isHome) {
-        setState({ status: 'error' });
-      } else {
-        release();
-      }
-    }, STARTUP_RECOVERY_MS);
+    interactiveGateVisible =
+      isHome && hasInteractiveWalletGate();
+    setShieldVisible(!interactiveGateVisible);
+
+    if (!interactiveGateVisible) {
+      armFallbackTimer();
+    }
+
+    const observer = isHome
+      ? new MutationObserver(syncInteractiveGate)
+      : null;
+    observer?.observe(document.body, {
+      childList: true,
+      subtree: true,
+      attributes: true,
+    });
 
     return () => {
       window.removeEventListener(
@@ -175,7 +244,8 @@ export function LocaleHydrationShield() {
         PROVIDER_READY_EVENT,
         handleProviderReady,
       );
-      window.clearTimeout(fallbackTimer);
+      observer?.disconnect();
+      clearFallbackTimer();
       window.cancelAnimationFrame(firstFrame);
       window.cancelAnimationFrame(secondFrame);
     };
@@ -188,6 +258,7 @@ export function LocaleHydrationShield() {
 
   return (
     <div
+      ref={shieldRef}
       className="localeHydrationShield"
       aria-hidden={hasError ? undefined : true}
       role={hasError ? 'alert' : undefined}
