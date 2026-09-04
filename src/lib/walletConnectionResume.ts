@@ -8,6 +8,8 @@ export const DAPPKIT_ACCOUNT_STORAGE_KEY =
   'dappkit@vechain/v2/account';
 export const DAPPKIT_SOURCE_STORAGE_KEY =
   'dappkit@vechain/v2/source';
+const WALLET_RESUME_RELOAD_GUARD_STORAGE_KEY =
+  'veinvite_wallet_resume_reload_v1';
 
 export function markWalletConnectIntent(): void {
   if (typeof window === 'undefined') {
@@ -56,6 +58,39 @@ export function clearWalletConnectIntent(): void {
     );
   } catch {
     // Ignore storage cleanup failures.
+  }
+}
+
+export function clearPersistedVeWorldConnectionState(): void {
+  if (typeof window === 'undefined') {
+    return;
+  }
+
+  // An explicit VeInvite disconnect must also remove the provider evidence
+  // that startup recovery uses to decide whether a VeWorld wallet is still
+  // expected to return. Otherwise the server session can be gone while the
+  // startup shield waits forever for a wallet that the user intentionally
+  // disconnected.
+  try {
+    window.localStorage.removeItem(
+      DAPPKIT_ACCOUNT_STORAGE_KEY,
+    );
+    window.localStorage.removeItem(
+      DAPPKIT_SOURCE_STORAGE_KEY,
+    );
+  } catch {
+    // Ignore storage cleanup failures; the provider disconnect still runs.
+  }
+
+  try {
+    window.sessionStorage.removeItem(
+      WALLET_CONNECT_INTENT_STORAGE_KEY,
+    );
+    window.sessionStorage.removeItem(
+      WALLET_RESUME_RELOAD_GUARD_STORAGE_KEY,
+    );
+  } catch {
+    // Ignore storage cleanup failures in hardened/private browser modes.
   }
 }
 
