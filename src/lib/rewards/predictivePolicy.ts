@@ -1,5 +1,5 @@
 export const PREDICTIVE_REWARD_ALGORITHM_VERSION =
-  'predictive-reserve-v1';
+  'predictive-reserve-v2-cohort';
 
 const BPS = 10_000;
 const STRESS_GROWTH_BPS = 12_500;
@@ -22,9 +22,14 @@ export type PredictiveRewardPolicy = {
   expectedCompletions: number;
   stressCompletions: number;
   latestAllocationWei: string;
+  fundingAdjustmentWei: string;
+  designatedBudgetWei: string;
+  cohortReservedWei: string;
+  cohortAvailableBudgetWei: string;
   observedPoolBalanceWei: string;
   reservedExistingWei: string;
   availablePoolWei: string;
+  pricingBasisWei: string;
   rewardPerInviteWei: string;
   maxImmediatelyPayableCount: string;
   projectedReserveAfterExpectedWei: string;
@@ -138,16 +143,20 @@ function safeNumber(value: bigint, fieldName: string): number {
 }
 
 /**
- * Calculates a conservative per-invite reward while intentionally leaving
- * unspent B3TR in the user reward pool as carry-over reserve.
+ * Prices a fixed completion-time referral reservation from the funding that was
+ * explicitly designated to that participant cohort. Official allocation and
+ * auditable cohort adjustments (for example a one-off promotion) may fund the
+ * cohort; unrelated carry-over or another cohort's allocation may not.
  *
- * The latest funded allocation sets the price scale. Accumulated reserve can
- * cover a demand spike, but it does not automatically inflate the next user's
- * reward. Prediction only controls the safe denominator; it never creates or
- * assumes funds that are not already present in the reviewed reward pool.
+ * The global pool balance remains a hard physical-cap check, while the cohort
+ * budget is a second logical cap. Stress completion weighting deliberately
+ * keeps actual fixed reservations conservative even when the public midpoint
+ * estimate is higher.
  */
 export function calculatePredictiveRewardPolicy(input: {
   latestAllocationWei: string;
+  fundingAdjustmentWei: string;
+  cohortReservedWei: string;
   observedPoolBalanceWei: string;
   reservedExistingWei: string;
   pipeline: RewardPipelineSnapshot;
@@ -155,6 +164,14 @@ export function calculatePredictiveRewardPolicy(input: {
   const latestAllocation = parseWei(
     input.latestAllocationWei,
     'latestAllocationWei',
+  );
+  const fundingAdjustment = parseWei(
+    input.fundingAdjustmentWei,
+    'fundingAdjustmentWei',
+  );
+  const cohortReserved = parseWei(
+    input.cohortReservedWei,
+    'cohortReservedWei',
   );
   const observedPoolBalance = parseWei(
     input.observedPoolBalanceWei,
@@ -166,10 +183,19 @@ export function calculatePredictiveRewardPolicy(input: {
   );
   const pipeline = normalizePipeline(input.pipeline);
 
+  const designatedBudget = latestAllocation + fundingAdjustment;
+  const cohortAvailableBudget =
+    designatedBudget > cohortReserved
+      ? designatedBudget - cohortReserved
+      : 0n;
   const availablePool =
     observedPoolBalance > reservedExisting
       ? observedPoolBalance - reservedExisting
       : 0n;
+  const pricingBasis =
+    cohortAvailableBudget < availablePool
+      ? cohortAvailableBudget
+      : availablePool;
 
   const expectedWeighted = weightedBps(
     pipeline,
@@ -203,21 +229,14 @@ export function calculatePredictiveRewardPolicy(input: {
     value > highest ? value : highest,
   0n);
 
-  const pricingBasis =
-    latestAllocation < availablePool
-      ? latestAllocation
-      : availablePool;
-
   const rewardPerInvite =
-    latestAllocation > 0n &&
-    availablePool > 0n &&
-    stressCompletionsBig > 0n
+    pricingBasis > 0n && stressCompletionsBig > 0n
       ? pricingBasis / stressCompletionsBig
       : 0n;
 
   const maxImmediatelyPayableCount =
     rewardPerInvite > 0n
-      ? availablePool / rewardPerInvite
+      ? pricingBasis / rewardPerInvite
       : 0n;
 
   const expectedSpend =
@@ -238,21 +257,26 @@ export function calculatePredictiveRewardPolicy(input: {
       'stressCompletions',
     ),
     latestAllocationWei: latestAllocation.toString(),
+    fundingAdjustmentWei: fundingAdjustment.toString(),
+    designatedBudgetWei: designatedBudget.toString(),
+    cohortReservedWei: cohortReserved.toString(),
+    cohortAvailableBudgetWei: cohortAvailableBudget.toString(),
     observedPoolBalanceWei:
       observedPoolBalance.toString(),
     reservedExistingWei: reservedExisting.toString(),
     availablePoolWei: availablePool.toString(),
+    pricingBasisWei: pricingBasis.toString(),
     rewardPerInviteWei: rewardPerInvite.toString(),
     maxImmediatelyPayableCount:
       maxImmediatelyPayableCount.toString(),
     projectedReserveAfterExpectedWei:
-      (availablePool > expectedSpend
-        ? availablePool - expectedSpend
+      (cohortAvailableBudget > expectedSpend
+        ? cohortAvailableBudget - expectedSpend
         : 0n
       ).toString(),
     projectedReserveAfterStressWei:
-      (availablePool > stressSpend
-        ? availablePool - stressSpend
+      (cohortAvailableBudget > stressSpend
+        ? cohortAvailableBudget - stressSpend
         : 0n
       ).toString(),
   };
