@@ -25,6 +25,11 @@ const SESSION_ABSOLUTE_LIFETIME_MS =
   60 *
   60 *
   1000;
+// Keep the reviewed 30-day renewal window as an upper bound. The actual
+// cookie/database expiry below is additionally capped by the original proof.
+const RENEWAL_COOKIE_POLICY = {
+  maxAge: SLIDING_SESSION_LIFETIME_SECONDS,
+} as const;
 const SESSION_RENEWAL_INTENT = 'renew';
 const WALLET_PATTERN = /^0x[0-9a-f]{40}$/;
 
@@ -70,9 +75,12 @@ function setSessionCookie({
 }) {
   const remainingLifetimeSeconds = Math.max(
     0,
-    Math.ceil(
-      (expiresAt.getTime() - Date.now()) /
-        1000,
+    Math.min(
+      RENEWAL_COOKIE_POLICY.maxAge,
+      Math.ceil(
+        (expiresAt.getTime() - Date.now()) /
+          1000,
+      ),
     ),
   );
 
