@@ -4,6 +4,7 @@ import { test } from 'node:test';
 
 const read = (path) => readFileSync(path, 'utf8');
 const locales = read('src/lib/i18n/locales.ts');
+const historyCopy = read('src/lib/i18n/notificationHistoryCopy.ts');
 const preview = read('src/components/NotificationUiPreview.tsx');
 const surface = read('src/components/InviteNotificationSurface.tsx');
 const receipt = read('src/components/RewardReceiptNotice.tsx');
@@ -18,9 +19,28 @@ test('VeInvite keeps the reviewed 27-locale matrix in one registry', () => {
   }
 });
 
-test('notification preview uses the selected locale even for temporary error UI', () => {
-  assert.match(preview, /NOTIFICATION_COPY\[locale\]\.acknowledgementError/);
+test('notification history preview localizes loading, empty and temporary error UI from the selected locale', () => {
+  assert.match(preview, /NOTIFICATION_HISTORY_COPY\[locale\]/);
+  assert.match(preview, /structure\.loadingTitle/);
+  assert.match(preview, /structure\.loadingBody/);
+  assert.match(preview, /structure\.emptyTitle/);
+  assert.match(preview, /structure\.emptyBody/);
+  assert.match(preview, /structure\.errorTitle/);
+  assert.match(preview, /structure\.errorBody/);
+  assert.match(preview, /structure\.retry/);
+  assert.match(historyCopy, /errorTitle:/);
+  assert.match(historyCopy, /errorBody:/);
   assert.doesNotMatch(preview, /테스트용 오류 메시지/);
+  assert.doesNotMatch(preview, /Notification request failed\./);
+});
+
+test('notification history preview protects RTL direction and mobile safe areas', () => {
+  assert.match(preview, /isRtlLocale\(locale\)/);
+  assert.match(preview, /dir=\{rtl \? 'rtl' : 'ltr'\}/);
+  assert.match(preview, /inset-inline-end:/);
+  assert.match(preview, /padding-inline-start:/);
+  assert.match(preview, /env\(safe-area-inset-bottom\)/);
+  assert.match(preview, /prefers-reduced-motion:reduce/);
 });
 
 test('transient surfaces stay fluid on narrow mobile screens', () => {
