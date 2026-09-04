@@ -134,9 +134,6 @@ export function WalletSessionGate({
 
   useEffect(() => {
     const handlePageHide = () => {
-      // A browser refresh/navigation can make the wallet provider emit a
-      // transient disconnect while React is being torn down. That is not an
-      // explicit logout and must never revoke the 30-day VeInvite session.
       pageLifecycleRef.current = true;
     };
     const handlePageShow = () => {
@@ -177,9 +174,6 @@ export function WalletSessionGate({
   useEffect(() => {
     walletAddressRef.current = walletAddress;
 
-    // WalletConnect/VeWorld can briefly report a disconnect while restoring
-    // the same transport after refresh. Once the wallet reappears, cancel the
-    // pending passive-disconnect check and keep the existing 30-day session.
     if (
       walletAddress &&
       pendingDisconnectTimerRef.current !== null
@@ -206,12 +200,6 @@ export function WalletSessionGate({
 
   useEffect(() => {
     const handleWalletDisconnected = () => {
-      // Refresh/navigation teardown can emit wallet_disconnected before or
-      // even just after pageshow. Never revoke the persistent browser session
-      // immediately from a provider event; first give the transport time to
-      // restore the same wallet. Explicit VeInvite disconnect/switch actions
-      // clear the server session through clearWalletSession and emit the
-      // session-cleared event immediately.
       if (
         pageLifecycleRef.current ||
         document.visibilityState === 'hidden'
@@ -231,8 +219,6 @@ export function WalletSessionGate({
         window.setTimeout(() => {
           pendingDisconnectTimerRef.current = null;
 
-          // A restored wallet means this was only transport churn. Keep both
-          // the provider login and the existing 30-day VeInvite session intact.
           if (
             pageLifecycleRef.current ||
             document.visibilityState === 'hidden' ||
@@ -271,10 +257,6 @@ export function WalletSessionGate({
       return;
     }
 
-    // A valid browser session should restore silently on refresh. Give the
-    // server-session lookup enough time to finish before surfacing ownership
-    // verification UI; a real first-time proof remains visible if it takes
-    // longer and genuinely needs user attention.
     const timeoutId = window.setTimeout(() => {
       setShowCheckingSurface(true);
     }, SESSION_CHECK_SURFACE_DELAY_MS);
@@ -337,10 +319,6 @@ export function WalletSessionGate({
         return;
       }
 
-      // A protected API has confirmed that the browser session is no longer
-      // valid. Unmount protected children immediately and reuse the normal
-      // wallet-verification path rather than allowing each child to keep
-      // polling with a known-invalid cookie.
       void verify();
     };
 
@@ -368,10 +346,6 @@ export function WalletSessionGate({
       return;
     }
 
-    // A server-validated session can skip verify() entirely on refresh. Once
-    // the same wallet transport has restored, publish the same readiness event
-    // that a fresh verification would publish so dependent sync work remains
-    // event-driven without forcing another phone signature.
     bootReadyDispatchedRef.current = true;
     window.dispatchEvent(
       new Event(WALLET_SESSION_READY_EVENT),
@@ -389,10 +363,6 @@ export function WalletSessionGate({
         return;
       }
 
-      // Invalidate any result from the current attempt before clearing the
-      // VeInvite session and the wallet-provider connection. This button stays
-      // available even while a signature request is pending so the user always
-      // has a recovery path from a stuck wallet provider.
       attemptRef.current += 1;
       autoAttemptedWalletRef.current = null;
       bootReadyDispatchedRef.current = false;
@@ -423,9 +393,6 @@ export function WalletSessionGate({
         setIsDisconnecting(false);
       }
 
-      // A successful provider disconnect makes walletAddress null and returns
-      // the user to the normal connect screen. If the provider itself failed,
-      // keep this recovery screen available so the user can try again.
       setState(disconnectFailed ? 'error' : 'idle');
     }, [
       clearWalletSession,
@@ -435,17 +402,9 @@ export function WalletSessionGate({
 
   useEffect(() => {
     if (!walletAddress) {
-      // Do not erase a valid bootstrapped/verified session merely because the
-      // WalletConnect transport is briefly absent during refresh. The passive
-      // disconnect grace path or an explicit session-cleared event owns that
-      // transition instead.
       return;
     }
 
-    // A server-validated session is bootstrapped into autoAttemptedWalletRef on
-    // navigation. When VeChainKit restores that same wallet, no client proof or
-    // phone signature is needed at all. A genuinely new/different wallet still
-    // runs the normal ownership proof exactly once.
     if (
       autoAttemptedWalletRef.current ===
       walletAddress
@@ -482,8 +441,6 @@ export function WalletSessionGate({
     );
   }
 
-  // Keep the transition branded instead of replacing the entire app with a
-  // featureless black frame while the wallet provider/session initializes.
   if (
     state === 'idle' ||
     (state === 'checking' && !showCheckingSurface)
@@ -509,6 +466,7 @@ export function WalletSessionGate({
 
   return (
     <div
+      data-veinvite-wallet-session-gate="interactive"
       style={{
         minHeight: '100dvh',
         display: 'grid',
