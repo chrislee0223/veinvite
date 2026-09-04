@@ -8,6 +8,10 @@ const failures = [];
 const provider = read('src/components/VeChainProvider.tsx');
 const home = read('src/components/HomeClient.tsx');
 const languageSync = read('src/components/WalletLanguagePreferenceSync.tsx');
+const languageRoute = read('src/app/api/preferences/language/route.ts');
+const languageUsageMigration = read(
+  'supabase/migrations/20260904220000_track_wallet_display_language.sql',
+);
 
 if (!/useVeChainKitConfig/.test(provider) || !/VeChainLanguageSync/.test(provider) || !/setKitLanguage/.test(provider)) {
   failures.push('VeInvite language changes must use VeChain Kit runtime language synchronization inside the existing provider.');
@@ -42,6 +46,66 @@ if (!/window\.localStorage\.setItem\(LANGUAGE_STORAGE_KEY, nextLocale\)/.test(ho
 
 if (!/\/api\/preferences\/language/.test(languageSync) || /clearWalletSession|disconnect\(/.test(languageSync)) {
   failures.push('Persisting a wallet language preference must never clear or disconnect the active wallet session.');
+}
+
+if (
+  !/OBSERVE_WALLET_DISPLAY_LANGUAGE/.test(languageSync) ||
+  !/resolveBrowserLocale/.test(languageSync) ||
+  !/await observeDisplayLanguage\(\s*browserLanguage,\s*'browser_auto'/s.test(languageSync)
+) {
+  failures.push(
+    'Browser-auto locale must be observed as display state instead of being promoted directly into a wallet preference.',
+  );
+}
+
+if (
+  !/await observeDisplayLanguage\(\s*localLanguage,\s*'local_storage'/s.test(languageSync) ||
+  /saveLanguage\(\s*localLanguage,\s*'local_storage'/s.test(languageSync)
+) {
+  failures.push(
+    'Browser-local language state must not be promoted into another wallet’s persistent preference.',
+  );
+}
+
+if (
+  !/SET_WALLET_LANGUAGE_PREFERENCE/.test(languageRoute) ||
+  !/OBSERVE_WALLET_DISPLAY_LANGUAGE/.test(languageRoute) ||
+  !/wallet_language_usage/.test(languageRoute) ||
+  !/wallet_preferences/.test(languageRoute)
+) {
+  failures.push(
+    'The language API must keep explicit wallet preferences separate from observed display-language state.',
+  );
+}
+
+if (
+  !/body\.intent === SET_LANGUAGE_INTENT[\s\S]{0,120}requestedSource !== 'manual_selection'/s.test(
+    languageRoute,
+  ) ||
+  !/source:\s*'manual_selection'/.test(languageRoute)
+) {
+  failures.push(
+    'Only an explicit language selection may write the cross-device wallet preference.',
+  );
+}
+
+if (
+  !/wallet_preferences remains the explicit\/stored preference/i.test(
+    languageUsageMigration,
+  ) ||
+  !/current_source in \([\s\S]*'browser_auto'[\s\S]*'local_storage'[\s\S]*'wallet_preference'[\s\S]*'manual_selection'/i.test(
+    languageUsageMigration,
+  ) ||
+  !/revoke all on table public\.wallet_language_usage from anon, authenticated/i.test(
+    languageUsageMigration,
+  ) ||
+  !/grant select, insert, update on table public\.wallet_language_usage to service_role/i.test(
+    languageUsageMigration,
+  )
+) {
+  failures.push(
+    'Wallet display-language observations must remain source-labelled and service-role-only.',
+  );
 }
 
 if (failures.length > 0) {

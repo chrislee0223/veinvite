@@ -269,6 +269,19 @@ export async function POST(
       : null;
 
   if (
+    body.intent === SET_LANGUAGE_INTENT &&
+    requestedSource !== 'manual_selection'
+  ) {
+    return noStoreJson(
+      {
+        error:
+          'Wallet language preference can only be set by an explicit language selection.',
+      },
+      400,
+    );
+  }
+
+  if (
     body.intent === OBSERVE_DISPLAY_LANGUAGE_INTENT &&
     !isLanguageUsageSource(requestedSource)
   ) {
@@ -306,15 +319,10 @@ export async function POST(
         );
       }
 
-      const source: LanguageUsageSource =
-        requestedSource === 'local_storage'
-          ? 'local_storage'
-          : 'manual_selection';
-
       await recordLanguageUsage({
         walletAddress,
         language,
-        source,
+        source: 'manual_selection',
         observedAt: updatedAt,
       });
 
@@ -323,7 +331,8 @@ export async function POST(
         language,
         updatedAt,
         displayLanguage: language,
-        displayLanguageSource: source,
+        displayLanguageSource:
+          'manual_selection',
         displayLanguageLastObservedAt: updatedAt,
       });
     }
