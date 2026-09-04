@@ -14,6 +14,13 @@ export const WALLET_SESSION_COOKIE_NAME =
 
 const SESSION_TOKEN_PATTERN = /^[0-9a-f]{64}$/;
 const WALLET_PATTERN = /^0x[0-9a-f]{40}$/;
+const SESSION_ABSOLUTE_LIFETIME_DAYS = 30;
+const SESSION_ABSOLUTE_LIFETIME_MS =
+  SESSION_ABSOLUTE_LIFETIME_DAYS *
+  24 *
+  60 *
+  60 *
+  1000;
 
 export type WalletSession = {
   id: number;
@@ -83,7 +90,12 @@ export async function getWalletSessionFromTokens(
   const tokenHashes = normalizedTokens.map(
     hashSessionToken,
   );
-  const now = new Date().toISOString();
+  const nowDate = new Date();
+  const now = nowDate.toISOString();
+  const absoluteCreatedAfter = new Date(
+    nowDate.getTime() -
+      SESSION_ABSOLUTE_LIFETIME_MS,
+  ).toISOString();
 
   const {
     data,
@@ -96,6 +108,7 @@ export async function getWalletSessionFromTokens(
     .in('token_hash', tokenHashes)
     .is('revoked_at', null)
     .gt('expires_at', now)
+    .gt('created_at', absoluteCreatedAfter)
     .order('created_at', {
       ascending: false,
     })
