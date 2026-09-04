@@ -1,9 +1,10 @@
 begin;
 
 -- Cohort funding is a lifetime budget, not merely an unsettled-liability cap.
--- Once a fixed reservation is created it permanently consumes this cohort's
--- designated funding, even after the transfer is PAID. Otherwise a later batch
--- could reuse already-spent cohort budget.
+-- A live fixed reservation consumes cohort funding while it is awaiting claim,
+-- queued, or assigned. An assigned entry remains counted after its payout is
+-- PAID, so already-spent funding can never be reused. A genuinely CANCELLED
+-- reservation is excluded and therefore releases its unused cohort budget.
 create or replace function public.read_reward_cohort_committed_wei(
   p_network text,
   p_app_id text,
@@ -48,7 +49,8 @@ begin
   where q.network = p_network
     and i.reward_funding_allocation_receipt_id = v_receipt.id
     and i.reward_cohort_round_id = p_reward_cohort_round_id
-    and q.reserved_amount_wei is not null;
+    and q.reserved_amount_wei is not null
+    and q.status in ('AWAITING_CLAIM','QUEUED','ASSIGNED');
 
   return v_committed;
 end;
@@ -104,7 +106,8 @@ begin
 
   v_budget := v_receipt.rewards_allocation_amount_wei + v_adjustment;
 
-  -- Count every prior immutable reservation, including already-paid entries.
+  -- Count every prior live immutable reservation. ASSIGNED stays live after
+  -- payout settlement, while CANCELLED is intentionally released.
   select coalesce(sum(q.reserved_amount_wei),0)
   into v_existing
   from public.reward_queue_entries q
@@ -113,7 +116,8 @@ begin
     and i.reward_funding_allocation_receipt_id = v_receipt.id
     and i.reward_cohort_round_id = v_invitation.reward_cohort_round_id
     and q.invite_code <> new.invite_code
-    and q.reserved_amount_wei is not null;
+    and q.reserved_amount_wei is not null
+    and q.status in ('AWAITING_CLAIM','QUEUED','ASSIGNED');
 
   if v_existing + new.reserved_amount_wei > v_budget then
     raise exception 'REWARD_COHORT_BUDGET_EXCEEDED';
