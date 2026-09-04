@@ -13,9 +13,10 @@ const supportedLocales = [
   'mr', 'te', 'sw', 'ha',
 ];
 
-test('mission header geometry keeps the picker on the content edge', () => {
-  assert.match(visualPolish, /\.appHeader:has\(\+ \.missionPanel\) > div/);
+test('mission header geometry keeps the grouped brand and picker on content edges', () => {
+  assert.match(visualPolish, /\.appHeader:has\(\+ \.missionPanel\) > \.brand \+ div/);
   assert.match(visualPolish, /display: contents !important/);
+  assert.doesNotMatch(visualPolish, /\.appHeader:has\(\+ \.missionPanel\) > div \{/);
   assert.match(visualPolish, /\.appHeader label/);
   assert.match(visualPolish, /width: 155px !important/);
   assert.match(visualPolish, /max-width: 155px !important/);
