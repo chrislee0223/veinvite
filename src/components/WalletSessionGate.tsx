@@ -8,10 +8,14 @@ import {
   type ReactNode,
 } from 'react';
 import {
+  useConnectModal,
   useWallet,
 } from '@vechain/vechain-kit';
 
 import { Brand } from '@/components/Brand';
+import {
+  LegalConsentGate,
+} from '@/components/LegalConsentGate';
 import {
   useWalletAuthentication,
 } from '@/hooks/useWalletAuthentication';
@@ -25,11 +29,13 @@ import {
   WALLET_SESSION_COPY,
 } from '@/lib/i18n/walletSessionCopy';
 import {
-  clearPersistedVeWorldConnectionState,
-} from '@/lib/walletConnectionResume';
+  WALLET_SWITCH_COPY,
+} from '@/lib/i18n/walletSwitchCopy';
 import {
-  LegalConsentGate,
-} from '@/components/LegalConsentGate';
+  isWalletSessionMismatch,
+  markWalletConnectIntent,
+  settleExplicitWalletDisconnect,
+} from '@/lib/walletConnectionResume';
 
 type VerificationState =
   | 'idle'
@@ -39,7 +45,7 @@ type VerificationState =
 
 const SESSION_CHECK_SURFACE_DELAY_MS = 3_000;
 const SESSION_ERROR_SURFACE_DELAY_MS = 600;
-const PASSIVE_DISCONNECT_GRACE_MS = 8_000;
+const PASSIVE_DISCONNECT_GRACE_MS = 7_000;
 const SESSION_CLEARED_EVENT =
   'veinvite-wallet-session-cleared';
 const WALLET_SESSION_INVALID_EVENT =
@@ -79,6 +85,9 @@ export function WalletSessionGate({
     account,
     disconnect,
   } = useWallet();
+  const {
+    open: openConnectModal,
+  } = useConnectModal();
   const walletAddress =
     account?.address?.toLowerCase() ?? null;
 
@@ -224,10 +233,12 @@ export function WalletSessionGate({
   }, []);
 
   useEffect(() => {
-    const handleWalletDisconnected = () => {
+    const scheduleConfirmedDisconnect = () => {
       if (
         pageLifecycleRef.current ||
-        document.visibilityState === 'hidden'
+        document.visibilityState === 'hidden' ||
+        walletAddressRef.current ||
+        !sessionWalletRef.current
       ) {
         return;
       }
@@ -247,31 +258,75 @@ export function WalletSessionGate({
           if (
             pageLifecycleRef.current ||
             document.visibilityState === 'hidden' ||
-            walletAddressRef.current
+            walletAddressRef.current ||
+            !sessionWalletRef.current
           ) {
             return;
           }
 
-          void clearWalletSession().catch(
-            (error) => {
-              console.error(
-                'Failed to clear VeInvite session after confirmed wallet disconnect:',
-                error,
-              );
-            },
-          );
+          // A provider disconnect can be transient while VeWorld is restoring.
+          // Only after the visible grace period expires with wallet still null
+          // may we revoke the browser session without a live account. This also
+          // covers a user disconnecting VeInvite directly from VeWorld.
+          void clearWalletSession({
+            confirmedDisconnected: true,
+          }).catch((error) => {
+            console.error(
+              'Failed to clear VeInvite session after confirmed wallet disconnect:',
+              error,
+            );
+          });
         }, PASSIVE_DISCONNECT_GRACE_MS);
+    };
+
+    const handleWalletDisconnected = () => {
+      scheduleConfirmedDisconnect();
+    };
+    const handlePageShow = () => {
+      window.setTimeout(
+        scheduleConfirmedDisconnect,
+        0,
+      );
+    };
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        scheduleConfirmedDisconnect();
+      }
     };
 
     window.addEventListener(
       'wallet_disconnected',
       handleWalletDisconnected,
     );
+    window.addEventListener(
+      'pageshow',
+      handlePageShow,
+    );
+    document.addEventListener(
+      'visibilitychange',
+      handleVisibilityChange,
+    );
+
+    // A returning page can already be wallet=null before event listeners mount.
+    // Arm the same bounded confirmation path; a restored wallet cancels it.
+    const initialSchedule = window.setTimeout(
+      scheduleConfirmedDisconnect,
+      0,
+    );
 
     return () => {
+      window.clearTimeout(initialSchedule);
       window.removeEventListener(
         'wallet_disconnected',
         handleWalletDisconnected,
+      );
+      window.removeEventListener(
+        'pageshow',
+        handlePageShow,
+      );
+      document.removeEventListener(
+        'visibilitychange',
+        handleVisibilityChange,
       );
     };
   }, [clearWalletSession]);
@@ -355,13 +410,13 @@ export function WalletSessionGate({
 
     // When VeWorld was switched outside VeInvite, the provider can already be
     // on wallet B while this browser still owns a verified VeInvite session for
-    // wallet A. A normal retry would hit the same mismatch forever. The retry
-    // button is an explicit user action, so it is safe to clear only this
-    // browser's old session while keeping the newly connected provider wallet,
-    // then verify that current wallet in the normal signature flow.
+    // wallet A. The primary action explicitly authorizes replacing only this
+    // browser session while keeping wallet B connected.
     if (
-      sessionWallet &&
-      sessionWallet !== walletAddress
+      isWalletSessionMismatch(
+        sessionWallet,
+        walletAddress,
+      )
     ) {
       setIsDisconnecting(true);
 
@@ -447,49 +502,112 @@ export function WalletSessionGate({
         return;
       }
 
-      attemptRef.current += 1;
-      autoAttemptedWalletRef.current = null;
-      bootReadyDispatchedRef.current = false;
-      if (pendingErrorTimerRef.current !== null) {
-        window.clearTimeout(pendingErrorTimerRef.current);
-        pendingErrorTimerRef.current = null;
-      }
-      setVerifiedWallet(null);
       setIsDisconnecting(true);
 
-      let disconnectFailed = false;
-
       try {
+        // If session revocation fails, do not disconnect the provider. Keeping
+        // the wallet attached leaves the user recoverable and avoids recreating
+        // the stale-cookie/startup deadlock that triggered this fix.
         await clearWalletSession();
       } catch (error) {
-        disconnectFailed = true;
         console.error(
           'Failed to clear VeInvite wallet session from verification screen:',
           error,
         );
+        setState('error');
+        setIsDisconnecting(false);
+        return;
       }
+
+      const previousWallet = walletAddressRef.current;
 
       try {
         await disconnect();
+        const released =
+          await settleExplicitWalletDisconnect({
+            previousWallet,
+            readCurrentWallet: () =>
+              walletAddressRef.current,
+          });
+
+        if (!released) {
+          throw new Error(
+            'Wallet disconnect did not finish.',
+          );
+        }
+
+        setState('idle');
       } catch (error) {
-        disconnectFailed = true;
         console.error(
           'Failed to disconnect wallet from verification screen:',
           error,
         );
+        // The browser session is already gone. If the provider remains, expose
+        // a real verification action instead of leaving a blank loading shell.
+        setState('error');
       } finally {
-        // VeWorld's DAppKit persistence can outlive VeChainKit.disconnect().
-        // Clearing this explicit-recovery evidence prevents the startup shield
-        // from waiting for a wallet the user intentionally disconnected.
-        clearPersistedVeWorldConnectionState();
         setIsDisconnecting(false);
       }
-
-      setState(disconnectFailed ? 'error' : 'idle');
     }, [
       clearWalletSession,
       disconnect,
       isDisconnecting,
+    ]);
+
+  const chooseAnotherWallet =
+    useCallback(async () => {
+      if (isDisconnecting) {
+        return;
+      }
+
+      setIsDisconnecting(true);
+
+      try {
+        await clearWalletSession();
+      } catch (error) {
+        console.error(
+          'Failed to clear VeInvite session before choosing another wallet:',
+          error,
+        );
+        setState('error');
+        setIsDisconnecting(false);
+        return;
+      }
+
+      const previousWallet = walletAddressRef.current;
+
+      try {
+        await disconnect();
+        const released =
+          await settleExplicitWalletDisconnect({
+            previousWallet,
+            readCurrentWallet: () =>
+              walletAddressRef.current,
+          });
+
+        if (!released) {
+          throw new Error(
+            'Wallet disconnect did not finish.',
+          );
+        }
+
+        markWalletConnectIntent();
+        openConnectModal();
+        setState('idle');
+      } catch (error) {
+        console.error(
+          'Failed to open another wallet from verification screen:',
+          error,
+        );
+        setState('error');
+      } finally {
+        setIsDisconnecting(false);
+      }
+    }, [
+      clearWalletSession,
+      disconnect,
+      isDisconnecting,
+      openConnectModal,
     ]);
 
   useEffect(() => {
@@ -554,7 +672,16 @@ export function WalletSessionGate({
   }
 
   const t = WALLET_SESSION_COPY[locale];
+  const switchT = WALLET_SWITCH_COPY[
+    isLocale(locale) ? locale : 'en'
+  ];
   const hasError = state === 'error';
+  const walletMismatch =
+    hasError &&
+    isWalletSessionMismatch(
+      sessionWalletRef.current,
+      walletAddress,
+    );
 
   return (
     <div
@@ -597,17 +724,25 @@ export function WalletSessionGate({
             display: 'grid',
             placeItems: 'center',
             borderRadius: '16px',
-            background: hasError
-              ? 'rgba(255,113,134,0.12)'
-              : 'rgba(244,183,40,0.14)',
-            color: hasError
-              ? '#ff8da0'
-              : '#ffd66e',
+            background: walletMismatch
+              ? 'rgba(244,183,40,0.14)'
+              : hasError
+                ? 'rgba(255,113,134,0.12)'
+                : 'rgba(244,183,40,0.14)',
+            color: walletMismatch
+              ? '#ffd66e'
+              : hasError
+                ? '#ff8da0'
+                : '#ffd66e',
             fontSize: '1.35rem',
             fontWeight: 900,
           }}
         >
-          {hasError ? '!' : '✓'}
+          {walletMismatch
+            ? '↔'
+            : hasError
+              ? '!'
+              : '✓'}
         </div>
 
         <strong
@@ -616,9 +751,11 @@ export function WalletSessionGate({
             letterSpacing: '-0.02em',
           }}
         >
-          {hasError
-            ? t.errorTitle
-            : t.checkingTitle}
+          {walletMismatch
+            ? switchT.title
+            : hasError
+              ? t.errorTitle
+              : t.checkingTitle}
         </strong>
 
         <span
@@ -628,9 +765,11 @@ export function WalletSessionGate({
             fontSize: '0.92rem',
           }}
         >
-          {hasError
-            ? t.errorDescription
-            : t.checkingDescription}
+          {walletMismatch
+            ? switchT.description
+            : hasError
+              ? t.errorDescription
+              : t.checkingDescription}
         </span>
 
         {!hasError ? (
@@ -675,7 +814,9 @@ export function WalletSessionGate({
                 opacity: isDisconnecting ? 0.62 : 1,
               }}
             >
-              {t.tryAgain}
+              {walletMismatch
+                ? switchT.continueCurrent
+                : t.tryAgain}
             </button>
           ) : null}
 
@@ -683,7 +824,11 @@ export function WalletSessionGate({
             type="button"
             disabled={isDisconnecting}
             onClick={() => {
-              void disconnectFromVerification();
+              if (walletMismatch) {
+                void chooseAnotherWallet();
+              } else {
+                void disconnectFromVerification();
+              }
             }}
             style={{
               width: '100%',
@@ -702,9 +847,11 @@ export function WalletSessionGate({
               opacity: isDisconnecting ? 0.62 : 0.9,
             }}
           >
-            {isDisconnecting
-              ? t.disconnectingWallet
-              : t.disconnectWallet}
+            {walletMismatch
+              ? switchT.chooseAnother
+              : isDisconnecting
+                ? t.disconnectingWallet
+                : t.disconnectWallet}
           </button>
         </div>
       </div>
