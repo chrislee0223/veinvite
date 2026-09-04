@@ -76,5 +76,6 @@ test('reading the rich reward receipt also clears the duplicate paid bell notifi
   assert.match(receipt, /veinvite-reward-receipt-acknowledged/);
   assert.match(receipt, /window\.dispatchEvent/);
   assert.match(notifications, /veinvite-reward-receipt-acknowledged/);
-  assert.match(notifications, /void refresh\(false\)/);
+  assert.match(notifications, /void loadLatestHistory\(\{ requestWallet: wallet \}\)/);
+  assert.match(notifications, /void refreshLifecycle\(false\)/);
 });
