@@ -12,6 +12,8 @@ type ReservationCandidate = {
   completion_block: string | number;
   completion_tx_index: number;
   completion_clause_index: number;
+  reward_cohort_round_id: string | number;
+  reward_funding_allocation_receipt_id: string | number;
 };
 
 type ReservationRpcResult = {
@@ -40,6 +42,14 @@ function safeBlock(value: string | number, fieldName: string): number {
   return parsed;
 }
 
+function positiveId(value: string | number, fieldName: string): string {
+  const normalized = String(value);
+  if (!/^\d+$/.test(normalized) || BigInt(normalized) < 1n) {
+    throw new Error(`${fieldName} is invalid.`);
+  }
+  return BigInt(normalized).toString();
+}
+
 function readRpcResult(value: unknown): ReservationRpcResult {
   if (!value || typeof value !== 'object' || Array.isArray(value)) {
     throw new Error('Reward reservation returned malformed data.');
@@ -65,7 +75,7 @@ async function readFinalizedBlockNumber(): Promise<number> {
 
 async function loadCandidates(network: string): Promise<ReservationCandidate[]> {
   const { data, error } = await supabaseAdmin.rpc(
-    'read_reward_reservation_candidates',
+    'read_reward_reservation_candidates_v2',
     {
       p_network: network,
       p_limit: MAX_RESERVATIONS_PER_SWEEP,
@@ -92,15 +102,23 @@ async function reserveCandidate({
     candidate.completion_block,
     'reservation completion block',
   );
+  const rewardCohortRoundId = positiveId(
+    candidate.reward_cohort_round_id,
+    'reward cohort round id',
+  );
+  const allocationReceiptId = positiveId(
+    candidate.reward_funding_allocation_receipt_id,
+    'reward funding allocation receipt id',
+  );
 
   if (completionBlock > finalizedBlock) {
     return 'awaiting_finality';
   }
 
   for (let attempt = 0; attempt < MAX_REPRICE_ATTEMPTS; attempt += 1) {
-    // The public estimate endpoint is intentionally not used here. Financial
-    // authority reads the live on-chain reward pool and the latest serialized
-    // database reserve/pipeline state immediately before committing the quote.
+    // Financial authority is cohort-scoped. The public estimate is not trusted
+    // here; the live pool and the exact funding receipt bound at onboarding are
+    // re-read immediately before the immutable completion-time reservation.
     const pool = await readVeInviteRewardPoolStatus();
     if (pool.network !== network || pool.appId !== VEINVITE_APP_ID) {
       throw new Error('Reward reservation pool identity mismatch.');
@@ -114,10 +132,19 @@ async function reserveCandidate({
       network,
       appId: VEINVITE_APP_ID,
       observedPoolBalanceWei: pool.effectiveRewardPoolWei,
+      rewardCohortRoundId,
+      allocationReceiptId,
     });
 
-    if (!planning.latestAllocation || !planning.forecast) {
+    if (!planning.latestAllocation || !planning.forecast || !planning.rewardCohortRoundId) {
       return 'skipped';
+    }
+
+    if (
+      planning.latestAllocation.id !== allocationReceiptId ||
+      planning.rewardCohortRoundId !== rewardCohortRoundId
+    ) {
+      throw new Error('Reward reservation cohort planning mismatch.');
     }
 
     const amountWei = planning.forecast.rewardPerInviteWei;
@@ -126,13 +153,18 @@ async function reserveCandidate({
     }
 
     const basis = {
-      quoteKind: 'completion_fixed_reservation_v1',
-      latestAllocationId: planning.latestAllocation.id,
-      latestAllocationRoundId: planning.latestAllocation.veBetterRoundId,
-      latestAllocationWei: planning.latestAllocation.rewardsAllocationWei,
+      quoteKind: 'completion_fixed_reservation_v2_cohort',
+      rewardCohortRoundId,
+      fundingAllocationReceiptId: allocationReceiptId,
+      fundingAllocationRoundId: planning.latestAllocation.veBetterRoundId,
+      officialAllocationWei: planning.latestAllocation.rewardsAllocationWei,
+      fundingAdjustmentWei: planning.fundingAdjustmentWei,
+      designatedBudgetWei: planning.designatedBudgetWei,
+      cohortReservedWei: planning.cohortReservedWei,
       observedPoolBalanceWei: pool.effectiveRewardPoolWei,
       reservedExistingWei: planning.reservedExistingWei,
       availablePoolWei: planning.forecast.availablePoolWei,
+      pricingBasisWei: planning.forecast.pricingBasisWei,
       expectedCompletions: planning.forecast.expectedCompletions,
       stressCompletions: planning.forecast.stressCompletions,
       pipeline: planning.forecast.pipeline,
@@ -166,21 +198,15 @@ async function reserveCandidate({
     if (result.reserved === true) {
       return 'reserved';
     }
-
     if (result.reason === 'RECALCULATE') {
       continue;
     }
-
     if (result.reason === 'AWAITING_FINALITY') {
       return 'awaiting_finality';
     }
-
     return 'skipped';
   }
 
-  // A very busy completion burst can make our compare-and-reprice loop lose
-  // several races. Leave the row untouched; the next reconciliation/cron sweep
-  // will retry using the new reserve state instead of accepting a stale amount.
   return 'skipped';
 }
 
@@ -196,16 +222,10 @@ export async function reserveEligibleReferralRewards(): Promise<RewardReservatio
     skipped: 0,
   };
 
-  // Candidates are returned in actual chain execution order. Process them
-  // sequentially so each fixed quote sees reservations created by earlier
-  // completions in the same sweep.
+  // Actual chain completion order remains the fairness ordering. Sequential
+  // processing makes every quote see earlier reservations from the same sweep.
   for (const candidate of candidates) {
-    const outcome = await reserveCandidate({
-      candidate,
-      network,
-      finalizedBlock,
-    });
-
+    const outcome = await reserveCandidate({ candidate, network, finalizedBlock });
     if (outcome === 'reserved') result.reserved += 1;
     else if (outcome === 'awaiting_finality') result.awaitingFinality += 1;
     else result.skipped += 1;
