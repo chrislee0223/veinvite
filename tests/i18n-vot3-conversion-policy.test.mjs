@@ -55,14 +55,18 @@ test('conversion and allocation-vote copy matches the final mission policy in ev
   assert.doesNotMatch(policySource, /1000000000000000000/);
 });
 
-test('the mission policy patch is loaded after shared copy hardening', () => {
+test('the mission policy patch is loaded after shared and mission copy hardening', () => {
   const hardeningIndex = providersSource.indexOf(
     "import '@/lib/i18n/copyHardening';",
+  );
+  const missionPolishIndex = providersSource.indexOf(
+    "import '@/lib/i18n/inviteeMissionCopyPolish';",
   );
   const policyIndex = providersSource.indexOf(
     "import '@/lib/i18n/inviteeConversionPolicyPolish';",
   );
 
   assert.ok(hardeningIndex >= 0);
-  assert.ok(policyIndex > hardeningIndex);
+  assert.ok(missionPolishIndex > hardeningIndex);
+  assert.ok(policyIndex > missionPolishIndex);
 });
