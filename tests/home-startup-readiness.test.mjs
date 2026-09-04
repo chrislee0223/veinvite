@@ -230,6 +230,20 @@ test('VeWorld bootstrap uses SDK connection state before allowing anonymous Home
   assert.match(source, /shouldHoldForWalletBootstrap/);
 });
 
+test('partial wallet Home remains visually covered until link and slots are both ready', async () => {
+  const source = await readFile(
+    new URL('../src/components/HomeDataRevealGuard.tsx', import.meta.url),
+    'utf8',
+  );
+
+  assert.match(source, /homeState\.status !== 'loading'/);
+  assert.match(
+    source,
+    /homeState\.invitesReady && homeState\.referralLinkReady/,
+  );
+  assert.match(source, /<Brand compact \/>/);
+});
+
 test('referral hydration placeholders have a visual fail-safe', async () => {
   const source = await readFile(
     new URL('../src/app/globals.css', import.meta.url),
