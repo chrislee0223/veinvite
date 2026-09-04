@@ -24,6 +24,12 @@ export type StartupReadinessInput = {
   interactiveGateVisible: boolean;
 };
 
+export type WalletBootstrapReadinessInput = {
+  walletAddress: string | null;
+  walletBootstrapSettled: boolean;
+  interactiveGateVisible: boolean;
+};
+
 export type StartupReadinessDecision =
   | 'hold'
   | 'release'
@@ -46,6 +52,18 @@ function homeStateMatchesWallet(
   return (
     normalizeWallet(state.walletAddress) ===
     normalizeWallet(walletAddress)
+  );
+}
+
+export function shouldHoldForWalletBootstrap({
+  walletAddress,
+  walletBootstrapSettled,
+  interactiveGateVisible,
+}: WalletBootstrapReadinessInput): boolean {
+  return (
+    !interactiveGateVisible &&
+    !normalizeWallet(walletAddress) &&
+    !walletBootstrapSettled
   );
 }
 
