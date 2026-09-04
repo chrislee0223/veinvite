@@ -33,6 +33,7 @@ const WalletButton = dynamic(
 
 const WALLET_RELEASE_TIMEOUT_MS = 3_000;
 const WALLET_TRANSPORT_SETTLE_MS = 900;
+const PREVIEW_MISSION_WALLET = '0x0000000000000000000000000000000000000abc';
 
 function wait(milliseconds: number): Promise<void> {
   return new Promise((resolve) => {
@@ -44,6 +45,15 @@ export function useActiveWallet():
   | string
   | null {
   const { account } = useWallet();
+
+  // Preview-only deterministic wallet so /ui-test/mission-progress can render
+  // the real InviteeClient mission state without touching a real wallet or DB.
+  if (
+    typeof window !== 'undefined' &&
+    window.location.pathname === '/ui-test/mission-progress'
+  ) {
+    return PREVIEW_MISSION_WALLET;
+  }
 
   // VeChainKit is the canonical connection state for VeInvite because it
   // unifies VeWorld and WalletConnect. Keeping every screen on this same
@@ -223,7 +233,8 @@ export function useWalletLauncher() {
       } finally {
         setIsWalletActionPending(false);
       }
-    }, [
+    },
+    [
       isWalletActionPending,
       openConnectModal,
       performDisconnect,
