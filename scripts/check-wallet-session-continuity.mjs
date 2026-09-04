@@ -77,6 +77,16 @@ if (
 }
 
 if (
+  !/handleSessionCleared[\s\S]*data-veinvite-session-bootstrap[\s\S]*setAttribute\([\s\S]*data-veinvite-session-bootstrap[\s\S]*['"]none['"]/.test(
+    walletSessionGate,
+  )
+) {
+  failures.push(
+    'Clearing a browser wallet session must also invalidate the server bootstrap marker so startup readiness does not wait on a session that no longer exists.',
+  );
+}
+
+if (
   !/disconnectFromVerification[\s\S]*await disconnect\(\);[\s\S]*clearPersistedVeWorldConnectionState\(\)/.test(
     walletSessionGate,
   ) ||
