@@ -27,7 +27,7 @@ export function InviteFlowVisualPolish() {
       .centeredFlow > label,
       .appHeader label {
         box-sizing: border-box !important;
-        width: 176px !important;
+        width: 155px !important;
         max-width: 48% !important;
         padding: 0 !important;
         border: 0 !important;
@@ -42,11 +42,11 @@ export function InviteFlowVisualPolish() {
 
       .centeredFlow select.languageSelect:not(.languageSelectNativeEnhanced),
       .appHeader select.languageSelect:not(.languageSelectNativeEnhanced) {
-        width: 176px !important;
+        width: 155px !important;
         max-width: 100% !important;
-        height: 42px !important;
+        min-height: 48px !important;
         box-sizing: border-box !important;
-        padding: 0 34px 0 12px !important;
+        padding: 7px 34px 7px 12px !important;
         border: 1px solid rgba(255,255,255,.1) !important;
         border-radius: 13px !important;
         background: #141625 !important;
@@ -86,16 +86,16 @@ export function InviteFlowVisualPolish() {
       @media (max-width: 560px) {
         .centeredFlow > label,
         .appHeader label {
-          width: 160px !important;
+          width: 155px !important;
         }
 
         .centeredFlow select.languageSelect:not(.languageSelectNativeEnhanced),
         .appHeader select.languageSelect:not(.languageSelectNativeEnhanced) {
-          width: 160px !important;
-          height: 38px !important;
-          padding: 0 32px 0 11px !important;
-          border-radius: 11px !important;
-          font-size: .7rem !important;
+          width: 155px !important;
+          min-height: 48px !important;
+          padding: 7px 34px 7px 12px !important;
+          border-radius: 13px !important;
+          font-size: .76rem !important;
         }
       }
     `}</style>

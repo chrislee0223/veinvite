@@ -33,15 +33,15 @@ test('invite landing uses the Home shell and removes nonessential decoration', (
   assert.doesNotMatch(landingSource, /\.meta\s*\{/u);
 });
 
-test('invite landing language control has roomier desktop and mobile spacing', () => {
-  assert.match(landingSource, /\.language \{ width:176px;/u);
+test('invite landing language control keeps width and adds vertical breathing room', () => {
+  assert.match(landingSource, /\.language \{ width:155px;/u);
   assert.match(
     landingSource,
-    /\.language select \{ width:176px;[\s\S]*height:42px;[\s\S]*padding:0 34px 0 12px/u,
+    /\.language select \{ width:155px;[\s\S]*min-height:48px;[\s\S]*padding:7px 34px 7px 12px/u,
   );
   assert.match(
     landingSource,
-    /@media \(max-width:560px\)[\s\S]*\.language \{ width:160px;[\s\S]*\.language select \{ width:160px; height:38px;/u,
+    /@media \(max-width:560px\)[\s\S]*\.language \{ width:155px;[\s\S]*\.language select \{ width:155px; min-height:48px;/u,
   );
 });
 
@@ -52,22 +52,23 @@ test('first-time language setup stays on the same 520px visual frame', () => {
   assert.match(languageSetupSource, /border-radius:30px/u);
 });
 
-test('later invite states keep Home-scale shell and the same picker dimensions', () => {
+test('later invite states keep Home-scale shell and the same picker width', () => {
   assert.match(polishSource, /\.inviteLanding,[\s\S]*\.centeredFlow,[\s\S]*\.appShell \{[\s\S]*520px/u);
   assert.match(polishSource, /\.centeredFlow > \.brandCompact img \{[\s\S]*width: 38px !important;[\s\S]*height: 38px !important;/u);
   assert.match(polishSource, /\.centeredFlow > label > span\[aria-hidden='true'\],[\s\S]*display: none !important;/u);
-  assert.match(polishSource, /width: 176px !important;/u);
-  assert.match(polishSource, /height: 42px !important;/u);
-  assert.match(polishSource, /@media \(max-width: 560px\)[\s\S]*width: 160px !important;[\s\S]*height: 38px !important;/u);
+  assert.match(polishSource, /width: 155px !important;/u);
+  assert.match(polishSource, /min-height: 48px !important;/u);
+  assert.match(polishSource, /padding: 7px 34px 7px 12px !important;/u);
 });
 
-test('enhanced language picker owns a geometry-based chevron and generous spacing', () => {
+test('enhanced language picker keeps horizontal geometry and adds vertical padding', () => {
   assert.doesNotMatch(pickerSource, />⌄<\/span>/u);
-  assert.match(pickerSource, /headerLanguagePickerMount[^\n]*width:176px/u);
-  assert.match(pickerSource, /headerLanguageTrigger[^\n]*height:42px/u);
-  assert.match(pickerSource, /padding:0 14px 0 12px/u);
+  assert.match(pickerSource, /headerLanguagePickerMount[^\n]*width:155px/u);
+  assert.match(pickerSource, /headerLanguageTrigger[^\n]*min-height:48px/u);
+  assert.match(pickerSource, /grid-template-columns:24px minmax\(0,1fr\) 14px/u);
+  assert.match(pickerSource, /padding:7px 14px 7px 12px/u);
+  assert.match(pickerSource, /\.headerLanguageFlag \{ width:24px; height:16px;/u);
   assert.match(pickerSource, /\.headerLanguageChevron \{ width:8px; height:8px;[\s\S]*rotate\(45deg\)/u);
-  assert.match(pickerSource, /@media \(max-width:560px\)[\s\S]*width:160px;[\s\S]*height:38px/u);
 });
 
 test('invite error icon is centered with CSS geometry instead of font metrics', () => {
