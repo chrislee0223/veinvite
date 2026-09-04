@@ -21,7 +21,6 @@ import '@/lib/i18n/referralLinkCopy';
 import '@/lib/i18n/referralLinkCopyFinalHardening';
 import '@/lib/i18n/guideRewardClaimHardening';
 import { DeferredStartupExtras } from './DeferredStartupExtras';
-import { FirstPaintStartupAccelerator } from './FirstPaintStartupAccelerator';
 import { HeaderLanguagePickerPortal } from './HeaderLanguagePickerPortal';
 import { InviteFlowVisualPolish } from './InviteFlowVisualPolish';
 import { LegalNavigationMemory } from './LegalNavigationMemory';
@@ -82,7 +81,6 @@ export function AppProviders({
     <ChakraProvider theme={theme}>
       <VeChainProvider>
         <ProviderReadySignal />
-        <FirstPaintStartupAccelerator />
         <WalletConnectionResume />
         <WalletRuntimeLifecycle />
         {children}
