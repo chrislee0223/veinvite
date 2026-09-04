@@ -4,6 +4,7 @@ import { readFile } from 'node:fs/promises';
 
 import {
   resolveStartupReadiness,
+  shouldHoldForWalletBootstrap,
 } from '../src/lib/homeStartupReadiness.ts';
 
 const RETURNING_WALLET =
@@ -107,6 +108,45 @@ test('returning VeWorld session stays covered until wallet, link, and slots are 
   assert.equal(releaseCount, 1);
 });
 
+test('Preview-origin VeWorld restore cannot be mistaken for a real anonymous visitor', () => {
+  // A Preview URL has a different origin, so it can legitimately have neither
+  // the Production VeInvite session cookie nor origin-scoped dapp persistence.
+  // While VeChain Kit is still settling the wallet bootstrap, wallet=null must
+  // still stay behind the logo even though Home has mounted its anonymous state.
+  assert.equal(
+    shouldHoldForWalletBootstrap({
+      walletAddress: null,
+      walletBootstrapSettled: false,
+      interactiveGateVisible: false,
+    }),
+    true,
+  );
+
+  // If VeWorld restores the wallet late, the bootstrap guard no longer matters;
+  // the wallet-specific Home loading state takes over and still holds the app.
+  assert.equal(
+    shouldHoldForWalletBootstrap({
+      walletAddress: RETURNING_WALLET,
+      walletBootstrapSettled: true,
+      interactiveGateVisible: false,
+    }),
+    false,
+  );
+  assert.equal(
+    decide({
+      walletAddress: RETURNING_WALLET,
+      state: homeState({
+        status: 'loading',
+        invitesReady: false,
+        referralLinkReady: false,
+      }),
+      hasBootstrappedSession: false,
+      hasPersistedWallet: false,
+    }),
+    'hold',
+  );
+});
+
 test('persisted VeWorld evidence also blocks a disconnected Home during restoration', () => {
   const decision = decide({
     walletAddress: null,
@@ -139,7 +179,16 @@ test('a genuine Home data failure becomes startup error instead of incomplete Ho
   assert.equal(decision, 'error');
 });
 
-test('a genuinely disconnected visitor can see the normal connect Home', () => {
+test('a genuinely disconnected visitor can see the normal connect Home after wallet bootstrap settles', () => {
+  assert.equal(
+    shouldHoldForWalletBootstrap({
+      walletAddress: null,
+      walletBootstrapSettled: true,
+      interactiveGateVisible: false,
+    }),
+    false,
+  );
+
   const decision = decide({
     walletAddress: null,
     state: homeState({
@@ -164,6 +213,33 @@ test('startup runtime no longer infers Home readiness from skeleton CSS', async 
   assert.equal(source.includes('.slotsSkeleton'), false);
   assert.equal(source.includes('.linkPreviewSkeleton'), false);
   assert.match(source, /HOME_STARTUP_STATE_EVENT/);
+});
+
+test('VeWorld bootstrap uses SDK connection state before allowing anonymous Home', async () => {
+  const source = await readFile(
+    new URL('../src/components/WalletRuntimeLifecycle.tsx', import.meta.url),
+    'utf8',
+  );
+
+  assert.match(source, /connection\?\.isLoading/);
+  assert.match(source, /connection\?\.isInAppBrowser/);
+  assert.match(
+    source,
+    /VEWORLD_WALLET_BOOTSTRAP_SETTLE_MS\s*=\s*3_500/,
+  );
+  assert.match(source, /shouldHoldForWalletBootstrap/);
+});
+
+test('referral hydration placeholders have a visual fail-safe', async () => {
+  const source = await readFile(
+    new URL('../src/app/globals.css', import.meta.url),
+    'utf8',
+  );
+
+  assert.match(
+    source,
+    /\.linkPreviewSkeleton,\s*\.slotsSkeleton\s*\{\s*visibility:\s*hidden\s*!important;/s,
+  );
 });
 
 test('8-second watchdog does not forcibly release an incomplete Home', async () => {
