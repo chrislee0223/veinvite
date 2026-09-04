@@ -59,13 +59,39 @@ export function InviteGuideContent({ locale }: { locale: Locale }) {
         header > span { color:#f8bc2e; font-size:.7rem; font-weight:950; letter-spacing:.12em; }
         h1 { margin:8px 0 0; font-size:clamp(2rem,8vw,2.75rem); line-height:1.05; letter-spacing:-.05em; text-wrap:balance; }
         header p { margin:12px 0 0; color:#aaa69d; font-size:.9rem; line-height:1.62; }
-        .steps { margin:22px 0 0; padding:0; display:grid; gap:11px; list-style:none; }
-        .steps li { padding:17px; display:flex; align-items:flex-start; gap:14px; border:1px solid rgba(255,205,80,.14); border-radius:19px; background:rgba(255,255,255,.035); }
+        .steps,
+        .eligibilityCard {
+          border:1px solid rgba(255,205,80,.14);
+          border-radius:22px;
+          background:radial-gradient(circle at 90% 0,rgba(255,194,41,.1),transparent 34%),rgba(255,255,255,.03);
+        }
+        .steps {
+          margin:22px 0 0;
+          padding:0;
+          display:grid;
+          gap:0;
+          overflow:hidden;
+          list-style:none;
+        }
+        .steps li {
+          padding:18px 20px;
+          display:flex;
+          align-items:flex-start;
+          gap:14px;
+          border:0;
+          border-radius:0;
+          background:transparent;
+        }
+        .steps li + li { border-top:1px solid rgba(255,255,255,.065); }
         .stepNumber { flex:0 0 auto; width:34px; height:34px; display:grid; place-items:center; border-radius:11px; background:linear-gradient(135deg,#ffd24d,#efa718); color:#17120a; font-size:.78rem; font-weight:950; }
         .steps strong { display:block; font-size:.91rem; }
         .steps p { margin:5px 0 0; color:#96928a; font-size:.76rem; line-height:1.55; }
-        .eligibilityCard { margin-top:18px; padding:20px; border:1px solid rgba(255,205,80,.14); border-radius:22px; background:radial-gradient(circle at 90% 0,rgba(255,194,41,.12),transparent 34%),rgba(255,255,255,.03); }
+        .eligibilityCard { margin-top:18px; padding:20px; }
         .eligibilityCard h2 { margin:0 0 14px; font-size:1.08rem; letter-spacing:-.025em; }
+        @media (max-width:560px) {
+          .steps li { padding:17px; }
+          .eligibilityCard { padding:17px; }
+        }
       `}</style>
     </section>
   );

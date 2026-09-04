@@ -257,6 +257,10 @@ export function LeaderboardImpactInfoPortal({ locale }: { locale: Locale }) {
               color: #fff;
               box-shadow: 0 30px 90px rgba(0,0,0,.58);
             }
+            .veinviteImpactInfoDialog > .veinviteSoftFocusHeader {
+              border-bottom: 0;
+              background: transparent;
+            }
             .veinviteImpactInfoBody {
               padding: 0 20px 20px;
             }

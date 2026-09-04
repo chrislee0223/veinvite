@@ -236,6 +236,10 @@ export function HomeGuideInfoPortal({ locale }: { locale: Locale }) {
               color: #fff;
               box-shadow: 0 30px 90px rgba(0,0,0,.58);
             }
+            .veinviteGuideDialog > .veinviteSoftFocusHeader {
+              border-bottom: 0;
+              background: transparent;
+            }
             .veinviteGuideScroll {
               padding: 0 22px 24px;
             }
