@@ -228,6 +228,13 @@ export function InviteeClient({ code }: { code: string }) {
       return;
     }
 
+    // Preserve the existing one-shot recovery even if the page was opened in
+    // the background. Active/review polling below is visibility-aware.
+    if (shouldRecoverCompleted) {
+      void loadInviteProgress('sync').catch(() => undefined);
+      return;
+    }
+
     let syncInFlight = false;
     let lastSyncAt = 0;
 
@@ -259,7 +266,6 @@ export function InviteeClient({ code }: { code: string }) {
     // the user returns from a VeBetterDAO mission. The cooldown and in-flight
     // guard prevent focus/pageshow/visibility events from creating duplicates.
     reconcile();
-    if (shouldRecoverCompleted) return;
 
     const intervalId = window.setInterval(reconcile, 30_000);
     document.addEventListener('visibilitychange', reconcileOnResume);
