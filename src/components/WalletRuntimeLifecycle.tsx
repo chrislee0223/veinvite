@@ -8,6 +8,13 @@ import {
 import { useWallet } from '@vechain/vechain-kit';
 
 import {
+  APP_STARTUP_ERROR_EVENT,
+  HOME_STARTUP_STATE_EVENT,
+  readPublishedHomeStartupState,
+  resolveStartupReadiness,
+  type HomeStartupState,
+} from '@/lib/homeStartupReadiness';
+import {
   readPersistedDappKitAccount,
 } from '@/lib/walletConnectionResume';
 
@@ -17,8 +24,6 @@ const WALLET_SESSION_READY_EVENT =
 const SESSION_RENEWAL_INTENT = 'renew';
 const RENEWAL_DEDUPE_MS = 60_000;
 const HOME_STABILITY_MS = 160;
-const DISCONNECTED_STABILITY_MS = 900;
-const BOOTSTRAPPED_SESSION_GRACE_MS = 4_500;
 
 type SessionResponse = {
   authenticated?: boolean;
@@ -58,8 +63,10 @@ export function WalletRuntimeLifecycle() {
   const walletAddress =
     account?.address?.trim().toLowerCase() ?? null;
   const walletRef = useRef<string | null>(walletAddress);
+  const homeStateRef = useRef<HomeStartupState | null>(null);
   const releasedRef = useRef(false);
   const readinessTimerRef = useRef<number | null>(null);
+  const startupErrorReportedRef = useRef(false);
   const lastRenewalRef =
     useRef<SuccessfulRenewal | null>(null);
   const inFlightRenewalRef =
@@ -233,6 +240,7 @@ export function WalletRuntimeLifecycle() {
       }
 
       releasedRef.current = true;
+      startupErrorReportedRef.current = false;
       clearReadinessTimer();
       document.documentElement.dataset.veinviteAppReady =
         'true';
@@ -241,14 +249,25 @@ export function WalletRuntimeLifecycle() {
       );
     };
 
-    const hasHome = () =>
-      Boolean(document.querySelector('main.screen'));
-    const hasPendingHomeData = () =>
-      Boolean(
-        document.querySelector(
-          '.linkPreviewSkeleton, .slotsSkeleton',
-        ),
+    const reportStartupError = (
+      homeState: HomeStartupState | null,
+    ) => {
+      clearReadinessTimer();
+
+      if (startupErrorReportedRef.current) {
+        return;
+      }
+
+      startupErrorReportedRef.current = true;
+      window.dispatchEvent(
+        new CustomEvent(APP_STARTUP_ERROR_EVENT, {
+          detail: {
+            message: homeState?.errorMessage,
+          },
+        }),
       );
+    };
+
     const hasInteractiveGate = () =>
       Boolean(
         document.querySelector(
@@ -267,7 +286,6 @@ export function WalletRuntimeLifecycle() {
       Boolean(readPersistedDappKitAccount());
 
     const scheduleStableRelease = (
-      delayMs: number,
       expectedWallet: string | null,
     ) => {
       clearReadinessTimer();
@@ -275,18 +293,33 @@ export function WalletRuntimeLifecycle() {
         window.setTimeout(() => {
           readinessTimerRef.current = null;
 
-          if (releasedRef.current || !hasHome()) {
-            return;
-          }
-
           if (
+            releasedRef.current ||
             walletRef.current !== expectedWallet
           ) {
             return;
           }
 
-          releaseApp();
-        }, delayMs);
+          const currentHomeState =
+            readPublishedHomeStartupState() ??
+            homeStateRef.current;
+          const decision = resolveStartupReadiness({
+            walletAddress: walletRef.current,
+            homeState: currentHomeState,
+            hasBootstrappedSession:
+              hasBootstrappedSession(),
+            hasPersistedWallet:
+              hasPersistedVeWorldWallet(),
+            interactiveGateVisible:
+              hasInteractiveGate(),
+          });
+
+          if (decision === 'release') {
+            releaseApp();
+          } else if (decision === 'error') {
+            reportStartupError(currentHomeState);
+          }
+        }, HOME_STABILITY_MS);
     };
 
     const evaluate = () => {
@@ -294,71 +327,64 @@ export function WalletRuntimeLifecycle() {
         return;
       }
 
-      const wallet = walletRef.current;
-      const homeVisible = hasHome();
+      const currentHomeState =
+        readPublishedHomeStartupState() ??
+        homeStateRef.current;
+      const decision = resolveStartupReadiness({
+        walletAddress: walletRef.current,
+        homeState: currentHomeState,
+        hasBootstrappedSession:
+          hasBootstrappedSession(),
+        hasPersistedWallet:
+          hasPersistedVeWorldWallet(),
+        interactiveGateVisible:
+          hasInteractiveGate(),
+      });
 
-      if (wallet) {
-        // A genuine verification/legal-consent screen is actionable and should
-        // replace the startup shield. Otherwise keep the one branded startup
-        // surface until the permanent-link and friend-slot data have actually
-        // settled. Do not use a local timeout that can expose the skeleton UI;
-        // LocaleHydrationShield owns the global provider-failure fallback.
-        if (
-          !homeVisible &&
-          hasInteractiveGate()
-        ) {
+      if (decision === 'release') {
+        startupErrorReportedRef.current = false;
+
+        // An explicit Home-ready state gets one stable frame before the startup
+        // shield is removed. Actionable verification/recovery gates can surface
+        // immediately because their own UI is already complete.
+        if (hasInteractiveGate()) {
           releaseApp();
-          return;
+        } else {
+          scheduleStableRelease(walletRef.current);
         }
-
-        if (homeVisible) {
-          if (hasPendingHomeData()) {
-            clearReadinessTimer();
-            return;
-          }
-
-          scheduleStableRelease(
-            HOME_STABILITY_MS,
-            wallet,
-          );
-          return;
-        }
-
-        clearReadinessTimer();
         return;
       }
 
-      if (!homeVisible) {
-        clearReadinessTimer();
+      clearReadinessTimer();
+
+      if (decision === 'error') {
+        reportStartupError(currentHomeState);
         return;
       }
 
-      // A persisted VeWorld account is direct browser evidence that this Home
-      // is in the middle of wallet restoration. Never release the shield during
-      // that gap; wait for the provider to republish the wallet, then wait for
-      // the link/slot skeletons to disappear. The outer hydration shield still
-      // has its global 8-second failure escape hatch.
-      if (hasPersistedVeWorldWallet()) {
-        clearReadinessTimer();
-        return;
-      }
-
-      // A verified server session can outlive cleared browser wallet storage.
-      // Preserve the existing bounded grace window for that distinct case.
-      if (hasBootstrappedSession()) {
-        scheduleStableRelease(
-          BOOTSTRAPPED_SESSION_GRACE_MS,
-          null,
-        );
-        return;
-      }
-
-      scheduleStableRelease(
-        DISCONNECTED_STABILITY_MS,
-        null,
-      );
+      startupErrorReportedRef.current = false;
     };
 
+    const handleHomeStartupState = (event: Event) => {
+      const detail =
+        (event as CustomEvent<HomeStartupState>).detail;
+
+      if (!detail) {
+        return;
+      }
+
+      homeStateRef.current = detail;
+      evaluate();
+    };
+
+    window.addEventListener(
+      HOME_STARTUP_STATE_EVENT,
+      handleHomeStartupState,
+    );
+
+    // The MutationObserver no longer guesses Home readiness from CSS skeletons.
+    // It exists only so a real wallet/session recovery surface can replace the
+    // startup logo as soon as WalletSessionGate intentionally renders it.
     const observer = new MutationObserver(evaluate);
     observer.observe(document.body, {
       childList: true,
@@ -366,9 +392,15 @@ export function WalletRuntimeLifecycle() {
       attributes: true,
     });
 
+    homeStateRef.current =
+      readPublishedHomeStartupState();
     evaluate();
 
     return () => {
+      window.removeEventListener(
+        HOME_STARTUP_STATE_EVENT,
+        handleHomeStartupState,
+      );
       observer.disconnect();
       clearReadinessTimer();
     };
