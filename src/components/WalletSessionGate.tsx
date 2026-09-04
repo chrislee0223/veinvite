@@ -163,6 +163,14 @@ export function WalletSessionGate({
       autoAttemptedWalletRef.current = null;
       bootReadyDispatchedRef.current = false;
       sessionWalletRef.current = null;
+      document
+        .querySelector<HTMLElement>(
+          '[data-veinvite-session-bootstrap]',
+        )
+        ?.setAttribute(
+          'data-veinvite-session-bootstrap',
+          'none',
+        );
       if (pendingErrorTimerRef.current !== null) {
         window.clearTimeout(pendingErrorTimerRef.current);
         pendingErrorTimerRef.current = null;
