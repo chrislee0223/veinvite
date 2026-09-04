@@ -6,13 +6,22 @@ import { useWallet } from '@vechain/vechain-kit';
 import {
   LANGUAGE_STORAGE_KEY,
   isLocale,
-  type Locale,
+  resolveBrowserLocale,
+  type SupportedLocale,
 } from '@/lib/i18n/locales';
 
 const SET_LANGUAGE_INTENT =
   'SET_WALLET_LANGUAGE_PREFERENCE';
+const OBSERVE_DISPLAY_LANGUAGE_INTENT =
+  'OBSERVE_WALLET_DISPLAY_LANGUAGE';
 const WALLET_SESSION_READY_EVENT =
   'veinvite-wallet-session-ready';
+
+type LanguageUsageSource =
+  | 'browser_auto'
+  | 'local_storage'
+  | 'wallet_preference'
+  | 'manual_selection';
 
 type PreferenceResponse = {
   language?: unknown;
@@ -24,9 +33,17 @@ type SessionResponse = {
   walletAddress?: string;
 };
 
-async function saveLanguage(
-  language: Locale,
-): Promise<void> {
+async function postLanguageState({
+  intent,
+  language,
+  source,
+}: {
+  intent:
+    | typeof SET_LANGUAGE_INTENT
+    | typeof OBSERVE_DISPLAY_LANGUAGE_INTENT;
+  language: SupportedLocale;
+  source: LanguageUsageSource;
+}): Promise<void> {
   const response = await fetch(
     '/api/preferences/language',
     {
@@ -35,8 +52,9 @@ async function saveLanguage(
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        intent: SET_LANGUAGE_INTENT,
+        intent,
         language,
+        source,
       }),
     },
   );
@@ -46,13 +64,39 @@ async function saveLanguage(
       (await response.json().catch(() => ({}))) as PreferenceResponse;
     throw new Error(
       body.error ||
-        'Language preference save failed.',
+        'Language state save failed.',
     );
   }
 }
 
+async function saveLanguage(
+  language: SupportedLocale,
+  source:
+    | 'manual_selection'
+    | 'local_storage',
+): Promise<void> {
+  await postLanguageState({
+    intent: SET_LANGUAGE_INTENT,
+    language,
+    source,
+  });
+}
+
+async function observeDisplayLanguage(
+  language: SupportedLocale,
+  source:
+    | 'browser_auto'
+    | 'wallet_preference',
+): Promise<void> {
+  await postLanguageState({
+    intent: OBSERVE_DISPLAY_LANGUAGE_INTENT,
+    language,
+    source,
+  });
+}
+
 function applyLanguage(
-  language: Locale,
+  language: SupportedLocale,
 ) {
   window.localStorage.setItem(
     LANGUAGE_STORAGE_KEY,
@@ -99,7 +143,10 @@ export function WalletLanguagePreferenceSync() {
         return;
       }
 
-      void saveLanguage(language).catch(
+      void saveLanguage(
+        language,
+        'manual_selection',
+      ).catch(
         (error) => {
           console.warn(
             'Failed to persist VeInvite language preference:',
@@ -143,7 +190,10 @@ export function WalletLanguagePreferenceSync() {
 
         if (changedAfterMount) {
           if (isLocale(localLanguage)) {
-            await saveLanguage(localLanguage);
+            await saveLanguage(
+              localLanguage,
+              'manual_selection',
+            );
           }
           return;
         }
@@ -159,12 +209,32 @@ export function WalletLanguagePreferenceSync() {
             applyLanguage(serverLanguage);
             applyingRemote = false;
           }
+
+          await observeDisplayLanguage(
+            serverLanguage,
+            'wallet_preference',
+          );
           return;
         }
 
         if (isLocale(localLanguage)) {
-          await saveLanguage(localLanguage);
+          await saveLanguage(
+            localLanguage,
+            'local_storage',
+          );
+          return;
         }
+
+        const browserLanguage =
+          resolveBrowserLocale(
+            window.navigator.languages,
+            'en',
+          );
+
+        await observeDisplayLanguage(
+          browserLanguage,
+          'browser_auto',
+        );
       } catch (error) {
         console.warn(
           'Failed to sync VeInvite language preference:',
