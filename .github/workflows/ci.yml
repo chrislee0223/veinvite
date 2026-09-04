@@ -19,6 +19,9 @@ jobs:
     timeout-minutes: 20
 
     env:
+      # Build against the reviewed non-production project identity. The key is
+      # intentionally a non-secret placeholder: CI must never read or mutate a
+      # live Supabase database.
       NEXT_PUBLIC_SUPABASE_URL: https://bpppslplhmppxzvdkwxs.supabase.co
       SUPABASE_SECRET_KEY: ci-placeholder-not-a-real-key
       VERCEL_ENV: preview
@@ -112,7 +115,10 @@ jobs:
             timeout 300s npm ci 2>&1 | tee .ci-npm-ci.log
             status=${PIPESTATUS[0]}
             set -e
-            if [ "$status" -eq 0 ]; then exit 0; fi
+
+            if [ "$status" -eq 0 ]; then
+              exit 0
+            fi
             if [ "$status" -eq 124 ] && [ "$attempt" -lt 2 ]; then
               rm -rf node_modules
               sleep 5
@@ -123,6 +129,10 @@ jobs:
           exit 1
 
       - name: Dependency security gate
+        # npm ci already performs an audit and prints its severity summary. We
+        # still run npm audit as the primary high/critical gate, but if the npm
+        # audit service itself times out repeatedly, accept only a captured npm
+        # ci summary that proves no high/critical findings were reported.
         shell: bash
         run: |
           for attempt in 1 2 3; do
@@ -133,14 +143,17 @@ jobs:
               status=$?
               printf '%s\n' "$output"
             fi
+
             transport_failure=false
             if [ "$status" -eq 124 ] || printf '%s\n' "$output" | grep -Eqi '503|Service Unavailable|ECONNRESET|ETIMEDOUT|audit endpoint returned an error'; then
               transport_failure=true
             fi
+
             if [ "$transport_failure" = true ] && [ "$attempt" -lt 3 ]; then
               sleep $((attempt * 5))
               continue
             fi
+
             if [ "$transport_failure" = true ]; then
               summary="$(grep -E '([0-9]+ vulnerabilities|found 0 vulnerabilities)' .ci-npm-ci.log | tail -1 || true)"
               if [ -z "$summary" ]; then
@@ -154,8 +167,12 @@ jobs:
               echo "npm audit service unavailable after retries; npm ci audit summary accepted: $summary"
               exit 0
             fi
+
+            # A non-transport npm audit failure is an actual audit result and
+            # must keep blocking the merge.
             exit "$status"
           done
+
           exit 1
 
       - name: Typecheck
