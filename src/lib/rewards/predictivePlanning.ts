@@ -161,7 +161,6 @@ export async function readPredictiveRewardPlanning(input: {
 
   const record = readRecord(data, 'reward cohort planning snapshot');
   const reservedExistingWei = readIntegerString(record.reservedExistingWei, 'reservedExistingWei');
-  const cohortReservedWei = readIntegerString(record.cohortReservedWei, 'cohortReservedWei');
   const fundingAdjustmentWei = readIntegerString(record.fundingAdjustmentWei, 'fundingAdjustmentWei');
   const designatedBudgetWei = readIntegerString(record.designatedBudgetWei, 'designatedBudgetWei');
   const rewardCohortRoundId = record.rewardCohortRoundId === null || record.rewardCohortRoundId === undefined
@@ -176,6 +175,30 @@ export async function readPredictiveRewardPlanning(input: {
     : rawPipeline;
   const latestAllocation = readAllocation(record.latestAllocation);
   const activeEpoch = readEpoch(record.activeEpoch);
+
+  let cohortReservedWei = readIntegerString(record.cohortReservedWei, 'cohortReservedWei');
+  if (latestAllocation && rewardCohortRoundId) {
+    const { data: committedData, error: committedError } = await supabaseAdmin.rpc(
+      'read_reward_cohort_committed_wei',
+      {
+        p_network: input.network,
+        p_app_id: input.appId,
+        p_reward_cohort_round_id: rewardCohortRoundId,
+        p_allocation_receipt_id: latestAllocation.id,
+      },
+    );
+
+    if (committedError) {
+      throw new Error(`Reward cohort committed funding could not be loaded: ${committedError.message}`);
+    }
+
+    // Lifetime committed funding includes paid reservations as well as unsettled
+    // liabilities. Paid rewards never make the cohort budget reusable.
+    cohortReservedWei = readIntegerString(
+      committedData,
+      'rewardCohortCommittedWei',
+    );
+  }
 
   const forecast = latestAllocation && rewardCohortRoundId
     ? calculatePredictiveRewardPolicy({
