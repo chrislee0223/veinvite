@@ -100,3 +100,26 @@ test('forecast waits for app-ready, while reward reservation recovery remains in
     /\.linkPreviewSkeleton,[\s\S]*\.slotsSkeleton[\s\S]*visibility:\s*visible\s*!important/,
   );
 });
+
+test('invite-only visual and language enhancements stay out of normal Home startup', async () => {
+  const [providers, scoped, picker] = await Promise.all([
+    readFile(new URL('../src/components/AppProviders.tsx', import.meta.url), 'utf8'),
+    readFile(new URL('../src/components/RouteScopedInviteEnhancements.tsx', import.meta.url), 'utf8'),
+    readFile(new URL('../src/components/HeaderLanguagePickerPortal.tsx', import.meta.url), 'utf8'),
+  ]);
+
+  assert.doesNotMatch(providers, /from '\.\/HeaderLanguagePickerPortal'/);
+  assert.doesNotMatch(providers, /from '\.\/InviteFlowVisualPolish'/);
+  assert.match(providers, /<RouteScopedInviteEnhancements \/>/);
+
+  assert.match(scoped, /import\('\.\/HeaderLanguagePickerPortal'\)/);
+  assert.match(scoped, /import\('\.\/InviteFlowVisualPolish'\)/);
+  assert.match(scoped, /pathname\.startsWith\('\/i\/'\)/);
+  assert.match(scoped, /pathname\.startsWith\('\/r\/'\)/);
+  assert.match(scoped, /pathname\.startsWith\('\/ui-test'\)/);
+  assert.match(scoped, /if \(!needsInviteEnhancements\(pathname\)\) \{[\s\S]*return null;/);
+
+  // The body-wide observer is still available where the invite picker is
+  // actually needed, but normal Home no longer mounts it at all.
+  assert.match(picker, /new MutationObserver\(scheduleAttach\)/);
+});
