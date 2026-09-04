@@ -222,16 +222,20 @@ export function LeaderboardImpactInfoPortal({ locale }: { locale: Locale }) {
                 className="veinviteSoftFocusClose"
                 onClick={closeInfo}
                 aria-label={t.close}
-              />
+              >
+                <span className="veinviteDialogCloseGlyph" aria-hidden="true">×</span>
+              </button>
             </div>
             <div className="veinviteSoftFocusScroll veinviteImpactInfoBody">
-              <div className="veinviteImpactInfoTop">
-                <div>
-                  <span>{t.impactTitle}</span>
-                  <h2 id="veinvite-impact-info-title">{guide.countTitle}</h2>
+              <section className="veinviteImpactInfoCard">
+                <div className="veinviteImpactInfoTop">
+                  <div>
+                    <span>{t.impactTitle}</span>
+                    <h2 id="veinvite-impact-info-title">{guide.countTitle}</h2>
+                  </div>
                 </div>
-              </div>
-              <p>{t.impactNote}</p>
+                <p>{t.impactNote}</p>
+              </section>
             </div>
           </div>
           <style>{`
@@ -261,8 +265,32 @@ export function LeaderboardImpactInfoPortal({ locale }: { locale: Locale }) {
               border-bottom: 0;
               background: transparent;
             }
+            .veinviteImpactInfoDialog > .veinviteSoftFocusHeader .veinviteSoftFocusClose {
+              border: 0;
+              background: transparent;
+              box-shadow: none;
+              color: #fff;
+            }
+            .veinviteImpactInfoDialog > .veinviteSoftFocusHeader .veinviteSoftFocusClose::before,
+            .veinviteImpactInfoDialog > .veinviteSoftFocusHeader .veinviteSoftFocusClose::after {
+              content: none !important;
+              display: none !important;
+            }
+            .veinviteImpactInfoDialog .veinviteDialogCloseGlyph {
+              display: block;
+              font-size: 20px;
+              font-weight: 400;
+              line-height: 1;
+            }
             .veinviteImpactInfoBody {
               padding: 0 20px 20px;
+            }
+            .veinviteImpactInfoCard {
+              margin: 0;
+              padding: 20px;
+              border: 1px solid rgba(255,205,80,.14);
+              border-radius: 22px;
+              background: radial-gradient(circle at 90% 0,rgba(255,194,41,.1),transparent 34%),rgba(255,255,255,.03);
             }
             .veinviteImpactInfoTop span {
               color: #f4bd35;
@@ -274,12 +302,20 @@ export function LeaderboardImpactInfoPortal({ locale }: { locale: Locale }) {
               font-size: 1.15rem;
               letter-spacing: -.025em;
             }
-            .veinviteImpactInfoBody p {
+            .veinviteImpactInfoCard > p {
               margin: 16px 0 0;
               color: #aaa69d;
               font-size: .82rem;
               line-height: 1.6;
               overflow-wrap: anywhere;
+            }
+            @media (max-width: 560px) {
+              .veinviteImpactInfoBody {
+                padding: 0 17px 17px;
+              }
+              .veinviteImpactInfoCard {
+                padding: 17px;
+              }
             }
           `}</style>
         </div>,
