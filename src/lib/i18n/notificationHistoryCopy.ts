@@ -1,0 +1,106 @@
+import type { SupportedLocale } from './locales';
+
+export type NotificationHistoryCopy = {
+  title: string;
+  newLabel: string;
+  markAll: string;
+  today: string;
+  yesterday: string;
+  earlier: string;
+  emptyTitle: string;
+  emptyBody: string;
+  action: string;
+  close: string;
+  loadingTitle: string;
+  loadingBody: string;
+  errorTitle: string;
+  errorBody: string;
+  retry: string;
+};
+
+export const NOTIFICATION_HISTORY_COPY: Record<
+  SupportedLocale,
+  NotificationHistoryCopy
+> = {
+  en: {
+    title: 'Notifications', newLabel: 'New', markAll: 'Mark all as read', today: 'Today', yesterday: 'Yesterday', earlier: 'Earlier', emptyTitle: "You're all caught up", emptyBody: 'New notifications will appear here.', action: 'Action needed', close: 'Close', loadingTitle: 'Loading notifications', loadingBody: 'Please wait a moment.', errorTitle: "Couldn't load notifications", errorBody: 'Please try again in a moment.', retry: 'Retry',
+  },
+  ko: {
+    title: '알림', newLabel: '새 알림', markAll: '모두 읽음', today: '오늘', yesterday: '어제', earlier: '이전 알림', emptyTitle: '새 알림이 없어요', emptyBody: '새로운 소식이 생기면 여기에 표시됩니다.', action: '확인 필요', close: '닫기', loadingTitle: '알림을 불러오는 중', loadingBody: '잠시만 기다려 주세요.', errorTitle: '알림을 불러오지 못했어요', errorBody: '잠시 후 다시 시도해 주세요.', retry: '다시 시도',
+  },
+  zh: {
+    title: '通知', newLabel: '新通知', markAll: '全部标为已读', today: '今天', yesterday: '昨天', earlier: '更早', emptyTitle: '暂无新通知', emptyBody: '有新消息时会显示在这里。', action: '需要处理', close: '关闭', loadingTitle: '正在加载通知', loadingBody: '请稍候。', errorTitle: '无法加载通知', errorBody: '请稍后重试。', retry: '重试',
+  },
+  hi: {
+    title: 'सूचनाएँ', newLabel: 'नई', markAll: 'सभी को पढ़ा मानें', today: 'आज', yesterday: 'कल', earlier: 'पहले', emptyTitle: 'कोई नई सूचना नहीं', emptyBody: 'नई सूचनाएँ यहाँ दिखाई देंगी।', action: 'कार्रवाई ज़रूरी', close: 'बंद करें', loadingTitle: 'सूचनाएँ लोड हो रही हैं', loadingBody: 'कृपया एक क्षण प्रतीक्षा करें।', errorTitle: 'सूचनाएँ लोड नहीं हो सकीं', errorBody: 'कुछ देर बाद फिर कोशिश करें।', retry: 'फिर कोशिश करें',
+  },
+  es: {
+    title: 'Notificaciones', newLabel: 'Nuevas', markAll: 'Marcar todo como leído', today: 'Hoy', yesterday: 'Ayer', earlier: 'Anteriores', emptyTitle: 'Todo al día', emptyBody: 'Las nuevas notificaciones aparecerán aquí.', action: 'Acción necesaria', close: 'Cerrar', loadingTitle: 'Cargando notificaciones', loadingBody: 'Espera un momento.', errorTitle: 'No se pudieron cargar las notificaciones', errorBody: 'Inténtalo de nuevo en un momento.', retry: 'Reintentar',
+  },
+  ja: {
+    title: '通知', newLabel: '新着', markAll: 'すべて既読にする', today: '今日', yesterday: '昨日', earlier: '以前', emptyTitle: '新しい通知はありません', emptyBody: '新しいお知らせはここに表示されます。', action: '確認が必要', close: '閉じる', loadingTitle: '通知を読み込み中', loadingBody: '少しお待ちください。', errorTitle: '通知を読み込めませんでした', errorBody: 'しばらくしてからもう一度お試しください。', retry: '再試行',
+  },
+  it: {
+    title: 'Notifiche', newLabel: 'Nuove', markAll: 'Segna tutto come letto', today: 'Oggi', yesterday: 'Ieri', earlier: 'Precedenti', emptyTitle: 'Nessuna nuova notifica', emptyBody: 'Le nuove notifiche appariranno qui.', action: 'Azione richiesta', close: 'Chiudi', loadingTitle: 'Caricamento notifiche', loadingBody: 'Attendi un momento.', errorTitle: 'Impossibile caricare le notifiche', errorBody: 'Riprova tra poco.', retry: 'Riprova',
+  },
+  tr: {
+    title: 'Bildirimler', newLabel: 'Yeni', markAll: 'Tümünü okundu işaretle', today: 'Bugün', yesterday: 'Dün', earlier: 'Daha önce', emptyTitle: 'Yeni bildirim yok', emptyBody: 'Yeni bildirimler burada görünecek.', action: 'İşlem gerekli', close: 'Kapat', loadingTitle: 'Bildirimler yükleniyor', loadingBody: 'Lütfen biraz bekleyin.', errorTitle: 'Bildirimler yüklenemedi', errorBody: 'Biraz sonra tekrar deneyin.', retry: 'Tekrar dene',
+  },
+  nl: {
+    title: 'Meldingen', newLabel: 'Nieuw', markAll: 'Alles als gelezen markeren', today: 'Vandaag', yesterday: 'Gisteren', earlier: 'Eerder', emptyTitle: 'Je bent helemaal bij', emptyBody: 'Nieuwe meldingen verschijnen hier.', action: 'Actie nodig', close: 'Sluiten', loadingTitle: 'Meldingen laden', loadingBody: 'Een ogenblik geduld.', errorTitle: 'Meldingen konden niet worden geladen', errorBody: 'Probeer het zo opnieuw.', retry: 'Opnieuw proberen',
+  },
+  de: {
+    title: 'Benachrichtigungen', newLabel: 'Neu', markAll: 'Alle als gelesen markieren', today: 'Heute', yesterday: 'Gestern', earlier: 'Früher', emptyTitle: 'Alles erledigt', emptyBody: 'Neue Benachrichtigungen erscheinen hier.', action: 'Aktion erforderlich', close: 'Schließen', loadingTitle: 'Benachrichtigungen werden geladen', loadingBody: 'Bitte einen Moment warten.', errorTitle: 'Benachrichtigungen konnten nicht geladen werden', errorBody: 'Bitte gleich noch einmal versuchen.', retry: 'Erneut versuchen',
+  },
+  fr: {
+    title: 'Notifications', newLabel: 'Nouvelles', markAll: 'Tout marquer comme lu', today: "Aujourd’hui", yesterday: 'Hier', earlier: 'Plus tôt', emptyTitle: 'Vous êtes à jour', emptyBody: 'Les nouvelles notifications apparaîtront ici.', action: 'Action requise', close: 'Fermer', loadingTitle: 'Chargement des notifications', loadingBody: 'Veuillez patienter un instant.', errorTitle: 'Impossible de charger les notifications', errorBody: 'Réessayez dans un instant.', retry: 'Réessayer',
+  },
+  ar: {
+    title: 'الإشعارات', newLabel: 'جديد', markAll: 'تحديد الكل كمقروء', today: 'اليوم', yesterday: 'أمس', earlier: 'سابقاً', emptyTitle: 'لا توجد إشعارات جديدة', emptyBody: 'ستظهر الإشعارات الجديدة هنا.', action: 'يلزم إجراء', close: 'إغلاق', loadingTitle: 'جارٍ تحميل الإشعارات', loadingBody: 'يرجى الانتظار قليلاً.', errorTitle: 'تعذر تحميل الإشعارات', errorBody: 'يرجى المحاولة مرة أخرى بعد قليل.', retry: 'إعادة المحاولة',
+  },
+  bn: {
+    title: 'নোটিফিকেশন', newLabel: 'নতুন', markAll: 'সব পড়া হিসেবে চিহ্নিত করুন', today: 'আজ', yesterday: 'গতকাল', earlier: 'আগের', emptyTitle: 'নতুন কোনো নোটিফিকেশন নেই', emptyBody: 'নতুন নোটিফিকেশন এখানে দেখা যাবে।', action: 'পদক্ষেপ প্রয়োজন', close: 'বন্ধ করুন', loadingTitle: 'নোটিফিকেশন লোড হচ্ছে', loadingBody: 'একটু অপেক্ষা করুন।', errorTitle: 'নোটিফিকেশন লোড করা যায়নি', errorBody: 'কিছুক্ষণ পর আবার চেষ্টা করুন।', retry: 'আবার চেষ্টা করুন',
+  },
+  pt: {
+    title: 'Notificações', newLabel: 'Novas', markAll: 'Marcar tudo como lido', today: 'Hoje', yesterday: 'Ontem', earlier: 'Anteriores', emptyTitle: 'Tudo em dia', emptyBody: 'Novas notificações aparecerão aqui.', action: 'Ação necessária', close: 'Fechar', loadingTitle: 'Carregando notificações', loadingBody: 'Aguarde um momento.', errorTitle: 'Não foi possível carregar as notificações', errorBody: 'Tente novamente em instantes.', retry: 'Tentar novamente',
+  },
+  ru: {
+    title: 'Уведомления', newLabel: 'Новые', markAll: 'Отметить все прочитанными', today: 'Сегодня', yesterday: 'Вчера', earlier: 'Ранее', emptyTitle: 'Новых уведомлений нет', emptyBody: 'Новые уведомления появятся здесь.', action: 'Требуется действие', close: 'Закрыть', loadingTitle: 'Загрузка уведомлений', loadingBody: 'Подождите немного.', errorTitle: 'Не удалось загрузить уведомления', errorBody: 'Попробуйте ещё раз через минуту.', retry: 'Повторить',
+  },
+  id: {
+    title: 'Notifikasi', newLabel: 'Baru', markAll: 'Tandai semua sudah dibaca', today: 'Hari ini', yesterday: 'Kemarin', earlier: 'Sebelumnya', emptyTitle: 'Tidak ada notifikasi baru', emptyBody: 'Notifikasi baru akan muncul di sini.', action: 'Perlu tindakan', close: 'Tutup', loadingTitle: 'Memuat notifikasi', loadingBody: 'Tunggu sebentar.', errorTitle: 'Notifikasi tidak dapat dimuat', errorBody: 'Coba lagi sebentar lagi.', retry: 'Coba lagi',
+  },
+  vi: {
+    title: 'Thông báo', newLabel: 'Mới', markAll: 'Đánh dấu tất cả đã đọc', today: 'Hôm nay', yesterday: 'Hôm qua', earlier: 'Trước đó', emptyTitle: 'Không có thông báo mới', emptyBody: 'Thông báo mới sẽ xuất hiện tại đây.', action: 'Cần xử lý', close: 'Đóng', loadingTitle: 'Đang tải thông báo', loadingBody: 'Vui lòng chờ một chút.', errorTitle: 'Không thể tải thông báo', errorBody: 'Vui lòng thử lại sau giây lát.', retry: 'Thử lại',
+  },
+  'zh-tw': {
+    title: '通知', newLabel: '新通知', markAll: '全部標示為已讀', today: '今天', yesterday: '昨天', earlier: '較早', emptyTitle: '目前沒有新通知', emptyBody: '有新消息時會顯示在這裡。', action: '需要處理', close: '關閉', loadingTitle: '正在載入通知', loadingBody: '請稍候。', errorTitle: '無法載入通知', errorBody: '請稍後再試。', retry: '重試',
+  },
+  sv: {
+    title: 'Aviseringar', newLabel: 'Nya', markAll: 'Markera alla som lästa', today: 'I dag', yesterday: 'I går', earlier: 'Tidigare', emptyTitle: 'Inga nya aviseringar', emptyBody: 'Nya aviseringar visas här.', action: 'Åtgärd krävs', close: 'Stäng', loadingTitle: 'Laddar aviseringar', loadingBody: 'Vänta ett ögonblick.', errorTitle: 'Det gick inte att ladda aviseringarna', errorBody: 'Försök igen om en stund.', retry: 'Försök igen',
+  },
+  ro: {
+    title: 'Notificări', newLabel: 'Noi', markAll: 'Marchează tot ca citit', today: 'Astăzi', yesterday: 'Ieri', earlier: 'Mai devreme', emptyTitle: 'Nu sunt notificări noi', emptyBody: 'Notificările noi vor apărea aici.', action: 'Necesită acțiune', close: 'Închide', loadingTitle: 'Se încarcă notificările', loadingBody: 'Așteaptă un moment.', errorTitle: 'Notificările nu au putut fi încărcate', errorBody: 'Încearcă din nou în scurt timp.', retry: 'Încearcă din nou',
+  },
+  ur: {
+    title: 'اطلاعات', newLabel: 'نئی', markAll: 'سب کو پڑھا ہوا نشان زد کریں', today: 'آج', yesterday: 'کل', earlier: 'پہلے', emptyTitle: 'کوئی نئی اطلاع نہیں', emptyBody: 'نئی اطلاعات یہاں نظر آئیں گی۔', action: 'کارروائی درکار', close: 'بند کریں', loadingTitle: 'اطلاعات لوڈ ہو رہی ہیں', loadingBody: 'براہ کرم ایک لمحہ انتظار کریں۔', errorTitle: 'اطلاعات لوڈ نہیں ہو سکیں', errorBody: 'کچھ دیر بعد دوبارہ کوشش کریں۔', retry: 'دوبارہ کوشش کریں',
+  },
+  pcm: {
+    title: 'Notifications', newLabel: 'New', markAll: 'Mark all as read', today: 'Today', yesterday: 'Yesterday', earlier: 'Earlier', emptyTitle: 'No new notification', emptyBody: 'New notifications go show here.', action: 'Action dey needed', close: 'Close', loadingTitle: 'Notifications dey load', loadingBody: 'Abeg wait small.', errorTitle: 'We no fit load notifications', errorBody: 'Abeg try again small time.', retry: 'Try again',
+  },
+  arz: {
+    title: 'الإشعارات', newLabel: 'جديد', markAll: 'علّم الكل كمقروء', today: 'النهارده', yesterday: 'امبارح', earlier: 'قبل كده', emptyTitle: 'مفيش إشعارات جديدة', emptyBody: 'أي إشعارات جديدة هتظهر هنا.', action: 'محتاج إجراء', close: 'قفل', loadingTitle: 'بنحمّل الإشعارات', loadingBody: 'استنى لحظة.', errorTitle: 'مقدرناش نحمّل الإشعارات', errorBody: 'جرّب تاني كمان شوية.', retry: 'جرّب تاني',
+  },
+  mr: {
+    title: 'सूचना', newLabel: 'नवीन', markAll: 'सर्व वाचले म्हणून चिन्हांकित करा', today: 'आज', yesterday: 'काल', earlier: 'यापूर्वी', emptyTitle: 'नवीन सूचना नाहीत', emptyBody: 'नवीन सूचना येथे दिसतील.', action: 'कृती आवश्यक', close: 'बंद करा', loadingTitle: 'सूचना लोड होत आहेत', loadingBody: 'कृपया क्षणभर थांबा.', errorTitle: 'सूचना लोड करता आल्या नाहीत', errorBody: 'थोड्या वेळाने पुन्हा प्रयत्न करा.', retry: 'पुन्हा प्रयत्न करा',
+  },
+  te: {
+    title: 'నోటిఫికేషన్లు', newLabel: 'కొత్తవి', markAll: 'అన్నింటినీ చదివినట్లుగా గుర్తించండి', today: 'ఈ రోజు', yesterday: 'నిన్న', earlier: 'మునుపటి', emptyTitle: 'కొత్త నోటిఫికేషన్లు లేవు', emptyBody: 'కొత్త నోటిఫికేషన్లు ఇక్కడ కనిపిస్తాయి.', action: 'చర్య అవసరం', close: 'మూసివేయండి', loadingTitle: 'నోటిఫికేషన్లు లోడ్ అవుతున్నాయి', loadingBody: 'దయచేసి కాసేపు వేచి ఉండండి.', errorTitle: 'నోటిఫికేషన్లు లోడ్ కాలేదు', errorBody: 'కొద్దిసేపటి తర్వాత మళ్లీ ప్రయత్నించండి.', retry: 'మళ్లీ ప్రయత్నించండి',
+  },
+  sw: {
+    title: 'Arifa', newLabel: 'Mpya', markAll: 'Weka zote kuwa zimesomwa', today: 'Leo', yesterday: 'Jana', earlier: 'Za awali', emptyTitle: 'Hakuna arifa mpya', emptyBody: 'Arifa mpya zitaonekana hapa.', action: 'Hatua inahitajika', close: 'Funga', loadingTitle: 'Inapakia arifa', loadingBody: 'Subiri kidogo.', errorTitle: 'Imeshindikana kupakia arifa', errorBody: 'Jaribu tena baada ya muda mfupi.', retry: 'Jaribu tena',
+  },
+  ha: {
+    title: 'Sanarwa', newLabel: 'Sabo', markAll: 'Sanya duka an karanta', today: 'Yau', yesterday: 'Jiya', earlier: 'Na baya', emptyTitle: 'Babu sabon sanarwa', emptyBody: 'Sabbin sanarwa za su bayyana a nan.', action: 'Ana buƙatar mataki', close: 'Rufe', loadingTitle: 'Ana loda sanarwa', loadingBody: 'Da fatan a jira kaɗan.', errorTitle: 'Ba a iya loda sanarwa ba', errorBody: 'A sake gwadawa nan gaba kaɗan.', retry: 'Sake gwadawa',
+  },
+};

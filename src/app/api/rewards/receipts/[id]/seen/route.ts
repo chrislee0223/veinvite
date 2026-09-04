@@ -174,10 +174,9 @@ export async function POST(
     );
 
     // The rich reward receipt and the notification bell describe the same
-    // finalized payout. Reading the receipt therefore acknowledges stage 5 for
-    // that invite too, so the user never has to dismiss the same reward twice.
-    // The RPC is idempotent and validates that the invitation belongs to this
-    // verified inviter wallet.
+    // finalized payout. Keep the legacy stage acknowledgement for backwards
+    // compatibility, then record/read the same event in persistent history so
+    // the user never sees the paid reward twice.
     const { error: notificationError } =
       await supabaseAdmin.rpc(
         'acknowledge_invite_notification',
@@ -192,6 +191,67 @@ export async function POST(
     if (notificationError) {
       throw new Error(
         `Reward notification acknowledgement failed: ${notificationError.message}`,
+      );
+    }
+
+    let friendWallet: string | null = null;
+    const friendResult = await supabaseAdmin
+      .from('invitations')
+      .select('invitee_wallet')
+      .eq('invite_code', receipt.inviteCode)
+      .eq('inviter_wallet', walletAddress)
+      .maybeSingle();
+
+    if (!friendResult.error) {
+      const value = friendResult.data?.invitee_wallet;
+      if (typeof value === 'string') {
+        friendWallet = value.toLowerCase();
+      }
+    } else {
+      console.warn(
+        'Reward notification friend context could not be loaded:',
+        friendResult.error.message,
+      );
+    }
+
+    const historyResult = await supabaseAdmin.rpc(
+      'record_invite_notification_history',
+      {
+        p_inviter_wallet: walletAddress,
+        p_invite_code: receipt.inviteCode,
+        p_kind: 'REWARD_PAID',
+        p_stage: INVITE_NOTIFICATION_STAGE.rewardPaid,
+        p_event_at: receipt.paidAt,
+        p_reward_amount_wei: receipt.amountWei,
+        p_dapp_progress: 3,
+        p_collapsed_progress: false,
+        p_friend_wallet: friendWallet,
+      },
+    );
+
+    if (historyResult.error) {
+      throw new Error(
+        `Reward notification history could not be recorded: ${historyResult.error.message}`,
+      );
+    }
+
+    const historyId = String(historyResult.data ?? '');
+    if (!/^[1-9][0-9]*$/.test(historyId)) {
+      throw new Error('Reward notification history id is invalid.');
+    }
+
+    const historyAckResult = await supabaseAdmin.rpc(
+      'acknowledge_invite_notification_history',
+      {
+        p_inviter_wallet: walletAddress,
+        p_ids: [historyId],
+        p_through_id: null,
+      },
+    );
+
+    if (historyAckResult.error) {
+      throw new Error(
+        `Reward notification history acknowledgement failed: ${historyAckResult.error.message}`,
       );
     }
 

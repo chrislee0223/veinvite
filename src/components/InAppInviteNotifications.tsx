@@ -7,10 +7,13 @@ import {
   useState,
 } from 'react';
 
-import { InviteNotificationSurfaceV2 } from './InviteNotificationSurfaceV2';
+import { InviteNotificationHistoryCenter } from './InviteNotificationHistoryCenter';
 import { useWalletLauncher } from './WalletControl';
-import { NOTIFICATION_COPY } from '@/lib/i18n/notificationCopy';
 import type { Locale } from '@/lib/i18n/locales';
+import type {
+  InviteNotificationHistoryItem,
+  InviteNotificationHistoryResponse,
+} from '@/lib/notifications/inviteNotificationHistory';
 import type {
   InviteNotificationPayloadV2,
 } from '@/lib/notifications/inviteNotificationStateV2';
@@ -23,12 +26,15 @@ type NotificationResponse = {
 };
 
 const REFRESH_MS = 60_000;
+const HISTORY_PAGE_SIZE = 30;
 const WALLET_SESSION_INVALID_EVENT =
   'veinvite-wallet-session-invalid';
 const REWARD_RECEIPT_ACKNOWLEDGED_EVENT =
   'veinvite-reward-receipt-acknowledged';
 const REWARD_RESERVATION_READY_EVENT =
   'veinvite-reward-reservation-ready';
+const NOTIFICATION_HISTORY_ACKNOWLEDGED_EVENT =
+  'veinvite-notification-history-acknowledged';
 
 function notificationSetKey(
   notifications: InviteNotificationPayloadV2[],
@@ -40,171 +46,362 @@ function notificationSetKey(
     .join('|');
 }
 
+function sameWallet(left: string | null, right: string): boolean {
+  return left?.toLowerCase() === right.toLowerCase();
+}
+
+function newestHistoryId(
+  items: InviteNotificationHistoryItem[],
+): string | null {
+  let latest: bigint | null = null;
+
+  for (const item of items) {
+    try {
+      const id = BigInt(item.id);
+      if (id > 0n && (latest === null || id > latest)) {
+        latest = id;
+      }
+    } catch {
+      // Invalid server ids are rejected by the history API. Ignore defensively.
+    }
+  }
+
+  return latest?.toString() ?? null;
+}
+
+function historyIdAtOrBefore(id: string, throughId: string): boolean {
+  try {
+    return BigInt(id) <= BigInt(throughId);
+  } catch {
+    return false;
+  }
+}
+
 export function InAppInviteNotifications({
   locale,
 }: {
   locale: Locale;
 }) {
   const { wallet } = useWalletLauncher();
-  const [notifications, setNotifications] =
-    useState<InviteNotificationPayloadV2[]>([]);
+  const [items, setItems] =
+    useState<InviteNotificationHistoryItem[]>([]);
+  const [unreadCount, setUnreadCount] = useState(0);
+  const [nextCursor, setNextCursor] =
+    useState<string | null>(null);
   const [open, setOpen] = useState(false);
-  const [acknowledging, setAcknowledging] =
-    useState(false);
-  const [errorMessage, setErrorMessage] =
-    useState('');
+  const [loading, setLoading] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [errorMessage, setErrorMessage] = useState('');
   const shownKeyRef = useRef<string | null>(null);
-  const copy = NOTIFICATION_COPY[locale];
+  const openSnapshotRef = useRef<string | null>(null);
+  const activeWalletRef = useRef<string | null>(wallet);
 
-  const invalidateWalletSession = useCallback(() => {
-    setNotifications([]);
+  useEffect(() => {
+    activeWalletRef.current = wallet;
+    setItems([]);
+    setUnreadCount(0);
+    setNextCursor(null);
     setOpen(false);
+    setLoading(false);
+    setBusy(false);
     setErrorMessage('');
     shownKeyRef.current = null;
+    openSnapshotRef.current = null;
+  }, [wallet]);
+
+  const invalidateWalletSession = useCallback(() => {
+    setItems([]);
+    setUnreadCount(0);
+    setNextCursor(null);
+    setOpen(false);
+    setLoading(false);
+    setBusy(false);
+    setErrorMessage('');
+    shownKeyRef.current = null;
+    openSnapshotRef.current = null;
     window.dispatchEvent(
       new Event(WALLET_SESSION_INVALID_EVENT),
     );
   }, []);
 
+  const loadHistoryPage = useCallback(
+    async ({
+      requestWallet,
+      beforeId = null,
+    }: {
+      requestWallet: string;
+      beforeId?: string | null;
+    }) => {
+      const params = new URLSearchParams({
+        limit: String(HISTORY_PAGE_SIZE),
+      });
+      if (beforeId) params.set('beforeId', beforeId);
+
+      const response = await fetch(
+        `/api/notifications/history?${params.toString()}`,
+        { cache: 'no-store' },
+      );
+
+      if (response.status === 401) {
+        invalidateWalletSession();
+        return null;
+      }
+
+      const body =
+        (await response.json()) as InviteNotificationHistoryResponse;
+
+      if (!response.ok) {
+        throw new Error(
+          body.error || 'Notification history request failed.',
+        );
+      }
+
+      if (!sameWallet(activeWalletRef.current, requestWallet)) {
+        return null;
+      }
+
+      return {
+        items: Array.isArray(body.items) ? body.items : [],
+        unreadCount:
+          Number.isFinite(body.unreadCount)
+            ? Math.max(0, Number(body.unreadCount))
+            : 0,
+        nextCursor:
+          typeof body.nextCursor === 'string'
+            ? body.nextCursor
+            : null,
+      };
+    },
+    [invalidateWalletSession],
+  );
+
   const refresh = useCallback(
     async (autoOpen: boolean) => {
       if (!wallet) {
-        setNotifications([]);
+        setItems([]);
+        setUnreadCount(0);
+        setNextCursor(null);
         setOpen(false);
         shownKeyRef.current = null;
+        openSnapshotRef.current = null;
         return;
       }
 
+      const requestWallet = wallet;
+      setLoading((current) => current || items.length === 0);
+      setErrorMessage('');
+
       try {
-        const response = await fetch(
+        // Refresh the existing V2 lifecycle first. The server materializes only
+        // the actual user-visible milestone into append-only history, so the
+        // history center never has to reconstruct or replay raw chain events.
+        const notificationResponse = await fetch(
           '/api/notifications',
           { cache: 'no-store' },
         );
 
-        if (response.status === 401) {
+        if (notificationResponse.status === 401) {
           invalidateWalletSession();
           return;
         }
 
-        const body =
-          (await response.json()) as NotificationResponse;
+        const notificationBody =
+          (await notificationResponse.json()) as NotificationResponse;
 
-        if (!response.ok) {
+        if (!notificationResponse.ok) {
           throw new Error(
-            body.error || 'Notification request failed.',
+            notificationBody.error || 'Notification request failed.',
           );
         }
 
-        const next = Array.isArray(body.notifications)
-          ? body.notifications
-          : body.notification
-            ? [body.notification]
-            : [];
+        if (!sameWallet(activeWalletRef.current, requestWallet)) return;
 
-        setNotifications(next);
+        const currentNotifications =
+          Array.isArray(notificationBody.notifications)
+            ? notificationBody.notifications
+            : notificationBody.notification
+              ? [notificationBody.notification]
+              : [];
 
-        if (next.length < 1) return;
+        const history = await loadHistoryPage({ requestWallet });
+        if (!history) return;
 
-        const key = notificationSetKey(next);
-        if (autoOpen && shownKeyRef.current !== key) {
-          shownKeyRef.current = key;
-          setErrorMessage('');
-          setOpen(true);
+        setItems(history.items);
+        setUnreadCount(history.unreadCount);
+        setNextCursor(history.nextCursor);
+        setErrorMessage('');
+
+        if (currentNotifications.length > 0) {
+          const key = notificationSetKey(currentNotifications);
+          if (autoOpen && shownKeyRef.current !== key) {
+            shownKeyRef.current = key;
+            openSnapshotRef.current = newestHistoryId(history.items);
+            setOpen(true);
+          }
         }
       } catch (error) {
         console.warn(
-          'VeInvite notification refresh failed:',
+          'VeInvite notification history refresh failed:',
           error,
         );
+        if (sameWallet(activeWalletRef.current, requestWallet)) {
+          setErrorMessage(
+            error instanceof Error ? error.message : 'Notification history request failed.',
+          );
+        }
+      } finally {
+        if (sameWallet(activeWalletRef.current, requestWallet)) {
+          setLoading(false);
+        }
       }
+    },
+    [invalidateWalletSession, items.length, loadHistoryPage, wallet],
+  );
+
+  const acknowledge = useCallback(
+    async (payload: { ids: string[] } | { throughId: string }) => {
+      if (!wallet) return false;
+      const requestWallet = wallet;
+
+      const response = await fetch(
+        '/api/notifications/history',
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(payload),
+        },
+      );
+
+      if (response.status === 401) {
+        invalidateWalletSession();
+        return false;
+      }
+
+      const body = (await response.json()) as { error?: string };
+      if (!response.ok) {
+        throw new Error(
+          body.error || 'Notification acknowledgement failed.',
+        );
+      }
+
+      return sameWallet(activeWalletRef.current, requestWallet);
     },
     [invalidateWalletSession, wallet],
   );
 
-  const acknowledgeAndClose = useCallback(
-    async () => {
-      if (notifications.length < 1 || acknowledging) {
-        return;
-      }
-
-      const refreshHomeAfterAcknowledgement =
-        notifications.some(
-          (notification) =>
-            notification.kind === 'INVITE_INELIGIBLE' ||
-            notification.kind === 'REWARD_READY' ||
-            notification.kind === 'REWARD_PAID',
-        );
-
-      setAcknowledging(true);
+  const markRead = useCallback(
+    async (id: string) => {
+      if (busy) return;
+      setBusy(true);
       setErrorMessage('');
 
       try {
-        const response = await fetch(
-          '/api/notifications',
-          {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-              acknowledgements: notifications.map(
-                (notification) => ({
-                  inviteCode: notification.inviteCode,
-                  stage: notification.stage,
-                  dappProgress: notification.dappProgress,
-                  rewardReady:
-                    notification.kind === 'REWARD_READY',
-                }),
-              ),
-            }),
-          },
+        const acknowledged = await acknowledge({ ids: [id] });
+        if (!acknowledged) return;
+
+        const now = new Date().toISOString();
+        setItems((current) =>
+          current.map((item) =>
+            item.id === id && item.readAt === null
+              ? { ...item, readAt: now }
+              : item,
+          ),
         );
-
-        if (response.status === 401) {
-          invalidateWalletSession();
-          return;
-        }
-
-        const body =
-          (await response.json()) as {
-            error?: string;
-          };
-
-        if (!response.ok) {
-          throw new Error(
-            body.error || copy.acknowledgementError,
-          );
-        }
-
-        setOpen(false);
-        setNotifications([]);
-
-        if (refreshHomeAfterAcknowledgement) {
-          window.location.reload();
-          return;
-        }
-
+        setUnreadCount((current) => Math.max(0, current - 1));
+        window.dispatchEvent(
+          new Event(NOTIFICATION_HISTORY_ACKNOWLEDGED_EVENT),
+        );
         await refresh(false);
       } catch (error) {
         console.warn(
-          'VeInvite notification acknowledgement failed:',
+          'VeInvite notification history acknowledgement failed:',
           error,
         );
         setErrorMessage(
-          copy.acknowledgementError,
+          error instanceof Error ? error.message : 'Notification acknowledgement failed.',
         );
       } finally {
-        setAcknowledging(false);
+        setBusy(false);
       }
     },
-    [
-      acknowledging,
-      copy.acknowledgementError,
-      invalidateWalletSession,
-      notifications,
-      refresh,
-    ],
+    [acknowledge, busy, refresh],
   );
+
+  const markAllRead = useCallback(async () => {
+    if (busy || unreadCount < 1) return;
+    const throughId = openSnapshotRef.current;
+    if (!throughId) return;
+
+    setBusy(true);
+    setErrorMessage('');
+
+    try {
+      const acknowledged = await acknowledge({ throughId });
+      if (!acknowledged) return;
+
+      const now = new Date().toISOString();
+      setItems((current) =>
+        current.map((item) =>
+          item.readAt === null && historyIdAtOrBefore(item.id, throughId)
+            ? { ...item, readAt: now }
+            : item,
+        ),
+      );
+      window.dispatchEvent(
+        new Event(NOTIFICATION_HISTORY_ACKNOWLEDGED_EVENT),
+      );
+      await refresh(false);
+    } catch (error) {
+      console.warn(
+        'VeInvite mark-all notification history failed:',
+        error,
+      );
+      setErrorMessage(
+        error instanceof Error ? error.message : 'Notification acknowledgement failed.',
+      );
+    } finally {
+      setBusy(false);
+    }
+  }, [acknowledge, busy, refresh, unreadCount]);
+
+  const loadMore = useCallback(async () => {
+    if (!wallet || !nextCursor || loading || busy) return;
+    const requestWallet = wallet;
+    setLoading(true);
+    setErrorMessage('');
+
+    try {
+      const page = await loadHistoryPage({
+        requestWallet,
+        beforeId: nextCursor,
+      });
+      if (!page) return;
+
+      setItems((current) => {
+        const byId = new Map(
+          current.map((item) => [item.id, item]),
+        );
+        for (const item of page.items) byId.set(item.id, item);
+        return [...byId.values()];
+      });
+      setUnreadCount(page.unreadCount);
+      setNextCursor(page.nextCursor);
+    } catch (error) {
+      console.warn(
+        'VeInvite older notification history load failed:',
+        error,
+      );
+      setErrorMessage(
+        error instanceof Error ? error.message : 'Notification history request failed.',
+      );
+    } finally {
+      if (sameWallet(activeWalletRef.current, requestWallet)) {
+        setLoading(false);
+      }
+    }
+  }, [busy, loadHistoryPage, loading, nextCursor, wallet]);
 
   useEffect(() => {
     void refresh(true);
@@ -239,8 +436,6 @@ export function InAppInviteNotifications({
 
   useEffect(() => {
     const onRewardReceiptAcknowledged = () => {
-      setOpen(false);
-      setErrorMessage('');
       void refresh(false);
     };
     const onRewardReservationReady = () => {
@@ -271,19 +466,25 @@ export function InAppInviteNotifications({
   if (!wallet) return null;
 
   return (
-    <InviteNotificationSurfaceV2
+    <InviteNotificationHistoryCenter
       locale={locale}
-      notifications={notifications}
+      items={items}
+      unreadCount={unreadCount}
       open={open}
-      busy={acknowledging}
+      loading={loading}
+      busy={busy}
       errorMessage={errorMessage}
+      hasMore={Boolean(nextCursor)}
       onOpen={() => {
-        if (notifications.length > 0) {
-          setErrorMessage('');
-          setOpen(true);
-        }
+        openSnapshotRef.current = newestHistoryId(items);
+        setOpen(true);
+        if (items.length === 0) void refresh(false);
       }}
-      onClose={acknowledgeAndClose}
+      onClose={() => setOpen(false)}
+      onRetry={() => void refresh(false)}
+      onMarkRead={markRead}
+      onMarkAll={markAllRead}
+      onLoadMore={loadMore}
     />
   );
 }

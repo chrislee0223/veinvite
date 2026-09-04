@@ -61,6 +61,11 @@ type NotificationAcknowledgement = {
   rewardReady: boolean;
 };
 
+type LoadedNotificationSet = {
+  notifications: InviteNotificationPayloadV2[];
+  inviteeWalletByCode: Map<string, string | null>;
+};
+
 function noStoreJson(body: unknown, init?: ResponseInit) {
   return NextResponse.json(body, {
     ...init,
@@ -136,7 +141,7 @@ async function loadPaidRewards(
 
 async function loadUnreadNotifications(
   wallet: string,
-): Promise<InviteNotificationPayloadV2[]> {
+): Promise<LoadedNotificationSet> {
   const invitationResult = await supabaseAdmin
     .from('invitations')
     .select(invitationColumns)
@@ -152,11 +157,22 @@ async function loadUnreadNotifications(
   const invitations = (
     (invitationResult.data ?? []) as InvitationRow[]
   ).filter(userVisibleAcceptedInvite);
+  const inviteeWalletByCode = new Map<string, string | null>(
+    invitations.map((invitation) => [
+      invitation.invite_code,
+      invitation.invitee_wallet?.toLowerCase() ?? null,
+    ]),
+  );
   const inviteCodes = invitations.map(
     (invitation) => invitation.invite_code,
   );
 
-  if (inviteCodes.length === 0) return [];
+  if (inviteCodes.length === 0) {
+    return {
+      notifications: [],
+      inviteeWalletByCode,
+    };
+  }
 
   const paidInviteCodes = invitations
     .filter((invitation) => invitation.reward_status === 'PAID')
@@ -226,7 +242,43 @@ async function loadUnreadNotifications(
       (value): value is InviteNotificationPayloadV2 => value !== null,
     );
 
-  return sortUnreadInviteNotificationsV2(unread);
+  return {
+    notifications: sortUnreadInviteNotificationsV2(unread),
+    inviteeWalletByCode,
+  };
+}
+
+async function materializeNotificationHistory(
+  wallet: string,
+  loaded: LoadedNotificationSet,
+): Promise<void> {
+  if (loaded.notifications.length === 0) return;
+
+  await Promise.all(
+    loaded.notifications.map(async (notification) => {
+      const { error } = await supabaseAdmin.rpc(
+        'record_invite_notification_history',
+        {
+          p_inviter_wallet: wallet,
+          p_invite_code: notification.inviteCode,
+          p_kind: notification.kind,
+          p_stage: notification.stage,
+          p_event_at: notification.eventAt,
+          p_reward_amount_wei: notification.rewardAmountWei,
+          p_dapp_progress: notification.dappProgress,
+          p_collapsed_progress: notification.collapsedProgress,
+          p_friend_wallet:
+            loaded.inviteeWalletByCode.get(notification.inviteCode) ?? null,
+        },
+      );
+
+      if (error) {
+        throw new Error(
+          `Notification history could not be recorded: ${error.message}`,
+        );
+      }
+    }),
+  );
 }
 
 function parseAcknowledgement(value: unknown): NotificationAcknowledgement | null {
@@ -310,7 +362,9 @@ export async function GET(request: NextRequest) {
   }
 
   try {
-    const notifications = await loadUnreadNotifications(wallet);
+    const loaded = await loadUnreadNotifications(wallet);
+    await materializeNotificationHistory(wallet, loaded);
+    const notifications = loaded.notifications;
 
     return noStoreJson({
       notification: notifications[0] ?? null,
@@ -388,7 +442,8 @@ export async function POST(request: NextRequest) {
   }
 
   try {
-    const currentNotifications = await loadUnreadNotifications(wallet);
+    const loaded = await loadUnreadNotifications(wallet);
+    const currentNotifications = loaded.notifications;
     const currentByInvite = new Map(
       currentNotifications.map((notification) => [
         notification.inviteCode,
