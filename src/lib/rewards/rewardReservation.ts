@@ -4,6 +4,7 @@ import { ThorClient } from '@vechain/sdk-network';
 
 import { readVeInviteRewardPoolStatus, VEINVITE_APP_ID } from '@/lib/rewards/onchainPool';
 import { readPredictiveRewardPlanning } from '@/lib/rewards/predictivePlanning';
+import { readRewardRuntimeSafety } from '@/lib/rewards/runtimeSafety';
 import { supabaseAdmin } from '@/lib/supabaseServer';
 import { getVeBetterNetworkConfig } from '@/lib/vebetter/network';
 
@@ -33,6 +34,32 @@ export type RewardReservationSweepResult = {
 
 const MAX_RESERVATIONS_PER_SWEEP = 25;
 const MAX_REPRICE_ATTEMPTS = 4;
+
+function emptySweepResult(): RewardReservationSweepResult {
+  return {
+    attempted: 0,
+    reserved: 0,
+    awaitingFinality: 0,
+    skipped: 0,
+  };
+}
+
+async function rewardReservationRuntimeOpen(network: string): Promise<boolean> {
+  const runtime = await readRewardRuntimeSafety();
+
+  if (runtime.emergencyRewardsPaused) {
+    return false;
+  }
+
+  if (
+    network === 'mainnet' &&
+    !runtime.mainnetFundedRewardsEnabled
+  ) {
+    return false;
+  }
+
+  return true;
+}
 
 function safeBlock(value: string | number, fieldName: string): number {
   const parsed = typeof value === 'number' ? value : Number(value);
@@ -116,6 +143,14 @@ async function reserveCandidate({
   }
 
   for (let attempt = 0; attempt < MAX_REPRICE_ATTEMPTS; attempt += 1) {
+    // Emergency pause and the mainnet funded-reward gate apply to creation of
+    // new immutable reward liabilities as well as token settlement. Re-read
+    // the runtime gate for every pricing attempt so a pause activated during a
+    // sweep stops the next reservation instead of waiting for the sweep to end.
+    if (!(await rewardReservationRuntimeOpen(network))) {
+      return 'skipped';
+    }
+
     // Financial authority is cohort-scoped. The public estimate is not trusted
     // here; the live pool and the exact funding receipt bound at onboarding are
     // re-read immediately before the immutable completion-time reservation.
@@ -216,6 +251,14 @@ async function reserveCandidate({
 
 export async function reserveEligibleReferralRewards(): Promise<RewardReservationSweepResult> {
   const { network } = getVeBetterNetworkConfig();
+
+  // Fast fail-closed check before touching chain state or loading candidates.
+  // reserveCandidate() repeats this check immediately before each quote so a
+  // pause that flips during a sweep also takes effect without delay.
+  if (!(await rewardReservationRuntimeOpen(network))) {
+    return emptySweepResult();
+  }
+
   const finalizedBlock = await readFinalizedBlockNumber();
   const candidates = await loadCandidates(network);
 
