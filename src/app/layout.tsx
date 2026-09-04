@@ -2,7 +2,6 @@ import type { Metadata, Viewport } from 'next';
 import type { ReactNode } from 'react';
 
 import { AppProviders } from '@/components/AppProviders';
-import { Brand } from '@/components/Brand';
 import { LocaleDocumentSync } from '@/components/LocaleDocumentSync';
 import { LocaleHydrationShield } from '@/components/LocaleHydrationShield';
 import { UsageAnalyticsPreferenceControl } from '@/components/UsageAnalyticsPreferenceControl';
@@ -67,22 +66,6 @@ export default function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning>
       <body>
-        <div
-          id="veinvite-ssr-startup"
-          aria-hidden="true"
-          style={{
-            position: 'fixed',
-            inset: 0,
-            zIndex: 10000,
-            display: 'grid',
-            placeItems: 'center',
-            background:
-              'radial-gradient(circle at 50% 38%, rgba(244, 183, 40, 0.1), transparent 32%), #080807',
-            pointerEvents: 'none',
-          }}
-        >
-          <Brand compact />
-        </div>
         <LocaleHydrationShield />
         <AppProviders>
           <LocaleDocumentSync />
