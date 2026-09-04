@@ -30,6 +30,7 @@ function decide({
   hasBootstrappedSession = true,
   hasPersistedWallet = false,
   interactiveGateVisible = false,
+  allowHomeDataHydration = false,
 }) {
   return resolveStartupReadiness({
     walletAddress,
@@ -37,6 +38,7 @@ function decide({
     hasBootstrappedSession,
     hasPersistedWallet,
     interactiveGateVisible,
+    allowHomeDataHydration,
   });
 }
 
@@ -328,5 +330,100 @@ test('8-second watchdog does not forcibly release an incomplete Home', async () 
   assert.doesNotMatch(
     source,
     /fallbackTimer\s*=\s*window\.setTimeout\(\s*release\s*,/s,
+  );
+});
+
+test('first document load can reveal same-wallet Home while data hydrates, but the strict default remains', () => {
+  const loading = homeState({
+    status: 'loading',
+    invitesReady: false,
+    referralLinkReady: false,
+  });
+
+  assert.equal(
+    decide({
+      walletAddress: RETURNING_WALLET,
+      state: loading,
+      allowHomeDataHydration: false,
+    }),
+    'hold',
+  );
+
+  assert.equal(
+    decide({
+      walletAddress: RETURNING_WALLET,
+      state: loading,
+      allowHomeDataHydration: true,
+    }),
+    'release',
+  );
+
+  assert.equal(
+    decide({
+      walletAddress: RETURNING_WALLET,
+      state: { ...loading, status: 'error' },
+      allowHomeDataHydration: true,
+    }),
+    'error',
+  );
+});
+
+test('only the first reveal allows partial Home hydration and wallet switches remain strict', async () => {
+  const source = await readFile(
+    new URL('../src/components/WalletRuntimeLifecycle.tsx', import.meta.url),
+    'utf8',
+  );
+
+  assert.match(source, /const hasReleasedOnceRef = useRef\(false\)/);
+  assert.match(source, /hasReleasedOnceRef\.current = true/);
+  assert.match(
+    source,
+    /allowHomeDataHydration:\s*!hasReleasedOnceRef\.current/,
+  );
+  assert.match(source, /releasedRef\.current = false/);
+});
+
+test('fresh VeWorld visitors avoid the multi-second persisted-wallet restore delay', async () => {
+  const source = await readFile(
+    new URL('../src/components/WalletRuntimeLifecycle.tsx', import.meta.url),
+    'utf8',
+  );
+
+  assert.match(
+    source,
+    /const hasPersistedWallet =\s*Boolean\(readPersistedDappKitAccount\(\)\)/,
+  );
+  assert.match(
+    source,
+    /connection\?\.isInAppBrowser && hasPersistedWallet[\s\S]*VEWORLD_WALLET_BOOTSTRAP_SETTLE_MS[\s\S]*BROWSER_WALLET_BOOTSTRAP_SETTLE_MS/,
+  );
+});
+
+test('non-critical startup extras wait until app-ready and an idle browser slice', async () => {
+  const [providers, deferred, placeholders] = await Promise.all([
+    readFile(
+      new URL('../src/components/AppProviders.tsx', import.meta.url),
+      'utf8',
+    ),
+    readFile(
+      new URL('../src/components/DeferredStartupExtras.tsx', import.meta.url),
+      'utf8',
+    ),
+    readFile(
+      new URL('../src/components/StartupHydrationPlaceholders.tsx', import.meta.url),
+      'utf8',
+    ),
+  ]);
+
+  assert.doesNotMatch(providers, /PublicRewardForecastWarmup/);
+  assert.doesNotMatch(providers, /RewardReservationRecovery/);
+  assert.match(providers, /<DeferredStartupExtras \/>/);
+  assert.match(deferred, /requestIdleCallback/);
+  assert.match(deferred, /veinvite-app-ready/);
+  assert.match(deferred, /import\('\.\/RewardReservationRecovery'\)/);
+  assert.match(deferred, /import\('\.\/PublicRewardForecastPortal'\)/);
+  assert.match(
+    placeholders,
+    /\.linkPreviewSkeleton,[\s\S]*\.slotsSkeleton[\s\S]*visibility:\s*visible\s*!important/,
   );
 });
