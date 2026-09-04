@@ -1,7 +1,7 @@
 import Image from 'next/image';
 
 export function Brand({ compact = false }: { compact?: boolean }) {
-  const size = 38;
+  const size = compact ? 32 : 38;
 
   return (
     <div className={compact ? 'brand brandCompact' : 'brand'}>
