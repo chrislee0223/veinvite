@@ -50,7 +50,7 @@ export function DeveloperPreview() {
         <span className="statusDot" />
         {view === 'app' ? (
           <span>
-            <b>Preview 환경:</b> 현재 HomeClient를 보여주되 클릭은 잠겨 있습니다.
+            <b>Preview 환경:</b> 현재 HomeClient를 화면 비교용으로만 렌더링하며 클릭·키보드 조작은 잠겨 있습니다.
             Preview 배포는 Production DB 접근이 코드에서 차단되어 있습니다.
           </span>
         ) : (
@@ -61,7 +61,11 @@ export function DeveloperPreview() {
       </section>
 
       {view === 'app' ? (
-        <section className="livePreviewFrame" aria-label="Current VeInvite app UI">
+        <section
+          className="livePreviewFrame"
+          aria-label="Current VeInvite app UI"
+          inert
+        >
           <div className="interactionLock" aria-hidden="true" />
           <HomeClient />
         </section>
