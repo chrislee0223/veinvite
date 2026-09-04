@@ -15,8 +15,10 @@ const PAGE_SIZE = 1000;
 const ZERO_ADDRESS =
   '0x0000000000000000000000000000000000000000';
 
-export const MIN_VOT3_CONVERSION_WEI =
-  1_000_000_000_000_000_000n;
+// One token wei means any real, positive B3TR -> VOT3 conversion qualifies.
+// VeBetterDAO itself enforces the separate voting-power threshold when the
+// invitee later casts the required allocation-round vote.
+export const MIN_VOT3_CONVERSION_WEI = 1n;
 
 const transferEvent = new ABIEvent(
   'event Transfer(address indexed from, address indexed to, uint256 value)',
@@ -226,10 +228,12 @@ function eventMatchKey(
  * Both events must share the same transaction and clause. Receiving VOT3 from
  * another wallet therefore cannot satisfy this mission.
  *
- * A qualifying conversion must be at least 1 B3TR and strictly after the exact
- * first positive dApp reward already verified by the activity scanner in
- * VeChain execution order (block -> transaction -> clause). Passing the exact
- * event position avoids re-discovering a different same-block reward.
+ * A qualifying conversion may be any positive amount, but it must happen
+ * strictly after the exact first positive dApp reward already verified by the
+ * activity scanner in VeChain execution order (block -> transaction -> clause).
+ * Passing the exact event position avoids re-discovering a different same-block
+ * reward. VeBetterDAO separately enforces its own voting-power threshold when
+ * the invitee later casts the allocation-round vote.
  */
 export async function getVeBetterVot3ConversionProgress({
   walletAddress,
