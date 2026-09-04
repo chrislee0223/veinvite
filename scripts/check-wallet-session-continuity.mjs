@@ -55,6 +55,16 @@ if (!/\}, \[account\?\.address\]\);/.test(walletAuth)) {
 }
 
 if (
+  !/if \(firstError\) \{\s*throw firstError;\s*\}[\s\S]*veinvite-wallet-session-cleared/.test(
+    walletAuth,
+  )
+) {
+  failures.push(
+    'The session-cleared event must only be emitted after the browser session DELETE has completed successfully.',
+  );
+}
+
+if (
   !/performDisconnect/.test(walletControl) ||
   !/await clearWalletSession\(\);[\s\S]*await disconnect\(\);/.test(walletControl)
 ) {
