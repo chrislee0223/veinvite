@@ -74,6 +74,7 @@ export function InviteGuideContent({ locale }: { locale: Locale }) {
           list-style:none;
         }
         .steps li {
+          position:relative;
           padding:18px 20px;
           display:flex;
           align-items:flex-start;
@@ -82,7 +83,16 @@ export function InviteGuideContent({ locale }: { locale: Locale }) {
           border-radius:0;
           background:transparent;
         }
-        .steps li + li { border-top:1px solid rgba(255,255,255,.065); }
+        .steps li + li::before {
+          content:'';
+          position:absolute;
+          top:0;
+          left:20px;
+          right:20px;
+          height:1px;
+          background:rgba(255,255,255,.06);
+          pointer-events:none;
+        }
         .stepNumber { flex:0 0 auto; width:34px; height:34px; display:grid; place-items:center; border-radius:11px; background:linear-gradient(135deg,#ffd24d,#efa718); color:#17120a; font-size:.78rem; font-weight:950; }
         .steps strong { display:block; font-size:.91rem; }
         .steps p { margin:5px 0 0; color:#96928a; font-size:.76rem; line-height:1.55; }
@@ -90,6 +100,7 @@ export function InviteGuideContent({ locale }: { locale: Locale }) {
         .eligibilityCard h2 { margin:0 0 14px; font-size:1.08rem; letter-spacing:-.025em; }
         @media (max-width:560px) {
           .steps li { padding:17px; }
+          .steps li + li::before { left:17px; right:17px; }
           .eligibilityCard { padding:17px; }
         }
       `}</style>

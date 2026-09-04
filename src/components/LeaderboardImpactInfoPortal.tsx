@@ -229,10 +229,7 @@ export function LeaderboardImpactInfoPortal({ locale }: { locale: Locale }) {
             <div className="veinviteSoftFocusScroll veinviteImpactInfoBody">
               <section className="veinviteImpactInfoCard">
                 <div className="veinviteImpactInfoTop">
-                  <div>
-                    <span>{t.impactTitle}</span>
-                    <h2 id="veinvite-impact-info-title">{guide.countTitle}</h2>
-                  </div>
+                  <h2 id="veinvite-impact-info-title">{guide.countTitle}</h2>
                 </div>
                 <p>{t.impactNote}</p>
               </section>
@@ -292,13 +289,8 @@ export function LeaderboardImpactInfoPortal({ locale }: { locale: Locale }) {
               border-radius: 22px;
               background: radial-gradient(circle at 90% 0,rgba(255,194,41,.1),transparent 34%),rgba(255,255,255,.03);
             }
-            .veinviteImpactInfoTop span {
-              color: #f4bd35;
-              font-size: .68rem;
-              font-weight: 900;
-            }
             .veinviteImpactInfoTop h2 {
-              margin: 5px 0 0;
+              margin: 0;
               font-size: 1.15rem;
               letter-spacing: -.025em;
             }
