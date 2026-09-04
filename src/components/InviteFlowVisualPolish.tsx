@@ -34,6 +34,31 @@ export function InviteFlowVisualPolish() {
         background: transparent !important;
       }
 
+      /* The mission screen now uses the exact same outer/header geometry as
+         the invite landing screen: 22/18 page padding, a 520px content rail,
+         16px header gap, and 26px from header to the first card. */
+      .appShell:has(> .appHeader + .missionPanel) {
+        width: 100% !important;
+        max-width: none !important;
+        padding: 22px 18px 42px !important;
+      }
+
+      .appShell:has(> .appHeader + .missionPanel) > .appHeader,
+      .appShell:has(> .appHeader + .missionPanel) > .missionPanel {
+        width: min(100%, 520px) !important;
+        margin-left: auto !important;
+        margin-right: auto !important;
+      }
+
+      .appShell:has(> .appHeader + .missionPanel) > .appHeader {
+        gap: 16px !important;
+        margin-bottom: 26px !important;
+      }
+
+      .appShell:has(> .appHeader + .missionPanel) > .missionPanel {
+        margin-top: 0 !important;
+      }
+
       /* Keep the VeInvite brand as one flex item, exactly like the other app
          headers. Only flatten the legacy role-chip/language wrapper so the
          language picker can align to the right content edge. */
@@ -48,8 +73,8 @@ export function InviteFlowVisualPolish() {
       .appHeader label {
         box-sizing: border-box !important;
         width: 155px !important;
-        max-width: 155px !important;
-        min-width: 128px !important;
+        max-width: 48% !important;
+        min-width: 0 !important;
         flex: 0 1 155px !important;
         padding: 0 !important;
         border: 0 !important;
@@ -130,6 +155,15 @@ export function InviteFlowVisualPolish() {
       }
 
       @media (max-width: 560px) {
+        .appShell:has(> .appHeader + .missionPanel) {
+          padding: 18px 14px 42px !important;
+        }
+
+        .appShell:has(> .appHeader + .missionPanel) > .appHeader {
+          gap: 12px !important;
+          margin-bottom: 22px !important;
+        }
+
         .centeredFlow > label {
           width: 155px !important;
         }
@@ -145,19 +179,6 @@ export function InviteFlowVisualPolish() {
       }
 
       @media (max-width: 360px) {
-        .appShell {
-          padding-left: 14px !important;
-          padding-right: 14px !important;
-        }
-
-        .appHeader {
-          gap: 8px !important;
-        }
-
-        .appHeader label {
-          min-width: 128px !important;
-        }
-
         .missionPanel {
           padding: 16px !important;
         }
