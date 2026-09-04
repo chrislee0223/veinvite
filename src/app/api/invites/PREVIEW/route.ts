@@ -14,7 +14,9 @@ const payload = {
     appsRequired: 3,
     rewardsReceived: 0,
     vot3Converted: false,
-    vot3MinimumAmountWei: '1000000000000000000',
+    // The upcoming mission rule is one real positive B3TR -> VOT3 conversion,
+    // not a 1 B3TR minimum. One wei keeps zero-value events ineligible.
+    vot3MinimumAmountWei: '1',
     vot3ConversionAmountWei: null,
     voteCompleted: false,
     uniqueAppIds: [],
