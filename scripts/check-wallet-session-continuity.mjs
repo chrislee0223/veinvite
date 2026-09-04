@@ -66,10 +66,13 @@ if (
 
 if (
   !/performDisconnect/.test(walletControl) ||
-  !/await clearWalletSession\(\);[\s\S]*await disconnect\(\);/.test(walletControl)
+  !/await clearWalletSession\(\);[\s\S]*await disconnect\(\);/.test(walletControl) ||
+  !/performDisconnect[\s\S]*clearPersistedVeWorldConnectionState\(\)[\s\S]*waitForWalletRelease/.test(
+    walletControl,
+  )
 ) {
   failures.push(
-    'Explicit disconnect/switch must continue clearing this browser session before disconnecting the wallet provider.',
+    'Explicit disconnect/switch must clear this browser session, disconnect the provider, remove stale VeWorld resume evidence, and only then allow a new wallet handshake.',
   );
 }
 
