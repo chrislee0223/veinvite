@@ -73,7 +73,7 @@ const DEFAULT_PROGRESS: InviteProgress = {
   appsRequired: 3,
   rewardsReceived: 0,
   vot3Converted: false,
-  vot3MinimumAmountWei: '1000000000000000000',
+  vot3MinimumAmountWei: '1',
   vot3ConversionAmountWei: null,
   voteCompleted: false,
   uniqueAppIds: [],
@@ -82,6 +82,8 @@ const DEFAULT_PROGRESS: InviteProgress = {
 };
 
 const VEBETTER_APPS_URL = 'https://governance.vebetterdao.org/apps';
+const VEBETTER_ALLOCATION_VOTING_URL =
+  'https://governance.vebetterdao.org/allocations';
 const RESUME_SYNC_COOLDOWN_MS = 5_000;
 
 async function readInviteResponse(
@@ -516,7 +518,13 @@ export function InviteeClient({ code }: { code: string }) {
             actionHref={appsDone ? undefined : VEBETTER_APPS_URL}
           />
           <MissionCard state={conversionDone ? 'done' : conversionUnlocked ? 'current' : 'locked'} title={t.conversionMission} description={t.conversionMissionDescription} status={conversionDone ? t.complete : conversionUnlocked ? t.ready : t.locked} />
-          <MissionCard state={voteDone ? 'done' : voteUnlocked ? 'current' : 'locked'} title={t.voteMission} description={t.voteMissionDescription} status={voteDone ? t.complete : voteUnlocked ? t.ready : t.locked} />
+          <MissionCard
+            state={voteDone ? 'done' : voteUnlocked ? 'current' : 'locked'}
+            title={t.voteMission}
+            description={t.voteMissionDescription}
+            status={voteDone ? t.complete : voteUnlocked ? t.ready : t.locked}
+            actionHref={!voteDone && voteUnlocked ? VEBETTER_ALLOCATION_VOTING_URL : undefined}
+          />
           {!completed && demoMode ? (
             <button type="button" className="secondaryButton" onClick={() => void completeMissions()}>{t.demoComplete}</button>
           ) : legacyIncomplete ? (
