@@ -6,7 +6,6 @@ const providers = fs.readFileSync('src/components/AppProviders.tsx', 'utf8');
 const visualPolish = fs.readFileSync('src/components/InviteFlowVisualPolish.tsx', 'utf8');
 const missionCopy = fs.readFileSync('src/lib/i18n/inviteeMissionCopyPolish.ts', 'utf8');
 const missionRuleCopy = fs.readFileSync('src/lib/i18n/inviteeMissionRulePolish.ts', 'utf8');
-const missionSequenceCopy = fs.readFileSync('src/lib/i18n/inviteeMissionSequenceFinalPolish.ts', 'utf8');
 
 const supportedLocales = [
   'en', 'ko', 'zh', 'hi', 'es', 'ja', 'it', 'tr', 'nl', 'de', 'fr', 'ar',
@@ -44,23 +43,20 @@ test('mission UI polish keeps spacing, readability, and touch targets deliberate
   assert.match(visualPolish, /min-width: 64px !important/);
 });
 
-test('mission copy overrides load in deterministic final order', () => {
+test('mission copy overrides load in deterministic order without redundant final layers', () => {
   const hardeningIndex = providers.indexOf("import '@/lib/i18n/copyHardening';");
   const missionCopyIndex = providers.indexOf("import '@/lib/i18n/inviteeMissionCopyPolish';");
   const missionRuleCopyIndex = providers.indexOf("import '@/lib/i18n/inviteeMissionRulePolish';");
-  const missionSequenceCopyIndex = providers.indexOf("import '@/lib/i18n/inviteeMissionSequenceFinalPolish';");
   assert.ok(hardeningIndex >= 0);
   assert.ok(missionCopyIndex > hardeningIndex);
   assert.ok(missionRuleCopyIndex > missionCopyIndex);
-  assert.ok(missionSequenceCopyIndex > missionRuleCopyIndex);
+  assert.doesNotMatch(providers, /inviteeMissionSequenceFinalPolish/);
 });
 
 test('mission copy polish covers every supported locale', () => {
   for (const locale of supportedLocales) {
-    const key = locale === 'zh-tw' ? "'zh-tw':" : `${locale}:`;
     assert.ok(missionCopy.includes(locale === 'zh-tw' ? "'zh-tw': {" : `${locale}: {`), `missing mission copy for ${locale}`);
     assert.ok(missionRuleCopy.includes(locale === 'zh-tw' ? "'zh-tw': {" : `${locale}: {`), `missing final mission rule copy for ${locale}`);
-    assert.ok(missionSequenceCopy.includes(key), `missing mission sequence copy for ${locale}`);
   }
 });
 
@@ -68,11 +64,11 @@ test('Korean mission copy matches the approved wording and one-conversion rule',
   assert.match(missionCopy, /appMission: `서로 다른 dApp 3개에서 B3TR 받기`/);
   assert.match(missionRuleCopy, /appMissionDescription: 'VeBetterDAO dApp을 이용해 각각 B3TR 보상을 받으면 완료돼요\.'/);
   assert.match(missionRuleCopy, /conversionMission: 'B3TR → VOT3 1회 전환'/);
-  assert.match(missionSequenceCopy, /ko: '수량과 관계없이 B3TR을 VOT3로 1회 전환하면 완료돼요\.'/);
-  assert.doesNotMatch(missionSequenceCopy, /첫 dApp/);
-  assert.doesNotMatch(missionSequenceCopy, /dApp 미션을 완료한 뒤/);
-  assert.match(missionSequenceCopy, /voteMission: '보상 배분 투표 1회 참여'/);
-  assert.match(missionSequenceCopy, /voteMissionDescription: 'B3TR → VOT3 전환을 완료한 뒤 보상 배분 투표에 1회 참여하세요\.'/);
+  assert.match(missionRuleCopy, /conversionMissionDescription: '수량과 관계없이 B3TR을 VOT3로 1회 전환하면 완료돼요\.'/);
+  assert.doesNotMatch(missionRuleCopy, /첫 dApp/);
+  assert.doesNotMatch(missionRuleCopy, /dApp 미션을 완료한 뒤/);
+  assert.match(missionRuleCopy, /voteMission: '보상 배분 투표 1회 참여'/);
+  assert.match(missionRuleCopy, /voteMissionDescription: 'B3TR → VOT3 전환을 완료한 뒤 보상 배분 투표에 1회 참여하세요\.'/);
   assert.match(missionCopy, /ready: `준비됨`/);
   assert.match(missionCopy, /autoProgress: `미션 진행 상황은 온체인 기록을 통해 자동으로 확인해요\.`/);
 });
