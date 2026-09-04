@@ -55,11 +55,14 @@ test('Korean Guide explains 3+ dApps and reusable slots precisely', () => {
   assert.match(hardeningSource, /완료된 친구의 슬롯은 다시 열려/);
 });
 
-test('Home Guide uses one shared card language for invitation steps and eligibility', () => {
+test('Home Guide preserves its intro while using one shared card language for steps and eligibility', () => {
+  assert.match(guideSource, /<header className="guideIntro">/u);
+  assert.match(guideSource, /<span>\{t\.eyebrow\}<\/span>/u);
+  assert.match(guideSource, /<p>\{flow\.description\}<\/p>/u);
   assert.match(guideSource, /<section className="guideCard stepsCard">/u);
   assert.match(guideSource, /<h2>\{t\.title\}<\/h2>/u);
+  assert.doesNotMatch(guideSource, /<h1>\{t\.title\}<\/h1>/u);
   assert.match(guideSource, /<section className="guideCard eligibilityCard">/u);
-  assert.doesNotMatch(guideSource, /<header>/u);
   assert.match(
     guideSource,
     /<span className="stepNumber" aria-hidden="true">\{index \+ 1\}<\/span>/u,
