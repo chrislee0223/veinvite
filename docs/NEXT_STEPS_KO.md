@@ -1,6 +1,6 @@
 # 다음 단계 — Production 운영 상태
 
-업데이트: 2026-09-03
+업데이트: 2026-09-04
 
 이 문서는 과거의 초기 구축·수동 지급 체크리스트를 대체합니다. 현재 VeInvite는 Production 온보딩과 전용 Reward Distributor 기반 자동 추천 보상 파이프라인을 포함합니다. 자동 지급이 활성화되어 있다는 것은 모든 완료 건에 즉시 보상이 보장된다는 뜻이 아닙니다. 실제 allocation, 추천 보상 풀, 완전한 자격 증빙, Sybil CLEAR, 라운드 준비 및 finalized 체인 검증을 모두 통과해야 지급됩니다.
 
@@ -15,7 +15,7 @@
 - [x] 자기 초대 차단
 - [x] 한 지갑의 중복 추천 관계 차단
 - [x] 서로 다른 VeBetterDAO dApp 3개의 실제 양수 B3TR 보상 확인
-- [x] 첫 인정 dApp 보상 이후 B3TR → VOT3 전환 확인
+- [x] 첫 인정 dApp 보상 이후 실제 B3TR → VOT3 전환 1회 확인 (0보다 큰 수량이면 인정)
 - [x] 인정 전환 이후 Allocation Voting 확인
 - [x] 온체인 증빙 기반 미션 진행도
 - [x] Sybil CLEAR / REVIEW / BLOCKED 검토 흐름

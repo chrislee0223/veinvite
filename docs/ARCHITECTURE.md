@@ -28,7 +28,7 @@
 3. Only an eligible authenticated wallet atomically reserves the first available reusable friend slot (1 or 2) and receives a normal immutable invitation code for its mission lifecycle.
 4. Self-referrals, already-referred wallets, sponsor-cycle attempts, and attempts made while both slots are occupied do not create an invitation.
 5. The accepted wallet completes three distinct VeBetterDAO dApp reward events.
-6. After the first qualifying dApp event, the wallet converts at least 1 B3TR to VOT3.
+6. After the first qualifying dApp event, the wallet makes one real B3TR → VOT3 conversion. Any positive amount qualifies.
 7. After conversion, the wallet casts an Allocation Vote.
 8. Fresh Sybil / VePassport signals are evaluated before reward eligibility settles.
 9. Only complete raw evidence plus the required clear safety state can enter the reward queue.

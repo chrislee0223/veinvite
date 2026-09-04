@@ -16,7 +16,7 @@ VeInvite는 VeBetterDAO 신규 사용자 온보딩과 휴면 사용자 복귀를
 - 초대 수락 시 온체인 이력으로 신규 / 복귀 / 활성 기존 사용자 분류
 - 복귀 사용자는 최근 12개 완료 VeBetterDAO 라운드와 현재 확인 블록까지 활동 여부 검증
 - 초대 이후 서로 다른 VeBetterDAO dApp 3개의 **양수 B3TR 보상** 검증
-- 첫 qualifying dApp 보상 이후 최소 1 B3TR의 직접 B3TR → VOT3 전환 검증
+- 첫 qualifying dApp 보상 이후 실제 B3TR → VOT3 전환 1회 검증 (0보다 큰 수량이면 인정)
 - qualifying VOT3 전환 이후 Allocation Voting 검증
 - 온체인 impact evidence와 블록/트랜잭션/clause 실행순서 저장
 - Sybil 검토 상태와 보상 자격을 DB 제약·트리거로 연동
@@ -64,7 +64,7 @@ Mainnet 자동 추천 보상 파이프라인은 현재 코드와 Production 설�
 1. 초대자의 영구 초대 링크를 통해 VeInvite 진입
 2. 지갑 인증 및 신규/복귀 참여 자격 확인 후 비어 있는 친구 슬롯 배정
 3. 서로 다른 VeBetterDAO dApp 3개에서 실제 양수 B3TR 보상 완료
-4. 첫 인정 dApp 보상 이후 최소 1 B3TR을 VOT3로 직접 전환
+4. 첫 인정 dApp 보상 이후 B3TR → VOT3를 실제로 1회 직접 전환 (0보다 큰 수량이면 인정)
 5. 전환 이후 VeBetterDAO Allocation Voting 참여
 6. 온체인 증거 및 Sybil 검토 통과
 7. 온보딩 성공 확인 및 초대자 추천 보상 자격 큐 등록
