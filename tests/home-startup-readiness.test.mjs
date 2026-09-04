@@ -230,18 +230,25 @@ test('VeWorld bootstrap uses SDK connection state before allowing anonymous Home
   assert.match(source, /shouldHoldForWalletBootstrap/);
 });
 
-test('partial wallet Home remains visually covered until link and slots are both ready', async () => {
-  const source = await readFile(
-    new URL('../src/components/HomeDataRevealGuard.tsx', import.meta.url),
+test('Home startup reveal has one owner and normal Home live regions cannot release it early', async () => {
+  const runtime = await readFile(
+    new URL('../src/components/WalletRuntimeLifecycle.tsx', import.meta.url),
+    'utf8',
+  );
+  const providers = await readFile(
+    new URL('../src/components/AppProviders.tsx', import.meta.url),
     'utf8',
   );
 
-  assert.match(source, /homeState\.status !== 'loading'/);
+  assert.doesNotMatch(providers, /HomeDataRevealGuard/);
   assert.match(
-    source,
-    /homeState\.invitesReady && homeState\.referralLinkReady/,
+    runtime,
+    /!document\.querySelector\('main\.screen'\)\s*&&\s*document\.querySelector\(\s*'\[aria-live="polite"\]'/s,
   );
-  assert.match(source, /<Brand compact \/>/);
+  assert.doesNotMatch(
+    runtime,
+    /const hasInteractiveGate = \(\) =>\s*Boolean\(\s*document\.querySelector\(\s*'\[aria-live="polite"\]'/s,
+  );
 });
 
 test('referral hydration placeholders have a visual fail-safe', async () => {
