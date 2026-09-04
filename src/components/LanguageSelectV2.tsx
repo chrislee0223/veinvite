@@ -20,7 +20,7 @@ export function LanguageSelectV2({ locale, onSelect, onContinue }: LanguageSelec
 
   return (
     <main className="screen">
-      <header className="topBar"><Brand compact /></header>
+      <header className="topBar"><Brand /></header>
       <section className="card">
         <div className="badge">{t.badge}</div>
         <h1>{t.title}</h1>
@@ -52,10 +52,10 @@ export function LanguageSelectV2({ locale, onSelect, onContinue }: LanguageSelec
       </section>
 
       <style jsx>{`
-        .screen { min-height:100svh; width:100%; box-sizing:border-box; display:flex; flex-direction:column; align-items:center; padding:20px 18px 32px; color:#fff; background:radial-gradient(circle at 50% 24%,rgba(244,183,40,.17),transparent 36%),#080807; }
-        .topBar { width:min(100%,430px); display:flex; align-items:center; margin-bottom:22px; }
-        .card { position:relative; overflow:hidden; width:min(100%,430px); box-sizing:border-box; padding:28px 22px 22px; border:1px solid rgba(255,205,80,.25); border-radius:28px; background:linear-gradient(160deg,rgba(54,40,14,.98),rgba(16,16,14,.98) 64%); box-shadow:0 24px 70px rgba(0,0,0,.42),inset 0 1px 0 rgba(255,255,255,.08); }
-        .card::before { content:''; position:absolute; width:220px; height:220px; right:-110px; top:-120px; border-radius:50%; background:rgba(244,183,40,.18); }
+        .screen { min-height:100svh; width:100%; box-sizing:border-box; display:flex; flex-direction:column; align-items:center; padding:22px 18px 32px; color:#fff; background:radial-gradient(circle at 50% 24%,rgba(244,183,40,.17),transparent 36%),#080807; }
+        .topBar { width:min(100%,520px); display:flex; align-items:center; margin-bottom:26px; }
+        .card { position:relative; overflow:hidden; width:min(100%,520px); box-sizing:border-box; padding:28px 24px 24px; border:1px solid rgba(255,205,80,.25); border-radius:30px; background:linear-gradient(160deg,rgba(54,40,14,.98),rgba(16,16,14,.98) 64%); box-shadow:0 24px 70px rgba(0,0,0,.42),inset 0 1px 0 rgba(255,255,255,.08); }
+        .card::before { content:''; position:absolute; width:250px; height:250px; right:-110px; top:-120px; border-radius:50%; background:rgba(244,183,40,.18); }
         .badge { position:relative; z-index:1; display:inline-flex; align-items:center; min-height:28px; padding:0 11px; border:1px solid rgba(255,205,80,.28); border-radius:999px; background:rgba(244,183,40,.12); color:#ffd66e; font-size:.7rem; font-weight:900; letter-spacing:.08em; }
         h1 { position:relative; z-index:1; margin:28px 0 7px; text-align:center; font-size:clamp(2rem,9vw,2.65rem); line-height:1.08; letter-spacing:-.045em; overflow-wrap:anywhere; }
         .subtitle { position:relative; z-index:1; margin:0 0 20px; text-align:center; color:#b8b3ca; font-size:.92rem; font-weight:700; }
@@ -72,6 +72,11 @@ export function LanguageSelectV2({ locale, onSelect, onContinue }: LanguageSelec
         .continueButton { position:relative; z-index:1; width:100%; min-height:56px; margin-top:18px; border:0; border-radius:17px; display:flex; align-items:center; justify-content:center; gap:10px; background:linear-gradient(135deg,#ffd24d,#efa718); color:#17120a; font:inherit; font-size:1rem; font-weight:950; cursor:pointer; }
         .continueButton span { font-size:1.6rem; line-height:1; }
         .note { position:relative; z-index:1; margin:12px 0 0; text-align:center; color:#777387; font-size:.72rem; }
+        @media (max-width:560px) {
+          .screen { padding:18px 14px 32px; }
+          .topBar { margin-bottom:22px; }
+          .card { padding:24px 18px 20px; border-radius:26px; }
+        }
       `}</style>
     </main>
   );
