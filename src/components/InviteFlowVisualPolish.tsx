@@ -91,15 +91,22 @@ export function InviteFlowVisualPolish() {
       .appHeader select.languageSelect:not(.languageSelectNativeEnhanced) {
         width: 155px !important;
         max-width: 100% !important;
-        min-height: 48px !important;
+        min-height: 44px !important;
         box-sizing: border-box !important;
-        padding: 7px 34px 7px 12px !important;
+        padding: 5px 34px 5px 12px !important;
         border: 1px solid rgba(255,255,255,.1) !important;
         border-radius: 13px !important;
         background: #141625 !important;
         color: #fff !important;
         font-size: .76rem !important;
         font-weight: 800 !important;
+      }
+
+      /* Keep the enhanced flag picker on the same 44px vertical rhythm. */
+      .headerLanguageTrigger {
+        min-height: 44px !important;
+        padding-top: 5px !important;
+        padding-bottom: 5px !important;
       }
 
       /* The small quest eyebrow duplicates the primary page heading. */
@@ -171,8 +178,8 @@ export function InviteFlowVisualPolish() {
         .centeredFlow select.languageSelect:not(.languageSelectNativeEnhanced),
         .appHeader select.languageSelect:not(.languageSelectNativeEnhanced) {
           width: 155px !important;
-          min-height: 48px !important;
-          padding: 7px 34px 7px 12px !important;
+          min-height: 44px !important;
+          padding: 5px 34px 5px 12px !important;
           border-radius: 13px !important;
           font-size: .76rem !important;
         }
