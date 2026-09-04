@@ -55,6 +55,28 @@ export function InviteFlowVisualPolish() {
         font-weight: 800 !important;
       }
 
+      /* Mission screen: keep the header intentionally minimal and aligned to
+         the same outer edges as the mission panel below it. */
+      .appHeader:has(+ .missionPanel) .chip {
+        display: none !important;
+      }
+
+      /* The small “My Quest” eyebrow duplicates the main mission heading.
+         Hiding it here also lets the title reclaim the space cleanly. */
+      .missionPanel > .eyebrow {
+        display: none !important;
+      }
+
+      .missionPanel > .eyebrow + h1 {
+        margin: 0 0 14px !important;
+      }
+
+      /* Locked missions should read as unavailable without becoming hard to
+         read, especially on dim mobile displays. */
+      .missionPanel .mission.locked {
+        opacity: .62 !important;
+      }
+
       .errorIcon {
         position: relative !important;
         width: 96px !important;
