@@ -58,6 +58,12 @@ export function LocaleHydrationShield() {
   const shieldRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
+    // RootLayout renders an SSR-only copy of this exact loading surface so the
+    // browser never paints the underlying body background before React hydrates.
+    // Once the client shield exists, remove the server copy; both layers are
+    // visually identical, so the handoff is imperceptible.
+    document.getElementById('veinvite-ssr-startup')?.remove();
+
     setLocale(resolveStartupLocale());
 
     const handleLanguageChange = (event: Event) => {
