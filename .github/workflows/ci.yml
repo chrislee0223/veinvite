@@ -92,6 +92,9 @@ jobs:
       - name: Wallet session continuity gate
         run: node scripts/check-wallet-session-continuity.mjs
 
+      - name: VeWorld startup readiness gate
+        run: node --experimental-strip-types --test tests/home-startup-readiness.test.mjs
+
       - name: Usage analytics privacy gate
         run: node --test tests/usage-analytics-privacy.test.mjs
 
