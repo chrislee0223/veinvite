@@ -14,6 +14,29 @@ import {
 
 const SET_LANGUAGE_INTENT =
   'SET_WALLET_LANGUAGE_PREFERENCE';
+const OBSERVE_DISPLAY_LANGUAGE_INTENT =
+  'OBSERVE_WALLET_DISPLAY_LANGUAGE';
+
+const LANGUAGE_USAGE_SOURCES = [
+  'browser_auto',
+  'local_storage',
+  'wallet_preference',
+  'manual_selection',
+] as const;
+
+type LanguageUsageSource =
+  (typeof LANGUAGE_USAGE_SOURCES)[number];
+
+function isLanguageUsageSource(
+  value: unknown,
+): value is LanguageUsageSource {
+  return (
+    typeof value === 'string' &&
+    LANGUAGE_USAGE_SOURCES.includes(
+      value as LanguageUsageSource,
+    )
+  );
+}
 
 function noStoreJson(
   body: Record<string, unknown>,
@@ -77,6 +100,59 @@ async function readPreference(
   return data;
 }
 
+async function readLanguageUsage(
+  walletAddress: string,
+) {
+  const { data, error } = await supabaseAdmin
+    .from('wallet_language_usage')
+    .select(
+      'current_language, current_source, first_observed_at, last_observed_at',
+    )
+    .eq('wallet_address', walletAddress)
+    .maybeSingle();
+
+  if (error) {
+    throw new Error(
+      `Wallet display language lookup failed: ${error.message}`,
+    );
+  }
+
+  return data;
+}
+
+async function recordLanguageUsage({
+  walletAddress,
+  language,
+  source,
+  observedAt,
+}: {
+  walletAddress: string;
+  language: string;
+  source: LanguageUsageSource;
+  observedAt: string;
+}) {
+  const { error } = await supabaseAdmin
+    .from('wallet_language_usage')
+    .upsert(
+      {
+        wallet_address: walletAddress,
+        current_language: language,
+        current_source: source,
+        last_observed_at: observedAt,
+        updated_at: observedAt,
+      },
+      {
+        onConflict: 'wallet_address',
+      },
+    );
+
+  if (error) {
+    throw new Error(
+      `Wallet display language save failed: ${error.message}`,
+    );
+  }
+}
+
 export async function GET(
   request: NextRequest,
 ) {
@@ -85,8 +161,11 @@ export async function GET(
       await requireWalletSession({ request });
     const walletAddress =
       session.walletAddress.toLowerCase();
-    const preference =
-      await readPreference(walletAddress);
+    const [preference, usage] =
+      await Promise.all([
+        readPreference(walletAddress),
+        readLanguageUsage(walletAddress),
+      ]);
 
     return noStoreJson({
       walletAddress,
@@ -96,6 +175,19 @@ export async function GET(
           : null,
       updatedAt:
         preference?.updated_at ?? null,
+      displayLanguage:
+        usage && isLocale(usage.current_language)
+          ? usage.current_language
+          : null,
+      displayLanguageSource:
+        usage &&
+        isLanguageUsageSource(usage.current_source)
+          ? usage.current_source
+          : null,
+      displayLanguageFirstObservedAt:
+        usage?.first_observed_at ?? null,
+      displayLanguageLastObservedAt:
+        usage?.last_observed_at ?? null,
     });
   } catch (error) {
     const authResponse =
@@ -145,12 +237,15 @@ export async function POST(
     typeof body !== 'object' ||
     body === null ||
     !('intent' in body) ||
-    body.intent !== SET_LANGUAGE_INTENT
+    (
+      body.intent !== SET_LANGUAGE_INTENT &&
+      body.intent !== OBSERVE_DISPLAY_LANGUAGE_INTENT
+    )
   ) {
     return noStoreJson(
       {
         error:
-          `intent must be ${SET_LANGUAGE_INTENT}.`,
+          `intent must be ${SET_LANGUAGE_INTENT} or ${OBSERVE_DISPLAY_LANGUAGE_INTENT}.`,
       },
       400,
     );
@@ -168,6 +263,21 @@ export async function POST(
     );
   }
 
+  const requestedSource =
+    'source' in body
+      ? body.source
+      : null;
+
+  if (
+    body.intent === OBSERVE_DISPLAY_LANGUAGE_INTENT &&
+    !isLanguageUsageSource(requestedSource)
+  ) {
+    return noStoreJson(
+      { error: 'Unsupported language source.' },
+      400,
+    );
+  }
+
   try {
     const session =
       await requireWalletSession({ request });
@@ -176,29 +286,63 @@ export async function POST(
     const updatedAt =
       new Date().toISOString();
 
-    const { error } = await supabaseAdmin
-      .from('wallet_preferences')
-      .upsert(
-        {
-          wallet_address: walletAddress,
-          language,
-          updated_at: updatedAt,
-        },
-        {
-          onConflict: 'wallet_address',
-        },
-      );
+    if (body.intent === SET_LANGUAGE_INTENT) {
+      const { error } = await supabaseAdmin
+        .from('wallet_preferences')
+        .upsert(
+          {
+            wallet_address: walletAddress,
+            language,
+            updated_at: updatedAt,
+          },
+          {
+            onConflict: 'wallet_address',
+          },
+        );
 
-    if (error) {
-      throw new Error(
-        `Wallet preference save failed: ${error.message}`,
-      );
+      if (error) {
+        throw new Error(
+          `Wallet preference save failed: ${error.message}`,
+        );
+      }
+
+      const source: LanguageUsageSource =
+        requestedSource === 'local_storage'
+          ? 'local_storage'
+          : 'manual_selection';
+
+      await recordLanguageUsage({
+        walletAddress,
+        language,
+        source,
+        observedAt: updatedAt,
+      });
+
+      return noStoreJson({
+        walletAddress,
+        language,
+        updatedAt,
+        displayLanguage: language,
+        displayLanguageSource: source,
+        displayLanguageLastObservedAt: updatedAt,
+      });
     }
+
+    const source =
+      requestedSource as LanguageUsageSource;
+
+    await recordLanguageUsage({
+      walletAddress,
+      language,
+      source,
+      observedAt: updatedAt,
+    });
 
     return noStoreJson({
       walletAddress,
-      language,
-      updatedAt,
+      displayLanguage: language,
+      displayLanguageSource: source,
+      displayLanguageLastObservedAt: updatedAt,
     });
   } catch (error) {
     const authResponse =
@@ -209,14 +353,14 @@ export async function POST(
     }
 
     console.error(
-      'Failed to save VeInvite wallet language preference:',
+      'Failed to save VeInvite wallet language state:',
       error,
     );
 
     return noStoreJson(
       {
         error:
-          'VeInvite language preference could not be saved.',
+          'VeInvite language state could not be saved.',
       },
       500,
     );
