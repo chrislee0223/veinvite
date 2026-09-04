@@ -20,6 +20,8 @@ const WALLET_PATTERN =
 const WALLET_SIGNATURE_TIMEOUT_MS = 15_000;
 const WALLET_SIGNATURE_SETTLE_MS = 350;
 const CANCEL_SETTLE_TIMEOUT_MS = 1_000;
+const SESSION_CLEAR_RETRY_DELAYS_MS =
+  [0, 180, 420] as const;
 
 type SessionResponse = {
   authenticated?: boolean;
@@ -58,6 +60,10 @@ type InFlightAuthentication = {
   walletAddress: string;
   promise: Promise<void>;
   cancel: () => void;
+};
+
+type ClearWalletSessionOptions = {
+  confirmedDisconnected?: boolean;
 };
 
 function wait(
@@ -478,100 +484,125 @@ export function useWalletAuthentication() {
     );
 
   const clearWalletSession =
-    useCallback(async () => {
-      const connectedWallet =
-        account?.address
-          ?.trim()
-          .toLowerCase() ?? null;
+    useCallback(
+      async (
+        options: ClearWalletSessionOptions = {},
+      ) => {
+        const connectedWallet =
+          account?.address
+            ?.trim()
+            .toLowerCase() ?? null;
 
-      // VeWorld/WalletConnect can emit a passive disconnect after refresh,
-      // backgrounding, navigation, or provider reconstruction. By the time the
-      // passive-disconnect grace handler runs there is no connected account.
-      // That transport event is not user logout, so it must never revoke the
-      // persistent VeInvite browser session or reset the verified UI state.
-      // VeInvite's explicit disconnect/switch controls call this function while
-      // the current account is still connected, before disconnecting provider
-      // transport, so intentional logout continues to clear this device only.
-      if (
-        !connectedWallet ||
-        !WALLET_PATTERN.test(connectedWallet)
-      ) {
-        return;
-      }
+        // Passive provider churn must remain non-destructive. A caller may
+        // bypass the live-account requirement only after a visible grace period
+        // has confirmed that the wallet really stayed disconnected.
+        if (
+          !options.confirmedDisconnected &&
+          (
+            !connectedWallet ||
+            !WALLET_PATTERN.test(connectedWallet)
+          )
+        ) {
+          return;
+        }
 
-      const current =
-        inFlightRef.current;
+        const current =
+          inFlightRef.current;
 
-      // This event represents an explicit VeInvite session clear. The wallet
-      // gate uses it to distinguish real logout/switch actions from passive
-      // WalletConnect transport churn during refresh.
-      window.dispatchEvent(
-        new Event(
-          'veinvite-wallet-session-cleared',
-        ),
-      );
+        // Invalidate the proof first. A wallet signature request is controlled
+        // by the wallet and cannot always be programmatically dismissed, but
+        // any late result must be unable to create a VeInvite session after an
+        // explicit/confirmed logout.
+        authGenerationRef.current += 1;
+        inFlightRef.current = null;
+        current?.cancel();
 
-      // Invalidate the proof first. A wallet signature request is controlled by
-      // the wallet and cannot always be programmatically dismissed, but any
-      // late result must be unable to create a VeInvite session after logout.
-      authGenerationRef.current += 1;
-      inFlightRef.current = null;
-      current?.cancel();
+        const clearServerSession = async () => {
+          let lastError: unknown;
 
-      let firstError: unknown;
+          for (
+            let index = 0;
+            index < SESSION_CLEAR_RETRY_DELAYS_MS.length;
+            index += 1
+          ) {
+            const delay =
+              SESSION_CLEAR_RETRY_DELAYS_MS[index];
+            if (delay > 0) {
+              await wait(delay);
+            }
 
-      const clearServerSession =
-        async () => {
-          const response = await fetch(
-            '/api/auth/session',
-            {
-              method: 'DELETE',
-              credentials: 'include',
-            },
-          );
+            try {
+              const response = await fetch(
+                '/api/auth/session',
+                {
+                  method: 'DELETE',
+                  credentials: 'include',
+                },
+              );
 
-          if (!response.ok) {
-            throw new Error(
-              'Could not clear wallet verification.',
-            );
+              if (response.ok) {
+                return;
+              }
+
+              lastError = new Error(
+                `Could not clear wallet verification (${response.status}).`,
+              );
+            } catch (error) {
+              lastError = error;
+            }
           }
+
+          throw (
+            lastError ??
+            new Error(
+              'Could not clear wallet verification.',
+            )
+          );
         };
 
-      try {
-        await clearServerSession();
-      } catch (error) {
-        firstError = error;
-      }
-
-      if (current) {
-        // Do not let a frozen wallet prompt freeze the disconnect button. Give
-        // an already-finishing verification a short bounded window, then clear
-        // the cookie once more to cover a verify request that was already in
-        // flight when cancellation started.
-        try {
-          await Promise.race([
-            current.promise.catch(
-              () => undefined,
-            ),
-            wait(
-              CANCEL_SETTLE_TIMEOUT_MS,
-            ),
-          ]);
-        } catch {
-          // The final session clear below is authoritative.
-        }
+        let firstClearError: unknown;
 
         try {
           await clearServerSession();
         } catch (error) {
-          firstError ??= error;
+          firstClearError = error;
         }
-      }
 
-      if (firstError) {
-        throw firstError;
-      }
-    }, [account?.address]);
+        if (current) {
+          // Do not let a frozen wallet prompt freeze the disconnect button. Give
+          // an already-finishing verification a short bounded window, then
+          // clear the cookie once more. This final clear is authoritative and
+          // covers a verify request that was already in flight when cancellation
+          // started.
+          try {
+            await Promise.race([
+              current.promise.catch(
+                () => undefined,
+              ),
+              wait(
+                CANCEL_SETTLE_TIMEOUT_MS,
+              ),
+            ]);
+          } catch {
+            // The final session clear below is authoritative.
+          }
+
+          await clearServerSession();
+        } else if (firstClearError) {
+          throw firstClearError;
+        }
+
+        // This event means the browser session is now actually gone. Emitting it
+        // only after the authoritative server DELETE succeeds keeps the wallet
+        // gate, startup bootstrap marker and persistent cookie consistent.
+        window.dispatchEvent(
+          new Event(
+            'veinvite-wallet-session-cleared',
+          ),
+        );
+      },
+      [account?.address],
+    );
 
   return {
     ensureWalletSession,
