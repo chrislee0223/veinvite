@@ -123,3 +123,30 @@ test('invite-only visual and language enhancements stay out of normal Home start
   // actually needed, but normal Home no longer mounts it at all.
   assert.match(picker, /new MutationObserver\(scheduleAttach\)/);
 });
+
+test('background invite recovery no longer competes with the authoritative Home startup load', async () => {
+  const refresh = await readFile(
+    new URL('../src/components/InviteStatusAutoRefresh.tsx', import.meta.url),
+    'utf8',
+  );
+
+  assert.match(refresh, /APP_READY_EVENT = 'veinvite-app-ready'/);
+  assert.match(refresh, /INITIAL_CHECK_FALLBACK_MS = 5_000/);
+  assert.match(refresh, /requestIdleCallback/);
+  assert.match(
+    refresh,
+    /veinviteAppReady === 'true'[\s\S]*startInitialCheck\(\)/,
+  );
+  assert.match(
+    refresh,
+    /addEventListener\([\s\S]*APP_READY_EVENT,[\s\S]*startInitialCheck/,
+  );
+  assert.match(
+    refresh,
+    /setTimeout\([\s\S]*startInitialCheck,[\s\S]*INITIAL_CHECK_FALLBACK_MS/,
+  );
+  assert.doesNotMatch(
+    refresh,
+    /if \(!walletAddress\) \{\s*return;\s*\}\s*void check\(\);/,
+  );
+});

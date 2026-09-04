@@ -11,6 +11,16 @@ import type { InviteRecord } from '@/lib/types';
 
 const POLL_INTERVAL_MS = 30_000;
 const EVIDENCE_SYNC_INTERVAL_MS = 5 * 60_000;
+const INITIAL_CHECK_FALLBACK_MS = 5_000;
+const APP_READY_EVENT = 'veinvite-app-ready';
+
+type IdleCapableWindow = Window & {
+  requestIdleCallback?: (
+    callback: () => void,
+    options?: { timeout?: number },
+  ) => number;
+  cancelIdleCallback?: (id: number) => void;
+};
 
 function inviteFingerprint(
   invite: InviteRecord,
@@ -214,7 +224,68 @@ export function InviteStatusAutoRefresh() {
       return;
     }
 
-    void check();
+    // HomeClient already performs the authoritative invite/link startup load.
+    // Keep this independent recovery poll, but move its first duplicate invite
+    // read out of the critical startup window. App-ready normally triggers the
+    // check during an idle browser slice; the bounded fallback preserves the
+    // old recovery behavior if Home never reaches app-ready.
+    const idleWindow = window as IdleCapableWindow;
+    let initialCheckStarted = false;
+    let initialFallbackId: number | null = null;
+    let initialIdleId: number | null = null;
+
+    const startInitialCheck = () => {
+      if (initialCheckStarted) {
+        return;
+      }
+
+      initialCheckStarted = true;
+
+      if (initialFallbackId !== null) {
+        window.clearTimeout(initialFallbackId);
+        initialFallbackId = null;
+      }
+
+      if (
+        typeof idleWindow.requestIdleCallback ===
+        'function'
+      ) {
+        initialIdleId =
+          idleWindow.requestIdleCallback(
+            () => {
+              initialIdleId = null;
+              void check();
+            },
+            { timeout: 1_500 },
+          );
+        return;
+      }
+
+      initialFallbackId = window.setTimeout(
+        () => {
+          initialFallbackId = null;
+          void check();
+        },
+        0,
+      );
+    };
+
+    if (
+      document.documentElement.dataset
+        .veinviteAppReady === 'true'
+    ) {
+      startInitialCheck();
+    } else {
+      window.addEventListener(
+        APP_READY_EVENT,
+        startInitialCheck,
+        { once: true },
+      );
+      initialFallbackId = window.setTimeout(
+        startInitialCheck,
+        INITIAL_CHECK_FALLBACK_MS,
+      );
+    }
 
     const intervalId = window.setInterval(
       () => {
@@ -239,6 +310,20 @@ export function InviteStatusAutoRefresh() {
     );
 
     return () => {
+      window.removeEventListener(
+        APP_READY_EVENT,
+        startInitialCheck,
+      );
+      if (initialFallbackId !== null) {
+        window.clearTimeout(initialFallbackId);
+      }
+      if (
+        initialIdleId !== null &&
+        typeof idleWindow.cancelIdleCallback ===
+          'function'
+      ) {
+        idleWindow.cancelIdleCallback(initialIdleId);
+      }
       window.clearInterval(intervalId);
       window.removeEventListener('focus', onFocus);
       document.removeEventListener(
