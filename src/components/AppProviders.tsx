@@ -9,6 +9,7 @@ import dynamic from 'next/dynamic';
 // hardening passes intentionally iterate the dictionaries that exist at import
 // time, so this order keeps newly added locale packs inside those safeguards.
 import '@/lib/i18n/localePacks/registerExpandedLocales';
+import '@/lib/i18n/inviteLandingFinalPolish';
 import '@/lib/i18n/copyHardening';
 import '@/lib/i18n/guideCopyFinalHardening';
 import '@/lib/i18n/secondaryPageCopyHardening';
