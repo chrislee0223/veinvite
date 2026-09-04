@@ -8,6 +8,7 @@ const [
   polishSource,
   providerSource,
   pickerSource,
+  scopedSource,
   finalCopySource,
 ] = await Promise.all([
   readFile('src/components/InviteLandingV2.tsx', 'utf8'),
@@ -15,6 +16,7 @@ const [
   readFile('src/components/InviteFlowVisualPolish.tsx', 'utf8'),
   readFile('src/components/AppProviders.tsx', 'utf8'),
   readFile('src/components/HeaderLanguagePickerPortal.tsx', 'utf8'),
+  readFile('src/components/RouteScopedInviteEnhancements.tsx', 'utf8'),
   readFile('src/lib/i18n/inviteLandingFinalPolish.ts', 'utf8'),
 ]);
 
@@ -91,11 +93,24 @@ test('final invite headline copy is applied after expanded locales register', ()
   );
 });
 
-test('invite visual parity polish is mounted once at app-provider level', () => {
-  assert.match(providerSource, /import \{ InviteFlowVisualPolish \} from '\.\/InviteFlowVisualPolish';/u);
-  assert.equal((providerSource.match(/<InviteFlowVisualPolish \/>/gu) ?? []).length, 1);
+test('invite visual parity polish stays mounted once, but only on invite-capable routes', () => {
+  assert.match(
+    providerSource,
+    /import \{ RouteScopedInviteEnhancements \} from '\.\/RouteScopedInviteEnhancements';/u,
+  );
+  assert.equal(
+    (providerSource.match(/<RouteScopedInviteEnhancements \/>/gu) ?? []).length,
+    1,
+  );
+  assert.match(scopedSource, /import\('\.\/InviteFlowVisualPolish'\)/u);
+  assert.match(scopedSource, /import\('\.\/HeaderLanguagePickerPortal'\)/u);
+  assert.match(scopedSource, /pathname\.startsWith\('\/i\/'\)/u);
+  assert.match(scopedSource, /pathname\.startsWith\('\/r\/'\)/u);
+  assert.match(scopedSource, /pathname\.startsWith\('\/ui-test'\)/u);
+  assert.equal((scopedSource.match(/<InviteFlowVisualPolish \/>/gu) ?? []).length, 1);
+  assert.equal((scopedSource.match(/<HeaderLanguagePickerPortal \/>/gu) ?? []).length, 1);
   assert.ok(
-    providerSource.indexOf('<InviteFlowVisualPolish />') <
-      providerSource.indexOf('<HeaderLanguagePickerPortal />'),
+    scopedSource.indexOf('<InviteFlowVisualPolish />') <
+      scopedSource.indexOf('<HeaderLanguagePickerPortal />'),
   );
 });
