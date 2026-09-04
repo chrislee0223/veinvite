@@ -222,7 +222,9 @@ export function LeaderboardImpactInfoPortal({ locale }: { locale: Locale }) {
                 className="veinviteSoftFocusClose"
                 onClick={closeInfo}
                 aria-label={t.close}
-              />
+              >
+                <span className="veinviteDialogCloseGlyph" aria-hidden="true">×</span>
+              </button>
             </div>
             <div className="veinviteSoftFocusScroll veinviteImpactInfoBody">
               <section className="veinviteImpactInfoCard">
@@ -269,21 +271,16 @@ export function LeaderboardImpactInfoPortal({ locale }: { locale: Locale }) {
               box-shadow: none;
               color: #fff;
             }
-            .veinviteImpactInfoDialog > .veinviteSoftFocusHeader .veinviteSoftFocusClose::before {
-              content: '×';
-              position: static;
-              width: auto;
-              height: auto;
-              border-radius: 0;
-              background: transparent;
-              transform: none;
+            .veinviteImpactInfoDialog > .veinviteSoftFocusHeader .veinviteSoftFocusClose::before,
+            .veinviteImpactInfoDialog > .veinviteSoftFocusHeader .veinviteSoftFocusClose::after {
+              content: none !important;
+              display: none !important;
+            }
+            .veinviteImpactInfoDialog .veinviteDialogCloseGlyph {
+              display: block;
               font-size: 20px;
               font-weight: 400;
               line-height: 1;
-            }
-            .veinviteImpactInfoDialog > .veinviteSoftFocusHeader .veinviteSoftFocusClose::after {
-              content: none;
-              display: none;
             }
             .veinviteImpactInfoBody {
               padding: 0 20px 20px;
