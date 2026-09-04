@@ -20,14 +20,11 @@ import '@/lib/i18n/secondaryPageCopyHardening';
 import '@/lib/i18n/referralLinkCopy';
 import '@/lib/i18n/referralLinkCopyFinalHardening';
 import '@/lib/i18n/guideRewardClaimHardening';
+import { DeferredStartupExtras } from './DeferredStartupExtras';
+import { FirstPaintStartupAccelerator } from './FirstPaintStartupAccelerator';
 import { HeaderLanguagePickerPortal } from './HeaderLanguagePickerPortal';
 import { InviteFlowVisualPolish } from './InviteFlowVisualPolish';
 import { LegalNavigationMemory } from './LegalNavigationMemory';
-import {
-  PublicRewardForecastPortal,
-  PublicRewardForecastWarmup,
-} from './PublicRewardForecastPortal';
-import { RewardReservationRecovery } from './RewardReservationRecovery';
 import { SecondaryPageLayoutPolish } from './SecondaryPageLayoutPolish';
 import { WalletConnectionResume } from './WalletConnectionResume';
 import { WalletLanguagePreferenceSync } from './WalletLanguagePreferenceSync';
@@ -83,19 +80,18 @@ export function AppProviders({
 }) {
   return (
     <ChakraProvider theme={theme}>
-      <PublicRewardForecastWarmup />
       <VeChainProvider>
         <ProviderReadySignal />
+        <FirstPaintStartupAccelerator />
         <WalletConnectionResume />
         <WalletRuntimeLifecycle />
-        <RewardReservationRecovery />
         {children}
         <WalletLanguagePreferenceSync />
         <SecondaryPageLayoutPolish />
         <LegalNavigationMemory />
         <InviteFlowVisualPolish />
         <HeaderLanguagePickerPortal />
-        <PublicRewardForecastPortal />
+        <DeferredStartupExtras />
       </VeChainProvider>
     </ChakraProvider>
   );
