@@ -18,6 +18,13 @@ import { supabaseAdmin } from '@/lib/supabaseServer';
 const SLIDING_SESSION_LIFETIME_DAYS = 30;
 const SLIDING_SESSION_LIFETIME_SECONDS =
   SLIDING_SESSION_LIFETIME_DAYS * 24 * 60 * 60;
+const SESSION_ABSOLUTE_LIFETIME_DAYS = 30;
+const SESSION_ABSOLUTE_LIFETIME_MS =
+  SESSION_ABSOLUTE_LIFETIME_DAYS *
+  24 *
+  60 *
+  60 *
+  1000;
 const SESSION_RENEWAL_INTENT = 'renew';
 const WALLET_PATTERN = /^0x[0-9a-f]{40}$/;
 
@@ -61,6 +68,14 @@ function setSessionCookie({
   token: string;
   expiresAt: Date;
 }) {
+  const remainingLifetimeSeconds = Math.max(
+    0,
+    Math.ceil(
+      (expiresAt.getTime() - Date.now()) /
+        1000,
+    ),
+  );
+
   response.cookies.set({
     name: WALLET_SESSION_COOKIE_NAME,
     value: token,
@@ -70,7 +85,7 @@ function setSessionCookie({
       'production',
     sameSite: 'lax',
     path: '/',
-    maxAge: SLIDING_SESSION_LIFETIME_SECONDS,
+    maxAge: remainingLifetimeSeconds,
     expires: expiresAt,
   });
 }
@@ -264,13 +279,17 @@ export async function POST(
       readWalletSessionTokens(request);
     const now = new Date();
     const nowIso = now.toISOString();
+    const absoluteCreatedAfter = new Date(
+      now.getTime() -
+        SESSION_ABSOLUTE_LIFETIME_MS,
+    ).toISOString();
 
     const {
       data: sessionRow,
       error: sessionRowError,
     } = await supabaseAdmin
       .from('wallet_auth_sessions')
-      .select('token_hash')
+      .select('token_hash, created_at')
       .eq('id', session.id)
       .eq(
         'wallet_address',
@@ -278,6 +297,7 @@ export async function POST(
       )
       .is('revoked_at', null)
       .gt('expires_at', nowIso)
+      .gt('created_at', absoluteCreatedAfter)
       .maybeSingle();
 
     if (sessionRowError) {
@@ -311,10 +331,40 @@ export async function POST(
       );
     }
 
+    const createdAtMs = Date.parse(
+      String(sessionRow?.created_at ?? ''),
+    );
+
+    if (!Number.isFinite(createdAtMs)) {
+      throw new Error(
+        'Stored wallet session creation time is invalid.',
+      );
+    }
+
+    const absoluteExpiresAt = new Date(
+      createdAtMs +
+        SESSION_ABSOLUTE_LIFETIME_MS,
+    );
+
+    if (absoluteExpiresAt <= now) {
+      return NextResponse.json(
+        { authenticated: false },
+        {
+          status: 401,
+          headers: {
+            'Cache-Control': 'no-store',
+          },
+        },
+      );
+    }
+
     const newExpiresAt = new Date(
-      now.getTime() +
-        SLIDING_SESSION_LIFETIME_SECONDS *
-          1000,
+      Math.min(
+        now.getTime() +
+          SLIDING_SESSION_LIFETIME_SECONDS *
+            1000,
+        absoluteExpiresAt.getTime(),
+      ),
     );
 
     const {
@@ -333,6 +383,7 @@ export async function POST(
       )
       .is('revoked_at', null)
       .gt('expires_at', nowIso)
+      .gt('created_at', absoluteCreatedAfter)
       .select('id')
       .maybeSingle();
 
@@ -370,9 +421,9 @@ export async function POST(
       },
     );
 
-    // A normal app re-entry silently moves the same verified session's expiry
-    // to 30 days from today. No wallet signature or legal re-consent is part of
-    // this renewal path.
+    // Re-entry can refresh a shorter cookie/database expiry for continuity, but
+    // never beyond 30 days from the original wallet ownership proof. Once that
+    // absolute boundary is reached the user must sign a fresh challenge.
     setSessionCookie({
       response,
       token: sessionToken,
