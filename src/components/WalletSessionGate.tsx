@@ -35,6 +35,7 @@ type VerificationState =
   | 'error';
 
 const SESSION_CHECK_SURFACE_DELAY_MS = 3_000;
+const SESSION_ERROR_SURFACE_DELAY_MS = 600;
 const PASSIVE_DISCONNECT_GRACE_MS = 8_000;
 const SESSION_CLEARED_EVENT =
   'veinvite-wallet-session-cleared';
@@ -103,6 +104,8 @@ export function WalletSessionGate({
     useRef<string | null>(walletAddress);
   const pendingDisconnectTimerRef =
     useRef<number | null>(null);
+  const pendingErrorTimerRef =
+    useRef<number | null>(null);
   const bootReadyDispatchedRef = useRef(false);
 
   useEffect(() => {
@@ -154,6 +157,10 @@ export function WalletSessionGate({
       attemptRef.current += 1;
       autoAttemptedWalletRef.current = null;
       bootReadyDispatchedRef.current = false;
+      if (pendingErrorTimerRef.current !== null) {
+        window.clearTimeout(pendingErrorTimerRef.current);
+        pendingErrorTimerRef.current = null;
+      }
       setVerifiedWallet(null);
       setState('idle');
     };
@@ -194,6 +201,10 @@ export function WalletSessionGate({
           pendingDisconnectTimerRef.current,
         );
         pendingDisconnectTimerRef.current = null;
+      }
+      if (pendingErrorTimerRef.current !== null) {
+        window.clearTimeout(pendingErrorTimerRef.current);
+        pendingErrorTimerRef.current = null;
       }
     };
   }, []);
@@ -271,6 +282,11 @@ export function WalletSessionGate({
       return;
     }
 
+    if (pendingErrorTimerRef.current !== null) {
+      window.clearTimeout(pendingErrorTimerRef.current);
+      pendingErrorTimerRef.current = null;
+    }
+
     const attempt = attemptRef.current + 1;
     attemptRef.current = attempt;
 
@@ -300,7 +316,15 @@ export function WalletSessionGate({
       );
 
       setVerifiedWallet(null);
-      setState('error');
+      pendingErrorTimerRef.current = window.setTimeout(() => {
+        pendingErrorTimerRef.current = null;
+
+        if (attemptRef.current !== attempt) {
+          return;
+        }
+
+        setState('error');
+      }, SESSION_ERROR_SURFACE_DELAY_MS);
     }
   }, [
     ensureWalletSession,
@@ -366,6 +390,10 @@ export function WalletSessionGate({
       attemptRef.current += 1;
       autoAttemptedWalletRef.current = null;
       bootReadyDispatchedRef.current = false;
+      if (pendingErrorTimerRef.current !== null) {
+        window.clearTimeout(pendingErrorTimerRef.current);
+        pendingErrorTimerRef.current = null;
+      }
       setVerifiedWallet(null);
       setIsDisconnecting(true);
 
