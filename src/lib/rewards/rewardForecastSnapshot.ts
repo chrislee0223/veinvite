@@ -78,58 +78,22 @@ function readTimestamp(value: unknown, fieldName: string): string {
 function mapSnapshotRow(row: Record<string, unknown>): RewardForecastSnapshot {
   return {
     generatedAt: readTimestamp(row.generated_at, 'generated_at'),
-    basisAllocationRoundId: readRoundId(
-      row.basis_allocation_round_id,
-      'basis_allocation_round_id',
-    ),
-    projectedFundingRoundId: readRoundId(
-      row.projected_funding_round_id,
-      'projected_funding_round_id',
-    ),
-    earliestCompletionRoundId: readRoundId(
-      row.earliest_completion_round_id,
-      'earliest_completion_round_id',
-    ),
-    allocationSampleCount: readCount(
-      row.allocation_sample_count,
-      'allocation_sample_count',
-    ),
-    recipientHistoryRoundCount: readCount(
-      row.recipient_history_round_count,
-      'recipient_history_round_count',
-    ),
-    projectedAllocationWei: readIntegerString(
-      row.projected_allocation_wei,
-      'projected_allocation_wei',
-    ),
-    projectedAllocationLowWei: readIntegerString(
-      row.projected_allocation_low_wei,
-      'projected_allocation_low_wei',
-    ),
-    projectedAllocationHighWei: readIntegerString(
-      row.projected_allocation_high_wei,
-      'projected_allocation_high_wei',
-    ),
-    observedPoolBalanceWei: readIntegerString(
-      row.observed_pool_balance_wei,
-      'observed_pool_balance_wei',
-    ),
-    reservedExistingWei: readIntegerString(
-      row.reserved_existing_wei,
-      'reserved_existing_wei',
-    ),
+    basisAllocationRoundId: readRoundId(row.basis_allocation_round_id, 'basis_allocation_round_id'),
+    projectedFundingRoundId: readRoundId(row.projected_funding_round_id, 'projected_funding_round_id'),
+    earliestCompletionRoundId: readRoundId(row.earliest_completion_round_id, 'earliest_completion_round_id'),
+    allocationSampleCount: readCount(row.allocation_sample_count, 'allocation_sample_count'),
+    recipientHistoryRoundCount: readCount(row.recipient_history_round_count, 'recipient_history_round_count'),
+    projectedAllocationWei: readIntegerString(row.projected_allocation_wei, 'projected_allocation_wei'),
+    projectedAllocationLowWei: readIntegerString(row.projected_allocation_low_wei, 'projected_allocation_low_wei'),
+    projectedAllocationHighWei: readIntegerString(row.projected_allocation_high_wei, 'projected_allocation_high_wei'),
+    observedPoolBalanceWei: readIntegerString(row.observed_pool_balance_wei, 'observed_pool_balance_wei'),
+    reservedExistingWei: readIntegerString(row.reserved_existing_wei, 'reserved_existing_wei'),
     expectedRecipients: readCount(row.expected_recipients, 'expected_recipients'),
     recipientLow: readCount(row.recipient_low, 'recipient_low'),
     recipientHigh: readCount(row.recipient_high, 'recipient_high'),
     estimatedRewardWei: readIntegerString(row.estimated_reward_wei, 'estimated_reward_wei'),
-    estimatedRewardLowWei: readIntegerString(
-      row.estimated_reward_low_wei,
-      'estimated_reward_low_wei',
-    ),
-    estimatedRewardHighWei: readIntegerString(
-      row.estimated_reward_high_wei,
-      'estimated_reward_high_wei',
-    ),
+    estimatedRewardLowWei: readIntegerString(row.estimated_reward_low_wei, 'estimated_reward_low_wei'),
+    estimatedRewardHighWei: readIntegerString(row.estimated_reward_high_wei, 'estimated_reward_high_wei'),
     modelVersion: String(row.model_version ?? ''),
   };
 }
@@ -140,16 +104,11 @@ export async function readLatestRewardForecastSnapshot(input: {
 }): Promise<RewardForecastSnapshot | null> {
   const { data, error } = await supabaseAdmin.rpc(
     'read_latest_reward_forecast_snapshot',
-    {
-      p_network: input.network,
-      p_app_id: input.appId,
-    },
+    { p_network: input.network, p_app_id: input.appId },
   );
-
   if (error) {
     throw new Error(`Latest reward forecast snapshot could not be loaded: ${error.message}`);
   }
-
   if (data === null || data === undefined) return null;
   return mapSnapshotRow(readRecord(data, 'latest reward forecast snapshot'));
 }
@@ -170,21 +129,13 @@ async function readForecastHistory(input: {
       p_recipient_limit: RECIPIENT_HISTORY_LIMIT,
     },
   );
-
   if (error) {
     throw new Error(`Reward forecast history could not be loaded: ${error.message}`);
   }
 
   const record = readRecord(data, 'reward forecast history');
-  const allocationValues = readArray(
-    record.allocationWeiNewestFirst,
-    'allocationWeiNewestFirst',
-  );
-  const recipientValues = readArray(
-    record.completedRecipientCountsNewestFirst,
-    'completedRecipientCountsNewestFirst',
-  );
-
+  const allocationValues = readArray(record.allocationWeiNewestFirst, 'allocationWeiNewestFirst');
+  const recipientValues = readArray(record.completedRecipientCountsNewestFirst, 'completedRecipientCountsNewestFirst');
   return {
     recentAllocationWeiNewestFirst: allocationValues.map((value, index) =>
       readIntegerString(value, `allocationHistory[${index}]`),
@@ -201,10 +152,7 @@ function pendingAgeWeights(createdAt: string, nowMs: number): {
   bucket: 'fresh' | 'aging' | 'stale' | 'old';
 } {
   const createdMs = Date.parse(createdAt);
-  if (Number.isNaN(createdMs)) {
-    return { expectedBps: 50, stressBps: 150, bucket: 'old' };
-  }
-
+  if (Number.isNaN(createdMs)) return { expectedBps: 50, stressBps: 150, bucket: 'old' };
   const ageHours = Math.max(0, (nowMs - createdMs) / 3_600_000);
   if (ageHours <= 24) return { expectedBps: 500, stressBps: 1_000, bucket: 'fresh' };
   if (ageHours <= 72) return { expectedBps: 300, stressBps: 700, bucket: 'aging' };
@@ -213,7 +161,6 @@ function pendingAgeWeights(createdAt: string, nowMs: number): {
 }
 
 async function readForecastPipeline(input: {
-  network: string;
   basePipeline: {
     queuedEligibleCount: number;
     voteReadyCount: number;
@@ -227,7 +174,8 @@ async function readForecastPipeline(input: {
     .from('invitations')
     .select('created_at')
     .eq('status', 'PENDING_ACCEPTANCE')
-    .is('reward_eligible_at', null);
+    .is('reward_eligible_at', null)
+    .is('reward_cohort_round_id', null);
 
   if (error) {
     throw new Error(`Pending invitation ages could not be loaded: ${error.message}`);
@@ -250,7 +198,6 @@ async function readForecastPipeline(input: {
     pendingAcceptanceExpectedBps,
     pendingAcceptanceStressBps,
   };
-
   return { pipeline, ageBuckets };
 }
 
@@ -263,22 +210,20 @@ export async function refreshRewardForecastSnapshot(input: {
     throw new Error('Reward forecast pool identity does not match the requested network and app.');
   }
 
+  // No cohort is passed here: the planning reader resolves the latest official
+  // allocation receipt and therefore the currently funded operating cohort.
   const planning = await readPredictiveRewardPlanning({
     network: input.network,
     appId: input.appId,
     observedPoolBalanceWei: pool.effectiveRewardPoolWei,
   });
+  if (!planning.latestAllocation || !planning.rewardCohortRoundId) return null;
 
-  if (!planning.latestAllocation) return null;
-
-  const {
-    recentAllocationWeiNewestFirst,
-    completedRewardRoundRecipientCounts,
-  } = await readForecastHistory(input);
+  const { recentAllocationWeiNewestFirst, completedRewardRoundRecipientCounts } =
+    await readForecastHistory(input);
   if (recentAllocationWeiNewestFirst.length === 0) return null;
 
   const { pipeline, ageBuckets } = await readForecastPipeline({
-    network: input.network,
     basePipeline: {
       queuedEligibleCount: planning.pipeline.queuedEligibleCount,
       voteReadyCount: planning.pipeline.voteReadyCount,
@@ -290,9 +235,12 @@ export async function refreshRewardForecastSnapshot(input: {
   });
 
   const forecast = calculateRewardForecastPolicy({
-    recentAllocationWeiNewestFirst,
+    officialAllocationWei: planning.latestAllocation.rewardsAllocationWei,
+    fundingAdjustmentWei: planning.fundingAdjustmentWei,
+    cohortReservedWei: planning.cohortReservedWei,
     observedPoolBalanceWei: pool.effectiveRewardPoolWei,
     reservedExistingWei: planning.reservedExistingWei,
+    allocationSampleCount: recentAllocationWeiNewestFirst.length,
     pipeline,
     completedRewardRoundRecipientCounts,
   });
@@ -301,16 +249,24 @@ export async function refreshRewardForecastSnapshot(input: {
     planning.latestAllocation.veBetterRoundId,
     'latestAllocation.veBetterRoundId',
   );
-  const projectedFundingRoundId = basisAllocationRoundId + 1;
+  const projectedFundingRoundId = readRoundId(
+    planning.rewardCohortRoundId,
+    'rewardCohortRoundId',
+  );
   const earliestCompletionRoundId = projectedFundingRoundId + 1;
   const generatedAt = new Date().toISOString();
 
   const inputSnapshot = {
     forecastOnly: true,
     payoutAuthority: false,
+    modelSemantics: 'CURRENT_COHORT_DESIGNATED_FUNDING',
     basisAllocationRoundId,
-    projectedFundingRoundId,
+    rewardCohortRoundId: projectedFundingRoundId,
     earliestCompletionRoundId,
+    officialAllocationWei: planning.latestAllocation.rewardsAllocationWei,
+    fundingAdjustmentWei: planning.fundingAdjustmentWei,
+    designatedBudgetWei: planning.designatedBudgetWei,
+    cohortReservedWei: planning.cohortReservedWei,
     pipeline,
     pendingAcceptanceAgeBuckets: ageBuckets,
     allocationSamplesNewestFirst: recentAllocationWeiNewestFirst,

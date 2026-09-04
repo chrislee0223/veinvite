@@ -17,111 +17,123 @@ const EMPTY_PIPELINE = {
   pendingAcceptanceStressBps: 0,
 };
 
-test('uses a six-recipient bootstrap center with a conservative range', () => {
-  const forecast = calculateRewardForecastPolicy({
-    recentAllocationWeiNewestFirst: ['8000'],
+function forecast(overrides = {}) {
+  return calculateRewardForecastPolicy({
+    officialAllocationWei: '8000',
+    fundingAdjustmentWei: '0',
+    cohortReservedWei: '0',
     observedPoolBalanceWei: '8000',
     reservedExistingWei: '0',
+    allocationSampleCount: 1,
     pipeline: EMPTY_PIPELINE,
     completedRewardRoundRecipientCounts: [],
+    ...overrides,
   });
+}
 
-  assert.equal(forecast.modelVersion, REWARD_FORECAST_MODEL_VERSION);
-  assert.equal(forecast.expectedRecipients, 6);
-  assert.equal(forecast.recipientLow, 4);
-  assert.equal(forecast.recipientHigh, 8);
-  assert.equal(forecast.estimatedRewardWei, '1333');
-  assert.equal(forecast.estimatedRewardLowWei, '750');
-  assert.equal(forecast.estimatedRewardHighWei, '2500');
+test('uses known current-cohort funding with a six-recipient bootstrap center', () => {
+  const result = forecast();
+
+  assert.equal(result.modelVersion, REWARD_FORECAST_MODEL_VERSION);
+  assert.equal(result.designatedBudgetWei, '8000');
+  assert.equal(result.pricingCapacityWei, '8000');
+  assert.equal(result.expectedRecipients, 6);
+  assert.equal(result.recipientLow, 4);
+  assert.equal(result.recipientHigh, 8);
+  assert.equal(result.estimatedRewardWei, '1333');
+  assert.equal(result.estimatedRewardLowWei, '1000');
+  assert.equal(result.estimatedRewardHighWei, '2000');
 });
 
-test('near-complete pipeline users lower the displayed estimate', () => {
-  const baseline = calculateRewardForecastPolicy({
-    recentAllocationWeiNewestFirst: ['8000'],
-    observedPoolBalanceWei: '8000',
-    reservedExistingWei: '0',
-    pipeline: EMPTY_PIPELINE,
-    completedRewardRoundRecipientCounts: [],
+test('VOT3-ready users carry the agreed 90 percent expected completion weight', () => {
+  const result = forecast({
+    pipeline: {
+      ...EMPTY_PIPELINE,
+      vot3ReadyCount: 10,
+    },
   });
-  const busy = calculateRewardForecastPolicy({
-    recentAllocationWeiNewestFirst: ['8000'],
-    observedPoolBalanceWei: '8000',
-    reservedExistingWei: '0',
+
+  assert.equal(result.pipelineExpectedRecipients, 9);
+  assert.equal(result.expectedRecipients, 12);
+});
+
+test('a separately recorded cohort promotion increases this cohort estimate', () => {
+  const result = forecast({
+    fundingAdjustmentWei: '2000',
+    observedPoolBalanceWei: '10000',
+  });
+
+  assert.equal(result.officialAllocationWei, '8000');
+  assert.equal(result.fundingAdjustmentWei, '2000');
+  assert.equal(result.designatedBudgetWei, '10000');
+  assert.equal(result.estimatedRewardWei, '1666');
+});
+
+test('unrelated carry-over pool balance does not inflate cohort pricing', () => {
+  const result = forecast({
+    observedPoolBalanceWei: '16000',
+  });
+
+  assert.equal(result.designatedBudgetWei, '8000');
+  assert.equal(result.pricingCapacityWei, '8000');
+  assert.equal(result.estimatedRewardWei, '1333');
+});
+
+test('existing cohort reservations reduce remaining cohort pricing capacity', () => {
+  const result = forecast({
+    observedPoolBalanceWei: '10000',
+    reservedExistingWei: '2000',
+    cohortReservedWei: '2000',
+  });
+
+  assert.equal(result.pricingCapacityWei, '6000');
+  assert.equal(result.estimatedRewardWei, '1000');
+});
+
+test('near-complete cohort users lower the displayed estimate', () => {
+  const baseline = forecast();
+  const busy = forecast({
     pipeline: {
       ...EMPTY_PIPELINE,
       voteReadyCount: 5,
     },
-    completedRewardRoundRecipientCounts: [],
   });
 
   assert.ok(busy.expectedRecipients > baseline.expectedRecipients);
   assert.ok(BigInt(busy.estimatedRewardWei) < BigInt(baseline.estimatedRewardWei));
 });
 
-test('allocation history becomes a weighted next-round estimate', () => {
-  const forecast = calculateRewardForecastPolicy({
-    recentAllocationWeiNewestFirst: ['12000', '9000', '6000'],
-    observedPoolBalanceWei: '12000',
-    reservedExistingWei: '0',
-    pipeline: EMPTY_PIPELINE,
-    completedRewardRoundRecipientCounts: [],
-  });
-
-  assert.equal(forecast.allocationSampleCount, 3);
-  assert.equal(forecast.projectedAllocationWei, '10000');
-  assert.equal(forecast.projectedAllocationLowWei, '8500');
-  assert.equal(forecast.projectedAllocationHighWei, '11500');
-});
-
 test('actual recipient history gradually replaces the bootstrap center', () => {
-  const forecast = calculateRewardForecastPolicy({
-    recentAllocationWeiNewestFirst: ['8000'],
-    observedPoolBalanceWei: '8000',
-    reservedExistingWei: '0',
-    pipeline: EMPTY_PIPELINE,
+  const result = forecast({
     completedRewardRoundRecipientCounts: [10, 10, 10, 10, 10, 10],
   });
 
-  assert.equal(forecast.recipientHistoryRoundCount, 6);
-  assert.equal(forecast.expectedRecipients, 9);
-  assert.equal(forecast.estimatedRewardWei, '888');
+  assert.equal(result.recipientHistoryRoundCount, 6);
+  assert.equal(result.expectedRecipients, 9);
+  assert.equal(result.estimatedRewardWei, '888');
 });
 
-test('unsettled reservations cannot create extra pricing capacity', () => {
-  const forecast = calculateRewardForecastPolicy({
-    recentAllocationWeiNewestFirst: ['8000'],
-    observedPoolBalanceWei: '1000',
-    reservedExistingWei: '4000',
-    pipeline: EMPTY_PIPELINE,
-    completedRewardRoundRecipientCounts: [],
-  });
+test('allocation sample count is retained as learning metadata without repricing known funding', () => {
+  const oneSample = forecast({ allocationSampleCount: 1 });
+  const eightSamples = forecast({ allocationSampleCount: 8 });
 
-  assert.equal(forecast.pricingCapacityWei, '8000');
-  assert.equal(forecast.estimatedRewardWei, '1333');
+  assert.equal(oneSample.allocationSampleCount, 1);
+  assert.equal(eightSamples.allocationSampleCount, 8);
+  assert.equal(oneSample.estimatedRewardWei, eightSamples.estimatedRewardWei);
 });
 
 test('fails closed on malformed values', () => {
   assert.throws(
-    () => calculateRewardForecastPolicy({
-      recentAllocationWeiNewestFirst: ['8.5'],
-      observedPoolBalanceWei: '100',
-      reservedExistingWei: '0',
-      pipeline: EMPTY_PIPELINE,
-      completedRewardRoundRecipientCounts: [],
-    }),
-    /recentAllocationWeiNewestFirst/,
+    () => forecast({ officialAllocationWei: '8.5' }),
+    /officialAllocationWei/,
   );
 
   assert.throws(
-    () => calculateRewardForecastPolicy({
-      recentAllocationWeiNewestFirst: ['100'],
-      observedPoolBalanceWei: '100',
-      reservedExistingWei: '0',
+    () => forecast({
       pipeline: {
         ...EMPTY_PIPELINE,
         voteReadyCount: -1,
       },
-      completedRewardRoundRecipientCounts: [],
     }),
     /voteReadyCount/,
   );
