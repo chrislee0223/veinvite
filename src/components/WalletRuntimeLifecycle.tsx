@@ -76,6 +76,7 @@ export function WalletRuntimeLifecycle() {
     useRef<string | null>(walletAddress);
   const homeStateRef = useRef<HomeStartupState | null>(null);
   const releasedRef = useRef(false);
+  const hasReleasedOnceRef = useRef(false);
   const readinessTimerRef = useRef<number | null>(null);
   const startupErrorReportedRef = useRef(false);
   const lastRenewalRef =
@@ -122,9 +123,12 @@ export function WalletRuntimeLifecycle() {
     }
 
     setWalletBootstrapSettled(false);
-    const settleDelay = connection?.isInAppBrowser
-      ? VEWORLD_WALLET_BOOTSTRAP_SETTLE_MS
-      : BROWSER_WALLET_BOOTSTRAP_SETTLE_MS;
+    const hasPersistedWallet =
+      Boolean(readPersistedDappKitAccount());
+    const settleDelay =
+      connection?.isInAppBrowser && hasPersistedWallet
+        ? VEWORLD_WALLET_BOOTSTRAP_SETTLE_MS
+        : BROWSER_WALLET_BOOTSTRAP_SETTLE_MS;
     const timer = window.setTimeout(() => {
       setWalletBootstrapSettled(true);
     }, settleDelay);
@@ -299,6 +303,7 @@ export function WalletRuntimeLifecycle() {
       }
 
       releasedRef.current = true;
+      hasReleasedOnceRef.current = true;
       startupErrorReportedRef.current = false;
       clearReadinessTimer();
       document.documentElement.dataset.veinviteAppReady =
@@ -382,6 +387,8 @@ export function WalletRuntimeLifecycle() {
             hasPersistedWallet:
               hasPersistedVeWorldWallet(),
             interactiveGateVisible,
+            allowHomeDataHydration:
+              !hasReleasedOnceRef.current,
           });
 
           if (decision === 'release') {
@@ -422,6 +429,8 @@ export function WalletRuntimeLifecycle() {
         hasPersistedWallet:
           hasPersistedVeWorldWallet(),
         interactiveGateVisible,
+        allowHomeDataHydration:
+          !hasReleasedOnceRef.current,
       });
 
       if (decision === 'release') {
