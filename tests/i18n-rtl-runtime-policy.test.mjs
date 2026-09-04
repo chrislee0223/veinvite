@@ -2,13 +2,19 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import test from 'node:test';
 
-const [localeSource, conversionSource, providerSource, guidePolicySource] =
-  await Promise.all([
-    readFile('src/lib/i18n/locales.ts', 'utf8'),
-    readFile('src/lib/i18n/inviteeConversionPolicyPolish.ts', 'utf8'),
-    readFile('src/components/AppProviders.tsx', 'utf8'),
-    readFile('src/lib/i18n/guideVot3PolicyPolish.ts', 'utf8'),
-  ]);
+const [
+  localeSource,
+  conversionSource,
+  providerSource,
+  guidePolicySource,
+  typographySource,
+] = await Promise.all([
+  readFile('src/lib/i18n/locales.ts', 'utf8'),
+  readFile('src/lib/i18n/inviteeConversionPolicyPolish.ts', 'utf8'),
+  readFile('src/components/AppProviders.tsx', 'utf8'),
+  readFile('src/lib/i18n/guideVot3PolicyPolish.ts', 'utf8'),
+  readFile('src/app/localized-typography.css', 'utf8'),
+]);
 
 const rtlLocales = [
   ...localeSource.matchAll(
@@ -55,4 +61,23 @@ test('RTL-safe mission policy is applied before the inviter Guide reuses it', ()
     guidePolicySource,
     /inviteeMission\.conversionMissionDescription/,
   );
+});
+
+test('RTL leaderboard mirrors physical accents and isolates technical values', () => {
+  assert.match(
+    typographySource,
+    /html\[dir='rtl'\] \.leaderboardPage \.impactSummaryButton\s*\{[\s\S]*?text-align: right !important;/,
+  );
+  assert.match(
+    typographySource,
+    /html\[dir='rtl'\] \.leaderboardPage \.rankRow\.current\s*\{[\s\S]*?inset -3px 0 0/,
+  );
+
+  for (const selector of ['.walletCell', '.walletText', '.rankMetric']) {
+    assert.match(
+      typographySource,
+      new RegExp(selector.replace('.', '\\.') + ','),
+      `missing RTL technical isolation for ${selector}`,
+    );
+  }
 });
