@@ -19,6 +19,10 @@ const demoCompletionRoute = readFileSync(
   ),
   'utf8',
 );
+const infiniteCanvasPreview = readFileSync(
+  join(process.cwd(), 'src/app/ui-test/infinite-canvas/page.tsx'),
+  'utf8',
+);
 
 const deploymentEnabled = config?.git?.deploymentEnabled;
 const failures = [];
@@ -82,6 +86,21 @@ if (
 ) {
   failures.push(
     'Production bundles must force NEXT_PUBLIC_DEMO_MODE=false even if a stale project variable is enabled.',
+  );
+}
+
+if (!/poweredByHeader\s*:\s*false/.test(nextConfig)) {
+  failures.push(
+    'Public responses must not expose the default Next.js X-Powered-By header.',
+  );
+}
+
+if (
+  /초대 슬롯 1개/.test(infiniteCanvasPreview) ||
+  !/재사용 가능한 친구 슬롯 2개/.test(infiniteCanvasPreview)
+) {
+  failures.push(
+    'Infinite Canvas preview must describe the current two reusable friend-slot policy and never revive the retired one-slot copy.',
   );
 }
 
