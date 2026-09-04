@@ -240,6 +240,28 @@ export function HomeGuideInfoPortal({ locale }: { locale: Locale }) {
               border-bottom: 0;
               background: transparent;
             }
+            .veinviteGuideDialog > .veinviteSoftFocusHeader .veinviteSoftFocusClose {
+              border: 0;
+              background: transparent;
+              box-shadow: none;
+              color: #fff;
+            }
+            .veinviteGuideDialog > .veinviteSoftFocusHeader .veinviteSoftFocusClose::before {
+              content: '×';
+              position: static;
+              width: auto;
+              height: auto;
+              border-radius: 0;
+              background: transparent;
+              transform: none;
+              font-size: 20px;
+              font-weight: 400;
+              line-height: 1;
+            }
+            .veinviteGuideDialog > .veinviteSoftFocusHeader .veinviteSoftFocusClose::after {
+              content: none;
+              display: none;
+            }
             .veinviteGuideScroll {
               padding: 0 22px 24px;
             }
