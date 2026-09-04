@@ -502,15 +502,6 @@ export function useWalletAuthentication() {
       const current =
         inFlightRef.current;
 
-      // This event represents an explicit VeInvite session clear. The wallet
-      // gate uses it to distinguish real logout/switch actions from passive
-      // WalletConnect transport churn during refresh.
-      window.dispatchEvent(
-        new Event(
-          'veinvite-wallet-session-cleared',
-        ),
-      );
-
       // Invalidate the proof first. A wallet signature request is controlled by
       // the wallet and cannot always be programmatically dismissed, but any
       // late result must be unable to create a VeInvite session after logout.
@@ -571,6 +562,15 @@ export function useWalletAuthentication() {
       if (firstError) {
         throw firstError;
       }
+
+      // This event means the browser session is now actually gone. Emitting it
+      // only after the server DELETE succeeds keeps the wallet gate, startup
+      // bootstrap marker and persistent cookie in one consistent state.
+      window.dispatchEvent(
+        new Event(
+          'veinvite-wallet-session-cleared',
+        ),
+      );
     }, [account?.address]);
 
   return {
