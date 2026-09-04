@@ -4,7 +4,8 @@
     "deploymentEnabled": {
       "**": false,
       "main": true,
-      "preview/progress-claim-v2": true
+      "preview/progress-claim-v2": true,
+      "preview/mission-progress-live-20260904": true
     }
   },
   "crons": [
