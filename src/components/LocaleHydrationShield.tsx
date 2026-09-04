@@ -22,6 +22,8 @@ const APP_READY_EVENT = 'veinvite-app-ready';
 const PROVIDER_READY_EVENT =
   'veinvite-provider-ready';
 const STARTUP_RECOVERY_MS = 8_000;
+const INTERACTIVE_WALLET_GATE_SELECTOR =
+  '[data-veinvite-wallet-session-gate="interactive"]';
 
 type ShieldState =
   | { status: 'loading' }
@@ -45,8 +47,9 @@ function resolveStartupLocale(): SupportedLocale {
 
 function hasInteractiveWalletGate(): boolean {
   return Boolean(
-    !document.querySelector('main.screen') &&
-    document.querySelector('[aria-live="polite"]'),
+    document.querySelector(
+      INTERACTIVE_WALLET_GATE_SELECTOR,
+    ),
   );
 }
 
@@ -58,12 +61,6 @@ export function LocaleHydrationShield() {
   const shieldRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
-    // RootLayout renders an SSR-only copy of this exact loading surface so the
-    // browser never paints the underlying body background before React hydrates.
-    // Once the client shield exists, remove the server copy; both layers are
-    // visually identical, so the handoff is imperceptible.
-    document.getElementById('veinvite-ssr-startup')?.remove();
-
     setLocale(resolveStartupLocale());
 
     const handleLanguageChange = (event: Event) => {
@@ -116,9 +113,6 @@ export function LocaleHydrationShield() {
       released = true;
       clearFallbackTimer();
 
-      // Keep one stable painted frame between the final app-ready signal and
-      // removing the SSR-visible shield. This prevents a black/home flash while
-      // the wallet provider, session gate, and Home settle underneath it.
       firstFrame = window.requestAnimationFrame(() => {
         secondFrame = window.requestAnimationFrame(() => {
           setState({ status: 'ready' });
@@ -153,10 +147,6 @@ export function LocaleHydrationShield() {
       interactiveGateVisible = nextVisible;
 
       if (interactiveGateVisible) {
-        // Verification/recovery is a temporary actionable surface. Step the
-        // startup shield aside without marking the application ready. When the
-        // gate disappears, the same shield immediately covers Home again until
-        // the wallet-scoped referral link and slots are both ready.
         clearFallbackTimer();
         setShieldVisible(false);
         return;
@@ -185,9 +175,6 @@ export function LocaleHydrationShield() {
       });
     };
     const handleProviderReady = () => {
-      // Non-home informational routes do not use the wallet/session lifecycle,
-      // so provider readiness is sufficient there. Home deliberately waits for
-      // the stronger explicit startup-readiness signal.
       if (!isHome) {
         release();
       }
