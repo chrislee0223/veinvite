@@ -81,7 +81,7 @@ test('fresh VeWorld visitors avoid the persisted-wallet 3.5 second settle path',
   );
 });
 
-test('non-critical startup work waits until app-ready and an idle slice', async () => {
+test('forecast waits for app-ready, while reward reservation recovery remains independent', async () => {
   const [providers, deferred, placeholders] = await Promise.all([
     readFile(new URL('../src/components/AppProviders.tsx', import.meta.url), 'utf8'),
     readFile(new URL('../src/components/DeferredStartupExtras.tsx', import.meta.url), 'utf8'),
@@ -89,11 +89,11 @@ test('non-critical startup work waits until app-ready and an idle slice', async 
   ]);
 
   assert.doesNotMatch(providers, /PublicRewardForecastWarmup/);
-  assert.doesNotMatch(providers, /RewardReservationRecovery/);
+  assert.match(providers, /<RewardReservationRecovery \/>/);
   assert.match(providers, /<DeferredStartupExtras \/>/);
   assert.match(deferred, /requestIdleCallback/);
   assert.match(deferred, /veinvite-app-ready/);
-  assert.match(deferred, /import\('\.\/RewardReservationRecovery'\)/);
+  assert.doesNotMatch(deferred, /RewardReservationRecovery/);
   assert.match(deferred, /import\('\.\/PublicRewardForecastPortal'\)/);
   assert.match(
     placeholders,
