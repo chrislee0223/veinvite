@@ -22,6 +22,7 @@ export type StartupReadinessInput = {
   hasBootstrappedSession: boolean;
   hasPersistedWallet: boolean;
   interactiveGateVisible: boolean;
+  allowHomeDataHydration?: boolean;
 };
 
 export type WalletBootstrapReadinessInput = {
@@ -45,14 +46,8 @@ function homeStateMatchesWallet(
   state: HomeStartupState | null,
   walletAddress: string | null,
 ): boolean {
-  if (!state) {
-    return false;
-  }
-
-  return (
-    normalizeWallet(state.walletAddress) ===
-    normalizeWallet(walletAddress)
-  );
+  if (!state) return false;
+  return normalizeWallet(state.walletAddress) === normalizeWallet(walletAddress);
 }
 
 export function shouldHoldForWalletBootstrap({
@@ -73,60 +68,30 @@ export function resolveStartupReadiness({
   hasBootstrappedSession,
   hasPersistedWallet,
   interactiveGateVisible,
+  allowHomeDataHydration = false,
 }: StartupReadinessInput): StartupReadinessDecision {
-  // Wallet/session verification is a temporary startup surface, not proof that
-  // Home is ready. The hydration shield may step aside while that actionable
-  // surface is visible, but final app-ready must remain locked until the
-  // wallet-scoped referral link and invite slots have both finished loading.
-  if (interactiveGateVisible) {
-    return 'hold';
-  }
+  if (interactiveGateVisible) return 'hold';
 
   const normalizedWallet = normalizeWallet(walletAddress);
-
   if (normalizedWallet) {
-    if (!homeStateMatchesWallet(homeState, normalizedWallet)) {
-      return 'hold';
+    if (!homeStateMatchesWallet(homeState, normalizedWallet)) return 'hold';
+    if (homeState?.status === 'error') return 'error';
+    if (homeState?.status === 'ready') return 'release';
+    if (allowHomeDataHydration && homeState?.status === 'loading') {
+      return 'release';
     }
-
-    if (homeState?.status === 'error') {
-      return 'error';
-    }
-
-    return homeState?.status === 'ready'
-      ? 'release'
-      : 'hold';
-  }
-
-  // A returning browser can temporarily have wallet=null while VeWorld restores
-  // its transport. Either persisted provider evidence or a server-validated
-  // VeInvite session means the disconnected Home must stay hidden.
-  if (hasPersistedWallet || hasBootstrappedSession) {
     return 'hold';
   }
 
-  if (!homeStateMatchesWallet(homeState, null)) {
-    return 'hold';
-  }
-
-  if (homeState?.status === 'error') {
-    return 'error';
-  }
-
-  return homeState?.status === 'ready'
-    ? 'release'
-    : 'hold';
+  if (hasPersistedWallet || hasBootstrappedSession) return 'hold';
+  if (!homeStateMatchesWallet(homeState, null)) return 'hold';
+  if (homeState?.status === 'error') return 'error';
+  return homeState?.status === 'ready' ? 'release' : 'hold';
 }
 
-export function publishHomeStartupState(
-  state: HomeStartupState,
-): void {
-  if (typeof window === 'undefined') {
-    return;
-  }
-
-  document.documentElement.dataset.veinviteHomeStartupStatus =
-    state.status;
+export function publishHomeStartupState(state: HomeStartupState): void {
+  if (typeof window === 'undefined') return;
+  document.documentElement.dataset.veinviteHomeStartupStatus = state.status;
   document.documentElement.dataset.veinviteHomeStartupWallet =
     normalizeWallet(state.walletAddress) ?? '';
   document.documentElement.dataset.veinviteHomeInvitesReady =
@@ -135,47 +100,26 @@ export function publishHomeStartupState(
     state.referralLinkReady ? 'true' : 'false';
   document.documentElement.dataset.veinviteHomeStartupError =
     state.errorMessage ?? '';
-
   window.dispatchEvent(
-    new CustomEvent<HomeStartupState>(
-      HOME_STARTUP_STATE_EVENT,
-      { detail: state },
-    ),
+    new CustomEvent<HomeStartupState>(HOME_STARTUP_STATE_EVENT, { detail: state }),
   );
 }
 
 export function readPublishedHomeStartupState(): HomeStartupState | null {
-  if (typeof document === 'undefined') {
+  if (typeof document === 'undefined') return null;
+  const status = document.documentElement.dataset.veinviteHomeStartupStatus;
+  if (status !== 'loading' && status !== 'ready' && status !== 'error') {
     return null;
   }
-
-  const status =
-    document.documentElement.dataset
-      .veinviteHomeStartupStatus;
-
-  if (
-    status !== 'loading' &&
-    status !== 'ready' &&
-    status !== 'error'
-  ) {
-    return null;
-  }
-
-  const wallet =
-    document.documentElement.dataset
-      .veinviteHomeStartupWallet;
-
+  const wallet = document.documentElement.dataset.veinviteHomeStartupWallet;
   return {
     status,
     walletAddress: wallet || null,
     invitesReady:
-      document.documentElement.dataset
-        .veinviteHomeInvitesReady === 'true',
+      document.documentElement.dataset.veinviteHomeInvitesReady === 'true',
     referralLinkReady:
-      document.documentElement.dataset
-        .veinviteHomeReferralReady === 'true',
+      document.documentElement.dataset.veinviteHomeReferralReady === 'true',
     errorMessage:
-      document.documentElement.dataset
-        .veinviteHomeStartupError || undefined,
+      document.documentElement.dataset.veinviteHomeStartupError || undefined,
   };
 }
