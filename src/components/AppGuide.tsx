@@ -30,6 +30,11 @@ export function InviteGuideContent({ locale }: { locale: Locale }) {
 
   return (
     <section className="guidePage">
+      <header className="guideIntro">
+        <span>{t.eyebrow}</span>
+        <p>{flow.description}</p>
+      </header>
+
       <section className="guideCard stepsCard">
         <h2>{t.title}</h2>
         <ol className="steps">
@@ -53,6 +58,9 @@ export function InviteGuideContent({ locale }: { locale: Locale }) {
 
       <style jsx>{`
         .guidePage { width:min(100%,560px); margin:0 auto; padding-bottom:12px; }
+        .guideIntro { margin:0 0 22px; }
+        .guideIntro > span { color:#f8bc2e; font-size:.7rem; font-weight:950; letter-spacing:.12em; }
+        .guideIntro > p { margin:8px 0 0; color:#aaa69d; font-size:.82rem; line-height:1.58; }
         .guideCard {
           padding:20px;
           border:1px solid rgba(255,205,80,.14);
@@ -85,6 +93,7 @@ export function InviteGuideContent({ locale }: { locale: Locale }) {
         .steps strong { display:block; font-size:.86rem; }
         .steps p { margin:4px 0 0; color:#8f8b83; font-size:.75rem; line-height:1.5; overflow-wrap:anywhere; }
         @media (max-width:560px) {
+          .guideIntro { margin-bottom:18px; }
           .guideCard { padding:17px; }
         }
       `}</style>
