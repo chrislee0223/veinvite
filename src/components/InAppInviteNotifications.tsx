@@ -25,6 +25,12 @@ type NotificationResponse = {
   error?: string;
 };
 
+type HistoryPage = {
+  items: InviteNotificationHistoryItem[];
+  unreadCount: number;
+  nextCursor: string | null;
+};
+
 const REFRESH_MS = 60_000;
 const HISTORY_PAGE_SIZE = 30;
 const WALLET_SESSION_INVALID_EVENT =
@@ -105,6 +111,9 @@ export function InAppInviteNotifications({
   const shownKeyRef = useRef<string | null>(null);
   const openSnapshotRef = useRef<string | null>(null);
   const activeWalletRef = useRef<string | null>(wallet);
+  const latestHistoryRequestRef =
+    useRef<Promise<HistoryPage | null> | null>(null);
+  const lifecycleRefreshRef = useRef<Promise<void> | null>(null);
 
   useEffect(() => {
     activeWalletRef.current = wallet;
@@ -117,6 +126,8 @@ export function InAppInviteNotifications({
     setErrorMessage('');
     shownKeyRef.current = null;
     openSnapshotRef.current = null;
+    latestHistoryRequestRef.current = null;
+    lifecycleRefreshRef.current = null;
   }, [wallet]);
 
   const invalidateWalletSession = useCallback(() => {
@@ -129,6 +140,8 @@ export function InAppInviteNotifications({
     setErrorMessage('');
     shownKeyRef.current = null;
     openSnapshotRef.current = null;
+    latestHistoryRequestRef.current = null;
+    lifecycleRefreshRef.current = null;
     window.dispatchEvent(
       new Event(WALLET_SESSION_INVALID_EVENT),
     );
@@ -141,7 +154,7 @@ export function InAppInviteNotifications({
     }: {
       requestWallet: string;
       beforeId?: string | null;
-    }) => {
+    }): Promise<HistoryPage | null> => {
       const params = new URLSearchParams({
         limit: String(HISTORY_PAGE_SIZE),
       });
@@ -185,87 +198,164 @@ export function InAppInviteNotifications({
     [invalidateWalletSession],
   );
 
-  const refresh = useCallback(
+  const applyLatestHistory = useCallback((history: HistoryPage) => {
+    setItems(history.items);
+    setUnreadCount(history.unreadCount);
+    setNextCursor(history.nextCursor);
+  }, []);
+
+  const loadLatestHistory = useCallback(
+    async ({
+      requestWallet,
+      visibleLoading = false,
+      surfaceError = false,
+    }: {
+      requestWallet: string;
+      visibleLoading?: boolean;
+      surfaceError?: boolean;
+    }): Promise<HistoryPage | null> => {
+      if (visibleLoading) setLoading(true);
+      if (surfaceError) setErrorMessage('');
+
+      let request = latestHistoryRequestRef.current;
+      if (!request) {
+        request = loadHistoryPage({ requestWallet });
+        latestHistoryRequestRef.current = request;
+      }
+
+      try {
+        const history = await request;
+        if (
+          history &&
+          sameWallet(activeWalletRef.current, requestWallet)
+        ) {
+          applyLatestHistory(history);
+          if (surfaceError) setErrorMessage('');
+        }
+        return history;
+      } catch (error) {
+        console.warn(
+          'VeInvite notification history load failed:',
+          error,
+        );
+        if (
+          surfaceError &&
+          sameWallet(activeWalletRef.current, requestWallet)
+        ) {
+          setErrorMessage(
+            error instanceof Error
+              ? error.message
+              : 'Notification history request failed.',
+          );
+        }
+        return null;
+      } finally {
+        if (latestHistoryRequestRef.current === request) {
+          latestHistoryRequestRef.current = null;
+        }
+        if (
+          visibleLoading &&
+          sameWallet(activeWalletRef.current, requestWallet)
+        ) {
+          setLoading(false);
+        }
+      }
+    },
+    [applyLatestHistory, loadHistoryPage],
+  );
+
+  const refreshLifecycle = useCallback(
     async (autoOpen: boolean) => {
-      if (!wallet) {
-        setItems([]);
-        setUnreadCount(0);
-        setNextCursor(null);
-        setOpen(false);
-        shownKeyRef.current = null;
-        openSnapshotRef.current = null;
+      if (!wallet) return;
+
+      if (lifecycleRefreshRef.current) {
+        await lifecycleRefreshRef.current;
         return;
       }
 
       const requestWallet = wallet;
-      setLoading((current) => current || items.length === 0);
-      setErrorMessage('');
-
-      try {
-        // Refresh the existing V2 lifecycle first. The server materializes only
-        // the actual user-visible milestone into append-only history, so the
-        // history center never has to reconstruct or replay raw chain events.
-        const notificationResponse = await fetch(
-          '/api/notifications',
-          { cache: 'no-store' },
-        );
-
-        if (notificationResponse.status === 401) {
-          invalidateWalletSession();
-          return;
-        }
-
-        const notificationBody =
-          (await notificationResponse.json()) as NotificationResponse;
-
-        if (!notificationResponse.ok) {
-          throw new Error(
-            notificationBody.error || 'Notification request failed.',
+      const task = (async () => {
+        try {
+          // Lifecycle derivation/materialization can be heavier than reading the
+          // already-persisted history. Keep it in the background so opening the
+          // bell never waits for this path.
+          const notificationResponse = await fetch(
+            '/api/notifications',
+            { cache: 'no-store' },
           );
-        }
 
-        if (!sameWallet(activeWalletRef.current, requestWallet)) return;
+          if (notificationResponse.status === 401) {
+            invalidateWalletSession();
+            return;
+          }
 
-        const currentNotifications =
-          Array.isArray(notificationBody.notifications)
-            ? notificationBody.notifications
-            : notificationBody.notification
-              ? [notificationBody.notification]
-              : [];
+          const notificationBody =
+            (await notificationResponse.json()) as NotificationResponse;
 
-        const history = await loadHistoryPage({ requestWallet });
-        if (!history) return;
+          if (!notificationResponse.ok) {
+            throw new Error(
+              notificationBody.error || 'Notification request failed.',
+            );
+          }
 
-        setItems(history.items);
-        setUnreadCount(history.unreadCount);
-        setNextCursor(history.nextCursor);
-        setErrorMessage('');
+          if (!sameWallet(activeWalletRef.current, requestWallet)) return;
 
-        if (currentNotifications.length > 0) {
+          const currentNotifications =
+            Array.isArray(notificationBody.notifications)
+              ? notificationBody.notifications
+              : notificationBody.notification
+                ? [notificationBody.notification]
+                : [];
+
+          if (currentNotifications.length < 1) return;
+
+          // If a fast history prefetch was already running, let that older read
+          // finish before fetching the newly materialized history. This prevents
+          // a stale response from overwriting the fresh milestone afterwards.
+          const pendingHistory = latestHistoryRequestRef.current;
+          if (pendingHistory) {
+            try {
+              await pendingHistory;
+            } catch {
+              // The fresh read below is authoritative for this lifecycle pass.
+            }
+          }
+
+          const history = await loadHistoryPage({ requestWallet });
+          if (!history) return;
+
+          applyLatestHistory(history);
+          setErrorMessage('');
+
           const key = notificationSetKey(currentNotifications);
           if (autoOpen && shownKeyRef.current !== key) {
             shownKeyRef.current = key;
             openSnapshotRef.current = newestHistoryId(history.items);
             setOpen(true);
           }
-        }
-      } catch (error) {
-        console.warn(
-          'VeInvite notification history refresh failed:',
-          error,
-        );
-        if (sameWallet(activeWalletRef.current, requestWallet)) {
-          setErrorMessage(
-            error instanceof Error ? error.message : 'Notification history request failed.',
+        } catch (error) {
+          console.warn(
+            'VeInvite notification lifecycle refresh failed:',
+            error,
           );
         }
+      })();
+
+      lifecycleRefreshRef.current = task;
+      try {
+        await task;
       } finally {
-        if (sameWallet(activeWalletRef.current, requestWallet)) {
-          setLoading(false);
+        if (lifecycleRefreshRef.current === task) {
+          lifecycleRefreshRef.current = null;
         }
       }
     },
-    [invalidateWalletSession, items.length, loadHistoryPage, wallet],
+    [
+      applyLatestHistory,
+      invalidateWalletSession,
+      loadHistoryPage,
+      wallet,
+    ],
   );
 
   const acknowledge = useCallback(
@@ -334,20 +424,32 @@ export function InAppInviteNotifications({
           return;
         }
 
-        await refresh(false);
+        if (wallet) {
+          void loadLatestHistory({ requestWallet: wallet });
+          void refreshLifecycle(false);
+        }
       } catch (error) {
         console.warn(
           'VeInvite notification history acknowledgement failed:',
           error,
         );
         setErrorMessage(
-          error instanceof Error ? error.message : 'Notification acknowledgement failed.',
+          error instanceof Error
+            ? error.message
+            : 'Notification acknowledgement failed.',
         );
       } finally {
         setBusy(false);
       }
     },
-    [acknowledge, busy, items, refresh],
+    [
+      acknowledge,
+      busy,
+      items,
+      loadLatestHistory,
+      refreshLifecycle,
+      wallet,
+    ],
   );
 
   const markAllRead = useCallback(async () => {
@@ -355,11 +457,12 @@ export function InAppInviteNotifications({
     const throughId = openSnapshotRef.current;
     if (!throughId) return;
 
-    const refreshHomeAfterAcknowledgement = items.some((notification) =>
+    const unreadThroughSnapshot = items.filter((notification) =>
       notification.readAt === null &&
-      historyIdAtOrBefore(notification.id, throughId) &&
-      notificationRequiresHomeRefresh(notification),
+      historyIdAtOrBefore(notification.id, throughId),
     );
+    const refreshHomeAfterAcknowledgement =
+      unreadThroughSnapshot.some(notificationRequiresHomeRefresh);
 
     setBusy(true);
     setErrorMessage('');
@@ -376,6 +479,9 @@ export function InAppInviteNotifications({
             : item,
         ),
       );
+      setUnreadCount((current) =>
+        Math.max(0, current - unreadThroughSnapshot.length),
+      );
       window.dispatchEvent(
         new Event(NOTIFICATION_HISTORY_ACKNOWLEDGED_EVENT),
       );
@@ -385,19 +491,32 @@ export function InAppInviteNotifications({
         return;
       }
 
-      await refresh(false);
+      if (wallet) {
+        void loadLatestHistory({ requestWallet: wallet });
+        void refreshLifecycle(false);
+      }
     } catch (error) {
       console.warn(
         'VeInvite mark-all notification history failed:',
         error,
       );
       setErrorMessage(
-        error instanceof Error ? error.message : 'Notification acknowledgement failed.',
+        error instanceof Error
+          ? error.message
+          : 'Notification acknowledgement failed.',
       );
     } finally {
       setBusy(false);
     }
-  }, [acknowledge, busy, items, refresh, unreadCount]);
+  }, [
+    acknowledge,
+    busy,
+    items,
+    loadLatestHistory,
+    refreshLifecycle,
+    unreadCount,
+    wallet,
+  ]);
 
   const loadMore = useCallback(async () => {
     if (!wallet || !nextCursor || loading || busy) return;
@@ -427,7 +546,9 @@ export function InAppInviteNotifications({
         error,
       );
       setErrorMessage(
-        error instanceof Error ? error.message : 'Notification history request failed.',
+        error instanceof Error
+          ? error.message
+          : 'Notification history request failed.',
       );
     } finally {
       if (sameWallet(activeWalletRef.current, requestWallet)) {
@@ -437,42 +558,45 @@ export function InAppInviteNotifications({
   }, [busy, loadHistoryPage, loading, nextCursor, wallet]);
 
   useEffect(() => {
-    void refresh(true);
-
     if (!wallet) return;
 
-    const timer = window.setInterval(() => {
-      if (document.visibilityState === 'visible') {
-        void refresh(true);
-      }
-    }, REFRESH_MS);
+    const requestWallet = wallet;
+    void loadLatestHistory({ requestWallet });
+    void refreshLifecycle(true);
 
-    const onVisibilityChange = () => {
-      if (document.visibilityState === 'visible') {
-        void refresh(true);
-      }
+    const refreshVisibleNotifications = () => {
+      if (document.visibilityState !== 'visible') return;
+      void loadLatestHistory({ requestWallet });
+      void refreshLifecycle(true);
     };
+
+    const timer = window.setInterval(
+      refreshVisibleNotifications,
+      REFRESH_MS,
+    );
 
     document.addEventListener(
       'visibilitychange',
-      onVisibilityChange,
+      refreshVisibleNotifications,
     );
 
     return () => {
       window.clearInterval(timer);
       document.removeEventListener(
         'visibilitychange',
-        onVisibilityChange,
+        refreshVisibleNotifications,
       );
     };
-  }, [wallet, refresh]);
+  }, [loadLatestHistory, refreshLifecycle, wallet]);
 
   useEffect(() => {
     const onRewardReceiptAcknowledged = () => {
-      void refresh(false);
+      if (!wallet) return;
+      void loadLatestHistory({ requestWallet: wallet });
+      void refreshLifecycle(false);
     };
     const onRewardReservationReady = () => {
-      void refresh(true);
+      void refreshLifecycle(true);
     };
 
     window.addEventListener(
@@ -494,7 +618,7 @@ export function InAppInviteNotifications({
         onRewardReservationReady,
       );
     };
-  }, [refresh]);
+  }, [loadLatestHistory, refreshLifecycle, wallet]);
 
   if (!wallet) return null;
 
@@ -510,11 +634,37 @@ export function InAppInviteNotifications({
       hasMore={Boolean(nextCursor)}
       onOpen={() => {
         openSnapshotRef.current = newestHistoryId(items);
+        setErrorMessage('');
         setOpen(true);
-        if (items.length === 0) void refresh(false);
+
+        if (items.length === 0) {
+          void loadLatestHistory({
+            requestWallet: wallet,
+            visibleLoading: true,
+            surfaceError: true,
+          }).then((history) => {
+            if (
+              history &&
+              sameWallet(activeWalletRef.current, wallet)
+            ) {
+              openSnapshotRef.current = newestHistoryId(history.items);
+            }
+          });
+        }
+
+        // Reconcile any brand-new lifecycle milestone in the background. The
+        // already-persisted history is visible immediately and never waits here.
+        void refreshLifecycle(false);
       }}
       onClose={() => setOpen(false)}
-      onRetry={() => void refresh(false)}
+      onRetry={() => {
+        void loadLatestHistory({
+          requestWallet: wallet,
+          visibleLoading: true,
+          surfaceError: true,
+        });
+        void refreshLifecycle(false);
+      }}
       onMarkRead={markRead}
       onMarkAll={markAllRead}
       onLoadMore={loadMore}
