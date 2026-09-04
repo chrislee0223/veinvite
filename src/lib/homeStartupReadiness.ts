@@ -46,8 +46,14 @@ function homeStateMatchesWallet(
   state: HomeStartupState | null,
   walletAddress: string | null,
 ): boolean {
-  if (!state) return false;
-  return normalizeWallet(state.walletAddress) === normalizeWallet(walletAddress);
+  if (!state) {
+    return false;
+  }
+
+  return (
+    normalizeWallet(state.walletAddress) ===
+    normalizeWallet(walletAddress)
+  );
 }
 
 export function shouldHoldForWalletBootstrap({
@@ -70,28 +76,73 @@ export function resolveStartupReadiness({
   interactiveGateVisible,
   allowHomeDataHydration = false,
 }: StartupReadinessInput): StartupReadinessDecision {
-  if (interactiveGateVisible) return 'hold';
-
-  const normalizedWallet = normalizeWallet(walletAddress);
-  if (normalizedWallet) {
-    if (!homeStateMatchesWallet(homeState, normalizedWallet)) return 'hold';
-    if (homeState?.status === 'error') return 'error';
-    if (homeState?.status === 'ready') return 'release';
-    if (allowHomeDataHydration && homeState?.status === 'loading') {
-      return 'release';
-    }
+  // Wallet/session verification is a temporary startup surface, not proof that
+  // Home is ready. The hydration shield may step aside while that actionable
+  // surface is visible, but final app-ready remains owned by this readiness
+  // decision so wallet transitions cannot expose stale wallet-scoped data.
+  if (interactiveGateVisible) {
     return 'hold';
   }
 
-  if (hasPersistedWallet || hasBootstrappedSession) return 'hold';
-  if (!homeStateMatchesWallet(homeState, null)) return 'hold';
-  if (homeState?.status === 'error') return 'error';
-  return homeState?.status === 'ready' ? 'release' : 'hold';
+  const normalizedWallet = normalizeWallet(walletAddress);
+
+  if (normalizedWallet) {
+    if (!homeStateMatchesWallet(homeState, normalizedWallet)) {
+      return 'hold';
+    }
+
+    if (homeState?.status === 'error') {
+      return 'error';
+    }
+
+    if (homeState?.status === 'ready') {
+      return 'release';
+    }
+
+    // On the very first document load, once the wallet identity is settled and
+    // Home has published state for that same wallet, the app shell can render
+    // while referral/link data finishes in wallet-scoped placeholders. Wallet
+    // changes after the first reveal intentionally keep the stricter ready-only
+    // path so data from the previous wallet can never flash on screen.
+    if (
+      allowHomeDataHydration &&
+      homeState?.status === 'loading'
+    ) {
+      return 'release';
+    }
+
+    return 'hold';
+  }
+
+  // A returning browser can temporarily have wallet=null while VeWorld restores
+  // its transport. Either persisted provider evidence or a server-validated
+  // VeInvite session means the disconnected Home must stay hidden.
+  if (hasPersistedWallet || hasBootstrappedSession) {
+    return 'hold';
+  }
+
+  if (!homeStateMatchesWallet(homeState, null)) {
+    return 'hold';
+  }
+
+  if (homeState?.status === 'error') {
+    return 'error';
+  }
+
+  return homeState?.status === 'ready'
+    ? 'release'
+    : 'hold';
 }
 
-export function publishHomeStartupState(state: HomeStartupState): void {
-  if (typeof window === 'undefined') return;
-  document.documentElement.dataset.veinviteHomeStartupStatus = state.status;
+export function publishHomeStartupState(
+  state: HomeStartupState,
+): void {
+  if (typeof window === 'undefined') {
+    return;
+  }
+
+  document.documentElement.dataset.veinviteHomeStartupStatus =
+    state.status;
   document.documentElement.dataset.veinviteHomeStartupWallet =
     normalizeWallet(state.walletAddress) ?? '';
   document.documentElement.dataset.veinviteHomeInvitesReady =
@@ -100,26 +151,47 @@ export function publishHomeStartupState(state: HomeStartupState): void {
     state.referralLinkReady ? 'true' : 'false';
   document.documentElement.dataset.veinviteHomeStartupError =
     state.errorMessage ?? '';
+
   window.dispatchEvent(
-    new CustomEvent<HomeStartupState>(HOME_STARTUP_STATE_EVENT, { detail: state }),
+    new CustomEvent<HomeStartupState>(
+      HOME_STARTUP_STATE_EVENT,
+      { detail: state },
+    ),
   );
 }
 
 export function readPublishedHomeStartupState(): HomeStartupState | null {
-  if (typeof document === 'undefined') return null;
-  const status = document.documentElement.dataset.veinviteHomeStartupStatus;
-  if (status !== 'loading' && status !== 'ready' && status !== 'error') {
+  if (typeof document === 'undefined') {
     return null;
   }
-  const wallet = document.documentElement.dataset.veinviteHomeStartupWallet;
+
+  const status =
+    document.documentElement.dataset
+      .veinviteHomeStartupStatus;
+
+  if (
+    status !== 'loading' &&
+    status !== 'ready' &&
+    status !== 'error'
+  ) {
+    return null;
+  }
+
+  const wallet =
+    document.documentElement.dataset
+      .veinviteHomeStartupWallet;
+
   return {
     status,
     walletAddress: wallet || null,
     invitesReady:
-      document.documentElement.dataset.veinviteHomeInvitesReady === 'true',
+      document.documentElement.dataset
+        .veinviteHomeInvitesReady === 'true',
     referralLinkReady:
-      document.documentElement.dataset.veinviteHomeReferralReady === 'true',
+      document.documentElement.dataset
+        .veinviteHomeReferralReady === 'true',
     errorMessage:
-      document.documentElement.dataset.veinviteHomeStartupError || undefined,
+      document.documentElement.dataset
+        .veinviteHomeStartupError || undefined,
   };
 }
