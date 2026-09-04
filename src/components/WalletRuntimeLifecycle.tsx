@@ -4,6 +4,7 @@ import {
   useCallback,
   useEffect,
   useRef,
+  useState,
 } from 'react';
 import { useWallet } from '@vechain/vechain-kit';
 
@@ -24,6 +25,8 @@ const WALLET_SESSION_READY_EVENT =
 const SESSION_RENEWAL_INTENT = 'renew';
 const RENEWAL_DEDUPE_MS = 60_000;
 const HOME_STABILITY_MS = 160;
+const BROWSER_WALLET_BOOTSTRAP_SETTLE_MS = 350;
+const VEWORLD_WALLET_BOOTSTRAP_SETTLE_MS = 3_500;
 
 type SessionResponse = {
   authenticated?: boolean;
@@ -59,9 +62,11 @@ async function readSessionResponse(
 }
 
 export function WalletRuntimeLifecycle() {
-  const { account } = useWallet();
+  const { account, connection } = useWallet();
   const walletAddress =
     account?.address?.trim().toLowerCase() ?? null;
+  const [walletBootstrapSettled, setWalletBootstrapSettled] =
+    useState(false);
   const walletRef = useRef<string | null>(walletAddress);
   const homeStateRef = useRef<HomeStartupState | null>(null);
   const releasedRef = useRef(false);
@@ -75,6 +80,39 @@ export function WalletRuntimeLifecycle() {
   useEffect(() => {
     walletRef.current = walletAddress;
   }, [walletAddress]);
+
+  useEffect(() => {
+    if (walletAddress) {
+      setWalletBootstrapSettled(true);
+      return;
+    }
+
+    // VeChain Kit exposes whether the wallet transport is still restoring and
+    // whether the page is running inside VeWorld. The initial account can be
+    // null even for an already-connected VeWorld user, especially on a new
+    // Preview origin where VeInvite has no server cookie or origin-scoped dapp
+    // persistence yet. Never treat that transient null as an anonymous visitor.
+    if (connection?.isLoading) {
+      setWalletBootstrapSettled(false);
+      return;
+    }
+
+    setWalletBootstrapSettled(false);
+    const settleDelay = connection?.isInAppBrowser
+      ? VEWORLD_WALLET_BOOTSTRAP_SETTLE_MS
+      : BROWSER_WALLET_BOOTSTRAP_SETTLE_MS;
+    const timer = window.setTimeout(() => {
+      setWalletBootstrapSettled(true);
+    }, settleDelay);
+
+    return () => {
+      window.clearTimeout(timer);
+    };
+  }, [
+    connection?.isInAppBrowser,
+    connection?.isLoading,
+    walletAddress,
+  ]);
 
   const renewSession = useCallback(
     async (wallet: string): Promise<boolean> => {
@@ -284,6 +322,12 @@ export function WalletRuntimeLifecycle() {
         ) === 'verified';
     const hasPersistedVeWorldWallet = () =>
       Boolean(readPersistedDappKitAccount());
+    const walletBootstrapIsPending = (
+      interactiveGateVisible: boolean,
+    ) =>
+      !interactiveGateVisible &&
+      !walletRef.current &&
+      !walletBootstrapSettled;
 
     const scheduleStableRelease = (
       expectedWallet: string | null,
@@ -300,6 +344,16 @@ export function WalletRuntimeLifecycle() {
             return;
           }
 
+          const interactiveGateVisible =
+            hasInteractiveGate();
+          if (
+            walletBootstrapIsPending(
+              interactiveGateVisible,
+            )
+          ) {
+            return;
+          }
+
           const currentHomeState =
             readPublishedHomeStartupState() ??
             homeStateRef.current;
@@ -310,8 +364,7 @@ export function WalletRuntimeLifecycle() {
               hasBootstrappedSession(),
             hasPersistedWallet:
               hasPersistedVeWorldWallet(),
-            interactiveGateVisible:
-              hasInteractiveGate(),
+            interactiveGateVisible,
           });
 
           if (decision === 'release') {
@@ -327,6 +380,18 @@ export function WalletRuntimeLifecycle() {
         return;
       }
 
+      const interactiveGateVisible =
+        hasInteractiveGate();
+      if (
+        walletBootstrapIsPending(
+          interactiveGateVisible,
+        )
+      ) {
+        clearReadinessTimer();
+        startupErrorReportedRef.current = false;
+        return;
+      }
+
       const currentHomeState =
         readPublishedHomeStartupState() ??
         homeStateRef.current;
@@ -337,8 +402,7 @@ export function WalletRuntimeLifecycle() {
           hasBootstrappedSession(),
         hasPersistedWallet:
           hasPersistedVeWorldWallet(),
-        interactiveGateVisible:
-          hasInteractiveGate(),
+        interactiveGateVisible,
       });
 
       if (decision === 'release') {
@@ -347,7 +411,7 @@ export function WalletRuntimeLifecycle() {
         // An explicit Home-ready state gets one stable frame before the startup
         // shield is removed. Actionable verification/recovery gates can surface
         // immediately because their own UI is already complete.
-        if (hasInteractiveGate()) {
+        if (interactiveGateVisible) {
           releaseApp();
         } else {
           scheduleStableRelease(walletRef.current);
@@ -404,7 +468,7 @@ export function WalletRuntimeLifecycle() {
       observer.disconnect();
       clearReadinessTimer();
     };
-  }, [walletAddress]);
+  }, [walletAddress, walletBootstrapSettled]);
 
   return null;
 }
