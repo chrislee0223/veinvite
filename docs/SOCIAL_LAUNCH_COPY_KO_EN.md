@@ -1,6 +1,6 @@
 # VeInvite Social Launch Copy — 한국어 / English
 
-Last updated: 2026-09-03
+Last updated: 2026-09-04
 
 Use this copy only when it matches live Production behavior. VeInvite referral rewards are not a fixed-amount or fixed-date promise. The automatic reward pipeline is enabled but remains fail-closed until every eligibility, funding, Sybil, round, distributor, and finality condition is satisfied.
 
@@ -44,7 +44,7 @@ VeInvite helps new and genuinely returning users discover VeBetterDAO through ve
 
 The onboarding quest:
 • Earn a positive B3TR reward from 3 different VeBetterDAO dApps
-• Convert at least 1 B3TR to VOT3 after the first qualifying reward
+• Make one real B3TR → VOT3 conversion after the first qualifying reward; any positive amount qualifies
 • Participate in Allocation Voting
 
 Eligibility and mission progress are checked from on-chain activity. Self-referrals and duplicate referral wallets are not accepted. After verified onboarding and final anti-abuse checks, the inviter may qualify for a VeInvite referral reward.
@@ -63,7 +63,7 @@ VeInvite는 신규 사용자와 실제 복귀 사용자가 온체인 활동을 �
 
 미션은 다음과 같습니다.
 • 서로 다른 VeBetterDAO dApp 3개에서 실제 B3TR 보상 받기
-• 첫 인정 보상 이후 최소 1 B3TR을 VOT3로 전환하기
+• 첫 인정 보상 이후 B3TR → VOT3를 실제로 1회 전환하기 (0보다 큰 수량이면 인정)
 • Allocation Voting 참여하기
 
 참여 자격과 미션 진행도는 온체인 활동을 기준으로 확인하며, 자기 초대와 중복 추천 지갑은 인정되지 않습니다. 검증된 온보딩과 최종 부정 참여 방지 검토를 통과하면 초대자가 VeInvite 추천 보상 대상이 될 수 있습니다.

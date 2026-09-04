@@ -1,6 +1,6 @@
 # VeInvite Public FAQ — 한국어 / English
 
-Last updated: 2026-09-03
+Last updated: 2026-09-04
 
 This document is public-facing copy. It must stay aligned with Production behavior and must not promise a fixed reward amount or payout date.
 
@@ -33,7 +33,7 @@ VeInvite는 VeBetterDAO에 처음 참여하거나 오랜 기간 활동하지 않
 
 ### 어떤 미션을 완료해야 하나요?
 1. 서로 다른 VeBetterDAO dApp 3개에서 활동하고 실제 양수 B3TR 보상을 받기
-2. 첫 번째 인정 dApp 보상 이후 최소 1 B3TR을 새로 VOT3로 전환하기
+2. 첫 번째 인정 dApp 보상 이후 B3TR → VOT3를 실제로 1회 전환하기 (0보다 큰 수량이면 인정)
 3. 해당 전환 이후 Allocation Voting에 1회 참여하기
 
 첫 번째 인정 dApp 보상 이후에는 VOT3 전환과 투표 미션을 먼저 진행하고 남은 dApp 활동을 이어서 완료해도 됩니다. 0 B3TR 지급 이벤트는 dApp 보상 미션으로 인정되지 않습니다.
@@ -114,7 +114,7 @@ Existing one-time invite links that were already created or shared remain suppor
 
 ### What missions must be completed?
 1. Earn a positive B3TR reward from three different VeBetterDAO dApps.
-2. After the first qualifying dApp reward, newly convert at least 1 B3TR to VOT3.
+2. After the first qualifying dApp reward, make one real B3TR → VOT3 conversion. Any positive amount qualifies.
 3. After that qualifying conversion, participate in Allocation Voting once.
 
 After the first qualifying dApp reward, the conversion and voting missions may be completed before the remaining dApp rewards. A zero-B3TR reward event does not count toward the dApp mission.
