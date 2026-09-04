@@ -128,7 +128,7 @@ export async function settleExplicitWalletDisconnect({
 }: {
   previousWallet: string | null | undefined;
   readCurrentWallet: () => string | null | undefined;
-}): Promise<void> {
+}): Promise<boolean> {
   // Clear once immediately, then again after provider settlement. DAppKit can
   // briefly repersist its account/source while VeChainKit is tearing down the
   // transport, so a single early removal is not authoritative.
@@ -148,6 +148,11 @@ export async function settleExplicitWalletDisconnect({
 
   await wait(WALLET_TRANSPORT_SETTLE_MS);
   clearPersistedVeWorldConnectionState();
+
+  return (
+    !previous ||
+    normalizeWallet(readCurrentWallet()) !== previous
+  );
 }
 
 export function readPersistedDappKitAccount(): string | null {
