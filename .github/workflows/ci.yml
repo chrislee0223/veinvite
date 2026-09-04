@@ -111,10 +111,14 @@ jobs:
         shell: bash
         run: |
           for attempt in 1 2; do
-            if timeout 180s npm ci; then
+            set +e
+            timeout 180s npm ci
+            status=$?
+            set -e
+
+            if [ "$status" -eq 0 ]; then
               exit 0
             fi
-            status=$?
             if [ "$status" -eq 124 ] && [ "$attempt" -lt 2 ]; then
               rm -rf node_modules
               sleep 5
