@@ -12,6 +12,7 @@ import '@/lib/i18n/localePacks/registerExpandedLocales';
 import '@/lib/i18n/inviteLandingFinalPolish';
 import '@/lib/i18n/copyHardening';
 import '@/lib/i18n/inviteeMissionCopyPolish';
+import '@/lib/i18n/inviteeMissionRulePolish';
 import '@/lib/i18n/guideCopyFinalHardening';
 import '@/lib/i18n/secondaryPageCopyHardening';
 import '@/lib/i18n/referralLinkCopy';
