@@ -27,7 +27,7 @@ export function InviteFlowVisualPolish() {
       .centeredFlow > label,
       .appHeader label {
         box-sizing: border-box !important;
-        width: 155px !important;
+        width: 176px !important;
         max-width: 48% !important;
         padding: 0 !important;
         border: 0 !important;
@@ -42,11 +42,11 @@ export function InviteFlowVisualPolish() {
 
       .centeredFlow select.languageSelect:not(.languageSelectNativeEnhanced),
       .appHeader select.languageSelect:not(.languageSelectNativeEnhanced) {
-        width: 155px !important;
+        width: 176px !important;
         max-width: 100% !important;
-        height: 40px !important;
+        height: 42px !important;
         box-sizing: border-box !important;
-        padding: 0 28px 0 11px !important;
+        padding: 0 34px 0 12px !important;
         border: 1px solid rgba(255,255,255,.1) !important;
         border-radius: 13px !important;
         background: #141625 !important;
@@ -55,24 +55,47 @@ export function InviteFlowVisualPolish() {
         font-weight: 800 !important;
       }
 
-      .headerLanguageChevron {
-        width: 8px !important;
-        height: 8px !important;
-        justify-self: center !important;
-        border-right: 1.5px solid currentColor !important;
-        border-bottom: 1.5px solid currentColor !important;
-        color: #9892a5 !important;
+      .errorIcon {
+        position: relative !important;
+        width: 96px !important;
+        height: 96px !important;
         font-size: 0 !important;
-        line-height: 0 !important;
-        transform: translateY(-2px) rotate(45deg) !important;
+      }
+
+      .errorIcon::before,
+      .errorIcon::after {
+        content: '';
+        position: absolute;
+        left: 50%;
+        top: 50%;
+        width: 30px;
+        height: 3px;
+        border-radius: 999px;
+        background: #fff;
+        transform-origin: center;
+      }
+
+      .errorIcon::before {
+        transform: translate(-50%, -50%) rotate(45deg);
+      }
+
+      .errorIcon::after {
+        transform: translate(-50%, -50%) rotate(-45deg);
       }
 
       @media (max-width: 560px) {
+        .centeredFlow > label,
+        .appHeader label {
+          width: 160px !important;
+        }
+
         .centeredFlow select.languageSelect:not(.languageSelectNativeEnhanced),
         .appHeader select.languageSelect:not(.languageSelectNativeEnhanced) {
-          height: 34px !important;
+          width: 160px !important;
+          height: 38px !important;
+          padding: 0 32px 0 11px !important;
           border-radius: 11px !important;
-          font-size: .68rem !important;
+          font-size: .7rem !important;
         }
       }
     `}</style>
