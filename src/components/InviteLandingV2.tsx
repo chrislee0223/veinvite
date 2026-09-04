@@ -36,9 +36,8 @@ export function InviteLandingV2({
   return (
     <main className="screen">
       <header className="topBar">
-        <Brand compact />
+        <Brand />
         <label className="language">
-          <span aria-hidden="true">◎</span>
           <select className="languageSelect" aria-label={t.languageAria} value={locale} onChange={(event) => onLocaleChange(event.target.value as SupportedLocale)}>
             {LANGUAGE_OPTIONS.map((option) => (
               <option key={option.locale} value={option.locale}>{option.nativeName}</option>
@@ -80,13 +79,13 @@ export function InviteLandingV2({
       ) : null}
 
       <style jsx>{`
-        .screen { min-height:100svh; width:100%; box-sizing:border-box; display:flex; flex-direction:column; align-items:center; padding:20px 18px 32px; color:#fff; background:radial-gradient(circle at 50% 24%,rgba(244,183,40,.16),transparent 34%),#080807; }
-        .topBar { width:min(100%,430px); display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:22px; }
-        .language { max-width:54%; display:inline-flex; align-items:center; gap:6px; height:38px; padding:0 10px; border:1px solid rgba(255,255,255,.1); border-radius:12px; background:rgba(255,255,255,.06); color:#eee8d6; }
-        .language select { min-width:0; max-width:150px; border:0; outline:0; background:transparent; color:inherit; font:inherit; font-size:.78rem; font-weight:700; cursor:pointer; }
+        .screen { min-height:100svh; width:100%; box-sizing:border-box; display:flex; flex-direction:column; align-items:center; padding:22px 18px 32px; color:#fff; background:radial-gradient(circle at 50% 24%,rgba(244,183,40,.16),transparent 34%),#080807; }
+        .topBar { width:min(100%,520px); display:flex; align-items:center; justify-content:space-between; gap:16px; margin-bottom:26px; }
+        .language { width:155px; max-width:48%; display:inline-flex; align-items:center; padding:0; border:0; background:transparent; color:#fff; }
+        .language select { width:155px; max-width:100%; height:40px; box-sizing:border-box; padding:0 28px 0 11px; border:1px solid rgba(255,255,255,.1); outline:0; border-radius:13px; background:#141625; color:inherit; font:inherit; font-size:.76rem; font-weight:800; cursor:pointer; }
         .language option { color:#111421; }
-        .gameCard { position:relative; overflow:hidden; width:min(100%,430px); box-sizing:border-box; padding:24px 22px 20px; border:1px solid rgba(255,205,80,.25); border-radius:28px; background:linear-gradient(160deg,rgba(54,40,14,.98),rgba(16,16,14,.98) 64%); box-shadow:0 24px 70px rgba(0,0,0,.42),inset 0 1px 0 rgba(255,255,255,.08); }
-        .gameCard::before { content:''; position:absolute; width:240px; height:240px; right:-110px; top:-120px; border-radius:50%; background:rgba(244,183,40,.19); }
+        .gameCard { position:relative; overflow:hidden; width:min(100%,520px); box-sizing:border-box; padding:24px; border:1px solid rgba(255,205,80,.25); border-radius:30px; background:linear-gradient(160deg,rgba(54,40,14,.98),rgba(16,16,14,.98) 64%); box-shadow:0 24px 70px rgba(0,0,0,.42),inset 0 1px 0 rgba(255,255,255,.08); }
+        .gameCard::before { content:''; position:absolute; width:250px; height:250px; right:-110px; top:-120px; border-radius:50%; background:rgba(244,183,40,.19); }
         .inviteBadge { position:relative; z-index:1; display:inline-flex; align-items:center; min-height:28px; padding:0 11px; border:1px solid rgba(255,205,80,.28); border-radius:999px; background:rgba(244,183,40,.12); color:#ffd66e; font-size:.7rem; font-weight:800; letter-spacing:.06em; }
         .rewardVisual { position:relative; width:116px; height:116px; margin:18px auto 10px; display:grid; place-items:center; }
         .halo { position:absolute; border-radius:50%; }
@@ -110,9 +109,15 @@ export function InviteLandingV2({
         .startButton span { font-size:1.75rem; line-height:1; }
         .walletLink { display:block; width:100%; margin:15px 0 0; border:0; background:transparent; color:#a9a4bb; font:inherit; font-size:.78rem; font-weight:800; text-decoration:underline; text-underline-offset:4px; cursor:pointer; overflow-wrap:anywhere; }
         .startButton:disabled,.walletLink:disabled { opacity:.48; cursor:not-allowed; }
-        .reassurance { width:min(100%,430px); margin:15px 0 0; text-align:center; color:#777387; font-size:.74rem; line-height:1.5; overflow-wrap:anywhere; }
-        .demoSelect { width:min(100%,430px); margin-top:16px; color:#9994a7; font-size:.72rem; }
+        .reassurance { width:min(100%,520px); margin:15px 0 0; text-align:center; color:#777387; font-size:.74rem; line-height:1.5; overflow-wrap:anywhere; }
+        .demoSelect { width:min(100%,520px); margin-top:16px; color:#9994a7; font-size:.72rem; }
         .demoSelect select { width:100%; margin-top:6px; min-height:42px; border:1px solid rgba(255,255,255,.1); border-radius:12px; background:#151520; color:#fff; padding:0 10px; }
+        @media (max-width:560px) {
+          .screen { padding:18px 14px 32px; }
+          .topBar { gap:12px; margin-bottom:22px; }
+          .language select { height:34px; border-radius:11px; font-size:.68rem; }
+          .gameCard { padding:21px 18px 20px; border-radius:26px; }
+        }
       `}</style>
     </main>
   );
