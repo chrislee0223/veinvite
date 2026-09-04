@@ -25,6 +25,7 @@ import { HeaderLanguagePickerPortal } from './HeaderLanguagePickerPortal';
 import { InviteFlowVisualPolish } from './InviteFlowVisualPolish';
 import { LegalNavigationMemory } from './LegalNavigationMemory';
 import { SecondaryPageLayoutPolish } from './SecondaryPageLayoutPolish';
+import { StartupHydrationPlaceholders } from './StartupHydrationPlaceholders';
 import { WalletConnectionResume } from './WalletConnectionResume';
 import { WalletLanguagePreferenceSync } from './WalletLanguagePreferenceSync';
 import { WalletRuntimeLifecycle } from './WalletRuntimeLifecycle';
@@ -81,6 +82,7 @@ export function AppProviders({
     <ChakraProvider theme={theme}>
       <VeChainProvider>
         <ProviderReadySignal />
+        <StartupHydrationPlaceholders />
         <WalletConnectionResume />
         <WalletRuntimeLifecycle />
         {children}
