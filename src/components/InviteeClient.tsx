@@ -4,6 +4,7 @@ import {
   useCallback,
   useEffect,
   useState,
+  type CSSProperties,
   type ReactNode,
 } from 'react';
 import Link from 'next/link';
@@ -79,6 +80,9 @@ const DEFAULT_PROGRESS: InviteProgress = {
   activationBlock: null,
   latestBlock: null,
 };
+
+const VEBETTER_APPS_URL = 'https://governance.vebetterdao.org/apps';
+const RESUME_SYNC_COOLDOWN_MS = 5_000;
 
 async function readInviteResponse(
   response: Response,
@@ -224,18 +228,50 @@ export function InviteeClient({ code }: { code: string }) {
       return;
     }
 
+    let syncInFlight = false;
+    let lastSyncAt = 0;
+
     const reconcile = () => {
-      void loadInviteProgress('sync').catch(() => undefined);
+      if (document.visibilityState !== 'visible') return;
+
+      const now = Date.now();
+      if (
+        syncInFlight ||
+        now - lastSyncAt < RESUME_SYNC_COOLDOWN_MS
+      ) {
+        return;
+      }
+
+      syncInFlight = true;
+      lastSyncAt = now;
+      void loadInviteProgress('sync')
+        .catch(() => undefined)
+        .finally(() => {
+          syncInFlight = false;
+        });
     };
 
-    // A completed-but-unsettled referral gets one explicit recovery attempt on
-    // page open. Active/review states keep the normal 30-second reconciliation
-    // cadence while the page is visible.
+    const reconcileOnResume = () => {
+      if (document.visibilityState === 'visible') reconcile();
+    };
+
+    // Keep the existing low-frequency reconciliation, but refresh once when
+    // the user returns from a VeBetterDAO mission. The cooldown and in-flight
+    // guard prevent focus/pageshow/visibility events from creating duplicates.
     reconcile();
     if (shouldRecoverCompleted) return;
 
     const intervalId = window.setInterval(reconcile, 30_000);
-    return () => window.clearInterval(intervalId);
+    document.addEventListener('visibilitychange', reconcileOnResume);
+    window.addEventListener('focus', reconcileOnResume);
+    window.addEventListener('pageshow', reconcileOnResume);
+
+    return () => {
+      window.clearInterval(intervalId);
+      document.removeEventListener('visibilitychange', reconcileOnResume);
+      window.removeEventListener('focus', reconcileOnResume);
+      window.removeEventListener('pageshow', reconcileOnResume);
+    };
   }, [
     step,
     invite?.status,
@@ -448,6 +484,8 @@ export function InviteeClient({ code }: { code: string }) {
     const completed = appsDone && conversionDone && voteDone;
     const legacyIncomplete =
       invite?.status === 'COMPLETED' && !completed;
+    const appProgressStatus =
+      `${appsCompleted}/${progress.appsRequired}${appsDone ? ' ✓' : ''}`;
 
     return (
       <main className="appShell">
@@ -463,7 +501,14 @@ export function InviteeClient({ code }: { code: string }) {
           <span className="eyebrow">{t.myMissions}</span>
           <h1>{completed ? t.allMissionsComplete : t.oneThingToDo}</h1>
           <MissionCard state="done" title={t.walletMission} description={t.walletMissionDescription} status={t.complete} />
-          <MissionCard state={appsDone ? 'done' : 'current'} title={t.appMission} description={t.appMissionDescription} status={appsDone ? t.complete : `${appsCompleted}/${progress.appsRequired}`} />
+          <MissionCard
+            state={appsDone ? 'done' : 'current'}
+            title={t.appMission}
+            description={t.appMissionDescription}
+            status={appProgressStatus}
+            statusDirection="ltr"
+            actionHref={appsDone ? undefined : VEBETTER_APPS_URL}
+          />
           <MissionCard state={conversionDone ? 'done' : conversionUnlocked ? 'current' : 'locked'} title={t.conversionMission} description={t.conversionMissionDescription} status={conversionDone ? t.complete : conversionUnlocked ? t.ready : t.locked} />
           <MissionCard state={voteDone ? 'done' : voteUnlocked ? 'current' : 'locked'} title={t.voteMission} description={t.voteMissionDescription} status={voteDone ? t.complete : voteUnlocked ? t.ready : t.locked} />
           {!completed && demoMode ? (
@@ -499,19 +544,109 @@ function MissionCard({
   title,
   description,
   status,
+  statusDirection,
+  actionHref,
 }: {
   state: 'done' | 'current' | 'locked';
   title: string;
   description: string;
   status: string;
+  statusDirection?: 'ltr' | 'rtl';
+  actionHref?: string;
 }) {
   return (
     <div className={`mission ${state}`}>
       <span>{state === 'done' ? '✓' : state === 'current' ? '◎' : '◇'}</span>
       <div><b>{title}</b><p>{description}</p></div>
-      <em>{status}</em>
+      <MissionStatus
+        state={state}
+        status={status}
+        direction={statusDirection}
+        href={actionHref}
+        label={actionHref ? `${title}: ${status}` : undefined}
+      />
     </div>
   );
+}
+
+function MissionStatus({
+  state,
+  status,
+  direction,
+  href,
+  label,
+}: {
+  state: 'done' | 'current' | 'locked';
+  status: string;
+  direction?: 'ltr' | 'rtl';
+  href?: string;
+  label?: string;
+}) {
+  const style = missionStatusStyle(state, Boolean(href));
+
+  if (href) {
+    return (
+      <a
+        href={href}
+        aria-label={label}
+        dir={direction}
+        style={style}
+      >
+        <span>{status}</span>
+        <span aria-hidden="true">↗</span>
+      </a>
+    );
+  }
+
+  return (
+    <em dir={direction} style={style}>{status}</em>
+  );
+}
+
+function missionStatusStyle(
+  state: 'done' | 'current' | 'locked',
+  actionable: boolean,
+): CSSProperties {
+  const palette = state === 'done'
+    ? {
+        color: '#78e5ac',
+        borderColor: 'rgba(54,207,130,.24)',
+        background: 'rgba(54,207,130,.08)',
+      }
+    : state === 'locked'
+      ? {
+          color: '#aaa69d',
+          borderColor: 'rgba(255,255,255,.10)',
+          background: 'rgba(255,255,255,.035)',
+        }
+      : {
+          color: '#ffd66e',
+          borderColor: 'rgba(244,183,40,.25)',
+          background: 'rgba(244,183,40,.08)',
+        };
+
+  return {
+    minWidth: '72px',
+    minHeight: '40px',
+    padding: '7px 10px',
+    borderRadius: '999px',
+    border: `1px solid ${palette.borderColor}`,
+    background: palette.background,
+    color: palette.color,
+    display: 'inline-flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: '4px',
+    flex: '0 0 auto',
+    whiteSpace: 'nowrap',
+    fontSize: '10px',
+    fontStyle: 'normal',
+    fontWeight: 800,
+    lineHeight: 1,
+    textDecoration: 'none',
+    cursor: actionable ? 'pointer' : 'default',
+    unicodeBidi: 'isolate',
+  };
 }
 
 function Centered({
