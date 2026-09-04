@@ -270,7 +270,7 @@ test('Home startup reveal has one owner and only the explicit wallet gate can pa
   assert.doesNotMatch(providers, /HomeDataRevealGuard/);
   assert.match(
     runtime,
-    /data-veinvite-wallet-session-gate=\\"interactive\\"/,
+    /data-veinvite-wallet-session-gate="interactive"/,
   );
   assert.doesNotMatch(
     runtime,
@@ -287,7 +287,7 @@ test('wallet verification temporarily steps the shield aside without final relea
   assert.match(source, /function hasInteractiveWalletGate\(\)/);
   assert.match(
     source,
-    /data-veinvite-wallet-session-gate=\\"interactive\\"/,
+    /data-veinvite-wallet-session-gate="interactive"/,
   );
   assert.doesNotMatch(
     source,
