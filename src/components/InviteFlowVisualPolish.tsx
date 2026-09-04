@@ -35,6 +35,11 @@ export function InviteFlowVisualPolish() {
         background: transparent !important;
       }
 
+      .centeredFlow > label > span[aria-hidden='true'],
+      .appHeader label > span[aria-hidden='true'] {
+        display: none !important;
+      }
+
       .centeredFlow select.languageSelect:not(.languageSelectNativeEnhanced),
       .appHeader select.languageSelect:not(.languageSelectNativeEnhanced) {
         width: 155px !important;
