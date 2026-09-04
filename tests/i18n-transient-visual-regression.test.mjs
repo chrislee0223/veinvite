@@ -53,6 +53,18 @@ test('developer live-app preview blocks pointer and keyboard interaction', () =>
   assert.match(developerPreview, /className="interactionLock"/);
 });
 
+test('notification developer preview traps Tab focus inside the open modal', () => {
+  assert.match(developerPreview, /FOCUSABLE_SELECTOR/);
+  assert.match(
+    developerPreview,
+    /\.notificationHistoryPanel\[role="dialog"\]/,
+  );
+  assert.match(developerPreview, /event\.key !== 'Tab'/);
+  assert.match(developerPreview, /panel\.contains\(active\)/);
+  assert.match(developerPreview, /last\.focus\(\)/);
+  assert.match(developerPreview, /first\.focus\(\)/);
+});
+
 test('transient surfaces stay fluid on narrow mobile screens', () => {
   assert.match(surface, /width:min\(100%,520px\)/);
   assert.match(surface, /@media \(max-width:560px\)/);
