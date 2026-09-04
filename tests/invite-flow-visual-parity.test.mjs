@@ -52,13 +52,13 @@ test('first-time language setup stays on the same 520px visual frame', () => {
   assert.match(languageSetupSource, /border-radius:30px/u);
 });
 
-test('later invite states keep Home-scale shell and the same picker width', () => {
+test('later invite states keep Home-scale shell and use the compact mission picker', () => {
   assert.match(polishSource, /\.inviteLanding,[\s\S]*\.centeredFlow,[\s\S]*\.appShell \{[\s\S]*520px/u);
   assert.match(polishSource, /\.centeredFlow > \.brandCompact img \{[\s\S]*width: 38px !important;[\s\S]*height: 38px !important;/u);
   assert.match(polishSource, /\.centeredFlow > label > span\[aria-hidden='true'\],[\s\S]*display: none !important;/u);
   assert.match(polishSource, /width: 155px !important;/u);
-  assert.match(polishSource, /min-height: 48px !important;/u);
-  assert.match(polishSource, /padding: 7px 34px 7px 12px !important;/u);
+  assert.match(polishSource, /min-height: 44px !important;/u);
+  assert.match(polishSource, /padding: 5px 34px 5px 12px !important;/u);
 });
 
 test('enhanced language picker keeps horizontal geometry and adds vertical padding', () => {
