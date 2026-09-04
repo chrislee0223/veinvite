@@ -34,7 +34,7 @@ export function DeveloperPreview() {
           onClick={() => setView('app')}
         >
           <strong>실제 앱 화면</strong>
-          <small>현재 HomeClient를 그대로 렌더링</small>
+          <small>현재 HomeClient를 Preview 환경에서 렌더링</small>
         </button>
         <button
           type="button"
@@ -42,7 +42,7 @@ export function DeveloperPreview() {
           onClick={() => setView('notifications')}
         >
           <strong>알림센터</strong>
-          <small>과거 이력 · 읽음/안읽음 · 상대시간</small>
+          <small>과거 이력 · 읽음/안읽음 · 상대시간 · 예외 상태</small>
         </button>
       </nav>
 
@@ -50,8 +50,8 @@ export function DeveloperPreview() {
         <span className="statusDot" />
         {view === 'app' ? (
           <span>
-            <b>실제 컴포넌트:</b> 현재 Production HomeClient를 그대로 보여줍니다.
-            오작동 방지를 위해 클릭은 잠겨 있습니다.
+            <b>Preview 환경:</b> 현재 HomeClient를 보여주되 클릭은 잠겨 있습니다.
+            Preview 배포는 Production DB 접근이 코드에서 차단되어 있습니다.
           </span>
         ) : (
           <span>
