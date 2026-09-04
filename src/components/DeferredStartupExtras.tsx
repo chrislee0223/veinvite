@@ -6,14 +6,6 @@ import { useEffect, useState } from 'react';
 const APP_READY_EVENT = 'veinvite-app-ready';
 const IDLE_FALLBACK_MS = 900;
 
-const RewardReservationRecovery = dynamic(
-  () =>
-    import('./RewardReservationRecovery').then(
-      (module) => module.RewardReservationRecovery,
-    ),
-  { ssr: false },
-);
-
 const PublicRewardForecastPortal = dynamic(
   () =>
     import('./PublicRewardForecastPortal').then(
@@ -77,10 +69,5 @@ export function DeferredStartupExtras() {
 
   if (!active) return null;
 
-  return (
-    <>
-      <RewardReservationRecovery />
-      <PublicRewardForecastPortal />
-    </>
-  );
+  return <PublicRewardForecastPortal />;
 }
