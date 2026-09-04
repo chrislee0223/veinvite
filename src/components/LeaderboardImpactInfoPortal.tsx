@@ -248,12 +248,12 @@ export function LeaderboardImpactInfoPortal({ locale }: { locale: Locale }) {
               backdrop-filter: blur(10px);
             }
             .veinviteImpactInfoDialog {
-              width: min(100%,440px);
-              max-height: min(80svh,620px);
+              width: min(100%,600px);
+              max-height: min(88svh,820px);
               box-sizing: border-box;
               padding: 0;
               border: 1px solid rgba(255,205,80,.2);
-              border-radius: 24px;
+              border-radius: 26px;
               background: #11120f;
               color: #fff;
               box-shadow: 0 30px 90px rgba(0,0,0,.58);
@@ -280,7 +280,7 @@ export function LeaderboardImpactInfoPortal({ locale }: { locale: Locale }) {
               line-height: 1;
             }
             .veinviteImpactInfoBody {
-              padding: 0 20px 20px;
+              padding: 0 22px 24px;
             }
             .veinviteImpactInfoCard {
               margin: 0;
@@ -290,20 +290,25 @@ export function LeaderboardImpactInfoPortal({ locale }: { locale: Locale }) {
               background: radial-gradient(circle at 90% 0,rgba(255,194,41,.1),transparent 34%),rgba(255,255,255,.03);
             }
             .veinviteImpactInfoTop h2 {
-              margin: 0;
-              font-size: 1.15rem;
+              margin: 0 0 14px;
+              font-size: 1.08rem;
               letter-spacing: -.025em;
             }
             .veinviteImpactInfoCard > p {
-              margin: 16px 0 0;
-              color: #aaa69d;
-              font-size: .82rem;
-              line-height: 1.6;
+              margin: 0;
+              padding: 12px 0 0;
+              border-top: 1px solid rgba(255,255,255,.06);
+              color: #8f8b83;
+              font-size: .75rem;
+              line-height: 1.5;
               overflow-wrap: anywhere;
             }
             @media (max-width: 560px) {
+              .veinviteImpactInfoDialog {
+                border-radius: 22px;
+              }
               .veinviteImpactInfoBody {
-                padding: 0 17px 17px;
+                padding: 0 17px 20px;
               }
               .veinviteImpactInfoCard {
                 padding: 17px;
