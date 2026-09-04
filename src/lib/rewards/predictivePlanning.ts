@@ -133,6 +133,7 @@ export async function readPredictiveRewardPlanning(input: {
   observedPoolBalanceWei: string;
   rewardCohortRoundId?: string | number | null;
   allocationReceiptId?: string | number | null;
+  includePendingAcceptance?: boolean;
 }): Promise<PredictiveRewardPlanningSnapshot> {
   const hasCohort = input.rewardCohortRoundId !== undefined && input.rewardCohortRoundId !== null;
   const hasReceipt = input.allocationReceiptId !== undefined && input.allocationReceiptId !== null;
@@ -166,7 +167,13 @@ export async function readPredictiveRewardPlanning(input: {
   const rewardCohortRoundId = record.rewardCohortRoundId === null || record.rewardCohortRoundId === undefined
     ? null
     : readPositiveIntegerString(record.rewardCohortRoundId, 'rewardCohortRoundId');
-  const pipeline = readPipeline(record.pipeline);
+  const rawPipeline = readPipeline(record.pipeline);
+  const pipeline: RewardPipelineSnapshot = input.includePendingAcceptance === false
+    ? {
+        ...rawPipeline,
+        pendingAcceptanceCount: 0,
+      }
+    : rawPipeline;
   const latestAllocation = readAllocation(record.latestAllocation);
   const activeEpoch = readEpoch(record.activeEpoch);
 
