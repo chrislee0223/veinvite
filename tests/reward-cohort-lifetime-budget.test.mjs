@@ -11,29 +11,29 @@ const predictivePlanning = await readFile(
   'utf8',
 );
 
-test('paid reservations permanently consume cohort funding', () => {
+test('paid reservations permanently consume cohort funding while cancelled ones release it', () => {
   assert.match(
     lifetimeBudgetMigration,
     /create or replace function public\.read_reward_cohort_committed_wei/,
   );
   assert.match(
     lifetimeBudgetMigration,
-    /and q\.reserved_amount_wei is not null;/,
+    /q\.status in \('AWAITING_CLAIM','QUEUED','ASSIGNED'\)/,
+  );
+  assert.match(
+    lifetimeBudgetMigration,
+    /CANCELLED[\s\S]*releases its unused cohort budget/,
   );
   assert.doesNotMatch(
     lifetimeBudgetMigration,
     /paid\.status = 'PAID'/,
   );
-  assert.doesNotMatch(
-    lifetimeBudgetMigration,
-    /q\.status in \('AWAITING_CLAIM','QUEUED','ASSIGNED'\)/,
-  );
 });
 
-test('database budget guard counts every prior immutable reservation', () => {
+test('database budget guard counts live and already-paid assigned reservations', () => {
   assert.match(
     lifetimeBudgetMigration,
-    /Count every prior immutable reservation, including already-paid entries/,
+    /ASSIGNED stays live after[\s\S]*CANCELLED is intentionally released/,
   );
   assert.match(
     lifetimeBudgetMigration,
