@@ -16,6 +16,7 @@ import '@/lib/i18n/referralLinkCopy';
 import '@/lib/i18n/referralLinkCopyFinalHardening';
 import '@/lib/i18n/guideRewardClaimHardening';
 import { HeaderLanguagePickerPortal } from './HeaderLanguagePickerPortal';
+import { InviteFlowVisualPolish } from './InviteFlowVisualPolish';
 import { LegalNavigationMemory } from './LegalNavigationMemory';
 import {
   PublicRewardForecastPortal,
@@ -87,6 +88,7 @@ export function AppProviders({
         <WalletLanguagePreferenceSync />
         <SecondaryPageLayoutPolish />
         <LegalNavigationMemory />
+        <InviteFlowVisualPolish />
         <HeaderLanguagePickerPortal />
         <PublicRewardForecastPortal />
       </VeChainProvider>
