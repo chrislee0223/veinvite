@@ -20,6 +20,7 @@ type InvitationRow = {
   updated_at: string;
   apps_completed: number;
   rewards_received: number;
+  vot3_converted: boolean;
   vote_completed: boolean;
   reward_status: RewardEligibility;
 };
@@ -33,6 +34,7 @@ const invitationColumns = `
   updated_at,
   apps_completed,
   rewards_received,
+  vot3_converted,
   vote_completed,
   reward_status
 ` as const;
@@ -203,6 +205,7 @@ export async function POST(
       status: 'COMPLETED',
       apps_completed: 3,
       rewards_received: 3,
+      vot3_converted: true,
       vote_completed: true,
       // The eligibility trigger deliberately keeps this PENDING because demo
       // completion does not contain on-chain block/round evidence.
