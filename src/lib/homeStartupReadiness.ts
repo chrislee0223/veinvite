@@ -24,6 +24,12 @@ export type StartupReadinessInput = {
   interactiveGateVisible: boolean;
 };
 
+export type WalletBootstrapReadinessInput = {
+  walletAddress: string | null;
+  walletBootstrapSettled: boolean;
+  interactiveGateVisible: boolean;
+};
+
 export type StartupReadinessDecision =
   | 'hold'
   | 'release'
@@ -49,6 +55,18 @@ function homeStateMatchesWallet(
   );
 }
 
+export function shouldHoldForWalletBootstrap({
+  walletAddress,
+  walletBootstrapSettled,
+  interactiveGateVisible,
+}: WalletBootstrapReadinessInput): boolean {
+  return (
+    !interactiveGateVisible &&
+    !normalizeWallet(walletAddress) &&
+    !walletBootstrapSettled
+  );
+}
+
 export function resolveStartupReadiness({
   walletAddress,
   homeState,
@@ -56,10 +74,12 @@ export function resolveStartupReadiness({
   hasPersistedWallet,
   interactiveGateVisible,
 }: StartupReadinessInput): StartupReadinessDecision {
-  // A real wallet-verification or legal/session recovery screen is actionable
-  // and should replace the branded startup surface immediately.
+  // Wallet/session verification is a temporary startup surface, not proof that
+  // Home is ready. The hydration shield may step aside while that actionable
+  // surface is visible, but final app-ready must remain locked until the
+  // wallet-scoped referral link and invite slots have both finished loading.
   if (interactiveGateVisible) {
-    return 'release';
+    return 'hold';
   }
 
   const normalizedWallet = normalizeWallet(walletAddress);

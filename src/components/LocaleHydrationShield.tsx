@@ -2,6 +2,7 @@
 
 import {
   useEffect,
+  useRef,
   useState,
 } from 'react';
 
@@ -18,9 +19,12 @@ import {
 import { STARTUP_COPY } from '@/lib/i18n/startupCopy';
 
 const APP_READY_EVENT = 'veinvite-app-ready';
+const APP_LOADING_EVENT = 'veinvite-app-loading';
 const PROVIDER_READY_EVENT =
   'veinvite-provider-ready';
 const STARTUP_RECOVERY_MS = 8_000;
+const INTERACTIVE_WALLET_GATE_SELECTOR =
+  '[data-veinvite-wallet-session-gate="interactive"]';
 
 type ShieldState =
   | { status: 'loading' }
@@ -42,11 +46,20 @@ function resolveStartupLocale(): SupportedLocale {
   );
 }
 
+function hasInteractiveWalletGate(): boolean {
+  return Boolean(
+    document.querySelector(
+      INTERACTIVE_WALLET_GATE_SELECTOR,
+    ),
+  );
+}
+
 export function LocaleHydrationShield() {
   const [state, setState] = useState<ShieldState>({
     status: 'loading',
   });
   const [locale, setLocale] = useState<SupportedLocale>('en');
+  const shieldRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     setLocale(resolveStartupLocale());
@@ -77,19 +90,31 @@ export function LocaleHydrationShield() {
     let firstFrame = 0;
     let secondFrame = 0;
     let fallbackTimer = 0;
+    let loadingFrame = 0;
     let released = false;
+    let interactiveGateVisible = false;
     const isHome = window.location.pathname === '/';
+
+    const clearFallbackTimer = () => {
+      window.clearTimeout(fallbackTimer);
+      fallbackTimer = 0;
+    };
+
+    const setShieldVisible = (visible: boolean) => {
+      if (shieldRef.current) {
+        shieldRef.current.style.visibility = visible
+          ? 'visible'
+          : 'hidden';
+      }
+    };
 
     const release = () => {
       if (released) {
         return;
       }
       released = true;
-      window.clearTimeout(fallbackTimer);
+      clearFallbackTimer();
 
-      // Keep one stable painted frame between the final app-ready signal and
-      // removing the SSR-visible shield. This prevents a black/home flash while
-      // the wallet provider, session gate, and Home settle underneath it.
       firstFrame = window.requestAnimationFrame(() => {
         secondFrame = window.requestAnimationFrame(() => {
           setState({ status: 'ready' });
@@ -97,8 +122,65 @@ export function LocaleHydrationShield() {
       });
     };
 
+    const armFallbackTimer = () => {
+      clearFallbackTimer();
+      if (released || interactiveGateVisible) {
+        return;
+      }
+
+      fallbackTimer = window.setTimeout(() => {
+        if (isHome) {
+          setShieldVisible(true);
+          setState({ status: 'error' });
+        } else {
+          release();
+        }
+      }, STARTUP_RECOVERY_MS);
+    };
+
+    const syncInteractiveGate = () => {
+      const nextVisible =
+        isHome && hasInteractiveWalletGate();
+
+      if (nextVisible === interactiveGateVisible) {
+        return;
+      }
+
+      interactiveGateVisible = nextVisible;
+
+      if (interactiveGateVisible) {
+        clearFallbackTimer();
+        setShieldVisible(false);
+        return;
+      }
+
+      setShieldVisible(true);
+      armFallbackTimer();
+    };
+
     const handleAppReady = () => {
       release();
+    };
+    const handleAppLoading = () => {
+      if (!isHome) {
+        return;
+      }
+
+      released = false;
+      clearFallbackTimer();
+      window.cancelAnimationFrame(firstFrame);
+      window.cancelAnimationFrame(secondFrame);
+      setState({ status: 'loading' });
+
+      interactiveGateVisible = hasInteractiveWalletGate();
+      loadingFrame = window.requestAnimationFrame(() => {
+        setShieldVisible(!interactiveGateVisible);
+        if (interactiveGateVisible) {
+          clearFallbackTimer();
+        } else {
+          armFallbackTimer();
+        }
+      });
     };
     const handleStartupError = (event: Event) => {
       if (released) {
@@ -108,16 +190,14 @@ export function LocaleHydrationShield() {
       const detail = (
         event as CustomEvent<{ message?: string }>
       ).detail;
-      window.clearTimeout(fallbackTimer);
+      clearFallbackTimer();
+      setShieldVisible(true);
       setState({
         status: 'error',
         message: detail?.message,
       });
     };
     const handleProviderReady = () => {
-      // Non-home informational routes do not use the wallet/session lifecycle,
-      // so provider readiness is sufficient there. Home deliberately waits for
-      // the stronger explicit startup-readiness signal.
       if (!isHome) {
         release();
       }
@@ -134,33 +214,41 @@ export function LocaleHydrationShield() {
         .veinviteProviderReady === 'true'
     ) {
       release();
-    } else {
-      window.addEventListener(
-        APP_READY_EVENT,
-        handleAppReady,
-        { once: true },
-      );
-      window.addEventListener(
-        APP_STARTUP_ERROR_EVENT,
-        handleStartupError,
-      );
-      window.addEventListener(
-        PROVIDER_READY_EVENT,
-        handleProviderReady,
-      );
     }
 
-    // The old behavior forcibly exposed the underlying Home after 8 seconds.
-    // On slow VeWorld restoration that could reveal a disconnected or skeleton
-    // Home. Home now stays covered; the same bounded watchdog switches to an
-    // explicit retry surface instead of releasing incomplete UI.
-    fallbackTimer = window.setTimeout(() => {
-      if (isHome) {
-        setState({ status: 'error' });
-      } else {
-        release();
-      }
-    }, STARTUP_RECOVERY_MS);
+    window.addEventListener(
+      APP_READY_EVENT,
+      handleAppReady,
+    );
+    window.addEventListener(
+      APP_LOADING_EVENT,
+      handleAppLoading,
+    );
+    window.addEventListener(
+      APP_STARTUP_ERROR_EVENT,
+      handleStartupError,
+    );
+    window.addEventListener(
+      PROVIDER_READY_EVENT,
+      handleProviderReady,
+    );
+
+    interactiveGateVisible =
+      isHome && hasInteractiveWalletGate();
+    setShieldVisible(!interactiveGateVisible);
+
+    if (!interactiveGateVisible) {
+      armFallbackTimer();
+    }
+
+    const observer = isHome
+      ? new MutationObserver(syncInteractiveGate)
+      : null;
+    observer?.observe(document.body, {
+      childList: true,
+      subtree: true,
+      attributes: true,
+    });
 
     return () => {
       window.removeEventListener(
@@ -168,6 +256,10 @@ export function LocaleHydrationShield() {
         handleAppReady,
       );
       window.removeEventListener(
+        APP_LOADING_EVENT,
+        handleAppLoading,
+      );
+      window.removeEventListener(
         APP_STARTUP_ERROR_EVENT,
         handleStartupError,
       );
@@ -175,9 +267,11 @@ export function LocaleHydrationShield() {
         PROVIDER_READY_EVENT,
         handleProviderReady,
       );
-      window.clearTimeout(fallbackTimer);
+      observer?.disconnect();
+      clearFallbackTimer();
       window.cancelAnimationFrame(firstFrame);
       window.cancelAnimationFrame(secondFrame);
+      window.cancelAnimationFrame(loadingFrame);
     };
   }, []);
 
@@ -188,6 +282,7 @@ export function LocaleHydrationShield() {
 
   return (
     <div
+      ref={shieldRef}
       className="localeHydrationShield"
       aria-hidden={hasError ? undefined : true}
       role={hasError ? 'alert' : undefined}
