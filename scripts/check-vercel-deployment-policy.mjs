@@ -85,6 +85,12 @@ if (
   );
 }
 
+if (!/poweredByHeader\s*:\s*false/.test(nextConfig)) {
+  failures.push(
+    'Public responses must not expose the default Next.js X-Powered-By header.',
+  );
+}
+
 if (
   !/VEINVITE_ALLOW_DEMO_COMPLETION/.test(demoCompletionRoute) ||
   !/process\.env\.VERCEL_ENV\s*===\s*'preview'/.test(
