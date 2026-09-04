@@ -16,7 +16,7 @@ concurrency:
 jobs:
   validate:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 20
 
     env:
       # Build against the reviewed non-production project identity. The key is
@@ -112,7 +112,7 @@ jobs:
         run: |
           for attempt in 1 2; do
             set +e
-            timeout 180s npm ci 2>&1 | tee .ci-npm-ci.log
+            timeout 300s npm ci 2>&1 | tee .ci-npm-ci.log
             status=${PIPESTATUS[0]}
             set -e
 
