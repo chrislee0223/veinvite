@@ -6,6 +6,7 @@ const read = (path) =>
   readFileSync(new URL(`../${path}`, import.meta.url), 'utf8');
 
 const policySource = read('src/lib/i18n/inviteeConversionPolicyPolish.ts');
+const guidePolicySource = read('src/lib/i18n/guideVot3PolicyPolish.ts');
 const localesSource = read('src/lib/i18n/locales.ts');
 const providersSource = read('src/components/AppProviders.tsx');
 
@@ -69,4 +70,22 @@ test('the mission policy patch is loaded after shared and mission copy hardening
   assert.ok(hardeningIndex >= 0);
   assert.ok(missionPolishIndex > hardeningIndex);
   assert.ok(policyIndex > missionPolishIndex);
+});
+
+test('the inviter guide reuses the finalized localized invitee mission policy', () => {
+  const guideFinalIndex = providersSource.indexOf(
+    "import '@/lib/i18n/guideCopyFinalHardening';",
+  );
+  const guidePolicyIndex = providersSource.indexOf(
+    "import '@/lib/i18n/guideVot3PolicyPolish';",
+  );
+
+  assert.ok(guideFinalIndex >= 0);
+  assert.ok(guidePolicyIndex > guideFinalIndex);
+  assert.match(guidePolicySource, /inviteeMission\.conversionMissionDescription/);
+  assert.match(guidePolicySource, /inviteeMission\.voteMissionDescription/);
+  assert.match(guidePolicySource, /inviteeMission\.appMission/);
+  assert.doesNotMatch(guidePolicySource, /at least 1 B3TR/i);
+  assert.doesNotMatch(guidePolicySource, /최소\s*1\s*B3TR/);
+  assert.doesNotMatch(guidePolicySource, /1000000000000000000/);
 });
