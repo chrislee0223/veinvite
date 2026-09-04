@@ -8,7 +8,6 @@ import { INELIGIBLE_INVITER_COPY } from '@/lib/i18n/ineligibleInviterCopy';
 import {
   LANGUAGE_OPTIONS,
   isCjkLocale,
-  type Locale,
   type SupportedLocale,
 } from '@/lib/i18n/locales';
 import { NOTIFICATION_COPY } from '@/lib/i18n/notificationCopy';
@@ -36,7 +35,7 @@ const TEST_WALLET =
 function sampleItems(now: number): PreviewItem[] {
   return [
     {
-      id: 7,
+      id: 6,
       kind: 'REWARD_READY',
       occurredAt: new Date(now - 12 * 60 * 1000),
       read: false,
@@ -44,43 +43,36 @@ function sampleItems(now: number): PreviewItem[] {
       actionRequired: true,
     },
     {
-      id: 6,
+      id: 5,
       kind: 'DAPP_PROGRESS',
       occurredAt: new Date(now - 3 * 60 * 60 * 1000),
       read: false,
       dappProgress: 3,
     },
     {
-      id: 5,
+      id: 4,
       kind: 'INVITE_ACCEPTED',
       occurredAt: new Date(now - 5 * 60 * 60 * 1000),
       read: false,
     },
     {
-      id: 4,
+      id: 3,
       kind: 'VOT3_CONVERTED',
       occurredAt: new Date(now - 28 * 60 * 60 * 1000),
       read: true,
     },
     {
-      id: 3,
+      id: 2,
       kind: 'REWARD_PAID',
       occurredAt: new Date(now - 3 * 24 * 60 * 60 * 1000),
       read: true,
       rewardAmountB3tr: '124.50',
     },
     {
-      id: 2,
+      id: 1,
       kind: 'INVITE_INELIGIBLE',
       occurredAt: new Date(now - 5 * 24 * 60 * 60 * 1000),
       read: true,
-    },
-    {
-      id: 1,
-      kind: 'DAPP_PROGRESS',
-      occurredAt: new Date(now - 9 * 24 * 60 * 60 * 1000),
-      read: true,
-      dappProgress: 1,
     },
   ];
 }
@@ -97,7 +89,8 @@ function structuralCopy(locale: SupportedLocale) {
       emptyBody: '새로운 소식이 생기면 여기에 표시됩니다.',
       action: '확인 필요',
       close: '닫기',
-      unreadAria: (count: number) => `알림 열기, 읽지 않은 알림 ${count}개`,
+      unreadAria: (count: number) =>
+        `알림 열기, 읽지 않은 알림 ${count}개`,
     };
   }
 
@@ -111,7 +104,8 @@ function structuralCopy(locale: SupportedLocale) {
     emptyBody: 'New notifications will appear here.',
     action: 'Action needed',
     close: 'Close',
-    unreadAria: (count: number) => `Open notifications, ${count} unread`,
+    unreadAria: (count: number) =>
+      `Open notifications, ${count} unread`,
   };
 }
 
@@ -121,12 +115,15 @@ function itemCopy(
 ): { title: string; body: string; hint?: string } {
   const copy = NOTIFICATION_COPY[locale];
   const v2 = NOTIFICATION_V2_COPY[locale];
-  const ineligible = INELIGIBLE_INVITER_COPY[locale] ??
-    INELIGIBLE_INVITER_COPY.en;
+  const ineligible =
+    INELIGIBLE_INVITER_COPY[locale] ?? INELIGIBLE_INVITER_COPY.en;
 
   switch (item.kind) {
     case 'INVITE_ACCEPTED':
-      return { title: copy.acceptedTitle, body: copy.acceptedBody };
+      return {
+        title: copy.acceptedTitle,
+        body: copy.acceptedBody,
+      };
     case 'DAPP_PROGRESS':
       return {
         title: v2.dappProgressTitle,
@@ -156,39 +153,65 @@ function itemCopy(
           : undefined,
       };
     case 'INVITE_INELIGIBLE':
-      return { title: ineligible.title, body: ineligible.body };
+      return {
+        title: ineligible.title,
+        body: ineligible.body,
+      };
   }
 }
 
-function relativeTime(date: Date, locale: SupportedLocale): string {
+function relativeTime(
+  date: Date,
+  locale: SupportedLocale,
+): string {
   const now = Date.now();
   const deltaMs = date.getTime() - now;
   const abs = Math.abs(deltaMs);
-
-  if (deltaMs > 0 && abs < 5 * 60 * 1000) {
-    return locale === 'ko' ? '방금 전' : 'just now';
-  }
-
-  const rtf = new Intl.RelativeTimeFormat(locale, { numeric: 'auto' });
   const minute = 60 * 1000;
   const hour = 60 * minute;
   const day = 24 * hour;
 
-  if (abs < minute) return locale === 'ko' ? '방금 전' : 'just now';
-  if (abs < hour) return rtf.format(Math.round(deltaMs / minute), 'minute');
-  if (abs < day) return rtf.format(Math.round(deltaMs / hour), 'hour');
-  if (abs < 7 * day) return rtf.format(Math.round(deltaMs / day), 'day');
+  if (deltaMs > 0 && abs < 5 * minute) {
+    return locale === 'ko' ? '방금 전' : 'just now';
+  }
+
+  if (abs < minute) {
+    return locale === 'ko' ? '방금 전' : 'just now';
+  }
+
+  const rtf = new Intl.RelativeTimeFormat(locale, {
+    numeric: 'auto',
+  });
+
+  if (abs < hour) {
+    return rtf.format(Math.round(deltaMs / minute), 'minute');
+  }
+  if (abs < day) {
+    return rtf.format(Math.round(deltaMs / hour), 'hour');
+  }
+  if (abs < 7 * day) {
+    return rtf.format(Math.round(deltaMs / day), 'day');
+  }
 
   return new Intl.DateTimeFormat(locale, {
-    year: date.getFullYear() === new Date().getFullYear() ? undefined : 'numeric',
+    year:
+      date.getFullYear() === new Date().getFullYear()
+        ? undefined
+        : 'numeric',
     month: 'short',
     day: 'numeric',
   }).format(date);
 }
 
-function BellIcon() {
+function BellIcon({ size = 20 }: { size?: number }) {
   return (
-    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      fill="none"
+      aria-hidden="true"
+    >
       <path
         d="M18 8.5a6 6 0 0 0-12 0c0 7-2.5 7-2.5 8.5h17C20.5 15.5 18 15.5 18 8.5Z"
         stroke="currentColor"
@@ -206,18 +229,12 @@ function BellIcon() {
   );
 }
 
-function itemIcon(kind: InviteNotificationKindV2): string {
-  if (kind === 'REWARD_READY' || kind === 'REWARD_PAID') return '◆';
-  if (kind === 'DAPP_PROGRESS') return '↗';
-  if (kind === 'VOT3_CONVERTED') return 'V';
-  if (kind === 'INVITE_INELIGIBLE') return '!';
-  return '•';
-}
-
 export function NotificationUiPreview() {
-  const [locale, setLocale] = useState<SupportedLocale>('ko');
+  const [locale, setLocale] =
+    useState<SupportedLocale>('ko');
   const [open, setOpen] = useState(true);
-  const [mode, setMode] = useState<PreviewMode>('history');
+  const [mode, setMode] =
+    useState<PreviewMode>('history');
   const [items, setItems] = useState<PreviewItem[]>(() =>
     sampleItems(Date.now()),
   );
@@ -225,64 +242,103 @@ export function NotificationUiPreview() {
   const t = HOME_COPY[locale];
   const referral = REFERRAL_LINK_COPY[locale];
   const structure = structuralCopy(locale);
-  const unreadCount = mode === 'history'
-    ? items.filter((item) => !item.read).length
-    : 0;
+  const unreadCount =
+    mode === 'history'
+      ? items.filter((item) => !item.read).length
+      : 0;
 
   const sorted = useMemo(
-    () => [...items].sort((a, b) => b.occurredAt.getTime() - a.occurredAt.getTime()),
+    () =>
+      [...items].sort(
+        (a, b) =>
+          b.occurredAt.getTime() - a.occurredAt.getTime(),
+      ),
     [items],
   );
 
   const todayItems = sorted.filter(
-    (item) => Date.now() - item.occurredAt.getTime() < 24 * 60 * 60 * 1000,
+    (item) =>
+      Date.now() - item.occurredAt.getTime() <
+      24 * 60 * 60 * 1000,
   );
   const earlierItems = sorted.filter(
-    (item) => Date.now() - item.occurredAt.getTime() >= 24 * 60 * 60 * 1000,
+    (item) =>
+      Date.now() - item.occurredAt.getTime() >=
+      24 * 60 * 60 * 1000,
   );
 
   const markRead = (id: number) => {
     setItems((current) =>
-      current.map((item) => item.id === id ? { ...item, read: true } : item),
+      current.map((item) =>
+        item.id === id ? { ...item, read: true } : item,
+      ),
     );
   };
 
   const markAllRead = () => {
-    const visibleMaxId = Math.max(0, ...items.map((item) => item.id));
+    const visibleMaxId = Math.max(
+      0,
+      ...items.map((item) => item.id),
+    );
     setItems((current) =>
       current.map((item) =>
-        item.id <= visibleMaxId ? { ...item, read: true } : item,
+        item.id <= visibleMaxId
+          ? { ...item, read: true }
+          : item,
       ),
     );
   };
 
   const renderItem = (item: PreviewItem) => {
     const copy = itemCopy(item, locale);
+
     return (
       <button
         type="button"
         key={item.id}
-        className={item.read ? 'historyRow read' : 'historyRow unread'}
+        className={
+          item.read
+            ? 'notificationHistoryRow isRead'
+            : 'notificationHistoryRow isUnread'
+        }
         onClick={() => markRead(item.id)}
       >
-        <span className="rowStatus" aria-hidden="true">
-          {!item.read ? <i /> : null}
-        </span>
-        <span className="rowIcon" aria-hidden="true">{itemIcon(item.kind)}</span>
-        <span className="rowCopy">
-          <span className="rowTopLine">
-            <strong>{copy.title}</strong>
-            <time dateTime={item.occurredAt.toISOString()}>
+        <span className="notificationHistoryContent">
+          <span className="notificationHistoryTopLine">
+            <span className="notificationHistoryTitleWrap">
+              {!item.read ? (
+                <i
+                  className="notificationUnreadDot"
+                  aria-hidden="true"
+                />
+              ) : null}
+              <strong className="notificationHistoryTitle">
+                {copy.title}
+              </strong>
+            </span>
+            <time
+              className="notificationHistoryTime"
+              dateTime={item.occurredAt.toISOString()}
+            >
               {relativeTime(item.occurredAt, locale)}
             </time>
           </span>
-          <span className="rowBody">{copy.body}</span>
-          <span className="rowMeta">
-            {copy.hint ? <b>{copy.hint}</b> : null}
-            {item.actionRequired ? <em>{structure.action}</em> : null}
+
+          <span className="notificationHistoryBody">
+            {copy.body}
           </span>
+
+          {copy.hint || item.actionRequired ? (
+            <span className="notificationHistoryMeta">
+              {copy.hint ? (
+                <b>{copy.hint}</b>
+              ) : null}
+              {item.actionRequired ? (
+                <em>{structure.action}</em>
+              ) : null}
+            </span>
+          ) : null}
         </span>
-        <span className="rowChevron" aria-hidden="true">›</span>
       </button>
     );
   };
@@ -293,8 +349,9 @@ export function NotificationUiPreview() {
         <span>PREVIEW ONLY · PRODUCTION UI SHELL</span>
         <h2>실제 VeInvite 상단 UI에서 보는 알림센터</h2>
         <p>
-          현재 main의 Brand, 헤더 크기·간격·색상·카드 스타일을 그대로 기준으로 잡고,
-          알림센터에만 테스트 데이터를 넣었습니다. Production DB와 보상 로직은 사용하지 않습니다.
+          실제 앱의 색상·헤더·카드 톤을 기준으로 알림센터만
+          테스트합니다. Production DB와 보상·초대 로직은
+          사용하지 않습니다.
         </p>
       </header>
 
@@ -322,26 +379,33 @@ export function NotificationUiPreview() {
         </button>
       </div>
 
-      <main className="screen">
-        <header className="topBar">
+      <main className="notificationPreviewScreen">
+        <header className="notificationPreviewTopBar">
           <Brand />
-          <div className="topActions">
-            <div className="utilityActions">
-              <div className="bellWrap">
+
+          <div className="notificationPreviewActions">
+            <div className="notificationPreviewUtilityActions">
+              <div className="notificationBellWrap">
                 <button
                   type="button"
-                  className={unreadCount > 0 ? 'bellButton unread' : 'bellButton'}
+                  className={
+                    unreadCount > 0
+                      ? 'notificationBellButton hasUnread'
+                      : 'notificationBellButton'
+                  }
                   aria-label={
                     unreadCount > 0
                       ? structure.unreadAria(unreadCount)
                       : NOTIFICATION_COPY[locale].bellAria
                   }
                   aria-expanded={open}
-                  onClick={() => setOpen((current) => !current)}
+                  onClick={() =>
+                    setOpen((current) => !current)
+                  }
                 >
                   <BellIcon />
                   {unreadCount > 0 ? (
-                    <span className="unreadBadge">
+                    <span className="notificationUnreadBadge">
                       {unreadCount > 99 ? '99+' : unreadCount}
                     </span>
                   ) : null}
@@ -351,32 +415,40 @@ export function NotificationUiPreview() {
                   <>
                     <button
                       type="button"
-                      className="panelBackdrop"
+                      className="notificationPanelBackdrop"
                       aria-label={structure.close}
                       onClick={() => setOpen(false)}
                     />
+
                     <section
-                      className="historyPanel"
+                      className="notificationHistoryPanel"
                       role="dialog"
                       aria-modal="true"
                       aria-label={structure.title}
                     >
-                      <header className="historyHeader">
-                        <div>
+                      <header className="notificationHistoryHeader">
+                        <div className="notificationHistoryHeading">
                           <h3>{structure.title}</h3>
                           {unreadCount > 0 ? (
-                            <span>{unreadCount} {structure.newLabel}</span>
+                            <span>
+                              {unreadCount} {structure.newLabel}
+                            </span>
                           ) : null}
                         </div>
-                        <div className="historyHeaderActions">
+
+                        <div className="notificationHistoryHeaderActions">
                           {unreadCount > 0 ? (
-                            <button type="button" onClick={markAllRead}>
+                            <button
+                              type="button"
+                              className="notificationMarkAll"
+                              onClick={markAllRead}
+                            >
                               {structure.markAll}
                             </button>
                           ) : null}
                           <button
                             type="button"
-                            className="closePanel"
+                            className="notificationClosePanel"
                             aria-label={structure.close}
                             onClick={() => setOpen(false)}
                           >
@@ -386,23 +458,33 @@ export function NotificationUiPreview() {
                       </header>
 
                       {mode === 'empty' || sorted.length === 0 ? (
-                        <div className="emptyState">
-                          <span className="emptyBell" aria-hidden="true"><BellIcon /></span>
+                        <div className="notificationEmptyState">
+                          <span
+                            className="notificationEmptyBell"
+                            aria-hidden="true"
+                          >
+                            <BellIcon size={22} />
+                          </span>
                           <strong>{structure.emptyTitle}</strong>
                           <p>{structure.emptyBody}</p>
                         </div>
                       ) : (
-                        <div className="historyScroll">
+                        <div className="notificationHistoryScroll">
                           {todayItems.length > 0 ? (
-                            <section className="historyGroup">
+                            <section className="notificationHistoryGroup">
                               <h4>{structure.today}</h4>
-                              <div>{todayItems.map(renderItem)}</div>
+                              <div>
+                                {todayItems.map(renderItem)}
+                              </div>
                             </section>
                           ) : null}
+
                           {earlierItems.length > 0 ? (
-                            <section className="historyGroup">
+                            <section className="notificationHistoryGroup">
                               <h4>{structure.earlier}</h4>
-                              <div>{earlierItems.map(renderItem)}</div>
+                              <div>
+                                {earlierItems.map(renderItem)}
+                              </div>
                             </section>
                           ) : null}
                         </div>
@@ -413,79 +495,761 @@ export function NotificationUiPreview() {
               </div>
 
               <select
-                className="languageSelect"
+                className="notificationLanguageSelect"
                 value={locale}
                 onChange={(event) =>
-                  setLocale(event.target.value as SupportedLocale)}
+                  setLocale(
+                    event.target.value as SupportedLocale,
+                  )
+                }
                 aria-label={t.languageAria}
               >
                 {LANGUAGE_OPTIONS.map((option) => (
-                  <option key={option.locale} value={option.locale}>
+                  <option
+                    key={option.locale}
+                    value={option.locale}
+                  >
                     {option.nativeName}
                   </option>
                 ))}
               </select>
             </div>
 
-            <button type="button" className="accountChip" aria-label={t.walletAria}>
-              <span className="accountDot" />
-              {TEST_WALLET.slice(0, 6)}···{TEST_WALLET.slice(-4)}
+            <button
+              type="button"
+              className="notificationAccountChip"
+              aria-label={t.walletAria}
+            >
+              <span className="notificationAccountDot" />
+              {TEST_WALLET.slice(0, 6)}···
+              {TEST_WALLET.slice(-4)}
             </button>
           </div>
         </header>
 
-        <section className="missionCard">
-          <div className="cardGlow" />
-          <div className={isCjkLocale(locale) ? 'missionCopy cjkCopy' : 'missionCopy'}>
+        <section className="notificationMissionCard">
+          <div className="notificationCardGlow" />
+          <div
+            className={
+              isCjkLocale(locale)
+                ? 'notificationMissionCopy cjkCopy'
+                : 'notificationMissionCopy'
+            }
+          >
             <h1>{referral.homeTitle}</h1>
           </div>
 
-          <div className="permanentLinkCard">
-            <div className="linkPreview">
+          <div className="notificationPermanentLinkCard">
+            <div className="notificationLinkPreview">
               https://veinvite.app/i/TEST234
             </div>
-            <div className="linkActions">
-              <button type="button" className="primaryAction compactAction">
+            <div className="notificationLinkActions">
+              <button
+                type="button"
+                className="notificationPrimaryAction"
+              >
                 {t.shareInvite}
               </button>
-              <button type="button" className="secondaryAction compactAction">
+              <button
+                type="button"
+                className="notificationSecondaryAction"
+              >
                 {t.copyLink}
               </button>
             </div>
           </div>
 
-          <div className="slotsBlock">
-            <div className="slotsHeading">
+          <div className="notificationSlotsBlock">
+            <div className="notificationSlotsHeading">
               <strong>{referral.slotsLabel}</strong>
               <span>1/2</span>
             </div>
-            <article className="slotPreview activeSlot">
-              <span className="slotNumber">1</span>
+            <article className="notificationSlotPreview activeSlot">
+              <span className="notificationSlotNumber">1</span>
               <div>
                 <strong>dApp 3/3</strong>
                 <small>0xABCD···1234</small>
               </div>
-              <span className="slotArrow">›</span>
+              <span className="notificationSlotArrow">›</span>
             </article>
-            <article className="slotPreview">
-              <span className="slotNumber">2</span>
+            <article className="notificationSlotPreview">
+              <span className="notificationSlotNumber">2</span>
               <div>
-                <strong>{locale === 'ko' ? '친구 초대하기' : 'Invite a friend'}</strong>
-                <small>{locale === 'ko' ? '영구 초대 링크 공유' : 'Share permanent invite link'}</small>
+                <strong>
+                  {locale === 'ko'
+                    ? '친구 초대하기'
+                    : 'Invite a friend'}
+                </strong>
+                <small>
+                  {locale === 'ko'
+                    ? '영구 초대 링크 공유'
+                    : 'Share permanent invite link'}
+                </small>
               </div>
-              <span className="slotArrow">›</span>
+              <span className="notificationSlotArrow">›</span>
             </article>
           </div>
         </section>
       </main>
 
-      <style jsx>{`
-        .notificationPreview{width:min(calc(100% - 24px),1120px);margin:0 auto;color:#fff}.previewIntro{width:min(100%,760px);margin:0 auto 18px}.previewIntro>span{color:#f4b728;font-size:.62rem;font-weight:950;letter-spacing:.11em}.previewIntro h2{margin:6px 0 0;font-size:clamp(1.35rem,4vw,1.9rem);letter-spacing:-.04em}.previewIntro p{margin:8px 0 0;color:#8f8992;font-size:.72rem;line-height:1.6}.previewControls{width:min(100%,520px);margin:0 auto 12px;display:grid;grid-template-columns:1fr 1fr;gap:7px}.previewControls button{min-height:42px;border:1px solid rgba(255,255,255,.08);border-radius:13px;background:#11110f;color:#8f8992;font:inherit;font-size:.69rem;font-weight:850;cursor:pointer}.previewControls button.selected{border-color:rgba(244,183,40,.32);background:rgba(244,183,40,.09);color:#ffd66e}
-        .screen{min-height:720px;box-sizing:border-box;padding:22px 18px 72px;color:#fff;background:radial-gradient(circle at 50% 16%,rgba(244,183,40,.14),transparent 32%),#080807;border:1px solid rgba(255,255,255,.045);border-radius:30px}.topBar{position:relative;z-index:20;width:min(100%,520px);margin:0 auto 26px;display:flex;align-items:center;justify-content:space-between;gap:16px}.topActions{min-width:0;display:flex;align-items:center;gap:10px}.utilityActions{min-width:0;display:flex;align-items:center;justify-content:flex-end;gap:8px}.languageSelect{max-width:155px;height:40px;padding:0 28px 0 11px;border:1px solid rgba(255,255,255,.1);border-radius:13px;background:#141625;color:#fff;font:inherit;font-size:.76rem;font-weight:800;cursor:pointer}.accountChip{min-height:40px;padding:0 13px;display:inline-flex;align-items:center;gap:8px;border:1px solid rgba(255,255,255,.1);border-radius:13px;background:#141625;color:#fff;font:inherit;font-size:.72rem;font-weight:850;cursor:pointer}.accountDot{width:9px;height:9px;border-radius:50%;background:#f4b728;box-shadow:0 0 14px rgba(244,183,40,.68)}
-        .bellWrap{position:relative}.bellButton{position:relative;width:40px;height:40px;flex:0 0 40px;display:grid;place-items:center;padding:0;border:1px solid rgba(255,255,255,.1);border-radius:13px;background:#141625;color:#b6b2bf;cursor:pointer}.bellButton.unread{border-color:rgba(255,205,80,.36);color:#ffd04a;box-shadow:0 0 0 3px rgba(244,183,40,.05)}.unreadBadge{position:absolute;top:-7px;inset-inline-end:-7px;min-width:19px;height:19px;box-sizing:border-box;padding:0 5px;display:grid;place-items:center;border:2px solid #080807;border-radius:999px;background:#f4b728;color:#17120a;font-size:.6rem;font-weight:950;line-height:1}
-        .panelBackdrop{position:fixed;z-index:140;inset:0;border:0;background:rgba(2,2,2,.74);cursor:default}.historyPanel{position:absolute;z-index:141;top:50px;right:0;width:min(420px,calc(100vw - 32px));max-height:min(620px,calc(100dvh - 92px));overflow:hidden;box-sizing:border-box;border:1px solid rgba(255,205,80,.24);border-radius:22px;background:linear-gradient(155deg,#211b10,#11110f 66%);box-shadow:0 32px 90px rgba(0,0,0,.58),inset 0 1px 0 rgba(255,255,255,.07);text-align:left}.historyHeader{min-height:64px;padding:13px 14px 12px 16px;display:flex;align-items:center;justify-content:space-between;gap:12px;border-bottom:1px solid rgba(255,255,255,.065)}.historyHeader>div:first-child{min-width:0;display:flex;align-items:center;gap:8px}.historyHeader h3{margin:0;font-size:1rem;letter-spacing:-.02em}.historyHeader>div:first-child>span{padding:4px 7px;border-radius:999px;background:rgba(244,183,40,.14);color:#ffd04a;font-size:.58rem;font-weight:950;white-space:nowrap}.historyHeaderActions{display:flex;align-items:center;gap:4px}.historyHeaderActions button{border:0;background:transparent;color:#9d988f;font:inherit;font-size:.64rem;font-weight:850;cursor:pointer}.historyHeaderActions .closePanel{width:34px;height:34px;color:#77736f;font-size:1.45rem}.historyScroll{max-height:calc(min(620px,calc(100dvh - 92px)) - 65px);overflow-y:auto;overscroll-behavior:contain}.historyGroup h4{margin:0;padding:11px 16px 7px;color:#77736f;font-size:.61rem;font-weight:900;text-transform:none}.historyGroup>div{display:grid}.historyRow{width:100%;min-width:0;padding:13px 12px 13px 8px;display:grid;grid-template-columns:10px 34px minmax(0,1fr) 18px;gap:8px;align-items:start;border:0;border-top:1px solid rgba(255,255,255,.045);background:transparent;color:#fff;text-align:left;font:inherit;cursor:pointer}.historyRow.unread{background:linear-gradient(90deg,rgba(244,183,40,.08),rgba(244,183,40,.025))}.historyRow.read{background:rgba(255,255,255,.012);color:#aaa5ad}.rowStatus{padding-top:6px;display:grid;place-items:center}.rowStatus i{width:7px;height:7px;border-radius:50%;background:#ffd04a;box-shadow:0 0 12px rgba(244,183,40,.5)}.rowIcon{width:32px;height:32px;display:grid;place-items:center;border-radius:10px;background:rgba(244,183,40,.12);color:#ffd04a;font-size:.67rem;font-weight:950}.read .rowIcon{background:rgba(255,255,255,.045);color:#747078}.rowCopy{min-width:0;display:grid;gap:4px}.rowTopLine{min-width:0;display:flex;align-items:flex-start;justify-content:space-between;gap:10px}.rowTopLine strong{min-width:0;font-size:.72rem;line-height:1.35;overflow-wrap:normal}.rowTopLine time{flex:0 0 auto;color:#76717a;font-size:.56rem;white-space:nowrap}.rowBody{color:#9a949f;font-size:.63rem;line-height:1.45;overflow-wrap:normal}.read .rowBody{color:#6f6a72}.rowMeta{display:flex;align-items:center;gap:6px;min-height:16px}.rowMeta b{color:#ffd04a;font-size:.57rem;font-weight:950}.rowMeta em{padding:3px 6px;border-radius:999px;background:rgba(244,183,40,.13);color:#ffd04a;font-size:.52rem;font-style:normal;font-weight:950}.rowChevron{padding-top:7px;color:#69656e;font-size:1.15rem}.emptyState{min-height:280px;padding:36px 24px;display:grid;place-items:center;align-content:center;text-align:center}.emptyBell{width:54px;height:54px;display:grid;place-items:center;border-radius:18px;background:rgba(244,183,40,.1);color:#ffd04a}.emptyState strong{margin-top:14px;font-size:.94rem}.emptyState p{max-width:280px;margin:7px 0 0;color:#817c85;font-size:.68rem;line-height:1.55}
-        .missionCard{position:relative;overflow:hidden;width:min(100%,520px);box-sizing:border-box;margin:0 auto;padding:24px;border:1px solid rgba(255,201,61,.28);border-radius:30px;background:linear-gradient(155deg,rgba(54,40,14,.98),rgba(16,16,14,.99) 66%);box-shadow:0 28px 80px rgba(0,0,0,.44),inset 0 1px 0 rgba(255,255,255,.08)}.cardGlow{position:absolute;top:-110px;right:-90px;width:250px;height:250px;border-radius:50%;background:rgba(244,183,40,.22);filter:blur(4px);pointer-events:none}.missionCopy{position:relative;z-index:1}.missionCopy h1{max-width:100%;margin:0;font-size:clamp(2.05rem,8vw,3.05rem);line-height:1.04;letter-spacing:-.05em;text-wrap:balance;overflow-wrap:anywhere;hyphens:auto}.missionCopy.cjkCopy h1{font-size:clamp(2rem,7vw,2.85rem);line-height:1.1;letter-spacing:-.035em}.permanentLinkCard{position:relative;z-index:1;margin-top:18px;padding:16px;border:1px solid rgba(255,205,80,.2);border-radius:19px;background:rgba(255,205,80,.055)}.linkPreview{padding:11px 12px;overflow:hidden;border:1px solid rgba(255,255,255,.08);border-radius:13px;background:rgba(3,4,5,.42);color:#b8b2c2;font-size:.68rem;font-weight:750;white-space:nowrap;text-overflow:ellipsis;direction:ltr;text-align:left}.linkActions{margin-top:11px;display:grid;grid-template-columns:1fr 1fr;gap:9px}.primaryAction,.secondaryAction{position:relative;z-index:1;width:100%;min-height:56px;border-radius:18px;font:inherit;font-size:.92rem;font-weight:950;cursor:pointer;overflow-wrap:anywhere}.primaryAction{margin-top:24px;border:0;display:flex;align-items:center;justify-content:center;gap:10px;padding:10px 16px;background:linear-gradient(135deg,#ffd24d,#efa718);color:#17120a;box-shadow:0 16px 35px rgba(190,126,12,.25),inset 0 1px 0 rgba(255,255,255,.22)}.secondaryAction{border:1px solid rgba(255,255,255,.11);background:rgba(255,255,255,.045);color:#fff}.compactAction{min-height:44px;margin-top:0;border-radius:13px;font-size:.75rem;box-shadow:none}.slotsBlock{position:relative;z-index:1;margin-top:16px;display:grid;gap:9px}.slotsHeading{display:flex;align-items:center;justify-content:space-between;gap:12px;color:#c7c2d0;font-size:.78rem}.slotsHeading span{flex:0 0 auto;min-width:42px;padding:5px 8px;border:1px solid rgba(255,255,255,.08);border-radius:999px;color:#ffd66e;text-align:center;font-size:.66rem;font-weight:950}.slotPreview{min-height:68px;padding:11px 12px;box-sizing:border-box;display:grid;grid-template-columns:28px minmax(0,1fr) 18px;align-items:center;gap:10px;border:1px solid rgba(255,255,255,.07);border-radius:16px;background:rgba(255,255,255,.022)}.activeSlot{border-color:rgba(244,183,40,.16);background:rgba(244,183,40,.04)}.slotNumber{width:27px;height:27px;display:grid;place-items:center;border-radius:9px;background:rgba(244,183,40,.11);color:#ffd04a;font-size:.65rem;font-weight:950}.slotPreview>div{min-width:0;display:grid;gap:3px}.slotPreview strong{font-size:.72rem}.slotPreview small{color:#77727d;font-size:.59rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.slotArrow{color:#8a858e;font-size:1.15rem}
-        @media(max-width:680px){.notificationPreview{width:100%}.previewIntro,.previewControls{width:calc(100% - 32px)}.screen{min-height:760px;padding:18px 16px 72px;border-right:0;border-left:0;border-radius:0}.topBar{gap:8px}.topActions{gap:6px}.utilityActions{gap:6px}.languageSelect{max-width:118px;height:34px;font-size:.66rem}.accountChip{min-height:34px;padding:0 9px;font-size:.62rem}.bellButton{width:34px;height:34px;flex-basis:34px;border-radius:11px}.historyPanel{position:fixed;z-index:141;top:auto;right:0;bottom:0;left:0;width:100%;max-height:78dvh;border-right:0;border-bottom:0;border-left:0;border-radius:27px 27px 0 0}.historyScroll{max-height:calc(78dvh - 65px)}.rowTopLine{display:grid;grid-template-columns:minmax(0,1fr) auto}.missionCard{padding:22px 20px}}
+      <style jsx global>{`
+        .notificationPreview {
+          width:min(calc(100% - 24px),1120px);
+          margin:0 auto;
+          color:#fff;
+        }
+        .notificationPreview .previewIntro {
+          width:min(100%,760px);
+          margin:0 auto 18px;
+        }
+        .notificationPreview .previewIntro>span {
+          color:#f4b728;
+          font-size:.62rem;
+          font-weight:950;
+          letter-spacing:.11em;
+        }
+        .notificationPreview .previewIntro h2 {
+          margin:6px 0 0;
+          font-size:clamp(1.35rem,4vw,1.9rem);
+          letter-spacing:-.04em;
+        }
+        .notificationPreview .previewIntro p {
+          margin:8px 0 0;
+          color:#8f8992;
+          font-size:.72rem;
+          line-height:1.6;
+        }
+        .notificationPreview .previewControls {
+          width:min(100%,520px);
+          margin:0 auto 12px;
+          display:grid;
+          grid-template-columns:1fr 1fr;
+          gap:7px;
+        }
+        .notificationPreview .previewControls button {
+          min-height:42px;
+          border:1px solid rgba(255,255,255,.08);
+          border-radius:13px;
+          background:#11110f;
+          color:#8f8992;
+          font:inherit;
+          font-size:.69rem;
+          font-weight:850;
+          cursor:pointer;
+        }
+        .notificationPreview .previewControls button.selected {
+          border-color:rgba(244,183,40,.32);
+          background:rgba(244,183,40,.09);
+          color:#ffd66e;
+        }
+        .notificationPreviewScreen {
+          min-height:720px;
+          box-sizing:border-box;
+          padding:22px 18px 72px;
+          color:#fff;
+          background:
+            radial-gradient(
+              circle at 50% 16%,
+              rgba(244,183,40,.14),
+              transparent 32%
+            ),
+            #080807;
+          border:1px solid rgba(255,255,255,.045);
+          border-radius:30px;
+        }
+        .notificationPreviewTopBar {
+          position:relative;
+          z-index:20;
+          width:min(100%,520px);
+          margin:0 auto 26px;
+          display:flex;
+          align-items:center;
+          justify-content:space-between;
+          gap:16px;
+        }
+        .notificationPreviewActions {
+          min-width:0;
+          display:flex;
+          align-items:center;
+          gap:10px;
+        }
+        .notificationPreviewUtilityActions {
+          min-width:0;
+          display:flex;
+          align-items:center;
+          justify-content:flex-end;
+          gap:8px;
+        }
+        .notificationLanguageSelect {
+          max-width:155px;
+          height:40px;
+          padding:0 28px 0 11px;
+          border:1px solid rgba(255,255,255,.1);
+          border-radius:13px;
+          background:#141625;
+          color:#fff;
+          font:inherit;
+          font-size:.76rem;
+          font-weight:800;
+          cursor:pointer;
+        }
+        .notificationAccountChip {
+          min-height:40px;
+          padding:0 13px;
+          display:inline-flex;
+          align-items:center;
+          gap:8px;
+          border:1px solid rgba(255,255,255,.1);
+          border-radius:13px;
+          background:#141625;
+          color:#fff;
+          font:inherit;
+          font-size:.72rem;
+          font-weight:850;
+          cursor:pointer;
+        }
+        .notificationAccountDot {
+          width:9px;
+          height:9px;
+          border-radius:50%;
+          background:#f4b728;
+          box-shadow:0 0 14px rgba(244,183,40,.68);
+        }
+        .notificationBellWrap {
+          position:relative;
+        }
+        .notificationBellButton {
+          position:relative;
+          width:40px;
+          height:40px;
+          flex:0 0 40px;
+          display:grid;
+          place-items:center;
+          padding:0;
+          border:1px solid rgba(255,255,255,.1);
+          border-radius:13px;
+          background:#141625;
+          color:#b6b2bf;
+          cursor:pointer;
+        }
+        .notificationBellButton.hasUnread {
+          border-color:rgba(255,205,80,.36);
+          color:#ffd04a;
+          box-shadow:0 0 0 3px rgba(244,183,40,.05);
+        }
+        .notificationUnreadBadge {
+          position:absolute;
+          top:-7px;
+          inset-inline-end:-7px;
+          min-width:19px;
+          height:19px;
+          box-sizing:border-box;
+          padding:0 5px;
+          display:grid;
+          place-items:center;
+          border:2px solid #080807;
+          border-radius:999px;
+          background:#f4b728;
+          color:#17120a;
+          font-size:.6rem;
+          font-weight:950;
+          line-height:1;
+        }
+        .notificationPanelBackdrop {
+          position:fixed;
+          z-index:140;
+          inset:0;
+          border:0;
+          background:rgba(2,2,2,.66);
+          cursor:default;
+        }
+        .notificationHistoryPanel {
+          position:absolute;
+          z-index:141;
+          top:50px;
+          right:0;
+          width:min(400px,calc(100vw - 28px));
+          max-height:min(610px,calc(100dvh - 92px));
+          overflow:hidden;
+          box-sizing:border-box;
+          border:1px solid rgba(255,205,80,.22);
+          border-radius:22px;
+          background:#11110f;
+          box-shadow:
+            0 32px 90px rgba(0,0,0,.6),
+            inset 0 1px 0 rgba(255,255,255,.055);
+          text-align:left;
+        }
+        .notificationHistoryHeader {
+          min-height:62px;
+          padding:12px 12px 11px 16px;
+          display:flex;
+          align-items:center;
+          justify-content:space-between;
+          gap:10px;
+          border-bottom:1px solid rgba(255,255,255,.07);
+          background:linear-gradient(
+            180deg,
+            rgba(244,183,40,.055),
+            rgba(244,183,40,0)
+          );
+        }
+        .notificationHistoryHeading {
+          min-width:0;
+          display:flex;
+          align-items:center;
+          gap:8px;
+        }
+        .notificationHistoryHeading h3 {
+          margin:0;
+          color:#f8f6ef;
+          font-size:.98rem;
+          letter-spacing:-.02em;
+        }
+        .notificationHistoryHeading>span {
+          padding:4px 7px;
+          border-radius:999px;
+          background:rgba(244,183,40,.13);
+          color:#ffd04a;
+          font-size:.56rem;
+          font-weight:900;
+          white-space:nowrap;
+        }
+        .notificationHistoryHeaderActions {
+          flex:0 0 auto;
+          display:flex;
+          align-items:center;
+          gap:2px;
+        }
+        .notificationMarkAll {
+          min-height:32px;
+          padding:0 8px;
+          border:0;
+          background:transparent;
+          color:#a59e91;
+          font:inherit;
+          font-size:.62rem;
+          font-weight:850;
+          cursor:pointer;
+        }
+        .notificationClosePanel {
+          width:34px;
+          height:34px;
+          border:0;
+          background:transparent;
+          color:#77736f;
+          font:inherit;
+          font-size:1.4rem;
+          cursor:pointer;
+        }
+        .notificationHistoryScroll {
+          max-height:calc(min(610px,calc(100dvh - 92px)) - 63px);
+          overflow-y:auto;
+          overscroll-behavior:contain;
+          scrollbar-width:thin;
+          scrollbar-color:#3b3529 transparent;
+        }
+        .notificationHistoryGroup h4 {
+          margin:0;
+          padding:12px 16px 7px;
+          color:#6f6a62;
+          font-size:.6rem;
+          font-weight:900;
+        }
+        .notificationHistoryGroup>div {
+          display:block;
+        }
+        .notificationHistoryRow {
+          width:100%;
+          min-width:0;
+          box-sizing:border-box;
+          padding:14px 16px 15px;
+          display:block;
+          border:0;
+          border-top:1px solid rgba(255,255,255,.05);
+          background:transparent;
+          color:#fff;
+          text-align:left;
+          font:inherit;
+          cursor:pointer;
+          transition:background .16s ease;
+        }
+        .notificationHistoryRow.isUnread {
+          background:linear-gradient(
+            90deg,
+            rgba(244,183,40,.075),
+            rgba(244,183,40,.018) 72%,
+            transparent
+          );
+        }
+        .notificationHistoryRow.isUnread:hover {
+          background:linear-gradient(
+            90deg,
+            rgba(244,183,40,.11),
+            rgba(244,183,40,.025) 72%,
+            transparent
+          );
+        }
+        .notificationHistoryRow.isRead {
+          background:rgba(255,255,255,.008);
+        }
+        .notificationHistoryContent {
+          min-width:0;
+          display:block;
+        }
+        .notificationHistoryTopLine {
+          min-width:0;
+          display:grid;
+          grid-template-columns:minmax(0,1fr) auto;
+          align-items:start;
+          gap:12px;
+        }
+        .notificationHistoryTitleWrap {
+          min-width:0;
+          display:flex;
+          align-items:flex-start;
+          gap:8px;
+        }
+        .notificationUnreadDot {
+          flex:0 0 7px;
+          width:7px;
+          height:7px;
+          margin-top:5px;
+          border-radius:50%;
+          background:#ffd04a;
+          box-shadow:0 0 11px rgba(244,183,40,.45);
+        }
+        .notificationHistoryTitle {
+          min-width:0;
+          color:#f5f1e8;
+          font-size:.76rem;
+          font-weight:850;
+          line-height:1.4;
+          letter-spacing:-.012em;
+          overflow-wrap:anywhere;
+        }
+        .notificationHistoryTime {
+          padding-top:1px;
+          color:#746f67;
+          font-size:.56rem;
+          line-height:1.4;
+          white-space:nowrap;
+        }
+        .notificationHistoryBody {
+          display:block;
+          margin-top:6px;
+          padding-left:15px;
+          color:#aaa39a;
+          font-size:.65rem;
+          line-height:1.55;
+          overflow-wrap:anywhere;
+        }
+        .notificationHistoryMeta {
+          margin-top:9px;
+          padding-left:15px;
+          display:flex;
+          align-items:center;
+          flex-wrap:wrap;
+          gap:6px;
+        }
+        .notificationHistoryMeta b {
+          padding:4px 7px;
+          border:1px solid rgba(244,183,40,.14);
+          border-radius:999px;
+          background:rgba(244,183,40,.07);
+          color:#e8c862;
+          font-size:.56rem;
+          font-weight:900;
+        }
+        .notificationHistoryMeta em {
+          padding:4px 7px;
+          border-radius:999px;
+          background:#f4b728;
+          color:#17120a;
+          font-size:.54rem;
+          font-style:normal;
+          font-weight:950;
+        }
+        .notificationHistoryRow.isRead .notificationHistoryTitle {
+          color:#b3ada4;
+          font-weight:760;
+        }
+        .notificationHistoryRow.isRead .notificationHistoryBody {
+          color:#716c65;
+        }
+        .notificationHistoryRow.isRead .notificationHistoryTime {
+          color:#5e5a55;
+        }
+        .notificationHistoryRow.isRead .notificationHistoryMeta b {
+          border-color:rgba(255,255,255,.055);
+          background:rgba(255,255,255,.025);
+          color:#79746d;
+        }
+        .notificationEmptyState {
+          min-height:270px;
+          padding:36px 24px;
+          display:grid;
+          place-items:center;
+          align-content:center;
+          text-align:center;
+        }
+        .notificationEmptyBell {
+          width:54px;
+          height:54px;
+          display:grid;
+          place-items:center;
+          border-radius:18px;
+          background:rgba(244,183,40,.08);
+          color:#d5ae42;
+        }
+        .notificationEmptyState strong {
+          margin-top:14px;
+          color:#ddd8cf;
+          font-size:.9rem;
+        }
+        .notificationEmptyState p {
+          max-width:280px;
+          margin:7px 0 0;
+          color:#77726b;
+          font-size:.66rem;
+          line-height:1.55;
+        }
+        .notificationMissionCard {
+          position:relative;
+          overflow:hidden;
+          width:min(100%,520px);
+          box-sizing:border-box;
+          margin:0 auto;
+          padding:24px;
+          border:1px solid rgba(255,201,61,.28);
+          border-radius:30px;
+          background:linear-gradient(
+            155deg,
+            rgba(54,40,14,.98),
+            rgba(16,16,14,.99) 66%
+          );
+          box-shadow:
+            0 28px 80px rgba(0,0,0,.44),
+            inset 0 1px 0 rgba(255,255,255,.08);
+        }
+        .notificationCardGlow {
+          position:absolute;
+          top:-110px;
+          right:-90px;
+          width:250px;
+          height:250px;
+          border-radius:50%;
+          background:rgba(244,183,40,.22);
+          filter:blur(4px);
+          pointer-events:none;
+        }
+        .notificationMissionCopy {
+          position:relative;
+          z-index:1;
+        }
+        .notificationMissionCopy h1 {
+          max-width:100%;
+          margin:0;
+          font-size:clamp(2.05rem,8vw,3.05rem);
+          line-height:1.04;
+          letter-spacing:-.05em;
+          text-wrap:balance;
+          overflow-wrap:anywhere;
+          hyphens:auto;
+        }
+        .notificationMissionCopy.cjkCopy h1 {
+          font-size:clamp(2rem,7vw,2.85rem);
+          line-height:1.1;
+          letter-spacing:-.035em;
+        }
+        .notificationPermanentLinkCard {
+          position:relative;
+          z-index:1;
+          margin-top:18px;
+          padding:16px;
+          border:1px solid rgba(255,205,80,.2);
+          border-radius:19px;
+          background:rgba(255,205,80,.055);
+        }
+        .notificationLinkPreview {
+          padding:11px 12px;
+          overflow:hidden;
+          border:1px solid rgba(255,255,255,.08);
+          border-radius:13px;
+          background:rgba(3,4,5,.42);
+          color:#b8b2c2;
+          font-size:.68rem;
+          font-weight:750;
+          white-space:nowrap;
+          text-overflow:ellipsis;
+          direction:ltr;
+          text-align:left;
+        }
+        .notificationLinkActions {
+          margin-top:11px;
+          display:grid;
+          grid-template-columns:1fr 1fr;
+          gap:9px;
+        }
+        .notificationPrimaryAction,
+        .notificationSecondaryAction {
+          width:100%;
+          min-height:44px;
+          border-radius:13px;
+          font:inherit;
+          font-size:.75rem;
+          font-weight:950;
+          cursor:pointer;
+        }
+        .notificationPrimaryAction {
+          border:0;
+          background:linear-gradient(135deg,#ffd24d,#efa718);
+          color:#17120a;
+        }
+        .notificationSecondaryAction {
+          border:1px solid rgba(255,255,255,.11);
+          background:rgba(255,255,255,.045);
+          color:#fff;
+        }
+        .notificationSlotsBlock {
+          position:relative;
+          z-index:1;
+          margin-top:16px;
+          display:grid;
+          gap:9px;
+        }
+        .notificationSlotsHeading {
+          display:flex;
+          align-items:center;
+          justify-content:space-between;
+          gap:12px;
+          color:#c7c2d0;
+          font-size:.78rem;
+        }
+        .notificationSlotsHeading span {
+          flex:0 0 auto;
+          min-width:42px;
+          padding:5px 8px;
+          border:1px solid rgba(255,255,255,.08);
+          border-radius:999px;
+          color:#ffd66e;
+          text-align:center;
+          font-size:.66rem;
+          font-weight:950;
+        }
+        .notificationSlotPreview {
+          min-height:68px;
+          padding:11px 12px;
+          box-sizing:border-box;
+          display:grid;
+          grid-template-columns:28px minmax(0,1fr) 18px;
+          align-items:center;
+          gap:10px;
+          border:1px solid rgba(255,255,255,.07);
+          border-radius:16px;
+          background:rgba(255,255,255,.022);
+        }
+        .notificationSlotPreview.activeSlot {
+          border-color:rgba(244,183,40,.16);
+          background:rgba(244,183,40,.04);
+        }
+        .notificationSlotNumber {
+          width:27px;
+          height:27px;
+          display:grid;
+          place-items:center;
+          border-radius:9px;
+          background:rgba(244,183,40,.11);
+          color:#ffd04a;
+          font-size:.65rem;
+          font-weight:950;
+        }
+        .notificationSlotPreview>div {
+          min-width:0;
+          display:grid;
+          gap:3px;
+        }
+        .notificationSlotPreview strong {
+          font-size:.72rem;
+        }
+        .notificationSlotPreview small {
+          color:#77727d;
+          font-size:.59rem;
+          white-space:nowrap;
+          overflow:hidden;
+          text-overflow:ellipsis;
+        }
+        .notificationSlotArrow {
+          color:#8a858e;
+          font-size:1.15rem;
+        }
+        @media(max-width:680px) {
+          .notificationPreview {
+            width:100%;
+          }
+          .notificationPreview .previewIntro,
+          .notificationPreview .previewControls {
+            width:calc(100% - 32px);
+          }
+          .notificationPreviewScreen {
+            min-height:760px;
+            padding:18px 16px 72px;
+            border-right:0;
+            border-left:0;
+            border-radius:0;
+          }
+          .notificationPreviewTopBar {
+            gap:8px;
+          }
+          .notificationPreviewActions {
+            gap:6px;
+          }
+          .notificationPreviewUtilityActions {
+            gap:6px;
+          }
+          .notificationLanguageSelect {
+            max-width:118px;
+            height:34px;
+            font-size:.66rem;
+          }
+          .notificationAccountChip {
+            min-height:34px;
+            padding:0 9px;
+            font-size:.62rem;
+          }
+          .notificationBellButton {
+            width:34px;
+            height:34px;
+            flex-basis:34px;
+            border-radius:11px;
+          }
+          .notificationHistoryPanel {
+            position:fixed;
+            z-index:141;
+            top:auto;
+            right:10px;
+            bottom:10px;
+            left:10px;
+            width:auto;
+            max-height:74dvh;
+            border-radius:24px;
+          }
+          .notificationHistoryScroll {
+            max-height:calc(74dvh - 63px);
+          }
+          .notificationHistoryRow {
+            padding:14px 15px 15px;
+          }
+          .notificationHistoryTitle {
+            font-size:.75rem;
+          }
+          .notificationHistoryBody {
+            font-size:.64rem;
+          }
+          .notificationMissionCard {
+            padding:22px 20px;
+          }
+        }
       `}</style>
     </section>
   );
