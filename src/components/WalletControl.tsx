@@ -19,6 +19,7 @@ import {
 } from '@/hooks/useWalletAuthentication';
 import {
   markWalletConnectIntent,
+  settleExplicitWalletDisconnect,
 } from '@/lib/walletConnectionResume';
 
 const WalletButton = dynamic(
@@ -31,14 +32,8 @@ const WalletButton = dynamic(
   },
 );
 
-const WALLET_RELEASE_TIMEOUT_MS = 3_000;
-const WALLET_TRANSPORT_SETTLE_MS = 900;
-
-function wait(milliseconds: number): Promise<void> {
-  return new Promise((resolve) => {
-    window.setTimeout(resolve, milliseconds);
-  });
-}
+const WALLET_SESSION_INVALID_EVENT =
+  'veinvite-wallet-session-invalid';
 
 export function useActiveWallet():
   | string
@@ -100,86 +95,56 @@ export function useWalletLauncher() {
     openConnectModal,
   ]);
 
-  const waitForWalletRelease = useCallback(
-    async (previousWallet: string | null) => {
-      if (!previousWallet) {
-        return;
-      }
+  const performDisconnect = useCallback(async () => {
+    const previousWallet = walletRef.current;
 
-      const previous = previousWallet.toLowerCase();
-      const deadline =
-        Date.now() + WALLET_RELEASE_TIMEOUT_MS;
+    // Never tear down the provider if this browser's VeInvite session could not
+    // be revoked. Keeping the current wallet connected leaves the user in a
+    // recoverable state instead of producing a stale-cookie/startup deadlock.
+    try {
+      await clearWalletSession();
+    } catch (error) {
+      console.error(
+        'Failed to clear VeInvite wallet session:',
+        error,
+      );
+      throw error;
+    }
 
-      // VeChainKit clears the local account synchronously, but dapp-kit's
-      // wallet-manager starts the provider/WalletConnect disconnect without
-      // awaiting that remote teardown. Wait until React has observed the
-      // cleared account before allowing another login attempt.
-      while (
-        walletRef.current?.toLowerCase() === previous &&
-        Date.now() < deadline
-      ) {
-        await wait(50);
-      }
+    try {
+      await disconnect();
+    } catch (error) {
+      console.error(
+        'Failed to disconnect wallet:',
+        error,
+      );
+      // The server session is already gone but the provider is still present.
+      // Re-arm verification so the current wallet can recover instead of being
+      // stranded behind a non-interactive loading surface.
+      window.dispatchEvent(
+        new Event(WALLET_SESSION_INVALID_EVENT),
+      );
+      throw error;
+    }
 
-      // Give the underlying transport a short window to finish its remote
-      // disconnect. Without this guard a fast reconnect can race the old
-      // session teardown: VeWorld may show "App connected" while VeInvite
-      // never receives a fresh account.
-      await wait(WALLET_TRANSPORT_SETTLE_MS);
-    },
-    [],
-  );
+    const released =
+      await settleExplicitWalletDisconnect({
+        previousWallet,
+        readCurrentWallet: () => walletRef.current,
+      });
 
-  const performDisconnect = useCallback(
-    async ({
-      ignoreSessionCleanupError,
-    }: {
-      ignoreSessionCleanupError: boolean;
-    }) => {
-      const previousWallet = walletRef.current;
-      let sessionError: unknown;
-      let disconnectError: unknown;
-
-      try {
-        await clearWalletSession();
-      } catch (error) {
-        sessionError = error;
-        console.error(
-          'Failed to clear VeInvite wallet session:',
-          error,
-        );
-      }
-
-      try {
-        await disconnect();
-      } catch (error) {
-        disconnectError = error;
-        console.error(
-          'Failed to disconnect wallet:',
-          error,
-        );
-      }
-
-      await waitForWalletRelease(previousWallet);
-
-      if (disconnectError) {
-        throw disconnectError;
-      }
-
-      // A transient server-session cleanup failure must not trap the user on
-      // the old wallet when they explicitly chose "connect another wallet".
-      // The authentication gate also replaces any mismatched session during
-      // the next successful wallet verification.
-      if (sessionError && !ignoreSessionCleanupError) {
-        throw sessionError;
-      }
-    },
-    [
-      clearWalletSession,
-      disconnect,
-      waitForWalletRelease,
-    ],
-  );
+    if (!released) {
+      window.dispatchEvent(
+        new Event(WALLET_SESSION_INVALID_EVENT),
+      );
+      throw new Error(
+        'Wallet disconnect did not finish.',
+      );
+    }
+  }, [
+    clearWalletSession,
+    disconnect,
+  ]);
 
   const disconnectWallet = useCallback(async () => {
     if (isWalletActionPending) {
@@ -189,9 +154,7 @@ export function useWalletLauncher() {
     setIsWalletActionPending(true);
 
     try {
-      await performDisconnect({
-        ignoreSessionCleanupError: false,
-      });
+      await performDisconnect();
     } finally {
       setIsWalletActionPending(false);
     }
@@ -210,14 +173,12 @@ export function useWalletLauncher() {
 
       try {
         if (walletRef.current) {
-          await performDisconnect({
-            ignoreSessionCleanupError: true,
-          });
+          await performDisconnect();
         }
 
-        // At this point the previous VeChainKit account has been released and
-        // the old wallet transport has had time to settle, so the connect modal
-        // starts a genuinely new login instead of reusing a half-closed session.
+        // The old browser session is gone, the provider account has actually
+        // released, and stale VeWorld persistence has been removed twice around
+        // transport settlement. Only now start a genuinely new handshake.
         markWalletConnectIntent();
         openConnectModal();
       } finally {
@@ -242,34 +203,23 @@ export function useWalletLauncher() {
 }
 
 export function WalletControl() {
-  const wallet = useActiveWallet();
-  const { disconnect } = useWallet();
-  const { clearWalletSession } =
-    useWalletAuthentication();
+  const {
+    wallet,
+    disconnectWallet,
+    isWalletActionPending,
+  } = useWalletLauncher();
 
   const handleDisconnect =
     useCallback(async () => {
       try {
-        await clearWalletSession();
-      } catch (error) {
-        console.error(
-          'Failed to clear VeInvite wallet session:',
-          error,
-        );
-      }
-
-      try {
-        await disconnect();
+        await disconnectWallet();
       } catch (error) {
         console.error(
           'Failed to disconnect wallet:',
           error,
         );
       }
-    }, [
-      clearWalletSession,
-      disconnect,
-    ]);
+    }, [disconnectWallet]);
 
   return (
     <div className="walletControl">
@@ -284,7 +234,10 @@ export function WalletControl() {
           <button
             type="button"
             className="walletDisconnect"
-            onClick={handleDisconnect}
+            disabled={isWalletActionPending}
+            onClick={() => {
+              void handleDisconnect();
+            }}
           >
             Disconnect
           </button>

@@ -7,6 +7,9 @@ const failures = [];
 
 const walletAuth = read('src/hooks/useWalletAuthentication.ts');
 const walletControl = read('src/components/WalletControl.tsx');
+const walletSessionGate = read('src/components/WalletSessionGate.tsx');
+const walletResumeState = read('src/lib/walletConnectionResume.ts');
+const walletSwitchCopy = read('src/lib/i18n/walletSwitchCopy.ts');
 const walletSessionRoute = read('src/app/api/auth/session/route.ts');
 const walletVerifyRoute = read('src/app/api/auth/verify/route.ts');
 const multiDeviceMigration = read(
@@ -35,29 +38,124 @@ if (
 }
 
 if (
-  !/const connectedWallet\s*=[\s\S]*account\?\.address/.test(walletAuth) ||
-  !/!connectedWallet\s*\|\|[\s\S]*!WALLET_PATTERN\.test\(connectedWallet\)[\s\S]*return;/.test(
-    walletAuth,
-  ) ||
-  !/veinvite-wallet-session-cleared/.test(walletAuth)
+  !walletAuth.includes('confirmedDisconnected?: boolean') ||
+  !walletAuth.includes('!options.confirmedDisconnected') ||
+  !walletSessionGate.includes('confirmedDisconnected: true')
 ) {
   failures.push(
-    'Passive WalletConnect/VeWorld disconnect churn must be a no-op before any server-session clear or session-cleared event is emitted.',
-  );
-}
-
-if (!/\}, \[account\?\.address\]\);/.test(walletAuth)) {
-  failures.push(
-    'Explicit session clearing must track the live connected account so passive disconnects cannot revoke a persistent login.',
+    'Passive provider churn must stay non-destructive, while a wallet that remains disconnected after the visible grace period must be able to clear the stale browser session.',
   );
 }
 
 if (
-  !/performDisconnect/.test(walletControl) ||
-  !/await clearWalletSession\(\);[\s\S]*await disconnect\(\);/.test(walletControl)
+  !walletAuth.includes('SESSION_CLEAR_RETRY_DELAYS_MS') ||
+  !walletAuth.includes('index < SESSION_CLEAR_RETRY_DELAYS_MS.length') ||
+  !walletAuth.includes('if (response.ok)')
 ) {
   failures.push(
-    'Explicit disconnect/switch must continue clearing this browser session before disconnecting the wallet provider.',
+    'Explicit browser-session clearing must retry bounded transient DELETE failures before any provider disconnect is allowed.',
+  );
+}
+
+const sessionClearedEventIndex =
+  walletAuth.lastIndexOf('veinvite-wallet-session-cleared');
+const authoritativeClearIndex =
+  walletAuth.lastIndexOf('await clearServerSession();');
+if (
+  sessionClearedEventIndex < 0 ||
+  authoritativeClearIndex < 0 ||
+  sessionClearedEventIndex < authoritativeClearIndex
+) {
+  failures.push(
+    'The session-cleared event must only be emitted after the authoritative server DELETE has completed successfully.',
+  );
+}
+
+if (
+  !walletControl.includes('const performDisconnect') ||
+  !/await clearWalletSession\(\);[\s\S]*await disconnect\(\);[\s\S]*settleExplicitWalletDisconnect/.test(
+    walletControl,
+  ) ||
+  walletControl.includes('ignoreSessionCleanupError')
+) {
+  failures.push(
+    'Explicit disconnect/switch must keep the provider connected when server-session cleanup fails, and only start provider teardown after the browser session is gone.',
+  );
+}
+
+if (
+  !walletResumeState.includes('settleExplicitWalletDisconnect') ||
+  (walletResumeState.match(/clearPersistedVeWorldConnectionState\(\);/g)?.length ?? 0) < 2 ||
+  !walletResumeState.includes('WALLET_RELEASE_TIMEOUT_MS') ||
+  !walletResumeState.includes('WALLET_TRANSPORT_SETTLE_MS') ||
+  !walletResumeState.includes('Promise<boolean>')
+) {
+  failures.push(
+    'VeWorld disconnect settlement must wait for the old account to release, clear persisted provider evidence both before and after transport settlement, and report incomplete disconnects.',
+  );
+}
+
+if (
+  !walletSessionGate.includes('isWalletSessionMismatch') ||
+  !/const retryVerification[\s\S]*await clearWalletSession\(\);[\s\S]*await verify\(\);/.test(
+    walletSessionGate,
+  ) ||
+  !walletSessionGate.includes('WALLET_SWITCH_COPY') ||
+  !walletSessionGate.includes('switchT.continueCurrent') ||
+  !walletSessionGate.includes('switchT.chooseAnother')
+) {
+  failures.push(
+    'A real A-to-B VeWorld switch must render a dedicated wallet-changed surface and let the user explicitly continue with B without disconnecting it.',
+  );
+}
+
+if (
+  !/const chooseAnotherWallet[\s\S]*await clearWalletSession\(\);[\s\S]*await disconnect\(\);[\s\S]*settleExplicitWalletDisconnect[\s\S]*markWalletConnectIntent\(\);[\s\S]*openConnectModal\(\);/.test(
+    walletSessionGate,
+  )
+) {
+  failures.push(
+    'Choosing another wallet from the mismatch surface must clear the old browser session, finish provider teardown, and only then open a fresh wallet handshake.',
+  );
+}
+
+if (
+  !/disconnectFromVerification[\s\S]*await clearWalletSession\(\);[\s\S]*catch \(error\)[\s\S]*return;[\s\S]*await disconnect\(\)/.test(
+    walletSessionGate,
+  )
+) {
+  failures.push(
+    'Verification-screen disconnect must stop before provider teardown when browser-session revocation fails.',
+  );
+}
+
+if (
+  !/handleSessionCleared[\s\S]*data-veinvite-session-bootstrap[\s\S]*setAttribute\([\s\S]*data-veinvite-session-bootstrap[\s\S]*['"]none['"]/.test(
+    walletSessionGate,
+  )
+) {
+  failures.push(
+    'Clearing a browser wallet session must also invalidate the server bootstrap marker so startup readiness does not wait on a session that no longer exists.',
+  );
+}
+
+if (
+  !walletSessionGate.includes('PASSIVE_DISCONNECT_GRACE_MS = 7_000') ||
+  !walletSessionGate.includes("window.addEventListener(\n      'pageshow'") ||
+  !walletSessionGate.includes("document.addEventListener(\n      'visibilitychange'")
+) {
+  failures.push(
+    'A VeWorld disconnect that occurs while the page is backgrounded must be re-evaluated on visible return instead of leaving the startup shield waiting forever.',
+  );
+}
+
+if (
+  !walletSwitchCopy.includes("ko: {") ||
+  !walletSwitchCopy.includes("title: 'VeWorld에서 지갑이 변경되었어요'") ||
+  !walletSwitchCopy.includes('Record<\n  SupportedLocale')
+) {
+  failures.push(
+    'The wallet-changed surface must use reviewed localized copy rather than the generic signature-failure message.',
   );
 }
 
