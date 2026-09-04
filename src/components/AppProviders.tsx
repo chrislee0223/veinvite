@@ -16,7 +16,6 @@ import '@/lib/i18n/referralLinkCopy';
 import '@/lib/i18n/referralLinkCopyFinalHardening';
 import '@/lib/i18n/guideRewardClaimHardening';
 import { HeaderLanguagePickerPortal } from './HeaderLanguagePickerPortal';
-import { HomeDataRevealGuard } from './HomeDataRevealGuard';
 import { LegalNavigationMemory } from './LegalNavigationMemory';
 import {
   PublicRewardForecastPortal,
@@ -83,7 +82,6 @@ export function AppProviders({
         <ProviderReadySignal />
         <WalletConnectionResume />
         <WalletRuntimeLifecycle />
-        <HomeDataRevealGuard />
         <RewardReservationRecovery />
         {children}
         <WalletLanguagePreferenceSync />
