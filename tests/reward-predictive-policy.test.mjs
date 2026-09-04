@@ -38,6 +38,18 @@ test('uses a conservative minimum denominator before users complete', () => {
   assert.equal(result.maxImmediatelyPayableCount, '4');
 });
 
+test('VOT3-ready users carry the agreed 90 percent expected completion weight', () => {
+  const result = policy({
+    pipeline: {
+      ...EMPTY_PIPELINE,
+      vot3ReadyCount: 10,
+    },
+  });
+
+  assert.equal(result.expectedCompletions, 9);
+  assert.equal(result.stressCompletions, 14);
+});
+
 test('near-complete users increase the stress denominator and lower fixed reward', () => {
   const result = policy({
     pipeline: {
