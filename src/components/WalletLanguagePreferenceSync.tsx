@@ -71,14 +71,11 @@ async function postLanguageState({
 
 async function saveLanguage(
   language: SupportedLocale,
-  source:
-    | 'manual_selection'
-    | 'local_storage',
 ): Promise<void> {
   await postLanguageState({
     intent: SET_LANGUAGE_INTENT,
     language,
-    source,
+    source: 'manual_selection',
   });
 }
 
@@ -86,6 +83,7 @@ async function observeDisplayLanguage(
   language: SupportedLocale,
   source:
     | 'browser_auto'
+    | 'local_storage'
     | 'wallet_preference',
 ): Promise<void> {
   await postLanguageState({
@@ -143,10 +141,7 @@ export function WalletLanguagePreferenceSync() {
         return;
       }
 
-      void saveLanguage(
-        language,
-        'manual_selection',
-      ).catch(
+      void saveLanguage(language).catch(
         (error) => {
           console.warn(
             'Failed to persist VeInvite language preference:',
@@ -190,10 +185,7 @@ export function WalletLanguagePreferenceSync() {
 
         if (changedAfterMount) {
           if (isLocale(localLanguage)) {
-            await saveLanguage(
-              localLanguage,
-              'manual_selection',
-            );
+            await saveLanguage(localLanguage);
           }
           return;
         }
@@ -218,7 +210,12 @@ export function WalletLanguagePreferenceSync() {
         }
 
         if (isLocale(localLanguage)) {
-          await saveLanguage(
+          // localStorage belongs to this browser, not to a wallet identity.
+          // It may have been left by another wallet on a shared device, so
+          // record only what this wallet is currently seeing. A wallet-level
+          // preference is created only after an explicit language change while
+          // that wallet has an authenticated session.
+          await observeDisplayLanguage(
             localLanguage,
             'local_storage',
           );
