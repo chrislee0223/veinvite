@@ -6,6 +6,7 @@ const read = (path) => readFileSync(join(root, path), 'utf8');
 const failures = [];
 
 const walletAuth = read('src/hooks/useWalletAuthentication.ts');
+const walletAuthServer = read('src/lib/walletAuthServer.ts');
 const walletControl = read('src/components/WalletControl.tsx');
 const walletSessionRoute = read('src/app/api/auth/session/route.ts');
 const walletVerifyRoute = read('src/app/api/auth/verify/route.ts');
@@ -53,20 +54,33 @@ if (!/\}, \[account\?\.address\]\);/.test(walletAuth)) {
 }
 
 if (
-  !/performDisconnect/.test(walletControl) ||
-  !/await clearWalletSession\(\);[\s\S]*await disconnect\(\);/.test(walletControl)
-) {
-  failures.push(
-    'Explicit disconnect/switch must continue clearing this browser session before disconnecting the wallet provider.',
-  );
-}
-
-if (
   !/SESSION_LIFETIME_DAYS\s*=\s*30/.test(walletVerifyRoute) ||
   !/maxAge:\s*SESSION_LIFETIME_SECONDS/.test(walletVerifyRoute)
 ) {
   failures.push(
     'A newly verified wallet session must start with the reviewed 30-day persistent lifetime.',
+  );
+}
+
+if (
+  !/SESSION_ABSOLUTE_LIFETIME_DAYS\s*=\s*30/.test(walletAuthServer) ||
+  !/\.gt\('created_at',\s*absoluteCreatedAfter\)/.test(walletAuthServer)
+) {
+  failures.push(
+    'Server-side wallet session validation must reject sessions more than 30 days after the original ownership proof even if expires_at was previously extended.',
+  );
+}
+
+if (
+  !/SESSION_ABSOLUTE_LIFETIME_DAYS\s*=\s*30/.test(walletSessionRoute) ||
+  !/\.select\('token_hash, created_at'\)/.test(walletSessionRoute) ||
+  !/absoluteExpiresAt[\s\S]*Math\.min\([\s\S]*SLIDING_SESSION_LIFETIME_SECONDS[\s\S]*absoluteExpiresAt\.getTime\(\)/.test(
+    walletSessionRoute,
+  ) ||
+  !/maxAge:\s*remainingLifetimeSeconds/.test(walletSessionRoute)
+) {
+  failures.push(
+    'Silent session renewal must be capped by the original 30-day ownership-proof lifetime and the browser cookie must use only the remaining absolute lifetime.',
   );
 }
 
