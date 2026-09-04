@@ -70,6 +70,7 @@ const activeInviteStatuses: InviteStatus[] = [
   'PENDING_ACCEPTANCE',
   'ACTIVATING',
   'UNDER_REVIEW',
+  'COMPLETED',
 ];
 
 function toInvitationRows(value: unknown): InvitationRow[] {
@@ -139,6 +140,12 @@ function isCurrentActiveInvite(invitation: InvitationRow): boolean {
     invitation.status === 'UNDER_REVIEW'
   ) {
     return hasEntryProof(invitation);
+  }
+  if (invitation.status === 'COMPLETED') {
+    return (
+      hasEntryProof(invitation) &&
+      invitation.slot_released_at === null
+    );
   }
   return false;
 }
