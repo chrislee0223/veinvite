@@ -213,7 +213,9 @@ export function WalletRuntimeLifecycle() {
 
             console.warn(
               'VeInvite could not silently renew the wallet session.',
-              { status: response.status },
+              {
+                status: response.status,
+              },
             );
             return false;
           } catch (error) {
@@ -252,14 +254,20 @@ export function WalletRuntimeLifecycle() {
   );
 
   useEffect(() => {
-    if (!walletAddress) return;
+    if (!walletAddress) {
+      return;
+    }
+
     void renewSession(walletAddress);
   }, [renewSession, walletAddress]);
 
   useEffect(() => {
     const handleWalletSessionReady = () => {
       const wallet = walletRef.current;
-      if (wallet) void renewSession(wallet);
+
+      if (wallet) {
+        void renewSession(wallet);
+      }
     };
 
     window.addEventListener(
@@ -276,36 +284,50 @@ export function WalletRuntimeLifecycle() {
   }, [renewSession]);
 
   useEffect(() => {
-    if (window.location.pathname !== '/') return;
+    if (window.location.pathname !== '/') {
+      return;
+    }
 
     const clearReadinessTimer = () => {
       if (readinessTimerRef.current !== null) {
-        window.clearTimeout(readinessTimerRef.current);
+        window.clearTimeout(
+          readinessTimerRef.current,
+        );
         readinessTimerRef.current = null;
       }
     };
 
     const releaseApp = () => {
-      if (releasedRef.current) return;
+      if (releasedRef.current) {
+        return;
+      }
 
       releasedRef.current = true;
       hasReleasedOnceRef.current = true;
       startupErrorReportedRef.current = false;
       clearReadinessTimer();
-      document.documentElement.dataset.veinviteAppReady = 'true';
-      window.dispatchEvent(new Event(APP_READY_EVENT));
+      document.documentElement.dataset.veinviteAppReady =
+        'true';
+      window.dispatchEvent(
+        new Event(APP_READY_EVENT),
+      );
     };
 
     const reportStartupError = (
       homeState: HomeStartupState | null,
     ) => {
       clearReadinessTimer();
-      if (startupErrorReportedRef.current) return;
+
+      if (startupErrorReportedRef.current) {
+        return;
+      }
 
       startupErrorReportedRef.current = true;
       window.dispatchEvent(
         new CustomEvent(APP_STARTUP_ERROR_EVENT, {
-          detail: { message: homeState?.errorMessage },
+          detail: {
+            message: homeState?.errorMessage,
+          },
         }),
       );
     };
@@ -318,72 +340,72 @@ export function WalletRuntimeLifecycle() {
       );
     const hasBootstrappedSession = () =>
       document
-        .querySelector('[data-veinvite-session-bootstrap]')
-        ?.getAttribute('data-veinvite-session-bootstrap') === 'verified';
+        .querySelector(
+          '[data-veinvite-session-bootstrap]',
+        )
+        ?.getAttribute(
+          'data-veinvite-session-bootstrap',
+        ) === 'verified';
     const hasPersistedVeWorldWallet = () =>
       Boolean(readPersistedDappKitAccount());
-
-    const getDecision = () => {
-      const interactiveGateVisible = hasInteractiveGate();
-      const currentHomeState =
-        readPublishedHomeStartupState() ?? homeStateRef.current;
-
-      return {
-        currentHomeState,
-        interactiveGateVisible,
-        decision: resolveStartupReadiness({
-          walletAddress: walletRef.current,
-          homeState: currentHomeState,
-          hasBootstrappedSession: hasBootstrappedSession(),
-          hasPersistedWallet: hasPersistedVeWorldWallet(),
-          interactiveGateVisible,
-          allowHomeDataHydration: !hasReleasedOnceRef.current,
-        }),
-      };
-    };
 
     const scheduleStableRelease = (
       expectedWallet: string | null,
     ) => {
       clearReadinessTimer();
-      readinessTimerRef.current = window.setTimeout(() => {
-        readinessTimerRef.current = null;
+      readinessTimerRef.current =
+        window.setTimeout(() => {
+          readinessTimerRef.current = null;
 
-        if (
-          releasedRef.current ||
-          walletRef.current !== expectedWallet
-        ) {
-          return;
-        }
+          if (
+            releasedRef.current ||
+            walletRef.current !== expectedWallet
+          ) {
+            return;
+          }
 
-        const interactiveGateVisible = hasInteractiveGate();
-        if (
-          shouldHoldForWalletBootstrap({
+          const interactiveGateVisible =
+            hasInteractiveGate();
+          if (
+            shouldHoldForWalletBootstrap({
+              walletAddress: walletRef.current,
+              walletBootstrapSettled,
+              interactiveGateVisible,
+            })
+          ) {
+            return;
+          }
+
+          const currentHomeState =
+            readPublishedHomeStartupState() ??
+            homeStateRef.current;
+          const decision = resolveStartupReadiness({
             walletAddress: walletRef.current,
-            walletBootstrapSettled,
+            homeState: currentHomeState,
+            hasBootstrappedSession:
+              hasBootstrappedSession(),
+            hasPersistedWallet:
+              hasPersistedVeWorldWallet(),
             interactiveGateVisible,
-          })
-        ) {
-          return;
-        }
+            allowHomeDataHydration:
+              !hasReleasedOnceRef.current,
+          });
 
-        const {
-          currentHomeState,
-          decision,
-        } = getDecision();
-
-        if (decision === 'release') {
-          releaseApp();
-        } else if (decision === 'error') {
-          reportStartupError(currentHomeState);
-        }
-      }, HOME_STABILITY_MS);
+          if (decision === 'release') {
+            releaseApp();
+          } else if (decision === 'error') {
+            reportStartupError(currentHomeState);
+          }
+        }, HOME_STABILITY_MS);
     };
 
     const evaluate = () => {
-      if (releasedRef.current) return;
+      if (releasedRef.current) {
+        return;
+      }
 
-      const interactiveGateVisible = hasInteractiveGate();
+      const interactiveGateVisible =
+        hasInteractiveGate();
       if (
         shouldHoldForWalletBootstrap({
           walletAddress: walletRef.current,
@@ -396,10 +418,20 @@ export function WalletRuntimeLifecycle() {
         return;
       }
 
-      const {
-        currentHomeState,
-        decision,
-      } = getDecision();
+      const currentHomeState =
+        readPublishedHomeStartupState() ??
+        homeStateRef.current;
+      const decision = resolveStartupReadiness({
+        walletAddress: walletRef.current,
+        homeState: currentHomeState,
+        hasBootstrappedSession:
+          hasBootstrappedSession(),
+        hasPersistedWallet:
+          hasPersistedVeWorldWallet(),
+        interactiveGateVisible,
+        allowHomeDataHydration:
+          !hasReleasedOnceRef.current,
+      });
 
       if (decision === 'release') {
         startupErrorReportedRef.current = false;
@@ -420,7 +452,10 @@ export function WalletRuntimeLifecycle() {
     const handleHomeStartupState = (event: Event) => {
       const detail =
         (event as CustomEvent<HomeStartupState>).detail;
-      if (!detail) return;
+
+      if (!detail) {
+        return;
+      }
 
       homeStateRef.current = detail;
       evaluate();
@@ -438,7 +473,8 @@ export function WalletRuntimeLifecycle() {
       attributes: true,
     });
 
-    homeStateRef.current = readPublishedHomeStartupState();
+    homeStateRef.current =
+      readPublishedHomeStartupState();
     evaluate();
 
     return () => {
