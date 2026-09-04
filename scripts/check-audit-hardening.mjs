@@ -50,6 +50,72 @@ if (
   failures.push('Reward recipient audit foreign keys must retain covering indexes.');
 }
 
+const operatorQualityMigration = read(
+  'supabase/migrations/20260904223000_align_operator_quality_and_language_reporting.sql',
+);
+
+if (
+  !/2026-08-23 09:05:00\+00/.test(operatorQualityMigration) ||
+  !/status in \('ACTIVATING','UNDER_REVIEW','COMPLETED'\)/i.test(operatorQualityMigration) ||
+  !/create or replace view public\.operator_global_data_quality/i.test(operatorQualityMigration)
+) {
+  failures.push(
+    'Global data quality must keep the entry-proof cutoff so verified legacy rows cannot make current integrity look dirty.',
+  );
+}
+
+if (
+  !/reward_queue_entries_reservation_quote_snapshot_id_idx/i.test(operatorQualityMigration) ||
+  !/reservation_quote_snapshot_id\)\s*\n\s*where reservation_quote_snapshot_id is not null/i.test(
+    operatorQualityMigration,
+  )
+) {
+  failures.push(
+    'Reward reservation quote snapshots must retain a covering foreign-key index.',
+  );
+}
+
+for (const view of [
+  'operator_accepted_wallet_languages',
+  'operator_accepted_language_summary',
+]) {
+  const viewPattern = new RegExp(
+    `create or replace view public\\.${view}[\\s\\S]{0,120}with \\(security_invoker = true\\)`,
+    'i',
+  );
+  const revokePattern = new RegExp(
+    `revoke all on public\\.${view} from public, anon, authenticated`,
+    'i',
+  );
+  const grantPattern = new RegExp(
+    `grant select on public\\.${view} to service_role`,
+    'i',
+  );
+
+  if (
+    !viewPattern.test(operatorQualityMigration) ||
+    !revokePattern.test(operatorQualityMigration) ||
+    !grantPattern.test(operatorQualityMigration)
+  ) {
+    failures.push(
+      `Operator language view ${view} must remain security-invoker and service-role-only.`,
+    );
+  }
+}
+
+if (
+  !/analytics_excluded_wallets/i.test(operatorQualityMigration) ||
+  !/classification_status = 'VERIFIED'/i.test(operatorQualityMigration) ||
+  !/e\.outcome = 'ELIGIBLE'/i.test(operatorQualityMigration) ||
+  !/l\.outcome = 'ELIGIBLE'/i.test(operatorQualityMigration) ||
+  !/e\.entry_class in \('NEW','RETURNING'\)/i.test(operatorQualityMigration) ||
+  !/l\.entry_class in \('NEW','RETURNING'\)/i.test(operatorQualityMigration)
+) {
+  failures.push(
+    'Accepted-wallet language reporting must stay aligned with verified modern/legacy funnel classification and analytics exclusions.',
+  );
+}
+
 const onchainAnalyticsRoute = read(
   'src/app/api/admin/sybil/onchain/route.ts',
 );
