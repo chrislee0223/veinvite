@@ -21,6 +21,7 @@ import {
 } from '@/lib/walletConnectionResume';
 
 const APP_READY_EVENT = 'veinvite-app-ready';
+const APP_LOADING_EVENT = 'veinvite-app-loading';
 const WALLET_SESSION_READY_EVENT =
   'veinvite-wallet-session-ready';
 const SESSION_RENEWAL_INTENT = 'renew';
@@ -71,6 +72,8 @@ export function WalletRuntimeLifecycle() {
   const [walletBootstrapSettled, setWalletBootstrapSettled] =
     useState(false);
   const walletRef = useRef<string | null>(walletAddress);
+  const lastStartupWalletRef =
+    useRef<string | null>(walletAddress);
   const homeStateRef = useRef<HomeStartupState | null>(null);
   const releasedRef = useRef(false);
   const readinessTimerRef = useRef<number | null>(null);
@@ -82,6 +85,29 @@ export function WalletRuntimeLifecycle() {
 
   useEffect(() => {
     walletRef.current = walletAddress;
+  }, [walletAddress]);
+
+  useEffect(() => {
+    const previousWallet = lastStartupWalletRef.current;
+    lastStartupWalletRef.current = walletAddress;
+
+    if (
+      !walletAddress ||
+      previousWallet === walletAddress ||
+      document.documentElement.dataset.veinviteAppReady !== 'true'
+    ) {
+      return;
+    }
+
+    if (readinessTimerRef.current !== null) {
+      window.clearTimeout(readinessTimerRef.current);
+      readinessTimerRef.current = null;
+    }
+
+    releasedRef.current = false;
+    startupErrorReportedRef.current = false;
+    document.documentElement.dataset.veinviteAppReady = 'false';
+    window.dispatchEvent(new Event(APP_LOADING_EVENT));
   }, [walletAddress]);
 
   useEffect(() => {
@@ -400,12 +426,7 @@ export function WalletRuntimeLifecycle() {
 
       if (decision === 'release') {
         startupErrorReportedRef.current = false;
-
-        if (interactiveGateVisible) {
-          releaseApp();
-        } else {
-          scheduleStableRelease(walletRef.current);
-        }
+        scheduleStableRelease(walletRef.current);
         return;
       }
 
