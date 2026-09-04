@@ -28,6 +28,8 @@ const RENEWAL_DEDUPE_MS = 60_000;
 const HOME_STABILITY_MS = 160;
 const BROWSER_WALLET_BOOTSTRAP_SETTLE_MS = 350;
 const VEWORLD_WALLET_BOOTSTRAP_SETTLE_MS = 3_500;
+const INTERACTIVE_WALLET_GATE_SELECTOR =
+  '[data-veinvite-wallet-session-gate="interactive"]';
 
 type SessionResponse = {
   authenticated?: boolean;
@@ -88,11 +90,6 @@ export function WalletRuntimeLifecycle() {
       return;
     }
 
-    // VeChain Kit exposes whether the wallet transport is still restoring and
-    // whether the page is running inside VeWorld. The initial account can be
-    // null even for an already-connected VeWorld user, especially on a new
-    // Preview origin where VeInvite has no server cookie or origin-scoped dapp
-    // persistence yet. Never treat that transient null as an anonymous visitor.
     if (connection?.isLoading) {
       setWalletBootstrapSettled(false);
       return;
@@ -172,9 +169,6 @@ export function WalletRuntimeLifecycle() {
               return true;
             }
 
-            // Before a first-time ownership proof there is intentionally no
-            // server session yet. WalletSessionGate will emit its ready event
-            // after Sign succeeds, which retries renewal without another Sign.
             if (
               response.status === 401 ||
               response.status === 403
@@ -309,9 +303,8 @@ export function WalletRuntimeLifecycle() {
 
     const hasInteractiveGate = () =>
       Boolean(
-        !document.querySelector('main.screen') &&
         document.querySelector(
-          '[aria-live="polite"]',
+          INTERACTIVE_WALLET_GATE_SELECTOR,
         ),
       );
     const hasBootstrappedSession = () =>
@@ -408,9 +401,6 @@ export function WalletRuntimeLifecycle() {
       if (decision === 'release') {
         startupErrorReportedRef.current = false;
 
-        // An explicit Home-ready state gets one stable frame before the startup
-        // shield is removed. Actionable verification/recovery gates can surface
-        // immediately because their own UI is already complete.
         if (interactiveGateVisible) {
           releaseApp();
         } else {
@@ -446,9 +436,6 @@ export function WalletRuntimeLifecycle() {
       handleHomeStartupState,
     );
 
-    // The observer exists only so a real wallet/session recovery surface can
-    // replace the startup logo. Normal Home live regions are ignored while the
-    // Home root is mounted, so they cannot force an early application reveal.
     const observer = new MutationObserver(evaluate);
     observer.observe(document.body, {
       childList: true,
