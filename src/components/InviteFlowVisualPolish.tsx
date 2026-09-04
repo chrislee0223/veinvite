@@ -34,10 +34,10 @@ export function InviteFlowVisualPolish() {
         background: transparent !important;
       }
 
-      /* On the mission screen the legacy role-chip wrapper must not become a
-         second layout box. Let the language control participate directly in
-         the header flex row, so its right edge is the exact app content edge. */
-      .appHeader:has(+ .missionPanel) > div {
+      /* Keep the VeInvite brand as one flex item, exactly like the other app
+         headers. Only flatten the legacy role-chip/language wrapper so the
+         language picker can align to the right content edge. */
+      .appHeader:has(+ .missionPanel) > .brand + div {
         display: contents !important;
       }
 
