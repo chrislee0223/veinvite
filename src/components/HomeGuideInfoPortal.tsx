@@ -207,7 +207,9 @@ export function HomeGuideInfoPortal({ locale }: { locale: Locale }) {
                 className="veinviteSoftFocusClose"
                 onClick={closeGuide}
                 aria-label={NOTIFICATION_COPY[locale].closeAria}
-              />
+              >
+                <span className="veinviteDialogCloseGlyph" aria-hidden="true">×</span>
+              </button>
             </div>
             <div className="veinviteSoftFocusScroll veinviteGuideScroll">
               <InviteGuideContent locale={locale} />
@@ -246,21 +248,16 @@ export function HomeGuideInfoPortal({ locale }: { locale: Locale }) {
               box-shadow: none;
               color: #fff;
             }
-            .veinviteGuideDialog > .veinviteSoftFocusHeader .veinviteSoftFocusClose::before {
-              content: '×';
-              position: static;
-              width: auto;
-              height: auto;
-              border-radius: 0;
-              background: transparent;
-              transform: none;
+            .veinviteGuideDialog > .veinviteSoftFocusHeader .veinviteSoftFocusClose::before,
+            .veinviteGuideDialog > .veinviteSoftFocusHeader .veinviteSoftFocusClose::after {
+              content: none !important;
+              display: none !important;
+            }
+            .veinviteGuideDialog .veinviteDialogCloseGlyph {
+              display: block;
               font-size: 20px;
               font-weight: 400;
               line-height: 1;
-            }
-            .veinviteGuideDialog > .veinviteSoftFocusHeader .veinviteSoftFocusClose::after {
-              content: none;
-              display: none;
             }
             .veinviteGuideScroll {
               padding: 0 22px 24px;
