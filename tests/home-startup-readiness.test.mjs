@@ -51,9 +51,6 @@ test('returning VeWorld session stays covered until wallet, link, and slots are 
     }
   };
 
-  // SSR already knows this browser has a valid VeInvite session, but VeWorld
-  // has not restored the provider account yet. The disconnected Home may mount
-  // underneath the shield; it must never become visible.
   let decision = decide({
     walletAddress: null,
     state: homeState({
@@ -67,8 +64,6 @@ test('returning VeWorld session stays covered until wallet, link, and slots are 
   apply(decision);
   assert.equal(releaseCount, 0);
 
-  // VeWorld restores the same wallet later. Home immediately resets its wallet-
-  // scoped data and reports loading, so the startup surface must remain.
   decision = decide({
     walletAddress: RETURNING_WALLET,
     state: homeState({ status: 'loading' }),
@@ -77,7 +72,6 @@ test('returning VeWorld session stays covered until wallet, link, and slots are 
   apply(decision);
   assert.equal(releaseCount, 0);
 
-  // The permanent referral link arrives first. Slots are still unresolved.
   decision = decide({
     walletAddress: RETURNING_WALLET,
     state: homeState({
@@ -90,7 +84,6 @@ test('returning VeWorld session stays covered until wallet, link, and slots are 
   apply(decision);
   assert.equal(releaseCount, 0);
 
-  // Only the final combined Home state may release the application.
   decision = decide({
     walletAddress: RETURNING_WALLET,
     state: homeState({
@@ -103,14 +96,11 @@ test('returning VeWorld session stays covered until wallet, link, and slots are 
   apply(decision);
   assert.equal(releaseCount, 1);
 
-  // Duplicate ready notifications are harmless: the runtime release is one-shot.
   apply(decision);
   assert.equal(releaseCount, 1);
 });
 
 test('wallet verification surface is temporary and can never count as final Home readiness', () => {
-  // A wallet/session verification surface may need to be shown to the user,
-  // but showing it must not permanently remove the startup shield.
   assert.equal(
     decide({
       walletAddress: RETURNING_WALLET,
@@ -124,8 +114,6 @@ test('wallet verification surface is temporary and can never count as final Home
     'hold',
   );
 
-  // When verification finishes, Home mounts and begins wallet-scoped loading.
-  // The shield must be back before this partial state can paint.
   assert.equal(
     decide({
       walletAddress: RETURNING_WALLET,
@@ -139,7 +127,6 @@ test('wallet verification surface is temporary and can never count as final Home
     'hold',
   );
 
-  // Only the complete Home can finally release.
   assert.equal(
     decide({
       walletAddress: RETURNING_WALLET,
@@ -155,10 +142,6 @@ test('wallet verification surface is temporary and can never count as final Home
 });
 
 test('Preview-origin VeWorld restore cannot be mistaken for a real anonymous visitor', () => {
-  // A Preview URL has a different origin, so it can legitimately have neither
-  // the Production VeInvite session cookie nor origin-scoped dapp persistence.
-  // While VeChain Kit is still settling the wallet bootstrap, wallet=null must
-  // still stay behind the logo even though Home has mounted its anonymous state.
   assert.equal(
     shouldHoldForWalletBootstrap({
       walletAddress: null,
@@ -168,8 +151,6 @@ test('Preview-origin VeWorld restore cannot be mistaken for a real anonymous vis
     true,
   );
 
-  // If VeWorld restores the wallet late, the bootstrap guard no longer matters;
-  // the wallet-specific Home loading state takes over and still holds the app.
   assert.equal(
     shouldHoldForWalletBootstrap({
       walletAddress: RETURNING_WALLET,
@@ -276,7 +257,7 @@ test('VeWorld bootstrap uses SDK connection state before allowing anonymous Home
   assert.match(source, /shouldHoldForWalletBootstrap/);
 });
 
-test('Home startup reveal has one owner and normal Home live regions cannot release it early', async () => {
+test('Home startup reveal has one owner and only the explicit wallet gate can pause it', async () => {
   const runtime = await readFile(
     new URL('../src/components/WalletRuntimeLifecycle.tsx', import.meta.url),
     'utf8',
@@ -289,11 +270,11 @@ test('Home startup reveal has one owner and normal Home live regions cannot rele
   assert.doesNotMatch(providers, /HomeDataRevealGuard/);
   assert.match(
     runtime,
-    /!document\.querySelector\('main\.screen'\)\s*&&\s*document\.querySelector\(\s*'\[aria-live="polite"\]'/s,
+    /data-veinvite-wallet-session-gate=\\"interactive\\"/,
   );
   assert.doesNotMatch(
     runtime,
-    /const hasInteractiveGate = \(\) =>\s*Boolean\(\s*document\.querySelector\(\s*'\[aria-live="polite"\]'/s,
+    /querySelector\(\s*'\[aria-live="polite"\]'/s,
   );
 });
 
@@ -304,6 +285,14 @@ test('wallet verification temporarily steps the shield aside without final relea
   );
 
   assert.match(source, /function hasInteractiveWalletGate\(\)/);
+  assert.match(
+    source,
+    /data-veinvite-wallet-session-gate=\\"interactive\\"/,
+  );
+  assert.doesNotMatch(
+    source,
+    /querySelector\(\s*'\[aria-live="polite"\]'/s,
+  );
   assert.match(source, /new MutationObserver\(syncInteractiveGate\)/);
   assert.match(source, /setShieldVisible\(false\)/);
   assert.match(source, /setShieldVisible\(true\)/);
