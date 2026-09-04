@@ -1,4 +1,4 @@
-export const REWARD_FORECAST_MODEL_VERSION = 'reward-forecast-v1';
+export const REWARD_FORECAST_MODEL_VERSION = 'reward-forecast-v2-cohort';
 
 const BPS = 10_000n;
 const BOOTSTRAP_BASE_RECIPIENTS = 6;
@@ -21,6 +21,10 @@ export type RewardForecastPipeline = {
 
 export type RewardForecastPolicy = {
   modelVersion: string;
+  officialAllocationWei: string;
+  fundingAdjustmentWei: string;
+  designatedBudgetWei: string;
+  cohortReservedWei: string;
   projectedAllocationWei: string;
   projectedAllocationLowWei: string;
   projectedAllocationHighWei: string;
@@ -59,7 +63,6 @@ function parseWei(value: string, fieldName: string): bigint {
   if (!/^\d+$/.test(value)) {
     throw new Error(`${fieldName} must be a non-negative integer string.`);
   }
-
   return BigInt(value);
 }
 
@@ -67,7 +70,6 @@ function safeCount(value: number, fieldName: string): number {
   if (!Number.isSafeInteger(value) || value < 0) {
     throw new Error(`${fieldName} must be a non-negative safe integer.`);
   }
-
   return value;
 }
 
@@ -77,49 +79,11 @@ function ceilDiv(numerator: bigint, denominator: bigint): bigint {
   return (numerator + denominator - 1n) / denominator;
 }
 
-function clampBigInt(value: bigint, low: bigint, high: bigint): bigint {
-  if (value < low) return low;
-  if (value > high) return high;
-  return value;
-}
-
 function toSafeNumber(value: bigint, fieldName: string): number {
   if (value > BigInt(Number.MAX_SAFE_INTEGER)) {
     throw new Error(`${fieldName} exceeds the safe integer range.`);
   }
   return Number(value);
-}
-
-function weightedAllocationAverage(valuesNewestFirst: bigint[]): bigint {
-  if (valuesNewestFirst.length === 0) return 0n;
-
-  const chronological = [...valuesNewestFirst].reverse();
-  let weighted = 0n;
-  let weightTotal = 0n;
-
-  chronological.forEach((value, index) => {
-    const weight = BigInt(index + 1);
-    weighted += value * weight;
-    weightTotal += weight;
-  });
-
-  return weightTotal > 0n ? weighted / weightTotal : 0n;
-}
-
-function allocationRange(base: bigint, sampleCount: number): {
-  low: bigint;
-  high: bigint;
-} {
-  const uncertaintyBps = sampleCount >= 6
-    ? 1_000n
-    : sampleCount >= 3
-      ? 1_500n
-      : 2_500n;
-
-  const low = base * (BPS - uncertaintyBps) / BPS;
-  const high = ceilDiv(base * (BPS + uncertaintyBps), BPS);
-
-  return { low, high };
 }
 
 function pipelineWeightedBps(
@@ -128,17 +92,14 @@ function pipelineWeightedBps(
   pendingBps: number,
 ): bigint {
   let total = BigInt(safeCount(pendingBps, 'pendingAcceptanceBps'));
-
   for (const key of Object.keys(weights) as Array<keyof typeof weights>) {
     total += BigInt(safeCount(pipeline[key], String(key))) * BigInt(weights[key]);
   }
-
   return total;
 }
 
 function historicalRecipientAverage(recipientHistory: number[]): number | null {
   if (recipientHistory.length === 0) return null;
-
   const normalized = recipientHistory.map((value, index) =>
     safeCount(value, `recipientHistory[${index}]`),
   );
@@ -150,10 +111,8 @@ function blendBootstrapWithHistory(historyAverage: number | null, historyCount: 
   if (historyAverage === null || historyCount <= 0) {
     return BOOTSTRAP_BASE_RECIPIENTS;
   }
-
   const learnedWeightBps = Math.min(7_500, historyCount * 1_250);
   const bootstrapWeightBps = 10_000 - learnedWeightBps;
-
   return Math.max(
     1,
     Math.round(
@@ -165,36 +124,28 @@ function blendBootstrapWithHistory(historyAverage: number | null, historyCount: 
 }
 
 /**
- * Public display forecast only. This model intentionally does not participate
- * in reward preparation, signing, settlement, or payout authorization.
- *
- * It projects the next funded VeBetter round, assumes a user starting now must
- * still finish the governance-vote mission, and therefore prices against the
- * earliest following completion round. Historical allocations and actual
- * recipient counts gradually replace bootstrap assumptions as samples accrue.
+ * Public midpoint estimate for the currently funded participant cohort.
+ * The numerator is funding already designated to this cohort: the prior
+ * VeBetter official user allocation plus separately audited cohort adjustments.
+ * Historical allocation samples remain learning data only and do not alter the
+ * known current-round funding numerator.
  */
 export function calculateRewardForecastPolicy(input: {
-  recentAllocationWeiNewestFirst: string[];
+  officialAllocationWei: string;
+  fundingAdjustmentWei: string;
+  cohortReservedWei: string;
   observedPoolBalanceWei: string;
   reservedExistingWei: string;
+  allocationSampleCount: number;
   pipeline: RewardForecastPipeline;
   completedRewardRoundRecipientCounts: number[];
 }): RewardForecastPolicy {
-  if (input.recentAllocationWeiNewestFirst.length === 0) {
-    throw new Error('At least one real allocation sample is required.');
-  }
-
-  const allocations = input.recentAllocationWeiNewestFirst.map((value, index) =>
-    parseWei(value, `recentAllocationWeiNewestFirst[${index}]`),
-  );
-  const observedPoolBalance = parseWei(
-    input.observedPoolBalanceWei,
-    'observedPoolBalanceWei',
-  );
-  const reservedExisting = parseWei(
-    input.reservedExistingWei,
-    'reservedExistingWei',
-  );
+  const officialAllocation = parseWei(input.officialAllocationWei, 'officialAllocationWei');
+  const fundingAdjustment = parseWei(input.fundingAdjustmentWei, 'fundingAdjustmentWei');
+  const cohortReserved = parseWei(input.cohortReservedWei, 'cohortReservedWei');
+  const observedPoolBalance = parseWei(input.observedPoolBalanceWei, 'observedPoolBalanceWei');
+  const reservedExisting = parseWei(input.reservedExistingWei, 'reservedExistingWei');
+  const allocationSampleCount = safeCount(input.allocationSampleCount, 'allocationSampleCount');
 
   const pipeline: RewardForecastPipeline = {
     queuedEligibleCount: safeCount(input.pipeline.queuedEligibleCount, 'queuedEligibleCount'),
@@ -203,19 +154,20 @@ export function calculateRewardForecastPolicy(input: {
     appsTwoCount: safeCount(input.pipeline.appsTwoCount, 'appsTwoCount'),
     appsOneCount: safeCount(input.pipeline.appsOneCount, 'appsOneCount'),
     activatedZeroCount: safeCount(input.pipeline.activatedZeroCount, 'activatedZeroCount'),
-    pendingAcceptanceExpectedBps: safeCount(
-      input.pipeline.pendingAcceptanceExpectedBps,
-      'pendingAcceptanceExpectedBps',
-    ),
-    pendingAcceptanceStressBps: safeCount(
-      input.pipeline.pendingAcceptanceStressBps,
-      'pendingAcceptanceStressBps',
-    ),
+    pendingAcceptanceExpectedBps: safeCount(input.pipeline.pendingAcceptanceExpectedBps, 'pendingAcceptanceExpectedBps'),
+    pendingAcceptanceStressBps: safeCount(input.pipeline.pendingAcceptanceStressBps, 'pendingAcceptanceStressBps'),
   };
 
-  const projectedAllocation = weightedAllocationAverage(allocations);
-  const { low: projectedAllocationLow, high: projectedAllocationHigh } =
-    allocationRange(projectedAllocation, allocations.length);
+  const designatedBudget = officialAllocation + fundingAdjustment;
+  const remainingCohortBudget = designatedBudget > cohortReserved
+    ? designatedBudget - cohortReserved
+    : 0n;
+  const currentlyUnreservedPool = observedPoolBalance > reservedExisting
+    ? observedPoolBalance - reservedExisting
+    : 0n;
+  const pricingCapacity = remainingCohortBudget < currentlyUnreservedPool
+    ? remainingCohortBudget
+    : currentlyUnreservedPool;
 
   const expectedWeightedBps = pipelineWeightedBps(
     pipeline,
@@ -227,7 +179,6 @@ export function calculateRewardForecastPolicy(input: {
     STRESS_WEIGHTS_BPS,
     pipeline.pendingAcceptanceStressBps,
   );
-
   const pipelineExpectedRecipients = toSafeNumber(
     ceilDiv(expectedWeightedBps, BPS),
     'pipelineExpectedRecipients',
@@ -239,10 +190,7 @@ export function calculateRewardForecastPolicy(input: {
 
   const recipientHistory = input.completedRewardRoundRecipientCounts.slice(0, 8);
   const historyAverage = historicalRecipientAverage(recipientHistory);
-  const learnedBase = blendBootstrapWithHistory(
-    historyAverage,
-    recipientHistory.length,
-  );
+  const learnedBase = blendBootstrapWithHistory(historyAverage, recipientHistory.length);
 
   const expectedRecipients = Math.max(
     learnedBase,
@@ -263,50 +211,29 @@ export function calculateRewardForecastPolicy(input: {
     historyAverage === null ? 0 : historyAverage + 2,
   );
 
-  const currentlyUnreserved = observedPoolBalance > reservedExisting
-    ? observedPoolBalance - reservedExisting
-    : 0n;
-  const futureAvailable = currentlyUnreserved + projectedAllocation;
-  const pricingCapacity = clampBigInt(
-    futureAvailable,
-    0n,
-    projectedAllocation,
-  );
-
-  const baseReward = expectedRecipients > 0
-    ? pricingCapacity / BigInt(expectedRecipients)
-    : 0n;
-  const lowReward = recipientHigh > 0
-    ? clampBigInt(
-        projectedAllocationLow,
-        0n,
-        futureAvailable,
-      ) / BigInt(recipientHigh)
-    : 0n;
-  const highReward = recipientLow > 0
-    ? clampBigInt(
-        projectedAllocationHigh,
-        0n,
-        futureAvailable,
-      ) / BigInt(recipientLow)
-    : 0n;
-
-  const normalizedLow = lowReward > baseReward ? baseReward : lowReward;
-  const normalizedHigh = highReward < baseReward ? baseReward : highReward;
+  const baseReward = pricingCapacity / BigInt(expectedRecipients);
+  const lowReward = pricingCapacity / BigInt(recipientHigh);
+  const highReward = pricingCapacity / BigInt(recipientLow);
 
   return {
     modelVersion: REWARD_FORECAST_MODEL_VERSION,
-    projectedAllocationWei: projectedAllocation.toString(),
-    projectedAllocationLowWei: projectedAllocationLow.toString(),
-    projectedAllocationHighWei: projectedAllocationHigh.toString(),
-    allocationSampleCount: allocations.length,
+    officialAllocationWei: officialAllocation.toString(),
+    fundingAdjustmentWei: fundingAdjustment.toString(),
+    designatedBudgetWei: designatedBudget.toString(),
+    cohortReservedWei: cohortReserved.toString(),
+    // Legacy storage/API names are retained for compatibility. In v2 they are
+    // the known cohort pricing capacity, not a future-allocation projection.
+    projectedAllocationWei: pricingCapacity.toString(),
+    projectedAllocationLowWei: pricingCapacity.toString(),
+    projectedAllocationHighWei: pricingCapacity.toString(),
+    allocationSampleCount,
     recipientHistoryRoundCount: recipientHistory.length,
     expectedRecipients,
     recipientLow,
     recipientHigh,
     estimatedRewardWei: baseReward.toString(),
-    estimatedRewardLowWei: normalizedLow.toString(),
-    estimatedRewardHighWei: normalizedHigh.toString(),
+    estimatedRewardLowWei: lowReward.toString(),
+    estimatedRewardHighWei: highReward.toString(),
     pricingCapacityWei: pricingCapacity.toString(),
     pipelineExpectedRecipients,
     pipelineStressRecipients,
