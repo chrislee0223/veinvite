@@ -183,7 +183,7 @@ export function LocaleHydrationShield() {
 
   if (state.status === 'ready') return null;
 
-  const t = STARTUP_COPY[locale];
+  const t = STARTUP_COPY[locale] ?? STARTUP_COPY.en;
   const hasError = state.status === 'error';
 
   return (
