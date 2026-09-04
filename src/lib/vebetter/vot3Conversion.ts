@@ -15,8 +15,10 @@ const PAGE_SIZE = 1000;
 const ZERO_ADDRESS =
   '0x0000000000000000000000000000000000000000';
 
-export const MIN_VOT3_CONVERSION_WEI =
-  1_000_000_000_000_000_000n;
+// Mission qualification is based on completing one real positive conversion,
+// not on converting a minimum whole-B3TR amount. One wei keeps zero-value
+// transfer events from ever satisfying the mission.
+export const MIN_VOT3_CONVERSION_WEI = 1n;
 
 const transferEvent = new ABIEvent(
   'event Transfer(address indexed from, address indexed to, uint256 value)',
@@ -226,10 +228,10 @@ function eventMatchKey(
  * Both events must share the same transaction and clause. Receiving VOT3 from
  * another wallet therefore cannot satisfy this mission.
  *
- * A qualifying conversion must be at least 1 B3TR and strictly after the exact
- * first positive dApp reward already verified by the activity scanner in
- * VeChain execution order (block -> transaction -> clause). Passing the exact
- * event position avoids re-discovering a different same-block reward.
+ * A qualifying conversion must move a positive amount and be strictly after
+ * the exact first positive dApp reward already verified by the activity
+ * scanner in VeChain execution order (block -> transaction -> clause). Passing
+ * the exact event position avoids re-discovering a different same-block reward.
  */
 export async function getVeBetterVot3ConversionProgress({
   walletAddress,
