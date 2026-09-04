@@ -17,6 +17,7 @@ const [
 test('invite landing uses the Home shell width and full-size brand', () => {
   assert.match(landingSource, /<Brand \/>/u);
   assert.doesNotMatch(landingSource, /<Brand compact \/>/u);
+  assert.doesNotMatch(landingSource, />◎<\/span>/u);
   assert.match(landingSource, /\.topBar \{ width:min\(100%,520px\)/u);
   assert.match(landingSource, /\.gameCard \{[\s\S]*width:min\(100%,520px\)/u);
   assert.match(landingSource, /\.reassurance \{ width:min\(100%,520px\)/u);
@@ -35,6 +36,7 @@ test('first-time language setup stays on the same 520px visual frame', () => {
 test('later invite states keep Home-scale shell, logo, picker, and stable chevron', () => {
   assert.match(polishSource, /\.inviteLanding,[\s\S]*\.centeredFlow,[\s\S]*\.appShell \{[\s\S]*520px/u);
   assert.match(polishSource, /\.centeredFlow > \.brandCompact img \{[\s\S]*width: 38px !important;[\s\S]*height: 38px !important;/u);
+  assert.match(polishSource, /\.centeredFlow > label > span\[aria-hidden='true'\],[\s\S]*display: none !important;/u);
   assert.match(polishSource, /width: 155px !important;/u);
   assert.match(polishSource, /height: 40px !important;/u);
   assert.match(polishSource, /\.headerLanguageChevron \{[\s\S]*font-size: 0 !important;[\s\S]*rotate\(45deg\)/u);
