@@ -287,8 +287,8 @@ export function HeaderLanguagePickerPortal() {
           white-space:nowrap !important;
           border:0 !important;
         }
-        .headerLanguagePickerMount { position:relative; display:inline-flex; width:176px; max-width:100%; }
-        .headerLanguagePicker { position:relative; width:176px; max-width:100%; font:inherit; }
+        .headerLanguagePickerMount { position:relative; display:inline-flex; width:155px; max-width:100%; }
+        .headerLanguagePicker { position:relative; width:155px; max-width:100%; font:inherit; }
         .headerLanguageTrigger { width:100%; height:42px; box-sizing:border-box; display:grid; grid-template-columns:24px minmax(0,1fr) 14px; align-items:center; gap:9px; padding:0 14px 0 12px; border:1px solid rgba(255,255,255,.1); border-radius:13px; background:#141625; color:#fff; font:inherit; font-size:.76rem; font-weight:800; cursor:pointer; text-align:left; }
         .headerLanguageTrigger:hover,.headerLanguageTrigger:focus-visible { border-color:rgba(244,183,40,.55); outline:none; box-shadow:0 0 0 3px rgba(244,183,40,.1); }
         .headerLanguageFlag,.headerLanguageOptionFlag { overflow:hidden; display:grid; place-items:center; border-radius:4px; background:transparent; box-shadow:0 0 0 1px rgba(255,255,255,.14); }
@@ -303,7 +303,7 @@ export function HeaderLanguagePickerPortal() {
         .headerLanguageOption.selected { border-color:rgba(244,183,40,.32); background:rgba(244,183,40,.11); color:#ffd66e; }
         .headerLanguageCheck { text-align:center; font-weight:950; }
         @media (max-width:560px) {
-          .headerLanguagePickerMount,.headerLanguagePicker { width:160px; max-width:100%; }
+          .headerLanguagePickerMount,.headerLanguagePicker { width:155px; max-width:100%; }
           .headerLanguageTrigger { height:38px; border-radius:11px; font-size:.7rem; grid-template-columns:22px minmax(0,1fr) 12px; gap:8px; padding:0 12px 0 11px; }
           .headerLanguageFlag { width:22px; height:15px; }
           .headerLanguageChevron { width:7px; height:7px; }
