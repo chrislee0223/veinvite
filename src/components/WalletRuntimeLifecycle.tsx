@@ -309,6 +309,7 @@ export function WalletRuntimeLifecycle() {
 
     const hasInteractiveGate = () =>
       Boolean(
+        !document.querySelector('main.screen') &&
         document.querySelector(
           '[aria-live="polite"]',
         ),
@@ -445,9 +446,9 @@ export function WalletRuntimeLifecycle() {
       handleHomeStartupState,
     );
 
-    // The MutationObserver no longer guesses Home readiness from CSS skeletons.
-    // It exists only so a real wallet/session recovery surface can replace the
-    // startup logo as soon as WalletSessionGate intentionally renders it.
+    // The observer exists only so a real wallet/session recovery surface can
+    // replace the startup logo. Normal Home live regions are ignored while the
+    // Home root is mounted, so they cannot force an early application reveal.
     const observer = new MutationObserver(evaluate);
     observer.observe(document.body, {
       childList: true,
