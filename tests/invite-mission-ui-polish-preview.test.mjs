@@ -31,6 +31,14 @@ test('mission header geometry matches the invite landing header rail', () => {
   assert.match(visualPolish, /flex: 0 1 155px !important/);
 });
 
+test('invite language picker keeps width but uses the compact 44px height', () => {
+  assert.match(visualPolish, /\.headerLanguageTrigger \{/);
+  assert.match(visualPolish, /min-height: 44px !important/);
+  assert.match(visualPolish, /padding-top: 5px !important/);
+  assert.match(visualPolish, /padding-bottom: 5px !important/);
+  assert.match(visualPolish, /padding: 5px 34px 5px 12px !important/);
+});
+
 test('mission UI polish keeps spacing, readability, and touch targets deliberate', () => {
   assert.match(visualPolish, /\.appHeader:has\(\+ \.missionPanel\) \.chip/);
   assert.match(visualPolish, /\.missionPanel > \.eyebrow/);
