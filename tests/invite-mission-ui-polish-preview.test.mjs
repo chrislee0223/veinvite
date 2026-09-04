@@ -54,6 +54,7 @@ test('mission copy polish covers every supported locale', () => {
 test('Korean mission copy matches the approved wording and one-conversion rule', () => {
   assert.match(missionCopy, /appMission: `서로 다른 dApp 3개에서 B3TR 받기`/);
   assert.match(missionRuleCopy, /appMissionDescription: 'VeBetterDAO dApp을 이용해 각각 B3TR 보상을 받으면 완료돼요\.'/);
+  assert.match(missionRuleCopy, /conversionMission: 'B3TR → VOT3 1회 전환'/);
   assert.match(missionRuleCopy, /conversionMissionDescription: '첫 dApp 보상을 받은 뒤 B3TR을 VOT3로 1회 전환하세요\.'/);
   assert.doesNotMatch(missionRuleCopy, /최소 1 B3TR/);
   assert.match(missionCopy, /voteMissionDescription: `B3TR → VOT3 전환을 완료한 뒤 Allocation Voting에 1회 참여하세요\.`/);
