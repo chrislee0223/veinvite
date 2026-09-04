@@ -4,6 +4,7 @@ import { readFile } from 'node:fs/promises';
 
 import {
   resolveStartupReadiness,
+  shouldHoldForWalletBootstrap,
 } from '../src/lib/homeStartupReadiness.ts';
 
 const RETURNING_WALLET =
@@ -50,9 +51,6 @@ test('returning VeWorld session stays covered until wallet, link, and slots are 
     }
   };
 
-  // SSR already knows this browser has a valid VeInvite session, but VeWorld
-  // has not restored the provider account yet. The disconnected Home may mount
-  // underneath the shield; it must never become visible.
   let decision = decide({
     walletAddress: null,
     state: homeState({
@@ -66,8 +64,6 @@ test('returning VeWorld session stays covered until wallet, link, and slots are 
   apply(decision);
   assert.equal(releaseCount, 0);
 
-  // VeWorld restores the same wallet later. Home immediately resets its wallet-
-  // scoped data and reports loading, so the startup surface must remain.
   decision = decide({
     walletAddress: RETURNING_WALLET,
     state: homeState({ status: 'loading' }),
@@ -76,7 +72,6 @@ test('returning VeWorld session stays covered until wallet, link, and slots are 
   apply(decision);
   assert.equal(releaseCount, 0);
 
-  // The permanent referral link arrives first. Slots are still unresolved.
   decision = decide({
     walletAddress: RETURNING_WALLET,
     state: homeState({
@@ -89,7 +84,6 @@ test('returning VeWorld session stays covered until wallet, link, and slots are 
   apply(decision);
   assert.equal(releaseCount, 0);
 
-  // Only the final combined Home state may release the application.
   decision = decide({
     walletAddress: RETURNING_WALLET,
     state: homeState({
@@ -102,9 +96,82 @@ test('returning VeWorld session stays covered until wallet, link, and slots are 
   apply(decision);
   assert.equal(releaseCount, 1);
 
-  // Duplicate ready notifications are harmless: the runtime release is one-shot.
   apply(decision);
   assert.equal(releaseCount, 1);
+});
+
+test('wallet verification surface is temporary and can never count as final Home readiness', () => {
+  assert.equal(
+    decide({
+      walletAddress: RETURNING_WALLET,
+      state: homeState({
+        status: 'ready',
+        invitesReady: true,
+        referralLinkReady: true,
+      }),
+      interactiveGateVisible: true,
+    }),
+    'hold',
+  );
+
+  assert.equal(
+    decide({
+      walletAddress: RETURNING_WALLET,
+      state: homeState({
+        status: 'loading',
+        invitesReady: false,
+        referralLinkReady: true,
+      }),
+      interactiveGateVisible: false,
+    }),
+    'hold',
+  );
+
+  assert.equal(
+    decide({
+      walletAddress: RETURNING_WALLET,
+      state: homeState({
+        status: 'ready',
+        invitesReady: true,
+        referralLinkReady: true,
+      }),
+      interactiveGateVisible: false,
+    }),
+    'release',
+  );
+});
+
+test('Preview-origin VeWorld restore cannot be mistaken for a real anonymous visitor', () => {
+  assert.equal(
+    shouldHoldForWalletBootstrap({
+      walletAddress: null,
+      walletBootstrapSettled: false,
+      interactiveGateVisible: false,
+    }),
+    true,
+  );
+
+  assert.equal(
+    shouldHoldForWalletBootstrap({
+      walletAddress: RETURNING_WALLET,
+      walletBootstrapSettled: true,
+      interactiveGateVisible: false,
+    }),
+    false,
+  );
+  assert.equal(
+    decide({
+      walletAddress: RETURNING_WALLET,
+      state: homeState({
+        status: 'loading',
+        invitesReady: false,
+        referralLinkReady: false,
+      }),
+      hasBootstrappedSession: false,
+      hasPersistedWallet: false,
+    }),
+    'hold',
+  );
 });
 
 test('persisted VeWorld evidence also blocks a disconnected Home during restoration', () => {
@@ -139,7 +206,16 @@ test('a genuine Home data failure becomes startup error instead of incomplete Ho
   assert.equal(decision, 'error');
 });
 
-test('a genuinely disconnected visitor can see the normal connect Home', () => {
+test('a genuinely disconnected visitor can see the normal connect Home after wallet bootstrap settles', () => {
+  assert.equal(
+    shouldHoldForWalletBootstrap({
+      walletAddress: null,
+      walletBootstrapSettled: true,
+      interactiveGateVisible: false,
+    }),
+    false,
+  );
+
   const decision = decide({
     walletAddress: null,
     state: homeState({
@@ -166,6 +242,75 @@ test('startup runtime no longer infers Home readiness from skeleton CSS', async 
   assert.match(source, /HOME_STARTUP_STATE_EVENT/);
 });
 
+test('VeWorld bootstrap uses SDK connection state before allowing anonymous Home', async () => {
+  const source = await readFile(
+    new URL('../src/components/WalletRuntimeLifecycle.tsx', import.meta.url),
+    'utf8',
+  );
+
+  assert.match(source, /connection\?\.isLoading/);
+  assert.match(source, /connection\?\.isInAppBrowser/);
+  assert.match(
+    source,
+    /VEWORLD_WALLET_BOOTSTRAP_SETTLE_MS\s*=\s*3_500/,
+  );
+  assert.match(source, /shouldHoldForWalletBootstrap/);
+});
+
+test('Home startup reveal has one owner and only the explicit wallet gate can pause it', async () => {
+  const runtime = await readFile(
+    new URL('../src/components/WalletRuntimeLifecycle.tsx', import.meta.url),
+    'utf8',
+  );
+  const providers = await readFile(
+    new URL('../src/components/AppProviders.tsx', import.meta.url),
+    'utf8',
+  );
+
+  assert.doesNotMatch(providers, /HomeDataRevealGuard/);
+  assert.match(
+    runtime,
+    /data-veinvite-wallet-session-gate="interactive"/,
+  );
+  assert.doesNotMatch(
+    runtime,
+    /querySelector\(\s*'\[aria-live="polite"\]'/s,
+  );
+});
+
+test('wallet verification temporarily steps the shield aside without final release', async () => {
+  const source = await readFile(
+    new URL('../src/components/LocaleHydrationShield.tsx', import.meta.url),
+    'utf8',
+  );
+
+  assert.match(source, /function hasInteractiveWalletGate\(\)/);
+  assert.match(
+    source,
+    /data-veinvite-wallet-session-gate="interactive"/,
+  );
+  assert.doesNotMatch(
+    source,
+    /querySelector\(\s*'\[aria-live="polite"\]'/s,
+  );
+  assert.match(source, /new MutationObserver\(syncInteractiveGate\)/);
+  assert.match(source, /setShieldVisible\(false\)/);
+  assert.match(source, /setShieldVisible\(true\)/);
+  assert.match(source, /interactiveGateVisible/);
+});
+
+test('referral hydration placeholders have a visual fail-safe', async () => {
+  const source = await readFile(
+    new URL('../src/app/globals.css', import.meta.url),
+    'utf8',
+  );
+
+  assert.match(
+    source,
+    /\.linkPreviewSkeleton,\s*\.slotsSkeleton\s*\{\s*visibility:\s*hidden\s*!important;/s,
+  );
+});
+
 test('8-second watchdog does not forcibly release an incomplete Home', async () => {
   const source = await readFile(
     new URL('../src/components/LocaleHydrationShield.tsx', import.meta.url),
@@ -178,7 +323,7 @@ test('8-second watchdog does not forcibly release an incomplete Home', async () 
   );
   assert.match(
     source,
-    /if \(isHome\) \{\s*setState\(\{ status: 'error' \}\);/s,
+    /if \(isHome\) \{[\s\S]*setState\(\{ status: 'error' \}\);/,
   );
   assert.doesNotMatch(
     source,

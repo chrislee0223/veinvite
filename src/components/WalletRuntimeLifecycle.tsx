@@ -4,6 +4,7 @@ import {
   useCallback,
   useEffect,
   useRef,
+  useState,
 } from 'react';
 import { useWallet } from '@vechain/vechain-kit';
 
@@ -12,6 +13,7 @@ import {
   HOME_STARTUP_STATE_EVENT,
   readPublishedHomeStartupState,
   resolveStartupReadiness,
+  shouldHoldForWalletBootstrap,
   type HomeStartupState,
 } from '@/lib/homeStartupReadiness';
 import {
@@ -19,11 +21,16 @@ import {
 } from '@/lib/walletConnectionResume';
 
 const APP_READY_EVENT = 'veinvite-app-ready';
+const APP_LOADING_EVENT = 'veinvite-app-loading';
 const WALLET_SESSION_READY_EVENT =
   'veinvite-wallet-session-ready';
 const SESSION_RENEWAL_INTENT = 'renew';
 const RENEWAL_DEDUPE_MS = 60_000;
 const HOME_STABILITY_MS = 160;
+const BROWSER_WALLET_BOOTSTRAP_SETTLE_MS = 350;
+const VEWORLD_WALLET_BOOTSTRAP_SETTLE_MS = 3_500;
+const INTERACTIVE_WALLET_GATE_SELECTOR =
+  '[data-veinvite-wallet-session-gate="interactive"]';
 
 type SessionResponse = {
   authenticated?: boolean;
@@ -59,10 +66,14 @@ async function readSessionResponse(
 }
 
 export function WalletRuntimeLifecycle() {
-  const { account } = useWallet();
+  const { account, connection } = useWallet();
   const walletAddress =
     account?.address?.trim().toLowerCase() ?? null;
+  const [walletBootstrapSettled, setWalletBootstrapSettled] =
+    useState(false);
   const walletRef = useRef<string | null>(walletAddress);
+  const lastStartupWalletRef =
+    useRef<string | null>(walletAddress);
   const homeStateRef = useRef<HomeStartupState | null>(null);
   const releasedRef = useRef(false);
   const readinessTimerRef = useRef<number | null>(null);
@@ -75,6 +86,57 @@ export function WalletRuntimeLifecycle() {
   useEffect(() => {
     walletRef.current = walletAddress;
   }, [walletAddress]);
+
+  useEffect(() => {
+    const previousWallet = lastStartupWalletRef.current;
+    lastStartupWalletRef.current = walletAddress;
+
+    if (
+      !walletAddress ||
+      previousWallet === walletAddress ||
+      document.documentElement.dataset.veinviteAppReady !== 'true'
+    ) {
+      return;
+    }
+
+    if (readinessTimerRef.current !== null) {
+      window.clearTimeout(readinessTimerRef.current);
+      readinessTimerRef.current = null;
+    }
+
+    releasedRef.current = false;
+    startupErrorReportedRef.current = false;
+    document.documentElement.dataset.veinviteAppReady = 'false';
+    window.dispatchEvent(new Event(APP_LOADING_EVENT));
+  }, [walletAddress]);
+
+  useEffect(() => {
+    if (walletAddress) {
+      setWalletBootstrapSettled(true);
+      return;
+    }
+
+    if (connection?.isLoading) {
+      setWalletBootstrapSettled(false);
+      return;
+    }
+
+    setWalletBootstrapSettled(false);
+    const settleDelay = connection?.isInAppBrowser
+      ? VEWORLD_WALLET_BOOTSTRAP_SETTLE_MS
+      : BROWSER_WALLET_BOOTSTRAP_SETTLE_MS;
+    const timer = window.setTimeout(() => {
+      setWalletBootstrapSettled(true);
+    }, settleDelay);
+
+    return () => {
+      window.clearTimeout(timer);
+    };
+  }, [
+    connection?.isInAppBrowser,
+    connection?.isLoading,
+    walletAddress,
+  ]);
 
   const renewSession = useCallback(
     async (wallet: string): Promise<boolean> => {
@@ -133,9 +195,6 @@ export function WalletRuntimeLifecycle() {
               return true;
             }
 
-            // Before a first-time ownership proof there is intentionally no
-            // server session yet. WalletSessionGate will emit its ready event
-            // after Sign succeeds, which retries renewal without another Sign.
             if (
               response.status === 401 ||
               response.status === 403
@@ -271,7 +330,7 @@ export function WalletRuntimeLifecycle() {
     const hasInteractiveGate = () =>
       Boolean(
         document.querySelector(
-          '[aria-live="polite"]',
+          INTERACTIVE_WALLET_GATE_SELECTOR,
         ),
       );
     const hasBootstrappedSession = () =>
@@ -300,6 +359,18 @@ export function WalletRuntimeLifecycle() {
             return;
           }
 
+          const interactiveGateVisible =
+            hasInteractiveGate();
+          if (
+            shouldHoldForWalletBootstrap({
+              walletAddress: walletRef.current,
+              walletBootstrapSettled,
+              interactiveGateVisible,
+            })
+          ) {
+            return;
+          }
+
           const currentHomeState =
             readPublishedHomeStartupState() ??
             homeStateRef.current;
@@ -310,8 +381,7 @@ export function WalletRuntimeLifecycle() {
               hasBootstrappedSession(),
             hasPersistedWallet:
               hasPersistedVeWorldWallet(),
-            interactiveGateVisible:
-              hasInteractiveGate(),
+            interactiveGateVisible,
           });
 
           if (decision === 'release') {
@@ -327,6 +397,20 @@ export function WalletRuntimeLifecycle() {
         return;
       }
 
+      const interactiveGateVisible =
+        hasInteractiveGate();
+      if (
+        shouldHoldForWalletBootstrap({
+          walletAddress: walletRef.current,
+          walletBootstrapSettled,
+          interactiveGateVisible,
+        })
+      ) {
+        clearReadinessTimer();
+        startupErrorReportedRef.current = false;
+        return;
+      }
+
       const currentHomeState =
         readPublishedHomeStartupState() ??
         homeStateRef.current;
@@ -337,21 +421,12 @@ export function WalletRuntimeLifecycle() {
           hasBootstrappedSession(),
         hasPersistedWallet:
           hasPersistedVeWorldWallet(),
-        interactiveGateVisible:
-          hasInteractiveGate(),
+        interactiveGateVisible,
       });
 
       if (decision === 'release') {
         startupErrorReportedRef.current = false;
-
-        // An explicit Home-ready state gets one stable frame before the startup
-        // shield is removed. Actionable verification/recovery gates can surface
-        // immediately because their own UI is already complete.
-        if (hasInteractiveGate()) {
-          releaseApp();
-        } else {
-          scheduleStableRelease(walletRef.current);
-        }
+        scheduleStableRelease(walletRef.current);
         return;
       }
 
@@ -382,9 +457,6 @@ export function WalletRuntimeLifecycle() {
       handleHomeStartupState,
     );
 
-    // The MutationObserver no longer guesses Home readiness from CSS skeletons.
-    // It exists only so a real wallet/session recovery surface can replace the
-    // startup logo as soon as WalletSessionGate intentionally renders it.
     const observer = new MutationObserver(evaluate);
     observer.observe(document.body, {
       childList: true,
@@ -404,7 +476,7 @@ export function WalletRuntimeLifecycle() {
       observer.disconnect();
       clearReadinessTimer();
     };
-  }, [walletAddress]);
+  }, [walletAddress, walletBootstrapSettled]);
 
   return null;
 }
