@@ -1,6 +1,7 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
+  poweredByHeader: false,
   // Demo rendering is a preview/development aid only. Even if a stale Vercel
   // project variable is accidentally left enabled, Production bundles must
   // compile the public demo flag to false. The demo completion API has its own
