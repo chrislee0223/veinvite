@@ -27,7 +27,7 @@ export function InviteFlowVisualPolish() {
       .centeredFlow > label,
       .appHeader label {
         box-sizing: border-box !important;
-        width: 176px !important;
+        width: 155px !important;
         max-width: 48% !important;
         padding: 0 !important;
         border: 0 !important;
@@ -42,7 +42,7 @@ export function InviteFlowVisualPolish() {
 
       .centeredFlow select.languageSelect:not(.languageSelectNativeEnhanced),
       .appHeader select.languageSelect:not(.languageSelectNativeEnhanced) {
-        width: 176px !important;
+        width: 155px !important;
         max-width: 100% !important;
         height: 42px !important;
         box-sizing: border-box !important;
@@ -86,12 +86,12 @@ export function InviteFlowVisualPolish() {
       @media (max-width: 560px) {
         .centeredFlow > label,
         .appHeader label {
-          width: 160px !important;
+          width: 155px !important;
         }
 
         .centeredFlow select.languageSelect:not(.languageSelectNativeEnhanced),
         .appHeader select.languageSelect:not(.languageSelectNativeEnhanced) {
-          width: 160px !important;
+          width: 155px !important;
           height: 38px !important;
           padding: 0 32px 0 11px !important;
           border-radius: 11px !important;
