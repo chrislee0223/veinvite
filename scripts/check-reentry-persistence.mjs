@@ -20,6 +20,7 @@ const homeStartupReadiness = read('src/lib/homeStartupReadiness.ts');
 const walletControl = read('src/components/WalletControl.tsx');
 const walletAuth = read('src/hooks/useWalletAuthentication.ts');
 const walletSessionGate = read('src/components/WalletSessionGate.tsx');
+const walletResumeState = read('src/lib/walletConnectionResume.ts');
 const walletAuthServer = read('src/lib/walletAuthServer.ts');
 const walletSessionRoute = read('src/app/api/auth/session/route.ts');
 const walletVerifyRoute = read('src/app/api/auth/verify/route.ts');
@@ -56,8 +57,13 @@ if (!/20260901112500_persist_wallet_language_preference\.sql/.test(migrationMani
   failures.push('The production migration manifest must retain the language-preference persistence migration.');
 }
 
-if (!/WALLET_TRANSPORT_SETTLE_MS\s*=\s*900/.test(walletControl) || !/isWalletActionPending/.test(walletControl) || !/waitForWalletRelease/.test(walletControl)) {
-  failures.push('Wallet logout/switch must keep the transport-settle guard that prevents reconnect races.');
+if (
+  !/WALLET_TRANSPORT_SETTLE_MS\s*=\s*900/.test(walletResumeState) ||
+  !/WALLET_RELEASE_TIMEOUT_MS\s*=\s*3_000/.test(walletResumeState) ||
+  !/settleExplicitWalletDisconnect/.test(walletControl) ||
+  !/isWalletActionPending/.test(walletControl)
+) {
+  failures.push('Wallet logout/switch must keep the shared transport-settle guard that prevents reconnect races.');
 }
 if (!/WALLET_SIGNATURE_TIMEOUT_MS\s*=\s*15_000/.test(walletAuth) || !/withTimeout/.test(walletAuth) || !/AbortController/.test(walletAuth)) {
   failures.push('Wallet ownership verification must remain bounded and cancellable instead of waiting forever.');
@@ -71,8 +77,13 @@ if (!/disconnectFromVerification/.test(walletSessionGate) || !/t\.disconnectWall
 if (!/pagehide/.test(walletSessionGate) || !/pageLifecycleRef/.test(walletSessionGate) || !/document\.visibilityState\s*===\s*['"]hidden['"]/.test(walletSessionGate)) {
   failures.push('Page refresh/navigation must not be mistaken for an explicit wallet logout that revokes the server session.');
 }
-if (!/PASSIVE_DISCONNECT_GRACE_MS\s*=\s*8_000/.test(walletSessionGate) || !/pendingDisconnectTimerRef/.test(walletSessionGate) || !/walletAddressRef\.current/.test(walletSessionGate)) {
-  failures.push('Transient WalletConnect/VeWorld disconnect events must receive a reconnect grace window before the persistent session is revoked.');
+if (
+  !/PASSIVE_DISCONNECT_GRACE_MS\s*=\s*7_000/.test(walletSessionGate) ||
+  !/pendingDisconnectTimerRef/.test(walletSessionGate) ||
+  !/walletAddressRef\.current/.test(walletSessionGate) ||
+  !/confirmedDisconnected:\s*true/.test(walletSessionGate)
+) {
+  failures.push('Transient WalletConnect/VeWorld disconnect events must receive a reconnect grace window before a confirmed disconnect may revoke the persistent session.');
 }
 if (!/initialSessionWallet/.test(walletSessionGate) || !/autoAttemptedWalletRef\s*=\s*useRef<string \| null>\(initialWallet\)/.test(walletSessionGate)) {
   failures.push('A server-validated wallet session must bootstrap the client gate so refresh does not request another phone signature.');
