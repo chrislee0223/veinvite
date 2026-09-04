@@ -69,8 +69,17 @@ export default function RootLayout({
       <body>
         <div
           id="veinvite-ssr-startup"
-          className="serverStartupShield"
           aria-hidden="true"
+          style={{
+            position: 'fixed',
+            inset: 0,
+            zIndex: 10000,
+            display: 'grid',
+            placeItems: 'center',
+            background:
+              'radial-gradient(circle at 50% 38%, rgba(244, 183, 40, 0.1), transparent 32%), #080807',
+            pointerEvents: 'none',
+          }}
         >
           <Brand compact />
         </div>
