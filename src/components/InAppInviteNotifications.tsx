@@ -77,6 +77,16 @@ function historyIdAtOrBefore(id: string, throughId: string): boolean {
   }
 }
 
+function notificationRequiresHomeRefresh(
+  notification: InviteNotificationHistoryItem,
+): boolean {
+  return (
+    notification.kind === 'INVITE_INELIGIBLE' ||
+    notification.kind === 'REWARD_READY' ||
+    notification.kind === 'REWARD_PAID'
+  );
+}
+
 export function InAppInviteNotifications({
   locale,
 }: {
@@ -294,6 +304,11 @@ export function InAppInviteNotifications({
   const markRead = useCallback(
     async (id: string) => {
       if (busy) return;
+      const notification = items.find((item) => item.id === id);
+      if (!notification || notification.readAt !== null) return;
+      const refreshHomeAfterAcknowledgement =
+        notificationRequiresHomeRefresh(notification);
+
       setBusy(true);
       setErrorMessage('');
 
@@ -313,6 +328,12 @@ export function InAppInviteNotifications({
         window.dispatchEvent(
           new Event(NOTIFICATION_HISTORY_ACKNOWLEDGED_EVENT),
         );
+
+        if (refreshHomeAfterAcknowledgement) {
+          window.location.reload();
+          return;
+        }
+
         await refresh(false);
       } catch (error) {
         console.warn(
@@ -326,13 +347,19 @@ export function InAppInviteNotifications({
         setBusy(false);
       }
     },
-    [acknowledge, busy, refresh],
+    [acknowledge, busy, items, refresh],
   );
 
   const markAllRead = useCallback(async () => {
     if (busy || unreadCount < 1) return;
     const throughId = openSnapshotRef.current;
     if (!throughId) return;
+
+    const refreshHomeAfterAcknowledgement = items.some((notification) =>
+      notification.readAt === null &&
+      historyIdAtOrBefore(notification.id, throughId) &&
+      notificationRequiresHomeRefresh(notification),
+    );
 
     setBusy(true);
     setErrorMessage('');
@@ -352,6 +379,12 @@ export function InAppInviteNotifications({
       window.dispatchEvent(
         new Event(NOTIFICATION_HISTORY_ACKNOWLEDGED_EVENT),
       );
+
+      if (refreshHomeAfterAcknowledgement) {
+        window.location.reload();
+        return;
+      }
+
       await refresh(false);
     } catch (error) {
       console.warn(
@@ -364,7 +397,7 @@ export function InAppInviteNotifications({
     } finally {
       setBusy(false);
     }
-  }, [acknowledge, busy, refresh, unreadCount]);
+  }, [acknowledge, busy, items, refresh, unreadCount]);
 
   const loadMore = useCallback(async () => {
     if (!wallet || !nextCursor || loading || busy) return;
