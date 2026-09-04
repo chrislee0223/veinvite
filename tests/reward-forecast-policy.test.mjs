@@ -45,6 +45,18 @@ test('uses known current-cohort funding with a six-recipient bootstrap center', 
   assert.equal(result.estimatedRewardHighWei, '2000');
 });
 
+test('VOT3-ready users carry the agreed 90 percent expected completion weight', () => {
+  const result = forecast({
+    pipeline: {
+      ...EMPTY_PIPELINE,
+      vot3ReadyCount: 10,
+    },
+  });
+
+  assert.equal(result.pipelineExpectedRecipients, 9);
+  assert.equal(result.expectedRecipients, 12);
+});
+
 test('a separately recorded cohort promotion increases this cohort estimate', () => {
   const result = forecast({
     fundingAdjustmentWei: '2000',
