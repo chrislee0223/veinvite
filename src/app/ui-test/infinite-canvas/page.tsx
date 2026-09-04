@@ -43,7 +43,7 @@ export default function InfiniteCanvasUiTestPage() {
         </p>
         <div>
           <b>현재 운영</b>
-          <span>초대 슬롯 1개 · 보상 규칙 변경 없음</span>
+          <span>재사용 가능한 친구 슬롯 2개 · 보상 규칙 변경 없음</span>
           <b>미리보기</b>
           <span>2개 가지 · 무한 세대 시각화</span>
         </div>
