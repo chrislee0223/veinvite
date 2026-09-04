@@ -22,6 +22,7 @@ export type StartupReadinessInput = {
   hasBootstrappedSession: boolean;
   hasPersistedWallet: boolean;
   interactiveGateVisible: boolean;
+  allowHomeDataHydration?: boolean;
 };
 
 export type WalletBootstrapReadinessInput = {
@@ -73,11 +74,12 @@ export function resolveStartupReadiness({
   hasBootstrappedSession,
   hasPersistedWallet,
   interactiveGateVisible,
+  allowHomeDataHydration = false,
 }: StartupReadinessInput): StartupReadinessDecision {
   // Wallet/session verification is a temporary startup surface, not proof that
   // Home is ready. The hydration shield may step aside while that actionable
-  // surface is visible, but final app-ready must remain locked until the
-  // wallet-scoped referral link and invite slots have both finished loading.
+  // surface is visible, but final app-ready remains owned by this readiness
+  // decision so wallet transitions cannot expose stale wallet-scoped data.
   if (interactiveGateVisible) {
     return 'hold';
   }
@@ -93,9 +95,23 @@ export function resolveStartupReadiness({
       return 'error';
     }
 
-    return homeState?.status === 'ready'
-      ? 'release'
-      : 'hold';
+    if (homeState?.status === 'ready') {
+      return 'release';
+    }
+
+    // On the very first document load, once the wallet identity is settled and
+    // Home has published state for that same wallet, the app shell can render
+    // while referral/link data finishes in wallet-scoped placeholders. Wallet
+    // changes after the first reveal intentionally keep the stricter ready-only
+    // path so data from the previous wallet can never flash on screen.
+    if (
+      allowHomeDataHydration &&
+      homeState?.status === 'loading'
+    ) {
+      return 'release';
+    }
+
+    return 'hold';
   }
 
   // A returning browser can temporarily have wallet=null while VeWorld restores
