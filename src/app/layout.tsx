@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from 'next';
 import type { ReactNode } from 'react';
 
 import { AppProviders } from '@/components/AppProviders';
+import { Brand } from '@/components/Brand';
 import { LocaleDocumentSync } from '@/components/LocaleDocumentSync';
 import { LocaleHydrationShield } from '@/components/LocaleHydrationShield';
 import { UsageAnalyticsPreferenceControl } from '@/components/UsageAnalyticsPreferenceControl';
@@ -66,6 +67,13 @@ export default function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning>
       <body>
+        <div
+          id="veinvite-ssr-startup"
+          className="serverStartupShield"
+          aria-hidden="true"
+        >
+          <Brand compact />
+        </div>
         <LocaleHydrationShield />
         <AppProviders>
           <LocaleDocumentSync />
