@@ -287,27 +287,27 @@ export function HeaderLanguagePickerPortal() {
           white-space:nowrap !important;
           border:0 !important;
         }
-        .headerLanguagePickerMount { position:relative; display:inline-flex; width:120px; max-width:100%; }
-        .headerLanguagePicker { position:relative; width:120px; max-width:100%; font:inherit; }
-        .headerLanguageTrigger { width:100%; height:34px; box-sizing:border-box; display:grid; grid-template-columns:20px minmax(0,1fr) 10px; align-items:center; gap:7px; padding:0 10px 0 9px; border:1px solid rgba(255,255,255,.1); border-radius:10px; background:#141625; color:#fff; font:inherit; font-size:.68rem; font-weight:800; cursor:pointer; text-align:left; }
+        .headerLanguagePickerMount { position:relative; display:inline-flex; width:155px; max-width:100%; }
+        .headerLanguagePicker { position:relative; width:155px; max-width:100%; font:inherit; }
+        .headerLanguageTrigger { width:100%; min-height:48px; box-sizing:border-box; display:grid; grid-template-columns:24px minmax(0,1fr) 14px; align-items:center; gap:9px; padding:7px 14px 7px 12px; border:1px solid rgba(255,255,255,.1); border-radius:13px; background:#141625; color:#fff; font:inherit; font-size:.76rem; font-weight:800; cursor:pointer; text-align:left; }
         .headerLanguageTrigger:hover,.headerLanguageTrigger:focus-visible { border-color:rgba(244,183,40,.55); outline:none; box-shadow:0 0 0 3px rgba(244,183,40,.1); }
         .headerLanguageFlag,.headerLanguageOptionFlag { overflow:hidden; display:grid; place-items:center; border-radius:4px; background:transparent; box-shadow:0 0 0 1px rgba(255,255,255,.14); }
-        .headerLanguageFlag { width:20px; height:14px; }
+        .headerLanguageFlag { width:24px; height:16px; }
         .headerLanguageOptionFlag { width:30px; height:20px; }
         .headerLanguageFlag .flagSvg,.headerLanguageOptionFlag .flagSvg { width:100%; height:100%; object-fit:contain; display:block; }
         .headerLanguageName { min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-        .headerLanguageChevron { width:6px; height:6px; justify-self:end; border-right:1.5px solid currentColor; border-bottom:1.5px solid currentColor; color:#9892a5; transform:translateY(-1px) rotate(45deg); }
-        .headerLanguageMenu { position:absolute; z-index:350; top:calc(100% + 7px); right:0; width:min(265px,calc(100vw - 28px)); max-height:min(480px,68vh); overflow:auto; box-sizing:border-box; padding:7px; border:1px solid rgba(255,255,255,.1); border-radius:16px; background:#171a29; box-shadow:0 22px 70px rgba(0,0,0,.5); scrollbar-width:thin; }
+        .headerLanguageChevron { width:8px; height:8px; justify-self:end; border-right:1.5px solid currentColor; border-bottom:1.5px solid currentColor; color:#9892a5; transform:translateY(-2px) rotate(45deg); }
+        .headerLanguageMenu { position:absolute; z-index:350; top:calc(100% + 8px); right:0; width:min(265px,calc(100vw - 28px)); max-height:min(480px,68vh); overflow:auto; box-sizing:border-box; padding:7px; border:1px solid rgba(255,255,255,.1); border-radius:16px; background:#171a29; box-shadow:0 22px 70px rgba(0,0,0,.5); scrollbar-width:thin; }
         .headerLanguageOption { width:100%; min-height:44px; box-sizing:border-box; display:grid; grid-template-columns:30px minmax(0,1fr) 20px; align-items:center; gap:11px; padding:7px 9px; border:1px solid transparent; border-radius:11px; background:transparent; color:#fff; font:inherit; font-size:.86rem; font-weight:800; text-align:left; cursor:pointer; }
         .headerLanguageOption:hover,.headerLanguageOption:focus-visible { background:rgba(255,255,255,.06); outline:none; }
         .headerLanguageOption.selected { border-color:rgba(244,183,40,.32); background:rgba(244,183,40,.11); color:#ffd66e; }
         .headerLanguageCheck { text-align:center; font-weight:950; }
         @media (max-width:560px) {
-          .headerLanguagePickerMount,.headerLanguagePicker { width:120px; max-width:100%; }
-          .headerLanguageTrigger { height:34px; border-radius:10px; font-size:.68rem; grid-template-columns:20px minmax(0,1fr) 10px; gap:7px; padding:0 10px 0 9px; }
-          .headerLanguageFlag { width:20px; height:14px; }
-          .headerLanguageChevron { width:6px; height:6px; }
-          .headerLanguageMenu { top:calc(100% + 7px); }
+          .headerLanguagePickerMount,.headerLanguagePicker { width:155px; max-width:100%; }
+          .headerLanguageTrigger { min-height:48px; border-radius:13px; font-size:.76rem; grid-template-columns:24px minmax(0,1fr) 14px; gap:9px; padding:7px 14px 7px 12px; }
+          .headerLanguageFlag { width:24px; height:16px; }
+          .headerLanguageChevron { width:8px; height:8px; }
+          .headerLanguageMenu { top:calc(100% + 8px); }
         }
       `}</style>
     </div>,
