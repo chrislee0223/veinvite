@@ -25,6 +25,9 @@ import {
   WALLET_SESSION_COPY,
 } from '@/lib/i18n/walletSessionCopy';
 import {
+  clearPersistedVeWorldConnectionState,
+} from '@/lib/walletConnectionResume';
+import {
   LegalConsentGate,
 } from '@/components/LegalConsentGate';
 
@@ -107,6 +110,8 @@ export function WalletSessionGate({
   const pendingErrorTimerRef =
     useRef<number | null>(null);
   const bootReadyDispatchedRef = useRef(false);
+  const sessionWalletRef =
+    useRef<string | null>(initialWallet);
 
   useEffect(() => {
     setLocale(initialLocale());
@@ -157,6 +162,7 @@ export function WalletSessionGate({
       attemptRef.current += 1;
       autoAttemptedWalletRef.current = null;
       bootReadyDispatchedRef.current = false;
+      sessionWalletRef.current = null;
       if (pendingErrorTimerRef.current !== null) {
         window.clearTimeout(pendingErrorTimerRef.current);
         pendingErrorTimerRef.current = null;
@@ -299,6 +305,7 @@ export function WalletSessionGate({
         return;
       }
 
+      sessionWalletRef.current = walletAddress;
       setVerifiedWallet(walletAddress);
       setState('verified');
       bootReadyDispatchedRef.current = true;
@@ -331,11 +338,55 @@ export function WalletSessionGate({
     walletAddress,
   ]);
 
+  const retryVerification = useCallback(async () => {
+    if (!walletAddress || isDisconnecting) {
+      return;
+    }
+
+    const sessionWallet = sessionWalletRef.current;
+
+    // When VeWorld was switched outside VeInvite, the provider can already be
+    // on wallet B while this browser still owns a verified VeInvite session for
+    // wallet A. A normal retry would hit the same mismatch forever. The retry
+    // button is an explicit user action, so it is safe to clear only this
+    // browser's old session while keeping the newly connected provider wallet,
+    // then verify that current wallet in the normal signature flow.
+    if (
+      sessionWallet &&
+      sessionWallet !== walletAddress
+    ) {
+      setIsDisconnecting(true);
+
+      try {
+        await clearWalletSession();
+        autoAttemptedWalletRef.current = walletAddress;
+        await verify();
+      } catch (error) {
+        console.error(
+          'Failed to switch VeInvite verification to the connected wallet:',
+          error,
+        );
+        setState('error');
+      } finally {
+        setIsDisconnecting(false);
+      }
+      return;
+    }
+
+    await verify();
+  }, [
+    clearWalletSession,
+    isDisconnecting,
+    verify,
+    walletAddress,
+  ]);
+
   useEffect(() => {
     const handleInvalidWalletSession = () => {
       attemptRef.current += 1;
       autoAttemptedWalletRef.current = null;
       bootReadyDispatchedRef.current = false;
+      sessionWalletRef.current = null;
       setVerifiedWallet(null);
 
       if (!walletAddress) {
@@ -370,6 +421,7 @@ export function WalletSessionGate({
       return;
     }
 
+    sessionWalletRef.current = initialWallet;
     bootReadyDispatchedRef.current = true;
     window.dispatchEvent(
       new Event(WALLET_SESSION_READY_EVENT),
@@ -418,6 +470,10 @@ export function WalletSessionGate({
           error,
         );
       } finally {
+        // VeWorld's DAppKit persistence can outlive VeChainKit.disconnect().
+        // Clearing this explicit-recovery evidence prevents the startup shield
+        // from waiting for a wallet the user intentionally disconnected.
+        clearPersistedVeWorldConnectionState();
         setIsDisconnecting(false);
       }
 
@@ -593,7 +649,7 @@ export function WalletSessionGate({
               type="button"
               disabled={isDisconnecting}
               onClick={() => {
-                void verify();
+                void retryVerification();
               }}
               style={{
                 width: '100%',
