@@ -54,6 +54,15 @@ if (!/\}, \[account\?\.address\]\);/.test(walletAuth)) {
 }
 
 if (
+  !/performDisconnect/.test(walletControl) ||
+  !/await clearWalletSession\(\);[\s\S]*await disconnect\(\);/.test(walletControl)
+) {
+  failures.push(
+    'Explicit disconnect/switch must continue clearing this browser session before disconnecting the wallet provider.',
+  );
+}
+
+if (
   !/SESSION_LIFETIME_DAYS\s*=\s*30/.test(walletVerifyRoute) ||
   !/maxAge:\s*SESSION_LIFETIME_SECONDS/.test(walletVerifyRoute)
 ) {
