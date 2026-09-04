@@ -24,6 +24,7 @@ import { DeferredStartupExtras } from './DeferredStartupExtras';
 import { HeaderLanguagePickerPortal } from './HeaderLanguagePickerPortal';
 import { InviteFlowVisualPolish } from './InviteFlowVisualPolish';
 import { LegalNavigationMemory } from './LegalNavigationMemory';
+import { RewardReservationRecovery } from './RewardReservationRecovery';
 import { SecondaryPageLayoutPolish } from './SecondaryPageLayoutPolish';
 import { StartupHydrationPlaceholders } from './StartupHydrationPlaceholders';
 import { WalletConnectionResume } from './WalletConnectionResume';
@@ -85,6 +86,7 @@ export function AppProviders({
         <StartupHydrationPlaceholders />
         <WalletConnectionResume />
         <WalletRuntimeLifecycle />
+        <RewardReservationRecovery />
         {children}
         <WalletLanguagePreferenceSync />
         <SecondaryPageLayoutPolish />
