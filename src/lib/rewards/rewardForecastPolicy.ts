@@ -1,4 +1,4 @@
-export const REWARD_FORECAST_MODEL_VERSION = 'reward-forecast-v2-cohort';
+export const REWARD_FORECAST_MODEL_VERSION = 'reward-forecast-v2.1-cohort';
 
 const BPS = 10_000n;
 const BOOTSTRAP_BASE_RECIPIENTS = 6;
@@ -7,6 +7,9 @@ const BOOTSTRAP_HIGH_RECIPIENTS = 8;
 const STARTING_USER_COUNT = 1;
 const FUTURE_ENTRY_BASE = 2;
 const FUTURE_ENTRY_STRESS = 3;
+const COMPLETION_TIME_STRESS_GROWTH_BPS = 12_500n;
+const COMPLETION_TIME_MIN_STRESS_RECIPIENTS = 4;
+const COMPLETION_TIME_STRESS_EXTRA_RECIPIENTS = 2;
 
 export type RewardForecastPipeline = {
   queuedEligibleCount: number;
@@ -98,6 +101,43 @@ function pipelineWeightedBps(
   return total;
 }
 
+function completionTimeStressRecipientFloor(
+  pipeline: RewardForecastPipeline,
+): number {
+  // Completion-time reservations intentionally exclude unaccepted invitations,
+  // because they have no verified cohort yet. Mirror the fixed-reservation
+  // denominator here so aging pending invites can never make the public midpoint
+  // imply a larger reward than the amount the payout path would reserve.
+  const activeExpectedWeightedBps = pipelineWeightedBps(
+    pipeline,
+    EXPECTED_WEIGHTS_BPS,
+    0,
+  );
+  const activeStressWeightedBps = pipelineWeightedBps(
+    pipeline,
+    STRESS_WEIGHTS_BPS,
+    0,
+  );
+  const expectedCompletions = toSafeNumber(
+    ceilDiv(activeExpectedWeightedBps, BPS),
+    'completionTimeExpectedRecipients',
+  );
+  const stressWithGrowth = toSafeNumber(
+    ceilDiv(
+      activeStressWeightedBps * COMPLETION_TIME_STRESS_GROWTH_BPS,
+      BPS * BPS,
+    ),
+    'completionTimeStressRecipients',
+  );
+
+  return Math.max(
+    COMPLETION_TIME_MIN_STRESS_RECIPIENTS,
+    pipeline.queuedEligibleCount,
+    expectedCompletions,
+    stressWithGrowth + COMPLETION_TIME_STRESS_EXTRA_RECIPIENTS,
+  );
+}
+
 function historicalRecipientAverage(recipientHistory: number[]): number | null {
   if (recipientHistory.length === 0) return null;
   const normalized = recipientHistory.map((value, index) =>
@@ -187,6 +227,7 @@ export function calculateRewardForecastPolicy(input: {
     ceilDiv(stressWeightedBps * 12_500n, BPS * BPS),
     'pipelineStressRecipients',
   );
+  const completionTimeStressFloor = completionTimeStressRecipientFloor(pipeline);
 
   const recipientHistory = input.completedRewardRoundRecipientCounts.slice(0, 8);
   const historyAverage = historicalRecipientAverage(recipientHistory);
@@ -195,6 +236,7 @@ export function calculateRewardForecastPolicy(input: {
   const expectedRecipients = Math.max(
     learnedBase,
     pipelineExpectedRecipients + STARTING_USER_COUNT + FUTURE_ENTRY_BASE,
+    completionTimeStressFloor,
   );
   const recipientLow = Math.max(
     1,
