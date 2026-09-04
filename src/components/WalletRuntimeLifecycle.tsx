@@ -13,6 +13,7 @@ import {
   HOME_STARTUP_STATE_EVENT,
   readPublishedHomeStartupState,
   resolveStartupReadiness,
+  shouldHoldForWalletBootstrap,
   type HomeStartupState,
 } from '@/lib/homeStartupReadiness';
 import {
@@ -322,12 +323,6 @@ export function WalletRuntimeLifecycle() {
         ) === 'verified';
     const hasPersistedVeWorldWallet = () =>
       Boolean(readPersistedDappKitAccount());
-    const walletBootstrapIsPending = (
-      interactiveGateVisible: boolean,
-    ) =>
-      !interactiveGateVisible &&
-      !walletRef.current &&
-      !walletBootstrapSettled;
 
     const scheduleStableRelease = (
       expectedWallet: string | null,
@@ -347,9 +342,11 @@ export function WalletRuntimeLifecycle() {
           const interactiveGateVisible =
             hasInteractiveGate();
           if (
-            walletBootstrapIsPending(
+            shouldHoldForWalletBootstrap({
+              walletAddress: walletRef.current,
+              walletBootstrapSettled,
               interactiveGateVisible,
-            )
+            })
           ) {
             return;
           }
@@ -383,9 +380,11 @@ export function WalletRuntimeLifecycle() {
       const interactiveGateVisible =
         hasInteractiveGate();
       if (
-        walletBootstrapIsPending(
+        shouldHoldForWalletBootstrap({
+          walletAddress: walletRef.current,
+          walletBootstrapSettled,
           interactiveGateVisible,
-        )
+        })
       ) {
         clearReadinessTimer();
         startupErrorReportedRef.current = false;
