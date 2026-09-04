@@ -14,6 +14,7 @@ import '@/lib/i18n/copyHardening';
 import '@/lib/i18n/inviteeMissionCopyPolish';
 import '@/lib/i18n/inviteeConversionPolicyPolish';
 import '@/lib/i18n/guideCopyFinalHardening';
+import '@/lib/i18n/guideVot3PolicyPolish';
 import '@/lib/i18n/secondaryPageCopyHardening';
 import '@/lib/i18n/referralLinkCopy';
 import '@/lib/i18n/referralLinkCopyFinalHardening';
