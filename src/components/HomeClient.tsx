@@ -21,6 +21,9 @@ import {
   type TransientFeedbackKind,
 } from './TransientSnackbar';
 import { useWalletLauncher } from './WalletControl';
+import {
+  publishHomeStartupState,
+} from '@/lib/homeStartupReadiness';
 import { HOME_COPY } from '@/lib/i18n/homeCopy';
 import { NOTIFICATION_COPY } from '@/lib/i18n/notificationCopy';
 import { PROGRESS_CLAIM_COPY } from '@/lib/i18n/progressClaimCopy';
@@ -156,6 +159,7 @@ export function HomeClient() {
   const [referralLink, setReferralLink] =
     useState<ReferralLinkRecord | null>(null);
   const [invitesReady, setInvitesReady] = useState(false);
+  const [invitesFailed, setInvitesFailed] = useState(false);
   const [referralLinkVerified, setReferralLinkVerified] = useState(false);
   const [referralLinkFailed, setReferralLinkFailed] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -229,10 +233,46 @@ export function HomeClient() {
     activeWalletRef.current = wallet;
     setInvites([]);
     setInvitesReady(false);
+    setInvitesFailed(false);
     setReferralLinkVerified(false);
     setReferralLinkFailed(false);
     setReferralLink(wallet ? readCachedReferralLink(wallet) : null);
   }, [wallet]);
+
+  useEffect(() => {
+    const hasStartupError =
+      Boolean(wallet) &&
+      (invitesFailed || referralLinkFailed);
+    const homeReady =
+      !wallet ||
+      (invitesReady && referralLinkVerified);
+
+    publishHomeStartupState({
+      status: hasStartupError
+        ? 'error'
+        : homeReady
+          ? 'ready'
+          : 'loading',
+      walletAddress: wallet,
+      invitesReady: wallet ? invitesReady : true,
+      referralLinkReady: wallet
+        ? referralLinkVerified
+        : true,
+      errorMessage: hasStartupError
+        ? invitesFailed
+          ? t.loadError
+          : t.createError
+        : undefined,
+    });
+  }, [
+    wallet,
+    invitesReady,
+    invitesFailed,
+    referralLinkVerified,
+    referralLinkFailed,
+    t.loadError,
+    t.createError,
+  ]);
 
   const changeLocale = (nextLocale: SupportedLocale) => {
     clearFeedback();
@@ -275,6 +315,7 @@ export function HomeClient() {
       if (inviteResult.status === 'rejected') {
         if (!quiet) {
           setInvitesReady(false);
+          setInvitesFailed(true);
           showFeedback('error', t.loadError);
         }
       } else {
@@ -290,9 +331,11 @@ export function HomeClient() {
           if (!sameWallet(activeWalletRef.current, requestWallet)) return;
           setInvites(inviteData.invites ?? []);
           setInvitesReady(true);
+          setInvitesFailed(false);
         } catch (error) {
           if (!quiet && sameWallet(activeWalletRef.current, requestWallet)) {
             setInvitesReady(false);
+            setInvitesFailed(true);
             showFeedback(
               'error',
               error instanceof Error ? error.message : t.loadError,
@@ -339,6 +382,8 @@ export function HomeClient() {
       }
     } catch (error) {
       if (!quiet && sameWallet(activeWalletRef.current, requestWallet)) {
+        setInvitesReady(false);
+        setInvitesFailed(true);
         setReferralLinkVerified(false);
         setReferralLinkFailed(true);
         showFeedback(
