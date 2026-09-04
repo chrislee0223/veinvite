@@ -80,7 +80,7 @@ const MISSION_POLICY_PATCHES: Record<
     voteMissionDescription: 'Participez une fois au vote d’allocation sur VeBetterDAO.',
   },
   ar: {
-    conversionMission: 'حوّل B3TR → VOT3 مرة واحدة',
+    conversionMission: 'حوّل B3TR إلى VOT3 مرة واحدة',
     conversionMissionDescription: 'حوّل أي كمية من B3TR إلى VOT3 مرة واحدة لإكمال هذه المهمة.',
     voteMission: 'شارك مرة واحدة في تصويت توزيع المكافآت',
     voteMissionDescription: 'شارك مرة واحدة في تصويت توزيع المكافآت على VeBetterDAO.',
@@ -134,7 +134,7 @@ const MISSION_POLICY_PATCHES: Record<
     voteMissionDescription: 'Participă o dată la votul de alocare din VeBetterDAO.',
   },
   ur: {
-    conversionMission: 'B3TR → VOT3 ایک بار تبدیل کریں',
+    conversionMission: 'B3TR کو VOT3 میں ایک بار تبدیل کریں',
     conversionMissionDescription: 'B3TR کی کسی بھی مقدار کو ایک بار VOT3 میں تبدیل کر کے یہ مشن مکمل کریں۔',
     voteMission: 'ریوارڈ تقسیم کی ووٹنگ میں ایک بار حصہ لیں',
     voteMissionDescription: 'VeBetterDAO میں ریوارڈ تقسیم کی ووٹنگ میں ایک بار حصہ لیں۔',
@@ -146,7 +146,7 @@ const MISSION_POLICY_PATCHES: Record<
     voteMissionDescription: 'Join reward allocation voting for VeBetterDAO one time.',
   },
   arz: {
-    conversionMission: 'حوّل B3TR → VOT3 مرة واحدة',
+    conversionMission: 'حوّل B3TR لـ VOT3 مرة واحدة',
     conversionMissionDescription: 'حوّل أي كمية من B3TR لـ VOT3 مرة واحدة عشان تكمّل المهمة دي.',
     voteMission: 'شارك مرة واحدة في تصويت توزيع المكافآت',
     voteMissionDescription: 'شارك مرة واحدة في تصويت توزيع المكافآت على VeBetterDAO.',
