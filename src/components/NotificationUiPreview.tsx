@@ -1,6 +1,12 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 
 import { Brand } from './Brand';
 import { HOME_COPY } from '@/lib/i18n/homeCopy';
@@ -8,9 +14,11 @@ import { INELIGIBLE_INVITER_COPY } from '@/lib/i18n/ineligibleInviterCopy';
 import {
   LANGUAGE_OPTIONS,
   isCjkLocale,
+  isRtlLocale,
   type SupportedLocale,
 } from '@/lib/i18n/locales';
 import { NOTIFICATION_COPY } from '@/lib/i18n/notificationCopy';
+import { NOTIFICATION_HISTORY_COPY } from '@/lib/i18n/notificationHistoryCopy';
 import { NOTIFICATION_V2_COPY } from '@/lib/i18n/notificationV2Copy';
 import { REFERRAL_LINK_COPY } from '@/lib/i18n/referralLinkCopy';
 import type {
@@ -22,23 +30,39 @@ type PreviewItem = {
   kind: InviteNotificationKindV2;
   occurredAt: Date;
   read: boolean;
+  friendWallet: string;
   dappProgress?: number;
   rewardAmountB3tr?: string;
   actionRequired?: boolean;
 };
 
-type PreviewMode = 'history' | 'empty';
+type PreviewMode = 'history' | 'empty' | 'loading' | 'error';
 
 const TEST_WALLET =
   '0x1234567890abcdef1234567890abcdef12345678';
 
+function localDateDaysAgo(
+  base: Date,
+  daysAgo: number,
+  hour: number,
+  minute = 0,
+): Date {
+  const value = new Date(base);
+  value.setDate(value.getDate() - daysAgo);
+  value.setHours(hour, minute, 0, 0);
+  return value;
+}
+
 function sampleItems(now: number): PreviewItem[] {
+  const base = new Date(now);
+
   return [
     {
       id: 6,
       kind: 'REWARD_READY',
       occurredAt: new Date(now - 12 * 60 * 1000),
       read: false,
+      friendWallet: '0xABCD···1234',
       rewardAmountB3tr: '147.74',
       actionRequired: true,
     },
@@ -47,6 +71,7 @@ function sampleItems(now: number): PreviewItem[] {
       kind: 'DAPP_PROGRESS',
       occurredAt: new Date(now - 3 * 60 * 60 * 1000),
       read: false,
+      friendWallet: '0xBEEF···5678',
       dappProgress: 3,
     },
     {
@@ -54,59 +79,31 @@ function sampleItems(now: number): PreviewItem[] {
       kind: 'INVITE_ACCEPTED',
       occurredAt: new Date(now - 5 * 60 * 60 * 1000),
       read: false,
+      friendWallet: '0xBEEF···5678',
     },
     {
       id: 3,
       kind: 'VOT3_CONVERTED',
-      occurredAt: new Date(now - 28 * 60 * 60 * 1000),
+      occurredAt: localDateDaysAgo(base, 1, 18, 20),
       read: true,
+      friendWallet: '0xABCD···1234',
     },
     {
       id: 2,
       kind: 'REWARD_PAID',
-      occurredAt: new Date(now - 3 * 24 * 60 * 60 * 1000),
+      occurredAt: localDateDaysAgo(base, 3, 14, 10),
       read: true,
+      friendWallet: '0xCAFE···9012',
       rewardAmountB3tr: '124.50',
     },
     {
       id: 1,
       kind: 'INVITE_INELIGIBLE',
-      occurredAt: new Date(now - 5 * 24 * 60 * 60 * 1000),
+      occurredAt: localDateDaysAgo(base, 5, 10, 35),
       read: true,
+      friendWallet: '0xDEAD···2468',
     },
   ];
-}
-
-function structuralCopy(locale: SupportedLocale) {
-  if (locale === 'ko') {
-    return {
-      title: '알림',
-      newLabel: '새 알림',
-      markAll: '모두 읽음',
-      today: '오늘',
-      earlier: '이전 알림',
-      emptyTitle: '새 알림이 없어요',
-      emptyBody: '새로운 소식이 생기면 여기에 표시됩니다.',
-      action: '확인 필요',
-      close: '닫기',
-      unreadAria: (count: number) =>
-        `알림 열기, 읽지 않은 알림 ${count}개`,
-    };
-  }
-
-  return {
-    title: 'Notifications',
-    newLabel: 'new',
-    markAll: 'Mark all as read',
-    today: 'Today',
-    earlier: 'Earlier',
-    emptyTitle: "You're all caught up",
-    emptyBody: 'New notifications will appear here.',
-    action: 'Action needed',
-    close: 'Close',
-    unreadAria: (count: number) =>
-      `Open notifications, ${count} unread`,
-  };
 }
 
 function itemCopy(
@@ -160,47 +157,84 @@ function itemCopy(
   }
 }
 
+function intlLocale(locale: SupportedLocale): string {
+  if (locale === 'zh-tw') return 'zh-TW';
+  if (locale === 'arz') return 'ar-EG';
+  if (locale === 'pcm') return 'en-NG';
+  return locale;
+}
+
 function relativeTime(
   date: Date,
   locale: SupportedLocale,
 ): string {
   const now = Date.now();
   const deltaMs = date.getTime() - now;
+
+  if (!Number.isFinite(deltaMs)) return '';
+
   const abs = Math.abs(deltaMs);
   const minute = 60 * 1000;
   const hour = 60 * minute;
   const day = 24 * hour;
+  const normalizedLocale = intlLocale(locale);
 
-  if (deltaMs > 0 && abs < 5 * minute) {
-    return locale === 'ko' ? '방금 전' : 'just now';
-  }
+  try {
+    const rtf = new Intl.RelativeTimeFormat(normalizedLocale, {
+      numeric: 'auto',
+    });
 
-  if (abs < minute) {
-    return locale === 'ko' ? '방금 전' : 'just now';
-  }
+    if (deltaMs > 0 && abs < 5 * minute) {
+      return rtf.format(0, 'second');
+    }
+    if (abs < minute) {
+      return rtf.format(0, 'second');
+    }
+    if (abs < hour) {
+      return rtf.format(Math.round(deltaMs / minute), 'minute');
+    }
+    if (abs < day) {
+      return rtf.format(Math.round(deltaMs / hour), 'hour');
+    }
+    if (abs < 7 * day) {
+      return rtf.format(Math.round(deltaMs / day), 'day');
+    }
 
-  const rtf = new Intl.RelativeTimeFormat(locale, {
-    numeric: 'auto',
-  });
+    return new Intl.DateTimeFormat(normalizedLocale, {
+      year:
+        date.getFullYear() === new Date().getFullYear()
+          ? undefined
+          : 'numeric',
+      month: 'short',
+      day: 'numeric',
+    }).format(date);
+  } catch {
+    return new Intl.DateTimeFormat('en', {
+      month: 'short',
+      day: 'numeric',
+    }).format(date);
+  }
+}
 
-  if (abs < hour) {
-    return rtf.format(Math.round(deltaMs / minute), 'minute');
-  }
-  if (abs < day) {
-    return rtf.format(Math.round(deltaMs / hour), 'hour');
-  }
-  if (abs < 7 * day) {
-    return rtf.format(Math.round(deltaMs / day), 'day');
-  }
+function localDaySerial(date: Date): number {
+  return Math.floor(
+    Date.UTC(
+      date.getFullYear(),
+      date.getMonth(),
+      date.getDate(),
+    ) /
+      (24 * 60 * 60 * 1000),
+  );
+}
 
-  return new Intl.DateTimeFormat(locale, {
-    year:
-      date.getFullYear() === new Date().getFullYear()
-        ? undefined
-        : 'numeric',
-    month: 'short',
-    day: 'numeric',
-  }).format(date);
+function dayBucket(
+  date: Date,
+  now: Date,
+): 'today' | 'yesterday' | 'earlier' {
+  const distance = localDaySerial(now) - localDaySerial(date);
+  if (distance <= 0) return 'today';
+  if (distance === 1) return 'yesterday';
+  return 'earlier';
 }
 
 function BellIcon({ size = 20 }: { size?: number }) {
@@ -238,10 +272,14 @@ export function NotificationUiPreview() {
   const [items, setItems] = useState<PreviewItem[]>(() =>
     sampleItems(Date.now()),
   );
+  const [, setClockTick] = useState(0);
+  const bellRef = useRef<HTMLButtonElement | null>(null);
+  const closeRef = useRef<HTMLButtonElement | null>(null);
 
   const t = HOME_COPY[locale];
   const referral = REFERRAL_LINK_COPY[locale];
-  const structure = structuralCopy(locale);
+  const structure = NOTIFICATION_HISTORY_COPY[locale];
+  const rtl = isRtlLocale(locale);
   const unreadCount =
     mode === 'history'
       ? items.filter((item) => !item.read).length
@@ -256,16 +294,57 @@ export function NotificationUiPreview() {
     [items],
   );
 
+  const nowForGroups = new Date();
   const todayItems = sorted.filter(
-    (item) =>
-      Date.now() - item.occurredAt.getTime() <
-      24 * 60 * 60 * 1000,
+    (item) => dayBucket(item.occurredAt, nowForGroups) === 'today',
+  );
+  const yesterdayItems = sorted.filter(
+    (item) => dayBucket(item.occurredAt, nowForGroups) === 'yesterday',
   );
   const earlierItems = sorted.filter(
-    (item) =>
-      Date.now() - item.occurredAt.getTime() >=
-      24 * 60 * 60 * 1000,
+    (item) => dayBucket(item.occurredAt, nowForGroups) === 'earlier',
   );
+
+  const closePanel = useCallback(() => {
+    setOpen(false);
+    window.requestAnimationFrame(() => {
+      bellRef.current?.focus();
+    });
+  }, []);
+
+  useEffect(() => {
+    const timer = window.setInterval(() => {
+      setClockTick((value) => value + 1);
+    }, 60_000);
+
+    return () => window.clearInterval(timer);
+  }, []);
+
+  useEffect(() => {
+    if (!open) return;
+
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+
+    const frame = window.requestAnimationFrame(() => {
+      closeRef.current?.focus();
+    });
+
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        closePanel();
+      }
+    };
+
+    document.addEventListener('keydown', onKeyDown);
+
+    return () => {
+      window.cancelAnimationFrame(frame);
+      document.removeEventListener('keydown', onKeyDown);
+      document.body.style.overflow = previousOverflow;
+    };
+  }, [closePanel, open]);
 
   const markRead = (id: number) => {
     setItems((current) =>
@@ -280,6 +359,7 @@ export function NotificationUiPreview() {
       0,
       ...items.map((item) => item.id),
     );
+
     setItems((current) =>
       current.map((item) =>
         item.id <= visibleMaxId
@@ -287,6 +367,12 @@ export function NotificationUiPreview() {
           : item,
       ),
     );
+  };
+
+  const resetHistory = () => {
+    setItems(sampleItems(Date.now()));
+    setMode('history');
+    setOpen(true);
   };
 
   const renderItem = (item: PreviewItem) => {
@@ -328,16 +414,18 @@ export function NotificationUiPreview() {
             {copy.body}
           </span>
 
-          {copy.hint || item.actionRequired ? (
-            <span className="notificationHistoryMeta">
-              {copy.hint ? (
-                <b>{copy.hint}</b>
-              ) : null}
-              {item.actionRequired ? (
-                <em>{structure.action}</em>
-              ) : null}
+          <span className="notificationHistoryMeta">
+            <span
+              className="notificationFriendWallet"
+              dir="ltr"
+            >
+              {item.friendWallet}
             </span>
-          ) : null}
+            {copy.hint ? <b>{copy.hint}</b> : null}
+            {item.actionRequired ? (
+              <em>{structure.action}</em>
+            ) : null}
+          </span>
         </span>
       </button>
     );
@@ -359,11 +447,7 @@ export function NotificationUiPreview() {
         <button
           type="button"
           className={mode === 'history' ? 'selected' : ''}
-          onClick={() => {
-            setMode('history');
-            setItems(sampleItems(Date.now()));
-            setOpen(true);
-          }}
+          onClick={resetHistory}
         >
           새 알림 + 과거 이력
         </button>
@@ -377,6 +461,26 @@ export function NotificationUiPreview() {
         >
           알림 없음
         </button>
+        <button
+          type="button"
+          className={mode === 'loading' ? 'selected' : ''}
+          onClick={() => {
+            setMode('loading');
+            setOpen(true);
+          }}
+        >
+          불러오는 중
+        </button>
+        <button
+          type="button"
+          className={mode === 'error' ? 'selected' : ''}
+          onClick={() => {
+            setMode('error');
+            setOpen(true);
+          }}
+        >
+          오류 상태
+        </button>
       </div>
 
       <main className="notificationPreviewScreen">
@@ -387,6 +491,7 @@ export function NotificationUiPreview() {
             <div className="notificationPreviewUtilityActions">
               <div className="notificationBellWrap">
                 <button
+                  ref={bellRef}
                   type="button"
                   className={
                     unreadCount > 0
@@ -395,13 +500,17 @@ export function NotificationUiPreview() {
                   }
                   aria-label={
                     unreadCount > 0
-                      ? structure.unreadAria(unreadCount)
+                      ? `${NOTIFICATION_COPY[locale].bellAria} (${unreadCount})`
                       : NOTIFICATION_COPY[locale].bellAria
                   }
                   aria-expanded={open}
-                  onClick={() =>
-                    setOpen((current) => !current)
-                  }
+                  onClick={() => {
+                    if (open) {
+                      closePanel();
+                    } else {
+                      setOpen(true);
+                    }
+                  }}
                 >
                   <BellIcon />
                   {unreadCount > 0 ? (
@@ -417,7 +526,7 @@ export function NotificationUiPreview() {
                       type="button"
                       className="notificationPanelBackdrop"
                       aria-label={structure.close}
-                      onClick={() => setOpen(false)}
+                      onClick={closePanel}
                     />
 
                     <section
@@ -425,13 +534,15 @@ export function NotificationUiPreview() {
                       role="dialog"
                       aria-modal="true"
                       aria-label={structure.title}
+                      lang={locale}
+                      dir={rtl ? 'rtl' : 'ltr'}
                     >
                       <header className="notificationHistoryHeader">
                         <div className="notificationHistoryHeading">
                           <h3>{structure.title}</h3>
                           {unreadCount > 0 ? (
                             <span>
-                              {unreadCount} {structure.newLabel}
+                              {structure.newLabel} · {unreadCount}
                             </span>
                           ) : null}
                         </div>
@@ -447,18 +558,53 @@ export function NotificationUiPreview() {
                             </button>
                           ) : null}
                           <button
+                            ref={closeRef}
                             type="button"
                             className="notificationClosePanel"
                             aria-label={structure.close}
-                            onClick={() => setOpen(false)}
+                            onClick={closePanel}
                           >
                             ×
                           </button>
                         </div>
                       </header>
 
-                      {mode === 'empty' || sorted.length === 0 ? (
-                        <div className="notificationEmptyState">
+                      {mode === 'loading' ? (
+                        <div
+                          className="notificationStatePanel"
+                          aria-live="polite"
+                          aria-busy="true"
+                        >
+                          <span
+                            className="notificationSpinner"
+                            aria-hidden="true"
+                          />
+                          <strong>{structure.loadingTitle}</strong>
+                          <p>{structure.loadingBody}</p>
+                        </div>
+                      ) : mode === 'error' ? (
+                        <div
+                          className="notificationStatePanel errorState"
+                          role="alert"
+                        >
+                          <span
+                            className="notificationStateIcon"
+                            aria-hidden="true"
+                          >
+                            !
+                          </span>
+                          <strong>{structure.errorTitle}</strong>
+                          <p>{structure.errorBody}</p>
+                          <button
+                            type="button"
+                            className="notificationRetry"
+                            onClick={resetHistory}
+                          >
+                            {structure.retry}
+                          </button>
+                        </div>
+                      ) : mode === 'empty' || sorted.length === 0 ? (
+                        <div className="notificationStatePanel">
                           <span
                             className="notificationEmptyBell"
                             aria-hidden="true"
@@ -475,6 +621,15 @@ export function NotificationUiPreview() {
                               <h4>{structure.today}</h4>
                               <div>
                                 {todayItems.map(renderItem)}
+                              </div>
+                            </section>
+                          ) : null}
+
+                          {yesterdayItems.length > 0 ? (
+                            <section className="notificationHistoryGroup">
+                              <h4>{structure.yesterday}</h4>
+                              <div>
+                                {yesterdayItems.map(renderItem)}
                               </div>
                             </section>
                           ) : null}
@@ -620,20 +775,21 @@ export function NotificationUiPreview() {
           line-height:1.6;
         }
         .notificationPreview .previewControls {
-          width:min(100%,520px);
+          width:min(100%,620px);
           margin:0 auto 12px;
           display:grid;
-          grid-template-columns:1fr 1fr;
+          grid-template-columns:repeat(4,minmax(0,1fr));
           gap:7px;
         }
         .notificationPreview .previewControls button {
           min-height:42px;
+          padding:7px 8px;
           border:1px solid rgba(255,255,255,.08);
           border-radius:13px;
           background:#11110f;
           color:#8f8992;
           font:inherit;
-          font-size:.69rem;
+          font-size:.67rem;
           font-weight:850;
           cursor:pointer;
         }
@@ -683,7 +839,7 @@ export function NotificationUiPreview() {
         .notificationLanguageSelect {
           max-width:155px;
           height:40px;
-          padding:0 28px 0 11px;
+          padding-inline:11px 28px;
           border:1px solid rgba(255,255,255,.1);
           border-radius:13px;
           background:#141625;
@@ -695,7 +851,7 @@ export function NotificationUiPreview() {
         }
         .notificationAccountChip {
           min-height:40px;
-          padding:0 13px;
+          padding-inline:13px;
           display:inline-flex;
           align-items:center;
           gap:8px;
@@ -737,6 +893,14 @@ export function NotificationUiPreview() {
           color:#ffd04a;
           box-shadow:0 0 0 3px rgba(244,183,40,.05);
         }
+        .notificationBellButton:focus-visible,
+        .notificationMarkAll:focus-visible,
+        .notificationClosePanel:focus-visible,
+        .notificationRetry:focus-visible,
+        .notificationHistoryRow:focus-visible {
+          outline:2px solid rgba(255,208,74,.8);
+          outline-offset:2px;
+        }
         .notificationUnreadBadge {
           position:absolute;
           top:-7px;
@@ -744,7 +908,7 @@ export function NotificationUiPreview() {
           min-width:19px;
           height:19px;
           box-sizing:border-box;
-          padding:0 5px;
+          padding-inline:5px;
           display:grid;
           place-items:center;
           border:2px solid #080807;
@@ -767,7 +931,7 @@ export function NotificationUiPreview() {
           position:absolute;
           z-index:141;
           top:50px;
-          right:0;
+          inset-inline-end:0;
           width:min(400px,calc(100vw - 28px));
           max-height:min(610px,calc(100dvh - 92px));
           overflow:hidden;
@@ -778,21 +942,18 @@ export function NotificationUiPreview() {
           box-shadow:
             0 32px 90px rgba(0,0,0,.6),
             inset 0 1px 0 rgba(255,255,255,.055);
-          text-align:left;
+          text-align:start;
         }
         .notificationHistoryHeader {
           min-height:62px;
-          padding:12px 12px 11px 16px;
+          padding-block:12px 11px;
+          padding-inline:16px 12px;
           display:flex;
           align-items:center;
           justify-content:space-between;
           gap:10px;
           border-bottom:1px solid rgba(255,255,255,.07);
-          background:linear-gradient(
-            180deg,
-            rgba(244,183,40,.055),
-            rgba(244,183,40,0)
-          );
+          background:rgba(244,183,40,.025);
         }
         .notificationHistoryHeading {
           min-width:0;
@@ -823,7 +984,7 @@ export function NotificationUiPreview() {
         }
         .notificationMarkAll {
           min-height:32px;
-          padding:0 8px;
+          padding-inline:8px;
           border:0;
           background:transparent;
           color:#a59e91;
@@ -851,7 +1012,8 @@ export function NotificationUiPreview() {
         }
         .notificationHistoryGroup h4 {
           margin:0;
-          padding:12px 16px 7px;
+          padding-block:12px 7px;
+          padding-inline:16px;
           color:#6f6a62;
           font-size:.6rem;
           font-weight:900;
@@ -863,32 +1025,23 @@ export function NotificationUiPreview() {
           width:100%;
           min-width:0;
           box-sizing:border-box;
-          padding:14px 16px 15px;
+          padding-block:14px 15px;
+          padding-inline:16px;
           display:block;
           border:0;
           border-top:1px solid rgba(255,255,255,.05);
           background:transparent;
           color:#fff;
-          text-align:left;
+          text-align:start;
           font:inherit;
           cursor:pointer;
           transition:background .16s ease;
         }
         .notificationHistoryRow.isUnread {
-          background:linear-gradient(
-            90deg,
-            rgba(244,183,40,.075),
-            rgba(244,183,40,.018) 72%,
-            transparent
-          );
+          background:rgba(244,183,40,.055);
         }
         .notificationHistoryRow.isUnread:hover {
-          background:linear-gradient(
-            90deg,
-            rgba(244,183,40,.11),
-            rgba(244,183,40,.025) 72%,
-            transparent
-          );
+          background:rgba(244,183,40,.085);
         }
         .notificationHistoryRow.isRead {
           background:rgba(255,255,255,.008);
@@ -938,7 +1091,7 @@ export function NotificationUiPreview() {
         .notificationHistoryBody {
           display:block;
           margin-top:6px;
-          padding-left:15px;
+          padding-inline-start:15px;
           color:#aaa39a;
           font-size:.65rem;
           line-height:1.55;
@@ -946,11 +1099,17 @@ export function NotificationUiPreview() {
         }
         .notificationHistoryMeta {
           margin-top:9px;
-          padding-left:15px;
+          padding-inline-start:15px;
           display:flex;
           align-items:center;
           flex-wrap:wrap;
           gap:6px;
+        }
+        .notificationFriendWallet {
+          color:#777168;
+          font-size:.55rem;
+          font-weight:800;
+          letter-spacing:.01em;
         }
         .notificationHistoryMeta b {
           padding:4px 7px;
@@ -977,7 +1136,8 @@ export function NotificationUiPreview() {
         .notificationHistoryRow.isRead .notificationHistoryBody {
           color:#716c65;
         }
-        .notificationHistoryRow.isRead .notificationHistoryTime {
+        .notificationHistoryRow.isRead .notificationHistoryTime,
+        .notificationHistoryRow.isRead .notificationFriendWallet {
           color:#5e5a55;
         }
         .notificationHistoryRow.isRead .notificationHistoryMeta b {
@@ -985,7 +1145,7 @@ export function NotificationUiPreview() {
           background:rgba(255,255,255,.025);
           color:#79746d;
         }
-        .notificationEmptyState {
+        .notificationStatePanel {
           min-height:270px;
           padding:36px 24px;
           display:grid;
@@ -993,7 +1153,8 @@ export function NotificationUiPreview() {
           align-content:center;
           text-align:center;
         }
-        .notificationEmptyBell {
+        .notificationEmptyBell,
+        .notificationStateIcon {
           width:54px;
           height:54px;
           display:grid;
@@ -1002,17 +1163,49 @@ export function NotificationUiPreview() {
           background:rgba(244,183,40,.08);
           color:#d5ae42;
         }
-        .notificationEmptyState strong {
+        .notificationStateIcon {
+          font-size:1.2rem;
+          font-weight:950;
+        }
+        .notificationSpinner {
+          width:32px;
+          height:32px;
+          border:3px solid rgba(244,183,40,.16);
+          border-top-color:#e6bd4c;
+          border-radius:50%;
+          animation:notificationSpin .8s linear infinite;
+        }
+        @keyframes notificationSpin {
+          to { transform:rotate(360deg); }
+        }
+        .notificationStatePanel strong {
           margin-top:14px;
           color:#ddd8cf;
           font-size:.9rem;
         }
-        .notificationEmptyState p {
+        .notificationStatePanel p {
           max-width:280px;
           margin:7px 0 0;
           color:#77726b;
           font-size:.66rem;
           line-height:1.55;
+        }
+        .notificationStatePanel.errorState .notificationStateIcon {
+          background:rgba(255,110,120,.08);
+          color:#ff8f9b;
+        }
+        .notificationRetry {
+          min-height:38px;
+          margin-top:16px;
+          padding-inline:14px;
+          border:1px solid rgba(244,183,40,.25);
+          border-radius:12px;
+          background:rgba(244,183,40,.08);
+          color:#e9c85f;
+          font:inherit;
+          font-size:.65rem;
+          font-weight:900;
+          cursor:pointer;
         }
         .notificationMissionCard {
           position:relative;
@@ -1035,7 +1228,7 @@ export function NotificationUiPreview() {
         .notificationCardGlow {
           position:absolute;
           top:-110px;
-          right:-90px;
+          inset-inline-end:-90px;
           width:250px;
           height:250px;
           border-radius:50%;
@@ -1191,6 +1384,9 @@ export function NotificationUiPreview() {
           .notificationPreview .previewControls {
             width:calc(100% - 32px);
           }
+          .notificationPreview .previewControls {
+            grid-template-columns:1fr 1fr;
+          }
           .notificationPreviewScreen {
             min-height:760px;
             padding:18px 16px 72px;
@@ -1214,7 +1410,7 @@ export function NotificationUiPreview() {
           }
           .notificationAccountChip {
             min-height:34px;
-            padding:0 9px;
+            padding-inline:9px;
             font-size:.62rem;
           }
           .notificationBellButton {
@@ -1227,18 +1423,19 @@ export function NotificationUiPreview() {
             position:fixed;
             z-index:141;
             top:auto;
-            right:10px;
-            bottom:10px;
-            left:10px;
+            inset-inline:10px;
+            bottom:max(10px,env(safe-area-inset-bottom));
             width:auto;
-            max-height:74dvh;
+            max-height:calc(74dvh - env(safe-area-inset-bottom));
             border-radius:24px;
           }
           .notificationHistoryScroll {
-            max-height:calc(74dvh - 63px);
+            max-height:calc(74dvh - 63px - env(safe-area-inset-bottom));
+            padding-bottom:max(6px,env(safe-area-inset-bottom));
           }
           .notificationHistoryRow {
-            padding:14px 15px 15px;
+            padding-block:14px 15px;
+            padding-inline:15px;
           }
           .notificationHistoryTitle {
             font-size:.75rem;
@@ -1248,6 +1445,14 @@ export function NotificationUiPreview() {
           }
           .notificationMissionCard {
             padding:22px 20px;
+          }
+        }
+        @media(prefers-reduced-motion:reduce) {
+          .notificationSpinner {
+            animation-duration:1.8s;
+          }
+          .notificationHistoryRow {
+            transition:none;
           }
         }
       `}</style>
