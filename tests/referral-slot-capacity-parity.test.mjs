@@ -2,9 +2,10 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import test from 'node:test';
 
-const [ownerApi, claimApi] = await Promise.all([
+const [ownerApi, claimApi, legacyInviteApi] = await Promise.all([
   readFile(new URL('../src/app/api/referral-links/route.ts', import.meta.url), 'utf8'),
   readFile(new URL('../src/app/api/referral-links/[key]/claim/route.ts', import.meta.url), 'utf8'),
+  readFile(new URL('../src/app/api/invites/route.ts', import.meta.url), 'utf8'),
 ]);
 
 function assertReservationAwareCapacity(source, label) {
@@ -36,4 +37,17 @@ test('owner slot availability stays aligned with the database reservation-releas
 
 test('claim capacity precheck stays aligned with the database reservation-release rule', () => {
   assertReservationAwareCapacity(claimApi, 'claim API');
+});
+
+test('legacy one-time creation treats an unreleased completed slot as active', () => {
+  assert.match(
+    legacyInviteApi,
+    /const activeInviteStatuses:[\s\S]*'COMPLETED'/i,
+    'legacy invite lookup must include completed invitations',
+  );
+  assert.match(
+    legacyInviteApi,
+    /invitation\.status === 'COMPLETED'[\s\S]*hasEntryProof\(invitation\)[\s\S]*invitation\.slot_released_at === null/i,
+    'legacy invite creation must return a conflict while a completed slot is held for reward reservation',
+  );
 });
