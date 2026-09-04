@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 
 import { Brand } from './Brand';
 import { HomeClient } from './HomeClient';
@@ -8,8 +8,61 @@ import { NotificationUiPreview } from './NotificationUiPreview';
 
 type PreviewView = 'app' | 'notifications';
 
+const FOCUSABLE_SELECTOR = [
+  'button:not([disabled])',
+  'a[href]',
+  'input:not([disabled])',
+  'select:not([disabled])',
+  'textarea:not([disabled])',
+  '[tabindex]:not([tabindex="-1"])',
+].join(',');
+
 export function DeveloperPreview() {
   const [view, setView] = useState<PreviewView>('notifications');
+
+  useEffect(() => {
+    if (view !== 'notifications') return;
+
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== 'Tab') return;
+
+      const panel = document.querySelector<HTMLElement>(
+        '.notificationHistoryPanel[role="dialog"]',
+      );
+      if (!panel) return;
+
+      const focusable = Array.from(
+        panel.querySelectorAll<HTMLElement>(FOCUSABLE_SELECTOR),
+      ).filter(
+        (element) =>
+          element.getAttribute('aria-hidden') !== 'true' &&
+          element.getClientRects().length > 0,
+      );
+      if (focusable.length === 0) return;
+
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      const active = document.activeElement;
+      const activeInsidePanel =
+        active instanceof Node && panel.contains(active);
+
+      if (event.shiftKey) {
+        if (!activeInsidePanel || active === first) {
+          event.preventDefault();
+          last.focus();
+        }
+        return;
+      }
+
+      if (!activeInsidePanel || active === last) {
+        event.preventDefault();
+        first.focus();
+      }
+    };
+
+    document.addEventListener('keydown', onKeyDown);
+    return () => document.removeEventListener('keydown', onKeyDown);
+  }, [view]);
 
   return (
     <main className="devPreviewShell">
