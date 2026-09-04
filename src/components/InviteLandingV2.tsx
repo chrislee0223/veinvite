@@ -100,8 +100,8 @@ export function InviteLandingV2({
       <style jsx>{`
         .screen { min-height:100svh; width:100%; box-sizing:border-box; display:flex; flex-direction:column; align-items:center; padding:22px 18px 32px; color:#fff; background:radial-gradient(circle at 50% 24%,rgba(244,183,40,.16),transparent 34%),#080807; }
         .topBar { width:min(100%,520px); display:flex; align-items:center; justify-content:space-between; gap:16px; margin-bottom:26px; }
-        .language { width:176px; max-width:48%; display:inline-flex; align-items:center; padding:0; border:0; background:transparent; color:#fff; }
-        .language select { width:176px; max-width:100%; height:42px; box-sizing:border-box; padding:0 34px 0 12px; border:1px solid rgba(255,255,255,.1); outline:0; border-radius:13px; background:#141625; color:inherit; font:inherit; font-size:.76rem; font-weight:800; cursor:pointer; }
+        .language { width:155px; max-width:48%; display:inline-flex; align-items:center; padding:0; border:0; background:transparent; color:#fff; }
+        .language select { width:155px; max-width:100%; min-height:48px; box-sizing:border-box; padding:7px 34px 7px 12px; border:1px solid rgba(255,255,255,.1); outline:0; border-radius:13px; background:#141625; color:inherit; font:inherit; font-size:.76rem; font-weight:800; cursor:pointer; }
         .language option { color:#111421; }
         .gameCard { position:relative; overflow:hidden; width:min(100%,520px); box-sizing:border-box; padding:34px 24px 24px; border:1px solid rgba(255,205,80,.25); border-radius:30px; background:linear-gradient(160deg,rgba(54,40,14,.98),rgba(16,16,14,.98) 64%); box-shadow:0 24px 70px rgba(0,0,0,.42),inset 0 1px 0 rgba(255,255,255,.08); }
         .gameCard::before { content:''; position:absolute; width:250px; height:250px; right:-110px; top:-120px; border-radius:50%; background:rgba(244,183,40,.19); }
@@ -124,8 +124,8 @@ export function InviteLandingV2({
         @media (max-width:560px) {
           .screen { padding:18px 14px 32px; }
           .topBar { gap:12px; margin-bottom:22px; }
-          .language { width:160px; }
-          .language select { width:160px; height:38px; padding:0 32px 0 11px; border-radius:11px; font-size:.7rem; }
+          .language { width:155px; }
+          .language select { width:155px; min-height:48px; padding:7px 34px 7px 12px; border-radius:13px; font-size:.76rem; }
           .gameCard { padding:28px 18px 20px; border-radius:26px; }
           .title { margin-bottom:22px; }
           .steps { margin-bottom:22px; }
