@@ -8,12 +8,14 @@ const [
   walletResume,
   walletRuntime,
   appProviders,
+  homeStartupReadiness,
 ] = await Promise.all([
   readFile('src/components/HomeClient.tsx', 'utf8'),
   readFile('src/components/WalletControl.tsx', 'utf8'),
   readFile('src/components/WalletConnectionResume.tsx', 'utf8'),
   readFile('src/components/WalletRuntimeLifecycle.tsx', 'utf8'),
   readFile('src/components/AppProviders.tsx', 'utf8'),
+  readFile('src/lib/homeStartupReadiness.ts', 'utf8'),
 ]);
 
 test('Home restores permanent referral links from wallet-scoped session storage', () => {
@@ -76,19 +78,28 @@ test('wallet resume recovery is mounted inside the VeChain provider', () => {
   );
 });
 
-test('VeWorld refresh shield stays up through wallet restore and Home data hydration', () => {
+test('VeWorld refresh shield stays up through wallet restore and explicit Home data readiness', () => {
   assert.match(walletRuntime, /readPersistedDappKitAccount/);
   assert.match(walletRuntime, /hasPersistedVeWorldWallet/);
-  assert.match(walletRuntime, /\.linkPreviewSkeleton, \.slotsSkeleton/);
-  assert.match(walletRuntime, /if \(hasPendingHomeData\(\)\) \{\s*clearReadinessTimer\(\);\s*return;/);
+  assert.match(walletRuntime, /HOME_STARTUP_STATE_EVENT/);
+  assert.match(walletRuntime, /readPublishedHomeStartupState/);
+  assert.match(walletRuntime, /resolveStartupReadiness/);
+  assert.doesNotMatch(walletRuntime, /\.linkPreviewSkeleton, \.slotsSkeleton/);
+  assert.doesNotMatch(walletRuntime, /hasPendingHomeData/);
+
+  assert.match(source, /publishHomeStartupState\(\{/);
+  assert.match(source, /invitesReady && referralLinkVerified/);
+  assert.match(source, /status: hasStartupError/);
+  assert.match(source, /setInvitesFailed\(true\)/);
+  assert.match(source, /setReferralLinkFailed\(true\)/);
+
+  assert.match(homeStartupReadiness, /hasBootstrappedSession/);
+  assert.match(homeStartupReadiness, /hasPersistedWallet/);
   assert.match(
-    walletRuntime,
-    /if \(hasPersistedVeWorldWallet\(\)\) \{\s*clearReadinessTimer\(\);\s*return;/,
+    homeStartupReadiness,
+    /if \(hasPersistedWallet \|\| hasBootstrappedSession\) \{\s*return 'hold';/,
   );
-  assert.match(
-    walletRuntime,
-    /if \(hasBootstrappedSession\(\)\) \{[\s\S]*BOOTSTRAPPED_SESSION_GRACE_MS/,
-  );
+  assert.match(homeStartupReadiness, /homeState\?\.status === 'ready'/);
   assert.doesNotMatch(walletRuntime, /HOME_DATA_MAX_WAIT_MS/);
   assert.match(walletRuntime, /HOME_STABILITY_MS/);
 });
