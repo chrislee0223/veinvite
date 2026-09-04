@@ -44,7 +44,7 @@ export type RewardForecastPolicy = {
 const EXPECTED_WEIGHTS_BPS = {
   queuedEligibleCount: 10_000,
   voteReadyCount: 9_500,
-  vot3ReadyCount: 8_000,
+  vot3ReadyCount: 9_000,
   appsTwoCount: 6_000,
   appsOneCount: 4_000,
   activatedZeroCount: 2_500,
