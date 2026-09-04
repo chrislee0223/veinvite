@@ -21,10 +21,9 @@ import '@/lib/i18n/referralLinkCopy';
 import '@/lib/i18n/referralLinkCopyFinalHardening';
 import '@/lib/i18n/guideRewardClaimHardening';
 import { DeferredStartupExtras } from './DeferredStartupExtras';
-import { HeaderLanguagePickerPortal } from './HeaderLanguagePickerPortal';
-import { InviteFlowVisualPolish } from './InviteFlowVisualPolish';
 import { LegalNavigationMemory } from './LegalNavigationMemory';
 import { RewardReservationRecovery } from './RewardReservationRecovery';
+import { RouteScopedInviteEnhancements } from './RouteScopedInviteEnhancements';
 import { SecondaryPageLayoutPolish } from './SecondaryPageLayoutPolish';
 import { StartupHydrationPlaceholders } from './StartupHydrationPlaceholders';
 import { WalletConnectionResume } from './WalletConnectionResume';
@@ -91,8 +90,7 @@ export function AppProviders({
         <WalletLanguagePreferenceSync />
         <SecondaryPageLayoutPolish />
         <LegalNavigationMemory />
-        <InviteFlowVisualPolish />
-        <HeaderLanguagePickerPortal />
+        <RouteScopedInviteEnhancements />
         <DeferredStartupExtras />
       </VeChainProvider>
     </ChakraProvider>
