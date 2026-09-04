@@ -134,6 +134,10 @@ async function reserveCandidate({
       observedPoolBalanceWei: pool.effectiveRewardPoolWei,
       rewardCohortRoundId,
       allocationReceiptId,
+      // A pending invite has no verified entry round yet. Once a specific
+      // completed referral is being priced, unbound pending invites from a
+      // newer round must never dilute this already-bound cohort.
+      includePendingAcceptance: false,
     });
 
     if (!planning.latestAllocation || !planning.forecast || !planning.rewardCohortRoundId) {
