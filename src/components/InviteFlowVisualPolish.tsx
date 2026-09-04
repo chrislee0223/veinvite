@@ -14,8 +14,8 @@ export function InviteFlowVisualPolish() {
         width: min(100%, 520px) !important;
       }
 
-      .centeredFlow label:has(> select.languageSelect),
-      .appHeader label:has(> select.languageSelect) {
+      .centeredFlow > label,
+      .appHeader label {
         box-sizing: border-box !important;
         width: 155px !important;
         max-width: 48% !important;
