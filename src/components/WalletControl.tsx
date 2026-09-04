@@ -18,6 +18,7 @@ import {
   useWalletAuthentication,
 } from '@/hooks/useWalletAuthentication';
 import {
+  clearPersistedVeWorldConnectionState,
   markWalletConnectIntent,
 } from '@/lib/walletConnectionResume';
 
@@ -158,6 +159,11 @@ export function useWalletLauncher() {
           'Failed to disconnect wallet:',
           error,
         );
+      } finally {
+        // Explicit disconnect/switch must not leave VeWorld provider evidence
+        // behind for startup recovery. The next connection attempt will write
+        // a fresh account/source and explicit connect intent.
+        clearPersistedVeWorldConnectionState();
       }
 
       await waitForWalletRelease(previousWallet);
@@ -265,6 +271,8 @@ export function WalletControl() {
           'Failed to disconnect wallet:',
           error,
         );
+      } finally {
+        clearPersistedVeWorldConnectionState();
       }
     }, [
       clearWalletSession,

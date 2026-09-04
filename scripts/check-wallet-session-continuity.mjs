@@ -7,6 +7,8 @@ const failures = [];
 
 const walletAuth = read('src/hooks/useWalletAuthentication.ts');
 const walletControl = read('src/components/WalletControl.tsx');
+const walletSessionGate = read('src/components/WalletSessionGate.tsx');
+const walletResumeState = read('src/lib/walletConnectionResume.ts');
 const walletSessionRoute = read('src/app/api/auth/session/route.ts');
 const walletVerifyRoute = read('src/app/api/auth/verify/route.ts');
 const multiDeviceMigration = read(
@@ -53,11 +55,61 @@ if (!/\}, \[account\?\.address\]\);/.test(walletAuth)) {
 }
 
 if (
-  !/performDisconnect/.test(walletControl) ||
-  !/await clearWalletSession\(\);[\s\S]*await disconnect\(\);/.test(walletControl)
+  !/if \(firstError\) \{\s*throw firstError;\s*\}[\s\S]*veinvite-wallet-session-cleared/.test(
+    walletAuth,
+  )
 ) {
   failures.push(
-    'Explicit disconnect/switch must continue clearing this browser session before disconnecting the wallet provider.',
+    'The session-cleared event must only be emitted after the browser session DELETE has completed successfully.',
+  );
+}
+
+if (
+  !/performDisconnect/.test(walletControl) ||
+  !/await clearWalletSession\(\);[\s\S]*await disconnect\(\);/.test(walletControl) ||
+  !/performDisconnect[\s\S]*clearPersistedVeWorldConnectionState\(\)[\s\S]*waitForWalletRelease/.test(
+    walletControl,
+  )
+) {
+  failures.push(
+    'Explicit disconnect/switch must clear this browser session, disconnect the provider, remove stale VeWorld resume evidence, and only then allow a new wallet handshake.',
+  );
+}
+
+if (
+  !/const sessionWalletRef\s*=\s*[\s\S]*useRef<string \| null>\(initialWallet\)/.test(
+    walletSessionGate,
+  ) ||
+  !/const retryVerification[\s\S]*sessionWallet !== walletAddress[\s\S]*await clearWalletSession\(\);[\s\S]*await verify\(\);/.test(
+    walletSessionGate,
+  )
+) {
+  failures.push(
+    'An explicit retry after switching VeWorld wallets must replace only this browser session and then verify the currently connected wallet without disconnecting the provider.',
+  );
+}
+
+if (
+  !/handleSessionCleared[\s\S]*data-veinvite-session-bootstrap[\s\S]*setAttribute\([\s\S]*data-veinvite-session-bootstrap[\s\S]*['"]none['"]/.test(
+    walletSessionGate,
+  )
+) {
+  failures.push(
+    'Clearing a browser wallet session must also invalidate the server bootstrap marker so startup readiness does not wait on a session that no longer exists.',
+  );
+}
+
+if (
+  !/disconnectFromVerification[\s\S]*await disconnect\(\);[\s\S]*clearPersistedVeWorldConnectionState\(\)/.test(
+    walletSessionGate,
+  ) ||
+  !/clearPersistedVeWorldConnectionState/.test(walletResumeState) ||
+  !/removeItem\(\s*DAPPKIT_ACCOUNT_STORAGE_KEY/.test(walletResumeState) ||
+  !/removeItem\(\s*DAPPKIT_SOURCE_STORAGE_KEY/.test(walletResumeState) ||
+  !/WALLET_RESUME_RELOAD_GUARD_STORAGE_KEY/.test(walletResumeState)
+) {
+  failures.push(
+    'Explicit verification-screen disconnect must clear persisted VeWorld recovery evidence so startup cannot deadlock on a wallet the user intentionally disconnected.',
   );
 }
 
