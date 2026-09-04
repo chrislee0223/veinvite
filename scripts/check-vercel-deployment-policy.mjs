@@ -38,9 +38,14 @@ if (!deploymentEnabled || typeof deploymentEnabled !== 'object') {
   if (deploymentEnabled.main !== true) {
     failures.push('The main branch must remain enabled for production deployment.');
   }
-  if (deploymentEnabled['*'] === false) {
+
+  const unexpectedDeploymentExceptions = Object.keys(
+    deploymentEnabled,
+  ).filter((key) => key !== '**' && key !== 'main');
+
+  if (unexpectedDeploymentExceptions.length > 0) {
     failures.push(
-      'Do not rely on * to disable every branch: minimatch * does not cover slash-named branches such as fix/foo.',
+      `Only main may bypass the non-main deployment block. Remove stale branch exceptions: ${unexpectedDeploymentExceptions.join(', ')}.`,
     );
   }
 }

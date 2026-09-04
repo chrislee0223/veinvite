@@ -3,8 +3,7 @@
   "git": {
     "deploymentEnabled": {
       "**": false,
-      "main": true,
-      "preview/progress-claim-v2": true
+      "main": true
     }
   },
   "crons": [
