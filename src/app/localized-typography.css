@@ -297,6 +297,17 @@ html[dir='rtl'] :is(
   text-align: right !important;
 }
 
+/* The leaderboard has a few physical LTR styles in its scoped CSS. Mirror
+ * those details explicitly so the RTL layout feels intentional rather than
+ * merely reversing the document direction. */
+html[dir='rtl'] .leaderboardPage .impactSummaryButton {
+  text-align: right !important;
+}
+
+html[dir='rtl'] .leaderboardPage .rankRow.current {
+  box-shadow: inset -3px 0 0 rgba(255,203,66,.72) !important;
+}
+
 html[dir='rtl'] :is(
   .headerLanguageTrigger,
   .headerLanguageOption,
@@ -342,6 +353,10 @@ html[dir='rtl'] .languageOptionList {
 html[dir='rtl'] :is(
   code,
   .walletAddress,
+  .walletCell,
+  .walletText,
+  .rankMetric,
+  .notificationFriendWallet,
   .estimateAmount,
   .rewardAmount,
   .receiptAmount,
@@ -351,7 +366,7 @@ html[dir='rtl'] :is(
   unicode-bidi: isolate;
 }
 
-html[dir='rtl'] :is(.estimateAmount, .rewardAmount) {
+html[dir='rtl'] :is(.estimateAmount, .rewardAmount, .rankMetric) {
   text-align: center !important;
 }
 
