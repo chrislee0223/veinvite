@@ -16,6 +16,7 @@ const rootLayout = read('src/app/layout.tsx');
 const homePage = read('src/app/page.tsx');
 const hydrationShield = read('src/components/LocaleHydrationShield.tsx');
 const walletRuntime = read('src/components/WalletRuntimeLifecycle.tsx');
+const homeStartupReadiness = read('src/lib/homeStartupReadiness.ts');
 const walletControl = read('src/components/WalletControl.tsx');
 const walletAuth = read('src/hooks/useWalletAuthentication.ts');
 const walletSessionGate = read('src/components/WalletSessionGate.tsx');
@@ -131,14 +132,14 @@ if (/veinvite-app-ready/.test(appProviders)) {
 if (!/veinvite-app-ready/.test(walletRuntime) || !/veinvite-app-ready/.test(hydrationShield)) {
   failures.push('The home startup shield must release only from the wallet/session lifecycle final-readiness signal.');
 }
-if (!/MutationObserver/.test(walletRuntime) || !/main\.screen/.test(walletRuntime) || !/aria-live=["']polite["']/.test(walletRuntime)) {
-  failures.push('Home readiness must observe the real mounted home/gate surfaces rather than releasing on provider initialization alone.');
+if (!/HOME_STARTUP_STATE_EVENT/.test(walletRuntime) || !/readPublishedHomeStartupState/.test(walletRuntime) || !/resolveStartupReadiness/.test(walletRuntime) || /\.slotsSkeleton|\.linkPreviewSkeleton/.test(walletRuntime)) {
+  failures.push('Home readiness must consume explicit Home loading/ready/error state and must not infer readiness from rendered skeleton CSS.');
 }
-if (!/HOME_STABILITY_MS/.test(walletRuntime) || !/DISCONNECTED_STABILITY_MS/.test(walletRuntime) || !/BOOTSTRAPPED_SESSION_GRACE_MS/.test(walletRuntime)) {
-  failures.push('Startup must keep bounded stability/grace windows that suppress home-to-loading-to-home flicker during VeWorld restoration.');
+if (!/HOME_STABILITY_MS\s*=\s*160/.test(walletRuntime) || !/hasBootstrappedSession/.test(homeStartupReadiness) || !/hasPersistedWallet/.test(homeStartupReadiness) || !/return 'hold'/.test(homeStartupReadiness)) {
+  failures.push('Startup must retain a bounded final stability frame while server-session or persisted VeWorld evidence keeps a temporarily disconnected Home covered.');
 }
-if (!/APP_READY_FALLBACK_MS\s*=\s*8_000/.test(hydrationShield) || !/circle at 50% 38%/.test(hydrationShield)) {
-  failures.push('The single branded startup surface must remain bounded and visually aligned with the wallet-session transition.');
+if (!/STARTUP_RECOVERY_MS\s*=\s*8_000/.test(hydrationShield) || !/setState\(\{ status: 'error' \}\)/.test(hydrationShield) || !/circle at 50% 38%/.test(hydrationShield)) {
+  failures.push('The branded startup surface must remain bounded and switch to explicit recovery instead of force-releasing an incomplete Home.');
 }
 if (!/<LocaleHydrationShield \/>[\s\S]*<AppProviders>/.test(rootLayout) || !/<Brand compact \/>/.test(hydrationShield)) {
   failures.push('The branded hydration shield must render outside the client-only wallet provider so startup never falls through to a blank black body.');
