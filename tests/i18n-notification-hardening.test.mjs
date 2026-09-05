@@ -80,22 +80,42 @@ test('reading the rich reward receipt also clears the duplicate paid bell notifi
   assert.match(notifications, /void refreshLifecycle\(false\)/);
 });
 
-test('notification lifecycle backs off briefly after an unauthorized response across component remounts', () => {
+test('notification lifecycle coalesces reload bursts and persists unauthorized backoff', () => {
   assert.match(
     notifications,
     /const LIFECYCLE_UNAUTHORIZED_BACKOFF_MS = 15_000;/,
   );
   assert.match(
     notifications,
-    /let lifecycleUnauthorizedUntil = 0;/,
+    /const LIFECYCLE_REQUEST_LEASE_MS = 5_000;/,
   );
   assert.match(
     notifications,
-    /function lifecycleRefreshBackedOff\(\): boolean \{[\s\S]*Date\.now\(\) < lifecycleUnauthorizedUntil/,
+    /const LIFECYCLE_UNAUTHORIZED_BACKOFF_STORAGE_KEY =/,
   );
   assert.match(
     notifications,
-    /if \(!wallet \|\| lifecycleRefreshBackedOff\(\)\) return;[\s\S]*fetch\(\s*'\/api\/notifications'/,
+    /const LIFECYCLE_REQUEST_LEASE_STORAGE_KEY =/,
+  );
+  assert.match(
+    notifications,
+    /window\.localStorage\.getItem\(key\)/,
+  );
+  assert.match(
+    notifications,
+    /window\.localStorage\.setItem\(key, String\(value\)\)/,
+  );
+  assert.match(
+    notifications,
+    /function acquireLifecycleRequestLease\(\): number \| null \{[\s\S]*if \(now < lifecycleRequestLeaseUntil\) return null;/,
+  );
+  assert.match(
+    notifications,
+    /const lifecycleLease = acquireLifecycleRequestLease\(\);\s*if \(lifecycleLease === null\) return;/,
+  );
+  assert.match(
+    notifications,
+    /releaseLifecycleRequestLease\(lifecycleLease\);/,
   );
   assert.match(
     notifications,
@@ -103,6 +123,6 @@ test('notification lifecycle backs off briefly after an unauthorized response ac
   );
   assert.match(
     notifications,
-    /fetch\(\s*`\/api\/notifications\/history\?\$\{params\.toString\(\)\}`[\s\S]*if \(response\.status === 401\) \{\s*invalidateWalletSession\(\);/,
+    /fetch\(\s*`\/api\/notifications\/history\?\$\{params\.toString\(\)\}`[\s\S]*if \(response\.status === 401\) \{\s*backOffLifecycleAfterUnauthorized\(\);\s*invalidateWalletSession\(\);/,
   );
 });
