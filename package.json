@@ -8,7 +8,8 @@
     "start": "next start",
     "typecheck": "tsc --noEmit",
     "test:i18n": "node --test tests/i18n-*.test.mjs",
-    "test:rewards": "node --experimental-strip-types --test tests/reward-*.test.mjs"
+    "test:rewards": "node --experimental-strip-types --test tests/reward-*.test.mjs",
+    "test:qa": "node --experimental-strip-types --test tests/qa-studio-foundation.test.mjs"
   },
   "dependencies": {
     "@chakra-ui/react": "2.8.2",

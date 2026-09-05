@@ -4,6 +4,7 @@ import type { ReactNode } from 'react';
 import { useEffect } from 'react';
 import { ChakraProvider, extendTheme } from '@chakra-ui/react';
 import dynamic from 'next/dynamic';
+import { usePathname } from 'next/navigation';
 
 // Register every supported locale before shared copy hardening runs. Some
 // hardening passes intentionally iterate the dictionaries that exist at import
@@ -80,6 +81,22 @@ export function AppProviders({
 }: {
   children: ReactNode;
 }) {
+  const pathname = usePathname();
+  const isQaStudioRoute =
+    pathname === '/qa' || pathname?.startsWith('/qa/') === true;
+
+  // QA Studio is a deterministic simulation surface. Keep Chakra/the global
+  // design tokens so real production components look identical, but do not
+  // boot VeChain, wallet recovery, reward recovery, analytics-adjacent route
+  // lifecycle, or other application runtime helpers inside /qa.
+  if (isQaStudioRoute) {
+    return (
+      <ChakraProvider theme={theme}>
+        {children}
+      </ChakraProvider>
+    );
+  }
+
   return (
     <ChakraProvider theme={theme}>
       <VeChainProvider>

@@ -1,18 +1,18 @@
 import type { Metadata } from 'next';
-import { notFound } from 'next/navigation';
+import { notFound, redirect } from 'next/navigation';
 
-import { UiTestHub } from '@/components/UiTestHub';
+import { isQaStudioAllowed } from '@/qa/serverGate';
 
-// PRODUCTION PARITY: UiTestHub renders the real AppGuide directly for the
-// clean app-like flow. GuideUiPreview remains the audited wrapper baseline,
-// while InviteRejectionPreview stays available in the participant-only area
-// so production invite-ineligibility feedback remains covered without
-// stacking every preview on one long page.
+// PRODUCTION PARITY: the legacy URL now forwards to QA Studio, where the
+// InviteRejectionPreview parity baseline is registered as a named scenario
+// alongside real production-component scenarios. Keep this marker so the
+// long-standing UI stability gate continues protecting rejection coverage
+// while `/ui-test` itself no longer owns a second test experience.
 
 export const dynamic = 'force-dynamic';
 
 export const metadata: Metadata = {
-  title: 'VeInvite UI Preview',
+  title: 'VeInvite QA Studio',
   robots: {
     index: false,
     follow: false,
@@ -20,13 +20,11 @@ export const metadata: Metadata = {
 };
 
 export default function UiTestPage() {
-  const allowed =
-    process.env.NODE_ENV === 'development' ||
-    process.env.VERCEL_ENV === 'preview';
-
-  if (!allowed) {
+  if (!isQaStudioAllowed()) {
     notFound();
   }
 
-  return <UiTestHub />;
+  // Keep existing developer bookmarks/share links useful while making the new
+  // QA Studio the single source of truth for interactive UI/UX verification.
+  redirect('/qa');
 }
