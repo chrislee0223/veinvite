@@ -15,6 +15,12 @@ import {
   type TransientFeedback,
 } from './TransientSnackbar';
 import { getLanguagePickerCopy } from '@/lib/i18n/languagePickerCopy';
+import {
+  buildLocalizedLanguageNames,
+  matchesLanguageSearch,
+  normalizeLanguageSearch,
+  type LocalizedLanguageNames,
+} from '@/lib/i18n/languageSearch';
 import { SETTINGS_COPY } from '@/lib/i18n/settingsCopy';
 import { NOTIFICATION_COPY } from '@/lib/i18n/notificationCopy';
 import {
@@ -29,14 +35,6 @@ const LANGUAGE_MODAL_CLOSE_FALLBACK_MS = 280;
 
 function maskWallet(address: string): string {
   return `${address.slice(0, 8)}···${address.slice(-6)}`;
-}
-
-function normalizeLanguageSearch(value: string): string {
-  return value
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .trim()
-    .toLowerCase();
 }
 
 function compareLanguageOptions(
@@ -83,6 +81,8 @@ export function AppSettings({
   const [languageOpen, setLanguageOpen] = useState(false);
   const [languageClosing, setLanguageClosing] = useState(false);
   const [languageQuery, setLanguageQuery] = useState('');
+  const [localizedLanguageNames, setLocalizedLanguageNames] =
+    useState<LocalizedLanguageNames>({});
   const [walletConfirmation, setWalletConfirmation] =
     useState<WalletConfirmation>(null);
   const feedbackIdRef = useRef(0);
@@ -99,26 +99,23 @@ export function AppSettings({
   const currentLanguage = getLanguageOption(locale);
   const normalizedLanguageQuery =
     normalizeLanguageSearch(languageQuery);
+  const currentLanguageMatchesQuery = matchesLanguageSearch(
+    currentLanguage,
+    normalizedLanguageQuery,
+    localizedLanguageNames,
+  );
   const visibleLanguageOptions = LANGUAGE_OPTIONS
     .filter(
       (option) =>
         option.locale !== currentLanguage.locale,
     )
-    .filter((option) => {
-      if (!normalizedLanguageQuery) {
-        return true;
-      }
-
-      return [
-        option.nativeName,
-        option.englishName,
-        option.locale,
-      ].some((value) =>
-        normalizeLanguageSearch(value).includes(
-          normalizedLanguageQuery,
-        ),
-      );
-    })
+    .filter((option) =>
+      matchesLanguageSearch(
+        option,
+        normalizedLanguageQuery,
+        localizedLanguageNames,
+      ),
+    )
     .sort(compareLanguageOptions);
 
   const clearFeedback = useCallback(() => {
@@ -232,6 +229,12 @@ export function AppSettings({
   useEffect(() => () => {
     clearLanguageCloseFallback();
   }, [clearLanguageCloseFallback]);
+
+  useEffect(() => {
+    setLocalizedLanguageNames(
+      buildLocalizedLanguageNames(locale),
+    );
+  }, [locale]);
 
   useEffect(() => {
     if (!languageOpen) return;
@@ -596,11 +599,11 @@ export function AppSettings({
                     <span className="languageCheck" aria-hidden="true" />
                   </button>
                 ))
-              ) : (
+              ) : normalizedLanguageQuery && !currentLanguageMatchesQuery ? (
                 <div className="languageNoResults" role="status">
                   {languageCopy.noResults}
                 </div>
-              )}
+              ) : null}
             </div>
           </div>
         </div>
