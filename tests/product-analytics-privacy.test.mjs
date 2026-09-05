@@ -7,10 +7,14 @@ const read = (path) =>
 
 const [
   migration,
+  longTermFoundation,
+  archiveHardening,
+  immutableEvents,
   tracker,
   contract,
   ingestion,
   housekeeping,
+  analyticsMaintenance,
   operatorReport,
   permanentReferral,
   legacyInvite,
@@ -24,10 +28,20 @@ const [
   read(
     'supabase/migrations/20260905181000_add_privacy_safe_product_analytics.sql',
   ),
+  read(
+    'supabase/migrations/20260905222000_add_long_term_data_foundation.sql',
+  ),
+  read(
+    'supabase/migrations/20260905233845_harden_archive_cleanup_integrity.sql',
+  ),
+  read(
+    'supabase/migrations/20260905234021_make_product_analytics_events_update_immutable.sql',
+  ),
   read('src/components/UsageAnalyticsTracker.tsx'),
   read('src/lib/productAnalytics.ts'),
   read('src/app/api/analytics/event/route.ts'),
   read('src/lib/housekeeping/ephemeralCleanup.ts'),
+  read('src/app/api/cron/analytics-maintenance/route.ts'),
   read('src/app/api/admin/usage-analytics/route.ts'),
   read('src/components/PermanentReferralClient.tsx'),
   read('src/components/InviteeClient.tsx'),
@@ -67,6 +81,9 @@ test(
     );
     assert.match(migration, /Anonymous analytics only/);
     assert.match(migration, /never reward, referral, eligibility, mission, Sybil or payout authority/);
+    assert.match(immutableEvents, /app_product_events_prevent_update/);
+    assert.match(immutableEvents, /revoke update on table public\.app_product_events from service_role/);
+    assert.match(immutableEvents, /app_product_events are immutable/);
     assert.doesNotMatch(migration, /\bwallet_address\s+text\b/i);
     assert.doesNotMatch(migration, /\bip_address\s+text\b/i);
     assert.doesNotMatch(migration, /\buser_agent\s+text\b/i);
@@ -115,12 +132,8 @@ test(
 );
 
 test(
-  'raw product events compact after 30 days before anonymous usage identities are removed',
+  'raw product events use 365-day archive-first cleanup outside reconcile',
   () => {
-    assert.match(
-      migration,
-      /create or replace function public\.compact_app_product_analytics/,
-    );
     assert.match(
       migration,
       /create table if not exists public\.app_product_event_daily_rollups/,
@@ -129,21 +142,21 @@ test(
       migration,
       /create table if not exists public\.app_product_event_daily_dimension_rollups/,
     );
-    assert.match(
-      migration,
-      /delete from public\.app_product_events\s+where usage_date = v_usage_date/,
-    );
-    assert.match(
-      migration,
-      /delete from public\.app_product_events\s+where visitor_key = p_visitor_key/,
-    );
-    assert.match(housekeeping, /compact_app_product_analytics/);
-    assert.match(housekeeping, /compact_app_usage_analytics/);
-    assert.ok(
-      housekeeping.indexOf('compact_app_product_analytics') <
-        housekeeping.indexOf('compact_app_usage_analytics'),
-      'product events must compact before usage visitor/exclusion hashes can be removed',
-    );
+    assert.match(longTermFoundation, /hot365_archive_required_v1/);
+    assert.match(longTermFoundation, /delete_requires_verified_archive/);
+    assert.match(archiveHardening, /archive manifest lifecycle must start with PREPARED/);
+    assert.match(archiveHardening, /artifactChecksumVerified/);
+    assert.match(archiveHardening, /sourceRowCountVerified/);
+    assert.match(archiveHardening, /active policy minimum/);
+    assert.match(archiveHardening, /lock table public\.app_product_events in share row exclusive mode/);
+    assert.match(archiveHardening, /archive is stale or unverified/);
+    assert.doesNotMatch(housekeeping, /compact_app_product_analytics/);
+    assert.doesNotMatch(housekeeping, /compact_app_usage_analytics/);
+    assert.match(analyticsMaintenance, /finalize_long_term_analytics/);
+    assert.match(analyticsMaintenance, /NON_DESTRUCTIVE/);
+    assert.match(analyticsMaintenance, /rawRowsDeleted: 0/);
+    assert.doesNotMatch(analyticsMaintenance, /compact_app_product_analytics/);
+    assert.doesNotMatch(analyticsMaintenance, /compact_app_usage_analytics/);
   },
 );
 
@@ -190,13 +203,15 @@ test(
     assert.match(operatorReport, /productAnalytics:/);
     assert.match(operatorReport, /authoritative: false/);
     assert.match(operatorReport, /strictAllowlist: true/);
-    assert.match(operatorReport, /rawProductEventRetentionDays: 30/);
+    assert.match(operatorReport, /rawProductEventRetentionDays: 365/);
+    assert.match(operatorReport, /rawArchiveRequiredBeforeCleanup: true/);
+    assert.match(operatorReport, /permanentAggregateHistory: true/);
     assert.match(operatorReport, /freeFormMetadataStored: false/);
   },
 );
 
 test(
-  'product analytics disclosure covers all supported locales and the privacy page',
+  'product analytics disclosure covers all supported locales and archive-first retention',
   () => {
     for (const locale of LOCALES) {
       const marker = locale === 'zh-tw'
@@ -211,7 +226,9 @@ test(
         `missing analytics control copy for ${locale}`,
       );
     }
-    assert.match(privacyCopy, /30 days/i);
+    assert.match(privacyCopy, /365 days/i);
+    assert.match(privacyCopy, /protected long-term archive/i);
+    assert.doesNotMatch(privacyCopy, /up to 30 days/i);
     assert.match(privacyCopy, /wallet addresses/i);
     assert.match(privacyCopy, /invite or referral codes/i);
     assert.match(legalPage, /PRIVACY_PRODUCT_ANALYTICS_COPY/);
