@@ -11,6 +11,7 @@ test('leaderboard impact dialog uses the shared soft-focus motion without changi
   assert.match(source, /SOFT_FOCUS_MOTION_CSS/);
   assert.match(source, /softFocusCloseDelay/);
   assert.match(source, /const \[impactVisible, setImpactVisible\] = useState\(false\)/);
+  assert.match(source, /const \[impactClosing, setImpactClosing\] = useState\(false\)/);
   assert.match(
     source,
     /className="modalBackdrop impactModalBackdrop veinviteSoftFocusBackdrop"/,
@@ -28,11 +29,13 @@ test('leaderboard impact dialog uses the shared soft-focus motion without changi
   assert.doesNotMatch(walletDialogBlock[0], /veinviteSoftFocusPanel/);
 });
 
-test('impact close preserves focus and blocks duplicate close attempts until motion completes', () => {
+test('impact close preserves focus and blocks duplicate or early-reveal races', () => {
   assert.match(
     source,
     /if \(!impactOpen \|\| impactCloseTimerRef\.current !== null\) \{\s*return;\s*\}/,
   );
+  assert.match(source, /setImpactClosing\(true\)/);
+  assert.match(source, /if \(!impactOpen \|\| impactClosing\) return/);
   assert.match(source, /setImpactVisible\(false\)/);
   assert.match(
     source,
