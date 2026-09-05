@@ -14,14 +14,12 @@ const [
   adminExclusionMigration,
   tracker,
   preference,
-  preferenceControl,
   ingestion,
   operatorReport,
   housekeeping,
   layout,
   bottomNav,
   privacyCopy,
-  privacyControlCopy,
   legalPage,
 ] = await Promise.all([
   read(
@@ -35,18 +33,12 @@ const [
   ),
   read('src/components/UsageAnalyticsTracker.tsx'),
   read('src/lib/usageAnalyticsPreference.ts'),
-  read(
-    'src/components/UsageAnalyticsPreferenceControl.tsx',
-  ),
   read('src/app/api/analytics/session/route.ts'),
   read('src/app/api/admin/usage-analytics/route.ts'),
   read('src/lib/housekeeping/ephemeralCleanup.ts'),
   read('src/app/layout.tsx'),
   read('src/components/AppBottomNavigation.tsx'),
   read('src/lib/i18n/privacyUsageAnalyticsCopy.ts'),
-  read(
-    'src/lib/i18n/privacyUsageAnalyticsControlCopy.ts',
-  ),
   read('src/components/LocalizedLegalPage.tsx'),
 ]);
 
@@ -254,7 +246,7 @@ test(
 );
 
 test(
-  'analytics preference can stop tracking and removes analytics identifiers',
+  'stored analytics preference remains respected while no privacy toggle is mounted',
   () => {
     assert.match(
       preference,
@@ -269,16 +261,12 @@ test(
       /removeItem\(\s*USAGE_ANALYTICS_SEEN_STORAGE_KEY/,
     );
     assert.match(
-      preferenceControl,
-      /role="switch"/,
+      tracker,
+      /readUsageAnalyticsEnabled\(\)/,
     );
-    assert.match(
-      preferenceControl,
-      /setUsageAnalyticsEnabled\(next\)/,
-    );
-    assert.match(
+    assert.doesNotMatch(
       layout,
-      /<UsageAnalyticsPreferenceControl \/>/,
+      /UsageAnalyticsPreferenceControl/,
     );
   },
 );
@@ -382,7 +370,7 @@ test(
 );
 
 test(
-  'privacy disclosure and preference control cover all 27 supported locales',
+  'privacy disclosure covers all 27 supported locales',
   () => {
     for (const locale of LOCALES) {
       const marker =
@@ -393,19 +381,11 @@ test(
         privacyCopy.includes(marker),
         `missing privacy analytics copy for ${locale}`,
       );
-      assert.ok(
-        privacyControlCopy.includes(marker),
-        `missing analytics control copy for ${locale}`,
-      );
     }
     assert.match(privacyCopy, /raw IP/i);
     assert.match(
       privacyCopy,
       /reward decisions/i,
-    );
-    assert.match(
-      privacyControlCopy,
-      /30 days/i,
     );
     assert.match(
       legalPage,

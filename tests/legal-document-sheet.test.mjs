@@ -190,6 +190,15 @@ test('direct privacy and terms routes remain public standalone documents', () =>
   assert.match(termsPage, /canonical: '\/terms'/);
 });
 
+test('privacy route has no analytics preference toggle while production analytics stays enabled', () => {
+  assert.doesNotMatch(layout, /UsageAnalyticsPreferenceControl/);
+  assert.match(layout, /UsageAnalyticsTracker/);
+  assert.match(
+    layout,
+    /usageAnalyticsEnabled \? <UsageAnalyticsTracker \/> : null/,
+  );
+});
+
 test('in-app legal views stay visible in anonymous usage analytics', () => {
   assert.match(host, /veinvite-analytics-view/);
   assert.match(tracker, /detail !== 'privacy'/);
