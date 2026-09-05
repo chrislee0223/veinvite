@@ -22,6 +22,7 @@ import '@/lib/i18n/referralLinkCopyFinalHardening';
 import '@/lib/i18n/guideRewardClaimHardening';
 import { DeferredStartupExtras } from './DeferredStartupExtras';
 import { LegalNavigationMemory } from './LegalNavigationMemory';
+import { NotificationHistoryMotionStyles } from './NotificationHistoryMotionStyles';
 import { RewardReservationRecovery } from './RewardReservationRecovery';
 import { RouteScopedInviteEnhancements } from './RouteScopedInviteEnhancements';
 import { SecondaryPageLayoutPolish } from './SecondaryPageLayoutPolish';
@@ -83,6 +84,7 @@ export function AppProviders({
       <VeChainProvider>
         <ProviderReadySignal />
         <StartupHydrationPlaceholders />
+        <NotificationHistoryMotionStyles />
         <WalletConnectionResume />
         <WalletRuntimeLifecycle />
         <RewardReservationRecovery />
