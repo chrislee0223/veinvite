@@ -15,6 +15,7 @@ import {
 } from './TransientSnackbar';
 import { SETTINGS_COPY } from '@/lib/i18n/settingsCopy';
 import { NOTIFICATION_COPY } from '@/lib/i18n/notificationCopy';
+import { LANGUAGE_PICKER_COPY } from '@/lib/i18n/languagePickerCopy';
 import {
   LANGUAGE_OPTIONS,
   getLanguageOption,
@@ -22,6 +23,8 @@ import {
   type Locale,
   type SupportedLocale,
 } from '@/lib/i18n/locales';
+
+const LANGUAGE_CLOSE_FALLBACK_MS = 220;
 
 function maskWallet(address: string): string {
   return `${address.slice(0, 8)}···${address.slice(-6)}`;
@@ -77,6 +80,7 @@ export function AppSettings({
 }) {
   const [feedback, setFeedback] = useState<TransientFeedback | null>(null);
   const [languageOpen, setLanguageOpen] = useState(false);
+  const [languageClosing, setLanguageClosing] = useState(false);
   const [languageQuery, setLanguageQuery] = useState('');
   const [walletConfirmation, setWalletConfirmation] =
     useState<WalletConfirmation>(null);
@@ -84,11 +88,14 @@ export function AppSettings({
   const languageTriggerRef = useRef<HTMLButtonElement | null>(null);
   const languageDialogRef = useRef<HTMLDivElement | null>(null);
   const selectedLanguageRef = useRef<HTMLButtonElement | null>(null);
+  const languageCloseWatchdogRef = useRef<number | null>(null);
+  const pendingLanguageRef = useRef<SupportedLocale | null>(null);
   const walletConfirmationDialogRef = useRef<HTMLDivElement | null>(null);
   const walletConfirmationCancelRef = useRef<HTMLButtonElement | null>(null);
   const walletConfirmationOpenerRef = useRef<HTMLButtonElement | null>(null);
   const t = SETTINGS_COPY[locale];
   const currentLanguage = getLanguageOption(locale);
+  const pickerCopy = LANGUAGE_PICKER_COPY[currentLanguage.locale];
   const normalizedLanguageQuery =
     normalizeLanguageSearch(languageQuery);
   const visibleLanguageOptions = LANGUAGE_OPTIONS
@@ -136,11 +143,65 @@ export function AppSettings({
     }
   };
 
-  const closeLanguagePicker = useCallback(() => {
+  const finalizeLanguagePickerClose = useCallback(() => {
+    if (languageCloseWatchdogRef.current !== null) {
+      window.clearTimeout(languageCloseWatchdogRef.current);
+      languageCloseWatchdogRef.current = null;
+    }
+
+    const nextLocale = pendingLanguageRef.current;
+    pendingLanguageRef.current = null;
     setLanguageQuery('');
+    setLanguageClosing(false);
     setLanguageOpen(false);
+
+    if (nextLocale && nextLocale !== currentLanguage.locale) {
+      onLocaleChange(nextLocale);
+    }
+
     window.requestAnimationFrame(() => languageTriggerRef.current?.focus());
-  }, []);
+  }, [currentLanguage.locale, onLocaleChange]);
+
+  const closeLanguagePicker = useCallback((nextLocale?: SupportedLocale) => {
+    if (nextLocale) {
+      pendingLanguageRef.current =
+        nextLocale === currentLanguage.locale ? null : nextLocale;
+    }
+
+    if (!languageOpen || languageClosing) return;
+
+    if (
+      window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
+    ) {
+      finalizeLanguagePickerClose();
+      return;
+    }
+
+    setLanguageClosing(true);
+    if (languageCloseWatchdogRef.current !== null) {
+      window.clearTimeout(languageCloseWatchdogRef.current);
+    }
+    languageCloseWatchdogRef.current = window.setTimeout(
+      finalizeLanguagePickerClose,
+      LANGUAGE_CLOSE_FALLBACK_MS,
+    );
+  }, [
+    currentLanguage.locale,
+    finalizeLanguagePickerClose,
+    languageClosing,
+    languageOpen,
+  ]);
+
+  const openLanguagePicker = () => {
+    clearFeedback();
+    pendingLanguageRef.current = null;
+    if (languageCloseWatchdogRef.current !== null) {
+      window.clearTimeout(languageCloseWatchdogRef.current);
+      languageCloseWatchdogRef.current = null;
+    }
+    setLanguageClosing(false);
+    setLanguageOpen(true);
+  };
 
   const closeWalletConfirmation = useCallback(() => {
     setWalletConfirmation(null);
@@ -159,11 +220,22 @@ export function AppSettings({
   };
 
   useEffect(() => {
+    return () => {
+      if (languageCloseWatchdogRef.current !== null) {
+        window.clearTimeout(languageCloseWatchdogRef.current);
+      }
+    };
+  }, []);
+
+  useEffect(() => {
     if (!languageOpen) return;
 
     const previousOverflow = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
-    window.requestAnimationFrame(() => selectedLanguageRef.current?.focus());
+
+    if (!languageClosing) {
+      window.requestAnimationFrame(() => selectedLanguageRef.current?.focus());
+    }
 
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {
@@ -172,7 +244,13 @@ export function AppSettings({
         return;
       }
 
-      if (event.key !== 'Tab' || !languageDialogRef.current) return;
+      if (
+        languageClosing ||
+        event.key !== 'Tab' ||
+        !languageDialogRef.current
+      ) {
+        return;
+      }
 
       const focusable = Array.from(
         languageDialogRef.current.querySelectorAll<HTMLElement>(
@@ -200,7 +278,7 @@ export function AppSettings({
       document.removeEventListener('keydown', onKeyDown);
       document.body.style.overflow = previousOverflow;
     };
-  }, [languageOpen, closeLanguagePicker]);
+  }, [languageOpen, languageClosing, closeLanguagePicker]);
 
   useEffect(() => {
     if (!walletConfirmation) return;
@@ -255,8 +333,7 @@ export function AppSettings({
 
   const selectLanguage = (nextLocale: SupportedLocale) => {
     clearFeedback();
-    onLocaleChange(nextLocale);
-    closeLanguagePicker();
+    closeLanguagePicker(nextLocale);
   };
 
   const confirmWalletAction = async () => {
@@ -336,10 +413,8 @@ export function AppSettings({
           className="languagePickerTrigger"
           aria-haspopup="dialog"
           aria-expanded={languageOpen}
-          onClick={() => {
-            clearFeedback();
-            setLanguageOpen(true);
-          }}
+          aria-controls="settings-language-dialog"
+          onClick={openLanguagePicker}
         >
           <span className="languageSymbol" aria-hidden="true"><LanguageFlag locale={currentLanguage.locale} /></span>
           <span className="languagePickerCopy">
@@ -419,26 +494,43 @@ export function AppSettings({
 
       {languageOpen ? (
         <div
-          className="languageModalBackdrop"
+          className={
+            languageClosing
+              ? 'languageModalBackdrop closing'
+              : 'languageModalBackdrop'
+          }
           role="presentation"
-          onMouseDown={(event) => {
+          onPointerDown={(event) => {
             if (event.target === event.currentTarget) closeLanguagePicker();
           }}
         >
           <div
+            id="settings-language-dialog"
             ref={languageDialogRef}
-            className="languageModal"
+            className={
+              languageClosing
+                ? 'languageModal closing'
+                : 'languageModal'
+            }
             role="dialog"
             aria-modal="true"
             aria-labelledby="settings-language-dialog-title"
             aria-describedby="settings-language-dialog-note"
+            onAnimationEnd={(event) => {
+              if (
+                languageClosing &&
+                event.target === event.currentTarget
+              ) {
+                finalizeLanguagePickerClose();
+              }
+            }}
           >
             <div className="languageModalHeader">
               <div>
                 <h2 id="settings-language-dialog-title">{t.languageTitle}</h2>
                 <p id="settings-language-dialog-note">{t.languageNote}</p>
               </div>
-              <button type="button" className="languageClose" aria-label={t.close} onClick={closeLanguagePicker}>×</button>
+              <button type="button" className="languageClose" aria-label={t.close} onClick={() => closeLanguagePicker()}>×</button>
             </div>
 
             <div className="selectedLanguageBlock">
@@ -450,10 +542,10 @@ export function AppSettings({
                 onClick={() => selectLanguage(currentLanguage.locale)}
               >
                 <span className="languageOptionSymbol" aria-hidden="true"><LanguageFlag locale={currentLanguage.locale} /></span>
-                <span className="languageOptionCopy" dir={currentLanguage.direction}>
-                  <strong>{currentLanguage.nativeName}</strong>
+                <span className="languageOptionCopy">
+                  <strong dir={currentLanguage.direction}>{currentLanguage.nativeName}</strong>
                   {currentLanguage.englishName !== currentLanguage.nativeName ? (
-                    <small>{currentLanguage.englishName}</small>
+                    <small dir="ltr">{currentLanguage.englishName}</small>
                   ) : null}
                 </span>
                 <span className="languageCheck" aria-hidden="true">✓</span>
@@ -466,8 +558,8 @@ export function AppSettings({
                 type="search"
                 value={languageQuery}
                 onChange={(event) => setLanguageQuery(event.target.value)}
-                placeholder={`${t.languageTitle}…`}
-                aria-label={t.languageTitle}
+                placeholder={pickerCopy.search}
+                aria-label={pickerCopy.search}
                 autoComplete="off"
                 spellCheck={false}
                 dir="auto"
@@ -475,24 +567,30 @@ export function AppSettings({
             </label>
 
             <div className="languageOptionList" role="group" aria-label={t.languageTitle}>
-              {visibleLanguageOptions.map((option) => (
-                <button
-                  key={option.locale}
-                  type="button"
-                  className="languageOption"
-                  aria-pressed="false"
-                  onClick={() => selectLanguage(option.locale)}
-                >
-                  <span className="languageOptionSymbol" aria-hidden="true"><LanguageFlag locale={option.locale} /></span>
-                  <span className="languageOptionCopy" dir={option.direction}>
-                    <strong>{option.nativeName}</strong>
-                    {option.englishName !== option.nativeName ? (
-                      <small>{option.englishName}</small>
-                    ) : null}
-                  </span>
-                  <span className="languageCheck" aria-hidden="true" />
-                </button>
-              ))}
+              {visibleLanguageOptions.length > 0 ? (
+                visibleLanguageOptions.map((option) => (
+                  <button
+                    key={option.locale}
+                    type="button"
+                    className="languageOption"
+                    aria-pressed="false"
+                    onClick={() => selectLanguage(option.locale)}
+                  >
+                    <span className="languageOptionSymbol" aria-hidden="true"><LanguageFlag locale={option.locale} /></span>
+                    <span className="languageOptionCopy">
+                      <strong dir={option.direction}>{option.nativeName}</strong>
+                      {option.englishName !== option.nativeName ? (
+                        <small dir="ltr">{option.englishName}</small>
+                      ) : null}
+                    </span>
+                    <span className="languageCheck" aria-hidden="true" />
+                  </button>
+                ))
+              ) : (
+                <p className="languageEmpty" role="status">
+                  {pickerCopy.noResults}
+                </p>
+              )}
             </div>
           </div>
         </div>
@@ -536,6 +634,8 @@ export function AppSettings({
         .legalCard :global(a) { min-height:48px; display:flex; align-items:center; justify-content:space-between; gap:12px; border-top:1px solid rgba(255,255,255,.06); color:#e7e3d8; font-size:.78rem; font-weight:800; text-decoration:none; }
         .legalCard h2 { margin-bottom:8px; }
         .confirmationBackdrop,.languageModalBackdrop { position:fixed; z-index:1450; inset:0; box-sizing:border-box; display:grid; place-items:center; padding:20px; background:rgba(0,0,0,.72); backdrop-filter:blur(8px); }
+        .languageModalBackdrop { animation:languageBackdropIn 180ms ease-out both; }
+        .languageModalBackdrop.closing { animation:languageBackdropOut 140ms ease-in both; }
         .confirmationModal { width:min(100%,410px); box-sizing:border-box; padding:22px; border:1px solid rgba(255,205,80,.24); border-radius:24px; background:linear-gradient(155deg,#241b0d,#11110f 56%); box-shadow:0 30px 90px rgba(0,0,0,.58),inset 0 1px 0 rgba(255,255,255,.06); text-align:center; }
         .confirmationIcon { width:42px; height:42px; margin:0 auto 13px; display:grid; place-items:center; border:1px solid rgba(255,205,80,.25); border-radius:13px; background:rgba(244,183,40,.09); color:#f4bd35; font-size:1.1rem; font-weight:900; }
         .confirmationModal h2 { font-size:1.05rem; }
@@ -546,34 +646,49 @@ export function AppSettings({
         .confirmationConfirm { border:0; background:linear-gradient(135deg,#ffd24d,#efa718); color:#17120a; }
         .confirmationConfirm.disconnectConfirm { border:1px solid rgba(255,170,120,.28); background:rgba(255,130,80,.11); color:#ffc19a; }
         .confirmationCancel:focus-visible,.confirmationConfirm:focus-visible { outline:2px solid rgba(255,205,80,.75); outline-offset:2px; }
-        .languageModal { width:min(100%,430px); max-height:min(78svh,680px); box-sizing:border-box; padding:20px; display:flex; flex-direction:column; border:1px solid rgba(255,205,80,.24); border-radius:24px; background:linear-gradient(155deg,#241b0d,#11110f 56%); box-shadow:0 30px 90px rgba(0,0,0,.58),inset 0 1px 0 rgba(255,255,255,.06); }
+        .languageModal { --language-motion-offset:8px; width:min(100%,430px); max-height:min(78svh,680px); box-sizing:border-box; padding:20px; display:flex; flex-direction:column; border:1px solid rgba(255,205,80,.24); border-radius:24px; background:linear-gradient(155deg,#241b0d,#11110f 56%); box-shadow:0 30px 90px rgba(0,0,0,.58),inset 0 1px 0 rgba(255,255,255,.06); animation:languageModalIn 180ms cubic-bezier(.2,.8,.2,1) both; }
+        .languageModal.closing { animation:languageModalOut 140ms ease-in both; }
         .languageModalHeader { display:flex; align-items:flex-start; justify-content:space-between; gap:16px; }
         .languageModalHeader > div { min-width:0; }
         .languageModalHeader p { margin-top:6px; }
         .languageClose { flex:0 0 auto; width:36px; height:36px; display:grid; place-items:center; border:1px solid rgba(255,255,255,.1); border-radius:11px; background:rgba(255,255,255,.04); color:#d9d4ca; font:inherit; font-size:1.2rem; cursor:pointer; }
         .languageClose:focus-visible,.languageOption:focus-visible,.languageSearch:focus-within { outline:2px solid rgba(255,205,80,.75); outline-offset:2px; }
-        .selectedLanguageBlock { margin-top:16px; padding-bottom:10px; border-bottom:1px solid rgba(255,255,255,.07); }
-        .languageSearch { min-height:44px; margin-top:10px; padding:0 11px; display:grid; grid-template-columns:20px minmax(0,1fr); align-items:center; gap:8px; border:1px solid rgba(255,255,255,.09); border-radius:13px; background:rgba(0,0,0,.16); color:#77736b; }
+        .selectedLanguageBlock { margin-top:16px; padding-bottom:9px; border-bottom:1px solid rgba(255,255,255,.07); }
+        .languageSearch { min-height:46px; margin-top:10px; padding:0 11px; display:grid; grid-template-columns:20px minmax(0,1fr); align-items:center; gap:8px; border:1px solid rgba(255,255,255,.11); border-radius:13px; background:rgba(0,0,0,.16); color:#9d978d; }
         .languageSearch > span { text-align:center; font-size:1rem; line-height:1; }
-        .languageSearch input { width:100%; min-width:0; border:0; outline:0; background:transparent; color:#ece8df; font:inherit; font-size:.76rem; }
-        .languageSearch input::placeholder { color:#706c65; opacity:1; }
-        .languageSearch input::-webkit-search-cancel-button { opacity:.65; }
-        .languageOptionList { min-height:0; margin-top:10px; display:grid; gap:8px; overflow:auto; padding-right:3px; scrollbar-width:thin; }
-        .languageOption { width:100%; min-height:56px; padding:8px 11px; display:grid; grid-template-columns:32px minmax(0,1fr) 26px; align-items:center; gap:10px; border:1px solid rgba(255,255,255,.09); border-radius:14px; background:rgba(255,255,255,.035); color:#aaa69d; font:inherit; text-align:left; cursor:pointer; }
+        .languageSearch input { width:100%; min-width:0; border:0; outline:0; background:transparent; color:#ece8df; font:inherit; font-size:16px; }
+        .languageSearch input::placeholder { color:#999389; opacity:1; }
+        .languageSearch input::-webkit-search-cancel-button { opacity:.72; }
+        .languageOptionList { min-height:0; margin-top:9px; display:grid; gap:7px; overflow:auto; overscroll-behavior:contain; -webkit-overflow-scrolling:touch; padding:0 3px 4px 0; scrollbar-width:thin; }
+        .languageOption { width:100%; min-height:52px; padding:7px 11px; display:grid; grid-template-columns:32px minmax(0,1fr) 26px; align-items:center; gap:10px; border:1px solid rgba(255,255,255,.09); border-radius:14px; background:rgba(255,255,255,.035); color:#d4d0c7; font:inherit; text-align:left; cursor:pointer; }
         .languageOption:hover { border-color:rgba(255,205,80,.28); }
         .languageOption.selected { border-color:rgba(255,205,80,.52); background:rgba(255,201,61,.11); color:#ffd45f; }
-        .languageOptionCopy { min-width:0; display:grid; gap:2px; text-align:start; }
-        .languageOptionCopy strong { min-width:0; font-size:.78rem; line-height:1.25; overflow-wrap:anywhere; }
-        .languageOptionCopy small { color:#77736b; font-size:.64rem; line-height:1.25; overflow-wrap:anywhere; }
-        .languageOption.selected .languageOptionCopy small { color:#ad8b3d; }
+        .languageOptionCopy { min-width:0; display:grid; gap:2px; text-align:left; }
+        .languageOptionCopy strong { min-width:0; font-size:.8rem; line-height:1.25; overflow-wrap:anywhere; text-align:left; }
+        .languageOptionCopy small { color:#918c83; font-size:.65rem; line-height:1.25; overflow-wrap:anywhere; text-align:left; }
+        .languageOption.selected .languageOptionCopy small { color:#b89a52; }
         .languageCheck { width:24px; height:24px; display:grid; place-items:center; border-radius:50%; color:#17120a; font-size:.72rem; font-weight:950; }
         .languageOption.selected .languageCheck { background:#f4b728; }
+        .languageEmpty { margin:12px 0 8px; padding:18px 12px; border:1px dashed rgba(255,255,255,.1); border-radius:13px; color:#9f9a91; text-align:center; }
+        @keyframes languageBackdropIn { from { opacity:0; } to { opacity:1; } }
+        @keyframes languageBackdropOut { from { opacity:1; } to { opacity:0; } }
+        @keyframes languageModalIn { from { opacity:0; transform:translateY(var(--language-motion-offset)); } to { opacity:1; transform:translateY(0); } }
+        @keyframes languageModalOut { from { opacity:1; transform:translateY(0); } to { opacity:0; transform:translateY(var(--language-motion-offset)); } }
+        @supports (height:100dvh) {
+          .languageModal { max-height:min(78dvh,680px); }
+        }
         @media (max-width:560px) {
           .confirmationBackdrop,.languageModalBackdrop { place-items:end center; padding:0; }
           .confirmationModal,.languageModal { width:100%; padding:20px 18px calc(20px + env(safe-area-inset-bottom)); border-radius:26px 26px 0 0; border-bottom:0; }
-          .languageModal { max-height:82svh; }
+          .languageModal { --language-motion-offset:14px; max-height:82svh; }
           .confirmationActions { grid-template-columns:1fr; }
           .confirmationCancel { order:2; }
+          @supports (height:100dvh) {
+            .languageModal { max-height:82dvh; }
+          }
+        }
+        @media (prefers-reduced-motion: reduce) {
+          .languageModalBackdrop,.languageModalBackdrop.closing,.languageModal,.languageModal.closing { animation:none; }
         }
       `}</style>
     </section>

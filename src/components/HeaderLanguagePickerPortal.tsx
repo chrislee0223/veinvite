@@ -21,13 +21,19 @@ type HostState = {
   select: HTMLSelectElement;
 };
 
+const MENU_CLOSE_FALLBACK_MS = 180;
+
 export function HeaderLanguagePickerPortal() {
   const [host, setHost] = useState<HostState | null>(null);
   const [locale, setLocale] = useState<Locale>('en');
   const [open, setOpen] = useState(false);
+  const [closing, setClosing] = useState(false);
   const pickerRef = useRef<HTMLDivElement | null>(null);
   const triggerRef = useRef<HTMLButtonElement | null>(null);
   const menuRef = useRef<HTMLDivElement | null>(null);
+  const closeWatchdogRef = useRef<number | null>(null);
+  const pendingLocaleRef = useRef<Locale | null>(null);
+  const restoreFocusRef = useRef(false);
 
   useEffect(() => {
     let activeSelect: HTMLSelectElement | null = null;
@@ -43,7 +49,14 @@ export function HeaderLanguagePickerPortal() {
       activeMount?.remove();
       activeSelect = null;
       activeMount = null;
+      if (closeWatchdogRef.current !== null) {
+        window.clearTimeout(closeWatchdogRef.current);
+        closeWatchdogRef.current = null;
+      }
+      pendingLocaleRef.current = null;
+      restoreFocusRef.current = false;
       setHost(null);
+      setClosing(false);
       setOpen(false);
     };
 
@@ -129,17 +142,92 @@ export function HeaderLanguagePickerPortal() {
     };
   }, [host]);
 
+  const finalizeClose = useCallback(() => {
+    if (closeWatchdogRef.current !== null) {
+      window.clearTimeout(closeWatchdogRef.current);
+      closeWatchdogRef.current = null;
+    }
+
+    const nextLocale = pendingLocaleRef.current;
+    pendingLocaleRef.current = null;
+    const shouldRestoreFocus = restoreFocusRef.current;
+    restoreFocusRef.current = false;
+
+    if (nextLocale && host && nextLocale !== locale) {
+      host.select.value = nextLocale;
+      host.select.dispatchEvent(new Event('change', { bubbles: true }));
+      setLocale(nextLocale);
+    }
+
+    setClosing(false);
+    setOpen(false);
+
+    if (shouldRestoreFocus) {
+      window.requestAnimationFrame(() => triggerRef.current?.focus());
+    }
+  }, [host, locale]);
+
+  const closeMenu = useCallback((
+    nextLocale?: Locale,
+    restoreFocus = false,
+  ) => {
+    if (nextLocale) {
+      pendingLocaleRef.current = nextLocale === locale ? null : nextLocale;
+    }
+    if (restoreFocus) {
+      restoreFocusRef.current = true;
+    }
+
+    if (!open || closing) return;
+
+    if (
+      window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
+    ) {
+      finalizeClose();
+      return;
+    }
+
+    setClosing(true);
+    if (closeWatchdogRef.current !== null) {
+      window.clearTimeout(closeWatchdogRef.current);
+    }
+    closeWatchdogRef.current = window.setTimeout(
+      finalizeClose,
+      MENU_CLOSE_FALLBACK_MS,
+    );
+  }, [closing, finalizeClose, locale, open]);
+
+  const openMenu = useCallback(() => {
+    if (closeWatchdogRef.current !== null) {
+      window.clearTimeout(closeWatchdogRef.current);
+      closeWatchdogRef.current = null;
+    }
+    pendingLocaleRef.current = null;
+    restoreFocusRef.current = false;
+    setClosing(false);
+    setOpen(true);
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      if (closeWatchdogRef.current !== null) {
+        window.clearTimeout(closeWatchdogRef.current);
+      }
+    };
+  }, []);
+
   useEffect(() => {
     if (!open) return;
 
     const onPointerDown = (event: PointerEvent) => {
-      if (!pickerRef.current?.contains(event.target as Node)) setOpen(false);
+      if (!pickerRef.current?.contains(event.target as Node)) {
+        closeMenu();
+      }
     };
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key !== 'Escape') return;
       event.preventDefault();
-      setOpen(false);
-      window.requestAnimationFrame(() => triggerRef.current?.focus());
+      closeMenu(undefined, true);
     };
 
     document.addEventListener('pointerdown', onPointerDown);
@@ -148,33 +236,28 @@ export function HeaderLanguagePickerPortal() {
       document.removeEventListener('pointerdown', onPointerDown);
       document.removeEventListener('keydown', onKeyDown);
     };
-  }, [open]);
+  }, [open, closeMenu]);
 
   useEffect(() => {
-    if (!open) return;
+    if (!open || closing) return;
     window.requestAnimationFrame(() => {
       const selected = menuRef.current?.querySelector<HTMLButtonElement>(
         '.headerLanguageOption[aria-selected="true"]',
       );
       selected?.focus();
     });
-  }, [open]);
+  }, [open, closing]);
 
   const chooseLocale = useCallback((nextLocale: Locale) => {
-    if (!host) return;
-    host.select.value = nextLocale;
-    host.select.dispatchEvent(new Event('change', { bubbles: true }));
-    setLocale(nextLocale);
-    setOpen(false);
-    window.requestAnimationFrame(() => triggerRef.current?.focus());
-  }, [host]);
+    closeMenu(nextLocale, true);
+  }, [closeMenu]);
 
   const handleTriggerKeyDown = (
     event: ReactKeyboardEvent<HTMLButtonElement>,
   ) => {
     if (event.key !== 'ArrowDown' && event.key !== 'ArrowUp') return;
     event.preventDefault();
-    setOpen(true);
+    if (!open) openMenu();
   };
 
   const handleMenuKeyDown = (
@@ -217,7 +300,18 @@ export function HeaderLanguagePickerPortal() {
     host.select.getAttribute('aria-label') ?? 'Select language';
 
   return createPortal(
-    <div ref={pickerRef} className="headerLanguagePicker">
+    <div
+      ref={pickerRef}
+      className="headerLanguagePicker"
+      onBlur={(event) => {
+        if (
+          open &&
+          !event.currentTarget.contains(event.relatedTarget as Node | null)
+        ) {
+          closeMenu();
+        }
+      }}
+    >
       <button
         ref={triggerRef}
         type="button"
@@ -225,7 +319,14 @@ export function HeaderLanguagePickerPortal() {
         aria-label={ariaLabel}
         aria-haspopup="listbox"
         aria-expanded={open}
-        onClick={() => setOpen((value) => !value)}
+        aria-controls="header-language-menu"
+        onClick={() => {
+          if (open) {
+            closeMenu();
+          } else {
+            openMenu();
+          }
+        }}
         onKeyDown={handleTriggerKeyDown}
       >
         <span className="headerLanguageFlag" aria-hidden="true">
@@ -237,11 +338,21 @@ export function HeaderLanguagePickerPortal() {
 
       {open ? (
         <div
+          id="header-language-menu"
           ref={menuRef}
-          className="headerLanguageMenu"
+          className={
+            closing
+              ? 'headerLanguageMenu closing'
+              : 'headerLanguageMenu'
+          }
           role="listbox"
           aria-label={ariaLabel}
           onKeyDown={handleMenuKeyDown}
+          onAnimationEnd={(event) => {
+            if (closing && event.target === event.currentTarget) {
+              finalizeClose();
+            }
+          }}
         >
           {LANGUAGE_OPTIONS.map((option) => {
             const selected = option.locale === locale;
@@ -264,7 +375,12 @@ export function HeaderLanguagePickerPortal() {
                 >
                   <LanguageFlag locale={option.locale} />
                 </span>
-                <span>{option.nativeName}</span>
+                <span
+                  className="headerLanguageOptionName"
+                  dir={option.direction}
+                >
+                  {option.nativeName}
+                </span>
                 <span className="headerLanguageCheck" aria-hidden="true">
                   {selected ? '✓' : ''}
                 </span>
@@ -297,17 +413,24 @@ export function HeaderLanguagePickerPortal() {
         .headerLanguageFlag .flagSvg,.headerLanguageOptionFlag .flagSvg { width:100%; height:100%; object-fit:contain; display:block; }
         .headerLanguageName { min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
         .headerLanguageChevron { width:8px; height:8px; justify-self:end; border-right:1.5px solid currentColor; border-bottom:1.5px solid currentColor; color:#9892a5; transform:translateY(-2px) rotate(45deg); }
-        .headerLanguageMenu { position:absolute; z-index:350; top:calc(100% + 8px); right:0; width:min(265px,calc(100vw - 28px)); max-height:min(480px,68vh); overflow:auto; box-sizing:border-box; padding:7px; border:1px solid rgba(255,255,255,.1); border-radius:16px; background:#171a29; box-shadow:0 22px 70px rgba(0,0,0,.5); scrollbar-width:thin; }
+        .headerLanguageMenu { position:absolute; z-index:350; top:calc(100% + 8px); right:0; width:min(265px,calc(100vw - 28px)); max-height:min(480px,68vh); overflow:auto; box-sizing:border-box; padding:7px; border:1px solid rgba(255,255,255,.1); border-radius:16px; background:#171a29; box-shadow:0 22px 70px rgba(0,0,0,.5); scrollbar-width:thin; overscroll-behavior:contain; animation:headerLanguageMenuIn 140ms cubic-bezier(.2,.8,.2,1) both; transform-origin:top right; }
+        .headerLanguageMenu.closing { animation:headerLanguageMenuOut 115ms ease-in both; }
         .headerLanguageOption { width:100%; min-height:44px; box-sizing:border-box; display:grid; grid-template-columns:30px minmax(0,1fr) 20px; align-items:center; gap:11px; padding:7px 9px; border:1px solid transparent; border-radius:11px; background:transparent; color:#fff; font:inherit; font-size:.86rem; font-weight:800; text-align:left; cursor:pointer; }
         .headerLanguageOption:hover,.headerLanguageOption:focus-visible { background:rgba(255,255,255,.06); outline:none; }
         .headerLanguageOption.selected { border-color:rgba(244,183,40,.32); background:rgba(244,183,40,.11); color:#ffd66e; }
+        .headerLanguageOptionName { min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; text-align:left; unicode-bidi:plaintext; }
         .headerLanguageCheck { text-align:center; font-weight:950; }
+        @keyframes headerLanguageMenuIn { from { opacity:0; transform:translateY(4px); } to { opacity:1; transform:translateY(0); } }
+        @keyframes headerLanguageMenuOut { from { opacity:1; transform:translateY(0); } to { opacity:0; transform:translateY(4px); } }
         @media (max-width:560px) {
           .headerLanguagePickerMount,.headerLanguagePicker { width:155px; max-width:100%; }
           .headerLanguageTrigger { min-height:48px; border-radius:13px; font-size:.76rem; grid-template-columns:24px minmax(0,1fr) 14px; gap:9px; padding:7px 14px 7px 12px; }
           .headerLanguageFlag { width:24px; height:16px; }
           .headerLanguageChevron { width:8px; height:8px; }
           .headerLanguageMenu { top:calc(100% + 8px); }
+        }
+        @media (prefers-reduced-motion: reduce) {
+          .headerLanguageMenu,.headerLanguageMenu.closing { animation:none; }
         }
       `}</style>
     </div>,
