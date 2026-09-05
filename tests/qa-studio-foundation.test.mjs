@@ -80,3 +80,26 @@ test('both QA routes apply the server-side environment gate', async () => {
     assert.match(source, /notFound\(\)/);
   }
 });
+
+test('root providers bypass VeChain and wallet runtime on QA routes', async () => {
+  const source = await readFile(new URL('../src/components/AppProviders.tsx', import.meta.url), 'utf8');
+
+  assert.match(source, /usePathname/);
+  assert.match(source, /pathname === '\/qa'/);
+  assert.match(source, /pathname\?\.startsWith\('\/qa\/'\)/);
+  assert.match(source, /if \(isQaStudioRoute\)/);
+
+  const qaBranch = source.indexOf('if (isQaStudioRoute)');
+  const runtimeTree = source.indexOf('<VeChainProvider>', qaBranch);
+  const qaReturnEnd = source.indexOf('\n  return (', qaBranch);
+
+  assert.ok(qaBranch >= 0, 'QA route branch must exist');
+  assert.ok(qaReturnEnd > qaBranch, 'QA branch must return before the normal runtime tree');
+  assert.ok(runtimeTree > qaReturnEnd, 'VeChainProvider must only appear in the normal runtime tree');
+
+  const isolatedBranch = source.slice(qaBranch, qaReturnEnd);
+  assert.match(isolatedBranch, /<ChakraProvider theme=\{theme\}>/);
+  assert.doesNotMatch(isolatedBranch, /<VeChainProvider>/);
+  assert.doesNotMatch(isolatedBranch, /WalletRuntimeLifecycle/);
+  assert.doesNotMatch(isolatedBranch, /RewardReservationRecovery/);
+});
