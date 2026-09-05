@@ -4,7 +4,11 @@ export const QA_SCENARIO_CONTRACT_VERSION = 1 as const;
 
 export type QaRisk = 'critical' | 'high' | 'normal';
 export type QaScenarioCategory = 'entry' | 'guide' | 'network';
-export type QaRenderer = 'invite-landing' | 'invite-guide' | 'network-coming-soon';
+export type QaRenderer =
+  | 'invite-landing'
+  | 'invite-rejection-preview'
+  | 'invite-guide'
+  | 'network-coming-soon';
 export type QaViewportId = 'small-phone' | 'iphone' | 'android' | 'tablet' | 'desktop';
 
 export type QaScenario = {
@@ -108,6 +112,24 @@ export const QA_SCENARIOS: readonly QaScenario[] = [
     fixture: { disabled: true },
   },
   {
+    id: 'invite.rejection.active-existing',
+    title: '초대 불가 · 기존 활성 사용자',
+    description: '기존 UI 안정성 검사가 보호해 온 privacy-safe 활성 사용자 거절 baseline. 현재는 실제 공유 번역을 사용하는 감사용 parity 컴포넌트이며, 향후 순수 Production 상태 컴포넌트 추출 시 그대로 교체할 수 있도록 별도 Scenario ID로 고정한다.',
+    category: 'entry',
+    renderer: 'invite-rejection-preview',
+    contractVersion: QA_SCENARIO_CONTRACT_VERSION,
+    risk: 'high',
+    defaultLocale: 'ko',
+    defaultViewport: 'iphone',
+    tags: ['invite', 'rejection', 'existing-user', 'eligibility', 'privacy'],
+    expected: [
+      'INVITEE_COPY의 실제 existing 거절 문구를 사용한다.',
+      '구체적인 라운드·블록·거래·Sybil 임계값을 사용자에게 노출하지 않는다.',
+      '언어 변경 시 현재 production rejection copy와 함께 바뀐다.',
+    ],
+    fixture: {},
+  },
+  {
     id: 'guide.invite.overview',
     title: '초대 가이드',
     description: '홈에서 문맥적으로 노출되는 실제 InviteGuideContent.',
@@ -146,7 +168,7 @@ export const QA_SCENARIOS: readonly QaScenario[] = [
 export type QaSurfaceCoverage = {
   id: string;
   label: string;
-  status: 'covered' | 'planned';
+  status: 'covered' | 'partial' | 'planned';
   scenarioIds: readonly string[];
 };
 
@@ -158,7 +180,7 @@ export const QA_SURFACE_COVERAGE: readonly QaSurfaceCoverage[] = [
   { id: 'invite-guide', label: '초대 가이드', status: 'covered', scenarioIds: ['guide.invite.overview'] },
   { id: 'network', label: '네트워크', status: 'covered', scenarioIds: ['network.coming-soon'] },
   { id: 'wallet', label: '지갑 연결·서명', status: 'planned', scenarioIds: [] },
-  { id: 'eligibility', label: '자격 판정', status: 'planned', scenarioIds: [] },
+  { id: 'eligibility', label: '자격 판정', status: 'partial', scenarioIds: ['invite.rejection.active-existing'] },
   { id: 'mission', label: '미션 진행', status: 'planned', scenarioIds: [] },
   { id: 'rewards', label: '보상', status: 'planned', scenarioIds: [] },
   { id: 'notifications', label: '알림', status: 'planned', scenarioIds: [] },
