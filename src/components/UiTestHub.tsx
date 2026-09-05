@@ -71,6 +71,9 @@ function buildLeaderboardPreview(): PublicLeaderboardResponse {
         completedReferrals: Math.max(1, 18 - Math.floor((rank - 1) / 6)),
         totalRewardWei: (BigInt(1300 - rank * 8) * TOKEN_WEI).toString(),
         isCurrentWallet: current,
+        previousRank: null,
+        rankChange: null,
+        rankMovement: 'UNAVAILABLE',
       };
     },
   );
@@ -80,6 +83,13 @@ function buildLeaderboardPreview(): PublicLeaderboardResponse {
     network: 'mainnet',
     currentRoundId: 114,
     reportingStartRound: 113,
+    comparison: {
+      available: false,
+      roundId: 113,
+      endBlock: null,
+      publishedAt: null,
+      rankingAlgorithmVersion: 'paid_referrals_v2',
+    },
     impact: {
       totalActivatedUsers: 128,
       newUsers: 93,

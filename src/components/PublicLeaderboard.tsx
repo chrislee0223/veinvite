@@ -10,6 +10,7 @@ import {
 import { useGetAvatarOfAddress } from '@vechain/vechain-kit';
 
 import { LEADERBOARD_COPY } from '@/lib/i18n/leaderboardCopy';
+import { getLeaderboardMovementCopy } from '@/lib/i18n/leaderboardMovementCopy';
 import type { Locale } from '@/lib/i18n/locales';
 import {
   getCachedPublicLeaderboard,
@@ -135,6 +136,7 @@ export function PublicLeaderboard({
   const closeButtonRef = useRef<HTMLButtonElement | null>(null);
   const openerRef = useRef<HTMLElement | null>(null);
   const t = LEADERBOARD_COPY[locale];
+  const movementCopy = getLeaderboardMovementCopy(locale);
 
   const data =
     dataState.cacheKey === cacheKey
@@ -251,6 +253,9 @@ export function PublicLeaderboard({
           completedReferrals: 0,
           totalRewardWei: '0',
           isCurrentWallet: true,
+          previousRank: null,
+          rankChange: null,
+          rankMovement: 'UNAVAILABLE',
         }
       : null);
   const leadersByRank = useMemo(() => {
@@ -280,6 +285,65 @@ export function PublicLeaderboard({
     currentUser && !currentUserInList ? currentUser : null;
   const totalUsers = data?.impact.totalActivatedUsers ?? 0;
 
+  const movementAria = (entry: PublicLeaderboardEntry): string | null => {
+    if (entry.rankMovement === 'NEW') {
+      return movementCopy.newEntryAria;
+    }
+    if (entry.rankMovement === 'SAME') {
+      return movementCopy.same;
+    }
+    if (
+      entry.rankMovement === 'UP' &&
+      entry.rankChange !== null &&
+      entry.rankChange > 0
+    ) {
+      return movementCopy.up(entry.rankChange);
+    }
+    if (
+      entry.rankMovement === 'DOWN' &&
+      entry.rankChange !== null &&
+      entry.rankChange < 0
+    ) {
+      return movementCopy.down(Math.abs(entry.rankChange));
+    }
+    return null;
+  };
+
+  const renderMovement = (entry: PublicLeaderboardEntry) => {
+    if (entry.rankMovement === 'UNAVAILABLE') return null;
+
+    if (entry.rankMovement === 'NEW') {
+      return (
+        <small className="rankMovement new" aria-hidden="true">
+          {movementCopy.newEntry}
+        </small>
+      );
+    }
+
+    if (entry.rankMovement === 'SAME') {
+      return (
+        <small className="rankMovement same" aria-hidden="true">—</small>
+      );
+    }
+
+    const change = entry.rankChange;
+    if (change === null || change === 0) return null;
+    const isUp = entry.rankMovement === 'UP' && change > 0;
+    const isDown = entry.rankMovement === 'DOWN' && change < 0;
+    if (!isUp && !isDown) return null;
+
+    return (
+      <small
+        className={`rankMovement ${isUp ? 'up' : 'down'}`}
+        aria-hidden="true"
+      >
+        <bdi dir="ltr">
+          {isUp ? '▲' : '▼'}{Math.abs(change).toLocaleString('en-US')}
+        </bdi>
+      </small>
+    );
+  };
+
   const renderRankRow = (
     entry: PublicLeaderboardEntry,
     trailing = false,
@@ -292,6 +356,7 @@ export function PublicLeaderboard({
     ]
       .filter(Boolean)
       .join(' ');
+    const movementDescription = movementAria(entry);
 
     return (
       <button
@@ -301,11 +366,17 @@ export function PublicLeaderboard({
         onClick={(event) =>
           openWalletDetails(entry, event.currentTarget)
         }
-        aria-label={t.openWallet(entry.walletAddress)}
+        aria-label={[
+          t.openWallet(entry.walletAddress),
+          movementDescription,
+        ].filter(Boolean).join('. ')}
       >
-        <strong className="rankValue">
-          {rankLabel(entry.rank)}
-        </strong>
+        <span className="rankStack">
+          <strong className="rankValue">
+            {rankLabel(entry.rank)}
+          </strong>
+          {renderMovement(entry)}
+        </span>
         <span className="walletCell">
           <WalletAvatar address={entry.walletAddress} />
           <span className="walletText">
@@ -328,7 +399,9 @@ export function PublicLeaderboard({
       className={`rankRow placeholderRow ${rank <= 5 ? 'featured' : 'compact'}`}
       aria-hidden="true"
     >
-      <strong className="rankValue">{rankLabel(rank)}</strong>
+      <span className="rankStack">
+        <strong className="rankValue">{rankLabel(rank)}</strong>
+      </span>
       <span className="walletCell">
         <span className="walletText">—</span>
       </span>
@@ -615,7 +688,7 @@ export function PublicLeaderboard({
           display:none;
         }
         .rankingCard {
-          --rank-column:42px;
+          --rank-column:50px;
           --completed-column:86px;
           --reward-column:104px;
           --leaderboard-gap:10px;
@@ -716,8 +789,17 @@ export function PublicLeaderboard({
         .rankRow.current .rankMetric b {
           color:#ffd45f;
         }
-        .rankValue {
+        .rankStack {
           grid-column:1;
+          min-width:0;
+          display:flex;
+          flex-direction:column;
+          align-items:center;
+          justify-content:center;
+          gap:3px;
+          text-align:center;
+        }
+        .rankValue {
           min-width:0;
           color:#f0ede6;
           font-size:.74rem;
@@ -725,6 +807,22 @@ export function PublicLeaderboard({
           font-variant-numeric:tabular-nums;
           text-align:center;
         }
+        .rankMovement {
+          max-width:100%;
+          overflow:hidden;
+          color:#8f8a80;
+          font-size:.52rem;
+          font-weight:950;
+          line-height:1;
+          letter-spacing:-.03em;
+          text-overflow:ellipsis;
+          white-space:nowrap;
+          font-variant-numeric:tabular-nums;
+        }
+        .rankMovement.up { color:#9bcfa7; }
+        .rankMovement.down { color:#cba1a1; }
+        .rankMovement.new { color:#e8bd4b; }
+        .rankMovement.same { color:#7f7a72; }
         .walletCell {
           grid-column:2;
           min-width:0;
@@ -953,7 +1051,7 @@ export function PublicLeaderboard({
             border-radius:19px;
           }
           .rankingCard {
-            --rank-column:30px;
+            --rank-column:40px;
             --completed-column:62px;
             --reward-column:82px;
             --leaderboard-gap:5px;
@@ -978,6 +1076,9 @@ export function PublicLeaderboard({
           .rankValue,.rankMetric b {
             font-size:.65rem;
           }
+          .rankMovement {
+            font-size:.46rem;
+          }
           .walletCell {
             gap:5px;
             font-size:.64rem;
@@ -1001,7 +1102,7 @@ export function PublicLeaderboard({
         }
         @media (max-width:360px) {
           .rankingCard {
-            --rank-column:26px;
+            --rank-column:38px;
             --completed-column:58px;
             --reward-column:76px;
             --leaderboard-gap:4px;
@@ -1020,6 +1121,9 @@ export function PublicLeaderboard({
           }
           .rankValue,.rankMetric b {
             font-size:.61rem;
+          }
+          .rankMovement {
+            font-size:.43rem;
           }
           .walletCell {
             gap:4px;

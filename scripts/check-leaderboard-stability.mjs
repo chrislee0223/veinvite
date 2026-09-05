@@ -113,8 +113,11 @@ if (!/@media \(max-width:360px\)[\s\S]*--leaderboard-row-height:44px[\s\S]*gap:5
   failures.push('Reviewed 360px row height and inviter identity spacing are missing.');
 }
 
-if (!/<strong className="rankValue">[\s\S]*<span className="walletCell">[\s\S]*<span className="rankMetric completedMetric">[\s\S]*<span className="rankMetric rewardMetric">/.test(leaderboard)) {
-  failures.push('Rank, inviter, invite count, and reward must remain direct sibling cells in that exact order.');
+if (
+  !/<span className="rankStack">[\s\S]*<strong className="rankValue">[\s\S]*<span className="walletCell">[\s\S]*<span className="rankMetric completedMetric">[\s\S]*<span className="rankMetric rewardMetric">/.test(leaderboard) ||
+  !/\.rankStack\s*\{[\s\S]*grid-column:1;[\s\S]*flex-direction:column/.test(leaderboard)
+) {
+  failures.push('Rank plus movement must remain one first-column stack followed by inviter, invite count, and reward columns in that exact order.');
 }
 if (!/className="walletAvatar"/.test(leaderboard)) {
   failures.push('Neutral wallet-avatar fallback is missing from leaderboard rows.');
@@ -132,7 +135,7 @@ if (!/Array\.from\(\{\s*length:\s*100\s*\}/.test(preview)) {
 if (!/rank:\s*137/.test(preview) || !/100위 밖/.test(preview)) {
   failures.push('UI test leaderboard must cover the current-wallet outside-Top-100 state.');
 }
-if (!/PreviewScenario = 'inside' \| 'outside' \| 'unranked'/.test(preview) || !/scenario === 'unranked'\) return \[\]/.test(preview) || !/useState<PreviewScenario>\('unranked'\)/.test(preview) || !/미순위 · 초대 0건/.test(preview)) {
+if (!/PreviewScenario = 'inside' \| 'outside' \| 'unranked'/.test(preview) || !/scenario === 'unranked'\) return \[\]/.test(preview) || !/useState<PreviewScenario>\('unranked'\)/.test(preview) || !/미순위 · (?:초대 0건|비교 없음)/.test(preview)) {
   failures.push('UI test must default to the exact unranked zero-invite state that previously regressed in production.');
 }
 

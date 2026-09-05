@@ -11,6 +11,7 @@ import { supabaseAdmin } from '@/lib/supabaseServer';
 import type {
   PublicLeaderboardEntry,
   PublicLeaderboardResponse,
+  RankMovement,
 } from '@/lib/types';
 import { readCurrentVeBetterRound } from '@/lib/vebetter/currentRound';
 
@@ -20,6 +21,14 @@ const WALLET_PATTERN = /^0x[0-9a-fA-F]{40}$/;
 const LEADERBOARD_SIZE = 100;
 const MAX_GROWTH_ROUNDS = 260;
 const TRANSIENT_AUTH_RETRY_MS = 750;
+const RANKING_ALGORITHM_VERSION = 'paid_referrals_v2';
+const RANK_MOVEMENTS = new Set<RankMovement>([
+  'UP',
+  'DOWN',
+  'SAME',
+  'NEW',
+  'UNAVAILABLE',
+]);
 
 type LeaderboardRow = {
   rank_position: number | string;
@@ -27,6 +36,21 @@ type LeaderboardRow = {
   completed_referrals: number | string;
   total_reward_wei: string;
   is_current_wallet: boolean;
+};
+
+type LeaderboardMovementRow = LeaderboardRow & {
+  previous_rank: number | string | null;
+  rank_change: number | string | null;
+  rank_movement: string;
+};
+
+type ComparisonRow = {
+  comparison_available: boolean;
+  comparison_round_id: number | string | null;
+  comparison_end_block: number | string | null;
+  comparison_published_at: string | null;
+  comparison_row_count: number | string | null;
+  ranking_algorithm_version: string;
 };
 
 type GrowthRow = {
@@ -48,9 +72,25 @@ function parseCount(
   return parsed;
 }
 
-function normalizeLeaderboardRow(
+function parseSignedInteger(
+  value: number | string,
+  fieldName: string,
+): number {
+  const parsed = typeof value === 'number' ? value : Number(value);
+
+  if (!Number.isSafeInteger(parsed)) {
+    throw new Error(`${fieldName} returned an invalid integer.`);
+  }
+
+  return parsed;
+}
+
+function normalizeBaseLeaderboardRow(
   row: LeaderboardRow,
-): PublicLeaderboardEntry {
+): Omit<
+  PublicLeaderboardEntry,
+  'previousRank' | 'rankChange' | 'rankMovement'
+> {
   const walletAddress = row.wallet_address.trim().toLowerCase();
 
   if (!WALLET_PATTERN.test(walletAddress)) {
@@ -71,6 +111,111 @@ function normalizeLeaderboardRow(
     totalRewardWei: row.total_reward_wei,
     isCurrentWallet: row.is_current_wallet === true,
   };
+}
+
+function withoutMovement(
+  base: Omit<
+    PublicLeaderboardEntry,
+    'previousRank' | 'rankChange' | 'rankMovement'
+  >,
+): PublicLeaderboardEntry {
+  return {
+    ...base,
+    previousRank: null,
+    rankChange: null,
+    rankMovement: 'UNAVAILABLE',
+  };
+}
+
+function normalizeLeaderboardRow(
+  row: LeaderboardMovementRow,
+): PublicLeaderboardEntry {
+  const base = normalizeBaseLeaderboardRow(row);
+  const movement = row.rank_movement as RankMovement;
+
+  if (!RANK_MOVEMENTS.has(movement)) {
+    return withoutMovement(base);
+  }
+
+  let previousRank: number | null = null;
+  let rankChange: number | null = null;
+
+  try {
+    previousRank = row.previous_rank === null
+      ? null
+      : parseCount(row.previous_rank, 'Previous leaderboard rank');
+    rankChange = row.rank_change === null
+      ? null
+      : parseSignedInteger(row.rank_change, 'Leaderboard rank change');
+  } catch {
+    return withoutMovement(base);
+  }
+
+  if (movement === 'UNAVAILABLE') {
+    return withoutMovement(base);
+  }
+
+  if (
+    movement === 'NEW' &&
+    previousRank === null &&
+    rankChange === null
+  ) {
+    return {
+      ...base,
+      previousRank,
+      rankChange,
+      rankMovement: movement,
+    };
+  }
+
+  if (
+    movement === 'SAME' &&
+    previousRank !== null &&
+    rankChange === 0
+  ) {
+    return {
+      ...base,
+      previousRank,
+      rankChange,
+      rankMovement: movement,
+    };
+  }
+
+  if (
+    movement === 'UP' &&
+    previousRank !== null &&
+    rankChange !== null &&
+    rankChange > 0
+  ) {
+    return {
+      ...base,
+      previousRank,
+      rankChange,
+      rankMovement: movement,
+    };
+  }
+
+  if (
+    movement === 'DOWN' &&
+    previousRank !== null &&
+    rankChange !== null &&
+    rankChange < 0
+  ) {
+    return {
+      ...base,
+      previousRank,
+      rankChange,
+      rankMovement: movement,
+    };
+  }
+
+  return withoutMovement(base);
+}
+
+function normalizeLegacyLeaderboardRow(
+  row: LeaderboardRow,
+): PublicLeaderboardEntry {
+  return withoutMovement(normalizeBaseLeaderboardRow(row));
 }
 
 function normalizeWallet(
@@ -98,6 +243,62 @@ function wait(milliseconds: number) {
   return new Promise<void>((resolve) => {
     setTimeout(resolve, milliseconds);
   });
+}
+
+function normalizeComparison({
+  row,
+  expectedRoundId,
+}: {
+  row: ComparisonRow | null;
+  expectedRoundId: number | null;
+}) {
+  if (
+    expectedRoundId === null ||
+    !row ||
+    row.comparison_available !== true ||
+    row.ranking_algorithm_version !== RANKING_ALGORITHM_VERSION
+  ) {
+    return {
+      available: false,
+      endBlock: null,
+      publishedAt: null,
+    };
+  }
+
+  try {
+    const roundId = row.comparison_round_id === null
+      ? null
+      : parseCount(row.comparison_round_id, 'Comparison round');
+    const endBlock = row.comparison_end_block === null
+      ? null
+      : parseCount(row.comparison_end_block, 'Comparison end block');
+    const publishedAt = row.comparison_published_at;
+
+    if (
+      roundId !== expectedRoundId ||
+      endBlock === null ||
+      !publishedAt ||
+      Number.isNaN(new Date(publishedAt).getTime())
+    ) {
+      return {
+        available: false,
+        endBlock: null,
+        publishedAt: null,
+      };
+    }
+
+    return {
+      available: true,
+      endBlock,
+      publishedAt,
+    };
+  } catch {
+    return {
+      available: false,
+      endBlock: null,
+      publishedAt: null,
+    };
+  }
 }
 
 export async function GET(
@@ -135,8 +336,24 @@ export async function GET(
 
   try {
     const round = await readCurrentVeBetterRound();
+    const comparisonRoundId =
+      round.currentRoundId > 0
+        ? round.currentRoundId - 1
+        : null;
 
-    const readLeaderboard = () =>
+    const readLeaderboardWithMovement = () =>
+      supabaseAdmin.rpc(
+        'get_public_lifetime_leaderboard_v2',
+        {
+          p_network: round.network,
+          p_wallet: wallet,
+          p_limit: LEADERBOARD_SIZE,
+          p_comparison_round_id: comparisonRoundId,
+          p_ranking_algorithm_version: RANKING_ALGORITHM_VERSION,
+        },
+      );
+
+    const readLegacyLeaderboard = () =>
       supabaseAdmin.rpc(
         'get_public_lifetime_leaderboard',
         {
@@ -145,6 +362,18 @@ export async function GET(
           p_limit: LEADERBOARD_SIZE,
         },
       );
+
+    const readComparison = () =>
+      comparisonRoundId === null
+        ? Promise.resolve({ data: [], error: null })
+        : supabaseAdmin.rpc(
+            'get_leaderboard_comparison_status',
+            {
+              p_network: round.network,
+              p_round_id: comparisonRoundId,
+              p_ranking_algorithm_version: RANKING_ALGORITHM_VERSION,
+            },
+          );
 
     const readGrowth = () =>
       supabaseAdmin.rpc(
@@ -156,31 +385,25 @@ export async function GET(
         },
       );
 
-    let [leaderboardResult, growthResult] =
+    let [leaderboardResult, comparisonResult, growthResult] =
       await Promise.all([
-        readLeaderboard(),
+        readLeaderboardWithMovement(),
+        readComparison(),
         readGrowth(),
       ]);
 
-    // Supabase can rarely reject a read when the request and auth clocks are
-    // separated by a very small amount. Retry only that known transient,
-    // read-only failure once. All other DB/auth errors remain fail-closed.
     if (
       isTransientAuthClockSkew(leaderboardResult.error) ||
+      isTransientAuthClockSkew(comparisonResult.error) ||
       isTransientAuthClockSkew(growthResult.error)
     ) {
       await wait(TRANSIENT_AUTH_RETRY_MS);
-      [leaderboardResult, growthResult] =
+      [leaderboardResult, comparisonResult, growthResult] =
         await Promise.all([
-          readLeaderboard(),
+          readLeaderboardWithMovement(),
+          readComparison(),
           readGrowth(),
         ]);
-    }
-
-    if (leaderboardResult.error) {
-      throw new Error(
-        `Public leaderboard could not be loaded: ${leaderboardResult.error.message}`,
-      );
     }
 
     if (growthResult.error) {
@@ -189,9 +412,51 @@ export async function GET(
       );
     }
 
-    const entries = (
-      (leaderboardResult.data ?? []) as LeaderboardRow[]
-    ).map(normalizeLeaderboardRow);
+    let entries: PublicLeaderboardEntry[];
+
+    if (leaderboardResult.error) {
+      console.error(
+        'Leaderboard movement read failed; falling back to the paid lifetime leaderboard:',
+        leaderboardResult.error,
+      );
+
+      let fallbackResult = await readLegacyLeaderboard();
+      if (isTransientAuthClockSkew(fallbackResult.error)) {
+        await wait(TRANSIENT_AUTH_RETRY_MS);
+        fallbackResult = await readLegacyLeaderboard();
+      }
+      if (fallbackResult.error) {
+        throw new Error(
+          `Public leaderboard could not be loaded: ${fallbackResult.error.message}`,
+        );
+      }
+
+      entries = ((fallbackResult.data ?? []) as LeaderboardRow[])
+        .map(normalizeLegacyLeaderboardRow);
+    } else {
+      entries = (
+        (leaderboardResult.data ?? []) as LeaderboardMovementRow[]
+      ).map(normalizeLeaderboardRow);
+    }
+
+    const rawComparison = comparisonResult.error
+      ? null
+      : ((comparisonResult.data ?? []) as ComparisonRow[])[0] ?? null;
+    const comparison = normalizeComparison({
+      row: rawComparison,
+      expectedRoundId: comparisonRoundId,
+    });
+
+    if (comparisonResult.error) {
+      console.error(
+        'Leaderboard comparison metadata could not be loaded; movement is hidden:',
+        comparisonResult.error,
+      );
+    }
+
+    if (!comparison.available) {
+      entries = entries.map((entry) => withoutMovement(entry));
+    }
 
     const growthRows = (
       (growthResult.data ?? []) as GrowthRow[]
@@ -227,6 +492,13 @@ export async function GET(
       network: round.network,
       currentRoundId: round.currentRoundId,
       reportingStartRound,
+      comparison: {
+        available: comparison.available,
+        roundId: comparisonRoundId,
+        endBlock: comparison.endBlock,
+        publishedAt: comparison.publishedAt,
+        rankingAlgorithmVersion: RANKING_ALGORITHM_VERSION,
+      },
       impact: {
         totalActivatedUsers:
           (latestGrowth?.newUsers ?? 0) +
@@ -243,8 +515,9 @@ export async function GET(
 
     return NextResponse.json(response, {
       headers: {
-        'Cache-Control':
-          'public, s-maxage=60, stale-while-revalidate=300',
+        'Cache-Control': wallet
+          ? 'private, no-store'
+          : 'public, s-maxage=30, stale-while-revalidate=30',
       },
     });
   } catch (error) {
