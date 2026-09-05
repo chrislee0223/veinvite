@@ -1,6 +1,11 @@
 'use client';
 
-import { startTransition, useEffect, useRef } from 'react';
+import {
+  startTransition,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+} from 'react';
 
 import { NAV_COPY } from '@/lib/i18n/navCopy';
 import { NETWORK_COPY } from '@/lib/i18n/networkCopy';
@@ -17,6 +22,14 @@ export type AppTab = 'home' | 'guide' | 'leaderboard' | 'settings';
 
 const TABS: AppTab[] = ['home', 'guide', 'leaderboard', 'settings'];
 const LAZY_TABS: AppTab[] = ['guide', 'leaderboard', 'settings'];
+const TAB_CONTENT_SELECTORS: Record<AppTab, string> = {
+  home: '.missionCard',
+  guide: '.networkCard',
+  leaderboard:
+    '.leaderboardPage > .impactCard, .leaderboardPage > .rankingCard, .leaderboardPage > .leaderboardInlineError',
+  settings: '.settingsPage > header, .settingsPage > .settingsCard',
+};
+const TAB_ENTER_DURATION_MS = 160;
 
 function preloadTabModule(tab: AppTab) {
   if (tab === 'guide') {
@@ -52,6 +65,7 @@ export function AppBottomNavigation({
   const network = NETWORK_COPY[locale as SupportedLocale];
   const wallet = useActiveWallet();
   const navigationRequestRef = useRef(0);
+  const pendingMotionTabRef = useRef<AppTab | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -74,6 +88,44 @@ export function AppBottomNavigation({
       window.clearTimeout(leaderboardTimer);
     };
   }, [wallet]);
+
+  useLayoutEffect(() => {
+    const pendingTab = pendingMotionTabRef.current;
+    if (pendingTab !== activeTab) return;
+
+    pendingMotionTabRef.current = null;
+    if (
+      window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
+    ) {
+      return;
+    }
+
+    const targets = Array.from(
+      document.querySelectorAll<HTMLElement>(
+        TAB_CONTENT_SELECTORS[activeTab],
+      ),
+    );
+    if (targets.length < 1) return;
+
+    const animations = targets
+      .filter((target) => typeof target.animate === 'function')
+      .map((target) =>
+        target.animate(
+          [
+            { opacity: 0, transform: 'translateY(5px)' },
+            { opacity: 1, transform: 'translateY(0)' },
+          ],
+          {
+            duration: TAB_ENTER_DURATION_MS,
+            easing: 'cubic-bezier(.2,.8,.2,1)',
+          },
+        ),
+      );
+
+    return () => {
+      animations.forEach((animation) => animation.cancel());
+    };
+  }, [activeTab]);
 
   const warmTab = (tab: AppTab) => {
     void preloadTabModule(tab).catch(() => undefined);
@@ -105,7 +157,14 @@ export function AppBottomNavigation({
   const selectTab = (tab: AppTab) => {
     const requestId = ++navigationRequestRef.current;
 
-    if (tab === activeTab) return;
+    if (tab === activeTab) {
+      // A second tap on the current tab cancels any older lazy-tab request and
+      // must not replay entrance motion on content that never changed.
+      pendingMotionTabRef.current = null;
+      return;
+    }
+
+    pendingMotionTabRef.current = tab;
     if (tab === 'home') {
       commitTab(tab, requestId);
       return;
@@ -147,11 +206,16 @@ export function AppBottomNavigation({
         <style jsx>{`
           .bottomNavigation { position: fixed; z-index: 90; right: 0; bottom: 0; left: 0; padding: 0 12px calc(10px + env(safe-area-inset-bottom)); pointer-events: none; background: linear-gradient(to top,rgba(7,7,7,.98) 58%,transparent); }
           .bottomNavigation > div { width: min(100%,520px); min-height: 70px; margin: 0 auto; padding: 6px; display: grid; grid-template-columns: repeat(4,1fr); border: 1px solid rgba(255,205,80,.16); border-radius: 23px; background: rgba(22,22,20,.985); box-shadow: 0 18px 55px rgba(0,0,0,.5); pointer-events: auto; isolation: isolate; }
-          button { min-width: 0; min-height: 56px; padding: 6px 3px; display: grid; place-items: center; align-content: center; gap: 4px; border: 0; border-radius: 17px; background: transparent; color: #77736c; font: inherit; font-size: .6rem; font-weight: 850; cursor: pointer; }
+          button { min-width: 0; min-height: 56px; padding: 6px 3px; display: grid; place-items: center; align-content: center; gap: 4px; border: 0; border-radius: 17px; background: transparent; color: #77736c; font: inherit; font-size: .6rem; font-weight: 850; cursor: pointer; transition: background-color 140ms ease, color 140ms ease, transform 90ms ease; }
+          button:active { transform: scale(.98); }
           button span { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
           button.active { background: rgba(255,201,61,.1); color: #ffd45f; }
           button :global(svg) { width: 21px; height: 21px; }
           @media (max-width: 360px) { button { font-size: .53rem; } }
+          @media (prefers-reduced-motion: reduce) {
+            button { transition: none; }
+            button:active { transform: none; }
+          }
         `}</style>
       </nav>
     </>
