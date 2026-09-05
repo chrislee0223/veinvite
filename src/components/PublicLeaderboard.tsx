@@ -22,6 +22,10 @@ import type {
   PublicLeaderboardResponse,
 } from '@/lib/types';
 import { getVeChainExplorerAddressUrl } from '@/lib/vechainExplorer';
+import {
+  SOFT_FOCUS_MOTION_CSS,
+  softFocusCloseDelay,
+} from './SoftFocusMotion';
 
 const PUBLIC_RANK_LIMIT = 100;
 const WALLET_PREFIX_LENGTH = 5;
@@ -132,6 +136,8 @@ export function PublicLeaderboard({
   const [selectedEntry, setSelectedEntry] =
     useState<PublicLeaderboardEntry | null>(null);
   const [impactOpen, setImpactOpen] = useState(false);
+  const [impactVisible, setImpactVisible] = useState(false);
+  const impactCloseTimerRef = useRef<number | null>(null);
   const dialogRef = useRef<HTMLDivElement | null>(null);
   const closeButtonRef = useRef<HTMLButtonElement | null>(null);
   const openerRef = useRef<HTMLElement | null>(null);
@@ -180,29 +186,97 @@ export function PublicLeaderboard({
   }, [cacheKey, previewData, t.loadError, wallet]);
 
   useEffect(() => {
+    if (impactCloseTimerRef.current !== null) {
+      window.clearTimeout(impactCloseTimerRef.current);
+      impactCloseTimerRef.current = null;
+    }
     setSelectedEntry(null);
+    setImpactVisible(false);
     setImpactOpen(false);
     void load(false);
   }, [load]);
 
-  const closeDialog = useCallback(() => {
-    setSelectedEntry(null);
-    setImpactOpen(false);
-    window.requestAnimationFrame(() => openerRef.current?.focus());
+  useEffect(() => () => {
+    if (impactCloseTimerRef.current !== null) {
+      window.clearTimeout(impactCloseTimerRef.current);
+    }
   }, []);
+
+  useEffect(() => {
+    if (!impactOpen) return;
+
+    let revealFrame: number | null = null;
+    const mountFrame = window.requestAnimationFrame(() => {
+      revealFrame = window.requestAnimationFrame(() => {
+        setImpactVisible(true);
+      });
+    });
+
+    return () => {
+      window.cancelAnimationFrame(mountFrame);
+      if (revealFrame !== null) {
+        window.cancelAnimationFrame(revealFrame);
+      }
+    };
+  }, [impactOpen]);
+
+  useEffect(() => {
+    if (!impactOpen) return;
+
+    const previousOverflow = document.body.style.overflow;
+    const previousOverscrollBehavior =
+      document.body.style.overscrollBehavior;
+    document.body.style.overflow = 'hidden';
+    document.body.style.overscrollBehavior = 'none';
+
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      document.body.style.overscrollBehavior = previousOverscrollBehavior;
+    };
+  }, [impactOpen]);
+
+  const closeImpactDetails = useCallback(() => {
+    if (!impactOpen || impactCloseTimerRef.current !== null) {
+      return;
+    }
+
+    setImpactVisible(false);
+    impactCloseTimerRef.current = window.setTimeout(() => {
+      impactCloseTimerRef.current = null;
+      setImpactOpen(false);
+      window.requestAnimationFrame(() => openerRef.current?.focus());
+    }, softFocusCloseDelay());
+  }, [impactOpen]);
+
+  const closeDialog = useCallback(() => {
+    if (impactOpen) {
+      closeImpactDetails();
+      return;
+    }
+
+    setSelectedEntry(null);
+    window.requestAnimationFrame(() => openerRef.current?.focus());
+  }, [closeImpactDetails, impactOpen]);
 
   const openWalletDetails = (
     entry: PublicLeaderboardEntry,
     opener: HTMLElement,
   ) => {
+    if (impactCloseTimerRef.current !== null) {
+      window.clearTimeout(impactCloseTimerRef.current);
+      impactCloseTimerRef.current = null;
+    }
     openerRef.current = opener;
+    setImpactVisible(false);
     setImpactOpen(false);
     setSelectedEntry(entry);
   };
 
   const openImpactDetails = (opener: HTMLElement) => {
+    if (impactOpen) return;
     openerRef.current = opener;
     setSelectedEntry(null);
+    setImpactVisible(false);
     setImpactOpen(true);
   };
 
@@ -493,7 +567,8 @@ export function PublicLeaderboard({
 
       {impactOpen ? (
         <div
-          className="modalBackdrop"
+          className="modalBackdrop impactModalBackdrop veinviteSoftFocusBackdrop"
+          data-open={impactVisible ? 'true' : 'false'}
           role="presentation"
           onMouseDown={(event) => {
             if (event.target === event.currentTarget) closeDialog();
@@ -501,7 +576,7 @@ export function PublicLeaderboard({
         >
           <div
             ref={dialogRef}
-            className="walletDialog impactDialog"
+            className="walletDialog impactDialog veinviteSoftFocusPanel"
             role="dialog"
             aria-modal="true"
             aria-labelledby="impact-dialog-title"
@@ -607,6 +682,7 @@ export function PublicLeaderboard({
         </div>
       ) : null}
 
+      <style>{SOFT_FOCUS_MOTION_CSS}</style>
       <style jsx>{`
         .leaderboardPage {
           width:min(100%,520px);
@@ -644,11 +720,19 @@ export function PublicLeaderboard({
           color:#f8f4e8;
           text-align:left;
           cursor:pointer;
+          transform-origin:center;
+          transition:
+            border-color 120ms ease-out,
+            box-shadow 120ms ease-out,
+            transform 80ms ease-out;
         }
         .impactSummaryButton:hover,.impactSummaryButton:focus-visible {
           border-color:rgba(255,205,80,.4);
           outline:none;
           box-shadow:0 0 0 3px rgba(244,183,40,.08);
+        }
+        .impactSummaryButton:active:not(:disabled) {
+          transform:scale(.985);
         }
         .impactSummaryButton:disabled {
           cursor:default;
@@ -935,6 +1019,9 @@ export function PublicLeaderboard({
           background:rgba(2,3,8,.82);
           backdrop-filter:blur(10px);
         }
+        .impactModalBackdrop {
+          overscroll-behavior:contain;
+        }
         .walletDialog {
           width:min(100%,460px);
           max-height:min(82svh,720px);
@@ -945,6 +1032,10 @@ export function PublicLeaderboard({
           border-radius:24px;
           background:#11120f;
           box-shadow:0 28px 90px rgba(0,0,0,.55);
+        }
+        .impactDialog {
+          overscroll-behavior:contain;
+          -webkit-overflow-scrolling:touch;
         }
         .dialogTop {
           display:flex;
@@ -1133,6 +1224,14 @@ export function PublicLeaderboard({
             flex-basis:16px;
             width:16px;
             height:16px;
+          }
+        }
+        @media (prefers-reduced-motion:reduce) {
+          .impactSummaryButton {
+            transition:none;
+          }
+          .impactSummaryButton:active:not(:disabled) {
+            transform:none;
           }
         }
       `}</style>
