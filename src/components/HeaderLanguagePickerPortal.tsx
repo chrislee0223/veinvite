@@ -206,12 +206,16 @@ export function HeaderLanguagePickerPortal() {
   ]);
 
   const openPicker = useCallback(() => {
+    // Do not let a rapid trigger interaction cancel a pending language
+    // selection while its exit animation still owns the close lifecycle.
+    if (closing) return;
+
     clearCloseFallback();
     pendingLocaleRef.current = null;
     restoreFocusRef.current = false;
     setClosing(false);
     setOpen(true);
-  }, [clearCloseFallback]);
+  }, [clearCloseFallback, closing]);
 
   useEffect(() => () => {
     clearCloseFallback();
