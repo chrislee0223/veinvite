@@ -60,6 +60,61 @@ main.screen .bottomNavigation > div {
   display:none !important;
 }
 
+/*
+ * The leaderboard always renders rank slots 1, 2 and 3, even before a wallet
+ * occupies them. Keep their podium treatment visible in that empty state too:
+ * the user can immediately read the hierarchy of the board while inviter,
+ * invite-count and reward cells remain honest dashes. These rules intentionally
+ * target placeholder rows only; occupied Top 3 rows continue to use the shared
+ * podium rules in SecondaryPageLayoutPolish. The numeral stays on exactly the
+ * same grid axis as ranks 4-100 because the laurels are absolutely positioned.
+ */
+.leaderboardPage .rankScroll .rows > .rankRow.placeholderRow:nth-child(1) .rankValue {
+  --podium-accent:#f1bd34;
+  --podium-opacity:.96;
+  color:var(--podium-accent) !important;
+  font-weight:950 !important;
+}
+.leaderboardPage .rankScroll .rows > .rankRow.placeholderRow:nth-child(2) .rankValue {
+  --podium-accent:#c8cbd0;
+  --podium-opacity:.84;
+  color:var(--podium-accent) !important;
+  font-weight:950 !important;
+}
+.leaderboardPage .rankScroll .rows > .rankRow.placeholderRow:nth-child(3) .rankValue {
+  --podium-accent:#c98252;
+  --podium-opacity:.84;
+  color:var(--podium-accent) !important;
+  font-weight:950 !important;
+}
+.leaderboardPage .rankScroll .rows > .rankRow.placeholderRow:nth-child(-n+3) .rankValue::before,
+.leaderboardPage .rankScroll .rows > .rankRow.placeholderRow:nth-child(-n+3) .rankValue::after {
+  content:"" !important;
+  display:block !important;
+  position:absolute !important;
+  top:50% !important;
+  width:7px !important;
+  height:15px !important;
+  border-left:1px solid var(--podium-accent) !important;
+  border-radius:55% 0 0 55% !important;
+  background:
+    radial-gradient(ellipse 3px 1.8px at 30% 18%,var(--podium-accent) 0 72%,transparent 76%),
+    radial-gradient(ellipse 3px 1.8px at 62% 43%,var(--podium-accent) 0 72%,transparent 76%),
+    radial-gradient(ellipse 3px 1.8px at 30% 69%,var(--podium-accent) 0 72%,transparent 76%) !important;
+  opacity:var(--podium-opacity) !important;
+  pointer-events:none !important;
+}
+.leaderboardPage .rankScroll .rows > .rankRow.placeholderRow:nth-child(-n+3) .rankValue::before {
+  right:calc(50% + 1.35ch) !important;
+  transform:translateY(-50%) rotate(-13deg) !important;
+  transform-origin:50% 85% !important;
+}
+.leaderboardPage .rankScroll .rows > .rankRow.placeholderRow:nth-child(-n+3) .rankValue::after {
+  left:calc(50% + 1.35ch) !important;
+  transform:translateY(-50%) scaleX(-1) rotate(-13deg) !important;
+  transform-origin:50% 85% !important;
+}
+
 /* Keep /ui-test visually aligned with the production shell so it remains a
  * reliable post-release reference instead of drifting into a separate mock. */
 .labScreen .phoneCanvas > .topBar,
