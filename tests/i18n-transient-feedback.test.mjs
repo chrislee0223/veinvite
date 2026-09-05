@@ -12,7 +12,8 @@ const notificationCopy = read('src/lib/i18n/notificationCopy.ts');
 const localeDefinitions = [...locales.matchAll(/\{ locale: '([^']+)'/g)].map((match) => match[1]);
 
 test('home transient feedback stays compatible with every supported locale', () => {
-  assert.equal(localeDefinitions.length, 27);
+  assert.ok(localeDefinitions.length >= 27);
+  assert.equal(new Set(localeDefinitions).size, localeDefinitions.length);
   assert.match(homeCopy, /export const HOME_COPY:\s*Record<Locale, HomeCopy>/);
   assert.match(notificationCopy, /export const NOTIFICATION_COPY:\s*Record<Locale, NotificationCopy>/);
   assert.match(home, /NOTIFICATION_COPY\[locale\]\.closeAria/);

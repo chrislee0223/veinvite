@@ -169,4 +169,10 @@ export const STARTUP_COPY: Record<SupportedLocale, StartupCopy> = {
       'Wallet ɗinka ko bayanan shafin farko suna ɗaukar lokaci fiye da yadda aka zata. Sake gwadawa.',
     retry: 'Sake gwadawa',
   },
+  el: {
+    errorTitle: 'Το VeInvite δεν ολοκλήρωσε τη φόρτωση',
+    errorDescription:
+      'Το πορτοφόλι ή τα δεδομένα της αρχικής σελίδας χρειάζονται περισσότερο χρόνο από το αναμενόμενο. Δοκίμασε ξανά.',
+    retry: 'Δοκίμασε ξανά',
+  },
 };

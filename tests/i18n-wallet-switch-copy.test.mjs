@@ -21,7 +21,8 @@ function escapeRegex(value) {
 }
 
 test('wallet-switch guidance has one localized entry for every supported locale', () => {
-  assert.equal(locales.length, 27);
+  assert.ok(locales.length >= 27);
+  assert.equal(new Set(locales).size, locales.length);
 
   for (const locale of locales) {
     const escaped = escapeRegex(locale);

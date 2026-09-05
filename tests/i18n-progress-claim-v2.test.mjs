@@ -43,7 +43,8 @@ function hasLocaleEntry(source, locale) {
 }
 
 test('new progress, notification and claim-guide copy cover every supported locale', () => {
-  assert.equal(locales.length, 27);
+  assert.ok(locales.length >= 27);
+  assert.equal(new Set(locales).size, locales.length);
 
   for (const locale of locales) {
     assert.equal(

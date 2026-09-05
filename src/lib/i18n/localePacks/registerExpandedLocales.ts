@@ -1,6 +1,7 @@
 import { AR_LOCALE_PACK } from './ar';
 import { ARZ_LOCALE_PACK } from './arz';
 import { BN_LOCALE_PACK } from './bn';
+import { EL_LOCALE_PACK } from './el';
 import { HA_LOCALE_PACK } from './ha';
 import { ID_LOCALE_PACK } from './id';
 import { MR_LOCALE_PACK } from './mr';
@@ -32,3 +33,4 @@ registerLocalePack('mr', MR_LOCALE_PACK);
 registerLocalePack('te', TE_LOCALE_PACK);
 registerLocalePack('sw', SW_LOCALE_PACK);
 registerLocalePack('ha', HA_LOCALE_PACK);
+registerLocalePack('el', EL_LOCALE_PACK);

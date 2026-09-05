@@ -117,4 +117,8 @@ export const INELIGIBLE_INVITER_COPY: Record<
     title: 'Yanzu za ka iya gayyatar wani aboki',
     body: 'Abokin da ka gayyata bai cika sharuddan VeInvite a yanzu ba, don haka an rufe wannan gayyatar.',
   },
+  el: {
+    title: 'Μπορείς τώρα να προσκαλέσεις κάποιον άλλο',
+    body: 'Ο φίλος που προσκάλεσες δεν πληροί αυτή τη στιγμή τις προϋποθέσεις συμμετοχής του VeInvite, οπότε αυτή η πρόσκληση ολοκληρώθηκε.',
+  },
 };

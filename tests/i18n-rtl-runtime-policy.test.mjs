@@ -26,7 +26,7 @@ function localeBlock(locale) {
   const key = locale.includes('-') ? `'${locale}'` : locale;
   const escaped = key.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
   const match = conversionSource.match(
-    new RegExp(`\\n  ${escaped}: \\{([\\s\\S]*?)\\n  \\},`),
+    new RegExp(`(?:^|\\n)\\s*${escaped}:\\s*\\{([\\s\\S]*?)\\}\\s*,`, 'm'),
   );
   assert.ok(match, `missing runtime mission-policy copy for ${locale}`);
   return match[1];

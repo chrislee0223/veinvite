@@ -28,4 +28,5 @@ export const LEGAL_BACK_LABEL: Record<SupportedLocale, string> = {
   te: 'వెనుకకు',
   sw: 'Rudi',
   ha: 'Koma',
+  el: 'Πίσω',
 };

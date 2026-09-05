@@ -22,8 +22,9 @@ const translatedLocales = [...ineligibleCopy.matchAll(
   .map((match) => match[1] ?? match[2])
   .filter((locale) => supportedLocales.includes(locale));
 
-test('latest ineligible-invite notification stays explicitly translated for all 27 locales', () => {
-  assert.equal(supportedLocales.length, 27);
+test('latest ineligible-invite notification stays explicitly translated for every supported locale', () => {
+  assert.ok(supportedLocales.length >= 27);
+  assert.equal(new Set(supportedLocales).size, supportedLocales.length);
   assert.deepEqual(
     [...new Set(translatedLocales)].sort(),
     [...supportedLocales].sort(),

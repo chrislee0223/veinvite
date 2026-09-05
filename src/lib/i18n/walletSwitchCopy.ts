@@ -200,4 +200,11 @@ export const WALLET_SWITCH_COPY: Record<
     continueCurrent: 'Ci gaba da wallet na yanzu',
     chooseAnother: 'Zaɓi wani wallet',
   },
+  el: {
+    title: 'Το πορτοφόλι σου στο VeWorld άλλαξε',
+    description:
+      'Το VeWorld είναι πλέον συνδεδεμένο με διαφορετικό πορτοφόλι. Συνέχισε με το τρέχον πορτοφόλι ή επίλεξε άλλο.',
+    continueCurrent: 'Συνέχεια με το τρέχον πορτοφόλι',
+    chooseAnother: 'Επιλογή άλλου πορτοφολιού',
+  },
 };

@@ -34,6 +34,7 @@ const CLAIM_REWARD_GUIDE_COPY: Record<SupportedLocale, RewardGuideCopy> = {
   te: { title: 'తుది ధృవీకరణ తర్వాత రివార్డ్ స్థిరపడుతుంది', description: 'మీ స్నేహితుడు అన్ని మిషన్లు పూర్తి చేసి తుది ధృవీకరణలో ఉత్తీర్ణుడైతే VeInvite మీ B3TR రివార్డ్‌ను స్థిరపరచి ఫ్రెండ్ స్లాట్‌ను మళ్లీ తెరుస్తుంది. Rewards నుంచి స్థిరమైన మొత్తాన్ని పొందండి; తీసుకునే సమయంలో మళ్లీ లెక్కించదు.' },
   sw: { title: 'Zawadi huwekwa baada ya uthibitishaji wa mwisho', description: 'Rafiki yako akimaliza misheni zote na kupita uthibitishaji wa mwisho, VeInvite huweka kiasi cha zawadi yako ya B3TR na kufungua tena nafasi ya rafiki. Chukua kiasi kilichowekwa kwenye Rewards; hakihesabiwi upya unapokichukua.' },
   ha: { title: 'Ana kulle ladan bayan tabbatarwar ƙarshe', description: 'Idan abokinka ya kammala dukkan ayyuka kuma ya wuce tabbatarwar ƙarshe, VeInvite zai kulle ladan B3TR ɗinka kuma ya sake buɗe gurbin aboki. Karɓi adadin da aka kulle a Rewards; ba a sake lissafa shi lokacin karɓa.' },
+  el: { title: 'Η ανταμοιβή οριστικοποιείται μετά τον τελικό έλεγχο', description: 'Όταν ο φίλος σου ολοκληρώσει όλες τις αποστολές και περάσει τον τελικό έλεγχο, το VeInvite οριστικοποιεί την ανταμοιβή B3TR και ελευθερώνει ξανά τη θέση φίλου. Άνοιξε τις Ανταμοιβές για να λάβεις το οριστικό ποσό· δεν υπολογίζεται ξανά κατά τη λήψη.' },
 };
 
 for (const [locale, copy] of Object.entries(CLAIM_REWARD_GUIDE_COPY)) {

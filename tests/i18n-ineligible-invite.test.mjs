@@ -21,7 +21,8 @@ const translatedLocales = Array.from(
 ).filter((locale) => supportedLocales.includes(locale));
 
 test('ineligible inviter notification copy covers every supported locale exactly once', () => {
-  assert.equal(supportedLocales.length, 27);
+  assert.ok(supportedLocales.length >= 27);
+  assert.equal(new Set(supportedLocales).size, supportedLocales.length);
   assert.deepEqual(
     [...new Set(translatedLocales)].sort(),
     [...supportedLocales].sort(),

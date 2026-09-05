@@ -42,6 +42,7 @@ export const LOCALE_DEFINITIONS = [
   { locale: 'te', nativeName: 'తెలుగు', flagSource: '/flags/in.svg', direction: 'ltr', typography: 'indic' },
   { locale: 'sw', nativeName: 'Kiswahili', flagSource: '/flags/ke.svg', direction: 'ltr', typography: 'latin' },
   { locale: 'ha', nativeName: 'Hausa', flagSource: '/flags/ng.svg', direction: 'ltr', typography: 'latin' },
+  { locale: 'el', nativeName: 'Ελληνικά', flagSource: '/flags/gr.svg', direction: 'ltr', typography: 'latin' },
 ] as const satisfies readonly LocaleDefinition[];
 
 export const SUPPORTED_LOCALES = LOCALE_DEFINITIONS.map(
