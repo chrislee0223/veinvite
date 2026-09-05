@@ -13,6 +13,7 @@ import './notification-i18n-hardening.css';
 import './ui-safety.css';
 import './final-ui-hardening.css';
 import './podium-laurel-option-c.css';
+import './podium-laurel-size-tuning.css';
 import './wallet-confirmation-unified.css';
 import './language-picker-mobile.css';
 import './legal-ui-consistency.css';
