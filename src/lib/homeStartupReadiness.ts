@@ -22,6 +22,9 @@ export type StartupReadinessInput = {
   hasBootstrappedSession: boolean;
   hasPersistedWallet: boolean;
   interactiveGateVisible: boolean;
+  // Retained as a compatibility-only hint for the runtime call site. It must
+  // never authorize revealing wallet-scoped Home placeholders.
+  allowHomeDataHydration?: boolean;
 };
 
 export type WalletBootstrapReadinessInput = {
