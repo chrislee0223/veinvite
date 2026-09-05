@@ -11,11 +11,13 @@ It is not a second copy of the app and must not become a collection of hand-recr
 1. Reuse real application components. Do not fork production UI into QA-only copies.
 2. Keep scenarios in the central typed registry under `src/qa/scenarioRegistry.ts`.
 3. Every scenario defines an expected-result contract.
-4. QA routes are available only in local development and Vercel Preview. Production must return 404.
-5. Isolated QA renderers must not issue Production writes, wallet mutations, reward actions, or live database mutations.
-6. Test fixtures added later must use the same application/API types as the real feature.
-7. New user-visible features or materially new states should ship with QA scenarios.
-8. Existing `/ui-test` coverage is preserved while scenarios are migrated into the Studio; it should not be deleted merely because `/qa` exists.
+4. The public VeInvite Production host must never expose QA Studio. Local development and ordinary Vercel Preview may expose it; a fixed dedicated QA project may expose it only when both `VEINVITE_QA_STUDIO=true` and an exact `VEINVITE_QA_HOST` match are present.
+5. The fixed QA project must use Vercel Deployment Protection / Vercel Authentication so knowing the URL alone is not sufficient for access.
+6. Isolated QA renderers must not issue Production writes, wallet mutations, reward actions, or live database mutations.
+7. A dedicated QA host fails closed on normal `/api/*` routes. Any future backend-backed QA API must be separately designed and explicitly allowlisted instead of reusing application mutation routes by accident.
+8. Test fixtures added later must use the same application/API types as the real feature.
+9. New user-visible features or materially new states should ship with QA scenarios.
+10. Existing `/ui-test` coverage is preserved while scenarios are migrated into the Studio; it should not be deleted merely because `/qa` exists.
 
 ## Current foundation
 
@@ -52,6 +54,23 @@ Each scenario is rendered in an iframe through a separate route. This is deliber
 - supported action contracts
 
 Future Gallery, Journey Runner, browser automation, visual regression, coverage reporting, and release sign-off should consume this same registry instead of maintaining separate scenario lists.
+
+## Dedicated QA project
+
+The preferred long-lived operator setup is a second Vercel project connected to the same repository and `main` branch, with its own fixed QA domain. It is a deployment shell for QA Studio, not a second VeInvite product.
+
+Required safeguards:
+
+- enable Vercel Deployment Protection / Vercel Authentication on the entire QA project
+- set `VEINVITE_QA_STUDIO=true`
+- set `VEINVITE_QA_HOST` to the exact fixed QA hostname
+- never copy Production database credentials, reward secrets, cron secrets, or other Production mutation credentials into the QA project
+- use only the isolated Preview/non-production Supabase project if a later scenario pack genuinely needs backend state
+- keep `NEXT_PUBLIC_NETWORK_TYPE` visibly non-production for QA builds
+
+The host match is intentional. If the QA enable flag is accidentally added to the real VeInvite project but `VEINVITE_QA_HOST` points to the QA hostname, requests to the real Production hostname still receive 404 for `/qa`.
+
+The dedicated QA host also rejects all normal `/api/*` requests in `src/proxy.ts`. This prevents the second Vercel project from inheriting a working application mutation surface or executing the repository's normal cron route merely because it shares the same codebase.
 
 ## Safety boundary
 
