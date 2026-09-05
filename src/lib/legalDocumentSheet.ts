@@ -8,7 +8,9 @@ export type LegalDocumentReturnView =
   | 'home'
   | 'guide'
   | 'leaderboard'
-  | 'settings';
+  | 'settings'
+  | 'invite_landing'
+  | 'other';
 
 export type LegalDocumentSheetOpenDetail = {
   kind: LegalDocumentKind;
