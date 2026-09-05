@@ -17,7 +17,7 @@ function loadingState(status = 'loading') {
   };
 }
 
-test('only opt-in first paint may reveal matching-wallet Home while API data hydrates', () => {
+test('first paint keeps wallet Home covered while API data hydrates', () => {
   const base = {
     walletAddress: WALLET,
     homeState: loadingState(),
@@ -35,7 +35,7 @@ test('only opt-in first paint may reveal matching-wallet Home while API data hyd
       ...base,
       allowHomeDataHydration: true,
     }),
-    'release',
+    'hold',
   );
   assert.equal(
     resolveStartupReadiness({
@@ -44,6 +44,48 @@ test('only opt-in first paint may reveal matching-wallet Home while API data hyd
       allowHomeDataHydration: true,
     }),
     'error',
+  );
+});
+
+test('a ready label alone can never reveal partial wallet Home data', () => {
+  const base = {
+    walletAddress: WALLET,
+    hasBootstrappedSession: true,
+    hasPersistedWallet: true,
+    interactiveGateVisible: false,
+    allowHomeDataHydration: true,
+  };
+
+  for (const [invitesReady, referralLinkReady] of [
+    [false, false],
+    [true, false],
+    [false, true],
+  ]) {
+    assert.equal(
+      resolveStartupReadiness({
+        ...base,
+        homeState: {
+          status: 'ready',
+          walletAddress: WALLET,
+          invitesReady,
+          referralLinkReady,
+        },
+      }),
+      'hold',
+    );
+  }
+
+  assert.equal(
+    resolveStartupReadiness({
+      ...base,
+      homeState: {
+        status: 'ready',
+        walletAddress: WALLET,
+        invitesReady: true,
+        referralLinkReady: true,
+      },
+    }),
+    'release',
   );
 });
 
@@ -95,7 +137,7 @@ test('forecast waits for app-ready, while reward reservation recovery remains in
   assert.match(deferred, /veinvite-app-ready/);
   assert.doesNotMatch(deferred, /RewardReservationRecovery/);
   assert.match(deferred, /import\('\.\/PublicRewardForecastPortal'\)/);
-  assert.match(
+  assert.doesNotMatch(
     placeholders,
     /\.linkPreviewSkeleton,[\s\S]*\.slotsSkeleton[\s\S]*visibility:\s*visible\s*!important/,
   );

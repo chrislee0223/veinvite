@@ -22,6 +22,11 @@ export type StartupReadinessInput = {
   hasBootstrappedSession: boolean;
   hasPersistedWallet: boolean;
   interactiveGateVisible: boolean;
+  /**
+   * @deprecated Compatibility-only input retained for older runtime callers.
+   * It must never authorize revealing wallet-scoped Home placeholders. CI
+   * regression coverage intentionally passes true and still expects `hold`.
+   */
   allowHomeDataHydration?: boolean;
 };
 
@@ -56,6 +61,16 @@ function homeStateMatchesWallet(
   );
 }
 
+function isHomeDataReady(
+  state: HomeStartupState | null,
+): boolean {
+  return (
+    state?.status === 'ready' &&
+    state.invitesReady === true &&
+    state.referralLinkReady === true
+  );
+}
+
 export function shouldHoldForWalletBootstrap({
   walletAddress,
   walletBootstrapSettled,
@@ -74,7 +89,6 @@ export function resolveStartupReadiness({
   hasBootstrappedSession,
   hasPersistedWallet,
   interactiveGateVisible,
-  allowHomeDataHydration = false,
 }: StartupReadinessInput): StartupReadinessDecision {
   // Wallet/session verification is a temporary startup surface, not proof that
   // Home is ready. The hydration shield may step aside while that actionable
@@ -95,23 +109,13 @@ export function resolveStartupReadiness({
       return 'error';
     }
 
-    if (homeState?.status === 'ready') {
-      return 'release';
-    }
-
-    // On the very first document load, once the wallet identity is settled and
-    // Home has published state for that same wallet, the app shell can render
-    // while referral/link data finishes in wallet-scoped placeholders. Wallet
-    // changes after the first reveal intentionally keep the stricter ready-only
-    // path so data from the previous wallet can never flash on screen.
-    if (
-      allowHomeDataHydration &&
-      homeState?.status === 'loading'
-    ) {
-      return 'release';
-    }
-
-    return 'hold';
+    // Hard startup invariant: a wallet-scoped Home may be revealed only when
+    // the exact wallet's invitation slots AND permanent referral link are both
+    // ready. The status label alone is deliberately insufficient, so a future
+    // refactor cannot accidentally publish `ready` early and expose skeletons.
+    return isHomeDataReady(homeState)
+      ? 'release'
+      : 'hold';
   }
 
   // A returning browser can temporarily have wallet=null while VeWorld restores
@@ -129,7 +133,9 @@ export function resolveStartupReadiness({
     return 'error';
   }
 
-  return homeState?.status === 'ready'
+  // Keep the same completeness rule for the disconnected Home. HomeClient
+  // publishes both readiness flags as true for a settled anonymous state.
+  return isHomeDataReady(homeState)
     ? 'release'
     : 'hold';
 }

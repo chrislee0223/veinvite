@@ -99,7 +99,10 @@ test('VeWorld refresh shield stays up through wallet restore and explicit Home d
     homeStartupReadiness,
     /if \(hasPersistedWallet \|\| hasBootstrappedSession\) \{\s*return 'hold';/,
   );
-  assert.match(homeStartupReadiness, /homeState\?\.status === 'ready'/);
+  assert.match(homeStartupReadiness, /function isHomeDataReady/);
+  assert.match(homeStartupReadiness, /state\?\.status === 'ready'/);
+  assert.match(homeStartupReadiness, /state\.invitesReady === true/);
+  assert.match(homeStartupReadiness, /state\.referralLinkReady === true/);
   assert.doesNotMatch(walletRuntime, /HOME_DATA_MAX_WAIT_MS/);
   assert.match(walletRuntime, /HOME_STABILITY_MS/);
 });

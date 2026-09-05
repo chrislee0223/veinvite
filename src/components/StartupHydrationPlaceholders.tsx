@@ -1,15 +1,14 @@
 'use client';
 
+/**
+ * Placeholder styling is intentionally non-authoritative. The global startup
+ * fail-safe keeps referral/link hydration placeholders hidden so an incomplete
+ * wallet Home can never flash between the VeInvite shield and real Home data.
+ */
 export function StartupHydrationPlaceholders() {
   return (
     <style jsx global>{`
-      .linkPreviewSkeleton,
       .slotsSkeleton {
-        visibility: visible !important;
-      }
-
-      .slotsSkeleton {
-        opacity: 0.72;
         pointer-events: none;
       }
 
