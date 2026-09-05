@@ -758,7 +758,11 @@ export function UsageAnalyticsTracker() {
         detail !== 'home' &&
         detail !== 'guide' &&
         detail !== 'leaderboard' &&
-        detail !== 'settings'
+        detail !== 'settings' &&
+        detail !== 'privacy' &&
+        detail !== 'terms' &&
+        detail !== 'invite_landing' &&
+        detail !== 'other'
       ) {
         return;
       }
