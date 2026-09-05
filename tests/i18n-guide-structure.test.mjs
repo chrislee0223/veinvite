@@ -27,7 +27,8 @@ const supportedLocales = [
 ].map((match) => match[1]);
 
 test('final Guide copy covers every supported locale', () => {
-  assert.equal(supportedLocales.length, 27);
+  assert.ok(supportedLocales.length >= 27);
+  assert.equal(new Set(supportedLocales).size, supportedLocales.length);
 
   for (const locale of supportedLocales) {
     const key = locale.includes('-') ? `'${locale}'` : locale;
