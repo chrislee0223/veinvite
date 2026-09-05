@@ -18,9 +18,16 @@ import {
   runOperatorMonitoringAudit,
 } from '@/lib/monitoring/operatorMonitoring';
 import {
+  publishLeaderboardRoundSnapshots,
+  type LeaderboardSnapshotMaintenanceSummary,
+} from '@/lib/reporting/leaderboardSnapshots';
+import {
   reconcileOperatorFastStatus,
   type OperatorFastStatusReconciliation,
 } from '@/lib/reporting/operatorFastStatus';
+import {
+  maintainRoundGrowthSnapshots,
+} from '@/lib/reporting/roundGrowthSnapshots';
 import {
   syncVeInviteAllocationReceipts,
 } from '@/lib/rewards/allocationAccounting';
@@ -28,9 +35,7 @@ import {
   runAutomaticRewardPayout,
   type AutomaticRewardPayoutResult,
 } from '@/lib/rewards/automaticRewardPayoutWithMnemonic';
-import {
-  maintainRoundGrowthSnapshots,
-} from '@/lib/reporting/roundGrowthSnapshots';
+import type { VeBetterNetwork } from '@/lib/vebetter/network';
 
 function secureEquals(a: string, b: string) {
   const left = Buffer.from(a);
@@ -77,6 +82,7 @@ type CronStageFailure =
   | 'RECONCILIATION'
   | 'AUTOMATIC_REWARD_PAYOUT'
   | 'ROUND_GROWTH_REPORTING'
+  | 'LEADERBOARD_SNAPSHOTS'
   | 'HOUSEKEEPING'
   | 'FAST_STATUS_RECONCILIATION'
   | 'MONITORING';
@@ -96,22 +102,26 @@ function logStageFailure(
  *
  * This worker reconciles immutable/derived onboarding evidence, records
  * official VeBetterDAO allocation-claim evidence, maintains growth snapshots,
- * verifies the read-optimized operator status projection against authoritative
- * source tables, appends an operator anomaly-monitoring snapshot, removes only
- * expired authentication/rate-limit runtime state, and provides a recovery
- * trigger for the dedicated automatic Reward Distributor. Automatic reward
- * execution is itself fail-closed and remains disabled unless its explicit
- * server gate, matching signer address, on-chain distributor registration and
- * every reward safety check pass. The operations/admin wallet key is never
- * used here.
+ * publishes the immutable paid-referral leaderboard baseline for newly sealed
+ * rounds, verifies the read-optimized operator status projection against
+ * authoritative source tables, appends an operator anomaly-monitoring snapshot,
+ * removes only expired authentication/rate-limit runtime state, and provides a
+ * recovery trigger for the dedicated automatic Reward Distributor. Automatic
+ * reward execution is itself fail-closed and remains disabled unless its
+ * explicit server gate, matching signer address, on-chain distributor
+ * registration and every reward safety check pass. The operations/admin wallet
+ * key is never used here.
  *
  * Independent stages are deliberately isolated. A transient allocation RPC
  * failure must not prevent invitation reconciliation or anomaly monitoring.
  * Growth reporting is the exception: it runs only after reconciliation has
  * succeeded so a partially refreshed evidence set cannot be snapshotted as a
- * completed reporting round. Any scheduled-stage failure still returns HTTP
- * 500 after later independent stages finish, so cleanup/retention or fast
- * status drift remains visible without blocking reward or evidence work.
+ * completed reporting round. Leaderboard publication runs only after that
+ * growth-maintenance stage succeeds, which prevents a rank baseline from being
+ * published before reconciliation has checked through the sealed round end.
+ * Any scheduled-stage failure still returns HTTP 500 after later independent
+ * stages finish, so operational drift remains visible without weakening reward
+ * or evidence safety.
  */
 export async function GET(
   request: NextRequest,
@@ -141,6 +151,8 @@ export async function GET(
   let roundGrowthReports: Awaited<
     ReturnType<typeof maintainRoundGrowthSnapshots>
   > | null = null;
+  let leaderboardSnapshots:
+    LeaderboardSnapshotMaintenanceSummary | null = null;
   let housekeeping: EphemeralCleanupSummary | null = null;
   let fastStatusReconciliation:
     OperatorFastStatusReconciliation | null = null;
@@ -198,14 +210,22 @@ export async function GET(
     }
   }
 
+  if (roundGrowthReports) {
+    try {
+      leaderboardSnapshots =
+        await publishLeaderboardRoundSnapshots(
+          roundGrowthReports.network as VeBetterNetwork,
+        );
+    } catch (error) {
+      failedStages.push('LEADERBOARD_SNAPSHOTS');
+      logStageFailure('LEADERBOARD_SNAPSHOTS', error);
+    }
+  }
+
   try {
     housekeeping =
       await cleanupEphemeralSecurityState();
   } catch (cleanupError) {
-    // Cleanup remains non-blocking for later stages, but failed auth/rate-limit
-    // cleanup or analytics retention must make the scheduled run visibly
-    // unhealthy so the operator can investigate instead of silently retaining
-    // stale runtime or raw analytics data beyond policy.
     failedStages.push('HOUSEKEEPING');
     logStageFailure('HOUSEKEEPING', cleanupError);
   }
@@ -214,9 +234,6 @@ export async function GET(
     fastStatusReconciliation =
       await reconcileOperatorFastStatus();
   } catch (error) {
-    // The projection never authorizes rewards or eligibility. A mismatch is an
-    // operational reporting failure only, but it must be visible so operators
-    // can rebuild the derived layer before relying on its fast counters.
     failedStages.push(
       'FAST_STATUS_RECONCILIATION',
     );
@@ -262,10 +279,6 @@ export async function GET(
     );
   }
 
-  // Keep the established stability-gate contract name. HOUSEKEEPING and fast
-  // status drift are members of failedStages too, so privacy-retention and
-  // reporting-integrity failures are surfaced by the same final health signal
-  // without weakening the existing cron checks.
   const hasCoreFailure =
     failedStages.length > 0;
 
@@ -290,6 +303,7 @@ export async function GET(
         : null,
       automaticRewardPayout,
       roundGrowthReports,
+      leaderboardSnapshots,
       housekeeping,
       fastStatusReconciliation,
       monitoring: monitoring
