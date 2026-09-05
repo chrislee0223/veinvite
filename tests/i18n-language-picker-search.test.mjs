@@ -42,9 +42,12 @@ test('direct-invite picker has a non-autofocusing iPhone-safe search field', () 
   assert.match(headerPickerSource, /setLanguageQuery\(''\)/);
 });
 
-test('direct-invite search keeps listbox keyboard navigation separate from the input', () => {
+test('direct-invite search keeps listbox keyboard navigation separate from the input and empty status', () => {
   assert.match(headerPickerSource, /className="headerLanguageOptionList"/);
   assert.match(headerPickerSource, /role="listbox"/);
   assert.match(headerPickerSource, /onKeyDown=\{handleMenuKeyDown\}/);
-  assert.match(headerPickerSource, /className="headerLanguageNoResults" role="status"/);
+  assert.match(
+    headerPickerSource,
+    /role="listbox"[\s\S]*?visibleLanguageOptions\.map[\s\S]*?<\/div>\s*\{visibleLanguageOptions\.length === 0 \? \(\s*<div className="headerLanguageNoResults" role="status">/,
+  );
 });
