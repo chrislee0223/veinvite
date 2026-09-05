@@ -88,7 +88,22 @@ test('in-app legal header follows the shared title-left close-right pattern', ()
   assert.match(sheet, /const closeLabel = SETTINGS_COPY\[locale\]\?\.close/);
   assert.match(sheet, /className="veinviteLegalSheetClose"/);
   assert.match(sheet, /aria-label=\{closeLabel\}/);
-  assert.match(sheet, /<span aria-hidden="true">×<\/span>/);
+  assert.match(sheet, /className="veinviteLegalSheetCloseMark"/);
+  assert.doesNotMatch(sheet, />×</);
+  assert.match(
+    sheet,
+    /\.veinviteLegalSheetCloseMark::before,[\s\S]*\.veinviteLegalSheetCloseMark::after/,
+  );
+  assert.match(sheet, /top: 50%/);
+  assert.match(sheet, /left: 50%/);
+  assert.match(
+    sheet,
+    /translate\(-50%, -50%\) rotate\(45deg\)/,
+  );
+  assert.match(
+    sheet,
+    /translate\(-50%, -50%\) rotate\(-45deg\)/,
+  );
   assert.match(sheet, /text-align: start/);
   assert.match(sheet, /justify-content: space-between/);
   assert.doesNotMatch(sheet, /className="veinviteLegalSheetBack"/);

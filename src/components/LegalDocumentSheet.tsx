@@ -142,7 +142,10 @@ export function LegalDocumentSheet({
             onClick={onRequestClose}
             aria-label={closeLabel}
           >
-            <span aria-hidden="true">×</span>
+            <span
+              className="veinviteLegalSheetCloseMark"
+              aria-hidden="true"
+            />
           </button>
         </header>
 
@@ -254,9 +257,34 @@ export function LegalDocumentSheet({
           background: rgba(255, 255, 255, .035);
           color: #ded9cf;
           font: inherit;
-          font-size: 1.35rem;
           line-height: 1;
           cursor: pointer;
+        }
+        .veinviteLegalSheetCloseMark {
+          position: relative;
+          width: 14px;
+          height: 14px;
+          display: block;
+          flex: 0 0 14px;
+          pointer-events: none;
+        }
+        .veinviteLegalSheetCloseMark::before,
+        .veinviteLegalSheetCloseMark::after {
+          content: '';
+          position: absolute;
+          top: 50%;
+          left: 50%;
+          width: 14px;
+          height: 2px;
+          border-radius: 999px;
+          background: currentColor;
+          transform-origin: center;
+        }
+        .veinviteLegalSheetCloseMark::before {
+          transform: translate(-50%, -50%) rotate(45deg);
+        }
+        .veinviteLegalSheetCloseMark::after {
+          transform: translate(-50%, -50%) rotate(-45deg);
         }
         .veinviteLegalSheetClose:hover,
         .veinviteLegalSheetClose:focus-visible {
