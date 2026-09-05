@@ -80,22 +80,34 @@ test('reading the rich reward receipt also clears the duplicate paid bell notifi
   assert.match(notifications, /void refreshLifecycle\(false\)/);
 });
 
-test('notification lifecycle backs off briefly after an unauthorized response across component remounts', () => {
+test('notification lifecycle coalesces concurrent requests and persists unauthorized backoff', () => {
   assert.match(
     notifications,
     /const LIFECYCLE_UNAUTHORIZED_BACKOFF_MS = 15_000;/,
   );
   assert.match(
     notifications,
-    /let lifecycleUnauthorizedUntil = 0;/,
+    /const LIFECYCLE_UNAUTHORIZED_BACKOFF_STORAGE_KEY =/,
   );
   assert.match(
     notifications,
-    /function lifecycleRefreshBackedOff\(\): boolean \{[\s\S]*Date\.now\(\) < lifecycleUnauthorizedUntil/,
+    /const lifecycleRefreshPromises = new Map<string, Promise<void>>\(\);/,
   );
   assert.match(
     notifications,
-    /if \(!wallet \|\| lifecycleRefreshBackedOff\(\)\) return;[\s\S]*fetch\(\s*'\/api\/notifications'/,
+    /window\.localStorage\.getItem\(LIFECYCLE_UNAUTHORIZED_BACKOFF_STORAGE_KEY\)/,
+  );
+  assert.match(
+    notifications,
+    /window\.localStorage\.setItem\([\s\S]*LIFECYCLE_UNAUTHORIZED_BACKOFF_STORAGE_KEY/,
+  );
+  assert.match(
+    notifications,
+    /const inFlight = lifecycleRefreshPromises\.get\(lifecycleKey\);[\s\S]*if \(inFlight\) \{\s*await inFlight;\s*return;/,
+  );
+  assert.match(
+    notifications,
+    /lifecycleRefreshPromises\.set\(lifecycleKey, task\);/,
   );
   assert.match(
     notifications,
@@ -103,6 +115,6 @@ test('notification lifecycle backs off briefly after an unauthorized response ac
   );
   assert.match(
     notifications,
-    /fetch\(\s*`\/api\/notifications\/history\?\$\{params\.toString\(\)\}`[\s\S]*if \(response\.status === 401\) \{\s*invalidateWalletSession\(\);/,
+    /fetch\(\s*`\/api\/notifications\/history\?\$\{params\.toString\(\)\}`[\s\S]*if \(response\.status === 401\) \{\s*backOffLifecycleAfterUnauthorized\(\);\s*invalidateWalletSession\(\);/,
   );
 });
