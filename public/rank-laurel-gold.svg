@@ -1,0 +1,35 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" aria-hidden="true">
+  <defs>
+    <linearGradient id="g" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#fff0a8"/>
+      <stop offset="0.36" stop-color="#f8c943"/>
+      <stop offset="0.72" stop-color="#d99514"/>
+      <stop offset="1" stop-color="#ffd96a"/>
+    </linearGradient>
+    <filter id="glow" x="-40%" y="-40%" width="180%" height="180%">
+      <feGaussianBlur stdDeviation="0.55" result="b"/>
+      <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+    <path id="leaf" d="M0 0 C2.9 -4.3 6.2 -4.8 8.7 -4.1 C7.1 -1.4 4.4 1.3 0 0Z"/>
+  </defs>
+  <g fill="none" stroke="url(#g)" stroke-width="1.35" stroke-linecap="round" filter="url(#glow)">
+    <path d="M23.7 42.8C15.7 39.6 10.3 34.4 8.1 27.8C6.5 23.0 7.1 18.3 9.7 13.7"/>
+    <path d="M24.3 42.8C32.3 39.6 37.7 34.4 39.9 27.8C41.5 23.0 40.9 18.3 38.3 13.7"/>
+  </g>
+  <g fill="url(#g)" filter="url(#glow)">
+    <g transform="translate(9.1 31.4) rotate(-118)"><use href="#leaf"/></g>
+    <g transform="translate(7.5 26.8) rotate(-103)"><use href="#leaf"/></g>
+    <g transform="translate(7.8 22.1) rotate(-88)"><use href="#leaf"/></g>
+    <g transform="translate(9.3 17.8) rotate(-72)"><use href="#leaf"/></g>
+    <g transform="translate(11.8 14.0) rotate(-54)"><use href="#leaf"/></g>
+    <g transform="translate(14.8 11.3) rotate(-38)"><use href="#leaf"/></g>
+    <g transform="translate(38.9 31.4) rotate(-62) scale(-1 1)"><use href="#leaf"/></g>
+    <g transform="translate(40.5 26.8) rotate(-77) scale(-1 1)"><use href="#leaf"/></g>
+    <g transform="translate(40.2 22.1) rotate(-92) scale(-1 1)"><use href="#leaf"/></g>
+    <g transform="translate(38.7 17.8) rotate(-108) scale(-1 1)"><use href="#leaf"/></g>
+    <g transform="translate(36.2 14.0) rotate(-126) scale(-1 1)"><use href="#leaf"/></g>
+    <g transform="translate(33.2 11.3) rotate(-142) scale(-1 1)"><use href="#leaf"/></g>
+    <path d="M17.8 8.9L16.7 3.8L21.1 6.0L24 1.9L26.9 6.0L31.3 3.8L30.2 8.9Z"/>
+    <rect x="18.1" y="9.5" width="11.8" height="2.05" rx="1.0"/>
+  </g>
+</svg>
