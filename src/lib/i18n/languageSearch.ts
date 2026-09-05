@@ -21,7 +21,10 @@ export function normalizeLanguageSearch(value: string): string {
 export function buildLocalizedLanguageNames(
   locale: Locale,
 ): LocalizedLanguageNames {
-  if (typeof Intl.DisplayNames !== 'function') {
+  if (
+    typeof Intl === 'undefined' ||
+    typeof Intl.DisplayNames !== 'function'
+  ) {
     return {};
   }
 
