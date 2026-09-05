@@ -115,6 +115,11 @@ export async function GET(request: NextRequest) {
       source,
       views,
       dataQualityExclusions,
+      productSummary,
+      productDaily,
+      productLocale,
+      productDevice,
+      productSource,
     ] = await Promise.all([
       rpc(
         'read_app_usage_daily_summary',
@@ -149,6 +154,35 @@ export async function GET(request: NextRequest) {
         'read_app_usage_quality_exclusions',
         range,
       ),
+      rpc(
+        'read_app_product_event_summary',
+        range,
+      ),
+      rpc(
+        'read_app_product_event_daily_summary',
+        range,
+      ),
+      rpc(
+        'read_app_product_event_dimension_breakdown',
+        {
+          ...range,
+          p_dimension: 'locale',
+        },
+      ),
+      rpc(
+        'read_app_product_event_dimension_breakdown',
+        {
+          ...range,
+          p_dimension: 'device',
+        },
+      ),
+      rpc(
+        'read_app_product_event_dimension_breakdown',
+        {
+          ...range,
+          p_dimension: 'source',
+        },
+      ),
     ]);
 
     return NextResponse.json(
@@ -170,6 +204,8 @@ export async function GET(request: NextRequest) {
             '검증된 지갑 세션 존재 여부만 기록하며 지갑 주소는 이용 분석 데이터에 저장하지 않습니다.',
           views:
             '관리자 사용을 정확히 제거할 수 없는 초기 부트스트랩 날짜는 뷰 분포 합계에서 제외하고 dataQualityExclusions에 표시합니다.',
+          productEvents:
+            '지갑 연결 시도, 초대 공유·수락, 미션 이동, 보상 청구 같은 제한된 제품 행동만 익명 집계합니다. 실제 참여·미션·보상 사실은 기존 운영·온체인 데이터가 기준입니다.',
         },
         privacy: {
           rawIpStored: false,
@@ -177,9 +213,11 @@ export async function GET(request: NextRequest) {
           walletAddressStored: false,
           inviteCodeStored: false,
           queryStringStored: false,
+          freeFormMetadataStored: false,
           dailyAnonymousIdentity: true,
           crossDayIdentityLinking: false,
           rawSessionRetentionDays: 30,
+          rawProductEventRetentionDays: 30,
           userCanOptOut: true,
           rewardAuthority: false,
         },
@@ -190,6 +228,19 @@ export async function GET(request: NextRequest) {
           device,
           source,
           views,
+        },
+        productAnalytics: {
+          summary: productSummary,
+          daily: productDaily,
+          breakdowns: {
+            locale: productLocale,
+            device: productDevice,
+            source: productSource,
+          },
+          schemaVersion: 1,
+          authoritative: false,
+          strictAllowlist: true,
+          buildIdServerDerived: true,
         },
         dataQualityExclusions,
         writesPerformed: false,
