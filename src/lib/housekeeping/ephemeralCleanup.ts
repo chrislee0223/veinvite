@@ -10,6 +10,8 @@ export type EphemeralCleanupSummary = {
   staleSessionsDeleted: number;
   oldRateLimitBucketsDeleted: number;
   expiredRuntimeLocksDeleted: number;
+  productAnalyticsCompactedDays: number;
+  productAnalyticsEventsDeleted: number;
   analyticsCompactedDays: number;
   analyticsSessionsDeleted: number;
   analyticsVisitorsDeleted: number;
@@ -47,12 +49,9 @@ function readNumericResult(value: unknown): number {
  * events, reward/accounting records, monitoring snapshots, or payout data.
  * Expired operator leases are retained for one extra hour before deletion so
  * cleanup cannot race a lease that has only just crossed its expiry boundary.
- * The lock table remains direct-access restricted: cleanup goes through a
- * narrow service-role-only SECURITY DEFINER function that can remove only
- * leases expired by more than one hour.
- * Usage analytics is handled separately: raw anonymous session rows older than
- * 30 Seoul-calendar days are first finalized into identifier-free daily
- * rollups, then the raw sessions and orphaned daily visitor hashes are removed.
+ * Anonymous analytics is handled separately: product events and usage-session
+ * rows older than 30 Seoul-calendar days are first finalized into
+ * identifier-free daily rollups, then the raw anonymous rows are removed.
  */
 export async function cleanupEphemeralSecurityState(): Promise<EphemeralCleanupSummary> {
   const now = Date.now();
@@ -111,6 +110,29 @@ export async function cleanupEphemeralSecurityState(): Promise<EphemeralCleanupS
     );
   }
 
+  // Compact product events first while the current anonymous exclusion markers
+  // are still present. Usage compaction can then safely remove orphaned daily
+  // visitor/exclusion hashes after all raw analytics for that day are gone.
+  const productAnalyticsCompact = await supabaseAdmin.rpc(
+    'compact_app_product_analytics',
+    {
+      p_retention_days:
+        USAGE_ANALYTICS_RETENTION_DAYS,
+    },
+  );
+
+  if (productAnalyticsCompact.error) {
+    throw new Error(
+      `Old product analytics could not be compacted: ${productAnalyticsCompact.error.message}`,
+    );
+  }
+
+  const productAnalyticsRow = Array.isArray(
+    productAnalyticsCompact.data,
+  )
+    ? productAnalyticsCompact.data[0]
+    : productAnalyticsCompact.data;
+
   const analyticsCompact = await supabaseAdmin.rpc(
     'compact_app_usage_analytics',
     {
@@ -136,6 +158,14 @@ export async function cleanupEphemeralSecurityState(): Promise<EphemeralCleanupS
     staleSessionsDeleted: countDeleted(sessionDelete.count),
     oldRateLimitBucketsDeleted: countDeleted(rateLimitDelete.count),
     expiredRuntimeLocksDeleted: readNumericResult(runtimeLockCleanup.data),
+    productAnalyticsCompactedDays: readNumericField(
+      productAnalyticsRow,
+      'compacted_days',
+    ),
+    productAnalyticsEventsDeleted: readNumericField(
+      productAnalyticsRow,
+      'events_deleted',
+    ),
     analyticsCompactedDays: readNumericField(
       analyticsRow,
       'compacted_days',
