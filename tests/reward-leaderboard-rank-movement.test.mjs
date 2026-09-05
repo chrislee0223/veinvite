@@ -80,12 +80,27 @@ test('snapshot publication waits for reconciled sealed growth evidence and does 
 });
 
 test('snapshots are full, hashed, append-only and server-only', () => {
-  assert.match(baseMigration, /create table public\.leaderboard_round_snapshot_rows/i);
+  assert.match(
+    baseMigration,
+    /create table(?: if not exists)? public\.leaderboard_round_snapshot_rows/i,
+  );
   assert.match(baseMigration, /content_sha256/i);
-  assert.match(baseMigration, /leaderboard_snapshot_mutation_guard/i);
-  assert.match(baseMigration, /enable row level security/i);
-  assert.match(baseMigration, /revoke all on table public\.leaderboard_round_snapshots[\s\S]*from public, anon, authenticated/i);
-  assert.match(baseMigration, /grant select, insert on table public\.leaderboard_round_snapshots[\s\S]*to service_role/i);
+  assert.match(
+    baseMigration,
+    /create trigger leaderboard_round_snapshot_rows_immutable[\s\S]*before update or delete on public\.leaderboard_round_snapshot_rows[\s\S]*prevent_leaderboard_snapshot_mutation\(\)/i,
+  );
+  assert.match(
+    baseMigration,
+    /alter table public\.leaderboard_round_snapshot_rows enable row level security/i,
+  );
+  assert.match(
+    baseMigration,
+    /revoke all on public\.leaderboard_round_snapshots from public, anon, authenticated/i,
+  );
+  assert.match(
+    baseMigration,
+    /grant select, insert on public\.leaderboard_round_snapshots to service_role/i,
+  );
   assert.doesNotMatch(
     hardeningMigration,
     /get_lifetime_paid_referral_ranking_v2_internal\([^)]*\)[\s\S]{0,400}limit\s+100/i,
@@ -106,11 +121,20 @@ test('wallet-specific leaderboard responses are never shared through CDN cache',
 });
 
 test('leaderboard snapshots run only after round growth reporting succeeds', () => {
-  const growthIndex = cron.indexOf('maintainRoundGrowthSnapshots');
-  const publisherIndex = cron.indexOf('publishLeaderboardRoundSnapshots');
+  const growthIndex = cron.indexOf('await maintainRoundGrowthSnapshots');
+  const growthGuardIndex = cron.indexOf('if (roundGrowthReports)', growthIndex);
+  const publisherCallIndex = cron.indexOf(
+    'await publishLeaderboardRoundSnapshots',
+    growthGuardIndex,
+  );
+
   assert.ok(growthIndex >= 0);
-  assert.ok(publisherIndex > growthIndex);
-  assert.match(cron, /if \(roundGrowthReports\)[\s\S]*publishLeaderboardRoundSnapshots/);
+  assert.ok(growthGuardIndex > growthIndex);
+  assert.ok(publisherCallIndex > growthGuardIndex);
+  assert.match(
+    cron.slice(growthGuardIndex, publisherCallIndex + 80),
+    /if \(roundGrowthReports\)[\s\S]*await publishLeaderboardRoundSnapshots\(/,
+  );
 });
 
 test('leaderboard snapshot publication reuses the established Hobby-compatible daily reconciliation cron', () => {
