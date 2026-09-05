@@ -170,4 +170,10 @@ export const NETWORK_COPY: Record<SupportedLocale, NetworkCopy> = {
     title: 'Cibiyar sadarwarka na tafe zuwa',
     description: 'Muna shirya shafi da zai ba ka damar ganin abokan da ka gayyata da kuma cibiyar VeInvite da ke ci gaba daga gare su a wuri guda.',
   },
+  el: {
+    navLabel: 'Δίκτυο',
+    status: 'ΣΥΝΤΟΜΑ',
+    title: 'Το δίκτυό σου έρχεται σύντομα',
+    description: 'Ετοιμάζουμε μια προβολή όπου θα μπορείς να βλέπεις με μια ματιά τους φίλους που προσκάλεσες και το δίκτυο VeInvite που αναπτύσσεται από αυτούς.',
+  },
 };
