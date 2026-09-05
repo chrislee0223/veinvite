@@ -173,13 +173,16 @@ export function HeaderLanguagePickerPortal() {
     nextLocale?: Locale | null;
     restoreFocus?: boolean;
   } = {}) => {
+    // Once exit motion starts, the first close request owns the pending
+    // selection/focus intent. Later blur, Escape or outside-pointer events
+    // must not erase a language choice before the animation finishes.
+    if (!open || closing) return;
+
     pendingLocaleRef.current =
       nextLocale && nextLocale !== locale
         ? nextLocale
         : null;
     restoreFocusRef.current = restoreFocus;
-
-    if (!open || closing) return;
 
     if (
       window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
