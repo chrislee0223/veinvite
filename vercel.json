@@ -3,7 +3,8 @@
   "git": {
     "deploymentEnabled": {
       "**": false,
-      "main": true
+      "main": true,
+      "preview/home-startup-hide-incomplete-20260905": true
     }
   },
   "crons": [
