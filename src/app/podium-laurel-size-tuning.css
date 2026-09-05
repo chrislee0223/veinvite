@@ -26,13 +26,13 @@ html body .leaderboardPage .rankingCard .rankScroll .rows > .rankRow:nth-child(1
 }
 
 /* Independent rank-1 crown layer. The path is the exact crown geometry from
- * the selected Option C vector; only its scale is independent now. */
+ * the selected Option C vector; only its scale and vertical position are independent now. */
 html body .leaderboardPage .rankingCard .rankScroll .rows > .rankRow:nth-child(1) .rankValue.rankValue::after {
   content:"" !important;
   display:block !important;
   position:absolute !important;
   z-index:0 !important;
-  top:50% !important;
+  top:calc(50% + 2px) !important;
   left:50% !important;
   right:auto !important;
   width:48px !important;
