@@ -29,6 +29,7 @@ import { SecondaryPageLayoutPolish } from './SecondaryPageLayoutPolish';
 import { StartupHydrationPlaceholders } from './StartupHydrationPlaceholders';
 import { WalletConnectionResume } from './WalletConnectionResume';
 import { WalletLanguagePreferenceSync } from './WalletLanguagePreferenceSync';
+import { WalletProviderAccountReconciler } from './WalletProviderAccountReconciler';
 import { WalletRuntimeLifecycle } from './WalletRuntimeLifecycle';
 
 const VeChainProvider = dynamic(
@@ -85,6 +86,7 @@ export function AppProviders({
         <ProviderReadySignal />
         <LegalDocumentSheetHost />
         <StartupHydrationPlaceholders />
+        <WalletProviderAccountReconciler />
         <WalletConnectionResume />
         <WalletRuntimeLifecycle />
         <RewardReservationRecovery />
