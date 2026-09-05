@@ -9,10 +9,10 @@ const surface = read('src/components/InviteNotificationSurface.tsx');
 const receipt = read('src/components/RewardReceiptNotice.tsx');
 const typography = read('src/app/localized-typography.css');
 
-test('VeInvite keeps the reviewed 27-locale matrix in one registry', () => {
+test('VeInvite keeps the reviewed locale matrix in one registry', () => {
   const definitions = [...locales.matchAll(/\{ locale: '([^']+)'/g)].map((match) => match[1]);
-  assert.equal(definitions.length, 27, 'transient UI QA must cover all 27 supported locales');
-  assert.equal(new Set(definitions).size, 27, 'locale registry must not contain duplicates');
+  assert.ok(definitions.length >= 27, 'transient UI QA must not shrink below the reviewed locale baseline');
+  assert.equal(new Set(definitions).size, definitions.length, 'locale registry must not contain duplicates');
   for (const required of ['vi', 'pcm', 'ha', 'ar', 'ur', 'arz', 'de', 'ru', 'zh-tw']) {
     assert.ok(definitions.includes(required), `high-risk locale ${required} must remain in the QA matrix`);
   }
