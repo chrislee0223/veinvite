@@ -5,9 +5,12 @@ import test from 'node:test';
 const read = (path) =>
   readFile(new URL(`../${path}`, import.meta.url), 'utf8');
 
-const [migration, ingestion, operatorReport] = await Promise.all([
+const [migration, archiveLifecycleMigration, ingestion, operatorReport] = await Promise.all([
   read(
     'supabase/migrations/20260905180000_harden_usage_analytics_integrity.sql',
+  ),
+  read(
+    'supabase/migrations/20260905234521_serialize_archive_lifecycle_without_table_update_privilege.sql',
   ),
   read('src/app/api/analytics/session/route.ts'),
   read('src/app/api/admin/usage-analytics/route.ts'),
@@ -44,6 +47,23 @@ test(
     assert.match(
       migration,
       /updated_at >= started_at/,
+    );
+  },
+);
+
+test(
+  'archive lifecycle serialization stays compatible with service-role least privilege',
+  () => {
+    assert.match(archiveLifecycleMigration, /pg_advisory_xact_lock/);
+    assert.match(archiveLifecycleMigration, /veinvite_archive_manifest:/);
+    assert.match(
+      archiveLifecycleMigration,
+      /grant execute on function public\.enforce_archive_manifest_event_transition\(\) to postgres, service_role/,
+    );
+    assert.doesNotMatch(archiveLifecycleMigration, /for update/i);
+    assert.doesNotMatch(
+      archiveLifecycleMigration,
+      /grant update on table public\.veinvite_archive_manifests/i,
     );
   },
 );
