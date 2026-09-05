@@ -278,25 +278,63 @@ test('Home startup reveal has one owner and only the explicit wallet gate can pa
   );
 });
 
-test('wallet verification temporarily steps the shield aside without final release', async () => {
-  const source = await readFile(
+test('interactive wallet and legal gates temporarily step the shield aside without final release', async () => {
+  const shieldSource = await readFile(
     new URL('../src/components/LocaleHydrationShield.tsx', import.meta.url),
     'utf8',
   );
+  const consentSource = await readFile(
+    new URL('../src/components/LegalConsentGate.tsx', import.meta.url),
+    'utf8',
+  );
 
-  assert.match(source, /function hasInteractiveWalletGate\(\)/);
   assert.match(
-    source,
+    shieldSource,
+    /function hasInteractiveStartupGate\(\)/,
+  );
+  assert.match(
+    shieldSource,
     /data-veinvite-wallet-session-gate="interactive"/,
   );
+  assert.match(
+    shieldSource,
+    /data-veinvite-legal-consent-gate="interactive"/,
+  );
+  assert.match(
+    consentSource,
+    /data-veinvite-legal-consent-gate="interactive"/,
+  );
   assert.doesNotMatch(
-    source,
+    shieldSource,
     /querySelector\(\s*'\[aria-live="polite"\]'/s,
   );
-  assert.match(source, /new MutationObserver\(syncInteractiveGate\)/);
-  assert.match(source, /setShieldVisible\(false\)/);
-  assert.match(source, /setShieldVisible\(true\)/);
-  assert.match(source, /interactiveGateVisible/);
+  assert.match(
+    shieldSource,
+    /new MutationObserver\(syncInteractiveGate\)/,
+  );
+  assert.match(
+    shieldSource,
+    /if \(released \|\| interactiveGateVisible\) \{\s*return;/,
+  );
+  assert.match(
+    shieldSource,
+    /if \(interactiveGateVisible\) \{[\s\S]*clearFallbackTimer\(\);[\s\S]*setShieldVisible\(false\);/,
+  );
+  assert.match(shieldSource, /setShieldVisible\(true\)/);
+  assert.match(shieldSource, /interactiveGateVisible/);
+
+  const checkingStart = consentSource.indexOf(
+    "if (state === 'checking')",
+  );
+  const interactiveStart = consentSource.indexOf(
+    'data-veinvite-legal-consent-gate="interactive"',
+  );
+  assert.ok(checkingStart >= 0);
+  assert.ok(interactiveStart > checkingStart);
+  assert.doesNotMatch(
+    consentSource.slice(checkingStart, interactiveStart),
+    /data-veinvite-legal-consent-gate/,
+  );
 });
 
 test('referral hydration placeholders have a visual fail-safe', async () => {

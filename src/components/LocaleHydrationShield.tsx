@@ -23,8 +23,10 @@ const APP_LOADING_EVENT = 'veinvite-app-loading';
 const PROVIDER_READY_EVENT =
   'veinvite-provider-ready';
 const STARTUP_RECOVERY_MS = 8_000;
-const INTERACTIVE_WALLET_GATE_SELECTOR =
-  '[data-veinvite-wallet-session-gate="interactive"]';
+const INTERACTIVE_STARTUP_GATE_SELECTOR = [
+  '[data-veinvite-wallet-session-gate="interactive"]',
+  '[data-veinvite-legal-consent-gate="interactive"]',
+].join(', ');
 
 type ShieldState =
   | { status: 'loading' }
@@ -46,10 +48,10 @@ function resolveStartupLocale(): SupportedLocale {
   );
 }
 
-function hasInteractiveWalletGate(): boolean {
+function hasInteractiveStartupGate(): boolean {
   return Boolean(
     document.querySelector(
-      INTERACTIVE_WALLET_GATE_SELECTOR,
+      INTERACTIVE_STARTUP_GATE_SELECTOR,
     ),
   );
 }
@@ -140,7 +142,7 @@ export function LocaleHydrationShield() {
 
     const syncInteractiveGate = () => {
       const nextVisible =
-        isHome && hasInteractiveWalletGate();
+        isHome && hasInteractiveStartupGate();
 
       if (nextVisible === interactiveGateVisible) {
         return;
@@ -172,7 +174,7 @@ export function LocaleHydrationShield() {
       window.cancelAnimationFrame(secondFrame);
       setState({ status: 'loading' });
 
-      interactiveGateVisible = hasInteractiveWalletGate();
+      interactiveGateVisible = hasInteractiveStartupGate();
       loadingFrame = window.requestAnimationFrame(() => {
         setShieldVisible(!interactiveGateVisible);
         if (interactiveGateVisible) {
@@ -234,7 +236,7 @@ export function LocaleHydrationShield() {
     );
 
     interactiveGateVisible =
-      isHome && hasInteractiveWalletGate();
+      isHome && hasInteractiveStartupGate();
     setShieldVisible(!interactiveGateVisible);
 
     if (!interactiveGateVisible) {

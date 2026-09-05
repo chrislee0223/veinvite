@@ -341,6 +341,7 @@ export function LegalConsentGate({
 
   return (
     <div
+      data-veinvite-legal-consent-gate="interactive"
       style={{
         minHeight: '100dvh',
         display: 'grid',
