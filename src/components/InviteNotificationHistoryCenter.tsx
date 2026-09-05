@@ -292,7 +292,7 @@ export function InviteNotificationHistoryCenter({
   }, [onClose, restoreBellFocus]);
 
   const closePanel = useCallback(() => {
-    if (!open || closing) return;
+    if (!open || closeTimerRef.current !== null) return;
 
     const reducedMotion =
       typeof window.matchMedia === 'function' &&
@@ -304,14 +304,11 @@ export function InviteNotificationHistoryCenter({
     }
 
     setClosing(true);
-    if (closeTimerRef.current !== null) {
-      window.clearTimeout(closeTimerRef.current);
-    }
     closeTimerRef.current = window.setTimeout(
       finishClose,
       NOTIFICATION_CLOSE_MS,
     );
-  }, [closing, finishClose, open]);
+  }, [finishClose, open]);
 
   useEffect(() => {
     if (!open) return;
