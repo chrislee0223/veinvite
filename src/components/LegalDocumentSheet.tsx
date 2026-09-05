@@ -6,7 +6,6 @@ import { createPortal } from 'react-dom';
 import {
   SOFT_FOCUS_MOTION_CSS,
 } from './SoftFocusMotion';
-import { LEGAL_BACK_LABEL } from '@/lib/i18n/legalNavigationCopy';
 import {
   LEGAL_COPY,
   type LegalDocumentKind,
@@ -14,6 +13,7 @@ import {
 import { PRIVACY_PRODUCT_ANALYTICS_COPY } from '@/lib/i18n/privacyProductAnalyticsCopy';
 import { PRIVACY_USAGE_ANALYTICS_COPY } from '@/lib/i18n/privacyUsageAnalyticsCopy';
 import { PRIVACY_WALLET_LANGUAGE_COPY } from '@/lib/i18n/privacyWalletLanguageCopy';
+import { SETTINGS_COPY } from '@/lib/i18n/settingsCopy';
 import {
   getLocaleDirection,
   type SupportedLocale,
@@ -46,8 +46,7 @@ export function LegalDocumentSheet({
     walletLanguageCopy?.updated ??
     usageAnalyticsCopy?.updated ??
     copy.updated;
-  const backLabel = LEGAL_BACK_LABEL[locale];
-  const backArrow = direction === 'rtl' ? '→' : '←';
+  const closeLabel = SETTINGS_COPY[locale]?.close ?? SETTINGS_COPY.en.close;
   const titleId = `veinvite-legal-sheet-title-${kind}`;
 
   useEffect(() => {
@@ -135,18 +134,16 @@ export function LegalDocumentSheet({
         dir={direction}
       >
         <header className="veinviteLegalSheetHeader">
+          <h1 id={titleId}>{copy.title}</h1>
           <button
             ref={closeRef}
             type="button"
-            className="veinviteLegalSheetBack"
+            className="veinviteLegalSheetClose"
             onClick={onRequestClose}
-            aria-label={backLabel}
+            aria-label={closeLabel}
           >
-            <span aria-hidden="true">{backArrow}</span>
-            <span>{backLabel}</span>
+            <span aria-hidden="true">×</span>
           </button>
-          <h1 id={titleId}>{copy.title}</h1>
-          <span className="veinviteLegalSheetHeaderSpacer" aria-hidden="true" />
         </header>
 
         <div
@@ -226,9 +223,9 @@ export function LegalDocumentSheet({
           flex: 0 0 auto;
           min-height: 64px;
           box-sizing: border-box;
-          display: grid;
-          grid-template-columns: minmax(86px, auto) minmax(0, 1fr) minmax(86px, auto);
+          display: flex;
           align-items: center;
+          justify-content: space-between;
           gap: 12px;
           padding: 10px 14px;
           border-bottom: 1px solid rgba(255, 255, 255, .065);
@@ -236,45 +233,37 @@ export function LegalDocumentSheet({
         }
         .veinviteLegalSheetHeader h1 {
           min-width: 0;
+          flex: 1 1 auto;
           margin: 0;
           color: #f5f1e8;
           font-size: .92rem;
           line-height: 1.3;
           font-weight: 900;
-          text-align: center;
+          text-align: start;
           overflow-wrap: anywhere;
         }
-        .veinviteLegalSheetBack {
-          min-width: 0;
-          min-height: 42px;
-          padding: 0 10px;
-          display: inline-flex;
-          align-items: center;
-          justify-self: start;
-          gap: 7px;
+        .veinviteLegalSheetClose {
+          width: 40px;
+          height: 40px;
+          flex: 0 0 40px;
+          padding: 0;
+          display: grid;
+          place-items: center;
           border: 1px solid rgba(255, 255, 255, .09);
           border-radius: 12px;
           background: rgba(255, 255, 255, .035);
           color: #ded9cf;
           font: inherit;
-          font-size: .75rem;
-          font-weight: 850;
+          font-size: 1.35rem;
+          line-height: 1;
           cursor: pointer;
         }
-        .veinviteLegalSheetBack > span:first-child {
-          color: #f4c85a;
-          font-size: .98rem;
-        }
-        .veinviteLegalSheetBack:hover,
-        .veinviteLegalSheetBack:focus-visible {
+        .veinviteLegalSheetClose:hover,
+        .veinviteLegalSheetClose:focus-visible {
           border-color: rgba(244, 183, 40, .42);
           color: #f4c85a;
           outline: none;
           box-shadow: 0 0 0 3px rgba(244, 183, 40, .08);
-        }
-        .veinviteLegalSheetHeaderSpacer {
-          width: 86px;
-          justify-self: end;
         }
         .veinviteLegalSheetScroll {
           padding-bottom: env(safe-area-inset-bottom);
@@ -355,15 +344,11 @@ export function LegalDocumentSheet({
               max(10px, env(safe-area-inset-right))
               8px
               max(10px, env(safe-area-inset-left));
-            grid-template-columns: minmax(76px, auto) minmax(0, 1fr) minmax(76px, auto);
           }
-          .veinviteLegalSheetHeaderSpacer {
-            width: 76px;
-          }
-          .veinviteLegalSheetBack {
-            min-height: 40px;
-            padding: 0 8px;
-            font-size: .71rem;
+          .veinviteLegalSheetClose {
+            width: 40px;
+            height: 40px;
+            flex-basis: 40px;
           }
           .veinviteLegalSheetDocument {
             padding:
@@ -384,20 +369,6 @@ export function LegalDocumentSheet({
         @media (max-width: 360px) {
           .veinviteLegalSheetHeader h1 {
             font-size: .8rem;
-          }
-          .veinviteLegalSheetBack > span:last-child {
-            display: none;
-          }
-          .veinviteLegalSheetHeader {
-            grid-template-columns: 44px minmax(0, 1fr) 44px;
-          }
-          .veinviteLegalSheetHeaderSpacer {
-            width: 44px;
-          }
-          .veinviteLegalSheetBack {
-            width: 40px;
-            padding: 0;
-            justify-content: center;
           }
         }
       `}</style>
