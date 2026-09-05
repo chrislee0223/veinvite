@@ -36,6 +36,9 @@ import {
   resolveBrowserLocale,
   type SupportedLocale,
 } from '@/lib/i18n/locales';
+import {
+  reportProductAnalyticsEvent,
+} from '@/lib/productAnalytics';
 import { isReferralKey, type ReferralLinkRecord } from '@/lib/referralLinks';
 import type { InviteRecord } from '@/lib/types';
 
@@ -540,18 +543,36 @@ export function HomeClient() {
     return url.toString();
   }, [vercelShareToken]);
 
-  const copyUrl = async (url: string) => {
+  const copyUrl = async (
+    url: string,
+    flowKey: 'home' | 'legacy_invite' = 'home',
+    eventName: 'invite_link_copied' | 'invite_link_shared' = 'invite_link_copied',
+  ) => {
     if (!url) return;
     clearFeedback();
     try {
       await navigator.clipboard.writeText(url);
+      reportProductAnalyticsEvent({
+        eventName,
+        outcome: 'success',
+        flowKey,
+      });
       showFeedback('success', t.copied);
     } catch {
+      reportProductAnalyticsEvent({
+        eventName,
+        outcome: 'failure',
+        failureCode: 'unknown',
+        flowKey,
+      });
       showFeedback('error', t.genericError);
     }
   };
 
-  const shareUrl = async (url: string) => {
+  const shareUrl = async (
+    url: string,
+    flowKey: 'home' | 'legacy_invite' = 'home',
+  ) => {
     if (!url) return;
     clearFeedback();
     if (navigator.share) {
@@ -561,12 +582,29 @@ export function HomeClient() {
           text: t.shareText,
           url,
         });
-      } catch {
+        reportProductAnalyticsEvent({
+          eventName: 'invite_link_shared',
+          outcome: 'success',
+          flowKey,
+        });
+      } catch (error) {
+        if (
+          error instanceof DOMException &&
+          error.name === 'AbortError'
+        ) {
+          return;
+        }
+        reportProductAnalyticsEvent({
+          eventName: 'invite_link_shared',
+          outcome: 'failure',
+          failureCode: 'unknown',
+          flowKey,
+        });
         return;
       }
       return;
     }
-    await copyUrl(url);
+    await copyUrl(url, flowKey, 'invite_link_shared');
   };
 
   const claimReward = async (invite: InviteRecord) => {
@@ -578,17 +616,62 @@ export function HomeClient() {
     }
 
     clearFeedback();
+    reportProductAnalyticsEvent({
+      eventName: 'reward_claim_started',
+      flowKey: 'home',
+    });
     setClaimPendingCode(invite.code);
     try {
-      const response = await fetch('/api/rewards/claims', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ inviteCode: invite.code }),
-      });
-      const data = (await response.json()) as { error?: string };
+      let response: Response;
+      try {
+        response = await fetch('/api/rewards/claims', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ inviteCode: invite.code }),
+        });
+      } catch (error) {
+        reportProductAnalyticsEvent({
+          eventName: 'reward_claim_failed',
+          outcome: 'failure',
+          failureCode: 'network',
+          flowKey: 'home',
+        });
+        throw error;
+      }
+
+      let data: { error?: string };
+      try {
+        data = (await response.json()) as { error?: string };
+      } catch (error) {
+        reportProductAnalyticsEvent({
+          eventName: 'reward_claim_failed',
+          outcome: 'failure',
+          failureCode: 'malformed_response',
+          flowKey: 'home',
+        });
+        throw error;
+      }
+
       if (!response.ok) {
+        reportProductAnalyticsEvent({
+          eventName: 'reward_claim_failed',
+          outcome: 'failure',
+          failureCode:
+            response.status === 401 || response.status === 403
+              ? 'wallet_auth'
+              : response.status >= 500
+                ? 'server'
+                : 'unknown',
+          flowKey: 'home',
+        });
         throw new Error(data.error ?? progressCopy.claimFailed);
       }
+
+      reportProductAnalyticsEvent({
+        eventName: 'reward_claim_succeeded',
+        outcome: 'success',
+        flowKey: 'home',
+      });
       showFeedback('success', progressCopy.claimQueued);
       await load(true);
     } catch (error) {
@@ -796,7 +879,10 @@ export function HomeClient() {
                     onShare={() => void shareUrl(permanentInviteUrl)}
                     shareDisabled={!referralLinkVerified || !permanentInviteUrl}
                     onCopyLegacy={(invite) =>
-                      void copyUrl(legacyInviteUrl(invite))}
+                      void copyUrl(
+                        legacyInviteUrl(invite),
+                        'legacy_invite',
+                      )}
                     onCancelLegacy={(invite, trigger) => {
                       cancelTriggerRef.current = trigger;
                       setLegacyCancelTarget(invite);
@@ -812,7 +898,10 @@ export function HomeClient() {
                     onShare={() => void shareUrl(permanentInviteUrl)}
                     shareDisabled={!referralLinkVerified || !permanentInviteUrl}
                     onCopyLegacy={(invite) =>
-                      void copyUrl(legacyInviteUrl(invite))}
+                      void copyUrl(
+                        legacyInviteUrl(invite),
+                        'legacy_invite',
+                      )}
                     onCancelLegacy={(invite, trigger) => {
                       cancelTriggerRef.current = trigger;
                       setLegacyCancelTarget(invite);
