@@ -113,6 +113,20 @@ function normalizeBaseLeaderboardRow(
   };
 }
 
+function withoutMovement(
+  base: Omit<
+    PublicLeaderboardEntry,
+    'previousRank' | 'rankChange' | 'rankMovement'
+  >,
+): PublicLeaderboardEntry {
+  return {
+    ...base,
+    previousRank: null,
+    rankChange: null,
+    rankMovement: 'UNAVAILABLE',
+  };
+}
+
 function normalizeLeaderboardRow(
   row: LeaderboardMovementRow,
 ): PublicLeaderboardEntry {
@@ -120,33 +134,88 @@ function normalizeLeaderboardRow(
   const movement = row.rank_movement as RankMovement;
 
   if (!RANK_MOVEMENTS.has(movement)) {
-    throw new Error('Leaderboard returned an invalid rank movement.');
+    return withoutMovement(base);
   }
 
-  const previousRank = row.previous_rank === null
-    ? null
-    : parseCount(row.previous_rank, 'Previous leaderboard rank');
-  const rankChange = row.rank_change === null
-    ? null
-    : parseSignedInteger(row.rank_change, 'Leaderboard rank change');
+  let previousRank: number | null = null;
+  let rankChange: number | null = null;
 
-  return {
-    ...base,
-    previousRank,
-    rankChange,
-    rankMovement: movement,
-  };
+  try {
+    previousRank = row.previous_rank === null
+      ? null
+      : parseCount(row.previous_rank, 'Previous leaderboard rank');
+    rankChange = row.rank_change === null
+      ? null
+      : parseSignedInteger(row.rank_change, 'Leaderboard rank change');
+  } catch {
+    return withoutMovement(base);
+  }
+
+  if (movement === 'UNAVAILABLE') {
+    return withoutMovement(base);
+  }
+
+  if (
+    movement === 'NEW' &&
+    previousRank === null &&
+    rankChange === null
+  ) {
+    return {
+      ...base,
+      previousRank,
+      rankChange,
+      rankMovement: movement,
+    };
+  }
+
+  if (
+    movement === 'SAME' &&
+    previousRank !== null &&
+    rankChange === 0
+  ) {
+    return {
+      ...base,
+      previousRank,
+      rankChange,
+      rankMovement: movement,
+    };
+  }
+
+  if (
+    movement === 'UP' &&
+    previousRank !== null &&
+    rankChange !== null &&
+    rankChange > 0
+  ) {
+    return {
+      ...base,
+      previousRank,
+      rankChange,
+      rankMovement: movement,
+    };
+  }
+
+  if (
+    movement === 'DOWN' &&
+    previousRank !== null &&
+    rankChange !== null &&
+    rankChange < 0
+  ) {
+    return {
+      ...base,
+      previousRank,
+      rankChange,
+      rankMovement: movement,
+    };
+  }
+
+  return withoutMovement(base);
 }
 
 function normalizeLegacyLeaderboardRow(
   row: LeaderboardRow,
 ): PublicLeaderboardEntry {
-  return {
-    ...normalizeBaseLeaderboardRow(row),
-    previousRank: null,
-    rankChange: null,
-    rankMovement: 'UNAVAILABLE',
-  };
+  return withoutMovement(normalizeBaseLeaderboardRow(row));
 }
 
 function normalizeWallet(
@@ -174,6 +243,62 @@ function wait(milliseconds: number) {
   return new Promise<void>((resolve) => {
     setTimeout(resolve, milliseconds);
   });
+}
+
+function normalizeComparison({
+  row,
+  expectedRoundId,
+}: {
+  row: ComparisonRow | null;
+  expectedRoundId: number | null;
+}) {
+  if (
+    expectedRoundId === null ||
+    !row ||
+    row.comparison_available !== true ||
+    row.ranking_algorithm_version !== RANKING_ALGORITHM_VERSION
+  ) {
+    return {
+      available: false,
+      endBlock: null,
+      publishedAt: null,
+    };
+  }
+
+  try {
+    const roundId = row.comparison_round_id === null
+      ? null
+      : parseCount(row.comparison_round_id, 'Comparison round');
+    const endBlock = row.comparison_end_block === null
+      ? null
+      : parseCount(row.comparison_end_block, 'Comparison end block');
+    const publishedAt = row.comparison_published_at;
+
+    if (
+      roundId !== expectedRoundId ||
+      endBlock === null ||
+      !publishedAt ||
+      Number.isNaN(new Date(publishedAt).getTime())
+    ) {
+      return {
+        available: false,
+        endBlock: null,
+        publishedAt: null,
+      };
+    }
+
+    return {
+      available: true,
+      endBlock,
+      publishedAt,
+    };
+  } catch {
+    return {
+      available: false,
+      endBlock: null,
+      publishedAt: null,
+    };
+  }
 }
 
 export async function GET(
@@ -317,7 +442,10 @@ export async function GET(
     const rawComparison = comparisonResult.error
       ? null
       : ((comparisonResult.data ?? []) as ComparisonRow[])[0] ?? null;
-    const comparisonAvailable = rawComparison?.comparison_available === true;
+    const comparison = normalizeComparison({
+      row: rawComparison,
+      expectedRoundId: comparisonRoundId,
+    });
 
     if (comparisonResult.error) {
       console.error(
@@ -326,13 +454,8 @@ export async function GET(
       );
     }
 
-    if (!comparisonAvailable) {
-      entries = entries.map((entry) => ({
-        ...entry,
-        previousRank: null,
-        rankChange: null,
-        rankMovement: 'UNAVAILABLE' as const,
-      }));
+    if (!comparison.available) {
+      entries = entries.map((entry) => withoutMovement(entry));
     }
 
     const growthRows = (
@@ -370,16 +493,10 @@ export async function GET(
       currentRoundId: round.currentRoundId,
       reportingStartRound,
       comparison: {
-        available: comparisonAvailable,
+        available: comparison.available,
         roundId: comparisonRoundId,
-        endBlock:
-          comparisonAvailable && rawComparison?.comparison_end_block != null
-            ? parseCount(rawComparison.comparison_end_block, 'Comparison end block')
-            : null,
-        publishedAt:
-          comparisonAvailable
-            ? rawComparison?.comparison_published_at ?? null
-            : null,
+        endBlock: comparison.endBlock,
+        publishedAt: comparison.publishedAt,
         rankingAlgorithmVersion: RANKING_ALGORITHM_VERSION,
       },
       impact: {
