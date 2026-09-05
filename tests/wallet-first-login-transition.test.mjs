@@ -2,6 +2,33 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { readFile } from 'node:fs/promises';
 
+test('anonymous visitors see VeInvite before wallet verification or legal consent', async () => {
+  const gateSource = await readFile(
+    new URL('../src/components/WalletSessionGate.tsx', import.meta.url),
+    'utf8',
+  );
+  const homeSource = await readFile(
+    new URL('../src/components/HomeClient.tsx', import.meta.url),
+    'utf8',
+  );
+
+  const anonymousReturn = gateSource.indexOf(
+    "if (!walletAddress) {\n    return children;\n  }",
+  );
+  const verifiedBranch = gateSource.indexOf(
+    "state === 'verified'",
+  );
+  const legalGate = gateSource.indexOf('<LegalConsentGate');
+
+  assert.ok(anonymousReturn >= 0);
+  assert.ok(verifiedBranch > anonymousReturn);
+  assert.ok(legalGate > verifiedBranch);
+  assert.match(
+    homeSource,
+    /!wallet \? \([\s\S]*className="primaryAction"[\s\S]*openWallet\(\)[\s\S]*t\.connectStart/s,
+  );
+});
+
 test('first wallet login re-arms Home startup readiness after anonymous Home was already visible', async () => {
   const source = await readFile(
     new URL('../src/components/WalletRuntimeLifecycle.tsx', import.meta.url),
