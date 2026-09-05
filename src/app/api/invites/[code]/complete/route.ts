@@ -4,6 +4,10 @@ import {
 } from 'next/server';
 
 import { supabaseAdmin } from '@/lib/supabaseServer';
+import {
+  requireWalletSession,
+  WalletAuthenticationError,
+} from '@/lib/walletAuthServer';
 import { verifyActivation } from '@/lib/vebetter/missionVerifier';
 import type {
   InviteRecord,
@@ -90,7 +94,7 @@ function isDemoCompletionEnabled() {
 }
 
 export async function POST(
-  _request: NextRequest,
+  request: NextRequest,
   context: {
     params: Promise<{
       code: string;
@@ -105,9 +109,10 @@ export async function POST(
    * 1. VEINVITE_ALLOW_DEMO_COMPLETION=true, and
    * 2. the deployment is Vercel Preview or local development.
    *
-   * Demo mission completion is intentionally NOT enough to make a referral
-   * reward-eligible. The database trigger keeps reward_status=PENDING until
-   * real on-chain app and vote evidence exists.
+   * Even in Preview/local development, only the verified invitee wallet may
+   * mutate its own demo invitation. Demo mission completion is intentionally
+   * NOT enough to make a referral reward-eligible. The database trigger keeps
+   * reward_status=PENDING until real on-chain app and vote evidence exists.
    */
   if (!isDemoCompletionEnabled()) {
     console.warn(
@@ -167,6 +172,43 @@ export async function POST(
         error: 'Active invite not found.',
       },
       { status: 404 },
+    );
+  }
+
+  try {
+    await requireWalletSession({
+      request,
+      expectedWallet: invitation.invitee_wallet,
+    });
+  } catch (authError) {
+    if (
+      authError instanceof
+      WalletAuthenticationError
+    ) {
+      return NextResponse.json(
+        {
+          error: authError.message,
+        },
+        {
+          status: authError.status,
+          headers: {
+            'Cache-Control': 'no-store',
+          },
+        },
+      );
+    }
+
+    console.error(
+      'Failed to validate demo invitee wallet session:',
+      authError,
+    );
+
+    return NextResponse.json(
+      {
+        error:
+          'Failed to validate wallet verification.',
+      },
+      { status: 500 },
     );
   }
 
