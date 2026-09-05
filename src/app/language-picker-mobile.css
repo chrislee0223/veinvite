@@ -1,17 +1,23 @@
 /*
- * The Settings language picker is a bottom sheet on phones. Keep its geometry
- * stable while search results are filtered so a one-row result cannot collapse
- * the sheet toward an open software keyboard. The list owns the remaining
- * space and scrolls inside the same mobile envelope.
+ * Keep the Settings language picker geometry stable while search results are
+ * filtered. The full language list already fills the existing desktop/mobile
+ * height envelopes, so preserve those same envelopes when the result count
+ * drops to one or zero instead of letting the whole dialog resize and move.
+ * The result list owns the remaining space and scrolls inside the stable sheet.
  */
+.settingsPage .languageModal {
+  height: min(78dvh, 680px);
+  max-height: min(78dvh, 680px);
+}
+
+.settingsPage .languageOptionList {
+  flex: 1 1 auto;
+  align-content: start;
+}
+
 @media (max-width: 560px) {
   .settingsPage .languageModal {
     height: min(82dvh, 680px);
     max-height: min(82dvh, 680px);
-  }
-
-  .settingsPage .languageOptionList {
-    flex: 1 1 auto;
-    align-content: start;
   }
 }
