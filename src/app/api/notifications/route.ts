@@ -61,6 +61,13 @@ type NotificationAcknowledgement = {
   rewardReady: boolean;
 };
 
+type NotificationAcknowledgementRpcItem = {
+  inviteCode: string;
+  stage: number | null;
+  dappProgress: number | null;
+  rewardReady: boolean;
+};
+
 type LoadedNotificationSet = {
   notifications: InviteNotificationPayloadV2[];
   inviteeWalletByCode: Map<string, string | null>;
@@ -461,33 +468,44 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    const states = [];
-    for (const requested of acknowledgements as NotificationAcknowledgement[]) {
-      const current = currentByInvite.get(requested.inviteCode)!;
-      const effective = acknowledgementForNotification(current);
-      const stageForRpc =
-        current.kind === 'DAPP_PROGRESS' &&
-        (current.dappProgress ?? 0) < 3
-          ? null
-          : effective.stage;
+    const items = (acknowledgements as NotificationAcknowledgement[]).map(
+      (requested): NotificationAcknowledgementRpcItem => {
+        const current = currentByInvite.get(requested.inviteCode)!;
+        const effective = acknowledgementForNotification(current);
+        const stageForRpc =
+          current.kind === 'DAPP_PROGRESS' &&
+          (current.dappProgress ?? 0) < 3
+            ? null
+            : effective.stage;
 
-      const { data, error } = await supabaseAdmin.rpc(
-        'acknowledge_invite_notification_v2',
-        {
-          p_invite_code: effective.inviteCode,
-          p_inviter_wallet: wallet,
-          p_stage: stageForRpc,
-          p_dapp_progress: effective.dappProgress,
-          p_reward_ready: effective.rewardReady,
-        },
+        return {
+          inviteCode: effective.inviteCode,
+          stage: stageForRpc,
+          dappProgress: effective.dappProgress,
+          rewardReady: effective.rewardReady,
+        };
+      },
+    );
+
+    const { data, error } = await supabaseAdmin.rpc(
+      'acknowledge_invite_notifications_v2_batch',
+      {
+        p_inviter_wallet: wallet,
+        p_items: items,
+      },
+    );
+
+    if (error) {
+      throw new Error(
+        `Notification acknowledgement batch failed: ${error.message}`,
       );
+    }
 
-      if (error) {
-        throw new Error(
-          `Notification acknowledgement failed: ${error.message}`,
-        );
-      }
-      states.push(data);
+    const states = Array.isArray(data) ? data : [];
+    if (states.length !== items.length) {
+      throw new Error(
+        'Notification acknowledgement batch returned an invalid result.',
+      );
     }
 
     return noStoreJson({
