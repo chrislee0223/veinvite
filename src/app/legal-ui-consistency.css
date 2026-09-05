@@ -22,3 +22,66 @@
 html[dir='rtl'] .settingsPage .legalCard a > span[aria-hidden='true'] {
   transform: scaleX(-1);
 }
+
+/* Keep the Privacy / Terms close affordance large enough to read and tap
+ * without changing the legal sheet header or document geometry. */
+.veinviteLegalSheetPanel .veinviteLegalSheetClose {
+  width: 44px;
+  height: 44px;
+  flex: 0 0 44px;
+  border-radius: 13px;
+}
+
+.veinviteLegalSheetPanel .veinviteLegalSheetCloseMark {
+  width: 16px;
+  height: 16px;
+  flex: 0 0 16px;
+}
+
+.veinviteLegalSheetPanel .veinviteLegalSheetCloseMark::before,
+.veinviteLegalSheetPanel .veinviteLegalSheetCloseMark::after {
+  width: 16px;
+}
+
+/* Match the language picker close control to the legal sheets. The visible
+ * cross is drawn from geometry instead of the font-dependent multiplication
+ * glyph, so its strokes stay centered on desktop and mobile. */
+.settingsPage .languageModal .languageClose {
+  position: relative;
+  width: 44px;
+  height: 44px;
+  flex: 0 0 44px;
+  border-radius: 13px;
+  font-size: 0;
+  line-height: 0;
+}
+
+.settingsPage .languageModal .languageClose::before,
+.settingsPage .languageModal .languageClose::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 16px;
+  height: 2px;
+  border-radius: 999px;
+  background: currentColor;
+  transform-origin: center;
+  pointer-events: none;
+}
+
+.settingsPage .languageModal .languageClose::before {
+  transform: translate(-50%, -50%) rotate(45deg);
+}
+
+.settingsPage .languageModal .languageClose::after {
+  transform: translate(-50%, -50%) rotate(-45deg);
+}
+
+@media (max-width: 560px) {
+  /* The mobile language sheet already uses 18px inline padding. Match its
+   * top padding so the close button has the same top and side breathing room. */
+  .settingsPage .languageModal.languageModal {
+    padding-top: 18px;
+  }
+}
