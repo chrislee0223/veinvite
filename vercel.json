@@ -3,13 +3,7 @@
   "git": {
     "deploymentEnabled": {
       "**": false,
-      "main": true
+      "qa-production-disabled": true
     }
-  },
-  "crons": [
-    {
-      "path": "/api/cron/reconcile",
-      "schedule": "17 0 * * *"
-    }
-  ]
+  }
 }
