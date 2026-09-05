@@ -13,6 +13,9 @@ import {
   useWallet as useDappKitWallet,
 } from '@vechain/dapp-kit-react';
 
+import {
+  reportProductAnalyticsEvent,
+} from '@/lib/productAnalytics';
 import { USAGE_ANALYTICS_WALLET_AUTH_EVENT } from '@/lib/usageAnalyticsPreference';
 
 const WALLET_PATTERN =
@@ -465,6 +468,17 @@ export function useWalletAuthentication() {
               USAGE_ANALYTICS_WALLET_AUTH_EVENT,
             ),
           );
+          reportProductAnalyticsEvent({
+            eventName: 'wallet_auth_succeeded',
+            outcome: 'success',
+          });
+        } catch (error) {
+          reportProductAnalyticsEvent({
+            eventName: 'wallet_auth_failed',
+            outcome: 'failure',
+            failureCode: 'wallet_auth',
+          });
+          throw error;
         } finally {
           if (
             inFlightRef.current
