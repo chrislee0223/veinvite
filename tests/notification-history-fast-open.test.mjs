@@ -47,7 +47,25 @@ test('notification refresh effect is not keyed to history item count', () => {
   );
 });
 
-test('mark-all updates unread state locally without a blocking full refresh', () => {
-  assert.match(source, /current - unreadThroughSnapshot\.length/);
-  assert.doesNotMatch(source, /await\s+refresh\(false\)/);
+test('mark-all applies unread state locally before background reconciliation', () => {
+  const markAllStart = source.indexOf('const markAllRead = useCallback');
+  const markAllEnd = source.indexOf('const loadMore = useCallback', markAllStart);
+  assert.ok(markAllStart >= 0);
+  assert.ok(markAllEnd > markAllStart);
+  const markAllBody = source.slice(markAllStart, markAllEnd);
+
+  assert.match(
+    markAllBody,
+    /const nextUnreadCount = Math\.max\([\s\S]*unreadCount - unreadThroughSnapshot\.length/,
+  );
+  assert.match(markAllBody, /setUnreadCount\(nextUnreadCount\)/);
+
+  const localUpdateIndex = markAllBody.indexOf('setUnreadCount(nextUnreadCount)');
+  const historyReconcileIndex = markAllBody.indexOf('void loadLatestHistory');
+  const lifecycleReconcileIndex = markAllBody.indexOf('void refreshLifecycle(false)');
+  assert.ok(localUpdateIndex >= 0);
+  assert.ok(historyReconcileIndex > localUpdateIndex);
+  assert.ok(lifecycleReconcileIndex > localUpdateIndex);
+  assert.doesNotMatch(markAllBody, /await\s+loadLatestHistory/);
+  assert.doesNotMatch(markAllBody, /await\s+refreshLifecycle/);
 });

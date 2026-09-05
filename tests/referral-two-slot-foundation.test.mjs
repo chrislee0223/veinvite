@@ -135,7 +135,11 @@ test('sponsorship and binary placement parent are separate graph concepts', () =
   );
   assert.match(
     sponsorPlacementMigration,
-    /qualified referral relationship/i,
+    /from public\.qualified_referral_relationships q/i,
+  );
+  assert.match(
+    sponsorPlacementMigration,
+    /only a qualified VeInvite referral relationship can receive a network placement slot/i,
   );
   assert.match(
     sponsorPlacementMigration,
