@@ -44,6 +44,8 @@ test('legal links keep real URLs while normal in-app clicks open the sheet', () 
   assert.match(navigation, /currentPath !== '\/terms'/);
   assert.match(navigation, /LEGAL_DOCUMENT_SHEET_OPEN_EVENT/);
   assert.match(navigation, /event\.preventDefault\(\)/);
+  assert.match(navigation, /readStoredLegalReturn/);
+  assert.match(navigation, /writeStoredLegalReturn/);
 });
 
 test('sheet history preserves Next state and keeps the visible URL unchanged', () => {
@@ -98,5 +100,7 @@ test('in-app legal views stay visible in anonymous usage analytics', () => {
   assert.match(host, /veinvite-analytics-view/);
   assert.match(tracker, /detail !== 'privacy'/);
   assert.match(tracker, /detail !== 'terms'/);
+  assert.match(tracker, /detail !== 'invite_landing'/);
+  assert.match(navigation, /return 'invite_landing'/);
   assert.match(tracker, /send\('pageview', nextView, delta\)/);
 });
