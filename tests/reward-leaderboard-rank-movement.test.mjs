@@ -113,11 +113,11 @@ test('leaderboard snapshots run only after round growth reporting succeeds', () 
   assert.match(cron, /if \(roundGrowthReports\)[\s\S]*publishLeaderboardRoundSnapshots/);
 });
 
-test('Hobby-compatible daily reconciliation runs after the observed weekly round close window', () => {
+test('leaderboard snapshot publication reuses the established Hobby-compatible daily reconciliation cron', () => {
   const config = JSON.parse(vercelConfig);
   assert.equal(config.crons.length, 1);
   assert.equal(config.crons[0].path, '/api/cron/reconcile');
-  assert.equal(config.crons[0].schedule, '17 8 * * *');
+  assert.equal(config.crons[0].schedule, '17 0 * * *');
 });
 
 test('movement arithmetic examples preserve direction semantics', () => {
