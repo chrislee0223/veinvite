@@ -223,18 +223,25 @@ export async function POST(
   );
   const ipSubject =
     getClientIpSubject(request);
+  const isHeartbeat = kind === 'heartbeat';
   const limited = await enforceRateLimits([
     {
-      scope: 'usage-analytics-visitor',
+      scope: isHeartbeat
+        ? 'usage-analytics-heartbeat-visitor'
+        : 'usage-analytics-event-visitor',
       subject: hashedVisitor,
-      limit: 300,
+      limit: isHeartbeat ? 180 : 300,
       windowSeconds: 60 * 60,
     },
     ipSubject
       ? {
-          scope: 'usage-analytics-ip',
+          scope: isHeartbeat
+            ? 'usage-analytics-heartbeat-ip'
+            : 'usage-analytics-event-ip',
           subject: ipSubject,
-          limit: 1200,
+          // Heartbeats run every 30 seconds. Keep their shared-IP budget
+          // separate so a busy office/mobile NAT cannot suppress real actions.
+          limit: isHeartbeat ? 6000 : 2400,
           windowSeconds: 60 * 60,
         }
       : null,
