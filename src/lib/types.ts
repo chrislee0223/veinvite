@@ -57,12 +57,22 @@ export interface EligibilityResult {
   message: string;
 }
 
+export type RankMovement =
+  | 'UP'
+  | 'DOWN'
+  | 'SAME'
+  | 'NEW'
+  | 'UNAVAILABLE';
+
 export type PublicLeaderboardEntry = {
   rank: number;
   walletAddress: string;
   completedReferrals: number;
   totalRewardWei: string;
   isCurrentWallet: boolean;
+  previousRank: number | null;
+  rankChange: number | null;
+  rankMovement: RankMovement;
 };
 
 export type PublicLeaderboardResponse = {
@@ -70,6 +80,13 @@ export type PublicLeaderboardResponse = {
   network: 'mainnet' | 'testnet' | 'testnet-staging';
   currentRoundId: number;
   reportingStartRound: number | null;
+  comparison: {
+    available: boolean;
+    roundId: number | null;
+    endBlock: number | null;
+    publishedAt: string | null;
+    rankingAlgorithmVersion: string;
+  };
   impact: {
     totalActivatedUsers: number;
     newUsers: number;
