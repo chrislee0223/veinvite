@@ -33,6 +33,8 @@ const RETURN_VIEWS = new Set<LegalDocumentReturnView>([
   'guide',
   'leaderboard',
   'settings',
+  'invite_landing',
+  'other',
 ]);
 
 type SheetState = {
