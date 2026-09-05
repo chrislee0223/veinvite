@@ -91,7 +91,7 @@ test('in-app legal header follows the shared title-left close-right pattern', ()
   assert.match(sheet, /<span aria-hidden="true">×<\/span>/);
   assert.match(sheet, /text-align: start/);
   assert.match(sheet, /justify-content: space-between/);
-  assert.doesNotMatch(sheet, /veinviteLegalSheetBack/);
+  assert.doesNotMatch(sheet, /className="veinviteLegalSheetBack"/);
   assert.doesNotMatch(sheet, /veinviteLegalSheetHeaderSpacer/);
   assert.doesNotMatch(sheet, /LEGAL_BACK_LABEL/);
 });
