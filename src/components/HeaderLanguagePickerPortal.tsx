@@ -418,46 +418,46 @@ export function HeaderLanguagePickerPortal() {
             aria-label={ariaLabel}
             onKeyDown={handleMenuKeyDown}
           >
-            {visibleLanguageOptions.length > 0 ? (
-              visibleLanguageOptions.map((option) => {
-                const selected = option.locale === locale;
-                return (
-                  <button
-                    key={option.locale}
-                    type="button"
-                    role="option"
-                    aria-selected={selected}
-                    className={
-                      selected
-                        ? 'headerLanguageOption selected'
-                        : 'headerLanguageOption'
-                    }
-                    onClick={() => chooseLocale(option.locale)}
+            {visibleLanguageOptions.map((option) => {
+              const selected = option.locale === locale;
+              return (
+                <button
+                  key={option.locale}
+                  type="button"
+                  role="option"
+                  aria-selected={selected}
+                  className={
+                    selected
+                      ? 'headerLanguageOption selected'
+                      : 'headerLanguageOption'
+                  }
+                  onClick={() => chooseLocale(option.locale)}
+                >
+                  <span
+                    className="headerLanguageOptionFlag"
+                    aria-hidden="true"
                   >
-                    <span
-                      className="headerLanguageOptionFlag"
-                      aria-hidden="true"
-                    >
-                      <LanguageFlag locale={option.locale} />
-                    </span>
-                    <span
-                      className="headerLanguageOptionName"
-                      dir={option.direction}
-                    >
-                      {option.nativeName}
-                    </span>
-                    <span className="headerLanguageCheck" aria-hidden="true">
-                      {selected ? '✓' : ''}
-                    </span>
-                  </button>
-                );
-              })
-            ) : (
-              <div className="headerLanguageNoResults" role="status">
-                {languageCopy.noResults}
-              </div>
-            )}
+                    <LanguageFlag locale={option.locale} />
+                  </span>
+                  <span
+                    className="headerLanguageOptionName"
+                    dir={option.direction}
+                  >
+                    {option.nativeName}
+                  </span>
+                  <span className="headerLanguageCheck" aria-hidden="true">
+                    {selected ? '✓' : ''}
+                  </span>
+                </button>
+              );
+            })}
           </div>
+
+          {visibleLanguageOptions.length === 0 ? (
+            <div className="headerLanguageNoResults" role="status">
+              {languageCopy.noResults}
+            </div>
+          ) : null}
         </div>
       ) : null}
 
