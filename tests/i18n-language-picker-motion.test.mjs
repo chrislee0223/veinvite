@@ -93,4 +93,27 @@ test('direct-invite language menu gets matched exit motion and closes on focus d
   assert.match(headerPickerSource, /headerLanguageMenuOut 115ms/);
   assert.match(headerPickerSource, /aria-controls="veinvite-header-language-menu"/);
   assert.match(headerPickerSource, /prefers-reduced-motion: reduce/);
+
+  const requestCloseStart = headerPickerSource.indexOf(
+    'const requestClose = useCallback',
+  );
+  const requestCloseEnd = headerPickerSource.indexOf(
+    'const openPicker = useCallback',
+    requestCloseStart,
+  );
+  assert.ok(requestCloseStart >= 0);
+  assert.ok(requestCloseEnd > requestCloseStart);
+
+  const requestCloseBody = headerPickerSource.slice(
+    requestCloseStart,
+    requestCloseEnd,
+  );
+  const guardIndex = requestCloseBody.indexOf(
+    'if (!open || closing) return;',
+  );
+  const pendingIndex = requestCloseBody.indexOf(
+    'pendingLocaleRef.current =',
+  );
+  assert.ok(guardIndex >= 0);
+  assert.ok(pendingIndex > guardIndex);
 });
