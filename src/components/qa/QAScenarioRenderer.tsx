@@ -4,6 +4,7 @@ import { useEffect, useState, type ReactNode } from 'react';
 
 import { AppGuide, InviteGuideContent } from '@/components/AppGuide';
 import { InviteLandingV2 } from '@/components/InviteLandingV2';
+import { InviteRejectionPreview } from '@/components/InviteRejectionPreview';
 import {
   getLocaleDirection,
   type SupportedLocale,
@@ -51,6 +52,9 @@ export function QAScenarioRenderer({
   useEffect(() => {
     document.documentElement.lang = locale;
     document.documentElement.dir = getLocaleDirection(locale);
+    window.dispatchEvent(
+      new CustomEvent('veinvite-language-change', { detail: locale }),
+    );
     emitAction('scenario.rendered', `${scenario.renderer} · ${locale}`);
     // A scenario or locale change remounts this renderer through the iframe URL.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -74,6 +78,10 @@ export function QAScenarioRenderer({
         onDemoOutcomeChange={() => undefined}
       />
     );
+  }
+
+  if (scenario.renderer === 'invite-rejection-preview') {
+    return <InviteRejectionPreview />;
   }
 
   if (scenario.renderer === 'invite-guide') {
