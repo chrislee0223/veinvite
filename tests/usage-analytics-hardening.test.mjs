@@ -5,12 +5,21 @@ import test from 'node:test';
 const read = (path) =>
   readFile(new URL(`../${path}`, import.meta.url), 'utf8');
 
-const [migration, archiveLifecycleMigration, ingestion, operatorReport] = await Promise.all([
+const [
+  migration,
+  archiveLifecycleMigration,
+  boundedCleanupMigration,
+  ingestion,
+  operatorReport,
+] = await Promise.all([
   read(
     'supabase/migrations/20260905180000_harden_usage_analytics_integrity.sql',
   ),
   read(
     'supabase/migrations/20260905234521_serialize_archive_lifecycle_without_table_update_privilege.sql',
+  ),
+  read(
+    'supabase/migrations/20260905234902_bound_archive_cleanup_batches.sql',
   ),
   read('src/app/api/analytics/session/route.ts'),
   read('src/app/api/admin/usage-analytics/route.ts'),
@@ -64,6 +73,40 @@ test(
     assert.doesNotMatch(
       archiveLifecycleMigration,
       /grant update on table public\.veinvite_archive_manifests/i,
+    );
+  },
+);
+
+test(
+  'destructive archive cleanup is daily, bounded and preserves product-before-usage order',
+  () => {
+    assert.match(
+      boundedCleanupMigration,
+      /veinvite_archive_analytics_daily_period_check/,
+    );
+    assert.match(
+      boundedCleanupMigration,
+      /period_start = period_end/,
+    );
+    assert.match(
+      boundedCleanupMigration,
+      /lock table public\.app_usage_sessions in share row exclusive mode;[\s\S]*lock table public\.app_product_events in share row exclusive mode;/,
+    );
+    assert.match(
+      boundedCleanupMigration,
+      /return query select 1, v_deleted;/,
+    );
+    assert.match(
+      boundedCleanupMigration,
+      /return query select 1, v_sessions, v_visitors;/,
+    );
+    assert.match(
+      boundedCleanupMigration,
+      /product analytics for % must be compacted first/,
+    );
+    assert.doesNotMatch(
+      boundedCleanupMigration,
+      /for v_day in/,
     );
   },
 );
