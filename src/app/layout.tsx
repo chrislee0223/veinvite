@@ -13,6 +13,7 @@ import './notification-i18n-hardening.css';
 import './ui-safety.css';
 import './final-ui-hardening.css';
 import './wallet-confirmation-unified.css';
+import './language-picker-mobile.css';
 
 const siteUrl = 'https://veinvite.vercel.app';
 const title = 'VeInvite | Verified onboarding for VeBetterDAO';
