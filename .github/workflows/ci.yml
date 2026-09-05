@@ -110,6 +110,19 @@ jobs:
       - name: Mission dApp attribution gate
         run: node --test tests/mission-dapp-attribution.test.mjs
 
+      - name: Standalone regression coverage gate
+        run: >-
+          node --test
+          tests/demo-completion-mission-parity.test.mjs
+          tests/invitee-mission-actions.test.mjs
+          tests/notification-ack-batch-atomicity.test.mjs
+          tests/notification-history-fast-open.test.mjs
+          tests/operator-fast-invitation-projection-privilege.test.mjs
+          tests/referral-link-ensure-serialization.test.mjs
+          tests/referral-slot-capacity-parity.test.mjs
+          tests/referral-two-slot-foundation.test.mjs
+          tests/referral-view-migration-compat.test.mjs
+
       - name: Install dependencies
         shell: bash
         run: |
