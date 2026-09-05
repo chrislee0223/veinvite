@@ -11,6 +11,13 @@ import {
 import { createPortal } from 'react-dom';
 
 import { LanguageFlag } from './LanguageFlag';
+import { getLanguagePickerCopy } from '@/lib/i18n/languagePickerCopy';
+import {
+  buildLocalizedLanguageNames,
+  matchesLanguageSearch,
+  normalizeLanguageSearch,
+  type LocalizedLanguageNames,
+} from '@/lib/i18n/languageSearch';
 import {
   LANGUAGE_OPTIONS,
   isLocale,
@@ -29,6 +36,9 @@ export function HeaderLanguagePickerPortal() {
   const [locale, setLocale] = useState<Locale>('en');
   const [open, setOpen] = useState(false);
   const [closing, setClosing] = useState(false);
+  const [languageQuery, setLanguageQuery] = useState('');
+  const [localizedLanguageNames, setLocalizedLanguageNames] =
+    useState<LocalizedLanguageNames>({});
   const pickerRef = useRef<HTMLDivElement | null>(null);
   const triggerRef = useRef<HTMLButtonElement | null>(null);
   const menuRef = useRef<HTMLDivElement | null>(null);
@@ -62,6 +72,7 @@ export function HeaderLanguagePickerPortal() {
       setHost(null);
       setOpen(false);
       setClosing(false);
+      setLanguageQuery('');
     };
 
     const findEligibleSelect = () => {
@@ -146,6 +157,12 @@ export function HeaderLanguagePickerPortal() {
     };
   }, [host]);
 
+  useEffect(() => {
+    setLocalizedLanguageNames(
+      buildLocalizedLanguageNames(locale),
+    );
+  }, [locale]);
+
   const finishClose = useCallback(() => {
     clearCloseFallback();
     const nextLocale = pendingLocaleRef.current;
@@ -154,6 +171,7 @@ export function HeaderLanguagePickerPortal() {
     restoreFocusRef.current = false;
     setOpen(false);
     setClosing(false);
+    setLanguageQuery('');
 
     if (nextLocale && host && nextLocale !== locale) {
       host.select.value = nextLocale;
@@ -323,6 +341,16 @@ export function HeaderLanguagePickerPortal() {
   ) ?? LANGUAGE_OPTIONS[0];
   const ariaLabel =
     host.select.getAttribute('aria-label') ?? 'Select language';
+  const languageCopy = getLanguagePickerCopy(locale);
+  const normalizedLanguageQuery =
+    normalizeLanguageSearch(languageQuery);
+  const visibleLanguageOptions = LANGUAGE_OPTIONS.filter((option) =>
+    matchesLanguageSearch(
+      option,
+      normalizedLanguageQuery,
+      localizedLanguageNames,
+    ),
+  );
 
   return createPortal(
     <div
@@ -361,51 +389,75 @@ export function HeaderLanguagePickerPortal() {
 
       {open ? (
         <div
-          id="veinvite-header-language-menu"
-          ref={menuRef}
           className={
             closing
               ? 'headerLanguageMenu closing'
               : 'headerLanguageMenu'
           }
-          role="listbox"
-          aria-label={ariaLabel}
-          onKeyDown={handleMenuKeyDown}
           onAnimationEnd={handleMenuAnimationEnd}
         >
-          {LANGUAGE_OPTIONS.map((option) => {
-            const selected = option.locale === locale;
-            return (
-              <button
-                key={option.locale}
-                type="button"
-                role="option"
-                aria-selected={selected}
-                className={
-                  selected
-                    ? 'headerLanguageOption selected'
-                    : 'headerLanguageOption'
-                }
-                onClick={() => chooseLocale(option.locale)}
-              >
-                <span
-                  className="headerLanguageOptionFlag"
-                  aria-hidden="true"
+          <label className="headerLanguageSearch">
+            <span aria-hidden="true">⌕</span>
+            <input
+              type="search"
+              value={languageQuery}
+              onChange={(event) => setLanguageQuery(event.target.value)}
+              placeholder={languageCopy.searchPlaceholder}
+              aria-label={languageCopy.searchPlaceholder}
+              autoComplete="off"
+              spellCheck={false}
+              dir="auto"
+            />
+          </label>
+
+          <div
+            id="veinvite-header-language-menu"
+            ref={menuRef}
+            className="headerLanguageOptionList"
+            role="listbox"
+            aria-label={ariaLabel}
+            onKeyDown={handleMenuKeyDown}
+          >
+            {visibleLanguageOptions.map((option) => {
+              const selected = option.locale === locale;
+              return (
+                <button
+                  key={option.locale}
+                  type="button"
+                  role="option"
+                  aria-selected={selected}
+                  className={
+                    selected
+                      ? 'headerLanguageOption selected'
+                      : 'headerLanguageOption'
+                  }
+                  onClick={() => chooseLocale(option.locale)}
                 >
-                  <LanguageFlag locale={option.locale} />
-                </span>
-                <span
-                  className="headerLanguageOptionName"
-                  dir={option.direction}
-                >
-                  {option.nativeName}
-                </span>
-                <span className="headerLanguageCheck" aria-hidden="true">
-                  {selected ? '✓' : ''}
-                </span>
-              </button>
-            );
-          })}
+                  <span
+                    className="headerLanguageOptionFlag"
+                    aria-hidden="true"
+                  >
+                    <LanguageFlag locale={option.locale} />
+                  </span>
+                  <span
+                    className="headerLanguageOptionName"
+                    dir={option.direction}
+                  >
+                    {option.nativeName}
+                  </span>
+                  <span className="headerLanguageCheck" aria-hidden="true">
+                    {selected ? '✓' : ''}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+
+          {visibleLanguageOptions.length === 0 ? (
+            <div className="headerLanguageNoResults" role="status">
+              {languageCopy.noResults}
+            </div>
+          ) : null}
         </div>
       ) : null}
 
@@ -432,13 +484,20 @@ export function HeaderLanguagePickerPortal() {
         .headerLanguageFlag .flagSvg,.headerLanguageOptionFlag .flagSvg { width:100%; height:100%; object-fit:contain; display:block; }
         .headerLanguageName { min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; text-align:left; unicode-bidi:isolate; }
         .headerLanguageChevron { width:8px; height:8px; justify-self:end; border-right:1.5px solid currentColor; border-bottom:1.5px solid currentColor; color:#9892a5; transform:translateY(-2px) rotate(45deg); }
-        .headerLanguageMenu { position:absolute; z-index:350; top:calc(100% + 8px); right:0; width:min(265px,calc(100vw - 28px)); max-height:min(480px,68vh); overflow:auto; box-sizing:border-box; padding:7px; border:1px solid rgba(255,255,255,.1); border-radius:16px; background:#171a29; box-shadow:0 22px 70px rgba(0,0,0,.5); scrollbar-width:thin; animation:headerLanguageMenuIn 140ms cubic-bezier(.2,.8,.2,1) both; }
+        .headerLanguageMenu { position:absolute; z-index:350; top:calc(100% + 8px); right:0; width:min(265px,calc(100vw - 28px)); max-height:min(480px,68vh); max-height:min(480px,68dvh); box-sizing:border-box; padding:7px; display:flex; flex-direction:column; gap:7px; overflow:hidden; border:1px solid rgba(255,255,255,.1); border-radius:16px; background:#171a29; box-shadow:0 22px 70px rgba(0,0,0,.5); animation:headerLanguageMenuIn 140ms cubic-bezier(.2,.8,.2,1) both; }
         .headerLanguageMenu.closing { animation:headerLanguageMenuOut 115ms ease-in both; }
+        .headerLanguageSearch { flex:0 0 auto; min-height:44px; box-sizing:border-box; padding:0 10px; display:grid; grid-template-columns:18px minmax(0,1fr); align-items:center; gap:7px; border:1px solid rgba(255,255,255,.12); border-radius:11px; background:rgba(0,0,0,.18); color:#aaa5b3; }
+        .headerLanguageSearch:focus-within { border-color:rgba(244,183,40,.55); box-shadow:0 0 0 3px rgba(244,183,40,.1); }
+        .headerLanguageSearch > span { text-align:center; line-height:1; }
+        .headerLanguageSearch input { width:100%; min-width:0; border:0; outline:0; background:transparent; color:#fff; font:inherit; font-size:1rem; line-height:1.25; }
+        .headerLanguageSearch input::placeholder { color:#9d98a7; opacity:1; }
+        .headerLanguageOptionList { min-height:0; max-height:min(400px,calc(68vh - 66px)); max-height:min(400px,calc(68dvh - 66px)); overflow:auto; overscroll-behavior:contain; -webkit-overflow-scrolling:touch; scrollbar-width:thin; }
         .headerLanguageOption { width:100%; min-height:44px; box-sizing:border-box; display:grid; grid-template-columns:30px minmax(0,1fr) 20px; align-items:center; gap:11px; padding:7px 9px; border:1px solid transparent; border-radius:11px; background:transparent; color:#fff; font:inherit; font-size:.86rem; font-weight:800; text-align:left; cursor:pointer; }
         .headerLanguageOption:hover,.headerLanguageOption:focus-visible { background:rgba(255,255,255,.06); outline:none; }
         .headerLanguageOption.selected { border-color:rgba(244,183,40,.32); background:rgba(244,183,40,.11); color:#ffd66e; }
         .headerLanguageOptionName { min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; text-align:left; unicode-bidi:isolate; }
         .headerLanguageCheck { text-align:center; font-weight:950; }
+        .headerLanguageNoResults { min-height:72px; display:grid; place-items:center; padding:14px; color:#aaa5b3; font-size:.78rem; line-height:1.4; text-align:center; }
         @keyframes headerLanguageMenuIn { from { opacity:0; transform:translateY(4px); } to { opacity:1; transform:translateY(0); } }
         @keyframes headerLanguageMenuOut { from { opacity:1; transform:translateY(0); } to { opacity:0; transform:translateY(4px); } }
         @media (max-width:560px) {

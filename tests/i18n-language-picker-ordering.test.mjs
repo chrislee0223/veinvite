@@ -10,6 +10,10 @@ const localesSource = readFileSync(
   new URL('../src/lib/i18n/locales.ts', import.meta.url),
   'utf8',
 );
+const languageSearchSource = readFileSync(
+  new URL('../src/lib/i18n/languageSearch.ts', import.meta.url),
+  'utf8',
+);
 
 test('every language option carries a native and English display name', () => {
   const definitionLines = localesSource
@@ -60,15 +64,16 @@ test('language picker pins the selected language, then search, then sorted alter
   );
 });
 
-test('language search matches native name, English name, and locale code', () => {
+test('language search matches native name, English name, locale code, and optional localized aliases', () => {
   assert.match(appSettingsSource, /type="search"/);
+  assert.match(appSettingsSource, /matchesLanguageSearch\(/);
   assert.match(
-    appSettingsSource,
-    /option\.nativeName,\s*option\.englishName,\s*option\.locale,/s,
+    languageSearchSource,
+    /option\.nativeName,\s*option\.englishName,\s*option\.locale,\s*localizedNames\[option\.locale\] \?\? '',/s,
   );
   assert.match(
-    appSettingsSource,
-    /normalizeLanguageSearch\(value\)\.includes\(/,
+    languageSearchSource,
+    /normalizeLanguageSearch\(value\)\.includes\(normalizedQuery\)/,
   );
   assert.match(appSettingsSource, /setLanguageQuery\(''\)/);
 });
