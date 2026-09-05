@@ -37,9 +37,19 @@ export function isQaStudioAccessAllowed(
 export function isDedicatedQaHost(
   requestHost?: string | null,
 ): boolean {
+  if (process.env.VEINVITE_QA_STUDIO !== 'true') {
+    return false;
+  }
+
+  // The dedicated QA Vercel project runs main as a protected Preview on Hobby.
+  // Treat every Preview deployment carrying the explicit QA marker as dedicated
+  // so inherited application APIs are blocked even on deployment-specific URLs.
+  if (process.env.VERCEL_ENV === 'preview') {
+    return true;
+  }
+
   return (
     process.env.VERCEL_ENV === 'production' &&
-    process.env.VEINVITE_QA_STUDIO === 'true' &&
     isQaStudioAccessAllowed(requestHost)
   );
 }
