@@ -21,6 +21,37 @@ const RESTORABLE_TABS = new Set<LegalDocumentReturnView>([
   'settings',
 ]);
 
+function readStoredLegalReturn(): string | null {
+  try {
+    return window.sessionStorage.getItem(
+      LEGAL_RETURN_STORAGE_KEY,
+    );
+  } catch {
+    return null;
+  }
+}
+
+function writeStoredLegalReturn(value: string) {
+  try {
+    window.sessionStorage.setItem(
+      LEGAL_RETURN_STORAGE_KEY,
+      value,
+    );
+  } catch {
+    // Direct-route fallback still works when session storage is unavailable.
+  }
+}
+
+function removeStoredLegalReturn() {
+  try {
+    window.sessionStorage.removeItem(
+      LEGAL_RETURN_STORAGE_KEY,
+    );
+  } catch {
+    // Nothing to clean up in storage-restricted browser modes.
+  }
+}
+
 function cleanTabParam() {
   const url = new URL(window.location.href);
   if (!url.searchParams.has('tab')) return;
@@ -60,7 +91,17 @@ function resolveLegalReturnView(
     return activeTab as LegalDocumentReturnView;
   }
 
-  return 'home';
+  const pathname = window.location.pathname;
+  if (
+    pathname === '/i' ||
+    pathname.startsWith('/i/') ||
+    pathname === '/r' ||
+    pathname.startsWith('/r/')
+  ) {
+    return 'invite_landing';
+  }
+
+  return pathname === '/' ? 'home' : 'other';
 }
 
 export function LegalNavigationMemory() {
@@ -119,16 +160,14 @@ export function LegalNavigationMemory() {
       if (!anchor) return;
       if (anchor.target && anchor.target !== '_self') return;
 
-      const savedReturn = window.sessionStorage.getItem(
-        LEGAL_RETURN_STORAGE_KEY,
-      );
+      const savedReturn = readStoredLegalReturn();
 
       if (
         anchor.classList.contains('legalBack') &&
         savedReturn?.includes('tab=settings')
       ) {
         event.preventDefault();
-        window.sessionStorage.removeItem(LEGAL_RETURN_STORAGE_KEY);
+        removeStoredLegalReturn();
         window.history.back();
         return;
       }
@@ -176,8 +215,7 @@ export function LegalNavigationMemory() {
         window.history.replaceState(window.history.state, '', markedUrl);
       }
 
-      window.sessionStorage.setItem(
-        LEGAL_RETURN_STORAGE_KEY,
+      writeStoredLegalReturn(
         `${currentUrl.pathname}${currentUrl.search}${currentUrl.hash}`,
       );
     };
