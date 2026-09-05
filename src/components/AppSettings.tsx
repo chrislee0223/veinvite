@@ -18,12 +18,42 @@ import { NOTIFICATION_COPY } from '@/lib/i18n/notificationCopy';
 import {
   LANGUAGE_OPTIONS,
   getLanguageOption,
+  type LanguageOption,
   type Locale,
   type SupportedLocale,
 } from '@/lib/i18n/locales';
 
 function maskWallet(address: string): string {
   return `${address.slice(0, 8)}···${address.slice(-6)}`;
+}
+
+function normalizeLanguageSearch(value: string): string {
+  return value
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .trim()
+    .toLowerCase();
+}
+
+function compareLanguageOptions(
+  left: LanguageOption,
+  right: LanguageOption,
+): number {
+  const byNativeName = left.nativeName.localeCompare(
+    right.nativeName,
+    'en',
+    { sensitivity: 'base' },
+  );
+
+  if (byNativeName !== 0) {
+    return byNativeName;
+  }
+
+  return left.englishName.localeCompare(
+    right.englishName,
+    'en',
+    { sensitivity: 'base' },
+  );
 }
 
 type WalletConfirmation = 'switch' | 'disconnect' | null;
@@ -47,6 +77,7 @@ export function AppSettings({
 }) {
   const [feedback, setFeedback] = useState<TransientFeedback | null>(null);
   const [languageOpen, setLanguageOpen] = useState(false);
+  const [languageQuery, setLanguageQuery] = useState('');
   const [walletConfirmation, setWalletConfirmation] =
     useState<WalletConfirmation>(null);
   const feedbackIdRef = useRef(0);
@@ -58,6 +89,29 @@ export function AppSettings({
   const walletConfirmationOpenerRef = useRef<HTMLButtonElement | null>(null);
   const t = SETTINGS_COPY[locale];
   const currentLanguage = getLanguageOption(locale);
+  const normalizedLanguageQuery =
+    normalizeLanguageSearch(languageQuery);
+  const visibleLanguageOptions = LANGUAGE_OPTIONS
+    .filter(
+      (option) =>
+        option.locale !== currentLanguage.locale,
+    )
+    .filter((option) => {
+      if (!normalizedLanguageQuery) {
+        return true;
+      }
+
+      return [
+        option.nativeName,
+        option.englishName,
+        option.locale,
+      ].some((value) =>
+        normalizeLanguageSearch(value).includes(
+          normalizedLanguageQuery,
+        ),
+      );
+    })
+    .sort(compareLanguageOptions);
 
   const clearFeedback = useCallback(() => {
     setFeedback(null);
@@ -83,6 +137,7 @@ export function AppSettings({
   };
 
   const closeLanguagePicker = useCallback(() => {
+    setLanguageQuery('');
     setLanguageOpen(false);
     window.requestAnimationFrame(() => languageTriggerRef.current?.focus());
   }, []);
@@ -121,7 +176,7 @@ export function AppSettings({
 
       const focusable = Array.from(
         languageDialogRef.current.querySelectorAll<HTMLElement>(
-          'button:not([disabled]), [tabindex]:not([tabindex="-1"])',
+          'button:not([disabled]), input:not([disabled]), [tabindex]:not([tabindex="-1"])',
         ),
       );
 
@@ -386,24 +441,58 @@ export function AppSettings({
               <button type="button" className="languageClose" aria-label={t.close} onClick={closeLanguagePicker}>×</button>
             </div>
 
+            <div className="selectedLanguageBlock">
+              <button
+                ref={selectedLanguageRef}
+                type="button"
+                className="languageOption selected"
+                aria-pressed="true"
+                onClick={() => selectLanguage(currentLanguage.locale)}
+              >
+                <span className="languageOptionSymbol" aria-hidden="true"><LanguageFlag locale={currentLanguage.locale} /></span>
+                <span className="languageOptionCopy" dir={currentLanguage.direction}>
+                  <strong>{currentLanguage.nativeName}</strong>
+                  {currentLanguage.englishName !== currentLanguage.nativeName ? (
+                    <small>{currentLanguage.englishName}</small>
+                  ) : null}
+                </span>
+                <span className="languageCheck" aria-hidden="true">✓</span>
+              </button>
+            </div>
+
+            <label className="languageSearch">
+              <span aria-hidden="true">⌕</span>
+              <input
+                type="search"
+                value={languageQuery}
+                onChange={(event) => setLanguageQuery(event.target.value)}
+                placeholder={`${t.languageTitle}…`}
+                aria-label={t.languageTitle}
+                autoComplete="off"
+                spellCheck={false}
+                dir="auto"
+              />
+            </label>
+
             <div className="languageOptionList" role="group" aria-label={t.languageTitle}>
-              {LANGUAGE_OPTIONS.map((option) => {
-                const selected = option.locale === locale;
-                return (
-                  <button
-                    key={option.locale}
-                    ref={selected ? selectedLanguageRef : undefined}
-                    type="button"
-                    className={selected ? 'languageOption selected' : 'languageOption'}
-                    aria-pressed={selected}
-                    onClick={() => selectLanguage(option.locale)}
-                  >
-                    <span className="languageOptionSymbol" aria-hidden="true"><LanguageFlag locale={option.locale} /></span>
+              {visibleLanguageOptions.map((option) => (
+                <button
+                  key={option.locale}
+                  type="button"
+                  className="languageOption"
+                  aria-pressed="false"
+                  onClick={() => selectLanguage(option.locale)}
+                >
+                  <span className="languageOptionSymbol" aria-hidden="true"><LanguageFlag locale={option.locale} /></span>
+                  <span className="languageOptionCopy" dir={option.direction}>
                     <strong>{option.nativeName}</strong>
-                    <span className="languageCheck" aria-hidden="true">{selected ? '✓' : ''}</span>
-                  </button>
-                );
-              })}
+                    {option.englishName !== option.nativeName ? (
+                      <small>{option.englishName}</small>
+                    ) : null}
+                  </span>
+                  <span className="languageCheck" aria-hidden="true" />
+                </button>
+              ))}
             </div>
           </div>
         </div>
@@ -462,12 +551,21 @@ export function AppSettings({
         .languageModalHeader > div { min-width:0; }
         .languageModalHeader p { margin-top:6px; }
         .languageClose { flex:0 0 auto; width:36px; height:36px; display:grid; place-items:center; border:1px solid rgba(255,255,255,.1); border-radius:11px; background:rgba(255,255,255,.04); color:#d9d4ca; font:inherit; font-size:1.2rem; cursor:pointer; }
-        .languageClose:focus-visible,.languageOption:focus-visible { outline:2px solid rgba(255,205,80,.75); outline-offset:2px; }
-        .languageOptionList { min-height:0; margin-top:16px; display:grid; gap:8px; overflow:auto; padding-right:3px; scrollbar-width:thin; }
-        .languageOption { width:100%; min-height:52px; padding:8px 11px; display:grid; grid-template-columns:32px minmax(0,1fr) 26px; align-items:center; gap:10px; border:1px solid rgba(255,255,255,.09); border-radius:14px; background:rgba(255,255,255,.035); color:#aaa69d; font:inherit; text-align:left; cursor:pointer; }
+        .languageClose:focus-visible,.languageOption:focus-visible,.languageSearch:focus-within { outline:2px solid rgba(255,205,80,.75); outline-offset:2px; }
+        .selectedLanguageBlock { margin-top:16px; padding-bottom:10px; border-bottom:1px solid rgba(255,255,255,.07); }
+        .languageSearch { min-height:44px; margin-top:10px; padding:0 11px; display:grid; grid-template-columns:20px minmax(0,1fr); align-items:center; gap:8px; border:1px solid rgba(255,255,255,.09); border-radius:13px; background:rgba(0,0,0,.16); color:#77736b; }
+        .languageSearch > span { text-align:center; font-size:1rem; line-height:1; }
+        .languageSearch input { width:100%; min-width:0; border:0; outline:0; background:transparent; color:#ece8df; font:inherit; font-size:.76rem; }
+        .languageSearch input::placeholder { color:#706c65; opacity:1; }
+        .languageSearch input::-webkit-search-cancel-button { opacity:.65; }
+        .languageOptionList { min-height:0; margin-top:10px; display:grid; gap:8px; overflow:auto; padding-right:3px; scrollbar-width:thin; }
+        .languageOption { width:100%; min-height:56px; padding:8px 11px; display:grid; grid-template-columns:32px minmax(0,1fr) 26px; align-items:center; gap:10px; border:1px solid rgba(255,255,255,.09); border-radius:14px; background:rgba(255,255,255,.035); color:#aaa69d; font:inherit; text-align:left; cursor:pointer; }
         .languageOption:hover { border-color:rgba(255,205,80,.28); }
         .languageOption.selected { border-color:rgba(255,205,80,.52); background:rgba(255,201,61,.11); color:#ffd45f; }
-        .languageOption strong { min-width:0; font-size:.78rem; overflow-wrap:anywhere; }
+        .languageOptionCopy { min-width:0; display:grid; gap:2px; text-align:start; }
+        .languageOptionCopy strong { min-width:0; font-size:.78rem; line-height:1.25; overflow-wrap:anywhere; }
+        .languageOptionCopy small { color:#77736b; font-size:.64rem; line-height:1.25; overflow-wrap:anywhere; }
+        .languageOption.selected .languageOptionCopy small { color:#ad8b3d; }
         .languageCheck { width:24px; height:24px; display:grid; place-items:center; border-radius:50%; color:#17120a; font-size:.72rem; font-weight:950; }
         .languageOption.selected .languageCheck { background:#f4b728; }
         @media (max-width:560px) {
