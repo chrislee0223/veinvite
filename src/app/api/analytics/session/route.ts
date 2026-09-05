@@ -224,6 +224,9 @@ export async function POST(
   const ipSubject =
     getClientIpSubject(request);
   const isHeartbeat = kind === 'heartbeat';
+
+  // The former shared usage-analytics-visitor budget is intentionally split
+  // so 30-second heartbeats cannot consume the budget for real action events.
   const limited = await enforceRateLimits([
     {
       scope: isHeartbeat
