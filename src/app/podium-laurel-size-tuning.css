@@ -1,22 +1,23 @@
 /* Approved Top-3 size tuning.
  *
- * Reduce only the decorative laurel/crown layer by 5% while keeping the rank
- * numeral typography, row geometry and grid axis untouched. Scaling is anchored
- * at the exact center so the smaller decoration remains centered horizontally
- * and vertically around the existing numeral.
+ * Reduce only the decorative laurel/crown layer while keeping the rank numeral
+ * typography, row geometry and grid axis untouched. The artwork is now 92% of
+ * its original desktop size. Scaling stays anchored at the exact center so the
+ * smaller decoration remains centered horizontally and vertically around the
+ * existing numeral.
  */
 html body .leaderboardPage .rankingCard .rankScroll .rows > .rankRow:nth-child(-n+3) .rankValue.rankValue::before {
   top:50% !important;
   left:50% !important;
-  transform:translate(-50%,-50%) scale(.95) !important;
+  transform:translate(-50%,-50%) scale(.92) !important;
   transform-origin:50% 50% !important;
 }
 
 @media (max-width:420px) {
   html body .leaderboardPage .rankingCard .rankScroll .rows > .rankRow:nth-child(-n+3) .rankValue.rankValue::before {
-    /* Existing mobile artwork is 90% of desktop. Apply the same additional 5%
-     * reduction: .90 × .95 = .855. */
-    transform:translate(-50%,-50%) scale(.855) !important;
+    /* Existing mobile artwork is 90% of desktop. Keep that relationship while
+     * applying the 92% tuning: .90 × .92 = .828. */
+    transform:translate(-50%,-50%) scale(.828) !important;
     transform-origin:50% 50% !important;
   }
 }
