@@ -81,6 +81,15 @@ test('both QA routes apply the server-side environment gate', async () => {
   }
 });
 
+test('legacy /ui-test keeps old bookmarks but redirects to the single QA Studio', async () => {
+  const source = await readFile(new URL('../src/app/ui-test/page.tsx', import.meta.url), 'utf8');
+
+  assert.match(source, /isQaStudioAllowed\(\)/);
+  assert.match(source, /notFound\(\)/);
+  assert.match(source, /redirect\('\/qa'\)/);
+  assert.doesNotMatch(source, /UiTestHub/);
+});
+
 test('root providers bypass VeChain and wallet runtime on QA routes', async () => {
   const source = await readFile(new URL('../src/components/AppProviders.tsx', import.meta.url), 'utf8');
 
