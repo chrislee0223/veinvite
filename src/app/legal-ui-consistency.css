@@ -1,0 +1,24 @@
+/* Keep Settings navigation affordances visually consistent without changing
+ * the legal-link hit targets or their real /privacy and /terms destinations. */
+.settingsPage .legalCard a {
+  padding-inline-end: 12px;
+}
+
+.settingsPage .legalCard a > span[aria-hidden='true'] {
+  width: 24px;
+  height: 24px;
+  flex: 0 0 24px;
+  display: grid;
+  place-items: center;
+  color: #a49f94;
+  font-size: 1.45rem;
+  line-height: 1;
+  text-align: center;
+  transform-origin: center;
+}
+
+/* The glyph is stored as the LTR chevron in AppSettings. Mirror only the
+ * visual affordance for RTL locales; link order and semantics stay intact. */
+html[dir='rtl'] .settingsPage .legalCard a > span[aria-hidden='true'] {
+  transform: scaleX(-1);
+}
