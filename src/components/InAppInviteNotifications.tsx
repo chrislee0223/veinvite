@@ -32,6 +32,8 @@ type HistoryPage = {
 };
 
 const REFRESH_MS = 60_000;
+const LIFECYCLE_UNAUTHORIZED_BACKOFF_MS = 15_000;
+let lifecycleUnauthorizedUntil = 0;
 const HISTORY_PAGE_SIZE = 30;
 const HISTORY_CACHE_PREFIX = 'veinvite:notification-history:v1:';
 const WALLET_SESSION_INVALID_EVENT =
@@ -59,6 +61,15 @@ function notificationSetKey(
       `${item.inviteCode}:${item.kind}:${item.stage}:${item.dappProgress ?? '-'}:${item.eventAt}`,
     )
     .join('|');
+}
+
+function lifecycleRefreshBackedOff(): boolean {
+  return Date.now() < lifecycleUnauthorizedUntil;
+}
+
+function backOffLifecycleAfterUnauthorized(): void {
+  lifecycleUnauthorizedUntil =
+    Date.now() + LIFECYCLE_UNAUTHORIZED_BACKOFF_MS;
 }
 
 function sameWallet(left: string | null, right: string): boolean {
@@ -366,7 +377,7 @@ export function InAppInviteNotifications({
 
   const refreshLifecycle = useCallback(
     async (autoOpen: boolean) => {
-      if (!wallet) return;
+      if (!wallet || lifecycleRefreshBackedOff()) return;
 
       if (lifecycleRefreshRef.current) {
         await lifecycleRefreshRef.current;
@@ -385,6 +396,7 @@ export function InAppInviteNotifications({
           );
 
           if (notificationResponse.status === 401) {
+            backOffLifecycleAfterUnauthorized();
             invalidateWalletSession();
             return;
           }

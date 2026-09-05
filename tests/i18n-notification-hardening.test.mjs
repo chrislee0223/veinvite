@@ -79,3 +79,30 @@ test('reading the rich reward receipt also clears the duplicate paid bell notifi
   assert.match(notifications, /void loadLatestHistory\(\{ requestWallet: wallet \}\)/);
   assert.match(notifications, /void refreshLifecycle\(false\)/);
 });
+
+test('notification lifecycle backs off briefly after an unauthorized response across component remounts', () => {
+  assert.match(
+    notifications,
+    /const LIFECYCLE_UNAUTHORIZED_BACKOFF_MS = 15_000;/,
+  );
+  assert.match(
+    notifications,
+    /let lifecycleUnauthorizedUntil = 0;/,
+  );
+  assert.match(
+    notifications,
+    /function lifecycleRefreshBackedOff\(\): boolean \{[\s\S]*Date\.now\(\) < lifecycleUnauthorizedUntil/,
+  );
+  assert.match(
+    notifications,
+    /if \(!wallet \|\| lifecycleRefreshBackedOff\(\)\) return;[\s\S]*fetch\(\s*'\/api\/notifications'/,
+  );
+  assert.match(
+    notifications,
+    /if \(notificationResponse\.status === 401\) \{\s*backOffLifecycleAfterUnauthorized\(\);\s*invalidateWalletSession\(\);\s*return;/,
+  );
+  assert.match(
+    notifications,
+    /fetch\(\s*`\/api\/notifications\/history\?\$\{params\.toString\(\)\}`[\s\S]*if \(response\.status === 401\) \{\s*invalidateWalletSession\(\);/,
+  );
+});
