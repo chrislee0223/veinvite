@@ -11,10 +11,11 @@ It is deliberately not a second copy of the app. The Studio owns scenario select
 1. **Reuse production components.** Do not copy a production screen into a QA-only component just to make it easier to demo.
 2. **Production is fail-closed.** `/qa` and `/qa/render` return 404 whenever `VERCEL_ENV=production`.
 3. **No live mutations from scenario renders.** The initial renderer does not call VeInvite APIs, wallet providers, analytics, or Production data.
-4. **Stable scenario IDs.** Scenario IDs are reproducible URLs and test contracts. Rename them only as an intentional migration.
-5. **Every scenario has an expected result.** A state without an expectation is a demo, not a useful QA contract.
-6. **New user-facing domains stay visible in coverage.** New features must be added to the surface coverage catalog even before every advanced scenario is implemented.
-7. **One registry drives the tools.** Scenario Lab, State Gallery, Coverage, and CI consume the same `scenarioRegistry.ts` data.
+4. **QA does not boot the normal wallet/runtime tree.** `AppProviders` keeps Chakra/the production theme for visual parity, but `/qa` and `/qa/*` bypass VeChain, wallet recovery, reward recovery, and normal app lifecycle helpers.
+5. **Stable scenario IDs.** Scenario IDs are reproducible URLs and test contracts. Rename them only as an intentional migration.
+6. **Every scenario has an expected result.** A state without an expectation is a demo, not a useful QA contract.
+7. **New user-facing domains stay visible in coverage.** New features must be added to the surface coverage catalog even before every advanced scenario is implemented.
+8. **One registry drives the tools.** Scenario Lab, State Gallery, Coverage, and CI consume the same `scenarioRegistry.ts` data.
 
 ## Routes
 
@@ -63,7 +64,7 @@ The first foundation includes:
 - action timeline for safe simulated actions
 - State Gallery
 - explicit Coverage view
-- CI checks for registry integrity, renderer reuse, and Production blocking
+- CI checks for registry integrity, production-component reuse, Production blocking, and root runtime-provider isolation
 
 ## Adding a user-facing feature
 
@@ -83,6 +84,8 @@ A feature should not silently introduce a new user state that cannot be identifi
 ## Data and security model
 
 The current renderer is intentionally presentation-only. CTA actions emit a same-origin QA timeline event instead of invoking wallet, analytics, or backend mutation logic.
+
+Isolation exists at two layers. First, the QA pages fail closed on Production. Second, even in Preview/development, `AppProviders` recognizes `/qa` and `/qa/*` before mounting the normal VeChain/wallet/runtime provider tree. QA still receives the real Chakra theme so production components retain visual parity, but wallet recovery, reward recovery, provider-ready signaling, and normal runtime helpers are not started inside the simulator.
 
 Future simulators must preserve this rule by implementing explicit deterministic adapters for wallet/API/chain/time behavior. They must never fall back to Production data just because a fixture is missing.
 
