@@ -1,23 +1,66 @@
-/* Approved Top-3 size tuning.
+/* Approved Top-3 split size tuning.
  *
- * Reduce only the decorative laurel/crown layer while keeping the rank numeral
- * typography, row geometry and grid axis untouched. The artwork is now 85% of
- * its original desktop size. Scaling stays anchored at the exact center so the
- * smaller decoration remains centered horizontally and vertically around the
- * existing numeral.
+ * Keep rank numeral typography, row geometry and grid axis untouched.
+ * Laurels render at 80% and sit 1px lower than the numeral center.
+ * Rank 1 crown is split into its own layer and renders at 95%.
  */
 html body .leaderboardPage .rankingCard .rankScroll .rows > .rankRow:nth-child(-n+3) .rankValue.rankValue::before {
+  top:calc(50% + 1px) !important;
+  left:50% !important;
+  transform:translate(-50%,-50%) scale(.80) !important;
+  transform-origin:50% 50% !important;
+}
+
+/* The original rank-1 vector includes crown + laurel. Hide only the small
+ * center-top crown area on the laurel layer so the crown can be resized
+ * independently without touching the laurel silhouette. */
+html body .leaderboardPage .rankingCard .rankScroll .rows > .rankRow:nth-child(1) .rankValue.rankValue::before {
+  -webkit-mask:
+    linear-gradient(#000 0 0) left/16px 100% no-repeat,
+    linear-gradient(#000 0 0) right/16px 100% no-repeat,
+    linear-gradient(#000 0 0) bottom/100% calc(100% - 11px) no-repeat !important;
+  mask:
+    linear-gradient(#000 0 0) left/16px 100% no-repeat,
+    linear-gradient(#000 0 0) right/16px 100% no-repeat,
+    linear-gradient(#000 0 0) bottom/100% calc(100% - 11px) no-repeat !important;
+}
+
+/* Independent rank-1 crown layer. The path is the exact crown geometry from
+ * the selected Option C vector; only its scale is independent now. */
+html body .leaderboardPage .rankingCard .rankScroll .rows > .rankRow:nth-child(1) .rankValue.rankValue::after {
+  content:"" !important;
+  display:block !important;
+  position:absolute !important;
+  z-index:0 !important;
   top:50% !important;
   left:50% !important;
-  transform:translate(-50%,-50%) scale(.85) !important;
+  right:auto !important;
+  width:48px !important;
+  height:48px !important;
+  box-sizing:border-box !important;
+  border:0 !important;
+  border-radius:0 !important;
+  background:linear-gradient(135deg,#fff2a6 0%,#f8c64a 30%,#d89720 65%,#ffe17a 100%) !important;
+  box-shadow:none !important;
+  opacity:1 !important;
+  filter:drop-shadow(0 0 1px rgba(241,189,52,.30)) !important;
+  transform:translate(-50%,-50%) scale(.95) !important;
   transform-origin:50% 50% !important;
+  pointer-events:none !important;
+  -webkit-clip-path:path("M20.61 9.84 L20.61 10.20 L20.97 10.38 L27.74 10.20 L27.57 9.67 L26.32 9.49 L21.86 9.49 Z M18.65 4.67 L18.83 5.39 L19.54 5.92 L20.61 9.31 L22.22 8.95 L26.32 8.95 L27.74 9.31 L28.64 6.28 L29.71 5.03 L29.71 4.67 L28.99 4.32 L28.64 4.67 L28.46 5.57 L26.32 6.46 L24.53 3.60 L24.89 3.07 L24.89 2.53 L24.36 2.00 L23.64 2.18 L23.47 3.07 L23.82 3.78 L22.04 6.46 L20.08 5.74 L19.72 5.39 L19.90 5.03 L19.72 4.50 L19.01 4.32 Z") !important;
+  clip-path:path("M20.61 9.84 L20.61 10.20 L20.97 10.38 L27.74 10.20 L27.57 9.67 L26.32 9.49 L21.86 9.49 Z M18.65 4.67 L18.83 5.39 L19.54 5.92 L20.61 9.31 L22.22 8.95 L26.32 8.95 L27.74 9.31 L28.64 6.28 L29.71 5.03 L29.71 4.67 L28.99 4.32 L28.64 4.67 L28.46 5.57 L26.32 6.46 L24.53 3.60 L24.89 3.07 L24.89 2.53 L24.36 2.00 L23.64 2.18 L23.47 3.07 L23.82 3.78 L22.04 6.46 L20.08 5.74 L19.72 5.39 L19.90 5.03 L19.72 4.50 L19.01 4.32 Z") !important;
 }
 
 @media (max-width:420px) {
   html body .leaderboardPage .rankingCard .rankScroll .rows > .rankRow:nth-child(-n+3) .rankValue.rankValue::before {
-    /* Existing mobile artwork is 90% of desktop. Keep that relationship while
-     * applying the 85% tuning: .90 × .85 = .765. */
-    transform:translate(-50%,-50%) scale(.765) !important;
+    /* Preserve the existing mobile 90% relationship: .90 × .80 = .72. */
+    transform:translate(-50%,-50%) scale(.72) !important;
+    transform-origin:50% 50% !important;
+  }
+
+  html body .leaderboardPage .rankingCard .rankScroll .rows > .rankRow:nth-child(1) .rankValue.rankValue::after {
+    /* Preserve the same mobile relationship for the crown: .90 × .95 = .855. */
+    transform:translate(-50%,-50%) scale(.855) !important;
     transform-origin:50% 50% !important;
   }
 }
