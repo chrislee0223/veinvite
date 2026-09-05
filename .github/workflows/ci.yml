@@ -107,6 +107,9 @@ jobs:
       - name: Referral v2 regression gate
         run: node --test tests/referral-permanent-link-rollout.test.mjs tests/referral-v2-legacy-cancel-copy.test.mjs tests/network-guide-relocation.test.mjs tests/referral-link-refresh-cache.test.mjs tests/invite-flow-visual-parity.test.mjs tests/mission-dapp-action.test.mjs
 
+      - name: Mission dApp attribution gate
+        run: node --test tests/mission-dapp-attribution.test.mjs
+
       - name: Install dependencies
         shell: bash
         run: |
