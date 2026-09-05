@@ -34,6 +34,50 @@ function referralsForRank(rank: number): number {
   return Math.max(1, 18 - Math.floor((rank - 1) / 6));
 }
 
+function movementForRank(rank: number) {
+  if (rank === 1) {
+    return {
+      previousRank: 5,
+      rankChange: 4,
+      rankMovement: 'UP' as const,
+    };
+  }
+  if (rank === 2) {
+    return {
+      previousRank: 1,
+      rankChange: -1,
+      rankMovement: 'DOWN' as const,
+    };
+  }
+  if (rank === 3) {
+    return {
+      previousRank: 3,
+      rankChange: 0,
+      rankMovement: 'SAME' as const,
+    };
+  }
+  if (rank === 4) {
+    return {
+      previousRank: null,
+      rankChange: null,
+      rankMovement: 'NEW' as const,
+    };
+  }
+  if (rank === 5) {
+    return {
+      previousRank: 131,
+      rankChange: 126,
+      rankMovement: 'UP' as const,
+    };
+  }
+
+  return {
+    previousRank: null,
+    rankChange: null,
+    rankMovement: 'UNAVAILABLE' as const,
+  };
+}
+
 function buildLeaders(
   scenario: PreviewScenario,
 ): PublicLeaderboardEntry[] {
@@ -42,6 +86,13 @@ function buildLeaders(
   return Array.from({ length: 100 }, (_, index) => {
     const rank = index + 1;
     const current = scenario === 'inside' && rank === 37;
+    const movement = current
+      ? {
+          previousRank: 163,
+          rankChange: 126,
+          rankMovement: 'UP' as const,
+        }
+      : movementForRank(rank);
 
     return {
       rank,
@@ -49,6 +100,7 @@ function buildLeaders(
       completedReferrals: referralsForRank(rank),
       totalRewardWei: rewardWeiForRank(rank),
       isCurrentWallet: current,
+      ...movement,
     };
   });
 }
@@ -66,14 +118,27 @@ function buildPreviewData(
           completedReferrals: 1,
           totalRewardWei: (245n * TOKEN_WEI).toString(),
           isCurrentWallet: true,
+          previousRank: 27,
+          rankChange: -110,
+          rankMovement: 'DOWN' as const,
         }
       : null;
 
   return {
-    generatedAt: '2026-09-01T12:00:00.000Z',
+    generatedAt: '2026-09-05T12:00:00.000Z',
     network: 'mainnet',
     currentRoundId: 114,
     reportingStartRound: 113,
+    comparison: {
+      available: scenario !== 'unranked',
+      roundId: 113,
+      endBlock: scenario === 'unranked' ? null : 25762839,
+      publishedAt:
+        scenario === 'unranked'
+          ? null
+          : '2026-09-01T00:26:56.000Z',
+      rankingAlgorithmVersion: 'paid_referrals_v2',
+    },
     impact: {
       totalActivatedUsers: scenario === 'unranked' ? 0 : 128,
       newUsers: scenario === 'unranked' ? 0 : 93,
@@ -123,8 +188,8 @@ export function LeaderboardUiPreview() {
         <h2>Top 100 리더보드 미리보기</h2>
         <p>
           실제 리더보드 컴포넌트에 테스트 데이터를 넣은 화면입니다.
-          미순위 상태에서는 순위 —, 초대 0, 보상 0 B3TR이 각 헤더 바로 아래에
-          정렬되는지 확인할 수 있고, 100위 안팎의 배치도 함께 비교할 수 있어요.
+          상위 5개 행에서 상승·하락·동일·신규·큰 폭 상승 표시를 확인할 수 있고,
+          내 순위가 100위 안팎일 때도 같은 규칙이 적용되는지 비교할 수 있어요.
         </p>
 
         <div className="scenarioToggle" aria-label="내 순위 테스트 상태">
@@ -133,21 +198,21 @@ export function LeaderboardUiPreview() {
             className={scenario === 'unranked' ? 'selected' : ''}
             onClick={() => setScenario('unranked')}
           >
-            미순위 · 초대 0건
+            미순위 · 비교 없음
           </button>
           <button
             type="button"
             className={scenario === 'inside' ? 'selected' : ''}
             onClick={() => setScenario('inside')}
           >
-            100위 안 · 37위
+            100위 안 · ▲126
           </button>
           <button
             type="button"
             className={scenario === 'outside' ? 'selected' : ''}
             onClick={() => setScenario('outside')}
           >
-            100위 밖 · 137위
+            100위 밖 · ▼110
           </button>
         </div>
       </div>
