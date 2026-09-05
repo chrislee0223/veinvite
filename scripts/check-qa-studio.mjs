@@ -7,6 +7,7 @@ const requiredFiles = [
   'src/qa/access.ts',
   'src/qa/types.ts',
   'src/qa/scenarioRegistry.ts',
+  'src/qa/featureCoverageMap.ts',
   'src/qa/QaStudio.tsx',
   'src/qa/QaScenarioRenderer.tsx',
   'src/lib/supabaseServer.ts',
@@ -44,7 +45,7 @@ if (!qaLayout.includes('x-forwarded-host')) {
 }
 
 const proxy = fs.readFileSync('src/proxy.ts', 'utf8');
-if (!proxy.includes("'/qa'" ) || !proxy.includes("'/qa/:path*'")) {
+if (!proxy.includes("'/qa'") || !proxy.includes("'/qa/:path*'")) {
   throw new Error('QA routes must be covered by the request proxy guard.');
 }
 if (!proxy.includes('isDedicatedQaHost(host)')) {
@@ -72,8 +73,26 @@ const renderer = fs.readFileSync('src/qa/QaScenarioRenderer.tsx', 'utf8');
 if (!renderer.includes("from '@/components/InviteLandingV2'")) {
   throw new Error('QA Studio must reuse the real InviteLandingV2 component.');
 }
+for (const preview of [
+  'UiTestLab',
+  'NotificationUiPreview',
+  'InviteRejectionPreview',
+  'InfiniteReferralCanvasPreview',
+]) {
+  if (!renderer.includes(preview)) {
+    throw new Error(`QA Studio must retain direct ${preview} preview coverage.`);
+  }
+}
 if (renderer.includes('fetch(') || renderer.includes('supabase')) {
   throw new Error('QA scenario renderer must not issue live network/database requests.');
+}
+
+const types = fs.readFileSync('src/qa/types.ts', 'utf8');
+if (!types.includes('height: number')) {
+  throw new Error('QA viewport contracts must include height as well as width.');
+}
+if (!types.includes("'demo-outcome'")) {
+  throw new Error('QA action types must include the demo-outcome action emitted by the renderer.');
 }
 
 const registry = fs.readFileSync('src/qa/scenarioRegistry.ts', 'utf8');
@@ -83,6 +102,17 @@ if (!registry.includes('export const QA_SCENARIOS')) {
 if (!registry.includes('expected:')) {
   throw new Error('QA scenarios must define expected results.');
 }
+if (!registry.includes('mission-reward-preview') || !registry.includes('notification-preview')) {
+  throw new Error('QA registry must retain the expanded mission/reward and notification coverage.');
+}
+
+const coverage = fs.readFileSync('src/qa/featureCoverageMap.ts', 'utf8');
+if (!coverage.includes('QA_SURFACE_COVERAGE')) {
+  throw new Error('QA feature coverage map is required for future changed-screen selection.');
+}
+if (!coverage.includes('watchedPaths') || !coverage.includes('scenarioIds')) {
+  throw new Error('QA feature coverage map must link source paths to scenario ids.');
+}
 
 const studio = fs.readFileSync('src/qa/QaStudio.tsx', 'utf8');
 if (!studio.includes('/qa/render?scenario=')) {
@@ -91,17 +121,29 @@ if (!studio.includes('/qa/render?scenario=')) {
 if (!studio.includes('Production writes')) {
   throw new Error('QA Studio must visibly expose its no-Production-write invariant.');
 }
-if (!studio.includes('빠른 점검') || !studio.includes('모든 상황')) {
-  throw new Error('QA Studio must retain the operator-friendly quick/all scenario browsing modes.');
+if (!studio.includes('핵심 점검') || !studio.includes('모든 상황')) {
+  throw new Error('QA Studio must retain clear core/all scenario browsing modes.');
 }
-if (!studio.includes('애니메이션 다시 보기')) {
-  throw new Error('QA Studio must retain one-click replay for UI motion inspection.');
+if (!studio.includes('reviewKey(') || !studio.includes('viewportId') || !studio.includes('locale')) {
+  throw new Error('QA operator reviews must be scoped to scenario + viewport + locale.');
 }
-if (!studio.includes('✓ 정상') || !studio.includes('! 문제 있음')) {
-  throw new Error('QA Studio must retain simple operator pass/issue sign-off controls.');
+if (!studio.includes("'blocked'") || !studio.includes('확인 불가')) {
+  throw new Error('QA Studio must retain an explicit unable-to-verify result.');
 }
-if (!studio.includes('VERDICT_STORAGE_KEY') || !studio.includes('window.localStorage')) {
-  throw new Error('QA Studio must retain build-scoped local operator review progress.');
+if (!studio.includes('미확인으로 되돌리기')) {
+  throw new Error('QA Studio must let operators clear an accidental review result.');
+}
+if (!studio.includes('navigator.clipboard') || !studio.includes('현재 설정 링크 복사')) {
+  throw new Error('QA Studio must retain reproducible configuration links.');
+}
+if (!studio.includes('onLoad={() => setFrameState') || !studio.includes('다시 시도')) {
+  throw new Error('QA Studio must expose preview loading/recovery state.');
+}
+if (!studio.includes('viewport.height')) {
+  throw new Error('QA Studio must render the configured viewport height.');
+}
+if (!studio.includes('문제 종류') || !studio.includes('짧은 메모')) {
+  throw new Error('QA issue results must retain lightweight category and note capture.');
 }
 if (!studio.includes('고급 정보 보기')) {
   throw new Error('QA Studio must keep technical inspection optional instead of default.');
