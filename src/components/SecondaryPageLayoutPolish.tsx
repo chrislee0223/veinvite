@@ -34,7 +34,17 @@ export function SecondaryPageLayoutPolish() {
        * screenshot or device width. Header and every data row use this exact
        * same 12 / 40 / 20 / 28 split, so each value remains centered directly
        * below its label at every responsive size.
+       *
+       * The shared inset and scrollbar width are also variables. This keeps the
+       * header, the scrolling rows and the trailing current-user row on one
+       * coordinate system instead of nudging individual columns by eye.
        */
+      .leaderboardPage .rankingCard {
+        --leaderboard-row-height:50px;
+        --leaderboard-content-inset:12px;
+        --leaderboard-scrollbar-width:5px;
+      }
+
       .leaderboardPage .tableHeader,
       .leaderboardPage .rankRow {
         width:100% !important;
@@ -44,12 +54,11 @@ export function SecondaryPageLayoutPolish() {
         column-gap:0 !important;
         align-items:center !important;
         box-sizing:border-box !important;
-        padding-left:12px !important;
-        padding-right:12px !important;
+        padding-inline:var(--leaderboard-content-inset) !important;
       }
 
       .leaderboardPage .tableHeader > span,
-      .leaderboardPage .rankValue,
+      .leaderboardPage .rankStack,
       .leaderboardPage .walletCell,
       .leaderboardPage .completedMetric,
       .leaderboardPage .rewardMetric {
@@ -58,8 +67,31 @@ export function SecondaryPageLayoutPolish() {
         text-align:center !important;
       }
 
-      .leaderboardPage .rankingCard {
-        --leaderboard-row-height:50px;
+      /*
+       * The viewport always has 100 slots and therefore owns a scrollbar. The
+       * header and trailing current-user row reserve an identical transparent
+       * scrollbar lane. The browser now computes the same usable grid width for
+       * all three areas, including Windows/desktop scrollbar layouts.
+       */
+      .leaderboardPage .tableHeader,
+      .leaderboardPage .rankRow.trailingCurrent {
+        overflow-y:scroll !important;
+        scrollbar-gutter:stable !important;
+        scrollbar-width:thin;
+        scrollbar-color:transparent transparent;
+      }
+
+      .leaderboardPage .tableHeader::-webkit-scrollbar,
+      .leaderboardPage .rankRow.trailingCurrent::-webkit-scrollbar,
+      .leaderboardPage .rankScroll::-webkit-scrollbar {
+        width:var(--leaderboard-scrollbar-width);
+      }
+
+      .leaderboardPage .tableHeader::-webkit-scrollbar-track,
+      .leaderboardPage .tableHeader::-webkit-scrollbar-thumb,
+      .leaderboardPage .rankRow.trailingCurrent::-webkit-scrollbar-track,
+      .leaderboardPage .rankRow.trailingCurrent::-webkit-scrollbar-thumb {
+        background:transparent;
       }
 
       /*
@@ -72,12 +104,9 @@ export function SecondaryPageLayoutPolish() {
         max-height:calc(var(--leaderboard-row-height) * 5) !important;
         overflow-y:auto !important;
         overscroll-behavior:contain !important;
+        scrollbar-gutter:stable !important;
         scrollbar-width:thin;
         scrollbar-color:rgba(244,183,40,.45) transparent;
-      }
-
-      .leaderboardPage .rankScroll::-webkit-scrollbar {
-        width:5px;
       }
 
       .leaderboardPage .rankScroll::-webkit-scrollbar-track {
@@ -97,49 +126,96 @@ export function SecondaryPageLayoutPolish() {
         max-height:var(--leaderboard-row-height) !important;
       }
 
-      .leaderboardPage .rankValue {
+      .leaderboardPage .rankStack {
         grid-column:1 !important;
       }
 
       /*
-       * Keep the podium understated: ranks 1-3 use only gold, silver, and bronze
-       * numerals. No circle, laurel, badge, image, or pseudo-element decoration.
-       * The number stays centered by the same rank column geometry as every row.
+       * Every rank uses one numeric axis. The three-character minimum width
+       * keeps 1, 2, 3, 10 and 100 optically centered on the same x-axis while
+       * still expanding naturally if a connected wallet is ranked 1000+.
        */
-      .leaderboardPage .rankScroll .rows > .rankRow:nth-child(-n+3) .rankValue {
-        width:100% !important;
+      .leaderboardPage .rankValue {
+        position:relative !important;
+        display:inline-grid !important;
+        min-inline-size:3ch !important;
+        width:auto !important;
         height:auto !important;
-        justify-self:stretch !important;
-        display:flex !important;
-        align-items:center !important;
-        justify-content:center !important;
+        place-items:center !important;
+        justify-self:center !important;
         box-sizing:border-box !important;
         padding:0 !important;
         border:0 !important;
         border-radius:0 !important;
         background:transparent !important;
         box-shadow:none !important;
-        font-weight:950 !important;
         line-height:1 !important;
-        font-variant-numeric:tabular-nums !important;
+        font-variant-numeric:tabular-nums lining-nums !important;
+        font-feature-settings:"tnum" 1,"lnum" 1 !important;
       }
 
-      .leaderboardPage .rankScroll .rows > .rankRow:nth-child(-n+3) .rankValue::before,
-      .leaderboardPage .rankScroll .rows > .rankRow:nth-child(-n+3) .rankValue::after {
-        content:none !important;
-        display:none !important;
+      .leaderboardPage .rankMetric b {
+        min-width:0 !important;
+        white-space:nowrap !important;
+        font-variant-numeric:tabular-nums lining-nums !important;
+        font-feature-settings:"tnum" 1,"lnum" 1 !important;
       }
 
-      .leaderboardPage .rankScroll .rows > .rankRow:nth-child(1) .rankValue {
-        color:#f1bd34 !important;
+      /*
+       * Actual podium entries keep the same centered numeral as ranks 4-100.
+       * A small CSS-drawn laurel sits around the number only as decoration; it
+       * is absolutely positioned and therefore cannot change grid width, row
+       * height or rank-movement geometry. Empty placeholder slots stay plain.
+       */
+      .leaderboardPage .rankScroll .rows > .rankRow:not(.placeholderRow):nth-child(1) .rankValue {
+        --podium-accent:#f1bd34;
+        --podium-opacity:.96;
+        color:var(--podium-accent) !important;
+        font-weight:950 !important;
       }
 
-      .leaderboardPage .rankScroll .rows > .rankRow:nth-child(2) .rankValue {
-        color:#c8cbd0 !important;
+      .leaderboardPage .rankScroll .rows > .rankRow:not(.placeholderRow):nth-child(2) .rankValue {
+        --podium-accent:#c8cbd0;
+        --podium-opacity:.84;
+        color:var(--podium-accent) !important;
+        font-weight:950 !important;
       }
 
-      .leaderboardPage .rankScroll .rows > .rankRow:nth-child(3) .rankValue {
-        color:#c98252 !important;
+      .leaderboardPage .rankScroll .rows > .rankRow:not(.placeholderRow):nth-child(3) .rankValue {
+        --podium-accent:#c98252;
+        --podium-opacity:.84;
+        color:var(--podium-accent) !important;
+        font-weight:950 !important;
+      }
+
+      .leaderboardPage .rankScroll .rows > .rankRow:not(.placeholderRow):nth-child(-n+3) .rankValue::before,
+      .leaderboardPage .rankScroll .rows > .rankRow:not(.placeholderRow):nth-child(-n+3) .rankValue::after {
+        content:"" !important;
+        display:block !important;
+        position:absolute !important;
+        top:50% !important;
+        width:7px !important;
+        height:15px !important;
+        border-left:1px solid var(--podium-accent) !important;
+        border-radius:55% 0 0 55% !important;
+        background:
+          radial-gradient(ellipse 3px 1.8px at 30% 18%,var(--podium-accent) 0 72%,transparent 76%),
+          radial-gradient(ellipse 3px 1.8px at 62% 43%,var(--podium-accent) 0 72%,transparent 76%),
+          radial-gradient(ellipse 3px 1.8px at 30% 69%,var(--podium-accent) 0 72%,transparent 76%) !important;
+        opacity:var(--podium-opacity) !important;
+        pointer-events:none !important;
+      }
+
+      .leaderboardPage .rankScroll .rows > .rankRow:not(.placeholderRow):nth-child(-n+3) .rankValue::before {
+        right:calc(50% + 1.35ch) !important;
+        transform:translateY(-50%) rotate(-13deg) !important;
+        transform-origin:50% 85% !important;
+      }
+
+      .leaderboardPage .rankScroll .rows > .rankRow:not(.placeholderRow):nth-child(-n+3) .rankValue::after {
+        left:calc(50% + 1.35ch) !important;
+        transform:translateY(-50%) scaleX(-1) rotate(-13deg) !important;
+        transform-origin:50% 85% !important;
       }
 
       .leaderboardPage .walletCell {
@@ -207,11 +283,6 @@ export function SecondaryPageLayoutPolish() {
         display:flex !important;
         align-items:center !important;
         justify-content:center !important;
-      }
-
-      .leaderboardPage .rankMetric b {
-        min-width:0 !important;
-        white-space:nowrap !important;
       }
 
       /*
@@ -287,11 +358,7 @@ export function SecondaryPageLayoutPolish() {
       @media (max-width:420px) {
         .leaderboardPage .rankingCard {
           --leaderboard-row-height:46px;
-        }
-        .leaderboardPage .tableHeader,
-        .leaderboardPage .rankRow {
-          padding-left:8px !important;
-          padding-right:8px !important;
+          --leaderboard-content-inset:8px;
         }
         .leaderboardPage .walletCell {
           gap:6px !important;
@@ -309,11 +376,7 @@ export function SecondaryPageLayoutPolish() {
       @media (max-width:360px) {
         .leaderboardPage .rankingCard {
           --leaderboard-row-height:44px;
-        }
-        .leaderboardPage .tableHeader,
-        .leaderboardPage .rankRow {
-          padding-left:6px !important;
-          padding-right:6px !important;
+          --leaderboard-content-inset:6px;
         }
         .leaderboardPage .walletCell {
           gap:5px !important;
