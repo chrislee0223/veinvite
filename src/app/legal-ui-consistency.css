@@ -43,6 +43,13 @@ html[dir='rtl'] .settingsPage .legalCard a > span[aria-hidden='true'] {
   width: 16px;
 }
 
+/* Align the legal-sheet title with the document content rather than the
+ * panel edge. The document is capped at 680px and carries 24px inline
+ * padding, so this expression follows that same responsive start line. */
+.veinviteLegalSheetPanel .veinviteLegalSheetHeader {
+  padding-inline-start: max(24px, calc((100% - 680px) / 2 + 24px));
+}
+
 /* Match the language picker close control to the legal sheets. The visible
  * cross is drawn from geometry instead of the font-dependent multiplication
  * glyph, so its strokes stay centered on desktop and mobile. */
@@ -76,6 +83,18 @@ html[dir='rtl'] .settingsPage .legalCard a > span[aria-hidden='true'] {
 
 .settingsPage .languageModal .languageClose::after {
   transform: translate(-50%, -50%) rotate(-45deg);
+}
+
+@media (max-width: 640px) {
+  /* Mobile legal documents use a 17px content inset. Preserve the correct
+   * physical safe-area edge while matching the title to that content line. */
+  .veinviteLegalSheetPanel[dir='ltr'] .veinviteLegalSheetHeader {
+    padding-inline-start: max(17px, env(safe-area-inset-left));
+  }
+
+  .veinviteLegalSheetPanel[dir='rtl'] .veinviteLegalSheetHeader {
+    padding-inline-start: max(17px, env(safe-area-inset-right));
+  }
 }
 
 @media (max-width: 560px) {
