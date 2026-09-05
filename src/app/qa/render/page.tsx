@@ -1,5 +1,3 @@
-import { notFound } from 'next/navigation';
-
 import { QaScenarioRenderer } from '@/qa/QaScenarioRenderer';
 
 export const dynamic = 'force-dynamic';
@@ -12,14 +10,6 @@ type QaRenderPageProps = {
 };
 
 export default async function QaRenderPage({ searchParams }: QaRenderPageProps) {
-  const allowed =
-    process.env.NODE_ENV === 'development' ||
-    process.env.VERCEL_ENV === 'preview';
-
-  if (!allowed) {
-    notFound();
-  }
-
   const params = await searchParams;
 
   return (
