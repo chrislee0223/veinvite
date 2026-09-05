@@ -47,6 +47,20 @@ type Props = {
   isDisconnecting: boolean;
 };
 
+const LEGAL_CONSENT_EXIT_FALLBACK_MS = 260;
+
+function prefersReducedMotion(): boolean {
+  if (typeof window === 'undefined') {
+    return false;
+  }
+
+  return (
+    window.matchMedia?.(
+      '(prefers-reduced-motion: reduce)',
+    ).matches ?? false
+  );
+}
+
 async function readConsentResponse(
   response: Response,
 ): Promise<ConsentResponse> {
@@ -154,6 +168,8 @@ export function LegalConsentGate({
     useState<GateState>('checking');
   const [isAccepting, setIsAccepting] =
     useState(false);
+  const [isExiting, setIsExiting] =
+    useState(false);
   const [reloadToken, setReloadToken] =
     useState(0);
 
@@ -200,6 +216,7 @@ export function LegalConsentGate({
       new AbortController();
 
     const load = async () => {
+      setIsExiting(false);
       setState('checking');
 
       try {
@@ -285,17 +302,49 @@ export function LegalConsentGate({
     walletAddress,
   ]);
 
+  const completeAcceptedTransition =
+    useCallback(() => {
+      setIsExiting(false);
+      setState('accepted');
+    }, []);
+
+  useEffect(() => {
+    if (!isExiting) {
+      return;
+    }
+
+    if (prefersReducedMotion()) {
+      completeAcceptedTransition();
+      return;
+    }
+
+    const timeoutId = window.setTimeout(
+      completeAcceptedTransition,
+      LEGAL_CONSENT_EXIT_FALLBACK_MS,
+    );
+
+    return () => {
+      window.clearTimeout(timeoutId);
+    };
+  }, [
+    completeAcceptedTransition,
+    isExiting,
+  ]);
+
   const acceptCurrentDocuments =
     useCallback(async () => {
-      if (isAccepting) {
+      if (isAccepting || isExiting) {
         return;
       }
 
       setIsAccepting(true);
 
       try {
+        // Persist authoritative consent before starting any visual exit. The
+        // animation is presentation-only and can never make an unsaved user
+        // appear accepted.
         await recordConsent('ui');
-        setState('accepted');
+        setIsExiting(true);
       } catch (error) {
         console.error(
           'Failed to accept VeInvite legal documents:',
@@ -307,6 +356,7 @@ export function LegalConsentGate({
       }
     }, [
       isAccepting,
+      isExiting,
       recordConsent,
     ]);
 
@@ -337,11 +387,22 @@ export function LegalConsentGate({
   const t = LEGAL_CONSENT_COPY[locale];
   const failed = state === 'error';
   const busy =
-    isAccepting || isDisconnecting;
+    isAccepting || isDisconnecting || isExiting;
 
   return (
     <div
+      className="veinviteLegalConsentBackdrop"
       data-veinvite-legal-consent-gate="interactive"
+      data-exiting={isExiting ? 'true' : 'false'}
+      onTransitionEnd={(event) => {
+        if (
+          isExiting &&
+          event.target === event.currentTarget &&
+          event.propertyName === 'opacity'
+        ) {
+          completeAcceptedTransition();
+        }
+      }}
       style={{
         minHeight: '100dvh',
         display: 'grid',
@@ -355,6 +416,7 @@ export function LegalConsentGate({
       }}
     >
       <div
+        className="veinviteLegalConsentPanel"
         role={state === 'required' ? 'dialog' : undefined}
         aria-modal={state === 'required' ? true : undefined}
         aria-live="polite"
@@ -563,6 +625,60 @@ export function LegalConsentGate({
           </button>
         </div>
       </div>
+
+      <style>{`
+        @keyframes veinviteLegalConsentBackdropIn {
+          from { opacity: 0; }
+          to { opacity: 1; }
+        }
+        @keyframes veinviteLegalConsentPanelIn {
+          from {
+            opacity: 0;
+            transform: translate3d(0, 12px, 0) scale(.975);
+          }
+          to {
+            opacity: 1;
+            transform: translate3d(0, 0, 0) scale(1);
+          }
+        }
+        .veinviteLegalConsentBackdrop {
+          opacity: 1;
+          animation:
+            veinviteLegalConsentBackdropIn 210ms ease-out both;
+        }
+        .veinviteLegalConsentPanel {
+          opacity: 1;
+          transform: translate3d(0, 0, 0) scale(1);
+          transform-origin: center;
+          animation:
+            veinviteLegalConsentPanelIn 220ms cubic-bezier(.22,.8,.24,1) both;
+        }
+        .veinviteLegalConsentBackdrop[data-exiting="true"] {
+          opacity: 0;
+          animation: none;
+          pointer-events: none;
+          transition: opacity 140ms ease-out;
+        }
+        .veinviteLegalConsentBackdrop[data-exiting="true"]
+          .veinviteLegalConsentPanel {
+          opacity: 0;
+          transform: translate3d(0, 4px, 0) scale(.985);
+          animation: none;
+          transition:
+            opacity 140ms ease-out,
+            transform 140ms cubic-bezier(.22,.8,.24,1);
+        }
+        @media (prefers-reduced-motion: reduce) {
+          .veinviteLegalConsentBackdrop,
+          .veinviteLegalConsentPanel {
+            animation: none !important;
+            transition: none !important;
+          }
+          .veinviteLegalConsentPanel {
+            transform: none !important;
+          }
+        }
+      `}</style>
     </div>
   );
 }

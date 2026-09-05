@@ -88,3 +88,82 @@ test('transient wallet verification failures stay on checking UI before showing 
     /setVerifiedWallet\(null\);\s*setState\('error'\);/s,
   );
 });
+
+test('legal consent motion starts only after authoritative consent is saved and always completes safely', async () => {
+  const source = await readFile(
+    new URL('../src/components/LegalConsentGate.tsx', import.meta.url),
+    'utf8',
+  );
+
+  const handlerStart = source.indexOf(
+    'const acceptCurrentDocuments',
+  );
+  const acceptedBranch = source.indexOf(
+    "if (state === 'accepted')",
+    handlerStart,
+  );
+  const handler = source.slice(
+    handlerStart,
+    acceptedBranch,
+  );
+  const persisted = handler.indexOf(
+    "await recordConsent('ui')",
+  );
+  const exitStarted = handler.indexOf(
+    'setIsExiting(true)',
+  );
+
+  assert.ok(handlerStart >= 0);
+  assert.ok(acceptedBranch > handlerStart);
+  assert.ok(persisted >= 0);
+  assert.ok(exitStarted > persisted);
+  assert.doesNotMatch(
+    handler,
+    /setState\('accepted'\)/,
+  );
+
+  assert.match(
+    source,
+    /LEGAL_CONSENT_EXIT_FALLBACK_MS\s*=\s*260/,
+  );
+  assert.match(
+    source,
+    /prefersReducedMotion\(\)[\s\S]*completeAcceptedTransition\(\)/s,
+  );
+  assert.match(
+    source,
+    /matchMedia\?\.\([\s\S]*prefers-reduced-motion: reduce/s,
+  );
+  assert.match(
+    source,
+    /window\.setTimeout\([\s\S]*LEGAL_CONSENT_EXIT_FALLBACK_MS/s,
+  );
+  assert.match(
+    source,
+    /onTransitionEnd=\{\(event\) => \{[\s\S]*event\.propertyName === 'opacity'[\s\S]*completeAcceptedTransition\(\)/s,
+  );
+  assert.match(
+    source,
+    /data-veinvite-legal-consent-gate="interactive"/,
+  );
+  assert.match(
+    source,
+    /data-exiting=\{isExiting \? 'true' : 'false'\}/,
+  );
+  assert.match(
+    source,
+    /isAccepting \|\| isDisconnecting \|\| isExiting/,
+  );
+  assert.match(
+    source,
+    /@keyframes veinviteLegalConsentBackdropIn/,
+  );
+  assert.match(
+    source,
+    /@keyframes veinviteLegalConsentPanelIn/,
+  );
+  assert.match(
+    source,
+    /@media \(prefers-reduced-motion: reduce\)/,
+  );
+});
