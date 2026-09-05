@@ -33,7 +33,13 @@ type HistoryPage = {
 
 const REFRESH_MS = 60_000;
 const LIFECYCLE_UNAUTHORIZED_BACKOFF_MS = 15_000;
+const LIFECYCLE_REQUEST_LEASE_MS = 5_000;
+const LIFECYCLE_UNAUTHORIZED_BACKOFF_STORAGE_KEY =
+  'veinvite:notification-lifecycle-unauthorized-until:v1';
+const LIFECYCLE_REQUEST_LEASE_STORAGE_KEY =
+  'veinvite:notification-lifecycle-request-until:v1';
 let lifecycleUnauthorizedUntil = 0;
+let lifecycleRequestLeaseUntil = 0;
 const HISTORY_PAGE_SIZE = 30;
 const HISTORY_CACHE_PREFIX = 'veinvite:notification-history:v1:';
 const WALLET_SESSION_INVALID_EVENT =
@@ -63,13 +69,77 @@ function notificationSetKey(
     .join('|');
 }
 
+function readLifecycleTimestamp(key: string): number {
+  try {
+    const value = Number(window.localStorage.getItem(key));
+    return Number.isFinite(value) && value > 0 ? value : 0;
+  } catch {
+    return 0;
+  }
+}
+
+function writeLifecycleTimestamp(key: string, value: number): void {
+  try {
+    window.localStorage.setItem(key, String(value));
+  } catch {
+    // Module-scoped guards still protect the active page if storage is blocked.
+  }
+}
+
 function lifecycleRefreshBackedOff(): boolean {
+  lifecycleUnauthorizedUntil = Math.max(
+    lifecycleUnauthorizedUntil,
+    readLifecycleTimestamp(LIFECYCLE_UNAUTHORIZED_BACKOFF_STORAGE_KEY),
+  );
   return Date.now() < lifecycleUnauthorizedUntil;
 }
 
 function backOffLifecycleAfterUnauthorized(): void {
   lifecycleUnauthorizedUntil =
     Date.now() + LIFECYCLE_UNAUTHORIZED_BACKOFF_MS;
+  writeLifecycleTimestamp(
+    LIFECYCLE_UNAUTHORIZED_BACKOFF_STORAGE_KEY,
+    lifecycleUnauthorizedUntil,
+  );
+}
+
+function acquireLifecycleRequestLease(): number | null {
+  const now = Date.now();
+  lifecycleRequestLeaseUntil = Math.max(
+    lifecycleRequestLeaseUntil,
+    readLifecycleTimestamp(LIFECYCLE_REQUEST_LEASE_STORAGE_KEY),
+  );
+  if (now < lifecycleRequestLeaseUntil) return null;
+
+  const leaseUntil = now + LIFECYCLE_REQUEST_LEASE_MS;
+  lifecycleRequestLeaseUntil = leaseUntil;
+  writeLifecycleTimestamp(
+    LIFECYCLE_REQUEST_LEASE_STORAGE_KEY,
+    leaseUntil,
+  );
+  return leaseUntil;
+}
+
+function releaseLifecycleRequestLease(leaseUntil: number): void {
+  if (lifecycleRequestLeaseUntil === leaseUntil) {
+    lifecycleRequestLeaseUntil = 0;
+  }
+
+  try {
+    if (
+      Number(
+        window.localStorage.getItem(
+          LIFECYCLE_REQUEST_LEASE_STORAGE_KEY,
+        ),
+      ) === leaseUntil
+    ) {
+      window.localStorage.removeItem(
+        LIFECYCLE_REQUEST_LEASE_STORAGE_KEY,
+      );
+    }
+  } catch {
+    // The short lease expires naturally even if storage cleanup is blocked.
+  }
 }
 
 function sameWallet(left: string | null, right: string): boolean {
@@ -273,6 +343,7 @@ export function InAppInviteNotifications({
       );
 
       if (response.status === 401) {
+        backOffLifecycleAfterUnauthorized();
         invalidateWalletSession();
         return null;
       }
@@ -384,6 +455,9 @@ export function InAppInviteNotifications({
         return;
       }
 
+      const lifecycleLease = acquireLifecycleRequestLease();
+      if (lifecycleLease === null) return;
+
       const requestWallet = wallet;
       const task = (async () => {
         try {
@@ -457,6 +531,7 @@ export function InAppInviteNotifications({
       try {
         await task;
       } finally {
+        releaseLifecycleRequestLease(lifecycleLease);
         if (lifecycleRefreshRef.current === task) {
           lifecycleRefreshRef.current = null;
         }
@@ -487,6 +562,7 @@ export function InAppInviteNotifications({
       );
 
       if (response.status === 401) {
+        backOffLifecycleAfterUnauthorized();
         invalidateWalletSession();
         return false;
       }
