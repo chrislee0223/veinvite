@@ -92,6 +92,17 @@ label.language > span[aria-hidden='true'],
 :is(select.languageSelect, label.language select, .centeredFlow label select, .appHeader label select):has(option[value='ru']:checked) { background-image:url('/flags/ru.svg') !important; }
 :is(select.languageSelect, label.language select, .centeredFlow label select, .appHeader label select):has(option[value='id']:checked) { background-image:url('/flags/id.svg') !important; }
 :is(select.languageSelect, label.language select, .centeredFlow label select, .appHeader label select):has(option[value='vi']:checked) { background-image:url('/flags/vn.svg') !important; }
+:is(select.languageSelect, label.language select, .centeredFlow label select, .appHeader label select):has(option[value='zh-tw']:checked) { background-image:url('/flags/tw.svg') !important; }
+:is(select.languageSelect, label.language select, .centeredFlow label select, .appHeader label select):has(option[value='sv']:checked) { background-image:url('/flags/se.svg') !important; }
+:is(select.languageSelect, label.language select, .centeredFlow label select, .appHeader label select):has(option[value='ro']:checked) { background-image:url('/flags/ro.svg') !important; }
+:is(select.languageSelect, label.language select, .centeredFlow label select, .appHeader label select):has(option[value='ur']:checked) { background-image:url('/flags/pk.svg') !important; }
+:is(select.languageSelect, label.language select, .centeredFlow label select, .appHeader label select):has(option[value='pcm']:checked) { background-image:url('/flags/ng.svg') !important; }
+:is(select.languageSelect, label.language select, .centeredFlow label select, .appHeader label select):has(option[value='arz']:checked) { background-image:url('/flags/eg.svg') !important; }
+:is(select.languageSelect, label.language select, .centeredFlow label select, .appHeader label select):has(option[value='mr']:checked) { background-image:url('/flags/in.svg') !important; }
+:is(select.languageSelect, label.language select, .centeredFlow label select, .appHeader label select):has(option[value='te']:checked) { background-image:url('/flags/in.svg') !important; }
+:is(select.languageSelect, label.language select, .centeredFlow label select, .appHeader label select):has(option[value='sw']:checked) { background-image:url('/flags/ke.svg') !important; }
+:is(select.languageSelect, label.language select, .centeredFlow label select, .appHeader label select):has(option[value='ha']:checked) { background-image:url('/flags/ng.svg') !important; }
+:is(select.languageSelect, label.language select, .centeredFlow label select, .appHeader label select):has(option[value='el']:checked) { background-image:url('/flags/gr.svg') !important; }
 
 /* Very narrow phones cannot fit the full brand + invitee chip + 155px picker on
  * one row. Stack only the right-hand actions and trim the picker width. */
