@@ -4,45 +4,46 @@ export type LocaleTypography = 'latin' | 'cjk' | 'arabic' | 'indic';
 export type LocaleDefinition = {
   locale: string;
   nativeName: string;
+  englishName: string;
   flagSource: string;
   direction: LocaleDirection;
   typography: LocaleTypography;
 };
 
 // Single source of truth for every locale shown by VeInvite.
-// Adding a language should start here: code, native name, app-owned flag,
-// writing direction, and typography group. The typography group lets layout
-// safeguards follow a script family instead of hard-coding every locale into
-// CSS as the language list grows.
+// Adding a language should start here: code, native name, English name,
+// app-owned flag, writing direction, and typography group. The typography
+// group lets layout safeguards follow a script family instead of hard-coding
+// every locale into CSS as the language list grows.
 export const LOCALE_DEFINITIONS = [
-  { locale: 'en', nativeName: 'English', flagSource: '/flags/us.svg', direction: 'ltr', typography: 'latin' },
-  { locale: 'ko', nativeName: '한국어', flagSource: '/flags/kr.svg', direction: 'ltr', typography: 'cjk' },
-  { locale: 'zh', nativeName: '简体中文', flagSource: '/flags/cn.svg', direction: 'ltr', typography: 'cjk' },
-  { locale: 'hi', nativeName: 'हिन्दी', flagSource: '/flags/in.svg', direction: 'ltr', typography: 'indic' },
-  { locale: 'es', nativeName: 'Español', flagSource: '/flags/es.svg', direction: 'ltr', typography: 'latin' },
-  { locale: 'ja', nativeName: '日本語', flagSource: '/flags/jp.svg', direction: 'ltr', typography: 'cjk' },
-  { locale: 'it', nativeName: 'Italiano', flagSource: '/flags/it.svg', direction: 'ltr', typography: 'latin' },
-  { locale: 'tr', nativeName: 'Türkçe', flagSource: '/flags/tr.svg', direction: 'ltr', typography: 'latin' },
-  { locale: 'nl', nativeName: 'Nederlands', flagSource: '/flags/nl.svg', direction: 'ltr', typography: 'latin' },
-  { locale: 'de', nativeName: 'Deutsch', flagSource: '/flags/de.svg', direction: 'ltr', typography: 'latin' },
-  { locale: 'fr', nativeName: 'Français', flagSource: '/flags/fr.svg', direction: 'ltr', typography: 'latin' },
-  { locale: 'ar', nativeName: 'العربية', flagSource: '/flags/ae.svg', direction: 'rtl', typography: 'arabic' },
-  { locale: 'bn', nativeName: 'বাংলা', flagSource: '/flags/bd.svg', direction: 'ltr', typography: 'indic' },
-  { locale: 'pt', nativeName: 'Português', flagSource: '/flags/br.svg', direction: 'ltr', typography: 'latin' },
-  { locale: 'ru', nativeName: 'Русский', flagSource: '/flags/ru.svg', direction: 'ltr', typography: 'latin' },
-  { locale: 'id', nativeName: 'Bahasa Indonesia', flagSource: '/flags/id.svg', direction: 'ltr', typography: 'latin' },
-  { locale: 'vi', nativeName: 'Tiếng Việt', flagSource: '/flags/vn.svg', direction: 'ltr', typography: 'latin' },
-  { locale: 'zh-tw', nativeName: '繁體中文（台灣）', flagSource: '/flags/tw.svg', direction: 'ltr', typography: 'cjk' },
-  { locale: 'sv', nativeName: 'Svenska', flagSource: '/flags/se.svg', direction: 'ltr', typography: 'latin' },
-  { locale: 'ro', nativeName: 'Română', flagSource: '/flags/ro.svg', direction: 'ltr', typography: 'latin' },
-  { locale: 'ur', nativeName: 'اردو', flagSource: '/flags/pk.svg', direction: 'rtl', typography: 'arabic' },
-  { locale: 'pcm', nativeName: 'Nigerian Pidgin', flagSource: '/flags/ng.svg', direction: 'ltr', typography: 'latin' },
-  { locale: 'arz', nativeName: 'العربية المصرية', flagSource: '/flags/eg.svg', direction: 'rtl', typography: 'arabic' },
-  { locale: 'mr', nativeName: 'मराठी', flagSource: '/flags/in.svg', direction: 'ltr', typography: 'indic' },
-  { locale: 'te', nativeName: 'తెలుగు', flagSource: '/flags/in.svg', direction: 'ltr', typography: 'indic' },
-  { locale: 'sw', nativeName: 'Kiswahili', flagSource: '/flags/ke.svg', direction: 'ltr', typography: 'latin' },
-  { locale: 'ha', nativeName: 'Hausa', flagSource: '/flags/ng.svg', direction: 'ltr', typography: 'latin' },
-  { locale: 'el', nativeName: 'Ελληνικά', flagSource: '/flags/gr.svg', direction: 'ltr', typography: 'latin' },
+  { locale: 'en', nativeName: 'English', englishName: 'English', flagSource: '/flags/us.svg', direction: 'ltr', typography: 'latin' },
+  { locale: 'ko', nativeName: '한국어', englishName: 'Korean', flagSource: '/flags/kr.svg', direction: 'ltr', typography: 'cjk' },
+  { locale: 'zh', nativeName: '简体中文', englishName: 'Simplified Chinese', flagSource: '/flags/cn.svg', direction: 'ltr', typography: 'cjk' },
+  { locale: 'hi', nativeName: 'हिन्दी', englishName: 'Hindi', flagSource: '/flags/in.svg', direction: 'ltr', typography: 'indic' },
+  { locale: 'es', nativeName: 'Español', englishName: 'Spanish', flagSource: '/flags/es.svg', direction: 'ltr', typography: 'latin' },
+  { locale: 'ja', nativeName: '日本語', englishName: 'Japanese', flagSource: '/flags/jp.svg', direction: 'ltr', typography: 'cjk' },
+  { locale: 'it', nativeName: 'Italiano', englishName: 'Italian', flagSource: '/flags/it.svg', direction: 'ltr', typography: 'latin' },
+  { locale: 'tr', nativeName: 'Türkçe', englishName: 'Turkish', flagSource: '/flags/tr.svg', direction: 'ltr', typography: 'latin' },
+  { locale: 'nl', nativeName: 'Nederlands', englishName: 'Dutch', flagSource: '/flags/nl.svg', direction: 'ltr', typography: 'latin' },
+  { locale: 'de', nativeName: 'Deutsch', englishName: 'German', flagSource: '/flags/de.svg', direction: 'ltr', typography: 'latin' },
+  { locale: 'fr', nativeName: 'Français', englishName: 'French', flagSource: '/flags/fr.svg', direction: 'ltr', typography: 'latin' },
+  { locale: 'ar', nativeName: 'العربية', englishName: 'Arabic', flagSource: '/flags/ae.svg', direction: 'rtl', typography: 'arabic' },
+  { locale: 'bn', nativeName: 'বাংলা', englishName: 'Bengali', flagSource: '/flags/bd.svg', direction: 'ltr', typography: 'indic' },
+  { locale: 'pt', nativeName: 'Português', englishName: 'Portuguese', flagSource: '/flags/br.svg', direction: 'ltr', typography: 'latin' },
+  { locale: 'ru', nativeName: 'Русский', englishName: 'Russian', flagSource: '/flags/ru.svg', direction: 'ltr', typography: 'latin' },
+  { locale: 'id', nativeName: 'Bahasa Indonesia', englishName: 'Indonesian', flagSource: '/flags/id.svg', direction: 'ltr', typography: 'latin' },
+  { locale: 'vi', nativeName: 'Tiếng Việt', englishName: 'Vietnamese', flagSource: '/flags/vn.svg', direction: 'ltr', typography: 'latin' },
+  { locale: 'zh-tw', nativeName: '繁體中文（台灣）', englishName: 'Traditional Chinese (Taiwan)', flagSource: '/flags/tw.svg', direction: 'ltr', typography: 'cjk' },
+  { locale: 'sv', nativeName: 'Svenska', englishName: 'Swedish', flagSource: '/flags/se.svg', direction: 'ltr', typography: 'latin' },
+  { locale: 'ro', nativeName: 'Română', englishName: 'Romanian', flagSource: '/flags/ro.svg', direction: 'ltr', typography: 'latin' },
+  { locale: 'ur', nativeName: 'اردو', englishName: 'Urdu', flagSource: '/flags/pk.svg', direction: 'rtl', typography: 'arabic' },
+  { locale: 'pcm', nativeName: 'Nigerian Pidgin', englishName: 'Nigerian Pidgin', flagSource: '/flags/ng.svg', direction: 'ltr', typography: 'latin' },
+  { locale: 'arz', nativeName: 'العربية المصرية', englishName: 'Egyptian Arabic', flagSource: '/flags/eg.svg', direction: 'rtl', typography: 'arabic' },
+  { locale: 'mr', nativeName: 'मराठी', englishName: 'Marathi', flagSource: '/flags/in.svg', direction: 'ltr', typography: 'indic' },
+  { locale: 'te', nativeName: 'తెలుగు', englishName: 'Telugu', flagSource: '/flags/in.svg', direction: 'ltr', typography: 'indic' },
+  { locale: 'sw', nativeName: 'Kiswahili', englishName: 'Swahili', flagSource: '/flags/ke.svg', direction: 'ltr', typography: 'latin' },
+  { locale: 'ha', nativeName: 'Hausa', englishName: 'Hausa', flagSource: '/flags/ng.svg', direction: 'ltr', typography: 'latin' },
+  { locale: 'el', nativeName: 'Ελληνικά', englishName: 'Greek', flagSource: '/flags/gr.svg', direction: 'ltr', typography: 'latin' },
 ] as const satisfies readonly LocaleDefinition[];
 
 export const SUPPORTED_LOCALES = LOCALE_DEFINITIONS.map(
@@ -65,6 +66,7 @@ export const LANGUAGE_STORAGE_KEY =
 export type LanguageOption = {
   locale: SupportedLocale;
   nativeName: string;
+  englishName: string;
   flagSource: string;
   direction: LocaleDirection;
   typography: LocaleTypography;
@@ -74,6 +76,7 @@ export const LANGUAGE_OPTIONS: LanguageOption[] =
   LOCALE_DEFINITIONS.map((definition) => ({
     locale: definition.locale,
     nativeName: definition.nativeName,
+    englishName: definition.englishName,
     flagSource: definition.flagSource,
     direction: definition.direction,
     typography: definition.typography,
