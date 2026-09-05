@@ -108,38 +108,48 @@ export async function GET(request: NextRequest) {
       p_to_date: toDate,
     };
 
-    const [daily, locale, device, source, views] =
-      await Promise.all([
-        rpc(
-          'read_app_usage_daily_summary',
-          range,
-        ),
-        rpc(
-          'read_app_usage_dimension_breakdown',
-          {
-            ...range,
-            p_dimension: 'locale',
-          },
-        ),
-        rpc(
-          'read_app_usage_dimension_breakdown',
-          {
-            ...range,
-            p_dimension: 'device',
-          },
-        ),
-        rpc(
-          'read_app_usage_dimension_breakdown',
-          {
-            ...range,
-            p_dimension: 'source',
-          },
-        ),
-        rpc(
-          'read_app_usage_view_breakdown',
-          range,
-        ),
-      ]);
+    const [
+      daily,
+      locale,
+      device,
+      source,
+      views,
+      dataQualityExclusions,
+    ] = await Promise.all([
+      rpc(
+        'read_app_usage_daily_summary',
+        range,
+      ),
+      rpc(
+        'read_app_usage_dimension_breakdown',
+        {
+          ...range,
+          p_dimension: 'locale',
+        },
+      ),
+      rpc(
+        'read_app_usage_dimension_breakdown',
+        {
+          ...range,
+          p_dimension: 'device',
+        },
+      ),
+      rpc(
+        'read_app_usage_dimension_breakdown',
+        {
+          ...range,
+          p_dimension: 'source',
+        },
+      ),
+      rpc(
+        'read_app_usage_view_breakdown',
+        range,
+      ),
+      rpc(
+        'read_app_usage_quality_exclusions',
+        range,
+      ),
+    ]);
 
     return NextResponse.json(
       {
@@ -158,6 +168,8 @@ export async function GET(request: NextRequest) {
             'VeInvite가 화면에 보이고 브라우저 포커스가 있는 동안의 활성 사용시간만 집계합니다.',
           walletConnected:
             '검증된 지갑 세션 존재 여부만 기록하며 지갑 주소는 이용 분석 데이터에 저장하지 않습니다.',
+          views:
+            '관리자 사용을 정확히 제거할 수 없는 초기 부트스트랩 날짜는 뷰 분포 합계에서 제외하고 dataQualityExclusions에 표시합니다.',
         },
         privacy: {
           rawIpStored: false,
@@ -179,6 +191,7 @@ export async function GET(request: NextRequest) {
           source,
           views,
         },
+        dataQualityExclusions,
         writesPerformed: false,
       },
       {
