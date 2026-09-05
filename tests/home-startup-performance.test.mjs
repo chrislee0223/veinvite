@@ -17,7 +17,7 @@ function loadingState(status = 'loading') {
   };
 }
 
-test('only opt-in first paint may reveal matching-wallet Home while API data hydrates', () => {
+test('first paint keeps wallet Home covered while API data hydrates', () => {
   const base = {
     walletAddress: WALLET,
     homeState: loadingState(),
@@ -35,7 +35,7 @@ test('only opt-in first paint may reveal matching-wallet Home while API data hyd
       ...base,
       allowHomeDataHydration: true,
     }),
-    'release',
+    'hold',
   );
   assert.equal(
     resolveStartupReadiness({
@@ -95,7 +95,7 @@ test('forecast waits for app-ready, while reward reservation recovery remains in
   assert.match(deferred, /veinvite-app-ready/);
   assert.doesNotMatch(deferred, /RewardReservationRecovery/);
   assert.match(deferred, /import\('\.\/PublicRewardForecastPortal'\)/);
-  assert.match(
+  assert.doesNotMatch(
     placeholders,
     /\.linkPreviewSkeleton,[\s\S]*\.slotsSkeleton[\s\S]*visibility:\s*visible\s*!important/,
   );
