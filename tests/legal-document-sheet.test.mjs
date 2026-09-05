@@ -96,16 +96,15 @@ test('in-app legal header follows the shared title-left close-right pattern', ()
   assert.doesNotMatch(sheet, /LEGAL_BACK_LABEL/);
 });
 
-test('settings legal chevrons match the language affordance and mirror for RTL', () => {
+test('settings legal chevrons match the language affordance and use native RTL mirroring', () => {
   assert.match(layout, /import '\.\/legal-ui-consistency\.css'/);
+  assert.match(settings, /className="languageChevron" aria-hidden="true">›<\/span>/);
   assert.match(legalConsistency, /padding-inline-end: 12px/);
   assert.match(legalConsistency, /width: 24px/);
   assert.match(legalConsistency, /color: #a49f94/);
   assert.match(legalConsistency, /font-size: 1\.45rem/);
-  assert.match(
-    legalConsistency,
-    /html\[dir='rtl'\][\s\S]*transform: scaleX\(-1\)/,
-  );
+  assert.match(legalConsistency, /Unicode bidi mirroring/);
+  assert.doesNotMatch(legalConsistency, /scaleX\(-1\)/);
 });
 
 test('lazy-loaded legal sheet always gets a visible enter animation', () => {
