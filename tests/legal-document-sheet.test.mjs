@@ -145,6 +145,21 @@ test('legal and language close controls use balanced 44px geometry', () => {
   );
 });
 
+test('legal sheet title aligns with the document content on desktop and mobile', () => {
+  assert.match(
+    legalConsistency,
+    /\.veinviteLegalSheetPanel \.veinviteLegalSheetHeader\s*\{[\s\S]*padding-inline-start: max\(24px, calc\(\(100% - 680px\) \/ 2 \+ 24px\)\);/,
+  );
+  assert.match(
+    legalConsistency,
+    /@media \(max-width: 640px\)[\s\S]*\.veinviteLegalSheetPanel\[dir='ltr'\] \.veinviteLegalSheetHeader[\s\S]*padding-inline-start: max\(17px, env\(safe-area-inset-left\)\);/,
+  );
+  assert.match(
+    legalConsistency,
+    /@media \(max-width: 640px\)[\s\S]*\.veinviteLegalSheetPanel\[dir='rtl'\] \.veinviteLegalSheetHeader[\s\S]*padding-inline-start: max\(17px, env\(safe-area-inset-right\)\);/,
+  );
+});
+
 test('lazy-loaded legal sheet always gets a visible enter animation', () => {
   assert.match(motion, /@keyframes veinviteLegalSheetBackdropIn/);
   assert.match(motion, /@keyframes veinviteLegalSheetPanelIn/);
