@@ -42,3 +42,22 @@ test('demo completion remains fail-closed for Production and reward eligibility'
     'demo completion must not create reward eligibility without real on-chain evidence',
   );
 });
+
+test('preview demo completion requires the verified invitee wallet before mutation', () => {
+  assert.match(
+    route,
+    /requireWalletSession\(\{[\s\S]*?expectedWallet:\s*invitation\.invitee_wallet[\s\S]*?\}\)/,
+    'demo completion must authenticate the wallet bound to the invitation',
+  );
+  assert.match(
+    route,
+    /WalletAuthenticationError/,
+    'demo completion must return normal wallet-auth failures instead of bypassing them',
+  );
+
+  const authIndex = route.indexOf('await requireWalletSession');
+  const mutationIndex = route.indexOf(".from('invitations')\n    .update");
+
+  assert.ok(authIndex >= 0, 'wallet authentication must exist');
+  assert.ok(mutationIndex > authIndex, 'wallet authentication must happen before invitation mutation');
+});
