@@ -47,6 +47,48 @@ test('first paint keeps wallet Home covered while API data hydrates', () => {
   );
 });
 
+test('a ready label alone can never reveal partial wallet Home data', () => {
+  const base = {
+    walletAddress: WALLET,
+    hasBootstrappedSession: true,
+    hasPersistedWallet: true,
+    interactiveGateVisible: false,
+    allowHomeDataHydration: true,
+  };
+
+  for (const [invitesReady, referralLinkReady] of [
+    [false, false],
+    [true, false],
+    [false, true],
+  ]) {
+    assert.equal(
+      resolveStartupReadiness({
+        ...base,
+        homeState: {
+          status: 'ready',
+          walletAddress: WALLET,
+          invitesReady,
+          referralLinkReady,
+        },
+      }),
+      'hold',
+    );
+  }
+
+  assert.equal(
+    resolveStartupReadiness({
+      ...base,
+      homeState: {
+        status: 'ready',
+        walletAddress: WALLET,
+        invitesReady: true,
+        referralLinkReady: true,
+      },
+    }),
+    'release',
+  );
+});
+
 test('wallet switches remain strict after the first reveal', async () => {
   const runtime = await readFile(
     new URL('../src/components/WalletRuntimeLifecycle.tsx', import.meta.url),
