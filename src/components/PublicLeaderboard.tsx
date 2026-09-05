@@ -137,6 +137,7 @@ export function PublicLeaderboard({
     useState<PublicLeaderboardEntry | null>(null);
   const [impactOpen, setImpactOpen] = useState(false);
   const [impactVisible, setImpactVisible] = useState(false);
+  const [impactClosing, setImpactClosing] = useState(false);
   const impactCloseTimerRef = useRef<number | null>(null);
   const dialogRef = useRef<HTMLDivElement | null>(null);
   const closeButtonRef = useRef<HTMLButtonElement | null>(null);
@@ -192,6 +193,7 @@ export function PublicLeaderboard({
     }
     setSelectedEntry(null);
     setImpactVisible(false);
+    setImpactClosing(false);
     setImpactOpen(false);
     void load(false);
   }, [load]);
@@ -203,7 +205,7 @@ export function PublicLeaderboard({
   }, []);
 
   useEffect(() => {
-    if (!impactOpen) return;
+    if (!impactOpen || impactClosing) return;
 
     let revealFrame: number | null = null;
     const mountFrame = window.requestAnimationFrame(() => {
@@ -218,7 +220,7 @@ export function PublicLeaderboard({
         window.cancelAnimationFrame(revealFrame);
       }
     };
-  }, [impactOpen]);
+  }, [impactClosing, impactOpen]);
 
   useEffect(() => {
     if (!impactOpen) return;
@@ -240,10 +242,12 @@ export function PublicLeaderboard({
       return;
     }
 
+    setImpactClosing(true);
     setImpactVisible(false);
     impactCloseTimerRef.current = window.setTimeout(() => {
       impactCloseTimerRef.current = null;
       setImpactOpen(false);
+      setImpactClosing(false);
       window.requestAnimationFrame(() => openerRef.current?.focus());
     }, softFocusCloseDelay());
   }, [impactOpen]);
@@ -268,6 +272,7 @@ export function PublicLeaderboard({
     }
     openerRef.current = opener;
     setImpactVisible(false);
+    setImpactClosing(false);
     setImpactOpen(false);
     setSelectedEntry(entry);
   };
@@ -277,6 +282,7 @@ export function PublicLeaderboard({
     openerRef.current = opener;
     setSelectedEntry(null);
     setImpactVisible(false);
+    setImpactClosing(false);
     setImpactOpen(true);
   };
 
