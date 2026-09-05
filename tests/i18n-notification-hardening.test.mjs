@@ -80,10 +80,14 @@ test('reading the rich reward receipt also clears the duplicate paid bell notifi
   assert.match(notifications, /void refreshLifecycle\(false\)/);
 });
 
-test('notification lifecycle coalesces concurrent requests and persists unauthorized backoff', () => {
+test('notification lifecycle coalesces reload bursts and persists unauthorized backoff', () => {
   assert.match(
     notifications,
     /const LIFECYCLE_UNAUTHORIZED_BACKOFF_MS = 15_000;/,
+  );
+  assert.match(
+    notifications,
+    /const LIFECYCLE_REQUEST_LEASE_MS = 5_000;/,
   );
   assert.match(
     notifications,
@@ -91,23 +95,27 @@ test('notification lifecycle coalesces concurrent requests and persists unauthor
   );
   assert.match(
     notifications,
-    /const lifecycleRefreshPromises = new Map<string, Promise<void>>\(\);/,
+    /const LIFECYCLE_REQUEST_LEASE_STORAGE_KEY =/,
   );
   assert.match(
     notifications,
-    /window\.localStorage\.getItem\(LIFECYCLE_UNAUTHORIZED_BACKOFF_STORAGE_KEY\)/,
+    /window\.localStorage\.getItem\(key\)/,
   );
   assert.match(
     notifications,
-    /window\.localStorage\.setItem\([\s\S]*LIFECYCLE_UNAUTHORIZED_BACKOFF_STORAGE_KEY/,
+    /window\.localStorage\.setItem\(key, String\(value\)\)/,
   );
   assert.match(
     notifications,
-    /const inFlight = lifecycleRefreshPromises\.get\(lifecycleKey\);[\s\S]*if \(inFlight\) \{\s*await inFlight;\s*return;/,
+    /function acquireLifecycleRequestLease\(\): number \| null \{[\s\S]*if \(now < lifecycleRequestLeaseUntil\) return null;/,
   );
   assert.match(
     notifications,
-    /lifecycleRefreshPromises\.set\(lifecycleKey, task\);/,
+    /const lifecycleLease = acquireLifecycleRequestLease\(\);\s*if \(lifecycleLease === null\) return;/,
+  );
+  assert.match(
+    notifications,
+    /releaseLifecycleRequestLease\(lifecycleLease\);/,
   );
   assert.match(
     notifications,
