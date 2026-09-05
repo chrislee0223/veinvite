@@ -9,6 +9,10 @@ import {
   type SupportedLocale,
 } from '@/lib/i18n/locales';
 import {
+  PRODUCT_ANALYTICS_EVENT,
+  type ProductAnalyticsEventDetail,
+} from '@/lib/productAnalytics';
+import {
   readUsageAnalyticsEnabled,
   USAGE_ANALYTICS_DAILY_VISITOR_STORAGE_KEY,
   USAGE_ANALYTICS_PREFERENCE_EVENT,
@@ -20,6 +24,7 @@ import {
 const HEARTBEAT_MS = 30_000;
 const SESSION_IDLE_MS = 30 * 60_000;
 const MAX_ACTIVE_DELTA_SECONDS = 90;
+const MAX_PRODUCT_EVENT_SEQUENCE = 10_000;
 
 export const USAGE_ANALYTICS_VIEW_EVENT =
   'veinvite-analytics-view';
@@ -63,6 +68,7 @@ type SessionState = {
   startedAt: number;
   lastActivityAt: number;
   source: AcquisitionSource;
+  productEventSequence: number;
 };
 
 type UsagePayload = {
@@ -75,6 +81,23 @@ type UsagePayload = {
   source: AcquisitionSource;
   activeDeltaSeconds: number;
   returningVisitor: boolean;
+};
+
+type ProductPayload = {
+  eventId: string;
+  visitorId: string;
+  sessionId: string;
+  eventSequence: number;
+  eventName: ProductAnalyticsEventDetail['eventName'];
+  view: UsageView;
+  locale: SupportedLocale;
+  device: DeviceBucket;
+  source: AcquisitionSource;
+  outcome: NonNullable<ProductAnalyticsEventDetail['outcome']>;
+  failureCode: NonNullable<ProductAnalyticsEventDetail['failureCode']>;
+  missionKey: NonNullable<ProductAnalyticsEventDetail['missionKey']>;
+  flowKey: NonNullable<ProductAnalyticsEventDetail['flowKey']>;
+  entryClass: NonNullable<ProductAnalyticsEventDetail['entryClass']>;
 };
 
 function createUuid(): string {
@@ -246,6 +269,7 @@ function createSession(
     startedAt: now,
     lastActivityAt: now,
     source,
+    productEventSequence: 0,
   };
 }
 
@@ -280,6 +304,13 @@ function readOrCreateSession(
             parsed.lastActivityAt,
           source:
             parsed.source as AcquisitionSource,
+          productEventSequence:
+            typeof parsed.productEventSequence === 'number' &&
+            Number.isSafeInteger(parsed.productEventSequence) &&
+            parsed.productEventSequence >= 0 &&
+            parsed.productEventSequence <= MAX_PRODUCT_EVENT_SEQUENCE
+              ? parsed.productEventSequence
+              : 0,
         };
       }
     }
@@ -398,6 +429,18 @@ function sendUsagePayload(
     credentials: 'same-origin',
     body,
     keepalive: useBeacon,
+  }).catch(() => undefined);
+}
+
+function sendProductPayload(payload: ProductPayload) {
+  void fetch('/api/analytics/event', {
+    method: 'POST',
+    headers: {
+      'content-type': 'application/json',
+    },
+    credentials: 'same-origin',
+    body: JSON.stringify(payload),
+    keepalive: true,
   }).catch(() => undefined);
 }
 
@@ -764,6 +807,80 @@ export function UsageAnalyticsTracker() {
       );
     };
 
+    const onProductAnalytics = (
+      event: Event,
+    ) => {
+      if (!mountedRef.current) return;
+      const detail = (
+        event as CustomEvent<unknown>
+      ).detail;
+      if (
+        !detail ||
+        typeof detail !== 'object' ||
+        typeof (detail as { eventName?: unknown }).eventName !== 'string'
+      ) {
+        return;
+      }
+
+      let resolved = ensureSession();
+      if (!resolved) return;
+
+      if (
+        resolved.session.productEventSequence >=
+        MAX_PRODUCT_EVENT_SEQUENCE
+      ) {
+        const replacement = createSession(
+          resolved.session.source,
+          visitorRef.current?.dayKey ?? seoulDayKey(),
+        );
+        sessionRef.current = replacement;
+        persistSession(replacement);
+        rawSend(
+          'start',
+          replacement,
+          currentViewRef.current,
+          0,
+        );
+        resolved = {
+          session: replacement,
+          created: true,
+        };
+      } else if (resolved.created) {
+        rawSend(
+          'start',
+          resolved.session,
+          currentViewRef.current,
+          0,
+        );
+      }
+
+      const visitor = visitorRef.current;
+      if (!visitor) return;
+
+      const typed = detail as ProductAnalyticsEventDetail;
+      resolved.session.productEventSequence += 1;
+      resolved.session.lastActivityAt = Date.now();
+      persistSession(resolved.session);
+
+      sendProductPayload({
+        eventId: createUuid(),
+        visitorId: visitor.id,
+        sessionId: resolved.session.id,
+        eventSequence:
+          resolved.session.productEventSequence,
+        eventName: typed.eventName,
+        view: currentViewRef.current,
+        locale: localeRef.current,
+        device: deviceBucket(),
+        source: resolved.session.source,
+        outcome: typed.outcome ?? 'none',
+        failureCode: typed.failureCode ?? 'none',
+        missionKey: typed.missionKey ?? 'none',
+        flowKey: typed.flowKey ?? 'none',
+        entryClass: typed.entryClass ?? 'none',
+      });
+    };
+
     document.addEventListener(
       'visibilitychange',
       onVisibilityChange,
@@ -785,6 +902,10 @@ export function UsageAnalyticsTracker() {
     window.addEventListener(
       USAGE_ANALYTICS_WALLET_AUTH_EVENT,
       onWalletAuthenticated,
+    );
+    window.addEventListener(
+      PRODUCT_ANALYTICS_EVENT,
+      onProductAnalytics,
     );
 
     return () => {
@@ -820,6 +941,10 @@ export function UsageAnalyticsTracker() {
       window.removeEventListener(
         USAGE_ANALYTICS_WALLET_AUTH_EVENT,
         onWalletAuthenticated,
+      );
+      window.removeEventListener(
+        PRODUCT_ANALYTICS_EVENT,
+        onProductAnalytics,
       );
       mountedRef.current = false;
       activeSinceRef.current = null;
