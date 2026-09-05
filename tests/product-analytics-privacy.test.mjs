@@ -14,6 +14,7 @@ const [
   operatorReport,
   permanentReferral,
   legacyInvite,
+  homeClient,
   walletControl,
   walletAuth,
   privacyCopy,
@@ -30,6 +31,7 @@ const [
   read('src/app/api/admin/usage-analytics/route.ts'),
   read('src/components/PermanentReferralClient.tsx'),
   read('src/components/InviteeClient.tsx'),
+  read('src/components/HomeClient.tsx'),
   read('src/components/WalletControl.tsx'),
   read('src/hooks/useWalletAuthentication.ts'),
   read('src/lib/i18n/privacyProductAnalyticsCopy.ts'),
@@ -164,6 +166,15 @@ test(
     assert.match(legacyInvite, /mission_action_opened/);
     assert.match(legacyInvite, /missionKey: analyticsMissionKey/);
     assert.match(legacyInvite, /flowKey: 'legacy_invite'/);
+
+    assert.match(homeClient, /invite_link_copied/);
+    assert.match(homeClient, /invite_link_shared/);
+    assert.match(homeClient, /reward_claim_started/);
+    assert.match(homeClient, /reward_claim_succeeded/);
+    assert.match(homeClient, /reward_claim_failed/);
+    assert.match(homeClient, /failureCode: 'network'/);
+    assert.match(homeClient, /failureCode: 'malformed_response'/);
+    assert.match(homeClient, /'legacy_invite'/);
   },
 );
 
