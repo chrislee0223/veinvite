@@ -16,11 +16,24 @@ const RETRIABLE_READ_RPC_PATHS = new Set([
   '/rest/v1/rpc/read_reward_forecast_history',
 ]);
 
+const isDedicatedQaPreview =
+  process.env.VERCEL_ENV === 'preview' &&
+  process.env.VEINVITE_QA_STUDIO === 'true';
+
 const supabaseUrl =
   process.env.NEXT_PUBLIC_SUPABASE_URL;
 
-const supabaseSecretKey =
+const configuredSupabaseSecretKey =
   process.env.SUPABASE_SECRET_KEY;
+
+// The dedicated QA Studio Preview intentionally has no server database key.
+// A non-secret placeholder lets Next.js import server modules while collecting
+// route metadata; guardedFetch below still fails closed before any DB request.
+const supabaseSecretKey =
+  configuredSupabaseSecretKey ??
+  (isDedicatedQaPreview
+    ? 'qa-studio-disabled-server-key'
+    : undefined);
 
 if (!supabaseUrl) {
   throw new Error(
@@ -67,6 +80,12 @@ const configuredSupabaseOrigin =
 function assertSafeDatabaseEnvironment() {
   const vercelEnvironment =
     process.env.VERCEL_ENV;
+
+  if (isDedicatedQaPreview) {
+    throw new Error(
+      'Dedicated QA Studio server database access is disabled.',
+    );
+  }
 
   if (vercelEnvironment === 'production') {
     if (

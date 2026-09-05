@@ -9,6 +9,7 @@ const requiredFiles = [
   'src/qa/scenarioRegistry.ts',
   'src/qa/QaStudio.tsx',
   'src/qa/QaScenarioRenderer.tsx',
+  'src/lib/supabaseServer.ts',
 ];
 
 for (const file of requiredFiles) {
@@ -25,7 +26,10 @@ if (!access.includes("process.env.VEINVITE_QA_STUDIO !== 'true'")) {
   throw new Error('Dedicated QA access must require an explicit VEINVITE_QA_STUDIO=true flag.');
 }
 if (!access.includes('process.env.VEINVITE_QA_HOST')) {
-  throw new Error('Dedicated QA access must require an exact configured QA host.');
+  throw new Error('Dedicated QA Production access must retain an exact configured QA host guard.');
+}
+if (!/VEINVITE_QA_STUDIO[\s\S]*VERCEL_ENV === 'preview'/.test(access)) {
+  throw new Error('Dedicated QA Preview deployments must be recognized by the API isolation guard.');
 }
 
 const qaLayout = fs.readFileSync('src/app/qa/layout.tsx', 'utf8');
@@ -47,7 +51,21 @@ if (!proxy.includes('isDedicatedQaHost(host)')) {
   throw new Error('Dedicated QA project API traffic must be recognized by the proxy.');
 }
 if (!/pathname\.startsWith\('\/api\/'\)[\s\S]*isDedicatedQaHost\(host\)/.test(proxy)) {
-  throw new Error('The dedicated QA host must fail closed on application API routes.');
+  throw new Error('The dedicated QA deployment must fail closed on application API routes.');
+}
+
+const supabaseServer = fs.readFileSync('src/lib/supabaseServer.ts', 'utf8');
+if (!supabaseServer.includes('isDedicatedQaPreview')) {
+  throw new Error('Server Supabase setup must recognize the isolated dedicated QA Preview.');
+}
+if (!supabaseServer.includes('qa-studio-disabled-server-key')) {
+  throw new Error('Dedicated QA Preview builds must not require a real server database secret.');
+}
+if (!supabaseServer.includes('Dedicated QA Studio server database access is disabled.')) {
+  throw new Error('Dedicated QA Preview server database requests must fail closed.');
+}
+if (!supabaseServer.includes("'SUPABASE_SECRET_KEY is not configured.'")) {
+  throw new Error('Normal deployments must continue to fail fast without SUPABASE_SECRET_KEY.');
 }
 
 const renderer = fs.readFileSync('src/qa/QaScenarioRenderer.tsx', 'utf8');
