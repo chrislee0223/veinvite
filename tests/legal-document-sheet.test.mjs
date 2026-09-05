@@ -123,6 +123,28 @@ test('settings legal chevrons match the language affordance and mirror for RTL',
   );
 });
 
+test('legal and language close controls use balanced 44px geometry', () => {
+  assert.match(
+    legalConsistency,
+    /\.veinviteLegalSheetPanel \.veinviteLegalSheetClose\s*\{[\s\S]*width: 44px;[\s\S]*height: 44px;[\s\S]*flex: 0 0 44px;/,
+  );
+  assert.match(
+    legalConsistency,
+    /\.settingsPage \.languageModal \.languageClose\s*\{[\s\S]*width: 44px;[\s\S]*height: 44px;[\s\S]*flex: 0 0 44px;/,
+  );
+  assert.match(
+    legalConsistency,
+    /\.settingsPage \.languageModal \.languageClose::before,[\s\S]*\.settingsPage \.languageModal \.languageClose::after/,
+  );
+  assert.match(legalConsistency, /top: 50%;/);
+  assert.match(legalConsistency, /left: 50%;/);
+  assert.match(legalConsistency, /width: 16px;/);
+  assert.match(
+    legalConsistency,
+    /@media \(max-width: 560px\)[\s\S]*\.settingsPage \.languageModal\.languageModal[\s\S]*padding-top: 18px;/,
+  );
+});
+
 test('lazy-loaded legal sheet always gets a visible enter animation', () => {
   assert.match(motion, /@keyframes veinviteLegalSheetBackdropIn/);
   assert.match(motion, /@keyframes veinviteLegalSheetPanelIn/);
