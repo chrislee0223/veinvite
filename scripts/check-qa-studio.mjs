@@ -91,6 +91,21 @@ if (!studio.includes('/qa/render?scenario=')) {
 if (!studio.includes('Production writes')) {
   throw new Error('QA Studio must visibly expose its no-Production-write invariant.');
 }
+if (!studio.includes('빠른 점검') || !studio.includes('모든 상황')) {
+  throw new Error('QA Studio must retain the operator-friendly quick/all scenario browsing modes.');
+}
+if (!studio.includes('애니메이션 다시 보기')) {
+  throw new Error('QA Studio must retain one-click replay for UI motion inspection.');
+}
+if (!studio.includes('✓ 정상') || !studio.includes('! 문제 있음')) {
+  throw new Error('QA Studio must retain simple operator pass/issue sign-off controls.');
+}
+if (!studio.includes('VERDICT_STORAGE_KEY') || !studio.includes('window.localStorage')) {
+  throw new Error('QA Studio must retain build-scoped local operator review progress.');
+}
+if (!studio.includes('고급 정보 보기')) {
+  throw new Error('QA Studio must keep technical inspection optional instead of default.');
+}
 
 const nextConfig = fs.readFileSync('next.config.mjs', 'utf8');
 if (!nextConfig.includes("source: '/qa/:path*'")) {
