@@ -80,6 +80,20 @@ test('legal sheet is lazy, accessible, scroll-safe and uses shared motion', () =
   assert.doesNotMatch(sheet, /onPointerDown=/);
 });
 
+test('lazy-loaded legal sheet always gets a visible enter animation', () => {
+  assert.match(motion, /@keyframes veinviteLegalSheetBackdropIn/);
+  assert.match(motion, /@keyframes veinviteLegalSheetPanelIn/);
+  assert.match(
+    motion,
+    /\.veinviteLegalSheetBackdrop\[data-open="true"\]\s*\{[^}]*animation:/s,
+  );
+  assert.match(
+    motion,
+    /\.veinviteLegalSheetBackdrop\[data-open="true"\]\s+\.veinviteLegalSheetPanel\s*\{[^}]*animation:/s,
+  );
+  assert.match(motion, /animation: none !important/);
+});
+
 test('sheet reuses the authoritative legal copy and does not record consent', () => {
   assert.match(sheet, /LEGAL_COPY\[kind\]\[locale\]/);
   assert.match(sheet, /PRIVACY_USAGE_ANALYTICS_COPY/);
