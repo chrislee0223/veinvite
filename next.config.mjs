@@ -57,6 +57,19 @@ const nextConfig = {
           },
         ],
       },
+      {
+        source: '/qa/:path*',
+        headers: [
+          {
+            key: 'X-Robots-Tag',
+            value: 'noindex, nofollow, noarchive',
+          },
+          {
+            key: 'Cache-Control',
+            value: 'no-store',
+          },
+        ],
+      },
     ];
   },
 };

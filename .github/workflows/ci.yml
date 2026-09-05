@@ -44,6 +44,9 @@ jobs:
       - name: UI stability gate
         run: node scripts/check-ui-stability.mjs
 
+      - name: QA Studio architecture gate
+        run: node scripts/check-qa-studio.mjs
+
       - name: Leaderboard stability gate
         run: node scripts/check-leaderboard-stability.mjs
 
