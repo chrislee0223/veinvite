@@ -26,6 +26,11 @@ import {
   resolveBrowserLocale,
   type Locale,
 } from '@/lib/i18n/locales';
+import {
+  reportProductAnalyticsEvent,
+  type ProductAnalyticsFailureCode,
+  type ProductAnalyticsMissionKey,
+} from '@/lib/productAnalytics';
 import type { InviteRecord } from '@/lib/types';
 
 type Step = 'landing' | 'wallet' | 'checking' | 'success' | 'missions' | 'error' | 'review';
@@ -85,6 +90,21 @@ const VEBETTER_APPS_URL = 'https://governance.vebetterdao.org/apps';
 const VEBETTER_ALLOCATION_VOTING_URL =
   'https://governance.vebetterdao.org/allocations';
 const RESUME_SYNC_COOLDOWN_MS = 5_000;
+
+function claimFailureCode(
+  response: Response,
+  outcome: string | undefined,
+): ProductAnalyticsFailureCode {
+  if (response.status === 404) return 'invalid_link';
+  if (response.status === 409 || outcome === 'already_used') {
+    return 'already_used';
+  }
+  if (outcome === 'active_existing_user') return 'existing_user';
+  if (outcome === 'self_referral') return 'self_referral';
+  if (outcome === 'already_referred') return 'already_referred';
+  if (response.status >= 500) return 'server';
+  return 'eligibility';
+}
 
 async function readInviteResponse(
   response: Response,
@@ -300,17 +320,30 @@ export function InviteeClient({ code }: { code: string }) {
     setShowLanguageSetup(false);
   };
 
+  const openWallet = () => {
+    reportProductAnalyticsEvent({
+      eventName: 'wallet_connect_started',
+      flowKey: 'legacy_invite',
+    });
+    openConnectModal();
+  };
+
   const claim = async () => {
     if (!wallet) {
       setStep('wallet');
       return;
     }
 
+    reportProductAnalyticsEvent({
+      eventName: 'invite_accept_started',
+      flowKey: 'legacy_invite',
+    });
     setStep('checking');
     await new Promise((resolve) => setTimeout(resolve, 850));
 
+    let response: Response;
     try {
-      const response = await fetch(`/api/invites/${code}/claim`, {
+      response = await fetch(`/api/invites/${code}/claim`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -318,50 +351,91 @@ export function InviteeClient({ code }: { code: string }) {
           demoOutcome: demoOutcome === 'success' ? undefined : demoOutcome,
         }),
       });
-
-      let data: InviteApiResponse;
-      try {
-        data = (await response.json()) as InviteApiResponse;
-      } catch {
-        throw new Error('Malformed invite claim response.');
-      }
-
-      if (response.status === 202 || data.outcome === 'review') {
-        setStep('review');
-        return;
-      }
-
-      if (!response.ok) {
-        if (response.status === 404) setErrorCode('invalidLink');
-        else if (response.status === 409 || data.outcome === 'already_used') setErrorCode('used');
-        else if (data.outcome === 'active_existing_user') setErrorCode('existing');
-        else if (data.outcome === 'self_referral') setErrorCode('selfReferral');
-        else if (data.outcome === 'already_referred') setErrorCode('other');
-        else if (demoOutcome === 'existing') setErrorCode('existing');
-        else if (demoOutcome === 'other') setErrorCode('other');
-        else setErrorCode('eligibility');
-        setStep('error');
-        return;
-      }
-
-      if (
-        !data.invite ||
-        (data.entryClass !== 'new_user' &&
-          data.entryClass !== 'returning_user')
-      ) {
-        throw new Error('Incomplete invite claim response.');
-      }
-
-      setClaimedThisSession(true);
-      setEntryClass(data.entryClass);
-      setInvite(data.invite);
-      setProgress(DEFAULT_PROGRESS);
-      setStep('success');
     } catch (error) {
       console.error('Failed to claim invite:', error);
+      reportProductAnalyticsEvent({
+        eventName: 'invite_accept_failed',
+        outcome: 'failure',
+        failureCode: 'network',
+        flowKey: 'legacy_invite',
+      });
       setErrorCode('eligibility');
       setStep('error');
+      return;
     }
+
+    let data: InviteApiResponse;
+    try {
+      data = (await response.json()) as InviteApiResponse;
+    } catch (error) {
+      console.error('Failed to parse invite claim response:', error);
+      reportProductAnalyticsEvent({
+        eventName: 'invite_accept_failed',
+        outcome: 'failure',
+        failureCode: 'malformed_response',
+        flowKey: 'legacy_invite',
+      });
+      setErrorCode('eligibility');
+      setStep('error');
+      return;
+    }
+
+    if (response.status === 202 || data.outcome === 'review') {
+      reportProductAnalyticsEvent({
+        eventName: 'invite_accept_review',
+        outcome: 'review',
+        flowKey: 'legacy_invite',
+      });
+      setStep('review');
+      return;
+    }
+
+    if (!response.ok) {
+      reportProductAnalyticsEvent({
+        eventName: 'invite_accept_failed',
+        outcome: 'failure',
+        failureCode: claimFailureCode(response, data.outcome),
+        flowKey: 'legacy_invite',
+      });
+      if (response.status === 404) setErrorCode('invalidLink');
+      else if (response.status === 409 || data.outcome === 'already_used') setErrorCode('used');
+      else if (data.outcome === 'active_existing_user') setErrorCode('existing');
+      else if (data.outcome === 'self_referral') setErrorCode('selfReferral');
+      else if (data.outcome === 'already_referred') setErrorCode('other');
+      else if (demoOutcome === 'existing') setErrorCode('existing');
+      else if (demoOutcome === 'other') setErrorCode('other');
+      else setErrorCode('eligibility');
+      setStep('error');
+      return;
+    }
+
+    if (
+      !data.invite ||
+      (data.entryClass !== 'new_user' &&
+        data.entryClass !== 'returning_user')
+    ) {
+      reportProductAnalyticsEvent({
+        eventName: 'invite_accept_failed',
+        outcome: 'failure',
+        failureCode: 'malformed_response',
+        flowKey: 'legacy_invite',
+      });
+      setErrorCode('eligibility');
+      setStep('error');
+      return;
+    }
+
+    reportProductAnalyticsEvent({
+      eventName: 'invite_accept_succeeded',
+      outcome: 'success',
+      flowKey: 'legacy_invite',
+      entryClass: data.entryClass,
+    });
+    setClaimedThisSession(true);
+    setEntryClass(data.entryClass);
+    setInvite(data.invite);
+    setProgress(DEFAULT_PROGRESS);
+    setStep('success');
   };
 
   const completeMissions = async () => {
@@ -452,7 +526,7 @@ export function InviteeClient({ code }: { code: string }) {
         <h1>{t.connectWalletTitle}</h1>
         <p className="muted">{t.connectWalletDescription}</p>
         {!wallet ? (
-          <button type="button" className="secondaryButton" onClick={() => openConnectModal()}>{t.connectWallet}</button>
+          <button type="button" className="secondaryButton" onClick={openWallet}>{t.connectWallet}</button>
         ) : (
           <div className="notice successNotice">{t.walletConnected}: {shortAddress(wallet)}</div>
         )}
@@ -516,6 +590,7 @@ export function InviteeClient({ code }: { code: string }) {
             status={appProgressStatus}
             statusDirection="ltr"
             actionHref={appsDone ? undefined : VEBETTER_APPS_URL}
+            analyticsMissionKey="vebetter_apps"
           />
           <MissionCard state={conversionDone ? 'done' : conversionUnlocked ? 'current' : 'locked'} title={t.conversionMission} description={t.conversionMissionDescription} status={conversionDone ? t.complete : conversionUnlocked ? t.ready : t.locked} />
           <MissionCard
@@ -524,6 +599,7 @@ export function InviteeClient({ code }: { code: string }) {
             description={t.voteMissionDescription}
             status={voteDone ? t.complete : voteUnlocked ? t.ready : t.locked}
             actionHref={!voteDone && voteUnlocked ? VEBETTER_ALLOCATION_VOTING_URL : undefined}
+            analyticsMissionKey="governance_vote"
           />
           {!completed && demoMode ? (
             <button type="button" className="secondaryButton" onClick={() => void completeMissions()}>{t.demoComplete}</button>
@@ -560,6 +636,7 @@ function MissionCard({
   status,
   statusDirection,
   actionHref,
+  analyticsMissionKey,
 }: {
   state: 'done' | 'current' | 'locked';
   title: string;
@@ -567,6 +644,7 @@ function MissionCard({
   status: string;
   statusDirection?: 'ltr' | 'rtl';
   actionHref?: string;
+  analyticsMissionKey?: ProductAnalyticsMissionKey;
 }) {
   return (
     <div className={`mission ${state}`}>
@@ -578,6 +656,7 @@ function MissionCard({
         direction={statusDirection}
         href={actionHref}
         label={actionHref ? `${title}: ${status}` : undefined}
+        analyticsMissionKey={analyticsMissionKey}
       />
     </div>
   );
@@ -589,12 +668,14 @@ function MissionStatus({
   direction,
   href,
   label,
+  analyticsMissionKey,
 }: {
   state: 'done' | 'current' | 'locked';
   status: string;
   direction?: 'ltr' | 'rtl';
   href?: string;
   label?: string;
+  analyticsMissionKey?: ProductAnalyticsMissionKey;
 }) {
   const style = missionStatusStyle(state, Boolean(href));
 
@@ -605,6 +686,14 @@ function MissionStatus({
         aria-label={label}
         dir={direction}
         style={style}
+        onClick={() => {
+          if (!analyticsMissionKey) return;
+          reportProductAnalyticsEvent({
+            eventName: 'mission_action_opened',
+            missionKey: analyticsMissionKey,
+            flowKey: 'legacy_invite',
+          });
+        }}
       >
         <span>{status}</span>
         <span aria-hidden="true">↗</span>

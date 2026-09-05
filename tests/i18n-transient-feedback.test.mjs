@@ -48,8 +48,8 @@ test('snackbar never changes document flow and stays clear of bottom navigation'
 
 test('feedback is dismissed on meaningful navigation and referral v2 actions', () => {
   assert.match(home, /const changeTab = \(nextTab: AppTab\) => \{\s*clearFeedback\(\)/s);
-  assert.match(home, /const copyUrl = async \(url: string\) => \{[\s\S]*?clearFeedback\(\)/);
-  assert.match(home, /const shareUrl = async \(url: string\) => \{[\s\S]*?clearFeedback\(\)/);
+  assert.match(home, /const copyUrl = async \([\s\S]*?\) => \{[\s\S]*?clearFeedback\(\)/);
+  assert.match(home, /const shareUrl = async \([\s\S]*?\) => \{[\s\S]*?clearFeedback\(\)/);
   assert.match(home, /const cancelLegacyInvite = async \(\) => \{[\s\S]*?clearFeedback\(\)/);
   assert.doesNotMatch(home, /const createInvite = async \(\)/);
 });

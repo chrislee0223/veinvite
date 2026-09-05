@@ -26,6 +26,10 @@ import {
   resolveBrowserLocale,
   type SupportedLocale,
 } from '@/lib/i18n/locales';
+import {
+  reportProductAnalyticsEvent,
+  type ProductAnalyticsFailureCode,
+} from '@/lib/productAnalytics';
 import type { InviteRecord } from '@/lib/types';
 
 type Step =
@@ -54,6 +58,21 @@ type ClaimResponse = {
   inviteCode?: string;
   entryClass?: EntryClass | 'active_existing_user';
 };
+
+function claimFailureCode(
+  response: Response,
+  outcome: string | undefined,
+): ProductAnalyticsFailureCode {
+  if (response.status === 404 || outcome === 'invalid_link') {
+    return 'invalid_link';
+  }
+  if (outcome === 'slots_full') return 'slots_full';
+  if (outcome === 'active_existing_user') return 'existing_user';
+  if (outcome === 'self_referral') return 'self_referral';
+  if (outcome === 'already_referred') return 'already_referred';
+  if (response.status >= 500) return 'server';
+  return 'eligibility';
+}
 
 export function PermanentReferralClient({
   referralKey,
@@ -141,15 +160,29 @@ export function PermanentReferralClient({
     setShowLanguageSetup(false);
   };
 
+  const openWallet = () => {
+    reportProductAnalyticsEvent({
+      eventName: 'wallet_connect_started',
+      flowKey: 'permanent_referral',
+    });
+    openConnectModal();
+  };
+
   const claim = async () => {
     if (!wallet) {
       setStep('wallet');
       return;
     }
 
+    reportProductAnalyticsEvent({
+      eventName: 'invite_accept_started',
+      flowKey: 'permanent_referral',
+    });
     setStep('checking');
+
+    let response: Response;
     try {
-      const response = await fetch(
+      response = await fetch(
         `/api/referral-links/${encodeURIComponent(referralKey)}/claim`,
         {
           method: 'POST',
@@ -157,57 +190,97 @@ export function PermanentReferralClient({
           body: JSON.stringify({ inviteeAddress: wallet }),
         },
       );
-      const data = (await response.json()) as ClaimResponse;
-
-      if (
-        response.ok &&
-        data.outcome === 'already_claimed' &&
-        data.inviteCode
-      ) {
-        const resumeUrl = new URL(
-          `/i/${data.inviteCode}`,
-          window.location.origin,
-        );
-        resumeUrl.searchParams.set('lang', locale);
-        window.location.assign(resumeUrl.toString());
-        return;
-      }
-
-      if (!response.ok) {
-        if (response.status === 404 || data.outcome === 'invalid_link') {
-          setErrorCode('invalidLink');
-        } else if (data.outcome === 'slots_full') {
-          setErrorCode('full');
-        } else if (data.outcome === 'active_existing_user') {
-          setErrorCode('existing');
-        } else if (data.outcome === 'self_referral') {
-          setErrorCode('selfReferral');
-        } else if (data.outcome === 'already_referred') {
-          setErrorCode('other');
-        } else {
-          setErrorCode('eligibility');
-        }
-        setStep('error');
-        return;
-      }
-
-      if (
-        !data.invite?.code ||
-        (data.entryClass !== 'new_user' &&
-          data.entryClass !== 'returning_user')
-      ) {
-        setErrorCode('eligibility');
-        setStep('error');
-        return;
-      }
-
-      setClaimedInviteCode(data.invite.code);
-      setEntryClass(data.entryClass);
-      setStep('success');
     } catch {
+      reportProductAnalyticsEvent({
+        eventName: 'invite_accept_failed',
+        outcome: 'failure',
+        failureCode: 'network',
+        flowKey: 'permanent_referral',
+      });
       setErrorCode('eligibility');
       setStep('error');
+      return;
     }
+
+    let data: ClaimResponse;
+    try {
+      data = (await response.json()) as ClaimResponse;
+    } catch {
+      reportProductAnalyticsEvent({
+        eventName: 'invite_accept_failed',
+        outcome: 'failure',
+        failureCode: 'malformed_response',
+        flowKey: 'permanent_referral',
+      });
+      setErrorCode('eligibility');
+      setStep('error');
+      return;
+    }
+
+    if (
+      response.ok &&
+      data.outcome === 'already_claimed' &&
+      data.inviteCode
+    ) {
+      const resumeUrl = new URL(
+        `/i/${data.inviteCode}`,
+        window.location.origin,
+      );
+      resumeUrl.searchParams.set('lang', locale);
+      window.location.assign(resumeUrl.toString());
+      return;
+    }
+
+    if (!response.ok) {
+      reportProductAnalyticsEvent({
+        eventName: 'invite_accept_failed',
+        outcome: 'failure',
+        failureCode: claimFailureCode(response, data.outcome),
+        flowKey: 'permanent_referral',
+      });
+
+      if (response.status === 404 || data.outcome === 'invalid_link') {
+        setErrorCode('invalidLink');
+      } else if (data.outcome === 'slots_full') {
+        setErrorCode('full');
+      } else if (data.outcome === 'active_existing_user') {
+        setErrorCode('existing');
+      } else if (data.outcome === 'self_referral') {
+        setErrorCode('selfReferral');
+      } else if (data.outcome === 'already_referred') {
+        setErrorCode('other');
+      } else {
+        setErrorCode('eligibility');
+      }
+      setStep('error');
+      return;
+    }
+
+    if (
+      !data.invite?.code ||
+      (data.entryClass !== 'new_user' &&
+        data.entryClass !== 'returning_user')
+    ) {
+      reportProductAnalyticsEvent({
+        eventName: 'invite_accept_failed',
+        outcome: 'failure',
+        failureCode: 'malformed_response',
+        flowKey: 'permanent_referral',
+      });
+      setErrorCode('eligibility');
+      setStep('error');
+      return;
+    }
+
+    reportProductAnalyticsEvent({
+      eventName: 'invite_accept_succeeded',
+      outcome: 'success',
+      flowKey: 'permanent_referral',
+      entryClass: data.entryClass,
+    });
+    setClaimedInviteCode(data.invite.code);
+    setEntryClass(data.entryClass);
+    setStep('success');
   };
 
   const continueToMissions = () => {
@@ -312,7 +385,7 @@ export function PermanentReferralClient({
           <button
             type="button"
             className="secondaryButton"
-            onClick={() => openConnectModal()}
+            onClick={openWallet}
           >
             {t.connectWallet}
           </button>
