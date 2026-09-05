@@ -21,8 +21,9 @@ It is deliberately not a second copy of the app. The Studio owns scenario select
 
 - `/qa` — the interactive QA Studio.
 - `/qa/render` — an isolated same-origin renderer used by the Studio's device frames and gallery thumbnails.
+- `/ui-test` — legacy developer URL; Preview/development requests redirect to `/qa` so old bookmarks do not keep a second test experience alive.
 
-Both routes are server-gated by `src/qa/serverGate.ts` and are not available in Production.
+The QA routes are server-gated by `src/qa/serverGate.ts` and are not available in Production.
 
 ## Why the Studio uses iframes
 
@@ -47,7 +48,9 @@ Each scenario defines:
 - expected results
 - deterministic fixture values
 
-The initial foundation intentionally registers only states that already use real production components. Areas not yet connected to deterministic adapters are marked `planned` rather than being represented by fake screenshots.
+The initial foundation intentionally registers only states that can be represented safely without Production side effects. Areas not yet connected to deterministic adapters are marked `planned` rather than being represented by fake screenshots.
+
+One legacy exception is the audited active-existing-user rejection parity component. It predates QA Studio and uses the same shared `INVITEE_COPY` rejection strings protected by the existing UI stability gate. It is registered under a stable QA scenario now so the old `/ui-test` route can be retired. The scenario is explicitly described as a parity baseline, not falsely labelled as a fully extracted Production state component; eligibility remains incomplete until the pure Production state is shared directly.
 
 ## Current foundation
 
@@ -55,6 +58,7 @@ The first foundation includes:
 
 - Invite landing — ready
 - Invite landing — actions disabled/pending
+- Active-existing-user rejection parity baseline
 - Invite guide
 - Network coming-soon state
 - all current VeInvite locales through the production locale registry
@@ -64,7 +68,7 @@ The first foundation includes:
 - action timeline for safe simulated actions
 - State Gallery
 - explicit Coverage view
-- CI checks for registry integrity, production-component reuse, Production blocking, and root runtime-provider isolation
+- CI checks for registry integrity, production-component reuse, Production blocking, root runtime-provider isolation, and legacy rejection parity
 
 ## Adding a user-facing feature
 
@@ -96,7 +100,7 @@ Preview continues to use the project's dedicated Preview Supabase environment fo
 The registry and renderer adapters are designed to expand without replacing the foundation. Planned layers include:
 
 - wallet connect/sign/reject/switch/session simulator
-- eligibility and invite conflict states
+- eligibility and invite conflict states, including extraction of the active-existing rejection into a pure shared Production state
 - mission and reward state machines
 - notification and leaderboard state galleries
 - API latency/error/timeout fault injection
