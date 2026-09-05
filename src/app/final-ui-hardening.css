@@ -115,6 +115,85 @@ main.screen .bottomNavigation > div {
   transform-origin:50% 85% !important;
 }
 
+/*
+ * Top-3 podium refresh: keep the numeral itself on the exact same type scale and
+ * x-axis as ranks 4-100, but replace the tiny leaf strokes with the fuller,
+ * crown-topped laurel treatment selected for the production leaderboard. The
+ * decoration is entirely absolute, so it cannot alter row height or column
+ * alignment. The same treatment applies to occupied and empty Top-3 slots.
+ */
+.leaderboardPage .rankingCard .rankScroll .rows > .rankRow.featured:nth-child(1) .rankValue {
+  --podium-accent:#f1bd34;
+  --podium-opacity:.98;
+  color:var(--podium-accent) !important;
+  font-weight:950 !important;
+}
+.leaderboardPage .rankingCard .rankScroll .rows > .rankRow.featured:nth-child(2) .rankValue {
+  --podium-accent:#c8cbd0;
+  --podium-opacity:.90;
+  color:var(--podium-accent) !important;
+  font-weight:950 !important;
+}
+.leaderboardPage .rankingCard .rankScroll .rows > .rankRow.featured:nth-child(3) .rankValue {
+  --podium-accent:#c98252;
+  --podium-opacity:.90;
+  color:var(--podium-accent) !important;
+  font-weight:950 !important;
+}
+.leaderboardPage .rankingCard .rankScroll .rows > .rankRow.featured:nth-child(-n+3) .rankValue {
+  overflow:visible !important;
+}
+.leaderboardPage .rankingCard .rankScroll .rows > .rankRow.featured:nth-child(-n+3) .rankValue::before {
+  content:"" !important;
+  display:block !important;
+  position:absolute !important;
+  z-index:0 !important;
+  top:50% !important;
+  left:50% !important;
+  right:auto !important;
+  width:2.78em !important;
+  height:2.06em !important;
+  box-sizing:border-box !important;
+  border:0 !important;
+  border-left:.09em solid var(--podium-accent) !important;
+  border-right:.09em solid var(--podium-accent) !important;
+  border-bottom:.09em solid var(--podium-accent) !important;
+  border-radius:0 0 48% 48% !important;
+  background:
+    radial-gradient(ellipse .34em .19em at 16% 75%,var(--podium-accent) 0 72%,transparent 77%),
+    radial-gradient(ellipse .34em .19em at 11% 57%,var(--podium-accent) 0 72%,transparent 77%),
+    radial-gradient(ellipse .34em .19em at 15% 39%,var(--podium-accent) 0 72%,transparent 77%),
+    radial-gradient(ellipse .34em .19em at 24% 22%,var(--podium-accent) 0 72%,transparent 77%),
+    radial-gradient(ellipse .34em .19em at 84% 75%,var(--podium-accent) 0 72%,transparent 77%),
+    radial-gradient(ellipse .34em .19em at 89% 57%,var(--podium-accent) 0 72%,transparent 77%),
+    radial-gradient(ellipse .34em .19em at 85% 39%,var(--podium-accent) 0 72%,transparent 77%),
+    radial-gradient(ellipse .34em .19em at 76% 22%,var(--podium-accent) 0 72%,transparent 77%) !important;
+  opacity:var(--podium-opacity) !important;
+  transform:translate(-50%,-48%) !important;
+  transform-origin:center !important;
+  filter:drop-shadow(0 0 .12em rgba(255,255,255,.12)) !important;
+  pointer-events:none !important;
+}
+.leaderboardPage .rankingCard .rankScroll .rows > .rankRow.featured:nth-child(-n+3) .rankValue::after {
+  content:"" !important;
+  display:block !important;
+  position:absolute !important;
+  z-index:1 !important;
+  top:-.72em !important;
+  left:50% !important;
+  right:auto !important;
+  width:1.02em !important;
+  height:.55em !important;
+  border:0 !important;
+  border-radius:.06em !important;
+  background:var(--podium-accent) !important;
+  opacity:var(--podium-opacity) !important;
+  clip-path:polygon(0 100%,0 42%,18% 64%,34% 8%,50% 59%,68% 7%,83% 64%,100% 40%,100% 100%) !important;
+  transform:translateX(-50%) !important;
+  transform-origin:center !important;
+  pointer-events:none !important;
+}
+
 /* Keep /ui-test visually aligned with the production shell so it remains a
  * reliable post-release reference instead of drifting into a separate mock. */
 .labScreen .phoneCanvas > .topBar,
