@@ -15,7 +15,21 @@ test('notification history opens and closes with matched backdrop and panel moti
   assert.match(center, /notificationHistoryBackdrop isClosing/);
   assert.match(center, /notificationHistoryPanel isClosing/);
   assert.match(center, /setClosing\(true\)/);
-  assert.match(center, /setTimeout\(\s*finishClose,\s*NOTIFICATION_CLOSE_MS/);
+  assert.match(
+    center,
+    /setTimeout\(\s*finishClose,\s*NOTIFICATION_CLOSE_FALLBACK_MS/,
+  );
+  assert.match(center, /onAnimationEnd=\{\(event\) => \{/);
+  assert.match(center, /event\.target === event\.currentTarget/);
+});
+
+test('exit completion follows the real panel animation with a timer only as fallback', () => {
+  assert.match(center, /NOTIFICATION_CLOSE_FALLBACK_MS = 350/);
+  assert.match(
+    center,
+    /closing &&[\s\S]*event\.target === event\.currentTarget[\s\S]*finishClose\(\);/,
+  );
+  assert.doesNotMatch(center, /NOTIFICATION_CLOSE_MS = 180/);
 });
 
 test('closing keeps focus and scroll ownership stable until the exit motion completes', () => {
@@ -29,7 +43,11 @@ test('closing keeps focus and scroll ownership stable until the exit motion comp
   assert.doesNotMatch(center, /\[closing,\s*finishClose,\s*open\]/);
 });
 
-test('closing backdrop continues intercepting taps so they cannot click through to the app', () => {
+test('closing backdrop continues intercepting taps without becoming an extra focus target', () => {
+  assert.match(
+    center,
+    /<div\s+className=\{[\s\S]*notificationHistoryBackdrop isClosing[\s\S]*aria-hidden="true"[\s\S]*onClick=\{closePanel\}/,
+  );
   assert.doesNotMatch(
     center,
     /\.notificationHistoryBackdrop\.isClosing\{[^}]*pointer-events:none/,
@@ -38,6 +56,20 @@ test('closing backdrop continues intercepting taps so they cannot click through 
     center,
     /\.notificationHistoryPanel\.isClosing\{[^}]*pointer-events:none/,
   );
+});
+
+test('read notifications are static rows while unread notifications remain actionable', () => {
+  assert.match(center, /if \(!unread\) \{[\s\S]*<div[\s\S]*notificationHistoryRow isRead/);
+  assert.match(center, /<button[\s\S]*notificationHistoryRow isUnread/);
+  assert.doesNotMatch(center, /aria-pressed=/);
+  assert.match(center, /notificationHistorySrOnly/);
+  assert.match(center, /\{structure\.newLabel\}/);
+});
+
+test('bell and dialog expose an explicit accessible control relationship', () => {
+  assert.match(center, /NOTIFICATION_DIALOG_ID = 'veinvite-notification-history'/);
+  assert.match(center, /aria-controls=\{open \? NOTIFICATION_DIALOG_ID : undefined\}/);
+  assert.match(center, /id=\{NOTIFICATION_DIALOG_ID\}/);
 });
 
 test('reduced-motion users skip the delayed exit and CSS animation', () => {
