@@ -95,3 +95,70 @@ test('confirmed external VeWorld disconnect can clear a stale session after the 
   assert.match(source, /'pageshow'/);
   assert.match(source, /'visibilitychange'/);
 });
+
+test('an external VeWorld account switch repairs a persistent VeChainKit/DAppKit mismatch in place', async () => {
+  const source = await readFile(
+    new URL(
+      '../src/components/WalletProviderAccountReconciler.tsx',
+      import.meta.url,
+    ),
+    'utf8',
+  );
+  const providers = await readFile(
+    new URL(
+      '../src/components/AppProviders.tsx',
+      import.meta.url,
+    ),
+    'utf8',
+  );
+
+  assert.match(
+    source,
+    /PROVIDER_MISMATCH_GRACE_MS\s*=\s*700/,
+  );
+  assert.match(
+    source,
+    /PROVIDER_REPAIR_RETRY_DELAYS_MS\s*=\s*\[0,\s*450,\s*900\]/,
+  );
+  assert.match(
+    source,
+    /connection\.isConnectedWithDappKit/,
+  );
+  assert.match(source, /connection\.isLoading/);
+  assert.match(
+    source,
+    /dappWallet\s*===\s*canonicalWallet/,
+  );
+  assert.match(source, /await initializeAsync\(\)/);
+  assert.match(
+    providers,
+    /<WalletProviderAccountReconciler\s*\/>/,
+  );
+});
+
+test('provider repair preserves the old A-session confirmation and only re-arms auth after it is safe', async () => {
+  const source = await readFile(
+    new URL(
+      '../src/components/WalletProviderAccountReconciler.tsx',
+      import.meta.url,
+    ),
+    'utf8',
+  );
+
+  assert.match(
+    source,
+    /fetch\('\/api\/auth\/session',[\s\S]*credentials:\s*'include'/,
+  );
+  assert.match(
+    source,
+    /session\.authenticated\s*===\s*true[\s\S]*sessionWallet[\s\S]*sessionWallet\s*!==\s*walletAddress[\s\S]*return;/,
+  );
+  assert.match(
+    source,
+    /new Event\(WALLET_SESSION_INVALID_EVENT\)/,
+  );
+  assert.doesNotMatch(
+    source,
+    /clearWalletSession|disconnect\(\)|clearPersistedVeWorldConnectionState/,
+  );
+});
