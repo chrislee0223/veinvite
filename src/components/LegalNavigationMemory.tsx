@@ -2,9 +2,24 @@
 
 import { useEffect } from 'react';
 
+import {
+  localeFromLanguageTag,
+  resolveBrowserLocale,
+} from '@/lib/i18n/locales';
+import {
+  LEGAL_DOCUMENT_SHEET_OPEN_EVENT,
+  type LegalDocumentReturnView,
+  type LegalDocumentSheetOpenDetail,
+} from '@/lib/legalDocumentSheet';
+
 export const LEGAL_RETURN_STORAGE_KEY = 'veinvite-legal-return';
 
-const RESTORABLE_TABS = new Set(['home', 'guide', 'leaderboard', 'settings']);
+const RESTORABLE_TABS = new Set<LegalDocumentReturnView>([
+  'home',
+  'guide',
+  'leaderboard',
+  'settings',
+]);
 
 function cleanTabParam() {
   const url = new URL(window.location.href);
@@ -12,6 +27,40 @@ function cleanTabParam() {
   url.searchParams.delete('tab');
   const next = `${url.pathname}${url.search}${url.hash}`;
   window.history.replaceState(window.history.state, '', next || '/');
+}
+
+function resolveLegalSheetLocale() {
+  const documentLocale = localeFromLanguageTag(
+    document.documentElement.lang,
+  );
+  if (documentLocale) return documentLocale;
+  return resolveBrowserLocale(window.navigator.languages, 'en');
+}
+
+function resolveLegalReturnView(
+  anchor: HTMLAnchorElement,
+): LegalDocumentReturnView {
+  if (
+    anchor.closest('.legalCard') ||
+    anchor.dataset.legalReturn === 'settings'
+  ) {
+    return 'settings';
+  }
+
+  const activeTab = document
+    .querySelector<HTMLElement>('.bottomNavigation')
+    ?.dataset.veinviteActiveTab;
+
+  if (
+    activeTab &&
+    RESTORABLE_TABS.has(
+      activeTab as LegalDocumentReturnView,
+    )
+  ) {
+    return activeTab as LegalDocumentReturnView;
+  }
+
+  return 'home';
 }
 
 export function LegalNavigationMemory() {
@@ -22,7 +71,14 @@ export function LegalNavigationMemory() {
       window.cancelAnimationFrame(restoreFrame);
 
       const requestedTab = new URLSearchParams(window.location.search).get('tab');
-      if (!requestedTab || !RESTORABLE_TABS.has(requestedTab)) return;
+      if (
+        !requestedTab ||
+        !RESTORABLE_TABS.has(
+          requestedTab as LegalDocumentReturnView,
+        )
+      ) {
+        return;
+      }
 
       let attempts = 0;
       const tryRestore = () => {
@@ -86,6 +142,28 @@ export function LegalNavigationMemory() {
 
       if (url.origin !== window.location.origin) return;
       if (url.pathname !== '/privacy' && url.pathname !== '/terms') return;
+
+      const currentPath = window.location.pathname;
+      const canUseSheet =
+        document.documentElement.dataset.veinviteLegalSheetReady === 'true' &&
+        currentPath !== '/privacy' &&
+        currentPath !== '/terms';
+
+      if (canUseSheet) {
+        event.preventDefault();
+        const detail: LegalDocumentSheetOpenDetail = {
+          kind: url.pathname === '/privacy' ? 'privacy' : 'terms',
+          locale: resolveLegalSheetLocale(),
+          returnView: resolveLegalReturnView(anchor),
+        };
+        window.dispatchEvent(
+          new CustomEvent(
+            LEGAL_DOCUMENT_SHEET_OPEN_EVENT,
+            { detail },
+          ),
+        );
+        return;
+      }
 
       const returnToSettings =
         Boolean(anchor.closest('.legalCard')) ||
