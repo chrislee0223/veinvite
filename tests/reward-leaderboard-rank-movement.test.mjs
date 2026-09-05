@@ -24,6 +24,10 @@ const cron = await readFile(
   new URL('../src/app/api/cron/reconcile/route.ts', import.meta.url),
   'utf8',
 );
+const analyticsCron = await readFile(
+  new URL('../src/app/api/cron/analytics-maintenance/route.ts', import.meta.url),
+  'utf8',
+);
 const vercelConfig = await readFile(
   new URL('../vercel.json', import.meta.url),
   'utf8',
@@ -137,11 +141,34 @@ test('leaderboard snapshots run only after round growth reporting succeeds', () 
   );
 });
 
-test('leaderboard snapshot publication reuses the established Hobby-compatible daily reconciliation cron', () => {
+test('leaderboard publication remains owned by reconcile while analytics maintenance stays isolated', () => {
   const config = JSON.parse(vercelConfig);
-  assert.equal(config.crons.length, 1);
-  assert.equal(config.crons[0].path, '/api/cron/reconcile');
-  assert.equal(config.crons[0].schedule, '17 0 * * *');
+  assert.equal(config.crons.length, 2);
+
+  const reconciliationCron = config.crons.find(
+    (entry) => entry.path === '/api/cron/reconcile',
+  );
+  const analyticsMaintenanceCron = config.crons.find(
+    (entry) => entry.path === '/api/cron/analytics-maintenance',
+  );
+
+  assert.deepEqual(reconciliationCron, {
+    path: '/api/cron/reconcile',
+    schedule: '17 0 * * *',
+  });
+  assert.deepEqual(analyticsMaintenanceCron, {
+    path: '/api/cron/analytics-maintenance',
+    schedule: '47 0 * * *',
+  });
+
+  assert.match(cron, /publishLeaderboardRoundSnapshots/);
+  assert.match(analyticsCron, /finalize_long_term_analytics/);
+  assert.match(analyticsCron, /mode: 'NON_DESTRUCTIVE'/);
+  assert.match(analyticsCron, /rawRowsDeleted: 0/);
+  assert.doesNotMatch(analyticsCron, /publishLeaderboardRoundSnapshots/);
+  assert.doesNotMatch(analyticsCron, /maintainRoundGrowthSnapshots/);
+  assert.doesNotMatch(analyticsCron, /reward_receipts/i);
+  assert.doesNotMatch(analyticsCron, /reward_payout/i);
 });
 
 test('movement arithmetic examples preserve direction semantics', () => {
