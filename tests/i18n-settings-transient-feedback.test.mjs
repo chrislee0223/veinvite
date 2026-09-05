@@ -26,5 +26,24 @@ test('starting another meaningful settings action clears stale transient errors'
   assert.match(settings, /const runWalletAction = async[\s\S]*?clearFeedback\(\)/);
   assert.match(settings, /const openWalletConfirmation =[\s\S]*?clearFeedback\(\)/);
   assert.match(settings, /onClick=\{\(\) => \{\s*clearFeedback\(\);\s*onConnect\(\)/s);
-  assert.match(settings, /onClick=\{\(\) => \{\s*clearFeedback\(\);\s*setLanguageOpen\(true\)/s);
+
+  const openLanguagePickerStart = settings.indexOf(
+    'const openLanguagePicker = useCallback(() => {',
+  );
+  const openLanguagePickerEnd = settings.indexOf(
+    '}, [clearFeedback, clearLanguageCloseFallback]);',
+    openLanguagePickerStart,
+  );
+  assert.ok(openLanguagePickerStart >= 0);
+  assert.ok(openLanguagePickerEnd > openLanguagePickerStart);
+
+  const openLanguagePickerBody = settings.slice(
+    openLanguagePickerStart,
+    openLanguagePickerEnd,
+  );
+  const clearIndex = openLanguagePickerBody.indexOf('clearFeedback();');
+  const openIndex = openLanguagePickerBody.indexOf('setLanguageOpen(true);');
+  assert.ok(clearIndex >= 0);
+  assert.ok(openIndex > clearIndex);
+  assert.match(settings, /onClick=\{openLanguagePicker\}/);
 });
