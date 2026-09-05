@@ -22,8 +22,11 @@ export type StartupReadinessInput = {
   hasBootstrappedSession: boolean;
   hasPersistedWallet: boolean;
   interactiveGateVisible: boolean;
-  // Retained as a compatibility-only hint for the runtime call site. It must
-  // never authorize revealing wallet-scoped Home placeholders.
+  /**
+   * @deprecated Compatibility-only input retained for older runtime callers.
+   * It must never authorize revealing wallet-scoped Home placeholders. CI
+   * regression coverage intentionally passes true and still expects `hold`.
+   */
   allowHomeDataHydration?: boolean;
 };
 
@@ -55,6 +58,16 @@ function homeStateMatchesWallet(
   return (
     normalizeWallet(state.walletAddress) ===
     normalizeWallet(walletAddress)
+  );
+}
+
+function isHomeDataReady(
+  state: HomeStartupState | null,
+): boolean {
+  return (
+    state?.status === 'ready' &&
+    state.invitesReady === true &&
+    state.referralLinkReady === true
   );
 }
 
@@ -96,11 +109,11 @@ export function resolveStartupReadiness({
       return 'error';
     }
 
-    // A wallet-scoped Home is complete only after both the invitation slots and
-    // permanent referral link have finished loading. Never reveal the app shell
-    // while Home is still publishing its placeholder state; users should see
-    // one continuous VeInvite startup shield followed by real Home values.
-    return homeState?.status === 'ready'
+    // Hard startup invariant: a wallet-scoped Home may be revealed only when
+    // the exact wallet's invitation slots AND permanent referral link are both
+    // ready. The status label alone is deliberately insufficient, so a future
+    // refactor cannot accidentally publish `ready` early and expose skeletons.
+    return isHomeDataReady(homeState)
       ? 'release'
       : 'hold';
   }
@@ -120,7 +133,9 @@ export function resolveStartupReadiness({
     return 'error';
   }
 
-  return homeState?.status === 'ready'
+  // Keep the same completeness rule for the disconnected Home. HomeClient
+  // publishes both readiness flags as true for a settled anonymous state.
+  return isHomeDataReady(homeState)
     ? 'release'
     : 'hold';
 }
