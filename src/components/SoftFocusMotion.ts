@@ -33,6 +33,35 @@ export const SOFT_FOCUS_MOTION_CSS = `
     transform: translate3d(0, 0, 0) scale(1);
     transition-duration: 180ms;
   }
+
+  /*
+   * The legal sheet is lazy-loaded. On a cold first open the component can
+   * finish loading after its host has already moved to the visible state,
+   * which means a transition-only entrance has no previous painted state to
+   * animate from. These legal-only keyframes make the entrance deterministic
+   * even when the sheet first mounts with data-open="true".
+   */
+  @keyframes veinviteLegalSheetBackdropIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+  }
+  @keyframes veinviteLegalSheetPanelIn {
+    from {
+      opacity: 0;
+      transform: translate3d(0, 12px, 0) scale(.975);
+    }
+    to {
+      opacity: 1;
+      transform: translate3d(0, 0, 0) scale(1);
+    }
+  }
+  .veinviteLegalSheetBackdrop[data-open="true"] {
+    animation: veinviteLegalSheetBackdropIn 210ms ease-out both;
+  }
+  .veinviteLegalSheetBackdrop[data-open="true"] .veinviteLegalSheetPanel {
+    animation: veinviteLegalSheetPanelIn 220ms cubic-bezier(.22,.8,.24,1) both;
+  }
+
   .veinviteSoftFocusHeader {
     flex: 0 0 auto;
     min-height: 56px;
@@ -96,6 +125,7 @@ export const SOFT_FOCUS_MOTION_CSS = `
     .veinviteSoftFocusBackdrop,
     .veinviteSoftFocusPanel {
       transition: none !important;
+      animation: none !important;
     }
     .veinviteSoftFocusPanel {
       transform: none !important;
