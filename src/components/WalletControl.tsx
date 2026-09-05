@@ -18,6 +18,9 @@ import {
   useWalletAuthentication,
 } from '@/hooks/useWalletAuthentication';
 import {
+  reportProductAnalyticsEvent,
+} from '@/lib/productAnalytics';
+import {
   markWalletConnectIntent,
   settleExplicitWalletDisconnect,
 } from '@/lib/walletConnectionResume';
@@ -86,6 +89,10 @@ export function useWalletLauncher() {
     // Mobile browsers can suspend JavaScript while VeWorld is approving the
     // connection. Record this explicit attempt so the provider can reconcile
     // persisted dapp-kit state as soon as the browser becomes active again.
+    reportProductAnalyticsEvent({
+      eventName: 'wallet_connect_started',
+      flowKey: 'home',
+    });
     markWalletConnectIntent();
     openConnectModal();
   }, [
@@ -179,6 +186,10 @@ export function useWalletLauncher() {
         // The old browser session is gone, the provider account has actually
         // released, and stale VeWorld persistence has been removed twice around
         // transport settlement. Only now start a genuinely new handshake.
+        reportProductAnalyticsEvent({
+          eventName: 'wallet_connect_started',
+          flowKey: 'home',
+        });
         markWalletConnectIntent();
         openConnectModal();
       } finally {
