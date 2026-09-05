@@ -23,8 +23,9 @@ const translatedLocales = [...copy.matchAll(
   .filter((locale) => supportedLocales.includes(locale));
 
 test('notification history chrome is explicitly translated for all supported locales', () => {
-  assert.equal(supportedLocales.length, 27);
-  assert.equal(translatedLocales.length, 27);
+  assert.ok(supportedLocales.length >= 27);
+  assert.equal(new Set(supportedLocales).size, supportedLocales.length);
+  assert.equal(translatedLocales.length, supportedLocales.length);
   assert.deepEqual(
     [...new Set(translatedLocales)].sort(),
     [...supportedLocales].sort(),
