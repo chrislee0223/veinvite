@@ -760,7 +760,9 @@ export function UsageAnalyticsTracker() {
         detail !== 'leaderboard' &&
         detail !== 'settings' &&
         detail !== 'privacy' &&
-        detail !== 'terms'
+        detail !== 'terms' &&
+        detail !== 'invite_landing' &&
+        detail !== 'other'
       ) {
         return;
       }
