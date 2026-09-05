@@ -108,12 +108,35 @@ test('direct-invite language menu gets matched exit motion and closes on focus d
     requestCloseStart,
     requestCloseEnd,
   );
-  const guardIndex = requestCloseBody.indexOf(
+  const closeGuardIndex = requestCloseBody.indexOf(
     'if (!open || closing) return;',
   );
   const pendingIndex = requestCloseBody.indexOf(
     'pendingLocaleRef.current =',
   );
-  assert.ok(guardIndex >= 0);
-  assert.ok(pendingIndex > guardIndex);
+  assert.ok(closeGuardIndex >= 0);
+  assert.ok(pendingIndex > closeGuardIndex);
+
+  const openPickerStart = headerPickerSource.indexOf(
+    'const openPicker = useCallback',
+  );
+  const openPickerEnd = headerPickerSource.indexOf(
+    'useEffect(() => () =>',
+    openPickerStart,
+  );
+  assert.ok(openPickerStart >= 0);
+  assert.ok(openPickerEnd > openPickerStart);
+
+  const openPickerBody = headerPickerSource.slice(
+    openPickerStart,
+    openPickerEnd,
+  );
+  const openGuardIndex = openPickerBody.indexOf(
+    'if (closing) return;',
+  );
+  const clearPendingIndex = openPickerBody.indexOf(
+    'pendingLocaleRef.current = null;',
+  );
+  assert.ok(openGuardIndex >= 0);
+  assert.ok(clearPendingIndex > openGuardIndex);
 });
