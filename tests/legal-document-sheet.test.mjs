@@ -16,6 +16,8 @@ const [
   privacyPage,
   termsPage,
   motion,
+  layout,
+  legalConsistency,
 ] = await Promise.all([
   read('src/components/LegalNavigationMemory.tsx'),
   read('src/components/LegalDocumentSheetHost.tsx'),
@@ -27,6 +29,8 @@ const [
   read('src/app/privacy/page.tsx'),
   read('src/app/terms/page.tsx'),
   read('src/components/SoftFocusMotion.ts'),
+  read('src/app/layout.tsx'),
+  read('src/app/legal-ui-consistency.css'),
 ]);
 
 test('legal links keep real URLs while normal in-app clicks open the sheet', () => {
@@ -78,6 +82,30 @@ test('legal sheet is lazy, accessible, scroll-safe and uses shared motion', () =
   assert.match(motion, /prefers-reduced-motion: reduce/);
   assert.doesNotMatch(sheet, /onMouseDown=/);
   assert.doesNotMatch(sheet, /onPointerDown=/);
+});
+
+test('in-app legal header follows the shared title-left close-right pattern', () => {
+  assert.match(sheet, /const closeLabel = SETTINGS_COPY\[locale\]\?\.close/);
+  assert.match(sheet, /className="veinviteLegalSheetClose"/);
+  assert.match(sheet, /aria-label=\{closeLabel\}/);
+  assert.match(sheet, /<span aria-hidden="true">×<\/span>/);
+  assert.match(sheet, /text-align: start/);
+  assert.match(sheet, /justify-content: space-between/);
+  assert.doesNotMatch(sheet, /veinviteLegalSheetBack/);
+  assert.doesNotMatch(sheet, /veinviteLegalSheetHeaderSpacer/);
+  assert.doesNotMatch(sheet, /LEGAL_BACK_LABEL/);
+});
+
+test('settings legal chevrons match the language affordance and mirror for RTL', () => {
+  assert.match(layout, /import '\.\/legal-ui-consistency\.css'/);
+  assert.match(legalConsistency, /padding-inline-end: 12px/);
+  assert.match(legalConsistency, /width: 24px/);
+  assert.match(legalConsistency, /color: #a49f94/);
+  assert.match(legalConsistency, /font-size: 1\.45rem/);
+  assert.match(
+    legalConsistency,
+    /html\[dir='rtl'\][\s\S]*transform: scaleX\(-1\)/,
+  );
 });
 
 test('lazy-loaded legal sheet always gets a visible enter animation', () => {
