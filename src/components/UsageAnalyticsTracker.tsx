@@ -758,7 +758,9 @@ export function UsageAnalyticsTracker() {
         detail !== 'home' &&
         detail !== 'guide' &&
         detail !== 'leaderboard' &&
-        detail !== 'settings'
+        detail !== 'settings' &&
+        detail !== 'privacy' &&
+        detail !== 'terms'
       ) {
         return;
       }
