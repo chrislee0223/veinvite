@@ -14,11 +14,8 @@
   font-size: 1.45rem;
   line-height: 1;
   text-align: center;
-  transform-origin: center;
 }
 
-/* The glyph is stored as the LTR chevron in AppSettings. Mirror only the
- * visual affordance for RTL locales; link order and semantics stay intact. */
-html[dir='rtl'] .settingsPage .legalCard a > span[aria-hidden='true'] {
-  transform: scaleX(-1);
-}
+/* Keep the same › glyph as the Language row. It has Unicode bidi mirroring,
+ * so browsers naturally render it as ‹ in RTL. A CSS scaleX flip would mirror
+ * it a second time and point it back in the wrong direction. */
