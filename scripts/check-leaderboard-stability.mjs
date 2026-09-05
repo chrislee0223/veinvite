@@ -53,8 +53,11 @@ if (!/\.leaderboardPage \.rankingTopline\s*\{[\s\S]*?display:none\s*!important/.
 if (!/\.leaderboardPage \.tableHeader,[\s\S]*\.leaderboardPage \.rankRow\s*\{[\s\S]*display:grid\s*!important[\s\S]*grid-template-columns:12fr 40fr 20fr 28fr\s*!important[\s\S]*column-gap:0\s*!important/.test(layoutPolish)) {
   failures.push('Leaderboard header and rows must share the reviewed proportional 12/40/20/28 grid.');
 }
+if (!/--leaderboard-content-inset:12px[\s\S]*--leaderboard-scrollbar-width:5px/.test(layoutPolish) || !/padding-inline:var\(--leaderboard-content-inset\)\s*!important/.test(layoutPolish)) {
+  failures.push('Leaderboard header and rows must share one code-defined content inset and scrollbar width.');
+}
 if (
-  !/\.leaderboardPage \.rankValue\s*\{[\s\S]*grid-column:1\s*!important/.test(layoutPolish) ||
+  !/\.leaderboardPage \.rankStack\s*\{[\s\S]*grid-column:1\s*!important/.test(layoutPolish) ||
   !/\.leaderboardPage \.walletCell\s*\{[\s\S]*grid-column:2\s*!important/.test(layoutPolish) ||
   !/\.leaderboardPage \.completedMetric\s*\{[\s\S]*grid-column:3\s*!important/.test(layoutPolish) ||
   !/\.leaderboardPage \.rewardMetric\s*\{[\s\S]*grid-column:4\s*!important/.test(layoutPolish)
@@ -70,18 +73,28 @@ if (!/\.leaderboardPage \.rankScroll\s*\{[\s\S]*height:calc\(var\(--leaderboard-
 if (!/\.leaderboardPage \.rankRow,[\s\S]*\.leaderboardPage \.rankRow\.compact\s*\{[\s\S]*height:var\(--leaderboard-row-height\)\s*!important[\s\S]*min-height:var\(--leaderboard-row-height\)\s*!important/.test(layoutPolish)) {
   failures.push('Every rank slot must use the same fixed row height so the five-row viewport cannot collapse.');
 }
-
-if (
-  !/nth-child\(-n\+3\)[\s\S]*width:100%\s*!important[\s\S]*align-items:center\s*!important[\s\S]*justify-content:center\s*!important[\s\S]*border:0\s*!important[\s\S]*background:transparent\s*!important[\s\S]*box-shadow:none\s*!important/.test(layoutPolish) ||
-  !/rankValue::before,[\s\S]*rankValue::after[\s\S]*content:none\s*!important[\s\S]*display:none\s*!important/.test(layoutPolish) ||
-  !/nth-child\(1\)[\s\S]*#f1bd34\s*!important/.test(layoutPolish) ||
-  !/nth-child\(2\)[\s\S]*#c8cbd0\s*!important/.test(layoutPolish) ||
-  !/nth-child\(3\)[\s\S]*#c98252\s*!important/.test(layoutPolish)
-) {
-  failures.push('Top three ranks must remain centered gold, silver, and bronze numerals without decorative badges or laurels.');
+if (!/\.leaderboardPage \.tableHeader,[\s\S]*\.leaderboardPage \.rankRow\.trailingCurrent\s*\{[\s\S]*overflow-y:scroll\s*!important[\s\S]*scrollbar-gutter:stable\s*!important/.test(layoutPolish)) {
+  failures.push('Header and trailing current-user row must reserve the same scrollbar lane as the ranked rows.');
 }
-if (/rankValue::before,[\s\S]*rankValue::after[\s\S]*-webkit-mask:url/.test(layoutPolish)) {
-  failures.push('Laurel or mask decoration must not return to the Top 3 rank numerals.');
+if (!/\.leaderboardPage \.rankScroll::-webkit-scrollbar\s*\{?[\s\S]*width:var\(--leaderboard-scrollbar-width\)/.test(layoutPolish) && !/\.leaderboardPage \.rankRow\.trailingCurrent::-webkit-scrollbar,[\s\S]*\.leaderboardPage \.rankScroll::-webkit-scrollbar\s*\{[\s\S]*width:var\(--leaderboard-scrollbar-width\)/.test(layoutPolish)) {
+  failures.push('Leaderboard scrollbar lane must use the shared code-defined width.');
+}
+
+if (!/\.leaderboardPage \.rankValue\s*\{[\s\S]*min-inline-size:3ch\s*!important[\s\S]*font-variant-numeric:tabular-nums lining-nums\s*!important[\s\S]*font-feature-settings:"tnum" 1,"lnum" 1\s*!important/.test(layoutPolish)) {
+  failures.push('Rank numerals must use one stable tabular numeric axis from 1 through 100+.');
+}
+if (
+  !/:not\(\.placeholderRow\):nth-child\(1\)[\s\S]*#f1bd34/.test(layoutPolish) ||
+  !/:not\(\.placeholderRow\):nth-child\(2\)[\s\S]*#c8cbd0/.test(layoutPolish) ||
+  !/:not\(\.placeholderRow\):nth-child\(3\)[\s\S]*#c98252/.test(layoutPolish)
+) {
+  failures.push('Only real Top 3 entries may receive gold, silver, and bronze podium emphasis.');
+}
+if (!/:not\(\.placeholderRow\):nth-child\(-n\+3\)[\s\S]*rankValue::before,[\s\S]*rankValue::after[\s\S]*content:""\s*!important[\s\S]*position:absolute\s*!important[\s\S]*pointer-events:none\s*!important/.test(layoutPolish)) {
+  failures.push('Real Top 3 ranks must use presentation-only absolute CSS laurels that cannot move the numeral or grid.');
+}
+if (/rankValue::before,[\s\S]*rankValue::after[\s\S]*(?:url\(|-webkit-mask:url)/.test(layoutPolish)) {
+  failures.push('Top 3 laurels must remain CSS-drawn and must not depend on image or mask assets.');
 }
 
 if (!/\.leaderboardPage \.rankRow\.current,[\s\S]*background:linear-gradient\([\s\S]*border:0\s*!important[\s\S]*outline:0\s*!important[\s\S]*box-shadow:none\s*!important/.test(layoutPolish)) {
@@ -106,11 +119,11 @@ if (!/\.leaderboardPage \.walletAvatar img\s*\{[\s\S]*object-fit:contain\s*!impo
 if (!/\.leaderboardPage \.walletText\s*\{[\s\S]*max-width:calc\(100% - 31px\)\s*!important[\s\S]*text-overflow:ellipsis\s*!important[\s\S]*white-space:nowrap\s*!important/.test(layoutPolish)) {
   failures.push('Wallet text must reserve avatar space instead of overlapping it.');
 }
-if (!/@media \(max-width:420px\)[\s\S]*--leaderboard-row-height:46px[\s\S]*gap:6px\s*!important[\s\S]*flex-basis:18px\s*!important/.test(layoutPolish)) {
-  failures.push('Reviewed 420px row height and inviter identity spacing are missing.');
+if (!/@media \(max-width:420px\)[\s\S]*--leaderboard-row-height:46px[\s\S]*--leaderboard-content-inset:8px[\s\S]*gap:6px\s*!important[\s\S]*flex-basis:18px\s*!important/.test(layoutPolish)) {
+  failures.push('Reviewed 420px row height, shared inset, and inviter identity spacing are missing.');
 }
-if (!/@media \(max-width:360px\)[\s\S]*--leaderboard-row-height:44px[\s\S]*gap:5px\s*!important[\s\S]*flex-basis:16px\s*!important/.test(layoutPolish)) {
-  failures.push('Reviewed 360px row height and inviter identity spacing are missing.');
+if (!/@media \(max-width:360px\)[\s\S]*--leaderboard-row-height:44px[\s\S]*--leaderboard-content-inset:6px[\s\S]*gap:5px\s*!important[\s\S]*flex-basis:16px\s*!important/.test(layoutPolish)) {
+  failures.push('Reviewed 360px row height, shared inset, and inviter identity spacing are missing.');
 }
 
 if (
