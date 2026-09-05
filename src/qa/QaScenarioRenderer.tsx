@@ -2,8 +2,12 @@
 
 import { useEffect, useMemo, useState } from 'react';
 
+import { InfiniteReferralCanvasPreview } from '@/components/InfiniteReferralCanvasPreview';
 import { InviteLandingV2 } from '@/components/InviteLandingV2';
+import { InviteRejectionPreview } from '@/components/InviteRejectionPreview';
+import { NotificationUiPreview } from '@/components/NotificationUiPreview';
 import { UiTestHub } from '@/components/UiTestHub';
+import { UiTestLab } from '@/components/UiTestLab';
 import { isLocale, type Locale } from '@/lib/i18n/locales';
 
 import { getQaScenario } from './scenarioRegistry';
@@ -46,9 +50,11 @@ export function QaScenarioRenderer({
     document.documentElement.lang = initialLocale;
   }, [initialLocale, scenario.demoOutcome, scenario.id]);
 
-  if (scenario.screen === 'legacy-ui-hub') {
-    return <UiTestHub />;
-  }
+  if (scenario.screen === 'legacy-ui-hub') return <UiTestHub />;
+  if (scenario.screen === 'mission-preview') return <UiTestLab />;
+  if (scenario.screen === 'notification-preview') return <NotificationUiPreview />;
+  if (scenario.screen === 'eligibility-preview') return <InviteRejectionPreview />;
+  if (scenario.screen === 'network-preview') return <InfiniteReferralCanvasPreview />;
 
   return (
     <InviteLandingV2
