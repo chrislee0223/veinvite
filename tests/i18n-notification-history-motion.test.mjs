@@ -18,15 +18,26 @@ test('notification history opens and closes with matched backdrop and panel moti
   assert.match(center, /setTimeout\(\s*finishClose,\s*NOTIFICATION_CLOSE_MS/);
 });
 
-test('closing keeps focus and scroll ownership until the exit motion completes', () => {
-  assert.match(center, /const finishClose = useCallback/);
-  assert.match(center, /onClose\(\);[\s\S]*restoreBellFocus\(\);/);
+test('closing keeps focus and scroll ownership stable until the exit motion completes', () => {
+  assert.match(center, /const onCloseRef = useRef\(onClose\)/);
+  assert.match(center, /onCloseRef\.current\(\);[\s\S]*restoreBellFocus\(\);/);
   assert.match(center, /document\.body\.style\.overflow = 'hidden'/);
   assert.match(
     center,
     /if \(!open \|\| closeTimerRef\.current !== null\) return/,
   );
   assert.doesNotMatch(center, /\[closing,\s*finishClose,\s*open\]/);
+});
+
+test('closing backdrop continues intercepting taps so they cannot click through to the app', () => {
+  assert.doesNotMatch(
+    center,
+    /\.notificationHistoryBackdrop\.isClosing\{[^}]*pointer-events:none/,
+  );
+  assert.match(
+    center,
+    /\.notificationHistoryPanel\.isClosing\{[^}]*pointer-events:none/,
+  );
 });
 
 test('reduced-motion users skip the delayed exit and CSS animation', () => {
