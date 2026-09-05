@@ -1,0 +1,47 @@
+/* Selected Top-3 rank decoration.
+ * The rank numeral itself deliberately keeps the shared .rankValue type scale
+ * used by ranks 4-100. Only the absolute decoration changes. */
+.leaderboardPage .rankingCard .rankScroll .rows > .rankRow:nth-child(-n+3) .rankValue {
+  isolation:isolate;
+  overflow:visible !important;
+}
+
+.leaderboardPage .rankingCard .rankScroll .rows > .rankRow:nth-child(-n+3) .rankValue::before {
+  content:"" !important;
+  display:block !important;
+  position:absolute !important;
+  z-index:-1 !important;
+  top:50% !important;
+  left:50% !important;
+  right:auto !important;
+  width:3.55em !important;
+  height:3.55em !important;
+  border:0 !important;
+  border-radius:0 !important;
+  background-color:transparent !important;
+  background-repeat:no-repeat !important;
+  background-position:center !important;
+  background-size:contain !important;
+  opacity:1 !important;
+  transform:translate(-50%,-49%) !important;
+  transform-origin:center !important;
+  filter:none !important;
+  pointer-events:none !important;
+}
+
+.leaderboardPage .rankingCard .rankScroll .rows > .rankRow:nth-child(1) .rankValue::before {
+  background-image:url('/rank-laurel-gold.svg') !important;
+}
+.leaderboardPage .rankingCard .rankScroll .rows > .rankRow:nth-child(2) .rankValue::before {
+  background-image:url('/rank-laurel-silver.svg') !important;
+}
+.leaderboardPage .rankingCard .rankScroll .rows > .rankRow:nth-child(3) .rankValue::before {
+  background-image:url('/rank-laurel-bronze.svg') !important;
+}
+
+/* The previous implementation used ::after for a separate CSS crown. The
+ * selected artwork already contains its own crown, so suppress that layer. */
+.leaderboardPage .rankingCard .rankScroll .rows > .rankRow:nth-child(-n+3) .rankValue::after {
+  content:none !important;
+  display:none !important;
+}
