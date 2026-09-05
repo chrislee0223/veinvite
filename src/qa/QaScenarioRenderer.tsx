@@ -31,8 +31,9 @@ export function QaScenarioRenderer({
   localeOverride,
 }: QaScenarioRendererProps) {
   const scenario = useMemo(() => getQaScenario(scenarioId), [scenarioId]);
-  const initialLocale: Locale = isLocale(localeOverride)
-    ? localeOverride
+  const normalizedLocale = localeOverride ?? null;
+  const initialLocale: Locale = isLocale(normalizedLocale)
+    ? normalizedLocale
     : scenario.locale;
   const [locale, setLocale] = useState<Locale>(initialLocale);
   const [demoOutcome, setDemoOutcome] = useState(
