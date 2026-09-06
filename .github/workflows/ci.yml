@@ -47,6 +47,9 @@ jobs:
       - name: QA Studio architecture gate
         run: node scripts/check-qa-studio.mjs
 
+      - name: Production QA state coverage gate
+        run: node scripts/check-qa-production-state-coverage.mjs
+
       - name: Leaderboard stability gate
         run: node scripts/check-leaderboard-stability.mjs
 

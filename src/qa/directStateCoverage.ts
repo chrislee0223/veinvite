@@ -2,7 +2,11 @@ import type { PermanentReferralQaState } from '@/components/PermanentReferralCli
 import type { WalletSessionQaState } from '@/components/WalletSessionGate';
 import type { LegalConsentQaState } from '@/components/LegalConsentGate';
 import type { QaHomeStateId } from './QaHomeStateHarness';
+import type { QaHomeFeedbackStateId } from './QaHomeFeedbackHarness';
 import type { QaNotificationStateId } from './QaNotificationStateHarness';
+import type { QaSettingsStateId } from './QaSettingsStateHarness';
+import type { QaLeaderboardStateId } from './QaLeaderboardStateHarness';
+import type { QaInviteLandingStateId } from './QaInviteLandingStateHarness';
 import {
   QA_KNOWN_STATES,
   type QaKnownState,
@@ -20,6 +24,10 @@ export type QaDirectStateRenderer =
       permanentReferralState: PermanentReferralQaState;
     })
   | (QaDirectStateRendererBase & {
+      renderer: 'invite-landing';
+      inviteLandingStateId: QaInviteLandingStateId;
+    })
+  | (QaDirectStateRendererBase & {
       renderer: 'wallet-session';
       walletSessionState: WalletSessionQaState;
     })
@@ -32,8 +40,20 @@ export type QaDirectStateRenderer =
       homeStateId: QaHomeStateId;
     })
   | (QaDirectStateRendererBase & {
+      renderer: 'home-feedback';
+      homeFeedbackStateId: QaHomeFeedbackStateId;
+    })
+  | (QaDirectStateRendererBase & {
       renderer: 'notification';
       notificationStateId: QaNotificationStateId;
+    })
+  | (QaDirectStateRendererBase & {
+      renderer: 'settings';
+      settingsStateId: QaSettingsStateId;
+    })
+  | (QaDirectStateRendererBase & {
+      renderer: 'leaderboard';
+      leaderboardStateId: QaLeaderboardStateId;
     });
 
 export const QA_DIRECT_STATE_RENDERERS: QaDirectStateRenderer[] = [
@@ -41,6 +61,7 @@ export const QA_DIRECT_STATE_RENDERERS: QaDirectStateRenderer[] = [
   { stateId: 'PRI-LANGUAGE-SETUP', renderer: 'permanent-referral', permanentReferralState: 'language-setup', defaultLocale: 'ko' },
   { stateId: 'PRI-LINK-CHECKING', renderer: 'permanent-referral', permanentReferralState: 'link-checking', defaultLocale: 'ko' },
   { stateId: 'PRI-LANDING', renderer: 'permanent-referral', permanentReferralState: 'landing', defaultLocale: 'ko' },
+  { stateId: 'PRI-LANDING-DISABLED', renderer: 'invite-landing', inviteLandingStateId: 'PRI-LANDING-DISABLED', defaultLocale: 'ko' },
   { stateId: 'PRI-WALLET-REQUIRED', renderer: 'permanent-referral', permanentReferralState: 'wallet-required', defaultLocale: 'ko' },
   { stateId: 'PRI-WALLET-CONNECTED', renderer: 'permanent-referral', permanentReferralState: 'wallet-connected', defaultLocale: 'ko' },
   { stateId: 'PRI-ELIGIBILITY-CHECKING', renderer: 'permanent-referral', permanentReferralState: 'eligibility-checking', defaultLocale: 'ko' },
@@ -78,9 +99,13 @@ export const QA_DIRECT_STATE_RENDERERS: QaDirectStateRenderer[] = [
   { stateId: 'HOME-SLOT-COMPLETED', renderer: 'home', homeStateId: 'HOME-SLOT-COMPLETED', defaultLocale: 'ko' },
   { stateId: 'HOME-SLOTS-FULL', renderer: 'home', homeStateId: 'HOME-SLOTS-FULL', defaultLocale: 'ko' },
   { stateId: 'HOME-CANCEL-CONFIRM', renderer: 'home', homeStateId: 'HOME-CANCEL-CONFIRM', defaultLocale: 'ko' },
+  { stateId: 'HOME-COPY-SUCCESS', renderer: 'home-feedback', homeFeedbackStateId: 'HOME-COPY-SUCCESS', defaultLocale: 'ko' },
+  { stateId: 'HOME-COPY-ERROR', renderer: 'home-feedback', homeFeedbackStateId: 'HOME-COPY-ERROR', defaultLocale: 'ko' },
+  { stateId: 'HOME-LOAD-ERROR', renderer: 'home-feedback', homeFeedbackStateId: 'HOME-LOAD-ERROR', defaultLocale: 'ko' },
   { stateId: 'REWARD-AWAITING-CLAIM', renderer: 'home', homeStateId: 'REWARD-AWAITING-CLAIM', defaultLocale: 'ko' },
   { stateId: 'REWARD-CLAIM-PENDING', renderer: 'home', homeStateId: 'REWARD-CLAIM-PENDING', defaultLocale: 'ko' },
   { stateId: 'REWARD-CLAIM-QUEUED', renderer: 'home', homeStateId: 'REWARD-CLAIM-QUEUED', defaultLocale: 'ko' },
+  { stateId: 'REWARD-CLAIM-ERROR', renderer: 'home-feedback', homeFeedbackStateId: 'REWARD-CLAIM-ERROR', defaultLocale: 'ko' },
 
   { stateId: 'NOTI-BELL-EMPTY', renderer: 'notification', notificationStateId: 'NOTI-BELL-EMPTY', defaultLocale: 'ko' },
   { stateId: 'NOTI-BELL-UNREAD', renderer: 'notification', notificationStateId: 'NOTI-BELL-UNREAD', defaultLocale: 'ko' },
@@ -101,6 +126,28 @@ export const QA_DIRECT_STATE_RENDERERS: QaDirectStateRenderer[] = [
   { stateId: 'NOTI-INELIGIBLE', renderer: 'notification', notificationStateId: 'NOTI-INELIGIBLE', defaultLocale: 'ko' },
   { stateId: 'NOTI-ACK-BUSY', renderer: 'notification', notificationStateId: 'NOTI-ACK-BUSY', defaultLocale: 'ko' },
   { stateId: 'NOTI-ACK-ERROR', renderer: 'notification', notificationStateId: 'NOTI-ACK-ERROR', defaultLocale: 'ko' },
+
+  { stateId: 'SETTINGS-WALLET-DISCONNECTED', renderer: 'settings', settingsStateId: 'SETTINGS-WALLET-DISCONNECTED', defaultLocale: 'ko' },
+  { stateId: 'SETTINGS-WALLET-CONNECTED', renderer: 'settings', settingsStateId: 'SETTINGS-WALLET-CONNECTED', defaultLocale: 'ko' },
+  { stateId: 'SETTINGS-SWITCH-CONFIRM', renderer: 'settings', settingsStateId: 'SETTINGS-SWITCH-CONFIRM', defaultLocale: 'ko' },
+  { stateId: 'SETTINGS-DISCONNECT-CONFIRM', renderer: 'settings', settingsStateId: 'SETTINGS-DISCONNECT-CONFIRM', defaultLocale: 'ko' },
+  { stateId: 'SETTINGS-WALLET-PENDING', renderer: 'settings', settingsStateId: 'SETTINGS-WALLET-PENDING', defaultLocale: 'ko' },
+  { stateId: 'SETTINGS-ACTION-ERROR', renderer: 'settings', settingsStateId: 'SETTINGS-ACTION-ERROR', defaultLocale: 'ko' },
+  { stateId: 'SETTINGS-LANGUAGE-OPEN', renderer: 'settings', settingsStateId: 'SETTINGS-LANGUAGE-OPEN', defaultLocale: 'ko' },
+  { stateId: 'SETTINGS-LANGUAGE-SEARCH', renderer: 'settings', settingsStateId: 'SETTINGS-LANGUAGE-SEARCH', defaultLocale: 'ko' },
+
+  { stateId: 'LEADERBOARD-LOADING', renderer: 'leaderboard', leaderboardStateId: 'LEADERBOARD-LOADING', defaultLocale: 'ko' },
+  { stateId: 'LEADERBOARD-ERROR', renderer: 'leaderboard', leaderboardStateId: 'LEADERBOARD-ERROR', defaultLocale: 'ko' },
+  { stateId: 'LEADERBOARD-LIST', renderer: 'leaderboard', leaderboardStateId: 'LEADERBOARD-LIST', defaultLocale: 'ko' },
+  { stateId: 'LEADERBOARD-PLACEHOLDERS', renderer: 'leaderboard', leaderboardStateId: 'LEADERBOARD-PLACEHOLDERS', defaultLocale: 'ko' },
+  { stateId: 'LEADERBOARD-CURRENT-IN-LIST', renderer: 'leaderboard', leaderboardStateId: 'LEADERBOARD-CURRENT-IN-LIST', defaultLocale: 'ko' },
+  { stateId: 'LEADERBOARD-CURRENT-TRAILING', renderer: 'leaderboard', leaderboardStateId: 'LEADERBOARD-CURRENT-TRAILING', defaultLocale: 'ko' },
+  { stateId: 'LEADERBOARD-MOVE-UP', renderer: 'leaderboard', leaderboardStateId: 'LEADERBOARD-MOVE-UP', defaultLocale: 'ko' },
+  { stateId: 'LEADERBOARD-MOVE-DOWN', renderer: 'leaderboard', leaderboardStateId: 'LEADERBOARD-MOVE-DOWN', defaultLocale: 'ko' },
+  { stateId: 'LEADERBOARD-MOVE-NEW', renderer: 'leaderboard', leaderboardStateId: 'LEADERBOARD-MOVE-NEW', defaultLocale: 'ko' },
+  { stateId: 'LEADERBOARD-MOVE-SAME', renderer: 'leaderboard', leaderboardStateId: 'LEADERBOARD-MOVE-SAME', defaultLocale: 'ko' },
+  { stateId: 'LEADERBOARD-WALLET-DETAIL', renderer: 'leaderboard', leaderboardStateId: 'LEADERBOARD-WALLET-DETAIL', defaultLocale: 'ko' },
+  { stateId: 'LEADERBOARD-IMPACT-DETAIL', renderer: 'leaderboard', leaderboardStateId: 'LEADERBOARD-IMPACT-DETAIL', defaultLocale: 'ko' },
 ];
 
 const rendererByStateId = new Map(

@@ -5,8 +5,12 @@ import { WalletSessionGate } from '@/components/WalletSessionGate';
 import { LegalConsentGate } from '@/components/LegalConsentGate';
 import { isLocale, type SupportedLocale } from '@/lib/i18n/locales';
 import { getQaDirectStateRenderer } from './directStateCoverage';
+import { QaInviteLandingStateHarness } from './QaInviteLandingStateHarness';
 import { QaHomeStateHarness } from './QaHomeStateHarness';
+import { QaHomeFeedbackHarness } from './QaHomeFeedbackHarness';
 import { QaNotificationStateHarness } from './QaNotificationStateHarness';
+import { QaSettingsStateHarness } from './QaSettingsStateHarness';
+import { QaLeaderboardStateHarness } from './QaLeaderboardStateHarness';
 import { QA_KNOWN_STATES } from './stateRegistry';
 
 const QA_WALLET = '0x0000000000000000000000000000000000000a11';
@@ -60,6 +64,15 @@ export function QaKnownStateRenderer({
     );
   }
 
+  if (renderer.renderer === 'invite-landing') {
+    return (
+      <QaInviteLandingStateHarness
+        stateId={renderer.inviteLandingStateId}
+        locale={locale}
+      />
+    );
+  }
+
   if (renderer.renderer === 'wallet-session') {
     return (
       <WalletSessionGate
@@ -90,6 +103,15 @@ export function QaKnownStateRenderer({
     );
   }
 
+  if (stateId === 'REWARD-CLAIM-QUEUED') {
+    return (
+      <QaHomeFeedbackHarness
+        stateId="REWARD-CLAIM-QUEUED"
+        locale={locale}
+      />
+    );
+  }
+
   if (renderer.renderer === 'home') {
     return (
       <QaHomeStateHarness
@@ -99,10 +121,37 @@ export function QaKnownStateRenderer({
     );
   }
 
+  if (renderer.renderer === 'home-feedback') {
+    return (
+      <QaHomeFeedbackHarness
+        stateId={renderer.homeFeedbackStateId}
+        locale={locale}
+      />
+    );
+  }
+
   if (renderer.renderer === 'notification') {
     return (
       <QaNotificationStateHarness
         stateId={renderer.notificationStateId}
+        locale={locale}
+      />
+    );
+  }
+
+  if (renderer.renderer === 'settings') {
+    return (
+      <QaSettingsStateHarness
+        stateId={renderer.settingsStateId}
+        locale={locale}
+      />
+    );
+  }
+
+  if (renderer.renderer === 'leaderboard') {
+    return (
+      <QaLeaderboardStateHarness
+        stateId={renderer.leaderboardStateId}
         locale={locale}
       />
     );
