@@ -11,7 +11,7 @@ export type QaHomeFeedbackStateId =
   | 'HOME-COPY-SUCCESS'
   | 'HOME-COPY-ERROR'
   | 'HOME-LOAD-ERROR'
-  | 'REWARD-CLAIM-SUCCESS'
+  | 'REWARD-CLAIM-QUEUED'
   | 'REWARD-CLAIM-ERROR';
 
 type FeedbackFixture = {
@@ -46,7 +46,7 @@ function fixtureForState(
         kind: 'error',
         text: home.loadError,
       };
-    case 'REWARD-CLAIM-SUCCESS':
+    case 'REWARD-CLAIM-QUEUED':
       return {
         backgroundState: 'REWARD-CLAIM-QUEUED',
         kind: 'success',
