@@ -91,7 +91,8 @@ export async function GET(request: NextRequest) {
     const hasArchiveWarning =
       Number(health?.overdue_usage_days_without_verified_archive ?? 0) > 0 ||
       Number(health?.overdue_product_days_without_verified_archive ?? 0) > 0 ||
-      Number(health?.failed_archive_manifests ?? 0) > 0;
+      Number(health?.failed_archive_manifests ?? 0) > 0 ||
+      Number(health?.purged_analytics_dates_without_valid_archive ?? 0) > 0;
 
     // Physical archive storage/export/restore verification is intentionally a
     // later phase. Keep readiness explicit so a clean runtime health report is
