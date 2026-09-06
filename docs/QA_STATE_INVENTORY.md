@@ -87,13 +87,34 @@ QA mode에서는 링크 검증 fetch, VeWorld 연결창 실행, claim analytics/
 
 `SESSION-PASSIVE-DISCONNECT-RECOVERY`처럼 화면 자체보다 시간/이벤트 순서가 핵심인 항목은 억지로 direct 화면으로 올리지 않고 Transition Coverage에서 별도 검증한다.
 
+## 세 번째 direct coverage wave
+
+Home / Reward는 `HomeClient` 자체를 그대로 렌더링하고, QA 전용 wallet-launcher override와 브라우저 API interceptor로 상태만 가짜로 주입한다. Home UI를 별도로 복제하지 않는다.
+
+Home 직접 재현:
+
+- 지갑 미연결 / 지갑 연결창 여는 중
+- 홈 초기 로딩 / 초대 링크 로딩 / 초대 링크 오류
+- 슬롯 로딩 / 빈 슬롯 / 대기 / 진행 / 검토 / 완료 / 2개 슬롯 사용 중
+- 기존 초대 취소 확인 팝업
+
+Reward 직접 재현:
+
+- 보상 수령 가능
+- 보상 수령 처리 중
+- 보상 요청 완료(queued)
+
+QA Home harness는 같은 origin의 `/api/*` 요청을 실제 배포 API로 보내지 않고 fixture 응답으로 처리한다. 정의하지 않은 애플리케이션 API 요청은 503으로 fail closed 한다. 지갑 열기/전환/연결 해제 동작도 QA override 안에서는 no-op이며, locale·referral session cache·`window.fetch`는 fixture 종료 시 원래 값으로 복원한다.
+
+아직 transient snackbar 자체가 핵심인 `HOME-COPY-SUCCESS`, `HOME-COPY-ERROR`, `HOME-LOAD-ERROR`, `REWARD-CLAIM-ERROR` 등은 억지로 정적 화면으로 고정하지 않고 다음 interaction/transition fixture wave에서 직접 재현한다.
+
 ## 다음 확장 순서
 
-1. Home / Reward direct fixtures
-2. Notification history / 알림 이벤트 direct fixtures
-3. Leaderboard loading/error/movement/detail 독립 상태
-4. `/i/[code]` legacy flow 전체 상태
-5. Transition Registry + Journey Runner
+1. Notification history / 알림 이벤트 direct fixtures
+2. Leaderboard loading/error/movement/detail 독립 상태
+3. `/i/[code]` legacy flow 전체 상태
+4. transient Home/Reward feedback + Transition Registry
+5. Journey Runner
 6. changed-screen 영향 감지, stale verdict, Playwright/Visual Regression
 
 현재 상태 목록은 완성 선언이 아니라 **누락을 숨기지 않는 기준선**이다. `missing`이 0이 되고 direct coverage가 실제 Production 컴포넌트에 연결됐을 때 현재 운영 UI State Coverage를 100%라고 표시한다.

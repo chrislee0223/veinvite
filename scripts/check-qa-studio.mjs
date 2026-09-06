@@ -15,6 +15,7 @@ const requiredFiles = [
   'src/qa/QaStateInventoryPanel.tsx',
   'src/qa/QaScenarioRenderer.tsx',
   'src/qa/QaKnownStateRenderer.tsx',
+  'src/qa/QaHomeStateHarness.tsx',
   'src/lib/supabaseServer.ts',
 ];
 
@@ -54,6 +55,7 @@ if (renderer.includes('fetch(') || renderer.includes('supabase')) throw new Erro
 const knownStateRenderer = fs.readFileSync('src/qa/QaKnownStateRenderer.tsx', 'utf8');
 if (!knownStateRenderer.includes("from '@/components/PermanentReferralClient'")) throw new Error('Direct known-state rendering must reuse the real PermanentReferralClient.');
 if (!knownStateRenderer.includes('qaPreview={{')) throw new Error('Direct permanent-referral states must use the explicit deterministic QA injection.');
+if (!knownStateRenderer.includes("from './QaHomeStateHarness'")) throw new Error('Direct Home states must route through the isolated QA Home harness.');
 if (knownStateRenderer.includes('fetch(') || knownStateRenderer.includes('supabase')) throw new Error('Direct known-state renderer must not issue live network/database requests.');
 
 const permanentReferral = fs.readFileSync('src/components/PermanentReferralClient.tsx', 'utf8');
@@ -68,12 +70,44 @@ if (!permanentReferral.includes('if (previewMode || !claimedInviteCode) return;'
 const productionPermanentRoute = fs.readFileSync('src/app/r/[key]/page.tsx', 'utf8');
 if (productionPermanentRoute.includes('qaPreview')) throw new Error('Production referral route must never enable the QA state injection.');
 
+const walletControl = fs.readFileSync('src/components/WalletControl.tsx', 'utf8');
+if (!walletControl.includes('QaWalletLauncherOverrideContext')) throw new Error('QA Home states require an explicit wallet-launcher override context.');
+if (!walletControl.includes('QaWalletLauncherOverrideProvider')) throw new Error('QA wallet-launcher override must have one explicit provider.');
+if (!/if \(qaOverride\) \{[\s\S]*openWallet: \(\) => \{\}[\s\S]*connectAnotherWallet: async \(\) => \{\}[\s\S]*disconnectWallet: async \(\) => \{\}/.test(walletControl)) throw new Error('QA wallet-launcher override must fail closed on wallet actions.');
+
+const homeHarness = fs.readFileSync('src/qa/QaHomeStateHarness.tsx', 'utf8');
+if (!homeHarness.includes("from '@/components/HomeClient'")) throw new Error('QA Home states must render the real Production HomeClient.');
+if (!homeHarness.includes('QaWalletLauncherOverrideProvider')) throw new Error('QA Home harness must use the isolated wallet-launcher override.');
+if (!homeHarness.includes("url.pathname.startsWith('/api/')")) throw new Error('QA Home harness must identify application API requests before forwarding anything.');
+if (!homeHarness.includes('window.fetch = createQaFetch')) throw new Error('QA Home harness must install the deterministic API interceptor before mounting Home.');
+if (!homeHarness.includes('window.fetch = originalFetch')) throw new Error('QA Home harness must restore the browser fetch function on unmount.');
+if (!homeHarness.includes('blocked an unmocked application API request') || !homeHarness.includes('503')) throw new Error('Unmocked QA Home application API requests must fail closed.');
+if (!homeHarness.includes('LANGUAGE_STORAGE_KEY')) throw new Error('QA Home locale must be deterministic and restored after the fixture unmounts.');
+for (const stateId of [
+  'HOME-NO-WALLET',
+  'HOME-STARTUP-LOADING',
+  'HOME-LINK-ERROR',
+  'HOME-SLOTS-SKELETON',
+  'HOME-SLOTS-FULL',
+  'HOME-CANCEL-CONFIRM',
+  'REWARD-AWAITING-CLAIM',
+  'REWARD-CLAIM-PENDING',
+  'REWARD-CLAIM-QUEUED',
+]) {
+  if (!homeHarness.includes(`'${stateId}'`)) throw new Error(`QA Home harness lost required direct state ${stateId}.`);
+}
+
+const productionHome = fs.readFileSync('src/components/HomeClient.tsx', 'utf8');
+if (productionHome.includes('QaWalletLauncherOverrideProvider')) throw new Error('Production HomeClient must never mount the QA wallet override provider.');
+
 const directCoverage = fs.readFileSync('src/qa/directStateCoverage.ts', 'utf8');
 if (!directCoverage.includes('QA_DIRECT_STATE_RENDERERS')) throw new Error('Direct state renderers must have a central coverage map.');
 if (!directCoverage.includes('validateQaDirectStateCoverage')) throw new Error('Direct state renderer mappings must retain structural validation.');
 const directStateIds = [...directCoverage.matchAll(/stateId: '([^']+)'/g)].map((match) => match[1]);
 if (directStateIds.length < 15) throw new Error('Permanent-referral direct state coverage unexpectedly regressed.');
 if (new Set(directStateIds).size !== directStateIds.length) throw new Error('Direct QA state renderer ids must be unique.');
+const directHomeStateIds = [...directCoverage.matchAll(/renderer: 'home', homeStateId: '([^']+)'/g)].map((match) => match[1]);
+if (directHomeStateIds.length < 16) throw new Error('Home/reward direct state coverage unexpectedly regressed.');
 
 const types = fs.readFileSync('src/qa/types.ts', 'utf8');
 if (!types.includes('height: number')) throw new Error('QA viewport contracts must include height as well as width.');

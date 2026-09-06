@@ -1,10 +1,13 @@
 'use client';
 
 import {
+  createContext,
   useCallback,
+  useContext,
   useEffect,
   useRef,
   useState,
+  type ReactNode,
 } from 'react';
 import dynamic from 'next/dynamic';
 
@@ -38,10 +41,40 @@ const WalletButton = dynamic(
 const WALLET_SESSION_INVALID_EVENT =
   'veinvite-wallet-session-invalid';
 
+type QaWalletLauncherOverride = {
+  wallet: string | null;
+  isWalletActionPending?: boolean;
+  isWalletModalOpen?: boolean;
+};
+
+const QaWalletLauncherOverrideContext =
+  createContext<QaWalletLauncherOverride | null>(null);
+
+export function QaWalletLauncherOverrideProvider({
+  value,
+  children,
+}: {
+  value: QaWalletLauncherOverride;
+  children: ReactNode;
+}) {
+  return (
+    <QaWalletLauncherOverrideContext.Provider value={value}>
+      {children}
+    </QaWalletLauncherOverrideContext.Provider>
+  );
+}
+
 export function useActiveWallet():
   | string
   | null {
+  const qaOverride = useContext(
+    QaWalletLauncherOverrideContext,
+  );
   const { account } = useWallet();
+
+  if (qaOverride) {
+    return qaOverride.wallet;
+  }
 
   // VeChainKit is the canonical connection state for VeInvite because it
   // unifies VeWorld and WalletConnect. Keeping every screen on this same
@@ -50,6 +83,9 @@ export function useActiveWallet():
 }
 
 export function useWalletLauncher() {
+  const qaOverride = useContext(
+    QaWalletLauncherOverrideContext,
+  );
   const wallet = useActiveWallet();
   const { disconnect } = useWallet();
   const { clearWalletSession } =
@@ -200,6 +236,19 @@ export function useWalletLauncher() {
       openConnectModal,
       performDisconnect,
     ]);
+
+  if (qaOverride) {
+    return {
+      wallet: qaOverride.wallet,
+      openWallet: () => {},
+      connectAnotherWallet: async () => {},
+      disconnectWallet: async () => {},
+      isWalletActionPending:
+        qaOverride.isWalletActionPending ?? false,
+      isWalletModalOpen:
+        qaOverride.isWalletModalOpen ?? false,
+    };
+  }
 
   return {
     wallet,

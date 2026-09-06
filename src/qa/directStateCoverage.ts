@@ -1,6 +1,7 @@
 import type { PermanentReferralQaState } from '@/components/PermanentReferralClient';
 import type { WalletSessionQaState } from '@/components/WalletSessionGate';
 import type { LegalConsentQaState } from '@/components/LegalConsentGate';
+import type { QaHomeStateId } from './QaHomeStateHarness';
 import {
   QA_KNOWN_STATES,
   type QaKnownState,
@@ -24,6 +25,10 @@ export type QaDirectStateRenderer =
   | (QaDirectStateRendererBase & {
       renderer: 'legal-consent';
       legalConsentState: LegalConsentQaState;
+    })
+  | (QaDirectStateRendererBase & {
+      renderer: 'home';
+      homeStateId: QaHomeStateId;
     });
 
 export const QA_DIRECT_STATE_RENDERERS: QaDirectStateRenderer[] = [
@@ -54,6 +59,23 @@ export const QA_DIRECT_STATE_RENDERERS: QaDirectStateRenderer[] = [
   { stateId: 'LEGAL-REQUIRED', renderer: 'legal-consent', legalConsentState: 'required', defaultLocale: 'ko' },
   { stateId: 'LEGAL-ACCEPTING', renderer: 'legal-consent', legalConsentState: 'accepting', defaultLocale: 'ko' },
   { stateId: 'LEGAL-ERROR', renderer: 'legal-consent', legalConsentState: 'error', defaultLocale: 'ko' },
+
+  { stateId: 'HOME-NO-WALLET', renderer: 'home', homeStateId: 'HOME-NO-WALLET', defaultLocale: 'ko' },
+  { stateId: 'HOME-WALLET-MODAL-PENDING', renderer: 'home', homeStateId: 'HOME-WALLET-MODAL-PENDING', defaultLocale: 'ko' },
+  { stateId: 'HOME-STARTUP-LOADING', renderer: 'home', homeStateId: 'HOME-STARTUP-LOADING', defaultLocale: 'ko' },
+  { stateId: 'HOME-LINK-SKELETON', renderer: 'home', homeStateId: 'HOME-LINK-SKELETON', defaultLocale: 'ko' },
+  { stateId: 'HOME-LINK-ERROR', renderer: 'home', homeStateId: 'HOME-LINK-ERROR', defaultLocale: 'ko' },
+  { stateId: 'HOME-SLOTS-SKELETON', renderer: 'home', homeStateId: 'HOME-SLOTS-SKELETON', defaultLocale: 'ko' },
+  { stateId: 'HOME-SLOTS-EMPTY', renderer: 'home', homeStateId: 'HOME-SLOTS-EMPTY', defaultLocale: 'ko' },
+  { stateId: 'HOME-SLOT-PENDING', renderer: 'home', homeStateId: 'HOME-SLOT-PENDING', defaultLocale: 'ko' },
+  { stateId: 'HOME-SLOT-ACTIVATING', renderer: 'home', homeStateId: 'HOME-SLOT-ACTIVATING', defaultLocale: 'ko' },
+  { stateId: 'HOME-SLOT-REVIEW', renderer: 'home', homeStateId: 'HOME-SLOT-REVIEW', defaultLocale: 'ko' },
+  { stateId: 'HOME-SLOT-COMPLETED', renderer: 'home', homeStateId: 'HOME-SLOT-COMPLETED', defaultLocale: 'ko' },
+  { stateId: 'HOME-SLOTS-FULL', renderer: 'home', homeStateId: 'HOME-SLOTS-FULL', defaultLocale: 'ko' },
+  { stateId: 'HOME-CANCEL-CONFIRM', renderer: 'home', homeStateId: 'HOME-CANCEL-CONFIRM', defaultLocale: 'ko' },
+  { stateId: 'REWARD-AWAITING-CLAIM', renderer: 'home', homeStateId: 'REWARD-AWAITING-CLAIM', defaultLocale: 'ko' },
+  { stateId: 'REWARD-CLAIM-PENDING', renderer: 'home', homeStateId: 'REWARD-CLAIM-PENDING', defaultLocale: 'ko' },
+  { stateId: 'REWARD-CLAIM-QUEUED', renderer: 'home', homeStateId: 'REWARD-CLAIM-QUEUED', defaultLocale: 'ko' },
 ];
 
 const rendererByStateId = new Map(
