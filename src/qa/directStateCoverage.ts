@@ -2,6 +2,7 @@ import type { PermanentReferralQaState } from '@/components/PermanentReferralCli
 import type { WalletSessionQaState } from '@/components/WalletSessionGate';
 import type { LegalConsentQaState } from '@/components/LegalConsentGate';
 import type { QaHomeStateId } from './QaHomeStateHarness';
+import type { QaNotificationStateId } from './QaNotificationStateHarness';
 import {
   QA_KNOWN_STATES,
   type QaKnownState,
@@ -29,6 +30,10 @@ export type QaDirectStateRenderer =
   | (QaDirectStateRendererBase & {
       renderer: 'home';
       homeStateId: QaHomeStateId;
+    })
+  | (QaDirectStateRendererBase & {
+      renderer: 'notification';
+      notificationStateId: QaNotificationStateId;
     });
 
 export const QA_DIRECT_STATE_RENDERERS: QaDirectStateRenderer[] = [
@@ -76,6 +81,26 @@ export const QA_DIRECT_STATE_RENDERERS: QaDirectStateRenderer[] = [
   { stateId: 'REWARD-AWAITING-CLAIM', renderer: 'home', homeStateId: 'REWARD-AWAITING-CLAIM', defaultLocale: 'ko' },
   { stateId: 'REWARD-CLAIM-PENDING', renderer: 'home', homeStateId: 'REWARD-CLAIM-PENDING', defaultLocale: 'ko' },
   { stateId: 'REWARD-CLAIM-QUEUED', renderer: 'home', homeStateId: 'REWARD-CLAIM-QUEUED', defaultLocale: 'ko' },
+
+  { stateId: 'NOTI-BELL-EMPTY', renderer: 'notification', notificationStateId: 'NOTI-BELL-EMPTY', defaultLocale: 'ko' },
+  { stateId: 'NOTI-BELL-UNREAD', renderer: 'notification', notificationStateId: 'NOTI-BELL-UNREAD', defaultLocale: 'ko' },
+  { stateId: 'NOTI-HISTORY-OPEN', renderer: 'notification', notificationStateId: 'NOTI-HISTORY-OPEN', defaultLocale: 'ko' },
+  { stateId: 'NOTI-HISTORY-LOADING', renderer: 'notification', notificationStateId: 'NOTI-HISTORY-LOADING', defaultLocale: 'ko' },
+  { stateId: 'NOTI-HISTORY-ERROR', renderer: 'notification', notificationStateId: 'NOTI-HISTORY-ERROR', defaultLocale: 'ko' },
+  { stateId: 'NOTI-HISTORY-READ', renderer: 'notification', notificationStateId: 'NOTI-HISTORY-READ', defaultLocale: 'ko' },
+  { stateId: 'NOTI-HISTORY-UNREAD', renderer: 'notification', notificationStateId: 'NOTI-HISTORY-UNREAD', defaultLocale: 'ko' },
+  { stateId: 'NOTI-HISTORY-MORE', renderer: 'notification', notificationStateId: 'NOTI-HISTORY-MORE', defaultLocale: 'ko' },
+  { stateId: 'NOTI-INVITE-ACCEPTED', renderer: 'notification', notificationStateId: 'NOTI-INVITE-ACCEPTED', defaultLocale: 'ko' },
+  { stateId: 'NOTI-DAPP-1', renderer: 'notification', notificationStateId: 'NOTI-DAPP-1', defaultLocale: 'ko' },
+  { stateId: 'NOTI-DAPP-2', renderer: 'notification', notificationStateId: 'NOTI-DAPP-2', defaultLocale: 'ko' },
+  { stateId: 'NOTI-DAPP-3', renderer: 'notification', notificationStateId: 'NOTI-DAPP-3', defaultLocale: 'ko' },
+  { stateId: 'NOTI-VOT3', renderer: 'notification', notificationStateId: 'NOTI-VOT3', defaultLocale: 'ko' },
+  { stateId: 'NOTI-COLLAPSED-PROGRESS', renderer: 'notification', notificationStateId: 'NOTI-COLLAPSED-PROGRESS', defaultLocale: 'ko' },
+  { stateId: 'NOTI-REWARD-READY', renderer: 'notification', notificationStateId: 'NOTI-REWARD-READY', defaultLocale: 'ko' },
+  { stateId: 'NOTI-REWARD-PAID', renderer: 'notification', notificationStateId: 'NOTI-REWARD-PAID', defaultLocale: 'ko' },
+  { stateId: 'NOTI-INELIGIBLE', renderer: 'notification', notificationStateId: 'NOTI-INELIGIBLE', defaultLocale: 'ko' },
+  { stateId: 'NOTI-ACK-BUSY', renderer: 'notification', notificationStateId: 'NOTI-ACK-BUSY', defaultLocale: 'ko' },
+  { stateId: 'NOTI-ACK-ERROR', renderer: 'notification', notificationStateId: 'NOTI-ACK-ERROR', defaultLocale: 'ko' },
 ];
 
 const rendererByStateId = new Map(
