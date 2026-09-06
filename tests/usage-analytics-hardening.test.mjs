@@ -12,6 +12,7 @@ const [
   dimensionReadMigration,
   recalculationMigration,
   archiveSourceSemanticsMigration,
+  sealedArchiveMigration,
   ingestion,
   operatorReport,
 ] = await Promise.all([
@@ -32,6 +33,9 @@ const [
   ),
   read(
     'supabase/migrations/20260906002000_bind_analytics_archives_to_filtered_source_semantics.sql',
+  ),
+  read(
+    'supabase/migrations/20260906003000_seal_archived_analytics_after_hot_source_purge.sql',
   ),
   read('src/app/api/analytics/session/route.ts'),
   read('src/app/api/admin/usage-analytics/route.ts'),
@@ -214,6 +218,41 @@ test(
 );
 
 test(
+  'successful hot cleanup is sealed explicitly and remains archive-valid without allowing late rows',
+  () => {
+    assert.match(sealedArchiveMigration, /HOT_SOURCE_PURGED/);
+    assert.match(
+      sealedArchiveMigration,
+      /VERIFIED'[\s\S]*HOT_SOURCE_PURGED[\s\S]*REVOKED/,
+    );
+    assert.match(
+      sealedArchiveMigration,
+      /current_verified_analytics_archive_manifest_id/,
+    );
+    assert.match(
+      sealedArchiveMigration,
+      /v_current_count = 0[\s\S]*v_physical_count = 0/,
+    );
+    assert.match(
+      sealedArchiveMigration,
+      /HOT_SOURCE_PURGED cannot be recorded while % physical source rows remain/,
+    );
+    assert.match(
+      sealedArchiveMigration,
+      /insert into public\.veinvite_archive_manifest_events\(manifest_id,status,details\)[\s\S]*'HOT_SOURCE_PURGED'/,
+    );
+    assert.match(
+      sealedArchiveMigration,
+      /'archivedRowCount', v_archived_count[\s\S]*'physicalRowsDeleted'/,
+    );
+    assert.match(
+      sealedArchiveMigration,
+      /product analytics for % must be compacted first/,
+    );
+  },
+);
+
+test(
   'unreconstructable bootstrap views are omitted transparently instead of guessed',
   () => {
     assert.match(
@@ -252,6 +291,7 @@ test(
       dimensionReadMigration,
       recalculationMigration,
       archiveSourceSemanticsMigration,
+      sealedArchiveMigration,
     ]) {
       assert.doesNotMatch(sql, /\bwallet_address\s+text\b/i);
       assert.doesNotMatch(sql, /\bip_address\s+text\b/i);
