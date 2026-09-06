@@ -8,6 +8,7 @@ import { getQaDirectStateRenderer } from './directStateCoverage';
 import { QaHomeStateHarness } from './QaHomeStateHarness';
 import { QaHomeFeedbackHarness } from './QaHomeFeedbackHarness';
 import { QaNotificationStateHarness } from './QaNotificationStateHarness';
+import { QaSettingsStateHarness } from './QaSettingsStateHarness';
 import { QA_KNOWN_STATES } from './stateRegistry';
 
 const QA_WALLET = '0x0000000000000000000000000000000000000a11';
@@ -122,6 +123,15 @@ export function QaKnownStateRenderer({
     return (
       <QaNotificationStateHarness
         stateId={renderer.notificationStateId}
+        locale={locale}
+      />
+    );
+  }
+
+  if (renderer.renderer === 'settings') {
+    return (
+      <QaSettingsStateHarness
+        stateId={renderer.settingsStateId}
         locale={locale}
       />
     );
