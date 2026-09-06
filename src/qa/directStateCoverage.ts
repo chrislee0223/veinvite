@@ -5,6 +5,7 @@ import type { QaHomeStateId } from './QaHomeStateHarness';
 import type { QaHomeFeedbackStateId } from './QaHomeFeedbackHarness';
 import type { QaNotificationStateId } from './QaNotificationStateHarness';
 import type { QaSettingsStateId } from './QaSettingsStateHarness';
+import type { QaLeaderboardStateId } from './QaLeaderboardStateHarness';
 import {
   QA_KNOWN_STATES,
   type QaKnownState,
@@ -44,6 +45,10 @@ export type QaDirectStateRenderer =
   | (QaDirectStateRendererBase & {
       renderer: 'settings';
       settingsStateId: QaSettingsStateId;
+    })
+  | (QaDirectStateRendererBase & {
+      renderer: 'leaderboard';
+      leaderboardStateId: QaLeaderboardStateId;
     });
 
 export const QA_DIRECT_STATE_RENDERERS: QaDirectStateRenderer[] = [
@@ -124,6 +129,19 @@ export const QA_DIRECT_STATE_RENDERERS: QaDirectStateRenderer[] = [
   { stateId: 'SETTINGS-ACTION-ERROR', renderer: 'settings', settingsStateId: 'SETTINGS-ACTION-ERROR', defaultLocale: 'ko' },
   { stateId: 'SETTINGS-LANGUAGE-OPEN', renderer: 'settings', settingsStateId: 'SETTINGS-LANGUAGE-OPEN', defaultLocale: 'ko' },
   { stateId: 'SETTINGS-LANGUAGE-SEARCH', renderer: 'settings', settingsStateId: 'SETTINGS-LANGUAGE-SEARCH', defaultLocale: 'ko' },
+
+  { stateId: 'LEADERBOARD-LOADING', renderer: 'leaderboard', leaderboardStateId: 'LEADERBOARD-LOADING', defaultLocale: 'ko' },
+  { stateId: 'LEADERBOARD-ERROR', renderer: 'leaderboard', leaderboardStateId: 'LEADERBOARD-ERROR', defaultLocale: 'ko' },
+  { stateId: 'LEADERBOARD-LIST', renderer: 'leaderboard', leaderboardStateId: 'LEADERBOARD-LIST', defaultLocale: 'ko' },
+  { stateId: 'LEADERBOARD-PLACEHOLDERS', renderer: 'leaderboard', leaderboardStateId: 'LEADERBOARD-PLACEHOLDERS', defaultLocale: 'ko' },
+  { stateId: 'LEADERBOARD-CURRENT-IN-LIST', renderer: 'leaderboard', leaderboardStateId: 'LEADERBOARD-CURRENT-IN-LIST', defaultLocale: 'ko' },
+  { stateId: 'LEADERBOARD-CURRENT-TRAILING', renderer: 'leaderboard', leaderboardStateId: 'LEADERBOARD-CURRENT-TRAILING', defaultLocale: 'ko' },
+  { stateId: 'LEADERBOARD-MOVE-UP', renderer: 'leaderboard', leaderboardStateId: 'LEADERBOARD-MOVE-UP', defaultLocale: 'ko' },
+  { stateId: 'LEADERBOARD-MOVE-DOWN', renderer: 'leaderboard', leaderboardStateId: 'LEADERBOARD-MOVE-DOWN', defaultLocale: 'ko' },
+  { stateId: 'LEADERBOARD-MOVE-NEW', renderer: 'leaderboard', leaderboardStateId: 'LEADERBOARD-MOVE-NEW', defaultLocale: 'ko' },
+  { stateId: 'LEADERBOARD-MOVE-SAME', renderer: 'leaderboard', leaderboardStateId: 'LEADERBOARD-MOVE-SAME', defaultLocale: 'ko' },
+  { stateId: 'LEADERBOARD-WALLET-DETAIL', renderer: 'leaderboard', leaderboardStateId: 'LEADERBOARD-WALLET-DETAIL', defaultLocale: 'ko' },
+  { stateId: 'LEADERBOARD-IMPACT-DETAIL', renderer: 'leaderboard', leaderboardStateId: 'LEADERBOARD-IMPACT-DETAIL', defaultLocale: 'ko' },
 ];
 
 const rendererByStateId = new Map(
