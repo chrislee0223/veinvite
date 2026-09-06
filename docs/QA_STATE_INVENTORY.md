@@ -65,10 +65,32 @@ QA Studio의 장기 기준은 **현재 Production 코드에서 사용자에게 �
 
 QA mode에서는 링크 검증 fetch, VeWorld 연결창 실행, claim analytics/network 작업, 미션 페이지 이동 전에 중단한다. 정상 `/r/[key]` route는 이 QA prop을 전달하지 않는다.
 
+## 두 번째 direct coverage wave
+
+지갑 세션과 약관 게이트는 실제 Production gate 안의 동일한 UI surface를 QA에서도 사용하고, QA fixture일 때 네트워크/지갑 동작을 먼저 차단한다.
+
+지갑 세션 직접 재현:
+
+- 초기 세션 로고
+- 소유권 확인 전 지연 로고
+- 지갑 소유권 확인 중
+- 지갑 세션 확인 실패
+- 연결 지갑과 기존 세션 지갑 불일치
+- 세션/지갑 연결 해제 중
+
+약관 직접 재현:
+
+- 약관 동의 여부 확인 중
+- 약관/개인정보 동의 필요
+- 동의 저장 중
+- 약관 확인/저장 오류
+
+`SESSION-PASSIVE-DISCONNECT-RECOVERY`처럼 화면 자체보다 시간/이벤트 순서가 핵심인 항목은 억지로 direct 화면으로 올리지 않고 Transition Coverage에서 별도 검증한다.
+
 ## 다음 확장 순서
 
-1. 지갑 세션 / 약관 게이트 직접 재현
-2. Home / Reward / Notification history direct fixtures
+1. Home / Reward direct fixtures
+2. Notification history / 알림 이벤트 direct fixtures
 3. Leaderboard loading/error/movement/detail 독립 상태
 4. `/i/[code]` legacy flow 전체 상태
 5. Transition Registry + Journey Runner
