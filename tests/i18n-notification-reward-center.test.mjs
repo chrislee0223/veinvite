@@ -19,6 +19,13 @@ test('notification reward actions are live wallet-scoped state, not cached histo
   );
   assert.match(actionsRoute, /invitation\.status !== 'COMPLETED'/);
   assert.match(actionsRoute, /invitation\.reward_status !== 'ELIGIBLE'/);
+  assert.match(actionsRoute, /invitation\.reward_eligible_at === null/);
+  assert.match(actionsRoute, /invitation\.sybil_status !== 'CLEAR'/);
+  assert.match(actionsRoute, /invitation\.sybil_checked_at === null/);
+  assert.match(
+    actionsRoute,
+    /queue\.eligible_at !== invitation\.reward_eligible_at/,
+  );
   assert.match(actionsRoute, /'Cache-Control': 'no-store'/);
   assert.match(center, /fetch\('\/api\/notifications\/reward-actions'/);
   assert.doesNotMatch(center, /sessionStorage/);
