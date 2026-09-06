@@ -215,3 +215,44 @@ test('legal-consent QA preview fails closed before consent GET/POST mutation', a
     /const acceptCurrentDocuments =[\s\S]*if \(previewMode \|\| isAccepting \|\| isExiting\)/s,
   );
 });
+
+test('wallet/session and legal direct QA mappings cannot silently disappear', async () => {
+  const coverage = await readFile(
+    new URL('../src/qa/directStateCoverage.ts', import.meta.url),
+    'utf8',
+  );
+  const renderer = await readFile(
+    new URL('../src/qa/QaKnownStateRenderer.tsx', import.meta.url),
+    'utf8',
+  );
+
+  for (const stateId of [
+    'SESSION-IDLE-BRAND',
+    'SESSION-CHECKING-DELAY',
+    'SESSION-CHECKING',
+    'SESSION-ERROR',
+    'SESSION-WALLET-MISMATCH',
+    'SESSION-DISCONNECTING',
+    'LEGAL-CHECKING',
+    'LEGAL-REQUIRED',
+    'LEGAL-ACCEPTING',
+    'LEGAL-ERROR',
+  ]) {
+    assert.match(
+      coverage,
+      new RegExp(`stateId: '${stateId}'`),
+    );
+  }
+
+  assert.match(
+    renderer,
+    /from '@\/components\/WalletSessionGate'/,
+  );
+  assert.match(
+    renderer,
+    /from '@\/components\/LegalConsentGate'/,
+  );
+  assert.match(renderer, /renderer\.renderer === 'wallet-session'/);
+  assert.match(renderer, /renderer\.renderer === 'legal-consent'/);
+  assert.doesNotMatch(renderer, /fetch\(|supabase/i);
+});
