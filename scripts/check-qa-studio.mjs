@@ -4,14 +4,17 @@ const requiredFiles = [
   'src/app/qa/layout.tsx',
   'src/app/qa/page.tsx',
   'src/app/qa/render/page.tsx',
+  'src/app/qa/state/page.tsx',
   'src/qa/access.ts',
   'src/qa/types.ts',
   'src/qa/scenarioRegistry.ts',
   'src/qa/stateRegistry.ts',
+  'src/qa/directStateCoverage.ts',
   'src/qa/featureCoverageMap.ts',
   'src/qa/QaStudio.tsx',
   'src/qa/QaStateInventoryPanel.tsx',
   'src/qa/QaScenarioRenderer.tsx',
+  'src/qa/QaKnownStateRenderer.tsx',
   'src/lib/supabaseServer.ts',
 ];
 
@@ -47,6 +50,30 @@ for (const preview of ['UiTestLab', 'NotificationUiPreview', 'InviteRejectionPre
   if (!renderer.includes(preview)) throw new Error(`QA Studio must retain direct ${preview} preview coverage.`);
 }
 if (renderer.includes('fetch(') || renderer.includes('supabase')) throw new Error('QA scenario renderer must not issue live network/database requests.');
+
+const knownStateRenderer = fs.readFileSync('src/qa/QaKnownStateRenderer.tsx', 'utf8');
+if (!knownStateRenderer.includes("from '@/components/PermanentReferralClient'")) throw new Error('Direct known-state rendering must reuse the real PermanentReferralClient.');
+if (!knownStateRenderer.includes('qaPreview={{')) throw new Error('Direct permanent-referral states must use the explicit deterministic QA injection.');
+if (knownStateRenderer.includes('fetch(') || knownStateRenderer.includes('supabase')) throw new Error('Direct known-state renderer must not issue live network/database requests.');
+
+const permanentReferral = fs.readFileSync('src/components/PermanentReferralClient.tsx', 'utf8');
+if (!permanentReferral.includes('PermanentReferralQaState')) throw new Error('Permanent referral must expose a typed deterministic QA state contract.');
+if (!permanentReferral.includes('qaPreviewSeed')) throw new Error('Permanent referral QA states must resolve through one deterministic seed mapping.');
+if (!permanentReferral.includes('const previewMode = qaPreview !== null')) throw new Error('Permanent referral must explicitly distinguish QA preview from Production behavior.');
+if (!/const validateLink = useCallback\(async \(\) => \{\s*if \(previewMode\) return;/.test(permanentReferral)) throw new Error('QA permanent-referral link validation must fail closed before fetch.');
+if (!/const openWallet = \(\) => \{\s*if \(previewMode\) return;/.test(permanentReferral)) throw new Error('QA permanent-referral wallet launch must be disabled.');
+if (!/const claim = async \(\) => \{[\s\S]*?if \(previewMode\) \{\s*setStep\('checking'\);\s*return;\s*\}[\s\S]*?reportProductAnalyticsEvent/.test(permanentReferral)) throw new Error('QA permanent-referral claim must stop before analytics/network mutation.');
+if (!permanentReferral.includes('if (previewMode || !claimedInviteCode) return;')) throw new Error('QA permanent-referral mission continuation must not navigate away.');
+
+const productionPermanentRoute = fs.readFileSync('src/app/r/[key]/page.tsx', 'utf8');
+if (productionPermanentRoute.includes('qaPreview')) throw new Error('Production referral route must never enable the QA state injection.');
+
+const directCoverage = fs.readFileSync('src/qa/directStateCoverage.ts', 'utf8');
+if (!directCoverage.includes('QA_DIRECT_STATE_RENDERERS')) throw new Error('Direct state renderers must have a central coverage map.');
+if (!directCoverage.includes('validateQaDirectStateCoverage')) throw new Error('Direct state renderer mappings must retain structural validation.');
+const directStateIds = [...directCoverage.matchAll(/stateId: '([^']+)'/g)].map((match) => match[1]);
+if (directStateIds.length < 15) throw new Error('Permanent-referral direct state coverage unexpectedly regressed.');
+if (new Set(directStateIds).size !== directStateIds.length) throw new Error('Direct QA state renderer ids must be unique.');
 
 const types = fs.readFileSync('src/qa/types.ts', 'utf8');
 if (!types.includes('height: number')) throw new Error('QA viewport contracts must include height as well as width.');
@@ -98,15 +125,22 @@ for (const block of stateBlocks) {
     if (!scenarioIds.has(scenarioId)) throw new Error(`QA state ${id} references unknown scenario ${scenarioId}.`);
   }
 }
+for (const stateId of directStateIds) {
+  if (!seenStateIds.has(stateId)) throw new Error(`Direct QA renderer references unknown state ${stateId}.`);
+}
 
 const statePanel = fs.readFileSync('src/qa/QaStateInventoryPanel.tsx', 'utf8');
 if (!statePanel.includes('실제 앱 상태 전수 목록')) throw new Error('QA Studio must expose the known-state inventory to the operator.');
 if (!statePanel.includes('현재 실제 앱에서 볼 수 있는 상황')) throw new Error('Current Production UI states must be the primary inventory group.');
 if (!statePanel.includes('100%의 기준')) throw new Error('QA Studio must explain what 100% state coverage means.');
 if (!statePanel.includes('직접 재현 추가 필요')) throw new Error('Known-state UI must reveal uncovered states instead of pretending they are covered.');
+if (!statePanel.includes('/qa/state?state=')) throw new Error('Direct known states must be clickable from the inventory.');
+if (!statePanel.includes('effectiveQaStateCoverage')) throw new Error('Inventory counts must reflect newly connected direct state renderers truthfully.');
 
 const qaPage = fs.readFileSync('src/app/qa/page.tsx', 'utf8');
 if (!qaPage.includes('QaStateInventoryPanel')) throw new Error('QA Studio page must keep the known-state inventory reachable.');
+const qaStatePage = fs.readFileSync('src/app/qa/state/page.tsx', 'utf8');
+if (!qaStatePage.includes('QaKnownStateRenderer')) throw new Error('QA direct state route must use the isolated known-state renderer.');
 
 const coverage = fs.readFileSync('src/qa/featureCoverageMap.ts', 'utf8');
 if (!coverage.includes('QA_SURFACE_COVERAGE')) throw new Error('QA feature coverage map is required for future changed-screen selection.');
@@ -135,4 +169,4 @@ if (!studio.includes('고급 정보 보기')) throw new Error('QA Studio must ke
 const nextConfig = fs.readFileSync('next.config.mjs', 'utf8');
 if (!nextConfig.includes("source: '/qa/:path*'")) throw new Error('QA routes must retain no-cache/no-index response headers.');
 
-console.log(`QA Studio architecture gate passed with ${stateBlocks.length} inventoried states.`);
+console.log(`QA Studio architecture gate passed with ${stateBlocks.length} inventoried states and ${directStateIds.length} direct state renderers.`);

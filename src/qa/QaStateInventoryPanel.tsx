@@ -1,8 +1,12 @@
 'use client';
 
 import {
+  effectiveQaStateCoverage,
+  getEffectiveQaStateCoverageSummary,
+  getQaDirectStateRenderer,
+} from './directStateCoverage';
+import {
   QA_KNOWN_STATES,
-  getQaStateCoverageSummary,
   type QaKnownState,
   type QaStateCoverage,
   type QaStateLifecycle,
@@ -23,7 +27,14 @@ const LIFECYCLE_LABEL: Record<QaStateLifecycle, string> = {
 };
 
 function StateRow({ state }: { state: QaKnownState }) {
+  const directRenderer = getQaDirectStateRenderer(state.id);
   const scenarioId = state.scenarioIds[0];
+  const coverage = effectiveQaStateCoverage(state);
+  const href = directRenderer
+    ? `/qa/state?state=${encodeURIComponent(state.id)}&locale=${directRenderer.defaultLocale}`
+    : scenarioId
+      ? `/qa?mode=explore&scenario=${encodeURIComponent(scenarioId)}`
+      : null;
 
   return (
     <li className="qaStateRow">
@@ -41,10 +52,14 @@ function StateRow({ state }: { state: QaKnownState }) {
         {state.note ? <small>{state.note}</small> : null}
       </div>
       <div className="qaStateAction">
-        <span className={`qaCoverage ${state.coverage}`}>{COVERAGE_LABEL[state.coverage]}</span>
-        {scenarioId ? (
-          <a href={`/qa?mode=explore&scenario=${encodeURIComponent(scenarioId)}`}>
-            화면 열기
+        <span className={`qaCoverage ${coverage}`}>{COVERAGE_LABEL[coverage]}</span>
+        {href ? (
+          <a
+            href={href}
+            target={directRenderer ? '_blank' : undefined}
+            rel={directRenderer ? 'noreferrer' : undefined}
+          >
+            {directRenderer ? '실제 화면 열기' : '기존 미리보기'}
           </a>
         ) : null}
       </div>
@@ -61,9 +76,15 @@ function StateGroup({
   states: QaKnownState[];
   defaultOpen?: boolean;
 }) {
-  const missing = states.filter((state) => state.coverage === 'missing').length;
-  const direct = states.filter((state) => state.coverage === 'direct').length;
-  const partial = states.filter((state) => state.coverage === 'partial').length;
+  const missing = states.filter(
+    (state) => effectiveQaStateCoverage(state) === 'missing',
+  ).length;
+  const direct = states.filter(
+    (state) => effectiveQaStateCoverage(state) === 'direct',
+  ).length;
+  const partial = states.filter(
+    (state) => effectiveQaStateCoverage(state) === 'partial',
+  ).length;
 
   return (
     <details className="qaStateGroup" open={defaultOpen}>
@@ -82,7 +103,7 @@ function StateGroup({
 }
 
 export function QaStateInventoryPanel() {
-  const summary = getQaStateCoverageSummary();
+  const summary = getEffectiveQaStateCoverageSummary();
   const productionStates = QA_KNOWN_STATES.filter(
     (state) => state.lifecycle === 'production' && state.userVisible,
   );
