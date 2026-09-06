@@ -70,14 +70,14 @@ function invite(
   overrides: Partial<InviteRecord> & Pick<InviteRecord, 'code' | 'status'>,
 ): InviteRecord {
   return {
-    code: overrides.code,
     inviterAddress: QA_INVITER,
-    status: overrides.status,
     createdAt: QA_NOW,
     updatedAt: QA_NOW,
     rewardEligibility: 'NONE',
     sybilStatus: 'CLEAR',
     ...overrides,
+    code: overrides.code,
+    status: overrides.status,
   };
 }
 
