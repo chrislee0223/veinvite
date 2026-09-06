@@ -89,6 +89,28 @@ test('transient wallet verification failures stay on checking UI before showing 
   );
 });
 
+test('wallet-session QA preview fails closed before live verification or disconnect work', async () => {
+  const source = await readFile(
+    new URL('../src/components/WalletSessionGate.tsx', import.meta.url),
+    'utf8',
+  );
+
+  assert.match(source, /WalletSessionQaState/);
+  assert.match(source, /const previewMode = qaPreview !== null/);
+  assert.match(
+    source,
+    /const verify = useCallback\(async \(\) => \{\s*if \(previewMode \|\| !walletAddress\)/s,
+  );
+  assert.match(
+    source,
+    /const disconnectFromVerification =[\s\S]*if \(previewMode \|\| isDisconnecting\)/s,
+  );
+  assert.match(
+    source,
+    /const chooseAnotherWallet =[\s\S]*if \(previewMode \|\| isDisconnecting\)/s,
+  );
+});
+
 test('legal consent motion starts only after authoritative consent is saved and always completes safely', async () => {
   const source = await readFile(
     new URL('../src/components/LegalConsentGate.tsx', import.meta.url),
@@ -140,7 +162,11 @@ test('legal consent motion starts only after authoritative consent is saved and 
   );
   assert.match(
     source,
-    /onTransitionEnd=\{\(event\) => \{[\s\S]*event\.propertyName === 'opacity'[\s\S]*completeAcceptedTransition\(\)/s,
+    /onTransitionEnd=\{\(event\) => \{[\s\S]*event\.propertyName === 'opacity'[\s\S]*onExitComplete\(\)/s,
+  );
+  assert.match(
+    source,
+    /onExitComplete=\{completeAcceptedTransition\}/,
   );
   assert.match(
     source,
@@ -165,5 +191,27 @@ test('legal consent motion starts only after authoritative consent is saved and 
   assert.match(
     source,
     /@media \(prefers-reduced-motion: reduce\)/,
+  );
+});
+
+test('legal-consent QA preview fails closed before consent GET/POST mutation', async () => {
+  const source = await readFile(
+    new URL('../src/components/LegalConsentGate.tsx', import.meta.url),
+    'utf8',
+  );
+
+  assert.match(source, /LegalConsentQaState/);
+  assert.match(source, /const previewMode = qaPreview !== null/);
+  assert.match(
+    source,
+    /const recordConsent = useCallback\([\s\S]*if \(previewMode\) return;[\s\S]*fetch\([\s\S]*'\/api\/legal\/consent'/s,
+  );
+  assert.match(
+    source,
+    /useEffect\(\(\) => \{\s*if \(previewMode\) return;[\s\S]*method: 'GET'/s,
+  );
+  assert.match(
+    source,
+    /const acceptCurrentDocuments =[\s\S]*if \(previewMode \|\| isAccepting \|\| isExiting\)/s,
   );
 });
