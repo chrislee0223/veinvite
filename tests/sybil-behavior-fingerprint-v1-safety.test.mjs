@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs';
 import { test } from 'node:test';
 
 const migration = readFileSync(
-  'supabase/migrations/20260906084500_add_sybil_behavior_fingerprint_v1.sql',
+  'supabase/migrations/20260906084621_add_sybil_behavior_fingerprint_v1.sql',
   'utf8',
 );
 const observer = readFileSync(
