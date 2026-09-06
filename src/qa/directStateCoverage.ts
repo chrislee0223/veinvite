@@ -88,8 +88,7 @@ export const QA_DIRECT_STATE_RENDERERS: QaDirectStateRenderer[] = [
   { stateId: 'HOME-LOAD-ERROR', renderer: 'home-feedback', homeFeedbackStateId: 'HOME-LOAD-ERROR', defaultLocale: 'ko' },
   { stateId: 'REWARD-AWAITING-CLAIM', renderer: 'home', homeStateId: 'REWARD-AWAITING-CLAIM', defaultLocale: 'ko' },
   { stateId: 'REWARD-CLAIM-PENDING', renderer: 'home', homeStateId: 'REWARD-CLAIM-PENDING', defaultLocale: 'ko' },
-  { stateId: 'REWARD-CLAIM-QUEUED', renderer: 'home', homeStateId: 'REWARD-CLAIM-QUEUED', defaultLocale: 'ko' },
-  { stateId: 'REWARD-CLAIM-SUCCESS', renderer: 'home-feedback', homeFeedbackStateId: 'REWARD-CLAIM-SUCCESS', defaultLocale: 'ko' },
+  { stateId: 'REWARD-CLAIM-QUEUED', renderer: 'home-feedback', homeFeedbackStateId: 'REWARD-CLAIM-QUEUED', defaultLocale: 'ko' },
   { stateId: 'REWARD-CLAIM-ERROR', renderer: 'home-feedback', homeFeedbackStateId: 'REWARD-CLAIM-ERROR', defaultLocale: 'ko' },
 
   { stateId: 'NOTI-BELL-EMPTY', renderer: 'notification', notificationStateId: 'NOTI-BELL-EMPTY', defaultLocale: 'ko' },
