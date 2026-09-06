@@ -6,6 +6,7 @@ import { LegalConsentGate } from '@/components/LegalConsentGate';
 import { isLocale, type SupportedLocale } from '@/lib/i18n/locales';
 import { getQaDirectStateRenderer } from './directStateCoverage';
 import { QaHomeStateHarness } from './QaHomeStateHarness';
+import { QaHomeFeedbackHarness } from './QaHomeFeedbackHarness';
 import { QaNotificationStateHarness } from './QaNotificationStateHarness';
 import { QA_KNOWN_STATES } from './stateRegistry';
 
@@ -94,6 +95,15 @@ export function QaKnownStateRenderer({
     return (
       <QaHomeStateHarness
         stateId={renderer.homeStateId}
+        locale={locale}
+      />
+    );
+  }
+
+  if (renderer.renderer === 'home-feedback') {
+    return (
+      <QaHomeFeedbackHarness
+        stateId={renderer.homeFeedbackStateId}
         locale={locale}
       />
     );
