@@ -3,6 +3,7 @@ import { readFileSync } from 'node:fs';
 import { test } from 'node:test';
 
 const read = (path) => readFileSync(path, 'utf8');
+const facade = read('src/components/InviteNotificationHistoryCenter.tsx');
 const center = read('src/components/UnifiedInviteNotificationHistoryCenter.tsx');
 const actionsRoute = read('src/app/api/notifications/reward-actions/route.ts');
 const claimRoute = read('src/app/api/rewards/claims/route.ts');
@@ -34,6 +35,22 @@ test('only awaiting rewards expose Claim while queued and assigned rewards show 
 
   assert.match(claimRoute, /request_reward_claim/);
   assert.match(claimRoute, /runAutomaticRewardPayout/);
+});
+
+test('an unresolved Claim stays visible on the bell even after its history row was read', () => {
+  assert.match(facade, /fetch\('\/api\/notifications\/reward-actions'/);
+  assert.match(facade, /action\.status === 'AWAITING_CLAIM'/);
+  assert.match(
+    facade,
+    /needsRewardClaim && props\.unreadCount < 1/,
+  );
+  assert.match(facade, /notificationRewardAttentionDot/);
+  assert.match(facade, /role="status"/);
+  assert.match(facade, /REWARD_RESERVATION_READY_EVENT/);
+  assert.match(facade, /REWARD_CLAIM_UPDATED_EVENT/);
+  assert.match(facade, /WALLET_SESSION_INVALID_EVENT/);
+  assert.match(facade, /document\.visibilityState === 'visible'/);
+  assert.doesNotMatch(facade, /setInterval/);
 });
 
 test('reward-ready history is an event while paid history remains reopenable as a receipt', () => {
