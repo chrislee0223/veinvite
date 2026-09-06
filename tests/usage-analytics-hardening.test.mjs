@@ -11,6 +11,7 @@ const [
   boundedCleanupMigration,
   dimensionReadMigration,
   recalculationMigration,
+  archiveSourceSemanticsMigration,
   ingestion,
   operatorReport,
 ] = await Promise.all([
@@ -28,6 +29,9 @@ const [
   ),
   read(
     'supabase/migrations/20260906000623_reharden_long_term_analytics_recalculation_after_history_alignment.sql',
+  ),
+  read(
+    'supabase/migrations/20260906002000_bind_analytics_archives_to_filtered_source_semantics.sql',
   ),
   read('src/app/api/analytics/session/route.ts'),
   read('src/app/api/admin/usage-analytics/route.ts'),
@@ -180,6 +184,36 @@ test(
 );
 
 test(
+  'analytics archives use the same exclusion semantics as live analytics and late exclusions invalidate verification',
+  () => {
+    assert.match(
+      archiveSourceSemanticsMigration,
+      /veinvite_archive_analytics_source_filter_check/,
+    );
+    assert.match(
+      archiveSourceSemanticsMigration,
+      /sourceFilter[^\n]*exclude_analytics_excluded_visitors_v1/,
+    );
+    assert.match(
+      archiveSourceSemanticsMigration,
+      /count\(\*\) filter \(where x\.visitor_key is null\)/,
+    );
+    assert.match(
+      archiveSourceSemanticsMigration,
+      /greatest\(max\(s\.updated_at\), max\(x\.excluded_at\)\)/,
+    );
+    assert.match(
+      archiveSourceSemanticsMigration,
+      /greatest\(max\(e\.received_at\), max\(x\.excluded_at\)\)/,
+    );
+    assert.match(
+      archiveSourceSemanticsMigration,
+      /v_latest_source_change <= v_manifest\.verified_at/,
+    );
+  },
+);
+
+test(
   'unreconstructable bootstrap views are omitted transparently instead of guessed',
   () => {
     assert.match(
@@ -213,7 +247,12 @@ test(
 test(
   'hardening preserves the analytics privacy boundary',
   () => {
-    for (const sql of [migration, dimensionReadMigration, recalculationMigration]) {
+    for (const sql of [
+      migration,
+      dimensionReadMigration,
+      recalculationMigration,
+      archiveSourceSemanticsMigration,
+    ]) {
       assert.doesNotMatch(sql, /\bwallet_address\s+text\b/i);
       assert.doesNotMatch(sql, /\bip_address\s+text\b/i);
       assert.doesNotMatch(sql, /\buser_agent\s+text\b/i);
