@@ -81,9 +81,9 @@ export const QA_DIRECT_STATE_RENDERERS: QaDirectStateRenderer[] = [
 
   { stateId: 'LEG-LANGUAGE-SETUP', renderer: 'legacy-invite', legacyInviteStateId: 'LEG-LANGUAGE-SETUP', defaultLocale: 'ko' },
   { stateId: 'LEG-LANDING', renderer: 'legacy-invite', legacyInviteStateId: 'LEG-LANDING', defaultLocale: 'ko' },
-  { stateId: 'LEG-WALLET', renderer: 'legacy-invite', legacyInviteStateId: 'LEG-WALLET', defaultLocale: 'ko' },
+  { stateId: 'LEG-WALLET-REQUIRED', renderer: 'legacy-invite', legacyInviteStateId: 'LEG-WALLET-REQUIRED', defaultLocale: 'ko' },
   { stateId: 'LEG-ELIGIBILITY-CHECKING', renderer: 'legacy-invite', legacyInviteStateId: 'LEG-ELIGIBILITY-CHECKING', defaultLocale: 'ko' },
-  { stateId: 'LEG-REVIEW', renderer: 'legacy-invite', legacyInviteStateId: 'LEG-REVIEW', defaultLocale: 'ko' },
+  { stateId: 'LEG-UNDER-REVIEW', renderer: 'legacy-invite', legacyInviteStateId: 'LEG-UNDER-REVIEW', defaultLocale: 'ko' },
   { stateId: 'LEG-SUCCESS-NEW', renderer: 'legacy-invite', legacyInviteStateId: 'LEG-SUCCESS-NEW', defaultLocale: 'ko' },
   { stateId: 'LEG-SUCCESS-RETURNING', renderer: 'legacy-invite', legacyInviteStateId: 'LEG-SUCCESS-RETURNING', defaultLocale: 'ko' },
   { stateId: 'LEG-MISSION-0-3', renderer: 'legacy-invite', legacyInviteStateId: 'LEG-MISSION-0-3', defaultLocale: 'ko' },
