@@ -2,10 +2,16 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import test from 'node:test';
 
-const center = readFileSync(
-  'src/components/InviteNotificationHistoryCenter.tsx',
-  'utf8',
-);
+const center = [
+  readFileSync(
+    'src/components/InviteNotificationHistoryCenter.tsx',
+    'utf8',
+  ),
+  readFileSync(
+    'src/components/UnifiedInviteNotificationHistoryCenter.tsx',
+    'utf8',
+  ),
+].join('\n');
 
 test('notification history opens and closes with matched backdrop and panel motion', () => {
   assert.match(center, /notificationHistoryBackdropIn/);
@@ -58,9 +64,15 @@ test('closing backdrop continues intercepting taps without becoming an extra foc
   );
 });
 
-test('read notifications are static rows while unread notifications remain actionable', () => {
-  assert.match(center, /if \(!unread\) \{[\s\S]*<div[\s\S]*notificationHistoryRow isRead/);
-  assert.match(center, /<button[\s\S]*notificationHistoryRow isUnread/);
+test('read notifications stay static except paid receipts, which remain reopenable', () => {
+  assert.match(center, /const paid = item\.kind === 'REWARD_PAID'/);
+  assert.match(
+    center,
+    /if \(!unread && !paid\) \{[\s\S]*<div[\s\S]*notificationHistoryRow isRead/,
+  );
+  assert.match(center, /notificationHistoryRow isRead isInteractive/);
+  assert.match(center, /if \(paid\) \{[\s\S]*openRewardReceipt\(item\)/);
+  assert.match(center, /notificationHistoryRow isUnread/);
   assert.doesNotMatch(center, /aria-pressed=/);
   assert.match(center, /notificationHistorySrOnly/);
   assert.match(center, /\{structure\.newLabel\}/);

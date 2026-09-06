@@ -6,10 +6,16 @@ const controller = readFileSync(
   'src/components/InAppInviteNotifications.tsx',
   'utf8',
 );
-const center = readFileSync(
-  'src/components/InviteNotificationHistoryCenter.tsx',
-  'utf8',
-);
+const center = [
+  readFileSync(
+    'src/components/InviteNotificationHistoryCenter.tsx',
+    'utf8',
+  ),
+  readFileSync(
+    'src/components/UnifiedInviteNotificationHistoryCenter.tsx',
+    'utf8',
+  ),
+].join('\n');
 
 test('notification history opens from a warm session cache without forcing a visible loader', () => {
   assert.match(controller, /HISTORY_CACHE_PREFIX/);
