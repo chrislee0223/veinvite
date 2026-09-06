@@ -9,6 +9,7 @@ import {
 import {
   InviteNotificationHistoryCenter as UnifiedInviteNotificationHistoryCenter,
 } from './UnifiedInviteNotificationHistoryCenter';
+import type { SupportedLocale } from '@/lib/i18n/locales';
 import { PROGRESS_CLAIM_COPY } from '@/lib/i18n/progressClaimCopy';
 import type {
   RewardActionResponse,
@@ -116,8 +117,9 @@ export function InviteNotificationHistoryCenter(props: Props) {
 
   const showClaimAttention =
     needsRewardClaim && props.unreadCount < 1;
+  const supportedLocale = props.locale as SupportedLocale;
   const claimAttentionText =
-    PROGRESS_CLAIM_COPY[props.locale].rewardAvailable;
+    PROGRESS_CLAIM_COPY[supportedLocale].rewardAvailable;
 
   return (
     <div className="notificationRewardAttentionShell">
