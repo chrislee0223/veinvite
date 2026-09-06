@@ -91,6 +91,15 @@ export function QaKnownStateRenderer({
     );
   }
 
+  if (stateId === 'REWARD-CLAIM-QUEUED') {
+    return (
+      <QaHomeFeedbackHarness
+        stateId="REWARD-CLAIM-QUEUED"
+        locale={locale}
+      />
+    );
+  }
+
   if (renderer.renderer === 'home') {
     return (
       <QaHomeStateHarness
