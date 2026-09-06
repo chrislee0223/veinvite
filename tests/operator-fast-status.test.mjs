@@ -117,7 +117,7 @@ test('reconciliation refuses compacted dates instead of reporting false drift', 
   assert.match(alignment, /ok\s*:=\s*fc\s*=\s*s/u);
 });
 
-test('30-day compaction keeps only identifier-free final-language rollups', () => {
+test('historical compaction migration keeps only identifier-free final-language rollups', () => {
   assert.match(compaction, /array_agg\([\s\S]*s\.current_locale[\s\S]*order by s\.last_seen_at desc, s\.updated_at desc, s\.session_id desc/u);
   assert.match(compaction, /'locale'/u);
   assert.match(
