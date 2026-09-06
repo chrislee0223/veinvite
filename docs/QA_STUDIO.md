@@ -46,7 +46,11 @@ The exact-host guard remains in code as a fail-closed safeguard for any future f
 The default view provides:
 
 - **핵심 점검 / 모든 상황** browsing modes
-- search by actual registered scenario content
+- **경우의 수** product-area filters with visible counts
+- search by case ID, actor, trigger, current state, outcome, and registered scenario content
+- a human-readable **현재 경우의 수** card before the preview
+- a four-step explanation: **누구 → 어떤 때 → 현재 상황 → 이후 흐름**
+- short stable case IDs such as `INV-01`, `MR-01`, and `ELG-01`
 - scenario groups using human-readable product areas
 - exact viewport presets including width and height
 - locale controls only when the scenario actually supports external locale override
@@ -61,6 +65,22 @@ The default view provides:
 - optional advanced inspector instead of developer details by default
 
 A manual `정상` result means only that the operator inspected that exact configuration. It must not be presented as an automated test result.
+
+## Human case model
+
+The operator should not need to infer a scenario from a technical title alone.
+
+Every registered scenario therefore carries a compact case description:
+
+- `caseId`: short stable operator reference
+- `actor`: who is in this situation
+- `trigger`: what caused or opened the situation
+- `state`: what state the user is currently in
+- `outcome`: what the user should be able to do or understand next
+
+This metadata is shown directly in the QA UI and is also searchable. The left scenario rail intentionally shows the case ID and current state before the detailed title so an operator can quickly distinguish similar cases.
+
+The case model describes **what situation is being reproduced**. It does not replace the expected-result contract, which describes **what must be correct on that screen**.
 
 ## `/qa/render`
 
@@ -82,8 +102,10 @@ The renderer also exposes existing safe preview components directly for:
 
 Each scenario contains:
 
-- stable ID
+- stable technical ID
+- stable human case ID
 - human title and description
+- case context (`actor`, `trigger`, `state`, `outcome`)
 - product group
 - real screen / preview target
 - risk level
@@ -93,6 +115,8 @@ Each scenario contains:
 - configurable state
 - expected results
 - supported action contracts
+
+Case IDs must be unique. Registry validation should fail when a case is missing its operator context so future scenarios cannot silently become opaque technical entries again.
 
 Do not infer “coverage” only from raw scenario count. Coverage quality depends on whether important product states are directly reproducible and whether the scenario is current.
 
@@ -147,6 +171,8 @@ Add the smallest useful risk-based state pack, normally including some combinati
 - relevant mobile / desktop risk
 - relevant localization risk
 - refresh / recovery behavior
+
+Every new scenario must also explain the case in operator language: who is affected, what triggered it, the current state, and the intended next outcome.
 
 Avoid a full Cartesian product of every locale, viewport, and state. Important combinations should be explicit; broad stress combinations belong in automated jobs later.
 
@@ -228,7 +254,8 @@ Visual baseline updates must be reviewable and explicit.
 
 A future `문제 있음` flow should be able to package:
 
-- scenario ID
+- scenario ID and human case ID
+- actor / trigger / state / outcome context
 - viewport and locale
 - build SHA
 - simulated environment state
