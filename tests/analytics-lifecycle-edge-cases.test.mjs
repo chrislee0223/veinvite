@@ -5,13 +5,18 @@ import test from 'node:test';
 const read = (path) =>
   readFile(new URL(`../${path}`, import.meta.url), 'utf8');
 
-const [serializedCleanup, zeroResultMaintenance] = await Promise.all([
+const [
+  serializedCleanup,
+  zeroResultMaintenance,
+  analyticsMaintenanceRoute,
+] = await Promise.all([
   read(
     'supabase/migrations/20260906004000_serialize_analytics_exclusion_with_archive_cleanup.sql',
   ),
   read(
     'supabase/migrations/20260906005000_avoid_zero_result_product_refinalization.sql',
   ),
+  read('src/app/api/cron/analytics-maintenance/route.ts'),
 ]);
 
 test('administrator exclusion and both destructive cleanup paths share one serialization lock', () => {
@@ -44,6 +49,19 @@ test('zero-result product days stop being mistaken for unfinished historical rol
   assert.match(
     zeroResultMaintenance,
     /'rawRowsDeleted', 0/,
+  );
+});
+
+test('runtime health cannot be mistaken for completed archive-storage readiness', () => {
+  assert.match(analyticsMaintenanceRoute, /storageConfigured: false/);
+  assert.match(analyticsMaintenanceRoute, /restoreVerified: false/);
+  assert.match(analyticsMaintenanceRoute, /destructiveCleanupEnabled: false/);
+  assert.match(analyticsMaintenanceRoute, /longTermReady: false/);
+  assert.match(analyticsMaintenanceRoute, /mode: 'NON_DESTRUCTIVE'/);
+  assert.match(analyticsMaintenanceRoute, /rawRowsDeleted: 0/);
+  assert.doesNotMatch(
+    analyticsMaintenanceRoute,
+    /compact_app_usage_analytics|compact_app_product_analytics/,
   );
 });
 
