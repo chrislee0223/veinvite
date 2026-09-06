@@ -2,6 +2,7 @@ import type { PermanentReferralQaState } from '@/components/PermanentReferralCli
 import type { WalletSessionQaState } from '@/components/WalletSessionGate';
 import type { LegalConsentQaState } from '@/components/LegalConsentGate';
 import type { QaHomeStateId } from './QaHomeStateHarness';
+import type { QaHomeFeedbackStateId } from './QaHomeFeedbackHarness';
 import type { QaNotificationStateId } from './QaNotificationStateHarness';
 import {
   QA_KNOWN_STATES,
@@ -30,6 +31,10 @@ export type QaDirectStateRenderer =
   | (QaDirectStateRendererBase & {
       renderer: 'home';
       homeStateId: QaHomeStateId;
+    })
+  | (QaDirectStateRendererBase & {
+      renderer: 'home-feedback';
+      homeFeedbackStateId: QaHomeFeedbackStateId;
     })
   | (QaDirectStateRendererBase & {
       renderer: 'notification';
@@ -78,9 +83,14 @@ export const QA_DIRECT_STATE_RENDERERS: QaDirectStateRenderer[] = [
   { stateId: 'HOME-SLOT-COMPLETED', renderer: 'home', homeStateId: 'HOME-SLOT-COMPLETED', defaultLocale: 'ko' },
   { stateId: 'HOME-SLOTS-FULL', renderer: 'home', homeStateId: 'HOME-SLOTS-FULL', defaultLocale: 'ko' },
   { stateId: 'HOME-CANCEL-CONFIRM', renderer: 'home', homeStateId: 'HOME-CANCEL-CONFIRM', defaultLocale: 'ko' },
+  { stateId: 'HOME-COPY-SUCCESS', renderer: 'home-feedback', homeFeedbackStateId: 'HOME-COPY-SUCCESS', defaultLocale: 'ko' },
+  { stateId: 'HOME-COPY-ERROR', renderer: 'home-feedback', homeFeedbackStateId: 'HOME-COPY-ERROR', defaultLocale: 'ko' },
+  { stateId: 'HOME-LOAD-ERROR', renderer: 'home-feedback', homeFeedbackStateId: 'HOME-LOAD-ERROR', defaultLocale: 'ko' },
   { stateId: 'REWARD-AWAITING-CLAIM', renderer: 'home', homeStateId: 'REWARD-AWAITING-CLAIM', defaultLocale: 'ko' },
   { stateId: 'REWARD-CLAIM-PENDING', renderer: 'home', homeStateId: 'REWARD-CLAIM-PENDING', defaultLocale: 'ko' },
   { stateId: 'REWARD-CLAIM-QUEUED', renderer: 'home', homeStateId: 'REWARD-CLAIM-QUEUED', defaultLocale: 'ko' },
+  { stateId: 'REWARD-CLAIM-SUCCESS', renderer: 'home-feedback', homeFeedbackStateId: 'REWARD-CLAIM-SUCCESS', defaultLocale: 'ko' },
+  { stateId: 'REWARD-CLAIM-ERROR', renderer: 'home-feedback', homeFeedbackStateId: 'REWARD-CLAIM-ERROR', defaultLocale: 'ko' },
 
   { stateId: 'NOTI-BELL-EMPTY', renderer: 'notification', notificationStateId: 'NOTI-BELL-EMPTY', defaultLocale: 'ko' },
   { stateId: 'NOTI-BELL-UNREAD', renderer: 'notification', notificationStateId: 'NOTI-BELL-UNREAD', defaultLocale: 'ko' },
