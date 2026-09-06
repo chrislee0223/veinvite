@@ -108,13 +108,34 @@ QA Home harness는 같은 origin의 `/api/*` 요청을 실제 배포 API로 보�
 
 아직 transient snackbar 자체가 핵심인 `HOME-COPY-SUCCESS`, `HOME-COPY-ERROR`, `HOME-LOAD-ERROR`, `REWARD-CLAIM-ERROR` 등은 억지로 정적 화면으로 고정하지 않고 다음 interaction/transition fixture wave에서 직접 재현한다.
 
+## 네 번째 direct coverage wave
+
+알림은 별도 모양을 다시 그리지 않고 실제 `InviteNotificationHistoryCenter`와 `InviteNotificationSurfaceV2`를 QA harness에서 직접 사용한다. 네트워크 요청 없이 fixture만 전달하므로 알림 확인·오류·로딩·이벤트 화면을 안전하게 독립 재현한다.
+
+알림 센터 직접 재현:
+
+- 알림 없음 / 읽지 않은 알림 배지
+- 알림 이력 열림 / 로딩 / 오류
+- 읽은 항목 / 읽지 않은 항목 / 과거 알림 더 보기
+
+이벤트 알림 직접 재현:
+
+- 초대 수락
+- dApp 1/3, 2/3, 3/3
+- VOT3 전환
+- 건너뛴 진행 단계를 합쳐 보여주는 진행 알림
+- 보상 준비 / 보상 지급 완료
+- 참여 불가
+- 알림 확인 처리 중 / 확인 처리 오류
+
+QA 알림 harness의 확인·전체 읽음·더 보기·닫기 동작은 브라우저 내부 상태만 바꾸며 API를 호출하지 않는다. 따라서 Production 알림 읽음 기록이나 보상/초대 데이터에 영향을 주지 않는다.
+
 ## 다음 확장 순서
 
-1. Notification history / 알림 이벤트 direct fixtures
-2. Leaderboard loading/error/movement/detail 독립 상태
-3. `/i/[code]` legacy flow 전체 상태
-4. transient Home/Reward feedback + Transition Registry
-5. Journey Runner
-6. changed-screen 영향 감지, stale verdict, Playwright/Visual Regression
+1. Leaderboard loading/error/movement/detail 독립 상태
+2. `/i/[code]` legacy flow 전체 상태
+3. transient Home/Reward feedback + Transition Registry
+4. Journey Runner
+5. changed-screen 영향 감지, stale verdict, Playwright/Visual Regression
 
 현재 상태 목록은 완성 선언이 아니라 **누락을 숨기지 않는 기준선**이다. `missing`이 0이 되고 direct coverage가 실제 Production 컴포넌트에 연결됐을 때 현재 운영 UI State Coverage를 100%라고 표시한다.
