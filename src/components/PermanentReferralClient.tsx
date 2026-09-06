@@ -48,6 +48,28 @@ type ErrorCode =
   | 'eligibility';
 type EntryClass = 'new_user' | 'returning_user';
 
+export type PermanentReferralQaState =
+  | 'boot'
+  | 'language-setup'
+  | 'link-checking'
+  | 'landing'
+  | 'wallet-required'
+  | 'wallet-connected'
+  | 'eligibility-checking'
+  | 'success-new'
+  | 'success-returning'
+  | 'error-invalid'
+  | 'error-slots-full'
+  | 'error-existing'
+  | 'error-self'
+  | 'error-already-referred'
+  | 'error-eligibility';
+
+export type PermanentReferralQaPreview = {
+  state: PermanentReferralQaState;
+  locale?: SupportedLocale;
+};
+
 type StatusResponse = {
   outcome?: 'available' | 'slots_full' | 'invalid_link' | 'server_error';
 };
@@ -58,6 +80,97 @@ type ClaimResponse = {
   inviteCode?: string;
   entryClass?: EntryClass | 'active_existing_user';
 };
+
+type QaPreviewSeed = {
+  languageReady: boolean;
+  showLanguageSetup: boolean;
+  step: Step;
+  errorCode: ErrorCode;
+  entryClass: EntryClass;
+  walletConnected: boolean;
+};
+
+const QA_PREVIEW_WALLET =
+  '0x1234567890abcdef1234567890abcdef12345678';
+
+function qaPreviewSeed(state: PermanentReferralQaState): QaPreviewSeed {
+  if (state === 'boot') {
+    return {
+      languageReady: false,
+      showLanguageSetup: true,
+      step: 'loading',
+      errorCode: 'invalidLink',
+      entryClass: 'new_user',
+      walletConnected: false,
+    };
+  }
+
+  if (state === 'language-setup') {
+    return {
+      languageReady: true,
+      showLanguageSetup: true,
+      step: 'loading',
+      errorCode: 'invalidLink',
+      entryClass: 'new_user',
+      walletConnected: false,
+    };
+  }
+
+  const base: QaPreviewSeed = {
+    languageReady: true,
+    showLanguageSetup: false,
+    step: 'landing',
+    errorCode: 'invalidLink',
+    entryClass: 'new_user',
+    walletConnected: false,
+  };
+
+  if (state === 'link-checking') return { ...base, step: 'loading' };
+  if (state === 'landing') return base;
+  if (state === 'wallet-required') return { ...base, step: 'wallet' };
+  if (state === 'wallet-connected') {
+    return { ...base, step: 'wallet', walletConnected: true };
+  }
+  if (state === 'eligibility-checking') {
+    return { ...base, step: 'checking', walletConnected: true };
+  }
+  if (state === 'success-new') {
+    return {
+      ...base,
+      step: 'success',
+      entryClass: 'new_user',
+      walletConnected: true,
+    };
+  }
+  if (state === 'success-returning') {
+    return {
+      ...base,
+      step: 'success',
+      entryClass: 'returning_user',
+      walletConnected: true,
+    };
+  }
+
+  const errorCode: ErrorCode =
+    state === 'error-invalid'
+      ? 'invalidLink'
+      : state === 'error-slots-full'
+        ? 'full'
+        : state === 'error-existing'
+          ? 'existing'
+          : state === 'error-self'
+            ? 'selfReferral'
+            : state === 'error-already-referred'
+              ? 'other'
+              : 'eligibility';
+
+  return {
+    ...base,
+    step: 'error',
+    errorCode,
+    walletConnected: true,
+  };
+}
 
 function claimFailureCode(
   response: Response,
@@ -76,23 +189,58 @@ function claimFailureCode(
 
 export function PermanentReferralClient({
   referralKey,
+  qaPreview = null,
 }: {
   referralKey: string;
+  qaPreview?: PermanentReferralQaPreview | null;
 }) {
-  const wallet = useActiveWallet();
+  const liveWallet = useActiveWallet();
   const { open: openConnectModal } = useConnectModal();
   const { setLanguage: setKitLanguage } = useCurrentLanguage();
-  const [locale, setLocale] = useState<SupportedLocale>('en');
-  const [languageReady, setLanguageReady] = useState(false);
-  const [showLanguageSetup, setShowLanguageSetup] = useState(true);
-  const [step, setStep] = useState<Step>('loading');
-  const [errorCode, setErrorCode] = useState<ErrorCode>('invalidLink');
-  const [entryClass, setEntryClass] = useState<EntryClass>('new_user');
+  const initialQaSeed = qaPreview ? qaPreviewSeed(qaPreview.state) : null;
+  const previewMode = qaPreview !== null;
+  const wallet = previewMode
+    ? initialQaSeed?.walletConnected
+      ? QA_PREVIEW_WALLET
+      : null
+    : liveWallet;
+  const [locale, setLocale] = useState<SupportedLocale>(
+    qaPreview?.locale ?? 'en',
+  );
+  const [languageReady, setLanguageReady] = useState(
+    initialQaSeed?.languageReady ?? false,
+  );
+  const [showLanguageSetup, setShowLanguageSetup] = useState(
+    initialQaSeed?.showLanguageSetup ?? true,
+  );
+  const [step, setStep] = useState<Step>(initialQaSeed?.step ?? 'loading');
+  const [errorCode, setErrorCode] = useState<ErrorCode>(
+    initialQaSeed?.errorCode ?? 'invalidLink',
+  );
+  const [entryClass, setEntryClass] = useState<EntryClass>(
+    initialQaSeed?.entryClass ?? 'new_user',
+  );
   const [claimedInviteCode, setClaimedInviteCode] = useState('');
   const t = INVITEE_COPY[locale];
   const referral = REFERRAL_LINK_COPY[locale];
 
   useEffect(() => {
+    if (qaPreview) {
+      const seed = qaPreviewSeed(qaPreview.state);
+      const previewLocale = qaPreview.locale ?? 'ko';
+      setLocale(previewLocale);
+      setLanguageReady(seed.languageReady);
+      setShowLanguageSetup(seed.showLanguageSetup);
+      setStep(seed.step);
+      setErrorCode(seed.errorCode);
+      setEntryClass(seed.entryClass);
+      setClaimedInviteCode(
+        seed.step === 'success' ? 'QA1234' : '',
+      );
+      document.documentElement.lang = previewLocale;
+      return;
+    }
+
     const saved = window.localStorage.getItem(LANGUAGE_STORAGE_KEY);
     const queryLanguage = new URLSearchParams(window.location.search).get('lang');
     const savedLocale = isLocale(saved) ? saved : null;
@@ -104,23 +252,30 @@ export function PermanentReferralClient({
     setShowLanguageSetup(!savedLocale && !queryLocale);
     document.documentElement.lang = initialLocale;
     setLanguageReady(true);
-  }, []);
+  }, [qaPreview?.locale, qaPreview?.state]);
 
   useEffect(() => {
-    if (languageReady) setKitLanguage(locale);
-  }, [languageReady, locale, setKitLanguage]);
+    if (!previewMode && languageReady) setKitLanguage(locale);
+  }, [languageReady, locale, previewMode, setKitLanguage]);
 
   const saveLocale = (nextLocale: SupportedLocale) => {
     setLocale(nextLocale);
+    document.documentElement.lang = nextLocale;
+
+    if (previewMode) {
+      return;
+    }
+
     setKitLanguage(nextLocale);
     window.localStorage.setItem(LANGUAGE_STORAGE_KEY, nextLocale);
-    document.documentElement.lang = nextLocale;
     window.dispatchEvent(
       new CustomEvent('veinvite-language-change', { detail: nextLocale }),
     );
   };
 
   const validateLink = useCallback(async () => {
+    if (previewMode) return;
+
     setStep('loading');
     try {
       const response = await fetch(
@@ -149,18 +304,32 @@ export function PermanentReferralClient({
       setErrorCode('eligibility');
       setStep('error');
     }
-  }, [referralKey]);
+  }, [previewMode, referralKey]);
 
   useEffect(() => {
-    if (languageReady && !showLanguageSetup) void validateLink();
-  }, [languageReady, showLanguageSetup, validateLink]);
+    if (
+      !previewMode &&
+      languageReady &&
+      !showLanguageSetup
+    ) {
+      void validateLink();
+    }
+  }, [
+    languageReady,
+    previewMode,
+    showLanguageSetup,
+    validateLink,
+  ]);
 
   const confirmLanguage = () => {
     saveLocale(locale);
     setShowLanguageSetup(false);
+    if (previewMode) setStep('landing');
   };
 
   const openWallet = () => {
+    if (previewMode) return;
+
     reportProductAnalyticsEvent({
       eventName: 'wallet_connect_started',
       flowKey: 'permanent_referral',
@@ -171,6 +340,11 @@ export function PermanentReferralClient({
   const claim = async () => {
     if (!wallet) {
       setStep('wallet');
+      return;
+    }
+
+    if (previewMode) {
+      setStep('checking');
       return;
     }
 
@@ -284,7 +458,7 @@ export function PermanentReferralClient({
   };
 
   const continueToMissions = () => {
-    if (!claimedInviteCode) return;
+    if (previewMode || !claimedInviteCode) return;
     const url = new URL(
       `/i/${claimedInviteCode}`,
       window.location.origin,
