@@ -99,7 +99,7 @@ jobs:
         run: node --experimental-strip-types --test tests/home-startup-readiness.test.mjs tests/home-startup-performance.test.mjs tests/home-startup-placeholder-regression.test.mjs tests/first-paint-startup-shell.test.mjs tests/wallet-first-login-transition.test.mjs tests/wallet-switch-transition.test.mjs
 
       - name: Usage analytics privacy gate
-        run: node --test tests/usage-analytics-privacy.test.mjs tests/usage-analytics-hardening.test.mjs tests/product-analytics-privacy.test.mjs tests/wallet-language-privacy.test.mjs tests/legal-document-sheet.test.mjs
+        run: node --test tests/usage-analytics-privacy.test.mjs tests/usage-analytics-hardening.test.mjs tests/analytics-lifecycle-edge-cases.test.mjs tests/product-analytics-privacy.test.mjs tests/wallet-language-privacy.test.mjs tests/legal-document-sheet.test.mjs
 
       - name: Admin analytics exclusion gate
         run: node --test tests/admin-analytics-exclusions.test.mjs
