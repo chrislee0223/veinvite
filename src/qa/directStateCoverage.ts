@@ -6,6 +6,7 @@ import type { QaHomeFeedbackStateId } from './QaHomeFeedbackHarness';
 import type { QaNotificationStateId } from './QaNotificationStateHarness';
 import type { QaSettingsStateId } from './QaSettingsStateHarness';
 import type { QaLeaderboardStateId } from './QaLeaderboardStateHarness';
+import type { QaInviteLandingStateId } from './QaInviteLandingStateHarness';
 import {
   QA_KNOWN_STATES,
   type QaKnownState,
@@ -21,6 +22,10 @@ export type QaDirectStateRenderer =
   | (QaDirectStateRendererBase & {
       renderer: 'permanent-referral';
       permanentReferralState: PermanentReferralQaState;
+    })
+  | (QaDirectStateRendererBase & {
+      renderer: 'invite-landing';
+      inviteLandingStateId: QaInviteLandingStateId;
     })
   | (QaDirectStateRendererBase & {
       renderer: 'wallet-session';
@@ -56,6 +61,7 @@ export const QA_DIRECT_STATE_RENDERERS: QaDirectStateRenderer[] = [
   { stateId: 'PRI-LANGUAGE-SETUP', renderer: 'permanent-referral', permanentReferralState: 'language-setup', defaultLocale: 'ko' },
   { stateId: 'PRI-LINK-CHECKING', renderer: 'permanent-referral', permanentReferralState: 'link-checking', defaultLocale: 'ko' },
   { stateId: 'PRI-LANDING', renderer: 'permanent-referral', permanentReferralState: 'landing', defaultLocale: 'ko' },
+  { stateId: 'PRI-LANDING-DISABLED', renderer: 'invite-landing', inviteLandingStateId: 'PRI-LANDING-DISABLED', defaultLocale: 'ko' },
   { stateId: 'PRI-WALLET-REQUIRED', renderer: 'permanent-referral', permanentReferralState: 'wallet-required', defaultLocale: 'ko' },
   { stateId: 'PRI-WALLET-CONNECTED', renderer: 'permanent-referral', permanentReferralState: 'wallet-connected', defaultLocale: 'ko' },
   { stateId: 'PRI-ELIGIBILITY-CHECKING', renderer: 'permanent-referral', permanentReferralState: 'eligibility-checking', defaultLocale: 'ko' },
