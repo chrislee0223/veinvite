@@ -70,6 +70,7 @@ export function QaStudio() {
   const [focusMode, setFocusMode] = useState(false);
   const [showGuide, setShowGuide] = useState(true);
   const [browseMode, setBrowseMode] = useState<QaBrowseMode>('core');
+  const [groupFilter, setGroupFilter] = useState('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [logs, setLogs] = useState<QaActionLogEntry[]>([]);
   const [reviews, setReviews] = useState<QaReviewMap>({});
@@ -84,16 +85,46 @@ export function QaStudio() {
   const currentReviewKey = reviewKey(scenario.id, viewportId, locale);
   const currentReview = reviews[currentReviewKey];
 
+  const browseScenarios = useMemo(
+    () => QA_SCENARIOS.filter((item) => browseMode === 'all' || item.core),
+    [browseMode],
+  );
+
+  const availableGroups = useMemo(
+    () => Array.from(new Set(browseScenarios.map((item) => item.group))),
+    [browseScenarios],
+  );
+
+  const groupCounts = useMemo(
+    () => availableGroups.map((group) => ({
+      group,
+      count: browseScenarios.filter((item) => item.group === group).length,
+    })),
+    [availableGroups, browseScenarios],
+  );
+
   const filteredScenarios = useMemo(() => {
     const normalized = searchQuery.trim().toLocaleLowerCase();
-    return QA_SCENARIOS.filter((item) => browseMode === 'all' || item.core).filter((item) => {
-      if (!normalized) return true;
-      const haystack = [item.title, item.description, item.group, ...item.tags]
-        .join(' ')
-        .toLocaleLowerCase();
-      return haystack.includes(normalized);
-    });
-  }, [browseMode, searchQuery]);
+    return browseScenarios
+      .filter((item) => groupFilter === 'all' || item.group === groupFilter)
+      .filter((item) => {
+        if (!normalized) return true;
+        const haystack = [
+          item.caseId,
+          item.title,
+          item.description,
+          item.group,
+          item.context.actor,
+          item.context.trigger,
+          item.context.state,
+          item.context.outcome,
+          ...item.tags,
+        ]
+          .join(' ')
+          .toLocaleLowerCase();
+        return haystack.includes(normalized);
+      });
+  }, [browseScenarios, groupFilter, searchQuery]);
 
   const filteredGroups = useMemo(
     () => Array.from(new Set(filteredScenarios.map((item) => item.group))),
@@ -140,6 +171,12 @@ export function QaStudio() {
     url.searchParams.set('locale', locale);
     window.history.replaceState(null, '', `${url.pathname}${url.search}${url.hash}`);
   }, [locale, scenario.id, urlReady, viewportId]);
+
+  useEffect(() => {
+    if (groupFilter !== 'all' && !availableGroups.includes(groupFilter)) {
+      setGroupFilter('all');
+    }
+  }, [availableGroups, groupFilter]);
 
   useEffect(() => {
     if (!filteredScenarios.length) return;
@@ -314,7 +351,7 @@ export function QaStudio() {
             <span>실제 운영 데이터 변경 없음</span>
           </div>
           <h1>VeInvite 테스트 센터</h1>
-          <p>상황·기기·언어 조합별로 따로 확인 결과를 남기고 같은 상태를 다시 열 수 있어요.</p>
+          <p>각 경우의 수가 누구에게, 언제, 어떤 상태에서 나타나는지 먼저 이해한 뒤 실제 화면을 확인할 수 있어요.</p>
         </div>
         <div className="headerActions">
           <button type="button" className="ghostButton" onClick={() => setAdvancedOpen((value) => !value)}>
@@ -324,7 +361,7 @@ export function QaStudio() {
             <div className="buildMeta" aria-label="QA build information">
               <span>commit <b>{shortSha(BUILD_SHA)}</b></span>
               <span>network <b>{NETWORK}</b></span>
-              <span>scenarios <b>{QA_SCENARIOS.length}</b></span>
+              <span>cases <b>{QA_SCENARIOS.length}</b></span>
             </div>
           ) : null}
         </div>
@@ -334,7 +371,7 @@ export function QaStudio() {
         <section className="guideCard" aria-label="QA Studio quick guide">
           <div>
             <strong>처음이라면 이렇게 확인하면 돼요</strong>
-            <p><b>1.</b> 상황 선택 → <b>2.</b> 화면 직접 조작 → <b>3.</b> 정상/문제/확인 불가 표시</p>
+            <p><b>1.</b> 경우의 수 선택 → <b>2.</b> 누구/언제/현재 상태 확인 → <b>3.</b> 실제 화면 조작 → <b>4.</b> 정상/문제/확인 불가 표시</p>
           </div>
           <button type="button" onClick={dismissGuide}>알겠어요</button>
         </section>
@@ -357,21 +394,38 @@ export function QaStudio() {
           </button>
         </div>
         <label className="searchBox">
-          <span>상황 검색</span>
+          <span>경우의 수 검색</span>
           <input
             type="search"
             value={searchQuery}
             onChange={(event) => setSearchQuery(event.target.value)}
-            placeholder="예: 초대, 미션, 보상, 알림, 자격"
+            placeholder="예: 신규 사용자, 지갑 연결 전, 보상, 거절"
           />
         </label>
         <span className="resultCount">{filteredScenarios.length}개 표시</span>
       </section>
 
+      <section className="caseFilterBar" aria-label="경우의 수 영역 필터">
+        <div className="caseFilterTitle">
+          <strong>경우의 수</strong>
+          <span>영역을 누르면 그 상황만 모아서 볼 수 있어요.</span>
+        </div>
+        <div className="caseFilterChips">
+          <button type="button" className={groupFilter === 'all' ? 'active' : ''} onClick={() => setGroupFilter('all')}>
+            전체 <b>{browseScenarios.length}</b>
+          </button>
+          {groupCounts.map(({ group, count }) => (
+            <button key={group} type="button" className={groupFilter === group ? 'active' : ''} onClick={() => setGroupFilter(group)}>
+              {group} <b>{count}</b>
+            </button>
+          ))}
+        </div>
+      </section>
+
       <div className="qaLayout">
         <aside className="scenarioRail" aria-label="QA scenarios">
           <div className="railTitle">
-            <strong>확인할 상황</strong>
+            <strong>확인할 경우의 수</strong>
             <span>{browseMode === 'core' ? '출시 전에 먼저 볼 핵심 흐름' : '등록된 모든 재현 상태'}</span>
           </div>
           {filteredGroups.map((group) => (
@@ -390,8 +444,12 @@ export function QaStudio() {
                       {statusSymbol(review)}
                     </span>
                     <span>
+                      <span className="scenarioCaseMeta">
+                        <b>{item.caseId}</b>
+                        <em>{item.context.state}</em>
+                      </span>
                       <strong>{item.title}</strong>
-                      <small>{item.description}</small>
+                      <small>{item.context.actor} · {item.context.trigger}</small>
                     </span>
                   </button>
                 );
@@ -437,9 +495,41 @@ export function QaStudio() {
           </div>
           {shareStatus ? <p className="shareStatus">{shareStatus}</p> : null}
 
+          <section className="caseContextCard" aria-label="현재 경우의 수 설명">
+            <div className="caseContextHeader">
+              <div>
+                <span className="caseIdBadge">{scenario.caseId}</span>
+                <strong>현재 경우의 수</strong>
+              </div>
+              <span>{scenario.group} · {scenario.core ? '핵심 점검' : '추가 점검'}</span>
+            </div>
+            <div className="caseFlow" aria-label="상황 흐름">
+              <div>
+                <span>누구</span>
+                <b>{scenario.context.actor}</b>
+              </div>
+              <i aria-hidden="true">→</i>
+              <div>
+                <span>어떤 때</span>
+                <b>{scenario.context.trigger}</b>
+              </div>
+              <i aria-hidden="true">→</i>
+              <div>
+                <span>현재 상황</span>
+                <b>{scenario.context.state}</b>
+              </div>
+              <i aria-hidden="true">→</i>
+              <div>
+                <span>이후 흐름</span>
+                <b>{scenario.context.outcome}</b>
+              </div>
+            </div>
+          </section>
+
           <div className="scenarioIntro">
             <div>
               <div className="scenarioKicker">
+                <span className="caseIdMini">{scenario.caseId}</span>
                 <span className={`riskLabel riskLabel-${scenario.risk}`}>{riskLabel(scenario.risk)}</span>
                 <span>{scenario.group}</span>
                 <span className="manualBadge">👤 직접 확인</span>
@@ -561,7 +651,7 @@ export function QaStudio() {
 
           <div className="reviewBar">
             <div className="reviewPrompt">
-              <strong>이 설정은 괜찮아 보여요?</strong>
+              <strong>{scenario.caseId} · 이 설정은 괜찮아 보여요?</strong>
               <span>{viewport.label} · {locale.toUpperCase()} 조합에만 기록됩니다.</span>
             </div>
             <div className="reviewActions">
@@ -617,7 +707,7 @@ export function QaStudio() {
       </footer>
 
       <style jsx>{`
-        .qaStudio{min-height:100vh;box-sizing:border-box;padding:24px;color:#f7f4eb;background:#080807;font-family:inherit}.focusExit{display:none}.qaHeader{max-width:1500px;margin:0 auto 16px;display:flex;align-items:flex-end;justify-content:space-between;gap:24px}.qaEyebrow{display:flex;gap:7px;flex-wrap:wrap}.qaEyebrow span{padding:6px 9px;border:1px solid rgba(244,183,40,.24);border-radius:999px;color:#e8c65e;background:rgba(244,183,40,.07);font-size:.62rem;font-weight:900}.qaHeader h1{margin:9px 0 5px;font-size:clamp(2rem,4vw,3rem);letter-spacing:-.05em}.qaHeader p{margin:0;color:#918a80;font-size:.82rem;line-height:1.5}.headerActions{display:flex;align-items:flex-end;flex-direction:column;gap:8px}.ghostButton{min-height:38px;padding:0 12px;border:1px solid rgba(255,255,255,.09);border-radius:10px;background:#11110f;color:#a9a198;font:inherit;font-size:.66rem;font-weight:800;cursor:pointer}.buildMeta{display:flex;flex-wrap:wrap;justify-content:flex-end;gap:6px;color:#706a63;font-size:.58rem}.buildMeta span{padding:6px 8px;border:1px solid rgba(255,255,255,.06);border-radius:8px;background:#0e0e0d}.buildMeta b{color:#cfc8bd}.guideCard{max-width:1500px;margin:0 auto 12px;padding:14px 16px;border:1px solid rgba(244,183,40,.18);border-radius:16px;background:linear-gradient(135deg,rgba(244,183,40,.08),rgba(244,183,40,.025));display:flex;align-items:center;justify-content:space-between;gap:18px}.guideCard strong{display:block;margin-bottom:5px;color:#f1d273;font-size:.84rem}.guideCard p{margin:0;color:#9a9185;font-size:.7rem;line-height:1.55}.guideCard button{min-height:36px;padding:0 12px;border:1px solid rgba(244,183,40,.22);border-radius:9px;background:rgba(244,183,40,.08);color:#e5c761;font:inherit;font-size:.64rem;font-weight:850;cursor:pointer}.qaSummary{max-width:1500px;margin:0 auto 12px;display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:7px}.qaSummary div{padding:12px 14px;border:1px solid rgba(255,255,255,.06);border-radius:14px;background:#0e0e0d;display:flex;align-items:baseline;gap:8px}.qaSummary b{font-size:1.15rem}.qaSummary span{color:#77716d;font-size:.64rem}.summaryIssue b{color:#e3a2a2}.summaryBlocked b{color:#d7c58f}.browseBar{max-width:1500px;margin:0 auto 12px;padding:9px;border:1px solid rgba(255,255,255,.06);border-radius:14px;background:#0d0d0c;display:flex;align-items:center;gap:10px}.modeSwitch{display:flex;gap:4px;padding:3px;border-radius:10px;background:#151513}.modeSwitch button{min-height:34px;padding:0 11px;border:0;border-radius:8px;background:transparent;color:#77716d;font:inherit;font-size:.65rem;font-weight:850;cursor:pointer}.modeSwitch button.active{background:rgba(244,183,40,.1);color:#efcf70}.searchBox{min-width:240px;flex:1;display:flex;align-items:center;gap:9px}.searchBox span{color:#736d66;font-size:.61rem;font-weight:800}.searchBox input{min-width:0;flex:1;height:34px;padding:0 11px;border:1px solid rgba(255,255,255,.08);border-radius:9px;background:#11110f;color:#ddd6cb;outline:none;font:inherit;font-size:.66rem}.resultCount{color:#6f6962;font-size:.6rem;white-space:nowrap}.qaLayout{max-width:1500px;margin:0 auto;display:grid;grid-template-columns:270px minmax(0,1fr);gap:12px}.scenarioRail,.workspace,.inspector{border:1px solid rgba(255,255,255,.07);background:#0d0d0c}.scenarioRail{border-radius:18px;padding:12px;align-self:start;position:sticky;top:12px;max-height:calc(100vh - 24px);overflow:auto}.railTitle{padding:5px 5px 12px;display:grid;gap:3px}.railTitle strong{font-size:.86rem}.railTitle span{color:#716d68;font-size:.62rem;line-height:1.4}.scenarioGroup{margin-top:10px}.scenarioGroup h2{margin:0 5px 6px;color:#827969;font-size:.61rem}.scenarioGroup button{width:100%;min-height:62px;margin:0 0 5px;padding:9px;border:1px solid transparent;border-radius:12px;background:transparent;color:#aaa39a;font:inherit;text-align:left;display:grid;grid-template-columns:22px minmax(0,1fr);gap:8px;cursor:pointer}.scenarioGroup button:hover{background:rgba(255,255,255,.025)}.scenarioGroup button.active{border-color:rgba(244,183,40,.23);background:rgba(244,183,40,.075);color:#f0d27a}.scenarioGroup button>span:last-child{display:grid;gap:3px;min-width:0}.scenarioGroup strong{font-size:.69rem}.scenarioGroup small{color:#6d6761;font-size:.57rem;line-height:1.38}.scenarioStatus{width:20px;height:20px;border-radius:50%;display:grid;place-items:center;background:#181816;color:#68625c;font-size:.65rem;font-weight:950}.status-pass{background:rgba(107,180,129,.13);color:#9bd3aa}.status-issue{background:rgba(204,111,111,.13);color:#dda0a0}.status-blocked{background:rgba(194,164,92,.12);color:#d8c17e}.noResults{padding:18px 8px;color:#77716d;font-size:.65rem;line-height:1.5}.workspace{min-width:0;border-radius:18px;padding:12px}.toolbar{display:flex;align-items:end;gap:8px;flex-wrap:wrap;padding-bottom:12px;border-bottom:1px solid rgba(255,255,255,.06)}.toolbar label{display:grid;gap:5px}.toolbar label span{color:#716d68;font-size:.58rem;font-weight:850}.toolbar label small{max-width:210px;color:#6f6962;font-size:.54rem;line-height:1.35}.toolbar select,.toolbar button{min-height:40px;border:1px solid rgba(255,255,255,.09);border-radius:10px;background:#151513;color:#ddd6cb;font:inherit;font-size:.67rem;font-weight:800}.toolbar select{padding:0 32px 0 10px}.toolbar select:disabled{opacity:.55}.toolbarActions{margin-left:auto;display:flex;gap:6px;flex-wrap:wrap}.toolbar button{padding:0 10px;cursor:pointer}.shareStatus{margin:8px 2px 0;color:#a89b72;font-size:.6rem}.scenarioIntro{padding:15px 4px;display:flex;align-items:flex-start;justify-content:space-between;gap:16px}.scenarioKicker{display:flex;align-items:center;gap:6px;flex-wrap:wrap;color:#77716d;font-size:.58rem}.scenarioIntro h2{margin:6px 0 4px;font-size:1.25rem}.scenarioIntro p{margin:0;color:#7d766f;font-size:.68rem;line-height:1.45}.riskLabel{padding:4px 6px;border-radius:6px;background:#171714;font-size:.55rem;font-weight:900;color:#8a847c}.riskLabel-critical{color:#f4c343}.riskLabel-high{color:#c3ae70}.manualBadge{padding:4px 7px;border-radius:999px;background:#141412;color:#8d877f}.verdictBadge{padding:4px 7px;border:1px solid rgba(255,255,255,.06);border-radius:999px;background:#141412;color:#746f69}.verdict-pass{color:#9bd3aa;border-color:rgba(107,180,129,.18);background:rgba(107,180,129,.06)}.verdict-issue{color:#dda0a0;border-color:rgba(204,111,111,.18);background:rgba(204,111,111,.06)}.verdict-blocked{color:#d8c17e;border-color:rgba(194,164,92,.18);background:rgba(194,164,92,.05)}.tags{display:flex;flex-wrap:wrap;justify-content:flex-end;gap:5px}.tags span{padding:5px 7px;border-radius:999px;background:#151513;color:#7a756f;font-size:.55rem}.stageGrid{display:grid;grid-template-columns:minmax(0,1fr) 330px;gap:10px;align-items:start}.stageGrid.advancedClosed{grid-template-columns:minmax(0,1fr)}.deviceStage{min-width:0;border:1px solid rgba(255,255,255,.07);border-radius:15px;background:#090909;overflow:hidden;position:relative}.deviceRuler{height:38px;padding:0 11px;display:flex;align-items:center;justify-content:space-between;color:#6e6963;font-size:.59rem;border-bottom:1px solid rgba(255,255,255,.06)}.frameState{font-weight:800}.frame-ready{color:#8fbd9b}.frame-slow,.frame-error{color:#d5b475}.frameScroller{padding:16px;overflow:auto;text-align:center;background:radial-gradient(circle at 50% 0%,rgba(244,183,40,.035),transparent 36%)}.frameScroller iframe{max-width:none;border:1px solid rgba(255,255,255,.09);border-radius:16px;background:#080807;vertical-align:top;box-shadow:0 18px 60px rgba(0,0,0,.28)}.frameRecovery{position:absolute;left:50%;bottom:24px;transform:translateX(-50%);padding:8px 10px;border:1px solid rgba(244,183,40,.18);border-radius:11px;background:rgba(18,18,16,.94);display:flex;align-items:center;gap:8px;color:#b8a776;font-size:.58rem}.frameRecovery button{min-height:30px;border:1px solid rgba(244,183,40,.2);border-radius:8px;background:rgba(244,183,40,.08);color:#e4c568;font:inherit;font-size:.58rem;cursor:pointer}.inspector{border-radius:15px;padding:11px;display:grid;gap:10px;max-height:870px;overflow:auto}.inspector section{padding:10px;border:1px solid rgba(255,255,255,.06);border-radius:12px;background:#11110f}.inspectorHeading{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:8px}.inspectorHeading strong{font-size:.67rem}.inspectorHeading>span{color:#77716c;font-size:.58rem}.inspectorHeading button{border:0;background:transparent;color:#847e75;font:inherit;font-size:.57rem;cursor:pointer}.expectedList{margin:0;padding-left:16px;display:grid;gap:7px}.expectedList li{color:#9a948b;font-size:.61rem;line-height:1.45}.contracts,.coverageList{display:grid;gap:6px}.contracts div,.coverageList div{display:grid;gap:2px;padding:7px;border-radius:8px;background:#151512}.contracts b,.coverageList b{font-size:.6rem}.contracts span,.coverageList span,.empty{margin:0;color:#77716d;font-size:.57rem;line-height:1.4}.timeline{list-style:none;margin:0;padding:0;display:grid;gap:7px}.timeline li{display:grid;grid-template-columns:58px 1fr;gap:2px 7px;padding-bottom:7px;border-bottom:1px solid rgba(255,255,255,.05)}.timeline time{grid-row:1/3;color:#605b56;font-size:.52rem}.timeline b{font-size:.59rem}.timeline span{color:#77716d;font-size:.55rem;line-height:1.4}.safetyBox{border-color:rgba(244,183,40,.15)!important;background:rgba(244,183,40,.04)!important;display:grid;gap:4px}.safetyBox strong{color:#d7b84d;font-size:.62rem}.safetyBox span{color:#85765b;font-size:.56rem;line-height:1.4}.reviewBar{margin-top:10px;padding:12px;border:1px solid rgba(255,255,255,.07);border-radius:14px;background:#10100f;display:flex;align-items:center;gap:12px}.reviewPrompt{display:grid;gap:2px;min-width:180px}.reviewPrompt strong{font-size:.7rem}.reviewPrompt span{color:#756f68;font-size:.58rem}.reviewActions{display:flex;gap:6px;flex-wrap:wrap}.reviewActions button,.navActions button{min-height:38px;padding:0 12px;border:1px solid rgba(255,255,255,.09);border-radius:9px;background:#151513;color:#cfc8be;font:inherit;font-size:.65rem;font-weight:850;cursor:pointer}.passButton.selected{border-color:rgba(107,180,129,.3);background:rgba(107,180,129,.1);color:#a8dab5}.issueButton.selected{border-color:rgba(204,111,111,.3);background:rgba(204,111,111,.1);color:#e0aaaa}.blockedButton.selected{border-color:rgba(194,164,92,.3);background:rgba(194,164,92,.1);color:#ddc98c}.clearButton{color:#8c867e!important}.navActions{margin-left:auto;display:flex;align-items:center;gap:7px}.navActions span{min-width:42px;text-align:center;color:#77716d;font-size:.6rem}.navActions button:disabled{opacity:.35;cursor:default}.issueEditor{margin-top:8px;padding:12px;border:1px solid rgba(204,111,111,.13);border-radius:14px;background:rgba(204,111,111,.035);display:grid;grid-template-columns:190px minmax(0,1fr);gap:10px}.issueEditor label{display:grid;gap:5px}.issueEditor label span{color:#9e8888;font-size:.58rem;font-weight:850}.issueEditor select,.issueEditor textarea{border:1px solid rgba(255,255,255,.09);border-radius:9px;background:#151513;color:#ddd6cb;font:inherit;font-size:.65rem}.issueEditor select{min-height:40px;padding:0 9px}.issueEditor textarea{min-height:70px;padding:9px;resize:vertical}.issueEditor small{grid-column:1/-1;color:#746866;font-size:.55rem}.qaFooter{max-width:1500px;margin:12px auto 0;display:flex;justify-content:flex-end;gap:8px;flex-wrap:wrap;color:#655f59;font-size:.55rem}.qaFooter span{padding:5px 7px;border-radius:7px;background:#0d0d0c;border:1px solid rgba(255,255,255,.045)}.qaFooter b{color:#8b847c}.focusMode{padding:0;overflow:hidden}.focusMode .qaHeader,.focusMode .guideCard,.focusMode .qaSummary,.focusMode .browseBar,.focusMode .scenarioRail,.focusMode .qaFooter,.focusMode .toolbar,.focusMode .shareStatus,.focusMode .scenarioIntro,.focusMode .reviewBar,.focusMode .issueEditor,.focusMode .inspector,.focusMode .deviceRuler,.focusMode .frameRecovery{display:none}.focusMode .focusExit{display:block;position:fixed;right:14px;top:14px;z-index:20;min-height:38px;padding:0 12px;border:1px solid rgba(244,183,40,.25);border-radius:10px;background:rgba(12,12,11,.92);color:#e7c867;font:inherit;font-size:.64rem;font-weight:850;cursor:pointer}.focusMode .qaLayout{max-width:none;display:block}.focusMode .workspace{padding:0;border:0;border-radius:0;background:#080807}.focusMode .stageGrid{display:block}.focusMode .deviceStage{border:0;border-radius:0}.focusMode .frameScroller{height:100vh;padding:0;display:grid;place-items:center;overflow:auto;background:#080807}.focusMode .frameScroller iframe{box-shadow:none;border-radius:0}@media(max-width:1080px){.qaLayout{grid-template-columns:1fr}.scenarioRail{position:static;max-height:none}.stageGrid{grid-template-columns:1fr}.inspector{max-height:none}.qaHeader{align-items:flex-start;flex-direction:column}.headerActions{align-items:flex-start}.buildMeta{justify-content:flex-start}}@media(max-width:720px){.qaStudio{padding:12px}.qaSummary{grid-template-columns:1fr 1fr}.browseBar{align-items:stretch;flex-direction:column}.searchBox{min-width:0}.toolbarActions{margin-left:0;width:100%}.toolbarActions button{flex:1}.scenarioIntro{flex-direction:column}.tags{justify-content:flex-start}.frameScroller{padding:8px}.scenarioRail{overflow:visible}.guideCard{align-items:flex-start;flex-direction:column}.reviewBar{align-items:stretch;flex-direction:column}.reviewActions button{flex:1}.navActions{margin-left:0;justify-content:space-between}.reviewPrompt{min-width:0}.issueEditor{grid-template-columns:1fr}.issueEditor small{grid-column:1}.focusMode .frameScroller{padding:0}}@media(max-width:430px){.qaSummary{grid-template-columns:1fr}.modeSwitch button{flex:1}.modeSwitch{width:100%}.searchBox{align-items:stretch;flex-direction:column;gap:5px}.reviewActions{display:grid;grid-template-columns:1fr 1fr}.clearButton{grid-column:1/-1}}
+        .qaStudio{min-height:100vh;box-sizing:border-box;padding:24px;color:#f7f4eb;background:#080807;font-family:inherit}.focusExit{display:none}.qaHeader{max-width:1500px;margin:0 auto 16px;display:flex;align-items:flex-end;justify-content:space-between;gap:24px}.qaEyebrow{display:flex;gap:7px;flex-wrap:wrap}.qaEyebrow span{padding:6px 9px;border:1px solid rgba(244,183,40,.24);border-radius:999px;color:#e8c65e;background:rgba(244,183,40,.07);font-size:.62rem;font-weight:900}.qaHeader h1{margin:9px 0 5px;font-size:clamp(2rem,4vw,3rem);letter-spacing:-.05em}.qaHeader p{margin:0;color:#918a80;font-size:.82rem;line-height:1.5}.headerActions{display:flex;align-items:flex-end;flex-direction:column;gap:8px}.ghostButton{min-height:38px;padding:0 12px;border:1px solid rgba(255,255,255,.09);border-radius:10px;background:#11110f;color:#a9a198;font:inherit;font-size:.66rem;font-weight:800;cursor:pointer}.buildMeta{display:flex;flex-wrap:wrap;justify-content:flex-end;gap:6px;color:#706a63;font-size:.58rem}.buildMeta span{padding:6px 8px;border:1px solid rgba(255,255,255,.06);border-radius:8px;background:#0e0e0d}.buildMeta b{color:#cfc8bd}.guideCard{max-width:1500px;margin:0 auto 12px;padding:14px 16px;border:1px solid rgba(244,183,40,.18);border-radius:16px;background:linear-gradient(135deg,rgba(244,183,40,.08),rgba(244,183,40,.025));display:flex;align-items:center;justify-content:space-between;gap:18px}.guideCard strong{display:block;margin-bottom:5px;color:#f1d273;font-size:.84rem}.guideCard p{margin:0;color:#9a9185;font-size:.7rem;line-height:1.55}.guideCard button{min-height:36px;padding:0 12px;border:1px solid rgba(244,183,40,.22);border-radius:9px;background:rgba(244,183,40,.08);color:#e5c761;font:inherit;font-size:.64rem;font-weight:850;cursor:pointer}.qaSummary{max-width:1500px;margin:0 auto 12px;display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:7px}.qaSummary div{padding:12px 14px;border:1px solid rgba(255,255,255,.06);border-radius:14px;background:#0e0e0d;display:flex;align-items:baseline;gap:8px}.qaSummary b{font-size:1.15rem}.qaSummary span{color:#77716d;font-size:.64rem}.summaryIssue b{color:#e3a2a2}.summaryBlocked b{color:#d7c58f}.browseBar{max-width:1500px;margin:0 auto 8px;padding:9px;border:1px solid rgba(255,255,255,.06);border-radius:14px;background:#0d0d0c;display:flex;align-items:center;gap:10px}.modeSwitch{display:flex;gap:4px;padding:3px;border-radius:10px;background:#151513}.modeSwitch button{min-height:34px;padding:0 11px;border:0;border-radius:8px;background:transparent;color:#77716d;font:inherit;font-size:.65rem;font-weight:850;cursor:pointer}.modeSwitch button.active{background:rgba(244,183,40,.1);color:#efcf70}.searchBox{min-width:240px;flex:1;display:flex;align-items:center;gap:9px}.searchBox span{color:#736d66;font-size:.61rem;font-weight:800}.searchBox input{min-width:0;flex:1;height:34px;padding:0 11px;border:1px solid rgba(255,255,255,.08);border-radius:9px;background:#11110f;color:#ddd6cb;outline:none;font:inherit;font-size:.66rem}.resultCount{color:#6f6962;font-size:.6rem;white-space:nowrap}.caseFilterBar{max-width:1500px;margin:0 auto 12px;padding:10px 11px;border:1px solid rgba(255,255,255,.055);border-radius:14px;background:#0c0c0b;display:flex;align-items:center;gap:12px}.caseFilterTitle{min-width:170px;display:grid;gap:2px}.caseFilterTitle strong{font-size:.7rem}.caseFilterTitle span{color:#6f6962;font-size:.56rem;line-height:1.35}.caseFilterChips{display:flex;gap:6px;flex-wrap:wrap}.caseFilterChips button{min-height:32px;padding:0 9px;border:1px solid rgba(255,255,255,.07);border-radius:999px;background:#121210;color:#7d766f;font:inherit;font-size:.6rem;font-weight:800;cursor:pointer}.caseFilterChips button b{margin-left:3px;color:#9a9185}.caseFilterChips button.active{border-color:rgba(244,183,40,.25);background:rgba(244,183,40,.085);color:#f0cf6a}.caseFilterChips button.active b{color:#f0cf6a}.qaLayout{max-width:1500px;margin:0 auto;display:grid;grid-template-columns:290px minmax(0,1fr);gap:12px}.scenarioRail,.workspace,.inspector{border:1px solid rgba(255,255,255,.07);background:#0d0d0c}.scenarioRail{border-radius:18px;padding:12px;align-self:start;position:sticky;top:12px;max-height:calc(100vh - 24px);overflow:auto}.railTitle{padding:5px 5px 12px;display:grid;gap:3px}.railTitle strong{font-size:.86rem}.railTitle span{color:#716d68;font-size:.62rem;line-height:1.4}.scenarioGroup{margin-top:10px}.scenarioGroup h2{margin:0 5px 6px;color:#827969;font-size:.61rem}.scenarioGroup button{width:100%;min-height:76px;margin:0 0 5px;padding:9px;border:1px solid transparent;border-radius:12px;background:transparent;color:#aaa39a;font:inherit;text-align:left;display:grid;grid-template-columns:22px minmax(0,1fr);gap:8px;cursor:pointer}.scenarioGroup button:hover{background:rgba(255,255,255,.025)}.scenarioGroup button.active{border-color:rgba(244,183,40,.23);background:rgba(244,183,40,.075);color:#f0d27a}.scenarioGroup button>span:last-child{display:grid;gap:4px;min-width:0}.scenarioGroup strong{font-size:.69rem}.scenarioGroup small{color:#6d6761;font-size:.56rem;line-height:1.38}.scenarioCaseMeta{display:flex;align-items:center;gap:5px;min-width:0}.scenarioCaseMeta b{flex:0 0 auto;padding:3px 5px;border-radius:5px;background:#171714;color:#b7a46c;font-size:.5rem;letter-spacing:.03em}.scenarioCaseMeta em{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#756f68;font-style:normal;font-size:.52rem}.scenarioStatus{width:20px;height:20px;border-radius:50%;display:grid;place-items:center;background:#181816;color:#68625c;font-size:.65rem;font-weight:950}.status-pass{background:rgba(107,180,129,.13);color:#9bd3aa}.status-issue{background:rgba(204,111,111,.13);color:#dda0a0}.status-blocked{background:rgba(194,164,92,.12);color:#d8c17e}.noResults{padding:18px 8px;color:#77716d;font-size:.65rem;line-height:1.5}.workspace{min-width:0;border-radius:18px;padding:12px}.toolbar{display:flex;align-items:end;gap:8px;flex-wrap:wrap;padding-bottom:12px;border-bottom:1px solid rgba(255,255,255,.06)}.toolbar label{display:grid;gap:5px}.toolbar label span{color:#716d68;font-size:.58rem;font-weight:850}.toolbar label small{max-width:210px;color:#6f6962;font-size:.54rem;line-height:1.35}.toolbar select,.toolbar button{min-height:40px;border:1px solid rgba(255,255,255,.09);border-radius:10px;background:#151513;color:#ddd6cb;font:inherit;font-size:.67rem;font-weight:800}.toolbar select{padding:0 32px 0 10px}.toolbar select:disabled{opacity:.55}.toolbarActions{margin-left:auto;display:flex;gap:6px;flex-wrap:wrap}.toolbar button{padding:0 10px;cursor:pointer}.shareStatus{margin:8px 2px 0;color:#a89b72;font-size:.6rem}.caseContextCard{margin-top:12px;padding:13px;border:1px solid rgba(244,183,40,.14);border-radius:15px;background:linear-gradient(135deg,rgba(244,183,40,.055),rgba(255,255,255,.015))}.caseContextHeader{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:10px}.caseContextHeader>div{display:flex;align-items:center;gap:8px}.caseContextHeader strong{font-size:.76rem}.caseContextHeader>span{color:#746e66;font-size:.57rem}.caseIdBadge,.caseIdMini{padding:4px 7px;border:1px solid rgba(244,183,40,.2);border-radius:7px;background:rgba(244,183,40,.07);color:#e5c45e;font-size:.55rem;font-weight:950;letter-spacing:.04em}.caseFlow{display:grid;grid-template-columns:minmax(0,1fr) 18px minmax(0,1fr) 18px minmax(0,1fr) 18px minmax(0,1fr);align-items:stretch;gap:4px}.caseFlow>div{min-width:0;padding:9px 10px;border:1px solid rgba(255,255,255,.055);border-radius:11px;background:#11110f;display:grid;gap:4px}.caseFlow span{color:#716a62;font-size:.52rem;font-weight:850}.caseFlow b{color:#c8c0b6;font-size:.62rem;line-height:1.4}.caseFlow i{display:grid;place-items:center;color:#71654c;font-style:normal;font-size:.75rem}.scenarioIntro{padding:15px 4px;display:flex;align-items:flex-start;justify-content:space-between;gap:16px}.scenarioKicker{display:flex;align-items:center;gap:6px;flex-wrap:wrap;color:#77716d;font-size:.58rem}.scenarioIntro h2{margin:6px 0 4px;font-size:1.25rem}.scenarioIntro p{margin:0;color:#7d766f;font-size:.68rem;line-height:1.45}.riskLabel{padding:4px 6px;border-radius:6px;background:#171714;font-size:.55rem;font-weight:900;color:#8a847c}.riskLabel-critical{color:#f4c343}.riskLabel-high{color:#c3ae70}.manualBadge{padding:4px 7px;border-radius:999px;background:#141412;color:#8d877f}.verdictBadge{padding:4px 7px;border:1px solid rgba(255,255,255,.06);border-radius:999px;background:#141412;color:#746f69}.verdict-pass{color:#9bd3aa;border-color:rgba(107,180,129,.18);background:rgba(107,180,129,.06)}.verdict-issue{color:#dda0a0;border-color:rgba(204,111,111,.18);background:rgba(204,111,111,.06)}.verdict-blocked{color:#d8c17e;border-color:rgba(194,164,92,.18);background:rgba(194,164,92,.05)}.tags{display:flex;flex-wrap:wrap;justify-content:flex-end;gap:5px}.tags span{padding:5px 7px;border-radius:999px;background:#151513;color:#7a756f;font-size:.55rem}.stageGrid{display:grid;grid-template-columns:minmax(0,1fr) 330px;gap:10px;align-items:start}.stageGrid.advancedClosed{grid-template-columns:minmax(0,1fr)}.deviceStage{min-width:0;border:1px solid rgba(255,255,255,.07);border-radius:15px;background:#090909;overflow:hidden;position:relative}.deviceRuler{height:38px;padding:0 11px;display:flex;align-items:center;justify-content:space-between;color:#6e6963;font-size:.59rem;border-bottom:1px solid rgba(255,255,255,.06)}.frameState{font-weight:800}.frame-ready{color:#8fbd9b}.frame-slow,.frame-error{color:#d5b475}.frameScroller{padding:16px;overflow:auto;text-align:center;background:radial-gradient(circle at 50% 0%,rgba(244,183,40,.035),transparent 36%)}.frameScroller iframe{max-width:none;border:1px solid rgba(255,255,255,.09);border-radius:16px;background:#080807;vertical-align:top;box-shadow:0 18px 60px rgba(0,0,0,.28)}.frameRecovery{position:absolute;left:50%;bottom:24px;transform:translateX(-50%);padding:8px 10px;border:1px solid rgba(244,183,40,.18);border-radius:11px;background:rgba(18,18,16,.94);display:flex;align-items:center;gap:8px;color:#b8a776;font-size:.58rem}.frameRecovery button{min-height:30px;border:1px solid rgba(244,183,40,.2);border-radius:8px;background:rgba(244,183,40,.08);color:#e4c568;font:inherit;font-size:.58rem;cursor:pointer}.inspector{border-radius:15px;padding:11px;display:grid;gap:10px;max-height:870px;overflow:auto}.inspector section{padding:10px;border:1px solid rgba(255,255,255,.06);border-radius:12px;background:#11110f}.inspectorHeading{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:8px}.inspectorHeading strong{font-size:.67rem}.inspectorHeading>span{color:#77716c;font-size:.58rem}.inspectorHeading button{border:0;background:transparent;color:#847e75;font:inherit;font-size:.57rem;cursor:pointer}.expectedList{margin:0;padding-left:16px;display:grid;gap:7px}.expectedList li{color:#9a948b;font-size:.61rem;line-height:1.45}.contracts,.coverageList{display:grid;gap:6px}.contracts div,.coverageList div{display:grid;gap:2px;padding:7px;border-radius:8px;background:#151512}.contracts b,.coverageList b{font-size:.6rem}.contracts span,.coverageList span,.empty{margin:0;color:#77716d;font-size:.57rem;line-height:1.4}.timeline{list-style:none;margin:0;padding:0;display:grid;gap:7px}.timeline li{display:grid;grid-template-columns:58px 1fr;gap:2px 7px;padding-bottom:7px;border-bottom:1px solid rgba(255,255,255,.05)}.timeline time{grid-row:1/3;color:#605b56;font-size:.52rem}.timeline b{font-size:.59rem}.timeline span{color:#77716d;font-size:.55rem;line-height:1.4}.safetyBox{border-color:rgba(244,183,40,.15)!important;background:rgba(244,183,40,.04)!important;display:grid;gap:4px}.safetyBox strong{color:#d7b84d;font-size:.62rem}.safetyBox span{color:#85765b;font-size:.56rem;line-height:1.4}.reviewBar{margin-top:10px;padding:12px;border:1px solid rgba(255,255,255,.07);border-radius:14px;background:#10100f;display:flex;align-items:center;gap:12px}.reviewPrompt{display:grid;gap:2px;min-width:180px}.reviewPrompt strong{font-size:.7rem}.reviewPrompt span{color:#756f68;font-size:.58rem}.reviewActions{display:flex;gap:6px;flex-wrap:wrap}.reviewActions button,.navActions button{min-height:38px;padding:0 12px;border:1px solid rgba(255,255,255,.09);border-radius:9px;background:#151513;color:#cfc8be;font:inherit;font-size:.65rem;font-weight:850;cursor:pointer}.passButton.selected{border-color:rgba(107,180,129,.3);background:rgba(107,180,129,.1);color:#a8dab5}.issueButton.selected{border-color:rgba(204,111,111,.3);background:rgba(204,111,111,.1);color:#e0aaaa}.blockedButton.selected{border-color:rgba(194,164,92,.3);background:rgba(194,164,92,.1);color:#ddc98c}.clearButton{color:#8c867e!important}.navActions{margin-left:auto;display:flex;align-items:center;gap:7px}.navActions span{min-width:42px;text-align:center;color:#77716d;font-size:.6rem}.navActions button:disabled{opacity:.35;cursor:default}.issueEditor{margin-top:8px;padding:12px;border:1px solid rgba(204,111,111,.13);border-radius:14px;background:rgba(204,111,111,.035);display:grid;grid-template-columns:190px minmax(0,1fr);gap:10px}.issueEditor label{display:grid;gap:5px}.issueEditor label span{color:#9e8888;font-size:.58rem;font-weight:850}.issueEditor select,.issueEditor textarea{border:1px solid rgba(255,255,255,.09);border-radius:9px;background:#151513;color:#ddd6cb;font:inherit;font-size:.65rem}.issueEditor select{min-height:40px;padding:0 9px}.issueEditor textarea{min-height:70px;padding:9px;resize:vertical}.issueEditor small{grid-column:1/-1;color:#746866;font-size:.55rem}.qaFooter{max-width:1500px;margin:12px auto 0;display:flex;justify-content:flex-end;gap:8px;flex-wrap:wrap;color:#655f59;font-size:.55rem}.qaFooter span{padding:5px 7px;border-radius:7px;background:#0d0d0c;border:1px solid rgba(255,255,255,.045)}.qaFooter b{color:#8b847c}.focusMode{padding:0;overflow:hidden}.focusMode .qaHeader,.focusMode .guideCard,.focusMode .qaSummary,.focusMode .browseBar,.focusMode .caseFilterBar,.focusMode .scenarioRail,.focusMode .qaFooter,.focusMode .toolbar,.focusMode .shareStatus,.focusMode .caseContextCard,.focusMode .scenarioIntro,.focusMode .reviewBar,.focusMode .issueEditor,.focusMode .inspector,.focusMode .deviceRuler,.focusMode .frameRecovery{display:none}.focusMode .focusExit{display:block;position:fixed;right:14px;top:14px;z-index:20;min-height:38px;padding:0 12px;border:1px solid rgba(244,183,40,.25);border-radius:10px;background:rgba(12,12,11,.92);color:#e7c867;font:inherit;font-size:.64rem;font-weight:850;cursor:pointer}.focusMode .qaLayout{max-width:none;display:block}.focusMode .workspace{padding:0;border:0;border-radius:0;background:#080807}.focusMode .stageGrid{display:block}.focusMode .deviceStage{border:0;border-radius:0}.focusMode .frameScroller{height:100vh;padding:0;display:grid;place-items:center;overflow:auto;background:#080807}.focusMode .frameScroller iframe{box-shadow:none;border-radius:0}@media(max-width:1080px){.qaLayout{grid-template-columns:1fr}.scenarioRail{position:static;max-height:none}.stageGrid{grid-template-columns:1fr}.inspector{max-height:none}.qaHeader{align-items:flex-start;flex-direction:column}.headerActions{align-items:flex-start}.buildMeta{justify-content:flex-start}.caseFilterBar{align-items:flex-start;flex-direction:column}.caseFilterTitle{min-width:0}.caseFlow{grid-template-columns:1fr 14px 1fr}.caseFlow>i:nth-of-type(2){display:none}.caseFlow>div:nth-of-type(3){grid-column:1}.caseFlow>i:nth-of-type(3){grid-column:2}.caseFlow>div:nth-of-type(4){grid-column:3}}@media(max-width:720px){.qaStudio{padding:12px}.qaSummary{grid-template-columns:1fr 1fr}.browseBar{align-items:stretch;flex-direction:column}.searchBox{min-width:0}.toolbarActions{margin-left:0;width:100%}.toolbarActions button{flex:1}.scenarioIntro{flex-direction:column}.tags{justify-content:flex-start}.frameScroller{padding:8px}.scenarioRail{overflow:visible}.guideCard{align-items:flex-start;flex-direction:column}.reviewBar{align-items:stretch;flex-direction:column}.reviewActions button{flex:1}.navActions{margin-left:0;justify-content:space-between}.reviewPrompt{min-width:0}.issueEditor{grid-template-columns:1fr}.issueEditor small{grid-column:1}.caseContextHeader{align-items:flex-start;flex-direction:column}.caseFlow{display:grid;grid-template-columns:1fr}.caseFlow i{transform:rotate(90deg);min-height:12px}.caseFlow>div:nth-of-type(3),.caseFlow>i:nth-of-type(3),.caseFlow>div:nth-of-type(4){grid-column:auto}.caseFlow>i:nth-of-type(2){display:grid}.focusMode .frameScroller{padding:0}}@media(max-width:430px){.qaSummary{grid-template-columns:1fr}.modeSwitch button{flex:1}.modeSwitch{width:100%}.searchBox{align-items:stretch;flex-direction:column;gap:5px}.reviewActions{display:grid;grid-template-columns:1fr 1fr}.clearButton{grid-column:1/-1}.caseFilterChips{width:100%}.caseFilterChips button{flex:1}}
       `}</style>
     </main>
   );
