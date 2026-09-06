@@ -51,8 +51,8 @@ function authorizeCron(request: NextRequest) {
  *
  * The database-level cleanup functions are fail-closed and require a VERIFIED
  * archive manifest for every candidate date. Until a real archive destination
- * is configured, copied, checksummed and verified, this route cannot delete raw
- * session or product-event history.
+ * is configured, copied, checksummed and restore-verified, destructive cleanup
+ * remains disabled even when the normal retention window eventually expires.
  */
 export async function GET(request: NextRequest) {
   const authorization = authorizeCron(request);
@@ -93,6 +93,16 @@ export async function GET(request: NextRequest) {
       Number(health?.overdue_product_days_without_verified_archive ?? 0) > 0 ||
       Number(health?.failed_archive_manifests ?? 0) > 0;
 
+    // Physical archive storage/export/restore verification is intentionally a
+    // later phase. Keep readiness explicit so a clean runtime health report is
+    // never mistaken for permission to delete historical raw analytics.
+    const archiveReadiness = {
+      storageConfigured: false,
+      restoreVerified: false,
+      destructiveCleanupEnabled: false,
+      longTermReady: false,
+    } as const;
+
     return NextResponse.json(
       {
         trigger: 'VERCEL_CRON',
@@ -100,6 +110,7 @@ export async function GET(request: NextRequest) {
         finalization,
         health,
         archiveWarning: hasArchiveWarning,
+        archiveReadiness,
         rawRowsDeleted: 0,
       },
       {
@@ -116,6 +127,12 @@ export async function GET(request: NextRequest) {
       {
         error: 'Long-term analytics maintenance failed.',
         mode: 'NON_DESTRUCTIVE',
+        archiveReadiness: {
+          storageConfigured: false,
+          restoreVerified: false,
+          destructiveCleanupEnabled: false,
+          longTermReady: false,
+        },
         rawRowsDeleted: 0,
       },
       {
