@@ -9,6 +9,7 @@ import {
 import {
   InviteNotificationHistoryCenter as UnifiedInviteNotificationHistoryCenter,
 } from './UnifiedInviteNotificationHistoryCenter';
+import { useWalletLauncher } from './WalletControl';
 import type { SupportedLocale } from '@/lib/i18n/locales';
 import { PROGRESS_CLAIM_COPY } from '@/lib/i18n/progressClaimCopy';
 import type {
@@ -27,6 +28,7 @@ type Props = ComponentProps<
 >;
 
 export function InviteNotificationHistoryCenter(props: Props) {
+  const { wallet } = useWalletLauncher();
   const [needsRewardClaim, setNeedsRewardClaim] = useState(false);
 
   useEffect(() => {
@@ -34,6 +36,11 @@ export function InviteNotificationHistoryCenter(props: Props) {
     let requestVersion = 0;
 
     const refreshClaimAttention = async () => {
+      if (!wallet) {
+        setNeedsRewardClaim(false);
+        return;
+      }
+
       const requestId = requestVersion + 1;
       requestVersion = requestId;
 
@@ -64,8 +71,8 @@ export function InviteNotificationHistoryCenter(props: Props) {
       }
     };
 
-    // History identity changes when the active wallet changes, so clear any
-    // previous wallet's attention before resolving the new authenticated state.
+    // Wallet identity is the reward-action scope. Never let the previous
+    // wallet's attention marker survive while the next session resolves.
     setNeedsRewardClaim(false);
     void refreshClaimAttention();
 
@@ -113,7 +120,7 @@ export function InviteNotificationHistoryCenter(props: Props) {
         onWalletSessionInvalid,
       );
     };
-  }, [props.items]);
+  }, [wallet, props.open]);
 
   const showClaimAttention =
     needsRewardClaim && props.unreadCount < 1;
