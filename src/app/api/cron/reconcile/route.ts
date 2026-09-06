@@ -36,6 +36,10 @@ import {
   type AutomaticRewardPayoutResult,
 } from '@/lib/rewards/automaticRewardPayoutWithMnemonic';
 import {
+  runSybilBehaviorObservation,
+  type SybilBehaviorObservationSummary,
+} from '@/lib/sybil/behaviorObservation';
+import {
   runSybilObservationBatch,
   type SybilObservationBatchSummary,
 } from '@/lib/sybil/observationBatch';
@@ -85,6 +89,7 @@ type CronStageFailure =
   | 'ALLOCATION_SYNC'
   | 'RECONCILIATION'
   | 'SYBIL_OBSERVATION'
+  | 'SYBIL_BEHAVIOR_OBSERVATION'
   | 'AUTOMATIC_REWARD_PAYOUT'
   | 'ROUND_GROWTH_REPORTING'
   | 'LEADERBOARD_SNAPSHOTS'
@@ -113,7 +118,8 @@ function logStageFailure(
  * removes only expired authentication/rate-limit runtime state, and provides a
  * recovery trigger for the dedicated automatic Reward Distributor. When the
  * explicit SYBIL_OBSERVATION_ENABLED gate is true it also captures immutable,
- * observation-only on-chain funding evidence. That evidence is deliberately
+ * observation-only on-chain funding evidence and reads derived behavior
+ * fingerprints from invite_impact_events. Those observations are deliberately
  * separate from invitations.sybil_status and cannot change reward authority.
  * Automatic reward execution is itself fail-closed and remains disabled unless
  * its explicit server gate, matching signer address, on-chain distributor
@@ -156,6 +162,8 @@ export async function GET(
   let summary: ReconciliationBatchSummary | null = null;
   let sybilObservation:
     SybilObservationBatchSummary | null = null;
+  let sybilBehaviorObservation:
+    SybilBehaviorObservationSummary | null = null;
   let automaticRewardPayout:
     AutomaticRewardPayoutResult | null = null;
   let roundGrowthReports: Awaited<
@@ -194,6 +202,33 @@ export async function GET(
   } catch (error) {
     failedStages.push('SYBIL_OBSERVATION');
     logStageFailure('SYBIL_OBSERVATION', error);
+  }
+
+  try {
+    sybilBehaviorObservation =
+      await runSybilBehaviorObservation();
+  } catch (error) {
+    failedStages.push('SYBIL_BEHAVIOR_OBSERVATION');
+    logStageFailure('SYBIL_BEHAVIOR_OBSERVATION', error);
+  }
+
+  if (
+    sybilBehaviorObservation?.enabled &&
+    sybilBehaviorObservation.watchCandidates > 0
+  ) {
+    console.warn(
+      'VeInvite observation-only behavior monitoring found WATCH candidates:',
+      {
+        fingerprintVersion:
+          sybilBehaviorObservation.fingerprintVersion,
+        comparedPairs:
+          sybilBehaviorObservation.comparedPairs,
+        watchCandidates:
+          sybilBehaviorObservation.watchCandidates,
+        highestObservationScore:
+          sybilBehaviorObservation.highestObservationScore,
+      },
+    );
   }
 
   // A normal invite-progress request triggers immediate payout as soon as a
@@ -320,6 +355,7 @@ export async function GET(
           }
         : null,
       sybilObservation,
+      sybilBehaviorObservation,
       automaticRewardPayout,
       roundGrowthReports,
       leaderboardSnapshots,
