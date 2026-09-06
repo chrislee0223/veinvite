@@ -4,6 +4,7 @@ import type { LegalConsentQaState } from '@/components/LegalConsentGate';
 import type { QaHomeStateId } from './QaHomeStateHarness';
 import type { QaHomeFeedbackStateId } from './QaHomeFeedbackHarness';
 import type { QaNotificationStateId } from './QaNotificationStateHarness';
+import type { QaSettingsStateId } from './QaSettingsStateHarness';
 import {
   QA_KNOWN_STATES,
   type QaKnownState,
@@ -39,6 +40,10 @@ export type QaDirectStateRenderer =
   | (QaDirectStateRendererBase & {
       renderer: 'notification';
       notificationStateId: QaNotificationStateId;
+    })
+  | (QaDirectStateRendererBase & {
+      renderer: 'settings';
+      settingsStateId: QaSettingsStateId;
     });
 
 export const QA_DIRECT_STATE_RENDERERS: QaDirectStateRenderer[] = [
@@ -110,6 +115,15 @@ export const QA_DIRECT_STATE_RENDERERS: QaDirectStateRenderer[] = [
   { stateId: 'NOTI-INELIGIBLE', renderer: 'notification', notificationStateId: 'NOTI-INELIGIBLE', defaultLocale: 'ko' },
   { stateId: 'NOTI-ACK-BUSY', renderer: 'notification', notificationStateId: 'NOTI-ACK-BUSY', defaultLocale: 'ko' },
   { stateId: 'NOTI-ACK-ERROR', renderer: 'notification', notificationStateId: 'NOTI-ACK-ERROR', defaultLocale: 'ko' },
+
+  { stateId: 'SETTINGS-WALLET-DISCONNECTED', renderer: 'settings', settingsStateId: 'SETTINGS-WALLET-DISCONNECTED', defaultLocale: 'ko' },
+  { stateId: 'SETTINGS-WALLET-CONNECTED', renderer: 'settings', settingsStateId: 'SETTINGS-WALLET-CONNECTED', defaultLocale: 'ko' },
+  { stateId: 'SETTINGS-SWITCH-CONFIRM', renderer: 'settings', settingsStateId: 'SETTINGS-SWITCH-CONFIRM', defaultLocale: 'ko' },
+  { stateId: 'SETTINGS-DISCONNECT-CONFIRM', renderer: 'settings', settingsStateId: 'SETTINGS-DISCONNECT-CONFIRM', defaultLocale: 'ko' },
+  { stateId: 'SETTINGS-WALLET-PENDING', renderer: 'settings', settingsStateId: 'SETTINGS-WALLET-PENDING', defaultLocale: 'ko' },
+  { stateId: 'SETTINGS-ACTION-ERROR', renderer: 'settings', settingsStateId: 'SETTINGS-ACTION-ERROR', defaultLocale: 'ko' },
+  { stateId: 'SETTINGS-LANGUAGE-OPEN', renderer: 'settings', settingsStateId: 'SETTINGS-LANGUAGE-OPEN', defaultLocale: 'ko' },
+  { stateId: 'SETTINGS-LANGUAGE-SEARCH', renderer: 'settings', settingsStateId: 'SETTINGS-LANGUAGE-SEARCH', defaultLocale: 'ko' },
 ];
 
 const rendererByStateId = new Map(
