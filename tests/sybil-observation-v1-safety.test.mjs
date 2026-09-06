@@ -6,7 +6,7 @@ const batch = readFileSync('src/lib/sybil/observationBatch.ts', 'utf8');
 const policy = readFileSync('src/lib/sybil/observationPolicy.ts', 'utf8');
 const cron = readFileSync('src/app/api/cron/reconcile/route.ts', 'utf8');
 const migration = readFileSync(
-  'supabase/migrations/20260906082600_prepare_sybil_observation_v1.sql',
+  'supabase/migrations/20260906083037_prepare_sybil_observation_v1.sql',
   'utf8',
 );
 
