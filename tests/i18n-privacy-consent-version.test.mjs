@@ -9,31 +9,39 @@ const [
   legalConsent,
   consentRoute,
   consentGate,
-  privacyCopy,
+  usagePrivacyCopy,
+  productPrivacyCopy,
 ] = await Promise.all([
   read('src/lib/legalConsent.ts'),
   read('src/app/api/legal/consent/route.ts'),
   read('src/components/LegalConsentGate.tsx'),
   read('src/lib/i18n/privacyUsageAnalyticsCopy.ts'),
+  read('src/lib/i18n/privacyProductAnalyticsCopy.ts'),
 ]);
 
-test('September analytics disclosure advances privacy consent without changing Terms', () => {
+test('September 6 analytics retention update advances Privacy without changing Terms', () => {
   assert.match(
     legalConsent,
     /CURRENT_TERMS_VERSION\s*=\s*1/,
   );
   assert.match(
     legalConsent,
-    /CURRENT_PRIVACY_VERSION\s*=\s*2/,
+    /CURRENT_PRIVACY_VERSION\s*=\s*3/,
   );
   assert.match(
-    privacyCopy,
-    /Last updated: September 3, 2026/,
+    legalConsent,
+    /365 days[\s\S]*verified protected[\s\S]*archive/i,
   );
   assert.match(
-    privacyCopy,
+    usagePrivacyCopy,
     /Anonymous usage analytics/,
   );
+  assert.match(
+    productPrivacyCopy,
+    /Last updated: September 6, 2026/,
+  );
+  assert.match(productPrivacyCopy, /up to 365 days/i);
+  assert.match(productPrivacyCopy, /protected long-term archive/i);
 });
 
 test('server and gate both require the current privacy version', () => {
