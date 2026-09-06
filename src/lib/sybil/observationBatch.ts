@@ -6,9 +6,14 @@ import {
   readOnchainFundingSnapshot,
   type OnchainFundingSnapshot,
 } from '@/lib/sybil/onchainAnalytics';
+import {
+  applySybilObservationV1Policy,
+  SYBIL_OBSERVATION_POLICY_VERSION,
+} from '@/lib/sybil/observationPolicy';
 import { getVeBetterNetworkConfig } from '@/lib/vebetter/network';
 
-export const SYBIL_OBSERVATION_RULE_VERSION = 'observation-v1';
+export const SYBIL_OBSERVATION_RULE_VERSION =
+  SYBIL_OBSERVATION_POLICY_VERSION;
 export const SYBIL_ONCHAIN_ANALYZER_VERSION = 'onchain-funding-v1';
 export const DEFAULT_SYBIL_OBSERVATION_BATCH_SIZE = 3;
 const MAX_SYBIL_OBSERVATION_BATCH_SIZE = 10;
@@ -255,8 +260,12 @@ export async function runSybilObservationBatch(
           (vthoBatchFrequency.get(vthoFunder) ?? 0)
         : 0,
     };
-    const evaluation = evaluateOnchainFundingIndicators({
+    const rawEvaluation = evaluateOnchainFundingIndicators({
       snapshot,
+      correlation,
+    });
+    const indicators = applySybilObservationV1Policy({
+      indicators: rawEvaluation.indicators,
       correlation,
     });
 
@@ -288,7 +297,7 @@ export async function runSybilObservationBatch(
           correlation.vetFunderReferralCount,
         vtho_funder_referral_count:
           correlation.vthoFunderReferralCount,
-        indicators: evaluation.indicators,
+        indicators,
         observation_only: true,
         rule_version: SYBIL_OBSERVATION_RULE_VERSION,
         analyzer_version: SYBIL_ONCHAIN_ANALYZER_VERSION,
