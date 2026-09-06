@@ -1,3 +1,5 @@
+'use client';
+
 import {
   QA_KNOWN_STATES,
   getQaStateCoverageSummary,
