@@ -1,16 +1,30 @@
 import type { PermanentReferralQaState } from '@/components/PermanentReferralClient';
+import type { WalletSessionQaState } from '@/components/WalletSessionGate';
+import type { LegalConsentQaState } from '@/components/LegalConsentGate';
 import {
   QA_KNOWN_STATES,
   type QaKnownState,
   type QaStateCoverage,
 } from './stateRegistry';
 
-export type QaDirectStateRenderer = {
+type QaDirectStateRendererBase = {
   stateId: string;
-  renderer: 'permanent-referral';
-  permanentReferralState: PermanentReferralQaState;
   defaultLocale: 'ko' | 'en';
 };
+
+export type QaDirectStateRenderer =
+  | (QaDirectStateRendererBase & {
+      renderer: 'permanent-referral';
+      permanentReferralState: PermanentReferralQaState;
+    })
+  | (QaDirectStateRendererBase & {
+      renderer: 'wallet-session';
+      walletSessionState: WalletSessionQaState;
+    })
+  | (QaDirectStateRendererBase & {
+      renderer: 'legal-consent';
+      legalConsentState: LegalConsentQaState;
+    });
 
 export const QA_DIRECT_STATE_RENDERERS: QaDirectStateRenderer[] = [
   { stateId: 'PRI-BOOT-BRAND', renderer: 'permanent-referral', permanentReferralState: 'boot', defaultLocale: 'ko' },
@@ -28,6 +42,18 @@ export const QA_DIRECT_STATE_RENDERERS: QaDirectStateRenderer[] = [
   { stateId: 'PRI-ERROR-SELF', renderer: 'permanent-referral', permanentReferralState: 'error-self', defaultLocale: 'ko' },
   { stateId: 'PRI-ERROR-ALREADY-REFERRED', renderer: 'permanent-referral', permanentReferralState: 'error-already-referred', defaultLocale: 'ko' },
   { stateId: 'PRI-ERROR-ELIGIBILITY', renderer: 'permanent-referral', permanentReferralState: 'error-eligibility', defaultLocale: 'ko' },
+
+  { stateId: 'SESSION-IDLE-BRAND', renderer: 'wallet-session', walletSessionState: 'idle-brand', defaultLocale: 'ko' },
+  { stateId: 'SESSION-CHECKING-DELAY', renderer: 'wallet-session', walletSessionState: 'checking-delay', defaultLocale: 'ko' },
+  { stateId: 'SESSION-CHECKING', renderer: 'wallet-session', walletSessionState: 'checking', defaultLocale: 'ko' },
+  { stateId: 'SESSION-ERROR', renderer: 'wallet-session', walletSessionState: 'error', defaultLocale: 'ko' },
+  { stateId: 'SESSION-WALLET-MISMATCH', renderer: 'wallet-session', walletSessionState: 'wallet-mismatch', defaultLocale: 'ko' },
+  { stateId: 'SESSION-DISCONNECTING', renderer: 'wallet-session', walletSessionState: 'disconnecting', defaultLocale: 'ko' },
+
+  { stateId: 'LEGAL-CHECKING', renderer: 'legal-consent', legalConsentState: 'checking', defaultLocale: 'ko' },
+  { stateId: 'LEGAL-REQUIRED', renderer: 'legal-consent', legalConsentState: 'required', defaultLocale: 'ko' },
+  { stateId: 'LEGAL-ACCEPTING', renderer: 'legal-consent', legalConsentState: 'accepting', defaultLocale: 'ko' },
+  { stateId: 'LEGAL-ERROR', renderer: 'legal-consent', legalConsentState: 'error', defaultLocale: 'ko' },
 ];
 
 const rendererByStateId = new Map(

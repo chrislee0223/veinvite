@@ -43,6 +43,19 @@ type VerificationState =
   | 'verified'
   | 'error';
 
+export type WalletSessionQaState =
+  | 'idle-brand'
+  | 'checking-delay'
+  | 'checking'
+  | 'error'
+  | 'wallet-mismatch'
+  | 'disconnecting';
+
+export type WalletSessionQaPreview = {
+  state: WalletSessionQaState;
+  locale: Locale;
+};
+
 const SESSION_CHECK_SURFACE_DELAY_MS = 3_000;
 const SESSION_ERROR_SURFACE_DELAY_MS = 600;
 const PASSIVE_DISCONNECT_GRACE_MS = 7_000;
@@ -72,616 +85,42 @@ function initialLocale(): Locale {
   );
 }
 
-export function WalletSessionGate({
-  children,
-  initialSessionWallet = null,
+function WalletSessionBrandSurface() {
+  return (
+    <div
+      aria-hidden="true"
+      style={{
+        minHeight: '100dvh',
+        display: 'grid',
+        placeItems: 'center',
+        background:
+          'radial-gradient(circle at 50% 38%, rgba(244,183,40,0.10), transparent 32%), #080807',
+      }}
+    >
+      <Brand compact />
+    </div>
+  );
+}
+
+export function WalletSessionSurface({
+  locale,
+  hasError,
+  walletMismatch,
+  isDisconnecting,
+  onRetry,
+  onSecondary,
 }: {
-  children: ReactNode;
-  initialSessionWallet?: string | null;
+  locale: Locale;
+  hasError: boolean;
+  walletMismatch: boolean;
+  isDisconnecting: boolean;
+  onRetry: () => void;
+  onSecondary: () => void;
 }) {
-  const initialWallet =
-    initialSessionWallet?.toLowerCase() ?? null;
-  const {
-    account,
-    disconnect,
-  } = useWallet();
-  const {
-    open: openConnectModal,
-  } = useConnectModal();
-  const walletAddress =
-    account?.address?.toLowerCase() ?? null;
-
-  const {
-    ensureWalletSession,
-    clearWalletSession,
-  } = useWalletAuthentication();
-
-  const [state, setState] =
-    useState<VerificationState>(
-      initialWallet ? 'verified' : 'idle',
-    );
-  const [verifiedWallet, setVerifiedWallet] =
-    useState<string | null>(initialWallet);
-  const [locale, setLocale] =
-    useState<Locale>('en');
-  const [isDisconnecting, setIsDisconnecting] =
-    useState(false);
-  const [showCheckingSurface, setShowCheckingSurface] =
-    useState(false);
-  const attemptRef = useRef(0);
-  const autoAttemptedWalletRef =
-    useRef<string | null>(initialWallet);
-  const pageLifecycleRef = useRef(false);
-  const walletAddressRef =
-    useRef<string | null>(walletAddress);
-  const pendingDisconnectTimerRef =
-    useRef<number | null>(null);
-  const pendingErrorTimerRef =
-    useRef<number | null>(null);
-  const bootReadyDispatchedRef = useRef(false);
-  const sessionWalletRef =
-    useRef<string | null>(initialWallet);
-
-  useEffect(() => {
-    setLocale(initialLocale());
-
-    const handleLanguageChange = (
-      event: Event,
-    ) => {
-      const detail =
-        (event as CustomEvent<unknown>).detail;
-
-      if (isLocale(detail)) {
-        setLocale(detail);
-      }
-    };
-
-    window.addEventListener(
-      'veinvite-language-change',
-      handleLanguageChange,
-    );
-
-    return () => {
-      window.removeEventListener(
-        'veinvite-language-change',
-        handleLanguageChange,
-      );
-    };
-  }, []);
-
-  useEffect(() => {
-    const handlePageHide = () => {
-      pageLifecycleRef.current = true;
-    };
-    const handlePageShow = () => {
-      pageLifecycleRef.current = false;
-    };
-
-    window.addEventListener('pagehide', handlePageHide);
-    window.addEventListener('pageshow', handlePageShow);
-
-    return () => {
-      window.removeEventListener('pagehide', handlePageHide);
-      window.removeEventListener('pageshow', handlePageShow);
-    };
-  }, []);
-
-  useEffect(() => {
-    const handleSessionCleared = () => {
-      attemptRef.current += 1;
-      autoAttemptedWalletRef.current = null;
-      bootReadyDispatchedRef.current = false;
-      sessionWalletRef.current = null;
-      document
-        .querySelector<HTMLElement>(
-          '[data-veinvite-session-bootstrap]',
-        )
-        ?.setAttribute(
-          'data-veinvite-session-bootstrap',
-          'none',
-        );
-      if (pendingErrorTimerRef.current !== null) {
-        window.clearTimeout(pendingErrorTimerRef.current);
-        pendingErrorTimerRef.current = null;
-      }
-      setVerifiedWallet(null);
-      setState('idle');
-    };
-
-    window.addEventListener(
-      SESSION_CLEARED_EVENT,
-      handleSessionCleared,
-    );
-
-    return () => {
-      window.removeEventListener(
-        SESSION_CLEARED_EVENT,
-        handleSessionCleared,
-      );
-    };
-  }, []);
-
-  useEffect(() => {
-    walletAddressRef.current = walletAddress;
-
-    if (
-      walletAddress &&
-      pendingDisconnectTimerRef.current !== null
-    ) {
-      window.clearTimeout(
-        pendingDisconnectTimerRef.current,
-      );
-      pendingDisconnectTimerRef.current = null;
-    }
-  }, [walletAddress]);
-
-  useEffect(() => {
-    return () => {
-      if (
-        pendingDisconnectTimerRef.current !== null
-      ) {
-        window.clearTimeout(
-          pendingDisconnectTimerRef.current,
-        );
-        pendingDisconnectTimerRef.current = null;
-      }
-      if (pendingErrorTimerRef.current !== null) {
-        window.clearTimeout(pendingErrorTimerRef.current);
-        pendingErrorTimerRef.current = null;
-      }
-    };
-  }, []);
-
-  useEffect(() => {
-    const scheduleConfirmedDisconnect = () => {
-      if (
-        pageLifecycleRef.current ||
-        document.visibilityState === 'hidden' ||
-        walletAddressRef.current ||
-        !sessionWalletRef.current
-      ) {
-        return;
-      }
-
-      if (
-        pendingDisconnectTimerRef.current !== null
-      ) {
-        window.clearTimeout(
-          pendingDisconnectTimerRef.current,
-        );
-      }
-
-      pendingDisconnectTimerRef.current =
-        window.setTimeout(() => {
-          pendingDisconnectTimerRef.current = null;
-
-          if (
-            pageLifecycleRef.current ||
-            document.visibilityState === 'hidden' ||
-            walletAddressRef.current ||
-            !sessionWalletRef.current
-          ) {
-            return;
-          }
-
-          // A provider disconnect can be transient while VeWorld is restoring.
-          // Only after the visible grace period expires with wallet still null
-          // may we revoke the browser session without a live account. This also
-          // covers a user disconnecting VeInvite directly from VeWorld.
-          void clearWalletSession({
-            confirmedDisconnected: true,
-          }).catch((error) => {
-            console.error(
-              'Failed to clear VeInvite session after confirmed wallet disconnect:',
-              error,
-            );
-          });
-        }, PASSIVE_DISCONNECT_GRACE_MS);
-    };
-
-    const handleWalletDisconnected = () => {
-      scheduleConfirmedDisconnect();
-    };
-    const handlePageShow = () => {
-      window.setTimeout(
-        scheduleConfirmedDisconnect,
-        0,
-      );
-    };
-    const handleVisibilityChange = () => {
-      if (document.visibilityState === 'visible') {
-        scheduleConfirmedDisconnect();
-      }
-    };
-
-    window.addEventListener(
-      'wallet_disconnected',
-      handleWalletDisconnected,
-    );
-    window.addEventListener(
-      'pageshow',
-      handlePageShow,
-    );
-    document.addEventListener(
-      'visibilitychange',
-      handleVisibilityChange,
-    );
-
-    // A returning page can already be wallet=null before event listeners mount.
-    // Arm the same bounded confirmation path; a restored wallet cancels it.
-    const initialSchedule = window.setTimeout(
-      scheduleConfirmedDisconnect,
-      0,
-    );
-
-    return () => {
-      window.clearTimeout(initialSchedule);
-      window.removeEventListener(
-        'wallet_disconnected',
-        handleWalletDisconnected,
-      );
-      window.removeEventListener(
-        'pageshow',
-        handlePageShow,
-      );
-      document.removeEventListener(
-        'visibilitychange',
-        handleVisibilityChange,
-      );
-    };
-  }, [clearWalletSession]);
-
-  useEffect(() => {
-    if (state !== 'checking') {
-      setShowCheckingSurface(false);
-      return;
-    }
-
-    const timeoutId = window.setTimeout(() => {
-      setShowCheckingSurface(true);
-    }, SESSION_CHECK_SURFACE_DELAY_MS);
-
-    return () => {
-      window.clearTimeout(timeoutId);
-    };
-  }, [state]);
-
-  const verify = useCallback(async () => {
-    if (!walletAddress) {
-      return;
-    }
-
-    if (pendingErrorTimerRef.current !== null) {
-      window.clearTimeout(pendingErrorTimerRef.current);
-      pendingErrorTimerRef.current = null;
-    }
-
-    const attempt = attemptRef.current + 1;
-    attemptRef.current = attempt;
-
-    setState('checking');
-
-    try {
-      await ensureWalletSession(walletAddress);
-
-      if (attemptRef.current !== attempt) {
-        return;
-      }
-
-      sessionWalletRef.current = walletAddress;
-      setVerifiedWallet(walletAddress);
-      setState('verified');
-      bootReadyDispatchedRef.current = true;
-      window.dispatchEvent(
-        new Event(WALLET_SESSION_READY_EVENT),
-      );
-    } catch (error) {
-      if (attemptRef.current !== attempt) {
-        return;
-      }
-
-      console.error(
-        'Wallet ownership verification failed:',
-        error,
-      );
-
-      setVerifiedWallet(null);
-      pendingErrorTimerRef.current = window.setTimeout(() => {
-        pendingErrorTimerRef.current = null;
-
-        if (attemptRef.current !== attempt) {
-          return;
-        }
-
-        setState('error');
-      }, SESSION_ERROR_SURFACE_DELAY_MS);
-    }
-  }, [
-    ensureWalletSession,
-    walletAddress,
-  ]);
-
-  const retryVerification = useCallback(async () => {
-    if (!walletAddress || isDisconnecting) {
-      return;
-    }
-
-    const sessionWallet = sessionWalletRef.current;
-
-    // When VeWorld was switched outside VeInvite, the provider can already be
-    // on wallet B while this browser still owns a verified VeInvite session for
-    // wallet A. The primary action explicitly authorizes replacing only this
-    // browser session while keeping wallet B connected.
-    if (
-      isWalletSessionMismatch(
-        sessionWallet,
-        walletAddress,
-      )
-    ) {
-      setIsDisconnecting(true);
-
-      try {
-        await clearWalletSession();
-        autoAttemptedWalletRef.current = walletAddress;
-        await verify();
-      } catch (error) {
-        console.error(
-          'Failed to switch VeInvite verification to the connected wallet:',
-          error,
-        );
-        setState('error');
-      } finally {
-        setIsDisconnecting(false);
-      }
-      return;
-    }
-
-    await verify();
-  }, [
-    clearWalletSession,
-    isDisconnecting,
-    verify,
-    walletAddress,
-  ]);
-
-  useEffect(() => {
-    const handleInvalidWalletSession = () => {
-      attemptRef.current += 1;
-      autoAttemptedWalletRef.current = null;
-      bootReadyDispatchedRef.current = false;
-      sessionWalletRef.current = null;
-      setVerifiedWallet(null);
-
-      if (!walletAddress) {
-        setState('idle');
-        return;
-      }
-
-      void verify();
-    };
-
-    window.addEventListener(
-      WALLET_SESSION_INVALID_EVENT,
-      handleInvalidWalletSession,
-    );
-
-    return () => {
-      window.removeEventListener(
-        WALLET_SESSION_INVALID_EVENT,
-        handleInvalidWalletSession,
-      );
-    };
-  }, [verify, walletAddress]);
-
-  useEffect(() => {
-    if (
-      bootReadyDispatchedRef.current ||
-      !initialWallet ||
-      walletAddress !== initialWallet ||
-      state !== 'verified' ||
-      verifiedWallet !== initialWallet
-    ) {
-      return;
-    }
-
-    sessionWalletRef.current = initialWallet;
-    bootReadyDispatchedRef.current = true;
-    window.dispatchEvent(
-      new Event(WALLET_SESSION_READY_EVENT),
-    );
-  }, [
-    initialWallet,
-    state,
-    verifiedWallet,
-    walletAddress,
-  ]);
-
-  const disconnectFromVerification =
-    useCallback(async () => {
-      if (isDisconnecting) {
-        return;
-      }
-
-      setIsDisconnecting(true);
-
-      try {
-        // If session revocation fails, do not disconnect the provider. Keeping
-        // the wallet attached leaves the user recoverable and avoids recreating
-        // the stale-cookie/startup deadlock that triggered this fix.
-        await clearWalletSession();
-      } catch (error) {
-        console.error(
-          'Failed to clear VeInvite wallet session from verification screen:',
-          error,
-        );
-        setState('error');
-        setIsDisconnecting(false);
-        return;
-      }
-
-      const previousWallet = walletAddressRef.current;
-
-      try {
-        await disconnect();
-        const released =
-          await settleExplicitWalletDisconnect({
-            previousWallet,
-            readCurrentWallet: () =>
-              walletAddressRef.current,
-          });
-
-        if (!released) {
-          throw new Error(
-            'Wallet disconnect did not finish.',
-          );
-        }
-
-        setState('idle');
-      } catch (error) {
-        console.error(
-          'Failed to disconnect wallet from verification screen:',
-          error,
-        );
-        // The browser session is already gone. If the provider remains, expose
-        // a real verification action instead of leaving a blank loading shell.
-        setState('error');
-      } finally {
-        setIsDisconnecting(false);
-      }
-    }, [
-      clearWalletSession,
-      disconnect,
-      isDisconnecting,
-    ]);
-
-  const chooseAnotherWallet =
-    useCallback(async () => {
-      if (isDisconnecting) {
-        return;
-      }
-
-      setIsDisconnecting(true);
-
-      try {
-        await clearWalletSession();
-      } catch (error) {
-        console.error(
-          'Failed to clear VeInvite session before choosing another wallet:',
-          error,
-        );
-        setState('error');
-        setIsDisconnecting(false);
-        return;
-      }
-
-      const previousWallet = walletAddressRef.current;
-
-      try {
-        await disconnect();
-        const released =
-          await settleExplicitWalletDisconnect({
-            previousWallet,
-            readCurrentWallet: () =>
-              walletAddressRef.current,
-          });
-
-        if (!released) {
-          throw new Error(
-            'Wallet disconnect did not finish.',
-          );
-        }
-
-        markWalletConnectIntent();
-        openConnectModal();
-        setState('idle');
-      } catch (error) {
-        console.error(
-          'Failed to open another wallet from verification screen:',
-          error,
-        );
-        setState('error');
-      } finally {
-        setIsDisconnecting(false);
-      }
-    }, [
-      clearWalletSession,
-      disconnect,
-      isDisconnecting,
-      openConnectModal,
-    ]);
-
-  useEffect(() => {
-    if (!walletAddress) {
-      return;
-    }
-
-    if (
-      autoAttemptedWalletRef.current ===
-      walletAddress
-    ) {
-      return;
-    }
-
-    autoAttemptedWalletRef.current =
-      walletAddress;
-    setVerifiedWallet(null);
-    void verify();
-  }, [
-    walletAddress,
-    verify,
-  ]);
-
-  if (!walletAddress) {
-    return children;
-  }
-
-  if (
-    state === 'verified' &&
-    verifiedWallet === walletAddress
-  ) {
-    return (
-      <LegalConsentGate
-        walletAddress={walletAddress}
-        locale={locale}
-        onDisconnect={disconnectFromVerification}
-        isDisconnecting={isDisconnecting}
-      >
-        {children}
-      </LegalConsentGate>
-    );
-  }
-
-  if (
-    state === 'idle' ||
-    (state === 'checking' && !showCheckingSurface)
-  ) {
-    return (
-      <div
-        aria-hidden="true"
-        style={{
-          minHeight: '100dvh',
-          display: 'grid',
-          placeItems: 'center',
-          background:
-            'radial-gradient(circle at 50% 38%, rgba(244,183,40,0.10), transparent 32%), #080807',
-        }}
-      >
-        <Brand compact />
-      </div>
-    );
-  }
-
   const t = WALLET_SESSION_COPY[locale];
   const switchT = WALLET_SWITCH_COPY[
     isLocale(locale) ? locale : 'en'
   ];
-  const hasError = state === 'error';
-  const walletMismatch =
-    hasError &&
-    isWalletSessionMismatch(
-      sessionWalletRef.current,
-      walletAddress,
-    );
 
   return (
     <div
@@ -795,9 +234,7 @@ export function WalletSessionGate({
             <button
               type="button"
               disabled={isDisconnecting}
-              onClick={() => {
-                void retryVerification();
-              }}
+              onClick={onRetry}
               style={{
                 width: '100%',
                 minHeight: '48px',
@@ -823,13 +260,7 @@ export function WalletSessionGate({
           <button
             type="button"
             disabled={isDisconnecting}
-            onClick={() => {
-              if (walletMismatch) {
-                void chooseAnotherWallet();
-              } else {
-                void disconnectFromVerification();
-              }
-            }}
+            onClick={onSecondary}
             style={{
               width: '100%',
               minHeight: '46px',
@@ -856,5 +287,658 @@ export function WalletSessionGate({
         </div>
       </div>
     </div>
+  );
+}
+
+export function WalletSessionGate({
+  children,
+  initialSessionWallet = null,
+  qaPreview = null,
+}: {
+  children: ReactNode;
+  initialSessionWallet?: string | null;
+  qaPreview?: WalletSessionQaPreview | null;
+}) {
+  const previewMode = qaPreview !== null;
+  const initialWallet =
+    initialSessionWallet?.toLowerCase() ?? null;
+  const {
+    account,
+    disconnect,
+  } = useWallet();
+  const {
+    open: openConnectModal,
+  } = useConnectModal();
+  const walletAddress =
+    account?.address?.toLowerCase() ?? null;
+
+  const {
+    ensureWalletSession,
+    clearWalletSession,
+  } = useWalletAuthentication();
+
+  const [state, setState] =
+    useState<VerificationState>(
+      initialWallet ? 'verified' : 'idle',
+    );
+  const [verifiedWallet, setVerifiedWallet] =
+    useState<string | null>(initialWallet);
+  const [locale, setLocale] =
+    useState<Locale>('en');
+  const [isDisconnecting, setIsDisconnecting] =
+    useState(false);
+  const [showCheckingSurface, setShowCheckingSurface] =
+    useState(false);
+  const attemptRef = useRef(0);
+  const autoAttemptedWalletRef =
+    useRef<string | null>(initialWallet);
+  const pageLifecycleRef = useRef(false);
+  const walletAddressRef =
+    useRef<string | null>(walletAddress);
+  const pendingDisconnectTimerRef =
+    useRef<number | null>(null);
+  const pendingErrorTimerRef =
+    useRef<number | null>(null);
+  const bootReadyDispatchedRef = useRef(false);
+  const sessionWalletRef =
+    useRef<string | null>(initialWallet);
+
+  useEffect(() => {
+    if (previewMode) return;
+
+    setLocale(initialLocale());
+
+    const handleLanguageChange = (
+      event: Event,
+    ) => {
+      const detail =
+        (event as CustomEvent<unknown>).detail;
+
+      if (isLocale(detail)) {
+        setLocale(detail);
+      }
+    };
+
+    window.addEventListener(
+      'veinvite-language-change',
+      handleLanguageChange,
+    );
+
+    return () => {
+      window.removeEventListener(
+        'veinvite-language-change',
+        handleLanguageChange,
+      );
+    };
+  }, [previewMode]);
+
+  useEffect(() => {
+    if (previewMode) return;
+
+    const handlePageHide = () => {
+      pageLifecycleRef.current = true;
+    };
+    const handlePageShow = () => {
+      pageLifecycleRef.current = false;
+    };
+
+    window.addEventListener('pagehide', handlePageHide);
+    window.addEventListener('pageshow', handlePageShow);
+
+    return () => {
+      window.removeEventListener('pagehide', handlePageHide);
+      window.removeEventListener('pageshow', handlePageShow);
+    };
+  }, [previewMode]);
+
+  useEffect(() => {
+    if (previewMode) return;
+
+    const handleSessionCleared = () => {
+      attemptRef.current += 1;
+      autoAttemptedWalletRef.current = null;
+      bootReadyDispatchedRef.current = false;
+      sessionWalletRef.current = null;
+      document
+        .querySelector<HTMLElement>(
+          '[data-veinvite-session-bootstrap]',
+        )
+        ?.setAttribute(
+          'data-veinvite-session-bootstrap',
+          'none',
+        );
+      if (pendingErrorTimerRef.current !== null) {
+        window.clearTimeout(pendingErrorTimerRef.current);
+        pendingErrorTimerRef.current = null;
+      }
+      setVerifiedWallet(null);
+      setState('idle');
+    };
+
+    window.addEventListener(
+      SESSION_CLEARED_EVENT,
+      handleSessionCleared,
+    );
+
+    return () => {
+      window.removeEventListener(
+        SESSION_CLEARED_EVENT,
+        handleSessionCleared,
+      );
+    };
+  }, [previewMode]);
+
+  useEffect(() => {
+    if (previewMode) return;
+
+    walletAddressRef.current = walletAddress;
+
+    if (
+      walletAddress &&
+      pendingDisconnectTimerRef.current !== null
+    ) {
+      window.clearTimeout(
+        pendingDisconnectTimerRef.current,
+      );
+      pendingDisconnectTimerRef.current = null;
+    }
+  }, [previewMode, walletAddress]);
+
+  useEffect(() => {
+    if (previewMode) return;
+
+    return () => {
+      if (
+        pendingDisconnectTimerRef.current !== null
+      ) {
+        window.clearTimeout(
+          pendingDisconnectTimerRef.current,
+        );
+        pendingDisconnectTimerRef.current = null;
+      }
+      if (pendingErrorTimerRef.current !== null) {
+        window.clearTimeout(pendingErrorTimerRef.current);
+        pendingErrorTimerRef.current = null;
+      }
+    };
+  }, [previewMode]);
+
+  useEffect(() => {
+    if (previewMode) return;
+
+    const scheduleConfirmedDisconnect = () => {
+      if (
+        pageLifecycleRef.current ||
+        document.visibilityState === 'hidden' ||
+        walletAddressRef.current ||
+        !sessionWalletRef.current
+      ) {
+        return;
+      }
+
+      if (
+        pendingDisconnectTimerRef.current !== null
+      ) {
+        window.clearTimeout(
+          pendingDisconnectTimerRef.current,
+        );
+      }
+
+      pendingDisconnectTimerRef.current =
+        window.setTimeout(() => {
+          pendingDisconnectTimerRef.current = null;
+
+          if (
+            pageLifecycleRef.current ||
+            document.visibilityState === 'hidden' ||
+            walletAddressRef.current ||
+            !sessionWalletRef.current
+          ) {
+            return;
+          }
+
+          void clearWalletSession({
+            confirmedDisconnected: true,
+          }).catch((error) => {
+            console.error(
+              'Failed to clear VeInvite session after confirmed wallet disconnect:',
+              error,
+            );
+          });
+        }, PASSIVE_DISCONNECT_GRACE_MS);
+    };
+
+    const handleWalletDisconnected = () => {
+      scheduleConfirmedDisconnect();
+    };
+    const handlePageShow = () => {
+      window.setTimeout(
+        scheduleConfirmedDisconnect,
+        0,
+      );
+    };
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        scheduleConfirmedDisconnect();
+      }
+    };
+
+    window.addEventListener(
+      'wallet_disconnected',
+      handleWalletDisconnected,
+    );
+    window.addEventListener(
+      'pageshow',
+      handlePageShow,
+    );
+    document.addEventListener(
+      'visibilitychange',
+      handleVisibilityChange,
+    );
+
+    const initialSchedule = window.setTimeout(
+      scheduleConfirmedDisconnect,
+      0,
+    );
+
+    return () => {
+      window.clearTimeout(initialSchedule);
+      window.removeEventListener(
+        'wallet_disconnected',
+        handleWalletDisconnected,
+      );
+      window.removeEventListener(
+        'pageshow',
+        handlePageShow,
+      );
+      document.removeEventListener(
+        'visibilitychange',
+        handleVisibilityChange,
+      );
+    };
+  }, [clearWalletSession, previewMode]);
+
+  useEffect(() => {
+    if (previewMode) return;
+
+    if (state !== 'checking') {
+      setShowCheckingSurface(false);
+      return;
+    }
+
+    const timeoutId = window.setTimeout(() => {
+      setShowCheckingSurface(true);
+    }, SESSION_CHECK_SURFACE_DELAY_MS);
+
+    return () => {
+      window.clearTimeout(timeoutId);
+    };
+  }, [previewMode, state]);
+
+  const verify = useCallback(async () => {
+    if (previewMode || !walletAddress) {
+      return;
+    }
+
+    if (pendingErrorTimerRef.current !== null) {
+      window.clearTimeout(pendingErrorTimerRef.current);
+      pendingErrorTimerRef.current = null;
+    }
+
+    const attempt = attemptRef.current + 1;
+    attemptRef.current = attempt;
+
+    setState('checking');
+
+    try {
+      await ensureWalletSession(walletAddress);
+
+      if (attemptRef.current !== attempt) {
+        return;
+      }
+
+      sessionWalletRef.current = walletAddress;
+      setVerifiedWallet(walletAddress);
+      setState('verified');
+      bootReadyDispatchedRef.current = true;
+      window.dispatchEvent(
+        new Event(WALLET_SESSION_READY_EVENT),
+      );
+    } catch (error) {
+      if (attemptRef.current !== attempt) {
+        return;
+      }
+
+      console.error(
+        'Wallet ownership verification failed:',
+        error,
+      );
+
+      setVerifiedWallet(null);
+      pendingErrorTimerRef.current = window.setTimeout(() => {
+        pendingErrorTimerRef.current = null;
+
+        if (attemptRef.current !== attempt) {
+          return;
+        }
+
+        setState('error');
+      }, SESSION_ERROR_SURFACE_DELAY_MS);
+    }
+  }, [
+    ensureWalletSession,
+    previewMode,
+    walletAddress,
+  ]);
+
+  const retryVerification = useCallback(async () => {
+    if (previewMode || !walletAddress || isDisconnecting) {
+      return;
+    }
+
+    const sessionWallet = sessionWalletRef.current;
+
+    if (
+      isWalletSessionMismatch(
+        sessionWallet,
+        walletAddress,
+      )
+    ) {
+      setIsDisconnecting(true);
+
+      try {
+        await clearWalletSession();
+        autoAttemptedWalletRef.current = walletAddress;
+        await verify();
+      } catch (error) {
+        console.error(
+          'Failed to switch VeInvite verification to the connected wallet:',
+          error,
+        );
+        setState('error');
+      } finally {
+        setIsDisconnecting(false);
+      }
+      return;
+    }
+
+    await verify();
+  }, [
+    clearWalletSession,
+    isDisconnecting,
+    previewMode,
+    verify,
+    walletAddress,
+  ]);
+
+  useEffect(() => {
+    if (previewMode) return;
+
+    const handleInvalidWalletSession = () => {
+      attemptRef.current += 1;
+      autoAttemptedWalletRef.current = null;
+      bootReadyDispatchedRef.current = false;
+      sessionWalletRef.current = null;
+      setVerifiedWallet(null);
+
+      if (!walletAddress) {
+        setState('idle');
+        return;
+      }
+
+      void verify();
+    };
+
+    window.addEventListener(
+      WALLET_SESSION_INVALID_EVENT,
+      handleInvalidWalletSession,
+    );
+
+    return () => {
+      window.removeEventListener(
+        WALLET_SESSION_INVALID_EVENT,
+        handleInvalidWalletSession,
+      );
+    };
+  }, [previewMode, verify, walletAddress]);
+
+  useEffect(() => {
+    if (previewMode) return;
+
+    if (
+      bootReadyDispatchedRef.current ||
+      !initialWallet ||
+      walletAddress !== initialWallet ||
+      state !== 'verified' ||
+      verifiedWallet !== initialWallet
+    ) {
+      return;
+    }
+
+    sessionWalletRef.current = initialWallet;
+    bootReadyDispatchedRef.current = true;
+    window.dispatchEvent(
+      new Event(WALLET_SESSION_READY_EVENT),
+    );
+  }, [
+    initialWallet,
+    previewMode,
+    state,
+    verifiedWallet,
+    walletAddress,
+  ]);
+
+  const disconnectFromVerification =
+    useCallback(async () => {
+      if (previewMode || isDisconnecting) {
+        return;
+      }
+
+      setIsDisconnecting(true);
+
+      try {
+        await clearWalletSession();
+      } catch (error) {
+        console.error(
+          'Failed to clear VeInvite wallet session from verification screen:',
+          error,
+        );
+        setState('error');
+        setIsDisconnecting(false);
+        return;
+      }
+
+      const previousWallet = walletAddressRef.current;
+
+      try {
+        await disconnect();
+        const released =
+          await settleExplicitWalletDisconnect({
+            previousWallet,
+            readCurrentWallet: () =>
+              walletAddressRef.current,
+          });
+
+        if (!released) {
+          throw new Error(
+            'Wallet disconnect did not finish.',
+          );
+        }
+
+        setState('idle');
+      } catch (error) {
+        console.error(
+          'Failed to disconnect wallet from verification screen:',
+          error,
+        );
+        setState('error');
+      } finally {
+        setIsDisconnecting(false);
+      }
+    }, [
+      clearWalletSession,
+      disconnect,
+      isDisconnecting,
+      previewMode,
+    ]);
+
+  const chooseAnotherWallet =
+    useCallback(async () => {
+      if (previewMode || isDisconnecting) {
+        return;
+      }
+
+      setIsDisconnecting(true);
+
+      try {
+        await clearWalletSession();
+      } catch (error) {
+        console.error(
+          'Failed to clear VeInvite session before choosing another wallet:',
+          error,
+        );
+        setState('error');
+        setIsDisconnecting(false);
+        return;
+      }
+
+      const previousWallet = walletAddressRef.current;
+
+      try {
+        await disconnect();
+        const released =
+          await settleExplicitWalletDisconnect({
+            previousWallet,
+            readCurrentWallet: () =>
+              walletAddressRef.current,
+          });
+
+        if (!released) {
+          throw new Error(
+            'Wallet disconnect did not finish.',
+          );
+        }
+
+        markWalletConnectIntent();
+        openConnectModal();
+        setState('idle');
+      } catch (error) {
+        console.error(
+          'Failed to open another wallet from verification screen:',
+          error,
+        );
+        setState('error');
+      } finally {
+        setIsDisconnecting(false);
+      }
+    }, [
+      clearWalletSession,
+      disconnect,
+      isDisconnecting,
+      openConnectModal,
+      previewMode,
+    ]);
+
+  useEffect(() => {
+    if (previewMode || !walletAddress) {
+      return;
+    }
+
+    if (
+      autoAttemptedWalletRef.current ===
+      walletAddress
+    ) {
+      return;
+    }
+
+    autoAttemptedWalletRef.current =
+      walletAddress;
+    setVerifiedWallet(null);
+    void verify();
+  }, [
+    previewMode,
+    walletAddress,
+    verify,
+  ]);
+
+  if (qaPreview) {
+    if (
+      qaPreview.state === 'idle-brand' ||
+      qaPreview.state === 'checking-delay'
+    ) {
+      return <WalletSessionBrandSurface />;
+    }
+
+    const previewError =
+      qaPreview.state !== 'checking';
+    const previewMismatch =
+      qaPreview.state === 'wallet-mismatch';
+    const previewDisconnecting =
+      qaPreview.state === 'disconnecting';
+
+    return (
+      <WalletSessionSurface
+        locale={qaPreview.locale}
+        hasError={previewError}
+        walletMismatch={previewMismatch}
+        isDisconnecting={previewDisconnecting}
+        onRetry={() => {}}
+        onSecondary={() => {}}
+      />
+    );
+  }
+
+  if (!walletAddress) {
+    return children;
+  }
+
+  if (
+    state === 'verified' &&
+    verifiedWallet === walletAddress
+  ) {
+    return (
+      <LegalConsentGate
+        walletAddress={walletAddress}
+        locale={locale}
+        onDisconnect={disconnectFromVerification}
+        isDisconnecting={isDisconnecting}
+      >
+        {children}
+      </LegalConsentGate>
+    );
+  }
+
+  if (
+    state === 'idle' ||
+    (state === 'checking' && !showCheckingSurface)
+  ) {
+    return <WalletSessionBrandSurface />;
+  }
+
+  const hasError = state === 'error';
+  const walletMismatch =
+    hasError &&
+    isWalletSessionMismatch(
+      sessionWalletRef.current,
+      walletAddress,
+    );
+
+  return (
+    <WalletSessionSurface
+      locale={locale}
+      hasError={hasError}
+      walletMismatch={walletMismatch}
+      isDisconnecting={isDisconnecting}
+      onRetry={() => {
+        void retryVerification();
+      }}
+      onSecondary={() => {
+        if (walletMismatch) {
+          void chooseAnotherWallet();
+        } else {
+          void disconnectFromVerification();
+        }
+      }}
+    />
   );
 }

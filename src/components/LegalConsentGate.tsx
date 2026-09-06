@@ -26,6 +26,17 @@ type GateState =
   | 'accepted'
   | 'error';
 
+export type LegalConsentQaState =
+  | 'checking'
+  | 'required'
+  | 'accepting'
+  | 'error';
+
+export type LegalConsentQaPreview = {
+  state: LegalConsentQaState;
+  locale: Locale;
+};
+
 type ConsentResponse = {
   accepted?: boolean;
   walletAddress?: string;
@@ -45,6 +56,7 @@ type Props = {
   locale: Locale;
   onDisconnect: () => Promise<void>;
   isDisconnecting: boolean;
+  qaPreview?: LegalConsentQaPreview | null;
 };
 
 const LEGAL_CONSENT_EXIT_FALLBACK_MS = 260;
@@ -157,233 +169,44 @@ function hasLegacyCurrentConsent(
   }
 }
 
-export function LegalConsentGate({
-  children,
-  walletAddress,
-  locale,
-  onDisconnect,
-  isDisconnecting,
-}: Props) {
-  const [state, setState] =
-    useState<GateState>('checking');
-  const [isAccepting, setIsAccepting] =
-    useState(false);
-  const [isExiting, setIsExiting] =
-    useState(false);
-  const [reloadToken, setReloadToken] =
-    useState(0);
-
-  const recordConsent = useCallback(
-    async (
-      source: LegalConsentSource,
-    ) => {
-      const response = await fetch(
-        '/api/legal/consent',
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          cache: 'no-store',
-          body: JSON.stringify({
-            intent: LEGAL_CONSENT_INTENT,
-            source,
-          }),
-        },
-      );
-      const result =
-        await readConsentResponse(response);
-
-      if (
-        !response.ok ||
-        result.accepted !== true ||
-        result.walletAddress
-          ?.toLowerCase() !==
-          walletAddress.toLowerCase()
-      ) {
-        throw new Error(
-          result.error ||
-            'Legal consent was not saved.',
-        );
-      }
-    },
-    [walletAddress],
+function LegalConsentCheckingSurface() {
+  return (
+    <div
+      aria-hidden="true"
+      style={{
+        minHeight: '100dvh',
+        display: 'grid',
+        placeItems: 'center',
+        background:
+          'radial-gradient(circle at 50% 38%, rgba(244, 183, 40, 0.1), transparent 32%), #080807',
+      }}
+    >
+      <Brand compact />
+    </div>
   );
+}
 
-  useEffect(() => {
-    let active = true;
-    const controller =
-      new AbortController();
-
-    const load = async () => {
-      setIsExiting(false);
-      setState('checking');
-
-      try {
-        const response = await fetch(
-          '/api/legal/consent',
-          {
-            method: 'GET',
-            cache: 'no-store',
-            signal: controller.signal,
-          },
-        );
-        const result =
-          await readConsentResponse(response);
-
-        if (!active) {
-          return;
-        }
-
-        if (!response.ok) {
-          throw new Error(
-            result.error ||
-              'Legal consent could not be checked.',
-          );
-        }
-
-        if (
-          result.walletAddress &&
-          result.walletAddress.toLowerCase() !==
-            walletAddress.toLowerCase()
-        ) {
-          throw new Error(
-            'Wallet session changed while checking legal consent.',
-          );
-        }
-
-        if (result.accepted) {
-          setState('accepted');
-          return;
-        }
-
-        if (
-          hasLegacyCurrentConsent(
-            walletAddress,
-          )
-        ) {
-          await recordConsent(
-            'legacy-local-storage',
-          );
-
-          if (active) {
-            setState('accepted');
-          }
-          return;
-        }
-
-        setState('required');
-      } catch (error) {
-        if (
-          !active ||
-          (error instanceof DOMException &&
-            error.name === 'AbortError')
-        ) {
-          return;
-        }
-
-        console.error(
-          'Failed to resolve VeInvite legal consent:',
-          error,
-        );
-        setState('error');
-      }
-    };
-
-    void load();
-
-    return () => {
-      active = false;
-      controller.abort();
-    };
-  }, [
-    recordConsent,
-    reloadToken,
-    walletAddress,
-  ]);
-
-  const completeAcceptedTransition =
-    useCallback(() => {
-      setIsExiting(false);
-      setState('accepted');
-    }, []);
-
-  useEffect(() => {
-    if (!isExiting) {
-      return;
-    }
-
-    if (prefersReducedMotion()) {
-      completeAcceptedTransition();
-      return;
-    }
-
-    const timeoutId = window.setTimeout(
-      completeAcceptedTransition,
-      LEGAL_CONSENT_EXIT_FALLBACK_MS,
-    );
-
-    return () => {
-      window.clearTimeout(timeoutId);
-    };
-  }, [
-    completeAcceptedTransition,
-    isExiting,
-  ]);
-
-  const acceptCurrentDocuments =
-    useCallback(async () => {
-      if (isAccepting || isExiting) {
-        return;
-      }
-
-      setIsAccepting(true);
-
-      try {
-        // Persist authoritative consent before starting any visual exit. The
-        // animation is presentation-only and can never make an unsaved user
-        // appear accepted.
-        await recordConsent('ui');
-        setIsExiting(true);
-      } catch (error) {
-        console.error(
-          'Failed to accept VeInvite legal documents:',
-          error,
-        );
-        setState('error');
-      } finally {
-        setIsAccepting(false);
-      }
-    }, [
-      isAccepting,
-      isExiting,
-      recordConsent,
-    ]);
-
-  if (state === 'accepted') {
-    return children;
-  }
-
-  // Keep the exact startup brand surface visible while the server-side legal
-  // consent check completes. This prevents the startup shield from revealing a
-  // blank black frame before Home is ready.
-  if (state === 'checking') {
-    return (
-      <div
-        aria-hidden="true"
-        style={{
-          minHeight: '100dvh',
-          display: 'grid',
-          placeItems: 'center',
-          background:
-            'radial-gradient(circle at 50% 38%, rgba(244, 183, 40, 0.1), transparent 32%), #080807',
-        }}
-      >
-        <Brand compact />
-      </div>
-    );
-  }
-
+export function LegalConsentSurface({
+  locale,
+  state,
+  isAccepting,
+  isDisconnecting,
+  isExiting,
+  onAccept,
+  onRetry,
+  onDisconnect,
+  onExitComplete,
+}: {
+  locale: Locale;
+  state: 'required' | 'error';
+  isAccepting: boolean;
+  isDisconnecting: boolean;
+  isExiting: boolean;
+  onAccept: () => void;
+  onRetry: () => void;
+  onDisconnect: () => void;
+  onExitComplete: () => void;
+}) {
   const t = LEGAL_CONSENT_COPY[locale];
   const failed = state === 'error';
   const busy =
@@ -400,7 +223,7 @@ export function LegalConsentGate({
           event.target === event.currentTarget &&
           event.propertyName === 'opacity'
         ) {
-          completeAcceptedTransition();
+          onExitComplete();
         }
       }}
       style={{
@@ -542,9 +365,7 @@ export function LegalConsentGate({
             <button
               type="button"
               disabled={busy}
-              onClick={() => {
-                void acceptCurrentDocuments();
-              }}
+              onClick={onAccept}
               style={{
                 width: '100%',
                 minHeight: '48px',
@@ -571,11 +392,7 @@ export function LegalConsentGate({
             <button
               type="button"
               disabled={busy}
-              onClick={() => {
-                setReloadToken(
-                  (value) => value + 1,
-                );
-              }}
+              onClick={onRetry}
               style={{
                 width: '100%',
                 minHeight: '48px',
@@ -599,9 +416,7 @@ export function LegalConsentGate({
           <button
             type="button"
             disabled={busy}
-            onClick={() => {
-              void onDisconnect();
-            }}
+            onClick={onDisconnect}
             style={{
               width: '100%',
               minHeight: '46px',
@@ -680,5 +495,270 @@ export function LegalConsentGate({
         }
       `}</style>
     </div>
+  );
+}
+
+export function LegalConsentGate({
+  children,
+  walletAddress,
+  locale,
+  onDisconnect,
+  isDisconnecting,
+  qaPreview = null,
+}: Props) {
+  const previewMode = qaPreview !== null;
+  const [state, setState] =
+    useState<GateState>('checking');
+  const [isAccepting, setIsAccepting] =
+    useState(false);
+  const [isExiting, setIsExiting] =
+    useState(false);
+  const [reloadToken, setReloadToken] =
+    useState(0);
+
+  const recordConsent = useCallback(
+    async (
+      source: LegalConsentSource,
+    ) => {
+      if (previewMode) return;
+
+      const response = await fetch(
+        '/api/legal/consent',
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          cache: 'no-store',
+          body: JSON.stringify({
+            intent: LEGAL_CONSENT_INTENT,
+            source,
+          }),
+        },
+      );
+      const result =
+        await readConsentResponse(response);
+
+      if (
+        !response.ok ||
+        result.accepted !== true ||
+        result.walletAddress
+          ?.toLowerCase() !==
+          walletAddress.toLowerCase()
+      ) {
+        throw new Error(
+          result.error ||
+            'Legal consent was not saved.',
+        );
+      }
+    },
+    [previewMode, walletAddress],
+  );
+
+  useEffect(() => {
+    if (previewMode) return;
+
+    let active = true;
+    const controller =
+      new AbortController();
+
+    const load = async () => {
+      setIsExiting(false);
+      setState('checking');
+
+      try {
+        const response = await fetch(
+          '/api/legal/consent',
+          {
+            method: 'GET',
+            cache: 'no-store',
+            signal: controller.signal,
+          },
+        );
+        const result =
+          await readConsentResponse(response);
+
+        if (!active) {
+          return;
+        }
+
+        if (!response.ok) {
+          throw new Error(
+            result.error ||
+              'Legal consent could not be checked.',
+          );
+        }
+
+        if (
+          result.walletAddress &&
+          result.walletAddress.toLowerCase() !==
+            walletAddress.toLowerCase()
+        ) {
+          throw new Error(
+            'Wallet session changed while checking legal consent.',
+          );
+        }
+
+        if (result.accepted) {
+          setState('accepted');
+          return;
+        }
+
+        if (
+          hasLegacyCurrentConsent(
+            walletAddress,
+          )
+        ) {
+          await recordConsent(
+            'legacy-local-storage',
+          );
+
+          if (active) {
+            setState('accepted');
+          }
+          return;
+        }
+
+        setState('required');
+      } catch (error) {
+        if (
+          !active ||
+          (error instanceof DOMException &&
+            error.name === 'AbortError')
+        ) {
+          return;
+        }
+
+        console.error(
+          'Failed to resolve VeInvite legal consent:',
+          error,
+        );
+        setState('error');
+      }
+    };
+
+    void load();
+
+    return () => {
+      active = false;
+      controller.abort();
+    };
+  }, [
+    previewMode,
+    recordConsent,
+    reloadToken,
+    walletAddress,
+  ]);
+
+  const completeAcceptedTransition =
+    useCallback(() => {
+      setIsExiting(false);
+      setState('accepted');
+    }, []);
+
+  useEffect(() => {
+    if (previewMode || !isExiting) {
+      return;
+    }
+
+    if (prefersReducedMotion()) {
+      completeAcceptedTransition();
+      return;
+    }
+
+    const timeoutId = window.setTimeout(
+      completeAcceptedTransition,
+      LEGAL_CONSENT_EXIT_FALLBACK_MS,
+    );
+
+    return () => {
+      window.clearTimeout(timeoutId);
+    };
+  }, [
+    completeAcceptedTransition,
+    isExiting,
+    previewMode,
+  ]);
+
+  const acceptCurrentDocuments =
+    useCallback(async () => {
+      if (previewMode || isAccepting || isExiting) {
+        return;
+      }
+
+      setIsAccepting(true);
+
+      try {
+        await recordConsent('ui');
+        setIsExiting(true);
+      } catch (error) {
+        console.error(
+          'Failed to accept VeInvite legal documents:',
+          error,
+        );
+        setState('error');
+      } finally {
+        setIsAccepting(false);
+      }
+    }, [
+      isAccepting,
+      isExiting,
+      previewMode,
+      recordConsent,
+    ]);
+
+  if (qaPreview) {
+    if (qaPreview.state === 'checking') {
+      return <LegalConsentCheckingSurface />;
+    }
+
+    const previewState =
+      qaPreview.state === 'error'
+        ? 'error'
+        : 'required';
+
+    return (
+      <LegalConsentSurface
+        locale={qaPreview.locale}
+        state={previewState}
+        isAccepting={qaPreview.state === 'accepting'}
+        isDisconnecting={false}
+        isExiting={false}
+        onAccept={() => {}}
+        onRetry={() => {}}
+        onDisconnect={() => {}}
+        onExitComplete={() => {}}
+      />
+    );
+  }
+
+  if (state === 'accepted') {
+    return children;
+  }
+
+  if (state === 'checking') {
+    return <LegalConsentCheckingSurface />;
+  }
+
+  return (
+    <LegalConsentSurface
+      locale={locale}
+      state={state}
+      isAccepting={isAccepting}
+      isDisconnecting={isDisconnecting}
+      isExiting={isExiting}
+      onAccept={() => {
+        void acceptCurrentDocuments();
+      }}
+      onRetry={() => {
+        setReloadToken(
+          (value) => value + 1,
+        );
+      }}
+      onDisconnect={() => {
+        void onDisconnect();
+      }}
+      onExitComplete={completeAcceptedTransition}
+    />
   );
 }

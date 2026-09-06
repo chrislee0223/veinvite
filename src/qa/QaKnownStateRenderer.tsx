@@ -1,9 +1,13 @@
 'use client';
 
 import { PermanentReferralClient } from '@/components/PermanentReferralClient';
+import { WalletSessionGate } from '@/components/WalletSessionGate';
+import { LegalConsentGate } from '@/components/LegalConsentGate';
 import { isLocale, type SupportedLocale } from '@/lib/i18n/locales';
 import { getQaDirectStateRenderer } from './directStateCoverage';
 import { QA_KNOWN_STATES } from './stateRegistry';
+
+const QA_WALLET = '0x0000000000000000000000000000000000000a11';
 
 export function QaKnownStateRenderer({
   stateId,
@@ -51,6 +55,36 @@ export function QaKnownStateRenderer({
           locale,
         }}
       />
+    );
+  }
+
+  if (renderer.renderer === 'wallet-session') {
+    return (
+      <WalletSessionGate
+        qaPreview={{
+          state: renderer.walletSessionState,
+          locale,
+        }}
+      >
+        <span />
+      </WalletSessionGate>
+    );
+  }
+
+  if (renderer.renderer === 'legal-consent') {
+    return (
+      <LegalConsentGate
+        walletAddress={QA_WALLET}
+        locale={locale}
+        onDisconnect={async () => {}}
+        isDisconnecting={false}
+        qaPreview={{
+          state: renderer.legalConsentState,
+          locale,
+        }}
+      >
+        <span />
+      </LegalConsentGate>
     );
   }
 
