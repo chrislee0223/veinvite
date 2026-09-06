@@ -5,7 +5,10 @@ import { test } from 'node:test';
 const read = (path) => readFileSync(path, 'utf8');
 const locales = read('src/lib/i18n/locales.ts');
 const copy = read('src/lib/i18n/notificationHistoryCopy.ts');
-const center = read('src/components/InviteNotificationHistoryCenter.tsx');
+const center = [
+  read('src/components/InviteNotificationHistoryCenter.tsx'),
+  read('src/components/UnifiedInviteNotificationHistoryCenter.tsx'),
+].join('\n');
 const controller = read('src/components/InAppInviteNotifications.tsx');
 const unreadRoute = read('src/app/api/notifications/route.ts');
 const historyRoute = read('src/app/api/notifications/history/route.ts');
