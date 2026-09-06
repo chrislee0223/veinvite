@@ -7,8 +7,10 @@ const requiredFiles = [
   'src/qa/access.ts',
   'src/qa/types.ts',
   'src/qa/scenarioRegistry.ts',
+  'src/qa/stateRegistry.ts',
   'src/qa/featureCoverageMap.ts',
   'src/qa/QaStudio.tsx',
+  'src/qa/QaStateInventoryPanel.tsx',
   'src/qa/QaScenarioRenderer.tsx',
   'src/lib/supabaseServer.ts',
 ];
@@ -62,6 +64,50 @@ for (const field of ['caseId:', 'actor:', 'trigger:', 'state:', 'outcome:', 'gui
 if (!registry.includes('duplicate case id')) throw new Error('QA registry validation must reject duplicate human case IDs.');
 if (!registry.includes('missing guided task') || !registry.includes('missing guided success cue')) throw new Error('QA registry validation must reject incomplete guided instructions.');
 
+const stateRegistry = fs.readFileSync('src/qa/stateRegistry.ts', 'utf8');
+if (!stateRegistry.includes('QA_KNOWN_STATES')) throw new Error('Known Production UI states must have one central inventory.');
+if (!stateRegistry.includes("QaStateLifecycle = 'production' | 'legacy' | 'future' | 'external'")) throw new Error('QA state inventory must distinguish current, legacy, future, and external UI.');
+if (!stateRegistry.includes("QaStateCoverage = 'direct' | 'partial' | 'missing' | 'external'")) throw new Error('QA state inventory must distinguish direct, partial, missing, and external coverage.');
+if (!stateRegistry.includes('validateQaKnownStateRegistry')) throw new Error('QA state inventory must retain structural validation.');
+if (!stateRegistry.includes('getQaStateCoverageSummary')) throw new Error('QA state inventory must expose truthful coverage counts.');
+
+const scenarioIds = new Set(
+  [...registry.matchAll(/\n\s+id: '([^']+)',\n\s+caseId:/g)].map((match) => match[1]),
+);
+const stateBlocks = [...stateRegistry.matchAll(/knownState\(\{([\s\S]*?)\}\),/g)].map((match) => match[1]);
+if (stateBlocks.length < 50) throw new Error('Known-state inventory unexpectedly lost broad Production coverage.');
+const seenStateIds = new Set();
+for (const block of stateBlocks) {
+  const id = block.match(/\bid: '([^']+)'/)?.[1];
+  const lifecycle = block.match(/\blifecycle: '([^']+)'/)?.[1];
+  const coverageLevel = block.match(/\bcoverage: '([^']+)'/)?.[1];
+  const scenariosText = block.match(/\bscenarioIds: \[([^\]]*)\]/)?.[1] ?? '';
+  const referencedScenarios = [...scenariosText.matchAll(/'([^']+)'/g)].map((match) => match[1]);
+
+  if (!id) throw new Error('QA known-state entry is missing an id.');
+  if (seenStateIds.has(id)) throw new Error(`duplicate QA state id: ${id}`);
+  seenStateIds.add(id);
+  if (!block.includes('sourcePaths: [')) throw new Error(`QA state ${id} is missing source paths.`);
+  if ((coverageLevel === 'direct' || coverageLevel === 'partial') && referencedScenarios.length < 1) {
+    throw new Error(`Covered QA state ${id} must reference at least one scenario.`);
+  }
+  if (coverageLevel === 'external' && lifecycle !== 'external') {
+    throw new Error(`External QA coverage must use external lifecycle: ${id}`);
+  }
+  for (const scenarioId of referencedScenarios) {
+    if (!scenarioIds.has(scenarioId)) throw new Error(`QA state ${id} references unknown scenario ${scenarioId}.`);
+  }
+}
+
+const statePanel = fs.readFileSync('src/qa/QaStateInventoryPanel.tsx', 'utf8');
+if (!statePanel.includes('실제 앱 상태 전수 목록')) throw new Error('QA Studio must expose the known-state inventory to the operator.');
+if (!statePanel.includes('현재 실제 앱에서 볼 수 있는 상황')) throw new Error('Current Production UI states must be the primary inventory group.');
+if (!statePanel.includes('100%의 기준')) throw new Error('QA Studio must explain what 100% state coverage means.');
+if (!statePanel.includes('직접 재현 추가 필요')) throw new Error('Known-state UI must reveal uncovered states instead of pretending they are covered.');
+
+const qaPage = fs.readFileSync('src/app/qa/page.tsx', 'utf8');
+if (!qaPage.includes('QaStateInventoryPanel')) throw new Error('QA Studio page must keep the known-state inventory reachable.');
+
 const coverage = fs.readFileSync('src/qa/featureCoverageMap.ts', 'utf8');
 if (!coverage.includes('QA_SURFACE_COVERAGE')) throw new Error('QA feature coverage map is required for future changed-screen selection.');
 if (!coverage.includes('watchedPaths') || !coverage.includes('scenarioIds')) throw new Error('QA feature coverage map must link source paths to scenario ids.');
@@ -89,4 +135,4 @@ if (!studio.includes('고급 정보 보기')) throw new Error('QA Studio must ke
 const nextConfig = fs.readFileSync('next.config.mjs', 'utf8');
 if (!nextConfig.includes("source: '/qa/:path*'")) throw new Error('QA routes must retain no-cache/no-index response headers.');
 
-console.log('QA Studio architecture gate passed.');
+console.log(`QA Studio architecture gate passed with ${stateBlocks.length} inventoried states.`);
