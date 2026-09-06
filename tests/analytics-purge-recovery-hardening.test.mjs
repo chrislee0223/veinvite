@@ -5,12 +5,20 @@ import test from 'node:test';
 const read = (path) =>
   readFile(new URL(`../${path}`, import.meta.url), 'utf8');
 
-const [purgeLedger, recoveryAuthority, maintenanceRoute] = await Promise.all([
+const [
+  purgeLedger,
+  recoveryAuthority,
+  destructiveCleanupLock,
+  maintenanceRoute,
+] = await Promise.all([
   read(
     'supabase/migrations/20260906013000_record_analytics_hot_source_purges_and_seal_rollups.sql',
   ),
   read(
     'supabase/migrations/20260906013500_harden_post_purge_archive_recovery_and_event_authority.sql',
+  ),
+  read(
+    'supabase/migrations/20260906014600_disable_destructive_analytics_cleanup_until_archive_ready.sql',
   ),
   read('src/app/api/cron/analytics-maintenance/route.ts'),
 ]);
@@ -83,7 +91,7 @@ test('raw analytics cannot silently reappear after a date has been purged', () =
   );
 });
 
-test('only the bounded compaction path can create HOT_SOURCE_PURGED authority', () => {
+test('only the bounded compaction transaction can create HOT_SOURCE_PURGED authority', () => {
   assert.match(
     recoveryAuthority,
     /alter function public\.compact_app_product_analytics\(integer\) security definer/,
@@ -114,6 +122,29 @@ test('only the bounded compaction path can create HOT_SOURCE_PURGED authority', 
   );
 });
 
+test('destructive cleanup is disabled at the database permission layer until archive storage is ready', () => {
+  assert.match(
+    destructiveCleanupLock,
+    /revoke execute on function public\.compact_app_usage_analytics\(integer\)[\s\S]*from public, anon, authenticated, service_role/,
+  );
+  assert.match(
+    destructiveCleanupLock,
+    /revoke execute on function public\.compact_app_product_analytics\(integer\)[\s\S]*from public, anon, authenticated, service_role/,
+  );
+  assert.match(
+    destructiveCleanupLock,
+    /grant execute on function public\.compact_app_usage_analytics\(integer\) to postgres/,
+  );
+  assert.match(
+    destructiveCleanupLock,
+    /grant execute on function public\.compact_app_product_analytics\(integer\) to postgres/,
+  );
+  assert.doesNotMatch(
+    destructiveCleanupLock,
+    /grant execute on function public\.compact_app_(?:usage|product)_analytics\(integer\) to service_role/,
+  );
+});
+
 test('a revoked post-purge archive can recover only with the recorded pre-purge row count', () => {
   assert.match(
     recoveryAuthority,
@@ -133,7 +164,7 @@ test('a revoked post-purge archive can recover only with the recorded pre-purge 
   );
 });
 
-test('health keeps purged dates observable and the scheduled cron stays non-destructive', () => {
+test('health keeps purged dates observable and scheduled maintenance stays non-destructive', () => {
   assert.match(
     purgeLedger,
     /purged_analytics_dates_without_valid_archive/,
