@@ -15,9 +15,11 @@ QA Studio의 장기 기준은 **현재 Production 코드에서 사용자에게 �
 
 상태 하나가 여러 언어와 기기 조합을 가질 수 있으므로 모든 조합을 별도 상태로 만들지 않는다. 이렇게 해야 시나리오가 불필요하게 폭발하지 않는다.
 
+독립적으로 바로 열 수 있는 실제 상태는 `src/qa/directStateCoverage.ts`에서 Production 컴포넌트와 연결한다. `/qa/state`는 이 연결만 사용하며, 해당 컴포넌트의 QA fixture가 명시적으로 활성화된 경우에만 실제 상태를 강제로 렌더링한다.
+
 ## Coverage 단계
 
-- `direct`: 해당 상태를 독립적으로 바로 열어 확인할 수 있음
+- `direct`: 해당 상태를 독립적으로 바로 열어 실제 Production 컴포넌트에서 확인할 수 있음
 - `partial`: 실제 컴포넌트 또는 기존 Preview 안에서 볼 수 있지만 독립 상태 재현이 아직 부족함
 - `missing`: Production 코드에는 근거가 있지만 QA에서 직접 강제 재현할 수 없음
 - `external`: VeWorld/브라우저/OS가 렌더링하는 외부 UI
@@ -37,8 +39,8 @@ QA Studio의 장기 기준은 **현재 Production 코드에서 사용자에게 �
 
 1. `stateRegistry.ts`에 상태를 추가한다.
 2. 실제 Production source path를 연결한다.
-3. 가능하면 실제 Production 컴포넌트 + deterministic fixture로 직접 시나리오를 만든다.
-4. `scenarioRegistry.ts`에 시나리오를 등록하고 state의 `scenarioIds`에 연결한다.
+3. 가능하면 실제 Production 컴포넌트 + deterministic fixture로 직접 재현한다.
+4. 독립 재현이 가능하면 `directStateCoverage.ts`에 연결하고, 점검 흐름이 필요하면 `scenarioRegistry.ts`에도 시나리오를 등록한다.
 5. 관련 코드가 삭제되면 상태도 삭제 또는 lifecycle을 변경한다.
 6. CI Architecture Gate와 이후 자동화가 stale/missing coverage를 확인한다.
 
@@ -46,19 +48,30 @@ QA Studio의 장기 기준은 **현재 Production 코드에서 사용자에게 �
 
 - QA에서 Production UI를 비슷하게 다시 그리지 않는다.
 - 가능한 한 실제 Production 컴포넌트에 가짜 상태만 주입한다.
+- QA fixture가 활성화되면 실제 API/지갑/분석/내비게이션 mutation보다 먼저 fail closed 한다.
+- 정상 Production route는 QA fixture prop을 절대 전달하지 않는다.
 - Production API/DB/지갑/보상 쓰기는 QA renderer에서 실행하지 않는다.
 - 화면 상태(State Coverage)와 상태 간 이동(Transition Coverage)은 별도로 관리한다.
 - 운영에서 발견된 실제 버그는 수정 후 회귀 상태/시나리오로 남긴다.
 
+## 첫 direct coverage wave
+
+영구 추천 `/r/[key]` 흐름은 실제 `PermanentReferralClient`에 명시적인 QA-only deterministic state injection을 추가해 다음 상태를 독립 재현한다.
+
+- 초기 로고 / 첫 언어 선택 / 링크 확인 중 / 정상 랜딩
+- 지갑 연결 필요 / 연결 완료 / 자격 확인 중
+- 신규 성공 / 복귀 성공
+- 잘못된 링크 / 슬롯 가득 참 / 기존 활성 사용자 / 자기 초대 / 이미 다른 추천에 연결 / 일시적 자격 확인 오류
+
+QA mode에서는 링크 검증 fetch, VeWorld 연결창 실행, claim analytics/network 작업, 미션 페이지 이동 전에 중단한다. 정상 `/r/[key]` route는 이 QA prop을 전달하지 않는다.
+
 ## 다음 확장 순서
 
-1. `missing` 중 critical 상태부터 실제 컴포넌트 기반 direct scenario로 전환
-2. `/r/[key]` 전체 분기 직접 재현
-3. 지갑 세션 / 약관 게이트 직접 재현
-4. Home / Reward / Notification history direct fixtures
-5. Leaderboard loading/error/movement/detail 독립 상태
-6. `/i/[code]` legacy flow 전체 상태
-7. Transition Registry + Journey Runner
-8. changed-screen 영향 감지, stale verdict, Playwright/Visual Regression
+1. 지갑 세션 / 약관 게이트 직접 재현
+2. Home / Reward / Notification history direct fixtures
+3. Leaderboard loading/error/movement/detail 독립 상태
+4. `/i/[code]` legacy flow 전체 상태
+5. Transition Registry + Journey Runner
+6. changed-screen 영향 감지, stale verdict, Playwright/Visual Regression
 
 현재 상태 목록은 완성 선언이 아니라 **누락을 숨기지 않는 기준선**이다. `missing`이 0이 되고 direct coverage가 실제 Production 컴포넌트에 연결됐을 때 현재 운영 UI State Coverage를 100%라고 표시한다.
