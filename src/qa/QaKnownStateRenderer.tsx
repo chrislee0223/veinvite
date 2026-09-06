@@ -5,6 +5,7 @@ import { WalletSessionGate } from '@/components/WalletSessionGate';
 import { LegalConsentGate } from '@/components/LegalConsentGate';
 import { isLocale, type SupportedLocale } from '@/lib/i18n/locales';
 import { getQaDirectStateRenderer } from './directStateCoverage';
+import { QaInviteLandingStateHarness } from './QaInviteLandingStateHarness';
 import { QaHomeStateHarness } from './QaHomeStateHarness';
 import { QaHomeFeedbackHarness } from './QaHomeFeedbackHarness';
 import { QaNotificationStateHarness } from './QaNotificationStateHarness';
@@ -59,6 +60,15 @@ export function QaKnownStateRenderer({
           state: renderer.permanentReferralState,
           locale,
         }}
+      />
+    );
+  }
+
+  if (renderer.renderer === 'invite-landing') {
+    return (
+      <QaInviteLandingStateHarness
+        stateId={renderer.inviteLandingStateId}
+        locale={locale}
       />
     );
   }
