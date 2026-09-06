@@ -23,10 +23,19 @@ export type QaScenarioAction = {
   expected: string;
 };
 
+export type QaScenarioContext = {
+  actor: string;
+  trigger: string;
+  state: string;
+  outcome: string;
+};
+
 export type QaScenario = {
   id: string;
+  caseId: string;
   title: string;
   description: string;
+  context: QaScenarioContext;
   group: string;
   screen: QaScreenId;
   risk: QaScenarioRisk;

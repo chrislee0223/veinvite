@@ -94,6 +94,9 @@ if (!types.includes('height: number')) {
 if (!types.includes("'demo-outcome'")) {
   throw new Error('QA action types must include the demo-outcome action emitted by the renderer.');
 }
+if (!types.includes('QaScenarioContext') || !types.includes('caseId: string')) {
+  throw new Error('QA scenarios must retain human-readable case context metadata.');
+}
 
 const registry = fs.readFileSync('src/qa/scenarioRegistry.ts', 'utf8');
 if (!registry.includes('export const QA_SCENARIOS')) {
@@ -104,6 +107,14 @@ if (!registry.includes('expected:')) {
 }
 if (!registry.includes('mission-reward-preview') || !registry.includes('notification-preview')) {
   throw new Error('QA registry must retain the expanded mission/reward and notification coverage.');
+}
+for (const field of ['caseId:', 'actor:', 'trigger:', 'state:', 'outcome:']) {
+  if (!registry.includes(field)) {
+    throw new Error(`QA registry must describe each case with ${field}`);
+  }
+}
+if (!registry.includes('duplicate case id')) {
+  throw new Error('QA registry validation must reject duplicate human case IDs.');
 }
 
 const coverage = fs.readFileSync('src/qa/featureCoverageMap.ts', 'utf8');
@@ -123,6 +134,15 @@ if (!studio.includes('Production writes')) {
 }
 if (!studio.includes('핵심 점검') || !studio.includes('모든 상황')) {
   throw new Error('QA Studio must retain clear core/all scenario browsing modes.');
+}
+if (!studio.includes('현재 경우의 수') || !studio.includes('어떤 때') || !studio.includes('이후 흐름')) {
+  throw new Error('QA Studio must explain the selected case in operator language.');
+}
+if (!studio.includes('groupFilter') || !studio.includes('caseFilterChips')) {
+  throw new Error('QA Studio must retain case grouping/filter UX.');
+}
+if (!studio.includes('item.context.actor') || !studio.includes('item.context.trigger')) {
+  throw new Error('QA case search/listing must expose who and when context.');
 }
 if (!studio.includes('reviewKey(') || !studio.includes('viewportId') || !studio.includes('locale')) {
   throw new Error('QA operator reviews must be scoped to scenario + viewport + locale.');
