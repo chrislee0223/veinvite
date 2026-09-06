@@ -9,6 +9,7 @@ import { QaHomeStateHarness } from './QaHomeStateHarness';
 import { QaHomeFeedbackHarness } from './QaHomeFeedbackHarness';
 import { QaNotificationStateHarness } from './QaNotificationStateHarness';
 import { QaSettingsStateHarness } from './QaSettingsStateHarness';
+import { QaLeaderboardStateHarness } from './QaLeaderboardStateHarness';
 import { QA_KNOWN_STATES } from './stateRegistry';
 
 const QA_WALLET = '0x0000000000000000000000000000000000000a11';
@@ -132,6 +133,15 @@ export function QaKnownStateRenderer({
     return (
       <QaSettingsStateHarness
         stateId={renderer.settingsStateId}
+        locale={locale}
+      />
+    );
+  }
+
+  if (renderer.renderer === 'leaderboard') {
+    return (
+      <QaLeaderboardStateHarness
+        stateId={renderer.leaderboardStateId}
         locale={locale}
       />
     );
