@@ -35,6 +35,10 @@ import {
   runAutomaticRewardPayout,
   type AutomaticRewardPayoutResult,
 } from '@/lib/rewards/automaticRewardPayoutWithMnemonic';
+import {
+  runSybilObservationBatch,
+  type SybilObservationBatchSummary,
+} from '@/lib/sybil/observationBatch';
 import type { VeBetterNetwork } from '@/lib/vebetter/network';
 
 function secureEquals(a: string, b: string) {
@@ -80,6 +84,7 @@ function authorizeCron(request: NextRequest) {
 type CronStageFailure =
   | 'ALLOCATION_SYNC'
   | 'RECONCILIATION'
+  | 'SYBIL_OBSERVATION'
   | 'AUTOMATIC_REWARD_PAYOUT'
   | 'ROUND_GROWTH_REPORTING'
   | 'LEADERBOARD_SNAPSHOTS'
@@ -106,9 +111,12 @@ function logStageFailure(
  * rounds, verifies the read-optimized operator status projection against
  * authoritative source tables, appends an operator anomaly-monitoring snapshot,
  * removes only expired authentication/rate-limit runtime state, and provides a
- * recovery trigger for the dedicated automatic Reward Distributor. Automatic
- * reward execution is itself fail-closed and remains disabled unless its
- * explicit server gate, matching signer address, on-chain distributor
+ * recovery trigger for the dedicated automatic Reward Distributor. When the
+ * explicit SYBIL_OBSERVATION_ENABLED gate is true it also captures immutable,
+ * observation-only on-chain funding evidence. That evidence is deliberately
+ * separate from invitations.sybil_status and cannot change reward authority.
+ * Automatic reward execution is itself fail-closed and remains disabled unless
+ * its explicit server gate, matching signer address, on-chain distributor
  * registration and every reward safety check pass. The operations/admin wallet
  * key is never used here.
  *
@@ -146,6 +154,8 @@ export async function GET(
     ReturnType<typeof syncVeInviteAllocationReceipts>
   > | null = null;
   let summary: ReconciliationBatchSummary | null = null;
+  let sybilObservation:
+    SybilObservationBatchSummary | null = null;
   let automaticRewardPayout:
     AutomaticRewardPayoutResult | null = null;
   let roundGrowthReports: Awaited<
@@ -176,6 +186,14 @@ export async function GET(
   } catch (error) {
     failedStages.push('RECONCILIATION');
     logStageFailure('RECONCILIATION', error);
+  }
+
+  try {
+    sybilObservation =
+      await runSybilObservationBatch();
+  } catch (error) {
+    failedStages.push('SYBIL_OBSERVATION');
+    logStageFailure('SYBIL_OBSERVATION', error);
   }
 
   // A normal invite-progress request triggers immediate payout as soon as a
@@ -301,6 +319,7 @@ export async function GET(
                 ?.vebetter_round_id ?? null,
           }
         : null,
+      sybilObservation,
       automaticRewardPayout,
       roundGrowthReports,
       leaderboardSnapshots,
