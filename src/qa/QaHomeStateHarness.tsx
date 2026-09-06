@@ -13,7 +13,10 @@ import { HomeClient } from '@/components/HomeClient';
 import {
   QaWalletLauncherOverrideProvider,
 } from '@/components/WalletControl';
-import type { SupportedLocale } from '@/lib/i18n/locales';
+import {
+  LANGUAGE_STORAGE_KEY,
+  type SupportedLocale,
+} from '@/lib/i18n/locales';
 import type { ReferralLinkRecord } from '@/lib/referralLinks';
 import type { InviteRecord } from '@/lib/types';
 
@@ -358,8 +361,13 @@ export function QaHomeStateHarness({
   const rootRef = useRef<HTMLDivElement | null>(null);
 
   useLayoutEffect(() => {
-    const originalFetch = window.fetch.bind(window);
-    const previousLanguage = document.documentElement.lang;
+    const originalFetch = window.fetch;
+    const previousDocumentLanguage =
+      document.documentElement.lang;
+    const previousStoredLocale =
+      window.localStorage.getItem(
+        LANGUAGE_STORAGE_KEY,
+      );
     const cacheKey = fixture.wallet
       ? referralCacheKey(fixture.wallet)
       : null;
@@ -372,6 +380,10 @@ export function QaHomeStateHarness({
       originalFetch,
     );
     document.documentElement.lang = locale;
+    window.localStorage.setItem(
+      LANGUAGE_STORAGE_KEY,
+      locale,
+    );
 
     if (
       cacheKey &&
@@ -393,7 +405,18 @@ export function QaHomeStateHarness({
 
     return () => {
       window.fetch = originalFetch;
-      document.documentElement.lang = previousLanguage;
+      document.documentElement.lang =
+        previousDocumentLanguage;
+      if (previousStoredLocale === null) {
+        window.localStorage.removeItem(
+          LANGUAGE_STORAGE_KEY,
+        );
+      } else {
+        window.localStorage.setItem(
+          LANGUAGE_STORAGE_KEY,
+          previousStoredLocale,
+        );
+      }
       if (cacheKey) {
         if (previousCache === null) {
           window.sessionStorage.removeItem(cacheKey);
