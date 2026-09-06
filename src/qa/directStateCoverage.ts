@@ -1,0 +1,95 @@
+import type { PermanentReferralQaState } from '@/components/PermanentReferralClient';
+import {
+  QA_KNOWN_STATES,
+  type QaKnownState,
+  type QaStateCoverage,
+} from './stateRegistry';
+
+export type QaDirectStateRenderer = {
+  stateId: string;
+  renderer: 'permanent-referral';
+  permanentReferralState: PermanentReferralQaState;
+  defaultLocale: 'ko' | 'en';
+};
+
+export const QA_DIRECT_STATE_RENDERERS: QaDirectStateRenderer[] = [
+  { stateId: 'PRI-BOOT-BRAND', renderer: 'permanent-referral', permanentReferralState: 'boot', defaultLocale: 'ko' },
+  { stateId: 'PRI-LANGUAGE-SETUP', renderer: 'permanent-referral', permanentReferralState: 'language-setup', defaultLocale: 'ko' },
+  { stateId: 'PRI-LINK-CHECKING', renderer: 'permanent-referral', permanentReferralState: 'link-checking', defaultLocale: 'ko' },
+  { stateId: 'PRI-LANDING', renderer: 'permanent-referral', permanentReferralState: 'landing', defaultLocale: 'ko' },
+  { stateId: 'PRI-WALLET-REQUIRED', renderer: 'permanent-referral', permanentReferralState: 'wallet-required', defaultLocale: 'ko' },
+  { stateId: 'PRI-WALLET-CONNECTED', renderer: 'permanent-referral', permanentReferralState: 'wallet-connected', defaultLocale: 'ko' },
+  { stateId: 'PRI-ELIGIBILITY-CHECKING', renderer: 'permanent-referral', permanentReferralState: 'eligibility-checking', defaultLocale: 'ko' },
+  { stateId: 'PRI-SUCCESS-NEW', renderer: 'permanent-referral', permanentReferralState: 'success-new', defaultLocale: 'ko' },
+  { stateId: 'PRI-SUCCESS-RETURNING', renderer: 'permanent-referral', permanentReferralState: 'success-returning', defaultLocale: 'ko' },
+  { stateId: 'PRI-ERROR-INVALID', renderer: 'permanent-referral', permanentReferralState: 'error-invalid', defaultLocale: 'ko' },
+  { stateId: 'PRI-ERROR-SLOTS-FULL', renderer: 'permanent-referral', permanentReferralState: 'error-slots-full', defaultLocale: 'ko' },
+  { stateId: 'PRI-ERROR-EXISTING', renderer: 'permanent-referral', permanentReferralState: 'error-existing', defaultLocale: 'ko' },
+  { stateId: 'PRI-ERROR-SELF', renderer: 'permanent-referral', permanentReferralState: 'error-self', defaultLocale: 'ko' },
+  { stateId: 'PRI-ERROR-ALREADY-REFERRED', renderer: 'permanent-referral', permanentReferralState: 'error-already-referred', defaultLocale: 'ko' },
+  { stateId: 'PRI-ERROR-ELIGIBILITY', renderer: 'permanent-referral', permanentReferralState: 'error-eligibility', defaultLocale: 'ko' },
+];
+
+const rendererByStateId = new Map(
+  QA_DIRECT_STATE_RENDERERS.map((item) => [item.stateId, item]),
+);
+
+export function getQaDirectStateRenderer(stateId: string) {
+  return rendererByStateId.get(stateId) ?? null;
+}
+
+export function effectiveQaStateCoverage(state: QaKnownState): QaStateCoverage {
+  if (rendererByStateId.has(state.id)) return 'direct';
+  return state.coverage;
+}
+
+export function getEffectiveQaStateCoverageSummary() {
+  const production = QA_KNOWN_STATES.filter(
+    (state) => state.lifecycle === 'production' && state.userVisible,
+  );
+  const legacy = QA_KNOWN_STATES.filter(
+    (state) => state.lifecycle === 'legacy' && state.userVisible,
+  );
+
+  const count = (states: QaKnownState[], coverage: QaStateCoverage) =>
+    states.filter((state) => effectiveQaStateCoverage(state) === coverage).length;
+
+  return {
+    production: {
+      total: production.length,
+      direct: count(production, 'direct'),
+      partial: count(production, 'partial'),
+      missing: count(production, 'missing'),
+    },
+    legacy: {
+      total: legacy.length,
+      direct: count(legacy, 'direct'),
+      partial: count(legacy, 'partial'),
+      missing: count(legacy, 'missing'),
+    },
+    external: QA_KNOWN_STATES.filter(
+      (state) => state.lifecycle === 'external' && state.userVisible,
+    ).length,
+    future: QA_KNOWN_STATES.filter((state) => state.lifecycle === 'future').length,
+    totalInventory: QA_KNOWN_STATES.length,
+  };
+}
+
+export function validateQaDirectStateCoverage(): string[] {
+  const errors: string[] = [];
+  const knownStateIds = new Set(QA_KNOWN_STATES.map((state) => state.id));
+  const seen = new Set<string>();
+
+  for (const item of QA_DIRECT_STATE_RENDERERS) {
+    if (seen.has(item.stateId)) {
+      errors.push(`duplicate direct QA state renderer: ${item.stateId}`);
+    }
+    seen.add(item.stateId);
+
+    if (!knownStateIds.has(item.stateId)) {
+      errors.push(`direct QA renderer references unknown state: ${item.stateId}`);
+    }
+  }
+
+  return errors;
+}
