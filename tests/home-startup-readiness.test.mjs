@@ -323,17 +323,13 @@ test('interactive wallet and legal gates temporarily step the shield aside witho
   assert.match(shieldSource, /setShieldVisible\(true\)/);
   assert.match(shieldSource, /interactiveGateVisible/);
 
-  const checkingStart = consentSource.indexOf(
-    "if (state === 'checking')",
+  assert.match(
+    consentSource,
+    /if \(state === 'checking'\) \{\s*return <LegalConsentCheckingSurface \/>;\s*\}[\s\S]*<LegalConsentSurface/s,
   );
-  const interactiveStart = consentSource.indexOf(
-    'data-veinvite-legal-consent-gate="interactive"',
-  );
-  assert.ok(checkingStart >= 0);
-  assert.ok(interactiveStart > checkingStart);
-  assert.doesNotMatch(
-    consentSource.slice(checkingStart, interactiveStart),
-    /data-veinvite-legal-consent-gate/,
+  assert.match(
+    consentSource,
+    /function LegalConsentCheckingSurface\(\)[\s\S]*<Brand compact \/>/s,
   );
 });
 
