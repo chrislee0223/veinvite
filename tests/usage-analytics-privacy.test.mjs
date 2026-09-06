@@ -12,11 +12,14 @@ const [
   migration,
   privacyRetentionMigration,
   adminExclusionMigration,
+  longTermFoundation,
+  archiveHardening,
   tracker,
   preference,
   ingestion,
   operatorReport,
   housekeeping,
+  analyticsMaintenance,
   layout,
   bottomNav,
   privacyCopy,
@@ -31,11 +34,18 @@ const [
   read(
     'supabase/migrations/20260903164000_exclude_admin_wallets_from_usage_analytics.sql',
   ),
+  read(
+    'supabase/migrations/20260905222000_add_long_term_data_foundation.sql',
+  ),
+  read(
+    'supabase/migrations/20260905233845_harden_archive_cleanup_integrity.sql',
+  ),
   read('src/components/UsageAnalyticsTracker.tsx'),
   read('src/lib/usageAnalyticsPreference.ts'),
   read('src/app/api/analytics/session/route.ts'),
   read('src/app/api/admin/usage-analytics/route.ts'),
   read('src/lib/housekeeping/ephemeralCleanup.ts'),
+  read('src/app/api/cron/analytics-maintenance/route.ts'),
   read('src/app/layout.tsx'),
   read('src/components/AppBottomNavigation.tsx'),
   read('src/lib/i18n/privacyUsageAnalyticsCopy.ts'),
@@ -272,7 +282,7 @@ test(
 );
 
 test(
-  'raw analytics are compacted after 30 days into identifier-free rollups',
+  'raw analytics use 365-day archive-first retention and non-destructive daily maintenance',
   () => {
     assert.match(
       privacyRetentionMigration,
@@ -283,29 +293,27 @@ test(
       /create table if not exists public\.app_usage_daily_dimension_rollups/,
     );
     assert.match(
-      privacyRetentionMigration,
-      /create or replace function public\.compact_app_usage_analytics/,
-    );
-    assert.match(
       adminExclusionMigration,
       /not exists \(select 1 from public\.app_usage_excluded_visitors/,
     );
-    assert.match(
-      privacyRetentionMigration,
-      /delete from public\.app_usage_sessions/,
-    );
-    assert.match(
-      privacyRetentionMigration,
-      /delete from public\.app_usage_visitors/,
-    );
-    assert.match(
-      housekeeping,
-      /USAGE_ANALYTICS_RETENTION_DAYS = 30/,
-    );
-    assert.match(
-      housekeeping,
-      /compact_app_usage_analytics/,
-    );
+    assert.match(longTermFoundation, /hot365_archive_required_v1/);
+    assert.match(longTermFoundation, /365,/);
+    assert.match(longTermFoundation, /delete_requires_verified_archive/);
+    assert.match(longTermFoundation, /veinvite_archive_manifests/);
+    assert.match(archiveHardening, /archive manifest lifecycle must start with PREPARED/);
+    assert.match(archiveHardening, /artifactChecksumVerified/);
+    assert.match(archiveHardening, /sourceRowCountVerified/);
+    assert.match(archiveHardening, /active policy minimum/);
+    assert.match(archiveHardening, /lock table public\.app_usage_sessions in share row exclusive mode/);
+    assert.match(archiveHardening, /archive is stale or unverified/);
+    assert.doesNotMatch(housekeeping, /USAGE_ANALYTICS_RETENTION_DAYS/);
+    assert.doesNotMatch(housekeeping, /compact_app_usage_analytics/);
+    assert.doesNotMatch(housekeeping, /compact_app_product_analytics/);
+    assert.match(analyticsMaintenance, /finalize_long_term_analytics/);
+    assert.match(analyticsMaintenance, /NON_DESTRUCTIVE/);
+    assert.match(analyticsMaintenance, /rawRowsDeleted: 0/);
+    assert.doesNotMatch(analyticsMaintenance, /compact_app_usage_analytics/);
+    assert.doesNotMatch(analyticsMaintenance, /compact_app_product_analytics/);
   },
 );
 
@@ -348,7 +356,15 @@ test(
     );
     assert.match(
       operatorReport,
-      /rawSessionRetentionDays: 30/,
+      /rawSessionRetentionDays: 365/,
+    );
+    assert.match(
+      operatorReport,
+      /rawArchiveRequiredBeforeCleanup: true/,
+    );
+    assert.match(
+      operatorReport,
+      /permanentAggregateHistory: true/,
     );
     assert.match(
       operatorReport,

@@ -1,9 +1,11 @@
 export const CURRENT_TERMS_VERSION = 1;
-// Privacy v2 adds the September 3, 2026 anonymous usage-analytics disclosure.
-// Keep the privacy version independent from the Terms version so wallets that
-// accepted the earlier privacy text are asked to review the materially updated
-// document while their original consent record remains preserved.
-export const CURRENT_PRIVACY_VERSION = 2;
+// Privacy v3 (September 6, 2026) updates the anonymous analytics retention
+// disclosure: raw usage/product analytics may remain in the active database for
+// up to 365 days and older raw analytics may move to a verified protected
+// archive before active-database cleanup. Keep Privacy versioning independent
+// from Terms so previously accepted wallets are asked to review this material
+// data-retention change while their earlier consent records remain preserved.
+export const CURRENT_PRIVACY_VERSION = 3;
 
 export const LEGAL_CONSENT_INTENT =
   'ACCEPT_CURRENT_LEGAL_DOCUMENTS';
