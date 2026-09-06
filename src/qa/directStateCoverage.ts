@@ -7,6 +7,7 @@ import type { QaNotificationStateId } from './QaNotificationStateHarness';
 import type { QaSettingsStateId } from './QaSettingsStateHarness';
 import type { QaLeaderboardStateId } from './QaLeaderboardStateHarness';
 import type { QaInviteLandingStateId } from './QaInviteLandingStateHarness';
+import type { QaLegacyInviteStateId } from './QaLegacyInviteStateHarness';
 import {
   QA_KNOWN_STATES,
   type QaKnownState,
@@ -26,6 +27,10 @@ export type QaDirectStateRenderer =
   | (QaDirectStateRendererBase & {
       renderer: 'invite-landing';
       inviteLandingStateId: QaInviteLandingStateId;
+    })
+  | (QaDirectStateRendererBase & {
+      renderer: 'legacy-invite';
+      legacyInviteStateId: QaLegacyInviteStateId;
     })
   | (QaDirectStateRendererBase & {
       renderer: 'wallet-session';
@@ -73,6 +78,31 @@ export const QA_DIRECT_STATE_RENDERERS: QaDirectStateRenderer[] = [
   { stateId: 'PRI-ERROR-SELF', renderer: 'permanent-referral', permanentReferralState: 'error-self', defaultLocale: 'ko' },
   { stateId: 'PRI-ERROR-ALREADY-REFERRED', renderer: 'permanent-referral', permanentReferralState: 'error-already-referred', defaultLocale: 'ko' },
   { stateId: 'PRI-ERROR-ELIGIBILITY', renderer: 'permanent-referral', permanentReferralState: 'error-eligibility', defaultLocale: 'ko' },
+
+  { stateId: 'LEG-LANGUAGE-SETUP', renderer: 'legacy-invite', legacyInviteStateId: 'LEG-LANGUAGE-SETUP', defaultLocale: 'ko' },
+  { stateId: 'LEG-LANDING', renderer: 'legacy-invite', legacyInviteStateId: 'LEG-LANDING', defaultLocale: 'ko' },
+  { stateId: 'LEG-WALLET-REQUIRED', renderer: 'legacy-invite', legacyInviteStateId: 'LEG-WALLET-REQUIRED', defaultLocale: 'ko' },
+  { stateId: 'LEG-ELIGIBILITY-CHECKING', renderer: 'legacy-invite', legacyInviteStateId: 'LEG-ELIGIBILITY-CHECKING', defaultLocale: 'ko' },
+  { stateId: 'LEG-UNDER-REVIEW', renderer: 'legacy-invite', legacyInviteStateId: 'LEG-UNDER-REVIEW', defaultLocale: 'ko' },
+  { stateId: 'LEG-SUCCESS-NEW', renderer: 'legacy-invite', legacyInviteStateId: 'LEG-SUCCESS-NEW', defaultLocale: 'ko' },
+  { stateId: 'LEG-SUCCESS-RETURNING', renderer: 'legacy-invite', legacyInviteStateId: 'LEG-SUCCESS-RETURNING', defaultLocale: 'ko' },
+  { stateId: 'LEG-MISSION-0-3', renderer: 'legacy-invite', legacyInviteStateId: 'LEG-MISSION-0-3', defaultLocale: 'ko' },
+  { stateId: 'LEG-MISSION-1-3', renderer: 'legacy-invite', legacyInviteStateId: 'LEG-MISSION-1-3', defaultLocale: 'ko' },
+  { stateId: 'LEG-MISSION-2-3', renderer: 'legacy-invite', legacyInviteStateId: 'LEG-MISSION-2-3', defaultLocale: 'ko' },
+  { stateId: 'LEG-MISSION-3-3', renderer: 'legacy-invite', legacyInviteStateId: 'LEG-MISSION-3-3', defaultLocale: 'ko' },
+  { stateId: 'LEG-VOT3-LOCKED', renderer: 'legacy-invite', legacyInviteStateId: 'LEG-VOT3-LOCKED', defaultLocale: 'ko' },
+  { stateId: 'LEG-VOT3-READY', renderer: 'legacy-invite', legacyInviteStateId: 'LEG-VOT3-READY', defaultLocale: 'ko' },
+  { stateId: 'LEG-VOT3-DONE', renderer: 'legacy-invite', legacyInviteStateId: 'LEG-VOT3-DONE', defaultLocale: 'ko' },
+  { stateId: 'LEG-VOTE-LOCKED', renderer: 'legacy-invite', legacyInviteStateId: 'LEG-VOTE-LOCKED', defaultLocale: 'ko' },
+  { stateId: 'LEG-VOTE-READY', renderer: 'legacy-invite', legacyInviteStateId: 'LEG-VOTE-READY', defaultLocale: 'ko' },
+  { stateId: 'LEG-ALL-MISSIONS-DONE', renderer: 'legacy-invite', legacyInviteStateId: 'LEG-ALL-MISSIONS-DONE', defaultLocale: 'ko' },
+  { stateId: 'LEG-COMPLETED-INCOMPLETE', renderer: 'legacy-invite', legacyInviteStateId: 'LEG-COMPLETED-INCOMPLETE', defaultLocale: 'ko' },
+  { stateId: 'LEG-ERROR-INVALID', renderer: 'legacy-invite', legacyInviteStateId: 'LEG-ERROR-INVALID', defaultLocale: 'ko' },
+  { stateId: 'LEG-ERROR-USED', renderer: 'legacy-invite', legacyInviteStateId: 'LEG-ERROR-USED', defaultLocale: 'ko' },
+  { stateId: 'LEG-ERROR-EXISTING', renderer: 'legacy-invite', legacyInviteStateId: 'LEG-ERROR-EXISTING', defaultLocale: 'ko' },
+  { stateId: 'LEG-ERROR-SELF', renderer: 'legacy-invite', legacyInviteStateId: 'LEG-ERROR-SELF', defaultLocale: 'ko' },
+  { stateId: 'LEG-ERROR-ALREADY-REFERRED', renderer: 'legacy-invite', legacyInviteStateId: 'LEG-ERROR-ALREADY-REFERRED', defaultLocale: 'ko' },
+  { stateId: 'LEG-ERROR-ELIGIBILITY', renderer: 'legacy-invite', legacyInviteStateId: 'LEG-ERROR-ELIGIBILITY', defaultLocale: 'ko' },
 
   { stateId: 'SESSION-IDLE-BRAND', renderer: 'wallet-session', walletSessionState: 'idle-brand', defaultLocale: 'ko' },
   { stateId: 'SESSION-CHECKING-DELAY', renderer: 'wallet-session', walletSessionState: 'checking-delay', defaultLocale: 'ko' },
