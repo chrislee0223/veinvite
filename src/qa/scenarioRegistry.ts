@@ -37,6 +37,11 @@ export const QA_SCENARIOS: QaScenario[] = [
       state: '지갑 연결 전 · 정상 진입',
       outcome: '시작하기 또는 기존 지갑 경로로 이동',
     },
+    guide: {
+      task: '아래 앱 화면에서 시작하기 버튼을 한 번 눌러보고, 글자나 버튼이 잘리거나 이상하게 움직이지 않는지 보세요.',
+      done: '시작하기 버튼이 정상 반응하고 모바일 화면이 깨지지 않으면 됩니다.',
+      requireAction: true,
+    },
     group: '초대',
     screen: 'invite-landing',
     risk: 'critical',
@@ -64,6 +69,11 @@ export const QA_SCENARIOS: QaScenario[] = [
       state: '지갑 연결 전 · 영문/데스크톱',
       outcome: '영문 상태로 다음 온보딩 분기로 이동',
     },
+    guide: {
+      task: '영문 문구가 자연스럽게 보이는지 확인하고 Start 버튼을 한 번 눌러보세요.',
+      done: '영문 문구가 잘리지 않고 PC 화면이 과하게 늘어나지 않으면 됩니다.',
+      requireAction: true,
+    },
     group: '초대',
     screen: 'invite-landing',
     risk: 'high',
@@ -89,6 +99,10 @@ export const QA_SCENARIOS: QaScenario[] = [
       trigger: '이미 검증 또는 화면 전환이 진행 중',
       state: '버튼 잠김 · 중복 클릭 방지',
       outcome: '현재 처리 완료 전 추가 동작을 막음',
+    },
+    guide: {
+      task: '시작하기와 기존 지갑 버튼이 눌리지 않는 상태인지, 잠긴 상태에서도 화면이 흔들리지 않는지 보세요.',
+      done: '두 버튼이 잠겨 있고 레이아웃이 그대로 유지되면 됩니다.',
     },
     group: '초대',
     screen: 'invite-landing',
@@ -116,6 +130,11 @@ export const QA_SCENARIOS: QaScenario[] = [
       trigger: '자격 판정이 수동 검토 분기로 들어감',
       state: '검토 필요 결과 시뮬레이션',
       outcome: '검토 결과별 화면 변화를 비교',
+    },
+    guide: {
+      task: '검토 결과 선택을 한 번 바꿔보고 화면과 기록이 바로 바뀌는지 확인하세요.',
+      done: '선택한 결과가 즉시 반영되고 화면이 깨지지 않으면 됩니다.',
+      requireAction: true,
     },
     group: '초대',
     screen: 'invite-landing',
@@ -151,6 +170,10 @@ export const QA_SCENARIOS: QaScenario[] = [
       state: '미션 진행·완료·보상 상태 모음',
       outcome: '현재 진행률과 다음 행동 또는 보상 상태 확인',
     },
+    guide: {
+      task: '미션 진행, 완료, 보상 상태 카드들을 천천히 훑어보고 글자나 버튼이 겹치거나 잘리는 곳이 없는지 보세요.',
+      done: '각 상태가 서로 구분되고 모바일 폭에서 깨지는 부분이 없으면 됩니다.',
+    },
     group: '미션·보상',
     screen: 'mission-preview',
     risk: 'critical',
@@ -175,6 +198,10 @@ export const QA_SCENARIOS: QaScenario[] = [
       trigger: '미션 또는 보상 관련 알림을 열어봄',
       state: '새 알림·읽은 알림·빈 상태 비교',
       outcome: '새 소식과 과거 이력을 명확히 구분',
+    },
+    guide: {
+      task: '새 알림과 이미 읽은 알림이 눈으로 바로 구분되는지, 빈 상태도 어색하지 않은지 보세요.',
+      done: '읽음/미확인 차이가 분명하고 목록이나 빈 화면이 깨지지 않으면 됩니다.',
     },
     group: '알림',
     screen: 'notification-preview',
@@ -201,6 +228,10 @@ export const QA_SCENARIOS: QaScenario[] = [
       state: '참여 불가 · 거절 사유 안내',
       outcome: '이유를 이해하고 잘못된 미션 진입을 막음',
     },
+    guide: {
+      task: '사용자가 왜 참여할 수 없는지 한눈에 이해되는지, 다음 행동 안내가 헷갈리지 않는지 보세요.',
+      done: '거절 이유와 다음 행동이 명확하고 화면이 깨지지 않으면 됩니다.',
+    },
     group: '자격 확인',
     screen: 'eligibility-preview',
     risk: 'critical',
@@ -226,6 +257,10 @@ export const QA_SCENARIOS: QaScenario[] = [
       state: '2-slot/연결 관계 캔버스 프리뷰',
       outcome: '누가 누구를 통해 연결됐는지 구조를 파악',
     },
+    guide: {
+      task: '추천 노드와 연결선이 잘리지 않고 관계를 따라가기 쉬운지 전체 화면을 훑어보세요.',
+      done: '노드와 연결 관계가 겹치지 않고 구조를 이해하기 쉬우면 됩니다.',
+    },
     group: '추천 네트워크',
     screen: 'network-preview',
     risk: 'normal',
@@ -250,6 +285,10 @@ export const QA_SCENARIOS: QaScenario[] = [
       trigger: '특정 단일 시나리오보다 전체 UI를 둘러봄',
       state: '홈·가이드·리더보드·설정·참여자 화면 모음',
       outcome: '아직 독립 시나리오로 분리되지 않은 화면까지 확인',
+    },
+    guide: {
+      task: '기존 앱 상태 모음에서 홈, 리더보드, 설정 같은 주요 화면을 빠르게 둘러보고 눈에 띄는 깨짐이 없는지 보세요.',
+      done: '주요 화면을 열 수 있고 기존 프리뷰 기능이 사라지지 않았으면 됩니다.',
     },
     group: '전체 앱',
     screen: 'legacy-ui-hub',
@@ -287,6 +326,8 @@ export function validateQaScenarioRegistry(): string[] {
     if (!scenario.context.trigger.trim()) errors.push(`missing case trigger: ${scenario.id}`);
     if (!scenario.context.state.trim()) errors.push(`missing case state: ${scenario.id}`);
     if (!scenario.context.outcome.trim()) errors.push(`missing case outcome: ${scenario.id}`);
+    if (!scenario.guide.task.trim()) errors.push(`missing guided task: ${scenario.id}`);
+    if (!scenario.guide.done.trim()) errors.push(`missing guided success cue: ${scenario.id}`);
     if (!scenario.expected.length) errors.push(`missing expected results: ${scenario.id}`);
     if (!scenario.title.trim()) errors.push(`missing title: ${scenario.id}`);
     if (!scenario.group.trim()) errors.push(`missing group: ${scenario.id}`);

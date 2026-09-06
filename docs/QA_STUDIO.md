@@ -8,13 +8,13 @@ It is not a second copy of the app. Real VeInvite components should be reused wh
 
 The operator goal is simple:
 
-> After an app change, QA Studio should tell us what to inspect, let us reproduce it safely, record the result accurately, and eventually block releases when important coverage is missing.
+> After an app change, QA Studio should make it obvious what to check, let us reproduce it safely, record the result accurately, and eventually help block releases when important coverage is missing.
 
 ## Non-negotiable rules
 
 1. Reuse real application components. Do not fork Production UI into QA-only copies.
 2. Keep scenarios in the typed registry under `src/qa/scenarioRegistry.ts`.
-3. Every scenario defines an expected-result contract.
+3. Every scenario defines an expected-result contract and a short operator task.
 4. The public VeInvite Production host must never expose QA Studio.
 5. The dedicated QA project must remain protected by Vercel Authentication / Deployment Protection.
 6. Isolated QA renderers must not issue Production writes, wallet mutations, reward actions, or live database mutations.
@@ -39,38 +39,59 @@ Current QA Preview safeguards include:
 
 The exact-host guard remains in code as a fail-closed safeguard for any future fixed QA Production-host model, but the current operator path is the protected Preview alias.
 
-## Current operator UI
+## Default operator experience: guided review
 
-`/qa` now defaults to an operator-friendly test center rather than a developer console.
+`/qa` now defaults to a simple guided review instead of exposing every QA control at once.
 
-The default view provides:
+The intended default flow is:
 
-- **핵심 점검 / 모든 상황** browsing modes
-- **경우의 수** product-area filters with visible counts
-- search by case ID, actor, trigger, current state, outcome, and registered scenario content
-- a human-readable **현재 경우의 수** card before the preview
-- a four-step explanation: **누구 → 어떤 때 → 현재 상황 → 이후 흐름**
-- short stable case IDs such as `INV-01`, `MR-01`, and `ELG-01`
-- scenario groups using human-readable product areas
+1. **점검 시작 / 이어서 점검**
+2. Read **지금 확인할 상황**
+3. Follow one **지금 할 일** instruction
+4. Use the real/safe app preview
+5. Compare with **이러면 정상**
+6. Choose one result:
+   - **이상 없음 · 다음**
+   - **문제 있음**
+   - **잘 모르겠어요**
+   - **나중에 확인**
+7. Continue automatically to the next core situation
+
+The operator should not need to understand QA architecture, scenario IDs, filters, or environment details before starting the first check.
+
+Guided progress is build-scoped and stored locally so a refresh can resume the same review. Deferred items are remembered separately and can be revisited at the end.
+
+For cases that require a real click or interaction, QA Studio warns before accepting **이상 없음** when no preview action was recorded. The warning is intentionally soft: the operator can still override it when appropriate.
+
+The guided result bar stays visible near the bottom while reviewing long screens so the operator does not need to hunt for the result controls.
+
+## Explore mode
+
+All of the more powerful QA controls still exist under **전체 상황 보기**.
+
+Explore mode retains:
+
+- **핵심 점검 / 모든 상황** browsing
+- product-area filtering
+- search by case ID, actor, trigger, current state, outcome, task, and tags
+- stable case IDs such as `INV-01`, `MR-01`, and `ELG-01`
 - exact viewport presets including width and height
-- locale controls only when the scenario actually supports external locale override
+- locale controls only when the scenario supports external locale override
 - exact review identity by **scenario + viewport + locale**
 - `정상 / 문제 있음 / 확인 불가`
 - `미확인으로 되돌리기`
-- lightweight issue category and note capture
+- issue category and short note capture
 - build-scoped local review persistence
 - reproducible URLs for scenario + viewport + locale
 - explicit preview loading / slow / retry state
-- true app-screen focus mode
-- optional advanced inspector instead of developer details by default
+- app-screen focus mode
+- optional advanced inspector
 
-A manual `정상` result means only that the operator inspected that exact configuration. It must not be presented as an automated test result.
+Explore mode is for targeted investigation. Guided mode is the default for normal operator review.
 
 ## Human case model
 
-The operator should not need to infer a scenario from a technical title alone.
-
-Every registered scenario therefore carries a compact case description:
+Every registered scenario carries a compact case description:
 
 - `caseId`: short stable operator reference
 - `actor`: who is in this situation
@@ -78,15 +99,21 @@ Every registered scenario therefore carries a compact case description:
 - `state`: what state the user is currently in
 - `outcome`: what the user should be able to do or understand next
 
-This metadata is shown directly in the QA UI and is also searchable. The left scenario rail intentionally shows the case ID and current state before the detailed title so an operator can quickly distinguish similar cases.
+Each scenario also carries guided review metadata:
 
-The case model describes **what situation is being reproduced**. It does not replace the expected-result contract, which describes **what must be correct on that screen**.
+- `guide.task`: one plain-language instruction describing what the operator should do now
+- `guide.done`: one plain-language success cue describing what normal looks like
+- `guide.requireAction`: optional flag for cases where an actual preview interaction should be recorded before passing
+
+This metadata is typed and registry validation rejects missing guided instructions.
+
+The case model describes **what situation is being reproduced**. The guide explains **what the operator should do**. The expected-result contract remains the detailed technical/product truth for deeper inspection and future automation.
 
 ## `/qa/render`
 
 Each scenario is rendered through an isolated iframe route. Width and height are both controlled by the viewport preset so responsive CSS sees a real iframe viewport instead of a desktop component merely squeezed into a narrow container.
 
-The renderer currently intercepts real InviteLanding callbacks and emits QA action events instead of performing wallet/network mutations.
+The renderer intercepts real InviteLanding callbacks and emits QA action events instead of performing wallet/network mutations.
 
 The renderer also exposes existing safe preview components directly for:
 
@@ -106,23 +133,24 @@ Each scenario contains:
 - stable human case ID
 - human title and description
 - case context (`actor`, `trigger`, `state`, `outcome`)
+- guided task and success cue
 - product group
 - real screen / preview target
 - risk level
-- `core` flag for release-oriented smoke coverage
+- `core` flag for release-oriented guided coverage
 - default locale and viewport
 - whether the outer QA locale control is valid for that screen
 - configurable state
 - expected results
 - supported action contracts
 
-Case IDs must be unique. Registry validation should fail when a case is missing its operator context so future scenarios cannot silently become opaque technical entries again.
+Case IDs must be unique. Registry validation should fail when a case is missing operator context or guided instructions.
 
-Do not infer “coverage” only from raw scenario count. Coverage quality depends on whether important product states are directly reproducible and whether the scenario is current.
+Do not infer coverage only from raw scenario count. Coverage quality depends on whether important product states are directly reproducible and whether the scenario is current.
 
 ## Feature coverage map
 
-`src/qa/featureCoverageMap.ts` is the first machine-readable impact map.
+`src/qa/featureCoverageMap.ts` is the machine-readable impact-map foundation.
 
 It links:
 
@@ -131,13 +159,13 @@ It links:
 - scenario IDs
 - current coverage level (`direct` or `legacy`)
 
-This map is deliberately separate from the scenario registry. The registry answers **what can be reproduced**; the coverage map answers **which source changes may affect which QA surfaces**.
+The registry answers **what can be reproduced**. The coverage map answers **which source changes may affect which QA surfaces**.
 
-The next automation step should use Git changed files plus this map to produce a real **이번 업데이트 확인** list. Until that automation exists, the UI must not pretend that recently affected screens were selected automatically.
+Automatic **이번 업데이트 확인** selection is still a future step. Until that automation exists, the UI must not pretend that recently affected screens were selected automatically.
 
 ## Review identity and trust
 
-QA review state is intentionally configuration-specific.
+Manual review state remains configuration-specific.
 
 For example:
 
@@ -146,9 +174,9 @@ For example:
 
 are different reviews.
 
-This prevents a mobile Korean pass from incorrectly making the desktop English configuration appear verified.
+Guided session progress is a separate convenience layer that answers “which core situations did the operator walk through in this build?” It must not erase or weaken the exact configuration-specific review record.
 
-Review status currently represents **manual operator evidence** only. Future automation must display automated evidence separately, for example:
+A manual pass must never be presented as automated evidence. Future automation should show its evidence separately, for example:
 
 - 직접 확인
 - 자동 브라우저 통과
@@ -172,7 +200,7 @@ Add the smallest useful risk-based state pack, normally including some combinati
 - relevant localization risk
 - refresh / recovery behavior
 
-Every new scenario must also explain the case in operator language: who is affected, what triggered it, the current state, and the intended next outcome.
+Every new scenario must explain who is affected, what triggered it, the current state, the intended next outcome, one operator task, and one success cue.
 
 Avoid a full Cartesian product of every locale, viewport, and state. Important combinations should be explicit; broad stress combinations belong in automated jobs later.
 
@@ -195,105 +223,33 @@ Priority scenario packs:
 
 ### 2. Journey and recovery
 
-Add deterministic operator journeys such as:
+Add deterministic journeys such as:
 
 `invite → wallet → eligibility → mission → reward`
 
-Then add:
-
-- refresh at every important step
-- background / resume
-- external dApp return
-- session expiry
-- wallet switch
-- offline → online recovery
-- duplicate click / concurrent tab behavior
+Then add refresh, background/resume, external dApp return, session expiry, wallet switch, offline recovery, duplicate click, and concurrent-tab behavior.
 
 ### 3. Environment controls
 
-Add safe controls for:
-
-- persona presets (new / returning / existing / partial mission / paid)
-- fake wallet state
-- network delay / timeout / malformed response
-- time travel / round boundaries
-- reduced motion
-- long-translation stress
-- cache / chain / DB mismatch simulations
+Add safe controls for persona presets, fake wallet state, network delay/timeout/malformed responses, time travel/round boundaries, reduced motion, long-translation stress, and cache/chain/DB mismatch simulations.
 
 These controls must never weaken Production isolation.
 
 ### 4. Changed-screen selection
 
-Use `featureCoverageMap.ts` plus Git diff information to derive:
-
-- affected product surfaces
-- linked scenarios
-- uncovered changed surfaces
-- release review checklist
+Use `featureCoverageMap.ts` plus Git diff information to derive affected product surfaces, linked scenarios, uncovered changed surfaces, and a release review checklist.
 
 Start as an informational warning/report. Convert it into a hard coverage gate only after mapping is broad enough to avoid noisy false failures.
 
 ### 5. Browser automation
 
-Add Playwright (or an equivalent real browser runner) and consume the same registry for:
-
-- golden journeys
-- interaction assertions
-- browser / viewport matrix
-- accessibility checks
-- console/runtime error capture
-- screenshot baselines and visual regression
-- performance budgets
-- reduced-motion checks
-- failure artifacts
-
-Visual baseline updates must be reviewable and explicit.
+Add Playwright or an equivalent real browser runner and consume the same registry for golden journeys, interaction assertions, browser/viewport matrix, accessibility checks, console/runtime error capture, screenshot baselines, visual regression, reduced-motion checks, and failure artifacts.
 
 ### 6. Bug package and release rehearsal
 
-A future `문제 있음` flow should be able to package:
+A future `문제 있음` flow should package case ID, context, viewport, locale, build SHA, simulated environment state, action history, expected result, operator note, reproducible URL, and browser evidence when available.
 
-- scenario ID and human case ID
-- actor / trigger / state / outcome context
-- viewport and locale
-- build SHA
-- simulated environment state
-- action history
-- expected result
-- operator category / note
-- reproducible URL
-- screenshot / browser evidence when automation exists
-
-Release rehearsal should then build a guided checklist from changed surfaces + core journeys and report:
-
-- checked
-- pass
-- issue
-- unable to verify
-- automation status
-- missing coverage
-
-## Longer-term quality ideas
-
-Useful later layers include:
-
-- State Map / dead-end detection
-- Race Condition Lab
-- Refresh / Recovery Lab
-- Old User Simulator
-- API Contract Guard
-- Analytics Inspector (show intended events without sending Production analytics)
-- Deep Link Lab
-- real browser/device matrix
-- Animation Lab
-- accessibility stress presets
-- Chaos Mode in Preview only
-- QA history by commit / PR
-- performance regression budgets
-- stale-scenario warnings
-- direct-vs-legacy coverage score
-- Production-vs-Preview comparison when it can be done safely
+Release rehearsal should summarize checked, pass, issue, unable-to-verify, deferred, automation status, and missing coverage.
 
 ## Coverage principle
 

@@ -30,12 +30,19 @@ export type QaScenarioContext = {
   outcome: string;
 };
 
+export type QaScenarioGuide = {
+  task: string;
+  done: string;
+  requireAction?: boolean;
+};
+
 export type QaScenario = {
   id: string;
   caseId: string;
   title: string;
   description: string;
   context: QaScenarioContext;
+  guide: QaScenarioGuide;
   group: string;
   screen: QaScreenId;
   risk: QaScenarioRisk;
