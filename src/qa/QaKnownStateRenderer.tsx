@@ -6,6 +6,7 @@ import { LegalConsentGate } from '@/components/LegalConsentGate';
 import { isLocale, type SupportedLocale } from '@/lib/i18n/locales';
 import { getQaDirectStateRenderer } from './directStateCoverage';
 import { QaInviteLandingStateHarness } from './QaInviteLandingStateHarness';
+import { QaLegacyInviteStateHarness } from './QaLegacyInviteStateHarness';
 import { QaHomeStateHarness } from './QaHomeStateHarness';
 import { QaHomeFeedbackHarness } from './QaHomeFeedbackHarness';
 import { QaNotificationStateHarness } from './QaNotificationStateHarness';
@@ -68,6 +69,15 @@ export function QaKnownStateRenderer({
     return (
       <QaInviteLandingStateHarness
         stateId={renderer.inviteLandingStateId}
+        locale={locale}
+      />
+    );
+  }
+
+  if (renderer.renderer === 'legacy-invite') {
+    return (
+      <QaLegacyInviteStateHarness
+        stateId={renderer.legacyInviteStateId}
         locale={locale}
       />
     );
