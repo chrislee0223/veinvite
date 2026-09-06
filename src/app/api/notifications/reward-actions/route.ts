@@ -27,6 +27,9 @@ type InvitationRow = {
   inviter_wallet: string;
   status: string;
   reward_status: string | null;
+  reward_eligible_at: string | null;
+  sybil_status: string | null;
+  sybil_checked_at: string | null;
 };
 
 function noStoreJson(body: unknown, init?: ResponseInit) {
@@ -111,7 +114,7 @@ export async function GET(request: NextRequest) {
     const invitationResult = await supabaseAdmin
       .from('invitations')
       .select(
-        'invite_code, invitee_wallet, inviter_wallet, status, reward_status',
+        'invite_code, invitee_wallet, inviter_wallet, status, reward_status, reward_eligible_at, sybil_status, sybil_checked_at',
       )
       .eq('inviter_wallet', walletAddress)
       .in('invite_code', inviteCodes);
@@ -138,6 +141,10 @@ export async function GET(request: NextRequest) {
         invitation.inviter_wallet.toLowerCase() !== walletAddress ||
         invitation.status !== 'COMPLETED' ||
         invitation.reward_status !== 'ELIGIBLE' ||
+        invitation.reward_eligible_at === null ||
+        invitation.sybil_status !== 'CLEAR' ||
+        invitation.sybil_checked_at === null ||
+        queue.eligible_at !== invitation.reward_eligible_at ||
         !amount ||
         !queue.reserved_at ||
         !isRewardActionQueueStatus(queue.status)
