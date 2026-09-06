@@ -13,9 +13,9 @@ import type { InviteRecord, InviteStatus } from '@/lib/types';
 export type QaLegacyInviteStateId =
   | 'LEG-LANGUAGE-SETUP'
   | 'LEG-LANDING'
-  | 'LEG-WALLET'
+  | 'LEG-WALLET-REQUIRED'
   | 'LEG-ELIGIBILITY-CHECKING'
-  | 'LEG-REVIEW'
+  | 'LEG-UNDER-REVIEW'
   | 'LEG-SUCCESS-NEW'
   | 'LEG-SUCCESS-RETURNING'
   | 'LEG-MISSION-0-3'
@@ -131,7 +131,7 @@ function fixtureForState(stateId: QaLegacyInviteStateId): LegacyFixture {
       return { ...base, savedLanguage: false };
     case 'LEG-LANDING':
       return base;
-    case 'LEG-WALLET':
+    case 'LEG-WALLET-REQUIRED':
       return { ...base, autoAction: 'open-wallet' };
     case 'LEG-ELIGIBILITY-CHECKING':
       return {
@@ -140,7 +140,7 @@ function fixtureForState(stateId: QaLegacyInviteStateId): LegacyFixture {
         autoAction: 'claim',
         claimMode: 'pending',
       };
-    case 'LEG-REVIEW':
+    case 'LEG-UNDER-REVIEW':
       return {
         ...base,
         wallet: QA_INVITEE,
