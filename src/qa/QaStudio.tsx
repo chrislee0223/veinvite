@@ -379,6 +379,24 @@ export function QaStudio() {
     if (preferred) selectScenario(preferred.id);
   };
 
+  const enterGuidedMode = () => {
+    setMode('guided');
+    setEnvironmentOpen(false);
+    setAdvancedOpen(false);
+    if (!guided.started || guidedFinished) return;
+
+    const preferred =
+      (guided.lastScenarioId &&
+        coreScenarios.find(
+          (item) =>
+            item.id === guided.lastScenarioId &&
+            !guidedCompleted.includes(item.id) &&
+            !guidedDeferred.includes(item.id),
+        )) ||
+      findNextGuided(guidedCompleted, guidedDeferred);
+    if (preferred) selectScenario(preferred.id);
+  };
+
   const advanceGuided = (completed: string[], deferred: string[]) => {
     const next = findNextGuided(completed, deferred, scenario.id);
     const nextSession: GuidedSession = {
@@ -455,13 +473,13 @@ export function QaStudio() {
 
   const copyCurrentLink = async () => {
     const url = new URL(window.location.href);
-    url.searchParams.set('mode', mode);
+    url.searchParams.set('mode', 'explore');
     url.searchParams.set('scenario', scenario.id);
     url.searchParams.set('viewport', viewportId);
     url.searchParams.set('locale', locale);
     try {
       await navigator.clipboard.writeText(url.toString());
-      setShareStatus('현재 설정 링크를 복사했어요.');
+      setShareStatus('현재 설정을 바로 재현하는 링크를 복사했어요.');
     } catch {
       setShareStatus('주소창의 현재 URL을 복사하면 같은 설정으로 다시 열 수 있어요.');
     }
@@ -586,7 +604,7 @@ export function QaStudio() {
           {mode === 'guided' ? (
             <button type="button" onClick={() => setMode('explore')}>전체 상황 보기</button>
           ) : (
-            <button type="button" className="primaryButton" onClick={() => setMode('guided')}>따라서 점검하기</button>
+            <button type="button" className="primaryButton" onClick={enterGuidedMode}>따라서 점검하기</button>
           )}
         </div>
       </header>
