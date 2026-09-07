@@ -45,9 +45,36 @@ test('batch acknowledgement keeps the browser away from the database RPC', () =>
   );
 });
 
-test('the API still validates current notification state before the atomic batch', () => {
+test('the API validates current state but accepts a retry that was already monotonically acknowledged', () => {
   assert.match(route, /acknowledgementMatchesCurrent\(requested, current\)/);
+  assert.match(route, /acknowledgementAlreadySatisfied\(requested, readState\)/);
+  assert.match(route, /state\.highestStage >= requested\.stage/);
+  assert.match(
+    route,
+    /state\.dappProgressAcknowledged >= requested\.dappProgress/,
+  );
+  assert.match(route, /state\.rewardReadyAcknowledgedAt !== null/);
+  assert.match(route, /rpcItemForAcknowledgement\(requested\)/);
   assert.match(route, /p_inviter_wallet: wallet/);
   assert.match(route, /p_items: items/);
   assert.match(route, /states\.length !== items\.length/);
+});
+
+test('a retry cannot regress newer notification state', () => {
+  assert.match(
+    migration,
+    /highest_stage = greatest\(public\.invite_notification_state\.highest_stage,excluded\.highest_stage\)/,
+  );
+  assert.match(
+    migration,
+    /dapp_progress_acknowledged = greatest\(public\.invite_notification_state\.dapp_progress_acknowledged,excluded\.dapp_progress_acknowledged\)/,
+  );
+  assert.match(
+    migration,
+    /coalesce\(public\.invite_notification_state\.reward_ready_acknowledged_at,now\(\)\)/,
+  );
+  assert.match(
+    route,
+    /partialDappProgress[\s\S]*\? null[\s\S]*: acknowledgement\.stage/,
+  );
 });
