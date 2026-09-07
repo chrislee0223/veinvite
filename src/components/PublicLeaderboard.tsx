@@ -36,31 +36,32 @@ export function PublicLeaderboard({
         wallet={wallet}
       />
       <style jsx global>{`
-        /* Country ranking intentionally stays a single total: NEW/RETURNING
-           remain internal analytics only and are not exposed in this view. */
-        .leaderboardHub .countryMix {
-          display:none !important;
-        }
-        .leaderboardHub .countryText {
-          display:block !important;
-        }
-        .leaderboardHub .countryRow {
+        /* Country rows use the exact same responsive five-row geometry as the
+           reviewed inviter leaderboard: 50px desktop, 46px compact mobile and
+           44px narrow mobile. */
+        .leaderboardHub .countryRow,
+        .leaderboardHub .countryPlaceholderRow {
           height:50px !important;
           min-height:50px !important;
+          max-height:50px !important;
           padding-block:0 !important;
         }
         .leaderboardHub .countryScroll,
+        .leaderboardHub .countrySkeleton,
         .leaderboardHub .countryState {
           height:250px !important;
           min-height:250px !important;
           max-height:250px !important;
         }
         @media (max-width:420px) {
-          .leaderboardHub .countryRow {
+          .leaderboardHub .countryRow,
+          .leaderboardHub .countryPlaceholderRow {
             height:46px !important;
             min-height:46px !important;
+            max-height:46px !important;
           }
           .leaderboardHub .countryScroll,
+          .leaderboardHub .countrySkeleton,
           .leaderboardHub .countryState {
             height:230px !important;
             min-height:230px !important;
@@ -68,11 +69,14 @@ export function PublicLeaderboard({
           }
         }
         @media (max-width:360px) {
-          .leaderboardHub .countryRow {
+          .leaderboardHub .countryRow,
+          .leaderboardHub .countryPlaceholderRow {
             height:44px !important;
             min-height:44px !important;
+            max-height:44px !important;
           }
           .leaderboardHub .countryScroll,
+          .leaderboardHub .countrySkeleton,
           .leaderboardHub .countryState {
             height:220px !important;
             min-height:220px !important;

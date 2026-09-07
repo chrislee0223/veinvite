@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 
 import { COUNTRY_LEADERBOARD_COPY } from '@/lib/i18n/countryLeaderboardCopy';
 import '@/lib/i18n/localePacks/registerExpandedLocales';
@@ -18,11 +18,20 @@ import type {
 import { PublicLeaderboard as InviterLeaderboard } from './InviterLeaderboard';
 
 type RankingView = 'inviter' | 'country';
-type CountryState =
-  | { status: 'idle'; data: null }
-  | { status: 'loading'; data: null }
-  | { status: 'ready'; data: PublicCountryArrivalResponse }
-  | { status: 'error'; data: null };
+type CountryState = {
+  status: 'idle' | 'loading' | 'ready' | 'error';
+  data: PublicCountryArrivalResponse | null;
+};
+
+type CountryCache = {
+  loadedAt: number;
+  data: PublicCountryArrivalResponse;
+};
+
+const COUNTRY_CACHE_TTL_MS = 60_000;
+const COUNTRY_VISIBLE_ROWS = 5;
+let countryCache: CountryCache | null = null;
+let countryInFlight: Promise<PublicCountryArrivalResponse> | null = null;
 
 function countryName(code: string, locale: SupportedLocale): string {
   try {
@@ -36,7 +45,16 @@ function countryName(code: string, locale: SupportedLocale): string {
   }
 }
 
-async function loadCountryArrivals(): Promise<PublicCountryArrivalResponse> {
+function getFreshCountryCache(): PublicCountryArrivalResponse | null {
+  if (!countryCache) return null;
+  if (Date.now() - countryCache.loadedAt > COUNTRY_CACHE_TTL_MS) {
+    countryCache = null;
+    return null;
+  }
+  return countryCache.data;
+}
+
+async function fetchCountryArrivals(): Promise<PublicCountryArrivalResponse> {
   const response = await fetch('/api/leaderboard/country', {
     cache: 'no-store',
   });
@@ -55,6 +73,33 @@ async function loadCountryArrivals(): Promise<PublicCountryArrivalResponse> {
   return result as PublicCountryArrivalResponse;
 }
 
+function loadCountryArrivals(
+  force = false,
+): Promise<PublicCountryArrivalResponse> {
+  if (!force) {
+    const cached = getFreshCountryCache();
+    if (cached) return Promise.resolve(cached);
+    if (countryInFlight) return countryInFlight;
+  }
+
+  const request = fetchCountryArrivals()
+    .then((data) => {
+      countryCache = {
+        loadedAt: Date.now(),
+        data,
+      };
+      return data;
+    })
+    .finally(() => {
+      if (countryInFlight === request) {
+        countryInFlight = null;
+      }
+    });
+
+  countryInFlight = request;
+  return request;
+}
+
 export function PublicLeaderboardHub({
   locale,
   wallet,
@@ -64,6 +109,7 @@ export function PublicLeaderboardHub({
 }) {
   const cacheKey = getPublicLeaderboardCacheKey(wallet);
   const cached = getCachedPublicLeaderboard(wallet);
+  const initialCountry = getFreshCountryCache();
   const [rankingView, setRankingView] = useState<RankingView>('inviter');
   const [leaderboardState, setLeaderboardState] = useState<{
     cacheKey: string;
@@ -74,11 +120,10 @@ export function PublicLeaderboardHub({
     data: cached,
     failed: false,
   }));
-  const [countryState, setCountryState] = useState<CountryState>({
-    status: 'idle',
-    data: null,
-  });
-  const [countryRequestVersion, setCountryRequestVersion] = useState(0);
+  const [countryState, setCountryState] = useState<CountryState>(() => ({
+    status: initialCountry ? 'ready' : 'idle',
+    data: initialCountry,
+  }));
 
   useEffect(() => {
     let active = true;
@@ -109,34 +154,49 @@ export function PublicLeaderboardHub({
     };
   }, [cacheKey, wallet]);
 
-  useEffect(() => {
-    if (rankingView !== 'country') return;
+  const refreshCountry = useCallback((force = false) => {
+    const cachedCountry = force ? null : getFreshCountryCache();
+    if (cachedCountry) {
+      setCountryState({ status: 'ready', data: cachedCountry });
+      return;
+    }
 
-    let active = true;
-    setCountryState({ status: 'loading', data: null });
-    void loadCountryArrivals()
+    setCountryState((current) => ({
+      status: 'loading',
+      data: current.data,
+    }));
+
+    void loadCountryArrivals(force)
       .then((data) => {
-        if (!active) return;
         setCountryState({ status: 'ready', data });
       })
       .catch(() => {
-        if (!active) return;
-        setCountryState({ status: 'error', data: null });
+        setCountryState((current) => ({
+          status: 'error',
+          data: current.data,
+        }));
       });
+  }, []);
 
-    return () => {
-      active = false;
-    };
-  }, [rankingView, countryRequestVersion]);
+  useEffect(() => {
+    refreshCountry(false);
+  }, [refreshCountry]);
+
+  const openCountry = useCallback(() => {
+    setRankingView('country');
+    refreshCountry(false);
+  }, [refreshCountry]);
+
+  const retryCountry = useCallback(() => {
+    refreshCountry(true);
+  }, [refreshCountry]);
 
   const data = leaderboardState.cacheKey === cacheKey
     ? leaderboardState.data
     : cached;
   const countryCopy = COUNTRY_LEADERBOARD_COPY[locale];
   const leaderboardCopy = LEADERBOARD_COPY[locale] ?? LEADERBOARD_COPY.en;
-  const countryData = countryState.status === 'ready'
-    ? countryState.data
-    : null;
+  const countryData = countryState.data;
   const countryLeaders = useMemo(
     () => countryData?.leaders ?? [],
     [countryData],
@@ -148,6 +208,9 @@ export function PublicLeaderboardHub({
   if (!data || leaderboardState.failed) {
     return <InviterLeaderboard locale={locale} wallet={wallet} />;
   }
+
+  const showCountryData = Boolean(countryData);
+  const showCountryError = countryState.status === 'error' && !countryData;
 
   return (
     <section className="leaderboardHub">
@@ -180,7 +243,7 @@ export function PublicLeaderboardHub({
             role="tab"
             aria-selected={rankingView === 'country'}
             className={rankingView === 'country' ? 'active' : ''}
-            onClick={() => setRankingView('country')}
+            onClick={openCountry}
           >
             <span aria-hidden="true">◎</span>
             <span>{countryCopy.countryTab}</span>
@@ -188,12 +251,7 @@ export function PublicLeaderboardHub({
         </div>
 
         <div className="rankingMeta" aria-live="polite">
-          {rankingView === 'inviter' ? (
-            <>
-              <span>TOP 100</span>
-              <span aria-hidden="true">&nbsp;</span>
-            </>
-          ) : countryState.status === 'ready' ? (
+          {rankingView === 'country' && showCountryData ? (
             <>
               <span>
                 {countryCopy.known} {knownCompleted.toLocaleString()} /{' '}
@@ -203,10 +261,11 @@ export function PublicLeaderboardHub({
                 {countryCopy.unknown} {unknownCompleted.toLocaleString()}
               </span>
             </>
-          ) : countryState.status === 'loading' ? (
-            <span>{leaderboardCopy.loading}</span>
           ) : (
-            <span aria-hidden="true">&nbsp;</span>
+            <>
+              <span aria-hidden="true">&nbsp;</span>
+              <span aria-hidden="true">&nbsp;</span>
+            </>
           )}
         </div>
 
@@ -226,23 +285,7 @@ export function PublicLeaderboardHub({
               <span>{countryCopy.completed}</span>
             </div>
 
-            {countryState.status === 'loading' || countryState.status === 'idle' ? (
-              <div className="countryState" role="status">
-                {leaderboardCopy.loading}
-              </div>
-            ) : countryState.status === 'error' ? (
-              <div className="countryState countryError" role="status">
-                <span>{countryCopy.unavailable}</span>
-                <button
-                  type="button"
-                  onClick={() =>
-                    setCountryRequestVersion((current) => current + 1)
-                  }
-                >
-                  {leaderboardCopy.retry}
-                </button>
-              </div>
-            ) : countryLeaders.length > 0 ? (
+            {showCountryData && countryLeaders.length > 0 ? (
               <div className="countryScroll" aria-label={countryCopy.countryTab}>
                 {countryLeaders.map((row) => (
                   <div className="countryRow" key={row.countryCode}>
@@ -251,25 +294,13 @@ export function PublicLeaderboardHub({
                       <span className="countryCode" aria-hidden="true">
                         {row.countryCode}
                       </span>
-                      <div className="countryText">
-                        <div className="countryNameLine">
-                          <strong>{countryName(row.countryCode, locale)}</strong>
-                          {row.currentRoundCompleted > 0 ? (
-                            <small className="roundGain">
-                              +{row.currentRoundCompleted.toLocaleString()} {countryCopy.thisRound}
-                            </small>
-                          ) : null}
-                        </div>
-                        <small className="countryMix">
-                          <span>
-                            {leaderboardCopy.newUsers} {row.newUsers.toLocaleString()}
-                          </span>
-                          <span aria-hidden="true">·</span>
-                          <span>
-                            {leaderboardCopy.returningUsers}{' '}
-                            {row.returningUsers.toLocaleString()}
-                          </span>
-                        </small>
+                      <div className="countryNameLine">
+                        <strong>{countryName(row.countryCode, locale)}</strong>
+                        {row.currentRoundCompleted > 0 ? (
+                          <small className="roundGain">
+                            +{row.currentRoundCompleted.toLocaleString()} {countryCopy.thisRound}
+                          </small>
+                        ) : null}
                       </div>
                     </div>
                     <strong className="countryTotal">
@@ -278,9 +309,26 @@ export function PublicLeaderboardHub({
                   </div>
                 ))}
               </div>
-            ) : (
+            ) : showCountryData ? (
               <div className="countryState" role="status">
                 {countryCopy.empty}
+              </div>
+            ) : showCountryError ? (
+              <div className="countryState countryError" role="status">
+                <span>{countryCopy.unavailable}</span>
+                <button type="button" onClick={retryCountry}>
+                  {leaderboardCopy.retry}
+                </button>
+              </div>
+            ) : (
+              <div className="countrySkeleton" aria-hidden="true">
+                {Array.from({ length: COUNTRY_VISIBLE_ROWS }, (_, index) => (
+                  <div className="countryPlaceholderRow" key={index}>
+                    <strong>—</strong>
+                    <span>—</span>
+                    <strong>—</strong>
+                  </div>
+                ))}
               </div>
             )}
           </div>
@@ -309,9 +357,6 @@ export function PublicLeaderboardHub({
           border:0 !important;
           border-radius:0 !important;
           background:transparent !important;
-        }
-        .inviterInside .rankScroll {
-          max-height:250px !important;
         }
         .inviterInside .leaderboardInlineError {
           display:none !important;
@@ -389,7 +434,8 @@ export function PublicLeaderboardHub({
           white-space:nowrap;
         }
         .countryHeader,
-        .countryRow {
+        .countryRow,
+        .countryPlaceholderRow {
           width:100%;
           display:grid;
           grid-template-columns:48px minmax(0,1fr) 72px;
@@ -411,7 +457,9 @@ export function PublicLeaderboardHub({
           text-align:center;
         }
         .countryScroll,
+        .countrySkeleton,
         .countryState {
+          height:250px;
           min-height:250px;
           max-height:250px;
         }
@@ -430,11 +478,19 @@ export function PublicLeaderboardHub({
           border-radius:999px;
           background:rgba(244,183,40,.45);
         }
-        .countryRow {
-          min-height:58px;
-          padding:5px 10px;
+        .countryRow,
+        .countryPlaceholderRow {
+          height:50px;
+          min-height:50px;
+          max-height:50px;
+          padding:0 10px;
           border-bottom:1px solid rgba(255,255,255,.055);
           color:#e9e5dc;
+        }
+        .countryPlaceholderRow {
+          color:#68645d;
+          font-size:.72rem;
+          text-align:center;
         }
         .countryRank {
           text-align:center;
@@ -462,11 +518,6 @@ export function PublicLeaderboardHub({
           font-weight:900;
           letter-spacing:.02em;
         }
-        .countryText {
-          min-width:0;
-          display:grid;
-          gap:3px;
-        }
         .countryNameLine {
           min-width:0;
           display:flex;
@@ -486,22 +537,6 @@ export function PublicLeaderboardHub({
           color:#a48b45;
           font-size:.49rem;
           font-weight:900;
-          white-space:nowrap;
-        }
-        .countryMix {
-          min-width:0;
-          display:flex;
-          align-items:center;
-          gap:5px;
-          color:#777269;
-          font-size:.49rem;
-          font-weight:800;
-          line-height:1.3;
-        }
-        .countryMix span:not([aria-hidden]) {
-          min-width:0;
-          overflow:hidden;
-          text-overflow:ellipsis;
           white-space:nowrap;
         }
         .countryTotal {
@@ -537,12 +572,10 @@ export function PublicLeaderboardHub({
         }
         @media (max-width:430px) {
           .countryHeader,
-          .countryRow {
+          .countryRow,
+          .countryPlaceholderRow {
             grid-template-columns:40px minmax(0,1fr) 62px;
             column-gap:7px;
-          }
-          .countryHeader,
-          .countryRow {
             padding-right:7px;
             padding-left:7px;
           }
@@ -552,8 +585,7 @@ export function PublicLeaderboardHub({
           .countryNameLine {
             gap:4px;
           }
-          .roundGain,
-          .countryMix {
+          .roundGain {
             font-size:.46rem;
           }
         }
@@ -563,10 +595,6 @@ export function PublicLeaderboardHub({
           }
           .roundGain {
             display:none;
-          }
-          .countryMix {
-            gap:3px;
-            font-size:.43rem;
           }
         }
       `}</style>
