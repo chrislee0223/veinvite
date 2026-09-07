@@ -25,6 +25,10 @@ const countryHub = fs.readFileSync(
   'src/components/PublicLeaderboardHub.tsx',
   'utf8',
 );
+const leaderboardEntry = fs.readFileSync(
+  'src/components/PublicLeaderboard.tsx',
+  'utf8',
+);
 
 test('operator health distinguishes immutable raw referral gaps from unresolved quality backlog', () => {
   assert.match(migration, /qualified_referral_relationships/);
@@ -96,7 +100,7 @@ test('country leaderboard uses the first point where every required mission is s
   );
 });
 
-test('country ranking counts only verified NEW and RETURNING relationships', () => {
+test('country ranking counts only verified NEW and RETURNING relationships internally', () => {
   assert.match(countryLeaderboardV2, /qualified_referral_relationships/i);
   assert.match(
     countryLeaderboardV2,
@@ -122,11 +126,30 @@ test('public country API exposes only aggregate country counts', () => {
   );
 });
 
-test('country UI keeps inviter ranking intact and shows new/returning split lazily', () => {
+test('country UI is cumulative-only, hides NEW/RETURNING split, and matches inviter viewport height', () => {
   assert.match(countryHub, /type RankingView = 'inviter' \| 'country'/);
   assert.match(countryHub, /fetch\('\/api\/leaderboard\/country'/);
   assert.match(countryHub, /rankingView !== 'country'/);
-  assert.match(countryHub, /leaderboardCopy\.newUsers/);
-  assert.match(countryHub, /leaderboardCopy\.returningUsers/);
   assert.match(countryHub, /InviterLeaderboard/);
+
+  assert.match(
+    leaderboardEntry,
+    /\.leaderboardHub \.countryMix \{[\s\S]*display:none !important;/,
+  );
+  assert.match(
+    leaderboardEntry,
+    /\.leaderboardHub \.countryRow \{[\s\S]*height:50px !important;[\s\S]*min-height:50px !important;/,
+  );
+  assert.match(
+    leaderboardEntry,
+    /\.leaderboardHub \.countryScroll,[\s\S]*height:250px !important;/,
+  );
+  assert.match(
+    leaderboardEntry,
+    /@media \(max-width:420px\)[\s\S]*height:46px !important;[\s\S]*height:230px !important;/,
+  );
+  assert.match(
+    leaderboardEntry,
+    /@media \(max-width:360px\)[\s\S]*height:44px !important;[\s\S]*height:220px !important;/,
+  );
 });
