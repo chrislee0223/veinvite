@@ -57,7 +57,12 @@ test('runtime health cannot be mistaken for completed archive-storage readiness'
   assert.match(analyticsMaintenanceRoute, /restoreVerified: false/);
   assert.match(analyticsMaintenanceRoute, /destructiveCleanupEnabled: false/);
   assert.match(analyticsMaintenanceRoute, /longTermReady: false/);
-  assert.match(analyticsMaintenanceRoute, /mode: 'NON_DESTRUCTIVE'/);
+  assert.match(analyticsMaintenanceRoute, /mode: 'MIXED_MAINTENANCE'/);
+  assert.match(analyticsMaintenanceRoute, /analyticsMode: 'NON_DESTRUCTIVE'/);
+  assert.match(
+    analyticsMaintenanceRoute,
+    /securityClientRetentionMode: 'TIME_BOUNDED_DELETION'/,
+  );
   assert.match(analyticsMaintenanceRoute, /rawRowsDeleted: 0/);
   assert.doesNotMatch(
     analyticsMaintenanceRoute,
