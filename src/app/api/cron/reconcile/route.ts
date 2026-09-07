@@ -40,6 +40,10 @@ import {
   type SybilBehaviorObservationSummary,
 } from '@/lib/sybil/behaviorObservation';
 import {
+  runB3trRecipientObservationBatch,
+  type B3trRecipientObservationBatchSummary,
+} from '@/lib/sybil/recipientB3trObservationBatch';
+import {
   runSybilObservationBatch,
   type SybilObservationBatchSummary,
 } from '@/lib/sybil/observationBatch';
@@ -91,6 +95,7 @@ type CronStageFailure =
   | 'SYBIL_OBSERVATION'
   | 'SYBIL_BEHAVIOR_OBSERVATION'
   | 'AUTOMATIC_REWARD_PAYOUT'
+  | 'B3TR_RECIPIENT_OBSERVATION'
   | 'ROUND_GROWTH_REPORTING'
   | 'LEADERBOARD_SNAPSHOTS'
   | 'HOUSEKEEPING'
@@ -119,7 +124,10 @@ function logStageFailure(
  * recovery trigger for the dedicated automatic Reward Distributor. When the
  * explicit SYBIL_OBSERVATION_ENABLED gate is true it also captures immutable,
  * observation-only on-chain funding evidence and reads derived behavior
- * fingerprints from invite_impact_events. Those observations are deliberately
+ * fingerprints from invite_impact_events. When the independent
+ * SYBIL_B3TR_OBSERVATION_ENABLED gate is true it additionally records one
+ * append-only B3TR recipient-flow observation after each finalized payout has
+ * aged for approximately 24 hours. Those observations are deliberately
  * separate from invitations.sybil_status and cannot change reward authority.
  * Automatic reward execution is itself fail-closed and remains disabled unless
  * its explicit server gate, matching signer address, on-chain distributor
@@ -166,6 +174,8 @@ export async function GET(
     SybilBehaviorObservationSummary | null = null;
   let automaticRewardPayout:
     AutomaticRewardPayoutResult | null = null;
+  let b3trRecipientObservation:
+    B3trRecipientObservationBatchSummary | null = null;
   let roundGrowthReports: Awaited<
     ReturnType<typeof maintainRoundGrowthSnapshots>
   > | null = null;
@@ -244,6 +254,21 @@ export async function GET(
     );
     logStageFailure(
       'AUTOMATIC_REWARD_PAYOUT',
+      error,
+    );
+  }
+
+  // Recipient-flow forensics are intentionally after payout recovery. They are
+  // observation-only and must never delay or gate reward execution.
+  try {
+    b3trRecipientObservation =
+      await runB3trRecipientObservationBatch();
+  } catch (error) {
+    failedStages.push(
+      'B3TR_RECIPIENT_OBSERVATION',
+    );
+    logStageFailure(
+      'B3TR_RECIPIENT_OBSERVATION',
       error,
     );
   }
@@ -357,6 +382,7 @@ export async function GET(
       sybilObservation,
       sybilBehaviorObservation,
       automaticRewardPayout,
+      b3trRecipientObservation,
       roundGrowthReports,
       leaderboardSnapshots,
       housekeeping,
