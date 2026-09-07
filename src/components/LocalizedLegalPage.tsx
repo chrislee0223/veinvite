@@ -10,6 +10,7 @@ import {
   LEGAL_COPY,
   type LegalDocumentKind,
 } from '@/lib/i18n/legalCopy';
+import { PRIVACY_COUNTRY_OBSERVATION_COPY } from '@/lib/i18n/privacyCountryObservationCopy';
 import { PRIVACY_PRODUCT_ANALYTICS_COPY } from '@/lib/i18n/privacyProductAnalyticsCopy';
 import { PRIVACY_SECURITY_CLIENT_COPY } from '@/lib/i18n/privacySecurityClientCopy';
 import { PRIVACY_USAGE_ANALYTICS_COPY } from '@/lib/i18n/privacyUsageAnalyticsCopy';
@@ -97,6 +98,8 @@ export function LocalizedLegalPage({
     kind === 'privacy' ? PRIVACY_WALLET_LANGUAGE_COPY[locale] : null;
   const securityClientCopy =
     kind === 'privacy' ? PRIVACY_SECURITY_CLIENT_COPY[locale] : null;
+  const countryObservationCopy =
+    kind === 'privacy' ? PRIVACY_COUNTRY_OBSERVATION_COPY[locale] : null;
   const backLabel = LEGAL_BACK_LABEL[locale];
   const backArrow = getLocaleDirection(locale) === 'rtl' ? '→' : '←';
 
@@ -115,7 +118,7 @@ export function LocalizedLegalPage({
       <header className="legalHeader">
         <span>{copy.eyebrow}</span>
         <h1>{copy.title}</h1>
-        <p>{securityClientCopy?.updated ?? productAnalyticsCopy?.updated ?? walletLanguageCopy?.updated ?? usageAnalyticsCopy?.updated ?? copy.updated}</p>
+        <p>{countryObservationCopy?.updated ?? securityClientCopy?.updated ?? productAnalyticsCopy?.updated ?? walletLanguageCopy?.updated ?? usageAnalyticsCopy?.updated ?? copy.updated}</p>
       </header>
 
       <p className="legalIntro">{copy.intro}</p>
@@ -149,6 +152,12 @@ export function LocalizedLegalPage({
           <section key="wallet-language-privacy">
             <h2>{walletLanguageCopy.heading}</h2>
             <p>{walletLanguageCopy.body}</p>
+          </section>
+        ) : null}
+        {countryObservationCopy ? (
+          <section key="country-observation-privacy">
+            <h2>{countryObservationCopy.heading}</h2>
+            <p>{countryObservationCopy.body}</p>
           </section>
         ) : null}
       </div>
