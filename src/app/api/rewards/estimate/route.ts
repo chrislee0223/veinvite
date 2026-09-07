@@ -23,7 +23,7 @@ import { getVeBetterNetworkConfig } from '@/lib/vebetter/network';
 
 export const dynamic = 'force-dynamic';
 
-const CACHE_CONTROL = 'public, s-maxage=60, stale-while-revalidate=30';
+const CACHE_CONTROL = 'public, s-maxage=300, stale-while-revalidate=3600';
 const FORECAST_REFRESH_WINDOW_SECONDS = 60 * 60;
 
 type EstimateReason =
