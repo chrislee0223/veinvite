@@ -5,15 +5,21 @@ import test from 'node:test';
 const read = (path) =>
   readFile(new URL(`../${path}`, import.meta.url), 'utf8');
 
-const [migration, maintenanceRoute, privacyCopy, legalPage] =
-  await Promise.all([
-    read(
-      'supabase/migrations/20260907083122_add_security_client_retention_v1.sql',
-    ),
-    read('src/app/api/cron/analytics-maintenance/route.ts'),
-    read('src/lib/i18n/privacySecurityClientCopy.ts'),
-    read('src/components/LocalizedLegalPage.tsx'),
-  ]);
+const [
+  migration,
+  maintenanceRoute,
+  privacyCopy,
+  legalPage,
+  legalSheet,
+] = await Promise.all([
+  read(
+    'supabase/migrations/20260907083122_add_security_client_retention_v1.sql',
+  ),
+  read('src/app/api/cron/analytics-maintenance/route.ts'),
+  read('src/lib/i18n/privacySecurityClientCopy.ts'),
+  read('src/components/LocalizedLegalPage.tsx'),
+  read('src/components/LegalDocumentSheet.tsx'),
+]);
 
 test('Security Client technical relationships use a 365-day retention policy', () => {
   assert.match(
@@ -97,25 +103,32 @@ test('daily maintenance invokes Security Client cleanup with the reviewed fixed 
     maintenanceRoute,
     /p_batch_limit:\s*1000/,
   );
+  assert.match(
+    maintenanceRoute,
+    /mode:\s*'NON_DESTRUCTIVE'/,
+  );
 });
 
-test('privacy disclosure states the Security Client limits and is rendered on the privacy page', () => {
+test('privacy disclosure states the Security Client limits on both legal surfaces', () => {
   assert.match(privacyCopy, /365 days/);
   assert.match(privacyCopy, /365일/);
   assert.match(privacyCopy, /shared Security Client is only a review signal/i);
   assert.match(privacyCopy, /IP addresses/);
   assert.match(privacyCopy, /IMEI/);
   assert.match(privacyCopy, /browser-fingerprint components/);
-  assert.match(
-    legalPage,
-    /PRIVACY_SECURITY_CLIENT_COPY/,
-  );
-  assert.match(
-    legalPage,
-    /security-client-privacy/,
-  );
-  assert.match(
-    legalPage,
-    /securityClientCopy\?\.updated/,
-  );
+
+  for (const surface of [legalPage, legalSheet]) {
+    assert.match(
+      surface,
+      /PRIVACY_SECURITY_CLIENT_COPY/,
+    );
+    assert.match(
+      surface,
+      /security-client-privacy/,
+    );
+    assert.match(
+      surface,
+      /securityClientCopy\?\.updated/,
+    );
+  }
 });
