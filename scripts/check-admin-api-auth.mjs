@@ -3,16 +3,39 @@ import path from 'node:path';
 
 const ADMIN_ROOT = path.join('src', 'app', 'api', 'admin');
 
-// This endpoint intentionally exposes only public VeBetterDAO on-chain app
-// configuration. Keep the exception exact and fail closed if its shape drifts.
-const PUBLIC_ADMIN_ROUTES = new Map([
+// Exact, reviewed exceptions only. New routes never inherit an exception by
+// naming convention; they must be reviewed and classified explicitly.
+const PUBLIC_ADMIN_ROUTES = new Set([
+  'src/app/api/admin/funding-config/route.ts',
+]);
+
+const SECRET_ADMIN_ROUTES = new Map([
   [
-    'src/app/api/admin/funding-config/route.ts',
-    'public read-only VeBetterDAO funding configuration',
+    'src/app/api/admin/reconcile/route.ts',
+    'VEINVITE_RECONCILE_SECRET',
   ],
 ]);
 
+const PREVIEW_SECRET_ADMIN_ROUTES = new Map([
+  [
+    'src/app/api/admin/rewards/dry-run/route.ts',
+    'VEINVITE_REWARD_DRY_RUN_SECRET',
+  ],
+]);
+
+const PREVIEW_SELF_TEST_ROUTES = new Set([
+  'src/app/api/admin/rewards/emergency-pause-self-test/route.ts',
+  'src/app/api/admin/rewards/manifest-self-test/route.ts',
+  'src/app/api/admin/rewards/pool-self-test/route.ts',
+  'src/app/api/admin/rewards/self-test/route.ts',
+  'src/app/api/admin/rewards/tx-verification-self-test/route.ts',
+  'src/app/api/admin/sybil/self-test/route.ts',
+  'src/app/api/admin/sybil/vepassport-self-test/route.ts',
+]);
+
 const MUTATION_EXPORT = /export\s+async\s+function\s+(POST|PUT|PATCH|DELETE)\s*\(/u;
+const GET_EXPORT = /export\s+async\s+function\s+GET\s*\(/u;
+const PRODUCTION_GATE = /process\.env\.VERCEL_ENV\s*===\s*['"]production['"]/u;
 
 async function walkRoutes(directory) {
   const entries = await readdir(directory, { withFileTypes: true });
@@ -35,74 +58,68 @@ async function walkRoutes(directory) {
 }
 
 function assert(condition, message) {
-  if (!condition) {
-    throw new Error(message);
-  }
+  if (!condition) throw new Error(message);
 }
 
 function verifyPublicException(routePath, source) {
-  assert(
-    /export\s+async\s+function\s+GET\s*\(/u.test(source),
-    `${routePath}: public exception must remain GET-only.`,
-  );
-  assert(
-    !MUTATION_EXPORT.test(source),
-    `${routePath}: public exception must never expose a mutation method.`,
-  );
-  assert(
-    source.includes('enforceRateLimits'),
-    `${routePath}: public exception must remain rate-limited.`,
-  );
-  assert(
-    source.includes('getClientIpSubject'),
-    `${routePath}: public exception must retain an IP-scoped rate-limit subject.`,
-  );
-  assert(
-    !source.includes('supabaseAdmin'),
-    `${routePath}: public exception must not gain service-role database access.`,
-  );
-  assert(
-    !source.includes('requireWalletSession'),
-    `${routePath}: public exception changed authentication shape; review the allowlist instead of silently drifting.`,
-  );
+  assert(GET_EXPORT.test(source), `${routePath}: public exception must remain GET-only.`);
+  assert(!MUTATION_EXPORT.test(source), `${routePath}: public exception must never expose a mutation method.`);
+  assert(source.includes('enforceRateLimits'), `${routePath}: public exception must remain rate-limited.`);
+  assert(source.includes('getClientIpSubject'), `${routePath}: public exception must retain an IP-scoped rate-limit subject.`);
+  assert(!source.includes('supabaseAdmin'), `${routePath}: public exception must not gain service-role database access.`);
+  assert(!source.includes('requireWalletSession'), `${routePath}: public exception changed authentication shape; review the classification.`);
 }
 
-function verifyProtectedRoute(routePath, source) {
-  assert(
-    source.includes('requireWalletSession'),
-    `${routePath}: admin route must verify a wallet session.`,
-  );
-  assert(
-    source.includes('readVeInviteRewardPoolStatus'),
-    `${routePath}: admin route must read the authoritative VeInvite reward-pool operator configuration.`,
-  );
-  assert(
-    source.includes('canOperateVeInviteRewards'),
-    `${routePath}: admin route must verify that the authenticated wallet is an authorized VeInvite operator.`,
-  );
+function verifySecretRoute(routePath, source, secretName) {
+  assert(MUTATION_EXPORT.test(source), `${routePath}: secret-protected operator route must remain an explicit mutation surface.`);
+  assert(source.includes(`process.env.${secretName}`), `${routePath}: configured secret ${secretName} must remain authoritative.`);
+  assert(source.includes("request.headers.get('x-veinvite-admin-secret')"), `${routePath}: operator secret must come from the reviewed admin header.`);
+  assert(source.includes('timingSafeEqual'), `${routePath}: operator secret comparison must remain timing-safe.`);
+  assert(/status:\s*401/u.test(source), `${routePath}: invalid secret must remain unauthorized.`);
+}
 
-  const sessionCall = source.indexOf('requireWalletSession');
-  const operatorCheck = source.indexOf('canOperateVeInviteRewards');
-  assert(
-    sessionCall >= 0 && operatorCheck >= 0,
-    `${routePath}: admin authentication markers are incomplete.`,
-  );
+function verifyPreviewSecretRoute(routePath, source, secretName) {
+  verifySecretRoute(routePath, source, secretName);
+  assert(PRODUCTION_GATE.test(source), `${routePath}: preview operator tool must remain disabled in Production.`);
+  assert(/status:\s*403/u.test(source), `${routePath}: Production must fail closed before preview-only work.`);
+}
+
+function verifyPreviewSelfTest(routePath, source) {
+  assert(GET_EXPORT.test(source), `${routePath}: self-test must remain GET-only.`);
+  assert(!MUTATION_EXPORT.test(source), `${routePath}: self-test must never expose a mutation method.`);
+  assert(PRODUCTION_GATE.test(source), `${routePath}: self-test must remain disabled in Production.`);
+  assert(/status:\s*403/u.test(source), `${routePath}: Production self-test access must fail closed.`);
+  assert(!source.includes('supabaseAdmin'), `${routePath}: self-test must not gain direct service-role database access.`);
+}
+
+function verifyWalletOperatorRoute(routePath, source) {
+  assert(source.includes('requireWalletSession'), `${routePath}: admin route must verify a wallet session.`);
+  assert(source.includes('readVeInviteRewardPoolStatus'), `${routePath}: admin route must read the authoritative VeInvite operator configuration.`);
+  assert(source.includes('canOperateVeInviteRewards'), `${routePath}: admin route must verify the authenticated wallet is an authorized VeInvite operator.`);
 }
 
 const routes = (await walkRoutes(ADMIN_ROOT)).sort();
-
 assert(routes.length > 0, 'No admin API routes were discovered; fail closed.');
 
-for (const allowlistedPath of PUBLIC_ADMIN_ROUTES.keys()) {
-  assert(
-    routes.includes(allowlistedPath),
-    `Public admin-route allowlist entry no longer exists: ${allowlistedPath}`,
-  );
+const reviewedSpecialRoutes = new Set([
+  ...PUBLIC_ADMIN_ROUTES,
+  ...SECRET_ADMIN_ROUTES.keys(),
+  ...PREVIEW_SECRET_ADMIN_ROUTES.keys(),
+  ...PREVIEW_SELF_TEST_ROUTES,
+]);
+
+for (const reviewedPath of reviewedSpecialRoutes) {
+  assert(routes.includes(reviewedPath), `Reviewed admin-route classification no longer exists: ${reviewedPath}`);
 }
 
 const failures = [];
-let protectedCount = 0;
-let publicCount = 0;
+const counts = {
+  walletOperator: 0,
+  secret: 0,
+  previewSecret: 0,
+  previewSelfTest: 0,
+  publicReadOnly: 0,
+};
 
 for (const routePath of routes) {
   const source = await readFile(routePath, 'utf8');
@@ -110,10 +127,19 @@ for (const routePath of routes) {
   try {
     if (PUBLIC_ADMIN_ROUTES.has(routePath)) {
       verifyPublicException(routePath, source);
-      publicCount += 1;
+      counts.publicReadOnly += 1;
+    } else if (SECRET_ADMIN_ROUTES.has(routePath)) {
+      verifySecretRoute(routePath, source, SECRET_ADMIN_ROUTES.get(routePath));
+      counts.secret += 1;
+    } else if (PREVIEW_SECRET_ADMIN_ROUTES.has(routePath)) {
+      verifyPreviewSecretRoute(routePath, source, PREVIEW_SECRET_ADMIN_ROUTES.get(routePath));
+      counts.previewSecret += 1;
+    } else if (PREVIEW_SELF_TEST_ROUTES.has(routePath)) {
+      verifyPreviewSelfTest(routePath, source);
+      counts.previewSelfTest += 1;
     } else {
-      verifyProtectedRoute(routePath, source);
-      protectedCount += 1;
+      verifyWalletOperatorRoute(routePath, source);
+      counts.walletOperator += 1;
     }
   } catch (error) {
     failures.push(error instanceof Error ? error.message : String(error));
@@ -122,12 +148,13 @@ for (const routePath of routes) {
 
 if (failures.length > 0) {
   console.error('Admin API authentication gate failed:');
-  for (const failure of failures) {
-    console.error(`- ${failure}`);
-  }
+  for (const failure of failures) console.error(`- ${failure}`);
   process.exit(1);
 }
 
 console.log(
-  `Admin API authentication gate passed: ${protectedCount} protected route(s), ${publicCount} reviewed public exception(s).`,
+  `Admin API authentication gate passed: ${routes.length} route(s) reviewed ` +
+  `(${counts.walletOperator} wallet/operator, ${counts.secret} secret, ` +
+  `${counts.previewSecret} preview+secret, ${counts.previewSelfTest} preview self-test, ` +
+  `${counts.publicReadOnly} public read-only).`,
 );
