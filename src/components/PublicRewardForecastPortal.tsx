@@ -26,9 +26,7 @@ const PREVIEW_FORECAST: RewardForecastResponse = {
   estimatedRewardWei: '147740500000000000000',
 };
 
-// Keep the public number fresh enough to reflect a newly funded/re-balanced
-// rewards pool without turning the page into high-frequency chain polling.
-const CLIENT_FORECAST_REFRESH_MS = 60_000;
+const CLIENT_FORECAST_CACHE_MS = 15 * 60_000;
 let cachedForecast: RewardForecastResponse | null = null;
 let cachedForecastAt = 0;
 let inFlightForecast: Promise<RewardForecastResponse> | null = null;
@@ -52,19 +50,25 @@ function formatRewardWei(value: string): string {
   return `${groupedWhole}.${fraction}`;
 }
 
-function requestForecast(): Promise<RewardForecastResponse> {
+function requestForecast(force = false): Promise<RewardForecastResponse> {
   if (
+    !force &&
     cachedForecast &&
-    Date.now() - cachedForecastAt < CLIENT_FORECAST_REFRESH_MS
+    Date.now() - cachedForecastAt < CLIENT_FORECAST_CACHE_MS
   ) {
     return Promise.resolve(cachedForecast);
   }
 
   if (inFlightForecast) return inFlightForecast;
 
-  inFlightForecast = fetch('/api/rewards/estimate', {
-    cache: 'no-store',
-  })
+  const endpoint = force
+    ? `/api/rewards/estimate?refresh=${Date.now()}`
+    : '/api/rewards/estimate';
+
+  inFlightForecast = fetch(
+    endpoint,
+    force ? { cache: 'no-store' } : undefined,
+  )
     .then(async (response) => {
       if (!response.ok) {
         throw new Error('Reward forecast request failed.');
@@ -89,8 +93,8 @@ export function PublicRewardForecastWarmup() {
 
     let active = true;
 
-    const loadForecast = () => {
-      void requestForecast().catch(() => {
+    const loadForecast = (force = false) => {
+      void requestForecast(force).catch(() => {
         if (!active) return;
       });
     };
@@ -98,15 +102,19 @@ export function PublicRewardForecastWarmup() {
     loadForecast();
     const intervalId = window.setInterval(
       loadForecast,
-      CLIENT_FORECAST_REFRESH_MS,
+      15 * 60_000,
     );
     const refreshWhenVisible = () => {
-      if (document.visibilityState === 'visible') loadForecast();
+      if (document.visibilityState === 'visible') loadForecast(true);
+    };
+    const refreshWhenFocused = () => {
+      loadForecast(true);
     };
     document.addEventListener(
       'visibilitychange',
       refreshWhenVisible,
     );
+    window.addEventListener('focus', refreshWhenFocused);
 
     return () => {
       active = false;
@@ -115,6 +123,7 @@ export function PublicRewardForecastWarmup() {
         'visibilitychange',
         refreshWhenVisible,
       );
+      window.removeEventListener('focus', refreshWhenFocused);
     };
   }, []);
 
