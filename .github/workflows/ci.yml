@@ -41,6 +41,11 @@ jobs:
       - name: Migration history gate
         run: node scripts/check-migration-history.mjs
 
+      - name: Disaster recovery gate
+        run: |
+          bash -n scripts/backup-production-db.sh scripts/restore-db-drill.sh
+          node scripts/check-disaster-recovery.mjs
+
       - name: UI stability gate
         run: node scripts/check-ui-stability.mjs
 
