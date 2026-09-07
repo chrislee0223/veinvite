@@ -32,3 +32,4 @@ jobs:
           node --test
           tests/security-client-identity-gate.test.mjs
           tests/security-client-retention-gate.test.mjs
+          tests/security-client-retention-created-basis.test.mjs
