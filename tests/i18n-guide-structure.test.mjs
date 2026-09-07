@@ -14,7 +14,7 @@ const [
 ] = await Promise.all([
   readFile('src/lib/i18n/locales.ts', 'utf8'),
   readFile('src/components/AppGuide.tsx', 'utf8'),
-  readFile('src/components/PublicLeaderboard.tsx', 'utf8'),
+  readFile('src/components/InviterLeaderboard.tsx', 'utf8'),
   readFile('src/lib/i18n/leaderboardCopy.ts', 'utf8'),
   readFile('src/components/AppProviders.tsx', 'utf8'),
   readFile('src/lib/i18n/guideCopyFinalHardening.ts', 'utf8'),
