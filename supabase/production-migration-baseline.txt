@@ -1,0 +1,3 @@
+# Latest migration version observed as applied to the Production Supabase database.
+# Advance this only after verifying Supabase migration history in Production.
+20260907055020
