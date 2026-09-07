@@ -8,6 +8,9 @@ import {
   getClientIpSubject,
 } from '@/lib/rateLimitServer';
 import {
+  recoverCommittedLegacyInviteClaim,
+} from '@/lib/referrals/legacyClaimRecovery';
+import {
   normalizeAddress,
 } from '@/lib/serverStore';
 import { supabaseAdmin } from '@/lib/supabaseServer';
@@ -224,8 +227,6 @@ async function recordRejectedEntryCheck({
   );
 
   if (error) {
-    // The RPC owns both the immutable rejection evidence and the invitation
-    // terminal transition. Any database error rolls the whole operation back.
     console.error(
       'Failed to atomically persist rejected VeBetter entry check:',
       error,
@@ -280,6 +281,57 @@ function claimConflictResponse(
   }
 }
 
+async function recoverClaimResponse(
+  inviteCode: string,
+  walletAddress: string,
+) {
+  try {
+    const recovered =
+      await recoverCommittedLegacyInviteClaim({
+        inviteCode,
+        walletAddress,
+      });
+
+    if (!recovered) {
+      return null;
+    }
+
+    return NextResponse.json(
+      {
+        outcome: 'eligible',
+        entryClass: recovered.entryClass,
+        invite: recovered.invite,
+      },
+      {
+        status: 200,
+        headers: {
+          'Cache-Control': 'no-store',
+        },
+      },
+    );
+  } catch (recoveryError) {
+    console.error(
+      'Failed to verify previously committed legacy invite claim:',
+      recoveryError,
+    );
+
+    return NextResponse.json(
+      {
+        outcome: 'server_error',
+        error:
+          'The previous invitation claim could not be verified. Please try again.',
+      },
+      {
+        status: 503,
+        headers: {
+          'Cache-Control': 'no-store',
+          'Retry-After': '10',
+        },
+      },
+    );
+  }
+}
+
 export async function POST(
   request: NextRequest,
   context: {
@@ -327,17 +379,6 @@ export async function POST(
           'Invite link is invalid or cancelled.',
       },
       { status: 404 },
-    );
-  }
-
-  if (invitation.invitee_wallet) {
-    return NextResponse.json(
-      {
-        outcome: 'already_used',
-        error:
-          'This invite link has already been used.',
-      },
-      { status: 409 },
     );
   }
 
@@ -450,14 +491,24 @@ export async function POST(
     return rateLimitResponse;
   }
 
+  if (invitation.invitee_wallet) {
+    const recovered = await recoverClaimResponse(
+      normalizedCode,
+      inviteeAddress,
+    );
+
+    return (
+      recovered ??
+      claimConflictResponse('ALREADY_USED')
+    );
+  }
+
   if (
     inviteeAddress ===
     normalizeAddress(
       invitation.inviter_wallet,
     )
   ) {
-    // Friendly rejection only: no ban, no penalty, and the invite is not
-    // consumed.
     return NextResponse.json(
       {
         outcome: 'self_referral',
@@ -466,8 +517,6 @@ export async function POST(
     );
   }
 
-  // Cheap local duplicate check before the chain scan. The atomic RPC repeats
-  // this check under the invitation lock to close the race window.
   const {
     data: existingRows,
     error: existingError,
@@ -523,8 +572,6 @@ export async function POST(
       eligibilityError,
     );
 
-    // Fail closed. Chain/indexing/round-clock failures must never silently
-    // classify a recently active VeBetter wallet as NEW or RETURNING.
     return NextResponse.json(
       {
         outcome:
@@ -636,6 +683,17 @@ export async function POST(
 
   const claimResult =
     claimData as ClaimRpcResult | null;
+
+  if (claimResult?.result === 'ALREADY_USED') {
+    const recovered = await recoverClaimResponse(
+      normalizedCode,
+      inviteeAddress,
+    );
+
+    if (recovered) {
+      return recovered;
+    }
+  }
 
   if (
     !claimResult ||
