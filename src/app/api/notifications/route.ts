@@ -71,6 +71,7 @@ type NotificationAcknowledgementRpcItem = {
 type LoadedNotificationSet = {
   notifications: InviteNotificationPayloadV2[];
   inviteeWalletByCode: Map<string, string | null>;
+  readStateByCode: Map<string, InviteNotificationReadStateV2>;
 };
 
 function noStoreJson(body: unknown, init?: ResponseInit) {
@@ -178,6 +179,7 @@ async function loadUnreadNotifications(
     return {
       notifications: [],
       inviteeWalletByCode,
+      readStateByCode: new Map(),
     };
   }
 
@@ -252,6 +254,7 @@ async function loadUnreadNotifications(
   return {
     notifications: sortUnreadInviteNotificationsV2(unread),
     inviteeWalletByCode,
+    readStateByCode: stateByInvite,
   };
 }
 
@@ -346,6 +349,47 @@ function acknowledgementMatchesCurrent(
     requested.dappProgress === current.dappProgress &&
     requested.rewardReady === (current.kind === 'REWARD_READY')
   );
+}
+
+function acknowledgementAlreadySatisfied(
+  requested: NotificationAcknowledgement,
+  state: InviteNotificationReadStateV2,
+): boolean {
+  const partialDappProgress =
+    requested.dappProgress !== null &&
+    requested.dappProgress < 3;
+  const stageSatisfied =
+    partialDappProgress ||
+    state.highestStage >= requested.stage;
+  const dappProgressSatisfied =
+    requested.dappProgress === null ||
+    state.dappProgressAcknowledged >= requested.dappProgress;
+  const rewardReadySatisfied =
+    !requested.rewardReady ||
+    state.rewardReadyAcknowledgedAt !== null;
+
+  return (
+    stageSatisfied &&
+    dappProgressSatisfied &&
+    rewardReadySatisfied
+  );
+}
+
+function rpcItemForAcknowledgement(
+  acknowledgement: NotificationAcknowledgement,
+): NotificationAcknowledgementRpcItem {
+  const partialDappProgress =
+    acknowledgement.dappProgress !== null &&
+    acknowledgement.dappProgress < 3;
+
+  return {
+    inviteCode: acknowledgement.inviteCode,
+    stage: partialDappProgress
+      ? null
+      : acknowledgement.stage,
+    dappProgress: acknowledgement.dappProgress,
+    rewardReady: acknowledgement.rewardReady,
+  };
 }
 
 export async function GET(request: NextRequest) {
@@ -457,35 +501,38 @@ export async function POST(request: NextRequest) {
         notification,
       ]),
     );
+    const items: NotificationAcknowledgementRpcItem[] = [];
 
     for (const requested of acknowledgements as NotificationAcknowledgement[]) {
       const current = currentByInvite.get(requested.inviteCode);
-      if (!current || !acknowledgementMatchesCurrent(requested, current)) {
-        return noStoreJson(
-          { error: 'Notification state has changed.' },
-          { status: 409 },
+
+      if (current && acknowledgementMatchesCurrent(requested, current)) {
+        items.push(
+          rpcItemForAcknowledgement(
+            acknowledgementForNotification(current),
+          ),
         );
+        continue;
       }
+
+      const readState = loaded.readStateByCode.get(requested.inviteCode);
+      if (
+        readState &&
+        acknowledgementAlreadySatisfied(requested, readState)
+      ) {
+        // A previous identical request may have committed successfully while
+        // its HTTP response was lost. Replaying the monotonic DB acknowledgement
+        // is safe: GREATEST()/COALESCE prevent older state from hiding a newer
+        // notification, while the retry receives the same successful outcome.
+        items.push(rpcItemForAcknowledgement(requested));
+        continue;
+      }
+
+      return noStoreJson(
+        { error: 'Notification state has changed.' },
+        { status: 409 },
+      );
     }
-
-    const items = (acknowledgements as NotificationAcknowledgement[]).map(
-      (requested): NotificationAcknowledgementRpcItem => {
-        const current = currentByInvite.get(requested.inviteCode)!;
-        const effective = acknowledgementForNotification(current);
-        const stageForRpc =
-          current.kind === 'DAPP_PROGRESS' &&
-          (current.dappProgress ?? 0) < 3
-            ? null
-            : effective.stage;
-
-        return {
-          inviteCode: effective.inviteCode,
-          stage: stageForRpc,
-          dappProgress: effective.dappProgress,
-          rewardReady: effective.rewardReady,
-        };
-      },
-    );
 
     const { data, error } = await supabaseAdmin.rpc(
       'acknowledge_invite_notifications_v2_batch',
