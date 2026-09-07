@@ -105,7 +105,15 @@ test('daily maintenance invokes Security Client cleanup with the reviewed fixed 
   );
   assert.match(
     maintenanceRoute,
-    /mode:\s*'NON_DESTRUCTIVE'/,
+    /mode:\s*'MIXED_MAINTENANCE'/,
+  );
+  assert.match(
+    maintenanceRoute,
+    /analyticsMode:\s*'NON_DESTRUCTIVE'/,
+  );
+  assert.match(
+    maintenanceRoute,
+    /securityClientRetentionMode:\s*'TIME_BOUNDED_DELETION'/,
   );
 });
 
