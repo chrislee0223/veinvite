@@ -54,19 +54,24 @@ test('legacy one-time creation treats an unreleased completed slot as active', (
 });
 
 test('legacy claim safely resumes only the same authenticated wallet', () => {
-  const authIndex = legacyClaimApi.indexOf('await requireWalletSession({');
-  const retryIndex = legacyClaimApi.indexOf('const assignedInvitee =');
-  const eligibilityScanIndex = legacyClaimApi.indexOf('await checkVeBetterEntryEligibility({');
+  const postStart = legacyClaimApi.indexOf('export async function POST(');
+  const authIndex = legacyClaimApi.indexOf('await requireWalletSession({', postStart);
+  const retryCallIndex = legacyClaimApi.indexOf('const existingClaimResponse =', postStart);
+  const eligibilityScanIndex = legacyClaimApi.indexOf('await checkVeBetterEntryEligibility({', postStart);
 
-  assert.ok(authIndex >= 0, 'legacy claim must authenticate the requested wallet');
-  assert.ok(retryIndex > authIndex, 'stored claim ownership must be checked only after wallet authentication');
+  assert.ok(postStart >= 0, 'legacy claim POST handler must exist');
+  assert.ok(authIndex > postStart, 'legacy claim must authenticate the requested wallet');
   assert.ok(
-    eligibilityScanIndex > retryIndex,
+    retryCallIndex > authIndex,
+    'stored claim ownership must be checked only after wallet authentication',
+  );
+  assert.ok(
+    eligibilityScanIndex > retryCallIndex,
     'a committed same-wallet retry must be recoverable before a fresh eligibility scan',
   );
   assert.match(
     legacyClaimApi,
-    /assignedInvitee !== inviteeAddress[\s\S]*outcome: 'already_used'[\s\S]*status: 409/,
+    /async function claimRetryResponse[\s\S]*assignedInvitee !== walletAddress[\s\S]*outcome: 'already_used'[\s\S]*status: 409/,
     'a different wallet must remain unable to reuse an occupied invite',
   );
   assert.match(
@@ -76,12 +81,17 @@ test('legacy claim safely resumes only the same authenticated wallet', () => {
   );
   assert.match(
     legacyClaimApi,
-    /const retryEntryClass =[\s\S]*loadStoredEntryClassForRetry[\s\S]*outcome: 'eligible'[\s\S]*entryClass: retryEntryClass[\s\S]*status: 200/,
+    /async function claimRetryResponse[\s\S]*const retryEntryClass =[\s\S]*loadStoredEntryClassForRetry[\s\S]*outcome: 'eligible'[\s\S]*entryClass: retryEntryClass[\s\S]*status: 200/,
     'a same-wallet retry must reproduce the original successful claim contract',
   );
   assert.match(
     legacyClaimApi,
     /outcome: 'retry_state_unavailable'[\s\S]*status: 503/,
     'missing persisted eligibility evidence must fail closed instead of reclassifying the wallet',
+  );
+  assert.match(
+    legacyClaimApi,
+    /claimResult\?\.result === 'ALREADY_USED'[\s\S]*\.from\('invitations'\)[\s\S]*const retryResponse =[\s\S]*claimRetryResponse/,
+    'an atomic ALREADY_USED race must be reloaded and recovered when the same wallet won the claim',
   );
 });
