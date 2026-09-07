@@ -455,7 +455,7 @@ export function PublicLeaderboardHub({
           text-align:center;
         }
         .countryHeader span:nth-child(2) {
-          text-align:left;
+          text-align:start;
         }
         .countryScroll,
         .countrySkeleton,
@@ -515,7 +515,7 @@ export function PublicLeaderboardHub({
           align-items:center;
           justify-content:flex-start;
           gap:10px;
-          text-align:left;
+          text-align:start;
         }
         .countryNameLine {
           min-width:0;
