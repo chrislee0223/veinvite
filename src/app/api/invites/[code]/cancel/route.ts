@@ -69,6 +69,26 @@ function toInviteRecord(
   };
 }
 
+async function loadInvitationForInviter(
+  inviteCode: string,
+  inviterWallet: string,
+): Promise<{
+  invitation: InvitationRow | null;
+  error: unknown | null;
+}> {
+  const { data, error } = await supabaseAdmin
+    .from('invitations')
+    .select(invitationColumns)
+    .eq('invite_code', inviteCode)
+    .eq('inviter_wallet', inviterWallet)
+    .maybeSingle();
+
+  return {
+    invitation: toInvitationRow(data),
+    error: error ?? null,
+  };
+}
+
 export async function POST(
   request: NextRequest,
   context: {
@@ -249,6 +269,42 @@ export async function POST(
     toInvitationRow(cancelledData);
 
   if (!cancelledInvitation) {
+    // A second near-simultaneous request can observe PENDING_ACCEPTANCE before
+    // the first request commits, then lose the conditional UPDATE race. Re-read
+    // the same inviter-owned row and treat an already committed cancellation as
+    // success. If the invite was accepted or changed to any other state, keep
+    // failing closed with 409.
+    const retryState =
+      await loadInvitationForInviter(
+        normalizedCode,
+        normalizedInviter,
+      );
+
+    if (retryState.error) {
+      console.error(
+        'Failed to verify invitation cancellation retry:',
+        retryState.error,
+      );
+
+      return NextResponse.json(
+        {
+          error: 'Failed to verify invitation cancellation.',
+        },
+        { status: 500 },
+      );
+    }
+
+    if (
+      retryState.invitation?.status ===
+      'CANCELLED'
+    ) {
+      return NextResponse.json({
+        invite: toInviteRecord(
+          retryState.invitation,
+        ),
+      });
+    }
+
     return NextResponse.json(
       {
         error:
