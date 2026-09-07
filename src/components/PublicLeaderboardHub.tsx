@@ -78,6 +78,7 @@ export function PublicLeaderboardHub({
     status: 'idle',
     data: null,
   });
+  const [countryRequestVersion, setCountryRequestVersion] = useState(0);
 
   useEffect(() => {
     let active = true;
@@ -109,9 +110,7 @@ export function PublicLeaderboardHub({
   }, [cacheKey, wallet]);
 
   useEffect(() => {
-    if (rankingView !== 'country' || countryState.status !== 'idle') {
-      return;
-    }
+    if (rankingView !== 'country') return;
 
     let active = true;
     setCountryState({ status: 'loading', data: null });
@@ -128,7 +127,7 @@ export function PublicLeaderboardHub({
     return () => {
       active = false;
     };
-  }, [rankingView, countryState.status]);
+  }, [rankingView, countryRequestVersion]);
 
   const data = leaderboardState.cacheKey === cacheKey
     ? leaderboardState.data
@@ -236,7 +235,9 @@ export function PublicLeaderboardHub({
                 <span>{countryCopy.unavailable}</span>
                 <button
                   type="button"
-                  onClick={() => setCountryState({ status: 'idle', data: null })}
+                  onClick={() =>
+                    setCountryRequestVersion((current) => current + 1)
+                  }
                 >
                   {leaderboardCopy.retry}
                 </button>
