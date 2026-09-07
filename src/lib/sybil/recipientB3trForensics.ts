@@ -192,20 +192,47 @@ function validatePayoutInputs(
   }
 }
 
+function validateTargetScanToBlock(
+  targetScanToBlock: number | null | undefined,
+  payoutBlockNumber: number,
+) {
+  if (targetScanToBlock === null || targetScanToBlock === undefined) {
+    return null;
+  }
+
+  if (
+    !Number.isSafeInteger(targetScanToBlock) ||
+    targetScanToBlock < payoutBlockNumber
+  ) {
+    throw new Error(
+      'B3TR recipient forensics received an invalid target scan block.',
+    );
+  }
+
+  return targetScanToBlock;
+}
+
 export async function readRecipientB3trFlowSnapshot({
   recipientWallet,
   payoutBlockNumber,
   payoutAmountWei,
+  targetScanToBlock = null,
 }: {
   recipientWallet: string;
   payoutBlockNumber: number;
   payoutAmountWei: string;
+  targetScanToBlock?: number | null;
 }): Promise<RecipientB3trFlowSnapshot> {
   const wallet = normalizeAddress(recipientWallet);
   validatePayoutInputs(
     payoutBlockNumber,
     payoutAmountWei,
   );
+  const validatedTargetScanToBlock =
+    validateTargetScanToBlock(
+      targetScanToBlock,
+      payoutBlockNumber,
+    );
 
   const config = getVeBetterNetworkConfig();
   const thor = ThorClient.at(config.nodeUrl);
@@ -218,7 +245,13 @@ export async function readRecipientB3trFlowSnapshot({
     );
   }
 
-  const scanToBlock = bestBlock.number;
+  const scanToBlock =
+    validatedTargetScanToBlock === null
+      ? bestBlock.number
+      : Math.min(
+          bestBlock.number,
+          validatedTargetScanToBlock,
+        );
   const destinationTotals = new Map<string, bigint>();
   let firstOutbound: RecipientB3trTransferObservation | null = null;
   let totalOutboundAmountWei = 0n;
