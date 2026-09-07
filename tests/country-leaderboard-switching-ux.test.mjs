@@ -30,6 +30,17 @@ test('ranking card removes redundant metadata chrome', () => {
   assert.doesNotMatch(hub, /knownCompleted|unknownCompleted|totalCountryEligible/);
 });
 
+test('ranking tabs use a simple text-only treatment without decorative icons or active fill', () => {
+  assert.doesNotMatch(hub, /♙|◎/);
+  assert.doesNotMatch(hub, /aria-hidden="true">[^<]*<\/span>\s*<span>\{countryCopy\.(inviterTab|countryTab)\}/);
+  assert.match(hub, /\.rankingTabs button::after \{/);
+  assert.match(hub, /\.rankingTabs button\.active::after \{/);
+  assert.match(
+    hub,
+    /\.rankingTabs button\.active \{[\s\S]*background:transparent;[\s\S]*box-shadow:none;/,
+  );
+});
+
 test('country rows keep NEW and RETURNING internal-only', () => {
   assert.doesNotMatch(hub, /row\.newUsers/);
   assert.doesNotMatch(hub, /row\.returningUsers/);
