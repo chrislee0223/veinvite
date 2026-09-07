@@ -68,6 +68,10 @@ type RejectRpcResult = {
     | 'ALREADY_REFERRED';
 };
 
+type StoredEligibilityRow = {
+  entry_class: string | null;
+};
+
 const invitationColumns = `
   invite_code,
   inviter_wallet,
@@ -236,6 +240,42 @@ async function recordRejectedEntryCheck({
   return data as RejectRpcResult | null;
 }
 
+async function loadStoredEntryClassForRetry({
+  inviteCode,
+  walletAddress,
+}: {
+  inviteCode: string;
+  walletAddress: string;
+}): Promise<EntryClass | null> {
+  const { data, error } = await supabaseAdmin
+    .from('eligibility_check_events')
+    .select('entry_class')
+    .eq('invite_code', inviteCode)
+    .eq('wallet_address', walletAddress)
+    .eq('outcome', 'ELIGIBLE')
+    .order('id', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (error) {
+    console.error(
+      'Failed to load stored eligibility for claim retry:',
+      error,
+    );
+    return null;
+  }
+
+  const row = data as StoredEligibilityRow | null;
+  if (row?.entry_class === 'NEW') {
+    return 'new_user';
+  }
+  if (row?.entry_class === 'RETURNING') {
+    return 'returning_user';
+  }
+
+  return null;
+}
+
 function claimConflictResponse(
   result: ClaimRpcResult['result'] | RejectRpcResult['result'],
 ) {
@@ -330,17 +370,6 @@ export async function POST(
     );
   }
 
-  if (invitation.invitee_wallet) {
-    return NextResponse.json(
-      {
-        outcome: 'already_used',
-        error:
-          'This invite link has already been used.',
-      },
-      { status: 409 },
-    );
-  }
-
   let body: {
     inviteeAddress?: string;
   };
@@ -423,6 +452,56 @@ export async function POST(
           'Failed to validate wallet verification.',
       },
       { status: 500 },
+    );
+  }
+
+  if (invitation.invitee_wallet) {
+    const assignedInvitee =
+      normalizeAddress(invitation.invitee_wallet);
+
+    if (assignedInvitee !== inviteeAddress) {
+      return NextResponse.json(
+        {
+          outcome: 'already_used',
+          error:
+            'This invite link has already been used.',
+        },
+        { status: 409 },
+      );
+    }
+
+    // The first claim can commit successfully while its HTTP response is lost.
+    // Never rescan eligibility on that retry: the immutable eligibility event
+    // written by the atomic claim is the authoritative classification.
+    const retryEntryClass =
+      await loadStoredEntryClassForRetry({
+        inviteCode: normalizedCode,
+        walletAddress: inviteeAddress,
+      });
+
+    if (!retryEntryClass) {
+      return NextResponse.json(
+        {
+          outcome: 'retry_state_unavailable',
+          error:
+            'The completed invitation could not be safely resumed. Please reload the invite.',
+        },
+        {
+          status: 503,
+          headers: {
+            'Retry-After': '5',
+          },
+        },
+      );
+    }
+
+    return NextResponse.json(
+      {
+        outcome: 'eligible',
+        entryClass: retryEntryClass,
+        invite: toInviteRecord(invitation),
+      },
+      { status: 200 },
     );
   }
 
