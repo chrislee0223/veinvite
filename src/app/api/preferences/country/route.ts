@@ -56,6 +56,7 @@ export async function POST(
     const trustedCountry = COUNTRY_PATTERN.test(rawCountry)
       ? rawCountry
       : null;
+    const observedAt = new Date().toISOString();
 
     const { error } = await supabaseAdmin
       .from('wallet_auth_sessions')
@@ -64,6 +65,9 @@ export async function POST(
         country_source: trustedCountry
           ? 'TRUSTED_EDGE'
           : 'UNKNOWN',
+        country_observed_at: trustedCountry
+          ? observedAt
+          : null,
       })
       .eq('id', session.id)
       .eq('wallet_address', session.walletAddress);
