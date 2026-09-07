@@ -201,9 +201,6 @@ export function PublicLeaderboardHub({
     () => countryData?.leaders ?? [],
     [countryData],
   );
-  const knownCompleted = countryData?.knownCompleted ?? 0;
-  const unknownCompleted = countryData?.unknownCompleted ?? 0;
-  const totalCountryEligible = knownCompleted + unknownCompleted;
 
   if (!data || leaderboardState.failed) {
     return <InviterLeaderboard locale={locale} wallet={wallet} />;
@@ -250,25 +247,6 @@ export function PublicLeaderboardHub({
           </button>
         </div>
 
-        <div className="rankingMeta" aria-live="polite">
-          {rankingView === 'country' && showCountryData ? (
-            <>
-              <span>
-                {countryCopy.known} {knownCompleted.toLocaleString()} /{' '}
-                {totalCountryEligible.toLocaleString()}
-              </span>
-              <span>
-                {countryCopy.unknown} {unknownCompleted.toLocaleString()}
-              </span>
-            </>
-          ) : (
-            <>
-              <span aria-hidden="true">&nbsp;</span>
-              <span aria-hidden="true">&nbsp;</span>
-            </>
-          )}
-        </div>
-
         {rankingView === 'inviter' ? (
           <div className="inviterInside">
             <InviterLeaderboard
@@ -282,7 +260,7 @@ export function PublicLeaderboardHub({
             <div className="countryHeader" aria-hidden="true">
               <span>{leaderboardCopy.rank}</span>
               <span>{countryCopy.countryTab}</span>
-              <span>{countryCopy.completed}</span>
+              <span>{countryCopy.count}</span>
             </div>
 
             {showCountryData && countryLeaders.length > 0 ? (
@@ -380,6 +358,7 @@ export function PublicLeaderboardHub({
         .rankingTabs {
           display:grid;
           grid-template-columns:1fr 1fr;
+          margin-bottom:8px;
           border-bottom:1px solid rgba(255,205,80,.09);
         }
         .rankingTabs button {
@@ -414,24 +393,6 @@ export function PublicLeaderboardHub({
         .countryError button:focus-visible {
           outline:1px solid rgba(255,205,80,.55);
           outline-offset:2px;
-        }
-        .rankingMeta {
-          min-height:28px;
-          padding:0 10px;
-          display:flex;
-          align-items:center;
-          justify-content:space-between;
-          gap:10px;
-          color:#777269;
-          font-size:.58rem;
-          font-weight:850;
-          font-variant-numeric:tabular-nums;
-        }
-        .rankingMeta span {
-          min-width:0;
-          overflow:hidden;
-          text-overflow:ellipsis;
-          white-space:nowrap;
         }
         .countryHeader,
         .countryRow,
