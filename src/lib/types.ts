@@ -89,6 +89,24 @@ export type PublicCountryLeaderboard = {
   leaders: PublicCountryLeaderboardEntry[];
 };
 
+export type PublicCountryArrivalEntry = {
+  rank: number;
+  countryCode: string;
+  completedReferrals: number;
+  newUsers: number;
+  returningUsers: number;
+  currentRoundCompleted: number;
+};
+
+export type PublicCountryArrivalResponse = {
+  generatedAt: string;
+  network: 'mainnet' | 'testnet' | 'testnet-staging';
+  currentRoundId: number;
+  knownCompleted: number;
+  unknownCompleted: number;
+  leaders: PublicCountryArrivalEntry[];
+};
+
 export type PublicLeaderboardResponse = {
   generatedAt: string;
   network: 'mainnet' | 'testnet' | 'testnet-staging';
