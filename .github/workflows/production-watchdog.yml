@@ -1,0 +1,72 @@
+name: Production Watchdog
+
+on:
+  schedule:
+    - cron: '17 */6 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: veinvite-production-watchdog
+  cancel-in-progress: false
+
+jobs:
+  health:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Check VeInvite Production health and cron freshness
+        env:
+          VEINVITE_HEALTH_URL: https://veinvite.vercel.app/api/health
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          response="$(
+            curl \
+              --fail \
+              --silent \
+              --show-error \
+              --location \
+              --max-time 20 \
+              --retry 2 \
+              --retry-delay 2 \
+              --retry-all-errors \
+              "$VEINVITE_HEALTH_URL"
+          )"
+
+          HEALTH_JSON="$response" node <<'NODE'
+          const health = JSON.parse(process.env.HEALTH_JSON ?? '{}');
+          const failures = [];
+
+          if (health.ok !== true) {
+            failures.push('public health is not OK');
+          }
+          if (health.database !== 'ready') {
+            failures.push('database is not ready');
+          }
+          if (health.network !== 'mainnet') {
+            failures.push('Production health is not on mainnet');
+          }
+          if (health.deployment?.environment !== 'production') {
+            failures.push('health endpoint is not serving Production');
+          }
+          if (health.operations?.reconcileFresh !== true) {
+            failures.push('daily reconciliation heartbeat is stale');
+          }
+          if (health.operations?.analyticsFresh !== true) {
+            failures.push('daily analytics heartbeat is stale');
+          }
+
+          if (failures.length > 0) {
+            console.error(`VeInvite Production watchdog failed: ${failures.join('; ')}`);
+            process.exit(1);
+          }
+
+          console.log(
+            `VeInvite Production watchdog passed (${health.deployment?.gitCommitShortSha ?? 'unknown commit'}).`,
+          );
+          NODE
