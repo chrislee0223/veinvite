@@ -110,7 +110,7 @@ function normalizePayload(value: unknown): {
     0,
   );
 
-  if (leaders.length <= LEADERBOARD_SIZE && leaderKnownTotal !== knownCompleted) {
+  if (leaders.length < LEADERBOARD_SIZE && leaderKnownTotal !== knownCompleted) {
     throw new Error('Country arrival coverage totals are inconsistent.');
   }
 
