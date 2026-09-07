@@ -9,7 +9,7 @@ import { PublicLeaderboard as InviterLeaderboard } from './InviterLeaderboard';
 import { PublicLeaderboardHub } from './PublicLeaderboardHub';
 
 export function PublicLeaderboard({
-  locale,
+  locale: requestedLocale,
   wallet,
   previewData,
 }: {
@@ -17,22 +17,22 @@ export function PublicLeaderboard({
   wallet: string | null;
   previewData?: PublicLeaderboardResponse;
 }) {
+  const locale = localeFromLanguageTag(requestedLocale) ?? 'en';
+
   if (previewData) {
     return (
       <InviterLeaderboard
-        locale={locale}
+        locale={requestedLocale}
         wallet={wallet}
         previewData={previewData}
       />
     );
   }
 
-  const supportedLocale = localeFromLanguageTag(locale) ?? 'en';
-
   return (
     <>
       <PublicLeaderboardHub
-        locale={supportedLocale}
+        locale={locale}
         wallet={wallet}
       />
       <style jsx global>{`
