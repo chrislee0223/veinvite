@@ -28,6 +28,7 @@ import { RouteScopedInviteEnhancements } from './RouteScopedInviteEnhancements';
 import { SecondaryPageLayoutPolish } from './SecondaryPageLayoutPolish';
 import { StartupHydrationPlaceholders } from './StartupHydrationPlaceholders';
 import { WalletConnectionResume } from './WalletConnectionResume';
+import { WalletCountryObservationSync } from './WalletCountryObservationSync';
 import { WalletLanguagePreferenceSync } from './WalletLanguagePreferenceSync';
 import { WalletProviderAccountReconciler } from './WalletProviderAccountReconciler';
 import { WalletRuntimeLifecycle } from './WalletRuntimeLifecycle';
@@ -92,6 +93,7 @@ export function AppProviders({
         <RewardReservationRecovery />
         {children}
         <WalletLanguagePreferenceSync />
+        <WalletCountryObservationSync />
         <SecondaryPageLayoutPolish />
         <LegalNavigationMemory />
         <RouteScopedInviteEnhancements />
