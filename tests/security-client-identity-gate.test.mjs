@@ -8,7 +8,7 @@ const read = (path) =>
 const [migration, securityClientServer, sessionRoute, sybilRisk] =
   await Promise.all([
     read(
-      'supabase/migrations/20260907071000_add_security_client_identity_gate_v1.sql',
+      'supabase/migrations/20260907081307_add_security_client_identity_gate_v1.sql',
     ),
     read('src/lib/securityClientServer.ts'),
     read('src/app/api/auth/session/route.ts'),
