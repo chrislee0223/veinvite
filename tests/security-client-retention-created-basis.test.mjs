@@ -9,6 +9,7 @@ const [
   retentionMigration,
   retentionIndexMigration,
   retentionScopeMigration,
+  retentionLockMigration,
   securityClientServer,
 ] = await Promise.all([
   read(
@@ -19,6 +20,9 @@ const [
   ),
   read(
     'supabase/migrations/20260907093048_tighten_security_client_retention_review_scope_v1.sql',
+  ),
+  read(
+    'supabase/migrations/20260907095607_lock_security_client_retention_to_365_days_v1.sql',
   ),
   read('src/lib/securityClientServer.ts'),
 ]);
@@ -43,6 +47,21 @@ test('Security Client DB retention matches the fixed 365-day cookie lifetime', (
   assert.doesNotMatch(
     retentionScopeMigration,
     /where c\.last_seen_at < v_cutoff/,
+  );
+});
+
+test('the effective retention policy cannot drift away from exactly 365 days', () => {
+  assert.match(
+    retentionLockMigration,
+    /p_retention_days is distinct from 365/,
+  );
+  assert.match(
+    retentionLockMigration,
+    /check \(retention_days = 365\)/,
+  );
+  assert.doesNotMatch(
+    retentionLockMigration,
+    /retention_days >= 30|retention_days <= 3650/,
   );
 });
 
