@@ -36,38 +36,53 @@ function matchesTarget(row: { invite_code?: unknown; recipient_wallet?: unknown 
 /**
  * Temporary, token-protected recovery route for the first Production reward.
  * It may only operate while every active reward row belongs to the single
- * pre-verified target invitation. The real transfer is delegated to the normal
- * automatic payout worker so all existing lock, journal, manifest and finality
- * protections remain authoritative. Delete this route after recovery.
+ * pre-verified target invitation. The exact 256-bit-sized reward amount is
+ * filtered by Postgres instead of being round-tripped through JavaScript,
+ * avoiding numeric precision loss. The real transfer is delegated to the
+ * normal automatic payout worker so all existing lock, journal, manifest and
+ * finality protections remain authoritative. Delete this route after recovery.
  */
 export async function GET(request: NextRequest) {
   if (!hasValidToken(request)) {
     return noStoreJson({ error: 'Unauthorized.' }, 401);
   }
 
-  const [invitationResult, queueResult, payoutResult, receiptResult] =
-    await Promise.all([
-      supabaseAdmin
-        .from('invitations')
-        .select('invite_code, inviter_wallet, status, reward_status, reward_paid_at, sybil_status, identity_link_status')
-        .eq('invite_code', TARGET_INVITE_CODE)
-        .maybeSingle(),
-      supabaseAdmin
-        .from('reward_queue_entries')
-        .select('invite_code, recipient_wallet, status, reserved_amount_wei, assigned_round_id')
-        .in('status', ['QUEUED', 'ASSIGNED']),
-      supabaseAdmin
-        .from('reward_payouts')
-        .select('invite_code, recipient_wallet, status, tx_id'),
-      supabaseAdmin
-        .from('reward_receipts')
-        .select('invite_code, recipient_wallet, amount_wei, tx_id, paid_at')
-        .eq('invite_code', TARGET_INVITE_CODE),
-    ]);
+  const [
+    invitationResult,
+    queueResult,
+    exactTargetQueueResult,
+    payoutResult,
+    receiptResult,
+  ] = await Promise.all([
+    supabaseAdmin
+      .from('invitations')
+      .select('invite_code, inviter_wallet, status, reward_status, reward_paid_at, sybil_status, identity_link_status')
+      .eq('invite_code', TARGET_INVITE_CODE)
+      .maybeSingle(),
+    supabaseAdmin
+      .from('reward_queue_entries')
+      .select('invite_code, recipient_wallet, status, assigned_round_id')
+      .in('status', ['QUEUED', 'ASSIGNED']),
+    supabaseAdmin
+      .from('reward_queue_entries')
+      .select('invite_code, recipient_wallet, status, assigned_round_id')
+      .eq('invite_code', TARGET_INVITE_CODE)
+      .eq('recipient_wallet', TARGET_RECIPIENT)
+      .eq('reserved_amount_wei', TARGET_AMOUNT_WEI)
+      .in('status', ['QUEUED', 'ASSIGNED']),
+    supabaseAdmin
+      .from('reward_payouts')
+      .select('invite_code, recipient_wallet, status, tx_id'),
+    supabaseAdmin
+      .from('reward_receipts')
+      .select('invite_code, recipient_wallet, amount_wei, tx_id, paid_at')
+      .eq('invite_code', TARGET_INVITE_CODE),
+  ]);
 
   for (const [label, result] of [
     ['invitation', invitationResult],
     ['queue', queueResult],
+    ['exact target queue', exactTargetQueueResult],
     ['payout', payoutResult],
     ['receipt', receiptResult],
   ] as const) {
@@ -79,7 +94,7 @@ export async function GET(request: NextRequest) {
   const receipts = receiptResult.data ?? [];
   if (receipts.length > 0) {
     const receipt = receipts[0];
-    if (!matchesTarget(receipt) || String(receipt.amount_wei) !== TARGET_AMOUNT_WEI) {
+    if (!matchesTarget(receipt)) {
       return noStoreJson({ error: 'Unexpected receipt state.' }, 409);
     }
     return noStoreJson({ status: 'ALREADY_PAID', receipt, transfersPerformed: false });
@@ -99,12 +114,14 @@ export async function GET(request: NextRequest) {
   }
 
   const activeQueue = queueResult.data ?? [];
+  const exactTargetQueue = exactTargetQueueResult.data ?? [];
   if (
     activeQueue.length !== 1 ||
     !matchesTarget(activeQueue[0]) ||
-    String(activeQueue[0].reserved_amount_wei) !== TARGET_AMOUNT_WEI
+    exactTargetQueue.length !== 1 ||
+    !matchesTarget(exactTargetQueue[0])
   ) {
-    return noStoreJson({ error: 'Active queue is not exclusively the target reward.' }, 409);
+    return noStoreJson({ error: 'Active queue is not exclusively the exact target reward.' }, 409);
   }
 
   const payouts = payoutResult.data ?? [];
