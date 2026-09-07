@@ -1,5 +1,5 @@
-import { QaCountryLeaderboardPrototype } from '@/qa/QaCountryLeaderboardPrototype';
+import { QaCountryLeaderboardPrototypeV2 } from '@/qa/QaCountryLeaderboardPrototypeV2';
 
 export default function QaCountryLeaderboardPage() {
-  return <QaCountryLeaderboardPrototype />;
+  return <QaCountryLeaderboardPrototypeV2 />;
 }
