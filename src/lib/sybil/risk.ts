@@ -14,6 +14,7 @@ export type SybilSource =
   | 'SYSTEM'
   | 'VEPASSPORT'
   | 'ONCHAIN'
+  | 'SECURITY_CLIENT'
   | 'OPERATOR';
 
 export type SybilDecision = {
