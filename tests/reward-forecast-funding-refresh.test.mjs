@@ -26,25 +26,33 @@ test('public estimate refreshes early when live reward-pool funding changes', ()
   );
   assert.match(
     estimateRoute,
-    /public, s-maxage=60, stale-while-revalidate=30/,
+    /public, s-maxage=300, stale-while-revalidate=3600/,
   );
 });
 
-test('public forecast client no longer holds the estimate for fifteen minutes', () => {
+test('public forecast forces a fresh check when the user returns to the app', () => {
   assert.match(
     forecastPortal,
-    /CLIENT_FORECAST_REFRESH_MS = 60_000/,
+    /function requestForecast\(force = false\)/,
+  );
+  assert.match(
+    forecastPortal,
+    /\!force\s*&&\s*cachedForecast/,
+  );
+  assert.match(
+    forecastPortal,
+    /\/api\/rewards\/estimate\?refresh=\$\{Date\.now\(\)\}/,
+  );
+  assert.match(
+    forecastPortal,
+    /loadForecast\(true\)/,
+  );
+  assert.match(
+    forecastPortal,
+    /setInterval\(\s*loadForecast,\s*15\s*\*\s*60_000/s,
   );
   assert.doesNotMatch(
     forecastPortal,
-    /15 \* 60_000/,
-  );
-  assert.match(
-    forecastPortal,
-    /cache: 'no-store'/,
-  );
-  assert.match(
-    forecastPortal,
-    /window\.setInterval\([\s\S]*CLIENT_FORECAST_REFRESH_MS/,
+    /setInterval\([^)]*,\s*60_000\s*,?\s*\)/s,
   );
 });
