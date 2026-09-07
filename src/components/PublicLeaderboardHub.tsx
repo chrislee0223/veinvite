@@ -232,7 +232,6 @@ export function PublicLeaderboardHub({
             className={rankingView === 'inviter' ? 'active' : ''}
             onClick={() => setRankingView('inviter')}
           >
-            <span aria-hidden="true">♙</span>
             <span>{countryCopy.inviterTab}</span>
           </button>
           <button
@@ -242,7 +241,6 @@ export function PublicLeaderboardHub({
             className={rankingView === 'country' ? 'active' : ''}
             onClick={openCountry}
           >
-            <span aria-hidden="true">◎</span>
             <span>{countryCopy.countryTab}</span>
           </button>
         </div>
@@ -339,6 +337,17 @@ export function PublicLeaderboardHub({
         .inviterInside .leaderboardInlineError {
           display:none !important;
         }
+        .inviterInside .tableHeader {
+          margin-bottom:6px !important;
+        }
+        .inviterInside .rankDivider {
+          min-height:22px !important;
+          padding:1px 0 0 !important;
+          font-size:1rem !important;
+        }
+        .inviterInside .rankContextNote {
+          margin-top:8px !important;
+        }
       `}</style>
 
       <style jsx>{`
@@ -349,7 +358,7 @@ export function PublicLeaderboardHub({
         }
         .unifiedRankingCard {
           margin-top:18px;
-          padding:10px 14px 12px;
+          padding:8px 14px 12px;
           overflow:hidden;
           border:1px solid rgba(255,205,80,.14);
           border-radius:21px;
@@ -358,41 +367,62 @@ export function PublicLeaderboardHub({
         .rankingTabs {
           display:grid;
           grid-template-columns:1fr 1fr;
-          margin-bottom:8px;
+          margin:0 0 6px;
           border-bottom:1px solid rgba(255,205,80,.09);
         }
         .rankingTabs button {
+          position:relative;
           min-width:0;
-          min-height:42px;
-          padding:0 8px;
+          min-height:48px;
+          padding:0 12px;
           display:flex;
           align-items:center;
           justify-content:center;
-          gap:7px;
           border:0;
-          border-radius:12px 12px 0 0;
+          border-radius:0;
           background:transparent;
-          color:#767168;
+          color:#777269;
           font:inherit;
-          font-size:.7rem;
+          font-size:.72rem;
           font-weight:900;
+          letter-spacing:-.01em;
           cursor:pointer;
+          transition:color 120ms ease-out;
         }
-        .rankingTabs button > span:last-child {
+        .rankingTabs button > span {
           min-width:0;
           overflow:hidden;
           text-overflow:ellipsis;
           white-space:nowrap;
         }
+        .rankingTabs button::after {
+          content:'';
+          position:absolute;
+          left:50%;
+          bottom:-1px;
+          width:72%;
+          height:2px;
+          border-radius:999px;
+          background:transparent;
+          transform:translateX(-50%);
+          transition:background 120ms ease-out,box-shadow 120ms ease-out;
+        }
         .rankingTabs button.active {
-          background:linear-gradient(180deg,rgba(244,183,40,.11),rgba(244,183,40,.045));
+          background:transparent;
           color:#ffd45f;
-          box-shadow:inset 0 -2px 0 rgba(255,203,66,.72);
+          box-shadow:none;
+        }
+        .rankingTabs button.active::after {
+          background:#f4b728;
+          box-shadow:0 0 9px rgba(244,183,40,.16);
+        }
+        .rankingTabs button:hover:not(.active) {
+          color:#aaa49a;
         }
         .rankingTabs button:focus-visible,
         .countryError button:focus-visible {
           outline:1px solid rgba(255,205,80,.55);
-          outline-offset:2px;
+          outline-offset:-3px;
         }
         .countryHeader,
         .countryRow,
@@ -406,7 +436,7 @@ export function PublicLeaderboardHub({
         }
         .countryHeader {
           min-height:34px;
-          margin-bottom:8px;
+          margin-bottom:6px;
           padding:0 10px 9px;
           border-bottom:1px solid rgba(255,205,80,.09);
           color:#777269;
@@ -532,6 +562,14 @@ export function PublicLeaderboardHub({
           cursor:pointer;
         }
         @media (max-width:430px) {
+          .rankingTabs button {
+            min-height:44px;
+            padding:0 6px;
+            font-size:.67rem;
+          }
+          .rankingTabs button::after {
+            width:76%;
+          }
           .countryHeader,
           .countryRow,
           .countryPlaceholderRow {
@@ -552,10 +590,16 @@ export function PublicLeaderboardHub({
         }
         @media (max-width:360px) {
           .rankingTabs button {
-            font-size:.64rem;
+            font-size:.63rem;
           }
           .roundGain {
             display:none;
+          }
+        }
+        @media (prefers-reduced-motion:reduce) {
+          .rankingTabs button,
+          .rankingTabs button::after {
+            transition:none;
           }
         }
       `}</style>
