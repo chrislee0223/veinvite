@@ -39,6 +39,7 @@ const VERIFY_IP_LIMIT = 30;
 const VERIFY_IP_WINDOW_SECONDS = 60;
 const VERIFY_WALLET_LIMIT = 10;
 const VERIFY_WALLET_WINDOW_SECONDS = 5 * 60;
+const COUNTRY_PATTERN = /^[A-Z]{2}$/;
 
 type WalletChallengeRow = {
   id: number;
@@ -407,6 +408,15 @@ export async function POST(
     request.nextUrl.origin;
   const currentNetwork =
     getVeBetterNetworkConfig().network;
+  const rawCountry =
+    request.headers
+      .get('x-vercel-ip-country')
+      ?.trim()
+      .toUpperCase() ?? '';
+  const trustedCountry =
+    COUNTRY_PATTERN.test(rawCountry)
+      ? rawCountry
+      : null;
 
   // Legacy/reconstructed challenges are intentionally rejected. New
   // challenges store the exact signed text plus site/network binding.
@@ -533,6 +543,27 @@ export async function POST(
       'Wallet verification request is no longer valid.',
       409,
     );
+  }
+
+  if (trustedCountry) {
+    const { error: countrySaveError } =
+      await supabaseAdmin
+        .from('wallet_auth_sessions')
+        .update({
+          country_code: trustedCountry,
+          country_source: 'TRUSTED_EDGE',
+          country_observed_at: usedAt,
+        })
+        .eq('wallet_address', walletAddress)
+        .eq('token_hash', tokenHash)
+        .is('revoked_at', null);
+
+    if (countrySaveError) {
+      console.warn(
+        'Failed to attach trusted country to verified wallet session:',
+        countrySaveError,
+      );
+    }
   }
 
   const response =
