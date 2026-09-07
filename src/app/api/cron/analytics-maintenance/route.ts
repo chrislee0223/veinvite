@@ -43,16 +43,24 @@ function authorizeCron(request: NextRequest) {
 }
 
 /**
- * Daily long-term analytics maintenance.
+ * Daily long-term analytics and privacy-retention maintenance.
  *
- * This job is deliberately non-destructive. It refreshes permanent,
- * identifier-free daily rollups from retained raw analytics and reports
- * long-term data health. Raw analytics cleanup is NOT performed here.
+ * Analytics handling here remains deliberately non-destructive: the job
+ * refreshes permanent, identifier-free daily rollups from retained raw
+ * analytics and reports long-term data health. Raw analytics cleanup is NOT
+ * performed here.
  *
- * The database-level cleanup functions are fail-closed and require a VERIFIED
- * archive manifest for every candidate date. Until a real archive destination
- * is configured, copied, checksummed and restore-verified, destructive cleanup
- * remains disabled even when the normal retention window eventually expires.
+ * Separately, the job expires pseudonymous Security Client -> wallet technical
+ * relationship evidence after its dedicated 365-day retention window. An open
+ * Security Client review is deferred until the review is resolved, while final
+ * eligibility, security-decision, reward and append-only audit records are not
+ * deleted by that retention function.
+ *
+ * The database-level analytics cleanup functions are fail-closed and require a
+ * VERIFIED archive manifest for every candidate date. Until a real archive
+ * destination is configured, copied, checksummed and restore-verified,
+ * destructive analytics cleanup remains disabled even when the normal
+ * retention window eventually expires.
  */
 export async function GET(request: NextRequest) {
   const authorization = authorizeCron(request);
@@ -74,6 +82,24 @@ export async function GET(request: NextRequest) {
     if (finalizationError) {
       throw new Error(
         `finalize_long_term_analytics failed: ${finalizationError.message}`,
+      );
+    }
+
+    const {
+      data: securityClientRetention,
+      error: securityClientRetentionError,
+    } = await supabaseAdmin.rpc(
+      'cleanup_security_client_identity_data',
+      {
+        p_trigger_source: 'VERCEL_CRON',
+        p_retention_days: 365,
+        p_batch_limit: 1000,
+      },
+    );
+
+    if (securityClientRetentionError) {
+      throw new Error(
+        `cleanup_security_client_identity_data failed: ${securityClientRetentionError.message}`,
       );
     }
 
@@ -107,8 +133,11 @@ export async function GET(request: NextRequest) {
     return NextResponse.json(
       {
         trigger: 'VERCEL_CRON',
-        mode: 'NON_DESTRUCTIVE',
+        mode: 'MIXED_MAINTENANCE',
+        analyticsMode: 'NON_DESTRUCTIVE',
+        securityClientRetentionMode: 'TIME_BOUNDED_DELETION',
         finalization,
+        securityClientRetention,
         health,
         archiveWarning: hasArchiveWarning,
         archiveReadiness,
@@ -120,14 +149,16 @@ export async function GET(request: NextRequest) {
     );
   } catch (error) {
     console.error(
-      'Scheduled long-term analytics maintenance failed:',
+      'Scheduled long-term analytics/security retention maintenance failed:',
       error,
     );
 
     return NextResponse.json(
       {
-        error: 'Long-term analytics maintenance failed.',
-        mode: 'NON_DESTRUCTIVE',
+        error: 'Long-term analytics/security retention maintenance failed.',
+        mode: 'MIXED_MAINTENANCE',
+        analyticsMode: 'NON_DESTRUCTIVE',
+        securityClientRetentionMode: 'TIME_BOUNDED_DELETION',
         archiveReadiness: {
           storageConfigured: false,
           restoreVerified: false,

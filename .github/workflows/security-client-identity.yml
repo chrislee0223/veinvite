@@ -27,5 +27,9 @@ jobs:
         with:
           node-version: 24
 
-      - name: Security client identity regression gate
-        run: node --test tests/security-client-identity-gate.test.mjs
+      - name: Security client identity and retention regression gate
+        run: >-
+          node --test
+          tests/security-client-identity-gate.test.mjs
+          tests/security-client-retention-gate.test.mjs
+          tests/security-client-retention-created-basis.test.mjs

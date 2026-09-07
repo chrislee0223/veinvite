@@ -163,7 +163,12 @@ test('leaderboard publication remains owned by reconcile while analytics mainten
 
   assert.match(cron, /publishLeaderboardRoundSnapshots/);
   assert.match(analyticsCron, /finalize_long_term_analytics/);
-  assert.match(analyticsCron, /mode: 'NON_DESTRUCTIVE'/);
+  assert.match(analyticsCron, /mode: 'MIXED_MAINTENANCE'/);
+  assert.match(analyticsCron, /analyticsMode: 'NON_DESTRUCTIVE'/);
+  assert.match(
+    analyticsCron,
+    /securityClientRetentionMode: 'TIME_BOUNDED_DELETION'/,
+  );
   assert.match(analyticsCron, /rawRowsDeleted: 0/);
   assert.doesNotMatch(analyticsCron, /publishLeaderboardRoundSnapshots/);
   assert.doesNotMatch(analyticsCron, /maintainRoundGrowthSnapshots/);
