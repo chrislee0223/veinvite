@@ -62,19 +62,31 @@ if marker not in source:
     raise SystemExit('payout result marker not found')
 source = source.replace(marker, marker + insertion, 1)
 
-old_return = """      round,
+nested_return = """      round,
       payouts:
         (payoutResult.data ?? []) as Record<string, unknown>[],
 """
-new_return = """      round: manifestRound,
+nested_replacement = """      round: manifestRound,
       payouts: manifestPayouts,
 """
+final_return = """    round,
+    payouts:
+      (payoutResult.data ?? []) as Record<string, unknown>[],
+"""
+final_replacement = """    round: manifestRound,
+    payouts: manifestPayouts,
+"""
 
-if source.count(old_return) != 2:
+if source.count(nested_return) != 1:
     raise SystemExit(
-        f'expected 2 reward-state return blocks, found {source.count(old_return)}'
+        f'expected 1 nested reward-state return block, found {source.count(nested_return)}'
     )
-source = source.replace(old_return, new_return)
+if source.count(final_return) != 1:
+    raise SystemExit(
+        f'expected 1 final reward-state return block, found {source.count(final_return)}'
+    )
+source = source.replace(nested_return, nested_replacement, 1)
+source = source.replace(final_return, final_replacement, 1)
 
 old_manifest = """  const manifest =
     manifestResult.data as Record<string, unknown> | null;
