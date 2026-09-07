@@ -133,7 +133,9 @@ export async function GET(request: NextRequest) {
     return NextResponse.json(
       {
         trigger: 'VERCEL_CRON',
-        mode: 'NON_DESTRUCTIVE',
+        mode: 'MIXED_MAINTENANCE',
+        analyticsMode: 'NON_DESTRUCTIVE',
+        securityClientRetentionMode: 'TIME_BOUNDED_DELETION',
         finalization,
         securityClientRetention,
         health,
@@ -154,7 +156,9 @@ export async function GET(request: NextRequest) {
     return NextResponse.json(
       {
         error: 'Long-term analytics/security retention maintenance failed.',
-        mode: 'NON_DESTRUCTIVE',
+        mode: 'MIXED_MAINTENANCE',
+        analyticsMode: 'NON_DESTRUCTIVE',
+        securityClientRetentionMode: 'TIME_BOUNDED_DELETION',
         archiveReadiness: {
           storageConfigured: false,
           restoreVerified: false,
