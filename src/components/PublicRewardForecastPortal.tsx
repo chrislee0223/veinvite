@@ -27,6 +27,7 @@ const PREVIEW_FORECAST: RewardForecastResponse = {
 };
 
 const CLIENT_FORECAST_CACHE_MS = 15 * 60_000;
+const REWARD_FORECAST_UPDATED_EVENT = 'veinvite-reward-forecast-updated';
 let cachedForecast: RewardForecastResponse | null = null;
 let cachedForecastAt = 0;
 let inFlightForecast: Promise<RewardForecastResponse> | null = null;
@@ -78,6 +79,12 @@ function requestForecast(force = false): Promise<RewardForecastResponse> {
     .then((result) => {
       cachedForecast = result;
       cachedForecastAt = Date.now();
+      window.dispatchEvent(
+        new CustomEvent<RewardForecastResponse>(
+          REWARD_FORECAST_UPDATED_EVENT,
+          { detail: result },
+        ),
+      );
       return result;
     })
     .finally(() => {
@@ -157,6 +164,18 @@ export function PublicRewardForecastCard({
     }
 
     let active = true;
+    const syncRefreshedForecast = (event: Event) => {
+      if (!active) return;
+      const detail = (event as CustomEvent<RewardForecastResponse>).detail;
+      if (!detail) return;
+      setUnavailable(false);
+      setForecast(detail);
+    };
+    window.addEventListener(
+      REWARD_FORECAST_UPDATED_EVENT,
+      syncRefreshedForecast,
+    );
+
     void requestForecast()
       .then((result) => {
         if (!active) return;
@@ -170,6 +189,10 @@ export function PublicRewardForecastCard({
 
     return () => {
       active = false;
+      window.removeEventListener(
+        REWARD_FORECAST_UPDATED_EVENT,
+        syncRefreshedForecast,
+      );
     };
   }, [rewardForecastPreview]);
 
