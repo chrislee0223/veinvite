@@ -56,3 +56,22 @@ test('public forecast forces a fresh check when the user returns to the app', ()
     /setInterval\([^)]*,\s*60_000\s*,?\s*\)/s,
   );
 });
+
+test('a refreshed forecast is propagated into the currently visible card', () => {
+  assert.match(
+    forecastPortal,
+    /REWARD_FORECAST_UPDATED_EVENT = 'veinvite-reward-forecast-updated'/,
+  );
+  assert.match(
+    forecastPortal,
+    /window\.dispatchEvent\([\s\S]*REWARD_FORECAST_UPDATED_EVENT/s,
+  );
+  assert.match(
+    forecastPortal,
+    /window\.addEventListener\([\s\S]*REWARD_FORECAST_UPDATED_EVENT[\s\S]*syncRefreshedForecast/s,
+  );
+  assert.match(
+    forecastPortal,
+    /setForecast\(detail\)/,
+  );
+});
