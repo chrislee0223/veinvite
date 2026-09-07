@@ -8,6 +8,7 @@ import {
   syncVeInviteAllocationReceipts,
 } from '@/lib/rewards/allocationAccounting';
 import {
+  readVeInviteRewardPoolStatus,
   VEINVITE_APP_ID,
 } from '@/lib/rewards/onchainPool';
 import {
@@ -22,7 +23,7 @@ import { getVeBetterNetworkConfig } from '@/lib/vebetter/network';
 
 export const dynamic = 'force-dynamic';
 
-const CACHE_CONTROL = 'public, s-maxage=300, stale-while-revalidate=3600';
+const CACHE_CONTROL = 'public, s-maxage=60, stale-while-revalidate=30';
 const FORECAST_REFRESH_WINDOW_SECONDS = 60 * 60;
 
 type EstimateReason =
@@ -103,6 +104,25 @@ async function bestEffortAllocationSync() {
   }
 }
 
+async function hasLiveFundingChanged(
+  snapshot: RewardForecastSnapshot,
+  network: string,
+): Promise<boolean> {
+  try {
+    const pool = await readVeInviteRewardPoolStatus();
+    if (pool.network !== network || pool.appId !== VEINVITE_APP_ID) {
+      throw new Error('Reward forecast live pool identity does not match the current app.');
+    }
+
+    return pool.effectiveRewardPoolWei !== snapshot.observedPoolBalanceWei;
+  } catch (error) {
+    // A transient node read must not make an otherwise valid public estimate
+    // unavailable. The normal hourly refresh remains the fallback path.
+    console.warn('Reward forecast live funding check failed:', error);
+    return false;
+  }
+}
+
 export async function GET(_request: NextRequest) {
   const { network } = getVeBetterNetworkConfig();
   let previousSnapshot: RewardForecastSnapshot | null = null;
@@ -113,7 +133,11 @@ export async function GET(_request: NextRequest) {
       appId: VEINVITE_APP_ID,
     });
 
-    if (previousSnapshot && isFresh(previousSnapshot)) {
+    const fundingChanged = previousSnapshot
+      ? await hasLiveFundingChanged(previousSnapshot, network)
+      : false;
+
+    if (previousSnapshot && isFresh(previousSnapshot) && !fundingChanged) {
       return readyResponse(previousSnapshot, false);
     }
 
@@ -126,11 +150,16 @@ export async function GET(_request: NextRequest) {
       },
     ]);
 
-    // Only one server request per hour performs chain/database forecasting work.
-    // Everyone else reads the latest stored snapshot. A snapshot from an older
-    // model is deliberately stale so a rollout can publish the new estimate
-    // immediately instead of serving the previous formula for up to an hour.
-    if (!limited || !previousSnapshot || previousSnapshot.modelVersion !== REWARD_FORECAST_MODEL_VERSION) {
+    // A confirmed on-chain pool balance change is a funding event, so it may
+    // bypass the normal hourly forecasting throttle. This lets allocation or
+    // re-balance changes reach the public estimate quickly without turning the
+    // forecast endpoint into continuous expensive recalculation.
+    if (
+      fundingChanged ||
+      !limited ||
+      !previousSnapshot ||
+      previousSnapshot.modelVersion !== REWARD_FORECAST_MODEL_VERSION
+    ) {
       await bestEffortAllocationSync();
 
       try {
