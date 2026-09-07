@@ -27,6 +27,7 @@ const PREVIEW_FORECAST: RewardForecastResponse = {
 };
 
 const CLIENT_FORECAST_CACHE_MS = 15 * 60_000;
+const REWARD_FORECAST_UPDATED_EVENT = 'veinvite-reward-forecast-updated';
 let cachedForecast: RewardForecastResponse | null = null;
 let cachedForecastAt = 0;
 let inFlightForecast: Promise<RewardForecastResponse> | null = null;
@@ -50,8 +51,9 @@ function formatRewardWei(value: string): string {
   return `${groupedWhole}.${fraction}`;
 }
 
-function requestForecast(): Promise<RewardForecastResponse> {
+function requestForecast(force = false): Promise<RewardForecastResponse> {
   if (
+    !force &&
     cachedForecast &&
     Date.now() - cachedForecastAt < CLIENT_FORECAST_CACHE_MS
   ) {
@@ -60,7 +62,14 @@ function requestForecast(): Promise<RewardForecastResponse> {
 
   if (inFlightForecast) return inFlightForecast;
 
-  inFlightForecast = fetch('/api/rewards/estimate')
+  const endpoint = force
+    ? `/api/rewards/estimate?refresh=${Date.now()}`
+    : '/api/rewards/estimate';
+
+  inFlightForecast = fetch(
+    endpoint,
+    force ? { cache: 'no-store' } : undefined,
+  )
     .then(async (response) => {
       if (!response.ok) {
         throw new Error('Reward forecast request failed.');
@@ -70,6 +79,12 @@ function requestForecast(): Promise<RewardForecastResponse> {
     .then((result) => {
       cachedForecast = result;
       cachedForecastAt = Date.now();
+      window.dispatchEvent(
+        new CustomEvent<RewardForecastResponse>(
+          REWARD_FORECAST_UPDATED_EVENT,
+          { detail: result },
+        ),
+      );
       return result;
     })
     .finally(() => {
@@ -85,8 +100,8 @@ export function PublicRewardForecastWarmup() {
 
     let active = true;
 
-    const loadForecast = () => {
-      void requestForecast().catch(() => {
+    const loadForecast = (force = false) => {
+      void requestForecast(force).catch(() => {
         if (!active) return;
       });
     };
@@ -97,12 +112,16 @@ export function PublicRewardForecastWarmup() {
       15 * 60_000,
     );
     const refreshWhenVisible = () => {
-      if (document.visibilityState === 'visible') loadForecast();
+      if (document.visibilityState === 'visible') loadForecast(true);
+    };
+    const refreshWhenFocused = () => {
+      loadForecast(true);
     };
     document.addEventListener(
       'visibilitychange',
       refreshWhenVisible,
     );
+    window.addEventListener('focus', refreshWhenFocused);
 
     return () => {
       active = false;
@@ -111,6 +130,7 @@ export function PublicRewardForecastWarmup() {
         'visibilitychange',
         refreshWhenVisible,
       );
+      window.removeEventListener('focus', refreshWhenFocused);
     };
   }, []);
 
@@ -144,6 +164,18 @@ export function PublicRewardForecastCard({
     }
 
     let active = true;
+    const syncRefreshedForecast = (event: Event) => {
+      if (!active) return;
+      const detail = (event as CustomEvent<RewardForecastResponse>).detail;
+      if (!detail) return;
+      setUnavailable(false);
+      setForecast(detail);
+    };
+    window.addEventListener(
+      REWARD_FORECAST_UPDATED_EVENT,
+      syncRefreshedForecast,
+    );
+
     void requestForecast()
       .then((result) => {
         if (!active) return;
@@ -157,6 +189,10 @@ export function PublicRewardForecastCard({
 
     return () => {
       active = false;
+      window.removeEventListener(
+        REWARD_FORECAST_UPDATED_EVENT,
+        syncRefreshedForecast,
+      );
     };
   }, [rewardForecastPreview]);
 
