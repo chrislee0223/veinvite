@@ -23,6 +23,7 @@ test('country ranking renders flags instead of country-code badges', () => {
   assert.match(countryFlag, /LOCALE_DEFINITIONS/);
   assert.match(countryFlag, /definition\.flagSource/);
   assert.match(countryFlag, /String\.fromCodePoint/);
+  assert.match(countryFlag, /object-fit:contain;/);
 });
 
 test('country header uses a short localized country label', () => {
@@ -38,11 +39,11 @@ test('country columns align as rank, flexible country identity, and arrival coun
   );
   assert.match(
     hub,
-    /\.countryHeader span:nth-child\(2\) \{[\s\S]*text-align:left;/,
+    /\.countryHeader span:nth-child\(2\) \{[\s\S]*text-align:start;/,
   );
   assert.match(
     hub,
-    /\.countryIdentity \{[\s\S]*justify-content:flex-start;[\s\S]*text-align:left;/,
+    /\.countryIdentity \{[\s\S]*justify-content:flex-start;[\s\S]*text-align:start;/,
   );
   assert.match(hub, /scrollbar-gutter:auto;/);
 });
