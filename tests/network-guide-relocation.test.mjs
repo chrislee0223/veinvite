@@ -22,7 +22,7 @@ const [
   readFile(new URL('../src/components/SoftFocusMotion.ts', import.meta.url), 'utf8'),
   readFile(new URL('../src/components/AppNetworkComingSoon.tsx', import.meta.url), 'utf8'),
   readFile(new URL('../src/lib/i18n/networkCopy.ts', import.meta.url), 'utf8'),
-  readFile(new URL('../src/components/PublicLeaderboard.tsx', import.meta.url), 'utf8'),
+  readFile(new URL('../src/components/InviterLeaderboard.tsx', import.meta.url), 'utf8'),
   readFile(new URL('../src/components/HomeClient.tsx', import.meta.url), 'utf8'),
 ]);
 

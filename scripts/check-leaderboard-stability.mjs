@@ -6,7 +6,9 @@ const failures = [];
 const read = (path) => readFileSync(join(root, path), 'utf8');
 
 const route = read('src/app/api/leaderboard/route.ts');
-const leaderboard = read('src/components/PublicLeaderboard.tsx');
+const leaderboardEntry = read('src/components/PublicLeaderboard.tsx');
+const leaderboardHub = read('src/components/PublicLeaderboardHub.tsx');
+const leaderboard = read('src/components/InviterLeaderboard.tsx');
 const layoutPolish = read('src/components/SecondaryPageLayoutPolish.tsx');
 const appProviders = read('src/components/AppProviders.tsx');
 const preview = read('src/components/LeaderboardUiPreview.tsx');
@@ -38,6 +40,22 @@ if (!/font-variant-numeric:tabular-nums/.test(leaderboard)) {
 }
 if (/\.rows\s*\{[^}]*overflow(?:-y)?\s*:/s.test(leaderboard)) {
   failures.push('Leaderboard row wrapper must not add a second nested scroller.');
+}
+
+if (
+  !/import \{ PublicLeaderboard as InviterLeaderboard \} from '\.\/InviterLeaderboard';/.test(leaderboardEntry) ||
+  !/import \{ PublicLeaderboardHub \} from '\.\/PublicLeaderboardHub';/.test(leaderboardEntry) ||
+  !/if \(previewData\)[\s\S]*<InviterLeaderboard[\s\S]*previewData=\{previewData\}/.test(leaderboardEntry) ||
+  !/<PublicLeaderboardHub[\s\S]*locale=\{locale\}[\s\S]*wallet=\{wallet\}/.test(leaderboardEntry)
+) {
+  failures.push('Leaderboard entry point must preserve QA preview behavior and route only the live view through the country hub.');
+}
+if (
+  !/import \{ PublicLeaderboard as InviterLeaderboard \} from '\.\/InviterLeaderboard';/.test(leaderboardHub) ||
+  !/<InviterLeaderboard[\s\S]*previewData=\{data\}/.test(leaderboardHub) ||
+  !/type RankingView = 'inviter' \| 'country'/.test(leaderboardHub)
+) {
+  failures.push('Country hub must embed the reviewed inviter leaderboard rather than reimplementing or replacing it.');
 }
 
 if (!/import \{ SecondaryPageLayoutPolish \} from '\.\/SecondaryPageLayoutPolish';/.test(appProviders) || !/<SecondaryPageLayoutPolish\s*\/>/.test(appProviders)) {

@@ -57,13 +57,22 @@ export async function POST(
       ? rawCountry
       : null;
 
+    // A missing edge-country header is not evidence that a previously trusted
+    // observation became unknown. The session starts as UNKNOWN by default, so
+    // there is nothing useful to persist in this case; preserving an existing
+    // trusted value also avoids losing a near-activation observation during a
+    // transient platform/header gap.
+    if (!trustedCountry) {
+      return noStoreJson({ recorded: false });
+    }
+
+    const observedAt = new Date().toISOString();
     const { error } = await supabaseAdmin
       .from('wallet_auth_sessions')
       .update({
-        country_code: trustedCountry ?? 'UNKNOWN',
-        country_source: trustedCountry
-          ? 'TRUSTED_EDGE'
-          : 'UNKNOWN',
+        country_code: trustedCountry,
+        country_source: 'TRUSTED_EDGE',
+        country_observed_at: observedAt,
       })
       .eq('id', session.id)
       .eq('wallet_address', session.walletAddress);

@@ -75,6 +75,38 @@ export type PublicLeaderboardEntry = {
   rankMovement: RankMovement;
 };
 
+export type PublicCountryLeaderboardEntry = {
+  rank: number;
+  countryCode: string;
+  completedReferrals: number;
+  currentRoundCompleted: number;
+};
+
+export type PublicCountryLeaderboard = {
+  available: boolean;
+  knownCompleted: number;
+  unknownCompleted: number;
+  leaders: PublicCountryLeaderboardEntry[];
+};
+
+export type PublicCountryArrivalEntry = {
+  rank: number;
+  countryCode: string;
+  completedReferrals: number;
+  newUsers: number;
+  returningUsers: number;
+  currentRoundCompleted: number;
+};
+
+export type PublicCountryArrivalResponse = {
+  generatedAt: string;
+  network: 'mainnet' | 'testnet' | 'testnet-staging';
+  currentRoundId: number;
+  knownCompleted: number;
+  unknownCompleted: number;
+  leaders: PublicCountryArrivalEntry[];
+};
+
 export type PublicLeaderboardResponse = {
   generatedAt: string;
   network: 'mainnet' | 'testnet' | 'testnet-staging';
@@ -92,6 +124,11 @@ export type PublicLeaderboardResponse = {
     newUsers: number;
     returningUsers: number;
   };
+  /**
+   * Optional only for older QA fixtures and cached preview objects. The live
+   * /api/leaderboard response always includes this aggregate payload.
+   */
+  countryRanking?: PublicCountryLeaderboard;
   leaders: PublicLeaderboardEntry[];
   currentUser: PublicLeaderboardEntry | null;
 };
