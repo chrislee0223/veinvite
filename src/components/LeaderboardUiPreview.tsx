@@ -9,7 +9,7 @@ import {
 import { PublicLeaderboard } from './PublicLeaderboard';
 import {
   localeFromLanguageTag,
-  type SupportedLocale,
+  type Locale,
 } from '@/lib/i18n/locales';
 import type {
   PublicLeaderboardEntry,
@@ -78,64 +78,65 @@ function movementForRank(rank: number) {
   };
 }
 
-function leaderEntry(rank: number): PublicLeaderboardEntry {
-  return {
-    rank,
-    walletAddress: walletForRank(rank),
-    completedReferrals: referralsForRank(rank),
-    totalRewardWei: rewardWeiForRank(rank),
-    isCurrentWallet: false,
-    ...movementForRank(rank),
-  };
+function buildLeaders(
+  scenario: PreviewScenario,
+): PublicLeaderboardEntry[] {
+  if (scenario === 'unranked') return [];
+
+  return Array.from({ length: 100 }, (_, index) => {
+    const rank = index + 1;
+    const current = scenario === 'inside' && rank === 37;
+    const movement = current
+      ? {
+          previousRank: 163,
+          rankChange: 126,
+          rankMovement: 'UP' as const,
+        }
+      : movementForRank(rank);
+
+    return {
+      rank,
+      walletAddress: current ? TEST_WALLET : walletForRank(rank),
+      completedReferrals: referralsForRank(rank),
+      totalRewardWei: rewardWeiForRank(rank),
+      isCurrentWallet: current,
+      ...movement,
+    };
+  });
 }
 
 function buildPreviewData(
   scenario: PreviewScenario,
 ): PublicLeaderboardResponse {
-  const leaders = Array.from({ length: 100 }, (_, index) =>
-    leaderEntry(index + 1),
-  );
-
-  let currentUser: PublicLeaderboardEntry | null = null;
-  if (scenario === 'inside') {
-    const inside: PublicLeaderboardEntry = {
-      rank: 5,
-      walletAddress: TEST_WALLET,
-      completedReferrals: referralsForRank(5),
-      totalRewardWei: rewardWeiForRank(5),
-      isCurrentWallet: true,
-      previousRank: 131,
-      rankChange: 126,
-      rankMovement: 'UP',
-    };
-    leaders[4] = inside;
-    currentUser = inside;
-  } else if (scenario === 'outside') {
-    currentUser = {
-      rank: 137,
-      walletAddress: TEST_WALLET,
-      completedReferrals: 1,
-      totalRewardWei: (25n * TOKEN_WEI).toString(),
-      isCurrentWallet: true,
-      previousRank: 27,
-      rankChange: -110,
-      rankMovement: 'DOWN',
-    };
-  }
+  const leaders = buildLeaders(scenario);
+  const currentUser = scenario === 'inside'
+    ? leaders.find((entry) => entry.isCurrentWallet) ?? null
+    : scenario === 'outside'
+      ? {
+          rank: 137,
+          walletAddress: TEST_WALLET,
+          completedReferrals: 1,
+          totalRewardWei: (245n * TOKEN_WEI).toString(),
+          isCurrentWallet: true,
+          previousRank: 27,
+          rankChange: -110,
+          rankMovement: 'DOWN' as const,
+        }
+      : null;
 
   return {
-    generatedAt: '2026-09-01T12:00:00.000Z',
+    generatedAt: '2026-09-05T12:00:00.000Z',
     network: 'mainnet',
     currentRoundId: 114,
     reportingStartRound: 113,
     comparison: {
       available: scenario !== 'unranked',
       roundId: 113,
-      endBlock: scenario === 'unranked' ? null : 25700000,
+      endBlock: scenario === 'unranked' ? null : 25762839,
       publishedAt:
         scenario === 'unranked'
           ? null
-          : '2026-08-31T12:00:00.000Z',
+          : '2026-09-01T00:26:56.000Z',
       rankingAlgorithmVersion: 'paid_referrals_v2',
     },
     impact: {
@@ -148,14 +149,14 @@ function buildPreviewData(
   };
 }
 
-function currentLocale(): SupportedLocale {
+function currentLocale(): Locale {
   return (
     localeFromLanguageTag(document.documentElement.lang) ?? 'en'
   );
 }
 
 export function LeaderboardUiPreview() {
-  const [locale, setLocale] = useState<SupportedLocale>('en');
+  const [locale, setLocale] = useState<Locale>('en');
   const [scenario, setScenario] =
     useState<PreviewScenario>('unranked');
   const previewData = useMemo(
@@ -237,70 +238,73 @@ export function LeaderboardUiPreview() {
         .previewHeading {
           width:min(100%,560px);
           margin:0 auto 22px;
-          color:#f8f6ef;
         }
         .previewHeading > span {
           color:#f4b728;
-          font-size:.65rem;
+          font-size:.68rem;
           font-weight:950;
-          letter-spacing:.12em;
+          letter-spacing:.1em;
         }
         .previewHeading h2 {
           margin:7px 0 0;
-          font-size:1.15rem;
-          line-height:1.25;
+          color:#f7f3e8;
+          font-size:1.25rem;
+          letter-spacing:-.03em;
         }
         .previewHeading p {
-          margin:9px 0 0;
+          margin:8px 0 0;
           color:#8f8a80;
-          font-size:.75rem;
-          line-height:1.7;
+          font-size:.76rem;
+          line-height:1.6;
         }
         .scenarioToggle {
-          margin-top:15px;
+          margin-top:14px;
+          padding:4px;
           display:grid;
           grid-template-columns:repeat(3,minmax(0,1fr));
-          gap:7px;
+          gap:4px;
+          border:1px solid rgba(255,255,255,.07);
+          border-radius:14px;
+          background:rgba(255,255,255,.025);
         }
         .scenarioToggle button {
-          min-height:38px;
-          border:1px solid rgba(255,255,255,.08);
-          border-radius:11px;
-          background:rgba(255,255,255,.03);
-          color:#8f8a80;
+          min-height:42px;
+          padding:0 10px;
+          border:1px solid transparent;
+          border-radius:10px;
+          background:transparent;
+          color:#878279;
           font:inherit;
-          font-size:.64rem;
-          font-weight:850;
+          font-size:.7rem;
+          font-weight:900;
           cursor:pointer;
         }
         .scenarioToggle button.selected {
-          border-color:rgba(244,183,40,.38);
-          background:rgba(244,183,40,.09);
-          color:#f4c85a;
+          border-color:rgba(255,205,80,.25);
+          background:rgba(244,183,40,.1);
+          color:#f3ca58;
+        }
+        .scenarioToggle button:focus-visible {
+          outline:2px solid rgba(255,205,80,.7);
+          outline-offset:2px;
         }
         .previewFrame {
           width:min(100%,560px);
           margin:0 auto;
-          padding:22px 16px 18px;
-          box-sizing:border-box;
-          border:1px solid rgba(255,255,255,.06);
-          border-radius:22px;
-          background:#050504;
         }
-        @media (max-width:640px) {
+        @media (max-width:560px) {
           .leaderboardPreview {
             width:100%;
-            margin-top:18px;
-            padding:14px 10px;
+            margin-top:20px;
+            padding:20px 16px;
             border-right:0;
             border-left:0;
             border-radius:0;
           }
+        }
+        @media (max-width:430px) {
           .scenarioToggle {
             grid-template-columns:1fr;
-          }
-          .previewFrame {
-            padding:14px 6px 12px;
           }
         }
       `}</style>
