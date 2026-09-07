@@ -75,6 +75,13 @@ export type PublicLeaderboardEntry = {
   rankMovement: RankMovement;
 };
 
+export type PublicCountryLeaderboardEntry = {
+  rank: number;
+  countryCode: string;
+  completedReferrals: number;
+  currentRoundCompleted: number;
+};
+
 export type PublicLeaderboardResponse = {
   generatedAt: string;
   network: 'mainnet' | 'testnet' | 'testnet-staging';
@@ -91,6 +98,12 @@ export type PublicLeaderboardResponse = {
     totalActivatedUsers: number;
     newUsers: number;
     returningUsers: number;
+  };
+  countryRanking: {
+    available: boolean;
+    knownCompleted: number;
+    unknownCompleted: number;
+    leaders: PublicCountryLeaderboardEntry[];
   };
   leaders: PublicLeaderboardEntry[];
   currentUser: PublicLeaderboardEntry | null;
