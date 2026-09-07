@@ -9,7 +9,6 @@ import {
 } from '@/lib/rateLimitServer';
 import { supabaseAdmin } from '@/lib/supabaseServer';
 import type {
-  PublicCountryLeaderboardEntry,
   PublicLeaderboardEntry,
   PublicLeaderboardResponse,
   RankMovement,
@@ -19,7 +18,6 @@ import { readCurrentVeBetterRound } from '@/lib/vebetter/currentRound';
 export const dynamic = 'force-dynamic';
 
 const WALLET_PATTERN = /^0x[0-9a-fA-F]{40}$/;
-const COUNTRY_PATTERN = /^[A-Z]{2}$/;
 const LEADERBOARD_SIZE = 100;
 const MAX_GROWTH_ROUNDS = 260;
 const TRANSIENT_AUTH_RETRY_MS = 750;
@@ -61,19 +59,6 @@ type GrowthRow = {
   cumulative_activated_returning_users: number | string;
 };
 
-type CountryLeaderboardPayload = {
-  knownCompleted?: unknown;
-  unknownCompleted?: unknown;
-  leaders?: unknown;
-};
-
-type CountryLeaderboardRow = {
-  rank?: unknown;
-  countryCode?: unknown;
-  completedReferrals?: unknown;
-  currentRoundCompleted?: unknown;
-};
-
 function parseCount(
   value: number | string,
   fieldName: string,
@@ -85,16 +70,6 @@ function parseCount(
   }
 
   return parsed;
-}
-
-function parseUnknownCount(
-  value: unknown,
-  fieldName: string,
-): number {
-  if (typeof value !== 'number' && typeof value !== 'string') {
-    throw new Error(`${fieldName} returned an invalid count.`);
-  }
-  return parseCount(value, fieldName);
 }
 
 function parseSignedInteger(
@@ -241,58 +216,6 @@ function normalizeLegacyLeaderboardRow(
   row: LeaderboardRow,
 ): PublicLeaderboardEntry {
   return withoutMovement(normalizeBaseLeaderboardRow(row));
-}
-
-function normalizeCountryLeaderboard(
-  value: unknown,
-): PublicLeaderboardResponse['countryRanking'] {
-  if (!value || typeof value !== 'object' || Array.isArray(value)) {
-    throw new Error('Country leaderboard returned an invalid payload.');
-  }
-
-  const payload = value as CountryLeaderboardPayload;
-  const rawLeaders = Array.isArray(payload.leaders)
-    ? payload.leaders
-    : [];
-  const leaders: PublicCountryLeaderboardEntry[] = rawLeaders.map(
-    (raw, index) => {
-      if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
-        throw new Error(`Country leaderboard row ${index + 1} is invalid.`);
-      }
-      const row = raw as CountryLeaderboardRow;
-      const countryCode = typeof row.countryCode === 'string'
-        ? row.countryCode.trim().toUpperCase()
-        : '';
-      if (!COUNTRY_PATTERN.test(countryCode)) {
-        throw new Error('Country leaderboard returned an invalid country code.');
-      }
-      return {
-        rank: parseUnknownCount(row.rank, 'Country rank'),
-        countryCode,
-        completedReferrals: parseUnknownCount(
-          row.completedReferrals,
-          'Country completed referrals',
-        ),
-        currentRoundCompleted: parseUnknownCount(
-          row.currentRoundCompleted,
-          'Country current-round completions',
-        ),
-      };
-    },
-  );
-
-  return {
-    available: true,
-    knownCompleted: parseUnknownCount(
-      payload.knownCompleted,
-      'Known-country completed referrals',
-    ),
-    unknownCompleted: parseUnknownCount(
-      payload.unknownCompleted,
-      'Unknown-country completed referrals',
-    ),
-    leaders,
-  };
 }
 
 function normalizeWallet(
@@ -462,46 +385,25 @@ export async function GET(
         },
       );
 
-    const readCountryLeaderboard = () =>
-      supabaseAdmin.rpc(
-        'get_public_country_leaderboard',
-        {
-          p_network: round.network,
-          p_current_round_id: round.currentRoundId,
-          p_limit: LEADERBOARD_SIZE,
-        },
-      );
-
-    let [
-      leaderboardResult,
-      comparisonResult,
-      growthResult,
-      countryResult,
-    ] = await Promise.all([
-      readLeaderboardWithMovement(),
-      readComparison(),
-      readGrowth(),
-      readCountryLeaderboard(),
-    ]);
+    let [leaderboardResult, comparisonResult, growthResult] =
+      await Promise.all([
+        readLeaderboardWithMovement(),
+        readComparison(),
+        readGrowth(),
+      ]);
 
     if (
       isTransientAuthClockSkew(leaderboardResult.error) ||
       isTransientAuthClockSkew(comparisonResult.error) ||
-      isTransientAuthClockSkew(growthResult.error) ||
-      isTransientAuthClockSkew(countryResult.error)
+      isTransientAuthClockSkew(growthResult.error)
     ) {
       await wait(TRANSIENT_AUTH_RETRY_MS);
-      [
-        leaderboardResult,
-        comparisonResult,
-        growthResult,
-        countryResult,
-      ] = await Promise.all([
-        readLeaderboardWithMovement(),
-        readComparison(),
-        readGrowth(),
-        readCountryLeaderboard(),
-      ]);
+      [leaderboardResult, comparisonResult, growthResult] =
+        await Promise.all([
+          readLeaderboardWithMovement(),
+          readComparison(),
+          readGrowth(),
+        ]);
     }
 
     if (growthResult.error) {
@@ -585,29 +487,6 @@ export async function GET(
         ? Math.min(...growthRows.map((row) => row.roundId))
         : null;
 
-    let countryRanking: PublicLeaderboardResponse['countryRanking'] = {
-      available: false,
-      knownCompleted: 0,
-      unknownCompleted: 0,
-      leaders: [],
-    };
-
-    if (countryResult.error) {
-      console.error(
-        'Country leaderboard could not be loaded; country ranking is hidden:',
-        countryResult.error,
-      );
-    } else {
-      try {
-        countryRanking = normalizeCountryLeaderboard(countryResult.data);
-      } catch (error) {
-        console.error(
-          'Country leaderboard payload was invalid; country ranking is hidden:',
-          error,
-        );
-      }
-    }
-
     const response: PublicLeaderboardResponse = {
       generatedAt: new Date().toISOString(),
       network: round.network,
@@ -627,7 +506,6 @@ export async function GET(
         newUsers: latestGrowth?.newUsers ?? 0,
         returningUsers: latestGrowth?.returningUsers ?? 0,
       },
-      countryRanking,
       leaders: entries.filter(
         (entry) => entry.rank <= LEADERBOARD_SIZE,
       ),
