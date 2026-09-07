@@ -11,7 +11,7 @@ const movementCopy = await readFile(
   'utf8',
 );
 const leaderboard = await readFile(
-  new URL('../src/components/PublicLeaderboard.tsx', import.meta.url),
+  new URL('../src/components/InviterLeaderboard.tsx', import.meta.url),
   'utf8',
 );
 const preview = await readFile(
