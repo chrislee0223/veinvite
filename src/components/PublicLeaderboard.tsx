@@ -3,7 +3,7 @@
 import type { SupportedLocale } from '@/lib/i18n/locales';
 import type { PublicLeaderboardResponse } from '@/lib/types';
 import { PublicLeaderboard as InviterLeaderboard } from './InviterLeaderboard';
-import { PublicLeaderboardProductionHub } from './PublicLeaderboardProductionHub';
+import { PublicLeaderboardHub } from './PublicLeaderboardHub';
 
 export function PublicLeaderboard({
   locale,
@@ -25,7 +25,7 @@ export function PublicLeaderboard({
   }
 
   return (
-    <PublicLeaderboardProductionHub
+    <PublicLeaderboardHub
       locale={locale}
       wallet={wallet}
     />
