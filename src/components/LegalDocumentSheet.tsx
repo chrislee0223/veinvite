@@ -11,6 +11,7 @@ import {
   type LegalDocumentKind,
 } from '@/lib/i18n/legalCopy';
 import { PRIVACY_PRODUCT_ANALYTICS_COPY } from '@/lib/i18n/privacyProductAnalyticsCopy';
+import { PRIVACY_SECURITY_CLIENT_COPY } from '@/lib/i18n/privacySecurityClientCopy';
 import { PRIVACY_USAGE_ANALYTICS_COPY } from '@/lib/i18n/privacyUsageAnalyticsCopy';
 import { PRIVACY_WALLET_LANGUAGE_COPY } from '@/lib/i18n/privacyWalletLanguageCopy';
 import { SETTINGS_COPY } from '@/lib/i18n/settingsCopy';
@@ -41,7 +42,10 @@ export function LegalDocumentSheet({
     kind === 'privacy' ? PRIVACY_PRODUCT_ANALYTICS_COPY[locale] : null;
   const walletLanguageCopy =
     kind === 'privacy' ? PRIVACY_WALLET_LANGUAGE_COPY[locale] : null;
+  const securityClientCopy =
+    kind === 'privacy' ? PRIVACY_SECURITY_CLIENT_COPY[locale] : null;
   const updated =
+    securityClientCopy?.updated ??
     productAnalyticsCopy?.updated ??
     walletLanguageCopy?.updated ??
     usageAnalyticsCopy?.updated ??
@@ -168,6 +172,12 @@ export function LegalDocumentSheet({
                   <p>{section.body}</p>
                 </section>
               ))}
+              {securityClientCopy ? (
+                <section key="security-client-privacy">
+                  <h2>{securityClientCopy.heading}</h2>
+                  <p>{securityClientCopy.body}</p>
+                </section>
+              ) : null}
               {usageAnalyticsCopy ? (
                 <section key="usage-analytics-privacy">
                   <h2>{usageAnalyticsCopy.heading}</h2>
