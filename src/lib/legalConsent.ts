@@ -5,6 +5,12 @@ export const CURRENT_TERMS_VERSION = 1;
 // archive before active-database cleanup. Keep Privacy versioning independent
 // from Terms so previously accepted wallets are asked to review this material
 // data-retention change while their earlier consent records remain preserved.
+//
+// The September 7 Security Client text is a transparency clarification of the
+// security / anti-abuse processing purpose and retention language already in
+// Privacy v3. It documents the pseudonymous browser-client relationship, its
+// review-only role and its 365-day technical-evidence cleanup; it does not add a
+// new consent purpose or force already-accepted wallets through another gate.
 export const CURRENT_PRIVACY_VERSION = 3;
 
 export const LEGAL_CONSENT_INTENT =
