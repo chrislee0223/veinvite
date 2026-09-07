@@ -131,6 +131,7 @@ jobs:
           tests/notification-ack-batch-atomicity.test.mjs
           tests/notification-history-fast-open.test.mjs
           tests/operator-fast-invitation-projection-privilege.test.mjs
+          tests/production-watchdog.test.mjs
           tests/referral-link-ensure-serialization.test.mjs
           tests/referral-slot-capacity-parity.test.mjs
           tests/referral-two-slot-foundation.test.mjs
