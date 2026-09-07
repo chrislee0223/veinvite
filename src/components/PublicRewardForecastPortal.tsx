@@ -26,7 +26,9 @@ const PREVIEW_FORECAST: RewardForecastResponse = {
   estimatedRewardWei: '147740500000000000000',
 };
 
-const CLIENT_FORECAST_CACHE_MS = 15 * 60_000;
+// Keep the public number fresh enough to reflect a newly funded/re-balanced
+// rewards pool without turning the page into high-frequency chain polling.
+const CLIENT_FORECAST_REFRESH_MS = 60_000;
 let cachedForecast: RewardForecastResponse | null = null;
 let cachedForecastAt = 0;
 let inFlightForecast: Promise<RewardForecastResponse> | null = null;
@@ -53,14 +55,16 @@ function formatRewardWei(value: string): string {
 function requestForecast(): Promise<RewardForecastResponse> {
   if (
     cachedForecast &&
-    Date.now() - cachedForecastAt < CLIENT_FORECAST_CACHE_MS
+    Date.now() - cachedForecastAt < CLIENT_FORECAST_REFRESH_MS
   ) {
     return Promise.resolve(cachedForecast);
   }
 
   if (inFlightForecast) return inFlightForecast;
 
-  inFlightForecast = fetch('/api/rewards/estimate')
+  inFlightForecast = fetch('/api/rewards/estimate', {
+    cache: 'no-store',
+  })
     .then(async (response) => {
       if (!response.ok) {
         throw new Error('Reward forecast request failed.');
@@ -94,7 +98,7 @@ export function PublicRewardForecastWarmup() {
     loadForecast();
     const intervalId = window.setInterval(
       loadForecast,
-      15 * 60_000,
+      CLIENT_FORECAST_REFRESH_MS,
     );
     const refreshWhenVisible = () => {
       if (document.visibilityState === 'visible') loadForecast();
