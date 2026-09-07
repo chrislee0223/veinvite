@@ -125,7 +125,7 @@ if (
   !/observation_only:\s*true/.test(observation)
 ) {
   failures.push(
-    'Manual and scheduled B3TR scans must share one exact-wei, chain-evidence-validated observation core.',
+    'Scheduled B3TR scans must use one exact-wei, chain-evidence-validated observation core.',
   );
 }
 
@@ -137,7 +137,7 @@ if (
   /reward_status/.test(observation)
 ) {
   failures.push(
-    'Shared B3TR observation core must never mutate eligibility, payout state, or Sybil decisions.',
+    'Scheduled B3TR observation core must never mutate eligibility, payout state, or Sybil decisions.',
   );
 }
 
@@ -169,11 +169,29 @@ if (
   !/RUN_B3TR_RECIPIENT_FORENSICS/.test(route) ||
   !/requestHasSameOrigin\(request\)/.test(route) ||
   !/admin_b3tr_forensics_operator/.test(route) ||
-  !/admin_b3tr_forensics_receipt/.test(route) ||
-  !/observeRecipientB3trReceipt/.test(route)
+  !/admin_b3tr_forensics_receipt/.test(route)
 ) {
   failures.push(
-    'Manual B3TR recipient forensic writes must require explicit same-origin operator intent, bounded rate limits, and the shared observation core.',
+    'Manual B3TR recipient forensic writes must require explicit same-origin operator intent and bounded rate limits.',
+  );
+}
+
+if (
+  !/reward_recipient_audit_ledger/.test(route) ||
+  !/reward_payout_transaction_settlements/.test(route) ||
+  !/Reward receipt and settlement chain evidence do not match/.test(route)
+) {
+  failures.push(
+    'Manual B3TR recipient scans must remain anchored to the currently deployed Production receipt and settlement evidence path.',
+  );
+}
+
+if (
+  /operator_reward_recipient_b3tr_evidence/.test(route) ||
+  /observeRecipientB3trReceipt/.test(route)
+) {
+  failures.push(
+    'Manual B3TR forensics must not depend on the Preview-only exact-wei evidence view before its Production migration is deployed.',
   );
 }
 
