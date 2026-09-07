@@ -12,6 +12,10 @@ const entry = readFileSync(
   join(root, 'src/components/PublicLeaderboard.tsx'),
   'utf8',
 );
+const countryCopy = readFileSync(
+  join(root, 'src/lib/i18n/countryLeaderboardCopy.ts'),
+  'utf8',
+);
 
 test('country leaderboard preloads in the background without a visible loading label', () => {
   assert.match(hub, /useEffect\(\(\) => \{[\s\S]*refreshCountry\(false\)/);
@@ -19,15 +23,24 @@ test('country leaderboard preloads in the background without a visible loading l
   assert.match(hub, /className="countrySkeleton"/);
 });
 
-test('inviter ranking no longer renders the redundant TOP 100 label', () => {
+test('ranking card removes redundant metadata chrome', () => {
   assert.doesNotMatch(hub, />TOP 100</);
-  assert.match(hub, /className="rankingMeta"/);
+  assert.doesNotMatch(hub, /className="rankingMeta"/);
+  assert.doesNotMatch(hub, /countryCopy\.(known|unknown)/);
+  assert.doesNotMatch(hub, /knownCompleted|unknownCompleted|totalCountryEligible/);
 });
 
 test('country rows keep NEW and RETURNING internal-only', () => {
   assert.doesNotMatch(hub, /row\.newUsers/);
   assert.doesNotMatch(hub, /row\.returningUsers/);
   assert.doesNotMatch(hub, /className="countryMix"/);
+});
+
+test('country header uses arrival count copy and the empty state stays user-facing', () => {
+  assert.match(hub, /countryCopy\.count/);
+  assert.match(countryCopy, /ko:\s*\{[\s\S]*count: '유입 수'/);
+  assert.match(countryCopy, /empty: '아직 국가별 유입 기록이 없어요\.'/);
+  assert.doesNotMatch(countryCopy, /known: string|unknown: string/);
 });
 
 test('country and inviter ranking viewports stay on the same responsive five-row geometry', () => {
