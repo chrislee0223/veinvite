@@ -82,6 +82,13 @@ export type PublicCountryLeaderboardEntry = {
   currentRoundCompleted: number;
 };
 
+export type PublicCountryLeaderboard = {
+  available: boolean;
+  knownCompleted: number;
+  unknownCompleted: number;
+  leaders: PublicCountryLeaderboardEntry[];
+};
+
 export type PublicLeaderboardResponse = {
   generatedAt: string;
   network: 'mainnet' | 'testnet' | 'testnet-staging';
@@ -99,12 +106,11 @@ export type PublicLeaderboardResponse = {
     newUsers: number;
     returningUsers: number;
   };
-  countryRanking: {
-    available: boolean;
-    knownCompleted: number;
-    unknownCompleted: number;
-    leaders: PublicCountryLeaderboardEntry[];
-  };
+  /**
+   * Optional only for older QA fixtures and cached preview objects. The live
+   * /api/leaderboard response always includes this aggregate payload.
+   */
+  countryRanking?: PublicCountryLeaderboard;
   leaders: PublicLeaderboardEntry[];
   currentUser: PublicLeaderboardEntry | null;
 };
