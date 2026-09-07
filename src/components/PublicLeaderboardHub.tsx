@@ -15,6 +15,7 @@ import type {
   PublicCountryArrivalResponse,
   PublicLeaderboardResponse,
 } from '@/lib/types';
+import { CountryFlag } from './CountryFlag';
 import { PublicLeaderboard as InviterLeaderboard } from './InviterLeaderboard';
 
 type RankingView = 'inviter' | 'country';
@@ -257,19 +258,21 @@ export function PublicLeaderboardHub({
           <div className="countryPanel">
             <div className="countryHeader" aria-hidden="true">
               <span>{leaderboardCopy.rank}</span>
-              <span>{countryCopy.countryTab}</span>
+              <span>{countryCopy.country}</span>
               <span>{countryCopy.count}</span>
             </div>
 
             {showCountryData && countryLeaders.length > 0 ? (
               <div className="countryScroll" aria-label={countryCopy.countryTab}>
                 {countryLeaders.map((row) => (
-                  <div className="countryRow" key={row.countryCode}>
+                  <div
+                    className="countryRow"
+                    data-rank={row.rank <= 3 ? row.rank : undefined}
+                    key={row.countryCode}
+                  >
                     <strong className="countryRank">{row.rank}</strong>
                     <div className="countryIdentity">
-                      <span className="countryCode" aria-hidden="true">
-                        {row.countryCode}
-                      </span>
+                      <CountryFlag countryCode={row.countryCode} />
                       <div className="countryNameLine">
                         <strong>{countryName(row.countryCode, locale)}</strong>
                         {row.currentRoundCompleted > 0 ? (
@@ -339,6 +342,10 @@ export function PublicLeaderboardHub({
         }
         .inviterInside .tableHeader {
           margin-bottom:6px !important;
+          border-bottom:0 !important;
+        }
+        .inviterInside .rankRow {
+          border-bottom:0 !important;
         }
         .inviterInside .rankDivider {
           min-height:22px !important;
@@ -367,8 +374,8 @@ export function PublicLeaderboardHub({
         .rankingTabs {
           display:grid;
           grid-template-columns:1fr 1fr;
-          margin:0 0 6px;
-          border-bottom:1px solid rgba(255,205,80,.09);
+          margin:0 0 8px;
+          border-bottom:0;
         }
         .rankingTabs button {
           position:relative;
@@ -429,16 +436,16 @@ export function PublicLeaderboardHub({
         .countryPlaceholderRow {
           width:100%;
           display:grid;
-          grid-template-columns:48px minmax(0,1fr) 72px;
-          column-gap:10px;
+          grid-template-columns:64px minmax(0,1fr) 84px;
+          column-gap:12px;
           align-items:center;
           box-sizing:border-box;
         }
         .countryHeader {
-          min-height:34px;
-          margin-bottom:6px;
-          padding:0 10px 9px;
-          border-bottom:1px solid rgba(255,205,80,.09);
+          min-height:32px;
+          margin-bottom:4px;
+          padding:0 12px 6px;
+          border-bottom:0;
           color:#777269;
           font-size:.61rem;
           font-weight:900;
@@ -446,6 +453,9 @@ export function PublicLeaderboardHub({
         .countryHeader span {
           min-width:0;
           text-align:center;
+        }
+        .countryHeader span:nth-child(2) {
+          text-align:start;
         }
         .countryScroll,
         .countrySkeleton,
@@ -458,7 +468,7 @@ export function PublicLeaderboardHub({
           width:100%;
           overflow-y:auto;
           overscroll-behavior:contain;
-          scrollbar-gutter:stable;
+          scrollbar-gutter:auto;
           scrollbar-width:thin;
           scrollbar-color:rgba(244,183,40,.45) transparent;
         }
@@ -474,8 +484,8 @@ export function PublicLeaderboardHub({
           height:50px;
           min-height:50px;
           max-height:50px;
-          padding:0 10px;
-          border-bottom:1px solid rgba(255,255,255,.055);
+          padding:0 12px;
+          border-bottom:0;
           color:#e9e5dc;
         }
         .countryPlaceholderRow {
@@ -488,32 +498,31 @@ export function PublicLeaderboardHub({
           color:#bdb7ac;
           font-size:.74rem;
           font-variant-numeric:tabular-nums;
+          transition:color 120ms ease-out;
+        }
+        .countryRow[data-rank='1'] .countryRank {
+          color:#f1c84c;
+        }
+        .countryRow[data-rank='2'] .countryRank {
+          color:#c7ccd3;
+        }
+        .countryRow[data-rank='3'] .countryRank {
+          color:#c98756;
         }
         .countryIdentity {
           min-width:0;
           display:flex;
           align-items:center;
-          gap:8px;
-        }
-        .countryCode {
-          width:28px;
-          height:28px;
-          flex:0 0 28px;
-          display:grid;
-          place-items:center;
-          border:1px solid rgba(255,255,255,.09);
-          border-radius:9px;
-          background:rgba(255,255,255,.035);
-          color:#d6d1c7;
-          font-size:.58rem;
-          font-weight:900;
-          letter-spacing:.02em;
+          justify-content:flex-start;
+          gap:10px;
+          text-align:start;
         }
         .countryNameLine {
           min-width:0;
           display:flex;
           align-items:center;
           gap:6px;
+          overflow:hidden;
         }
         .countryNameLine strong {
           min-width:0;
@@ -525,9 +534,9 @@ export function PublicLeaderboardHub({
         }
         .roundGain {
           flex:0 0 auto;
-          color:#a48b45;
-          font-size:.49rem;
-          font-weight:900;
+          color:#927d43;
+          font-size:.47rem;
+          font-weight:850;
           white-space:nowrap;
         }
         .countryTotal {
@@ -573,24 +582,35 @@ export function PublicLeaderboardHub({
           .countryHeader,
           .countryRow,
           .countryPlaceholderRow {
-            grid-template-columns:40px minmax(0,1fr) 62px;
-            column-gap:7px;
-            padding-right:7px;
-            padding-left:7px;
+            grid-template-columns:46px minmax(0,1fr) 58px;
+            column-gap:8px;
+            padding-right:8px;
+            padding-left:8px;
+          }
+          .countryHeader {
+            padding-bottom:5px;
           }
           .countryIdentity {
-            gap:6px;
+            gap:7px;
           }
           .countryNameLine {
             gap:4px;
           }
           .roundGain {
-            font-size:.46rem;
+            font-size:.44rem;
           }
         }
         @media (max-width:360px) {
           .rankingTabs button {
             font-size:.63rem;
+          }
+          .countryHeader,
+          .countryRow,
+          .countryPlaceholderRow {
+            grid-template-columns:42px minmax(0,1fr) 54px;
+            column-gap:6px;
+            padding-right:6px;
+            padding-left:6px;
           }
           .roundGain {
             display:none;
@@ -598,7 +618,8 @@ export function PublicLeaderboardHub({
         }
         @media (prefers-reduced-motion:reduce) {
           .rankingTabs button,
-          .rankingTabs button::after {
+          .rankingTabs button::after,
+          .countryRank {
             transition:none;
           }
         }

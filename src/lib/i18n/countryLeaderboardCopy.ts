@@ -3,6 +3,7 @@ import type { SupportedLocale } from './locales';
 export type CountryLeaderboardCopy = {
   inviterTab: string;
   countryTab: string;
+  country: string;
   count: string;
   thisRound: string;
   empty: string;
@@ -13,6 +14,7 @@ export type CountryLeaderboardCopy = {
 const EN: CountryLeaderboardCopy = {
   inviterTab: 'Inviter ranking',
   countryTab: 'Country arrivals',
+  country: 'Country',
   count: 'Arrivals',
   thisRound: 'this round',
   empty: 'No country arrival records yet.',
@@ -28,6 +30,7 @@ export const COUNTRY_LEADERBOARD_COPY: Record<
   ko: {
     inviterTab: '초대자 랭킹',
     countryTab: '국가별 유입',
+    country: '국가',
     count: '유입 수',
     thisRound: '이번 라운드',
     empty: '아직 국가별 유입 기록이 없어요.',
@@ -37,6 +40,7 @@ export const COUNTRY_LEADERBOARD_COPY: Record<
   zh: {
     inviterTab: '邀请人排行',
     countryTab: '按国家流入',
+    country: '国家',
     count: '流入数',
     thisRound: '本轮',
     empty: '目前还没有国家流入记录。',
@@ -46,6 +50,7 @@ export const COUNTRY_LEADERBOARD_COPY: Record<
   hi: {
     inviterTab: 'आमंत्रक रैंकिंग',
     countryTab: 'देश के अनुसार आगमन',
+    country: 'देश',
     count: 'आगमन संख्या',
     thisRound: 'इस राउंड',
     empty: 'अभी देश के अनुसार कोई आगमन रिकॉर्ड नहीं है।',
@@ -55,6 +60,7 @@ export const COUNTRY_LEADERBOARD_COPY: Record<
   es: {
     inviterTab: 'Ranking de invitadores',
     countryTab: 'Llegadas por país',
+    country: 'País',
     count: 'Llegadas',
     thisRound: 'esta ronda',
     empty: 'Aún no hay registros de llegadas por país.',
@@ -64,6 +70,7 @@ export const COUNTRY_LEADERBOARD_COPY: Record<
   ja: {
     inviterTab: '招待者ランキング',
     countryTab: '国別流入',
+    country: '国',
     count: '流入数',
     thisRound: '今ラウンド',
     empty: 'まだ国別の流入記録はありません。',
@@ -73,6 +80,7 @@ export const COUNTRY_LEADERBOARD_COPY: Record<
   it: {
     inviterTab: 'Classifica invitanti',
     countryTab: 'Arrivi per paese',
+    country: 'Paese',
     count: 'Arrivi',
     thisRound: 'questo round',
     empty: 'Non ci sono ancora dati sugli arrivi per paese.',
@@ -82,6 +90,7 @@ export const COUNTRY_LEADERBOARD_COPY: Record<
   tr: {
     inviterTab: 'Davetçi sıralaması',
     countryTab: 'Ülkeye göre katılım',
+    country: 'Ülke',
     count: 'Katılım sayısı',
     thisRound: 'bu tur',
     empty: 'Henüz ülkeye göre katılım kaydı yok.',
@@ -91,6 +100,7 @@ export const COUNTRY_LEADERBOARD_COPY: Record<
   nl: {
     inviterTab: 'Ranglijst uitnodigers',
     countryTab: 'Instroom per land',
+    country: 'Land',
     count: 'Instroom',
     thisRound: 'deze ronde',
     empty: 'Er zijn nog geen instroomgegevens per land.',
@@ -100,6 +110,7 @@ export const COUNTRY_LEADERBOARD_COPY: Record<
   de: {
     inviterTab: 'Einlader-Rangliste',
     countryTab: 'Zugänge nach Land',
+    country: 'Land',
     count: 'Zugänge',
     thisRound: 'diese Runde',
     empty: 'Noch keine Zugänge nach Land erfasst.',
@@ -109,6 +120,7 @@ export const COUNTRY_LEADERBOARD_COPY: Record<
   fr: {
     inviterTab: 'Classement des parrains',
     countryTab: 'Arrivées par pays',
+    country: 'Pays',
     count: 'Arrivées',
     thisRound: 'ce round',
     empty: 'Il n’y a pas encore d’arrivées par pays.',
@@ -118,6 +130,7 @@ export const COUNTRY_LEADERBOARD_COPY: Record<
   ar: {
     inviterTab: 'ترتيب الداعين',
     countryTab: 'الوافدون حسب البلد',
+    country: 'البلد',
     count: 'عدد الوافدين',
     thisRound: 'هذه الجولة',
     empty: 'لا توجد سجلات للوافدين حسب البلد حتى الآن.',
@@ -127,6 +140,7 @@ export const COUNTRY_LEADERBOARD_COPY: Record<
   bn: {
     inviterTab: 'আমন্ত্রণকারীর র‍্যাঙ্কিং',
     countryTab: 'দেশভিত্তিক আগমন',
+    country: 'দেশ',
     count: 'আগমনের সংখ্যা',
     thisRound: 'এই রাউন্ড',
     empty: 'এখনও দেশভিত্তিক আগমনের কোনো রেকর্ড নেই।',
@@ -136,6 +150,7 @@ export const COUNTRY_LEADERBOARD_COPY: Record<
   pt: {
     inviterTab: 'Ranking de quem convida',
     countryTab: 'Entradas por país',
+    country: 'País',
     count: 'Entradas',
     thisRound: 'nesta rodada',
     empty: 'Ainda não há registros de entradas por país.',
@@ -145,6 +160,7 @@ export const COUNTRY_LEADERBOARD_COPY: Record<
   ru: {
     inviterTab: 'Рейтинг приглашающих',
     countryTab: 'Приток по странам',
+    country: 'Страна',
     count: 'Приток',
     thisRound: 'в этом раунде',
     empty: 'Пока нет данных о притоке по странам.',
@@ -154,6 +170,7 @@ export const COUNTRY_LEADERBOARD_COPY: Record<
   id: {
     inviterTab: 'Peringkat pengundang',
     countryTab: 'Masuk per negara',
+    country: 'Negara',
     count: 'Jumlah masuk',
     thisRound: 'ronde ini',
     empty: 'Belum ada data masuk per negara.',
@@ -163,6 +180,7 @@ export const COUNTRY_LEADERBOARD_COPY: Record<
   vi: {
     inviterTab: 'Xếp hạng người mời',
     countryTab: 'Người dùng theo quốc gia',
+    country: 'Quốc gia',
     count: 'Lượt vào',
     thisRound: 'vòng này',
     empty: 'Chưa có dữ liệu người dùng theo quốc gia.',
@@ -172,6 +190,7 @@ export const COUNTRY_LEADERBOARD_COPY: Record<
   'zh-tw': {
     inviterTab: '邀請者排名',
     countryTab: '依國家流入',
+    country: '國家',
     count: '流入數',
     thisRound: '本輪',
     empty: '目前還沒有依國家流入的紀錄。',
@@ -181,6 +200,7 @@ export const COUNTRY_LEADERBOARD_COPY: Record<
   sv: {
     inviterTab: 'Inbjudarrankning',
     countryTab: 'Inflöde per land',
+    country: 'Land',
     count: 'Inflöde',
     thisRound: 'denna runda',
     empty: 'Det finns ännu inga uppgifter om inflöde per land.',
@@ -190,6 +210,7 @@ export const COUNTRY_LEADERBOARD_COPY: Record<
   ro: {
     inviterTab: 'Clasament invitatori',
     countryTab: 'Intrări pe țări',
+    country: 'Țară',
     count: 'Intrări',
     thisRound: 'runda aceasta',
     empty: 'Nu există încă date de intrări pe țări.',
@@ -199,6 +220,7 @@ export const COUNTRY_LEADERBOARD_COPY: Record<
   ur: {
     inviterTab: 'دعوت دینے والوں کی درجہ بندی',
     countryTab: 'ملک کے لحاظ سے آمد',
+    country: 'ملک',
     count: 'آمد کی تعداد',
     thisRound: 'اس راؤنڈ میں',
     empty: 'ابھی ملک کے لحاظ سے آمد کا کوئی ریکارڈ نہیں ہے۔',
@@ -208,6 +230,7 @@ export const COUNTRY_LEADERBOARD_COPY: Record<
   pcm: {
     inviterTab: 'Inviter ranking',
     countryTab: 'People wey join by country',
+    country: 'Country',
     count: 'People wey join',
     thisRound: 'this round',
     empty: 'No country join record yet.',
@@ -217,6 +240,7 @@ export const COUNTRY_LEADERBOARD_COPY: Record<
   arz: {
     inviterTab: 'ترتيب اللي دعوا',
     countryTab: 'الوافدين حسب البلد',
+    country: 'البلد',
     count: 'عدد الوافدين',
     thisRound: 'الجولة دي',
     empty: 'لسه مفيش سجل للوافدين حسب البلد.',
@@ -226,6 +250,7 @@ export const COUNTRY_LEADERBOARD_COPY: Record<
   mr: {
     inviterTab: 'आमंत्रक क्रमवारी',
     countryTab: 'देशानुसार आगमन',
+    country: 'देश',
     count: 'आगमन संख्या',
     thisRound: 'या राउंडमध्ये',
     empty: 'अजून देशानुसार आगमनाची नोंद नाही.',
@@ -235,6 +260,7 @@ export const COUNTRY_LEADERBOARD_COPY: Record<
   te: {
     inviterTab: 'ఆహ్వానదారుల ర్యాంకింగ్',
     countryTab: 'దేశాల వారీ చేరికలు',
+    country: 'దేశం',
     count: 'చేరికల సంఖ్య',
     thisRound: 'ఈ రౌండ్',
     empty: 'ఇంకా దేశాల వారీ చేరికల రికార్డులు లేవు.',
@@ -244,6 +270,7 @@ export const COUNTRY_LEADERBOARD_COPY: Record<
   sw: {
     inviterTab: 'Orodha ya waalikaji',
     countryTab: 'Walioingia kwa nchi',
+    country: 'Nchi',
     count: 'Walioingia',
     thisRound: 'raundi hii',
     empty: 'Bado hakuna rekodi za walioingia kwa nchi.',
@@ -253,6 +280,7 @@ export const COUNTRY_LEADERBOARD_COPY: Record<
   ha: {
     inviterTab: 'Matsayin masu gayyata',
     countryTab: 'Shigowa bisa ƙasa',
+    country: 'Ƙasa',
     count: 'Adadin shigowa',
     thisRound: 'wannan zagaye',
     empty: 'Har yanzu babu bayanan shigowa bisa ƙasa.',
@@ -262,6 +290,7 @@ export const COUNTRY_LEADERBOARD_COPY: Record<
   el: {
     inviterTab: 'Κατάταξη προσκαλούντων',
     countryTab: 'Εισροές ανά χώρα',
+    country: 'Χώρα',
     count: 'Εισροές',
     thisRound: 'αυτόν τον γύρο',
     empty: 'Δεν υπάρχουν ακόμη καταγραφές εισροών ανά χώρα.',
