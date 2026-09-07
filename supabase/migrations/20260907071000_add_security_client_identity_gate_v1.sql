@@ -4,7 +4,7 @@
 -- 1. Record a pseudonymous browser/client -> verified wallet relationship.
 -- 2. Keep this security identity completely separate from product analytics.
 -- 3. Treat shared-client evidence as REVIEW only; never auto-BLOCK in v1.
--- 4. Invalidate stale CLEAR decisions when a new wallet mapping appears.
+-- 4. Invalidate stale CLEAR decisions only when a client becomes shared by wallets.
 -- 5. Preserve auditable operator overrides until genuinely new evidence arrives.
 -- 6. Keep all new security tables server-only and assessment history append-only.
 
@@ -540,9 +540,20 @@ security invoker
 set search_path = public
 as $$
 begin
-  -- New evidence makes a prior client-identity assessment stale. Never mutate
-  -- settled/assigned rewards; those are deliberately immutable accounting
-  -- records and must be handled through the existing post-settlement process.
+  -- A wallet appearing alone on a new browser/client is a normal device change,
+  -- not relationship evidence. Re-evaluate only when this client now contains
+  -- at least one other verified wallet.
+  if not exists (
+    select 1
+    from public.security_client_wallet_observations o
+    where o.client_id = new.client_id
+      and o.wallet_address <> new.wallet_address
+  ) then
+    return new;
+  end if;
+
+  -- A new cross-wallet relationship makes prior client-identity assessments
+  -- stale. Never mutate already settled/assigned rewards.
   update public.invitations i
   set
     identity_link_status = 'UNKNOWN',
@@ -552,7 +563,7 @@ begin
     identity_link_policy_version = 'security_client_v1',
     identity_link_evidence = jsonb_build_object(
       'staleBecause',
-      'NEW_SECURITY_CLIENT_WALLET_MAPPING',
+      'NEW_SHARED_SECURITY_CLIENT_WALLET_MAPPING',
       'observedAt',
       new.first_seen_at
     ),
@@ -571,7 +582,7 @@ begin
     end,
     sybil_reason = case
       when i.sybil_status = 'CLEAR'
-        then 'A new security-client wallet relationship was observed after the previous Sybil check.'
+        then 'A new shared security-client wallet relationship was observed after the previous Sybil check.'
       else i.sybil_reason
     end,
     sybil_checked_at = case
