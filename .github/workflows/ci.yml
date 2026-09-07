@@ -126,6 +126,8 @@ jobs:
           node --test
           tests/demo-completion-mission-parity.test.mjs
           tests/invitee-mission-actions.test.mjs
+          tests/legacy-invite-claim-retry.test.mjs
+          tests/legacy-invite-cancel-retry.test.mjs
           tests/notification-ack-batch-atomicity.test.mjs
           tests/notification-history-fast-open.test.mjs
           tests/operator-fast-invitation-projection-privilege.test.mjs
