@@ -1,8 +1,5 @@
 begin;
 
--- Exact Production alignment migration applied on 2026-09-07.
--- Keep destructive analytics cleanup inaccessible to normal server code until
--- physical Archive storage and restore verification are explicitly activated.
 revoke execute on function public.compact_app_usage_analytics(integer)
   from public, anon, authenticated, service_role;
 revoke execute on function public.compact_app_product_analytics(integer)
