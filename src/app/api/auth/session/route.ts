@@ -6,6 +6,9 @@ import {
 } from 'next/server';
 
 import {
+  ensureSecurityClientForWallet,
+} from '@/lib/securityClientServer';
+import {
   getWalletSession,
   getWalletSessionCookieCount,
   LEGACY_WALLET_SESSION_COOKIE_NAME,
@@ -141,7 +144,7 @@ export async function GET(
       );
     }
 
-    return NextResponse.json(
+    const response = NextResponse.json(
       {
         authenticated: true,
         walletAddress:
@@ -155,6 +158,14 @@ export async function GET(
         },
       },
     );
+
+    await ensureSecurityClientForWallet({
+      request,
+      response,
+      walletAddress: session.walletAddress,
+    });
+
+    return response;
   } catch (error) {
     console.error(
       'Failed to read wallet session:',
@@ -390,6 +401,12 @@ export async function POST(
       });
     }
 
+    await ensureSecurityClientForWallet({
+      request,
+      response,
+      walletAddress: session.walletAddress,
+    });
+
     return response;
   } catch (error) {
     console.error(
@@ -465,5 +482,8 @@ export async function DELETE(
     });
   }
 
+  // Deliberately keep the security-client cookie on logout. It is independent
+  // from authentication and is what allows VeInvite to recognize that multiple
+  // verified wallets were later used in the same browser environment.
   return response;
 }
