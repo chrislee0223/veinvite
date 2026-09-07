@@ -6,3 +6,7 @@ node_modules/
 !.env.example
 .vercel/
 supabase/.temp/
+.backups/
+*.dump
+*.dump.sha256
+*.dump.meta
