@@ -1,4 +1,4 @@
-import { createHash, timingSafeEqual } from 'node:crypto';
+import { createHash } from 'node:crypto';
 
 import { NextRequest, NextResponse } from 'next/server';
 
@@ -7,7 +7,6 @@ import { supabaseAdmin } from '@/lib/supabaseServer';
 
 export const dynamic = 'force-dynamic';
 
-const TOKEN_SHA256 = '031568ec8f19cd0176bc3c45443d6be64a037eb0edf90688628f14c118f13d52';
 const TARGET_INVITE_CODE = '4JDJXVC';
 const TARGET_RECIPIENT = '0x0533410815b0bb452362f91c6c9d1d64abf2c295';
 const TARGET_AMOUNT_WEI = '191252137695939520698';
@@ -19,11 +18,30 @@ function noStoreJson(body: unknown, status = 200) {
   });
 }
 
-function hasValidToken(request: NextRequest): boolean {
+async function hasValidToken(request: NextRequest): Promise<boolean> {
   const token = request.nextUrl.searchParams.get('token') ?? '';
-  const actual = createHash('sha256').update(token).digest();
-  const expected = Buffer.from(TOKEN_SHA256, 'hex');
-  return actual.length === expected.length && timingSafeEqual(actual, expected);
+
+  if (!/^[0-9a-f]{64}$/i.test(token)) {
+    return false;
+  }
+
+  const tokenHash = createHash('sha256')
+    .update(token)
+    .digest('hex');
+  const { data, error } = await supabaseAdmin.rpc(
+    'verify_first_reward_recovery_token_hash',
+    {
+      p_token_hash: tokenHash,
+    },
+  );
+
+  if (error) {
+    throw new Error(
+      `Recovery authorization could not be verified: ${error.message}`,
+    );
+  }
+
+  return data === true;
 }
 
 function matchesTarget(row: { invite_code?: unknown; recipient_wallet?: unknown }) {
@@ -36,14 +54,23 @@ function matchesTarget(row: { invite_code?: unknown; recipient_wallet?: unknown 
 /**
  * Temporary, token-protected recovery route for the first Production reward.
  * It may only operate while every active reward row belongs to the single
- * pre-verified target invitation. The exact 256-bit-sized reward amount is
- * filtered by Postgres instead of being round-tripped through JavaScript,
- * avoiding numeric precision loss. The real transfer is delegated to the
- * normal automatic payout worker so all existing lock, journal, manifest and
- * finality protections remain authoritative. Delete this route after recovery.
+ * pre-verified target invitation. The raw recovery token is never stored in
+ * source or database; only its SHA-256 hash is compared by a service-role-only
+ * database verifier. The real transfer is delegated to the normal automatic
+ * payout worker so lock, journal, manifest, signing and finality protections
+ * remain authoritative. Delete this route and verifier after recovery.
  */
 export async function GET(request: NextRequest) {
-  if (!hasValidToken(request)) {
+  let authorized = false;
+
+  try {
+    authorized = await hasValidToken(request);
+  } catch (error) {
+    console.error('First reward recovery authorization failed:', error);
+    return noStoreJson({ error: 'Recovery authorization unavailable.' }, 503);
+  }
+
+  if (!authorized) {
     return noStoreJson({ error: 'Unauthorized.' }, 401);
   }
 
