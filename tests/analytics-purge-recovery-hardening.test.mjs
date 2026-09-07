@@ -164,7 +164,7 @@ test('a revoked post-purge archive can recover only with the recorded pre-purge 
   );
 });
 
-test('health keeps purged dates observable and scheduled maintenance stays non-destructive', () => {
+test('health keeps purged dates observable and scheduled analytics maintenance stays non-destructive', () => {
   assert.match(
     purgeLedger,
     /purged_analytics_dates_without_valid_archive/,
@@ -175,7 +175,12 @@ test('health keeps purged dates observable and scheduled maintenance stays non-d
   );
   assert.match(maintenanceRoute, /destructiveCleanupEnabled: false/);
   assert.match(maintenanceRoute, /longTermReady: false/);
-  assert.match(maintenanceRoute, /mode: 'NON_DESTRUCTIVE'/);
+  assert.match(maintenanceRoute, /mode: 'MIXED_MAINTENANCE'/);
+  assert.match(maintenanceRoute, /analyticsMode: 'NON_DESTRUCTIVE'/);
+  assert.match(
+    maintenanceRoute,
+    /securityClientRetentionMode: 'TIME_BOUNDED_DELETION'/,
+  );
   assert.doesNotMatch(
     maintenanceRoute,
     /compact_app_usage_analytics|compact_app_product_analytics/,
