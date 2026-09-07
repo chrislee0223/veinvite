@@ -1,6 +1,9 @@
 'use client';
 
-import type { SupportedLocale } from '@/lib/i18n/locales';
+import {
+  localeFromLanguageTag,
+  type Locale,
+} from '@/lib/i18n/locales';
 import type { PublicLeaderboardResponse } from '@/lib/types';
 import { PublicLeaderboard as InviterLeaderboard } from './InviterLeaderboard';
 import { PublicLeaderboardHub } from './PublicLeaderboardHub';
@@ -10,7 +13,7 @@ export function PublicLeaderboard({
   wallet,
   previewData,
 }: {
-  locale: SupportedLocale;
+  locale: Locale;
   wallet: string | null;
   previewData?: PublicLeaderboardResponse;
 }) {
@@ -24,10 +27,12 @@ export function PublicLeaderboard({
     );
   }
 
+  const supportedLocale = localeFromLanguageTag(locale) ?? 'en';
+
   return (
     <>
       <PublicLeaderboardHub
-        locale={locale}
+        locale={supportedLocale}
         wallet={wallet}
       />
       <style jsx global>{`
