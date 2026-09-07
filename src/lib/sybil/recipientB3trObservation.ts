@@ -286,6 +286,7 @@ export async function observeRecipientB3trReceipt({
     recipientWallet: evidence.recipient_wallet,
     payoutBlockNumber,
     payoutAmountWei,
+    targetScanToBlock: minimumScanToBlock,
   });
 
   if (snapshot.network !== evidence.network) {
