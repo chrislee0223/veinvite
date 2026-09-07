@@ -96,6 +96,17 @@ if (
 }
 
 if (
+  !/targetScanToBlock\?: number \| null/.test(scanner) ||
+  !/validateTargetScanToBlock/.test(scanner) ||
+  !/Math\.min\([\s\S]*bestBlock\.number,[\s\S]*validatedTargetScanToBlock/.test(scanner) ||
+  !/targetScanToBlock:\s*minimumScanToBlock/.test(observation)
+) {
+  failures.push(
+    'Scheduled B3TR observation must cap the chain scan at the exact first-day target instead of mixing in later transfers.',
+  );
+}
+
+if (
   !/RAPID_LARGE_B3TR_SWEEP/.test(scanner) ||
   !/SHARED_B3TR_DESTINATION/.test(scanner) ||
   !/KNOWN_PROTOCOL_DESTINATION/.test(scanner) ||
