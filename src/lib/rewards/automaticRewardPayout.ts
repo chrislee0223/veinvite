@@ -277,6 +277,51 @@ async function loadActiveRewardState(
     );
   }
 
+  const exactSourceResult = await supabaseAdmin.rpc(
+    'read_reward_manifest_source',
+    {
+      p_round_id: roundId,
+    },
+  );
+
+  if (exactSourceResult.error) {
+    throw new Error(
+      `Exact reward manifest source could not be loaded: ${exactSourceResult.error.message}`,
+    );
+  }
+
+  const exactSource = exactSourceResult.data as {
+    round?: Record<string, unknown> | null;
+    payouts?: Record<string, unknown>[];
+    manifest?: Record<string, unknown> | null;
+  } | null;
+
+  if (
+    !exactSource?.round ||
+    !Array.isArray(exactSource.payouts)
+  ) {
+    throw new Error(
+      'Exact reward manifest source returned malformed data.',
+    );
+  }
+
+  if (
+    positiveId(
+      exactSource.round.id,
+      'exact reward round id',
+    ) !== roundId
+  ) {
+    throw new Error(
+      'Exact reward manifest source resolved a different round.',
+    );
+  }
+
+  const manifestRound: Record<string, unknown> = {
+    ...round,
+    ...exactSource.round,
+  };
+  const manifestPayouts = exactSource.payouts;
+
   const manifestResult = await supabaseAdmin
     .from('reward_payout_manifests')
     .select(
@@ -291,14 +336,27 @@ async function loadActiveRewardState(
     );
   }
 
-  const manifest =
+  const baseManifest =
     manifestResult.data as Record<string, unknown> | null;
+  const exactManifest = exactSource.manifest ?? null;
+
+  if (Boolean(baseManifest) !== Boolean(exactManifest)) {
+    throw new Error(
+      'Exact reward manifest source disagrees with the active manifest state.',
+    );
+  }
+
+  const manifest = baseManifest && exactManifest
+    ? {
+        ...baseManifest,
+        ...exactManifest,
+      }
+    : null;
 
   if (!manifest) {
     return {
-      round,
-      payouts:
-        (payoutResult.data ?? []) as Record<string, unknown>[],
+      round: manifestRound,
+      payouts: manifestPayouts,
       manifest: null,
       checkpoint: null,
       signedTransaction: null,
@@ -361,9 +419,8 @@ async function loadActiveRewardState(
   }
 
   return {
-    round,
-    payouts:
-      (payoutResult.data ?? []) as Record<string, unknown>[],
+    round: manifestRound,
+    payouts: manifestPayouts,
     manifest,
     checkpoint:
       checkpointResult.data as Record<string, unknown> | null,
