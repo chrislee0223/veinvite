@@ -12,13 +12,13 @@ const [
   securityClientServer,
 ] = await Promise.all([
   read(
-    'supabase/migrations/20260907083122_add_security_client_retention_v1.sql',
+    'supabase/migrations/20260907093023_add_security_client_retention_v1.sql',
   ),
   read(
-    'supabase/migrations/20260907091639_add_security_client_retention_lookup_index_v1.sql',
+    'supabase/migrations/20260907093031_add_security_client_retention_lookup_index_v1.sql',
   ),
   read(
-    'supabase/migrations/20260907091918_tighten_security_client_retention_review_scope_v1.sql',
+    'supabase/migrations/20260907093048_tighten_security_client_retention_review_scope_v1.sql',
   ),
   read('src/lib/securityClientServer.ts'),
 ]);

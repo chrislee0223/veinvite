@@ -6,14 +6,18 @@ const read = (path) =>
   readFile(new URL(`../${path}`, import.meta.url), 'utf8');
 
 const [
-  migration,
+  foundationMigration,
+  effectivePolicyMigration,
   maintenanceRoute,
   privacyCopy,
   legalPage,
   legalSheet,
 ] = await Promise.all([
   read(
-    'supabase/migrations/20260907083122_add_security_client_retention_v1.sql',
+    'supabase/migrations/20260907093023_add_security_client_retention_v1.sql',
+  ),
+  read(
+    'supabase/migrations/20260907093048_tighten_security_client_retention_review_scope_v1.sql',
   ),
   read('src/app/api/cron/analytics-maintenance/route.ts'),
   read('src/lib/i18n/privacySecurityClientCopy.ts'),
@@ -23,65 +27,73 @@ const [
 
 test('Security Client technical relationships use a 365-day retention policy', () => {
   assert.match(
-    migration,
+    foundationMigration,
     /p_retention_days integer default 365/,
   );
   assert.match(
-    migration,
+    foundationMigration,
     /delete from public\.security_client_wallet_observations/,
   );
   assert.match(
-    migration,
+    foundationMigration,
     /delete from public\.security_clients/,
   );
   assert.doesNotMatch(
-    migration,
+    foundationMigration,
     /delete from public\.(invitations|security_identity_assessment_events|sybil_review_events|reward_queue_entries)/,
   );
 });
 
-test('unresolved Security Client reviews are deferred instead of losing live evidence', () => {
+test('effective policy defers only unresolved Security Client reviews', () => {
   assert.match(
-    migration,
+    effectivePolicyMigration,
     /i\.status = 'UNDER_REVIEW'/,
   );
   assert.match(
-    migration,
+    effectivePolicyMigration,
     /i\.sybil_status = 'REVIEW'/,
   );
   assert.match(
-    migration,
+    effectivePolicyMigration,
     /i\.sybil_source = 'SECURITY_CLIENT'/,
   );
   assert.match(
-    migration,
+    effectivePolicyMigration,
+    /i\.identity_link_status = 'REVIEW'/,
+  );
+  assert.doesNotMatch(
+    effectivePolicyMigration,
+    /identity_link_status in \('REVIEW','UNKNOWN'\)/,
+  );
+  assert.match(
+    effectivePolicyMigration,
     /deferredOpenReviewClients/,
   );
 });
 
 test('retention execution is serialized, bounded, audited, and service-role only', () => {
   assert.match(
-    migration,
+    foundationMigration,
     /pg_advisory_xact_lock/,
   );
   assert.match(
-    migration,
+    foundationMigration,
     /limit p_batch_limit/,
   );
   assert.match(
-    migration,
+    foundationMigration,
     /security_client_retention_runs_append_only/,
   );
   assert.match(
-    migration,
+    foundationMigration,
     /execute function public\.prevent_operator_ledger_mutation\(\)/,
   );
   assert.match(
-    migration,
+    foundationMigration,
     /revoke all on function public\.cleanup_security_client_identity_data[\s\S]*from public, anon, authenticated/,
   );
   assert.match(
-    migration,
+    foundationMigration,
     /grant execute on function public\.cleanup_security_client_identity_data[\s\S]*to service_role/,
   );
 });
