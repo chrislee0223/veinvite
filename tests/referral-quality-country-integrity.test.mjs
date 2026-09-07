@@ -126,23 +126,23 @@ test('public country API exposes only aggregate country counts', () => {
   );
 });
 
-test('country UI is cumulative-only, hides NEW/RETURNING split, and matches inviter viewport height', () => {
+test('country UI preloads quietly, stays cumulative-only, and matches inviter viewport height', () => {
   assert.match(countryHub, /type RankingView = 'inviter' \| 'country'/);
   assert.match(countryHub, /fetch\('\/api\/leaderboard\/country'/);
-  assert.match(countryHub, /rankingView !== 'country'/);
+  assert.match(countryHub, /refreshCountry\(false\)/);
+  assert.match(countryHub, /COUNTRY_CACHE_TTL_MS\s*=\s*60_000/);
   assert.match(countryHub, /InviterLeaderboard/);
+  assert.doesNotMatch(countryHub, /leaderboardCopy\.loading/);
+  assert.doesNotMatch(countryHub, /row\.newUsers|row\.returningUsers|countryMix/);
+  assert.doesNotMatch(countryHub, />TOP 100</);
 
   assert.match(
     leaderboardEntry,
-    /\.leaderboardHub \.countryMix \{[\s\S]*display:none !important;/,
+    /\.leaderboardHub \.countryRow,[\s\S]*\.leaderboardHub \.countryPlaceholderRow \{[\s\S]*height:50px !important;[\s\S]*min-height:50px !important;/,
   );
   assert.match(
     leaderboardEntry,
-    /\.leaderboardHub \.countryRow \{[\s\S]*height:50px !important;[\s\S]*min-height:50px !important;/,
-  );
-  assert.match(
-    leaderboardEntry,
-    /\.leaderboardHub \.countryScroll,[\s\S]*height:250px !important;/,
+    /\.leaderboardHub \.countryScroll,[\s\S]*\.leaderboardHub \.countrySkeleton,[\s\S]*\.leaderboardHub \.countryState \{[\s\S]*height:250px !important;/,
   );
   assert.match(
     leaderboardEntry,
