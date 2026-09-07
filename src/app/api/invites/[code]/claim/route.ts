@@ -276,6 +276,68 @@ async function loadStoredEntryClassForRetry({
   return null;
 }
 
+async function claimRetryResponse({
+  invitation,
+  inviteCode,
+  walletAddress,
+}: {
+  invitation: InvitationRow;
+  inviteCode: string;
+  walletAddress: string;
+}) {
+  if (!invitation.invitee_wallet) {
+    return null;
+  }
+
+  const assignedInvitee =
+    normalizeAddress(invitation.invitee_wallet);
+
+  if (assignedInvitee !== walletAddress) {
+    return NextResponse.json(
+      {
+        outcome: 'already_used',
+        error:
+          'This invite link has already been used.',
+      },
+      { status: 409 },
+    );
+  }
+
+  // The first claim can commit successfully while its HTTP response is lost.
+  // Never rescan eligibility on that retry: the immutable eligibility event
+  // written by the atomic claim is the authoritative classification.
+  const retryEntryClass =
+    await loadStoredEntryClassForRetry({
+      inviteCode,
+      walletAddress,
+    });
+
+  if (!retryEntryClass) {
+    return NextResponse.json(
+      {
+        outcome: 'retry_state_unavailable',
+        error:
+          'The completed invitation could not be safely resumed. Please reload the invite.',
+      },
+      {
+        status: 503,
+        headers: {
+          'Retry-After': '5',
+        },
+      },
+    );
+  }
+
+  return NextResponse.json(
+    {
+      outcome: 'eligible',
+      entryClass: retryEntryClass,
+      invite: toInviteRecord(invitation),
+    },
+    { status: 200 },
+  );
+}
+
 function claimConflictResponse(
   result: ClaimRpcResult['result'] | RejectRpcResult['result'],
 ) {
@@ -455,54 +517,15 @@ export async function POST(
     );
   }
 
-  if (invitation.invitee_wallet) {
-    const assignedInvitee =
-      normalizeAddress(invitation.invitee_wallet);
+  const existingClaimResponse =
+    await claimRetryResponse({
+      invitation,
+      inviteCode: normalizedCode,
+      walletAddress: inviteeAddress,
+    });
 
-    if (assignedInvitee !== inviteeAddress) {
-      return NextResponse.json(
-        {
-          outcome: 'already_used',
-          error:
-            'This invite link has already been used.',
-        },
-        { status: 409 },
-      );
-    }
-
-    // The first claim can commit successfully while its HTTP response is lost.
-    // Never rescan eligibility on that retry: the immutable eligibility event
-    // written by the atomic claim is the authoritative classification.
-    const retryEntryClass =
-      await loadStoredEntryClassForRetry({
-        inviteCode: normalizedCode,
-        walletAddress: inviteeAddress,
-      });
-
-    if (!retryEntryClass) {
-      return NextResponse.json(
-        {
-          outcome: 'retry_state_unavailable',
-          error:
-            'The completed invitation could not be safely resumed. Please reload the invite.',
-        },
-        {
-          status: 503,
-          headers: {
-            'Retry-After': '5',
-          },
-        },
-      );
-    }
-
-    return NextResponse.json(
-      {
-        outcome: 'eligible',
-        entryClass: retryEntryClass,
-        invite: toInviteRecord(invitation),
-      },
-      { status: 200 },
-    );
+  if (existingClaimResponse) {
+    return existingClaimResponse;
   }
 
   const clientIp =
@@ -720,6 +743,40 @@ export async function POST(
     !claimResult ||
     claimResult.result !== 'CLAIMED'
   ) {
+    if (claimResult?.result === 'ALREADY_USED') {
+      const {
+        data: retryData,
+        error: retryLoadError,
+      } = await supabaseAdmin
+        .from('invitations')
+        .select(invitationColumns)
+        .eq('invite_code', normalizedCode)
+        .maybeSingle();
+
+      if (retryLoadError) {
+        console.error(
+          'Failed to reload invitation after claim race:',
+          retryLoadError,
+        );
+      } else {
+        const retryInvitation =
+          toInvitationRow(retryData);
+
+        if (retryInvitation) {
+          const retryResponse =
+            await claimRetryResponse({
+              invitation: retryInvitation,
+              inviteCode: normalizedCode,
+              walletAddress: inviteeAddress,
+            });
+
+          if (retryResponse) {
+            return retryResponse;
+          }
+        }
+      }
+    }
+
     return claimConflictResponse(
       claimResult?.result,
     );
