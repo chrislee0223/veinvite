@@ -15,6 +15,7 @@ import {
 } from './AppBottomNavigation';
 import { Brand } from './Brand';
 import { InAppInviteNotifications } from './InAppInviteNotifications';
+import { PublicRewardForecastCard } from './PublicRewardForecastCard';
 import {
   TransientSnackbar,
   type TransientFeedback,
@@ -812,6 +813,8 @@ export function HomeClient() {
           >
             <h1>{referral.homeTitle}</h1>
           </div>
+
+          <PublicRewardForecastCard locale={locale} />
 
           {!wallet ? (
             <button
