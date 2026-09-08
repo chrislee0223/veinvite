@@ -402,7 +402,11 @@ export function PublicLeaderboard({
 
     if (entry.rankMovement === 'NEW') {
       return (
-        <small className="rankMovement new" aria-hidden="true">
+        <small
+          className="rankMovement new"
+          dir="auto"
+          aria-hidden="true"
+        >
           {movementCopy.newEntry}
         </small>
       );
@@ -445,6 +449,7 @@ export function PublicLeaderboard({
         key={entry.walletAddress}
         type="button"
         className={classes}
+        data-rank={entry.rank > 0 ? entry.rank : undefined}
         onClick={(event) =>
           openWalletDetails(entry, event.currentTarget)
         }
@@ -469,7 +474,7 @@ export function PublicLeaderboard({
           <b>{entry.completedReferrals}</b>
         </span>
         <span className="rankMetric rewardMetric">
-          <b>{formatRewardWei(entry.totalRewardWei)} B3TR</b>
+          <b>{formatRewardWei(entry.totalRewardWei)}</b>
         </span>
       </button>
     );
@@ -479,6 +484,7 @@ export function PublicLeaderboard({
     <div
       key={`rank-placeholder-${rank}`}
       className={`rankRow placeholderRow ${rank <= 5 ? 'featured' : 'compact'}`}
+      data-rank={rank}
       aria-hidden="true"
     >
       <span className="rankStack">
@@ -536,10 +542,12 @@ export function PublicLeaderboard({
         </div>
 
         <div className="tableHeader" aria-hidden="true">
-          <span>{t.rank}</span>
-          <span>{t.wallet}</span>
-          <span>{t.completed}</span>
-          <span>{t.earned}</span>
+          <span dir="auto">{t.rank}</span>
+          <span dir="auto">{t.wallet}</span>
+          <span dir="auto">{t.completed}</span>
+          <span className="rewardHeader" dir="auto">
+            {t.earned} <bdi dir="ltr">(B3TR)</bdi>
+          </span>
         </div>
 
         <div className="rankScroll" aria-label={`1-${PUBLIC_RANK_LIMIT}`}>
@@ -799,6 +807,7 @@ export function PublicLeaderboard({
           column-gap:var(--leaderboard-gap);
           align-items:center;
           box-sizing:border-box;
+          direction:ltr;
         }
         .tableHeader {
           min-height:34px;
@@ -815,8 +824,18 @@ export function PublicLeaderboard({
           overflow-wrap:anywhere;
           text-align:center;
         }
-        .tableHeader span:nth-child(4) {
-          text-align:right;
+        .tableHeader .rewardHeader {
+          display:flex;
+          align-items:center;
+          justify-content:center;
+          flex-wrap:wrap;
+          gap:0 .22em;
+          text-align:center;
+        }
+        .tableHeader .rewardHeader bdi {
+          direction:ltr;
+          unicode-bidi:isolate;
+          white-space:nowrap;
         }
         .rows {
           width:100%;
@@ -842,10 +861,12 @@ export function PublicLeaderboard({
           border-radius:999px;
           background:rgba(244,183,40,.45);
         }
-        .rankRow,
-        .rankRow.featured,
-        .rankRow.compact {
-          min-height:var(--rank-row-height);
+        .leaderboardPage .rankRow,
+        .leaderboardPage .rankRow.featured,
+        .leaderboardPage .rankRow.compact {
+          height:var(--rank-row-height) !important;
+          min-height:var(--rank-row-height) !important;
+          max-height:var(--rank-row-height) !important;
           padding:0 12px;
           border:0;
           border-bottom:1px solid rgba(255,255,255,.055);
@@ -853,6 +874,7 @@ export function PublicLeaderboard({
           background:transparent;
           color:#e9e5dc;
           font:inherit;
+          line-height:1 !important;
           cursor:pointer;
         }
         .placeholderRow {
@@ -866,8 +888,10 @@ export function PublicLeaderboard({
           color:#68645d;
           font-weight:700;
         }
-        .rankRow.trailingCurrent {
-          min-height:54px;
+        .leaderboardPage .rankRow.trailingCurrent {
+          height:54px !important;
+          min-height:54px !important;
+          max-height:54px !important;
         }
         .rankRow:hover,.rankRow:focus-visible {
           background:rgba(255,205,80,.045);
@@ -887,35 +911,120 @@ export function PublicLeaderboard({
         .rankStack {
           grid-column:1;
           min-width:0;
-          min-height:var(--rank-row-height);
+          height:100%;
+          min-height:0;
           align-self:stretch;
           position:relative;
+          isolation:isolate;
+          overflow:visible;
+          direction:ltr;
           text-align:center;
         }
         .rankValue {
           min-width:0;
           position:absolute;
-          left:50%;
-          top:50%;
-          transform:translate(-50%,-50%);
+          inset:0;
+          z-index:2;
+          width:100%;
+          height:100%;
+          margin:0;
+          padding:0;
+          display:grid;
+          place-items:center;
+          transform:none;
           color:#f0ede6;
+          font-family:system-ui,-apple-system,"Segoe UI",Arial,sans-serif;
           font-size:.74rem;
-          line-height:1;
+          font-weight:850;
+          line-height:1 !important;
           font-variant-numeric:tabular-nums;
+          direction:ltr;
           text-align:center;
+          text-wrap:nowrap;
+          white-space:nowrap;
+        }
+        .rankRow[data-rank='1'] .rankStack {
+          --podium-accent:#f1bd34;
+          --podium-opacity:.98;
+        }
+        .rankRow[data-rank='2'] .rankStack {
+          --podium-accent:#c8cbd0;
+          --podium-opacity:.90;
+        }
+        .rankRow[data-rank='3'] .rankStack {
+          --podium-accent:#c98252;
+          --podium-opacity:.90;
+        }
+        .rankRow[data-rank='1'] .rankValue,
+        .rankRow[data-rank='2'] .rankValue,
+        .rankRow[data-rank='3'] .rankValue {
+          color:var(--podium-accent);
+          font-weight:950;
+        }
+        .rankRow[data-rank='1'] .rankStack::before,
+        .rankRow[data-rank='2'] .rankStack::before,
+        .rankRow[data-rank='3'] .rankStack::before {
+          content:'';
+          position:absolute;
+          z-index:1;
+          left:50%;
+          top:46%;
+          width:34px;
+          height:27px;
+          box-sizing:border-box;
+          border-left:1.35px solid var(--podium-accent);
+          border-right:1.35px solid var(--podium-accent);
+          border-bottom:1.35px solid var(--podium-accent);
+          border-radius:0 0 49% 49%;
+          background:
+            radial-gradient(ellipse 4px 2.1px at 14% 73%,var(--podium-accent) 0 72%,transparent 77%),
+            radial-gradient(ellipse 4px 2.1px at 9% 53%,var(--podium-accent) 0 72%,transparent 77%),
+            radial-gradient(ellipse 4px 2.1px at 15% 33%,var(--podium-accent) 0 72%,transparent 77%),
+            radial-gradient(ellipse 4px 2.1px at 25% 16%,var(--podium-accent) 0 72%,transparent 77%),
+            radial-gradient(ellipse 4px 2.1px at 86% 73%,var(--podium-accent) 0 72%,transparent 77%),
+            radial-gradient(ellipse 4px 2.1px at 91% 53%,var(--podium-accent) 0 72%,transparent 77%),
+            radial-gradient(ellipse 4px 2.1px at 85% 33%,var(--podium-accent) 0 72%,transparent 77%),
+            radial-gradient(ellipse 4px 2.1px at 75% 16%,var(--podium-accent) 0 72%,transparent 77%);
+          opacity:var(--podium-opacity);
+          transform:translate(-50%,-50%);
+          transform-origin:50% 50%;
+          filter:drop-shadow(0 0 1px rgba(255,255,255,.12));
+          pointer-events:none;
+        }
+        .rankRow[data-rank='1'] .rankStack::after {
+          content:'';
+          position:absolute;
+          z-index:1;
+          left:50%;
+          top:3px;
+          width:12px;
+          height:7px;
+          border-radius:1px;
+          background:linear-gradient(135deg,#fff2a6 0%,#f8c64a 36%,#d89720 70%,#ffe17a 100%);
+          clip-path:polygon(0 100%,0 42%,18% 64%,34% 8%,50% 59%,68% 7%,83% 64%,100% 40%,100% 100%);
+          transform:translateX(-50%);
+          transform-origin:50% 50%;
+          filter:drop-shadow(0 0 1px rgba(241,189,52,.3));
+          pointer-events:none;
         }
         .rankMovement {
-          max-width:100%;
+          width:100%;
+          max-width:none;
           position:absolute;
-          left:50%;
+          z-index:3;
+          left:0;
+          right:0;
           bottom:4px;
-          transform:translateX(-50%);
+          margin:0;
+          padding:0;
+          transform:none;
           overflow:hidden;
           color:#8f8a80;
           font-size:.52rem;
           font-weight:950;
-          line-height:1;
+          line-height:1 !important;
           letter-spacing:-.03em;
+          text-align:center;
           text-overflow:ellipsis;
           white-space:nowrap;
           font-variant-numeric:tabular-nums;
@@ -936,6 +1045,7 @@ export function PublicLeaderboard({
           font-family:ui-monospace,SFMono-Regular,Menlo,monospace;
           font-size:.72rem;
           line-height:1.2;
+          direction:ltr;
           text-align:center;
         }
         .walletAvatar {
@@ -962,6 +1072,7 @@ export function PublicLeaderboard({
           display:flex;
           align-items:center;
           justify-content:center;
+          direction:ltr;
           text-align:center;
         }
         .completedMetric {
@@ -1178,17 +1289,30 @@ export function PublicLeaderboard({
             padding:0 8px 8px;
             font-size:.52rem;
           }
-          .rankRow,
-          .rankRow.featured,
-          .rankRow.compact {
+          .leaderboardPage .rankRow,
+          .leaderboardPage .rankRow.featured,
+          .leaderboardPage .rankRow.compact {
             padding-left:8px;
             padding-right:8px;
           }
-          .rankRow.trailingCurrent {
-            min-height:50px;
+          .leaderboardPage .rankRow.trailingCurrent {
+            height:50px !important;
+            min-height:50px !important;
+            max-height:50px !important;
           }
           .rankValue,.rankMetric b {
             font-size:.65rem;
+          }
+          .rankRow[data-rank='1'] .rankStack::before,
+          .rankRow[data-rank='2'] .rankStack::before,
+          .rankRow[data-rank='3'] .rankStack::before {
+            width:31px;
+            height:25px;
+          }
+          .rankRow[data-rank='1'] .rankStack::after {
+            top:2px;
+            width:11px;
+            height:6px;
           }
           .rankMovement {
             bottom:3px;
@@ -1228,14 +1352,25 @@ export function PublicLeaderboard({
             padding-right:6px;
             font-size:.48rem;
           }
-          .rankRow,
-          .rankRow.featured,
-          .rankRow.compact {
+          .leaderboardPage .rankRow,
+          .leaderboardPage .rankRow.featured,
+          .leaderboardPage .rankRow.compact {
             padding-left:6px;
             padding-right:6px;
           }
           .rankValue,.rankMetric b {
             font-size:.61rem;
+          }
+          .rankRow[data-rank='1'] .rankStack::before,
+          .rankRow[data-rank='2'] .rankStack::before,
+          .rankRow[data-rank='3'] .rankStack::before {
+            width:29px;
+            height:23px;
+          }
+          .rankRow[data-rank='1'] .rankStack::after {
+            top:2px;
+            width:10px;
+            height:6px;
           }
           .rankMovement {
             bottom:3px;
