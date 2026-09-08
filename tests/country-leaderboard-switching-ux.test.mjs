@@ -12,8 +12,8 @@ const entry = readFileSync(
   join(root, 'src/components/PublicLeaderboard.tsx'),
   'utf8',
 );
-const countryCopy = readFileSync(
-  join(root, 'src/lib/i18n/countryLeaderboardCopy.ts'),
+const metricCopy = readFileSync(
+  join(root, 'src/lib/i18n/countryArrivalMetricCopy.ts'),
   'utf8',
 );
 
@@ -49,17 +49,23 @@ test('ranking tabs use a simple text-only treatment without decorative icons or 
   );
 });
 
-test('country rows keep NEW and RETURNING internal-only', () => {
-  assert.doesNotMatch(hub, /row\.newUsers/);
-  assert.doesNotMatch(hub, /row\.returningUsers/);
-  assert.doesNotMatch(hub, /className="countryMix"/);
+test('country rows expose new returning and total users directly without a secondary click', () => {
+  assert.match(hub, /row\.newUsers\.toLocaleString\(locale\)/);
+  assert.match(hub, /row\.returningUsers\.toLocaleString\(locale\)/);
+  assert.match(hub, /row\.completedReferrals\.toLocaleString\(locale\)/);
+  assert.match(hub, /className="countryMetricValue countryNew"/);
+  assert.match(hub, /className="countryMetricValue countryReturning"/);
+  assert.match(hub, /className="countryMetricValue countryTotal"/);
+  assert.doesNotMatch(hub, /className="roundGain"/);
+  assert.doesNotMatch(hub, /currentRoundCompleted\.toLocaleString/);
 });
 
-test('country header uses arrival count copy and the empty state stays user-facing', () => {
-  assert.match(hub, /countryCopy\.count/);
-  assert.match(countryCopy, /ko:\s*\{[\s\S]*count: '유입 수'/);
-  assert.match(countryCopy, /empty: '아직 국가별 유입 기록이 없어요\.'/);
-  assert.doesNotMatch(countryCopy, /known: string|unknown: string/);
+test('country header uses dedicated localized labels for new returning and total arrivals', () => {
+  assert.match(hub, /COUNTRY_ARRIVAL_METRIC_COPY\[locale\]/);
+  assert.match(hub, /countryMetricCopy\.newUsers/);
+  assert.match(hub, /countryMetricCopy\.returningUsers/);
+  assert.match(hub, /countryMetricCopy\.totalUsers/);
+  assert.match(metricCopy, /ko:\s*\{\s*newUsers: '신규', returningUsers: '복귀', totalUsers: '총 유입'\s*\}/);
 });
 
 test('country and inviter ranking viewports stay on the same responsive five-row geometry', () => {

@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 
+import { COUNTRY_ARRIVAL_METRIC_COPY } from '@/lib/i18n/countryArrivalMetricCopy';
 import { COUNTRY_LEADERBOARD_COPY } from '@/lib/i18n/countryLeaderboardCopy';
 import '@/lib/i18n/localePacks/registerExpandedLocales';
 import { LEADERBOARD_COPY } from '@/lib/i18n/leaderboardCopy';
@@ -196,6 +197,7 @@ export function PublicLeaderboardHub({
     ? leaderboardState.data
     : cached;
   const countryCopy = COUNTRY_LEADERBOARD_COPY[locale];
+  const countryMetricCopy = COUNTRY_ARRIVAL_METRIC_COPY[locale];
   const leaderboardCopy = LEADERBOARD_COPY[locale] ?? LEADERBOARD_COPY.en;
   const countryData = countryState.data;
   const countryLeaders = useMemo(
@@ -261,9 +263,17 @@ export function PublicLeaderboardHub({
         ) : (
           <div className="countryPanel">
             <div className="countryHeader" aria-hidden="true">
-              <span>{leaderboardCopy.rank}</span>
-              <span>{countryCopy.country}</span>
-              <span>{countryCopy.count}</span>
+              <span className="countryHeaderRank">{leaderboardCopy.rank}</span>
+              <span className="countryHeaderCountry">{countryCopy.country}</span>
+              <span title={countryMetricCopy.newUsers}>
+                {countryMetricCopy.newUsers}
+              </span>
+              <span title={countryMetricCopy.returningUsers}>
+                {countryMetricCopy.returningUsers}
+              </span>
+              <span title={countryMetricCopy.totalUsers}>
+                {countryMetricCopy.totalUsers}
+              </span>
             </div>
 
             {showCountryData && countryLeaders.length > 0 ? (
@@ -279,15 +289,16 @@ export function PublicLeaderboardHub({
                       <CountryFlag countryCode={row.countryCode} />
                       <div className="countryNameLine">
                         <strong>{countryName(row.countryCode, locale)}</strong>
-                        {row.currentRoundCompleted > 0 ? (
-                          <small className="roundGain">
-                            +{row.currentRoundCompleted.toLocaleString()} {countryCopy.thisRound}
-                          </small>
-                        ) : null}
                       </div>
                     </div>
-                    <strong className="countryTotal">
-                      {row.completedReferrals.toLocaleString()}
+                    <strong className="countryMetricValue countryNew">
+                      {row.newUsers.toLocaleString(locale)}
+                    </strong>
+                    <strong className="countryMetricValue countryReturning">
+                      {row.returningUsers.toLocaleString(locale)}
+                    </strong>
+                    <strong className="countryMetricValue countryTotal">
+                      {row.completedReferrals.toLocaleString(locale)}
                     </strong>
                   </div>
                 ))}
@@ -309,6 +320,8 @@ export function PublicLeaderboardHub({
                   <div className="countryPlaceholderRow" key={index}>
                     <strong>—</strong>
                     <span>—</span>
+                    <strong>—</strong>
+                    <strong>—</strong>
                     <strong>—</strong>
                   </div>
                 ))}
@@ -435,147 +448,6 @@ export function PublicLeaderboardHub({
           outline:1px solid rgba(255,205,80,.55);
           outline-offset:-3px;
         }
-        .countryHeader,
-        .countryRow,
-        .countryPlaceholderRow {
-          width:100%;
-          display:grid;
-          grid-template-columns:64px minmax(0,1fr) 84px;
-          column-gap:12px;
-          align-items:center;
-          box-sizing:border-box;
-        }
-        .countryHeader {
-          min-height:32px;
-          margin-bottom:4px;
-          padding:0 12px 6px;
-          border-bottom:0;
-          color:#777269;
-          font-size:.61rem;
-          font-weight:900;
-        }
-        .countryHeader span {
-          min-width:0;
-          text-align:center;
-        }
-        .countryHeader span:nth-child(2) {
-          box-sizing:border-box;
-          padding-inline-start:19px;
-          text-align:start;
-        }
-        .countryScroll,
-        .countrySkeleton,
-        .countryState {
-          height:250px;
-          min-height:250px;
-          max-height:250px;
-        }
-        .countryScroll {
-          width:100%;
-          overflow-y:auto;
-          overscroll-behavior:contain;
-          scrollbar-gutter:auto;
-          scrollbar-width:thin;
-          scrollbar-color:rgba(244,183,40,.45) transparent;
-        }
-        .countryScroll::-webkit-scrollbar {
-          width:5px;
-        }
-        .countryScroll::-webkit-scrollbar-thumb {
-          border-radius:999px;
-          background:rgba(244,183,40,.45);
-        }
-        .countryRow,
-        .countryPlaceholderRow {
-          height:50px;
-          min-height:50px;
-          max-height:50px;
-          padding:0 12px;
-          border-bottom:0;
-          color:#e9e5dc;
-        }
-        .countryPlaceholderRow {
-          color:#68645d;
-          font-size:.72rem;
-          text-align:center;
-        }
-        .countryRank {
-          text-align:center;
-          color:#bdb7ac;
-          font-size:.74rem;
-          font-variant-numeric:tabular-nums;
-          transition:color 120ms ease-out;
-        }
-        .countryRow[data-rank='1'] .countryRank {
-          color:#f1c84c;
-        }
-        .countryRow[data-rank='2'] .countryRank {
-          color:#c7ccd3;
-        }
-        .countryRow[data-rank='3'] .countryRank {
-          color:#c98756;
-        }
-        .countryIdentity {
-          min-width:0;
-          display:flex;
-          align-items:center;
-          justify-content:flex-start;
-          gap:10px;
-          text-align:start;
-        }
-        .countryNameLine {
-          min-width:0;
-          display:flex;
-          align-items:center;
-          gap:6px;
-          overflow:hidden;
-        }
-        .countryNameLine strong {
-          min-width:0;
-          overflow:hidden;
-          text-overflow:ellipsis;
-          white-space:nowrap;
-          font-size:.72rem;
-          font-weight:850;
-        }
-        .roundGain {
-          flex:0 0 auto;
-          color:#927d43;
-          font-size:.47rem;
-          font-weight:850;
-          white-space:nowrap;
-        }
-        .countryTotal {
-          text-align:center;
-          color:#ffd35c;
-          font-size:.8rem;
-          font-variant-numeric:tabular-nums;
-        }
-        .countryState {
-          padding:24px;
-          display:grid;
-          place-items:center;
-          align-content:center;
-          gap:12px;
-          box-sizing:border-box;
-          color:#817c73;
-          font-size:.72rem;
-          font-weight:800;
-          line-height:1.6;
-          text-align:center;
-        }
-        .countryError button {
-          min-height:36px;
-          padding:0 13px;
-          border:1px solid rgba(255,205,80,.2);
-          border-radius:11px;
-          background:rgba(244,183,40,.08);
-          color:#d9ba55;
-          font:inherit;
-          font-size:.65rem;
-          font-weight:900;
-          cursor:pointer;
-        }
         @media (max-width:430px) {
           .rankingTabs button {
             min-height:44px;
@@ -585,53 +457,15 @@ export function PublicLeaderboardHub({
           .rankingTabs button::after {
             width:76%;
           }
-          .countryHeader,
-          .countryRow,
-          .countryPlaceholderRow {
-            grid-template-columns:46px minmax(0,1fr) 58px;
-            column-gap:8px;
-            padding-right:8px;
-            padding-left:8px;
-          }
-          .countryHeader {
-            padding-bottom:5px;
-          }
-          .countryHeader span:nth-child(2) {
-            padding-inline-start:16px;
-          }
-          .countryIdentity {
-            gap:7px;
-          }
-          .countryNameLine {
-            gap:4px;
-          }
-          .roundGain {
-            font-size:.44rem;
-          }
         }
         @media (max-width:360px) {
           .rankingTabs button {
             font-size:.63rem;
           }
-          .countryHeader,
-          .countryRow,
-          .countryPlaceholderRow {
-            grid-template-columns:42px minmax(0,1fr) 54px;
-            column-gap:6px;
-            padding-right:6px;
-            padding-left:6px;
-          }
-          .countryHeader span:nth-child(2) {
-            padding-inline-start:15px;
-          }
-          .roundGain {
-            display:none;
-          }
         }
         @media (prefers-reduced-motion:reduce) {
           .rankingTabs button,
-          .rankingTabs button::after,
-          .countryRank {
+          .rankingTabs button::after {
             transition:none;
           }
         }
