@@ -5,16 +5,24 @@ import test from 'node:test';
 
 const root = process.cwd();
 const layout = readFileSync(join(root, 'src/app/layout.tsx'), 'utf8');
+const country = readFileSync(
+  join(root, 'src/app/leaderboard-country-horizontal-balance.css'),
+  'utf8',
+);
 const guard = readFileSync(
   join(root, 'src/app/leaderboard-column-alignment-guard.css'),
   'utf8',
 );
-const oldHub = readFileSync(
-  join(root, 'src/components/PublicLeaderboardHub.tsx'),
+const inviter = readFileSync(
+  join(root, 'src/components/InviterLeaderboard.tsx'),
+  'utf8',
+);
+const mobileTuning = readFileSync(
+  join(root, 'src/app/leaderboard-mobile-table-tuning.css'),
   'utf8',
 );
 
-test('final leaderboard alignment guard loads after country base geometry', () => {
+test('leaderboard alignment guard remains the final shared-card override', () => {
   const baseImport = layout.indexOf(
     "import './leaderboard-country-horizontal-balance.css';",
   );
@@ -26,34 +34,131 @@ test('final leaderboard alignment guard loads after country base geometry', () =
   assert.ok(guardImport > baseImport);
 });
 
-test('country starts farther inline using reviewed rank/total track widths', () => {
+test('country grid shifts identity inline and reduces the oversized flexible gap', () => {
   assert.match(
-    guard,
-    /grid-template-columns: 64px minmax\(0, 1fr\) 52px 52px 64px;/,
+    country,
+    /grid-template-columns: 72px minmax\(0, 1fr\) 64px 64px 72px;\s*column-gap: 8px;/,
   );
   assert.match(
-    guard,
-    /@media \(max-width: 430px\)[\s\S]*grid-template-columns: 46px minmax\(0, 1fr\) 40px 40px 46px;/,
+    country,
+    /@media \(max-width: 500px\)[\s\S]*grid-template-columns: 68px minmax\(0, 1fr\) 56px 56px 68px;\s*column-gap: 6px;/,
   );
   assert.match(
-    guard,
-    /@media \(max-width: 360px\)[\s\S]*grid-template-columns: 42px minmax\(0, 1fr\) 36px 36px 42px;/,
+    country,
+    /@media \(max-width: 430px\)[\s\S]*grid-template-columns: 52px minmax\(0, 1fr\) 44px 44px 52px;\s*column-gap: 4px;/,
+  );
+  assert.match(
+    country,
+    /@media \(max-width: 360px\)[\s\S]*grid-template-columns: 46px minmax\(0, 1fr\) 40px 40px 46px;\s*column-gap: 3px;/,
   );
 
-  assert.doesNotMatch(guard, /translateX|margin-inline-start|padding-inline-start/);
+  const maxRail = 520;
+  const cardBorders = 2;
+  const cardInlinePadding = 14 * 2;
+  const rowInlinePadding = 10 * 2;
+  const gridWidth =
+    maxRail - cardBorders - cardInlinePadding - rowInlinePadding;
+  const fixedTracksAndGaps = 72 + 64 + 64 + 72 + 8 * 4;
+
+  assert.equal(gridWidth, 470);
+  assert.equal(fixedTracksAndGaps, 304);
+  assert.equal(gridWidth - fixedTracksAndGaps, 166);
+  assert.equal(72 + 8, 80);
+
+  assert.doesNotMatch(country, /translateX|margin-inline-start/);
 });
 
-test('country typography restores the reviewed pre-five-column scale', () => {
-  assert.match(guard, /\.countryHeader \{\s*font-size: \.61rem;/);
-  assert.match(guard, /\.countryPlaceholderRow \{\s*font-size: \.72rem;/);
-  assert.match(
-    guard,
-    /\.countryNameLine strong,[\s\S]*\.countryMetricValue \{\s*font-size: \.72rem;/,
-  );
-  assert.match(guard, /\.countryTotal \{\s*font-size: \.8rem;/);
+test('country desktop typography matches inviter table scale', () => {
+  assert.match(inviter, /\.tableHeader \{[\s\S]*font-size:\.61rem;/);
+  assert.match(inviter, /\.rankValue \{[\s\S]*font-size:\.74rem;/);
+  assert.match(inviter, /\.walletCell \{[\s\S]*font-size:\.72rem;/);
+  assert.match(inviter, /\.rankMetric b \{[\s\S]*font-size:\.72rem;/);
+
+  assert.match(country, /\.countryHeader \{[\s\S]*font-size: \.61rem;/);
+  assert.match(country, /\.countryRank \{[\s\S]*font-size: \.74rem;/);
+  assert.match(country, /\.countryNameLine strong \{[\s\S]*font-size: \.72rem;/);
+  assert.match(country, /\.countryMetricValue \{[\s\S]*font-size: \.72rem;/);
+  assert.match(country, /\.countryTotal \{[\s\S]*font-size: \.72rem;/);
 });
 
-test('empty inviter dash centers under the inviter header instead of reserving avatar space', () => {
+test('country phone typography follows inviter responsive values', () => {
+  assert.match(
+    inviter,
+    /@media \(max-width:420px\)[\s\S]*\.tableHeader \{[\s\S]*font-size:\.52rem;/,
+  );
+  assert.match(
+    inviter,
+    /@media \(max-width:420px\)[\s\S]*\.rankValue,\.rankMetric b \{\s*font-size:\.65rem;/,
+  );
+  assert.match(
+    inviter,
+    /@media \(max-width:420px\)[\s\S]*\.walletCell \{[\s\S]*font-size:\.64rem;/,
+  );
+  assert.match(
+    mobileTuning,
+    /@media \(max-width: 420px\)[\s\S]*\.rankRow \.rankMetric b \{\s*font-size: \.72rem !important;/,
+  );
+
+  assert.match(
+    country,
+    /@media \(max-width: 420px\)[\s\S]*\.countryHeader \{\s*font-size: \.52rem;/,
+  );
+  assert.match(
+    country,
+    /@media \(max-width: 420px\)[\s\S]*\.countryRank \{\s*font-size: \.65rem;/,
+  );
+  assert.match(
+    country,
+    /@media \(max-width: 420px\)[\s\S]*\.countryNameLine strong \{\s*font-size: \.64rem;/,
+  );
+  assert.match(
+    country,
+    /@media \(max-width: 420px\)[\s\S]*\.countryMetricValue,[\s\S]*\.countryTotal \{\s*font-size: \.72rem;/,
+  );
+
+  assert.match(
+    inviter,
+    /@media \(max-width:360px\)[\s\S]*\.tableHeader \{[\s\S]*font-size:\.48rem;/,
+  );
+  assert.match(
+    inviter,
+    /@media \(max-width:360px\)[\s\S]*\.rankValue,\.rankMetric b \{\s*font-size:\.61rem;/,
+  );
+  assert.match(
+    inviter,
+    /@media \(max-width:360px\)[\s\S]*\.walletCell \{[\s\S]*font-size:\.59rem;/,
+  );
+  assert.match(
+    mobileTuning,
+    /@media \(max-width: 360px\)[\s\S]*\.rankRow \.rankMetric b \{\s*font-size: \.67rem !important;/,
+  );
+
+  assert.match(
+    country,
+    /@media \(max-width: 360px\)[\s\S]*\.countryHeader \{[\s\S]*font-size: \.48rem;/,
+  );
+  assert.match(
+    country,
+    /@media \(max-width: 360px\)[\s\S]*\.countryRank \{\s*font-size: \.61rem;/,
+  );
+  assert.match(
+    country,
+    /@media \(max-width: 360px\)[\s\S]*\.countryNameLine strong \{\s*font-size: \.59rem;/,
+  );
+  assert.match(
+    country,
+    /@media \(max-width: 360px\)[\s\S]*\.countryMetricValue,[\s\S]*\.countryTotal \{\s*font-size: \.67rem;/,
+  );
+});
+
+test('total arrivals use emphasis without a larger numeric font', () => {
+  assert.match(
+    country,
+    /\.countryTotal \{\s*color: #ffd35c;\s*font-size: \.72rem;\s*font-weight: 900;/,
+  );
+});
+
+test('empty inviter dash centers under inviter header on desktop and phone', () => {
   assert.match(
     guard,
     /\.placeholderRow \.walletCell::before \{\s*content: none;/,
@@ -70,6 +175,4 @@ test('empty inviter dash centers under the inviter header instead of reserving a
     guard,
     /@media \(max-width: 420px\)[\s\S]*\.placeholderRow \.walletText \{[\s\S]*width: 100% !important;[\s\S]*min-width: 0 !important;[\s\S]*max-width: 100% !important;/,
   );
-
-  assert.match(oldHub, /className="tableHeader"/);
 });

@@ -1,13 +1,21 @@
 /*
  * Country arrival ranking layout.
  *
- * The ranking now exposes the classification that already exists in the
- * public country API: rank, country, new users, returning users and total
- * arrivals. Keep the country identity at the inline start immediately after
- * rank, while the three numeric columns stay compact and predictable.
+ * Keep the five-column information architecture (rank / country / new /
+ * returning / total), but make it read as one table rather than a country block
+ * separated from the three metrics by a large flexible gap.
  *
- * All spacing below is derived from the existing 520px ranking rail and its
- * reviewed mobile breakpoints. No screenshot-measured offsets are used.
+ * Geometry is derived from the existing code, not screenshot measurements.
+ * At the fixed 520px leaderboard rail, the shared card leaves 490px of content
+ * after its 1px borders and 14px inline padding. Country rows then reserve 10px
+ * inline padding on each side, leaving 470px for grid tracks and gaps. The
+ * desktop tracks reserve 304px (72 + 64 + 64 + 72 + four 8px gaps), so the
+ * country track receives 166px at the max rail. This moves the country start
+ * farther inline while reducing the empty span before NEW.
+ *
+ * Typography mirrors the inviter table at each reviewed breakpoint: the same
+ * header size, the same primary metric value size, and the same rank/wallet
+ * text scale. TOTAL keeps emphasis through color and weight, not a larger font.
  */
 
 html body .leaderboardHub .countryHeader,
@@ -17,7 +25,7 @@ html body .leaderboardHub .countryPlaceholderRow {
   min-width: 0;
   max-width: 100%;
   display: grid;
-  grid-template-columns: 44px minmax(0, 1fr) 52px 52px 64px;
+  grid-template-columns: 72px minmax(0, 1fr) 64px 64px 72px;
   column-gap: 8px;
   align-items: center;
   box-sizing: border-box;
@@ -29,9 +37,8 @@ html body .leaderboardHub .countryHeader {
   padding: 0 10px 6px;
   border-bottom: 0;
   color: #777269;
-  font-size: .58rem;
+  font-size: .61rem;
   font-weight: 900;
-  letter-spacing: -.015em;
 }
 
 html body .leaderboardHub .countryHeader > span {
@@ -39,6 +46,7 @@ html body .leaderboardHub .countryHeader > span {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  line-height: 1.2;
   text-align: center;
 }
 
@@ -55,7 +63,7 @@ html body .leaderboardHub .countryPlaceholderRow {
 
 html body .leaderboardHub .countryPlaceholderRow {
   color: #68645d;
-  font-size: .68rem;
+  font-size: .72rem;
   text-align: center;
 }
 
@@ -81,20 +89,25 @@ html body .leaderboardHub .countryRank {
   text-align: center;
   color: #bdb7ac;
   font-size: .74rem;
+  font-weight: 850;
+  line-height: 1;
   font-variant-numeric: tabular-nums;
   transition: color 120ms ease-out;
 }
 
 html body .leaderboardHub .countryRow[data-rank='1'] .countryRank {
   color: #f1c84c;
+  font-weight: 950;
 }
 
 html body .leaderboardHub .countryRow[data-rank='2'] .countryRank {
   color: #c7ccd3;
+  font-weight: 950;
 }
 
 html body .leaderboardHub .countryRow[data-rank='3'] .countryRank {
   color: #c98756;
+  font-weight: 950;
 }
 
 html body .leaderboardHub .countryIdentity {
@@ -118,8 +131,9 @@ html body .leaderboardHub .countryNameLine strong {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-size: .71rem;
+  font-size: .72rem;
   font-weight: 850;
+  line-height: 1.2;
 }
 
 html body .leaderboardHub .countryMetricValue {
@@ -127,7 +141,8 @@ html body .leaderboardHub .countryMetricValue {
   text-align: center;
   color: #c5c0b6;
   font-size: .72rem;
-  font-weight: 800;
+  font-weight: 850;
+  line-height: 1;
   font-variant-numeric: tabular-nums;
   direction: ltr;
   unicode-bidi: isolate;
@@ -139,7 +154,7 @@ html body .leaderboardHub .countryReturning {
 
 html body .leaderboardHub .countryTotal {
   color: #ffd35c;
-  font-size: .8rem;
+  font-size: .72rem;
   font-weight: 900;
 }
 
@@ -170,18 +185,30 @@ html body .leaderboardHub .countryError button {
   cursor: pointer;
 }
 
+/*
+ * Between the max rail and phone layout, reduce fixed metric tracks before the
+ * country track becomes cramped. The country start still remains farther
+ * inline than the previous 64px + 8px desktop geometry.
+ */
+@media (max-width: 500px) {
+  html body .leaderboardHub .countryHeader,
+  html body .leaderboardHub .countryRow,
+  html body .leaderboardHub .countryPlaceholderRow {
+    grid-template-columns: 68px minmax(0, 1fr) 56px 56px 68px;
+    column-gap: 6px;
+  }
+}
+
 @media (max-width: 430px) {
   html body .leaderboardHub .countryHeader,
   html body .leaderboardHub .countryRow,
   html body .leaderboardHub .countryPlaceholderRow {
-    grid-template-columns: 32px minmax(0, 1fr) 40px 40px 46px;
+    grid-template-columns: 52px minmax(0, 1fr) 44px 44px 52px;
     column-gap: 4px;
   }
 
   html body .leaderboardHub .countryHeader {
     padding: 0 6px 5px;
-    font-size: .5rem;
-    letter-spacing: -.025em;
   }
 
   html body .leaderboardHub .countryRow,
@@ -192,17 +219,25 @@ html body .leaderboardHub .countryError button {
   html body .leaderboardHub .countryIdentity {
     gap: 6px;
   }
+}
+
+/* Match the inviter table's phone typography exactly. */
+@media (max-width: 420px) {
+  html body .leaderboardHub .countryHeader {
+    font-size: .52rem;
+  }
+
+  html body .leaderboardHub .countryRank {
+    font-size: .65rem;
+  }
 
   html body .leaderboardHub .countryNameLine strong {
-    font-size: .65rem;
+    font-size: .64rem;
   }
 
-  html body .leaderboardHub .countryMetricValue {
-    font-size: .65rem;
-  }
-
+  html body .leaderboardHub .countryMetricValue,
   html body .leaderboardHub .countryTotal {
-    font-size: .71rem;
+    font-size: .72rem;
   }
 }
 
@@ -210,14 +245,13 @@ html body .leaderboardHub .countryError button {
   html body .leaderboardHub .countryHeader,
   html body .leaderboardHub .countryRow,
   html body .leaderboardHub .countryPlaceholderRow {
-    grid-template-columns: 28px minmax(0, 1fr) 36px 36px 42px;
+    grid-template-columns: 46px minmax(0, 1fr) 40px 40px 46px;
     column-gap: 3px;
   }
 
   html body .leaderboardHub .countryHeader {
     padding-inline: 4px;
-    font-size: .47rem;
-    letter-spacing: -.035em;
+    font-size: .48rem;
   }
 
   html body .leaderboardHub .countryRow,
@@ -229,14 +263,15 @@ html body .leaderboardHub .countryError button {
     gap: 5px;
   }
 
+  html body .leaderboardHub .countryRank {
+    font-size: .61rem;
+  }
+
   html body .leaderboardHub .countryNameLine strong {
-    font-size: .61rem;
+    font-size: .59rem;
   }
 
-  html body .leaderboardHub .countryMetricValue {
-    font-size: .61rem;
-  }
-
+  html body .leaderboardHub .countryMetricValue,
   html body .leaderboardHub .countryTotal {
     font-size: .67rem;
   }

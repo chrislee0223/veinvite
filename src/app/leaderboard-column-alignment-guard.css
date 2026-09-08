@@ -1,46 +1,15 @@
 /*
- * Final horizontal alignment guard for the shared leaderboard card.
+ * Final inviter placeholder alignment guard for the shared leaderboard card.
  *
- * Country ranking:
- * Keep the five-column information architecture, but reuse the reviewed
- * pre-five-column rank-track widths as the first column. Those values also
- * match the current TOTAL track at each responsive breakpoint, so the country
- * column moves farther inline through grid geometry only — no screenshot-based
- * translate, margin, or padding nudges.
+ * Populated inviter rows intentionally use avatar + wallet text. Empty rows do
+ * not have an avatar, so the placeholder dash should sit on the center axis of
+ * the INVITER header rather than borrowing the populated row's avatar footprint.
  *
- * The five-column redesign also reduced several country-label/value font sizes
- * on mobile. Restore the previously reviewed country typography values while
- * leaving the new/returning/total structure intact.
- *
- * Inviter ranking placeholders:
- * Empty inviter rows should align the dash with the centered INVITER header,
- * not with the text start of a populated avatar+wallet group. On mobile the
- * populated wallet cell uses a fixed two-column grid, so collapse only empty
- * cells to one centered track.
+ * On phones the populated wallet cell is converted to a fixed two-column grid
+ * by leaderboard-mobile-table-tuning.css. Collapse only empty rows back to one
+ * centered track so the dash keeps the same header alignment at every reviewed
+ * breakpoint.
  */
-
-html body .leaderboardHub .countryHeader,
-html body .leaderboardHub .countryRow,
-html body .leaderboardHub .countryPlaceholderRow {
-  grid-template-columns: 64px minmax(0, 1fr) 52px 52px 64px;
-}
-
-html body .leaderboardHub .countryHeader {
-  font-size: .61rem;
-}
-
-html body .leaderboardHub .countryPlaceholderRow {
-  font-size: .72rem;
-}
-
-html body .leaderboardHub .countryNameLine strong,
-html body .leaderboardHub .countryMetricValue {
-  font-size: .72rem;
-}
-
-html body .leaderboardHub .countryTotal {
-  font-size: .8rem;
-}
 
 html body .leaderboardHub .inviterInside .placeholderRow .walletCell::before {
   content: none;
@@ -48,14 +17,6 @@ html body .leaderboardHub .inviterInside .placeholderRow .walletCell::before {
 
 html body .leaderboardHub .inviterInside .placeholderRow .walletText {
   text-align: center !important;
-}
-
-@media (max-width: 430px) {
-  html body .leaderboardHub .countryHeader,
-  html body .leaderboardHub .countryRow,
-  html body .leaderboardHub .countryPlaceholderRow {
-    grid-template-columns: 46px minmax(0, 1fr) 40px 40px 46px;
-  }
 }
 
 @media (max-width: 420px) {
@@ -68,13 +29,5 @@ html body .leaderboardHub .inviterInside .placeholderRow .walletText {
     width: 100% !important;
     min-width: 0 !important;
     max-width: 100% !important;
-  }
-}
-
-@media (max-width: 360px) {
-  html body .leaderboardHub .countryHeader,
-  html body .leaderboardHub .countryRow,
-  html body .leaderboardHub .countryPlaceholderRow {
-    grid-template-columns: 42px minmax(0, 1fr) 36px 36px 42px;
   }
 }
