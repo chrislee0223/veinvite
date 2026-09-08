@@ -124,6 +124,9 @@ export function deriveUnreadInviteNotificationV2({
       eventAt: paidReward.paid_at,
       rewardAmountWei: paidReward.amount_wei,
       dappProgress: 3,
+      // If the inviter was away until after settlement, one paid notice should
+      // summarize the skipped completion / reward-ready lifecycle instead of
+      // replaying old progress popups before the already-final paid state.
       collapsedProgress:
         readState.rewardReadyAcknowledgedAt === null ||
         readState.highestStage < INVITE_NOTIFICATION_STAGE.allMissionsCompleted ||
@@ -136,6 +139,10 @@ export function deriveUnreadInviteNotificationV2({
     invitation.vot3_converted === true &&
     invitation.vote_completed === true;
 
+  // The important success notice fires only after final verification has
+  // produced a durable fixed reservation. This intentionally combines
+  // mission success, reward readiness and reusable-slot readiness instead of
+  // showing a stale vote-complete popup followed by another success popup.
   if (
     allMissionsObserved &&
     invitation.reward_status === 'ELIGIBLE' &&
@@ -158,6 +165,9 @@ export function deriveUnreadInviteNotificationV2({
     };
   }
 
+  // Once all missions are visible on-chain, wait for the final verification /
+  // reservation notice above. Do not replay older dApp/VOT3 milestones while
+  // the referral is in the short final-check window.
   if (allMissionsObserved) {
     return null;
   }
