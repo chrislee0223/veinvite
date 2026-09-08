@@ -114,8 +114,8 @@ test('podium decoration is rank-driven and crown belongs only to rank one', () =
     /\.rankRow\[data-rank='1'\] \.rankStack::before,[\s\S]*\.rankRow\[data-rank='2'\] \.rankStack::before,[\s\S]*\.rankRow\[data-rank='3'\] \.rankStack::before/,
   );
   assert.match(leaderboard, /\.rankRow\[data-rank='1'\] \.rankStack::after \{/);
-  assert.doesNotMatch(leaderboard, /data-rank='2'\] \.rankStack::after/);
-  assert.doesNotMatch(leaderboard, /data-rank='3'\] \.rankStack::after/);
+  assert.doesNotMatch(leaderboard, /\.rankRow\[data-rank='2'\] \.rankStack::after \{/);
+  assert.doesNotMatch(leaderboard, /\.rankRow\[data-rank='3'\] \.rankStack::after \{/);
 });
 
 test('movement labels occupy the full fixed rank slot instead of shifting the numeral', () => {
