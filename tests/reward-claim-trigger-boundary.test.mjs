@@ -31,11 +31,38 @@ test('explicit claim is the authorization boundary for entering the payout queue
 
 test('claim request queues first and immediately starts the payout worker', () => {
   const rpcIndex = claimRoute.indexOf("'request_reward_claim'");
-  const payoutIndex = claimRoute.indexOf('await runAutomaticRewardPayout()');
+  const payoutIndex = claimRoute.indexOf('await runClaimPayoutKickoff()');
 
   assert.ok(rpcIndex >= 0, 'claim route must call request_reward_claim');
   assert.ok(payoutIndex > rpcIndex, 'payout worker must start only after Claim is recorded');
   assert.match(claimRoute, /Immediate reward payout iteration failed after claim:/u);
+});
+
+test('claim payout kickoff retries transient lock or queued idle states before falling back to cron', () => {
+  assert.match(
+    claimRoute,
+    /const CLAIM_PAYOUT_RETRY_DELAYS_MS = \[/u,
+  );
+  assert.match(
+    claimRoute,
+    /result\.status === 'LOCKED'/u,
+  );
+  assert.match(
+    claimRoute,
+    /result\.status === 'IDLE'/u,
+  );
+  assert.match(
+    claimRoute,
+    /\(result\.queuedCount \?\? 0\) > 0/u,
+  );
+  assert.match(
+    claimRoute,
+    /for \(const delayMs of CLAIM_PAYOUT_RETRY_DELAYS_MS\)/u,
+  );
+  assert.match(
+    claimRoute,
+    /Immediate reward payout remained queued after Claim retries:/u,
+  );
 });
 
 test('generic reward sweeps cannot transfer a newly eligible unclaimed reservation', () => {
