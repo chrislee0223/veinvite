@@ -89,6 +89,16 @@ export function PublicLeaderboard({
         .publicLeaderboardMotionHost {
           width:100%;
         }
+        .leaderboardHub .walletAvatar {
+          background:rgba(255,205,80,.055) !important;
+        }
+        .leaderboardHub .walletAvatar img {
+          animation:leaderboardAvatarReveal 120ms ease-out both;
+        }
+        @keyframes leaderboardAvatarReveal {
+          from { opacity:0; }
+          to { opacity:1; }
+        }
         .leaderboardHub .rankingTabs {
           position:relative;
         }
@@ -231,8 +241,14 @@ export function PublicLeaderboard({
             --completed-column:54px !important;
             --reward-column:98px !important;
           }
+          .leaderboardHub .walletCell {
+            font-size:.60rem !important;
+          }
+          .leaderboardHub .completedMetric b,
           .leaderboardHub .rewardMetric b {
-            font-size:clamp(.56rem,2.35vw,.65rem) !important;
+            font-size:.65rem !important;
+          }
+          .leaderboardHub .rewardMetric b {
             letter-spacing:-.02em;
           }
         }
@@ -254,11 +270,18 @@ export function PublicLeaderboard({
             --completed-column:50px !important;
             --reward-column:94px !important;
           }
+          .leaderboardHub .walletCell {
+            font-size:.55rem !important;
+          }
+          .leaderboardHub .completedMetric b,
           .leaderboardHub .rewardMetric b {
-            font-size:clamp(.54rem,2.45vw,.61rem) !important;
+            font-size:.61rem !important;
           }
         }
         @media (prefers-reduced-motion:reduce) {
+          .leaderboardHub .walletAvatar img {
+            animation:none !important;
+          }
           .leaderboardHub .rankingTabs::after {
             transition:none !important;
           }
