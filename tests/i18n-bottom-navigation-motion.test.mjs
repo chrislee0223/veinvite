@@ -38,12 +38,27 @@ test('tab content uses subtle pre-paint motion without transforming modal roots'
   assert.doesNotMatch(source, /framer-motion/);
 });
 
-test('tab and button motion respect reduced-motion preferences', () => {
+test('bottom navigation uses one measured sliding indicator', () => {
+  assert.match(source, /const NAV_INDICATOR_DURATION_MS = 210;/);
+  assert.match(source, /const NAV_INDICATOR_EASING = 'cubic-bezier\(\.22,1,\.36,1\)'/);
+  assert.match(source, /className="activeIndicator"/);
+  assert.match(source, /data-veinvite-visual-tab=\{visualTab\}/);
+  assert.match(source, /const trackRect = track\.getBoundingClientRect\(\);/);
+  assert.match(source, /const buttonRect = button\.getBoundingClientRect\(\);/);
+  assert.match(source, /new ResizeObserver\(syncWithoutMotion\)/);
+  assert.match(source, /setVisualTarget\(tab\);[\s\S]*pendingMotionTabRef\.current = tab;/);
+  assert.match(source, /className=\{visualTab === tab \? 'visualActive' : ''\}/);
+  assert.match(source, /aria-current=\{activeTab === tab \? 'page' : undefined\}/);
+  assert.doesNotMatch(source, /button\.active\s*\{[^}]*background:/);
+});
+
+test('tab, indicator and button motion respect reduced-motion preferences', () => {
   const reducedMotionMatches = source.match(/prefers-reduced-motion: reduce/g) ?? [];
   assert.ok(reducedMotionMatches.length >= 2);
   assert.match(source, /window\.matchMedia\?\.\('\(prefers-reduced-motion: reduce\)'\)\.matches/);
-  assert.match(source, /transition: background-color 140ms ease, color 140ms ease, transform 90ms ease;/);
+  assert.match(source, /transition: color 180ms ease, transform 90ms ease;/);
   assert.match(source, /button:active \{ transform: scale\(\.98\); \}/);
+  assert.match(source, /\.activeIndicator \{ transition: none !important; \}/);
   assert.match(source, /button \{ transition: none; \}/);
   assert.match(source, /button:active \{ transform: none; \}/);
 });

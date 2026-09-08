@@ -2,9 +2,11 @@
 
 import {
   startTransition,
+  useCallback,
   useEffect,
   useLayoutEffect,
   useRef,
+  useState,
 } from 'react';
 
 import { NAV_COPY } from '@/lib/i18n/navCopy';
@@ -30,6 +32,8 @@ const TAB_CONTENT_SELECTORS: Record<AppTab, string> = {
   settings: '.settingsPage > header, .settingsPage > .settingsCard',
 };
 const TAB_ENTER_DURATION_MS = 160;
+const NAV_INDICATOR_DURATION_MS = 210;
+const NAV_INDICATOR_EASING = 'cubic-bezier(.22,1,.36,1)';
 
 function preloadTabModule(tab: AppTab) {
   if (tab === 'guide') {
@@ -66,6 +70,43 @@ export function AppBottomNavigation({
   const wallet = useActiveWallet();
   const navigationRequestRef = useRef(0);
   const pendingMotionTabRef = useRef<AppTab | null>(null);
+  const navigationTrackRef = useRef<HTMLDivElement | null>(null);
+  const indicatorRef = useRef<HTMLSpanElement | null>(null);
+  const buttonRefs = useRef<Record<AppTab, HTMLButtonElement | null>>({
+    home: null,
+    guide: null,
+    leaderboard: null,
+    settings: null,
+  });
+  const indicatorInitializedRef = useRef(false);
+  const [visualTab, setVisualTab] = useState<AppTab>(activeTab);
+  const visualTabRef = useRef<AppTab>(activeTab);
+
+  const setVisualTarget = useCallback((tab: AppTab) => {
+    visualTabRef.current = tab;
+    setVisualTab(tab);
+  }, []);
+
+  const positionIndicator = useCallback((tab: AppTab, animate: boolean) => {
+    const track = navigationTrackRef.current;
+    const indicator = indicatorRef.current;
+    const button = buttonRefs.current[tab];
+    if (!track || !indicator || !button) return;
+
+    const trackRect = track.getBoundingClientRect();
+    const buttonRect = button.getBoundingClientRect();
+    const reduceMotion =
+      window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false;
+    const shouldAnimate = animate && !reduceMotion;
+
+    indicator.style.transition = shouldAnimate
+      ? `transform ${NAV_INDICATOR_DURATION_MS}ms ${NAV_INDICATOR_EASING}, width ${NAV_INDICATOR_DURATION_MS}ms ${NAV_INDICATOR_EASING}, height ${NAV_INDICATOR_DURATION_MS}ms ${NAV_INDICATOR_EASING}`
+      : 'none';
+    indicator.style.width = `${buttonRect.width}px`;
+    indicator.style.height = `${buttonRect.height}px`;
+    indicator.style.transform = `translate3d(${buttonRect.left - trackRect.left - track.clientLeft}px, ${buttonRect.top - trackRect.top - track.clientTop}px, 0)`;
+    indicator.dataset.ready = 'true';
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -88,6 +129,44 @@ export function AppBottomNavigation({
       window.clearTimeout(leaderboardTimer);
     };
   }, [wallet]);
+
+  useEffect(() => {
+    setVisualTarget(activeTab);
+  }, [activeTab, setVisualTarget]);
+
+  useLayoutEffect(() => {
+    positionIndicator(visualTab, indicatorInitializedRef.current);
+    indicatorInitializedRef.current = true;
+  }, [positionIndicator, visualTab]);
+
+  useEffect(() => {
+    const track = navigationTrackRef.current;
+    if (!track) return;
+
+    let frame = 0;
+    const syncWithoutMotion = () => {
+      window.cancelAnimationFrame(frame);
+      frame = window.requestAnimationFrame(() => {
+        positionIndicator(visualTabRef.current, false);
+      });
+    };
+
+    const observer = typeof ResizeObserver === 'function'
+      ? new ResizeObserver(syncWithoutMotion)
+      : null;
+    observer?.observe(track);
+    TABS.forEach((tab) => {
+      const button = buttonRefs.current[tab];
+      if (button) observer?.observe(button);
+    });
+    window.addEventListener('resize', syncWithoutMotion);
+
+    return () => {
+      window.cancelAnimationFrame(frame);
+      observer?.disconnect();
+      window.removeEventListener('resize', syncWithoutMotion);
+    };
+  }, [positionIndicator]);
 
   useLayoutEffect(() => {
     const pendingTab = pendingMotionTabRef.current;
@@ -159,11 +238,17 @@ export function AppBottomNavigation({
 
     if (tab === activeTab) {
       // A second tap on the current tab cancels any older lazy-tab request and
-      // must not replay entrance motion on content that never changed.
+      // brings an in-flight visual indicator back to the page that is still
+      // actually active.
       pendingMotionTabRef.current = null;
+      setVisualTarget(activeTab);
       return;
     }
 
+    // Give immediate touch feedback even when a code-split tab still needs a
+    // moment to become ready. aria-current remains tied to activeTab below, so
+    // accessibility state only changes after the real page has committed.
+    setVisualTarget(tab);
     pendingMotionTabRef.current = tab;
     if (tab === 'home') {
       commitTab(tab, requestId);
@@ -183,14 +268,27 @@ export function AppBottomNavigation({
       {activeTab === 'leaderboard' ? (
         <LeaderboardImpactInfoPortal locale={locale} />
       ) : null}
-      <nav className="bottomNavigation" data-veinvite-active-tab={activeTab} aria-label={labels.ariaLabel}>
-        <div>
+      <nav
+        className="bottomNavigation"
+        data-veinvite-active-tab={activeTab}
+        data-veinvite-visual-tab={visualTab}
+        aria-label={labels.ariaLabel}
+      >
+        <div ref={navigationTrackRef}>
+          <span
+            ref={indicatorRef}
+            className="activeIndicator"
+            aria-hidden="true"
+          />
           {TABS.map((tab) => (
             <button
               key={tab}
+              ref={(node) => {
+                buttonRefs.current[tab] = node;
+              }}
               type="button"
               data-veinvite-tab={tab}
-              className={activeTab === tab ? 'active' : ''}
+              className={visualTab === tab ? 'visualActive' : ''}
               aria-current={activeTab === tab ? 'page' : undefined}
               onPointerEnter={tab === 'home' ? undefined : () => warmTab(tab)}
               onFocus={tab === 'home' ? undefined : () => warmTab(tab)}
@@ -205,14 +303,17 @@ export function AppBottomNavigation({
 
         <style jsx>{`
           .bottomNavigation { position: fixed; z-index: 90; right: 0; bottom: 0; left: 0; padding: 0 12px calc(10px + env(safe-area-inset-bottom)); pointer-events: none; background: linear-gradient(to top,rgba(7,7,7,.98) 58%,transparent); }
-          .bottomNavigation > div { width: min(100%,520px); min-height: 70px; margin: 0 auto; padding: 6px; display: grid; grid-template-columns: repeat(4,1fr); border: 1px solid rgba(255,205,80,.16); border-radius: 23px; background: rgba(22,22,20,.985); box-shadow: 0 18px 55px rgba(0,0,0,.5); pointer-events: auto; isolation: isolate; }
-          button { min-width: 0; min-height: 56px; padding: 6px 3px; display: grid; place-items: center; align-content: center; gap: 4px; border: 0; border-radius: 17px; background: transparent; color: #77736c; font: inherit; font-size: .6rem; font-weight: 850; cursor: pointer; transition: background-color 140ms ease, color 140ms ease, transform 90ms ease; }
+          .bottomNavigation > div { position: relative; width: min(100%,520px); min-height: 70px; margin: 0 auto; padding: 6px; display: grid; grid-template-columns: repeat(4,1fr); border: 1px solid rgba(255,205,80,.16); border-radius: 23px; background: rgba(22,22,20,.985); box-shadow: 0 18px 55px rgba(0,0,0,.5); pointer-events: auto; isolation: isolate; }
+          .activeIndicator { position: absolute; z-index: 0; top: 0; left: 0; border-radius: 17px; background: rgba(255,201,61,.1); opacity: 0; pointer-events: none; }
+          .activeIndicator[data-ready='true'] { opacity: 1; }
+          button { position: relative; z-index: 1; min-width: 0; min-height: 56px; padding: 6px 3px; display: grid; place-items: center; align-content: center; gap: 4px; border: 0; border-radius: 17px; background: transparent; color: #77736c; font: inherit; font-size: .6rem; font-weight: 850; cursor: pointer; transition: color 180ms ease, transform 90ms ease; }
           button:active { transform: scale(.98); }
           button span { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-          button.active { background: rgba(255,201,61,.1); color: #ffd45f; }
+          button.visualActive { color: #ffd45f; }
           button :global(svg) { width: 21px; height: 21px; }
           @media (max-width: 360px) { button { font-size: .53rem; } }
           @media (prefers-reduced-motion: reduce) {
+            .activeIndicator { transition: none !important; }
             button { transition: none; }
             button:active { transform: none; }
           }
