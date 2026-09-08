@@ -92,13 +92,6 @@ export function PublicLeaderboard({
         .leaderboardHub .walletAvatar {
           background:rgba(255,205,80,.055) !important;
         }
-        .leaderboardHub .walletAvatar img {
-          animation:leaderboardAvatarReveal 120ms ease-out both;
-        }
-        @keyframes leaderboardAvatarReveal {
-          from { opacity:0; }
-          to { opacity:1; }
-        }
         .leaderboardHub .rankingTabs {
           position:relative;
         }
@@ -279,9 +272,6 @@ export function PublicLeaderboard({
           }
         }
         @media (prefers-reduced-motion:reduce) {
-          .leaderboardHub .walletAvatar img {
-            animation:none !important;
-          }
           .leaderboardHub .rankingTabs::after {
             transition:none !important;
           }

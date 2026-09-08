@@ -7,7 +7,11 @@ import {
   useRef,
   useState,
 } from 'react';
-import { useGetAvatarOfAddress } from '@vechain/vechain-kit';
+import {
+  useGetAvatar,
+  useVechainDomain,
+} from '@vechain/vechain-kit';
+import { getPicassoImage } from '@vechain/vechain-kit/utils';
 
 import { LEADERBOARD_COPY } from '@/lib/i18n/leaderboardCopy';
 import { getLeaderboardMovementCopy } from '@/lib/i18n/leaderboardMovementCopy';
@@ -28,6 +32,7 @@ import {
 } from './SoftFocusMotion';
 
 const PUBLIC_RANK_LIMIT = 100;
+const EAGER_AVATAR_RANK_LIMIT = 5;
 const WALLET_PREFIX_LENGTH = 5;
 const WALLET_SUFFIX_LENGTH = 3;
 const RANK_SLOTS = Array.from(
@@ -56,27 +61,45 @@ function rankLabel(rank: number): string {
   return rank <= 0 ? '—' : String(rank);
 }
 
-function WalletAvatar({ address }: { address: string }) {
+function WalletAvatar({
+  address,
+  eager = false,
+}: {
+  address: string;
+  eager?: boolean;
+}) {
   const avatarHostRef = useRef<HTMLSpanElement | null>(null);
-  const [shouldLoad, setShouldLoad] = useState(false);
-  const [imageFailed, setImageFailed] = useState(false);
-  const { data: avatarUrl } = useGetAvatarOfAddress(
-    shouldLoad ? address : undefined,
+  const fallbackUrl = useMemo(() => getPicassoImage(address), [address]);
+  const [shouldLoadProfile, setShouldLoadProfile] = useState(eager);
+  const [displayUrl, setDisplayUrl] = useState(fallbackUrl);
+  const { data: domainInfo } = useVechainDomain(
+    shouldLoadProfile ? address : undefined,
   );
+  const domain = domainInfo?.domain ?? '';
+  const { data: profileAvatarUrl } = useGetAvatar(domain);
 
   useEffect(() => {
+    setDisplayUrl(fallbackUrl);
+  }, [fallbackUrl]);
+
+  useEffect(() => {
+    if (eager) {
+      setShouldLoadProfile(true);
+      return;
+    }
+
     const node = avatarHostRef.current;
     if (!node) return;
 
     if (typeof IntersectionObserver === 'undefined') {
-      setShouldLoad(true);
+      setShouldLoadProfile(true);
       return;
     }
 
     const observer = new IntersectionObserver(
       (entries) => {
         if (entries.some((entry) => entry.isIntersecting)) {
-          setShouldLoad(true);
+          setShouldLoadProfile(true);
           observer.disconnect();
         }
       },
@@ -84,29 +107,42 @@ function WalletAvatar({ address }: { address: string }) {
     );
     observer.observe(node);
     return () => observer.disconnect();
-  }, []);
+  }, [eager]);
 
   useEffect(() => {
-    setImageFailed(false);
-  }, [avatarUrl]);
+    if (!profileAvatarUrl || profileAvatarUrl === displayUrl) return;
+
+    let active = true;
+    const image = new Image();
+    image.onload = () => {
+      if (active) setDisplayUrl(profileAvatarUrl);
+    };
+    image.onerror = () => {
+      if (active) setDisplayUrl(fallbackUrl);
+    };
+    image.src = profileAvatarUrl;
+
+    return () => {
+      active = false;
+    };
+  }, [displayUrl, fallbackUrl, profileAvatarUrl]);
 
   return (
     <span ref={avatarHostRef} className="walletAvatar" aria-hidden="true">
-      {avatarUrl && !imageFailed ? (
-        <img
-          src={avatarUrl}
-          alt=""
-          loading="lazy"
-          onError={() => setImageFailed(true)}
-          style={{
-            width: '100%',
-            height: '100%',
-            display: 'block',
-            objectFit: 'cover',
-            borderRadius: 'inherit',
-          }}
-        />
-      ) : null}
+      <img
+        src={displayUrl}
+        alt=""
+        loading={eager ? 'eager' : 'lazy'}
+        fetchPriority={eager ? 'high' : 'auto'}
+        decoding="async"
+        style={{
+          width: '100%',
+          height: '100%',
+          display: 'block',
+          objectFit: 'contain',
+          borderRadius: 'inherit',
+        }}
+      />
     </span>
   );
 }
@@ -465,7 +501,13 @@ export function PublicLeaderboard({
           {renderMovement(entry)}
         </span>
         <span className="walletCell">
-          <WalletAvatar address={entry.walletAddress} />
+          <WalletAvatar
+            address={entry.walletAddress}
+            eager={
+              trailing ||
+              (entry.rank > 0 && entry.rank <= EAGER_AVATAR_RANK_LIMIT)
+            }
+          />
           <span className="walletText">
             {maskWallet(entry.walletAddress)}
           </span>
@@ -1053,13 +1095,10 @@ export function PublicLeaderboard({
           width:22px;
           height:22px;
           overflow:hidden;
-          border:1px solid rgba(255,205,80,.22);
+          border:1px solid rgba(255,205,80,.14);
           border-radius:50%;
-          background:
-            radial-gradient(circle at 50% 35%,#eec04c 0 20%,transparent 22%),
-            radial-gradient(ellipse at 50% 82%,#eec04c 0 31%,transparent 33%),
-            #242116;
-          box-shadow:inset 0 0 0 1px rgba(255,255,255,.025);
+          background:rgba(255,205,80,.055);
+          box-shadow:inset 0 0 0 1px rgba(255,255,255,.02);
         }
         .walletText {
           min-width:0;
