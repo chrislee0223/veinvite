@@ -22,6 +22,29 @@ function networkCacheKey(network: string, walletKey: string): string {
   return `${network}:${walletKey}`;
 }
 
+function readFreshCachedPublicLeaderboard(
+  wallet: string | null,
+): PublicLeaderboardResponse | null {
+  const walletKey = normalizeWallet(wallet);
+  const network = latestNetworkByWallet.get(walletKey);
+  if (!network) return null;
+
+  const key = networkCacheKey(network, walletKey);
+  const entry = cache.get(key);
+  if (!entry) {
+    latestNetworkByWallet.delete(walletKey);
+    return null;
+  }
+
+  if (Date.now() - entry.fetchedAt > FRESH_FOR_MS) {
+    cache.delete(key);
+    latestNetworkByWallet.delete(walletKey);
+    return null;
+  }
+
+  return entry.data;
+}
+
 export function getPublicLeaderboardCacheKey(wallet: string | null): string {
   return normalizeWallet(wallet);
 }
@@ -29,21 +52,7 @@ export function getPublicLeaderboardCacheKey(wallet: string | null): string {
 export function getCachedPublicLeaderboard(
   wallet: string | null,
 ): PublicLeaderboardResponse | null {
-  const walletKey = normalizeWallet(wallet);
-  const network = latestNetworkByWallet.get(walletKey);
-  if (!network) return null;
-  return cache.get(networkCacheKey(network, walletKey))?.data ?? null;
-}
-
-function getFreshCachedPublicLeaderboard(
-  wallet: string | null,
-): PublicLeaderboardResponse | null {
-  const walletKey = normalizeWallet(wallet);
-  const network = latestNetworkByWallet.get(walletKey);
-  if (!network) return null;
-  const entry = cache.get(networkCacheKey(network, walletKey));
-  if (!entry || Date.now() - entry.fetchedAt > FRESH_FOR_MS) return null;
-  return entry.data;
+  return readFreshCachedPublicLeaderboard(wallet);
 }
 
 function buildLeaderboardUrl(wallet: string | null): string {
@@ -58,6 +67,12 @@ function remember(
   data: PublicLeaderboardResponse,
 ): PublicLeaderboardResponse {
   const walletKey = normalizeWallet(wallet);
+  const previousNetwork = latestNetworkByWallet.get(walletKey);
+
+  if (previousNetwork && previousNetwork !== data.network) {
+    cache.delete(networkCacheKey(previousNetwork, walletKey));
+  }
+
   latestNetworkByWallet.set(walletKey, data.network);
   cache.set(networkCacheKey(data.network, walletKey), {
     data,
@@ -71,7 +86,7 @@ export async function loadPublicLeaderboard(
   { force = false }: { force?: boolean } = {},
 ): Promise<PublicLeaderboardResponse> {
   if (!force) {
-    const cached = getFreshCachedPublicLeaderboard(wallet);
+    const cached = readFreshCachedPublicLeaderboard(wallet);
     if (cached) return cached;
   }
 
