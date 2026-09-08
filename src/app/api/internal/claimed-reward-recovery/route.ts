@@ -10,7 +10,7 @@ import { getVeBetterNetworkConfig } from '@/lib/vebetter/network';
 
 export const dynamic = 'force-dynamic';
 
-const TOKEN_HASH = '87639ee72383f7397dbd3fcc6efc29edf1d4401d557c7e6ca89c6666dec70628';
+const TOKEN_HASH = '0772505d0f2cff046fb1867865480a9abbd79fd750eb4a3618c453b04e73b0ea';
 const TARGET_INVITE_CODES = ['EALXSC8', 'QNU8TDF'] as const;
 
 function noStoreJson(body: unknown, status = 200) {
