@@ -231,11 +231,12 @@ if (
 }
 
 const finalUi = read('src/app/final-ui-hardening.css');
-if (!/\.leaderboardPage \.impactCard > p/.test(finalUi)) {
-  failures.push('Leaderboard default impact card no longer keeps the total-only presentation.');
+const inviterLeaderboard = read('src/components/InviterLeaderboard.tsx');
+if (/className="impactNote"|\.impactNote\s*\{/.test(inviterLeaderboard) || /\.leaderboardPage \.impactCard > p/.test(finalUi)) {
+  failures.push('Retired leaderboard impact-note presentation must stay deleted rather than hidden by CSS.');
 }
-if (!/\.leaderboardPage \.impactDialog \.reportingSince/.test(finalUi)) {
-  failures.push('Leaderboard impact breakdown exposes retired reporting detail.');
+if (/className="reportingSince"|\.reportingSince\s*\{/.test(inviterLeaderboard) || /\.leaderboardPage \.impactDialog \.reportingSince/.test(finalUi)) {
+  failures.push('Retired leaderboard reporting detail must stay deleted rather than hidden by CSS.');
 }
 if (!/@media \(max-width:420px\)[\s\S]*\.appHeader \.chip[\s\S]*display:none\s*!important/.test(finalUi)) {
   failures.push('Invitee mission header can regress to an overcrowded small-phone layout.');

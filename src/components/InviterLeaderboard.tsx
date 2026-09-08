@@ -575,14 +575,9 @@ export function PublicLeaderboard({
           <strong>{data ? totalUsers.toLocaleString() : '—'}</strong>
           <b aria-hidden="true">›</b>
         </button>
-        <p className="impactNote">{t.impactNote}</p>
       </section>
 
       <section className="rankingCard">
-        <div className="rankingTopline">
-          <span>TOP {PUBLIC_RANK_LIMIT}</span>
-        </div>
-
         <div className="tableHeader" aria-hidden="true">
           <span dir="auto">{t.rank}</span>
           <span dir="auto">{t.wallet}</span>
@@ -667,11 +662,6 @@ export function PublicLeaderboard({
                 </strong>
               </span>
             </div>
-            {data?.reportingStartRound ? (
-              <small className="reportingSince">
-                {t.reportingSince(data.reportingStartRound)}
-              </small>
-            ) : null}
           </div>
         </div>
       ) : null}
@@ -818,16 +808,6 @@ export function PublicLeaderboard({
           color:#d9b956;
           font-size:1.55rem;
           font-weight:500;
-        }
-        .impactNote {
-          margin:11px 2px 0;
-          color:#817c73;
-          font-size:.7rem;
-          line-height:1.5;
-          overflow-wrap:anywhere;
-        }
-        .rankingTopline {
-          display:none;
         }
         .rankingCard {
           --rank-column:50px;
@@ -987,67 +967,18 @@ export function PublicLeaderboard({
         }
         .rankRow[data-rank='1'] .rankStack {
           --podium-accent:#f1bd34;
-          --podium-opacity:.98;
         }
         .rankRow[data-rank='2'] .rankStack {
           --podium-accent:#c8cbd0;
-          --podium-opacity:.90;
         }
         .rankRow[data-rank='3'] .rankStack {
           --podium-accent:#c98252;
-          --podium-opacity:.90;
         }
         .rankRow[data-rank='1'] .rankValue,
         .rankRow[data-rank='2'] .rankValue,
         .rankRow[data-rank='3'] .rankValue {
           color:var(--podium-accent);
           font-weight:950;
-        }
-        .rankRow[data-rank='1'] .rankStack::before,
-        .rankRow[data-rank='2'] .rankStack::before,
-        .rankRow[data-rank='3'] .rankStack::before {
-          content:'';
-          position:absolute;
-          z-index:1;
-          left:50%;
-          top:46%;
-          width:34px;
-          height:27px;
-          box-sizing:border-box;
-          border-left:1.35px solid var(--podium-accent);
-          border-right:1.35px solid var(--podium-accent);
-          border-bottom:1.35px solid var(--podium-accent);
-          border-radius:0 0 49% 49%;
-          background:
-            radial-gradient(ellipse 4px 2.1px at 14% 73%,var(--podium-accent) 0 72%,transparent 77%),
-            radial-gradient(ellipse 4px 2.1px at 9% 53%,var(--podium-accent) 0 72%,transparent 77%),
-            radial-gradient(ellipse 4px 2.1px at 15% 33%,var(--podium-accent) 0 72%,transparent 77%),
-            radial-gradient(ellipse 4px 2.1px at 25% 16%,var(--podium-accent) 0 72%,transparent 77%),
-            radial-gradient(ellipse 4px 2.1px at 86% 73%,var(--podium-accent) 0 72%,transparent 77%),
-            radial-gradient(ellipse 4px 2.1px at 91% 53%,var(--podium-accent) 0 72%,transparent 77%),
-            radial-gradient(ellipse 4px 2.1px at 85% 33%,var(--podium-accent) 0 72%,transparent 77%),
-            radial-gradient(ellipse 4px 2.1px at 75% 16%,var(--podium-accent) 0 72%,transparent 77%);
-          opacity:var(--podium-opacity);
-          transform:translate(-50%,-50%);
-          transform-origin:50% 50%;
-          filter:drop-shadow(0 0 1px rgba(255,255,255,.12));
-          pointer-events:none;
-        }
-        .rankRow[data-rank='1'] .rankStack::after {
-          content:'';
-          position:absolute;
-          z-index:1;
-          left:50%;
-          top:3px;
-          width:12px;
-          height:7px;
-          border-radius:1px;
-          background:linear-gradient(135deg,#fff2a6 0%,#f8c64a 36%,#d89720 70%,#ffe17a 100%);
-          clip-path:polygon(0 100%,0 42%,18% 64%,34% 8%,50% 59%,68% 7%,83% 64%,100% 40%,100% 100%);
-          transform:translateX(-50%);
-          transform-origin:50% 50%;
-          filter:drop-shadow(0 0 1px rgba(241,189,52,.3));
-          pointer-events:none;
         }
         .rankMovement {
           width:100%;
@@ -1074,7 +1005,6 @@ export function PublicLeaderboard({
         .rankMovement.up { color:#9bcfa7; }
         .rankMovement.down { color:#cba1a1; }
         .rankMovement.new { color:#e8bd4b; }
-        .rankMovement.same { color:#7f7a72; }
         .walletCell {
           grid-column:2;
           min-width:0;
@@ -1148,7 +1078,7 @@ export function PublicLeaderboard({
         .rankDivider::before,.rankDivider::after {
           display:none;
         }
-        .rankContextNote,.empty {
+        .rankContextNote {
           margin:10px 0 0;
           color:#827e76;
           font-size:.7rem;
@@ -1281,12 +1211,6 @@ export function PublicLeaderboard({
           color:#ffd35c;
           font-size:1.35rem;
         }
-        .reportingSince {
-          display:block;
-          margin-top:12px;
-          color:#706c65;
-          font-size:.65rem;
-        }
         .walletDialog :global(a) {
           min-height:50px;
           margin-top:14px;
@@ -1342,17 +1266,6 @@ export function PublicLeaderboard({
           .rankValue,.rankMetric b {
             font-size:.65rem;
           }
-          .rankRow[data-rank='1'] .rankStack::before,
-          .rankRow[data-rank='2'] .rankStack::before,
-          .rankRow[data-rank='3'] .rankStack::before {
-            width:31px;
-            height:25px;
-          }
-          .rankRow[data-rank='1'] .rankStack::after {
-            top:2px;
-            width:11px;
-            height:6px;
-          }
           .rankMovement {
             bottom:3px;
             font-size:.46rem;
@@ -1399,17 +1312,6 @@ export function PublicLeaderboard({
           }
           .rankValue,.rankMetric b {
             font-size:.61rem;
-          }
-          .rankRow[data-rank='1'] .rankStack::before,
-          .rankRow[data-rank='2'] .rankStack::before,
-          .rankRow[data-rank='3'] .rankStack::before {
-            width:29px;
-            height:23px;
-          }
-          .rankRow[data-rank='1'] .rankStack::after {
-            top:2px;
-            width:10px;
-            height:6px;
           }
           .rankMovement {
             bottom:3px;

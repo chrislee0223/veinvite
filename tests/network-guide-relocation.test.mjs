@@ -74,8 +74,8 @@ test('Leaderboard exposes public counting guidance through a contextual info con
   assert.match(impactPortal, /guide\.countTitle/i);
   assert.match(impactPortal, /t\.impactNote/i);
   assert.match(impactPortal, /<InfoCircleIcon size=\{17\} \/>/i);
-  assert.match(impactPortal, /\.impactCard > \.impactNote \{\s*display:\s*none;/i);
-  assert.match(leaderboard, /<p className="impactNote">\{t\.impactNote\}<\/p>/i);
+  assert.doesNotMatch(impactPortal, /\.impactCard > \.impactNote \{\s*display:\s*none;/i);
+  assert.doesNotMatch(leaderboard, /className="impactNote"/i);
 });
 
 test('Home and Leaderboard info controls use the same SVG icon geometry', () => {

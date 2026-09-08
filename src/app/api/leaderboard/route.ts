@@ -212,12 +212,6 @@ function normalizeLeaderboardRow(
   return withoutMovement(base);
 }
 
-function normalizeLegacyLeaderboardRow(
-  row: LeaderboardRow,
-): PublicLeaderboardEntry {
-  return withoutMovement(normalizeBaseLeaderboardRow(row));
-}
-
 function normalizeWallet(
   value: string | null,
 ): string | null | undefined {
@@ -353,16 +347,6 @@ export async function GET(
         },
       );
 
-    const readLegacyLeaderboard = () =>
-      supabaseAdmin.rpc(
-        'get_public_lifetime_leaderboard',
-        {
-          p_network: round.network,
-          p_wallet: wallet,
-          p_limit: LEADERBOARD_SIZE,
-        },
-      );
-
     const readComparison = () =>
       comparisonRoundId === null
         ? Promise.resolve({ data: [], error: null })
@@ -406,38 +390,21 @@ export async function GET(
         ]);
     }
 
+    if (leaderboardResult.error) {
+      throw new Error(
+        `Public leaderboard could not be loaded: ${leaderboardResult.error.message}`,
+      );
+    }
+
     if (growthResult.error) {
       throw new Error(
         `Public growth totals could not be loaded: ${growthResult.error.message}`,
       );
     }
 
-    let entries: PublicLeaderboardEntry[];
-
-    if (leaderboardResult.error) {
-      console.error(
-        'Leaderboard movement read failed; falling back to the paid lifetime leaderboard:',
-        leaderboardResult.error,
-      );
-
-      let fallbackResult = await readLegacyLeaderboard();
-      if (isTransientAuthClockSkew(fallbackResult.error)) {
-        await wait(TRANSIENT_AUTH_RETRY_MS);
-        fallbackResult = await readLegacyLeaderboard();
-      }
-      if (fallbackResult.error) {
-        throw new Error(
-          `Public leaderboard could not be loaded: ${fallbackResult.error.message}`,
-        );
-      }
-
-      entries = ((fallbackResult.data ?? []) as LeaderboardRow[])
-        .map(normalizeLegacyLeaderboardRow);
-    } else {
-      entries = (
-        (leaderboardResult.data ?? []) as LeaderboardMovementRow[]
-      ).map(normalizeLeaderboardRow);
-    }
+    let entries = (
+      (leaderboardResult.data ?? []) as LeaderboardMovementRow[]
+    ).map(normalizeLeaderboardRow);
 
     const rawComparison = comparisonResult.error
       ? null
@@ -517,7 +484,7 @@ export async function GET(
       headers: {
         'Cache-Control': wallet
           ? 'private, no-store'
-          : 'public, s-maxage=30, stale-while-revalidate=30',
+          : 'public, s-maxage=10, must-revalidate',
       },
     });
   } catch (error) {
