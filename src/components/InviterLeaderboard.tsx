@@ -827,10 +827,10 @@ export function PublicLeaderboard({
         .tableHeader .rewardHeader {
           display:flex;
           align-items:center;
-          justify-content:flex-end;
+          justify-content:center;
           flex-wrap:wrap;
           gap:0 .22em;
-          text-align:right;
+          text-align:center;
         }
         .tableHeader .rewardHeader bdi {
           direction:ltr;
