@@ -1,5 +1,6 @@
 'use client';
 
+import { PaidActivationLiveSync } from './PaidActivationLiveSync';
 import { RewardReceiptNotice } from './RewardReceiptNotice';
 import { useActiveWallet } from './WalletControl';
 
@@ -10,7 +11,14 @@ export function ActiveWalletRewardReceiptNotice() {
     return null;
   }
 
-  // Remount the receipt reader when VeChainKit switches accounts so the new
-  // wallet gets a fresh wallet-bound receipt query immediately.
-  return <RewardReceiptNotice key={wallet.toLowerCase()} />;
+  const walletKey = wallet.toLowerCase();
+
+  // Remount wallet-bound readers when VeChainKit switches accounts so the new
+  // wallet starts with a clean receipt baseline and fresh receipt query.
+  return (
+    <>
+      <PaidActivationLiveSync key={`paid-sync:${walletKey}`} />
+      <RewardReceiptNotice key={`receipt:${walletKey}`} />
+    </>
+  );
 }
