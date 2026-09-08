@@ -136,10 +136,14 @@ test('mobile rank column reserves room for movement without adding a fifth table
   );
 });
 
-test('B3TR unit is declared once in the table header while detail view keeps the explicit unit', () => {
+test('B3TR unit is declared once in the centered table header while detail view keeps the explicit unit', () => {
   assert.match(
     leaderboard,
     /className="rewardHeader"[\s\S]*\{t\.earned\}[\s\S]*<bdi dir="ltr">\(B3TR\)<\/bdi>/,
+  );
+  assert.match(
+    leaderboard,
+    /\.tableHeader \.rewardHeader \{[\s\S]*justify-content:center;[\s\S]*text-align:center;/,
   );
   assert.match(
     leaderboard,
