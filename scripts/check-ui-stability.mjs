@@ -164,11 +164,17 @@ const localizedTypography = read('src/app/localized-typography.css');
 if (!/\.labScreen/.test(localizedTypography)) {
   failures.push('UI test typography is not covered by the production locale-aware wrapping rules.');
 }
-if (!/bottomNavigation button span,[\s\S]*previewNavigation button span[\s\S]*white-space\s*:\s*nowrap\s*!important/i.test(localizedTypography)) {
-  failures.push('Persistent navigation labels must remain single-line in production and UI test views.');
+if (!/bottomNavigation button span,[\s\S]*previewNavigation button span[\s\S]*white-space\s*:\s*normal\s*!important/i.test(localizedTypography)) {
+  failures.push('Persistent navigation labels must preserve long translations with reviewed multi-line wrapping.');
 }
-if (/bottomNavigation button span[\s\S]*-webkit-line-clamp\s*:\s*2/i.test(localizedTypography)) {
-  failures.push('Legacy two-line bottom-navigation behavior returned.');
+if (!/bottomNavigation button span,[\s\S]*previewNavigation button span[\s\S]*text-wrap\s*:\s*balance/i.test(localizedTypography)) {
+  failures.push('Persistent navigation labels are missing balanced multilingual wrapping.');
+}
+if (/bottomNavigation button span,[\s\S]*previewNavigation button span[\s\S]*white-space\s*:\s*nowrap\s*!important/i.test(localizedTypography)) {
+  failures.push('Legacy single-line navigation truncation returned.');
+}
+if (!/\.rankingTabs button > span\s*\{[\s\S]*white-space\s*:\s*normal\s*!important/i.test(localizedTypography)) {
+  failures.push('Leaderboard mode tabs can truncate long translated labels.');
 }
 
 const headerLanguagePortal = read(
