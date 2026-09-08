@@ -1,6 +1,15 @@
 /*
- * Final inviter placeholder alignment guard for the shared leaderboard card.
+ * Final shared leaderboard alignment guard.
  *
+ * Country header:
+ * The country row already has a fixed flag box before the country name. Align
+ * the COUNTRY header with the country-name text axis instead of the flag edge.
+ * This uses only existing code geometry: desktop flag 28px + identity gap 8px
+ * = 36px. On phones the flag is 25px; the reviewed identity gaps are 6px at
+ * <=430px and 5px at <=360px, so the matching offsets are 31px and 30px.
+ * padding-inline-start keeps the same relationship in RTL layouts.
+ *
+ * Inviter placeholder:
  * Populated inviter rows intentionally use avatar + wallet text. Empty rows do
  * not have an avatar, so the placeholder dash should sit on the center axis of
  * the INVITER header rather than borrowing the populated row's avatar footprint.
@@ -11,12 +20,22 @@
  * breakpoint.
  */
 
+html body .leaderboardHub .countryHeader .countryHeaderCountry {
+  padding-inline-start: 36px;
+}
+
 html body .leaderboardHub .inviterInside .placeholderRow .walletCell::before {
   content: none;
 }
 
 html body .leaderboardHub .inviterInside .placeholderRow .walletText {
   text-align: center !important;
+}
+
+@media (max-width: 430px) {
+  html body .leaderboardHub .countryHeader .countryHeaderCountry {
+    padding-inline-start: 31px;
+  }
 }
 
 @media (max-width: 420px) {
@@ -29,5 +48,11 @@ html body .leaderboardHub .inviterInside .placeholderRow .walletText {
     width: 100% !important;
     min-width: 0 !important;
     max-width: 100% !important;
+  }
+}
+
+@media (max-width: 360px) {
+  html body .leaderboardHub .countryHeader .countryHeaderCountry {
+    padding-inline-start: 30px;
   }
 }
