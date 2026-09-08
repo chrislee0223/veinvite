@@ -1,54 +1,249 @@
 /*
- * Balance the three-column country leaderboard horizontally on desktop and
- * mobile without changing row heights, scrolling, or card dimensions.
+ * Country arrival ranking layout.
  *
- * The component previously used asymmetric fixed edge tracks (64px / 84px on
- * desktop, 46px / 58px on mobile) while also left-aligning the middle country
- * identity with an extra inline-start offset. That combination makes the
- * country/flag cluster look pulled to the left and the arrival count detached
- * on the right, especially when only one or two countries are present.
+ * The ranking now exposes the classification that already exists in the
+ * public country API: rank, country, new users, returning users and total
+ * arrivals. Keep the country identity at the inline start immediately after
+ * rank, while the three numeric columns stay compact and predictable.
  *
- * Reuse the existing wider edge-track size on both sides so the three-column
- * layout is symmetric, then center the country identity inside the flexible
- * middle track. This is based on the existing code geometry, not screenshot
- * measurements.
+ * All spacing below is derived from the existing 520px ranking rail and its
+ * reviewed mobile breakpoints. No screenshot-measured offsets are used.
  */
 
 html body .leaderboardHub .countryHeader,
 html body .leaderboardHub .countryRow,
 html body .leaderboardHub .countryPlaceholderRow {
-  grid-template-columns:84px minmax(0,1fr) 84px !important;
-  column-gap:12px !important;
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+  display: grid;
+  grid-template-columns: 44px minmax(0, 1fr) 52px 52px 64px;
+  column-gap: 8px;
+  align-items: center;
+  box-sizing: border-box;
 }
 
-html body .leaderboardHub .countryHeader span:nth-child(2) {
-  padding-inline-start:0 !important;
-  text-align:center !important;
+html body .leaderboardHub .countryHeader {
+  min-height: 32px;
+  margin-bottom: 4px;
+  padding: 0 10px 6px;
+  border-bottom: 0;
+  color: #777269;
+  font-size: .58rem;
+  font-weight: 900;
+  letter-spacing: -.015em;
+}
+
+html body .leaderboardHub .countryHeader > span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-align: center;
+}
+
+html body .leaderboardHub .countryHeader .countryHeaderCountry {
+  text-align: start;
+}
+
+html body .leaderboardHub .countryRow,
+html body .leaderboardHub .countryPlaceholderRow {
+  padding-inline: 10px;
+  border-bottom: 0;
+  color: #e9e5dc;
+}
+
+html body .leaderboardHub .countryPlaceholderRow {
+  color: #68645d;
+  font-size: .68rem;
+  text-align: center;
+}
+
+html body .leaderboardHub .countryScroll {
+  width: 100%;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-gutter: auto;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(244, 183, 40, .45) transparent;
+}
+
+html body .leaderboardHub .countryScroll::-webkit-scrollbar {
+  width: 5px;
+}
+
+html body .leaderboardHub .countryScroll::-webkit-scrollbar-thumb {
+  border-radius: 999px;
+  background: rgba(244, 183, 40, .45);
+}
+
+html body .leaderboardHub .countryRank {
+  text-align: center;
+  color: #bdb7ac;
+  font-size: .74rem;
+  font-variant-numeric: tabular-nums;
+  transition: color 120ms ease-out;
+}
+
+html body .leaderboardHub .countryRow[data-rank='1'] .countryRank {
+  color: #f1c84c;
+}
+
+html body .leaderboardHub .countryRow[data-rank='2'] .countryRank {
+  color: #c7ccd3;
+}
+
+html body .leaderboardHub .countryRow[data-rank='3'] .countryRank {
+  color: #c98756;
 }
 
 html body .leaderboardHub .countryIdentity {
-  justify-content:center !important;
-  text-align:center !important;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 8px;
+  overflow: hidden;
+  text-align: start;
 }
 
-@media (max-width:430px) {
+html body .leaderboardHub .countryNameLine {
+  min-width: 0;
+  overflow: hidden;
+}
+
+html body .leaderboardHub .countryNameLine strong {
+  display: block;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: .71rem;
+  font-weight: 850;
+}
+
+html body .leaderboardHub .countryMetricValue {
+  min-width: 0;
+  text-align: center;
+  color: #c5c0b6;
+  font-size: .72rem;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  direction: ltr;
+  unicode-bidi: isolate;
+}
+
+html body .leaderboardHub .countryReturning {
+  color: #aaa49a;
+}
+
+html body .leaderboardHub .countryTotal {
+  color: #ffd35c;
+  font-size: .8rem;
+  font-weight: 900;
+}
+
+html body .leaderboardHub .countryState {
+  padding: 24px;
+  display: grid;
+  place-items: center;
+  align-content: center;
+  gap: 12px;
+  box-sizing: border-box;
+  color: #817c73;
+  font-size: .72rem;
+  font-weight: 800;
+  line-height: 1.6;
+  text-align: center;
+}
+
+html body .leaderboardHub .countryError button {
+  min-height: 36px;
+  padding: 0 13px;
+  border: 1px solid rgba(255, 205, 80, .2);
+  border-radius: 11px;
+  background: rgba(244, 183, 40, .08);
+  color: #d9ba55;
+  font: inherit;
+  font-size: .65rem;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+@media (max-width: 430px) {
   html body .leaderboardHub .countryHeader,
   html body .leaderboardHub .countryRow,
   html body .leaderboardHub .countryPlaceholderRow {
-    grid-template-columns:58px minmax(0,1fr) 58px !important;
-    column-gap:8px !important;
+    grid-template-columns: 32px minmax(0, 1fr) 40px 40px 46px;
+    column-gap: 4px;
   }
 
-  html body .leaderboardHub .countryHeader span:nth-child(2) {
-    padding-inline-start:0 !important;
+  html body .leaderboardHub .countryHeader {
+    padding: 0 6px 5px;
+    font-size: .5rem;
+    letter-spacing: -.025em;
+  }
+
+  html body .leaderboardHub .countryRow,
+  html body .leaderboardHub .countryPlaceholderRow {
+    padding-inline: 6px;
+  }
+
+  html body .leaderboardHub .countryIdentity {
+    gap: 6px;
+  }
+
+  html body .leaderboardHub .countryNameLine strong {
+    font-size: .65rem;
+  }
+
+  html body .leaderboardHub .countryMetricValue {
+    font-size: .65rem;
+  }
+
+  html body .leaderboardHub .countryTotal {
+    font-size: .71rem;
   }
 }
 
-@media (max-width:360px) {
+@media (max-width: 360px) {
   html body .leaderboardHub .countryHeader,
   html body .leaderboardHub .countryRow,
   html body .leaderboardHub .countryPlaceholderRow {
-    grid-template-columns:54px minmax(0,1fr) 54px !important;
-    column-gap:6px !important;
+    grid-template-columns: 28px minmax(0, 1fr) 36px 36px 42px;
+    column-gap: 3px;
+  }
+
+  html body .leaderboardHub .countryHeader {
+    padding-inline: 4px;
+    font-size: .47rem;
+    letter-spacing: -.035em;
+  }
+
+  html body .leaderboardHub .countryRow,
+  html body .leaderboardHub .countryPlaceholderRow {
+    padding-inline: 4px;
+  }
+
+  html body .leaderboardHub .countryIdentity {
+    gap: 5px;
+  }
+
+  html body .leaderboardHub .countryNameLine strong {
+    font-size: .61rem;
+  }
+
+  html body .leaderboardHub .countryMetricValue {
+    font-size: .61rem;
+  }
+
+  html body .leaderboardHub .countryTotal {
+    font-size: .67rem;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html body .leaderboardHub .countryRank {
+    transition: none;
   }
 }
