@@ -15,6 +15,8 @@ const SET_LANGUAGE_INTENT =
 const OBSERVE_DISPLAY_LANGUAGE_INTENT =
   'OBSERVE_WALLET_DISPLAY_LANGUAGE';
 const APP_READY_EVENT = 'veinvite-app-ready';
+const WALLET_SESSION_READY_EVENT =
+  'veinvite-wallet-session-ready';
 
 type LanguageUsageSource =
   | 'browser_auto'
@@ -248,6 +250,9 @@ export function WalletLanguagePreferenceSync() {
     const handleAppReady = () => {
       void syncPreference();
     };
+    const handleWalletSessionReady = () => {
+      void syncPreference();
+    };
 
     window.addEventListener(
       'veinvite-language-change',
@@ -256,6 +261,10 @@ export function WalletLanguagePreferenceSync() {
     window.addEventListener(
       APP_READY_EVENT,
       handleAppReady,
+    );
+    window.addEventListener(
+      WALLET_SESSION_READY_EVENT,
+      handleWalletSessionReady,
     );
 
     if (isCurrentWalletAppReady()) {
@@ -271,6 +280,10 @@ export function WalletLanguagePreferenceSync() {
       window.removeEventListener(
         APP_READY_EVENT,
         handleAppReady,
+      );
+      window.removeEventListener(
+        WALLET_SESSION_READY_EVENT,
+        handleWalletSessionReady,
       );
     };
   }, [walletAddress]);
