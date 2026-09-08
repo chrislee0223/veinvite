@@ -40,13 +40,16 @@ function maskWallet(address: string): string {
 }
 
 function formatRewardWei(value: string): string {
-  if (!/^\d+$/.test(value)) return '0';
-  const normalized = value.replace(/^0+(?=\d)/, '');
-  const padded = normalized.padStart(19, '0');
-  const whole = padded.slice(0, -18);
-  const fraction = padded.slice(-18, -14).replace(/0+$/, '');
+  if (!/^\d+$/.test(value)) return '0.00';
+
+  const wei = BigInt(value);
+  const scale = 10n ** 18n;
+  const hundredths = (wei * 100n + scale / 2n) / scale;
+  const whole = (hundredths / 100n).toString();
+  const fraction = (hundredths % 100n).toString().padStart(2, '0');
   const groupedWhole = whole.replace(/\B(?=(\d{3})+(?!\d))/g, ',');
-  return fraction ? `${groupedWhole}.${fraction}` : groupedWhole;
+
+  return `${groupedWhole}.${fraction}`;
 }
 
 function rankLabel(rank: number): string {
@@ -390,19 +393,18 @@ export function PublicLeaderboard({
   };
 
   const renderMovement = (entry: PublicLeaderboardEntry) => {
-    if (entry.rankMovement === 'UNAVAILABLE') return null;
+    if (
+      entry.rankMovement === 'UNAVAILABLE' ||
+      entry.rankMovement === 'SAME'
+    ) {
+      return null;
+    }
 
     if (entry.rankMovement === 'NEW') {
       return (
         <small className="rankMovement new" aria-hidden="true">
           {movementCopy.newEntry}
         </small>
-      );
-    }
-
-    if (entry.rankMovement === 'SAME') {
-      return (
-        <small className="rankMovement same" aria-hidden="true">—</small>
       );
     }
 
@@ -780,7 +782,7 @@ export function PublicLeaderboard({
         .rankingCard {
           --rank-column:50px;
           --completed-column:86px;
-          --reward-column:104px;
+          --reward-column:112px;
           --leaderboard-gap:10px;
           --rank-row-height:50px;
           padding:14px 14px 12px;
@@ -812,6 +814,9 @@ export function PublicLeaderboard({
           line-height:1.2;
           overflow-wrap:anywhere;
           text-align:center;
+        }
+        .tableHeader span:nth-child(4) {
+          text-align:right;
         }
         .rows {
           width:100%;
@@ -882,15 +887,17 @@ export function PublicLeaderboard({
         .rankStack {
           grid-column:1;
           min-width:0;
-          display:flex;
-          flex-direction:column;
-          align-items:center;
-          justify-content:center;
-          gap:3px;
+          min-height:var(--rank-row-height);
+          align-self:stretch;
+          position:relative;
           text-align:center;
         }
         .rankValue {
           min-width:0;
+          position:absolute;
+          left:50%;
+          top:50%;
+          transform:translate(-50%,-50%);
           color:#f0ede6;
           font-size:.74rem;
           line-height:1;
@@ -899,6 +906,10 @@ export function PublicLeaderboard({
         }
         .rankMovement {
           max-width:100%;
+          position:absolute;
+          left:50%;
+          bottom:4px;
+          transform:translateX(-50%);
           overflow:hidden;
           color:#8f8a80;
           font-size:.52rem;
@@ -958,6 +969,8 @@ export function PublicLeaderboard({
         }
         .rewardMetric {
           grid-column:4;
+          justify-content:flex-end;
+          text-align:right;
         }
         .rankMetric b {
           min-width:0;
@@ -967,6 +980,10 @@ export function PublicLeaderboard({
           line-height:1;
           font-variant-numeric:tabular-nums;
           white-space:nowrap;
+        }
+        .rewardMetric b {
+          width:100%;
+          text-align:right;
         }
         .rankDivider {
           min-height:28px;
@@ -1150,7 +1167,7 @@ export function PublicLeaderboard({
           .rankingCard {
             --rank-column:40px;
             --completed-column:62px;
-            --reward-column:82px;
+            --reward-column:90px;
             --leaderboard-gap:5px;
             --rank-row-height:46px;
             padding:12px 12px 10px;
@@ -1174,6 +1191,7 @@ export function PublicLeaderboard({
             font-size:.65rem;
           }
           .rankMovement {
+            bottom:3px;
             font-size:.46rem;
           }
           .walletCell {
@@ -1201,7 +1219,7 @@ export function PublicLeaderboard({
           .rankingCard {
             --rank-column:38px;
             --completed-column:58px;
-            --reward-column:76px;
+            --reward-column:86px;
             --leaderboard-gap:4px;
             --rank-row-height:44px;
           }
@@ -1220,6 +1238,7 @@ export function PublicLeaderboard({
             font-size:.61rem;
           }
           .rankMovement {
+            bottom:3px;
             font-size:.43rem;
           }
           .walletCell {

@@ -38,7 +38,7 @@ test('rank movement copy covers every supported VeInvite locale', () => {
   }
 });
 
-test('movement UI distinguishes every state without relying on color alone', () => {
+test('movement UI keeps new/up/down explicit while unchanged ranks stay visually quiet', () => {
   assert.match(leaderboard, /entry\.rankMovement === 'NEW'/);
   assert.match(leaderboard, /entry\.rankMovement === 'SAME'/);
   assert.match(leaderboard, /entry\.rankMovement === 'UP'/);
@@ -46,7 +46,10 @@ test('movement UI distinguishes every state without relying on color alone', () 
   assert.match(leaderboard, /entry\.rankMovement === 'UNAVAILABLE'/);
   assert.match(leaderboard, /▲/);
   assert.match(leaderboard, /▼/);
-  assert.match(leaderboard, />—<\/small>/);
+  assert.match(
+    leaderboard,
+    /entry\.rankMovement === 'UNAVAILABLE' \|\|[\s\S]*entry\.rankMovement === 'SAME'[\s\S]*return null;/,
+  );
 });
 
 test('RTL locales keep numeric movement direction isolated left-to-right', () => {
