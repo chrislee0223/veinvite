@@ -41,8 +41,11 @@ test('multilingual bottom navigation keeps icons fixed and reserves two label li
   assert.match(bottomNav, /grid-template-rows: 21px 24px/);
   assert.match(bottomNav, /\.navIcon \{ width: 21px; height: 21px; min-height: 21px;/);
   assert.match(bottomNav, /\.navLabel \{[^}]*height: 24px;[^}]*white-space: normal;[^}]*text-wrap: balance;/);
-  assert.match(typography, /\.bottomNavigation button \.navLabel,/);
-  assert.doesNotMatch(typography, /\.bottomNavigation button span,/);
+  assert.match(typography, /\.bottomNavigation button span,/);
+  assert.match(
+    typography,
+    /\.bottomNavigation button \.navIcon \{[\s\S]*?width:\s*21px\s*!important;[\s\S]*?height:\s*21px\s*!important;[\s\S]*?display:\s*block\s*!important;[\s\S]*?line-height:\s*0\s*!important/,
+  );
 });
 
 test('translation wrapping cannot override the shared leaderboard row geometry', () => {
