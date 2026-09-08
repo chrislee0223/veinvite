@@ -305,6 +305,47 @@ html[data-locale-typography='indic'] :where(
   text-wrap: balance;
 }
 
+/* A translated country name is meaningful data, so never sacrifice it to the
+ * round-gain badge. Give each of the five visible rows a little more height and
+ * place the optional gain on its own line. */
+.countryScroll,
+.countrySkeleton,
+.countryState {
+  height: 320px !important;
+  min-height: 320px !important;
+  max-height: 320px !important;
+}
+
+.countryRow,
+.countryPlaceholderRow {
+  height: 64px !important;
+  min-height: 64px !important;
+  max-height: 64px !important;
+}
+
+.countryNameLine {
+  min-width: 0;
+  display: grid !important;
+  align-content: center;
+  gap: 2px !important;
+  overflow: visible !important;
+}
+
+.countryNameLine strong {
+  min-width: 0;
+  overflow: visible !important;
+  text-overflow: clip !important;
+  white-space: normal !important;
+  line-height: 1.14;
+  text-wrap: balance;
+}
+
+.countryNameLine .roundGain {
+  justify-self: start;
+  white-space: normal !important;
+  line-height: 1.15;
+}
+
 /* Native names in the language chooser carry their own direction. Use logical
  * alignment so an Arabic/Urdu option is not forced to the physical left. */
 .languageCard,
@@ -425,6 +466,10 @@ html[dir='rtl'] :is(
   .countryTotal
 ) {
   text-align: center !important;
+}
+
+html[dir='rtl'] .countryNameLine .roundGain {
+  justify-self: end;
 }
 
 /* Keep receipt fact labels aligned when one translation needs a second line. */
