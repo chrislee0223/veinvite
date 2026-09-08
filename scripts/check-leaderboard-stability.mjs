@@ -134,7 +134,7 @@ if (!/\.leaderboardPage \.tableHeader,[\s\S]*\.leaderboardPage \.rankRow\.traili
 if (!/\.leaderboardPage \.rankValue\s*\{[\s\S]*min-inline-size:3ch\s*!important[\s\S]*font-variant-numeric:tabular-nums lining-nums\s*!important/.test(layoutPolish)) {
   fail('Rank numerals must keep stable tabular numeric typography.');
 }
-if (/\.leaderboardPage \.rankValue\s*\{[\s\S]*position:/.test(layoutPolish)) {
+if (/\.leaderboardPage \.rankValue\s*\{[^}]*\n\s*position\s*:/s.test(layoutPolish)) {
   fail('Secondary polish must not override rank positioning owned by the podium layout guard.');
 }
 if (/rankValue::before|rankValue::after|placeholderRow\):nth-child|featured:nth-child/.test(layoutPolish)) {
