@@ -6,19 +6,26 @@ import { join } from 'node:path';
 
 const root = process.cwd();
 const failures = [];
-const legacyPortal = join(
-  root,
+const legacyPortals = [
   'src/components/PublicRewardEstimatePortal.tsx',
-);
+  'src/components/PublicRewardForecastPortal.tsx',
+  'src/components/DeferredStartupExtras.tsx',
+];
 
-if (existsSync(legacyPortal)) {
-  failures.push(
-    'Retired PublicRewardEstimatePortal must stay removed; it contained one-minute polling against the public reward estimate endpoint.',
-  );
+for (const legacyPath of legacyPortals) {
+  if (existsSync(join(root, legacyPath))) {
+    failures.push(
+      `Retired reward forecast attachment must stay removed: ${legacyPath}.`,
+    );
+  }
 }
 
-const forecastPortal = readFileSync(
-  join(root, 'src/components/PublicRewardForecastPortal.tsx'),
+const forecastCard = readFileSync(
+  join(root, 'src/components/PublicRewardForecastCard.tsx'),
+  'utf8',
+);
+const homeClient = readFileSync(
+  join(root, 'src/components/HomeClient.tsx'),
   'utf8',
 );
 const forecastCopy = readFileSync(
@@ -34,13 +41,16 @@ const typography = readFileSync(
   'utf8',
 );
 
-if (!/setInterval\(\s*loadForecast,\s*15\s*\*\s*60_000\s*,?\s*\)/s.test(forecastPortal)) {
+if (
+  !/CLIENT_FORECAST_CACHE_MS\s*=\s*15\s*\*\s*60_000/.test(forecastCard) ||
+  !/setInterval\(\s*loadForecast,\s*CLIENT_FORECAST_CACHE_MS\s*,?\s*\)/s.test(forecastCard)
+) {
   failures.push(
     'Public reward forecast polling must stay at the reviewed 15-minute cadence.',
   );
 }
 
-if (/setInterval\([^)]*,\s*60_000\s*,?\s*\)/s.test(forecastPortal)) {
+if (/setInterval\([^)]*,\s*60_000\s*,?\s*\)/s.test(forecastCard)) {
   failures.push(
     'Public reward forecast must not regress to one-minute client polling.',
   );
@@ -51,49 +61,59 @@ for (const legacyDetail of [
   'estimateMeta',
   'formatUpdatedAt',
 ]) {
-  if (forecastPortal.includes(legacyDetail)) {
+  if (forecastCard.includes(legacyDetail)) {
     failures.push(
       `Public reward forecast UI must stay simplified; legacy detail returned: ${legacyDetail}.`,
     );
   }
 }
 
-if (!/text-align:center/.test(forecastPortal)) {
+if (
+  !/data-home-reward-forecast="true"/.test(forecastCard) ||
+  !/<PublicRewardForecastCard locale=\{locale\} \/>/.test(homeClient)
+) {
   failures.push(
-    'Public reward forecast disclaimer must keep the reviewed centered mobile presentation.',
+    'Public reward forecast must remain a direct Home surface instead of a Leaderboard attachment.',
   );
 }
 
-if (!/data\.rewardForecastPreview|rewardForecastPreview/.test(forecastPortal)) {
+if (!/rewardForecastPreview/.test(forecastCard)) {
   failures.push(
     'UI test reward forecast must keep its fake-data preview path instead of fetching production data.',
   );
 }
 
-if (!/REWARD_FORECAST_COPY\[(?:resolvedLocale|locale)\]/.test(forecastPortal)) {
+if (!/REWARD_FORECAST_COPY\[(?:resolvedLocale|locale)\]/.test(forecastCard)) {
   failures.push(
     'Public reward forecast component must read copy from the centralized locale table.',
   );
 }
 
-if (/const\s+COPY\s*:\s*Record<\s*SupportedLocale/.test(forecastPortal)) {
+if (/const\s+COPY\s*:\s*Record<\s*SupportedLocale/.test(forecastCard)) {
   failures.push(
     'Public reward forecast copy must not drift back into a component-local locale table.',
   );
 }
 
 if (
-  !/let\s+cachedForecast\s*:/.test(forecastPortal) ||
-  !/function\s+requestForecast\s*\(/.test(forecastPortal) ||
-  !/function\s+PublicRewardForecastWarmup\s*\(/.test(forecastPortal) ||
-  !/flushSync\s*\(/.test(forecastPortal)
+  !/let\s+cachedForecast\s*:/.test(forecastCard) ||
+  !/function\s+requestForecast\s*\(/.test(forecastCard) ||
+  !/min-height:142px/.test(forecastCard) ||
+  !/amountSkeleton/.test(forecastCard) ||
+  !/noteSkeleton/.test(forecastCard)
 ) {
   failures.push(
-    'Public reward forecast must retain the reviewed warm cache and same-cycle attachment that prevent leaderboard card layout shift.',
+    'Public reward forecast must retain its warm cache and stable Home loading footprint.',
   );
 }
 
-if (!/dir=\{getLocaleDirection\(resolvedLocale\)\}/.test(forecastPortal)) {
+if (/createPortal|MutationObserver|flushSync/.test(forecastCard)) {
+  failures.push(
+    'Public reward forecast must not restore the retired DOM portal attachment path.',
+  );
+}
+
+if (!/dir=\{getLocaleDirection\(resolvedLocale\)\}/.test(forecastCard)) {
   failures.push(
     'Public reward forecast must derive direction from locale metadata so every RTL locale is handled, not Arabic alone.',
   );
@@ -136,21 +156,21 @@ if (
   );
 }
 
-if (/estimateBadge/.test(forecastPortal)) {
+if (/estimateBadge/.test(forecastCard)) {
   failures.push(
     'Public reward forecast must not restore the redundant top-right B3TR badge.',
   );
 }
 
-if (/≈\s*\{formatRewardWei/.test(forecastPortal)) {
+if (/≈\s*\{formatRewardWei/.test(forecastCard)) {
   failures.push(
     'Public reward forecast amount must not repeat estimate semantics with an approximation symbol.',
   );
 }
 
 if (
-  !/hundredthWei\s*=\s*10n\s*\*\*\s*16n/.test(forecastPortal) ||
-  !/padStart\(2,\s*'0'\)/.test(forecastPortal)
+  !/hundredthWei\s*=\s*10n\s*\*\*\s*16n/.test(forecastCard) ||
+  !/padStart\(2,\s*'0'\)/.test(forecastCard)
 ) {
   failures.push(
     'Public reward forecast display must keep two-decimal B3TR formatting without reducing internal precision.',
@@ -158,12 +178,18 @@ if (
 }
 
 if (
-  !/@media \(max-width:340px\)/.test(forecastPortal) ||
+  !/@media \(max-width:340px\)/.test(forecastCard) ||
   !/overflow-wrap:\s*normal\s*!important/.test(typography) ||
   !/word-break:\s*keep-all\s*!important/.test(typography)
 ) {
   failures.push(
     'Public reward forecast must retain multilingual narrow-screen and no-mid-word wrapping safeguards.',
+  );
+}
+
+if (!/@media \(prefers-reduced-motion: reduce\)/.test(forecastCard)) {
+  failures.push(
+    'Public reward forecast loading motion must respect the OS reduced-motion preference.',
   );
 }
 

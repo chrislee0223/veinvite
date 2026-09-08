@@ -123,20 +123,34 @@ test('fresh VeWorld visitors avoid the persisted-wallet 3.5 second settle path',
   );
 });
 
-test('forecast waits for app-ready, while reward reservation recovery remains independent', async () => {
-  const [providers, deferred, placeholders] = await Promise.all([
+test('Home forecast waits for app-ready while reward reservation recovery remains independent', async () => {
+  const [providers, forecastCard, placeholders] = await Promise.all([
     readFile(new URL('../src/components/AppProviders.tsx', import.meta.url), 'utf8'),
-    readFile(new URL('../src/components/DeferredStartupExtras.tsx', import.meta.url), 'utf8'),
+    readFile(new URL('../src/components/PublicRewardForecastCard.tsx', import.meta.url), 'utf8'),
     readFile(new URL('../src/components/StartupHydrationPlaceholders.tsx', import.meta.url), 'utf8'),
   ]);
 
-  assert.doesNotMatch(providers, /PublicRewardForecastWarmup/);
   assert.match(providers, /<RewardReservationRecovery \/>/);
-  assert.match(providers, /<DeferredStartupExtras \/>/);
-  assert.match(deferred, /requestIdleCallback/);
-  assert.match(deferred, /veinvite-app-ready/);
-  assert.doesNotMatch(deferred, /RewardReservationRecovery/);
-  assert.match(deferred, /import\('\.\/PublicRewardForecastPortal'\)/);
+  assert.doesNotMatch(providers, /DeferredStartupExtras/);
+  assert.doesNotMatch(providers, /PublicRewardForecastWarmup/);
+  assert.match(forecastCard, /APP_READY_EVENT = 'veinvite-app-ready'/);
+  assert.match(forecastCard, /requestIdleCallback/);
+  assert.match(
+    forecastCard,
+    /veinviteAppReady === 'true'[\s\S]*scheduleForecastActivity\(\)/,
+  );
+  assert.match(
+    forecastCard,
+    /addEventListener\([\s\S]*APP_READY_EVENT,[\s\S]*scheduleForecastActivity/,
+  );
+  assert.match(
+    forecastCard,
+    /requestIdleCallback\([\s\S]*startForecastActivity/,
+  );
+  assert.match(
+    forecastCard,
+    /startForecastActivity[\s\S]*loadForecast\(\)[\s\S]*setInterval/,
+  );
   assert.doesNotMatch(
     placeholders,
     /\.linkPreviewSkeleton,[\s\S]*\.slotsSkeleton[\s\S]*visibility:\s*visible\s*!important/,

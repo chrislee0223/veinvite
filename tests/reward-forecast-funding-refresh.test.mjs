@@ -6,8 +6,8 @@ const estimateRoute = await readFile(
   new URL('../src/app/api/rewards/estimate/route.ts', import.meta.url),
   'utf8',
 );
-const forecastPortal = await readFile(
-  new URL('../src/components/PublicRewardForecastPortal.tsx', import.meta.url),
+const forecastCard = await readFile(
+  new URL('../src/components/PublicRewardForecastCard.tsx', import.meta.url),
   'utf8',
 );
 
@@ -32,46 +32,50 @@ test('public estimate refreshes early when live reward-pool funding changes', ()
 
 test('public forecast forces a fresh check when the user returns to the app', () => {
   assert.match(
-    forecastPortal,
+    forecastCard,
     /function requestForecast\(force = false\)/,
   );
   assert.match(
-    forecastPortal,
+    forecastCard,
     /\!force\s*&&\s*cachedForecast/,
   );
   assert.match(
-    forecastPortal,
+    forecastCard,
     /\/api\/rewards\/estimate\?refresh=\$\{Date\.now\(\)\}/,
   );
   assert.match(
-    forecastPortal,
+    forecastCard,
     /loadForecast\(true\)/,
   );
   assert.match(
-    forecastPortal,
-    /setInterval\(\s*loadForecast,\s*15\s*\*\s*60_000/s,
+    forecastCard,
+    /setInterval\(\s*loadForecast,\s*CLIENT_FORECAST_CACHE_MS/s,
+  );
+  assert.match(
+    forecastCard,
+    /CLIENT_FORECAST_CACHE_MS = 15 \* 60_000/,
   );
   assert.doesNotMatch(
-    forecastPortal,
+    forecastCard,
     /setInterval\([^)]*,\s*60_000\s*,?\s*\)/s,
   );
 });
 
 test('a refreshed forecast is propagated into the currently visible card', () => {
   assert.match(
-    forecastPortal,
+    forecastCard,
     /REWARD_FORECAST_UPDATED_EVENT = 'veinvite-reward-forecast-updated'/,
   );
   assert.match(
-    forecastPortal,
+    forecastCard,
     /window\.dispatchEvent\([\s\S]*REWARD_FORECAST_UPDATED_EVENT/s,
   );
   assert.match(
-    forecastPortal,
+    forecastCard,
     /window\.addEventListener\([\s\S]*REWARD_FORECAST_UPDATED_EVENT[\s\S]*syncRefreshedForecast/s,
   );
   assert.match(
-    forecastPortal,
+    forecastCard,
     /setForecast\(detail\)/,
   );
 });
