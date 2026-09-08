@@ -20,6 +20,7 @@ import './settings-language-direction.css';
 import './legal-ui-consistency.css';
 import './leaderboard-mobile-table-tuning.css';
 import './leaderboard-card-height-stability.css';
+import './leaderboard-country-horizontal-balance.css';
 
 const siteUrl = 'https://veinvite.vercel.app';
 const title = 'VeInvite | Verified onboarding for VeBetterDAO';
