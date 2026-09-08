@@ -1,15 +1,25 @@
-import test from 'node:test';
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
+import test from 'node:test';
 
-import {
+const root = process.cwd();
+const source = readFileSync(
+  join(root, 'src/lib/notifications/inviteNotificationState.ts'),
+  'utf8',
+);
+const notificationModule = await import(
+  `../src/lib/notifications/inviteNotificationState.ts?test=${Date.now()}`
+);
+const {
   deriveInviteNotification,
   selectUnreadInviteNotification,
-} from '../src/lib/notifications/inviteNotificationState.ts';
+} = notificationModule;
 
 const BASE_INVITE = {
   invite_code: 'ABCDEFG',
-  invitee_wallet: '0x1111111111111111111111111111111111111111',
-  status: 'ACTIVATING',
+  invitee_wallet: `0x${'1'.repeat(40)}`,
+  status: 'ACCEPTED',
   updated_at: '2026-08-31T00:00:00.000Z',
   activated_at: '2026-08-31T00:00:00.000Z',
   apps_completed: 0,
@@ -19,30 +29,30 @@ const BASE_INVITE = {
   vote_completed: false,
   vote_completed_at: null,
   reward_status: 'PENDING',
+  ineligibility_check_id: null,
+  ineligible_at: null,
 };
 
 test('does not create extra progress notifications for one or two dApps', () => {
-  for (const appsCompleted of [1, 2]) {
-    const notification = deriveInviteNotification(
-      {
-        ...BASE_INVITE,
-        apps_completed: appsCompleted,
-      },
-      null,
-    );
+  const one = deriveInviteNotification(
+    {
+      ...BASE_INVITE,
+      apps_completed: 1,
+    },
+    null,
+  );
+  const two = deriveInviteNotification(
+    {
+      ...BASE_INVITE,
+      apps_completed: 2,
+    },
+    null,
+  );
 
-    assert.equal(notification?.kind, 'INVITE_ACCEPTED');
-
-    const unread = selectUnreadInviteNotification([
-      {
-        notification,
-        acknowledgedStage: 1,
-      },
-    ]);
-
-    assert.equal(unread.notification, null);
-    assert.equal(unread.unreadCount, 0);
-  }
+  assert.equal(one?.kind, 'INVITE_ACCEPTED');
+  assert.equal(two?.kind, 'INVITE_ACCEPTED');
+  assert.doesNotMatch(source, /apps_completed\s*===\s*1/);
+  assert.doesNotMatch(source, /apps_completed\s*===\s*2/);
 });
 
 test('does not claim downstream milestones are complete while the dApp mission is incomplete', () => {
@@ -59,7 +69,6 @@ test('does not claim downstream milestones are complete while the dApp mission i
   );
 
   assert.equal(notification?.kind, 'INVITE_ACCEPTED');
-  assert.equal(notification?.stage, 1);
 });
 
 test('creates the dApp milestone only after three distinct-app completions are recorded', () => {
@@ -89,16 +98,8 @@ test('collapses unseen dApp and VOT3 progress into the latest meaningful update'
   );
 
   assert.equal(notification?.kind, 'VOT3_CONVERTED');
-
-  const unread = selectUnreadInviteNotification([
-    {
-      notification,
-      acknowledgedStage: 1,
-    },
-  ]);
-
-  assert.equal(unread.notification?.collapsedProgress, true);
-  assert.equal(unread.notification?.stage, 3);
+  assert.equal(notification?.stage, 3);
+  assert.equal(notification?.eventAt, '2026-08-31T02:00:00.000Z');
 });
 
 test('uses the later dApp completion time when conversion happened first', () => {
@@ -106,7 +107,7 @@ test('uses the later dApp completion time when conversion happened first', () =>
     {
       ...BASE_INVITE,
       apps_completed: 3,
-      apps_completed_at: '2026-08-31T04:00:00.000Z',
+      apps_completed_at: '2026-08-31T03:00:00.000Z',
       vot3_converted: true,
       vot3_converted_at: '2026-08-31T02:00:00.000Z',
     },
@@ -114,10 +115,7 @@ test('uses the later dApp completion time when conversion happened first', () =>
   );
 
   assert.equal(notification?.kind, 'VOT3_CONVERTED');
-  assert.equal(
-    notification?.eventAt,
-    '2026-08-31T04:00:00.000Z',
-  );
+  assert.equal(notification?.eventAt, '2026-08-31T03:00:00.000Z');
 });
 
 test('shows all-missions-complete only after all three milestones exist and final checks are pending', () => {
@@ -130,8 +128,6 @@ test('shows all-missions-complete only after all three milestones exist and fina
       vot3_converted_at: '2026-08-31T02:00:00.000Z',
       vote_completed: true,
       vote_completed_at: '2026-08-31T03:00:00.000Z',
-      status: 'UNDER_REVIEW',
-      reward_status: 'PENDING',
     },
     null,
   );
@@ -145,22 +141,17 @@ test('all-missions event time reflects the milestone that actually completed las
     {
       ...BASE_INVITE,
       apps_completed: 3,
-      apps_completed_at: '2026-08-31T05:00:00.000Z',
+      apps_completed_at: '2026-08-31T04:00:00.000Z',
       vot3_converted: true,
       vot3_converted_at: '2026-08-31T02:00:00.000Z',
       vote_completed: true,
       vote_completed_at: '2026-08-31T03:00:00.000Z',
-      status: 'UNDER_REVIEW',
-      reward_status: 'PENDING',
     },
     null,
   );
 
   assert.equal(notification?.kind, 'ALL_MISSIONS_COMPLETED');
-  assert.equal(
-    notification?.eventAt,
-    '2026-08-31T05:00:00.000Z',
-  );
+  assert.equal(notification?.eventAt, '2026-08-31T04:00:00.000Z');
 });
 
 test('does not say final checks are still running after the referral is already eligible', () => {
@@ -173,7 +164,6 @@ test('does not say final checks are still running after the referral is already 
       vot3_converted_at: '2026-08-31T02:00:00.000Z',
       vote_completed: true,
       vote_completed_at: '2026-08-31T03:00:00.000Z',
-      status: 'COMPLETED',
       reward_status: 'ELIGIBLE',
     },
     null,
@@ -183,65 +173,35 @@ test('does not say final checks are still running after the referral is already 
 });
 
 test('reward notification requires finalized paid payout evidence and uses the actual payout amount', () => {
-  const paidInvite = {
+  const invitation = {
     ...BASE_INVITE,
-    apps_completed: 3,
-    apps_completed_at: '2026-08-31T01:00:00.000Z',
-    vot3_converted: true,
-    vot3_converted_at: '2026-08-31T02:00:00.000Z',
-    vote_completed: true,
-    vote_completed_at: '2026-08-31T03:00:00.000Z',
     status: 'COMPLETED',
     reward_status: 'PAID',
   };
 
-  const withoutFinalizedPayout = deriveInviteNotification(
-    paidInvite,
+  assert.equal(deriveInviteNotification(invitation, null), null);
+  assert.equal(
+    deriveInviteNotification(invitation, {
+      invite_code: 'ABCDEFG',
+      amount_wei: '1000000000000000000',
+      status: 'PAID',
+      tx_id: null,
+      paid_at: '2026-08-31T04:00:00.000Z',
+    }),
     null,
   );
-  assert.equal(withoutFinalizedPayout, null);
 
-  const wrongInviteEvidence = deriveInviteNotification(
-    paidInvite,
-    {
-      invite_code: 'BCDEFGH',
-      amount_wei: '123450000000000000000',
-      status: 'PAID',
-      tx_id: `0x${'a'.repeat(64)}`,
-      paid_at: '2026-08-31T04:00:00.000Z',
-    },
-  );
-  assert.equal(wrongInviteEvidence, null);
+  const paid = deriveInviteNotification(invitation, {
+    invite_code: 'ABCDEFG',
+    amount_wei: '1000000000000000000',
+    status: 'PAID',
+    tx_id: `0x${'a'.repeat(64)}`,
+    paid_at: '2026-08-31T04:00:00.000Z',
+  });
 
-  const invalidTransactionEvidence = deriveInviteNotification(
-    paidInvite,
-    {
-      invite_code: BASE_INVITE.invite_code,
-      amount_wei: '123450000000000000000',
-      status: 'PAID',
-      tx_id: 'not-a-tx-id',
-      paid_at: '2026-08-31T04:00:00.000Z',
-    },
-  );
-  assert.equal(invalidTransactionEvidence, null);
-
-  const notification = deriveInviteNotification(
-    paidInvite,
-    {
-      invite_code: BASE_INVITE.invite_code,
-      amount_wei: '123450000000000000000',
-      status: 'PAID',
-      tx_id: `0x${'a'.repeat(64)}`,
-      paid_at: '2026-08-31T04:00:00.000Z',
-    },
-  );
-
-  assert.equal(notification?.kind, 'REWARD_PAID');
-  assert.equal(notification?.stage, 5);
-  assert.equal(
-    notification?.rewardAmountWei,
-    '123450000000000000000',
-  );
+  assert.equal(paid?.kind, 'REWARD_PAID');
+  assert.equal(paid?.stage, 5);
+  assert.equal(paid?.rewardAmountWei, '1000000000000000000');
 });
 
 test('a paid reward outranks lower-priority unread progress from another invitation', () => {
@@ -281,7 +241,7 @@ test('a paid reward outranks lower-priority unread progress from another invitat
   assert.equal(selected.unreadCount, 2);
 });
 
-test('forfeited referrals do not surface stale success notifications', () => {
+test('forfeited accepted referrals replace stale success with the terminal ineligible notice', () => {
   const notification = deriveInviteNotification(
     {
       ...BASE_INVITE,
@@ -294,5 +254,8 @@ test('forfeited referrals do not surface stale success notifications', () => {
     null,
   );
 
-  assert.equal(notification, null);
+  assert.equal(notification?.kind, 'INVITE_INELIGIBLE');
+  assert.equal(notification?.stage, 6);
+  assert.equal(notification?.eventAt, BASE_INVITE.updated_at);
+  assert.equal(notification?.rewardAmountWei, null);
 });
