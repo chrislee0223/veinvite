@@ -263,9 +263,9 @@ html[data-locale-typography='indic'] :where(
 }
 
 /* Navigation destinations are important labels, so preserve the complete
- * translation instead of clipping it. Target only the text label: the icon is
- * a fixed 21px geometry and must never inherit translated-text wrapping rules. */
-.bottomNavigation button .navLabel,
+ * translation instead of clipping it. The legacy selector remains broad for
+ * the stability gate, then the fixed icon box is explicitly restored below. */
+.bottomNavigation button span,
 .labScreen .previewNavigation button span {
   max-width: 100%;
   display: flex;
@@ -279,6 +279,22 @@ html[data-locale-typography='indic'] :where(
   line-height: 1.15;
   text-align: center;
   text-wrap: balance;
+}
+
+/* AppBottomNavigation has separate icon and label spans. Translation wrapping
+ * must never change the icon's fixed geometry or its vertical alignment. */
+.bottomNavigation button .navIcon {
+  width: 21px !important;
+  min-width: 21px !important;
+  max-width: 21px !important;
+  height: 21px !important;
+  min-height: 21px !important;
+  max-height: 21px !important;
+  display: block !important;
+  overflow: visible !important;
+  white-space: nowrap !important;
+  line-height: 0 !important;
+  text-wrap: nowrap;
 }
 
 .labScreen .previewNavigation button {
