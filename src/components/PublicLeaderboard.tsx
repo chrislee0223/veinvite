@@ -92,6 +92,10 @@ export function PublicLeaderboard({
         .leaderboardHub .walletAvatar {
           background:rgba(255,205,80,.055) !important;
         }
+        .leaderboardHub .walletAvatar img[src^='data:image/svg+xml'] {
+          display:none !important;
+          animation:none !important;
+        }
         .leaderboardHub .walletAvatar img {
           animation:leaderboardAvatarReveal 120ms ease-out both;
         }
