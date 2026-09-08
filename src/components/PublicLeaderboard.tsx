@@ -1,12 +1,21 @@
 'use client';
 
 import {
+  useCallback,
+  useEffect,
+  useState,
+  type MouseEvent,
+} from 'react';
+
+import {
   localeFromLanguageTag,
   type Locale,
 } from '@/lib/i18n/locales';
 import type { PublicLeaderboardResponse } from '@/lib/types';
 import { PublicLeaderboard as InviterLeaderboard } from './InviterLeaderboard';
 import { PublicLeaderboardHub } from './PublicLeaderboardHub';
+
+type RankingMotionDirection = 'forward' | 'backward' | null;
 
 export function PublicLeaderboard({
   locale: requestedLocale,
@@ -18,6 +27,38 @@ export function PublicLeaderboard({
   previewData?: PublicLeaderboardResponse;
 }) {
   const locale = localeFromLanguageTag(requestedLocale) ?? 'en';
+  const [rankingMotionDirection, setRankingMotionDirection] =
+    useState<RankingMotionDirection>(null);
+
+  useEffect(() => {
+    setRankingMotionDirection(null);
+  }, [wallet]);
+
+  const handleRankingTabClickCapture = useCallback(
+    (event: MouseEvent<HTMLDivElement>) => {
+      const target = event.target as HTMLElement;
+      if (typeof target.closest !== 'function') return;
+
+      const tab = target.closest<HTMLButtonElement>(
+        '.rankingTabs button[role="tab"]',
+      );
+      if (!tab || !event.currentTarget.contains(tab)) return;
+      if (tab.getAttribute('aria-selected') === 'true') return;
+
+      const tabs = Array.from(
+        tab.parentElement?.querySelectorAll<HTMLButtonElement>(
+          'button[role="tab"]',
+        ) ?? [],
+      );
+      const index = tabs.indexOf(tab);
+      if (index === 0) {
+        setRankingMotionDirection('backward');
+      } else if (index === 1) {
+        setRankingMotionDirection('forward');
+      }
+    },
+    [],
+  );
 
   if (previewData) {
     return (
@@ -31,11 +72,81 @@ export function PublicLeaderboard({
 
   return (
     <>
-      <PublicLeaderboardHub
-        locale={locale}
-        wallet={wallet}
-      />
+      <div
+        className={`publicLeaderboardMotionHost${
+          rankingMotionDirection
+            ? ` rankingMotion-${rankingMotionDirection}`
+            : ''
+        }`}
+        onClickCapture={handleRankingTabClickCapture}
+      >
+        <PublicLeaderboardHub
+          locale={locale}
+          wallet={wallet}
+        />
+      </div>
       <style jsx global>{`
+        .publicLeaderboardMotionHost {
+          width:100%;
+        }
+        .leaderboardHub .rankingTabs {
+          position:relative;
+        }
+        .leaderboardHub .rankingTabs::after {
+          content:'';
+          position:absolute;
+          inset-inline-start:7%;
+          bottom:-1px;
+          width:36%;
+          height:2px;
+          border-radius:999px;
+          background:#f4b728;
+          box-shadow:0 0 9px rgba(244,183,40,.16);
+          pointer-events:none;
+        }
+        .leaderboardHub .rankingTabs button::after {
+          opacity:0 !important;
+          box-shadow:none !important;
+        }
+        .publicLeaderboardMotionHost.rankingMotion-forward .leaderboardHub .rankingTabs::after {
+          inset-inline-start:57%;
+          transition:inset-inline-start 180ms cubic-bezier(.22,1,.36,1);
+        }
+        .publicLeaderboardMotionHost.rankingMotion-backward .leaderboardHub .rankingTabs::after {
+          inset-inline-start:7%;
+          transition:inset-inline-start 180ms cubic-bezier(.22,1,.36,1);
+        }
+        .leaderboardHub .rankingTabs + .inviterInside,
+        .leaderboardHub .rankingTabs + .countryPanel {
+          position:relative;
+        }
+        .publicLeaderboardMotionHost.rankingMotion-forward .leaderboardHub .rankingTabs + .countryPanel {
+          animation:leaderboardPanelInForward 150ms cubic-bezier(.22,1,.36,1);
+        }
+        .publicLeaderboardMotionHost.rankingMotion-backward .leaderboardHub .rankingTabs + .inviterInside {
+          animation:leaderboardPanelInBackward 150ms cubic-bezier(.22,1,.36,1);
+        }
+        @keyframes leaderboardPanelInForward {
+          from {
+            opacity:.82;
+            inset-inline-start:6px;
+          }
+          to {
+            opacity:1;
+            inset-inline-start:0;
+          }
+        }
+        @keyframes leaderboardPanelInBackward {
+          from {
+            opacity:.82;
+            inset-inline-start:-6px;
+          }
+          to {
+            opacity:1;
+            inset-inline-start:0;
+          }
+        }
+
         /* Country rows use the exact same responsive five-row geometry as the
            reviewed inviter leaderboard: 50px desktop, 46px compact mobile and
            44px narrow mobile. */
@@ -88,6 +199,18 @@ export function PublicLeaderboard({
           letter-spacing:-.015em;
         }
 
+        @media (max-width:430px) {
+          .leaderboardHub .rankingTabs::after {
+            inset-inline-start:6%;
+            width:38%;
+          }
+          .publicLeaderboardMotionHost.rankingMotion-forward .leaderboardHub .rankingTabs::after {
+            inset-inline-start:56%;
+          }
+          .publicLeaderboardMotionHost.rankingMotion-backward .leaderboardHub .rankingTabs::after {
+            inset-inline-start:6%;
+          }
+        }
         @media (max-width:420px) {
           .leaderboardHub .countryRow,
           .leaderboardHub .countryPlaceholderRow {
@@ -133,6 +256,15 @@ export function PublicLeaderboard({
           }
           .leaderboardHub .rewardMetric b {
             font-size:clamp(.54rem,2.45vw,.61rem) !important;
+          }
+        }
+        @media (prefers-reduced-motion:reduce) {
+          .leaderboardHub .rankingTabs::after {
+            transition:none !important;
+          }
+          .publicLeaderboardMotionHost.rankingMotion-forward .leaderboardHub .rankingTabs + .countryPanel,
+          .publicLeaderboardMotionHost.rankingMotion-backward .leaderboardHub .rankingTabs + .inviterInside {
+            animation:none !important;
           }
         }
       `}</style>
