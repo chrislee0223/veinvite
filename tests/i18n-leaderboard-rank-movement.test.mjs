@@ -26,6 +26,18 @@ const finalUiHardening = await readFile(
   new URL('../src/app/final-ui-hardening.css', import.meta.url),
   'utf8',
 );
+const approvedPodium = await readFile(
+  new URL('../src/app/podium-laurel-option-c.css', import.meta.url),
+  'utf8',
+);
+const approvedPodiumTuning = await readFile(
+  new URL('../src/app/podium-laurel-size-tuning.css', import.meta.url),
+  'utf8',
+);
+const podiumLayoutGuard = await readFile(
+  new URL('../src/app/leaderboard-podium-layout-guard.css', import.meta.url),
+  'utf8',
+);
 
 const supportedLocales = [
   ...localeSource.matchAll(/locale:\s*'([^']+)'/g),
@@ -67,6 +79,7 @@ test('RTL locales keep leaderboard geometry and numeric movement left-to-right',
   assert.match(leaderboard, /\.rankValue \{[\s\S]*direction:ltr;/);
   assert.match(leaderboard, /\.walletCell \{[\s\S]*direction:ltr;/);
   assert.match(leaderboard, /\.rankMetric \{[\s\S]*direction:ltr;/);
+  assert.match(podiumLayoutGuard, /html\[dir='rtl'\][\s\S]*direction:ltr !important/);
   for (const locale of ['ar', 'ur', 'arz']) {
     assert.match(
       movementCopy,
@@ -97,31 +110,30 @@ test('rank cells use one fixed axis and fixed row height regardless of locale ty
   assert.match(leaderboard, /data-rank=\{rank\}/);
   assert.match(
     leaderboard,
-    /\.rankValue \{[\s\S]*position:absolute;[\s\S]*inset:0;[\s\S]*width:100%;[\s\S]*height:100%;[\s\S]*display:grid;[\s\S]*place-items:center;[\s\S]*line-height:1 !important;/,
+    /\.leaderboardPage \.rankRow,[\s\S]*height:var\(--rank-row-height\) !important;[\s\S]*min-height:var\(--rank-row-height\) !important;[\s\S]*max-height:var\(--rank-row-height\) !important;/,
   );
   assert.match(
-    leaderboard,
-    /\.leaderboardPage \.rankRow,[\s\S]*height:var\(--rank-row-height\) !important;[\s\S]*min-height:var\(--rank-row-height\) !important;[\s\S]*max-height:var\(--rank-row-height\) !important;/,
+    podiumLayoutGuard,
+    /\.rankValue\.rankValue \{[\s\S]*left:50% !important;[\s\S]*top:50% !important;[\s\S]*transform:translate\(-50%,-50%\) !important;/,
   );
 });
 
-test('podium decoration is rank-driven and crown belongs only to rank one', () => {
-  assert.match(leaderboard, /\.rankRow\[data-rank='1'\] \.rankStack \{/);
-  assert.match(leaderboard, /\.rankRow\[data-rank='2'\] \.rankStack \{/);
-  assert.match(leaderboard, /\.rankRow\[data-rank='3'\] \.rankStack \{/);
+test('approved podium artwork is restored while the temporary component redraw is disabled', () => {
+  assert.match(approvedPodium, /--podium-shape:path\(/);
+  assert.match(approvedPodium, /rankValue\.rankValue::before/);
+  assert.match(approvedPodiumTuning, /scale\(\.80\)/);
+  assert.match(approvedPodiumTuning, /scale\(\.95\)/);
+  assert.match(approvedPodiumTuning, /top:calc\(50% \+ 2px\) !important/);
   assert.match(
-    leaderboard,
-    /\.rankRow\[data-rank='1'\] \.rankStack::before,[\s\S]*\.rankRow\[data-rank='2'\] \.rankStack::before,[\s\S]*\.rankRow\[data-rank='3'\] \.rankStack::before/,
+    podiumLayoutGuard,
+    /rankRow\[data-rank='1'\] \.rankStack::before,[\s\S]*content:none !important;[\s\S]*display:none !important;/,
   );
-  assert.match(leaderboard, /\.rankRow\[data-rank='1'\] \.rankStack::after \{/);
-  assert.doesNotMatch(leaderboard, /\.rankRow\[data-rank='2'\] \.rankStack::after \{/);
-  assert.doesNotMatch(leaderboard, /\.rankRow\[data-rank='3'\] \.rankStack::after \{/);
 });
 
 test('movement labels occupy the full fixed rank slot instead of shifting the numeral', () => {
   assert.match(
-    leaderboard,
-    /\.rankMovement \{[\s\S]*width:100%;[\s\S]*left:0;[\s\S]*right:0;[\s\S]*transform:none;[\s\S]*text-align:center;/,
+    podiumLayoutGuard,
+    /\.rankMovement\.rankMovement \{[\s\S]*width:100% !important;[\s\S]*justify-content:center !important;[\s\S]*transform:none !important;/,
   );
   assert.match(leaderboard, /className="rankMovement new"[\s\S]*dir="auto"/);
 });
@@ -155,9 +167,11 @@ test('B3TR unit is declared once in the centered table header while detail view 
   );
 });
 
-test('legacy global podium overrides are no longer loaded or retained', () => {
-  assert.doesNotMatch(layout, /podium-laurel-option-c\.css/);
-  assert.doesNotMatch(layout, /podium-laurel-size-tuning\.css/);
+test('approved podium assets are loaded and obsolete replacement layers stay removed', () => {
+  assert.match(layout, /podium-laurel-option-c\.css/);
+  assert.match(layout, /podium-laurel-size-tuning\.css/);
+  assert.match(layout, /leaderboard-podium-layout-guard\.css/);
+  assert.doesNotMatch(layout, /leaderboard-podium-unified\.css/);
   assert.doesNotMatch(layout, /leaderboard-rank-axis-hardening\.css/);
   assert.doesNotMatch(finalUiHardening, /rankValue::before/);
   assert.doesNotMatch(finalUiHardening, /featured:nth-child/);
