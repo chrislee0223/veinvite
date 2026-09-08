@@ -111,7 +111,7 @@ for (const locale of locales) {
 }
 
 if (
-  !/친구가 모든 미션을 완료하면 받을 수 있습니다/.test(forecastCopy) ||
+  !/친구가 모든 미션을 완료하면 받을 수 있어요/.test(forecastCopy) ||
   !/आपके आमंत्रित मित्र के सभी मिशन पूरे करने पर आप यह इनाम पा सकते हैं/.test(forecastCopy) ||
   !/招待した友だちがすべてのミッションを完了すると受け取れます/.test(forecastCopy) ||
   !/Puoi riceverla quando l’amico che hai invitato completa tutte le missioni/.test(forecastCopy) ||
