@@ -16,6 +16,10 @@ const countryCopy = readFileSync(
   join(root, 'src/lib/i18n/countryLeaderboardCopy.ts'),
   'utf8',
 );
+const layoutCss = readFileSync(
+  join(root, 'src/app/leaderboard-country-horizontal-balance.css'),
+  'utf8',
+);
 
 test('country ranking renders flags instead of country-code badges', () => {
   assert.match(hub, /<CountryFlag countryCode=\{row\.countryCode\} \/>/);
@@ -32,20 +36,20 @@ test('country header uses a short localized country label', () => {
   assert.match(countryCopy, /ko:\s*\{[\s\S]*country: '국가'/);
 });
 
-test('country columns align as rank, flexible country identity, and arrival count', () => {
+test('country rows use five columns with country at inline start and compact metrics', () => {
   assert.match(
-    hub,
-    /grid-template-columns:64px minmax\(0,1fr\) 84px;/,
+    layoutCss,
+    /grid-template-columns: 44px minmax\(0, 1fr\) 52px 52px 64px;/,
   );
   assert.match(
-    hub,
-    /\.countryHeader span:nth-child\(2\) \{[\s\S]*text-align:start;/,
+    layoutCss,
+    /\.countryHeader \.countryHeaderCountry \{[\s\S]*text-align: start;/,
   );
   assert.match(
-    hub,
-    /\.countryIdentity \{[\s\S]*justify-content:flex-start;[\s\S]*text-align:start;/,
+    layoutCss,
+    /\.countryIdentity \{[\s\S]*justify-content: flex-start;[\s\S]*text-align: start;/,
   );
-  assert.match(hub, /scrollbar-gutter:auto;/);
+  assert.match(layoutCss, /\.countryMetricValue \{[\s\S]*direction: ltr;[\s\S]*unicode-bidi: isolate;/);
 });
 
 test('internal row separators stay removed while the active tab underline remains', () => {
@@ -54,12 +58,12 @@ test('internal row separators stay removed while the active tab underline remain
     /\.rankingTabs \{[\s\S]*border-bottom:0;/,
   );
   assert.match(
-    hub,
-    /\.countryHeader \{[\s\S]*border-bottom:0;/,
+    layoutCss,
+    /\.countryHeader \{[\s\S]*border-bottom: 0;/,
   );
   assert.match(
-    hub,
-    /\.countryRow,[\s\S]*\.countryPlaceholderRow \{[\s\S]*border-bottom:0;/,
+    layoutCss,
+    /\.countryRow,[\s\S]*\.countryPlaceholderRow \{[\s\S]*border-bottom: 0;/,
   );
   assert.match(
     hub,
@@ -74,7 +78,12 @@ test('internal row separators stay removed while the active tab underline remain
 
 test('top three country ranks receive restrained medal emphasis', () => {
   assert.match(hub, /data-rank=\{row\.rank <= 3 \? row\.rank : undefined\}/);
-  assert.match(hub, /\.countryRow\[data-rank='1'\] \.countryRank/);
-  assert.match(hub, /\.countryRow\[data-rank='2'\] \.countryRank/);
-  assert.match(hub, /\.countryRow\[data-rank='3'\] \.countryRank/);
+  assert.match(layoutCss, /\.countryRow\[data-rank='1'\] \.countryRank/);
+  assert.match(layoutCss, /\.countryRow\[data-rank='2'\] \.countryRank/);
+  assert.match(layoutCss, /\.countryRow\[data-rank='3'\] \.countryRank/);
+});
+
+test('total arrivals remain the strongest numeric emphasis', () => {
+  assert.match(layoutCss, /\.countryReturning \{[\s\S]*color: #aaa49a;/);
+  assert.match(layoutCss, /\.countryTotal \{[\s\S]*color: #ffd35c;[\s\S]*font-weight: 900;/);
 });
