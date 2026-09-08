@@ -455,6 +455,8 @@ export function PublicLeaderboardHub({
           text-align:center;
         }
         .countryHeader span:nth-child(2) {
+          box-sizing:border-box;
+          padding-inline-start:19px;
           text-align:start;
         }
         .countryScroll,
@@ -590,6 +592,9 @@ export function PublicLeaderboardHub({
           .countryHeader {
             padding-bottom:5px;
           }
+          .countryHeader span:nth-child(2) {
+            padding-inline-start:16px;
+          }
           .countryIdentity {
             gap:7px;
           }
@@ -611,6 +616,9 @@ export function PublicLeaderboardHub({
             column-gap:6px;
             padding-right:6px;
             padding-left:6px;
+          }
+          .countryHeader span:nth-child(2) {
+            padding-inline-start:15px;
           }
           .roundGain {
             display:none;
