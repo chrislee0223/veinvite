@@ -16,6 +16,7 @@ import './podium-laurel-size-tuning.css';
 import './leaderboard-podium-layout-guard.css';
 import './wallet-confirmation-unified.css';
 import './language-picker-mobile.css';
+import './settings-language-direction.css';
 import './legal-ui-consistency.css';
 
 const siteUrl = 'https://veinvite.vercel.app';
