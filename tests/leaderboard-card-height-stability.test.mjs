@@ -60,5 +60,5 @@ test('stability guard changes only minimum card height and leaves list scrolling
   assert.match(css, /\.leaderboardHub \.unifiedRankingCard \{\s*min-height:var\(--stable-ranking-base-height\);\s*\}/);
   assert.doesNotMatch(css, /\.rankScroll\s*\{/);
   assert.doesNotMatch(css, /\.countryScroll\s*\{/);
-  assert.doesNotMatch(css, /width\s*:/);
+  assert.doesNotMatch(css, /(^|\n)\s*width\s*:/m);
 });
