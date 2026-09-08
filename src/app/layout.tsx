@@ -16,6 +16,7 @@ import './podium-laurel-size-tuning.css';
 import './wallet-confirmation-unified.css';
 import './language-picker-mobile.css';
 import './legal-ui-consistency.css';
+import './leaderboard-rank-axis-hardening.css';
 
 const siteUrl = 'https://veinvite.vercel.app';
 const title = 'VeInvite | Verified onboarding for VeBetterDAO';
