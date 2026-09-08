@@ -34,22 +34,22 @@ test('leaderboard alignment guard remains the final shared-card override', () =>
   assert.ok(guardImport > baseImport);
 });
 
-test('country grid shifts identity inline and reduces the oversized flexible gap', () => {
+test('country identity shifts right by exactly one existing grid gap', () => {
   assert.match(
     country,
-    /grid-template-columns: 72px minmax\(0, 1fr\) 64px 64px 72px;\s*column-gap: 8px;/,
+    /grid-template-columns: 80px minmax\(0, 1fr\) 64px 64px 72px;\s*column-gap: 8px;/,
   );
   assert.match(
     country,
-    /@media \(max-width: 500px\)[\s\S]*grid-template-columns: 68px minmax\(0, 1fr\) 56px 56px 68px;\s*column-gap: 6px;/,
+    /@media \(max-width: 500px\)[\s\S]*grid-template-columns: 74px minmax\(0, 1fr\) 56px 56px 68px;\s*column-gap: 6px;/,
   );
   assert.match(
     country,
-    /@media \(max-width: 430px\)[\s\S]*grid-template-columns: 52px minmax\(0, 1fr\) 44px 44px 52px;\s*column-gap: 4px;/,
+    /@media \(max-width: 430px\)[\s\S]*grid-template-columns: 56px minmax\(0, 1fr\) 44px 44px 52px;\s*column-gap: 4px;/,
   );
   assert.match(
     country,
-    /@media \(max-width: 360px\)[\s\S]*grid-template-columns: 46px minmax\(0, 1fr\) 40px 40px 46px;\s*column-gap: 3px;/,
+    /@media \(max-width: 360px\)[\s\S]*grid-template-columns: 49px minmax\(0, 1fr\) 40px 40px 46px;\s*column-gap: 3px;/,
   );
 
   const maxRail = 520;
@@ -58,14 +58,24 @@ test('country grid shifts identity inline and reduces the oversized flexible gap
   const rowInlinePadding = 10 * 2;
   const gridWidth =
     maxRail - cardBorders - cardInlinePadding - rowInlinePadding;
-  const fixedTracksAndGaps = 72 + 64 + 64 + 72 + 8 * 4;
+
+  const previousDesktopRankTrack = 72;
+  const desktopGap = 8;
+  const desktopRankTrack = previousDesktopRankTrack + desktopGap;
+  const fixedTracksAndGaps = desktopRankTrack + 64 + 64 + 72 + desktopGap * 4;
 
   assert.equal(gridWidth, 470);
-  assert.equal(fixedTracksAndGaps, 304);
-  assert.equal(gridWidth - fixedTracksAndGaps, 166);
-  assert.equal(72 + 8, 80);
+  assert.equal(desktopRankTrack, 80);
+  assert.equal(fixedTracksAndGaps, 312);
+  assert.equal(gridWidth - fixedTracksAndGaps, 158);
+  assert.equal(previousDesktopRankTrack + desktopGap, 80);
+  assert.equal(desktopRankTrack + desktopGap, 88);
 
-  assert.doesNotMatch(country, /translateX|margin-inline-start/);
+  assert.equal(68 + 6, 74);
+  assert.equal(52 + 4, 56);
+  assert.equal(46 + 3, 49);
+
+  assert.doesNotMatch(country, /translateX|margin-inline-start|padding-inline-start/);
 });
 
 test('country desktop typography matches inviter table scale', () => {
