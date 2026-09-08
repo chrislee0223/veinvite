@@ -52,6 +52,24 @@ test('bottom navigation uses one measured sliding indicator', () => {
   assert.doesNotMatch(source, /button\.active\s*\{[^}]*background:/);
 });
 
+test('bottom navigation alignment uses equal tracks and fixed icon-label rows', () => {
+  assert.match(source, /grid-template-columns: repeat\(4,minmax\(0,1fr\)\);/);
+  assert.match(source, /grid-template-rows: 21px 13px;/);
+  assert.match(source, /className="navIcon"/);
+  assert.match(source, /className="navLabel"/);
+  assert.match(source, /\.navIcon \{ width: 21px; height: 21px; display: block; line-height: 0; \}/);
+  assert.match(source, /\.navLabel \{[^}]*text-align: center; line-height: 13px; \}/);
+  assert.match(source, /\.navIcon :global\(svg\) \{ display: block; width: 21px; height: 21px; \}/);
+
+  const desktopRail = 520;
+  const desktopBorder = 1 * 2;
+  const desktopInlinePadding = 5 * 2;
+  const desktopInnerWidth = desktopRail - desktopBorder - desktopInlinePadding;
+  assert.equal(desktopInnerWidth, 508);
+  assert.equal(desktopInnerWidth / 4, 127);
+  assert.match(source, /@media \(min-width: 561px\) \{ \.bottomNavigation > div \{ padding-left: 5px; padding-right: 5px; \} \}/);
+});
+
 test('tab, indicator and button motion respect reduced-motion preferences', () => {
   const reducedMotionMatches = source.match(/prefers-reduced-motion: reduce/g) ?? [];
   assert.ok(reducedMotionMatches.length >= 2);
