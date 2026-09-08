@@ -1,0 +1,67 @@
+/*
+ * Mobile inviter leaderboard table tuning.
+ *
+ * Keep masked inviter wallet addresses on one identical text geometry so rows
+ * cannot visually drift when different wallet characters are rendered.
+ * Numeric referral/reward values are intentionally a little larger on phones
+ * for readability without changing the desktop table proportions.
+ */
+
+@media (max-width: 420px) {
+  html body .leaderboardPage .rankingCard .rankRow .walletCell {
+    display: grid !important;
+    grid-template-columns: 18px 9ch !important;
+    column-gap: 5px !important;
+    align-items: center !important;
+    justify-content: center !important;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas,
+      "Liberation Mono", "Courier New", monospace !important;
+    font-size: .64rem !important;
+    line-height: 1 !important;
+    letter-spacing: 0 !important;
+  }
+
+  html body .leaderboardPage .rankingCard .rankRow .walletAvatar {
+    width: 18px !important;
+    height: 18px !important;
+    flex-basis: 18px !important;
+  }
+
+  html body .leaderboardPage .rankingCard .rankRow .walletText {
+    width: 9ch !important;
+    min-width: 9ch !important;
+    max-width: 9ch !important;
+    overflow: hidden !important;
+    text-overflow: clip !important;
+    white-space: nowrap !important;
+    font: inherit !important;
+    line-height: 1 !important;
+    letter-spacing: 0 !important;
+    text-align: left !important;
+    font-variant-numeric: tabular-nums !important;
+  }
+
+  html body .leaderboardPage .rankingCard .rankRow .rankMetric b {
+    font-size: .72rem !important;
+    font-weight: 900 !important;
+    line-height: 1 !important;
+  }
+}
+
+@media (max-width: 360px) {
+  html body .leaderboardPage .rankingCard .rankRow .walletCell {
+    grid-template-columns: 16px 9ch !important;
+    column-gap: 4px !important;
+    font-size: .59rem !important;
+  }
+
+  html body .leaderboardPage .rankingCard .rankRow .walletAvatar {
+    width: 16px !important;
+    height: 16px !important;
+    flex-basis: 16px !important;
+  }
+
+  html body .leaderboardPage .rankingCard .rankRow .rankMetric b {
+    font-size: .67rem !important;
+  }
+}
