@@ -5,7 +5,7 @@ import { useCallback, useEffect, useRef } from 'react';
 import type { RewardReceipt } from '@/lib/rewards/rewardReceipt';
 
 const REWARD_CLAIM_UPDATED_EVENT = 'veinvite-reward-claim-updated';
-const PAID_ACTIVATION_UPDATED_EVENT = 'veinvite-paid-activation-updated';
+export const PAID_ACTIVATION_UPDATED_EVENT = 'veinvite-paid-activation-updated';
 const CLAIM_POLL_INTERVAL_MS = 2_000;
 const CLAIM_POLL_TIMEOUT_MS = 120_000;
 const BACKGROUND_POLL_INTERVAL_MS = 30_000;
@@ -33,7 +33,6 @@ export function PaidActivationLiveSync() {
   const initializedRef = useRef(false);
   const claimPollTimerRef = useRef<number | null>(null);
   const claimPollDeadlineRef = useRef(0);
-  const reloadRequestedRef = useRef(false);
   const readInFlightRef = useRef<Promise<string | null> | null>(null);
 
   const readLatest = useCallback(async () => {
@@ -63,22 +62,17 @@ export function PaidActivationLiveSync() {
 
     if (
       !latestReceiptId ||
-      latestReceiptId === latestReceiptIdRef.current ||
-      reloadRequestedRef.current
+      latestReceiptId === latestReceiptIdRef.current
     ) {
       return false;
     }
 
     latestReceiptIdRef.current = latestReceiptId;
-    reloadRequestedRef.current = true;
 
+    // The receipt is created only after the reward transaction has been finalized
+    // and settled. Notify every mounted public surface at that exact boundary so
+    // acquisition totals and rankings move together without a full-page reload.
     window.dispatchEvent(new Event(PAID_ACTIVATION_UPDATED_EVENT));
-
-    // A finalized reward receipt is the single public activation source of truth.
-    // Reload once so every surface (impact totals, inviter rank, country rank and
-    // notifications) reads the same freshly-finalized receipt without waiting for
-    // independent client caches to expire.
-    window.location.reload();
     return true;
   }, [readLatest]);
 
