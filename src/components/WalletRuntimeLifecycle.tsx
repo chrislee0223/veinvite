@@ -22,8 +22,6 @@ import {
 
 const APP_READY_EVENT = 'veinvite-app-ready';
 const APP_LOADING_EVENT = 'veinvite-app-loading';
-const WALLET_SESSION_READY_EVENT =
-  'veinvite-wallet-session-ready';
 const SESSION_RENEWAL_INTENT = 'renew';
 const RENEWAL_DEDUPE_MS = 60_000;
 const HOME_STABILITY_MS = 160;
@@ -258,30 +256,45 @@ export function WalletRuntimeLifecycle() {
       return;
     }
 
-    void renewSession(walletAddress);
-  }, [renewSession, walletAddress]);
+    let cancelled = false;
+    let renewalStarted = false;
 
-  useEffect(() => {
-    const handleWalletSessionReady = () => {
-      const wallet = walletRef.current;
+    const isCurrentWalletAppReady = () =>
+      document.documentElement.dataset.veinviteAppReady === 'true' &&
+      document.documentElement.dataset.veinviteHomeStartupStatus === 'ready' &&
+      document.documentElement.dataset.veinviteHomeStartupWallet?.toLowerCase() ===
+        walletAddress;
 
-      if (wallet) {
-        void renewSession(wallet);
+    const renewWhenReady = () => {
+      if (
+        cancelled ||
+        renewalStarted ||
+        !isCurrentWalletAppReady()
+      ) {
+        return;
       }
+
+      renewalStarted = true;
+      void renewSession(walletAddress);
     };
 
     window.addEventListener(
-      WALLET_SESSION_READY_EVENT,
-      handleWalletSessionReady,
+      APP_READY_EVENT,
+      renewWhenReady,
     );
 
+    if (isCurrentWalletAppReady()) {
+      renewWhenReady();
+    }
+
     return () => {
+      cancelled = true;
       window.removeEventListener(
-        WALLET_SESSION_READY_EVENT,
-        handleWalletSessionReady,
+        APP_READY_EVENT,
+        renewWhenReady,
       );
     };
-  }, [renewSession]);
+  }, [renewSession, walletAddress]);
 
   useEffect(() => {
     if (window.location.pathname !== '/') {
