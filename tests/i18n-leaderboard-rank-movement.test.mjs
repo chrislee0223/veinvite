@@ -26,6 +26,10 @@ const finalUiHardening = await readFile(
   new URL('../src/app/final-ui-hardening.css', import.meta.url),
   'utf8',
 );
+const layoutPolish = await readFile(
+  new URL('../src/components/SecondaryPageLayoutPolish.tsx', import.meta.url),
+  'utf8',
+);
 const approvedPodium = await readFile(
   new URL('../src/app/podium-laurel-option-c.css', import.meta.url),
   'utf8',
@@ -116,18 +120,23 @@ test('rank cells use one fixed axis and fixed row height regardless of locale ty
     podiumLayoutGuard,
     /\.rankValue\.rankValue \{[\s\S]*left:50% !important;[\s\S]*top:50% !important;[\s\S]*transform:translate\(-50%,-50%\) !important;/,
   );
+  assert.doesNotMatch(
+    layoutPolish,
+    /\.leaderboardPage \.rankValue\s*\{[\s\S]*position:/,
+  );
 });
 
-test('approved podium artwork is restored while the temporary component redraw is disabled', () => {
+test('approved podium artwork remains authoritative and obsolete component redraws are gone', () => {
   assert.match(approvedPodium, /--podium-shape:path\(/);
   assert.match(approvedPodium, /rankValue\.rankValue::before/);
   assert.match(approvedPodiumTuning, /scale\(\.80\)/);
   assert.match(approvedPodiumTuning, /scale\(\.95\)/);
   assert.match(approvedPodiumTuning, /top:calc\(50% \+ 2px\) !important/);
-  assert.match(
-    podiumLayoutGuard,
-    /rankRow\[data-rank='1'\] \.rankStack::before,[\s\S]*content:none !important;[\s\S]*display:none !important;/,
-  );
+  assert.doesNotMatch(leaderboard, /\.rankStack::before/);
+  assert.doesNotMatch(leaderboard, /\.rankStack::after/);
+  assert.doesNotMatch(layoutPolish, /rankValue::before/);
+  assert.doesNotMatch(layoutPolish, /rankValue::after/);
+  assert.doesNotMatch(podiumLayoutGuard, /content:none !important/);
 });
 
 test('movement labels occupy the full fixed rank slot instead of shifting the numeral', () => {
@@ -167,10 +176,13 @@ test('B3TR unit is declared once in the centered table header while detail view 
   );
 });
 
-test('approved podium assets are loaded and obsolete replacement layers stay removed', () => {
-  assert.match(layout, /podium-laurel-option-c\.css/);
-  assert.match(layout, /podium-laurel-size-tuning\.css/);
-  assert.match(layout, /leaderboard-podium-layout-guard\.css/);
+test('approved podium assets load in one defined order and obsolete replacement layers stay removed', () => {
+  const optionIndex = layout.indexOf("./podium-laurel-option-c.css");
+  const tuningIndex = layout.indexOf("./podium-laurel-size-tuning.css");
+  const guardIndex = layout.indexOf("./leaderboard-podium-layout-guard.css");
+  assert.ok(optionIndex >= 0);
+  assert.ok(tuningIndex > optionIndex);
+  assert.ok(guardIndex > tuningIndex);
   assert.doesNotMatch(layout, /leaderboard-podium-unified\.css/);
   assert.doesNotMatch(layout, /leaderboard-rank-axis-hardening\.css/);
   assert.doesNotMatch(finalUiHardening, /rankValue::before/);
