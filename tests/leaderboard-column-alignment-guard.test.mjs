@@ -34,6 +34,31 @@ test('leaderboard alignment guard remains the final shared-card override', () =>
   assert.ok(guardImport > baseImport);
 });
 
+test('country header aligns with country-name text axis from flag geometry', () => {
+  assert.match(
+    guard,
+    /\.countryHeader \.countryHeaderCountry \{\s*padding-inline-start: 36px;/,
+  );
+  assert.match(
+    guard,
+    /@media \(max-width: 430px\)[\s\S]*\.countryHeader \.countryHeaderCountry \{\s*padding-inline-start: 31px;/,
+  );
+  assert.match(
+    guard,
+    /@media \(max-width: 360px\)[\s\S]*\.countryHeader \.countryHeaderCountry \{\s*padding-inline-start: 30px;/,
+  );
+
+  const desktopFlagWidth = 28;
+  const desktopIdentityGap = 8;
+  const phoneFlagWidth = 25;
+  const phoneIdentityGap = 6;
+  const narrowPhoneIdentityGap = 5;
+
+  assert.equal(desktopFlagWidth + desktopIdentityGap, 36);
+  assert.equal(phoneFlagWidth + phoneIdentityGap, 31);
+  assert.equal(phoneFlagWidth + narrowPhoneIdentityGap, 30);
+});
+
 test('country identity shifts right by exactly one existing grid gap', () => {
   assert.match(
     country,
