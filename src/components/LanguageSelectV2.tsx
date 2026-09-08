@@ -55,7 +55,7 @@ export function LanguageSelectV2({ locale, onSelect, onContinue }: LanguageSelec
 
       <style jsx>{`
         .screen { min-height:100svh; width:100%; box-sizing:border-box; display:flex; flex-direction:column; align-items:center; padding:22px 18px 32px; color:#fff; background:radial-gradient(circle at 50% 24%,rgba(244,183,40,.17),transparent 36%),#080807; }
-        .topBar { width:min(100%,520px); display:flex; align-items:center); margin-bottom:26px; }
+        .topBar { width:min(100%,520px); display:flex; align-items:center; margin-bottom:26px; }
         .card { position:relative; overflow:hidden; width:min(100%,520px); box-sizing:border-box; padding:28px 24px 24px; border:1px solid rgba(255,205,80,.25); border-radius:30px; background:linear-gradient(160deg,rgba(54,40,14,.98),rgba(16,16,14,.98) 64%); box-shadow:0 24px 70px rgba(0,0,0,.42),inset 0 1px 0 rgba(255,255,255,.08); }
         .card::before { content:''; position:absolute; width:250px; height:250px; right:-110px; top:-120px; border-radius:50%; background:rgba(244,183,40,.18); }
         .badge { position:relative; z-index:1; display:inline-flex; align-items:center; min-height:28px; padding:0 11px; border:1px solid rgba(255,205,80,.28); border-radius:999px; background:rgba(244,183,40,.12); color:#ffd66e; font-size:.7rem; font-weight:900; letter-spacing:.08em; }
