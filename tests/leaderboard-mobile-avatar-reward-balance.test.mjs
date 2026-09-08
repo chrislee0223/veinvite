@@ -44,17 +44,13 @@ test('leaderboard shows an immediate address avatar and upgrades to a real VET D
     inviter,
     /radial-gradient\(ellipse at 50% 82%,#eec04c/,
   );
+  assert.doesNotMatch(
+    layoutPolish,
+    /\.leaderboardPage \.walletAvatar:empty/,
+  );
   assert.match(
     layoutPolish,
-    /\.leaderboardPage \.walletAvatar:empty \{[\s\S]*?background:rgba\(255,205,80,\.055\) !important;/,
-  );
-  assert.doesNotMatch(
-    layoutPolish,
-    /radial-gradient\(circle at 50% 35%,#eec04c/,
-  );
-  assert.doesNotMatch(
-    layoutPolish,
-    /radial-gradient\(ellipse at 50% 82%,#eec04c/,
+    /Address Picasso is rendered immediately/,
   );
 });
 
