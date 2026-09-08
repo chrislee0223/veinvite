@@ -6,40 +6,83 @@ const failures = [];
 const read = (path) => readFileSync(join(root, path), 'utf8');
 
 const route = read('src/app/api/leaderboard/route.ts');
+const cacheClient = read('src/lib/leaderboardClientCache.ts');
 const leaderboardEntry = read('src/components/PublicLeaderboard.tsx');
 const leaderboardHub = read('src/components/PublicLeaderboardHub.tsx');
 const leaderboard = read('src/components/InviterLeaderboard.tsx');
 const layoutPolish = read('src/components/SecondaryPageLayoutPolish.tsx');
+const podiumGuard = read('src/app/leaderboard-podium-layout-guard.css');
+const podiumArtwork = read('src/app/podium-laurel-option-c.css');
+const podiumTuning = read('src/app/podium-laurel-size-tuning.css');
+const rootLayout = read('src/app/layout.tsx');
+const finalUiHardening = read('src/app/final-ui-hardening.css');
 const appProviders = read('src/components/AppProviders.tsx');
 const preview = read('src/components/LeaderboardUiPreview.tsx');
 const migration = read('supabase/migrations/20260829043433_add_public_lifetime_leaderboard.sql');
 
+const fail = (message) => failures.push(message);
+
 if (!/LEADERBOARD_SIZE\s*=\s*100/.test(route) || !/p_limit:\s*LEADERBOARD_SIZE/.test(route)) {
-  failures.push('Public leaderboard API must retain the reviewed Top 100 limit.');
+  fail('Public leaderboard API must retain the reviewed Top 100 limit.');
 }
 if (!/least\(coalesce\(p_limit,\s*5\),\s*100\)/.test(migration)) {
-  failures.push('Leaderboard RPC no longer preserves its hard 100-entry ceiling.');
+  fail('Leaderboard RPC no longer preserves its hard 100-entry ceiling.');
 }
+if (!/get_public_lifetime_leaderboard_v2/.test(route)) {
+  fail('Public leaderboard must use the current v2 ranking RPC.');
+}
+if (/get_public_lifetime_leaderboard'/.test(route) || /readLegacyLeaderboard|normalizeLegacyLeaderboardRow|falling back to the paid lifetime leaderboard/.test(route)) {
+  fail('Retired leaderboard fallback code must not return.');
+}
+if (/stale-while-revalidate/.test(route)) {
+  fail('Public leaderboard responses must not explicitly permit stale replay.');
+}
+if (!/public, s-maxage=10, must-revalidate/.test(route) || !/private, no-store/.test(route)) {
+  fail('Leaderboard cache headers must keep short anonymous freshness and connected-wallet no-store behavior.');
+}
+
+if (!/FRESH_FOR_MS\s*=\s*30_000/.test(cacheClient)) {
+  fail('Client leaderboard freshness window changed unexpectedly.');
+}
+if (!/function readFreshCachedPublicLeaderboard/.test(cacheClient) || !/getCachedPublicLeaderboard[\s\S]*return readFreshCachedPublicLeaderboard\(wallet\)/.test(cacheClient)) {
+  fail('All public leaderboard cache reads must pass through the freshness guard.');
+}
+if (!/Date\.now\(\) - entry\.fetchedAt > FRESH_FOR_MS[\s\S]*cache\.delete\(key\)[\s\S]*latestNetworkByWallet\.delete\(walletKey\)[\s\S]*return null/.test(cacheClient)) {
+  fail('Expired leaderboard cache entries must be deleted instead of displayed.');
+}
+if (!/previousNetwork && previousNetwork !== data\.network[\s\S]*cache\.delete\(networkCacheKey\(previousNetwork, walletKey\)\)/.test(cacheClient)) {
+  fail('Leaderboard cache must discard the previous network entry when network identity changes.');
+}
+
 if (/\.slice\(0,\s*5\)/.test(leaderboard) || !/PUBLIC_RANK_LIMIT\s*=\s*100/.test(leaderboard)) {
-  failures.push('Leaderboard UI regressed from the reviewed Top 100 behavior.');
+  fail('Leaderboard UI regressed from the reviewed Top 100 behavior.');
 }
 if (!/RANK_SLOTS\s*=\s*Array\.from\([\s\S]*length:\s*PUBLIC_RANK_LIMIT/.test(leaderboard)) {
-  failures.push('Ranks 1-100 must remain one continuous scrollable slot list.');
+  fail('Ranks 1-100 must remain one continuous scrollable slot list.');
 }
 if (/className="myRankCard"|className="myRankButton"|className="rankPrimary"/.test(leaderboard)) {
-  failures.push('Retired nested/separate rank wrappers must not return.');
+  fail('Retired nested/separate rank wrappers must not return.');
 }
 if (!/currentUserInList/.test(leaderboard) || !/trailingCurrentUser/.test(leaderboard) || !/className="rankDivider"/.test(leaderboard)) {
-  failures.push('Outside-Top-100 current-wallet fallback row is missing.');
+  fail('Outside-Top-100 current-wallet fallback row is missing.');
 }
 if (!/<span>⋮<\/span>/.test(leaderboard)) {
-  failures.push('Outside-Top-100 current-wallet row must use the compact vertical ellipsis separator.');
+  fail('Outside-Top-100 current-wallet row must keep the compact vertical ellipsis separator.');
+}
+if (/className="rankingTopline"|className="impactNote"|className="reportingSince"/.test(leaderboard)) {
+  fail('Retired hidden leaderboard markup must not be rendered.');
+}
+if (/\.rankingTopline\s*\{|\.impactNote\s*\{|\.reportingSince\s*\{/.test(leaderboard)) {
+  fail('Retired hidden leaderboard styles must not return.');
+}
+if (/\.rankStack::before|\.rankStack::after/.test(leaderboard)) {
+  fail('Inviter component must not carry a second podium drawing.');
 }
 if (!/font-variant-numeric:tabular-nums/.test(leaderboard)) {
-  failures.push('Leaderboard numeric columns must keep tabular numerals.');
+  fail('Leaderboard numeric columns must keep tabular numerals.');
 }
 if (/\.rows\s*\{[^}]*overflow(?:-y)?\s*:/s.test(leaderboard)) {
-  failures.push('Leaderboard row wrapper must not add a second nested scroller.');
+  fail('Leaderboard row wrapper must not add a second nested scroller.');
 }
 
 if (
@@ -48,31 +91,28 @@ if (
   !/if \(previewData\)[\s\S]*<InviterLeaderboard[\s\S]*previewData=\{previewData\}/.test(leaderboardEntry) ||
   !/<PublicLeaderboardHub[\s\S]*locale=\{locale\}[\s\S]*wallet=\{wallet\}/.test(leaderboardEntry)
 ) {
-  failures.push('Leaderboard entry point must preserve QA preview behavior and route only the live view through the country hub.');
+  fail('Leaderboard entry point must preserve QA preview behavior and route live ranking through the country hub.');
 }
 if (
   !/import \{ PublicLeaderboard as InviterLeaderboard \} from '\.\/InviterLeaderboard';/.test(leaderboardHub) ||
   !/<InviterLeaderboard[\s\S]*previewData=\{data\}/.test(leaderboardHub) ||
   !/type RankingView = 'inviter' \| 'country'/.test(leaderboardHub)
 ) {
-  failures.push('Country hub must embed the reviewed inviter leaderboard rather than reimplementing or replacing it.');
+  fail('Country hub must embed the reviewed inviter leaderboard rather than reimplementing it.');
 }
 
 if (!/import \{ SecondaryPageLayoutPolish \} from '\.\/SecondaryPageLayoutPolish';/.test(appProviders) || !/<SecondaryPageLayoutPolish\s*\/>/.test(appProviders)) {
-  failures.push('Shared secondary-page polish layer must remain mounted.');
+  fail('Shared secondary-page polish layer must remain mounted.');
 }
 if (/LeaderboardLaurelPreviewOverride/.test(appProviders)) {
-  failures.push('Preview-only leaderboard override must never be mounted in production.');
-}
-if (!/\.leaderboardPage \.rankingTopline\s*\{[\s\S]*?display:none\s*!important/.test(layoutPolish)) {
-  failures.push('The redundant visible Top 100 badge returned.');
+  fail('Preview-only leaderboard override must never be mounted in production.');
 }
 
 if (!/\.leaderboardPage \.tableHeader,[\s\S]*\.leaderboardPage \.rankRow\s*\{[\s\S]*display:grid\s*!important[\s\S]*grid-template-columns:12fr 40fr 20fr 28fr\s*!important[\s\S]*column-gap:0\s*!important/.test(layoutPolish)) {
-  failures.push('Leaderboard header and rows must share the reviewed proportional 12/40/20/28 grid.');
+  fail('Leaderboard header and rows must share the reviewed 12/40/20/28 grid.');
 }
 if (!/--leaderboard-content-inset:12px[\s\S]*--leaderboard-scrollbar-width:5px/.test(layoutPolish) || !/padding-inline:var\(--leaderboard-content-inset\)\s*!important/.test(layoutPolish)) {
-  failures.push('Leaderboard header and rows must share one code-defined content inset and scrollbar width.');
+  fail('Leaderboard header and rows must share one content inset and scrollbar width.');
 }
 if (
   !/\.leaderboardPage \.rankStack\s*\{[\s\S]*grid-column:1\s*!important/.test(layoutPolish) ||
@@ -80,100 +120,79 @@ if (
   !/\.leaderboardPage \.completedMetric\s*\{[\s\S]*grid-column:3\s*!important/.test(layoutPolish) ||
   !/\.leaderboardPage \.rewardMetric\s*\{[\s\S]*grid-column:4\s*!important/.test(layoutPolish)
 ) {
-  failures.push('Leaderboard visible values must stay pinned to columns 1-4.');
+  fail('Leaderboard visible values must stay pinned to columns 1-4.');
 }
 if (!/\.leaderboardPage \.rankingCard\s*\{[\s\S]*--leaderboard-row-height:50px/.test(layoutPolish)) {
-  failures.push('Desktop leaderboard must keep the reviewed compact row height.');
+  fail('Desktop leaderboard must keep the reviewed row height.');
 }
 if (!/\.leaderboardPage \.rankScroll\s*\{[\s\S]*height:calc\(var\(--leaderboard-row-height\) \* 5\)\s*!important[\s\S]*overflow-y:auto\s*!important/.test(layoutPolish)) {
-  failures.push('Leaderboard viewport must show exactly five rows before scrolling.');
-}
-if (!/\.leaderboardPage \.rankRow,[\s\S]*\.leaderboardPage \.rankRow\.compact\s*\{[\s\S]*height:var\(--leaderboard-row-height\)\s*!important[\s\S]*min-height:var\(--leaderboard-row-height\)\s*!important/.test(layoutPolish)) {
-  failures.push('Every rank slot must use the same fixed row height so the five-row viewport cannot collapse.');
+  fail('Leaderboard viewport must show exactly five rows before scrolling.');
 }
 if (!/\.leaderboardPage \.tableHeader,[\s\S]*\.leaderboardPage \.rankRow\.trailingCurrent\s*\{[\s\S]*overflow-y:scroll\s*!important[\s\S]*scrollbar-gutter:stable\s*!important/.test(layoutPolish)) {
-  failures.push('Header and trailing current-user row must reserve the same scrollbar lane as the ranked rows.');
+  fail('Header and trailing row must reserve the same scrollbar lane as ranked rows.');
 }
-if (!/\.leaderboardPage \.rankScroll::-webkit-scrollbar\s*\{?[\s\S]*width:var\(--leaderboard-scrollbar-width\)/.test(layoutPolish) && !/\.leaderboardPage \.rankRow\.trailingCurrent::-webkit-scrollbar,[\s\S]*\.leaderboardPage \.rankScroll::-webkit-scrollbar\s*\{[\s\S]*width:var\(--leaderboard-scrollbar-width\)/.test(layoutPolish)) {
-  failures.push('Leaderboard scrollbar lane must use the shared code-defined width.');
+if (!/\.leaderboardPage \.rankValue\s*\{[\s\S]*min-inline-size:3ch\s*!important[\s\S]*font-variant-numeric:tabular-nums lining-nums\s*!important/.test(layoutPolish)) {
+  fail('Rank numerals must keep stable tabular numeric typography.');
 }
-
-if (!/\.leaderboardPage \.rankValue\s*\{[\s\S]*min-inline-size:3ch\s*!important[\s\S]*font-variant-numeric:tabular-nums lining-nums\s*!important[\s\S]*font-feature-settings:"tnum" 1,"lnum" 1\s*!important/.test(layoutPolish)) {
-  failures.push('Rank numerals must use one stable tabular numeric axis from 1 through 100+.');
+if (/\.leaderboardPage \.rankValue\s*\{[\s\S]*position:/.test(layoutPolish)) {
+  fail('Secondary polish must not override rank positioning owned by the podium layout guard.');
 }
-if (
-  !/:not\(\.placeholderRow\):nth-child\(1\)[\s\S]*#f1bd34/.test(layoutPolish) ||
-  !/:not\(\.placeholderRow\):nth-child\(2\)[\s\S]*#c8cbd0/.test(layoutPolish) ||
-  !/:not\(\.placeholderRow\):nth-child\(3\)[\s\S]*#c98252/.test(layoutPolish)
-) {
-  failures.push('Only real Top 3 entries may receive gold, silver, and bronze podium emphasis.');
+if (/rankValue::before|rankValue::after|placeholderRow\):nth-child|featured:nth-child/.test(layoutPolish)) {
+  fail('Secondary polish must not carry duplicate podium artwork.');
 }
-if (!/:not\(\.placeholderRow\):nth-child\(-n\+3\)[\s\S]*rankValue::before,[\s\S]*rankValue::after[\s\S]*content:""\s*!important[\s\S]*position:absolute\s*!important[\s\S]*pointer-events:none\s*!important/.test(layoutPolish)) {
-  failures.push('Real Top 3 ranks must use presentation-only absolute CSS laurels that cannot move the numeral or grid.');
-}
-if (/rankValue::before,[\s\S]*rankValue::after[\s\S]*(?:url\(|-webkit-mask:url)/.test(layoutPolish)) {
-  failures.push('Top 3 laurels must remain CSS-drawn and must not depend on image or mask assets.');
-}
-
-if (!/\.leaderboardPage \.rankRow\.current,[\s\S]*background:linear-gradient\([\s\S]*border:0\s*!important[\s\S]*outline:0\s*!important[\s\S]*box-shadow:none\s*!important/.test(layoutPolish)) {
-  failures.push('Connected ranked wallet must retain fill-only highlighting with no border or shadow.');
-}
-
-if (!/\.leaderboardPage \.rankDivider\s*\{[\s\S]*min-height:18px\s*!important[\s\S]*place-items:center\s*!important/.test(layoutPolish) || !/\.leaderboardPage \.rankRow\.trailingCurrent\s*\{[\s\S]*height:var\(--leaderboard-row-height\)\s*!important/.test(layoutPolish)) {
-  failures.push('Outside-Top-100 current-wallet display must stay compact and visually connected to the table.');
-}
-if (!/\.leaderboardPage \.walletCell\s*\{[\s\S]*gap:9px\s*!important[\s\S]*overflow:hidden\s*!important/.test(layoutPolish)) {
-  failures.push('Inviter avatar and wallet address must retain a real gap and clipped cell boundary.');
-}
-if (!/\.leaderboardPage \.walletAvatar\s*\{[\s\S]*flex:0 0 22px\s*!important[\s\S]*background:transparent\s*!important[\s\S]*box-shadow:none\s*!important/.test(layoutPolish)) {
-  failures.push('Resolved wallet avatars must not have a VeInvite-colored layer behind them.');
-}
-if (!/\.leaderboardPage \.walletAvatar:empty\s*\{[\s\S]*background:rgba\(255,205,80,\.055\)\s*!important/.test(layoutPolish)) {
-  failures.push('Empty avatar hosts must reserve a neutral loading circle.');
-}
-if (/\.leaderboardPage \.walletAvatar:empty\s*\{[\s\S]*radial-gradient\((?:circle|ellipse) at 50% (?:35%|82%),#eec04c/.test(layoutPolish)) {
-  failures.push('Retired head-and-shoulders avatar silhouette must not return.');
-}
-if (/\.walletAvatar img\[src\^=['"]data:image\/svg\+xml['"]\][\s\S]*?display:none/.test(leaderboardEntry)) {
-  failures.push('VeChain Picasso/data-SVG avatars must not be blanket-hidden.');
+if (/\.walletAvatar:empty/.test(layoutPolish)) {
+  fail('Obsolete empty-avatar loading placeholder must not return now that Picasso renders immediately.');
 }
 if (!/\.leaderboardPage \.walletAvatar img\s*\{[\s\S]*object-fit:contain\s*!important[\s\S]*object-position:center\s*!important/.test(layoutPolish)) {
-  failures.push('Resolved VET Domains avatar must be shown without enlargement or crop.');
+  fail('Resolved wallet avatars must remain uncropped and centered.');
 }
-if (!/\.leaderboardPage \.walletText\s*\{[\s\S]*max-width:calc\(100% - 31px\)\s*!important[\s\S]*text-overflow:ellipsis\s*!important[\s\S]*white-space:nowrap\s*!important/.test(layoutPolish)) {
-  failures.push('Wallet text must reserve avatar space instead of overlapping it.');
-}
-if (!/@media \(max-width:420px\)[\s\S]*--leaderboard-row-height:46px[\s\S]*--leaderboard-content-inset:8px[\s\S]*gap:6px\s*!important[\s\S]*flex-basis:18px\s*!important/.test(layoutPolish)) {
-  failures.push('Reviewed 420px row height, shared inset, and inviter identity spacing are missing.');
-}
-if (!/@media \(max-width:360px\)[\s\S]*--leaderboard-row-height:44px[\s\S]*--leaderboard-content-inset:6px[\s\S]*gap:5px\s*!important[\s\S]*flex-basis:16px\s*!important/.test(layoutPolish)) {
-  failures.push('Reviewed 360px row height, shared inset, and inviter identity spacing are missing.');
+if (!/@media \(max-width:420px\)[\s\S]*--leaderboard-row-height:46px[\s\S]*--leaderboard-content-inset:8px/.test(layoutPolish) || !/@media \(max-width:360px\)[\s\S]*--leaderboard-row-height:44px[\s\S]*--leaderboard-content-inset:6px/.test(layoutPolish)) {
+  fail('Reviewed responsive leaderboard row geometry is missing.');
 }
 
-if (
-  !/<span className="rankStack">[\s\S]*<strong className="rankValue">[\s\S]*<span className="walletCell">[\s\S]*<span className="rankMetric completedMetric">[\s\S]*<span className="rankMetric rewardMetric">/.test(leaderboard) ||
-  !/\.rankStack\s*\{[\s\S]*grid-column:1;[\s\S]*flex-direction:column/.test(leaderboard)
-) {
-  failures.push('Rank plus movement must remain one first-column stack followed by inviter, invite count, and reward columns in that exact order.');
+if (!/\.rankValue\.rankValue \{[\s\S]*position:absolute !important[\s\S]*left:50% !important[\s\S]*top:50% !important[\s\S]*transform:translate\(-50%,-50%\) !important/.test(podiumGuard)) {
+  fail('Podium layout guard must own one locale-neutral rank axis.');
 }
-if (!/className="walletAvatar"/.test(leaderboard)) {
-  failures.push('Neutral wallet-avatar fallback is missing from leaderboard rows.');
+if (!/\.rankMovement\.rankMovement \{[\s\S]*width:100% !important[\s\S]*justify-content:center !important[\s\S]*transform:none !important/.test(podiumGuard)) {
+  fail('Movement labels must remain isolated in a fixed full-width rank slot.');
 }
+if (/content:none !important|display:none !important/.test(podiumGuard)) {
+  fail('Podium guard must not suppress obsolete artwork; obsolete artwork should be deleted at source.');
+}
+if (!/--podium-shape:path\(/.test(podiumArtwork) || !/rankValue\.rankValue::before/.test(podiumArtwork)) {
+  fail('Approved Option C podium artwork is missing.');
+}
+if (!/scale\(\.80\)/.test(podiumTuning) || !/scale\(\.95\)/.test(podiumTuning)) {
+  fail('Approved podium size tuning changed unexpectedly.');
+}
+const optionIndex = rootLayout.indexOf("./podium-laurel-option-c.css");
+const tuningIndex = rootLayout.indexOf("./podium-laurel-size-tuning.css");
+const guardIndex = rootLayout.indexOf("./leaderboard-podium-layout-guard.css");
+if (!(optionIndex >= 0 && tuningIndex > optionIndex && guardIndex > tuningIndex)) {
+  fail('Approved podium artwork, tuning, and layout guard must load in the reviewed order.');
+}
+if (/rankValue::before|featured:nth-child|placeholderRow:nth-child/.test(finalUiHardening)) {
+  fail('Global final hardening must not carry a hidden podium implementation.');
+}
+
+if (!/getPicassoImage\(address\)/.test(leaderboard) || !/useVechainDomain/.test(leaderboard) || !/useGetAvatar/.test(leaderboard)) {
+  fail('Leaderboard must preserve immediate Picasso plus real VET Domain profile resolution.');
+}
+if (/useGetAvatarOfAddress/.test(leaderboard) || /radial-gradient\(circle at 50% 35%,#eec04c|radial-gradient\(ellipse at 50% 82%,#eec04c/.test(leaderboard)) {
+  fail('Retired avatar fallback behavior must not return.');
+}
+
 if (!/rank:\s*0,[\s\S]*completedReferrals:\s*0,[\s\S]*totalRewardWei:\s*'0'/.test(leaderboard)) {
-  failures.push('Unranked connected wallet must retain rank dash, invite count 0, and reward 0 B3TR source data.');
+  fail('Unranked connected wallet must retain rank dash, invite count 0, and reward 0 source data.');
 }
-if (/trailingCurrent[\s\S]*completedMetric[\s\S]*content:\s*['"]—['"]/.test(leaderboard)) {
-  failures.push('Approved unranked layout shows invite count 0; do not replace it with a CSS dash.');
-}
-
 if (!/Array\.from\(\{\s*length:\s*100\s*\}/.test(preview)) {
-  failures.push('UI test leaderboard must exercise a full 100-row preview.');
+  fail('UI test leaderboard must exercise a full 100-row preview.');
 }
 if (!/rank:\s*137/.test(preview) || !/100위 밖/.test(preview)) {
-  failures.push('UI test leaderboard must cover the current-wallet outside-Top-100 state.');
+  fail('UI test leaderboard must cover the current-wallet outside-Top-100 state.');
 }
-if (!/PreviewScenario = 'inside' \| 'outside' \| 'unranked'/.test(preview) || !/scenario === 'unranked'\) return \[\]/.test(preview) || !/useState<PreviewScenario>\('unranked'\)/.test(preview) || !/미순위 · (?:초대 0건|비교 없음)/.test(preview)) {
-  failures.push('UI test must default to the exact unranked zero-invite state that previously regressed in production.');
+if (!/PreviewScenario = 'inside' \| 'outside' \| 'unranked'/.test(preview) || !/scenario === 'unranked'\) return \[\]/.test(preview) || !/useState<PreviewScenario>\('unranked'\)/.test(preview)) {
+  fail('UI test must preserve the exact unranked scenario that previously regressed.');
 }
 
 if (failures.length > 0) {
