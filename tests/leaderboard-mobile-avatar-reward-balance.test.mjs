@@ -17,13 +17,33 @@ const layoutPolish = readFileSync(
   'utf8',
 );
 
-test('leaderboard keeps VeChain avatars visible and uses a neutral loading placeholder', () => {
-  assert.match(inviter, /useGetAvatarOfAddress/);
+test('leaderboard shows an immediate address avatar and upgrades to a real VET Domain profile without a blank state', () => {
+  assert.match(inviter, /getPicassoImage\(address\)/);
+  assert.match(inviter, /useVechainDomain/);
+  assert.match(inviter, /useGetAvatar/);
+  assert.doesNotMatch(inviter, /useGetAvatarOfAddress/);
+  assert.match(inviter, /const \[shouldLoadProfile, setShouldLoadProfile\] = useState\(eager\)/);
+  assert.match(inviter, /const \[displayUrl, setDisplayUrl\] = useState\(fallbackUrl\)/);
+  assert.match(inviter, /image\.onload = \(\) => \{[\s\S]*?setDisplayUrl\(profileAvatarUrl\)/);
+  assert.match(inviter, /loading=\{eager \? 'eager' : 'lazy'\}/);
+  assert.match(inviter, /fetchPriority=\{eager \? 'high' : 'auto'\}/);
+  assert.match(
+    inviter,
+    /entry\.rank > 0 && entry\.rank <= EAGER_AVATAR_RANK_LIMIT/,
+  );
+  assert.doesNotMatch(source, /@keyframes leaderboardAvatarReveal/);
   assert.doesNotMatch(
     source,
     /\.walletAvatar img\[src\^=['"]data:image\/svg\+xml['"]\][\s\S]*?display:none/,
   );
-  assert.match(source, /@keyframes leaderboardAvatarReveal/);
+  assert.doesNotMatch(
+    inviter,
+    /radial-gradient\(circle at 50% 35%,#eec04c/,
+  );
+  assert.doesNotMatch(
+    inviter,
+    /radial-gradient\(ellipse at 50% 82%,#eec04c/,
+  );
   assert.match(
     layoutPolish,
     /\.leaderboardPage \.walletAvatar:empty \{[\s\S]*?background:rgba\(255,205,80,\.055\) !important;/,
@@ -56,9 +76,6 @@ test('mobile vertical-only leaderboard scrolling remains protected', () => {
   );
 });
 
-test('avatar reveal respects reduced motion', () => {
-  assert.match(
-    source,
-    /@media \(prefers-reduced-motion:reduce\)[\s\S]*?\.leaderboardHub \.walletAvatar img \{\s*animation:none !important;/,
-  );
+test('avatar loading no longer adds a reveal animation delay', () => {
+  assert.doesNotMatch(source, /leaderboardAvatarReveal/);
 });
