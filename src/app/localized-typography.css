@@ -292,9 +292,7 @@ html[data-locale-typography='indic'] :where(
   max-height: 21px !important;
   display: block !important;
   overflow: visible !important;
-  white-space: nowrap !important;
   line-height: 0 !important;
-  text-wrap: nowrap;
 }
 
 .labScreen .previewNavigation button {
