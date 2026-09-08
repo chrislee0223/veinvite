@@ -17,7 +17,7 @@ export default function NetworkPreviewPage() {
         wallet={PREVIEW_WALLET}
         onConnect={() => {}}
         onInvite={() => {}}
-        dataEndpoint="/api/network-preview"
+        dataEndpoint="/ui-test/network/data"
       />
 
       <style jsx global>{`
