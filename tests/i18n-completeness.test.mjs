@@ -28,7 +28,7 @@ const languageFlagSource = readFileSync(
   'utf8',
 );
 const forecastComponentSource = readFileSync(
-  'src/components/PublicRewardForecastPortal.tsx',
+  'src/components/PublicRewardForecastCard.tsx',
   'utf8',
 );
 const forecastCopySource = readFileSync(
