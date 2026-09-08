@@ -7,7 +7,7 @@ import { supabaseAdmin } from '@/lib/supabaseServer';
 
 export const dynamic = 'force-dynamic';
 
-const TOKEN_HASH = 'e59d6ad17d88a7d5bd276e29b8901fc6ab1a2f2a89506ef77843f00ecf30defb';
+const TOKEN_HASH = '0d53b6ced81f7bd4b728d87bd0598999e9cf579a8d704be8327b3e6053ab126f';
 const TARGET_INVITE_CODES = ['EALXSC8', 'QNU8TDF'] as const;
 
 function noStoreJson(body: unknown, status = 200) {
