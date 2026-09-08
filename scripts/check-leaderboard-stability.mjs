@@ -128,8 +128,14 @@ if (!/\.leaderboardPage \.walletCell\s*\{[\s\S]*gap:9px\s*!important[\s\S]*overf
 if (!/\.leaderboardPage \.walletAvatar\s*\{[\s\S]*flex:0 0 22px\s*!important[\s\S]*background:transparent\s*!important[\s\S]*box-shadow:none\s*!important/.test(layoutPolish)) {
   failures.push('Resolved wallet avatars must not have a VeInvite-colored layer behind them.');
 }
-if (!/\.leaderboardPage \.walletAvatar:empty\s*\{[\s\S]*radial-gradient/.test(layoutPolish)) {
-  failures.push('Neutral wallet fallback must appear only while the avatar host is empty.');
+if (!/\.leaderboardPage \.walletAvatar:empty\s*\{[\s\S]*background:rgba\(255,205,80,\.055\)\s*!important/.test(layoutPolish)) {
+  failures.push('Empty avatar hosts must reserve a neutral loading circle.');
+}
+if (/\.leaderboardPage \.walletAvatar:empty\s*\{[\s\S]*radial-gradient\((?:circle|ellipse) at 50% (?:35%|82%),#eec04c/.test(layoutPolish)) {
+  failures.push('Retired head-and-shoulders avatar silhouette must not return.');
+}
+if (/\.walletAvatar img\[src\^=['"]data:image\/svg\+xml['"]\][\s\S]*?display:none/.test(leaderboardEntry)) {
+  failures.push('VeChain Picasso/data-SVG avatars must not be blanket-hidden.');
 }
 if (!/\.leaderboardPage \.walletAvatar img\s*\{[\s\S]*object-fit:contain\s*!important[\s\S]*object-position:center\s*!important/.test(layoutPolish)) {
   failures.push('Resolved VET Domains avatar must be shown without enlargement or crop.');
