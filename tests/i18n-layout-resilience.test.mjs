@@ -21,18 +21,18 @@ const networkCopy = readFileSync(
   'utf8',
 );
 
-test('primary navigation labels can wrap without changing icon geometry', () => {
+test('primary navigation labels wrap while icon geometry is explicitly restored', () => {
   assert.match(
     typography,
-    /\.bottomNavigation button \.navLabel,[\s\S]*?white-space:\s*normal\s*!important/,
+    /\.bottomNavigation button span,[\s\S]*?white-space:\s*normal\s*!important/,
   );
   assert.match(
     typography,
-    /\.bottomNavigation button \.navLabel,[\s\S]*?text-wrap:\s*balance/,
+    /\.bottomNavigation button span,[\s\S]*?text-wrap:\s*balance/,
   );
-  assert.doesNotMatch(
+  assert.match(
     typography,
-    /\.bottomNavigation button span\s*,/,
+    /\.bottomNavigation button \.navIcon \{[\s\S]*?width:\s*21px\s*!important;[\s\S]*?height:\s*21px\s*!important;[\s\S]*?display:\s*block\s*!important;[\s\S]*?white-space:\s*nowrap\s*!important;[\s\S]*?line-height:\s*0\s*!important/,
   );
   assert.match(
     typography,
