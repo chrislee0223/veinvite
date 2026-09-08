@@ -24,23 +24,31 @@ async function doesNotExist(relativePath) {
   }
 }
 
-test('Home renders the reward forecast before wallet connect or invite-link actions', () => {
-  const forecastIndex = homeClient.indexOf(
-    '<PublicRewardForecastCard locale={locale} />',
+test('Home visually prioritizes invite actions, then reward estimate, then progress slots', () => {
+  assert.match(
+    homeClient,
+    /<PublicRewardForecastCard locale=\{locale\} \/>/,
+    'Home should keep rendering the reward forecast card.',
   );
-  const walletBranchIndex = homeClient.indexOf('{!wallet ? (');
-  const permanentLinkIndex = homeClient.indexOf(
-    'className="permanentLinkCard"',
+  assert.match(
+    forecastCard,
+    /:global\(\.missionCard\)\s*\{[\s\S]*?display:flex;[\s\S]*?flex-direction:column;/,
+    'The Home card should use an explicit presentation order.',
   );
-
-  assert.ok(forecastIndex >= 0, 'Home should render the forecast card.');
-  assert.ok(
-    walletBranchIndex > forecastIndex,
-    'Forecast should appear before the wallet-dependent Home branch.',
+  assert.match(
+    forecastCard,
+    /:global\(\.missionCard > \.permanentLinkCard\)[\s\S]*?order:1;/,
+    'The permanent invite-link card should be visually first after the title.',
   );
-  assert.ok(
-    permanentLinkIndex > forecastIndex,
-    'Forecast should appear above the permanent invite-link card.',
+  assert.match(
+    forecastCard,
+    /\.homeRewardEstimateCard\s*\{[\s\S]*?order:2;/,
+    'The reward estimate should follow the invite-link or connect action.',
+  );
+  assert.match(
+    forecastCard,
+    /:global\(\.missionCard > \.slotsBlock\)\s*\{[\s\S]*?order:3;/,
+    'Friend progress slots should follow the reward estimate.',
   );
 });
 
@@ -48,9 +56,16 @@ test('Home forecast remains independent from Home startup readiness', () => {
   assert.match(forecastCard, /\/api\/rewards\/estimate/);
   assert.doesNotMatch(forecastCard, /publishHomeStartupState/);
   assert.doesNotMatch(forecastCard, /referralLinkVerified/);
-  assert.match(forecastCard, /min-height:142px/);
+  assert.match(forecastCard, /min-height:104px/);
   assert.match(forecastCard, /amountSkeleton/);
   assert.match(forecastCard, /prefers-reduced-motion: reduce/);
+});
+
+test('Home reward estimate stays visually subordinate to the invite action', () => {
+  assert.match(forecastCard, /className="estimateSummaryRow"/);
+  assert.match(forecastCard, /font-size:clamp\(1\.08rem,5\.3vw,1\.34rem\)/);
+  assert.match(forecastCard, /margin-top:12px/);
+  assert.match(forecastCard, /border-radius:16px/);
 });
 
 test('leaderboard portal and deferred loader are no longer mounted', async () => {

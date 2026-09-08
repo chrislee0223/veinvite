@@ -261,17 +261,18 @@ export function PublicRewardForecastCard({
       dir={getLocaleDirection(resolvedLocale)}
       data-home-reward-forecast="true"
     >
-      <span className="estimateEyebrow">{t.eyebrow}</span>
-
-      <div
-        className="estimateAmount"
-        aria-label={ready ? amount : t.pendingTitle}
-      >
-        {loading ? (
-          <span className="amountSkeleton" aria-hidden="true" />
-        ) : (
-          <strong>{amount}</strong>
-        )}
+      <div className="estimateSummaryRow">
+        <span className="estimateEyebrow">{t.eyebrow}</span>
+        <div
+          className="estimateAmount"
+          aria-label={ready ? amount : t.pendingTitle}
+        >
+          {loading ? (
+            <span className="amountSkeleton" aria-hidden="true" />
+          ) : (
+            <strong>{amount}</strong>
+          )}
+        </div>
       </div>
 
       <p className="estimateEligibility">{t.eligibility}</p>
@@ -290,27 +291,54 @@ export function PublicRewardForecastCard({
       </p>
 
       <style jsx>{`
+        :global(.missionCard) {
+          display:flex;
+          flex-direction:column;
+        }
+        :global(.missionCard > .missionCopy) {
+          order:0;
+        }
+        :global(.missionCard > .primaryAction),
+        :global(.missionCard > .permanentLinkCard),
+        :global(.missionCard > .linkErrorCard) {
+          order:1;
+        }
+        :global(.missionCard > .slotsBlock) {
+          order:3;
+        }
+        :global(.missionCard > .rewardsPanel) {
+          order:4;
+        }
         .homeRewardEstimateCard {
           position:relative;
           z-index:1;
+          order:2;
           min-width:0;
           min-height:142px;
+          min-height:104px;
           box-sizing:border-box;
-          margin-top:17px;
-          padding:14px 15px;
-          border:1px solid rgba(255,205,80,.22);
-          border-radius:18px;
-          background:radial-gradient(circle at 92% 8%,rgba(244,183,40,.13),transparent 40%),rgba(244,183,40,.052);
-          box-shadow:inset 0 1px 0 rgba(255,255,255,.035);
+          margin-top:12px;
+          padding:12px 14px 11px;
+          border:1px solid rgba(255,205,80,.18);
+          border-radius:16px;
+          background:linear-gradient(145deg,rgba(244,183,40,.065),rgba(244,183,40,.028));
+          box-shadow:inset 0 1px 0 rgba(255,255,255,.025);
+        }
+        .estimateSummaryRow {
+          min-width:0;
+          display:flex;
+          align-items:baseline;
+          justify-content:space-between;
+          gap:7px 12px;
+          flex-wrap:wrap;
         }
         .estimateEyebrow {
-          display:block;
-          max-width:100%;
-          color:#f8bc2e;
-          font-size:clamp(.57rem,2.5vw,.64rem);
+          min-width:0;
+          color:#f2b82b;
+          font-size:clamp(.56rem,2.35vw,.62rem);
           font-weight:950;
           line-height:1.4;
-          letter-spacing:.075em;
+          letter-spacing:.065em;
           text-transform:uppercase;
           overflow-wrap:normal;
           word-break:normal;
@@ -318,10 +346,10 @@ export function PublicRewardForecastCard({
         }
         .estimateAmount {
           min-width:0;
-          min-height:35px;
-          margin-top:6px;
+          min-height:27px;
           display:flex;
           align-items:center;
+          margin-inline-start:auto;
           direction:ltr;
           unicode-bidi:isolate;
         }
@@ -329,38 +357,38 @@ export function PublicRewardForecastCard({
           display:block;
           max-width:100%;
           color:#ffd45f;
-          font-size:clamp(1.34rem,6.5vw,1.72rem);
-          line-height:1.12;
+          font-size:clamp(1.08rem,5.3vw,1.34rem);
+          line-height:1.08;
           font-variant-numeric:tabular-nums;
-          letter-spacing:-.04em;
+          letter-spacing:-.035em;
           white-space:nowrap;
           overflow:hidden;
           text-overflow:ellipsis;
         }
         .estimateEligibility {
           margin:7px 0 0;
-          color:#d5d0c5;
-          font-size:.71rem;
-          font-weight:760;
-          line-height:1.48;
+          color:#cbc6bb;
+          font-size:.68rem;
+          font-weight:740;
+          line-height:1.45;
           overflow-wrap:normal;
           word-break:normal;
           hyphens:none;
           text-wrap:pretty;
         }
         .estimateDisclaimer {
-          min-height:1.55em;
-          margin:5px 0 0;
-          color:#8f8a80;
-          font-size:.65rem;
-          line-height:1.55;
+          min-height:1.45em;
+          margin:3px 0 0;
+          color:#817c73;
+          font-size:.61rem;
+          line-height:1.48;
           overflow-wrap:normal;
           word-break:normal;
           hyphens:none;
           text-wrap:pretty;
         }
         .estimatePending {
-          color:#a49e91;
+          color:#999286;
         }
         .amountSkeleton,
         .noteSkeleton {
@@ -370,13 +398,14 @@ export function PublicRewardForecastCard({
           animation:forecastSkeletonPulse 1.5s ease-in-out infinite;
         }
         .amountSkeleton {
-          width:min(58%,190px);
-          height:24px;
+          width:116px;
+          max-width:38vw;
+          height:18px;
         }
         .noteSkeleton {
-          width:min(82%,320px);
-          height:8px;
-          margin-top:5px;
+          width:min(72%,260px);
+          height:7px;
+          margin-top:4px;
         }
         @keyframes forecastSkeletonPulse {
           0%,100% { opacity:.48; }
@@ -384,27 +413,27 @@ export function PublicRewardForecastCard({
         }
         @media (max-width:420px) {
           .homeRewardEstimateCard {
-            min-height:138px;
-            padding:13px 14px;
-            border-radius:17px;
+            min-height:102px;
+            padding:11px 12px 10px;
+            border-radius:15px;
           }
           .estimateAmount strong {
-            font-size:clamp(1.27rem,6.3vw,1.58rem);
+            font-size:clamp(1.04rem,5.4vw,1.26rem);
           }
         }
         @media (max-width:340px) {
           .homeRewardEstimateCard {
-            padding:12px;
+            padding:10px 11px;
           }
           .estimateEyebrow {
-            font-size:.55rem;
-            letter-spacing:.05em;
+            font-size:.54rem;
+            letter-spacing:.045em;
           }
           .estimateEligibility {
-            font-size:.68rem;
+            font-size:.65rem;
           }
           .estimateDisclaimer {
-            font-size:.63rem;
+            font-size:.59rem;
           }
         }
         @media (prefers-reduced-motion: reduce) {
