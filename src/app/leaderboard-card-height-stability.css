@@ -1,0 +1,58 @@
+/* Keep the shared leaderboard card from resizing when switching between
+ * inviter ranking and country arrivals. These dimensions are derived from the
+ * existing component geometry rather than screenshot measurements.
+ *
+ * Desktop (>430px):
+ *   8 top padding + 48 tab + 8 tab gap + 34 inviter header + 6 header gap
+ *   + (5 * 50) rows + 12 bottom padding + 2 border = 368px.
+ *
+ * The always-mounted impactOnly InviterLeaderboard contains the same current
+ * wallet ranking state even while the country tab is visible. :has() lets the
+ * shared card reserve the matching footer space for an unranked hint or a
+ * trailing current-user row, so the outer card does not jump on tab changes.
+ */
+.leaderboardHub {
+  --stable-ranking-base-height:368px;
+  --stable-ranking-context-reserve:calc(8px + 1.015rem);
+  --stable-ranking-trailing-height:444px;
+}
+
+.leaderboardHub .unifiedRankingCard {
+  min-height:var(--stable-ranking-base-height);
+}
+
+.leaderboardHub:has(.impactOnly .rankContextNote) .unifiedRankingCard {
+  min-height:calc(
+    var(--stable-ranking-base-height) + var(--stable-ranking-context-reserve)
+  );
+}
+
+.leaderboardHub:has(.impactOnly .trailingCurrent) .unifiedRankingCard {
+  min-height:var(--stable-ranking-trailing-height);
+}
+
+/* 421-430px keeps the 50px ranking rows but the tab control is 44px tall. */
+@media (max-width:430px) {
+  .leaderboardHub {
+    --stable-ranking-base-height:364px;
+    /* Narrow layouts may wrap the rank hint to two lines. */
+    --stable-ranking-context-reserve:calc(8px + 2.03rem);
+    --stable-ranking-trailing-height:440px;
+  }
+}
+
+/* At <=420px both ranking surfaces use five 46px rows. */
+@media (max-width:420px) {
+  .leaderboardHub {
+    --stable-ranking-base-height:342px;
+    --stable-ranking-trailing-height:414px;
+  }
+}
+
+/* At <=360px both ranking surfaces use five 44px rows. */
+@media (max-width:360px) {
+  .leaderboardHub {
+    --stable-ranking-base-height:332px;
+    --stable-ranking-trailing-height:404px;
+  }
+}
