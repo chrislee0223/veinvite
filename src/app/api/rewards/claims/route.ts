@@ -8,6 +8,7 @@ import {
 } from '@/lib/rateLimitServer';
 import {
   runAutomaticRewardPayout,
+  type AutomaticRewardPayoutResult,
 } from '@/lib/rewards/automaticRewardPayoutWithMnemonic';
 import { supabaseAdmin } from '@/lib/supabaseServer';
 import {
@@ -19,6 +20,12 @@ const INVITE_CODE_PATTERN = /^[A-HJ-NP-Z2-9]{7}$/;
 const CLAIM_RATE_LIMIT_WINDOW_SECONDS = 60;
 const CLAIM_PER_WALLET_LIMIT = 10;
 const CLAIM_PER_INVITE_LIMIT = 4;
+const CLAIM_PAYOUT_RETRY_DELAYS_MS = [
+  0,
+  300,
+  900,
+  1_800,
+] as const;
 
 type RewardClaimRow = {
   invite_code: string;
@@ -83,6 +90,49 @@ function claimErrorResponse(
   }
 
   return null;
+}
+
+function shouldRetryImmediatePayout(
+  result: AutomaticRewardPayoutResult,
+): boolean {
+  if (result.status === 'LOCKED') {
+    return true;
+  }
+
+  return (
+    result.status === 'IDLE' &&
+    (result.queuedCount ?? 0) > 0
+  );
+}
+
+async function sleep(milliseconds: number) {
+  if (milliseconds <= 0) return;
+
+  await new Promise<void>((resolve) => {
+    setTimeout(resolve, milliseconds);
+  });
+}
+
+async function runClaimPayoutKickoff():
+Promise<AutomaticRewardPayoutResult> {
+  let lastResult: AutomaticRewardPayoutResult | null = null;
+
+  for (const delayMs of CLAIM_PAYOUT_RETRY_DELAYS_MS) {
+    await sleep(delayMs);
+    lastResult = await runAutomaticRewardPayout();
+
+    if (!shouldRetryImmediatePayout(lastResult)) {
+      return lastResult;
+    }
+  }
+
+  if (!lastResult) {
+    throw new Error(
+      'Immediate reward payout did not run.',
+    );
+  }
+
+  return lastResult;
 }
 
 export async function POST(
@@ -210,11 +260,25 @@ export async function POST(
     }
 
     // Claiming changes only transfer state. The fixed reward amount was already
-    // reserved when the friend passed final verification. Make one immediate,
-    // fail-closed payout attempt for a responsive UX; the existing scheduled
-    // worker remains the retry path if the network/pool is temporarily blocked.
+    // reserved when the friend passed final verification. Start payout immediately.
+    // If another payout iteration briefly owns the runtime lock, or an iteration
+    // returns IDLE while durable claimed work is still queued, retry within this
+    // request so a Claim is not left waiting solely because of transient contention.
+    let payoutKickoff: AutomaticRewardPayoutResult | null = null;
+
     try {
-      await runAutomaticRewardPayout();
+      payoutKickoff = await runClaimPayoutKickoff();
+
+      if (shouldRetryImmediatePayout(payoutKickoff)) {
+        console.error(
+          'Immediate reward payout remained queued after Claim retries:',
+          {
+            status: payoutKickoff.status,
+            queuedCount: payoutKickoff.queuedCount ?? null,
+            reason: payoutKickoff.reason ?? null,
+          },
+        );
+      }
     } catch (rewardError) {
       console.error(
         'Immediate reward payout iteration failed after claim:',
@@ -231,6 +295,14 @@ export async function POST(
           requestedAt:
             claim.claim_requested_at,
         },
+        payoutKickoff: payoutKickoff
+          ? {
+              status: payoutKickoff.status,
+              queuedCount:
+                payoutKickoff.queuedCount ?? null,
+              txId: payoutKickoff.txId,
+            }
+          : null,
       },
       {
         status: 200,
