@@ -8,8 +8,9 @@
  *
  * The always-mounted impactOnly InviterLeaderboard contains the same current
  * wallet ranking state even while the country tab is visible. :has() lets the
- * shared card reserve the matching footer space for an unranked hint or a
- * trailing current-user row, so the outer card does not jump on tab changes.
+ * shared card reserve the matching footer space for an unranked hint, a
+ * trailing current-user row, or both, so the outer card does not jump on tab
+ * changes.
  */
 .leaderboardHub {
   --stable-ranking-base-height:368px;
@@ -29,6 +30,14 @@
 
 .leaderboardHub:has(.impactOnly .trailingCurrent) .unifiedRankingCard {
   min-height:var(--stable-ranking-trailing-height);
+}
+
+/* A connected wallet with no ranked entry renders both the synthetic current
+ * wallet row and the unranked note, so reserve both footer pieces together. */
+.leaderboardHub:has(.impactOnly .trailingCurrent):has(.impactOnly .rankContextNote) .unifiedRankingCard {
+  min-height:calc(
+    var(--stable-ranking-trailing-height) + var(--stable-ranking-context-reserve)
+  );
 }
 
 /* 421-430px keeps the 50px ranking rows but the tab control is 44px tall. */
