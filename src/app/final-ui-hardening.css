@@ -60,8 +60,9 @@ main.screen .bottomNavigation > div {
   display:none !important;
 }
 
-/* Inviter leaderboard rank/podium geometry now lives with the component so
- * language typography and legacy global selectors cannot override it. */
+/* Inviter leaderboard podium artwork is locked in the approved Option C files.
+ * The separate layout guard may position rank/movement layers, but it must not
+ * redraw or restyle the approved crown or laurels. */
 
 /* Keep /ui-test visually aligned with the production shell so it remains a
  * reliable post-release reference instead of drifting into a separate mock. */
