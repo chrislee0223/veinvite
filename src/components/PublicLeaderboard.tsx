@@ -53,6 +53,41 @@ export function PublicLeaderboard({
           min-height:250px !important;
           max-height:250px !important;
         }
+
+        /* Ranking surfaces are vertical-only scrollers. Lock every row to the
+           card width so long rewards, localized copy or future movement labels
+           cannot create a sideways scrollbar or horizontal touch drift. */
+        .leaderboardHub .rankScroll,
+        .leaderboardHub .countryScroll {
+          overflow-x:hidden !important;
+          touch-action:pan-y;
+        }
+        .leaderboardHub .rows,
+        .leaderboardHub .tableHeader,
+        .leaderboardHub .rankRow,
+        .leaderboardHub .countryHeader,
+        .leaderboardHub .countryRow,
+        .leaderboardHub .countryPlaceholderRow {
+          min-width:0 !important;
+          max-width:100% !important;
+          box-sizing:border-box;
+        }
+        .leaderboardHub .rows {
+          overflow-x:hidden;
+        }
+        .leaderboardHub .rankMetric,
+        .leaderboardHub .rewardMetric {
+          min-width:0 !important;
+          max-width:100% !important;
+        }
+        .leaderboardHub .rewardMetric {
+          overflow:hidden;
+        }
+        .leaderboardHub .rewardMetric b {
+          max-width:100%;
+          letter-spacing:-.015em;
+        }
+
         @media (max-width:420px) {
           .leaderboardHub .countryRow,
           .leaderboardHub .countryPlaceholderRow {
@@ -66,6 +101,16 @@ export function PublicLeaderboard({
             height:230px !important;
             min-height:230px !important;
             max-height:230px !important;
+          }
+          /* Completion counts are short; give their spare width to the exact
+             B3TR reward value instead of forcing the whole table wider. */
+          .leaderboardHub .inviterInside .rankingCard {
+            --completed-column:54px !important;
+            --reward-column:98px !important;
+          }
+          .leaderboardHub .rewardMetric b {
+            font-size:clamp(.56rem,2.35vw,.65rem) !important;
+            letter-spacing:-.02em;
           }
         }
         @media (max-width:360px) {
@@ -81,6 +126,13 @@ export function PublicLeaderboard({
             height:220px !important;
             min-height:220px !important;
             max-height:220px !important;
+          }
+          .leaderboardHub .inviterInside .rankingCard {
+            --completed-column:50px !important;
+            --reward-column:94px !important;
+          }
+          .leaderboardHub .rewardMetric b {
+            font-size:clamp(.54rem,2.45vw,.61rem) !important;
           }
         }
       `}</style>
