@@ -56,6 +56,20 @@ test('current-wallet footer state is reserved even while the country tab is visi
   assert.match(css, /@media \(max-width:430px\)[\s\S]*--stable-ranking-context-reserve:calc\(8px \+ 2\.03rem\);/);
 });
 
+test('an unranked connected wallet reserves both the trailing row and the note', () => {
+  assert.match(inviter, /rankedCurrentUser \?\?[\s\S]*rank: 0,/);
+  assert.match(inviter, /const trailingCurrentUser =\s*currentUser && !currentUserInList \? currentUser : null;/);
+  assert.match(inviter, /!rankedCurrentUser && !loading/);
+  assert.match(
+    css,
+    /\.leaderboardHub:has\(\.impactOnly \.trailingCurrent\):has\(\.impactOnly \.rankContextNote\) \.unifiedRankingCard/,
+  );
+  assert.match(
+    css,
+    /var\(--stable-ranking-trailing-height\) \+ var\(--stable-ranking-context-reserve\)/,
+  );
+});
+
 test('stability guard changes only minimum card height and leaves list scrolling intact', () => {
   assert.match(css, /\.leaderboardHub \.unifiedRankingCard \{\s*min-height:var\(--stable-ranking-base-height\);\s*\}/);
   assert.doesNotMatch(css, /\.rankScroll\s*\{/);
