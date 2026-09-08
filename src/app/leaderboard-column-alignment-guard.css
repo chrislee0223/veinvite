@@ -1,5 +1,11 @@
 /*
- * Final shared leaderboard alignment guard.
+ * Final shared leaderboard alignment and visual-consistency guard.
+ *
+ * Shared table scale:
+ * Inviter ranking and country arrivals are two views inside the same card, so
+ * their headers, numeric values, and row density should feel like one table.
+ * Keep those values in one shared token set here instead of letting the two
+ * surfaces drift through separate component/mobile overrides.
  *
  * Country header:
  * The country row already has a fixed flag box before the country name. Align
@@ -20,6 +26,56 @@
  * breakpoint.
  */
 
+html body .leaderboardHub {
+  --leaderboard-header-size: .61rem;
+  --leaderboard-value-size: .72rem;
+  --leaderboard-value-weight: 850;
+  --leaderboard-value-color: #e9e5dc;
+  --leaderboard-placeholder-color: #68645d;
+  --leaderboard-row-height: 50px;
+}
+
+html body .leaderboardHub .inviterInside .tableHeader,
+html body .leaderboardHub .countryHeader {
+  font-size: var(--leaderboard-header-size) !important;
+}
+
+html body .leaderboardHub .inviterInside .rankMetric b,
+html body .leaderboardHub .countryMetricValue {
+  color: var(--leaderboard-value-color) !important;
+  font-size: var(--leaderboard-value-size) !important;
+  font-weight: var(--leaderboard-value-weight) !important;
+  line-height: 1 !important;
+}
+
+html body .leaderboardHub .countryTotal {
+  color: #ffd35c !important;
+  font-size: var(--leaderboard-value-size) !important;
+  font-weight: 900 !important;
+}
+
+html body .leaderboardHub .inviterInside .rankingCard {
+  --rank-row-height: var(--leaderboard-row-height) !important;
+}
+
+html body .leaderboardHub .countryRow,
+html body .leaderboardHub .countryPlaceholderRow {
+  height: var(--leaderboard-row-height) !important;
+  min-height: var(--leaderboard-row-height) !important;
+  max-height: var(--leaderboard-row-height) !important;
+}
+
+html body .leaderboardHub .countryScroll {
+  max-height: calc(var(--leaderboard-row-height) * 5);
+}
+
+html body .leaderboardHub .inviterInside .placeholderRow .rankMetric b,
+html body .leaderboardHub .countryPlaceholderRow {
+  color: var(--leaderboard-placeholder-color) !important;
+  font-size: var(--leaderboard-value-size) !important;
+  font-weight: 700 !important;
+}
+
 html body .leaderboardHub .countryHeader .countryHeaderCountry {
   padding-inline-start: 36px;
 }
@@ -39,6 +95,13 @@ html body .leaderboardHub .inviterInside .placeholderRow .walletText {
 }
 
 @media (max-width: 420px) {
+  html body .leaderboardHub {
+    --leaderboard-header-size: .52rem;
+    --leaderboard-value-size: .72rem;
+    --leaderboard-value-weight: 900;
+    --leaderboard-row-height: 46px;
+  }
+
   html body .leaderboardHub .inviterInside .placeholderRow .walletCell {
     grid-template-columns: minmax(0, 1fr) !important;
     column-gap: 0 !important;
@@ -52,6 +115,13 @@ html body .leaderboardHub .inviterInside .placeholderRow .walletText {
 }
 
 @media (max-width: 360px) {
+  html body .leaderboardHub {
+    --leaderboard-header-size: .48rem;
+    --leaderboard-value-size: .67rem;
+    --leaderboard-value-weight: 900;
+    --leaderboard-row-height: 44px;
+  }
+
   html body .leaderboardHub .countryHeader .countryHeaderCountry {
     padding-inline-start: 30px;
   }
