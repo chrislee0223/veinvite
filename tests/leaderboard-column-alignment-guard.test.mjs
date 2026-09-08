@@ -34,6 +34,41 @@ test('leaderboard alignment guard remains the final shared-card override', () =>
   assert.ok(guardImport > baseImport);
 });
 
+test('inviter and country tables share one visual scale', () => {
+  assert.match(
+    guard,
+    /--leaderboard-header-size: \.61rem;[\s\S]*--leaderboard-value-size: \.72rem;[\s\S]*--leaderboard-value-weight: 850;[\s\S]*--leaderboard-value-color: #e9e5dc;[\s\S]*--leaderboard-row-height: 50px;/,
+  );
+  assert.match(
+    guard,
+    /\.inviterInside \.tableHeader,[\s\S]*\.countryHeader \{\s*font-size: var\(--leaderboard-header-size\) !important;/,
+  );
+  assert.match(
+    guard,
+    /\.inviterInside \.rankMetric b,[\s\S]*\.countryMetricValue \{[\s\S]*color: var\(--leaderboard-value-color\) !important;[\s\S]*font-size: var\(--leaderboard-value-size\) !important;[\s\S]*font-weight: var\(--leaderboard-value-weight\) !important;/,
+  );
+  assert.match(
+    guard,
+    /\.countryTotal \{\s*color: #ffd35c !important;\s*font-size: var\(--leaderboard-value-size\) !important;\s*font-weight: 900 !important;/,
+  );
+  assert.match(
+    guard,
+    /\.inviterInside \.rankingCard \{\s*--rank-row-height: var\(--leaderboard-row-height\) !important;/,
+  );
+  assert.match(
+    guard,
+    /\.countryRow,[\s\S]*\.countryPlaceholderRow \{\s*height: var\(--leaderboard-row-height\) !important;\s*min-height: var\(--leaderboard-row-height\) !important;\s*max-height: var\(--leaderboard-row-height\) !important;/,
+  );
+  assert.match(
+    guard,
+    /@media \(max-width: 420px\)[\s\S]*--leaderboard-header-size: \.52rem;[\s\S]*--leaderboard-value-size: \.72rem;[\s\S]*--leaderboard-value-weight: 900;[\s\S]*--leaderboard-row-height: 46px;/,
+  );
+  assert.match(
+    guard,
+    /@media \(max-width: 360px\)[\s\S]*--leaderboard-header-size: \.48rem;[\s\S]*--leaderboard-value-size: \.67rem;[\s\S]*--leaderboard-value-weight: 900;[\s\S]*--leaderboard-row-height: 44px;/,
+  );
+});
+
 test('country header aligns with country-name text axis from flag geometry', () => {
   assert.match(
     guard,
