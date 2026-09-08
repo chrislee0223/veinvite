@@ -163,6 +163,11 @@ export function deriveInviteNotification(
     vot3CompletedAt &&
     voteCompletedAt
   ) {
+    // The on-chain mission scanner intentionally allows conversion/vote
+    // before the third dApp reward. Only call all missions complete once
+    // all three user-facing milestones are actually present. Once the
+    // referral is ELIGIBLE, final verification has already passed, so the
+    // "final checks" notice must not be shown or replay earlier progress.
     if (invitation.reward_status !== 'PENDING') {
       return null;
     }
