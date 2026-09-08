@@ -9,10 +9,14 @@ const source = readFileSync(
   'utf8',
 );
 
-test('leaderboard avatar loading uses a neutral placeholder instead of the legacy silhouette', () => {
+test('leaderboard avatar loading keeps a neutral placeholder and suppresses generated Picasso fallbacks', () => {
   assert.match(
     source,
     /\.leaderboardHub \.walletAvatar \{\s*background:rgba\(255,205,80,\.055\) !important;/,
+  );
+  assert.match(
+    source,
+    /\.leaderboardHub \.walletAvatar img\[src\^='data:image\/svg\+xml'\] \{\s*display:none !important;\s*animation:none !important;/,
   );
   assert.match(source, /@keyframes leaderboardAvatarReveal/);
 });
