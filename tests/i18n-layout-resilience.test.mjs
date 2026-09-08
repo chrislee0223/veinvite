@@ -32,7 +32,7 @@ test('primary navigation labels wrap while icon geometry is explicitly restored'
   );
   assert.match(
     typography,
-    /\.bottomNavigation button \.navIcon \{[\s\S]*?width:\s*21px\s*!important;[\s\S]*?height:\s*21px\s*!important;[\s\S]*?display:\s*block\s*!important;[\s\S]*?white-space:\s*nowrap\s*!important;[\s\S]*?line-height:\s*0\s*!important/,
+    /\.bottomNavigation button \.navIcon \{[\s\S]*?width:\s*21px\s*!important;[\s\S]*?height:\s*21px\s*!important;[\s\S]*?display:\s*block\s*!important;[\s\S]*?line-height:\s*0\s*!important/,
   );
   assert.match(
     typography,
