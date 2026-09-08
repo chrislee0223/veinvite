@@ -3,6 +3,11 @@ import { readFileSync } from 'node:fs';
 import { test } from 'node:test';
 
 const typography = readFileSync('src/app/localized-typography.css', 'utf8');
+const settingsDirection = readFileSync(
+  'src/app/settings-language-direction.css',
+  'utf8',
+);
+const layout = readFileSync('src/app/layout.tsx', 'utf8');
 const languageSelect = readFileSync(
   'src/components/LanguageSelectV2.tsx',
   'utf8',
@@ -40,6 +45,15 @@ test('language selection respects each option native writing direction', () => {
     typography,
     /html\[dir='rtl'\] \.screen \.continueArrow\s*\{[\s\S]*?scaleX\(-1\)/,
   );
+});
+
+test('Settings language picker aligns native names using their own direction', () => {
+  assert.match(layout, /import '\.\/settings-language-direction\.css';/);
+  assert.match(
+    settingsDirection,
+    /\.settingsPage :is\([\s\S]*?\.languagePickerCopy,[\s\S]*?\.languageOptionCopy[\s\S]*?\) strong\[dir\][\s\S]*?text-align:\s*start\s*!important/,
+  );
+  assert.match(settingsDirection, /unicode-bidi:\s*isolate/);
 });
 
 test('RTL country leaderboard keeps numeric rank and totals LTR-isolated', () => {
