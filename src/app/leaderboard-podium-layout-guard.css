@@ -6,19 +6,6 @@
  * Those remain in podium-laurel-option-c.css and podium-laurel-size-tuning.css.
  */
 
-/* The component briefly carried a second, simplified podium drawing on
- * rankStack. Keep that obsolete drawing disabled so only the approved Option C
- * vector layers render. */
-html body .leaderboardPage .rankingCard .rankScroll .rows > .rankRow[data-rank='1'] .rankStack::before,
-html body .leaderboardPage .rankingCard .rankScroll .rows > .rankRow[data-rank='2'] .rankStack::before,
-html body .leaderboardPage .rankingCard .rankScroll .rows > .rankRow[data-rank='3'] .rankStack::before,
-html body .leaderboardPage .rankingCard .rankScroll .rows > .rankRow[data-rank='1'] .rankStack::after,
-html body .leaderboardPage .rankingCard .rankScroll .rows > .rankRow[data-rank='2'] .rankStack::after,
-html body .leaderboardPage .rankingCard .rankScroll .rows > .rankRow[data-rank='3'] .rankStack::after {
-  content:none !important;
-  display:none !important;
-}
-
 /* One physical rank axis for every locale. The approved podium vectors remain
  * attached to rankValue, while the numeral itself is centered independently of
  * translated movement copy. */
