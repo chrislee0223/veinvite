@@ -163,7 +163,9 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json(response, {
       headers: {
-        'Cache-Control': 'public, s-maxage=30, stale-while-revalidate=30',
+        // Paid activation must become visible as soon as its finalized reward
+        // receipt exists. Do not keep a stale country ranking at the edge.
+        'Cache-Control': 'no-store',
       },
     });
   } catch (error) {
