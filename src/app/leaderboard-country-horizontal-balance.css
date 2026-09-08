@@ -8,10 +8,15 @@
  * Geometry is derived from the existing code, not screenshot measurements.
  * At the fixed 520px leaderboard rail, the shared card leaves 490px of content
  * after its 1px borders and 14px inline padding. Country rows then reserve 10px
- * inline padding on each side, leaving 470px for grid tracks and gaps. The
- * desktop tracks reserve 304px (72 + 64 + 64 + 72 + four 8px gaps), so the
- * country track receives 166px at the max rail. This moves the country start
- * farther inline while reducing the empty span before NEW.
+ * inline padding on each side, leaving 470px for grid tracks and gaps.
+ *
+ * The country identity start is intentionally shifted one existing column-gap
+ * farther inline at every responsive breakpoint. Desktop therefore changes the
+ * first track from 72px to 80px (= 72 + the existing 8px gap). Because the
+ * country track is flexible, it shrinks by the same 8px, so NEW / RETURNING /
+ * TOTAL keep their existing horizontal anchors. The same rule is applied at
+ * 500px (68 + 6), 430px (52 + 4), and 360px (46 + 3). No translate, margin, or
+ * screenshot-derived offset is used.
  *
  * Typography mirrors the inviter table at each reviewed breakpoint: the same
  * header size, the same primary metric value size, and the same rank/wallet
@@ -25,7 +30,7 @@ html body .leaderboardHub .countryPlaceholderRow {
   min-width: 0;
   max-width: 100%;
   display: grid;
-  grid-template-columns: 72px minmax(0, 1fr) 64px 64px 72px;
+  grid-template-columns: 80px minmax(0, 1fr) 64px 64px 72px;
   column-gap: 8px;
   align-items: center;
   box-sizing: border-box;
@@ -187,14 +192,13 @@ html body .leaderboardHub .countryError button {
 
 /*
  * Between the max rail and phone layout, reduce fixed metric tracks before the
- * country track becomes cramped. The country start still remains farther
- * inline than the previous 64px + 8px desktop geometry.
+ * country track becomes cramped while preserving the one-gap identity shift.
  */
 @media (max-width: 500px) {
   html body .leaderboardHub .countryHeader,
   html body .leaderboardHub .countryRow,
   html body .leaderboardHub .countryPlaceholderRow {
-    grid-template-columns: 68px minmax(0, 1fr) 56px 56px 68px;
+    grid-template-columns: 74px minmax(0, 1fr) 56px 56px 68px;
     column-gap: 6px;
   }
 }
@@ -203,7 +207,7 @@ html body .leaderboardHub .countryError button {
   html body .leaderboardHub .countryHeader,
   html body .leaderboardHub .countryRow,
   html body .leaderboardHub .countryPlaceholderRow {
-    grid-template-columns: 52px minmax(0, 1fr) 44px 44px 52px;
+    grid-template-columns: 56px minmax(0, 1fr) 44px 44px 52px;
     column-gap: 4px;
   }
 
@@ -245,7 +249,7 @@ html body .leaderboardHub .countryError button {
   html body .leaderboardHub .countryHeader,
   html body .leaderboardHub .countryRow,
   html body .leaderboardHub .countryPlaceholderRow {
-    grid-template-columns: 46px minmax(0, 1fr) 40px 40px 46px;
+    grid-template-columns: 49px minmax(0, 1fr) 40px 40px 46px;
     column-gap: 3px;
   }
 
