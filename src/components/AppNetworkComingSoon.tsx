@@ -1,11 +1,20 @@
 import { NETWORK_COPY } from '@/lib/i18n/networkCopy';
-import type { Locale, SupportedLocale } from '@/lib/i18n/locales';
+import {
+  getLocaleDirection,
+  type Locale,
+  type SupportedLocale,
+} from '@/lib/i18n/locales';
 
 export function AppNetworkComingSoon({ locale }: { locale: Locale }) {
-  const t = NETWORK_COPY[locale as SupportedLocale];
+  const supportedLocale = locale as SupportedLocale;
+  const t = NETWORK_COPY[supportedLocale] ?? NETWORK_COPY.en;
 
   return (
-    <section className="networkPage">
+    <section
+      className="networkPage"
+      lang={supportedLocale}
+      dir={getLocaleDirection(supportedLocale)}
+    >
       <div className="networkCard">
         <div className="networkVisual" aria-hidden="true">
           <span className="node root" />
@@ -22,10 +31,12 @@ export function AppNetworkComingSoon({ locale }: { locale: Locale }) {
       <style jsx>{`
         .networkPage {
           width:min(100%,520px);
+          min-width:0;
           margin:0 auto;
           padding-bottom:12px;
         }
         .networkCard {
+          min-width:0;
           min-height:420px;
           padding:42px 26px;
           display:flex;
@@ -71,14 +82,27 @@ export function AppNetworkComingSoon({ locale }: { locale: Locale }) {
         .leftLine { left:61px; transform:rotate(136deg); }
         .rightLine { left:65px; transform:rotate(44deg); }
         .status {
+          min-width:0;
+          max-width:100%;
           padding:6px 10px;
+          display:inline-flex;
+          align-items:center;
+          justify-content:center;
+          box-sizing:border-box;
           border:1px solid rgba(255,205,80,.18);
           border-radius:999px;
           background:rgba(244,183,40,.07);
           color:#f5c857;
           font-size:.62rem;
           font-weight:950;
+          line-height:1.25;
           letter-spacing:.08em;
+          text-align:center;
+          white-space:normal;
+          overflow-wrap:normal;
+          word-break:normal;
+          hyphens:none;
+          text-wrap:balance;
         }
         h1 {
           max-width:430px;
@@ -88,7 +112,9 @@ export function AppNetworkComingSoon({ locale }: { locale: Locale }) {
           line-height:1.08;
           letter-spacing:-.045em;
           text-wrap:balance;
-          overflow-wrap:anywhere;
+          overflow-wrap:normal;
+          word-break:normal;
+          hyphens:none;
         }
         p {
           max-width:430px;
@@ -96,7 +122,34 @@ export function AppNetworkComingSoon({ locale }: { locale: Locale }) {
           color:#938f87;
           font-size:.82rem;
           line-height:1.65;
-          overflow-wrap:anywhere;
+          overflow-wrap:normal;
+          word-break:normal;
+          hyphens:none;
+          text-wrap:pretty;
+        }
+        :global(html[lang='ko']) .networkCard :is(.status,h1,p) {
+          word-break:keep-all;
+          overflow-wrap:normal;
+        }
+        :global(html:is([lang='zh'],[lang='zh-tw'],[lang='ja'])) .networkCard {
+          line-break:strict;
+          word-break:normal;
+        }
+        :global(html:is([data-locale-typography='arabic'],[data-locale-typography='indic'])) .networkCard h1 {
+          line-height:1.25;
+        }
+        :global(html[lang='ur']) .networkCard h1 {
+          line-height:1.35;
+        }
+        :global(html:is([data-locale-typography='arabic'],[data-locale-typography='indic'],[data-locale-typography='cjk'])) .status {
+          letter-spacing:0;
+        }
+        :global(html[data-locale-typography='arabic']) .status,
+        :global(html[data-locale-typography='indic']) .status {
+          line-height:1.48;
+        }
+        :global(html[lang='ur']) .status {
+          line-height:1.6;
         }
         @media (max-width:420px) {
           .networkCard {

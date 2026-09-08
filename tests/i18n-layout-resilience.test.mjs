@@ -11,6 +11,22 @@ const countryCopy = readFileSync(
   'src/lib/i18n/countryLeaderboardCopy.ts',
   'utf8',
 );
+const networkPage = readFileSync(
+  'src/components/AppNetworkComingSoon.tsx',
+  'utf8',
+);
+const networkCopy = readFileSync(
+  'src/lib/i18n/networkCopy.ts',
+  'utf8',
+);
+const rewardForecastCopy = readFileSync(
+  'src/lib/i18n/rewardForecastCopy.ts',
+  'utf8',
+);
+const notificationV2Copy = readFileSync(
+  'src/lib/i18n/notificationV2Copy.ts',
+  'utf8',
+);
 
 test('primary navigation labels can wrap instead of being truncated', () => {
   assert.match(
@@ -78,5 +94,72 @@ test('country leaderboard labels describe people rather than abstract traffic', 
     "countryTab: 'Χρήστες ανά χώρα'",
   ]) {
     assert.ok(countryCopy.includes(expected), `missing reviewed wording: ${expected}`);
+  }
+});
+
+test('network coming-soon copy never breaks translated words arbitrarily', () => {
+  assert.doesNotMatch(networkPage, /overflow-wrap:\s*anywhere/);
+  assert.match(networkPage, /white-space:normal/);
+  assert.match(networkPage, /word-break:normal/);
+  assert.match(networkPage, /word-break:keep-all/);
+  assert.match(networkPage, /data-locale-typography='arabic'/);
+  assert.match(networkPage, /data-locale-typography='indic'/);
+  assert.match(networkPage, /lang=\{supportedLocale\}/);
+  assert.match(networkPage, /dir=\{getLocaleDirection\(supportedLocale\)\}/);
+});
+
+test('recent compact copy avoids reviewed literal or mixed-language phrasing', () => {
+  for (const deprecated of [
+    'متوقع انعام allocation اور شرکت',
+    'Allocation आणि participation',
+    'Allocation మరియు participation',
+    'kulingana na allocation na ushiriki',
+    'KIMANTA INVITE REWARD',
+    'Η εκτίμηση ανταμοιβής δεν είναι προσωρινά διαθέσιμη',
+  ]) {
+    assert.ok(
+      !rewardForecastCopy.includes(deprecated),
+      `reward forecast kept awkward wording: ${deprecated}`,
+    );
+  }
+
+  for (const expected of [
+    'متوقع انعام مختص رقم اور شرکت',
+    'वाटप आणि सहभागानुसार',
+    'కేటాయింపు మరియు పాల్గొనడాన్ని బట్టి',
+    'kulingana na mgawanyo na ushiriki',
+    'KIMANTA LADAN GAYYATA',
+    'Η εκτίμηση ανταμοιβής είναι προσωρινά μη διαθέσιμη',
+  ]) {
+    assert.ok(
+      rewardForecastCopy.includes(expected),
+      `reward forecast is missing reviewed wording: ${expected}`,
+    );
+  }
+});
+
+test('network and recent notification copy keeps the reviewed natural phrasing', () => {
+  for (const expected of [
+    'la red de VeInvite que se expande a partir de ellos',
+    'la rete VeInvite che si sviluppa a partire da loro',
+    'Ağın çok yakında hazır olacak',
+    "navLabel: '網路'",
+    "status: 'HIVI KARIBUNI'",
+    "status: 'BA DA JIMAWA BA'",
+  ]) {
+    assert.ok(networkCopy.includes(expected), `missing network wording: ${expected}`);
+  }
+
+  for (const expected of [
+    'Tiến độ của bạn bè đã được cập nhật',
+    'Xác minh cuối cùng đã được thông qua',
+    'den tillhörande B3TR-belöningen',
+    'Verificarea finală a fost finalizată cu succes',
+    'Ο τελικός έλεγχος ολοκληρώθηκε με επιτυχία',
+  ]) {
+    assert.ok(
+      notificationV2Copy.includes(expected),
+      `missing notification wording: ${expected}`,
+    );
   }
 });

@@ -36,7 +36,7 @@ export const NETWORK_COPY: Record<SupportedLocale, NetworkCopy> = {
     navLabel: 'Red',
     status: 'PRÓXIMAMENTE',
     title: 'Tu red estará disponible pronto',
-    description: 'Estamos preparando una vista para que puedas ver de un vistazo a los amigos que invitaste y la red de VeInvite que continúa a partir de ellos.',
+    description: 'Estamos preparando una vista para que puedas ver de un vistazo a los amigos que invitaste y la red de VeInvite que se expande a partir de ellos.',
   },
   ja: {
     navLabel: 'ネットワーク',
@@ -48,12 +48,12 @@ export const NETWORK_COPY: Record<SupportedLocale, NetworkCopy> = {
     navLabel: 'Rete',
     status: 'IN ARRIVO',
     title: 'La tua rete arriverà presto',
-    description: 'Stiamo preparando una vista per vedere a colpo d’occhio gli amici che hai invitato e la rete VeInvite che continua a crescere da loro.',
+    description: 'Stiamo preparando una vista per vedere a colpo d’occhio gli amici che hai invitato e la rete VeInvite che si sviluppa a partire da loro.',
   },
   tr: {
     navLabel: 'Ağ',
     status: 'YAKINDA',
-    title: 'Ağın yakında geliyor',
+    title: 'Ağın çok yakında hazır olacak',
     description: 'Davet ettiğin arkadaşları ve onlardan devam eden VeInvite ağını tek bakışta görebileceğin bir görünüm hazırlıyoruz.',
   },
   nl: {
@@ -90,7 +90,7 @@ export const NETWORK_COPY: Record<SupportedLocale, NetworkCopy> = {
     navLabel: 'Rede',
     status: 'EM BREVE',
     title: 'Sua rede chega em breve',
-    description: 'Estamos preparando uma visão para você acompanhar de uma só vez os amigos que convidou e a rede VeInvite que continua a partir deles.',
+    description: 'Estamos preparando uma visão para você acompanhar de uma só vez os amigos que convidou e a rede VeInvite que se expande a partir deles.',
   },
   ru: {
     navLabel: 'Сеть',
@@ -111,10 +111,10 @@ export const NETWORK_COPY: Record<SupportedLocale, NetworkCopy> = {
     description: 'Chúng tôi đang chuẩn bị một màn hình để bạn có thể xem nhanh những người bạn đã mời và mạng lưới VeInvite tiếp tục phát triển từ họ.',
   },
   'zh-tw': {
-    navLabel: '網絡',
+    navLabel: '網路',
     status: '即將推出',
-    title: '網絡功能即將推出',
-    description: '我們正在準備一個頁面，讓你可以一目了然地查看你邀請的朋友，以及從他們繼續延伸的 VeInvite 網絡。',
+    title: '你的網路功能即將推出',
+    description: '我們正在準備一個頁面，讓你可以一目了然地查看你邀請的朋友，以及從他們繼續延伸的 VeInvite 網路。',
   },
   sv: {
     navLabel: 'Nätverk',
@@ -126,7 +126,7 @@ export const NETWORK_COPY: Record<SupportedLocale, NetworkCopy> = {
     navLabel: 'Rețea',
     status: 'ÎN CURÂND',
     title: 'Rețeaua ta va fi disponibilă în curând',
-    description: 'Pregătim o vizualizare în care vei putea vedea dintr-o privire prietenii invitați și rețeaua VeInvite care continuă de la ei.',
+    description: 'Pregătim o vizualizare în care vei putea vedea dintr-o privire prietenii invitați și rețeaua VeInvite care se dezvoltă pornind de la ei.',
   },
   ur: {
     navLabel: 'نیٹ ورک',
@@ -160,14 +160,14 @@ export const NETWORK_COPY: Record<SupportedLocale, NetworkCopy> = {
   },
   sw: {
     navLabel: 'Mtandao',
-    status: 'INAKUJA HIVI KARIBUNI',
-    title: 'Mtandao wako unakuja hivi karibuni',
+    status: 'HIVI KARIBUNI',
+    title: 'Mtandao wako utapatikana hivi karibuni',
     description: 'Tunaandaa mwonekano ambao utakuruhusu kuona kwa haraka marafiki uliowaalika na mtandao wa VeInvite unaoendelea kukua kutoka kwao.',
   },
   ha: {
     navLabel: 'Cibiyar sadarwa',
-    status: 'NA TAFE ZUWA',
-    title: 'Cibiyar sadarwarka na tafe zuwa',
+    status: 'BA DA JIMAWA BA',
+    title: 'Cibiyar sadarwarka za ta kasance a shirye ba da jimawa ba',
     description: 'Muna shirya shafi da zai ba ka damar ganin abokan da ka gayyata da kuma cibiyar VeInvite da ke ci gaba daga gare su a wuri guda.',
   },
   el: {
