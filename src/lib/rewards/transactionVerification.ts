@@ -616,6 +616,10 @@ export function verifyPayoutTransactionEvidence({
         );
       }
 
+      // X2EarnRewardsPool.distributeReward keeps its final string argument only
+      // for backwards compatibility. The deployed contract intentionally emits
+      // RewardDistributed with an empty proof, while the immutable VeInvite
+      // clause still contains and verifies the exact submitted calldata proof.
       if (
         rewardEvent.appId !==
           manifest.appId.toLowerCase() ||
@@ -624,8 +628,7 @@ export function verifyPayoutTransactionEvidence({
             .toLowerCase() ||
         rewardEvent.amountWei !==
           expectedClause.amountWei ||
-        rewardEvent.proof !==
-          expectedClause.proof ||
+        rewardEvent.proof !== '' ||
         rewardEvent.distributor !==
           normalizedOperator
       ) {
