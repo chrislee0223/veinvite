@@ -12,7 +12,8 @@ html body .leaderboardPage .rankingCard .rankScroll .rows > .rankRow .rankStack 
   direction:ltr !important;
 }
 
-html body .leaderboardPage .rankingCard .rankScroll .rows > .rankRow .rankValue.rankValue {
+html body .leaderboardPage .rankingCard .rankScroll .rows > .rankRow .rankValue.rankValue,
+html body .leaderboardPage .rankingCard .rankScroll .rows > .rankRow:nth-child(-n+3) .rankValue.rankValue {
   position:absolute !important;
   inset:0 !important;
   width:100% !important;
@@ -25,7 +26,7 @@ html body .leaderboardPage .rankingCard .rankScroll .rows > .rankRow .rankValue.
   line-height:1 !important;
   text-align:center !important;
   text-wrap:nowrap !important;
-  font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,"Liberation Mono","Courier New",monospace !important;
+  font-family:system-ui,-apple-system,"Segoe UI",Arial,sans-serif !important;
   font-variant-numeric:tabular-nums !important;
 }
 
