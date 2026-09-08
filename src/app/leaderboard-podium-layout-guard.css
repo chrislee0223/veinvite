@@ -1,0 +1,85 @@
+/*
+ * Structural guard for the approved inviter leaderboard podium design.
+ *
+ * IMPORTANT: This file owns layout only. It must never define or modify the
+ * approved crown/laurel vector paths, colors, gradients or scale values.
+ * Those remain in podium-laurel-option-c.css and podium-laurel-size-tuning.css.
+ */
+
+/* The component briefly carried a second, simplified podium drawing on
+ * rankStack. Keep that obsolete drawing disabled so only the approved Option C
+ * vector layers render. */
+html body .leaderboardPage .rankingCard .rankScroll .rows > .rankRow[data-rank='1'] .rankStack::before,
+html body .leaderboardPage .rankingCard .rankScroll .rows > .rankRow[data-rank='2'] .rankStack::before,
+html body .leaderboardPage .rankingCard .rankScroll .rows > .rankRow[data-rank='3'] .rankStack::before,
+html body .leaderboardPage .rankingCard .rankScroll .rows > .rankRow[data-rank='1'] .rankStack::after,
+html body .leaderboardPage .rankingCard .rankScroll .rows > .rankRow[data-rank='2'] .rankStack::after,
+html body .leaderboardPage .rankingCard .rankScroll .rows > .rankRow[data-rank='3'] .rankStack::after {
+  content:none !important;
+  display:none !important;
+}
+
+/* One physical rank axis for every locale. The approved podium vectors remain
+ * attached to rankValue, while the numeral itself is centered independently of
+ * translated movement copy. */
+html body .leaderboardPage .rankingCard .rankScroll .rows > .rankRow[data-rank] .rankStack {
+  position:relative !important;
+  min-height:var(--rank-row-height) !important;
+  height:100% !important;
+  direction:ltr !important;
+  text-align:center !important;
+  overflow:visible !important;
+}
+
+html body .leaderboardPage .rankingCard .rankScroll .rows > .rankRow[data-rank] .rankValue.rankValue {
+  position:absolute !important;
+  inset:auto !important;
+  left:50% !important;
+  top:50% !important;
+  right:auto !important;
+  bottom:auto !important;
+  width:auto !important;
+  height:auto !important;
+  min-width:0 !important;
+  margin:0 !important;
+  padding:0 !important;
+  display:block !important;
+  transform:translate(-50%,-50%) !important;
+  transform-origin:50% 50% !important;
+  font-family:system-ui,-apple-system,"Segoe UI",Arial,sans-serif !important;
+  line-height:1 !important;
+  font-variant-numeric:tabular-nums !important;
+  direction:ltr !important;
+  text-align:center !important;
+  white-space:nowrap !important;
+}
+
+/* NEW / 신규 / جديد / up / down has its own fixed-width layer. Locale font
+ * metrics may change the glyphs, but can never move the rank numeral or podium. */
+html body .leaderboardPage .rankingCard .rankScroll .rows > .rankRow[data-rank] .rankMovement.rankMovement {
+  position:absolute !important;
+  z-index:4 !important;
+  inset:auto 0 3px 0 !important;
+  width:100% !important;
+  max-width:100% !important;
+  height:8px !important;
+  margin:0 !important;
+  padding:0 !important;
+  display:flex !important;
+  align-items:center !important;
+  justify-content:center !important;
+  transform:none !important;
+  overflow:visible !important;
+  line-height:1 !important;
+  text-align:center !important;
+  white-space:nowrap !important;
+  text-overflow:clip !important;
+  unicode-bidi:isolate !important;
+  pointer-events:none !important;
+}
+
+html[dir='rtl'] body .leaderboardPage .rankingCard .rankScroll .rows > .rankRow[data-rank] .rankStack,
+html[dir='rtl'] body .leaderboardPage .rankingCard .rankScroll .rows > .rankRow[data-rank] .rankValue.rankValue {
+  direction:ltr !important;
+  text-align:center !important;
+}
