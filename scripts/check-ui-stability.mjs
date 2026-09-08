@@ -191,16 +191,30 @@ if (
   failures.push('Header language picker DOM observation must stay frame-bounded.');
 }
 
-const rewardForecastPortal = read(
-  'src/components/PublicRewardForecastPortal.tsx',
+const homeClient = read('src/components/HomeClient.tsx');
+const rewardForecastCard = read(
+  'src/components/PublicRewardForecastCard.tsx',
 );
+const forecastIndex = homeClient.indexOf(
+  '<PublicRewardForecastCard locale={locale} />',
+);
+const walletBranchIndex = homeClient.indexOf('{!wallet ? (');
+if (forecastIndex < 0 || walletBranchIndex <= forecastIndex) {
+  failures.push('Reward forecast must render directly on Home before wallet connect or invite-link actions.');
+}
 if (
-  !/new MutationObserver\(scheduleAttach\)/.test(rewardForecastPortal) ||
-  !/requestAnimationFrame/.test(rewardForecastPortal) ||
-  !/cancelAnimationFrame/.test(rewardForecastPortal) ||
-  !/if \(!impactCard\)[\s\S]*detach\(\)/.test(rewardForecastPortal)
+  /createPortal|MutationObserver|leaderboardPage/.test(rewardForecastCard)
 ) {
-  failures.push('Reward forecast portal must detach cleanly and keep DOM observation frame-bounded.');
+  failures.push('Home reward forecast must not depend on the retired Leaderboard DOM portal.');
+}
+if (!/min-height:142px/.test(rewardForecastCard) || !/amountSkeleton/.test(rewardForecastCard)) {
+  failures.push('Home reward forecast must reserve a stable loading footprint.');
+}
+if (
+  existsSync(join(root, 'src/components/PublicRewardForecastPortal.tsx')) ||
+  existsSync(join(root, 'src/components/DeferredStartupExtras.tsx'))
+) {
+  failures.push('Retired Leaderboard forecast portal/deferred loader returned.');
 }
 
 const copyHardening = read('src/lib/i18n/copyHardening.ts');
