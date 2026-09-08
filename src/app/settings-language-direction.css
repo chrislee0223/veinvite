@@ -1,0 +1,13 @@
+/*
+ * The Settings language picker renders every option's native name inside the
+ * current UI direction. Let the native label itself decide its alignment from
+ * its own `dir` attribute so Arabic/Urdu/Egyptian Arabic stay RTL even while
+ * the surrounding app is English, Korean, or another LTR locale.
+ */
+.settingsPage :is(
+  .languagePickerCopy,
+  .languageOptionCopy
+) strong[dir] {
+  text-align: start !important;
+  unicode-bidi: isolate;
+}
