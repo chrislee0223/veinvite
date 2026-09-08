@@ -21,6 +21,14 @@ type RewardForecastResponse =
       stale?: boolean;
     };
 
+type IdleWindow = Window & {
+  requestIdleCallback?: (
+    callback: () => void,
+    options?: { timeout?: number },
+  ) => number;
+  cancelIdleCallback?: (handle: number) => void;
+};
+
 const PREVIEW_FORECAST: RewardForecastResponse = {
   status: 'ready',
   estimatedRewardWei: '147740500000000000000',
@@ -28,6 +36,8 @@ const PREVIEW_FORECAST: RewardForecastResponse = {
 };
 
 const CLIENT_FORECAST_CACHE_MS = 15 * 60_000;
+const APP_READY_EVENT = 'veinvite-app-ready';
+const APP_READY_IDLE_FALLBACK_MS = 900;
 const REWARD_FORECAST_UPDATED_EVENT = 'veinvite-reward-forecast-updated';
 let cachedForecast: RewardForecastResponse | null = null;
 let cachedForecastAt = 0;
@@ -122,6 +132,12 @@ export function PublicRewardForecastCard({
     }
 
     let active = true;
+    let scheduled = false;
+    let started = false;
+    let timeoutId = 0;
+    let intervalId = 0;
+    let idleId: number | null = null;
+
     const syncRefreshedForecast = (event: Event) => {
       if (!active) return;
       const detail = (event as CustomEvent<RewardForecastResponse>).detail;
@@ -149,26 +165,69 @@ export function PublicRewardForecastCard({
     const refreshWhenFocused = () => {
       loadForecast(true);
     };
+    const startForecastActivity = () => {
+      if (!active || started) return;
+      started = true;
+
+      document.addEventListener(
+        'visibilitychange',
+        refreshWhenVisible,
+      );
+      window.addEventListener('focus', refreshWhenFocused);
+      loadForecast();
+      intervalId = window.setInterval(
+        loadForecast,
+        CLIENT_FORECAST_CACHE_MS,
+      );
+    };
+    const scheduleForecastActivity = () => {
+      if (!active || scheduled) return;
+      scheduled = true;
+
+      const idleWindow = window as IdleWindow;
+      if (idleWindow.requestIdleCallback) {
+        idleId = idleWindow.requestIdleCallback(
+          startForecastActivity,
+          { timeout: APP_READY_IDLE_FALLBACK_MS },
+        );
+        return;
+      }
+
+      timeoutId = window.setTimeout(
+        startForecastActivity,
+        APP_READY_IDLE_FALLBACK_MS,
+      );
+    };
 
     window.addEventListener(
       REWARD_FORECAST_UPDATED_EVENT,
       syncRefreshedForecast,
     );
-    document.addEventListener(
-      'visibilitychange',
-      refreshWhenVisible,
-    );
-    window.addEventListener('focus', refreshWhenFocused);
 
-    loadForecast();
-    const intervalId = window.setInterval(
-      loadForecast,
-      CLIENT_FORECAST_CACHE_MS,
-    );
+    if (
+      document.documentElement.dataset.veinviteAppReady === 'true'
+    ) {
+      scheduleForecastActivity();
+    } else {
+      window.addEventListener(
+        APP_READY_EVENT,
+        scheduleForecastActivity,
+        { once: true },
+      );
+    }
 
     return () => {
       active = false;
+      window.clearTimeout(timeoutId);
       window.clearInterval(intervalId);
+      const idleWindow = window as IdleWindow;
+      if (idleId !== null && idleWindow.cancelIdleCallback) {
+        idleWindow.cancelIdleCallback(idleId);
+      }
+      window.removeEventListener(
+        APP_READY_EVENT,
+        scheduleForecastActivity,
+      );
       window.removeEventListener(
         REWARD_FORECAST_UPDATED_EVENT,
         syncRefreshedForecast,
