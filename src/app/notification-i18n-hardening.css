@@ -92,6 +92,13 @@ html[dir='rtl'] :is(
   unicode-bidi: isolate;
 }
 
+/* The bell opens immediately while reward actions are fetched in the
+ * background. Do not show a temporary "Rewards to claim / Please wait"
+ * section when no actionable reward has been confirmed yet. */
+.notificationHistoryRoot .notificationActionSection:has(.notificationActionLoading) {
+  display: none !important;
+}
+
 @media (max-width: 560px) {
   .notificationRoot .notificationCard {
     max-height: calc(100dvh - 12px);
