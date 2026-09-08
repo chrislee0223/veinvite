@@ -84,6 +84,26 @@ export function deriveUnreadInviteNotificationV2({
     };
   }
 
+  // A consumed referral that reaches FORFEITED is terminal (for example after
+  // duplicate-participation / Sybil verification). Keep the exact security
+  // signal private, but leave the inviter a durable, neutral explanation that
+  // the invitation ended and the slot is available again.
+  if (
+    invitation.invitee_wallet &&
+    invitation.reward_status === 'FORFEITED' &&
+    INVITE_NOTIFICATION_STAGE.ineligible > readState.highestStage
+  ) {
+    return {
+      inviteCode: invitation.invite_code,
+      kind: 'INVITE_INELIGIBLE',
+      stage: INVITE_NOTIFICATION_STAGE.ineligible,
+      eventAt: invitation.updated_at,
+      rewardAmountWei: null,
+      dappProgress: null,
+      collapsedProgress: false,
+    };
+  }
+
   if (invitation.reward_status === 'FORFEITED') {
     return null;
   }
@@ -104,9 +124,6 @@ export function deriveUnreadInviteNotificationV2({
       eventAt: paidReward.paid_at,
       rewardAmountWei: paidReward.amount_wei,
       dappProgress: 3,
-      // If the inviter was away until after settlement, one paid notice should
-      // summarize the skipped completion / reward-ready lifecycle instead of
-      // replaying old progress popups before the already-final paid state.
       collapsedProgress:
         readState.rewardReadyAcknowledgedAt === null ||
         readState.highestStage < INVITE_NOTIFICATION_STAGE.allMissionsCompleted ||
@@ -119,10 +136,6 @@ export function deriveUnreadInviteNotificationV2({
     invitation.vot3_converted === true &&
     invitation.vote_completed === true;
 
-  // The important success notice fires only after final verification has
-  // produced a durable fixed reservation. This intentionally combines
-  // mission success, reward readiness and reusable-slot readiness instead of
-  // showing a stale vote-complete popup followed by another success popup.
   if (
     allMissionsObserved &&
     invitation.reward_status === 'ELIGIBLE' &&
@@ -145,9 +158,6 @@ export function deriveUnreadInviteNotificationV2({
     };
   }
 
-  // Once all missions are visible on-chain, wait for the final verification /
-  // reservation notice above. Do not replay older dApp/VOT3 milestones while
-  // the referral is in the short final-check window.
   if (allMissionsObserved) {
     return null;
   }
