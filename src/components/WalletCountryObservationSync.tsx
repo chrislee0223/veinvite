@@ -3,13 +3,7 @@
 import { useEffect } from 'react';
 import { useWallet } from '@vechain/vechain-kit';
 
-const WALLET_SESSION_READY_EVENT =
-  'veinvite-wallet-session-ready';
-
-type SessionResponse = {
-  authenticated?: boolean;
-  walletAddress?: string;
-};
+const APP_READY_EVENT = 'veinvite-app-ready';
 
 async function recordCountry(): Promise<void> {
   const response = await fetch(
@@ -45,8 +39,14 @@ export function WalletCountryObservationSync() {
     let cancelled = false;
     let syncStarted = false;
 
+    const isCurrentWalletAppReady = () =>
+      document.documentElement.dataset.veinviteAppReady === 'true' &&
+      document.documentElement.dataset.veinviteHomeStartupStatus === 'ready' &&
+      document.documentElement.dataset.veinviteHomeStartupWallet?.toLowerCase() ===
+        walletAddress;
+
     const syncCountry = async () => {
-      if (cancelled || syncStarted) return;
+      if (cancelled || syncStarted || !isCurrentWalletAppReady()) return;
       syncStarted = true;
 
       try {
@@ -60,44 +60,24 @@ export function WalletCountryObservationSync() {
       }
     };
 
-    const handleWalletSessionReady = () => {
+    const handleAppReady = () => {
       void syncCountry();
     };
 
     window.addEventListener(
-      WALLET_SESSION_READY_EVENT,
-      handleWalletSessionReady,
+      APP_READY_EVENT,
+      handleAppReady,
     );
 
-    void (async () => {
-      try {
-        const response = await fetch(
-          '/api/auth/session',
-          { cache: 'no-store' },
-        );
-        const body =
-          (await response.json()) as SessionResponse;
-        const sessionWallet =
-          body.walletAddress?.toLowerCase();
-
-        if (
-          response.ok &&
-          body.authenticated === true &&
-          sessionWallet === walletAddress
-        ) {
-          await syncCountry();
-        }
-      } catch {
-        // Wallet verification may still be in progress. WalletSessionGate will
-        // publish the ready event after verification succeeds.
-      }
-    })();
+    if (isCurrentWalletAppReady()) {
+      void syncCountry();
+    }
 
     return () => {
       cancelled = true;
       window.removeEventListener(
-        WALLET_SESSION_READY_EVENT,
-        handleWalletSessionReady,
+        APP_READY_EVENT,
+        handleAppReady,
       );
     };
   }, [walletAddress]);
