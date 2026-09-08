@@ -143,9 +143,6 @@ export function LeaderboardImpactInfoPortal({ locale }: { locale: Locale }) {
               box-sizing: border-box;
               padding-right: 42px;
             }
-            .leaderboardPage .impactCard > .impactNote {
-              display: none;
-            }
             .veinviteImpactInfoButton {
               position: absolute;
               z-index: 4;
