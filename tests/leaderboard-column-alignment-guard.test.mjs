@@ -9,8 +9,8 @@ const guard = readFileSync(
   join(root, 'src/app/leaderboard-column-alignment-guard.css'),
   'utf8',
 );
-const inviter = readFileSync(
-  join(root, 'src/components/InviterLeaderboard.tsx'),
+const oldHub = readFileSync(
+  join(root, 'src/components/PublicLeaderboardHub.tsx'),
   'utf8',
 );
 
@@ -26,47 +26,50 @@ test('final leaderboard alignment guard loads after country base geometry', () =
   assert.ok(guardImport > baseImport);
 });
 
-test('country starts farther inline by matching the existing new/returning track width', () => {
+test('country starts farther inline using reviewed rank/total track widths', () => {
   assert.match(
     guard,
-    /grid-template-columns: 52px minmax\(0, 1fr\) 52px 52px 64px;/,
+    /grid-template-columns: 64px minmax\(0, 1fr\) 52px 52px 64px;/,
   );
   assert.match(
     guard,
-    /@media \(max-width: 430px\)[\s\S]*grid-template-columns: 40px minmax\(0, 1fr\) 40px 40px 46px;/,
+    /@media \(max-width: 430px\)[\s\S]*grid-template-columns: 46px minmax\(0, 1fr\) 40px 40px 46px;/,
   );
   assert.match(
     guard,
-    /@media \(max-width: 360px\)[\s\S]*grid-template-columns: 36px minmax\(0, 1fr\) 36px 36px 42px;/,
+    /@media \(max-width: 360px\)[\s\S]*grid-template-columns: 42px minmax\(0, 1fr\) 36px 36px 42px;/,
   );
 
   assert.doesNotMatch(guard, /translateX|margin-inline-start|padding-inline-start/);
 });
 
-test('empty inviter cells reserve the same avatar footprint as populated rows', () => {
+test('country typography restores the reviewed pre-five-column scale', () => {
+  assert.match(guard, /\.countryHeader \{\s*font-size: \.61rem;/);
+  assert.match(guard, /\.countryPlaceholderRow \{\s*font-size: \.72rem;/);
   assert.match(
     guard,
-    /\.placeholderRow \.walletCell::before \{[\s\S]*flex: 0 0 22px;[\s\S]*inline-size: 22px;[\s\S]*block-size: 22px;/,
+    /\.countryNameLine strong,[\s\S]*\.countryMetricValue \{\s*font-size: \.72rem;/,
+  );
+  assert.match(guard, /\.countryTotal \{\s*font-size: \.8rem;/);
+});
+
+test('empty inviter dash centers under the inviter header instead of reserving avatar space', () => {
+  assert.match(
+    guard,
+    /\.placeholderRow \.walletCell::before \{\s*content: none;/,
   );
   assert.match(
     guard,
-    /@media \(max-width: 420px\)[\s\S]*\.placeholderRow \.walletCell::before \{[\s\S]*flex-basis: 18px;[\s\S]*inline-size: 18px;[\s\S]*block-size: 18px;/,
+    /\.placeholderRow \.walletText \{\s*text-align: center !important;/,
   );
   assert.match(
     guard,
-    /@media \(max-width: 360px\)[\s\S]*\.placeholderRow \.walletCell::before \{[\s\S]*flex-basis: 16px;[\s\S]*inline-size: 16px;[\s\S]*block-size: 16px;/,
+    /@media \(max-width: 420px\)[\s\S]*\.placeholderRow \.walletCell \{[\s\S]*grid-template-columns: minmax\(0, 1fr\) !important;[\s\S]*column-gap: 0 !important;/,
+  );
+  assert.match(
+    guard,
+    /@media \(max-width: 420px\)[\s\S]*\.placeholderRow \.walletText \{[\s\S]*width: 100% !important;[\s\S]*min-width: 0 !important;[\s\S]*max-width: 100% !important;/,
   );
 
-  assert.match(
-    inviter,
-    /\.walletAvatar \{[\s\S]*flex:0 0 22px;[\s\S]*width:22px;[\s\S]*height:22px;/,
-  );
-  assert.match(
-    inviter,
-    /@media \(max-width:420px\)[\s\S]*\.walletAvatar \{[\s\S]*flex-basis:18px;[\s\S]*width:18px;[\s\S]*height:18px;/,
-  );
-  assert.match(
-    inviter,
-    /@media \(max-width:360px\)[\s\S]*\.walletAvatar \{[\s\S]*flex-basis:16px;[\s\S]*width:16px;[\s\S]*height:16px;/,
-  );
+  assert.match(oldHub, /className="tableHeader"/);
 });
