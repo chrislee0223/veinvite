@@ -1,0 +1,54 @@
+/*
+ * Balance the three-column country leaderboard horizontally on desktop and
+ * mobile without changing row heights, scrolling, or card dimensions.
+ *
+ * The component previously used asymmetric fixed edge tracks (64px / 84px on
+ * desktop, 46px / 58px on mobile) while also left-aligning the middle country
+ * identity with an extra inline-start offset. That combination makes the
+ * country/flag cluster look pulled to the left and the arrival count detached
+ * on the right, especially when only one or two countries are present.
+ *
+ * Reuse the existing wider edge-track size on both sides so the three-column
+ * layout is symmetric, then center the country identity inside the flexible
+ * middle track. This is based on the existing code geometry, not screenshot
+ * measurements.
+ */
+
+html body .leaderboardHub .countryHeader,
+html body .leaderboardHub .countryRow,
+html body .leaderboardHub .countryPlaceholderRow {
+  grid-template-columns:84px minmax(0,1fr) 84px !important;
+  column-gap:12px !important;
+}
+
+html body .leaderboardHub .countryHeader span:nth-child(2) {
+  padding-inline-start:0 !important;
+  text-align:center !important;
+}
+
+html body .leaderboardHub .countryIdentity {
+  justify-content:center !important;
+  text-align:center !important;
+}
+
+@media (max-width:430px) {
+  html body .leaderboardHub .countryHeader,
+  html body .leaderboardHub .countryRow,
+  html body .leaderboardHub .countryPlaceholderRow {
+    grid-template-columns:58px minmax(0,1fr) 58px !important;
+    column-gap:8px !important;
+  }
+
+  html body .leaderboardHub .countryHeader span:nth-child(2) {
+    padding-inline-start:0 !important;
+  }
+}
+
+@media (max-width:360px) {
+  html body .leaderboardHub .countryHeader,
+  html body .leaderboardHub .countryRow,
+  html body .leaderboardHub .countryPlaceholderRow {
+    grid-template-columns:54px minmax(0,1fr) 54px !important;
+    column-gap:6px !important;
+  }
+}
