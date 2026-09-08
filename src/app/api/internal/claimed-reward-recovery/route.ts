@@ -7,7 +7,7 @@ import { supabaseAdmin } from '@/lib/supabaseServer';
 
 export const dynamic = 'force-dynamic';
 
-const TOKEN_HASH = 'e59d6ad17d88a7d5bd276e29b8901fc6ab1a2f2a89506ef77843f00ecf30defb';
+const TOKEN_HASH = '6809e1700bb09e048dec59fb2f03472001ef2a5965d35e0b53204eafd7d2db3c';
 const TARGET_RECIPIENT = '0x69d3e60f17f101cc188b4120a4a64593228b4efa';
 const TARGETS = new Map([
   ['EALXSC8', '191252137695939519768'],
