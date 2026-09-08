@@ -14,8 +14,7 @@ const SET_LANGUAGE_INTENT =
   'SET_WALLET_LANGUAGE_PREFERENCE';
 const OBSERVE_DISPLAY_LANGUAGE_INTENT =
   'OBSERVE_WALLET_DISPLAY_LANGUAGE';
-const WALLET_SESSION_READY_EVENT =
-  'veinvite-wallet-session-ready';
+const APP_READY_EVENT = 'veinvite-app-ready';
 
 type LanguageUsageSource =
   | 'browser_auto'
@@ -26,11 +25,6 @@ type LanguageUsageSource =
 type PreferenceResponse = {
   language?: unknown;
   error?: string;
-};
-
-type SessionResponse = {
-  authenticated?: boolean;
-  walletAddress?: string;
 };
 
 async function postLanguageState({
@@ -125,6 +119,12 @@ export function WalletLanguagePreferenceSync() {
     let serverReady = false;
     let syncStarted = false;
 
+    const isCurrentWalletAppReady = () =>
+      document.documentElement.dataset.veinviteAppReady === 'true' &&
+      document.documentElement.dataset.veinviteHomeStartupStatus === 'ready' &&
+      document.documentElement.dataset.veinviteHomeStartupWallet?.toLowerCase() ===
+        walletAddress;
+
     const handleLanguageChange = (
       event: Event,
     ) => {
@@ -152,7 +152,11 @@ export function WalletLanguagePreferenceSync() {
     };
 
     const syncPreference = async () => {
-      if (cancelled || syncStarted) {
+      if (
+        cancelled ||
+        syncStarted ||
+        !isCurrentWalletAppReady()
+      ) {
         return;
       }
 
@@ -233,6 +237,7 @@ export function WalletLanguagePreferenceSync() {
           'browser_auto',
         );
       } catch (error) {
+        syncStarted = false;
         console.warn(
           'Failed to sync VeInvite language preference:',
           error,
@@ -240,7 +245,7 @@ export function WalletLanguagePreferenceSync() {
       }
     };
 
-    const handleWalletSessionReady = () => {
+    const handleAppReady = () => {
       void syncPreference();
     };
 
@@ -249,37 +254,13 @@ export function WalletLanguagePreferenceSync() {
       handleLanguageChange,
     );
     window.addEventListener(
-      WALLET_SESSION_READY_EVENT,
-      handleWalletSessionReady,
+      APP_READY_EVENT,
+      handleAppReady,
     );
 
-    // Cover the case where WalletSessionGate restored an existing cookie just
-    // before this sibling effect subscribed to the ready event. This is a
-    // single session lookup; a session still being established will notify us
-    // through WALLET_SESSION_READY_EVENT instead of being polled repeatedly.
-    void (async () => {
-      try {
-        const response = await fetch(
-          '/api/auth/session',
-          { cache: 'no-store' },
-        );
-        const body =
-          (await response.json()) as SessionResponse;
-        const sessionWallet =
-          body.walletAddress?.toLowerCase();
-
-        if (
-          response.ok &&
-          body.authenticated === true &&
-          sessionWallet === walletAddress
-        ) {
-          await syncPreference();
-        }
-      } catch {
-        // Wallet verification may still be in progress. WalletSessionGate will
-        // publish the ready event after verification succeeds.
-      }
-    })();
+    if (isCurrentWalletAppReady()) {
+      void syncPreference();
+    }
 
     return () => {
       cancelled = true;
@@ -288,8 +269,8 @@ export function WalletLanguagePreferenceSync() {
         handleLanguageChange,
       );
       window.removeEventListener(
-        WALLET_SESSION_READY_EVENT,
-        handleWalletSessionReady,
+        APP_READY_EVENT,
+        handleAppReady,
       );
     };
   }, [walletAddress]);
