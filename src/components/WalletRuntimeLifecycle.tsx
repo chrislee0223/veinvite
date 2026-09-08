@@ -22,6 +22,8 @@ import {
 
 const APP_READY_EVENT = 'veinvite-app-ready';
 const APP_LOADING_EVENT = 'veinvite-app-loading';
+const WALLET_SESSION_READY_EVENT =
+  'veinvite-wallet-session-ready';
 const SESSION_RENEWAL_INTENT = 'renew';
 const RENEWAL_DEDUPE_MS = 60_000;
 const HOME_STABILITY_MS = 160;
@@ -277,10 +279,17 @@ export function WalletRuntimeLifecycle() {
       renewalStarted = true;
       void renewSession(walletAddress);
     };
+    const handleWalletSessionReady = () => {
+      renewWhenReady();
+    };
 
     window.addEventListener(
       APP_READY_EVENT,
       renewWhenReady,
+    );
+    window.addEventListener(
+      WALLET_SESSION_READY_EVENT,
+      handleWalletSessionReady,
     );
 
     if (isCurrentWalletAppReady()) {
@@ -292,6 +301,10 @@ export function WalletRuntimeLifecycle() {
       window.removeEventListener(
         APP_READY_EVENT,
         renewWhenReady,
+      );
+      window.removeEventListener(
+        WALLET_SESSION_READY_EVENT,
+        handleWalletSessionReady,
       );
     };
   }, [renewSession, walletAddress]);
