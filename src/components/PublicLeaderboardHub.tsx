@@ -209,6 +209,10 @@ export function PublicLeaderboardHub({
 
   const showCountryData = Boolean(countryData);
   const showCountryError = countryState.status === 'error' && !countryData;
+  const visibleRankingView: RankingView =
+    rankingView === 'country' && (showCountryData || showCountryError)
+      ? 'country'
+      : 'inviter';
 
   return (
     <section className="leaderboardHub">
@@ -246,7 +250,7 @@ export function PublicLeaderboardHub({
           </button>
         </div>
 
-        {rankingView === 'inviter' ? (
+        {visibleRankingView === 'inviter' ? (
           <div className="inviterInside">
             <InviterLeaderboard
               locale={locale}

@@ -281,7 +281,7 @@ test('a paid reward outranks lower-priority unread progress from another invitat
   assert.equal(selected.unreadCount, 2);
 });
 
-test('forfeited referrals do not surface stale success notifications', () => {
+test('forfeited accepted referrals replace stale success with the terminal ineligible notice', () => {
   const notification = deriveInviteNotification(
     {
       ...BASE_INVITE,
@@ -294,5 +294,8 @@ test('forfeited referrals do not surface stale success notifications', () => {
     null,
   );
 
-  assert.equal(notification, null);
+  assert.equal(notification?.kind, 'INVITE_INELIGIBLE');
+  assert.equal(notification?.stage, 6);
+  assert.equal(notification?.eventAt, BASE_INVITE.updated_at);
+  assert.equal(notification?.rewardAmountWei, null);
 });

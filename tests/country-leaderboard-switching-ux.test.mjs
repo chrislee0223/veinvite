@@ -20,6 +20,14 @@ const countryCopy = readFileSync(
 test('country leaderboard preloads in the background without a visible loading label', () => {
   assert.match(hub, /useEffect\(\(\) => \{[\s\S]*refreshCountry\(false\)/);
   assert.doesNotMatch(hub, /leaderboardCopy\.loading/);
+});
+
+test('cold country-tab clicks keep the inviter rows visible until country data or an error is ready', () => {
+  assert.match(
+    hub,
+    /const visibleRankingView: RankingView =\s*rankingView === 'country' && \(showCountryData \|\| showCountryError\)[\s\S]*\? 'country'[\s\S]*: 'inviter';/,
+  );
+  assert.match(hub, /\{visibleRankingView === 'inviter' \? \(/);
   assert.match(hub, /className="countrySkeleton"/);
 });
 
