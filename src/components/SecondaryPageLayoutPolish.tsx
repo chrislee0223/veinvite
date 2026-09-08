@@ -228,9 +228,10 @@ export function SecondaryPageLayoutPolish() {
       }
 
       /*
-       * When VeChain Kit resolves an avatar, show that image by itself. No
-       * VeInvite-colored layer sits behind it and the image is not enlarged or
-       * cropped. The neutral fallback appears only while the avatar host is empty.
+       * VeChain Kit owns the final avatar image, including its generated Picasso
+       * address avatar when no VET Domain image exists. Before that image is
+       * available, reserve the same circle with a neutral fill only. Never draw
+       * the retired head-and-shoulders silhouette during loading.
        */
       .leaderboardPage .walletAvatar {
         flex:0 0 22px !important;
@@ -245,12 +246,9 @@ export function SecondaryPageLayoutPolish() {
       }
 
       .leaderboardPage .walletAvatar:empty {
-        border:1px solid rgba(255,205,80,.22) !important;
-        background:
-          radial-gradient(circle at 50% 35%,#eec04c 0 20%,transparent 22%),
-          radial-gradient(ellipse at 50% 82%,#eec04c 0 31%,transparent 33%),
-          #242116 !important;
-        box-shadow:inset 0 0 0 1px rgba(255,255,255,.025) !important;
+        border:1px solid rgba(255,205,80,.14) !important;
+        background:rgba(255,205,80,.055) !important;
+        box-shadow:inset 0 0 0 1px rgba(255,255,255,.02) !important;
       }
 
       .leaderboardPage .walletAvatar img {
