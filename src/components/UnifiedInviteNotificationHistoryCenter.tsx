@@ -693,7 +693,7 @@ export function InviteNotificationHistoryCenter({
   };
 
   const renderRewardActions = () => {
-    if (rewardActions.length === 0 && !actionLoading && !actionError) {
+    if (rewardActions.length === 0) {
       return null;
     }
 
@@ -953,7 +953,7 @@ export function InviteNotificationHistoryCenter({
                   {structure.retry}
                 </button>
               </div>
-            ) : sorted.length === 0 && rewardActions.length === 0 && !actionLoading ? (
+            ) : sorted.length === 0 && rewardActions.length === 0 ? (
               <div className="notificationHistoryState">
                 <span className="notificationHistoryEmptyBell" aria-hidden="true">
                   <BellIcon size={22} />
