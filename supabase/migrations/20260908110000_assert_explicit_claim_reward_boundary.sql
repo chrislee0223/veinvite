@@ -13,7 +13,10 @@ declare
   v_sync text := pg_get_functiondef(
     'public.sync_reward_queue_from_invitation()'::regprocedure
   );
+  v_claim_compact text;
 begin
+  v_claim_compact := regexp_replace(v_claim, '\s+', '', 'g');
+
   if position('''AWAITING_CLAIM''' in v_commit) = 0 then
     raise exception 'REWARD_BOUNDARY_INVALID: reservation must enter AWAITING_CLAIM';
   end if;
@@ -23,9 +26,9 @@ begin
     raise exception 'REWARD_BOUNDARY_INVALID: reservation must not forge Claim evidence';
   end if;
 
-  if position('status=''QUEUED''' in v_claim) = 0
-     or position('claim_requested_at=now()' in v_claim) = 0
-     or position('claim_requested_by_wallet=v_wallet' in v_claim) = 0 then
+  if position('status=''QUEUED''' in v_claim_compact) = 0
+     or position('claim_requested_at=now()' in v_claim_compact) = 0
+     or position('claim_requested_by_wallet=v_wallet' in v_claim_compact) = 0 then
     raise exception 'REWARD_BOUNDARY_INVALID: Claim must authorize QUEUED state';
   end if;
 
