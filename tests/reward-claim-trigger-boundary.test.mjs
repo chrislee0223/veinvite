@@ -11,7 +11,7 @@ const payoutWrapper = readFileSync(
   'utf8',
 );
 const boundaryMigration = readFileSync(
-  new URL('../supabase/migrations/20260908110000_assert_explicit_claim_reward_boundary.sql', import.meta.url),
+  new URL('../supabase/migrations/20260908021554_assert_explicit_claim_reward_boundary.sql', import.meta.url),
   'utf8',
 );
 
