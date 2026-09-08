@@ -52,14 +52,6 @@ main.screen .bottomNavigation > div {
   width:min(100%,520px) !important;
 }
 
-/* Keep the public impact summary intentionally simple. The default card shows
- * the total only; tapping it reveals just the new/returning breakdown. */
-.leaderboardPage .impactCard > p,
-.leaderboardPage .impactDialog > p,
-.leaderboardPage .impactDialog .reportingSince {
-  display:none !important;
-}
-
 /* Inviter leaderboard podium artwork is locked in the approved Option C files.
  * The separate layout guard may position rank/movement layers, but it must not
  * redraw or restyle the approved crown or laurels. */
