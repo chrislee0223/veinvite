@@ -84,6 +84,26 @@ export function deriveUnreadInviteNotificationV2({
     };
   }
 
+  // A consumed referral that reaches FORFEITED is terminal (for example after
+  // duplicate-participation / Sybil verification). Keep the exact security
+  // signal private, but leave the inviter a durable, neutral explanation that
+  // the invitation ended and the slot is available again.
+  if (
+    invitation.invitee_wallet &&
+    invitation.reward_status === 'FORFEITED' &&
+    INVITE_NOTIFICATION_STAGE.ineligible > readState.highestStage
+  ) {
+    return {
+      inviteCode: invitation.invite_code,
+      kind: 'INVITE_INELIGIBLE',
+      stage: INVITE_NOTIFICATION_STAGE.ineligible,
+      eventAt: invitation.updated_at,
+      rewardAmountWei: null,
+      dappProgress: null,
+      collapsedProgress: false,
+    };
+  }
+
   if (invitation.reward_status === 'FORFEITED') {
     return null;
   }

@@ -110,6 +110,22 @@ export function deriveInviteNotification(
     };
   }
 
+  // Accepted referrals that become FORFEITED are terminal. Surface the same
+  // neutral ineligible notice used for other ended invitations without exposing
+  // the underlying anti-abuse signal to the client.
+  if (
+    invitation.invitee_wallet &&
+    invitation.reward_status === 'FORFEITED'
+  ) {
+    return {
+      inviteCode: invitation.invite_code,
+      kind: 'INVITE_INELIGIBLE',
+      stage: INVITE_NOTIFICATION_STAGE.ineligible,
+      eventAt: invitation.updated_at,
+      rewardAmountWei: null,
+    };
+  }
+
   if (invitation.reward_status === 'FORFEITED') {
     return null;
   }
