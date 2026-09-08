@@ -1,12 +1,12 @@
 import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
 
-import { InfiniteNetworkCanvasV21Preview } from '@/components/InfiniteNetworkCanvasV21Preview';
+import { InfiniteNetworkCanvasV22Preview } from '@/components/InfiniteNetworkCanvasV22Preview';
 
 export const dynamic = 'force-dynamic';
 
 export const metadata: Metadata = {
-  title: 'VeInvite Infinite Network Canvas v2.1 Preview',
+  title: 'VeInvite Infinite Network Canvas v2.2 Preview',
   robots: {
     index: false,
     follow: false,
@@ -22,5 +22,5 @@ export default function NetworkPreviewPage() {
     notFound();
   }
 
-  return <InfiniteNetworkCanvasV21Preview />;
+  return <InfiniteNetworkCanvasV22Preview />;
 }
