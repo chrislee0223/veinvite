@@ -11,6 +11,7 @@ import './localized-typography.css';
 import './notification-i18n-hardening.css';
 import './ui-safety.css';
 import './final-ui-hardening.css';
+import './leaderboard-podium-unified.css';
 import './wallet-confirmation-unified.css';
 import './language-picker-mobile.css';
 import './legal-ui-consistency.css';
