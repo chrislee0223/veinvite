@@ -371,7 +371,7 @@ html[dir='rtl'] .headerLanguageChevron {
   text-align: left !important;
 }
 
-html[dir='rtl'] .screen .continueButton span[aria-hidden='true'] {
+html[dir='rtl'] .screen .continueArrow {
   display: inline-block;
   transform: scaleX(-1);
 }
