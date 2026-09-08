@@ -56,16 +56,27 @@ test('Home forecast remains independent from Home startup readiness', () => {
   assert.match(forecastCard, /\/api\/rewards\/estimate/);
   assert.doesNotMatch(forecastCard, /publishHomeStartupState/);
   assert.doesNotMatch(forecastCard, /referralLinkVerified/);
-  assert.match(forecastCard, /min-height:104px/);
+  assert.match(forecastCard, /min-height:142px/);
   assert.match(forecastCard, /amountSkeleton/);
   assert.match(forecastCard, /prefers-reduced-motion: reduce/);
 });
 
-test('Home reward estimate stays visually subordinate to the invite action', () => {
-  assert.match(forecastCard, /className="estimateSummaryRow"/);
-  assert.match(forecastCard, /font-size:clamp\(1\.08rem,5\.3vw,1\.34rem\)/);
-  assert.match(forecastCard, /margin-top:12px/);
-  assert.match(forecastCard, /border-radius:16px/);
+test('reward amount keeps the previously proven in-card geometry after the move', () => {
+  assert.doesNotMatch(forecastCard, /className="estimateSummaryRow"/);
+  assert.match(
+    forecastCard,
+    /className="estimateEyebrow">\{t\.eyebrow\}<\/span>[\s\S]*?className="estimateAmount"/,
+  );
+  assert.match(
+    forecastCard,
+    /\.estimateAmount\s*\{[\s\S]*?min-height:35px;[\s\S]*?margin-top:6px;/,
+  );
+  assert.match(
+    forecastCard,
+    /\.estimateAmount strong\s*\{[\s\S]*?font-size:clamp\(1\.34rem,6\.5vw,1\.72rem\)/,
+  );
+  assert.match(forecastCard, /margin-top:17px/);
+  assert.match(forecastCard, /border-radius:18px/);
 });
 
 test('leaderboard portal and deferred loader are no longer mounted', async () => {
