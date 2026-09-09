@@ -27,12 +27,12 @@ test('Network runtime switch fails closed before chain and recursive graph work'
   assert.match(migration, /revoke all on table public\.network_runtime_config from public, anon, authenticated/i);
   assert.match(migration, /to service_role/i);
   assert.match(route, /async function networkRuntimeEnabled/i);
-  const switchCheck = route.indexOf('await networkRuntimeEnabled()');
-  const roundRead = route.indexOf('readCurrentRoundContext()');
+  const switchCheck = route.indexOf('if (!(await networkRuntimeEnabled()))');
+  const roundRead = route.indexOf('const round = await readCurrentRoundContext();');
   const graphRead = route.indexOf("supabaseAdmin.rpc(\n    'read_referral_network_focus_v2'");
   assert.ok(switchCheck >= 0);
   assert.ok(roundRead > switchCheck);
-  assert.ok(graphRead > switchCheck);
+  assert.ok(graphRead > roundRead);
   assert.match(route, /payload\.error === 'NETWORK_DISABLED'/i);
   assert.match(route, /status:\s*503/i);
 });
