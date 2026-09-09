@@ -17,11 +17,15 @@ import { readCurrentVeBetterRound } from '@/lib/vebetter/currentRound';
 export const dynamic = 'force-dynamic';
 
 const COUNTRY_PATTERN = /^[A-Z]{2}$/;
+const UNKNOWN_COUNTRY_CODE = 'ZZ';
 const LEADERBOARD_SIZE = 100;
 
 type CountryPayload = {
   knownCompleted?: unknown;
   unknownCompleted?: unknown;
+  unknownNewUsers?: unknown;
+  unknownReturningUsers?: unknown;
+  unknownCurrentRoundCompleted?: unknown;
   leaders?: unknown;
 };
 
@@ -112,6 +116,38 @@ function normalizePayload(value: unknown): {
 
   if (leaders.length < LEADERBOARD_SIZE && leaderKnownTotal !== knownCompleted) {
     throw new Error('Country arrival coverage totals are inconsistent.');
+  }
+
+  if (unknownCompleted > 0) {
+    const unknownNewUsers = parseCount(
+      payload.unknownNewUsers,
+      'Unknown-country new users',
+    );
+    const unknownReturningUsers = parseCount(
+      payload.unknownReturningUsers,
+      'Unknown-country returning users',
+    );
+    const unknownCurrentRoundCompleted = parseCount(
+      payload.unknownCurrentRoundCompleted,
+      'Unknown-country current-round completions',
+    );
+
+    if (unknownNewUsers + unknownReturningUsers !== unknownCompleted) {
+      throw new Error('Unknown-country classification totals are inconsistent.');
+    }
+
+    const lastRank = leaders.reduce(
+      (maximum, row) => Math.max(maximum, row.rank),
+      0,
+    );
+    leaders.push({
+      rank: lastRank + 1,
+      countryCode: UNKNOWN_COUNTRY_CODE,
+      completedReferrals: unknownCompleted,
+      newUsers: unknownNewUsers,
+      returningUsers: unknownReturningUsers,
+      currentRoundCompleted: unknownCurrentRoundCompleted,
+    });
   }
 
   return {

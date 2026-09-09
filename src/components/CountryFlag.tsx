@@ -13,7 +13,7 @@ const APP_COUNTRY_FLAG_SOURCE = LOCALE_DEFINITIONS.reduce<Record<string, string>
 
 function countryFlagEmoji(countryCode: string): string {
   const normalized = countryCode.trim().toUpperCase();
-  if (!/^[A-Z]{2}$/.test(normalized)) return '🌐';
+  if (normalized === 'ZZ' || !/^[A-Z]{2}$/.test(normalized)) return '🌐';
 
   return String.fromCodePoint(
     ...Array.from(normalized, (letter) => 127397 + letter.charCodeAt(0)),
