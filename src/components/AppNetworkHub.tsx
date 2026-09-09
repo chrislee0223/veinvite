@@ -11,15 +11,14 @@ import { NETWORK_EXPERIENCE_COPY } from '@/lib/i18n/networkExperienceCopy';
 import { NETWORK_EXPLORE_COPY } from '@/lib/i18n/networkExploreCopy';
 import { NETWORK_HUB_COPY } from '@/lib/i18n/networkHubCopy';
 import type { Locale, SupportedLocale } from '@/lib/i18n/locales';
+import {
+  getCachedNetworkSummary,
+  rememberNetworkSummary,
+  type NetworkSummaryProbe,
+} from '@/lib/networkSummaryClientCache';
 import { AppNetwork } from './AppNetwork';
 import { PublicNetworkExplorer } from './PublicNetworkExplorer';
 import { useWalletLauncher } from './WalletControl';
-
-type SummaryProbe = {
-  summary: {
-    network: number;
-  };
-};
 
 type VisibilityState = {
   publicEnabled: boolean;
@@ -80,8 +79,8 @@ async function jsonRequest<T>(url: string, init?: RequestInit): Promise<T> {
   return payload as T;
 }
 
-async function fetchSummary(wallet: string, signal?: AbortSignal): Promise<SummaryProbe> {
-  return jsonRequest<SummaryProbe>(`/api/network/summary?wallet=${encodeURIComponent(wallet)}`, { signal });
+async function fetchSummary(wallet: string, signal?: AbortSignal): Promise<NetworkSummaryProbe> {
+  return jsonRequest<NetworkSummaryProbe>(`/api/network/summary?wallet=${encodeURIComponent(wallet)}`, { signal });
 }
 
 async function fetchVisibility(signal?: AbortSignal): Promise<VisibilityState> {
@@ -225,9 +224,12 @@ export function AppNetworkHub({ locale }: { locale: Locale }) {
   const { wallet, openWallet, isWalletActionPending } = useWalletLauncher();
   const activeWalletRef = useRef<string | null>(wallet);
   activeWalletRef.current = wallet;
+  const initialProbe = wallet ? getCachedNetworkSummary(wallet) : null;
   const [mode, setMode] = useState<'own' | 'explore'>('own');
-  const [probeState, setProbeState] = useState<'idle' | 'loading' | 'ready' | 'error' | 'maintenance'>('idle');
-  const [probe, setProbe] = useState<SummaryProbe | null>(null);
+  const [probeState, setProbeState] = useState<'idle' | 'loading' | 'ready' | 'error' | 'maintenance'>(
+    initialProbe ? 'ready' : 'idle',
+  );
+  const [probe, setProbe] = useState<NetworkSummaryProbe | null>(initialProbe);
   const [visibilityState, setVisibilityState] = useState<VisibilityLoadState>('idle');
   const [visibility, setVisibility] = useState<VisibilityState | null>(null);
   const [visibilityOpen, setVisibilityOpen] = useState(false);
@@ -236,8 +238,11 @@ export function AppNetworkHub({ locale }: { locale: Locale }) {
   const loadProbe = useCallback(async (signal?: AbortSignal) => {
     if (!wallet) return;
     const requestWallet = wallet;
-    setProbeState('loading');
-    setProbe(null);
+    const cachedBefore = getCachedNetworkSummary(requestWallet);
+    if (!cachedBefore) {
+      setProbeState('loading');
+      setProbe(null);
+    }
     try {
       const data = await fetchSummary(requestWallet, signal);
       if (
@@ -246,6 +251,7 @@ export function AppNetworkHub({ locale }: { locale: Locale }) {
       ) {
         return;
       }
+      rememberNetworkSummary(requestWallet, data);
       setProbe(data);
       setProbeState('ready');
     } catch (error) {
@@ -255,8 +261,18 @@ export function AppNetworkHub({ locale }: { locale: Locale }) {
       ) {
         return;
       }
+      if ((error as ApiError).code === 'NETWORK_DISABLED') {
+        setProbe(null);
+        setProbeState('maintenance');
+        return;
+      }
+      if (cachedBefore) {
+        setProbe(cachedBefore);
+        setProbeState('ready');
+        return;
+      }
       setProbe(null);
-      setProbeState((error as ApiError).code === 'NETWORK_DISABLED' ? 'maintenance' : 'error');
+      setProbeState('error');
     }
   }, [wallet]);
 
@@ -288,15 +304,25 @@ export function AppNetworkHub({ locale }: { locale: Locale }) {
 
   useEffect(() => {
     setMode('own');
-    setProbe(null);
     setVisibility(null);
     setVisibilityState('idle');
     setVisibilityOpen(false);
     setVisibilitySaving(false);
     if (!wallet) {
+      setProbe(null);
       setProbeState('idle');
       return;
     }
+
+    const cached = getCachedNetworkSummary(wallet);
+    if (cached) {
+      setProbe(cached);
+      setProbeState('ready');
+    } else {
+      setProbe(null);
+      setProbeState('loading');
+    }
+
     const controller = new AbortController();
     void loadProbe(controller.signal);
     return () => controller.abort();
@@ -364,7 +390,7 @@ export function AppNetworkHub({ locale }: { locale: Locale }) {
   }
 
   if (probeState === 'loading' || probeState === 'idle') {
-    return <StateCard title={t.title} description={t.directNetwork} busy />;
+    return <div className="networkHubPending" aria-busy="true" aria-live="polite" />;
   }
 
   if (probeState === 'maintenance') {
