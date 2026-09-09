@@ -6,9 +6,14 @@ import { useWallet } from '@vechain/vechain-kit';
 import {
   LANGUAGE_STORAGE_KEY,
   isLocale,
+  localeFromLanguageTag,
   resolveBrowserLocale,
   type SupportedLocale,
 } from '@/lib/i18n/locales';
+import {
+  clearPendingManualLanguage,
+  readPendingManualLanguage,
+} from '@/lib/i18n/pendingLanguageSelection';
 
 const SET_LANGUAGE_INTENT =
   'SET_WALLET_LANGUAGE_PREFERENCE';
@@ -21,6 +26,7 @@ const WALLET_SESSION_READY_EVENT =
 type LanguageUsageSource =
   | 'browser_auto'
   | 'local_storage'
+  | 'query_param'
   | 'wallet_preference'
   | 'manual_selection';
 
@@ -28,6 +34,29 @@ type PreferenceResponse = {
   language?: unknown;
   error?: string;
 };
+
+function safeReadStoredLanguage(): string | null {
+  try {
+    return window.localStorage.getItem(
+      LANGUAGE_STORAGE_KEY,
+    );
+  } catch {
+    return null;
+  }
+}
+
+function safeWriteStoredLanguage(
+  language: SupportedLocale,
+) {
+  try {
+    window.localStorage.setItem(
+      LANGUAGE_STORAGE_KEY,
+      language,
+    );
+  } catch {
+    // Language state must remain usable in restricted WebViews.
+  }
+}
 
 async function postLanguageState({
   intent,
@@ -80,6 +109,7 @@ async function observeDisplayLanguage(
   source:
     | 'browser_auto'
     | 'local_storage'
+    | 'query_param'
     | 'wallet_preference',
 ): Promise<void> {
   await postLanguageState({
@@ -92,10 +122,7 @@ async function observeDisplayLanguage(
 function applyLanguage(
   language: SupportedLocale,
 ) {
-  window.localStorage.setItem(
-    LANGUAGE_STORAGE_KEY,
-    language,
-  );
+  safeWriteStoredLanguage(language);
   document.documentElement.lang = language;
   window.dispatchEvent(
     new CustomEvent(
@@ -120,12 +147,6 @@ export function WalletLanguagePreferenceSync() {
     let changedAfterMount = false;
     let serverReady = false;
     let syncStarted = false;
-
-    const isCurrentWalletAppReady = () =>
-      document.documentElement.dataset.veinviteAppReady === 'true' &&
-      document.documentElement.dataset.veinviteHomeStartupStatus === 'ready' &&
-      document.documentElement.dataset.veinviteHomeStartupWallet?.toLowerCase() ===
-        walletAddress;
 
     const handleLanguageChange = (
       event: Event,
@@ -156,8 +177,7 @@ export function WalletLanguagePreferenceSync() {
     const syncPreference = async () => {
       if (
         cancelled ||
-        syncStarted ||
-        !isCurrentWalletAppReady()
+        syncStarted
       ) {
         return;
       }
@@ -185,11 +205,36 @@ export function WalletLanguagePreferenceSync() {
 
         serverReady = true;
         const localLanguage =
-          window.localStorage.getItem(
-            LANGUAGE_STORAGE_KEY,
+          safeReadStoredLanguage();
+        const queryLanguage =
+          new URLSearchParams(
+            window.location.search,
+          ).get('lang');
+        const queryLocale =
+          localeFromLanguageTag(queryLanguage);
+        const pendingManualLanguage =
+          readPendingManualLanguage();
+        const documentLocale =
+          localeFromLanguageTag(
+            document.documentElement.lang,
           );
 
+        if (
+          pendingManualLanguage &&
+          documentLocale === pendingManualLanguage
+        ) {
+          await saveLanguage(
+            pendingManualLanguage,
+          );
+          clearPendingManualLanguage();
+          return;
+        }
+
         if (changedAfterMount) {
+          if (documentLocale) {
+            await saveLanguage(documentLocale);
+            return;
+          }
           if (isLocale(localLanguage)) {
             await saveLanguage(localLanguage);
           }
@@ -202,7 +247,7 @@ export function WalletLanguagePreferenceSync() {
             : null;
 
         if (serverLanguage) {
-          if (localLanguage !== serverLanguage) {
+          if (documentLocale !== serverLanguage) {
             applyingRemote = true;
             applyLanguage(serverLanguage);
             applyingRemote = false;
@@ -215,12 +260,19 @@ export function WalletLanguagePreferenceSync() {
           return;
         }
 
+        if (queryLocale) {
+          await observeDisplayLanguage(
+            queryLocale,
+            'query_param',
+          );
+          return;
+        }
+
         if (isLocale(localLanguage)) {
           // localStorage belongs to this browser, not to a wallet identity.
           // It may have been left by another wallet on a shared device, so
           // record only what this wallet is currently seeing. A wallet-level
-          // preference is created only after an explicit language change while
-          // that wallet has an authenticated session.
+          // preference is created only after an explicit language choice.
           await observeDisplayLanguage(
             localLanguage,
             'local_storage',
@@ -267,9 +319,9 @@ export function WalletLanguagePreferenceSync() {
       handleWalletSessionReady,
     );
 
-    if (isCurrentWalletAppReady()) {
-      void syncPreference();
-    }
+    // Try immediately on every route. If the authenticated wallet session is
+    // not ready yet, the request fails safely and WALLET_SESSION_READY retries.
+    void syncPreference();
 
     return () => {
       cancelled = true;
