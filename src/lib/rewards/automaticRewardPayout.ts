@@ -666,21 +666,121 @@ function rebuildManifest(
   return manifest;
 }
 
+async function readOutstandingRewardLiability(
+  network: VeBetterNetwork,
+  appId: string,
+): Promise<string> {
+  const { data, error } = await supabaseAdmin.rpc(
+    'read_outstanding_reward_liability',
+    {
+      p_network: network,
+      p_app_id: appId,
+    },
+  );
+
+  if (error) {
+    throw new Error(
+      `Outstanding reward liability could not be loaded: ${error.message}`,
+    );
+  }
+
+  const normalized = String(data ?? '');
+
+  if (!/^\d+$/.test(normalized)) {
+    throw new Error(
+      'Outstanding reward liability returned malformed data.',
+    );
+  }
+
+  return BigInt(normalized).toString();
+}
+
 async function signAndJournalTransaction({
   manifest,
   manifestId,
   distributorAddress,
   privateKeyHex,
-  poolBalanceWei,
+  network,
+  appId,
 }: {
   manifest: PayoutManifest;
   manifestId: string;
   distributorAddress: string;
   privateKeyHex: string;
-  poolBalanceWei: string;
+  network: VeBetterNetwork;
+  appId: string;
 }) {
+  // Reservation funding and payout safety are checked again immediately before
+  // any private key material is used. This closes the gap where the live pool,
+  // emergency switch, or distributor registration changes after the round was
+  // prepared but before its immutable transaction is signed.
+  const [
+    freshPool,
+    freshRuntime,
+    outstandingLiabilityWei,
+  ] = await Promise.all([
+    readVeInviteRewardPoolStatus(),
+    readRewardRuntimeSafety(),
+    readOutstandingRewardLiability(network, appId),
+  ]);
+
   if (
-    BigInt(poolBalanceWei) <
+    freshPool.appId.toLowerCase() !== appId.toLowerCase()
+  ) {
+    throw new Error(
+      'Fresh reward pool status resolved a different VeInvite app.',
+    );
+  }
+
+  if (
+    network === 'mainnet' &&
+    !freshRuntime.mainnetFundedRewardsEnabled
+  ) {
+    throw new Error(
+      'Mainnet funded rewards were disabled before automatic payout signing.',
+    );
+  }
+
+  if (
+    freshRuntime.emergencyRewardsPaused ||
+    freshPool.distributionPaused
+  ) {
+    throw new Error(
+      'Reward distribution was paused before automatic payout signing.',
+    );
+  }
+
+  if (distributorAddress === freshPool.appAdmin) {
+    throw new Error(
+      'Automatic Reward Distributor became the VeInvite app admin before signing.',
+    );
+  }
+
+  if (
+    !freshPool.rewardDistributors.includes(
+      distributorAddress,
+    )
+  ) {
+    throw new Error(
+      'Automatic Reward Distributor is no longer registered before signing.',
+    );
+  }
+
+  const freshPoolBalanceWei = BigInt(
+    freshPool.effectiveRewardPoolWei,
+  );
+  const outstandingLiability = BigInt(
+    outstandingLiabilityWei,
+  );
+
+  if (freshPoolBalanceWei < outstandingLiability) {
+    throw new Error(
+      'Current reward pool balance no longer covers all outstanding reserved rewards.',
+    );
+  }
+
+  if (
+    freshPoolBalanceWei <
     BigInt(manifest.totalAmountWei)
   ) {
     throw new Error(
@@ -1338,8 +1438,8 @@ Promise<AutomaticRewardPayoutResult> {
       manifestId,
       distributorAddress,
       privateKeyHex: identity.privateKeyHex,
-      poolBalanceWei:
-        pool.effectiveRewardPoolWei,
+      network,
+      appId: pool.appId,
     });
 
     const transferred =
