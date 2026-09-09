@@ -1,5 +1,7 @@
-const PRODUCTION_PROJECT_ID = 'prj_oKzqLd8w8sRelUmH0Dkbu0GpFGEJ';
-const QA_PROJECT_ID = 'prj_Ovth8dV6JeI5Ta8tbnnuo7MheFkV';
+import { pathToFileURL } from 'node:url';
+
+export const PRODUCTION_PROJECT_ID = 'prj_oKzqLd8w8sRelUmH0Dkbu0GpFGEJ';
+export const QA_PROJECT_ID = 'prj_Ovth8dV6JeI5Ta8tbnnuo7MheFkV';
 
 export function shouldBuildVercelProject(projectId, branch) {
   if (projectId === PRODUCTION_PROJECT_ID) {
@@ -15,10 +17,16 @@ export function shouldBuildVercelProject(projectId, branch) {
   return false;
 }
 
-const shouldBuild = shouldBuildVercelProject(
-  process.env.VERCEL_PROJECT_ID ?? '',
-  process.env.VERCEL_GIT_COMMIT_REF ?? '',
-);
+const isDirectExecution =
+  typeof process.argv[1] === 'string' &&
+  pathToFileURL(process.argv[1]).href === import.meta.url;
 
-// Vercel Ignored Build Step semantics: exit 0 = ignore, exit 1 = build.
-process.exit(shouldBuild ? 1 : 0);
+if (isDirectExecution) {
+  const shouldBuild = shouldBuildVercelProject(
+    process.env.VERCEL_PROJECT_ID ?? '',
+    process.env.VERCEL_GIT_COMMIT_REF ?? '',
+  );
+
+  // Vercel Ignored Build Step semantics: exit 0 = ignore, exit 1 = build.
+  process.exit(shouldBuild ? 1 : 0);
+}
