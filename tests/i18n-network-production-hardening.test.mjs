@@ -2,8 +2,9 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import test from 'node:test';
 
-const [route, network, controls, migration, rollout] = await Promise.all([
+const [route, runtime, network, controls, migration, rollout] = await Promise.all([
   readFile(new URL('../src/app/api/network/route.ts', import.meta.url), 'utf8'),
+  readFile(new URL('../src/lib/networkRuntimeServer.ts', import.meta.url), 'utf8'),
   readFile(new URL('../src/components/AppNetwork.tsx', import.meta.url), 'utf8'),
   readFile(new URL('../src/lib/i18n/networkCanvasControlCopy.ts', import.meta.url), 'utf8'),
   readFile(new URL('../supabase/migrations/20260909040000_harden_network_runtime_and_round_context.sql', import.meta.url), 'utf8'),
@@ -31,8 +32,9 @@ test('Network runtime switch fails closed before chain and recursive graph work'
   assert.match(migration, /to service_role/i);
   assert.match(rollout, /update public\.network_runtime_config/i);
   assert.match(rollout, /enabled\s*=\s*false/i);
-  assert.match(route, /async function networkRuntimeEnabled/i);
-  const switchCheck = route.indexOf('if (!(await networkRuntimeEnabled()))');
+  assert.match(runtime, /export async function canUseNetworkSurface/i);
+  assert.match(runtime, /return false/i);
+  const switchCheck = route.indexOf("if (!(await canUseNetworkSurface('my', rootWallet)))");
   const roundRead = route.indexOf('const round = await readCurrentRoundContext();');
   const graphRead = route.indexOf(".rpc(\n        'read_referral_network_focus_v2'");
   assert.ok(switchCheck >= 0);

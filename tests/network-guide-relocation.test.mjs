@@ -11,6 +11,8 @@ const [
   softFocusMotion,
   networkPage,
   interactiveNetwork,
+  networkHub,
+  publicExplorer,
   networkCopy,
   leaderboard,
   home,
@@ -23,6 +25,8 @@ const [
   readFile(new URL('../src/components/SoftFocusMotion.ts', import.meta.url), 'utf8'),
   readFile(new URL('../src/components/AppNetworkComingSoon.tsx', import.meta.url), 'utf8'),
   readFile(new URL('../src/components/AppNetwork.tsx', import.meta.url), 'utf8'),
+  readFile(new URL('../src/components/AppNetworkHub.tsx', import.meta.url), 'utf8'),
+  readFile(new URL('../src/components/PublicNetworkExplorer.tsx', import.meta.url), 'utf8'),
   readFile(new URL('../src/lib/i18n/networkCopy.ts', import.meta.url), 'utf8'),
   readFile(new URL('../src/components/InviterLeaderboard.tsx', import.meta.url), 'utf8'),
   readFile(new URL('../src/components/HomeClient.tsx', import.meta.url), 'utf8'),
@@ -36,10 +40,10 @@ test('Network replaces Guide only at the user-facing navigation layer', () => {
   assert.match(navigation, /activeTab === 'home'/i);
 });
 
-test('the legacy Guide tab renders the live Network canvas by default while retaining a build-time fallback', () => {
-  assert.match(guide, /import \{ AppNetwork \} from '\.\/AppNetwork'/i);
+test('the legacy Guide tab renders the hardened Network hub by default while retaining a build-time fallback', () => {
+  assert.match(guide, /import \{ AppNetworkHub \} from '\.\/AppNetworkHub'/i);
   assert.match(guide, /NEXT_PUBLIC_NETWORK_CANVAS_ENABLED/i);
-  assert.match(guide, /<AppNetwork locale=\{locale\} \/>/i);
+  assert.match(guide, /<AppNetworkHub locale=\{locale\} \/>/i);
   assert.match(guide, /<AppNetworkComingSoon locale=\{locale\} \/>/i);
   assert.match(guide, /export function InviteGuideContent/i);
   assert.doesNotMatch(guide, /className="countCard"/i);
@@ -49,6 +53,11 @@ test('the legacy Guide tab renders the live Network canvas by default while reta
   assert.match(interactiveNetwork, /NETWORK_EXPERIENCE_COPY/i);
   assert.match(interactiveNetwork, /className="networkStage"/i);
   assert.match(interactiveNetwork, /activePath/i);
+  assert.match(networkHub, /<AppNetwork locale=\{locale\} \/>/i);
+  assert.match(networkHub, /<PublicNetworkExplorer/i);
+  assert.match(publicExplorer, /PUBLIC_SESSION_PREFIX/i);
+  assert.match(publicExplorer, /requestSerialRef/i);
+  assert.match(publicExplorer, /cancelNavigation/i);
 });
 
 test('Home exposes the invitation guide contextually without modifying the new progress and reward-claim Home implementation', () => {
@@ -61,7 +70,6 @@ test('Home exposes the invitation guide contextually without modifying the new p
   assert.match(guidePortal, /<InviteGuideContent locale=\{locale\} \/>/i);
   assert.match(guidePortal, /aria-modal="true"/i);
 
-  // The latest referral progress/claim behavior must remain present in HomeClient.
   assert.match(home, /PROGRESS_CLAIM_COPY/i);
   assert.match(home, /rewardQueueStatus !== 'AWAITING_CLAIM'/i);
   assert.match(home, /slotReleasedAt/i);
