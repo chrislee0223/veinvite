@@ -293,8 +293,14 @@ export function WalletLanguagePreferenceSync() {
           return;
         }
 
+        const browserLanguage =
+          resolveBrowserLocale(
+            window.navigator.languages,
+            'en',
+          );
+
         await observeDisplayLanguage(
-          observedLanguage,
+          browserLanguage,
           'browser_auto',
         );
       } catch (error) {
