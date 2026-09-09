@@ -6,7 +6,7 @@ import { InfiniteNetworkCanvasV29Preview } from '@/components/InfiniteNetworkCan
 export const dynamic = 'force-dynamic';
 
 export const metadata: Metadata = {
-  title: 'VeInvite Infinite Network v2.9 Preview',
+  title: 'VeInvite Infinite Network v2.9 Neutral Profile Preview',
   robots: {
     index: false,
     follow: false,
