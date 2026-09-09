@@ -4,6 +4,8 @@ import { useEffect } from 'react';
 import { useWallet } from '@vechain/vechain-kit';
 
 const APP_READY_EVENT = 'veinvite-app-ready';
+const WALLET_SESSION_READY_EVENT =
+  'veinvite-wallet-session-ready';
 
 async function recordCountry(): Promise<void> {
   const response = await fetch(
@@ -37,30 +39,37 @@ export function WalletCountryObservationSync() {
     if (!walletAddress) return;
 
     let cancelled = false;
-    let syncStarted = false;
-
-    const isCurrentWalletAppReady = () =>
-      document.documentElement.dataset.veinviteAppReady === 'true' &&
-      document.documentElement.dataset.veinviteHomeStartupStatus === 'ready' &&
-      document.documentElement.dataset.veinviteHomeStartupWallet?.toLowerCase() ===
-        walletAddress;
+    let syncInFlight = false;
+    let synced = false;
 
     const syncCountry = async () => {
-      if (cancelled || syncStarted || !isCurrentWalletAppReady()) return;
-      syncStarted = true;
+      if (
+        cancelled ||
+        syncInFlight ||
+        synced
+      ) {
+        return;
+      }
+
+      syncInFlight = true;
 
       try {
         await recordCountry();
+        synced = true;
       } catch (error) {
-        syncStarted = false;
         console.warn(
           'Failed to record VeInvite wallet country observation:',
           error,
         );
+      } finally {
+        syncInFlight = false;
       }
     };
 
     const handleAppReady = () => {
+      void syncCountry();
+    };
+    const handleWalletSessionReady = () => {
       void syncCountry();
     };
 
@@ -68,16 +77,24 @@ export function WalletCountryObservationSync() {
       APP_READY_EVENT,
       handleAppReady,
     );
+    window.addEventListener(
+      WALLET_SESSION_READY_EVENT,
+      handleWalletSessionReady,
+    );
 
-    if (isCurrentWalletAppReady()) {
-      void syncCountry();
-    }
+    // Attempt on every route. If wallet authentication is still bootstrapping,
+    // WALLET_SESSION_READY retries after ownership verification succeeds.
+    void syncCountry();
 
     return () => {
       cancelled = true;
       window.removeEventListener(
         APP_READY_EVENT,
         handleAppReady,
+      );
+      window.removeEventListener(
+        WALLET_SESSION_READY_EVENT,
+        handleWalletSessionReady,
       );
     };
   }, [walletAddress]);
