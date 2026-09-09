@@ -10,6 +10,7 @@ const [
   infoIcon,
   softFocusMotion,
   networkPage,
+  interactiveNetwork,
   networkCopy,
   leaderboard,
   home,
@@ -21,6 +22,7 @@ const [
   readFile(new URL('../src/components/InfoCircleIcon.tsx', import.meta.url), 'utf8'),
   readFile(new URL('../src/components/SoftFocusMotion.ts', import.meta.url), 'utf8'),
   readFile(new URL('../src/components/AppNetworkComingSoon.tsx', import.meta.url), 'utf8'),
+  readFile(new URL('../src/components/AppNetwork.tsx', import.meta.url), 'utf8'),
   readFile(new URL('../src/lib/i18n/networkCopy.ts', import.meta.url), 'utf8'),
   readFile(new URL('../src/components/InviterLeaderboard.tsx', import.meta.url), 'utf8'),
   readFile(new URL('../src/components/HomeClient.tsx', import.meta.url), 'utf8'),
@@ -34,13 +36,19 @@ test('Network replaces Guide only at the user-facing navigation layer', () => {
   assert.match(navigation, /activeTab === 'home'/i);
 });
 
-test('the legacy Guide tab renders only the Network placeholder while guide content stays reusable', () => {
-  assert.match(guide, /return <AppNetworkComingSoon locale=\{locale\} \/>/i);
+test('the legacy Guide tab renders the live Network canvas by default while retaining a build-time fallback', () => {
+  assert.match(guide, /import \{ AppNetwork \} from '\.\/AppNetwork'/i);
+  assert.match(guide, /NEXT_PUBLIC_NETWORK_CANVAS_ENABLED/i);
+  assert.match(guide, /<AppNetwork locale=\{locale\} \/>/i);
+  assert.match(guide, /<AppNetworkComingSoon locale=\{locale\} \/>/i);
   assert.match(guide, /export function InviteGuideContent/i);
   assert.doesNotMatch(guide, /className="countCard"/i);
   assert.doesNotMatch(guide, /flow\.countDescription/i);
   assert.match(networkPage, /NETWORK_COPY/i);
   assert.match(networkPage, /className="networkCard"/i);
+  assert.match(interactiveNetwork, /NETWORK_EXPERIENCE_COPY/i);
+  assert.match(interactiveNetwork, /className="networkStage"/i);
+  assert.match(interactiveNetwork, /activePath/i);
 });
 
 test('Home exposes the invitation guide contextually without modifying the new progress and reward-claim Home implementation', () => {
@@ -124,7 +132,7 @@ test('Home and Leaderboard dialogs keep close controls in identical non-scrollin
 
 test('Network placeholder copy covers every supported locale', () => {
   const expectedLocales = [
-    'en','ko','zh','hi','es','ja','it','tr','nl','de','fr','ar','bn','pt','ru','id','vi','zh-tw','sv','ro','ur','pcm','arz','mr','te','sw','ha',
+    'en','ko','zh','hi','es','ja','it','tr','nl','de','fr','ar','bn','pt','ru','id','vi','zh-tw','sv','ro','ur','pcm','arz','mr','te','sw','ha','el',
   ];
 
   for (const locale of expectedLocales) {
