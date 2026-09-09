@@ -12,11 +12,17 @@ import {
 import { NAV_COPY } from '@/lib/i18n/navCopy';
 import { NETWORK_COPY } from '@/lib/i18n/networkCopy';
 import type { Locale, SupportedLocale } from '@/lib/i18n/locales';
+import type { PublicLeaderboardResponse } from '@/lib/types';
 import {
   getCachedPublicLeaderboard,
   prefetchPublicLeaderboard,
 } from '@/lib/leaderboardClientCache';
+import {
+  getCachedNetworkSummary,
+  prefetchNetworkSummary,
+} from '@/lib/networkSummaryClientCache';
 import { HomeGuideInfoPortal } from './HomeGuideInfoPortal';
+import { LeaderboardAvatarWarmup } from './LeaderboardAvatarWarmup';
 import { LeaderboardImpactInfoPortal } from './LeaderboardImpactInfoPortal';
 import { useActiveWallet } from './WalletControl';
 
@@ -26,7 +32,7 @@ import { useActiveWallet } from './WalletControl';
 export type AppTab = 'home' | 'guide' | 'leaderboard' | 'settings';
 
 const TABS: AppTab[] = ['home', 'guide', 'leaderboard', 'settings'];
-const IDLE_LAZY_TABS: AppTab[] = ['guide', 'settings'];
+const IDLE_LAZY_TABS: AppTab[] = ['settings'];
 const TAB_CONTENT_SELECTORS: Record<AppTab, string> = {
   home: '.missionCard',
   guide: '.networkCard',
@@ -93,12 +99,30 @@ export function AppBottomNavigation({
   });
   const indicatorInitializedRef = useRef(false);
   const [visualTab, setVisualTab] = useState<AppTab>(activeTab);
+  const [leaderboardAvatarAddresses, setLeaderboardAvatarAddresses] =
+    useState<string[]>(() => wallet ? [wallet] : []);
   const visualTabRef = useRef<AppTab>(activeTab);
 
   const setVisualTarget = useCallback((tab: AppTab) => {
     visualTabRef.current = tab;
     setVisualTab(tab);
   }, []);
+
+  const rememberLeaderboardAvatarTargets = useCallback((
+    data: PublicLeaderboardResponse,
+  ) => {
+    const addresses = data.leaders
+      .slice(0, 5)
+      .map((entry) => entry.walletAddress.toLowerCase());
+    if (wallet) addresses.push(wallet.toLowerCase());
+    setLeaderboardAvatarAddresses(Array.from(new Set(addresses)).slice(0, 6));
+  }, [wallet]);
+
+  const warmLeaderboard = useCallback(async () => {
+    const data = await prefetchPublicLeaderboard(null);
+    rememberLeaderboardAvatarTargets(data);
+    return data;
+  }, [rememberLeaderboardAvatarTargets]);
 
   const positionIndicator = useCallback((tab: AppTab, animate: boolean) => {
     const track = navigationTrackRef.current;
@@ -167,12 +191,15 @@ export function AppBottomNavigation({
     const onAppReady = () => {
       if (cancelled) return;
 
-      // Leaderboard is the only secondary tab users commonly open immediately
-      // after a hard refresh. Home is already fully released at this point, so
-      // warm both its code chunk and anonymous public data now. Network and
-      // Settings remain idle work and cannot compete with critical Home startup.
+      // Home is fully released before any of this begins. Warm the two secondary
+      // surfaces users commonly open immediately, but keep their data work
+      // independent from the critical Home startup path.
       void preloadTabModule('leaderboard').catch(() => undefined);
-      void prefetchPublicLeaderboard(null).catch(() => undefined);
+      void preloadTabModule('guide').catch(() => undefined);
+      void warmLeaderboard().catch(() => undefined);
+      if (wallet) {
+        void prefetchNetworkSummary(wallet).catch(() => undefined);
+      }
       scheduleModulePrefetch();
     };
 
@@ -196,12 +223,12 @@ export function AppBottomNavigation({
         idleWindow.cancelIdleCallback(idleId);
       }
     };
-  }, []);
+  }, [wallet, warmLeaderboard]);
 
   useEffect(() => {
-    // A wallet change invalidates any leaderboard personalization request that
-    // was started for the previous wallet. Active-tab changes also close the
-    // same race for rapid navigation so late promises can never commit stale work.
+    // A wallet change invalidates any personalization or Network readiness work
+    // that was started for the previous wallet. Active-tab changes also close
+    // the same race for rapid navigation so late promises cannot commit tabs.
     navigationRequestRef.current += 1;
     pendingMotionTabRef.current = null;
     setVisualTarget(activeTab);
@@ -282,21 +309,37 @@ export function AppBottomNavigation({
   const warmTab = (tab: AppTab) => {
     void preloadTabModule(tab).catch(() => undefined);
     if (tab === 'leaderboard') {
-      void prefetchPublicLeaderboard(null).catch(() => undefined);
+      void warmLeaderboard().catch(() => undefined);
+    } else if (tab === 'guide' && wallet) {
+      void prefetchNetworkSummary(wallet).catch(() => undefined);
     }
   };
 
   const prepareTabForNavigation = (tab: AppTab): Promise<void> => {
     const moduleReady = preloadTabModule(tab).then(() => undefined);
+
+    if (tab === 'guide' && wallet) {
+      const cachedNetworkSummary = getCachedNetworkSummary(wallet);
+      if (cachedNetworkSummary) {
+        void prefetchNetworkSummary(wallet, { force: true }).catch(() => undefined);
+        return moduleReady;
+      }
+      return Promise.all([
+        moduleReady,
+        prefetchNetworkSummary(wallet),
+      ]).then(() => undefined);
+    }
+
     if (tab !== 'leaderboard') {
       return moduleReady;
     }
 
     const cachedPublicLeaderboard = getCachedPublicLeaderboard(null);
     if (cachedPublicLeaderboard) {
+      rememberLeaderboardAvatarTargets(cachedPublicLeaderboard);
       // A session seed is already sufficient for the first useful paint. Keep
       // it visible and revalidate silently instead of making the tap wait.
-      void prefetchPublicLeaderboard(null).catch(() => undefined);
+      void warmLeaderboard().catch(() => undefined);
       return moduleReady;
     }
 
@@ -304,7 +347,7 @@ export function AppBottomNavigation({
     // public ranking, never the current wallet's private personalization.
     return Promise.all([
       moduleReady,
-      prefetchPublicLeaderboard(null),
+      warmLeaderboard(),
     ]).then(() => undefined);
   };
 
@@ -352,14 +395,15 @@ export function AppBottomNavigation({
 
     void prepareTabForNavigation(tab)
       .then(() => commitTab(tab, requestId))
-      // Keep navigation fail-open. If the public leaderboard endpoint itself is
-      // down, its existing inline error/retry surface remains reachable instead
-      // of trapping the user on the previous tab forever.
+      // Keep navigation fail-open. If a readiness endpoint itself is down, the
+      // destination's existing error/retry surface remains reachable instead of
+      // trapping the user on the previous tab forever.
       .catch(() => commitTab(tab, requestId));
   };
 
   return (
     <>
+      <LeaderboardAvatarWarmup addresses={leaderboardAvatarAddresses} />
       {activeTab === 'home' ? (
         <HomeGuideInfoPortal locale={locale} />
       ) : null}

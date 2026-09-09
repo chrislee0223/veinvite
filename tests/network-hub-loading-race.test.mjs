@@ -19,6 +19,26 @@ test('Network hub tracks the active wallet across asynchronous loading work', ()
   );
 });
 
+test('summary seed is reused immediately and refreshed without returning to the visible loading card', () => {
+  assert.match(hub, /getCachedNetworkSummary\(wallet\)/);
+  assert.match(
+    hub,
+    /const \[probeState, setProbeState\][\s\S]*initialProbe \? 'ready' : 'idle'/,
+  );
+  assert.match(
+    hub,
+    /const cached = getCachedNetworkSummary\(wallet\);[\s\S]*setProbe\(cached\);[\s\S]*setProbeState\('ready'\);/,
+  );
+  assert.match(
+    hub,
+    /probeState === 'loading' \|\| probeState === 'idle'[\s\S]*networkHubPending/,
+  );
+  assert.doesNotMatch(
+    hub,
+    /probeState === 'loading' \|\| probeState === 'idle'[\s\S]{0,220}<StateCard title=\{t\.title\} description=\{t\.directNetwork\}/,
+  );
+});
+
 test('summary retry cannot commit a response for a wallet that is no longer active', () => {
   assert.match(
     hub,
@@ -26,7 +46,18 @@ test('summary retry cannot commit a response for a wallet that is no longer acti
   );
   assert.match(
     hub,
-    /catch \(error\) \{[\s\S]*!sameWallet\(activeWalletRef\.current, requestWallet\)[\s\S]*setProbeState/,
+    /rememberNetworkSummary\(requestWallet, data\);[\s\S]*setProbe\(data\);[\s\S]*setProbeState\('ready'\)/,
+  );
+  assert.match(
+    hub,
+    /catch \(error\) \{[\s\S]*!sameWallet\(activeWalletRef\.current, requestWallet\)[\s\S]*NETWORK_DISABLED/,
+  );
+});
+
+test('a transient refresh failure preserves a valid cached Network summary', () => {
+  assert.match(
+    hub,
+    /if \(cachedBefore\) \{\s*setProbe\(cachedBefore\);\s*setProbeState\('ready'\);\s*return;\s*\}/,
   );
 });
 
