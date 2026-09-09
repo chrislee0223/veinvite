@@ -24,13 +24,22 @@ import { getVeBetterNetworkConfig } from '@/lib/vebetter/network';
 export const dynamic = 'force-dynamic';
 
 const CACHE_CONTROL = 'public, s-maxage=300, stale-while-revalidate=3600';
+const FORCE_CACHE_CONTROL = 'private, no-store, max-age=0';
 const FORECAST_REFRESH_WINDOW_SECONDS = 60 * 60;
 
 type EstimateReason =
   | 'awaiting_first_allocation'
   | 'insufficient_reward_data';
 
-function pendingResponse(reason: EstimateReason) {
+type FundingCheckResult =
+  | 'changed'
+  | 'unchanged'
+  | 'unavailable';
+
+function pendingResponse(
+  reason: EstimateReason,
+  cacheControl = CACHE_CONTROL,
+) {
   return NextResponse.json(
     {
       generatedAt: new Date().toISOString(),
@@ -52,13 +61,17 @@ function pendingResponse(reason: EstimateReason) {
     },
     {
       headers: {
-        'Cache-Control': CACHE_CONTROL,
+        'Cache-Control': cacheControl,
       },
     },
   );
 }
 
-function readyResponse(snapshot: RewardForecastSnapshot, stale: boolean) {
+function readyResponse(
+  snapshot: RewardForecastSnapshot,
+  stale: boolean,
+  cacheControl = CACHE_CONTROL,
+) {
   return NextResponse.json(
     {
       generatedAt: snapshot.generatedAt,
@@ -80,7 +93,7 @@ function readyResponse(snapshot: RewardForecastSnapshot, stale: boolean) {
     },
     {
       headers: {
-        'Cache-Control': CACHE_CONTROL,
+        'Cache-Control': cacheControl,
       },
     },
   );
@@ -104,27 +117,34 @@ async function bestEffortAllocationSync() {
   }
 }
 
-async function hasLiveFundingChanged(
+async function checkLiveFunding(
   snapshot: RewardForecastSnapshot,
   network: string,
-): Promise<boolean> {
+): Promise<FundingCheckResult> {
   try {
     const pool = await readVeInviteRewardPoolStatus();
     if (pool.network !== network || pool.appId !== VEINVITE_APP_ID) {
       throw new Error('Reward forecast live pool identity does not match the current app.');
     }
 
-    return pool.effectiveRewardPoolWei !== snapshot.observedPoolBalanceWei;
+    return pool.effectiveRewardPoolWei !== snapshot.observedPoolBalanceWei
+      ? 'changed'
+      : 'unchanged';
   } catch (error) {
-    // A transient node read must not make an otherwise valid public estimate
-    // unavailable. The normal hourly refresh remains the fallback path.
+    // A transient node read must never blank a previously valid public
+    // estimate. Explicit refresh callers receive the last value as stale and
+    // can retry later while the normal snapshot path remains cheap.
     console.warn('Reward forecast live funding check failed:', error);
-    return false;
+    return 'unavailable';
   }
 }
 
-export async function GET(_request: NextRequest) {
+export async function GET(request: NextRequest) {
   const { network } = getVeBetterNetworkConfig();
+  const refreshRequested = request.nextUrl.searchParams.has('refresh');
+  const responseCacheControl = refreshRequested
+    ? FORCE_CACHE_CONTROL
+    : CACHE_CONTROL;
   let previousSnapshot: RewardForecastSnapshot | null = null;
 
   try {
@@ -133,12 +153,50 @@ export async function GET(_request: NextRequest) {
       appId: VEINVITE_APP_ID,
     });
 
-    const fundingChanged = previousSnapshot
-      ? await hasLiveFundingChanged(previousSnapshot, network)
-      : false;
+    // Normal Home reads should never wait on VeChain RPC when a compatible,
+    // fresh server snapshot already exists. Live pool verification is reserved
+    // for the client's explicit background refresh path.
+    if (
+      previousSnapshot &&
+      isFresh(previousSnapshot) &&
+      !refreshRequested
+    ) {
+      return readyResponse(
+        previousSnapshot,
+        false,
+        responseCacheControl,
+      );
+    }
 
-    if (previousSnapshot && isFresh(previousSnapshot) && !fundingChanged) {
-      return readyResponse(previousSnapshot, false);
+    const fundingCheck =
+      refreshRequested && previousSnapshot
+        ? await checkLiveFunding(previousSnapshot, network)
+        : 'unchanged';
+    const fundingChanged = fundingCheck === 'changed';
+
+    if (
+      refreshRequested &&
+      previousSnapshot &&
+      isFresh(previousSnapshot) &&
+      fundingCheck === 'unavailable'
+    ) {
+      return readyResponse(
+        previousSnapshot,
+        true,
+        responseCacheControl,
+      );
+    }
+
+    if (
+      previousSnapshot &&
+      isFresh(previousSnapshot) &&
+      !fundingChanged
+    ) {
+      return readyResponse(
+        previousSnapshot,
+        false,
+        responseCacheControl,
+      );
     }
 
     const limited = await enforceRateLimits([
@@ -169,7 +227,11 @@ export async function GET(_request: NextRequest) {
         });
 
         if (refreshed) {
-          return readyResponse(refreshed, false);
+          return readyResponse(
+            refreshed,
+            false,
+            responseCacheControl,
+          );
         }
       } catch (refreshError) {
         if (!previousSnapshot) throw refreshError;
@@ -178,15 +240,26 @@ export async function GET(_request: NextRequest) {
     }
 
     if (previousSnapshot) {
-      return readyResponse(previousSnapshot, true);
+      return readyResponse(
+        previousSnapshot,
+        true,
+        responseCacheControl,
+      );
     }
 
-    return pendingResponse('awaiting_first_allocation');
+    return pendingResponse(
+      'awaiting_first_allocation',
+      responseCacheControl,
+    );
   } catch (error) {
     console.error('Public reward forecast request failed:', error);
 
     if (previousSnapshot) {
-      return readyResponse(previousSnapshot, true);
+      return readyResponse(
+        previousSnapshot,
+        true,
+        responseCacheControl,
+      );
     }
 
     return NextResponse.json(
