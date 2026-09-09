@@ -14,6 +14,15 @@ type NetworkRpcError =
   | 'FOCUS_NOT_IN_NETWORK'
   | 'NETWORK_DISABLED';
 
+type NetworkApiErrorCode =
+  | 'WALLET_REQUIRED'
+  | 'INVALID_WALLET'
+  | 'INVALID_FOCUS_WALLET'
+  | 'NETWORK_DISABLED'
+  | 'FOCUS_NOT_IN_NETWORK'
+  | 'NETWORK_TIMEOUT'
+  | 'NETWORK_LOAD_FAILED';
+
 type NetworkMemberStatus = 'IN_PROGRESS' | 'QUALIFIED' | 'REWARDED';
 
 type NetworkChild = {
@@ -65,6 +74,8 @@ type CurrentRoundContext = {
 
 const ROUND_CACHE_MS = 60_000;
 const ROUND_FAILURE_CACHE_MS = 10_000;
+const ROUND_RESOLVE_TIMEOUT_MS = 2_500;
+const NETWORK_RPC_TIMEOUT_MS = 5_000;
 let roundCache: {
   value: CurrentRoundContext | null;
   expiresAt: number;
@@ -79,6 +90,17 @@ function walletAuthResponse(error: unknown): NextResponse | null {
       status: error.status,
       headers: { 'Cache-Control': 'no-store' },
     },
+  );
+}
+
+function networkError(
+  code: NetworkApiErrorCode,
+  message: string,
+  status: number,
+): NextResponse {
+  return NextResponse.json(
+    { code, error: message },
+    { status, headers: { 'Cache-Control': 'no-store' } },
   );
 }
 
@@ -100,6 +122,29 @@ function normalizeSearch(value: string | null): string {
     .slice(0, 42);
 }
 
+function withTimeout<T>(
+  promise: Promise<T>,
+  timeoutMs: number,
+  label: string,
+): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const timer = setTimeout(() => {
+      reject(new Error(`${label} timed out after ${timeoutMs}ms.`));
+    }, timeoutMs);
+
+    promise.then(
+      (value) => {
+        clearTimeout(timer);
+        resolve(value);
+      },
+      (error) => {
+        clearTimeout(timer);
+        reject(error);
+      },
+    );
+  });
+}
+
 async function readCurrentRoundContext(): Promise<CurrentRoundContext | null> {
   const now = Date.now();
   if (roundCache && roundCache.expiresAt > now) {
@@ -107,7 +152,11 @@ async function readCurrentRoundContext(): Promise<CurrentRoundContext | null> {
   }
   if (roundInFlight) return roundInFlight;
 
-  roundInFlight = readVeBetterRoundWindow()
+  roundInFlight = withTimeout(
+    readVeBetterRoundWindow(),
+    ROUND_RESOLVE_TIMEOUT_MS,
+    'Network current-round resolver',
+  )
     .then((round) => {
       const value = {
         id: round.roundId,
@@ -155,20 +204,14 @@ async function networkRuntimeEnabled(): Promise<boolean> {
 export async function GET(request: NextRequest) {
   const walletParam = request.nextUrl.searchParams.get('wallet');
   if (!walletParam) {
-    return NextResponse.json(
-      { error: 'wallet query parameter is required' },
-      { status: 400, headers: { 'Cache-Control': 'no-store' } },
-    );
+    return networkError('WALLET_REQUIRED', 'wallet query parameter is required', 400);
   }
 
   let rootWallet: string;
   try {
     rootWallet = normalizeAddress(walletParam);
   } catch {
-    return NextResponse.json(
-      { error: 'Invalid wallet address.' },
-      { status: 400, headers: { 'Cache-Control': 'no-store' } },
-    );
+    return networkError('INVALID_WALLET', 'Invalid wallet address.', 400);
   }
 
   try {
@@ -177,9 +220,10 @@ export async function GET(request: NextRequest) {
     const response = walletAuthResponse(error);
     if (response) return response;
     console.error('Failed to validate network wallet session:', error);
-    return NextResponse.json(
-      { error: 'Failed to validate wallet verification.' },
-      { status: 500, headers: { 'Cache-Control': 'no-store' } },
+    return networkError(
+      'NETWORK_LOAD_FAILED',
+      'Failed to validate wallet verification.',
+      500,
     );
   }
 
@@ -189,10 +233,7 @@ export async function GET(request: NextRequest) {
     : rootWallet;
 
   if (!focusWallet) {
-    return NextResponse.json(
-      { error: 'Invalid focus wallet address.' },
-      { status: 400, headers: { 'Cache-Control': 'no-store' } },
-    );
+    return networkError('INVALID_FOCUS_WALLET', 'Invalid focus wallet address.', 400);
   }
 
   const search = normalizeSearch(request.nextUrl.searchParams.get('q'));
@@ -210,51 +251,81 @@ export async function GET(request: NextRequest) {
   // Read the database-backed switch before any chain request or recursive graph
   // work. Missing/unreadable configuration also fails closed.
   if (!(await networkRuntimeEnabled())) {
-    return NextResponse.json(
-      { error: 'Network is temporarily unavailable.' },
-      { status: 503, headers: { 'Cache-Control': 'no-store' } },
+    return networkError(
+      'NETWORK_DISABLED',
+      'Network is temporarily unavailable.',
+      503,
     );
   }
 
   const round = await readCurrentRoundContext();
-  const { data, error } = await supabaseAdmin.rpc(
-    'read_referral_network_focus_v2',
-    {
-      p_root_wallet: rootWallet,
-      p_focus_wallet: focusWallet,
-      p_search: isSearch ? search : null,
-      p_round_id: round?.id ?? null,
-      p_round_start_at: round?.startAt ?? null,
-      p_round_end_at: round?.endAt ?? null,
-    },
+  const rpcController = new AbortController();
+  const rpcTimer = setTimeout(
+    () => rpcController.abort(),
+    NETWORK_RPC_TIMEOUT_MS,
   );
 
-  if (error) {
+  let rpcResult: Awaited<ReturnType<typeof supabaseAdmin.rpc>>;
+  try {
+    rpcResult = await supabaseAdmin
+      .rpc(
+        'read_referral_network_focus_v2',
+        {
+          p_root_wallet: rootWallet,
+          p_focus_wallet: focusWallet,
+          p_search: isSearch ? search : null,
+          p_round_id: round?.id ?? null,
+          p_round_start_at: round?.startAt ?? null,
+          p_round_end_at: round?.endAt ?? null,
+        },
+      )
+      .abortSignal(rpcController.signal);
+  } catch (error) {
+    if (rpcController.signal.aborted) {
+      console.warn('Network recursive read timed out.', { rootWallet });
+      return networkError(
+        'NETWORK_TIMEOUT',
+        'Network took too long to load.',
+        503,
+      );
+    }
     console.error('Failed to load referral network:', error);
-    return NextResponse.json(
-      { error: 'Failed to load network.' },
-      { status: 500, headers: { 'Cache-Control': 'no-store' } },
-    );
+    return networkError('NETWORK_LOAD_FAILED', 'Failed to load network.', 500);
+  } finally {
+    clearTimeout(rpcTimer);
+  }
+
+  const { data, error } = rpcResult;
+  if (error) {
+    if (rpcController.signal.aborted) {
+      console.warn('Network recursive read timed out.', { rootWallet });
+      return networkError(
+        'NETWORK_TIMEOUT',
+        'Network took too long to load.',
+        503,
+      );
+    }
+    console.error('Failed to load referral network:', error);
+    return networkError('NETWORK_LOAD_FAILED', 'Failed to load network.', 500);
   }
 
   const payload = (data ?? {}) as NetworkPayload;
   if (payload.error === 'NETWORK_DISABLED') {
-    return NextResponse.json(
-      { error: 'Network is temporarily unavailable.' },
-      { status: 503, headers: { 'Cache-Control': 'no-store' } },
+    return networkError(
+      'NETWORK_DISABLED',
+      'Network is temporarily unavailable.',
+      503,
     );
   }
   if (payload.error === 'FOCUS_NOT_IN_NETWORK') {
-    return NextResponse.json(
-      { error: 'That wallet is not in your VeInvite network.' },
-      { status: 404, headers: { 'Cache-Control': 'no-store' } },
+    return networkError(
+      'FOCUS_NOT_IN_NETWORK',
+      'That wallet is not in your VeInvite network.',
+      404,
     );
   }
   if (payload.error === 'INVALID_WALLET') {
-    return NextResponse.json(
-      { error: 'Invalid wallet address.' },
-      { status: 400, headers: { 'Cache-Control': 'no-store' } },
-    );
+    return networkError('INVALID_WALLET', 'Invalid wallet address.', 400);
   }
 
   return NextResponse.json(payload, {
