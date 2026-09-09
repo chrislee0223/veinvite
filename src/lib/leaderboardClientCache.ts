@@ -220,6 +220,6 @@ export async function loadPublicLeaderboard(
 
 export async function prefetchPublicLeaderboard(
   wallet: string | null,
-): Promise<void> {
-  await loadPublicLeaderboard(wallet).then(() => undefined);
+): Promise<PublicLeaderboardResponse> {
+  return loadPublicLeaderboard(wallet);
 }
