@@ -16,6 +16,7 @@ import {
   useVechainDomain,
 } from '@vechain/vechain-kit';
 
+import { NETWORK_CANVAS_CONTROL_COPY } from '@/lib/i18n/networkCanvasControlCopy';
 import { NETWORK_EXPERIENCE_COPY } from '@/lib/i18n/networkExperienceCopy';
 import type { Locale, SupportedLocale } from '@/lib/i18n/locales';
 import { useWalletLauncher } from './WalletControl';
@@ -32,7 +33,7 @@ type NetworkChild = {
   network: number;
   direct: number;
   qualified: number;
-  thisRound: number;
+  thisRound: number | null;
   depth: number;
 };
 
@@ -52,7 +53,7 @@ type NetworkData = {
     network: number;
     direct: number;
     qualified: number;
-    thisRound: number;
+    thisRound: number | null;
     depth: number;
   };
   round: {
@@ -313,6 +314,7 @@ const NetworkIdentity = memo(function NetworkIdentity({
             alt=""
             loading={root ? 'eager' : 'lazy'}
             decoding="async"
+            referrerPolicy="no-referrer"
             onLoad={() => setLoaded(true)}
             onError={() => setBroken(true)}
             style={{
@@ -520,6 +522,7 @@ function buildLayout({
 
 export function AppNetwork({ locale }: { locale: Locale }) {
   const t = NETWORK_EXPERIENCE_COPY[locale as SupportedLocale];
+  const c = NETWORK_CANVAS_CONTROL_COPY[locale as SupportedLocale];
   const {
     wallet,
     openWallet,
@@ -529,6 +532,7 @@ export function AppNetwork({ locale }: { locale: Locale }) {
   const stageRef = useRef<HTMLDivElement | null>(null);
   const cacheRef = useRef<Map<string, NetworkData>>(new Map());
   const requestSerialRef = useRef(0);
+  const branchRequestRef = useRef<AbortController | null>(null);
   const transitionTimerRef = useRef<number | null>(null);
   const freshTimerRef = useRef<number | null>(null);
   const saveTimerRef = useRef<number | null>(null);
@@ -566,6 +570,19 @@ export function AppNetwork({ locale }: { locale: Locale }) {
   const clearFreshSoon = useCallback(() => {
     if (freshTimerRef.current) window.clearTimeout(freshTimerRef.current);
     freshTimerRef.current = window.setTimeout(() => setFreshParent(null), FRESH_MS);
+  }, []);
+
+  const cancelBranchRequest = useCallback(() => {
+    requestSerialRef.current += 1;
+    branchRequestRef.current?.abort();
+    branchRequestRef.current = null;
+    setPendingWallet(null);
+    if (transitionTimerRef.current) {
+      window.clearTimeout(transitionTimerRef.current);
+      transitionTimerRef.current = null;
+      setCollapseAfterDepth(null);
+    }
+    return requestSerialRef.current;
   }, []);
 
   const hydrateSavedPath = useCallback(async (
@@ -641,7 +658,10 @@ export function AppNetwork({ locale }: { locale: Locale }) {
 
   useEffect(() => {
     requestSerialRef.current += 1;
+    branchRequestRef.current?.abort();
+    branchRequestRef.current = null;
     if (transitionTimerRef.current) window.clearTimeout(transitionTimerRef.current);
+    transitionTimerRef.current = null;
     cacheRef.current.clear();
     setCacheVersion((value) => value + 1);
     setActivePath([]);
@@ -726,6 +746,7 @@ export function AppNetwork({ locale }: { locale: Locale }) {
   }, [wallet, loadState, searchQuery]);
 
   useEffect(() => () => {
+    branchRequestRef.current?.abort();
     if (transitionTimerRef.current) window.clearTimeout(transitionTimerRef.current);
     if (freshTimerRef.current) window.clearTimeout(freshTimerRef.current);
     if (saveTimerRef.current) window.clearTimeout(saveTimerRef.current);
@@ -778,6 +799,7 @@ export function AppNetwork({ locale }: { locale: Locale }) {
     bloomParent: string | null,
   ) => {
     if (transitionTimerRef.current) window.clearTimeout(transitionTimerRef.current);
+    transitionTimerRef.current = null;
     const hasOldDescendants = activePath.length - 1 > keepDepth;
     const finish = () => {
       setActivePath(nextPath);
@@ -795,7 +817,10 @@ export function AppNetwork({ locale }: { locale: Locale }) {
       return;
     }
     setCollapseAfterDepth(keepDepth);
-    transitionTimerRef.current = window.setTimeout(finish, COLLAPSE_MS);
+    transitionTimerRef.current = window.setTimeout(() => {
+      transitionTimerRef.current = null;
+      finish();
+    }, COLLAPSE_MS);
   }, [activePath, clearFreshSoon]);
 
   const activateWallet = useCallback(async (
@@ -803,6 +828,7 @@ export function AppNetwork({ locale }: { locale: Locale }) {
     parentDepth: number,
   ) => {
     if (!wallet || suppressClickRef.current) return;
+    const serial = cancelBranchRequest();
     const target = keyWallet(targetWallet);
     setSelectedWallet(target);
     setBranchError(null);
@@ -843,27 +869,30 @@ export function AppNetwork({ locale }: { locale: Locale }) {
       return;
     }
 
-    const serial = ++requestSerialRef.current;
     const controller = new AbortController();
+    branchRequestRef.current = controller;
     setPendingWallet(target);
     try {
       const payload = await fetchNetwork(wallet, { focus: target, signal: controller.signal });
-      if (serial !== requestSerialRef.current) return;
+      if (controller.signal.aborted || serial !== requestSerialRef.current) return;
       putCache(payload);
       commitPath(nextPath, parentDepth + 1, target);
     } catch (error) {
-      if (serial !== requestSerialRef.current) return;
+      if (controller.signal.aborted || serial !== requestSerialRef.current) return;
       setPendingWallet(null);
       setBranchError({
         wallet: target,
         parentDepth,
         message: error instanceof Error ? error.message : t.loadError,
       });
+    } finally {
+      if (branchRequestRef.current === controller) branchRequestRef.current = null;
     }
   }, [
     wallet,
     activePath,
     collapsedParents,
+    cancelBranchRequest,
     commitPath,
     clearFreshSoon,
     putCache,
@@ -872,6 +901,7 @@ export function AppNetwork({ locale }: { locale: Locale }) {
 
   const collapseNode = useCallback((walletToCollapse: string, depth: number) => {
     if (suppressClickRef.current) return;
+    cancelBranchRequest();
     const target = keyWallet(walletToCollapse);
     setSelectedWallet(target);
     if (collapsedParents.has(target)) {
@@ -885,24 +915,26 @@ export function AppNetwork({ locale }: { locale: Locale }) {
       return;
     }
 
-    if (transitionTimerRef.current) window.clearTimeout(transitionTimerRef.current);
     setCollapseAfterDepth(depth);
     transitionTimerRef.current = window.setTimeout(() => {
+      transitionTimerRef.current = null;
       setActivePath((current) => current.slice(0, depth + 1));
       setCollapsedParents((current) => new Set(current).add(target));
       setExplorerParent((current) => current === target ? null : current);
       setCollapseAfterDepth(null);
     }, COLLAPSE_MS);
-  }, [collapsedParents, clearFreshSoon]);
+  }, [collapsedParents, cancelBranchRequest, clearFreshSoon]);
 
   const openExplorer = useCallback((parentWallet: string) => {
     if (suppressClickRef.current) return;
+    cancelBranchRequest();
     setExplorerParent(parentWallet);
     setPageByParent((current) => new Map(current).set(parentWallet, current.get(parentWallet) ?? 0));
-  }, []);
+  }, [cancelBranchRequest]);
 
   const changePage = useCallback((pager: PagerVisual, direction: number) => {
     if (suppressClickRef.current) return;
+    cancelBranchRequest();
     const nextPage = clamp(pager.page + direction, 0, pager.pageCount - 1);
     if (nextPage === pager.page) return;
     const parentDepth = activePath.indexOf(pager.parentWallet);
@@ -918,9 +950,10 @@ export function AppNetwork({ locale }: { locale: Locale }) {
     }
     setPageByParent((current) => new Map(current).set(pager.parentWallet, nextPage));
     setExplorerParent(pager.parentWallet);
-  }, [activePath, layout.pageSize]);
+  }, [activePath, cancelBranchRequest, layout.pageSize]);
 
   const closeExplorer = useCallback((pager: PagerVisual) => {
+    cancelBranchRequest();
     const parentDepth = activePath.indexOf(pager.parentWallet);
     const parent = cacheRef.current.get(pager.parentWallet);
     const activeChild = parentDepth >= 0 ? activePath[parentDepth + 1] : null;
@@ -932,18 +965,19 @@ export function AppNetwork({ locale }: { locale: Locale }) {
       }
     }
     setExplorerParent(null);
-  }, [activePath, layout.previewSize]);
+  }, [activePath, cancelBranchRequest, layout.previewSize]);
 
   const focusSearchResult = useCallback(async (targetWallet: string) => {
     if (!wallet) return;
+    const serial = cancelBranchRequest();
     const target = keyWallet(targetWallet);
-    const serial = ++requestSerialRef.current;
     const controller = new AbortController();
+    branchRequestRef.current = controller;
     setPendingWallet(target);
     setBranchError(null);
     try {
       const targetData = await fetchNetwork(wallet, { focus: target, signal: controller.signal });
-      if (serial !== requestSerialRef.current) return;
+      if (controller.signal.aborted || serial !== requestSerialRef.current) return;
       const breadcrumb = targetData.breadcrumb.map(keyWallet);
       const start = Math.max(0, breadcrumb.length - 5);
       const parents = breadcrumb.slice(start, -1);
@@ -951,7 +985,7 @@ export function AppNetwork({ locale }: { locale: Locale }) {
       const payloads = await Promise.all(
         missing.map((focus) => fetchNetwork(wallet, { focus, signal: controller.signal })),
       );
-      if (serial !== requestSerialRef.current) return;
+      if (controller.signal.aborted || serial !== requestSerialRef.current) return;
       payloads.forEach((payload) => cacheRef.current.set(keyWallet(payload.focusWallet), payload));
       cacheRef.current.set(target, targetData);
       setCacheVersion((value) => value + 1);
@@ -980,15 +1014,17 @@ export function AppNetwork({ locale }: { locale: Locale }) {
       setSearchResults([]);
       commitPath(breadcrumb, keepDepth, target);
     } catch (error) {
-      if (serial !== requestSerialRef.current) return;
+      if (controller.signal.aborted || serial !== requestSerialRef.current) return;
       setBranchError({
         wallet: target,
         parentDepth: Math.max(0, activePath.length - 1),
         message: error instanceof Error ? error.message : t.loadError,
       });
       setPendingWallet(null);
+    } finally {
+      if (branchRequestRef.current === controller) branchRequestRef.current = null;
     }
-  }, [wallet, activePath, pageByParent, isMobile, commitPath, t.loadError]);
+  }, [wallet, activePath, pageByParent, isMobile, cancelBranchRequest, commitPath, t.loadError]);
 
   useEffect(() => {
     if (loadState !== 'ready' || activePath.length === 0) return;
@@ -1180,7 +1216,11 @@ export function AppNetwork({ locale }: { locale: Locale }) {
           <strong>{rootData.summary.network.toLocaleString()}</strong>
           <span>{t.networkSize}</span>
           <i />
-          <strong className="growth">+{rootData.summary.thisRound.toLocaleString()}</strong>
+          <strong className="growth">
+            {rootData.summary.thisRound === null
+              ? '—'
+              : `+${rootData.summary.thisRound.toLocaleString()}`}
+          </strong>
           <span>{t.thisRound}</span>
         </div>
       </header>
@@ -1231,7 +1271,7 @@ export function AppNetwork({ locale }: { locale: Locale }) {
 
         {layout.startDepth > 0 ? (
           <div className="pathContext" data-no-pan="true" data-network-interactive="true">
-            <span>YOU</span><i>›</i><span>…</span><i>›</i><strong>{shortWallet(activePath[layout.startDepth])}</strong>
+            <span>{c.you}</span><i>›</i><span>…</span><i>›</i><strong>{shortWallet(activePath[layout.startDepth])}</strong>
           </div>
         ) : null}
 
@@ -1304,7 +1344,7 @@ export function AppNetwork({ locale }: { locale: Locale }) {
                   type="button"
                   className="personTap"
                   data-network-interactive="true"
-                  aria-label={isRootNode ? 'You' : shortWallet(visual.wallet)}
+                  aria-label={isRootNode ? c.you : shortWallet(visual.wallet)}
                   onClick={() => {
                     if (suppressClickRef.current) return;
                     if (isActiveNode) {
@@ -1325,7 +1365,7 @@ export function AppNetwork({ locale }: { locale: Locale }) {
                     type="button"
                     className={`branchToggle ${isOpen ? 'open' : ''}`}
                     data-network-interactive="true"
-                    aria-label={isOpen ? 'Collapse branch' : 'Expand branch'}
+                    aria-label={isOpen ? c.collapseBranch : c.expandBranch}
                     onClick={() => collapseNode(visual.wallet, visual.depth)}
                   ><span /></button>
                 ) : null}
@@ -1344,7 +1384,7 @@ export function AppNetwork({ locale }: { locale: Locale }) {
               <button type="button" disabled={pager.page === 0} onClick={() => changePage(pager, -1)}>‹</button>
               <span><b>{pager.start}–{pager.end}</b> / {pager.total}</span>
               <button type="button" disabled={pager.page >= pager.pageCount - 1} onClick={() => changePage(pager, 1)}>›</button>
-              <button type="button" className="pagerClose" onClick={() => closeExplorer(pager)}>×</button>
+              <button type="button" className="pagerClose" aria-label={c.close} onClick={() => closeExplorer(pager)}>×</button>
             </div>
           ))}
 
@@ -1373,12 +1413,12 @@ export function AppNetwork({ locale }: { locale: Locale }) {
                 <strong>{shortWallet(selectedWallet)}</strong>
                 <small>{statusLabel(selectedStatus, locale)}</small>
               </div>
-              <button type="button" onClick={() => setSelectedWallet(null)} aria-label="Close">×</button>
+              <button type="button" onClick={() => setSelectedWallet(null)} aria-label={c.close}>×</button>
             </div>
             <code>{selectedWallet}</code>
             <div className="inspectorMetrics">
-              <span><b>{(1 + selectedNetwork).toLocaleString()}</b>Branch</span>
-              <span><b>{selectedNetwork.toLocaleString()}</b>{t.networkSize}</span>
+              <span><b>{(1 + selectedNetwork).toLocaleString()}</b>{c.branch}</span>
+              <span><b>{selectedNetwork.toLocaleString()}</b>{c.networkBelow}</span>
               <span><b>{selectedDirect.toLocaleString()}</b>{t.direct}</span>
               <span><b>{selectedQualified.toLocaleString()}</b>{t.qualified}</span>
             </div>
@@ -1386,9 +1426,9 @@ export function AppNetwork({ locale }: { locale: Locale }) {
         ) : null}
 
         <div className="stageControls" data-no-pan="true" data-network-interactive="true">
-          <button type="button" aria-label="Center network" onClick={() => setView({ x: 0, y: 30, scale: 1 })}>◎</button>
-          <button type="button" aria-label="Zoom in" onClick={() => setView((value) => ({ ...value, scale: clamp(value.scale + .1, MIN_SCALE, MAX_SCALE) }))}>+</button>
-          <button type="button" aria-label="Zoom out" onClick={() => setView((value) => ({ ...value, scale: clamp(value.scale - .1, MIN_SCALE, MAX_SCALE) }))}>−</button>
+          <button type="button" aria-label={c.centerNetwork} onClick={() => setView({ x: 0, y: 30, scale: 1 })}>◎</button>
+          <button type="button" aria-label={c.zoomIn} onClick={() => setView((value) => ({ ...value, scale: clamp(value.scale + .1, MIN_SCALE, MAX_SCALE) }))}>+</button>
+          <button type="button" aria-label={c.zoomOut} onClick={() => setView((value) => ({ ...value, scale: clamp(value.scale - .1, MIN_SCALE, MAX_SCALE) }))}>−</button>
         </div>
       </div>
 
