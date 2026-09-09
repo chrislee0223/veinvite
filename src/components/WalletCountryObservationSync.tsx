@@ -4,6 +4,8 @@ import { useEffect } from 'react';
 import { useWallet } from '@vechain/vechain-kit';
 
 const APP_READY_EVENT = 'veinvite-app-ready';
+const WALLET_SESSION_READY_EVENT =
+  'veinvite-wallet-session-ready';
 
 async function recordCountry(): Promise<void> {
   const response = await fetch(
@@ -39,19 +41,15 @@ export function WalletCountryObservationSync() {
     let cancelled = false;
     let syncStarted = false;
 
-    const isCurrentWalletAppReady = () =>
-      document.documentElement.dataset.veinviteAppReady === 'true' &&
-      document.documentElement.dataset.veinviteHomeStartupStatus === 'ready' &&
-      document.documentElement.dataset.veinviteHomeStartupWallet?.toLowerCase() ===
-        walletAddress;
-
     const syncCountry = async () => {
-      if (cancelled || syncStarted || !isCurrentWalletAppReady()) return;
+      if (cancelled || syncStarted) return;
       syncStarted = true;
 
       try {
         await recordCountry();
       } catch (error) {
+        // The component can mount before the authenticated cookie is ready.
+        // Reset the guard so wallet-session-ready can retry immediately.
         syncStarted = false;
         console.warn(
           'Failed to record VeInvite wallet country observation:',
@@ -63,21 +61,32 @@ export function WalletCountryObservationSync() {
     const handleAppReady = () => {
       void syncCountry();
     };
+    const handleWalletSessionReady = () => {
+      void syncCountry();
+    };
 
     window.addEventListener(
       APP_READY_EVENT,
       handleAppReady,
     );
+    window.addEventListener(
+      WALLET_SESSION_READY_EVENT,
+      handleWalletSessionReady,
+    );
 
-    if (isCurrentWalletAppReady()) {
-      void syncCountry();
-    }
+    // Works on /, /i/* and /r/* alike. Existing sessions that predate trusted
+    // country capture are progressively repaired when they next visit.
+    void syncCountry();
 
     return () => {
       cancelled = true;
       window.removeEventListener(
         APP_READY_EVENT,
         handleAppReady,
+      );
+      window.removeEventListener(
+        WALLET_SESSION_READY_EVENT,
+        handleWalletSessionReady,
       );
     };
   }, [walletAddress]);
