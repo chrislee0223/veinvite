@@ -1,6 +1,10 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import {
+  useEffect,
+  useLayoutEffect,
+  useState,
+} from 'react';
 
 import {
   getLocaleDirection,
@@ -11,15 +15,24 @@ import { REWARD_FORECAST_COPY } from '@/lib/i18n/rewardForecastCopy';
 
 type RewardForecastResponse =
   | {
+      generatedAt?: string;
+      modelVersion?: string | null;
       status: 'pending';
       estimatedRewardWei: null;
       stale?: boolean;
     }
   | {
+      generatedAt?: string;
+      modelVersion?: string | null;
       status: 'ready';
       estimatedRewardWei: string;
       stale?: boolean;
     };
+
+type PersistedRewardForecast = {
+  savedAt: number;
+  forecast: RewardForecastResponse;
+};
 
 type IdleWindow = Window & {
   requestIdleCallback?: (
@@ -30,17 +43,32 @@ type IdleWindow = Window & {
 };
 
 const PREVIEW_FORECAST: RewardForecastResponse = {
+  generatedAt: '2026-01-01T00:00:00.000Z',
+  modelVersion: 'preview',
   status: 'ready',
   estimatedRewardWei: '147740500000000000000',
   stale: false,
 };
 
 const CLIENT_FORECAST_CACHE_MS = 15 * 60_000;
+const LIVE_REFRESH_THROTTLE_MS = 60_000;
+const BACKGROUND_LIVE_REFRESH_DELAY_MS = 600;
+const PERSISTED_FORECAST_MAX_AGE_MS = 24 * 60 * 60_000;
+const PERSISTED_FORECAST_STALE_MS = 60 * 60_000;
+// Keep the storage key tied to the current public forecast model. A future
+// model change should use a new key so an incompatible old estimate can never
+// flash during hydration.
+const PERSISTED_FORECAST_STORAGE_KEY =
+  'veinvite_reward_forecast_v2_1_cohort';
 const APP_READY_EVENT = 'veinvite-app-ready';
 const APP_READY_IDLE_FALLBACK_MS = 900;
 const REWARD_FORECAST_UPDATED_EVENT = 'veinvite-reward-forecast-updated';
+const useIsomorphicLayoutEffect =
+  typeof window === 'undefined' ? useEffect : useLayoutEffect;
+
 let cachedForecast: RewardForecastResponse | null = null;
 let cachedForecastAt = 0;
+let lastLiveRefreshAt = 0;
 let inFlightForecast: Promise<RewardForecastResponse> | null = null;
 
 function formatRewardWei(value: string): string {
@@ -62,19 +90,146 @@ function formatRewardWei(value: string): string {
   return `${groupedWhole}.${fraction}`;
 }
 
+function normalizeForecastResponse(
+  value: unknown,
+): RewardForecastResponse | null {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    return null;
+  }
+
+  const record = value as Record<string, unknown>;
+  const generatedAt =
+    typeof record.generatedAt === 'string' &&
+    !Number.isNaN(Date.parse(record.generatedAt))
+      ? record.generatedAt
+      : undefined;
+  const modelVersion =
+    typeof record.modelVersion === 'string'
+      ? record.modelVersion
+      : record.modelVersion === null
+        ? null
+        : undefined;
+  const stale = record.stale === true;
+
+  if (
+    record.status === 'ready' &&
+    typeof record.estimatedRewardWei === 'string' &&
+    /^\d+$/.test(record.estimatedRewardWei)
+  ) {
+    return {
+      generatedAt,
+      modelVersion,
+      status: 'ready',
+      estimatedRewardWei: record.estimatedRewardWei,
+      stale,
+    };
+  }
+
+  if (
+    record.status === 'pending' &&
+    record.estimatedRewardWei === null
+  ) {
+    return {
+      generatedAt,
+      modelVersion,
+      status: 'pending',
+      estimatedRewardWei: null,
+      stale,
+    };
+  }
+
+  return null;
+}
+
+function readPersistedForecast(): RewardForecastResponse | null {
+  if (typeof window === 'undefined') return null;
+
+  try {
+    const raw = window.localStorage.getItem(
+      PERSISTED_FORECAST_STORAGE_KEY,
+    );
+    if (!raw) return null;
+
+    const parsed = JSON.parse(raw) as Partial<PersistedRewardForecast>;
+    const savedAt = Number(parsed.savedAt);
+    const forecast = normalizeForecastResponse(parsed.forecast);
+    const ageMs = Date.now() - savedAt;
+
+    if (
+      !Number.isFinite(savedAt) ||
+      savedAt <= 0 ||
+      ageMs < 0 ||
+      ageMs > PERSISTED_FORECAST_MAX_AGE_MS ||
+      forecast?.status !== 'ready'
+    ) {
+      window.localStorage.removeItem(
+        PERSISTED_FORECAST_STORAGE_KEY,
+      );
+      return null;
+    }
+
+    const restored: RewardForecastResponse = {
+      ...forecast,
+      stale:
+        forecast.stale === true ||
+        ageMs > PERSISTED_FORECAST_STALE_MS,
+    };
+    cachedForecast = restored;
+    cachedForecastAt = Date.now();
+    return restored;
+  } catch {
+    return null;
+  }
+}
+
+function persistForecast(result: RewardForecastResponse): void {
+  if (
+    typeof window === 'undefined' ||
+    result.status !== 'ready'
+  ) {
+    return;
+  }
+
+  try {
+    const payload: PersistedRewardForecast = {
+      savedAt: Date.now(),
+      forecast: result,
+    };
+    window.localStorage.setItem(
+      PERSISTED_FORECAST_STORAGE_KEY,
+      JSON.stringify(payload),
+    );
+  } catch {
+    // Storage may be unavailable in hardened/private browser modes. The
+    // in-memory cache and server snapshot remain authoritative fallbacks.
+  }
+}
+
 function requestForecast(force = false): Promise<RewardForecastResponse> {
+  const now = Date.now();
+
   if (
     !force &&
     cachedForecast &&
-    Date.now() - cachedForecastAt < CLIENT_FORECAST_CACHE_MS
+    now - cachedForecastAt < CLIENT_FORECAST_CACHE_MS
   ) {
     return Promise.resolve(cachedForecast);
   }
 
   if (inFlightForecast) return inFlightForecast;
 
+  if (
+    force &&
+    cachedForecast &&
+    now - lastLiveRefreshAt < LIVE_REFRESH_THROTTLE_MS
+  ) {
+    return Promise.resolve(cachedForecast);
+  }
+
+  if (force) lastLiveRefreshAt = now;
+
   const endpoint = force
-    ? `/api/rewards/estimate?refresh=${Date.now()}`
+    ? '/api/rewards/estimate?refresh=1'
     : '/api/rewards/estimate';
 
   inFlightForecast = fetch(
@@ -85,11 +240,17 @@ function requestForecast(force = false): Promise<RewardForecastResponse> {
       if (!response.ok) {
         throw new Error('Reward forecast request failed.');
       }
-      return (await response.json()) as RewardForecastResponse;
+
+      const result = normalizeForecastResponse(await response.json());
+      if (!result) {
+        throw new Error('Reward forecast response is malformed.');
+      }
+      return result;
     })
     .then((result) => {
       cachedForecast = result;
       cachedForecastAt = Date.now();
+      persistForecast(result);
       window.dispatchEvent(
         new CustomEvent<RewardForecastResponse>(
           REWARD_FORECAST_UPDATED_EVENT,
@@ -120,50 +281,79 @@ export function PublicRewardForecastCard({
   );
   const [unavailable, setUnavailable] = useState(false);
 
-  useEffect(() => {
+  // Restore the last successful public estimate before paint. This keeps a
+  // hard refresh visually stable without adding any Supabase/on-chain work to
+  // Home's startup critical path.
+  useIsomorphicLayoutEffect(() => {
     if (rewardForecastPreview) {
       setUnavailable(false);
       setForecast(PREVIEW_FORECAST);
       return;
     }
 
-    if (cachedForecast) {
-      setForecast(cachedForecast);
+    const restored = cachedForecast ?? readPersistedForecast();
+    if (restored) {
+      setUnavailable(false);
+      setForecast(restored);
     }
+  }, [rewardForecastPreview]);
+
+  useEffect(() => {
+    if (rewardForecastPreview) return;
 
     let active = true;
     let scheduled = false;
     let started = false;
     let timeoutId = 0;
+    let backgroundRefreshTimeoutId = 0;
     let intervalId = 0;
     let idleId: number | null = null;
 
-    const syncRefreshedForecast = (event: Event) => {
+    const applyForecast = (result: RewardForecastResponse) => {
       if (!active) return;
-      const detail = (event as CustomEvent<RewardForecastResponse>).detail;
-      if (!detail) return;
       setUnavailable(false);
-      setForecast(detail);
+      setForecast(result);
     };
-    const loadForecast = (force = false) => {
-      void requestForecast(force)
-        .then((result) => {
-          if (!active) return;
+
+    const syncRefreshedForecast = (event: Event) => {
+      const detail = normalizeForecastResponse(
+        (event as CustomEvent<unknown>).detail,
+      );
+      if (!detail) return;
+      applyForecast(detail);
+    };
+
+    const loadForecast = async (force = false): Promise<void> => {
+      try {
+        const result = await requestForecast(force);
+        applyForecast(result);
+      } catch {
+        if (!active) return;
+
+        // A transient RPC/API failure must not blank a previously good public
+        // estimate. Keep the last value visible and mark it as stale instead.
+        if (cachedForecast?.status === 'ready') {
+          const staleForecast: RewardForecastResponse = {
+            ...cachedForecast,
+            stale: true,
+          };
+          cachedForecast = staleForecast;
           setUnavailable(false);
-          setForecast(result);
-        })
-        .catch(() => {
-          if (!active) return;
-          setUnavailable(true);
-        });
+          setForecast(staleForecast);
+          return;
+        }
+
+        setUnavailable(true);
+      }
     };
+
     const refreshWhenVisible = () => {
       if (document.visibilityState === 'visible') {
-        loadForecast(true);
+        void loadForecast(true);
       }
     };
     const refreshWhenFocused = () => {
-      loadForecast(true);
+      void loadForecast(true);
     };
     const startForecastActivity = () => {
       if (!active || started) return;
@@ -174,9 +364,24 @@ export function PublicRewardForecastCard({
         refreshWhenVisible,
       );
       window.addEventListener('focus', refreshWhenFocused);
-      loadForecast();
+
+      // First read the cheap server snapshot. Once that is settled, perform a
+      // live funding check in the background so pool changes still propagate
+      // quickly without blocking the value already shown on screen.
+      void loadForecast().finally(() => {
+        if (!active) return;
+        backgroundRefreshTimeoutId = window.setTimeout(
+          () => {
+            void loadForecast(true);
+          },
+          BACKGROUND_LIVE_REFRESH_DELAY_MS,
+        );
+      });
+
       intervalId = window.setInterval(
-        loadForecast,
+        () => {
+          void loadForecast(true);
+        },
         CLIENT_FORECAST_CACHE_MS,
       );
     };
@@ -219,6 +424,7 @@ export function PublicRewardForecastCard({
     return () => {
       active = false;
       window.clearTimeout(timeoutId);
+      window.clearTimeout(backgroundRefreshTimeoutId);
       window.clearInterval(intervalId);
       const idleWindow = window as IdleWindow;
       if (idleId !== null && idleWindow.cancelIdleCallback) {
@@ -242,24 +448,32 @@ export function PublicRewardForecastCard({
 
   const t = REWARD_FORECAST_COPY[resolvedLocale];
   const ready = forecast?.status === 'ready';
+  const stale = ready && forecast.stale === true;
   const amount = ready
     ? `${formatRewardWei(forecast.estimatedRewardWei)} B3TR`
     : '— B3TR';
-  const note = unavailable
+  const note = unavailable && !forecast
     ? t.unavailable
     : forecast?.status === 'pending'
       ? t.pendingDescription
       : t.disclaimer;
-  const loading = !forecast && !unavailable;
 
   return (
     <section
       className="homeRewardEstimateCard"
       aria-live="polite"
-      aria-busy={loading}
       lang={resolvedLocale}
       dir={getLocaleDirection(resolvedLocale)}
       data-home-reward-forecast="true"
+      data-forecast-state={
+        unavailable && !forecast
+          ? 'unavailable'
+          : stale
+            ? 'stale'
+            : ready
+              ? 'ready'
+              : forecast?.status ?? 'initial'
+      }
     >
       <span className="estimateEyebrow">{t.eyebrow}</span>
 
@@ -267,26 +481,21 @@ export function PublicRewardForecastCard({
         className="estimateAmount"
         aria-label={ready ? amount : t.pendingTitle}
       >
-        {loading ? (
-          <span className="amountSkeleton" aria-hidden="true" />
-        ) : (
-          <strong>{amount}</strong>
-        )}
+        <strong>{amount}</strong>
       </div>
 
       <p className="estimateEligibility">{t.eligibility}</p>
       <p
         className={
-          unavailable || forecast?.status === 'pending'
+          unavailable || forecast?.status === 'pending' || stale
             ? 'estimateDisclaimer estimatePending'
             : 'estimateDisclaimer'
         }
       >
-        {loading ? (
-          <span className="noteSkeleton" aria-hidden="true" />
-        ) : (
-          note
-        )}
+        {stale ? (
+          <span className="staleIndicator" aria-hidden="true">◷</span>
+        ) : null}
+        {note}
       </p>
 
       <style jsx>{`
@@ -381,25 +590,12 @@ export function PublicRewardForecastCard({
         .estimatePending {
           color:#a49e91;
         }
-        .amountSkeleton,
-        .noteSkeleton {
-          display:block;
-          border-radius:999px;
-          background:rgba(255,255,255,.085);
-          animation:forecastSkeletonPulse 1.5s ease-in-out infinite;
-        }
-        .amountSkeleton {
-          width:min(58%,190px);
-          height:24px;
-        }
-        .noteSkeleton {
-          width:min(82%,320px);
-          height:8px;
-          margin-top:5px;
-        }
-        @keyframes forecastSkeletonPulse {
-          0%,100% { opacity:.48; }
-          50% { opacity:.92; }
+        .staleIndicator {
+          display:inline-block;
+          margin-inline-end:4px;
+          font-size:.78em;
+          opacity:.78;
+          vertical-align:.06em;
         }
         @media (max-width:420px) {
           .homeRewardEstimateCard {
@@ -424,12 +620,6 @@ export function PublicRewardForecastCard({
           }
           .estimateDisclaimer {
             font-size:.63rem;
-          }
-        }
-        @media (prefers-reduced-motion: reduce) {
-          .amountSkeleton,
-          .noteSkeleton {
-            animation:none;
           }
         }
       `}</style>
