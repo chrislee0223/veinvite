@@ -34,6 +34,16 @@ const TAB_CONTENT_SELECTORS: Record<AppTab, string> = {
 const TAB_ENTER_DURATION_MS = 160;
 const NAV_INDICATOR_DURATION_MS = 210;
 const NAV_INDICATOR_EASING = 'cubic-bezier(.22,1,.36,1)';
+const APP_READY_EVENT = 'veinvite-app-ready';
+const STARTUP_PREFETCH_IDLE_TIMEOUT_MS = 1_200;
+
+type IdleCapableWindow = Window & {
+  requestIdleCallback?: (
+    callback: () => void,
+    options?: { timeout?: number },
+  ) => number;
+  cancelIdleCallback?: (id: number) => void;
+};
 
 function preloadTabModule(tab: AppTab) {
   if (tab === 'guide') {
@@ -110,23 +120,67 @@ export function AppBottomNavigation({
 
   useEffect(() => {
     let cancelled = false;
+    let prefetchStarted = false;
+    let idleId: number | null = null;
+    let fallbackTimer = 0;
+    const idleWindow = window as IdleCapableWindow;
 
-    const moduleTimer = window.setTimeout(() => {
-      if (cancelled) return;
+    const runPrefetch = () => {
+      if (cancelled || prefetchStarted) return;
+      prefetchStarted = true;
+
       void Promise.allSettled(
         LAZY_TABS.map((tab) => preloadTabModule(tab)),
       );
-    }, 0);
-
-    const leaderboardTimer = window.setTimeout(() => {
-      if (cancelled) return;
       void prefetchPublicLeaderboard(wallet).catch(() => undefined);
-    }, 450);
+    };
+
+    const schedulePrefetch = () => {
+      if (
+        cancelled ||
+        prefetchStarted ||
+        idleId !== null ||
+        fallbackTimer !== 0
+      ) {
+        return;
+      }
+
+      if (typeof idleWindow.requestIdleCallback === 'function') {
+        idleId = idleWindow.requestIdleCallback(
+          () => {
+            idleId = null;
+            runPrefetch();
+          },
+          { timeout: STARTUP_PREFETCH_IDLE_TIMEOUT_MS },
+        );
+        return;
+      }
+
+      fallbackTimer = window.setTimeout(() => {
+        fallbackTimer = 0;
+        runPrefetch();
+      }, STARTUP_PREFETCH_IDLE_TIMEOUT_MS);
+    };
+
+    if (
+      document.documentElement.dataset.veinviteAppReady === 'true'
+    ) {
+      schedulePrefetch();
+    } else {
+      window.addEventListener(
+        APP_READY_EVENT,
+        schedulePrefetch,
+        { once: true },
+      );
+    }
 
     return () => {
       cancelled = true;
-      window.clearTimeout(moduleTimer);
-      window.clearTimeout(leaderboardTimer);
+      window.removeEventListener(APP_READY_EVENT, schedulePrefetch);
+      window.clearTimeout(fallbackTimer);
+      if (idleId !== null && idleWindow.cancelIdleCallback) {
+        idleWindow.cancelIdleCallback(idleId);
+      }
     };
   }, [wallet]);
 
