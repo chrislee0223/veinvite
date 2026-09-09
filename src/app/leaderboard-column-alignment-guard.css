@@ -12,7 +12,9 @@
  * prose. Keep them on the neutral UI font stack instead of inheriting Arabic /
  * Urdu display fonts. A slightly relaxed line box also prevents tall-script font
  * metrics or browser fallback changes from clipping the bottom of digits while
- * preserving the existing fixed row heights.
+ * preserving the existing fixed row heights. Apply that safeguard to the direct
+ * inviter fallback as well as the unified hub so transient load/error states do
+ * not regress on desktop Urdu layouts.
  *
  * Country header:
  * The country row already has a fixed flag box before the country name. Align
@@ -47,13 +49,16 @@ html body .leaderboardHub .countryHeader {
   font-size: var(--leaderboard-header-size) !important;
 }
 
-html body .leaderboardHub .inviterInside .rankMetric b {
-  color: var(--leaderboard-value-color) !important;
+html body .leaderboardPage .rankingCard .rankMetric b {
   font-family: system-ui, -apple-system, "Segoe UI", Arial, sans-serif !important;
-  font-size: var(--leaderboard-value-size) !important;
-  font-weight: var(--leaderboard-value-weight) !important;
   line-height: 1.2 !important;
   font-variant-numeric: tabular-nums !important;
+}
+
+html body .leaderboardHub .inviterInside .rankMetric b {
+  color: var(--leaderboard-value-color) !important;
+  font-size: var(--leaderboard-value-size) !important;
+  font-weight: var(--leaderboard-value-weight) !important;
 }
 
 html body .leaderboardHub .countryMetricValue {
