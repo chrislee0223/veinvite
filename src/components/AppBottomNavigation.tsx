@@ -26,7 +26,7 @@ import { useActiveWallet } from './WalletControl';
 export type AppTab = 'home' | 'guide' | 'leaderboard' | 'settings';
 
 const TABS: AppTab[] = ['home', 'guide', 'leaderboard', 'settings'];
-const LAZY_TABS: AppTab[] = ['guide', 'leaderboard', 'settings'];
+const IDLE_LAZY_TABS: AppTab[] = ['guide', 'settings'];
 const TAB_CONTENT_SELECTORS: Record<AppTab, string> = {
   home: '.missionCard',
   guide: '.networkCard',
@@ -133,7 +133,7 @@ export function AppBottomNavigation({
       prefetchStarted = true;
 
       void Promise.allSettled(
-        LAZY_TABS.map((tab) => preloadTabModule(tab)),
+        IDLE_LAZY_TABS.map((tab) => preloadTabModule(tab)),
       );
     };
 
@@ -167,10 +167,11 @@ export function AppBottomNavigation({
     const onAppReady = () => {
       if (cancelled) return;
 
-      // The anonymous ranking is public and small. Warm it as soon as Home is
-      // fully ready so an immediate leaderboard tap never has to wait for the
-      // current wallet's private rank lookup. Lazy code chunks remain idle work
-      // so the authenticated Home critical path stays unchanged.
+      // Leaderboard is the only secondary tab users commonly open immediately
+      // after a hard refresh. Home is already fully released at this point, so
+      // warm both its code chunk and anonymous public data now. Network and
+      // Settings remain idle work and cannot compete with critical Home startup.
+      void preloadTabModule('leaderboard').catch(() => undefined);
       void prefetchPublicLeaderboard(null).catch(() => undefined);
       scheduleModulePrefetch();
     };
