@@ -105,6 +105,12 @@ main.screen .bottomNavigation > div {
     padding-top:calc(22px + env(safe-area-inset-top)) !important;
     padding-left:16px !important;
     padding-right:16px !important;
+    /* The fixed bottom navigation can occupy 86px before the device safe-area
+     * inset is added (62px tab + track padding/border + 10px outer inset).
+     * Keep the existing 118px reserve on normal browsers, but grow it just
+     * enough on edge-to-edge iPhones/PWAs so the last leaderboard row or card
+     * never finishes underneath the navigation surface. */
+    padding-bottom:max(118px,calc(86px + env(safe-area-inset-bottom))) !important;
   }
   .appShell {
     padding-top:calc(22px + env(safe-area-inset-top)) !important;
