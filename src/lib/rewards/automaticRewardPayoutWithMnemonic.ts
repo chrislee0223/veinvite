@@ -12,6 +12,7 @@ import {
   runAutomaticRewardPayout as runBaseAutomaticRewardPayout,
   type AutomaticRewardPayoutResult,
 } from './automaticRewardPayout';
+import { prepareClaimedRewardFastPath } from './immediateClaimPayout';
 import { reserveEligibleReferralRewards } from './rewardReservation';
 
 const PRIVATE_KEY_PATTERN = /^(?:0x)?[0-9a-fA-F]{64}$/;
@@ -132,6 +133,28 @@ export type { AutomaticRewardPayoutResult };
 export function readAutomaticRewardDistributorReadiness() {
   prepareRewardDistributorSecret();
   return readBaseReadiness();
+}
+
+export async function runImmediateClaimRewardPayout():
+Promise<AutomaticRewardPayoutResult> {
+  prepareRewardDistributorSecret();
+
+  // An AWAITING_CLAIM reward already passed final mission verification, Sybil /
+  // identity gates, chain finality, and fixed-amount reservation. Prepare only
+  // durable claimed reservations here so Claim does not repeat the background
+  // reservation / signal-planning sweep before payout. If an older active round
+  // exists or the fast preparation encounters a transient error, the normal
+  // idempotent payout worker remains the safe fallback and advances that state.
+  try {
+    await prepareClaimedRewardFastPath();
+  } catch (error) {
+    console.error(
+      'Claim reward fast-path preparation failed; falling back to the standard payout worker:',
+      error,
+    );
+  }
+
+  return runBaseAutomaticRewardPayout();
 }
 
 export async function runAutomaticRewardPayout():
