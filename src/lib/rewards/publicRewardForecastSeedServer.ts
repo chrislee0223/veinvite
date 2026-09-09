@@ -8,6 +8,7 @@ import { getVeBetterNetworkConfig } from '@/lib/vebetter/network';
 
 const FORECAST_SEED_CACHE_SECONDS = 5 * 60;
 const FORECAST_SEED_STALE_MS = 60 * 60_000;
+const FORECAST_SEED_MAX_AGE_MS = 24 * 60 * 60_000;
 
 const readCachedPublicRewardForecastSeed = unstable_cache(
   async (
@@ -26,12 +27,17 @@ const readCachedPublicRewardForecastSeed = unstable_cache(
     const generatedAtMs = Date.parse(snapshot.generatedAt);
     if (Number.isNaN(generatedAtMs)) return null;
 
+    const ageMs = Date.now() - generatedAtMs;
+    if (ageMs < 0 || ageMs > FORECAST_SEED_MAX_AGE_MS) {
+      return null;
+    }
+
     return {
       generatedAt: snapshot.generatedAt,
       modelVersion: snapshot.modelVersion,
       status: 'ready',
       estimatedRewardWei: snapshot.estimatedRewardWei,
-      stale: Date.now() - generatedAtMs > FORECAST_SEED_STALE_MS,
+      stale: ageMs > FORECAST_SEED_STALE_MS,
     };
   },
   ['public-reward-forecast-seed-v1'],
