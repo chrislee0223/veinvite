@@ -34,8 +34,10 @@ test('Network replaces Guide only at the user-facing navigation layer', () => {
   assert.match(navigation, /activeTab === 'home'/i);
 });
 
-test('the legacy Guide tab renders only the Network placeholder while guide content stays reusable', () => {
-  assert.match(guide, /return <AppNetworkComingSoon locale=\{locale\} \/>/i);
+test('the legacy Guide tab renders the live Network with an environment-controlled placeholder fallback while guide content stays reusable', () => {
+  assert.match(guide, /NEXT_PUBLIC_NETWORK_CANVAS_ENABLED\s*!==\s*'false'/i);
+  assert.match(guide, /\?\s*<AppNetwork locale=\{locale\} \/>/i);
+  assert.match(guide, /:\s*<AppNetworkComingSoon locale=\{locale\} \/>/i);
   assert.match(guide, /export function InviteGuideContent/i);
   assert.doesNotMatch(guide, /className="countCard"/i);
   assert.doesNotMatch(guide, /flow\.countDescription/i);

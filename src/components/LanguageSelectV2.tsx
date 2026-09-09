@@ -5,9 +5,13 @@ import { LanguageFlag } from './LanguageFlag';
 import { LANGUAGE_SELECT_COPY } from '@/lib/i18n/languageSelectCopy';
 import {
   LANGUAGE_OPTIONS,
+  isLocale,
   type Locale,
   type SupportedLocale,
 } from '@/lib/i18n/locales';
+import {
+  markPendingManualLanguage,
+} from '@/lib/i18n/languageStorage';
 
 type LanguageSelectV2Props = {
   locale: Locale;
@@ -17,6 +21,22 @@ type LanguageSelectV2Props = {
 
 export function LanguageSelectV2({ locale, onSelect, onContinue }: LanguageSelectV2Props) {
   const t = LANGUAGE_SELECT_COPY[locale];
+
+  const selectLanguage = (nextLocale: SupportedLocale) => {
+    markPendingManualLanguage(nextLocale);
+    onSelect(nextLocale);
+  };
+
+  const continueWithLanguage = () => {
+    // Pressing Continue is an explicit confirmation even when the initially
+    // suggested language was already correct and no language card was tapped.
+    // The legacy Locale alias is string-wide, so narrow at the persistence
+    // boundary instead of casting an unsupported value into storage.
+    if (isLocale(locale)) {
+      markPendingManualLanguage(locale);
+    }
+    onContinue();
+  };
 
   return (
     <main className="screen">
@@ -34,7 +54,7 @@ export function LanguageSelectV2({ locale, onSelect, onContinue }: LanguageSelec
                 key={option.locale}
                 type="button"
                 className={selected ? 'languageCard selected' : 'languageCard'}
-                onClick={() => onSelect(option.locale)}
+                onClick={() => selectLanguage(option.locale)}
                 aria-pressed={selected}
               >
                 <span className="symbol" aria-hidden="true"><LanguageFlag locale={option.locale} /></span>
@@ -47,7 +67,7 @@ export function LanguageSelectV2({ locale, onSelect, onContinue }: LanguageSelec
           })}
         </div>
 
-        <button type="button" className="continueButton" onClick={onContinue}>
+        <button type="button" className="continueButton" onClick={continueWithLanguage}>
           {t.continue}<span className="continueArrow" aria-hidden="true">›</span>
         </button>
         <p className="note">{t.note}</p>
