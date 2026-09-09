@@ -3,6 +3,7 @@ import 'server-only';
 import { randomUUID } from 'node:crypto';
 
 import { readVeInviteRewardPoolStatus } from '@/lib/rewards/onchainPool';
+import { readRewardRuntimeSafety } from '@/lib/rewards/runtimeSafety';
 import { supabaseAdmin } from '@/lib/supabaseServer';
 import { getVeBetterNetworkConfig } from '@/lib/vebetter/network';
 
@@ -17,9 +18,14 @@ type ClaimFastPathPreparation = {
     | 'PREPARED'
     | 'ACTIVE_ROUND'
     | 'LOCKED'
+    | 'SAFETY_BLOCKED'
     | 'NO_CLAIMED_REWARDS';
   roundId: string | null;
   reason: string;
+};
+
+type ClaimFastPathInput = {
+  distributorAddress: string;
 };
 
 function positiveId(value: unknown, fieldName: string): string {
@@ -78,16 +84,25 @@ async function releasePayoutLock(
  * Prepares already-claimed, already-reserved rewards without re-running the
  * reservation sweep, allocation sync, Sybil refresh, or predictive-planning
  * application path. The database remains authoritative for the claimed cohort,
- * fixed reservation amount, cohort budget, funded runtime gates, and duplicate
- * payout protection.
+ * fixed reservation amount, cohort budget, and duplicate payout protection.
+ *
+ * The same runtime pause, funded-mainnet, distributor registration, and
+ * admin-wallet separation gates used by the transfer worker are checked before
+ * this function can create an ASSIGNED payout batch. This prevents a Claim made
+ * while payouts are intentionally unavailable from being moved into processing.
  *
  * This function never transfers tokens. It only creates the immutable payout
  * round for durable QUEUED claims so the normal automatic payout worker can
  * move directly to manifest creation, signing, broadcast, and finalization.
  */
-export async function prepareClaimedRewardFastPath():
+export async function prepareClaimedRewardFastPath({
+  distributorAddress,
+}: ClaimFastPathInput):
 Promise<ClaimFastPathPreparation> {
   const { network } = getVeBetterNetworkConfig();
+  const normalizedDistributor = distributorAddress
+    .trim()
+    .toLowerCase();
   const ownerToken = randomUUID();
   const acquired = await acquirePayoutLock(
     network,
@@ -103,7 +118,52 @@ Promise<ClaimFastPathPreparation> {
   }
 
   try {
-    const pool = await readVeInviteRewardPoolStatus();
+    const [pool, runtime] = await Promise.all([
+      readVeInviteRewardPoolStatus(),
+      readRewardRuntimeSafety(),
+    ]);
+
+    if (
+      network === 'mainnet' &&
+      !runtime.mainnetFundedRewardsEnabled
+    ) {
+      return {
+        status: 'SAFETY_BLOCKED',
+        roundId: null,
+        reason: 'MAINNET_FUNDED_REWARDS_DISABLED',
+      };
+    }
+
+    if (
+      runtime.emergencyRewardsPaused ||
+      pool.distributionPaused
+    ) {
+      return {
+        status: 'SAFETY_BLOCKED',
+        roundId: null,
+        reason: 'REWARD_DISTRIBUTION_PAUSED',
+      };
+    }
+
+    if (normalizedDistributor === pool.appAdmin) {
+      return {
+        status: 'SAFETY_BLOCKED',
+        roundId: null,
+        reason: 'DISTRIBUTOR_ADMIN_CONFLICT',
+      };
+    }
+
+    if (
+      !pool.rewardDistributors.includes(
+        normalizedDistributor,
+      )
+    ) {
+      return {
+        status: 'SAFETY_BLOCKED',
+        roundId: null,
+        reason: 'DISTRIBUTOR_NOT_REGISTERED',
+      };
+    }
 
     const { data, error } = await supabaseAdmin.rpc(
       'prepare_predictive_reward_batch',

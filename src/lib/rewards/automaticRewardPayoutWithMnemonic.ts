@@ -138,15 +138,32 @@ export function readAutomaticRewardDistributorReadiness() {
 export async function runImmediateClaimRewardPayout():
 Promise<AutomaticRewardPayoutResult> {
   prepareRewardDistributorSecret();
+  const readiness = readBaseReadiness();
+
+  // Never create an ASSIGNED fast-path batch when the automatic distributor is
+  // disabled, incomplete, or cryptographically mismatched. The base worker owns
+  // the authoritative result for those states and will fail closed without
+  // transferring funds.
+  if (
+    !readiness.enabled ||
+    !readiness.configured ||
+    !readiness.distributorAddress
+  ) {
+    return runBaseAutomaticRewardPayout();
+  }
 
   // An AWAITING_CLAIM reward already passed final mission verification, Sybil /
   // identity gates, chain finality, and fixed-amount reservation. Prepare only
   // durable claimed reservations here so Claim does not repeat the background
-  // reservation / signal-planning sweep before payout. If an older active round
-  // exists or the fast preparation encounters a transient error, the normal
-  // idempotent payout worker remains the safe fallback and advances that state.
+  // reservation / signal-planning sweep before payout. The fast preparation
+  // mirrors the base worker's runtime pause and on-chain distributor gates before
+  // it may create an ASSIGNED batch. If an older active round exists or the fast
+  // preparation encounters a transient error, the normal idempotent payout
+  // worker remains the safe fallback and advances that state.
   try {
-    await prepareClaimedRewardFastPath();
+    await prepareClaimedRewardFastPath({
+      distributorAddress: readiness.distributorAddress,
+    });
   } catch (error) {
     console.error(
       'Claim reward fast-path preparation failed; falling back to the standard payout worker:',

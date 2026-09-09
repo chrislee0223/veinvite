@@ -38,6 +38,59 @@ test('explicit Claim uses the reserved payout fast path', () => {
   );
 });
 
+test('Claim fast preparation fails closed before assigning work when payout safety is unavailable', () => {
+  const immediateStart = payoutWrapper.indexOf(
+    'export async function runImmediateClaimRewardPayout',
+  );
+  const immediateEnd = payoutWrapper.indexOf(
+    'export async function runAutomaticRewardPayout',
+  );
+  const immediateFunction = payoutWrapper.slice(
+    immediateStart,
+    immediateEnd,
+  );
+  const readinessIndex = immediateFunction.indexOf(
+    'const readiness = readBaseReadiness()',
+  );
+  const prepareIndex = immediateFunction.indexOf(
+    'await prepareClaimedRewardFastPath',
+  );
+
+  assert.ok(readinessIndex >= 0);
+  assert.ok(prepareIndex > readinessIndex);
+  assert.match(immediateFunction, /!readiness\.enabled/);
+  assert.match(immediateFunction, /!readiness\.configured/);
+  assert.match(immediateFunction, /!readiness\.distributorAddress/);
+
+  const runtimeIndex = fastPath.indexOf(
+    'readRewardRuntimeSafety()',
+  );
+  const emergencyPauseIndex = fastPath.indexOf(
+    'runtime.emergencyRewardsPaused',
+  );
+  const poolPauseIndex = fastPath.indexOf(
+    'pool.distributionPaused',
+  );
+  const distributorIndex = fastPath.indexOf(
+    'pool.rewardDistributors.includes',
+  );
+  const batchIndex = fastPath.indexOf(
+    "'prepare_predictive_reward_batch'",
+  );
+
+  assert.ok(runtimeIndex >= 0);
+  assert.ok(emergencyPauseIndex > runtimeIndex);
+  assert.ok(poolPauseIndex > runtimeIndex);
+  assert.ok(distributorIndex > runtimeIndex);
+  assert.ok(batchIndex > emergencyPauseIndex);
+  assert.ok(batchIndex > poolPauseIndex);
+  assert.ok(batchIndex > distributorIndex);
+  assert.match(fastPath, /MAINNET_FUNDED_REWARDS_DISABLED/);
+  assert.match(fastPath, /REWARD_DISTRIBUTION_PAUSED/);
+  assert.match(fastPath, /DISTRIBUTOR_ADMIN_CONFLICT/);
+  assert.match(fastPath, /DISTRIBUTOR_NOT_REGISTERED/);
+});
+
 test('Claim preparation reuses fixed reservations without background re-verification sweeps', () => {
   assert.match(fastPath, /prepare_predictive_reward_batch/);
   assert.match(fastPath, /EXPLICIT_CLAIM_FAST_PATH/);
