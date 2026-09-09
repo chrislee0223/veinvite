@@ -35,13 +35,87 @@ const PUBLIC_RANK_LIMIT = 100;
 const EAGER_AVATAR_RANK_LIMIT = 5;
 const WALLET_PREFIX_LENGTH = 5;
 const WALLET_SUFFIX_LENGTH = 3;
+const AVATAR_PROFILE_CACHE_TTL_MS = 15 * 60_000;
+const AVATAR_PROFILE_CACHE_KEY = 'veinvite_leaderboard_profile_avatar_v1';
 const RANK_SLOTS = Array.from(
   { length: PUBLIC_RANK_LIMIT },
   (_, index) => index + 1,
 );
 
+const resolvedAvatarMemory = new Map<string, string>();
+
+type StoredProfileAvatar = {
+  url: string;
+  savedAt: number;
+};
+
+type StoredProfileAvatarMap = Record<string, StoredProfileAvatar>;
+
 function maskWallet(address: string): string {
   return `${address.slice(0, WALLET_PREFIX_LENGTH)}…${address.slice(-WALLET_SUFFIX_LENGTH)}`;
+}
+
+function avatarKey(address: string): string {
+  return address.trim().toLowerCase();
+}
+
+function readCachedAvatar(address: string): string | null {
+  const key = avatarKey(address);
+  const memory = resolvedAvatarMemory.get(key);
+  if (memory) return memory;
+  if (typeof window === 'undefined') return null;
+
+  try {
+    const raw = window.sessionStorage.getItem(AVATAR_PROFILE_CACHE_KEY);
+    if (!raw) return null;
+    const stored = JSON.parse(raw) as StoredProfileAvatarMap;
+    const entry = stored[key];
+    if (
+      !entry ||
+      typeof entry.url !== 'string' ||
+      !entry.url ||
+      typeof entry.savedAt !== 'number' ||
+      Date.now() - entry.savedAt > AVATAR_PROFILE_CACHE_TTL_MS
+    ) {
+      if (entry) {
+        delete stored[key];
+        window.sessionStorage.setItem(
+          AVATAR_PROFILE_CACHE_KEY,
+          JSON.stringify(stored),
+        );
+      }
+      return null;
+    }
+
+    resolvedAvatarMemory.set(key, entry.url);
+    return entry.url;
+  } catch {
+    return null;
+  }
+}
+
+function rememberResolvedAvatar(
+  address: string,
+  url: string,
+  persistProfile: boolean,
+): void {
+  const key = avatarKey(address);
+  resolvedAvatarMemory.set(key, url);
+  if (!persistProfile || typeof window === 'undefined') return;
+
+  try {
+    const raw = window.sessionStorage.getItem(AVATAR_PROFILE_CACHE_KEY);
+    const stored = raw
+      ? (JSON.parse(raw) as StoredProfileAvatarMap)
+      : {};
+    stored[key] = { url, savedAt: Date.now() };
+    window.sessionStorage.setItem(
+      AVATAR_PROFILE_CACHE_KEY,
+      JSON.stringify(stored),
+    );
+  } catch {
+    // Avatar resolution remains correct even if session storage is unavailable.
+  }
 }
 
 function formatRewardWei(value: string): string {
@@ -71,16 +145,20 @@ function WalletAvatar({
   const avatarHostRef = useRef<HTMLSpanElement | null>(null);
   const fallbackUrl = useMemo(() => getPicassoImage(address), [address]);
   const [shouldLoadProfile, setShouldLoadProfile] = useState(eager);
-  const [displayUrl, setDisplayUrl] = useState(fallbackUrl);
-  const { data: domainInfo } = useVechainDomain(
+  const [displayUrl, setDisplayUrl] = useState<string | null>(() =>
+    readCachedAvatar(address),
+  );
+  const { data: domainInfo, isLoading: domainLoading } = useVechainDomain(
     shouldLoadProfile ? address : undefined,
   );
   const domain = domainInfo?.domain ?? '';
-  const { data: profileAvatarUrl } = useGetAvatar(domain);
+  const { data: profileAvatarUrl, isLoading: avatarLoading } =
+    useGetAvatar(domain);
 
   useEffect(() => {
-    setDisplayUrl(fallbackUrl);
-  }, [fallbackUrl]);
+    setDisplayUrl(readCachedAvatar(address));
+    setShouldLoadProfile(eager);
+  }, [address, eager]);
 
   useEffect(() => {
     if (eager) {
@@ -110,39 +188,69 @@ function WalletAvatar({
   }, [eager]);
 
   useEffect(() => {
-    if (!profileAvatarUrl || profileAvatarUrl === displayUrl) return;
+    if (!shouldLoadProfile || domainLoading) return;
+    if (domain && avatarLoading) return;
+
+    const resolvedUrl = profileAvatarUrl || fallbackUrl;
+    const persistProfile = Boolean(profileAvatarUrl);
+    if (resolvedUrl === displayUrl) {
+      rememberResolvedAvatar(address, resolvedUrl, persistProfile);
+      return;
+    }
 
     let active = true;
     const image = new Image();
     image.onload = () => {
-      if (active) setDisplayUrl(profileAvatarUrl);
+      if (!active) return;
+      rememberResolvedAvatar(address, resolvedUrl, persistProfile);
+      setDisplayUrl(resolvedUrl);
     };
     image.onerror = () => {
-      if (active) setDisplayUrl(fallbackUrl);
+      if (!active) return;
+      rememberResolvedAvatar(address, fallbackUrl, false);
+      setDisplayUrl(fallbackUrl);
     };
-    image.src = profileAvatarUrl;
+    image.src = resolvedUrl;
 
     return () => {
       active = false;
     };
-  }, [displayUrl, fallbackUrl, profileAvatarUrl]);
+  }, [
+    address,
+    avatarLoading,
+    displayUrl,
+    domain,
+    domainLoading,
+    fallbackUrl,
+    profileAvatarUrl,
+    shouldLoadProfile,
+  ]);
 
   return (
-    <span ref={avatarHostRef} className="walletAvatar" aria-hidden="true">
-      <img
-        src={displayUrl}
-        alt=""
-        loading={eager ? 'eager' : 'lazy'}
-        fetchPriority={eager ? 'high' : 'auto'}
-        decoding="async"
-        style={{
-          width: '100%',
-          height: '100%',
-          display: 'block',
-          objectFit: 'contain',
-          borderRadius: 'inherit',
-        }}
-      />
+    <span
+      ref={avatarHostRef}
+      className="walletAvatar"
+      data-avatar-pending={!displayUrl ? 'true' : undefined}
+      aria-hidden="true"
+    >
+      {displayUrl ? (
+        <img
+          src={displayUrl}
+          alt=""
+          loading={eager ? 'eager' : 'lazy'}
+          fetchPriority={eager ? 'high' : 'auto'}
+          decoding="async"
+          style={{
+            width: '100%',
+            height: '100%',
+            display: 'block',
+            objectFit: 'contain',
+            borderRadius: 'inherit',
+          }}
+        />
+      ) : (
+        <span className="walletAvatarNeutral" />
+      )}
     </span>
   );
 }
@@ -1099,6 +1207,13 @@ export function PublicLeaderboard({
           border-radius:50%;
           background:rgba(255,205,80,.055);
           box-shadow:inset 0 0 0 1px rgba(255,255,255,.02);
+        }
+        .walletAvatarNeutral {
+          width:100%;
+          height:100%;
+          display:block;
+          border-radius:inherit;
+          background:radial-gradient(circle at 38% 34%,rgba(255,222,126,.16),rgba(255,205,80,.045) 58%,rgba(255,255,255,.018));
         }
         .walletText {
           min-width:0;
