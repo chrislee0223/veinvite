@@ -41,7 +41,7 @@ test('only awaiting rewards expose Claim while queued and assigned rewards show 
   assert.match(center, /fetch\('\/api\/rewards\/claims'/);
 
   assert.match(claimRoute, /request_reward_claim/);
-  assert.match(claimRoute, /runAutomaticRewardPayout/);
+  assert.match(claimRoute, /runImmediateClaimRewardPayout/);
 });
 
 test('an unresolved Claim stays visible on the bell without piggybacking on history polling', () => {

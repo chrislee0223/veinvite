@@ -66,17 +66,31 @@ test('claim payout kickoff retries transient lock or queued idle states before f
 });
 
 test('generic reward sweeps cannot transfer a newly eligible unclaimed reservation', () => {
-  const reserveIndex = payoutWrapper.indexOf('await reserveEligibleReferralRewards()');
-  const payoutIndex = payoutWrapper.indexOf('return runBaseAutomaticRewardPayout()');
+  const standardStart = payoutWrapper.indexOf(
+    'export async function runAutomaticRewardPayout',
+  );
 
-  assert.ok(reserveIndex >= 0);
-  assert.ok(payoutIndex > reserveIndex);
+  assert.ok(standardStart >= 0, 'standard automatic payout wrapper must exist');
+
+  const standardWorker = payoutWrapper.slice(standardStart);
+  const reserveIndex = standardWorker.indexOf(
+    'await reserveEligibleReferralRewards()',
+  );
+  const payoutIndex = standardWorker.indexOf(
+    'return runBaseAutomaticRewardPayout()',
+  );
+
+  assert.ok(reserveIndex >= 0, 'generic sweep must reserve eligible rewards first');
+  assert.ok(
+    payoutIndex > reserveIndex,
+    'generic sweep may reach the base payout worker only after the reservation sweep',
+  );
   assert.match(
-    payoutWrapper,
+    standardWorker,
     /Only\s*\n?\s*\/\/ entries later moved to QUEUED by an explicit claim can reach the base payout/u,
   );
   assert.match(
-    payoutWrapper,
+    standardWorker,
     /completing a mission never causes an automatic token transfer/u,
   );
 });
