@@ -1,0 +1,134 @@
+/*
+ * RTL leaderboard hardening.
+ *
+ * Keep the leaderboard's physical column geometry identical across locales so
+ * switching to Urdu / Arabic does not move Rank, Inviter, Invites or Rewards to
+ * different screen positions. Text inside those fixed cells still follows its
+ * own natural writing direction.
+ *
+ * The country ranking previously inherited document RTL direction while the
+ * inviter ranking explicitly used LTR grid geometry. That made the two views
+ * mirror differently. Lock both views and the two ranking tabs to the same
+ * physical LTR geometry, then restore RTL only inside translated text nodes.
+ *
+ * Technical numbers remain isolated LTR content and use the neutral UI font.
+ * Give their line boxes a little vertical breathing room at every breakpoint so
+ * Urdu/Nastaliq fallback metrics cannot clip the bottom of reward digits.
+ */
+
+/* Shared numeric clipping guard: applies to every locale, not only RTL. */
+html body .leaderboardHub .inviterInside .rankMetric b {
+  display: block !important;
+  padding-block: 1px !important;
+  overflow: visible !important;
+  font-family: system-ui, -apple-system, "Segoe UI", Arial, sans-serif !important;
+  line-height: 1.25 !important;
+  direction: ltr !important;
+  unicode-bidi: isolate !important;
+  font-variant-numeric: tabular-nums !important;
+}
+
+html body .leaderboardHub .countryMetricValue,
+html body .leaderboardHub .countryRank {
+  padding-block: 1px !important;
+  overflow: visible !important;
+  font-family: system-ui, -apple-system, "Segoe UI", Arial, sans-serif !important;
+  line-height: 1.2 !important;
+  direction: ltr !important;
+  unicode-bidi: isolate !important;
+  font-variant-numeric: tabular-nums !important;
+}
+
+/* Fixed physical geometry for every RTL locale. */
+html[dir='rtl'] .leaderboardHub .rankingTabs,
+html[dir='rtl'] .leaderboardHub .countryHeader,
+html[dir='rtl'] .leaderboardHub .countryRow,
+html[dir='rtl'] .leaderboardHub .countryPlaceholderRow {
+  direction: ltr !important;
+}
+
+/* Ranking tab positions stay identical to LTR locales; only their copy is RTL. */
+html[dir='rtl'] .leaderboardHub .rankingTabs button > span {
+  direction: rtl !important;
+  unicode-bidi: isolate !important;
+  text-align: center !important;
+}
+
+/* Country table keeps the same column anchors as the inviter table. */
+html[dir='rtl'] .leaderboardHub .countryHeader > span {
+  direction: rtl !important;
+  unicode-bidi: isolate !important;
+  text-align: center !important;
+}
+
+html[dir='rtl'] .leaderboardHub .countryHeader .countryHeaderCountry {
+  text-align: left !important;
+}
+
+html[dir='rtl'] .leaderboardHub .countryIdentity {
+  direction: ltr !important;
+  justify-content: flex-start !important;
+  text-align: left !important;
+}
+
+html[dir='rtl'] .leaderboardHub .countryNameLine,
+html[dir='rtl'] .leaderboardHub .countryNameLine strong {
+  direction: rtl !important;
+  unicode-bidi: isolate !important;
+  text-align: left !important;
+}
+
+/* Prose surfaces remain naturally RTL and align to the card's right edge. */
+html[dir='rtl'] .leaderboardHub .impactCard > h2,
+html[dir='rtl'] .leaderboardHub .impactCard > .impactNote {
+  direction: rtl !important;
+  unicode-bidi: isolate !important;
+  text-align: right !important;
+}
+
+html[dir='rtl'] .leaderboardHub .impactSummaryButton {
+  direction: rtl !important;
+  text-align: right !important;
+}
+
+html[dir='rtl'] .leaderboardHub .impactSummaryButton > span {
+  direction: rtl !important;
+  unicode-bidi: isolate !important;
+  text-align: right !important;
+}
+
+html[dir='rtl'] .leaderboardHub .impactSummaryButton > strong {
+  direction: ltr !important;
+  unicode-bidi: isolate !important;
+  text-align: right !important;
+}
+
+/* The details chevron sits on the left in RTL, so mirror its visual direction. */
+html[dir='rtl'] .leaderboardHub .impactSummaryButton > b {
+  direction: ltr !important;
+  transform: scaleX(-1);
+}
+
+/* Urdu Nastaliq needs more line-box room than Arabic Sans/Naskh fallbacks. */
+html[lang='ur'] .leaderboardHub .impactCard > h2 {
+  padding-block: 2px;
+  line-height: 1.6 !important;
+}
+
+html[lang='ur'] .leaderboardHub .rankingTabs button > span,
+html[lang='ur'] .leaderboardHub .tableHeader > span,
+html[lang='ur'] .leaderboardHub .countryHeader > span,
+html[lang='ur'] .leaderboardHub .countryNameLine strong {
+  line-height: 1.5 !important;
+}
+
+@media (max-width: 420px) {
+  html body .leaderboardHub .inviterInside .rankMetric b {
+    line-height: 1.3 !important;
+  }
+
+  html body .leaderboardHub .countryMetricValue,
+  html body .leaderboardHub .countryRank {
+    line-height: 1.25 !important;
+  }
+}
