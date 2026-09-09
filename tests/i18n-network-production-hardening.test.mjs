@@ -6,7 +6,7 @@ const [route, network, controls, migration] = await Promise.all([
   readFile(new URL('../src/app/api/network/route.ts', import.meta.url), 'utf8'),
   readFile(new URL('../src/components/AppNetwork.tsx', import.meta.url), 'utf8'),
   readFile(new URL('../src/lib/i18n/networkCanvasControlCopy.ts', import.meta.url), 'utf8'),
-  readFile(new URL('../supabase/migrations/20260909032000_harden_network_runtime_and_round_context.sql', import.meta.url), 'utf8'),
+  readFile(new URL('../supabase/migrations/20260909040000_harden_network_runtime_and_round_context.sql', import.meta.url), 'utf8'),
 ]);
 
 test('Network round metrics come from the reviewed chain resolver and fail soft when unavailable', () => {
@@ -19,13 +19,20 @@ test('Network round metrics come from the reviewed chain resolver and fail soft 
   assert.match(network, /rootData\.summary\.thisRound\s*===\s*null[\s\S]*'—'/i);
 });
 
-test('Network runtime switch fails closed and stays service-role only', () => {
+test('Network runtime switch fails closed before chain and recursive graph work', () => {
   assert.match(migration, /create table if not exists public\.network_runtime_config/i);
   assert.match(migration, /coalesce\(\([\s\S]*select c\.enabled[\s\S]*\), false\)/i);
   assert.match(migration, /NETWORK_DISABLED/i);
   assert.match(migration, /enable row level security/i);
   assert.match(migration, /revoke all on table public\.network_runtime_config from public, anon, authenticated/i);
   assert.match(migration, /to service_role/i);
+  assert.match(route, /async function networkRuntimeEnabled/i);
+  const switchCheck = route.indexOf('await networkRuntimeEnabled()');
+  const roundRead = route.indexOf('readCurrentRoundContext()');
+  const graphRead = route.indexOf("supabaseAdmin.rpc(\n    'read_referral_network_focus_v2'");
+  assert.ok(switchCheck >= 0);
+  assert.ok(roundRead > switchCheck);
+  assert.ok(graphRead > switchCheck);
   assert.match(route, /payload\.error === 'NETWORK_DISABLED'/i);
   assert.match(route, /status:\s*503/i);
 });
