@@ -7,6 +7,13 @@
  * Keep those values in one shared token set here instead of letting the two
  * surfaces drift through separate component/mobile overrides.
  *
+ * Technical numeric values:
+ * Referral counts and B3TR amounts are machine-readable LTR data, not localized
+ * prose. Keep them on the neutral UI font stack instead of inheriting Arabic /
+ * Urdu display fonts. A slightly relaxed line box also prevents tall-script font
+ * metrics or browser fallback changes from clipping the bottom of digits while
+ * preserving the existing fixed row heights.
+ *
  * Country header:
  * The country row already has a fixed flag box before the country name. Align
  * the COUNTRY header with the country-name text axis instead of the flag edge.
@@ -40,7 +47,15 @@ html body .leaderboardHub .countryHeader {
   font-size: var(--leaderboard-header-size) !important;
 }
 
-html body .leaderboardHub .inviterInside .rankMetric b,
+html body .leaderboardHub .inviterInside .rankMetric b {
+  color: var(--leaderboard-value-color) !important;
+  font-family: system-ui, -apple-system, "Segoe UI", Arial, sans-serif !important;
+  font-size: var(--leaderboard-value-size) !important;
+  font-weight: var(--leaderboard-value-weight) !important;
+  line-height: 1.2 !important;
+  font-variant-numeric: tabular-nums !important;
+}
+
 html body .leaderboardHub .countryMetricValue {
   color: var(--leaderboard-value-color) !important;
   font-size: var(--leaderboard-value-size) !important;
