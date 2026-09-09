@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 
-import { canUseNetworkSurface } from '@/lib/networkRuntimeServer';
+import {
+  isNetworkCanaryWallet,
+  readNetworkRuntimeMode,
+} from '@/lib/networkRuntimeServer';
 import {
   enforceRateLimits,
   getClientIpSubject,
@@ -8,6 +11,7 @@ import {
 import { normalizeAddress } from '@/lib/serverStore';
 import { supabaseAdmin } from '@/lib/supabaseServer';
 import { readVeBetterRoundWindow } from '@/lib/vebetter/entryEligibility';
+import { requireWalletSession } from '@/lib/walletAuthServer';
 
 type PublicNetworkRpcError =
   | 'PUBLIC_NETWORK_DISABLED'
@@ -33,7 +37,7 @@ type PublicNetworkPayload = {
     direct: number;
     thisRound: number | null;
     depth: number;
-    hasPrivateBranches: boolean;
+    hasPrivateBranches?: boolean;
   }>;
   hasPrivateBranches?: boolean;
   depthLimitReached?: boolean;
@@ -86,6 +90,21 @@ function withTimeout<T>(promise: Promise<T>, timeoutMs: number): Promise<T> {
       },
     );
   });
+}
+
+async function canCurrentViewerUsePublicNetwork(request: NextRequest): Promise<boolean> {
+  const mode = await readNetworkRuntimeMode('public');
+  if (mode === 'on') return true;
+  if (mode === 'off') return false;
+
+  // Canary is intentionally viewer-gated. A canary root must not become
+  // guest-readable before the Public surface is fully enabled.
+  try {
+    const session = await requireWalletSession({ request });
+    return isNetworkCanaryWallet(session.walletAddress);
+  } catch {
+    return false;
+  }
 }
 
 async function readCurrentRoundContext(): Promise<CurrentRoundContext | null> {
@@ -159,7 +178,7 @@ export async function GET(request: NextRequest) {
   ]);
   if (rateLimitResponse) return rateLimitResponse;
 
-  if (!(await canUseNetworkSurface('public', rootWallet))) {
+  if (!(await canCurrentViewerUsePublicNetwork(request))) {
     return noStoreJson(
       { code: 'PUBLIC_NETWORK_DISABLED', error: 'Public Network is temporarily unavailable.' },
       503,
@@ -211,5 +230,13 @@ export async function GET(request: NextRequest) {
     return noStoreJson({ code: 'INVALID_WALLET', error: 'Invalid wallet address.' }, 400);
   }
 
-  return noStoreJson(payload as Record<string, unknown>);
+  // Private-branch existence is intentionally not part of the browser payload.
+  // The graph itself already stops at non-public wallets in SQL.
+  const {
+    hasPrivateBranches: _rootPrivateMetadata,
+    children = [],
+    ...rest
+  } = payload;
+  const safeChildren = children.map(({ hasPrivateBranches: _privateMetadata, ...child }) => child);
+  return noStoreJson({ ...rest, children: safeChildren } as Record<string, unknown>);
 }
