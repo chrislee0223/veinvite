@@ -5,9 +5,13 @@ import { LanguageFlag } from './LanguageFlag';
 import { LANGUAGE_SELECT_COPY } from '@/lib/i18n/languageSelectCopy';
 import {
   LANGUAGE_OPTIONS,
+  isLocale,
   type Locale,
   type SupportedLocale,
 } from '@/lib/i18n/locales';
+import {
+  markPendingManualLanguage,
+} from '@/lib/i18n/pendingLanguageSelection';
 
 type LanguageSelectV2Props = {
   locale: Locale;
@@ -17,6 +21,13 @@ type LanguageSelectV2Props = {
 
 export function LanguageSelectV2({ locale, onSelect, onContinue }: LanguageSelectV2Props) {
   const t = LANGUAGE_SELECT_COPY[locale];
+
+  const handleContinue = () => {
+    if (isLocale(locale)) {
+      markPendingManualLanguage(locale);
+    }
+    onContinue();
+  };
 
   return (
     <main className="screen">
@@ -47,7 +58,7 @@ export function LanguageSelectV2({ locale, onSelect, onContinue }: LanguageSelec
           })}
         </div>
 
-        <button type="button" className="continueButton" onClick={onContinue}>
+        <button type="button" className="continueButton" onClick={handleContinue}>
           {t.continue}<span className="continueArrow" aria-hidden="true">›</span>
         </button>
         <p className="note">{t.note}</p>

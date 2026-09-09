@@ -20,6 +20,7 @@ const OBSERVE_DISPLAY_LANGUAGE_INTENT =
 const LANGUAGE_USAGE_SOURCES = [
   'browser_auto',
   'local_storage',
+  'query_param',
   'wallet_preference',
   'manual_selection',
 ] as const;
@@ -131,20 +132,15 @@ async function recordLanguageUsage({
   source: LanguageUsageSource;
   observedAt: string;
 }) {
-  const { error } = await supabaseAdmin
-    .from('wallet_language_usage')
-    .upsert(
-      {
-        wallet_address: walletAddress,
-        current_language: language,
-        current_source: source,
-        last_observed_at: observedAt,
-        updated_at: observedAt,
-      },
-      {
-        onConflict: 'wallet_address',
-      },
-    );
+  const { error } = await supabaseAdmin.rpc(
+    'record_wallet_language_usage_v2',
+    {
+      p_wallet_address: walletAddress,
+      p_language: language,
+      p_source: source,
+      p_observed_at: observedAt,
+    },
+  );
 
   if (error) {
     throw new Error(
