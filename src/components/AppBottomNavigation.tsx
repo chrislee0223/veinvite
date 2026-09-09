@@ -185,8 +185,13 @@ export function AppBottomNavigation({
   }, [wallet]);
 
   useEffect(() => {
+    // A wallet change invalidates any leaderboard readiness request that was
+    // started for the previous wallet. Active-tab changes also close the same
+    // race for rapid navigation so late promises can never commit stale work.
+    navigationRequestRef.current += 1;
+    pendingMotionTabRef.current = null;
     setVisualTarget(activeTab);
-  }, [activeTab, setVisualTarget]);
+  }, [activeTab, wallet, setVisualTarget]);
 
   useLayoutEffect(() => {
     positionIndicator(visualTab, indicatorInitializedRef.current);
@@ -267,6 +272,23 @@ export function AppBottomNavigation({
     }
   };
 
+  const prepareTabForNavigation = (tab: AppTab): Promise<void> => {
+    const moduleReady = preloadTabModule(tab).then(() => undefined);
+    if (tab !== 'leaderboard') {
+      return moduleReady;
+    }
+
+    // The leaderboard is the only lazy tab whose first useful paint depends on
+    // a separate public-data request. Wait for both the code chunk and the
+    // current wallet's data so a hard-refresh click cannot reveal placeholder
+    // rows before the real ranking arrives. The client cache/in-flight map makes
+    // this effectively immediate when pointer/focus warming already succeeded.
+    return Promise.all([
+      moduleReady,
+      prefetchPublicLeaderboard(wallet),
+    ]).then(() => undefined);
+  };
+
   const commitTab = (tab: AppTab, requestId: number) => {
     if (navigationRequestRef.current !== requestId) return;
 
@@ -299,9 +321,9 @@ export function AppBottomNavigation({
       return;
     }
 
-    // Give immediate touch feedback even when a code-split tab still needs a
-    // moment to become ready. aria-current remains tied to activeTab below, so
-    // accessibility state only changes after the real page has committed.
+    // Give immediate touch feedback while the requested tab finishes warming.
+    // aria-current remains tied to activeTab below, so accessibility state only
+    // changes after the real page has committed.
     setVisualTarget(tab);
     pendingMotionTabRef.current = tab;
     if (tab === 'home') {
@@ -309,8 +331,11 @@ export function AppBottomNavigation({
       return;
     }
 
-    void preloadTabModule(tab)
+    void prepareTabForNavigation(tab)
       .then(() => commitTab(tab, requestId))
+      // Keep navigation fail-open. If the leaderboard endpoint itself is down,
+      // its existing inline error/retry surface remains reachable instead of
+      // trapping the user on the previous tab forever.
       .catch(() => commitTab(tab, requestId));
   };
 
