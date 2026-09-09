@@ -5,6 +5,7 @@ import { LanguageFlag } from './LanguageFlag';
 import { LANGUAGE_SELECT_COPY } from '@/lib/i18n/languageSelectCopy';
 import {
   LANGUAGE_OPTIONS,
+  isLocale,
   type Locale,
   type SupportedLocale,
 } from '@/lib/i18n/locales';
@@ -29,7 +30,11 @@ export function LanguageSelectV2({ locale, onSelect, onContinue }: LanguageSelec
   const continueWithLanguage = () => {
     // Pressing Continue is an explicit confirmation even when the initially
     // suggested language was already correct and no language card was tapped.
-    markPendingManualLanguage(locale);
+    // The legacy Locale alias is string-wide, so narrow at the persistence
+    // boundary instead of casting an unsupported value into storage.
+    if (isLocale(locale)) {
+      markPendingManualLanguage(locale);
+    }
     onContinue();
   };
 
