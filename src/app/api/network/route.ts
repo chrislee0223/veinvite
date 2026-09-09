@@ -138,6 +138,20 @@ async function readCurrentRoundContext(): Promise<CurrentRoundContext | null> {
   return roundInFlight;
 }
 
+async function networkRuntimeEnabled(): Promise<boolean> {
+  const { data, error } = await supabaseAdmin
+    .from('network_runtime_config')
+    .select('enabled')
+    .eq('id', 1)
+    .maybeSingle();
+
+  if (error) {
+    console.error('Failed to read Network runtime switch:', error);
+    return false;
+  }
+  return data?.enabled === true;
+}
+
 export async function GET(request: NextRequest) {
   const walletParam = request.nextUrl.searchParams.get('wallet');
   if (!walletParam) {
@@ -192,6 +206,15 @@ export async function GET(request: NextRequest) {
     },
   ]);
   if (rateLimitResponse) return rateLimitResponse;
+
+  // Read the database-backed switch before any chain request or recursive graph
+  // work. Missing/unreadable configuration also fails closed.
+  if (!(await networkRuntimeEnabled())) {
+    return NextResponse.json(
+      { error: 'Network is temporarily unavailable.' },
+      { status: 503, headers: { 'Cache-Control': 'no-store' } },
+    );
+  }
 
   const round = await readCurrentRoundContext();
   const { data, error } = await supabaseAdmin.rpc(
