@@ -38,7 +38,7 @@ test('claim request queues first and immediately starts the payout worker', () =
   assert.match(claimRoute, /Immediate reward payout iteration failed after claim:/u);
 });
 
-test('claim payout kickoff retries transient lock or queued idle states before falling back to cron', () => {
+test('claim payout kickoff retries transient lock or queued idle states immediately', () => {
   assert.match(
     claimRoute,
     /const CLAIM_PAYOUT_RETRY_DELAYS_MS = \[/u,
@@ -53,7 +53,7 @@ test('claim payout kickoff retries transient lock or queued idle states before f
   );
   assert.match(
     claimRoute,
-    /\(result\.queuedCount \?\? 0\) > 0/u,
+    /hasQueuedRemainder\(result\)/u,
   );
   assert.match(
     claimRoute,
@@ -62,6 +62,31 @@ test('claim payout kickoff retries transient lock or queued idle states before f
   assert.match(
     claimRoute,
     /Immediate reward payout remained queued after Claim retries:/u,
+  );
+});
+
+test('claim response schedules bounded continuation through finality and concurrent queued claims', () => {
+  assert.match(claimRoute, /import \{[\s\S]*after,[\s\S]*\} from 'next\/server'/u);
+  assert.match(
+    claimRoute,
+    /const CLAIM_PAYOUT_CONTINUATION_DELAYS_MS = \[/u,
+  );
+  assert.match(claimRoute, /result\.status === 'SUBMITTED'/u);
+  assert.match(claimRoute, /result\.status === 'WAITING_FINALITY'/u);
+  assert.match(claimRoute, /result\.status === 'PREPARED'/u);
+  assert.match(claimRoute, /result\.status === 'PAID'/u);
+  assert.match(claimRoute, /hasQueuedRemainder\(result\)/u);
+  assert.match(
+    claimRoute,
+    /for \(const delayMs of CLAIM_PAYOUT_CONTINUATION_DELAYS_MS\)/u,
+  );
+  assert.match(
+    claimRoute,
+    /after\(async \(\) => \{[\s\S]*continueClaimPayoutAfterResponse/u,
+  );
+  assert.match(
+    claimRoute,
+    /Post-Claim reward payout continuation exhausted its bounded retries:/u,
   );
 });
 
