@@ -1,0 +1,3 @@
+Production redeploy trigger for #493 after Vercel build-rate-limit.
+Created 2026-09-09 19:46 KST.
+No application runtime, database, reward, Claim, Network graph, or leaderboard logic changes.
