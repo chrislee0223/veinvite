@@ -9,6 +9,7 @@ import { getVeBetterNetworkConfig } from '@/lib/vebetter/network';
 const FORECAST_SEED_CACHE_SECONDS = 5 * 60;
 const FORECAST_SEED_STALE_MS = 60 * 60_000;
 const FORECAST_SEED_MAX_AGE_MS = 24 * 60 * 60_000;
+const FORECAST_SEED_STARTUP_TIMEOUT_MS = 450;
 
 const readCachedPublicRewardForecastSeed = unstable_cache(
   async (
@@ -44,14 +45,34 @@ const readCachedPublicRewardForecastSeed = unstable_cache(
   { revalidate: FORECAST_SEED_CACHE_SECONDS },
 );
 
+async function readSeedWithinStartupBudget(
+  network: string,
+): Promise<PublicRewardForecastSeed | null> {
+  let timeoutId: ReturnType<typeof setTimeout> | null = null;
+
+  try {
+    return await Promise.race([
+      readCachedPublicRewardForecastSeed(
+        network,
+        VEINVITE_APP_ID,
+      ),
+      new Promise<null>((resolve) => {
+        timeoutId = setTimeout(
+          () => resolve(null),
+          FORECAST_SEED_STARTUP_TIMEOUT_MS,
+        );
+      }),
+    ]);
+  } finally {
+    if (timeoutId !== null) clearTimeout(timeoutId);
+  }
+}
+
 export async function readPublicRewardForecastSeed(): Promise<PublicRewardForecastSeed | null> {
   const { network } = getVeBetterNetworkConfig();
 
   try {
-    return await readCachedPublicRewardForecastSeed(
-      network,
-      VEINVITE_APP_ID,
-    );
+    return await readSeedWithinStartupBudget(network);
   } catch (error) {
     // Forecast is a public convenience surface. A cache/database failure must
     // never block Home or wallet-session bootstrap.
