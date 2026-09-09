@@ -1,12 +1,13 @@
 import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
 
+import { ActiveSpinePreviewController } from '@/components/ActiveSpinePreviewController';
 import { InfiniteNetworkCanvasV29Preview } from '@/components/InfiniteNetworkCanvasV29Preview';
 
 export const dynamic = 'force-dynamic';
 
 export const metadata: Metadata = {
-  title: 'VeInvite Infinite Network v2.9 Neutral Profile Preview',
+  title: 'VeInvite Infinite Network v3.0 Active Spine Preview',
   robots: {
     index: false,
     follow: false,
@@ -22,5 +23,10 @@ export default function NetworkPreviewPage() {
     notFound();
   }
 
-  return <InfiniteNetworkCanvasV29Preview />;
+  return (
+    <>
+      <ActiveSpinePreviewController />
+      <InfiniteNetworkCanvasV29Preview />
+    </>
+  );
 }
