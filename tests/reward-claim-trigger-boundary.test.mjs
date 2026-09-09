@@ -74,10 +74,8 @@ test('claim response schedules bounded continuation through finality and concurr
   assert.match(claimRoute, /result\.status === 'SUBMITTED'/u);
   assert.match(claimRoute, /result\.status === 'WAITING_FINALITY'/u);
   assert.match(claimRoute, /result\.status === 'PREPARED'/u);
-  assert.match(
-    claimRoute,
-    /result\.status === 'PAID'[\s\S]*hasQueuedRemainder/u,
-  );
+  assert.match(claimRoute, /result\.status === 'PAID'/u);
+  assert.match(claimRoute, /hasQueuedRemainder\(result\)/u);
   assert.match(
     claimRoute,
     /for \(const delayMs of CLAIM_PAYOUT_CONTINUATION_DELAYS_MS\)/u,
