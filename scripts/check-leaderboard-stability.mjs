@@ -52,10 +52,12 @@ if (
 }
 if (
   !/import \{ PublicLeaderboard as InviterLeaderboard \} from '\.\/InviterLeaderboard';/.test(leaderboardHub) ||
-  !/<InviterLeaderboard[\s\S]*previewData=\{data\}/.test(leaderboardHub) ||
-  !/type RankingView = 'inviter' \| 'country'/.test(leaderboardHub)
+  !/<InviterLeaderboard[\s\S]*previewData=\{displayData\}/.test(leaderboardHub) ||
+  !/type RankingView = 'inviter' \| 'country'/.test(leaderboardHub) ||
+  !/const displayData = useMemo<PublicLeaderboardResponse \| null>/.test(leaderboardHub) ||
+  !/currentUser:\s*resolvedCurrentUser/.test(leaderboardHub)
 ) {
-  failures.push('Country hub must embed the reviewed inviter leaderboard rather than reimplementing or replacing it.');
+  failures.push('Country hub must embed the reviewed inviter leaderboard with the public snapshot plus resolved current-wallet personalization.');
 }
 
 if (!/import \{ SecondaryPageLayoutPolish \} from '\.\/SecondaryPageLayoutPolish';/.test(appProviders) || !/<SecondaryPageLayoutPolish\s*\/>/.test(appProviders)) {
