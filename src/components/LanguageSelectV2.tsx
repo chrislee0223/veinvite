@@ -5,6 +5,7 @@ import { LanguageFlag } from './LanguageFlag';
 import { LANGUAGE_SELECT_COPY } from '@/lib/i18n/languageSelectCopy';
 import {
   LANGUAGE_OPTIONS,
+  isLocale,
   type Locale,
   type SupportedLocale,
 } from '@/lib/i18n/locales';
@@ -22,7 +23,9 @@ export function LanguageSelectV2({ locale, onSelect, onContinue }: LanguageSelec
   const t = LANGUAGE_SELECT_COPY[locale];
 
   const handleContinue = () => {
-    markPendingManualLanguage(locale);
+    if (isLocale(locale)) {
+      markPendingManualLanguage(locale);
+    }
     onContinue();
   };
 
