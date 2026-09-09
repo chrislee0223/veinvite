@@ -14,10 +14,15 @@
  * Technical numbers remain isolated LTR content and use the neutral UI font.
  * Give their line boxes a little vertical breathing room at every breakpoint so
  * Urdu/Nastaliq fallback metrics cannot clip the bottom of reward digits.
+ *
+ * PublicLeaderboardHub temporarily falls back to the standalone inviter board
+ * while data is loading or unavailable, so inviter guards intentionally target
+ * leaderboardPage as well as the unified hub. This prevents an RTL alignment
+ * flash/jump during initial load and keeps the degraded state visually correct.
  */
 
-/* Shared numeric clipping guard: applies to every locale, not only RTL. */
-html body .leaderboardHub .inviterInside .rankMetric b {
+/* Shared numeric clipping guard: applies to every locale, including fallback. */
+html body .leaderboardPage .rankingCard .rankMetric b {
   display: block !important;
   padding-block: 1px !important;
   overflow: visible !important;
@@ -79,51 +84,51 @@ html[dir='rtl'] .leaderboardHub .countryNameLine strong {
 }
 
 /* Prose surfaces remain naturally RTL and align to the card's right edge. */
-html[dir='rtl'] .leaderboardHub .impactCard > h2,
-html[dir='rtl'] .leaderboardHub .impactCard > .impactNote {
+html[dir='rtl'] .leaderboardPage .impactCard > h2,
+html[dir='rtl'] .leaderboardPage .impactCard > .impactNote {
   direction: rtl !important;
   unicode-bidi: isolate !important;
   text-align: right !important;
 }
 
-html[dir='rtl'] .leaderboardHub .impactSummaryButton {
+html[dir='rtl'] .leaderboardPage .impactSummaryButton {
   direction: rtl !important;
   text-align: right !important;
 }
 
-html[dir='rtl'] .leaderboardHub .impactSummaryButton > span {
+html[dir='rtl'] .leaderboardPage .impactSummaryButton > span {
   direction: rtl !important;
   unicode-bidi: isolate !important;
   text-align: right !important;
 }
 
-html[dir='rtl'] .leaderboardHub .impactSummaryButton > strong {
+html[dir='rtl'] .leaderboardPage .impactSummaryButton > strong {
   direction: ltr !important;
   unicode-bidi: isolate !important;
   text-align: right !important;
 }
 
 /* The details chevron sits on the left in RTL, so mirror its visual direction. */
-html[dir='rtl'] .leaderboardHub .impactSummaryButton > b {
+html[dir='rtl'] .leaderboardPage .impactSummaryButton > b {
   direction: ltr !important;
   transform: scaleX(-1);
 }
 
 /* Urdu Nastaliq needs more line-box room than Arabic Sans/Naskh fallbacks. */
-html[lang='ur'] .leaderboardHub .impactCard > h2 {
+html[lang='ur'] .leaderboardPage .impactCard > h2 {
   padding-block: 2px;
   line-height: 1.6 !important;
 }
 
 html[lang='ur'] .leaderboardHub .rankingTabs button > span,
-html[lang='ur'] .leaderboardHub .tableHeader > span,
+html[lang='ur'] .leaderboardPage .tableHeader > span,
 html[lang='ur'] .leaderboardHub .countryHeader > span,
 html[lang='ur'] .leaderboardHub .countryNameLine strong {
   line-height: 1.5 !important;
 }
 
 @media (max-width: 420px) {
-  html body .leaderboardHub .inviterInside .rankMetric b {
+  html body .leaderboardPage .rankingCard .rankMetric b {
     line-height: 1.3 !important;
   }
 

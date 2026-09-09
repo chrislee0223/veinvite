@@ -20,7 +20,9 @@
  * This uses only existing code geometry: desktop flag 28px + identity gap 8px
  * = 36px. On phones the flag is 25px; the reviewed identity gaps are 6px at
  * <=430px and 5px at <=360px, so the matching offsets are 31px and 30px.
- * padding-inline-start keeps the same relationship in RTL layouts.
+ * The country table is intentionally locked to one physical LTR column geometry
+ * across locales, so this offset must stay on the physical left even when the
+ * translated header text itself uses RTL direction.
  *
  * Inviter placeholder:
  * Populated inviter rows intentionally use avatar + wallet text. Empty rows do
@@ -92,7 +94,7 @@ html body .leaderboardHub .countryPlaceholderRow {
 }
 
 html body .leaderboardHub .countryHeader .countryHeaderCountry {
-  padding-inline-start: 36px;
+  padding-left: 36px;
 }
 
 html body .leaderboardHub .inviterInside .placeholderRow .walletCell::before {
@@ -105,7 +107,7 @@ html body .leaderboardHub .inviterInside .placeholderRow .walletText {
 
 @media (max-width: 430px) {
   html body .leaderboardHub .countryHeader .countryHeaderCountry {
-    padding-inline-start: 31px;
+    padding-left: 31px;
   }
 }
 
@@ -138,6 +140,6 @@ html body .leaderboardHub .inviterInside .placeholderRow .walletText {
   }
 
   html body .leaderboardHub .countryHeader .countryHeaderCountry {
-    padding-inline-start: 30px;
+    padding-left: 30px;
   }
 }
