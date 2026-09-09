@@ -64,6 +64,15 @@ export async function GET(request: NextRequest) {
     );
   }
 
-  const networks = Array.isArray(data) ? data : [];
+  // Discovery only needs a root locator. Do not expose preference timestamps or
+  // any other metadata that the Explore UI does not use.
+  const networks = Array.isArray(data)
+    ? data.flatMap((item) => {
+        if (!item || typeof item !== 'object' || !('wallet' in item)) return [];
+        const wallet = (item as { wallet?: unknown }).wallet;
+        return typeof wallet === 'string' ? [{ wallet }] : [];
+      })
+    : [];
+
   return noStoreJson({ networks });
 }
