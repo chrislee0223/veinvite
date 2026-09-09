@@ -2,9 +2,10 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import test from 'node:test';
 
-const [explorer, discoveryMigration, controls] = await Promise.all([
+const [explorer, discoveryMigration, discoverRoute, controls] = await Promise.all([
   readFile(new URL('../src/components/PublicNetworkExplorer.tsx', import.meta.url), 'utf8'),
   readFile(new URL('../supabase/migrations/20260909064500_stabilize_public_network_discovery.sql', import.meta.url), 'utf8'),
+  readFile(new URL('../src/app/api/network/public/discover/route.ts', import.meta.url), 'utf8'),
   readFile(new URL('../src/lib/i18n/networkCanvasControlCopy.ts', import.meta.url), 'utf8'),
 ]);
 
@@ -40,4 +41,10 @@ test('Explore discovery excludes empty public roots and cannot be bumped by togg
   assert.match(discoveryMigration, /md5\([\s\S]*IYYY-IW/i);
   assert.match(discoveryMigration, /order by rotation_key asc, wallet_address asc/i);
   assert.doesNotMatch(discoveryMigration, /order by np\.updated_at desc/i);
+});
+
+test('Explore discovery API only returns the root wallet locator used by the UI', () => {
+  assert.match(discoverRoute, /Do not expose preference timestamps/i);
+  assert.match(discoverRoute, /return typeof wallet === 'string' \? \[\{ wallet \}\] : \[\]/i);
+  assert.doesNotMatch(discoverRoute, /return noStoreJson\(\{ networks: data \}/i);
 });
