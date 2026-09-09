@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 
+import { enforceRateLimits } from '@/lib/rateLimitServer';
 import { supabaseAdmin } from '@/lib/supabaseServer';
 import {
   requireWalletSession,
@@ -90,8 +91,37 @@ export async function POST(request: NextRequest) {
   try {
     const session = await requireWalletSession({ request });
     const walletAddress = session.walletAddress.toLowerCase();
+    const rateLimitResponse = await enforceRateLimits([
+      {
+        scope: 'network_public_visibility_wallet',
+        subject: walletAddress,
+        limit: 12,
+        windowSeconds: 60,
+      },
+    ]);
+    if (rateLimitResponse) return rateLimitResponse;
+
+    const { data: current, error: currentError } = await supabaseAdmin
+      .from('network_public_profiles')
+      .select('public_enabled, discoverable, updated_at')
+      .eq('wallet_address', walletAddress)
+      .maybeSingle();
+    if (currentError) throw currentError;
+
+    if (
+      current?.public_enabled === publicEnabled
+      && current?.discoverable === discoverable
+    ) {
+      return noStoreJson({
+        walletAddress,
+        publicEnabled,
+        discoverable,
+        updatedAt: current.updated_at ?? null,
+      });
+    }
+
     const updatedAt = new Date().toISOString();
-    const { error } = await supabaseAdmin
+    const { data: saved, error } = await supabaseAdmin
       .from('network_public_profiles')
       .upsert(
         {
@@ -101,15 +131,17 @@ export async function POST(request: NextRequest) {
           updated_at: updatedAt,
         },
         { onConflict: 'wallet_address' },
-      );
+      )
+      .select('public_enabled, discoverable, updated_at')
+      .single();
 
     if (error) throw error;
 
     return noStoreJson({
       walletAddress,
-      publicEnabled,
-      discoverable,
-      updatedAt,
+      publicEnabled: saved.public_enabled === true,
+      discoverable: saved.discoverable === true,
+      updatedAt: saved.updated_at ?? updatedAt,
     });
   } catch (error) {
     const response = authResponse(error);
