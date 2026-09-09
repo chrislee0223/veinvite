@@ -8,6 +8,9 @@ import {
   type Locale,
   type SupportedLocale,
 } from '@/lib/i18n/locales';
+import {
+  markPendingManualLanguage,
+} from '@/lib/i18n/languageStorage';
 
 type LanguageSelectV2Props = {
   locale: Locale;
@@ -17,6 +20,11 @@ type LanguageSelectV2Props = {
 
 export function LanguageSelectV2({ locale, onSelect, onContinue }: LanguageSelectV2Props) {
   const t = LANGUAGE_SELECT_COPY[locale];
+
+  const selectLanguage = (nextLocale: SupportedLocale) => {
+    markPendingManualLanguage(nextLocale);
+    onSelect(nextLocale);
+  };
 
   return (
     <main className="screen">
@@ -34,7 +42,7 @@ export function LanguageSelectV2({ locale, onSelect, onContinue }: LanguageSelec
                 key={option.locale}
                 type="button"
                 className={selected ? 'languageCard selected' : 'languageCard'}
-                onClick={() => onSelect(option.locale)}
+                onClick={() => selectLanguage(option.locale)}
                 aria-pressed={selected}
               >
                 <span className="symbol" aria-hidden="true"><LanguageFlag locale={option.locale} /></span>
