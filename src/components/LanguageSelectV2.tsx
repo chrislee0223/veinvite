@@ -26,6 +26,13 @@ export function LanguageSelectV2({ locale, onSelect, onContinue }: LanguageSelec
     onSelect(nextLocale);
   };
 
+  const continueWithLanguage = () => {
+    // Pressing Continue is an explicit confirmation even when the initially
+    // suggested language was already correct and no language card was tapped.
+    markPendingManualLanguage(locale);
+    onContinue();
+  };
+
   return (
     <main className="screen">
       <header className="topBar"><Brand /></header>
@@ -55,7 +62,7 @@ export function LanguageSelectV2({ locale, onSelect, onContinue }: LanguageSelec
           })}
         </div>
 
-        <button type="button" className="continueButton" onClick={onContinue}>
+        <button type="button" className="continueButton" onClick={continueWithLanguage}>
           {t.continue}<span className="continueArrow" aria-hidden="true">›</span>
         </button>
         <p className="note">{t.note}</p>
