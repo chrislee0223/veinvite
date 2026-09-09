@@ -1,6 +1,12 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
+import {
+  PRODUCTION_PROJECT_ID,
+  QA_PROJECT_ID,
+  shouldBuildVercelProject,
+} from './vercel-ignore-build.mjs';
+
 const config = JSON.parse(
   readFileSync(join(process.cwd(), 'vercel.json'), 'utf8'),
 );
@@ -32,22 +38,73 @@ if (!deploymentEnabled || typeof deploymentEnabled !== 'object') {
 } else {
   if (deploymentEnabled['**'] !== false) {
     failures.push(
-      'All non-main branches, including slash-named branches such as fix/foo, must be disabled with the ** glob.',
+      'All branches must fail closed by default with the ** deployment glob.',
     );
   }
   if (deploymentEnabled.main !== true) {
-    failures.push('The main branch must remain enabled for production deployment.');
+    failures.push('The main branch must remain eligible for Production deployment.');
+  }
+  if (deploymentEnabled['qa-*'] !== true) {
+    failures.push('Only designated qa-* branches may be eligible for QA deployment.');
   }
 
   const unexpectedDeploymentExceptions = Object.keys(
     deploymentEnabled,
-  ).filter((key) => key !== '**' && key !== 'main');
+  ).filter((key) => !['**', 'main', 'qa-*'].includes(key));
 
   if (unexpectedDeploymentExceptions.length > 0) {
     failures.push(
-      `Only main may bypass the non-main deployment block. Remove stale branch exceptions: ${unexpectedDeploymentExceptions.join(', ')}.`,
+      `Only main and qa-* may bypass the default deployment block. Remove stale branch exceptions: ${unexpectedDeploymentExceptions.join(', ')}.`,
     );
   }
+}
+
+if (config?.ignoreCommand !== 'node scripts/vercel-ignore-build.mjs') {
+  failures.push(
+    'Vercel must route builds through the project-aware ignored-build guard.',
+  );
+}
+
+const routingCases = [
+  [
+    shouldBuildVercelProject(PRODUCTION_PROJECT_ID, 'main'),
+    true,
+    'Production project must build main.',
+  ],
+  [
+    shouldBuildVercelProject(PRODUCTION_PROJECT_ID, 'qa-network-smoke'),
+    false,
+    'Production project must ignore QA branches.',
+  ],
+  [
+    shouldBuildVercelProject(PRODUCTION_PROJECT_ID, 'fix/example'),
+    false,
+    'Production project must ignore ordinary non-main branches.',
+  ],
+  [
+    shouldBuildVercelProject(QA_PROJECT_ID, 'main'),
+    false,
+    'QA project must not duplicate main builds.',
+  ],
+  [
+    shouldBuildVercelProject(QA_PROJECT_ID, 'qa-network-smoke'),
+    true,
+    'QA project must build designated qa-* branches.',
+  ],
+  [
+    shouldBuildVercelProject(QA_PROJECT_ID, 'feat/example'),
+    false,
+    'QA project must ignore non-designated feature branches.',
+  ],
+  [
+    shouldBuildVercelProject('prj_unknown', 'main'),
+    false,
+    'Unknown Vercel projects must fail closed.',
+  ],
+];
+
+for (const [actual, expected, message] of routingCases) {
+  if (actual !== expected) failures.push(message);
 }
 
 const crons = config?.crons;
