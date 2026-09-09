@@ -9,11 +9,11 @@ import { LEADERBOARD_COPY } from '@/lib/i18n/leaderboardCopy';
 import type { SupportedLocale } from '@/lib/i18n/locales';
 import {
   getCachedPublicLeaderboard,
-  getPublicLeaderboardCacheKey,
   loadPublicLeaderboard,
 } from '@/lib/leaderboardClientCache';
 import type {
   PublicCountryArrivalResponse,
+  PublicLeaderboardEntry,
   PublicLeaderboardResponse,
 } from '@/lib/types';
 import { CountryFlag } from './CountryFlag';
@@ -24,12 +24,17 @@ type CountryState = {
   status: 'idle' | 'loading' | 'ready' | 'error';
   data: PublicCountryArrivalResponse | null;
 };
-
+type PersonalizationState = {
+  walletKey: string | null;
+  status: 'idle' | 'pending' | 'resolved' | 'unavailable';
+  currentUser: PublicLeaderboardEntry | null;
+};
 type CountryCache = {
   loadedAt: number;
   data: PublicCountryArrivalResponse;
 };
 
+const PUBLIC_RANK_LIMIT = 100;
 const COUNTRY_CACHE_TTL_MS = 60_000;
 const COUNTRY_VISIBLE_ROWS = 5;
 let countryCache: CountryCache | null = null;
@@ -45,6 +50,24 @@ function countryName(code: string, locale: SupportedLocale): string {
       return code;
     }
   }
+}
+
+function normalizeWallet(wallet: string | null): string | null {
+  const normalized = wallet?.trim().toLowerCase() ?? '';
+  return normalized || null;
+}
+
+function sameLeaderboardSnapshot(
+  publicData: PublicLeaderboardResponse,
+  personalizedData: PublicLeaderboardResponse,
+): boolean {
+  return (
+    publicData.network === personalizedData.network &&
+    publicData.currentRoundId === personalizedData.currentRoundId &&
+    publicData.comparison.roundId === personalizedData.comparison.roundId &&
+    publicData.comparison.rankingAlgorithmVersion ===
+      personalizedData.comparison.rankingAlgorithmVersion
+  );
 }
 
 function getFreshCountryCache(): PublicCountryArrivalResponse | null {
@@ -109,19 +132,27 @@ export function PublicLeaderboardHub({
   locale: SupportedLocale;
   wallet: string | null;
 }) {
-  const cacheKey = getPublicLeaderboardCacheKey(wallet);
-  const cached = getCachedPublicLeaderboard(wallet);
+  const initialPublic = getCachedPublicLeaderboard(null);
   const initialCountry = getFreshCountryCache();
   const [rankingView, setRankingView] = useState<RankingView>('inviter');
-  const [leaderboardState, setLeaderboardState] = useState<{
-    cacheKey: string;
+  const [publicState, setPublicState] = useState<{
     data: PublicLeaderboardResponse | null;
+    confirmed: boolean;
     failed: boolean;
   }>(() => ({
-    cacheKey,
-    data: cached,
+    data: initialPublic,
+    // Even a session seed is treated as display-only until loadPublicLeaderboard
+    // confirms the current 30-second snapshot. This prevents stale seeds from
+    // briefly fabricating an old personal rank after a hard refresh.
+    confirmed: false,
     failed: false,
   }));
+  const [personalization, setPersonalization] =
+    useState<PersonalizationState>(() => ({
+      walletKey: normalizeWallet(wallet),
+      status: wallet ? 'pending' : 'idle',
+      currentUser: null,
+    }));
   const [countryState, setCountryState] = useState<CountryState>(() => ({
     status: initialCountry ? 'ready' : 'idle',
     data: initialCountry,
@@ -129,24 +160,25 @@ export function PublicLeaderboardHub({
 
   useEffect(() => {
     let active = true;
-    const currentCached = getCachedPublicLeaderboard(wallet);
-    setLeaderboardState({
-      cacheKey,
-      data: currentCached,
-      failed: false,
-    });
-    setRankingView('inviter');
+    const cached = getCachedPublicLeaderboard(null);
+    if (cached) {
+      setPublicState((current) => ({
+        data: cached,
+        confirmed: current.confirmed && current.data === cached,
+        failed: false,
+      }));
+    }
 
-    void loadPublicLeaderboard(wallet)
+    void loadPublicLeaderboard(null)
       .then((data) => {
         if (!active) return;
-        setLeaderboardState({ cacheKey, data, failed: false });
+        setPublicState({ data, confirmed: true, failed: false });
       })
       .catch(() => {
         if (!active) return;
-        setLeaderboardState((current) => ({
-          cacheKey,
-          data: current.cacheKey === cacheKey ? current.data : null,
+        setPublicState((current) => ({
+          ...current,
+          confirmed: false,
           failed: true,
         }));
       });
@@ -154,7 +186,141 @@ export function PublicLeaderboardHub({
     return () => {
       active = false;
     };
-  }, [cacheKey, wallet]);
+  }, []);
+
+  const publicData = publicState.data;
+  const walletKey = normalizeWallet(wallet);
+
+  useEffect(() => {
+    let active = true;
+
+    if (!walletKey) {
+      setPersonalization({
+        walletKey: null,
+        status: 'idle',
+        currentUser: null,
+      });
+      return () => {
+        active = false;
+      };
+    }
+
+    if (!publicData || !publicState.confirmed) {
+      setPersonalization({
+        walletKey,
+        status: 'pending',
+        currentUser: null,
+      });
+      return () => {
+        active = false;
+      };
+    }
+
+    const publicMatch = publicData.leaders.find(
+      (entry) => entry.walletAddress.toLowerCase() === walletKey,
+    );
+    if (publicMatch) {
+      setPersonalization({
+        walletKey,
+        status: 'resolved',
+        currentUser: {
+          ...publicMatch,
+          isCurrentWallet: true,
+        },
+      });
+      return () => {
+        active = false;
+      };
+    }
+
+    // If fewer than 100 ranked wallets exist, absence from the public list is
+    // definitive. Avoid a private current-wallet request entirely.
+    if (publicData.leaders.length < PUBLIC_RANK_LIMIT) {
+      setPersonalization({
+        walletKey,
+        status: 'resolved',
+        currentUser: null,
+      });
+      return () => {
+        active = false;
+      };
+    }
+
+    setPersonalization({
+      walletKey,
+      status: 'pending',
+      currentUser: null,
+    });
+
+    const refreshPublicSnapshot = () => {
+      void loadPublicLeaderboard(null, { force: true })
+        .then((fresh) => {
+          if (!active) return;
+          setPublicState({ data: fresh, confirmed: true, failed: false });
+        })
+        .catch(() => {
+          if (!active) return;
+          setPersonalization({
+            walletKey,
+            status: 'unavailable',
+            currentUser: null,
+          });
+        });
+    };
+
+    void loadPublicLeaderboard(walletKey)
+      .then((personalizedData) => {
+        if (!active) return;
+
+        if (!sameLeaderboardSnapshot(publicData, personalizedData)) {
+          setPersonalization({
+            walletKey,
+            status: 'pending',
+            currentUser: null,
+          });
+          refreshPublicSnapshot();
+          return;
+        }
+
+        const currentUser = personalizedData.currentUser;
+        if (currentUser && currentUser.rank <= PUBLIC_RANK_LIMIT) {
+          // A wallet entering the top 100 between the public and personalized
+          // reads means the public list is stale. Refresh the public snapshot
+          // rather than splicing an incompatible row into an older ranking.
+          setPersonalization({
+            walletKey,
+            status: 'pending',
+            currentUser: null,
+          });
+          refreshPublicSnapshot();
+          return;
+        }
+
+        setPersonalization({
+          walletKey,
+          status: 'resolved',
+          currentUser: currentUser
+            ? { ...currentUser, isCurrentWallet: true }
+            : null,
+        });
+      })
+      .catch(() => {
+        if (!active) return;
+        setPersonalization({
+          walletKey,
+          status: 'unavailable',
+          currentUser: null,
+        });
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [publicData, publicState.confirmed, walletKey]);
+
+  useEffect(() => {
+    setRankingView('inviter');
+  }, [walletKey]);
 
   const refreshCountry = useCallback((force = false) => {
     const cachedCountry = force ? null : getFreshCountryCache();
@@ -193,9 +359,40 @@ export function PublicLeaderboardHub({
     refreshCountry(true);
   }, [refreshCountry]);
 
-  const data = leaderboardState.cacheKey === cacheKey
-    ? leaderboardState.data
-    : cached;
+  const displayData = useMemo<PublicLeaderboardResponse | null>(() => {
+    if (!publicData) return null;
+
+    const resolvedCurrentUser =
+      personalization.walletKey === walletKey &&
+      personalization.status === 'resolved'
+        ? personalization.currentUser
+        : null;
+    const currentAddress = resolvedCurrentUser?.walletAddress.toLowerCase() ?? null;
+    const leaders = publicData.leaders.map((entry) => {
+      const isCurrentWallet = Boolean(
+        currentAddress && entry.walletAddress.toLowerCase() === currentAddress,
+      );
+      return entry.isCurrentWallet === isCurrentWallet
+        ? entry
+        : { ...entry, isCurrentWallet };
+    });
+
+    return {
+      ...publicData,
+      leaders,
+      currentUser: resolvedCurrentUser,
+    };
+  }, [personalization, publicData, walletKey]);
+
+  const personalizationPending = Boolean(
+    walletKey &&
+    (
+      personalization.walletKey !== walletKey ||
+      personalization.status === 'pending' ||
+      personalization.status === 'unavailable'
+    ),
+  );
+  const displayWallet = personalizationPending ? null : wallet;
   const countryCopy = COUNTRY_LEADERBOARD_COPY[locale];
   const countryMetricCopy = COUNTRY_ARRIVAL_METRIC_COPY[locale];
   const leaderboardCopy = LEADERBOARD_COPY[locale] ?? LEADERBOARD_COPY.en;
@@ -205,7 +402,7 @@ export function PublicLeaderboardHub({
     [countryData],
   );
 
-  if (!data || leaderboardState.failed) {
+  if (!displayData) {
     return <InviterLeaderboard locale={locale} wallet={wallet} />;
   }
 
@@ -217,12 +414,19 @@ export function PublicLeaderboardHub({
       : 'inviter';
 
   return (
-    <section className="leaderboardHub">
+    <section
+      className={`leaderboardHub${
+        personalizationPending ? ' personalizationPending' : ''
+      }`}
+      data-public-leaderboard-stale={
+        publicState.failed && publicData ? 'true' : undefined
+      }
+    >
       <div className="impactOnly">
         <InviterLeaderboard
           locale={locale}
-          wallet={wallet}
-          previewData={data}
+          wallet={displayWallet}
+          previewData={displayData}
         />
       </div>
 
@@ -256,8 +460,8 @@ export function PublicLeaderboardHub({
           <div className="inviterInside">
             <InviterLeaderboard
               locale={locale}
-              wallet={wallet}
-              previewData={data}
+              wallet={displayWallet}
+              previewData={displayData}
             />
           </div>
         ) : (
@@ -371,6 +575,9 @@ export function PublicLeaderboardHub({
         }
         .inviterInside .rankContextNote {
           margin-top:8px !important;
+        }
+        .leaderboardHub.personalizationPending .rankContextNote {
+          display:none !important;
         }
       `}</style>
 

@@ -12,7 +12,10 @@ import {
 import { NAV_COPY } from '@/lib/i18n/navCopy';
 import { NETWORK_COPY } from '@/lib/i18n/networkCopy';
 import type { Locale, SupportedLocale } from '@/lib/i18n/locales';
-import { prefetchPublicLeaderboard } from '@/lib/leaderboardClientCache';
+import {
+  getCachedPublicLeaderboard,
+  prefetchPublicLeaderboard,
+} from '@/lib/leaderboardClientCache';
 import { HomeGuideInfoPortal } from './HomeGuideInfoPortal';
 import { LeaderboardImpactInfoPortal } from './LeaderboardImpactInfoPortal';
 import { useActiveWallet } from './WalletControl';
@@ -125,17 +128,16 @@ export function AppBottomNavigation({
     let fallbackTimer = 0;
     const idleWindow = window as IdleCapableWindow;
 
-    const runPrefetch = () => {
+    const runModulePrefetch = () => {
       if (cancelled || prefetchStarted) return;
       prefetchStarted = true;
 
       void Promise.allSettled(
         LAZY_TABS.map((tab) => preloadTabModule(tab)),
       );
-      void prefetchPublicLeaderboard(wallet).catch(() => undefined);
     };
 
-    const schedulePrefetch = () => {
+    const scheduleModulePrefetch = () => {
       if (
         cancelled ||
         prefetchStarted ||
@@ -149,7 +151,7 @@ export function AppBottomNavigation({
         idleId = idleWindow.requestIdleCallback(
           () => {
             idleId = null;
-            runPrefetch();
+            runModulePrefetch();
           },
           { timeout: STARTUP_PREFETCH_IDLE_TIMEOUT_MS },
         );
@@ -158,36 +160,47 @@ export function AppBottomNavigation({
 
       fallbackTimer = window.setTimeout(() => {
         fallbackTimer = 0;
-        runPrefetch();
+        runModulePrefetch();
       }, STARTUP_PREFETCH_IDLE_TIMEOUT_MS);
+    };
+
+    const onAppReady = () => {
+      if (cancelled) return;
+
+      // The anonymous ranking is public and small. Warm it as soon as Home is
+      // fully ready so an immediate leaderboard tap never has to wait for the
+      // current wallet's private rank lookup. Lazy code chunks remain idle work
+      // so the authenticated Home critical path stays unchanged.
+      void prefetchPublicLeaderboard(null).catch(() => undefined);
+      scheduleModulePrefetch();
     };
 
     if (
       document.documentElement.dataset.veinviteAppReady === 'true'
     ) {
-      schedulePrefetch();
+      onAppReady();
     } else {
       window.addEventListener(
         APP_READY_EVENT,
-        schedulePrefetch,
+        onAppReady,
         { once: true },
       );
     }
 
     return () => {
       cancelled = true;
-      window.removeEventListener(APP_READY_EVENT, schedulePrefetch);
+      window.removeEventListener(APP_READY_EVENT, onAppReady);
       window.clearTimeout(fallbackTimer);
       if (idleId !== null && idleWindow.cancelIdleCallback) {
         idleWindow.cancelIdleCallback(idleId);
       }
     };
-  }, [wallet]);
+  }, []);
 
   useEffect(() => {
-    // A wallet change invalidates any leaderboard readiness request that was
-    // started for the previous wallet. Active-tab changes also close the same
-    // race for rapid navigation so late promises can never commit stale work.
+    // A wallet change invalidates any leaderboard personalization request that
+    // was started for the previous wallet. Active-tab changes also close the
+    // same race for rapid navigation so late promises can never commit stale work.
     navigationRequestRef.current += 1;
     pendingMotionTabRef.current = null;
     setVisualTarget(activeTab);
@@ -268,7 +281,7 @@ export function AppBottomNavigation({
   const warmTab = (tab: AppTab) => {
     void preloadTabModule(tab).catch(() => undefined);
     if (tab === 'leaderboard') {
-      void prefetchPublicLeaderboard(wallet).catch(() => undefined);
+      void prefetchPublicLeaderboard(null).catch(() => undefined);
     }
   };
 
@@ -278,14 +291,19 @@ export function AppBottomNavigation({
       return moduleReady;
     }
 
-    // The leaderboard is the only lazy tab whose first useful paint depends on
-    // a separate public-data request. Wait for both the code chunk and the
-    // current wallet's data so a hard-refresh click cannot reveal placeholder
-    // rows before the real ranking arrives. The client cache/in-flight map makes
-    // this effectively immediate when pointer/focus warming already succeeded.
+    const cachedPublicLeaderboard = getCachedPublicLeaderboard(null);
+    if (cachedPublicLeaderboard) {
+      // A session seed is already sufficient for the first useful paint. Keep
+      // it visible and revalidate silently instead of making the tap wait.
+      void prefetchPublicLeaderboard(null).catch(() => undefined);
+      return moduleReady;
+    }
+
+    // A truly first-ever session has no seed. Wait only for the anonymous
+    // public ranking, never the current wallet's private personalization.
     return Promise.all([
       moduleReady,
-      prefetchPublicLeaderboard(wallet),
+      prefetchPublicLeaderboard(null),
     ]).then(() => undefined);
   };
 
@@ -333,9 +351,9 @@ export function AppBottomNavigation({
 
     void prepareTabForNavigation(tab)
       .then(() => commitTab(tab, requestId))
-      // Keep navigation fail-open. If the leaderboard endpoint itself is down,
-      // its existing inline error/retry surface remains reachable instead of
-      // trapping the user on the previous tab forever.
+      // Keep navigation fail-open. If the public leaderboard endpoint itself is
+      // down, its existing inline error/retry surface remains reachable instead
+      // of trapping the user on the previous tab forever.
       .catch(() => commitTab(tab, requestId));
   };
 
