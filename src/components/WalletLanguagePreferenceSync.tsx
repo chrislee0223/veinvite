@@ -4,11 +4,17 @@ import { useEffect } from 'react';
 import { useWallet } from '@vechain/vechain-kit';
 
 import {
-  LANGUAGE_STORAGE_KEY,
   isLocale,
+  localeFromLanguageTag,
   resolveBrowserLocale,
   type SupportedLocale,
 } from '@/lib/i18n/locales';
+import {
+  clearPendingManualLanguage,
+  readPendingManualLanguage,
+  readStoredLanguage,
+  writeStoredLanguage,
+} from '@/lib/i18n/languageStorage';
 
 const SET_LANGUAGE_INTENT =
   'SET_WALLET_LANGUAGE_PREFERENCE';
@@ -20,6 +26,7 @@ const WALLET_SESSION_READY_EVENT =
 
 type LanguageUsageSource =
   | 'browser_auto'
+  | 'query_param'
   | 'local_storage'
   | 'wallet_preference'
   | 'manual_selection';
@@ -77,10 +84,10 @@ async function saveLanguage(
 
 async function observeDisplayLanguage(
   language: SupportedLocale,
-  source:
-    | 'browser_auto'
-    | 'local_storage'
-    | 'wallet_preference',
+  source: Exclude<
+    LanguageUsageSource,
+    'manual_selection'
+  >,
 ): Promise<void> {
   await postLanguageState({
     intent: OBSERVE_DISPLAY_LANGUAGE_INTENT,
@@ -92,16 +99,42 @@ async function observeDisplayLanguage(
 function applyLanguage(
   language: SupportedLocale,
 ) {
-  window.localStorage.setItem(
-    LANGUAGE_STORAGE_KEY,
-    language,
-  );
+  writeStoredLanguage(language);
   document.documentElement.lang = language;
   window.dispatchEvent(
     new CustomEvent(
       'veinvite-language-change',
       { detail: language },
     ),
+  );
+}
+
+function readQueryLanguage(): SupportedLocale | null {
+  try {
+    return localeFromLanguageTag(
+      new URLSearchParams(
+        window.location.search,
+      ).get('lang'),
+    );
+  } catch {
+    return null;
+  }
+}
+
+function readDisplayedLanguage(): SupportedLocale {
+  const fromDocument = localeFromLanguageTag(
+    document.documentElement.lang,
+  );
+
+  if (fromDocument) return fromDocument;
+
+  return (
+    readQueryLanguage() ??
+    readStoredLanguage() ??
+    resolveBrowserLocale(
+      window.navigator.languages,
+      'en',
+    )
   );
 }
 
@@ -121,12 +154,6 @@ export function WalletLanguagePreferenceSync() {
     let serverReady = false;
     let syncStarted = false;
 
-    const isCurrentWalletAppReady = () =>
-      document.documentElement.dataset.veinviteAppReady === 'true' &&
-      document.documentElement.dataset.veinviteHomeStartupStatus === 'ready' &&
-      document.documentElement.dataset.veinviteHomeStartupWallet?.toLowerCase() ===
-        walletAddress;
-
     const handleLanguageChange = (
       event: Event,
     ) => {
@@ -143,21 +170,24 @@ export function WalletLanguagePreferenceSync() {
         return;
       }
 
-      void saveLanguage(language).catch(
-        (error) => {
-          console.warn(
-            'Failed to persist VeInvite language preference:',
-            error,
-          );
-        },
-      );
+      void saveLanguage(language)
+        .then(() => {
+          clearPendingManualLanguage(language);
+        })
+        .catch(
+          (error) => {
+            console.warn(
+              'Failed to persist VeInvite language preference:',
+              error,
+            );
+          },
+        );
     };
 
     const syncPreference = async () => {
       if (
         cancelled ||
-        syncStarted ||
-        !isCurrentWalletAppReady()
+        syncStarted
       ) {
         return;
       }
@@ -185,14 +215,17 @@ export function WalletLanguagePreferenceSync() {
 
         serverReady = true;
         const localLanguage =
-          window.localStorage.getItem(
-            LANGUAGE_STORAGE_KEY,
-          );
+          readStoredLanguage();
+        const displayedLanguage =
+          readDisplayedLanguage();
+        const pendingManualLanguage =
+          readPendingManualLanguage();
 
         if (changedAfterMount) {
-          if (isLocale(localLanguage)) {
-            await saveLanguage(localLanguage);
-          }
+          await saveLanguage(displayedLanguage);
+          clearPendingManualLanguage(
+            displayedLanguage,
+          );
           return;
         }
 
@@ -202,7 +235,7 @@ export function WalletLanguagePreferenceSync() {
             : null;
 
         if (serverLanguage) {
-          if (localLanguage !== serverLanguage) {
+          if (displayedLanguage !== serverLanguage) {
             applyingRemote = true;
             applyLanguage(serverLanguage);
             applyingRemote = false;
@@ -212,10 +245,40 @@ export function WalletLanguagePreferenceSync() {
             serverLanguage,
             'wallet_preference',
           );
+          clearPendingManualLanguage();
           return;
         }
 
-        if (isLocale(localLanguage)) {
+        if (
+          pendingManualLanguage &&
+          pendingManualLanguage === displayedLanguage
+        ) {
+          await saveLanguage(
+            pendingManualLanguage,
+          );
+          clearPendingManualLanguage(
+            pendingManualLanguage,
+          );
+          return;
+        }
+
+        const queryLanguage =
+          readQueryLanguage();
+        if (
+          queryLanguage &&
+          queryLanguage === displayedLanguage
+        ) {
+          await observeDisplayLanguage(
+            queryLanguage,
+            'query_param',
+          );
+          return;
+        }
+
+        if (
+          localLanguage &&
+          localLanguage === displayedLanguage
+        ) {
           // localStorage belongs to this browser, not to a wallet identity.
           // It may have been left by another wallet on a shared device, so
           // record only what this wallet is currently seeing. A wallet-level
@@ -228,14 +291,8 @@ export function WalletLanguagePreferenceSync() {
           return;
         }
 
-        const browserLanguage =
-          resolveBrowserLocale(
-            window.navigator.languages,
-            'en',
-          );
-
         await observeDisplayLanguage(
-          browserLanguage,
+          displayedLanguage,
           'browser_auto',
         );
       } catch (error) {
@@ -267,9 +324,9 @@ export function WalletLanguagePreferenceSync() {
       handleWalletSessionReady,
     );
 
-    if (isCurrentWalletAppReady()) {
-      void syncPreference();
-    }
+    // Try immediately. If the authenticated session cookie is not ready yet,
+    // the request fails harmlessly and the wallet-session-ready event retries.
+    void syncPreference();
 
     return () => {
       cancelled = true;
