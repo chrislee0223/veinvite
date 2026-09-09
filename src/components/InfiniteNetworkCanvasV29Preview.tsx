@@ -16,7 +16,7 @@ import { Brand } from './Brand';
 import { AppBottomNavigation } from './AppBottomNavigation';
 import type { SupportedLocale } from '@/lib/i18n/locales';
 
-type Scenario = 'balanced' | 'wide' | 'deep';
+type Scenario = 'balanced' | 'wide' | 'deep' | 'empty';
 type Status = 'IN_PROGRESS' | 'QUALIFIED' | 'REWARDED';
 type View = { x: number; y: number; scale: number };
 type Point = { x: number; y: number };
@@ -92,7 +92,7 @@ type SavedState = {
 };
 
 const ROOT_ID = 'you';
-const SESSION_KEY = 'veinvite-network-v29-preview';
+const SESSION_KEY = 'veinvite-network-v29-review-preview';
 const PLANE_W = 3000;
 const PLANE_H = 2600;
 const CENTER_X = PLANE_W / 2;
@@ -103,6 +103,8 @@ const MAX_SCALE = 1.52;
 const LOAD_MS = 170;
 const FRESH_MS = 1080;
 const AUTO_BLOOM_MS = 660;
+const SIBLING_PAGE_SIZE = 6;
+const SIBLING_PREVIEW_SIZE = 5;
 
 function fullWallet(index: number) {
   return `0x${index.toString(16).padStart(40, '0')}`;
@@ -189,9 +191,14 @@ function buildDeep(): Node {
   return root;
 }
 
+function buildEmpty(): Node {
+  return { id: ROOT_ID, wallet: fullWallet(999), status: 'REWARDED', children: [] };
+}
+
 function scenarioRoot(scenario: Scenario) {
   if (scenario === 'wide') return buildWide();
   if (scenario === 'deep') return buildDeep();
+  if (scenario === 'empty') return buildEmpty();
   return buildBalanced();
 }
 
@@ -299,21 +306,36 @@ function NeutralGlyph({ root = false }: { root?: boolean }) {
       }}
     >
       <svg width={root ? 18 : 15} height={root ? 18 : 15} viewBox="0 0 20 20" fill="none">
-        <circle cx="10" cy="6.2" r="3" fill={root ? 'rgba(226,188,92,.78)' : 'rgba(174,164,141,.58)'} />
-        <path d="M4.7 16.1c.45-3.05 2.34-4.56 5.3-4.56s4.85 1.51 5.3 4.56" stroke={root ? 'rgba(226,188,92,.78)' : 'rgba(174,164,141,.58)'} strokeWidth="1.7" strokeLinecap="round" />
+        <circle cx="10" cy="7" r="2.7" fill={root ? 'rgba(226,188,92,.78)' : 'rgba(174,164,141,.58)'} />
+        <path d="M5 15.6c1.15-2.25 2.82-3.35 5-3.35s3.85 1.1 5 3.35" stroke={root ? 'rgba(226,188,92,.76)' : 'rgba(174,164,141,.54)'} strokeWidth="1.55" strokeLinecap="round" />
       </svg>
     </span>
   );
 }
 
-function NetworkAvatar({ address, root = false }: { address: string; root?: boolean }) {
+function profileFilter(tone: Tone, root: boolean) {
+  if (root || tone === 'focus') return 'saturate(1) brightness(.96)';
+  if (tone === 'dim') return 'saturate(.24) brightness(.58)';
+  if (tone === 'near') return 'saturate(.52) brightness(.72)';
+  return 'saturate(.78) brightness(.82)';
+}
+
+function NetworkAvatar({
+  address,
+  root = false,
+  tone = 'normal',
+}: {
+  address: string;
+  root?: boolean;
+  tone?: Tone;
+}) {
   const hostRef = useRef<HTMLSpanElement | null>(null);
   const [shouldLoadProfile, setShouldLoadProfile] = useState(root);
   const [loaded, setLoaded] = useState(false);
   const [broken, setBroken] = useState(false);
   const { data: domainInfo } = useVechainDomain(shouldLoadProfile ? address : undefined);
   const domain = domainInfo?.domain ?? '';
-  const { data: profileAvatarUrl } = useGetAvatar(domain || undefined);
+  const { data: profileAvatarUrl } = useGetAvatar(domain);
   const size = root ? 38 : 30;
 
   useEffect(() => {
@@ -361,7 +383,8 @@ function NetworkAvatar({ address, root = false }: { address: string; root?: bool
             borderRadius: '50%',
             border: root ? '1px solid rgba(244,183,40,.55)' : '1px solid rgba(207,191,154,.20)',
             opacity: loaded ? 1 : 0,
-            transition: 'opacity 260ms ease',
+            filter: profileFilter(tone, root),
+            transition: 'opacity 220ms ease,filter 240ms ease',
           }}
         />
       ) : null}
@@ -403,9 +426,9 @@ function layoutVisible({
   const visuals: Visual[] = [];
   const edges: Edge[] = [];
   const pagers: Pager[] = [];
-  const pageSize = isMobile ? 5 : 8;
-  const previewSize = isMobile ? 4 : 5;
-  const largeThreshold = isMobile ? 6 : 12;
+  const pageSize = SIBLING_PAGE_SIZE;
+  const previewSize = SIBLING_PREVIEW_SIZE;
+  const largeThreshold = isMobile ? 6 : 10;
   const activeTop = selectedId ? topBranch(selectedId, parentMap) : null;
 
   const childEntries = (node: Node): Array<Node | 'cluster'> => {
@@ -438,8 +461,9 @@ function layoutVisible({
     const entries = childEntries(node);
     if (entries.length < 1) return;
     const centerIndex = (entries.length - 1) / 2;
+    const maxOffset = Math.max(1, centerIndex);
     const step = node.id === ROOT_ID
-      ? (isMobile ? 68 : 136)
+      ? (isMobile ? 68 : 126)
       : Math.max(isMobile ? 54 : 58, (isMobile ? 64 : 68) - depth * 3);
 
     entries.forEach((entry, index) => {
@@ -448,10 +472,12 @@ function layoutVisible({
       if (node.id === ROOT_ID && entry !== 'cluster' && activeTop && activeTop !== ROOT_ID) {
         const childIndex = root.children.findIndex((child) => child.id === entry.id);
         const activeIndex = root.children.findIndex((child) => child.id === activeTop);
-        if (childIndex < activeIndex) childX -= isMobile ? 44 : 82;
-        if (childIndex > activeIndex) childX += isMobile ? 44 : 82;
+        if (childIndex < activeIndex) childX -= isMobile ? 40 : 70;
+        if (childIndex > activeIndex) childX += isMobile ? 40 : 70;
       }
-      const fanDrop = Math.min(10, Math.abs(offset) * (node.id === ROOT_ID ? 3 : 4));
+      const fanDrop = node.id === ROOT_ID
+        ? Math.round((maxOffset - Math.abs(offset)) * 4)
+        : Math.min(8, Math.abs(offset) * 3);
       const childY = y + LEVEL_GAP + fanDrop;
       const childStagger = Math.round(Math.abs(offset) * 38);
 
@@ -565,9 +591,10 @@ export function InfiniteNetworkCanvasV29Preview() {
   const performExpand = useCallback((nodeId: string) => {
     const node = byId.get(nodeId);
     if (!node || node.children.length < 1) return;
-    const previewSize = isMobile ? 4 : 5;
-    const threshold = isMobile ? 6 : 12;
-    const visible = node.children.length > threshold ? node.children.slice(0, previewSize) : node.children;
+    const threshold = isMobile ? 6 : 10;
+    const visible = node.children.length > threshold
+      ? node.children.slice(0, SIBLING_PREVIEW_SIZE)
+      : node.children;
     setExpanded((current) => new Set(current).add(nodeId));
     setFreshParentId(nodeId);
     setFreshIds(new Set(visible.map((child) => child.id)));
@@ -604,18 +631,20 @@ export function InfiniteNetworkCanvasV29Preview() {
   const changeSiblingPage = useCallback((parentId: string, direction: number) => {
     const node = byId.get(parentId);
     if (!node) return;
-    const pageSize = isMobile ? 5 : 8;
-    const pageCount = Math.ceil(node.children.length / pageSize);
+    const pageCount = Math.ceil(node.children.length / SIBLING_PAGE_SIZE);
     const currentPage = pageByParent.get(parentId) ?? 0;
     const nextPage = clamp(currentPage + direction, 0, pageCount - 1);
     if (nextPage === currentPage) return;
-    const nextChildren = node.children.slice(nextPage * pageSize, nextPage * pageSize + pageSize);
+    const nextChildren = node.children.slice(
+      nextPage * SIBLING_PAGE_SIZE,
+      nextPage * SIBLING_PAGE_SIZE + SIBLING_PAGE_SIZE,
+    );
     setPageByParent((current) => new Map(current).set(parentId, nextPage));
     setSelectedId(parentId);
     setFreshParentId(parentId);
     setFreshIds(new Set(nextChildren.map((child) => child.id)));
     clearFreshSoon();
-  }, [byId, isMobile, pageByParent, clearFreshSoon]);
+  }, [byId, pageByParent, clearFreshSoon]);
 
   const clearWorkspace = useCallback(() => {
     setExpanded(new Set());
@@ -688,16 +717,29 @@ export function InfiniteNetworkCanvasV29Preview() {
 
   useEffect(() => {
     if (!ready) return;
-    const state: SavedState = {
-      scenario,
-      expanded: Array.from(expanded),
-      selectedId,
-      explorerParentId,
-      pageByParent: Array.from(pageByParent.entries()),
-      view,
-    };
-    try { window.sessionStorage.setItem(SESSION_KEY, JSON.stringify(state)); } catch { /* preview only */ }
+    const timer = window.setTimeout(() => {
+      const state: SavedState = {
+        scenario,
+        expanded: Array.from(expanded),
+        selectedId,
+        explorerParentId,
+        pageByParent: Array.from(pageByParent.entries()),
+        view,
+      };
+      try { window.sessionStorage.setItem(SESSION_KEY, JSON.stringify(state)); } catch { /* preview only */ }
+    }, 220);
+    return () => window.clearTimeout(timer);
   }, [ready, scenario, expanded, selectedId, explorerParentId, pageByParent, view]);
+
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape') return;
+      setSelectedId(null);
+      setExplorerParentId(null);
+    };
+    document.addEventListener('keydown', onKeyDown);
+    return () => document.removeEventListener('keydown', onKeyDown);
+  }, []);
 
   useEffect(() => () => {
     if (bloomTimerRef.current) window.clearTimeout(bloomTimerRef.current);
@@ -731,7 +773,9 @@ export function InfiniteNetworkCanvasV29Preview() {
         const dx = current.x - previous.x;
         const dy = current.y - previous.y;
         dragDistanceRef.current += Math.hypot(dx, dy);
-        setView((value) => ({ ...value, x: value.x + dx, y: value.y + dy }));
+        if (dragDistanceRef.current > 6) {
+          setView((value) => ({ ...value, x: value.x + dx, y: value.y + dy }));
+        }
       }
       lastSingleRef.current = current;
       return;
@@ -766,8 +810,24 @@ export function InfiniteNetworkCanvasV29Preview() {
 
   const onWheel = (event: ReactWheelEvent<HTMLDivElement>) => {
     event.preventDefault();
+    const rect = stageRef.current?.getBoundingClientRect();
     const factor = event.deltaY < 0 ? 1.08 : 0.92;
-    setView((value) => ({ ...value, scale: clamp(value.scale * factor, MIN_SCALE, MAX_SCALE) }));
+    if (!rect) {
+      setView((value) => ({ ...value, scale: clamp(value.scale * factor, MIN_SCALE, MAX_SCALE) }));
+      return;
+    }
+    const localX = event.clientX - rect.left - stageWidth / 2;
+    const localY = event.clientY - rect.top;
+    setView((value) => {
+      const nextScale = clamp(value.scale * factor, MIN_SCALE, MAX_SCALE);
+      const worldX = (localX - value.x) / value.scale;
+      const worldY = (localY - value.y) / value.scale;
+      return {
+        scale: nextScale,
+        x: localX - worldX * nextScale,
+        y: localY - worldY * nextScale,
+      };
+    });
   };
 
   const selected = selectedId ? byId.get(selectedId) ?? null : null;
@@ -813,11 +873,12 @@ export function InfiniteNetworkCanvasV29Preview() {
             <button type="button" className="previewToggle" onClick={() => setPreviewMenuOpen((open) => !open)}>•••</button>
             {previewMenuOpen ? (
               <div className="previewMenu">
-                <small>PREVIEW ONLY · NEUTRAL PROFILE</small>
+                <small>PREVIEW ONLY · PROFILE + GESTURE REVIEW</small>
                 <button type="button" onClick={replayRootBloom}>↻ Replay bloom</button>
                 <button type="button" className={scenario === 'balanced' ? 'active' : ''} onClick={() => changeScenario('balanced')}>Balanced</button>
                 <button type="button" className={scenario === 'wide' ? 'active' : ''} onClick={() => changeScenario('wide')}>Direct 100</button>
                 <button type="button" className={scenario === 'deep' ? 'active' : ''} onClick={() => changeScenario('deep')}>Deep 50</button>
+                <button type="button" className={scenario === 'empty' ? 'active' : ''} onClick={() => changeScenario('empty')}>Empty Network</button>
               </div>
             ) : null}
           </div>
@@ -869,18 +930,26 @@ export function InfiniteNetworkCanvasV29Preview() {
               const isSelected = selectedId === node.id;
               const isExpanded = expanded.has(node.id);
               const branchCount = 1 + nodeStats.network;
+              const tone = toneFor(node.id);
               return (
                 <div
                   key={visual.key}
-                  className={`personNode tone-${toneFor(node.id)} ${isSelected ? 'selectedNode' : ''} ${isRoot ? 'rootNode' : ''} ${freshIds.has(node.id) ? 'freshNode' : ''}`}
+                  className={`personNode tone-${tone} ${isSelected ? 'selectedNode' : ''} ${isRoot ? 'rootNode' : ''} ${freshIds.has(node.id) ? 'freshNode' : ''}`}
                   style={{
                     left: `${visual.x}px`, top: `${visual.y}px`,
                     '--from-x': `${visual.parentX - visual.x}px`, '--from-y': `${visual.parentY - visual.y}px`,
                     '--stagger': `${visual.stagger}ms`,
                   } as CSSProperties}
                 >
-                  <button type="button" className="personTap" data-network-interactive="true" onClick={() => activateNode(node.id)}>
-                    <span className="avatarWrap"><NetworkAvatar address={node.wallet} root={isRoot} /></span>
+                  <button
+                    type="button"
+                    className="personTap"
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      if (dragDistanceRef.current <= 6) activateNode(node.id);
+                    }}
+                  >
+                    <span className="avatarWrap"><NetworkAvatar address={node.wallet} root={isRoot} tone={tone} /></span>
                     <span className="nodeCopy">
                       <strong>{isRoot ? 'YOU' : shortWallet(node.wallet)}</strong>
                       <small>{isRoot ? `${nodeStats.direct} Direct` : branchCount.toLocaleString('en-US')}</small>
@@ -913,14 +982,27 @@ export function InfiniteNetworkCanvasV29Preview() {
             ) : null}
           </div>
 
+          {scenario === 'empty' && rootStats.direct === 0 ? (
+            <div className="emptyCta" data-network-interactive="true">
+              <strong>Your network starts here</strong>
+              <small>Invite your first friend to begin building your Network.</small>
+              <button type="button" onClick={() => changeScenario('balanced')}>Preview first invite</button>
+            </div>
+          ) : null}
+
           {selected && selectedStats && selected.id !== ROOT_ID ? (
             <div className="inspector" data-network-interactive="true">
               <div className="inspectorIdentity">
-                <NetworkAvatar address={selected.wallet} />
+                <NetworkAvatar address={selected.wallet} tone="focus" />
                 <div><strong>{shortWallet(selected.wallet)}</strong><small>{selected.status === 'IN_PROGRESS' ? 'In progress' : selected.status === 'QUALIFIED' ? 'Qualified' : 'Rewarded'}</small></div>
               </div>
               <code>{selected.wallet}</code>
-              <div className="inspectorMetrics"><span><b>{selectedStats.network}</b>Network below</span><span><b>{selectedStats.direct}</b>Direct</span><span><b>{selectedStats.qualified}</b>Qualified</span></div>
+              <div className="inspectorMetrics">
+                <span><b>{selectedStats.network + 1}</b>Branch</span>
+                <span><b>{selectedStats.network}</b>Network below</span>
+                <span><b>{selectedStats.direct}</b>Direct</span>
+                <span><b>{selectedStats.qualified}</b>Qualified</span>
+              </div>
             </div>
           ) : null}
 
@@ -938,14 +1020,15 @@ export function InfiniteNetworkCanvasV29Preview() {
         .screen{min-height:100svh;box-sizing:border-box;padding:22px 18px 116px;color:#fff;background:radial-gradient(circle at 50% 14%,rgba(244,183,40,.13),transparent 31%),#080807}.topBar{width:min(100%,520px);margin:0 auto 8px;display:flex;align-items:center;justify-content:space-between;gap:14px}.topActions{display:flex;align-items:center;gap:8px}.bellButton,.accountChip{height:40px;border:1px solid rgba(255,255,255,.09);border-radius:13px;background:#141625;color:#fff;font:inherit}.bellButton{position:relative;width:40px;display:grid;place-items:center}.bellButton :global(svg){width:18px;height:18px}.bellButton span{position:absolute;right:8px;top:8px;width:6px;height:6px;border-radius:50%;background:#f4b728}.accountChip{padding:0 13px;display:flex;align-items:center;gap:7px;font-size:.7rem;font-weight:850}.accountChip i{width:7px;height:7px;border-radius:50%;background:#f4b728}
         .networkSurface{width:min(calc(100vw - 28px),1180px);margin:0 auto}.networkHeader{width:min(100%,1120px);min-height:50px;margin:0 auto;padding:0 12px;box-sizing:border-box;display:flex;align-items:center;justify-content:space-between;gap:16px}.networkHeader>div:first-child{display:grid;gap:3px}.networkHeader span{color:#8e8062;font-size:.55rem;font-weight:950;letter-spacing:.14em}.networkHeader strong{color:#f8f4ea;font-size:.9rem}.summary{display:flex;align-items:baseline;gap:5px;color:#77736c;font-size:.57rem}.summary b{color:#ddd7ca;font-size:.72rem}.summary .growth{color:#f4b728}.summary i{width:1px;height:10px;margin:0 4px;background:rgba(255,255,255,.1)}
         .networkStage{position:relative;height:clamp(555px,calc(100svh - 184px),780px);overflow:hidden;touch-action:none;cursor:grab;user-select:none;background:transparent}.networkStage:active{cursor:grabbing}.ambientGlow{position:absolute;left:50%;top:4%;width:760px;height:390px;transform:translateX(-50%);pointer-events:none;background:radial-gradient(ellipse,rgba(244,183,40,.035),transparent 68%)}.world{position:absolute;left:50%;top:0;transform-origin:50% 0;will-change:transform}.edges{position:absolute;inset:0;pointer-events:none;overflow:visible}.edges line{vector-effect:non-scaling-stroke;stroke-width:1;stroke-linecap:round;transition:stroke 250ms ease,opacity 280ms ease}.edges line.tone-normal{stroke:rgba(220,214,202,.115)}.edges line.tone-focus{stroke:rgba(244,183,40,.35)}.edges line.tone-near{stroke:rgba(220,214,202,.09)}.edges line.tone-dim{stroke:rgba(220,214,202,.025);opacity:.48}.edges line.freshEdge{stroke:rgba(244,183,40,.58);stroke-dasharray:1;stroke-dashoffset:1;animation:drawEdge 540ms cubic-bezier(.22,1,.36,1) var(--stagger) forwards,settleEdge 850ms ease 430ms forwards}
-        .personNode,.clusterNode{position:absolute;z-index:3;transform:translate(-50%,-50%);transition:left 500ms cubic-bezier(.22,1,.36,1),top 500ms cubic-bezier(.22,1,.36,1),opacity 260ms ease,filter 260ms ease}.personNode{width:86px;min-height:76px;display:flex;flex-direction:column;align-items:center}.tone-focus{opacity:1;z-index:7}.tone-near{opacity:.62;z-index:4}.tone-dim{opacity:.30;filter:saturate(.65);z-index:2}.tone-normal{opacity:1}.personTap{border:0;background:transparent;color:inherit;font:inherit;padding:4px;display:flex;flex-direction:column;align-items:center;gap:5px;cursor:pointer}.avatarWrap{position:relative;display:block;border-radius:50%}.selectedNode .avatarWrap{box-shadow:0 0 0 4px rgba(244,183,40,.065),0 0 22px rgba(244,183,40,.10)}.nodeCopy{display:grid;gap:1px;min-height:25px}.nodeCopy strong{max-width:82px;overflow:hidden;color:#c9c3b8;font-size:.62rem;font-weight:850;line-height:1.15;text-overflow:ellipsis;white-space:nowrap;direction:ltr}.rootNode .nodeCopy strong{color:#e5bd58;font-size:.68rem}.nodeCopy small{color:#706a60;font-size:.50rem;font-weight:760;line-height:1.08}.branchHint{width:26px;height:16px;margin-top:-4px;border:0;background:transparent;display:grid;place-items:start center;cursor:pointer}.branchHint span{position:relative;width:1px;height:7px;background:rgba(170,158,133,.26);transition:height 180ms ease,background 180ms ease}.branchHint span:after{content:'';position:absolute;left:50%;bottom:-3px;width:4px;height:4px;border-right:1px solid rgba(170,158,133,.34);border-bottom:1px solid rgba(170,158,133,.34);transform:translateX(-50%) rotate(45deg)}.branchHint.open span{height:5px;background:rgba(214,178,84,.40)}.branchHint.open span:after{transform:translateX(-50%) rotate(225deg);bottom:-5px}.freshNode{animation:bloomWhole 760ms cubic-bezier(.16,1.04,.30,1) var(--stagger) both}.freshNode .avatarWrap{animation:freshHalo 1000ms ease var(--stagger) both}.freshNode .nodeCopy{animation:labelIn 480ms ease calc(var(--stagger) + 240ms) both}
+        .personNode,.clusterNode{position:absolute;z-index:3;transform:translate(-50%,-50%);transition:left 500ms cubic-bezier(.22,1,.36,1),top 500ms cubic-bezier(.22,1,.36,1),opacity 260ms ease,filter 260ms ease}.personNode{width:86px;min-height:76px;display:flex;flex-direction:column;align-items:center}.tone-focus{opacity:1;z-index:7}.tone-near{opacity:.62;z-index:4}.tone-dim{opacity:.30;filter:saturate(.65);z-index:2}.tone-normal{opacity:1}.personTap{min-width:44px;min-height:44px;border:0;background:transparent;color:inherit;font:inherit;padding:4px;display:flex;flex-direction:column;align-items:center;gap:5px;cursor:pointer;touch-action:none}.avatarWrap{position:relative;display:block;border-radius:50%}.selectedNode .avatarWrap{box-shadow:0 0 0 4px rgba(244,183,40,.065),0 0 22px rgba(244,183,40,.10)}.nodeCopy{display:grid;gap:1px;min-height:25px}.nodeCopy strong{max-width:82px;overflow:hidden;color:#c9c3b8;font-size:.62rem;font-weight:850;line-height:1.15;text-overflow:ellipsis;white-space:nowrap;direction:ltr}.rootNode .nodeCopy strong{color:#e5bd58;font-size:.68rem}.nodeCopy small{color:#706a60;font-size:.50rem;font-weight:760;line-height:1.08}.branchHint{width:26px;height:16px;margin-top:-4px;border:0;background:transparent;display:grid;place-items:start center;cursor:pointer}.branchHint span{position:relative;width:1px;height:7px;background:rgba(170,158,133,.26);transition:height 180ms ease,background 180ms ease}.branchHint span:after{content:'';position:absolute;left:50%;bottom:-3px;width:4px;height:4px;border-right:1px solid rgba(170,158,133,.34);border-bottom:1px solid rgba(170,158,133,.34);transform:translateX(-50%) rotate(45deg)}.branchHint.open span{height:5px;background:rgba(214,178,84,.40)}.branchHint.open span:after{transform:translateX(-50%) rotate(225deg);bottom:-5px}.freshNode{animation:bloomWhole 760ms cubic-bezier(.16,1.04,.30,1) var(--stagger) both}.freshNode .avatarWrap{animation:freshHalo 1000ms ease var(--stagger) both}.freshNode .nodeCopy{animation:labelIn 480ms ease calc(var(--stagger) + 240ms) both}
         .clusterNode{width:78px;min-height:62px;border:0;background:transparent;color:inherit;font:inherit;padding:4px;display:flex;flex-direction:column;align-items:center;gap:1px;cursor:pointer}.clusterNode strong{color:#b99b55;font-size:.66rem;font-weight:950}.clusterNode small{color:#696256;font-size:.44rem;font-weight:820}.neutralStack{height:29px;width:54px;display:flex;justify-content:center;align-items:center}.neutralStack>span{width:30px;height:30px;margin-left:-10px;border-radius:50%;box-shadow:0 4px 12px rgba(0,0,0,.30)}.neutralStack>span:first-child{margin-left:0}.neutralStack :global(svg){transform:scale(.78)}
         .siblingPager{position:absolute;z-index:12;transform:translate(-50%,-50%);height:29px;padding:0 5px;display:flex;align-items:center;gap:3px;border:1px solid rgba(255,255,255,.07);border-radius:11px;background:rgba(15,15,13,.91);box-shadow:0 10px 30px rgba(0,0,0,.25);backdrop-filter:blur(12px)}.siblingPager button{width:26px;height:23px;border:0;border-radius:8px;background:transparent;color:#9c917b;font:inherit;cursor:pointer}.siblingPager button:disabled{opacity:.25}.siblingPager span{min-width:88px;color:#766f63;font-size:.48rem;text-align:center}.siblingPager span b{color:#d2b15f}.siblingPager .pagerClose{width:22px;color:#605b53}.branchLoader{position:absolute;z-index:13;transform:translate(-50%,-50%);display:flex;gap:5px;pointer-events:none}.branchLoader i{width:4px;height:4px;border-radius:50%;background:#b89648;opacity:.3;animation:loaderPulse .78s ease-in-out infinite}.branchLoader i:nth-child(2){animation-delay:.11s}.branchLoader i:nth-child(3){animation-delay:.22s}
         .zoom-compact .nodeCopy small{display:none}.zoom-compact .nodeCopy strong{font-size:.58rem;color:#989186}.zoom-minimal .personNode{width:54px;min-height:54px}.zoom-minimal .nodeCopy,.zoom-minimal .branchHint{display:none}.zoom-minimal .tone-dim{opacity:.18}
-        .inspector{position:absolute;z-index:20;right:18px;top:18px;width:224px;padding:13px 14px;border:1px solid rgba(255,255,255,.07);border-radius:17px;background:rgba(17,17,15,.91);backdrop-filter:blur(16px);box-shadow:0 18px 50px rgba(0,0,0,.24)}.inspectorIdentity{display:flex;align-items:center;gap:9px}.inspectorIdentity>div{display:grid;gap:2px}.inspectorIdentity strong{color:#e5ded2;font-size:.67rem;direction:ltr}.inspectorIdentity small{color:#8e8064;font-size:.46rem;font-weight:850}.inspector code{display:block;margin-top:8px;padding:6px 7px;overflow:hidden;border-radius:8px;background:rgba(255,255,255,.025);color:#625f59;font-size:.43rem;text-overflow:ellipsis;white-space:nowrap;direction:ltr}.inspectorMetrics{margin-top:8px;display:grid;grid-template-columns:repeat(3,1fr);gap:5px}.inspectorMetrics span{padding:6px 4px;border-radius:9px;background:rgba(255,255,255,.024);color:#66615a;font-size:.43rem;text-align:center}.inspectorMetrics b{display:block;margin-bottom:1px;color:#cfc6b7;font-size:.6rem}
-        .stageControls{position:absolute;z-index:22;right:14px;bottom:14px;display:flex;gap:6px}.stageControls button,.previewToggle{width:36px;height:36px;border:1px solid rgba(255,255,255,.075);border-radius:12px;background:rgba(16,16,14,.82);color:#8d887f;font:inherit;font-size:.72rem;cursor:pointer;backdrop-filter:blur(10px)}.previewCorner{position:absolute;z-index:23;left:14px;bottom:14px}.previewMenu{position:absolute;left:0;bottom:44px;width:172px;padding:9px;display:grid;gap:5px;border:1px solid rgba(255,255,255,.08);border-radius:15px;background:rgba(16,16,14,.95);box-shadow:0 18px 50px rgba(0,0,0,.35)}.previewMenu small{padding:3px 5px 5px;color:#655d4e;font-size:.41rem;font-weight:950;letter-spacing:.06em}.previewMenu button{min-height:31px;padding:0 9px;border:0;border-radius:9px;background:transparent;color:#8f8a81;font:inherit;font-size:.57rem;font-weight:800;text-align:left;cursor:pointer}.previewMenu button:hover,.previewMenu button.active{background:rgba(244,183,40,.07);color:#e1c062}
+        .emptyCta{position:absolute;z-index:18;left:50%;top:255px;transform:translateX(-50%);width:min(320px,calc(100% - 40px));display:grid;justify-items:center;gap:7px;text-align:center}.emptyCta strong{color:#d9d1c4;font-size:.72rem}.emptyCta small{max-width:260px;color:#6f695f;font-size:.52rem;line-height:1.45}.emptyCta button{margin-top:3px;height:32px;padding:0 13px;border:1px solid rgba(244,183,40,.16);border-radius:10px;background:rgba(244,183,40,.055);color:#bd9a4a;font:inherit;font-size:.53rem;font-weight:850;cursor:pointer}
+        .inspector{position:absolute;z-index:20;right:18px;top:18px;width:252px;padding:13px 14px;border:1px solid rgba(255,255,255,.07);border-radius:17px;background:rgba(17,17,15,.91);backdrop-filter:blur(16px);box-shadow:0 18px 50px rgba(0,0,0,.24)}.inspectorIdentity{display:flex;align-items:center;gap:9px}.inspectorIdentity>div{display:grid;gap:2px}.inspectorIdentity strong{color:#e5ded2;font-size:.67rem;direction:ltr}.inspectorIdentity small{color:#8e8064;font-size:.46rem;font-weight:850}.inspector code{display:block;margin-top:8px;padding:6px 7px;overflow:hidden;border-radius:8px;background:rgba(255,255,255,.025);color:#625f59;font-size:.43rem;text-overflow:ellipsis;white-space:nowrap;direction:ltr}.inspectorMetrics{margin-top:8px;display:grid;grid-template-columns:repeat(4,1fr);gap:5px}.inspectorMetrics span{padding:6px 3px;border-radius:9px;background:rgba(255,255,255,.024);color:#66615a;font-size:.40rem;text-align:center}.inspectorMetrics b{display:block;margin-bottom:1px;color:#cfc6b7;font-size:.58rem}
+        .stageControls{position:absolute;z-index:22;right:14px;bottom:14px;display:flex;gap:6px}.stageControls button,.previewToggle{width:36px;height:36px;border:1px solid rgba(255,255,255,.075);border-radius:12px;background:rgba(16,16,14,.82);color:#8d887f;font:inherit;font-size:.72rem;cursor:pointer;backdrop-filter:blur(10px)}.previewCorner{position:absolute;z-index:23;left:14px;bottom:14px}.previewMenu{position:absolute;left:0;bottom:44px;width:184px;padding:9px;display:grid;gap:5px;border:1px solid rgba(255,255,255,.08);border-radius:15px;background:rgba(16,16,14,.95);box-shadow:0 18px 50px rgba(0,0,0,.35)}.previewMenu small{padding:3px 5px 5px;color:#655d4e;font-size:.39rem;font-weight:950;letter-spacing:.05em}.previewMenu button{min-height:31px;padding:0 9px;border:0;border-radius:9px;background:transparent;color:#8f8a81;font:inherit;font-size:.57rem;font-weight:800;text-align:left;cursor:pointer}.previewMenu button:hover,.previewMenu button.active{background:rgba(244,183,40,.07);color:#e1c062}
         @keyframes drawEdge{from{stroke-dashoffset:1;opacity:0}to{stroke-dashoffset:0;opacity:1}}@keyframes settleEdge{from{stroke:rgba(244,183,40,.58)}to{stroke:rgba(220,214,202,.115)}}@keyframes bloomWhole{0%{transform:translate(-50%,-50%) translate(var(--from-x),var(--from-y)) scale(.52);opacity:0}66%{transform:translate(-50%,-50%) translate(0,0) scale(1.045);opacity:1}100%{transform:translate(-50%,-50%) translate(0,0) scale(1);opacity:1}}@keyframes freshHalo{0%{box-shadow:0 0 0 0 rgba(244,183,40,.34)}65%{box-shadow:0 0 0 7px rgba(244,183,40,0)}100%{box-shadow:none}}@keyframes labelIn{from{opacity:0;transform:translateY(3px)}to{opacity:1;transform:translateY(0)}}@keyframes loaderPulse{0%,100%{opacity:.22;transform:translateY(0)}50%{opacity:1;transform:translateY(-2px)}}
-        @media(max-width:700px){.screen{padding:18px 14px 114px}.topBar{margin-bottom:5px}.bellButton{width:34px;height:34px;border-radius:11px}.accountChip{height:34px;padding:0 10px;border-radius:11px;font-size:.64rem}.networkSurface{width:100%}.networkHeader{min-height:47px;padding:0 5px}.networkStage{height:calc(100svh - 168px);min-height:520px}.summary{font-size:.5rem}.summary b{font-size:.63rem}.personNode{width:78px}.nodeCopy strong{font-size:.58rem}.nodeCopy small{font-size:.46rem}.tone-near{opacity:.52}.tone-dim{opacity:.22}.inspector{right:9px;top:auto;bottom:56px;left:9px;width:auto}.stageControls{right:9px;bottom:9px}.previewCorner{left:9px;bottom:9px}.ambientGlow{width:460px}.edges line.tone-normal{stroke:rgba(220,214,202,.10)}}
+        @media(max-width:700px){.screen{padding:18px 14px 114px}.topBar{margin-bottom:5px}.bellButton{width:34px;height:34px;border-radius:11px}.accountChip{height:34px;padding:0 10px;border-radius:11px;font-size:.64rem}.networkSurface{width:100%}.networkHeader{min-height:47px;padding:0 5px}.networkStage{height:calc(100svh - 168px);min-height:520px}.summary{font-size:.5rem}.summary b{font-size:.63rem}.personNode{width:78px}.nodeCopy strong{font-size:.58rem}.nodeCopy small{font-size:.46rem}.tone-near{opacity:.52}.tone-dim{opacity:.24}.inspector{right:9px;top:auto;bottom:56px;left:9px;width:auto}.stageControls{right:9px;bottom:9px}.previewCorner{left:9px;bottom:9px}.ambientGlow{width:460px}.edges line.tone-normal{stroke:rgba(220,214,202,.10)}}
         @media(prefers-reduced-motion:reduce){.freshNode,.freshNode .avatarWrap,.freshNode .nodeCopy,.edges line.freshEdge,.branchLoader i{animation:none!important}.personNode,.clusterNode,.edges line{transition:none!important}}
       `}</style>
     </main>
