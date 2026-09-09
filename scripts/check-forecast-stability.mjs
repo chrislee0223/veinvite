@@ -43,16 +43,25 @@ const typography = readFileSync(
 
 if (
   !/CLIENT_FORECAST_CACHE_MS\s*=\s*15\s*\*\s*60_000/.test(forecastCard) ||
-  !/setInterval\(\s*loadForecast,\s*CLIENT_FORECAST_CACHE_MS\s*,?\s*\)/s.test(forecastCard)
+  !/setInterval\(\s*\(\) => \{\s*void loadForecast\(true\);\s*\},\s*CLIENT_FORECAST_CACHE_MS\s*,?\s*\)/s.test(forecastCard)
 ) {
   failures.push(
-    'Public reward forecast polling must stay at the reviewed 15-minute cadence.',
+    'Public reward forecast live refresh must stay at the reviewed 15-minute cadence.',
   );
 }
 
 if (/setInterval\([^)]*,\s*60_000\s*,?\s*\)/s.test(forecastCard)) {
   failures.push(
     'Public reward forecast must not regress to one-minute client polling.',
+  );
+}
+
+if (
+  !/LIVE_REFRESH_THROTTLE_MS\s*=\s*60_000/.test(forecastCard) ||
+  !/lastLiveRefreshAt/.test(forecastCard)
+) {
+  failures.push(
+    'Public reward forecast focus and visibility refreshes must stay rate-bounded.',
   );
 }
 
@@ -99,11 +108,18 @@ if (
   !/let\s+cachedForecast\s*:/.test(forecastCard) ||
   !/function\s+requestForecast\s*\(/.test(forecastCard) ||
   !/min-height:142px/.test(forecastCard) ||
-  !/amountSkeleton/.test(forecastCard) ||
-  !/noteSkeleton/.test(forecastCard)
+  !/PERSISTED_FORECAST_STORAGE_KEY/.test(forecastCard) ||
+  !/function\s+readPersistedForecast\s*\(/.test(forecastCard) ||
+  !/useIsomorphicLayoutEffect/.test(forecastCard)
 ) {
   failures.push(
-    'Public reward forecast must retain its warm cache and stable Home loading footprint.',
+    'Public reward forecast must retain its warm cache, pre-paint last-good restoration, and stable Home footprint.',
+  );
+}
+
+if (/amountSkeleton|noteSkeleton|forecastSkeletonPulse/.test(forecastCard)) {
+  failures.push(
+    'Public reward forecast must not restore the hard-refresh loading pulse.',
   );
 }
 
@@ -187,12 +203,6 @@ if (
   );
 }
 
-if (!/@media \(prefers-reduced-motion: reduce\)/.test(forecastCard)) {
-  failures.push(
-    'Public reward forecast loading motion must respect the OS reduced-motion preference.',
-  );
-}
-
 if (
   /non è temporaneamente disponibile/.test(forecastCopy) ||
   /echte allocatiegegevens/.test(forecastCopy) ||
@@ -217,6 +227,15 @@ if (!/s-maxage=300/.test(forecastRoute)) {
 if (!/stale-while-revalidate=3600/.test(forecastRoute)) {
   failures.push(
     'Public reward forecast endpoint must retain stale-while-revalidate protection.',
+  );
+}
+
+if (
+  !/request\.nextUrl\.searchParams\.has\('refresh'\)/.test(forecastRoute) ||
+  !/private, no-store, max-age=0/.test(forecastRoute)
+) {
+  failures.push(
+    'Explicit live forecast refreshes must remain cache-bypassed while normal reads stay CDN-backed.',
   );
 }
 
