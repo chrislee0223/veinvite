@@ -3,6 +3,7 @@
 import {
   useCallback,
   useEffect,
+  useRef,
   useState,
 } from 'react';
 
@@ -28,6 +29,14 @@ type VisibilityState = {
 type VisibilityLoadState = 'idle' | 'loading' | 'ready' | 'error';
 
 type ApiError = Error & { code?: string };
+
+function sameWallet(left: string | null, right: string | null): boolean {
+  return Boolean(
+    left &&
+    right &&
+    left.toLowerCase() === right.toLowerCase(),
+  );
+}
 
 function NetworkGlyph({ size = 34 }: { size?: number }) {
   return (
@@ -214,6 +223,8 @@ export function AppNetworkHub({ locale }: { locale: Locale }) {
   const e = NETWORK_EXPLORE_COPY[locale as SupportedLocale];
   const h = NETWORK_HUB_COPY[locale as SupportedLocale];
   const { wallet, openWallet, isWalletActionPending } = useWalletLauncher();
+  const activeWalletRef = useRef<string | null>(wallet);
+  activeWalletRef.current = wallet;
   const [mode, setMode] = useState<'own' | 'explore'>('own');
   const [probeState, setProbeState] = useState<'idle' | 'loading' | 'ready' | 'error' | 'maintenance'>('idle');
   const [probe, setProbe] = useState<SummaryProbe | null>(null);
@@ -224,15 +235,26 @@ export function AppNetworkHub({ locale }: { locale: Locale }) {
 
   const loadProbe = useCallback(async (signal?: AbortSignal) => {
     if (!wallet) return;
+    const requestWallet = wallet;
     setProbeState('loading');
     setProbe(null);
     try {
-      const data = await fetchSummary(wallet, signal);
-      if (signal?.aborted) return;
+      const data = await fetchSummary(requestWallet, signal);
+      if (
+        signal?.aborted ||
+        !sameWallet(activeWalletRef.current, requestWallet)
+      ) {
+        return;
+      }
       setProbe(data);
       setProbeState('ready');
     } catch (error) {
-      if (signal?.aborted) return;
+      if (
+        signal?.aborted ||
+        !sameWallet(activeWalletRef.current, requestWallet)
+      ) {
+        return;
+      }
       setProbe(null);
       setProbeState((error as ApiError).code === 'NETWORK_DISABLED' ? 'maintenance' : 'error');
     }
@@ -240,14 +262,25 @@ export function AppNetworkHub({ locale }: { locale: Locale }) {
 
   const loadVisibility = useCallback(async (signal?: AbortSignal) => {
     if (!wallet) return;
+    const requestWallet = wallet;
     setVisibilityState('loading');
     try {
       const data = await fetchVisibility(signal);
-      if (signal?.aborted) return;
+      if (
+        signal?.aborted ||
+        !sameWallet(activeWalletRef.current, requestWallet)
+      ) {
+        return;
+      }
       setVisibility(data);
       setVisibilityState('ready');
     } catch {
-      if (signal?.aborted) return;
+      if (
+        signal?.aborted ||
+        !sameWallet(activeWalletRef.current, requestWallet)
+      ) {
+        return;
+      }
       setVisibility(null);
       setVisibilityState('error');
     }
@@ -259,6 +292,7 @@ export function AppNetworkHub({ locale }: { locale: Locale }) {
     setVisibility(null);
     setVisibilityState('idle');
     setVisibilityOpen(false);
+    setVisibilitySaving(false);
     if (!wallet) {
       setProbeState('idle');
       return;
@@ -278,6 +312,7 @@ export function AppNetworkHub({ locale }: { locale: Locale }) {
 
   const updateVisibility = useCallback(async (next: VisibilityState) => {
     if (!wallet || visibilitySaving || visibilityState !== 'ready' || !visibility) return;
+    const requestWallet = wallet;
     if (!visibility.publicEnabled && next.publicEnabled) {
       if (!window.confirm(h.publicConfirm)) return;
     }
@@ -285,21 +320,27 @@ export function AppNetworkHub({ locale }: { locale: Locale }) {
     setVisibilitySaving(true);
     try {
       const saved = await saveVisibility(next);
+      if (!sameWallet(activeWalletRef.current, requestWallet)) return;
       setVisibility(saved);
       setVisibilityState('ready');
     } catch {
+      if (!sameWallet(activeWalletRef.current, requestWallet)) return;
       // A response can be lost after a successful DB write. Re-read the server
       // instead of guessing or rolling the UI back to a possibly stale value.
       try {
         const confirmed = await fetchVisibility();
+        if (!sameWallet(activeWalletRef.current, requestWallet)) return;
         setVisibility(confirmed);
         setVisibilityState('ready');
       } catch {
+        if (!sameWallet(activeWalletRef.current, requestWallet)) return;
         setVisibility(null);
         setVisibilityState('error');
       }
     } finally {
-      setVisibilitySaving(false);
+      if (sameWallet(activeWalletRef.current, requestWallet)) {
+        setVisibilitySaving(false);
+      }
     }
   }, [wallet, visibilitySaving, visibilityState, visibility, h.publicConfirm]);
 
