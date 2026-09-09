@@ -6,6 +6,7 @@ import {
   useState,
 } from 'react';
 
+import { useRewardForecastSeed } from './RewardForecastSeedProvider';
 import {
   getLocaleDirection,
   isLocale,
@@ -141,6 +142,47 @@ function normalizeForecastResponse(
   return null;
 }
 
+function forecastGeneratedAtMs(
+  forecast: RewardForecastResponse,
+): number {
+  if (!forecast.generatedAt) return 0;
+  const generatedAtMs = Date.parse(forecast.generatedAt);
+  return Number.isNaN(generatedAtMs) ? 0 : generatedAtMs;
+}
+
+function pickPreferredForecast(
+  ...candidates: Array<RewardForecastResponse | null | undefined>
+): RewardForecastResponse | null {
+  let preferred: RewardForecastResponse | null = null;
+
+  for (const candidate of candidates) {
+    if (!candidate) continue;
+    if (!preferred) {
+      preferred = candidate;
+      continue;
+    }
+
+    const candidateReady = candidate.status === 'ready';
+    const preferredReady = preferred.status === 'ready';
+    if (candidateReady && !preferredReady) {
+      preferred = candidate;
+      continue;
+    }
+    if (!candidateReady && preferredReady) {
+      continue;
+    }
+
+    if (
+      forecastGeneratedAtMs(candidate) >
+      forecastGeneratedAtMs(preferred)
+    ) {
+      preferred = candidate;
+    }
+  }
+
+  return preferred;
+}
+
 function readPersistedForecast(): RewardForecastResponse | null {
   if (typeof window === 'undefined') return null;
 
@@ -168,15 +210,12 @@ function readPersistedForecast(): RewardForecastResponse | null {
       return null;
     }
 
-    const restored: RewardForecastResponse = {
+    return {
       ...forecast,
       stale:
         forecast.stale === true ||
         ageMs > PERSISTED_FORECAST_STALE_MS,
     };
-    cachedForecast = restored;
-    cachedForecastAt = Date.now();
-    return restored;
   } catch {
     return null;
   }
@@ -273,17 +312,21 @@ export function PublicRewardForecastCard({
   locale: SupportedLocale;
   rewardForecastPreview?: boolean;
 }) {
+  const serverSeed = useRewardForecastSeed();
   const resolvedLocale: SupportedLocale = isLocale(locale)
     ? locale
     : 'en';
   const [forecast, setForecast] = useState<RewardForecastResponse | null>(
-    () => rewardForecastPreview ? PREVIEW_FORECAST : cachedForecast,
+    () => rewardForecastPreview
+      ? PREVIEW_FORECAST
+      : pickPreferredForecast(serverSeed, cachedForecast),
   );
   const [unavailable, setUnavailable] = useState(false);
 
-  // Restore the last successful public estimate before paint. This keeps a
-  // hard refresh visually stable without adding any Supabase/on-chain work to
-  // Home's startup critical path.
+  // Prefer the newest known public estimate before paint. First-time visitors
+  // receive the server snapshot, while returning visitors may keep a newer
+  // browser value if one exists. This avoids both a blank first-login amount
+  // and a visible regression to an older cached server value.
   useIsomorphicLayoutEffect(() => {
     if (rewardForecastPreview) {
       setUnavailable(false);
@@ -291,12 +334,20 @@ export function PublicRewardForecastCard({
       return;
     }
 
-    const restored = cachedForecast ?? readPersistedForecast();
-    if (restored) {
+    const restored = readPersistedForecast();
+    const preferred = pickPreferredForecast(
+      serverSeed,
+      cachedForecast,
+      restored,
+    );
+    if (preferred) {
+      cachedForecast = preferred;
+      cachedForecastAt = Date.now();
+      persistForecast(preferred);
       setUnavailable(false);
-      setForecast(restored);
+      setForecast(preferred);
     }
-  }, [rewardForecastPreview]);
+  }, [rewardForecastPreview, serverSeed]);
 
   useEffect(() => {
     if (rewardForecastPreview) return;
