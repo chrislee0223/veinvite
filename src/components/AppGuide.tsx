@@ -1,3 +1,4 @@
+import { AppNetwork } from './AppNetwork';
 import { AppNetworkComingSoon } from './AppNetworkComingSoon';
 import { GUIDE_COPY } from '@/lib/i18n/guideCopy';
 import { GUIDE_ELIGIBILITY_COPY } from '@/lib/i18n/guideEligibilityCopy';
@@ -6,11 +7,16 @@ import { GUIDE_MISSION_STEP_COPY } from '@/lib/i18n/guideMissionStepCopy';
 import { GUIDE_REWARD_STEP_COPY } from '@/lib/i18n/guideRewardStepCopy';
 import type { Locale } from '@/lib/i18n/locales';
 
-// HomeClient still owns the legacy `guide` tab key for analytics compatibility.
-// While Network is only a placeholder, that tab renders Network here. The actual
-// invitation guide is exposed contextually from the Home invite card.
+// Keep the legacy `guide` tab key for analytics/database compatibility while
+// the user-facing tab is Network. The canvas can be disabled independently
+// through NEXT_PUBLIC_NETWORK_CANVAS_ENABLED=false without rolling back the app.
 export function AppGuide({ locale }: { locale: Locale }) {
-  return <AppNetworkComingSoon locale={locale} />;
+  const networkEnabled =
+    process.env.NEXT_PUBLIC_NETWORK_CANVAS_ENABLED !== 'false';
+
+  return networkEnabled
+    ? <AppNetwork locale={locale} />
+    : <AppNetworkComingSoon locale={locale} />;
 }
 
 export function InviteGuideContent({ locale }: { locale: Locale }) {
