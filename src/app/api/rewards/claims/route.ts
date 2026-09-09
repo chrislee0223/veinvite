@@ -7,7 +7,7 @@ import {
   enforceRateLimits,
 } from '@/lib/rateLimitServer';
 import {
-  runAutomaticRewardPayout,
+  runImmediateClaimRewardPayout,
   type AutomaticRewardPayoutResult,
 } from '@/lib/rewards/automaticRewardPayoutWithMnemonic';
 import { supabaseAdmin } from '@/lib/supabaseServer';
@@ -119,7 +119,7 @@ Promise<AutomaticRewardPayoutResult> {
 
   for (const delayMs of CLAIM_PAYOUT_RETRY_DELAYS_MS) {
     await sleep(delayMs);
-    lastResult = await runAutomaticRewardPayout();
+    lastResult = await runImmediateClaimRewardPayout();
 
     if (!shouldRetryImmediatePayout(lastResult)) {
       return lastResult;
@@ -259,11 +259,11 @@ export async function POST(
       );
     }
 
-    // Claiming changes only transfer state. The fixed reward amount was already
-    // reserved when the friend passed final verification. Start payout immediately.
-    // If another payout iteration briefly owns the runtime lock, or an iteration
-    // returns IDLE while durable claimed work is still queued, retry within this
-    // request so a Claim is not left waiting solely because of transient contention.
+    // Claim changes only transfer state. Mission, entry, Sybil / identity,
+    // finality, funding, and fixed-amount reservation were already satisfied
+    // before AWAITING_CLAIM was exposed to this wallet. Use the reserved-claim
+    // fast path so Claim does not repeat the background reservation / planning
+    // sweep before the normal immutable signing and payout worker runs.
     let payoutKickoff: AutomaticRewardPayoutResult | null = null;
 
     try {
