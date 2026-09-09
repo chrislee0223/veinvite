@@ -52,13 +52,39 @@ test('Home visually prioritizes invite actions, then reward estimate, then progr
   );
 });
 
-test('Home forecast remains independent from Home startup readiness', () => {
+test('Home forecast stays out of startup readiness and restores the last good value without a pulse', () => {
   assert.match(forecastCard, /\/api\/rewards\/estimate/);
   assert.doesNotMatch(forecastCard, /publishHomeStartupState/);
   assert.doesNotMatch(forecastCard, /referralLinkVerified/);
   assert.match(forecastCard, /min-height:142px/);
-  assert.match(forecastCard, /amountSkeleton/);
-  assert.match(forecastCard, /prefers-reduced-motion: reduce/);
+
+  assert.match(
+    forecastCard,
+    /PERSISTED_FORECAST_STORAGE_KEY/,
+    'the last good public estimate should survive a hard refresh',
+  );
+  assert.match(forecastCard, /function readPersistedForecast\(\)/);
+  assert.match(
+    forecastCard,
+    /useIsomorphicLayoutEffect\([\s\S]*readPersistedForecast\(\)/,
+    'persisted forecast restoration should happen before paint',
+  );
+  assert.match(forecastCard, /window\.localStorage\.getItem/);
+  assert.match(forecastCard, /window\.localStorage\.setItem/);
+
+  assert.doesNotMatch(forecastCard, /amountSkeleton/);
+  assert.doesNotMatch(forecastCard, /noteSkeleton/);
+  assert.doesNotMatch(forecastCard, /forecastSkeletonPulse/);
+  assert.doesNotMatch(forecastCard, /aria-busy=/);
+});
+
+test('last-good forecast failure fallback keeps a value visible as stale', () => {
+  assert.match(
+    forecastCard,
+    /cachedForecast\?\.status === 'ready'[\s\S]*stale:\s*true[\s\S]*setForecast\(staleForecast\)/,
+  );
+  assert.match(forecastCard, /data-forecast-state=/);
+  assert.match(forecastCard, /className="staleIndicator"/);
 });
 
 test('reward amount keeps the previously proven in-card geometry after the move', () => {

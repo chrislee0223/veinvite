@@ -207,8 +207,16 @@ if (
 ) {
   failures.push('Home reward forecast must not depend on the retired Leaderboard DOM portal.');
 }
-if (!/min-height:142px/.test(rewardForecastCard) || !/amountSkeleton/.test(rewardForecastCard)) {
-  failures.push('Home reward forecast must reserve a stable loading footprint.');
+if (
+  !/min-height:142px/.test(rewardForecastCard) ||
+  !/<strong>\{amount\}<\/strong>/.test(rewardForecastCard)
+) {
+  failures.push('Home reward forecast must preserve its stable card and amount footprint without layout shift.');
+}
+if (
+  /amountSkeleton|noteSkeleton|forecastSkeletonPulse/.test(rewardForecastCard)
+) {
+  failures.push('Home reward forecast must not reintroduce the hard-refresh skeleton pulse.');
 }
 if (
   existsSync(join(root, 'src/components/PublicRewardForecastPortal.tsx')) ||

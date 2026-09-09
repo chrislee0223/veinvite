@@ -3,7 +3,9 @@ import { cookies } from 'next/headers';
 import { ActiveWalletRewardReceiptNotice } from '@/components/ActiveWalletRewardReceiptNotice';
 import { HomeClient } from '@/components/HomeClient';
 import { InviteStatusAutoRefresh } from '@/components/InviteStatusAutoRefresh';
+import { RewardForecastSeedProvider } from '@/components/RewardForecastSeedProvider';
 import { WalletSessionGate } from '@/components/WalletSessionGate';
+import { readPublicRewardForecastSeed } from '@/lib/rewards/publicRewardForecastSeedServer';
 import {
   getWalletSessionFromTokens,
   LEGACY_WALLET_SESSION_COOKIE_NAME,
@@ -25,21 +27,18 @@ export default async function HomePage() {
         .map((cookie) => cookie.value),
   );
 
-  let initialSessionWallet: string | null = null;
-
-  try {
-    const initialSession =
-      await getWalletSessionFromTokens(
-        sessionTokens,
+  const [initialSession, initialRewardForecast] = await Promise.all([
+    getWalletSessionFromTokens(sessionTokens).catch((error) => {
+      console.error(
+        'Failed to bootstrap VeInvite wallet session:',
+        error,
       );
-    initialSessionWallet =
-      initialSession?.walletAddress ?? null;
-  } catch (error) {
-    console.error(
-      'Failed to bootstrap VeInvite wallet session:',
-      error,
-    );
-  }
+      return null;
+    }),
+    readPublicRewardForecastSeed(),
+  ]);
+  const initialSessionWallet =
+    initialSession?.walletAddress ?? null;
 
   return (
     <>
@@ -57,7 +56,11 @@ export default async function HomePage() {
         }
       >
         <InviteStatusAutoRefresh />
-        <HomeClient />
+        <RewardForecastSeedProvider
+          initialForecast={initialRewardForecast}
+        >
+          <HomeClient />
+        </RewardForecastSeedProvider>
         <ActiveWalletRewardReceiptNotice />
       </WalletSessionGate>
     </>
