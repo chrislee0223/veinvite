@@ -34,6 +34,24 @@ export function QaNetworkSamplePreview({ locale }: { locale: Locale }) {
     };
   }, []);
 
+  useEffect(() => {
+    if (!window.matchMedia('(pointer: fine)').matches) return;
+
+    const prototype = Element.prototype;
+    const originalSetPointerCapture = prototype.setPointerCapture;
+
+    prototype.setPointerCapture = function setPointerCapture(pointerId: number) {
+      if (this instanceof HTMLElement && this.classList.contains('networkStage')) {
+        return;
+      }
+      return originalSetPointerCapture.call(this, pointerId);
+    };
+
+    return () => {
+      prototype.setPointerCapture = originalSetPointerCapture;
+    };
+  }, []);
+
   return (
     <main className="qaNetworkSample">
       <header className="sampleNotice">
