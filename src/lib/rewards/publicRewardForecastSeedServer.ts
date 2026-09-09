@@ -9,7 +9,11 @@ import { getVeBetterNetworkConfig } from '@/lib/vebetter/network';
 const FORECAST_SEED_CACHE_SECONDS = 5 * 60;
 const FORECAST_SEED_STALE_MS = 60 * 60_000;
 const FORECAST_SEED_MAX_AGE_MS = 24 * 60 * 60_000;
-const FORECAST_SEED_STARTUP_TIMEOUT_MS = 450;
+// Production verification showed that a cold Vercel -> Supabase connection can
+// exceed the original 450 ms budget even though the database RPC itself takes
+// only a few milliseconds. Keep the wait bounded, but leave enough room for a
+// cold TLS/HTTP connection so the very first visitor also receives a seed.
+const FORECAST_SEED_STARTUP_TIMEOUT_MS = 1_200;
 
 const readCachedPublicRewardForecastSeed = unstable_cache(
   async (
@@ -49,20 +53,32 @@ async function readSeedWithinStartupBudget(
   network: string,
 ): Promise<PublicRewardForecastSeed | null> {
   let timeoutId: ReturnType<typeof setTimeout> | null = null;
+  let timedOut = false;
 
   try {
-    return await Promise.race([
+    const seed = await Promise.race([
       readCachedPublicRewardForecastSeed(
         network,
         VEINVITE_APP_ID,
       ),
       new Promise<null>((resolve) => {
         timeoutId = setTimeout(
-          () => resolve(null),
+          () => {
+            timedOut = true;
+            resolve(null);
+          },
           FORECAST_SEED_STARTUP_TIMEOUT_MS,
         );
       }),
     ]);
+
+    if (timedOut) {
+      console.warn(
+        `Public reward forecast seed exceeded the ${FORECAST_SEED_STARTUP_TIMEOUT_MS}ms Home startup budget.`,
+      );
+    }
+
+    return seed;
   } finally {
     if (timeoutId !== null) clearTimeout(timeoutId);
   }
