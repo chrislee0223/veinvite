@@ -11,21 +11,25 @@ const cache = readFileSync(
   'utf8',
 );
 
-test('app-ready warms anonymous leaderboard immediately while lazy modules remain idle work', () => {
+test('app-ready warms leaderboard code and public data immediately while other lazy tabs remain idle work', () => {
   assert.match(navigation, /APP_READY_EVENT = 'veinvite-app-ready'/);
   assert.match(navigation, /STARTUP_PREFETCH_IDLE_TIMEOUT_MS = 1_200/);
   assert.match(
     navigation,
-    /const onAppReady = \(\) => \{[\s\S]*prefetchPublicLeaderboard\(null\)[\s\S]*scheduleModulePrefetch\(\)/,
+    /const IDLE_LAZY_TABS: AppTab\[\] = \['guide', 'settings'\];/,
+  );
+  assert.match(
+    navigation,
+    /const onAppReady = \(\) => \{[\s\S]*preloadTabModule\('leaderboard'\)[\s\S]*prefetchPublicLeaderboard\(null\)[\s\S]*scheduleModulePrefetch\(\)/,
   );
   assert.match(navigation, /requestIdleCallback/);
   assert.match(
     navigation,
-    /LAZY_TABS\.map\(\(tab\) => preloadTabModule\(tab\)\)/,
+    /IDLE_LAZY_TABS\.map\(\(tab\) => preloadTabModule\(tab\)\)/,
   );
   assert.doesNotMatch(
     navigation,
-    /runModulePrefetch[\s\S]*prefetchPublicLeaderboard\(wallet\)/,
+    /IDLE_LAZY_TABS: AppTab\[\] = \[[^\]]*leaderboard/,
   );
 });
 
