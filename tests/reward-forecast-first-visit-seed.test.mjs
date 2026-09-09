@@ -53,12 +53,17 @@ test('server seed is rendered before browser fallback and newer values win', () 
   assert.match(forecastCard, /persistForecast\(preferred\)/);
 });
 
-test('forecast seed failures and slow reads stay isolated from Home startup', () => {
+test('forecast seed failures and cold reads stay isolated from Home startup', () => {
   assert.match(
     seedServer,
-    /FORECAST_SEED_STARTUP_TIMEOUT_MS = 450/,
+    /FORECAST_SEED_STARTUP_TIMEOUT_MS = 1_200/,
   );
   assert.match(seedServer, /Promise\.race\(/);
+  assert.match(seedServer, /timedOut = true/);
+  assert.match(
+    seedServer,
+    /Public reward forecast seed exceeded the/,
+  );
   assert.match(
     seedServer,
     /Public reward forecast seed could not be loaded/,
