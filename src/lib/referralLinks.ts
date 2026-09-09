@@ -23,7 +23,7 @@ export function normalizeReferralKey(value: string): string {
 }
 
 export function isReferralKey(value: string): boolean {
-  return /^[A-Za-z0-9_-]{16,64}$/.test(value);
+  return /^(?:[A-Za-z0-9_-]{16}|[A-Za-z0-9_-]{22,64})$/.test(value);
 }
 
 export function clampAvailableSlots(value: number): number {
