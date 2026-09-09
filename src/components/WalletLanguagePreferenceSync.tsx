@@ -121,16 +121,19 @@ function readQueryLanguage(): SupportedLocale | null {
   }
 }
 
-function readDisplayedLanguage(): SupportedLocale {
-  const fromDocument = localeFromLanguageTag(
-    document.documentElement.lang,
-  );
-
-  if (fromDocument) return fromDocument;
-
+function resolveObservedLanguage(
+  pendingManualLanguage: SupportedLocale | null,
+  queryLanguage: SupportedLocale | null,
+  localLanguage: SupportedLocale | null,
+): SupportedLocale {
+  // Do not read document.documentElement.lang here. RootLayout starts at `en`
+  // and route-level locale hydration can happen after this global component
+  // mounts. Using durable/provenance-aware sources avoids recording that
+  // transient default as the wallet's language.
   return (
-    readQueryLanguage() ??
-    readStoredLanguage() ??
+    pendingManualLanguage ??
+    queryLanguage ??
+    localLanguage ??
     resolveBrowserLocale(
       window.navigator.languages,
       'en',
@@ -150,7 +153,7 @@ export function WalletLanguagePreferenceSync() {
 
     let cancelled = false;
     let applyingRemote = false;
-    let changedAfterMount = false;
+    let changedLanguage: SupportedLocale | null = null;
     let serverReady = false;
     let syncStarted = false;
 
@@ -164,7 +167,7 @@ export function WalletLanguagePreferenceSync() {
         return;
       }
 
-      changedAfterMount = true;
+      changedLanguage = language;
 
       if (!serverReady) {
         return;
@@ -216,15 +219,25 @@ export function WalletLanguagePreferenceSync() {
         serverReady = true;
         const localLanguage =
           readStoredLanguage();
-        const displayedLanguage =
-          readDisplayedLanguage();
         const pendingManualLanguage =
           readPendingManualLanguage();
+        const queryLanguage =
+          readQueryLanguage();
+        const observedLanguage =
+          resolveObservedLanguage(
+            pendingManualLanguage,
+            queryLanguage,
+            localLanguage,
+          );
 
-        if (changedAfterMount) {
-          await saveLanguage(displayedLanguage);
+        // A language-change event is the strongest signal of current intent.
+        // Keep the exact event value so a stale `?lang=` parameter can never
+        // override a user change that happened while authentication was still
+        // being established.
+        if (changedLanguage) {
+          await saveLanguage(changedLanguage);
           clearPendingManualLanguage(
-            displayedLanguage,
+            changedLanguage,
           );
           return;
         }
@@ -235,7 +248,7 @@ export function WalletLanguagePreferenceSync() {
             : null;
 
         if (serverLanguage) {
-          if (displayedLanguage !== serverLanguage) {
+          if (observedLanguage !== serverLanguage) {
             applyingRemote = true;
             applyLanguage(serverLanguage);
             applyingRemote = false;
@@ -249,10 +262,7 @@ export function WalletLanguagePreferenceSync() {
           return;
         }
 
-        if (
-          pendingManualLanguage &&
-          pendingManualLanguage === displayedLanguage
-        ) {
+        if (pendingManualLanguage) {
           await saveLanguage(
             pendingManualLanguage,
           );
@@ -262,12 +272,7 @@ export function WalletLanguagePreferenceSync() {
           return;
         }
 
-        const queryLanguage =
-          readQueryLanguage();
-        if (
-          queryLanguage &&
-          queryLanguage === displayedLanguage
-        ) {
+        if (queryLanguage) {
           await observeDisplayLanguage(
             queryLanguage,
             'query_param',
@@ -275,10 +280,7 @@ export function WalletLanguagePreferenceSync() {
           return;
         }
 
-        if (
-          localLanguage &&
-          localLanguage === displayedLanguage
-        ) {
+        if (localLanguage) {
           // localStorage belongs to this browser, not to a wallet identity.
           // It may have been left by another wallet on a shared device, so
           // record only what this wallet is currently seeing. A wallet-level
@@ -292,7 +294,7 @@ export function WalletLanguagePreferenceSync() {
         }
 
         await observeDisplayLanguage(
-          displayedLanguage,
+          observedLanguage,
           'browser_auto',
         );
       } catch (error) {
