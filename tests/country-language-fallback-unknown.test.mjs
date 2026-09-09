@@ -7,7 +7,7 @@ const root = process.cwd();
 const migration = readFileSync(
   join(
     root,
-    'supabase/migrations/20260909035000_restore_country_language_fallback_and_unknown_breakdown.sql',
+    'supabase/migrations/20260909034643_restore_country_language_fallback_and_unknown_breakdown.sql',
   ),
   'utf8',
 );
