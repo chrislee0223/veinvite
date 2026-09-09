@@ -13,7 +13,7 @@ function isRuntimeMode(value: unknown): value is NetworkRuntimeMode {
   return value === 'off' || value === 'canary' || value === 'on';
 }
 
-async function isCanaryWallet(walletAddress: string): Promise<boolean> {
+export async function isNetworkCanaryWallet(walletAddress: string): Promise<boolean> {
   const { data, error } = await supabaseAdmin
     .from('network_runtime_canary_wallets')
     .select('wallet_address')
@@ -28,10 +28,9 @@ async function isCanaryWallet(walletAddress: string): Promise<boolean> {
   return Boolean(data?.wallet_address);
 }
 
-export async function canUseNetworkSurface(
+export async function readNetworkRuntimeMode(
   surface: NetworkRuntimeSurface,
-  walletAddress?: string | null,
-): Promise<boolean> {
+): Promise<NetworkRuntimeMode> {
   const { data, error } = await supabaseAdmin
     .from('network_runtime_config')
     .select('enabled, my_mode, public_mode')
@@ -40,17 +39,23 @@ export async function canUseNetworkSurface(
 
   if (error || !data) {
     if (error) console.error('Failed to read Network runtime configuration:', error);
-    return false;
+    return 'off';
   }
 
   const row = data as RuntimeRow;
   const fallbackMyMode: NetworkRuntimeMode = row.enabled ? 'on' : 'off';
-  const mode = surface === 'my'
-    ? (isRuntimeMode(row.my_mode) ? row.my_mode : fallbackMyMode)
-    : (isRuntimeMode(row.public_mode) ? row.public_mode : 'off');
+  if (surface === 'my') {
+    return isRuntimeMode(row.my_mode) ? row.my_mode : fallbackMyMode;
+  }
+  return isRuntimeMode(row.public_mode) ? row.public_mode : 'off';
+}
 
+export async function canUseNetworkSurface(
+  surface: NetworkRuntimeSurface,
+  walletAddress?: string | null,
+): Promise<boolean> {
+  const mode = await readNetworkRuntimeMode(surface);
   if (mode === 'on') return true;
   if (mode === 'off' || !walletAddress) return false;
-
-  return isCanaryWallet(walletAddress);
+  return isNetworkCanaryWallet(walletAddress);
 }
