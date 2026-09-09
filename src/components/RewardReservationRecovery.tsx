@@ -5,10 +5,21 @@ import { useCallback, useEffect, useRef } from 'react';
 import { useWalletLauncher } from './WalletControl';
 
 const RETRY_MS = 120_000;
+const STARTUP_FALLBACK_MS = 5_000;
+const IDLE_TIMEOUT_MS = 1_500;
+const APP_READY_EVENT = 'veinvite-app-ready';
 const RESERVATION_READY_EVENT =
   'veinvite-reward-reservation-ready';
 const WALLET_SESSION_INVALID_EVENT =
   'veinvite-wallet-session-invalid';
+
+type IdleCapableWindow = Window & {
+  requestIdleCallback?: (
+    callback: () => void,
+    options?: { timeout?: number },
+  ) => number;
+  cancelIdleCallback?: (id: number) => void;
+};
 
 /**
  * A referral can complete a few blocks before its completion position becomes
@@ -73,7 +84,58 @@ export function RewardReservationRecovery() {
   useEffect(() => {
     if (!wallet) return;
 
-    void retry();
+    const idleWindow = window as IdleCapableWindow;
+    let initialStarted = false;
+    let idleId: number | null = null;
+    let idleFallbackId = 0;
+    let startupFallbackId = 0;
+
+    const startInitialRetry = () => {
+      if (initialStarted) return;
+      initialStarted = true;
+      window.clearTimeout(startupFallbackId);
+      void retry();
+    };
+
+    const scheduleInitialRetry = () => {
+      if (initialStarted || idleId !== null || idleFallbackId !== 0) {
+        return;
+      }
+
+      if (typeof idleWindow.requestIdleCallback === 'function') {
+        idleId = idleWindow.requestIdleCallback(
+          () => {
+            idleId = null;
+            startInitialRetry();
+          },
+          { timeout: IDLE_TIMEOUT_MS },
+        );
+        return;
+      }
+
+      idleFallbackId = window.setTimeout(() => {
+        idleFallbackId = 0;
+        startInitialRetry();
+      }, IDLE_TIMEOUT_MS);
+    };
+
+    if (
+      document.documentElement.dataset.veinviteAppReady === 'true'
+    ) {
+      scheduleInitialRetry();
+    } else {
+      window.addEventListener(
+        APP_READY_EVENT,
+        scheduleInitialRetry,
+        { once: true },
+      );
+      // Keep the recovery heartbeat resilient even if startup readiness never
+      // publishes because another surface is waiting for user action.
+      startupFallbackId = window.setTimeout(
+        scheduleInitialRetry,
+        STARTUP_FALLBACK_MS,
+      );
+    }
 
     const timer = window.setInterval(
       () => void retry(),
@@ -91,6 +153,15 @@ export function RewardReservationRecovery() {
     );
 
     return () => {
+      window.removeEventListener(
+        APP_READY_EVENT,
+        scheduleInitialRetry,
+      );
+      window.clearTimeout(startupFallbackId);
+      window.clearTimeout(idleFallbackId);
+      if (idleId !== null && idleWindow.cancelIdleCallback) {
+        idleWindow.cancelIdleCallback(idleId);
+      }
       window.clearInterval(timer);
       document.removeEventListener(
         'visibilitychange',
