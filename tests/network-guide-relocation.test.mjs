@@ -9,7 +9,9 @@ const [
   impactPortal,
   infoIcon,
   softFocusMotion,
-  networkPage,
+  networkWrapper,
+  networkSurface,
+  networkApi,
   networkCopy,
   leaderboard,
   home,
@@ -21,6 +23,8 @@ const [
   readFile(new URL('../src/components/InfoCircleIcon.tsx', import.meta.url), 'utf8'),
   readFile(new URL('../src/components/SoftFocusMotion.ts', import.meta.url), 'utf8'),
   readFile(new URL('../src/components/AppNetworkComingSoon.tsx', import.meta.url), 'utf8'),
+  readFile(new URL('../src/components/AppNetwork.tsx', import.meta.url), 'utf8'),
+  readFile(new URL('../src/app/api/network/route.ts', import.meta.url), 'utf8'),
   readFile(new URL('../src/lib/i18n/networkCopy.ts', import.meta.url), 'utf8'),
   readFile(new URL('../src/components/InviterLeaderboard.tsx', import.meta.url), 'utf8'),
   readFile(new URL('../src/components/HomeClient.tsx', import.meta.url), 'utf8'),
@@ -34,13 +38,32 @@ test('Network replaces Guide only at the user-facing navigation layer', () => {
   assert.match(navigation, /activeTab === 'home'/i);
 });
 
-test('the legacy Guide tab renders only the Network placeholder while guide content stays reusable', () => {
+test('the legacy Guide tab now launches the live Network while guide content stays reusable', () => {
   assert.match(guide, /return <AppNetworkComingSoon locale=\{locale\} \/>/i);
   assert.match(guide, /export function InviteGuideContent/i);
   assert.doesNotMatch(guide, /className="countCard"/i);
   assert.doesNotMatch(guide, /flow\.countDescription/i);
-  assert.match(networkPage, /NETWORK_COPY/i);
-  assert.match(networkPage, /className="networkCard"/i);
+
+  assert.match(networkWrapper, /<AppNetwork/i);
+  assert.match(networkWrapper, /useWalletLauncher/i);
+  assert.match(networkWrapper, /data-veinvite-tab="home"/i);
+
+  assert.match(networkSurface, /NETWORK_COPY/i);
+  assert.match(networkSurface, /className="networkSummary networkCard"/i);
+  assert.match(networkSurface, /className="treeStage"/i);
+  assert.match(networkSurface, /className="memberList"/i);
+  assert.match(networkSurface, /searchPlaceholder/i);
+  assert.match(networkSurface, /thisRound/i);
+});
+
+test('Network reads are wallet-authenticated, root-scoped, and never use binary placement in the client API', () => {
+  assert.match(networkApi, /requireWalletSession\(\{ request, expectedWallet: rootWallet \}\)/i);
+  assert.match(networkApi, /read_referral_network_focus/i);
+  assert.match(networkApi, /p_root_wallet:\s*rootWallet/i);
+  assert.match(networkApi, /p_focus_wallet:\s*focusWallet/i);
+  assert.match(networkApi, /Cache-Control': 'private, no-store'/i);
+  assert.doesNotMatch(networkApi, /placement_parent_wallet/i);
+  assert.doesNotMatch(networkSurface, /placement_parent_wallet/i);
 });
 
 test('Home exposes the invitation guide contextually without modifying the new progress and reward-claim Home implementation', () => {
@@ -122,7 +145,7 @@ test('Home and Leaderboard dialogs keep close controls in identical non-scrollin
   assert.match(softFocusMotion, /translate\(-50%, -50%\) rotate\(-45deg\)/i);
 });
 
-test('Network placeholder copy covers every supported locale', () => {
+test('Network navigation copy covers every supported locale', () => {
   const expectedLocales = [
     'en','ko','zh','hi','es','ja','it','tr','nl','de','fr','ar','bn','pt','ru','id','vi','zh-tw','sv','ro','ur','pcm','arz','mr','te','sw','ha',
   ];
