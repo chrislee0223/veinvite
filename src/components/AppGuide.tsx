@@ -1,5 +1,5 @@
-import { AppNetwork } from './AppNetwork';
 import { AppNetworkComingSoon } from './AppNetworkComingSoon';
+import { AppNetworkExperience } from './AppNetworkExperience';
 import { GUIDE_COPY } from '@/lib/i18n/guideCopy';
 import { GUIDE_ELIGIBILITY_COPY } from '@/lib/i18n/guideEligibilityCopy';
 import { GUIDE_FLOW_COPY } from '@/lib/i18n/guideFlowCopy';
@@ -8,14 +8,14 @@ import { GUIDE_REWARD_STEP_COPY } from '@/lib/i18n/guideRewardStepCopy';
 import type { Locale } from '@/lib/i18n/locales';
 
 // Keep the legacy `guide` tab key for analytics/database compatibility while
-// the user-facing tab is Network. The canvas can be disabled independently
-// through NEXT_PUBLIC_NETWORK_CANVAS_ENABLED=false without rolling back the app.
+// the user-facing tab is Network. The hub keeps My Network on the production
+// canvas while adding the privacy-gated Empty State and Public Explore modes.
 export function AppGuide({ locale }: { locale: Locale }) {
   const networkEnabled =
     process.env.NEXT_PUBLIC_NETWORK_CANVAS_ENABLED !== 'false';
 
   return networkEnabled
-    ? <AppNetwork locale={locale} />
+    ? <AppNetworkExperience locale={locale} />
     : <AppNetworkComingSoon locale={locale} />;
 }
 
