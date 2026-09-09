@@ -41,10 +41,21 @@
     font-variant-numeric: tabular-nums !important;
   }
 
+  /*
+   * Keep technical numbers out of locale-specific script fonts (especially
+   * Urdu Nastaliq) and give the glyphs enough vertical room. A 1.0 line box
+   * can clip the lower pixels of decimals on mobile WebViews.
+   */
   html body .leaderboardPage .rankingCard .rankRow .rankMetric b {
+    display: block !important;
+    padding-block: 1px !important;
+    font-family: system-ui, -apple-system, "Segoe UI", Arial, sans-serif !important;
     font-size: .72rem !important;
     font-weight: 900 !important;
-    line-height: 1 !important;
+    line-height: 1.25 !important;
+    direction: ltr !important;
+    unicode-bidi: isolate !important;
+    font-variant-numeric: tabular-nums !important;
   }
 }
 
