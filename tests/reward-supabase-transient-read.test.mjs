@@ -32,3 +32,26 @@ test('transient Supabase JWT retry remains limited to safe reads', () => {
     /RETRIABLE_READ_RPC_PATHS[^;]*\/rest\/v1\/rpc\/[^'\n]*(?:insert|update|delete|create|claim|finalize|prepare|register|pause|queue)/i,
   );
 });
+
+test('thrown fetch failures get one bounded retry only for reviewed reads', () => {
+  assert.match(source, /const TRANSIENT_FETCH_RETRY_DELAY_MS = 250;/u);
+  assert.match(source, /function isTransientFetchFailure/u);
+  assert.match(source, /error instanceof TypeError/u);
+  assert.match(source, /\.includes\('fetch failed'\)/u);
+  assert.match(
+    source,
+    /!isRetriableReadRequest\(input, init\)[\s\S]*!isTransientFetchFailure\(error\)/u,
+  );
+  assert.match(source, /await wait\(TRANSIENT_FETCH_RETRY_DELAY_MS\)/u);
+  assert.match(
+    source,
+    /await wait\(TRANSIENT_FETCH_RETRY_DELAY_MS\);[\s\S]*assertSafeDatabaseEnvironment\(\);[\s\S]*return fetch\(input, init\);/u,
+  );
+
+  // The retry gate reuses the existing read-only allowlist, so arbitrary POST
+  // mutations remain fail-fast and can never be duplicated by this fallback.
+  assert.doesNotMatch(
+    source,
+    /isTransientFetchFailure\(error\)[\s\S]*return fetch\(input, init\)[\s\S]*(?:claim|finalize|prepare|register|queue)/iu,
+  );
+});
