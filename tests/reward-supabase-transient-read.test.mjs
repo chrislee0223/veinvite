@@ -7,7 +7,7 @@ const source = await readFile(
   'utf8',
 );
 
-test('transient Supabase JWT retry remains limited to safe reads', () => {
+test('transient Supabase retries remain limited to safe reads', () => {
   assert.match(source, /const RETRIABLE_READ_METHODS = new Set\(\[\s*'GET',\s*'HEAD',\s*\]\)/s);
   assert.match(
     source,
@@ -20,6 +20,16 @@ test('transient Supabase JWT retry remains limited to safe reads', () => {
   assert.match(source, /if \(method !== 'POST'\) \{\s*return false;\s*\}/s);
   assert.match(source, /url\.origin === configuredSupabaseOrigin/);
   assert.match(source, /RETRIABLE_READ_RPC_PATHS\.has\(url\.pathname\)/);
+
+  assert.match(source, /TRANSIENT_FETCH_RETRY_DELAY_MS = 125/);
+  assert.match(source, /error instanceof TypeError/);
+  assert.match(source, /fetch failed/i);
+  assert.match(
+    source,
+    /if \(\s*!retriableRead \|\|\s*!isTransientFetchFailure\(error\)\s*\) \{\s*throw error;\s*\}/s,
+  );
+  assert.match(source, /await wait\(TRANSIENT_FETCH_RETRY_DELAY_MS\)/);
+
   assert.match(source, /body\.includes\('JWT issued at future'\)/);
   assert.match(source, /await wait\(JWT_FUTURE_RETRY_DELAY_MS\)/);
 
