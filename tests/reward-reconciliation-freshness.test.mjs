@@ -9,6 +9,13 @@ const migration = await readFile(
   ),
   'utf8',
 );
+const reconciliationBatch = await readFile(
+  new URL(
+    '../src/lib/impact/reconcileBatch.ts',
+    import.meta.url,
+  ),
+  'utf8',
+);
 const vercelConfig = JSON.parse(
   await readFile(
     new URL('../vercel.json', import.meta.url),
@@ -34,6 +41,21 @@ test('reconciliation freshness matches the daily recovery cron', () => {
   assert.doesNotMatch(
     migration,
     /now\(\)\s*-\s*interval\s+'1 hour'/i,
+  );
+});
+
+test('daily reconciliation uses the existing reviewed 25-row safety ceiling', () => {
+  assert.match(
+    reconciliationBatch,
+    /export const DEFAULT_RECONCILIATION_BATCH_SIZE = 25;/u,
+  );
+  assert.match(
+    reconciliationBatch,
+    /export const MAX_RECONCILIATION_BATCH_SIZE = 25;/u,
+  );
+  assert.match(
+    reconciliationBatch,
+    /limit > MAX_RECONCILIATION_BATCH_SIZE/u,
   );
 });
 
