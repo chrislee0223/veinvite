@@ -77,6 +77,7 @@ type NavEntry = {
   pageEntries: Array<[string, number]>;
   activeBranch: string | null;
   focusPath: string[];
+  branchAutoEnabled: boolean;
 };
 type SlotAnchor = {
   serverSlot: number;
@@ -115,7 +116,8 @@ const DIRECT_GAP = 190;
 const CHILD_GAP = 104;
 const ROOT_PAGE_SIZE = 9;
 const CHILD_PAGE_SIZE = 9;
-const REVEAL_BY_ZOOM = [5, 5, 7, 9] as const;
+const ROOT_REVEAL_BY_ZOOM = [5, 7, 9, 9] as const;
+const CHILD_REVEAL_BY_ZOOM = [0, 5, 7, 9] as const;
 const MAX_CACHE_ITEMS = 80;
 const REFRESH_MIN_MS = 15_000;
 const LIVE_REFRESH_MS = 20_000;
@@ -170,9 +172,9 @@ function resolveZoomLevel(current: number, scale: number) {
   return next;
 }
 function joinedAtValue(value: string | null) {
-  if (!value) return Number.MAX_SAFE_INTEGER;
+  if (!value) return 0;
   const parsed = Date.parse(value);
-  return Number.isFinite(parsed) ? parsed : Number.MAX_SAFE_INTEGER;
+  return Number.isFinite(parsed) ? parsed : 0;
 }
 function stableSortChildren(children: ApiChild[]) {
   const seen = new Set<string>();
@@ -279,7 +281,7 @@ async function fetchNetworkApi(
     rootWallet: keyWallet(payload.rootWallet),
     focusWallet: keyWallet(payload.focusWallet),
     breadcrumb: Array.isArray(payload.breadcrumb)
-      ? payload.breadcrumb.map(keyWallet)
+      ? payload.breadcrumb.filter(validWallet).map(keyWallet)
       : [keyWallet(payload.focusWallet)],
     children: stableSortChildren(payload.children),
   };
@@ -356,6 +358,7 @@ export function QaNetworkEmptyStateV19() {
   const [history, setHistory] = useState<NavEntry[]>([]);
   const [activeBranch, setActiveBranch] = useState<string | null>(null);
   const [focusPath, setFocusPath] = useState<string[]>([]);
+  const [branchAutoEnabled, setBranchAutoEnabled] = useState(true);
   const [rootPage, setRootPage] = useState(0);
   const [pageByParent, setPageByParent] = useState<Map<string, number>>(() => new Map());
   const [slotAvailability, setSlotAvailability] = useState<SlotAvailability | null>(null);
@@ -402,6 +405,7 @@ export function QaNetworkEmptyStateV19() {
       const oldest = next.keys().next().value as string | undefined;
       if (!oldest) break;
       next.delete(oldest);
+      childOrderRef.current.delete(oldest);
     }
     payloadsRef.current = next;
     setPayloads(next);
@@ -422,10 +426,7 @@ export function QaNetworkEmptyStateV19() {
 
   const laneExtent = useMemo(() => {
     if (!isOwnNetwork) return Math.max(4, Math.ceil((rootPayload?.children.length ?? 0) / 2));
-    const values = [
-      ...memberLaneRef.current.values(),
-      ...slotLaneRef.current.values(),
-    ];
+    const values = [...memberLaneRef.current.values(), ...slotLaneRef.current.values()];
     return Math.max(4, ...values.map((value) => Math.abs(value)));
   }, [isOwnNetwork, laneVersion, rootPayload?.children.length]);
   const worldW = Math.max(1540, laneExtent * DIRECT_GAP * 2 + 1040);
@@ -619,6 +620,8 @@ export function QaNetworkEmptyStateV19() {
     setActionKey(key);
     try {
       await task();
+    } catch {
+      // loadPayload/loadSlots already surface actionable errors in the QA strips.
     } finally {
       if (actionRef.current === key) {
         actionRef.current = null;
@@ -648,6 +651,7 @@ export function QaNetworkEmptyStateV19() {
     setPageByParent(new Map());
     setActiveBranch(null);
     setFocusPath([]);
+    setBranchAutoEnabled(true);
     setHistory([]);
     setSelectedWallet(null);
     setLoadError('');
@@ -727,6 +731,15 @@ export function QaNetworkEmptyStateV19() {
     const members = memberLaneRef.current;
     const slots = slotLaneRef.current;
 
+    if (slotAvailability) {
+      const currentSlotIds = new Set(slotAvailability.slots.map((slot) => slot.slot));
+      for (const slotId of [...slots.keys()]) {
+        if (currentSlotIds.has(slotId)) continue;
+        slots.delete(slotId);
+        changed = true;
+      }
+    }
+
     for (const slot of slotAvailability?.slots ?? []) {
       if (slot.state === 'AVAILABLE' || !slot.inviteeWallet) continue;
       const invitee = keyWallet(slot.inviteeWallet);
@@ -757,9 +770,7 @@ export function QaNetworkEmptyStateV19() {
       const min = all.length ? Math.min(0, ...all) : 0;
       const max = all.length ? Math.max(0, ...all) : 0;
       let candidate = preferLeft ? min - 1 : max + 1;
-      while (members.has(String(candidate)) || used.has(candidate)) {
-        candidate += preferLeft ? -1 : 1;
-      }
+      while (used.has(candidate)) candidate += preferLeft ? -1 : 1;
       return candidate;
     };
 
@@ -846,6 +857,10 @@ export function QaNetworkEmptyStateV19() {
   }, [view.scale]);
 
   useEffect(() => {
+    if (zoomLevel === 0 && !branchAutoEnabled) setBranchAutoEnabled(true);
+  }, [branchAutoEnabled, zoomLevel]);
+
+  useEffect(() => {
     if (!inviteNotice) return;
     const timer = window.setTimeout(() => setInviteNotice(null), 2300);
     return () => window.clearTimeout(timer);
@@ -868,7 +883,7 @@ export function QaNetworkEmptyStateV19() {
       void refreshData(true);
     };
     const poll = window.setInterval(() => {
-      if (document.visibilityState !== 'visible') return;
+      if (document.visibilityState !== 'visible' || actionRef.current) return;
       if (Date.now() - lastRefreshRef.current < LIVE_REFRESH_MS) return;
       void refreshData(true);
     }, LIVE_REFRESH_MS);
@@ -886,12 +901,13 @@ export function QaNetworkEmptyStateV19() {
   const rootChildren = rootPayload?.children ?? [];
   const rootPageCount = Math.max(1, Math.ceil(rootChildren.length / ROOT_PAGE_SIZE));
   const safeRootPage = Math.min(rootPage, rootPageCount - 1);
-  const revealCap = REVEAL_BY_ZOOM[zoomLevel] ?? REVEAL_BY_ZOOM[REVEAL_BY_ZOOM.length - 1];
+  const rootRevealCap = ROOT_REVEAL_BY_ZOOM[zoomLevel] ?? ROOT_REVEAL_BY_ZOOM[ROOT_REVEAL_BY_ZOOM.length - 1];
+  const childRevealCap = CHILD_REVEAL_BY_ZOOM[zoomLevel] ?? CHILD_REVEAL_BY_ZOOM[CHILD_REVEAL_BY_ZOOM.length - 1];
   const rootGroup = rootChildren.slice(
     safeRootPage * ROOT_PAGE_SIZE,
     safeRootPage * ROOT_PAGE_SIZE + ROOT_PAGE_SIZE,
   );
-  const rootVisibleChildren = rootGroup.slice(0, revealCap);
+  const rootVisibleChildren = rootGroup.slice(0, rootRevealCap);
   const rootIndexByWallet = useMemo(
     () => new Map(rootChildren.map((child, index) => [child.wallet, index])),
     [rootChildren],
@@ -953,16 +969,16 @@ export function QaNetworkEmptyStateV19() {
     );
   }, [rootPayload, slotAnchors]);
 
-  const pageChildrenFor = useCallback((parentWallet: string, cap = revealCap) => {
+  const pageChildrenFor = useCallback((parentWallet: string) => {
     const payload = payloads.get(keyWallet(parentWallet));
-    if (!payload) return [] as ApiChild[];
+    if (!payload || childRevealCap <= 0) return [] as ApiChild[];
     const page = pageByParent.get(keyWallet(parentWallet)) ?? 0;
     const start = page * CHILD_PAGE_SIZE;
-    return payload.children.slice(start, start + CHILD_PAGE_SIZE).slice(0, cap);
-  }, [pageByParent, payloads, revealCap]);
+    return payload.children.slice(start, start + CHILD_PAGE_SIZE).slice(0, childRevealCap);
+  }, [childRevealCap, pageByParent, payloads]);
 
   useEffect(() => {
-    if (zoomLevel < 1 || activeBranch || !rootVisibleChildren.length) return;
+    if (zoomLevel < 1 || !branchAutoEnabled || activeBranch || !rootVisibleChildren.length) return;
     const centerWorldX = rootX - viewRef.current.x / Math.max(viewRef.current.scale, .01);
     const candidate = rootVisibleChildren
       .filter((child) => child.direct > 0)
@@ -975,7 +991,7 @@ export function QaNetworkEmptyStateV19() {
     if (!candidate) return;
     setActiveBranch(candidate.wallet);
     setFocusPath([candidate.wallet]);
-  }, [activeBranch, rootVisibleChildren, rootLaneFor, rootX, zoomLevel]);
+  }, [activeBranch, branchAutoEnabled, rootVisibleChildren, rootLaneFor, rootX, zoomLevel]);
 
   useEffect(() => {
     if (!activeBranch) return;
@@ -1056,24 +1072,20 @@ export function QaNetworkEmptyStateV19() {
 
       const placePage = (parentWallet: string, localDepth: number) => {
         const parent = nodes.get(parentWallet);
-        if (!parent) return [] as LayoutNode[];
+        if (!parent) return;
         const children = pageChildrenFor(parentWallet);
         const gap = Math.round(CHILD_GAP * gapScale * (localDepth >= 3 ? .92 : 1));
-        const added: LayoutNode[] = [];
         children.forEach((child, index) => {
           const nextDepth = localDepth + 1;
-          const next: LayoutNode = {
+          nodes.set(child.wallet, {
             ...child,
             parentWallet,
             x: parent.x + stableOffset(index) * gap,
             y: ROOT_CHILD_Y + nextDepth * 205,
             localDepth: nextDepth,
             branch: parent.branch ?? parent.wallet,
-          };
-          nodes.set(child.wallet, next);
-          added.push(next);
+          });
         });
-        return added;
       };
 
       if (zoomLevel >= 1 && activeBranch) placePage(activeBranch, 1);
@@ -1158,7 +1170,7 @@ export function QaNetworkEmptyStateV19() {
   const focusNode = useCallback((walletToFocus: string) => {
     void runAction(`focus:${walletToFocus}`, async () => {
       const node = layout.get(keyWallet(walletToFocus));
-      if (!node || node.direct <= 0) return;
+      if (!node || node.localDepth === 0 || node.direct <= 0) return;
       setSelectedWallet(null);
       setShowHint(false);
       await loadPayload(node.wallet);
@@ -1182,7 +1194,7 @@ export function QaNetworkEmptyStateV19() {
   const showNextConnections = useCallback((walletToPage: string) => {
     void runAction(`page:${walletToPage}`, async () => {
       const node = layout.get(keyWallet(walletToPage));
-      if (!node || node.direct <= 0) return;
+      if (!node || node.localDepth === 0 || node.direct <= 0) return;
       const payload = await loadPayload(node.wallet);
       const pageCount = Math.max(1, Math.ceil(payload.children.length / CHILD_PAGE_SIZE));
       if (pageCount <= 1) return;
@@ -1213,6 +1225,7 @@ export function QaNetworkEmptyStateV19() {
           pageEntries: [...pageByParent.entries()],
           activeBranch,
           focusPath: [...focusPath],
+          branchAutoEnabled,
         },
       ]);
       setViewedRoot(walletKey);
@@ -1221,6 +1234,7 @@ export function QaNetworkEmptyStateV19() {
       setPageByParent(new Map());
       setActiveBranch(null);
       setFocusPath([]);
+      setBranchAutoEnabled(true);
       setSelectedWallet(null);
       setZoomLevel(0);
       animateTo(ROOT_VIEW);
@@ -1229,6 +1243,7 @@ export function QaNetworkEmptyStateV19() {
     activeBranch,
     animateTo,
     authWallet,
+    branchAutoEnabled,
     focusPath,
     loadPayload,
     pageByParent,
@@ -1248,6 +1263,7 @@ export function QaNetworkEmptyStateV19() {
       setPageByParent(new Map());
       setActiveBranch(null);
       setFocusPath([]);
+      setBranchAutoEnabled(true);
       setSelectedWallet(null);
       setZoomLevel(0);
       animateTo(ROOT_VIEW);
@@ -1265,12 +1281,14 @@ export function QaNetworkEmptyStateV19() {
       setPageByParent(new Map(previous.pageEntries));
       setActiveBranch(previous.activeBranch);
       setFocusPath(previous.focusPath);
+      setBranchAutoEnabled(previous.branchAutoEnabled);
       setSelectedWallet(null);
       setZoomLevel(resolveZoomLevel(0, previous.view.scale));
       animateTo(previous.view);
+      void loadPayload(previous.viewedRoot).catch(() => undefined);
       return current.slice(0, -1);
     });
-  }, [animateTo]);
+  }, [animateTo, loadPayload]);
 
   const changeRootPage = useCallback((delta: number) => {
     if (rootPageCount <= 1 || actionRef.current) return;
@@ -1278,6 +1296,7 @@ export function QaNetworkEmptyStateV19() {
     setRootPage(nextPage);
     setActiveBranch(null);
     setFocusPath([]);
+    setBranchAutoEnabled(true);
     setSelectedWallet(null);
     const page = rootChildren.slice(
       nextPage * ROOT_PAGE_SIZE,
@@ -1416,10 +1435,7 @@ export function QaNetworkEmptyStateV19() {
     }
   };
 
-  const hiddenRootDirect = Math.max(
-    0,
-    (rootPayload?.summary.direct ?? 0) - rootVisibleChildren.length,
-  );
+  const hiddenRootDirect = Math.max(0, (rootPayload?.summary.direct ?? 0) - rootVisibleChildren.length);
   const slotCount = isOwnNetwork ? slotAvailability?.slotsAvailable : null;
   const loading = booting || isAuthenticating;
   const selectedPayload = selected ? payloads.get(selected.wallet) : null;
@@ -1545,9 +1561,9 @@ export function QaNetworkEmptyStateV19() {
 
           {rootPageCount > 1 ? (
             <div className="rootPager" data-network-control="true">
-              <button type="button" onClick={() => changeRootPage(-1)}>‹</button>
+              <button type="button" onClick={() => changeRootPage(-1)} disabled={actionsBusy}>‹</button>
               <span>{safeRootPage + 1}/{rootPageCount}</span>
-              <button type="button" onClick={() => changeRootPage(1)}>›</button>
+              <button type="button" onClick={() => changeRootPage(1)} disabled={actionsBusy}>›</button>
             </div>
           ) : null}
 
@@ -1559,7 +1575,11 @@ export function QaNetworkEmptyStateV19() {
               type="button"
               className="clearFocus"
               data-network-control="true"
-              onClick={() => { setActiveBranch(null); setFocusPath([]); }}
+              onClick={() => {
+                setBranchAutoEnabled(false);
+                setActiveBranch(null);
+                setFocusPath([]);
+              }}
             >전체 가지 보기</button>
           ) : null}
           {showHint ? (
@@ -1645,30 +1665,15 @@ export function QaNetworkEmptyStateV19() {
                 );
               })}
               {continuationNodes.map((node) => (
-                <path
-                  key={`tail-${node.wallet}`}
-                  d={continuationPath(node)}
-                  className="continuationTail"
-                  vectorEffect="non-scaling-stroke"
-                />
+                <path key={`tail-${node.wallet}`} d={continuationPath(node)} className="continuationTail" vectorEffect="non-scaling-stroke" />
               ))}
               {pendingAnchors.map((anchor) => (
-                <path
-                  key={`pending-${anchor.serverSlot}`}
-                  d={anchor.path}
-                  className="pendingEdge"
-                  vectorEffect="non-scaling-stroke"
-                />
+                <path key={`pending-${anchor.serverSlot}`} d={anchor.path} className="pendingEdge" vectorEffect="non-scaling-stroke" />
               ))}
               {availableAnchors.map((slot) => (
                 <g key={`slot-${slot.serverSlot}`}>
                   <path d={slot.path} className="availableBase" vectorEffect="non-scaling-stroke" />
-                  <path
-                    d={slot.path}
-                    className="availableFlow"
-                    stroke={`url(#slotFlowV19-${slot.serverSlot})`}
-                    vectorEffect="non-scaling-stroke"
-                  />
+                  <path d={slot.path} className="availableFlow" stroke={`url(#slotFlowV19-${slot.serverSlot})`} vectorEffect="non-scaling-stroke" />
                 </g>
               ))}
             </svg>
@@ -1702,11 +1707,7 @@ export function QaNetworkEmptyStateV19() {
             })}
 
             {pendingAnchors.map((anchor) => (
-              <div
-                key={`pending-node-${anchor.serverSlot}`}
-                className="pendingSlot"
-                style={{ left: anchor.x, top: anchor.y }}
-              >
+              <div key={`pending-node-${anchor.serverSlot}`} className="pendingSlot" style={{ left: anchor.x, top: anchor.y }}>
                 <span className="slotAvatar pending">…</span>
                 <b>{anchor.state === 'PENDING' ? 'Pending' : 'Joining'}</b>
                 <small>Invite in progress</small>
@@ -1744,11 +1745,13 @@ export function QaNetworkEmptyStateV19() {
                 <button type="button" disabled={actionsBusy} onClick={() => setSelectedWallet(null)}>×</button>
               </div>
               <p>{
-                selected.direct
-                  ? '이 가지는 사용자가 바꾸기 전까지 고정되고, 깊은 세대도 한 경로씩 안정적으로 펼쳐집니다.'
-                  : '현재 서버 데이터 기준 leaf 노드입니다.'
+                selected.localDepth === 0
+                  ? '현재 보고 있는 네트워크의 기준점입니다. 확대하거나 사람을 선택해 가지를 탐색할 수 있습니다.'
+                  : selected.direct
+                    ? '이 가지는 사용자가 바꾸기 전까지 고정되고, 깊은 세대도 한 경로씩 안정적으로 펼쳐집니다.'
+                    : '현재 서버 데이터 기준 leaf 노드입니다.'
               }</p>
-              {selected.direct > 0 ? (
+              {selected.direct > 0 && selected.localDepth > 0 ? (
                 <div className="cardActions">
                   <button type="button" className="branchCta" disabled={actionsBusy} onClick={() => focusNode(selected.wallet)}>
                     {actionKey === `focus:${selected.wallet}` ? 'Loading…' : '이 가지 펼치기'}
