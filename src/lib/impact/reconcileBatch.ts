@@ -9,7 +9,7 @@ import {
   getVeBetterNetworkConfig,
 } from '@/lib/vebetter/network';
 
-export const DEFAULT_RECONCILIATION_BATCH_SIZE = 10;
+export const DEFAULT_RECONCILIATION_BATCH_SIZE = 25;
 export const MAX_RECONCILIATION_BATCH_SIZE = 25;
 
 const RECONCILIATION_LEASE_SECONDS = 600;
