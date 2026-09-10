@@ -27,11 +27,33 @@ type EnsureReferralLinkResult = {
 
 type ActiveInvitationRow = {
   invite_slot: number;
+  invitee_wallet: string | null;
   status: string;
   eligibility_check_id: string | number | null;
   activation_network: string | null;
   sybil_status: string;
   slot_released_at: string | null;
+  created_at: string;
+};
+
+type ReferralSlotState =
+  | 'AVAILABLE'
+  | 'PENDING'
+  | 'IN_PROGRESS'
+  | 'COMPLETED';
+
+type ReferralSlot = {
+  slot: number;
+  state: ReferralSlotState;
+  inviteeWallet: string | null;
+};
+
+type SlotAvailability = {
+  limit: number;
+  slotsAvailable: number;
+  availableSlotIds: number[];
+  occupiedSlotIds: number[];
+  slots: ReferralSlot[];
 };
 
 function walletAuthResponse(error: unknown): NextResponse | null {
@@ -67,21 +89,75 @@ function isSlotOccupying(invitation: ActiveInvitationRow): boolean {
   );
 }
 
-async function loadSlotsAvailable(inviterWallet: string): Promise<number> {
+function referralSlotState(invitation: ActiveInvitationRow): ReferralSlotState {
+  if (invitation.status === 'PENDING_ACCEPTANCE') return 'PENDING';
+  if (invitation.status === 'COMPLETED') return 'COMPLETED';
+  return 'IN_PROGRESS';
+}
+
+async function loadSlotAvailability(
+  inviterWallet: string,
+): Promise<SlotAvailability> {
   const { data, error } = await supabaseAdmin
     .from('invitations')
-    .select('invite_slot,status,eligibility_check_id,activation_network,sybil_status,slot_released_at')
+    .select(
+      'invite_slot,invitee_wallet,status,eligibility_check_id,activation_network,sybil_status,slot_released_at,created_at',
+    )
     .eq('inviter_wallet', inviterWallet)
-    .in('status', ['PENDING_ACCEPTANCE', 'ACTIVATING', 'UNDER_REVIEW', 'COMPLETED']);
+    .in('status', ['PENDING_ACCEPTANCE', 'ACTIVATING', 'UNDER_REVIEW', 'COMPLETED'])
+    .order('created_at', { ascending: false });
 
   if (error) throw error;
 
-  const occupied = new Set<number>();
+  const occupyingBySlot = new Map<number, ActiveInvitationRow>();
   for (const row of (data ?? []) as ActiveInvitationRow[]) {
-    if (isSlotOccupying(row)) occupied.add(Number(row.invite_slot));
+    const slot = Number(row.invite_slot);
+    if (
+      slot < 1 ||
+      slot > PERMANENT_REFERRAL_SLOT_LIMIT ||
+      occupyingBySlot.has(slot) ||
+      !isSlotOccupying(row)
+    ) {
+      continue;
+    }
+    occupyingBySlot.set(slot, row);
   }
 
-  return clampAvailableSlots(PERMANENT_REFERRAL_SLOT_LIMIT - occupied.size);
+  const slots: ReferralSlot[] = Array.from(
+    { length: PERMANENT_REFERRAL_SLOT_LIMIT },
+    (_, index) => {
+      const slot = index + 1;
+      const invitation = occupyingBySlot.get(slot) ?? null;
+      return invitation
+        ? {
+            slot,
+            state: referralSlotState(invitation),
+            inviteeWallet: invitation.invitee_wallet
+              ? normalizeAddress(invitation.invitee_wallet)
+              : null,
+          }
+        : {
+            slot,
+            state: 'AVAILABLE',
+            inviteeWallet: null,
+          };
+    },
+  );
+
+  const availableSlotIds = slots
+    .filter((slot) => slot.state === 'AVAILABLE')
+    .map((slot) => slot.slot);
+  const occupiedSlotIds = slots
+    .filter((slot) => slot.state !== 'AVAILABLE')
+    .map((slot) => slot.slot);
+
+  return {
+    limit: PERMANENT_REFERRAL_SLOT_LIMIT,
+    slotsAvailable: clampAvailableSlots(availableSlotIds.length),
+    availableSlotIds,
+    occupiedSlotIds,
+    slots,
+  };
 }
 
 async function loadActiveReferralLink(inviterWallet: string): Promise<ReferralLinkRow | null> {
@@ -96,13 +172,19 @@ async function loadActiveReferralLink(inviterWallet: string): Promise<ReferralLi
   return (data as ReferralLinkRow | null) ?? null;
 }
 
-function responsePayload(link: ReferralLinkRow, slotsAvailable: number) {
+function responsePayload(
+  link: ReferralLinkRow | null,
+  slotAvailability: SlotAvailability,
+) {
   return {
-    referralLink: {
-      key: link.referral_key,
-      createdAt: link.created_at,
-      slotsAvailable,
-    },
+    referralLink: link
+      ? {
+          key: link.referral_key,
+          createdAt: link.created_at,
+          slotsAvailable: slotAvailability.slotsAvailable,
+        }
+      : null,
+    slotAvailability,
   };
 }
 
@@ -169,13 +251,13 @@ export async function GET(request: NextRequest) {
   if (owner.response || !owner.wallet) return owner.response!;
 
   try {
-    const [link, slotsAvailable] = await Promise.all([
+    const [link, slotAvailability] = await Promise.all([
       loadActiveReferralLink(owner.wallet),
-      loadSlotsAvailable(owner.wallet),
+      loadSlotAvailability(owner.wallet),
     ]);
 
     return NextResponse.json(
-      link ? responsePayload(link, slotsAvailable) : { referralLink: null },
+      responsePayload(link, slotAvailability),
       { headers: { 'Cache-Control': 'no-store' } },
     );
   } catch (error) {
@@ -202,12 +284,12 @@ export async function POST(request: NextRequest) {
     // Home uses this endpoint as an idempotent "ensure link" operation. Reading
     // an already-existing permanent link must not consume the creation-rate
     // budget merely because the user reopened or refreshed the app.
-    const [existing, slotsAvailable] = await Promise.all([
+    const [existing, slotAvailability] = await Promise.all([
       loadActiveReferralLink(owner.wallet),
-      loadSlotsAvailable(owner.wallet),
+      loadSlotAvailability(owner.wallet),
     ]);
     if (existing) {
-      return NextResponse.json(responsePayload(existing, slotsAvailable));
+      return NextResponse.json(responsePayload(existing, slotAvailability));
     }
 
     const rateLimitResponse = await enforceRateLimits([
@@ -236,7 +318,7 @@ export async function POST(request: NextRequest) {
       const link = ensuredRow(result);
       if (link) {
         return NextResponse.json(
-          responsePayload(link, slotsAvailable),
+          responsePayload(link, slotAvailability),
           { status: result.created ? 201 : 200 },
         );
       }
