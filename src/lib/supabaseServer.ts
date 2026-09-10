@@ -7,6 +7,7 @@ const PRODUCTION_SUPABASE_PROJECT_REF =
 const PREVIEW_SUPABASE_PROJECT_REF =
   'bpppslplhmppxzvdkwxs';
 const JWT_FUTURE_RETRY_DELAY_MS = 750;
+const TRANSIENT_FETCH_RETRY_DELAY_MS = 250;
 const RETRIABLE_READ_METHODS = new Set([
   'GET',
   'HEAD',
@@ -192,6 +193,17 @@ async function wait(
   });
 }
 
+function isTransientFetchFailure(
+  error: unknown,
+): boolean {
+  return (
+    error instanceof TypeError &&
+    error.message
+      .toLowerCase()
+      .includes('fetch failed')
+  );
+}
+
 async function hasJwtIssuedAtFuture(
   response: Response,
 ): Promise<boolean> {
@@ -213,7 +225,26 @@ const guardedFetch: typeof fetch = async (
 ) => {
   assertSafeDatabaseEnvironment();
 
-  const response = await fetch(input, init);
+  let response: Response;
+
+  try {
+    response = await fetch(input, init);
+  } catch (error) {
+    // Vercel-to-Supabase connection setup can occasionally fail before an HTTP
+    // response exists. Retry only a reviewed idempotent read, only once. This
+    // never retries arbitrary POSTs or mutations, so a network blip cannot
+    // duplicate a write or payout operation.
+    if (
+      !isRetriableReadRequest(input, init) ||
+      !isTransientFetchFailure(error)
+    ) {
+      throw error;
+    }
+
+    await wait(TRANSIENT_FETCH_RETRY_DELAY_MS);
+    assertSafeDatabaseEnvironment();
+    return fetch(input, init);
+  }
 
   // Supabase can very occasionally reject a valid server-side JWT while
   // clocks are converging. Retry only an idempotent read, only once, and only
