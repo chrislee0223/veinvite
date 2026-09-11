@@ -13,10 +13,16 @@ type TouchPan = {
   moved: boolean;
 } | null;
 
+function touchDistance(a: Touch, b: Touch) {
+  return Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY);
+}
+
 export function QaNetworkRadialPlaygroundV36() {
   const rootRef = useRef<HTMLDivElement | null>(null);
   const activeTouchPointersRef = useRef<Set<number>>(new Set());
   const pinchGestureRef = useRef(false);
+  const pinchStartedOnNodeRef = useRef(false);
+  const pinchStartDistanceRef = useRef(0);
   const panRef = useRef<TouchPan>(null);
   const suppressClickUntilRef = useRef(0);
 
@@ -30,12 +36,18 @@ export function QaNetworkRadialPlaygroundV36() {
       }
     };
 
-    const temporarilyBlockSemanticNavigation = () => {
-      const buttons = Array.from(root.querySelectorAll<HTMLButtonElement>('button.ringNode.person'));
-      const inviter = Array.from(root.querySelectorAll<HTMLButtonElement>('.navActions>button'))
-        .find((button) => button.textContent?.includes('Inviter'));
-      if (inviter) buttons.push(inviter);
+    const midpointNode = (event: TouchEvent) => {
+      if (event.touches.length < 2) return null;
+      const a = event.touches[0];
+      const b = event.touches[1];
+      const x = (a.clientX + b.clientX) / 2;
+      const y = (a.clientY + b.clientY) / 2;
+      const direct = document.elementFromPoint(x, y)?.closest('button.ringNode.person') as HTMLButtonElement | null;
+      return direct && root.contains(direct) && !direct.disabled ? direct : null;
+    };
 
+    const temporarilyBlockPersonEntry = () => {
+      const buttons = Array.from(root.querySelectorAll<HTMLButtonElement>('button.ringNode.person'));
       const previous = buttons.map((button) => [button, button.disabled] as const);
       for (const [button] of previous) button.disabled = true;
 
@@ -58,7 +70,6 @@ export function QaNetworkRadialPlaygroundV36() {
         pinchGestureRef.current = true;
         panRef.current = null;
         root.classList.add('v36Pinching');
-        // The second finger must never replace the single-finger pan owner in V35.
         event.stopPropagation();
         return;
       }
@@ -74,8 +85,6 @@ export function QaNetworkRadialPlaygroundV36() {
     const onPointerMove = (event: PointerEvent) => {
       if (event.pointerType !== 'touch') return;
 
-      // Pinch is handled by V35's touch events. Block its pointer-pan path while two-finger
-      // intent is active so camera movement cannot be mistaken for a one-finger drag.
       if (pinchGestureRef.current) {
         if (event.cancelable) event.preventDefault();
         event.stopPropagation();
@@ -104,27 +113,39 @@ export function QaNetworkRadialPlaygroundV36() {
       if (event.touches.length < 2) return;
       pinchGestureRef.current = true;
       root.classList.add('v36Pinching');
-      // V35 briefly marks a nearby node as a zoom target. V36 makes mobile pinch visual-only.
-      queueMicrotask(clearZoomTargets);
+
+      const a = event.touches[0];
+      const b = event.touches[1];
+      pinchStartDistanceRef.current = Math.max(1, touchDistance(a, b));
+      pinchStartedOnNodeRef.current = Boolean(midpointNode(event));
+
+      // Blank-space pinch must stay a pure camera zoom. Only a pinch whose midpoint
+      // actually begins on a person node may become semantic node entry.
+      if (!pinchStartedOnNodeRef.current) queueMicrotask(clearZoomTargets);
     };
 
     const onTouchMove = (event: TouchEvent) => {
-      if (!pinchGestureRef.current) return;
-      queueMicrotask(clearZoomTargets);
+      if (!pinchGestureRef.current || event.touches.length < 2) return;
+      if (!pinchStartedOnNodeRef.current) queueMicrotask(clearZoomTargets);
     };
 
     const onTouchFinish = (event: TouchEvent) => {
       if (!pinchGestureRef.current) return;
 
-      // Let V35 finish and clear its internal pinch state, but make both semantic outcomes
-      // impossible for this event: pinch-in cannot enter a node and pinch-out cannot go back.
-      temporarilyBlockSemanticNavigation();
+      // Preserve V35 semantic zoom rules when the gesture actually started on a node:
+      // pinch-in enters that node; pinch-out from a child context returns to the inviter.
+      // For a blank-space pinch, only person-entry is blocked. Back-navigation remains
+      // available on pinch-out so users can still return to the parent network.
+      if (!pinchStartedOnNodeRef.current) temporarilyBlockPersonEntry();
+
       guardGhostClick();
-      queueMicrotask(clearZoomTargets);
+      if (!pinchStartedOnNodeRef.current) queueMicrotask(clearZoomTargets);
 
       if (event.touches.length === 0) {
         queueMicrotask(() => {
           pinchGestureRef.current = false;
+          pinchStartedOnNodeRef.current = false;
+          pinchStartDistanceRef.current = 0;
           root.classList.remove('v36Pinching');
         });
       }
@@ -168,11 +189,9 @@ export function QaNetworkRadialPlaygroundV36() {
       <QaNetworkRadialPlaygroundV35 />
       <style jsx global>{`
         .v36Root .labHeader>div:first-child::before{content:'RADIAL NETWORK PLAYGROUND · V36'!important}
-        .v36Root .labHeader>div:first-child::after{content:'Mobile gestures · tap / pan / pinch separated · pinch is zoom-only'!important}
+        .v36Root .labHeader>div:first-child::after{content:'Node pinch enters · blank pinch zooms · pinch-out returns to parent'!important}
         .v36Root.v36Pinching .ringNode.person .floatInner{filter:none!important}
-        .v36Root.v36Pinching .ringNode.person .ringCircle{box-shadow:none!important}
-        .v36Root.v36Pinching .ringNode.zoomTarget .floatInner{animation:none!important;transform:none!important}
-        .v36Root.v36Pinching .ringNode.zoomTarget .ringCircle{border-color:inherit!important;box-shadow:none!important}
+        .v36Root.v36Pinching .ringNode.zoomTarget .floatInner{animation:none!important}
       `}</style>
     </div>
   );
