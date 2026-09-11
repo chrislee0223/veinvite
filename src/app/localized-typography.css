@@ -263,11 +263,10 @@ html[data-locale-typography='indic'] :where(
 }
 
 /* Navigation destinations are important labels, so preserve the complete
- * translation instead of clipping it. Two balanced lines keep the bar stable
- * for German, French, Arabic/Urdu and other longer locales. */
+ * translation instead of clipping it. The legacy selector remains broad for
+ * the stability gate, then the fixed icon box is explicitly restored below. */
 .bottomNavigation button span,
 .labScreen .previewNavigation button span {
-  min-height: 2.3em;
   max-width: 100%;
   display: flex;
   align-items: center;
@@ -282,7 +281,20 @@ html[data-locale-typography='indic'] :where(
   text-wrap: balance;
 }
 
-.bottomNavigation button,
+/* AppBottomNavigation has separate icon and label spans. Translation wrapping
+ * must never change the icon's fixed geometry or its vertical alignment. */
+.bottomNavigation button .navIcon {
+  width: 21px !important;
+  min-width: 21px !important;
+  max-width: 21px !important;
+  height: 21px !important;
+  min-height: 21px !important;
+  max-height: 21px !important;
+  display: block !important;
+  overflow: visible !important;
+  line-height: 0 !important;
+}
+
 .labScreen .previewNavigation button {
   min-height: 62px !important;
 }
@@ -305,29 +317,13 @@ html[data-locale-typography='indic'] :where(
   text-wrap: balance;
 }
 
-/* A translated country name is meaningful data, so never sacrifice it to the
- * round-gain badge. Give each of the five visible rows a little more height and
- * place the optional gain on its own line. */
-.countryScroll,
-.countrySkeleton,
-.countryState {
-  height: 320px !important;
-  min-height: 320px !important;
-  max-height: 320px !important;
-}
-
-.countryRow,
-.countryPlaceholderRow {
-  height: 64px !important;
-  min-height: 64px !important;
-  max-height: 64px !important;
-}
-
+/* Country names are meaningful data. Allow natural wrapping inside the shared
+ * leaderboard row geometry; row heights themselves are owned by the unified
+ * leaderboard scale (50px desktop / 46px mobile / 44px narrow mobile). */
 .countryNameLine {
   min-width: 0;
   display: grid !important;
   align-content: center;
-  gap: 2px !important;
   overflow: visible !important;
 }
 
@@ -338,12 +334,6 @@ html[data-locale-typography='indic'] :where(
   white-space: normal !important;
   line-height: 1.14;
   text-wrap: balance;
-}
-
-.countryNameLine .roundGain {
-  justify-self: start;
-  white-space: normal !important;
-  line-height: 1.15;
 }
 
 /* Native names in the language chooser carry their own direction. Use logical
@@ -466,10 +456,6 @@ html[dir='rtl'] :is(
   .countryTotal
 ) {
   text-align: center !important;
-}
-
-html[dir='rtl'] .countryNameLine .roundGain {
-  justify-self: end;
 }
 
 /* Keep receipt fact labels aligned when one translation needs a second line. */

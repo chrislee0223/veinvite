@@ -52,13 +52,13 @@ test('bottom navigation uses one measured sliding indicator', () => {
   assert.doesNotMatch(source, /button\.active\s*\{[^}]*background:/);
 });
 
-test('bottom navigation alignment uses equal tracks and fixed icon-label rows', () => {
+test('bottom navigation alignment reserves a stable two-line label slot', () => {
   assert.match(source, /grid-template-columns: repeat\(4,minmax\(0,1fr\)\);/);
-  assert.match(source, /grid-template-rows: 21px 13px;/);
+  assert.match(source, /min-height: 62px;[^}]*grid-template-rows: 21px 24px;/);
   assert.match(source, /className="navIcon"/);
   assert.match(source, /className="navLabel"/);
-  assert.match(source, /\.navIcon \{ width: 21px; height: 21px; display: block; line-height: 0; \}/);
-  assert.match(source, /\.navLabel \{[^}]*text-align: center; line-height: 13px; \}/);
+  assert.match(source, /\.navIcon \{ width: 21px; height: 21px; min-height: 21px; display: block; line-height: 0; \}/);
+  assert.match(source, /\.navLabel \{[^}]*height: 24px;[^}]*min-height: 24px;[^}]*max-height: 24px;[^}]*display: flex;[^}]*white-space: normal;[^}]*text-wrap: balance;/);
   assert.match(source, /\.navIcon :global\(svg\) \{ display: block; width: 21px; height: 21px; \}/);
 
   const desktopRail = 520;

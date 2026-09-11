@@ -452,10 +452,10 @@ export function AppBottomNavigation({
           .bottomNavigation > div { position: relative; width: min(100%,520px); min-height: 70px; margin: 0 auto; padding: 6px; display: grid; grid-template-columns: repeat(4,minmax(0,1fr)); border: 1px solid rgba(255,205,80,.16); border-radius: 23px; background: rgba(22,22,20,.985); box-shadow: 0 18px 55px rgba(0,0,0,.5); pointer-events: auto; isolation: isolate; }
           .activeIndicator { position: absolute; z-index: 0; top: 0; left: 0; border-radius: 17px; background: rgba(255,201,61,.1); opacity: 0; pointer-events: none; }
           .activeIndicator[data-ready='true'] { opacity: 1; }
-          button { position: relative; z-index: 1; width: 100%; min-width: 0; min-height: 56px; padding: 6px 3px; display: grid; grid-template-columns: minmax(0,1fr); grid-template-rows: 21px 13px; justify-items: center; align-content: center; row-gap: 4px; border: 0; border-radius: 17px; background: transparent; color: #77736c; font: inherit; font-size: .6rem; font-weight: 850; cursor: pointer; transition: color 180ms ease, transform 90ms ease; }
+          button { position: relative; z-index: 1; width: 100%; min-width: 0; min-height: 62px; padding: 6px 3px; display: grid; grid-template-columns: minmax(0,1fr); grid-template-rows: 21px 24px; justify-items: center; align-content: center; row-gap: 4px; border: 0; border-radius: 17px; background: transparent; color: #77736c; font: inherit; font-size: .6rem; font-weight: 850; cursor: pointer; transition: color 180ms ease, transform 90ms ease; }
           button:active { transform: scale(.98); }
-          .navIcon { width: 21px; height: 21px; display: block; line-height: 0; }
-          .navLabel { width: 100%; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-align: center; line-height: 13px; }
+          .navIcon { width: 21px; height: 21px; min-height: 21px; display: block; line-height: 0; }
+          .navLabel { width: 100%; min-width: 0; max-width: 100%; height: 24px; min-height: 24px; max-height: 24px; display: flex; align-items: center; justify-content: center; overflow: visible; text-overflow: clip; white-space: normal; overflow-wrap: normal; word-break: normal; text-align: center; line-height: 1.15; text-wrap: balance; }
           button.visualActive { color: #ffd45f; }
           .navIcon :global(svg) { display: block; width: 21px; height: 21px; }
           /* At the fixed 520px desktop rail, 1px borders + 5px inline padding leave 508px. Four tabs are therefore 127px each instead of 126.5px fractional tracks. */
