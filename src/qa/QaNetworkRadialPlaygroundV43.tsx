@@ -54,7 +54,6 @@ export function QaNetworkRadialPlaygroundV43() {
   const editingRef = useRef(false);
   const startsRef = useRef(new Map<string, EditStart>());
   const resetDuringEditRef = useRef(false);
-  const frameRef = useRef<number | null>(null);
 
   useEffect(() => {
     const root = rootRef.current;
@@ -66,6 +65,7 @@ export function QaNetworkRadialPlaygroundV43() {
       startsRef.current.clear();
       resetDuringEditRef.current = false;
       const nodes = Array.from(stage.querySelectorAll<HTMLButtonElement>('.personNode'));
+
       nodes.forEach((node, index) => {
         const point = nodePoint(node);
         startsRef.current.set(nodeKey(node, index), {
@@ -73,7 +73,7 @@ export function QaNetworkRadialPlaygroundV43() {
           wasManual: node.dataset.v39Manual === '1',
         });
 
-        // Edit mode must begin exactly where the user was already looking.
+        // Freeze the exact visible point before V39's edit-mode layout pass runs.
         setV39Coordinates(node, point, point);
       });
     };
@@ -86,8 +86,7 @@ export function QaNetworkRadialPlaygroundV43() {
       const reset = resetDuringEditRef.current;
 
       nodes.forEach((node, index) => {
-        const key = nodeKey(node, index);
-        const start = startsRef.current.get(key);
+        const start = startsRef.current.get(nodeKey(node, index));
         const current = nodePoint(node);
         const moved = Boolean(start) && Math.hypot(current.x - start!.x, current.y - start!.y) > MOVE_EPSILON;
 
@@ -98,11 +97,11 @@ export function QaNetworkRadialPlaygroundV43() {
         }
 
         if (moved || start?.wasManual) {
-          // Only genuinely moved (or previously manual) nodes remain manual.
+          // A node becomes manual only when it truly moved, or if it was already manual.
           node.dataset.v39Manual = '1';
           setV39Coordinates(node, current, current);
         } else {
-          // Untouched automatic nodes keep the exact same visible point after Done.
+          // Untouched automatic nodes keep the same visible point when Done is pressed.
           delete node.dataset.v39Manual;
           setV39Coordinates(node, inverseAutoPoint(current, compact, zoom, clustered), current);
         }
@@ -113,7 +112,6 @@ export function QaNetworkRadialPlaygroundV43() {
     };
 
     const syncEditState = () => {
-      frameRef.current = null;
       const stage = root.querySelector<HTMLElement>('.stage');
       if (!stage) return;
       const editing = stage.classList.contains('editMode');
@@ -123,30 +121,28 @@ export function QaNetworkRadialPlaygroundV43() {
       editingRef.current = editing;
     };
 
-    const schedule = () => {
-      if (frameRef.current !== null) return;
-      frameRef.current = window.requestAnimationFrame(syncEditState);
-    };
-
     const onClickCapture = (event: MouseEvent) => {
-      const target = event.target instanceof Element ? event.target.closest('button') as HTMLButtonElement | null : null;
+      const target = event.target instanceof Element
+        ? event.target.closest('button') as HTMLButtonElement | null
+        : null;
       if (!target) return;
       const stage = root.querySelector<HTMLElement>('.stage');
       if (!stage?.classList.contains('editMode')) return;
       if (target.textContent?.trim().toLowerCase().includes('reset')) resetDuringEditRef.current = true;
     };
 
-    const observer = new MutationObserver(schedule);
+    // Important: react to the editMode class change synchronously in the observer callback.
+    // V39 schedules its layout work in requestAnimationFrame, so these coordinates are frozen first.
+    const observer = new MutationObserver(syncEditState);
     observer.observe(root, { childList: true, subtree: true, attributes: true, attributeFilter: ['class'] });
     root.addEventListener('click', onClickCapture, true);
-    window.addEventListener('resize', schedule);
+    window.addEventListener('resize', syncEditState);
     syncEditState();
 
     return () => {
       observer.disconnect();
       root.removeEventListener('click', onClickCapture, true);
-      window.removeEventListener('resize', schedule);
-      if (frameRef.current !== null) window.cancelAnimationFrame(frameRef.current);
+      window.removeEventListener('resize', syncEditState);
     };
   }, []);
 
