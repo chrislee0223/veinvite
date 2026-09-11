@@ -10,28 +10,43 @@ type Point = { x: number; y: number };
 type Camera = { x: number; y: number };
 type PersonItem = Point & { id: string; index: number };
 type Cluster = Point & { id: string; members: PersonItem[] };
+type NodeKind = 'person' | 'slot';
 type DragState = { key: string; pointerId: number; offsetX: number; offsetY: number; target: HTMLButtonElement } | null;
 type PanState = { pointerId: number; startX: number; startY: number; originX: number; originY: number; moved: boolean } | null;
 type PinchState = {
   startDistance: number;
   startZoom: number;
   startCamera: Camera;
-  startMid: Point;
   worldAnchor: Point;
   nodeId: string | null;
   ratio: number;
 } | null;
-
+type PressState = {
+  key: string;
+  kind: NodeKind;
+  id: string;
+  point: Point;
+  pointerId: number;
+  startX: number;
+  startY: number;
+  lastX: number;
+  lastY: number;
+  target: HTMLButtonElement;
+  timer: number;
+  activated: boolean;
+} | null;
 type SearchHit = { id: string; depth: number };
 
 const ROOT = 'root';
-const STORAGE_KEY = 'veinvite:qa:radial-v37:positions';
+const STORAGE_KEY = 'veinvite:qa:radial-v37:positions-v2';
 const MIN_ZOOM = .32;
 const MAX_ZOOM = 2.5;
 const CLUSTER_ENTER_ZOOM = .66;
 const CLUSTER_EXIT_ZOOM = .82;
 const CLUSTER_MIN_CHILDREN = 14;
 const LONG_TRANSITION_MS = 720;
+const LONG_PRESS_MS = 500;
+const PRESS_MOVE_CANCEL_PX = 10;
 const GOLDEN_ANGLE = Math.PI * (3 - Math.sqrt(5));
 
 const SCENARIOS: Scenario[] = [
@@ -146,10 +161,7 @@ function autoPersonPoint(id: string, index: number, compact: boolean): Point {
   const angle = -Math.PI / 2 + index * GOLDEN_ANGLE + jitter;
   const radius = compact ? 118 + Math.sqrt(index) * 82 : 208 + Math.sqrt(index) * 128;
   const yScale = compact ? .86 : .78;
-  return {
-    x: Math.cos(angle) * radius,
-    y: Math.sin(angle) * radius * yScale + (compact ? 18 : 26),
-  };
+  return { x: Math.cos(angle) * radius, y: Math.sin(angle) * radius * yScale + (compact ? 18 : 26) };
 }
 
 function slotPoint(index: number, compact: boolean): Point {
@@ -166,6 +178,32 @@ function pathFor(point: Point) {
   return `M 0 0 C ${bend} ${point.y * .22}, ${point.x - bend} ${point.y * .78}, ${point.x} ${point.y}`;
 }
 
+function spatialClusters(items: PersonItem[], compact: boolean) {
+  const size = compact ? 6 : 8;
+  const ordered = [...items].sort((a, b) => {
+    const angleA = Math.atan2(a.y, a.x);
+    const angleB = Math.atan2(b.y, b.x);
+    return angleA - angleB || stableHash(a.id) - stableHash(b.id);
+  });
+  const result: Cluster[] = [];
+  for (let i = 0; i < ordered.length; i += size) {
+    const members = ordered.slice(i, i + size);
+    if (!members.length) continue;
+    let x = members.reduce((sum, item) => sum + item.x, 0) / members.length;
+    let y = members.reduce((sum, item) => sum + item.y, 0) / members.length;
+    const radius = Math.hypot(x, y);
+    const minimumRadius = compact ? 178 : 260;
+    if (radius < minimumRadius) {
+      const fallback = members[Math.floor(members.length / 2)];
+      const angle = Math.atan2(y || fallback.y, x || fallback.x);
+      x = Math.cos(angle) * minimumRadius;
+      y = Math.sin(angle) * minimumRadius;
+    }
+    result.push({ id: `cluster-${members[0].id}-${members[members.length - 1].id}`, members, x, y });
+  }
+  return result;
+}
+
 export function QaNetworkRadialPlaygroundV37() {
   const rootRef = useRef<HTMLDivElement | null>(null);
   const stageRef = useRef<HTMLDivElement | null>(null);
@@ -173,6 +211,7 @@ export function QaNetworkRadialPlaygroundV37() {
   const panRef = useRef<PanState>(null);
   const pinchRef = useRef<PinchState>(null);
   const dragRef = useRef<DragState>(null);
+  const pressRef = useRef<PressState>(null);
   const extraCounterRef = useRef(1);
   const suppressClickUntilRef = useRef(0);
   const autoFocusAllowedRef = useRef(true);
@@ -194,6 +233,7 @@ export function QaNetworkRadialPlaygroundV37() {
   const [newArrival, setNewArrival] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [debug, setDebug] = useState(false);
+  const [pressingKey, setPressingKey] = useState<string | null>(null);
 
   const scenario = SCENARIOS.find((item) => item.id === scenarioId) ?? SCENARIOS[3];
   const baseGraph = useMemo(() => makeGraph(scenario), [scenario]);
@@ -217,8 +257,8 @@ export function QaNetworkRadialPlaygroundV37() {
   const totalBelow = descendants(graph, center.id);
   const crumbs = lineage(graph, center.id);
   const slotCount = center.id === ROOT ? Math.max(1, Math.min(2, scenario.openSlots)) : 1 + (stableHash(`${scenario.id}:${center.id}:slot`) % 2);
-  const layoutPrefix = `${scenario.id}|${center.id}|`;
-  const layoutKey = (kind: 'person' | 'slot', id: string) => `${layoutPrefix}${kind}|${id}`;
+  const layoutPrefix = `${scenario.id}|${center.id}|${compact ? 'mobile' : 'desktop'}|`;
+  const layoutKey = (kind: NodeKind, id: string) => `${layoutPrefix}${kind}|${id}`;
 
   const pointForChild = (id: string, index: number) => savedPositions[layoutKey('person', id)] ?? autoPersonPoint(id, index, compact);
   const pointForSlot = (index: number) => {
@@ -228,6 +268,7 @@ export function QaNetworkRadialPlaygroundV37() {
 
   const personItems = useMemo<PersonItem[]>(() => center.children.map((id, index) => ({ id, index, ...pointForChild(id, index) })), [center.children, savedPositions, compact, layoutPrefix]);
   const slotItems = useMemo(() => Array.from({ length: slotCount }, (_, index) => ({ id: `slot-${index}`, index, ...pointForSlot(index) })), [slotCount, savedPositions, compact, layoutPrefix]);
+  const clusterCandidates = useMemo(() => spatialClusters(personItems, compact), [personItems, compact]);
 
   useEffect(() => {
     if (editMode || childCount < CLUSTER_MIN_CHILDREN) {
@@ -237,20 +278,7 @@ export function QaNetworkRadialPlaygroundV37() {
     setClustered((current) => current ? zoom < CLUSTER_EXIT_ZOOM : zoom <= CLUSTER_ENTER_ZOOM);
   }, [zoom, editMode, childCount]);
 
-  const clusters = useMemo<Cluster[]>(() => {
-    if (!clustered) return [];
-    const size = compact ? 6 : 8;
-    const result: Cluster[] = [];
-    for (let i = 0; i < personItems.length; i += size) {
-      const members = personItems.slice(i, i + size);
-      if (!members.length) continue;
-      const x = members.reduce((sum, item) => sum + item.x, 0) / members.length;
-      const y = members.reduce((sum, item) => sum + item.y, 0) / members.length;
-      result.push({ id: `cluster-${i}`, members, x, y });
-    }
-    return result;
-  }, [clustered, compact, personItems]);
-
+  const clusters = clustered ? clusterCandidates : [];
   const selected = selectedId ? graph.get(selectedId) ?? null : null;
   const searchResults = useMemo(() => {
     const value = query.trim().toLowerCase();
@@ -264,11 +292,17 @@ export function QaNetworkRadialPlaygroundV37() {
     timersRef.current.forEach((timer) => window.clearTimeout(timer));
     timersRef.current = [];
   };
-
   const later = (fn: () => void, ms: number) => {
     const timer = window.setTimeout(fn, ms);
     timersRef.current.push(timer);
     return timer;
+  };
+  const clearPress = (suppress = false) => {
+    const press = pressRef.current;
+    if (press) window.clearTimeout(press.timer);
+    if (suppress) suppressClickUntilRef.current = performance.now() + 520;
+    pressRef.current = null;
+    setPressingKey(null);
   };
 
   useEffect(() => {
@@ -285,7 +319,10 @@ export function QaNetworkRadialPlaygroundV37() {
     } catch {
       setSavedPositions({});
     }
-    return () => clearTimers();
+    return () => {
+      clearTimers();
+      clearPress();
+    };
   }, []);
 
   useEffect(() => {
@@ -293,13 +330,11 @@ export function QaNetworkRadialPlaygroundV37() {
   }, [savedPositions]);
 
   const stageRect = () => stageRef.current?.getBoundingClientRect() ?? null;
-
   const screenPoint = (clientX: number, clientY: number) => {
     const rect = stageRect();
     if (!rect) return { x: 0, y: 0 };
     return { x: clientX - (rect.left + rect.width / 2), y: clientY - (rect.top + rect.height / 2) };
   };
-
   const screenToWorld = (clientX: number, clientY: number) => {
     const point = screenPoint(clientX, clientY);
     return { x: (point.x - camera.x) / zoom, y: (point.y - camera.y) / zoom };
@@ -323,16 +358,15 @@ export function QaNetworkRadialPlaygroundV37() {
     setCamera({ x: -point.x * resolvedZoom, y: -point.y * resolvedZoom });
     later(() => setTransitioning(false), LONG_TRANSITION_MS + 80);
   };
-
   const resetView = () => {
     setTransitioning(true);
     setZoom(1);
     setCamera({ x: 0, y: 0 });
     later(() => setTransitioning(false), LONG_TRANSITION_MS + 80);
   };
-
   const goYou = () => {
     clearTimers();
+    clearPress();
     setCenterId(ROOT);
     setSelectedId(null);
     setSearchOpen(false);
@@ -371,6 +405,7 @@ export function QaNetworkRadialPlaygroundV37() {
 
   const enterNetwork = (id: string) => {
     if (editMode || !graph.has(id)) return;
+    clearPress(true);
     suppressClickUntilRef.current = performance.now() + 360;
     setTransitioning(true);
     setSelectedId(null);
@@ -379,9 +414,9 @@ export function QaNetworkRadialPlaygroundV37() {
     setCamera({ x: 0, y: 0 });
     later(() => setTransitioning(false), LONG_TRANSITION_MS + 80);
   };
-
   const goParent = () => {
     if (!parentId || editMode) return;
+    clearPress(true);
     setTransitioning(true);
     setSelectedId(null);
     setCenterId(parentId);
@@ -389,16 +424,16 @@ export function QaNetworkRadialPlaygroundV37() {
     setCamera({ x: 0, y: 0 });
     later(() => setTransitioning(false), LONG_TRANSITION_MS + 80);
   };
-
   const goCrumb = (id: string) => {
     if (id === center.id || !graph.has(id) || editMode) return;
+    clearPress(true);
     setCenterId(id);
     setSelectedId(null);
     resetView();
   };
-
   const changeScenario = (id: ScenarioId) => {
     clearTimers();
+    clearPress();
     setScenarioId(id);
     setCenterId(ROOT);
     setExtras({});
@@ -419,7 +454,7 @@ export function QaNetworkRadialPlaygroundV37() {
     const owner = node.parent ?? ROOT;
     const siblings = graph.get(owner)?.children ?? [];
     const index = Math.max(0, siblings.indexOf(id));
-    const key = `${scenario.id}|${owner}|person|${id}`;
+    const key = `${scenario.id}|${owner}|${compact ? 'mobile' : 'desktop'}|person|${id}`;
     const point = savedPositions[key] ?? autoPersonPoint(id, index, compact);
     setCenterId(owner);
     setSearchOpen(false);
@@ -427,13 +462,12 @@ export function QaNetworkRadialPlaygroundV37() {
     setSelectedId(id);
     later(() => focusPoint(point, 1.18), 40);
   };
-
   const openCluster = (cluster: Cluster) => {
+    clearPress(true);
     setClustered(false);
     setSelectedId(null);
     focusPoint(cluster, 1.08);
   };
-
   const markUserInteraction = () => {
     if (joiningSlot) autoFocusAllowedRef.current = false;
   };
@@ -448,7 +482,6 @@ export function QaNetworkRadialPlaygroundV37() {
     const index = center.children.length;
     const id = `g-${scenario.id}-${extraCounterRef.current++}`;
     const point = autoPersonPoint(id, index, compact);
-
     later(() => setNotice('Verified · adding to this network'), 520);
     later(() => {
       setExtras((current) => ({ ...current, [owner]: [...(current[owner] ?? []), id] }));
@@ -471,7 +504,6 @@ export function QaNetworkRadialPlaygroundV37() {
     const multiplier = event.deltaY < 0 ? 1.1 : .9;
     const nextZoom = clamp(zoom * multiplier, MIN_ZOOM, MAX_ZOOM);
     setZoomAround(nextZoom, event.clientX, event.clientY);
-
     if (target && event.deltaY < 0 && nextZoom >= 1.72) {
       const id = target.dataset.nodeId;
       if (id) later(() => enterNetwork(id), 80);
@@ -482,6 +514,7 @@ export function QaNetworkRadialPlaygroundV37() {
 
   const onTouchStart = (event: ReactTouchEvent<HTMLDivElement>) => {
     if (event.touches.length !== 2 || editMode) return;
+    clearPress(true);
     markUserInteraction();
     const a = event.touches[0];
     const b = event.touches[1];
@@ -493,14 +526,12 @@ export function QaNetworkRadialPlaygroundV37() {
       startDistance: Math.max(1, touchDistance(a, b)),
       startZoom: zoom,
       startCamera: camera,
-      startMid: midpoint,
       worldAnchor: { x: (midpoint.x - camera.x) / zoom, y: (midpoint.y - camera.y) / zoom },
       nodeId,
       ratio: 1,
     };
     suppressClickUntilRef.current = performance.now() + 500;
   };
-
   const onTouchMove = (event: ReactTouchEvent<HTMLDivElement>) => {
     const pinch = pinchRef.current;
     if (!pinch || event.touches.length !== 2) return;
@@ -515,7 +546,6 @@ export function QaNetworkRadialPlaygroundV37() {
     setZoom(nextZoom);
     setCamera({ x: midpoint.x - pinch.worldAnchor.x * nextZoom, y: midpoint.y - pinch.worldAnchor.y * nextZoom });
   };
-
   const finishPinch = (event: ReactTouchEvent<HTMLDivElement>) => {
     const pinch = pinchRef.current;
     if (!pinch || event.touches.length >= 2) return;
@@ -533,26 +563,17 @@ export function QaNetworkRadialPlaygroundV37() {
     if (pinchRef.current) return;
     const target = event.target instanceof Element ? event.target : null;
     if (!target) return;
-
     if (editMode && !target.closest('button,.profileCard,.searchPanel')) {
       setEditMode(false);
+      clearPress(true);
       return;
     }
     if (target.closest('button,.profileCard,.searchPanel')) return;
     if (event.pointerType === 'mouse' && event.button !== 0) return;
-
     markUserInteraction();
-    panRef.current = {
-      pointerId: event.pointerId,
-      startX: event.clientX,
-      startY: event.clientY,
-      originX: camera.x,
-      originY: camera.y,
-      moved: false,
-    };
+    panRef.current = { pointerId: event.pointerId, startX: event.clientX, startY: event.clientY, originX: camera.x, originY: camera.y, moved: false };
     try { event.currentTarget.setPointerCapture(event.pointerId); } catch { /* no-op */ }
   };
-
   const onStagePointerMove = (event: ReactPointerEvent<HTMLDivElement>) => {
     const pan = panRef.current;
     if (!pan || pan.pointerId !== event.pointerId || pinchRef.current) return;
@@ -562,7 +583,6 @@ export function QaNetworkRadialPlaygroundV37() {
     pan.moved = true;
     setCamera({ x: pan.originX + dx, y: pan.originY + dy });
   };
-
   const finishPan = (event: ReactPointerEvent<HTMLDivElement>) => {
     const pan = panRef.current;
     if (!pan || pan.pointerId !== event.pointerId) return;
@@ -571,56 +591,106 @@ export function QaNetworkRadialPlaygroundV37() {
     try { event.currentTarget.releasePointerCapture(event.pointerId); } catch { /* no-op */ }
   };
 
-  const startNodeDrag = (event: ReactPointerEvent<HTMLButtonElement>, kind: 'person' | 'slot', id: string, point: Point) => {
-    if (!editMode) return;
-    event.preventDefault();
+  const beginDragAt = (target: HTMLButtonElement, pointerId: number, key: string, point: Point, clientX: number, clientY: number) => {
+    const world = screenToWorld(clientX, clientY);
+    dragRef.current = { key, pointerId, offsetX: world.x - point.x, offsetY: world.y - point.y, target };
+    try { target.setPointerCapture(pointerId); } catch { /* no-op */ }
+  };
+  const beginNodePointer = (event: ReactPointerEvent<HTMLButtonElement>, kind: NodeKind, id: string, point: Point) => {
+    if (event.pointerType === 'mouse' && event.button !== 0) return;
     event.stopPropagation();
-    const world = screenToWorld(event.clientX, event.clientY);
-    dragRef.current = {
-      key: layoutKey(kind, id),
+    markUserInteraction();
+    const key = layoutKey(kind, id);
+    if (editMode) {
+      event.preventDefault();
+      beginDragAt(event.currentTarget, event.pointerId, key, point, event.clientX, event.clientY);
+      return;
+    }
+    clearPress(false);
+    const target = event.currentTarget;
+    const press: NonNullable<PressState> = {
+      key,
+      kind,
+      id,
+      point,
       pointerId: event.pointerId,
-      offsetX: world.x - point.x,
-      offsetY: world.y - point.y,
-      target: event.currentTarget,
+      startX: event.clientX,
+      startY: event.clientY,
+      lastX: event.clientX,
+      lastY: event.clientY,
+      target,
+      timer: 0,
+      activated: false,
     };
-    try { event.currentTarget.setPointerCapture(event.pointerId); } catch { /* no-op */ }
+    try { target.setPointerCapture(event.pointerId); } catch { /* no-op */ }
+    press.timer = window.setTimeout(() => {
+      const active = pressRef.current;
+      if (!active || active.pointerId !== press.pointerId || active.key !== press.key) return;
+      active.activated = true;
+      suppressClickUntilRef.current = performance.now() + 900;
+      setSelectedId(null);
+      setEditMode(true);
+      setClustered(false);
+      setPressingKey(null);
+      setNotice('Layout edit on · drag to move');
+      beginDragAt(active.target, active.pointerId, active.key, active.point, active.lastX, active.lastY);
+      later(() => setNotice(null), 1300);
+    }, LONG_PRESS_MS);
+    pressRef.current = press;
+    setPressingKey(key);
   };
-
-  const moveNodeDrag = (event: ReactPointerEvent<HTMLButtonElement>) => {
+  const moveNodePointer = (event: ReactPointerEvent<HTMLButtonElement>) => {
     const drag = dragRef.current;
-    if (!drag || drag.pointerId !== event.pointerId) return;
-    event.preventDefault();
-    const world = screenToWorld(event.clientX, event.clientY);
-    setSavedPositions((current) => ({ ...current, [drag.key]: { x: world.x - drag.offsetX, y: world.y - drag.offsetY } }));
+    if (drag && drag.pointerId === event.pointerId) {
+      event.preventDefault();
+      const world = screenToWorld(event.clientX, event.clientY);
+      setSavedPositions((current) => ({ ...current, [drag.key]: { x: world.x - drag.offsetX, y: world.y - drag.offsetY } }));
+      return;
+    }
+    const press = pressRef.current;
+    if (!press || press.pointerId !== event.pointerId || press.activated) return;
+    press.lastX = event.clientX;
+    press.lastY = event.clientY;
+    if (Math.hypot(event.clientX - press.startX, event.clientY - press.startY) > PRESS_MOVE_CANCEL_PX) clearPress(true);
   };
-
-  const finishNodeDrag = (event: ReactPointerEvent<HTMLButtonElement>) => {
+  const finishNodePointer = (event: ReactPointerEvent<HTMLButtonElement>) => {
     const drag = dragRef.current;
-    if (!drag || drag.pointerId !== event.pointerId) return;
-    suppressClickUntilRef.current = performance.now() + 420;
-    try { drag.target.releasePointerCapture(event.pointerId); } catch { /* no-op */ }
-    dragRef.current = null;
+    if (drag && drag.pointerId === event.pointerId) {
+      suppressClickUntilRef.current = performance.now() + 520;
+      try { drag.target.releasePointerCapture(event.pointerId); } catch { /* no-op */ }
+      dragRef.current = null;
+      clearPress(true);
+      return;
+    }
+    clearPress(false);
+    try { event.currentTarget.releasePointerCapture(event.pointerId); } catch { /* no-op */ }
+  };
+  const cancelNodePointer = (event: ReactPointerEvent<HTMLButtonElement>) => {
+    if (dragRef.current?.pointerId === event.pointerId) dragRef.current = null;
+    clearPress(true);
+    try { event.currentTarget.releasePointerCapture(event.pointerId); } catch { /* no-op */ }
   };
 
   const resetLayout = () => {
+    clearPress(true);
     setSavedPositions((current) => Object.fromEntries(Object.entries(current).filter(([key]) => !key.startsWith(layoutPrefix))));
   };
-
   const nodeClick = (id: string) => {
     if (editMode || performance.now() < suppressClickUntilRef.current) return;
     setSelectedId(id);
   };
+  const toggleEditMode = () => {
+    clearPress(true);
+    setSelectedId(null);
+    setEditMode((value) => !value);
+  };
 
-  const sceneStyle = {
-    '--cameraX': `${camera.x}px`,
-    '--cameraY': `${camera.y}px`,
-    '--networkZoom': zoom,
-  } as CSSProperties;
+  const sceneStyle = { '--cameraX': `${camera.x}px`, '--cameraY': `${camera.y}px`, '--networkZoom': zoom } as CSSProperties;
 
   return (
     <main ref={rootRef} className="v37Page">
       <section className="labHeader">
-        <div><strong>RADIAL NETWORK PLAYGROUND · V37</strong><span>One canvas · smart +N clusters · new-node follow · YOU / Fit · future-scale layout</span></div>
+        <div><strong>RADIAL NETWORK PLAYGROUND · V37</strong><span>One canvas · spatial +N clusters · long-press edit · new-node follow · YOU / Fit</span></div>
         <div className="headerActions">
           <button type="button" className={debug ? 'active' : ''} onClick={() => setDebug((value) => !value)}>Debug</button>
           <button type="button" onClick={() => setSearchOpen((value) => !value)}>⌕ Search</button>
@@ -632,20 +702,15 @@ export function QaNetworkRadialPlaygroundV37() {
       </section>
 
       <section className="controlBar">
-        <div className="crumbs">
-          {crumbs.map((id, index) => <span key={id}>{index ? <i>›</i> : null}<button type="button" className={id === center.id ? 'current' : ''} onClick={() => goCrumb(id)} disabled={id === center.id || editMode}>{shortId(id)}</button></span>)}
-        </div>
-        <div className="viewActions">
-          <button type="button" onClick={goYou}>◎ YOU</button>
-          <button type="button" onClick={fitNetwork}>Fit</button>
-        </div>
+        <div className="crumbs">{crumbs.map((id, index) => <span key={id}>{index ? <i>›</i> : null}<button type="button" className={id === center.id ? 'current' : ''} onClick={() => goCrumb(id)} disabled={id === center.id || editMode}>{shortId(id)}</button></span>)}</div>
+        <div className="viewActions"><button type="button" onClick={goYou}>◎ YOU</button><button type="button" onClick={fitNetwork}>Fit</button></div>
       </section>
 
       <section className="networkShell">
         <div className="networkTop">
           <div className="identity"><b>{shortId(center.id)}</b><span>Direct {childCount}</span><span>Network {totalBelow}</span><span>{clustered ? `${clusters.length} groups` : 'All on one canvas'}</span></div>
           <div className="navActions">
-            <button type="button" className={editMode ? 'active' : ''} onClick={() => setEditMode((value) => !value)}>{editMode ? '✓ Done' : '✦ Edit layout'}</button>
+            <button type="button" className={editMode ? 'active' : ''} onClick={toggleEditMode}>{editMode ? '✓ Done' : '✦ Edit layout'}</button>
             {editMode ? <button type="button" onClick={resetLayout}>Reset</button> : null}
             <button type="button" onClick={() => setZoom((value) => clamp(value - .12, MIN_ZOOM, MAX_ZOOM))}>−</button>
             <button type="button" className="zoomValue" onClick={resetView}>{Math.round(zoom * 100)}%</button>
@@ -687,31 +752,38 @@ export function QaNetworkRadialPlaygroundV37() {
                   key={item.id}
                   type="button"
                   data-node-id={item.id}
-                  className={`personNode ${newArrival === item.id ? 'newArrival' : ''}`}
+                  className={`personNode ${newArrival === item.id ? 'newArrival' : ''} ${pressingKey === key ? 'pressing' : ''}`}
                   style={{ '--x': `${item.x}px`, '--y': `${item.y}px` } as CSSProperties}
                   onClick={() => nodeClick(item.id)}
-                  onPointerDown={(event) => startNodeDrag(event, 'person', item.id, item)}
-                  onPointerMove={moveNodeDrag}
-                  onPointerUp={finishNodeDrag}
-                  onPointerCancel={finishNodeDrag}
+                  onPointerDown={(event) => beginNodePointer(event, 'person', item.id, item)}
+                  onPointerMove={moveNodePointer}
+                  onPointerUp={finishNodePointer}
+                  onPointerCancel={cancelNodePointer}
+                  onContextMenu={(event) => event.preventDefault()}
+                  onDragStart={(event) => event.preventDefault()}
                 ><span className="nodeCircle">●</span><b>{shortId(item.id)}</b><small>{node?.children.length ?? 0} direct · {childNetwork} net</small></button>;
               })}
             </div> : <div className="ringLayer clusterLayer">
-              {clusters.map((cluster) => <button key={cluster.id} type="button" className="clusterNode" style={{ '--x': `${cluster.x}px`, '--y': `${cluster.y}px` } as CSSProperties} onClick={() => openCluster(cluster)}><span>+{cluster.members.length}</span><small>zoom to open</small></button>)}
+              {clusters.map((cluster) => <button key={cluster.id} type="button" className="clusterNode" style={{ '--x': `${cluster.x}px`, '--y': `${cluster.y}px` } as CSSProperties} onClick={() => openCluster(cluster)}><span>+{cluster.members.length}</span></button>)}
             </div>}
 
             <div className="ringLayer slotLayer">
-              {slotItems.map((item) => <button
-                key={item.id}
-                type="button"
-                className={`slotNode ${joiningSlot === item.id ? 'joining' : ''}`}
-                style={{ '--x': `${item.x}px`, '--y': `${item.y}px` } as CSSProperties}
-                onClick={() => simulateInvite(item.id)}
-                onPointerDown={(event) => startNodeDrag(event, 'slot', item.id, item)}
-                onPointerMove={moveNodeDrag}
-                onPointerUp={finishNodeDrag}
-                onPointerCancel={finishNodeDrag}
-              ><span className="slotCircle">{joiningSlot === item.id ? '…' : '+'}</span><b>{joiningSlot === item.id ? 'Joining' : 'Available'}</b></button>)}
+              {slotItems.map((item) => {
+                const key = layoutKey('slot', item.id);
+                return <button
+                  key={item.id}
+                  type="button"
+                  className={`slotNode ${joiningSlot === item.id ? 'joining' : ''} ${pressingKey === key ? 'pressing' : ''}`}
+                  style={{ '--x': `${item.x}px`, '--y': `${item.y}px` } as CSSProperties}
+                  onClick={() => simulateInvite(item.id)}
+                  onPointerDown={(event) => beginNodePointer(event, 'slot', item.id, item)}
+                  onPointerMove={moveNodePointer}
+                  onPointerUp={finishNodePointer}
+                  onPointerCancel={cancelNodePointer}
+                  onContextMenu={(event) => event.preventDefault()}
+                  onDragStart={(event) => event.preventDefault()}
+                ><span className="slotCircle">{joiningSlot === item.id ? '…' : '+'}</span><b>{joiningSlot === item.id ? 'Joining' : 'Available'}</b></button>;
+              })}
             </div>
           </div>
 
@@ -728,7 +800,7 @@ export function QaNetworkRadialPlaygroundV37() {
             <div className="searchResults">{searchResults.map((hit) => <button key={hit.id} type="button" onClick={() => locateSearchResult(hit.id)}><b>{shortId(hit.id)}</b><small>depth {hit.depth}</small></button>)}{query && !searchResults.length ? <span>No match</span> : null}</div>
           </aside> : null}
 
-          <div className="hint">{editMode ? 'Drag freely · manual positions are never auto-corrected' : clustered ? 'Zoom in or tap +N to unfold · zoom out to group again' : 'Drag canvas · pinch / wheel to zoom · pinch a node to enter'}</div>
+          <div className="hint">{editMode ? 'Drag freely · tap background to finish' : clustered ? 'Zoom in or tap +N to unfold · zoom out to group again' : 'Hold a node to edit · drag canvas · pinch to zoom'}</div>
           {notice ? <div className="notice">✦ {notice}</div> : null}
           {debug ? <div className="debugPanel"><span>Children {childCount}</span><span>Rendered {clustered ? clusters.length : personItems.length}</span><span>Zoom {Math.round(zoom * 100)}%</span><span>{clustered ? 'GROUPED' : 'EXPANDED'}</span><span>{editMode ? 'EDIT' : 'VIEW'}</span><span>Saved {Object.keys(savedPositions).length}</span></div> : null}
         </div>
@@ -736,17 +808,17 @@ export function QaNetworkRadialPlaygroundV37() {
 
       <section className="rules">
         <span><b>One canvas</b>No pages. New nodes keep extending the same network space.</span>
-        <span><b>Smart +N</b>Zoom out to fold siblings visually; zoom in to restore every real node.</span>
-        <span><b>Safe layout</b>Grouping never changes saved positions. Edit mode always shows real nodes.</span>
-        <span><b>New-node follow</b>A verified new node is briefly followed unless the user starts interacting.</span>
+        <span><b>Spatial +N</b>Nearby directions fold together instead of collapsing into the center.</span>
+        <span><b>Hold to edit</b>Hold a real node for 0.5s, then drag it immediately.</span>
+        <span><b>Safe layout</b>Grouping never changes saved positions.</span>
       </section>
 
       <style jsx>{`
         .v37Page{min-height:100svh;padding:12px 0 28px;background:#080807;color:#f1eee5}.labHeader,.scenarioBar,.controlBar,.networkShell,.rules{width:min(calc(100vw - 20px),960px);margin-left:auto;margin-right:auto;box-sizing:border-box}button,input{font:inherit}.labHeader{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:10px 12px;border:1px solid rgba(244,183,40,.14);border-radius:14px;background:#0c0c0a}.labHeader>div:first-child{display:grid;gap:2px}.labHeader strong{font-size:.6rem;letter-spacing:.08em;color:#d9b653}.labHeader span{font-size:.47rem;color:#7e776c}.headerActions,.viewActions,.navActions{display:flex;align-items:center;gap:5px}.headerActions button,.viewActions button,.navActions button{height:28px;padding:0 9px;border:1px solid rgba(255,255,255,.07);border-radius:8px;background:#0e0e0c;color:#918a7e;font-size:.48rem}.headerActions button.active,.navActions button.active{border-color:rgba(244,183,40,.36);background:rgba(244,183,40,.09);color:#ddb958}
         .scenarioBar{display:flex;gap:6px;overflow-x:auto;padding:9px 1px 7px;scrollbar-width:none}.scenarioBar::-webkit-scrollbar{display:none}.scenarioBar button{flex:0 0 auto;min-width:80px;padding:7px 9px;border:1px solid rgba(255,255,255,.06);border-radius:10px;background:#0c0c0a;color:#8c857a;text-align:left;display:grid;gap:1px}.scenarioBar button.active{border-color:rgba(244,183,40,.3);background:rgba(244,183,40,.08);color:#ddb958}.scenarioBar b{font-size:.52rem}.scenarioBar small{font-size:.4rem;color:#6e685f}.controlBar{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:4px 2px 9px}.crumbs{display:flex;align-items:center;gap:4px;overflow-x:auto;white-space:nowrap;scrollbar-width:none}.crumbs span{display:flex;align-items:center;gap:4px}.crumbs i{font-style:normal;color:#555047;font-size:.46rem}.crumbs button{border:0;background:transparent;color:#888075;font-size:.46rem;padding:2px}.crumbs button.current{color:#d1ad4d}.viewActions button{color:#b9a36d}
-        .networkShell{overflow:hidden;border:1px solid rgba(255,255,255,.06);border-radius:18px;background:#090907}.networkTop{min-height:50px;display:flex;align-items:center;justify-content:space-between;gap:10px;padding:7px 12px;border-bottom:1px solid rgba(255,255,255,.05)}.identity{display:flex;flex-wrap:wrap;align-items:center;gap:5px 9px}.identity b{font-size:.57rem;color:#c6a858}.identity span{font-size:.42rem;color:#777065}.zoomValue{min-width:44px;color:#b59d60!important}.stage{height:min(74svh,720px);min-height:520px;position:relative;overflow:hidden;background:radial-gradient(ellipse at 50% 52%,rgba(244,183,40,.034),transparent 34%),#080807;touch-action:none;overscroll-behavior:contain;cursor:grab}.stage.editMode{cursor:default}.scene{position:absolute;inset:0;transform:translate3d(var(--cameraX),var(--cameraY),0) scale(var(--networkZoom));transform-origin:50% 50%;transition:transform 90ms linear}.cameraTransition .scene{transition:transform ${LONG_TRANSITION_MS}ms cubic-bezier(.18,.82,.2,1)}.waterGlow{position:absolute;inset:12%;background:radial-gradient(ellipse at 50% 54%,rgba(220,181,75,.024),transparent 60%);filter:blur(18px);pointer-events:none}.edges{position:absolute;left:50%;top:50%;width:4400px;height:4400px;transform:translate(-50%,-50%);overflow:visible;pointer-events:none;z-index:2}.spoke{fill:none;stroke:url(#v37Line);stroke-width:1;stroke-linecap:round;transition:opacity 180ms ease}.clusterSpoke{stroke-width:1.4;stroke-dasharray:5 6;opacity:.66}.slotSpoke{stroke:rgba(220,181,75,.2);stroke-dasharray:3 6}.newEdge{stroke:rgba(250,204,66,.92);stroke-width:2;stroke-dasharray:10 8;animation:newEdge37 1.1s linear 2}
-        .centerWrap{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);z-index:8;display:grid;justify-items:center;gap:5px}.centerCircle{width:74px;height:74px;border-radius:50%;display:grid;place-items:center;background:#0d0d0b;border:1px solid rgba(244,183,40,.68);color:#e5b943;box-shadow:0 0 38px rgba(244,183,40,.05)}.centerWrap b{font-size:.61rem}.centerWrap small{font-size:.41rem;color:#746d62}.ringLayer{position:absolute;left:50%;top:50%;z-index:6}.personNode,.slotNode,.clusterNode{--x:0px;--y:0px;position:absolute;left:0;top:0;transform:translate(calc(var(--x) - 50%),calc(var(--y) - 50%));border:0;background:transparent;color:#d7d0c3;display:grid;justify-items:center;gap:4px;user-select:none;-webkit-user-select:none;touch-action:none}.personNode{width:116px}.nodeCircle,.slotCircle{border-radius:50%;display:grid;place-items:center;background:#0d0d0b}.nodeCircle{width:52px;height:52px;border:1px solid rgba(210,174,65,.38);color:#d9b34a;box-shadow:0 0 22px rgba(244,183,40,.025);transition:transform 170ms ease,border-color 170ms ease,box-shadow 170ms ease}.personNode:hover .nodeCircle,.personNode:focus-visible .nodeCircle{transform:scale(1.05);border-color:rgba(244,183,40,.75);box-shadow:0 0 24px rgba(244,183,40,.08)}.personNode b,.slotNode b{font-size:.47rem;white-space:nowrap}.personNode small{font-size:.38rem;color:#6c655b;white-space:nowrap}.newArrival .nodeCircle{animation:newNode37 720ms cubic-bezier(.16,.82,.2,1) 2}.slotNode{width:104px}.slotCircle{width:46px;height:46px;border:1px dashed rgba(226,181,62,.52);color:#c79f36;font-size:.9rem;animation:slotPulse37 5.6s ease-in-out infinite}.slotNode.joining .slotCircle{border-style:solid;animation:joining37 .7s ease-in-out infinite}.clusterNode{width:84px}.clusterNode span{width:58px;height:58px;border-radius:50%;display:grid;place-items:center;border:1px solid rgba(244,183,40,.58);background:rgba(17,16,12,.95);color:#e0b94f;font-size:.62rem;font-weight:700;box-shadow:0 0 26px rgba(244,183,40,.06)}.clusterNode small{font-size:.36rem;color:#776c54;white-space:nowrap}.clusterNode:hover span{border-color:rgba(244,183,40,.88);transform:scale(1.05)}
-        .clusterMode .slotLayer{opacity:.72}.clusterMode .centerWrap small{opacity:.75}.stage:not(.editMode) .personNode small{transition:opacity 160ms ease}.stage:not(.editMode) .scene[style*="--networkZoom: 0"] .personNode small{opacity:0}.profileCard,.searchPanel{position:absolute;z-index:50;top:12px;right:12px;width:min(300px,calc(100% - 24px));box-sizing:border-box;padding:11px;border:1px solid rgba(244,183,40,.18);border-radius:14px;background:rgba(12,12,10,.96);box-shadow:0 14px 42px rgba(0,0,0,.3)}.profileCard>div,.searchPanel>div:first-child{display:flex;align-items:center;justify-content:space-between}.profileCard button,.searchPanel button{border:1px solid rgba(255,255,255,.07);border-radius:8px;background:#11110e;color:#aaa08e}.profileCard>div button,.searchPanel>div:first-child button{width:28px;height:28px}.profileCard b,.searchPanel b{font-size:.54rem;color:#d4b35b}.profileCard code{display:block;margin-top:8px;padding:7px;border-radius:8px;background:#090907;color:#80786c;font-size:.4rem;overflow-wrap:anywhere}.profileCard p{font-size:.44rem;color:#777065}.profileCard .viewNetwork{width:100%;height:34px;color:#d6b45c}.searchPanel input{width:100%;box-sizing:border-box;margin-top:9px;height:36px;padding:0 9px;border:1px solid rgba(255,255,255,.08);border-radius:9px;background:#090907;color:#ded7ca;outline:none}.searchResults{display:grid;gap:5px;margin-top:7px}.searchResults button{min-height:34px;padding:6px 8px;display:flex;align-items:center;justify-content:space-between}.searchResults small,.searchResults>span{font-size:.4rem;color:#736b5f}.hint{position:absolute;z-index:30;left:50%;bottom:10px;transform:translateX(-50%);padding:5px 8px;border-radius:999px;background:rgba(10,10,8,.78);color:#6f685d;font-size:.39rem;white-space:nowrap;pointer-events:none}.notice{position:absolute;z-index:42;left:50%;top:14px;transform:translateX(-50%);padding:7px 10px;border:1px solid rgba(244,183,40,.2);border-radius:999px;background:rgba(18,16,9,.94);color:#d7b34e;font-size:.45rem}.debugPanel{position:absolute;z-index:45;left:10px;top:10px;display:flex;flex-wrap:wrap;gap:4px;max-width:62%}.debugPanel span{padding:4px 6px;border-radius:7px;background:rgba(5,5,4,.82);color:#81796c;font-size:.36rem;border:1px solid rgba(255,255,255,.05)}
+        .networkShell{overflow:hidden;border:1px solid rgba(255,255,255,.06);border-radius:18px;background:#090907}.networkTop{min-height:50px;display:flex;align-items:center;justify-content:space-between;gap:10px;padding:7px 12px;border-bottom:1px solid rgba(255,255,255,.05)}.identity{display:flex;flex-wrap:wrap;align-items:center;gap:5px 9px}.identity b{font-size:.57rem;color:#c6a858}.identity span{font-size:.42rem;color:#777065}.zoomValue{min-width:44px;color:#b59d60!important}.stage{height:min(74svh,720px);min-height:520px;position:relative;overflow:hidden;background:radial-gradient(ellipse at 50% 52%,rgba(244,183,40,.034),transparent 34%),#080807;touch-action:none;overscroll-behavior:contain;cursor:grab}.stage.editMode{cursor:default}.scene{position:absolute;inset:0;transform:translate3d(var(--cameraX),var(--cameraY),0) scale(var(--networkZoom));transform-origin:50% 50%;transition:transform 90ms linear}.cameraTransition .scene{transition:transform ${LONG_TRANSITION_MS}ms cubic-bezier(.18,.82,.2,1)}.waterGlow{position:absolute;inset:12%;background:radial-gradient(ellipse at 50% 54%,rgba(220,181,75,.024),transparent 60%);filter:blur(18px);pointer-events:none}.edges{position:absolute;left:50%;top:50%;width:4400px;height:4400px;transform:translate(-50%,-50%);overflow:visible;pointer-events:none;z-index:2}.spoke{fill:none;stroke:url(#v37Line);stroke-width:1;stroke-linecap:round;transition:opacity 180ms ease}.clusterSpoke{stroke-width:1.3;stroke-dasharray:5 7;opacity:.58}.slotSpoke{stroke:rgba(220,181,75,.2);stroke-dasharray:3 6}.newEdge{stroke:rgba(250,204,66,.92);stroke-width:2;stroke-dasharray:10 8;animation:newEdge37 1.1s linear 2}
+        .centerWrap{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);z-index:8;display:grid;justify-items:center;gap:5px}.centerCircle{width:74px;height:74px;border-radius:50%;display:grid;place-items:center;background:#0d0d0b;border:1px solid rgba(244,183,40,.68);color:#e5b943;box-shadow:0 0 38px rgba(244,183,40,.05)}.centerWrap b{font-size:.61rem}.centerWrap small{font-size:.41rem;color:#746d62}.ringLayer{position:absolute;left:50%;top:50%;z-index:6}.personNode,.slotNode,.clusterNode{--x:0px;--y:0px;position:absolute;left:0;top:0;transform:translate(calc(var(--x) - 50%),calc(var(--y) - 50%));border:0;background:transparent;color:#d7d0c3;display:grid;justify-items:center;gap:4px;user-select:none;-webkit-user-select:none;-webkit-touch-callout:none;touch-action:none}.personNode{width:116px}.nodeCircle,.slotCircle{border-radius:50%;display:grid;place-items:center;background:#0d0d0b}.nodeCircle{width:52px;height:52px;border:1px solid rgba(210,174,65,.38);color:#d9b34a;box-shadow:0 0 22px rgba(244,183,40,.025);transition:transform 170ms ease,border-color 170ms ease,box-shadow 170ms ease}.personNode:hover .nodeCircle,.personNode:focus-visible .nodeCircle{transform:scale(1.05);border-color:rgba(244,183,40,.75);box-shadow:0 0 24px rgba(244,183,40,.08)}.personNode.pressing .nodeCircle{transform:scale(1.08);border-color:rgba(244,183,40,.9);box-shadow:0 0 30px rgba(244,183,40,.12)}.personNode b,.slotNode b{font-size:.47rem;white-space:nowrap}.personNode small{font-size:.38rem;color:#6c655b;white-space:nowrap}.newArrival .nodeCircle{animation:newNode37 720ms cubic-bezier(.16,.82,.2,1) 2}.slotNode{width:104px}.slotCircle{width:46px;height:46px;border:1px dashed rgba(226,181,62,.52);color:#c79f36;font-size:.9rem;animation:slotPulse37 5.6s ease-in-out infinite}.slotNode.pressing .slotCircle{border-style:solid;border-color:rgba(244,183,40,.9);box-shadow:0 0 28px rgba(244,183,40,.1)}.slotNode.joining .slotCircle{border-style:solid;animation:joining37 .7s ease-in-out infinite}.clusterNode{width:72px}.clusterNode span{width:58px;height:58px;border-radius:50%;display:grid;place-items:center;border:1px solid rgba(244,183,40,.58);background:rgba(17,16,12,.96);color:#e0b94f;font-size:.62rem;font-weight:700;box-shadow:0 0 26px rgba(244,183,40,.06);transition:transform 170ms ease,border-color 170ms ease}.clusterNode:hover span,.clusterNode:focus-visible span{border-color:rgba(244,183,40,.88);transform:scale(1.05)}
+        .clusterMode .slotLayer{opacity:.64}.clusterMode .centerWrap small{opacity:.72}.profileCard,.searchPanel{position:absolute;z-index:50;top:12px;right:12px;width:min(300px,calc(100% - 24px));box-sizing:border-box;padding:11px;border:1px solid rgba(244,183,40,.18);border-radius:14px;background:rgba(12,12,10,.96);box-shadow:0 14px 42px rgba(0,0,0,.3)}.profileCard>div,.searchPanel>div:first-child{display:flex;align-items:center;justify-content:space-between}.profileCard button,.searchPanel button{border:1px solid rgba(255,255,255,.07);border-radius:8px;background:#11110e;color:#aaa08e}.profileCard>div button,.searchPanel>div:first-child button{width:28px;height:28px}.profileCard b,.searchPanel b{font-size:.54rem;color:#d4b35b}.profileCard code{display:block;margin-top:8px;padding:7px;border-radius:8px;background:#090907;color:#80786c;font-size:.4rem;overflow-wrap:anywhere}.profileCard p{font-size:.44rem;color:#777065}.profileCard .viewNetwork{width:100%;height:34px;color:#d6b45c}.searchPanel input{width:100%;box-sizing:border-box;margin-top:9px;height:36px;padding:0 9px;border:1px solid rgba(255,255,255,.08);border-radius:9px;background:#090907;color:#ded7ca;outline:none}.searchResults{display:grid;gap:5px;margin-top:7px}.searchResults button{min-height:34px;padding:6px 8px;display:flex;align-items:center;justify-content:space-between}.searchResults small,.searchResults>span{font-size:.4rem;color:#736b5f}.hint{position:absolute;z-index:30;left:50%;bottom:10px;transform:translateX(-50%);padding:5px 8px;border-radius:999px;background:rgba(10,10,8,.78);color:#6f685d;font-size:.39rem;white-space:nowrap;pointer-events:none}.notice{position:absolute;z-index:42;left:50%;top:14px;transform:translateX(-50%);padding:7px 10px;border:1px solid rgba(244,183,40,.2);border-radius:999px;background:rgba(18,16,9,.94);color:#d7b34e;font-size:.45rem}.debugPanel{position:absolute;z-index:45;left:10px;top:10px;display:flex;flex-wrap:wrap;gap:4px;max-width:62%}.debugPanel span{padding:4px 6px;border-radius:7px;background:rgba(5,5,4,.82);color:#81796c;font-size:.36rem;border:1px solid rgba(255,255,255,.05)}
         .rules{display:grid;grid-template-columns:repeat(4,1fr);gap:7px;margin-top:9px}.rules span{padding:8px;border:1px solid rgba(255,255,255,.05);border-radius:10px;background:#0b0b09;color:#756e64;font-size:.4rem;line-height:1.5}.rules b{display:block;margin-bottom:2px;color:#b99c52;font-size:.43rem}.editMode .personNode,.editMode .slotNode{cursor:grab}.editMode .personNode:active,.editMode .slotNode:active{cursor:grabbing}.editMode .nodeCircle,.editMode .slotCircle{border-color:rgba(244,183,40,.65)}
         @keyframes newNode37{0%{transform:scale(.45);box-shadow:0 0 0 rgba(244,183,40,0)}55%{transform:scale(1.18);box-shadow:0 0 42px rgba(244,183,40,.22)}100%{transform:scale(1);box-shadow:0 0 14px rgba(244,183,40,.04)}}@keyframes newEdge37{from{stroke-dashoffset:72}to{stroke-dashoffset:0}}@keyframes slotPulse37{0%,100%{box-shadow:0 0 0 rgba(244,183,40,0)}50%{box-shadow:0 0 22px rgba(244,183,40,.07)}}@keyframes joining37{0%,100%{transform:scale(1);opacity:.8}50%{transform:scale(1.08);opacity:1}}
         @media(max-width:700px){.labHeader{align-items:flex-start}.labHeader span{display:none}.networkTop{align-items:flex-start;flex-direction:column}.navActions{width:100%;overflow-x:auto;padding-bottom:1px}.stage{height:min(70svh,650px);min-height:500px}.rules{grid-template-columns:1fr 1fr}.profileCard,.searchPanel{top:9px;right:9px;width:calc(100% - 18px)}.hint{max-width:90%;overflow:hidden;text-overflow:ellipsis}.headerActions button,.viewActions button,.navActions button{font-size:.45rem;padding:0 8px}}
