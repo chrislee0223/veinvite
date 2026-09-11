@@ -303,6 +303,7 @@ export function QaNetworkRadialPlaygroundV34() {
         .v34Root .traveler{z-index:40!important}
         .v34Root .ringNode.person.searchHit .ringCircle{animation:none!important;transform:scale(1)!important;box-shadow:0 0 34px rgba(244,183,40,.18)!important}
         .v34Root .ringNode.person.searchHit .floatInner{animation:none!important}
+        @media(max-width:900px){.v34Root .v33SearchPanel input{font-size:16px!important}}
         @media(max-width:640px){.v34Root .stage{touch-action:none}}
         @media(prefers-reduced-motion:reduce){.v34Root .scene{transition:none!important}}
       `}</style>
