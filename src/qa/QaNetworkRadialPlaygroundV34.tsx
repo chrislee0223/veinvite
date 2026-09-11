@@ -47,7 +47,6 @@ export function QaNetworkRadialPlaygroundV34() {
       return;
     }
     const rect = targetStage.getBoundingClientRect();
-    // Deliberately generous: enough to bring any outer node / inviter to viewport center.
     const maxX = Math.max(420, rect.width * 1.05);
     const maxY = Math.max(380, rect.height * 1.05);
     const resolved = { x: clamp(next.x, -maxX, maxX), y: clamp(next.y, -maxY, maxY) };
@@ -200,7 +199,6 @@ export function QaNetworkRadialPlaygroundV34() {
       if (now - backChargeRef.current.lastAt > 700) backChargeRef.current.charge = 0;
       backChargeRef.current.lastAt = now;
 
-      // Much earlier semantic-back threshold than v33: users should not have to shrink to the minimum zoom.
       if (event.deltaY > 0 && center !== 'YOU') {
         const threshold = window.innerWidth <= 640 ? 82 : 80;
         if (percent <= threshold) {
@@ -218,7 +216,6 @@ export function QaNetworkRadialPlaygroundV34() {
         backChargeRef.current.charge = 0;
       }
 
-      // Cursor-centered zoom: keep the world point under the pointer visually anchored while zoom changes.
       const rect = stage.getBoundingClientRect();
       const pointer = { x: event.clientX - (rect.left + rect.width / 2), y: event.clientY - (rect.top + rect.height / 2) };
       const oldZoom = currentZoom();
@@ -253,7 +250,6 @@ export function QaNetworkRadialPlaygroundV34() {
       const center = root.querySelector<HTMLElement>('.identity b')?.textContent?.trim() ?? 'YOU';
       if (center === 'YOU') return;
       const ratio = touchDistance(event.touches[0], event.touches[1]) / pinch.startDistance;
-      // v33 required ~42% shrink. v34 returns after a much more natural ~22% shrink.
       if (ratio <= .78) pinch.ready = true;
     };
 
@@ -281,7 +277,7 @@ export function QaNetworkRadialPlaygroundV34() {
   }, []);
 
   const resetCameraFromYou = (event: ReactPointerEvent<HTMLDivElement>) => {
-    const target = event.target instanceof Element ? target.closest('button') : null;
+    const target = event.target instanceof Element ? event.target.closest('button') : null;
     if (!target || target.textContent?.trim() !== '◎ YOU') return;
     setCameraSafe(DEFAULT_CAMERA);
     window.setTimeout(resetZoom, 0);
@@ -298,28 +294,17 @@ export function QaNetworkRadialPlaygroundV34() {
       <style jsx global>{`
         .v34Root .labHeader>div:first-child::before{content:'RADIAL NETWORK PLAYGROUND · V34'!important}
         .v34Root .labHeader>div:first-child::after{content:'Free camera · focal zoom · faster zoom-out back · clean transitions'!important}
-
-        /* Camera pan is independent from saved node layout coordinates. */
         .v34Root .scene{transform:translate3d(var(--cameraX),var(--cameraY),0) scale(var(--sceneScale))!important;transform-origin:50% 50%!important}
         .v34Root .stage{touch-action:none;cursor:grab}
         .v34Root.cameraPanning .stage{cursor:grabbing}
         .v34Root.cameraPanning .scene{transition:none!important}
-
-        /* One travelling node only: suppress the old ring + old center during center transitions. */
         .v34Root .stage.phase-depart .ringLayer,.v34Root .stage.phase-depart .edges{opacity:0!important;pointer-events:none!important}
         .v34Root .stage.phase-depart .centerWrap{opacity:0!important;animation:none!important;pointer-events:none!important}
         .v34Root .traveler{z-index:40!important}
-
-        /* Search should locate/highlight, not visually magnify the result. */
         .v34Root .ringNode.person.searchHit .ringCircle{animation:none!important;transform:scale(1)!important;box-shadow:0 0 34px rgba(244,183,40,.18)!important}
         .v34Root .ringNode.person.searchHit .floatInner{animation:none!important}
-
-        @media(max-width:640px){
-          .v34Root .stage{touch-action:none}
-        }
-        @media(prefers-reduced-motion:reduce){
-          .v34Root .scene{transition:none!important}
-        }
+        @media(max-width:640px){.v34Root .stage{touch-action:none}}
+        @media(prefers-reduced-motion:reduce){.v34Root .scene{transition:none!important}}
       `}</style>
     </div>
   );
