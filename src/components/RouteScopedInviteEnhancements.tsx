@@ -28,7 +28,7 @@ function needsInviteEnhancements(pathname: string): boolean {
 }
 
 export function RouteScopedInviteEnhancements() {
-  const pathname = usePathname();
+  const pathname = usePathname() ?? '';
 
   if (!needsInviteEnhancements(pathname)) {
     return null;
