@@ -1,5 +1,5 @@
-import { QaNetworkProductionV46 } from '@/qa/QaNetworkProductionV46';
+import { QaNetworkProductionV46ModeSwitcher } from '@/qa/QaNetworkProductionV46ModeSwitcher';
 
 export default function NetworkProductionV46Page() {
-  return <QaNetworkProductionV46 />;
+  return <QaNetworkProductionV46ModeSwitcher />;
 }
