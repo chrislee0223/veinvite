@@ -1,5 +1,5 @@
-import { QaNetworkRadialPlaygroundV45 } from '@/qa/QaNetworkRadialPlaygroundV45';
+import { redirect } from 'next/navigation';
 
 export default function NetworkFinalV47Page() {
-  return <QaNetworkRadialPlaygroundV45 />;
+  redirect('/qa-network-final-v48');
 }
