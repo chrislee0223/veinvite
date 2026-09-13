@@ -117,8 +117,15 @@ function NetworkViewportPolish() {
       vector-effect:non-scaling-stroke
     }
 
+    .productionNetworkCanaryV45 .centerWrap{
+      transition:transform 170ms ease!important
+    }
+    .productionNetworkCanaryV45[data-veinvite-zoom-tier='overview'] .centerWrap{
+      gap:0!important
+    }
     .productionNetworkCanaryV45[data-veinvite-zoom-tier='overview'] .centerWrap>b,
     .productionNetworkCanaryV45[data-veinvite-zoom-tier='overview'] .centerWrap>small{
+      height:0!important;line-height:0!important;overflow:hidden!important;
       opacity:0!important;pointer-events:none!important
     }
     .productionNetworkCanaryV45 .centerWrap>b,
@@ -138,10 +145,11 @@ function NetworkViewportPolish() {
     .productionNetworkCanaryV45[data-veinvite-zoom-tier='max'] .centerWrap{
       transform:translate(-50%,-50%) scale(.62)!important
     }
-    .productionNetworkCanaryV45[data-veinvite-zoom-tier='close'] .centerWrap,
-    .productionNetworkCanaryV45[data-veinvite-zoom-tier='max'] .centerWrap{
-      transition:transform 170ms ease!important
-    }
+
+    .productionNetworkCanaryV45[data-veinvite-zoom-tier='close'] .personNode{width:92px!important}
+    .productionNetworkCanaryV45[data-veinvite-zoom-tier='close'] .slotNode{width:82px!important}
+    .productionNetworkCanaryV45[data-veinvite-zoom-tier='max'] .personNode{width:68px!important}
+    .productionNetworkCanaryV45[data-veinvite-zoom-tier='max'] .slotNode{width:64px!important}
 
     .productionNetworkCanaryV45[data-veinvite-zoom-tier='close'] .nodeCircle,
     .productionNetworkCanaryV45[data-veinvite-zoom-tier='close'] .slotCircle{
