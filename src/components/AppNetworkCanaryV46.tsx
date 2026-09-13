@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useLayoutEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 
 import type { Locale } from '@/lib/i18n/locales';
@@ -10,27 +10,15 @@ export function AppNetworkCanaryV46({ locale }: { locale: Locale }) {
   const rootRef = useRef<HTMLDivElement | null>(null);
   const [navHost, setNavHost] = useState<HTMLElement | null>(null);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     const root = rootRef.current;
     if (!root) return;
 
-    let frame = 0;
-    const sync = () => {
-      window.cancelAnimationFrame(frame);
-      frame = window.requestAnimationFrame(() => {
-        const next = root.querySelector<HTMLElement>('.navActions');
-        setNavHost((current) => current === next ? current : next);
-      });
-    };
-
-    const observer = new MutationObserver(sync);
-    observer.observe(root, { childList: true, subtree: true });
-    sync();
-
-    return () => {
-      window.cancelAnimationFrame(frame);
-      observer.disconnect();
-    };
+    // The toolbar is part of the static V45 canvas shell. Resolve it once after
+    // commit instead of watching the entire Network subtree with another
+    // MutationObserver. This keeps the production compatibility layer passive
+    // while the existing V42-V45 interaction observers do their own work.
+    setNavHost(root.querySelector<HTMLElement>('.navActions'));
   }, []);
 
   const triggerViewAction = (action: 'you' | 'fit') => {
