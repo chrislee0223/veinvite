@@ -45,7 +45,7 @@ export function AppNetworkCanaryV45({ locale }: { locale: Locale }) {
       previous.forEach(({ node, own }) => {
         try {
           if (own) Object.defineProperty(node, 'textContent', own);
-          else delete (node as HTMLElement & { textContent?: string }).textContent;
+          else Reflect.deleteProperty(node, 'textContent');
         } catch {
           // The node is being discarded with the canary tree anyway.
         }
