@@ -64,6 +64,12 @@ function readZoom(root: HTMLElement) {
   return Number.isFinite(value) ? value / 100 : 1;
 }
 
+function containsGeometryNode(node: Node) {
+  if (!(node instanceof Element)) return false;
+  return node.matches('.personNode,.clusterNode,.spoke,.v42GroupHub') ||
+    Boolean(node.querySelector('.personNode,.clusterNode,.spoke,.v42GroupHub'));
+}
+
 export function QaNetworkRadialPlaygroundV39() {
   const rootRef = useRef<HTMLDivElement | null>(null);
   const frameRef = useRef<number | null>(null);
@@ -108,7 +114,15 @@ export function QaNetworkRadialPlaygroundV39() {
         const safeRadius = compact ? 168 : 228;
         const compression = midZoom ? (compact ? .82 : .84) : (compact ? .89 : .9);
 
+        // Bind base referral paths once to a stable node id. Later class/UI
+        // mutations must never change which line belongs to which node.
         nodes.forEach((node, index) => {
+          const id = node.dataset.nodeId;
+          const path = paths[index];
+          if (id && path && !path.dataset.nodeId) path.dataset.nodeId = id;
+        });
+
+        nodes.forEach((node) => {
           const currentX = parsePx(node.style.getPropertyValue('--x'));
           const currentY = parsePx(node.style.getPropertyValue('--y'));
           const lastAppliedX = Number.parseFloat(node.dataset.v39AppliedX ?? 'NaN');
@@ -150,7 +164,10 @@ export function QaNetworkRadialPlaygroundV39() {
           node.dataset.v39AppliedX = String(nextX);
           node.dataset.v39AppliedY = String(nextY);
 
-          const path = paths[index];
+          const id = node.dataset.nodeId;
+          const path = id
+            ? stage.querySelector<SVGPathElement>(`.spoke[data-node-id="${CSS.escape(id)}"]`)
+            : null;
           if (path) {
             const nextPath = curvePath(nextX, nextY);
             if (path.getAttribute('d') !== nextPath) path.setAttribute('d', nextPath);
@@ -168,10 +185,30 @@ export function QaNetworkRadialPlaygroundV39() {
 
     const observer = new MutationObserver((mutations) => {
       if (transientDragActive()) return;
+      const stage = root.querySelector<HTMLElement>('.stage');
       const meaningful = mutations.some((mutation) => {
-        if (mutation.type !== 'attributes' || mutation.attributeName !== 'style') return true;
-        const target = mutation.target instanceof Element ? mutation.target : null;
-        return !target?.classList.contains('scene');
+        if (mutation.type === 'attributes') {
+          const target = mutation.target instanceof Element ? mutation.target : null;
+          if (!target) return false;
+          if (mutation.attributeName === 'style') {
+            // Camera transforms, profile-card paint and selection paint are not
+            // layout inputs. Only real node/hub geometry changes wake V39.
+            return target.matches('.personNode,.v42GroupHub');
+          }
+          if (mutation.attributeName === 'class') {
+            return target === stage;
+          }
+          return false;
+        }
+        if (mutation.type === 'characterData') {
+          return Boolean(mutation.target.parentElement?.closest('.zoomValue'));
+        }
+        if (mutation.type === 'childList') {
+          const target = mutation.target instanceof Element ? mutation.target : null;
+          if (target?.closest('.zoomValue')) return true;
+          return [...mutation.addedNodes, ...mutation.removedNodes].some(containsGeometryNode);
+        }
+        return false;
       });
       if (meaningful) scheduleLayout();
     });
