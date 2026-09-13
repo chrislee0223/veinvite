@@ -76,9 +76,10 @@ function AvailableSlotHoldController() {
     };
 
     const slotKey = (slot: HTMLButtonElement) => {
-      const slots = Array.from(root.querySelectorAll<HTMLButtonElement>('.slotNode'));
-      const index = slots.indexOf(slot);
-      return index < 0 ? null : `slot:${index}`;
+      const baseX = slot.style.getPropertyValue('--x').trim();
+      const baseY = slot.style.getPropertyValue('--y').trim();
+      if (!baseX || !baseY) return null;
+      return `slot:${baseX}:${baseY}`;
     };
 
     const adjustmentKey = (key: string) => `${currentScope()}|${compact() ? 'mobile' : 'desktop'}|${key}`;
@@ -102,12 +103,30 @@ function AvailableSlotHoldController() {
         (includeDrag ? parsePx(slot.style.getPropertyValue('--v53-slot-drag-y')) : 0),
     });
 
-    const pathForSlot = (slot: HTMLButtonElement) => {
+    const ensureSlotBindings = () => {
       const slots = Array.from(root.querySelectorAll<HTMLButtonElement>('.slotNode'));
-      const index = slots.indexOf(slot);
-      if (index < 0) return null;
       const paths = Array.from(root.querySelectorAll<SVGPathElement>('svg.edges > path.slotSpoke'));
-      return paths[index] ?? null;
+      slots.forEach((slot, index) => {
+        const key = slotKey(slot);
+        const path = paths[index];
+        if (!key) return;
+        if (slot.dataset.v53SlotKey !== key) slot.dataset.v53SlotKey = key;
+        if (path && path.dataset.v53SlotKey !== key) path.dataset.v53SlotKey = key;
+      });
+    };
+
+    const pathForSlot = (slot: HTMLButtonElement) => {
+      const key = slot.dataset.v53SlotKey || slotKey(slot);
+      if (!key) return null;
+      let path = root.querySelector<SVGPathElement>(
+        `svg.edges > path.slotSpoke[data-v53-slot-key="${CSS.escape(key)}"]`,
+      );
+      if (path) return path;
+      ensureSlotBindings();
+      path = root.querySelector<SVGPathElement>(
+        `svg.edges > path.slotSpoke[data-v53-slot-key="${CSS.escape(key)}"]`,
+      );
+      return path;
     };
 
     const syncSlotPath = (slot: HTMLButtonElement) => {
@@ -118,8 +137,9 @@ function AvailableSlotHoldController() {
     };
 
     const applyStoredAdjustments = () => {
+      ensureSlotBindings();
       root.querySelectorAll<HTMLButtonElement>('.slotNode').forEach((slot) => {
-        const key = slotKey(slot);
+        const key = slot.dataset.v53SlotKey || slotKey(slot);
         if (!key) return;
         const point = adjustments[adjustmentKey(key)] ?? { x: 0, y: 0 };
         const x = `${point.x}px`;
@@ -198,7 +218,7 @@ function AvailableSlotHoldController() {
       const circle = target?.closest<HTMLElement>('.slotCircle') ?? null;
       const slot = circle?.closest<HTMLButtonElement>('button.slotNode') ?? null;
       if (!circle || !slot || !root.contains(slot) || !canStartHold(slot)) return;
-      const key = slotKey(slot);
+      const key = slot.dataset.v53SlotKey || slotKey(slot);
       if (!key) return;
 
       if (event.pointerType !== 'mouse' && event.cancelable) event.preventDefault();
