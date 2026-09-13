@@ -304,11 +304,12 @@ function NetworkFinalInteractionPolish() {
         replayGroupDrop(drag.node, target);
       }, GROUP_DROP_VERIFY_MS);
     };
+    const onWindowPointerCancel = (event: PointerEvent) => finishTrackedGroupDrag(event, true);
 
     window.addEventListener('pointerdown', onWindowPointerDown, true);
     window.addEventListener('pointermove', onWindowPointerMove, true);
     window.addEventListener('pointerup', finishTrackedGroupDrag, true);
-    window.addEventListener('pointercancel', (event) => finishTrackedGroupDrag(event, true), true);
+    window.addEventListener('pointercancel', onWindowPointerCancel, true);
 
     // Keep V37's pinchRef alive until every finger leaves the screen. Without
     // this bridge, lifting one of two fingers ends pinch early and a surviving
@@ -341,7 +342,7 @@ function NetworkFinalInteractionPolish() {
       window.removeEventListener('pointerdown', onWindowPointerDown, true);
       window.removeEventListener('pointermove', onWindowPointerMove, true);
       window.removeEventListener('pointerup', finishTrackedGroupDrag, true);
-      // pointercancel uses an inline wrapper above and disappears with this mount.
+      window.removeEventListener('pointercancel', onWindowPointerCancel, true);
       window.removeEventListener('touchstart', onWindowTouchStart, true);
       window.removeEventListener('touchend', holdIntermediatePinchEnd, true);
       window.removeEventListener('touchcancel', holdIntermediatePinchEnd, true);
