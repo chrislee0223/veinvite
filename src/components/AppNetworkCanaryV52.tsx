@@ -70,6 +70,12 @@ function curveBetween(from: Point, to: Point) {
   return `M ${from.x} ${from.y} C ${from.x + bend} ${from.y + dy * .28}, ${to.x - bend} ${from.y + dy * .72}, ${to.x} ${to.y}`;
 }
 
+function containsGeometryNode(node: Node) {
+  if (!(node instanceof Element)) return false;
+  return node.matches('.personNode,.spoke,.v42GroupHub,.v50GroupMemberEdge') ||
+    Boolean(node.querySelector('.personNode,.spoke,.v42GroupHub,.v50GroupMemberEdge'));
+}
+
 function NetworkV52StabilityController() {
   useLayoutEffect(() => {
     const root = document.querySelector<HTMLElement>('.productionNetworkCanaryV45');
@@ -206,10 +212,22 @@ function NetworkV52StabilityController() {
       const groups = readGroups().filter((group) => group.scope === scope);
       const groupedIds = new Set(groups.flatMap((group) => group.members));
 
+      // V37 still renders referral paths without an id. Bind each newly rendered
+      // base path once, then every later lookup is id-based instead of relying on
+      // mutable DOM array order.
       nodes.forEach((node, index) => {
         const id = node.dataset.nodeId;
         const path = basePaths[index];
-        if (!id || !path) return;
+        if (id && path && path.dataset.nodeId !== id) path.dataset.nodeId = id;
+      });
+
+      nodes.forEach((node) => {
+        const id = node.dataset.nodeId;
+        if (!id) return;
+        const path = root.querySelector<SVGPathElement>(
+          `svg.edges > path.spoke[data-node-id="${CSS.escape(id)}"]`,
+        );
+        if (!path) return;
         const point = nodePoint(node);
         const d = curveFromCenter(point);
         if (path.getAttribute('d') !== d) path.setAttribute('d', d);
@@ -535,9 +553,24 @@ function NetworkV52StabilityController() {
 
     const observer = new MutationObserver((mutations) => {
       const relevant = mutations.some((mutation) => {
-        if (mutation.type === 'childList') return true;
-        if (mutation.type !== 'attributes') return false;
-        return mutation.attributeName === 'class' || mutation.attributeName === 'style' || mutation.attributeName === 'd';
+        if (mutation.type === 'attributes') {
+          const target = mutation.target instanceof Element ? mutation.target : null;
+          if (!target) return false;
+          if (mutation.attributeName === 'style') {
+            return target.matches('.personNode[data-node-id],.v42GroupHub[data-group-id]');
+          }
+          if (mutation.attributeName === 'class') {
+            if (target === stage || target.matches('.v42GroupHub[data-group-id]')) return true;
+            if (!target.matches('.personNode[data-node-id]')) return false;
+            const classes = `${mutation.oldValue ?? ''} ${target.getAttribute('class') ?? ''}`;
+            return /v42GroupedMember|v42CollapsedMember|v50DirectDragging|v52LongDragging/.test(classes);
+          }
+          return false;
+        }
+        if (mutation.type === 'childList') {
+          return [...mutation.addedNodes, ...mutation.removedNodes].some(containsGeometryNode);
+        }
+        return false;
       });
       if (relevant) scheduleSync();
     });
@@ -545,7 +578,8 @@ function NetworkV52StabilityController() {
       childList: true,
       subtree: true,
       attributes: true,
-      attributeFilter: ['class', 'style', 'd'],
+      attributeOldValue: true,
+      attributeFilter: ['class', 'style'],
     });
 
     window.addEventListener('pointerdown', onPointerDown, true);
@@ -610,20 +644,30 @@ function NetworkV52StabilityController() {
   }, []);
 
   return <style jsx global>{`
-    /* One stable horizontal coordinate system for the node circle and both
-       metadata lines. Explicitly remove native button padding, which otherwise
-       shifts the apparent text center on mobile WebKit. */
-    .productionNetworkCanaryV45 .personNode,
-    .productionNetworkCanaryV45 .slotNode{
-      padding:0!important;box-sizing:border-box!important;text-align:center!important
+    /* The node itself is the one horizontal layout context for both metadata
+       rows. V48/V50 may keep their old absolute rules in the bundle, but V52
+       cancels those rules instead of stacking another independent X transform. */
+    .productionNetworkCanaryV45 .personNode{
+      padding:0!important;box-sizing:border-box!important;text-align:center!important;
+      display:flex!important;flex-direction:column!important;align-items:center!important;
+      gap:0!important;height:78px!important;overflow:visible!important
     }
     .productionNetworkCanaryV45 .personNode>b,
     .productionNetworkCanaryV45 .personNode>small{
-      left:0!important;right:auto!important;width:116px!important;max-width:116px!important;
-      margin:0!important;padding:0!important;box-sizing:border-box!important;
-      display:flex!important;align-items:center!important;justify-content:center!important;
+      position:static!important;left:auto!important;right:auto!important;top:auto!important;
+      width:116px!important;max-width:116px!important;margin-left:0!important;margin-right:0!important;
+      padding:0!important;box-sizing:border-box!important;display:block!important;
       text-align:center!important;white-space:nowrap!important;direction:ltr!important;unicode-bidi:isolate!important;
-      transform:scale(var(--v46-label-scale,1))!important;transform-origin:50% 0!important
+      transform:none!important;transform-origin:50% 0!important;line-height:1.15!important
+    }
+    .productionNetworkCanaryV45 .personNode>b{
+      margin-top:var(--v48-person-label-y,59px)!important;margin-bottom:0!important
+    }
+    .productionNetworkCanaryV45 .personNode>small{
+      margin-top:2px!important;margin-bottom:0!important
+    }
+    .productionNetworkCanaryV45 .slotNode{
+      padding:0!important;box-sizing:border-box!important;text-align:center!important
     }
     .productionNetworkCanaryV45 .slotNode>b{
       left:0!important;right:auto!important;width:104px!important;max-width:104px!important;
@@ -648,10 +692,11 @@ function NetworkV52StabilityController() {
       box-shadow:0 0 0 4px rgba(244,183,40,.11),0 0 30px rgba(244,183,40,.18)!important
     }
 
-    /* Selection emphasis changes only paint, never the node's horizontal
-       transform. This removes the old left-slide caused by competing transforms. */
+    /* Selection is paint-only. The circle keeps the same 50% anchor before and
+       after selection; only scale/border/shadow change. */
     .productionNetworkCanaryV45 .personNode.canarySelectedNode .nodeCircle,
     .productionNetworkCanaryV45 .personNode.pressing .nodeCircle{
+      left:50%!important;margin:0!important;
       transform:translateX(-50%) scale(var(--v46-selected-scale,1.07))!important;
       transform-origin:50% 50%!important;
       transition:border-color 170ms ease,box-shadow 170ms ease!important
@@ -659,6 +704,14 @@ function NetworkV52StabilityController() {
     .productionNetworkCanaryV45 .personNode .nodeCircle{
       transform-origin:50% 50%!important
     }
+
+    /* V42 still tags a base path by array index. V52's stable data-node-id
+       binding is authoritative: only the actual grouped member base path stays
+       hidden, so a stale V42 class cannot hide an unrelated referral line. */
+    .productionNetworkCanaryV45 .spoke.v42GroupMemberPath:not([data-v52-grouped-base="1"]){
+      opacity:var(--v46-line-opacity,.42)!important
+    }
+    .productionNetworkCanaryV45 .spoke[data-v52-grouped-base="1"]{opacity:0!important}
 
     /* Keep iOS from interpreting a deliberate hold as text selection/callout. */
     .productionNetworkCanaryV45 .personNode,
