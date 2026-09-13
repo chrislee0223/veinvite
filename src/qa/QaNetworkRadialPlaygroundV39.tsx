@@ -31,23 +31,31 @@ function activeScenarioId(root: HTMLElement) {
   return map[label] ?? '';
 }
 
-function hasSavedManualPosition(root: HTMLElement, node: HTMLButtonElement, compact: boolean) {
+function savedManualKeys() {
+  try {
+    const raw = window.localStorage.getItem(STORAGE_KEY);
+    if (!raw) return [] as string[];
+    const saved = JSON.parse(raw) as Record<string, unknown>;
+    return Object.keys(saved);
+  } catch {
+    return [] as string[];
+  }
+}
+
+function hasSavedManualPosition(
+  node: HTMLButtonElement,
+  compact: boolean,
+  scenario: string,
+  keys: string[],
+) {
   if (node.dataset.v39Manual === '1') return true;
   const id = node.dataset.nodeId;
   if (!id) return false;
-  try {
-    const raw = window.localStorage.getItem(STORAGE_KEY);
-    if (!raw) return false;
-    const saved = JSON.parse(raw) as Record<string, unknown>;
-    const scenario = activeScenarioId(root);
-    const device = compact ? 'mobile' : 'desktop';
-    return Object.keys(saved).some((key) =>
-      (!scenario || key.startsWith(`${scenario}|`)) &&
-      key.includes(`|${device}|person|${id}`),
-    );
-  } catch {
-    return false;
-  }
+  const device = compact ? 'mobile' : 'desktop';
+  return keys.some((key) =>
+    (!scenario || key.startsWith(`${scenario}|`)) &&
+    key.includes(`|${device}|person|${id}`),
+  );
 }
 
 function readZoom(root: HTMLElement) {
@@ -64,23 +72,33 @@ export function QaNetworkRadialPlaygroundV39() {
     const root = rootRef.current;
     if (!root) return;
 
+    const transientDragActive = () => Boolean(root.closest('[data-v42-transient-drag="1"]'));
+
     const scheduleLayout = () => {
       if (frameRef.current !== null) return;
       frameRef.current = window.requestAnimationFrame(() => {
         frameRef.current = null;
+        if (transientDragActive()) return;
+
         const stage = root.querySelector<HTMLElement>('.stage');
         if (!stage) return;
 
         const title = root.querySelector<HTMLElement>('.labHeader strong');
         const subtitle = root.querySelector<HTMLElement>('.labHeader > div:first-child span');
-        if (title) title.textContent = 'RADIAL NETWORK PLAYGROUND · V39';
-        if (subtitle) subtitle.textContent = 'Center safe zone · tighter spacing · cleaner mid zoom';
+        if (title && title.textContent !== 'RADIAL NETWORK PLAYGROUND · V39') {
+          title.textContent = 'RADIAL NETWORK PLAYGROUND · V39';
+        }
+        if (subtitle && subtitle.textContent !== 'Center safe zone · tighter spacing · cleaner mid zoom') {
+          subtitle.textContent = 'Center safe zone · tighter spacing · cleaner mid zoom';
+        }
 
         const zoom = readZoom(root);
         const clustered = stage.classList.contains('clusterMode');
         const editing = stage.classList.contains('editMode');
         const compact = window.innerWidth <= 640;
         const midZoom = !clustered && zoom < DETAIL_ZOOM;
+        const scenario = activeScenarioId(root);
+        const manualKeys = savedManualKeys();
 
         root.classList.toggle('v39MidZoom', midZoom);
         root.classList.toggle('v39DetailZoom', !clustered && !midZoom);
@@ -113,7 +131,7 @@ export function QaNetworkRadialPlaygroundV39() {
             node.dataset.v39BaseY = String(baseY);
           }
 
-          const manual = hasSavedManualPosition(root, node, compact);
+          const manual = hasSavedManualPosition(node, compact, scenario, manualKeys);
           const radius = Math.hypot(baseX, baseY);
           let nextX = baseX;
           let nextY = baseY;
@@ -148,8 +166,22 @@ export function QaNetworkRadialPlaygroundV39() {
       if (target && stage.contains(target)) target.dataset.v39Manual = '1';
     };
 
-    const observer = new MutationObserver(scheduleLayout);
-    observer.observe(root, { childList: true, subtree: true, attributes: true, attributeFilter: ['class', 'style'] });
+    const observer = new MutationObserver((mutations) => {
+      if (transientDragActive()) return;
+      const meaningful = mutations.some((mutation) => {
+        if (mutation.type !== 'attributes' || mutation.attributeName !== 'style') return true;
+        const target = mutation.target instanceof Element ? mutation.target : null;
+        return !target?.classList.contains('scene');
+      });
+      if (meaningful) scheduleLayout();
+    });
+    observer.observe(root, {
+      childList: true,
+      subtree: true,
+      characterData: true,
+      attributes: true,
+      attributeFilter: ['class', 'style'],
+    });
     root.addEventListener('pointerdown', markManualDuringEdit, true);
     root.addEventListener('pointermove', markManualDuringEdit, true);
     window.addEventListener('resize', scheduleLayout);

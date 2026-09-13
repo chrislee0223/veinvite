@@ -18,16 +18,15 @@ export function AppNetworkCanaryV45({ locale }: { locale: Locale }) {
     if (!root) return;
 
     // V38→V45 is a cumulative QA wrapper chain. Several legacy wrappers update
-    // the hidden QA header from MutationObservers. Inside the real app that
-    // header is not rendered, but the competing text writes can still keep the
-    // observers waking each other up and starve pointer/click work. Freeze only
-    // those two hidden metadata nodes before passive effects install observers.
-    const nodes = [
+    // hidden QA metadata from MutationObservers. Freeze those production-hidden
+    // metadata nodes before passive effects install observers so the observers
+    // cannot wake each other up while users interact with the real Network UI.
+    const textNodes = [
       root.querySelector<HTMLElement>('.labHeader strong'),
       root.querySelector<HTMLElement>('.labHeader > div:first-child span'),
     ].filter((node): node is HTMLElement => Boolean(node));
 
-    nodes.forEach((node) => {
+    textNodes.forEach((node) => {
       const value = node.textContent ?? '';
       try {
         Object.defineProperty(node, 'textContent', {
@@ -36,19 +35,32 @@ export function AppNetworkCanaryV45({ locale }: { locale: Locale }) {
           set: () => undefined,
         });
       } catch {
-        // If a hardened WebView does not allow an instance override, the
-        // client-only mount below still avoids hydration races.
+        // Hardened WebViews may reject an instance override. The client-only
+        // mount and source-level observer guards still keep the UI functional.
+      }
+    });
+
+    // V42 historically rewrote hidden rule markup from inside the same observer
+    // that watched child-list mutations. Keep these production-hidden nodes
+    // immutable as a final safety net even though the source observer is guarded.
+    const ruleNodes = Array.from(root.querySelectorAll<HTMLElement>('.rules span'));
+    ruleNodes.forEach((node) => {
+      const value = node.innerHTML;
+      try {
+        Object.defineProperty(node, 'innerHTML', {
+          configurable: true,
+          get: () => value,
+          set: () => undefined,
+        });
+      } catch {
+        // Best-effort production guard only.
       }
     });
 
     return () => {
-      // Deliberately do not restore textContent on these soon-to-be-discarded
-      // nodes. Parent layout cleanup runs before the nested V42/V44/V45 passive
-      // effect cleanups. Restoring here briefly re-enabled their competing
-      // MutationObserver title writes while React was switching tabs, which
-      // could starve the main thread and make the app appear frozen. The entire
-      // subtree is removed immediately after this cleanup, so keeping the two
-      // detached metadata nodes frozen has no effect on the next mount.
+      // Keep soon-to-be-discarded metadata frozen until nested passive cleanup
+      // finishes. Restoring it early can briefly restart the observer chain while
+      // switching tabs and make the app appear frozen.
       root.dataset.veinviteCanaryDisposing = 'true';
     };
   }, []);
@@ -128,13 +140,16 @@ export function AppNetworkCanaryV45({ locale }: { locale: Locale }) {
     };
   }, []);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     const root = rootRef.current;
     const stage = root?.querySelector<HTMLElement>('.stage');
-    if (!stage) return;
+    if (!root || !stage) return;
 
     const previousHeight = stage.style.height;
     const previousMinHeight = stage.style.minHeight;
+    const previousVisibility = stage.style.visibility;
+    let fitFrame = 0;
+    let revealFrame = 0;
 
     const applyMobileSafeStage = () => {
       if (window.innerWidth > 700) {
@@ -143,10 +158,6 @@ export function AppNetworkCanaryV45({ locale }: { locale: Locale }) {
         return;
       }
 
-      // The bottom navigation is fixed. Keep the Network canvas inside the
-      // actually visible mobile viewport, but do not auto-Fit the camera on
-      // entry. Network now opens at the native 100% view and Fit remains an
-      // explicit user action.
       const navTrack = document.querySelector<HTMLElement>('.bottomNavigation > div');
       if (!navTrack) return;
       const stageRect = stage.getBoundingClientRect();
@@ -160,10 +171,31 @@ export function AppNetworkCanaryV45({ locale }: { locale: Locale }) {
     };
 
     applyMobileSafeStage();
+
+    // Start at the fitted overview without showing a visible 100%→fit jump.
+    // The canvas is hidden for two animation frames: first calculate against the
+    // final stage size, then reveal after V37 applies the fitted camera state.
+    root.classList.add('veinviteInitialFit');
+    stage.style.visibility = 'hidden';
+    fitFrame = window.requestAnimationFrame(() => {
+      const fitButton = Array.from(
+        root.querySelectorAll<HTMLButtonElement>('.viewActions button'),
+      ).find((button) => button.textContent?.trim() === 'Fit');
+      fitButton?.click();
+      revealFrame = window.requestAnimationFrame(() => {
+        root.classList.remove('veinviteInitialFit');
+        stage.style.visibility = previousVisibility;
+      });
+    });
+
     window.addEventListener('resize', applyMobileSafeStage);
 
     return () => {
+      window.cancelAnimationFrame(fitFrame);
+      window.cancelAnimationFrame(revealFrame);
       window.removeEventListener('resize', applyMobileSafeStage);
+      root.classList.remove('veinviteInitialFit');
+      stage.style.visibility = previousVisibility;
       stage.style.height = previousHeight;
       stage.style.minHeight = previousMinHeight;
     };
@@ -202,6 +234,7 @@ export function AppNetworkCanaryV45({ locale }: { locale: Locale }) {
         .productionNetworkCanaryV45 .networkShell{border-color:rgba(255,205,80,.14)!important;border-radius:21px!important}
         .productionNetworkCanaryV45 .controlBar:has(.crumbs > span:only-child){display:none!important}
         .productionNetworkCanaryV45 .viewActions{display:none!important}
+        .productionNetworkCanaryV45.veinviteInitialFit .cameraTransition .scene{transition:none!important}
         .productionNetworkCanaryV45 .stage{touch-action:none!important;overscroll-behavior:contain!important;pointer-events:auto!important}
         .productionNetworkCanaryV45 .stage:not(.editMode):active{cursor:grabbing}
         .productionNetworkCanaryV45 .stage::after{
@@ -232,9 +265,15 @@ export function AppNetworkCanaryV45({ locale }: { locale: Locale }) {
         .productionNetworkCanaryV45 .networkTop{
           align-items:flex-start!important;flex-direction:column!important;gap:8px!important
         }
+        .productionNetworkCanaryV45 .identity b{font-size:.62rem!important}
+        .productionNetworkCanaryV45 .identity span{font-size:.48rem!important}
+        .productionNetworkCanaryV45 .centerWrap small{font-size:.44rem!important}
+        .productionNetworkCanaryV45 .personNode b{font-size:.52rem!important}
+        .productionNetworkCanaryV45 .personNode small{font-size:.42rem!important}
+        .productionNetworkCanaryV45 .hint{font-size:.43rem!important}
         .productionNetworkCanaryV45 .navActions{
           width:100%!important;justify-content:flex-start!important;gap:4px!important;
-          flex-wrap:nowrap!important;overflow-x:auto!important;scrollbar-width:none
+          flex-wrap:nowrap!important;overflow-x:auto!important;scrollbar-width:none;padding-bottom:1px!important
         }
         .productionNetworkCanaryV45 .navActions::-webkit-scrollbar{display:none}
         .productionNetworkCanaryV45 .navActions > button,
@@ -251,7 +290,7 @@ export function AppNetworkCanaryV45({ locale }: { locale: Locale }) {
           margin-left:0!important;border-radius:3px 8px 8px 3px!important
         }
         .productionNetworkCanaryV45 .v42GroupToolbarButton{
-          order:60!important;margin-left:6px!important;border-color:rgba(244,183,40,.16)!important
+          order:60!important;margin-left:auto!important;border-color:rgba(244,183,40,.16)!important
         }
         .productionNetworkCanaryV45 .canaryViewActions{order:61;display:flex;align-items:center;gap:4px}
         .productionNetworkCanaryV45 .canaryViewActions button{
@@ -264,6 +303,10 @@ export function AppNetworkCanaryV45({ locale }: { locale: Locale }) {
         @media(max-width:640px){
           .productionNetworkCanaryV45 .controlBar,
           .productionNetworkCanaryV45 .networkShell{width:100%!important}
+          .productionNetworkCanaryV45 .identity span{font-size:.46rem!important}
+          .productionNetworkCanaryV45 .personNode b{font-size:.5rem!important}
+          .productionNetworkCanaryV45 .personNode small{font-size:.4rem!important}
+          .productionNetworkCanaryV45 .hint{font-size:.41rem!important}
           .productionNetworkCanaryV45 .canaryViewActions button{height:28px;padding:0 8px;font-size:.45rem}
         }
         @media(prefers-reduced-motion:reduce){
