@@ -26,6 +26,8 @@ type GroupDrag = {
   startY: number;
   startPosition: Point;
   startMemberOffset: Point;
+  previewPosition: Point;
+  previewMemberOffset: Point;
   moved: boolean;
   target: HTMLButtonElement;
 } | null;
@@ -242,6 +244,10 @@ export function QaNetworkRadialPlaygroundV42() {
       }
     };
     const schedule = () => {
+      // Group/node drag previews deliberately mutate DOM styles/classes without
+      // changing React state. Do not respond to those transient mutations with
+      // another full node scan; the final pointer-up commit will schedule one.
+      if (groupDragRef.current?.moved || nodeDropDragRef.current?.moved) return;
       if (observerFrameRef.current !== null) return;
       observerFrameRef.current = window.requestAnimationFrame(syncDom);
     };
@@ -486,13 +492,33 @@ export function QaNetworkRadialPlaygroundV42() {
       offsets: undefined,
     } : item));
   };
+  const previewGroupMove = (group: UserGroup, position: Point, memberOffset: Point) => {
+    const root = rootRef.current;
+    if (!root) return;
+    const escaped = CSS.escape(group.id);
+    const hub = root.querySelector<HTMLButtonElement>(`.v42GroupHub[data-group-id="${escaped}"]`);
+    hub?.style.setProperty('--gx', `${position.x}px`);
+    hub?.style.setProperty('--gy', `${position.y}px`);
+    const edge = root.querySelector<SVGPathElement>(`.v42GroupEdges path[data-group-id="${escaped}"]`);
+    edge?.setAttribute('d', curvePath(position));
+    const members = new Set(group.members);
+    root.querySelectorAll<HTMLButtonElement>('.personNode[data-node-id]').forEach((node) => {
+      const id = node.dataset.nodeId;
+      if (!id || !members.has(id)) return;
+      node.style.setProperty('--v42-group-dx', `${memberOffset.x}px`);
+      node.style.setProperty('--v42-group-dy', `${memberOffset.y}px`);
+    });
+  };
   const onGroupPointerDown = (event: ReactPointerEvent<HTMLButtonElement>, group: UserGroup) => {
     if (event.pointerType === 'mouse' && event.button !== 0) return;
     if (creating || managingGroupId) return;
     event.preventDefault(); event.stopPropagation();
+    const startPosition = groupPositionFor(group);
+    const startMemberOffset = memberOffsetFor(group);
     groupDragRef.current = {
       groupId: group.id, pointerId: event.pointerId, startX: event.clientX, startY: event.clientY,
-      startPosition: groupPositionFor(group), startMemberOffset: memberOffsetFor(group), moved: false, target: event.currentTarget,
+      startPosition, startMemberOffset, previewPosition: startPosition, previewMemberOffset: startMemberOffset,
+      moved: false, target: event.currentTarget,
     };
     try { event.currentTarget.setPointerCapture(event.pointerId); } catch { /* no-op */ }
   };
@@ -505,19 +531,33 @@ export function QaNetworkRadialPlaygroundV42() {
     const zoom = rootRef.current ? readZoom(rootRef.current) : 1;
     const desired = protectCenter({ x: drag.startPosition.x + dx / zoom, y: drag.startPosition.y + dy / zoom }, compact, drag.startPosition);
     const actualDelta = { x: desired.x - drag.startPosition.x, y: desired.y - drag.startPosition.y };
+    const memberOffset = { x: drag.startMemberOffset.x + actualDelta.x, y: drag.startMemberOffset.y + actualDelta.y };
     const group = groupsRef.current.find((item) => item.id === drag.groupId); if (!group) return;
-    setGroupMove(group, desired, { x: drag.startMemberOffset.x + actualDelta.x, y: drag.startMemberOffset.y + actualDelta.y });
+    drag.previewPosition = desired;
+    drag.previewMemberOffset = memberOffset;
+    // Keep pointer movement off the React/localStorage hot path. Commit once
+    // at pointer-up; during the gesture only mutate the already-mounted visual
+    // nodes and edge for a smooth preview.
+    previewGroupMove(group, desired, memberOffset);
   };
   const finishGroupPointer = (event: ReactPointerEvent<HTMLButtonElement>) => {
     const drag = groupDragRef.current; if (!drag || drag.pointerId !== event.pointerId) return;
     event.preventDefault(); event.stopPropagation();
     try { drag.target.releasePointerCapture(event.pointerId); } catch { /* no-op */ }
-    groupDragRef.current = null; if (!drag.moved) toggleGroup(drag.groupId);
+    const group = groupsRef.current.find((item) => item.id === drag.groupId) ?? null;
+    groupDragRef.current = null;
+    if (!drag.moved) {
+      toggleGroup(drag.groupId);
+      return;
+    }
+    if (group) setGroupMove(group, drag.previewPosition, drag.previewMemberOffset);
   };
   const cancelGroupPointer = (event: ReactPointerEvent<HTMLButtonElement>) => {
     const drag = groupDragRef.current; if (!drag || drag.pointerId !== event.pointerId) return;
     event.preventDefault(); event.stopPropagation();
     try { drag.target.releasePointerCapture(event.pointerId); } catch { /* no-op */ }
+    const group = groupsRef.current.find((item) => item.id === drag.groupId) ?? null;
+    if (drag.moved && group) previewGroupMove(group, drag.startPosition, drag.startMemberOffset);
     groupDragRef.current = null;
   };
 
@@ -569,7 +609,7 @@ export function QaNetworkRadialPlaygroundV42() {
       ) : null}
       {hosts.scene && !autoClustered ? createPortal(<>
         <svg className="v42GroupEdges" viewBox="-2200 -2200 4400 4400" aria-hidden="true">
-          {groupLayouts.map(({ group, hub }) => <path key={group.id} d={curvePath(hub)} className={group.collapsed ? 'collapsed' : 'expanded'} />)}
+          {groupLayouts.map(({ group, hub }) => <path key={group.id} data-group-id={group.id} d={curvePath(hub)} className={group.collapsed ? 'collapsed' : 'expanded'} />)}
         </svg>
         <div className="v42GroupLayer">
           {groupLayouts.map(({ group, hub }) => <button key={group.id} type="button" data-group-id={group.id} data-v42-group-drop="true" className={`v42GroupHub ${group.collapsed ? 'collapsed' : 'expanded'} ${dropHoverGroupId === group.id ? 'dropTarget' : ''} ${managingGroupId === group.id ? 'managing' : ''}`} style={{ '--gx': `${hub.x}px`, '--gy': `${hub.y}px` } as CSSProperties} onPointerDown={(event) => onGroupPointerDown(event, group)} onPointerMove={onGroupPointerMove} onPointerUp={finishGroupPointer} onPointerCancel={cancelGroupPointer} onContextMenu={(event) => event.preventDefault()}>
