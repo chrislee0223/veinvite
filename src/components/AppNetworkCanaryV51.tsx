@@ -120,12 +120,16 @@ function NetworkStructureAndHoldFixes() {
         node.appendChild(meta);
       }
 
+      const addressText = address.textContent ?? '';
+      const statsText = stats.textContent ?? '';
       const addressLine = meta.querySelector<HTMLElement>('.v51Address');
       const statsLine = meta.querySelector<HTMLElement>('.v51Stats');
-      if (addressLine && addressLine.textContent !== (address.textContent ?? '')) addressLine.textContent = address.textContent ?? '';
-      if (statsLine && statsLine.textContent !== (stats.textContent ?? '')) statsLine.textContent = stats.textContent ?? '';
+      if (addressLine && addressLine.textContent !== addressText) addressLine.textContent = addressText;
+      if (statsLine && statsLine.textContent !== statsText) statsLine.textContent = statsText;
+      const ariaLabel = `${addressText} · ${statsText}`;
+      if (node.getAttribute('aria-label') !== ariaLabel) node.setAttribute('aria-label', ariaLabel);
 
-      const numbers = stats.textContent?.match(/(\d+)\s+direct\s+·\s+(\d+)\s+(?:net|network)/i);
+      const numbers = statsText.match(/(\d+)\s+direct\s+·\s+(\d+)\s+(?:net|network)/i);
       if (numbers) {
         node.dataset.directCount = numbers[1];
         node.dataset.networkCount = numbers[2];
@@ -142,7 +146,9 @@ function NetworkStructureAndHoldFixes() {
         meta.setAttribute('aria-hidden', 'true');
         node.appendChild(meta);
       }
-      if (meta.textContent !== (label.textContent ?? '')) meta.textContent = label.textContent ?? '';
+      const labelText = label.textContent ?? '';
+      if (meta.textContent !== labelText) meta.textContent = labelText;
+      if (node.getAttribute('aria-label') !== labelText) node.setAttribute('aria-label', labelText);
     };
 
     const nodePoint = (node: HTMLButtonElement): Point => ({
@@ -159,28 +165,36 @@ function NetworkStructureAndHoldFixes() {
     const syncPersonPaths = () => {
       const nodes = Array.from(root.querySelectorAll<HTMLButtonElement>('.personNode[data-node-id]'));
       const paths = Array.from(root.querySelectorAll<SVGPathElement>('svg.edges > path.spoke:not(.slotSpoke):not(.clusterSpoke)'));
-
-      paths.forEach((path) => {
-        delete path.dataset.v51NodeId;
-        if (path.dataset.v51GroupedBase === '1') {
-          path.style.removeProperty('opacity');
-          delete path.dataset.v51GroupedBase;
-        }
-      });
+      const usedPaths = new Set<SVGPathElement>();
 
       nodes.forEach((node, index) => {
         const path = paths[index];
         const nodeId = node.dataset.nodeId;
         if (!path || !nodeId) return;
-        path.dataset.v51NodeId = nodeId;
+        usedPaths.add(path);
+        if (path.dataset.v51NodeId !== nodeId) path.dataset.v51NodeId = nodeId;
+
         const point = nodePoint(node);
         const nextPath = curveFromCenter(point);
         if (path.getAttribute('d') !== nextPath) path.setAttribute('d', nextPath);
 
-        if (node.classList.contains('v42GroupedMember')) {
-          path.dataset.v51GroupedBase = '1';
-          path.style.setProperty('opacity', '0', 'important');
+        const grouped = node.classList.contains('v42GroupedMember');
+        if (grouped) {
+          if (path.dataset.v51GroupedBase !== '1') path.dataset.v51GroupedBase = '1';
+          if (path.style.getPropertyValue('opacity') !== '0' || path.style.getPropertyPriority('opacity') !== 'important') {
+            path.style.setProperty('opacity', '0', 'important');
+          }
+        } else if (path.dataset.v51GroupedBase === '1') {
+          path.style.removeProperty('opacity');
+          delete path.dataset.v51GroupedBase;
         }
+      });
+
+      paths.forEach((path) => {
+        if (usedPaths.has(path)) return;
+        if (path.dataset.v51GroupedBase === '1') path.style.removeProperty('opacity');
+        delete path.dataset.v51GroupedBase;
+        delete path.dataset.v51NodeId;
       });
     };
 
@@ -188,10 +202,13 @@ function NetworkStructureAndHoldFixes() {
       syncFrame = 0;
       if (!mounted || syncing) return;
       syncing = true;
-      root.querySelectorAll<HTMLButtonElement>('.personNode[data-node-id]').forEach(ensurePersonMeta);
-      root.querySelectorAll<HTMLButtonElement>('.slotNode').forEach(ensureSlotMeta);
-      syncPersonPaths();
-      syncing = false;
+      try {
+        root.querySelectorAll<HTMLButtonElement>('.personNode[data-node-id]').forEach(ensurePersonMeta);
+        root.querySelectorAll<HTMLButtonElement>('.slotNode').forEach(ensureSlotMeta);
+        syncPersonPaths();
+      } finally {
+        syncing = false;
+      }
     };
 
     const scheduleSync = () => {
@@ -323,6 +340,7 @@ function NetworkStructureAndHoldFixes() {
     const onVisibilityChange = () => {
       if (document.visibilityState === 'hidden') clearHold(true);
     };
+    const onWindowBlur = () => clearHold(true);
 
     const observer = new MutationObserver((mutations) => {
       const relevant = mutations.some((mutation) => {
@@ -347,7 +365,7 @@ function NetworkStructureAndHoldFixes() {
     window.addEventListener('touchstart', onTouchStart, { capture: true, passive: true });
     root.addEventListener('click', onClickCapture, true);
     document.addEventListener('visibilitychange', onVisibilityChange);
-    window.addEventListener('blur', () => clearHold(true));
+    window.addEventListener('blur', onWindowBlur);
     window.addEventListener('resize', scheduleSync);
 
     syncAll();
@@ -364,6 +382,7 @@ function NetworkStructureAndHoldFixes() {
       window.removeEventListener('touchstart', onTouchStart, true);
       root.removeEventListener('click', onClickCapture, true);
       document.removeEventListener('visibilitychange', onVisibilityChange);
+      window.removeEventListener('blur', onWindowBlur);
       window.removeEventListener('resize', scheduleSync);
       root.querySelectorAll<HTMLElement>('.v51NodeMeta,.v51SlotMeta').forEach((node) => node.remove());
       root.querySelectorAll<SVGPathElement>('svg.edges > path[data-v51-node-id]').forEach((path) => {
