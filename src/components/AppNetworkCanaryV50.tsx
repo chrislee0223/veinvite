@@ -165,14 +165,6 @@ function NetworkInteractionController() {
       } catch { return [] as StoredGroup[]; }
     };
 
-    const nodeCircleFromTarget = (target: EventTarget | null) => {
-      const element = target instanceof Element ? target : null;
-      const circle = element?.closest<HTMLElement>('.nodeCircle') ?? null;
-      const node = circle?.closest<HTMLButtonElement>('button.personNode[data-node-id]') ?? null;
-      if (!circle || !node || !root.contains(node)) return null;
-      return { circle, node };
-    };
-
     const nodePoint = (node: HTMLButtonElement, includeDrag = true): Point => ({
       x: parsePx(node.style.getPropertyValue('--x')) +
         parsePx(node.style.getPropertyValue('--v42-group-dx')) +
@@ -385,22 +377,24 @@ function NetworkInteractionController() {
     };
 
     const nearestNavigableNode = (clientX: number, clientY: number) => {
-      let best: { node: HTMLButtonElement; distance: number } | null = null;
-      root.querySelectorAll<HTMLButtonElement>('.personNode[data-node-id]').forEach((node) => {
-        if (node.classList.contains('v42CollapsedMember')) return;
+      let bestNode: HTMLButtonElement | null = null;
+      let bestDistance = Number.POSITIVE_INFINITY;
+      for (const node of Array.from(root.querySelectorAll<HTMLButtonElement>('.personNode[data-node-id]'))) {
+        if (node.classList.contains('v42CollapsedMember')) continue;
         const circle = node.querySelector<HTMLElement>('.nodeCircle');
         const meta = node.querySelector<HTMLElement>('small');
-        if (!circle || !meta) return;
+        if (!circle || !meta) continue;
         const numbers = meta.textContent?.match(/(\d+)\s+direct\s+·\s+(\d+)\s+(?:net|network)/i);
-        if (!numbers || (Number(numbers[1]) <= 0 && Number(numbers[2]) <= 0)) return;
+        if (!numbers || (Number(numbers[1]) <= 0 && Number(numbers[2]) <= 0)) continue;
         const rect = circle.getBoundingClientRect();
-        if (rect.width <= 0 || rect.height <= 0) return;
+        if (rect.width <= 0 || rect.height <= 0) continue;
         const distance = Math.hypot(clientX - (rect.left + rect.width / 2), clientY - (rect.top + rect.height / 2));
         const limit = Math.max(62, rect.width * 1.25);
-        if (distance > limit || (best && distance >= best.distance)) return;
-        best = { node, distance };
-      });
-      return best?.node ?? null;
+        if (distance > limit || distance >= bestDistance) continue;
+        bestNode = node;
+        bestDistance = distance;
+      }
+      return bestNode;
     };
 
     const centerIsYou = () => root.querySelector<HTMLElement>('.centerWrap>b')?.textContent?.trim().toUpperCase() === 'YOU';
