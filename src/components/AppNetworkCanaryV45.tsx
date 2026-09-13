@@ -26,13 +26,8 @@ export function AppNetworkCanaryV45({ locale }: { locale: Locale }) {
       root.querySelector<HTMLElement>('.labHeader > div:first-child span'),
     ].filter((node): node is HTMLElement => Boolean(node));
 
-    const previous = nodes.map((node) => ({
-      node,
-      own: Object.getOwnPropertyDescriptor(node, 'textContent'),
-      value: node.textContent ?? '',
-    }));
-
-    previous.forEach(({ node, value }) => {
+    nodes.forEach((node) => {
+      const value = node.textContent ?? '';
       try {
         Object.defineProperty(node, 'textContent', {
           configurable: true,
@@ -46,14 +41,14 @@ export function AppNetworkCanaryV45({ locale }: { locale: Locale }) {
     });
 
     return () => {
-      previous.forEach(({ node, own }) => {
-        try {
-          if (own) Object.defineProperty(node, 'textContent', own);
-          else Reflect.deleteProperty(node, 'textContent');
-        } catch {
-          // The node is being discarded with the canary tree anyway.
-        }
-      });
+      // Deliberately do not restore textContent on these soon-to-be-discarded
+      // nodes. Parent layout cleanup runs before the nested V42/V44/V45 passive
+      // effect cleanups. Restoring here briefly re-enabled their competing
+      // MutationObserver title writes while React was switching tabs, which
+      // could starve the main thread and make the app appear frozen. The entire
+      // subtree is removed immediately after this cleanup, so keeping the two
+      // detached metadata nodes frozen has no effect on the next mount.
+      root.dataset.veinviteCanaryDisposing = 'true';
     };
   }, []);
 
