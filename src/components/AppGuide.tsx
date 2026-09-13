@@ -1,6 +1,7 @@
 'use client';
 
-import { AppNetworkCanaryV45 } from './AppNetworkCanaryV45';
+import dynamic from 'next/dynamic';
+
 import { AppNetworkComingSoon } from './AppNetworkComingSoon';
 import { AppNetworkHub } from './AppNetworkHub';
 import { useWalletLauncher } from './WalletControl';
@@ -10,6 +11,11 @@ import { GUIDE_FLOW_COPY } from '@/lib/i18n/guideFlowCopy';
 import { GUIDE_MISSION_STEP_COPY } from '@/lib/i18n/guideMissionStepCopy';
 import { GUIDE_REWARD_STEP_COPY } from '@/lib/i18n/guideRewardStepCopy';
 import type { Locale } from '@/lib/i18n/locales';
+
+const AppNetworkCanaryV45 = dynamic(
+  () => import('./AppNetworkCanaryV45').then((module) => module.AppNetworkCanaryV45),
+  { ssr: false },
+);
 
 const NETWORK_CANARY_WALLET = '0xeff325935b63299e9eeda79931bed6ec119aefcb';
 
@@ -23,7 +29,7 @@ export function AppGuide({ locale }: { locale: Locale }) {
     process.env.NEXT_PUBLIC_NETWORK_CANVAS_ENABLED !== 'false';
 
   if (wallet?.toLowerCase() === NETWORK_CANARY_WALLET) {
-    return <AppNetworkCanaryV45 locale={locale} />;
+    return <AppNetworkCanaryV45 key={wallet.toLowerCase()} locale={locale} />;
   }
 
   return networkEnabled
