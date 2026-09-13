@@ -11,6 +11,9 @@ const POST_DRAG_CLICK_SUPPRESS_MS = 340;
 const LONG_PRESS_CLICK_CUTOFF_MS = 420;
 const DRAG_CREATE_FOCUS_SUPPRESS_MS = 1200;
 const CREATE_DROP_VERIFY_MS = 180;
+const LEGACY_DROP_POINTER_MIN = 120000;
+const LEGACY_DROP_POINTER_MAX = 139999;
+const EXISTING_DROP_CONFIRM_MS = 900;
 
 type PointerOwner = {
   pointerId: number;
@@ -25,6 +28,13 @@ type PointerOwner = {
 
 type DropKind = 'existing' | 'new' | 'create';
 type DropTarget = { kind: DropKind; element: HTMLElement } | null;
+type PendingExistingDrop = {
+  nodeId: string;
+  groupId: string;
+  groupName: string;
+  baselineCount: number | null;
+  recordedAt: number;
+} | null;
 
 function NetworkInputOwnershipPolish() {
   useLayoutEffect(() => {
@@ -34,6 +44,7 @@ function NetworkInputOwnershipPolish() {
 
     let mounted = true;
     let activePointer: PointerOwner = null;
+    let pendingExistingDrop: PendingExistingDrop = null;
     let suppressNodeClickUntil = 0;
     let suppressGroupAutoFocusUntil = 0;
     let syntheticPointerId = 140000;
@@ -85,6 +96,44 @@ function NetworkInputOwnershipPolish() {
         }
       }
       return null;
+    };
+
+    const memberCountFromTarget = (target: HTMLElement | null) => {
+      const text = target?.querySelector<HTMLElement>('.v42GroupRowMain small, :scope > small')?.textContent ?? '';
+      const match = text.match(/(\d+)\s+people/i);
+      return match ? Number.parseInt(match[1], 10) : null;
+    };
+
+    const groupNameFromTarget = (target: HTMLElement) =>
+      target.querySelector<HTMLElement>('.v42GroupRowMain b, :scope > b')?.textContent?.trim() ?? '';
+
+    const recordExistingDrop = (node: HTMLButtonElement, target: HTMLElement) => {
+      const nodeId = node.dataset.nodeId;
+      const groupId = target.dataset.groupId;
+      if (!nodeId || !groupId) {
+        pendingExistingDrop = null;
+        return;
+      }
+      pendingExistingDrop = {
+        nodeId,
+        groupId,
+        groupName: groupNameFromTarget(target),
+        baselineCount: memberCountFromTarget(target),
+        recordedAt: performance.now(),
+      };
+    };
+
+    const currentGroupTarget = (groupId: string) => root.querySelector<HTMLElement>(
+      `.v42GroupRow[data-group-id="${CSS.escape(groupId)}"],.v42GroupHub[data-group-id="${CSS.escape(groupId)}"]`,
+    );
+
+    const existingDropConfirmed = (pending: Exclude<PendingExistingDrop, null>) => {
+      if (performance.now() - pending.recordedAt > EXISTING_DROP_CONFIRM_MS) return false;
+      const currentCount = memberCountFromTarget(currentGroupTarget(pending.groupId));
+      if (pending.baselineCount !== null && currentCount !== null && currentCount !== pending.baselineCount) return true;
+      const notice = root.querySelector<HTMLElement>('.v42Notice span')?.textContent?.replace(/\s+/g, ' ').trim() ?? '';
+      if (!notice || !pending.groupName || !notice.includes(pending.groupName)) return false;
+      return notice.includes('Added to ') || notice.includes('Moved to ') || notice.includes('Already in ');
     };
 
     const nodeSelectedForCreate = (node: HTMLButtonElement) =>
@@ -172,10 +221,36 @@ function NetworkInputOwnershipPolish() {
     }
 
     const onWindowPointerDownCapture = (event: PointerEvent) => {
-      if (!event.isTrusted) return;
+      const target = event.target instanceof Element ? event.target : null;
+
+      // V49's legacy existing-group fallback uses reserved synthetic pointer IDs.
+      // If V42 has already reflected the real drop in DOM state, suppress only
+      // that replay instead of relying on localStorage persistence timing.
+      if (!event.isTrusted) {
+        if (event.pointerType === 'mouse' && event.pointerId >= LEGACY_DROP_POINTER_MIN && event.pointerId <= LEGACY_DROP_POINTER_MAX) {
+          const match = nodeCircleFromTarget(event.target);
+          const pending = pendingExistingDrop;
+          if (match && pending && match.node.dataset.nodeId === pending.nodeId && existingDropConfirmed(pending)) {
+            pendingExistingDrop = null;
+            event.preventDefault();
+            event.stopPropagation();
+            event.stopImmediatePropagation();
+          }
+        }
+        return;
+      }
+
+      // A direct user tap on the group-name field is explicit intent to type.
+      // Clear the auto-focus suppression before focusin fires.
+      if (target instanceof HTMLInputElement && target.closest('.v42GroupPanel')) {
+        suppressGroupAutoFocusUntil = 0;
+        return;
+      }
+
       if (event.pointerType === 'mouse' && event.button !== 0) return;
       const match = nodeCircleFromTarget(event.target);
       if (!match || stage.classList.contains('editMode')) return;
+      pendingExistingDrop = null;
       activePointer = {
         pointerId: event.pointerId,
         pointerType: event.pointerType,
@@ -213,6 +288,7 @@ function NetworkInputOwnershipPolish() {
 
       const target = dropTargetAt(event.clientX, event.clientY);
       if (!target) return;
+      if (target.kind === 'existing') recordExistingDrop(current.node, target.element);
       if (target.kind === 'new') suppressGroupAutoFocusUntil = performance.now() + DRAG_CREATE_FOCUS_SUPPRESS_MS;
       if (target.kind === 'new' || target.kind === 'create') {
         scheduleCreateDropFallback(target.kind, current.node, target.element);
@@ -287,6 +363,14 @@ function NetworkInputOwnershipPolish() {
       suppressNodeClickUntil = performance.now() + POST_DRAG_CLICK_SUPPRESS_MS;
     };
 
+    const onWindowTouchCancelCapture = (event: TouchEvent) => {
+      cancelActivePointer(true);
+      pendingExistingDrop = null;
+      suppressNodeClickUntil = event.touches.length > 0
+        ? Number.POSITIVE_INFINITY
+        : performance.now() + POST_DRAG_CLICK_SUPPRESS_MS;
+    };
+
     const onWindowPointerMarkIntro = (event: PointerEvent) => {
       if (!event.isTrusted) return;
       const target = event.target instanceof Element ? event.target : null;
@@ -295,6 +379,7 @@ function NetworkInputOwnershipPolish() {
 
     const clearExternalState = () => {
       cancelActivePointer(true);
+      pendingExistingDrop = null;
       suppressNodeClickUntil = performance.now() + POST_DRAG_CLICK_SUPPRESS_MS;
       suppressGroupAutoFocusUntil = 0;
       if (createDropVerifyTimer !== null) {
@@ -318,6 +403,7 @@ function NetworkInputOwnershipPolish() {
     window.addEventListener('pointerdown', onWindowPointerMarkIntro, true);
     window.addEventListener('touchstart', onWindowTouchStartCapture, { capture: true, passive: true });
     window.addEventListener('touchend', onWindowTouchEndCapture, { capture: true, passive: true });
+    window.addEventListener('touchcancel', onWindowTouchCancelCapture, { capture: true, passive: true });
     root.addEventListener('pointerdown', onRootPointerDownBubble, false);
     root.addEventListener('click', onRootClickCapture, true);
     root.addEventListener('selectstart', preventNativeNodeGesture, true);
@@ -338,6 +424,7 @@ function NetworkInputOwnershipPolish() {
       window.removeEventListener('pointerdown', onWindowPointerMarkIntro, true);
       window.removeEventListener('touchstart', onWindowTouchStartCapture, true);
       window.removeEventListener('touchend', onWindowTouchEndCapture, true);
+      window.removeEventListener('touchcancel', onWindowTouchCancelCapture, true);
       root.removeEventListener('pointerdown', onRootPointerDownBubble, false);
       root.removeEventListener('click', onRootClickCapture, true);
       root.removeEventListener('selectstart', preventNativeNodeGesture, true);
