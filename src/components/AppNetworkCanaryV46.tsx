@@ -424,6 +424,9 @@ function NetworkViewportPolish() {
       stroke-width:.92!important;
       transition:opacity 90ms linear!important
     }
+    .productionNetworkCanaryV45 .spoke.v44CollapsedGroupPath{
+      opacity:0!important
+    }
     .productionNetworkCanaryV45 .v39RefinementRoot.v39MidZoom .slotSpoke,
     .productionNetworkCanaryV45 .v39RefinementRoot.v39DetailZoom .slotSpoke,
     .productionNetworkCanaryV45 .slotSpoke{
@@ -492,6 +495,11 @@ function NetworkViewportPolish() {
       transform:scale(var(--v46-label-scale,1));transform-origin:50% 0;
       opacity:var(--v46-label-opacity,1)!important;
       transition:transform 90ms linear,opacity 90ms linear!important
+    }
+    .productionNetworkCanaryV45.veinviteInteracting .centerWrap,
+    .productionNetworkCanaryV45.veinviteInteracting .nodeCircle,
+    .productionNetworkCanaryV45.veinviteInteracting .slotCircle{
+      transition:none!important
     }
 
     .veinviteNodeDragGhost{
