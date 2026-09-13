@@ -6,6 +6,7 @@ import { LocaleDocumentSync } from '@/components/LocaleDocumentSync';
 import { LocaleHydrationShield } from '@/components/LocaleHydrationShield';
 import { UsageAnalyticsTracker } from '@/components/UsageAnalyticsTracker';
 import './globals.css';
+import './mobile-shell-width-unification.css';
 import './header-language-flags.css';
 import './localized-typography.css';
 import './notification-i18n-hardening.css';
