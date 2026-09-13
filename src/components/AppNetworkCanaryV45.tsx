@@ -60,7 +60,6 @@ export function AppNetworkCanaryV45({ locale }: { locale: Locale }) {
     if (!root || !stage) return;
 
     setStageHost(stage);
-    document.documentElement.classList.add('veinviteNetworkCanaryActive');
 
     const zoomValue = root.querySelector<HTMLButtonElement>('.zoomValue');
     if (zoomValue) {
@@ -94,7 +93,6 @@ export function AppNetworkCanaryV45({ locale }: { locale: Locale }) {
 
     return () => {
       root.removeEventListener('click', onClickCapture, true);
-      document.documentElement.classList.remove('veinviteNetworkCanaryActive');
     };
   }, []);
 
@@ -248,8 +246,9 @@ export function AppNetworkCanaryV45({ locale }: { locale: Locale }) {
         .productionNetworkCanaryV45 .stage{touch-action:none!important;overscroll-behavior:contain!important;pointer-events:auto!important}
         .productionNetworkCanaryV45 .stage:not(.editMode):active{cursor:grabbing}
         .productionNetworkCanaryV45 .stage::after{
-          content:'';position:absolute;z-index:20;right:0;bottom:0;left:0;height:28px;
-          background:linear-gradient(to bottom,rgba(8,8,7,0),rgba(8,8,7,.28));pointer-events:none
+          content:'';position:absolute;z-index:20;right:0;bottom:0;left:0;height:30px;
+          background:linear-gradient(to bottom,rgba(8,8,7,0),rgba(8,8,7,.34));
+          box-shadow:inset 0 -1px 0 rgba(244,183,40,.07);pointer-events:none
         }
         .productionNetworkCanaryV45 .scene,
         .productionNetworkCanaryV45 .ringLayer,
@@ -295,14 +294,6 @@ export function AppNetworkCanaryV45({ locale }: { locale: Locale }) {
         }
         .productionNetworkCanaryV45 .v42GroupToolbarButton{
           margin-left:6px!important;border-color:rgba(244,183,40,.16)!important
-        }
-        html.veinviteNetworkCanaryActive .bottomNavigation{
-          border-top:1px solid rgba(244,183,40,.12)!important;
-          background:linear-gradient(180deg,rgba(10,10,9,.975),rgba(7,7,6,.995))!important;
-          box-shadow:0 -10px 28px rgba(0,0,0,.38),0 -1px 0 rgba(255,255,255,.025)!important
-        }
-        html.veinviteNetworkCanaryActive .bottomNavigation > div{
-          box-shadow:0 -8px 22px rgba(0,0,0,.16)!important
         }
         @media(max-width:640px){
           .productionNetworkCanaryV45 .controlBar,
