@@ -120,7 +120,7 @@ function NetworkViewportPolish() {
       const zoom = readZoom();
       const full = clamp((zoom - .32) / (2.5 - .32), 0, 1);
       const high = clamp((zoom - 1.45) / (2.5 - 1.45), 0, 1);
-      const label = clamp((zoom - .48) / .62, 0, 1);
+      const label = clamp((zoom - .48) / .52, 0, 1);
       const visualScale = 1 - high * .32;
       const centerScale = 1 - high * .38;
       const labelScale = 1 - high * .30;
@@ -254,11 +254,11 @@ function NetworkViewportPolish() {
     }
 
     const onUserInteraction = (event: Event) => {
-      if ('isTrusted' in event && !(event as Event & { isTrusted: boolean }).isTrusted) return;
+      if (!event.isTrusted) return;
       cancelIntroMotion();
     };
-    stage.addEventListener('pointerdown', onUserInteraction, true);
-    stage.addEventListener('touchstart', onUserInteraction, true);
+    root.addEventListener('pointerdown', onUserInteraction, true);
+    root.addEventListener('touchstart', onUserInteraction, true);
     stage.addEventListener('wheel', onUserInteraction, true);
 
     const removeGhost = () => {
@@ -270,6 +270,7 @@ function NetworkViewportPolish() {
       const current = dragPreview;
       if (!current) return;
       removeGhost();
+      root.classList.remove('veinviteGroupGhostDragging');
       if (releaseCapture) {
         try { current.target.releasePointerCapture(current.pointerId); } catch { /* no-op */ }
       }
@@ -333,6 +334,7 @@ function NetworkViewportPolish() {
       if (!preview.moved && distance < DRAG_THRESHOLD_PX) return;
       if (!preview.moved) {
         preview.moved = true;
+        root.classList.add('veinviteGroupGhostDragging');
         const active = document.activeElement;
         if (active instanceof HTMLInputElement && active.closest('.v42GroupPanel')) active.blur();
       }
@@ -379,8 +381,8 @@ function NetworkViewportPolish() {
       if (legacyBlockTimer !== null) window.clearTimeout(legacyBlockTimer);
       if (fitFloorTimer !== null) window.clearTimeout(fitFloorTimer);
       root.removeEventListener('click', onRootClickCapture, true);
-      stage.removeEventListener('pointerdown', onUserInteraction, true);
-      stage.removeEventListener('touchstart', onUserInteraction, true);
+      root.removeEventListener('pointerdown', onUserInteraction, true);
+      root.removeEventListener('touchstart', onUserInteraction, true);
       stage.removeEventListener('wheel', onUserInteraction, true);
       document.removeEventListener('pointerdown', onDocumentPointerDown, true);
       document.removeEventListener('pointermove', onDocumentPointerMove, true);
@@ -389,7 +391,7 @@ function NetworkViewportPolish() {
       document.removeEventListener('visibilitychange', onVisibilityChange);
       window.removeEventListener('blur', abortExternalDrag);
       abortExternalDrag();
-      root.classList.remove('veinviteIntroV3', 'veinviteSettling');
+      root.classList.remove('veinviteIntroV3', 'veinviteSettling', 'veinviteGroupGhostDragging');
       delete root.dataset.veinviteOverview;
       [
         '--v46-line-opacity',
@@ -416,11 +418,14 @@ function NetworkViewportPolish() {
     .productionNetworkCanaryV45 .v42GroupEdges path{
       vector-effect:non-scaling-stroke
     }
-    .productionNetworkCanaryV45 .spoke:not(.slotSpoke):not(.clusterSpoke){
+    .productionNetworkCanaryV45 .v39RefinementRoot.v39MidZoom .spoke:not(.slotSpoke):not(.clusterSpoke),
+    .productionNetworkCanaryV45 .v39RefinementRoot.v39DetailZoom .spoke:not(.slotSpoke):not(.clusterSpoke){
       opacity:var(--v46-line-opacity,.42)!important;
       stroke-width:.92!important;
       transition:opacity 90ms linear!important
     }
+    .productionNetworkCanaryV45 .v39RefinementRoot.v39MidZoom .slotSpoke,
+    .productionNetworkCanaryV45 .v39RefinementRoot.v39DetailZoom .slotSpoke,
     .productionNetworkCanaryV45 .slotSpoke{
       opacity:0!important;animation:none!important;filter:none!important
     }
@@ -440,6 +445,7 @@ function NetworkViewportPolish() {
     }
     .productionNetworkCanaryV45.veinviteInteracting .v46SlotPulse,
     .productionNetworkCanaryV45.veinviteIntroV3 .v46SlotPulse,
+    .productionNetworkCanaryV45.veinviteGroupGhostDragging .v46SlotPulse,
     .productionNetworkCanaryV45 .v42ManualGroupsRoot[data-v42-transient-drag="1"] .v46SlotPulse{
       animation-play-state:paused!important;filter:none!important
     }
@@ -457,6 +463,8 @@ function NetworkViewportPolish() {
       opacity:0!important;pointer-events:none!important
     }
 
+    .productionNetworkCanaryV45 .v39RefinementRoot.v39MidZoom .nodeCircle,
+    .productionNetworkCanaryV45 .v39RefinementRoot.v39DetailZoom .nodeCircle,
     .productionNetworkCanaryV45 .nodeCircle{
       width:52px!important;height:52px!important;
       transform:scale(var(--v46-node-scale,1))!important
@@ -466,12 +474,18 @@ function NetworkViewportPolish() {
       transform:scale(var(--v46-node-scale,1))!important
     }
     .productionNetworkCanaryV45 .personNode.canarySelectedNode .nodeCircle,
-    .productionNetworkCanaryV45 .personNode.v42SelectedMember .nodeCircle,
-    .productionNetworkCanaryV45 .personNode.v44PendingNewGroupMember .nodeCircle,
+    .productionNetworkCanaryV45 .v42ManualGroupsRoot .personNode.v42SelectedMember .nodeCircle,
+    .productionNetworkCanaryV45 .v44GroupUxRoot .personNode.v44PendingNewGroupMember .nodeCircle,
     .productionNetworkCanaryV45 .personNode.pressing .nodeCircle,
     .productionNetworkCanaryV45 .slotNode.pressing .slotCircle{
       transform:scale(var(--v46-selected-scale,1.07))!important
     }
+    .productionNetworkCanaryV45 .v39RefinementRoot.v39MidZoom .personNode>b,
+    .productionNetworkCanaryV45 .v39RefinementRoot.v39MidZoom .personNode>small,
+    .productionNetworkCanaryV45 .v39RefinementRoot.v39MidZoom .slotNode>b,
+    .productionNetworkCanaryV45 .v39RefinementRoot.v39DetailZoom .personNode>b,
+    .productionNetworkCanaryV45 .v39RefinementRoot.v39DetailZoom .personNode>small,
+    .productionNetworkCanaryV45 .v39RefinementRoot.v39DetailZoom .slotNode>b,
     .productionNetworkCanaryV45 .personNode>b,
     .productionNetworkCanaryV45 .personNode>small,
     .productionNetworkCanaryV45 .slotNode>b{
