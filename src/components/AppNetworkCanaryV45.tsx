@@ -241,7 +241,8 @@ export function AppNetworkCanaryV45({ locale }: { locale: Locale }) {
         .productionNetworkCanaryV45 .scenarioBar,
         .productionNetworkCanaryV45 .rules{display:none!important}
         .productionNetworkCanaryV45 .controlBar,
-        .productionNetworkCanaryV45 .networkShell{width:min(calc(100% - 20px),960px)!important}
+        .productionNetworkCanaryV45 .networkShell{width:min(100%,560px)!important}
+        .productionNetworkCanaryV45 .controlBar:has(.crumbs > span:only-child){display:none!important}
         .productionNetworkCanaryV45 .viewActions{display:none!important}
         .productionNetworkCanaryV45 .stage{touch-action:none!important;overscroll-behavior:contain!important;pointer-events:auto!important}
         .productionNetworkCanaryV45 .stage:not(.editMode):active{cursor:grabbing}
