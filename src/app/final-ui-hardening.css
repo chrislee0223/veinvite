@@ -41,6 +41,10 @@ body:has(.notificationBackdrop) {
  * stayed at 520px, which made the brand and wallet controls visibly jump when
  * switching tabs on desktop. 520px is now the single app rail; mobile still
  * remains fluid through min(100%, 520px).
+ *
+ * Network is included here as well. Its own canvas may remain interactive and
+ * pan/zoom internally, but every outer Network surface must share the same
+ * 520px app rail instead of introducing a separate desktop width.
  */
 main.screen > .topBar,
 main.screen > .missionCard,
@@ -48,6 +52,13 @@ main.screen > .toast,
 main.screen > .guidePage,
 main.screen > .leaderboardPage,
 main.screen > .settingsPage,
+main.screen > .networkHubState,
+main.screen .networkHubToolbar,
+main.screen .visibilityPanel,
+main.screen .networkCanvasPage,
+main.screen .publicExplorePage,
+main.screen .publicState,
+main.screen .publicCanvasPage,
 main.screen .bottomNavigation > div {
   width:min(100%,520px) !important;
 }
