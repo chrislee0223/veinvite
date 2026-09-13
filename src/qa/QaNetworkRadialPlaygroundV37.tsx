@@ -16,10 +16,7 @@ type PanState = { pointerId: number; startX: number; startY: number; originX: nu
 type PinchState = {
   startDistance: number;
   startZoom: number;
-  startCamera: Camera;
   worldAnchor: Point;
-  nodeId: string | null;
-  ratio: number;
 } | null;
 type PressState = {
   key: string;
@@ -500,16 +497,9 @@ export function QaNetworkRadialPlaygroundV37() {
     if (editMode || Math.abs(event.deltaY) < 1) return;
     event.preventDefault();
     markUserInteraction();
-    const target = event.target instanceof Element ? event.target.closest('button.personNode') as HTMLButtonElement | null : null;
     const multiplier = event.deltaY < 0 ? 1.1 : .9;
     const nextZoom = clamp(zoom * multiplier, MIN_ZOOM, MAX_ZOOM);
     setZoomAround(nextZoom, event.clientX, event.clientY);
-    if (target && event.deltaY < 0 && nextZoom >= 1.72) {
-      const id = target.dataset.nodeId;
-      if (id) later(() => enterNetwork(id), 80);
-      return;
-    }
-    if (!target && parentId && event.deltaY > 0 && nextZoom <= .4) later(goParent, 60);
   };
 
   const onTouchStart = (event: ReactTouchEvent<HTMLDivElement>) => {
@@ -520,15 +510,10 @@ export function QaNetworkRadialPlaygroundV37() {
     const b = event.touches[1];
     const midClient = { x: (a.clientX + b.clientX) / 2, y: (a.clientY + b.clientY) / 2 };
     const midpoint = screenPoint(midClient.x, midClient.y);
-    const direct = document.elementFromPoint(midClient.x, midClient.y)?.closest('button.personNode') as HTMLButtonElement | null;
-    const nodeId = direct && rootRef.current?.contains(direct) ? direct.dataset.nodeId ?? null : null;
     pinchRef.current = {
       startDistance: Math.max(1, touchDistance(a, b)),
       startZoom: zoom,
-      startCamera: camera,
       worldAnchor: { x: (midpoint.x - camera.x) / zoom, y: (midpoint.y - camera.y) / zoom },
-      nodeId,
-      ratio: 1,
     };
     suppressClickUntilRef.current = performance.now() + 500;
   };
@@ -539,7 +524,6 @@ export function QaNetworkRadialPlaygroundV37() {
     const a = event.touches[0];
     const b = event.touches[1];
     const ratio = touchDistance(a, b) / pinch.startDistance;
-    pinch.ratio = ratio;
     const midClient = { x: (a.clientX + b.clientX) / 2, y: (a.clientY + b.clientY) / 2 };
     const midpoint = screenPoint(midClient.x, midClient.y);
     const nextZoom = clamp(pinch.startZoom * ratio, MIN_ZOOM, MAX_ZOOM);
@@ -547,16 +531,8 @@ export function QaNetworkRadialPlaygroundV37() {
     setCamera({ x: midpoint.x - pinch.worldAnchor.x * nextZoom, y: midpoint.y - pinch.worldAnchor.y * nextZoom });
   };
   const finishPinch = (event: ReactTouchEvent<HTMLDivElement>) => {
-    const pinch = pinchRef.current;
-    if (!pinch || event.touches.length >= 2) return;
+    if (!pinchRef.current || event.touches.length >= 2) return;
     pinchRef.current = null;
-    const ratio = pinch.ratio;
-    const finalZoom = clamp(pinch.startZoom * ratio, MIN_ZOOM, MAX_ZOOM);
-    if (pinch.nodeId && ratio >= 1.38) {
-      enterNetwork(pinch.nodeId);
-      return;
-    }
-    if (parentId && ratio <= .68 && finalZoom <= .82) goParent();
   };
 
   const onStagePointerDown = (event: ReactPointerEvent<HTMLDivElement>) => {
