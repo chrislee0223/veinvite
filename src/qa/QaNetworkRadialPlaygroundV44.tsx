@@ -52,6 +52,7 @@ export function QaNetworkRadialPlaygroundV44() {
   const pendingNodeRef = useRef<string | null>(null);
   const pendingWasGroupedRef = useRef(false);
   const pendingCreateRef = useRef<PendingCreate>(null);
+  const pendingCreateTimerRef = useRef<number | null>(null);
   const suppressOutsideUntilRef = useRef(0);
   const syntheticPointerRef = useRef(99440);
 
@@ -76,20 +77,27 @@ export function QaNetworkRadialPlaygroundV44() {
     const heading = panel.querySelector<HTMLElement>('.v42PanelHead b')?.textContent?.trim() ?? '';
     if (!heading.startsWith('Create group')) return;
 
-    root.querySelectorAll('.personNode.v44PendingNewGroupMember').forEach((node) => node.classList.remove('v44PendingNewGroupMember'));
     const pendingId = pendingNodeRef.current;
     const pendingNode = pendingId ? personNode(pendingId) : null;
-    if (pendingNode && pendingWasGroupedRef.current) pendingNode.classList.add('v44PendingNewGroupMember');
+    const shouldMarkPending = Boolean(pendingNode && pendingWasGroupedRef.current);
+    root.querySelectorAll<HTMLElement>('.personNode.v44PendingNewGroupMember').forEach((node) => {
+      if (node !== pendingNode || !shouldMarkPending) node.classList.remove('v44PendingNewGroupMember');
+    });
+    if (pendingNode && shouldMarkPending && !pendingNode.classList.contains('v44PendingNewGroupMember')) {
+      pendingNode.classList.add('v44PendingNewGroupMember');
+    }
 
     const selected = selectedNodeIds();
     const extra = pendingId && pendingWasGroupedRef.current && !selected.includes(pendingId) ? 1 : 0;
     const count = selected.length + extra;
     const countEl = panel.querySelector<HTMLElement>('.v42SelectionCount b');
     const textEl = panel.querySelector<HTMLElement>('.v42SelectionCount span');
-    if (countEl) countEl.textContent = String(count);
-    if (textEl) textEl.textContent = pendingWasGroupedRef.current && pendingId
+    const nextCount = String(count);
+    const nextText = pendingWasGroupedRef.current && pendingId
       ? 'selected · will move here on create'
       : 'selected · optional';
+    if (countEl && countEl.textContent !== nextCount) countEl.textContent = nextCount;
+    if (textEl && textEl.textContent !== nextText) textEl.textContent = nextText;
   };
 
   const focusCreateInput = () => {
@@ -161,12 +169,29 @@ export function QaNetworkRadialPlaygroundV44() {
     }));
   };
 
-  const finishPendingCreate = () => {
+  const clearPendingCreate = () => {
+    if (pendingCreateTimerRef.current !== null) {
+      window.clearTimeout(pendingCreateTimerRef.current);
+      pendingCreateTimerRef.current = null;
+    }
+    pendingCreateRef.current = null;
+  };
+
+  const finishPendingCreate = (attempt = 0) => {
     const pending = pendingCreateRef.current;
     if (!pending) return;
     const panel = getPanel();
     if (!panel || panel.querySelector('input')) {
-      window.setTimeout(finishPendingCreate, 40);
+      if (attempt >= 25 || !rootRef.current?.isConnected) {
+        clearPendingCreate();
+        pendingNodeRef.current = null;
+        pendingWasGroupedRef.current = false;
+        return;
+      }
+      pendingCreateTimerRef.current = window.setTimeout(() => {
+        pendingCreateTimerRef.current = null;
+        finishPendingCreate(attempt + 1);
+      }, 40);
       return;
     }
 
@@ -176,7 +201,7 @@ export function QaNetworkRadialPlaygroundV44() {
       return Boolean(id && !pending.beforeGroupIds.includes(id));
     });
     const newId = created?.dataset.groupId;
-    pendingCreateRef.current = null;
+    clearPendingCreate();
 
     if (pending.nodeId && pending.wasGrouped && newId) {
       window.requestAnimationFrame(() => simulateMoveToGroup(pending.nodeId!, newId));
@@ -271,6 +296,7 @@ export function QaNetworkRadialPlaygroundV44() {
     if (!root) return;
 
     const sync = () => {
+      if (root.querySelector('.v42TransientDrag')) return;
       const panel = getPanel();
       setPanelHost((current) => current === panel ? current : panel);
       const editing = Boolean(panel?.querySelector('input'));
@@ -280,8 +306,12 @@ export function QaNetworkRadialPlaygroundV44() {
 
       const title = root.querySelector<HTMLElement>('.labHeader strong');
       const subtitle = root.querySelector<HTMLElement>('.labHeader > div:first-child span');
-      if (title) title.textContent = 'RADIAL NETWORK PLAYGROUND · V44';
-      if (subtitle) subtitle.textContent = 'Drop to create · outside click close · draft restore';
+      if (title && title.textContent !== 'RADIAL NETWORK PLAYGROUND · V44') {
+        title.textContent = 'RADIAL NETWORK PLAYGROUND · V44';
+      }
+      if (subtitle && subtitle.textContent !== 'Drop to create · outside click close · draft restore') {
+        subtitle.textContent = 'Drop to create · outside click close · draft restore';
+      }
 
       if (editing) syncPendingCount();
       if (panel && !editing && draftRef.current && !restoringRef.current) {
@@ -319,7 +349,7 @@ export function QaNetworkRadialPlaygroundV44() {
       if (!drag.moved && distance >= 10) drag.moved = true;
       if (!drag.moved) return;
       const over = pointIn(getNewDrop(), event.clientX, event.clientY, 4);
-      setNewDropHover(over);
+      setNewDropHover((current) => current === over ? current : over);
     };
 
     const onPointerUp = (event: PointerEvent) => {
@@ -334,6 +364,14 @@ export function QaNetworkRadialPlaygroundV44() {
         const id = drag.nodeId;
         window.requestAnimationFrame(() => beginCreate(id));
       }
+    };
+
+    const onPointerCancel = (event: PointerEvent) => {
+      const drag = dragRef.current;
+      if (!drag || drag.pointerId !== event.pointerId) return;
+      dragRef.current = null;
+      setNewDropHover(false);
+      suppressOutsideUntilRef.current = performance.now() + 120;
     };
 
     const onClickCapture = (event: MouseEvent) => {
@@ -357,11 +395,16 @@ export function QaNetworkRadialPlaygroundV44() {
             beforeGroupIds: Array.from(panel.querySelectorAll<HTMLElement>('.v42GroupRow[data-group-id]')).map((row) => row.dataset.groupId).filter((id): id is string => Boolean(id)),
           };
           draftRef.current = null;
-          window.setTimeout(finishPendingCreate, 30);
+          if (pendingCreateTimerRef.current !== null) window.clearTimeout(pendingCreateTimerRef.current);
+          pendingCreateTimerRef.current = window.setTimeout(() => {
+            pendingCreateTimerRef.current = null;
+            finishPendingCreate(0);
+          }, 30);
         } else if (text === 'Save changes') {
           draftRef.current = null;
         } else if (text === 'Cancel' || (text === '×' && panel.querySelector('input'))) {
           draftRef.current = null;
+          clearPendingCreate();
           pendingNodeRef.current = null;
           pendingWasGroupedRef.current = false;
         }
@@ -397,7 +440,7 @@ export function QaNetworkRadialPlaygroundV44() {
     root.addEventListener('pointerdown', onPointerDown, true);
     root.addEventListener('pointermove', onPointerMove, true);
     root.addEventListener('pointerup', onPointerUp, true);
-    root.addEventListener('pointercancel', onPointerUp, true);
+    root.addEventListener('pointercancel', onPointerCancel, true);
     root.addEventListener('pointerup', onCreateModePointerUp, false);
     root.addEventListener('click', onClickCapture, true);
     window.addEventListener('keydown', onKeyDown, true);
@@ -408,10 +451,11 @@ export function QaNetworkRadialPlaygroundV44() {
       root.removeEventListener('pointerdown', onPointerDown, true);
       root.removeEventListener('pointermove', onPointerMove, true);
       root.removeEventListener('pointerup', onPointerUp, true);
-      root.removeEventListener('pointercancel', onPointerUp, true);
+      root.removeEventListener('pointercancel', onPointerCancel, true);
       root.removeEventListener('pointerup', onCreateModePointerUp, false);
       root.removeEventListener('click', onClickCapture, true);
       window.removeEventListener('keydown', onKeyDown, true);
+      clearPendingCreate();
     };
   }, []);
 
