@@ -1,12 +1,57 @@
 'use client';
 
-import { useEffect, useRef } from 'react';
+import { useEffect, useLayoutEffect, useRef } from 'react';
 
 import type { Locale } from '@/lib/i18n/locales';
 import { QaNetworkRadialPlaygroundV45 } from '@/qa/QaNetworkRadialPlaygroundV45';
 
 export function AppNetworkCanaryV45({ locale }: { locale: Locale }) {
   const rootRef = useRef<HTMLElement | null>(null);
+
+  useLayoutEffect(() => {
+    const root = rootRef.current;
+    if (!root) return;
+
+    // V38→V45 is a cumulative QA wrapper chain. Several legacy wrappers update
+    // the hidden QA header from MutationObservers. Inside the real app that
+    // header is not rendered, but the competing text writes can still keep the
+    // observers waking each other up and starve pointer/click work. Freeze only
+    // those two hidden metadata nodes before passive effects install observers.
+    const nodes = [
+      root.querySelector<HTMLElement>('.labHeader strong'),
+      root.querySelector<HTMLElement>('.labHeader > div:first-child span'),
+    ].filter((node): node is HTMLElement => Boolean(node));
+
+    const previous = nodes.map((node) => ({
+      node,
+      own: Object.getOwnPropertyDescriptor(node, 'textContent'),
+      value: node.textContent ?? '',
+    }));
+
+    previous.forEach(({ node, value }) => {
+      try {
+        Object.defineProperty(node, 'textContent', {
+          configurable: true,
+          get: () => value,
+          set: () => undefined,
+        });
+      } catch {
+        // If a hardened WebView does not allow an instance override, the
+        // client-only mount below still avoids hydration races.
+      }
+    });
+
+    return () => {
+      previous.forEach(({ node, own }) => {
+        try {
+          if (own) Object.defineProperty(node, 'textContent', own);
+          else delete (node as HTMLElement & { textContent?: string }).textContent;
+        } catch {
+          // The node is being discarded with the canary tree anyway.
+        }
+      });
+    };
+  }, []);
 
   useEffect(() => {
     const root = rootRef.current;
