@@ -185,6 +185,13 @@ export function QaNetworkRadialPlaygroundV42() {
     [currentGroups, positions, compact],
   );
 
+  const setTransientDrag = (active: boolean) => {
+    const root = rootRef.current;
+    if (!root) return;
+    if (active) root.dataset.v42TransientDrag = '1';
+    else delete root.dataset.v42TransientDrag;
+  };
+
   useEffect(() => {
     try {
       let raw = window.localStorage.getItem(STORAGE_KEY);
@@ -209,6 +216,7 @@ export function QaNetworkRadialPlaygroundV42() {
   useEffect(() => {
     setCreating(false); setManagingGroupId(null); setSelectedIds([]); setGroupName('');
     setDropHoverGroupId(null); setRemoveHover(false); setDraggingNodeId(null);
+    setTransientDrag(false);
   }, [scope]);
 
   useEffect(() => {
@@ -216,6 +224,7 @@ export function QaNetworkRadialPlaygroundV42() {
     if (!root) return;
     const syncDom = () => {
       observerFrameRef.current = null;
+      if (root.dataset.v42TransientDrag === '1') return;
       const nav = root.querySelector<HTMLElement>('.navActions');
       const stage = root.querySelector<HTMLElement>('.stage');
       const scene = root.querySelector<HTMLElement>('.scene');
@@ -225,8 +234,10 @@ export function QaNetworkRadialPlaygroundV42() {
       if (title && title.textContent !== 'RADIAL NETWORK PLAYGROUND · V42') title.textContent = 'RADIAL NETWORK PLAYGROUND · V42';
       if (subtitle && subtitle.textContent !== 'Empty groups · independent group position · panel drop zones · undo') subtitle.textContent = 'Empty groups · independent group position · panel drop zones · undo';
       const rules = root.querySelectorAll<HTMLElement>('.rules span');
-      if (rules[1]) rules[1].innerHTML = '<b>Empty groups</b>Create a group first, then add people whenever you want.';
-      if (rules[3]) rules[3].innerHTML = '<b>Independent layout</b>Moving one person never moves the group box.';
+      const emptyGroupsRule = '<b>Empty groups</b>Create a group first, then add people whenever you want.';
+      const independentLayoutRule = '<b>Independent layout</b>Moving one person never moves the group box.';
+      if (rules[1] && rules[1].innerHTML !== emptyGroupsRule) rules[1].innerHTML = emptyGroupsRule;
+      if (rules[3] && rules[3].innerHTML !== independentLayoutRule) rules[3].innerHTML = independentLayoutRule;
       const nextScope = scopeKey(root);
       setScope((current) => current === nextScope ? current : nextScope);
       const nextCompact = window.innerWidth <= 640;
@@ -244,10 +255,7 @@ export function QaNetworkRadialPlaygroundV42() {
       }
     };
     const schedule = () => {
-      // Group/node drag previews deliberately mutate DOM styles/classes without
-      // changing React state. Do not respond to those transient mutations with
-      // another full node scan; the final pointer-up commit will schedule one.
-      if (groupDragRef.current?.moved || nodeDropDragRef.current?.moved) return;
+      if (root.dataset.v42TransientDrag === '1' || groupDragRef.current?.moved || nodeDropDragRef.current?.moved) return;
       if (observerFrameRef.current !== null) return;
       observerFrameRef.current = window.requestAnimationFrame(syncDom);
     };
@@ -259,6 +267,7 @@ export function QaNetworkRadialPlaygroundV42() {
       observer.disconnect(); window.removeEventListener('resize', schedule);
       if (observerFrameRef.current !== null) window.cancelAnimationFrame(observerFrameRef.current);
       if (noticeTimerRef.current !== null) window.clearTimeout(noticeTimerRef.current);
+      delete root.dataset.v42TransientDrag;
     };
   }, []);
 
@@ -370,13 +379,20 @@ export function QaNetworkRadialPlaygroundV42() {
     showNotice(`Removed from ${owner.name}`, before);
   };
   const nudgeCanvasNearEdge = (clientX: number, clientY: number) => {
-    const stage = rootRef.current?.querySelector<HTMLElement>('.stage');
-    if (!stage || stage.classList.contains('editMode')) return;
+    const root = rootRef.current;
+    const stage = root?.querySelector<HTMLElement>('.stage');
+    if (!root || !stage || stage.classList.contains('editMode')) return;
+    // The Groups panel sits against the stage edge. Panning the canvas while a
+    // person is being dragged into that fixed panel creates competing synthetic
+    // pointer streams and can starve the main thread. Panel-row drops do not need
+    // edge nudging because their hit test is already viewport-coordinate based.
+    if (root.querySelector('.v42GroupPanel')) return;
     const rect = stage.getBoundingClientRect(); const edge = 42;
     let dx = 0; let dy = 0;
     if (clientX < rect.left + edge) dx = 9; else if (clientX > rect.right - edge) dx = -9;
     if (clientY < rect.top + edge) dy = 9; else if (clientY > rect.bottom - edge) dy = -9;
     if (!dx && !dy) return;
+    syntheticPanIdRef.current += 1;
     const pointerId = syntheticPanIdRef.current; const startX = rect.left + rect.width / 2; const startY = rect.top + rect.height / 2;
     try {
       stage.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, pointerId, pointerType: 'mouse', button: 0, clientX: startX, clientY: startY }));
@@ -405,7 +421,11 @@ export function QaNetworkRadialPlaygroundV42() {
       if (!drag || drag.pointerId !== event.pointerId || creatingRef.current || managingGroupIdRef.current) return;
       const distance = Math.hypot(event.clientX - drag.startX, event.clientY - drag.startY);
       if (!drag.moved && distance < 10) return;
-      if (!drag.moved) { drag.moved = true; setDraggingNodeId(drag.nodeId); }
+      if (!drag.moved) {
+        drag.moved = true;
+        setTransientDrag(true);
+        setDraggingNodeId(drag.nodeId);
+      }
       nudgeCanvasNearEdge(event.clientX, event.clientY);
       const overRemove = drag.groupedAtStart && removeZoneAtPoint(event.clientX, event.clientY);
       setRemoveHover(overRemove);
@@ -417,8 +437,17 @@ export function QaNetworkRadialPlaygroundV42() {
       if (!drag || drag.pointerId !== event.pointerId) return;
       const overRemove = drag.moved && drag.groupedAtStart && removeZoneAtPoint(event.clientX, event.clientY);
       const targetGroup = drag.moved && !overRemove ? groupAtPoint(event.clientX, event.clientY) : null;
-      nodeDropDragRef.current = null; setDraggingNodeId(null); setDropHoverGroupId(null); setRemoveHover(false);
+      nodeDropDragRef.current = null;
+      setTransientDrag(false);
+      setDraggingNodeId(null); setDropHoverGroupId(null); setRemoveHover(false);
       if (overRemove) removeNodeFromGroup(drag.nodeId); else if (targetGroup) moveNodeToGroup(drag.nodeId, targetGroup);
+    };
+    const cancelNodeDrag = (event: PointerEvent) => {
+      const drag = nodeDropDragRef.current;
+      if (!drag || drag.pointerId !== event.pointerId) return;
+      nodeDropDragRef.current = null;
+      setTransientDrag(false);
+      setDraggingNodeId(null); setDropHoverGroupId(null); setRemoveHover(false);
     };
     const swallowClick = (event: MouseEvent) => {
       if (!creatingRef.current && !managingGroupIdRef.current) return;
@@ -435,11 +464,12 @@ export function QaNetworkRadialPlaygroundV42() {
       setGroups((current) => current.map((group) => group.scope === scopeRef.current && group.members.includes(id) ? { ...group, collapsed: false } : group));
     };
     root.addEventListener('pointerdown', onPointerDown, true); root.addEventListener('pointermove', onPointerMove, true);
-    root.addEventListener('pointerup', finishNodeDrag, true); root.addEventListener('pointercancel', finishNodeDrag, true);
+    root.addEventListener('pointerup', finishNodeDrag, true); root.addEventListener('pointercancel', cancelNodeDrag, true);
     root.addEventListener('click', swallowClick, true); root.addEventListener('click', revealSearchHit, true);
     return () => {
+      setTransientDrag(false);
       root.removeEventListener('pointerdown', onPointerDown, true); root.removeEventListener('pointermove', onPointerMove, true);
-      root.removeEventListener('pointerup', finishNodeDrag, true); root.removeEventListener('pointercancel', finishNodeDrag, true);
+      root.removeEventListener('pointerup', finishNodeDrag, true); root.removeEventListener('pointercancel', cancelNodeDrag, true);
       root.removeEventListener('click', swallowClick, true); root.removeEventListener('click', revealSearchHit, true);
     };
   }, []);
@@ -527,7 +557,10 @@ export function QaNetworkRadialPlaygroundV42() {
     event.preventDefault(); event.stopPropagation();
     const dx = event.clientX - drag.startX; const dy = event.clientY - drag.startY;
     if (!drag.moved && Math.hypot(dx, dy) < 6) return;
-    drag.moved = true;
+    if (!drag.moved) {
+      drag.moved = true;
+      setTransientDrag(true);
+    }
     const zoom = rootRef.current ? readZoom(rootRef.current) : 1;
     const desired = protectCenter({ x: drag.startPosition.x + dx / zoom, y: drag.startPosition.y + dy / zoom }, compact, drag.startPosition);
     const actualDelta = { x: desired.x - drag.startPosition.x, y: desired.y - drag.startPosition.y };
@@ -535,9 +568,6 @@ export function QaNetworkRadialPlaygroundV42() {
     const group = groupsRef.current.find((item) => item.id === drag.groupId); if (!group) return;
     drag.previewPosition = desired;
     drag.previewMemberOffset = memberOffset;
-    // Keep pointer movement off the React/localStorage hot path. Commit once
-    // at pointer-up; during the gesture only mutate the already-mounted visual
-    // nodes and edge for a smooth preview.
     previewGroupMove(group, desired, memberOffset);
   };
   const finishGroupPointer = (event: ReactPointerEvent<HTMLButtonElement>) => {
@@ -546,6 +576,7 @@ export function QaNetworkRadialPlaygroundV42() {
     try { drag.target.releasePointerCapture(event.pointerId); } catch { /* no-op */ }
     const group = groupsRef.current.find((item) => item.id === drag.groupId) ?? null;
     groupDragRef.current = null;
+    setTransientDrag(false);
     if (!drag.moved) {
       toggleGroup(drag.groupId);
       return;
@@ -559,6 +590,7 @@ export function QaNetworkRadialPlaygroundV42() {
     const group = groupsRef.current.find((item) => item.id === drag.groupId) ?? null;
     if (drag.moved && group) previewGroupMove(group, drag.startPosition, drag.startMemberOffset);
     groupDragRef.current = null;
+    setTransientDrag(false);
   };
 
   const editorActive = creating || Boolean(managingGroupId);
