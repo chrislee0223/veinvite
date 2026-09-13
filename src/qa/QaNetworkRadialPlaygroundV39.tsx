@@ -72,11 +72,13 @@ export function QaNetworkRadialPlaygroundV39() {
     const root = rootRef.current;
     if (!root) return;
 
+    const transientDragActive = () => Boolean(root.closest('[data-v42-transient-drag="1"]'));
+
     const scheduleLayout = () => {
       if (frameRef.current !== null) return;
       frameRef.current = window.requestAnimationFrame(() => {
         frameRef.current = null;
-        if (root.closest('.v42TransientDrag')) return;
+        if (transientDragActive()) return;
 
         const stage = root.querySelector<HTMLElement>('.stage');
         if (!stage) return;
@@ -165,7 +167,7 @@ export function QaNetworkRadialPlaygroundV39() {
     };
 
     const observer = new MutationObserver((mutations) => {
-      if (root.closest('.v42TransientDrag')) return;
+      if (transientDragActive()) return;
       const meaningful = mutations.some((mutation) => {
         if (mutation.type !== 'attributes' || mutation.attributeName !== 'style') return true;
         const target = mutation.target instanceof Element ? mutation.target : null;
