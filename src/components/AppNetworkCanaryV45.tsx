@@ -12,7 +12,7 @@ const BOTTOM_NAV_GAP_PX = 16;
 
 export function AppNetworkCanaryV45({ locale }: { locale: Locale }) {
   const rootRef = useRef<HTMLElement | null>(null);
-  const [stageHost, setStageHost] = useState<HTMLElement | null>(null);
+  const [viewActionHost, setViewActionHost] = useState<HTMLElement | null>(null);
 
   useLayoutEffect(() => {
     const root = rootRef.current;
@@ -57,9 +57,13 @@ export function AppNetworkCanaryV45({ locale }: { locale: Locale }) {
   useEffect(() => {
     const root = rootRef.current;
     const stage = root?.querySelector<HTMLElement>('.stage');
+    const navActions = root?.querySelector<HTMLElement>('.navActions');
     if (!root || !stage) return;
 
-    setStageHost(stage);
+    // The toolbar shell is rendered synchronously by V37 and is stable for the
+    // lifetime of this Network mount. Resolve it once instead of introducing
+    // another MutationObserver on top of the existing V42–V45 observer chain.
+    setViewActionHost(navActions ?? null);
 
     const zoomValue = root.querySelector<HTMLButtonElement>('.zoomValue');
     if (zoomValue) {
@@ -227,12 +231,12 @@ export function AppNetworkCanaryV45({ locale }: { locale: Locale }) {
   return (
     <section ref={rootRef} className="productionNetworkCanaryV45" data-locale={locale}>
       <QaNetworkRadialPlaygroundV45 />
-      {stageHost ? createPortal(
+      {viewActionHost ? createPortal(
         <div className="canaryViewActions" aria-label="Network view controls">
           <button type="button" onClick={() => triggerViewAction('you')}>◎ YOU</button>
           <button type="button" onClick={() => triggerViewAction('fit')}>Fit</button>
         </div>,
-        stageHost,
+        viewActionHost,
       ) : null}
       <style jsx global>{`
         .productionNetworkCanaryV45{width:100%;position:relative;pointer-events:auto!important}
@@ -241,7 +245,8 @@ export function AppNetworkCanaryV45({ locale }: { locale: Locale }) {
         .productionNetworkCanaryV45 .scenarioBar,
         .productionNetworkCanaryV45 .rules{display:none!important}
         .productionNetworkCanaryV45 .controlBar,
-        .productionNetworkCanaryV45 .networkShell{width:min(100%,560px)!important}
+        .productionNetworkCanaryV45 .networkShell{width:min(100%,520px)!important}
+        .productionNetworkCanaryV45 .networkShell{border-color:rgba(255,205,80,.14)!important;border-radius:21px!important}
         .productionNetworkCanaryV45 .controlBar:has(.crumbs > span:only-child){display:none!important}
         .productionNetworkCanaryV45 .viewActions{display:none!important}
         .productionNetworkCanaryV45 .stage{touch-action:none!important;overscroll-behavior:contain!important;pointer-events:auto!important}
@@ -261,17 +266,6 @@ export function AppNetworkCanaryV45({ locale }: { locale: Locale }) {
         .productionNetworkCanaryV45 .networkTop button,
         .productionNetworkCanaryV45 .v42GroupToolbarButton,
         .productionNetworkCanaryV45 .canaryViewActions button{touch-action:manipulation;pointer-events:auto!important}
-        .productionNetworkCanaryV45 .canaryViewActions{
-          position:absolute;z-index:44;top:10px;right:10px;display:flex;align-items:center;gap:5px;
-          padding:4px;border:1px solid rgba(244,183,40,.12);border-radius:11px;
-          background:rgba(11,11,9,.88);box-shadow:0 8px 24px rgba(0,0,0,.2);backdrop-filter:blur(10px);
-          -webkit-backdrop-filter:blur(10px)
-        }
-        .productionNetworkCanaryV45 .canaryViewActions button{
-          height:28px;padding:0 9px;border:1px solid rgba(255,255,255,.07);border-radius:8px;
-          background:rgba(18,18,15,.96);color:#bba66e;font-size:.46rem;font-weight:700
-        }
-        .productionNetworkCanaryV45 .canaryViewActions button:active{transform:translateY(1px)}
         .productionNetworkCanaryV45 .personNode b,
         .productionNetworkCanaryV45 .personNode small{
           opacity:clamp(.08,calc((var(--networkZoom) - .46) * 2.65),1);
@@ -282,7 +276,11 @@ export function AppNetworkCanaryV45({ locale }: { locale: Locale }) {
           box-shadow:0 0 0 3px rgba(244,183,40,.1),0 0 28px rgba(244,183,40,.12)!important
         }
         .productionNetworkCanaryV45 .personNode.canarySelectedNode b{color:#efc85a!important}
-        .productionNetworkCanaryV45 .navActions{gap:4px!important}
+        .productionNetworkCanaryV45 .navActions{gap:4px!important;flex-wrap:nowrap!important;overflow-x:auto!important;scrollbar-width:none}
+        .productionNetworkCanaryV45 .navActions::-webkit-scrollbar{display:none}
+        .productionNetworkCanaryV45 .navActions > button,
+        .productionNetworkCanaryV45 .v42GroupToolbarButton,
+        .productionNetworkCanaryV45 .canaryViewActions{flex:0 0 auto!important}
         .productionNetworkCanaryV45 .navActions > button:has(+ .zoomValue){
           margin-left:5px!important;margin-right:0!important;border-radius:8px 3px 3px 8px!important
         }
@@ -294,16 +292,21 @@ export function AppNetworkCanaryV45({ locale }: { locale: Locale }) {
           margin-left:0!important;border-radius:3px 8px 8px 3px!important
         }
         .productionNetworkCanaryV45 .v42GroupToolbarButton{
-          margin-left:6px!important;border-color:rgba(244,183,40,.16)!important
+          order:60!important;margin-left:6px!important;border-color:rgba(244,183,40,.16)!important
         }
+        .productionNetworkCanaryV45 .canaryViewActions{order:61;display:flex;align-items:center;gap:4px}
+        .productionNetworkCanaryV45 .canaryViewActions button{
+          height:28px;padding:0 9px;border:1px solid rgba(255,255,255,.07);border-radius:8px;
+          background:#0e0e0c;color:#918a7e;font:inherit;font-size:.48rem;font-weight:400;line-height:1;cursor:pointer
+        }
+        .productionNetworkCanaryV45 .canaryViewActions button:hover{border-color:rgba(244,183,40,.22);color:#c1a75f}
+        .productionNetworkCanaryV45 .canaryViewActions button:focus-visible{outline:1px solid rgba(255,205,80,.55);outline-offset:2px}
+        .productionNetworkCanaryV45 .canaryViewActions button:active{transform:translateY(1px)}
         @media(max-width:640px){
           .productionNetworkCanaryV45 .controlBar,
-          .productionNetworkCanaryV45 .networkShell{width:calc(100% - 12px)!important}
+          .productionNetworkCanaryV45 .networkShell{width:100%!important}
           .productionNetworkCanaryV45 .networkTop{gap:8px!important}
-          .productionNetworkCanaryV45 .navActions{scrollbar-width:none}
-          .productionNetworkCanaryV45 .navActions::-webkit-scrollbar{display:none}
-          .productionNetworkCanaryV45 .canaryViewActions{top:9px;right:9px}
-          .productionNetworkCanaryV45 .canaryViewActions button{height:27px;padding:0 8px;font-size:.44rem}
+          .productionNetworkCanaryV45 .canaryViewActions button{height:28px;padding:0 8px;font-size:.45rem}
         }
         @media(prefers-reduced-motion:reduce){
           .productionNetworkCanaryV45 .personNode b,
