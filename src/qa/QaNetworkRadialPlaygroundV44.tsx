@@ -46,7 +46,7 @@ function parsePx(value: string) {
 }
 
 function curvePath(point: Point) {
-  const bend = Math.sign(point.x || 1) * Math.min(58, Math.abs(point.x) * .16);
+  const bend = Math.sign(point.x || 1) * Math.min(64, Math.abs(point.x) * .17);
   return `M 0 0 C ${bend} ${point.y * .22}, ${point.x - bend} ${point.y * .78}, ${point.x} ${point.y}`;
 }
 
@@ -425,7 +425,7 @@ export function QaNetworkRadialPlaygroundV44() {
       }
 
       if (creating) syncPendingCount();
-      else if (selectedPeople.length) setSelectedPeople([]);
+      else setSelectedPeople((current) => current.length ? [] : current);
       scheduleGroupedEdges();
       if (panel && !editing && draftRef.current && !restoringRef.current) {
         const draft = draftRef.current;
@@ -506,7 +506,7 @@ export function QaNetworkRadialPlaygroundV44() {
       if (drag.mode === 'create-editor') {
         const overCreate = drag.moved && pointIn(getCreateDrop(), event.clientX, event.clientY, 6);
         setCreateDropHover(false);
-        if (drag.moved) suppressOutsideUntilRef.current = performance.now() + 280;
+        suppressOutsideUntilRef.current = performance.now() + (drag.moved ? 320 : 220);
         if (!drag.moved || overCreate) toggleCreateSelection(drag.nodeId);
         event.preventDefault();
         event.stopPropagation();
@@ -572,6 +572,7 @@ export function QaNetworkRadialPlaygroundV44() {
         return;
       }
 
+      if (panel?.querySelector('input') && target.closest('.personNode')) return;
       if (!panel || panel.contains(target) || toolbar?.contains(target)) return;
       if (performance.now() < suppressOutsideUntilRef.current) return;
 
@@ -611,7 +612,7 @@ export function QaNetworkRadialPlaygroundV44() {
       if (pendingMoveTimerRef.current !== null) window.clearTimeout(pendingMoveTimerRef.current);
       if (edgeFrameRef.current !== null) window.cancelAnimationFrame(edgeFrameRef.current);
     };
-  }, [selectedPeople.length]);
+  }, []);
 
   const onNewGroupClick = () => {
     if (clustered) return;
