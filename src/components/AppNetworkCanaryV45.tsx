@@ -6,7 +6,6 @@ import { createPortal } from 'react-dom';
 import type { Locale } from '@/lib/i18n/locales';
 import { QaNetworkRadialPlaygroundV45 } from '@/qa/QaNetworkRadialPlaygroundV45';
 
-const INITIAL_FIT_DELAY_MS = 180;
 const MOBILE_SAFE_STAGE_MIN_PX = 420;
 const BOTTOM_NAV_GAP_PX = 16;
 
@@ -132,18 +131,10 @@ export function AppNetworkCanaryV45({ locale }: { locale: Locale }) {
   useEffect(() => {
     const root = rootRef.current;
     const stage = root?.querySelector<HTMLElement>('.stage');
-    if (!root || !stage) return;
+    if (!stage) return;
 
-    let fitTimer = 0;
-    let frame = 0;
-    let cancelledByUser = false;
-    let fitted = false;
     const previousHeight = stage.style.height;
     const previousMinHeight = stage.style.minHeight;
-
-    const findFitButton = () => Array.from(
-      root.querySelectorAll<HTMLButtonElement>('.viewActions button'),
-    ).find((button) => button.textContent?.trim() === 'Fit') ?? null;
 
     const applyMobileSafeStage = () => {
       if (window.innerWidth > 700) {
@@ -152,9 +143,10 @@ export function AppNetworkCanaryV45({ locale }: { locale: Locale }) {
         return;
       }
 
-      // The app navigation is fixed above the page. Give the Network stage only
-      // the actually visible vertical space so V45's existing Fit calculation
-      // cannot place nodes behind the bottom navigation.
+      // The bottom navigation is fixed. Keep the Network canvas inside the
+      // actually visible mobile viewport, but do not auto-Fit the camera on
+      // entry. Network now opens at the native 100% view and Fit remains an
+      // explicit user action.
       const navTrack = document.querySelector<HTMLElement>('.bottomNavigation > div');
       if (!navTrack) return;
       const stageRect = stage.getBoundingClientRect();
@@ -167,50 +159,11 @@ export function AppNetworkCanaryV45({ locale }: { locale: Locale }) {
       }
     };
 
-    const fitOnce = () => {
-      if (cancelledByUser || fitted) return;
-      applyMobileSafeStage();
-      frame = window.requestAnimationFrame(() => {
-        if (cancelledByUser || fitted) return;
-        const fitButton = findFitButton();
-        if (!fitButton) return;
-        fitted = true;
-        fitButton.click();
-      });
-    };
-
-    const cancelInitialFit = (event: Event) => {
-      if (!event.isTrusted || fitted) return;
-      cancelledByUser = true;
-      window.clearTimeout(fitTimer);
-      window.cancelAnimationFrame(frame);
-    };
-
-    // Wait until the real app header, fixed bottom navigation and V45 group
-    // wrappers have settled. If the user interacts first, never steal the camera.
-    fitTimer = window.setTimeout(fitOnce, INITIAL_FIT_DELAY_MS);
-    stage.addEventListener('pointerdown', cancelInitialFit, true);
-    stage.addEventListener('touchstart', cancelInitialFit, true);
-    stage.addEventListener('wheel', cancelInitialFit, true);
-
-    const onResize = () => {
-      applyMobileSafeStage();
-      // Once the user has the camera, resizing must not recenter it. Before the
-      // first fit, reschedule against the final viewport instead.
-      if (!fitted && !cancelledByUser) {
-        window.clearTimeout(fitTimer);
-        fitTimer = window.setTimeout(fitOnce, INITIAL_FIT_DELAY_MS);
-      }
-    };
-    window.addEventListener('resize', onResize);
+    applyMobileSafeStage();
+    window.addEventListener('resize', applyMobileSafeStage);
 
     return () => {
-      window.clearTimeout(fitTimer);
-      window.cancelAnimationFrame(frame);
-      stage.removeEventListener('pointerdown', cancelInitialFit, true);
-      stage.removeEventListener('touchstart', cancelInitialFit, true);
-      stage.removeEventListener('wheel', cancelInitialFit, true);
-      window.removeEventListener('resize', onResize);
+      window.removeEventListener('resize', applyMobileSafeStage);
       stage.style.height = previousHeight;
       stage.style.minHeight = previousMinHeight;
     };
@@ -276,7 +229,13 @@ export function AppNetworkCanaryV45({ locale }: { locale: Locale }) {
           box-shadow:0 0 0 3px rgba(244,183,40,.1),0 0 28px rgba(244,183,40,.12)!important
         }
         .productionNetworkCanaryV45 .personNode.canarySelectedNode b{color:#efc85a!important}
-        .productionNetworkCanaryV45 .navActions{gap:4px!important;flex-wrap:nowrap!important;overflow-x:auto!important;scrollbar-width:none}
+        .productionNetworkCanaryV45 .networkTop{
+          align-items:flex-start!important;flex-direction:column!important;gap:8px!important
+        }
+        .productionNetworkCanaryV45 .navActions{
+          width:100%!important;justify-content:flex-start!important;gap:4px!important;
+          flex-wrap:nowrap!important;overflow-x:auto!important;scrollbar-width:none
+        }
         .productionNetworkCanaryV45 .navActions::-webkit-scrollbar{display:none}
         .productionNetworkCanaryV45 .navActions > button,
         .productionNetworkCanaryV45 .v42GroupToolbarButton,
@@ -305,7 +264,6 @@ export function AppNetworkCanaryV45({ locale }: { locale: Locale }) {
         @media(max-width:640px){
           .productionNetworkCanaryV45 .controlBar,
           .productionNetworkCanaryV45 .networkShell{width:100%!important}
-          .productionNetworkCanaryV45 .networkTop{gap:8px!important}
           .productionNetworkCanaryV45 .canaryViewActions button{height:28px;padding:0 8px;font-size:.45rem}
         }
         @media(prefers-reduced-motion:reduce){
