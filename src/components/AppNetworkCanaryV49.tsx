@@ -7,10 +7,23 @@ import { AppNetworkCanaryV48 } from './AppNetworkCanaryV48';
 
 const INTRO_SESSION_KEY = 'veinvite:network:intro-v4';
 const LEGACY_INTRO_KEYS = ['veinvite:network:intro-v1', 'veinvite:network:intro-v3'];
+const GROUP_STORAGE_KEY = 'veinvite:qa:radial-v42:groups-v1';
 const LEGACY_SETTLE_MS = 150;
 const INTRO_HOLD_MS = 120;
 const INTRO_MOTION_MS = 860;
 const INTERNAL_POINTER_ID_MIN = 99440;
+const GROUP_DROP_VERIFY_MS = 180;
+
+type TrackedGroupDrag = {
+  pointerId: number;
+  node: HTMLButtonElement;
+  nodeId: string;
+  startX: number;
+  startY: number;
+  moved: boolean;
+} | null;
+
+type StoredGroup = { id?: string; members?: string[] };
 
 // V49 owns the visible first-entry story. Prime the older wrappers before they
 // render so their legacy intro paths cannot race the new one. Their repeat-entry
@@ -33,10 +46,13 @@ function NetworkFinalInteractionPolish() {
     let introStarted = false;
     let introFinished = false;
     let pinchBridgeActive = false;
+    let trackedGroupDrag: TrackedGroupDrag = null;
+    let syntheticDropPointerId = 120000;
     let prepareTimer: number | null = null;
     let holdTimer: number | null = null;
     let wheelTimer: number | null = null;
     let endTimer: number | null = null;
+    let groupDropVerifyTimer: number | null = null;
     let revealFrame = 0;
     let animateFrame = 0;
 
@@ -133,11 +149,14 @@ function NetworkFinalInteractionPolish() {
     };
 
     const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-    if (!reducedMotion && !sessionIntroSeen()) {
+    const alreadySeen = sessionIntroSeen();
+    if (!reducedMotion && !alreadySeen) {
       prepareTimer = window.setTimeout(() => {
         prepareTimer = null;
         startVisibleIntro();
       }, LEGACY_SETTLE_MS);
+    } else {
+      introFinished = true;
     }
 
     const onUserInteraction = (event: Event) => {
@@ -149,44 +168,147 @@ function NetworkFinalInteractionPolish() {
     root.addEventListener('touchstart', onUserInteraction, true);
     stage.addEventListener('wheel', onUserInteraction, true);
 
-    // V44 intentionally dispatches synthetic pointerdown events directly on the
-    // person button to toggle/create/move group membership. V47's user-facing
-    // circle-only hit rule must not swallow those internal events. Re-target only
-    // V44's reserved synthetic pointer IDs to the visible circle before document
-    // capture reaches V47.
-    const onWindowPointerDown = (event: PointerEvent) => {
-      if (event.isTrusted || event.pointerType !== 'mouse' || event.pointerId < INTERNAL_POINTER_ID_MIN) return;
-      const target = event.target instanceof Element ? event.target : null;
-      const node = target?.closest<HTMLButtonElement>('button.personNode[data-node-id]') ?? null;
-      if (!node || !root.contains(node) || target?.closest('.nodeCircle')) return;
-      const circle = node.querySelector<HTMLElement>('.nodeCircle');
-      if (!circle) return;
+    const groupTargetAt = (clientX: number, clientY: number) => {
+      const targets = Array.from(root.querySelectorAll<HTMLElement>(
+        '.v42GroupRow[data-v42-group-drop],.v42GroupHub[data-v42-group-drop]',
+      ));
+      for (const target of targets) {
+        const rect = target.getBoundingClientRect();
+        const pad = target.classList.contains('v42GroupHub') ? 10 : 5;
+        if (clientX >= rect.left - pad && clientX <= rect.right + pad &&
+            clientY >= rect.top - pad && clientY <= rect.bottom + pad) return target;
+      }
+      return null;
+    };
 
-      event.preventDefault();
-      event.stopPropagation();
-      event.stopImmediatePropagation();
+    const storedGroupHasNode = (groupId: string, nodeId: string) => {
       try {
-        circle.dispatchEvent(new PointerEvent('pointerdown', {
-          bubbles: true,
-          cancelable: true,
-          pointerId: event.pointerId,
-          pointerType: event.pointerType,
-          button: event.button,
-          buttons: event.buttons,
-          clientX: event.clientX,
-          clientY: event.clientY,
-          ctrlKey: event.ctrlKey,
-          shiftKey: event.shiftKey,
-          altKey: event.altKey,
-          metaKey: event.metaKey,
-        }));
+        const raw = window.localStorage.getItem(GROUP_STORAGE_KEY);
+        if (!raw) return false;
+        const groups = JSON.parse(raw) as StoredGroup[];
+        return Array.isArray(groups) && groups.some((group) => group.id === groupId && group.members?.includes(nodeId));
       } catch {
-        // If PointerEvent construction is unavailable, leave the original action
-        // cancelled rather than leaking a false user click into the canvas.
+        return false;
       }
     };
 
+    const replayGroupDrop = (node: HTMLButtonElement, target: HTMLElement) => {
+      if (!mounted || !node.isConnected || !target.isConnected) return;
+      const nodeRect = node.getBoundingClientRect();
+      const targetRect = target.getBoundingClientRect();
+      const startX = nodeRect.left + nodeRect.width / 2;
+      const startY = nodeRect.top + Math.min(26, nodeRect.height / 2);
+      const endX = targetRect.left + Math.min(Math.max(34, targetRect.width * .35), targetRect.width - 12);
+      const endY = targetRect.top + targetRect.height / 2;
+      syntheticDropPointerId += 1;
+      const pointerId = syntheticDropPointerId;
+      try {
+        node.dispatchEvent(new PointerEvent('pointerdown', {
+          bubbles: true, cancelable: true, pointerId, pointerType: 'mouse', button: 0,
+          clientX: startX, clientY: startY,
+        }));
+        node.dispatchEvent(new PointerEvent('pointermove', {
+          bubbles: true, cancelable: true, pointerId, pointerType: 'mouse', buttons: 1,
+          clientX: startX + 18, clientY: startY,
+        }));
+        node.dispatchEvent(new PointerEvent('pointermove', {
+          bubbles: true, cancelable: true, pointerId, pointerType: 'mouse', buttons: 1,
+          clientX: endX, clientY: endY,
+        }));
+        node.dispatchEvent(new PointerEvent('pointerup', {
+          bubbles: true, cancelable: true, pointerId, pointerType: 'mouse', button: 0,
+          clientX: endX, clientY: endY,
+        }));
+      } catch {
+        // Best-effort iOS pointer-capture fallback only.
+      }
+    };
+
+    // V44 intentionally dispatches synthetic pointerdown events directly on the
+    // person button to toggle/create/move group membership. V47's user-facing
+    // circle-only hit rule must not swallow those internal events. Re-target only
+    // reserved synthetic pointer IDs to the visible circle before document capture
+    // reaches V47, and temporarily bypass V47's real-user drag layer.
+    const onWindowPointerDown = (event: PointerEvent) => {
+      const target = event.target instanceof Element ? event.target : null;
+      const node = target?.closest<HTMLButtonElement>('button.personNode[data-node-id]') ?? null;
+
+      if (!event.isTrusted) {
+        if (event.pointerType !== 'mouse' || event.pointerId < INTERNAL_POINTER_ID_MIN) return;
+        if (!node || !root.contains(node) || target?.closest('.nodeCircle')) return;
+        const circle = node.querySelector<HTMLElement>('.nodeCircle');
+        if (!circle) return;
+
+        event.preventDefault();
+        event.stopPropagation();
+        event.stopImmediatePropagation();
+        const alreadyEditing = stage.classList.contains('editMode');
+        if (!alreadyEditing) stage.classList.add('editMode');
+        try {
+          circle.dispatchEvent(new PointerEvent('pointerdown', {
+            bubbles: true,
+            cancelable: true,
+            pointerId: event.pointerId,
+            pointerType: event.pointerType,
+            button: event.button,
+            buttons: event.buttons,
+            clientX: event.clientX,
+            clientY: event.clientY,
+            ctrlKey: event.ctrlKey,
+            shiftKey: event.shiftKey,
+            altKey: event.altKey,
+            metaKey: event.metaKey,
+          }));
+        } catch {
+          // If PointerEvent construction is unavailable, leave the original action
+          // cancelled rather than leaking a false user click into the canvas.
+        } finally {
+          if (!alreadyEditing) stage.classList.remove('editMode');
+        }
+        return;
+      }
+
+      const circle = target?.closest<HTMLElement>('.nodeCircle') ?? null;
+      const nodeId = node?.dataset.nodeId;
+      if (!node || !nodeId || !circle || !node.contains(circle) || !root.contains(node)) return;
+      if (!root.querySelector('.v42GroupPanel') || stage.classList.contains('editMode')) return;
+      trackedGroupDrag = {
+        pointerId: event.pointerId,
+        node,
+        nodeId,
+        startX: event.clientX,
+        startY: event.clientY,
+        moved: false,
+      };
+    };
+
+    const onWindowPointerMove = (event: PointerEvent) => {
+      const drag = trackedGroupDrag;
+      if (!drag || drag.pointerId !== event.pointerId) return;
+      if (!drag.moved && Math.hypot(event.clientX - drag.startX, event.clientY - drag.startY) >= 10) drag.moved = true;
+    };
+
+    const finishTrackedGroupDrag = (event: PointerEvent, cancelled = false) => {
+      const drag = trackedGroupDrag;
+      if (!drag || drag.pointerId !== event.pointerId) return;
+      trackedGroupDrag = null;
+      if (cancelled || !drag.moved) return;
+      const target = groupTargetAt(event.clientX, event.clientY);
+      const groupId = target?.dataset.groupId;
+      if (!target || !groupId) return;
+
+      if (groupDropVerifyTimer !== null) window.clearTimeout(groupDropVerifyTimer);
+      groupDropVerifyTimer = window.setTimeout(() => {
+        groupDropVerifyTimer = null;
+        if (!mounted || storedGroupHasNode(groupId, drag.nodeId)) return;
+        replayGroupDrop(drag.node, target);
+      }, GROUP_DROP_VERIFY_MS);
+    };
+
     window.addEventListener('pointerdown', onWindowPointerDown, true);
+    window.addEventListener('pointermove', onWindowPointerMove, true);
+    window.addEventListener('pointerup', finishTrackedGroupDrag, true);
+    window.addEventListener('pointercancel', (event) => finishTrackedGroupDrag(event, true), true);
 
     // Keep V37's pinchRef alive until every finger leaves the screen. Without
     // this bridge, lifting one of two fingers ends pinch early and a surviving
@@ -212,10 +334,14 @@ function NetworkFinalInteractionPolish() {
     return () => {
       mounted = false;
       clearIntroTimers();
+      if (groupDropVerifyTimer !== null) window.clearTimeout(groupDropVerifyTimer);
       root.removeEventListener('pointerdown', onUserInteraction, true);
       root.removeEventListener('touchstart', onUserInteraction, true);
       stage.removeEventListener('wheel', onUserInteraction, true);
       window.removeEventListener('pointerdown', onWindowPointerDown, true);
+      window.removeEventListener('pointermove', onWindowPointerMove, true);
+      window.removeEventListener('pointerup', finishTrackedGroupDrag, true);
+      // pointercancel uses an inline wrapper above and disappears with this mount.
       window.removeEventListener('touchstart', onWindowTouchStart, true);
       window.removeEventListener('touchend', holdIntermediatePinchEnd, true);
       window.removeEventListener('touchcancel', holdIntermediatePinchEnd, true);
