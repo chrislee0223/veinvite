@@ -441,7 +441,7 @@ function NetworkInteractionController() {
       autoNavTimer = window.setTimeout(() => {
         autoNavTimer = null;
         if (!mounted || !node.isConnected) { programmaticNavigation = false; return; }
-        node.click();
+        node.querySelector<HTMLElement>('.nodeCircle')?.click();
         window.setTimeout(() => {
           root.querySelector<HTMLButtonElement>('.profileCard .viewNetwork')?.click();
           node.classList.remove('v50NavigationCandidate');
@@ -535,7 +535,7 @@ function NetworkInteractionController() {
         window.setTimeout(() => {
           if (!mounted || pendingTrustedNodeClick !== current.node || !current.node.isConnected) return;
           pendingTrustedNodeClick = null;
-          current.node.click();
+          current.node.querySelector<HTMLElement>('.nodeCircle,.slotCircle')?.click();
         }, 0);
         return;
       }
