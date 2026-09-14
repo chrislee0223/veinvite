@@ -73,6 +73,11 @@ function NetworkCreateGroupDragGhostV69() {
       }
     };
 
+    const cancelActiveDrag = () => {
+      const current = drag;
+      if (current) cancelUnderlyingCreateDrag(current);
+    };
+
     const makeGhost = (current: CreateDrag) => {
       if (current.ghost || !current.node.isConnected) return current.ghost;
 
@@ -107,7 +112,10 @@ function NetworkCreateGroupDragGhostV69() {
         touchPointers.add(event.pointerId);
         if (touchPointers.size > 1) {
           multiTouchBlocked = true;
-          if (drag) cancelUnderlyingCreateDrag(drag);
+          cancelActiveDrag();
+          if (event.cancelable) event.preventDefault();
+          event.stopPropagation();
+          event.stopImmediatePropagation();
           return;
         }
       }
@@ -142,7 +150,7 @@ function NetworkCreateGroupDragGhostV69() {
       const current = drag;
       if (!event.isTrusted || multiTouchBlocked || !current || current.pointerId !== event.pointerId) return;
       if (!createEditorOpen()) {
-        clearDrag();
+        cancelUnderlyingCreateDrag(current);
         return;
       }
 
@@ -169,10 +177,10 @@ function NetworkCreateGroupDragGhostV69() {
     };
 
     const onVisibilityChange = () => {
-      if (document.visibilityState === 'hidden') clearDrag();
+      if (document.visibilityState === 'hidden') cancelActiveDrag();
     };
 
-    const onBlur = () => clearDrag();
+    const onBlur = () => cancelActiveDrag();
 
     window.addEventListener('pointerdown', onPointerDown, true);
     window.addEventListener('pointermove', onPointerMove, true);
