@@ -39,14 +39,37 @@ test('submitted payout recovery uses exact manifest source for large numeric evi
   assert.match(recovery, /exact reward manifest id/u);
 });
 
-test('authenticated retry path advances a pending submitted payout after finality', () => {
+test('authenticated retry path recovers both pending payouts and already-claimed queued rewards', () => {
   assert.match(retryRoute, /requireWalletSession/u);
   assert.match(retryRoute, /sameOrigin/u);
+  assert.match(retryRoute, /hasQueuedOwnClaim/u);
+  assert.match(retryRoute, /claim_requested_at/u);
   assert.match(retryRoute, /hasPendingOwnPayout/u);
-  assert.match(retryRoute, /recoverSubmittedRewardPayout/u);
+  assert.match(retryRoute, /runImmediateClaimRewardPayout/u);
+  assert.match(retryRoute, /queuedClaimBefore/u);
   assert.match(retryRoute, /pendingPayoutBefore/u);
+  assert.match(retryRoute, /queuedClaimAfter/u);
   assert.match(retryRoute, /pendingPayoutAfter/u);
   assert.match(retryRoute, /payoutRecoveryStatus/u);
+});
+
+test('recovery immediately advances queued claims after an older payout finalizes', () => {
+  assert.match(
+    retryRoute,
+    /MAX_CLAIM_PAYOUT_RECOVERY_ITERATIONS = 2/u,
+  );
+  assert.match(
+    retryRoute,
+    /result\.status === 'PAID'/u,
+  );
+  assert.match(
+    retryRoute,
+    /\(result\.queuedCount \?\? 0\) > 0/u,
+  );
+  assert.match(
+    retryRoute,
+    /result = await runImmediateClaimRewardPayout\(\)/u,
+  );
 });
 
 test('schema permits both legacy v2 and proof-aware v3 payout manifests', () => {
