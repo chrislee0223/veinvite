@@ -3,16 +3,31 @@
  *
  * Keep reviewed copy intact and make recently added Network surfaces follow the
  * same wrapping, direction and script-metric guarantees as the rest of the app.
+ * Canvas node/group geometry is intentionally excluded from sizing rules.
  */
 
 :is(
-  .productionNetworkCanaryV45,
   .networkCard,
   .publicExplorePage,
   .publicState,
   .networkHubState,
   .visibilityPanel
-) :where(h1, h2, h3, p, strong, b, small, span, button, label) {
+) :where(h1, h2, h3, p, strong, b, small, span, label) {
+  min-width: 0;
+  max-width: 100%;
+  overflow-wrap: normal;
+  word-break: normal;
+}
+
+.productionNetworkCanaryV45 :is(
+  .identity,
+  .navActions,
+  .canaryViewActions,
+  .v42GroupPanel,
+  .v42GroupRow,
+  .profileCard,
+  .v63GestureToast
+) :where(b, small, span, p, label) {
   min-width: 0;
   max-width: 100%;
   overflow-wrap: normal;
@@ -20,134 +35,148 @@
 }
 
 :is(
-  .productionNetworkCanaryV45,
-  .networkCard,
   .publicExplorePage,
   .publicState,
   .networkHubState,
   .visibilityPanel
-) :where(button) {
+) :where(button:not(.switch):not(.backButton)) {
   height: auto;
   min-height: 36px;
   white-space: normal;
   line-height: 1.3;
 }
 
-/* Network controls were introduced after the original localization pass. Let
- * their copy grow vertically rather than clipping long German, French, Arabic,
- * Urdu, Indic or Greek labels. */
+/* Only text controls may grow for translation. Person nodes, slot nodes and
+ * group hubs keep their exact geometry so edge alignment cannot drift. */
 .productionNetworkCanaryV45 :is(
-  .navActions button,
-  .viewActions button,
-  .scenarioBar button,
-  .v42GroupPanel button,
+  .navActions > button,
+  .canaryViewActions button,
+  .v42GroupPanel button:not(.v42PanelHead > button):not(.v42DeleteGroup),
   .v42GroupRow,
-  .v42GroupHub,
   .profileCard button
 ),
-.publicExplorePage :is(button, .publicRoots > button),
+.publicExplorePage :is(button:not(.backButton), .publicRoots > button),
 .networkHubState button,
-.visibilityPanel button {
+.visibilityPanel button:not(.switch) {
   white-space: normal !important;
   text-overflow: clip !important;
-  overflow: visible;
-  padding-block: 6px;
   text-wrap: balance;
 }
 
 .productionNetworkCanaryV45 :is(
-  .v42GroupHub,
   .v42GroupRow,
   .profileCard,
   .v42GroupPanel
 ) :where(strong, b, p, small, span) {
   white-space: normal !important;
   text-overflow: clip !important;
-  overflow: visible;
-}
-
-/* Keep node metadata compact, but never let glyphs get vertically clipped in
- * scripts with taller ascenders/descenders. */
-.productionNetworkCanaryV45 .personNode {
-  overflow: visible !important;
-}
-
-.productionNetworkCanaryV45 .personNode > :is(b, small),
-.productionNetworkCanaryV45 .slotNode > :is(b, small) {
-  box-sizing: border-box;
-  min-height: 1.25em;
-  line-height: 1.25;
 }
 
 /* Native prose should use natural language boundaries. Latin-script browsers
  * may hyphenate only when their dictionary supports the active html[lang]. */
 html[data-locale-typography='latin'] :is(
-  .productionNetworkCanaryV45,
   .networkCard,
   .publicExplorePage,
   .publicState,
   .networkHubState,
   .visibilityPanel
+) :where(p, button, strong, b),
+html[data-locale-typography='latin'] .productionNetworkCanaryV45 :is(
+  .navActions,
+  .canaryViewActions,
+  .v42GroupPanel,
+  .profileCard
 ) :where(p, button, strong, b) {
   hyphens: auto;
 }
 
 html[lang='ko'] :is(
-  .productionNetworkCanaryV45,
   .networkCard,
   .publicExplorePage,
   .publicState,
   .networkHubState,
   .visibilityPanel
+) :where(p, button, strong, b, span),
+html[lang='ko'] .productionNetworkCanaryV45 :is(
+  .identity,
+  .navActions,
+  .canaryViewActions,
+  .v42GroupPanel,
+  .profileCard
 ) :where(p, button, strong, b, span) {
   word-break: keep-all !important;
   overflow-wrap: normal !important;
 }
 
 html:is([lang='zh'], [lang='zh-tw'], [lang='ja']) :is(
-  .productionNetworkCanaryV45,
   .networkCard,
   .publicExplorePage,
   .publicState,
   .networkHubState,
-  .visibilityPanel
+  .visibilityPanel,
+  .productionNetworkCanaryV45 .identity,
+  .productionNetworkCanaryV45 .navActions,
+  .productionNetworkCanaryV45 .canaryViewActions,
+  .productionNetworkCanaryV45 .v42GroupPanel,
+  .productionNetworkCanaryV45 .profileCard
 ) {
   line-break: strict;
   word-break: normal;
 }
 
-/* Arabic and Indic scripts need extra vertical room inside compact Network
- * cards. Urdu gets a little more room for Nastaliq fallback metrics. */
+/* Arabic and Indic scripts need extra vertical room in text panels and action
+ * labels. Canvas node labels keep their existing geometry. */
 html[data-locale-typography='arabic'] :is(
-  .productionNetworkCanaryV45,
   .networkCard,
   .publicExplorePage,
   .publicState,
   .networkHubState,
   .visibilityPanel
-) :where(h1, h2, h3, p, strong, b, small, span, button) {
+) :where(h1, h2, h3, p, strong, b, small, span, button),
+html[data-locale-typography='arabic'] .productionNetworkCanaryV45 :is(
+  .identity,
+  .navActions,
+  .canaryViewActions,
+  .v42GroupPanel,
+  .profileCard,
+  .v63GestureToast
+) :where(p, strong, b, small, span, button) {
   line-height: 1.48;
 }
 
 html[lang='ur'] :is(
-  .productionNetworkCanaryV45,
   .networkCard,
   .publicExplorePage,
   .publicState,
   .networkHubState,
   .visibilityPanel
-) :where(h1, h2, h3, p, strong, b, small, span, button) {
+) :where(h1, h2, h3, p, strong, b, small, span, button),
+html[lang='ur'] .productionNetworkCanaryV45 :is(
+  .identity,
+  .navActions,
+  .canaryViewActions,
+  .v42GroupPanel,
+  .profileCard,
+  .v63GestureToast
+) :where(p, strong, b, small, span, button) {
   line-height: 1.6;
 }
 
 html[data-locale-typography='indic'] :is(
-  .productionNetworkCanaryV45,
   .networkCard,
   .publicExplorePage,
   .publicState,
   .networkHubState,
   .visibilityPanel
-) :where(h1, h2, h3, p, strong, b, small, span, button) {
+) :where(h1, h2, h3, p, strong, b, small, span, button),
+html[data-locale-typography='indic'] .productionNetworkCanaryV45 :is(
+  .identity,
+  .navActions,
+  .canaryViewActions,
+  .v42GroupPanel,
+  .profileCard,
+  .v63GestureToast
+) :where(p, strong, b, small, span, button) {
   line-height: 1.5;
 }
 
@@ -192,7 +221,6 @@ html[data-locale-typography='indic'] :is(
 
 /* Prefer logical alignment so the same layout works in both directions. */
 :is(
-  .productionNetworkCanaryV45,
   .networkCard,
   .publicExplorePage,
   .publicState,
@@ -207,12 +235,19 @@ html[data-locale-typography='indic'] :is(
 }
 
 html[dir='rtl'] :is(
-  .productionNetworkCanaryV45,
   .networkCard,
   .publicExplorePage,
   .publicState,
   .networkHubState,
   .visibilityPanel
+),
+html[dir='rtl'] .productionNetworkCanaryV45 :is(
+  .identity,
+  .navActions,
+  .canaryViewActions,
+  .v42GroupPanel,
+  .profileCard,
+  .v63GestureToast
 ) {
   direction: rtl;
 }
@@ -229,14 +264,12 @@ html[dir='rtl'] .productionNetworkCanaryV45 :is(
   text-align: right;
 }
 
-html[dir='rtl'] .productionNetworkCanaryV45 :is(
-  .v42GroupHub.v61DropPreview::after,
-  .v42GroupRow.v61DropPreview::after,
-  .v42GroupHub.v61GroupAccepted::after,
-  .v42GroupRow.v61GroupAccepted::after,
-  .v42GroupHub.v63VerifiedTransfer::after,
-  .v42GroupRow.v63VerifiedTransfer::after
-) {
+html[dir='rtl'] .productionNetworkCanaryV45 .v42GroupHub.v61DropPreview::after,
+html[dir='rtl'] .productionNetworkCanaryV45 .v42GroupRow.v61DropPreview::after,
+html[dir='rtl'] .productionNetworkCanaryV45 .v42GroupHub.v61GroupAccepted::after,
+html[dir='rtl'] .productionNetworkCanaryV45 .v42GroupRow.v61GroupAccepted::after,
+html[dir='rtl'] .productionNetworkCanaryV45 .v42GroupHub.v63VerifiedTransfer::after,
+html[dir='rtl'] .productionNetworkCanaryV45 .v42GroupRow.v63VerifiedTransfer::after {
   text-align: right;
 }
 
@@ -267,9 +300,9 @@ html[lang='ur'] .bottomNavigation button {
   }
 
   .productionNetworkCanaryV45 :is(
-    .navActions button,
-    .viewActions button,
-    .v42GroupPanel button
+    .navActions > button,
+    .canaryViewActions button,
+    .v42GroupPanel button:not(.v42PanelHead > button):not(.v42DeleteGroup)
   ) {
     padding-inline: 8px;
   }
