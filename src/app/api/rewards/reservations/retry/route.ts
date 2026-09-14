@@ -1,8 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 
 import { enforceRateLimits } from '@/lib/rateLimitServer';
+import {
+  runImmediateClaimRewardPayout,
+  type AutomaticRewardPayoutResult,
+} from '@/lib/rewards/automaticRewardPayoutWithMnemonic';
 import { reserveEligibleReferralRewards } from '@/lib/rewards/rewardReservation';
-import { recoverSubmittedRewardPayout } from '@/lib/rewards/submittedPayoutRecovery';
 import { supabaseAdmin } from '@/lib/supabaseServer';
 import {
   requireWalletSession,
@@ -10,6 +13,7 @@ import {
 } from '@/lib/walletAuthServer';
 
 const RETRY_LIMIT_PER_HOUR = 36;
+const MAX_CLAIM_PAYOUT_RECOVERY_ITERATIONS = 2;
 
 function noStoreJson(body: unknown, init?: ResponseInit) {
   return NextResponse.json(body, {
@@ -59,6 +63,25 @@ async function hasWaitingOwnReservation(wallet: string): Promise<boolean> {
   return (data ?? []).length > 0;
 }
 
+async function hasQueuedOwnClaim(wallet: string): Promise<boolean> {
+  const { data, error } = await supabaseAdmin
+    .from('reward_queue_entries')
+    .select('id')
+    .eq('recipient_wallet', wallet)
+    .eq('status', 'QUEUED')
+    .not('claim_requested_at', 'is', null)
+    .is('assigned_round_id', null)
+    .limit(1);
+
+  if (error) {
+    throw new Error(
+      `Queued reward claim state could not be checked: ${error.message}`,
+    );
+  }
+
+  return (data ?? []).length > 0;
+}
+
 async function hasPendingOwnPayout(wallet: string): Promise<boolean> {
   const { data, error } = await supabaseAdmin
     .from('reward_payouts')
@@ -74,6 +97,34 @@ async function hasPendingOwnPayout(wallet: string): Promise<boolean> {
   }
 
   return (data ?? []).length > 0;
+}
+
+function shouldAdvanceQueuedClaims(
+  result: AutomaticRewardPayoutResult,
+): boolean {
+  return (
+    result.status === 'PAID' &&
+    (result.queuedCount ?? 0) > 0
+  );
+}
+
+async function runClaimPayoutRecoveryCycle():
+Promise<AutomaticRewardPayoutResult> {
+  let result = await runImmediateClaimRewardPayout();
+
+  for (
+    let iteration = 1;
+    iteration < MAX_CLAIM_PAYOUT_RECOVERY_ITERATIONS &&
+    shouldAdvanceQueuedClaims(result);
+    iteration += 1
+  ) {
+    // Finalizing an older active round can expose an already-claimed QUEUED
+    // cohort. Advance it immediately into the normal immutable payout worker
+    // instead of waiting for another Claim, browser session, or daily cron.
+    result = await runImmediateClaimRewardPayout();
+  }
+
+  return result;
 }
 
 export async function POST(request: NextRequest) {
@@ -103,13 +154,21 @@ export async function POST(request: NextRequest) {
   }
 
   try {
-    const [waitingBefore, pendingPayoutBefore] =
-      await Promise.all([
-        hasWaitingOwnReservation(wallet),
-        hasPendingOwnPayout(wallet),
-      ]);
+    const [
+      waitingBefore,
+      queuedClaimBefore,
+      pendingPayoutBefore,
+    ] = await Promise.all([
+      hasWaitingOwnReservation(wallet),
+      hasQueuedOwnClaim(wallet),
+      hasPendingOwnPayout(wallet),
+    ]);
 
-    if (!waitingBefore && !pendingPayoutBefore) {
+    if (
+      !waitingBefore &&
+      !queuedClaimBefore &&
+      !pendingPayoutBefore
+    ) {
       return noStoreJson({
         status: 'IDLE',
         ready: false,
@@ -126,22 +185,28 @@ export async function POST(request: NextRequest) {
     ]);
     if (rateLimitResponse) return rateLimitResponse;
 
-    let payoutRecovery = null;
+    let payoutRecovery: AutomaticRewardPayoutResult | null = null;
 
-    if (pendingPayoutBefore) {
-      payoutRecovery =
-        await recoverSubmittedRewardPayout();
+    if (queuedClaimBefore || pendingPayoutBefore) {
+      payoutRecovery = await runClaimPayoutRecoveryCycle();
     }
 
     const sweep = waitingBefore
       ? await reserveEligibleReferralRewards()
       : null;
-    const [waitingAfter, pendingPayoutAfter] =
-      await Promise.all([
-        hasWaitingOwnReservation(wallet),
-        hasPendingOwnPayout(wallet),
-      ]);
-    const ready = !waitingAfter && !pendingPayoutAfter;
+    const [
+      waitingAfter,
+      queuedClaimAfter,
+      pendingPayoutAfter,
+    ] = await Promise.all([
+      hasWaitingOwnReservation(wallet),
+      hasQueuedOwnClaim(wallet),
+      hasPendingOwnPayout(wallet),
+    ]);
+    const ready =
+      !waitingAfter &&
+      !queuedClaimAfter &&
+      !pendingPayoutAfter;
 
     return noStoreJson({
       status: ready ? 'READY' : 'WAITING_FINALITY',
@@ -149,10 +214,12 @@ export async function POST(request: NextRequest) {
       sweep,
       payoutRecoveryStatus:
         payoutRecovery?.status ?? null,
+      payoutRecoveryQueuedCount:
+        payoutRecovery?.queuedCount ?? null,
     });
   } catch (error) {
     console.error(
-      'Reward reservation or submitted payout finality retry failed:',
+      'Reward reservation or claimed payout recovery failed:',
       error,
     );
     return noStoreJson(
