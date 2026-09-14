@@ -28,6 +28,15 @@ test('the center YOU label explicitly follows the selected locale and restores n
   assert.match(controlCopySource, /ko:\s*\{ you: '나'/);
 });
 
+test('top identity row keeps a deliberate logical inset and stable multilingual alignment', () => {
+  assert.match(source, /\.productionNetworkCanaryV45 \.identity \{[\s\S]*?padding-inline-start:\s*6px/);
+  assert.match(source, /\.productionNetworkCanaryV45 \.identity \{[\s\S]*?padding-inline-end:\s*2px/);
+  assert.match(source, /\.productionNetworkCanaryV45 \.identity \{[\s\S]*?align-items:\s*baseline\s*!important/);
+  assert.match(source, /\.productionNetworkCanaryV45 \.identity \{[\s\S]*?justify-content:\s*flex-start\s*!important/);
+  assert.match(source, /\.identity > :is\(b, span\)[\s\S]*?white-space:\s*nowrap\s*!important/);
+  assert.match(source, /data-v70-direction='rtl'\] \.identity[\s\S]*?direction:\s*rtl/);
+});
+
 test('translated toolbar and group editor controls grow vertically instead of clipping long scripts', () => {
   for (const selector of [
     '.navActions > button:not(.zoomValue)',
@@ -44,6 +53,7 @@ test('translated toolbar and group editor controls grow vertically instead of cl
   assert.match(source, /min-height:\s*32px\s*!important/);
   assert.match(source, /min-height:\s*34px\s*!important/);
   assert.match(source, /white-space:\s*normal\s*!important/);
+  assert.match(source, /\.v65LocalizedUiCopy::after[\s\S]*?line-height:\s*inherit\s*!important/);
 });
 
 test('group panel uses available mobile width and logical direction instead of English-only physical spacing', () => {
@@ -63,6 +73,13 @@ test('RTL and tall-script locales get direction-aware arrows and extra vertical 
   assert.match(source, /data-locale-typography='indic'/);
   assert.match(source, /html\[lang='ur'\]/);
   assert.match(source, /min-height:\s*38px\s*!important/);
+});
+
+test('Korean keeps phrase boundaries while Chinese and Japanese retain native line breaking', () => {
+  assert.match(source, /html\[lang='ko'\][\s\S]*?word-break:\s*keep-all\s*!important/);
+  assert.match(source, /html:is\(\[lang='zh'\],\[lang='zh-tw'\],\[lang='ja'\]\)[\s\S]*?line-break:\s*strict/);
+  assert.match(source, /html:is\(\[lang='zh'\],\[lang='zh-tw'\],\[lang='ja'\]\)[\s\S]*?word-break:\s*normal\s*!important/);
+  assert.doesNotMatch(source, /html:is\(\[lang='ko'\],\[lang='zh'\]/);
 });
 
 test('geometry-bound canvas labels stay one line while overlay copy can wrap safely', () => {
