@@ -36,6 +36,15 @@ test('drag ghost follows screen coordinates and current canvas scale without mut
   assert.doesNotMatch(source, /MutationObserver/);
 });
 
+test('V69 presents one solid moving node instead of a translucent duplicate', () => {
+  assert.match(source, /\.personNode\.v69CreateDragSource\s*\{[\s\S]*?opacity:\s*0\s*!important;[\s\S]*?transition:\s*none\s*!important;/);
+  assert.match(source, /\.v69CreateDragGhost\s*\{[\s\S]*?opacity:\s*1\s*!important;[\s\S]*?filter:\s*none\s*!important;/);
+  assert.match(source, /\.v69CreateDragGhost > \.nodeCircle\s*\{[\s\S]*?transform:\s*translateX\(-50%\)\s*!important;[\s\S]*?box-shadow:\s*none\s*!important;[\s\S]*?opacity:\s*1\s*!important;/);
+  assert.doesNotMatch(source, /opacity:\s*\.44\b/);
+  assert.doesNotMatch(source, /drop-shadow\(/);
+  assert.doesNotMatch(source, /scale\(1\.045\)/);
+});
+
 test('drag ghost keeps pointer ownership and cleans transient state on every exit path', () => {
   assert.match(source, /setPointerCapture/);
   assert.match(source, /releasePointerCapture/);
