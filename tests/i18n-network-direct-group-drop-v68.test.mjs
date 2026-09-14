@@ -2,17 +2,19 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import test from 'node:test';
 
-const [source, dragGhostSource, guideSource] = await Promise.all([
+const [source, dragGhostSource, localeLayoutSource, guideSource] = await Promise.all([
   readFile('src/components/AppNetworkCanaryV68.tsx', 'utf8'),
   readFile('src/components/AppNetworkCanaryV69.tsx', 'utf8'),
+  readFile('src/components/AppNetworkCanaryV70.tsx', 'utf8'),
   readFile('src/components/AppGuide.tsx', 'utf8'),
 ]);
 
-test('V68 still wraps the stable V67 Network surface behind V69', () => {
+test('V68 still wraps the stable V67 Network surface behind V70 and V69', () => {
   assert.match(source, /AppNetworkCanaryV67/);
   assert.match(source, /<AppNetworkCanaryV67 locale=\{locale\} \/>/);
-  assert.match(guideSource, /AppNetworkCanaryV69/);
-  assert.doesNotMatch(guideSource, /const AppNetworkCanaryV68/);
+  assert.match(guideSource, /AppNetworkCanaryV70/);
+  assert.match(localeLayoutSource, /AppNetworkCanaryV69/);
+  assert.match(localeLayoutSource, /<AppNetworkCanaryV69 locale=\{locale\} \/>/);
   assert.match(dragGhostSource, /AppNetworkCanaryV68/);
   assert.match(dragGhostSource, /<AppNetworkCanaryV68 locale=\{locale\} \/>/);
 });
