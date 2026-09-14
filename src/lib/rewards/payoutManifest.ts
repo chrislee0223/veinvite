@@ -7,6 +7,8 @@ import { VEINVITE_APP_ID } from '@/lib/rewards/onchainPool';
 const ADDRESS_PATTERN = /^0x[0-9a-f]{40}$/;
 const HEX_DATA_PATTERN = /^0x[0-9a-f]+$/;
 const INTEGER_PATTERN = /^\d+$/;
+const UUID_V4_PATTERN =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
 
 export const PAYOUT_MANIFEST_VERSION_V2 =
   'veinvite-payout-manifest-v2' as const;
@@ -46,6 +48,7 @@ export type RewardPayoutForManifest = {
   amount_wei: string | number;
   status: string;
   tx_id?: string | null;
+  public_proof_id?: string | null;
 };
 
 export type PayoutManifestClause = {
@@ -54,6 +57,7 @@ export type PayoutManifestClause = {
   recipientWallet: string;
   amountWei: string;
   proof: string;
+  publicProofId?: string;
   proofTypes?: string[];
   proofValues?: string[];
   impactCodes?: string[];
@@ -118,6 +122,21 @@ function normalizeAddress(
   if (!ADDRESS_PATTERN.test(normalized)) {
     throw new Error(
       `${fieldName} is not a valid VeChain address.`,
+    );
+  }
+
+  return normalized;
+}
+
+function normalizePublicProofId(
+  value: string | null | undefined,
+  fieldName: string,
+): string {
+  const normalized = value?.trim().toLowerCase() ?? '';
+
+  if (!UUID_V4_PATTERN.test(normalized)) {
+    throw new Error(
+      `${fieldName} is not a valid public Proof ID.`,
     );
   }
 
@@ -229,20 +248,26 @@ function resolveManifestVersion(
 
 function buildPayoutProof(
   payoutId: string,
+  publicProofId: string | null,
   version: PayoutManifestVersion,
 ): string {
-  const proofVersion =
-    version === PAYOUT_MANIFEST_VERSION_V2
-      ? 'v1'
-      : 'v2';
+  if (version === PAYOUT_MANIFEST_VERSION_V2) {
+    return `veinvite:referral-onboarding:v1:payout:${payoutId}`;
+  }
 
-  return `veinvite:referral-onboarding:${proofVersion}:payout:${payoutId}`;
+  if (!publicProofId) {
+    throw new Error(
+      `Reward payout ${payoutId} is missing a public Proof ID.`,
+    );
+  }
+
+  return `veinvite:referral-onboarding:v2:proof:${publicProofId}`;
 }
 
 function buildPublicProofUrl(
-  payoutId: string,
+  publicProofId: string,
 ): string {
-  return `${VEINVITE_REWARD_PROOF_ORIGIN}/proofs/${payoutId}`;
+  return `${VEINVITE_REWARD_PROOF_ORIGIN}/proofs/${publicProofId}`;
 }
 
 export function buildPayoutManifest({
@@ -307,6 +332,13 @@ export function buildPayoutManifest({
       'payout recipient_wallet',
     );
     const inviteCode = payout.invite_code.trim();
+    const publicProofId =
+      manifestVersion === PAYOUT_MANIFEST_VERSION_V3
+        ? normalizePublicProofId(
+            payout.public_proof_id,
+            `payout ${id} public_proof_id`,
+          )
+        : null;
 
     if (!inviteCode) {
       throw new Error(
@@ -331,6 +363,7 @@ export function buildPayoutManifest({
       amountWei,
       recipientWallet,
       inviteCode,
+      publicProofId,
     };
   });
 
@@ -340,6 +373,7 @@ export function buildPayoutManifest({
 
   const seenIds = new Set<string>();
   const seenInviteCodes = new Set<string>();
+  const seenPublicProofIds = new Set<string>();
   let totalAmount = 0n;
 
   const clauses = normalizedPayouts.map((payout) => {
@@ -357,12 +391,25 @@ export function buildPayoutManifest({
       );
     }
 
+    if (
+      payout.publicProofId &&
+      seenPublicProofIds.has(payout.publicProofId)
+    ) {
+      throw new Error(
+        `Duplicate public Proof ID ${payout.publicProofId}.`,
+      );
+    }
+
     seenIds.add(payout.id);
     seenInviteCodes.add(inviteKey);
+    if (payout.publicProofId) {
+      seenPublicProofIds.add(payout.publicProofId);
+    }
     totalAmount += BigInt(payout.amountWei);
 
     const proof = buildPayoutProof(
       payout.id,
+      payout.publicProofId,
       manifestVersion,
     );
 
@@ -398,10 +445,16 @@ export function buildPayoutManifest({
       };
     }
 
+    if (!payout.publicProofId) {
+      throw new Error(
+        `Reward payout ${payout.id} is missing a public Proof ID.`,
+      );
+    }
+
     const proofTypes = ['text', 'link'];
     const proofValues = [
       proof,
-      buildPublicProofUrl(payout.id),
+      buildPublicProofUrl(payout.publicProofId),
     ];
     const impactCodes: string[] = [];
     const impactValues: string[] = [];
@@ -436,6 +489,7 @@ export function buildPayoutManifest({
         payout.recipientWallet,
       amountWei: payout.amountWei,
       proof,
+      publicProofId: payout.publicProofId,
       proofTypes,
       proofValues,
       impactCodes,
