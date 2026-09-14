@@ -32,6 +32,7 @@ const NETWORK_NATURALNESS_PATCHES: Record<SupportedLocale, NetworkNaturalnessPat
       groupsCount: 'Groups: {count}',
       zeroAllowed: 'This group can stay empty',
       dragUngroup: 'Drop here to remove from the group',
+      newNodeAdded: 'New friend added',
     },
   },
   ko: {
@@ -41,12 +42,17 @@ const NETWORK_NATURALNESS_PATCHES: Record<SupportedLocale, NetworkNaturalnessPat
       groupsCount: '그룹 {count}개',
       dropPersonOrTap: '사람을 여기로 끌거나 눌러 그룹 만들기',
       releaseAdd: '놓으면 추가',
+      emptyReady: '비어 있음 · 사람을 놓을 수 있어요',
       optional: '사람을 선택하지 않아도 돼요',
       zeroAllowed: '빈 그룹으로 저장할 수 있어요',
       save: '변경사항 저장',
+      tapAddRemove: '사람을 눌러 추가하거나 제거하세요',
       removeFromGroup: '그룹에서 제거',
       dragUngroup: '그룹에서만 빼려면 여기에 놓기',
       hintEdit: '자유롭게 이동 · 배경을 눌러 편집 종료',
+      hintCluster: '확대하거나 +N을 눌러 펼치기 · 축소하면 다시 묶기',
+      hintView: '사람을 길게 눌러 편집 · 화면을 끌어 이동 · 두 손가락으로 확대/축소',
+      newNodeAdded: '새 친구가 추가됐어요',
     },
     controls: {
       branch: '분기',
@@ -79,6 +85,7 @@ const NETWORK_NATURALNESS_PATCHES: Record<SupportedLocale, NetworkNaturalnessPat
       groupsCount: '分组：{count}',
       zeroAllowed: '分组可以留空',
       dragUngroup: '拖到这里即可移出分组',
+      newNodeAdded: '已添加新朋友',
     },
   },
   hi: {
@@ -88,6 +95,7 @@ const NETWORK_NATURALNESS_PATCHES: Record<SupportedLocale, NetworkNaturalnessPat
       groupsCount: 'समूह: {count}',
       zeroAllowed: 'समूह खाली भी रह सकता है',
       dragUngroup: 'समूह से हटाने के लिए यहाँ छोड़ें',
+      newNodeAdded: 'नया दोस्त जोड़ा गया',
     },
     experience: {
       invitedBy: 'आमंत्रणकर्ता',
@@ -101,6 +109,7 @@ const NETWORK_NATURALNESS_PATCHES: Record<SupportedLocale, NetworkNaturalnessPat
       zeroAllowed: 'El grupo puede quedar vacío',
       dragUngroup: 'Suelta aquí para quitar del grupo',
       hintView: 'Mantén un nodo para editar · arrastra el lienzo · pellizca para hacer zoom',
+      newNodeAdded: 'Nuevo amigo añadido',
     },
   },
   ja: {
@@ -110,6 +119,7 @@ const NETWORK_NATURALNESS_PATCHES: Record<SupportedLocale, NetworkNaturalnessPat
       groupsCount: 'グループ：{count}',
       zeroAllowed: '空のグループでも保存できます',
       dragUngroup: 'グループから外すならここにドロップ',
+      newNodeAdded: '新しい友だちを追加しました',
     },
   },
   it: {
@@ -121,6 +131,7 @@ const NETWORK_NATURALNESS_PATCHES: Record<SupportedLocale, NetworkNaturalnessPat
       dragUngroup: 'Rilascia qui per rimuovere dal gruppo',
       joining: 'Sta entrando nella rete',
       verifiedAdding: 'Verificato · inserimento nella rete in corso',
+      newNodeAdded: 'Nuovo amico aggiunto',
     },
     explore: {
       maintenance: 'La rete non è al momento disponibile.',
@@ -134,6 +145,7 @@ const NETWORK_NATURALNESS_PATCHES: Record<SupportedLocale, NetworkNaturalnessPat
       zeroAllowed: 'Grup boş kalabilir',
       dragUngroup: 'Gruptan çıkarmak için buraya bırak',
       available: 'Davet edilebilir',
+      newNodeAdded: 'Yeni arkadaş eklendi',
     },
     network: {
       title: 'Ağın çok yakında hazır olacak',
@@ -146,6 +158,7 @@ const NETWORK_NATURALNESS_PATCHES: Record<SupportedLocale, NetworkNaturalnessPat
       groupsCount: 'Groepen: {count}',
       zeroAllowed: 'De groep mag leeg blijven',
       dragUngroup: 'Laat hier los om uit de groep te halen',
+      newNodeAdded: 'Nieuwe vriend toegevoegd',
     },
   },
   de: {
@@ -157,6 +170,7 @@ const NETWORK_NATURALNESS_PATCHES: Record<SupportedLocale, NetworkNaturalnessPat
       dragUngroup: 'Hier loslassen, um aus der Gruppe zu entfernen',
       fit: 'Ansicht anpassen',
       hintView: 'Knoten halten zum Bearbeiten · Fläche ziehen · mit zwei Fingern zoomen',
+      newNodeAdded: 'Neuer Freund hinzugefügt',
     },
     explore: {
       viewing: 'Erkundung',
@@ -170,6 +184,7 @@ const NETWORK_NATURALNESS_PATCHES: Record<SupportedLocale, NetworkNaturalnessPat
       zeroAllowed: 'Le groupe peut rester vide',
       dragUngroup: 'Relâchez ici pour retirer du groupe',
       joining: 'Rejoint le réseau',
+      newNodeAdded: 'Nouvel ami ajouté',
     },
   },
   ar: {
@@ -180,6 +195,7 @@ const NETWORK_NATURALNESS_PATCHES: Record<SupportedLocale, NetworkNaturalnessPat
       zeroAllowed: 'يمكن أن تبقى المجموعة فارغة',
       dragUngroup: 'أفلت هنا للإزالة من المجموعة',
       hintView: 'اضغط مطولًا على العقدة للتعديل · اسحب اللوحة · استخدم إصبعين للتكبير والتصغير',
+      newNodeAdded: 'تمت إضافة صديق جديد',
     },
   },
   bn: {
@@ -189,6 +205,7 @@ const NETWORK_NATURALNESS_PATCHES: Record<SupportedLocale, NetworkNaturalnessPat
       groupsCount: 'গ্রুপ: {count}',
       zeroAllowed: 'গ্রুপ খালি রাখা যায়',
       dragUngroup: 'গ্রুপ থেকে সরাতে এখানে ছেড়ে দিন',
+      newNodeAdded: 'নতুন বন্ধু যোগ হয়েছে',
     },
   },
   pt: {
@@ -199,6 +216,7 @@ const NETWORK_NATURALNESS_PATCHES: Record<SupportedLocale, NetworkNaturalnessPat
       zeroAllowed: 'O grupo pode ficar vazio',
       dragUngroup: 'Solte aqui para remover do grupo',
       hintView: 'Segure um nó para editar · arraste a tela · faça pinça para dar zoom',
+      newNodeAdded: 'Novo amigo adicionado',
     },
   },
   ru: {
@@ -208,6 +226,7 @@ const NETWORK_NATURALNESS_PATCHES: Record<SupportedLocale, NetworkNaturalnessPat
       groupsCount: 'Группы: {count}',
       zeroAllowed: 'Группа может оставаться пустой',
       dragUngroup: 'Отпустите здесь, чтобы убрать из группы',
+      newNodeAdded: 'Добавлен новый друг',
     },
   },
   id: {
@@ -218,6 +237,7 @@ const NETWORK_NATURALNESS_PATCHES: Record<SupportedLocale, NetworkNaturalnessPat
       zeroAllowed: 'Grup boleh tetap kosong',
       dragUngroup: 'Lepaskan di sini untuk mengeluarkan dari grup',
       hintView: 'Tahan node untuk mengedit · seret kanvas · cubit untuk memperbesar atau memperkecil',
+      newNodeAdded: 'Teman baru ditambahkan',
     },
   },
   vi: {
@@ -228,6 +248,7 @@ const NETWORK_NATURALNESS_PATCHES: Record<SupportedLocale, NetworkNaturalnessPat
       zeroAllowed: 'Nhóm có thể để trống',
       dragUngroup: 'Thả vào đây để đưa ra khỏi nhóm',
       hintView: 'Giữ một nút mạng để chỉnh sửa · kéo màn hình · chụm để thu phóng',
+      newNodeAdded: 'Đã thêm người bạn mới',
     },
     network: {
       title: 'Mạng lưới của bạn sắp sẵn sàng',
@@ -242,6 +263,7 @@ const NETWORK_NATURALNESS_PATCHES: Record<SupportedLocale, NetworkNaturalnessPat
       dragUngroup: '拖到這裡即可移出群組',
       dragOrTap: '從網路拖入或點按選擇',
       verifiedAdding: '已驗證 · 正在加入此網路',
+      newNodeAdded: '已新增朋友',
     },
     experience: {
       title: '我的網路',
@@ -270,6 +292,7 @@ const NETWORK_NATURALNESS_PATCHES: Record<SupportedLocale, NetworkNaturalnessPat
       dragUngroup: 'Släpp här för att ta bort från gruppen',
       joining: 'Går med',
       newFriendJoining: 'En ny vän går med…',
+      newNodeAdded: 'Ny vän tillagd',
     },
   },
   ro: {
@@ -279,6 +302,7 @@ const NETWORK_NATURALNESS_PATCHES: Record<SupportedLocale, NetworkNaturalnessPat
       groupsCount: 'Grupuri: {count}',
       zeroAllowed: 'Grupul poate rămâne gol',
       dragUngroup: 'Eliberează aici pentru a scoate din grup',
+      newNodeAdded: 'Prieten nou adăugat',
     },
   },
   ur: {
@@ -288,6 +312,7 @@ const NETWORK_NATURALNESS_PATCHES: Record<SupportedLocale, NetworkNaturalnessPat
       groupsCount: 'گروپس: {count}',
       zeroAllowed: 'گروپ خالی بھی رہ سکتا ہے',
       dragUngroup: 'گروپ سے نکالنے کے لیے یہاں چھوڑیں',
+      newNodeAdded: 'نیا دوست شامل ہوگیا',
     },
   },
   pcm: {
@@ -298,6 +323,7 @@ const NETWORK_NATURALNESS_PATCHES: Record<SupportedLocale, NetworkNaturalnessPat
       zeroAllowed: 'Group fit remain empty',
       dragUngroup: 'Drop am here to comot am from group',
       hintEdit: 'Drag am anywhere · tap background to finish',
+      newNodeAdded: 'New friend don join',
     },
   },
   arz: {
@@ -307,6 +333,7 @@ const NETWORK_NATURALNESS_PATCHES: Record<SupportedLocale, NetworkNaturalnessPat
       groupsCount: 'المجموعات: {count}',
       zeroAllowed: 'المجموعة ينفع تفضل فاضية',
       dragUngroup: 'سيبه هنا عشان تشيله من المجموعة',
+      newNodeAdded: 'اتضاف صديق جديد',
     },
   },
   mr: {
@@ -318,6 +345,7 @@ const NETWORK_NATURALNESS_PATCHES: Record<SupportedLocale, NetworkNaturalnessPat
       dragUngroup: 'गटातून काढण्यासाठी इथे सोडा',
       collapsed: 'आकुंचित',
       expanded: 'विस्तारित',
+      newNodeAdded: 'नवा मित्र जोडला',
     },
     controls: {
       collapseBranch: 'शाखा दुमडा',
@@ -330,6 +358,7 @@ const NETWORK_NATURALNESS_PATCHES: Record<SupportedLocale, NetworkNaturalnessPat
       groupsCount: 'గ్రూపులు: {count}',
       zeroAllowed: 'గ్రూపును ఖాళీగా ఉంచవచ్చు',
       dragUngroup: 'గ్రూపు నుంచి తీసివేయడానికి ఇక్కడ వదలండి',
+      newNodeAdded: 'కొత్త స్నేహితుడు జోడించబడ్డాడు',
     },
   },
   sw: {
@@ -339,6 +368,7 @@ const NETWORK_NATURALNESS_PATCHES: Record<SupportedLocale, NetworkNaturalnessPat
       groupsCount: 'Vikundi: {count}',
       zeroAllowed: 'Kikundi kinaweza kubaki tupu',
       dragUngroup: 'Achia hapa ili kuondoa kwenye kikundi',
+      newNodeAdded: 'Rafiki mpya ameongezwa',
     },
   },
   ha: {
@@ -348,6 +378,7 @@ const NETWORK_NATURALNESS_PATCHES: Record<SupportedLocale, NetworkNaturalnessPat
       groupsCount: 'Rukuni: {count}',
       zeroAllowed: 'Rukuni na iya zama babu kowa',
       dragUngroup: 'Saki a nan don cirewa daga rukuni',
+      newNodeAdded: 'An ƙara sabon aboki',
     },
   },
   el: {
@@ -359,6 +390,7 @@ const NETWORK_NATURALNESS_PATCHES: Record<SupportedLocale, NetworkNaturalnessPat
       dragUngroup: 'Άφησε εδώ για αφαίρεση από την ομάδα',
       joining: 'Μπαίνει στο δίκτυο',
       newFriendJoining: 'Ένας νέος φίλος μπαίνει στο δίκτυο…',
+      newNodeAdded: 'Προστέθηκε νέος φίλος',
     },
   },
 };
