@@ -23,14 +23,16 @@ export function AppNetworkCanaryV67({ locale }: { locale: Locale }) {
 
         /* Restore clear base outlines and avatar-safe clipping. Border properties
            intentionally stay non-important so pressing/joining/selected states
-           from the mature layers keep their higher-specificity feedback. */
+           from the mature layers keep their higher-specificity feedback. Use
+           background-color (not shorthand) so future avatar background images
+           are never reset by this correction layer. */
         .productionNetworkCanaryV45 .nodeCircle {
           overflow: hidden !important;
           isolation: auto !important;
           border-width: 1px;
           border-style: solid;
           border-color: rgba(210, 174, 65, .46);
-          background: #0d0d0b;
+          background-color: #0d0d0b;
         }
 
         .productionNetworkCanaryV45 .slotCircle {
@@ -39,7 +41,7 @@ export function AppNetworkCanaryV67({ locale }: { locale: Locale }) {
           border-width: 1px;
           border-style: dashed;
           border-color: rgba(226, 181, 62, .58);
-          background: #0d0d0b;
+          background-color: #0d0d0b;
         }
 
         .productionNetworkCanaryV45 .stage.editMode .nodeCircle,
