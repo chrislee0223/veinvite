@@ -4,24 +4,16 @@ import type { Locale } from '@/lib/i18n/locales';
 import { AppNetworkCanaryV66 } from './AppNetworkCanaryV66';
 
 /*
- * V67 corrects the presentation regressions introduced by V66 without taking
- * ownership of Network geometry, persistence or gestures.
- *
- * - remove the oversized circle-local halos that reduced border contrast
- * - keep node circles avatar-safe by clipping their future image contents
- * - move endpoint softness to a tiny button-level occlusion/fade patch
- * - keep metadata clear of the circle with only a small visual gap increase
- * - make YOU fully opaque so no authoritative/slot edge can show through it
- * - reduce ambient travel and keep group hubs static because V57 intentionally
- *   does not read CSS animation offsets
+ * V67 corrects V66's presentation regressions without taking ownership of
+ * Network geometry, persistence, spacing, hit targets or gestures.
  */
 export function AppNetworkCanaryV67({ locale }: { locale: Locale }) {
   return (
     <>
       <AppNetworkCanaryV66 locale={locale} />
       <style jsx global>{`
-        /* Retire V66's large circle-local halos. They were visually readable as
-           dark rings and also forced overflow:visible on the future avatar clip. */
+        /* V66's circle-local halos became visible as large dark rings and also
+           forced overflow:visible on the future avatar container. Remove them. */
         .productionNetworkCanaryV45 .nodeCircle::before,
         .productionNetworkCanaryV45 .slotCircle::before,
         .productionNetworkCanaryV45 .clusterNode > span::before {
@@ -29,13 +21,12 @@ export function AppNetworkCanaryV67({ locale }: { locale: Locale }) {
           display: none !important;
         }
 
-        /* Preserve the intended base circle treatment and future avatar clipping.
-           Do not use !important on border style/color here: higher-specificity
-           selected/pressed/joining/edit states must still be able to change them. */
+        /* Restore clear base outlines and avatar-safe clipping. Border properties
+           intentionally stay non-important so pressing/joining/selected states
+           from the mature layers keep their higher-specificity feedback. */
         .productionNetworkCanaryV45 .nodeCircle {
           overflow: hidden !important;
           isolation: auto !important;
-          z-index: 1;
           border-width: 1px;
           border-style: solid;
           border-color: rgba(210, 174, 65, .46);
@@ -45,11 +36,15 @@ export function AppNetworkCanaryV67({ locale }: { locale: Locale }) {
         .productionNetworkCanaryV45 .slotCircle {
           overflow: hidden !important;
           isolation: auto !important;
-          z-index: 1;
           border-width: 1px;
           border-style: dashed;
           border-color: rgba(226, 181, 62, .58);
           background: #0d0d0b;
+        }
+
+        .productionNetworkCanaryV45 .stage.editMode .nodeCircle,
+        .productionNetworkCanaryV45 .stage.editMode .slotCircle {
+          border-color: rgba(244, 183, 40, .65);
         }
 
         .productionNetworkCanaryV45 .clusterNode > span {
@@ -57,10 +52,10 @@ export function AppNetworkCanaryV67({ locale }: { locale: Locale }) {
           overflow: hidden !important;
         }
 
-        /* Endpoint softness now lives on the whole node button, not inside the
-           circle. The patch is only ~4px wider than the visible circle, so it
-           hides the last few pixels of an edge without creating a second ring.
-           It is paint-only: no geometry, pointer or storage state is involved. */
+        /* Endpoint softness is a tiny paint-only patch behind the mature node.
+           The buttons form isolated stacking contexts, so z-index:-1 remains
+           behind their existing circle/text while the entire node still paints
+           above V57. No child position/display/spacing property is overridden. */
         .productionNetworkCanaryV45 .personNode,
         .productionNetworkCanaryV45 .slotNode {
           isolation: isolate;
@@ -73,7 +68,7 @@ export function AppNetworkCanaryV67({ locale }: { locale: Locale }) {
           left: 50%;
           border-radius: 50%;
           pointer-events: none;
-          z-index: 0;
+          z-index: -1;
         }
 
         .productionNetworkCanaryV45 .personNode::before {
@@ -84,8 +79,8 @@ export function AppNetworkCanaryV67({ locale }: { locale: Locale }) {
           background: radial-gradient(
             circle,
             rgba(8, 8, 7, .92) 0 84%,
-            rgba(8, 8, 7, .56) 89%,
-            rgba(8, 8, 7, .18) 95%,
+            rgba(8, 8, 7, .52) 89%,
+            rgba(8, 8, 7, .16) 95%,
             rgba(8, 8, 7, 0) 100%
           );
         }
@@ -98,34 +93,14 @@ export function AppNetworkCanaryV67({ locale }: { locale: Locale }) {
           background: radial-gradient(
             circle,
             rgba(8, 8, 7, .9) 0 84%,
-            rgba(8, 8, 7, .5) 90%,
-            rgba(8, 8, 7, .14) 96%,
+            rgba(8, 8, 7, .48) 90%,
+            rgba(8, 8, 7, .13) 96%,
             rgba(8, 8, 7, 0) 100%
           );
         }
 
-        /* Keep every visible part of the node above the paint-only endpoint
-           patch. position:relative does not change layout, alignment or hit area. */
-        .productionNetworkCanaryV45 .personNode > .nodeCircle,
-        .productionNetworkCanaryV45 .slotNode > .slotCircle,
-        .productionNetworkCanaryV45 .personNode > b,
-        .productionNetworkCanaryV45 .personNode > small,
-        .productionNetworkCanaryV45 .slotNode > b {
-          position: relative !important;
-          z-index: 1;
-        }
-
-        /* V54 pins the circle center with a fixed -26px/-23px Y offset, so this
-           tiny metadata margin does not move the circle, edge anchor or saved
-           position. It only creates breathing room below the visual avatar. */
-        .productionNetworkCanaryV45 .personNode > b,
-        .productionNetworkCanaryV45 .slotNode > b {
-          margin-top: 2px !important;
-        }
-
-        /* YOU is an occluder, not a translucent window. Keep the same warm dark
-           tone but use fully opaque colors so V57 and Available paths never show
-           inside the center circle. */
+        /* The center is an occluder rather than a translucent window. This hides
+           both V57 person/group paths and legacy Available paths inside YOU. */
         .productionNetworkCanaryV45 .centerCircle {
           background: radial-gradient(
             circle at 50% 45%,
@@ -135,9 +110,9 @@ export function AppNetworkCanaryV67({ locale }: { locale: Locale }) {
           ) !important;
         }
 
-        /* Group hubs keep authoritative V57 geometry exact. Person/slot/cluster
-           travel remains subtle enough that the endpoint patch hides the visual
-           delta without making the canvas feel static. */
+        /* V57 does not read CSS animation offsets for group hubs, so hubs stay
+           static. People/Available/cluster ambience remains paint-only and is
+           reduced further on mobile to keep the edge-to-node illusion tight. */
         @supports (translate: 1px 1px) {
           .productionNetworkCanaryV45 .v42GroupHub {
             animation: none !important;
