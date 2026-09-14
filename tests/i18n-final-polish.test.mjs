@@ -1,0 +1,85 @@
+import assert from 'node:assert/strict';
+import { readFile } from 'node:fs/promises';
+import test from 'node:test';
+
+const [
+  localeSource,
+  copySource,
+  canarySource,
+  guideSource,
+  layoutSource,
+  polishCss,
+] = await Promise.all([
+  readFile('src/lib/i18n/locales.ts', 'utf8'),
+  readFile('src/lib/i18n/networkCanaryInteractionCopy.ts', 'utf8'),
+  readFile('src/components/AppNetworkCanaryV65.tsx', 'utf8'),
+  readFile('src/components/AppGuide.tsx', 'utf8'),
+  readFile('src/app/layout.tsx', 'utf8'),
+  readFile('src/app/localization-final-polish.css', 'utf8'),
+]);
+
+const supportedLocales = [
+  ...localeSource.matchAll(/\{ locale: '([^']+)'[^\n]+direction:/g),
+].map((match) => match[1]);
+
+function localeObjectPattern(locale) {
+  const key = locale.includes('-') ? `'${locale}'` : locale;
+  const escaped = key.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  return new RegExp(`(?:^|\\n)\\s*${escaped}:\\s*\\{`, 'm');
+}
+
+test('Network interaction feedback has explicit copy for every supported locale', () => {
+  assert.ok(supportedLocales.length >= 28);
+  assert.equal(new Set(supportedLocales).size, supportedLocales.length);
+
+  for (const locale of supportedLocales) {
+    assert.match(
+      copySource,
+      localeObjectPattern(locale),
+      `Network interaction copy is missing for ${locale}`,
+    );
+  }
+});
+
+test('Network interaction localization covers every legacy feedback source string', () => {
+  for (const source of [
+    'Already in ',
+    'Release to move to ',
+    'Release to add to ',
+    '✓ Moved',
+    '✓ Added',
+    'Couldn’t save this position.',
+    'Couldn’t confirm the group move.',
+  ]) {
+    assert.ok(canarySource.includes(source), `missing Network localization bridge for: ${source}`);
+  }
+
+  assert.match(copySource, /\\u2068/);
+  assert.match(copySource, /\\u2069/);
+});
+
+test('the final localization layer is loaded after the base typography layer', () => {
+  const baseIndex = layoutSource.indexOf("./localized-typography.css");
+  const finalIndex = layoutSource.indexOf("./localization-final-polish.css");
+  assert.ok(baseIndex >= 0);
+  assert.ok(finalIndex > baseIndex);
+});
+
+test('final layout polish covers Network, RTL, CJK, Korean and tall-script metrics', () => {
+  assert.match(polishCss, /\.productionNetworkCanaryV45/);
+  assert.match(polishCss, /\.publicExplorePage/);
+  assert.match(polishCss, /html\[dir='rtl'\]/);
+  assert.match(polishCss, /html\[lang='ko'\]/);
+  assert.match(polishCss, /\[lang='zh'\]/);
+  assert.match(polishCss, /data-locale-typography='arabic'/);
+  assert.match(polishCss, /data-locale-typography='indic'/);
+  assert.match(polishCss, /html\[lang='ur'\]/);
+  assert.match(polishCss, /font-variant-numeric:\s*tabular-nums/);
+  assert.match(polishCss, /unicode-bidi:\s*isolate/);
+});
+
+test('the special Network canary uses the localized V65 wrapper', () => {
+  assert.match(guideSource, /AppNetworkCanaryV65/);
+  assert.doesNotMatch(guideSource, /const AppNetworkCanaryV64/);
+  assert.match(canarySource, /getNetworkCanaryInteractionCopy\(locale\)/);
+});
