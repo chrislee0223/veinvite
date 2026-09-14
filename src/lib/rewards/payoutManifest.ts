@@ -8,11 +8,25 @@ const ADDRESS_PATTERN = /^0x[0-9a-f]{40}$/;
 const HEX_DATA_PATTERN = /^0x[0-9a-f]+$/;
 const INTEGER_PATTERN = /^\d+$/;
 
+export const PAYOUT_MANIFEST_VERSION_V2 =
+  'veinvite-payout-manifest-v2' as const;
+export const PAYOUT_MANIFEST_VERSION_V3 =
+  'veinvite-payout-manifest-v3' as const;
 export const PAYOUT_MANIFEST_VERSION =
-  'veinvite-payout-manifest-v2';
+  PAYOUT_MANIFEST_VERSION_V3;
+
+export type PayoutManifestVersion =
+  | typeof PAYOUT_MANIFEST_VERSION_V2
+  | typeof PAYOUT_MANIFEST_VERSION_V3;
+
+export const VEINVITE_REWARD_PROOF_DESCRIPTION =
+  'VeInvite verified referral onboarding reward.';
+export const VEINVITE_REWARD_PROOF_ORIGIN =
+  'https://veinvite.vercel.app';
 
 const rewardsPoolInterface = new Interface([
   'function distributeReward(bytes32 appId,uint256 amount,address receiver,string proof)',
+  'function distributeRewardWithProof(bytes32 appId,uint256 amount,address receiver,string[] proofTypes,string[] proofValues,string[] impactCodes,uint256[] impactValues,string description)',
 ]);
 
 export type RewardRoundForManifest = {
@@ -22,6 +36,7 @@ export type RewardRoundForManifest = {
   status: string;
   distributable_wei: string | number;
   eligible_count: string | number;
+  manifest_version?: string | null;
 };
 
 export type RewardPayoutForManifest = {
@@ -39,13 +54,18 @@ export type PayoutManifestClause = {
   recipientWallet: string;
   amountWei: string;
   proof: string;
+  proofTypes?: string[];
+  proofValues?: string[];
+  impactCodes?: string[];
+  impactValues?: string[];
+  description?: string;
   to: string;
   value: '0x0';
   data: string;
 };
 
 export type PayoutManifest = {
-  version: typeof PAYOUT_MANIFEST_VERSION;
+  version: PayoutManifestVersion;
   network: string;
   roundId: string;
   appId: string;
@@ -186,8 +206,43 @@ function hashManifest(
     .digest('hex')}`;
 }
 
-function buildPayoutProof(payoutId: string): string {
-  return `veinvite:referral-onboarding:v1:payout:${payoutId}`;
+function resolveManifestVersion(
+  value: string | null | undefined,
+): PayoutManifestVersion {
+  const normalized = value?.trim();
+
+  if (!normalized) {
+    return PAYOUT_MANIFEST_VERSION_V3;
+  }
+
+  if (
+    normalized === PAYOUT_MANIFEST_VERSION_V2 ||
+    normalized === PAYOUT_MANIFEST_VERSION_V3
+  ) {
+    return normalized;
+  }
+
+  throw new Error(
+    `Unsupported reward payout manifest version: ${normalized}`,
+  );
+}
+
+function buildPayoutProof(
+  payoutId: string,
+  version: PayoutManifestVersion,
+): string {
+  const proofVersion =
+    version === PAYOUT_MANIFEST_VERSION_V2
+      ? 'v1'
+      : 'v2';
+
+  return `veinvite:referral-onboarding:${proofVersion}:payout:${payoutId}`;
+}
+
+function buildPublicProofUrl(
+  payoutId: string,
+): string {
+  return `${VEINVITE_REWARD_PROOF_ORIGIN}/proofs/${payoutId}`;
 }
 
 export function buildPayoutManifest({
@@ -205,6 +260,9 @@ export function buildPayoutManifest({
     );
   }
 
+  const manifestVersion = resolveManifestVersion(
+    round.manifest_version,
+  );
   const roundId = normalizePositiveInteger(
     round.id,
     'round id',
@@ -303,18 +361,64 @@ export function buildPayoutManifest({
     seenInviteCodes.add(inviteKey);
     totalAmount += BigInt(payout.amountWei);
 
-    // The proof deliberately contains no wallet or invitee identity. It gives
-    // every on-chain reward an explicit, deterministic economic reason while
-    // the immutable DB manifest retains the full audited payout mapping.
-    const proof = buildPayoutProof(payout.id);
+    const proof = buildPayoutProof(
+      payout.id,
+      manifestVersion,
+    );
+
+    if (manifestVersion === PAYOUT_MANIFEST_VERSION_V2) {
+      const data = rewardsPoolInterface
+        .encodeFunctionData(
+          'distributeReward',
+          [
+            appId,
+            payout.amountWei,
+            payout.recipientWallet,
+            proof,
+          ],
+        )
+        .toLowerCase();
+
+      if (!HEX_DATA_PATTERN.test(data)) {
+        throw new Error(
+          `Encoded payout clause ${payout.id} is invalid.`,
+        );
+      }
+
+      return {
+        payoutId: payout.id,
+        inviteCode: payout.inviteCode,
+        recipientWallet:
+          payout.recipientWallet,
+        amountWei: payout.amountWei,
+        proof,
+        to: poolAddress,
+        value: '0x0' as const,
+        data,
+      };
+    }
+
+    const proofTypes = ['text', 'link'];
+    const proofValues = [
+      proof,
+      buildPublicProofUrl(payout.id),
+    ];
+    const impactCodes: string[] = [];
+    const impactValues: string[] = [];
+    const description =
+      VEINVITE_REWARD_PROOF_DESCRIPTION;
     const data = rewardsPoolInterface
       .encodeFunctionData(
-        'distributeReward',
+        'distributeRewardWithProof',
         [
           appId,
           payout.amountWei,
           payout.recipientWallet,
-          proof,
+          proofTypes,
+          proofValues,
+          impactCodes,
+          impactValues.map((value) => BigInt(value)),
+          description,
         ],
       )
       .toLowerCase();
@@ -332,6 +436,11 @@ export function buildPayoutManifest({
         payout.recipientWallet,
       amountWei: payout.amountWei,
       proof,
+      proofTypes,
+      proofValues,
+      impactCodes,
+      impactValues,
+      description,
       to: poolAddress,
       value: '0x0' as const,
       data,
@@ -347,7 +456,7 @@ export function buildPayoutManifest({
   }
 
   const manifestWithoutHash = {
-    version: PAYOUT_MANIFEST_VERSION,
+    version: manifestVersion,
     network: round.network,
     roundId,
     appId,
@@ -360,25 +469,86 @@ export function buildPayoutManifest({
 
   return {
     ...manifestWithoutHash,
+    clauses: [...clauses],
     manifestHash:
-      hashManifest(manifestWithoutHash),
+      hashManifest({
+        ...manifestWithoutHash,
+        clauses: [...clauses],
+      }),
   };
 }
 
 export function decodePayoutClause(
   data: string,
 ) {
-  const decoded =
-    rewardsPoolInterface.decodeFunctionData(
-      'distributeReward',
-      data,
+  const selector = data.slice(0, 10).toLowerCase();
+  const legacyFunction = rewardsPoolInterface.getFunction(
+    'distributeReward',
+  );
+  const proofFunction = rewardsPoolInterface.getFunction(
+    'distributeRewardWithProof',
+  );
+
+  if (!legacyFunction || !proofFunction) {
+    throw new Error('Reward payout ABI is unavailable.');
+  }
+
+  if (selector === legacyFunction.selector.toLowerCase()) {
+    const decoded =
+      rewardsPoolInterface.decodeFunctionData(
+        legacyFunction,
+        data,
+      );
+
+    return {
+      version: PAYOUT_MANIFEST_VERSION_V2,
+      appId: String(decoded[0]).toLowerCase(),
+      amountWei: BigInt(decoded[1]).toString(),
+      recipientWallet:
+        String(decoded[2]).toLowerCase(),
+      proof: String(decoded[3]),
+    };
+  }
+
+  if (selector === proofFunction.selector.toLowerCase()) {
+    const decoded =
+      rewardsPoolInterface.decodeFunctionData(
+        proofFunction,
+        data,
+      );
+    const proofTypes = Array.from(
+      decoded[3] as readonly string[],
+      String,
+    );
+    const proofValues = Array.from(
+      decoded[4] as readonly string[],
+      String,
+    );
+    const impactCodes = Array.from(
+      decoded[5] as readonly string[],
+      String,
+    );
+    const impactValues = Array.from(
+      decoded[6] as readonly bigint[],
+      (value) => BigInt(value).toString(),
     );
 
-  return {
-    appId: String(decoded[0]).toLowerCase(),
-    amountWei: BigInt(decoded[1]).toString(),
-    recipientWallet:
-      String(decoded[2]).toLowerCase(),
-    proof: String(decoded[3]),
-  };
+    return {
+      version: PAYOUT_MANIFEST_VERSION_V3,
+      appId: String(decoded[0]).toLowerCase(),
+      amountWei: BigInt(decoded[1]).toString(),
+      recipientWallet:
+        String(decoded[2]).toLowerCase(),
+      proof: proofValues[0] ?? '',
+      proofTypes,
+      proofValues,
+      impactCodes,
+      impactValues,
+      description: String(decoded[7]),
+    };
+  }
+
+  throw new Error(
+    'Payout clause does not target a supported rewards-pool function.',
+  );
 }
