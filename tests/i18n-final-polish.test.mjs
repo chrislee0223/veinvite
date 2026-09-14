@@ -9,6 +9,9 @@ const [
   guideSource,
   layoutSource,
   polishCss,
+  providerSource,
+  greekSource,
+  networkNavSource,
 ] = await Promise.all([
   readFile('src/lib/i18n/locales.ts', 'utf8'),
   readFile('src/lib/i18n/networkCanaryInteractionCopy.ts', 'utf8'),
@@ -16,6 +19,9 @@ const [
   readFile('src/components/AppGuide.tsx', 'utf8'),
   readFile('src/app/layout.tsx', 'utf8'),
   readFile('src/app/localization-final-polish.css', 'utf8'),
+  readFile('src/components/AppProviders.tsx', 'utf8'),
+  readFile('src/lib/i18n/greekFinalPolish.ts', 'utf8'),
+  readFile('src/lib/i18n/networkNavigationCopyPolish.ts', 'utf8'),
 ]);
 
 const supportedLocales = [
@@ -29,7 +35,7 @@ function localeObjectPattern(locale) {
 }
 
 test('Network interaction feedback has explicit copy for every supported locale', () => {
-  assert.ok(supportedLocales.length >= 28);
+  assert.equal(supportedLocales.length, 28);
   assert.equal(new Set(supportedLocales).size, supportedLocales.length);
 
   for (const locale of supportedLocales) {
@@ -82,4 +88,55 @@ test('the special Network canary uses the localized V65 wrapper', () => {
   assert.match(guideSource, /AppNetworkCanaryV65/);
   assert.doesNotMatch(guideSource, /const AppNetworkCanaryV64/);
   assert.match(canarySource, /getNetworkCanaryInteractionCopy\(locale\)/);
+});
+
+test('user-facing Network navigation has an explicit label in all locales', () => {
+  for (const locale of supportedLocales) {
+    const key = locale.includes('-') ? `'${locale}'` : locale;
+    const escaped = key.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    assert.match(
+      networkNavSource,
+      new RegExp(`(?:^|\\n)\\s*${escaped}:\\s*'[^']+'`, 'm'),
+      `Network navigation label is missing for ${locale}`,
+    );
+  }
+  assert.match(networkNavSource, /NAV_COPY\[locale\]\.guide = label/);
+});
+
+test('Greek final product polish runs after shared i18n hardening', () => {
+  const sharedIndex = providerSource.indexOf("@/lib/i18n/guideRewardClaimHardening");
+  const greekIndex = providerSource.indexOf("@/lib/i18n/greekFinalPolish");
+  const networkNavIndex = providerSource.indexOf("@/lib/i18n/networkNavigationCopyPolish");
+  assert.ok(sharedIndex >= 0);
+  assert.ok(greekIndex > sharedIndex);
+  assert.ok(networkNavIndex > greekIndex);
+});
+
+test('Greek final polish fills the former English product fallback groups', () => {
+  for (const assignment of [
+    'Object.assign(HOME_COPY.el',
+    'Object.assign(INVITE_LANDING_COPY.el',
+    'Object.assign(INVITEE_COPY.el',
+    'Object.assign(LEADERBOARD_COPY.el',
+    'Object.assign(NOTIFICATION_COPY.el',
+    'Object.assign(SETTINGS_COPY.el',
+  ]) {
+    assert.ok(greekSource.includes(assignment), `missing Greek final patch: ${assignment}`);
+  }
+
+  for (const requiredKey of [
+    'reviewBadge:',
+    'cancelTitleWaiting:',
+    'rewardClaimDescription:',
+    'demoResult:',
+    'checkingLink:',
+    'newSuccessDescription:',
+    'reportingSince:',
+    'walletDetails:',
+    'progressTitle:',
+    'walletNote:',
+    'disconnectConfirmBody:',
+  ]) {
+    assert.ok(greekSource.includes(requiredKey), `Greek final patch is missing ${requiredKey}`);
+  }
 });
