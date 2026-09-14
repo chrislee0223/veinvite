@@ -186,7 +186,7 @@ function sanitizeStructuredProofsForLegacyVerifier({
 
       const sanitized =
         rewardDistributedInterface.encodeEventLog(
-          rewardDistributedEvent,
+          'RewardDistributed',
           [
             parsed.args[0],
             parsed.args[1],
