@@ -106,7 +106,9 @@ test('the special Network canary keeps V69 drag tracking over V68 assurance, V67
   assert.match(correctionSource, /<AppNetworkCanaryV66 locale=\{locale\} \/>/);
   assert.match(ambientSource, /AppNetworkCanaryV65/);
   assert.match(ambientSource, /<AppNetworkCanaryV65 locale=\{locale\} \/>/);
-  assert.match(canarySource, /getNetworkCanaryInteractionCopy\(locale\)/);
+  assert.match(canarySource, /const resolvedLocale = resolveLocale\(locale\)/);
+  assert.match(canarySource, /NETWORK_CANARY_UI_COPY\[resolvedLocale\]/);
+  assert.match(canarySource, /getNetworkCanaryInteractionCopy\(resolvedLocale\)/);
 });
 
 test('user-facing Network navigation has an explicit label in all locales', () => {
