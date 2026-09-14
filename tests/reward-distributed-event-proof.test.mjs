@@ -2,6 +2,8 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import test from 'node:test';
 
+import { matchStructuredRewardProof } from '../src/lib/rewards/structuredProof.ts';
+
 const verifier = await readFile(
   new URL('../src/lib/rewards/transactionVerification.ts', import.meta.url),
   'utf8',
@@ -14,6 +16,13 @@ const manifestBuilder = await readFile(
   new URL('../src/lib/rewards/payoutManifest.ts', import.meta.url),
   'utf8',
 );
+
+const PUBLIC_PROOF_ID = '123e4567-e89b-42d3-a456-426614174000';
+const expectedProof = {
+  proofText: `veinvite:referral-onboarding:v2:proof:${PUBLIC_PROOF_ID}`,
+  proofLink: `https://veinvite.vercel.app/proofs/${PUBLIC_PROOF_ID}`,
+  description: 'VeInvite verified referral onboarding reward.',
+};
 
 test('historical v2 verification keeps current distributeReward event semantics and exact calldata checks', () => {
   assert.match(
@@ -60,7 +69,77 @@ test('versioned verifier preserves v2 behavior by delegating to the reviewed leg
   );
 });
 
-test('future v3 payouts use structured Proof and validate the emitted JSON against the immutable manifest', () => {
+test('official structured Proof JSON without impact matches when VeInvite declares no impact', () => {
+  const rawProof = JSON.stringify({
+    version: 2,
+    description: expectedProof.description,
+    proof: {
+      text: expectedProof.proofText,
+      link: expectedProof.proofLink,
+    },
+  });
+
+  assert.equal(
+    matchStructuredRewardProof(rawProof, expectedProof),
+    'match',
+  );
+});
+
+test('structured Proof verification rejects a synthetic empty impact object', () => {
+  const rawProof = JSON.stringify({
+    version: 2,
+    description: expectedProof.description,
+    proof: {
+      text: expectedProof.proofText,
+      link: expectedProof.proofLink,
+    },
+    impact: {},
+  });
+
+  assert.equal(
+    matchStructuredRewardProof(rawProof, expectedProof),
+    'mismatch',
+  );
+});
+
+test('structured Proof verification rejects altered text, links and invalid JSON', () => {
+  assert.equal(
+    matchStructuredRewardProof(
+      JSON.stringify({
+        version: 2,
+        description: expectedProof.description,
+        proof: {
+          text: 'altered',
+          link: expectedProof.proofLink,
+        },
+      }),
+      expectedProof,
+    ),
+    'mismatch',
+  );
+
+  assert.equal(
+    matchStructuredRewardProof(
+      JSON.stringify({
+        version: 2,
+        description: expectedProof.description,
+        proof: {
+          text: expectedProof.proofText,
+          link: 'https://example.com/altered',
+        },
+      }),
+      expectedProof,
+    ),
+    'mismatch',
+  );
+
+  assert.equal(
+    matchStructuredRewardProof('{not-json', expectedProof),
+    'invalid-json',
+  );
+});
+
+test('future v3 payouts use structured Proof with an opaque public Proof ID and still run legacy settlement checks', () => {
   assert.match(
     manifestBuilder,
     /distributeRewardWithProof/u,
@@ -71,29 +150,17 @@ test('future v3 payouts use structured Proof and validate the emitted JSON again
     /const proofTypes = \['text', 'link'\]/u,
   );
   assert.match(
-    verifier,
-    /JSON\.parse\(rawProof\)/u,
+    manifestBuilder,
+    /publicProofId/u,
+  );
+  assert.match(
+    manifestBuilder,
+    /veinvite:referral-onboarding:v2:proof:/u,
   );
   assert.match(
     verifier,
-    /parsed\.version\s*!==\s*2/u,
-  );
-  assert.match(
-    verifier,
-    /parsed\.description\s*!==\s*clause\.description/u,
-  );
-  assert.match(
-    verifier,
-    /proof\.text\s*!==\s*clause\.proofValues\[0\]/u,
-  );
-  assert.match(
-    verifier,
-    /proof\.link\s*!==\s*clause\.proofValues\[1\]/u,
-  );
-  assert.match(
-    verifier,
-    /Object\.keys\(impact\)\.length\s*!==\s*0/u,
-    'v3 must reject unexpected impact claims',
+    /matchStructuredRewardProof/u,
+    'v3 event verification must use the runtime structured-proof parser',
   );
   assert.match(
     verifier,

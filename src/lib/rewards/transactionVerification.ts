@@ -6,6 +6,7 @@ import {
   type PayoutManifest,
   type PayoutManifestClause,
 } from '@/lib/rewards/payoutManifest';
+import { matchStructuredRewardProof } from '@/lib/rewards/structuredProof';
 import {
   RewardTransactionVerificationError,
   loadFinalizedRewardTransactionEvidence,
@@ -42,16 +43,6 @@ if (!rewardDistributedEvent) {
 const REWARD_DISTRIBUTED_TOPIC =
   rewardDistributedEvent.topicHash.toLowerCase();
 
-function isRecord(
-  value: unknown,
-): value is Record<string, unknown> {
-  return (
-    typeof value === 'object' &&
-    value !== null &&
-    !Array.isArray(value)
-  );
-}
-
 function assertStructuredProofMatchesClause(
   rawProof: string,
   clause: PayoutManifestClause,
@@ -74,36 +65,23 @@ function assertStructuredProofMatchesClause(
     );
   }
 
-  let parsed: unknown;
+  const proofMatch = matchStructuredRewardProof(
+    rawProof,
+    {
+      proofText: clause.proofValues[0],
+      proofLink: clause.proofValues[1],
+      description: clause.description,
+    },
+  );
 
-  try {
-    parsed = JSON.parse(rawProof);
-  } catch {
+  if (proofMatch === 'invalid-json') {
     throw new RewardTransactionVerificationError(
       'TX_EVENT_MISMATCH',
       `Transaction clause ${index} emitted invalid structured reward proof JSON.`,
     );
   }
 
-  if (!isRecord(parsed)) {
-    throw new RewardTransactionVerificationError(
-      'TX_EVENT_MISMATCH',
-      `Transaction clause ${index} emitted malformed structured reward proof.`,
-    );
-  }
-
-  const proof = parsed.proof;
-  const impact = parsed.impact;
-
-  if (
-    parsed.version !== 2 ||
-    parsed.description !== clause.description ||
-    !isRecord(proof) ||
-    proof.text !== clause.proofValues[0] ||
-    proof.link !== clause.proofValues[1] ||
-    !isRecord(impact) ||
-    Object.keys(impact).length !== 0
-  ) {
+  if (proofMatch !== 'match') {
     throw new RewardTransactionVerificationError(
       'TX_EVENT_MISMATCH',
       `Transaction clause ${index} structured RewardDistributed proof does not match the immutable payout manifest.`,

@@ -1,4 +1,4 @@
-import { formatUnits } from 'ethers';
+import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
 
 import {
@@ -10,10 +10,19 @@ import { supabaseAdmin } from '@/lib/supabaseServer';
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 
+export const metadata: Metadata = {
+  title: 'VeInvite Reward Proof',
+  robots: {
+    index: false,
+    follow: false,
+  },
+};
+
 const MANIFEST_VERSION = 'veinvite-payout-manifest-v3';
 const PROOF_DESCRIPTION =
   'VeInvite verified referral onboarding reward.';
-const PAYOUT_ID_PATTERN = /^[1-9][0-9]*$/;
+const PUBLIC_PROOF_ID_PATTERN =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
 
 function isRecord(
   value: unknown,
@@ -28,6 +37,7 @@ function isRecord(
 function findProofClause(
   clauses: unknown,
   payoutId: string,
+  publicProofId: string,
 ) {
   if (!Array.isArray(clauses)) {
     return null;
@@ -36,7 +46,9 @@ function findProofClause(
   const clause = clauses.find(
     (value) =>
       isRecord(value) &&
-      String(value.payoutId ?? '') === payoutId,
+      String(value.payoutId ?? '') === payoutId &&
+      String(value.publicProofId ?? '').toLowerCase() ===
+        publicProofId,
   );
 
   if (!isRecord(clause)) {
@@ -44,14 +56,15 @@ function findProofClause(
   }
 
   const expectedProof =
-    `veinvite:referral-onboarding:v2:payout:${payoutId}`;
+    `veinvite:referral-onboarding:v2:proof:${publicProofId}`;
   const expectedUrl =
-    `https://veinvite.vercel.app/proofs/${payoutId}`;
+    `https://veinvite.vercel.app/proofs/${publicProofId}`;
   const proofTypes = clause.proofTypes;
   const proofValues = clause.proofValues;
 
   if (
     clause.proof !== expectedProof ||
+    clause.publicProofId !== publicProofId ||
     !Array.isArray(proofTypes) ||
     proofTypes.length !== 2 ||
     proofTypes[0] !== 'text' ||
@@ -71,14 +84,6 @@ function findProofClause(
   };
 }
 
-function formatB3tr(rawWei: unknown): string {
-  try {
-    return formatUnits(BigInt(String(rawWei)), 18);
-  } catch {
-    return String(rawWei ?? '');
-  }
-}
-
 function formatDate(raw: unknown): string {
   const date = new Date(String(raw ?? ''));
 
@@ -89,24 +94,32 @@ function formatDate(raw: unknown): string {
   return date.toISOString();
 }
 
+function shortenHex(value: string): string {
+  if (value.length <= 18) {
+    return value;
+  }
+
+  return `${value.slice(0, 10)}…${value.slice(-8)}`;
+}
+
 export default async function RewardProofPage({
   params,
 }: {
   params: Promise<{ payoutId: string }>;
 }) {
-  const { payoutId: rawPayoutId } = await params;
-  const payoutId = rawPayoutId.trim();
+  const { payoutId: rawProofId } = await params;
+  const publicProofId = rawProofId.trim().toLowerCase();
 
-  if (!PAYOUT_ID_PATTERN.test(payoutId)) {
+  if (!PUBLIC_PROOF_ID_PATTERN.test(publicProofId)) {
     notFound();
   }
 
   const payoutResult = await supabaseAdmin
     .from('reward_payouts')
     .select(
-      'id, round_id, recipient_wallet, amount_wei, status, tx_id, created_at, paid_at',
+      'id, round_id, public_proof_id, recipient_wallet, status, tx_id, paid_at',
     )
-    .eq('id', payoutId)
+    .eq('public_proof_id', publicProofId)
     .maybeSingle();
 
   if (payoutResult.error) {
@@ -121,11 +134,10 @@ export default async function RewardProofPage({
     notFound();
   }
 
+  const payoutId = String(payout.id);
   const manifestResult = await supabaseAdmin
     .from('reward_payout_manifests')
-    .select(
-      'manifest_version, network, clauses, created_at',
-    )
+    .select('manifest_version, network, clauses')
     .eq('round_id', payout.round_id)
     .maybeSingle();
 
@@ -147,6 +159,7 @@ export default async function RewardProofPage({
   const proof = findProofClause(
     manifest.clauses,
     payoutId,
+    publicProofId,
   );
 
   if (!proof) {
@@ -155,7 +168,7 @@ export default async function RewardProofPage({
 
   const receiptResult = await supabaseAdmin
     .from('reward_receipts')
-    .select('tx_id, paid_at, network, vebetter_round_id')
+    .select('tx_id, paid_at, network')
     .eq('payout_id', payoutId)
     .maybeSingle();
 
@@ -174,7 +187,6 @@ export default async function RewardProofPage({
   const finalized = Boolean(receipt);
   const recipientWallet =
     String(payout.recipient_wallet).toLowerCase();
-  const amount = formatB3tr(payout.amount_wei);
 
   return (
     <main
@@ -243,10 +255,9 @@ export default async function RewardProofPage({
           }}
         >
           <dt style={{ color: '#766f64' }}>Proof ID</dt>
-          <dd style={{ margin: 0, overflowWrap: 'anywhere' }}>{proof.proof}</dd>
-
-          <dt style={{ color: '#766f64' }}>Payout ID</dt>
-          <dd style={{ margin: 0 }}>{payoutId}</dd>
+          <dd style={{ margin: 0, overflowWrap: 'anywhere' }}>
+            {publicProofId}
+          </dd>
 
           <dt style={{ color: '#766f64' }}>Reward recipient</dt>
           <dd style={{ margin: 0, overflowWrap: 'anywhere' }}>
@@ -259,30 +270,17 @@ export default async function RewardProofPage({
               rel="noreferrer"
               style={{ color: '#8a5900' }}
             >
-              {recipientWallet}
+              {shortenHex(recipientWallet)}
             </a>
           </dd>
 
-          <dt style={{ color: '#766f64' }}>Reward</dt>
-          <dd style={{ margin: 0 }}>{amount} B3TR</dd>
-
           <dt style={{ color: '#766f64' }}>Network</dt>
           <dd style={{ margin: 0 }}>{network}</dd>
-
-          <dt style={{ color: '#766f64' }}>Round</dt>
-          <dd style={{ margin: 0 }}>
-            {receipt?.vebetter_round_id
-              ? String(receipt.vebetter_round_id)
-              : String(payout.round_id)}
-          </dd>
 
           <dt style={{ color: '#766f64' }}>Status</dt>
           <dd style={{ margin: 0 }}>
             {finalized ? 'Finalized / paid' : String(payout.status)}
           </dd>
-
-          <dt style={{ color: '#766f64' }}>Manifest created</dt>
-          <dd style={{ margin: 0 }}>{formatDate(manifest.created_at)}</dd>
 
           <dt style={{ color: '#766f64' }}>Paid at</dt>
           <dd style={{ margin: 0 }}>
@@ -302,7 +300,7 @@ export default async function RewardProofPage({
                   rel="noreferrer"
                   style={{ color: '#8a5900' }}
                 >
-                  {String(txId)}
+                  {shortenHex(String(txId))}
                 </a>
               </dd>
             </>
