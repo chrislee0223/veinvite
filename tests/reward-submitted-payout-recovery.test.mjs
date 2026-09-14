@@ -31,6 +31,14 @@ test('submitted payout recovery can only verify and finalize existing transactio
   assert.doesNotMatch(recovery, /reserveEligibleReferralRewards/u);
 });
 
+test('submitted payout recovery uses exact manifest source for large numeric evidence', () => {
+  assert.match(recovery, /read_reward_manifest_source/u);
+  assert.match(recovery, /exactSource\.manifest/u);
+  assert.match(recovery, /exactManifest\.total_amount_wei/u);
+  assert.match(recovery, /exactManifest\.payout_count/u);
+  assert.match(recovery, /exact reward manifest id/u);
+});
+
 test('authenticated retry path advances a pending submitted payout after finality', () => {
   assert.match(retryRoute, /requireWalletSession/u);
   assert.match(retryRoute, /sameOrigin/u);
