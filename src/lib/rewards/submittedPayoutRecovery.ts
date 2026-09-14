@@ -286,11 +286,31 @@ Promise<SubmittedPayoutRecoveryResult> {
     const exactSource = sourceResult.data as {
       round?: RewardRoundForManifest | null;
       payouts?: RewardPayoutForManifest[];
+      manifest?: Record<string, unknown> | null;
     } | null;
 
-    if (!exactSource?.round || !Array.isArray(exactSource.payouts)) {
+    if (
+      !exactSource?.round ||
+      !Array.isArray(exactSource.payouts) ||
+      !exactSource.manifest
+    ) {
       throw new Error(
         'Submitted payout manifest source returned malformed data.',
+      );
+    }
+
+    const exactManifest = exactSource.manifest;
+
+    if (
+      positiveId(
+        exactManifest.id,
+        'exact reward manifest id',
+      ) !== manifestId ||
+      String(exactManifest.manifest_version ?? '') !==
+        String(manifestRow.manifest_version ?? '')
+    ) {
+      throw new Error(
+        'Exact reward manifest source disagrees with the submitted manifest.',
       );
     }
 
@@ -298,7 +318,8 @@ Promise<SubmittedPayoutRecoveryResult> {
       round: {
         ...round,
         ...exactSource.round,
-        manifest_version: String(manifestRow.manifest_version ?? ''),
+        manifest_version:
+          String(exactManifest.manifest_version ?? ''),
       },
       payouts: exactSource.payouts,
       x2EarnRewardsPoolAddress:
@@ -307,8 +328,10 @@ Promise<SubmittedPayoutRecoveryResult> {
 
     if (
       manifest.manifestHash !== String(manifestRow.manifest_hash ?? '') ||
-      manifest.totalAmountWei !== String(manifestRow.total_amount_wei ?? '') ||
-      manifest.payoutCount !== Number(manifestRow.payout_count)
+      manifest.totalAmountWei !==
+        String(exactManifest.total_amount_wei ?? '') ||
+      manifest.payoutCount !==
+        Number(exactManifest.payout_count)
     ) {
       throw new Error('Submitted payout manifest drift was detected.');
     }
