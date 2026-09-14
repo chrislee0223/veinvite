@@ -2,10 +2,11 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import test from 'node:test';
 
-const [visualSource, correctionSource, directDropSource, guideSource] = await Promise.all([
+const [visualSource, correctionSource, directDropSource, dragGhostSource, guideSource] = await Promise.all([
   readFile('src/components/AppNetworkCanaryV66.tsx', 'utf8'),
   readFile('src/components/AppNetworkCanaryV67.tsx', 'utf8'),
   readFile('src/components/AppNetworkCanaryV68.tsx', 'utf8'),
+  readFile('src/components/AppNetworkCanaryV69.tsx', 'utf8'),
   readFile('src/components/AppGuide.tsx', 'utf8'),
 ]);
 
@@ -141,9 +142,12 @@ test('motion respects accessibility, mobile limits and dense-network cost caps',
   assert.match(correctionSource, /--v66-fy1:\s*-\.95px\s*!important/);
 });
 
-test('the special Network canary is wired through V68 to V67 and V66', () => {
-  assert.match(guideSource, /AppNetworkCanaryV68/);
+test('the special Network canary is wired through V69 to V68, V67 and V66', () => {
+  assert.match(guideSource, /AppNetworkCanaryV69/);
+  assert.doesNotMatch(guideSource, /const AppNetworkCanaryV68/);
   assert.doesNotMatch(guideSource, /const AppNetworkCanaryV67/);
+  assert.match(dragGhostSource, /AppNetworkCanaryV68/);
+  assert.match(dragGhostSource, /<AppNetworkCanaryV68 locale=\{locale\} \/>/);
   assert.match(directDropSource, /AppNetworkCanaryV67/);
   assert.match(directDropSource, /<AppNetworkCanaryV67 locale=\{locale\} \/>/);
   assert.match(correctionSource, /AppNetworkCanaryV66/);
