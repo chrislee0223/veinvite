@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 
 import { enforceRateLimits } from '@/lib/rateLimitServer';
 import { reserveEligibleReferralRewards } from '@/lib/rewards/rewardReservation';
+import { recoverSubmittedRewardPayout } from '@/lib/rewards/submittedPayoutRecovery';
 import { supabaseAdmin } from '@/lib/supabaseServer';
 import {
   requireWalletSession,
@@ -58,6 +59,23 @@ async function hasWaitingOwnReservation(wallet: string): Promise<boolean> {
   return (data ?? []).length > 0;
 }
 
+async function hasPendingOwnPayout(wallet: string): Promise<boolean> {
+  const { data, error } = await supabaseAdmin
+    .from('reward_payouts')
+    .select('id')
+    .eq('recipient_wallet', wallet)
+    .eq('status', 'PENDING')
+    .limit(1);
+
+  if (error) {
+    throw new Error(
+      `Pending reward payout state could not be checked: ${error.message}`,
+    );
+  }
+
+  return (data ?? []).length > 0;
+}
+
 export async function POST(request: NextRequest) {
   if (!sameOrigin(request)) {
     return noStoreJson(
@@ -85,8 +103,13 @@ export async function POST(request: NextRequest) {
   }
 
   try {
-    const waitingBefore = await hasWaitingOwnReservation(wallet);
-    if (!waitingBefore) {
+    const [waitingBefore, pendingPayoutBefore] =
+      await Promise.all([
+        hasWaitingOwnReservation(wallet),
+        hasPendingOwnPayout(wallet),
+      ]);
+
+    if (!waitingBefore && !pendingPayoutBefore) {
       return noStoreJson({
         status: 'IDLE',
         ready: false,
@@ -103,17 +126,33 @@ export async function POST(request: NextRequest) {
     ]);
     if (rateLimitResponse) return rateLimitResponse;
 
-    const sweep = await reserveEligibleReferralRewards();
-    const waitingAfter = await hasWaitingOwnReservation(wallet);
+    let payoutRecovery = null;
+
+    if (pendingPayoutBefore) {
+      payoutRecovery =
+        await recoverSubmittedRewardPayout();
+    }
+
+    const sweep = waitingBefore
+      ? await reserveEligibleReferralRewards()
+      : null;
+    const [waitingAfter, pendingPayoutAfter] =
+      await Promise.all([
+        hasWaitingOwnReservation(wallet),
+        hasPendingOwnPayout(wallet),
+      ]);
+    const ready = !waitingAfter && !pendingPayoutAfter;
 
     return noStoreJson({
-      status: waitingAfter ? 'WAITING_FINALITY' : 'READY',
-      ready: !waitingAfter,
+      status: ready ? 'READY' : 'WAITING_FINALITY',
+      ready,
       sweep,
+      payoutRecoveryStatus:
+        payoutRecovery?.status ?? null,
     });
   } catch (error) {
     console.error(
-      'Reward reservation finality retry failed:',
+      'Reward reservation or submitted payout finality retry failed:',
       error,
     );
     return noStoreJson(
