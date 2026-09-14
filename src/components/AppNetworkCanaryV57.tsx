@@ -101,14 +101,18 @@ function NetworkAuthoritativeEdges() {
         parsePx(node.style.getPropertyValue('--v42-group-dx')) +
         parsePx(node.style.getPropertyValue('--v50-adjust-x')) +
         parsePx(node.style.getPropertyValue('--v52-adjust-x')) +
+        parsePx(node.style.getPropertyValue('--v63-adjust-x')) +
         parsePx(node.style.getPropertyValue('--v50-drag-dx')) +
-        parsePx(node.style.getPropertyValue('--v52-drag-dx')),
+        parsePx(node.style.getPropertyValue('--v52-drag-dx')) +
+        parsePx(node.style.getPropertyValue('--v63-drag-x')),
       y: parsePx(node.style.getPropertyValue('--y')) +
         parsePx(node.style.getPropertyValue('--v42-group-dy')) +
         parsePx(node.style.getPropertyValue('--v50-adjust-y')) +
         parsePx(node.style.getPropertyValue('--v52-adjust-y')) +
+        parsePx(node.style.getPropertyValue('--v63-adjust-y')) +
         parsePx(node.style.getPropertyValue('--v50-drag-dy')) +
-        parsePx(node.style.getPropertyValue('--v52-drag-dy')),
+        parsePx(node.style.getPropertyValue('--v52-drag-dy')) +
+        parsePx(node.style.getPropertyValue('--v63-drag-y')),
     });
 
     const groupPoint = (hub: HTMLElement): Point => ({
