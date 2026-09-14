@@ -21,11 +21,14 @@ test('create-group drag ghost only activates for the existing V44 create drop ed
   assert.match(v44Source, /toggleCreateSelection\(drag\.nodeId\)/);
 });
 
-test('drag ghost follows screen coordinates without mutating Network geometry or persistence', () => {
+test('drag ghost follows screen coordinates and current canvas scale without mutating Network geometry or persistence', () => {
   assert.match(source, /position:\s*fixed/);
   assert.match(source, /pointer-events:\s*none\s*!important/);
   assert.match(source, /clientX - current\.grabX/);
   assert.match(source, /clientY - current\.grabY/);
+  assert.match(source, /window\.getComputedStyle\(node\)/);
+  assert.match(source, /rect\.width \/ baseWidth/);
+  assert.match(source, /--v69-ghost-scale/);
   assert.doesNotMatch(source, /localStorage/);
   assert.doesNotMatch(source, /sessionStorage/);
   assert.doesNotMatch(source, /--cameraX|--cameraY|--networkZoom/);
@@ -41,6 +44,7 @@ test('drag ghost keeps pointer ownership and cleans transient state on every exi
   assert.match(source, /window\.addEventListener\('blur'/);
   assert.match(source, /touchPointers\.size > 1/);
   assert.match(source, /cancelUnderlyingCreateDrag/);
+  assert.match(source, /cancelActiveDrag/);
   assert.match(source, /\.v69CreateDragSource/);
   assert.match(source, /current\.ghost\?\.remove\(\)/);
 });
