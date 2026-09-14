@@ -16,19 +16,40 @@ test('V70 loads the Network naturalness pass before rendering localized UI', () 
   assert.match(v70Source, /import '@\/lib\/i18n\/networkNaturalnessPolish';/);
 });
 
-test('all supported locales receive the three high-risk semantic copy corrections', () => {
+test('all supported locales receive semantic and number-safe copy corrections', () => {
   for (const locale of locales) {
     const marker = locale === 'zh-tw' ? "  'zh-tw': {" : `  ${locale}: {`;
     assert.ok(patchSource.includes(marker), `missing naturalness patch for ${locale}`);
   }
 
-  assert.equal((patchSource.match(/savedCount:/g) ?? []).length, locales.length);
-  assert.equal((patchSource.match(/zeroAllowed:/g) ?? []).length, locales.length);
-  assert.equal((patchSource.match(/dragUngroup:/g) ?? []).length, locales.length);
+  for (const key of ['savedCount', 'peopleCount', 'groupsCount', 'zeroAllowed', 'dragUngroup']) {
+    assert.equal(
+      (patchSource.match(new RegExp(`${key}:`, 'g')) ?? []).length,
+      locales.length,
+      `${key} must be intentionally reviewed in every locale`,
+    );
+  }
+});
+
+test('count copy avoids singular/plural grammar traps in inflected languages', () => {
+  for (const expected of [
+    "peopleCount: 'People: {count}'",
+    "peopleCount: 'Personas: {count}'",
+    "peopleCount: 'Personnes : {count}'",
+    "peopleCount: 'Personen: {count}'",
+    "peopleCount: 'Участники: {count}'",
+    "peopleCount: 'Άτομα: {count}'",
+    "groupsCount: 'Groups: {count}'",
+    "groupsCount: 'Grupos: {count}'",
+  ]) {
+    assert.ok(patchSource.includes(expected), `missing number-safe count copy: ${expected}`);
+  }
+  assert.doesNotMatch(patchSource, /savedCount:\s*'\{count\} people/);
 });
 
 test('Korean Network copy removes literal UI phrasing and branch jargon', () => {
   for (const expected of [
+    "savedCount: '이 그룹 인원 {count}명'",
     "releaseAdd: '놓으면 추가'",
     "optional: '사람을 선택하지 않아도 돼요'",
     "save: '변경사항 저장'",
@@ -55,12 +76,12 @@ test('Traditional Chinese Network terminology consistently uses Taiwan-standard 
 });
 
 test('known semantic mistranslations are explicitly corrected', () => {
-  assert.match(patchSource, /vi:[\s\S]*?savedCount:\s*'Nhóm này có \{count\} người'/);
+  assert.match(patchSource, /vi:[\s\S]*?savedCount:\s*'Số người trong nhóm: \{count\}'/);
   assert.match(patchSource, /mr:[\s\S]*?collapsed:\s*'आकुंचित'/);
   assert.match(patchSource, /sv:[\s\S]*?dragUngroup:\s*'Släpp här för att ta bort från gruppen'/);
   assert.match(patchSource, /el:[\s\S]*?joining:\s*'Μπαίνει στο δίκτυο'/);
   assert.match(patchSource, /tr:[\s\S]*?available:\s*'Davet edilebilir'/);
-  assert.match(patchSource, /it:[\s\S]*?maintenance:\s*'La rete è temporaneamente non disponibile\.'/);
+  assert.match(patchSource, /it:[\s\S]*?maintenance:\s*'La rete non è al momento disponibile\.'/);
   assert.match(patchSource, /hi:[\s\S]*?invitedBy:\s*'आमंत्रणकर्ता'/);
 });
 
