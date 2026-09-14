@@ -14,6 +14,7 @@ import {
 } from './automaticRewardPayout';
 import { prepareClaimedRewardFastPath } from './immediateClaimPayout';
 import { reserveEligibleReferralRewards } from './rewardReservation';
+import { recoverSubmittedRewardPayout } from './submittedPayoutRecovery';
 
 const PRIVATE_KEY_PATTERN = /^(?:0x)?[0-9a-fA-F]{64}$/;
 const ADDRESS_PATTERN = /^0x[0-9a-f]{40}$/;
@@ -128,6 +129,18 @@ function prepareRewardDistributorSecret() {
   }
 }
 
+async function recoverSubmittedBeforePayout() {
+  try {
+    return await recoverSubmittedRewardPayout();
+  } catch (error) {
+    console.error(
+      'Submitted reward payout recovery failed before payout work:',
+      error,
+    );
+    return null;
+  }
+}
+
 export type { AutomaticRewardPayoutResult };
 
 export function readAutomaticRewardDistributorReadiness() {
@@ -151,6 +164,14 @@ Promise<AutomaticRewardPayoutResult> {
   ) {
     return runBaseAutomaticRewardPayout();
   }
+
+  // Reconcile the oldest already-submitted transaction before preparing more
+  // claimed work. Recovery may record durable broadcast confirmation for a
+  // transaction that is on-chain but not fully finalized yet. That confirmation
+  // only releases the single-active-round preparation gate; payouts and
+  // invitations remain PENDING/ELIGIBLE until the normal full-finality verifier
+  // atomically settles the immutable manifest as PAID.
+  await recoverSubmittedBeforePayout();
 
   // An AWAITING_CLAIM reward already passed final mission verification, Sybil /
   // identity gates, chain finality, and fixed-amount reservation. Prepare only
@@ -177,6 +198,11 @@ Promise<AutomaticRewardPayoutResult> {
 export async function runAutomaticRewardPayout():
 Promise<AutomaticRewardPayoutResult> {
   prepareRewardDistributorSecret();
+
+  // Cron and other background invocations must keep old submitted transactions
+  // moving toward full finality even after they no longer block preparation of a
+  // newer claimed batch.
+  await recoverSubmittedBeforePayout();
 
   // Reservation and transfer are intentionally separate. This sweep fixes the
   // amount for newly verified referrals even when the inviter is offline. Only
