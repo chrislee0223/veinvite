@@ -1,0 +1,276 @@
+/*
+ * Final locale-resilience layer.
+ *
+ * Keep reviewed copy intact and make recently added Network surfaces follow the
+ * same wrapping, direction and script-metric guarantees as the rest of the app.
+ */
+
+:is(
+  .productionNetworkCanaryV45,
+  .networkCard,
+  .publicExplorePage,
+  .publicState,
+  .networkHubState,
+  .visibilityPanel
+) :where(h1, h2, h3, p, strong, b, small, span, button, label) {
+  min-width: 0;
+  max-width: 100%;
+  overflow-wrap: normal;
+  word-break: normal;
+}
+
+:is(
+  .productionNetworkCanaryV45,
+  .networkCard,
+  .publicExplorePage,
+  .publicState,
+  .networkHubState,
+  .visibilityPanel
+) :where(button) {
+  height: auto;
+  min-height: 36px;
+  white-space: normal;
+  line-height: 1.3;
+}
+
+/* Network controls were introduced after the original localization pass. Let
+ * their copy grow vertically rather than clipping long German, French, Arabic,
+ * Urdu, Indic or Greek labels. */
+.productionNetworkCanaryV45 :is(
+  .navActions button,
+  .viewActions button,
+  .scenarioBar button,
+  .v42GroupPanel button,
+  .v42GroupRow,
+  .v42GroupHub,
+  .profileCard button
+),
+.publicExplorePage :is(button, .publicRoots > button),
+.networkHubState button,
+.visibilityPanel button {
+  white-space: normal !important;
+  text-overflow: clip !important;
+  overflow: visible;
+  padding-block: 6px;
+  text-wrap: balance;
+}
+
+.productionNetworkCanaryV45 :is(
+  .v42GroupHub,
+  .v42GroupRow,
+  .profileCard,
+  .v42GroupPanel
+) :where(strong, b, p, small, span) {
+  white-space: normal !important;
+  text-overflow: clip !important;
+  overflow: visible;
+}
+
+/* Keep node metadata compact, but never let glyphs get vertically clipped in
+ * scripts with taller ascenders/descenders. */
+.productionNetworkCanaryV45 .personNode {
+  overflow: visible !important;
+}
+
+.productionNetworkCanaryV45 .personNode > :is(b, small),
+.productionNetworkCanaryV45 .slotNode > :is(b, small) {
+  box-sizing: border-box;
+  min-height: 1.25em;
+  line-height: 1.25;
+}
+
+/* Native prose should use natural language boundaries. Latin-script browsers
+ * may hyphenate only when their dictionary supports the active html[lang]. */
+html[data-locale-typography='latin'] :is(
+  .productionNetworkCanaryV45,
+  .networkCard,
+  .publicExplorePage,
+  .publicState,
+  .networkHubState,
+  .visibilityPanel
+) :where(p, button, strong, b) {
+  hyphens: auto;
+}
+
+html[lang='ko'] :is(
+  .productionNetworkCanaryV45,
+  .networkCard,
+  .publicExplorePage,
+  .publicState,
+  .networkHubState,
+  .visibilityPanel
+) :where(p, button, strong, b, span) {
+  word-break: keep-all !important;
+  overflow-wrap: normal !important;
+}
+
+html:is([lang='zh'], [lang='zh-tw'], [lang='ja']) :is(
+  .productionNetworkCanaryV45,
+  .networkCard,
+  .publicExplorePage,
+  .publicState,
+  .networkHubState,
+  .visibilityPanel
+) {
+  line-break: strict;
+  word-break: normal;
+}
+
+/* Arabic and Indic scripts need extra vertical room inside compact Network
+ * cards. Urdu gets a little more room for Nastaliq fallback metrics. */
+html[data-locale-typography='arabic'] :is(
+  .productionNetworkCanaryV45,
+  .networkCard,
+  .publicExplorePage,
+  .publicState,
+  .networkHubState,
+  .visibilityPanel
+) :where(h1, h2, h3, p, strong, b, small, span, button) {
+  line-height: 1.48;
+}
+
+html[lang='ur'] :is(
+  .productionNetworkCanaryV45,
+  .networkCard,
+  .publicExplorePage,
+  .publicState,
+  .networkHubState,
+  .visibilityPanel
+) :where(h1, h2, h3, p, strong, b, small, span, button) {
+  line-height: 1.6;
+}
+
+html[data-locale-typography='indic'] :is(
+  .productionNetworkCanaryV45,
+  .networkCard,
+  .publicExplorePage,
+  .publicState,
+  .networkHubState,
+  .visibilityPanel
+) :where(h1, h2, h3, p, strong, b, small, span, button) {
+  line-height: 1.5;
+}
+
+/* Technical values stay LTR-isolated regardless of interface direction. */
+:is(
+  .productionNetworkCanaryV45,
+  .networkCard,
+  .publicExplorePage,
+  .leaderboardPage,
+  .settingsPage,
+  .notificationRoot,
+  .rewardReceiptNotice
+) :is(
+  code,
+  [data-wallet],
+  [data-address],
+  [data-tx-hash],
+  .walletAddress,
+  .walletCell,
+  .walletText,
+  .notificationFriendWallet,
+  .receiptAmount,
+  .rewardAmount,
+  .estimateAmount,
+  .rankMetric,
+  .countryRank,
+  .countryTotal
+) {
+  direction: ltr;
+  unicode-bidi: isolate;
+  font-variant-numeric: tabular-nums;
+}
+
+/* User-entered/public wallet lookup is always a hexadecimal identifier. */
+.publicExplorePage .walletLookup input,
+.publicExplorePage .publicRoots strong {
+  direction: ltr !important;
+  unicode-bidi: isolate;
+  text-align: left !important;
+  overflow-wrap: anywhere;
+}
+
+/* Prefer logical alignment so the same layout works in both directions. */
+:is(
+  .productionNetworkCanaryV45,
+  .networkCard,
+  .publicExplorePage,
+  .publicState,
+  .networkHubState,
+  .visibilityPanel
+) :where(.copy, .statusText, .exploreDescription) {
+  text-align: start;
+}
+
+.publicExplorePage .publicRoots > button:not(.retry) {
+  text-align: start !important;
+}
+
+html[dir='rtl'] :is(
+  .productionNetworkCanaryV45,
+  .networkCard,
+  .publicExplorePage,
+  .publicState,
+  .networkHubState,
+  .visibilityPanel
+) {
+  direction: rtl;
+}
+
+html[dir='rtl'] .publicExplorePage :is(.backButton, .publicRoots > button i) {
+  transform: scaleX(-1);
+}
+
+html[dir='rtl'] .productionNetworkCanaryV45 :is(
+  .v42GroupPanel,
+  .v42GroupRow,
+  .profileCard
+) {
+  text-align: right;
+}
+
+html[dir='rtl'] .productionNetworkCanaryV45 :is(
+  .v42GroupHub.v61DropPreview::after,
+  .v42GroupRow.v61DropPreview::after,
+  .v42GroupHub.v61GroupAccepted::after,
+  .v42GroupRow.v61GroupAccepted::after,
+  .v42GroupHub.v63VerifiedTransfer::after,
+  .v42GroupRow.v63VerifiedTransfer::after
+) {
+  text-align: right;
+}
+
+/* Two-line navigation labels should remain vertically balanced in tall-script
+ * locales instead of pressing against the bottom navigation edge. */
+html[data-locale-typography='arabic'] .bottomNavigation button,
+html[data-locale-typography='indic'] .bottomNavigation button {
+  padding-block: 7px !important;
+}
+
+html[lang='ur'] .bottomNavigation button {
+  padding-block: 8px !important;
+}
+
+/* Very narrow phones need breathing room around translated modal/card copy. */
+@media (max-width: 420px) {
+  :is(
+    .networkHubState,
+    .publicState,
+    .publicExplorePage,
+    .visibilityPanel,
+    .rewardReceiptNotice,
+    [role='dialog'],
+    [role='alertdialog']
+  ) {
+    max-width: calc(100vw - 20px);
+    box-sizing: border-box;
+  }
+
+  .productionNetworkCanaryV45 :is(
+    .navActions button,
+    .viewActions button,
+    .v42GroupPanel button
+  ) {
+    padding-inline: 8px;
+  }
+}
