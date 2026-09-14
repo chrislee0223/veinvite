@@ -224,7 +224,8 @@ export function AppNetworkCanaryV69({ locale }: { locale: Locale }) {
       <NetworkCreateGroupDragGhostV69 />
       <style jsx global>{`
         .productionNetworkCanaryV45 .personNode.v69CreateDragSource {
-          opacity: .44 !important;
+          opacity: 0 !important;
+          transition: none !important;
         }
 
         .v69CreateDragGhost {
@@ -238,9 +239,10 @@ export function AppNetworkCanaryV69({ locale }: { locale: Locale }) {
           -webkit-touch-callout: none;
           display: block;
           color: #d7d0c3;
+          opacity: 1 !important;
           transform: scale(var(--v69-ghost-scale));
           transform-origin: 0 0;
-          filter: drop-shadow(0 9px 18px rgba(0,0,0,.34));
+          filter: none !important;
           will-change: left, top;
         }
 
@@ -250,13 +252,13 @@ export function AppNetworkCanaryV69({ locale }: { locale: Locale }) {
           top: 0 !important;
           width: 52px !important;
           height: 52px !important;
-          transform: translateX(-50%) scale(1.045) !important;
+          transform: translateX(-50%) !important;
           border: 1px solid rgba(244,183,40,.88) !important;
           border-radius: 50% !important;
           background-color: #0d0d0b !important;
           color: #e1b94f !important;
-          box-shadow: 0 0 0 4px rgba(244,183,40,.09), 0 0 26px rgba(244,183,40,.12) !important;
-          opacity: .98 !important;
+          box-shadow: none !important;
+          opacity: 1 !important;
         }
 
         .v69CreateDragGhost > b,
@@ -282,16 +284,6 @@ export function AppNetworkCanaryV69({ locale }: { locale: Locale }) {
           top: 78px !important;
           color: #81786b !important;
           font-size: .38rem !important;
-        }
-
-        @media (max-width: 700px) {
-          .v69CreateDragGhost {
-            filter: drop-shadow(0 7px 14px rgba(0,0,0,.3));
-          }
-        }
-
-        @media (prefers-reduced-motion: reduce) {
-          .v69CreateDragGhost { filter: none; }
         }
       `}</style>
     </>
