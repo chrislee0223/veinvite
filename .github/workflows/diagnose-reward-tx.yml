@@ -41,7 +41,6 @@ jobs:
           const expiration = Number(body.expiration);
           const expiryBlock = blockRefNumber + expiration;
           const best = await thor.blocks.getBestBlockCompressed();
-          const finalized = await thor.blocks.getFinalizedBlockCompressed();
           const tx = await thor.transactions.getTransaction(txId, { pending: true });
           const receipt = await thor.transactions.getTransactionReceipt(txId);
 
@@ -53,7 +52,6 @@ jobs:
             expiration,
             expiryBlock,
             bestBlock: best?.number ?? null,
-            finalizedBlock: finalized?.number ?? null,
             foundTransaction: Boolean(tx),
             transactionMeta: tx?.meta ?? null,
             foundReceipt: Boolean(receipt),
