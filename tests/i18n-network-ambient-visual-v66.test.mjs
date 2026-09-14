@@ -46,6 +46,8 @@ test('V67 is also presentation-only and wraps V66 without owning geometry', () =
     "setProperty('--y'",
     "setProperty('--gx'",
     "setProperty('--gy'",
+    '--v63-adjust-',
+    '--v42-group-d',
   ]) {
     assert.ok(!correctionSource.includes(forbidden), `V67 correction must remain paint-only: ${forbidden}`);
   }
@@ -83,24 +85,26 @@ test('V67 retires the oversized endpoint halos and restores avatar-safe circles'
   assert.match(correctionSource, /border-color:\s*rgba\(210, 174, 65, \.46\)/);
   assert.match(correctionSource, /border-style:\s*dashed/);
   assert.match(correctionSource, /border-color:\s*rgba\(226, 181, 62, \.58\)/);
+  assert.match(correctionSource, /\.stage\.editMode \.nodeCircle/);
   assert.doesNotMatch(correctionSource, /border:\s*1px dashed[^;]*!important/);
 });
 
-test('V67 endpoint softness is tiny, button-level and pointer transparent', () => {
+test('V67 endpoint softness is tiny, button-level and behind mature node content', () => {
   assert.match(correctionSource, /\.personNode::before/);
   assert.match(correctionSource, /width:\s*60px/);
   assert.match(correctionSource, /\.slotNode::before/);
   assert.match(correctionSource, /width:\s*54px/);
   assert.match(correctionSource, /pointer-events:\s*none/);
+  assert.match(correctionSource, /z-index:\s*-1/);
   assert.doesNotMatch(correctionSource, /filter:\s*(?:blur|drop-shadow)/);
   assert.doesNotMatch(correctionSource, /backdrop-filter/);
 });
 
-test('V67 keeps node content above the endpoint fade without changing layout anchors', () => {
-  assert.match(correctionSource, /\.personNode > b[\s\S]*?position:\s*relative\s*!important/);
-  assert.match(correctionSource, /margin-top:\s*2px\s*!important/);
-  assert.doesNotMatch(correctionSource, /--v63-adjust-/);
-  assert.doesNotMatch(correctionSource, /--v42-group-d/);
+test('V67 never overrides mature circle or metadata positioning and spacing', () => {
+  assert.doesNotMatch(correctionSource, /position:\s*relative\s*!important/);
+  assert.doesNotMatch(correctionSource, /margin-top:\s*2px\s*!important/);
+  assert.doesNotMatch(correctionSource, /\.personNode\s*>\s*b[\s\S]*?position:/);
+  assert.doesNotMatch(correctionSource, /\.personNode\s*>\s*\.nodeCircle[\s\S]*?position:/);
 });
 
 test('V67 keeps YOU opaque and avoids floating authoritative group hubs', () => {
