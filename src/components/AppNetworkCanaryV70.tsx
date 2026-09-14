@@ -2,6 +2,7 @@
 
 import { useLayoutEffect } from 'react';
 
+import '@/lib/i18n/networkNaturalnessPolish';
 import {
   getLocaleDirection,
   isLocale,
