@@ -253,7 +253,9 @@ export function QaNetworkRadialPlaygroundV37() {
   const childCount = center.children.length;
   const totalBelow = descendants(graph, center.id);
   const crumbs = lineage(graph, center.id);
-  const slotCount = center.id === ROOT ? Math.max(1, Math.min(2, scenario.openSlots)) : 1 + (stableHash(`${scenario.id}:${center.id}:slot`) % 2);
+  // Available invite capacity is a product rule, not a visual-randomization aid.
+  // Keep the same two open slots when viewing YOU or any descendant network.
+  const slotCount = Math.max(1, Math.min(2, scenario.openSlots));
   const layoutPrefix = `${scenario.id}|${center.id}|${compact ? 'mobile' : 'desktop'}|`;
   const layoutKey = (kind: NodeKind, id: string) => `${layoutPrefix}${kind}|${id}`;
 
@@ -580,6 +582,14 @@ export function QaNetworkRadialPlaygroundV37() {
     if (editMode) {
       event.preventDefault();
       beginDragAt(event.currentTarget, event.pointerId, key, point, event.clientX, event.clientY);
+      return;
+    }
+    // V50/V52 own modern canary node gestures. Keeping V37's legacy 500ms
+    // long-press here would turn on editMode mid-gesture, which makes V39
+    // release its compressed layout and visibly jumps the node before drag.
+    // Explicit Edit layout still uses V37's drag path above.
+    if (rootRef.current?.closest('.productionNetworkCanaryV45')) {
+      clearPress(false);
       return;
     }
     clearPress(false);

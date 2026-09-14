@@ -6,6 +6,7 @@ import type { Locale } from '@/lib/i18n/locales';
 import { AppNetworkCanaryV56 } from './AppNetworkCanaryV56';
 
 const GROUP_STORAGE_KEY = 'veinvite:qa:radial-v42:groups-v1';
+const FINAL_GROUP_SYNC_DELAY_MS = 90;
 
 type Point = { x: number; y: number };
 type StoredGroup = {
@@ -33,6 +34,12 @@ function curveBetween(from: Point, to: Point) {
   return `M ${from.x} ${from.y} C ${from.x + bend} ${from.y + dy * .28}, ${to.x - bend} ${from.y + dy * .72}, ${to.x} ${to.y}`;
 }
 
+function containsGeometryNode(node: Node) {
+  if (!(node instanceof Element)) return false;
+  const selector = '.personNode[data-node-id],.v42GroupHub[data-group-id],.v42GroupLayer';
+  return node.matches(selector) || Boolean(node.querySelector(selector));
+}
+
 function NetworkAuthoritativeEdges() {
   useLayoutEffect(() => {
     const root = document.querySelector<HTMLElement>('.productionNetworkCanaryV45');
@@ -50,6 +57,9 @@ function NetworkAuthoritativeEdges() {
     const paths = new Map<string, SVGPathElement>();
     let frame = 0;
     let mounted = true;
+    let finalGroupSyncTimer: number | null = null;
+    let cachedGroupRaw: string | null | undefined;
+    let cachedGroups: StoredGroup[] = [];
 
     const activeScenarioId = () => {
       const label = root.querySelector<HTMLElement>('.scenarioBar button.active b')?.textContent?.trim() ?? '';
@@ -70,11 +80,19 @@ function NetworkAuthoritativeEdges() {
     const readGroups = () => {
       try {
         const raw = window.localStorage.getItem(GROUP_STORAGE_KEY);
-        if (!raw) return [] as StoredGroup[];
+        if (raw === cachedGroupRaw) return cachedGroups;
+        cachedGroupRaw = raw;
+        if (!raw) {
+          cachedGroups = [];
+          return cachedGroups;
+        }
         const parsed = JSON.parse(raw) as StoredGroup[];
-        return Array.isArray(parsed) ? parsed : [];
+        cachedGroups = Array.isArray(parsed) ? parsed : [];
+        return cachedGroups;
       } catch {
-        return [] as StoredGroup[];
+        cachedGroupRaw = undefined;
+        cachedGroups = [];
+        return cachedGroups;
       }
     };
 
@@ -121,6 +139,13 @@ function NetworkAuthoritativeEdges() {
       const owner = new Map<string, StoredGroup>();
       groups.forEach((group) => group.members.forEach((memberId) => owner.set(memberId, group)));
 
+      const nodes = Array.from(root.querySelectorAll<HTMLElement>('.personNode[data-node-id]'));
+      const nodesById = new Map<string, HTMLElement>();
+      nodes.forEach((node) => {
+        const id = node.dataset.nodeId;
+        if (id) nodesById.set(id, node);
+      });
+
       const hubs = new Map<string, HTMLElement>();
       root.querySelectorAll<HTMLElement>('.v42GroupHub[data-group-id]').forEach((hub) => {
         const id = hub.dataset.groupId;
@@ -136,7 +161,7 @@ function NetworkAuthoritativeEdges() {
         const expanded = hub.classList.contains('expanded') || stage.classList.contains('editMode');
         if (!expanded) return;
         group.members.forEach((memberId) => {
-          const node = root.querySelector<HTMLElement>(`.personNode[data-node-id="${CSS.escape(memberId)}"]`);
+          const node = nodesById.get(memberId);
           if (!node || node.classList.contains('v42CollapsedMember')) return;
           upsert(
             `group:${group.id}:member:${memberId}`,
@@ -147,7 +172,7 @@ function NetworkAuthoritativeEdges() {
         });
       });
 
-      root.querySelectorAll<HTMLElement>('.personNode[data-node-id]').forEach((node) => {
+      nodes.forEach((node) => {
         const id = node.dataset.nodeId;
         if (!id || node.classList.contains('v42CollapsedMember')) return;
         const group = owner.get(id);
@@ -170,18 +195,32 @@ function NetworkAuthoritativeEdges() {
       frame = window.requestAnimationFrame(sync);
     };
 
+    const scheduleFinalGroupSync = () => {
+      if (finalGroupSyncTimer !== null) window.clearTimeout(finalGroupSyncTimer);
+      finalGroupSyncTimer = window.setTimeout(() => {
+        finalGroupSyncTimer = null;
+        schedule();
+      }, FINAL_GROUP_SYNC_DELAY_MS);
+    };
+
     const observer = new MutationObserver((mutations) => {
       const relevant = mutations.some((mutation) => {
-        const target = mutation.target instanceof Node ? mutation.target : null;
-        if (target && (target === edgeSvg || edgeSvg.contains(target))) return false;
+        const targetNode = mutation.target instanceof Node ? mutation.target : null;
+        if (targetNode && (targetNode === edgeSvg || edgeSvg.contains(targetNode))) return false;
+
         if (mutation.type === 'attributes') {
           const element = mutation.target instanceof Element ? mutation.target : null;
-          return Boolean(element && (
-            element.matches('.personNode,.v42GroupHub,.stage,.scene') ||
-            element.closest('.personNode,.v42GroupHub')
-          ));
+          if (!element) return false;
+          if (mutation.attributeName === 'style') {
+            return element.matches('.personNode[data-node-id],.v42GroupHub[data-group-id]');
+          }
+          if (mutation.attributeName === 'class') {
+            return element === stage || element.matches('.personNode[data-node-id],.v42GroupHub[data-group-id]');
+          }
+          return false;
         }
-        return mutation.type === 'childList';
+
+        return [...mutation.addedNodes, ...mutation.removedNodes].some(containsGeometryNode);
       });
       if (relevant) schedule();
     });
@@ -193,12 +232,24 @@ function NetworkAuthoritativeEdges() {
       attributeFilter: ['class', 'style'],
     });
 
-    const onInteraction = () => schedule();
-    root.addEventListener('pointermove', onInteraction, true);
-    root.addEventListener('pointerup', onInteraction, true);
-    root.addEventListener('pointercancel', onInteraction, true);
-    root.addEventListener('click', onInteraction, true);
-    window.addEventListener('resize', onInteraction);
+    const onInteractionEnd = () => {
+      schedule();
+      scheduleFinalGroupSync();
+    };
+    const onStorage = (event: StorageEvent) => {
+      if (event.key !== GROUP_STORAGE_KEY) return;
+      cachedGroupRaw = undefined;
+      schedule();
+    };
+
+    // Node/group style mutations already schedule one geometry pass per frame.
+    // Camera panning moves nodes and this SVG together inside .scene, so a raw
+    // pointermove does not need another full O(nodes + groups) traversal.
+    root.addEventListener('pointerup', onInteractionEnd, true);
+    root.addEventListener('pointercancel', onInteractionEnd, true);
+    root.addEventListener('click', onInteractionEnd, true);
+    window.addEventListener('resize', onInteractionEnd);
+    window.addEventListener('storage', onStorage);
 
     schedule();
 
@@ -206,11 +257,12 @@ function NetworkAuthoritativeEdges() {
       mounted = false;
       observer.disconnect();
       if (frame) window.cancelAnimationFrame(frame);
-      root.removeEventListener('pointermove', onInteraction, true);
-      root.removeEventListener('pointerup', onInteraction, true);
-      root.removeEventListener('pointercancel', onInteraction, true);
-      root.removeEventListener('click', onInteraction, true);
-      window.removeEventListener('resize', onInteraction);
+      if (finalGroupSyncTimer !== null) window.clearTimeout(finalGroupSyncTimer);
+      root.removeEventListener('pointerup', onInteractionEnd, true);
+      root.removeEventListener('pointercancel', onInteractionEnd, true);
+      root.removeEventListener('click', onInteractionEnd, true);
+      window.removeEventListener('resize', onInteractionEnd);
+      window.removeEventListener('storage', onStorage);
       edgeSvg.remove();
     };
   }, []);
@@ -261,7 +313,7 @@ export function AppNetworkCanaryV57({ locale }: { locale: Locale }) {
         }
 
         .productionNetworkCanaryV45 .v57GroupTrunk {
-          stroke: rgba(244, 183, 40, .38);
+          stroke: rgba(244, 183, 40,.38);
           stroke-width: 1.05;
           stroke-dasharray: 4 7;
           opacity: .72;
