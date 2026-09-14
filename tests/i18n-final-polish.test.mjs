@@ -6,6 +6,7 @@ const [
   localeSource,
   copySource,
   canarySource,
+  ambientSource,
   guideSource,
   layoutSource,
   polishCss,
@@ -16,6 +17,7 @@ const [
   readFile('src/lib/i18n/locales.ts', 'utf8'),
   readFile('src/lib/i18n/networkCanaryInteractionCopy.ts', 'utf8'),
   readFile('src/components/AppNetworkCanaryV65.tsx', 'utf8'),
+  readFile('src/components/AppNetworkCanaryV66.tsx', 'utf8'),
   readFile('src/components/AppGuide.tsx', 'utf8'),
   readFile('src/app/layout.tsx', 'utf8'),
   readFile('src/app/localization-final-polish.css', 'utf8'),
@@ -84,9 +86,11 @@ test('final layout polish covers Network, RTL, CJK, Korean and tall-script metri
   assert.match(polishCss, /unicode-bidi:\s*isolate/);
 });
 
-test('the special Network canary uses the localized V65 wrapper', () => {
-  assert.match(guideSource, /AppNetworkCanaryV65/);
-  assert.doesNotMatch(guideSource, /const AppNetworkCanaryV64/);
+test('the special Network canary keeps V66 visuals on top of localized V65', () => {
+  assert.match(guideSource, /AppNetworkCanaryV66/);
+  assert.doesNotMatch(guideSource, /const AppNetworkCanaryV65/);
+  assert.match(ambientSource, /AppNetworkCanaryV65/);
+  assert.match(ambientSource, /<AppNetworkCanaryV65 locale=\{locale\} \/>/);
   assert.match(canarySource, /getNetworkCanaryInteractionCopy\(locale\)/);
 });
 
