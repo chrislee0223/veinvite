@@ -12,8 +12,8 @@ export function AppNetworkCanaryV67({ locale }: { locale: Locale }) {
     <>
       <AppNetworkCanaryV66 locale={locale} />
       <style jsx global>{`
-        /* V66's circle-local halos became visible as large dark rings and also
-           forced overflow:visible on the future avatar container. Remove them. */
+        /* Remove V66's oversized circle-local halos. They were readable as dark
+           rings, reduced outline contrast and could intrude on nearby metadata. */
         .productionNetworkCanaryV45 .nodeCircle::before,
         .productionNetworkCanaryV45 .slotCircle::before,
         .productionNetworkCanaryV45 .clusterNode > span::before {
@@ -21,43 +21,19 @@ export function AppNetworkCanaryV67({ locale }: { locale: Locale }) {
           display: none !important;
         }
 
-        /* Restore clear base outlines and avatar-safe clipping. Border properties
-           intentionally stay non-important so pressing/joining/selected states
-           from the mature layers keep their higher-specificity feedback. Use
-           background-color (not shorthand) so future avatar background images
-           are never reset by this correction layer. */
-        .productionNetworkCanaryV45 .nodeCircle {
-          overflow: hidden !important;
-          isolation: auto !important;
-          border-width: 1px;
-          border-style: solid;
-          border-color: rgba(210, 174, 65, .46);
-          background-color: #0d0d0b;
-        }
-
-        .productionNetworkCanaryV45 .slotCircle {
-          overflow: hidden !important;
-          isolation: auto !important;
-          border-width: 1px;
-          border-style: dashed;
-          border-color: rgba(226, 181, 62, .58);
-          background-color: #0d0d0b;
-        }
-
-        .productionNetworkCanaryV45 .stage.editMode .nodeCircle,
-        .productionNetworkCanaryV45 .stage.editMode .slotCircle {
-          border-color: rgba(244, 183, 40, .65);
-        }
-
+        /* Only restore avatar-safe clipping. Border, background, hover, pressing,
+           joining, selected and edit-state visuals remain owned by the mature
+           V37/V42 layers so this correction cannot silently replace them. */
+        .productionNetworkCanaryV45 .nodeCircle,
+        .productionNetworkCanaryV45 .slotCircle,
         .productionNetworkCanaryV45 .clusterNode > span {
-          isolation: auto !important;
           overflow: hidden !important;
+          isolation: auto !important;
         }
 
-        /* Endpoint softness is a tiny paint-only patch behind the mature node.
-           The buttons form isolated stacking contexts, so z-index:-1 remains
-           behind their existing circle/text while the entire node still paints
-           above V57. No child position/display/spacing property is overridden. */
+        /* Endpoint softness is a tiny paint-only patch. The person circle is 52px
+           and the Available circle is 46px; these patches extend only 3px beyond
+           the visible circle instead of V66's 10-11px halo. */
         .productionNetworkCanaryV45 .personNode,
         .productionNetworkCanaryV45 .slotNode {
           isolation: isolate;
@@ -70,39 +46,53 @@ export function AppNetworkCanaryV67({ locale }: { locale: Locale }) {
           left: 50%;
           border-radius: 50%;
           pointer-events: none;
-          z-index: -1;
+          z-index: 0;
         }
 
         .productionNetworkCanaryV45 .personNode::before {
           top: 26px;
-          width: 60px;
-          height: 60px;
+          width: 58px;
+          height: 58px;
           transform: translate(-50%, -50%);
           background: radial-gradient(
             circle,
-            rgba(8, 8, 7, .92) 0 84%,
-            rgba(8, 8, 7, .52) 89%,
-            rgba(8, 8, 7, .16) 95%,
+            rgba(8, 8, 7, .94) 0 87%,
+            rgba(8, 8, 7, .58) 91%,
+            rgba(8, 8, 7, .17) 96%,
             rgba(8, 8, 7, 0) 100%
           );
         }
 
         .productionNetworkCanaryV45 .slotNode::before {
           top: 23px;
-          width: 54px;
-          height: 54px;
+          width: 52px;
+          height: 52px;
           transform: translate(-50%, -50%);
           background: radial-gradient(
             circle,
-            rgba(8, 8, 7, .9) 0 84%,
-            rgba(8, 8, 7, .48) 90%,
-            rgba(8, 8, 7, .13) 96%,
+            rgba(8, 8, 7, .92) 0 86%,
+            rgba(8, 8, 7, .54) 91%,
+            rgba(8, 8, 7, .15) 96%,
             rgba(8, 8, 7, 0) 100%
           );
         }
 
-        /* The center is an occluder rather than a translucent window. This hides
-           both V57 person/group paths and legacy Available paths inside YOU. */
+        /* Keep the avatar circle above the fade, but keep readable information
+           above the circle. No position/top/left/margin/transform is changed. */
+        .productionNetworkCanaryV45 .personNode > .nodeCircle,
+        .productionNetworkCanaryV45 .slotNode > .slotCircle {
+          z-index: 1 !important;
+        }
+
+        .productionNetworkCanaryV45 .personNode > b,
+        .productionNetworkCanaryV45 .personNode > small,
+        .productionNetworkCanaryV45 .slotNode > b {
+          z-index: 2 !important;
+        }
+
+        /* YOU is an opaque occluder rather than a translucent window. V57 and
+           legacy Available paths remain geometrically unchanged but cannot show
+           through the center circle. */
         .productionNetworkCanaryV45 .centerCircle {
           background: radial-gradient(
             circle at 50% 45%,
@@ -113,8 +103,8 @@ export function AppNetworkCanaryV67({ locale }: { locale: Locale }) {
         }
 
         /* V57 does not read CSS animation offsets for group hubs, so hubs stay
-           static. People/Available/cluster ambience remains paint-only and is
-           reduced further on mobile to keep the edge-to-node illusion tight. */
+           static. Person/Available/cluster ambience remains paint-only and is
+           deliberately sub-pixel-to-1px on mobile. */
         @supports (translate: 1px 1px) {
           .productionNetworkCanaryV45 .v42GroupHub {
             animation: none !important;
@@ -142,22 +132,22 @@ export function AppNetworkCanaryV67({ locale }: { locale: Locale }) {
 
           @media (max-width: 640px) {
             .productionNetworkCanaryV45 .personNode {
-              --v66-fx1: .75px !important;
-              --v66-fy1: -1.05px !important;
-              --v66-fx2: -.65px !important;
-              --v66-fy2: .8px !important;
-              --v66-fx3: .7px !important;
-              --v66-fy3: .35px !important;
+              --v66-fx1: .7px !important;
+              --v66-fy1: -.95px !important;
+              --v66-fx2: -.6px !important;
+              --v66-fy2: .72px !important;
+              --v66-fx3: .62px !important;
+              --v66-fy3: .3px !important;
             }
 
             .productionNetworkCanaryV45 .slotNode,
             .productionNetworkCanaryV45 .clusterNode {
-              --v66-fx1: .65px !important;
-              --v66-fy1: -.9px !important;
-              --v66-fx2: -.55px !important;
-              --v66-fy2: .65px !important;
-              --v66-fx3: .55px !important;
-              --v66-fy3: .3px !important;
+              --v66-fx1: .58px !important;
+              --v66-fy1: -.82px !important;
+              --v66-fx2: -.5px !important;
+              --v66-fy2: .58px !important;
+              --v66-fx3: .48px !important;
+              --v66-fy3: .26px !important;
             }
           }
         }
