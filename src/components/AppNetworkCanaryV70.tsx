@@ -123,16 +123,49 @@ export function AppNetworkCanaryV70({ locale }: { locale: Locale }) {
         .productionNetworkCanaryV45 .identity {
           width: 100%;
           min-width: 0;
+          box-sizing: border-box;
+          padding-inline-start: 6px;
+          padding-inline-end: 2px;
           row-gap: 4px !important;
           column-gap: 8px !important;
+          align-items: baseline !important;
+          justify-content: flex-start !important;
+          text-align: start;
           line-height: 1.25;
         }
 
-        .productionNetworkCanaryV45 .identity > :is(b, span),
+        .productionNetworkCanaryV45 .identity > :is(b, span) {
+          min-width: 0;
+          white-space: nowrap !important;
+        }
+
+        .productionNetworkCanaryV45 .identity > span:last-child {
+          max-width: 100%;
+          overflow: hidden;
+          text-overflow: ellipsis;
+        }
+
         .productionNetworkCanaryV45 .v42PanelHead > div,
         .productionNetworkCanaryV45 .v42GroupRowMain,
         .productionNetworkCanaryV45 .profileCard > div {
           min-width: 0;
+        }
+
+        .productionNetworkCanaryV45 :is(
+          .identity,
+          .navActions,
+          .canaryViewActions,
+          .v42GroupPanel,
+          .hint,
+          .notice,
+          .v42Notice,
+          .profileCard
+        ) .v65LocalizedUiCopy::after,
+        .productionNetworkCanaryV45 :is(
+          .hint.v65LocalizedUiCopy,
+          .notice.v65LocalizedUiCopy
+        )::after {
+          line-height: inherit !important;
         }
 
         .productionNetworkCanaryV45 .navActions > button:not(.zoomValue),
@@ -354,6 +387,10 @@ export function AppNetworkCanaryV70({ locale }: { locale: Locale }) {
           width: 100%;
         }
 
+        .productionNetworkCanaryV45[data-v70-direction='rtl'] .identity {
+          direction: rtl;
+        }
+
         .productionNetworkCanaryV45[data-v70-direction='rtl'] .navActions > button:has(+ .zoomValue) {
           margin-left: 0 !important;
           margin-right: 5px !important;
@@ -414,7 +451,7 @@ export function AppNetworkCanaryV70({ locale }: { locale: Locale }) {
           line-height: 1.55 !important;
         }
 
-        html:is([lang='ko'],[lang='zh'],[lang='zh-tw'],[lang='ja']) .productionNetworkCanaryV45 :is(
+        html[lang='ko'] .productionNetworkCanaryV45 :is(
           .v42PanelHead :is(b, small),
           .v42GroupRowMain > small,
           .v42SelectionCount > span,
@@ -425,6 +462,21 @@ export function AppNetworkCanaryV70({ locale }: { locale: Locale }) {
           .v42Notice
         ) {
           word-break: keep-all !important;
+          overflow-wrap: normal !important;
+        }
+
+        html:is([lang='zh'],[lang='zh-tw'],[lang='ja']) .productionNetworkCanaryV45 :is(
+          .v42PanelHead :is(b, small),
+          .v42GroupRowMain > small,
+          .v42SelectionCount > span,
+          .v44NewGroupDrop :is(b, small),
+          .v44CreateDropMore :is(b, small),
+          .hint,
+          .notice,
+          .v42Notice
+        ) {
+          line-break: strict;
+          word-break: normal !important;
           overflow-wrap: normal !important;
         }
 
