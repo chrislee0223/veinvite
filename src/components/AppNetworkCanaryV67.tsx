@@ -29,23 +29,27 @@ export function AppNetworkCanaryV67({ locale }: { locale: Locale }) {
           display: none !important;
         }
 
-        /* Preserve the intended circle treatment and future avatar clipping.
-           Higher-specificity selected/pressed/edit rules remain free to raise
-           border contrast or switch the Available border to solid. */
+        /* Preserve the intended base circle treatment and future avatar clipping.
+           Do not use !important on border style/color here: higher-specificity
+           selected/pressed/joining/edit states must still be able to change them. */
         .productionNetworkCanaryV45 .nodeCircle {
           overflow: hidden !important;
           isolation: auto !important;
           z-index: 1;
-          border: 1px solid rgba(210, 174, 65, .46) !important;
-          background: #0d0d0b !important;
+          border-width: 1px;
+          border-style: solid;
+          border-color: rgba(210, 174, 65, .46);
+          background: #0d0d0b;
         }
 
         .productionNetworkCanaryV45 .slotCircle {
           overflow: hidden !important;
           isolation: auto !important;
           z-index: 1;
-          border: 1px dashed rgba(226, 181, 62, .58) !important;
-          background: #0d0d0b !important;
+          border-width: 1px;
+          border-style: dashed;
+          border-color: rgba(226, 181, 62, .58);
+          background: #0d0d0b;
         }
 
         .productionNetworkCanaryV45 .clusterNode > span {
@@ -100,10 +104,14 @@ export function AppNetworkCanaryV67({ locale }: { locale: Locale }) {
           );
         }
 
-        /* Keep the avatar/slot circle above the paint-only endpoint patch. */
+        /* Keep every visible part of the node above the paint-only endpoint
+           patch. position:relative does not change layout, alignment or hit area. */
         .productionNetworkCanaryV45 .personNode > .nodeCircle,
-        .productionNetworkCanaryV45 .slotNode > .slotCircle {
-          position: relative;
+        .productionNetworkCanaryV45 .slotNode > .slotCircle,
+        .productionNetworkCanaryV45 .personNode > b,
+        .productionNetworkCanaryV45 .personNode > small,
+        .productionNetworkCanaryV45 .slotNode > b {
+          position: relative !important;
           z-index: 1;
         }
 
