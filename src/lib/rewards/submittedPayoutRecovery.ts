@@ -1,6 +1,7 @@
 import 'server-only';
 
 import { randomUUID } from 'node:crypto';
+import { ThorClient } from '@vechain/sdk-network';
 
 import {
   buildPayoutManifest,
@@ -46,6 +47,97 @@ function positiveId(value: unknown, fieldName: string): string {
   return BigInt(normalized).toString();
 }
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+async function observeCanonicalSuccessfulReceipt({
+  txId,
+  expectedOperator,
+}: {
+  txId: string;
+  expectedOperator: string;
+}): Promise<boolean> {
+  const { nodeUrl } = getVeBetterNetworkConfig();
+  const thor = ThorClient.at(nodeUrl);
+  const [rawTransaction, rawReceipt] = await Promise.all([
+    thor.transactions.getTransaction(txId),
+    thor.transactions.getTransactionReceipt(txId),
+  ]);
+
+  if (!rawTransaction || !rawReceipt) {
+    return false;
+  }
+
+  const transaction = rawTransaction as unknown as Record<string, unknown>;
+  const receipt = rawReceipt as unknown as Record<string, unknown>;
+  const meta = isRecord(receipt.meta) ? receipt.meta : null;
+
+  if (!meta) {
+    throw new Error(
+      'Submitted payout receipt metadata is unavailable before broadcast confirmation.',
+    );
+  }
+
+  if (receipt.reverted !== false) {
+    throw new Error(
+      'Submitted payout transaction reverted and cannot release the next reward batch.',
+    );
+  }
+
+  const observedTxId = String(
+    transaction.id ??
+      (isRecord(transaction.meta) ? transaction.meta.txID : '') ?? '',
+  ).toLowerCase();
+  const receiptTxId = String(meta.txID ?? '').toLowerCase();
+  const transactionOrigin = normalizeAddress(
+    transaction.origin ??
+      (isRecord(transaction.meta) ? transaction.meta.txOrigin : null),
+  );
+  const receiptOrigin = normalizeAddress(meta.txOrigin);
+
+  if (
+    observedTxId !== txId ||
+    receiptTxId !== txId ||
+    transactionOrigin !== expectedOperator ||
+    receiptOrigin !== expectedOperator
+  ) {
+    throw new Error(
+      'Submitted payout transaction or receipt identity does not match the immutable journal.',
+    );
+  }
+
+  const blockNumber = Number(meta.blockNumber);
+  const blockId = String(meta.blockID ?? '').toLowerCase();
+
+  if (
+    !Number.isSafeInteger(blockNumber) ||
+    blockNumber < 0 ||
+    !HEX_32_PATTERN.test(blockId)
+  ) {
+    throw new Error(
+      'Submitted payout receipt block metadata is invalid.',
+    );
+  }
+
+  const canonicalBlock =
+    await thor.blocks.getBlockCompressed(blockNumber);
+
+  if (!canonicalBlock) {
+    return false;
+  }
+
+  const canonicalId = String(canonicalBlock.id).toLowerCase();
+  const isTrunk = (
+    canonicalBlock as unknown as { isTrunk?: unknown }
+  ).isTrunk;
+
+  return (
+    canonicalId === blockId &&
+    isTrunk !== false
+  );
+}
+
 async function acquireRecoveryLock(
   network: string,
   ownerToken: string,
@@ -87,9 +179,36 @@ async function releaseRecoveryLock(
   }
 }
 
+async function markBroadcastConfirmed(
+  manifestId: string,
+  txId: string,
+) {
+  const { error } = await supabaseAdmin.rpc(
+    'mark_reward_payout_broadcast_confirmed',
+    {
+      p_manifest_id: manifestId,
+      p_tx_id: txId,
+    },
+  );
+
+  if (error) {
+    throw new Error(
+      `Submitted payout broadcast confirmation could not be recorded: ${error.message}`,
+    );
+  }
+}
+
 /**
  * Reconciles only an already-submitted payout. It cannot prepare a round,
  * create a manifest, sign a transaction, or broadcast a new transaction.
+ *
+ * When the exact journaled transaction and a successful receipt are visible in
+ * the current canonical chain but the block has not reached VeChain full
+ * finality yet, recovery records a durable broadcast confirmation on the reward
+ * round. That marker releases only the preparation gate for later claimed
+ * batches. The payout remains PENDING and the invitation remains ELIGIBLE until
+ * this same immutable transaction passes the full-finality manifest/event
+ * verification below and is atomically PAID.
  */
 export async function recoverSubmittedRewardPayout():
 Promise<SubmittedPayoutRecoveryResult> {
@@ -111,14 +230,17 @@ Promise<SubmittedPayoutRecoveryResult> {
   }
 
   try {
+    // Oldest-first is intentional once confirmed broadcasts may coexist with a
+    // newer active batch. It prevents an older immutable submission from being
+    // starved by subsequent claimed cohorts.
     const roundResult = await supabaseAdmin
       .from('reward_rounds')
       .select(
-        'id, network, app_id, status, distributable_wei, eligible_count, created_at',
+        'id, network, app_id, status, distributable_wei, eligible_count, created_at, broadcast_confirmed_at',
       )
       .eq('network', network)
       .in('status', ['CREATED', 'PAYING'])
-      .order('id', { ascending: false })
+      .order('id', { ascending: true })
       .limit(1)
       .maybeSingle();
 
@@ -138,6 +260,7 @@ Promise<SubmittedPayoutRecoveryResult> {
 
     const round = roundResult.data as RewardRoundForManifest & {
       created_at?: string;
+      broadcast_confirmed_at?: string | null;
     };
     const roundId = positiveId(round.id, 'reward round id');
 
@@ -347,10 +470,31 @@ Promise<SubmittedPayoutRecoveryResult> {
     } catch (error) {
       if (
         error instanceof RewardTransactionVerificationError &&
+        error.code === 'TX_NOT_FINALIZED'
+      ) {
+        const canonicalSuccessfulReceipt =
+          await observeCanonicalSuccessfulReceipt({
+            txId,
+            expectedOperator: configuredDistributor,
+          });
+
+        if (canonicalSuccessfulReceipt) {
+          await markBroadcastConfirmed(manifestId, txId);
+        }
+
+        return {
+          status: 'WAITING_FINALITY',
+          roundId,
+          manifestId,
+          txId,
+        };
+      }
+
+      if (
+        error instanceof RewardTransactionVerificationError &&
         (
           error.code === 'TX_NOT_FOUND' ||
-          error.code === 'TX_RECEIPT_NOT_FOUND' ||
-          error.code === 'TX_NOT_FINALIZED'
+          error.code === 'TX_RECEIPT_NOT_FOUND'
         )
       ) {
         return {
