@@ -12,7 +12,7 @@
   "crons": [
     {
       "path": "/api/cron/reconcile",
-      "schedule": "35 15 * * *"
+      "schedule": "17 0 * * *"
     },
     {
       "path": "/api/cron/analytics-maintenance",
