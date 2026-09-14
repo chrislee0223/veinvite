@@ -40,9 +40,12 @@ jobs:
           const blockRefNumber = Number.parseInt(blockRef.slice(2, 10), 16);
           const expiration = Number(body.expiration);
           const expiryBlock = blockRefNumber + expiration;
-          const best = await thor.blocks.getBestBlockCompressed();
-          const tx = await thor.transactions.getTransaction(txId, { pending: true });
-          const receipt = await thor.transactions.getTransactionReceipt(txId);
+          const [best, finalized, tx, receipt] = await Promise.all([
+            thor.blocks.getBestBlockCompressed(),
+            thor.blocks.getBlockCompressed('finalized'),
+            thor.transactions.getTransaction(txId, { pending: true }),
+            thor.transactions.getTransactionReceipt(txId),
+          ]);
 
           console.log(JSON.stringify({
             txId,
@@ -51,10 +54,17 @@ jobs:
             blockRefNumber,
             expiration,
             expiryBlock,
-            bestBlock: best?.number ?? null,
-            foundTransaction: Boolean(tx),
-            transactionMeta: tx?.meta ?? null,
-            foundReceipt: Boolean(receipt),
-            receiptReverted: receipt?.reverted ?? null,
+            best: best ? { id: best.id, number: best.number, timestamp: best.timestamp } : null,
+            finalized: finalized ? { id: finalized.id, number: finalized.number, timestamp: finalized.timestamp } : null,
+            transaction: tx ? {
+              origin: tx.origin ?? tx.meta?.txOrigin ?? null,
+              clauseCount: Array.isArray(tx.clauses) ? tx.clauses.length : null,
+              meta: tx.meta ?? null,
+            } : null,
+            receipt: receipt ? {
+              reverted: receipt.reverted,
+              meta: receipt.meta ?? null,
+              outputCount: Array.isArray(receipt.outputs) ? receipt.outputs.length : null,
+            } : null,
           }, null, 2));
           NODE
