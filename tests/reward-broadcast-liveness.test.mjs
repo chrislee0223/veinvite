@@ -57,10 +57,22 @@ test('broadcast confirmation is separate from PAID settlement', () => {
   );
 });
 
-test('only an observed transaction receipt can release the next-batch gate', () => {
+test('only a canonical successful receipt can release the next-batch gate', () => {
   assert.match(
     recovery,
-    /error\.code === 'TX_NOT_FINALIZED'[\s\S]{0,300}markBroadcastConfirmed\(manifestId, txId\)/,
+    /error\.code === 'TX_NOT_FINALIZED'[\s\S]{0,900}observeCanonicalSuccessfulReceipt\([\s\S]{0,350}markBroadcastConfirmed\(manifestId, txId\)/,
+  );
+  assert.match(
+    recovery,
+    /receipt\.reverted !== false[\s\S]{0,220}cannot release the next reward batch/,
+  );
+  assert.match(
+    recovery,
+    /canonicalId === blockId[\s\S]{0,100}isTrunk !== false/,
+  );
+  assert.match(
+    recovery,
+    /transactionOrigin !== expectedOperator[\s\S]{0,120}receiptOrigin !== expectedOperator/,
   );
   assert.match(
     recovery,
