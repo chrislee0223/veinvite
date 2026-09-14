@@ -14,16 +14,26 @@ const migration = await readFile(
   'utf8',
 );
 
-test('public reward Proof pages are opaque and excluded from search indexing', () => {
+test('public reward Proof pages are opaque, verifiable, and excluded from search indexing', () => {
   assert.match(proofPage, /PUBLIC_PROOF_ID_PATTERN/u);
   assert.match(proofPage, /\.eq\('public_proof_id', publicProofId\)/u);
   assert.match(proofPage, /index:\s*false/u);
   assert.match(proofPage, /follow:\s*false/u);
   assert.match(proofPage, /shortenHex\(recipientWallet\)/u);
+  assert.match(proofPage, /invite_code/u);
+  assert.match(proofPage, /\.from\('invitations'\)/u);
+  assert.match(proofPage, /\.from\('invite_impact_events'\)/u);
+  assert.match(proofPage, />Referee wallet</u);
+  assert.match(proofPage, /Qualifying dApps/u);
+  assert.match(proofPage, /Governance vote/u);
+  assert.match(proofPage, /unique human/u);
   assert.doesNotMatch(proofPage, /formatUnits/u);
+  assert.doesNotMatch(proofPage, /amount_wei/u);
   assert.doesNotMatch(proofPage, />Payout ID</u);
-  assert.doesNotMatch(proofPage, />Reward</u);
-  assert.doesNotMatch(proofPage, />Round</u);
+  assert.doesNotMatch(
+    proofPage,
+    /sybil_status|sybil_risk|identity_link|operator_note|security_client/u,
+  );
 });
 
 test('v3 database hardening creates immutable opaque Proof IDs', () => {
