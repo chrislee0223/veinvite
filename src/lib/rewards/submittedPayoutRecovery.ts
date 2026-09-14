@@ -87,9 +87,35 @@ async function releaseRecoveryLock(
   }
 }
 
+async function markBroadcastConfirmed(
+  manifestId: string,
+  txId: string,
+) {
+  const { error } = await supabaseAdmin.rpc(
+    'mark_reward_payout_broadcast_confirmed',
+    {
+      p_manifest_id: manifestId,
+      p_tx_id: txId,
+    },
+  );
+
+  if (error) {
+    throw new Error(
+      `Submitted payout broadcast confirmation could not be recorded: ${error.message}`,
+    );
+  }
+}
+
 /**
  * Reconciles only an already-submitted payout. It cannot prepare a round,
  * create a manifest, sign a transaction, or broadcast a new transaction.
+ *
+ * When the exact journaled transaction and receipt are visible on-chain but the
+ * block has not reached VeChain full finality yet, recovery records a durable
+ * broadcast confirmation on the reward round. That marker releases only the
+ * preparation gate for later claimed batches. The payout remains PENDING and
+ * the invitation remains ELIGIBLE until this same immutable transaction passes
+ * the full-finality manifest/event verification below and is atomically PAID.
  */
 export async function recoverSubmittedRewardPayout():
 Promise<SubmittedPayoutRecoveryResult> {
@@ -111,14 +137,17 @@ Promise<SubmittedPayoutRecoveryResult> {
   }
 
   try {
+    // Oldest-first is intentional once confirmed broadcasts may coexist with a
+    // newer active batch. It prevents an older immutable submission from being
+    // starved by subsequent claimed cohorts.
     const roundResult = await supabaseAdmin
       .from('reward_rounds')
       .select(
-        'id, network, app_id, status, distributable_wei, eligible_count, created_at',
+        'id, network, app_id, status, distributable_wei, eligible_count, created_at, broadcast_confirmed_at',
       )
       .eq('network', network)
       .in('status', ['CREATED', 'PAYING'])
-      .order('id', { ascending: false })
+      .order('id', { ascending: true })
       .limit(1)
       .maybeSingle();
 
@@ -138,6 +167,7 @@ Promise<SubmittedPayoutRecoveryResult> {
 
     const round = roundResult.data as RewardRoundForManifest & {
       created_at?: string;
+      broadcast_confirmed_at?: string | null;
     };
     const roundId = positiveId(round.id, 'reward round id');
 
@@ -347,10 +377,22 @@ Promise<SubmittedPayoutRecoveryResult> {
     } catch (error) {
       if (
         error instanceof RewardTransactionVerificationError &&
+        error.code === 'TX_NOT_FINALIZED'
+      ) {
+        await markBroadcastConfirmed(manifestId, txId);
+        return {
+          status: 'WAITING_FINALITY',
+          roundId,
+          manifestId,
+          txId,
+        };
+      }
+
+      if (
+        error instanceof RewardTransactionVerificationError &&
         (
           error.code === 'TX_NOT_FOUND' ||
-          error.code === 'TX_RECEIPT_NOT_FOUND' ||
-          error.code === 'TX_NOT_FINALIZED'
+          error.code === 'TX_RECEIPT_NOT_FOUND'
         )
       ) {
         return {
