@@ -216,6 +216,11 @@ function NetworkAuthoritativeEdges() {
           const element = mutation.target instanceof Element ? mutation.target : null;
           if (!element) return false;
           if (mutation.attributeName === 'style') {
+            // V63 already updates the one authoritative V57 path for the active
+            // node once per animation frame. Avoid a second O(nodes + groups)
+            // traversal for every drag style mutation; the class removal at the
+            // end of the drag schedules a full reconciliation pass below.
+            if (element.matches('.personNode[data-node-id].v63DirectDragging')) return false;
             return element.matches('.personNode[data-node-id],.v42GroupHub[data-group-id]');
           }
           if (mutation.attributeName === 'class') {

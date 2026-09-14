@@ -12,8 +12,8 @@ import { GUIDE_MISSION_STEP_COPY } from '@/lib/i18n/guideMissionStepCopy';
 import { GUIDE_REWARD_STEP_COPY } from '@/lib/i18n/guideRewardStepCopy';
 import type { Locale } from '@/lib/i18n/locales';
 
-const AppNetworkCanaryV64 = dynamic(
-  () => import('./AppNetworkCanaryV64').then((module) => module.AppNetworkCanaryV64),
+const AppNetworkCanaryV66 = dynamic(
+  () => import('./AppNetworkCanaryV66').then((module) => module.AppNetworkCanaryV66),
   { ssr: false },
 );
 
@@ -29,7 +29,7 @@ export function AppGuide({ locale }: { locale: Locale }) {
     process.env.NEXT_PUBLIC_NETWORK_CANVAS_ENABLED !== 'false';
 
   if (wallet?.toLowerCase() === NETWORK_CANARY_WALLET) {
-    return <AppNetworkCanaryV64 key={wallet.toLowerCase()} locale={locale} />;
+    return <AppNetworkCanaryV66 key={wallet.toLowerCase()} locale={locale} />;
   }
 
   return networkEnabled

@@ -20,6 +20,8 @@ import '@/lib/i18n/secondaryPageCopyHardening';
 import '@/lib/i18n/referralLinkCopy';
 import '@/lib/i18n/referralLinkCopyFinalHardening';
 import '@/lib/i18n/guideRewardClaimHardening';
+import '@/lib/i18n/greekFinalPolish';
+import '@/lib/i18n/networkNavigationCopyPolish';
 import { LegalDocumentSheetHost } from './LegalDocumentSheetHost';
 import { LegalNavigationMemory } from './LegalNavigationMemory';
 import { RewardReservationRecovery } from './RewardReservationRecovery';
