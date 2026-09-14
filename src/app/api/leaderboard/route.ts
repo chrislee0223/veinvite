@@ -14,6 +14,8 @@ import type {
   RankMovement,
 } from '@/lib/types';
 import { readCurrentVeBetterRound } from '@/lib/vebetter/currentRound';
+import { readVeBetterRoundWindow } from '@/lib/vebetter/entryEligibility';
+import type { VeBetterNetwork } from '@/lib/vebetter/network';
 
 export const dynamic = 'force-dynamic';
 
@@ -301,6 +303,109 @@ function normalizeComparison({
   }
 }
 
+async function ensurePreviousRoundComparisonBaseline({
+  network,
+  currentRoundId,
+  comparisonRoundId,
+}: {
+  network: VeBetterNetwork;
+  currentRoundId: number;
+  comparisonRoundId: number | null;
+}) {
+  if (comparisonRoundId === null) {
+    return;
+  }
+
+  const comparisonResult = await supabaseAdmin.rpc(
+    'get_leaderboard_comparison_status',
+    {
+      p_network: network,
+      p_round_id: comparisonRoundId,
+      p_ranking_algorithm_version: RANKING_ALGORITHM_VERSION,
+    },
+  );
+
+  if (comparisonResult.error) {
+    throw new Error(
+      `Leaderboard comparison status could not be checked before baseline repair: ${comparisonResult.error.message}`,
+    );
+  }
+
+  const comparisonRow = (
+    (comparisonResult.data ?? []) as ComparisonRow[]
+  )[0] ?? null;
+
+  if (
+    normalizeComparison({
+      row: comparisonRow,
+      expectedRoundId: comparisonRoundId,
+    }).available
+  ) {
+    return;
+  }
+
+  const sealedRound = await readVeBetterRoundWindow({
+    roundId: comparisonRoundId,
+  });
+
+  // A round may advance while this request is in flight. Never publish a
+  // baseline against stale round context; the next request can safely retry.
+  if (
+    sealedRound.network !== network ||
+    sealedRound.currentRoundId !== currentRoundId ||
+    sealedRound.roundId !== comparisonRoundId ||
+    sealedRound.status !== 'COMPLETED' ||
+    sealedRound.roundEndAtEstimated
+  ) {
+    return;
+  }
+
+  const publishResult = await supabaseAdmin.rpc(
+    'publish_leaderboard_round_snapshot_if_missing',
+    {
+      p_network: network,
+      p_round_id: comparisonRoundId,
+      p_round_end_block: sealedRound.voteEndBlock,
+      p_round_end_at: sealedRound.roundEndAt,
+      p_ranking_algorithm_version: RANKING_ALGORITHM_VERSION,
+    },
+  );
+
+  if (publishResult.error) {
+    throw new Error(
+      `Leaderboard comparison baseline could not be repaired: ${publishResult.error.message}`,
+    );
+  }
+
+  if (
+    publishResult.data &&
+    (
+      typeof publishResult.data !== 'object' ||
+      Array.isArray(publishResult.data)
+    )
+  ) {
+    throw new Error(
+      'Leaderboard comparison baseline repair returned malformed data.',
+    );
+  }
+
+  const payload = publishResult.data as Record<string, unknown> | null;
+
+  if (
+    payload &&
+    (
+      String(payload.network ?? '') !== network ||
+      Number(payload.roundId) !== comparisonRoundId ||
+      String(payload.rankingAlgorithmVersion ?? '') !==
+        RANKING_ALGORITHM_VERSION
+    )
+  ) {
+    throw new Error(
+      'Leaderboard comparison baseline repair returned mismatched metadata.',
+    );
+  }
+}
+
 export async function GET(
   request: NextRequest,
 ) {
@@ -337,9 +442,26 @@ export async function GET(
   try {
     const round = await readCurrentVeBetterRound();
     const comparisonRoundId =
-      round.currentRoundId > 0
+      round.currentRoundId > 1
         ? round.currentRoundId - 1
         : null;
+
+    // The current ranking is already derived live from finalized paid reward
+    // receipts. The only state that can be missing is the immutable previous-
+    // round baseline. Repair that baseline on demand after the current round has
+    // a finalized paid result; failures remain fail-closed and only hide arrows.
+    try {
+      await ensurePreviousRoundComparisonBaseline({
+        network: round.network,
+        currentRoundId: round.currentRoundId,
+        comparisonRoundId,
+      });
+    } catch (baselineError) {
+      console.error(
+        'Leaderboard comparison baseline self-repair failed; movement remains hidden:',
+        baselineError,
+      );
+    }
 
     const readLeaderboardWithMovement = () =>
       supabaseAdmin.rpc(
