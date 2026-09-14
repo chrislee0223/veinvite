@@ -79,8 +79,11 @@ test('gesture and transition states pause ambience instead of fighting it', () =
 test('V67 retires the oversized endpoint halos and restores avatar-safe circles', () => {
   assert.match(correctionSource, /\.nodeCircle::before[\s\S]*?content:\s*none\s*!important/);
   assert.match(correctionSource, /\.nodeCircle[\s\S]*?overflow:\s*hidden\s*!important/);
-  assert.match(correctionSource, /border:\s*1px solid rgba\(210, 174, 65, \.46\)\s*!important/);
-  assert.match(correctionSource, /border:\s*1px dashed rgba\(226, 181, 62, \.58\)\s*!important/);
+  assert.match(correctionSource, /border-style:\s*solid/);
+  assert.match(correctionSource, /border-color:\s*rgba\(210, 174, 65, \.46\)/);
+  assert.match(correctionSource, /border-style:\s*dashed/);
+  assert.match(correctionSource, /border-color:\s*rgba\(226, 181, 62, \.58\)/);
+  assert.doesNotMatch(correctionSource, /border:\s*1px dashed[^;]*!important/);
 });
 
 test('V67 endpoint softness is tiny, button-level and pointer transparent', () => {
@@ -91,6 +94,13 @@ test('V67 endpoint softness is tiny, button-level and pointer transparent', () =
   assert.match(correctionSource, /pointer-events:\s*none/);
   assert.doesNotMatch(correctionSource, /filter:\s*(?:blur|drop-shadow)/);
   assert.doesNotMatch(correctionSource, /backdrop-filter/);
+});
+
+test('V67 keeps node content above the endpoint fade without changing layout anchors', () => {
+  assert.match(correctionSource, /\.personNode > b[\s\S]*?position:\s*relative\s*!important/);
+  assert.match(correctionSource, /margin-top:\s*2px\s*!important/);
+  assert.doesNotMatch(correctionSource, /--v63-adjust-/);
+  assert.doesNotMatch(correctionSource, /--v42-group-d/);
 });
 
 test('V67 keeps YOU opaque and avoids floating authoritative group hubs', () => {
