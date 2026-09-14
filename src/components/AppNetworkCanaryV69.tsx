@@ -6,6 +6,8 @@ import type { Locale } from '@/lib/i18n/locales';
 import { AppNetworkCanaryV68 } from './AppNetworkCanaryV68';
 
 const DRAG_THRESHOLD_PX = 10;
+const FALLBACK_NODE_WIDTH_PX = 116;
+const FALLBACK_NODE_HEIGHT_PX = 78;
 
 type CreateDrag = {
   pointerId: number;
@@ -15,11 +17,16 @@ type CreateDrag = {
   startY: number;
   grabX: number;
   grabY: number;
-  width: number;
-  height: number;
+  baseWidth: number;
+  baseHeight: number;
+  visualScale: number;
   moved: boolean;
   ghost: HTMLDivElement | null;
 };
+
+function finitePositive(value: number, fallback: number) {
+  return Number.isFinite(value) && value > 0 ? value : fallback;
+}
 
 function NetworkCreateGroupDragGhostV69() {
   useLayoutEffect(() => {
@@ -84,8 +91,9 @@ function NetworkCreateGroupDragGhostV69() {
       const ghost = document.createElement('div');
       ghost.className = 'v69CreateDragGhost';
       ghost.setAttribute('aria-hidden', 'true');
-      ghost.style.width = `${current.width}px`;
-      ghost.style.height = `${Math.max(current.height, 92)}px`;
+      ghost.style.width = `${current.baseWidth}px`;
+      ghost.style.height = `${Math.max(current.baseHeight, 92)}px`;
+      ghost.style.setProperty('--v69-ghost-scale', String(current.visualScale));
 
       const circle = current.node.querySelector<HTMLElement>('.nodeCircle')?.cloneNode(true);
       const label = current.node.querySelector<HTMLElement>(':scope > b')?.cloneNode(true);
@@ -129,6 +137,10 @@ function NetworkCreateGroupDragGhostV69() {
 
       clearDrag();
       const rect = node.getBoundingClientRect();
+      const computed = window.getComputedStyle(node);
+      const baseWidth = finitePositive(Number.parseFloat(computed.width), FALLBACK_NODE_WIDTH_PX);
+      const baseHeight = finitePositive(Number.parseFloat(computed.height), FALLBACK_NODE_HEIGHT_PX);
+      const visualScale = finitePositive(rect.width / baseWidth, 1);
       drag = {
         pointerId: event.pointerId,
         pointerType: event.pointerType,
@@ -137,8 +149,9 @@ function NetworkCreateGroupDragGhostV69() {
         startY: event.clientY,
         grabX: Math.max(0, Math.min(rect.width, event.clientX - rect.left)),
         grabY: Math.max(0, Math.min(rect.height, event.clientY - rect.top)),
-        width: rect.width,
-        height: rect.height,
+        baseWidth,
+        baseHeight,
+        visualScale,
         moved: false,
         ghost: null,
       };
@@ -215,6 +228,7 @@ export function AppNetworkCanaryV69({ locale }: { locale: Locale }) {
         }
 
         .v69CreateDragGhost {
+          --v69-ghost-scale: 1;
           position: fixed;
           z-index: 2147483000;
           box-sizing: border-box;
@@ -224,6 +238,8 @@ export function AppNetworkCanaryV69({ locale }: { locale: Locale }) {
           -webkit-touch-callout: none;
           display: block;
           color: #d7d0c3;
+          transform: scale(var(--v69-ghost-scale));
+          transform-origin: 0 0;
           filter: drop-shadow(0 9px 18px rgba(0,0,0,.34));
           will-change: left, top;
         }
