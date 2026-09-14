@@ -21,17 +21,24 @@ type NetworkNaturalnessPatch = {
 // Keep this separate from the mature English DOM action labels: V42/V44 still
 // use those labels as interaction state. These patches only refine localized
 // presentation copy and therefore cannot change drag/drop or group semantics.
+// Count labels deliberately put the number after a noun label in languages
+// where singular/plural inflection would otherwise produce strings like
+// "1 people" or an equivalent grammatical mismatch.
 const NETWORK_NATURALNESS_PATCHES: Record<SupportedLocale, NetworkNaturalnessPatch> = {
   en: {
     canary: {
-      savedCount: '{count} people in this group',
+      savedCount: 'People in this group: {count}',
+      peopleCount: 'People: {count}',
+      groupsCount: 'Groups: {count}',
       zeroAllowed: 'This group can stay empty',
       dragUngroup: 'Drop here to remove from the group',
     },
   },
   ko: {
     canary: {
-      savedCount: '이 그룹에 {count}명',
+      savedCount: '이 그룹 인원 {count}명',
+      peopleCount: '인원 {count}명',
+      groupsCount: '그룹 {count}개',
       dropPersonOrTap: '사람을 여기로 끌거나 눌러 그룹 만들기',
       releaseAdd: '놓으면 추가',
       optional: '사람을 선택하지 않아도 돼요',
@@ -67,14 +74,18 @@ const NETWORK_NATURALNESS_PATCHES: Record<SupportedLocale, NetworkNaturalnessPat
   },
   zh: {
     canary: {
-      savedCount: '此分组有 {count} 人',
+      savedCount: '此分组人数：{count}',
+      peopleCount: '人数：{count}',
+      groupsCount: '分组：{count}',
       zeroAllowed: '分组可以留空',
       dragUngroup: '拖到这里即可移出分组',
     },
   },
   hi: {
     canary: {
-      savedCount: 'इस समूह में {count} लोग',
+      savedCount: 'इस समूह में लोग: {count}',
+      peopleCount: 'लोग: {count}',
+      groupsCount: 'समूह: {count}',
       zeroAllowed: 'समूह खाली भी रह सकता है',
       dragUngroup: 'समूह से हटाने के लिए यहाँ छोड़ें',
     },
@@ -84,7 +95,9 @@ const NETWORK_NATURALNESS_PATCHES: Record<SupportedLocale, NetworkNaturalnessPat
   },
   es: {
     canary: {
-      savedCount: '{count} personas en este grupo',
+      savedCount: 'Personas en este grupo: {count}',
+      peopleCount: 'Personas: {count}',
+      groupsCount: 'Grupos: {count}',
       zeroAllowed: 'El grupo puede quedar vacío',
       dragUngroup: 'Suelta aquí para quitar del grupo',
       hintView: 'Mantén un nodo para editar · arrastra el lienzo · pellizca para hacer zoom',
@@ -92,56 +105,68 @@ const NETWORK_NATURALNESS_PATCHES: Record<SupportedLocale, NetworkNaturalnessPat
   },
   ja: {
     canary: {
-      savedCount: 'このグループに{count}人',
+      savedCount: 'このグループの人数：{count}',
+      peopleCount: '人数：{count}',
+      groupsCount: 'グループ：{count}',
       zeroAllowed: '空のグループでも保存できます',
       dragUngroup: 'グループから外すならここにドロップ',
     },
   },
   it: {
     canary: {
-      savedCount: '{count} persone in questo gruppo',
+      savedCount: 'Persone nel gruppo: {count}',
+      peopleCount: 'Persone: {count}',
+      groupsCount: 'Gruppi: {count}',
       zeroAllowed: 'Il gruppo può restare vuoto',
       dragUngroup: 'Rilascia qui per rimuovere dal gruppo',
       joining: 'Sta entrando nella rete',
-      verifiedAdding: 'Verificato · aggiunta alla rete in corso',
+      verifiedAdding: 'Verificato · inserimento nella rete in corso',
     },
     explore: {
-      maintenance: 'La rete è temporaneamente non disponibile.',
+      maintenance: 'La rete non è al momento disponibile.',
     },
   },
   tr: {
     canary: {
-      savedCount: 'Bu grupta {count} kişi',
+      savedCount: 'Bu gruptaki kişi: {count}',
+      peopleCount: 'Kişi: {count}',
+      groupsCount: 'Grup: {count}',
       zeroAllowed: 'Grup boş kalabilir',
       dragUngroup: 'Gruptan çıkarmak için buraya bırak',
       available: 'Davet edilebilir',
     },
     network: {
-      title: 'Ağın çok yakında hazır',
+      title: 'Ağın çok yakında hazır olacak',
     },
   },
   nl: {
     canary: {
-      savedCount: '{count} personen in deze groep',
+      savedCount: 'Personen in deze groep: {count}',
+      peopleCount: 'Personen: {count}',
+      groupsCount: 'Groepen: {count}',
       zeroAllowed: 'De groep mag leeg blijven',
       dragUngroup: 'Laat hier los om uit de groep te halen',
     },
   },
   de: {
     canary: {
-      savedCount: '{count} Personen in dieser Gruppe',
+      savedCount: 'Personen in dieser Gruppe: {count}',
+      peopleCount: 'Personen: {count}',
+      groupsCount: 'Gruppen: {count}',
       zeroAllowed: 'Die Gruppe kann leer bleiben',
       dragUngroup: 'Hier loslassen, um aus der Gruppe zu entfernen',
       fit: 'Ansicht anpassen',
       hintView: 'Knoten halten zum Bearbeiten · Fläche ziehen · mit zwei Fingern zoomen',
     },
     explore: {
-      viewing: 'Erkunden',
+      viewing: 'Erkundung',
     },
   },
   fr: {
     canary: {
-      savedCount: '{count} personnes dans ce groupe',
+      savedCount: 'Personnes dans ce groupe : {count}',
+      peopleCount: 'Personnes : {count}',
+      groupsCount: 'Groupes : {count}',
       zeroAllowed: 'Le groupe peut rester vide',
       dragUngroup: 'Relâchez ici pour retirer du groupe',
       joining: 'Rejoint le réseau',
@@ -149,7 +174,9 @@ const NETWORK_NATURALNESS_PATCHES: Record<SupportedLocale, NetworkNaturalnessPat
   },
   ar: {
     canary: {
-      savedCount: '{count} أشخاص في هذه المجموعة',
+      savedCount: 'الأشخاص في هذه المجموعة: {count}',
+      peopleCount: 'الأشخاص: {count}',
+      groupsCount: 'المجموعات: {count}',
       zeroAllowed: 'يمكن أن تبقى المجموعة فارغة',
       dragUngroup: 'أفلت هنا للإزالة من المجموعة',
       hintView: 'اضغط مطولًا على العقدة للتعديل · اسحب اللوحة · استخدم إصبعين للتكبير والتصغير',
@@ -157,14 +184,18 @@ const NETWORK_NATURALNESS_PATCHES: Record<SupportedLocale, NetworkNaturalnessPat
   },
   bn: {
     canary: {
-      savedCount: 'এই গ্রুপে {count} জন',
+      savedCount: 'এই গ্রুপে সদস্য: {count}',
+      peopleCount: 'সদস্য: {count}',
+      groupsCount: 'গ্রুপ: {count}',
       zeroAllowed: 'গ্রুপ খালি রাখা যায়',
       dragUngroup: 'গ্রুপ থেকে সরাতে এখানে ছেড়ে দিন',
     },
   },
   pt: {
     canary: {
-      savedCount: '{count} pessoas neste grupo',
+      savedCount: 'Pessoas neste grupo: {count}',
+      peopleCount: 'Pessoas: {count}',
+      groupsCount: 'Grupos: {count}',
       zeroAllowed: 'O grupo pode ficar vazio',
       dragUngroup: 'Solte aqui para remover do grupo',
       hintView: 'Segure um nó para editar · arraste a tela · faça pinça para dar zoom',
@@ -172,14 +203,18 @@ const NETWORK_NATURALNESS_PATCHES: Record<SupportedLocale, NetworkNaturalnessPat
   },
   ru: {
     canary: {
-      savedCount: 'В этой группе: {count}',
+      savedCount: 'Участники в этой группе: {count}',
+      peopleCount: 'Участники: {count}',
+      groupsCount: 'Группы: {count}',
       zeroAllowed: 'Группа может оставаться пустой',
       dragUngroup: 'Отпустите здесь, чтобы убрать из группы',
     },
   },
   id: {
     canary: {
-      savedCount: '{count} orang di grup ini',
+      savedCount: 'Orang di grup ini: {count}',
+      peopleCount: 'Orang: {count}',
+      groupsCount: 'Grup: {count}',
       zeroAllowed: 'Grup boleh tetap kosong',
       dragUngroup: 'Lepaskan di sini untuk mengeluarkan dari grup',
       hintView: 'Tahan node untuk mengedit · seret kanvas · cubit untuk memperbesar atau memperkecil',
@@ -187,7 +222,9 @@ const NETWORK_NATURALNESS_PATCHES: Record<SupportedLocale, NetworkNaturalnessPat
   },
   vi: {
     canary: {
-      savedCount: 'Nhóm này có {count} người',
+      savedCount: 'Số người trong nhóm: {count}',
+      peopleCount: 'Số người: {count}',
+      groupsCount: 'Số nhóm: {count}',
       zeroAllowed: 'Nhóm có thể để trống',
       dragUngroup: 'Thả vào đây để đưa ra khỏi nhóm',
       hintView: 'Giữ một nút mạng để chỉnh sửa · kéo màn hình · chụm để thu phóng',
@@ -198,7 +235,9 @@ const NETWORK_NATURALNESS_PATCHES: Record<SupportedLocale, NetworkNaturalnessPat
   },
   'zh-tw': {
     canary: {
-      savedCount: '此群組有 {count} 人',
+      savedCount: '此群組人數：{count}',
+      peopleCount: '人數：{count}',
+      groupsCount: '群組：{count}',
       zeroAllowed: '群組可以留空',
       dragUngroup: '拖到這裡即可移出群組',
       dragOrTap: '從網路拖入或點按選擇',
@@ -224,7 +263,9 @@ const NETWORK_NATURALNESS_PATCHES: Record<SupportedLocale, NetworkNaturalnessPat
   },
   sv: {
     canary: {
-      savedCount: '{count} personer i den här gruppen',
+      savedCount: 'Personer i den här gruppen: {count}',
+      peopleCount: 'Personer: {count}',
+      groupsCount: 'Grupper: {count}',
       zeroAllowed: 'Gruppen kan vara tom',
       dragUngroup: 'Släpp här för att ta bort från gruppen',
       joining: 'Går med',
@@ -233,21 +274,27 @@ const NETWORK_NATURALNESS_PATCHES: Record<SupportedLocale, NetworkNaturalnessPat
   },
   ro: {
     canary: {
-      savedCount: '{count} persoane în acest grup',
+      savedCount: 'Persoane în acest grup: {count}',
+      peopleCount: 'Persoane: {count}',
+      groupsCount: 'Grupuri: {count}',
       zeroAllowed: 'Grupul poate rămâne gol',
       dragUngroup: 'Eliberează aici pentru a scoate din grup',
     },
   },
   ur: {
     canary: {
-      savedCount: 'اس گروپ میں {count} افراد',
+      savedCount: 'اس گروپ میں افراد: {count}',
+      peopleCount: 'افراد: {count}',
+      groupsCount: 'گروپس: {count}',
       zeroAllowed: 'گروپ خالی بھی رہ سکتا ہے',
       dragUngroup: 'گروپ سے نکالنے کے لیے یہاں چھوڑیں',
     },
   },
   pcm: {
     canary: {
-      savedCount: '{count} people dey this group',
+      savedCount: 'People for this group: {count}',
+      peopleCount: 'People: {count}',
+      groupsCount: 'Groups: {count}',
       zeroAllowed: 'Group fit remain empty',
       dragUngroup: 'Drop am here to comot am from group',
       hintEdit: 'Drag am anywhere · tap background to finish',
@@ -255,14 +302,18 @@ const NETWORK_NATURALNESS_PATCHES: Record<SupportedLocale, NetworkNaturalnessPat
   },
   arz: {
     canary: {
-      savedCount: 'في المجموعة دي {count} أشخاص',
+      savedCount: 'الأشخاص في المجموعة دي: {count}',
+      peopleCount: 'الأشخاص: {count}',
+      groupsCount: 'المجموعات: {count}',
       zeroAllowed: 'المجموعة ينفع تفضل فاضية',
       dragUngroup: 'سيبه هنا عشان تشيله من المجموعة',
     },
   },
   mr: {
     canary: {
-      savedCount: 'या गटात {count} जण',
+      savedCount: 'या गटातील लोक: {count}',
+      peopleCount: 'लोक: {count}',
+      groupsCount: 'गट: {count}',
       zeroAllowed: 'गट रिकामा ठेवू शकता',
       dragUngroup: 'गटातून काढण्यासाठी इथे सोडा',
       collapsed: 'आकुंचित',
@@ -274,28 +325,36 @@ const NETWORK_NATURALNESS_PATCHES: Record<SupportedLocale, NetworkNaturalnessPat
   },
   te: {
     canary: {
-      savedCount: 'ఈ గ్రూపులో {count} మంది',
+      savedCount: 'ఈ గ్రూపులో వ్యక్తులు: {count}',
+      peopleCount: 'వ్యక్తులు: {count}',
+      groupsCount: 'గ్రూపులు: {count}',
       zeroAllowed: 'గ్రూపును ఖాళీగా ఉంచవచ్చు',
       dragUngroup: 'గ్రూపు నుంచి తీసివేయడానికి ఇక్కడ వదలండి',
     },
   },
   sw: {
     canary: {
-      savedCount: 'Watu {count} katika kikundi hiki',
+      savedCount: 'Watu katika kikundi hiki: {count}',
+      peopleCount: 'Watu: {count}',
+      groupsCount: 'Vikundi: {count}',
       zeroAllowed: 'Kikundi kinaweza kubaki tupu',
       dragUngroup: 'Achia hapa ili kuondoa kwenye kikundi',
     },
   },
   ha: {
     canary: {
-      savedCount: 'Mutane {count} a wannan rukuni',
+      savedCount: 'Mutane a wannan rukuni: {count}',
+      peopleCount: 'Mutane: {count}',
+      groupsCount: 'Rukuni: {count}',
       zeroAllowed: 'Rukuni na iya zama babu kowa',
       dragUngroup: 'Saki a nan don cirewa daga rukuni',
     },
   },
   el: {
     canary: {
-      savedCount: '{count} άτομα σε αυτή την ομάδα',
+      savedCount: 'Άτομα σε αυτή την ομάδα: {count}',
+      peopleCount: 'Άτομα: {count}',
+      groupsCount: 'Ομάδες: {count}',
       zeroAllowed: 'Η ομάδα μπορεί να μείνει κενή',
       dragUngroup: 'Άφησε εδώ για αφαίρεση από την ομάδα',
       joining: 'Μπαίνει στο δίκτυο',
