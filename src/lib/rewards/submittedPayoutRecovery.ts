@@ -34,22 +34,15 @@ export type SubmittedPayoutRecoveryResult = {
 };
 
 function normalizeAddress(value: unknown): string | null {
-  const normalized = String(value ?? '')
-    .trim()
-    .toLowerCase();
-
-  return ADDRESS_PATTERN.test(normalized)
-    ? normalized
-    : null;
+  const normalized = String(value ?? '').trim().toLowerCase();
+  return ADDRESS_PATTERN.test(normalized) ? normalized : null;
 }
 
 function positiveId(value: unknown, fieldName: string): string {
   const normalized = String(value ?? '');
-
   if (!/^\d+$/.test(normalized) || BigInt(normalized) < 1n) {
     throw new Error(`${fieldName} is invalid.`);
   }
-
   return BigInt(normalized).toString();
 }
 
@@ -71,7 +64,6 @@ async function acquireRecoveryLock(
       `Submitted payout recovery lock could not be acquired: ${error.message}`,
     );
   }
-
   return data === true;
 }
 
@@ -96,11 +88,8 @@ async function releaseRecoveryLock(
 }
 
 /**
- * Finalizes an already-submitted automatic reward transaction without ever
- * preparing a reward round, creating a manifest, signing a transaction, or
- * broadcasting a new transaction. This is intentionally narrower than the
- * automatic payout worker so a late VeChain finality event can be reconciled
- * promptly without creating a duplicate-payment path.
+ * Reconciles only an already-submitted payout. It cannot prepare a round,
+ * create a manifest, sign a transaction, or broadcast a new transaction.
  */
 export async function recoverSubmittedRewardPayout():
 Promise<SubmittedPayoutRecoveryResult> {
@@ -109,10 +98,7 @@ Promise<SubmittedPayoutRecoveryResult> {
     process.env.VEINVITE_REWARD_DISTRIBUTOR_ADDRESS,
   );
   const ownerToken = randomUUID();
-  const acquired = await acquireRecoveryLock(
-    network,
-    ownerToken,
-  );
+  const acquired = await acquireRecoveryLock(network, ownerToken);
 
   if (!acquired) {
     return {
@@ -128,7 +114,7 @@ Promise<SubmittedPayoutRecoveryResult> {
     const roundResult = await supabaseAdmin
       .from('reward_rounds')
       .select(
-        'id, network, app_id, status, distributable_wei, eligible_count, manifest_version, created_at',
+        'id, network, app_id, status, distributable_wei, eligible_count, created_at',
       )
       .eq('network', network)
       .in('status', ['CREATED', 'PAYING'])
@@ -141,7 +127,6 @@ Promise<SubmittedPayoutRecoveryResult> {
         `Submitted payout round could not be loaded: ${roundResult.error.message}`,
       );
     }
-
     if (!roundResult.data) {
       return {
         status: 'IDLE',
@@ -169,7 +154,7 @@ Promise<SubmittedPayoutRecoveryResult> {
     const manifestResult = await supabaseAdmin
       .from('reward_payout_manifests')
       .select(
-        'id, round_id, manifest_version, network, app_id, x2earn_rewards_pool_address, operator_wallet, manifest_hash, payout_count, total_amount_wei, created_at',
+        'id, manifest_version, x2earn_rewards_pool_address, operator_wallet, manifest_hash, payout_count, total_amount_wei, created_at',
       )
       .eq('round_id', roundId)
       .maybeSingle();
@@ -179,7 +164,6 @@ Promise<SubmittedPayoutRecoveryResult> {
         `Submitted payout manifest could not be loaded: ${manifestResult.error.message}`,
       );
     }
-
     if (!manifestResult.data) {
       return {
         status: 'IDLE',
@@ -190,13 +174,8 @@ Promise<SubmittedPayoutRecoveryResult> {
     }
 
     const manifestRow = manifestResult.data as Record<string, unknown>;
-    const manifestId = positiveId(
-      manifestRow.id,
-      'reward manifest id',
-    );
-    const manifestOperator = normalizeAddress(
-      manifestRow.operator_wallet,
-    );
+    const manifestId = positiveId(manifestRow.id, 'reward manifest id');
+    const manifestOperator = normalizeAddress(manifestRow.operator_wallet);
 
     if (
       !configuredDistributor ||
@@ -212,44 +191,33 @@ Promise<SubmittedPayoutRecoveryResult> {
       };
     }
 
-    const [
-      signedResult,
-      submissionResult,
-      checkpointResult,
-      settlementResult,
-      sourceResult,
-    ] = await Promise.all([
-      supabaseAdmin
-        .from('reward_payout_signed_transactions')
-        .select(
-          'manifest_id, round_id, tx_id, operator_wallet',
-        )
-        .eq('manifest_id', manifestId)
-        .maybeSingle(),
-      supabaseAdmin
-        .from('reward_payout_transaction_submissions')
-        .select(
-          'manifest_id, round_id, tx_id, operator_wallet',
-        )
-        .eq('manifest_id', manifestId)
-        .maybeSingle(),
-      supabaseAdmin
-        .from('reward_payout_manifest_chain_checkpoints')
-        .select(
-          'manifest_id, block_id, block_number, block_timestamp',
-        )
-        .eq('manifest_id', manifestId)
-        .maybeSingle(),
-      supabaseAdmin
-        .from('reward_payout_transaction_settlements')
-        .select('manifest_id, round_id, tx_id, paid_at')
-        .eq('manifest_id', manifestId)
-        .maybeSingle(),
-      supabaseAdmin.rpc(
-        'read_reward_manifest_source',
-        { p_round_id: roundId },
-      ),
-    ]);
+    const [signedResult, submissionResult, checkpointResult, settlementResult, sourceResult] =
+      await Promise.all([
+        supabaseAdmin
+          .from('reward_payout_signed_transactions')
+          .select('tx_id, operator_wallet')
+          .eq('manifest_id', manifestId)
+          .maybeSingle(),
+        supabaseAdmin
+          .from('reward_payout_transaction_submissions')
+          .select('tx_id, operator_wallet')
+          .eq('manifest_id', manifestId)
+          .maybeSingle(),
+        supabaseAdmin
+          .from('reward_payout_manifest_chain_checkpoints')
+          .select('block_number')
+          .eq('manifest_id', manifestId)
+          .maybeSingle(),
+        supabaseAdmin
+          .from('reward_payout_transaction_settlements')
+          .select('tx_id, paid_at')
+          .eq('manifest_id', manifestId)
+          .maybeSingle(),
+        supabaseAdmin.rpc(
+          'read_reward_manifest_source',
+          { p_round_id: roundId },
+        ),
+      ]);
 
     for (const [label, result] of [
       ['signed transaction', signedResult],
@@ -265,30 +233,16 @@ Promise<SubmittedPayoutRecoveryResult> {
       }
     }
 
-    const settlement = settlementResult.data as
-      | Record<string, unknown>
-      | null;
-
-    if (settlement) {
+    if (settlementResult.data) {
       return {
         status: 'PAID',
         roundId,
         manifestId,
-        txId: String(settlement.tx_id ?? ''),
+        txId: String(settlementResult.data.tx_id ?? ''),
       };
     }
 
-    const signed = signedResult.data as
-      | Record<string, unknown>
-      | null;
-    const submission = submissionResult.data as
-      | Record<string, unknown>
-      | null;
-    const checkpoint = checkpointResult.data as
-      | Record<string, unknown>
-      | null;
-
-    if (!submission) {
+    if (!submissionResult.data) {
       return {
         status: 'IDLE',
         roundId,
@@ -297,17 +251,15 @@ Promise<SubmittedPayoutRecoveryResult> {
       };
     }
 
-    const txId = String(submission.tx_id ?? '')
+    const txId = String(submissionResult.data.tx_id ?? '')
       .trim()
       .toLowerCase();
 
     if (!HEX_32_PATTERN.test(txId)) {
-      throw new Error(
-        'Submitted reward transaction id is invalid.',
-      );
+      throw new Error('Submitted reward transaction id is invalid.');
     }
 
-    if (!signed || !checkpoint) {
+    if (!signedResult.data || !checkpointResult.data) {
       return {
         status: 'MANUAL_INTERVENTION_REQUIRED',
         roundId,
@@ -318,9 +270,9 @@ Promise<SubmittedPayoutRecoveryResult> {
     }
 
     if (
-      String(signed.tx_id ?? '').toLowerCase() !== txId ||
-      normalizeAddress(signed.operator_wallet) !== configuredDistributor ||
-      normalizeAddress(submission.operator_wallet) !== configuredDistributor
+      String(signedResult.data.tx_id ?? '').toLowerCase() !== txId ||
+      normalizeAddress(signedResult.data.operator_wallet) !== configuredDistributor ||
+      normalizeAddress(submissionResult.data.operator_wallet) !== configuredDistributor
     ) {
       return {
         status: 'MANUAL_INTERVENTION_REQUIRED',
@@ -336,10 +288,7 @@ Promise<SubmittedPayoutRecoveryResult> {
       payouts?: RewardPayoutForManifest[];
     } | null;
 
-    if (
-      !exactSource?.round ||
-      !Array.isArray(exactSource.payouts)
-    ) {
+    if (!exactSource?.round || !Array.isArray(exactSource.payouts)) {
       throw new Error(
         'Submitted payout manifest source returned malformed data.',
       );
@@ -349,8 +298,7 @@ Promise<SubmittedPayoutRecoveryResult> {
       round: {
         ...round,
         ...exactSource.round,
-        manifest_version:
-          String(manifestRow.manifest_version ?? ''),
+        manifest_version: String(manifestRow.manifest_version ?? ''),
       },
       payouts: exactSource.payouts,
       x2EarnRewardsPoolAddress:
@@ -358,29 +306,21 @@ Promise<SubmittedPayoutRecoveryResult> {
     });
 
     if (
-      manifest.manifestHash !==
-        String(manifestRow.manifest_hash ?? '') ||
-      manifest.totalAmountWei !==
-        String(manifestRow.total_amount_wei ?? '') ||
-      manifest.payoutCount !==
-        Number(manifestRow.payout_count)
+      manifest.manifestHash !== String(manifestRow.manifest_hash ?? '') ||
+      manifest.totalAmountWei !== String(manifestRow.total_amount_wei ?? '') ||
+      manifest.payoutCount !== Number(manifestRow.payout_count)
     ) {
-      throw new Error(
-        'Submitted payout manifest drift was detected.',
-      );
+      throw new Error('Submitted payout manifest drift was detected.');
     }
 
     let verified;
-
     try {
-      verified =
-        await verifyFinalizedRewardTransactionOnChain({
-          txId,
-          manifest,
-          operatorWallet: configuredDistributor,
-          manifestCreatedAt:
-            String(manifestRow.created_at ?? ''),
-        });
+      verified = await verifyFinalizedRewardTransactionOnChain({
+        txId,
+        manifest,
+        operatorWallet: configuredDistributor,
+        manifestCreatedAt: String(manifestRow.created_at ?? ''),
+      });
     } catch (error) {
       if (
         error instanceof RewardTransactionVerificationError &&
@@ -397,14 +337,10 @@ Promise<SubmittedPayoutRecoveryResult> {
           txId,
         };
       }
-
       throw error;
     }
 
-    const checkpointBlock = Number(
-      checkpoint.block_number,
-    );
-
+    const checkpointBlock = Number(checkpointResult.data.block_number);
     if (
       !Number.isSafeInteger(checkpointBlock) ||
       verified.blockNumber <= checkpointBlock
@@ -414,22 +350,21 @@ Promise<SubmittedPayoutRecoveryResult> {
       );
     }
 
-    const { error: finalizeError } =
-      await supabaseAdmin.rpc(
-        'finalize_reward_payout_manifest',
-        {
-          p_manifest_id: manifestId,
-          p_manifest_hash: manifest.manifestHash,
-          p_tx_id: verified.txId,
-          p_tx_origin: verified.txOrigin,
-          p_block_id: verified.blockId,
-          p_block_number: verified.blockNumber,
-          p_block_timestamp: verified.blockTimestamp,
-          p_finalized_head_id: verified.finalizedHeadId,
-          p_finalized_head_number: verified.finalizedHeadNumber,
-          p_clause_count: verified.clauseCount,
-        },
-      );
+    const { error: finalizeError } = await supabaseAdmin.rpc(
+      'finalize_reward_payout_manifest',
+      {
+        p_manifest_id: manifestId,
+        p_manifest_hash: manifest.manifestHash,
+        p_tx_id: verified.txId,
+        p_tx_origin: verified.txOrigin,
+        p_block_id: verified.blockId,
+        p_block_number: verified.blockNumber,
+        p_block_timestamp: verified.blockTimestamp,
+        p_finalized_head_id: verified.finalizedHeadId,
+        p_finalized_head_number: verified.finalizedHeadNumber,
+        p_clause_count: verified.clauseCount,
+      },
+    );
 
     if (finalizeError) {
       throw new Error(
@@ -444,9 +379,6 @@ Promise<SubmittedPayoutRecoveryResult> {
       txId: verified.txId,
     };
   } finally {
-    await releaseRecoveryLock(
-      network,
-      ownerToken,
-    );
+    await releaseRecoveryLock(network, ownerToken);
   }
 }
