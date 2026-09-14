@@ -78,33 +78,51 @@ test('gesture and transition states pause ambience instead of fighting it', () =
   assert.match(visualSource, /animation-play-state:\s*paused\s*!important/);
 });
 
-test('V67 retires the oversized endpoint halos and restores avatar-safe circles', () => {
+test('V67 removes oversized halos without re-owning mature circle visuals', () => {
   assert.match(correctionSource, /\.nodeCircle::before[\s\S]*?content:\s*none\s*!important/);
-  assert.match(correctionSource, /\.nodeCircle[\s\S]*?overflow:\s*hidden\s*!important/);
-  assert.match(correctionSource, /border-style:\s*solid/);
-  assert.match(correctionSource, /border-color:\s*rgba\(210, 174, 65, \.46\)/);
-  assert.match(correctionSource, /border-style:\s*dashed/);
-  assert.match(correctionSource, /border-color:\s*rgba\(226, 181, 62, \.58\)/);
-  assert.match(correctionSource, /\.stage\.editMode \.nodeCircle/);
-  assert.doesNotMatch(correctionSource, /border:\s*1px dashed[^;]*!important/);
+  assert.match(correctionSource, /\.nodeCircle,[\s\S]*?overflow:\s*hidden\s*!important/);
+
+  for (const forbidden of [
+    'border-width:',
+    'border-style:',
+    'border-color:',
+    'background-color:',
+  ]) {
+    assert.ok(!correctionSource.includes(forbidden), `V67 must not replace mature circle visual state: ${forbidden}`);
+  }
 });
 
-test('V67 endpoint softness is tiny, button-level and behind mature node content', () => {
+test('V67 endpoint softness is only a three-pixel paint extension', () => {
   assert.match(correctionSource, /\.personNode::before/);
-  assert.match(correctionSource, /width:\s*60px/);
+  assert.match(correctionSource, /width:\s*58px/);
+  assert.match(correctionSource, /height:\s*58px/);
   assert.match(correctionSource, /\.slotNode::before/);
-  assert.match(correctionSource, /width:\s*54px/);
+  assert.match(correctionSource, /width:\s*52px/);
+  assert.match(correctionSource, /height:\s*52px/);
   assert.match(correctionSource, /pointer-events:\s*none/);
-  assert.match(correctionSource, /z-index:\s*-1/);
+  assert.match(correctionSource, /z-index:\s*0/);
   assert.doesNotMatch(correctionSource, /filter:\s*(?:blur|drop-shadow)/);
   assert.doesNotMatch(correctionSource, /backdrop-filter/);
 });
 
-test('V67 never overrides mature circle or metadata positioning and spacing', () => {
-  assert.doesNotMatch(correctionSource, /position:\s*relative\s*!important/);
-  assert.doesNotMatch(correctionSource, /margin-top:\s*2px\s*!important/);
-  assert.doesNotMatch(correctionSource, /\.personNode\s*>\s*b[\s\S]*?position:/);
-  assert.doesNotMatch(correctionSource, /\.personNode\s*>\s*\.nodeCircle[\s\S]*?position:/);
+test('V67 puts readable metadata in front without changing mature layout anchors', () => {
+  assert.match(correctionSource, /\.personNode > \.nodeCircle,[\s\S]*?z-index:\s*1\s*!important/);
+  assert.match(correctionSource, /\.personNode > b,[\s\S]*?z-index:\s*2\s*!important/);
+
+  for (const forbiddenPattern of [
+    /\.personNode\s*>\s*b[\s\S]*?position:/,
+    /\.personNode\s*>\s*b[\s\S]*?top:/,
+    /\.personNode\s*>\s*b[\s\S]*?left:/,
+    /\.personNode\s*>\s*b[\s\S]*?margin:/,
+    /\.personNode\s*>\s*b[\s\S]*?transform:/,
+    /\.personNode\s*>\s*\.nodeCircle[\s\S]*?position:/,
+    /\.personNode\s*>\s*\.nodeCircle[\s\S]*?top:/,
+    /\.personNode\s*>\s*\.nodeCircle[\s\S]*?left:/,
+    /\.personNode\s*>\s*\.nodeCircle[\s\S]*?margin:/,
+    /\.personNode\s*>\s*\.nodeCircle[\s\S]*?transform:/,
+  ]) {
+    assert.doesNotMatch(correctionSource, forbiddenPattern);
+  }
 });
 
 test('V67 keeps YOU opaque and avoids floating authoritative group hubs', () => {
@@ -119,6 +137,7 @@ test('motion respects accessibility, mobile limits and dense-network cost caps',
   assert.match(visualSource, /@media \(max-width: 640px\)/);
   assert.match(visualSource, /\.personNode:nth-child\(n \+ 121\)/);
   assert.match(correctionSource, /@media \(max-width: 640px\)/);
+  assert.match(correctionSource, /--v66-fy1:\s*-\.95px\s*!important/);
 });
 
 test('the special Network canary is wired through V67 to V66', () => {
