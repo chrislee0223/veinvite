@@ -8,7 +8,12 @@ import {
 const WALLET =
   '0x1111111111111111111111111111111111111111';
 
-function decide({ status, invitesReady, referralLinkReady }) {
+function decide({
+  status,
+  invitesReady,
+  referralLinkReady,
+  hasBootstrappedSession = true,
+}) {
   return resolveStartupReadiness({
     walletAddress: WALLET,
     homeState: {
@@ -17,45 +22,43 @@ function decide({ status, invitesReady, referralLinkReady }) {
       invitesReady,
       referralLinkReady,
     },
-    hasBootstrappedSession: true,
+    hasBootstrappedSession,
     hasPersistedWallet: true,
     interactiveGateVisible: false,
-    // This used to let first-load Home placeholders through. Keep the legacy
-    // hint in the call so this regression test proves it is non-authoritative.
     allowHomeDataHydration: true,
   });
 }
 
-test('first wallet Home never reveals the —/2 placeholder while invite data is loading', () => {
+test('verified reload may reveal stable Home placeholders while wallet data hydrates', () => {
+  for (const [invitesReady, referralLinkReady] of [
+    [false, false],
+    [false, true],
+    [true, false],
+  ]) {
+    assert.equal(
+      decide({
+        status: 'loading',
+        invitesReady,
+        referralLinkReady,
+      }),
+      'release',
+    );
+  }
+});
+
+test('a wallet without a server bootstrap remains covered while data is partial', () => {
   assert.equal(
     decide({
       status: 'loading',
       invitesReady: false,
       referralLinkReady: false,
-    }),
-    'hold',
-  );
-
-  assert.equal(
-    decide({
-      status: 'loading',
-      invitesReady: false,
-      referralLinkReady: true,
-    }),
-    'hold',
-  );
-
-  assert.equal(
-    decide({
-      status: 'loading',
-      invitesReady: true,
-      referralLinkReady: false,
+      hasBootstrappedSession: false,
     }),
     'hold',
   );
 });
 
-test('wallet Home reveals only after the real invite list and referral link are ready', () => {
+test('wallet Home reveals normally after the real invite list and referral link are ready', () => {
   assert.equal(
     decide({
       status: 'ready',
