@@ -18,6 +18,10 @@ const notificationWrapper = readFileSync(
   new URL('../src/components/InviteNotificationHistoryCenter.tsx', import.meta.url),
   'utf8',
 );
+const paidActivationSync = readFileSync(
+  new URL('../src/components/PaidActivationLiveSync.tsx', import.meta.url),
+  'utf8',
+);
 const progressCopy = readFileSync(
   new URL('../src/lib/i18n/progressClaimCopy.ts', import.meta.url),
   'utf8',
@@ -27,7 +31,7 @@ function occurrences(source, needle) {
   return source.split(needle).length - 1;
 }
 
-test('ambiguous Claim reconciliation is read-only and requires paid receipt evidence when the action disappears', () => {
+test('ambiguous Claim reconciliation is read-only, bounded, and requires finalized receipt evidence when the action disappears', () => {
   assert.match(
     rewardClaimClient,
     /fetch\('\/api\/notifications\/reward-actions',[\s\S]*cache: 'no-store'/u,
@@ -38,13 +42,34 @@ test('ambiguous Claim reconciliation is read-only and requires paid receipt evid
   );
   assert.match(
     rewardClaimClient,
-    /return paid \? \{ kind: 'ABSENT' \} : \{ kind: 'UNKNOWN' \}/u,
+    /\? \{ kind: 'ABSENT', receipt: paid \}\s*: \{ kind: 'UNKNOWN' \}/u,
   );
+  assert.match(rewardClaimClient, /DEFAULT_RECONCILE_ATTEMPTS/u);
+  assert.match(rewardClaimClient, /Math\.min\(5,/u);
   assert.doesNotMatch(rewardClaimClient, /\/api\/rewards\/claims/u);
   assert.doesNotMatch(rewardClaimClient, /method:\s*'POST'/u);
 });
 
-test('Home Claim starts receipt tracking, reconciles ambiguous responses, and never auto-posts a second Claim', () => {
+test('authoritative reward reads re-arm the existing wallet session flow on 401 or 403', () => {
+  assert.match(
+    rewardClaimClient,
+    /WALLET_SESSION_INVALID_EVENT = 'veinvite-wallet-session-invalid'/u,
+  );
+  assert.match(
+    rewardClaimClient,
+    /response\.status === 401 \|\| response\.status === 403/u,
+  );
+  assert.match(
+    rewardClaimClient,
+    /notifyRewardClaimSessionInvalid\(\)/u,
+  );
+  assert.match(
+    notificationCenter,
+    /notifyRewardClaimSessionInvalid\(\)/u,
+  );
+});
+
+test('Home Claim reconciles ambiguous responses and never auto-posts a second Claim', () => {
   assert.match(homeClient, /dispatchRewardClaimUpdated\(\)/u);
   assert.match(homeClient, /reconcileRewardClaimState\(invite\.code\)/u);
   assert.match(homeClient, /const requestWallet = wallet/u);
@@ -63,7 +88,7 @@ test('Home Claim starts receipt tracking, reconciles ambiguous responses, and ne
   );
 });
 
-test('notification Claim survives panel close, reconciles ambiguous responses, and never auto-posts a second Claim', () => {
+test('notification Claim survives panel close, sends exact invite identity, and never auto-posts a second Claim', () => {
   const closeResetStart = notificationCenter.indexOf("if (!open) {");
   const closeResetEnd = notificationCenter.indexOf('void loadRewardActions();', closeResetStart);
   assert.ok(closeResetStart >= 0 && closeResetEnd > closeResetStart);
@@ -71,11 +96,40 @@ test('notification Claim survives panel close, reconciles ambiguous responses, a
 
   assert.doesNotMatch(closeResetBlock, /setClaimPendingCode\(null\)/u);
   assert.match(notificationCenter, /reconcileRewardClaimState\([\s\S]*action\.inviteCode/u);
-  assert.match(notificationCenter, /dispatchRewardClaimUpdated\(\)/u);
+  assert.match(
+    notificationCenter,
+    /dispatchRewardClaimUpdated\(action\.inviteCode\)/u,
+  );
   assert.equal(
     occurrences(notificationCenter, "fetch('/api/rewards/claims'"),
     1,
     'Notification center must issue at most one Claim POST per user click',
+  );
+});
+
+test('reward Claim signals synchronize tabs without mutating payout state', () => {
+  assert.match(rewardClaimClient, /new BroadcastChannel\(REWARD_CLAIM_SYNC_CHANNEL\)/u);
+  assert.match(rewardClaimClient, /channel\.postMessage\(detail\)/u);
+  assert.match(rewardClaimClient, /listener\(signal, 'broadcast'\)/u);
+  assert.match(paidActivationSync, /source === 'broadcast'/u);
+  assert.match(paidActivationSync, /window\.location\.reload\(\)/u);
+});
+
+test('finalized receipt tracking can target the exact claimed invite before the initial baseline settles', () => {
+  assert.match(paidActivationSync, /targetInviteCodeRef/u);
+  assert.match(paidActivationSync, /sameInviteCode\(receipt\.inviteCode, targetInviteCode\)/u);
+  assert.match(
+    paidActivationSync,
+    /if \(targetReceipt\)[\s\S]*requestPaidReload/u,
+  );
+  assert.match(
+    paidActivationSync,
+    /if \(!initializedRef\.current\)/u,
+  );
+  assert.ok(
+    paidActivationSync.indexOf('if (targetReceipt)') <
+      paidActivationSync.indexOf('if (!initializedRef.current)'),
+    'targeted finalized receipt must be checked before baseline initialization',
   );
 });
 
