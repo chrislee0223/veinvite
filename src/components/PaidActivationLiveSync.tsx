@@ -2,12 +2,16 @@
 
 import { useCallback, useEffect, useRef } from 'react';
 
+import type {
+  RewardActionResponse,
+} from '@/lib/notifications/rewardAction';
 import type { RewardReceipt } from '@/lib/rewards/rewardReceipt';
 
 const REWARD_CLAIM_UPDATED_EVENT = 'veinvite-reward-claim-updated';
 const PAID_ACTIVATION_UPDATED_EVENT = 'veinvite-paid-activation-updated';
 const CLAIM_POLL_INTERVAL_MS = 2_000;
 const CLAIM_POLL_TIMEOUT_MS = 120_000;
+const CLAIM_STATUS_REFRESH_MS = 10_000;
 const BACKGROUND_POLL_INTERVAL_MS = 30_000;
 
 type ReceiptResponse = {
@@ -28,6 +32,23 @@ async function readLatestReceiptId(): Promise<string | null> {
   return latest?.id ?? null;
 }
 
+async function hasProcessingRewardClaim(): Promise<boolean> {
+  const response = await fetch('/api/notifications/reward-actions', {
+    cache: 'no-store',
+  });
+
+  if (!response.ok) {
+    return false;
+  }
+
+  const body = (await response.json()) as RewardActionResponse;
+  return Array.isArray(body.actions) && body.actions.some(
+    (action) =>
+      action.status === 'QUEUED' ||
+      action.status === 'ASSIGNED',
+  );
+}
+
 export function PaidActivationLiveSync() {
   const latestReceiptIdRef = useRef<string | null>(null);
   const initializedRef = useRef(false);
@@ -35,6 +56,7 @@ export function PaidActivationLiveSync() {
   const claimPollDeadlineRef = useRef(0);
   const reloadRequestedRef = useRef(false);
   const readInFlightRef = useRef<Promise<string | null> | null>(null);
+  const claimStatusReadInFlightRef = useRef<Promise<boolean> | null>(null);
 
   const readLatest = useCallback(async () => {
     let request = readInFlightRef.current;
@@ -48,6 +70,22 @@ export function PaidActivationLiveSync() {
     } finally {
       if (readInFlightRef.current === request) {
         readInFlightRef.current = null;
+      }
+    }
+  }, []);
+
+  const readClaimProcessing = useCallback(async () => {
+    let request = claimStatusReadInFlightRef.current;
+    if (!request) {
+      request = hasProcessingRewardClaim();
+      claimStatusReadInFlightRef.current = request;
+    }
+
+    try {
+      return await request;
+    } finally {
+      if (claimStatusReadInFlightRef.current === request) {
+        claimStatusReadInFlightRef.current = null;
       }
     }
   }, []);
@@ -123,8 +161,36 @@ export function PaidActivationLiveSync() {
     void poll();
   }, [applyLatestReceipt, stopClaimPolling]);
 
+  const ensureClaimPolling = useCallback(async () => {
+    if (
+      document.visibilityState !== 'visible' ||
+      reloadRequestedRef.current
+    ) {
+      return;
+    }
+
+    try {
+      if (!(await readClaimProcessing())) {
+        return;
+      }
+
+      claimPollDeadlineRef.current = Math.max(
+        claimPollDeadlineRef.current,
+        Date.now() + CLAIM_POLL_TIMEOUT_MS,
+      );
+
+      if (claimPollTimerRef.current === null) {
+        scheduleClaimPoll();
+      }
+    } catch {
+      // This is a read-only liveness hint. Existing Claim, receipt, recovery and
+      // cron paths remain authoritative when the hint cannot be read.
+    }
+  }, [readClaimProcessing, scheduleClaimPoll]);
+
   useEffect(() => {
     void applyLatestReceipt();
+    void ensureClaimPolling();
 
     const onClaimUpdated = () => {
       claimPollDeadlineRef.current = Date.now() + CLAIM_POLL_TIMEOUT_MS;
@@ -134,8 +200,13 @@ export function PaidActivationLiveSync() {
     const onVisible = () => {
       if (document.visibilityState === 'visible') {
         void applyLatestReceipt();
+        void ensureClaimPolling();
       }
     };
+
+    const claimStatusTimer = window.setInterval(() => {
+      void ensureClaimPolling();
+    }, CLAIM_STATUS_REFRESH_MS);
 
     const backgroundTimer = window.setInterval(() => {
       if (document.visibilityState === 'visible') {
@@ -148,11 +219,17 @@ export function PaidActivationLiveSync() {
 
     return () => {
       stopClaimPolling();
+      window.clearInterval(claimStatusTimer);
       window.clearInterval(backgroundTimer);
       window.removeEventListener(REWARD_CLAIM_UPDATED_EVENT, onClaimUpdated);
       document.removeEventListener('visibilitychange', onVisible);
     };
-  }, [applyLatestReceipt, scheduleClaimPoll, stopClaimPolling]);
+  }, [
+    applyLatestReceipt,
+    ensureClaimPolling,
+    scheduleClaimPoll,
+    stopClaimPolling,
+  ]);
 
   return null;
 }
