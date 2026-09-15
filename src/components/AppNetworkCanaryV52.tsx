@@ -11,6 +11,11 @@ const HOLD_MS = 500;
 const PRE_HOLD_CANCEL_PX = 10;
 const DRAG_AFTER_HOLD_PX = 4;
 const POST_HOLD_CLICK_SUPPRESS_MS = 900;
+const PARENT_ZOOM_MAX = 0.48;
+const PARENT_PINCH_RATIO = 0.64;
+const ENTER_PINCH_RATIO = 1.28;
+const ENTER_ZOOM_MIN = 1.28;
+const WHEEL_PARENT_SCORE = 3;
 
 type Point = { x: number; y: number };
 type AdjustmentStore = Record<string, Point>;
@@ -31,6 +36,12 @@ type HoldState = {
   dragging: boolean;
   timer: number;
 } | null;
+type ParentPinch = {
+  startDistance: number;
+  minRatio: number;
+  maxRatio: number;
+  candidateId: string | null;
+} | null;
 type BackgroundTap = {
   pointerId: number;
   startX: number;
@@ -41,6 +52,10 @@ type BackgroundTap = {
 function parsePx(value: string) {
   const parsed = Number.parseFloat(value);
   return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function touchDistance(a: Touch, b: Touch) {
+  return Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY);
 }
 
 function curveFromCenter(point: Point) {
@@ -70,10 +85,15 @@ function NetworkV52StabilityController() {
 
     let mounted = true;
     let hold: HoldState = null;
+    let parentPinch: ParentPinch = null;
     let backgroundTap: BackgroundTap = null;
+    let pinchGuard: HTMLDivElement | null = null;
     let suppressNodeId: string | null = null;
     let suppressClickUntil = 0;
     let syncFrame = 0;
+    let wheelScore = 0;
+    let wheelAt = 0;
+    let transitionTimer: number | null = null;
 
     let adjustments: AdjustmentStore = {};
     try {
@@ -85,8 +105,9 @@ function NetworkV52StabilityController() {
 
     const compact = () => window.innerWidth <= 640;
     const editMode = () => stage.classList.contains('editMode');
-    const realGroupPanel = () => root.querySelector<HTMLElement>('.v42GroupPanel');
-    const inTransition = () => root.classList.contains('v50NetworkTransition');
+    const realGroupPanel = () => root.querySelector<HTMLElement>('.v42GroupPanel:not([data-v52-pinch-guard="1"])');
+    const inTransition = () => root.classList.contains('v50NetworkTransition') || root.classList.contains('v52NetworkTransition');
+    const centerIsYou = () => root.querySelector<HTMLElement>('.centerWrap>b')?.textContent?.trim().toUpperCase() === 'YOU';
 
     const activeScenarioId = () => {
       const label = root.querySelector<HTMLElement>('.scenarioBar button.active b')?.textContent?.trim() ?? '';
@@ -191,6 +212,9 @@ function NetworkV52StabilityController() {
       const groups = readGroups().filter((group) => group.scope === scope);
       const groupedIds = new Set(groups.flatMap((group) => group.members));
 
+      // V37 still renders referral paths without an id. Bind each newly rendered
+      // base path once, then every later lookup is id-based instead of relying on
+      // mutable DOM array order.
       nodes.forEach((node, index) => {
         const id = node.dataset.nodeId;
         const path = basePaths[index];
@@ -351,8 +375,129 @@ function NetworkV52StabilityController() {
       event.stopImmediatePropagation();
     };
 
-    const onMultiTouchStart = (event: TouchEvent) => {
-      if (event.touches.length >= 2) clearHold(true);
+    const nearestNavigableNode = (clientX: number, clientY: number) => {
+      let bestNode: HTMLButtonElement | null = null;
+      let bestDistance = Number.POSITIVE_INFINITY;
+      for (const node of Array.from(root.querySelectorAll<HTMLButtonElement>('.personNode[data-node-id]'))) {
+        if (node.classList.contains('v42CollapsedMember')) continue;
+        const circle = node.querySelector<HTMLElement>('.nodeCircle');
+        const meta = node.querySelector<HTMLElement>('small');
+        if (!circle || !meta) continue;
+        const numbers = meta.textContent?.match(/(\d+)\s+direct\s+·\s+(\d+)\s+(?:net|network)/i);
+        if (!numbers || (Number(numbers[1]) <= 0 && Number(numbers[2]) <= 0)) continue;
+        const rect = circle.getBoundingClientRect();
+        if (rect.width <= 0 || rect.height <= 0) continue;
+        const distance = Math.hypot(clientX - (rect.left + rect.width / 2), clientY - (rect.top + rect.height / 2));
+        const limit = Math.max(62, rect.width * 1.25);
+        if (distance > limit || distance >= bestDistance) continue;
+        bestDistance = distance;
+        bestNode = node;
+      }
+      return bestNode;
+    };
+
+    const beginV52Transition = () => {
+      root.classList.add('v52NetworkTransition');
+      if (transitionTimer !== null) window.clearTimeout(transitionTimer);
+      transitionTimer = window.setTimeout(() => {
+        transitionTimer = null;
+        root.classList.remove('v52NetworkTransition');
+      }, 820);
+    };
+
+    const enterNodeNetwork = (nodeId: string) => {
+      if (inTransition() || editMode() || realGroupPanel()) return;
+      const node = root.querySelector<HTMLButtonElement>(`.personNode[data-node-id="${CSS.escape(nodeId)}"]`);
+      if (!node || node.classList.contains('v42CollapsedMember')) return;
+      beginV52Transition();
+      node.classList.add('v52NavigationCandidate');
+      node.querySelector<HTMLElement>('.nodeCircle')?.click();
+      window.setTimeout(() => {
+        if (!mounted) return;
+        root.querySelector<HTMLButtonElement>('.profileCard .viewNetwork')?.click();
+        node.classList.remove('v52NavigationCandidate');
+      }, 34);
+    };
+
+    const goParent = () => {
+      if (inTransition() || centerIsYou() || editMode() || realGroupPanel()) return;
+      const inviter = Array.from(root.querySelectorAll<HTMLButtonElement>('.navActions button'))
+        .find((button) => button.textContent?.includes('Inviter'));
+      if (!inviter) return;
+      beginV52Transition();
+      inviter.click();
+    };
+
+    const addPinchGuard = () => {
+      if (pinchGuard?.isConnected) return;
+      const guard = document.createElement('div');
+      guard.className = 'v42GroupPanel';
+      guard.dataset.v52PinchGuard = '1';
+      guard.setAttribute('aria-hidden', 'true');
+      guard.style.display = 'none';
+      root.appendChild(guard);
+      pinchGuard = guard;
+    };
+
+    const removePinchGuard = () => {
+      pinchGuard?.remove();
+      pinchGuard = null;
+    };
+
+    const onTouchStart = (event: TouchEvent) => {
+      if (event.touches.length !== 2 || centerIsYou() || editMode() || realGroupPanel() || inTransition()) return;
+      clearHold(true);
+      const a = event.touches[0];
+      const b = event.touches[1];
+      const midX = (a.clientX + b.clientX) / 2;
+      const midY = (a.clientY + b.clientY) / 2;
+      parentPinch = {
+        startDistance: Math.max(1, touchDistance(a, b)),
+        minRatio: 1,
+        maxRatio: 1,
+        candidateId: nearestNavigableNode(midX, midY)?.dataset.nodeId ?? null,
+      };
+      addPinchGuard();
+    };
+
+    const onTouchMove = (event: TouchEvent) => {
+      if (!parentPinch || event.touches.length !== 2) return;
+      const ratio = touchDistance(event.touches[0], event.touches[1]) / parentPinch.startDistance;
+      parentPinch.minRatio = Math.min(parentPinch.minRatio, ratio);
+      parentPinch.maxRatio = Math.max(parentPinch.maxRatio, ratio);
+    };
+
+    const finishPinch = (event: TouchEvent) => {
+      if (!parentPinch || event.touches.length > 0) return;
+      const intent = parentPinch;
+      parentPinch = null;
+      removePinchGuard();
+      if (inTransition() || editMode() || realGroupPanel()) return;
+      if (intent.candidateId && intent.maxRatio >= ENTER_PINCH_RATIO && readZoom() >= ENTER_ZOOM_MIN) {
+        enterNodeNetwork(intent.candidateId);
+        return;
+      }
+      if (intent.minRatio <= PARENT_PINCH_RATIO && readZoom() <= PARENT_ZOOM_MAX) goParent();
+    };
+
+    const cancelPinch = () => {
+      parentPinch = null;
+      removePinchGuard();
+    };
+
+    const onWheelWindowCapture = (event: WheelEvent) => {
+      if (!event.isTrusted || event.deltaY <= 0 || centerIsYou() || editMode() || realGroupPanel() || inTransition()) return;
+      addPinchGuard();
+      window.setTimeout(removePinchGuard, 0);
+      const now = performance.now();
+      if (now - wheelAt > 320) wheelScore = 0;
+      wheelAt = now;
+      wheelScore += 1;
+      window.setTimeout(() => {
+        if (!mounted || wheelScore < WHEEL_PARENT_SCORE || readZoom() > PARENT_ZOOM_MAX) return;
+        wheelScore = 0;
+        goParent();
+      }, 48);
     };
 
     const onBackgroundPointerDown = (event: PointerEvent) => {
@@ -398,6 +543,7 @@ function NetworkV52StabilityController() {
 
     const clearTransientState = () => {
       clearHold(true);
+      cancelPinch();
       backgroundTap = null;
     };
 
@@ -440,7 +586,11 @@ function NetworkV52StabilityController() {
     window.addEventListener('pointermove', onPointerMove, true);
     window.addEventListener('pointerup', finishHold, true);
     window.addEventListener('pointercancel', cancelHold, true);
-    stage.addEventListener('touchstart', onMultiTouchStart, { capture: true, passive: true });
+    window.addEventListener('touchstart', onTouchStart, { capture: true, passive: true });
+    window.addEventListener('touchmove', onTouchMove, { capture: true, passive: true });
+    window.addEventListener('touchend', finishPinch, { capture: true, passive: true });
+    window.addEventListener('touchcancel', cancelPinch, { capture: true, passive: true });
+    window.addEventListener('wheel', onWheelWindowCapture, { capture: true, passive: true });
     stage.addEventListener('pointerdown', onBackgroundPointerDown, true);
     stage.addEventListener('pointerup', onBackgroundPointerUp, true);
     root.addEventListener('click', suppressHeldClick, true);
@@ -459,12 +609,18 @@ function NetworkV52StabilityController() {
       mounted = false;
       observer.disconnect();
       clearHold(true);
+      cancelPinch();
       if (syncFrame) window.cancelAnimationFrame(syncFrame);
+      if (transitionTimer !== null) window.clearTimeout(transitionTimer);
       window.removeEventListener('pointerdown', onPointerDown, true);
       window.removeEventListener('pointermove', onPointerMove, true);
       window.removeEventListener('pointerup', finishHold, true);
       window.removeEventListener('pointercancel', cancelHold, true);
-      stage.removeEventListener('touchstart', onMultiTouchStart, true);
+      window.removeEventListener('touchstart', onTouchStart, true);
+      window.removeEventListener('touchmove', onTouchMove, true);
+      window.removeEventListener('touchend', finishPinch, true);
+      window.removeEventListener('touchcancel', cancelPinch, true);
+      window.removeEventListener('wheel', onWheelWindowCapture, true);
       stage.removeEventListener('pointerdown', onBackgroundPointerDown, true);
       stage.removeEventListener('pointerup', onBackgroundPointerUp, true);
       root.removeEventListener('click', suppressHeldClick, true);
@@ -475,6 +631,7 @@ function NetworkV52StabilityController() {
       document.removeEventListener('visibilitychange', onVisibilityChange);
       window.removeEventListener('blur', clearTransientState);
       window.removeEventListener('resize', scheduleSync);
+      root.classList.remove('v52NetworkTransition');
       root.querySelectorAll<SVGPathElement>('svg.edges > path[data-v52-grouped-base="1"]').forEach((path) => {
         path.style.removeProperty('opacity');
         delete path.dataset.v52GroupedBase;
@@ -487,6 +644,9 @@ function NetworkV52StabilityController() {
   }, []);
 
   return <style jsx global>{`
+    /* The node itself is the one horizontal layout context for both metadata
+       rows. V48/V50 may keep their old absolute rules in the bundle, but V52
+       cancels those rules instead of stacking another independent X transform. */
     .productionNetworkCanaryV45 .personNode{
       padding:0!important;box-sizing:border-box!important;text-align:center!important;
       display:flex!important;flex-direction:column!important;align-items:center!important;
@@ -517,6 +677,8 @@ function NetworkV52StabilityController() {
       transform:scale(var(--v46-label-scale,1))!important;transform-origin:50% 0!important
     }
 
+    /* V52 owns persistent free-position adjustments. V50 may continue to own
+       group drops; the two offsets are additive instead of overwriting each other. */
     .productionNetworkCanaryV45 .personNode{
       transform:translate(
         calc(var(--x) + var(--v42-group-dx,0px) + var(--v50-adjust-x,0px) + var(--v52-adjust-x,0px) + var(--v50-drag-dx,0px) + var(--v52-drag-dx,0px) - 50%),
@@ -530,6 +692,8 @@ function NetworkV52StabilityController() {
       box-shadow:0 0 0 4px rgba(244,183,40,.11),0 0 30px rgba(244,183,40,.18)!important
     }
 
+    /* Selection is paint-only. The circle keeps the same 50% anchor before and
+       after selection; only scale/border/shadow change. */
     .productionNetworkCanaryV45 .personNode.canarySelectedNode .nodeCircle,
     .productionNetworkCanaryV45 .personNode.pressing .nodeCircle{
       left:50%!important;margin:0!important;
@@ -541,11 +705,15 @@ function NetworkV52StabilityController() {
       transform-origin:50% 50%!important
     }
 
+    /* V42 still tags a base path by array index. V52's stable data-node-id
+       binding is authoritative: only the actual grouped member base path stays
+       hidden, so a stale V42 class cannot hide an unrelated referral line. */
     .productionNetworkCanaryV45 .spoke.v42GroupMemberPath:not([data-v52-grouped-base="1"]){
       opacity:var(--v46-line-opacity,.42)!important
     }
     .productionNetworkCanaryV45 .spoke[data-v52-grouped-base="1"]{opacity:0!important}
 
+    /* Keep iOS from interpreting a deliberate hold as text selection/callout. */
     .productionNetworkCanaryV45 .personNode,
     .productionNetworkCanaryV45 .personNode *,
     .productionNetworkCanaryV45 .slotNode,
@@ -554,6 +722,8 @@ function NetworkV52StabilityController() {
       -webkit-touch-callout:none!important;-webkit-user-drag:none!important
     }
 
+    /* Compact node details: preserve the action, but stop the card from taking
+       over the mobile canvas. */
     .productionNetworkCanaryV45 .profileCard{
       top:9px!important;right:9px!important;width:min(238px,calc(100% - 18px))!important;
       padding:8px!important;border-radius:11px!important;box-shadow:0 10px 28px rgba(0,0,0,.26)!important
@@ -565,6 +735,17 @@ function NetworkV52StabilityController() {
     }
     .productionNetworkCanaryV45 .profileCard p{margin:6px 0!important;font-size:.41rem!important}
     .productionNetworkCanaryV45 .profileCard .viewNetwork{height:30px!important;font-size:.43rem!important}
+
+    .productionNetworkCanaryV45.v52NetworkTransition .stage{pointer-events:none!important}
+    .productionNetworkCanaryV45.v52NetworkTransition .scene{transition:transform 720ms cubic-bezier(.18,.82,.2,1)!important}
+    .productionNetworkCanaryV45 .personNode.v52NavigationCandidate .nodeCircle{
+      border-color:rgba(255,211,77,1)!important;
+      box-shadow:0 0 0 5px rgba(244,183,40,.14),0 0 38px rgba(244,183,40,.24)!important
+    }
+
+    @media(prefers-reduced-motion:reduce){
+      .productionNetworkCanaryV45.v52NetworkTransition .scene{transition:none!important}
+    }
   `}</style>;
 }
 
