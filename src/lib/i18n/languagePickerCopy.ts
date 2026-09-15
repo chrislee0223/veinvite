@@ -125,6 +125,10 @@ const LANGUAGE_PICKER_COPY: Record<
     searchPlaceholder: 'Αναζήτηση γλώσσας',
     noResults: 'Δεν βρέθηκαν γλώσσες',
   },
+  cs: {
+    searchPlaceholder: 'Hledat jazyky',
+    noResults: 'Žádný jazyk nebyl nalezen',
+  },
 };
 
 export function getLanguagePickerCopy(
