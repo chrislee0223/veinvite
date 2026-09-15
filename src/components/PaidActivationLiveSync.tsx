@@ -15,7 +15,7 @@ import type { RewardReceipt } from '@/lib/rewards/rewardReceipt';
 const PAID_ACTIVATION_UPDATED_EVENT = 'veinvite-paid-activation-updated';
 const CLAIM_POLL_INTERVAL_MS = 2_000;
 const CLAIM_POLL_TIMEOUT_MS = 120_000;
-const BACKGROUND_POLL_INTERVAL_MS = 30_000;
+const BACKGROUND_POLL_INTERVAL_MS = 60_000;
 
 type ReceiptResponse = {
   receipts?: RewardReceipt[];
