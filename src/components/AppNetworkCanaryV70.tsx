@@ -47,14 +47,27 @@ function NetworkLocalePresentationV70({ locale }: { locale: Locale }) {
       element.removeAttribute('dir');
     };
 
+    const restoreRootIdentity = (element: HTMLElement) => {
+      if (element.dataset.v70RootLabel !== '1') return;
+      element.textContent = 'YOU';
+      clearRootPresentation(element);
+    };
+
     const localizeRootIdentity = () => {
       root.querySelectorAll<HTMLElement>('.centerWrap > b,.identity > b,.crumbs button').forEach((element) => {
         const raw = element.textContent?.trim() ?? '';
-        if (raw === 'YOU') {
-          setPresentation(element, controls.you);
+        const isLocalizedRoot =
+          element.dataset.v70RootLabel === '1' && raw === controls.you;
+
+        if (raw === 'YOU' || isLocalizedRoot) {
+          delete element.dataset.v65UiCopy;
+          element.classList.remove('v65LocalizedUiCopy');
+          if (raw !== controls.you) element.textContent = controls.you;
           element.dataset.v70RootLabel = '1';
+          element.dir = direction;
           return;
         }
+
         clearRootPresentation(element);
       });
     };
@@ -100,6 +113,7 @@ function NetworkLocalePresentationV70({ locale }: { locale: Locale }) {
     return () => {
       observer.disconnect();
       if (frame) window.cancelAnimationFrame(frame);
+      root.querySelectorAll<HTMLElement>('[data-v70-root-label="1"]').forEach(restoreRootIdentity);
       delete root.dataset.v70Direction;
     };
   }, [locale]);
