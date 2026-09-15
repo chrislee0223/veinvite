@@ -32,6 +32,7 @@ const NETWORK_LABELS: Record<SupportedLocale, string> = {
   sw: 'Mtandao',
   ha: 'Cibiyar sadarwa',
   el: 'Δίκτυο',
+  cs: 'Síť',
 };
 
 for (const [locale, label] of Object.entries(NETWORK_LABELS) as Array<
