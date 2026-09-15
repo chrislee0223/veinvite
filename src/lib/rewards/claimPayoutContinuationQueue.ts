@@ -53,11 +53,17 @@ export function needsDurableClaimPayoutContinuation(
   }
 
   if (
+    result.status === 'DISABLED' ||
+    result.status === 'NOT_CONFIGURED' ||
+    result.status === 'NOT_REGISTERED' ||
     result.status === 'LOCKED' ||
     result.status === 'PREPARED' ||
     result.status === 'SUBMITTED' ||
     result.status === 'WAITING_FINALITY'
   ) {
+    // An explicit Claim is already durable DB state. Temporary operational
+    // stops must not strand it until the once-daily recovery sweep; keep the
+    // Queue lease alive so the same approved transfer resumes when safe.
     return true;
   }
 
@@ -83,8 +89,9 @@ function initialDelaySeconds(
     return 30;
   }
 
-  // LOCKED / PREPARED / a failed synchronous kickoff should be retried quickly
-  // so an approved Claim does not wait for the low-frequency recovery cron.
+  // LOCKED / PREPARED / temporary operational stops / a failed synchronous
+  // kickoff should be retried quickly so an approved Claim does not wait for
+  // the low-frequency recovery cron.
   return 5;
 }
 
