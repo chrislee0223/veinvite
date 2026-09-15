@@ -141,6 +141,12 @@ async function recoverSubmittedBeforePayout() {
   }
 }
 
+function runClaimTransferWorker() {
+  return runBaseAutomaticRewardPayout({
+    allowGeneralRoundPreparation: false,
+  });
+}
+
 export type { AutomaticRewardPayoutResult };
 
 export function readAutomaticRewardDistributorReadiness() {
@@ -153,16 +159,16 @@ Promise<AutomaticRewardPayoutResult> {
   prepareRewardDistributorSecret();
   const readiness = readBaseReadiness();
 
-  // Never create an ASSIGNED fast-path batch when the automatic distributor is
-  // disabled, incomplete, or cryptographically mismatched. The base worker owns
-  // the authoritative result for those states and will fail closed without
-  // transferring funds.
+  // Claim is a transfer-only boundary. Eligibility, mission, Sybil / identity,
+  // chain-finality and fixed-reservation checks were completed before the user
+  // was shown AWAITING_CLAIM. Even a degraded distributor state must never make
+  // this path fall into the generic reservation / signal-planning sweep.
   if (
     !readiness.enabled ||
     !readiness.configured ||
     !readiness.distributorAddress
   ) {
-    return runBaseAutomaticRewardPayout();
+    return runClaimTransferWorker();
   }
 
   // Reconcile the oldest already-submitted transaction before preparing more
@@ -173,26 +179,15 @@ Promise<AutomaticRewardPayoutResult> {
   // atomically settles the immutable manifest as PAID.
   await recoverSubmittedBeforePayout();
 
-  // An AWAITING_CLAIM reward already passed final mission verification, Sybil /
-  // identity gates, chain finality, and fixed-amount reservation. Prepare only
-  // durable claimed reservations here so Claim does not repeat the background
-  // reservation / signal-planning sweep before payout. The fast preparation
-  // mirrors the base worker's runtime pause and on-chain distributor gates before
-  // it may create an ASSIGNED batch. If an older active round exists or the fast
-  // preparation encounters a transient error, the normal idempotent payout
-  // worker remains the safe fallback and advances that state.
-  try {
-    await prepareClaimedRewardFastPath({
-      distributorAddress: readiness.distributorAddress,
-    });
-  } catch (error) {
-    console.error(
-      'Claim reward fast-path preparation failed; falling back to the standard payout worker:',
-      error,
-    );
-  }
+  // Prepare only already-claimed, already-reserved rewards. If this preparation
+  // throws, propagate the failure so the durable Queue retries the same approved
+  // Claim later. Do not fall back to generic reward preparation, which would
+  // repeat the pre-Claim Sybil / planning stage after the user pressed Claim.
+  await prepareClaimedRewardFastPath({
+    distributorAddress: readiness.distributorAddress,
+  });
 
-  return runBaseAutomaticRewardPayout();
+  return runClaimTransferWorker();
 }
 
 export async function runAutomaticRewardPayout():
