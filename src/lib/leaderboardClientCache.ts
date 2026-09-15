@@ -191,7 +191,7 @@ export async function loadPublicLeaderboard(
   const request = (async () => {
     const isPersonalized = requestKey !== ANONYMOUS_WALLET_KEY;
     const response = await fetch(buildLeaderboardUrl(wallet), {
-      cache: isPersonalized ? 'no-store' : 'default',
+      cache: force || isPersonalized ? 'no-store' : 'default',
     });
     const result = (await response.json()) as
       | PublicLeaderboardResponse
