@@ -130,7 +130,10 @@ export function InviteNotificationHistoryCenter(props: Props) {
 
   return (
     <div className="notificationRewardAttentionShell">
-      <UnifiedInviteNotificationHistoryCenter {...props} />
+      <UnifiedInviteNotificationHistoryCenter
+        key={wallet?.toLowerCase() ?? 'disconnected'}
+        {...props}
+      />
       {showClaimAttention ? (
         <>
           <span
