@@ -405,3 +405,202 @@ for (const [locale, patch] of Object.entries(NETWORK_NATURALNESS_PATCHES) as Arr
   if (patch.network) Object.assign(NETWORK_COPY[locale], patch.network);
   if (patch.interaction) Object.assign(NETWORK_CANARY_INTERACTION_COPY[locale], patch.interaction);
 }
+
+type NetworkUserFacingCanaryPolish = Pick<
+  NetworkCanaryUiCopy,
+  'hintView' | 'allCanvas' | 'available' | 'removed'
+>;
+
+// A final user-facing terminology pass. These four labels are visible in the
+// canvas but do not describe implementation details, so avoid developer terms
+// such as node/canvas and make invite/group-removal status explicit.
+const NETWORK_USER_FACING_CANARY_POLISH: Record<SupportedLocale, NetworkUserFacingCanaryPolish> = {
+  en: {
+    hintView: 'Hold a person to edit · drag the screen · pinch to zoom',
+    allCanvas: 'All on one screen',
+    available: 'Invite available',
+    removed: 'Group deleted',
+  },
+  ko: {
+    hintView: '사람을 길게 눌러 편집 · 화면을 끌어 이동 · 두 손가락으로 확대/축소',
+    allCanvas: '한 화면에 모두 표시',
+    available: '초대 가능',
+    removed: '그룹 삭제됨',
+  },
+  zh: {
+    hintView: '长按人物编辑 · 拖动画面 · 双指缩放',
+    allCanvas: '全部显示在同一画面',
+    available: '可邀请',
+    removed: '分组已删除',
+  },
+  hi: {
+    hintView: 'संपादन के लिए व्यक्ति को दबाकर रखें · स्क्रीन खींचें · पिंच से ज़ूम करें',
+    allCanvas: 'सबको एक स्क्रीन पर दिखाएँ',
+    available: 'आमंत्रण उपलब्ध',
+    removed: 'समूह हटाया गया',
+  },
+  es: {
+    hintView: 'Mantén pulsada una persona para editar · arrastra la pantalla · pellizca para ampliar',
+    allCanvas: 'Todo en una sola pantalla',
+    available: 'Invitación disponible',
+    removed: 'Grupo eliminado',
+  },
+  ja: {
+    hintView: '人を長押しして編集 · 画面をドラッグ · ピンチで拡大縮小',
+    allCanvas: 'すべてを1画面に表示',
+    available: '招待可能',
+    removed: 'グループを削除しました',
+  },
+  it: {
+    hintView: 'Tieni premuta una persona per modificare · trascina lo schermo · pizzica per zoomare',
+    allCanvas: 'Tutto in una sola schermata',
+    available: 'Invito disponibile',
+    removed: 'Gruppo rimosso',
+  },
+  tr: {
+    hintView: 'Düzenlemek için kişiyi basılı tut · ekranı sürükle · yakınlaştırmak için sıkıştır',
+    allCanvas: 'Tümü tek ekranda',
+    available: 'Davet edilebilir',
+    removed: 'Grup kaldırıldı',
+  },
+  nl: {
+    hintView: 'Houd een persoon vast om te bewerken · sleep het scherm · knijp om te zoomen',
+    allCanvas: 'Alles op één scherm',
+    available: 'Uitnodiging mogelijk',
+    removed: 'Groep verwijderd',
+  },
+  de: {
+    hintView: 'Person gedrückt halten zum Bearbeiten · Ansicht ziehen · mit zwei Fingern zoomen',
+    allCanvas: 'Alles in einer Ansicht',
+    available: 'Einladung möglich',
+    removed: 'Gruppe entfernt',
+  },
+  fr: {
+    hintView: 'Maintenez une personne pour modifier · faites glisser l’écran · pincez pour zoomer',
+    allCanvas: 'Tout sur un seul écran',
+    available: 'Invitation possible',
+    removed: 'Groupe supprimé',
+  },
+  ar: {
+    hintView: 'اضغط مطولًا على الشخص للتعديل · اسحب الشاشة · استخدم إصبعين للتكبير والتصغير',
+    allCanvas: 'الكل في شاشة واحدة',
+    available: 'متاح للدعوة',
+    removed: 'تم حذف المجموعة',
+  },
+  bn: {
+    hintView: 'সম্পাদনা করতে ব্যক্তিকে চেপে ধরুন · স্ক্রিন টানুন · জুম করতে পিঞ্চ করুন',
+    allCanvas: 'সবকিছু এক স্ক্রিনে',
+    available: 'আমন্ত্রণ করা যাবে',
+    removed: 'গ্রুপ মুছে ফেলা হয়েছে',
+  },
+  pt: {
+    hintView: 'Segure uma pessoa para editar · arraste a tela · use pinça para ampliar',
+    allCanvas: 'Tudo em uma só tela',
+    available: 'Convite disponível',
+    removed: 'Grupo removido',
+  },
+  ru: {
+    hintView: 'Удерживайте человека для редактирования · перетаскивайте экран · масштабируйте щипком',
+    allCanvas: 'Всё на одном экране',
+    available: 'Можно пригласить',
+    removed: 'Группа удалена',
+  },
+  id: {
+    hintView: 'Tahan orang untuk mengedit · seret layar · cubit untuk memperbesar',
+    allCanvas: 'Semua di satu layar',
+    available: 'Bisa diundang',
+    removed: 'Grup dihapus',
+  },
+  vi: {
+    hintView: 'Giữ một người để chỉnh sửa · kéo màn hình · chụm để thu phóng',
+    allCanvas: 'Tất cả trên một màn hình',
+    available: 'Có thể mời',
+    removed: 'Đã xóa nhóm',
+  },
+  'zh-tw': {
+    hintView: '長按人物編輯 · 拖動畫面 · 雙指縮放',
+    allCanvas: '全部顯示在同一畫面',
+    available: '可邀請',
+    removed: '群組已刪除',
+  },
+  sv: {
+    hintView: 'Håll en person för att redigera · dra skärmen · nyp för att zooma',
+    allCanvas: 'Allt på en skärm',
+    available: 'Kan bjudas in',
+    removed: 'Grupp borttagen',
+  },
+  ro: {
+    hintView: 'Ține apăsată o persoană pentru editare · trage ecranul · apropie sau depărtează cu două degete',
+    allCanvas: 'Totul pe un singur ecran',
+    available: 'Poate fi invitat',
+    removed: 'Grup eliminat',
+  },
+  ur: {
+    hintView: 'ترمیم کے لیے شخص کو دبائے رکھیں · اسکرین گھسیٹیں · زوم کے لیے پِنچ کریں',
+    allCanvas: 'سب ایک اسکرین پر',
+    available: 'دعوت دی جا سکتی ہے',
+    removed: 'گروپ حذف کر دیا گیا',
+  },
+  pcm: {
+    hintView: 'Hold person to edit · drag screen · pinch to zoom',
+    allCanvas: 'Everything for one screen',
+    available: 'You fit invite person',
+    removed: 'Group don delete',
+  },
+  arz: {
+    hintView: 'دوس مطول على الشخص للتعديل · اسحب الشاشة · قرّب بإصبعين',
+    allCanvas: 'الكل في شاشة واحدة',
+    available: 'ينفع تعزم حد',
+    removed: 'المجموعة اتمسحت',
+  },
+  mr: {
+    hintView: 'संपादनासाठी व्यक्तीला धरून ठेवा · स्क्रीन ओढा · पिंच करून झूम करा',
+    allCanvas: 'सगळे एका स्क्रीनवर',
+    available: 'आमंत्रित करता येईल',
+    removed: 'गट हटवला',
+  },
+  te: {
+    hintView: 'సవరించడానికి వ్యక్తిని నొక్కి పట్టుకోండి · స్క్రీన్‌ను లాగండి · జూమ్ చేయడానికి పించ్ చేయండి',
+    allCanvas: 'అన్నీ ఒకే స్క్రీన్‌లో',
+    available: 'ఆహ్వానించవచ్చు',
+    removed: 'గ్రూపు తొలగించబడింది',
+  },
+  sw: {
+    hintView: 'Shikilia mtu kuhariri · buruta skrini · bana vidole kukuza',
+    allCanvas: 'Yote kwenye skrini moja',
+    available: 'Anaweza kualikwa',
+    removed: 'Kikundi kimeondolewa',
+  },
+  ha: {
+    hintView: 'Riƙe mutum don gyara · ja allo · matse yatsu don zuƙowa',
+    allCanvas: 'Duka a allo ɗaya',
+    available: 'Za a iya gayyata',
+    removed: 'An cire rukuni',
+  },
+  el: {
+    hintView: 'Κράτησε πατημένο ένα άτομο για επεξεργασία · σύρε την οθόνη · τσίμπησε για ζουμ',
+    allCanvas: 'Όλα σε μία οθόνη',
+    available: 'Μπορεί να προσκληθεί',
+    removed: 'Η ομάδα διαγράφηκε',
+  },
+};
+
+for (const [locale, patch] of Object.entries(NETWORK_USER_FACING_CANARY_POLISH) as Array<
+  [SupportedLocale, NetworkUserFacingCanaryPolish]
+>) {
+  Object.assign(NETWORK_CANARY_UI_COPY[locale], patch);
+}
+
+Object.assign(NETWORK_EXPERIENCE_COPY.ko, {
+  noSearchResults: '내 네트워크에 일치하는 지갑이 없어요.',
+  noMatching: '조건에 맞는 직접 초대 분기가 없어요.',
+});
+
+Object.assign(NETWORK_EXPLORE_COPY.ko, {
+  publicEnabledNote: '내 지갑 주소를 아는 사람이 공개 네트워크를 볼 수 있게 해요.',
+  discoverableNote: '내 네트워크가 둘러보기 목록에 표시되게 해요.',
+  noPublicNetworks: '아직 둘러볼 수 있는 공개 네트워크가 없어요.',
+  visibilityError: '공개 네트워크 설정을 변경하지 못했어요.',
+  networkPrivate: '이 네트워크는 비공개예요.',
+  maintenance: '네트워크를 잠시 사용할 수 없어요.',
+});
