@@ -17,7 +17,7 @@ function loadingState(status = 'loading') {
   };
 }
 
-test('server-verified reload reveals the Home shell while read-only API data hydrates', () => {
+test('server-verified reload keeps partial Home data covered until wallet reads are ready', () => {
   const base = {
     walletAddress: WALLET,
     homeState: loadingState(),
@@ -28,14 +28,14 @@ test('server-verified reload reveals the Home shell while read-only API data hyd
 
   assert.equal(
     resolveStartupReadiness(base),
-    'release',
+    'hold',
   );
   assert.equal(
     resolveStartupReadiness({
       ...base,
       allowHomeDataHydration: true,
     }),
-    'release',
+    'hold',
   );
   assert.equal(
     resolveStartupReadiness({
