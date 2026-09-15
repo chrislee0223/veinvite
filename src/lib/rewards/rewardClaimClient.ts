@@ -12,6 +12,9 @@ export type RewardClaimReconciliation =
       action: RewardActionItem;
     }
   | {
+      kind: 'PAID';
+    }
+  | {
       kind: 'ABSENT';
     }
   | {
@@ -21,8 +24,51 @@ export type RewardClaimReconciliation =
       kind: 'UNKNOWN';
     };
 
+type ReceiptSummary = {
+  inviteCode?: unknown;
+};
+
+type ReceiptResponse = {
+  receipts?: ReceiptSummary[];
+};
+
 function sameInviteCode(left: string, right: string): boolean {
   return left.trim().toUpperCase() === right.trim().toUpperCase();
+}
+
+async function reconcileMissingAction(
+  inviteCode: string,
+): Promise<RewardClaimReconciliation> {
+  try {
+    const response = await fetch('/api/rewards/receipts?limit=50', {
+      cache: 'no-store',
+    });
+
+    if (response.status === 401 || response.status === 403) {
+      return { kind: 'AUTH_ERROR' };
+    }
+
+    if (!response.ok) {
+      return { kind: 'UNKNOWN' };
+    }
+
+    let body: ReceiptResponse;
+    try {
+      body = (await response.json()) as ReceiptResponse;
+    } catch {
+      return { kind: 'UNKNOWN' };
+    }
+
+    const receipts = Array.isArray(body.receipts) ? body.receipts : [];
+    const paid = receipts.some((receipt) =>
+      typeof receipt?.inviteCode === 'string' &&
+      sameInviteCode(receipt.inviteCode, inviteCode),
+    );
+
+    return paid ? { kind: 'PAID' } : { kind: 'ABSENT' };
+  } catch {
+    return { kind: 'UNKNOWN' };
+  }
 }
 
 export async function reconcileRewardClaimState(
@@ -56,10 +102,11 @@ export async function reconcileRewardClaimState(
     );
 
     if (!action) {
-      // The action endpoint intentionally omits finalized PAID rewards. ABSENT
-      // therefore means the old AWAITING_CLAIM state is no longer authoritative;
-      // callers should refresh receipts/invites instead of blindly re-posting Claim.
-      return { kind: 'ABSENT' };
+      // The action endpoint intentionally omits finalized PAID rewards, but it
+      // can also omit rewards that are no longer claimable. Never equate
+      // disappearance with success: require an actual finalized receipt before
+      // reporting PAID; otherwise callers must refresh authoritative state.
+      return reconcileMissingAction(inviteCode);
     }
 
     return { kind: 'ACTION', action };
