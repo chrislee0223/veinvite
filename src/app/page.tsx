@@ -2,7 +2,6 @@ import { cookies } from 'next/headers';
 
 import { ActiveWalletRewardReceiptNotice } from '@/components/ActiveWalletRewardReceiptNotice';
 import { HomeClient } from '@/components/HomeClient';
-import { InviteStatusAutoRefresh } from '@/components/InviteStatusAutoRefresh';
 import { RewardForecastSeedProvider } from '@/components/RewardForecastSeedProvider';
 import { WalletSessionGate } from '@/components/WalletSessionGate';
 import { readPublicRewardForecastSeed } from '@/lib/rewards/publicRewardForecastSeedServer';
@@ -55,7 +54,6 @@ export default async function HomePage() {
           initialSessionWallet
         }
       >
-        <InviteStatusAutoRefresh />
         <RewardForecastSeedProvider
           initialForecast={initialRewardForecast}
         >
