@@ -175,4 +175,10 @@ export const STARTUP_COPY: Record<SupportedLocale, StartupCopy> = {
       'Το πορτοφόλι ή τα δεδομένα της αρχικής σελίδας χρειάζονται περισσότερο χρόνο από το αναμενόμενο. Δοκίμασε ξανά.',
     retry: 'Δοκίμασε ξανά',
   },
+  cs: {
+    errorTitle: 'VeInvite se nepodařilo načíst',
+    errorDescription:
+      'Příprava peněženky nebo dat domovské obrazovky trvá déle, než se očekávalo. Zkus to znovu.',
+    retry: 'Zkusit znovu',
+  },
 };
