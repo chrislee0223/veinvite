@@ -17,7 +17,7 @@ function loadingState(status = 'loading') {
   };
 }
 
-test('server-verified reload reveals the Home shell while read-only API data hydrates', () => {
+test('first paint keeps wallet Home covered while API data hydrates', () => {
   const base = {
     walletAddress: WALLET,
     homeState: loadingState(),
@@ -28,29 +28,22 @@ test('server-verified reload reveals the Home shell while read-only API data hyd
 
   assert.equal(
     resolveStartupReadiness(base),
-    'release',
+    'hold',
   );
   assert.equal(
     resolveStartupReadiness({
       ...base,
       allowHomeDataHydration: true,
     }),
-    'release',
+    'hold',
   );
   assert.equal(
     resolveStartupReadiness({
       ...base,
       homeState: loadingState('error'),
+      allowHomeDataHydration: true,
     }),
     'error',
-  );
-
-  assert.equal(
-    resolveStartupReadiness({
-      ...base,
-      hasBootstrappedSession: false,
-    }),
-    'hold',
   );
 });
 
@@ -182,6 +175,8 @@ test('invite-only visual and language enhancements stay out of normal Home start
   assert.match(scoped, /pathname\.startsWith\('\/ui-test'\)/);
   assert.match(scoped, /if \(!needsInviteEnhancements\(pathname\)\) \{[\s\S]*return null;/);
 
+  // The body-wide observer is still available where the invite picker is
+  // actually needed, but normal Home no longer mounts it at all.
   assert.match(picker, /new MutationObserver\(scheduleAttach\)/);
 });
 
@@ -210,29 +205,4 @@ test('background invite recovery no longer competes with the authoritative Home 
     refresh,
     /if \(!walletAddress\) \{\s*return;\s*\}\s*void check\(\);/,
   );
-});
-
-test('usage analytics stays out of the Home critical startup window', async () => {
-  const [layout, deferred] = await Promise.all([
-    readFile(new URL('../src/app/layout.tsx', import.meta.url), 'utf8'),
-    readFile(
-      new URL('../src/components/DeferredUsageAnalyticsTracker.tsx', import.meta.url),
-      'utf8',
-    ),
-  ]);
-
-  assert.match(layout, /DeferredUsageAnalyticsTracker/);
-  assert.doesNotMatch(layout, /import \{ UsageAnalyticsTracker \}/);
-  assert.match(deferred, /APP_READY_EVENT = 'veinvite-app-ready'/);
-  assert.match(deferred, /STARTUP_FALLBACK_MS = 5_000/);
-  assert.match(deferred, /requestIdleCallback/);
-  assert.match(
-    deferred,
-    /veinviteAppReady === 'true'[\s\S]*schedule\(\)/,
-  );
-  assert.match(
-    deferred,
-    /addEventListener\(APP_READY_EVENT, schedule, \{ once: true \}\)/,
-  );
-  assert.match(deferred, /return active \? <UsageAnalyticsTracker \/> : null/);
 });

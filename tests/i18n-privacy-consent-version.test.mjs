@@ -7,14 +7,12 @@ const read = (path) =>
 
 const [
   legalConsent,
-  consentServer,
   consentRoute,
   consentGate,
   usagePrivacyCopy,
   productPrivacyCopy,
 ] = await Promise.all([
   read('src/lib/legalConsent.ts'),
-  read('src/lib/legalConsentServer.ts'),
   read('src/app/api/legal/consent/route.ts'),
   read('src/components/LegalConsentGate.tsx'),
   read('src/lib/i18n/privacyUsageAnalyticsCopy.ts'),
@@ -47,19 +45,9 @@ test('September 6 analytics retention update advances Privacy without changing T
 });
 
 test('server and gate both require the current privacy version', () => {
-  // The authoritative consent reader owns the version-filtered lookup. The API
-  // and Home bootstrap must reuse this same helper so they cannot drift apart.
-  assert.match(
-    consentServer,
-    /\.eq\('privacy_version', CURRENT_PRIVACY_VERSION\)/,
-  );
-  assert.match(
-    consentServer,
-    /\.eq\('terms_version', CURRENT_TERMS_VERSION\)/,
-  );
   assert.match(
     consentRoute,
-    /readCurrentLegalConsent/,
+    /\.eq\('privacy_version', CURRENT_PRIVACY_VERSION\)/,
   );
   assert.match(
     consentRoute,

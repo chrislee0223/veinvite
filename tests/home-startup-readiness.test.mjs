@@ -40,7 +40,7 @@ function decide({
   });
 }
 
-test('returning server-verified wallet stays covered until provider restore, then progressively reveals Home', () => {
+test('returning VeWorld session stays covered until wallet, link, and slots are all ready', () => {
   let released = false;
   let releaseCount = 0;
 
@@ -68,9 +68,21 @@ test('returning server-verified wallet stays covered until provider restore, the
     walletAddress: RETURNING_WALLET,
     state: homeState({ status: 'loading' }),
   });
-  assert.equal(decision, 'release');
+  assert.equal(decision, 'hold');
   apply(decision);
-  assert.equal(releaseCount, 1);
+  assert.equal(releaseCount, 0);
+
+  decision = decide({
+    walletAddress: RETURNING_WALLET,
+    state: homeState({
+      status: 'loading',
+      referralLinkReady: true,
+      invitesReady: false,
+    }),
+  });
+  assert.equal(decision, 'hold');
+  apply(decision);
+  assert.equal(releaseCount, 0);
 
   decision = decide({
     walletAddress: RETURNING_WALLET,
@@ -81,6 +93,9 @@ test('returning server-verified wallet stays covered until provider restore, the
     }),
   });
   assert.equal(decision, 'release');
+  apply(decision);
+  assert.equal(releaseCount, 1);
+
   apply(decision);
   assert.equal(releaseCount, 1);
 });
@@ -107,7 +122,6 @@ test('wallet verification surface is temporary and can never count as final Home
         invitesReady: false,
         referralLinkReady: true,
       }),
-      hasBootstrappedSession: false,
       interactiveGateVisible: false,
     }),
     'hold',
@@ -319,25 +333,15 @@ test('interactive wallet and legal gates temporarily step the shield aside witho
   );
 });
 
-test('verified reload placeholders override the old hidden startup fallback', async () => {
-  const [layout, progressiveStyles] = await Promise.all([
-    readFile(
-      new URL('../src/app/layout.tsx', import.meta.url),
-      'utf8',
-    ),
-    readFile(
-      new URL('../src/app/startup-progressive-hydration.css', import.meta.url),
-      'utf8',
-    ),
-  ]);
+test('referral hydration placeholders have a visual fail-safe', async () => {
+  const source = await readFile(
+    new URL('../src/app/globals.css', import.meta.url),
+    'utf8',
+  );
 
   assert.match(
-    progressiveStyles,
-    /\.linkPreviewSkeleton,\s*\.slotsSkeleton\s*\{\s*visibility:\s*visible\s*!important;/s,
-  );
-  assert.ok(
-    layout.indexOf("import './startup-progressive-hydration.css';") >
-      layout.indexOf("import './globals.css';"),
+    source,
+    /\.linkPreviewSkeleton,\s*\.slotsSkeleton\s*\{\s*visibility:\s*hidden\s*!important;/s,
   );
 });
 
