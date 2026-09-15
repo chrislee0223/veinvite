@@ -9,7 +9,7 @@ const [patchSource, v70Source] = await Promise.all([
 
 const locales = [
   'en', 'ko', 'zh', 'hi', 'es', 'ja', 'it', 'tr', 'nl', 'de', 'fr', 'ar', 'bn', 'pt',
-  'ru', 'id', 'vi', 'zh-tw', 'sv', 'ro', 'ur', 'pcm', 'arz', 'mr', 'te', 'sw', 'ha', 'el',
+  'ru', 'id', 'vi', 'zh-tw', 'sv', 'ro', 'ur', 'pcm', 'arz', 'mr', 'te', 'sw', 'ha', 'el', 'cs',
 ];
 
 test('V70 loads the Network naturalness pass before rendering localized UI', () => {

@@ -393,6 +393,9 @@ const NETWORK_NATURALNESS_PATCHES: Record<SupportedLocale, NetworkNaturalnessPat
       newNodeAdded: 'Προστέθηκε νέος φίλος',
     },
   },
+  cs: {
+    canary: { savedCount:'Lidé v této skupině: {count}', peopleCount:'Lidé: {count}', groupsCount:'Skupiny: {count}', zeroAllowed:'Skupina může zůstat prázdná', dragUngroup:'Pusť sem pro odebrání ze skupiny', newNodeAdded:'Přidán nový přítel' },
+  },
 };
 
 for (const [locale, patch] of Object.entries(NETWORK_NATURALNESS_PATCHES) as Array<
@@ -583,6 +586,7 @@ const NETWORK_USER_FACING_CANARY_POLISH: Record<SupportedLocale, NetworkUserFaci
     available: 'Μπορεί να προσκληθεί',
     removed: 'Η ομάδα διαγράφηκε',
   },
+  cs: { hintView:'Podrž člověka pro úpravy · táhni obrazovku · sevřením prstů měň přiblížení', allCanvas:'Vše na jedné obrazovce', available:'Lze pozvat', removed:'Skupina odstraněna' },
 };
 
 for (const [locale, patch] of Object.entries(NETWORK_USER_FACING_CANARY_POLISH) as Array<

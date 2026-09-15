@@ -38,6 +38,7 @@ const LEGACY_CANCEL_DESCRIPTION: Record<SupportedLocale, string> = {
   sw: 'Kiungo hiki cha zamani cha mwaliko wa matumizi ya mara moja kitaacha kufanya kazi. Kiungo chako cha kudumu kitaendelea kuwa halali na nafasi hii ya rafiki itapatikana tena.',
   ha: 'Wannan tsohuwar mahadar gayyata ta amfani sau ɗaya ba za ta ƙara aiki ba. Dindindin mahadar gayyatarka za ta ci gaba da aiki, kuma wannan wurin aboki zai sake samuwa.',
   el: 'Αυτός ο παλιός σύνδεσμος μίας χρήσης θα σταματήσει να λειτουργεί. Ο μόνιμος σύνδεσμος πρόσκλησής σου παραμένει έγκυρος και αυτή η θέση φίλου θα είναι ξανά διαθέσιμη.',
+  cs: 'Tento starý jednorázový odkaz přestane fungovat. Tvůj trvalý odkaz na pozvánku zůstane platný a toto místo pro přítele se znovu uvolní.',
 };
 
 const LEGACY_CANCEL_SUCCESS: Record<SupportedLocale, string> = {
@@ -69,6 +70,7 @@ const LEGACY_CANCEL_SUCCESS: Record<SupportedLocale, string> = {
   sw: 'Kiungo cha zamani cha mwaliko wa matumizi ya mara moja kimeghairiwa. Kiungo chako cha kudumu hakijabadilika na nafasi hii ya rafiki inapatikana tena.',
   ha: 'An soke tsohuwar mahadar gayyata ta amfani sau ɗaya. Mahadar gayyatarka ta dindindin ba ta canza ba, kuma wannan wurin aboki ya sake samuwa.',
   el: 'Ο παλιός σύνδεσμος μίας χρήσης ακυρώθηκε. Ο μόνιμος σύνδεσμος πρόσκλησής σου δεν άλλαξε και αυτή η θέση φίλου είναι ξανά διαθέσιμη.',
+  cs: 'Starý jednorázový odkaz byl zrušen. Tvůj trvalý odkaz na pozvánku se nezměnil a toto místo je znovu volné.',
 };
 
 // Home intentionally stays concise. Detailed permanent-link and slot rules
@@ -102,6 +104,7 @@ const REFERRAL_HOME_TITLE: Record<SupportedLocale, string> = {
   sw: 'Kiungo chako cha mwaliko',
   ha: 'Mahadar gayyatarka',
   el: 'Ο σύνδεσμος πρόσκλησής σου',
+  cs: 'Tvůj odkaz na pozvánku',
 };
 
 for (const locale of SUPPORTED_LOCALES) {

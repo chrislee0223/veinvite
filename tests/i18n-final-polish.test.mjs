@@ -47,7 +47,7 @@ function localeObjectPattern(locale) {
 }
 
 test('Network interaction feedback has explicit copy for every supported locale', () => {
-  assert.equal(supportedLocales.length, 28);
+  assert.equal(supportedLocales.length, 29);
   assert.equal(new Set(supportedLocales).size, supportedLocales.length);
 
   for (const locale of supportedLocales) {

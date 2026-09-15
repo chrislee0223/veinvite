@@ -207,4 +207,11 @@ export const WALLET_SWITCH_COPY: Record<
     continueCurrent: 'Συνέχεια με το τρέχον πορτοφόλι',
     chooseAnother: 'Επιλογή άλλου πορτοφολιού',
   },
+  cs: {
+    title: 'Peněženka ve VeWorld se změnila',
+    description:
+      'VeWorld je teď připojený k jiné peněžence. Pokračuj s aktuální peněženkou nebo vyber jinou.',
+    continueCurrent: 'Pokračovat s aktuální peněženkou',
+    chooseAnother: 'Vybrat jinou peněženku',
+  },
 };

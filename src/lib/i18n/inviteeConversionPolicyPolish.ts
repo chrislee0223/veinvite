@@ -38,6 +38,7 @@ const MISSION_POLICY_PATCHES: Record<SupportedLocale, MissionPolicyPatch> = {
   sw: { conversionMission: 'Badilisha B3TR → VOT3 mara moja', conversionMissionDescription: 'Badilisha kiasi chochote cha B3TR kuwa VOT3 mara moja ili kukamilisha misheni hii.', voteMission: 'Shiriki mara moja katika kura ya ugawaji', voteMissionDescription: 'Shiriki mara moja katika kura ya ugawaji ya VeBetterDAO.' },
   ha: { conversionMission: 'Sauya B3TR → VOT3 sau ɗaya', conversionMissionDescription: 'Sauya kowane adadin B3TR zuwa VOT3 sau ɗaya domin kammala wannan aikin.', voteMission: 'Shiga zaɓen rabon lada sau ɗaya', voteMissionDescription: 'Shiga zaɓen rabon lada na VeBetterDAO sau ɗaya.' },
   el: { conversionMission: 'Μετέτρεψε B3TR → VOT3 μία φορά', conversionMissionDescription: 'Μετέτρεψε οποιαδήποτε θετική ποσότητα B3TR σε VOT3 μία φορά για να ολοκληρώσεις αυτή την αποστολή.', voteMission: 'Συμμετείχε μία φορά στο Allocation Voting', voteMissionDescription: 'Συμμετείχε μία φορά στο Allocation Voting του VeBetterDAO.' },
+  cs: { conversionMission: 'Převeď B3TR → VOT3 jednou', conversionMissionDescription: 'Jednou převeď libovolné množství B3TR na VOT3 a tuto misi dokončíš.', voteMission: 'Jednou se zúčastni Allocation Voting', voteMissionDescription: 'Jednou se zúčastni Allocation Voting ve VeBetterDAO.' },
 };
 
 for (const [locale, patch] of Object.entries(MISSION_POLICY_PATCHES)) {

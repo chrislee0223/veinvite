@@ -48,7 +48,7 @@ function escapeRegex(value) {
 }
 
 test('rank movement copy covers every supported VeInvite locale', () => {
-  assert.equal(supportedLocales.length, 28);
+  assert.equal(supportedLocales.length, 29);
   for (const locale of supportedLocales) {
     assert.match(
       movementCopy,

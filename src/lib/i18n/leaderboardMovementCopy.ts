@@ -198,6 +198,13 @@ const COPY: Record<string, LeaderboardMovementCopy> = {
     same: 'Matsayi bai canza daga ƙarshen zagayen da ya gabata ba',
     newEntryAria: 'Sabon shiga jerin jagorori bayan zagayen da ya gabata',
   },
+  cs: {
+  newEntry: 'NOVÝ',
+  up: (places) => `O ${places} míst výše než na konci minulého kola`,
+  down: (places) => `O ${places} míst níže než na konci minulého kola`,
+  same: 'Stejné pořadí jako na konci minulého kola',
+  newEntryAria: 'Nově v žebříčku od konce minulého kola',
+},
   el: {
     newEntry: 'ΝΕΟ',
     up: (places) => `${places} θέσεις πάνω από το τέλος του προηγούμενου γύρου`,

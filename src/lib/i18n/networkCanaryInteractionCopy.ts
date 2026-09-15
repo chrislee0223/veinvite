@@ -266,6 +266,7 @@ export const NETWORK_CANARY_INTERACTION_COPY: Record<
     saveError: 'Δεν ήταν δυνατή η αποθήκευση αυτής της θέσης.',
     confirmMoveError: 'Δεν ήταν δυνατή η επιβεβαίωση της αλλαγής ομάδας.',
   },
+  cs: { alreadyIn: 'Už je ve skupině {group}', releaseMove: 'Pusť pro přesun do {group}', releaseAdd: 'Pusť pro přidání do {group}', moved: '✓ Přesunuto', added: '✓ Přidáno', saveError: 'Tuto pozici se nepodařilo uložit.', confirmMoveError: 'Přesun do skupiny se nepodařilo potvrdit.' },
 };
 
 const isolate = (value: string) => `\u2068${value}\u2069`;

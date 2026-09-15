@@ -36,6 +36,7 @@ const INVITE_LANDING_FINAL_COPY: Record<
   sw: { rewardTitle: 'Anza na VeBetterDAO', title: 'Kamilisha kila hatua moja baada ya nyingine' },
   ha: { rewardTitle: 'Fara da VeBetterDAO', title: 'Kammala kowane mataki ɗaya bayan ɗaya' },
   el: { rewardTitle: 'Ξεκίνα με το VeBetterDAO', title: 'Ολοκλήρωσε κάθε βήμα ένα-ένα' },
+  cs: { rewardTitle: 'Začni s VeBetterDAO', title: 'Dokonči jednotlivé kroky jeden po druhém' },
 };
 
 for (const [locale, copy] of Object.entries(INVITE_LANDING_FINAL_COPY) as Array<

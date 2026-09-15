@@ -176,4 +176,10 @@ export const NETWORK_COPY: Record<SupportedLocale, NetworkCopy> = {
     title: 'Το δίκτυό σου έρχεται σύντομα',
     description: 'Ετοιμάζουμε μια προβολή όπου θα μπορείς να βλέπεις με μια ματιά τους φίλους που προσκάλεσες και το δίκτυο VeInvite που αναπτύσσεται από αυτούς.',
   },
+  cs: {
+    navLabel: 'Síť',
+    status: 'JIŽ BRZY',
+    title: 'Tvoje síť bude brzy k dispozici',
+    description: 'Připravujeme přehled, ve kterém na jednom místě uvidíš pozvané přátele i síť VeInvite, která se od nich dál rozvíjí.',
+  },
 };

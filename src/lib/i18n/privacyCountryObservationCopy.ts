@@ -150,4 +150,9 @@ export const PRIVACY_COUNTRY_OBSERVATION_COPY: Record<
     heading: 'Κατά προσέγγιση αναγνώριση χώρας',
     body: 'Όταν είναι ενεργή μια επαληθευμένη συνεδρία πορτοφολιού, το VeInvite μπορεί να καταγράφει έναν κωδικό χώρας δύο γραμμάτων που παρέχεται από αξιόπιστη υποδομή edge. Αυτό το κατά προσέγγιση σήμα τοποθεσίας δικτύου μπορεί να διατηρείται μαζί με την ενεργοποίηση της πρόσκλησης και να χρησιμοποιείται μόνο για συγκεντρωτικά στατιστικά και κατατάξεις ανά χώρα για επαληθευμένες προσκλήσεις. Το VeInvite δεν συμπεραίνει τη χώρα από την επιλεγμένη γλώσσα της εφαρμογής, δεν αποθηκεύει ακατέργαστες διευθύνσεις IP για αυτή τη λειτουργία και δεν δημοσιεύει αντιστοιχίσεις πορτοφολιού με χώρα. Ο κωδικός χώρας δεν θεωρείται εθνικότητα ή ακριβής τοποθεσία.',
   },
+  cs: {
+    updated: 'Poslední aktualizace: 7. září 2026',
+    heading: 'Přibližné určení země',
+    body: 'Když je aktivní ověřená relace peněženky, VeInvite může zaznamenat dvoupísmenný kód země poskytnutý důvěryhodnou edge infrastrukturou. Tento hrubý signál síťové polohy může být uložen spolu s aktivací doporučení a používá se pouze pro souhrnné statistiky a žebříčky podle zemí u ověřených doporučení. VeInvite neurčuje zemi podle zvoleného jazyka aplikace, pro tuto funkci neukládá nezpracované IP adresy a nezveřejňuje vazby mezi peněženkami a zeměmi. Kód země není považován za údaj o státní příslušnosti ani přesné poloze.',
+  },
 };

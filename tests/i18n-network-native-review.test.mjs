@@ -9,7 +9,7 @@ const [reviewSource, guideSource] = await Promise.all([
 
 const locales = [
   'en', 'ko', 'zh', 'hi', 'es', 'ja', 'it', 'tr', 'nl', 'de', 'fr', 'ar', 'bn', 'pt',
-  'ru', 'id', 'vi', 'zh-tw', 'sv', 'ro', 'ur', 'pcm', 'arz', 'mr', 'te', 'sw', 'ha', 'el',
+  'ru', 'id', 'vi', 'zh-tw', 'sv', 'ro', 'ur', 'pcm', 'arz', 'mr', 'te', 'sw', 'ha', 'el', 'cs',
 ];
 
 test('final Network language review is loaded for normal and canary Network routes', () => {
@@ -17,7 +17,7 @@ test('final Network language review is loaded for normal and canary Network rout
   assert.match(guideSource, /import '@\/lib\/i18n\/networkNativeReview';/);
 });
 
-test('all 28 supported locales receive a deliberate final review', () => {
+test('all 29 supported locales receive a deliberate final review', () => {
   for (const locale of locales) {
     const marker = locale === 'zh-tw' ? "  'zh-tw': {" : `  ${locale}: {`;
     assert.ok(reviewSource.includes(marker), `missing native-review patch for ${locale}`);
