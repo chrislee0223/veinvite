@@ -17,6 +17,10 @@ import {
   WalletAuthenticationError,
 } from '@/lib/walletAuthServer';
 
+// Keep enough wall-clock budget for VeChain finalized-head progression after the
+// HTTP response while remaining comfortably below Vercel Hobby's 300s ceiling.
+export const maxDuration = 240;
+
 const INVITE_CODE_PATTERN = /^[A-HJ-NP-Z2-9]{7}$/;
 const CLAIM_RATE_LIMIT_WINDOW_SECONDS = 60;
 const CLAIM_PER_WALLET_LIMIT = 10;
@@ -33,8 +37,13 @@ const CLAIM_PAYOUT_CONTINUATION_DELAYS_MS = [
   1_500,
   2_500,
   4_000,
-  5_000,
   6_000,
+  10_000,
+  15_000,
+  20_000,
+  30_000,
+  30_000,
+  30_000,
 ] as const;
 
 type RewardClaimRow = {
@@ -369,8 +378,10 @@ export async function POST(
     // needs finality confirmation and a concurrent Claim may still be QUEUED
     // behind that active round. Continue the idempotent worker after the HTTP
     // response so SUBMITTED -> PAID -> next QUEUED cohort does not depend on the
-    // low-frequency recovery cron. The daily reconcile job remains crash-only
-    // fallback if the serverless continuation itself is interrupted.
+    // low-frequency recovery cron. The continuation is intentionally bounded,
+    // but long enough for normal finalized-head progression even if the user
+    // closes the app immediately after Claim. The daily reconcile job remains a
+    // crash-only fallback if the serverless continuation itself is interrupted.
     after(async () => {
       await continueClaimPayoutAfterResponse(
         payoutKickoff,
