@@ -1,5 +1,4 @@
 import {
-  after,
   NextRequest,
   NextResponse,
 } from 'next/server';
@@ -11,6 +10,10 @@ import {
   runImmediateClaimRewardPayout,
   type AutomaticRewardPayoutResult,
 } from '@/lib/rewards/automaticRewardPayoutWithMnemonic';
+import {
+  enqueueClaimPayoutContinuation,
+  needsDurableClaimPayoutContinuation,
+} from '@/lib/rewards/claimPayoutContinuationQueue';
 import { supabaseAdmin } from '@/lib/supabaseServer';
 import {
   requireWalletSession,
@@ -26,15 +29,6 @@ const CLAIM_PAYOUT_RETRY_DELAYS_MS = [
   300,
   900,
   1_800,
-] as const;
-const CLAIM_PAYOUT_CONTINUATION_DELAYS_MS = [
-  500,
-  1_000,
-  1_500,
-  2_500,
-  4_000,
-  5_000,
-  6_000,
 ] as const;
 
 type RewardClaimRow = {
@@ -121,27 +115,6 @@ function shouldRetryImmediatePayout(
   );
 }
 
-function shouldContinueClaimPayout(
-  result: AutomaticRewardPayoutResult,
-): boolean {
-  if (
-    result.status === 'LOCKED' ||
-    result.status === 'PREPARED' ||
-    result.status === 'SUBMITTED' ||
-    result.status === 'WAITING_FINALITY'
-  ) {
-    return true;
-  }
-
-  return (
-    hasQueuedRemainder(result) &&
-    (
-      result.status === 'IDLE' ||
-      result.status === 'PAID'
-    )
-  );
-}
-
 async function sleep(milliseconds: number) {
   if (milliseconds <= 0) return;
 
@@ -170,48 +143,6 @@ Promise<AutomaticRewardPayoutResult> {
   }
 
   return lastResult;
-}
-
-async function continueClaimPayoutAfterResponse(
-  initialResult: AutomaticRewardPayoutResult | null,
-) {
-  let lastResult = initialResult;
-
-  for (const delayMs of CLAIM_PAYOUT_CONTINUATION_DELAYS_MS) {
-    if (
-      lastResult &&
-      !shouldContinueClaimPayout(lastResult)
-    ) {
-      return;
-    }
-
-    await sleep(delayMs);
-
-    try {
-      lastResult = await runImmediateClaimRewardPayout();
-    } catch (error) {
-      console.error(
-        'Post-Claim reward payout continuation failed:',
-        error,
-      );
-      return;
-    }
-  }
-
-  if (
-    lastResult &&
-    shouldContinueClaimPayout(lastResult)
-  ) {
-    console.error(
-      'Post-Claim reward payout continuation exhausted its bounded retries:',
-      {
-        status: lastResult.status,
-        queuedCount: lastResult.queuedCount ?? null,
-        txId: lastResult.txId,
-        reason: lastResult.reason ?? null,
-      },
-    );
-  }
 }
 
 export async function POST(
@@ -365,17 +296,40 @@ export async function POST(
       );
     }
 
-    // A Claim response must stay fast, but a newly submitted transaction still
-    // needs finality confirmation and a concurrent Claim may still be QUEUED
-    // behind that active round. Continue the idempotent worker after the HTTP
-    // response so SUBMITTED -> PAID -> next QUEUED cohort does not depend on the
-    // low-frequency recovery cron. The daily reconcile job remains crash-only
-    // fallback if the serverless continuation itself is interrupted.
-    after(async () => {
-      await continueClaimPayoutAfterResponse(
-        payoutKickoff,
-      );
-    });
+    // A Claim should synchronously kick the approved transfer as far forward as
+    // possible, but full VeChain finality can outlive an HTTP request by a wide
+    // margin. Persist a Queue message before returning whenever work remains.
+    // Vercel Queues redelivers it after crashes/deploys; every delivery calls the
+    // same idempotent payout worker, so it can only reconcile/reuse the immutable
+    // signed transaction rather than create a duplicate payout.
+    let continuationQueued = false;
+
+    if (needsDurableClaimPayoutContinuation(payoutKickoff)) {
+      try {
+        const continuation =
+          await enqueueClaimPayoutContinuation({
+            inviteCode,
+            requestedAt:
+              claim.claim_requested_at,
+            result: payoutKickoff,
+          });
+        continuationQueued = continuation.queued;
+      } catch (queueError) {
+        // Do not report the Claim itself as failed after transfer state may have
+        // already advanced. The immutable DB journal plus the existing recovery
+        // cron/browser heartbeat remain safe fallbacks, while this error is made
+        // loud for operators instead of encouraging the user to re-Claim.
+        console.error(
+          'Durable reward payout continuation could not be queued:',
+          {
+            inviteCode,
+            status: payoutKickoff?.status ?? null,
+            txId: payoutKickoff?.txId ?? null,
+            error: queueError,
+          },
+        );
+      }
+    }
 
     return NextResponse.json(
       {
@@ -394,6 +348,7 @@ export async function POST(
               txId: payoutKickoff.txId,
             }
           : null,
+        continuationQueued,
       },
       {
         status: 200,

@@ -10,6 +10,7 @@ import { GUIDE_ELIGIBILITY_COPY } from '@/lib/i18n/guideEligibilityCopy';
 import { GUIDE_FLOW_COPY } from '@/lib/i18n/guideFlowCopy';
 import { GUIDE_MISSION_STEP_COPY } from '@/lib/i18n/guideMissionStepCopy';
 import { GUIDE_REWARD_STEP_COPY } from '@/lib/i18n/guideRewardStepCopy';
+import '@/lib/i18n/networkNativeReview';
 import type { Locale } from '@/lib/i18n/locales';
 
 const AppNetworkCanaryV70 = dynamic(
