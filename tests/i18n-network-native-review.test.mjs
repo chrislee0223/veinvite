@@ -61,6 +61,7 @@ test('high-risk locales no longer expose raw English Network rollout copy', () =
   const blocks = {
     hi: reviewSource.match(/  hi: \{[\s\S]*?\n  \},\n  es:/)?.[0] ?? '',
     ur: reviewSource.match(/  ur: \{[\s\S]*?\n  \},\n  pcm:/)?.[0] ?? '',
+    pcm: reviewSource.match(/  pcm: \{[\s\S]*?\n  \},\n  arz:/)?.[0] ?? '',
     ha: reviewSource.match(/  ha: \{[\s\S]*?\n  \},\n  el:/)?.[0] ?? '',
   };
 
