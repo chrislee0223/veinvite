@@ -18,8 +18,7 @@ const allocationVoteCastEvent =
   );
 
 type RawVoteLog = {
-  data?: `0x${string}`;
-  topics?: `0x${string}`[];
+  topics?: string[];
   meta?: {
     blockNumber?: number;
     blockTimestamp?: number;
@@ -28,20 +27,12 @@ type RawVoteLog = {
   };
 };
 
-export type VoteAllocation = {
-  allocationIndex: number;
-  appId: string;
-  voteWeight: string;
-};
-
 export type VoteProgress = {
   voteCompleted: boolean;
   voteCompletedBlock: number | null;
   voteRoundId: number | null;
   voteTxId: string | null;
-  voteClauseIndex: number | null;
   voteBlockTimestamp: number | null;
-  voteAllocations: VoteAllocation[] | null;
   latestBlock: number;
 };
 
@@ -181,103 +172,6 @@ function getRequiredTxId(
   return txId;
 }
 
-function normalizeVoteWeight(
-  value: unknown,
-): string | null {
-  if (typeof value === 'bigint') {
-    return value >= 0n
-      ? value.toString()
-      : null;
-  }
-
-  if (
-    typeof value === 'number' &&
-    Number.isSafeInteger(value) &&
-    value >= 0
-  ) {
-    return String(value);
-  }
-
-  if (
-    typeof value === 'string' &&
-    /^\d+$/.test(value)
-  ) {
-    return BigInt(value).toString();
-  }
-
-  return null;
-}
-
-function decodeVoteAllocations(
-  log: RawVoteLog,
-): VoteAllocation[] | null {
-  if (
-    !log.data ||
-    !log.topics ||
-    log.topics.length < 3
-  ) {
-    return null;
-  }
-
-  try {
-    const decoded =
-      allocationVoteCastEvent
-        .decodeEventLogAsArray({
-          data: log.data,
-          topics: log.topics,
-        });
-
-    const appIds = decoded[2];
-    const voteWeights = decoded[3];
-
-    if (
-      !Array.isArray(appIds) ||
-      !Array.isArray(voteWeights) ||
-      appIds.length !== voteWeights.length
-    ) {
-      return null;
-    }
-
-    const allocations: VoteAllocation[] = [];
-
-    for (
-      let index = 0;
-      index < appIds.length;
-      index += 1
-    ) {
-      const appId = appIds[index];
-      const voteWeight =
-        normalizeVoteWeight(
-          voteWeights[index],
-        );
-
-      if (
-        typeof appId !== 'string' ||
-        !/^0x[0-9a-fA-F]{64}$/.test(
-          appId,
-        ) ||
-        voteWeight === null
-      ) {
-        return null;
-      }
-
-      allocations.push({
-        allocationIndex: index,
-        appId: appId.toLowerCase(),
-        voteWeight,
-      });
-    }
-
-    return allocations;
-  } catch (error) {
-    console.warn(
-      'Failed to decode AllocationVoteCast allocations. Vote completion remains valid.',
-      error,
-    );
-    return null;
-  }
-}
-
 function validateKnownPosition(
   position: ChainEventPosition,
 ): ChainEventPosition {
@@ -320,9 +214,7 @@ function emptyProgress(
     voteCompletedBlock: null,
     voteRoundId: null,
     voteTxId: null,
-    voteClauseIndex: null,
     voteBlockTimestamp: null,
-    voteAllocations: null,
     latestBlock,
   };
 }
@@ -467,13 +359,10 @@ export async function getVeBetterVoteProgress({
             vote.topics?.[2],
           ),
         voteTxId,
-        voteClauseIndex,
         voteBlockTimestamp:
           getRequiredBlockTimestamp(
             vote,
           ),
-        voteAllocations:
-          decodeVoteAllocations(vote),
         latestBlock,
       };
     }
