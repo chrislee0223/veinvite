@@ -5,9 +5,6 @@ import { HomeClient } from '@/components/HomeClient';
 import { InviteStatusAutoRefresh } from '@/components/InviteStatusAutoRefresh';
 import { RewardForecastSeedProvider } from '@/components/RewardForecastSeedProvider';
 import { WalletSessionGate } from '@/components/WalletSessionGate';
-import {
-  readCurrentLegalConsent,
-} from '@/lib/legalConsentServer';
 import { readPublicRewardForecastSeed } from '@/lib/rewards/publicRewardForecastSeedServer';
 import {
   getWalletSessionFromTokens,
@@ -43,24 +40,6 @@ export default async function HomePage() {
   const initialSessionWallet =
     initialSession?.walletAddress ?? null;
 
-  let initialLegalConsentAccepted = false;
-  if (initialSessionWallet) {
-    try {
-      initialLegalConsentAccepted = Boolean(
-        await readCurrentLegalConsent(
-          initialSessionWallet,
-        ),
-      );
-    } catch (error) {
-      // Fall back to the client consent check rather than failing Home. The
-      // server bootstrap is an optimization only; consent remains authoritative.
-      console.error(
-        'Failed to bootstrap VeInvite legal consent:',
-        error,
-      );
-    }
-  }
-
   return (
     <>
       <span
@@ -69,19 +48,6 @@ export default async function HomePage() {
           initialSessionWallet
             ? 'verified'
             : 'none'
-        }
-      />
-      <span
-        hidden
-        data-veinvite-legal-consent-bootstrap={
-          initialLegalConsentAccepted
-            ? 'accepted'
-            : 'unknown'
-        }
-        data-veinvite-legal-consent-wallet={
-          initialLegalConsentAccepted && initialSessionWallet
-            ? initialSessionWallet.toLowerCase()
-            : ''
         }
       />
       <WalletSessionGate

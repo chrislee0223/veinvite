@@ -169,20 +169,6 @@ function hasLegacyCurrentConsent(
   }
 }
 
-function hasBootstrappedCurrentConsent(
-  walletAddress: string,
-): boolean {
-  const bootstrap = document.querySelector<HTMLElement>(
-    '[data-veinvite-legal-consent-bootstrap]',
-  );
-
-  return (
-    bootstrap?.dataset.veinviteLegalConsentBootstrap === 'accepted' &&
-    bootstrap.dataset.veinviteLegalConsentWallet?.toLowerCase() ===
-      walletAddress.toLowerCase()
-  );
-}
-
 function LegalConsentCheckingSurface() {
   return (
     <div
@@ -571,15 +557,6 @@ export function LegalConsentGate({
 
   useEffect(() => {
     if (previewMode) return;
-
-    if (
-      reloadToken === 0 &&
-      hasBootstrappedCurrentConsent(walletAddress)
-    ) {
-      setIsExiting(false);
-      setState('accepted');
-      return;
-    }
 
     let active = true;
     const controller =

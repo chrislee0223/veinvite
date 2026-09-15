@@ -24,8 +24,8 @@ export type StartupReadinessInput = {
   interactiveGateVisible: boolean;
   /**
    * @deprecated Compatibility-only input retained for older runtime callers.
-   * Startup hydration is now authorized only by an exact server-validated
-   * wallet session, never by this legacy hint.
+   * It must never authorize revealing wallet-scoped Home placeholders. CI
+   * regression coverage intentionally passes true and still expects `hold`.
    */
   allowHomeDataHydration?: boolean;
 };
@@ -91,8 +91,9 @@ export function resolveStartupReadiness({
   interactiveGateVisible,
 }: StartupReadinessInput): StartupReadinessDecision {
   // Wallet/session verification is a temporary startup surface, not proof that
-  // Home is ready. Never reveal Home while an explicit verification gate is
-  // asking the user to act.
+  // Home is ready. The hydration shield may step aside while that actionable
+  // surface is visible, but final app-ready remains owned by this readiness
+  // decision so wallet transitions cannot expose stale wallet-scoped data.
   if (interactiveGateVisible) {
     return 'hold';
   }
@@ -108,26 +109,13 @@ export function resolveStartupReadiness({
       return 'error';
     }
 
-    if (isHomeDataReady(homeState)) {
-      return 'release';
-    }
-
-    // A full page reload already has an authoritative wallet session from the
-    // server. Once the wallet provider restores that same wallet and HomeClient
-    // publishes state for it, there is no need to keep the full-screen startup
-    // shield up while read-only invitation/referral data hydrates. The Home UI
-    // keeps wallet-scoped actions disabled until their own data is verified.
-    //
-    // Wallet switches remain strict because clearing/switching the session
-    // clears the server-bootstrap marker before the new wallet Home can mount.
-    if (
-      hasBootstrappedSession &&
-      homeState?.status === 'loading'
-    ) {
-      return 'release';
-    }
-
-    return 'hold';
+    // Hard startup invariant: a wallet-scoped Home may be revealed only when
+    // the exact wallet's invitation slots AND permanent referral link are both
+    // ready. The status label alone is deliberately insufficient, so a future
+    // refactor cannot accidentally publish `ready` early and expose skeletons.
+    return isHomeDataReady(homeState)
+      ? 'release'
+      : 'hold';
   }
 
   // A returning browser can temporarily have wallet=null while VeWorld restores
