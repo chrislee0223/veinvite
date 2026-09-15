@@ -185,8 +185,8 @@ test(
     assert.match(homeClient, /reward_claim_started/);
     assert.match(homeClient, /reward_claim_succeeded/);
     assert.match(homeClient, /reward_claim_failed/);
-    assert.match(homeClient, /failureCode: 'network'/);
-    assert.match(homeClient, /failureCode: 'malformed_response'/);
+    assert.match(homeClient, /failureCode\s*=\s*'network'/);
+    assert.match(homeClient, /failureCode\s*=\s*'malformed_response'/);
     assert.match(homeClient, /'legacy_invite'/);
   },
 );
