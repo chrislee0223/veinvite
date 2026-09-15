@@ -36,6 +36,8 @@ export type RewardClaimSignal = {
   sentAt: number;
 };
 
+export type RewardClaimSignalSource = 'local' | 'broadcast';
+
 type ReceiptResponse = {
   receipts?: RewardReceipt[];
 };
@@ -133,7 +135,7 @@ async function reconcileMissingAction(
   }
 }
 
-export async function reconcileRewardClaimState(
+async function reconcileRewardClaimStateOnce(
   inviteCode: string,
 ): Promise<RewardClaimReconciliation> {
   try {
@@ -196,7 +198,7 @@ export async function reconcileRewardClaimStateWithRetry(
   let last: RewardClaimReconciliation = { kind: 'UNKNOWN' };
 
   for (let attempt = 0; attempt < attempts; attempt += 1) {
-    last = await reconcileRewardClaimState(inviteCode);
+    last = await reconcileRewardClaimStateOnce(inviteCode);
     if (last.kind !== 'UNKNOWN') {
       return last;
     }
@@ -207,6 +209,15 @@ export async function reconcileRewardClaimStateWithRetry(
   }
 
   return last;
+}
+
+export async function reconcileRewardClaimState(
+  inviteCode: string,
+): Promise<RewardClaimReconciliation> {
+  // Callers use this after an ambiguous Claim response. Keep the Claim button
+  // disabled while a short, read-only retry window resolves ordinary transient
+  // races. No retry here can create or mutate a payout.
+  return reconcileRewardClaimStateWithRetry(inviteCode);
 }
 
 export function dispatchRewardClaimUpdated(inviteCode?: string): void {
@@ -235,7 +246,10 @@ export function dispatchRewardClaimUpdated(inviteCode?: string): void {
 }
 
 export function subscribeRewardClaimUpdated(
-  listener: (signal: RewardClaimSignal) => void,
+  listener: (
+    signal: RewardClaimSignal,
+    source: RewardClaimSignalSource,
+  ) => void,
 ): () => void {
   if (typeof window === 'undefined') {
     return () => undefined;
@@ -248,7 +262,7 @@ export function subscribeRewardClaimUpdated(
       inviteCode: null,
       sentAt: Date.now(),
     };
-    listener(signal);
+    listener(signal, 'local');
   };
 
   window.addEventListener(REWARD_CLAIM_UPDATED_EVENT, onWindowEvent);
@@ -258,7 +272,7 @@ export function subscribeRewardClaimUpdated(
     channel = new BroadcastChannel(REWARD_CLAIM_SYNC_CHANNEL);
     channel.onmessage = (event: MessageEvent<unknown>) => {
       const signal = parseRewardClaimSignal(event.data);
-      if (signal) listener(signal);
+      if (signal) listener(signal, 'broadcast');
     };
   }
 
