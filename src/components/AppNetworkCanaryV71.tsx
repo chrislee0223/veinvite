@@ -3,7 +3,6 @@
 import { useLayoutEffect } from 'react';
 
 import {
-  getLocaleDirection,
   isLocale,
   type Locale,
   type SupportedLocale,
@@ -21,15 +20,21 @@ function NetworkRootIdentityPlacementV71({ locale }: { locale: Locale }) {
     if (!root) return;
 
     const resolvedLocale = resolveLocale(locale);
-    const direction = getLocaleDirection(resolvedLocale);
     const rootCopy = NETWORK_CANVAS_CONTROL_COPY[resolvedLocale].you;
     let frame = 0;
 
-    const removePlacedLabel = (wrap: HTMLElement | null) => {
+    const clearRootIdentity = (wrap: HTMLElement | null) => {
       if (!wrap) return;
-      wrap.querySelector<HTMLElement>(':scope > .centerCircle > .v71CenterIdentityLabel')?.remove();
-      wrap.querySelector<HTMLElement>(':scope > b.v71RootIdentitySource')
-        ?.classList.remove('v71RootIdentitySource');
+      const circle = wrap.querySelector<HTMLElement>(':scope > .centerCircle');
+      const source = wrap.querySelector<HTMLElement>(':scope > b');
+
+      circle?.removeAttribute('data-v71-root-copy');
+      circle?.removeAttribute('data-v71-root-length');
+      source?.classList.remove('v71RootIdentitySource');
+
+      // Remove the previous V71 injected-label implementation if it exists in a
+      // live session. The root identity now replaces the original center dot.
+      circle?.querySelector<HTMLElement>(':scope > .v71CenterIdentityLabel')?.remove();
     };
 
     const apply = () => {
@@ -39,29 +44,22 @@ function NetworkRootIdentityPlacementV71({ locale }: { locale: Locale }) {
       const circle = wrap.querySelector<HTMLElement>(':scope > .centerCircle');
       const source = wrap.querySelector<HTMLElement>(':scope > b');
       if (!circle || !source) {
-        removePlacedLabel(wrap);
+        clearRootIdentity(wrap);
         return;
       }
 
+      // V70 marks only the actual root identity. Descendant networks keep the
+      // mature center-dot behavior and their normal wallet label.
       if (source.dataset.v70RootLabel !== '1') {
-        removePlacedLabel(wrap);
+        clearRootIdentity(wrap);
         return;
       }
 
       source.classList.add('v71RootIdentitySource');
-
-      let label = circle.querySelector<HTMLElement>(':scope > .v71CenterIdentityLabel');
-      if (!label) {
-        label = document.createElement('span');
-        label.className = 'v71CenterIdentityLabel';
-        circle.appendChild(label);
-      }
-
-      if (label.textContent !== rootCopy) label.textContent = rootCopy;
-      label.dir = direction;
+      circle.dataset.v71RootCopy = rootCopy;
 
       const visibleLength = Array.from(rootCopy).length;
-      label.dataset.v71Length = visibleLength > 6
+      circle.dataset.v71RootLength = visibleLength > 6
         ? 'long'
         : visibleLength > 4
           ? 'compact'
@@ -90,7 +88,7 @@ function NetworkRootIdentityPlacementV71({ locale }: { locale: Locale }) {
     return () => {
       observer.disconnect();
       if (frame) window.cancelAnimationFrame(frame);
-      removePlacedLabel(root.querySelector<HTMLElement>('.centerWrap'));
+      clearRootIdentity(root.querySelector<HTMLElement>('.centerWrap'));
     };
   }, [locale]);
 
@@ -103,57 +101,50 @@ export function AppNetworkCanaryV71({ locale }: { locale: Locale }) {
       <AppNetworkCanaryV70 locale={locale} />
       <NetworkRootIdentityPlacementV71 locale={locale} />
       <style jsx global>{`
-        /* V71 owns only the root identity label placement. Keep the source row
-           in flow so the established canvas geometry and summary spacing stay fixed. */
-        .productionNetworkCanaryV45 .centerCircle {
-          position: relative !important;
-        }
-
+        /* Root identity: replace the existing V45 center dot itself. Do not add
+           another label layer, and keep the legacy source row only as invisible
+           geometry so existing line/canvas alignment cannot shift. */
         .productionNetworkCanaryV45 .centerWrap > b.v71RootIdentitySource {
           visibility: hidden !important;
         }
 
-        .productionNetworkCanaryV45 .centerCircle > .v71CenterIdentityLabel {
-          position: absolute !important;
-          inset-inline: 7px !important;
-          bottom: 9px !important;
-          z-index: 4 !important;
-          display: block !important;
+        .productionNetworkCanaryV45 .centerCircle[data-v71-root-copy]::after {
+          content: attr(data-v71-root-copy) !important;
+          left: 50% !important;
+          top: 50% !important;
           width: auto !important;
+          height: auto !important;
           min-width: 0 !important;
-          max-width: calc(100% - 14px) !important;
-          margin: 0 !important;
-          padding: 0 !important;
-          border: 0 !important;
-          pointer-events: none !important;
-          color: #f0c743 !important;
-          font-size: .55rem !important;
-          font-weight: 800 !important;
-          line-height: 1.15 !important;
+          max-width: calc(100% - 16px) !important;
+          transform: translate(-50%, -50%) !important;
+          border-radius: 0 !important;
+          background: transparent !important;
+          box-shadow: none !important;
+          color: #efc64c !important;
+          font-size: .58rem !important;
+          font-family: inherit !important;
+          font-weight: 850 !important;
+          line-height: 1.12 !important;
           letter-spacing: 0 !important;
           text-align: center !important;
           white-space: nowrap !important;
           overflow: hidden !important;
           text-overflow: ellipsis !important;
           unicode-bidi: plaintext;
-          text-shadow: 0 0 8px rgba(240, 199, 67, .14);
+          text-shadow: 0 0 10px rgba(239, 198, 76, .18);
         }
 
-        .productionNetworkCanaryV45 .centerCircle > .v71CenterIdentityLabel[data-v71-length='compact'] {
-          inset-inline: 5px !important;
+        .productionNetworkCanaryV45 .centerCircle[data-v71-root-length='compact']::after {
+          font-size: .53rem !important;
+        }
+
+        .productionNetworkCanaryV45 .centerCircle[data-v71-root-length='long']::after {
+          font-size: .48rem !important;
           max-width: calc(100% - 10px) !important;
-          font-size: .50rem !important;
         }
 
-        .productionNetworkCanaryV45 .centerCircle > .v71CenterIdentityLabel[data-v71-length='long'] {
-          inset-inline: 4px !important;
-          max-width: calc(100% - 8px) !important;
-          font-size: .46rem !important;
-        }
-
-        html[data-locale-typography='arabic'] .productionNetworkCanaryV45 .centerCircle > .v71CenterIdentityLabel,
-        html[data-locale-typography='indic'] .productionNetworkCanaryV45 .centerCircle > .v71CenterIdentityLabel {
-          bottom: 8px !important;
+        html[data-locale-typography='arabic'] .productionNetworkCanaryV45 .centerCircle[data-v71-root-copy]::after,
+        html[data-locale-typography='indic'] .productionNetworkCanaryV45 .centerCircle[data-v71-root-copy]::after {
           line-height: 1.28 !important;
         }
       `}</style>
