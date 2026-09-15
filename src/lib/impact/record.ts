@@ -1,6 +1,7 @@
 import { ABIEvent } from '@vechain/sdk-core';
 import { ThorClient } from '@vechain/sdk-network';
 
+import { recordMissionVoteAllocations } from '@/lib/impact/voteAllocations';
 import { supabaseAdmin } from '@/lib/supabaseServer';
 import type { QualifyingRewardEvent } from '@/lib/vebetter/activity';
 import {
@@ -10,6 +11,7 @@ import {
   getVeBetterNetworkConfig,
   type VeBetterNetwork,
 } from '@/lib/vebetter/network';
+import type { VoteAllocation } from '@/lib/vebetter/vote';
 import type { Vot3ConversionEvent } from '@/lib/vebetter/vot3Conversion';
 
 const allocationVoteCastEvent = new ABIEvent(
@@ -17,7 +19,8 @@ const allocationVoteCastEvent = new ABIEvent(
 );
 
 type RawVoteLog = {
-  topics?: string[];
+  data?: `0x${string}`;
+  topics?: `0x${string}`[];
   meta?: {
     blockNumber?: number;
     txID?: string;
@@ -44,6 +47,95 @@ function toIsoTimestamp(unixSeconds: number): string {
   }
 
   return new Date(unixSeconds * 1000).toISOString();
+}
+
+function normalizeVoteWeight(
+  value: unknown,
+): string | null {
+  if (typeof value === 'bigint') {
+    return value >= 0n ? value.toString() : null;
+  }
+
+  if (
+    typeof value === 'number' &&
+    Number.isSafeInteger(value) &&
+    value >= 0
+  ) {
+    return String(value);
+  }
+
+  if (
+    typeof value === 'string' &&
+    /^\d+$/.test(value)
+  ) {
+    return BigInt(value).toString();
+  }
+
+  return null;
+}
+
+function decodeVoteAllocations(
+  log: RawVoteLog,
+): VoteAllocation[] | null {
+  if (
+    !log.data ||
+    !log.topics ||
+    log.topics.length < 3
+  ) {
+    return null;
+  }
+
+  try {
+    const decoded =
+      allocationVoteCastEvent.decodeEventLogAsArray({
+        data: log.data,
+        topics: log.topics,
+      });
+    const appIds = decoded[2];
+    const voteWeights = decoded[3];
+
+    if (
+      !Array.isArray(appIds) ||
+      !Array.isArray(voteWeights) ||
+      appIds.length !== voteWeights.length
+    ) {
+      return null;
+    }
+
+    const allocations: VoteAllocation[] = [];
+
+    for (
+      let index = 0;
+      index < appIds.length;
+      index += 1
+    ) {
+      const appId = appIds[index];
+      const voteWeight =
+        normalizeVoteWeight(voteWeights[index]);
+
+      if (
+        typeof appId !== 'string' ||
+        !/^0x[0-9a-fA-F]{64}$/.test(appId) ||
+        voteWeight === null
+      ) {
+        return null;
+      }
+
+      allocations.push({
+        allocationIndex: index,
+        appId: appId.toLowerCase(),
+        voteWeight,
+      });
+    }
+
+    return allocations;
+  } catch (error) {
+    console.warn(
+      'Failed to decode governance vote allocations. Authoritative vote evidence remains valid.',
+      error,
+    );
+    return null;
+  }
 }
 
 export async function recordQualifyingRewardImpact(args: {
@@ -159,6 +251,7 @@ async function resolveVoteExecutionPosition(args: {
 }): Promise<{
   txIndex: number;
   clauseIndex: number;
+  allocations: VoteAllocation[] | null;
 }> {
   const {
     nodeUrl,
@@ -202,6 +295,7 @@ async function resolveVoteExecutionPosition(args: {
 
   const clauseIndex = matched?.meta?.clauseIndex;
   if (
+    !matched ||
     typeof clauseIndex !== 'number' ||
     !Number.isSafeInteger(clauseIndex) ||
     clauseIndex < 0
@@ -217,6 +311,7 @@ async function resolveVoteExecutionPosition(args: {
       normalizedTxId,
     ),
     clauseIndex,
+    allocations: decodeVoteAllocations(matched),
   };
 }
 
@@ -241,6 +336,7 @@ export async function recordVoteImpact(args: {
   let position: {
     txIndex: number;
     clauseIndex: number;
+    allocations: VoteAllocation[] | null;
   };
 
   try {
@@ -290,6 +386,49 @@ export async function recordVoteImpact(args: {
       error,
     );
     return false;
+  }
+
+  // Allocation analytics is deliberately best-effort. A decoding or database
+  // failure here must never invalidate an otherwise authoritative governance
+  // vote or block mission/reward eligibility.
+  if (position.allocations?.length) {
+    try {
+      const saved =
+        await recordMissionVoteAllocations({
+          inviteCode: args.inviteCode,
+          network: args.network,
+          walletAddress: args.walletAddress,
+          txId: normalizedTxId,
+          blockNumber: args.blockNumber,
+          blockTimestamp: args.blockTimestamp,
+          clauseIndex: position.clauseIndex,
+          voteRoundId: args.voteRoundId,
+          allocations: position.allocations,
+        });
+
+      if (!saved) {
+        console.warn(
+          'Governance vote was saved, but vote allocation analytics remain pending.',
+          {
+            inviteCode: args.inviteCode,
+            txId: normalizedTxId,
+          },
+        );
+      }
+    } catch (allocationError) {
+      console.warn(
+        'Governance vote was saved, but vote allocation analytics failed.',
+        allocationError,
+      );
+    }
+  } else {
+    console.warn(
+      'Governance vote was saved without decoded allocation analytics.',
+      {
+        inviteCode: args.inviteCode,
+        txId: normalizedTxId,
+      },
+    );
   }
 
   return true;
