@@ -9,6 +9,9 @@ import {
   LEGAL_CONSENT_INTENT,
   type LegalConsentSource,
 } from '@/lib/legalConsent';
+import {
+  readCurrentLegalConsent,
+} from '@/lib/legalConsentServer';
 import { supabaseAdmin } from '@/lib/supabaseServer';
 import {
   requireWalletSession,
@@ -46,26 +49,6 @@ function requestHasSameOrigin(
   }
 }
 
-async function readCurrentConsent(
-  walletAddress: string,
-) {
-  const { data, error } = await supabaseAdmin
-    .from('wallet_legal_consents')
-    .select('accepted_at, acceptance_source')
-    .eq('wallet_address', walletAddress)
-    .eq('terms_version', CURRENT_TERMS_VERSION)
-    .eq('privacy_version', CURRENT_PRIVACY_VERSION)
-    .maybeSingle();
-
-  if (error) {
-    throw new Error(
-      `Legal consent lookup failed: ${error.message}`,
-    );
-  }
-
-  return data;
-}
-
 function authErrorResponse(error: unknown) {
   if (
     error instanceof WalletAuthenticationError
@@ -88,7 +71,7 @@ export async function GET(
     const walletAddress =
       session.walletAddress.toLowerCase();
     const consent =
-      await readCurrentConsent(walletAddress);
+      await readCurrentLegalConsent(walletAddress);
 
     return noStoreJson({
       accepted: Boolean(consent),
@@ -205,7 +188,7 @@ export async function POST(
     }
 
     const consent =
-      await readCurrentConsent(walletAddress);
+      await readCurrentLegalConsent(walletAddress);
 
     if (!consent) {
       throw new Error(
