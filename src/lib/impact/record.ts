@@ -1,6 +1,10 @@
 import { ABIEvent } from '@vechain/sdk-core';
 import { ThorClient } from '@vechain/sdk-network';
 
+import {
+  readMissionVoteAllocationsFromChain,
+  recordMissionVoteAllocations,
+} from '@/lib/impact/voteAllocations';
 import { supabaseAdmin } from '@/lib/supabaseServer';
 import type { QualifyingRewardEvent } from '@/lib/vebetter/activity';
 import {
@@ -290,6 +294,52 @@ export async function recordVoteImpact(args: {
       error,
     );
     return false;
+  }
+
+  // dApp allocation analytics is deliberately best-effort. The existing vote
+  // evidence above remains authoritative for mission/reward eligibility.
+  try {
+    const decoded =
+      await readMissionVoteAllocationsFromChain({
+        walletAddress: args.walletAddress,
+        txId: normalizedTxId,
+        blockNumber: args.blockNumber,
+        voteRoundId: args.voteRoundId,
+      });
+
+    if (decoded.clauseIndex !== position.clauseIndex) {
+      throw new Error(
+        'Decoded vote clause does not match authoritative vote evidence.',
+      );
+    }
+
+    const saved =
+      await recordMissionVoteAllocations({
+        inviteCode: args.inviteCode,
+        network: args.network,
+        walletAddress: args.walletAddress,
+        txId: normalizedTxId,
+        blockNumber: args.blockNumber,
+        blockTimestamp: args.blockTimestamp,
+        clauseIndex: decoded.clauseIndex,
+        voteRoundId: args.voteRoundId,
+        allocations: decoded.allocations,
+      });
+
+    if (!saved) {
+      console.warn(
+        'Governance vote was saved, but vote allocation analytics remain pending.',
+        {
+          inviteCode: args.inviteCode,
+          txId: normalizedTxId,
+        },
+      );
+    }
+  } catch (allocationError) {
+    console.warn(
+      'Governance vote was saved, but vote allocation analytics failed.',
+      allocationError,
+    );
   }
 
   return true;
