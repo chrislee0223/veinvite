@@ -10,6 +10,14 @@ const payoutWrapper = readFileSync(
   new URL('../src/lib/rewards/automaticRewardPayoutWithMnemonic.ts', import.meta.url),
   'utf8',
 );
+const continuationQueue = readFileSync(
+  new URL('../src/lib/rewards/claimPayoutContinuationQueue.ts', import.meta.url),
+  'utf8',
+);
+const continuationConsumer = readFileSync(
+  new URL('../src/app/api/queues/reward-finality/route.ts', import.meta.url),
+  'utf8',
+);
 const boundaryMigration = readFileSync(
   new URL('../supabase/migrations/20260908021554_assert_explicit_claim_reward_boundary.sql', import.meta.url),
   'utf8',
@@ -65,28 +73,54 @@ test('claim payout kickoff retries transient lock or queued idle states immediat
   );
 });
 
-test('claim response schedules bounded continuation through finality and concurrent queued claims', () => {
-  assert.match(claimRoute, /import \{[\s\S]*after,[\s\S]*\} from 'next\/server'/u);
-  assert.match(
+test('claim response durably queues continuation through finality and concurrent queued claims', () => {
+  assert.doesNotMatch(
     claimRoute,
-    /const CLAIM_PAYOUT_CONTINUATION_DELAYS_MS = \[/u,
+    /import \{[\s\S]*\bafter,[\s\S]*\} from 'next\/server'/u,
   );
-  assert.match(claimRoute, /result\.status === 'SUBMITTED'/u);
-  assert.match(claimRoute, /result\.status === 'WAITING_FINALITY'/u);
-  assert.match(claimRoute, /result\.status === 'PREPARED'/u);
-  assert.match(claimRoute, /result\.status === 'PAID'/u);
-  assert.match(claimRoute, /hasQueuedRemainder\(result\)/u);
-  assert.match(
+  assert.doesNotMatch(
     claimRoute,
-    /for \(const delayMs of CLAIM_PAYOUT_CONTINUATION_DELAYS_MS\)/u,
+    /CLAIM_PAYOUT_CONTINUATION_DELAYS_MS/u,
   );
-  assert.match(
-    claimRoute,
-    /after\(async \(\) => \{[\s\S]*continueClaimPayoutAfterResponse/u,
-  );
-  assert.match(
+  assert.doesNotMatch(
     claimRoute,
     /Post-Claim reward payout continuation exhausted its bounded retries:/u,
+  );
+  assert.match(
+    claimRoute,
+    /await enqueueClaimPayoutContinuation\(\{/u,
+  );
+  assert.match(
+    claimRoute,
+    /needsDurableClaimPayoutContinuation\(payoutKickoff\)/u,
+  );
+  assert.match(
+    continuationQueue,
+    /result\.status === 'SUBMITTED'/u,
+  );
+  assert.match(
+    continuationQueue,
+    /result\.status === 'WAITING_FINALITY'/u,
+  );
+  assert.match(
+    continuationQueue,
+    /result\.status === 'PREPARED'/u,
+  );
+  assert.match(
+    continuationQueue,
+    /result\.status === 'PAID'/u,
+  );
+  assert.match(
+    continuationQueue,
+    /\(result\.queuedCount \?\? 0\) > 0/u,
+  );
+  assert.match(
+    continuationConsumer,
+    /runImmediateClaimRewardPayout\(\)/u,
+  );
+  assert.match(
+    continuationConsumer,
+    /throw new Error\([\s\S]*Reward payout continuation remains pending:/u,
   );
 });
 
