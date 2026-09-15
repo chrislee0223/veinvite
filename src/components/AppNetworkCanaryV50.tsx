@@ -10,12 +10,16 @@ const GROUP_STORAGE_KEY = 'veinvite:qa:radial-v42:groups-v1';
 const ADJUST_STORAGE_KEY = 'veinvite:network:visual-adjust-v1';
 const DRAG_THRESHOLD_PX = 10;
 const CLICK_SUPPRESS_MS = 360;
-const AUTO_NAV_DELAY_MS = 480;
 const TRANSITION_LOCK_MS = 860;
-const PINCH_ENTER_RATIO = 1.28;
+const PINCH_ENTER_RATIO = 1.18;
+const PINCH_RECOGNIZE_RATIO = 1.08;
+const PINCH_FINAL_RATIO_MIN = 1.04;
+const PINCH_CLICK_GUARD_MS = 520;
 const PINCH_PARENT_RATIO = 0.76;
-const ENTER_ZOOM_MIN = 1.28;
 const PARENT_ZOOM_MAX = 0.64;
+const WHEEL_ENTER_ZOOM_MIN = 1.18;
+const PROFILE_CONFIRM_POLL_MS = 32;
+const PROFILE_CONFIRM_MAX_ATTEMPTS = 20;
 
 type Point = { x: number; y: number };
 type DevicePoint = { desktop: Point; mobile: Point };
@@ -40,9 +44,11 @@ type ActivePointer = {
 type DropKind = 'existing' | 'new' | 'create' | 'remove';
 type DropTarget = { kind: DropKind; element: HTMLElement } | null;
 type PinchIntent = {
+  startedAt: number;
   startDistance: number;
   maxRatio: number;
   minRatio: number;
+  lastRatio: number;
   candidateId: string | null;
 } | null;
 type ViewSnapshot = { zoom: number; cameraX: number; cameraY: number };
@@ -382,14 +388,11 @@ function NetworkInteractionController() {
       for (const node of Array.from(root.querySelectorAll<HTMLButtonElement>('.personNode[data-node-id]'))) {
         if (node.classList.contains('v42CollapsedMember')) continue;
         const circle = node.querySelector<HTMLElement>('.nodeCircle');
-        const meta = node.querySelector<HTMLElement>('small');
-        if (!circle || !meta) continue;
-        const numbers = meta.textContent?.match(/(\d+)\s+direct\s+·\s+(\d+)\s+(?:net|network)/i);
-        if (!numbers || (Number(numbers[1]) <= 0 && Number(numbers[2]) <= 0)) continue;
+        if (!circle) continue;
         const rect = circle.getBoundingClientRect();
         if (rect.width <= 0 || rect.height <= 0) continue;
         const distance = Math.hypot(clientX - (rect.left + rect.width / 2), clientY - (rect.top + rect.height / 2));
-        const limit = Math.max(62, rect.width * 1.25);
+        const limit = Math.max(38, rect.width * .9);
         if (distance > limit || distance >= bestDistance) continue;
         bestNode = node;
         bestDistance = distance;
@@ -397,7 +400,18 @@ function NetworkInteractionController() {
       return bestNode;
     };
 
-    const centerIsYou = () => root.querySelector<HTMLElement>('.centerWrap>b')?.textContent?.trim().toUpperCase() === 'YOU';
+    const centerIsYou = () => {
+      const source = root.querySelector<HTMLElement>('.centerWrap>b');
+      return source?.dataset.v70RootLabel === '1' || source?.textContent?.trim().toUpperCase() === 'YOU';
+    };
+
+    const clearNavigationCandidate = (node: HTMLButtonElement | null) => {
+      node?.classList.remove('v50NavigationCandidate');
+    };
+
+    const candidateNode = (id: string | null) => id
+      ? root.querySelector<HTMLButtonElement>(`.personNode[data-node-id="${CSS.escape(id)}"]`)
+      : null;
 
     const beginTransition = () => {
       root.classList.add('v50NetworkTransition');
@@ -431,23 +445,55 @@ function NetworkInteractionController() {
       }, 34);
     };
 
-    const triggerEnter = (node: HTMLButtonElement) => {
-      if (inTransition() || editMode() || groupPanel()) return;
-      navigationStack.push(captureView());
-      beginTransition();
+    const triggerEnter = (node: HTMLButtonElement, delayMs = 0) => {
+      if (inTransition() || editMode() || groupPanel() || programmaticNavigation) return false;
+      const snapshot = captureView();
+      const expectedLabel = node.querySelector<HTMLElement>(':scope > b')?.textContent?.trim() ?? '';
+      const previousClose = root.querySelector<HTMLButtonElement>('.profileCard > div button');
+      if (previousClose?.textContent?.trim() === '×') previousClose.click();
+
       programmaticNavigation = true;
       node.classList.add('v50NavigationCandidate');
       if (autoNavTimer !== null) window.clearTimeout(autoNavTimer);
+
+      const finish = () => {
+        node.classList.remove('v50NavigationCandidate');
+        programmaticNavigation = false;
+        autoNavTimer = null;
+      };
+
+      const confirmProfile = (attempt: number) => {
+        if (!mounted || !node.isConnected) {
+          finish();
+          return;
+        }
+        const card = root.querySelector<HTMLElement>('.profileCard');
+        const viewNetwork = card?.querySelector<HTMLButtonElement>('.viewNetwork') ?? null;
+        const cardLabel = card?.querySelector<HTMLElement>(':scope > div > b')?.textContent?.trim() ?? '';
+        if (viewNetwork && (!expectedLabel || cardLabel === expectedLabel)) {
+          navigationStack.push(snapshot);
+          beginTransition();
+          viewNetwork.click();
+          finish();
+          return;
+        }
+        if (attempt >= PROFILE_CONFIRM_MAX_ATTEMPTS) {
+          finish();
+          return;
+        }
+        autoNavTimer = window.setTimeout(() => confirmProfile(attempt + 1), PROFILE_CONFIRM_POLL_MS);
+      };
+
       autoNavTimer = window.setTimeout(() => {
         autoNavTimer = null;
-        if (!mounted || !node.isConnected) { programmaticNavigation = false; return; }
+        if (!mounted || !node.isConnected) {
+          finish();
+          return;
+        }
         node.querySelector<HTMLElement>('.nodeCircle')?.click();
-        window.setTimeout(() => {
-          root.querySelector<HTMLButtonElement>('.profileCard .viewNetwork')?.click();
-          node.classList.remove('v50NavigationCandidate');
-          programmaticNavigation = false;
-        }, 24);
-      }, AUTO_NAV_DELAY_MS);
+        autoNavTimer = window.setTimeout(() => confirmProfile(0), PROFILE_CONFIRM_POLL_MS);
+      }, Math.max(0, delayMs));
+      return true;
     };
 
     const triggerParent = () => {
@@ -627,18 +673,33 @@ function NetworkInteractionController() {
       const midX = (a.clientX + b.clientX) / 2;
       const midY = (a.clientY + b.clientY) / 2;
       pinchIntent = {
+        startedAt: performance.now(),
         startDistance: Math.max(1, touchDistance(a, b)),
         maxRatio: 1,
         minRatio: 1,
+        lastRatio: 1,
         candidateId: nearestNavigableNode(midX, midY)?.dataset.nodeId ?? null,
       };
     };
 
     const onTouchMove = (event: TouchEvent) => {
       if (!pinchActive || !pinchIntent || event.touches.length !== 2) return;
-      const ratio = touchDistance(event.touches[0], event.touches[1]) / pinchIntent.startDistance;
+      const a = event.touches[0];
+      const b = event.touches[1];
+      const ratio = touchDistance(a, b) / pinchIntent.startDistance;
       pinchIntent.maxRatio = Math.max(pinchIntent.maxRatio, ratio);
       pinchIntent.minRatio = Math.min(pinchIntent.minRatio, ratio);
+      pinchIntent.lastRatio = ratio;
+
+      if (!pinchIntent.candidateId) {
+        const midX = (a.clientX + b.clientX) / 2;
+        const midY = (a.clientY + b.clientY) / 2;
+        pinchIntent.candidateId = nearestNavigableNode(midX, midY)?.dataset.nodeId ?? null;
+      }
+
+      const candidate = candidateNode(pinchIntent.candidateId);
+      if (candidate && ratio >= PINCH_RECOGNIZE_RATIO) candidate.classList.add('v50NavigationCandidate');
+      else clearNavigationCandidate(candidate);
     };
 
     const finishPinch = (event: TouchEvent) => {
@@ -648,17 +709,25 @@ function NetworkInteractionController() {
       pinchIntent = null;
       root.classList.remove('v50PinchMode');
       suppressTrustedClickUntil = performance.now() + CLICK_SUPPRESS_MS;
-      if (!intent || inTransition() || editMode() || groupPanel()) return;
-
-      if (intent.candidateId && intent.maxRatio >= PINCH_ENTER_RATIO && readZoom() >= ENTER_ZOOM_MIN) {
-        const node = root.querySelector<HTMLButtonElement>(`.personNode[data-node-id="${CSS.escape(intent.candidateId)}"]`);
-        if (node && !node.classList.contains('v42CollapsedMember')) triggerEnter(node);
+      if (!intent || inTransition() || editMode() || groupPanel()) {
+        clearNavigationCandidate(candidateNode(intent?.candidateId ?? null));
         return;
       }
+
+      if (intent.candidateId && intent.maxRatio >= PINCH_ENTER_RATIO && intent.lastRatio >= PINCH_FINAL_RATIO_MIN) {
+        const node = candidateNode(intent.candidateId);
+        if (node && !node.classList.contains('v42CollapsedMember')) {
+          const elapsed = performance.now() - intent.startedAt;
+          const delay = Math.max(0, PINCH_CLICK_GUARD_MS - elapsed);
+          if (triggerEnter(node, delay)) return;
+        }
+      }
+      clearNavigationCandidate(candidateNode(intent.candidateId));
       if (!centerIsYou() && intent.minRatio <= PINCH_PARENT_RATIO && readZoom() <= PARENT_ZOOM_MAX) triggerParent();
     };
 
     const onTouchCancel = () => {
+      clearNavigationCandidate(candidateNode(pinchIntent?.candidateId ?? null));
       pinchActive = false;
       pinchIntent = null;
       root.classList.remove('v50PinchMode');
@@ -681,8 +750,8 @@ function NetworkInteractionController() {
         wheelScore = wheelCandidateId === id ? wheelScore + 1 : 1;
         wheelCandidateId = id;
         window.setTimeout(() => {
-          if (wheelScore < 3 || wheelCandidateId !== id || readZoom() < ENTER_ZOOM_MIN) return;
-          const current = root.querySelector<HTMLButtonElement>(`.personNode[data-node-id="${CSS.escape(id)}"]`);
+          if (wheelScore < 3 || wheelCandidateId !== id || readZoom() < WHEEL_ENTER_ZOOM_MIN) return;
+          const current = candidateNode(id);
           if (current) triggerEnter(current);
           wheelScore = 0;
           wheelCandidateId = null;
@@ -699,6 +768,7 @@ function NetworkInteractionController() {
     };
 
     const clearTransientState = () => {
+      clearNavigationCandidate(candidateNode(pinchIntent?.candidateId ?? null));
       pinchActive = false;
       pinchIntent = null;
       pendingTrustedNodeClick = null;
@@ -740,6 +810,7 @@ function NetworkInteractionController() {
     return () => {
       mounted = false;
       observer.disconnect();
+      clearNavigationCandidate(candidateNode(pinchIntent?.candidateId ?? null));
       if (transitionTimer !== null) window.clearTimeout(transitionTimer);
       if (autoNavTimer !== null) window.clearTimeout(autoNavTimer);
       if (membershipTimer !== null) window.clearTimeout(membershipTimer);
