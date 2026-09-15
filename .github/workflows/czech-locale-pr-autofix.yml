@@ -22,13 +22,13 @@ jobs:
         run: |
           python - <<'PYRUN'
           from pathlib import Path
-          import textwrap
 
           workflow = Path('.github/workflows/czech-locale-autofix.yml').read_text()
           marker = "          python - <<'PY'\n"
           start = workflow.index(marker) + len(marker)
           end = workflow.index("\n          PY", start)
-          code = textwrap.dedent(workflow[start:end])
+          raw = workflow[start:end]
+          code = '\n'.join(line[10:] if line.startswith('          ') else line for line in raw.splitlines())
           exec(compile(code, 'czech-locale-autofix', 'exec'))
           PYRUN
 
