@@ -70,12 +70,22 @@ export default async function HomePage() {
             : 'none'
         }
       />
+      <span
+        hidden
+        data-veinvite-legal-consent-bootstrap={
+          initialLegalConsentAccepted
+            ? 'accepted'
+            : 'unknown'
+        }
+        data-veinvite-legal-consent-wallet={
+          initialLegalConsentAccepted && initialSessionWallet
+            ? initialSessionWallet.toLowerCase()
+            : ''
+        }
+      />
       <WalletSessionGate
         initialSessionWallet={
           initialSessionWallet
-        }
-        initialLegalConsentAccepted={
-          initialLegalConsentAccepted
         }
       >
         <RewardForecastSeedProvider
