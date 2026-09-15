@@ -14,7 +14,7 @@ import {
  * delegates to the existing idempotent payout worker and immutable transaction
  * journal rather than creating a second transfer path.
  */
-export const POST = handleCallback(
+const queueCallback = handleCallback(
   async (message, metadata) => {
     if (!isClaimPayoutContinuationMessage(message)) {
       // A malformed message can never become valid by retrying. Acknowledge it
@@ -74,3 +74,10 @@ export const POST = handleCallback(
     },
   },
 );
+
+// @vercel/queue deliberately accepts either a Web Request or the platform's
+// wrapped callback event. Next.js 16 route generation only permits a plain
+// Request parameter, so keep the Queue callback behind this narrow adapter.
+export function POST(request: Request) {
+  return queueCallback(request);
+}
