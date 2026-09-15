@@ -29,4 +29,5 @@ export const LEGAL_BACK_LABEL: Record<SupportedLocale, string> = {
   sw: 'Rudi',
   ha: 'Koma',
   el: 'Πίσω',
+  cs: 'Zpět',
 };
