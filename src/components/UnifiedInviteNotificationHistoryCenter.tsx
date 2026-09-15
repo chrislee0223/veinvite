@@ -29,6 +29,11 @@ import type {
 import {
   reportProductAnalyticsEvent,
 } from '@/lib/productAnalytics';
+import {
+  dispatchRewardClaimUpdated,
+  notifyRewardClaimSessionInvalid,
+  reconcileRewardClaimState,
+} from '@/lib/rewards/rewardClaimClient';
 import type { RewardReceipt } from '@/lib/rewards/rewardReceipt';
 import { getVeChainExplorerTransactionUrl } from '@/lib/vechainExplorer';
 
@@ -38,8 +43,6 @@ const NOTIFICATION_DIALOG_ID = 'veinvite-notification-history';
 const REDUCED_MOTION_QUERY = '(prefers-reduced-motion: reduce)';
 const REWARD_RECEIPT_ACKNOWLEDGED_EVENT =
   'veinvite-reward-receipt-acknowledged';
-const REWARD_CLAIM_UPDATED_EVENT =
-  'veinvite-reward-claim-updated';
 const FOCUSABLE_SELECTOR = [
   'button:not([disabled])',
   'a[href]',
@@ -316,6 +319,9 @@ export function InviteNotificationHistoryCenter({
       const body = (await response.json()) as RewardActionResponse;
 
       if (!response.ok) {
+        if (response.status === 401 || response.status === 403) {
+          notifyRewardClaimSessionInvalid();
+        }
         throw new Error(body.error || 'Reward actions could not be loaded.');
       }
       if (actionRequestRef.current !== requestId) return;
@@ -341,7 +347,6 @@ export function InviteNotificationHistoryCenter({
       setRewardActions([]);
       setActionLoading(false);
       setActionError('');
-      setClaimPendingCode(null);
       setReceipt(null);
       setReceiptLoading(false);
       setReceiptError('');
@@ -374,6 +379,13 @@ export function InviteNotificationHistoryCenter({
       flowKey: 'home',
     });
 
+    let failureCode:
+      | 'network'
+      | 'malformed_response'
+      | 'wallet_auth'
+      | 'server'
+      | 'unknown' = 'unknown';
+
     try {
       let response: Response;
       try {
@@ -383,32 +395,34 @@ export function InviteNotificationHistoryCenter({
           body: JSON.stringify({ inviteCode: action.inviteCode }),
         });
       } catch (error) {
-        reportProductAnalyticsEvent({
-          eventName: 'reward_claim_failed',
-          outcome: 'failure',
-          failureCode: 'network',
-          flowKey: 'home',
-        });
+        failureCode = 'network';
         throw error;
       }
 
-      const body = (await response.json()) as {
+      let body: {
         claim?: { status?: string };
         error?: string;
       };
+      try {
+        body = (await response.json()) as {
+          claim?: { status?: string };
+          error?: string;
+        };
+      } catch (error) {
+        failureCode = 'malformed_response';
+        throw error;
+      }
 
       if (!response.ok) {
-        reportProductAnalyticsEvent({
-          eventName: 'reward_claim_failed',
-          outcome: 'failure',
-          failureCode:
-            response.status === 401 || response.status === 403
-              ? 'wallet_auth'
-              : response.status >= 500
-                ? 'server'
-                : 'unknown',
-          flowKey: 'home',
-        });
+        failureCode =
+          response.status === 401 || response.status === 403
+            ? 'wallet_auth'
+            : response.status >= 500
+              ? 'server'
+              : 'unknown';
+        if (failureCode === 'wallet_auth') {
+          notifyRewardClaimSessionInvalid();
+        }
         throw new Error(body.error || progressCopy.claimFailed);
       }
 
@@ -422,12 +436,55 @@ export function InviteNotificationHistoryCenter({
         outcome: 'success',
         flowKey: 'home',
       });
-      window.dispatchEvent(new Event(REWARD_CLAIM_UPDATED_EVENT));
+      dispatchRewardClaimUpdated(action.inviteCode);
       void loadRewardActions();
     } catch (error) {
+      if (failureCode !== 'wallet_auth') {
+        const reconciliation = await reconcileRewardClaimState(
+          action.inviteCode,
+        );
+
+        const progressed =
+          reconciliation.kind === 'ABSENT' ||
+          (
+            reconciliation.kind === 'ACTION' &&
+            reconciliation.action.status !== 'AWAITING_CLAIM'
+          );
+
+        if (progressed) {
+          if (reconciliation.kind === 'ACTION') {
+            setRewardActions((current) => current.map((item) =>
+              item.inviteCode === action.inviteCode
+                ? { ...item, status: reconciliation.action.status }
+                : item,
+            ));
+          } else {
+            setRewardActions((current) => current.filter(
+              (item) => item.inviteCode !== action.inviteCode,
+            ));
+          }
+          setActionError('');
+          reportProductAnalyticsEvent({
+            eventName: 'reward_claim_succeeded',
+            outcome: 'success',
+            flowKey: 'home',
+          });
+          dispatchRewardClaimUpdated(action.inviteCode);
+          void loadRewardActions();
+          return;
+        }
+      }
+
+      reportProductAnalyticsEvent({
+        eventName: 'reward_claim_failed',
+        outcome: 'failure',
+        failureCode,
+        flowKey: 'home',
+      });
       setActionError(
         error instanceof Error ? error.message : progressCopy.claimFailed,
       );
+      void loadRewardActions();
     } finally {
       setClaimPendingCode(null);
     }
