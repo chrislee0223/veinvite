@@ -12,18 +12,20 @@ export function AppNetworkCanaryV67({ locale }: { locale: Locale }) {
     <>
       <AppNetworkCanaryV66 locale={locale} />
       <style jsx global>{`
-        /* Remove V66's oversized circle-local halos. They were readable as dark
-           rings, reduced outline contrast and could intrude on nearby metadata. */
+        /* Keep each person / Available node as one painted circle. V66/V67 used
+           separate pseudo-element dark fades behind the visible circle; those
+           backdrops did not share the circle's zoom/pressed scale and therefore
+           visibly separated from its gold outline. The circle's own opaque
+           background now does all endpoint occlusion. */
         .productionNetworkCanaryV45 .nodeCircle::before,
         .productionNetworkCanaryV45 .slotCircle::before,
-        .productionNetworkCanaryV45 .clusterNode > span::before {
+        .productionNetworkCanaryV45 .clusterNode > span::before,
+        .productionNetworkCanaryV45 .personNode::before,
+        .productionNetworkCanaryV45 .slotNode::before {
           content: none !important;
           display: none !important;
         }
 
-        /* Only restore avatar-safe clipping. Border, background, hover, pressing,
-           joining, selected and edit-state visuals remain owned by the mature
-           V37/V42 layers so this correction cannot silently replace them. */
         .productionNetworkCanaryV45 .nodeCircle,
         .productionNetworkCanaryV45 .slotCircle,
         .productionNetworkCanaryV45 .clusterNode > span {
@@ -31,63 +33,9 @@ export function AppNetworkCanaryV67({ locale }: { locale: Locale }) {
           isolation: auto !important;
         }
 
-        /* Endpoint softness is a tiny paint-only patch. The person circle is 52px
-           and the Available circle is 46px; these patches extend only 3px beyond
-           the visible circle instead of V66's 10-11px halo. */
         .productionNetworkCanaryV45 .personNode,
         .productionNetworkCanaryV45 .slotNode {
-          isolation: isolate;
-        }
-
-        .productionNetworkCanaryV45 .personNode::before,
-        .productionNetworkCanaryV45 .slotNode::before {
-          content: '';
-          position: absolute;
-          left: 50%;
-          border-radius: 50%;
-          pointer-events: none;
-          z-index: 0;
-        }
-
-        .productionNetworkCanaryV45 .personNode::before {
-          top: 26px;
-          width: 58px;
-          height: 58px;
-          transform: translate(-50%, -50%);
-          background: radial-gradient(
-            circle,
-            rgba(8, 8, 7, .94) 0 87%,
-            rgba(8, 8, 7, .58) 91%,
-            rgba(8, 8, 7, .17) 96%,
-            rgba(8, 8, 7, 0) 100%
-          );
-        }
-
-        .productionNetworkCanaryV45 .slotNode::before {
-          top: 23px;
-          width: 52px;
-          height: 52px;
-          transform: translate(-50%, -50%);
-          background: radial-gradient(
-            circle,
-            rgba(8, 8, 7, .92) 0 86%,
-            rgba(8, 8, 7, .54) 91%,
-            rgba(8, 8, 7, .15) 96%,
-            rgba(8, 8, 7, 0) 100%
-          );
-        }
-
-        /* Keep the avatar circle above the fade, but keep readable information
-           above the circle. No position/top/left/margin/transform is changed. */
-        .productionNetworkCanaryV45 .personNode > .nodeCircle,
-        .productionNetworkCanaryV45 .slotNode > .slotCircle {
-          z-index: 1 !important;
-        }
-
-        .productionNetworkCanaryV45 .personNode > b,
-        .productionNetworkCanaryV45 .personNode > small,
-        .productionNetworkCanaryV45 .slotNode > b {
-          z-index: 2 !important;
+          isolation: auto !important;
         }
 
         /* YOU is an opaque occluder rather than a translucent window. V57 and
