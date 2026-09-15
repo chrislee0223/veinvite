@@ -97,6 +97,8 @@ export function SecondaryPageLayoutPolish() {
       /*
        * Keep the five-row viewport authoritative here so exactly five ranks are
        * visible before the user scrolls through ranks 1-100 on every viewport.
+       * Keep the physical scroll rail on the same side as the LTR header and
+       * trailing row even when the document locale itself is RTL.
        */
       .leaderboardPage .rankScroll {
         width:100% !important;
@@ -104,6 +106,7 @@ export function SecondaryPageLayoutPolish() {
         max-height:calc(var(--leaderboard-row-height) * 5) !important;
         overflow-y:auto !important;
         overscroll-behavior:contain !important;
+        direction:ltr !important;
         scrollbar-gutter:stable !important;
         scrollbar-width:thin;
         scrollbar-color:rgba(244,183,40,.45) transparent;
@@ -128,6 +131,8 @@ export function SecondaryPageLayoutPolish() {
 
       .leaderboardPage .rankStack {
         grid-column:1 !important;
+        display:grid !important;
+        place-items:center !important;
       }
 
       /*
