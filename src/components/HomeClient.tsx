@@ -942,7 +942,7 @@ export function HomeClient() {
                       void copyUrl(
                         legacyInviteUrl(invite),
                         'legacy_invite',
-                      )
+                      )}
                     onCancelLegacy={(invite, trigger) => {
                       cancelTriggerRef.current = trigger;
                       setLegacyCancelTarget(invite);
