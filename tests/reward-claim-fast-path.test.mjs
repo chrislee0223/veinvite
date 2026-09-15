@@ -10,6 +10,10 @@ const payoutWrapper = readFileSync(
   new URL('../src/lib/rewards/automaticRewardPayoutWithMnemonic.ts', import.meta.url),
   'utf8',
 );
+const basePayoutWorker = readFileSync(
+  new URL('../src/lib/rewards/automaticRewardPayout.ts', import.meta.url),
+  'utf8',
+);
 const fastPath = readFileSync(
   new URL('../src/lib/rewards/immediateClaimPayout.ts', import.meta.url),
   'utf8',
@@ -31,10 +35,40 @@ test('explicit Claim uses the reserved payout fast path', () => {
   const immediateFunction = payoutWrapper.slice(start, end);
 
   assert.match(immediateFunction, /prepareClaimedRewardFastPath/);
-  assert.match(immediateFunction, /runBaseAutomaticRewardPayout/);
+  assert.match(immediateFunction, /runClaimTransferWorker/);
   assert.doesNotMatch(
     immediateFunction,
     /reserveEligibleReferralRewards/,
+  );
+  assert.doesNotMatch(
+    immediateFunction,
+    /falling back to the standard payout worker/i,
+  );
+});
+
+test('Claim transfer worker cannot create a generic Sybil-planned reward round', () => {
+  assert.match(
+    payoutWrapper,
+    /runBaseAutomaticRewardPayout\(\{[\s\S]*allowGeneralRoundPreparation:\s*false,[\s\S]*\}\)/,
+  );
+
+  const workerStart = basePayoutWorker.indexOf(
+    'export async function runAutomaticRewardPayout',
+  );
+  assert.ok(workerStart >= 0);
+  const worker = basePayoutWorker.slice(workerStart);
+  const guardIndex = worker.indexOf(
+    'if (!allowGeneralRoundPreparation)',
+  );
+  const genericPrepareIndex = worker.indexOf(
+    'await prepareRewardRound({',
+  );
+
+  assert.ok(guardIndex >= 0);
+  assert.ok(genericPrepareIndex > guardIndex);
+  assert.match(
+    worker,
+    /Claim transfer-only worker found no active claimed payout round/,
   );
 });
 
@@ -117,5 +151,9 @@ test('standard automatic payout keeps offline reservation behavior unchanged', (
   assert.match(
     standardFunction,
     /runBaseAutomaticRewardPayout\(\)/,
+  );
+  assert.doesNotMatch(
+    standardFunction,
+    /allowGeneralRoundPreparation:\s*false/,
   );
 });
