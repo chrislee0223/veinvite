@@ -1,0 +1,42 @@
+name: Czech Locale PR Autofix
+
+on:
+  pull_request:
+    branches:
+      - feat/czech-locale
+    types: [opened, synchronize, reopened]
+
+permissions:
+  contents: write
+
+jobs:
+  complete-czech:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: feat/czech-locale
+          fetch-depth: 0
+      - name: Apply Czech locale completion
+        shell: bash
+        run: |
+          python - <<'PYRUN'
+          from pathlib import Path
+          import textwrap
+
+          workflow = Path('.github/workflows/czech-locale-autofix.yml').read_text()
+          marker = "          python - <<'PY'\n"
+          start = workflow.index(marker) + len(marker)
+          end = workflow.index("\n          PY", start)
+          code = textwrap.dedent(workflow[start:end])
+          exec(compile(code, 'czech-locale-autofix', 'exec'))
+          PYRUN
+
+          rm -f .github/workflows/czech-locale-autofix.yml
+          rm -f .github/workflows/czech-locale-pr-autofix.yml
+          git diff --check
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -A
+          git commit -m 'Complete Czech locale tables'
+          git push origin HEAD:feat/czech-locale
