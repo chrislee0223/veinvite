@@ -29,6 +29,7 @@ import { HOME_COPY } from '@/lib/i18n/homeCopy';
 import { NOTIFICATION_COPY } from '@/lib/i18n/notificationCopy';
 import { PROGRESS_CLAIM_COPY } from '@/lib/i18n/progressClaimCopy';
 import { REFERRAL_LINK_COPY } from '@/lib/i18n/referralLinkCopy';
+import { REWARD_CLAIM_STATE_COPY } from '@/lib/i18n/rewardClaimStateCopy';
 import {
   LANGUAGE_OPTIONS,
   LANGUAGE_STORAGE_KEY,
@@ -41,6 +42,10 @@ import {
   reportProductAnalyticsEvent,
 } from '@/lib/productAnalytics';
 import { isReferralKey, type ReferralLinkRecord } from '@/lib/referralLinks';
+import {
+  dispatchRewardClaimUpdated,
+  reconcileAmbiguousRewardClaim,
+} from '@/lib/rewards/rewardClaimClient';
 import type { InviteRecord } from '@/lib/types';
 
 const AppGuide = dynamic(() =>
@@ -184,6 +189,7 @@ export function HomeClient() {
   const t = HOME_COPY[locale];
   const referral = REFERRAL_LINK_COPY[locale];
   const progressCopy = PROGRESS_CLAIM_COPY[locale];
+  const rewardClaimStateCopy = REWARD_CLAIM_STATE_COPY[locale];
 
   const clearFeedback = useCallback(() => {
     setFeedback(null);
@@ -622,63 +628,127 @@ export function HomeClient() {
       flowKey: 'home',
     });
     setClaimPendingCode(invite.code);
+
+    let claimError: Error | null = null;
+    let failureCode:
+      | 'network'
+      | 'malformed_response'
+      | 'wallet_auth'
+      | 'server'
+      | 'unknown' = 'unknown';
+
     try {
-      let response: Response;
       try {
-        response = await fetch('/api/rewards/claims', {
+        const response = await fetch('/api/rewards/claims', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ inviteCode: invite.code }),
         });
-      } catch (error) {
-        reportProductAnalyticsEvent({
-          eventName: 'reward_claim_failed',
-          outcome: 'failure',
-          failureCode: 'network',
-          flowKey: 'home',
-        });
-        throw error;
-      }
 
-      let data: { error?: string };
-      try {
-        data = (await response.json()) as { error?: string };
-      } catch (error) {
-        reportProductAnalyticsEvent({
-          eventName: 'reward_claim_failed',
-          outcome: 'failure',
-          failureCode: 'malformed_response',
-          flowKey: 'home',
-        });
-        throw error;
-      }
+        let data: { error?: string } | null = null;
+        try {
+          data = (await response.json()) as { error?: string };
+        } catch {
+          failureCode = 'malformed_response';
+          claimError = new Error(progressCopy.claimFailed);
+        }
 
-      if (!response.ok) {
-        reportProductAnalyticsEvent({
-          eventName: 'reward_claim_failed',
-          outcome: 'failure',
-          failureCode:
+        if (!claimError && !response.ok) {
+          failureCode =
             response.status === 401 || response.status === 403
               ? 'wallet_auth'
               : response.status >= 500
                 ? 'server'
-                : 'unknown',
-          flowKey: 'home',
-        });
-        throw new Error(data.error ?? progressCopy.claimFailed);
+                : 'unknown';
+          claimError = new Error(data?.error ?? progressCopy.claimFailed);
+        }
+
+        if (!claimError) {
+          setInvites((current) =>
+            current.map((candidate) =>
+              candidate.code === invite.code
+                ? {
+                    ...candidate,
+                    rewardQueueStatus: 'QUEUED',
+                  }
+                : candidate,
+            ),
+          );
+          reportProductAnalyticsEvent({
+            eventName: 'reward_claim_succeeded',
+            outcome: 'success',
+            flowKey: 'home',
+          });
+          dispatchRewardClaimUpdated();
+          showFeedback('success', rewardClaimStateCopy.processing);
+          await load(true);
+          return;
+        }
+      } catch {
+        failureCode = 'network';
+        claimError = new Error(progressCopy.claimFailed);
+      }
+
+      try {
+        const state = await reconcileAmbiguousRewardClaim(invite.code);
+
+        if (state.kind === 'PROCESSING') {
+          setInvites((current) =>
+            current.map((candidate) =>
+              candidate.code === invite.code
+                ? {
+                    ...candidate,
+                    rewardQueueStatus: state.action.status,
+                  }
+                : candidate,
+            ),
+          );
+          reportProductAnalyticsEvent({
+            eventName: 'reward_claim_succeeded',
+            outcome: 'success',
+            flowKey: 'home',
+          });
+          dispatchRewardClaimUpdated();
+          showFeedback('success', rewardClaimStateCopy.processing);
+          await load(true);
+          return;
+        }
+
+        if (state.kind === 'PAID') {
+          setInvites((current) =>
+            current.map((candidate) =>
+              candidate.code === invite.code
+                ? {
+                    ...candidate,
+                    rewardEligibility: 'PAID',
+                  }
+                : candidate,
+            ),
+          );
+          reportProductAnalyticsEvent({
+            eventName: 'reward_claim_succeeded',
+            outcome: 'success',
+            flowKey: 'home',
+          });
+          dispatchRewardClaimUpdated();
+          clearFeedback();
+          await load(true);
+          return;
+        }
+      } catch {
+        // Preserve the original Claim failure. The authoritative resync is a
+        // safety check and must not replace a useful server-facing error.
       }
 
       reportProductAnalyticsEvent({
-        eventName: 'reward_claim_succeeded',
-        outcome: 'success',
+        eventName: 'reward_claim_failed',
+        outcome: 'failure',
+        failureCode,
         flowKey: 'home',
       });
-      showFeedback('success', progressCopy.claimQueued);
-      await load(true);
-    } catch (error) {
       showFeedback(
         'error',
-        error instanceof Error ? error.message : progressCopy.claimFailed,
+        claimError?.message ?? progressCopy.claimFailed,
       );
     } finally {
       setClaimPendingCode(null);
@@ -969,7 +1039,9 @@ export function HomeClient() {
                           {pending ? progressCopy.claiming : progressCopy.claimReward}
                         </button>
                       ) : processing ? (
-                        <span className="processingBadge">{progressCopy.claimQueued}</span>
+                        <span className="processingBadge">
+                          {rewardClaimStateCopy.processing}
+                        </span>
                       ) : null}
                     </article>
                   );
