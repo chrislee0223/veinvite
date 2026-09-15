@@ -7,12 +7,19 @@ import {
 } from 'react';
 import { useWallet } from '@vechain/vechain-kit';
 
+import {
+  PRODUCT_ANALYTICS_EVENT,
+  type ProductAnalyticsEventDetail,
+} from '@/lib/productAnalytics';
 import type { InviteRecord } from '@/lib/types';
 
 const POLL_INTERVAL_MS = 30_000;
 const EVIDENCE_SYNC_INTERVAL_MS = 5 * 60_000;
 const INITIAL_CHECK_FALLBACK_MS = 5_000;
 const APP_READY_EVENT = 'veinvite-app-ready';
+const REWARD_CLAIM_UPDATED_EVENT =
+  'veinvite-reward-claim-updated';
+const CLAIM_RECHECK_DELAYS_MS = [250, 1_500, 4_000] as const;
 
 type IdleCapableWindow = Window & {
   requestIdleCallback?: (
@@ -45,6 +52,18 @@ function invitationsFingerprint(
   return invites
     .map(inviteFingerprint)
     .join('|');
+}
+
+function hasProcessingReward(
+  invites: InviteRecord[] | undefined,
+): boolean {
+  return Boolean(
+    invites?.some(
+      (invite) =>
+        invite.rewardQueueStatus === 'QUEUED' ||
+        invite.rewardQueueStatus === 'ASSIGNED',
+    ),
+  );
 }
 
 function shouldDeferHomeRefresh(): boolean {
@@ -83,9 +102,15 @@ function evidenceSyncCandidate(
  * different browser or device. A lightweight invite-list check runs every 30s.
  * While an accepted referral is still active, the verified inviter also
  * provides a bounded five-minute reconciliation fallback for their own invite.
- * This complements (rather than replaces) the daily scheduled worker and the
- * invitee page's own polling, so a closed invitee tab or one missed scheduler
- * run cannot leave active progress stale indefinitely.
+ *
+ * Reward Claim is more sensitive than ordinary background refreshes. The Claim
+ * request can reach the server even when the browser loses the response. We
+ * therefore snapshot the current invite fingerprint when Claim starts, wake the
+ * finalized-receipt tracker immediately, and perform bounded authoritative
+ * re-checks only when the client reports an ambiguous network/malformed-response
+ * failure. If the server state actually advanced, a full reload reconciles Home,
+ * notifications, leaderboard-derived state and the Claim button from the same
+ * server authority. No payout or reward state is mutated here.
  */
 export function InviteStatusAutoRefresh() {
   const { account } = useWallet();
@@ -93,7 +118,12 @@ export function InviteStatusAutoRefresh() {
     account?.address?.toLowerCase() ?? null;
   const lastFingerprintRef =
     useRef<string | null>(null);
+  const claimStartFingerprintRef =
+    useRef<string | null>(null);
+  const claimRecheckTimersRef =
+    useRef<number[]>([]);
   const checkingRef = useRef(false);
+  const claimCheckingRef = useRef(false);
   const lastEvidenceSyncRef =
     useRef<{
       code: string;
@@ -122,6 +152,53 @@ export function InviteStatusAutoRefresh() {
       invites?: InviteRecord[];
     };
   }, [walletAddress]);
+
+  const checkClaimState = useCallback(async () => {
+    if (
+      !walletAddress ||
+      claimCheckingRef.current ||
+      document.visibilityState === 'hidden'
+    ) {
+      return;
+    }
+
+    claimCheckingRef.current = true;
+
+    try {
+      const data = await loadInvites();
+      if (!data) {
+        return;
+      }
+
+      const fingerprint = invitationsFingerprint(data.invites);
+      const baseline =
+        claimStartFingerprintRef.current ??
+        lastFingerprintRef.current;
+      const processing = hasProcessingReward(data.invites);
+
+      if (baseline === null) {
+        lastFingerprintRef.current = fingerprint;
+        claimStartFingerprintRef.current = fingerprint;
+
+        // If the first reliable read already shows a processing reward, the
+        // request may have committed before this component obtained a baseline.
+        // Reloading is safer than re-exposing a Claim button in that ambiguity.
+        if (processing) {
+          window.location.reload();
+        }
+        return;
+      }
+
+      if (fingerprint !== baseline || processing) {
+        window.location.reload();
+      }
+    } catch {
+      // This is an ambiguity resolver only. A failed read must not convert a
+      // successful on-chain/server Claim into a client-side failure decision.
+    } finally {
+      claimCheckingRef.current = false;
+    }
+  }, [loadInvites, walletAddress]);
 
   const check = useCallback(async () => {
     if (
@@ -215,6 +292,84 @@ export function InviteStatusAutoRefresh() {
     loadInvites,
     walletAddress,
   ]);
+
+  useEffect(() => {
+    for (const timerId of claimRecheckTimersRef.current) {
+      window.clearTimeout(timerId);
+    }
+    claimRecheckTimersRef.current = [];
+    claimStartFingerprintRef.current = null;
+
+    if (!walletAddress) {
+      return;
+    }
+
+    const scheduleClaimRechecks = () => {
+      for (const timerId of claimRecheckTimersRef.current) {
+        window.clearTimeout(timerId);
+      }
+      claimRecheckTimersRef.current = CLAIM_RECHECK_DELAYS_MS.map(
+        (delay) => window.setTimeout(() => {
+          void checkClaimState();
+        }, delay),
+      );
+    };
+
+    const onProductAnalytics = (event: Event) => {
+      const detail = (
+        event as CustomEvent<ProductAnalyticsEventDetail>
+      ).detail;
+
+      if (!detail) {
+        return;
+      }
+
+      if (detail.eventName === 'reward_claim_started') {
+        claimStartFingerprintRef.current =
+          lastFingerprintRef.current;
+        window.dispatchEvent(
+          new Event(REWARD_CLAIM_UPDATED_EVENT),
+        );
+        return;
+      }
+
+      if (detail.eventName === 'reward_claim_succeeded') {
+        // Home and the notification center both already refresh their own
+        // successful Claim state. This event only wakes the finalized receipt
+        // tracker immediately so completion does not wait for its background poll.
+        window.dispatchEvent(
+          new Event(REWARD_CLAIM_UPDATED_EVENT),
+        );
+        return;
+      }
+
+      if (
+        detail.eventName === 'reward_claim_failed' &&
+        (
+          detail.failureCode === 'network' ||
+          detail.failureCode === 'malformed_response'
+        )
+      ) {
+        scheduleClaimRechecks();
+      }
+    };
+
+    window.addEventListener(
+      PRODUCT_ANALYTICS_EVENT,
+      onProductAnalytics as EventListener,
+    );
+
+    return () => {
+      window.removeEventListener(
+        PRODUCT_ANALYTICS_EVENT,
+        onProductAnalytics as EventListener,
+      );
+      for (const timerId of claimRecheckTimersRef.current) {
+        window.clearTimeout(timerId);
+      }
+      claimRecheckTimersRef.current = [];
+    };
+  }, [checkClaimState, walletAddress]);
 
   useEffect(() => {
     lastFingerprintRef.current = null;
