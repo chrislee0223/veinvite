@@ -6,7 +6,7 @@ const source = await readFile('src/lib/i18n/networkNaturalnessPolish.ts', 'utf8'
 
 const locales = [
   'en', 'ko', 'zh', 'hi', 'es', 'ja', 'it', 'tr', 'nl', 'de', 'fr', 'ar', 'bn', 'pt',
-  'ru', 'id', 'vi', 'zh-tw', 'sv', 'ro', 'ur', 'pcm', 'arz', 'mr', 'te', 'sw', 'ha', 'el',
+  'ru', 'id', 'vi', 'zh-tw', 'sv', 'ro', 'ur', 'pcm', 'arz', 'mr', 'te', 'sw', 'ha', 'el', 'cs',
 ];
 
 const start = source.indexOf('const NETWORK_USER_FACING_CANARY_POLISH');
@@ -14,7 +14,7 @@ const end = source.indexOf('\nfor (const [locale, patch] of Object.entries(NETWO
 assert.ok(start >= 0 && end > start, 'final user-facing polish block must exist');
 const polish = source.slice(start, end);
 
-test('all 28 locales receive the final user-facing Network terminology review', () => {
+test('all 29 locales receive the final user-facing Network terminology review', () => {
   for (const locale of locales) {
     const marker = locale === 'zh-tw' ? "  'zh-tw': {" : `  ${locale}: {`;
     assert.ok(polish.includes(marker), `missing final user-facing polish for ${locale}`);
