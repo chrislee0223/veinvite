@@ -90,6 +90,41 @@ test('claim response schedules bounded continuation through finality and concurr
   );
 });
 
+test('claim continuation covers delayed chain finality without approaching the Hobby function ceiling', () => {
+  const durationMatch = claimRoute.match(
+    /export const maxDuration = (\d+);/u,
+  );
+  const delaysMatch = claimRoute.match(
+    /const CLAIM_PAYOUT_CONTINUATION_DELAYS_MS = \[([\s\S]*?)\] as const;/u,
+  );
+
+  assert.ok(durationMatch, 'claim route must pin a maxDuration');
+  assert.ok(delaysMatch, 'claim route must define bounded continuation delays');
+
+  const maxDurationSeconds = Number(durationMatch[1]);
+  const continuationDelays = Array.from(
+    delaysMatch[1].matchAll(/([\d_]+),/gu),
+    (match) => Number(match[1].replaceAll('_', '')),
+  );
+  const continuationDelayTotalMs = continuationDelays.reduce(
+    (total, delay) => total + delay,
+    0,
+  );
+
+  assert.ok(
+    continuationDelayTotalMs >= 120_000,
+    'post-Claim recovery should cover more than two minutes of finalized-head progression',
+  );
+  assert.ok(
+    maxDurationSeconds <= 300,
+    'claim route must remain within the Hobby function ceiling',
+  );
+  assert.ok(
+    continuationDelayTotalMs <= (maxDurationSeconds - 60) * 1_000,
+    'continuation delays must leave at least 60 seconds for payout verification work',
+  );
+});
+
 test('generic reward sweeps cannot transfer a newly eligible unclaimed reservation', () => {
   const standardStart = payoutWrapper.indexOf(
     'export async function runAutomaticRewardPayout',
