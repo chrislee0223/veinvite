@@ -6,7 +6,8 @@
     "dev": "next dev --webpack",
     "build": "next build --webpack",
     "start": "next start",
-    "typecheck": "tsc --noEmit",
+    "check:retired-routes": "node scripts/check-retired-production-routes.mjs",
+    "typecheck": "npm run check:retired-routes && tsc --noEmit",
     "test:i18n": "node --test tests/i18n-*.test.mjs",
     "test:rewards": "node --experimental-strip-types --test tests/reward-*.test.mjs"
   },
