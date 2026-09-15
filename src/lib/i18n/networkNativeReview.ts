@@ -508,6 +508,12 @@ const NETWORK_NATIVE_REVIEW: Record<SupportedLocale, NetworkNativeReviewPatch> =
     },
     network: { title: 'Το δίκτυό σας θα είναι σύντομα διαθέσιμο' },
   },
+  cs: {
+    canary: { hintView: 'Podrž člověka pro úpravy · táhni obrazovku · sevřením prstů měň přiblížení' },
+    explore: { exploreDescription: 'Procházej veřejné sítě VeInvite ve stejném zobrazení sítě. Soukromá spojení zůstávají skrytá.', discoverable: 'Zobrazit ve veřejném seznamu', discoverableNote: 'Zobraz svou síť v seznamu veřejných sítí.', privateBranchesHidden: 'Soukromá spojení zůstávají skrytá' },
+    hub: { maintenanceTitle: 'Síť se připravuje', maintenanceDescription: 'Nové prostředí sítě připravujeme bezpečně. Zkus to prosím znovu za chvíli.', visibilityLoading: 'Kontrolujeme nastavení veřejné sítě…', visibilityUnknown: 'Nastavení veřejné sítě se nepodařilo ověřit. Zkus to znovu.', publicConfirm: 'Zapnout veřejnou síť? Ostatní uvidí adresu tvé peněženky a cesty pozvánek, které se rozhodneš zveřejnit. Informace o misích, odměnách a zabezpečení zůstanou soukromé.' },
+    network: { title: 'Tvoje síť bude brzy dostupná' },
+  },
 };
 
 for (const locale of Object.keys(NETWORK_NATIVE_REVIEW) as SupportedLocale[]) {
