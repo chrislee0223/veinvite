@@ -111,10 +111,10 @@ export const NETWORK_COPY: Record<SupportedLocale, NetworkCopy> = {
     description: 'Chúng tôi đang chuẩn bị một màn hình để bạn có thể xem nhanh những người bạn đã mời và mạng lưới VeInvite tiếp tục phát triển từ họ.',
   },
   'zh-tw': {
-    navLabel: '網絡',
+    navLabel: '網路',
     status: '即將推出',
-    title: '網絡功能即將推出',
-    description: '我們正在準備一個頁面，讓你可以一目了然地查看你邀請的朋友，以及從他們繼續延伸的 VeInvite 網絡。',
+    title: '網路功能即將推出',
+    description: '我們正在準備一個頁面，讓你可以一目了然地查看你邀請的朋友，以及從他們繼續延伸的 VeInvite 網路。',
   },
   sv: {
     navLabel: 'Nätverk',
