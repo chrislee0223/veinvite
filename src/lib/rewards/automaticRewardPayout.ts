@@ -1086,8 +1086,13 @@ async function countQueuedRewards(
  * process or RPC fails after signing, the next iteration rebroadcasts the exact
  * same transaction id instead of creating a second payment.
  */
-export async function runAutomaticRewardPayout():
-Promise<AutomaticRewardPayoutResult> {
+export async function runAutomaticRewardPayout(
+  {
+    allowGeneralRoundPreparation = true,
+  }: {
+    allowGeneralRoundPreparation?: boolean;
+  } = {},
+): Promise<AutomaticRewardPayoutResult> {
   const { network } = getVeBetterNetworkConfig();
   const identity = readAutomaticDistributorIdentity();
 
@@ -1232,7 +1237,22 @@ Promise<AutomaticRewardPayoutResult> {
         };
       }
 
-      const roundId = await prepareRewardRound({
+      if (!allowGeneralRoundPreparation) {
+      return {
+        status: 'IDLE',
+        network,
+        distributorAddress,
+        roundId: null,
+        manifestId: null,
+        txId: null,
+        queuedCount,
+        reason:
+          'Claim transfer-only worker found no active claimed payout round.',
+        transfersPerformed: false,
+      };
+    }
+
+    const roundId = await prepareRewardRound({
         network,
         appId: pool.appId,
         poolBalanceWei:
