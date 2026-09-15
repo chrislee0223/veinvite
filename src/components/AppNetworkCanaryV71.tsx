@@ -54,7 +54,6 @@ function NetworkRootIdentityPlacementV71({ locale }: { locale: Locale }) {
       if (!label) {
         label = document.createElement('span');
         label.className = 'v71CenterIdentityLabel';
-        label.setAttribute('aria-hidden', 'true');
         circle.appendChild(label);
       }
 
