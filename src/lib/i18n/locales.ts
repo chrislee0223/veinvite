@@ -44,6 +44,7 @@ export const LOCALE_DEFINITIONS = [
   { locale: 'sw', nativeName: 'Kiswahili', englishName: 'Swahili', flagSource: '/flags/ke.svg', direction: 'ltr', typography: 'latin' },
   { locale: 'ha', nativeName: 'Hausa', englishName: 'Hausa', flagSource: '/flags/ng.svg', direction: 'ltr', typography: 'latin' },
   { locale: 'el', nativeName: 'Ελληνικά', englishName: 'Greek', flagSource: '/flags/gr.svg', direction: 'ltr', typography: 'latin' },
+  { locale: 'cs', nativeName: 'Čeština', englishName: 'Czech', flagSource: '/flags/cz.svg', direction: 'ltr', typography: 'latin' },
 ] as const satisfies readonly LocaleDefinition[];
 
 export const SUPPORTED_LOCALES = LOCALE_DEFINITIONS.map(
