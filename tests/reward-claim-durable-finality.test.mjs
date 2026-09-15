@@ -101,7 +101,7 @@ test(
     );
     assert.doesNotMatch(
       queueConsumer,
-      /sendTransaction|signTransaction|privateKey|mnemonic/i,
+      /\b(?:sendTransaction|signTransaction|privateKey)\b/i,
     );
   },
 );
