@@ -1,4 +1,4 @@
-import { ABIEvent } from '@vechain/sdk-core';
+import { ABIEvent, Hex } from '@vechain/sdk-core';
 import { ThorClient } from '@vechain/sdk-network';
 
 import { supabaseAdmin } from '@/lib/supabaseServer';
@@ -6,15 +6,20 @@ import {
   getVeBetterNetworkConfig,
   type VeBetterNetwork,
 } from '@/lib/vebetter/network';
-import type { VoteAllocation } from '@/lib/vebetter/vote';
+
+export type VoteAllocation = {
+  allocationIndex: number;
+  appId: string;
+  voteWeight: string;
+};
 
 const allocationVoteCastEvent = new ABIEvent(
   'event AllocationVoteCast(address indexed voter, uint256 indexed roundId, bytes32[] appsIds, uint256[] voteWeights)',
 );
 
 type RawVoteLog = {
-  data?: `0x${string}`;
-  topics?: `0x${string}`[];
+  data?: string;
+  topics?: string[];
   meta?: {
     blockNumber?: number;
     txID?: string;
@@ -83,8 +88,8 @@ function decodeVoteAllocations(
   try {
     const decoded =
       allocationVoteCastEvent.decodeEventLogAsArray({
-        data: log.data,
-        topics: log.topics,
+        data: Hex.of(log.data),
+        topics: log.topics.map((topic) => Hex.of(topic)),
       });
     const appIds = decoded[2];
     const voteWeights = decoded[3];
@@ -269,10 +274,7 @@ export async function recordMissionVoteAllocations({
   ) {
     console.warn(
       'Skipping invalid mission vote allocation payload.',
-      {
-        inviteCode,
-        txId: normalizedTxId,
-      },
+      { inviteCode, txId: normalizedTxId },
     );
     return false;
   }
