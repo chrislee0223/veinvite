@@ -342,7 +342,7 @@ export function PublicLeaderboard({
     setImpactVisible(false);
     setImpactClosing(false);
     setImpactOpen(false);
-    void load(false);
+    void load(true);
   }, [load]);
 
   useEffect(() => () => {
