@@ -24,6 +24,7 @@ import './leaderboard-card-height-stability.css';
 import './leaderboard-country-horizontal-balance.css';
 import './leaderboard-column-alignment-guard.css';
 import './leaderboard-rtl-hardening.css';
+import './startup-progressive-hydration.css';
 
 const siteUrl = 'https://veinvite.vercel.app';
 const title = 'VeInvite | Verified onboarding for VeBetterDAO';
