@@ -1,6 +1,36 @@
+import { ABIEvent } from '@vechain/sdk-core';
+import { ThorClient } from '@vechain/sdk-network';
+
 import { supabaseAdmin } from '@/lib/supabaseServer';
-import type { VeBetterNetwork } from '@/lib/vebetter/network';
+import {
+  getVeBetterNetworkConfig,
+  type VeBetterNetwork,
+} from '@/lib/vebetter/network';
 import type { VoteAllocation } from '@/lib/vebetter/vote';
+
+const allocationVoteCastEvent = new ABIEvent(
+  'event AllocationVoteCast(address indexed voter, uint256 indexed roundId, bytes32[] appsIds, uint256[] voteWeights)',
+);
+
+type RawVoteLog = {
+  data?: `0x${string}`;
+  topics?: `0x${string}`[];
+  meta?: {
+    blockNumber?: number;
+    txID?: string;
+    clauseIndex?: number;
+  };
+};
+
+function getSingleTopic(
+  topic:
+    | `0x${string}`
+    | `0x${string}`[]
+    | null
+    | undefined,
+): string | undefined {
+  return typeof topic === 'string' ? topic : undefined;
+}
 
 function isValidTxId(value: string): boolean {
   return /^0x[0-9a-fA-F]{64}$/.test(value);
@@ -12,6 +42,190 @@ function isValidWalletAddress(value: string): boolean {
 
 function isValidAppId(value: string): boolean {
   return /^0x[0-9a-fA-F]{64}$/.test(value);
+}
+
+function normalizeVoteWeight(
+  value: unknown,
+): string | null {
+  if (typeof value === 'bigint') {
+    return value >= 0n ? value.toString() : null;
+  }
+
+  if (
+    typeof value === 'number' &&
+    Number.isSafeInteger(value) &&
+    value >= 0
+  ) {
+    return String(value);
+  }
+
+  if (
+    typeof value === 'string' &&
+    /^\d+$/.test(value)
+  ) {
+    return BigInt(value).toString();
+  }
+
+  return null;
+}
+
+function decodeVoteAllocations(
+  log: RawVoteLog,
+): VoteAllocation[] | null {
+  if (
+    !log.data ||
+    !log.topics ||
+    log.topics.length < 3
+  ) {
+    return null;
+  }
+
+  try {
+    const decoded =
+      allocationVoteCastEvent.decodeEventLogAsArray({
+        data: log.data,
+        topics: log.topics,
+      });
+    const appIds = decoded[2];
+    const voteWeights = decoded[3];
+
+    if (
+      !Array.isArray(appIds) ||
+      !Array.isArray(voteWeights) ||
+      appIds.length !== voteWeights.length
+    ) {
+      return null;
+    }
+
+    const allocations: VoteAllocation[] = [];
+
+    for (
+      let index = 0;
+      index < appIds.length;
+      index += 1
+    ) {
+      const appId = appIds[index];
+      const voteWeight =
+        normalizeVoteWeight(voteWeights[index]);
+
+      if (
+        typeof appId !== 'string' ||
+        !isValidAppId(appId) ||
+        voteWeight === null
+      ) {
+        return null;
+      }
+
+      allocations.push({
+        allocationIndex: index,
+        appId: appId.toLowerCase(),
+        voteWeight,
+      });
+    }
+
+    return allocations;
+  } catch (error) {
+    console.warn(
+      'Failed to decode governance vote allocations.',
+      error,
+    );
+    return null;
+  }
+}
+
+export async function readMissionVoteAllocationsFromChain({
+  walletAddress,
+  txId,
+  blockNumber,
+  voteRoundId,
+}: {
+  walletAddress: string;
+  txId: string;
+  blockNumber: number;
+  voteRoundId: number;
+}): Promise<{
+  clauseIndex: number;
+  allocations: VoteAllocation[];
+}> {
+  const normalizedWallet =
+    walletAddress.toLowerCase();
+  const normalizedTxId = txId.toLowerCase();
+
+  if (
+    !isValidWalletAddress(normalizedWallet) ||
+    !isValidTxId(normalizedTxId) ||
+    !Number.isSafeInteger(blockNumber) ||
+    blockNumber < 0 ||
+    !Number.isSafeInteger(voteRoundId) ||
+    voteRoundId < 0
+  ) {
+    throw new Error(
+      'Invalid governance vote evidence for allocation decoding.',
+    );
+  }
+
+  const {
+    nodeUrl,
+    xAllocationVotingAddress,
+  } = getVeBetterNetworkConfig();
+  const thor = ThorClient.at(nodeUrl);
+  const topics =
+    allocationVoteCastEvent.encodeFilterTopics([
+      normalizedWallet,
+      BigInt(voteRoundId),
+    ]);
+
+  const logs = await thor.logs.filterRawEventLogs({
+    range: {
+      unit: 'block',
+      from: blockNumber,
+      to: blockNumber,
+    },
+    options: {
+      offset: 0,
+      limit: 100,
+    },
+    criteriaSet: [
+      {
+        address: xAllocationVotingAddress,
+        topic0: getSingleTopic(topics[0]),
+        topic1: getSingleTopic(topics[1]),
+        topic2: getSingleTopic(topics[2]),
+      },
+    ],
+    order: 'asc',
+  });
+
+  const matched = (logs as RawVoteLog[]).find(
+    (log) =>
+      log.meta?.txID?.toLowerCase() === normalizedTxId,
+  );
+  const clauseIndex = matched?.meta?.clauseIndex;
+
+  if (
+    !matched ||
+    typeof clauseIndex !== 'number' ||
+    !Number.isSafeInteger(clauseIndex) ||
+    clauseIndex < 0
+  ) {
+    throw new Error(
+      'Unable to resolve the exact governance vote event.',
+    );
+  }
+
+  const allocations =
+    decodeVoteAllocations(matched);
+
+  if (!allocations || allocations.length === 0) {
+    throw new Error(
+      'Governance vote event was found, but its allocations could not be decoded.',
+    );
+  }
+
+  return {
+    clauseIndex,
+    allocations,
+  };
 }
 
 export async function recordMissionVoteAllocations({
