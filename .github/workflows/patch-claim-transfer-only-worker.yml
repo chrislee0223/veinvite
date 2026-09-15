@@ -1,0 +1,78 @@
+name: Patch Claim Transfer-Only Worker
+
+on:
+  push:
+    branches:
+      - fix/claim-durable-finality-20260915
+    paths:
+      - .github/workflows/patch-claim-transfer-only-worker.yml
+
+permissions:
+  contents: write
+
+jobs:
+  patch-worker:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Checkout fix branch
+        uses: actions/checkout@v7
+        with:
+          ref: fix/claim-durable-finality-20260915
+
+      - name: Add transfer-only preparation boundary
+        shell: python
+        run: |
+          from pathlib import Path
+
+          path = Path('src/lib/rewards/automaticRewardPayout.ts')
+          text = path.read_text()
+
+          old_signature = """export async function runAutomaticRewardPayout():
+          Promise<AutomaticRewardPayoutResult> {"""
+          new_signature = """export async function runAutomaticRewardPayout(
+            {
+              allowGeneralRoundPreparation = true,
+            }: {
+              allowGeneralRoundPreparation?: boolean;
+            } = {},
+          ): Promise<AutomaticRewardPayoutResult> {"""
+
+          if text.count(old_signature) != 1:
+            raise SystemExit('Expected exactly one automatic payout signature to patch.')
+          text = text.replace(old_signature, new_signature, 1)
+
+          old_prepare = """      const roundId = await prepareRewardRound({"""
+          new_prepare = """      if (!allowGeneralRoundPreparation) {
+                return {
+                  status: 'IDLE',
+                  network,
+                  distributorAddress,
+                  roundId: null,
+                  manifestId: null,
+                  txId: null,
+                  queuedCount,
+                  reason:
+                    'Claim transfer-only worker found no active claimed payout round.',
+                  transfersPerformed: false,
+                };
+              }
+
+              const roundId = await prepareRewardRound({"""
+
+          if text.count(old_prepare) != 1:
+            raise SystemExit('Expected exactly one generic reward-round preparation call to guard.')
+          text = text.replace(old_prepare, new_prepare, 1)
+
+          path.write_text(text)
+
+      - name: Commit guarded worker
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/lib/rewards/automaticRewardPayout.ts
+          git commit -m "Guard Claim worker from general reward preparation"
+          git push origin HEAD:fix/claim-durable-finality-20260915
