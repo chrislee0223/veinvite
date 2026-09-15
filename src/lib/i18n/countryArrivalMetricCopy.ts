@@ -38,4 +38,5 @@ export const COUNTRY_ARRIVAL_METRIC_COPY: Record<
   sw: { newUsers: 'Wapya', returningUsers: 'Rudi', totalUsers: 'Jumla' },
   ha: { newUsers: 'Sabbi', returningUsers: 'Dawowa', totalUsers: 'Jimilla' },
   el: { newUsers: 'Νέοι', returningUsers: 'Επιστρ.', totalUsers: 'Σύνολο' },
+  cs: { newUsers: 'Noví', returningUsers: 'Návraty', totalUsers: 'Celkem' },
 };
