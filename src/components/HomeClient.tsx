@@ -40,6 +40,10 @@ import {
 import {
   reportProductAnalyticsEvent,
 } from '@/lib/productAnalytics';
+import {
+  dispatchRewardClaimUpdated,
+  reconcileRewardClaimState,
+} from '@/lib/rewards/rewardClaimClient';
 import { isReferralKey, type ReferralLinkRecord } from '@/lib/referralLinks';
 import type { InviteRecord } from '@/lib/types';
 
@@ -235,6 +239,7 @@ export function HomeClient() {
 
   useEffect(() => {
     activeWalletRef.current = wallet;
+    setClaimPendingCode(null);
     setInvites([]);
     setInvitesReady(false);
     setInvitesFailed(false);
@@ -610,18 +615,28 @@ export function HomeClient() {
 
   const claimReward = async (invite: InviteRecord) => {
     if (
+      !wallet ||
       claimPendingCode ||
       invite.rewardQueueStatus !== 'AWAITING_CLAIM'
     ) {
       return;
     }
 
+    const requestWallet = wallet;
     clearFeedback();
     reportProductAnalyticsEvent({
       eventName: 'reward_claim_started',
       flowKey: 'home',
     });
     setClaimPendingCode(invite.code);
+
+    let failureCode:
+      | 'network'
+      | 'malformed_response'
+      | 'wallet_auth'
+      | 'server'
+      | 'unknown' = 'unknown';
+
     try {
       let response: Response;
       try {
@@ -631,12 +646,7 @@ export function HomeClient() {
           body: JSON.stringify({ inviteCode: invite.code }),
         });
       } catch (error) {
-        reportProductAnalyticsEvent({
-          eventName: 'reward_claim_failed',
-          outcome: 'failure',
-          failureCode: 'network',
-          flowKey: 'home',
-        });
+        failureCode = 'network';
         throw error;
       }
 
@@ -644,44 +654,72 @@ export function HomeClient() {
       try {
         data = (await response.json()) as { error?: string };
       } catch (error) {
-        reportProductAnalyticsEvent({
-          eventName: 'reward_claim_failed',
-          outcome: 'failure',
-          failureCode: 'malformed_response',
-          flowKey: 'home',
-        });
+        failureCode = 'malformed_response';
         throw error;
       }
 
       if (!response.ok) {
-        reportProductAnalyticsEvent({
-          eventName: 'reward_claim_failed',
-          outcome: 'failure',
-          failureCode:
-            response.status === 401 || response.status === 403
-              ? 'wallet_auth'
-              : response.status >= 500
-                ? 'server'
-                : 'unknown',
-          flowKey: 'home',
-        });
+        failureCode =
+          response.status === 401 || response.status === 403
+            ? 'wallet_auth'
+            : response.status >= 500
+              ? 'server'
+              : 'unknown';
         throw new Error(data.error ?? progressCopy.claimFailed);
       }
+
+      if (!sameWallet(activeWalletRef.current, requestWallet)) return;
 
       reportProductAnalyticsEvent({
         eventName: 'reward_claim_succeeded',
         outcome: 'success',
         flowKey: 'home',
       });
+      dispatchRewardClaimUpdated();
       showFeedback('success', progressCopy.claimQueued);
       await load(true);
     } catch (error) {
+      if (!sameWallet(activeWalletRef.current, requestWallet)) return;
+
+      if (failureCode !== 'wallet_auth') {
+        const reconciliation = await reconcileRewardClaimState(invite.code);
+        if (!sameWallet(activeWalletRef.current, requestWallet)) return;
+
+        const progressed =
+          reconciliation.kind === 'ABSENT' ||
+          (
+            reconciliation.kind === 'ACTION' &&
+            reconciliation.action.status !== 'AWAITING_CLAIM'
+          );
+
+        if (progressed) {
+          reportProductAnalyticsEvent({
+            eventName: 'reward_claim_succeeded',
+            outcome: 'success',
+            flowKey: 'home',
+          });
+          dispatchRewardClaimUpdated();
+          showFeedback('success', progressCopy.claimQueued);
+          await load(true);
+          return;
+        }
+      }
+
+      reportProductAnalyticsEvent({
+        eventName: 'reward_claim_failed',
+        outcome: 'failure',
+        failureCode,
+        flowKey: 'home',
+      });
       showFeedback(
         'error',
         error instanceof Error ? error.message : progressCopy.claimFailed,
       );
+      await load(true);
     } finally {
-      setClaimPendingCode(null);
+      if (sameWallet(activeWalletRef.current, requestWallet)) {
+        setClaimPendingCode(null);
+      }
     }
   };
 
@@ -904,7 +942,7 @@ export function HomeClient() {
                       void copyUrl(
                         legacyInviteUrl(invite),
                         'legacy_invite',
-                      )}
+                      )
                     onCancelLegacy={(invite, trigger) => {
                       cancelTriggerRef.current = trigger;
                       setLegacyCancelTarget(invite);
