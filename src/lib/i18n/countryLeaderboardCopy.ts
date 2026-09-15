@@ -297,4 +297,14 @@ export const COUNTRY_LEADERBOARD_COPY: Record<
     unavailable: 'Τα δεδομένα χρηστών ανά χώρα δεν είναι προσωρινά διαθέσιμα.',
     tabAria: 'Προβολή κατάταξης',
   },
+  cs: {
+    inviterTab: 'Žebříček zvoucích',
+    countryTab: 'Uživatelé podle země',
+    country: 'Země',
+    count: 'Uživatelé',
+    thisRound: 'toto kolo',
+    empty: 'Zatím nejsou k dispozici žádná data uživatelů podle země.',
+    unavailable: 'Data uživatelů podle země jsou dočasně nedostupná.',
+    tabAria: 'Zobrazení žebříčku',
+  },
 };
