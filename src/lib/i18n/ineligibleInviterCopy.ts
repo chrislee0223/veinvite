@@ -121,4 +121,8 @@ export const INELIGIBLE_INVITER_COPY: Record<
     title: 'Μπορείς τώρα να προσκαλέσεις κάποιον άλλο',
     body: 'Ο φίλος που προσκάλεσες δεν πληροί αυτή τη στιγμή τις προϋποθέσεις συμμετοχής του VeInvite, οπότε αυτή η πρόσκληση ολοκληρώθηκε.',
   },
+  cs: {
+    title: 'Teď můžeš pozvat někoho dalšího',
+    body: 'Tvůj přítel momentálně nesplňuje podmínky účasti ve VeInvite, takže tato pozvánka skončila.',
+  },
 };
