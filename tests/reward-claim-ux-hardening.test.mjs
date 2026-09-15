@@ -115,9 +115,31 @@ test('reward Claim signals synchronize tabs without mutating payout state', () =
   assert.match(paidActivationSync, /window\.location\.reload\(\)/u);
 });
 
-test('finalized receipt tracking can target the exact claimed invite before the initial baseline settles', () => {
-  assert.match(paidActivationSync, /targetInviteCodeRef/u);
-  assert.match(paidActivationSync, /sameInviteCode\(receipt\.inviteCode, targetInviteCode\)/u);
+test('generic Home Claim signals recover only authoritative processing invite identities read-only', () => {
+  assert.match(homeClient, /dispatchRewardClaimUpdated\(\)/u);
+  assert.match(
+    paidActivationSync,
+    /fetch\('\/api\/notifications\/reward-actions',[\s\S]*cache: 'no-store'/u,
+  );
+  assert.match(paidActivationSync, /readProcessingInviteCodes/u);
+  assert.match(paidActivationSync, /action\.status !== 'AWAITING_CLAIM'/u);
+  assert.match(
+    paidActivationSync,
+    /targetInviteCodesRef\.current\.add\(inviteCode\)/u,
+  );
+  assert.match(
+    paidActivationSync,
+    /notifyRewardClaimSessionInvalid\(\)/u,
+  );
+  assert.doesNotMatch(paidActivationSync, /method:\s*'POST'/u);
+});
+
+test('finalized receipt tracking can target claimed invites before the initial baseline settles', () => {
+  assert.match(paidActivationSync, /targetInviteCodesRef/u);
+  assert.match(
+    paidActivationSync,
+    /targetInviteCodes\.has\(receipt\.inviteCode\.trim\(\)\.toUpperCase\(\)\)/u,
+  );
   assert.match(
     paidActivationSync,
     /if \(targetReceipt\)[\s\S]*requestPaidReload/u,
