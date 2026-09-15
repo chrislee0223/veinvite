@@ -21,7 +21,7 @@ test('the center YOU label explicitly follows the selected locale and restores n
   assert.match(source, /NETWORK_CANVAS_CONTROL_COPY\[resolvedLocale\]/);
   assert.match(source, /\.centerWrap > b,\.identity > b,\.crumbs button/);
   assert.match(source, /raw === 'YOU'/);
-  assert.match(source, /setPresentation\(element, controls\.you\)/);
+  assert.match(source, /if \(raw !== controls\.you\) element\.textContent = controls\.you/);
   assert.match(source, /data-v70-root-label|v70RootLabel/);
   assert.match(source, /delete element\.dataset\.v65UiCopy/);
   assert.match(source, /classList\.remove\('v65LocalizedUiCopy'\)/);
