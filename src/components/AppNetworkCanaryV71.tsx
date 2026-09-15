@@ -1,6 +1,6 @@
 'use client';
 
-import { useLayoutEffect } from 'react';
+import { useInsertionEffect, useLayoutEffect } from 'react';
 
 import {
   isLocale,
@@ -9,6 +9,21 @@ import {
 } from '@/lib/i18n/locales';
 import { NETWORK_CANVAS_CONTROL_COPY } from '@/lib/i18n/networkCanvasControlCopy';
 import { AppNetworkCanaryV70 } from './AppNetworkCanaryV70';
+
+const STABLE_PINCH_ENTER_RATIO = 1.2;
+const STABLE_PINCH_FINAL_RATIO = 1.08;
+const STABLE_PINCH_FEEDBACK_MS = 120;
+const STABLE_PINCH_CARD_TIMEOUT_MS = 760;
+const STABLE_PINCH_TRANSITION_MS = 900;
+
+type StablePinchIntent = {
+  root: HTMLElement;
+  startDistance: number;
+  maxRatio: number;
+  currentRatio: number;
+  candidateId: string | null;
+  candidateSamples: number;
+};
 
 function resolveLocale(locale: Locale): SupportedLocale {
   return isLocale(locale) ? locale : 'en';
@@ -23,6 +38,283 @@ function readZoom(root: HTMLElement) {
 function readCenterScale(root: HTMLElement) {
   const parsed = Number.parseFloat(root.style.getPropertyValue('--v46-center-scale'));
   return Number.isFinite(parsed) ? parsed : 1;
+}
+
+function touchDistance(a: Touch, b: Touch) {
+  return Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY);
+}
+
+function pinchMidpoint(a: Touch, b: Touch) {
+  return {
+    x: (a.clientX + b.clientX) / 2,
+    y: (a.clientY + b.clientY) / 2,
+  };
+}
+
+function nearestStablePinchNode(
+  root: HTMLElement,
+  clientX: number,
+  clientY: number,
+  preferredId: string | null,
+) {
+  let bestNode: HTMLButtonElement | null = null;
+  let bestDistance = Number.POSITIVE_INFINITY;
+  const nodes = Array.from(
+    root.querySelectorAll<HTMLButtonElement>('.personNode[data-node-id]'),
+  );
+
+  for (const node of nodes) {
+    if (node.classList.contains('v42CollapsedMember')) continue;
+    const circle = node.querySelector<HTMLElement>('.nodeCircle');
+    if (!circle) continue;
+    const rect = circle.getBoundingClientRect();
+    if (rect.width <= 0 || rect.height <= 0) continue;
+
+    const id = node.dataset.nodeId ?? null;
+    const preferred = Boolean(preferredId && id === preferredId);
+    const radius = Math.max(preferred ? 40 : 34, rect.width * (preferred ? .92 : .72));
+    const distance = Math.hypot(
+      clientX - (rect.left + rect.width / 2),
+      clientY - (rect.top + rect.height / 2),
+    );
+    if (distance > radius || distance >= bestDistance) continue;
+    bestNode = node;
+    bestDistance = distance;
+  }
+
+  return bestNode;
+}
+
+function NetworkStablePinchEntryV71() {
+  useInsertionEffect(() => {
+    let mounted = true;
+    let pinchIntent: StablePinchIntent | null = null;
+    let navigationNode: HTMLButtonElement | null = null;
+    let feedbackTimer: number | null = null;
+    let transitionTimer: number | null = null;
+    let navigationFrame = 0;
+
+    const realGroupPanel = (root: HTMLElement) =>
+      root.querySelector<HTMLElement>('.v42GroupPanel');
+
+    const clearNavigationWork = (releaseTransition: boolean) => {
+      if (feedbackTimer !== null) {
+        window.clearTimeout(feedbackTimer);
+        feedbackTimer = null;
+      }
+      if (navigationFrame) {
+        window.cancelAnimationFrame(navigationFrame);
+        navigationFrame = 0;
+      }
+      navigationNode?.classList.remove('v50NavigationCandidate');
+      navigationNode = null;
+
+      if (releaseTransition) {
+        if (transitionTimer !== null) {
+          window.clearTimeout(transitionTimer);
+          transitionTimer = null;
+        }
+        document.querySelector<HTMLElement>('.productionNetworkCanaryV45')
+          ?.classList.remove('v50NetworkTransition');
+      }
+    };
+
+    const clearTransientEntry = () => {
+      pinchIntent = null;
+      clearNavigationWork(true);
+    };
+
+    const holdTransition = (root: HTMLElement) => {
+      root.classList.add('v50NetworkTransition');
+      if (transitionTimer !== null) window.clearTimeout(transitionTimer);
+      transitionTimer = window.setTimeout(() => {
+        transitionTimer = null;
+        root.classList.remove('v50NetworkTransition');
+      }, STABLE_PINCH_TRANSITION_MS);
+    };
+
+    const enterStableNode = (root: HTMLElement, node: HTMLButtonElement) => {
+      if (!mounted || navigationNode || !node.isConnected) return;
+      const stage = root.querySelector<HTMLElement>('.stage');
+      if (!stage || stage.classList.contains('editMode') || realGroupPanel(root)) {
+        root.classList.remove('v50NetworkTransition');
+        return;
+      }
+
+      const circle = node.querySelector<HTMLElement>('.nodeCircle');
+      if (!circle) {
+        root.classList.remove('v50NetworkTransition');
+        return;
+      }
+
+      navigationNode = node;
+      node.classList.add('v50NavigationCandidate');
+      holdTransition(root);
+      const expectedLabel = node.querySelector<HTMLElement>(':scope > b')?.textContent?.trim() ?? '';
+
+      feedbackTimer = window.setTimeout(() => {
+        feedbackTimer = null;
+        if (!mounted || !node.isConnected) {
+          clearNavigationWork(true);
+          return;
+        }
+
+        circle.click();
+        const deadline = performance.now() + STABLE_PINCH_CARD_TIMEOUT_MS;
+
+        const waitForSelectedCard = () => {
+          navigationFrame = 0;
+          if (!mounted || !node.isConnected) {
+            clearNavigationWork(true);
+            return;
+          }
+
+          const viewNetwork = root.querySelector<HTMLButtonElement>('.profileCard .viewNetwork');
+          const cardLabel = root.querySelector<HTMLElement>('.profileCard > div b')?.textContent?.trim() ?? '';
+          const selected = node.classList.contains('canarySelectedNode');
+          const matchingCard = !expectedLabel || cardLabel === expectedLabel;
+
+          if (viewNetwork && selected && matchingCard) {
+            viewNetwork.click();
+            node.classList.remove('v50NavigationCandidate');
+            navigationNode = null;
+            return;
+          }
+
+          if (performance.now() >= deadline) {
+            clearNavigationWork(true);
+            return;
+          }
+          navigationFrame = window.requestAnimationFrame(waitForSelectedCard);
+        };
+
+        navigationFrame = window.requestAnimationFrame(waitForSelectedCard);
+      }, STABLE_PINCH_FEEDBACK_MS);
+    };
+
+    const onTouchStart = (event: TouchEvent) => {
+      if (event.touches.length !== 2) return;
+      const target = event.target instanceof Element ? event.target : null;
+      const root = target?.closest<HTMLElement>('.productionNetworkCanaryV45') ?? null;
+      const stage = root?.querySelector<HTMLElement>('.stage') ?? null;
+      if (!root || !stage || !target || !stage.contains(target)) return;
+      if (root.classList.contains('v50NetworkTransition') || stage.classList.contains('editMode') || realGroupPanel(root)) return;
+
+      const a = event.touches[0];
+      const b = event.touches[1];
+      const midpoint = pinchMidpoint(a, b);
+      const candidate = nearestStablePinchNode(root, midpoint.x, midpoint.y, null);
+      pinchIntent = {
+        root,
+        startDistance: Math.max(1, touchDistance(a, b)),
+        maxRatio: 1,
+        currentRatio: 1,
+        candidateId: candidate?.dataset.nodeId ?? null,
+        candidateSamples: candidate ? 1 : 0,
+      };
+    };
+
+    const onTouchMove = (event: TouchEvent) => {
+      const intent = pinchIntent;
+      if (!intent || event.touches.length !== 2 || !intent.root.isConnected) return;
+      const a = event.touches[0];
+      const b = event.touches[1];
+      const ratio = touchDistance(a, b) / intent.startDistance;
+      intent.currentRatio = ratio;
+      intent.maxRatio = Math.max(intent.maxRatio, ratio);
+
+      const midpoint = pinchMidpoint(a, b);
+      const candidate = nearestStablePinchNode(
+        intent.root,
+        midpoint.x,
+        midpoint.y,
+        intent.candidateId,
+      );
+      const nextId = candidate?.dataset.nodeId ?? null;
+      if (nextId && nextId === intent.candidateId) {
+        intent.candidateSamples = Math.min(12, intent.candidateSamples + 1);
+      } else {
+        intent.candidateId = nextId;
+        intent.candidateSamples = nextId ? 1 : 0;
+      }
+    };
+
+    const onTouchEnd = (event: TouchEvent) => {
+      if (!pinchIntent || event.touches.length > 0) return;
+      const intent = pinchIntent;
+      pinchIntent = null;
+      const root = intent.root;
+      if (
+        !root.isConnected ||
+        intent.maxRatio < STABLE_PINCH_ENTER_RATIO ||
+        intent.currentRatio < STABLE_PINCH_FINAL_RATIO
+      ) return;
+
+      // V50 also has a legacy pinch-enter finisher on window. This insertion
+      // effect registers first, so marking the same transition guard here makes
+      // that older finisher return without changing its drag/pan/group logic.
+      // Blank-space pinches release the guard in a microtask and remain zoom-only.
+      const alreadyTransitioning = root.classList.contains('v50NetworkTransition');
+      if (!alreadyTransitioning) root.classList.add('v50NetworkTransition');
+
+      const releaseLegacyGuard = () => {
+        if (!alreadyTransitioning && !navigationNode) {
+          root.classList.remove('v50NetworkTransition');
+        }
+      };
+
+      const stage = root.querySelector<HTMLElement>('.stage');
+      if (!stage || stage.classList.contains('editMode') || realGroupPanel(root)) {
+        queueMicrotask(releaseLegacyGuard);
+        return;
+      }
+
+      const id = intent.candidateId;
+      if (!id || intent.candidateSamples < 2) {
+        queueMicrotask(releaseLegacyGuard);
+        return;
+      }
+
+      const node = root.querySelector<HTMLButtonElement>(
+        `.personNode[data-node-id="${CSS.escape(id)}"]`,
+      );
+      if (!node || node.classList.contains('v42CollapsedMember')) {
+        queueMicrotask(releaseLegacyGuard);
+        return;
+      }
+
+      enterStableNode(root, node);
+    };
+
+    const onTouchCancel = () => {
+      pinchIntent = null;
+    };
+
+    const onVisibilityChange = () => {
+      if (document.visibilityState === 'hidden') clearTransientEntry();
+    };
+
+    window.addEventListener('touchstart', onTouchStart, { capture: true, passive: true });
+    window.addEventListener('touchmove', onTouchMove, { capture: true, passive: true });
+    window.addEventListener('touchend', onTouchEnd, { capture: true, passive: true });
+    window.addEventListener('touchcancel', onTouchCancel, { capture: true, passive: true });
+    window.addEventListener('blur', clearTransientEntry);
+    document.addEventListener('visibilitychange', onVisibilityChange);
+
+    return () => {
+      mounted = false;
+      pinchIntent = null;
+      window.removeEventListener('touchstart', onTouchStart, true);
+      window.removeEventListener('touchmove', onTouchMove, true);
+      window.removeEventListener('touchend', onTouchEnd, true);
+      window.removeEventListener('touchcancel', onTouchCancel, true);
+      window.removeEventListener('blur', clearTransientEntry);
+      document.removeEventListener('visibilitychange', onVisibilityChange);
+      clearNavigationWork(true);
+    };
+  }, []);
+
+  return null;
 }
 
 function NetworkRootIdentityPlacementV71({ locale }: { locale: Locale }) {
@@ -127,6 +419,7 @@ export function AppNetworkCanaryV71({ locale }: { locale: Locale }) {
   return (
     <>
       <AppNetworkCanaryV70 locale={locale} />
+      <NetworkStablePinchEntryV71 />
       <NetworkRootIdentityPlacementV71 locale={locale} />
       <style jsx global>{`
         /* Root identity: replace the existing V45 center dot itself. */
