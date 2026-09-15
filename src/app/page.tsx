@@ -2,9 +2,11 @@ import { cookies } from 'next/headers';
 
 import { ActiveWalletRewardReceiptNotice } from '@/components/ActiveWalletRewardReceiptNotice';
 import { HomeClient } from '@/components/HomeClient';
-import { InviteStatusAutoRefresh } from '@/components/InviteStatusAutoRefresh';
 import { RewardForecastSeedProvider } from '@/components/RewardForecastSeedProvider';
 import { WalletSessionGate } from '@/components/WalletSessionGate';
+import {
+  readCurrentLegalConsent,
+} from '@/lib/legalConsentServer';
 import { readPublicRewardForecastSeed } from '@/lib/rewards/publicRewardForecastSeedServer';
 import {
   getWalletSessionFromTokens,
@@ -40,6 +42,24 @@ export default async function HomePage() {
   const initialSessionWallet =
     initialSession?.walletAddress ?? null;
 
+  let initialLegalConsentAccepted = false;
+  if (initialSessionWallet) {
+    try {
+      initialLegalConsentAccepted = Boolean(
+        await readCurrentLegalConsent(
+          initialSessionWallet,
+        ),
+      );
+    } catch (error) {
+      // Fall back to the client consent check rather than failing Home. The
+      // server bootstrap is an optimization only; consent remains authoritative.
+      console.error(
+        'Failed to bootstrap VeInvite legal consent:',
+        error,
+      );
+    }
+  }
+
   return (
     <>
       <span
@@ -54,8 +74,10 @@ export default async function HomePage() {
         initialSessionWallet={
           initialSessionWallet
         }
+        initialLegalConsentAccepted={
+          initialLegalConsentAccepted
+        }
       >
-        <InviteStatusAutoRefresh />
         <RewardForecastSeedProvider
           initialForecast={initialRewardForecast}
         >
