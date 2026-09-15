@@ -2,21 +2,18 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import test from 'node:test';
 
-const [source, dragGhostSource, localeLayoutSource, rootIdentitySource, touchNavigationSource, guideSource] = await Promise.all([
+const [source, dragGhostSource, localeLayoutSource, rootIdentitySource, guideSource] = await Promise.all([
   readFile('src/components/AppNetworkCanaryV68.tsx', 'utf8'),
   readFile('src/components/AppNetworkCanaryV69.tsx', 'utf8'),
   readFile('src/components/AppNetworkCanaryV70.tsx', 'utf8'),
   readFile('src/components/AppNetworkCanaryV71.tsx', 'utf8'),
-  readFile('src/components/AppNetworkCanaryV72.tsx', 'utf8'),
   readFile('src/components/AppGuide.tsx', 'utf8'),
 ]);
 
-test('V68 still wraps the stable V67 Network surface behind V72, V71, V70 and V69', () => {
+test('V68 still wraps the stable V67 Network surface behind V71, V70 and V69', () => {
   assert.match(source, /AppNetworkCanaryV67/);
   assert.match(source, /<AppNetworkCanaryV67 locale=\{locale\} \/>/);
-  assert.match(guideSource, /AppNetworkCanaryV72/);
-  assert.match(touchNavigationSource, /AppNetworkCanaryV71/);
-  assert.match(touchNavigationSource, /<AppNetworkCanaryV71 locale=\{locale\} \/>/);
+  assert.match(guideSource, /AppNetworkCanaryV71/);
   assert.match(rootIdentitySource, /AppNetworkCanaryV70/);
   assert.match(rootIdentitySource, /<AppNetworkCanaryV70 locale=\{locale\} \/>/);
   assert.match(localeLayoutSource, /AppNetworkCanaryV69/);
