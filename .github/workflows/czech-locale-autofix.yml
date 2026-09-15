@@ -1,0 +1,123 @@
+name: Czech Locale Autofix
+
+on:
+  push:
+    branches:
+      - feat/czech-locale
+
+permissions:
+  contents: write
+
+jobs:
+  complete-czech:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: feat/czech-locale
+          fetch-depth: 0
+      - name: Complete Czech locale tables
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import re
+
+          def bounds(text, name):
+              pos = text.index(name)
+              eq = text.index('=', pos)
+              start = text.index('{', eq)
+              i = start
+              depth = 0
+              quote = None
+              line_comment = False
+              block_comment = False
+              escape = False
+              while i < len(text):
+                  c = text[i]
+                  n = text[i+1] if i + 1 < len(text) else ''
+                  if line_comment:
+                      if c == '\n': line_comment = False
+                      i += 1; continue
+                  if block_comment:
+                      if c == '*' and n == '/': block_comment = False; i += 2; continue
+                      i += 1; continue
+                  if quote:
+                      if escape: escape = False
+                      elif c == '\\': escape = True
+                      elif c == quote: quote = None
+                      i += 1; continue
+                  if c == '/' and n == '/': line_comment = True; i += 2; continue
+                  if c == '/' and n == '*': block_comment = True; i += 2; continue
+                  if c in "'\"`": quote = c; i += 1; continue
+                  if c == '{': depth += 1
+                  elif c == '}':
+                      depth -= 1
+                      if depth == 0: return start, i
+                  i += 1
+              raise RuntimeError(f'Could not find end of {name}')
+
+          def add(path, name, entry):
+              p = Path(path)
+              text = p.read_text()
+              start, end = bounds(text, name)
+              segment = text[start:end]
+              if re.search(r'^\s*cs\s*:', segment, re.M):
+                  return
+              if not entry.endswith('\n'): entry += '\n'
+              p.write_text(text[:end] + entry + text[end:])
+
+          add('src/lib/i18n/guideCopyFinalHardening.ts', 'FINAL_GUIDE_COPY', '''  cs: { title: "Jak fungují pozvánky?", inviteStepTitle: "Sdílej svůj odkaz na pozvánku", eligibilityTitle: "Kdo se může zapojit?", countTitle: "Jak se počítají veřejné součty?", flowDescription: "Samotné sdílení odkazu pozvánku nedokončí. Tvůj přítel musí projít kontrolou způsobilosti a dokončit všechny mise.", inviteDescription: "Máš 1 trvalý odkaz na pozvánku a 2 znovupoužitelná místa pro přátele. Současně mohou postupovat až 2 způsobilí přátelé a pouhé otevření odkazu žádné místo neobsadí.", countDescription: "Do veřejných součtů nových a vracejících se uživatelů se započítají jen peněženky, které dokončí všechny mise.", missionTitle: "Tvůj přítel dokončí všechny mise", missionDescription: "Získá odměny B3TR alespoň ze 3 různých dApps VeBetterDAO, převede B3TR na VOT3 a jednou se zúčastní Allocation Voting.", rewardTitle: "Odměna se vyplatí automaticky", rewardDescription: "Jakmile je pozvánka tvého přítele dokončena a vznikne nárok na odměnu, VeInvite ji automaticky vyplatí prostřednictvím procesu výplaty. Místo dokončeného přítele se znovu uvolní, takže můžeš pozvat někoho dalšího." },''')
+
+          add('src/lib/i18n/networkCanaryInteractionCopy.ts', 'NETWORK_CANARY_INTERACTION_COPY', '''  cs: { alreadyIn: 'Už je ve skupině {group}', releaseMove: 'Pusť pro přesun do {group}', releaseAdd: 'Pusť pro přidání do {group}', moved: '✓ Přesunuto', added: '✓ Přidáno', saveError: 'Tuto pozici se nepodařilo uložit.', confirmMoveError: 'Přesun do skupiny se nepodařilo potvrdit.' },''')
+
+          add('src/lib/i18n/networkCanaryUiCopy.ts', 'NETWORK_CANARY_UI_COPY', '''  cs: { groups:'Skupiny', myGroups:'Moje skupiny', savedCount:'Uloženo zde: {count}', createGroup:'Vytvořit skupinu', zoomFirst:'Nejprve přibliž, abys mohl vybrat jednotlivé lidi', dropPersonOrTap:'Přetáhni sem člověka nebo klepni pro vytvoření', peopleCount:'Lidé: {count}', releaseAdd:'Pusť pro přidání', emptyReady:'Prázdné · připraveno k přetažení', collapsed:'Sbaleno', expanded:'Rozbaleno', edit:'Upravit', noGroups:'Zatím žádné skupiny', optional:'Výběr lidí je volitelný', selectedCount:'Vybráno: {count}', willMoveCount:'Sem se přesune: {count}', groupName:'Název skupiny', cancel:'Zrušit', create:'Vytvořit', tapAddRemove:'Klepnutím lidi přidáš nebo odebereš', zeroAllowed:'Skupina může zůstat prázdná', save:'Uložit změny', removeFromGroup:'Odebrat ze skupiny', releaseHere:'Pusť sem', dragUngroup:'Přetáhni sem pouze pro odebrání ze skupiny', undo:'Zpět', addPeople:'Přidat lidi', dragOrTap:'Přetáhni ze sítě nebo klepnutím vyber', noPeopleSelected:'Zatím nikdo není vybrán', move:'Přesunout', editLayout:'Upravit rozložení', done:'Hotovo', reset:'Obnovit', fit:'Přizpůsobit', groupsCount:'Skupiny: {count}', allCanvas:'Vše na jedné obrazovce', joining:'Připojuje se', available:'Lze pozvat', hintEdit:'Volně přetahuj · klepnutím na pozadí dokonči', hintCluster:'Přibliž nebo klepni na +N pro rozbalení · oddálením znovu seskupíš', hintView:'Podrž člověka pro úpravy · táhni obrazovku · sevřením prstů měň přiblížení', empty:'Prázdné', removed:'Odstraněno', newFriendJoining:'Připojuje se nový přítel…', verifiedAdding:'Ověřeno · přidává se do této sítě', newNodeAdded:'Přidán nový přítel' },''')
+
+          add('src/lib/i18n/networkExperienceCopy.ts', 'NETWORK_EXPERIENCE_COPY', '''  cs: { title:'Moje síť', direct:'Přímí', qualified:'Splněno', thisRound:'Toto kolo', directNetwork:'Přímá síť', inProgress:'Probíhá', rewarded:'Odměněno', searchPlaceholder:'Hledat peněženku v síti', noSearchResults:'V síti nebyla nalezena žádná odpovídající peněženka.', networkSize:'Velikost sítě', recentGrowth:'Nedávný růst', emptyTitle:'Tady začíná tvoje síť', emptyDescription:'Pozvi způsobilého nového nebo vracejícího se uživatele. Jakmile projde vstupní kontrolou VeInvite, automaticky se tu zobrazí.', inviteFriend:'Pozvat přítele', connectTitle:'Připoj peněženku a zobraz svou síť', connectDescription:'Tvoje síť VeInvite je dostupná jen v ověřené relaci peněženky.', connectWallet:'Připojit peněženku', loadError:'Síť se nepodařilo načíst.', retry:'Zkusit znovu', backToMine:'Zpět na moji síť', invitedBy:'Pozval', showAll:'Zobrazit vše', noMatching:'Žádné odpovídající přímé větve.' },''')
+
+          add('src/lib/i18n/networkExploreCopy.ts', 'NETWORK_EXPLORE_COPY', '''  cs: { exploreNetwork:'Prozkoumat síť', exploreTitle:'Prozkoumat veřejné sítě', exploreDescription:'Procházej veřejné sítě VeInvite ve stejném interaktivním zobrazení. Soukromá spojení zůstávají skrytá.', myNetwork:'Moje síť', publicSettings:'Veřejná síť', publicEnabled:'Veřejný přístup', publicEnabledNote:'Umožni lidem, kteří znají adresu tvé peněženky, zobrazit tvoji veřejnou síť.', discoverable:'Zobrazit ve veřejném seznamu', discoverableNote:'Zobraz svou síť v seznamu veřejných sítí.', noPublicNetworks:'Zatím nejsou dostupné žádné veřejné sítě.', walletPlaceholder:'Zadej přesnou adresu peněženky', openNetwork:'Otevřít síť', backToMyNetwork:'Zpět na moji síť', viewing:'Prohlížíš', visibleNetwork:'Veřejná síť', privateBranchesHidden:'Soukromá spojení jsou skrytá', visibilityError:'Nastavení veřejné sítě se nepodařilo změnit.', networkPrivate:'Tato síť je soukromá.', maintenance:'Síť je dočasně nedostupná.' },''')
+
+          add('src/lib/i18n/networkHubCopy.ts', 'NETWORK_HUB_COPY', '''  cs: { maintenanceTitle:'Síť se připravuje', maintenanceDescription:'Nové prostředí sítě připravujeme bezpečně. Zkus to prosím znovu za chvíli.', visibilityLoading:'Kontrolujeme nastavení veřejné sítě…', visibilityUnknown:'Nastavení veřejné sítě se nepodařilo ověřit. Zkus to znovu.', publicConfirm:'Zapnout veřejnou síť? Ostatní uvidí adresu tvé peněženky a cesty pozvánek, které se rozhodneš zveřejnit. Informace o misích, odměnách a zabezpečení zůstanou soukromé.' },''')
+
+          add('src/lib/i18n/networkNativeReview.ts', 'NETWORK_NATIVE_REVIEW', '''  cs: {
+    canary: { hintView: 'Podrž člověka pro úpravy · táhni obrazovku · sevřením prstů měň přiblížení' },
+    explore: { exploreDescription: 'Procházej veřejné sítě VeInvite ve stejném zobrazení sítě. Soukromá spojení zůstávají skrytá.', discoverable: 'Zobrazit ve veřejném seznamu', discoverableNote: 'Zobraz svou síť v seznamu veřejných sítí.', privateBranchesHidden: 'Soukromá spojení zůstávají skrytá' },
+    hub: { maintenanceTitle: 'Síť se připravuje', maintenanceDescription: 'Nové prostředí sítě připravujeme bezpečně. Zkus to prosím znovu za chvíli.', visibilityLoading: 'Kontrolujeme nastavení veřejné sítě…', visibilityUnknown: 'Nastavení veřejné sítě se nepodařilo ověřit. Zkus to znovu.', publicConfirm: 'Zapnout veřejnou síť? Ostatní uvidí adresu tvé peněženky a cesty pozvánek, které se rozhodneš zveřejnit. Informace o misích, odměnách a zabezpečení zůstanou soukromé.' },
+    network: { title: 'Tvoje síť bude brzy dostupná' },
+  },''')
+
+          add('src/lib/i18n/networkNaturalnessPolish.ts', 'NETWORK_NATURALNESS_PATCHES', '''  cs: {
+    canary: { savedCount:'Lidé v této skupině: {count}', peopleCount:'Lidé: {count}', groupsCount:'Skupiny: {count}', zeroAllowed:'Skupina může zůstat prázdná', dragUngroup:'Pusť sem pro odebrání ze skupiny', newNodeAdded:'Přidán nový přítel' },
+  },''')
+          add('src/lib/i18n/networkNaturalnessPolish.ts', 'NETWORK_USER_FACING_CANARY_POLISH', '''  cs: { hintView:'Podrž člověka pro úpravy · táhni obrazovku · sevřením prstů měň přiblížení', allCanvas:'Vše na jedné obrazovce', available:'Lze pozvat', removed:'Skupina odstraněna' },''')
+
+          add('src/lib/i18n/privacyCountryObservationCopy.ts', 'PRIVACY_COUNTRY_OBSERVATION_COPY', '''  cs: {
+    updated: 'Poslední aktualizace: 7. září 2026',
+    heading: 'Přibližné určení země',
+    body: 'Když je aktivní ověřená relace peněženky, VeInvite může zaznamenat dvoupísmenný kód země poskytnutý důvěryhodnou edge infrastrukturou. Tento hrubý signál síťové polohy může být uložen spolu s aktivací doporučení a používá se pouze pro souhrnné statistiky a žebříčky podle zemí u ověřených doporučení. VeInvite neurčuje zemi podle zvoleného jazyka aplikace, pro tuto funkci neukládá nezpracované IP adresy a nezveřejňuje vazby mezi peněženkami a zeměmi. Kód země není považován za údaj o státní příslušnosti ani přesné poloze.',
+  },''')
+
+          add('src/lib/i18n/privacySecurityClientCopy.ts', 'PRIVACY_SECURITY_CLIENT_COPY', '''  cs: {
+    updated: 'Poslední aktualizace: 7. září 2026',
+    heading: 'Zabezpečení a prevence zneužití odměn',
+    body: 'Během ověřené relace peněženky může VeInvite používat náhodný pseudonymní identifikátor Security Client v HttpOnly cookie prohlížeče a ukládat jeho SHA-256 hash spolu s ověřenými vazbami peněženek. Je oddělený od anonymní analytiky používání a slouží pouze k prověřování bezpečnosti, podvodů a zneužití odměn. Funkce Security Client neshromažďuje telefonní čísla, IMEI, reklamní identifikátory, sériová čísla hardwaru, IP adresy ani součásti otisku prohlížeče. Sdílený Security Client je pouze signál k prověření, nikoli automatický důkaz zneužití. Technické vazby Security Client se běžně mažou 365 dní po vytvoření klienta; důkazy potřebné pro neuzavřené prověřování mohou být uchovány do jeho ukončení. Konečné záznamy o způsobilosti, bezpečnostních rozhodnutích, odměnách a auditu mohou být v odůvodněných případech uchovány déle.',
+  },''')
+
+          add('src/lib/i18n/referralLinkCopy.ts', 'REFERRAL_LINK_COPY', '''  cs: { badge:'2 MÍSTA PRO PŘÁTELE', homeTitle:'Tvůj trvalý odkaz na pozvánku', homeDescription:'Sdílej kdykoli stejný odkaz. Současně mohou postupovat až dva způsobilí přátelé a samotné otevření odkazu žádné místo neobsadí.', linkLabel:'Trvalý odkaz na pozvánku', linkHelp:'Odkaz zůstane stejný i poté, co přítel dokončí mise.', slotsLabel:'Přátelé v průběhu', slotAvailable:'Volné · sdílej odkaz s přítelem', slotInProgress:'Probíhá · přítel dokončuje mise', slotReview:'Závěrečná kontrola · ověřujeme přítele', slotLegacyWaiting:'Starší pozvánka · čekáme na přítele', slotBlockedReleased:'Neschváleno · místo je znovu volné', slotsFullTitle:'Obě místa pro přátele jsou obsazená', slotsFullHelp:'U tohoto zvoucího už postupují dva přátelé. Trvalý odkaz je stále platný, zkus to později znovu.', retry:'Zkusit znovu', guideInviteDescription:'Máš jeden trvalý odkaz na pozvánku a dvě znovupoužitelná místa pro přátele. Současně mohou postupovat až dva způsobilí přátelé. Samotné otevření odkazu místo neobsadí; rezervuje se až po ověření způsobilosti.' },''')
+
+          add('src/lib/i18n/referralLinkCopyFinalHardening.ts', 'LEGACY_CANCEL_DESCRIPTION', "  cs: 'Tento starý jednorázový odkaz přestane fungovat. Tvůj trvalý odkaz na pozvánku zůstane platný a toto místo pro přítele se znovu uvolní.',")
+          add('src/lib/i18n/referralLinkCopyFinalHardening.ts', 'LEGACY_CANCEL_SUCCESS', "  cs: 'Starý jednorázový odkaz byl zrušen. Tvůj trvalý odkaz na pozvánku se nezměnil a toto místo je znovu volné.',")
+          add('src/lib/i18n/referralLinkCopyFinalHardening.ts', 'REFERRAL_HOME_TITLE', "  cs: 'Tvůj odkaz na pozvánku',")
+          PY
+
+          rm -f .github/workflows/czech-locale-autofix.yml
+          git diff --check
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -A
+          if git diff --cached --quiet; then
+            exit 0
+          fi
+          git commit -m 'Complete Czech locale tables'
+          git push origin HEAD:feat/czech-locale
