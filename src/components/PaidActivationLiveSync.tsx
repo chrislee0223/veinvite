@@ -54,6 +54,8 @@ export function PaidActivationLiveSync() {
   const initializedRef = useRef(false);
   const claimPollTimerRef = useRef<number | null>(null);
   const claimPollDeadlineRef = useRef(0);
+  const claimPollGenerationRef = useRef(0);
+  const autoClaimPollStartedRef = useRef(false);
   const reloadRequestedRef = useRef(false);
   const readInFlightRef = useRef<Promise<string | null> | null>(null);
   const claimStatusReadInFlightRef = useRef<Promise<boolean> | null>(null);
@@ -121,6 +123,8 @@ export function PaidActivationLiveSync() {
   }, [readLatest]);
 
   const stopClaimPolling = useCallback(() => {
+    claimPollGenerationRef.current += 1;
+
     if (claimPollTimerRef.current !== null) {
       window.clearTimeout(claimPollTimerRef.current);
       claimPollTimerRef.current = null;
@@ -129,8 +133,13 @@ export function PaidActivationLiveSync() {
 
   const scheduleClaimPoll = useCallback(() => {
     stopClaimPolling();
+    const generation = claimPollGenerationRef.current;
 
     const poll = async () => {
+      if (generation !== claimPollGenerationRef.current) {
+        return;
+      }
+
       if (document.visibilityState !== 'visible') {
         if (Date.now() < claimPollDeadlineRef.current) {
           claimPollTimerRef.current = window.setTimeout(
@@ -150,7 +159,10 @@ export function PaidActivationLiveSync() {
         // temporary receipt read failure must not affect the core app.
       }
 
-      if (Date.now() < claimPollDeadlineRef.current) {
+      if (
+        generation === claimPollGenerationRef.current &&
+        Date.now() < claimPollDeadlineRef.current
+      ) {
         claimPollTimerRef.current = window.setTimeout(
           poll,
           CLAIM_POLL_INTERVAL_MS,
@@ -164,7 +176,8 @@ export function PaidActivationLiveSync() {
   const ensureClaimPolling = useCallback(async () => {
     if (
       document.visibilityState !== 'visible' ||
-      reloadRequestedRef.current
+      reloadRequestedRef.current ||
+      autoClaimPollStartedRef.current
     ) {
       return;
     }
@@ -174,14 +187,15 @@ export function PaidActivationLiveSync() {
         return;
       }
 
-      claimPollDeadlineRef.current = Math.max(
-        claimPollDeadlineRef.current,
-        Date.now() + CLAIM_POLL_TIMEOUT_MS,
-      );
-
-      if (claimPollTimerRef.current === null) {
-        scheduleClaimPoll();
+      // Another overlapping status read may have already started the automatic
+      // fast-poll window while this request was in flight.
+      if (autoClaimPollStartedRef.current || reloadRequestedRef.current) {
+        return;
       }
+
+      autoClaimPollStartedRef.current = true;
+      claimPollDeadlineRef.current = Date.now() + CLAIM_POLL_TIMEOUT_MS;
+      scheduleClaimPoll();
     } catch {
       // This is a read-only liveness hint. Existing Claim, receipt, recovery and
       // cron paths remain authoritative when the hint cannot be read.
@@ -193,6 +207,7 @@ export function PaidActivationLiveSync() {
     void ensureClaimPolling();
 
     const onClaimUpdated = () => {
+      autoClaimPollStartedRef.current = true;
       claimPollDeadlineRef.current = Date.now() + CLAIM_POLL_TIMEOUT_MS;
       scheduleClaimPoll();
     };
