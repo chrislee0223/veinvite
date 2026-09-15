@@ -17,7 +17,7 @@ function loadingState(status = 'loading') {
   };
 }
 
-test('first paint keeps wallet Home covered while API data hydrates', () => {
+test('server-verified reload reveals the Home shell while read-only API data hydrates', () => {
   const base = {
     walletAddress: WALLET,
     homeState: loadingState(),
@@ -28,22 +28,29 @@ test('first paint keeps wallet Home covered while API data hydrates', () => {
 
   assert.equal(
     resolveStartupReadiness(base),
-    'hold',
+    'release',
   );
   assert.equal(
     resolveStartupReadiness({
       ...base,
       allowHomeDataHydration: true,
     }),
-    'hold',
+    'release',
   );
   assert.equal(
     resolveStartupReadiness({
       ...base,
       homeState: loadingState('error'),
-      allowHomeDataHydration: true,
     }),
     'error',
+  );
+
+  assert.equal(
+    resolveStartupReadiness({
+      ...base,
+      hasBootstrappedSession: false,
+    }),
+    'hold',
   );
 });
 
@@ -175,8 +182,6 @@ test('invite-only visual and language enhancements stay out of normal Home start
   assert.match(scoped, /pathname\.startsWith\('\/ui-test'\)/);
   assert.match(scoped, /if \(!needsInviteEnhancements\(pathname\)\) \{[\s\S]*return null;/);
 
-  // The body-wide observer is still available where the invite picker is
-  // actually needed, but normal Home no longer mounts it at all.
   assert.match(picker, /new MutationObserver\(scheduleAttach\)/);
 });
 
