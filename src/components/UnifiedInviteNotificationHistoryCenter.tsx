@@ -31,6 +31,7 @@ import {
 } from '@/lib/productAnalytics';
 import {
   dispatchRewardClaimUpdated,
+  notifyRewardClaimSessionInvalid,
   reconcileRewardClaimState,
 } from '@/lib/rewards/rewardClaimClient';
 import type { RewardReceipt } from '@/lib/rewards/rewardReceipt';
@@ -318,6 +319,9 @@ export function InviteNotificationHistoryCenter({
       const body = (await response.json()) as RewardActionResponse;
 
       if (!response.ok) {
+        if (response.status === 401 || response.status === 403) {
+          notifyRewardClaimSessionInvalid();
+        }
         throw new Error(body.error || 'Reward actions could not be loaded.');
       }
       if (actionRequestRef.current !== requestId) return;
@@ -416,6 +420,9 @@ export function InviteNotificationHistoryCenter({
             : response.status >= 500
               ? 'server'
               : 'unknown';
+        if (failureCode === 'wallet_auth') {
+          notifyRewardClaimSessionInvalid();
+        }
         throw new Error(body.error || progressCopy.claimFailed);
       }
 
@@ -429,7 +436,7 @@ export function InviteNotificationHistoryCenter({
         outcome: 'success',
         flowKey: 'home',
       });
-      dispatchRewardClaimUpdated();
+      dispatchRewardClaimUpdated(action.inviteCode);
       void loadRewardActions();
     } catch (error) {
       if (failureCode !== 'wallet_auth') {
@@ -462,7 +469,7 @@ export function InviteNotificationHistoryCenter({
             outcome: 'success',
             flowKey: 'home',
           });
-          dispatchRewardClaimUpdated();
+          dispatchRewardClaimUpdated(action.inviteCode);
           void loadRewardActions();
           return;
         }
