@@ -1,10 +1,9 @@
 name: Czech Final Quality Fix
 
 on:
-  pull_request:
+  push:
     branches:
       - feat/czech-locale
-    types: [opened, reopened, synchronize]
 
 permissions:
   contents: write
@@ -28,13 +27,13 @@ jobs:
           if "  cs: {" not in text:
               marker = "  el: {\n    newEntry: 'ΝΕΟ',"
               entry = """  cs: {
-    newEntry: 'NOVÝ',
-    up: (places) => `O ${places} míst výše než na konci minulého kola`,
-    down: (places) => `O ${places} míst níže než na konci minulého kola`,
-    same: 'Stejné pořadí jako na konci minulého kola',
-    newEntryAria: 'Nově v žebříčku od konce minulého kola',
-  },
-"""
+            newEntry: 'NOVÝ',
+            up: (places) => `O ${places} míst výše než na konci minulého kola`,
+            down: (places) => `O ${places} míst níže než na konci minulého kola`,
+            same: 'Stejné pořadí jako na konci minulého kola',
+            newEntryAria: 'Nově v žebříčku od konce minulého kola',
+          },
+          """
               if marker not in text:
                   raise SystemExit('leaderboard movement insertion point not found')
               text = text.replace(marker, entry + marker, 1)
@@ -51,8 +50,7 @@ jobs:
               path = Path(name)
               source = path.read_text()
               source = source.replace('supportedLocales.length, 28', 'supportedLocales.length, 29')
-              source = source.replace('supported.length, 28', 'supported.length, 29')
-              source = source.replace('locales.length, 28', 'locales.length, 29')
+              source = source.replace("'sw', 'ha', 'el',\n];", "'sw', 'ha', 'el', 'cs',\n];")
               source = source.replace('all 28 supported locales', 'all 29 supported locales')
               source = source.replace('all 28 locales', 'all 29 locales')
               path.write_text(source)
@@ -63,5 +61,5 @@ jobs:
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git add -A
-          git commit -m 'Update quality gates for Czech locale'
+          git commit -m 'Finalize Czech locale quality gates'
           git push origin HEAD:feat/czech-locale
