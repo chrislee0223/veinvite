@@ -14,6 +14,17 @@ function resolveLocale(locale: Locale): SupportedLocale {
   return isLocale(locale) ? locale : 'en';
 }
 
+function readZoom(root: HTMLElement) {
+  const text = root.querySelector<HTMLElement>('.zoomValue')?.textContent ?? '100%';
+  const parsed = Number.parseFloat(text.replace('%', ''));
+  return Number.isFinite(parsed) ? Math.max(.01, parsed / 100) : 1;
+}
+
+function readCenterScale(root: HTMLElement) {
+  const parsed = Number.parseFloat(root.style.getPropertyValue('--v46-center-scale'));
+  return Number.isFinite(parsed) ? parsed : 1;
+}
+
 function NetworkRootIdentityPlacementV71({ locale }: { locale: Locale }) {
   useLayoutEffect(() => {
     const root = document.querySelector<HTMLElement>('.productionNetworkCanaryV45');
@@ -32,6 +43,7 @@ function NetworkRootIdentityPlacementV71({ locale }: { locale: Locale }) {
       circle?.removeAttribute('data-v71-root-length');
       source?.classList.remove('v71RootIdentitySource');
       wrap.classList.remove('v71RootIdentityWrap');
+      wrap.style.removeProperty('--v71-root-summary-y');
 
       // Remove the previous V71 injected-label implementation if it exists in a
       // live session. The root identity now replaces the original center dot.
@@ -66,6 +78,17 @@ function NetworkRootIdentityPlacementV71({ locale }: { locale: Locale }) {
         : visibleLength > 4
           ? 'compact'
           : 'normal';
+
+      // V47 positions root metadata absolutely, while V46 scales the center
+      // circle independently at high zoom. Keep the summary a constant ~7px
+      // below the circle's *visible* edge rather than leaving it at a fixed 82px.
+      const zoom = readZoom(root);
+      const centerScale = readCenterScale(root);
+      const circleCenterY = 37;
+      const circleRadius = 37;
+      const screenGapPx = 7;
+      const summaryY = circleCenterY + circleRadius * centerScale + screenGapPx / zoom;
+      wrap.style.setProperty('--v71-root-summary-y', `${summaryY.toFixed(2)}px`);
     };
 
     const schedule = () => {
@@ -87,8 +110,11 @@ function NetworkRootIdentityPlacementV71({ locale }: { locale: Locale }) {
       attributeFilter: ['data-v70-root-label'],
     });
 
+    window.addEventListener('resize', schedule);
+
     return () => {
       observer.disconnect();
+      window.removeEventListener('resize', schedule);
       if (frame) window.cancelAnimationFrame(frame);
       clearRootIdentity(root.querySelector<HTMLElement>('.centerWrap'));
     };
@@ -103,22 +129,34 @@ export function AppNetworkCanaryV71({ locale }: { locale: Locale }) {
       <AppNetworkCanaryV70 locale={locale} />
       <NetworkRootIdentityPlacementV71 locale={locale} />
       <style jsx global>{`
-        /* Root identity: replace the existing V45 center dot itself. The old
-           root source label must leave layout flow completely so the summary
-           stays directly under the circle at every zoom level. */
+        /* Root identity: replace the existing V45 center dot itself. */
         .productionNetworkCanaryV45 .centerWrap > b.v71RootIdentitySource {
           display: none !important;
         }
 
-        .productionNetworkCanaryV45 .centerWrap.v71RootIdentityWrap {
-          gap: 4px !important;
-        }
-
+        /* V65 owns localized stats by hiding the raw English source at
+           font-size:0 and painting exactly one localized ::after string. Never
+           restore a font-size on the source element here, or both languages are
+           rendered at once. */
         .productionNetworkCanaryV45 .centerWrap.v71RootIdentityWrap > small {
+          top: var(--v71-root-summary-y, 81px) !important;
           margin: 0 !important;
           color: #6c655b !important;
-          font-size: .38rem !important;
           white-space: nowrap !important;
+        }
+
+        .productionNetworkCanaryV45 .centerWrap.v71RootIdentityWrap > small.v65LocalizedUiCopy {
+          font-size: 0 !important;
+        }
+
+        .productionNetworkCanaryV45 .centerWrap.v71RootIdentityWrap > small.v65LocalizedUiCopy::after {
+          font-size: .38rem !important;
+          line-height: 1.15 !important;
+        }
+
+        .productionNetworkCanaryV45 .centerWrap.v71RootIdentityWrap > small:not(.v65LocalizedUiCopy) {
+          font-size: .38rem !important;
+          line-height: 1.15 !important;
         }
 
         .productionNetworkCanaryV45 .centerCircle[data-v71-root-copy]::after {
