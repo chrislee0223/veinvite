@@ -31,6 +31,7 @@ function NetworkRootIdentityPlacementV71({ locale }: { locale: Locale }) {
       circle?.removeAttribute('data-v71-root-copy');
       circle?.removeAttribute('data-v71-root-length');
       source?.classList.remove('v71RootIdentitySource');
+      wrap.classList.remove('v71RootIdentityWrap');
 
       // Remove the previous V71 injected-label implementation if it exists in a
       // live session. The root identity now replaces the original center dot.
@@ -56,6 +57,7 @@ function NetworkRootIdentityPlacementV71({ locale }: { locale: Locale }) {
       }
 
       source.classList.add('v71RootIdentitySource');
+      wrap.classList.add('v71RootIdentityWrap');
       circle.dataset.v71RootCopy = rootCopy;
 
       const visibleLength = Array.from(rootCopy).length;
@@ -101,11 +103,22 @@ export function AppNetworkCanaryV71({ locale }: { locale: Locale }) {
       <AppNetworkCanaryV70 locale={locale} />
       <NetworkRootIdentityPlacementV71 locale={locale} />
       <style jsx global>{`
-        /* Root identity: replace the existing V45 center dot itself. Do not add
-           another label layer, and keep the legacy source row only as invisible
-           geometry so existing line/canvas alignment cannot shift. */
+        /* Root identity: replace the existing V45 center dot itself. The old
+           root source label must leave layout flow completely so the summary
+           stays directly under the circle at every zoom level. */
         .productionNetworkCanaryV45 .centerWrap > b.v71RootIdentitySource {
-          visibility: hidden !important;
+          display: none !important;
+        }
+
+        .productionNetworkCanaryV45 .centerWrap.v71RootIdentityWrap {
+          gap: 4px !important;
+        }
+
+        .productionNetworkCanaryV45 .centerWrap.v71RootIdentityWrap > small {
+          margin: 0 !important;
+          color: #6c655b !important;
+          font-size: .38rem !important;
+          white-space: nowrap !important;
         }
 
         .productionNetworkCanaryV45 .centerCircle[data-v71-root-copy]::after {
@@ -146,6 +159,19 @@ export function AppNetworkCanaryV71({ locale }: { locale: Locale }) {
         html[data-locale-typography='arabic'] .productionNetworkCanaryV45 .centerCircle[data-v71-root-copy]::after,
         html[data-locale-typography='indic'] .productionNetworkCanaryV45 .centerCircle[data-v71-root-copy]::after {
           line-height: 1.28 !important;
+        }
+
+        /* Person and available-slot hold timers are both 500 ms in V52/V53.
+           Give the slot the same transition cadence as a person node and stop
+           its idle pulse while armed so the visible long-press response lands
+           at the same moment instead of feeling delayed by the pulse cycle. */
+        .productionNetworkCanaryV45 .slotCircle {
+          transition: transform 170ms ease, border-color 170ms ease, box-shadow 170ms ease !important;
+        }
+
+        .productionNetworkCanaryV45 .slotNode.v53SlotHoldArmed .slotCircle,
+        .productionNetworkCanaryV45 .slotNode.v53SlotLongDragging .slotCircle {
+          animation: none !important;
         }
       `}</style>
     </>
