@@ -12,9 +12,6 @@ export type RewardClaimReconciliation =
       action: RewardActionItem;
     }
   | {
-      kind: 'PAID';
-    }
-  | {
       kind: 'ABSENT';
     }
   | {
@@ -65,7 +62,10 @@ async function reconcileMissingAction(
       sameInviteCode(receipt.inviteCode, inviteCode),
     );
 
-    return paid ? { kind: 'PAID' } : { kind: 'ABSENT' };
+    // ABSENT is intentionally reserved for a missing action backed by a
+    // finalized PAID receipt. If the action disappeared for any other reason,
+    // fail closed as UNKNOWN instead of presenting the Claim as successful.
+    return paid ? { kind: 'ABSENT' } : { kind: 'UNKNOWN' };
   } catch {
     return { kind: 'UNKNOWN' };
   }
@@ -104,8 +104,7 @@ export async function reconcileRewardClaimState(
     if (!action) {
       // The action endpoint intentionally omits finalized PAID rewards, but it
       // can also omit rewards that are no longer claimable. Never equate
-      // disappearance with success: require an actual finalized receipt before
-      // reporting PAID; otherwise callers must refresh authoritative state.
+      // disappearance with success: require an actual finalized receipt.
       return reconcileMissingAction(inviteCode);
     }
 
