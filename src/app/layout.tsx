@@ -2,9 +2,9 @@ import type { Metadata, Viewport } from 'next';
 import type { ReactNode } from 'react';
 
 import { AppProviders } from '@/components/AppProviders';
+import { DeferredUsageAnalyticsTracker as UsageAnalyticsTracker } from '@/components/DeferredUsageAnalyticsTracker';
 import { LocaleDocumentSync } from '@/components/LocaleDocumentSync';
 import { LocaleHydrationShield } from '@/components/LocaleHydrationShield';
-import { UsageAnalyticsTracker } from '@/components/UsageAnalyticsTracker';
 import './globals.css';
 import './header-language-flags.css';
 import './localized-typography.css';

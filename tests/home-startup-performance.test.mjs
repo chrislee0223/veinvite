@@ -211,3 +211,28 @@ test('background invite recovery no longer competes with the authoritative Home 
     /if \(!walletAddress\) \{\s*return;\s*\}\s*void check\(\);/,
   );
 });
+
+test('usage analytics stays out of the Home critical startup window', async () => {
+  const [layout, deferred] = await Promise.all([
+    readFile(new URL('../src/app/layout.tsx', import.meta.url), 'utf8'),
+    readFile(
+      new URL('../src/components/DeferredUsageAnalyticsTracker.tsx', import.meta.url),
+      'utf8',
+    ),
+  ]);
+
+  assert.match(layout, /DeferredUsageAnalyticsTracker/);
+  assert.doesNotMatch(layout, /import \{ UsageAnalyticsTracker \}/);
+  assert.match(deferred, /APP_READY_EVENT = 'veinvite-app-ready'/);
+  assert.match(deferred, /STARTUP_FALLBACK_MS = 5_000/);
+  assert.match(deferred, /requestIdleCallback/);
+  assert.match(
+    deferred,
+    /veinviteAppReady === 'true'[\s\S]*schedule\(\)/,
+  );
+  assert.match(
+    deferred,
+    /addEventListener\(APP_READY_EVENT, schedule, \{ once: true \}\)/,
+  );
+  assert.match(deferred, /return active \? <UsageAnalyticsTracker \/> : null/);
+});
