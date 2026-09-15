@@ -2,7 +2,7 @@ import type { Metadata, Viewport } from 'next';
 import type { ReactNode } from 'react';
 
 import { AppProviders } from '@/components/AppProviders';
-import { DeferredUsageAnalyticsTracker } from '@/components/DeferredUsageAnalyticsTracker';
+import { DeferredUsageAnalyticsTracker as UsageAnalyticsTracker } from '@/components/DeferredUsageAnalyticsTracker';
 import { LocaleDocumentSync } from '@/components/LocaleDocumentSync';
 import { LocaleHydrationShield } from '@/components/LocaleHydrationShield';
 import './globals.css';
@@ -81,7 +81,7 @@ export default function RootLayout({
         <LocaleHydrationShield />
         <AppProviders>
           <LocaleDocumentSync />
-          {usageAnalyticsEnabled ? <DeferredUsageAnalyticsTracker /> : null}
+          {usageAnalyticsEnabled ? <UsageAnalyticsTracker /> : null}
           {children}
         </AppProviders>
       </body>
