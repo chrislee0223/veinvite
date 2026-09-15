@@ -29,6 +29,10 @@ import type {
 import {
   reportProductAnalyticsEvent,
 } from '@/lib/productAnalytics';
+import {
+  notifyRewardClaimUpdated,
+  readRewardClaimLiveState,
+} from '@/lib/rewards/rewardClaimLiveState';
 import type { RewardReceipt } from '@/lib/rewards/rewardReceipt';
 import { getVeChainExplorerTransactionUrl } from '@/lib/vechainExplorer';
 
@@ -38,8 +42,6 @@ const NOTIFICATION_DIALOG_ID = 'veinvite-notification-history';
 const REDUCED_MOTION_QUERY = '(prefers-reduced-motion: reduce)';
 const REWARD_RECEIPT_ACKNOWLEDGED_EVENT =
   'veinvite-reward-receipt-acknowledged';
-const REWARD_CLAIM_UPDATED_EVENT =
-  'veinvite-reward-claim-updated';
 const FOCUSABLE_SELECTOR = [
   'button:not([disabled])',
   'a[href]',
@@ -58,6 +60,13 @@ type ReceiptSeenResponse = {
   receipt?: RewardReceipt;
   error?: string;
 };
+
+type ClaimFailureCode =
+  | 'network'
+  | 'malformed_response'
+  | 'wallet_auth'
+  | 'server'
+  | 'unknown';
 
 function BellIcon({ size = 20 }: { size?: number }) {
   return (
@@ -268,6 +277,7 @@ export function InviteNotificationHistoryCenter({
   const closeTimerRef = useRef<number | null>(null);
   const onCloseRef = useRef(onClose);
   const actionRequestRef = useRef(0);
+  const claimRequestRef = useRef(0);
   const [clockTick, setClockTick] = useState(0);
   const [closing, setClosing] = useState(false);
   const [rewardActions, setRewardActions] = useState<RewardActionItem[]>([]);
@@ -338,6 +348,7 @@ export function InviteNotificationHistoryCenter({
   useEffect(() => {
     if (!open) {
       actionRequestRef.current += 1;
+      claimRequestRef.current += 1;
       setRewardActions([]);
       setActionLoading(false);
       setActionError('');
@@ -367,6 +378,12 @@ export function InviteNotificationHistoryCenter({
       return;
     }
 
+    const requestId = claimRequestRef.current + 1;
+    claimRequestRef.current = requestId;
+    const isCurrentRequest = () => claimRequestRef.current === requestId;
+    let failureCode: ClaimFailureCode = 'unknown';
+    let failureMessage = progressCopy.claimFailed;
+
     setClaimPendingCode(action.inviteCode);
     setActionError('');
     reportProductAnalyticsEvent({
@@ -382,54 +399,107 @@ export function InviteNotificationHistoryCenter({
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ inviteCode: action.inviteCode }),
         });
-      } catch (error) {
-        reportProductAnalyticsEvent({
-          eventName: 'reward_claim_failed',
-          outcome: 'failure',
-          failureCode: 'network',
-          flowKey: 'home',
-        });
-        throw error;
+      } catch {
+        failureCode = 'network';
+        throw new Error(progressCopy.claimFailed);
       }
 
-      const body = (await response.json()) as {
+      let body: {
         claim?: { status?: string };
         error?: string;
       };
+      try {
+        body = (await response.json()) as {
+          claim?: { status?: string };
+          error?: string;
+        };
+      } catch {
+        failureCode = 'malformed_response';
+        throw new Error(progressCopy.claimFailed);
+      }
 
       if (!response.ok) {
-        reportProductAnalyticsEvent({
-          eventName: 'reward_claim_failed',
-          outcome: 'failure',
-          failureCode:
-            response.status === 401 || response.status === 403
-              ? 'wallet_auth'
-              : response.status >= 500
-                ? 'server'
-                : 'unknown',
-          flowKey: 'home',
-        });
-        throw new Error(body.error || progressCopy.claimFailed);
+        failureCode =
+          response.status === 401 || response.status === 403
+            ? 'wallet_auth'
+            : response.status >= 500
+              ? 'server'
+              : 'unknown';
+        failureMessage = body.error || progressCopy.claimFailed;
+        throw new Error(failureMessage);
       }
+
+      reportProductAnalyticsEvent({
+        eventName: 'reward_claim_succeeded',
+        outcome: 'success',
+        flowKey: 'home',
+      });
+      if (!isCurrentRequest()) return;
 
       setRewardActions((current) => current.map((item) =>
         item.inviteCode === action.inviteCode
           ? { ...item, status: 'QUEUED' }
           : item,
       ));
-      reportProductAnalyticsEvent({
-        eventName: 'reward_claim_succeeded',
-        outcome: 'success',
-        flowKey: 'home',
-      });
-      window.dispatchEvent(new Event(REWARD_CLAIM_UPDATED_EVENT));
+      notifyRewardClaimUpdated();
       void loadRewardActions();
     } catch (error) {
+      if (!isCurrentRequest()) return;
+
+      if (failureCode !== 'wallet_auth') {
+        const liveState = await readRewardClaimLiveState(action.inviteCode);
+        if (!isCurrentRequest()) return;
+
+        if (liveState.kind === 'processing') {
+          setActionError('');
+          setRewardActions((current) => current.map((item) =>
+            item.inviteCode === action.inviteCode
+              ? { ...item, status: liveState.action.status }
+              : item,
+          ));
+          reportProductAnalyticsEvent({
+            eventName: 'reward_claim_succeeded',
+            outcome: 'success',
+            flowKey: 'home',
+          });
+          notifyRewardClaimUpdated();
+          void loadRewardActions();
+          return;
+        }
+
+        if (liveState.kind === 'paid') {
+          setActionError('');
+          setRewardActions((current) => current.filter(
+            (item) => item.inviteCode !== action.inviteCode,
+          ));
+          reportProductAnalyticsEvent({
+            eventName: 'reward_claim_succeeded',
+            outcome: 'success',
+            flowKey: 'home',
+          });
+          notifyRewardClaimUpdated();
+          void loadRewardActions();
+          return;
+        }
+
+        if (liveState.kind === 'auth_invalid') {
+          failureCode = 'wallet_auth';
+        }
+      }
+
+      reportProductAnalyticsEvent({
+        eventName: 'reward_claim_failed',
+        outcome: 'failure',
+        failureCode,
+        flowKey: 'home',
+      });
       setActionError(
-        error instanceof Error ? error.message : progressCopy.claimFailed,
+        error instanceof Error ? error.message : failureMessage,
       );
     } finally {
-      setClaimPendingCode(null);
+      if (isCurrentRequest()) {
+        setClaimPendingCode(null);
+      }
     }
   }, [claimPendingCode, loadRewardActions, progressCopy.claimFailed]);
 
