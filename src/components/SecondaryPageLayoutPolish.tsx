@@ -97,6 +97,8 @@ export function SecondaryPageLayoutPolish() {
       /*
        * Keep the five-row viewport authoritative here so exactly five ranks are
        * visible before the user scrolls through ranks 1-100 on every viewport.
+       * Keep its physical rail LTR so RTL locales reserve the same scrollbar
+       * side as the header and trailing current-user row.
        */
       .leaderboardPage .rankScroll {
         width:100% !important;
@@ -104,6 +106,7 @@ export function SecondaryPageLayoutPolish() {
         max-height:calc(var(--leaderboard-row-height) * 5) !important;
         overflow-y:auto !important;
         overscroll-behavior:contain !important;
+        direction:ltr !important;
         scrollbar-gutter:stable !important;
         scrollbar-width:thin;
         scrollbar-color:rgba(244,183,40,.45) transparent;
@@ -128,6 +131,8 @@ export function SecondaryPageLayoutPolish() {
 
       .leaderboardPage .rankStack {
         grid-column:1 !important;
+        display:grid !important;
+        place-items:center !important;
       }
 
       /*
@@ -218,13 +223,22 @@ export function SecondaryPageLayoutPolish() {
         transform-origin:50% 85% !important;
       }
 
+      /*
+       * Inviter identity uses two fixed tracks instead of centering a variable-
+       * width avatar+text bundle. maskWallet() always renders 9 characters
+       * (5-char prefix + ellipsis + 3-char suffix), so a 22px avatar plus a 9ch
+       * wallet track gives every populated row and the trailing current-wallet
+       * row one identical avatar X-axis regardless of the wallet characters.
+       */
       .leaderboardPage .walletCell {
         grid-column:2 !important;
-        display:flex !important;
+        display:grid !important;
+        grid-template-columns:22px 9ch !important;
         align-items:center !important;
         justify-content:center !important;
         gap:9px !important;
         overflow:hidden !important;
+        direction:ltr !important;
       }
 
       /*
@@ -267,6 +281,16 @@ export function SecondaryPageLayoutPolish() {
         overflow:hidden !important;
         text-overflow:ellipsis !important;
         white-space:nowrap !important;
+      }
+
+      .leaderboardPage .walletCell > .walletText {
+        width:9ch !important;
+        min-width:9ch !important;
+        max-width:9ch !important;
+        font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,"Liberation Mono","Courier New",monospace !important;
+        letter-spacing:0 !important;
+        text-align:left !important;
+        text-overflow:clip !important;
       }
 
       .leaderboardPage .completedMetric {
