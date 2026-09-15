@@ -103,6 +103,7 @@ label.language > span[aria-hidden='true'],
 :is(select.languageSelect, label.language select, .centeredFlow label select, .appHeader label select):has(option[value='sw']:checked) { background-image:url('/flags/ke.svg') !important; }
 :is(select.languageSelect, label.language select, .centeredFlow label select, .appHeader label select):has(option[value='ha']:checked) { background-image:url('/flags/ng.svg') !important; }
 :is(select.languageSelect, label.language select, .centeredFlow label select, .appHeader label select):has(option[value='el']:checked) { background-image:url('/flags/gr.svg') !important; }
+:is(select.languageSelect, label.language select, .centeredFlow label select, .appHeader label select):has(option[value='cs']:checked) { background-image:url('/flags/cz.svg') !important; }
 
 /* Very narrow phones cannot fit the full brand + invitee chip + 155px picker on
  * one row. Stack only the right-hand actions and trim the picker width. */
