@@ -11,6 +11,7 @@ const [
   directDropSource,
   dragGhostSource,
   localeLayoutSource,
+  rootIdentitySource,
   guideSource,
   layoutSource,
   polishCss,
@@ -26,6 +27,7 @@ const [
   readFile('src/components/AppNetworkCanaryV68.tsx', 'utf8'),
   readFile('src/components/AppNetworkCanaryV69.tsx', 'utf8'),
   readFile('src/components/AppNetworkCanaryV70.tsx', 'utf8'),
+  readFile('src/components/AppNetworkCanaryV71.tsx', 'utf8'),
   readFile('src/components/AppGuide.tsx', 'utf8'),
   readFile('src/app/layout.tsx', 'utf8'),
   readFile('src/app/localization-final-polish.css', 'utf8'),
@@ -94,13 +96,16 @@ test('final layout polish covers Network, RTL, CJK, Korean and tall-script metri
   assert.match(polishCss, /unicode-bidi:\s*isolate/);
 });
 
-test('the special Network canary keeps V70 locale layout over V69 drag tracking, V68 assurance, V67 correction, V66 visuals and localized V65', () => {
-  assert.match(guideSource, /AppNetworkCanaryV70/);
+test('the special Network canary keeps V71 root identity over V70 locale layout, V69 drag tracking, V68 assurance, V67 correction, V66 visuals and localized V65', () => {
+  assert.match(guideSource, /AppNetworkCanaryV71/);
+  assert.doesNotMatch(guideSource, /const AppNetworkCanaryV70/);
   assert.doesNotMatch(guideSource, /const AppNetworkCanaryV69/);
   assert.doesNotMatch(guideSource, /const AppNetworkCanaryV68/);
   assert.doesNotMatch(guideSource, /const AppNetworkCanaryV67/);
   assert.doesNotMatch(guideSource, /const AppNetworkCanaryV66/);
   assert.doesNotMatch(guideSource, /const AppNetworkCanaryV65/);
+  assert.match(rootIdentitySource, /AppNetworkCanaryV70/);
+  assert.match(rootIdentitySource, /<AppNetworkCanaryV70 locale=\{locale\} \/>/);
   assert.match(localeLayoutSource, /AppNetworkCanaryV69/);
   assert.match(localeLayoutSource, /<AppNetworkCanaryV69 locale=\{locale\} \/>/);
   assert.match(dragGhostSource, /AppNetworkCanaryV68/);
