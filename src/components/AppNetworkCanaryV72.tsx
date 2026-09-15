@@ -66,24 +66,24 @@ function NetworkTouchNavigationV72() {
       ? root.querySelector<HTMLButtonElement>(`.personNode[data-node-id="${CSS.escape(id)}"]`)
       : null;
 
-    const nearestNode = (clientX: number, clientY: number) => {
+    const nearestNode = (clientX: number, clientY: number): HTMLButtonElement | null => {
       let best: HTMLButtonElement | null = null;
       let bestDistance = Number.POSITIVE_INFINITY;
 
-      root.querySelectorAll<HTMLButtonElement>('.personNode[data-node-id]').forEach((node) => {
-        if (node.classList.contains('v42CollapsedMember')) return;
+      for (const node of Array.from(root.querySelectorAll<HTMLButtonElement>('.personNode[data-node-id]'))) {
+        if (node.classList.contains('v42CollapsedMember')) continue;
         const circle = node.querySelector<HTMLElement>('.nodeCircle');
-        if (!circle) return;
+        if (!circle) continue;
         const rect = circle.getBoundingClientRect();
-        if (rect.width <= 0 || rect.height <= 0) return;
+        if (rect.width <= 0 || rect.height <= 0) continue;
         const centerX = rect.left + rect.width / 2;
         const centerY = rect.top + rect.height / 2;
         const currentDistance = Math.hypot(clientX - centerX, clientY - centerY);
         const limit = Math.max(92, rect.width * 1.4);
-        if (currentDistance > limit || currentDistance >= bestDistance) return;
+        if (currentDistance > limit || currentDistance >= bestDistance) continue;
         best = node;
         bestDistance = currentDistance;
-      });
+      }
 
       return best;
     };
