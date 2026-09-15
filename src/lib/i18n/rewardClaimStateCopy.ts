@@ -1,0 +1,35 @@
+import type { SupportedLocale } from './locales';
+
+export const REWARD_CLAIM_STATE_COPY: Record<
+  SupportedLocale,
+  { processing: string }
+> = {
+  en: { processing: 'Payout processing' },
+  ko: { processing: '지급 처리 중' },
+  zh: { processing: '支付处理中' },
+  hi: { processing: 'भुगतान प्रक्रिया में' },
+  es: { processing: 'Pago en proceso' },
+  ja: { processing: '支払い処理中' },
+  it: { processing: 'Pagamento in elaborazione' },
+  tr: { processing: 'Ödeme işleniyor' },
+  nl: { processing: 'Uitbetaling wordt verwerkt' },
+  de: { processing: 'Auszahlung wird bearbeitet' },
+  fr: { processing: 'Paiement en cours' },
+  ar: { processing: 'جارٍ معالجة الدفع' },
+  bn: { processing: 'পেমেন্ট প্রক্রিয়াধীন' },
+  pt: { processing: 'Pagamento em processamento' },
+  ru: { processing: 'Выплата обрабатывается' },
+  id: { processing: 'Pembayaran sedang diproses' },
+  vi: { processing: 'Đang xử lý thanh toán' },
+  'zh-tw': { processing: '付款處理中' },
+  sv: { processing: 'Utbetalning behandlas' },
+  ro: { processing: 'Plata este în curs' },
+  ur: { processing: 'ادائیگی پر کارروائی جاری ہے' },
+  pcm: { processing: 'Payment dey process' },
+  arz: { processing: 'جاري معالجة الدفع' },
+  mr: { processing: 'पेमेंट प्रक्रिया सुरू आहे' },
+  te: { processing: 'చెల్లింపు ప్రాసెస్ అవుతోంది' },
+  sw: { processing: 'Malipo yanachakatwa' },
+  ha: { processing: 'Ana sarrafa biyan kuɗi' },
+  el: { processing: 'Η πληρωμή επεξεργάζεται' },
+};
