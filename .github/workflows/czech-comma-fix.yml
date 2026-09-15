@@ -1,0 +1,54 @@
+name: Czech Locale Syntax Cleanup
+
+on:
+  pull_request:
+    branches:
+      - feat/czech-locale
+    types: [opened, reopened, synchronize]
+
+permissions:
+  contents: write
+
+jobs:
+  fix-czech-boundaries:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: feat/czech-locale
+          fetch-depth: 0
+      - name: Normalize Czech entry boundaries
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import re
+
+          changed = []
+          for path in Path('src/lib/i18n').rglob('*.ts'):
+              text = path.read_text()
+              original = text
+              positions = [m.start() for m in re.finditer(r'(?m)^\s*cs\s*:', text)]
+              offset = 0
+              for raw_pos in positions:
+                  pos = raw_pos + offset
+                  i = pos - 1
+                  while i >= 0 and text[i].isspace():
+                      i -= 1
+                  if i >= 0 and text[i] not in ',{[:=':
+                      text = text[:i + 1] + ',' + text[i + 1:]
+                      offset += 1
+              if text != original:
+                  path.write_text(text)
+                  changed.append(str(path))
+
+          print('Normalized:', ', '.join(changed) if changed else 'none')
+          PY
+
+          rm -f .github/workflows/czech-comma-fix.yml
+          git diff --check
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -A
+          git commit -m 'Normalize Czech locale syntax'
+          git push origin HEAD:feat/czech-locale
