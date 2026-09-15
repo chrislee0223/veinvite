@@ -1,0 +1,33 @@
+name: Vote Allocation Probe
+
+on:
+  push:
+    branches:
+      - feat/vote-allocation-tracking
+    paths:
+      - scripts/vote-allocation-probe.mjs
+      - .github/workflows/vote-allocation-probe.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Use Node.js 24
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Decode historical vote allocations
+        run: node scripts/vote-allocation-probe.mjs
