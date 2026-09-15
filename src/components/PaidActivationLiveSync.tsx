@@ -167,13 +167,27 @@ export function PaidActivationLiveSync() {
   useEffect(() => {
     void applyLatestReceipt();
 
-    const unsubscribeClaimUpdates = subscribeRewardClaimUpdated((signal) => {
-      if (signal.inviteCode) {
-        targetInviteCodeRef.current = signal.inviteCode;
-      }
-      claimPollDeadlineRef.current = Date.now() + CLAIM_POLL_TIMEOUT_MS;
-      scheduleClaimPoll();
-    });
+    const unsubscribeClaimUpdates = subscribeRewardClaimUpdated(
+      (signal, source) => {
+        if (source === 'broadcast') {
+          // Another tab has already confirmed that this wallet's Claim moved
+          // forward. Reload this stale tab once instead of leaving a visible
+          // AWAITING_CLAIM button that could invite a second click. The server
+          // remains authoritative and idempotent; this is UI reconciliation.
+          if (!reloadRequestedRef.current) {
+            reloadRequestedRef.current = true;
+            window.location.reload();
+          }
+          return;
+        }
+
+        if (signal.inviteCode) {
+          targetInviteCodeRef.current = signal.inviteCode;
+        }
+        claimPollDeadlineRef.current = Date.now() + CLAIM_POLL_TIMEOUT_MS;
+        scheduleClaimPoll();
+      },
+    );
 
     const onVisible = () => {
       if (document.visibilityState === 'visible') {
