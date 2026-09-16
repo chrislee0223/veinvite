@@ -9,12 +9,14 @@
     "check:retired-routes": "node scripts/check-retired-production-routes.mjs",
     "typecheck": "npm run check:retired-routes && tsc --noEmit",
     "test:i18n": "node --test tests/i18n-*.test.mjs",
-    "test:rewards": "node --experimental-strip-types --test tests/reward-*.test.mjs"
+    "test:rewards": "node --experimental-strip-types --test tests/reward-*.test.mjs",
+    "test:sentry": "node --test tests/sentry-observability.test.mjs"
   },
   "dependencies": {
     "@chakra-ui/react": "2.8.2",
     "@emotion/react": "^11.14.0",
     "@emotion/styled": "^11.14.0",
+    "@sentry/nextjs": "10.75.0",
     "@supabase/supabase-js": "^2.56.0",
     "@tanstack/react-query": "5.64.2",
     "@vechain/dapp-kit-react": "2.3.3",
