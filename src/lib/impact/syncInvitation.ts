@@ -247,7 +247,7 @@ function buildProgress(args: {
  * Mission ordering is intentionally flexible after the first verified dApp
  * reward. A user may do:
  *
- *   dApp #1 -> >=1 B3TR to VOT3 -> allocation vote -> dApps #2 and #3
+ *   dApp #1 -> any positive B3TR amount to VOT3 -> allocation vote -> dApps #2 and #3
  *
  * and still complete VeInvite. The remaining dApp missions therefore never
  * invalidate an already-valid conversion/vote sequence.
@@ -255,7 +255,7 @@ function buildProgress(args: {
  * What is not accepted:
  * - VOT3 held before VeInvite without a new conversion;
  * - a conversion before the first qualifying dApp reward;
- * - a conversion below 1 B3TR;
+ * - a non-positive B3TR conversion amount;
  * - a vote that predates the qualifying conversion.
  */
 export async function syncInvitationEvidence(
