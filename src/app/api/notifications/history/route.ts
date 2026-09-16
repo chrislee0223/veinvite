@@ -247,6 +247,28 @@ export async function POST(request: NextRequest) {
   }
 
   try {
+    if (ids) {
+      const paidResult = await supabaseAdmin
+        .from('invite_notification_history')
+        .select('id')
+        .eq('inviter_wallet', wallet)
+        .in('id', ids)
+        .eq('kind', 'REWARD_PAID')
+        .limit(1);
+
+      if (paidResult.error) {
+        throw new Error(
+          `Paid notification acknowledgement guard failed: ${paidResult.error.message}`,
+        );
+      }
+      if ((paidResult.data ?? []).length > 0) {
+        return noStoreJson(
+          { error: 'Paid reward notifications must be acknowledged from the reward receipt.' },
+          { status: 400 },
+        );
+      }
+    }
+
     const acknowledgementResult = await supabaseAdmin.rpc(
       'acknowledge_invite_notification_history',
       {

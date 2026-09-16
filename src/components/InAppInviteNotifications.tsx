@@ -702,6 +702,7 @@ export function InAppInviteNotifications({
 
     const unreadThroughSnapshot = items.filter((notification) =>
       notification.readAt === null &&
+      notification.kind !== 'REWARD_PAID' &&
       historyIdAtOrBefore(notification.id, throughId),
     );
     const refreshHomeAfterAcknowledgement =
@@ -718,7 +719,9 @@ export function InAppInviteNotifications({
       const nextUnreadCount = acknowledgement.unreadCount;
       setItems((current) => {
         const updated = current.map((item) =>
-          item.readAt === null && historyIdAtOrBefore(item.id, throughId)
+          item.readAt === null &&
+          item.kind !== 'REWARD_PAID' &&
+          historyIdAtOrBefore(item.id, throughId)
             ? { ...item, readAt: now }
             : item,
         );
@@ -880,6 +883,9 @@ export function InAppInviteNotifications({
       locale={locale}
       items={items}
       unreadCount={unreadCount}
+      markAllAvailable={items.some(
+        (item) => item.readAt === null && item.kind !== 'REWARD_PAID',
+      )}
       open={open}
       loading={loading}
       busy={busy}

@@ -106,8 +106,7 @@
   grid-template-columns: minmax(0, 1fr) max-content !important;
   grid-template-areas:
     "title time"
-    "body body"
-    "meta meta" !important;
+    "body body" !important;
   column-gap: 10px !important;
   row-gap: 7px !important;
   align-items: center !important;
@@ -145,6 +144,20 @@
   word-break: normal !important;
   hyphens: auto !important;
   text-wrap: balance !important;
+  text-align: start !important;
+}
+
+.notificationHistoryPanel .notificationHistorySrOnly {
+  position: absolute !important;
+  width: 1px !important;
+  height: 1px !important;
+  padding: 0 !important;
+  margin: -1px !important;
+  overflow: hidden !important;
+  clip: rect(0, 0, 0, 0) !important;
+  clip-path: inset(50%) !important;
+  white-space: nowrap !important;
+  border: 0 !important;
 }
 
 .notificationHistoryPanel .notificationHistoryBody {
@@ -160,10 +173,11 @@
   word-break: normal !important;
   hyphens: auto !important;
   text-wrap: pretty !important;
+  text-align: start !important;
 }
 
 .notificationHistoryPanel .notificationHistoryMeta {
-  grid-area: meta !important;
+  grid-column: 1 / -1 !important;
   min-width: 0 !important;
   margin: 0 !important;
   padding-inline-start: 0 !important;
@@ -181,31 +195,6 @@
   color: #777168 !important;
   font-size: 0.57rem !important;
   line-height: 1.3 !important;
-  white-space: nowrap !important;
-}
-
-.notificationHistoryPanel .notificationFriendMeta {
-  min-width: 0 !important;
-  max-width: 100% !important;
-  display: inline-flex !important;
-  align-items: baseline !important;
-  flex-wrap: wrap !important;
-  gap: 4px !important;
-  color: #837d74 !important;
-  font-size: 0.57rem !important;
-  line-height: 1.35 !important;
-}
-
-.notificationHistoryPanel .notificationFriendLabel {
-  overflow-wrap: anywhere !important;
-}
-
-.notificationHistoryPanel .notificationFriendWallet {
-  max-width: 100% !important;
-  color: #918a80 !important;
-  font: inherit !important;
-  overflow: hidden !important;
-  text-overflow: ellipsis !important;
   white-space: nowrap !important;
 }
 
@@ -423,8 +412,7 @@
     grid-template-columns: minmax(0, 1fr) max-content !important;
     grid-template-areas:
       "title time"
-      "body body"
-      "meta meta" !important;
+      "body body" !important;
     column-gap: 8px !important;
   }
 

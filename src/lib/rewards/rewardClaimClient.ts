@@ -98,9 +98,10 @@ async function reconcileMissingAction(
   inviteCode: string,
 ): Promise<RewardClaimReconciliation> {
   try {
-    const response = await fetch('/api/rewards/receipts?limit=50', {
-      cache: 'no-store',
-    });
+    const response = await fetch(
+      `/api/rewards/receipts?inviteCode=${encodeURIComponent(inviteCode)}`,
+      { cache: 'no-store' },
+    );
 
     if (response.status === 401 || response.status === 403) {
       notifyRewardClaimSessionInvalid();
@@ -119,10 +120,14 @@ async function reconcileMissingAction(
     }
 
     const receipts = Array.isArray(body.receipts) ? body.receipts : [];
-    const paid = receipts.find((receipt) =>
-      typeof receipt?.inviteCode === 'string' &&
-      sameInviteCode(receipt.inviteCode, inviteCode),
-    );
+    const paid = receipts[0];
+    if (
+      !paid ||
+      typeof paid.inviteCode !== 'string' ||
+      !sameInviteCode(paid.inviteCode, inviteCode)
+    ) {
+      return { kind: 'UNKNOWN' };
+    }
 
     // ABSENT is intentionally reserved for a missing action backed by a
     // finalized PAID receipt. If the action disappeared for any other reason,

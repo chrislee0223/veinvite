@@ -172,11 +172,6 @@ function formatB3trWei(value: string | null): string | null {
   }
 }
 
-function shortWallet(value: string | null): string | null {
-  if (!value || !/^0x[0-9a-f]{40}$/iu.test(value)) return null;
-  return `${value.slice(0, 6)}…${value.slice(-4)}`;
-}
-
 function shortTx(value: string): string {
   if (value.length < 18) return value;
   return `${value.slice(0, 10)}…${value.slice(-8)}`;
@@ -234,6 +229,7 @@ export function InviteNotificationHistoryCenter({
   locale,
   items,
   unreadCount,
+  markAllAvailable,
   open,
   loading,
   busy,
@@ -249,6 +245,7 @@ export function InviteNotificationHistoryCenter({
   locale: Locale;
   items: InviteNotificationHistoryItem[];
   unreadCount: number;
+  markAllAvailable: boolean;
   open: boolean;
   loading: boolean;
   busy: boolean;
@@ -273,6 +270,7 @@ export function InviteNotificationHistoryCenter({
   const closeTimerRef = useRef<number | null>(null);
   const onCloseRef = useRef(onClose);
   const actionRequestRef = useRef(0);
+  const receiptRequestRef = useRef(0);
   const [clockTick, setClockTick] = useState(0);
   const [closing, setClosing] = useState(false);
   const [rewardActions, setRewardActions] = useState<RewardActionItem[]>([]);
@@ -346,6 +344,7 @@ export function InviteNotificationHistoryCenter({
   useEffect(() => {
     if (!open) {
       actionRequestRef.current += 1;
+      receiptRequestRef.current += 1;
       setRewardActions([]);
       setActionLoading(false);
       setActionError('');
@@ -495,6 +494,8 @@ export function InviteNotificationHistoryCenter({
   const openRewardReceipt = useCallback(async (
     item: InviteNotificationHistoryItem,
   ) => {
+    const requestId = receiptRequestRef.current + 1;
+    receiptRequestRef.current = requestId;
     setReceipt(null);
     setReceiptLoading(true);
     setReceiptError('');
@@ -505,9 +506,13 @@ export function InviteNotificationHistoryCenter({
         { cache: 'no-store' },
       );
       const body = (await response.json()) as ReceiptResponse;
+      if (response.status === 401 || response.status === 403) {
+        notifyRewardClaimSessionInvalid();
+      }
       if (!response.ok) {
         throw new Error(body.error || receiptCopy.error);
       }
+      if (receiptRequestRef.current !== requestId) return;
 
       const match = body.receipts?.[0];
       if (!match) {
@@ -515,17 +520,21 @@ export function InviteNotificationHistoryCenter({
       }
       setReceipt(match);
     } catch (error) {
+      if (receiptRequestRef.current !== requestId) return;
       setReceiptError(
         error instanceof Error ? error.message : receiptCopy.error,
       );
     } finally {
-      setReceiptLoading(false);
+      if (receiptRequestRef.current === requestId) {
+        setReceiptLoading(false);
+      }
     }
   }, [receiptCopy.error]);
 
   const acknowledgeReceipt = useCallback(async () => {
     if (!receipt || receipt.seen || receiptAcknowledging) return;
 
+    const requestId = receiptRequestRef.current;
     setReceiptAcknowledging(true);
     setReceiptError('');
     try {
@@ -540,20 +549,27 @@ export function InviteNotificationHistoryCenter({
         },
       );
       const body = (await response.json()) as ReceiptSeenResponse;
+      if (response.status === 401 || response.status === 403) {
+        notifyRewardClaimSessionInvalid();
+      }
       if (!response.ok || !body.receipt) {
         throw new Error(body.error || receiptCopy.error);
       }
 
-      setReceipt(body.receipt);
       window.dispatchEvent(
         new Event(REWARD_RECEIPT_ACKNOWLEDGED_EVENT),
       );
+      if (receiptRequestRef.current !== requestId) return;
+      setReceipt(body.receipt);
     } catch (error) {
+      if (receiptRequestRef.current !== requestId) return;
       setReceiptError(
         error instanceof Error ? error.message : receiptCopy.error,
       );
     } finally {
-      setReceiptAcknowledging(false);
+      if (receiptRequestRef.current === requestId) {
+        setReceiptAcknowledging(false);
+      }
     }
   }, [receipt, receiptAcknowledging, receiptCopy.error]);
 
@@ -574,6 +590,7 @@ export function InviteNotificationHistoryCenter({
   const closePanel = useCallback(() => {
     if (!open || closeTimerRef.current !== null) return;
 
+    receiptRequestRef.current += 1;
     const reducedMotion =
       typeof window.matchMedia === 'function' &&
       window.matchMedia(REDUCED_MOTION_QUERY).matches;
@@ -626,6 +643,7 @@ export function InviteNotificationHistoryCenter({
       if (event.key === 'Escape') {
         event.preventDefault();
         if (receipt || receiptLoading || receiptError) {
+          receiptRequestRef.current += 1;
           setReceipt(null);
           setReceiptLoading(false);
           setReceiptError('');
@@ -675,7 +693,7 @@ export function InviteNotificationHistoryCenter({
     unread: boolean,
   ) => {
     const copy = itemCopy(item, supportedLocale);
-    const friend = shortWallet(item.friendWallet);
+    const showMeta = Boolean(copy.hint || item.kind === 'REWARD_PAID');
 
     return (
       <span className="notificationHistoryContent">
@@ -699,25 +717,17 @@ export function InviteNotificationHistoryCenter({
           </time>
         </span>
         <span className="notificationHistoryBody">{copy.body}</span>
-        <span className="notificationHistoryMeta">
-          {friend ? (
-            <span className="notificationFriendMeta">
-              <span className="notificationFriendLabel">
-                {metaCopy.invitedFriend}
+        {showMeta ? (
+          <span className="notificationHistoryMeta">
+            {copy.hint ? <b>{copy.hint}</b> : null}
+            {item.kind === 'REWARD_PAID' ? (
+              <span className="notificationReceiptAction">
+                <span>{metaCopy.viewReceipt}</span>
+                <em aria-hidden="true">›</em>
               </span>
-              <span className="notificationFriendWallet" dir="ltr">
-                ({friend})
-              </span>
-            </span>
-          ) : null}
-          {copy.hint ? <b>{copy.hint}</b> : null}
-          {item.kind === 'REWARD_PAID' ? (
-            <span className="notificationReceiptAction">
-              <span>{metaCopy.viewReceipt}</span>
-              <em aria-hidden="true">›</em>
-            </span>
-          ) : null}
-        </span>
+            ) : null}
+          </span>
+        ) : null}
       </span>
     );
   };
@@ -776,7 +786,6 @@ export function InviteNotificationHistoryCenter({
 
         {rewardActions.map((action) => {
           const amount = formatB3trWei(action.reservedAmountWei) ?? '—';
-          const friend = shortWallet(action.friendWallet);
           const pending = claimPendingCode === action.inviteCode;
           const waiting = action.status === 'AWAITING_CLAIM';
 
@@ -786,12 +795,6 @@ export function InviteNotificationHistoryCenter({
                 <span>{progressCopy.rewardAvailable}</span>
                 <strong>{amount} B3TR</strong>
                 <small className="notificationActionMeta">
-                  {friend ? (
-                    <span className="notificationActionMetaItem">
-                      <span>{metaCopy.invitedFriend}</span>
-                      <span dir="ltr">({friend})</span>
-                    </span>
-                  ) : null}
                   <span className="notificationActionMetaItem">
                     <span>{metaCopy.inviteCode}</span>
                     <span dir="ltr">({action.inviteCode})</span>
@@ -912,6 +915,7 @@ export function InviteNotificationHistoryCenter({
                     className="notificationBackButton"
                     aria-label={structure.title}
                     onClick={() => {
+                      receiptRequestRef.current += 1;
                       setReceipt(null);
                       setReceiptLoading(false);
                       setReceiptError('');
@@ -926,7 +930,7 @@ export function InviteNotificationHistoryCenter({
                 ) : null}
               </div>
               <div className="notificationHistoryHeaderActions">
-                {!receiptViewActive && unreadCount > 0 ? (
+                {!receiptViewActive && markAllAvailable ? (
                   <button
                     type="button"
                     className="notificationHistoryMarkAll"
@@ -1088,7 +1092,7 @@ export function InviteNotificationHistoryCenter({
 
       <style jsx>{`
         @keyframes notificationHistoryBackdropIn{from{opacity:0}to{opacity:1}}@keyframes notificationHistoryBackdropOut{from{opacity:1}to{opacity:0}}@keyframes notificationHistoryPanelIn{from{opacity:0;transform:translate3d(0,var(--notification-history-enter-y,-7px),0) scale(.985)}to{opacity:1;transform:translate3d(0,0,0) scale(1)}}@keyframes notificationHistoryPanelOut{from{opacity:1;transform:translate3d(0,0,0) scale(1)}to{opacity:0;transform:translate3d(0,var(--notification-history-exit-y,-4px),0) scale(.992)}}@keyframes notificationHistorySpin{to{transform:rotate(360deg)}}
-        .notificationHistoryRoot{position:relative;display:flex;align-items:center}.notificationHistoryBell{position:relative;width:40px;height:40px;flex:0 0 40px;display:grid;place-items:center;padding:0;border:1px solid rgba(255,255,255,.1);border-radius:13px;background:#141625;color:#b6b2bf;cursor:pointer}.notificationHistoryBell.hasUnread{border-color:rgba(255,205,80,.36);color:#ffd04a;box-shadow:0 0 0 3px rgba(244,183,40,.05)}.notificationHistoryBadge{position:absolute;top:-7px;inset-inline-end:-7px;min-width:19px;height:19px;box-sizing:border-box;padding-inline:5px;display:grid;place-items:center;border:2px solid #080807;border-radius:999px;background:#f4b728;color:#17120a;font-size:.6rem;font-weight:950;line-height:1}.notificationHistoryBackdrop{position:fixed;z-index:140;inset:0;border:0;background:rgba(2,2,2,.66);cursor:default;animation:notificationHistoryBackdropIn 180ms ease-out both}.notificationHistoryBackdrop.isClosing{animation:notificationHistoryBackdropOut 150ms ease-in both}.notificationHistoryPanel{--notification-history-enter-y:-7px;--notification-history-exit-y:-4px;position:absolute;z-index:141;top:50px;inset-inline-end:0;width:min(400px,calc(100vw - 28px));max-height:min(610px,calc(100dvh - 92px));overflow:hidden;box-sizing:border-box;border:1px solid rgba(255,205,80,.22);border-radius:22px;background:#11110f;color:#fff;box-shadow:0 32px 90px rgba(0,0,0,.6),inset 0 1px 0 rgba(255,255,255,.055);text-align:start;transform-origin:top center;animation:notificationHistoryPanelIn 210ms cubic-bezier(.16,1,.3,1) both}.notificationHistoryPanel.isClosing{animation:notificationHistoryPanelOut 170ms cubic-bezier(.4,0,1,1) both;pointer-events:none}.notificationHistoryPanel:focus{outline:none}.notificationHistoryHeader{min-height:62px;padding-block:12px 11px;padding-inline:16px 12px;display:flex;align-items:center;justify-content:space-between;gap:10px;border-bottom:1px solid rgba(255,255,255,.07);background:rgba(244,183,40,.025)}.notificationHistoryHeading{min-width:0;display:flex;align-items:center;gap:8px}.notificationHistoryHeading h3{margin:0;color:#f8f6ef;font-size:.98rem;letter-spacing:-.02em}.notificationHistoryHeading>span{padding:4px 7px;border-radius:999px;background:rgba(244,183,40,.13);color:#ffd04a;font-size:.56rem;font-weight:900;white-space:nowrap}.notificationHistoryHeaderActions{flex:0 0 auto;display:flex;align-items:center;gap:2px}.notificationHistoryMarkAll{min-height:32px;padding-inline:8px;border:0;background:transparent;color:#a59e91;font:inherit;font-size:.62rem;font-weight:850;cursor:pointer}.notificationHistoryClose,.notificationBackButton{width:34px;height:34px;border:0;background:transparent;color:#77736f;font:inherit;cursor:pointer}.notificationHistoryClose{font-size:1.4rem}.notificationBackButton{display:grid;place-items:center;border-radius:10px;color:#d8bb63;font-size:1rem}.notificationHistoryScroll,.notificationReceiptView{max-height:calc(min(610px,calc(100dvh - 92px)) - 63px);overflow-y:auto;overscroll-behavior:contain;scrollbar-width:thin;scrollbar-color:#3b3529 transparent}.notificationActionSection{padding:14px 14px 12px;border-bottom:1px solid rgba(255,255,255,.065);background:linear-gradient(180deg,rgba(244,183,40,.065),rgba(244,183,40,.018))}.notificationActionHeading{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:8px;color:#e7d9ae;font-size:.65rem;font-weight:900}.notificationActionHeading span{min-width:20px;height:20px;display:grid;place-items:center;border-radius:999px;background:rgba(244,183,40,.14);color:#ffd04a;font-size:.56rem}.notificationActionCard{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px;border:1px solid rgba(244,183,40,.18);border-radius:15px;background:rgba(8,8,7,.38)}.notificationActionCard+.notificationActionCard{margin-top:8px}.notificationActionCopy{min-width:0;display:grid;gap:3px}.notificationActionCopy>span{color:#aaa39a;font-size:.58rem;font-weight:800}.notificationActionCopy strong{color:#fff3c2;font-size:.88rem;line-height:1.2}.notificationActionCopy small{color:#6f6a62;font-size:.52rem;font-weight:760;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.notificationClaimButton{flex:0 0 auto;min-height:36px;padding-inline:12px;border:0;border-radius:11px;background:#f4b728;color:#17120a;font:inherit;font-size:.62rem;font-weight:950;cursor:pointer}.notificationClaimButton:disabled{opacity:.55;cursor:wait}.notificationProcessingBadge{flex:0 0 auto;max-width:130px;padding:7px 9px;border:1px solid rgba(244,183,40,.15);border-radius:999px;background:rgba(244,183,40,.07);color:#d6bd70;font-size:.55rem;font-weight:900;text-align:center}.notificationActionLoading{min-height:44px;display:flex;align-items:center;justify-content:center;gap:8px;color:#77726b;font-size:.6rem}.notificationMiniSpinner{width:16px;height:16px;border:2px solid rgba(244,183,40,.15);border-top-color:#e6bd4c;border-radius:50%;animation:notificationHistorySpin .8s linear infinite}.notificationActionError{margin-top:8px;padding:8px 10px;display:flex;align-items:center;justify-content:space-between;gap:8px;border-radius:10px;background:rgba(255,110,120,.06);color:#cf8b92;font-size:.56rem}.notificationActionError button{border:0;background:transparent;color:#e9c85f;font:inherit;font-size:.56rem;font-weight:900;cursor:pointer}.notificationHistoryGroup h4{margin:0;padding-block:12px 7px;padding-inline:16px;color:#6f6a62;font-size:.6rem;font-weight:900}.notificationHistoryRow{width:100%;min-width:0;box-sizing:border-box;padding-block:14px 15px;padding-inline:16px;display:block;border:0;border-top:1px solid rgba(255,255,255,.05);background:transparent;color:#fff;text-align:start;font:inherit;cursor:pointer;transition:background .16s ease}.notificationHistoryRow.isUnread{background:rgba(244,183,40,.055)}.notificationHistoryRow.isUnread:hover,.notificationHistoryRow.isInteractive:hover{background:rgba(244,183,40,.075)}.notificationHistoryRow.isRead{background:rgba(255,255,255,.008);cursor:default}.notificationHistoryRow.isRead.isInteractive{cursor:pointer}.notificationHistoryContent{min-width:0;display:block}.notificationHistoryTopLine{min-width:0;display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:start;gap:12px}.notificationHistoryTitleWrap{min-width:0;display:flex;align-items:flex-start;gap:8px}.notificationUnreadDot{flex:0 0 7px;width:7px;height:7px;margin-top:5px;border-radius:50%;background:#ffd04a;box-shadow:0 0 11px rgba(244,183,40,.45)}.notificationHistorySrOnly{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}.notificationHistoryTitle{min-width:0;color:#f5f1e8;font-size:.76rem;font-weight:850;line-height:1.4;letter-spacing:-.012em;overflow-wrap:normal;word-break:keep-all}.notificationHistoryTime{padding-top:1px;color:#746f67;font-size:.56rem;line-height:1.4;white-space:nowrap}.notificationHistoryBody{display:block;margin-top:6px;padding-inline-start:15px;color:#aaa39a;font-size:.65rem;line-height:1.55;overflow-wrap:normal;word-break:keep-all}.notificationHistoryMeta{margin-top:9px;padding-inline-start:15px;display:flex;align-items:center;flex-wrap:wrap;gap:6px}.notificationFriendWallet{color:#777168;font-size:.55rem;font-weight:800;letter-spacing:.01em;unicode-bidi:isolate}.notificationHistoryMeta b{padding:4px 7px;border:1px solid rgba(244,183,40,.14);border-radius:999px;background:rgba(244,183,40,.07);color:#e8c862;font-size:.56rem;font-weight:900}.notificationHistoryMeta em{color:#9c8b58;font-size:.9rem;font-style:normal;font-weight:900}.notificationHistoryRow.isRead .notificationHistoryTitle{color:#b3ada4;font-weight:760}.notificationHistoryRow.isRead .notificationHistoryBody{color:#716c65}.notificationHistoryRow.isRead .notificationHistoryTime,.notificationHistoryRow.isRead .notificationFriendWallet{color:#5e5a55}.notificationHistoryRow.isRead .notificationHistoryMeta b{border-color:rgba(255,255,255,.055);background:rgba(255,255,255,.025);color:#79746d}.notificationHistoryState{min-height:270px;padding:36px 24px;display:grid;place-items:center;align-content:center;text-align:center}.notificationHistoryEmptyBell,.notificationHistoryStateIcon{width:54px;height:54px;display:grid;place-items:center;border-radius:18px;background:rgba(244,183,40,.08);color:#d5ae42}.notificationHistoryStateIcon{font-size:1.2rem;font-weight:950}.notificationHistorySpinner{width:32px;height:32px;border:3px solid rgba(244,183,40,.16);border-top-color:#e6bd4c;border-radius:50%;animation:notificationHistorySpin .8s linear infinite}.notificationHistoryState strong{margin-top:14px;color:#ddd8cf;font-size:.9rem}.notificationHistoryState p{max-width:280px;margin:7px 0 0;color:#77726b;font-size:.66rem;line-height:1.55}.notificationHistoryState.errorState .notificationHistoryStateIcon{background:rgba(255,110,120,.08);color:#ff8f9b}.notificationHistoryRetry,.notificationHistoryMore{min-height:38px;margin:16px auto;padding-inline:14px;border:1px solid rgba(244,183,40,.25);border-radius:12px;background:rgba(244,183,40,.08);color:#e9c85f;font:inherit;font-size:.65rem;font-weight:900;cursor:pointer}.notificationHistoryMore{display:block}.notificationHistoryInlineError{padding:12px 16px;display:flex;align-items:center;justify-content:space-between;gap:10px;border-top:1px solid rgba(255,110,120,.12);color:#cf8b92;font-size:.62rem}.notificationHistoryInlineError button{border:0;background:transparent;color:#e9c85f;font:inherit;font-size:.62rem;font-weight:900;cursor:pointer}.notificationReceiptView{padding:18px}.notificationReceiptEyebrow{display:block;color:#ffd453;font-size:.6rem;font-weight:900;letter-spacing:.065em}.notificationReceiptAmount{margin-top:12px;display:flex;align-items:baseline;gap:7px}.notificationReceiptAmount strong{color:#fff1b0;font-size:1.8rem;line-height:1}.notificationReceiptAmount span{color:#d4b953;font-size:.66rem;font-weight:900}.notificationReceiptView>p{margin:12px 0 0;color:#a8a197;font-size:.66rem;line-height:1.55}.notificationReceiptFacts{margin:16px 0 0;display:grid;gap:8px}.notificationReceiptFacts div{padding:10px 11px;display:flex;align-items:center;justify-content:space-between;gap:12px;border:1px solid rgba(255,255,255,.055);border-radius:11px;background:rgba(255,255,255,.018)}.notificationReceiptFacts dt{color:#777168;font-size:.56rem;font-weight:800}.notificationReceiptFacts dd{margin:0;color:#d9d2c7;font-size:.6rem;font-weight:850;overflow-wrap:anywhere;text-align:end}.notificationExplorerLink{margin-top:12px;min-height:38px;padding-inline:12px;display:flex;align-items:center;justify-content:center;gap:6px;border:1px solid rgba(244,183,40,.22);border-radius:11px;background:rgba(244,183,40,.06);color:#e8c862;text-decoration:none;font-size:.62rem;font-weight:900}.notificationReceiptError{margin:10px 0 0!important;color:#d48b93!important}.notificationReceiptAcknowledge{width:100%;min-height:42px;margin-top:12px;border:0;border-radius:12px;background:#f4b728;color:#17120a;font:inherit;font-size:.66rem;font-weight:950;cursor:pointer}.notificationReceiptAcknowledge:disabled{opacity:.55;cursor:wait}.notificationHistoryBell:focus-visible,.notificationHistoryMarkAll:focus-visible,.notificationHistoryClose:focus-visible,.notificationBackButton:focus-visible,.notificationHistoryRetry:focus-visible,.notificationHistoryMore:focus-visible,.notificationHistoryRow:focus-visible,.notificationClaimButton:focus-visible,.notificationExplorerLink:focus-visible,.notificationReceiptAcknowledge:focus-visible{outline:2px solid rgba(255,208,74,.8);outline-offset:2px}.notificationHistoryMarkAll:disabled,.notificationHistoryMore:disabled{opacity:.45;cursor:not-allowed}
+        .notificationHistoryRoot{position:relative;display:flex;align-items:center}.notificationHistoryBell{position:relative;width:40px;height:40px;flex:0 0 40px;display:grid;place-items:center;padding:0;border:1px solid rgba(255,255,255,.1);border-radius:13px;background:#141625;color:#b6b2bf;cursor:pointer}.notificationHistoryBell.hasUnread{border-color:rgba(255,205,80,.36);color:#ffd04a;box-shadow:0 0 0 3px rgba(244,183,40,.05)}.notificationHistoryBadge{position:absolute;top:-7px;inset-inline-end:-7px;min-width:19px;height:19px;box-sizing:border-box;padding-inline:5px;display:grid;place-items:center;border:2px solid #080807;border-radius:999px;background:#f4b728;color:#17120a;font-size:.6rem;font-weight:950;line-height:1}.notificationHistoryBackdrop{position:fixed;z-index:140;inset:0;border:0;background:rgba(2,2,2,.66);cursor:default;animation:notificationHistoryBackdropIn 180ms ease-out both}.notificationHistoryBackdrop.isClosing{animation:notificationHistoryBackdropOut 150ms ease-in both}.notificationHistoryPanel{--notification-history-enter-y:-7px;--notification-history-exit-y:-4px;position:absolute;z-index:141;top:50px;inset-inline-end:0;width:min(400px,calc(100vw - 28px));max-height:min(610px,calc(100dvh - 92px));overflow:hidden;box-sizing:border-box;border:1px solid rgba(255,205,80,.22);border-radius:22px;background:#11110f;color:#fff;box-shadow:0 32px 90px rgba(0,0,0,.6),inset 0 1px 0 rgba(255,255,255,.055);text-align:start;transform-origin:top center;animation:notificationHistoryPanelIn 210ms cubic-bezier(.16,1,.3,1) both}.notificationHistoryPanel.isClosing{animation:notificationHistoryPanelOut 170ms cubic-bezier(.4,0,1,1) both;pointer-events:none}.notificationHistoryPanel:focus{outline:none}.notificationHistoryHeader{min-height:62px;padding-block:12px 11px;padding-inline:16px 12px;display:flex;align-items:center;justify-content:space-between;gap:10px;border-bottom:1px solid rgba(255,255,255,.07);background:rgba(244,183,40,.025)}.notificationHistoryHeading{min-width:0;display:flex;align-items:center;gap:8px}.notificationHistoryHeading h3{margin:0;color:#f8f6ef;font-size:.98rem;letter-spacing:-.02em}.notificationHistoryHeading>span{padding:4px 7px;border-radius:999px;background:rgba(244,183,40,.13);color:#ffd04a;font-size:.56rem;font-weight:900;white-space:nowrap}.notificationHistoryHeaderActions{flex:0 0 auto;display:flex;align-items:center;gap:2px}.notificationHistoryMarkAll{min-height:32px;padding-inline:8px;border:0;background:transparent;color:#a59e91;font:inherit;font-size:.62rem;font-weight:850;cursor:pointer}.notificationHistoryClose,.notificationBackButton{width:34px;height:34px;border:0;background:transparent;color:#77736f;font:inherit;cursor:pointer}.notificationHistoryClose{font-size:1.4rem}.notificationBackButton{display:grid;place-items:center;border-radius:10px;color:#d8bb63;font-size:1rem}.notificationHistoryScroll,.notificationReceiptView{max-height:calc(min(610px,calc(100dvh - 92px)) - 63px);overflow-y:auto;overscroll-behavior:contain;scrollbar-width:thin;scrollbar-color:#3b3529 transparent}.notificationActionSection{padding:14px 14px 12px;border-bottom:1px solid rgba(255,255,255,.065);background:linear-gradient(180deg,rgba(244,183,40,.065),rgba(244,183,40,.018))}.notificationActionHeading{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:8px;color:#e7d9ae;font-size:.65rem;font-weight:900}.notificationActionHeading span{min-width:20px;height:20px;display:grid;place-items:center;border-radius:999px;background:rgba(244,183,40,.14);color:#ffd04a;font-size:.56rem}.notificationActionCard{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px;border:1px solid rgba(244,183,40,.18);border-radius:15px;background:rgba(8,8,7,.38)}.notificationActionCard+.notificationActionCard{margin-top:8px}.notificationActionCopy{min-width:0;display:grid;gap:3px}.notificationActionCopy>span{color:#aaa39a;font-size:.58rem;font-weight:800}.notificationActionCopy strong{color:#fff3c2;font-size:.88rem;line-height:1.2}.notificationActionCopy small{color:#6f6a62;font-size:.52rem;font-weight:760;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.notificationClaimButton{flex:0 0 auto;min-height:36px;padding-inline:12px;border:0;border-radius:11px;background:#f4b728;color:#17120a;font:inherit;font-size:.62rem;font-weight:950;cursor:pointer}.notificationClaimButton:disabled{opacity:.55;cursor:wait}.notificationProcessingBadge{flex:0 0 auto;max-width:130px;padding:7px 9px;border:1px solid rgba(244,183,40,.15);border-radius:999px;background:rgba(244,183,40,.07);color:#d6bd70;font-size:.55rem;font-weight:900;text-align:center}.notificationActionLoading{min-height:44px;display:flex;align-items:center;justify-content:center;gap:8px;color:#77726b;font-size:.6rem}.notificationMiniSpinner{width:16px;height:16px;border:2px solid rgba(244,183,40,.15);border-top-color:#e6bd4c;border-radius:50%;animation:notificationHistorySpin .8s linear infinite}.notificationActionError{margin-top:8px;padding:8px 10px;display:flex;align-items:center;justify-content:space-between;gap:8px;border-radius:10px;background:rgba(255,110,120,.06);color:#cf8b92;font-size:.56rem}.notificationActionError button{border:0;background:transparent;color:#e9c85f;font:inherit;font-size:.56rem;font-weight:900;cursor:pointer}.notificationHistoryGroup h4{margin:0;padding-block:12px 7px;padding-inline:16px;color:#6f6a62;font-size:.6rem;font-weight:900}.notificationHistoryRow{width:100%;min-width:0;box-sizing:border-box;padding-block:14px 15px;padding-inline:16px;display:block;border:0;border-top:1px solid rgba(255,255,255,.05);background:transparent;color:#fff;text-align:start;font:inherit;cursor:pointer;transition:background .16s ease}.notificationHistoryRow.isUnread{background:rgba(244,183,40,.055)}.notificationHistoryRow.isUnread:hover,.notificationHistoryRow.isInteractive:hover{background:rgba(244,183,40,.075)}.notificationHistoryRow.isRead{background:rgba(255,255,255,.008);cursor:default}.notificationHistoryRow.isRead.isInteractive{cursor:pointer}.notificationHistoryContent{min-width:0;display:block}.notificationHistoryTopLine{min-width:0;display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:start;gap:12px}.notificationHistoryTitleWrap{min-width:0;display:flex;align-items:flex-start;gap:8px}.notificationUnreadDot{flex:0 0 7px;width:7px;height:7px;margin-top:5px;border-radius:50%;background:#ffd04a;box-shadow:0 0 11px rgba(244,183,40,.45)}.notificationHistorySrOnly{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}.notificationHistoryTitle{min-width:0;color:#f5f1e8;font-size:.76rem;font-weight:850;line-height:1.4;letter-spacing:-.012em;overflow-wrap:normal;word-break:keep-all}.notificationHistoryTime{padding-top:1px;color:#746f67;font-size:.56rem;line-height:1.4;white-space:nowrap}.notificationHistoryBody{display:block;margin-top:6px;padding-inline-start:15px;color:#aaa39a;font-size:.65rem;line-height:1.55;overflow-wrap:normal;word-break:keep-all}.notificationHistoryMeta{margin-top:9px;padding-inline-start:15px;display:flex;align-items:center;flex-wrap:wrap;gap:6px}.notificationHistoryMeta b{padding:4px 7px;border:1px solid rgba(244,183,40,.14);border-radius:999px;background:rgba(244,183,40,.07);color:#e8c862;font-size:.56rem;font-weight:900}.notificationHistoryMeta em{color:#9c8b58;font-size:.9rem;font-style:normal;font-weight:900}.notificationHistoryRow.isRead .notificationHistoryTitle{color:#b3ada4;font-weight:760}.notificationHistoryRow.isRead .notificationHistoryBody{color:#716c65}.notificationHistoryRow.isRead .notificationHistoryTime{color:#5e5a55}.notificationHistoryRow.isRead .notificationHistoryMeta b{border-color:rgba(255,255,255,.055);background:rgba(255,255,255,.025);color:#79746d}.notificationHistoryState{min-height:270px;padding:36px 24px;display:grid;place-items:center;align-content:center;text-align:center}.notificationHistoryEmptyBell,.notificationHistoryStateIcon{width:54px;height:54px;display:grid;place-items:center;border-radius:18px;background:rgba(244,183,40,.08);color:#d5ae42}.notificationHistoryStateIcon{font-size:1.2rem;font-weight:950}.notificationHistorySpinner{width:32px;height:32px;border:3px solid rgba(244,183,40,.16);border-top-color:#e6bd4c;border-radius:50%;animation:notificationHistorySpin .8s linear infinite}.notificationHistoryState strong{margin-top:14px;color:#ddd8cf;font-size:.9rem}.notificationHistoryState p{max-width:280px;margin:7px 0 0;color:#77726b;font-size:.66rem;line-height:1.55}.notificationHistoryState.errorState .notificationHistoryStateIcon{background:rgba(255,110,120,.08);color:#ff8f9b}.notificationHistoryRetry,.notificationHistoryMore{min-height:38px;margin:16px auto;padding-inline:14px;border:1px solid rgba(244,183,40,.25);border-radius:12px;background:rgba(244,183,40,.08);color:#e9c85f;font:inherit;font-size:.65rem;font-weight:900;cursor:pointer}.notificationHistoryMore{display:block}.notificationHistoryInlineError{padding:12px 16px;display:flex;align-items:center;justify-content:space-between;gap:10px;border-top:1px solid rgba(255,110,120,.12);color:#cf8b92;font-size:.62rem}.notificationHistoryInlineError button{border:0;background:transparent;color:#e9c85f;font:inherit;font-size:.62rem;font-weight:900;cursor:pointer}.notificationReceiptView{padding:18px}.notificationReceiptEyebrow{display:block;color:#ffd453;font-size:.6rem;font-weight:900;letter-spacing:.065em}.notificationReceiptAmount{margin-top:12px;display:flex;align-items:baseline;gap:7px}.notificationReceiptAmount strong{color:#fff1b0;font-size:1.8rem;line-height:1}.notificationReceiptAmount span{color:#d4b953;font-size:.66rem;font-weight:900}.notificationReceiptView>p{margin:12px 0 0;color:#a8a197;font-size:.66rem;line-height:1.55}.notificationReceiptFacts{margin:16px 0 0;display:grid;gap:8px}.notificationReceiptFacts div{padding:10px 11px;display:flex;align-items:center;justify-content:space-between;gap:12px;border:1px solid rgba(255,255,255,.055);border-radius:11px;background:rgba(255,255,255,.018)}.notificationReceiptFacts dt{color:#777168;font-size:.56rem;font-weight:800}.notificationReceiptFacts dd{margin:0;color:#d9d2c7;font-size:.6rem;font-weight:850;overflow-wrap:anywhere;text-align:end}.notificationExplorerLink{margin-top:12px;min-height:38px;padding-inline:12px;display:flex;align-items:center;justify-content:center;gap:6px;border:1px solid rgba(244,183,40,.22);border-radius:11px;background:rgba(244,183,40,.06);color:#e8c862;text-decoration:none;font-size:.62rem;font-weight:900}.notificationReceiptError{margin:10px 0 0!important;color:#d48b93!important}.notificationReceiptAcknowledge{width:100%;min-height:42px;margin-top:12px;border:0;border-radius:12px;background:#f4b728;color:#17120a;font:inherit;font-size:.66rem;font-weight:950;cursor:pointer}.notificationReceiptAcknowledge:disabled{opacity:.55;cursor:wait}.notificationHistoryBell:focus-visible,.notificationHistoryMarkAll:focus-visible,.notificationHistoryClose:focus-visible,.notificationBackButton:focus-visible,.notificationHistoryRetry:focus-visible,.notificationHistoryMore:focus-visible,.notificationHistoryRow:focus-visible,.notificationClaimButton:focus-visible,.notificationExplorerLink:focus-visible,.notificationReceiptAcknowledge:focus-visible{outline:2px solid rgba(255,208,74,.8);outline-offset:2px}.notificationHistoryMarkAll:disabled,.notificationHistoryMore:disabled{opacity:.45;cursor:not-allowed}
         @media(max-width:560px){.notificationHistoryBell{width:34px;height:34px;flex-basis:34px;border-radius:11px}.notificationHistoryPanel{--notification-history-enter-y:14px;--notification-history-exit-y:8px;position:fixed;z-index:141;top:auto;inset-inline:10px;bottom:max(10px,env(safe-area-inset-bottom));width:auto;max-height:calc(74dvh - env(safe-area-inset-bottom));border-radius:22px;transform-origin:bottom center}.notificationHistoryScroll,.notificationReceiptView{max-height:calc(74dvh - 73px - env(safe-area-inset-bottom))}.notificationHistoryHeader{padding-inline:14px 9px}.notificationHistoryRow{padding-inline:14px}.notificationHistoryTopLine{gap:8px}.notificationActionCard{align-items:flex-start;flex-direction:column}.notificationClaimButton,.notificationProcessingBadge{width:100%;box-sizing:border-box}.notificationProcessingBadge{max-width:none}.notificationReceiptView{padding:16px 14px}}
         @media(prefers-reduced-motion:reduce){.notificationHistoryBackdrop,.notificationHistoryPanel{animation:none!important}.notificationHistoryRow{transition:none}.notificationHistorySpinner,.notificationMiniSpinner{animation:none}}
       `}</style>
