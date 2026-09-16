@@ -38,6 +38,7 @@ type GroupDrag = {
   startX: number;
   startY: number;
   startPosition: Point;
+  previewPosition: Point;
   moved: boolean;
 } | null;
 
@@ -143,7 +144,7 @@ export function NetworkReleaseGroups({
   const [focusWallet, setFocusWallet] = useState('');
   const [nodes, setNodes] = useState<ReleaseNode[]>([]);
   const [groups, setGroups] = useState<ReleaseGroup[]>([]);
-  const [hydrated, setHydrated] = useState(false);
+  const [hydratedWallet, setHydratedWallet] = useState('');
   const [panelOpen, setPanelOpen] = useState(false);
   const [editor, setEditor] = useState<EditorState>(null);
   const [dragPreview, setDragPreview] = useState<{ id: string; point: Point } | null>(null);
@@ -154,32 +155,30 @@ export function NetworkReleaseGroups({
   nodesRef.current = nodes;
 
   useEffect(() => {
-    setHydrated(false);
+    setHydratedWallet('');
     setGroups([]);
     setPanelOpen(false);
     setEditor(null);
-    if (!walletKey) {
-      setHydrated(true);
-      return;
-    }
+    setDragPreview(null);
+    if (!walletKey) return;
     try {
       const raw = window.localStorage.getItem(`${STORAGE_PREFIX}${walletKey}`);
       setGroups(raw ? sanitizeGroups(JSON.parse(raw)) : []);
     } catch {
       setGroups([]);
     } finally {
-      setHydrated(true);
+      setHydratedWallet(walletKey);
     }
   }, [walletKey]);
 
   useEffect(() => {
-    if (!hydrated || !walletKey) return;
+    if (!walletKey || hydratedWallet !== walletKey) return;
     try {
       window.localStorage.setItem(`${STORAGE_PREFIX}${walletKey}`, JSON.stringify(groups));
     } catch {
       // Groups are a local presentation preference; Network data remains authoritative.
     }
-  }, [hydrated, walletKey, groups]);
+  }, [hydratedWallet, walletKey, groups]);
 
   useLayoutEffect(() => {
     const boundary = boundaryRef.current;
@@ -230,6 +229,7 @@ export function NetworkReleaseGroups({
   }, []);
 
   useEffect(() => {
+    setPanelOpen(false);
     setEditor(null);
     setDragPreview(null);
   }, [focusWallet]);
@@ -343,8 +343,9 @@ export function NetworkReleaseGroups({
     if (!editor || !focusWallet) return;
     const name = editor.name.trim().slice(0, 24);
     if (!name) return;
-    const visible = new Set(nodes.map((node) => node.wallet));
-    const selected = Array.from(new Set(editor.selected.filter((address) => visible.has(address))));
+    // Keep valid selected members even when the release canvas has clustered
+    // them out of the current DOM. Visibility is presentation, not membership.
+    const selected = Array.from(new Set(editor.selected.map(keyWallet).filter(validWallet)));
 
     setGroups((current) => {
       let next = current.map((group) => {
@@ -392,6 +393,7 @@ export function NetworkReleaseGroups({
       startX: event.clientX,
       startY: event.clientY,
       startPosition,
+      previewPosition: startPosition,
       moved: false,
     };
     try { event.currentTarget.setPointerCapture(event.pointerId); } catch { /* best effort */ }
@@ -410,12 +412,14 @@ export function NetworkReleaseGroups({
     if (!drag.moved && Math.hypot(dxScreen, dyScreen) >= 6) drag.moved = true;
     if (!drag.moved) return;
     const scale = currentSceneScale(scene);
+    const previewPosition = {
+      x: drag.startPosition.x + dxScreen / scale,
+      y: drag.startPosition.y + dyScreen / scale,
+    };
+    drag.previewPosition = previewPosition;
     setDragPreview({
       id: drag.groupId,
-      point: {
-        x: drag.startPosition.x + dxScreen / scale,
-        y: drag.startPosition.y + dyScreen / scale,
-      },
+      point: previewPosition,
     });
   };
 
@@ -423,13 +427,13 @@ export function NetworkReleaseGroups({
     const drag = groupDragRef.current;
     if (!drag || drag.pointerId !== event.pointerId) return;
     groupDragRef.current = null;
-    const preview = dragPreview?.id === drag.groupId ? dragPreview.point : null;
     setDragPreview(null);
-    if (!drag.moved || !preview) {
+    if (!drag.moved) {
       toggleGroup(drag.groupId);
       return;
     }
-    setGroups((current) => current.map((group) => group.id === drag.groupId ? { ...group, position: preview } : group));
+    const committedPosition = drag.previewPosition;
+    setGroups((current) => current.map((group) => group.id === drag.groupId ? { ...group, position: committedPosition } : group));
   };
 
   const cancelGroupPointer = (event: ReactPointerEvent<HTMLButtonElement>) => {
