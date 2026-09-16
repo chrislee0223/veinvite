@@ -15,12 +15,17 @@ test('developer wallet routes through V72 while general users keep AppNetworkHub
   assert.match(guide, /<AppNetworkHub locale=\{locale\} \/>/);
 });
 
-test('V72 preserves V71 and owns only interaction hardening', () => {
+test('V72 preserves V71 and owns only narrow interaction hardening', () => {
   assert.match(v72, /import \{ AppNetworkCanaryV71 \} from '\.\/AppNetworkCanaryV71'/);
   assert.match(v72, /<AppNetworkCanaryV71 locale=\{locale\} \/>/);
   assert.doesNotMatch(v72, /fetch\s*\(/);
   assert.doesNotMatch(v72, /supabase/i);
   assert.doesNotMatch(v72, /reward/i);
+  assert.doesNotMatch(v72, /MutationObserver/);
+  assert.doesNotMatch(v72, /requestAnimationFrame/);
+  assert.doesNotMatch(v72, /cloneNode/);
+  assert.doesNotMatch(v72, /v71MobileCommitFreezeLayer/);
+  assert.doesNotMatch(v72, /v72GroupCommitTransition/);
 });
 
 test('group editor swallows the later node click before profile selection can repaint it', () => {
@@ -32,28 +37,13 @@ test('group editor swallows the later node click before profile selection can re
 
 test('Create rejects already-grouped nodes before V71 optimistic mobile paint', () => {
   assert.match(v72, /creating &&\s*\(node\.classList\.contains\('v42LockedMember'\) \|\| node\.classList\.contains\('v42GroupedMember'\)\)/s);
+  assert.match(v72, /document\.addEventListener\('pointerdown', onPointerDownCapture, true\)/);
   assert.match(v72, /event\.preventDefault\(\);\s*event\.stopPropagation\(\);\s*event\.stopImmediatePropagation\(\);/s);
 });
 
-test('mobile group save keeps native activation and neutralizes the legacy clone freeze before paint', () => {
-  const saveStart = v72.indexOf('const saveButton');
-  const clickStart = v72.indexOf('const onClickCapture', saveStart);
-  assert.notEqual(saveStart, -1);
-  assert.notEqual(clickStart, -1);
-  const saveBlock = v72.slice(saveStart, clickStart);
-
-  assert.match(saveBlock, /\.v42GroupPanel \.v42CreateActions button\.primary/);
-  assert.match(saveBlock, /event\.pointerType !== 'touch' && !coarsePointer/);
-  assert.match(saveBlock, /armCommitTransition\(root\);/);
-  assert.doesNotMatch(saveBlock, /event\.preventDefault\(/);
-  assert.doesNotMatch(saveBlock, /event\.stopPropagation\(/);
-  assert.doesNotMatch(saveBlock, /event\.stopImmediatePropagation\(/);
-
-  assert.match(v72, /const freezeObserver = new MutationObserver/);
-  assert.match(v72, /node\.matches\('\.v71MobileCommitFreezeLayer'\)/);
-  assert.match(v72, /layers\.forEach\(\(layer\) => layer\.remove\(\)\)/);
-  assert.match(v72, /node\.style\.setProperty\('visibility', 'visible', 'important'\)/);
-  assert.doesNotMatch(v72, /cloneNode/);
-  assert.match(v72, /\.personNode\.v72GroupCommitTransition/);
-  assert.match(v72, /prefers-reduced-motion: reduce/);
+test('V72 deliberately leaves the existing V71 mobile save stabilization untouched', () => {
+  assert.doesNotMatch(v72, /v42CreateActions/);
+  assert.doesNotMatch(v72, /saveButton/);
+  assert.doesNotMatch(v72, /visibility/);
+  assert.doesNotMatch(v72, /transition:/);
 });
