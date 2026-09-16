@@ -279,3 +279,45 @@ on public.invitations;
 create trigger invitations_invalidate_related_security_identity
 after insert or update on public.invitations
 for each row execute function public.invalidate_security_identity_on_related_participant_change();
+
+-- Close any race between the last pre-migration assessment and installation of
+-- the trigger above. Only currently unsettled CLEAR invitations that already
+-- share a client with an actual VeInvite participant are touched.
+update public.invitations i
+set
+  identity_link_status = 'UNKNOWN',
+  identity_link_evidence = jsonb_build_object(
+    'staleBecause', 'RELATED_SECURITY_CLIENT_PARTICIPANT_CHANGED',
+    'observedAt', clock_timestamp()
+  ),
+  sybil_status = i.sybil_status
+where i.invitee_wallet is not null
+  and i.sybil_status = 'CLEAR'
+  and i.reward_status <> 'PAID'
+  and exists (
+    select 1
+    from public.security_client_wallet_observations existing_observation
+    join public.security_client_wallet_observations related_observation
+      on related_observation.client_id = existing_observation.client_id
+    join public.invitations related_invitation
+      on lower(btrim(related_invitation.invitee_wallet)) = related_observation.wallet_address
+    where existing_observation.wallet_address = lower(btrim(i.invitee_wallet))
+      and related_observation.wallet_address <> lower(btrim(i.invitee_wallet))
+      and related_invitation.invite_code <> i.invite_code
+      and (
+        related_invitation.status = 'COMPLETED'
+        or related_invitation.reward_status in ('ELIGIBLE','PAID')
+        or (
+          related_invitation.eligibility_check_id is not null
+          and related_invitation.ineligibility_check_id is null
+          and related_invitation.status in ('ACTIVATING','UNDER_REVIEW','COMPLETED')
+        )
+      )
+  )
+  and not exists (
+    select 1
+    from public.reward_queue_entries q
+    where q.invite_code = i.invite_code
+      and q.status = 'ASSIGNED'
+      and q.assigned_round_id is not null
+  );
