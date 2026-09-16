@@ -39,6 +39,8 @@ test('group editor clears stale canvas selection so group membership is the only
   assert.match(guardSource, /requestAnimationFrame\(clearCanvasSelection\)/);
   assert.match(guardSource, /networkReleaseGroupsBoundary\.releaseGroupEditing \.releasePerson\.releaseGroupDraftUnselected/);
   assert.match(guardSource, /networkReleaseGroupsBoundary\.releaseGroupEditing \.releasePerson\.releaseGroupDraftSelected/);
+  assert.doesNotMatch(v71Source, /canarySelectedNode|v42SelectedMember/);
+  assert.doesNotMatch(guardSource, /canarySelectedNode|v42SelectedMember/);
 });
 
 test('saving an edited group preserves selected members that are clustered out of the DOM', () => {
