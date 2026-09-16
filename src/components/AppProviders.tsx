@@ -24,6 +24,7 @@ import '@/lib/i18n/greekFinalPolish';
 import '@/lib/i18n/networkNavigationCopyPolish';
 import { LegalDocumentSheetHost } from './LegalDocumentSheetHost';
 import { LegalNavigationMemory } from './LegalNavigationMemory';
+import { NetworkIdleWarmup } from './NetworkIdleWarmup';
 import { RewardReservationRecovery } from './RewardReservationRecovery';
 import { RouteScopedInviteEnhancements } from './RouteScopedInviteEnhancements';
 import { SecondaryPageLayoutPolish } from './SecondaryPageLayoutPolish';
@@ -92,6 +93,7 @@ export function AppProviders({
         <WalletConnectionResume />
         <WalletRuntimeLifecycle />
         <RewardReservationRecovery />
+        <NetworkIdleWarmup />
         {children}
         <WalletLanguagePreferenceSync />
         <WalletCountryObservationSync />
