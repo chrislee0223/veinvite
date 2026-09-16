@@ -5,7 +5,6 @@ import { useCallback, useEffect, useRef } from 'react';
 import { useWalletLauncher } from './WalletControl';
 
 const RETRY_MS = 120_000;
-const STARTUP_FALLBACK_MS = 5_000;
 const IDLE_TIMEOUT_MS = 1_500;
 const APP_READY_EVENT = 'veinvite-app-ready';
 const RESERVATION_READY_EVENT =
@@ -21,6 +20,23 @@ type IdleCapableWindow = Window & {
   cancelIdleCallback?: (id: number) => void;
 };
 
+function normalizeWallet(
+  wallet: string | null | undefined,
+): string | null {
+  return wallet?.trim().toLowerCase() ?? null;
+}
+
+function isCurrentWalletAppReady(wallet: string): boolean {
+  const root = document.documentElement.dataset;
+
+  return (
+    root.veinviteAppReady === 'true' &&
+    root.veinviteHomeStartupStatus === 'ready' &&
+    normalizeWallet(root.veinviteHomeStartupWallet) ===
+      normalizeWallet(wallet)
+  );
+}
+
 /**
  * A referral can complete a few blocks before its completion position becomes
  * finalized. The completion remains in its original friend slot until the
@@ -31,12 +47,22 @@ type IdleCapableWindow = Window & {
 export function RewardReservationRecovery() {
   const { wallet } = useWalletLauncher();
   const runningRef = useRef(false);
+  const walletRef = useRef<string | null>(
+    normalizeWallet(wallet),
+  );
+
+  useEffect(() => {
+    walletRef.current = normalizeWallet(wallet);
+  }, [wallet]);
 
   const retry = useCallback(async () => {
+    const requestWallet = normalizeWallet(wallet);
+
     if (
-      !wallet ||
+      !requestWallet ||
       runningRef.current ||
-      document.visibilityState !== 'visible'
+      document.visibilityState !== 'visible' ||
+      !isCurrentWalletAppReady(requestWallet)
     ) {
       return;
     }
@@ -53,6 +79,13 @@ export function RewardReservationRecovery() {
         },
       );
 
+      // Ignore a late response from wallet A after the provider has already
+      // switched to wallet B. The server remains authoritative, but stale A
+      // must not re-arm B's session gate or refresh B's reward UI.
+      if (walletRef.current !== requestWallet) {
+        return;
+      }
+
       if (response.status === 401) {
         window.dispatchEvent(
           new Event(WALLET_SESSION_INVALID_EVENT),
@@ -66,7 +99,10 @@ export function RewardReservationRecovery() {
         ready?: boolean;
       };
 
-      if (body.ready === true) {
+      if (
+        body.ready === true &&
+        walletRef.current === requestWallet
+      ) {
         window.dispatchEvent(
           new Event(RESERVATION_READY_EVENT),
         );
@@ -88,17 +124,20 @@ export function RewardReservationRecovery() {
     let initialStarted = false;
     let idleId: number | null = null;
     let idleFallbackId = 0;
-    let startupFallbackId = 0;
 
     const startInitialRetry = () => {
       if (initialStarted) return;
       initialStarted = true;
-      window.clearTimeout(startupFallbackId);
       void retry();
     };
 
     const scheduleInitialRetry = () => {
-      if (initialStarted || idleId !== null || idleFallbackId !== 0) {
+      if (
+        initialStarted ||
+        idleId !== null ||
+        idleFallbackId !== 0 ||
+        !isCurrentWalletAppReady(wallet)
+      ) {
         return;
       }
 
@@ -119,23 +158,16 @@ export function RewardReservationRecovery() {
       }, IDLE_TIMEOUT_MS);
     };
 
-    if (
-      document.documentElement.dataset.veinviteAppReady === 'true'
-    ) {
+    if (isCurrentWalletAppReady(wallet)) {
       scheduleInitialRetry();
-    } else {
-      window.addEventListener(
-        APP_READY_EVENT,
-        scheduleInitialRetry,
-        { once: true },
-      );
-      // Keep the recovery heartbeat resilient even if startup readiness never
-      // publishes because another surface is waiting for user action.
-      startupFallbackId = window.setTimeout(
-        scheduleInitialRetry,
-        STARTUP_FALLBACK_MS,
-      );
     }
+
+    // Keep listening until this wallet really becomes ready. A generic timeout
+    // must never bypass wallet verification just to run a protected heartbeat.
+    window.addEventListener(
+      APP_READY_EVENT,
+      scheduleInitialRetry,
+    );
 
     const timer = window.setInterval(
       () => void retry(),
@@ -157,7 +189,6 @@ export function RewardReservationRecovery() {
         APP_READY_EVENT,
         scheduleInitialRetry,
       );
-      window.clearTimeout(startupFallbackId);
       window.clearTimeout(idleFallbackId);
       if (idleId !== null && idleWindow.cancelIdleCallback) {
         idleWindow.cancelIdleCallback(idleId);
