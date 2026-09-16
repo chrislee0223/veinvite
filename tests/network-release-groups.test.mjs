@@ -48,3 +48,9 @@ test('group hub drag is scale-aware, commits the ref-owned last point, and cance
   assert.match(groupSource, /const committedPosition = drag\.previewPosition/);
   assert.match(groupSource, /touchPointersRef\.current\.size > 1[\s\S]*?groupDragRef\.current = null/);
 });
+
+test('pointer cancellation clears a release group drag before the inner gesture boundary stops propagation', () => {
+  assert.match(groupSource, /const onPointerCancelCapture = \(event: PointerEvent\) =>/);
+  assert.match(groupSource, /groupDragRef\.current\?\.pointerId === event\.pointerId[\s\S]*?groupDragRef\.current = null;[\s\S]*?setDragPreview\(null\)/);
+  assert.match(groupSource, /addEventListener\('pointercancel', onPointerCancelCapture, true\)/);
+});
