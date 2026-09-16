@@ -48,10 +48,7 @@ test('related participant state changes are treated as fresh security evidence',
 });
 
 test('a wallet becomes relevant only when it enters the same participant states used by the identity gate', () => {
-  assert.match(
-    relatedInvalidation,
-    /new\.status = 'COMPLETED'/,
-  );
+  assert.match(relatedInvalidation, /new\.status = 'COMPLETED'/);
   assert.match(
     relatedInvalidation,
     /new\.reward_status in \('ELIGIBLE','PAID'\)/,
@@ -67,18 +64,12 @@ test('a wallet becomes relevant only when it enters the same participant states 
 });
 
 test('entering a shared-client participant state invalidates other unsettled CLEAR invitations', () => {
-  assert.match(
-    relatedInvalidation,
-    /identity_link_status = 'UNKNOWN'/,
-  );
+  assert.match(relatedInvalidation, /identity_link_status = 'UNKNOWN'/);
   assert.match(
     relatedInvalidation,
     /staleBecause', 'RELATED_SECURITY_CLIENT_PARTICIPANT_CHANGED'/,
   );
-  assert.match(
-    relatedInvalidation,
-    /sybil_status = i\.sybil_status/,
-  );
+  assert.match(relatedInvalidation, /sybil_status = i\.sybil_status/);
   assert.match(
     relatedInvalidation,
     /changed_observation\.client_id = existing_observation\.client_id/,
@@ -90,14 +81,8 @@ test('entering a shared-client participant state invalidates other unsettled CLE
 });
 
 test('historical paid or round-assigned rewards stay immutable', () => {
-  assert.match(
-    relatedInvalidation,
-    /i\.reward_status <> 'PAID'/,
-  );
-  assert.match(
-    relatedInvalidation,
-    /q\.status = 'ASSIGNED'/,
-  );
+  assert.match(relatedInvalidation, /i\.reward_status <> 'PAID'/);
+  assert.match(relatedInvalidation, /q\.status = 'ASSIGNED'/);
   assert.match(
     relatedInvalidation,
     /q\.assigned_round_id is not null/,
@@ -105,10 +90,7 @@ test('historical paid or round-assigned rewards stay immutable', () => {
 });
 
 test('cross invalidation is transition-based and recursion-safe', () => {
-  assert.match(
-    relatedInvalidation,
-    /v_old_relevant/,
-  );
+  assert.match(relatedInvalidation, /v_old_relevant/);
   assert.match(
     relatedInvalidation,
     /if v_old_relevant[\s\S]*lower\(btrim\(old\.invitee_wallet\)\) = v_wallet then[\s\S]*return new;/,
@@ -125,4 +107,25 @@ test('cross invalidation is transition-based and recursion-safe', () => {
     migration,
     /revoke all on function public\.invalidate_security_identity_on_related_participant_change\(\)[\s\S]*from public, anon, authenticated/,
   );
+});
+
+test('migration backfills pre-existing stale CLEAR rows without reopening settled rewards', () => {
+  const backfill = migration.slice(
+    migration.indexOf('-- Close any race between the last pre-migration assessment'),
+  );
+
+  assert.match(backfill, /update public\.invitations i/);
+  assert.match(backfill, /identity_link_status = 'UNKNOWN'/);
+  assert.match(
+    backfill,
+    /RELATED_SECURITY_CLIENT_PARTICIPANT_CHANGED/,
+  );
+  assert.match(backfill, /i\.sybil_status = 'CLEAR'/);
+  assert.match(backfill, /i\.reward_status <> 'PAID'/);
+  assert.match(
+    backfill,
+    /related_invitation\.status = 'COMPLETED'[\s\S]*related_invitation\.reward_status in \('ELIGIBLE','PAID'\)[\s\S]*related_invitation\.status in \('ACTIVATING','UNDER_REVIEW','COMPLETED'\)/,
+  );
+  assert.match(backfill, /q\.status = 'ASSIGNED'/);
+  assert.match(backfill, /q\.assigned_round_id is not null/);
 });
