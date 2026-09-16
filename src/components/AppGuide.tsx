@@ -5,6 +5,7 @@ import { useLayoutEffect } from 'react';
 
 import { AppNetworkComingSoon } from './AppNetworkComingSoon';
 import { AppNetworkHub } from './AppNetworkHub';
+import { NetworkInteractionSafety } from './NetworkInteractionSafety';
 import { useWalletLauncher } from './WalletControl';
 import { GUIDE_COPY } from '@/lib/i18n/guideCopy';
 import { GUIDE_ELIGIBILITY_COPY } from '@/lib/i18n/guideEligibilityCopy';
@@ -108,12 +109,15 @@ export function AppGuide({ locale }: { locale: Locale }) {
   const { wallet } = useWalletLauncher();
   const networkEnabled =
     process.env.NEXT_PUBLIC_NETWORK_CANVAS_ENABLED !== 'false';
+  const walletKey = wallet?.toLowerCase() ?? 'disconnected';
 
   if (wallet?.toLowerCase() === NETWORK_CANARY_WALLET) {
     return (
       <>
         <NetworkPageZoomGuard />
-        <AppNetworkCanaryV71 key={wallet.toLowerCase()} locale={locale} />
+        <NetworkInteractionSafety key={walletKey}>
+          <AppNetworkCanaryV71 locale={locale} />
+        </NetworkInteractionSafety>
       </>
     );
   }
@@ -121,7 +125,9 @@ export function AppGuide({ locale }: { locale: Locale }) {
   return networkEnabled ? (
     <>
       <NetworkPageZoomGuard />
-      <AppNetworkHub locale={locale} />
+      <NetworkInteractionSafety key={walletKey}>
+        <AppNetworkHub locale={locale} />
+      </NetworkInteractionSafety>
     </>
   ) : (
     <AppNetworkComingSoon locale={locale} />
