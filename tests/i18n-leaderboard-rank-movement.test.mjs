@@ -91,7 +91,7 @@ test('movement UI keeps new/up/down explicit while unchanged ranks stay visually
   );
 });
 
-test('RTL locales keep leaderboard geometry and numeric movement left-to-right', () => {
+test('RTL locales keep leaderboard geometry while movement labels center as whole visual units', () => {
   assert.match(leaderboard, /<bdi dir="ltr">/);
   assert.match(leaderboard, /\.tableHeader,\.rankRow \{[\s\S]*direction:ltr;/);
   assert.match(leaderboard, /\.rankStack \{[\s\S]*direction:ltr;/);
@@ -105,7 +105,7 @@ test('RTL locales keep leaderboard geometry and numeric movement left-to-right',
   );
   assert.match(
     alignmentGuard,
-    /\.rankRow\[data-rank\] \.rankMovement\.rankMovement,[\s\S]*text-align: left !important;[\s\S]*unicode-bidi: isolate !important;/,
+    /\.rankRow\[data-rank\] \.rankMovement\.rankMovement,[\s\S]*justify-content: center !important;[\s\S]*text-align: center !important;[\s\S]*unicode-bidi: isolate !important;/,
   );
   for (const locale of ['ar', 'ur', 'arz']) {
     assert.match(
@@ -132,7 +132,7 @@ test('large movement and top-100 boundary scenarios are represented in preview f
   assert.match(preview, /rankMovement: 'UNAVAILABLE'/);
 });
 
-test('final inviter grid keeps header and every row on one four-column coordinate system', () => {
+test('final inviter grid keeps header, top-100 rows, placeholders, and current-user row on one coordinate system', () => {
   const podiumImport = layout.indexOf(
     "import './leaderboard-podium-layout-guard.css';",
   );
@@ -144,25 +144,34 @@ test('final inviter grid keeps header and every row on one four-column coordinat
   assert.ok(alignmentImport > podiumImport);
   assert.match(
     alignmentGuard,
-    /\.tableHeader,\s*html body \.leaderboardPage \.rankingCard \.rankRow \{\s*grid-template-columns: 16fr 36fr 20fr 28fr !important;/,
+    /\.tableHeader,\s*html body \.leaderboardPage \.rankingCard \.rankRow \{\s*grid-template-columns: 20fr 32fr 20fr 28fr !important;/,
   );
+  assert.match(alignmentGuard, /\.rankRow\.trailingCurrent \.rankStack/);
+  assert.match(leaderboard, /className="rankRow placeholderRow/);
+  assert.match(leaderboard, /trailing \? 'trailingCurrent' : ''/);
 
-  const rankTrack = 16;
-  const inviterTrack = 36;
+  const rankTrack = 20;
+  const inviterTrack = 32;
   const completedTrack = 20;
   const rewardTrack = 28;
-  const rankAxisInsideTrack = 0.375;
-  const headerShiftInsideTrack = -0.125;
+  const rankAxisInsideTrack = 0.3;
+  const headerShiftInsideTrack = -0.2;
+  const movementLaneStartInsideTrack = 0.55;
+  const movementCenterInsideTrack =
+    movementLaneStartInsideTrack + (1 - movementLaneStartInsideTrack) / 2;
 
   assert.equal(rankTrack + inviterTrack + completedTrack + rewardTrack, 100);
   assert.equal(rankTrack * rankAxisInsideTrack, 6);
   assert.equal(rankTrack / 2 + rankTrack * headerShiftInsideTrack, 6);
-  assert.equal(rankTrack + inviterTrack / 2, 34);
+  assert.equal(rankTrack * movementCenterInsideTrack, 15.5);
+  assert.equal(rankTrack + inviterTrack / 2, 36);
   assert.equal(rankTrack + inviterTrack + completedTrack / 2, 62);
   assert.equal(rankTrack + inviterTrack + completedTrack + rewardTrack / 2, 86);
+  assert.ok(rankTrack * movementCenterInsideTrack < rankTrack);
+  assert.ok(36 - 15.5 > 20);
 });
 
-test('rank numeral stays on the original axis while movement sits to its physical right', () => {
+test('rank numeral stays on the original six-percent axis while inviter gains breathing room', () => {
   assert.match(leaderboard, /data-rank=\{entry\.rank > 0 \? entry\.rank : undefined\}/);
   assert.match(leaderboard, /data-rank=\{rank\}/);
   assert.match(
@@ -171,7 +180,7 @@ test('rank numeral stays on the original axis while movement sits to its physica
   );
   assert.match(
     alignmentGuard,
-    /--inviter-rank-number-axis: 37\.5%;[\s\S]*--inviter-rank-header-shift: -12\.5%;[\s\S]*--inviter-rank-movement-gap: 22px;/,
+    /--inviter-rank-number-axis: 30%;[\s\S]*--inviter-rank-header-shift: -20%;[\s\S]*--inviter-rank-movement-lane-start: 55%;/,
   );
   assert.match(
     alignmentGuard,
@@ -195,26 +204,34 @@ test('approved podium artwork is preserved while the temporary component redraw 
   );
 });
 
-test('movement labels use natural width beside rank instead of changing the numeral axis', () => {
+test('movement labels center the complete arrow-number or localized NEW label in one fixed lane', () => {
   assert.match(
     alignmentGuard,
-    /\.rankMovement\.rankMovement \{[\s\S]*left: calc\(var\(--inviter-rank-number-axis\) \+ var\(--inviter-rank-movement-gap\)\) !important;[\s\S]*top: 50% !important;[\s\S]*width: max-content !important;[\s\S]*display: block !important;[\s\S]*transform: translateY\(-50%\) !important;[\s\S]*overflow: visible !important;[\s\S]*white-space: nowrap !important;/,
+    /\.rankMovement\.rankMovement \{[\s\S]*left: var\(--inviter-rank-movement-lane-start\) !important;[\s\S]*top: 50% !important;[\s\S]*right: 0 !important;[\s\S]*width: auto !important;[\s\S]*display: flex !important;[\s\S]*justify-content: center !important;[\s\S]*transform: translateY\(-50%\) !important;[\s\S]*text-align: center !important;[\s\S]*white-space: nowrap !important;/,
   );
   assert.match(leaderboard, /className="rankMovement new"[\s\S]*dir="auto"/);
+  assert.match(
+    leaderboard,
+    /<bdi dir="ltr">[\s\S]*\{isUp \? '▲' : '▼'\}\{Math\.abs\(change\)\.toLocaleString\('en-US'\)\}/,
+  );
 });
 
-test('mobile movement clears the smaller podium without adding a fifth table column', () => {
+test('responsive layouts keep the same four-column axes without locale-specific movement nudges', () => {
   assert.match(
     alignmentGuard,
-    /@media \(max-width: 420px\)[\s\S]*--inviter-rank-movement-gap: 20px;/,
-  );
-  assert.match(
-    alignmentGuard,
-    /grid-template-columns: 16fr 36fr 20fr 28fr !important;/,
+    /grid-template-columns: 20fr 32fr 20fr 28fr !important;/,
   );
   assert.doesNotMatch(
     alignmentGuard,
-    /grid-template-columns:[^;]*16fr[^;]*36fr[^;]*20fr[^;]*28fr[^;]*fr[^;]*;/,
+    /grid-template-columns:[^;]*20fr[^;]*32fr[^;]*20fr[^;]*28fr[^;]*fr[^;]*;/,
+  );
+  assert.doesNotMatch(
+    alignmentGuard,
+    /@media \(max-width: 420px\)[\s\S]*--inviter-rank-movement-lane-start/,
+  );
+  assert.doesNotMatch(
+    alignmentGuard,
+    /html\[lang=['"][^'"]+['"]\][\s\S]*rankMovement/,
   );
 });
 
