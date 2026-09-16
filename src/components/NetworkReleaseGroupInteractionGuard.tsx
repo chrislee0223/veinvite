@@ -8,7 +8,14 @@ type TouchDraftIntent = {
   at: number;
 };
 
+type FrozenPerson = {
+  person: HTMLElement;
+  previousVisibility: string;
+  clone: HTMLElement;
+};
+
 const TOUCH_DRAFT_WINDOW_MS = 900;
+const COMMIT_FREEZE_FRAMES = 4;
 
 export function NetworkReleaseGroupInteractionGuard({
   children,
@@ -17,11 +24,14 @@ export function NetworkReleaseGroupInteractionGuard({
 }) {
   const rootRef = useRef<HTMLDivElement | null>(null);
   const touchDraftRef = useRef<TouchDraftIntent | null>(null);
+  const lastPointerTypeRef = useRef('');
 
   useEffect(() => {
     const root = rootRef.current;
     if (!root) return;
     let clearFrame = 0;
+    let commitFrame = 0;
+    let frozenPeople: FrozenPerson[] = [];
 
     const clearCanvasSelection = () => {
       clearFrame = 0;
@@ -46,6 +56,68 @@ export function NetworkReleaseGroupInteractionGuard({
         });
     };
 
+    const clearCommitFreeze = () => {
+      if (commitFrame) {
+        window.cancelAnimationFrame(commitFrame);
+        commitFrame = 0;
+      }
+      frozenPeople.forEach(({ person, previousVisibility, clone }) => {
+        if (person.isConnected) person.style.visibility = previousVisibility;
+        clone.remove();
+      });
+      frozenPeople = [];
+    };
+
+    const releaseCommitFreezeAfterFrames = (remaining: number) => {
+      if (remaining <= 0) {
+        clearCommitFreeze();
+        return;
+      }
+      commitFrame = window.requestAnimationFrame(() => {
+        commitFrame = 0;
+        releaseCommitFreezeAfterFrames(remaining - 1);
+      });
+    };
+
+    const freezeMobileCommit = () => {
+      const coarsePointer = typeof window.matchMedia === 'function' && window.matchMedia('(pointer: coarse)').matches;
+      if (lastPointerTypeRef.current !== 'touch' && !coarsePointer) return;
+      clearCommitFreeze();
+
+      const people = Array.from(root.querySelectorAll<HTMLElement>('.releasePerson[data-release-wallet]'));
+      people.forEach((person) => {
+        const computed = window.getComputedStyle(person);
+        if (computed.display === 'none' || computed.visibility === 'hidden' || Number.parseFloat(computed.opacity || '1') <= 0.01) return;
+        const rect = person.getBoundingClientRect();
+        if (rect.width <= 0 || rect.height <= 0) return;
+
+        const clone = person.cloneNode(true) as HTMLElement;
+        clone.removeAttribute('id');
+        clone.setAttribute('aria-hidden', 'true');
+        clone.style.position = 'fixed';
+        clone.style.left = `${rect.left}px`;
+        clone.style.top = `${rect.top}px`;
+        clone.style.width = `${rect.width}px`;
+        clone.style.height = `${rect.height}px`;
+        clone.style.margin = '0';
+        clone.style.transform = 'none';
+        clone.style.transition = 'none';
+        clone.style.animation = 'none';
+        clone.style.pointerEvents = 'none';
+        clone.style.visibility = 'visible';
+        clone.style.opacity = computed.opacity;
+        clone.style.filter = computed.filter;
+        clone.style.zIndex = '2147483000';
+        document.body.appendChild(clone);
+
+        const previousVisibility = person.style.visibility;
+        person.style.visibility = 'hidden';
+        frozenPeople.push({ person, previousVisibility, clone });
+      });
+
+      if (frozenPeople.length) releaseCommitFreezeAfterFrames(COMMIT_FREEZE_FRAMES);
+    };
+
     const scheduleTouchDraftCleanupIfClosed = () => {
       window.requestAnimationFrame(() => {
         if (!groupEditorOpen()) clearTouchDraftVisuals();
@@ -53,6 +125,7 @@ export function NetworkReleaseGroupInteractionGuard({
     };
 
     const onPointerDownCapture = (event: PointerEvent) => {
+      lastPointerTypeRef.current = event.pointerType || '';
       if (!groupEditorOpen()) return;
       const person = event.target instanceof Element
         ? event.target.closest<HTMLElement>('.releasePerson[data-release-wallet]')
@@ -105,6 +178,9 @@ export function NetworkReleaseGroupInteractionGuard({
         return;
       }
 
+      if (groupEditorOpen() && button.matches('.releaseGroupActions .primary')) {
+        freezeMobileCommit();
+      }
       scheduleTouchDraftCleanupIfClosed();
     };
 
@@ -121,6 +197,7 @@ export function NetworkReleaseGroupInteractionGuard({
       root.removeEventListener('click', onClickCapture, true);
       if (clearFrame) window.cancelAnimationFrame(clearFrame);
       clearTouchDraftVisuals();
+      clearCommitFreeze();
     };
   }, []);
 
