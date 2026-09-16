@@ -75,7 +75,7 @@ test('read notifications stay static except paid receipts, which remain reopenab
   assert.match(center, /notificationHistoryRow isUnread/);
   assert.doesNotMatch(center, /aria-pressed=/);
   assert.match(center, /notificationHistorySrOnly/);
-  assert.match(center, /\{structure\.newLabel\}/);
+  assert.match(center, /\{metaCopy\.unread\}/);
 });
 
 test('bell and dialog expose an explicit accessible control relationship', () => {
