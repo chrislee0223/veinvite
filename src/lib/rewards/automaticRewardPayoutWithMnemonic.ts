@@ -8,13 +8,19 @@ import {
 } from '@vechain/sdk-core';
 
 import {
+  getVeBetterNetwork,
+} from '@/lib/vebetter/network';
+import {
   readAutomaticRewardDistributorReadiness as readBaseReadiness,
   runAutomaticRewardPayout as runBaseAutomaticRewardPayout,
   type AutomaticRewardPayoutResult,
 } from './automaticRewardPayout';
 import { prepareClaimedRewardFastPath } from './immediateClaimPayout';
 import { reserveEligibleReferralRewards } from './rewardReservation';
-import { recoverSubmittedRewardPayout } from './submittedPayoutRecovery';
+import {
+  recoverSubmittedRewardPayout,
+  type SubmittedPayoutRecoveryResult,
+} from './submittedPayoutRecovery';
 
 const PRIVATE_KEY_PATTERN = /^(?:0x)?[0-9a-fA-F]{64}$/;
 const ADDRESS_PATTERN = /^0x[0-9a-f]{40}$/;
@@ -129,15 +135,27 @@ function prepareRewardDistributorSecret() {
   }
 }
 
-async function recoverSubmittedBeforePayout() {
+type SubmittedPayoutRecoveryAttempt = {
+  result: SubmittedPayoutRecoveryResult | null;
+  failed: boolean;
+};
+
+async function recoverSubmittedBeforePayout():
+Promise<SubmittedPayoutRecoveryAttempt> {
   try {
-    return await recoverSubmittedRewardPayout();
+    return {
+      result: await recoverSubmittedRewardPayout(),
+      failed: false,
+    };
   } catch (error) {
     console.error(
       'Submitted reward payout recovery failed before payout work:',
       error,
     );
-    return null;
+    return {
+      result: null,
+      failed: true,
+    };
   }
 }
 
@@ -147,6 +165,12 @@ function runClaimTransferWorker() {
   });
 }
 
+export type ImmediateClaimRewardPayoutResult =
+  AutomaticRewardPayoutResult & {
+    submittedRecovery: SubmittedPayoutRecoveryResult | null;
+    submittedRecoveryFailed: boolean;
+  };
+
 export type { AutomaticRewardPayoutResult };
 
 export function readAutomaticRewardDistributorReadiness() {
@@ -155,7 +179,7 @@ export function readAutomaticRewardDistributorReadiness() {
 }
 
 export async function runImmediateClaimRewardPayout():
-Promise<AutomaticRewardPayoutResult> {
+Promise<ImmediateClaimRewardPayoutResult> {
   prepareRewardDistributorSecret();
   const readiness = readBaseReadiness();
 
@@ -168,7 +192,12 @@ Promise<AutomaticRewardPayoutResult> {
     !readiness.configured ||
     !readiness.distributorAddress
   ) {
-    return runClaimTransferWorker();
+    const payoutResult = await runClaimTransferWorker();
+    return {
+      ...payoutResult,
+      submittedRecovery: null,
+      submittedRecoveryFailed: false,
+    };
   }
 
   // Reconcile the oldest already-submitted transaction before preparing more
@@ -177,7 +206,34 @@ Promise<AutomaticRewardPayoutResult> {
   // only releases the single-active-round preparation gate; payouts and
   // invitations remain PENDING/ELIGIBLE until the normal full-finality verifier
   // atomically settles the immutable manifest as PAID.
-  await recoverSubmittedBeforePayout();
+  //
+  // Keep this recovery observation attached to the Claim result. A newer Claim
+  // can safely continue after broadcast confirmation, but the durable Queue must
+  // not forget that an older submitted transaction still needs finality just
+  // because the transfer-only worker below returns IDLE or PAID.
+  const submittedRecovery = await recoverSubmittedBeforePayout();
+
+  // A deterministic recovery safety stop is different from ordinary finality
+  // waiting. Do not prepare or sign newer work when the existing immutable
+  // journal requires operator intervention; preserve that stop as the dominant
+  // result instead of allowing a later IDLE/PAID result to hide it.
+  if (
+    submittedRecovery.result?.status ===
+    'MANUAL_INTERVENTION_REQUIRED'
+  ) {
+    return {
+      status: 'MANUAL_INTERVENTION_REQUIRED',
+      network: getVeBetterNetwork(),
+      distributorAddress: readiness.distributorAddress,
+      roundId: submittedRecovery.result.roundId,
+      manifestId: submittedRecovery.result.manifestId,
+      txId: submittedRecovery.result.txId,
+      reason: submittedRecovery.result.reason,
+      transfersPerformed: false,
+      submittedRecovery: submittedRecovery.result,
+      submittedRecoveryFailed: false,
+    };
+  }
 
   // Prepare only already-claimed, already-reserved rewards. If this preparation
   // throws, propagate the failure so the durable Queue retries the same approved
@@ -187,7 +243,13 @@ Promise<AutomaticRewardPayoutResult> {
     distributorAddress: readiness.distributorAddress,
   });
 
-  return runClaimTransferWorker();
+  const payoutResult = await runClaimTransferWorker();
+
+  return {
+    ...payoutResult,
+    submittedRecovery: submittedRecovery.result,
+    submittedRecoveryFailed: submittedRecovery.failed,
+  };
 }
 
 export async function runAutomaticRewardPayout():

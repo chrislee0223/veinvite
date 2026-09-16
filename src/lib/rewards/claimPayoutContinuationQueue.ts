@@ -5,6 +5,9 @@ import { send } from '@vercel/queue';
 import type {
   AutomaticRewardPayoutResult,
 } from '@/lib/rewards/automaticRewardPayoutWithMnemonic';
+import type {
+  SubmittedPayoutRecoveryResult,
+} from '@/lib/rewards/submittedPayoutRecovery';
 
 export const CLAIM_PAYOUT_CONTINUATION_TOPIC =
   'veinvite-reward-finality';
@@ -15,6 +18,19 @@ const CLAIM_PAYOUT_MESSAGE_RETENTION_SECONDS = 86_400;
 export type ClaimPayoutContinuationMessage = {
   inviteCode: string;
   requestedAt: string;
+};
+
+type RecoveryAwarePayoutResult =
+  AutomaticRewardPayoutResult & {
+    submittedRecovery?: SubmittedPayoutRecoveryResult | null;
+    submittedRecoveryFailed?: boolean;
+  };
+
+export type ClaimPayoutManualIntervention = {
+  roundId: string | null;
+  manifestId: string | null;
+  txId: string | null;
+  reason?: string;
 };
 
 export function isClaimPayoutContinuationMessage(
@@ -40,6 +56,37 @@ export function isClaimPayoutContinuationMessage(
   );
 }
 
+export function readClaimPayoutManualIntervention(
+  result: AutomaticRewardPayoutResult | null,
+): ClaimPayoutManualIntervention | null {
+  if (!result) {
+    return null;
+  }
+
+  if (result.status === 'MANUAL_INTERVENTION_REQUIRED') {
+    return {
+      roundId: result.roundId,
+      manifestId: result.manifestId,
+      txId: result.txId,
+      reason: result.reason,
+    };
+  }
+
+  const recovery =
+    (result as RecoveryAwarePayoutResult).submittedRecovery;
+
+  if (recovery?.status !== 'MANUAL_INTERVENTION_REQUIRED') {
+    return null;
+  }
+
+  return {
+    roundId: recovery.roundId,
+    manifestId: recovery.manifestId,
+    txId: recovery.txId,
+    reason: recovery.reason,
+  };
+}
+
 /**
  * Claim eligibility is decided before AWAITING_CLAIM is exposed. This helper
  * answers only whether the already-approved transfer state still needs a
@@ -49,6 +96,29 @@ export function needsDurableClaimPayoutContinuation(
   result: AutomaticRewardPayoutResult | null,
 ): boolean {
   if (!result) {
+    return true;
+  }
+
+  // Deterministic journal/safety conflicts are intentionally not retried by the
+  // Queue. They remain loud operator work and must take precedence over any
+  // later IDLE/PAID transfer-only result from the same invocation.
+  if (readClaimPayoutManualIntervention(result)) {
+    return false;
+  }
+
+  const recoveryAware = result as RecoveryAwarePayoutResult;
+
+  // A transient failure while checking an older submitted transaction must not
+  // be erased by a successful/idle newer Claim pass. Keep redelivery alive until
+  // that older journaled transaction can be observed safely again.
+  if (recoveryAware.submittedRecoveryFailed === true) {
+    return true;
+  }
+
+  if (
+    recoveryAware.submittedRecovery?.status === 'LOCKED' ||
+    recoveryAware.submittedRecovery?.status === 'WAITING_FINALITY'
+  ) {
     return true;
   }
 
@@ -79,9 +149,14 @@ export function needsDurableClaimPayoutContinuation(
 function initialDelaySeconds(
   result: AutomaticRewardPayoutResult | null,
 ): number {
+  const recovery = result
+    ? (result as RecoveryAwarePayoutResult).submittedRecovery
+    : null;
+
   if (
     result?.status === 'SUBMITTED' ||
-    result?.status === 'WAITING_FINALITY'
+    result?.status === 'WAITING_FINALITY' ||
+    recovery?.status === 'WAITING_FINALITY'
   ) {
     // The transaction is already journaled/submitted. Give the chain time to
     // advance before the first durable reconciliation instead of immediately
