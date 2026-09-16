@@ -35,12 +35,25 @@ test('Create rejects already-grouped nodes before V71 optimistic mobile paint', 
   assert.match(v72, /event\.preventDefault\(\);\s*event\.stopPropagation\(\);\s*event\.stopImmediatePropagation\(\);/s);
 });
 
-test('mobile group save bypasses clone freeze and transitions the real node geometry', () => {
-  assert.match(v72, /\.v42GroupPanel \.v42CreateActions button\.primary/);
-  assert.match(v72, /event\.pointerType !== 'touch' && !coarsePointer/);
-  assert.match(v72, /event\.stopPropagation\(\);\s*armCommitTransition\(root\);/s);
+test('mobile group save keeps native activation and neutralizes the legacy clone freeze before paint', () => {
+  const saveStart = v72.indexOf('const saveButton');
+  const clickStart = v72.indexOf('const onClickCapture', saveStart);
+  assert.notEqual(saveStart, -1);
+  assert.notEqual(clickStart, -1);
+  const saveBlock = v72.slice(saveStart, clickStart);
+
+  assert.match(saveBlock, /\.v42GroupPanel \.v42CreateActions button\.primary/);
+  assert.match(saveBlock, /event\.pointerType !== 'touch' && !coarsePointer/);
+  assert.match(saveBlock, /armCommitTransition\(root\);/);
+  assert.doesNotMatch(saveBlock, /event\.preventDefault\(/);
+  assert.doesNotMatch(saveBlock, /event\.stopPropagation\(/);
+  assert.doesNotMatch(saveBlock, /event\.stopImmediatePropagation\(/);
+
+  assert.match(v72, /const freezeObserver = new MutationObserver/);
+  assert.match(v72, /node\.matches\('\.v71MobileCommitFreezeLayer'\)/);
+  assert.match(v72, /layers\.forEach\(\(layer\) => layer\.remove\(\)\)/);
+  assert.match(v72, /node\.style\.setProperty\('visibility', 'visible', 'important'\)/);
   assert.doesNotMatch(v72, /cloneNode/);
-  assert.doesNotMatch(v72, /v71MobileCommitFreezeLayer/);
   assert.match(v72, /\.personNode\.v72GroupCommitTransition/);
   assert.match(v72, /prefers-reduced-motion: reduce/);
 });
