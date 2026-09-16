@@ -1,7 +1,7 @@
 'use client';
 
 import { createPortal } from 'react-dom';
-import { useEffect, useLayoutEffect, useState, type ReactNode } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useState, type ReactNode } from 'react';
 
 import { NETWORK_CANARY_UI_COPY } from '@/lib/i18n/networkCanaryUiCopy';
 import type { Locale, SupportedLocale } from '@/lib/i18n/locales';
@@ -15,6 +15,8 @@ type ReferralLinkResponse = {
   } | null;
 };
 
+type Point = { x: number; y: number };
+
 function goHomeWithoutReload() {
   const button = document.querySelector<HTMLButtonElement>('[data-veinvite-tab="home"]');
   if (button) {
@@ -24,9 +26,53 @@ function goHomeWithoutReload() {
   window.location.assign('/');
 }
 
-function slotPoint(index: number, count: number) {
-  if (count <= 1) return { x: 0, y: 126 };
-  return index === 0 ? { x: -68, y: 118 } : { x: 68, y: 118 };
+function parsePx(value: string) {
+  const parsed = Number.parseFloat(value);
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function clamp(value: number, min: number, max: number) {
+  return Math.max(min, Math.min(max, value));
+}
+
+function samePoints(left: Point[], right: Point[]) {
+  if (left.length !== right.length) return false;
+  return left.every((point, index) => {
+    const other = right[index];
+    return Boolean(other) && Math.abs(point.x - other.x) < .25 && Math.abs(point.y - other.y) < .25;
+  });
+}
+
+function chooseSlotPoints(count: number, occupied: Point[]): Point[] {
+  if (count <= 0) return [];
+  if (!occupied.length) {
+    if (count === 1) return [{ x: 0, y: -126 }];
+    return [{ x: -88, y: -102 }, { x: 88, y: -102 }];
+  }
+
+  const averageRadius = occupied.reduce((sum, point) => sum + Math.hypot(point.x, point.y), 0) / occupied.length;
+  const radius = clamp(averageRadius, 126, 192);
+  const candidates = Array.from({ length: 20 }, (_, index) => {
+    const angle = -Math.PI / 2 + (Math.PI * 2 * index) / 20;
+    return { x: Math.cos(angle) * radius, y: Math.sin(angle) * radius };
+  });
+  const chosen: Point[] = [];
+
+  while (chosen.length < count && candidates.length) {
+    let bestIndex = 0;
+    let bestScore = -Infinity;
+    candidates.forEach((candidate, index) => {
+      const blockers = [...occupied, ...chosen];
+      const nearest = Math.min(...blockers.map((point) => Math.hypot(candidate.x - point.x, candidate.y - point.y)));
+      if (nearest > bestScore) {
+        bestScore = nearest;
+        bestIndex = index;
+      }
+    });
+    chosen.push(candidates.splice(bestIndex, 1)[0]);
+  }
+
+  return chosen;
 }
 
 function slotPath(x: number, y: number) {
@@ -45,6 +91,7 @@ export function NetworkReleaseSlots({
   const [scene, setScene] = useState<HTMLElement | null>(null);
   const [isRoot, setIsRoot] = useState(false);
   const [slotsAvailable, setSlotsAvailable] = useState(0);
+  const [occupiedPoints, setOccupiedPoints] = useState<Point[]>([]);
   const copy = NETWORK_CANARY_UI_COPY[locale as SupportedLocale] ?? NETWORK_CANARY_UI_COPY.en;
 
   useLayoutEffect(() => {
@@ -57,6 +104,12 @@ export function NetworkReleaseSlots({
       const nextScene = boundary.querySelector<HTMLElement>('.releaseScene');
       setScene((current) => current === nextScene ? current : nextScene);
       setIsRoot(Boolean(boundary.querySelector('.releaseCenter.root')));
+
+      const nextOccupied = Array.from(boundary.querySelectorAll<HTMLElement>('.releasePerson')).map((node) => ({
+        x: parsePx(node.style.getPropertyValue('--node-x')),
+        y: parsePx(node.style.getPropertyValue('--node-y')),
+      }));
+      setOccupiedPoints((current) => samePoints(current, nextOccupied) ? current : nextOccupied);
     };
 
     const schedule = () => {
@@ -70,7 +123,7 @@ export function NetworkReleaseSlots({
       childList: true,
       subtree: true,
       attributes: true,
-      attributeFilter: ['class'],
+      attributeFilter: ['class', 'style'],
     });
     return () => {
       observer.disconnect();
@@ -110,35 +163,35 @@ export function NetworkReleaseSlots({
   }, [wallet]);
 
   const slotCount = isRoot ? slotsAvailable : 0;
+  const slotPoints = useMemo(
+    () => chooseSlotPoints(slotCount, occupiedPoints),
+    [slotCount, occupiedPoints],
+  );
 
   return (
     <div className="networkReleaseSlotsBoundary">
       {children}
-      {scene && slotCount > 0 ? createPortal(
+      {scene && slotPoints.length > 0 ? createPortal(
         <>
-          <svg className="releaseSlotEdges" viewBox="-260 -40 520 360" aria-hidden="true">
-            {Array.from({ length: slotCount }, (_, index) => {
-              const point = slotPoint(index, slotCount);
-              return <path key={index} d={slotPath(point.x, point.y)} />;
-            })}
+          <svg className="releaseSlotEdges" viewBox="-260 -260 520 520" aria-hidden="true">
+            {slotPoints.map((point, index) => (
+              <path key={index} d={slotPath(point.x, point.y)} />
+            ))}
           </svg>
-          {Array.from({ length: slotCount }, (_, index) => {
-            const point = slotPoint(index, slotCount);
-            return (
-              <button
-                key={index}
-                type="button"
-                className="releaseInviteSlot"
-                style={{ '--release-slot-x': `${point.x}px`, '--release-slot-y': `${point.y}px` } as React.CSSProperties}
-                data-release-interactive="true"
-                onClick={goHomeWithoutReload}
-                aria-label={copy.available}
-              >
-                <span aria-hidden="true">＋</span>
-                <b>{copy.available}</b>
-              </button>
-            );
-          })}
+          {slotPoints.map((point, index) => (
+            <button
+              key={index}
+              type="button"
+              className="releaseInviteSlot"
+              style={{ '--release-slot-x': `${point.x}px`, '--release-slot-y': `${point.y}px` } as React.CSSProperties}
+              data-release-interactive="true"
+              onClick={goHomeWithoutReload}
+              aria-label={copy.available}
+            >
+              <span aria-hidden="true">＋</span>
+              <b>{copy.available}</b>
+            </button>
+          ))}
         </>,
         scene,
       ) : null}
@@ -148,9 +201,9 @@ export function NetworkReleaseSlots({
           position: absolute;
           z-index: 2;
           left: -260px;
-          top: -40px;
+          top: -260px;
           width: 520px;
-          height: 360px;
+          height: 520px;
           overflow: visible;
           pointer-events: none;
         }
