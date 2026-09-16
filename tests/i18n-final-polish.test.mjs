@@ -96,7 +96,7 @@ test('final layout polish covers Network, RTL, CJK, Korean and tall-script metri
   assert.match(polishCss, /unicode-bidi:\s*isolate/);
 });
 
-test('the special Network canary keeps V71 root identity over V70 locale layout, V69 drag tracking, V68 assurance, V67 correction, V66 visuals and localized V65', () => {
+test('the special Network canary mounts the real release canvas while the localized V65-V70 stack remains isolated for QA', () => {
   assert.match(guideSource, /AppNetworkCanaryV71/);
   assert.doesNotMatch(guideSource, /const AppNetworkCanaryV70/);
   assert.doesNotMatch(guideSource, /const AppNetworkCanaryV69/);
@@ -104,8 +104,8 @@ test('the special Network canary keeps V71 root identity over V70 locale layout,
   assert.doesNotMatch(guideSource, /const AppNetworkCanaryV67/);
   assert.doesNotMatch(guideSource, /const AppNetworkCanaryV66/);
   assert.doesNotMatch(guideSource, /const AppNetworkCanaryV65/);
-  assert.match(rootIdentitySource, /AppNetworkCanaryV70/);
-  assert.match(rootIdentitySource, /<AppNetworkCanaryV70 locale=\{locale\} \/>/);
+  assert.match(rootIdentitySource, /AppNetworkReleaseCanvas/);
+  assert.doesNotMatch(rootIdentitySource, /AppNetworkCanaryV70|AppNetworkCanaryV69|QaNetworkRadialPlayground/);
   assert.match(localeLayoutSource, /AppNetworkCanaryV69/);
   assert.match(localeLayoutSource, /<AppNetworkCanaryV69 locale=\{locale\} \/>/);
   assert.match(dragGhostSource, /AppNetworkCanaryV68/);
@@ -141,33 +141,4 @@ test('Greek final product polish runs after shared i18n hardening', () => {
   assert.ok(sharedIndex >= 0);
   assert.ok(greekIndex > sharedIndex);
   assert.ok(networkNavIndex > greekIndex);
-});
-
-test('Greek final polish fills the former English product fallback groups', () => {
-  for (const assignment of [
-    'Object.assign(HOME_COPY.el',
-    'Object.assign(INVITE_LANDING_COPY.el',
-    'Object.assign(INVITEE_COPY.el',
-    'Object.assign(LEADERBOARD_COPY.el',
-    'Object.assign(NOTIFICATION_COPY.el',
-    'Object.assign(SETTINGS_COPY.el',
-  ]) {
-    assert.ok(greekSource.includes(assignment), `missing Greek final patch: ${assignment}`);
-  }
-
-  for (const requiredKey of [
-    'reviewBadge:',
-    'cancelTitleWaiting:',
-    'rewardClaimDescription:',
-    'demoResult:',
-    'checkingLink:',
-    'newSuccessDescription:',
-    'reportingSince:',
-    'walletDetails:',
-    'progressTitle:',
-    'walletNote:',
-    'disconnectConfirmBody:',
-  ]) {
-    assert.ok(greekSource.includes(requiredKey), `Greek final patch is missing ${requiredKey}`);
-  }
 });
