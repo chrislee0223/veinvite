@@ -38,7 +38,7 @@ test('ambiguous Claim reconciliation is read-only, bounded, and requires finaliz
   );
   assert.match(
     rewardClaimClient,
-    /fetch\('\/api\/rewards\/receipts\?limit=50',[\s\S]*cache: 'no-store'/u,
+    /`\/api\/rewards\/receipts\?inviteCode=\$\{encodeURIComponent\(inviteCode\)\}`,[\s\S]*cache: 'no-store'/u,
   );
   assert.match(
     rewardClaimClient,
