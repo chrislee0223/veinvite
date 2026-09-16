@@ -1,0 +1,395 @@
+/*
+ * Presentation-only refinement for the unified notification center.
+ * Keep notification data, read state, Claim execution, receipt handling and
+ * keyboard/focus behavior owned by UnifiedInviteNotificationHistoryCenter.
+ */
+
+.notificationHistoryPanel .notificationHistoryHeader {
+  min-height: 64px !important;
+  padding-block: 13px 12px !important;
+  padding-inline: 17px 12px !important;
+  gap: 12px !important;
+}
+
+.notificationHistoryPanel .notificationHistoryHeading {
+  min-width: 0 !important;
+  gap: 9px !important;
+}
+
+.notificationHistoryPanel .notificationHistoryHeading h3 {
+  min-width: 0 !important;
+  font-size: 1rem !important;
+  line-height: 1.3 !important;
+  overflow-wrap: anywhere !important;
+}
+
+.notificationHistoryPanel .notificationHistoryHeading > span {
+  padding: 4px 8px !important;
+  font-size: 0.6rem !important;
+  line-height: 1.25 !important;
+}
+
+.notificationHistoryPanel .notificationHistoryHeaderActions {
+  gap: 4px !important;
+}
+
+.notificationHistoryPanel .notificationHistoryMarkAll {
+  min-height: 34px !important;
+  padding-inline: 9px !important;
+  font-size: 0.66rem !important;
+  line-height: 1.3 !important;
+  white-space: normal !important;
+  text-align: center !important;
+}
+
+.notificationHistoryPanel .notificationHistoryClose,
+.notificationHistoryPanel .notificationBackButton {
+  width: 36px !important;
+  height: 36px !important;
+  flex: 0 0 36px !important;
+}
+
+.notificationHistoryPanel .notificationHistoryScroll {
+  padding-block: 4px 12px !important;
+}
+
+.notificationHistoryPanel .notificationHistoryGroup h4 {
+  margin: 0 !important;
+  padding-block: 13px 8px !important;
+  padding-inline: 16px !important;
+  color: #8b857c !important;
+  font-size: 0.64rem !important;
+  line-height: 1.3 !important;
+  letter-spacing: 0.01em !important;
+}
+
+.notificationHistoryPanel .notificationHistoryGroup > div {
+  display: grid !important;
+  gap: 8px !important;
+  padding-inline: 12px !important;
+}
+
+.notificationHistoryPanel .notificationHistoryRow {
+  width: 100% !important;
+  min-width: 0 !important;
+  box-sizing: border-box !important;
+  padding-block: 13px 14px !important;
+  padding-inline: 14px !important;
+  border: 1px solid rgba(255, 255, 255, 0.07) !important;
+  border-radius: 14px !important;
+  background: rgba(255, 255, 255, 0.018) !important;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.018) !important;
+}
+
+.notificationHistoryPanel .notificationHistoryRow.isUnread {
+  border-color: rgba(244, 183, 40, 0.18) !important;
+  background: linear-gradient(
+    145deg,
+    rgba(244, 183, 40, 0.07),
+    rgba(244, 183, 40, 0.025)
+  ) !important;
+}
+
+.notificationHistoryPanel .notificationHistoryRow.isUnread:hover,
+.notificationHistoryPanel .notificationHistoryRow.isInteractive:hover {
+  border-color: rgba(244, 183, 40, 0.24) !important;
+  background: rgba(244, 183, 40, 0.07) !important;
+}
+
+.notificationHistoryPanel .notificationHistoryRow.isRead {
+  background: rgba(255, 255, 255, 0.012) !important;
+}
+
+.notificationHistoryPanel .notificationHistoryContent {
+  min-width: 0 !important;
+  display: grid !important;
+  grid-template-columns: minmax(0, 1fr) auto !important;
+  grid-template-areas:
+    "title title"
+    "body body"
+    "meta time" !important;
+  column-gap: 10px !important;
+  row-gap: 7px !important;
+  align-items: center !important;
+}
+
+/* Flatten the old top row so time can live with metadata instead of fighting
+ * long translated titles for horizontal space. */
+.notificationHistoryPanel .notificationHistoryTopLine {
+  display: contents !important;
+}
+
+.notificationHistoryPanel .notificationHistoryTitleWrap {
+  grid-area: title !important;
+  min-width: 0 !important;
+  display: flex !important;
+  align-items: flex-start !important;
+  gap: 8px !important;
+}
+
+.notificationHistoryPanel .notificationUnreadDot {
+  flex: 0 0 7px !important;
+  width: 7px !important;
+  height: 7px !important;
+  margin-top: 0.38rem !important;
+}
+
+.notificationHistoryPanel .notificationHistoryTitle {
+  min-width: 0 !important;
+  color: #f6f2e9 !important;
+  font-size: 0.79rem !important;
+  font-weight: 850 !important;
+  line-height: 1.45 !important;
+  letter-spacing: -0.01em !important;
+  overflow-wrap: anywhere !important;
+  word-break: normal !important;
+  hyphens: auto !important;
+}
+
+.notificationHistoryPanel .notificationHistoryBody {
+  grid-area: body !important;
+  display: block !important;
+  min-width: 0 !important;
+  margin: 0 !important;
+  padding-inline-start: 0 !important;
+  color: #aaa49b !important;
+  font-size: 0.67rem !important;
+  line-height: 1.6 !important;
+  overflow-wrap: anywhere !important;
+  word-break: normal !important;
+  hyphens: auto !important;
+}
+
+.notificationHistoryPanel .notificationHistoryMeta {
+  grid-area: meta !important;
+  min-width: 0 !important;
+  margin: 0 !important;
+  padding-inline-start: 0 !important;
+  display: flex !important;
+  align-items: center !important;
+  flex-wrap: wrap !important;
+  gap: 6px !important;
+}
+
+.notificationHistoryPanel .notificationHistoryTime {
+  grid-area: time !important;
+  align-self: center !important;
+  justify-self: end !important;
+  padding-top: 0 !important;
+  color: #777168 !important;
+  font-size: 0.57rem !important;
+  line-height: 1.3 !important;
+  white-space: nowrap !important;
+}
+
+.notificationHistoryPanel .notificationFriendWallet {
+  max-width: 100% !important;
+  color: #837d74 !important;
+  font-size: 0.57rem !important;
+  line-height: 1.3 !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+  white-space: nowrap !important;
+}
+
+.notificationHistoryPanel .notificationHistoryMeta b {
+  padding: 4px 7px !important;
+  font-size: 0.57rem !important;
+  line-height: 1.2 !important;
+}
+
+.notificationHistoryPanel .notificationHistoryMeta em {
+  margin-inline-start: 1px !important;
+}
+
+.notificationHistoryPanel .notificationHistoryRow.isRead .notificationHistoryTitle {
+  color: #c0b9af !important;
+  font-weight: 760 !important;
+}
+
+.notificationHistoryPanel .notificationHistoryRow.isRead .notificationHistoryBody {
+  color: #817a72 !important;
+}
+
+/* Reward actions use the same spacing/radius language as ordinary cards while
+ * keeping Claim and processing controls functionally separate. */
+.notificationHistoryPanel .notificationActionSection {
+  margin: 8px 12px 4px !important;
+  padding: 12px !important;
+  border: 1px solid rgba(244, 183, 40, 0.13) !important;
+  border-radius: 16px !important;
+  background: linear-gradient(
+    155deg,
+    rgba(244, 183, 40, 0.055),
+    rgba(255, 255, 255, 0.012)
+  ) !important;
+}
+
+.notificationHistoryPanel .notificationActionHeading {
+  margin: 0 2px 9px !important;
+  color: #d8c99f !important;
+  font-size: 0.66rem !important;
+  line-height: 1.3 !important;
+}
+
+.notificationHistoryPanel .notificationActionCard {
+  gap: 12px !important;
+  padding: 13px !important;
+  border: 1px solid rgba(255, 255, 255, 0.07) !important;
+  border-radius: 14px !important;
+  background: rgba(8, 8, 7, 0.34) !important;
+}
+
+.notificationHistoryPanel .notificationActionCopy {
+  min-width: 0 !important;
+  gap: 4px !important;
+}
+
+.notificationHistoryPanel .notificationActionCopy > span {
+  font-size: 0.61rem !important;
+  line-height: 1.35 !important;
+  overflow-wrap: anywhere !important;
+}
+
+.notificationHistoryPanel .notificationActionCopy strong {
+  font-size: 0.92rem !important;
+  line-height: 1.25 !important;
+}
+
+.notificationHistoryPanel .notificationActionCopy small {
+  max-width: 100% !important;
+  font-size: 0.56rem !important;
+  line-height: 1.3 !important;
+}
+
+.notificationHistoryPanel .notificationClaimButton,
+.notificationHistoryPanel .notificationProcessingBadge {
+  min-height: 38px !important;
+  padding-inline: 12px !important;
+  border-radius: 11px !important;
+  font-size: 0.62rem !important;
+  line-height: 1.25 !important;
+}
+
+.notificationHistoryPanel .notificationActionError {
+  padding: 10px 11px !important;
+  gap: 10px !important;
+  font-size: 0.6rem !important;
+  line-height: 1.45 !important;
+}
+
+.notificationHistoryPanel .notificationHistoryState {
+  min-height: 250px !important;
+  padding: 34px 24px !important;
+}
+
+.notificationHistoryPanel .notificationHistoryState strong {
+  font-size: 0.92rem !important;
+  line-height: 1.4 !important;
+}
+
+.notificationHistoryPanel .notificationHistoryState p {
+  max-width: 300px !important;
+  font-size: 0.68rem !important;
+  line-height: 1.6 !important;
+  overflow-wrap: anywhere !important;
+}
+
+.notificationHistoryPanel .notificationHistoryInlineError {
+  margin: 10px 12px 0 !important;
+  padding: 10px 12px !important;
+  border: 1px solid rgba(255, 110, 120, 0.12) !important;
+  border-radius: 12px !important;
+  font-size: 0.62rem !important;
+  line-height: 1.45 !important;
+}
+
+.notificationHistoryPanel .notificationReceiptView {
+  padding: 19px 18px 18px !important;
+}
+
+.notificationHistoryPanel .notificationReceiptView > p {
+  font-size: 0.68rem !important;
+  line-height: 1.6 !important;
+  overflow-wrap: anywhere !important;
+}
+
+.notificationHistoryPanel .notificationReceiptFacts {
+  gap: 9px !important;
+}
+
+.notificationHistoryPanel .notificationReceiptFacts div {
+  padding: 11px 12px !important;
+  border-radius: 12px !important;
+}
+
+.notificationHistoryPanel .notificationReceiptFacts dt {
+  font-size: 0.58rem !important;
+}
+
+.notificationHistoryPanel .notificationReceiptFacts dd {
+  min-width: 0 !important;
+  font-size: 0.62rem !important;
+}
+
+@media (max-width: 560px) {
+  .notificationHistoryPanel .notificationHistoryHeader {
+    padding-inline: 15px 10px !important;
+  }
+
+  .notificationHistoryPanel .notificationHistoryGroup > div {
+    padding-inline: 10px !important;
+  }
+
+  .notificationHistoryPanel .notificationHistoryGroup h4 {
+    padding-inline: 14px !important;
+  }
+
+  .notificationHistoryPanel .notificationHistoryRow {
+    padding-block: 12px 13px !important;
+    padding-inline: 13px !important;
+  }
+
+  .notificationHistoryPanel .notificationActionSection {
+    margin-inline: 10px !important;
+    padding: 11px !important;
+  }
+
+  .notificationHistoryPanel .notificationActionCard {
+    align-items: stretch !important;
+  }
+
+  .notificationHistoryPanel .notificationClaimButton,
+  .notificationHistoryPanel .notificationProcessingBadge {
+    width: 100% !important;
+    max-width: none !important;
+    box-sizing: border-box !important;
+  }
+
+  .notificationHistoryPanel .notificationReceiptView {
+    padding: 17px 14px 16px !important;
+  }
+}
+
+@media (max-width: 350px) {
+  .notificationHistoryPanel .notificationHistoryContent {
+    grid-template-columns: minmax(0, 1fr) !important;
+    grid-template-areas:
+      "title"
+      "body"
+      "meta"
+      "time" !important;
+  }
+
+  .notificationHistoryPanel .notificationHistoryTime {
+    justify-self: start !important;
+  }
+
+  .notificationHistoryPanel .notificationHistoryHeader {
+    gap: 7px !important;
+  }
+
+  .notificationHistoryPanel .notificationHistoryHeading {
+    gap: 6px !important;
+  }
+}

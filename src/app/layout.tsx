@@ -10,6 +10,7 @@ import './header-language-flags.css';
 import './localized-typography.css';
 import './localization-final-polish.css';
 import './notification-i18n-hardening.css';
+import './notification-history-polish.css';
 import './ui-safety.css';
 import './final-ui-hardening.css';
 import './podium-laurel-option-c.css';
