@@ -101,11 +101,11 @@ test('RTL locales keep leaderboard geometry and numeric movement left-to-right',
   assert.match(podiumLayoutGuard, /html\[dir='rtl'\][\s\S]*direction:ltr !important/);
   assert.match(
     alignmentGuard,
-    /\.rankRow \.rankStack \{[\s\S]*direction: ltr !important;/,
+    /\.rankRow\[data-rank\] \.rankStack,[\s\S]*direction: ltr !important;/,
   );
   assert.match(
     alignmentGuard,
-    /\.rankMovement\.rankMovement \{[\s\S]*text-align: left !important;[\s\S]*unicode-bidi: isolate !important;/,
+    /\.rankRow\[data-rank\] \.rankMovement\.rankMovement,[\s\S]*text-align: left !important;[\s\S]*unicode-bidi: isolate !important;/,
   );
   for (const locale of ['ar', 'ur', 'arz']) {
     assert.match(
@@ -175,7 +175,7 @@ test('rank numeral stays on the original axis while movement sits to its physica
   );
   assert.match(
     alignmentGuard,
-    /\.rankRow \.rankValue\.rankValue \{[\s\S]*left: var\(--inviter-rank-number-axis\) !important;[\s\S]*top: 50% !important;[\s\S]*transform: translate\(-50%, -50%\) !important;/,
+    /\.rankRow\[data-rank\] \.rankValue\.rankValue,[\s\S]*left: var\(--inviter-rank-number-axis\) !important;[\s\S]*top: 50% !important;[\s\S]*transform: translate\(-50%, -50%\) !important;/,
   );
   assert.match(
     alignmentGuard,
