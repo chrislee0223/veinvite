@@ -3,6 +3,7 @@
 import type { Locale } from '@/lib/i18n/locales';
 import { AppNetworkReleaseCanvas } from './AppNetworkReleaseCanvas';
 import { NetworkReleaseGestureBoundary } from './NetworkReleaseGestureBoundary';
+import { NetworkReleaseGroups } from './NetworkReleaseGroups';
 import { NetworkReleaseSlots } from './NetworkReleaseSlots';
 
 // V71 is the release canary for the real API-backed Network surface.
@@ -10,9 +11,11 @@ import { NetworkReleaseSlots } from './NetworkReleaseSlots';
 export function AppNetworkCanaryV71({ locale }: { locale: Locale }) {
   return (
     <NetworkReleaseSlots locale={locale}>
-      <NetworkReleaseGestureBoundary>
-        <AppNetworkReleaseCanvas locale={locale} />
-      </NetworkReleaseGestureBoundary>
+      <NetworkReleaseGroups locale={locale}>
+        <NetworkReleaseGestureBoundary>
+          <AppNetworkReleaseCanvas locale={locale} />
+        </NetworkReleaseGestureBoundary>
+      </NetworkReleaseGroups>
     </NetworkReleaseSlots>
   );
 }
