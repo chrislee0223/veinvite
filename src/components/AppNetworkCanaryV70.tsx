@@ -129,6 +129,14 @@ export function AppNetworkCanaryV70({ locale }: { locale: Locale }) {
       <style jsx global>{`
         /* V70 owns only translated text presentation. It deliberately avoids
            person/slot/group coordinates, transforms, edge paths and persistence. */
+        .productionNetworkCanaryV45 .v42ManualGroupsRoot.v42Managing .personNode:not(.v42SelectedMember) {
+          opacity: .48 !important;
+        }
+
+        .productionNetworkCanaryV45 .v42ManualGroupsRoot.v42Managing .personNode.v42SelectedMember {
+          opacity: 1 !important;
+        }
+
         .productionNetworkCanaryV45 .networkTop {
           padding-block: 8px !important;
           padding-inline: 10px !important;
