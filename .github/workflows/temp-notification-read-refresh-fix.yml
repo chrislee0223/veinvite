@@ -34,12 +34,20 @@ jobs:
                   raise SystemExit('InApp event anchor not found')
               text = text.replace(anchor, insert, 1)
 
-          old = """        if (refreshHomeAfterAcknowledgement) {\n          window.location.reload();\n          return;\n        }\n\n        if (wallet) {\n"""
-          new = """        if (refreshHomeAfterAcknowledgement) {\n          window.dispatchEvent(\n            new Event(HOME_DATA_REFRESH_REQUESTED_EVENT),\n          );\n        }\n\n        if (wallet) {\n"""
-          count = text.count(old)
-          if count != 2:
-              raise SystemExit(f'Expected 2 full-reload acknowledgement blocks, found {count}')
-          text = text.replace(old, new)
+          replacements = [
+              (
+                  """        if (refreshHomeAfterAcknowledgement) {\n          window.location.reload();\n          return;\n        }\n\n        if (wallet) {\n""",
+                  """        if (refreshHomeAfterAcknowledgement) {\n          window.dispatchEvent(\n            new Event(HOME_DATA_REFRESH_REQUESTED_EVENT),\n          );\n        }\n\n        if (wallet) {\n""",
+              ),
+              (
+                  """      if (refreshHomeAfterAcknowledgement) {\n        window.location.reload();\n        return;\n      }\n\n      if (wallet) {\n""",
+                  """      if (refreshHomeAfterAcknowledgement) {\n        window.dispatchEvent(\n          new Event(HOME_DATA_REFRESH_REQUESTED_EVENT),\n        );\n      }\n\n      if (wallet) {\n""",
+              ),
+          ]
+          for old, new in replacements:
+              if text.count(old) != 1:
+                  raise SystemExit('Expected acknowledgement reload block not found exactly once')
+              text = text.replace(old, new, 1)
           if 'window.location.reload()' in text:
               raise SystemExit('Full reload remains in InAppInviteNotifications')
           inapp_path.write_text(text)
