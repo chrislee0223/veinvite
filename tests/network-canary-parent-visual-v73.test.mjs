@@ -45,6 +45,16 @@ test('V73 waits for V50 and V72 to settle under the preserved parent visual', ()
   assert.match(v73, /attributeFilter: \['class', 'style'\]/);
 });
 
+test('V73 freezes decorative node motion across the overlay-to-live handoff', () => {
+  assert.match(v73, /clone\.classList\.add\('v73ParentVisualOverlay', 'v73ReturnMotionFrozen'\)/);
+  assert.match(v73, /root\.classList\.add\('v73ReturnMotionFrozen'\)/);
+  assert.match(v73, /\.productionNetworkCanaryV45\.v73ReturnMotionFrozen :is\(/);
+  assert.match(v73, /animation:none!important/);
+  assert.match(v73, /animation-delay:0s!important/);
+  assert.match(v73, /translate:none!important/);
+  assert.match(v73, /root\.classList\.remove\('v73ReturnMotionFrozen'\)/);
+});
+
 test('V73 reveals the final live parent underneath the overlay before removing the overlay', () => {
   const revealIndex = v73.indexOf("activeRoot.classList.remove('v73LiveReturnHidden')");
   const removeIndex = v73.indexOf('activeOverlay?.remove()');
