@@ -6,7 +6,8 @@ import type { Locale } from '@/lib/i18n/locales';
 import { AppNetworkCanaryV71 } from './AppNetworkCanaryV71';
 
 const PARENT_RETURN_RELEASE_POLL_MS = 16;
-const PARENT_RETURN_FALLBACK_MS = 300;
+const PARENT_RETURN_LAYOUT_QUIET_MS = 96;
+const PARENT_RETURN_FALLBACK_MS = 520;
 const MIN_ZOOM = 0.32;
 const MAX_ZOOM = 2.5;
 const ZOOM_STEP = 0.12;
@@ -43,9 +44,12 @@ function NetworkCanaryInteractionOwnershipV72() {
   useLayoutEffect(() => {
     let parentReturnTimer: number | null = null;
     let parentReturnStartedAt = 0;
+    let parentLayoutLastMutationAt = 0;
     let parentLayoutObserver: MutationObserver | null = null;
     let releaseFrameOne = 0;
     let releaseFrameTwo = 0;
+    let releaseGuardFrameOne = 0;
+    let releaseGuardFrameTwo = 0;
     let activeParentSnapshot: ViewSnapshot | null = null;
     const parentViews: ViewSnapshot[] = [];
 
@@ -151,32 +155,43 @@ function NetworkCanaryInteractionOwnershipV72() {
         const id = node.dataset.nodeId;
         const painted = id ? snapshot.layout.people[id] : null;
         if (!painted) return;
-        node.style.setProperty('--v72-parent-node-transform', painted.transform);
-        node.dataset.v72ParentReturnNode = '1';
-        if (painted.hidden) node.dataset.v72ParentReturnHidden = '1';
-        else delete node.dataset.v72ParentReturnHidden;
+        if (node.style.getPropertyValue('--v72-parent-node-transform') !== painted.transform) {
+          node.style.setProperty('--v72-parent-node-transform', painted.transform);
+        }
+        if (node.dataset.v72ParentReturnNode !== '1') node.dataset.v72ParentReturnNode = '1';
+        if (painted.hidden) {
+          if (node.dataset.v72ParentReturnHidden !== '1') node.dataset.v72ParentReturnHidden = '1';
+        } else if (node.dataset.v72ParentReturnHidden) {
+          delete node.dataset.v72ParentReturnHidden;
+        }
       });
 
       root.querySelectorAll<HTMLElement>('.v42GroupHub[data-group-id]').forEach((hub) => {
         const id = hub.dataset.groupId;
         const transform = id ? snapshot.layout.groups[id] : '';
         if (!transform) return;
-        hub.style.setProperty('--v72-parent-group-transform', transform);
-        hub.dataset.v72ParentReturnGroup = '1';
+        if (hub.style.getPropertyValue('--v72-parent-group-transform') !== transform) {
+          hub.style.setProperty('--v72-parent-group-transform', transform);
+        }
+        if (hub.dataset.v72ParentReturnGroup !== '1') hub.dataset.v72ParentReturnGroup = '1';
       });
 
       Array.from(root.querySelectorAll<HTMLElement>('.slotNode')).forEach((slot, index) => {
         const transform = snapshot.layout.slots[index];
         if (!transform) return;
-        slot.style.setProperty('--v72-parent-slot-transform', transform);
-        slot.dataset.v72ParentReturnSlot = '1';
+        if (slot.style.getPropertyValue('--v72-parent-slot-transform') !== transform) {
+          slot.style.setProperty('--v72-parent-slot-transform', transform);
+        }
+        if (slot.dataset.v72ParentReturnSlot !== '1') slot.dataset.v72ParentReturnSlot = '1';
       });
 
       Array.from(root.querySelectorAll<HTMLElement>('.clusterNode')).forEach((cluster, index) => {
         const transform = snapshot.layout.clusters[index];
         if (!transform) return;
-        cluster.style.setProperty('--v72-parent-cluster-transform', transform);
-        cluster.dataset.v72ParentReturnCluster = '1';
+        if (cluster.style.getPropertyValue('--v72-parent-cluster-transform') !== transform) {
+          cluster.style.setProperty('--v72-parent-cluster-transform', transform);
+        }
+        if (cluster.dataset.v72ParentReturnCluster !== '1') cluster.dataset.v72ParentReturnCluster = '1';
       });
     };
 
@@ -192,6 +207,33 @@ function NetworkCanaryInteractionOwnershipV72() {
       releaseFrameTwo = 0;
     };
 
+    const cancelReleaseGuardFrames = () => {
+      if (releaseGuardFrameOne) window.cancelAnimationFrame(releaseGuardFrameOne);
+      if (releaseGuardFrameTwo) window.cancelAnimationFrame(releaseGuardFrameTwo);
+      releaseGuardFrameOne = 0;
+      releaseGuardFrameTwo = 0;
+    };
+
+    const guardLegacyObserversDuringUnlock = (root: HTMLElement) => {
+      cancelReleaseGuardFrames();
+      const groupRoot = groupRootFor(root);
+      if (!groupRoot || groupRoot.dataset.v42TransientDrag === '1') return;
+
+      groupRoot.dataset.v72ParentReturnRelease = '1';
+      groupRoot.dataset.v42TransientDrag = '1';
+      releaseGuardFrameOne = window.requestAnimationFrame(() => {
+        releaseGuardFrameOne = 0;
+        releaseGuardFrameTwo = window.requestAnimationFrame(() => {
+          releaseGuardFrameTwo = 0;
+          if (groupRoot.dataset.v72ParentReturnRelease !== '1') return;
+          delete groupRoot.dataset.v72ParentReturnRelease;
+          if (groupRoot.dataset.veinviteCameraInteraction !== '1') {
+            delete groupRoot.dataset.v42TransientDrag;
+          }
+        });
+      });
+    };
+
     const releaseParentReturn = (root: HTMLElement) => {
       if (parentReturnTimer !== null) {
         window.clearTimeout(parentReturnTimer);
@@ -199,7 +241,9 @@ function NetworkCanaryInteractionOwnershipV72() {
       }
       cancelReleaseFrames();
       stopParentLayoutObserver();
+      guardLegacyObserversDuringUnlock(root);
       parentReturnStartedAt = 0;
+      parentLayoutLastMutationAt = 0;
       activeParentSnapshot = null;
       root.classList.remove('v72ParentReturnTarget');
       root.style.removeProperty('--v72-parent-return-transform');
@@ -231,38 +275,55 @@ function NetworkCanaryInteractionOwnershipV72() {
       );
       root.classList.add('v72ParentReturnTarget');
       parentReturnStartedAt = performance.now();
+      parentLayoutLastMutationAt = parentReturnStartedAt;
 
       // React swaps the child network DOM for the parent before V42's delayed
       // scope observer has necessarily reapplied collapsed-group visibility.
       // During that handoff, allow only elements that were part of the captured
-      // parent visual state to paint. This prevents stale child/group members
-      // from flashing for a frame while V39/V42/V50 settle underneath the lock.
+      // parent visual state to paint. Keep watching geometry class/style changes
+      // until V39/V42 have been quiet long enough to know their passive observer
+      // chain has actually settled, rather than assuming two frames is sufficient.
       stopParentLayoutObserver();
-      parentLayoutObserver = new MutationObserver(() => {
+      applyParentLayoutLocks(root, snapshot);
+      parentLayoutObserver = new MutationObserver((mutations) => {
+        const meaningful = mutations.some((mutation) => {
+          if (mutation.type === 'childList') return true;
+          if (mutation.type !== 'attributes') return false;
+          const target = mutation.target instanceof Element ? mutation.target : null;
+          if (!target) return false;
+          return target.matches('.personNode,.clusterNode,.slotNode,.v42GroupHub,.stage,.ringLayer');
+        });
+        if (!meaningful) return;
+        parentLayoutLastMutationAt = performance.now();
         if (activeParentSnapshot) applyParentLayoutLocks(root, activeParentSnapshot);
       });
-      parentLayoutObserver.observe(root, { childList: true, subtree: true });
-      applyParentLayoutLocks(root, snapshot);
+      parentLayoutObserver.observe(root, {
+        childList: true,
+        subtree: true,
+        attributes: true,
+        attributeFilter: ['class', 'style'],
+      });
 
       if (parentReturnTimer !== null) window.clearTimeout(parentReturnTimer);
       parentReturnTimer = window.setTimeout(() => {
         parentReturnTimer = null;
-        if (root.classList.contains('v72ParentReturnTarget')) releaseAfterLayoutSettles(root);
-      }, PARENT_RETURN_FALLBACK_MS);
+        if (root.classList.contains('v72ParentReturnTarget')) releaseWhenInteractionSettles(root);
+      }, PARENT_RETURN_RELEASE_POLL_MS);
     };
 
     const releaseWhenInteractionSettles = (root: HTMLElement) => {
       if (!root.classList.contains('v72ParentReturnTarget')) return;
+      const now = performance.now();
       const expired = parentReturnStartedAt > 0 &&
-        performance.now() - parentReturnStartedAt >= PARENT_RETURN_FALLBACK_MS;
+        now - parentReturnStartedAt >= PARENT_RETURN_FALLBACK_MS;
+      const layoutQuiet = parentLayoutLastMutationAt > 0 &&
+        now - parentLayoutLastMutationAt >= PARENT_RETURN_LAYOUT_QUIET_MS;
 
-      if (!root.classList.contains('veinviteInteracting') || expired) {
+      if ((!root.classList.contains('veinviteInteracting') && layoutQuiet) || expired) {
         if (parentReturnTimer !== null) {
           window.clearTimeout(parentReturnTimer);
           parentReturnTimer = null;
         }
-        // Let V39/V42 consume the final parent DOM and V50 camera replay for two
-        // paint boundaries while the captured parent visual state stays fixed.
         releaseAfterLayoutSettles(root);
         return;
       }
@@ -373,10 +434,18 @@ function NetworkCanaryInteractionOwnershipV72() {
       document.removeEventListener('click', onClickCapture, true);
       if (parentReturnTimer !== null) window.clearTimeout(parentReturnTimer);
       cancelReleaseFrames();
+      cancelReleaseGuardFrames();
       stopParentLayoutObserver();
       document
         .querySelectorAll<HTMLElement>('.productionNetworkCanaryV45')
         .forEach((root) => {
+          const groupRoot = groupRootFor(root);
+          if (groupRoot?.dataset.v72ParentReturnRelease === '1') {
+            delete groupRoot.dataset.v72ParentReturnRelease;
+            if (groupRoot.dataset.veinviteCameraInteraction !== '1') {
+              delete groupRoot.dataset.v42TransientDrag;
+            }
+          }
           root.classList.remove('v72ParentReturnTarget');
           root.style.removeProperty('--v72-parent-return-transform');
           clearParentLayoutLocks(root);
