@@ -213,5 +213,8 @@ jobs:
       - name: Reward accounting regression tests
         run: npm run test:rewards
 
+      - name: Sentry observability regression tests
+        run: npm run test:sentry
+
       - name: Production build
         run: npm run build
