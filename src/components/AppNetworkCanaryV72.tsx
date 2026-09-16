@@ -11,10 +11,16 @@ const MIN_ZOOM = 0.32;
 const MAX_ZOOM = 2.5;
 const ZOOM_STEP = 0.12;
 
+type PaintedElementSnapshot = {
+  transform: string;
+  hidden: boolean;
+};
+
 type LayoutSnapshot = {
-  people: Record<string, string>;
+  people: Record<string, PaintedElementSnapshot>;
   groups: Record<string, string>;
   slots: string[];
+  clusters: string[];
 };
 
 type ViewSnapshot = {
@@ -66,12 +72,23 @@ function NetworkCanaryInteractionOwnershipV72() {
       return transform && transform !== 'none' ? transform : '';
     };
 
+    const elementHidden = (element: HTMLElement) => {
+      const style = window.getComputedStyle(element);
+      const opacity = Number.parseFloat(style.opacity || '1');
+      return element.classList.contains('v42CollapsedMember') ||
+        style.display === 'none' ||
+        style.visibility === 'hidden' ||
+        (Number.isFinite(opacity) && opacity <= 0.01);
+    };
+
     const captureLayout = (root: HTMLElement): LayoutSnapshot => {
-      const people: Record<string, string> = {};
+      const people: Record<string, PaintedElementSnapshot> = {};
       root.querySelectorAll<HTMLElement>('.personNode[data-node-id]').forEach((node) => {
         const id = node.dataset.nodeId;
         const transform = id ? renderedTransform(node) : '';
-        if (id && transform) people[id] = transform;
+        if (id && transform) {
+          people[id] = { transform, hidden: elementHidden(node) };
+        }
       });
 
       const groups: Record<string, string> = {};
@@ -83,8 +100,10 @@ function NetworkCanaryInteractionOwnershipV72() {
 
       const slots = Array.from(root.querySelectorAll<HTMLElement>('.slotNode'))
         .map((slot) => renderedTransform(slot));
+      const clusters = Array.from(root.querySelectorAll<HTMLElement>('.clusterNode'))
+        .map((cluster) => renderedTransform(cluster));
 
-      return { people, groups, slots };
+      return { people, groups, slots, clusters };
     };
 
     const captureView = (root: HTMLElement): ViewSnapshot | null => {
@@ -110,6 +129,7 @@ function NetworkCanaryInteractionOwnershipV72() {
     const clearParentLayoutLocks = (root: HTMLElement) => {
       root.querySelectorAll<HTMLElement>('[data-v72-parent-return-node="1"]').forEach((node) => {
         delete node.dataset.v72ParentReturnNode;
+        delete node.dataset.v72ParentReturnHidden;
         node.style.removeProperty('--v72-parent-node-transform');
       });
       root.querySelectorAll<HTMLElement>('[data-v72-parent-return-group="1"]').forEach((hub) => {
@@ -120,15 +140,21 @@ function NetworkCanaryInteractionOwnershipV72() {
         delete slot.dataset.v72ParentReturnSlot;
         slot.style.removeProperty('--v72-parent-slot-transform');
       });
+      root.querySelectorAll<HTMLElement>('[data-v72-parent-return-cluster="1"]').forEach((cluster) => {
+        delete cluster.dataset.v72ParentReturnCluster;
+        cluster.style.removeProperty('--v72-parent-cluster-transform');
+      });
     };
 
     const applyParentLayoutLocks = (root: HTMLElement, snapshot: ViewSnapshot) => {
       root.querySelectorAll<HTMLElement>('.personNode[data-node-id]').forEach((node) => {
         const id = node.dataset.nodeId;
-        const transform = id ? snapshot.layout.people[id] : '';
-        if (!transform) return;
-        node.style.setProperty('--v72-parent-node-transform', transform);
+        const painted = id ? snapshot.layout.people[id] : null;
+        if (!painted) return;
+        node.style.setProperty('--v72-parent-node-transform', painted.transform);
         node.dataset.v72ParentReturnNode = '1';
+        if (painted.hidden) node.dataset.v72ParentReturnHidden = '1';
+        else delete node.dataset.v72ParentReturnHidden;
       });
 
       root.querySelectorAll<HTMLElement>('.v42GroupHub[data-group-id]').forEach((hub) => {
@@ -144,6 +170,13 @@ function NetworkCanaryInteractionOwnershipV72() {
         if (!transform) return;
         slot.style.setProperty('--v72-parent-slot-transform', transform);
         slot.dataset.v72ParentReturnSlot = '1';
+      });
+
+      Array.from(root.querySelectorAll<HTMLElement>('.clusterNode')).forEach((cluster, index) => {
+        const transform = snapshot.layout.clusters[index];
+        if (!transform) return;
+        cluster.style.setProperty('--v72-parent-cluster-transform', transform);
+        cluster.dataset.v72ParentReturnCluster = '1';
       });
     };
 
@@ -199,10 +232,11 @@ function NetworkCanaryInteractionOwnershipV72() {
       root.classList.add('v72ParentReturnTarget');
       parentReturnStartedAt = performance.now();
 
-      // Parent nodes are replaced by React after the Inviter click. Observe only
-      // child-list changes during this short transition and pin each recreated
-      // element to the exact transform it had before entering the child network.
-      // V39/V42/V50 can finish their internal layout work underneath this lock.
+      // React swaps the child network DOM for the parent before V42's delayed
+      // scope observer has necessarily reapplied collapsed-group visibility.
+      // During that handoff, allow only elements that were part of the captured
+      // parent visual state to paint. This prevents stale child/group members
+      // from flashing for a frame while V39/V42/V50 settle underneath the lock.
       stopParentLayoutObserver();
       parentLayoutObserver = new MutationObserver(() => {
         if (activeParentSnapshot) applyParentLayoutLocks(root, activeParentSnapshot);
@@ -228,7 +262,7 @@ function NetworkCanaryInteractionOwnershipV72() {
           parentReturnTimer = null;
         }
         // Let V39/V42 consume the final parent DOM and V50 camera replay for two
-        // paint boundaries while the captured parent element positions stay fixed.
+        // paint boundaries while the captured parent visual state stays fixed.
         releaseAfterLayoutSettles(root);
         return;
       }
@@ -276,8 +310,8 @@ function NetworkCanaryInteractionOwnershipV72() {
       if (!target || !root || !root.classList.contains('v72ParentReturnTarget')) return;
       if (!target.classList.contains('stage')) return;
 
-      // V50 has replayed the saved parent camera. Keep camera and recreated node
-      // geometry pinned until the mobile pinch interaction and delayed layout
+      // V50 has replayed the saved parent camera. Keep the captured parent visual
+      // state pinned until the mobile pinch interaction and delayed layout/scope
       // observers have both settled.
       releaseWhenInteractionSettles(root);
     };
@@ -358,6 +392,14 @@ function NetworkCanaryInteractionOwnershipV72() {
       transform:var(--v72-parent-return-transform)!important;
       transition:none!important
     }
+    .productionNetworkCanaryV45.v72ParentReturnTarget .personNode:not([data-v72-parent-return-node="1"]),
+    .productionNetworkCanaryV45.v72ParentReturnTarget .personNode[data-v72-parent-return-hidden="1"],
+    .productionNetworkCanaryV45.v72ParentReturnTarget .v42GroupHub:not([data-v72-parent-return-group="1"]),
+    .productionNetworkCanaryV45.v72ParentReturnTarget .slotNode:not([data-v72-parent-return-slot="1"]),
+    .productionNetworkCanaryV45.v72ParentReturnTarget .clusterNode:not([data-v72-parent-return-cluster="1"]){
+      opacity:0!important;
+      pointer-events:none!important
+    }
     .productionNetworkCanaryV45.v72ParentReturnTarget .personNode[data-v72-parent-return-node="1"]{
       transform:var(--v72-parent-node-transform)!important;
       transition:none!important
@@ -369,6 +411,14 @@ function NetworkCanaryInteractionOwnershipV72() {
     .productionNetworkCanaryV45.v72ParentReturnTarget .slotNode[data-v72-parent-return-slot="1"]{
       transform:var(--v72-parent-slot-transform)!important;
       transition:none!important
+    }
+    .productionNetworkCanaryV45.v72ParentReturnTarget .clusterNode[data-v72-parent-return-cluster="1"]{
+      transform:var(--v72-parent-cluster-transform)!important;
+      transition:none!important
+    }
+    .productionNetworkCanaryV45.v72ParentReturnTarget .v42GroupEdges,
+    .productionNetworkCanaryV45.v72ParentReturnTarget .v50GroupMemberEdges{
+      opacity:0!important
     }
   `}</style>;
 }
