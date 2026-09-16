@@ -155,24 +155,34 @@ test('final inviter grid keeps header, top-100 rows, placeholders, and current-u
   const completedTrack = 17;
   const rewardTrack = 28;
   const rankAxisInsideTrack = 6 / rankTrack;
-  const headerShiftInsideTrack = (6 - rankTrack / 2) / rankTrack;
   const movementLaneStartInsideTrack = 0.55;
   const movementCenterInsideTrack =
     movementLaneStartInsideTrack + (1 - movementLaneStartInsideTrack) / 2;
+  const headerAxisInsideTrack =
+    (rankAxisInsideTrack + movementCenterInsideTrack) / 2;
+  const headerShiftInsideTrack = headerAxisInsideTrack - 0.5;
+  const rankAxis = rankTrack * rankAxisInsideTrack;
+  const movementAxis = rankTrack * movementCenterInsideTrack;
+  const headerAxis = rankTrack * headerAxisInsideTrack;
 
   assert.equal(rankTrack + inviterTrack + completedTrack + rewardTrack, 100);
-  assert.equal(rankTrack * rankAxisInsideTrack, 6);
-  assert.equal(rankTrack / 2 + rankTrack * headerShiftInsideTrack, 6);
-  assert.ok(Math.abs(rankTrack * movementCenterInsideTrack - 16.275) < 1e-9);
+  assert.equal(rankAxis, 6);
+  assert.ok(Math.abs(movementAxis - 16.275) < 1e-9);
+  assert.ok(Math.abs(headerAxis - 11.1375) < 1e-9);
+  assert.ok(Math.abs(headerAxis - (rankAxis + movementAxis) / 2) < 1e-9);
+  assert.ok(
+    Math.abs(rankTrack / 2 + rankTrack * headerShiftInsideTrack - 11.1375) <
+      1e-9,
+  );
   assert.equal(rankTrack + inviterTrack / 2, 38);
   assert.equal(rankTrack + inviterTrack + completedTrack / 2, 63.5);
   assert.equal(rankTrack + inviterTrack + completedTrack + rewardTrack / 2, 86);
-  assert.ok(rankTrack * movementCenterInsideTrack < rankTrack);
-  assert.ok(38 - 16.275 > 21);
+  assert.ok(movementAxis < rankTrack);
+  assert.ok(38 - movementAxis > 21);
   assert.ok(86 - 63.5 < 24);
 });
 
-test('rank numeral stays on the original six-percent axis while inviter gains breathing room', () => {
+test('rank numeral stays on six-percent axis while rank header balances numeral and movement', () => {
   assert.match(leaderboard, /data-rank=\{entry\.rank > 0 \? entry\.rank : undefined\}/);
   assert.match(leaderboard, /data-rank=\{rank\}/);
   assert.match(
@@ -181,7 +191,7 @@ test('rank numeral stays on the original six-percent axis while inviter gains br
   );
   assert.match(
     alignmentGuard,
-    /--inviter-rank-number-axis: 28\.5714286%;[\s\S]*--inviter-rank-header-shift: -21\.4285714%;[\s\S]*--inviter-rank-movement-lane-start: 55%;/,
+    /--inviter-rank-number-axis: 28\.5714286%;[\s\S]*--inviter-rank-header-shift: 3\.0357143%;[\s\S]*--inviter-rank-movement-lane-start: 55%;/,
   );
   assert.match(
     alignmentGuard,
