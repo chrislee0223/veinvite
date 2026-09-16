@@ -9,6 +9,7 @@ const route = read('src/app/api/notifications/history/route.ts');
 const claimClient = read('src/lib/rewards/rewardClaimClient.ts');
 const polish = read('src/app/notification-history-polish.css');
 const hardening = read('src/app/notification-i18n-hardening.css');
+const runtimeFix = read('src/app/notification-runtime-ux-fix.css');
 const migration = read('supabase/migrations/20260917000500_preserve_paid_receipt_acknowledgement.sql');
 
 test('ordinary cards do not reserve a detached friend-wallet row', () => {
@@ -45,7 +46,30 @@ test('ambiguous Claim recovery looks up the exact invite receipt instead of only
   assert.doesNotMatch(claimClient, /rewards\/receipts\?limit=50/u);
 });
 
-test('reward-action loading is visible instead of being hidden by legacy CSS', () => {
+test('background reward discovery does not impersonate a real reward notification', () => {
   assert.doesNotMatch(hardening, /notificationActionSection:has\(\.notificationActionLoading\)/u);
   assert.match(center, /className="notificationActionLoading"/u);
+  assert.match(
+    runtimeFix,
+    /notificationActionSection:has\(\.notificationActionLoading\):not\(:has\(\.notificationActionCard\)\):not\(:has\(\.notificationActionError\)\)[\s\S]*display:\s*none\s*!important/u,
+  );
+  assert.doesNotMatch(
+    runtimeFix,
+    /notificationActionSection:has\(\.notificationActionError\)[\s\S]*display:\s*none/u,
+  );
+});
+
+test('unread status indicator does not indent the notification title away from the body', () => {
+  assert.match(
+    runtimeFix,
+    /\.notificationHistoryTitleWrap[\s\S]*position:\s*relative\s*!important[\s\S]*gap:\s*0\s*!important/u,
+  );
+  assert.match(
+    runtimeFix,
+    /\.notificationUnreadDot[\s\S]*position:\s*absolute\s*!important[\s\S]*inset-inline-start:\s*-10px\s*!important/u,
+  );
+  assert.match(
+    runtimeFix,
+    /\.notificationHistoryTitle,[\s\S]*\.notificationHistoryBody[\s\S]*padding-inline-start:\s*0\s*!important/u,
+  );
 });
