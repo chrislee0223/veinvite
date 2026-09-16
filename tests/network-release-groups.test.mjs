@@ -2,16 +2,18 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import test from 'node:test';
 
-const [v71Source, groupSource, resetSource] = await Promise.all([
+const [v71Source, groupSource, guardSource, resetSource] = await Promise.all([
   readFile('src/components/AppNetworkCanaryV71.tsx', 'utf8'),
   readFile('src/components/NetworkReleaseGroups.tsx', 'utf8'),
+  readFile('src/components/NetworkReleaseGroupInteractionGuard.tsx', 'utf8'),
   readFile('src/components/NetworkReleasePositionReset.tsx', 'utf8'),
 ]);
 
 test('release V71 composes real groups and position recovery without reconnecting the QA radial stack', () => {
   assert.match(v71Source, /NetworkReleaseGroups/);
+  assert.match(v71Source, /NetworkReleaseGroupInteractionGuard/);
   assert.match(v71Source, /NetworkReleasePositionReset/);
-  assert.match(v71Source, /<NetworkReleaseSlots locale=\{locale\}>[\s\S]*?<NetworkReleasePositionReset locale=\{locale\}>[\s\S]*?<NetworkReleaseGroups locale=\{locale\}>[\s\S]*?<NetworkReleaseGestureBoundary>[\s\S]*?<AppNetworkReleaseCanvas locale=\{locale\} \/>/);
+  assert.match(v71Source, /<NetworkReleaseSlots locale=\{locale\}>[\s\S]*?<NetworkReleasePositionReset locale=\{locale\}>[\s\S]*?<NetworkReleaseGroupInteractionGuard>[\s\S]*?<NetworkReleaseGroups locale=\{locale\}>[\s\S]*?<NetworkReleaseGestureBoundary>[\s\S]*?<AppNetworkReleaseCanvas locale=\{locale\} \/>/);
   assert.doesNotMatch(v71Source, /AppNetworkCanaryV70|QaNetworkRadialPlayground/);
 });
 
@@ -29,6 +31,14 @@ test('group edit visual selection updates on the first click', () => {
   assert.match(groupSource, /selected:\s*exists[\s\S]*?current\.selected\.filter\(\(value\) => value !== address\)[\s\S]*?\[\.\.\.current\.selected, address\]/);
   assert.match(groupSource, /releasePerson\.releaseGroupDraftUnselected\{opacity:\.42!important/);
   assert.match(groupSource, /releasePerson\.releaseGroupDraftSelected\{opacity:1!important/);
+});
+
+test('group editor clears stale canvas selection so group membership is the only active highlight owner', () => {
+  assert.match(guardSource, /releasePerson\.selected/);
+  assert.match(guardSource, /releaseCenter\[data-release-interactive="true"\]/);
+  assert.match(guardSource, /requestAnimationFrame\(clearCanvasSelection\)/);
+  assert.match(guardSource, /networkReleaseGroupsBoundary\.releaseGroupEditing \.releasePerson\.releaseGroupDraftUnselected/);
+  assert.match(guardSource, /networkReleaseGroupsBoundary\.releaseGroupEditing \.releasePerson\.releaseGroupDraftSelected/);
 });
 
 test('saving an edited group preserves selected members that are clustered out of the DOM', () => {
