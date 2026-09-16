@@ -11,6 +11,7 @@ import {
 import { INELIGIBLE_INVITER_COPY } from '@/lib/i18n/ineligibleInviterCopy';
 import { NOTIFICATION_COPY } from '@/lib/i18n/notificationCopy';
 import { NOTIFICATION_HISTORY_COPY } from '@/lib/i18n/notificationHistoryCopy';
+import { NOTIFICATION_META_COPY } from '@/lib/i18n/notificationMetaCopy';
 import { NOTIFICATION_V2_COPY } from '@/lib/i18n/notificationV2Copy';
 import { PROGRESS_CLAIM_COPY } from '@/lib/i18n/progressClaimCopy';
 import { REWARD_RECEIPT_COPY } from '@/lib/i18n/rewardReceiptCopy';
@@ -262,6 +263,7 @@ export function InviteNotificationHistoryCenter({
 }) {
   const supportedLocale = locale as SupportedLocale;
   const structure = NOTIFICATION_HISTORY_COPY[supportedLocale];
+  const metaCopy = NOTIFICATION_META_COPY[supportedLocale];
   const notificationCopy = NOTIFICATION_COPY[supportedLocale];
   const progressCopy = PROGRESS_CLAIM_COPY[supportedLocale];
   const receiptCopy = REWARD_RECEIPT_COPY[locale];
@@ -683,7 +685,7 @@ export function InviteNotificationHistoryCenter({
               <>
                 <i className="notificationUnreadDot" aria-hidden="true" />
                 <span className="notificationHistorySrOnly">
-                  {structure.newLabel}
+                  {metaCopy.unread}
                 </span>
               </>
             ) : null}
@@ -699,13 +701,21 @@ export function InviteNotificationHistoryCenter({
         <span className="notificationHistoryBody">{copy.body}</span>
         <span className="notificationHistoryMeta">
           {friend ? (
-            <span className="notificationFriendWallet" dir="ltr">
-              {friend}
+            <span className="notificationFriendMeta">
+              <span className="notificationFriendLabel">
+                {metaCopy.invitedFriend}
+              </span>
+              <span className="notificationFriendWallet" dir="ltr">
+                ({friend})
+              </span>
             </span>
           ) : null}
           {copy.hint ? <b>{copy.hint}</b> : null}
           {item.kind === 'REWARD_PAID' ? (
-            <em aria-hidden="true">›</em>
+            <span className="notificationReceiptAction">
+              <span>{metaCopy.viewReceipt}</span>
+              <em aria-hidden="true">›</em>
+            </span>
           ) : null}
         </span>
       </span>
@@ -775,8 +785,17 @@ export function InviteNotificationHistoryCenter({
               <div className="notificationActionCopy">
                 <span>{progressCopy.rewardAvailable}</span>
                 <strong>{amount} B3TR</strong>
-                <small dir="ltr">
-                  {friend ? `${friend} · ` : ''}{action.inviteCode}
+                <small className="notificationActionMeta">
+                  {friend ? (
+                    <span className="notificationActionMetaItem">
+                      <span>{metaCopy.invitedFriend}</span>
+                      <span dir="ltr">({friend})</span>
+                    </span>
+                  ) : null}
+                  <span className="notificationActionMetaItem">
+                    <span>{metaCopy.inviteCode}</span>
+                    <span dir="ltr">({action.inviteCode})</span>
+                  </span>
                 </small>
               </div>
               {waiting ? (
@@ -903,7 +922,7 @@ export function InviteNotificationHistoryCenter({
                 ) : null}
                 <h3>{receiptViewActive ? receiptCopy.title : structure.title}</h3>
                 {!receiptViewActive && unreadCount > 0 ? (
-                  <span>{structure.newLabel} · {unreadCount}</span>
+                  <span>{metaCopy.unread} · {unreadCount}</span>
                 ) : null}
               </div>
               <div className="notificationHistoryHeaderActions">

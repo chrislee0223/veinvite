@@ -103,18 +103,18 @@
 .notificationHistoryPanel .notificationHistoryContent {
   min-width: 0 !important;
   display: grid !important;
-  grid-template-columns: minmax(0, 1fr) auto !important;
+  grid-template-columns: minmax(0, 1fr) max-content !important;
   grid-template-areas:
-    "title title"
+    "title time"
     "body body"
-    "meta time" !important;
+    "meta meta" !important;
   column-gap: 10px !important;
   row-gap: 7px !important;
   align-items: center !important;
 }
 
-/* Flatten the old top row so time can live with metadata instead of fighting
- * long translated titles for horizontal space. */
+/* Flatten the top row so title and event time share a stable first line while
+ * body and relationship metadata keep their own full-width rows. */
 .notificationHistoryPanel .notificationHistoryTopLine {
   display: contents !important;
 }
@@ -144,6 +144,7 @@
   overflow-wrap: anywhere !important;
   word-break: normal !important;
   hyphens: auto !important;
+  text-wrap: balance !important;
 }
 
 .notificationHistoryPanel .notificationHistoryBody {
@@ -158,6 +159,7 @@
   overflow-wrap: anywhere !important;
   word-break: normal !important;
   hyphens: auto !important;
+  text-wrap: pretty !important;
 }
 
 .notificationHistoryPanel .notificationHistoryMeta {
@@ -173,22 +175,47 @@
 
 .notificationHistoryPanel .notificationHistoryTime {
   grid-area: time !important;
-  align-self: center !important;
+  align-self: start !important;
   justify-self: end !important;
-  padding-top: 0 !important;
+  padding-top: 0.16rem !important;
   color: #777168 !important;
   font-size: 0.57rem !important;
   line-height: 1.3 !important;
   white-space: nowrap !important;
 }
 
-.notificationHistoryPanel .notificationFriendWallet {
+.notificationHistoryPanel .notificationFriendMeta {
+  min-width: 0 !important;
   max-width: 100% !important;
+  display: inline-flex !important;
+  align-items: baseline !important;
+  flex-wrap: wrap !important;
+  gap: 4px !important;
   color: #837d74 !important;
   font-size: 0.57rem !important;
-  line-height: 1.3 !important;
+  line-height: 1.35 !important;
+}
+
+.notificationHistoryPanel .notificationFriendLabel {
+  overflow-wrap: anywhere !important;
+}
+
+.notificationHistoryPanel .notificationFriendWallet {
+  max-width: 100% !important;
+  color: #918a80 !important;
+  font: inherit !important;
   overflow: hidden !important;
   text-overflow: ellipsis !important;
+  white-space: nowrap !important;
+}
+
+.notificationHistoryPanel .notificationReceiptAction {
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 4px !important;
+  color: #b9a76f !important;
+  font-size: 0.57rem !important;
+  line-height: 1.3 !important;
   white-space: nowrap !important;
 }
 
@@ -259,7 +286,27 @@
 .notificationHistoryPanel .notificationActionCopy small {
   max-width: 100% !important;
   font-size: 0.56rem !important;
-  line-height: 1.3 !important;
+  line-height: 1.35 !important;
+}
+
+.notificationHistoryPanel .notificationActionMeta {
+  display: flex !important;
+  flex-wrap: wrap !important;
+  gap: 5px 9px !important;
+  color: #837d74 !important;
+}
+
+.notificationHistoryPanel .notificationActionMetaItem {
+  min-width: 0 !important;
+  display: inline-flex !important;
+  align-items: baseline !important;
+  flex-wrap: wrap !important;
+  gap: 4px !important;
+}
+
+.notificationHistoryPanel .notificationActionMetaItem > span:last-child {
+  color: #918a80 !important;
+  white-space: nowrap !important;
 }
 
 .notificationHistoryPanel .notificationClaimButton,
@@ -373,16 +420,16 @@
 
 @media (max-width: 350px) {
   .notificationHistoryPanel .notificationHistoryContent {
-    grid-template-columns: minmax(0, 1fr) !important;
+    grid-template-columns: minmax(0, 1fr) max-content !important;
     grid-template-areas:
-      "title"
-      "body"
-      "meta"
-      "time" !important;
+      "title time"
+      "body body"
+      "meta meta" !important;
+    column-gap: 8px !important;
   }
 
   .notificationHistoryPanel .notificationHistoryTime {
-    justify-self: start !important;
+    font-size: 0.54rem !important;
   }
 
   .notificationHistoryPanel .notificationHistoryHeader {
@@ -392,4 +439,15 @@
   .notificationHistoryPanel .notificationHistoryHeading {
     gap: 6px !important;
   }
+}
+
+
+/* Korean copy should prefer natural phrase boundaries. `pretty` wrapping keeps
+ * a final short word from being stranded on its own line in modern browsers,
+ * while keep-all remains the safe fallback for older engines. */
+.notificationHistoryPanel[lang="ko"] .notificationHistoryTitle,
+.notificationHistoryPanel[lang="ko"] .notificationHistoryBody {
+  word-break: keep-all !important;
+  overflow-wrap: normal !important;
+  hyphens: none !important;
 }
