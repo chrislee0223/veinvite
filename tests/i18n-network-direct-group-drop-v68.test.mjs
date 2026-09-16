@@ -10,12 +10,12 @@ const [source, dragGhostSource, localeLayoutSource, rootIdentitySource, guideSou
   readFile('src/components/AppGuide.tsx', 'utf8'),
 ]);
 
-test('V68 still wraps the stable V67 Network surface behind V71, V70 and V69', () => {
+test('V68 keeps the stable V67 QA surface while the release V71 canary stays detached from the legacy chain', () => {
   assert.match(source, /AppNetworkCanaryV67/);
   assert.match(source, /<AppNetworkCanaryV67 locale=\{locale\} \/>/);
   assert.match(guideSource, /AppNetworkCanaryV71/);
-  assert.match(rootIdentitySource, /AppNetworkCanaryV70/);
-  assert.match(rootIdentitySource, /<AppNetworkCanaryV70 locale=\{locale\} \/>/);
+  assert.match(rootIdentitySource, /AppNetworkHub/);
+  assert.doesNotMatch(rootIdentitySource, /AppNetworkCanaryV70/);
   assert.match(localeLayoutSource, /AppNetworkCanaryV69/);
   assert.match(localeLayoutSource, /<AppNetworkCanaryV69 locale=\{locale\} \/>/);
   assert.match(dragGhostSource, /AppNetworkCanaryV68/);
