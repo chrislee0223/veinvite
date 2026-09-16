@@ -85,11 +85,14 @@ html body .leaderboardPage .rankingCard .tableHeader > span:first-child {
 }
 
 /*
- * Keep every rank value (including placeholders and the trailing current-user
- * row) on the exact same 6% axis. Podium artwork stays attached to rankValue,
- * so its approved vectors move with the numeral without entering grid sizing.
+ * Keep every rank value on the exact same 6% axis. The rankScroll selectors
+ * intentionally match the specificity of leaderboard-podium-layout-guard.css;
+ * this file loads later, so the approved podium artwork remains intact while
+ * its number axis is safely moved. The trailing row has its own equivalent rule
+ * because it lives outside rankScroll.
  */
-html body .leaderboardPage .rankingCard .rankRow .rankStack {
+html body .leaderboardPage .rankingCard .rankScroll .rows > .rankRow[data-rank] .rankStack,
+html body .leaderboardPage .rankingCard .rankRow.trailingCurrent .rankStack {
   position: relative !important;
   width: 100% !important;
   height: 100% !important;
@@ -99,7 +102,8 @@ html body .leaderboardPage .rankingCard .rankRow .rankStack {
   text-align: center !important;
 }
 
-html body .leaderboardPage .rankingCard .rankRow .rankValue.rankValue {
+html body .leaderboardPage .rankingCard .rankScroll .rows > .rankRow[data-rank] .rankValue.rankValue,
+html body .leaderboardPage .rankingCard .rankRow.trailingCurrent .rankValue.rankValue {
   position: absolute !important;
   inset: auto !important;
   left: var(--inviter-rank-number-axis) !important;
@@ -122,7 +126,8 @@ html body .leaderboardPage .rankingCard .rankRow .rankValue.rankValue {
  * the visual right of the rank while `dir="auto"` still shapes Arabic/Urdu NEW
  * copy correctly. Numeric ▲/▼ content remains isolated LTR in the component.
  */
-html body .leaderboardPage .rankingCard .rankRow .rankMovement.rankMovement {
+html body .leaderboardPage .rankingCard .rankScroll .rows > .rankRow[data-rank] .rankMovement.rankMovement,
+html body .leaderboardPage .rankingCard .rankRow.trailingCurrent .rankMovement.rankMovement {
   position: absolute !important;
   z-index: 4 !important;
   inset: auto !important;
