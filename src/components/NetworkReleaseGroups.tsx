@@ -313,20 +313,28 @@ export function NetworkReleaseGroups({
         setDragPreview(null);
       }
     };
-    const onPointerEndCapture = (event: PointerEvent) => {
+    const onPointerUpCapture = (event: PointerEvent) => {
       if (event.pointerType === 'touch') touchPointersRef.current.delete(event.pointerId);
+    };
+    const onPointerCancelCapture = (event: PointerEvent) => {
+      if (event.pointerType === 'touch') touchPointersRef.current.delete(event.pointerId);
+      if (groupDragRef.current?.pointerId === event.pointerId) {
+        groupDragRef.current = null;
+        setDragPreview(null);
+      }
     };
 
     boundary.addEventListener('click', onClickCapture, true);
     boundary.addEventListener('pointerdown', onPointerDownCapture, true);
-    boundary.addEventListener('pointerup', onPointerEndCapture, true);
-    boundary.addEventListener('pointercancel', onPointerEndCapture, true);
+    boundary.addEventListener('pointerup', onPointerUpCapture, true);
+    boundary.addEventListener('pointercancel', onPointerCancelCapture, true);
     return () => {
       boundary.removeEventListener('click', onClickCapture, true);
       boundary.removeEventListener('pointerdown', onPointerDownCapture, true);
-      boundary.removeEventListener('pointerup', onPointerEndCapture, true);
-      boundary.removeEventListener('pointercancel', onPointerEndCapture, true);
+      boundary.removeEventListener('pointerup', onPointerUpCapture, true);
+      boundary.removeEventListener('pointercancel', onPointerCancelCapture, true);
       touchPointersRef.current.clear();
+      groupDragRef.current = null;
     };
   }, []);
 
@@ -468,7 +476,7 @@ export function NetworkReleaseGroups({
                     <div><b>{editor.mode === 'create' ? copy.createGroup : `${copy.edit} ${currentEditorGroup?.name ?? ''}`}</b><small>{copy.tapAddRemove}</small></div>
                     <button type="button" onClick={() => setEditor(null)}>×</button>
                   </div>
-                  <div className="releaseGroupSelection"><b>{editor.selected.length}</b><span>{copy.selectedCount.replace('{count}', String(editor.selected.length))}</span></div>
+                  <div className="releaseGroupSelection"><b>{editor.selected.length}</b><span>{copy.tapAddRemove}</span></div>
                   <input
                     value={editor.name}
                     maxLength={24}
@@ -492,7 +500,7 @@ export function NetworkReleaseGroups({
                     {currentGroups.length ? currentGroups.map((group) => (
                       <div key={group.id} className="releaseGroupRow">
                         <button type="button" className="releaseGroupRowMain" onClick={() => toggleGroup(group.id)}>
-                          <b>{group.name}</b><small>{group.members.length} · {group.collapsed ? copy.collapsed : copy.expanded}</small>
+                          <b>{group.name}</b><small>{copy.peopleCount.replace('{count}', String(group.members.length))} · {group.collapsed ? copy.collapsed : copy.expanded}</small>
                         </button>
                         <button type="button" onClick={() => beginEdit(group)}>{copy.edit}</button>
                         <button type="button" className="danger" onClick={() => deleteGroup(group.id)} aria-label={copy.removed}>×</button>
@@ -528,7 +536,7 @@ export function NetworkReleaseGroups({
               >
                 <span aria-hidden="true">▦</span>
                 <b>{group.name}</b>
-                <small>{group.members.length} · {group.collapsed ? copy.collapsed : copy.expanded}</small>
+                <small>{copy.peopleCount.replace('{count}', String(group.members.length))} · {group.collapsed ? copy.collapsed : copy.expanded}</small>
               </button>
             ))}
           </div>
