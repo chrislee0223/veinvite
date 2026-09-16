@@ -35,6 +35,21 @@ test('a concurrent legacy claim can recover after the atomic RPC reports ALREADY
   assert.match(route, /outcome: 'eligible'/);
 });
 
+test('a cross-link invitee uniqueness race resolves from canonical state instead of surfacing a false server error', () => {
+  assert.match(
+    route,
+    /if \(claimError\.code === '23505'\)[\s\S]*recoverUniqueInviteeConflict\(\s*normalizedCode,\s*inviteeAddress/,
+  );
+  assert.match(
+    route,
+    /async function recoverUniqueInviteeConflict[\s\S]*recoverClaimResponse\(\s*inviteCode,\s*walletAddress[\s\S]*\.from\('invitations'\)[\s\S]*\.eq\('invitee_wallet', walletAddress\)[\s\S]*claimConflictResponse\('ALREADY_REFERRED'\)/,
+  );
+  assert.match(
+    route,
+    /if \(claimError\.code === '23505'\)[\s\S]*if \(recovered\) \{\s*return recovered;\s*\}[\s\S]*console\.error\(\s*'Failed to atomically claim invitation:'/,
+  );
+});
+
 test('legacy recovery requires exact modern eligibility evidence and never guesses old rows', () => {
   assert.match(recovery, /invitation\.eligibility_check_id === null/);
   assert.match(recovery, /\.eq\('id', invitation\.eligibility_check_id\)/);
