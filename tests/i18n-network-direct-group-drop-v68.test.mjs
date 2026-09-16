@@ -14,8 +14,8 @@ test('V68 keeps the stable V67 QA surface while the release V71 canary stays det
   assert.match(source, /AppNetworkCanaryV67/);
   assert.match(source, /<AppNetworkCanaryV67 locale=\{locale\} \/>/);
   assert.match(guideSource, /AppNetworkCanaryV71/);
-  assert.match(rootIdentitySource, /AppNetworkHub/);
-  assert.doesNotMatch(rootIdentitySource, /AppNetworkCanaryV70/);
+  assert.match(rootIdentitySource, /AppNetworkReleaseCanvas/);
+  assert.doesNotMatch(rootIdentitySource, /AppNetworkHub|NetworkReleasePresentation|AppNetworkCanaryV70/);
   assert.match(localeLayoutSource, /AppNetworkCanaryV69/);
   assert.match(localeLayoutSource, /<AppNetworkCanaryV69 locale=\{locale\} \/>/);
   assert.match(dragGhostSource, /AppNetworkCanaryV68/);
