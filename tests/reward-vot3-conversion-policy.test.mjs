@@ -2,8 +2,9 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import test from 'node:test';
 
-const [scannerSource, migrationSource] = await Promise.all([
+const [scannerSource, reconciliationSource, migrationSource] = await Promise.all([
   readFile('src/lib/vebetter/vot3Conversion.ts', 'utf8'),
+  readFile('src/lib/impact/syncInvitation.ts', 'utf8'),
   readFile(
     'supabase/migrations/20260904213000_allow_any_positive_vot3_conversion.sql',
     'utf8',
@@ -22,6 +23,25 @@ test('VOT3 mission accepts any real positive conversion amount', () => {
   assert.match(
     scannerSource,
     /A qualifying conversion may be any positive amount/u,
+  );
+});
+
+test('mission reconciliation docs preserve the any-positive conversion policy', () => {
+  assert.match(
+    reconciliationSource,
+    /any positive B3TR amount to VOT3/u,
+  );
+  assert.match(
+    reconciliationSource,
+    /a non-positive B3TR conversion amount/u,
+  );
+  assert.doesNotMatch(
+    reconciliationSource,
+    />=1 B3TR/u,
+  );
+  assert.doesNotMatch(
+    reconciliationSource,
+    /below 1 B3TR/u,
   );
 });
 
