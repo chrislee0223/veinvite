@@ -22,6 +22,7 @@ import '@/lib/i18n/referralLinkCopyFinalHardening';
 import '@/lib/i18n/guideRewardClaimHardening';
 import '@/lib/i18n/greekFinalPolish';
 import '@/lib/i18n/networkNavigationCopyPolish';
+import { LeaderboardMovementColorPolish } from './LeaderboardMovementColorPolish';
 import { LegalDocumentSheetHost } from './LegalDocumentSheetHost';
 import { LegalNavigationMemory } from './LegalNavigationMemory';
 import { NetworkIdleWarmup } from './NetworkIdleWarmup';
@@ -98,6 +99,7 @@ export function AppProviders({
         <WalletLanguagePreferenceSync />
         <WalletCountryObservationSync />
         <SecondaryPageLayoutPolish />
+        <LeaderboardMovementColorPolish />
         <LegalNavigationMemory />
         <RouteScopedInviteEnhancements />
       </VeChainProvider>
