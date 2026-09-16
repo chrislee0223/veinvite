@@ -332,6 +332,39 @@ async function recoverClaimResponse(
   }
 }
 
+async function recoverUniqueInviteeConflict(
+  inviteCode: string,
+  walletAddress: string,
+) {
+  const sameInvite = await recoverClaimResponse(
+    inviteCode,
+    walletAddress,
+  );
+  if (sameInvite) {
+    return sameInvite;
+  }
+
+  const { data, error } = await supabaseAdmin
+    .from('invitations')
+    .select('invite_code')
+    .eq('invitee_wallet', walletAddress)
+    .limit(1);
+
+  if (error) {
+    console.error(
+      'Failed to resolve concurrent invitee uniqueness conflict:',
+      error,
+    );
+    return null;
+  }
+
+  if (Array.isArray(data) && data.length > 0) {
+    return claimConflictResponse('ALREADY_REFERRED');
+  }
+
+  return null;
+}
+
 export async function POST(
   request: NextRequest,
   context: {
@@ -667,6 +700,18 @@ export async function POST(
   );
 
   if (claimError) {
+    if (claimError.code === '23505') {
+      const recovered =
+        await recoverUniqueInviteeConflict(
+          normalizedCode,
+          inviteeAddress,
+        );
+
+      if (recovered) {
+        return recovered;
+      }
+    }
+
     console.error(
       'Failed to atomically claim invitation:',
       claimError,
