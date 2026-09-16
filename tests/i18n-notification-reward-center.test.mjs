@@ -52,7 +52,8 @@ test('an unresolved Claim stays visible on the bell without piggybacking on hist
     facade,
     /needsRewardClaim && props\.unreadCount < 1/,
   );
-  assert.match(facade, /\[wallet, props\.open\]/);
+  assert.match(facade, /\[wallet\]/);
+  assert.doesNotMatch(facade, /\[wallet,\s*props\.open\]/);
   assert.doesNotMatch(facade, /\[props\.items\]/);
   assert.match(facade, /notificationRewardAttentionDot/);
   assert.match(facade, /role="status"/);
@@ -69,8 +70,9 @@ test('reward-ready history is an event while paid history remains reopenable as 
   assert.match(center, /const paid = item\.kind === 'REWARD_PAID'/);
   assert.match(center, /notificationHistoryRow isRead isInteractive/);
   assert.match(center, /openRewardReceipt\(item\)/);
-  assert.match(center, /\/api\/rewards\/receipts\?limit=50/);
-  assert.match(center, /candidate\.inviteCode === item\.inviteCode/);
+  assert.match(center, /rewards\/receipts\?inviteCode=\$\{encodeURIComponent\(item\.inviteCode\)\}/);
+  assert.doesNotMatch(center, /rewards\/receipts\?limit=50/);
+  assert.doesNotMatch(center, /candidate\.inviteCode === item\.inviteCode/);
   assert.match(center, /getVeChainExplorerTransactionUrl/);
   assert.match(center, /ACKNOWLEDGE_REWARD_RECEIPT/);
 });
