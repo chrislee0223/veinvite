@@ -12,7 +12,8 @@ const [source, rootIdentitySource, guideSource, v69Source, controlCopySource] = 
 
 test('V71 is the final Network canary layer and preserves the mature V70 to V69 chain', () => {
   assert.match(guideSource, /AppNetworkCanaryV71/);
-  assert.match(guideSource, /<AppNetworkCanaryV71 key=\{wallet\.toLowerCase\(\)\} locale=\{locale\} \/>/);
+  assert.match(guideSource, /<NetworkInteractionSafety key=\{walletKey\}>[\s\S]*?<AppNetworkCanaryV71 locale=\{locale\} \/>[\s\S]*?<\/NetworkInteractionSafety>/);
+  assert.match(guideSource, /const walletKey = wallet\?\.toLowerCase\(\) \?\? 'disconnected'/);
   assert.match(rootIdentitySource, /AppNetworkCanaryV70/);
   assert.match(rootIdentitySource, /<AppNetworkCanaryV70 locale=\{locale\} \/>/);
   assert.match(source, /AppNetworkCanaryV69/);
