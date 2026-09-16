@@ -23,7 +23,7 @@ test('V46 stays presentation-only and cannot revive the retired drag-preview own
 
 test('pinch navigation remains single-owner while the mature pinch bridge stays intact', () => {
   assert.match(v50, /const PINCH_ENTER_RATIO = 1\.28/);
-  assert.match(v50, /const PINCH_PARENT_RATIO = 0\.76/);
+  assert.match(v50, /const PINCH_PARENT_RATIO = 0\.65/);
   assert.match(v50, /const onTouchStart = \(event: TouchEvent\)/);
   assert.match(v50, /const finishPinch = \(event: TouchEvent\)/);
   assert.match(v49, /holdIntermediatePinchEnd/);
