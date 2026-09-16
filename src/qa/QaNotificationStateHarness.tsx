@@ -410,6 +410,9 @@ export function QaNotificationStateHarness({
         locale={locale}
         items={items}
         unreadCount={unreadCount}
+        markAllAvailable={items.some(
+          (item) => item.readAt === null && item.kind !== 'REWARD_PAID',
+        )}
         open={open}
         loading={loading}
         busy={false}
