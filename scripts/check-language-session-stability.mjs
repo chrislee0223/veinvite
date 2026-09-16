@@ -51,19 +51,30 @@ if (!/\/api\/preferences\/language/.test(languageSync) || /clearWalletSession|di
 if (
   !/OBSERVE_WALLET_DISPLAY_LANGUAGE/.test(languageSync) ||
   !/resolveBrowserLocale/.test(languageSync) ||
-  !/await observeDisplayLanguage\(\s*browserLanguage,\s*'browser_auto'/s.test(languageSync)
+  !/await observeDisplayLanguage\(\s*walletAddress,\s*browserLanguage,\s*'browser_auto'/s.test(languageSync)
 ) {
   failures.push(
-    'Browser-auto locale must be observed as display state instead of being promoted directly into a wallet preference.',
+    'Browser-auto locale must be wallet-bound display state instead of being promoted directly into a wallet preference.',
   );
 }
 
 if (
-  !/await observeDisplayLanguage\(\s*localLanguage,\s*'local_storage'/s.test(languageSync) ||
-  /saveLanguage\(\s*localLanguage,\s*'local_storage'/s.test(languageSync)
+  !/await observeDisplayLanguage\(\s*walletAddress,\s*localLanguage,\s*'local_storage'/s.test(languageSync) ||
+  /saveLanguage\(\s*walletAddress,\s*localLanguage/s.test(languageSync)
 ) {
   failures.push(
-    'Browser-local language state must not be promoted into another wallet’s persistent preference.',
+    'Browser-local language state must remain a wallet-bound observation and must not become another wallet’s persistent preference.',
+  );
+}
+
+if (
+  !/expectedWallet/.test(languageSync) ||
+  !/body\.walletAddress\.toLowerCase\(\) !== walletAddress/.test(languageSync) ||
+  !/const expectedWallet =[\s\S]*body\.expectedWallet\.trim\(\)\.toLowerCase\(\)/s.test(languageRoute) ||
+  !/requireWalletSession\(\{[\s\S]*request,[\s\S]*expectedWallet,[\s\S]*\}\)/s.test(languageRoute)
+) {
+  failures.push(
+    'Language writes and reads must stay bound to the wallet that initiated the async sync, even across an A-to-B wallet switch.',
   );
 }
 
