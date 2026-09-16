@@ -2,14 +2,16 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import test from 'node:test';
 
-const [source, guideSource, v44Source] = await Promise.all([
+const [source, guideSource, v70Source, v44Source] = await Promise.all([
   readFile('src/components/AppNetworkCanaryV69.tsx', 'utf8'),
   readFile('src/components/AppGuide.tsx', 'utf8'),
+  readFile('src/components/AppNetworkCanaryV70.tsx', 'utf8'),
   readFile('src/qa/QaNetworkRadialPlaygroundV44.tsx', 'utf8'),
 ]);
 
-test('V69 is the active canary wrapper and preserves the V68 chain', () => {
-  assert.match(guideSource, /AppNetworkCanaryV69/);
+test('V69 remains in the active V71 canary chain', () => {
+  assert.match(guideSource, /AppNetworkCanaryV71/);
+  assert.match(v70Source, /AppNetworkCanaryV69/);
   assert.match(source, /AppNetworkCanaryV68/);
   assert.match(source, /<AppNetworkCanaryV68 locale=\{locale\} \/>/);
 });
@@ -19,6 +21,17 @@ test('create-group drag ghost only activates for the existing V44 create drop ed
   assert.match(source, /\.v42GroupPanel input/);
   assert.match(source, /DRAG_THRESHOLD_PX = 10/);
   assert.match(v44Source, /toggleCreateSelection\(drag\.nodeId\)/);
+});
+
+test('V69 touch ownership is scoped before global touch tracking', () => {
+  const editorGuard = source.indexOf("if (!event.isTrusted || !createEditorOpen()) return;");
+  const relevantGestureGuard = source.indexOf('if (!validNode && !drag) return;');
+  const touchRegistration = source.indexOf('touchPointers.add(event.pointerId);');
+  assert.ok(editorGuard >= 0);
+  assert.ok(relevantGestureGuard > editorGuard);
+  assert.ok(touchRegistration > relevantGestureGuard);
+  assert.match(source, /touchPointers\.size > 1/);
+  assert.match(source, /event\.stopImmediatePropagation\(\)/);
 });
 
 test('drag ghost follows screen coordinates and current canvas scale without mutating Network geometry or persistence', () => {
@@ -45,13 +58,15 @@ test('V69 presents one solid moving node instead of a translucent duplicate', ()
   assert.doesNotMatch(source, /scale\(1\.045\)/);
 });
 
-test('drag ghost keeps pointer ownership and cleans transient state on every exit path', () => {
+test('drag ghost keeps pointer ownership and clears touch state on interruption', () => {
   assert.match(source, /setPointerCapture/);
   assert.match(source, /releasePointerCapture/);
   assert.match(source, /pointercancel/);
   assert.match(source, /visibilitychange/);
   assert.match(source, /window\.addEventListener\('blur'/);
-  assert.match(source, /touchPointers\.size > 1/);
+  assert.match(source, /window\.addEventListener\('pagehide'/);
+  assert.match(source, /touchPointers\.clear\(\)/);
+  assert.match(source, /multiTouchBlocked = false/);
   assert.match(source, /cancelUnderlyingCreateDrag/);
   assert.match(source, /cancelActiveDrag/);
   assert.match(source, /\.v69CreateDragSource/);
