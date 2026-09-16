@@ -10,17 +10,26 @@ const polish = readFileSync(
   new URL('../src/app/notification-history-polish.css', import.meta.url),
   'utf8',
 );
+const runtimeFix = readFileSync(
+  new URL('../src/app/notification-runtime-ux-fix.css', import.meta.url),
+  'utf8',
+);
 const center = readFileSync(
   new URL('../src/components/UnifiedInviteNotificationHistoryCenter.tsx', import.meta.url),
   'utf8',
 );
 
-test('notification polish is loaded globally after existing notification hardening', () => {
+test('notification polish and runtime guard load after existing notification hardening', () => {
   assert.match(layout, /import '\.\/notification-i18n-hardening\.css';/u);
   assert.match(layout, /import '\.\/notification-history-polish\.css';/u);
+  assert.match(layout, /import '\.\/notification-runtime-ux-fix\.css';/u);
   assert.ok(
     layout.indexOf("import './notification-history-polish.css';") >
       layout.indexOf("import './notification-i18n-hardening.css';"),
+  );
+  assert.ok(
+    layout.indexOf("import './notification-runtime-ux-fix.css';") >
+      layout.indexOf("import './notification-history-polish.css';"),
   );
 });
 
@@ -33,6 +42,7 @@ test('ordinary notification cards keep event time in a stable top-right position
   assert.match(polish, /\.notificationHistoryTopLine[\s\S]*display:\s*contents\s*!important/u);
   assert.match(polish, /\.notificationHistoryBody[\s\S]*padding-inline-start:\s*0\s*!important/u);
   assert.match(polish, /\.notificationHistoryMeta[\s\S]*padding-inline-start:\s*0\s*!important/u);
+  assert.match(runtimeFix, /\.notificationHistoryContent[\s\S]*width:\s*100%\s*!important/u);
 });
 
 test('long translations and RTL-safe logical spacing remain first-class', () => {
@@ -41,6 +51,8 @@ test('long translations and RTL-safe logical spacing remain first-class', () => 
   assert.match(polish, /padding-inline:/u);
   assert.match(polish, /margin-inline:/u);
   assert.doesNotMatch(polish, /\b(?:left|right):\s*\d/u);
+  assert.doesNotMatch(runtimeFix, /\b(?:left|right):\s*\d/u);
+  assert.match(runtimeFix, /inset-inline-start:/u);
   assert.match(center, /dir=\{rtl \? 'rtl' : 'ltr'\}/u);
 });
 
