@@ -9,11 +9,12 @@
  *
  * Inviter columns:
  * Header, ranked rows, placeholders and the trailing current-user row all use
- * one physical four-column grid. The inviter column moves only slightly right
- * (32% -> 34% center), while completed/referral and reward centers stay at their
- * established 62% and 86% axes. The rank numeral deliberately stays on the old
- * 6% axis; movement copy gets its own absolutely positioned layer to the right,
- * so NEW / 신규 / جديد and large up/down deltas can never push the numeral.
+ * one physical four-column grid. The inviter column now sits at a 36% center,
+ * while completed/referral and reward centers stay at their established 62%
+ * and 86% axes. The rank numeral deliberately stays on the original 6% axis.
+ * Movement copy occupies a fixed lane inside the widened rank track, so the
+ * entire ▲1 / ▼126 / NEW / 신규 / جديد label is centered as one visual unit
+ * and can never push either the numeral or the inviter identity.
  *
  * Technical numeric values:
  * Referral counts and B3TR amounts are machine-readable LTR data, not localized
@@ -57,25 +58,27 @@ html body .leaderboardHub {
 /*
  * Final inviter-table geometry.
  *
- * 16 / 36 / 20 / 28 keeps the final two column centers unchanged:
- *   rank numeral 6% (explicit inner axis)
- *   inviter      34%
- *   invites      62%
- *   rewards      86%
+ * 20 / 32 / 20 / 28 keeps the final two column centers unchanged while giving
+ * the rank + movement pair enough breathing room from the inviter identity:
+ *   rank numeral     6%  (30% inside the 20% rank track)
+ *   movement center 15.5% (center of the 55%-100% movement lane)
+ *   inviter         36%
+ *   invites         62%
+ *   rewards         86%
  *
- * The first header label is shifted from the 16%-track center (8%) back to the
+ * The first header label is shifted from the 20%-track center (10%) back to the
  * same 6% physical axis as every rank numeral. This is a transform only on the
  * header label; it cannot change any grid track or neighboring column.
  */
 html body .leaderboardPage .rankingCard {
-  --inviter-rank-number-axis: 37.5%;
-  --inviter-rank-header-shift: -12.5%;
-  --inviter-rank-movement-gap: 22px;
+  --inviter-rank-number-axis: 30%;
+  --inviter-rank-header-shift: -20%;
+  --inviter-rank-movement-lane-start: 55%;
 }
 
 html body .leaderboardPage .rankingCard .tableHeader,
 html body .leaderboardPage .rankingCard .rankRow {
-  grid-template-columns: 16fr 36fr 20fr 28fr !important;
+  grid-template-columns: 20fr 32fr 20fr 28fr !important;
 }
 
 html body .leaderboardPage .rankingCard .tableHeader > span:first-child {
@@ -119,33 +122,36 @@ html body .leaderboardPage .rankingCard .rankRow.trailingCurrent .rankValue.rank
 }
 
 /*
- * Movement is a visual annotation, not a fifth table column. Start it just
- * beyond the approved 48px podium artwork (38.4px rendered laurel on desktop;
- * 34.56px on mobile) and let its localized text take its natural width.
- * `text-align:left` is intentionally physical: the annotation always appears to
- * the visual right of the rank while `dir="auto"` still shapes Arabic/Urdu NEW
- * copy correctly. Numeric ▲/▼ content remains isolated LTR in the component.
+ * Movement is a visual annotation, not a fifth table column. The fixed lane
+ * starts after the numeral / podium zone and ends at the rank-track boundary.
+ * Centering the whole label inside that lane is intentional: ▲1, ▼1 and NEW
+ * must share one visual center even though the arrow makes their glyph widths
+ * asymmetric. `dir="auto"` still shapes Arabic/Urdu NEW copy naturally, while
+ * numeric ▲/▼ content remains isolated LTR in the component.
  */
 html body .leaderboardPage .rankingCard .rankScroll .rows > .rankRow[data-rank] .rankMovement.rankMovement,
 html body .leaderboardPage .rankingCard .rankRow.trailingCurrent .rankMovement.rankMovement {
   position: absolute !important;
   z-index: 4 !important;
   inset: auto !important;
-  left: calc(var(--inviter-rank-number-axis) + var(--inviter-rank-movement-gap)) !important;
+  left: var(--inviter-rank-movement-lane-start) !important;
   top: 50% !important;
-  right: auto !important;
+  right: 0 !important;
   bottom: auto !important;
-  width: max-content !important;
+  width: auto !important;
   max-width: none !important;
+  min-width: 0 !important;
   height: auto !important;
   margin: 0 !important;
   padding: 0 !important;
-  display: block !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
   transform: translateY(-50%) !important;
-  transform-origin: 0 50% !important;
+  transform-origin: 50% 50% !important;
   overflow: visible !important;
   line-height: normal !important;
-  text-align: left !important;
+  text-align: center !important;
   white-space: nowrap !important;
   text-overflow: clip !important;
   unicode-bidi: isolate !important;
@@ -228,10 +234,6 @@ html body .leaderboardHub .inviterInside .placeholderRow .walletText {
     --leaderboard-value-size: .72rem;
     --leaderboard-value-weight: 900;
     --leaderboard-row-height: 46px;
-  }
-
-  html body .leaderboardPage .rankingCard {
-    --inviter-rank-movement-gap: 20px;
   }
 
   html body .leaderboardHub .inviterInside .placeholderRow .walletCell {
