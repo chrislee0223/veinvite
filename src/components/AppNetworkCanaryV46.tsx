@@ -11,17 +11,6 @@ const INTRO_HOLD_MS = 150;
 const INTRO_END_MS = 940;
 const LEGACY_FIT_BLOCK_MS = 1400;
 const READABLE_FIT_MIN = .46;
-const DRAG_THRESHOLD_PX = 10;
-
-type DragPreview = {
-  pointerId: number;
-  startX: number;
-  startY: number;
-  target: HTMLButtonElement;
-  label: string;
-  moved: boolean;
-  ghost: HTMLDivElement | null;
-};
 
 function clamp(value: number, min: number, max: number) {
   return Math.max(min, Math.min(max, value));
@@ -106,7 +95,6 @@ function NetworkViewportPolish() {
     let settleEndTimer: number | null = null;
     let legacyBlockTimer: number | null = null;
     let fitFloorTimer: number | null = null;
-    let dragPreview: DragPreview | null = null;
     let introMotionActive = false;
     let blockLegacyFit = true;
     let allowNextProgrammaticFit = false;
@@ -261,117 +249,6 @@ function NetworkViewportPolish() {
     root.addEventListener('touchstart', onUserInteraction, true);
     stage.addEventListener('wheel', onUserInteraction, true);
 
-    const removeGhost = () => {
-      dragPreview?.ghost?.remove();
-      if (dragPreview) dragPreview.ghost = null;
-    };
-
-    const finishDragPreview = (releaseCapture = true) => {
-      const current = dragPreview;
-      if (!current) return;
-      removeGhost();
-      root.classList.remove('veinviteGroupGhostDragging');
-      if (releaseCapture) {
-        try { current.target.releasePointerCapture(current.pointerId); } catch { /* no-op */ }
-      }
-      dragPreview = null;
-    };
-
-    const makeGhost = (preview: DragPreview) => {
-      const ghost = document.createElement('div');
-      ghost.className = 'veinviteNodeDragGhost';
-      const circle = document.createElement('span');
-      circle.className = 'veinviteNodeDragGhostCircle';
-      circle.textContent = '●';
-      const label = document.createElement('b');
-      label.textContent = preview.label;
-      ghost.append(circle, label);
-      document.body.appendChild(ghost);
-      preview.ghost = ghost;
-      return ghost;
-    };
-
-    const validDropAt = (clientX: number, clientY: number) => {
-      const hit = document.elementFromPoint(clientX, clientY);
-      return Boolean(hit?.closest(
-        '.v44CreateDropMore,.v44NewGroupDrop,.v42GroupRow[data-v42-group-drop],.v42GroupHub[data-v42-group-drop]',
-      ));
-    };
-
-    const positionGhost = (preview: DragPreview, clientX: number, clientY: number) => {
-      const ghost = preview.ghost ?? makeGhost(preview);
-      ghost.style.left = `${clientX}px`;
-      ghost.style.top = `${clientY - 52}px`;
-      ghost.classList.toggle('validDrop', validDropAt(clientX, clientY));
-    };
-
-    const onDocumentPointerDown = (event: PointerEvent) => {
-      if (event.pointerType === 'mouse' && event.button !== 0) return;
-      const target = event.target instanceof Element
-        ? event.target.closest<HTMLButtonElement>('button.personNode[data-node-id]')
-        : null;
-      if (!target || !root.contains(target) || stage.classList.contains('editMode')) return;
-      const groupDragContext = root.querySelector('.v42GroupPanel,.v42GroupHub[data-v42-group-drop]');
-      if (!groupDragContext) return;
-
-      finishDragPreview();
-      dragPreview = {
-        pointerId: event.pointerId,
-        startX: event.clientX,
-        startY: event.clientY,
-        target,
-        label: target.querySelector<HTMLElement>('b')?.textContent?.trim() || 'Person',
-        moved: false,
-        ghost: null,
-      };
-      try { target.setPointerCapture(event.pointerId); } catch { /* no-op */ }
-    };
-
-    const onDocumentPointerMove = (event: PointerEvent) => {
-      const preview = dragPreview;
-      if (!preview || preview.pointerId !== event.pointerId) return;
-      const distance = Math.hypot(event.clientX - preview.startX, event.clientY - preview.startY);
-      if (!preview.moved && distance < DRAG_THRESHOLD_PX) return;
-      if (!preview.moved) {
-        preview.moved = true;
-        root.classList.add('veinviteGroupGhostDragging');
-        const active = document.activeElement;
-        if (active instanceof HTMLInputElement && active.closest('.v42GroupPanel')) active.blur();
-      }
-      positionGhost(preview, event.clientX, event.clientY);
-    };
-
-    const onDocumentPointerEnd = (event: PointerEvent) => {
-      if (!dragPreview || dragPreview.pointerId !== event.pointerId) return;
-      finishDragPreview();
-    };
-
-    const abortExternalDrag = () => {
-      const current = dragPreview;
-      if (!current) return;
-      finishDragPreview(false);
-      try {
-        current.target.dispatchEvent(new PointerEvent('pointercancel', {
-          bubbles: true,
-          cancelable: true,
-          pointerId: current.pointerId,
-          pointerType: 'touch',
-        }));
-      } catch { /* no-op */ }
-      try { current.target.releasePointerCapture(current.pointerId); } catch { /* no-op */ }
-    };
-
-    const onVisibilityChange = () => {
-      if (document.visibilityState === 'hidden') abortExternalDrag();
-    };
-
-    document.addEventListener('pointerdown', onDocumentPointerDown, true);
-    document.addEventListener('pointermove', onDocumentPointerMove, true);
-    document.addEventListener('pointerup', onDocumentPointerEnd, true);
-    document.addEventListener('pointercancel', onDocumentPointerEnd, true);
-    document.addEventListener('visibilitychange', onVisibilityChange);
-    window.addEventListener('blur', abortExternalDrag);
-
     return () => {
       zoomObserver.disconnect();
       if (introTimer !== null) window.clearTimeout(introTimer);
@@ -384,14 +261,7 @@ function NetworkViewportPolish() {
       root.removeEventListener('pointerdown', onUserInteraction, true);
       root.removeEventListener('touchstart', onUserInteraction, true);
       stage.removeEventListener('wheel', onUserInteraction, true);
-      document.removeEventListener('pointerdown', onDocumentPointerDown, true);
-      document.removeEventListener('pointermove', onDocumentPointerMove, true);
-      document.removeEventListener('pointerup', onDocumentPointerEnd, true);
-      document.removeEventListener('pointercancel', onDocumentPointerEnd, true);
-      document.removeEventListener('visibilitychange', onVisibilityChange);
-      window.removeEventListener('blur', abortExternalDrag);
-      abortExternalDrag();
-      root.classList.remove('veinviteIntroV3', 'veinviteSettling', 'veinviteGroupGhostDragging');
+      root.classList.remove('veinviteIntroV3', 'veinviteSettling');
       delete root.dataset.veinviteOverview;
       [
         '--v46-line-opacity',
@@ -448,7 +318,6 @@ function NetworkViewportPolish() {
     }
     .productionNetworkCanaryV45.veinviteInteracting .v46SlotPulse,
     .productionNetworkCanaryV45.veinviteIntroV3 .v46SlotPulse,
-    .productionNetworkCanaryV45.veinviteGroupGhostDragging .v46SlotPulse,
     .productionNetworkCanaryV45 .v42ManualGroupsRoot[data-v42-transient-drag="1"] .v46SlotPulse{
       animation-play-state:paused!important;filter:none!important
     }
@@ -502,26 +371,6 @@ function NetworkViewportPolish() {
       transition:none!important
     }
 
-    .veinviteNodeDragGhost{
-      position:fixed;z-index:2147483000;width:78px;display:grid;justify-items:center;gap:4px;
-      pointer-events:none;transform:translate(-50%,-50%);opacity:.82;
-      transition:opacity 90ms ease,filter 90ms ease
-    }
-    .veinviteNodeDragGhostCircle{
-      width:48px;height:48px;border-radius:50%;display:grid;place-items:center;
-      border:1px solid rgba(244,183,40,.72);background:rgba(13,13,11,.94);color:#d9b34a;
-      box-shadow:0 8px 24px rgba(0,0,0,.28),0 0 18px rgba(244,183,40,.08)
-    }
-    .veinviteNodeDragGhost>b{
-      max-width:78px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
-      font-size:.48rem;color:#c9b16f;text-shadow:0 1px 8px rgba(0,0,0,.9)
-    }
-    .veinviteNodeDragGhost.validDrop{opacity:1;filter:drop-shadow(0 0 9px rgba(244,183,40,.26))}
-    .veinviteNodeDragGhost.validDrop .veinviteNodeDragGhostCircle{
-      border-color:rgba(255,207,71,1);background:rgba(38,31,10,.98);
-      box-shadow:0 0 0 4px rgba(244,183,40,.12),0 0 26px rgba(244,183,40,.18)
-    }
-
     @keyframes v46SlotFlow{from{stroke-dashoffset:43}to{stroke-dashoffset:-43}}
 
     @media(prefers-reduced-motion:reduce){
@@ -534,7 +383,6 @@ function NetworkViewportPolish() {
         transition:none!important
       }
       .productionNetworkCanaryV45 .v46SlotPulse{display:none!important}
-      .veinviteNodeDragGhost{transition:none!important}
     }
   `}</style>;
 }
