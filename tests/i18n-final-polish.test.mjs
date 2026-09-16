@@ -13,6 +13,7 @@ const [
   localeLayoutSource,
   rootIdentitySource,
   interactionOwnershipSource,
+  parentVisualSource,
   guideSource,
   layoutSource,
   polishCss,
@@ -30,6 +31,7 @@ const [
   readFile('src/components/AppNetworkCanaryV70.tsx', 'utf8'),
   readFile('src/components/AppNetworkCanaryV71.tsx', 'utf8'),
   readFile('src/components/AppNetworkCanaryV72.tsx', 'utf8'),
+  readFile('src/components/AppNetworkCanaryV73.tsx', 'utf8'),
   readFile('src/components/AppGuide.tsx', 'utf8'),
   readFile('src/app/layout.tsx', 'utf8'),
   readFile('src/app/localization-final-polish.css', 'utf8'),
@@ -98,10 +100,13 @@ test('final layout polish covers Network, RTL, CJK, Korean and tall-script metri
   assert.match(polishCss, /unicode-bidi:\s*isolate/);
 });
 
-test('the special Network canary keeps V72 interaction ownership over V71 root identity, V70 locale layout, V69 drag tracking, V68 assurance, V67 correction, V66 visuals and localized V65', () => {
-  assert.match(guideSource, /AppNetworkCanaryV72/);
+test('the special Network canary keeps V73 visual preservation over V72 interaction ownership and the mature localized chain', () => {
+  assert.match(guideSource, /AppNetworkCanaryV73/);
+  assert.match(parentVisualSource, /AppNetworkCanaryV72/);
+  assert.match(parentVisualSource, /<AppNetworkCanaryV72 locale=\{locale\} \/>/);
   assert.match(interactionOwnershipSource, /AppNetworkCanaryV71/);
   assert.match(interactionOwnershipSource, /<AppNetworkCanaryV71 locale=\{locale\} \/>/);
+  assert.doesNotMatch(guideSource, /const AppNetworkCanaryV72/);
   assert.doesNotMatch(guideSource, /const AppNetworkCanaryV71/);
   assert.doesNotMatch(guideSource, /const AppNetworkCanaryV70/);
   assert.doesNotMatch(guideSource, /const AppNetworkCanaryV69/);
