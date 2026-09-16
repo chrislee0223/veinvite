@@ -20,9 +20,21 @@ test('client replay only records sessions when an error happens', () => {
   assert.match(client, /blockAllMedia:\s*true/);
 });
 
-test('wallet addresses and invite-like query values are redacted', () => {
+test('wallet, invite and referral identifiers are redacted', () => {
   assert.match(redaction, /0x\[a-fA-F0-9\]\{40\}/);
   assert.match(redaction, /inviteCode/);
+  assert.match(redaction, /api\\\/referral-links/);
+  assert.match(redaction, /SENSITIVE_FIELD_NAME/);
+  assert.match(redaction, /wallet\|address/);
+  assert.match(redaction, /tx\.\?id/);
   assert.match(redaction, /\[wallet\]/);
   assert.match(redaction, /\[redacted\]/);
+});
+
+test('handled server console errors are captured only after structured redaction', () => {
+  assert.match(server, /captureConsoleIntegration\(\{ levels: \['error'\] \}\)/);
+  assert.match(server, /event\.extra = redactSentryValue/);
+  assert.match(server, /event\.request\.data = redactSentryValue/);
+  assert.match(server, /event\.request\.headers = redactSentryValue/);
+  assert.match(server, /breadcrumb\.data = redactSentryValue/);
 });
