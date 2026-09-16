@@ -21,8 +21,6 @@ test('V72 preserves V71 and owns only narrow interaction hardening', () => {
   assert.doesNotMatch(v72, /fetch\s*\(/);
   assert.doesNotMatch(v72, /supabase/i);
   assert.doesNotMatch(v72, /reward/i);
-  assert.doesNotMatch(v72, /MutationObserver/);
-  assert.doesNotMatch(v72, /requestAnimationFrame/);
   assert.doesNotMatch(v72, /cloneNode/);
   assert.doesNotMatch(v72, /v71MobileCommitFreezeLayer/);
   assert.doesNotMatch(v72, /v72GroupCommitTransition/);
@@ -43,7 +41,7 @@ test('Create rejects already-grouped nodes before V71 optimistic mobile paint', 
 
 test('parent return targets the final restored parent camera before React swaps network content', () => {
   assert.match(v72, /const PARENT_RETURN_RELEASE_POLL_MS = 16/);
-  assert.match(v72, /const PARENT_RETURN_FALLBACK_MS = 220/);
+  assert.match(v72, /const PARENT_RETURN_FALLBACK_MS = 300/);
   assert.match(v72, /const ZOOM_STEP = 0\.12/);
   assert.match(v72, /button\?\.classList\.contains\('viewNetwork'\)/);
   assert.match(v72, /parentViews\.push\(snapshot\)/);
@@ -53,16 +51,34 @@ test('parent return targets the final restored parent camera before React swaps 
   assert.match(v72, /v72ParentReturnTarget/);
   assert.match(v72, /--v72-parent-return-transform/);
   assert.match(v72, /translate3d\(\$\{snapshot\.cameraX\}px,\$\{snapshot\.cameraY\}px,0\) scale\(\$\{targetZoom\}\)/);
-  assert.doesNotMatch(v72, /getComputedStyle\(scene\)\.transform/);
 });
 
-test('parent target stays pinned through V50 restore and the mobile interaction transition-none window', () => {
+test('parent return locks the previously painted parent node layout while legacy observers settle', () => {
+  assert.match(v72, /const renderedTransform = \(element: HTMLElement\)/);
+  assert.match(v72, /window\.getComputedStyle\(element\)\.transform/);
+  assert.match(v72, /people\[id\] = transform/);
+  assert.match(v72, /groups\[id\] = transform/);
+  assert.match(v72, /snapshot\.layout\.slots\[index\]/);
+  assert.match(v72, /new MutationObserver\(\(\) =>/);
+  assert.match(v72, /parentLayoutObserver\.observe\(root, \{ childList: true, subtree: true \}\)/);
+  assert.doesNotMatch(v72, /parentLayoutObserver\.observe\([^\n]*attributes:/);
+  assert.match(v72, /data-v72-parent-return-node/);
+  assert.match(v72, /--v72-parent-node-transform/);
+  assert.match(v72, /data-v72-parent-return-group/);
+  assert.match(v72, /--v72-parent-group-transform/);
+  assert.match(v72, /data-v72-parent-return-slot/);
+  assert.match(v72, /--v72-parent-slot-transform/);
+});
+
+test('parent layout stays pinned through V50 restore and two paint boundaries after mobile interaction settles', () => {
   assert.match(v72, /document\.addEventListener\('pointerup', onPointerUpCapture, true\)/);
   assert.match(v72, /event\.isTrusted \|\| event\.pointerType !== 'mouse'/);
   assert.match(v72, /target\.classList\.contains\('stage'\)/);
   assert.match(v72, /releaseWhenInteractionSettles\(root\)/);
   assert.match(v72, /root\.classList\.contains\('veinviteInteracting'\)/);
-  assert.match(v72, /PARENT_RETURN_RELEASE_POLL_MS/);
+  assert.match(v72, /releaseFrameOne = window\.requestAnimationFrame/);
+  assert.match(v72, /releaseFrameTwo = window\.requestAnimationFrame/);
+  assert.match(v72, /applyParentLayoutLocks\(root, activeParentSnapshot\)/);
   assert.match(v72, /transition:none!important/);
   assert.doesNotMatch(v72, /visibility/);
   assert.doesNotMatch(v72, /opacity/);
