@@ -36,7 +36,11 @@ test('all recovery triggers remain harmless until authenticated app readiness', 
   );
   assert.match(
     source,
-    /visibilitychange[\s\S]*void retry\(\)/,
+    /const onVisibilityChange = \(\) => \{[\s\S]*document\.visibilityState === 'visible'[\s\S]*void retry\(\)/,
+  );
+  assert.match(
+    source,
+    /document\.addEventListener\([\s\S]*'visibilitychange',[\s\S]*onVisibilityChange/,
   );
   assert.match(
     source,
