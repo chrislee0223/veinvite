@@ -35,6 +35,24 @@ type ActionTarget = {
   element: HTMLElement;
 };
 
+// If localStorage refuses a Reset write (private/hardened WebViews), keep the
+// reset authoritative for the current JS session instead of rehydrating stale
+// saved coordinates on the next Network remount.
+const runtimeResetPrefixes = new Set<string>();
+
+function maskRuntimeResetPositions(store: PositionStore): PositionStore {
+  if (runtimeResetPrefixes.size === 0) return store;
+  const next = { ...store };
+  Object.keys(next).forEach((key) => {
+    for (const prefix of runtimeResetPrefixes) {
+      if (!key.startsWith(prefix)) continue;
+      delete next[key];
+      break;
+    }
+  });
+  return next;
+}
+
 function parsePx(value: string) {
   const parsed = Number.parseFloat(value);
   return Number.isFinite(parsed) ? parsed : 0;
@@ -121,14 +139,22 @@ function NetworkUnifiedNodeDragV63() {
     let feedbackTimer: number | null = null;
     let toastTimer: number | null = null;
     let lastScope = currentScope(root);
-    let positionStore = readJson<PositionStore>(NODE_POSITION_STORAGE_KEY, {});
+    let positionStore = maskRuntimeResetPositions(readJson<PositionStore>(NODE_POSITION_STORAGE_KEY, {}));
 
     const touchPointers = new Set<number>();
     const pinchLegacyNodes = new Set<HTMLButtonElement>();
     const verifyTimers = new Set<number>();
     const forcedEdgeIds = new Set<string>();
 
-    const positionKey = (nodeId: string) => `${currentScope(root)}|${compact() ? 'mobile' : 'desktop'}|${nodeId}`;
+    const currentPositionPrefix = () => `${currentScope(root)}|${compact() ? 'mobile' : 'desktop'}|`;
+    const positionKey = (nodeId: string) => `${currentPositionPrefix()}${nodeId}`;
+    const persistPositionStore = () => {
+      if (!writeJson(NODE_POSITION_STORAGE_KEY, positionStore)) return false;
+      // A successful full-store write flushes every stale prefix that was masked
+      // in memory, so future remounts can trust storage again.
+      runtimeResetPrefixes.clear();
+      return true;
+    };
     const groupEditorOpen = () => Boolean(root.querySelector('.v42GroupPanel input'));
     const editMode = () => stage.classList.contains('editMode');
     const inTransition = () => root.classList.contains('v50NetworkTransition') || root.classList.contains('v52NetworkTransition');
@@ -276,7 +302,7 @@ function NetworkUnifiedNodeDragV63() {
         y: current.baseAdjustment.y + dy,
       };
       positionStore[key] = next;
-      if (!writeJson(NODE_POSITION_STORAGE_KEY, positionStore)) {
+      if (!persistPositionStore()) {
         if (previous) positionStore[key] = previous;
         else delete positionStore[key];
         setStylePx(current.node, '--v63-adjust-x', current.baseAdjustment.x);
@@ -294,10 +320,15 @@ function NetworkUnifiedNodeDragV63() {
 
     const clearStoredPosition = (nodeId: string) => {
       const key = positionKey(nodeId);
-      if (!(key in positionStore)) return;
+      if (!(key in positionStore)) {
+        // A prior reset may have masked stale storage. Opportunistically flush
+        // that clean in-memory store as soon as storage becomes writable again.
+        if (runtimeResetPrefixes.size > 0) persistPositionStore();
+        return;
+      }
       const previous = positionStore[key];
       delete positionStore[key];
-      if (!writeJson(NODE_POSITION_STORAGE_KEY, positionStore)) {
+      if (!persistPositionStore()) {
         positionStore[key] = previous;
         return;
       }
@@ -439,16 +470,16 @@ function NetworkUnifiedNodeDragV63() {
     };
 
     const resetCurrentPositions = () => {
-      const prefix = `${currentScope(root)}|${compact() ? 'mobile' : 'desktop'}|`;
+      const prefix = currentPositionPrefix();
       let changed = false;
       Object.keys(positionStore).forEach((key) => {
         if (!key.startsWith(prefix)) return;
         delete positionStore[key];
         changed = true;
       });
-      if (changed && !writeJson(NODE_POSITION_STORAGE_KEY, positionStore)) {
-        showToast('Couldn’t reset saved positions.', true);
-        positionStore = readJson<PositionStore>(NODE_POSITION_STORAGE_KEY, {});
+      if (changed && !persistPositionStore()) {
+        runtimeResetPrefixes.add(prefix);
+        showToast('Positions reset for this session; couldn’t update saved positions.', true);
       }
       root.querySelectorAll<HTMLButtonElement>('.personNode[data-node-id]').forEach((node) => {
         const id = node.dataset.nodeId;
