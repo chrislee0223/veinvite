@@ -49,10 +49,13 @@ if (
   !walletAuthCoordinator.includes('activeAuthentication') ||
   !walletAuthCoordinator.includes('authenticationGeneration') ||
   !walletAuthCoordinator.includes('WALLET_AUTH_ACTIVITY_EVENT') ||
-  !walletAuthCoordinator.includes('current?.cancel()')
+  !walletAuthCoordinator.includes('current?.cancel()') ||
+  /cancelActiveWalletAuthentication[\s\S]*activeAuthentication\s*=\s*null/.test(
+    walletAuthCoordinator,
+  )
 ) {
   failures.push(
-    'The wallet-auth coordinator must serialize one active proof, invalidate stale generations, emit activity changes, and cancel the previous wallet request.',
+    'The wallet-auth coordinator must serialize one active proof, invalidate stale generations, retain the cancelled slot until wallet UI settles, and cancel the previous wallet request.',
   );
 }
 
@@ -60,15 +63,16 @@ if (
   !/while \(true\)[\s\S]*getActiveWalletAuthentication\(\)/.test(
     walletAuth,
   ) ||
-  !/currentAuthentication\.walletAddress[\s\S]*return currentAuthentication\.promise/.test(
+  !/currentIsLive[\s\S]*currentAuthentication\.walletAddress[\s\S]*return currentAuthentication\.promise/.test(
     walletAuth,
   ) ||
-  !/const staleAuthentication\s*=\s*cancelActiveWalletAuthentication\(\);[\s\S]*await staleAuthentication\?\.promise/.test(
+  !/const staleAuthentication\s*=\s*currentIsLive[\s\S]*cancelActiveWalletAuthentication\(\)[\s\S]*currentAuthentication;[\s\S]*await staleAuthentication\?\.promise/.test(
     walletAuth,
-  )
+  ) ||
+  !/await run;\s*assertStillCurrent\(\);/.test(walletAuth)
 ) {
   failures.push(
-    'Same-wallet verification must dedupe to one promise, while a different wallet invalidates the stale proof and waits for its wallet-owned signing request to settle before opening another prompt.',
+    'Same-wallet verification must dedupe only a live proof, while stale or different-wallet proofs keep the global slot occupied until wallet-owned signing settles before another prompt can open.',
   );
 }
 

@@ -71,7 +71,12 @@ ActiveWalletAuthentication | null {
   authenticationGeneration += 1;
 
   const current = activeAuthentication;
-  activeAuthentication = null;
+
+  // Keep the cancelled authentication registered until its wallet-owned
+  // signing promise actually settles. AbortController can stop VeInvite fetch
+  // work, but it cannot reliably dismiss a VeWorld requestCertificate prompt.
+  // Retaining the slot prevents a rapid A -> B -> C switch from opening a new
+  // prompt while the previous wallet UI is still alive.
   current?.cancel();
   emitActivityChange();
 

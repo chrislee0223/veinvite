@@ -178,20 +178,26 @@ export function useWalletAuthentication() {
             break;
           }
 
+          const currentIsLive =
+            isWalletAuthenticationGenerationCurrent(
+              currentAuthentication.generation,
+            );
+
           if (
+            currentIsLive &&
             currentAuthentication.walletAddress ===
-            walletAddress
+              walletAddress
           ) {
             return currentAuthentication.promise;
           }
 
-          // Invalidate and abort stale fetch work immediately, but do not open
-          // another wallet prompt until the previous requestCertificate/sign
-          // promise has actually settled. Wallet-owned signing UI cannot always
-          // be programmatically dismissed, and overlapping prompts can recreate
-          // the same orphaned spinner/dead-confirm state we are preventing.
-          const staleAuthentication =
-            cancelActiveWalletAuthentication();
+          // Invalidate and abort stale fetch work immediately, but keep the
+          // browser-global slot occupied until the wallet-owned signing promise
+          // settles. VeWorld requestCertificate cannot always be dismissed by
+          // AbortController, so this also serializes rapid A -> B -> C switches.
+          const staleAuthentication = currentIsLive
+            ? cancelActiveWalletAuthentication()
+            : currentAuthentication;
 
           try {
             await staleAuthentication?.promise;
@@ -484,6 +490,7 @@ export function useWalletAuthentication() {
 
         try {
           await run;
+          assertStillCurrent();
           window.dispatchEvent(
             new Event(
               USAGE_ANALYTICS_WALLET_AUTH_EVENT,
