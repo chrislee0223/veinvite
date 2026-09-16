@@ -57,15 +57,18 @@ if (
 }
 
 if (
-  !/currentAuthentication[\s\S]*walletAddress[\s\S]*return currentAuthentication\.promise/.test(
+  !/while \(true\)[\s\S]*getActiveWalletAuthentication\(\)/.test(
     walletAuth,
   ) ||
-  !/if \(currentAuthentication\)[\s\S]*cancelActiveWalletAuthentication\(\);[\s\S]*createWalletAuthenticationGeneration\(\)/.test(
+  !/currentAuthentication\.walletAddress[\s\S]*return currentAuthentication\.promise/.test(
+    walletAuth,
+  ) ||
+  !/const staleAuthentication\s*=\s*cancelActiveWalletAuthentication\(\);[\s\S]*await staleAuthentication\?\.promise/.test(
     walletAuth,
   )
 ) {
   failures.push(
-    'Same-wallet verification must dedupe to one promise, while a different connected wallet must invalidate the stale signature immediately instead of waiting for its timeout.',
+    'Same-wallet verification must dedupe to one promise, while a different wallet invalidates the stale proof and waits for its wallet-owned signing request to settle before opening another prompt.',
   );
 }
 

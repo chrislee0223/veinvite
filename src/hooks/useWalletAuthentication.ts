@@ -170,21 +170,35 @@ export function useWalletAuthentication() {
         // WalletSessionGate and WalletControl both consume this hook, so a
         // component-local ref can otherwise leave an old signature request
         // alive while another component starts or clears a new wallet flow.
-        const currentAuthentication =
-          getActiveWalletAuthentication();
+        while (true) {
+          const currentAuthentication =
+            getActiveWalletAuthentication();
 
-        if (
-          currentAuthentication?.walletAddress ===
-          walletAddress
-        ) {
-          return currentAuthentication.promise;
-        }
+          if (!currentAuthentication) {
+            break;
+          }
 
-        if (currentAuthentication) {
-          // A real account change must never wait behind the previous wallet's
-          // 15-second signature timeout. Abort the stale client request and
-          // invalidate its generation before the new wallet can continue.
-          cancelActiveWalletAuthentication();
+          if (
+            currentAuthentication.walletAddress ===
+            walletAddress
+          ) {
+            return currentAuthentication.promise;
+          }
+
+          // Invalidate and abort stale fetch work immediately, but do not open
+          // another wallet prompt until the previous requestCertificate/sign
+          // promise has actually settled. Wallet-owned signing UI cannot always
+          // be programmatically dismissed, and overlapping prompts can recreate
+          // the same orphaned spinner/dead-confirm state we are preventing.
+          const staleAuthentication =
+            cancelActiveWalletAuthentication();
+
+          try {
+            await staleAuthentication?.promise;
+          } catch {
+            // The stale wallet proof is intentionally invalidated. Continue
+            // only after its wallet-owned signing request has settled.
+          }
         }
 
         const generation =
