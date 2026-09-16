@@ -66,6 +66,8 @@ const ACTIVE_STATUSES = new Set([
 ]);
 const HOME_REFRESH_MS = 60_000;
 const EVIDENCE_REFRESH_MS = 120_000;
+const HOME_DATA_REFRESH_REQUESTED_EVENT =
+  'veinvite-home-data-refresh-requested';
 const B3TR_DECIMALS = 18n;
 const B3TR_SCALE = 10n ** B3TR_DECIMALS;
 
@@ -426,6 +428,23 @@ export function HomeClient() {
       window.clearInterval(timer);
       document.removeEventListener('visibilitychange', refreshIfVisible);
     };
+  }, [wallet, load]);
+
+  useEffect(() => {
+    if (!wallet) return;
+
+    const refreshHomeData = () => {
+      void load(true);
+    };
+
+    window.addEventListener(
+      HOME_DATA_REFRESH_REQUESTED_EVENT,
+      refreshHomeData,
+    );
+    return () => window.removeEventListener(
+      HOME_DATA_REFRESH_REQUESTED_EVENT,
+      refreshHomeData,
+    );
   }, [wallet, load]);
 
   const slotOccupyingInvites = useMemo(
