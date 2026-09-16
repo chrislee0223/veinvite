@@ -8,6 +8,7 @@ on:
       - 'src/components/NetworkInteractionSafety.tsx'
       - 'src/qa/QaNetwork*.tsx'
       - 'tests/network-*.test.mjs'
+      - 'tests/i18n-network-*.test.mjs'
       - '.github/workflows/network-regression.yml'
   workflow_dispatch:
 
@@ -28,4 +29,4 @@ jobs:
           node-version: 24
 
       - name: Run every Network regression test
-        run: node --test tests/network-*.test.mjs
+        run: node --test tests/network-*.test.mjs tests/i18n-network-*.test.mjs
