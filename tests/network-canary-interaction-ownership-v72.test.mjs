@@ -41,15 +41,28 @@ test('Create rejects already-grouped nodes before V71 optimistic mobile paint', 
   assert.match(v72, /event\.preventDefault\(\);\s*event\.stopPropagation\(\);\s*event\.stopImmediatePropagation\(\);/s);
 });
 
-test('parent return freezes only the painted transform until V50 finishes camera restoration', () => {
-  assert.match(v72, /const PARENT_RETURN_FALLBACK_MS = 140/);
-  assert.match(v72, /window\.getComputedStyle\(scene\)\.transform/);
+test('parent return targets the final restored parent camera before React swaps network content', () => {
+  assert.match(v72, /const PARENT_RETURN_RELEASE_POLL_MS = 16/);
+  assert.match(v72, /const PARENT_RETURN_FALLBACK_MS = 220/);
+  assert.match(v72, /const ZOOM_STEP = 0\.12/);
+  assert.match(v72, /button\?\.classList\.contains\('viewNetwork'\)/);
+  assert.match(v72, /parentViews\.push\(snapshot\)/);
   assert.match(v72, /button\?\.closest\('\.navActions'\) && button\.textContent\?\.includes\('Inviter'\)/);
-  assert.match(v72, /v72ParentReturnFreeze/);
+  assert.match(v72, /const snapshot = parentViews\.pop\(\) \?\? null/);
+  assert.match(v72, /targetParentReturn\(root, snapshot\)/);
+  assert.match(v72, /v72ParentReturnTarget/);
   assert.match(v72, /--v72-parent-return-transform/);
+  assert.match(v72, /translate3d\(\$\{snapshot\.cameraX\}px,\$\{snapshot\.cameraY\}px,0\) scale\(\$\{targetZoom\}\)/);
+  assert.doesNotMatch(v72, /getComputedStyle\(scene\)\.transform/);
+});
+
+test('parent target stays pinned through V50 restore and the mobile interaction transition-none window', () => {
   assert.match(v72, /document\.addEventListener\('pointerup', onPointerUpCapture, true\)/);
   assert.match(v72, /event\.isTrusted \|\| event\.pointerType !== 'mouse'/);
   assert.match(v72, /target\.classList\.contains\('stage'\)/);
+  assert.match(v72, /releaseWhenInteractionSettles\(root\)/);
+  assert.match(v72, /root\.classList\.contains\('veinviteInteracting'\)/);
+  assert.match(v72, /PARENT_RETURN_RELEASE_POLL_MS/);
   assert.match(v72, /transition:none!important/);
   assert.doesNotMatch(v72, /visibility/);
   assert.doesNotMatch(v72, /opacity/);
