@@ -2,14 +2,16 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import test from 'node:test';
 
-const [v71Source, groupSource] = await Promise.all([
+const [v71Source, groupSource, resetSource] = await Promise.all([
   readFile('src/components/AppNetworkCanaryV71.tsx', 'utf8'),
   readFile('src/components/NetworkReleaseGroups.tsx', 'utf8'),
+  readFile('src/components/NetworkReleasePositionReset.tsx', 'utf8'),
 ]);
 
-test('release V71 composes real groups without reconnecting the QA radial stack', () => {
+test('release V71 composes real groups and position recovery without reconnecting the QA radial stack', () => {
   assert.match(v71Source, /NetworkReleaseGroups/);
-  assert.match(v71Source, /<NetworkReleaseSlots locale=\{locale\}>[\s\S]*?<NetworkReleaseGroups locale=\{locale\}>[\s\S]*?<NetworkReleaseGestureBoundary>[\s\S]*?<AppNetworkReleaseCanvas locale=\{locale\} \/>/);
+  assert.match(v71Source, /NetworkReleasePositionReset/);
+  assert.match(v71Source, /<NetworkReleaseSlots locale=\{locale\}>[\s\S]*?<NetworkReleasePositionReset locale=\{locale\}>[\s\S]*?<NetworkReleaseGroups locale=\{locale\}>[\s\S]*?<NetworkReleaseGestureBoundary>[\s\S]*?<AppNetworkReleaseCanvas locale=\{locale\} \/>/);
   assert.doesNotMatch(v71Source, /AppNetworkCanaryV70|QaNetworkRadialPlayground/);
 });
 
@@ -53,4 +55,13 @@ test('pointer cancellation clears a release group drag before the inner gesture 
   assert.match(groupSource, /const onPointerCancelCapture = \(event: PointerEvent\) =>/);
   assert.match(groupSource, /groupDragRef\.current\?\.pointerId === event\.pointerId[\s\S]*?groupDragRef\.current = null;[\s\S]*?setDragPreview\(null\)/);
   assert.match(groupSource, /addEventListener\('pointercancel', onPointerCancelCapture, true\)/);
+});
+
+test('node-position reset clears only the currently focused network for the active root wallet', () => {
+  assert.match(resetSource, /const NODE_POSITION_PREFIX = 'veinvite-network-release-node-positions-v1:';/);
+  assert.match(resetSource, /const storageKey = `\$\{NODE_POSITION_PREFIX\}\$\{walletKey\}`/);
+  assert.match(resetSource, /const prefix = `\$\{focus\}\|`/);
+  assert.match(resetSource, /if \(!key\.startsWith\(prefix\)\) return;/);
+  assert.match(resetSource, /window\.localStorage\.setItem\(storageKey, JSON\.stringify\(current\)\)/);
+  assert.match(resetSource, /window\.location\.reload\(\)/);
 });
