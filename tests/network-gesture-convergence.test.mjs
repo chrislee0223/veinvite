@@ -29,12 +29,14 @@ test('both canary and normal Network paths use the interaction safety boundary',
 
 test('safety boundary blocks non-primary mouse input and third touch before inner canvas handlers', () => {
   assert.match(safetySource, /event\.pointerType === 'mouse' && event\.button !== 0/);
-  assert.match(safetySource, /activeTouchCount >= 2/);
+  assert.match(safetySource, /previousTouchCount >= 2/);
   assert.match(safetySource, /ignoredPointers\.current\.add\(event\.pointerId\)/);
   assert.match(safetySource, /event\.stopPropagation\(\)/);
 });
 
-test('interrupted active gestures remount the Network interaction stack', () => {
+test('interrupted active gestures are observed at window capture and remount the Network stack', () => {
+  assert.match(safetySource, /window\.addEventListener\('pointerdown', observePointerDown, true\)/);
+  assert.match(safetySource, /activePointers\.current\.set\(event\.pointerId/);
   assert.match(safetySource, /activePointers\.current\.size === 0 && ignoredPointers\.current\.size === 0/);
   assert.match(safetySource, /setEpoch\(\(value\) => value \+ 1\)/);
   assert.match(safetySource, /<Fragment key=\{epoch\}>/);
