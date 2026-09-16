@@ -144,18 +144,18 @@ test('final inviter grid keeps header, top-100 rows, placeholders, and current-u
   assert.ok(alignmentImport > podiumImport);
   assert.match(
     alignmentGuard,
-    /\.tableHeader,\s*html body \.leaderboardPage \.rankingCard \.rankRow \{\s*grid-template-columns: 20fr 32fr 20fr 28fr !important;/,
+    /\.tableHeader,\s*html body \.leaderboardPage \.rankingCard \.rankRow \{\s*grid-template-columns: 21fr 34fr 17fr 28fr !important;/,
   );
   assert.match(alignmentGuard, /\.rankRow\.trailingCurrent \.rankStack/);
   assert.match(leaderboard, /rankRow placeholderRow/);
   assert.match(leaderboard, /trailing \? 'trailingCurrent' : ''/);
 
-  const rankTrack = 20;
-  const inviterTrack = 32;
-  const completedTrack = 20;
+  const rankTrack = 21;
+  const inviterTrack = 34;
+  const completedTrack = 17;
   const rewardTrack = 28;
-  const rankAxisInsideTrack = 0.3;
-  const headerShiftInsideTrack = -0.2;
+  const rankAxisInsideTrack = 6 / rankTrack;
+  const headerShiftInsideTrack = (6 - rankTrack / 2) / rankTrack;
   const movementLaneStartInsideTrack = 0.55;
   const movementCenterInsideTrack =
     movementLaneStartInsideTrack + (1 - movementLaneStartInsideTrack) / 2;
@@ -163,12 +163,13 @@ test('final inviter grid keeps header, top-100 rows, placeholders, and current-u
   assert.equal(rankTrack + inviterTrack + completedTrack + rewardTrack, 100);
   assert.equal(rankTrack * rankAxisInsideTrack, 6);
   assert.equal(rankTrack / 2 + rankTrack * headerShiftInsideTrack, 6);
-  assert.equal(rankTrack * movementCenterInsideTrack, 15.5);
-  assert.equal(rankTrack + inviterTrack / 2, 36);
-  assert.equal(rankTrack + inviterTrack + completedTrack / 2, 62);
+  assert.ok(Math.abs(rankTrack * movementCenterInsideTrack - 16.275) < 1e-9);
+  assert.equal(rankTrack + inviterTrack / 2, 38);
+  assert.equal(rankTrack + inviterTrack + completedTrack / 2, 63.5);
   assert.equal(rankTrack + inviterTrack + completedTrack + rewardTrack / 2, 86);
   assert.ok(rankTrack * movementCenterInsideTrack < rankTrack);
-  assert.ok(36 - 15.5 > 20);
+  assert.ok(38 - 16.275 > 21);
+  assert.ok(86 - 63.5 < 24);
 });
 
 test('rank numeral stays on the original six-percent axis while inviter gains breathing room', () => {
@@ -180,7 +181,7 @@ test('rank numeral stays on the original six-percent axis while inviter gains br
   );
   assert.match(
     alignmentGuard,
-    /--inviter-rank-number-axis: 30%;[\s\S]*--inviter-rank-header-shift: -20%;[\s\S]*--inviter-rank-movement-lane-start: 55%;/,
+    /--inviter-rank-number-axis: 28\.5714286%;[\s\S]*--inviter-rank-header-shift: -21\.4285714%;[\s\S]*--inviter-rank-movement-lane-start: 55%;/,
   );
   assert.match(
     alignmentGuard,
@@ -190,6 +191,19 @@ test('rank numeral stays on the original six-percent axis while inviter gains br
     alignmentGuard,
     /\.tableHeader > span:first-child \{[\s\S]*transform: translateX\(var\(--inviter-rank-header-shift\)\) !important;/,
   );
+});
+
+test('multilingual headers retain wrapping and shared physical axes at narrow widths', () => {
+  assert.match(
+    leaderboard,
+    /\.tableHeader span \{[\s\S]*min-width:0;[\s\S]*overflow-wrap:anywhere;[\s\S]*text-align:center;/,
+  );
+  assert.match(
+    leaderboard,
+    /\.tableHeader \.rewardHeader \{[\s\S]*justify-content:center;[\s\S]*flex-wrap:wrap;[\s\S]*text-align:center;/,
+  );
+  assert.match(leaderboard, /@media \(max-width:420px\)[\s\S]*font-size:\.52rem;/);
+  assert.match(leaderboard, /@media \(max-width:360px\)[\s\S]*font-size:\.48rem;/);
 });
 
 test('approved podium artwork is preserved while the temporary component redraw stays disabled', () => {
@@ -219,11 +233,11 @@ test('movement labels center the complete arrow-number or localized NEW label in
 test('responsive layouts keep the same four-column axes without locale-specific movement nudges', () => {
   assert.match(
     alignmentGuard,
-    /grid-template-columns: 20fr 32fr 20fr 28fr !important;/,
+    /grid-template-columns: 21fr 34fr 17fr 28fr !important;/,
   );
   assert.doesNotMatch(
     alignmentGuard,
-    /grid-template-columns:[^;]*20fr[^;]*32fr[^;]*20fr[^;]*28fr[^;]*fr[^;]*;/,
+    /grid-template-columns:[^;]*21fr[^;]*34fr[^;]*17fr[^;]*28fr[^;]*fr[^;]*;/,
   );
   assert.doesNotMatch(
     alignmentGuard,
