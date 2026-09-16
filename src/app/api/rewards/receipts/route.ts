@@ -14,6 +14,8 @@ import {
   WalletAuthenticationError,
 } from '@/lib/walletAuthServer';
 
+const INVITE_CODE_PATTERN = /^[A-HJ-NP-Z2-9]{7}$/;
+
 function parseLimit(
   value: string | null,
 ): number {
@@ -40,14 +42,33 @@ function parseLimit(
   return parsed;
 }
 
+function parseInviteCode(
+  value: string | null,
+): string | null {
+  if (value === null) {
+    return null;
+  }
+
+  const normalized = value.trim().toUpperCase();
+  if (!INVITE_CODE_PATTERN.test(normalized)) {
+    throw new Error('inviteCode is invalid.');
+  }
+
+  return normalized;
+}
+
 export async function GET(
   request: NextRequest,
 ) {
   let limit: number;
+  let inviteCode: string | null;
 
   try {
     limit = parseLimit(
       request.nextUrl.searchParams.get('limit'),
+    );
+    inviteCode = parseInviteCode(
+      request.nextUrl.searchParams.get('inviteCode'),
     );
   } catch (error) {
     return NextResponse.json(
@@ -71,6 +92,43 @@ export async function GET(
       await requireWalletSession({ request });
     const walletAddress =
       session.walletAddress.toLowerCase();
+
+    if (inviteCode) {
+      const exactResult = await supabaseAdmin
+        .from('reward_receipts')
+        .select(rewardReceiptColumns)
+        .eq('recipient_wallet', walletAddress)
+        .eq('invite_code', inviteCode)
+        .order('paid_at', {
+          ascending: false,
+        })
+        .order('id', {
+          ascending: false,
+        })
+        .limit(1)
+        .maybeSingle();
+
+      if (exactResult.error) {
+        throw new Error(
+          `Reward receipt could not be loaded: ${exactResult.error.message}`,
+        );
+      }
+
+      return NextResponse.json(
+        {
+          walletAddress,
+          receipts: exactResult.data
+            ? [toRewardReceipt(exactResult.data as RewardReceiptRow)]
+            : [],
+        },
+        {
+          status: 200,
+          headers: {
+            'Cache-Control': 'no-store',
+          },
+        },
+      );
+    }
 
     const [
       historyResult,

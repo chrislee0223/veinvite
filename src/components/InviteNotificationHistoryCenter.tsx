@@ -52,7 +52,7 @@ export function InviteNotificationHistoryCenter(props: Props) {
 
         if (disposed || requestId !== requestVersion) return;
 
-        if (response.status === 401) {
+        if (response.status === 401 || response.status === 403) {
           setNeedsRewardClaim(false);
           return;
         }
@@ -120,7 +120,7 @@ export function InviteNotificationHistoryCenter(props: Props) {
         onWalletSessionInvalid,
       );
     };
-  }, [wallet, props.open]);
+  }, [wallet]);
 
   const showClaimAttention =
     needsRewardClaim && props.unreadCount < 1;

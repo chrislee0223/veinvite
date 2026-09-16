@@ -498,17 +498,16 @@ export function InviteNotificationHistoryCenter({
     setReceiptError('');
 
     try {
-      const response = await fetch('/api/rewards/receipts?limit=50', {
-        cache: 'no-store',
-      });
+      const response = await fetch(
+        `/api/rewards/receipts?inviteCode=${encodeURIComponent(item.inviteCode)}`,
+        { cache: 'no-store' },
+      );
       const body = (await response.json()) as ReceiptResponse;
       if (!response.ok) {
         throw new Error(body.error || receiptCopy.error);
       }
 
-      const match = (body.receipts ?? []).find(
-        (candidate) => candidate.inviteCode === item.inviteCode,
-      );
+      const match = body.receipts?.[0];
       if (!match) {
         throw new Error(receiptCopy.error);
       }
@@ -750,7 +749,11 @@ export function InviteNotificationHistoryCenter({
   };
 
   const renderRewardActions = () => {
-    if (rewardActions.length === 0) {
+    if (
+      rewardActions.length === 0 &&
+      !actionLoading &&
+      !actionError
+    ) {
       return null;
     }
 
@@ -1010,7 +1013,10 @@ export function InviteNotificationHistoryCenter({
                   {structure.retry}
                 </button>
               </div>
-            ) : sorted.length === 0 && rewardActions.length === 0 ? (
+            ) : sorted.length === 0 &&
+              rewardActions.length === 0 &&
+              !actionLoading &&
+              !actionError ? (
               <div className="notificationHistoryState">
                 <span className="notificationHistoryEmptyBell" aria-hidden="true">
                   <BellIcon size={22} />

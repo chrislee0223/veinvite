@@ -25,7 +25,7 @@ test('first visible load reads persisted history directly', () => {
 
   assert.match(openHandler, /items\.length === 0/);
   assert.match(openHandler, /loadLatestHistory/);
-  assert.match(openHandler, /visibleLoading: true/);
+  assert.match(openHandler, /const visibleLoading = !historyResolvedRef\.current/);
   assert.doesNotMatch(openHandler, /refresh\(false\)/);
 });
 
@@ -47,7 +47,7 @@ test('notification refresh effect is not keyed to history item count', () => {
   );
 });
 
-test('mark-all applies unread state locally before background reconciliation', () => {
+test('mark-all applies server-authoritative unread state before background reconciliation', () => {
   const markAllStart = source.indexOf('const markAllRead = useCallback');
   const markAllEnd = source.indexOf('const loadMore = useCallback', markAllStart);
   assert.ok(markAllStart >= 0);
@@ -56,7 +56,11 @@ test('mark-all applies unread state locally before background reconciliation', (
 
   assert.match(
     markAllBody,
-    /const nextUnreadCount = Math\.max\([\s\S]*unreadCount - unreadThroughSnapshot\.length/,
+    /const nextUnreadCount = acknowledgement\.unreadCount/,
+  );
+  assert.doesNotMatch(
+    markAllBody,
+    /unreadCount - unreadThroughSnapshot\.length/,
   );
   assert.match(markAllBody, /setUnreadCount\(nextUnreadCount\)/);
 
