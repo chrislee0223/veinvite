@@ -41,9 +41,22 @@ test('Create rejects already-grouped nodes before V71 optimistic mobile paint', 
   assert.match(v72, /event\.preventDefault\(\);\s*event\.stopPropagation\(\);\s*event\.stopImmediatePropagation\(\);/s);
 });
 
+test('parent return freezes only the painted transform until V50 finishes camera restoration', () => {
+  assert.match(v72, /const PARENT_RETURN_FALLBACK_MS = 140/);
+  assert.match(v72, /window\.getComputedStyle\(scene\)\.transform/);
+  assert.match(v72, /button\?\.closest\('\.navActions'\) && button\.textContent\?\.includes\('Inviter'\)/);
+  assert.match(v72, /v72ParentReturnFreeze/);
+  assert.match(v72, /--v72-parent-return-transform/);
+  assert.match(v72, /document\.addEventListener\('pointerup', onPointerUpCapture, true\)/);
+  assert.match(v72, /event\.isTrusted \|\| event\.pointerType !== 'mouse'/);
+  assert.match(v72, /target\.classList\.contains\('stage'\)/);
+  assert.match(v72, /transition:none!important/);
+  assert.doesNotMatch(v72, /visibility/);
+  assert.doesNotMatch(v72, /opacity/);
+});
+
 test('V72 deliberately leaves the existing V71 mobile save stabilization untouched', () => {
   assert.doesNotMatch(v72, /v42CreateActions/);
   assert.doesNotMatch(v72, /saveButton/);
-  assert.doesNotMatch(v72, /visibility/);
-  assert.doesNotMatch(v72, /transition:/);
+  assert.doesNotMatch(v72, /v71MobileCommitFreezeLayer/);
 });

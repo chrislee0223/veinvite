@@ -5,8 +5,12 @@ import { useLayoutEffect } from 'react';
 import type { Locale } from '@/lib/i18n/locales';
 import { AppNetworkCanaryV71 } from './AppNetworkCanaryV71';
 
+const PARENT_RETURN_FALLBACK_MS = 140;
+
 function NetworkCanaryInteractionOwnershipV72() {
   useLayoutEffect(() => {
+    let parentReturnTimer: number | null = null;
+
     const canaryRootFor = (target: Element | null) =>
       target?.closest<HTMLElement>('.productionNetworkCanaryV45') ?? null;
 
@@ -17,6 +21,34 @@ function NetworkCanaryInteractionOwnershipV72() {
       root.querySelectorAll<HTMLElement>('.personNode.canarySelectedNode').forEach((node) => {
         node.classList.remove('canarySelectedNode');
       });
+    };
+
+    const releaseParentReturn = (root: HTMLElement) => {
+      if (parentReturnTimer !== null) {
+        window.clearTimeout(parentReturnTimer);
+        parentReturnTimer = null;
+      }
+      root.classList.remove('v72ParentReturnFreeze');
+      root.style.removeProperty('--v72-parent-return-transform');
+    };
+
+    const freezeParentReturn = (root: HTMLElement) => {
+      const scene = root.querySelector<HTMLElement>('.scene');
+      if (!scene) return;
+
+      const transform = window.getComputedStyle(scene).transform;
+      root.style.setProperty(
+        '--v72-parent-return-transform',
+        transform && transform !== 'none' ? transform : 'translate3d(0px,0px,0px) scale(1)',
+      );
+      root.classList.add('v72ParentReturnFreeze');
+
+      if (parentReturnTimer !== null) window.clearTimeout(parentReturnTimer);
+      parentReturnTimer = window.setTimeout(() => {
+        parentReturnTimer = null;
+        root.classList.remove('v72ParentReturnFreeze');
+        root.style.removeProperty('--v72-parent-return-transform');
+      }, PARENT_RETURN_FALLBACK_MS);
     };
 
     const onPointerDownCapture = (event: PointerEvent) => {
@@ -48,10 +80,32 @@ function NetworkCanaryInteractionOwnershipV72() {
       }
     };
 
+    const onPointerUpCapture = (event: PointerEvent) => {
+      if (event.isTrusted || event.pointerType !== 'mouse') return;
+      const target = event.target instanceof Element ? event.target : null;
+      const root = canaryRootFor(target);
+      if (!target || !root || !root.classList.contains('v72ParentReturnFreeze')) return;
+      if (!target.classList.contains('stage')) return;
+
+      // V50 restores the saved parent camera with a synthetic stage drag. Keep
+      // the old transform frozen through that final pointer event, then release
+      // on the next task so React can commit the camera before it becomes visible.
+      window.setTimeout(() => releaseParentReturn(root), 0);
+    };
+
     const onClickCapture = (event: MouseEvent) => {
       const target = event.target instanceof Element ? event.target : null;
       const root = canaryRootFor(target);
       if (!target || !root) return;
+
+      const button = target.closest<HTMLButtonElement>('button');
+      if (button?.closest('.navActions') && button.textContent?.includes('Inviter')) {
+        // V37 first resets the parent to zoom 1 / camera 0, then V50 restores the
+        // saved parent view a few frames later. Freeze the currently painted
+        // transform across those intermediate states so users see one transition
+        // to the final restored parent view instead of a visible two-step jump.
+        freezeParentReturn(root);
+      }
 
       const groupRoot = groupRootFor(root);
       const editorActive = Boolean(
@@ -73,18 +127,32 @@ function NetworkCanaryInteractionOwnershipV72() {
     };
 
     document.addEventListener('pointerdown', onPointerDownCapture, true);
+    document.addEventListener('pointerup', onPointerUpCapture, true);
     document.addEventListener('click', onClickCapture, true);
 
     return () => {
       document.removeEventListener('pointerdown', onPointerDownCapture, true);
+      document.removeEventListener('pointerup', onPointerUpCapture, true);
       document.removeEventListener('click', onClickCapture, true);
+      if (parentReturnTimer !== null) window.clearTimeout(parentReturnTimer);
       document
-        .querySelectorAll<HTMLElement>('.productionNetworkCanaryV45 .personNode.canarySelectedNode')
-        .forEach((node) => node.classList.remove('canarySelectedNode'));
+        .querySelectorAll<HTMLElement>('.productionNetworkCanaryV45')
+        .forEach((root) => {
+          root.classList.remove('v72ParentReturnFreeze');
+          root.style.removeProperty('--v72-parent-return-transform');
+          root.querySelectorAll<HTMLElement>('.personNode.canarySelectedNode').forEach((node) => {
+            node.classList.remove('canarySelectedNode');
+          });
+        });
     };
   }, []);
 
-  return null;
+  return <style jsx global>{`
+    .productionNetworkCanaryV45.v72ParentReturnFreeze .scene{
+      transform:var(--v72-parent-return-transform)!important;
+      transition:none!important
+    }
+  `}</style>;
 }
 
 export function AppNetworkCanaryV72({ locale }: { locale: Locale }) {
