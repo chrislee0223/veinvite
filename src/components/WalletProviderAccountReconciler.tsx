@@ -3,6 +3,7 @@
 import {
   useEffect,
   useRef,
+  useState,
 } from 'react';
 import {
   useWallet as useVeChainKitWallet,
@@ -10,6 +11,11 @@ import {
 import {
   useWallet as useDappKitWallet,
 } from '@vechain/dapp-kit-react';
+
+import {
+  WALLET_AUTH_ACTIVITY_EVENT,
+  isWalletAuthenticationInProgress,
+} from '@/lib/walletAuthenticationCoordinator';
 
 const WALLET_PATTERN = /^0x[0-9a-f]{40}$/;
 const PROVIDER_MISMATCH_GRACE_MS = 700;
@@ -82,6 +88,11 @@ async function resumeWalletSessionGate(
  * app is closed can restore those two provider layers at slightly different
  * times. If that mismatch persists beyond the normal settle window, repair the
  * DAppKit layer in place instead of forcing the user into a disconnect loop.
+ *
+ * Provider repair and ownership signing are deliberately serialized. Calling
+ * initializeAsync while requestCertificate owns the VeWorld signing transport
+ * can leave the wallet UI spinner orphaned even after the certificate reached
+ * VeInvite successfully.
  */
 export function WalletProviderAccountReconciler() {
   const {
@@ -103,6 +114,8 @@ export function WalletProviderAccountReconciler() {
   const dappWalletRef = useRef<string | null>(dappWallet);
   const repairTargetRef = useRef<string | null>(null);
   const repairGenerationRef = useRef(0);
+  const [authActivityEpoch, setAuthActivityEpoch] =
+    useState(0);
 
   useEffect(() => {
     canonicalWalletRef.current = canonicalWallet;
@@ -113,10 +126,29 @@ export function WalletProviderAccountReconciler() {
   }, [dappWallet]);
 
   useEffect(() => {
+    const handleAuthActivity = () => {
+      setAuthActivityEpoch((current) => current + 1);
+    };
+
+    window.addEventListener(
+      WALLET_AUTH_ACTIVITY_EVENT,
+      handleAuthActivity,
+    );
+
+    return () => {
+      window.removeEventListener(
+        WALLET_AUTH_ACTIVITY_EVENT,
+        handleAuthActivity,
+      );
+    };
+  }, []);
+
+  useEffect(() => {
     const generation = repairGenerationRef.current + 1;
     repairGenerationRef.current = generation;
 
     if (
+      isWalletAuthenticationInProgress() ||
       !connection.isConnectedWithDappKit ||
       connection.isLoading ||
       !canonicalWallet ||
@@ -135,6 +167,7 @@ export function WalletProviderAccountReconciler() {
       void (async () => {
         if (
           cancelled ||
+          isWalletAuthenticationInProgress() ||
           repairGenerationRef.current !== generation ||
           canonicalWalletRef.current !== targetWallet ||
           dappWalletRef.current === targetWallet
@@ -156,6 +189,7 @@ export function WalletProviderAccountReconciler() {
 
           if (
             cancelled ||
+            isWalletAuthenticationInProgress() ||
             repairGenerationRef.current !== generation ||
             canonicalWalletRef.current !== targetWallet ||
             dappWalletRef.current === targetWallet
@@ -184,6 +218,7 @@ export function WalletProviderAccountReconciler() {
       window.clearTimeout(graceTimer);
     };
   }, [
+    authActivityEpoch,
     canonicalWallet,
     connection.isConnectedWithDappKit,
     connection.isLoading,

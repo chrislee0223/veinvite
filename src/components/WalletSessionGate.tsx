@@ -56,7 +56,6 @@ export type WalletSessionQaPreview = {
   locale: Locale;
 };
 
-const SESSION_CHECK_SURFACE_DELAY_MS = 3_000;
 const SESSION_ERROR_SURFACE_DELAY_MS = 600;
 const PASSIVE_DISCONNECT_GRACE_MS = 7_000;
 const SESSION_CLEARED_EVENT =
@@ -327,8 +326,6 @@ export function WalletSessionGate({
     useState<Locale>('en');
   const [isDisconnecting, setIsDisconnecting] =
     useState(false);
-  const [showCheckingSurface, setShowCheckingSurface] =
-    useState(false);
   const attemptRef = useRef(0);
   const autoAttemptedWalletRef =
     useRef<string | null>(initialWallet);
@@ -557,23 +554,6 @@ export function WalletSessionGate({
       );
     };
   }, [clearWalletSession, previewMode]);
-
-  useEffect(() => {
-    if (previewMode) return;
-
-    if (state !== 'checking') {
-      setShowCheckingSurface(false);
-      return;
-    }
-
-    const timeoutId = window.setTimeout(() => {
-      setShowCheckingSurface(true);
-    }, SESSION_CHECK_SURFACE_DELAY_MS);
-
-    return () => {
-      window.clearTimeout(timeoutId);
-    };
-  }, [previewMode, state]);
 
   const verify = useCallback(async () => {
     if (previewMode || !walletAddress) {
@@ -864,13 +844,12 @@ export function WalletSessionGate({
   if (qaPreview) {
     if (
       qaPreview.state === 'idle-brand' ||
-      qaPreview.state === 'checking-delay'
+      qaPreview.state === 'checking-delay' ||
+      qaPreview.state === 'checking'
     ) {
       return <WalletSessionBrandSurface />;
     }
 
-    const previewError =
-      qaPreview.state !== 'checking';
     const previewMismatch =
       qaPreview.state === 'wallet-mismatch';
     const previewDisconnecting =
@@ -879,7 +858,7 @@ export function WalletSessionGate({
     return (
       <WalletSessionSurface
         locale={qaPreview.locale}
-        hasError={previewError}
+        hasError
         walletMismatch={previewMismatch}
         isDisconnecting={previewDisconnecting}
         onRetry={() => {}}
@@ -908,10 +887,10 @@ export function WalletSessionGate({
     );
   }
 
-  if (
-    state === 'idle' ||
-    (state === 'checking' && !showCheckingSurface)
-  ) {
+  // Ownership verification is intentionally visually silent. Keep the stable
+  // VeInvite brand screen in place while session checks and the wallet signing
+  // prompt run; only a confirmed error or wallet mismatch replaces it.
+  if (state === 'idle' || state === 'checking') {
     return <WalletSessionBrandSurface />;
   }
 

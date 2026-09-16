@@ -6,8 +6,14 @@ const read = (path) => readFileSync(join(root, path), 'utf8');
 const failures = [];
 
 const walletAuth = read('src/hooks/useWalletAuthentication.ts');
+const walletAuthCoordinator = read(
+  'src/lib/walletAuthenticationCoordinator.ts',
+);
 const walletControl = read('src/components/WalletControl.tsx');
 const walletSessionGate = read('src/components/WalletSessionGate.tsx');
+const walletProviderReconciler = read(
+  'src/components/WalletProviderAccountReconciler.tsx',
+);
 const walletResumeState = read('src/lib/walletConnectionResume.ts');
 const walletSwitchCopy = read('src/lib/i18n/walletSwitchCopy.ts');
 const walletSessionRoute = read('src/app/api/auth/session/route.ts');
@@ -23,6 +29,71 @@ const authDeleteCount =
 if (authDeleteCount !== 1) {
   failures.push(
     'Wallet authentication must not delete a valid session from the automatic verification path; DELETE is reserved for explicit session clearing.',
+  );
+}
+
+if (
+  !walletAuth.includes('getActiveWalletAuthentication') ||
+  !walletAuth.includes('setActiveWalletAuthentication') ||
+  !walletAuth.includes('cancelActiveWalletAuthentication') ||
+  !walletAuth.includes('clearActiveWalletAuthentication') ||
+  /const inFlightRef\s*=\s*useRef/.test(walletAuth) ||
+  /const authGenerationRef\s*=\s*useRef/.test(walletAuth)
+) {
+  failures.push(
+    'Wallet ownership verification must use one browser-global coordinator so WalletSessionGate and WalletControl cannot own independent signature flows.',
+  );
+}
+
+if (
+  !walletAuthCoordinator.includes('activeAuthentication') ||
+  !walletAuthCoordinator.includes('authenticationGeneration') ||
+  !walletAuthCoordinator.includes('WALLET_AUTH_ACTIVITY_EVENT') ||
+  !walletAuthCoordinator.includes('current?.cancel()')
+) {
+  failures.push(
+    'The wallet-auth coordinator must serialize one active proof, invalidate stale generations, emit activity changes, and cancel the previous wallet request.',
+  );
+}
+
+if (
+  !/currentAuthentication[\s\S]*walletAddress[\s\S]*return currentAuthentication\.promise/.test(
+    walletAuth,
+  ) ||
+  !/if \(currentAuthentication\)[\s\S]*cancelActiveWalletAuthentication\(\);[\s\S]*createWalletAuthenticationGeneration\(\)/.test(
+    walletAuth,
+  )
+) {
+  failures.push(
+    'Same-wallet verification must dedupe to one promise, while a different connected wallet must invalidate the stale signature immediately instead of waiting for its timeout.',
+  );
+}
+
+if (
+  !walletProviderReconciler.includes('WALLET_AUTH_ACTIVITY_EVENT') ||
+  !walletProviderReconciler.includes('isWalletAuthenticationInProgress') ||
+  !/isWalletAuthenticationInProgress\(\)[\s\S]*!connection\.isConnectedWithDappKit/.test(
+    walletProviderReconciler,
+  ) ||
+  !/cancelled \|\|[\s\S]*isWalletAuthenticationInProgress\(\)[\s\S]*initializeAsync\(\)/.test(
+    walletProviderReconciler,
+  )
+) {
+  failures.push(
+    'DAppKit provider reconciliation must stop and re-arm around active ownership signing so initializeAsync cannot interrupt requestCertificate.',
+  );
+}
+
+if (
+  walletSessionGate.includes('SESSION_CHECK_SURFACE_DELAY_MS') ||
+  walletSessionGate.includes('showCheckingSurface') ||
+  !/state === 'idle' \|\| state === 'checking'/.test(walletSessionGate) ||
+  !/qaPreview\.state === 'checking-delay' \|\|[\s\S]*qaPreview\.state === 'checking'/.test(
+    walletSessionGate,
+  )
+) {
+  failures.push(
+    'Wallet verification must keep the stable VeInvite brand screen visible for the entire checking/signing phase and only show an interactive surface for a confirmed error or mismatch.',
   );
 }
 

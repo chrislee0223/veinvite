@@ -2,7 +2,6 @@
 
 import {
   useCallback,
-  useRef,
   useState,
 } from 'react';
 import {
@@ -13,6 +12,14 @@ import {
   useWallet as useDappKitWallet,
 } from '@vechain/dapp-kit-react';
 
+import {
+  cancelActiveWalletAuthentication,
+  clearActiveWalletAuthentication,
+  createWalletAuthenticationGeneration,
+  getActiveWalletAuthentication,
+  isWalletAuthenticationGenerationCurrent,
+  setActiveWalletAuthentication,
+} from '@/lib/walletAuthenticationCoordinator';
 import {
   reportProductAnalyticsEvent,
 } from '@/lib/productAnalytics';
@@ -57,12 +64,6 @@ type WalletCertificate = {
   timestamp: number;
   signer: string;
   signature: string;
-};
-
-type InFlightAuthentication = {
-  walletAddress: string;
-  promise: Promise<void>;
-  cancel: () => void;
 };
 
 type ClearWalletSessionOptions = {
@@ -117,6 +118,17 @@ async function readJson<T>(
   }
 }
 
+function isCancelledAuthentication(error: unknown): boolean {
+  if (error instanceof DOMException && error.name === 'AbortError') {
+    return true;
+  }
+
+  return (
+    error instanceof Error &&
+    error.message === 'Wallet verification was cancelled.'
+  );
+}
+
 export function useWalletAuthentication() {
   const { signMessage } =
     useSignMessage();
@@ -133,11 +145,6 @@ export function useWalletAuthentication() {
     isAuthenticating,
     setIsAuthenticating,
   ] = useState(false);
-
-  const inFlightRef = useRef<
-    InFlightAuthentication | null
-  >(null);
-  const authGenerationRef = useRef(0);
 
   const ensureWalletSession =
     useCallback(
@@ -159,38 +166,37 @@ export function useWalletAuthentication() {
           );
         }
 
-        // Only one signature flow may own the current browser cookie at a
-        // time. Other devices are allowed to keep their own independent
-        // VeInvite sessions.
-        while (inFlightRef.current) {
-          const current =
-            inFlightRef.current;
+        // Wallet authentication is browser-global, not hook-instance-local.
+        // WalletSessionGate and WalletControl both consume this hook, so a
+        // component-local ref can otherwise leave an old signature request
+        // alive while another component starts or clears a new wallet flow.
+        const currentAuthentication =
+          getActiveWalletAuthentication();
 
-          if (
-            current.walletAddress ===
-            walletAddress
-          ) {
-            return current.promise;
-          }
+        if (
+          currentAuthentication?.walletAddress ===
+          walletAddress
+        ) {
+          return currentAuthentication.promise;
+        }
 
-          try {
-            await current.promise;
-          } catch {
-            // A failed previous-wallet proof does not prevent verifying the
-            // newly connected wallet.
-          }
+        if (currentAuthentication) {
+          // A real account change must never wait behind the previous wallet's
+          // 15-second signature timeout. Abort the stale client request and
+          // invalidate its generation before the new wallet can continue.
+          cancelActiveWalletAuthentication();
         }
 
         const generation =
-          authGenerationRef.current + 1;
-        authGenerationRef.current = generation;
+          createWalletAuthenticationGeneration();
         const controller =
           new AbortController();
 
         const assertStillCurrent = () => {
           if (
-            authGenerationRef.current !==
-            generation
+            !isWalletAuthenticationGenerationCurrent(
+              generation,
+            )
           ) {
             throw new Error(
               'Wallet verification was cancelled.',
@@ -453,13 +459,14 @@ export function useWalletAuthentication() {
           }
         })();
 
-        inFlightRef.current = {
+        setActiveWalletAuthentication({
           walletAddress,
           promise: run,
           cancel: () => {
             controller.abort();
           },
-        };
+          generation,
+        });
 
         try {
           await run;
@@ -473,19 +480,16 @@ export function useWalletAuthentication() {
             outcome: 'success',
           });
         } catch (error) {
-          reportProductAnalyticsEvent({
-            eventName: 'wallet_auth_failed',
-            outcome: 'failure',
-            failureCode: 'wallet_auth',
-          });
+          if (!isCancelledAuthentication(error)) {
+            reportProductAnalyticsEvent({
+              eventName: 'wallet_auth_failed',
+              outcome: 'failure',
+              failureCode: 'wallet_auth',
+            });
+          }
           throw error;
         } finally {
-          if (
-            inFlightRef.current
-              ?.promise === run
-          ) {
-            inFlightRef.current = null;
-          }
+          clearActiveWalletAuthentication(run);
         }
       },
       [
@@ -520,16 +524,11 @@ export function useWalletAuthentication() {
           return;
         }
 
+        // This is intentionally browser-global. A disconnect action can be
+        // initiated from WalletControl while WalletSessionGate owns the active
+        // signature request, and both must cancel the same proof flow.
         const current =
-          inFlightRef.current;
-
-        // Invalidate the proof first. A wallet signature request is controlled
-        // by the wallet and cannot always be programmatically dismissed, but
-        // any late result must be unable to create a VeInvite session after an
-        // explicit/confirmed logout.
-        authGenerationRef.current += 1;
-        inFlightRef.current = null;
-        current?.cancel();
+          cancelActiveWalletAuthentication();
 
         const clearServerSession = async () => {
           let lastError: unknown;
