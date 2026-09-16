@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import test from 'node:test';
 
-const [source, rootIdentitySource, guideSource, v69Source, controlCopySource] = await Promise.all([
+const [source, releaseCanarySource, guideSource, v69Source, controlCopySource] = await Promise.all([
   readFile('src/components/AppNetworkCanaryV70.tsx', 'utf8'),
   readFile('src/components/AppNetworkCanaryV71.tsx', 'utf8'),
   readFile('src/components/AppGuide.tsx', 'utf8'),
@@ -10,18 +10,19 @@ const [source, rootIdentitySource, guideSource, v69Source, controlCopySource] = 
   readFile('src/lib/i18n/networkCanvasControlCopy.ts', 'utf8'),
 ]);
 
-test('V71 is the final Network canary layer and preserves the mature V70 to V69 chain', () => {
+test('V71 production canary uses the real Network hub while the old V70 QA chain stays isolated', () => {
   assert.match(guideSource, /AppNetworkCanaryV71/);
   assert.match(guideSource, /<NetworkInteractionSafety key=\{walletKey\}>[\s\S]*?<AppNetworkCanaryV71 locale=\{locale\} \/>[\s\S]*?<\/NetworkInteractionSafety>/);
   assert.match(guideSource, /const walletKey = wallet\?\.toLowerCase\(\) \?\? 'disconnected'/);
-  assert.match(rootIdentitySource, /AppNetworkCanaryV70/);
-  assert.match(rootIdentitySource, /<AppNetworkCanaryV70 locale=\{locale\} \/>/);
+  assert.match(releaseCanarySource, /AppNetworkHub/);
+  assert.match(releaseCanarySource, /NetworkReleasePresentation/);
+  assert.doesNotMatch(releaseCanarySource, /AppNetworkCanaryV70|QaNetworkRadialPlayground/);
   assert.match(source, /AppNetworkCanaryV69/);
   assert.match(source, /<AppNetworkCanaryV69 locale=\{locale\} \/>/);
   assert.match(v69Source, /AppNetworkCanaryV68/);
 });
 
-test('the center YOU label explicitly follows the selected locale and restores node ids after leaving root', () => {
+test('the legacy V70 locale layer still localizes QA fixtures without leaking geometry ownership', () => {
   assert.match(source, /NETWORK_CANVAS_CONTROL_COPY\[resolvedLocale\]/);
   assert.match(source, /\.centerWrap > b,\.identity > b,\.crumbs button/);
   assert.match(source, /raw === 'YOU'/);
