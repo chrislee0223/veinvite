@@ -3,6 +3,7 @@
 import type { Locale } from '@/lib/i18n/locales';
 import { AppNetworkReleaseCanvas } from './AppNetworkReleaseCanvas';
 import { NetworkReleaseGestureBoundary } from './NetworkReleaseGestureBoundary';
+import { NetworkReleaseGroupInteractionGuard } from './NetworkReleaseGroupInteractionGuard';
 import { NetworkReleaseGroups } from './NetworkReleaseGroups';
 import { NetworkReleasePositionReset } from './NetworkReleasePositionReset';
 import { NetworkReleaseSlots } from './NetworkReleaseSlots';
@@ -13,11 +14,13 @@ export function AppNetworkCanaryV71({ locale }: { locale: Locale }) {
   return (
     <NetworkReleaseSlots locale={locale}>
       <NetworkReleasePositionReset locale={locale}>
-        <NetworkReleaseGroups locale={locale}>
-          <NetworkReleaseGestureBoundary>
-            <AppNetworkReleaseCanvas locale={locale} />
-          </NetworkReleaseGestureBoundary>
-        </NetworkReleaseGroups>
+        <NetworkReleaseGroupInteractionGuard>
+          <NetworkReleaseGroups locale={locale}>
+            <NetworkReleaseGestureBoundary>
+              <AppNetworkReleaseCanvas locale={locale} />
+            </NetworkReleaseGestureBoundary>
+          </NetworkReleaseGroups>
+        </NetworkReleaseGroupInteractionGuard>
       </NetworkReleasePositionReset>
     </NetworkReleaseSlots>
   );
