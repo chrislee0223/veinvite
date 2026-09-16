@@ -88,6 +88,7 @@ test(
     );
     const transferIndex = immediateFunction.indexOf(
       'const payoutResult = await runClaimTransferWorker()',
+      prepareIndex,
     );
 
     assert.ok(recoveryIndex >= 0);
@@ -140,6 +141,10 @@ test(
     assert.match(
       queueHelper,
       /recovery\?\.status\s*!==\s*['"]MANUAL_INTERVENTION_REQUIRED['"]/,
+    );
+    assert.match(
+      payoutWrapper,
+      /submittedRecovery\.result\?\.status\s*===\s*\n?\s*['"]MANUAL_INTERVENTION_REQUIRED['"]/,
     );
     assert.match(
       queueConsumer,
