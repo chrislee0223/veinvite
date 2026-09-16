@@ -85,6 +85,12 @@ function NetworkCreateGroupDragGhostV69() {
       if (current) cancelUnderlyingCreateDrag(current);
     };
 
+    const abortInteraction = () => {
+      cancelActiveDrag();
+      touchPointers.clear();
+      multiTouchBlocked = false;
+    };
+
     const makeGhost = (current: CreateDrag) => {
       if (current.ghost || !current.node.isConnected) return current.ghost;
 
@@ -200,16 +206,15 @@ function NetworkCreateGroupDragGhostV69() {
     };
 
     const onVisibilityChange = () => {
-      if (document.visibilityState === 'hidden') cancelActiveDrag();
+      if (document.visibilityState === 'hidden') abortInteraction();
     };
-
-    const onBlur = () => cancelActiveDrag();
 
     window.addEventListener('pointerdown', onPointerDown, true);
     window.addEventListener('pointermove', onPointerMove, true);
     window.addEventListener('pointerup', finishPointer, true);
     window.addEventListener('pointercancel', cancelPointer, true);
-    window.addEventListener('blur', onBlur);
+    window.addEventListener('blur', abortInteraction);
+    window.addEventListener('pagehide', abortInteraction);
     document.addEventListener('visibilitychange', onVisibilityChange);
 
     return () => {
@@ -217,10 +222,10 @@ function NetworkCreateGroupDragGhostV69() {
       window.removeEventListener('pointermove', onPointerMove, true);
       window.removeEventListener('pointerup', finishPointer, true);
       window.removeEventListener('pointercancel', cancelPointer, true);
-      window.removeEventListener('blur', onBlur);
+      window.removeEventListener('blur', abortInteraction);
+      window.removeEventListener('pagehide', abortInteraction);
       document.removeEventListener('visibilitychange', onVisibilityChange);
-      clearDrag();
-      touchPointers.clear();
+      abortInteraction();
     };
   }, []);
 

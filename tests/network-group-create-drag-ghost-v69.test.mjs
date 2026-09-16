@@ -54,12 +54,17 @@ test('unrelated canvas multi-touch is never intercepted by the create-group drag
   assert.doesNotMatch(source, /event\.preventDefault\(\)/);
 });
 
-test('drag ghost keeps pointer ownership and cleans transient state on every exit path', () => {
+test('drag ghost keeps pointer ownership and clears interrupted touch state on every exit path', () => {
   assert.match(source, /setPointerCapture/);
   assert.match(source, /releasePointerCapture/);
   assert.match(source, /pointercancel/);
   assert.match(source, /visibilitychange/);
-  assert.match(source, /window\.addEventListener\('blur'/);
+  assert.match(source, /const abortInteraction = \(\) =>/);
+  assert.match(source, /touchPointers\.clear\(\)/);
+  assert.match(source, /multiTouchBlocked = false/);
+  assert.match(source, /window\.addEventListener\('blur', abortInteraction\)/);
+  assert.match(source, /window\.addEventListener\('pagehide', abortInteraction\)/);
+  assert.match(source, /window\.removeEventListener\('pagehide', abortInteraction\)/);
   assert.match(source, /touchPointers\.size > 1/);
   assert.match(source, /cancelUnderlyingCreateDrag/);
   assert.match(source, /cancelActiveDrag/);
