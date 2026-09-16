@@ -43,6 +43,24 @@ test('group editor clears stale canvas selection so group membership is the only
   assert.doesNotMatch(guardSource, /canarySelectedNode|v42SelectedMember/);
 });
 
+test('touch group editing mirrors the React selection state immediately on mobile', () => {
+  assert.match(guardSource, /event\.pointerType !== 'touch'/);
+  assert.match(guardSource, /wasSelected: person\.classList\.contains\('releaseGroupDraftSelected'\)/);
+  assert.match(guardSource, /releaseTouchDraftSelected/);
+  assert.match(guardSource, /releaseTouchDraftUnselected/);
+  assert.match(guardSource, /person\.classList\.toggle\('releaseTouchDraftSelected', nextSelected\)/);
+  assert.match(guardSource, /person\.classList\.toggle\('releaseTouchDraftUnselected', !nextSelected\)/);
+});
+
+test('mobile group save freezes visible node pixels until the membership commit settles', () => {
+  assert.match(guardSource, /COMMIT_FREEZE_FRAMES = 4/);
+  assert.match(guardSource, /window\.matchMedia\('\(pointer: coarse\)'\)/);
+  assert.match(guardSource, /button\.matches\('\.releaseGroupActions \.primary'\)/);
+  assert.match(guardSource, /cloneNode\(true\)/);
+  assert.match(guardSource, /person\.style\.visibility = 'hidden'/);
+  assert.match(guardSource, /releaseCommitFreezeAfterFrames\(COMMIT_FREEZE_FRAMES\)/);
+});
+
 test('saving an edited group preserves selected members that are clustered out of the DOM', () => {
   assert.match(groupSource, /editor\.selected\.map\(keyWallet\)\.filter\(validWallet\)/);
   assert.doesNotMatch(groupSource, /visible\.has\(address\)/);
