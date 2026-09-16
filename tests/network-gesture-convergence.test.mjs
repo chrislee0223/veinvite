@@ -43,21 +43,24 @@ test('interrupted active gestures remount the Network interaction stack', () => 
   assert.match(safetySource, /document\.addEventListener\('visibilitychange'/);
 });
 
-test('V47 direct group drag composes every later persisted and transient node offset', () => {
+test('V47 direct group drag composes persisted offsets exactly once', () => {
   for (const variable of [
     '--v42-group-dx', '--v42-group-dy',
     '--v50-adjust-x', '--v50-adjust-y',
     '--v52-adjust-x', '--v52-adjust-y',
     '--v63-adjust-x', '--v63-adjust-y',
-    '--v50-drag-dx', '--v50-drag-dy',
-    '--v52-drag-dx', '--v52-drag-dy',
-    '--v63-drag-x', '--v63-drag-y',
     '--v47-drag-dx', '--v47-drag-dy',
   ]) {
     assert.match(v47Source, new RegExp(variable.replaceAll('-', '\\-')));
   }
   assert.match(v47Source, /nodeCoordinate\(node, 'x'\)/);
   assert.match(v47Source, /nodeCoordinate\(node, 'y'\)/);
+  assert.doesNotMatch(v47Source, /getPropertyValue\(`--v50-drag-d\$\{suffix\}`\)/);
+  assert.doesNotMatch(v47Source, /getPropertyValue\(`--v52-drag-d\$\{suffix\}`\)/);
+  assert.doesNotMatch(v47Source, /getPropertyValue\(`--v63-drag-\$\{suffix\}`\)/);
+  assert.doesNotMatch(v47Source, /var\(--v50-drag-d[xy],0px\)/);
+  assert.doesNotMatch(v47Source, /var\(--v52-drag-d[xy],0px\)/);
+  assert.doesNotMatch(v47Source, /var\(--v63-drag-[xy],0px\)/);
 });
 
 test('existing-group drop has one primary synthetic owner and verification-only later layers', () => {
