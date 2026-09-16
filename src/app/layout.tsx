@@ -12,6 +12,7 @@ import './localization-final-polish.css';
 import './notification-i18n-hardening.css';
 import './notification-history-polish.css';
 import './notification-runtime-ux-fix.css';
+import './notification-i18n-final-hardening.css';
 import './ui-safety.css';
 import './final-ui-hardening.css';
 import './podium-laurel-option-c.css';

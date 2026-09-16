@@ -1,0 +1,234 @@
+/*
+ * Final locale/layout safeguards for the unified notification center.
+ *
+ * Keep notification data, acknowledgement, Claim, receipt and payout behavior
+ * in React. This file only protects translated presentation at narrow widths,
+ * for tall scripts, and for technical LTR values inside RTL interfaces.
+ */
+
+/* Long mobile header copy must not compete with Mark-all and Close on the same
+ * row. Keep title/unread + Close on the first row and give Mark-all the full
+ * second row only on compact phone widths. Logical alignment mirrors in RTL. */
+@media (max-width: 420px) {
+  .notificationHistoryPanel .notificationHistoryHeader {
+    display: grid !important;
+    grid-template-columns: minmax(0, 1fr) 36px !important;
+    grid-template-areas:
+      "heading close"
+      "markall markall" !important;
+    align-items: start !important;
+    column-gap: 8px !important;
+    row-gap: 4px !important;
+  }
+
+  .notificationHistoryPanel .notificationHistoryHeading {
+    grid-area: heading !important;
+    min-width: 0 !important;
+    display: flex !important;
+    flex-wrap: wrap !important;
+    align-items: center !important;
+    column-gap: 6px !important;
+    row-gap: 5px !important;
+  }
+
+  .notificationHistoryPanel .notificationHistoryHeading h3 {
+    min-width: 0 !important;
+    flex: 1 1 140px !important;
+  }
+
+  .notificationHistoryPanel .notificationHistoryHeading > span {
+    flex: 0 0 auto !important;
+  }
+
+  .notificationHistoryPanel .notificationHistoryHeaderActions {
+    display: contents !important;
+  }
+
+  .notificationHistoryPanel .notificationHistoryClose {
+    grid-area: close !important;
+    justify-self: end !important;
+  }
+
+  .notificationHistoryPanel .notificationHistoryMarkAll {
+    grid-area: markall !important;
+    justify-self: end !important;
+    max-width: 100% !important;
+    min-height: 30px !important;
+    padding-block: 3px !important;
+    padding-inline: 4px !important;
+    white-space: normal !important;
+    text-align: end !important;
+  }
+
+  /* The header is taller only when Mark-all exists. Reserve that extra height
+   * from the scroll viewport so the last notification never hides behind the
+   * rounded panel edge on 320px/390px phones, including two-line Urdu copy. */
+  .notificationHistoryPanel:has(.notificationHistoryMarkAll)
+    .notificationHistoryScroll {
+    max-height: calc(74dvh - 116px - env(safe-area-inset-bottom)) !important;
+  }
+}
+
+/* Arabic-family scripts need more vertical breathing room than the compact
+ * Latin defaults in notification-history-polish.css. */
+.notificationHistoryPanel:is([lang='ar'], [lang='arz']) :is(
+  .notificationHistoryHeading h3,
+  .notificationHistoryHeading > span,
+  .notificationHistoryMarkAll,
+  .notificationHistoryGroup h4,
+  .notificationHistoryTitle,
+  .notificationHistoryBody,
+  .notificationHistoryMeta,
+  .notificationHistoryMeta b,
+  .notificationReceiptAction,
+  .notificationActionHeading,
+  .notificationActionCopy > span,
+  .notificationActionCopy small,
+  .notificationClaimButton,
+  .notificationProcessingBadge,
+  .notificationActionError,
+  .notificationHistoryState strong,
+  .notificationHistoryState p,
+  .notificationHistoryRetry,
+  .notificationHistoryMore,
+  .notificationHistoryInlineError,
+  .notificationReceiptEyebrow,
+  .notificationReceiptView > p,
+  .notificationReceiptFacts dt,
+  .notificationReceiptFacts dd,
+  .notificationExplorerLink,
+  .notificationReceiptAcknowledge
+) {
+  line-height: 1.55 !important;
+}
+
+/* Urdu Nastaliq/Naskh fallback metrics are taller again. */
+.notificationHistoryPanel[lang='ur'] :is(
+  .notificationHistoryHeading h3,
+  .notificationHistoryHeading > span,
+  .notificationHistoryMarkAll,
+  .notificationHistoryGroup h4,
+  .notificationHistoryTitle,
+  .notificationHistoryBody,
+  .notificationHistoryMeta,
+  .notificationHistoryMeta b,
+  .notificationReceiptAction,
+  .notificationActionHeading,
+  .notificationActionCopy > span,
+  .notificationActionCopy small,
+  .notificationClaimButton,
+  .notificationProcessingBadge,
+  .notificationActionError,
+  .notificationHistoryState strong,
+  .notificationHistoryState p,
+  .notificationHistoryRetry,
+  .notificationHistoryMore,
+  .notificationHistoryInlineError,
+  .notificationReceiptEyebrow,
+  .notificationReceiptView > p,
+  .notificationReceiptFacts dt,
+  .notificationReceiptFacts dd,
+  .notificationExplorerLink,
+  .notificationReceiptAcknowledge
+) {
+  line-height: 1.68 !important;
+}
+
+/* Devanagari, Bengali and Telugu should not inherit compact Latin line boxes. */
+.notificationHistoryPanel:is(
+  [lang='hi'],
+  [lang='bn'],
+  [lang='mr'],
+  [lang='te']
+) :is(
+  .notificationHistoryHeading h3,
+  .notificationHistoryHeading > span,
+  .notificationHistoryMarkAll,
+  .notificationHistoryGroup h4,
+  .notificationHistoryTitle,
+  .notificationHistoryBody,
+  .notificationHistoryMeta,
+  .notificationHistoryMeta b,
+  .notificationReceiptAction,
+  .notificationActionHeading,
+  .notificationActionCopy > span,
+  .notificationActionCopy small,
+  .notificationClaimButton,
+  .notificationProcessingBadge,
+  .notificationActionError,
+  .notificationHistoryState strong,
+  .notificationHistoryState p,
+  .notificationHistoryRetry,
+  .notificationHistoryMore,
+  .notificationHistoryInlineError,
+  .notificationReceiptEyebrow,
+  .notificationReceiptView > p,
+  .notificationReceiptFacts dt,
+  .notificationReceiptFacts dd,
+  .notificationExplorerLink,
+  .notificationReceiptAcknowledge
+) {
+  line-height: 1.52 !important;
+}
+
+/* Let controls grow vertically with tall-script translations instead of
+ * clipping glyph ascenders/descenders against compact button boxes. */
+.notificationHistoryPanel:is(
+  [lang='ar'], [lang='arz'], [lang='ur'],
+  [lang='hi'], [lang='bn'], [lang='mr'], [lang='te']
+) :is(
+  .notificationHistoryMarkAll,
+  .notificationClaimButton,
+  .notificationProcessingBadge,
+  .notificationHistoryRetry,
+  .notificationHistoryMore,
+  .notificationExplorerLink,
+  .notificationReceiptAcknowledge
+) {
+  height: auto !important;
+  padding-block: 6px !important;
+}
+
+.notificationHistoryPanel[lang='ur'] :is(
+  .notificationHistoryMarkAll,
+  .notificationClaimButton,
+  .notificationProcessingBadge,
+  .notificationHistoryRetry,
+  .notificationHistoryMore,
+  .notificationExplorerLink,
+  .notificationReceiptAcknowledge
+) {
+  padding-block: 7px !important;
+}
+
+/* Reward amounts, invite codes and transaction-like values are technical LTR
+ * sequences even when the surrounding notification UI is Arabic/Urdu. Keep
+ * the sequence LTR while preserving the RTL visual alignment of the card. */
+.notificationHistoryPanel[dir='rtl'] .notificationActionCopy strong,
+.notificationHistoryPanel[dir='rtl'] .notificationReceiptAmount,
+.notificationHistoryPanel[dir='rtl'] .notificationReceiptFacts dd {
+  direction: ltr !important;
+  unicode-bidi: isolate !important;
+  font-variant-numeric: tabular-nums;
+}
+
+.notificationHistoryPanel[dir='rtl'] .notificationActionCopy strong,
+.notificationHistoryPanel[dir='rtl'] .notificationReceiptFacts dd {
+  text-align: right !important;
+}
+
+.notificationHistoryPanel[dir='rtl'] .notificationReceiptAmount {
+  justify-content: flex-end !important;
+}
+
+/* History chips may contain either natural-language hints or an amount. Let
+ * each chip derive its own paragraph direction from its first strong character
+ * rather than forcing every hint to LTR. */
+.notificationHistoryPanel[dir='rtl'] .notificationHistoryMeta b {
+  unicode-bidi: plaintext !important;
+}
+
+.notificationHistoryPanel[dir='rtl'] .notificationReceiptAction em {
+  display: inline-block !important;
+  transform: scaleX(-1);
+}
