@@ -45,6 +45,15 @@ test('V69 presents one solid moving node instead of a translucent duplicate', ()
   assert.doesNotMatch(source, /scale\(1\.045\)/);
 });
 
+test('unrelated canvas multi-touch is never intercepted by the create-group drag layer', () => {
+  assert.match(source, /const relevantCreateTouch = Boolean\(/);
+  assert.match(source, /if \(touchPointers\.size === 0 && !drag && !relevantCreateTouch\) return;/);
+  assert.match(source, /touchPointers\.size > 1[\s\S]*?cancelActiveDrag\(\);[\s\S]*?return;/);
+  assert.doesNotMatch(source, /stopImmediatePropagation\(\)/);
+  assert.doesNotMatch(source, /stopPropagation\(\)/);
+  assert.doesNotMatch(source, /event\.preventDefault\(\)/);
+});
+
 test('drag ghost keeps pointer ownership and cleans transient state on every exit path', () => {
   assert.match(source, /setPointerCapture/);
   assert.match(source, /releasePointerCapture/);

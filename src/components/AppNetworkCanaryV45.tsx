@@ -8,6 +8,7 @@ import { QaNetworkRadialPlaygroundV45 } from '@/qa/QaNetworkRadialPlaygroundV45'
 
 const MOBILE_SAFE_STAGE_MIN_PX = 420;
 const BOTTOM_NAV_GAP_PX = 16;
+const MOBILE_STAGE_WIDTH_EPSILON_PX = 8;
 const NETWORK_INTRO_SESSION_KEY = 'veinvite:network:intro-v1';
 const NETWORK_INTRO_HOLD_MS = 300;
 const NETWORK_INTRO_TOTAL_MS = 1120;
@@ -238,13 +239,16 @@ export function AppNetworkCanaryV45({ locale }: { locale: Locale }) {
     let revealFrame = 0;
     let introTimer: number | null = null;
     let introEndTimer: number | null = null;
+    let lastViewportWidth = window.innerWidth;
+    let lastMobileLayout = lastViewportWidth <= 700;
 
     const applyMobileSafeStage = () => {
-      if (window.innerWidth > 700) {
-        stage.style.height = previousHeight;
-        stage.style.minHeight = previousMinHeight;
-        return;
-      }
+      // Always measure from the stylesheet-owned stage size. If a real width or
+      // orientation change occurs this lets the stage grow as well as shrink.
+      stage.style.height = previousHeight;
+      stage.style.minHeight = previousMinHeight;
+
+      if (window.innerWidth > 700) return;
 
       const navTrack = document.querySelector<HTMLElement>('.bottomNavigation > div');
       if (!navTrack) return;
@@ -256,6 +260,23 @@ export function AppNetworkCanaryV45({ locale }: { locale: Locale }) {
         stage.style.height = `${safeHeight}px`;
         stage.style.minHeight = `${MOBILE_SAFE_STAGE_MIN_PX}px`;
       }
+    };
+
+    const handleViewportResize = () => {
+      const nextWidth = window.innerWidth;
+      const nextMobileLayout = nextWidth <= 700;
+      const crossedBreakpoint = nextMobileLayout !== lastMobileLayout;
+      const widthChanged = Math.abs(nextWidth - lastViewportWidth) >= MOBILE_STAGE_WIDTH_EPSILON_PX;
+
+      // Mobile browser chrome can fire resize events that only change viewport
+      // height. Recomputing stage height on those events moves the 50% scene
+      // origin and makes every node appear to jump. Ignore height-only jitter;
+      // recalculate only for a meaningful width/orientation/breakpoint change.
+      if (!crossedBreakpoint && !widthChanged) return;
+
+      lastViewportWidth = nextWidth;
+      lastMobileLayout = nextMobileLayout;
+      applyMobileSafeStage();
     };
 
     const fitButton = () => Array.from(
@@ -294,14 +315,14 @@ export function AppNetworkCanaryV45({ locale }: { locale: Locale }) {
       }, NETWORK_INTRO_TOTAL_MS);
     }
 
-    window.addEventListener('resize', applyMobileSafeStage);
+    window.addEventListener('resize', handleViewportResize);
 
     return () => {
       window.cancelAnimationFrame(fitFrame);
       window.cancelAnimationFrame(revealFrame);
       if (introTimer !== null) window.clearTimeout(introTimer);
       if (introEndTimer !== null) window.clearTimeout(introEndTimer);
-      window.removeEventListener('resize', applyMobileSafeStage);
+      window.removeEventListener('resize', handleViewportResize);
       root.classList.remove('veinviteInitialFit', 'veinviteIntroActive');
       stage.style.visibility = previousVisibility;
       stage.style.height = previousHeight;

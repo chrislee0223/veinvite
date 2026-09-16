@@ -116,23 +116,33 @@ function NetworkCreateGroupDragGhostV69() {
     };
 
     const onPointerDown = (event: PointerEvent) => {
+      const target = event.target instanceof Element ? event.target : null;
+      const node = target?.closest<HTMLButtonElement>('button.personNode[data-node-id]') ?? null;
+      const editorOpen = createEditorOpen();
+      const relevantCreateTouch = Boolean(
+        editorOpen &&
+        node &&
+        root.contains(node) &&
+        !node.classList.contains('v42CollapsedMember'),
+      );
+
       if (event.pointerType === 'touch') {
+        // V69 only owns touch state that actually belongs to create-group drag.
+        // Unrelated one/two-finger canvas gestures must remain available to the
+        // Network camera, even while this wrapper is mounted globally.
+        if (touchPointers.size === 0 && !drag && !relevantCreateTouch) return;
         touchPointers.add(event.pointerId);
         if (touchPointers.size > 1) {
           multiTouchBlocked = true;
           cancelActiveDrag();
-          if (event.cancelable) event.preventDefault();
-          event.stopPropagation();
-          event.stopImmediatePropagation();
+          // Cancelling the create drag is enough. Do not prevent/stop the second
+          // touch: V37/V50 still need it to continue the intended pinch gesture.
           return;
         }
       }
 
-      if (!event.isTrusted || multiTouchBlocked || !createEditorOpen()) return;
+      if (!event.isTrusted || multiTouchBlocked || !editorOpen) return;
       if (event.pointerType === 'mouse' && event.button !== 0) return;
-
-      const target = event.target instanceof Element ? event.target : null;
-      const node = target?.closest<HTMLButtonElement>('button.personNode[data-node-id]') ?? null;
       if (!node || !root.contains(node) || node.classList.contains('v42CollapsedMember')) return;
 
       clearDrag();

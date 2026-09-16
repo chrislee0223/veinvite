@@ -4,7 +4,6 @@ import { useEffect, useRef } from 'react';
 
 import { QaNetworkRadialPlaygroundV38 } from './QaNetworkRadialPlaygroundV38';
 
-const DETAIL_ZOOM = 0.98;
 const STORAGE_KEY = 'veinvite:qa:radial-v37:positions-v2';
 
 function curvePath(x: number, y: number) {
@@ -58,12 +57,6 @@ function hasSavedManualPosition(
   );
 }
 
-function readZoom(root: HTMLElement) {
-  const text = root.querySelector<HTMLElement>('.zoomValue')?.textContent ?? '100%';
-  const value = Number.parseFloat(text.replace('%', ''));
-  return Number.isFinite(value) ? value / 100 : 1;
-}
-
 function containsGeometryNode(node: Node) {
   if (!(node instanceof Element)) return false;
   return node.matches('.personNode,.clusterNode,.spoke,.v42GroupHub') ||
@@ -94,25 +87,23 @@ export function QaNetworkRadialPlaygroundV39() {
         if (title && title.textContent !== 'RADIAL NETWORK PLAYGROUND · V39') {
           title.textContent = 'RADIAL NETWORK PLAYGROUND · V39';
         }
-        if (subtitle && subtitle.textContent !== 'Center safe zone · tighter spacing · cleaner mid zoom') {
-          subtitle.textContent = 'Center safe zone · tighter spacing · cleaner mid zoom';
+        if (subtitle && subtitle.textContent !== 'Center safe zone · stable spacing · zoom-safe geometry') {
+          subtitle.textContent = 'Center safe zone · stable spacing · zoom-safe geometry';
         }
 
-        const zoom = readZoom(root);
-        const clustered = stage.classList.contains('clusterMode');
         const editing = stage.classList.contains('editMode');
         const compact = window.innerWidth <= 640;
-        const midZoom = !clustered && zoom < DETAIL_ZOOM;
         const scenario = activeScenarioId(root);
         const manualKeys = savedManualKeys();
-
-        root.classList.toggle('v39MidZoom', midZoom);
-        root.classList.toggle('v39DetailZoom', !clustered && !midZoom);
 
         const nodes = Array.from(stage.querySelectorAll<HTMLButtonElement>('.personNode'));
         const paths = Array.from(stage.querySelectorAll<SVGPathElement>('.spoke:not(.slotSpoke):not(.clusterSpoke)'));
         const safeRadius = compact ? 168 : 228;
-        const compression = midZoom ? (compact ? .82 : .84) : (compact ? .89 : .9);
+
+        // Node anchors are geometry, not a zoom presentation detail. Keeping one
+        // canonical compression ratio prevents pinch/zoom from rewriting --x/--y
+        // when a visual zoom threshold is crossed.
+        const compression = compact ? .89 : .9;
 
         // Bind base referral paths once to a stable node id. Later class/UI
         // mutations must never change which line belongs to which node.
@@ -200,12 +191,7 @@ export function QaNetworkRadialPlaygroundV39() {
           }
           return false;
         }
-        if (mutation.type === 'characterData') {
-          return Boolean(mutation.target.parentElement?.closest('.zoomValue'));
-        }
         if (mutation.type === 'childList') {
-          const target = mutation.target instanceof Element ? mutation.target : null;
-          if (target?.closest('.zoomValue')) return true;
           return [...mutation.addedNodes, ...mutation.removedNodes].some(containsGeometryNode);
         }
         return false;
@@ -215,7 +201,6 @@ export function QaNetworkRadialPlaygroundV39() {
     observer.observe(root, {
       childList: true,
       subtree: true,
-      characterData: true,
       attributes: true,
       attributeFilter: ['class', 'style'],
     });
@@ -240,19 +225,8 @@ export function QaNetworkRadialPlaygroundV39() {
         .v39RefinementRoot .personNode,
         .v39RefinementRoot .spoke{transition:opacity 180ms ease,stroke-width 180ms ease}
         .v39RefinementRoot .personNode{transition:opacity 180ms ease}
-        .v39RefinementRoot.v39MidZoom .personNode b,
-        .v39RefinementRoot.v39MidZoom .personNode small{opacity:0!important;pointer-events:none!important}
-        .v39RefinementRoot.v39MidZoom .nodeCircle{width:46px!important;height:46px!important;box-shadow:none!important}
-        .v39RefinementRoot.v39MidZoom .spoke:not(.slotSpoke):not(.clusterSpoke){opacity:.2!important;stroke-width:.72!important}
-        .v39RefinementRoot.v39MidZoom .slotSpoke{opacity:.12!important}
-        .v39RefinementRoot.v39MidZoom .slotNode b{opacity:.35!important}
-        .v39RefinementRoot.v39DetailZoom .spoke:not(.slotSpoke):not(.clusterSpoke){opacity:.72}
         .v39RefinementRoot .centerWrap{z-index:12!important}
         .v39RefinementRoot .centerWrap small{white-space:nowrap}
-        @media(max-width:640px){
-          .v39RefinementRoot.v39MidZoom .nodeCircle{width:44px!important;height:44px!important}
-          .v39RefinementRoot.v39MidZoom .slotNode b{display:none!important}
-        }
       `}</style>
     </div>
   );

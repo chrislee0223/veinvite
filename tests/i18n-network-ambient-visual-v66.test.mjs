@@ -59,29 +59,12 @@ test('V67 is also presentation-only and wraps V66 without owning geometry', () =
   }
 });
 
-test('ambient motion does not replace the mature transform stack', () => {
-  assert.match(visualSource, /@supports \(translate: 1px 1px\)/);
-  assert.match(visualSource, /@keyframes v66AmbientFloat/);
-  assert.doesNotMatch(visualSource, /@keyframes v66AmbientFloat[\s\S]*?transform:/);
-  assert.match(visualSource, /translate: var\(--v66-fx1\) var\(--v66-fy1\)/);
-});
-
-test('gesture and transition states pause ambience instead of fighting it', () => {
-  for (const selector of [
-    'veinviteInteracting',
-    'v63PinchGuard',
-    'v50NetworkTransition',
-    'v52NetworkTransition',
-    'stage.editMode',
-    'v63DirectDragging',
-    'v61DirectGroupDragging',
-    'v61GroupTransfer',
-    'v63TransferSettling',
-    'v61GroupDragging',
-  ]) {
-    assert.ok(visualSource.includes(selector), `missing ambient pause guard: ${selector}`);
-  }
-  assert.match(visualSource, /animation-play-state:\s*paused\s*!important/);
+test('Network nodes are stationary instead of using independent ambient translation', () => {
+  assert.doesNotMatch(visualSource, /@keyframes v66AmbientFloat/);
+  assert.doesNotMatch(visualSource, /--v66-f[xy]\d/);
+  assert.doesNotMatch(visualSource, /animation-duration:/);
+  assert.doesNotMatch(correctionSource, /--v66-f[xy]\d/);
+  assert.match(visualSource, /\.productionNetworkCanaryV45 :is\([\s\S]*?\.personNode,[\s\S]*?\.slotNode,[\s\S]*?\.clusterNode,[\s\S]*?\.v42GroupHub[\s\S]*?\)\s*\{[\s\S]*?translate:\s*none\s*!important/);
 });
 
 test('V67 removes oversized halos without re-owning mature circle visuals', () => {
@@ -130,19 +113,9 @@ test('V67 leaves mature endpoint stacking and metadata anchors untouched', () =>
   }
 });
 
-test('V67 keeps YOU opaque and avoids floating authoritative group hubs', () => {
+test('V67 keeps YOU opaque while V66 keeps all Network anchors stationary', () => {
   assert.match(correctionSource, /\.centerCircle[\s\S]*?rgb\(24, 21, 13\)[\s\S]*?rgb\(13, 13, 11\)/);
-  assert.match(correctionSource, /\.v42GroupHub[\s\S]*?animation:\s*none\s*!important/);
-  assert.match(correctionSource, /\.v42GroupHub[\s\S]*?translate:\s*none\s*!important/);
-});
-
-test('motion respects accessibility, mobile limits and dense-network cost caps', () => {
-  assert.match(visualSource, /prefers-reduced-motion:\s*reduce/);
-  assert.match(visualSource, /animation:\s*none\s*!important/);
-  assert.match(visualSource, /@media \(max-width: 640px\)/);
-  assert.match(visualSource, /\.personNode:nth-child\(n \+ 121\)/);
-  assert.match(correctionSource, /@media \(max-width: 640px\)/);
-  assert.match(correctionSource, /--v66-fy1:\s*-\.95px\s*!important/);
+  assert.match(visualSource, /\.v42GroupHub[\s\S]*?translate:\s*none\s*!important/);
 });
 
 test('the special Network canary is wired through V73, V72, V71, V70, V69, V68, V67 and V66', () => {

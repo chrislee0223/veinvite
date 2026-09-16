@@ -49,56 +49,6 @@ export function AppNetworkCanaryV67({ locale }: { locale: Locale }) {
             rgb(13, 13, 11) 100%
           ) !important;
         }
-
-        /* V57 does not read CSS animation offsets for group hubs, so hubs stay
-           static. Person/Available/cluster ambience remains paint-only and is
-           deliberately sub-pixel-to-1px on mobile. */
-        @supports (translate: 1px 1px) {
-          .productionNetworkCanaryV45 .v42GroupHub {
-            animation: none !important;
-            translate: none !important;
-          }
-
-          .productionNetworkCanaryV45 .personNode {
-            --v66-fx1: 1.1px !important;
-            --v66-fy1: -1.5px !important;
-            --v66-fx2: -1px !important;
-            --v66-fy2: 1.1px !important;
-            --v66-fx3: .9px !important;
-            --v66-fy3: .5px !important;
-          }
-
-          .productionNetworkCanaryV45 .slotNode,
-          .productionNetworkCanaryV45 .clusterNode {
-            --v66-fx1: .9px !important;
-            --v66-fy1: -1.3px !important;
-            --v66-fx2: -.8px !important;
-            --v66-fy2: .9px !important;
-            --v66-fx3: .7px !important;
-            --v66-fy3: .4px !important;
-          }
-
-          @media (max-width: 640px) {
-            .productionNetworkCanaryV45 .personNode {
-              --v66-fx1: .7px !important;
-              --v66-fy1: -.95px !important;
-              --v66-fx2: -.6px !important;
-              --v66-fy2: .72px !important;
-              --v66-fx3: .62px !important;
-              --v66-fy3: .3px !important;
-            }
-
-            .productionNetworkCanaryV45 .slotNode,
-            .productionNetworkCanaryV45 .clusterNode {
-              --v66-fx1: .58px !important;
-              --v66-fy1: -.82px !important;
-              --v66-fx2: -.5px !important;
-              --v66-fy2: .58px !important;
-              --v66-fx3: .48px !important;
-              --v66-fy3: .26px !important;
-            }
-          }
-        }
       `}</style>
     </>
   );
