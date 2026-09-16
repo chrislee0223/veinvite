@@ -105,10 +105,15 @@ export function NetworkReleaseSlots({
       setScene((current) => current === nextScene ? current : nextScene);
       setIsRoot(Boolean(boundary.querySelector('.releaseCenter.root')));
 
-      const nextOccupied = Array.from(boundary.querySelectorAll<HTMLElement>('.releasePerson')).map((node) => ({
+      const people = Array.from(boundary.querySelectorAll<HTMLElement>('.releasePerson')).map((node) => ({
         x: parsePx(node.style.getPropertyValue('--node-x')),
         y: parsePx(node.style.getPropertyValue('--node-y')),
       }));
+      const groupHubs = Array.from(boundary.querySelectorAll<HTMLElement>('.releaseGroupHub')).map((node) => ({
+        x: parsePx(node.style.getPropertyValue('--group-x')),
+        y: parsePx(node.style.getPropertyValue('--group-y')),
+      }));
+      const nextOccupied = [...people, ...groupHubs];
       setOccupiedPoints((current) => samePoints(current, nextOccupied) ? current : nextOccupied);
     };
 
@@ -132,10 +137,8 @@ export function NetworkReleaseSlots({
   }, []);
 
   useEffect(() => {
-    if (!wallet) {
-      setSlotsAvailable(0);
-      return;
-    }
+    setSlotsAvailable(0);
+    if (!wallet) return;
 
     const controller = new AbortController();
     const address = wallet.toLowerCase();
