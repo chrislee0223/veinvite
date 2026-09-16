@@ -10,6 +10,15 @@ import {
 import { NETWORK_CANVAS_CONTROL_COPY } from '@/lib/i18n/networkCanvasControlCopy';
 import { AppNetworkCanaryV70 } from './AppNetworkCanaryV70';
 
+const MOBILE_GROUP_COMMIT_FREEZE_FRAMES = 4;
+
+type FrozenPerson = {
+  person: HTMLElement;
+  previousVisibility: string;
+  previousVisibilityPriority: string;
+  clone: HTMLElement;
+};
+
 function resolveLocale(locale: Locale): SupportedLocale {
   return isLocale(locale) ? locale : 'en';
 }
@@ -23,6 +32,232 @@ function readZoom(root: HTMLElement) {
 function readCenterScale(root: HTMLElement) {
   const parsed = Number.parseFloat(root.style.getPropertyValue('--v46-center-scale'));
   return Number.isFinite(parsed) ? parsed : 1;
+}
+
+function NetworkGroupEditMobileStabilityV71() {
+  useLayoutEffect(() => {
+    const root = document.querySelector<HTMLElement>('.productionNetworkCanaryV45');
+    if (!root) return;
+
+    let syncFrame = 0;
+    let transientFrame = 0;
+    let freezeFrame = 0;
+    let transientOwned = false;
+    let frozenPeople: FrozenPerson[] = [];
+    let freezeLayer: HTMLElement | null = null;
+
+    const manualRoot = () => root.querySelector<HTMLElement>('.v42ManualGroupsRoot');
+    const managing = () => Boolean(manualRoot()?.classList.contains('v42Managing'));
+    const editing = () => Boolean(
+      manualRoot()?.classList.contains('v42Managing') ||
+      manualRoot()?.classList.contains('v42Creating'),
+    );
+
+    const clearCanvasSelection = () => {
+      root.querySelectorAll<HTMLElement>('.personNode.canarySelectedNode').forEach((node) => {
+        node.classList.remove('canarySelectedNode');
+      });
+    };
+
+    const syncEditorVisuals = () => {
+      syncFrame = 0;
+      const groupRoot = manualRoot();
+      if (!groupRoot || !editing()) return;
+
+      clearCanvasSelection();
+      if (!groupRoot.classList.contains('v42Managing')) return;
+
+      // During Edit, group membership is the only visual selection authority.
+      // Every person not present in selectedIds must look deselected immediately,
+      // including somebody who already belonged to the group before Edit opened.
+      groupRoot.querySelectorAll<HTMLElement>('.personNode[data-node-id]').forEach((node) => {
+        node.classList.toggle('v71GroupEditDeselected', !node.classList.contains('v42SelectedMember'));
+      });
+    };
+
+    const scheduleSync = () => {
+      if (syncFrame) return;
+      syncFrame = window.requestAnimationFrame(syncEditorVisuals);
+    };
+
+    const clearTransientSuppression = () => {
+      transientFrame = 0;
+      const groupRoot = manualRoot();
+      if (transientOwned && groupRoot?.dataset.v42TransientDrag === '1') {
+        delete groupRoot.dataset.v42TransientDrag;
+      }
+      transientOwned = false;
+    };
+
+    const suppressLegacyObserverBriefly = () => {
+      const groupRoot = manualRoot();
+      if (!groupRoot) return;
+      groupRoot.dataset.v42TransientDrag = '1';
+      transientOwned = true;
+      if (transientFrame) window.cancelAnimationFrame(transientFrame);
+      transientFrame = window.requestAnimationFrame(() => {
+        transientFrame = window.requestAnimationFrame(clearTransientSuppression);
+      });
+    };
+
+    const clearCommitFreeze = () => {
+      if (freezeFrame) {
+        window.cancelAnimationFrame(freezeFrame);
+        freezeFrame = 0;
+      }
+      frozenPeople.forEach(({ person, previousVisibility, previousVisibilityPriority, clone }) => {
+        if (person.isConnected) {
+          if (previousVisibility) {
+            person.style.setProperty('visibility', previousVisibility, previousVisibilityPriority);
+          } else {
+            person.style.removeProperty('visibility');
+          }
+        }
+        clone.remove();
+      });
+      frozenPeople = [];
+      freezeLayer?.remove();
+      freezeLayer = null;
+    };
+
+    const releaseCommitFreezeAfterFrames = (remaining: number) => {
+      if (remaining <= 0) {
+        clearCommitFreeze();
+        return;
+      }
+      freezeFrame = window.requestAnimationFrame(() => {
+        freezeFrame = 0;
+        releaseCommitFreezeAfterFrames(remaining - 1);
+      });
+    };
+
+    const freezeMobileCommit = (pointerType: string) => {
+      const coarsePointer = typeof window.matchMedia === 'function' && window.matchMedia('(pointer: coarse)').matches;
+      if (pointerType !== 'touch' && !coarsePointer) return;
+      const groupRoot = manualRoot();
+      if (!groupRoot || !managing()) return;
+
+      clearCommitFreeze();
+
+      freezeLayer = document.createElement('div');
+      freezeLayer.className = 'v42ManualGroupsRoot v71MobileCommitFreezeLayer';
+      freezeLayer.setAttribute('aria-hidden', 'true');
+      document.body.appendChild(freezeLayer);
+
+      groupRoot.querySelectorAll<HTMLElement>('.personNode[data-node-id]').forEach((person) => {
+        const computed = window.getComputedStyle(person);
+        if (
+          computed.display === 'none' ||
+          computed.visibility === 'hidden' ||
+          Number.parseFloat(computed.opacity || '1') <= 0.01
+        ) return;
+
+        const rect = person.getBoundingClientRect();
+        if (rect.width <= 0 || rect.height <= 0) return;
+
+        const clone = person.cloneNode(true) as HTMLElement;
+        clone.removeAttribute('id');
+        clone.setAttribute('aria-hidden', 'true');
+        clone.style.setProperty('position', 'fixed', 'important');
+        clone.style.setProperty('left', `${rect.left}px`, 'important');
+        clone.style.setProperty('top', `${rect.top}px`, 'important');
+        clone.style.setProperty('width', `${rect.width}px`, 'important');
+        clone.style.setProperty('height', `${rect.height}px`, 'important');
+        clone.style.setProperty('margin', '0', 'important');
+        clone.style.setProperty('transform', 'none', 'important');
+        clone.style.setProperty('transition', 'none', 'important');
+        clone.style.setProperty('animation', 'none', 'important');
+        clone.style.setProperty('pointer-events', 'none', 'important');
+        clone.style.setProperty('visibility', 'visible', 'important');
+        clone.style.setProperty('opacity', computed.opacity, 'important');
+        clone.style.setProperty('filter', computed.filter, 'important');
+        clone.style.setProperty('z-index', '2147483000', 'important');
+        freezeLayer?.appendChild(clone);
+
+        const previousVisibility = person.style.getPropertyValue('visibility');
+        const previousVisibilityPriority = person.style.getPropertyPriority('visibility');
+        person.style.setProperty('visibility', 'hidden', 'important');
+        frozenPeople.push({ person, previousVisibility, previousVisibilityPriority, clone });
+      });
+
+      if (frozenPeople.length) {
+        releaseCommitFreezeAfterFrames(MOBILE_GROUP_COMMIT_FREEZE_FRAMES);
+      } else {
+        clearCommitFreeze();
+      }
+    };
+
+    const onPointerDownCapture = (event: PointerEvent) => {
+      const target = event.target instanceof Element ? event.target : null;
+      if (!target) return;
+
+      const node = target.closest<HTMLElement>('.personNode[data-node-id]');
+      if (node && root.contains(node) && editing()) {
+        clearCanvasSelection();
+        suppressLegacyObserverBriefly();
+
+        // V42 updates selectedIds correctly on both desktop and mobile. Mirror
+        // that next value into the DOM before the synthetic click/effect phase so
+        // iOS/WKWebView cannot show the stale bright state for another frame.
+        const nextSelected = !node.classList.contains('v42SelectedMember');
+        node.classList.toggle('v42SelectedMember', nextSelected);
+        node.classList.toggle('v71GroupEditDeselected', managing() && !nextSelected);
+        scheduleSync();
+        return;
+      }
+
+      const saveButton = target.closest<HTMLButtonElement>('.v42GroupPanel .v42CreateActions button.primary');
+      if (saveButton && root.contains(saveButton) && managing()) {
+        freezeMobileCommit(event.pointerType || '');
+      }
+    };
+
+    const onClickCapture = (event: MouseEvent) => {
+      if (!editing()) return;
+      const target = event.target instanceof Element ? event.target : null;
+      if (!target) return;
+
+      // V45 normally paints canarySelectedNode for profile selection before the
+      // inner V42 click-swallow runs. Group Edit owns node selection instead.
+      if (target.closest('.personNode[data-node-id]')) {
+        clearCanvasSelection();
+        scheduleSync();
+      }
+    };
+
+    const observer = new MutationObserver((records) => {
+      if (!editing()) {
+        root.querySelectorAll<HTMLElement>('.personNode.v71GroupEditDeselected').forEach((node) => {
+          node.classList.remove('v71GroupEditDeselected');
+        });
+        return;
+      }
+      if (records.some((record) => record.type === 'childList' || record.attributeName === 'class')) {
+        scheduleSync();
+      }
+    });
+
+    root.addEventListener('pointerdown', onPointerDownCapture, true);
+    root.addEventListener('click', onClickCapture, true);
+    observer.observe(root, { subtree: true, childList: true, attributes: true, attributeFilter: ['class'] });
+    syncEditorVisuals();
+
+    return () => {
+      root.removeEventListener('pointerdown', onPointerDownCapture, true);
+      root.removeEventListener('click', onClickCapture, true);
+      observer.disconnect();
+      if (syncFrame) window.cancelAnimationFrame(syncFrame);
+      if (transientFrame) window.cancelAnimationFrame(transientFrame);
+      clearTransientSuppression();
+      clearCommitFreeze();
+      root.querySelectorAll<HTMLElement>('.personNode.v71GroupEditDeselected').forEach((node) => {
+        node.classList.remove('v71GroupEditDeselected');
+      });
+      clearCanvasSelection();
+    };
+  }, []);
+
+  return null;
 }
 
 function NetworkRootIdentityPlacementV71({ locale }: { locale: Locale }) {
@@ -127,11 +362,30 @@ export function AppNetworkCanaryV71({ locale }: { locale: Locale }) {
   return (
     <>
       <AppNetworkCanaryV70 locale={locale} />
+      <NetworkGroupEditMobileStabilityV71 />
       <NetworkRootIdentityPlacementV71 locale={locale} />
       <style jsx global>{`
         /* Root identity: replace the existing V45 center dot itself. */
         .productionNetworkCanaryV45 .centerWrap > b.v71RootIdentitySource {
           display: none !important;
+        }
+
+        /* During group Edit, membership is the only visual selection state. */
+        .productionNetworkCanaryV45 .v42ManualGroupsRoot.v42Managing .personNode:not(.v42SelectedMember),
+        .productionNetworkCanaryV45 .v42ManualGroupsRoot.v42Managing .personNode.v71GroupEditDeselected {
+          opacity: .48 !important;
+        }
+
+        .productionNetworkCanaryV45 .v42ManualGroupsRoot.v42Managing .personNode.v42SelectedMember {
+          opacity: 1 !important;
+        }
+
+        .v71MobileCommitFreezeLayer {
+          position: fixed !important;
+          inset: 0 !important;
+          z-index: 2147482999 !important;
+          pointer-events: none !important;
+          overflow: visible !important;
         }
 
         /* V65 owns localized stats by hiding the raw English source at
