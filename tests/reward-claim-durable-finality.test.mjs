@@ -7,12 +7,14 @@ const read = (path) =>
 
 const [
   claimRoute,
+  payoutWrapper,
   queueHelper,
   queueConsumer,
   vercelConfigRaw,
   packageRaw,
 ] = await Promise.all([
   read('src/app/api/rewards/claims/route.ts'),
+  read('src/lib/rewards/automaticRewardPayoutWithMnemonic.ts'),
   read('src/lib/rewards/claimPayoutContinuationQueue.ts'),
   read('src/app/api/queues/reward-finality/route.ts'),
   read('vercel.json'),
@@ -62,6 +64,90 @@ test(
     assert.doesNotMatch(
       queueConsumer,
       /refreshQueuedReferralSignalChecks/,
+    );
+  },
+);
+
+test(
+  'older submitted finality is preserved without blocking a newer approved Claim',
+  () => {
+    const start = payoutWrapper.indexOf(
+      'export async function runImmediateClaimRewardPayout',
+    );
+    const end = payoutWrapper.indexOf(
+      'export async function runAutomaticRewardPayout',
+    );
+    assert.ok(start >= 0 && end > start);
+
+    const immediateFunction = payoutWrapper.slice(start, end);
+    const recoveryIndex = immediateFunction.indexOf(
+      'const submittedRecovery = await recoverSubmittedBeforePayout()',
+    );
+    const prepareIndex = immediateFunction.indexOf(
+      'await prepareClaimedRewardFastPath',
+    );
+    const transferIndex = immediateFunction.indexOf(
+      'const payoutResult = await runClaimTransferWorker()',
+    );
+
+    assert.ok(recoveryIndex >= 0);
+    assert.ok(prepareIndex > recoveryIndex);
+    assert.ok(transferIndex > prepareIndex);
+    assert.doesNotMatch(
+      immediateFunction,
+      /submittedRecovery(?:\.result)?\.status\s*===\s*['"]WAITING_FINALITY['"]/,
+    );
+    assert.match(
+      immediateFunction,
+      /submittedRecovery:\s*submittedRecovery\.result/,
+    );
+    assert.match(
+      immediateFunction,
+      /submittedRecoveryFailed:\s*submittedRecovery\.failed/,
+    );
+  },
+);
+
+test(
+  'durable continuation retains recovery waiting and transient recovery failures',
+  () => {
+    assert.match(
+      queueHelper,
+      /submittedRecoveryFailed\s*===\s*true/,
+    );
+    assert.match(
+      queueHelper,
+      /submittedRecovery\?\.status\s*===\s*['"]WAITING_FINALITY['"]/,
+    );
+    assert.match(
+      queueHelper,
+      /submittedRecovery\?\.status\s*===\s*['"]LOCKED['"]/,
+    );
+    assert.match(
+      payoutWrapper,
+      /failed:\s*true/,
+    );
+  },
+);
+
+test(
+  'manual recovery safety state takes precedence over a later payout result',
+  () => {
+    assert.match(
+      queueHelper,
+      /readClaimPayoutManualIntervention/,
+    );
+    assert.match(
+      queueHelper,
+      /recovery\?\.status\s*!==\s*['"]MANUAL_INTERVENTION_REQUIRED['"]/,
+    );
+    assert.match(
+      queueConsumer,
+      /const manualIntervention\s*=\s*\n?\s*readClaimPayoutManualIntervention\(result\)/,
+    );
+    assert.match(
+      queueConsumer,
+      /if \(manualIntervention\)/,
     );
   },
 );
