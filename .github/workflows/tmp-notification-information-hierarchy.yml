@@ -10,7 +10,6 @@ permissions:
 
 jobs:
   patch:
-    if: github.actor != 'github-actions[bot]'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -23,6 +22,7 @@ jobs:
         run: |
           python <<'PY'
           from pathlib import Path
+          import base64
 
           def replace_once(path: str, old: str, new: str) -> None:
               p = Path(path)
@@ -43,11 +43,7 @@ jobs:
               "  const structure = NOTIFICATION_HISTORY_COPY[supportedLocale];\n  const notificationCopy = NOTIFICATION_COPY[supportedLocale];\n",
               "  const structure = NOTIFICATION_HISTORY_COPY[supportedLocale];\n  const metaCopy = NOTIFICATION_META_COPY[supportedLocale];\n  const notificationCopy = NOTIFICATION_COPY[supportedLocale];\n",
           )
-          replace_once(
-              component,
-              "                  {structure.newLabel}\n",
-              "                  {metaCopy.unread}\n",
-          )
+          replace_once(component, "                  {structure.newLabel}\n", "                  {metaCopy.unread}\n")
           replace_once(
               component,
               "          {friend ? (\n            <span className=\"notificationFriendWallet\" dir=\"ltr\">\n              {friend}\n            </span>\n          ) : null}\n          {copy.hint ? <b>{copy.hint}</b> : null}\n          {item.kind === 'REWARD_PAID' ? (\n            <em aria-hidden=\"true\">›</em>\n          ) : null}\n",
@@ -64,303 +60,60 @@ jobs:
               "                  <span>{metaCopy.unread} · {unreadCount}</span>\n",
           )
 
-          history_copy = Path('src/lib/i18n/notificationHistoryCopy.ts')
-          history_text = history_copy.read_text()
+          history = Path('src/lib/i18n/notificationHistoryCopy.ts')
+          history_text = history.read_text()
           old_ko = "ko: { title: '알림', newLabel: '새 알림', markAll: '모두 읽음', today: '오늘', yesterday: '어제', earlier: '이전 알림'"
           new_ko = "ko: { title: '알림', newLabel: '읽지 않음', markAll: '모두 읽음 처리', today: '오늘', yesterday: '어제', earlier: '이전'"
           if history_text.count(old_ko) != 1:
               raise SystemExit('notificationHistoryCopy.ts: Korean chrome signature changed')
-          history_copy.write_text(history_text.replace(old_ko, new_ko, 1))
+          history.write_text(history_text.replace(old_ko, new_ko, 1))
 
-          meta_copy = r'''import type { SupportedLocale } from './locales';
-
-export type NotificationMetaCopy = {
-  unread: string;
-  invitedFriend: string;
-  inviteCode: string;
-  viewReceipt: string;
-};
-
-export const NOTIFICATION_META_COPY: Record<SupportedLocale, NotificationMetaCopy> = {
-  en: { unread: 'Unread', invitedFriend: 'Invited friend', inviteCode: 'Invite code', viewReceipt: 'View receipt' },
-  ko: { unread: '읽지 않음', invitedFriend: '초대한 친구', inviteCode: '초대 코드', viewReceipt: '영수증 보기' },
-  zh: { unread: '未读', invitedFriend: '受邀好友', inviteCode: '邀请码', viewReceipt: '查看收据' },
-  hi: { unread: 'अपठित', invitedFriend: 'आमंत्रित मित्र', inviteCode: 'आमंत्रण कोड', viewReceipt: 'रसीद देखें' },
-  es: { unread: 'Sin leer', invitedFriend: 'Persona invitada', inviteCode: 'Código de invitación', viewReceipt: 'Ver recibo' },
-  ja: { unread: '未読', invitedFriend: '招待した友だち', inviteCode: '招待コード', viewReceipt: '受取明細を見る' },
-  it: { unread: 'Da leggere', invitedFriend: 'Persona invitata', inviteCode: 'Codice invito', viewReceipt: 'Vedi ricevuta' },
-  tr: { unread: 'Okunmadı', invitedFriend: 'Davet edilen arkadaş', inviteCode: 'Davet kodu', viewReceipt: 'Makbuzu görüntüle' },
-  nl: { unread: 'Ongelezen', invitedFriend: 'Uitgenodigde vriend', inviteCode: 'Uitnodigingscode', viewReceipt: 'Ontvangstbewijs bekijken' },
-  de: { unread: 'Ungelesen', invitedFriend: 'Eingeladener Freund', inviteCode: 'Einladungscode', viewReceipt: 'Beleg ansehen' },
-  fr: { unread: 'Non lu', invitedFriend: 'Personne invitée', inviteCode: 'Code d’invitation', viewReceipt: 'Voir le reçu' },
-  ar: { unread: 'غير مقروء', invitedFriend: 'الصديق الذي دعوته', inviteCode: 'رمز الدعوة', viewReceipt: 'عرض الإيصال' },
-  bn: { unread: 'অপঠিত', invitedFriend: 'আমন্ত্রিত বন্ধু', inviteCode: 'আমন্ত্রণ কোড', viewReceipt: 'রসিদ দেখুন' },
-  pt: { unread: 'Não lida', invitedFriend: 'Amigo convidado', inviteCode: 'Código de convite', viewReceipt: 'Ver recibo' },
-  ru: { unread: 'Не прочитано', invitedFriend: 'Приглашённый друг', inviteCode: 'Код приглашения', viewReceipt: 'Посмотреть квитанцию' },
-  id: { unread: 'Belum dibaca', invitedFriend: 'Teman yang diundang', inviteCode: 'Kode undangan', viewReceipt: 'Lihat tanda terima' },
-  vi: { unread: 'Chưa đọc', invitedFriend: 'Người bạn đã mời', inviteCode: 'Mã mời', viewReceipt: 'Xem biên nhận' },
-  'zh-tw': { unread: '未讀', invitedFriend: '受邀好友', inviteCode: '邀請碼', viewReceipt: '查看收據' },
-  sv: { unread: 'Oläst', invitedFriend: 'Inbjuden vän', inviteCode: 'Inbjudningskod', viewReceipt: 'Visa kvitto' },
-  ro: { unread: 'Necitit', invitedFriend: 'Prieten invitat', inviteCode: 'Cod de invitație', viewReceipt: 'Vezi chitanța' },
-  ur: { unread: 'غیر پڑھا ہوا', invitedFriend: 'مدعو دوست', inviteCode: 'دعوتی کوڈ', viewReceipt: 'رسید دیکھیں' },
-  pcm: { unread: 'Never read', invitedFriend: 'Friend wey you invite', inviteCode: 'Invite code', viewReceipt: 'See receipt' },
-  arz: { unread: 'مش مقروء', invitedFriend: 'الشخص اللي عزمته', inviteCode: 'كود الدعوة', viewReceipt: 'شوف الإيصال' },
-  mr: { unread: 'न वाचलेले', invitedFriend: 'आमंत्रित मित्र', inviteCode: 'आमंत्रण कोड', viewReceipt: 'पावती पहा' },
-  te: { unread: 'చదవనిది', invitedFriend: 'ఆహ్వానించిన స్నేహితుడు', inviteCode: 'ఆహ్వాన కోడ్', viewReceipt: 'రసీదు చూడండి' },
-  sw: { unread: 'Haijasomwa', invitedFriend: 'Rafiki uliyemwalika', inviteCode: 'Msimbo wa mwaliko', viewReceipt: 'Tazama risiti' },
-  ha: { unread: 'Ba a karanta ba', invitedFriend: 'Abokin da ka gayyata', inviteCode: 'Lambar gayyata', viewReceipt: 'Duba rasit' },
-  el: { unread: 'Μη αναγνωσμένο', invitedFriend: 'Φίλος που προσκάλεσες', inviteCode: 'Κωδικός πρόσκλησης', viewReceipt: 'Προβολή απόδειξης' },
-  cs: { unread: 'Nepřečtené', invitedFriend: 'Pozvaný přítel', inviteCode: 'Kód pozvánky', viewReceipt: 'Zobrazit potvrzení' },
-};
-'''
-          Path('src/lib/i18n/notificationMetaCopy.ts').write_text(meta_copy)
+          meta_b64 = 'aW1wb3J0IHR5cGUgeyBTdXBwb3J0ZWRMb2NhbGUgfSBmcm9tICcuL2xvY2FsZXMnOwoKZXhwb3J0IHR5cGUgTm90aWZpY2F0aW9uTWV0YUNvcHkgPSB7CiAgdW5yZWFkOiBzdHJpbmc7CiAgaW52aXRlZEZyaWVuZDogc3RyaW5nOwogIGludml0ZUNvZGU6IHN0cmluZzsKICB2aWV3UmVjZWlwdDogc3RyaW5nOwp9OwoKZXhwb3J0IGNvbnN0IE5PVElGSUNBVElPTl9NRVRBX0NPUFk6IFJlY29yZDxTdXBwb3J0ZWRMb2NhbGUsIE5vdGlmaWNhdGlvbk1ldGFDb3B5PiA9IHsKICBlbjogeyB1bnJlYWQ6ICdVbnJlYWQnLCBpbnZpdGVkRnJpZW5kOiAnSW52aXRlZCBmcmllbmQnLCBpbnZpdGVDb2RlOiAnSW52aXRlIGNvZGUnLCB2aWV3UmVjZWlwdDogJ1ZpZXcgcmVjZWlwdCcgfSwKICBrbzogeyB1bnJlYWQ6ICfsnb3sp4Ag7JWK7J2MJywgaW52aXRlZEZyaWVuZDogJ+y0iOuMgO2VnCDsuZzqtawnLCBpbnZpdGVDb2RlOiAn7LSI64yAIOy9lOuTnCcsIHZpZXdSZWNlaXB0OiAn7JiB7IiY7KadIOuztOq4sCcgfSwKICB6aDogeyB1bnJlYWQ6ICfmnKror7snLCBpbnZpdGVkRnJpZW5kOiAn5Y+X6YKA5aW95Y+LJywgaW52aXRlQ29kZTogJ+mCgOivt+eggScsIHZpZXdSZWNlaXB0OiAn5p+l55yL5pS25o2uJyB9LAogIGhpOiB7IHVucmVhZDogJ+CkheCkquCkoOCkv+CkpCcsIGludml0ZWRGcmllbmQ6ICfgpIbgpK7gpILgpKTgpY3gpLDgpL/gpKQg4KSu4KS/4KSk4KWN4KSwJywgaW52aXRlQ29kZTogJ+CkhuCkruCkguCkpOCljeCksOCkoyDgpJXgpYvgpKEnLCB2aWV3UmVjZWlwdDogJ+CksOCkuOClgOCkpiDgpKbgpYfgpJbgpYfgpIInIH0sCiAgZXM6IHsgdW5yZWFkOiAnU2luIGxlZXInLCBpbnZpdGVkRnJpZW5kOiAnUGVyc29uYSBpbnZpdGFkYScsIGludml0ZUNvZGU6ICdDw7NkaWdvIGRlIGludml0YWNpw7NuJywgdmlld1JlY2VpcHQ6ICdWZXIgcmVjaWJvJyB9LAogIGphOiB7IHVucmVhZDogJ+acquiqrScsIGludml0ZWRGcmllbmQ6ICfmi5vlvoXjgZfjgZ/lj4vjgaDjgaEnLCBpbnZpdGVDb2RlOiAn5oub5b6F44Kz44O844OJJywgdmlld1JlY2VpcHQ6ICflj5flj5bmmI7ntLDjgpLopovjgosnIH0sCiAgaXQ6IHsgdW5yZWFkOiAnRGEgbGVnZ2VyZScsIGludml0ZWRGcmllbmQ6ICdQZXJzb25hIGludml0YXRhJywgaW52aXRlQ29kZTogJ0NvZGljZSBpbnZpdG8nLCB2aWV3UmVjZWlwdDogJ1ZlZGkgcmljZXZ1dGEnIH0sCiAgdHI6IHsgdW5yZWFkOiAnT2t1bm1hZMSxJywgaW52aXRlZEZyaWVuZDogJ0RhdmV0IGVkaWxlbiBhcmthZGHFnycsIGludml0ZUNvZGU6ICdEYXZldCBrb2R1Jywgdmlld1JlY2VpcHQ6ICdNYWtidXp1IGfDtnLDvG50w7xsZScgfSwKICBubDogeyB1bnJlYWQ6ICdPbmdlbGV6ZW4nLCBpbnZpdGVkRnJpZW5kOiAnVWl0Z2Vub2RpZ2RlIHZyaWVuZCcsIGludml0ZUNvZGU6ICdVaXRub2RpZ2luZ3Njb2RlJywgdmlld1JlY2VpcHQ6ICdPbnR2YW5nc3RiZXdpanMgYmVraWprZW4nIH0sCiAgZGU6IHsgdW5yZWFkOiAnVW5nZWxlc2VuJywgaW52aXRlZEZyaWVuZDogJ0VpbmdlbGFkZW5lciBGcmV1bmQnLCBpbnZpdGVDb2RlOiAnRWlubGFkdW5nc2NvZGUnLCB2aWV3UmVjZWlwdDogJ0JlbGVnIGFuc2VoZW4nIH0sCiAgZnI6IHsgdW5yZWFkOiAnTm9uIGx1JywgaW52aXRlZEZyaWVuZDogJ1BlcnNvbm5lIGludml0w6llJywgaW52aXRlQ29kZTogJ0NvZGUgZOKAmWludml0YXRpb24nLCB2aWV3UmVjZWlwdDogJ1ZvaXIgbGUgcmXDp3UnIH0sCiAgYXI6IHsgdW5yZWFkOiAn2LrZitixINmF2YLYsdmI2KEnLCBpbnZpdGVkRnJpZW5kOiAn2KfZhNi12K/ZitmCINin2YTYsNmKINiv2LnZiNiq2YcnLCBpbnZpdGVDb2RlOiAn2LHZhdiyINin2YTYr9i52YjYqScsIHZpZXdSZWNlaXB0OiAn2LnYsdi2INin2YTYpdmK2LXYp9mEJyB9LAogIGJuOiB7IHVucmVhZDogJ+CmheCmquCmoOCmv+CmpCcsIGludml0ZWRGcmllbmQ6ICfgpobgpq7gpqjgp43gpqTgp43gprDgpr/gpqQg4Kas4Kao4KeN4Kan4KeBJywgaW52aXRlQ29kZTogJ+CmhuCmruCmqOCnjeCmpOCnjeCmsOCmoyDgppXgp4vgpqEnLCB2aWV3UmVjZWlwdDogJ+CmsOCmuOCmv+CmpiDgpqbgp4fgppbgp4HgpqgnIH0sCiAgcHQ6IHsgdW5yZWFkOiAnTsOjbyBsaWRhJywgaW52aXRlZEZyaWVuZDogJ0FtaWdvIGNvbnZpZGFkbycsIGludml0ZUNvZGU6ICdDw7NkaWdvIGRlIGNvbnZpdGUnLCB2aWV3UmVjZWlwdDogJ1ZlciByZWNpYm8nIH0sCiAgcnU6IHsgdW5yZWFkOiAn0J3QtSDQv9GA0L7Rh9C40YLQsNC90L4nLCBpbnZpdGVkRnJpZW5kOiAn0J/RgNC40LPQu9Cw0YjRkdC90L3Ri9C5INC00YDRg9CzJywgaW52aXRlQ29kZTogJ9Ca0L7QtCDQv9GA0LjQs9C70LDRiNC10L3QuNGPJywgdmlld1JlY2VpcHQ6ICfQn9C+0YHQvNC+0YLRgNC10YLRjCDQutCy0LjRgtCw0L3RhtC40Y4nIH0sCiAgaWQ6IHsgdW5yZWFkOiAnQmVsdW0gZGliYWNhJywgaW52aXRlZEZyaWVuZDogJ1RlbWFuIHlhbmcgZGl1bmRhbmcnLCBpbnZpdGVDb2RlOiAnS29kZSB1bmRhbmdhbicsIHZpZXdSZWNlaXB0OiAnTGloYXQgdGFuZGEgdGVyaW1hJyB9LAogIHZpOiB7IHVucmVhZDogJ0NoxrBhIMSR4buNYycsIGludml0ZWRGcmllbmQ6ICdOZ8aw4budaSBi4bqhbiDEkcOjIG3hu51pJywgaW52aXRlQ29kZTogJ03DoyBt4budaScsIHZpZXdSZWNlaXB0OiAnWGVtIGJpw6puIG5o4bqtbicgfSwKICAnemgtdHcnOiB7IHVucmVhZDogJ+acquiugCcsIGludml0ZWRGcmllbmQ6ICflj5fpgoDlpb3lj4snLCBpbnZpdGVDb2RlOiAn6YKA6KuL56K8Jywgdmlld1JlY2VpcHQ6ICfmn6XnnIvmlLbmk5onIH0sCiAgc3Y6IHsgdW5yZWFkOiAnT2zDpHN0JywgaW52aXRlZEZyaWVuZDogJ0luYmp1ZGVuIHbDpG4nLCBpbnZpdGVDb2RlOiAnSW5ianVkbmluZ3Nrb2QnLCB2aWV3UmVjZWlwdDogJ1Zpc2Ega3ZpdHRvJyB9LAogIHJvOiB7IHVucmVhZDogJ05lY2l0aXQnLCBpbnZpdGVkRnJpZW5kOiAnUHJpZXRlbiBpbnZpdGF0JywgaW52aXRlQ29kZTogJ0NvZCBkZSBpbnZpdGHIm2llJywgdmlld1JlY2VpcHQ6ICdWZXppIGNoaXRhbsibYScgfSwKICB1cjogeyB1bnJlYWQ6ICfYutuM2LEg2b7akdq+2Kcg24HZiNinJywgaW52aXRlZEZyaWVuZDogJ9mF2K/YudmIINiv2YjYs9iqJywgaW52aXRlQ29kZTogJ9iv2LnZiNiq24wg2qnZiNqIJywgdmlld1JlY2VpcHQ6ICfYsdiz24zYryDYr9uM2qnavtuM2ronIH0sCiAgcGNtOiB7IHVucmVhZDogJ05ldmVyIHJlYWQnLCBpbnZpdGVkRnJpZW5kOiAnRnJpZW5kIHdleSB5b3UgaW52aXRlJywgaW52aXRlQ29kZTogJ0ludml0ZSBjb2RlJywgdmlld1JlY2VpcHQ6ICdTZWUgcmVjZWlwdCcgfSwKICBhcno6IHsgdW5yZWFkOiAn2YXYtCDZhdmC2LHZiNihJywgaW52aXRlZEZyaWVuZDogJ9in2YTYtNiu2LUg2KfZhNmE2Yog2LnYstmF2KrZhycsIGludml0ZUNvZGU6ICfZg9mI2K8g2KfZhNiv2LnZiNipJywgdmlld1JlY2VpcHQ6ICfYtNmI2YEg2KfZhNil2YrYtdin2YQnIH0sCiAgbXI6IHsgdW5yZWFkOiAn4KSoIOCkteCkvuCkmuCksuClh+CksuClhycsIGludml0ZWRGcmllbmQ6ICfgpIbgpK7gpILgpKTgpY3gpLDgpL/gpKQg4KSu4KS/4KSk4KWN4KSwJywgaW52aXRlQ29kZTogJ+CkhuCkruCkguCkpOCljeCksOCkoyDgpJXgpYvgpKEnLCB2aWV3UmVjZWlwdDogJ+CkquCkvuCkteCkpOClgCDgpKrgpLngpL4nIH0sCiAgdGU6IHsgdW5yZWFkOiAn4LCa4LCm4LC14LCo4LC/4LCm4LC/JywgaW52aXRlZEZyaWVuZDogJ+CwhuCwueCxjeCwteCwvuCwqOCwv+CwguCwmuCwv+CwqCDgsLjgsY3gsKjgsYfgsLngsL/gsKTgsYHgsKHgsYEnLCBpbnZpdGVDb2RlOiAn4LCG4LC54LGN4LC14LC+4LCoIOCwleCxi+CwoeCxjScsIHZpZXdSZWNlaXB0OiAn4LCw4LC44LGA4LCm4LGBIOCwmuCxguCwoeCwguCwoeCwvycgfSwKICBzdzogeyB1bnJlYWQ6ICdIYWlqYXNvbXdhJywgaW52aXRlZEZyaWVuZDogJ1JhZmlraSB1bGl5ZW13YWxpa2EnLCBpbnZpdGVDb2RlOiAnTXNpbWJvIHdhIG13YWxpa28nLCB2aWV3UmVjZWlwdDogJ1RhemFtYSByaXNpdGknIH0sCiAgaGE6IHsgdW5yZWFkOiAnQmEgYSBrYXJhbnRhIGJhJywgaW52aXRlZEZyaWVuZDogJ0Fib2tpbiBkYSBrYSBnYXl5YXRhJywgaW52aXRlQ29kZTogJ0xhbWJhciBnYXl5YXRhJywgdmlld1JlY2VpcHQ6ICdEdWJhIHJhc2l0JyB9LAogIGVsOiB7IHVucmVhZDogJ86czrcgzrHOvc6xzrPOvc+Jz4POvM6tzr3OvycsIGludml0ZWRGcmllbmQ6ICfOps6vzrvOv8+CIM+Azr/PhSDPgM+Bzr/Pg866zqzOu861z4POtc+CJywgaW52aXRlQ29kZTogJ86az4nOtM65zrrPjM+CIM+Az4HPjM+DzrrOu863z4POt8+CJywgdmlld1JlY2VpcHQ6ICfOoM+Bzr/Oss6/zrvOriDOsc+Az4zOtM61zrnOvs63z4InIH0sCiAgY3M6IHsgdW5yZWFkOiAnTmVwxZllxI10ZW7DqScsIGludml0ZWRGcmllbmQ6ICdQb3p2YW7DvSBwxZnDrXRlbCcsIGludml0ZUNvZGU6ICdLw7NkIHBvenbDoW5reScsIHZpZXdSZWNlaXB0OiAnWm9icmF6aXQgcG90dnJ6ZW7DrScgfSwKfTsK'
+          hierarchy_test_b64 = 'aW1wb3J0IHRlc3QgZnJvbSAnbm9kZTp0ZXN0JzsKaW1wb3J0IGFzc2VydCBmcm9tICdub2RlOmFzc2VydC9zdHJpY3QnOwppbXBvcnQgeyByZWFkRmlsZVN5bmMgfSBmcm9tICdub2RlOmZzJzsKCmNvbnN0IHJlYWQgPSAocGF0aCkgPT4gcmVhZEZpbGVTeW5jKHBhdGgsICd1dGY4Jyk7CmNvbnN0IGxvY2FsZXMgPSByZWFkKCdzcmMvbGliL2kxOG4vbG9jYWxlcy50cycpOwpjb25zdCBtZXRhQ29weSA9IHJlYWQoJ3NyYy9saWIvaTE4bi9ub3RpZmljYXRpb25NZXRhQ29weS50cycpOwpjb25zdCBoaXN0b3J5Q29weSA9IHJlYWQoJ3NyYy9saWIvaTE4bi9ub3RpZmljYXRpb25IaXN0b3J5Q29weS50cycpOwpjb25zdCBjZW50ZXIgPSByZWFkKCdzcmMvY29tcG9uZW50cy9VbmlmaWVkSW52aXRlTm90aWZpY2F0aW9uSGlzdG9yeUNlbnRlci50c3gnKTsKY29uc3QgcG9saXNoID0gcmVhZCgnc3JjL2FwcC9ub3RpZmljYXRpb24taGlzdG9yeS1wb2xpc2guY3NzJyk7Cgpjb25zdCBzdXBwb3J0ZWRMb2NhbGVzID0gWy4uLmxvY2FsZXMubWF0Y2hBbGwoL1x7IGxvY2FsZTogJyhbXiddKyknL2cpXQogIC5tYXAoKG1hdGNoKSA9PiBtYXRjaFsxXSk7CmNvbnN0IHRyYW5zbGF0ZWRMb2NhbGVzID0gWy4uLm1ldGFDb3B5Lm1hdGNoQWxsKAogIC9eXHMqKD86JyhbXiddKyknfChbYS16XSspKTpccypcey9nbXUsCildCiAgLm1hcCgobWF0Y2gpID0+IG1hdGNoWzFdID8/IG1hdGNoWzJdKQogIC5maWx0ZXIoKGxvY2FsZSkgPT4gc3VwcG9ydGVkTG9jYWxlcy5pbmNsdWRlcyhsb2NhbGUpKTsKCnRlc3QoJ25vdGlmaWNhdGlvbiByZWxhdGlvbnNoaXAgbWV0YWRhdGEgaXMgdHJhbnNsYXRlZCBmb3IgZXZlcnkgc3VwcG9ydGVkIGxvY2FsZScsICgpID0+IHsKICBhc3NlcnQuZXF1YWwodHJhbnNsYXRlZExvY2FsZXMubGVuZ3RoLCBzdXBwb3J0ZWRMb2NhbGVzLmxlbmd0aCk7CiAgYXNzZXJ0LmRlZXBFcXVhbCgKICAgIFsuLi5uZXcgU2V0KHRyYW5zbGF0ZWRMb2NhbGVzKV0uc29ydCgpLAogICAgWy4uLnN1cHBvcnRlZExvY2FsZXNdLnNvcnQoKSwKICApOwogIGZvciAoY29uc3QgZmllbGQgb2YgWyd1bnJlYWQnLCAnaW52aXRlZEZyaWVuZCcsICdpbnZpdGVDb2RlJywgJ3ZpZXdSZWNlaXB0J10pIHsKICAgIGFzc2VydC5tYXRjaChtZXRhQ29weSwgbmV3IFJlZ0V4cChgJHtmaWVsZH06YCkpOwogIH0KfSk7Cgp0ZXN0KCdub3RpZmljYXRpb24gY2FyZHMgZXhwbGFpbiB3aG9zZSB3YWxsZXQgaXMgc2hvd24gaW5zdGVhZCBvZiBleHBvc2luZyBhbiB1bmxhYmVsZWQgYWRkcmVzcycsICgpID0+IHsKICBhc3NlcnQubWF0Y2goY2VudGVyLCAvbWV0YUNvcHlcLmludml0ZWRGcmllbmQvdSk7CiAgYXNzZXJ0Lm1hdGNoKGNlbnRlciwgL2NsYXNzTmFtZT0ibm90aWZpY2F0aW9uRnJpZW5kTWV0YSIvdSk7CiAgYXNzZXJ0Lm1hdGNoKGNlbnRlciwgL2NsYXNzTmFtZT0ibm90aWZpY2F0aW9uRnJpZW5kV2FsbGV0IiBkaXI9Imx0ciIvdSk7CiAgYXNzZXJ0Lm1hdGNoKGNlbnRlciwgL1woXHtmcmllbmRcfVwpL3UpOwogIGFzc2VydC5tYXRjaChjZW50ZXIsIC9tZXRhQ29weVwuaW52aXRlQ29kZS91KTsKICBhc3NlcnQubWF0Y2goY2VudGVyLCAvY2xhc3NOYW1lPSJub3RpZmljYXRpb25BY3Rpb25NZXRhSXRlbSIvdSk7Cn0pOwoKdGVzdCgndW5yZWFkIHN0YXR1cywgdGltZSBncm91cGluZyBhbmQgS29yZWFuIGFjdGlvbnMgaGF2ZSBkaXN0aW5jdCBtZWFuaW5ncycsICgpID0+IHsKICBhc3NlcnQubWF0Y2goY2VudGVyLCAvbWV0YUNvcHlcLnVucmVhZC91KTsKICBhc3NlcnQubWF0Y2goaGlzdG9yeUNvcHksIC9rbzogXHsgdGl0bGU6ICfslYzrprwnLCBuZXdMYWJlbDogJ+ydveyngCDslYrsnYwnLCBtYXJrQWxsOiAn66qo65GQIOydveydjCDsspjrpqwnLCB0b2RheTogJ+yYpOuKmCcsIHllc3RlcmRheTogJ+yWtOygnCcsIGVhcmxpZXI6ICfsnbTsoIQnL3UpOwp9KTsKCnRlc3QoJ2V2ZW50IHRpbWUgc3RheXMgdG9wLXJpZ2h0IGFuZCBuYXR1cmFsIHdyYXBwaW5nIHByZXZlbnRzIHN0cmFuZGVkIGZpbmFsIHdvcmRzJywgKCkgPT4gewogIGFzc2VydC5tYXRjaChwb2xpc2gsIC8idGl0bGUgdGltZSJbXHNcU10qImJvZHkgYm9keSJbXHNcU10qIm1ldGEgbWV0YSIvdSk7CiAgYXNzZXJ0Lm1hdGNoKHBvbGlzaCwgL1wubm90aWZpY2F0aW9uSGlzdG9yeVRpdGxlW1xzXFNdKnRleHQtd3JhcDpccypiYWxhbmNlXHMqIWltcG9ydGFudC91KTsKICBhc3NlcnQubWF0Y2gocG9saXNoLCAvXC5ub3RpZmljYXRpb25IaXN0b3J5Qm9keVtcc1xTXSp0ZXh0LXdyYXA6XHMqcHJldHR5XHMqIWltcG9ydGFudC91KTsKICBhc3NlcnQubWF0Y2gocG9saXNoLCAvXFtsYW5nPSJrbyJcXSBcLm5vdGlmaWNhdGlvbkhpc3RvcnlCb2R5W1xzXFNdKndvcmQtYnJlYWs6XHMqa2VlcC1hbGxccyohaW1wb3J0YW50L3UpOwogIGFzc2VydC5kb2VzTm90TWF0Y2gocG9saXNoLCAvInRpdGxlIlxzKlxuXHMqImJvZHkiXHMqXG5ccyoibWV0YSJccypcblxzKiJ0aW1lIi91KTsKfSk7Cgp0ZXN0KCdwYWlkIG5vdGlmaWNhdGlvbnMga2VlcCByZWNlaXB0IGFja25vd2xlZGdlbWVudCBzZW1hbnRpY3Mgd2hpbGUgbWFraW5nIHRoZSBhY3Rpb24gZXhwbGljaXQnLCAoKSA9PiB7CiAgYXNzZXJ0Lm1hdGNoKGNlbnRlciwgL21ldGFDb3B5XC52aWV3UmVjZWlwdC91KTsKICBhc3NlcnQubWF0Y2goY2VudGVyLCAvaWYgXChwYWlkXCkgXHtbXHNcU10qdm9pZCBvcGVuUmV3YXJkUmVjZWlwdFwoaXRlbVwpW1xzXFNdKnJldHVybjsvdSk7CiAgYXNzZXJ0Lm1hdGNoKGNlbnRlciwgL0FDS05PV0xFREdFX1JFV0FSRF9SRUNFSVBUL3UpOwp9KTsK'
+          polish_test_b64 = 'aW1wb3J0IHRlc3QgZnJvbSAnbm9kZTp0ZXN0JzsKaW1wb3J0IGFzc2VydCBmcm9tICdub2RlOmFzc2VydC9zdHJpY3QnOwppbXBvcnQgeyByZWFkRmlsZVN5bmMgfSBmcm9tICdub2RlOmZzJzsKCmNvbnN0IGxheW91dCA9IHJlYWRGaWxlU3luYygKICBuZXcgVVJMKCcuLi9zcmMvYXBwL2xheW91dC50c3gnLCBpbXBvcnQubWV0YS51cmwpLAogICd1dGY4JywKKTsKY29uc3QgcG9saXNoID0gcmVhZEZpbGVTeW5jKAogIG5ldyBVUkwoJy4uL3NyYy9hcHAvbm90aWZpY2F0aW9uLWhpc3RvcnktcG9saXNoLmNzcycsIGltcG9ydC5tZXRhLnVybCksCiAgJ3V0ZjgnLAopOwpjb25zdCBjZW50ZXIgPSByZWFkRmlsZVN5bmMoCiAgbmV3IFVSTCgnLi4vc3JjL2NvbXBvbmVudHMvVW5pZmllZEludml0ZU5vdGlmaWNhdGlvbkhpc3RvcnlDZW50ZXIudHN4JywgaW1wb3J0Lm1ldGEudXJsKSwKICAndXRmOCcsCik7Cgp0ZXN0KCdub3RpZmljYXRpb24gcG9saXNoIGlzIGxvYWRlZCBnbG9iYWxseSBhZnRlciBleGlzdGluZyBub3RpZmljYXRpb24gaGFyZGVuaW5nJywgKCkgPT4gewogIGFzc2VydC5tYXRjaChsYXlvdXQsIC9pbXBvcnQgJ1wuXC9ub3RpZmljYXRpb24taTE4bi1oYXJkZW5pbmdcLmNzcyc7L3UpOwogIGFzc2VydC5tYXRjaChsYXlvdXQsIC9pbXBvcnQgJ1wuXC9ub3RpZmljYXRpb24taGlzdG9yeS1wb2xpc2hcLmNzcyc7L3UpOwogIGFzc2VydC5vaygKICAgIGxheW91dC5pbmRleE9mKCJpbXBvcnQgJy4vbm90aWZpY2F0aW9uLWhpc3RvcnktcG9saXNoLmNzcyc7IikgPgogICAgICBsYXlvdXQuaW5kZXhPZigiaW1wb3J0ICcuL25vdGlmaWNhdGlvbi1pMThuLWhhcmRlbmluZy5jc3MnOyIpLAogICk7Cn0pOwoKdGVzdCgnb3JkaW5hcnkgbm90aWZpY2F0aW9uIGNhcmRzIGtlZXAgZXZlbnQgdGltZSBpbiBhIHN0YWJsZSB0b3AtcmlnaHQgcG9zaXRpb24nLCAoKSA9PiB7CiAgYXNzZXJ0Lm1hdGNoKHBvbGlzaCwgL1wubm90aWZpY2F0aW9uSGlzdG9yeVBhbmVsIFwubm90aWZpY2F0aW9uSGlzdG9yeUdyb3VwID4gZGl2W1xzXFNdKmRpc3BsYXk6XHMqZ3JpZFxzKiFpbXBvcnRhbnQvdSk7CiAgYXNzZXJ0Lm1hdGNoKHBvbGlzaCwgL1wubm90aWZpY2F0aW9uSGlzdG9yeVBhbmVsIFwubm90aWZpY2F0aW9uSGlzdG9yeVJvd1tcc1xTXSpib3JkZXItcmFkaXVzOlxzKjE0cHhccyohaW1wb3J0YW50L3UpOwogIGFzc2VydC5tYXRjaChwb2xpc2gsIC9ncmlkLXRlbXBsYXRlLWFyZWFzOltcc1xTXSoidGl0bGUgdGltZSJbXHNcU10qImJvZHkgYm9keSJbXHNcU10qIm1ldGEgbWV0YSJccyohaW1wb3J0YW50L3UpOwogIGFzc2VydC5tYXRjaChwb2xpc2gsIC9cLm5vdGlmaWNhdGlvbkhpc3RvcnlUb3BMaW5lW1xzXFNdKmRpc3BsYXk6XHMqY29udGVudHNccyohaW1wb3J0YW50L3UpOwogIGFzc2VydC5tYXRjaChwb2xpc2gsIC9cLm5vdGlmaWNhdGlvbkhpc3RvcnlCb2R5W1xzXFNdKnBhZGRpbmctaW5saW5lLXN0YXJ0OlxzKjBccyohaW1wb3J0YW50L3UpOwogIGFzc2VydC5tYXRjaChwb2xpc2gsIC9cLm5vdGlmaWNhdGlvbkhpc3RvcnlNZXRhW1xzXFNdKnBhZGRpbmctaW5saW5lLXN0YXJ0OlxzKjBccyohaW1wb3J0YW50L3UpOwp9KTsKCnRlc3QoJ2xvbmcgdHJhbnNsYXRpb25zIGFuZCBSVEwtc2FmZSBsb2dpY2FsIHNwYWNpbmcgcmVtYWluIGZpcnN0LWNsYXNzJywgKCkgPT4gewogIGFzc2VydC5tYXRjaChwb2xpc2gsIC9vdmVyZmxvdy13cmFwOlxzKmFueXdoZXJlXHMqIWltcG9ydGFudC91KTsKICBhc3NlcnQubWF0Y2gocG9saXNoLCAvd29yZC1icmVhazpccypub3JtYWxccyohaW1wb3J0YW50L3UpOwogIGFzc2VydC5tYXRjaChwb2xpc2gsIC9wYWRkaW5nLWlubGluZTovdSk7CiAgYXNzZXJ0Lm1hdGNoKHBvbGlzaCwgL21hcmdpbi1pbmxpbmU6L3UpOwogIGFzc2VydC5kb2VzTm90TWF0Y2gocG9saXNoLCAvXGIoPzpsZWZ0fHJpZ2h0KTpccypcZC91KTsKICBhc3NlcnQubWF0Y2goY2VudGVyLCAvZGlyPVx7cnRsIFw/ICdydGwnIDogJ2x0cidcfS91KTsKfSk7Cgp0ZXN0KCdyZXdhcmQgYWN0aW9ucyBrZWVwIENsYWltIGFuZCBwcm9jZXNzaW5nIGNvbnRyb2xzIHNlcGFyYXRlIHdoaWxlIG1hdGNoaW5nIGNhcmQgZ2VvbWV0cnknLCAoKSA9PiB7CiAgYXNzZXJ0Lm1hdGNoKHBvbGlzaCwgL1wubm90aWZpY2F0aW9uSGlzdG9yeVBhbmVsIFwubm90aWZpY2F0aW9uQWN0aW9uU2VjdGlvbltcc1xTXSpib3JkZXItcmFkaXVzOlxzKjE2cHhccyohaW1wb3J0YW50L3UpOwogIGFzc2VydC5tYXRjaChwb2xpc2gsIC9cLm5vdGlmaWNhdGlvbkhpc3RvcnlQYW5lbCBcLm5vdGlmaWNhdGlvbkFjdGlvbkNhcmRbXHNcU10qYm9yZGVyLXJhZGl1czpccyoxNHB4XHMqIWltcG9ydGFudC91KTsKICBhc3NlcnQubWF0Y2gocG9saXNoLCAvXC5ub3RpZmljYXRpb25DbGFpbUJ1dHRvbixbXHNcU10qXC5ub3RpZmljYXRpb25Qcm9jZXNzaW5nQmFkZ2UvdSk7CiAgYXNzZXJ0Lm1hdGNoKGNlbnRlciwgL2NsYXNzTmFtZT0ibm90aWZpY2F0aW9uQ2xhaW1CdXR0b24iL3UpOwogIGFzc2VydC5tYXRjaChjZW50ZXIsIC9jbGFzc05hbWU9Im5vdGlmaWNhdGlvblByb2Nlc3NpbmdCYWRnZSIvdSk7Cn0pOwoKdGVzdCgnbW9iaWxlIGNhcmRzLCBDbGFpbSBhY3Rpb25zIGFuZCBuYXJyb3cgdHJhbnNsYXRlZCBsYXlvdXRzIHJlbWFpbiB1c2FibGUnLCAoKSA9PiB7CiAgYXNzZXJ0Lm1hdGNoKHBvbGlzaCwgL0BtZWRpYSBcKG1heC13aWR0aDpccyo1NjBweFwpL3UpOwogIGFzc2VydC5tYXRjaChwb2xpc2gsIC9cLm5vdGlmaWNhdGlvbkNsYWltQnV0dG9uLFtcc1xTXSp3aWR0aDpccyoxMDAlXHMqIWltcG9ydGFudC91KTsKICBhc3NlcnQubWF0Y2gocG9saXNoLCAvQG1lZGlhIFwobWF4LXdpZHRoOlxzKjM1MHB4XClbXHNcU10qInRpdGxlIHRpbWUiW1xzXFNdKiJib2R5IGJvZHkiW1xzXFNdKiJtZXRhIG1ldGEiL3UpOwp9KTsKCnRlc3QoJ3ByZXNlbnRhdGlvbiBwb2xpc2ggZG9lcyBub3QgcmVwbGFjZSBub3RpZmljYXRpb24gYmVoYXZpb3Igb3duZXJzaGlwJywgKCkgPT4gewogIGFzc2VydC5tYXRjaChjZW50ZXIsIC9pZiBcKHBhaWRcKSBce1tcc1xTXSp2b2lkIG9wZW5SZXdhcmRSZWNlaXB0XChpdGVtXCkvdSk7CiAgYXNzZXJ0Lm1hdGNoKGNlbnRlciwgL2lmIFwodW5yZWFkXCkgdm9pZCBvbk1hcmtSZWFkXChpdGVtXC5pZFwpL3UpOwogIGFzc2VydC5tYXRjaChjZW50ZXIsIC9mZXRjaFwoJ1wvYXBpXC9yZXdhcmRzXC9jbGFpbXMnLFtcc1xTXSptZXRob2Q6XHMqJ1BPU1QnL3UpOwogIGFzc2VydC5tYXRjaChjZW50ZXIsIC9yZWNvbmNpbGVSZXdhcmRDbGFpbVN0YXRlXChccyphY3Rpb25cLmludml0ZUNvZGUvdSk7CiAgYXNzZXJ0Lm1hdGNoKGNlbnRlciwgL2RvY3VtZW50XC5ib2R5XC5zdHlsZVwub3ZlcmZsb3cgPSAnaGlkZGVuJy91KTsKICBhc3NlcnQubWF0Y2goY2VudGVyLCAvZXZlbnRcLmtleSA9PT0gJ0VzY2FwZScvdSk7Cn0pOwo='
+          Path('src/lib/i18n/notificationMetaCopy.ts').write_bytes(base64.b64decode(meta_b64))
+          Path('tests/notification-information-hierarchy.test.mjs').write_bytes(base64.b64decode(hierarchy_test_b64))
+          Path('tests/notification-history-polish.test.mjs').write_bytes(base64.b64decode(polish_test_b64))
 
           css = Path('src/app/notification-history-polish.css')
           css_text = css.read_text()
-          old_grid = '''  grid-template-columns: minmax(0, 1fr) auto !important;
-  grid-template-areas:
-    "title title"
-    "body body"
-    "meta time" !important;'''
-          new_grid = '''  grid-template-columns: minmax(0, 1fr) max-content !important;
-  grid-template-areas:
-    "title time"
-    "body body"
-    "meta meta" !important;'''
+          old_grid = "  grid-template-columns: minmax(0, 1fr) auto !important;\n  grid-template-areas:\n    \"title title\"\n    \"body body\"\n    \"meta time\" !important;"
+          new_grid = "  grid-template-columns: minmax(0, 1fr) max-content !important;\n  grid-template-areas:\n    \"title time\"\n    \"body body\"\n    \"meta meta\" !important;"
           if css_text.count(old_grid) != 1:
               raise SystemExit('notification-history-polish.css: main grid signature changed')
           css_text = css_text.replace(old_grid, new_grid, 1)
-          css_text = css_text.replace(
-              '''/* Flatten the old top row so time can live with metadata instead of fighting
- * long translated titles for horizontal space. */''',
-              '''/* Flatten the top row so title and event time share a stable first line while
- * body and relationship metadata keep their own full-width rows. */''',
-              1,
-          )
-          css_text = css_text.replace(
-              '''  hyphens: auto !important;
-}
-
-.notificationHistoryPanel .notificationHistoryBody {''',
-              '''  hyphens: auto !important;
-  text-wrap: balance !important;
-}
-
-.notificationHistoryPanel .notificationHistoryBody {''',
-              1,
-          )
-          css_text = css_text.replace(
-              '''  hyphens: auto !important;
-}
-
-.notificationHistoryPanel .notificationHistoryMeta {''',
-              '''  hyphens: auto !important;
-  text-wrap: pretty !important;
-}
-
-.notificationHistoryPanel .notificationHistoryMeta {''',
-              1,
-          )
-          wallet_block = '''.notificationHistoryPanel .notificationFriendWallet {
-  max-width: 100% !important;
-  color: #837d74 !important;
-  font-size: 0.57rem !important;
-  line-height: 1.3 !important;
-  overflow: hidden !important;
-  text-overflow: ellipsis !important;
-  white-space: nowrap !important;
-}
-'''
-          replacement_wallet = '''.notificationHistoryPanel .notificationFriendMeta {
-  min-width: 0 !important;
-  max-width: 100% !important;
-  display: inline-flex !important;
-  align-items: baseline !important;
-  flex-wrap: wrap !important;
-  gap: 4px !important;
-  color: #837d74 !important;
-  font-size: 0.57rem !important;
-  line-height: 1.35 !important;
-}
-
-.notificationHistoryPanel .notificationFriendLabel {
-  overflow-wrap: anywhere !important;
-}
-
-.notificationHistoryPanel .notificationFriendWallet {
-  max-width: 100% !important;
-  color: #918a80 !important;
-  font: inherit !important;
-  overflow: hidden !important;
-  text-overflow: ellipsis !important;
-  white-space: nowrap !important;
-}
-
-.notificationHistoryPanel .notificationReceiptAction {
-  display: inline-flex !important;
-  align-items: center !important;
-  gap: 4px !important;
-  color: #b9a76f !important;
-  font-size: 0.57rem !important;
-  line-height: 1.3 !important;
-  white-space: nowrap !important;
-}
-'''
-          if css_text.count(wallet_block) != 1:
-              raise SystemExit('notification-history-polish.css: wallet block changed')
-          css_text = css_text.replace(wallet_block, replacement_wallet, 1)
-          action_small = '''.notificationHistoryPanel .notificationActionCopy small {
-  max-width: 100% !important;
-  font-size: 0.56rem !important;
-  line-height: 1.3 !important;
-}
-'''
-          action_replacement = '''.notificationHistoryPanel .notificationActionCopy small {
-  max-width: 100% !important;
-  font-size: 0.56rem !important;
-  line-height: 1.35 !important;
-}
-
-.notificationHistoryPanel .notificationActionMeta {
-  display: flex !important;
-  flex-wrap: wrap !important;
-  gap: 5px 9px !important;
-  color: #837d74 !important;
-}
-
-.notificationHistoryPanel .notificationActionMetaItem {
-  min-width: 0 !important;
-  display: inline-flex !important;
-  align-items: baseline !important;
-  flex-wrap: wrap !important;
-  gap: 4px !important;
-}
-
-.notificationHistoryPanel .notificationActionMetaItem > span:last-child {
-  color: #918a80 !important;
-  white-space: nowrap !important;
-}
-'''
-          if css_text.count(action_small) != 1:
-              raise SystemExit('notification-history-polish.css: action small block changed')
-          css_text = css_text.replace(action_small, action_replacement, 1)
-          css_text += '''
-
-/* Korean copy should prefer natural phrase boundaries. `pretty` wrapping keeps
- * a final short word from being stranded on its own line in modern browsers,
- * while keep-all remains the safe fallback for older engines. */
-.notificationHistoryPanel[lang="ko"] .notificationHistoryTitle,
-.notificationHistoryPanel[lang="ko"] .notificationHistoryBody {
-  word-break: keep-all !important;
-  overflow-wrap: normal !important;
-  hyphens: none !important;
-}
-'''
-          old_narrow = '''  .notificationHistoryPanel .notificationHistoryContent {
-    grid-template-columns: minmax(0, 1fr) !important;
-    grid-template-areas:
-      "title"
-      "body"
-      "meta"
-      "time" !important;
-  }
-
-  .notificationHistoryPanel .notificationHistoryTime {
-    justify-self: start !important;
-  }
-'''
-          new_narrow = '''  .notificationHistoryPanel .notificationHistoryContent {
-    grid-template-columns: minmax(0, 1fr) max-content !important;
-    grid-template-areas:
-      "title time"
-      "body body"
-      "meta meta" !important;
-    column-gap: 8px !important;
-  }
-'''
-          if css_text.count(old_narrow) != 1:
-              raise SystemExit('notification-history-polish.css: narrow grid signature changed')
-          css_text = css_text.replace(old_narrow, new_narrow, 1)
-          css.write_text(css_text)
-
-          polish_test = Path('tests/notification-history-polish.test.mjs')
-          polish = polish_test.read_text()
-          polish = polish.replace(
-              "test('ordinary notification cards use balanced card spacing and move time away from long titles', () => {",
-              "test('ordinary notification cards keep event time in a stable top-right position', () => {",
-              1,
-          )
-          polish = polish.replace(
-              '''assert.match(polish, /grid-template-areas:[\\s\\S]*"title title"[\\s\\S]*"body body"[\\s\\S]*"meta time"\\s*!important/u);''',
-              '''assert.match(polish, /grid-template-areas:[\\s\\S]*"title time"[\\s\\S]*"body body"[\\s\\S]*"meta meta"\\s*!important/u);''',
-              1,
-          )
-          polish = polish.replace(
-              '''  assert.match(polish, /@media \\(max-width:\\s*350px\\)[\\s\\S]*"title"[\\s\\S]*"body"[\\s\\S]*"meta"[\\s\\S]*"time"/u);''',
-              '''  assert.match(polish, /@media \\(max-width:\\s*350px\\)[\\s\\S]*"title time"[\\s\\S]*"body body"[\\s\\S]*"meta meta"/u);''',
-              1,
-          )
-          polish_test.write_text(polish)
-
-          hierarchy_test = r'''import test from 'node:test';
-import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
-
-const read = (path) => readFileSync(path, 'utf8');
-const locales = read('src/lib/i18n/locales.ts');
-const metaCopy = read('src/lib/i18n/notificationMetaCopy.ts');
-const historyCopy = read('src/lib/i18n/notificationHistoryCopy.ts');
-const center = read('src/components/UnifiedInviteNotificationHistoryCenter.tsx');
-const polish = read('src/app/notification-history-polish.css');
-
-const supportedLocales = [...locales.matchAll(/\{ locale: '([^']+)'/g)]
-  .map((match) => match[1]);
-const translatedLocales = [...metaCopy.matchAll(
-  /^\s*(?:'([^']+)'|([a-z]+)):\s*\{/gmu,
-)]
-  .map((match) => match[1] ?? match[2])
-  .filter((locale) => supportedLocales.includes(locale));
-
-test('notification relationship metadata is translated for every supported locale', () => {
-  assert.equal(translatedLocales.length, supportedLocales.length);
-  assert.deepEqual(
-    [...new Set(translatedLocales)].sort(),
-    [...supportedLocales].sort(),
-  );
-  for (const field of ['unread', 'invitedFriend', 'inviteCode', 'viewReceipt']) {
-    assert.match(metaCopy, new RegExp(`${field}:`));
-  }
-});
-
-test('notification cards explain whose wallet is shown instead of exposing an unlabeled address', () => {
-  assert.match(center, /metaCopy\.invitedFriend/u);
-  assert.match(center, /className="notificationFriendMeta"/u);
-  assert.match(center, /className="notificationFriendWallet" dir="ltr"/u);
-  assert.match(center, /\(\{friend\}\)/u);
-  assert.match(center, /metaCopy\.inviteCode/u);
-  assert.match(center, /className="notificationActionMetaItem"/u);
-});
-
-test('unread status, time grouping and Korean actions have distinct meanings', () => {
-  assert.match(center, /metaCopy\.unread/u);
-  assert.match(historyCopy, /ko: \{ title: '알림', newLabel: '읽지 않음', markAll: '모두 읽음 처리', today: '오늘', yesterday: '어제', earlier: '이전'/u);
-});
-
-test('event time stays top-right and natural wrapping prevents stranded final words', () => {
-  assert.match(polish, /"title time"[\s\S]*"body body"[\s\S]*"meta meta"/u);
-  assert.match(polish, /\.notificationHistoryTitle[\s\S]*text-wrap:\s*balance\s*!important/u);
-  assert.match(polish, /\.notificationHistoryBody[\s\S]*text-wrap:\s*pretty\s*!important/u);
-  assert.match(polish, /\[lang="ko"\] \.notificationHistoryBody[\s\S]*word-break:\s*keep-all\s*!important/u);
-  assert.doesNotMatch(polish, /"title"\s*\n\s*"body"\s*\n\s*"meta"\s*\n\s*"time"/u);
-});
-
-test('paid notifications keep receipt acknowledgement semantics while making the action explicit', () => {
-  assert.match(center, /metaCopy\.viewReceipt/u);
-  assert.match(center, /if \(paid\) \{[\s\S]*void openRewardReceipt\(item\)[\s\S]*return;/u);
-  assert.match(center, /ACKNOWLEDGE_REWARD_RECEIPT/u);
-});
-'''
-          Path('tests/notification-information-hierarchy.test.mjs').write_text(hierarchy_test)
+          old_comment = "/* Flatten the old top row so time can live with metadata instead of fighting\n * long translated titles for horizontal space. */"
+          new_comment = "/* Flatten the top row so title and event time share a stable first line while\n * body and relationship metadata keep their own full-width rows. */"
+          if css_text.count(old_comment) != 1:
+              raise SystemExit('notification-history-polish.css: top-row comment signature changed')
+          css_text = css_text.replace(old_comment, new_comment, 1)
+          title_wrap_old = "  hyphens: auto !important;\n}\n\n.notificationHistoryPanel .notificationHistoryBody {"
+          title_wrap_new = "  hyphens: auto !important;\n  text-wrap: balance !important;\n}\n\n.notificationHistoryPanel .notificationHistoryBody {"
+          if css_text.count(title_wrap_old) != 1:
+              raise SystemExit('notification-history-polish.css: title wrap signature changed')
+          css_text = css_text.replace(title_wrap_old, title_wrap_new, 1)
+          body_wrap_old = "  hyphens: auto !important;\n}\n\n.notificationHistoryPanel .notificationHistoryMeta {"
+          body_wrap_new = "  hyphens: auto !important;\n  text-wrap: pretty !important;\n}\n\n.notificationHistoryPanel .notificationHistoryMeta {"
+          if css_text.count(body_wrap_old) != 1:
+              raise SystemExit('notification-history-polish.css: body wrap signature changed')
+          css_text = css_text.replace(body_wrap_old, body_wrap_new, 1)
+          wallet_old = ".notificationHistoryPanel .notificationFriendWallet {\n  max-width: 100% !important;\n  color: #837d74 !important;\n  font-size: 0.57rem !important;\n  line-height: 1.3 !important;\n  overflow: hidden !important;\n  text-overflow: ellipsis !important;\n  white-space: nowrap !important;\n}\n"
+          wallet_new = ".notificationHistoryPanel .notificationFriendMeta {\n  min-width: 0 !important;\n  max-width: 100% !important;\n  display: inline-flex !important;\n  align-items: baseline !important;\n  flex-wrap: wrap !important;\n  gap: 4px !important;\n  color: #837d74 !important;\n  font-size: 0.57rem !important;\n  line-height: 1.35 !important;\n}\n\n.notificationHistoryPanel .notificationFriendLabel {\n  overflow-wrap: anywhere !important;\n}\n\n.notificationHistoryPanel .notificationFriendWallet {\n  max-width: 100% !important;\n  color: #918a80 !important;\n  font: inherit !important;\n  overflow: hidden !important;\n  text-overflow: ellipsis !important;\n  white-space: nowrap !important;\n}\n\n.notificationHistoryPanel .notificationReceiptAction {\n  display: inline-flex !important;\n  align-items: center !important;\n  gap: 4px !important;\n  color: #b9a76f !important;\n  font-size: 0.57rem !important;\n  line-height: 1.3 !important;\n  white-space: nowrap !important;\n}\n"
+          if css_text.count(wallet_old) != 1:
+              raise SystemExit('notification-history-polish.css: wallet style signature changed')
+          css_text = css_text.replace(wallet_old, wallet_new, 1)
+          action_old = ".notificationHistoryPanel .notificationActionCopy small {\n  max-width: 100% !important;\n  font-size: 0.56rem !important;\n  line-height: 1.3 !important;\n}\n"
+          action_new = ".notificationHistoryPanel .notificationActionCopy small {\n  max-width: 100% !important;\n  font-size: 0.56rem !important;\n  line-height: 1.35 !important;\n}\n\n.notificationHistoryPanel .notificationActionMeta {\n  display: flex !important;\n  flex-wrap: wrap !important;\n  gap: 5px 9px !important;\n  color: #837d74 !important;\n}\n\n.notificationHistoryPanel .notificationActionMetaItem {\n  min-width: 0 !important;\n  display: inline-flex !important;\n  align-items: baseline !important;\n  flex-wrap: wrap !important;\n  gap: 4px !important;\n}\n\n.notificationHistoryPanel .notificationActionMetaItem > span:last-child {\n  color: #918a80 !important;\n  white-space: nowrap !important;\n}\n"
+          if css_text.count(action_old) != 1:
+              raise SystemExit('notification-history-polish.css: action meta signature changed')
+          css_text = css_text.replace(action_old, action_new, 1)
+          narrow_old = "  .notificationHistoryPanel .notificationHistoryContent {\n    grid-template-columns: minmax(0, 1fr) !important;\n    grid-template-areas:\n      \"title\"\n      \"body\"\n      \"meta\"\n      \"time\" !important;\n  }\n\n  .notificationHistoryPanel .notificationHistoryTime {\n    justify-self: start !important;\n  }\n"
+          narrow_new = "  .notificationHistoryPanel .notificationHistoryContent {\n    grid-template-columns: minmax(0, 1fr) max-content !important;\n    grid-template-areas:\n      \"title time\"\n      \"body body\"\n      \"meta meta\" !important;\n    column-gap: 8px !important;\n  }\n"
+          if css_text.count(narrow_old) != 1:
+              raise SystemExit('notification-history-polish.css: narrow layout signature changed')
+          css_text = css_text.replace(narrow_old, narrow_new, 1)
+          korean_wrap = "\n\n/* Korean copy should prefer natural phrase boundaries. `pretty` wrapping keeps\n * a final short word from being stranded on its own line in modern browsers,\n * while keep-all remains the safe fallback for older engines. */\n.notificationHistoryPanel[lang=\"ko\"] .notificationHistoryTitle,\n.notificationHistoryPanel[lang=\"ko\"] .notificationHistoryBody {\n  word-break: keep-all !important;\n  overflow-wrap: normal !important;\n  hyphens: none !important;\n}\n"
+          css.write_text(css_text + korean_wrap)
           PY
 
       - name: Run focused notification regression tests
