@@ -27,7 +27,9 @@ test('notification polish is loaded globally after existing notification hardeni
 test('ordinary notification cards keep event time in a stable top-right position', () => {
   assert.match(polish, /\.notificationHistoryPanel \.notificationHistoryGroup > div[\s\S]*display:\s*grid\s*!important/u);
   assert.match(polish, /\.notificationHistoryPanel \.notificationHistoryRow[\s\S]*border-radius:\s*14px\s*!important/u);
-  assert.match(polish, /grid-template-areas:[\s\S]*"title time"[\s\S]*"body body"[\s\S]*"meta meta"\s*!important/u);
+  assert.match(polish, /grid-template-areas:[\s\S]*"title time"[\s\S]*"body body"\s*!important/u);
+  assert.doesNotMatch(polish, /"meta meta"/u);
+  assert.match(polish, /\.notificationHistoryMeta[\s\S]*grid-column:\s*1 \/ -1\s*!important/u);
   assert.match(polish, /\.notificationHistoryTopLine[\s\S]*display:\s*contents\s*!important/u);
   assert.match(polish, /\.notificationHistoryBody[\s\S]*padding-inline-start:\s*0\s*!important/u);
   assert.match(polish, /\.notificationHistoryMeta[\s\S]*padding-inline-start:\s*0\s*!important/u);
@@ -53,7 +55,8 @@ test('reward actions keep Claim and processing controls separate while matching 
 test('mobile cards, Claim actions and narrow translated layouts remain usable', () => {
   assert.match(polish, /@media \(max-width:\s*560px\)/u);
   assert.match(polish, /\.notificationClaimButton,[\s\S]*width:\s*100%\s*!important/u);
-  assert.match(polish, /@media \(max-width:\s*350px\)[\s\S]*"title time"[\s\S]*"body body"[\s\S]*"meta meta"/u);
+  assert.match(polish, /@media \(max-width:\s*350px\)[\s\S]*"title time"[\s\S]*"body body"/u);
+  assert.doesNotMatch(polish, /@media \(max-width:\s*350px\)[\s\S]*"meta meta"/u);
 });
 
 test('presentation polish does not replace notification behavior ownership', () => {

@@ -28,11 +28,11 @@ test('notification relationship metadata is translated for every supported local
   }
 });
 
-test('notification cards explain whose wallet is shown instead of exposing an unlabeled address', () => {
-  assert.match(center, /metaCopy\.invitedFriend/u);
-  assert.match(center, /className="notificationFriendMeta"/u);
-  assert.match(center, /className="notificationFriendWallet" dir="ltr"/u);
-  assert.match(center, /\(\{friend\}\)/u);
+test('ordinary notification cards keep friend context in natural body copy without a detached wallet row', () => {
+  assert.match(center, /className="notificationHistoryBody">\{copy\.body\}<\/span>/u);
+  assert.match(center, /const showMeta = Boolean\(copy\.hint \|\| item\.kind === 'REWARD_PAID'\)/u);
+  assert.doesNotMatch(center, /notificationFriendMeta/u);
+  assert.doesNotMatch(center, /notificationFriendWallet/u);
   assert.match(center, /metaCopy\.inviteCode/u);
   assert.match(center, /className="notificationActionMetaItem"/u);
 });
@@ -43,7 +43,9 @@ test('unread status, time grouping and Korean actions have distinct meanings', (
 });
 
 test('event time stays top-right and natural wrapping prevents stranded final words', () => {
-  assert.match(polish, /"title time"[\s\S]*"body body"[\s\S]*"meta meta"/u);
+  assert.match(polish, /"title time"[\s\S]*"body body"/u);
+  assert.doesNotMatch(polish, /"meta meta"/u);
+  assert.match(polish, /\.notificationHistoryMeta[\s\S]*grid-column:\s*1 \/ -1\s*!important/u);
   assert.match(polish, /\.notificationHistoryTime[\s\S]*align-self:\s*start\s*!important/u);
   assert.match(polish, /\.notificationHistoryTitle[\s\S]*text-wrap:\s*balance\s*!important/u);
   assert.match(polish, /\.notificationHistoryBody[\s\S]*text-wrap:\s*pretty\s*!important/u);
