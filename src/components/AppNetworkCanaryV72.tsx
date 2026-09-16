@@ -6,12 +6,23 @@ import type { Locale } from '@/lib/i18n/locales';
 import { AppNetworkCanaryV71 } from './AppNetworkCanaryV71';
 
 const PARENT_RETURN_RELEASE_POLL_MS = 16;
-const PARENT_RETURN_FALLBACK_MS = 220;
+const PARENT_RETURN_FALLBACK_MS = 300;
 const MIN_ZOOM = 0.32;
 const MAX_ZOOM = 2.5;
 const ZOOM_STEP = 0.12;
 
-type ViewSnapshot = { zoom: number; cameraX: number; cameraY: number };
+type LayoutSnapshot = {
+  people: Record<string, string>;
+  groups: Record<string, string>;
+  slots: string[];
+};
+
+type ViewSnapshot = {
+  zoom: number;
+  cameraX: number;
+  cameraY: number;
+  layout: LayoutSnapshot;
+};
 
 function parsePx(value: string) {
   const parsed = Number.parseFloat(value);
@@ -26,6 +37,10 @@ function NetworkCanaryInteractionOwnershipV72() {
   useLayoutEffect(() => {
     let parentReturnTimer: number | null = null;
     let parentReturnStartedAt = 0;
+    let parentLayoutObserver: MutationObserver | null = null;
+    let releaseFrameOne = 0;
+    let releaseFrameTwo = 0;
+    let activeParentSnapshot: ViewSnapshot | null = null;
     const parentViews: ViewSnapshot[] = [];
 
     const canaryRootFor = (target: Element | null) =>
@@ -46,6 +61,32 @@ function NetworkCanaryInteractionOwnershipV72() {
       return Number.isFinite(parsed) ? Math.max(0.01, parsed / 100) : 1;
     };
 
+    const renderedTransform = (element: HTMLElement) => {
+      const transform = window.getComputedStyle(element).transform;
+      return transform && transform !== 'none' ? transform : '';
+    };
+
+    const captureLayout = (root: HTMLElement): LayoutSnapshot => {
+      const people: Record<string, string> = {};
+      root.querySelectorAll<HTMLElement>('.personNode[data-node-id]').forEach((node) => {
+        const id = node.dataset.nodeId;
+        const transform = id ? renderedTransform(node) : '';
+        if (id && transform) people[id] = transform;
+      });
+
+      const groups: Record<string, string> = {};
+      root.querySelectorAll<HTMLElement>('.v42GroupHub[data-group-id]').forEach((hub) => {
+        const id = hub.dataset.groupId;
+        const transform = id ? renderedTransform(hub) : '';
+        if (id && transform) groups[id] = transform;
+      });
+
+      const slots = Array.from(root.querySelectorAll<HTMLElement>('.slotNode'))
+        .map((slot) => renderedTransform(slot));
+
+      return { people, groups, slots };
+    };
+
     const captureView = (root: HTMLElement): ViewSnapshot | null => {
       const scene = root.querySelector<HTMLElement>('.scene');
       if (!scene) return null;
@@ -53,6 +94,7 @@ function NetworkCanaryInteractionOwnershipV72() {
         zoom: readZoom(root),
         cameraX: parsePx(scene.style.getPropertyValue('--cameraX')),
         cameraY: parsePx(scene.style.getPropertyValue('--cameraY')),
+        layout: captureLayout(root),
       };
     };
 
@@ -65,18 +107,91 @@ function NetworkCanaryInteractionOwnershipV72() {
       return clamp(1 + direction * steps * ZOOM_STEP, MIN_ZOOM, MAX_ZOOM);
     };
 
+    const clearParentLayoutLocks = (root: HTMLElement) => {
+      root.querySelectorAll<HTMLElement>('[data-v72-parent-return-node="1"]').forEach((node) => {
+        delete node.dataset.v72ParentReturnNode;
+        node.style.removeProperty('--v72-parent-node-transform');
+      });
+      root.querySelectorAll<HTMLElement>('[data-v72-parent-return-group="1"]').forEach((hub) => {
+        delete hub.dataset.v72ParentReturnGroup;
+        hub.style.removeProperty('--v72-parent-group-transform');
+      });
+      root.querySelectorAll<HTMLElement>('[data-v72-parent-return-slot="1"]').forEach((slot) => {
+        delete slot.dataset.v72ParentReturnSlot;
+        slot.style.removeProperty('--v72-parent-slot-transform');
+      });
+    };
+
+    const applyParentLayoutLocks = (root: HTMLElement, snapshot: ViewSnapshot) => {
+      root.querySelectorAll<HTMLElement>('.personNode[data-node-id]').forEach((node) => {
+        const id = node.dataset.nodeId;
+        const transform = id ? snapshot.layout.people[id] : '';
+        if (!transform) return;
+        node.style.setProperty('--v72-parent-node-transform', transform);
+        node.dataset.v72ParentReturnNode = '1';
+      });
+
+      root.querySelectorAll<HTMLElement>('.v42GroupHub[data-group-id]').forEach((hub) => {
+        const id = hub.dataset.groupId;
+        const transform = id ? snapshot.layout.groups[id] : '';
+        if (!transform) return;
+        hub.style.setProperty('--v72-parent-group-transform', transform);
+        hub.dataset.v72ParentReturnGroup = '1';
+      });
+
+      Array.from(root.querySelectorAll<HTMLElement>('.slotNode')).forEach((slot, index) => {
+        const transform = snapshot.layout.slots[index];
+        if (!transform) return;
+        slot.style.setProperty('--v72-parent-slot-transform', transform);
+        slot.dataset.v72ParentReturnSlot = '1';
+      });
+    };
+
+    const stopParentLayoutObserver = () => {
+      parentLayoutObserver?.disconnect();
+      parentLayoutObserver = null;
+    };
+
+    const cancelReleaseFrames = () => {
+      if (releaseFrameOne) window.cancelAnimationFrame(releaseFrameOne);
+      if (releaseFrameTwo) window.cancelAnimationFrame(releaseFrameTwo);
+      releaseFrameOne = 0;
+      releaseFrameTwo = 0;
+    };
+
     const releaseParentReturn = (root: HTMLElement) => {
       if (parentReturnTimer !== null) {
         window.clearTimeout(parentReturnTimer);
         parentReturnTimer = null;
       }
+      cancelReleaseFrames();
+      stopParentLayoutObserver();
       parentReturnStartedAt = 0;
+      activeParentSnapshot = null;
       root.classList.remove('v72ParentReturnTarget');
       root.style.removeProperty('--v72-parent-return-transform');
+      clearParentLayoutLocks(root);
+    };
+
+    const releaseAfterLayoutSettles = (root: HTMLElement) => {
+      cancelReleaseFrames();
+      releaseFrameOne = window.requestAnimationFrame(() => {
+        releaseFrameOne = 0;
+        if (!root.classList.contains('v72ParentReturnTarget')) return;
+        if (activeParentSnapshot) applyParentLayoutLocks(root, activeParentSnapshot);
+
+        releaseFrameTwo = window.requestAnimationFrame(() => {
+          releaseFrameTwo = 0;
+          if (!root.classList.contains('v72ParentReturnTarget')) return;
+          if (activeParentSnapshot) applyParentLayoutLocks(root, activeParentSnapshot);
+          releaseParentReturn(root);
+        });
+      });
     };
 
     const targetParentReturn = (root: HTMLElement, snapshot: ViewSnapshot) => {
       const targetZoom = restoredZoom(snapshot);
+      activeParentSnapshot = snapshot;
       root.style.setProperty(
         '--v72-parent-return-transform',
         `translate3d(${snapshot.cameraX}px,${snapshot.cameraY}px,0) scale(${targetZoom})`,
@@ -84,10 +199,21 @@ function NetworkCanaryInteractionOwnershipV72() {
       root.classList.add('v72ParentReturnTarget');
       parentReturnStartedAt = performance.now();
 
+      // Parent nodes are replaced by React after the Inviter click. Observe only
+      // child-list changes during this short transition and pin each recreated
+      // element to the exact transform it had before entering the child network.
+      // V39/V42/V50 can finish their internal layout work underneath this lock.
+      stopParentLayoutObserver();
+      parentLayoutObserver = new MutationObserver(() => {
+        if (activeParentSnapshot) applyParentLayoutLocks(root, activeParentSnapshot);
+      });
+      parentLayoutObserver.observe(root, { childList: true, subtree: true });
+      applyParentLayoutLocks(root, snapshot);
+
       if (parentReturnTimer !== null) window.clearTimeout(parentReturnTimer);
       parentReturnTimer = window.setTimeout(() => {
         parentReturnTimer = null;
-        if (root.classList.contains('v72ParentReturnTarget')) releaseParentReturn(root);
+        if (root.classList.contains('v72ParentReturnTarget')) releaseAfterLayoutSettles(root);
       }, PARENT_RETURN_FALLBACK_MS);
     };
 
@@ -97,10 +223,13 @@ function NetworkCanaryInteractionOwnershipV72() {
         performance.now() - parentReturnStartedAt >= PARENT_RETURN_FALLBACK_MS;
 
       if (!root.classList.contains('veinviteInteracting') || expired) {
-        // V50's synthetic pointerup has completed the React camera update by
-        // this point. One task boundary lets that state commit before exposing it.
-        if (parentReturnTimer !== null) window.clearTimeout(parentReturnTimer);
-        parentReturnTimer = window.setTimeout(() => releaseParentReturn(root), 0);
+        if (parentReturnTimer !== null) {
+          window.clearTimeout(parentReturnTimer);
+          parentReturnTimer = null;
+        }
+        // Let V39/V42 consume the final parent DOM and V50 camera replay for two
+        // paint boundaries while the captured parent element positions stay fixed.
+        releaseAfterLayoutSettles(root);
         return;
       }
 
@@ -147,9 +276,9 @@ function NetworkCanaryInteractionOwnershipV72() {
       if (!target || !root || !root.classList.contains('v72ParentReturnTarget')) return;
       if (!target.classList.contains('stage')) return;
 
-      // V50 has now replayed the saved parent camera with its synthetic drag.
-      // Keep the final parent transform pinned until the mobile pinch interaction
-      // guard releases, otherwise that guard's transition:none makes the scene snap.
+      // V50 has replayed the saved parent camera. Keep camera and recreated node
+      // geometry pinned until the mobile pinch interaction and delayed layout
+      // observers have both settled.
       releaseWhenInteractionSettles(root);
     };
 
@@ -177,10 +306,6 @@ function NetworkCanaryInteractionOwnershipV72() {
       if (button?.closest('.navActions') && button.textContent?.includes('Inviter')) {
         const snapshot = parentViews.pop() ?? null;
         if (snapshot) {
-          // Do not freeze the outgoing child transform. Pin the transform that
-          // V50 is about to restore for the parent, so when React swaps the node
-          // content the very first painted parent frame is already at its final
-          // camera. V50 can complete its legacy reset/restore invisibly beneath it.
           targetParentReturn(root, snapshot);
         }
       }
@@ -213,11 +338,14 @@ function NetworkCanaryInteractionOwnershipV72() {
       document.removeEventListener('pointerup', onPointerUpCapture, true);
       document.removeEventListener('click', onClickCapture, true);
       if (parentReturnTimer !== null) window.clearTimeout(parentReturnTimer);
+      cancelReleaseFrames();
+      stopParentLayoutObserver();
       document
         .querySelectorAll<HTMLElement>('.productionNetworkCanaryV45')
         .forEach((root) => {
           root.classList.remove('v72ParentReturnTarget');
           root.style.removeProperty('--v72-parent-return-transform');
+          clearParentLayoutLocks(root);
           root.querySelectorAll<HTMLElement>('.personNode.canarySelectedNode').forEach((node) => {
             node.classList.remove('canarySelectedNode');
           });
@@ -228,6 +356,18 @@ function NetworkCanaryInteractionOwnershipV72() {
   return <style jsx global>{`
     .productionNetworkCanaryV45.v72ParentReturnTarget .scene{
       transform:var(--v72-parent-return-transform)!important;
+      transition:none!important
+    }
+    .productionNetworkCanaryV45.v72ParentReturnTarget .personNode[data-v72-parent-return-node="1"]{
+      transform:var(--v72-parent-node-transform)!important;
+      transition:none!important
+    }
+    .productionNetworkCanaryV45.v72ParentReturnTarget .v42GroupHub[data-v72-parent-return-group="1"]{
+      transform:var(--v72-parent-group-transform)!important;
+      transition:none!important
+    }
+    .productionNetworkCanaryV45.v72ParentReturnTarget .slotNode[data-v72-parent-return-slot="1"]{
+      transform:var(--v72-parent-slot-transform)!important;
       transition:none!important
     }
   `}</style>;
