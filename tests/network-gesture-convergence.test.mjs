@@ -27,7 +27,7 @@ test('both canary and normal Network paths use the interaction safety boundary',
   assert.match(guideSource, /<AppNetworkHub locale=\{locale\} \/>/);
 });
 
-test('safety boundary blocks non-primary mouse input and third touch before inner canvas handlers', () => {
+test('safety boundary rejects non-primary mouse input and marks third-touch input for suppression', () => {
   assert.match(safetySource, /event\.pointerType === 'mouse' && event\.button !== 0/);
   assert.match(safetySource, /previousTouchCount >= 2/);
   assert.match(safetySource, /ignoredPointers\.current\.add\(event\.pointerId\)/);
