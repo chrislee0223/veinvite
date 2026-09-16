@@ -38,6 +38,10 @@ const podiumLayoutGuard = await readFile(
   new URL('../src/app/leaderboard-podium-layout-guard.css', import.meta.url),
   'utf8',
 );
+const alignmentGuard = await readFile(
+  new URL('../src/app/leaderboard-column-alignment-guard.css', import.meta.url),
+  'utf8',
+);
 
 const supportedLocales = [
   ...localeSource.matchAll(/locale:\s*'([^']+)'/g),
@@ -55,6 +59,21 @@ test('rank movement copy covers every supported VeInvite locale', () => {
       new RegExp(`(?:^|\\n)\\s*['\"]?${escapeRegex(locale)}['\"]?\\s*:\\s*\\{`),
       `missing leaderboard movement copy for ${locale}`,
     );
+  }
+});
+
+test('visible NEW labels stay inside the reviewed compact multilingual layout contract', () => {
+  const newEntryLabels = [
+    ...movementCopy.matchAll(/\bnewEntry:\s*'([^']+)'/g),
+  ].map((match) => match[1]);
+
+  assert.equal(newEntryLabels.length, supportedLocales.length);
+  for (const label of newEntryLabels) {
+    assert.ok(
+      [...label].length <= 5,
+      `review rank movement geometry before using longer NEW label: ${label}`,
+    );
+    assert.doesNotMatch(label, /\s/);
   }
 });
 
@@ -80,6 +99,14 @@ test('RTL locales keep leaderboard geometry and numeric movement left-to-right',
   assert.match(leaderboard, /\.walletCell \{[\s\S]*direction:ltr;/);
   assert.match(leaderboard, /\.rankMetric \{[\s\S]*direction:ltr;/);
   assert.match(podiumLayoutGuard, /html\[dir='rtl'\][\s\S]*direction:ltr !important/);
+  assert.match(
+    alignmentGuard,
+    /\.rankRow\[data-rank\] \.rankStack,[\s\S]*direction: ltr !important;/,
+  );
+  assert.match(
+    alignmentGuard,
+    /\.rankRow\[data-rank\] \.rankMovement\.rankMovement,[\s\S]*text-align: left !important;[\s\S]*unicode-bidi: isolate !important;/,
+  );
   for (const locale of ['ar', 'ur', 'arz']) {
     assert.match(
       movementCopy,
@@ -105,7 +132,37 @@ test('large movement and top-100 boundary scenarios are represented in preview f
   assert.match(preview, /rankMovement: 'UNAVAILABLE'/);
 });
 
-test('rank cells use one fixed axis and fixed row height regardless of locale typography', () => {
+test('final inviter grid keeps header and every row on one four-column coordinate system', () => {
+  const podiumImport = layout.indexOf(
+    "import './leaderboard-podium-layout-guard.css';",
+  );
+  const alignmentImport = layout.indexOf(
+    "import './leaderboard-column-alignment-guard.css';",
+  );
+
+  assert.ok(podiumImport >= 0);
+  assert.ok(alignmentImport > podiumImport);
+  assert.match(
+    alignmentGuard,
+    /\.tableHeader,\s*html body \.leaderboardPage \.rankingCard \.rankRow \{\s*grid-template-columns: 16fr 36fr 20fr 28fr !important;/,
+  );
+
+  const rankTrack = 16;
+  const inviterTrack = 36;
+  const completedTrack = 20;
+  const rewardTrack = 28;
+  const rankAxisInsideTrack = 0.375;
+  const headerShiftInsideTrack = -0.125;
+
+  assert.equal(rankTrack + inviterTrack + completedTrack + rewardTrack, 100);
+  assert.equal(rankTrack * rankAxisInsideTrack, 6);
+  assert.equal(rankTrack / 2 + rankTrack * headerShiftInsideTrack, 6);
+  assert.equal(rankTrack + inviterTrack / 2, 34);
+  assert.equal(rankTrack + inviterTrack + completedTrack / 2, 62);
+  assert.equal(rankTrack + inviterTrack + completedTrack + rewardTrack / 2, 86);
+});
+
+test('rank numeral stays on the original axis while movement sits to its physical right', () => {
   assert.match(leaderboard, /data-rank=\{entry\.rank > 0 \? entry\.rank : undefined\}/);
   assert.match(leaderboard, /data-rank=\{rank\}/);
   assert.match(
@@ -113,12 +170,20 @@ test('rank cells use one fixed axis and fixed row height regardless of locale ty
     /\.leaderboardPage \.rankRow,[\s\S]*height:var\(--rank-row-height\) !important;[\s\S]*min-height:var\(--rank-row-height\) !important;[\s\S]*max-height:var\(--rank-row-height\) !important;/,
   );
   assert.match(
-    podiumLayoutGuard,
-    /\.rankValue\.rankValue \{[\s\S]*left:50% !important;[\s\S]*top:50% !important;[\s\S]*transform:translate\(-50%,-50%\) !important;/,
+    alignmentGuard,
+    /--inviter-rank-number-axis: 37\.5%;[\s\S]*--inviter-rank-header-shift: -12\.5%;[\s\S]*--inviter-rank-movement-gap: 22px;/,
+  );
+  assert.match(
+    alignmentGuard,
+    /\.rankRow\[data-rank\] \.rankValue\.rankValue,[\s\S]*left: var\(--inviter-rank-number-axis\) !important;[\s\S]*top: 50% !important;[\s\S]*transform: translate\(-50%, -50%\) !important;/,
+  );
+  assert.match(
+    alignmentGuard,
+    /\.tableHeader > span:first-child \{[\s\S]*transform: translateX\(var\(--inviter-rank-header-shift\)\) !important;/,
   );
 });
 
-test('approved podium artwork is restored while the temporary component redraw is disabled', () => {
+test('approved podium artwork is preserved while the temporary component redraw stays disabled', () => {
   assert.match(approvedPodium, /--podium-shape:path\(/);
   assert.match(approvedPodium, /rankValue\.rankValue::before/);
   assert.match(approvedPodiumTuning, /scale\(\.80\)/);
@@ -130,21 +195,26 @@ test('approved podium artwork is restored while the temporary component redraw i
   );
 });
 
-test('movement labels occupy the full fixed rank slot instead of shifting the numeral', () => {
+test('movement labels use natural width beside rank instead of changing the numeral axis', () => {
   assert.match(
-    podiumLayoutGuard,
-    /\.rankMovement\.rankMovement \{[\s\S]*width:100% !important;[\s\S]*justify-content:center !important;[\s\S]*transform:none !important;/,
+    alignmentGuard,
+    /\.rankMovement\.rankMovement \{[\s\S]*left: calc\(var\(--inviter-rank-number-axis\) \+ var\(--inviter-rank-movement-gap\)\) !important;[\s\S]*top: 50% !important;[\s\S]*width: max-content !important;[\s\S]*display: block !important;[\s\S]*transform: translateY\(-50%\) !important;[\s\S]*overflow: visible !important;[\s\S]*white-space: nowrap !important;/,
   );
   assert.match(leaderboard, /className="rankMovement new"[\s\S]*dir="auto"/);
 });
 
-test('mobile rank column reserves room for movement without adding a fifth table column', () => {
-  assert.match(leaderboard, /--rank-column:50px/);
-  assert.match(leaderboard, /--rank-column:40px/);
-  assert.match(leaderboard, /--rank-column:38px/);
+test('mobile movement clears the smaller podium without adding a fifth table column', () => {
   assert.match(
-    leaderboard,
-    /grid-template-columns:\s*var\(--rank-column\)\s*minmax\(0,1fr\)\s*var\(--completed-column\)\s*var\(--reward-column\)/,
+    alignmentGuard,
+    /@media \(max-width: 420px\)[\s\S]*--inviter-rank-movement-gap: 20px;/,
+  );
+  assert.match(
+    alignmentGuard,
+    /grid-template-columns: 16fr 36fr 20fr 28fr !important;/,
+  );
+  assert.doesNotMatch(
+    alignmentGuard,
+    /grid-template-columns:[^;]*16fr[^;]*36fr[^;]*20fr[^;]*28fr[^;]*fr[^;]*;/,
   );
 });
 
