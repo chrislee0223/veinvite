@@ -1,7 +1,15 @@
 'use client';
 
 import { createPortal } from 'react-dom';
-import { useEffect, useLayoutEffect, useMemo, useState, type ReactNode } from 'react';
+import {
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+  type CSSProperties,
+  type ReactNode,
+} from 'react';
 
 import { NETWORK_CANARY_UI_COPY } from '@/lib/i18n/networkCanaryUiCopy';
 import type { Locale, SupportedLocale } from '@/lib/i18n/locales';
@@ -41,6 +49,45 @@ function samePoints(left: Point[], right: Point[]) {
     const other = right[index];
     return Boolean(other) && Math.abs(point.x - other.x) < .25 && Math.abs(point.y - other.y) < .25;
   });
+}
+
+function visiblePersonPoint(node: HTMLElement): Point {
+  return {
+    x: parsePx(node.style.getPropertyValue('--node-x')) + parsePx(node.style.getPropertyValue('--release-node-offset-x')),
+    y: parsePx(node.style.getPropertyValue('--node-y')) + parsePx(node.style.getPropertyValue('--release-node-offset-y')),
+  };
+}
+
+function groupHubPoint(node: HTMLElement): Point {
+  return {
+    x: parsePx(node.style.getPropertyValue('--group-x')),
+    y: parsePx(node.style.getPropertyValue('--group-y')),
+  };
+}
+
+function occupiedGeometry(boundary: HTMLElement): Point[] {
+  const people = Array.from(boundary.querySelectorAll<HTMLElement>('.releasePerson'))
+    .filter((node) => !node.classList.contains('releaseGroupHidden'))
+    .map(visiblePersonPoint);
+  const groupHubs = Array.from(boundary.querySelectorAll<HTMLElement>('.releaseGroupHub')).map(groupHubPoint);
+  return [...people, ...groupHubs];
+}
+
+function geometrySignature(boundary: HTMLElement) {
+  const scene = boundary.querySelector<HTMLElement>('.releaseScene');
+  const center = boundary.querySelector<HTMLElement>('.releaseCenter[data-release-wallet]');
+  const root = center?.classList.contains('root') ? 'root' : 'focus';
+  const focus = center?.dataset.releaseWallet ?? '';
+  const points = occupiedGeometry(boundary)
+    .map((point) => `${point.x.toFixed(2)},${point.y.toFixed(2)}`)
+    .join(';');
+  return `${scene ? 'scene' : 'no-scene'}|${root}|${focus}|${points}`;
+}
+
+function containsGeometryNode(node: Node) {
+  if (!(node instanceof Element)) return false;
+  return node.matches('.releaseScene,.releaseCenter,.releasePerson,.releaseGroupHub') ||
+    Boolean(node.querySelector('.releaseScene,.releaseCenter,.releasePerson,.releaseGroupHub'));
 }
 
 function chooseSlotPoints(count: number, occupied: Point[]): Point[] {
@@ -88,6 +135,7 @@ export function NetworkReleaseSlots({
   children: ReactNode;
 }) {
   const { wallet } = useWalletLauncher();
+  const boundaryRef = useRef<HTMLDivElement | null>(null);
   const [scene, setScene] = useState<HTMLElement | null>(null);
   const [isRoot, setIsRoot] = useState(false);
   const [slotsAvailable, setSlotsAvailable] = useState(0);
@@ -95,26 +143,21 @@ export function NetworkReleaseSlots({
   const copy = NETWORK_CANARY_UI_COPY[locale as SupportedLocale] ?? NETWORK_CANARY_UI_COPY.en;
 
   useLayoutEffect(() => {
-    const boundary = document.querySelector<HTMLElement>('.networkReleaseSlotsBoundary');
+    const boundary = boundaryRef.current;
     if (!boundary) return;
     let frame = 0;
+    let signature = '';
 
     const sync = () => {
       frame = 0;
       const nextScene = boundary.querySelector<HTMLElement>('.releaseScene');
-      setScene((current) => current === nextScene ? current : nextScene);
-      setIsRoot(Boolean(boundary.querySelector('.releaseCenter.root')));
+      const center = boundary.querySelector<HTMLElement>('.releaseCenter[data-release-wallet]');
+      const nextOccupied = occupiedGeometry(boundary);
 
-      const people = Array.from(boundary.querySelectorAll<HTMLElement>('.releasePerson')).map((node) => ({
-        x: parsePx(node.style.getPropertyValue('--node-x')),
-        y: parsePx(node.style.getPropertyValue('--node-y')),
-      }));
-      const groupHubs = Array.from(boundary.querySelectorAll<HTMLElement>('.releaseGroupHub')).map((node) => ({
-        x: parsePx(node.style.getPropertyValue('--group-x')),
-        y: parsePx(node.style.getPropertyValue('--group-y')),
-      }));
-      const nextOccupied = [...people, ...groupHubs];
+      setScene((current) => current === nextScene ? current : nextScene);
+      setIsRoot(Boolean(center?.classList.contains('root')));
       setOccupiedPoints((current) => samePoints(current, nextOccupied) ? current : nextOccupied);
+      signature = geometrySignature(boundary);
     };
 
     const schedule = () => {
@@ -122,13 +165,39 @@ export function NetworkReleaseSlots({
       frame = window.requestAnimationFrame(sync);
     };
 
+    const observer = new MutationObserver((mutations) => {
+      const relevant = mutations.some((mutation) => {
+        if (mutation.type === 'childList') {
+          return [...mutation.addedNodes, ...mutation.removedNodes].some(containsGeometryNode);
+        }
+        const target = mutation.target instanceof Element ? mutation.target : null;
+        if (!target) return false;
+        if (mutation.attributeName === 'data-release-wallet') {
+          return target.matches('.releaseCenter,.releasePerson');
+        }
+        if (mutation.attributeName === 'data-release-group-id') {
+          return target.matches('.releaseGroupHub');
+        }
+        if (mutation.attributeName === 'style') {
+          return target.matches('.releasePerson,.releaseGroupHub');
+        }
+        if (mutation.attributeName === 'class') {
+          return target.matches('.releaseCenter,.releasePerson');
+        }
+        return false;
+      });
+      if (!relevant) return;
+      const nextSignature = geometrySignature(boundary);
+      if (nextSignature === signature) return;
+      schedule();
+    });
+
     sync();
-    const observer = new MutationObserver(schedule);
     observer.observe(boundary, {
       childList: true,
       subtree: true,
       attributes: true,
-      attributeFilter: ['class', 'style'],
+      attributeFilter: ['class', 'style', 'data-release-wallet', 'data-release-group-id'],
     });
     return () => {
       observer.disconnect();
@@ -172,7 +241,7 @@ export function NetworkReleaseSlots({
   );
 
   return (
-    <div className="networkReleaseSlotsBoundary">
+    <div ref={boundaryRef} className="networkReleaseSlotsBoundary">
       {children}
       {scene && slotPoints.length > 0 ? createPortal(
         <>
@@ -186,7 +255,7 @@ export function NetworkReleaseSlots({
               key={index}
               type="button"
               className="releaseInviteSlot"
-              style={{ '--release-slot-x': `${point.x}px`, '--release-slot-y': `${point.y}px` } as React.CSSProperties}
+              style={{ '--release-slot-x': `${point.x}px`, '--release-slot-y': `${point.y}px` } as CSSProperties}
               data-release-interactive="true"
               onClick={goHomeWithoutReload}
               aria-label={copy.available}
@@ -218,7 +287,7 @@ export function NetworkReleaseSlots({
           stroke-linecap: round;
           stroke-dasharray: 4 12;
           animation: releaseSlotFlow 1.9s linear infinite;
-          filter: drop-shadow(0 0 3px rgba(239, 198, 76, .18));
+          filter: drop-shadow(0 0 3px rgba(239, 198, 76,.18));
         }
         .releaseScene > .releaseInviteSlot {
           position: absolute;
