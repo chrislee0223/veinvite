@@ -1,0 +1,152 @@
+name: Temporary notification reliability patch
+
+on:
+  push:
+    branches:
+      - fix/notification-reliability-hardening
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: fix/notification-reliability-hardening
+          fetch-depth: 0
+
+      - name: Apply focused notification reliability patch
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          center_path = Path('src/components/UnifiedInviteNotificationHistoryCenter.tsx')
+          center = center_path.read_text()
+
+          replacements = [
+              (
+                  """      const response = await fetch('/api/rewards/receipts?limit=50', {\n        cache: 'no-store',\n      });""",
+                  """      const response = await fetch(\n        `/api/rewards/receipts?inviteCode=${encodeURIComponent(item.inviteCode)}`,\n        { cache: 'no-store' },\n      );""",
+              ),
+              (
+                  """      const match = (body.receipts ?? []).find(\n        (candidate) => candidate.inviteCode === item.inviteCode,\n      );""",
+                  """      const match = body.receipts?.[0];""",
+              ),
+              (
+                  """    if (rewardActions.length === 0) {\n      return null;\n    }""",
+                  """    if (\n      rewardActions.length === 0 &&\n      !actionLoading &&\n      !actionError\n    ) {\n      return null;\n    }""",
+              ),
+              (
+                  """            ) : sorted.length === 0 && rewardActions.length === 0 ? (""",
+                  """            ) : sorted.length === 0 &&\n              rewardActions.length === 0 &&\n              !actionLoading &&\n              !actionError ? (""",
+              ),
+          ]
+
+          for old, new in replacements:
+              count = center.count(old)
+              if count != 1:
+                  raise SystemExit(f'Expected exactly one Unified replacement, found {count}: {old[:80]!r}')
+              center = center.replace(old, new, 1)
+          center_path.write_text(center)
+
+          reward_test_path = Path('tests/i18n-notification-reward-center.test.mjs')
+          reward_test = reward_test_path.read_text()
+          test_replacements = [
+              (
+                  "  assert.match(facade, /\\[wallet, props\\.open\\]/);",
+                  "  assert.match(facade, /\\[wallet\\]/);\n  assert.doesNotMatch(facade, /\\[wallet,\\s*props\\.open\\]/);",
+              ),
+              (
+                  "  assert.match(center, /\\/api\\/rewards\\/receipts\\?limit=50/);\n  assert.match(center, /candidate\\.inviteCode === item\\.inviteCode/);",
+                  "  assert.match(center, /rewards\\/receipts\\?inviteCode=\\$\\{encodeURIComponent\\(item\\.inviteCode\\)\\}/);\n  assert.doesNotMatch(center, /rewards\\/receipts\\?limit=50/);\n  assert.doesNotMatch(center, /candidate\\.inviteCode === item\\.inviteCode/);",
+              ),
+          ]
+          for old, new in test_replacements:
+              count = reward_test.count(old)
+              if count != 1:
+                  raise SystemExit(f'Expected exactly one reward test replacement, found {count}: {old[:80]!r}')
+              reward_test = reward_test.replace(old, new, 1)
+          reward_test_path.write_text(reward_test)
+
+          regression = r'''import assert from 'node:assert/strict';
+          import { readFileSync } from 'node:fs';
+          import { test } from 'node:test';
+
+          const read = (path) => readFileSync(path, 'utf8');
+          const controller = read('src/components/InAppInviteNotifications.tsx');
+          const center = read('src/components/UnifiedInviteNotificationHistoryCenter.tsx');
+          const facade = read('src/components/InviteNotificationHistoryCenter.tsx');
+          const historyRoute = read('src/app/api/notifications/history/route.ts');
+          const receiptRoute = read('src/app/api/rewards/receipts/route.ts');
+
+          test('first uncached notification open shows loading until initial history resolves', () => {
+            assert.match(controller, /const historyResolvedRef = useRef\(false\)/);
+            assert.match(controller, /historyResolvedRef\.current = cached !== null/);
+            assert.match(controller, /historyResolvedRef\.current = true/);
+            assert.match(controller, /const visibleLoading = !historyResolvedRef\.current/);
+            assert.match(controller, /visibleLoading,\s*\n\s*surfaceError: true/);
+          });
+
+          test('notification acknowledgement uses authoritative remaining unread count', () => {
+            assert.match(historyRoute, /acknowledge_invite_notification_history/);
+            assert.match(historyRoute, /count_invite_notification_history_unread/);
+            assert.match(historyRoute, /unreadCount: Number\(unreadResult\.data \?\? 0\)/);
+            assert.match(controller, /const nextUnreadCount = acknowledgement\.unreadCount/g);
+            assert.doesNotMatch(controller, /unreadCount - unreadThroughSnapshot\.length/);
+          });
+
+          test('reward-action loading and errors cannot be mistaken for an empty inbox', () => {
+            assert.match(
+              center,
+              /rewardActions\.length === 0 &&\s*!actionLoading &&\s*!actionError/,
+            );
+            assert.match(
+              center,
+              /sorted\.length === 0 &&\s*rewardActions\.length === 0 &&\s*!actionLoading &&\s*!actionError/,
+            );
+            assert.match(center, /notificationActionLoading/);
+            assert.match(center, /notificationActionError/);
+          });
+
+          test('paid notification receipt lookup is exact, wallet-scoped, and not capped to recent 50', () => {
+            assert.match(receiptRoute, /const INVITE_CODE_PATTERN/);
+            assert.match(receiptRoute, /parseInviteCode/);
+            assert.match(receiptRoute, /\.eq\('recipient_wallet', walletAddress\)/);
+            assert.match(receiptRoute, /\.eq\('invite_code', inviteCode\)/);
+            assert.match(
+              center,
+              /rewards\/receipts\?inviteCode=\$\{encodeURIComponent\(item\.inviteCode\)\}/,
+            );
+            assert.doesNotMatch(center, /rewards\/receipts\?limit=50/);
+          });
+
+          test('opening the dialog does not retrigger the outer reward-attention request', () => {
+            assert.match(facade, /\}, \[wallet\]\);/);
+            assert.doesNotMatch(facade, /\[wallet,\s*props\.open\]/);
+            assert.match(facade, /response\.status === 401 \|\| response\.status === 403/);
+          });
+          '''
+          # Strip the YAML-indent helper spaces from the generated test file.
+          regression = '\n'.join(
+              line[10:] if line.startswith('          ') else line
+              for line in regression.splitlines()
+          ) + '\n'
+          Path('tests/notification-reliability-hardening.test.mjs').write_text(regression)
+
+          Path('.github/workflows/notification-reliability-temp-patch.yml').unlink()
+          PY
+
+      - name: Run focused regression tests
+        run: node --test tests/i18n-notification-reward-center.test.mjs tests/notification-reliability-hardening.test.mjs
+
+      - name: Commit patched source and tests
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/components/UnifiedInviteNotificationHistoryCenter.tsx tests/i18n-notification-reward-center.test.mjs tests/notification-reliability-hardening.test.mjs .github/workflows/notification-reliability-temp-patch.yml
+          git commit -m "Complete notification reliability hardening"
+          git push origin HEAD:fix/notification-reliability-hardening
