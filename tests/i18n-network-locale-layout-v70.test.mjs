@@ -10,13 +10,12 @@ const [source, releaseCanarySource, guideSource, v69Source, controlCopySource] =
   readFile('src/lib/i18n/networkCanvasControlCopy.ts', 'utf8'),
 ]);
 
-test('V71 production canary uses the real Network hub while the old V70 QA chain stays isolated', () => {
+test('V71 production canary uses the real release canvas while the old V70 QA chain stays isolated', () => {
   assert.match(guideSource, /AppNetworkCanaryV71/);
   assert.match(guideSource, /<NetworkInteractionSafety key=\{walletKey\}>[\s\S]*?<AppNetworkCanaryV71 locale=\{locale\} \/>[\s\S]*?<\/NetworkInteractionSafety>/);
   assert.match(guideSource, /const walletKey = wallet\?\.toLowerCase\(\) \?\? 'disconnected'/);
-  assert.match(releaseCanarySource, /AppNetworkHub/);
-  assert.match(releaseCanarySource, /NetworkReleasePresentation/);
-  assert.doesNotMatch(releaseCanarySource, /AppNetworkCanaryV70|QaNetworkRadialPlayground/);
+  assert.match(releaseCanarySource, /AppNetworkReleaseCanvas/);
+  assert.doesNotMatch(releaseCanarySource, /AppNetworkHub|NetworkReleasePresentation|AppNetworkCanaryV70|QaNetworkRadialPlayground/);
   assert.match(source, /AppNetworkCanaryV69/);
   assert.match(source, /<AppNetworkCanaryV69 locale=\{locale\} \/>/);
   assert.match(v69Source, /AppNetworkCanaryV68/);
