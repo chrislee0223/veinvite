@@ -1,0 +1,388 @@
+name: Temporary notification information hierarchy patch
+
+on:
+  push:
+    branches:
+      - polish/notification-information-hierarchy
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: polish/notification-information-hierarchy
+
+      - name: Apply reviewed notification hierarchy patch
+        shell: bash
+        run: |
+          python <<'PY'
+          from pathlib import Path
+
+          def replace_once(path: str, old: str, new: str) -> None:
+              p = Path(path)
+              text = p.read_text()
+              count = text.count(old)
+              if count != 1:
+                  raise SystemExit(f'{path}: expected exactly one match, found {count}')
+              p.write_text(text.replace(old, new, 1))
+
+          component = 'src/components/UnifiedInviteNotificationHistoryCenter.tsx'
+          replace_once(
+              component,
+              "import { NOTIFICATION_HISTORY_COPY } from '@/lib/i18n/notificationHistoryCopy';\n",
+              "import { NOTIFICATION_HISTORY_COPY } from '@/lib/i18n/notificationHistoryCopy';\nimport { NOTIFICATION_META_COPY } from '@/lib/i18n/notificationMetaCopy';\n",
+          )
+          replace_once(
+              component,
+              "  const structure = NOTIFICATION_HISTORY_COPY[supportedLocale];\n  const notificationCopy = NOTIFICATION_COPY[supportedLocale];\n",
+              "  const structure = NOTIFICATION_HISTORY_COPY[supportedLocale];\n  const metaCopy = NOTIFICATION_META_COPY[supportedLocale];\n  const notificationCopy = NOTIFICATION_COPY[supportedLocale];\n",
+          )
+          replace_once(
+              component,
+              "                  {structure.newLabel}\n",
+              "                  {metaCopy.unread}\n",
+          )
+          replace_once(
+              component,
+              "          {friend ? (\n            <span className=\"notificationFriendWallet\" dir=\"ltr\">\n              {friend}\n            </span>\n          ) : null}\n          {copy.hint ? <b>{copy.hint}</b> : null}\n          {item.kind === 'REWARD_PAID' ? (\n            <em aria-hidden=\"true\">›</em>\n          ) : null}\n",
+              "          {friend ? (\n            <span className=\"notificationFriendMeta\">\n              <span className=\"notificationFriendLabel\">\n                {metaCopy.invitedFriend}\n              </span>\n              <span className=\"notificationFriendWallet\" dir=\"ltr\">\n                ({friend})\n              </span>\n            </span>\n          ) : null}\n          {copy.hint ? <b>{copy.hint}</b> : null}\n          {item.kind === 'REWARD_PAID' ? (\n            <span className=\"notificationReceiptAction\">\n              <span>{metaCopy.viewReceipt}</span>\n              <em aria-hidden=\"true\">›</em>\n            </span>\n          ) : null}\n",
+          )
+          replace_once(
+              component,
+              "                <small dir=\"ltr\">\n                  {friend ? `${friend} · ` : ''}{action.inviteCode}\n                </small>\n",
+              "                <small className=\"notificationActionMeta\">\n                  {friend ? (\n                    <span className=\"notificationActionMetaItem\">\n                      <span>{metaCopy.invitedFriend}</span>\n                      <span dir=\"ltr\">({friend})</span>\n                    </span>\n                  ) : null}\n                  <span className=\"notificationActionMetaItem\">\n                    <span>{metaCopy.inviteCode}</span>\n                    <span dir=\"ltr\">({action.inviteCode})</span>\n                  </span>\n                </small>\n",
+          )
+          replace_once(
+              component,
+              "                  <span>{structure.newLabel} · {unreadCount}</span>\n",
+              "                  <span>{metaCopy.unread} · {unreadCount}</span>\n",
+          )
+
+          history_copy = Path('src/lib/i18n/notificationHistoryCopy.ts')
+          history_text = history_copy.read_text()
+          old_ko = "ko: { title: '알림', newLabel: '새 알림', markAll: '모두 읽음', today: '오늘', yesterday: '어제', earlier: '이전 알림'"
+          new_ko = "ko: { title: '알림', newLabel: '읽지 않음', markAll: '모두 읽음 처리', today: '오늘', yesterday: '어제', earlier: '이전'"
+          if history_text.count(old_ko) != 1:
+              raise SystemExit('notificationHistoryCopy.ts: Korean chrome signature changed')
+          history_copy.write_text(history_text.replace(old_ko, new_ko, 1))
+
+          meta_copy = r'''import type { SupportedLocale } from './locales';
+
+export type NotificationMetaCopy = {
+  unread: string;
+  invitedFriend: string;
+  inviteCode: string;
+  viewReceipt: string;
+};
+
+export const NOTIFICATION_META_COPY: Record<SupportedLocale, NotificationMetaCopy> = {
+  en: { unread: 'Unread', invitedFriend: 'Invited friend', inviteCode: 'Invite code', viewReceipt: 'View receipt' },
+  ko: { unread: '읽지 않음', invitedFriend: '초대한 친구', inviteCode: '초대 코드', viewReceipt: '영수증 보기' },
+  zh: { unread: '未读', invitedFriend: '受邀好友', inviteCode: '邀请码', viewReceipt: '查看收据' },
+  hi: { unread: 'अपठित', invitedFriend: 'आमंत्रित मित्र', inviteCode: 'आमंत्रण कोड', viewReceipt: 'रसीद देखें' },
+  es: { unread: 'Sin leer', invitedFriend: 'Persona invitada', inviteCode: 'Código de invitación', viewReceipt: 'Ver recibo' },
+  ja: { unread: '未読', invitedFriend: '招待した友だち', inviteCode: '招待コード', viewReceipt: '受取明細を見る' },
+  it: { unread: 'Da leggere', invitedFriend: 'Persona invitata', inviteCode: 'Codice invito', viewReceipt: 'Vedi ricevuta' },
+  tr: { unread: 'Okunmadı', invitedFriend: 'Davet edilen arkadaş', inviteCode: 'Davet kodu', viewReceipt: 'Makbuzu görüntüle' },
+  nl: { unread: 'Ongelezen', invitedFriend: 'Uitgenodigde vriend', inviteCode: 'Uitnodigingscode', viewReceipt: 'Ontvangstbewijs bekijken' },
+  de: { unread: 'Ungelesen', invitedFriend: 'Eingeladener Freund', inviteCode: 'Einladungscode', viewReceipt: 'Beleg ansehen' },
+  fr: { unread: 'Non lu', invitedFriend: 'Personne invitée', inviteCode: 'Code d’invitation', viewReceipt: 'Voir le reçu' },
+  ar: { unread: 'غير مقروء', invitedFriend: 'الصديق الذي دعوته', inviteCode: 'رمز الدعوة', viewReceipt: 'عرض الإيصال' },
+  bn: { unread: 'অপঠিত', invitedFriend: 'আমন্ত্রিত বন্ধু', inviteCode: 'আমন্ত্রণ কোড', viewReceipt: 'রসিদ দেখুন' },
+  pt: { unread: 'Não lida', invitedFriend: 'Amigo convidado', inviteCode: 'Código de convite', viewReceipt: 'Ver recibo' },
+  ru: { unread: 'Не прочитано', invitedFriend: 'Приглашённый друг', inviteCode: 'Код приглашения', viewReceipt: 'Посмотреть квитанцию' },
+  id: { unread: 'Belum dibaca', invitedFriend: 'Teman yang diundang', inviteCode: 'Kode undangan', viewReceipt: 'Lihat tanda terima' },
+  vi: { unread: 'Chưa đọc', invitedFriend: 'Người bạn đã mời', inviteCode: 'Mã mời', viewReceipt: 'Xem biên nhận' },
+  'zh-tw': { unread: '未讀', invitedFriend: '受邀好友', inviteCode: '邀請碼', viewReceipt: '查看收據' },
+  sv: { unread: 'Oläst', invitedFriend: 'Inbjuden vän', inviteCode: 'Inbjudningskod', viewReceipt: 'Visa kvitto' },
+  ro: { unread: 'Necitit', invitedFriend: 'Prieten invitat', inviteCode: 'Cod de invitație', viewReceipt: 'Vezi chitanța' },
+  ur: { unread: 'غیر پڑھا ہوا', invitedFriend: 'مدعو دوست', inviteCode: 'دعوتی کوڈ', viewReceipt: 'رسید دیکھیں' },
+  pcm: { unread: 'Never read', invitedFriend: 'Friend wey you invite', inviteCode: 'Invite code', viewReceipt: 'See receipt' },
+  arz: { unread: 'مش مقروء', invitedFriend: 'الشخص اللي عزمته', inviteCode: 'كود الدعوة', viewReceipt: 'شوف الإيصال' },
+  mr: { unread: 'न वाचलेले', invitedFriend: 'आमंत्रित मित्र', inviteCode: 'आमंत्रण कोड', viewReceipt: 'पावती पहा' },
+  te: { unread: 'చదవనిది', invitedFriend: 'ఆహ్వానించిన స్నేహితుడు', inviteCode: 'ఆహ్వాన కోడ్', viewReceipt: 'రసీదు చూడండి' },
+  sw: { unread: 'Haijasomwa', invitedFriend: 'Rafiki uliyemwalika', inviteCode: 'Msimbo wa mwaliko', viewReceipt: 'Tazama risiti' },
+  ha: { unread: 'Ba a karanta ba', invitedFriend: 'Abokin da ka gayyata', inviteCode: 'Lambar gayyata', viewReceipt: 'Duba rasit' },
+  el: { unread: 'Μη αναγνωσμένο', invitedFriend: 'Φίλος που προσκάλεσες', inviteCode: 'Κωδικός πρόσκλησης', viewReceipt: 'Προβολή απόδειξης' },
+  cs: { unread: 'Nepřečtené', invitedFriend: 'Pozvaný přítel', inviteCode: 'Kód pozvánky', viewReceipt: 'Zobrazit potvrzení' },
+};
+'''
+          Path('src/lib/i18n/notificationMetaCopy.ts').write_text(meta_copy)
+
+          css = Path('src/app/notification-history-polish.css')
+          css_text = css.read_text()
+          old_grid = '''  grid-template-columns: minmax(0, 1fr) auto !important;
+  grid-template-areas:
+    "title title"
+    "body body"
+    "meta time" !important;'''
+          new_grid = '''  grid-template-columns: minmax(0, 1fr) max-content !important;
+  grid-template-areas:
+    "title time"
+    "body body"
+    "meta meta" !important;'''
+          if css_text.count(old_grid) != 1:
+              raise SystemExit('notification-history-polish.css: main grid signature changed')
+          css_text = css_text.replace(old_grid, new_grid, 1)
+          css_text = css_text.replace(
+              '''/* Flatten the old top row so time can live with metadata instead of fighting
+ * long translated titles for horizontal space. */''',
+              '''/* Flatten the top row so title and event time share a stable first line while
+ * body and relationship metadata keep their own full-width rows. */''',
+              1,
+          )
+          css_text = css_text.replace(
+              '''  hyphens: auto !important;
+}
+
+.notificationHistoryPanel .notificationHistoryBody {''',
+              '''  hyphens: auto !important;
+  text-wrap: balance !important;
+}
+
+.notificationHistoryPanel .notificationHistoryBody {''',
+              1,
+          )
+          css_text = css_text.replace(
+              '''  hyphens: auto !important;
+}
+
+.notificationHistoryPanel .notificationHistoryMeta {''',
+              '''  hyphens: auto !important;
+  text-wrap: pretty !important;
+}
+
+.notificationHistoryPanel .notificationHistoryMeta {''',
+              1,
+          )
+          wallet_block = '''.notificationHistoryPanel .notificationFriendWallet {
+  max-width: 100% !important;
+  color: #837d74 !important;
+  font-size: 0.57rem !important;
+  line-height: 1.3 !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+  white-space: nowrap !important;
+}
+'''
+          replacement_wallet = '''.notificationHistoryPanel .notificationFriendMeta {
+  min-width: 0 !important;
+  max-width: 100% !important;
+  display: inline-flex !important;
+  align-items: baseline !important;
+  flex-wrap: wrap !important;
+  gap: 4px !important;
+  color: #837d74 !important;
+  font-size: 0.57rem !important;
+  line-height: 1.35 !important;
+}
+
+.notificationHistoryPanel .notificationFriendLabel {
+  overflow-wrap: anywhere !important;
+}
+
+.notificationHistoryPanel .notificationFriendWallet {
+  max-width: 100% !important;
+  color: #918a80 !important;
+  font: inherit !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+  white-space: nowrap !important;
+}
+
+.notificationHistoryPanel .notificationReceiptAction {
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 4px !important;
+  color: #b9a76f !important;
+  font-size: 0.57rem !important;
+  line-height: 1.3 !important;
+  white-space: nowrap !important;
+}
+'''
+          if css_text.count(wallet_block) != 1:
+              raise SystemExit('notification-history-polish.css: wallet block changed')
+          css_text = css_text.replace(wallet_block, replacement_wallet, 1)
+          action_small = '''.notificationHistoryPanel .notificationActionCopy small {
+  max-width: 100% !important;
+  font-size: 0.56rem !important;
+  line-height: 1.3 !important;
+}
+'''
+          action_replacement = '''.notificationHistoryPanel .notificationActionCopy small {
+  max-width: 100% !important;
+  font-size: 0.56rem !important;
+  line-height: 1.35 !important;
+}
+
+.notificationHistoryPanel .notificationActionMeta {
+  display: flex !important;
+  flex-wrap: wrap !important;
+  gap: 5px 9px !important;
+  color: #837d74 !important;
+}
+
+.notificationHistoryPanel .notificationActionMetaItem {
+  min-width: 0 !important;
+  display: inline-flex !important;
+  align-items: baseline !important;
+  flex-wrap: wrap !important;
+  gap: 4px !important;
+}
+
+.notificationHistoryPanel .notificationActionMetaItem > span:last-child {
+  color: #918a80 !important;
+  white-space: nowrap !important;
+}
+'''
+          if css_text.count(action_small) != 1:
+              raise SystemExit('notification-history-polish.css: action small block changed')
+          css_text = css_text.replace(action_small, action_replacement, 1)
+          css_text += '''
+
+/* Korean copy should prefer natural phrase boundaries. `pretty` wrapping keeps
+ * a final short word from being stranded on its own line in modern browsers,
+ * while keep-all remains the safe fallback for older engines. */
+.notificationHistoryPanel[lang="ko"] .notificationHistoryTitle,
+.notificationHistoryPanel[lang="ko"] .notificationHistoryBody {
+  word-break: keep-all !important;
+  overflow-wrap: normal !important;
+  hyphens: none !important;
+}
+'''
+          old_narrow = '''  .notificationHistoryPanel .notificationHistoryContent {
+    grid-template-columns: minmax(0, 1fr) !important;
+    grid-template-areas:
+      "title"
+      "body"
+      "meta"
+      "time" !important;
+  }
+
+  .notificationHistoryPanel .notificationHistoryTime {
+    justify-self: start !important;
+  }
+'''
+          new_narrow = '''  .notificationHistoryPanel .notificationHistoryContent {
+    grid-template-columns: minmax(0, 1fr) max-content !important;
+    grid-template-areas:
+      "title time"
+      "body body"
+      "meta meta" !important;
+    column-gap: 8px !important;
+  }
+'''
+          if css_text.count(old_narrow) != 1:
+              raise SystemExit('notification-history-polish.css: narrow grid signature changed')
+          css_text = css_text.replace(old_narrow, new_narrow, 1)
+          css.write_text(css_text)
+
+          polish_test = Path('tests/notification-history-polish.test.mjs')
+          polish = polish_test.read_text()
+          polish = polish.replace(
+              "test('ordinary notification cards use balanced card spacing and move time away from long titles', () => {",
+              "test('ordinary notification cards keep event time in a stable top-right position', () => {",
+              1,
+          )
+          polish = polish.replace(
+              '''assert.match(polish, /grid-template-areas:[\\s\\S]*"title title"[\\s\\S]*"body body"[\\s\\S]*"meta time"\\s*!important/u);''',
+              '''assert.match(polish, /grid-template-areas:[\\s\\S]*"title time"[\\s\\S]*"body body"[\\s\\S]*"meta meta"\\s*!important/u);''',
+              1,
+          )
+          polish = polish.replace(
+              '''  assert.match(polish, /@media \\(max-width:\\s*350px\\)[\\s\\S]*"title"[\\s\\S]*"body"[\\s\\S]*"meta"[\\s\\S]*"time"/u);''',
+              '''  assert.match(polish, /@media \\(max-width:\\s*350px\\)[\\s\\S]*"title time"[\\s\\S]*"body body"[\\s\\S]*"meta meta"/u);''',
+              1,
+          )
+          polish_test.write_text(polish)
+
+          hierarchy_test = r'''import test from 'node:test';
+import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+
+const read = (path) => readFileSync(path, 'utf8');
+const locales = read('src/lib/i18n/locales.ts');
+const metaCopy = read('src/lib/i18n/notificationMetaCopy.ts');
+const historyCopy = read('src/lib/i18n/notificationHistoryCopy.ts');
+const center = read('src/components/UnifiedInviteNotificationHistoryCenter.tsx');
+const polish = read('src/app/notification-history-polish.css');
+
+const supportedLocales = [...locales.matchAll(/\{ locale: '([^']+)'/g)]
+  .map((match) => match[1]);
+const translatedLocales = [...metaCopy.matchAll(
+  /^\s*(?:'([^']+)'|([a-z]+)):\s*\{/gmu,
+)]
+  .map((match) => match[1] ?? match[2])
+  .filter((locale) => supportedLocales.includes(locale));
+
+test('notification relationship metadata is translated for every supported locale', () => {
+  assert.equal(translatedLocales.length, supportedLocales.length);
+  assert.deepEqual(
+    [...new Set(translatedLocales)].sort(),
+    [...supportedLocales].sort(),
+  );
+  for (const field of ['unread', 'invitedFriend', 'inviteCode', 'viewReceipt']) {
+    assert.match(metaCopy, new RegExp(`${field}:`));
+  }
+});
+
+test('notification cards explain whose wallet is shown instead of exposing an unlabeled address', () => {
+  assert.match(center, /metaCopy\.invitedFriend/u);
+  assert.match(center, /className="notificationFriendMeta"/u);
+  assert.match(center, /className="notificationFriendWallet" dir="ltr"/u);
+  assert.match(center, /\(\{friend\}\)/u);
+  assert.match(center, /metaCopy\.inviteCode/u);
+  assert.match(center, /className="notificationActionMetaItem"/u);
+});
+
+test('unread status, time grouping and Korean actions have distinct meanings', () => {
+  assert.match(center, /metaCopy\.unread/u);
+  assert.match(historyCopy, /ko: \{ title: '알림', newLabel: '읽지 않음', markAll: '모두 읽음 처리', today: '오늘', yesterday: '어제', earlier: '이전'/u);
+});
+
+test('event time stays top-right and natural wrapping prevents stranded final words', () => {
+  assert.match(polish, /"title time"[\s\S]*"body body"[\s\S]*"meta meta"/u);
+  assert.match(polish, /\.notificationHistoryTitle[\s\S]*text-wrap:\s*balance\s*!important/u);
+  assert.match(polish, /\.notificationHistoryBody[\s\S]*text-wrap:\s*pretty\s*!important/u);
+  assert.match(polish, /\[lang="ko"\] \.notificationHistoryBody[\s\S]*word-break:\s*keep-all\s*!important/u);
+  assert.doesNotMatch(polish, /"title"\s*\n\s*"body"\s*\n\s*"meta"\s*\n\s*"time"/u);
+});
+
+test('paid notifications keep receipt acknowledgement semantics while making the action explicit', () => {
+  assert.match(center, /metaCopy\.viewReceipt/u);
+  assert.match(center, /if \(paid\) \{[\s\S]*void openRewardReceipt\(item\)[\s\S]*return;/u);
+  assert.match(center, /ACKNOWLEDGE_REWARD_RECEIPT/u);
+});
+'''
+          Path('tests/notification-information-hierarchy.test.mjs').write_text(hierarchy_test)
+          PY
+
+      - name: Run focused notification regression tests
+        run: >-
+          node --test
+          tests/notification-history-polish.test.mjs
+          tests/notification-information-hierarchy.test.mjs
+          tests/i18n-notification-history-production.test.mjs
+          tests/i18n-notification-reward-center.test.mjs
+          tests/notification-history-fast-open.test.mjs
+
+      - name: Commit patch and remove temporary workflow
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git rm .github/workflows/tmp-notification-information-hierarchy.yml
+          git add src/components/UnifiedInviteNotificationHistoryCenter.tsx \
+                  src/app/notification-history-polish.css \
+                  src/lib/i18n/notificationHistoryCopy.ts \
+                  src/lib/i18n/notificationMetaCopy.ts \
+                  tests/notification-history-polish.test.mjs \
+                  tests/notification-information-hierarchy.test.mjs
+          git commit -m "Polish notification information hierarchy"
+          git push origin HEAD:polish/notification-information-hierarchy
