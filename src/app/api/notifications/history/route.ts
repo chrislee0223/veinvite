@@ -247,7 +247,7 @@ export async function POST(request: NextRequest) {
   }
 
   try {
-    const { data, error } = await supabaseAdmin.rpc(
+    const acknowledgementResult = await supabaseAdmin.rpc(
       'acknowledge_invite_notification_history',
       {
         p_inviter_wallet: wallet,
@@ -256,15 +256,29 @@ export async function POST(request: NextRequest) {
       },
     );
 
-    if (error) {
+    if (acknowledgementResult.error) {
       throw new Error(
-        `Notification history acknowledgement failed: ${error.message}`,
+        `Notification history acknowledgement failed: ${acknowledgementResult.error.message}`,
+      );
+    }
+
+    const unreadResult = await supabaseAdmin.rpc(
+      'count_invite_notification_history_unread',
+      {
+        p_inviter_wallet: wallet,
+      },
+    );
+
+    if (unreadResult.error) {
+      throw new Error(
+        `Notification unread count could not be refreshed: ${unreadResult.error.message}`,
       );
     }
 
     return noStoreJson({
       acknowledged: true,
-      result: data,
+      result: acknowledgementResult.data,
+      unreadCount: Number(unreadResult.data ?? 0),
     });
   } catch (error) {
     console.error(
