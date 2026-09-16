@@ -284,6 +284,9 @@ export function InAppInviteNotifications({
   const shownKeyRef = useRef<string | null>(null);
   const openSnapshotRef = useRef<string | null>(null);
   const activeWalletRef = useRef<string | null>(wallet);
+  // Make the newest wallet visible to requests from the prior render before
+  // effects run, so stale authorization failures cannot invalidate its session.
+  activeWalletRef.current = wallet;
   const latestHistoryRequestRef =
     useRef<Promise<HistoryPage | null> | null>(null);
   const lifecycleRefreshRef = useRef<Promise<void> | null>(null);
@@ -304,10 +307,12 @@ export function InAppInviteNotifications({
     lifecycleRefreshRef.current = null;
   }, [wallet]);
 
-  const invalidateWalletSession = useCallback(() => {
-    if (activeWalletRef.current) {
-      clearHistoryCache(activeWalletRef.current);
+  const invalidateWalletSession = useCallback((requestWallet: string) => {
+    if (!sameWallet(activeWalletRef.current, requestWallet)) {
+      return;
     }
+
+    clearHistoryCache(requestWallet);
     setItems([]);
     setUnreadCount(0);
     setNextCursor(null);
@@ -343,8 +348,11 @@ export function InAppInviteNotifications({
       );
 
       if (response.status === 401) {
+        if (!sameWallet(activeWalletRef.current, requestWallet)) {
+          return null;
+        }
         backOffLifecycleAfterUnauthorized();
-        invalidateWalletSession();
+        invalidateWalletSession(requestWallet);
         return null;
       }
 
@@ -470,8 +478,11 @@ export function InAppInviteNotifications({
           );
 
           if (notificationResponse.status === 401) {
+            if (!sameWallet(activeWalletRef.current, requestWallet)) {
+              return;
+            }
             backOffLifecycleAfterUnauthorized();
-            invalidateWalletSession();
+            invalidateWalletSession(requestWallet);
             return;
           }
 
@@ -507,8 +518,10 @@ export function InAppInviteNotifications({
             }
           }
 
+          if (!sameWallet(activeWalletRef.current, requestWallet)) return;
+
           const history = await loadHistoryPage({ requestWallet });
-          if (!history) return;
+          if (!history || !sameWallet(activeWalletRef.current, requestWallet)) return;
 
           applyLatestHistory(history, requestWallet);
           setErrorMessage('');
@@ -562,8 +575,11 @@ export function InAppInviteNotifications({
       );
 
       if (response.status === 401) {
+        if (!sameWallet(activeWalletRef.current, requestWallet)) {
+          return false;
+        }
         backOffLifecycleAfterUnauthorized();
-        invalidateWalletSession();
+        invalidateWalletSession(requestWallet);
         return false;
       }
 
@@ -739,7 +755,7 @@ export function InAppInviteNotifications({
         requestWallet,
         beforeId: nextCursor,
       });
-      if (!page) return;
+      if (!page || !sameWallet(activeWalletRef.current, requestWallet)) return;
 
       setItems((current) => {
         const byId = new Map(
@@ -755,11 +771,13 @@ export function InAppInviteNotifications({
         'VeInvite older notification history load failed:',
         error,
       );
-      setErrorMessage(
-        error instanceof Error
-          ? error.message
-          : 'Notification history request failed.',
-      );
+      if (sameWallet(activeWalletRef.current, requestWallet)) {
+        setErrorMessage(
+          error instanceof Error
+            ? error.message
+            : 'Notification history request failed.',
+        );
+      }
     } finally {
       if (sameWallet(activeWalletRef.current, requestWallet)) {
         setLoading(false);
