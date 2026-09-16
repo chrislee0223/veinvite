@@ -45,6 +45,28 @@ function NetworkCanaryInteractionOwnershipV72() {
       commitTimer = window.setTimeout(clearCommitTransition, GROUP_COMMIT_CLEANUP_MS);
     };
 
+    const neutralizeLegacyCommitFreeze = () => {
+      const layers = Array.from(
+        document.querySelectorAll<HTMLElement>('.v71MobileCommitFreezeLayer'),
+      );
+      if (!layers.length) return;
+
+      // V71's legacy mobile guard clones visible nodes, hides the originals, and
+      // keeps the clones alive for a few frames. That can temporarily separate a
+      // real edge from the visual node it belongs to. Remove only that visual
+      // overlay before the browser paints and reveal the real nodes again. V71
+      // still owns its normal cleanup and will restore the original inline
+      // visibility value after its own short commit window.
+      layers.forEach((layer) => layer.remove());
+      document
+        .querySelectorAll<HTMLElement>('.productionNetworkCanaryV45 .personNode[data-node-id]')
+        .forEach((node) => {
+          if (node.style.getPropertyValue('visibility') === 'hidden') {
+            node.style.setProperty('visibility', 'visible', 'important');
+          }
+        });
+    };
+
     const onPointerDownCapture = (event: PointerEvent) => {
       const target = event.target instanceof Element ? event.target : null;
       const root = canaryRootFor(target);
@@ -82,12 +104,10 @@ function NetworkCanaryInteractionOwnershipV72() {
       const coarsePointer = window.matchMedia('(pointer: coarse)').matches;
       if (event.pointerType !== 'touch' && !coarsePointer) return;
 
-      // Save itself is a click action. Stop only this pointerdown from reaching
-      // V71's legacy clone-freeze layer; do not preventDefault, so the normal
-      // button click and V42 save handler still run. Animate the real nodes so
-      // their geometry and the real referral edges stay in the same coordinate
-      // system during the membership commit.
-      event.stopPropagation();
+      // Keep the native pointer/click sequence untouched so mobile activation is
+      // identical to desktop. V71 may create its legacy freeze later in this
+      // event turn; the body observer removes that overlay before paint while the
+      // real nodes transition in the same coordinate system as their real edges.
       armCommitTransition(root);
     };
 
@@ -115,12 +135,26 @@ function NetworkCanaryInteractionOwnershipV72() {
       event.stopImmediatePropagation();
     };
 
+    const freezeObserver = new MutationObserver((records) => {
+      const freezeAdded = records.some((record) =>
+        Array.from(record.addedNodes).some((node) =>
+          node instanceof Element &&
+          (node.matches('.v71MobileCommitFreezeLayer') ||
+            Boolean(node.querySelector('.v71MobileCommitFreezeLayer'))),
+        ),
+      );
+      if (freezeAdded) neutralizeLegacyCommitFreeze();
+    });
+
     document.addEventListener('pointerdown', onPointerDownCapture, true);
     document.addEventListener('click', onClickCapture, true);
+    freezeObserver.observe(document.body, { childList: true });
+    neutralizeLegacyCommitFreeze();
 
     return () => {
       document.removeEventListener('pointerdown', onPointerDownCapture, true);
       document.removeEventListener('click', onClickCapture, true);
+      freezeObserver.disconnect();
       clearCommitTransition();
       document
         .querySelectorAll<HTMLElement>('.productionNetworkCanaryV45 .personNode.canarySelectedNode')
