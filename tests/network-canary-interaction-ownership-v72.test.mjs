@@ -53,12 +53,23 @@ test('parent return targets the final restored parent camera before React swaps 
   assert.match(v72, /translate3d\(\$\{snapshot\.cameraX\}px,\$\{snapshot\.cameraY\}px,0\) scale\(\$\{targetZoom\}\)/);
 });
 
+test('parent return captures the complete painted parent visual state', () => {
+  assert.match(v72, /type PaintedElementSnapshot = \{/);
+  assert.match(v72, /hidden: boolean/);
+  assert.match(v72, /const elementHidden = \(element: HTMLElement\)/);
+  assert.match(v72, /element\.classList\.contains\('v42CollapsedMember'\)/);
+  assert.match(v72, /people\[id\] = \{ transform, hidden: elementHidden\(node\) \}/);
+  assert.match(v72, /const clusters = Array\.from\(root\.querySelectorAll<HTMLElement>\('\.clusterNode'\)\)/);
+  assert.match(v72, /return \{ people, groups, slots, clusters \}/);
+});
+
 test('parent return locks the previously painted parent node layout while legacy observers settle', () => {
   assert.match(v72, /const renderedTransform = \(element: HTMLElement\)/);
   assert.match(v72, /window\.getComputedStyle\(element\)\.transform/);
-  assert.match(v72, /people\[id\] = transform/);
-  assert.match(v72, /groups\[id\] = transform/);
+  assert.match(v72, /snapshot\.layout\.people\[id\]/);
+  assert.match(v72, /snapshot\.layout\.groups\[id\]/);
   assert.match(v72, /snapshot\.layout\.slots\[index\]/);
+  assert.match(v72, /snapshot\.layout\.clusters\[index\]/);
   assert.match(v72, /new MutationObserver\(\(\) =>/);
   assert.match(v72, /parentLayoutObserver\.observe\(root, \{ childList: true, subtree: true \}\)/);
   assert.doesNotMatch(v72, /parentLayoutObserver\.observe\([^\n]*attributes:/);
@@ -68,6 +79,18 @@ test('parent return locks the previously painted parent node layout while legacy
   assert.match(v72, /--v72-parent-group-transform/);
   assert.match(v72, /data-v72-parent-return-slot/);
   assert.match(v72, /--v72-parent-slot-transform/);
+  assert.match(v72, /data-v72-parent-return-cluster/);
+  assert.match(v72, /--v72-parent-cluster-transform/);
+});
+
+test('parent return suppresses stale scope elements until the captured parent visual state is restored', () => {
+  assert.match(v72, /data-v72-parent-return-hidden/);
+  assert.match(v72, /\.personNode:not\(\[data-v72-parent-return-node="1"\]\)/);
+  assert.match(v72, /\.personNode\[data-v72-parent-return-hidden="1"\]/);
+  assert.match(v72, /\.v42GroupHub:not\(\[data-v72-parent-return-group="1"\]\)/);
+  assert.match(v72, /\.slotNode:not\(\[data-v72-parent-return-slot="1"\]\)/);
+  assert.match(v72, /\.clusterNode:not\(\[data-v72-parent-return-cluster="1"\]\)/);
+  assert.match(v72, /\.v42GroupEdges,\s*\.productionNetworkCanaryV45\.v72ParentReturnTarget \.v50GroupMemberEdges\{\s*opacity:0!important/s);
 });
 
 test('parent layout stays pinned through V50 restore and two paint boundaries after mobile interaction settles', () => {
@@ -80,8 +103,6 @@ test('parent layout stays pinned through V50 restore and two paint boundaries af
   assert.match(v72, /releaseFrameTwo = window\.requestAnimationFrame/);
   assert.match(v72, /applyParentLayoutLocks\(root, activeParentSnapshot\)/);
   assert.match(v72, /transition:none!important/);
-  assert.doesNotMatch(v72, /visibility/);
-  assert.doesNotMatch(v72, /opacity/);
 });
 
 test('V72 deliberately leaves the existing V71 mobile save stabilization untouched', () => {
