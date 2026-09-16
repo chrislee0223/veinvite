@@ -77,7 +77,7 @@ test('V63 reset stays authoritative for the session when localStorage rejects th
   assert.doesNotMatch(resetBlock, /positionStore = readJson/);
 });
 
-test('existing-group drop has one primary synthetic owner and verification-only later layers', () => {
+test('existing-group drop keeps V50/V61 mutation owners separated by panel state while later layers verify or fallback', () => {
   assert.match(v50Source, /dispatchSyntheticDrop\(current\.node, target\.element\)/);
   assert.match(v61Source, /if \(!panelOpen\) \{[\s\S]*?dispatchSyntheticDrop\(current\.node, target\)/);
   assert.doesNotMatch(v63Source, /function dispatchSyntheticDrop|const dispatchSyntheticDrop/);
