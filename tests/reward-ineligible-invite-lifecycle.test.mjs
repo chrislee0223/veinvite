@@ -58,6 +58,13 @@ const inAppNotifications = readFileSync(
   ),
   'utf8',
 );
+const homeClient = readFileSync(
+  new URL(
+    '../src/components/HomeClient.tsx',
+    import.meta.url,
+  ),
+  'utf8',
+);
 const claimRoute = readFileSync(
   new URL(
     '../src/app/api/invites/[code]/claim/route.ts',
@@ -155,11 +162,20 @@ test('notification acknowledgement expands both the function and table constrain
   assert.match(notificationMigration, /grant execute[\s\S]*service_role/iu);
 });
 
-test('terminal rejection acknowledgement refreshes stale Home invite state exactly once', () => {
+test('terminal rejection acknowledgement refreshes stale Home invite state without reloading the app', () => {
   assert.match(inAppNotifications, /notification\.kind === 'INVITE_INELIGIBLE'/u);
   assert.match(inAppNotifications, /const refreshHomeAfterAcknowledgement/u);
   assert.match(inAppNotifications, /if \(refreshHomeAfterAcknowledgement\)/u);
-  assert.match(inAppNotifications, /window\.location\.reload\(\)/u);
+  assert.match(
+    inAppNotifications,
+    /new Event\(HOME_DATA_REFRESH_REQUESTED_EVENT\)/u,
+  );
+  assert.doesNotMatch(inAppNotifications, /window\.location\.reload\(\)/u);
+  assert.match(homeClient, /HOME_DATA_REFRESH_REQUESTED_EVENT/u);
+  assert.match(
+    homeClient,
+    /const refreshHomeData = \(\) => \{\s*void load\(true\);/u,
+  );
 });
 
 test('notification reward evidence is skipped for non-paid pending and rejected invitations', () => {

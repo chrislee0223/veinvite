@@ -59,6 +59,8 @@ const REWARD_RESERVATION_READY_EVENT =
   'veinvite-reward-reservation-ready';
 const NOTIFICATION_HISTORY_ACKNOWLEDGED_EVENT =
   'veinvite-notification-history-acknowledged';
+const HOME_DATA_REFRESH_REQUESTED_EVENT =
+  'veinvite-home-data-refresh-requested';
 const NOTIFICATION_HISTORY_KINDS = new Set([
   'INVITE_ACCEPTED',
   'DAPP_PROGRESS',
@@ -662,8 +664,9 @@ export function InAppInviteNotifications({
         );
 
         if (refreshHomeAfterAcknowledgement) {
-          window.location.reload();
-          return;
+          window.dispatchEvent(
+            new Event(HOME_DATA_REFRESH_REQUESTED_EVENT),
+          );
         }
 
         if (wallet) {
@@ -740,8 +743,9 @@ export function InAppInviteNotifications({
       );
 
       if (refreshHomeAfterAcknowledgement) {
-        window.location.reload();
-        return;
+        window.dispatchEvent(
+          new Event(HOME_DATA_REFRESH_REQUESTED_EVENT),
+        );
       }
 
       if (wallet) {
