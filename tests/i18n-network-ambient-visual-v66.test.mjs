@@ -145,8 +145,8 @@ test('motion respects accessibility, mobile limits and dense-network cost caps',
 
 test('legacy V66-V70 visual stack remains intact for QA but release V71 no longer mounts it', () => {
   assert.match(guideSource, /AppNetworkCanaryV71/);
-  assert.match(rootIdentitySource, /AppNetworkHub/);
-  assert.doesNotMatch(rootIdentitySource, /AppNetworkCanaryV70/);
+  assert.match(rootIdentitySource, /AppNetworkReleaseCanvas/);
+  assert.doesNotMatch(rootIdentitySource, /AppNetworkHub|NetworkReleasePresentation|AppNetworkCanaryV70/);
   assert.match(localeLayoutSource, /AppNetworkCanaryV69/);
   assert.match(localeLayoutSource, /<AppNetworkCanaryV69 locale=\{locale\} \/>/);
   assert.match(dragGhostSource, /AppNetworkCanaryV68/);
