@@ -143,10 +143,10 @@ test('motion respects accessibility, mobile limits and dense-network cost caps',
   assert.match(correctionSource, /--v66-fy1:\s*-\.95px\s*!important/);
 });
 
-test('the special Network canary is wired through V71, V70, V69, V68, V67 and V66', () => {
+test('legacy V66-V70 visual stack remains intact for QA but release V71 no longer mounts it', () => {
   assert.match(guideSource, /AppNetworkCanaryV71/);
-  assert.match(rootIdentitySource, /AppNetworkCanaryV70/);
-  assert.match(rootIdentitySource, /<AppNetworkCanaryV70 locale=\{locale\} \/>/);
+  assert.match(rootIdentitySource, /AppNetworkHub/);
+  assert.doesNotMatch(rootIdentitySource, /AppNetworkCanaryV70/);
   assert.match(localeLayoutSource, /AppNetworkCanaryV69/);
   assert.match(localeLayoutSource, /<AppNetworkCanaryV69 locale=\{locale\} \/>/);
   assert.match(dragGhostSource, /AppNetworkCanaryV68/);
