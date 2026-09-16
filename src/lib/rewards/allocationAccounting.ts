@@ -241,13 +241,14 @@ export async function readVeInviteAllocationEvidence({
   let scanToBlock = toBlock;
 
   if (scanToBlock === undefined) {
-    const bestBlock = await thor.blocks.getBestBlockCompressed();
+    const finalizedBlock = await thor.blocks.getBlockCompressed('finalized');
+    const finalizedBlockNumber = Number(finalizedBlock?.number);
 
-    if (!bestBlock || !Number.isSafeInteger(bestBlock.number) || bestBlock.number < 0) {
-      throw new Error('Unable to establish a valid allocation scan head.');
+    if (!Number.isSafeInteger(finalizedBlockNumber) || finalizedBlockNumber < 0) {
+      throw new Error('Unable to establish a valid finalized allocation scan head.');
     }
 
-    scanToBlock = bestBlock.number;
+    scanToBlock = finalizedBlockNumber;
   }
 
   if (fromBlock > scanToBlock) {
@@ -465,10 +466,11 @@ export async function syncVeInviteAllocationReceipts() {
   const { network, nodeUrl } = getVeBetterNetworkConfig();
   const appId = VEINVITE_APP_ID.toLowerCase();
   const thor = ThorClient.at(nodeUrl);
-  const bestBlock = await thor.blocks.getBestBlockCompressed();
+  const finalizedBlock = await thor.blocks.getBlockCompressed('finalized');
+  const finalizedBlockNumber = Number(finalizedBlock?.number);
 
-  if (!bestBlock || !Number.isSafeInteger(bestBlock.number) || bestBlock.number < 0) {
-    throw new Error('Unable to establish a valid allocation sync head.');
+  if (!Number.isSafeInteger(finalizedBlockNumber) || finalizedBlockNumber < 0) {
+    throw new Error('Unable to establish a valid finalized allocation sync head.');
   }
 
   const latestStored = await supabaseAdmin
@@ -503,17 +505,17 @@ export async function syncVeInviteAllocationReceipts() {
 
   const anchorCandidates = [latestStoredBlock, checkpointBlock]
     .filter((value): value is number => value !== null)
-    .map((value) => Math.min(value, bestBlock.number));
+    .map((value) => Math.min(value, finalizedBlockNumber));
   const anchorBlock = anchorCandidates.length > 0
     ? Math.max(...anchorCandidates)
     : null;
   const fromBlock = anchorBlock === null
-    ? Math.max(0, bestBlock.number - INITIAL_SCAN_LOOKBACK_BLOCKS)
+    ? Math.max(0, finalizedBlockNumber - INITIAL_SCAN_LOOKBACK_BLOCKS)
     : Math.max(0, anchorBlock - SCAN_OVERLAP_BLOCKS);
 
   const chainEvidence = await readVeInviteAllocationEvidence({
     fromBlock,
-    toBlock: bestBlock.number,
+    toBlock: finalizedBlockNumber,
   });
   let insertedCount = 0;
 
@@ -524,10 +526,10 @@ export async function syncVeInviteAllocationReceipts() {
     }
   }
 
-  // Move the cursor only after every event in the scanned range has been
-  // validated and persisted. A short overlap is rescanned next time so a
-  // near-head reorg cannot silently hide a changed immutable event.
-  await saveAllocationScanCheckpoint(network, bestBlock.number);
+  // Advance the cursor only after every finalized event in the scanned range
+  // has been validated and persisted. The overlap rechecks recent finalized
+  // evidence without ever treating a best-head-only event as immutable input.
+  await saveAllocationScanCheckpoint(network, finalizedBlockNumber);
 
   const latest = await supabaseAdmin
     .from('vebetter_round_allocations')
@@ -548,7 +550,7 @@ export async function syncVeInviteAllocationReceipts() {
     network,
     appId,
     scannedFromBlock: fromBlock,
-    scannedToBlock: bestBlock.number,
+    scannedToBlock: finalizedBlockNumber,
     observedClaims: chainEvidence.length,
     insertedCount,
     latestReceipt: (latest.data as StoredVeBetterAllocation | null) ?? null,
