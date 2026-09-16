@@ -50,6 +50,13 @@ test('a cross-link invitee uniqueness race resolves from canonical state instead
   );
 });
 
+test('legacy relationship-cycle rejection matches permanent-link already-referred semantics', () => {
+  assert.match(
+    route,
+    /claimError\.code === 'P0001'[\s\S]*referral relationship would create a cycle[\s\S]*claimConflictResponse\('ALREADY_REFERRED'\)/,
+  );
+});
+
 test('legacy recovery requires exact modern eligibility evidence and never guesses old rows', () => {
   assert.match(recovery, /invitation\.eligibility_check_id === null/);
   assert.match(recovery, /\.eq\('id', invitation\.eligibility_check_id\)/);
