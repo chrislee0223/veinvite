@@ -65,6 +65,18 @@ test('V47 direct group drag composes persisted offsets exactly once', () => {
   assert.doesNotMatch(v47Source, /var\(--v63-drag-[xy],0px\)/);
 });
 
+test('V63 reset stays authoritative for the session when localStorage rejects the write', () => {
+  assert.match(v63Source, /const runtimeResetPrefixes = new Set<string>\(\)/);
+  assert.match(v63Source, /maskRuntimeResetPositions\(readJson<PositionStore>/);
+  assert.match(v63Source, /runtimeResetPrefixes\.add\(prefix\)/);
+  assert.match(v63Source, /Positions reset for this session; couldn’t update saved positions\./);
+  assert.match(v63Source, /runtimeResetPrefixes\.clear\(\)/);
+  const resetStart = v63Source.indexOf('const resetCurrentPositions = () =>');
+  const resetEnd = v63Source.indexOf('const onPointerDown =', resetStart);
+  const resetBlock = v63Source.slice(resetStart, resetEnd);
+  assert.doesNotMatch(resetBlock, /positionStore = readJson/);
+});
+
 test('existing-group drop has one primary synthetic owner and verification-only later layers', () => {
   assert.match(v50Source, /dispatchSyntheticDrop\(current\.node, target\.element\)/);
   assert.match(v61Source, /if \(!panelOpen\) \{[\s\S]*?dispatchSyntheticDrop\(current\.node, target\)/);
