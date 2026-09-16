@@ -31,6 +31,15 @@ type HistoryPage = {
   nextCursor: string | null;
 };
 
+type AcknowledgementResponse = {
+  error?: string;
+  unreadCount?: number;
+};
+
+type AcknowledgementResult = {
+  unreadCount: number;
+};
+
 const REFRESH_MS = 60_000;
 const LIFECYCLE_UNAUTHORIZED_BACKOFF_MS = 15_000;
 const LIFECYCLE_REQUEST_LEASE_MS = 5_000;
@@ -284,6 +293,7 @@ export function InAppInviteNotifications({
   const shownKeyRef = useRef<string | null>(null);
   const openSnapshotRef = useRef<string | null>(null);
   const activeWalletRef = useRef<string | null>(wallet);
+  const historyResolvedRef = useRef(false);
   // Make the newest wallet visible to requests from the prior render before
   // effects run, so stale authorization failures cannot invalidate its session.
   activeWalletRef.current = wallet;
@@ -294,6 +304,7 @@ export function InAppInviteNotifications({
   useEffect(() => {
     activeWalletRef.current = wallet;
     const cached = wallet ? readHistoryCache(wallet) : null;
+    historyResolvedRef.current = cached !== null;
     setItems(cached?.items ?? []);
     setUnreadCount(cached?.unreadCount ?? 0);
     setNextCursor(cached?.nextCursor ?? null);
@@ -313,6 +324,7 @@ export function InAppInviteNotifications({
     }
 
     clearHistoryCache(requestWallet);
+    historyResolvedRef.current = false;
     setItems([]);
     setUnreadCount(0);
     setNextCursor(null);
@@ -386,6 +398,7 @@ export function InAppInviteNotifications({
 
   const applyLatestHistory = useCallback(
     (history: HistoryPage, requestWallet: string) => {
+      historyResolvedRef.current = true;
       setItems(history.items);
       setUnreadCount(history.unreadCount);
       setNextCursor(history.nextCursor);
@@ -559,8 +572,10 @@ export function InAppInviteNotifications({
   );
 
   const acknowledge = useCallback(
-    async (payload: { ids: string[] } | { throughId: string }) => {
-      if (!wallet) return false;
+    async (
+      payload: { ids: string[] } | { throughId: string },
+    ): Promise<AcknowledgementResult | null> => {
+      if (!wallet) return null;
       const requestWallet = wallet;
 
       const response = await fetch(
@@ -576,21 +591,35 @@ export function InAppInviteNotifications({
 
       if (response.status === 401) {
         if (!sameWallet(activeWalletRef.current, requestWallet)) {
-          return false;
+          return null;
         }
         backOffLifecycleAfterUnauthorized();
         invalidateWalletSession(requestWallet);
-        return false;
+        return null;
       }
 
-      const body = (await response.json()) as { error?: string };
+      const body = (await response.json()) as AcknowledgementResponse;
       if (!response.ok) {
         throw new Error(
           body.error || 'Notification acknowledgement failed.',
         );
       }
 
-      return sameWallet(activeWalletRef.current, requestWallet);
+      if (!sameWallet(activeWalletRef.current, requestWallet)) {
+        return null;
+      }
+
+      if (
+        typeof body.unreadCount !== 'number' ||
+        !Number.isFinite(body.unreadCount) ||
+        body.unreadCount < 0
+      ) {
+        throw new Error('Notification unread count is invalid.');
+      }
+
+      return {
+        unreadCount: Math.max(0, Math.floor(body.unreadCount)),
+      };
     },
     [invalidateWalletSession, wallet],
   );
@@ -607,11 +636,11 @@ export function InAppInviteNotifications({
       setErrorMessage('');
 
       try {
-        const acknowledged = await acknowledge({ ids: [id] });
-        if (!acknowledged) return;
+        const acknowledgement = await acknowledge({ ids: [id] });
+        if (!acknowledgement) return;
 
         const now = new Date().toISOString();
-        const nextUnreadCount = Math.max(0, unreadCount - 1);
+        const nextUnreadCount = acknowledgement.unreadCount;
         setItems((current) => {
           const updated = current.map((item) =>
             item.id === id && item.readAt === null
@@ -662,7 +691,6 @@ export function InAppInviteNotifications({
       loadLatestHistory,
       nextCursor,
       refreshLifecycle,
-      unreadCount,
       wallet,
     ],
   );
@@ -683,14 +711,11 @@ export function InAppInviteNotifications({
     setErrorMessage('');
 
     try {
-      const acknowledged = await acknowledge({ throughId });
-      if (!acknowledged) return;
+      const acknowledgement = await acknowledge({ throughId });
+      if (!acknowledgement) return;
 
       const now = new Date().toISOString();
-      const nextUnreadCount = Math.max(
-        0,
-        unreadCount - unreadThroughSnapshot.length,
-      );
+      const nextUnreadCount = acknowledgement.unreadCount;
       setItems((current) => {
         const updated = current.map((item) =>
           item.readAt === null && historyIdAtOrBefore(item.id, throughId)
@@ -866,8 +891,10 @@ export function InAppInviteNotifications({
         setOpen(true);
 
         if (items.length === 0) {
+          const visibleLoading = !historyResolvedRef.current;
           void loadLatestHistory({
             requestWallet: wallet,
+            visibleLoading,
             surfaceError: true,
           }).then((history) => {
             if (
