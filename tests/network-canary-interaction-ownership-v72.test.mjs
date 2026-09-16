@@ -41,7 +41,8 @@ test('Create rejects already-grouped nodes before V71 optimistic mobile paint', 
 
 test('parent return targets the final restored parent camera before React swaps network content', () => {
   assert.match(v72, /const PARENT_RETURN_RELEASE_POLL_MS = 16/);
-  assert.match(v72, /const PARENT_RETURN_FALLBACK_MS = 300/);
+  assert.match(v72, /const PARENT_RETURN_LAYOUT_QUIET_MS = 96/);
+  assert.match(v72, /const PARENT_RETURN_FALLBACK_MS = 520/);
   assert.match(v72, /const ZOOM_STEP = 0\.12/);
   assert.match(v72, /button\?\.classList\.contains\('viewNetwork'\)/);
   assert.match(v72, /parentViews\.push\(snapshot\)/);
@@ -63,16 +64,17 @@ test('parent return captures the complete painted parent visual state', () => {
   assert.match(v72, /return \{ people, groups, slots, clusters \}/);
 });
 
-test('parent return locks the previously painted parent node layout while legacy observers settle', () => {
+test('parent return locks the previously painted parent node layout until legacy layout mutations go quiet', () => {
   assert.match(v72, /const renderedTransform = \(element: HTMLElement\)/);
   assert.match(v72, /window\.getComputedStyle\(element\)\.transform/);
   assert.match(v72, /snapshot\.layout\.people\[id\]/);
   assert.match(v72, /snapshot\.layout\.groups\[id\]/);
   assert.match(v72, /snapshot\.layout\.slots\[index\]/);
   assert.match(v72, /snapshot\.layout\.clusters\[index\]/);
-  assert.match(v72, /new MutationObserver\(\(\) =>/);
-  assert.match(v72, /parentLayoutObserver\.observe\(root, \{ childList: true, subtree: true \}\)/);
-  assert.doesNotMatch(v72, /parentLayoutObserver\.observe\([^\n]*attributes:/);
+  assert.match(v72, /new MutationObserver\(\(mutations\) =>/);
+  assert.match(v72, /parentLayoutLastMutationAt = performance\.now\(\)/);
+  assert.match(v72, /parentLayoutObserver\.observe\(root, \{[\s\S]*attributes: true,[\s\S]*attributeFilter: \['class', 'style'\]/);
+  assert.match(v72, /now - parentLayoutLastMutationAt >= PARENT_RETURN_LAYOUT_QUIET_MS/);
   assert.match(v72, /data-v72-parent-return-node/);
   assert.match(v72, /--v72-parent-node-transform/);
   assert.match(v72, /data-v72-parent-return-group/);
@@ -93,12 +95,23 @@ test('parent return suppresses stale scope elements until the captured parent vi
   assert.match(v72, /\.v42GroupEdges,\s*\.productionNetworkCanaryV45\.v72ParentReturnTarget \.v50GroupMemberEdges\{\s*opacity:0!important/s);
 });
 
-test('parent layout stays pinned through V50 restore and two paint boundaries after mobile interaction settles', () => {
+test('unlock cannot wake V39/V42 into one final visible layout pass', () => {
+  assert.match(v72, /const guardLegacyObserversDuringUnlock = \(root: HTMLElement\)/);
+  assert.match(v72, /groupRoot\.dataset\.v72ParentReturnRelease = '1'/);
+  assert.match(v72, /groupRoot\.dataset\.v42TransientDrag = '1'/);
+  assert.match(v72, /guardLegacyObserversDuringUnlock\(root\);[\s\S]*root\.classList\.remove\('v72ParentReturnTarget'\)/);
+  assert.match(v72, /releaseGuardFrameOne = window\.requestAnimationFrame/);
+  assert.match(v72, /releaseGuardFrameTwo = window\.requestAnimationFrame/);
+  assert.match(v72, /delete groupRoot\.dataset\.v42TransientDrag/);
+});
+
+test('parent layout stays pinned through V50 restore and two paint boundaries after observers are quiet', () => {
   assert.match(v72, /document\.addEventListener\('pointerup', onPointerUpCapture, true\)/);
   assert.match(v72, /event\.isTrusted \|\| event\.pointerType !== 'mouse'/);
   assert.match(v72, /target\.classList\.contains\('stage'\)/);
   assert.match(v72, /releaseWhenInteractionSettles\(root\)/);
   assert.match(v72, /root\.classList\.contains\('veinviteInteracting'\)/);
+  assert.match(v72, /layoutQuiet/);
   assert.match(v72, /releaseFrameOne = window\.requestAnimationFrame/);
   assert.match(v72, /releaseFrameTwo = window\.requestAnimationFrame/);
   assert.match(v72, /applyParentLayoutLocks\(root, activeParentSnapshot\)/);
