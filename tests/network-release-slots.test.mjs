@@ -9,7 +9,7 @@ const [v71Source, slotSource] = await Promise.all([
 
 test('release V71 wraps the real canvas with authenticated invite slots', () => {
   assert.match(v71Source, /NetworkReleaseSlots/);
-  assert.match(v71Source, /<NetworkReleaseSlots locale=\{locale\}>[\s\S]*?<NetworkReleaseGroups locale=\{locale\}>[\s\S]*?<NetworkReleaseGestureBoundary>[\s\S]*?<AppNetworkReleaseCanvas locale=\{locale\} \/>/);
+  assert.match(v71Source, /<NetworkReleaseSlots locale=\{locale\}>[\s\S]*?<NetworkReleasePositionReset locale=\{locale\}>[\s\S]*?<NetworkReleaseGroups locale=\{locale\}>[\s\S]*?<NetworkReleaseGestureBoundary>[\s\S]*?<AppNetworkReleaseCanvas locale=\{locale\} \/>/);
   assert.match(slotSource, /fetch\(`\/api\/referral-links\?inviter=\$\{encodeURIComponent\(address\)\}`/);
   assert.match(slotSource, /credentials:\s*'include'/);
   assert.match(slotSource, /cache:\s*'no-store'/);
