@@ -6,6 +6,7 @@ import {
 import {
   isClaimPayoutContinuationMessage,
   needsDurableClaimPayoutContinuation,
+  readClaimPayoutManualIntervention,
 } from '@/lib/rewards/claimPayoutContinuationQueue';
 
 /**
@@ -30,19 +31,21 @@ const queueCallback = handleCallback(
     }
 
     const result = await runImmediateClaimRewardPayout();
+    const manualIntervention =
+      readClaimPayoutManualIntervention(result);
 
-    if (result.status === 'MANUAL_INTERVENTION_REQUIRED') {
+    if (manualIntervention) {
       // Repeating a deterministic safety stop cannot repair it and can create
-      // noisy queue churn. The immutable journal remains available for manual
-      // reconciliation and the daily recovery sweep stays as a separate guard.
+      // noisy queue churn. Prefer the submitted-recovery safety observation when
+      // present so a later IDLE/PAID transfer result cannot hide it.
       console.error(
         'Reward payout continuation requires manual intervention:',
         {
           inviteCode: message.inviteCode,
-          roundId: result.roundId,
-          manifestId: result.manifestId,
-          txId: result.txId,
-          reason: result.reason ?? null,
+          roundId: manualIntervention.roundId,
+          manifestId: manualIntervention.manifestId,
+          txId: manualIntervention.txId,
+          reason: manualIntervention.reason ?? null,
         },
       );
       return;
