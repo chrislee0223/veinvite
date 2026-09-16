@@ -8,6 +8,9 @@ import {
 } from '@vechain/sdk-core';
 
 import {
+  getVeBetterNetwork,
+} from '@/lib/vebetter/network';
+import {
   readAutomaticRewardDistributorReadiness as readBaseReadiness,
   runAutomaticRewardPayout as runBaseAutomaticRewardPayout,
   type AutomaticRewardPayoutResult,
@@ -209,6 +212,28 @@ Promise<ImmediateClaimRewardPayoutResult> {
   // not forget that an older submitted transaction still needs finality just
   // because the transfer-only worker below returns IDLE or PAID.
   const submittedRecovery = await recoverSubmittedBeforePayout();
+
+  // A deterministic recovery safety stop is different from ordinary finality
+  // waiting. Do not prepare or sign newer work when the existing immutable
+  // journal requires operator intervention; preserve that stop as the dominant
+  // result instead of allowing a later IDLE/PAID result to hide it.
+  if (
+    submittedRecovery.result?.status ===
+    'MANUAL_INTERVENTION_REQUIRED'
+  ) {
+    return {
+      status: 'MANUAL_INTERVENTION_REQUIRED',
+      network: getVeBetterNetwork(),
+      distributorAddress: readiness.distributorAddress,
+      roundId: submittedRecovery.result.roundId,
+      manifestId: submittedRecovery.result.manifestId,
+      txId: submittedRecovery.result.txId,
+      reason: submittedRecovery.result.reason,
+      transfersPerformed: false,
+      submittedRecovery: submittedRecovery.result,
+      submittedRecoveryFailed: false,
+    };
+  }
 
   // Prepare only already-claimed, already-reserved rewards. If this preparation
   // throws, propagate the failure so the durable Queue retries the same approved
