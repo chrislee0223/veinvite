@@ -32,15 +32,18 @@ type LanguageUsageSource =
   | 'manual_selection';
 
 type PreferenceResponse = {
+  walletAddress?: unknown;
   language?: unknown;
   error?: string;
 };
 
 async function postLanguageState({
+  expectedWallet,
   intent,
   language,
   source,
 }: {
+  expectedWallet: string;
   intent:
     | typeof SET_LANGUAGE_INTENT
     | typeof OBSERVE_DISPLAY_LANGUAGE_INTENT;
@@ -55,6 +58,7 @@ async function postLanguageState({
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
+        expectedWallet,
         intent,
         language,
         source,
@@ -73,9 +77,11 @@ async function postLanguageState({
 }
 
 async function saveLanguage(
+  expectedWallet: string,
   language: SupportedLocale,
 ): Promise<void> {
   await postLanguageState({
+    expectedWallet,
     intent: SET_LANGUAGE_INTENT,
     language,
     source: 'manual_selection',
@@ -83,6 +89,7 @@ async function saveLanguage(
 }
 
 async function observeDisplayLanguage(
+  expectedWallet: string,
   language: SupportedLocale,
   source: Exclude<
     LanguageUsageSource,
@@ -90,6 +97,7 @@ async function observeDisplayLanguage(
   >,
 ): Promise<void> {
   await postLanguageState({
+    expectedWallet,
     intent: OBSERVE_DISPLAY_LANGUAGE_INTENT,
     language,
     source,
@@ -163,7 +171,11 @@ export function WalletLanguagePreferenceSync() {
       const language =
         (event as CustomEvent<unknown>).detail;
 
-      if (!isLocale(language) || applyingRemote) {
+      if (
+        cancelled ||
+        !isLocale(language) ||
+        applyingRemote
+      ) {
         return;
       }
 
@@ -173,12 +185,14 @@ export function WalletLanguagePreferenceSync() {
         return;
       }
 
-      void saveLanguage(language)
+      void saveLanguage(walletAddress, language)
         .then(() => {
+          if (cancelled) return;
           clearPendingManualLanguage(language);
         })
         .catch(
           (error) => {
+            if (cancelled) return;
             console.warn(
               'Failed to persist VeInvite language preference:',
               error,
@@ -212,7 +226,11 @@ export function WalletLanguagePreferenceSync() {
           );
         }
 
-        if (cancelled) {
+        if (
+          cancelled ||
+          typeof body.walletAddress !== 'string' ||
+          body.walletAddress.toLowerCase() !== walletAddress
+        ) {
           return;
         }
 
@@ -235,7 +253,12 @@ export function WalletLanguagePreferenceSync() {
         // override a user change that happened while authentication was still
         // being established.
         if (changedLanguage) {
-          await saveLanguage(changedLanguage);
+          if (cancelled) return;
+          await saveLanguage(
+            walletAddress,
+            changedLanguage,
+          );
+          if (cancelled) return;
           clearPendingManualLanguage(
             changedLanguage,
           );
@@ -248,24 +271,32 @@ export function WalletLanguagePreferenceSync() {
             : null;
 
         if (serverLanguage) {
+          if (cancelled) return;
+
           if (observedLanguage !== serverLanguage) {
             applyingRemote = true;
             applyLanguage(serverLanguage);
             applyingRemote = false;
           }
 
+          if (cancelled) return;
           await observeDisplayLanguage(
+            walletAddress,
             serverLanguage,
             'wallet_preference',
           );
+          if (cancelled) return;
           clearPendingManualLanguage();
           return;
         }
 
         if (pendingManualLanguage) {
+          if (cancelled) return;
           await saveLanguage(
+            walletAddress,
             pendingManualLanguage,
           );
+          if (cancelled) return;
           clearPendingManualLanguage(
             pendingManualLanguage,
           );
@@ -273,7 +304,9 @@ export function WalletLanguagePreferenceSync() {
         }
 
         if (queryLanguage) {
+          if (cancelled) return;
           await observeDisplayLanguage(
+            walletAddress,
             queryLanguage,
             'query_param',
           );
@@ -286,7 +319,9 @@ export function WalletLanguagePreferenceSync() {
           // record only what this wallet is currently seeing. A wallet-level
           // preference is created only after an explicit language change while
           // that wallet has an authenticated session.
+          if (cancelled) return;
           await observeDisplayLanguage(
+            walletAddress,
             localLanguage,
             'local_storage',
           );
@@ -299,11 +334,14 @@ export function WalletLanguagePreferenceSync() {
             'en',
           );
 
+        if (cancelled) return;
         await observeDisplayLanguage(
+          walletAddress,
           browserLanguage,
           'browser_auto',
         );
       } catch (error) {
+        if (cancelled) return;
         syncStarted = false;
         console.warn(
           'Failed to sync VeInvite language preference:',

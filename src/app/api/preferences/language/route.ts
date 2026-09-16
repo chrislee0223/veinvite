@@ -16,6 +16,7 @@ const SET_LANGUAGE_INTENT =
   'SET_WALLET_LANGUAGE_PREFERENCE';
 const OBSERVE_DISPLAY_LANGUAGE_INTENT =
   'OBSERVE_WALLET_DISPLAY_LANGUAGE';
+const WALLET_PATTERN = /^0x[0-9a-f]{40}$/;
 
 const LANGUAGE_USAGE_SOURCES = [
   'browser_auto',
@@ -247,6 +248,19 @@ export async function POST(
     );
   }
 
+  const expectedWallet =
+    'expectedWallet' in body &&
+    typeof body.expectedWallet === 'string'
+      ? body.expectedWallet.trim().toLowerCase()
+      : '';
+
+  if (!WALLET_PATTERN.test(expectedWallet)) {
+    return noStoreJson(
+      { error: 'Invalid expected wallet.' },
+      400,
+    );
+  }
+
   const language =
     'language' in body
       ? body.language
@@ -288,8 +302,14 @@ export async function POST(
   }
 
   try {
+    // Bind the mutation to the wallet that initiated the client effect. If the
+    // browser switched wallets while an older async language flow was still in
+    // flight, the new session must never receive the previous wallet's state.
     const session =
-      await requireWalletSession({ request });
+      await requireWalletSession({
+        request,
+        expectedWallet,
+      });
     const walletAddress =
       session.walletAddress.toLowerCase();
     const updatedAt =

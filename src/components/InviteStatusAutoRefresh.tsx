@@ -91,6 +91,12 @@ export function InviteStatusAutoRefresh() {
   const { account } = useWallet();
   const walletAddress =
     account?.address?.toLowerCase() ?? null;
+  const activeWalletRef =
+    useRef<string | null>(walletAddress);
+  // Keep the latest wallet visible to already-running promises immediately.
+  // Waiting for an effect cleanup leaves a small window where a stale request
+  // can finish after React has rendered the next wallet.
+  activeWalletRef.current = walletAddress;
   const lastFingerprintRef =
     useRef<string | null>(null);
   const checkingRef = useRef(false);
@@ -133,12 +139,16 @@ export function InviteStatusAutoRefresh() {
       return;
     }
 
+    const requestWallet = walletAddress;
     checkingRef.current = true;
 
     try {
       let data = await loadInvites();
 
-      if (!data) {
+      if (
+        !data ||
+        activeWalletRef.current !== requestWallet
+      ) {
         return;
       }
 
@@ -177,9 +187,16 @@ export function InviteStatusAutoRefresh() {
             },
           );
 
+          if (activeWalletRef.current !== requestWallet) {
+            return;
+          }
+
           if (syncResponse.ok) {
             const refreshed =
               await loadInvites();
+            if (activeWalletRef.current !== requestWallet) {
+              return;
+            }
             if (refreshed) {
               data = refreshed;
             }
@@ -189,6 +206,10 @@ export function InviteStatusAutoRefresh() {
           // polling remain available, and another fallback attempt is allowed
           // after the bounded interval.
         }
+      }
+
+      if (activeWalletRef.current !== requestWallet) {
+        return;
       }
 
       const fingerprint =
@@ -219,6 +240,7 @@ export function InviteStatusAutoRefresh() {
   useEffect(() => {
     lastFingerprintRef.current = null;
     lastEvidenceSyncRef.current = null;
+    checkingRef.current = false;
 
     if (!walletAddress) {
       return;

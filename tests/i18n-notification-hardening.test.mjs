@@ -120,10 +120,14 @@ test('notification lifecycle coalesces reload bursts and persists unauthorized b
   );
   assert.match(
     notifications,
-    /if \(notificationResponse\.status === 401\) \{\s*backOffLifecycleAfterUnauthorized\(\);\s*invalidateWalletSession\(\);\s*return;/,
+    /const invalidateWalletSession = useCallback\(\(requestWallet: string\) => \{\s*if \(!sameWallet\(activeWalletRef\.current, requestWallet\)\) \{\s*return;\s*\}/,
   );
   assert.match(
     notifications,
-    /fetch\(\s*`\/api\/notifications\/history\?\$\{params\.toString\(\)\}`[\s\S]*if \(response\.status === 401\) \{\s*backOffLifecycleAfterUnauthorized\(\);\s*invalidateWalletSession\(\);/,
+    /if \(notificationResponse\.status === 401\) \{\s*if \(!sameWallet\(activeWalletRef\.current, requestWallet\)\) \{\s*return;\s*\}\s*backOffLifecycleAfterUnauthorized\(\);\s*invalidateWalletSession\(requestWallet\);\s*return;/,
+  );
+  assert.match(
+    notifications,
+    /fetch\(\s*`\/api\/notifications\/history\?\$\{params\.toString\(\)\}`[\s\S]*if \(response\.status === 401\) \{\s*if \(!sameWallet\(activeWalletRef\.current, requestWallet\)\) \{\s*return null;\s*\}\s*backOffLifecycleAfterUnauthorized\(\);\s*invalidateWalletSession\(requestWallet\);\s*return null;/,
   );
 });

@@ -162,3 +162,109 @@ test('provider repair preserves the old A-session confirmation and only re-arms 
     /clearWalletSession|disconnect\(\)|clearPersistedVeWorldConnectionState/,
   );
 });
+
+test('stale notification 401 responses cannot invalidate the wallet that replaced the request wallet', async () => {
+  const source = await readFile(
+    new URL(
+      '../src/components/InAppInviteNotifications.tsx',
+      import.meta.url,
+    ),
+    'utf8',
+  );
+
+  assert.match(
+    source,
+    /activeWalletRef\.current\s*=\s*wallet;/,
+  );
+  assert.match(
+    source,
+    /const invalidateWalletSession = useCallback\(\(requestWallet: string\) => \{[\s\S]*!sameWallet\(activeWalletRef\.current, requestWallet\)[\s\S]*return;/,
+  );
+
+  const unauthorizedBlocks = source.match(
+    /if \([^)]*\.status === 401\) \{[\s\S]{0,260}?invalidateWalletSession\(requestWallet\);[\s\S]{0,80}?return(?: null| false|;)/g,
+  ) ?? [];
+
+  assert.equal(
+    unauthorizedBlocks.length,
+    3,
+    'all three notification 401 paths must be wallet-scoped',
+  );
+  for (const block of unauthorizedBlocks) {
+    assert.match(
+      block,
+      /!sameWallet\(activeWalletRef\.current, requestWallet\)/,
+    );
+  }
+});
+
+test('invite auto-refresh cannot let an old wallet request seed the new wallet fingerprint or evidence state', async () => {
+  const source = await readFile(
+    new URL(
+      '../src/components/InviteStatusAutoRefresh.tsx',
+      import.meta.url,
+    ),
+    'utf8',
+  );
+
+  assert.match(
+    source,
+    /const requestWallet = walletAddress;/,
+  );
+  assert.match(
+    source,
+    /activeWalletRef\.current\s*=\s*walletAddress;/,
+  );
+  assert.match(
+    source,
+    /!data \|\|[\s\S]*activeWalletRef\.current !== requestWallet/,
+  );
+  assert.match(
+    source,
+    /activeWalletRef\.current !== requestWallet[\s\S]*const fingerprint/,
+  );
+  assert.match(
+    source,
+    /lastFingerprintRef\.current = null;[\s\S]*lastEvidenceSyncRef\.current = null;[\s\S]*checkingRef\.current = false;/,
+  );
+});
+
+test('wallet language mutations are bound to the wallet that started the sync', async () => {
+  const [client, route] = await Promise.all([
+    readFile(
+      new URL(
+        '../src/components/WalletLanguagePreferenceSync.tsx',
+        import.meta.url,
+      ),
+      'utf8',
+    ),
+    readFile(
+      new URL(
+        '../src/app/api/preferences/language/route.ts',
+        import.meta.url,
+      ),
+      'utf8',
+    ),
+  ]);
+
+  assert.match(
+    client,
+    /body: JSON\.stringify\(\{[\s\S]*expectedWallet,[\s\S]*intent,[\s\S]*language,[\s\S]*source/,
+  );
+  assert.match(
+    client,
+    /typeof body\.walletAddress !== 'string'[\s\S]*body\.walletAddress\.toLowerCase\(\) !== walletAddress/,
+  );
+  assert.match(
+    client,
+    /cancelled \|\|[\s\S]*!isLocale\(language\)[\s\S]*applyingRemote/,
+  );
+  assert.match(
+    route,
+    /const expectedWallet =[\s\S]*body\.expectedWallet\.trim\(\)\.toLowerCase\(\)/,
+  );
+  assert.match(
+    route,
+    /requireWalletSession\(\{[\s\S]*request,[\s\S]*expectedWallet,[\s\S]*\}\)/,
+  );
+});
