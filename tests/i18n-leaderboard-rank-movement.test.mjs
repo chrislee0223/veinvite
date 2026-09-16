@@ -147,7 +147,7 @@ test('final inviter grid keeps header, top-100 rows, placeholders, and current-u
     /\.tableHeader,\s*html body \.leaderboardPage \.rankingCard \.rankRow \{\s*grid-template-columns: 20fr 32fr 20fr 28fr !important;/,
   );
   assert.match(alignmentGuard, /\.rankRow\.trailingCurrent \.rankStack/);
-  assert.match(leaderboard, /className="rankRow placeholderRow/);
+  assert.match(leaderboard, /rankRow placeholderRow/);
   assert.match(leaderboard, /trailing \? 'trailingCurrent' : ''/);
 
   const rankTrack = 20;
