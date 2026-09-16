@@ -62,10 +62,10 @@
 
   /* The header is taller only when Mark-all exists. Reserve that extra height
    * from the scroll viewport so the last notification never hides behind the
-   * rounded panel edge on 320px/390px phones. */
+   * rounded panel edge on 320px/390px phones, including two-line Urdu copy. */
   .notificationHistoryPanel:has(.notificationHistoryMarkAll)
     .notificationHistoryScroll {
-    max-height: calc(74dvh - 102px - env(safe-area-inset-bottom)) !important;
+    max-height: calc(74dvh - 116px - env(safe-area-inset-bottom)) !important;
   }
 }
 
@@ -79,6 +79,7 @@
   .notificationHistoryTitle,
   .notificationHistoryBody,
   .notificationHistoryMeta,
+  .notificationHistoryMeta b,
   .notificationReceiptAction,
   .notificationActionHeading,
   .notificationActionCopy > span,
@@ -110,6 +111,7 @@
   .notificationHistoryTitle,
   .notificationHistoryBody,
   .notificationHistoryMeta,
+  .notificationHistoryMeta b,
   .notificationReceiptAction,
   .notificationActionHeading,
   .notificationActionCopy > span,
@@ -146,6 +148,7 @@
   .notificationHistoryTitle,
   .notificationHistoryBody,
   .notificationHistoryMeta,
+  .notificationHistoryMeta b,
   .notificationReceiptAction,
   .notificationActionHeading,
   .notificationActionCopy > span,
