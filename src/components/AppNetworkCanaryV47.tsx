@@ -72,10 +72,7 @@ function NetworkInteractionCorrections() {
         parsePx(node.style.getPropertyValue(`--v42-group-d${suffix}`)) +
         parsePx(node.style.getPropertyValue(`--v50-adjust-${suffix}`)) +
         parsePx(node.style.getPropertyValue(`--v52-adjust-${suffix}`)) +
-        parsePx(node.style.getPropertyValue(`--v63-adjust-${suffix}`)) +
-        parsePx(node.style.getPropertyValue(`--v50-drag-d${suffix}`)) +
-        parsePx(node.style.getPropertyValue(`--v52-drag-d${suffix}`)) +
-        parsePx(node.style.getPropertyValue(`--v63-drag-${suffix}`));
+        parsePx(node.style.getPropertyValue(`--v63-adjust-${suffix}`));
     };
 
     const syncPathToNode = (node: HTMLButtonElement, dragDx = 0, dragDy = 0) => {
@@ -281,8 +278,8 @@ function NetworkInteractionCorrections() {
 
     .productionNetworkCanaryV45 .personNode.v47DirectDragging{
       transform:translate(
-        calc(var(--x) + var(--v42-group-dx,0px) + var(--v50-adjust-x,0px) + var(--v52-adjust-x,0px) + var(--v63-adjust-x,0px) + var(--v50-drag-dx,0px) + var(--v52-drag-dx,0px) + var(--v63-drag-x,0px) + var(--v47-drag-dx,0px) - 50%),
-        calc(var(--y) + var(--v42-group-dy,0px) + var(--v50-adjust-y,0px) + var(--v52-adjust-y,0px) + var(--v63-adjust-y,0px) + var(--v50-drag-dy,0px) + var(--v52-drag-dy,0px) + var(--v63-drag-y,0px) + var(--v47-drag-dy,0px) - 50%)
+        calc(var(--x) + var(--v42-group-dx,0px) + var(--v50-adjust-x,0px) + var(--v52-adjust-x,0px) + var(--v63-adjust-x,0px) + var(--v47-drag-dx,0px) - 50%),
+        calc(var(--y) + var(--v42-group-dy,0px) + var(--v50-adjust-y,0px) + var(--v52-adjust-y,0px) + var(--v63-adjust-y,0px) + var(--v47-drag-dy,0px) - 50%)
       )!important;
       z-index:90!important;transition:none!important
     }
