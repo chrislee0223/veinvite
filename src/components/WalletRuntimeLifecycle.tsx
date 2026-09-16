@@ -21,7 +21,6 @@ import {
 } from '@/lib/walletConnectionResume';
 
 const APP_READY_EVENT = 'veinvite-app-ready';
-const APP_LOADING_EVENT = 'veinvite-app-loading';
 const WALLET_SESSION_READY_EVENT =
   'veinvite-wallet-session-ready';
 const SESSION_RENEWAL_INTENT = 'renew';
@@ -105,10 +104,14 @@ export function WalletRuntimeLifecycle() {
       readinessTimerRef.current = null;
     }
 
+    // Re-arm readiness for the new wallet without reactivating the global
+    // hydration shield. WalletSessionGate already replaces wallet-scoped Home
+    // while ownership verification runs, so replaying the full-screen startup
+    // shield here only creates a visible flash. Keeping appReady published
+    // preserves the stable shell, while releasedRef=false still requires the
+    // exact new wallet's Home readiness before a fresh app-ready event fires.
     releasedRef.current = false;
     startupErrorReportedRef.current = false;
-    document.documentElement.dataset.veinviteAppReady = 'false';
-    window.dispatchEvent(new Event(APP_LOADING_EVENT));
   }, [walletAddress]);
 
   useEffect(() => {
