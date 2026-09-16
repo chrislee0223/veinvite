@@ -712,6 +712,15 @@ export async function POST(
       }
     }
 
+    if (
+      claimError.code === 'P0001' &&
+      claimError.message.includes(
+        'referral relationship would create a cycle',
+      )
+    ) {
+      return claimConflictResponse('ALREADY_REFERRED');
+    }
+
     console.error(
       'Failed to atomically claim invitation:',
       claimError,
