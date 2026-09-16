@@ -44,10 +44,15 @@ test('unread status, time grouping and Korean actions have distinct meanings', (
 
 test('event time stays top-right and natural wrapping prevents stranded final words', () => {
   assert.match(polish, /"title time"[\s\S]*"body body"[\s\S]*"meta meta"/u);
+  assert.match(polish, /\.notificationHistoryTime[\s\S]*align-self:\s*start\s*!important/u);
   assert.match(polish, /\.notificationHistoryTitle[\s\S]*text-wrap:\s*balance\s*!important/u);
   assert.match(polish, /\.notificationHistoryBody[\s\S]*text-wrap:\s*pretty\s*!important/u);
   assert.match(polish, /\[lang="ko"\] \.notificationHistoryBody[\s\S]*word-break:\s*keep-all\s*!important/u);
   assert.doesNotMatch(polish, /"title"\s*\n\s*"body"\s*\n\s*"meta"\s*\n\s*"time"/u);
+});
+
+test('very narrow cards keep time in the top row without letting it dominate the title', () => {
+  assert.match(polish, /@media \(max-width:\s*350px\)[\s\S]*"title time"[\s\S]*\.notificationHistoryTime[\s\S]*font-size:\s*0\.54rem\s*!important/u);
 });
 
 test('paid notifications keep receipt acknowledgement semantics while making the action explicit', () => {
