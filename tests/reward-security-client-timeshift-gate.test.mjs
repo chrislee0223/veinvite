@@ -4,7 +4,7 @@ import test from 'node:test';
 
 const migration = await readFile(
   new URL(
-    '../supabase/migrations/20260916070000_invalidate_stale_security_identity_on_participant_change.sql',
+    '../supabase/migrations/20260916071737_invalidate_stale_security_identity_on_participant_change.sql',
     import.meta.url,
   ),
   'utf8',
