@@ -80,7 +80,7 @@ function NetworkParentVisualPreserveV73() {
         'v50DraggingNode',
         'v73LiveReturnHidden',
       );
-      clone.classList.add('v73ParentVisualOverlay');
+      clone.classList.add('v73ParentVisualOverlay', 'v73ReturnMotionFrozen');
       clone.setAttribute('aria-hidden', 'true');
       clone.setAttribute('inert', '');
 
@@ -203,6 +203,13 @@ function NetworkParentVisualPreserveV73() {
       returnStartedAt = performance.now();
       lastLiveMutationAt = returnStartedAt;
 
+      // V66 gives every visible node a small ambient translate animation. The
+      // cloned parent and the live React tree cannot share the same animation
+      // clock, so freeze both to the exact base position before either can paint.
+      // Keep the returned parent frozen until the next deliberate navigation;
+      // re-enabling here would immediately re-apply negative animation delays and
+      // recreate the final 1-2px nudge that V73 is meant to remove.
+      root.classList.add('v73ReturnMotionFrozen');
       positionOverlay(root, activeOverlay);
       root.classList.add('v73LiveReturnHidden');
       document.body.appendChild(activeOverlay);
@@ -238,15 +245,20 @@ function NetworkParentVisualPreserveV73() {
         while (parentVisuals.length > PARENT_VISUAL_STACK_LIMIT) {
           parentVisuals.shift()?.clone.remove();
         }
+        // The current parent is leaving the screen now, so its decorative motion
+        // can resume without exposing a return-time handoff nudge.
+        root.classList.remove('v73ReturnMotionFrozen');
         return;
       }
 
       if (button.closest('.viewActions') && button.textContent?.includes('YOU')) {
+        root.classList.remove('v73ReturnMotionFrozen');
         clearParentVisuals();
         detachOverlay();
         return;
       }
       if (button.closest('.crumbs')) {
+        root.classList.remove('v73ReturnMotionFrozen');
         clearParentVisuals();
         detachOverlay();
         return;
@@ -262,6 +274,9 @@ function NetworkParentVisualPreserveV73() {
 
     return () => {
       document.removeEventListener('click', onClickCapture, true);
+      document
+        .querySelector<HTMLElement>('.productionNetworkCanaryV45.v73ReturnMotionFrozen')
+        ?.classList.remove('v73ReturnMotionFrozen');
       clearParentVisuals();
       detachOverlay();
     };
@@ -284,6 +299,16 @@ function NetworkParentVisualPreserveV73() {
     .productionNetworkCanaryV45.v73ParentVisualOverlay *{
       pointer-events:none!important;
       user-select:none!important
+    }
+    .productionNetworkCanaryV45.v73ReturnMotionFrozen :is(
+      .personNode,
+      .slotNode,
+      .clusterNode,
+      .v42GroupHub
+    ){
+      animation:none!important;
+      animation-delay:0s!important;
+      translate:none!important
     }
   `}</style>;
 }
