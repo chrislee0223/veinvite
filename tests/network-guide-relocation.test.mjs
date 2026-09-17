@@ -40,7 +40,7 @@ test('Network replaces Guide only at the user-facing navigation layer', () => {
   assert.match(navigation, /activeTab === 'home'/i);
 });
 
-test('the legacy Guide tab renders the single hardened Network runtime while retaining a build-time fallback', () => {
+test('the legacy Guide tab renders one focused hardened Network runtime while retaining a build-time fallback', () => {
   assert.match(guide, /import \{ AppNetworkHub \} from '\.\/AppNetworkHub'/i);
   assert.match(guide, /NEXT_PUBLIC_NETWORK_CANVAS_ENABLED/i);
   assert.match(guide, /<AppNetworkHub locale=\{locale\} \/>/i);
@@ -58,7 +58,10 @@ test('the legacy Guide tab renders the single hardened Network runtime while ret
   assert.match(interactiveNetwork, /returnViewByChildRef/i);
   assert.doesNotMatch(interactiveNetwork, /MutationObserver/i);
   assert.match(networkHub, /<AppNetwork locale=\{locale\} \/>/i);
-  assert.match(networkHub, /<PublicNetworkExplorer/i);
+  assert.doesNotMatch(networkHub, /PublicNetworkExplorer/i);
+  assert.doesNotMatch(networkHub, /exploreNetwork|publicSettings/i);
+  // The public explorer remains dormant code for now; removing its visible
+  // mode switch must not require destructive backend cleanup in the same pass.
   assert.match(publicExplorer, /PUBLIC_SESSION_PREFIX/i);
   assert.match(publicExplorer, /requestSerialRef/i);
   assert.match(publicExplorer, /cancelNavigation/i);
