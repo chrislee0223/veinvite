@@ -128,7 +128,7 @@ jobs:
           tests/invitee-mission-actions.test.mjs
           tests/legacy-invite-claim-retry.test.mjs
           tests/legacy-invite-cancel-retry.test.mjs
-          tests/network-single-runtime-stability.test.mjs
+          tests/network-single-runtime.test.mjs
           tests/notification-ack-batch-atomicity.test.mjs
           tests/notification-history-fast-open.test.mjs
           tests/operator-fast-invitation-projection-privilege.test.mjs
