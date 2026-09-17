@@ -80,6 +80,7 @@ const sentryEnabled = Boolean(
   process.env.SENTRY_DSN || process.env.NEXT_PUBLIC_SENTRY_DSN,
 );
 
+// Source-map upload is activated only when Sentry build credentials are present.
 export default sentryEnabled
   ? withSentryConfig(nextConfig, {
       org: process.env.SENTRY_ORG,
