@@ -95,12 +95,15 @@ if (
   walletSessionGate.includes('SESSION_CHECK_SURFACE_DELAY_MS') ||
   walletSessionGate.includes('showCheckingSurface') ||
   !/state === 'idle' \|\| state === 'checking'/.test(walletSessionGate) ||
+  !/state === 'verified' &&[\s\S]*verifiedWallet !== walletAddress[\s\S]*return <WalletSessionBrandSurface \/>/.test(
+    walletSessionGate,
+  ) ||
   !/qaPreview\.state === 'checking-delay' \|\|[\s\S]*qaPreview\.state === 'checking'/.test(
     walletSessionGate,
   )
 ) {
   failures.push(
-    'Wallet verification must keep the stable VeInvite brand screen visible for the entire checking/signing phase and only show an interactive surface for a confirmed error or mismatch.',
+    'Wallet verification must keep the stable VeInvite brand screen visible through checking/signing and the first stale-session/new-wallet frame; only a confirmed error or mismatch may render an interactive surface.',
   );
 }
 
