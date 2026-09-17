@@ -1,6 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 
-import { canUseNetworkSurface } from '@/lib/networkRuntimeServer';
+import { buildNetworkCanaryFixture } from '@/lib/networkCanaryFixture';
+import {
+  canUseNetworkSurface,
+  isNetworkCanaryWallet,
+} from '@/lib/networkRuntimeServer';
 import { enforceRateLimits } from '@/lib/rateLimitServer';
 import { normalizeAddress } from '@/lib/serverStore';
 import { supabaseAdmin } from '@/lib/supabaseServer';
@@ -246,6 +250,27 @@ export async function GET(request: NextRequest) {
   }
 
   const round = await readCurrentRoundContext();
+
+  // Canary wallets exercise the exact same production React runtime as every
+  // other wallet. Only the server-side graph data is synthetic, so camera,
+  // gestures, navigation and layout cannot diverge into a second UI version.
+  if (await isNetworkCanaryWallet(rootWallet)) {
+    const payload = buildNetworkCanaryFixture(rootWallet, focusWallet, search, round);
+    if (payload.error === 'FOCUS_NOT_IN_NETWORK') {
+      return networkError(
+        'FOCUS_NOT_IN_NETWORK',
+        'That wallet is not in your VeInvite network.',
+        404,
+      );
+    }
+    return NextResponse.json(payload, {
+      headers: {
+        'Cache-Control': 'private, no-store',
+        'X-Content-Type-Options': 'nosniff',
+      },
+    });
+  }
+
   const rpcController = new AbortController();
   const rpcTimer = setTimeout(
     () => rpcController.abort(),
