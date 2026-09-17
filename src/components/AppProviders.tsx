@@ -35,6 +35,7 @@ import { WalletCountryObservationSync } from './WalletCountryObservationSync';
 import { WalletLanguagePreferenceSync } from './WalletLanguagePreferenceSync';
 import { WalletProviderAccountReconciler } from './WalletProviderAccountReconciler';
 import { WalletRuntimeLifecycle } from './WalletRuntimeLifecycle';
+import { WalletSessionTransitionShield } from './WalletSessionTransitionShield';
 
 const VeChainProvider = dynamic(
   () =>
@@ -90,6 +91,7 @@ export function AppProviders({
         <ProviderReadySignal />
         <LegalDocumentSheetHost />
         <StartupHydrationPlaceholders />
+        <WalletSessionTransitionShield />
         <WalletProviderAccountReconciler />
         <WalletConnectionResume />
         <WalletRuntimeLifecycle />
