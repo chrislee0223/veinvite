@@ -10,6 +10,7 @@ import {
 } from '@/lib/walletAuthServer';
 
 const COUNTRY_PATTERN = /^[A-Z]{2}$/;
+const WALLET_PATTERN = /^0x[0-9a-f]{40}$/;
 
 function noStoreJson(
   body: Record<string, unknown>,
@@ -46,8 +47,40 @@ export async function POST(
     );
   }
 
+  let body: unknown;
+
   try {
-    const session = await requireWalletSession({ request });
+    body = await request.json();
+  } catch {
+    return noStoreJson(
+      { error: 'Invalid JSON body.' },
+      400,
+    );
+  }
+
+  const expectedWallet =
+    typeof body === 'object' &&
+    body !== null &&
+    'expectedWallet' in body &&
+    typeof body.expectedWallet === 'string'
+      ? body.expectedWallet.trim().toLowerCase()
+      : '';
+
+  if (!WALLET_PATTERN.test(expectedWallet)) {
+    return noStoreJson(
+      { error: 'Invalid expected wallet.' },
+      400,
+    );
+  }
+
+  try {
+    // Bind this mutation to the provider account that initiated it. Without the
+    // expected wallet, an A request that resumes after a rapid A -> B switch
+    // could otherwise be accepted against B's newly issued browser session.
+    const session = await requireWalletSession({
+      request,
+      expectedWallet,
+    });
     const rawCountry =
       request.headers
         .get('x-vercel-ip-country')

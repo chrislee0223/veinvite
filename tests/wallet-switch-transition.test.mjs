@@ -136,7 +136,35 @@ test('an external VeWorld account switch repairs a persistent VeChainKit/DAppKit
   );
 });
 
-test('provider repair preserves the old A-session confirmation and only re-arms auth after it is safe', async () => {
+test('stable VeWorld provider agreement automatically retires a stale browser session before B verification', async () => {
+  const source = await readFile(
+    new URL(
+      '../src/components/WalletProviderAccountReconciler.tsx',
+      import.meta.url,
+    ),
+    'utf8',
+  );
+
+  assert.match(source, /sessionHandoffTargetRef/);
+  assert.match(
+    source,
+    /!connection\.isConnectedWithDappKit[\s\S]*connection\.isLoading[\s\S]*dappWallet !== canonicalWallet/,
+  );
+  assert.match(
+    source,
+    /session\.authenticated !== true[\s\S]*!sessionWallet[\s\S]*sessionWallet === targetWallet/,
+  );
+  assert.match(
+    source,
+    /cancelActiveWalletAuthentication\(\)[\s\S]*method:\s*'DELETE'[\s\S]*new Event\(WALLET_SESSION_INVALID_EVENT\)/,
+  );
+  assert.doesNotMatch(
+    source,
+    /sessionHandoffTargetRef[\s\S]*disconnect\(\)/,
+  );
+});
+
+test('provider repair leaves session destruction to the stable-provider handoff and only re-arms auth after it is safe', async () => {
   const source = await readFile(
     new URL(
       '../src/components/WalletProviderAccountReconciler.tsx',
@@ -259,6 +287,98 @@ test('wallet language mutations are bound to the wallet that started the sync', 
     client,
     /cancelled \|\|[\s\S]*!isLocale\(language\)[\s\S]*applyingRemote/,
   );
+  assert.match(
+    route,
+    /const expectedWallet =[\s\S]*body\.expectedWallet\.trim\(\)\.toLowerCase\(\)/,
+  );
+  assert.match(
+    route,
+    /requireWalletSession\(\{[\s\S]*request,[\s\S]*expectedWallet,[\s\S]*\}\)/,
+  );
+});
+
+test('wallet switching re-arms readiness without replaying the global loading shield', async () => {
+  const source = await readFile(
+    new URL(
+      '../src/components/WalletRuntimeLifecycle.tsx',
+      import.meta.url,
+    ),
+    'utf8',
+  );
+
+  assert.match(
+    source,
+    /previousWallet === walletAddress[\s\S]*veinviteAppReady !== 'true'[\s\S]*releasedRef\.current = false;[\s\S]*startupErrorReportedRef\.current = false;/,
+  );
+  assert.doesNotMatch(source, /APP_LOADING_EVENT/);
+  assert.doesNotMatch(
+    source,
+    /veinviteAppReady\s*=\s*'false'/,
+  );
+  assert.match(
+    source,
+    /veinviteAppReady\s*=\s*\n?\s*'true'[\s\S]*new Event\(APP_READY_EVENT\)/,
+  );
+});
+
+test('wallet-scoped preference observers preflight the current authenticated session before protected APIs', async () => {
+  const [languageClient, countryClient] = await Promise.all([
+    readFile(
+      new URL(
+        '../src/components/WalletLanguagePreferenceSync.tsx',
+        import.meta.url,
+      ),
+      'utf8',
+    ),
+    readFile(
+      new URL(
+        '../src/components/WalletCountryObservationSync.tsx',
+        import.meta.url,
+      ),
+      'utf8',
+    ),
+  ]);
+
+  for (const source of [languageClient, countryClient]) {
+    assert.match(
+      source,
+      /hasCurrentWalletSession[\s\S]*fetch\('\/api\/auth\/session'[\s\S]*body\.authenticated === true[\s\S]*body\.walletAddress\?\.toLowerCase\(\) === expectedWallet/,
+    );
+  }
+
+  assert.match(
+    languageClient,
+    /await hasCurrentWalletSession\(walletAddress\)[\s\S]*if \(!sessionReady\)[\s\S]*return;[\s\S]*fetch\([\s\S]*'\/api\/preferences\/language'/,
+  );
+  assert.match(
+    countryClient,
+    /await hasCurrentWalletSession\(walletAddress\)[\s\S]*if \(!sessionReady\)[\s\S]*return;[\s\S]*await recordCountry\(walletAddress\)/,
+  );
+});
+
+test('country observation is server-bound to the wallet that initiated the request', async () => {
+  const [client, route] = await Promise.all([
+    readFile(
+      new URL(
+        '../src/components/WalletCountryObservationSync.tsx',
+        import.meta.url,
+      ),
+      'utf8',
+    ),
+    readFile(
+      new URL(
+        '../src/app/api/preferences/country/route.ts',
+        import.meta.url,
+      ),
+      'utf8',
+    ),
+  ]);
+
+  assert.match(
+    client,
+    /body: JSON\.stringify\(\{ expectedWallet \}\)/,
+  );
+  assert.match(route, /WALLET_PATTERN/);
   assert.match(
     route,
     /const expectedWallet =[\s\S]*body\.expectedWallet\.trim\(\)\.toLowerCase\(\)/,

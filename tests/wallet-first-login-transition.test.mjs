@@ -29,43 +29,64 @@ test('anonymous visitors see VeInvite before wallet verification or legal consen
   );
 });
 
-test('first wallet login re-arms Home startup readiness after anonymous Home was already visible', async () => {
-  const source = await readFile(
-    new URL('../src/components/WalletRuntimeLifecycle.tsx', import.meta.url),
-    'utf8',
-  );
+test('first wallet login re-arms internal Home readiness without replaying the global startup shield', async () => {
+  const [runtime, gate] = await Promise.all([
+    readFile(
+      new URL('../src/components/WalletRuntimeLifecycle.tsx', import.meta.url),
+      'utf8',
+    ),
+    readFile(
+      new URL('../src/components/WalletSessionGate.tsx', import.meta.url),
+      'utf8',
+    ),
+  ]);
 
-  assert.match(source, /APP_LOADING_EVENT\s*=\s*'veinvite-app-loading'/);
-  assert.match(source, /lastStartupWalletRef/);
-  assert.match(source, /releasedRef\.current\s*=\s*false/);
+  assert.match(runtime, /lastStartupWalletRef/);
   assert.match(
-    source,
+    runtime,
+    /previousWallet === walletAddress[\s\S]*veinviteAppReady !== 'true'/,
+  );
+  assert.match(runtime, /releasedRef\.current\s*=\s*false/);
+  assert.doesNotMatch(runtime, /APP_LOADING_EVENT/);
+  assert.doesNotMatch(
+    runtime,
     /dataset\.veinviteAppReady\s*=\s*'false'/,
   );
   assert.match(
-    source,
-    /dispatchEvent\(new Event\(APP_LOADING_EVENT\)\)/,
+    runtime,
+    /resolveStartupReadiness\(\{[\s\S]*walletAddress:\s*walletRef\.current,[\s\S]*homeState:\s*currentHomeState/,
+  );
+  assert.match(
+    gate,
+    /if \(state === 'idle' \|\| state === 'checking'\) \{\s*return <WalletSessionBrandSurface \/>;\s*\}/,
   );
 });
 
-test('startup shield can be re-armed for first login and released again only after final Home readiness', async () => {
-  const source = await readFile(
-    new URL('../src/components/LocaleHydrationShield.tsx', import.meta.url),
-    'utf8',
-  );
+test('startup shield retains an explicit recovery listener without being replayed by routine wallet login', async () => {
+  const [shield, runtime] = await Promise.all([
+    readFile(
+      new URL('../src/components/LocaleHydrationShield.tsx', import.meta.url),
+      'utf8',
+    ),
+    readFile(
+      new URL('../src/components/WalletRuntimeLifecycle.tsx', import.meta.url),
+      'utf8',
+    ),
+  ]);
 
-  assert.match(source, /APP_LOADING_EVENT\s*=\s*'veinvite-app-loading'/);
-  assert.match(source, /const handleAppLoading = \(\) =>/);
-  assert.match(source, /released\s*=\s*false/);
-  assert.match(source, /setState\(\{ status: 'loading' \}\)/);
+  assert.match(shield, /APP_LOADING_EVENT\s*=\s*'veinvite-app-loading'/);
+  assert.match(shield, /const handleAppLoading = \(\) =>/);
+  assert.match(shield, /released\s*=\s*false/);
+  assert.match(shield, /setState\(\{ status: 'loading' \}\)/);
   assert.match(
-    source,
+    shield,
     /addEventListener\(\s*APP_LOADING_EVENT,\s*handleAppLoading/s,
   );
   assert.doesNotMatch(
-    source,
+    shield,
     /APP_READY_EVENT,\s*handleAppReady,\s*\{ once: true \}/s,
   );
+  assert.doesNotMatch(runtime, /APP_LOADING_EVENT/);
 });
 
 test('transient wallet verification failures stay on checking UI before showing a real error', async () => {

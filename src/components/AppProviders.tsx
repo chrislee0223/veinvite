@@ -35,6 +35,7 @@ import { WalletCountryObservationSync } from './WalletCountryObservationSync';
 import { WalletLanguagePreferenceSync } from './WalletLanguagePreferenceSync';
 import { WalletProviderAccountReconciler } from './WalletProviderAccountReconciler';
 import { WalletRuntimeLifecycle } from './WalletRuntimeLifecycle';
+import { WalletSessionTransitionShield } from './WalletSessionTransitionShield';
 
 const VeChainProvider = dynamic(
   () =>
@@ -90,14 +91,19 @@ export function AppProviders({
         <ProviderReadySignal />
         <LegalDocumentSheetHost />
         <StartupHydrationPlaceholders />
+        <WalletSessionTransitionShield />
         <WalletProviderAccountReconciler />
         <WalletConnectionResume />
         <WalletRuntimeLifecycle />
         <RewardReservationRecovery />
-        <NetworkIdleWarmup />
-        {children}
+        {/* These listeners must mount before WalletSessionGate inside children.
+            They no longer probe protected APIs before authentication; instead
+            they wait for the authoritative wallet-session-ready/app-ready
+            signal and therefore must be listening before that signal fires. */}
         <WalletLanguagePreferenceSync />
         <WalletCountryObservationSync />
+        <NetworkIdleWarmup />
+        {children}
         <SecondaryPageLayoutPolish />
         <LeaderboardMovementColorPolish />
         <LegalNavigationMemory />

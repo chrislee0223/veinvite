@@ -91,8 +91,12 @@ if (!/initialSessionWallet/.test(walletSessionGate) || !/autoAttemptedWalletRef\
 if (!/veinvite-wallet-session-cleared/.test(walletSessionGate) || !/veinvite-wallet-session-cleared/.test(walletAuth)) {
   failures.push('Explicit wallet logout/switch must remain distinguishable from passive provider disconnect churn.');
 }
-if (!/SESSION_CHECK_SURFACE_DELAY_MS\s*=\s*3_000/.test(walletSessionGate) || !/showCheckingSurface/.test(walletSessionGate) || !/<Brand compact \/>/.test(walletSessionGate)) {
-  failures.push('Wallet verification gate must retain its branded recovery transition instead of a featureless black frame.');
+if (
+  /SESSION_CHECK_SURFACE_DELAY_MS|showCheckingSurface/.test(walletSessionGate) ||
+  !/state === 'idle' \|\| state === 'checking'/.test(walletSessionGate) ||
+  !/<Brand compact \/>/.test(walletSessionGate)
+) {
+  failures.push('Wallet verification must keep the branded VeInvite start surface stable throughout routine checking and signing instead of flashing a checking-status dialog.');
 }
 if (!/\/api\/auth\/session/.test(walletAuth) || !/session\.authenticated/.test(walletAuth)) {
   failures.push('Wallet authentication must reuse a valid existing server session before requesting a fresh wallet signature.');

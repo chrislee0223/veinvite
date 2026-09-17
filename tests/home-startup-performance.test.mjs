@@ -89,7 +89,7 @@ test('a ready label alone can never reveal partial wallet Home data', () => {
   );
 });
 
-test('wallet switches remain strict after the first reveal', async () => {
+test('wallet switches remain strict after the first reveal without replaying the global shield', async () => {
   const runtime = await readFile(
     new URL('../src/components/WalletRuntimeLifecycle.tsx', import.meta.url),
     'utf8',
@@ -102,7 +102,19 @@ test('wallet switches remain strict after the first reveal', async () => {
     /allowHomeDataHydration:\s*!hasReleasedOnceRef\.current/,
   );
   assert.match(runtime, /releasedRef\.current = false/);
-  assert.match(runtime, /veinvite-app-loading/);
+  assert.doesNotMatch(runtime, /veinvite-app-loading/);
+  assert.doesNotMatch(
+    runtime,
+    /veinviteAppReady\s*=\s*'false'/,
+  );
+  assert.match(
+    runtime,
+    /resolveStartupReadiness\(\{[\s\S]*walletAddress:\s*walletRef\.current,[\s\S]*homeState:\s*currentHomeState/,
+  );
+  assert.match(
+    runtime,
+    /if \(decision === 'release'\) \{[\s\S]*scheduleStableRelease\(walletRef\.current\)/,
+  );
 });
 
 test('fresh VeWorld visitors avoid the persisted-wallet 3.5 second settle path', async () => {
