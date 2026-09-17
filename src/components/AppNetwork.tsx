@@ -15,7 +15,22 @@ import { useGetAvatar, useVechainDomain } from '@vechain/vechain-kit';
 
 import { NETWORK_CANVAS_CONTROL_COPY } from '@/lib/i18n/networkCanvasControlCopy';
 import { NETWORK_EXPERIENCE_COPY } from '@/lib/i18n/networkExperienceCopy';
+import { NETWORK_WORKSPACE_COPY } from '@/lib/i18n/networkWorkspaceCopy';
 import type { Locale, SupportedLocale } from '@/lib/i18n/locales';
+import {
+  EMPTY_NETWORK_WORKSPACE_STORE,
+  addWorkspaceGroup,
+  cloneNetworkFocusWorkspace,
+  parseNetworkWorkspaceStore,
+  removeWorkspaceGroup,
+  serializeNetworkWorkspaceStore,
+  withFocusWorkspace,
+  withGroupPosition,
+  withNodePosition,
+  workspaceForFocus,
+  type NetworkFocusWorkspace,
+  type NetworkWorkspaceStore,
+} from '@/lib/networkWorkspace';
 import { useWalletLauncher } from './WalletControl';
 
 type MemberStatus = 'IN_PROGRESS' | 'QUALIFIED' | 'REWARDED';
@@ -80,6 +95,19 @@ type PinchState = {
   worldAnchor: Point;
 };
 
+type WorkspaceDrag = {
+  pointerId: number;
+  kind: 'node' | 'group';
+  key: string;
+  offset: Point;
+};
+
+type GroupDraft = {
+  id: string;
+  label: string;
+  members: string[];
+};
+
 const NETWORK_CANVAS_ENABLED =
   process.env.NEXT_PUBLIC_NETWORK_CANVAS_ENABLED !== 'false';
 const WORLD_W = 2600;
@@ -90,7 +118,9 @@ const MIN_SCALE = 0.68;
 const MAX_SCALE = 1.55;
 const SEARCH_DELAY_MS = 280;
 const NAVIGATION_MS = 520;
+const GROUP_DROP_MS = 160;
 const SESSION_PREFIX = 'veinvite-network-runtime-v1:';
+const WORKSPACE_PREFIX = 'veinvite-network-workspace-v1:';
 const EXPLORER_PAGE_SIZE_DESKTOP = 10;
 const EXPLORER_PAGE_SIZE_MOBILE = 6;
 
@@ -123,6 +153,10 @@ function runtimeSessionKey(wallet: string): string {
   return `${SESSION_PREFIX}${keyWallet(wallet)}`;
 }
 
+function workspaceStorageKey(wallet: string): string {
+  return `${WORKSPACE_PREFIX}${keyWallet(wallet)}`;
+}
+
 function readStoredRuntimeState(wallet: string): StoredRuntimeState | null {
   try {
     const raw = window.sessionStorage.getItem(runtimeSessionKey(wallet));
@@ -148,6 +182,21 @@ function readStoredRuntimeState(wallet: string): StoredRuntimeState | null {
   } catch {
     return null;
   }
+}
+
+function readStoredWorkspace(wallet: string): NetworkWorkspaceStore {
+  try {
+    return parseNetworkWorkspaceStore(window.localStorage.getItem(workspaceStorageKey(wallet)));
+  } catch {
+    return { version: 1, focus: {} };
+  }
+}
+
+function newGroupId(): string {
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+    return crypto.randomUUID();
+  }
+  return `group-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
 }
 
 async function fetchNetwork(
@@ -324,8 +373,10 @@ function edgePath(x1: number, y1: number, x2: number, y2: number): string {
 export function AppNetwork({ locale }: { locale: Locale }) {
   const t = NETWORK_EXPERIENCE_COPY[locale as SupportedLocale];
   const c = NETWORK_CANVAS_CONTROL_COPY[locale as SupportedLocale];
+  const w = NETWORK_WORKSPACE_COPY[locale as SupportedLocale];
   const { wallet, openWallet, isWalletActionPending } = useWalletLauncher();
   const stageRef = useRef<HTMLDivElement | null>(null);
+  const groupDropRef = useRef<HTMLDivElement | null>(null);
   const cacheRef = useRef(new Map<string, NetworkData>());
   const abortRef = useRef<AbortController | null>(null);
   const requestSerialRef = useRef(0);
@@ -340,6 +391,9 @@ export function AppNetwork({ locale }: { locale: Locale }) {
   const navigationTimerRef = useRef<number | null>(null);
   const initializedWalletRef = useRef<string | null>(null);
   const storedStateRef = useRef<StoredRuntimeState | null>(null);
+  const workspaceDragRef = useRef<WorkspaceDrag | null>(null);
+  const groupingTimerRef = useRef<number | null>(null);
+  const noticeTimerRef = useRef<number | null>(null);
 
   const [rootData, setRootData] = useState<NetworkData | null>(null);
   const [focusWallet, setFocusWallet] = useState<string | null>(null);
@@ -356,16 +410,30 @@ export function AppNetwork({ locale }: { locale: Locale }) {
   const [pendingFocus, setPendingFocus] = useState<string | null>(null);
   const [navigationDirection, setNavigationDirection] = useState<NavigationDirection | null>(null);
   const [cameraTransition, setCameraTransition] = useState(false);
+  const [workspaceStore, setWorkspaceStore] = useState<NetworkWorkspaceStore>(EMPTY_NETWORK_WORKSPACE_STORE);
+  const [editingLayout, setEditingLayout] = useState(false);
+  const [draftWorkspace, setDraftWorkspace] = useState<NetworkFocusWorkspace | null>(null);
+  const [groupDraft, setGroupDraft] = useState<GroupDraft | null>(null);
+  const [selectedGroupId, setSelectedGroupId] = useState<string | null>(null);
+  const [draggingWorkspaceKey, setDraggingWorkspaceKey] = useState<string | null>(null);
+  const [groupingWallet, setGroupingWallet] = useState<string | null>(null);
+  const [workspaceNotice, setWorkspaceNotice] = useState('');
 
   const currentData = useMemo(() => {
     if (!focusWallet) return rootData;
     return cacheRef.current.get(keyWallet(focusWallet)) ?? rootData;
   }, [focusWallet, rootData, cacheVersion]);
 
+  const currentFocusKey = currentData ? keyWallet(currentData.focusWallet) : '';
   const isMobile = stageSize.width > 0 && stageSize.width < 560;
   const pageSize = isMobile ? EXPLORER_PAGE_SIZE_MOBILE : EXPLORER_PAGE_SIZE_DESKTOP;
+  const committedWorkspace = useMemo(
+    () => currentFocusKey ? workspaceForFocus(workspaceStore, currentFocusKey) : cloneNetworkFocusWorkspace(null),
+    [workspaceStore, currentFocusKey],
+  );
+  const activeWorkspace = editingLayout && draftWorkspace ? draftWorkspace : committedWorkspace;
 
-  const visibleChildren = useMemo(() => {
+  const positionedChildren = useMemo(() => {
     const children = currentData?.children ?? [];
     const pageCount = Math.max(1, Math.ceil(children.length / pageSize));
     const safePage = clamp(page, 0, pageCount - 1);
@@ -375,12 +443,39 @@ export function AppNetwork({ locale }: { locale: Locale }) {
     const span = isMobile ? Math.min(390, Math.max(120, (count - 1) * 72)) : Math.min(920, Math.max(170, (count - 1) * 112));
     return slice.map((child, index): PositionedChild => {
       const ratio = count <= 1 ? 0.5 : index / (count - 1);
-      const x = FOCUS_X - span / 2 + span * ratio;
+      const defaultX = FOCUS_X - span / 2 + span * ratio;
       const distanceFromCenter = Math.abs(index - (count - 1) / 2);
-      const y = FOCUS_Y + (isMobile ? 178 : 188) + Math.min(46, distanceFromCenter * 9);
-      return { ...child, x, y };
+      const defaultY = FOCUS_Y + (isMobile ? 178 : 188) + Math.min(46, distanceFromCenter * 9);
+      const saved = activeWorkspace.positions[keyWallet(child.wallet)];
+      return {
+        ...child,
+        x: saved?.x ?? defaultX,
+        y: saved?.y ?? defaultY,
+      };
     });
-  }, [currentData, page, pageSize, isMobile]);
+  }, [currentData, page, pageSize, isMobile, activeWorkspace.positions]);
+
+  const stagedGroupMembers = useMemo(() => {
+    const keys = new Set<string>();
+    activeWorkspace.groups.forEach((group) => group.members.forEach((member) => keys.add(keyWallet(member))));
+    groupDraft?.members.forEach((member) => keys.add(keyWallet(member)));
+    return keys;
+  }, [activeWorkspace.groups, groupDraft]);
+
+  const visibleChildren = useMemo(
+    () => positionedChildren.filter((child) => !stagedGroupMembers.has(keyWallet(child.wallet))),
+    [positionedChildren, stagedGroupMembers],
+  );
+
+  const visibleWalletKeys = useMemo(
+    () => new Set(positionedChildren.map((child) => keyWallet(child.wallet))),
+    [positionedChildren],
+  );
+
+  const visibleGroups = useMemo(
+    () => activeWorkspace.groups.filter((group) => group.members.some((member) => visibleWalletKeys.has(keyWallet(member)))),
+    [activeWorkspace.groups, visibleWalletKeys],
+  );
 
   const childByWallet = useMemo(() => {
     const map = new Map<string, NetworkChild>();
@@ -396,6 +491,9 @@ export function AppNetwork({ locale }: { locale: Locale }) {
   const selectedQualified = selectedData?.summary.qualified ?? selectedMember?.qualified ?? currentData?.summary.qualified ?? 0;
   const selectedRound = selectedData?.summary.thisRound ?? selectedMember?.thisRound ?? currentData?.summary.thisRound ?? null;
   const selectedStatus = selectedMember?.status ?? 'IN_PROGRESS';
+  const selectedGroup = selectedGroupId
+    ? activeWorkspace.groups.find((group) => group.id === selectedGroupId) ?? null
+    : null;
 
   const pageCount = Math.max(1, Math.ceil((currentData?.children.length ?? 0) / pageSize));
   const safePage = clamp(page, 0, pageCount - 1);
@@ -407,6 +505,17 @@ export function AppNetwork({ locale }: { locale: Locale }) {
     if (navigationTimerRef.current !== null) {
       window.clearTimeout(navigationTimerRef.current);
       navigationTimerRef.current = null;
+    }
+  }, []);
+
+  const clearWorkspaceTimers = useCallback(() => {
+    if (groupingTimerRef.current !== null) {
+      window.clearTimeout(groupingTimerRef.current);
+      groupingTimerRef.current = null;
+    }
+    if (noticeTimerRef.current !== null) {
+      window.clearTimeout(noticeTimerRef.current);
+      noticeTimerRef.current = null;
     }
   }, []);
 
@@ -495,10 +604,19 @@ export function AppNetwork({ locale }: { locale: Locale }) {
     viewByFocusRef.current.clear();
     initializedWalletRef.current = null;
     storedStateRef.current = wallet ? readStoredRuntimeState(wallet) : null;
+    setWorkspaceStore(wallet ? readStoredWorkspace(wallet) : { version: 1, focus: {} });
     setRootData(null);
     setFocusWallet(null);
     setPage(0);
     setSelectedWallet(null);
+    setSelectedGroupId(null);
+    setEditingLayout(false);
+    setDraftWorkspace(null);
+    setGroupDraft(null);
+    workspaceDragRef.current = null;
+    setDraggingWorkspaceKey(null);
+    setGroupingWallet(null);
+    setWorkspaceNotice('');
     setView({ x: 0, y: 0, scale: 1 });
     if (!wallet) {
       setLoadState('idle');
@@ -510,6 +628,16 @@ export function AppNetwork({ locale }: { locale: Locale }) {
       cancelRequest();
     };
   }, [wallet, loadRoot, cancelRequest]);
+
+  useEffect(() => {
+    setEditingLayout(false);
+    setDraftWorkspace(null);
+    setGroupDraft(null);
+    setSelectedGroupId(null);
+    workspaceDragRef.current = null;
+    setDraggingWorkspaceKey(null);
+    setGroupingWallet(null);
+  }, [currentFocusKey]);
 
   useEffect(() => {
     const stage = stageRef.current;
@@ -572,13 +700,14 @@ export function AppNetwork({ locale }: { locale: Locale }) {
   useEffect(() => () => {
     cancelRequest();
     clearNavigationTimer();
-  }, [cancelRequest, clearNavigationTimer]);
+    clearWorkspaceTimers();
+  }, [cancelRequest, clearNavigationTimer, clearWorkspaceTimers]);
 
   const moveToFocus = useCallback(async (
     targetWallet: string,
     direction: NavigationDirection,
   ) => {
-    if (!wallet || !currentData || pendingFocus) return;
+    if (!wallet || !currentData || pendingFocus || editingLayout) return;
     const target = keyWallet(targetWallet);
     const current = keyWallet(currentData.focusWallet);
     if (target === current) return;
@@ -602,6 +731,7 @@ export function AppNetwork({ locale }: { locale: Locale }) {
       beginNavigationMotion(direction);
       setFocusWallet(payload.focusWallet);
       setSelectedWallet(null);
+      setSelectedGroupId(null);
       setPage(0);
       setSearchQuery('');
       setSearchResults([]);
@@ -626,13 +756,13 @@ export function AppNetwork({ locale }: { locale: Locale }) {
       if (abortRef.current === controller) abortRef.current = null;
       if (serial === requestSerialRef.current) setPendingFocus(null);
     }
-  }, [wallet, currentData, pendingFocus, view, cancelRequest, rememberPayload, beginNavigationMotion, stageSize, t.loadError]);
+  }, [wallet, currentData, pendingFocus, editingLayout, view, cancelRequest, rememberPayload, beginNavigationMotion, stageSize, t.loadError]);
 
   const returnToParent = useCallback(() => {
-    if (!currentData || pendingFocus || currentData.breadcrumb.length <= 1) return;
+    if (!currentData || pendingFocus || editingLayout || currentData.breadcrumb.length <= 1) return;
     const parent = currentData.breadcrumb[currentData.breadcrumb.length - 2];
     void moveToFocus(parent, 'back');
-  }, [currentData, pendingFocus, moveToFocus]);
+  }, [currentData, pendingFocus, editingLayout, moveToFocus]);
 
   const centerNetwork = useCallback(() => {
     if (stageSize.width <= 0 || stageSize.height <= 0) return;
@@ -655,7 +785,7 @@ export function AppNetwork({ locale }: { locale: Locale }) {
   }, []);
 
   const zoomByButton = useCallback((direction: 1 | -1) => {
-    if (direction < 0 && view.scale <= MIN_SCALE + 0.015 && currentData && currentData.breadcrumb.length > 1) {
+    if (!editingLayout && direction < 0 && view.scale <= MIN_SCALE + 0.015 && currentData && currentData.breadcrumb.length > 1) {
       returnToParent();
       return;
     }
@@ -667,10 +797,10 @@ export function AppNetwork({ locale }: { locale: Locale }) {
       view.scale * factor,
     );
     window.setTimeout(() => setCameraTransition(false), 220);
-  }, [view.scale, currentData, returnToParent, stageSize, zoomAt]);
+  }, [editingLayout, view.scale, currentData, returnToParent, stageSize, zoomAt]);
 
   useEffect(() => {
-    if (!wallet || !currentData) return;
+    if (!wallet || !currentData || editingLayout) return;
     const query = searchQuery.trim();
     if (query.length < 3) {
       setSearchResults([]);
@@ -697,11 +827,131 @@ export function AppNetwork({ locale }: { locale: Locale }) {
       window.clearTimeout(timer);
       controller.abort();
     };
-  }, [wallet, currentData, searchQuery]);
+  }, [wallet, currentData, searchQuery, editingLayout]);
 
   const focusSearchResult = useCallback((result: SearchResult) => {
+    if (editingLayout) return;
     void moveToFocus(result.wallet, 'forward');
-  }, [moveToFocus]);
+  }, [editingLayout, moveToFocus]);
+
+  const beginLayoutEdit = useCallback(() => {
+    if (!currentFocusKey) return;
+    setDraftWorkspace(cloneNetworkFocusWorkspace(workspaceForFocus(workspaceStore, currentFocusKey)));
+    setEditingLayout(true);
+    setSelectedWallet(null);
+    setSelectedGroupId(null);
+    setGroupDraft(null);
+    setWorkspaceNotice('');
+  }, [currentFocusKey, workspaceStore]);
+
+  const cancelLayoutEdit = useCallback(() => {
+    workspaceDragRef.current = null;
+    setDraggingWorkspaceKey(null);
+    setGroupingWallet(null);
+    setGroupDraft(null);
+    setDraftWorkspace(null);
+    setSelectedGroupId(null);
+    setEditingLayout(false);
+  }, []);
+
+  const saveLayoutEdit = useCallback(() => {
+    if (!wallet || !currentFocusKey || !draftWorkspace) return;
+    const nextStore = withFocusWorkspace(workspaceStore, currentFocusKey, draftWorkspace);
+    setWorkspaceStore(nextStore);
+    try {
+      window.localStorage.setItem(workspaceStorageKey(wallet), serializeNetworkWorkspaceStore(nextStore));
+    } catch {
+      // The layout remains committed for this runtime even if storage is unavailable.
+    }
+    workspaceDragRef.current = null;
+    setDraggingWorkspaceKey(null);
+    setGroupDraft(null);
+    setDraftWorkspace(null);
+    setSelectedGroupId(null);
+    setEditingLayout(false);
+    setWorkspaceNotice(w.layoutSaved);
+    if (noticeTimerRef.current !== null) window.clearTimeout(noticeTimerRef.current);
+    noticeTimerRef.current = window.setTimeout(() => {
+      noticeTimerRef.current = null;
+      setWorkspaceNotice('');
+    }, 1800);
+  }, [wallet, currentFocusKey, draftWorkspace, workspaceStore, w.layoutSaved]);
+
+  const openGroupBuilder = useCallback(() => {
+    if (!editingLayout) return;
+    setSelectedGroupId(null);
+    setGroupDraft({ id: newGroupId(), label: '', members: [] });
+  }, [editingLayout]);
+
+  const createDraftGroup = useCallback(() => {
+    if (!groupDraft || !draftWorkspace || groupDraft.members.length < 2) return;
+    const members = groupDraft.members.map(keyWallet);
+    const memberSet = new Set(members);
+    const memberPositions = positionedChildren
+      .filter((child) => memberSet.has(keyWallet(child.wallet)))
+      .map((child) => ({ x: child.x, y: child.y }));
+    const x = memberPositions.length
+      ? memberPositions.reduce((sum, point) => sum + point.x, 0) / memberPositions.length
+      : FOCUS_X;
+    const y = memberPositions.length
+      ? memberPositions.reduce((sum, point) => sum + point.y, 0) / memberPositions.length
+      : FOCUS_Y + 200;
+    const label = groupDraft.label.trim() || `${w.group} ${draftWorkspace.groups.length + 1}`;
+    setDraftWorkspace(addWorkspaceGroup(draftWorkspace, {
+      id: groupDraft.id,
+      label,
+      members,
+      x,
+      y,
+    }));
+    setGroupDraft(null);
+  }, [groupDraft, draftWorkspace, positionedChildren, w.group]);
+
+  const beginWorkspaceDrag = useCallback((
+    event: ReactPointerEvent<HTMLButtonElement>,
+    kind: WorkspaceDrag['kind'],
+    key: string,
+    point: Point,
+  ) => {
+    if (!editingLayout || !draftWorkspace) return;
+    const stage = stageRef.current;
+    if (!stage) return;
+    event.preventDefault();
+    event.stopPropagation();
+    const rect = stage.getBoundingClientRect();
+    const worldPoint = {
+      x: (event.clientX - rect.left - view.x) / view.scale,
+      y: (event.clientY - rect.top - view.y) / view.scale,
+    };
+    workspaceDragRef.current = {
+      pointerId: event.pointerId,
+      kind,
+      key,
+      offset: { x: worldPoint.x - point.x, y: worldPoint.y - point.y },
+    };
+    suppressClickRef.current = true;
+    setDraggingWorkspaceKey(`${kind}:${key}`);
+    setSelectedWallet(null);
+    setSelectedGroupId(null);
+  }, [editingLayout, draftWorkspace, view]);
+
+  const finishWorkspaceDrop = useCallback((event: ReactPointerEvent<HTMLDivElement>, drag: WorkspaceDrag) => {
+    if (drag.kind !== 'node' || !groupDraft || event.type !== 'pointerup') return;
+    const drop = groupDropRef.current?.getBoundingClientRect();
+    if (!drop) return;
+    const inside = event.clientX >= drop.left && event.clientX <= drop.right && event.clientY >= drop.top && event.clientY <= drop.bottom;
+    if (!inside || groupDraft.members.includes(drag.key)) return;
+    setGroupingWallet(drag.key);
+    if (groupingTimerRef.current !== null) window.clearTimeout(groupingTimerRef.current);
+    groupingTimerRef.current = window.setTimeout(() => {
+      groupingTimerRef.current = null;
+      setGroupDraft((current) => {
+        if (!current || current.members.includes(drag.key)) return current;
+        return { ...current, members: [...current.members, drag.key] };
+      });
+      setGroupingWallet(null);
+    }, GROUP_DROP_MS);
+  }, [groupDraft]);
 
   const onPointerDownCapture = (event: ReactPointerEvent<HTMLDivElement>) => {
     const point = { x: event.clientX, y: event.clientY };
@@ -718,6 +968,8 @@ export function AppNetwork({ locale }: { locale: Locale }) {
     }
 
     if (pointersRef.current.size === 2) {
+      workspaceDragRef.current = null;
+      setDraggingWorkspaceKey(null);
       const [a, b] = Array.from(pointersRef.current.values());
       const center = midpoint(a, b);
       const startView = view;
@@ -738,6 +990,33 @@ export function AppNetwork({ locale }: { locale: Locale }) {
   const onPointerMoveCapture = (event: ReactPointerEvent<HTMLDivElement>) => {
     if (!pointersRef.current.has(event.pointerId)) return;
     pointersRef.current.set(event.pointerId, { x: event.clientX, y: event.clientY });
+
+    const workspaceDrag = workspaceDragRef.current;
+    if (
+      workspaceDrag &&
+      workspaceDrag.pointerId === event.pointerId &&
+      pointersRef.current.size === 1 &&
+      editingLayout
+    ) {
+      const rect = stageRef.current?.getBoundingClientRect();
+      if (!rect) return;
+      const worldPoint = {
+        x: (event.clientX - rect.left - view.x) / view.scale - workspaceDrag.offset.x,
+        y: (event.clientY - rect.top - view.y) / view.scale - workspaceDrag.offset.y,
+      };
+      const nextPoint = {
+        x: clamp(worldPoint.x, 90, WORLD_W - 90),
+        y: clamp(worldPoint.y, 90, WORLD_H - 90),
+      };
+      setDraftWorkspace((current) => {
+        if (!current) return current;
+        return workspaceDrag.kind === 'node'
+          ? withNodePosition(current, workspaceDrag.key, nextPoint)
+          : withGroupPosition(current, workspaceDrag.key, nextPoint);
+      });
+      suppressClickRef.current = true;
+      return;
+    }
 
     if (pointersRef.current.size === 1) {
       const pan = panPointerRef.current;
@@ -770,7 +1049,7 @@ export function AppNetwork({ locale }: { locale: Locale }) {
         y: localCenter.y - pinch.worldAnchor.y * nextScale,
         scale: nextScale,
       });
-      if (rawScale < MIN_SCALE * 0.88 && currentData && currentData.breadcrumb.length > 1) {
+      if (!editingLayout && rawScale < MIN_SCALE * 0.88 && currentData && currentData.breadcrumb.length > 1) {
         pinchReturnIntentRef.current = true;
       }
       suppressClickRef.current = true;
@@ -778,6 +1057,13 @@ export function AppNetwork({ locale }: { locale: Locale }) {
   };
 
   const onPointerEndCapture = (event: ReactPointerEvent<HTMLDivElement>) => {
+    const workspaceDrag = workspaceDragRef.current;
+    if (workspaceDrag && workspaceDrag.pointerId === event.pointerId) {
+      finishWorkspaceDrop(event, workspaceDrag);
+      workspaceDragRef.current = null;
+      setDraggingWorkspaceKey(null);
+    }
+
     pointersRef.current.delete(event.pointerId);
     if (pointersRef.current.size === 1) {
       const [remainingId, remainingPoint] = Array.from(pointersRef.current.entries())[0];
@@ -808,6 +1094,7 @@ export function AppNetwork({ locale }: { locale: Locale }) {
     if (!rect) return;
 
     if (
+      !editingLayout &&
       event.deltaY > 0 &&
       view.scale <= MIN_SCALE + 0.01 &&
       currentData &&
@@ -880,7 +1167,7 @@ export function AppNetwork({ locale }: { locale: Locale }) {
   };
 
   return (
-    <section className="networkCard networkCanvasPage" data-network-runtime="single">
+    <section className="networkCard networkCanvasPage" data-network-runtime="single" data-layout-editing={editingLayout ? 'true' : 'false'}>
       <header className="networkHeader" data-no-pan="true">
         <div className="headerTitle">
           <span>NETWORK</span>
@@ -907,7 +1194,7 @@ export function AppNetwork({ locale }: { locale: Locale }) {
                 <button
                   type="button"
                   className={isCurrent ? 'crumb current' : 'crumb'}
-                  disabled={isCurrent || Boolean(pendingFocus)}
+                  disabled={isCurrent || Boolean(pendingFocus) || editingLayout}
                   onClick={() => {
                     if (!isCurrent) void moveToFocus(item, 'back');
                   }}
@@ -926,8 +1213,9 @@ export function AppNetwork({ locale }: { locale: Locale }) {
             aria-label={t.searchPlaceholder}
             autoComplete="off"
             spellCheck={false}
+            disabled={editingLayout}
           />
-          {searchQuery.trim().length >= 3 ? (
+          {!editingLayout && searchQuery.trim().length >= 3 ? (
             <div className="searchResults" role="listbox">
               {searching ? (
                 <span className="searchStatus">…</span>
@@ -950,7 +1238,7 @@ export function AppNetwork({ locale }: { locale: Locale }) {
 
       <div
         ref={stageRef}
-        className="networkStage"
+        className={`networkStage${editingLayout ? ' layoutEditing' : ''}`}
         onPointerDownCapture={onPointerDownCapture}
         onPointerMoveCapture={onPointerMoveCapture}
         onPointerUpCapture={onPointerEndCapture}
@@ -971,6 +1259,13 @@ export function AppNetwork({ locale }: { locale: Locale }) {
                   className={child.status === 'REWARDED' ? 'edge rewarded' : 'edge'}
                 />
               ))}
+              {visibleGroups.map((group) => (
+                <path
+                  key={`group-edge:${group.id}`}
+                  d={edgePath(FOCUS_X, FOCUS_Y + 42, group.x, group.y - 35)}
+                  className="edge groupEdge"
+                />
+              ))}
               {Array.from({ length: emptySlotCount }).map((_, index) => {
                 const slotX = FOCUS_X + (index === 0 ? -95 : 95);
                 const slotY = FOCUS_Y + 184;
@@ -989,7 +1284,8 @@ export function AppNetwork({ locale }: { locale: Locale }) {
               className={`personNode focusNode${selectedWallet === focusKey ? ' selected' : ''}`}
               style={{ left: FOCUS_X, top: FOCUS_Y }}
               onClick={() => {
-                if (suppressClickRef.current) return;
+                if (suppressClickRef.current || editingLayout) return;
+                setSelectedGroupId(null);
                 setSelectedWallet(focusKey);
               }}
               data-no-pan="true"
@@ -1004,17 +1300,21 @@ export function AppNetwork({ locale }: { locale: Locale }) {
             {visibleChildren.map((child) => {
               const childKey = keyWallet(child.wallet);
               const isSelected = selectedWallet === childKey;
+              const dragKey = `node:${childKey}`;
               return (
                 <button
                   type="button"
                   key={childKey}
-                  className={`personNode childNode status-${child.status.toLowerCase()}${isSelected ? ' selected' : ''}`}
+                  className={`personNode childNode status-${child.status.toLowerCase()}${isSelected ? ' selected' : ''}${editingLayout ? ' draggable' : ''}${draggingWorkspaceKey === dragKey ? ' dragging' : ''}${groupingWallet === childKey ? ' grouping' : ''}`}
                   style={{ left: child.x, top: child.y }}
+                  onPointerDown={editingLayout ? (event) => beginWorkspaceDrag(event, 'node', childKey, { x: child.x, y: child.y }) : undefined}
                   onClick={() => {
-                    if (suppressClickRef.current) return;
+                    if (suppressClickRef.current || editingLayout) return;
+                    setSelectedGroupId(null);
                     setSelectedWallet(childKey);
                   }}
                   data-no-pan="true"
+                  data-workspace-draggable={editingLayout ? 'true' : undefined}
                 >
                   <NetworkIdentity address={child.wallet} />
                   <span className="nodeMeta">
@@ -1022,6 +1322,30 @@ export function AppNetwork({ locale }: { locale: Locale }) {
                     <small>{statusLabel(child.status, locale)}</small>
                   </span>
                   {pendingFocus === childKey ? <span className="nodeBusy" aria-hidden="true" /> : null}
+                </button>
+              );
+            })}
+
+            {visibleGroups.map((group) => {
+              const dragKey = `group:${group.id}`;
+              return (
+                <button
+                  type="button"
+                  className={`groupNode${editingLayout ? ' draggable' : ''}${draggingWorkspaceKey === dragKey ? ' dragging' : ''}${selectedGroupId === group.id ? ' selected' : ''}`}
+                  key={group.id}
+                  style={{ left: group.x, top: group.y }}
+                  onPointerDown={editingLayout ? (event) => beginWorkspaceDrag(event, 'group', group.id, { x: group.x, y: group.y }) : undefined}
+                  onClick={() => {
+                    if (suppressClickRef.current) return;
+                    setSelectedWallet(null);
+                    setSelectedGroupId(group.id);
+                  }}
+                  data-no-pan="true"
+                  data-workspace-draggable={editingLayout ? 'true' : undefined}
+                >
+                  <span className="groupGlyph" aria-hidden="true"><i /><i /><i /></span>
+                  <strong>{group.label || w.group}</strong>
+                  <small>{group.members.length} {w.members}</small>
                 </button>
               );
             })}
@@ -1035,7 +1359,8 @@ export function AppNetwork({ locale }: { locale: Locale }) {
                   className="slotNode"
                   key={`slot:${index}`}
                   style={{ left: slotX, top: slotY }}
-                  onClick={goHomeWithoutReload}
+                  onClick={editingLayout ? undefined : goHomeWithoutReload}
+                  disabled={editingLayout}
                   data-no-pan="true"
                   aria-label={t.inviteFriend}
                 >
@@ -1047,19 +1372,77 @@ export function AppNetwork({ locale }: { locale: Locale }) {
           </div>
         </div>
 
+        <div className="layoutControls" data-no-pan="true">
+          {!editingLayout ? (
+            <button type="button" className="editLayoutButton" onClick={beginLayoutEdit}>✦ {w.editLayout}</button>
+          ) : (
+            <>
+              <button type="button" className="newGroupButton" onClick={openGroupBuilder}>+ {w.newGroup}</button>
+              <button type="button" className="cancelLayoutButton" onClick={cancelLayoutEdit}>{w.cancel}</button>
+              <button type="button" className="saveLayoutButton" onClick={saveLayoutEdit}>{w.save}</button>
+            </>
+          )}
+        </div>
+
+        {editingLayout && groupDraft ? (
+          <aside className="groupBuilder" data-no-pan="true">
+            <div className="groupBuilderHead">
+              <strong>{w.newGroup}</strong>
+              <button type="button" onClick={() => setGroupDraft(null)} aria-label={c.close}>×</button>
+            </div>
+            <input
+              value={groupDraft.label}
+              onChange={(event) => setGroupDraft((current) => current ? { ...current, label: event.target.value } : current)}
+              placeholder={w.groupName}
+              aria-label={w.groupName}
+              maxLength={42}
+            />
+            <div ref={groupDropRef} className="groupDropZone">
+              <span className="dropIcon" aria-hidden="true">＋</span>
+              <strong>{w.dropHere}</strong>
+              <small>{groupDraft.members.length} {w.members}</small>
+            </div>
+            {groupDraft.members.length ? (
+              <div className="groupDraftMembers">
+                {groupDraft.members.map((member) => (
+                  <button
+                    type="button"
+                    key={member}
+                    title={member}
+                    onClick={() => setGroupDraft((current) => current ? {
+                      ...current,
+                      members: current.members.filter((walletKey) => walletKey !== member),
+                    } : current)}
+                  >
+                    {shortWallet(member)} <span>×</span>
+                  </button>
+                ))}
+              </div>
+            ) : null}
+            <button
+              type="button"
+              className="createGroupButton"
+              disabled={groupDraft.members.length < 2}
+              onClick={createDraftGroup}
+            >
+              {groupDraft.members.length < 2 ? w.needTwo : w.createGroup}
+            </button>
+          </aside>
+        ) : null}
+
         {pageCount > 1 ? (
           <div className="pager" data-no-pan="true">
             <button
               type="button"
               onClick={() => setPage((value) => clamp(value - 1, 0, pageCount - 1))}
-              disabled={safePage === 0}
+              disabled={safePage === 0 || editingLayout}
               aria-label={c.previous}
             >‹</button>
             <span>{safePage + 1} / {pageCount}</span>
             <button
               type="button"
               onClick={() => setPage((value) => clamp(value + 1, 0, pageCount - 1))}
-              disabled={safePage >= pageCount - 1}
+              disabled={safePage >= pageCount - 1 || editingLayout}
               aria-label={c.next}
             >›</button>
           </div>
@@ -1076,7 +1459,7 @@ export function AppNetwork({ locale }: { locale: Locale }) {
             type="button"
             className="parentReturn"
             onClick={returnToParent}
-            disabled={Boolean(pendingFocus)}
+            disabled={Boolean(pendingFocus) || editingLayout}
             data-no-pan="true"
             aria-label={t.invitedBy}
           >
@@ -1084,7 +1467,7 @@ export function AppNetwork({ locale }: { locale: Locale }) {
           </button>
         ) : null}
 
-        {selectedWallet ? (
+        {selectedWallet && !editingLayout ? (
           <aside className="profileCard" data-no-pan="true">
             <button className="profileClose" type="button" onClick={() => setSelectedWallet(null)} aria-label={c.close}>×</button>
             <div className="profileIdentity">
@@ -1113,7 +1496,32 @@ export function AppNetwork({ locale }: { locale: Locale }) {
             ) : null}
           </aside>
         ) : null}
+
+        {selectedGroup ? (
+          <aside className="profileCard groupCard" data-no-pan="true">
+            <button className="profileClose" type="button" onClick={() => setSelectedGroupId(null)} aria-label={c.close}>×</button>
+            <div className="groupCardTitle">
+              <span className="groupGlyph" aria-hidden="true"><i /><i /><i /></span>
+              <div><strong>{selectedGroup.label || w.group}</strong><span>{selectedGroup.members.length} {w.members}</span></div>
+            </div>
+            <div className="groupMemberList">
+              {selectedGroup.members.map((member) => <span key={member} title={member}>{shortWallet(member)}</span>)}
+            </div>
+            {editingLayout ? (
+              <button
+                type="button"
+                className="ungroupButton"
+                onClick={() => {
+                  setDraftWorkspace((current) => current ? removeWorkspaceGroup(current, selectedGroup.id) : current);
+                  setSelectedGroupId(null);
+                }}
+              >{w.ungroup}</button>
+            ) : null}
+          </aside>
+        ) : null}
       </div>
+
+      {workspaceNotice ? <div className="workspaceNotice" data-no-pan="true">✓ {workspaceNotice}</div> : null}
 
       {loadError && loadState === 'ready' ? (
         <div className="inlineError" data-no-pan="true">
@@ -1129,19 +1537,24 @@ export function AppNetwork({ locale }: { locale: Locale }) {
         .summary{display:grid;grid-template-columns:auto auto 1px auto auto;align-items:baseline;gap:4px 6px;white-space:nowrap}.summary strong{color:#f1ede4;font-size:.76rem}.summary strong.growth{color:#e6b943}.summary span{color:#77736c;font-size:.52rem}.summary i{width:1px;height:16px;background:rgba(255,255,255,.08);align-self:center}
         .networkToolbar{position:relative;z-index:40;min-height:44px;padding:7px 9px;box-sizing:border-box;display:flex;align-items:center;gap:8px;border-bottom:1px solid rgba(255,255,255,.05);background:rgba(12,12,10,.96)}
         .breadcrumbs{min-width:0;flex:1;display:flex;align-items:center;overflow:hidden;white-space:nowrap}.crumbWrap{display:flex;align-items:center;min-width:0}.crumbSep,.crumbEllipsis{flex:0 0 auto;color:#4f4c47;font-size:.66rem;margin:0 2px}.crumb{max-width:88px;padding:4px 5px;border:0;background:transparent;color:#8c867b;font:inherit;font-size:.56rem;font-weight:800;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;cursor:pointer}.crumb.current{color:#e5bd55;cursor:default}.crumb:disabled{opacity:.8}
-        .searchWrap{position:relative;flex:0 0 min(44%,205px)}.searchWrap input{width:100%;height:30px;box-sizing:border-box;padding:0 9px;border:1px solid rgba(255,205,80,.1);border-radius:9px;background:#11110f;color:#d8d3ca;font:inherit;font-size:.58rem;outline:none}.searchWrap input:focus{border-color:rgba(244,183,40,.34)}.searchResults{position:absolute;z-index:90;top:35px;right:0;width:min(290px,78vw);max-height:245px;overflow:auto;padding:5px;border:1px solid rgba(255,205,80,.14);border-radius:12px;background:rgba(14,14,12,.985);box-shadow:0 18px 40px rgba(0,0,0,.42)}.searchResults button{width:100%;padding:8px;border:0;border-radius:8px;background:transparent;color:#ddd7cc;text-align:left;cursor:pointer}.searchResults button:hover{background:rgba(244,183,40,.06)}.searchResults strong{display:block;font-size:.62rem}.searchResults button span{display:block;margin-top:3px;color:#6f6b64;font-size:.52rem}.searchStatus{display:block;padding:11px 8px;color:#77736c;font-size:.56rem;line-height:1.45;text-align:center}
-        .networkStage{position:relative;height:clamp(430px,68vh,650px);overflow:hidden;touch-action:none;overscroll-behavior:contain;background:radial-gradient(circle at 50% 34%,rgba(244,183,40,.045),transparent 31%),linear-gradient(rgba(255,255,255,.015) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.015) 1px,transparent 1px);background-size:auto,28px 28px,28px 28px;cursor:grab;user-select:none;-webkit-user-select:none}.networkStage:active{cursor:grabbing}
+        .searchWrap{position:relative;flex:0 0 min(44%,205px)}.searchWrap input{width:100%;height:30px;box-sizing:border-box;padding:0 9px;border:1px solid rgba(255,205,80,.1);border-radius:9px;background:#11110f;color:#d8d3ca;font:inherit;font-size:.58rem;outline:none}.searchWrap input:focus{border-color:rgba(244,183,40,.34)}.searchWrap input:disabled{opacity:.45}.searchResults{position:absolute;z-index:90;top:35px;right:0;width:min(290px,78vw);max-height:245px;overflow:auto;padding:5px;border:1px solid rgba(255,205,80,.14);border-radius:12px;background:rgba(14,14,12,.985);box-shadow:0 18px 40px rgba(0,0,0,.42)}.searchResults button{width:100%;padding:8px;border:0;border-radius:8px;background:transparent;color:#ddd7cc;text-align:left;cursor:pointer}.searchResults button:hover{background:rgba(244,183,40,.06)}.searchResults strong{display:block;font-size:.62rem}.searchResults button span{display:block;margin-top:3px;color:#6f6b64;font-size:.52rem}.searchStatus{display:block;padding:11px 8px;color:#77736c;font-size:.56rem;line-height:1.45;text-align:center}
+        .networkStage{position:relative;height:clamp(430px,68vh,650px);overflow:hidden;touch-action:none;overscroll-behavior:contain;background:radial-gradient(circle at 50% 34%,rgba(244,183,40,.045),transparent 31%),linear-gradient(rgba(255,255,255,.015) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.015) 1px,transparent 1px);background-size:auto,28px 28px,28px 28px;cursor:grab;user-select:none;-webkit-user-select:none}.networkStage:active{cursor:grabbing}.networkStage.layoutEditing{box-shadow:inset 0 0 0 1px rgba(244,183,40,.11)}
         .world{position:absolute;top:0;left:0;will-change:transform;backface-visibility:hidden}.world.cameraTransition{transition:transform ${NAVIGATION_MS}ms cubic-bezier(.18,.82,.2,1)}.worldContent{position:absolute;inset:0;transform-origin:${FOCUS_X}px ${FOCUS_Y}px}.worldContent.nav-forward{animation:networkForward ${NAVIGATION_MS}ms cubic-bezier(.18,.82,.2,1)}.worldContent.nav-back{animation:networkBack ${NAVIGATION_MS}ms cubic-bezier(.18,.82,.2,1)}
-        .edges{position:absolute;inset:0;overflow:visible;pointer-events:none}.edge{fill:none;stroke:rgba(176,145,73,.31);stroke-width:1.3;vector-effect:non-scaling-stroke}.edge.rewarded{stroke:rgba(232,183,62,.46)}.slotEdge{stroke:rgba(232,183,62,.34);stroke-dasharray:7 8;animation:slotFlow 2.2s linear infinite}
-        .personNode,.slotNode{position:absolute;z-index:4;transform:translate(-50%,-50%);font:inherit}.personNode{min-width:92px;padding:7px 8px 8px;border:1px solid rgba(255,255,255,.08);border-radius:15px;background:rgba(17,17,15,.94);color:#d9d4ca;display:grid;justify-items:center;gap:5px;box-shadow:0 8px 20px rgba(0,0,0,.23);cursor:pointer}.personNode:hover,.personNode.selected{border-color:rgba(244,183,40,.35);box-shadow:0 0 0 1px rgba(244,183,40,.07),0 10px 24px rgba(0,0,0,.3)}.focusNode{min-width:112px;padding:10px 11px 9px;border-color:rgba(244,183,40,.24);background:radial-gradient(circle at 50% 0,rgba(244,183,40,.12),transparent 52%),rgba(18,17,14,.97)}.childNode.status-rewarded{border-color:rgba(218,171,57,.17)}.childNode.status-qualified{border-color:rgba(155,136,82,.14)}
+        .edges{position:absolute;inset:0;overflow:visible;pointer-events:none}.edge{fill:none;stroke:rgba(176,145,73,.31);stroke-width:1.3;vector-effect:non-scaling-stroke}.edge.rewarded{stroke:rgba(232,183,62,.46)}.edge.groupEdge{stroke:rgba(224,178,65,.42);stroke-width:1.5}.slotEdge{stroke:rgba(232,183,62,.34);stroke-dasharray:7 8;animation:slotFlow 2.2s linear infinite}
+        .personNode,.slotNode,.groupNode{position:absolute;z-index:4;transform:translate(-50%,-50%);font:inherit}.personNode{min-width:92px;padding:7px 8px 8px;border:1px solid rgba(255,255,255,.08);border-radius:15px;background:rgba(17,17,15,.94);color:#d9d4ca;display:grid;justify-items:center;gap:5px;box-shadow:0 8px 20px rgba(0,0,0,.23);cursor:pointer}.personNode:hover,.personNode.selected{border-color:rgba(244,183,40,.35);box-shadow:0 0 0 1px rgba(244,183,40,.07),0 10px 24px rgba(0,0,0,.3)}.focusNode{min-width:112px;padding:10px 11px 9px;border-color:rgba(244,183,40,.24);background:radial-gradient(circle at 50% 0,rgba(244,183,40,.12),transparent 52%),rgba(18,17,14,.97)}.childNode.status-rewarded{border-color:rgba(218,171,57,.17)}.childNode.status-qualified{border-color:rgba(155,136,82,.14)}.personNode.draggable,.groupNode.draggable{cursor:grab;touch-action:none}.personNode.draggable:active,.groupNode.draggable:active{cursor:grabbing}.personNode.dragging,.groupNode.dragging{z-index:12;border-color:rgba(244,183,40,.58);box-shadow:0 14px 30px rgba(0,0,0,.34),0 0 0 2px rgba(244,183,40,.11)}.personNode.grouping{animation:groupDropAway ${GROUP_DROP_MS}ms ease forwards}
         .personNode :global(.identity){display:grid;justify-items:center;gap:4px}.personNode :global(.avatarSlot){position:relative;display:grid;place-items:center}.personNode :global(.neutralAvatar){display:grid;place-items:center;border:1px solid rgba(244,183,40,.13);border-radius:50%;background:#171611;color:#8e7b50}.personNode :global(.avatarSlot img){position:absolute;inset:0;border-radius:50%;object-fit:cover;transition:opacity 160ms ease}.personNode :global(.identityLabel){max-width:88px;color:#a9a49b;font-size:.5rem;font-weight:750;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.nodeMeta{display:grid;justify-items:center;gap:2px}.nodeMeta strong{max-width:100px;color:#e5dfd5;font-size:.58rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.nodeMeta small{color:#6f6a62;font-size:.48rem}.focusNode .nodeMeta strong{color:#edc65c;font-size:.61rem}.nodeBusy{position:absolute;right:6px;top:6px;width:6px;height:6px;border-radius:50%;background:#e9bc45;box-shadow:0 0 10px rgba(233,188,69,.8);animation:pulse 900ms ease-in-out infinite alternate}
-        .slotNode{width:84px;height:70px;border:1px dashed rgba(244,183,40,.22);border-radius:15px;background:rgba(244,183,40,.025);color:#a98735;display:grid;place-items:center;align-content:center;gap:3px;cursor:pointer}.slotNode span{font-size:1rem;font-weight:400}.slotNode small{max-width:72px;font-size:.48rem;font-weight:800;line-height:1.15}.slotNode:hover{border-color:rgba(244,183,40,.42);background:rgba(244,183,40,.055)}
+        .groupNode{min-width:94px;padding:9px 10px;border:1px solid rgba(244,183,40,.26);border-radius:18px;background:radial-gradient(circle at 50% 0,rgba(244,183,40,.15),transparent 56%),rgba(18,17,14,.97);color:#dfd8ca;display:grid;justify-items:center;gap:4px;box-shadow:0 9px 22px rgba(0,0,0,.27);cursor:pointer}.groupNode:hover,.groupNode.selected{border-color:rgba(244,183,40,.46)}.groupNode strong{max-width:105px;font-size:.57rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.groupNode small{color:#8b805f;font-size:.48rem}.groupGlyph{position:relative;width:34px;height:26px;display:block}.groupGlyph i{position:absolute;width:14px;height:14px;border:1px solid rgba(244,183,40,.34);border-radius:50%;background:#1a1812}.groupGlyph i:nth-child(1){left:10px;top:0}.groupGlyph i:nth-child(2){left:2px;top:11px}.groupGlyph i:nth-child(3){right:2px;top:11px}
+        .slotNode{width:84px;height:70px;border:1px dashed rgba(244,183,40,.22);border-radius:15px;background:rgba(244,183,40,.025);color:#a98735;display:grid;place-items:center;align-content:center;gap:3px;cursor:pointer}.slotNode span{font-size:1rem;font-weight:400}.slotNode small{max-width:72px;font-size:.48rem;font-weight:800;line-height:1.15}.slotNode:hover{border-color:rgba(244,183,40,.42);background:rgba(244,183,40,.055)}.slotNode:disabled{opacity:.28;cursor:default}
+        .layoutControls{position:absolute;z-index:64;left:10px;top:10px;display:flex;align-items:center;gap:5px}.layoutControls button{min-height:31px;padding:0 9px;border:1px solid rgba(255,205,80,.13);border-radius:9px;background:rgba(18,18,15,.94);color:#a9a397;font:inherit;font-size:.52rem;font-weight:900;cursor:pointer;box-shadow:0 7px 18px rgba(0,0,0,.2)}.layoutControls .editLayoutButton:hover,.layoutControls .newGroupButton:hover{border-color:rgba(244,183,40,.31);color:#e1bd5b}.layoutControls .saveLayoutButton{border-color:rgba(244,183,40,.32);background:linear-gradient(135deg,#e9b93c,#c98a18);color:#17120a}.layoutControls .cancelLayoutButton{color:#8d877e}
+        .groupBuilder{position:absolute;z-index:82;left:10px;top:50px;width:min(235px,calc(100% - 20px));box-sizing:border-box;padding:11px;border:1px solid rgba(244,183,40,.2);border-radius:15px;background:rgba(14,14,12,.985);box-shadow:0 18px 40px rgba(0,0,0,.42);cursor:default}.groupBuilderHead{display:flex;align-items:center;justify-content:space-between;gap:8px}.groupBuilderHead strong{color:#e5dfd3;font-size:.62rem}.groupBuilderHead button{width:27px;height:27px;border:0;background:transparent;color:#817c73;font-size:.95rem;cursor:pointer}.groupBuilder>input{width:100%;height:31px;margin-top:7px;box-sizing:border-box;padding:0 8px;border:1px solid rgba(255,205,80,.1);border-radius:8px;background:#11110f;color:#d8d3ca;font:inherit;font-size:.55rem;outline:none}.groupDropZone{min-height:74px;margin-top:8px;padding:9px;box-sizing:border-box;display:grid;place-items:center;align-content:center;gap:2px;border:1px dashed rgba(244,183,40,.34);border-radius:11px;background:rgba(244,183,40,.035);text-align:center}.dropIcon{color:#c99d35;font-size:.9rem}.groupDropZone strong{color:#b9aa83;font-size:.54rem}.groupDropZone small{color:#6d685e;font-size:.48rem}.groupDraftMembers{margin-top:7px;display:flex;flex-wrap:wrap;gap:4px}.groupDraftMembers button{padding:4px 6px;border:1px solid rgba(255,255,255,.06);border-radius:7px;background:rgba(255,255,255,.025);color:#89847a;font:inherit;font-size:.46rem;cursor:pointer}.groupDraftMembers button span{color:#a97f54}.createGroupButton{width:100%;min-height:33px;margin-top:8px;border:0;border-radius:9px;background:linear-gradient(135deg,#ffd24d,#efa718);color:#17120a;font:inherit;font-size:.53rem;font-weight:950;cursor:pointer}.createGroupButton:disabled{background:rgba(255,255,255,.05);color:#68635b;cursor:default}
         .viewControls{position:absolute;z-index:55;right:10px;bottom:10px;display:grid;grid-template-columns:repeat(3,34px);gap:5px}.viewControls button,.pager button{height:34px;border:1px solid rgba(255,205,80,.13);border-radius:10px;background:rgba(18,18,15,.92);color:#bbb5aa;font:inherit;font-size:.78rem;font-weight:850;cursor:pointer}.viewControls button:hover,.pager button:hover:not(:disabled){border-color:rgba(244,183,40,.28);color:#e4c36d}.pager{position:absolute;z-index:55;left:50%;bottom:10px;transform:translateX(-50%);display:flex;align-items:center;gap:7px;padding:4px;border:1px solid rgba(255,205,80,.08);border-radius:12px;background:rgba(12,12,10,.88)}.pager button{width:32px}.pager button:disabled{opacity:.28;cursor:default}.pager span{min-width:48px;color:#77736c;font-size:.53rem;font-weight:800;text-align:center}.parentReturn{position:absolute;z-index:55;left:10px;bottom:10px;min-height:34px;padding:0 11px;border:1px solid rgba(255,205,80,.12);border-radius:10px;background:rgba(18,18,15,.92);color:#a89c7b;font:inherit;font-size:.55rem;font-weight:850;cursor:pointer}.parentReturn:disabled{opacity:.4}
         .profileCard{position:absolute;z-index:75;right:10px;top:10px;width:min(245px,calc(100% - 20px));box-sizing:border-box;padding:13px;border:1px solid rgba(255,205,80,.15);border-radius:17px;background:rgba(15,15,13,.975);box-shadow:0 18px 42px rgba(0,0,0,.45);cursor:default}.profileClose{position:absolute;right:8px;top:7px;width:28px;height:28px;border:0;background:transparent;color:#817c73;font-size:1rem;cursor:pointer}.profileIdentity{padding-right:28px;display:flex;align-items:center;gap:9px}.profileIdentity :global(.identity){display:flex;align-items:center;gap:8px}.profileIdentity :global(.identityLabel){display:none}.profileIdentity :global(.avatarSlot){position:relative;display:grid;place-items:center}.profileIdentity :global(.neutralAvatar){display:grid;place-items:center;border:1px solid rgba(244,183,40,.13);border-radius:50%;background:#171611;color:#8e7b50}.profileIdentity :global(.avatarSlot img){position:absolute;inset:0;border-radius:50%;object-fit:cover}.profileIdentity>div>strong{display:block;color:#e7e1d6;font-size:.66rem}.profileIdentity>div>span{display:block;margin-top:3px;color:#877e69;font-size:.51rem}.profileAddress{margin-top:10px;padding:8px;border-radius:9px;background:rgba(255,255,255,.025);color:#67635d;font-size:.48rem;line-height:1.35;overflow-wrap:anywhere;user-select:text;-webkit-user-select:text}.profileStats{margin-top:9px;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:5px}.profileStats>div{padding:8px;border:1px solid rgba(255,255,255,.045);border-radius:9px;background:rgba(255,255,255,.018)}.profileStats strong{display:block;color:#d6d0c5;font-size:.62rem}.profileStats span{display:block;margin-top:2px;color:#68645e;font-size:.47rem}.profileAction{width:100%;min-height:36px;margin-top:9px;border:0;border-radius:10px;background:linear-gradient(135deg,#ffd24d,#efa718);color:#17120a;font:inherit;font-size:.57rem;font-weight:950;cursor:pointer}.profileAction:disabled{opacity:.45;cursor:default}
+        .groupCardTitle{padding-right:28px;display:flex;align-items:center;gap:10px}.groupCardTitle>div strong{display:block;color:#e7dfcf;font-size:.65rem}.groupCardTitle>div span{display:block;margin-top:3px;color:#887c5e;font-size:.5rem}.groupMemberList{margin-top:10px;display:flex;flex-wrap:wrap;gap:5px}.groupMemberList span{padding:5px 6px;border:1px solid rgba(255,255,255,.05);border-radius:7px;background:rgba(255,255,255,.02);color:#777168;font-size:.47rem}.ungroupButton{width:100%;min-height:33px;margin-top:10px;border:1px solid rgba(194,118,90,.2);border-radius:9px;background:rgba(194,118,90,.06);color:#bd9889;font:inherit;font-size:.52rem;font-weight:900;cursor:pointer}
+        .workspaceNotice{position:absolute;z-index:96;left:50%;bottom:56px;transform:translateX(-50%);padding:7px 11px;border:1px solid rgba(244,183,40,.18);border-radius:10px;background:rgba(21,19,14,.97);color:#d5b85f;font-size:.53rem;font-weight:850;white-space:nowrap;box-shadow:0 12px 28px rgba(0,0,0,.3)}
         .inlineError{position:absolute;z-index:90;left:50%;bottom:54px;transform:translateX(-50%);max-width:calc(100% - 28px);padding:8px 9px 8px 11px;display:flex;align-items:center;gap:8px;border:1px solid rgba(194,118,90,.2);border-radius:10px;background:rgba(38,23,18,.96);color:#c7a294;font-size:.53rem;box-shadow:0 12px 30px rgba(0,0,0,.32)}.inlineError button{border:0;background:transparent;color:#9f7d71;font-size:.8rem;cursor:pointer}
-        @keyframes networkForward{0%{opacity:.7;scale:.965}100%{opacity:1;scale:1}}@keyframes networkBack{0%{opacity:.76;scale:1.045}100%{opacity:1;scale:1}}@keyframes slotFlow{to{stroke-dashoffset:-30}}@keyframes pulse{to{opacity:.38;transform:scale(.82)}}
-        @media(max-width:560px){.networkCanvasPage{width:100%;border-radius:18px}.networkHeader{min-height:58px;padding:10px 11px}.summary{gap:3px 4px}.summary strong{font-size:.68rem}.summary span{font-size:.46rem}.networkToolbar{padding:6px 7px;gap:5px}.searchWrap{flex-basis:43%}.crumb{max-width:64px}.networkStage{height:max(430px,calc(100dvh - 245px));max-height:620px}.profileCard{top:auto;right:8px;bottom:52px;left:8px;width:auto}.viewControls{right:8px;bottom:8px}.parentReturn{left:8px;bottom:8px}.pager{bottom:8px}.personNode{min-width:82px}.focusNode{min-width:101px}}
-        @media(prefers-reduced-motion:reduce){.world.cameraTransition{transition:none}.worldContent.nav-forward,.worldContent.nav-back,.slotEdge,.nodeBusy{animation:none!important}}
+        @keyframes networkForward{0%{opacity:.7;scale:.965}100%{opacity:1;scale:1}}@keyframes networkBack{0%{opacity:.76;scale:1.045}100%{opacity:1;scale:1}}@keyframes slotFlow{to{stroke-dashoffset:-30}}@keyframes pulse{to{opacity:.38;transform:scale(.82)}}@keyframes groupDropAway{to{opacity:0;scale:.72}}
+        @media(max-width:560px){.networkCanvasPage{width:100%;border-radius:18px}.networkHeader{min-height:58px;padding:10px 11px}.summary{gap:3px 4px}.summary strong{font-size:.68rem}.summary span{font-size:.46rem}.networkToolbar{padding:6px 7px;gap:5px}.searchWrap{flex-basis:43%}.crumb{max-width:64px}.networkStage{height:max(430px,calc(100dvh - 245px));max-height:620px}.profileCard{top:auto;right:8px;bottom:52px;left:8px;width:auto}.groupBuilder{left:8px;top:49px;width:min(232px,calc(100% - 16px))}.layoutControls{left:8px;top:8px}.layoutControls button{padding:0 7px}.viewControls{right:8px;bottom:8px}.parentReturn{left:8px;bottom:8px}.pager{bottom:8px}.personNode{min-width:82px}.focusNode{min-width:101px}}
+        @media(prefers-reduced-motion:reduce){.world.cameraTransition{transition:none}.worldContent.nav-forward,.worldContent.nav-back,.slotEdge,.nodeBusy,.personNode.grouping{animation:none!important}}
       `}</style>
     </section>
   );
