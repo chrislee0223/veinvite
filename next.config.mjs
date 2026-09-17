@@ -1,4 +1,4 @@
-import { withSentryConfig } from '@sentry/nextjs';
+import { withSentryConfig } from '@sentry/nextjs/config';
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
@@ -80,12 +80,17 @@ const sentryEnabled = Boolean(
   process.env.SENTRY_DSN || process.env.NEXT_PUBLIC_SENTRY_DSN,
 );
 
+// Source-map upload is activated only when Sentry build credentials are present.
 export default sentryEnabled
   ? withSentryConfig(nextConfig, {
       org: process.env.SENTRY_ORG,
       project: process.env.SENTRY_PROJECT,
       authToken: process.env.SENTRY_AUTH_TOKEN,
       silent: true,
-      disableLogger: true,
+      webpack: {
+        treeshake: {
+          removeDebugLogging: true,
+        },
+      },
     })
   : nextConfig;
