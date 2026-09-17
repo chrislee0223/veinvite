@@ -506,7 +506,9 @@ export function AppNetwork({ locale }: { locale: Locale }) {
       return;
     }
     void loadRoot();
-    return () => cancelRequest();
+    return () => {
+      cancelRequest();
+    };
   }, [wallet, loadRoot, cancelRequest]);
 
   useEffect(() => {
