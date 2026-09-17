@@ -107,6 +107,17 @@ type WorkspaceDrag = {
   offset: Point;
 };
 
+type HoldDragState = {
+  pointerId: number;
+  key: string;
+  startScreen: Point;
+  startNode: Point;
+  offset: Point;
+  armed: boolean;
+  moved: boolean;
+  originalWorkspace: NetworkFocusWorkspace;
+};
+
 type GroupDraft = {
   id: string;
   label: string;
@@ -124,6 +135,12 @@ const MAX_SCALE = 2.5;
 const SEARCH_DELAY_MS = 280;
 const NAVIGATION_MS = 520;
 const GROUP_DROP_MS = 160;
+const HOLD_TO_MOVE_MS = 500;
+const HOLD_CANCEL_DISTANCE = 8;
+const NODE_ENTER_SCALE = 1.85;
+const NODE_HIT_RADIUS = 58;
+const GROUP_DROP_RADIUS = 92;
+const WHEEL_ENTER_DISTANCE = 120;
 const SESSION_PREFIX = 'veinvite-network-runtime-v1:';
 const WORKSPACE_PREFIX = 'veinvite-network-workspace-v1:';
 const EXPLORER_PAGE_SIZE_DESKTOP = 10;
@@ -390,7 +407,13 @@ export function AppNetwork({ locale }: { locale: Locale }) {
   const pinchRef = useRef<PinchState | null>(null);
   const suppressClickRef = useRef(false);
   const pinchReturnIntentRef = useRef(false);
+  const pinchCandidateWalletRef = useRef<string | null>(null);
+  const pinchEnterIntentRef = useRef<string | null>(null);
   const wheelReturnDistanceRef = useRef(0);
+  const wheelEnterDistanceRef = useRef(0);
+  const wheelEnterWalletRef = useRef<string | null>(null);
+  const holdDragRef = useRef<HoldDragState | null>(null);
+  const holdTimerRef = useRef<number | null>(null);
   const returnViewByChildRef = useRef(new Map<string, View>());
   const viewByFocusRef = useRef(new Map<string, View>());
   const navigationTimerRef = useRef<number | null>(null);
@@ -511,6 +534,32 @@ export function AppNetwork({ locale }: { locale: Locale }) {
     [activeWorkspace.groups, visibleWalletKeys],
   );
 
+  const nearestVisibleChild = useCallback((point: Point, radius = NODE_HIT_RADIUS): PositionedChild | null => {
+    let nearest: PositionedChild | null = null;
+    let nearestDistance = radius;
+    for (const child of visibleChildren) {
+      const candidateDistance = Math.hypot(child.x - point.x, child.y - point.y);
+      if (candidateDistance <= nearestDistance) {
+        nearest = child;
+        nearestDistance = candidateDistance;
+      }
+    }
+    return nearest;
+  }, [visibleChildren]);
+
+  const nearestVisibleGroup = useCallback((point: Point, radius = GROUP_DROP_RADIUS) => {
+    let nearest: (typeof visibleGroups)[number] | null = null;
+    let nearestDistance = radius;
+    for (const group of visibleGroups) {
+      const candidateDistance = Math.hypot(group.x - point.x, group.y - point.y);
+      if (candidateDistance <= nearestDistance) {
+        nearest = group;
+        nearestDistance = candidateDistance;
+      }
+    }
+    return nearest;
+  }, [visibleGroups]);
+
   const childByWallet = useMemo(() => {
     const map = new Map<string, NetworkChild>();
     currentData?.children.forEach((child) => map.set(keyWallet(child.wallet), child));
@@ -551,6 +600,15 @@ export function AppNetwork({ locale }: { locale: Locale }) {
       window.clearTimeout(noticeTimerRef.current);
       noticeTimerRef.current = null;
     }
+    if (holdTimerRef.current !== null) {
+      window.clearTimeout(holdTimerRef.current);
+      holdTimerRef.current = null;
+    }
+    holdDragRef.current = null;
+    pinchCandidateWalletRef.current = null;
+    pinchEnterIntentRef.current = null;
+    wheelEnterDistanceRef.current = 0;
+    wheelEnterWalletRef.current = null;
   }, []);
 
   const persistFocusWorkspace = useCallback((workspace: NetworkFocusWorkspace) => {
@@ -563,6 +621,21 @@ export function AppNetwork({ locale }: { locale: Locale }) {
         // Persistence is best-effort; the current runtime still keeps the layout.
       }
       return next;
+    });
+  }, [wallet, currentFocusKey]);
+
+  const persistNodePosition = useCallback((walletKey: string, point: Point) => {
+    if (!wallet || !currentFocusKey) return;
+    setWorkspaceStore((current) => {
+      const focusWorkspace = workspaceForFocus(current, currentFocusKey);
+      const nextWorkspace = withNodePosition(focusWorkspace, walletKey, point);
+      const nextStore = withFocusWorkspace(current, currentFocusKey, nextWorkspace);
+      try {
+        window.localStorage.setItem(workspaceStorageKey(wallet), serializeNetworkWorkspaceStore(nextStore));
+      } catch {
+        // In-memory state remains authoritative when storage is unavailable.
+      }
+      return nextStore;
     });
   }, [wallet, currentFocusKey]);
 
@@ -785,7 +858,10 @@ export function AppNetwork({ locale }: { locale: Locale }) {
       setSearchResults([]);
 
       if (direction === 'back') {
-        const exactParentView = returnViewByChildRef.current.get(current);
+        const immediateParent = currentData.breadcrumb[currentData.breadcrumb.length - 2] ?? null;
+        const exactParentView = immediateParent && keyWallet(immediateParent) === target
+          ? returnViewByChildRef.current.get(current)
+          : undefined;
         setView(
           exactParentView ??
           viewByFocusRef.current.get(target) ??
@@ -815,9 +891,54 @@ export function AppNetwork({ locale }: { locale: Locale }) {
   const centerNetwork = useCallback(() => {
     if (stageSize.width <= 0 || stageSize.height <= 0) return;
     setCameraTransition(true);
-    setView(centeredView(stageSize, 1));
+    setView((current) => ({
+      x: stageSize.width / 2 - FOCUS_X * current.scale,
+      y: Math.max(88, stageSize.height * 0.32) - FOCUS_Y * current.scale,
+      scale: current.scale,
+    }));
     window.setTimeout(() => setCameraTransition(false), 240);
   }, [stageSize]);
+
+  const returnToYou = useCallback(() => {
+    if (!currentData || pendingFocus || editingLayout) return;
+    if (keyWallet(currentData.focusWallet) !== keyWallet(currentData.rootWallet)) {
+      void moveToFocus(currentData.rootWallet, 'back');
+      return;
+    }
+    centerNetwork();
+  }, [currentData, pendingFocus, editingLayout, moveToFocus, centerNetwork]);
+
+  const fitNetwork = useCallback(() => {
+    if (stageSize.width <= 0 || stageSize.height <= 0) return;
+    const points: Point[] = [
+      { x: FOCUS_X, y: FOCUS_Y },
+      ...visibleChildren.map((child) => ({ x: child.x, y: child.y })),
+      ...visibleGroups.map((group) => ({ x: group.x, y: group.y })),
+    ];
+    for (let index = 0; index < emptySlotCount; index += 1) {
+      points.push({ x: FOCUS_X + (index === 0 ? -95 : 95), y: FOCUS_Y + 184 });
+    }
+    const minX = Math.min(...points.map((point) => point.x));
+    const maxX = Math.max(...points.map((point) => point.x));
+    const minY = Math.min(...points.map((point) => point.y));
+    const maxY = Math.max(...points.map((point) => point.y));
+    const contentWidth = Math.max(220, maxX - minX + 190);
+    const contentHeight = Math.max(220, maxY - minY + 190);
+    const scale = clamp(
+      Math.min(1, (stageSize.width - 34) / contentWidth, (stageSize.height - 50) / contentHeight),
+      MIN_SCALE,
+      MAX_SCALE,
+    );
+    const centerX = (minX + maxX) / 2;
+    const centerY = (minY + maxY) / 2;
+    setCameraTransition(true);
+    setView({
+      x: stageSize.width / 2 - centerX * scale,
+      y: stageSize.height / 2 - centerY * scale,
+      scale,
+    });
+    window.setTimeout(() => setCameraTransition(false), 240);
+  }, [stageSize, visibleChildren, visibleGroups, emptySlotCount]);
 
   const zoomAt = useCallback((screenPoint: Point, nextScale: number) => {
     setView((current) => {
@@ -1025,39 +1146,89 @@ export function AppNetwork({ locale }: { locale: Locale }) {
     setSelectedGroupId(null);
   }, [editingLayout, draftWorkspace, view]);
 
+  const cancelHoldDrag = useCallback((restore = false) => {
+    if (holdTimerRef.current !== null) {
+      window.clearTimeout(holdTimerRef.current);
+      holdTimerRef.current = null;
+    }
+    const hold = holdDragRef.current;
+    if (restore && hold?.moved) persistFocusWorkspace(hold.originalWorkspace);
+    holdDragRef.current = null;
+    if (hold) setDraggingWorkspaceKey(null);
+  }, [persistFocusWorkspace]);
+
+  const beginHoldDrag = useCallback((
+    event: ReactPointerEvent<HTMLButtonElement>,
+    key: string,
+    point: Point,
+  ) => {
+    if (editingLayout || pendingFocus || !currentFocusKey || groupContainingWallet(committedWorkspace, key)) return;
+    const stage = stageRef.current;
+    if (!stage) return;
+    if (holdTimerRef.current !== null) window.clearTimeout(holdTimerRef.current);
+    const rect = stage.getBoundingClientRect();
+    const worldPoint = {
+      x: (event.clientX - rect.left - view.x) / view.scale,
+      y: (event.clientY - rect.top - view.y) / view.scale,
+    };
+    holdDragRef.current = {
+      pointerId: event.pointerId,
+      key,
+      startScreen: { x: event.clientX, y: event.clientY },
+      startNode: point,
+      offset: { x: worldPoint.x - point.x, y: worldPoint.y - point.y },
+      armed: false,
+      moved: false,
+      originalWorkspace: cloneNetworkFocusWorkspace(committedWorkspace),
+    };
+    holdTimerRef.current = window.setTimeout(() => {
+      holdTimerRef.current = null;
+      const hold = holdDragRef.current;
+      if (!hold || hold.pointerId !== event.pointerId || pointersRef.current.size !== 1) return;
+      hold.armed = true;
+      setDraggingWorkspaceKey('node:' + key);
+    }, HOLD_TO_MOVE_MS);
+  }, [editingLayout, pendingFocus, currentFocusKey, committedWorkspace, view]);
+
   const finishWorkspaceDrop = useCallback((event: ReactPointerEvent<HTMLDivElement>, drag: WorkspaceDrag) => {
     if (drag.kind !== 'node' || event.type !== 'pointerup') return;
 
-    const stage = stageRef.current;
-    if (stage) {
-      const targets = Array.from(stage.querySelectorAll<HTMLElement>('[data-group-drop-id]'));
-      const target = targets.find((element) => {
-        const rect = element.getBoundingClientRect();
-        return event.clientX >= rect.left && event.clientX <= rect.right && event.clientY >= rect.top && event.clientY <= rect.bottom;
-      });
-      const targetId = target?.dataset.groupDropId;
-      if (targetId) {
-        setDraftWorkspace((current) => current ? moveWorkspaceMemberToGroup(current, drag.key, targetId) : current);
-        return;
-      }
+    const draftRect = groupDropRef.current?.getBoundingClientRect();
+    const insideDraft = Boolean(
+      groupDraft &&
+      draftRect &&
+      event.clientX >= draftRect.left &&
+      event.clientX <= draftRect.right &&
+      event.clientY >= draftRect.top &&
+      event.clientY <= draftRect.bottom
+    );
+    if (insideDraft && groupDraft && !groupDraft.members.includes(drag.key)) {
+      setGroupingWallet(drag.key);
+      if (groupingTimerRef.current !== null) window.clearTimeout(groupingTimerRef.current);
+      groupingTimerRef.current = window.setTimeout(() => {
+        groupingTimerRef.current = null;
+        setGroupDraft((current) => {
+          if (!current || current.members.includes(drag.key)) return current;
+          return { ...current, members: [...current.members, drag.key] };
+        });
+        setGroupingWallet(null);
+      }, GROUP_DROP_MS);
+      return;
     }
 
-    if (!groupDraft) return;
-    const drop = groupDropRef.current?.getBoundingClientRect();
-    if (!drop) return;
-    const inside = event.clientX >= drop.left && event.clientX <= drop.right && event.clientY >= drop.top && event.clientY <= drop.bottom;
-    if (!inside || groupDraft.members.includes(drag.key)) return;
-    setGroupingWallet(drag.key);
-    if (groupingTimerRef.current !== null) window.clearTimeout(groupingTimerRef.current);
-    groupingTimerRef.current = window.setTimeout(() => {
-      groupingTimerRef.current = null;
-      setGroupDraft((current) => {
-        if (!current || current.members.includes(drag.key)) return current;
-        return { ...current, members: [...current.members, drag.key] };
-      });
-      setGroupingWallet(null);
-    }, GROUP_DROP_MS);
-  }, [groupDraft]);
+    const stage = stageRef.current;
+    if (!stage) return;
+    const rect = stage.getBoundingClientRect();
+    const worldPoint = {
+      x: (event.clientX - rect.left - view.x) / view.scale,
+      y: (event.clientY - rect.top - view.y) / view.scale,
+    };
+    const targetGroup = nearestVisibleGroup(worldPoint);
+    if (!targetGroup) return;
+    setDraftWorkspace((current) => current
+      ? moveWorkspaceMemberToGroup(current, drag.key, targetGroup.id)
+      : current);
+  }, [groupDraft, view, nearestVisibleGroup]);
 
   const onPointerDownCapture = (event: ReactPointerEvent<HTMLDivElement>) => {
     const point = { x: event.clientX, y: event.clientY };
@@ -1074,20 +1245,27 @@ export function AppNetwork({ locale }: { locale: Locale }) {
     }
 
     if (pointersRef.current.size === 2) {
+      cancelHoldDrag(true);
       workspaceDragRef.current = null;
       setDraggingWorkspaceKey(null);
       const [a, b] = Array.from(pointersRef.current.values());
       const center = midpoint(a, b);
       const startView = view;
+      const stageRect = stageRef.current?.getBoundingClientRect();
+      const worldAnchor = {
+        x: (center.x - (stageRect?.left ?? 0) - startView.x) / startView.scale,
+        y: (center.y - (stageRect?.top ?? 0) - startView.y) / startView.scale,
+      };
       pinchRef.current = {
         startDistance: Math.max(1, distance(a, b)),
         startCenter: center,
         startView,
-        worldAnchor: {
-          x: (center.x - (stageRef.current?.getBoundingClientRect().left ?? 0) - startView.x) / startView.scale,
-          y: (center.y - (stageRef.current?.getBoundingClientRect().top ?? 0) - startView.y) / startView.scale,
-        },
+        worldAnchor,
       };
+      pinchCandidateWalletRef.current = editingLayout
+        ? null
+        : nearestVisibleChild(worldAnchor)?.wallet ?? null;
+      pinchEnterIntentRef.current = null;
       panPointerRef.current = null;
       suppressClickRef.current = true;
     }
@@ -1096,6 +1274,34 @@ export function AppNetwork({ locale }: { locale: Locale }) {
   const onPointerMoveCapture = (event: ReactPointerEvent<HTMLDivElement>) => {
     if (!pointersRef.current.has(event.pointerId)) return;
     pointersRef.current.set(event.pointerId, { x: event.clientX, y: event.clientY });
+
+    const holdDrag = holdDragRef.current;
+    if (holdDrag && holdDrag.pointerId === event.pointerId && pointersRef.current.size === 1 && !editingLayout) {
+      const screenDistance = Math.hypot(
+        event.clientX - holdDrag.startScreen.x,
+        event.clientY - holdDrag.startScreen.y,
+      );
+      if (!holdDrag.armed) {
+        if (screenDistance > HOLD_CANCEL_DISTANCE) {
+          if (holdTimerRef.current !== null) window.clearTimeout(holdTimerRef.current);
+          holdTimerRef.current = null;
+          holdDragRef.current = null;
+          suppressClickRef.current = true;
+        }
+        return;
+      }
+      if (screenDistance <= HOLD_CANCEL_DISTANCE && !holdDrag.moved) return;
+      const rect = stageRef.current?.getBoundingClientRect();
+      if (!rect) return;
+      const nextPoint = {
+        x: clamp((event.clientX - rect.left - view.x) / view.scale - holdDrag.offset.x, 90, WORLD_W - 90),
+        y: clamp((event.clientY - rect.top - view.y) / view.scale - holdDrag.offset.y, 90, WORLD_H - 90),
+      };
+      holdDrag.moved = true;
+      persistNodePosition(holdDrag.key, nextPoint);
+      suppressClickRef.current = true;
+      return;
+    }
 
     const workspaceDrag = workspaceDragRef.current;
     if (
@@ -1155,6 +1361,13 @@ export function AppNetwork({ locale }: { locale: Locale }) {
         y: localCenter.y - pinch.worldAnchor.y * nextScale,
         scale: nextScale,
       });
+      if (
+        !editingLayout &&
+        pinchCandidateWalletRef.current &&
+        rawScale >= Math.max(NODE_ENTER_SCALE, pinch.startView.scale * 1.18)
+      ) {
+        pinchEnterIntentRef.current = pinchCandidateWalletRef.current;
+      }
       if (!editingLayout && rawScale < MIN_SCALE * 0.88 && currentData && currentData.breadcrumb.length > 1) {
         pinchReturnIntentRef.current = true;
       }
@@ -1163,6 +1376,18 @@ export function AppNetwork({ locale }: { locale: Locale }) {
   };
 
   const onPointerEndCapture = (event: ReactPointerEvent<HTMLDivElement>) => {
+    const holdDrag = holdDragRef.current;
+    if (holdDrag && holdDrag.pointerId === event.pointerId) {
+      if (holdTimerRef.current !== null) {
+        window.clearTimeout(holdTimerRef.current);
+        holdTimerRef.current = null;
+      }
+      if (event.type === 'pointercancel' && holdDrag.moved) persistFocusWorkspace(holdDrag.originalWorkspace);
+      if (holdDrag.moved) suppressClickRef.current = true;
+      holdDragRef.current = null;
+      setDraggingWorkspaceKey(null);
+    }
+
     const workspaceDrag = workspaceDragRef.current;
     if (workspaceDrag && workspaceDrag.pointerId === event.pointerId) {
       finishWorkspaceDrop(event, workspaceDrag);
@@ -1174,18 +1399,19 @@ export function AppNetwork({ locale }: { locale: Locale }) {
     if (pointersRef.current.size === 1) {
       const [remainingId, remainingPoint] = Array.from(pointersRef.current.entries())[0];
       panPointerRef.current = { id: remainingId, point: remainingPoint, allowed: false };
-      pinchRef.current = null;
-      if (pinchReturnIntentRef.current) {
-        pinchReturnIntentRef.current = false;
-        returnToParent();
-      }
       return;
     }
     if (pointersRef.current.size === 0) {
       panPointerRef.current = null;
+      const enterWallet = pinchEnterIntentRef.current;
+      const returnIntent = pinchReturnIntentRef.current;
       pinchRef.current = null;
-      if (pinchReturnIntentRef.current) {
-        pinchReturnIntentRef.current = false;
+      pinchCandidateWalletRef.current = null;
+      pinchEnterIntentRef.current = null;
+      pinchReturnIntentRef.current = false;
+      if (enterWallet && !editingLayout) {
+        void moveToFocus(enterWallet, 'forward');
+      } else if (returnIntent) {
         returnToParent();
       }
       window.setTimeout(() => {
@@ -1219,7 +1445,36 @@ export function AppNetwork({ locale }: { locale: Locale }) {
     }
     const point = { x: event.clientX - rect.left, y: event.clientY - rect.top };
     const factor = event.deltaY < 0 ? 1.09 : 0.91;
-    zoomAt(point, view.scale * factor);
+    const nextScale = view.scale * factor;
+    if (!editingLayout && event.deltaY < 0) {
+      const worldPoint = {
+        x: (point.x - view.x) / view.scale,
+        y: (point.y - view.y) / view.scale,
+      };
+      const candidate = nearestVisibleChild(worldPoint);
+      if (candidate && nextScale >= NODE_ENTER_SCALE) {
+        const candidateKey = keyWallet(candidate.wallet);
+        if (wheelEnterWalletRef.current === candidateKey) {
+          wheelEnterDistanceRef.current += Math.abs(event.deltaY);
+        } else {
+          wheelEnterWalletRef.current = candidateKey;
+          wheelEnterDistanceRef.current = Math.abs(event.deltaY);
+        }
+        if (wheelEnterDistanceRef.current >= WHEEL_ENTER_DISTANCE) {
+          wheelEnterDistanceRef.current = 0;
+          wheelEnterWalletRef.current = null;
+          void moveToFocus(candidate.wallet, 'forward');
+          return;
+        }
+      } else {
+        wheelEnterDistanceRef.current = 0;
+        wheelEnterWalletRef.current = null;
+      }
+    } else {
+      wheelEnterDistanceRef.current = 0;
+      wheelEnterWalletRef.current = null;
+    }
+    zoomAt(point, nextScale);
   };
 
   if (!NETWORK_CANVAS_ENABLED) return null;
@@ -1432,7 +1687,11 @@ export function AppNetwork({ locale }: { locale: Locale }) {
                   key={childKey}
                   className={`personNode childNode status-${child.status.toLowerCase()}${isSelected ? ' selected' : ''}${editingLayout ? ' draggable' : ''}${draggingWorkspaceKey === dragKey ? ' dragging' : ''}${groupingWallet === childKey ? ' grouping' : ''}`}
                   style={{ left: child.x, top: child.y }}
-                  onPointerDown={editingLayout ? (event) => beginWorkspaceDrag(event, 'node', childKey, { x: child.x, y: child.y }) : undefined}
+                  onPointerDown={(event) => {
+                    if (editingLayout) beginWorkspaceDrag(event, 'node', childKey, { x: child.x, y: child.y });
+                    else beginHoldDrag(event, childKey, { x: child.x, y: child.y });
+                  }}
+                  onContextMenu={(event) => event.preventDefault()}
                   onClick={() => {
                     if (suppressClickRef.current || editingLayout) return;
                     setSelectedGroupId(null);
@@ -1600,7 +1859,8 @@ export function AppNetwork({ locale }: { locale: Locale }) {
         ) : null}
 
         <div className="viewControls" data-no-pan="true">
-          <button type="button" onClick={centerNetwork} aria-label={c.centerNetwork} title={c.centerNetwork}>◎</button>
+          <button type="button" onClick={returnToYou} aria-label={c.you} title={c.you}>◎</button>
+          <button type="button" className="fitButton" onClick={fitNetwork}>{w.fit}</button>
           <button type="button" onClick={() => zoomByButton(1)} aria-label={c.zoomIn} title={c.zoomIn}>+</button>
           <button type="button" onClick={() => zoomByButton(-1)} aria-label={c.zoomOut} title={c.zoomOut}>−</button>
         </div>
@@ -1700,13 +1960,13 @@ export function AppNetwork({ locale }: { locale: Locale }) {
         .networkStage{position:relative;height:clamp(430px,68vh,650px);overflow:hidden;touch-action:none;overscroll-behavior:contain;background:radial-gradient(circle at 50% 34%,rgba(244,183,40,.045),transparent 31%),linear-gradient(rgba(255,255,255,.015) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.015) 1px,transparent 1px);background-size:auto,28px 28px,28px 28px;cursor:grab;user-select:none;-webkit-user-select:none}.networkStage:active{cursor:grabbing}.networkStage.layoutEditing{box-shadow:inset 0 0 0 1px rgba(244,183,40,.11)}
         .world{position:absolute;top:0;left:0;will-change:transform;backface-visibility:hidden}.world.cameraTransition{transition:transform ${NAVIGATION_MS}ms cubic-bezier(.18,.82,.2,1)}.worldContent{position:absolute;inset:0;transform-origin:${FOCUS_X}px ${FOCUS_Y}px}.worldContent.nav-forward{animation:networkForward ${NAVIGATION_MS}ms cubic-bezier(.18,.82,.2,1)}.worldContent.nav-back{animation:networkBack ${NAVIGATION_MS}ms cubic-bezier(.18,.82,.2,1)}
         .edges{position:absolute;inset:0;overflow:visible;pointer-events:none}.edge{fill:none;stroke:rgba(176,145,73,.31);stroke-width:1.3;vector-effect:non-scaling-stroke}.edge.rewarded{stroke:rgba(232,183,62,.46)}.edge.groupEdge{stroke:rgba(224,178,65,.42);stroke-width:1.5}.groupMemberEdge{stroke:rgba(194,157,75,.32);stroke-width:1.15}.continuationEdge{fill:none;stroke:rgba(176,145,73,.24);stroke-width:1.15;stroke-linecap:round;vector-effect:non-scaling-stroke}.slotEdge{stroke:rgba(232,183,62,.34);stroke-dasharray:7 8;animation:slotFlow 2.2s linear infinite}
-        .personNode,.slotNode,.groupNode{position:absolute;z-index:4;transform:translate(-50%,-50%);font:inherit}.personNode{min-width:92px;padding:7px 8px 8px;border:1px solid rgba(255,255,255,.08);border-radius:15px;background:rgba(17,17,15,.94);color:#d9d4ca;display:grid;justify-items:center;gap:5px;box-shadow:0 8px 20px rgba(0,0,0,.23);cursor:pointer}.personNode:hover,.personNode.selected{border-color:rgba(244,183,40,.35);box-shadow:0 0 0 1px rgba(244,183,40,.07),0 10px 24px rgba(0,0,0,.3)}.focusNode{min-width:112px;padding:10px 11px 9px;border-color:rgba(244,183,40,.24);background:radial-gradient(circle at 50% 0,rgba(244,183,40,.12),transparent 52%),rgba(18,17,14,.97)}.childNode.status-rewarded{border-color:rgba(218,171,57,.17)}.childNode.status-qualified{border-color:rgba(155,136,82,.14)}.personNode.draggable,.groupNode.draggable{cursor:grab;touch-action:none}.personNode.draggable:active,.groupNode.draggable:active{cursor:grabbing}.personNode.dragging,.groupNode.dragging{z-index:12;border-color:rgba(244,183,40,.58);box-shadow:0 14px 30px rgba(0,0,0,.34),0 0 0 2px rgba(244,183,40,.11)}.personNode.grouping{animation:groupDropAway ${GROUP_DROP_MS}ms ease forwards}
+        .personNode,.slotNode,.groupNode{position:absolute;z-index:4;transform:translate(-50%,-50%);font:inherit}.personNode{min-width:92px;padding:7px 8px 8px;border:1px solid rgba(255,255,255,.08);border-radius:15px;background:rgba(17,17,15,.94);color:#d9d4ca;display:grid;justify-items:center;gap:5px;box-shadow:0 8px 20px rgba(0,0,0,.23);cursor:pointer;user-select:none;-webkit-user-select:none;-webkit-touch-callout:none}.personNode:hover,.personNode.selected{border-color:rgba(244,183,40,.35);box-shadow:0 0 0 1px rgba(244,183,40,.07),0 10px 24px rgba(0,0,0,.3)}.focusNode{min-width:112px;padding:10px 11px 9px;border-color:rgba(244,183,40,.24);background:radial-gradient(circle at 50% 0,rgba(244,183,40,.12),transparent 52%),rgba(18,17,14,.97)}.childNode.status-rewarded{border-color:rgba(218,171,57,.17)}.childNode.status-qualified{border-color:rgba(155,136,82,.14)}.personNode.draggable,.groupNode.draggable{cursor:grab;touch-action:none}.personNode.draggable:active,.groupNode.draggable:active{cursor:grabbing}.personNode.dragging,.groupNode.dragging{z-index:12;border-color:rgba(244,183,40,.58);box-shadow:0 14px 30px rgba(0,0,0,.34),0 0 0 2px rgba(244,183,40,.11)}.personNode.grouping{animation:groupDropAway ${GROUP_DROP_MS}ms ease forwards}
         .personNode :global(.identity){display:grid;justify-items:center;gap:4px}.personNode :global(.avatarSlot){position:relative;display:grid;place-items:center}.personNode :global(.neutralAvatar){display:grid;place-items:center;border:1px solid rgba(244,183,40,.13);border-radius:50%;background:#171611;color:#8e7b50}.personNode :global(.avatarSlot img){position:absolute;inset:0;border-radius:50%;object-fit:cover;transition:opacity 160ms ease}.personNode :global(.identityLabel){max-width:88px;color:#a9a49b;font-size:.5rem;font-weight:750;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.nodeMeta{display:grid;justify-items:center;gap:2px}.nodeMeta strong{max-width:100px;color:#e5dfd5;font-size:.58rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.nodeMeta small{color:#6f6a62;font-size:.48rem}.focusNode .nodeMeta strong{color:#edc65c;font-size:.61rem}.nodeBusy{position:absolute;right:6px;top:6px;width:6px;height:6px;border-radius:50%;background:#e9bc45;box-shadow:0 0 10px rgba(233,188,69,.8);animation:pulse 900ms ease-in-out infinite alternate}
         .groupNode{min-width:94px;padding:9px 10px;border:1px solid rgba(244,183,40,.26);border-radius:18px;background:radial-gradient(circle at 50% 0,rgba(244,183,40,.15),transparent 56%),rgba(18,17,14,.97);color:#dfd8ca;display:grid;justify-items:center;gap:4px;box-shadow:0 9px 22px rgba(0,0,0,.27);cursor:pointer}.groupNode:hover,.groupNode.selected,.groupNode.expanded{border-color:rgba(244,183,40,.46)}.groupNode strong{max-width:105px;font-size:.57rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.groupNode small{color:#8b805f;font-size:.48rem}.groupGlyph{position:relative;width:34px;height:26px;display:block}.groupGlyph i{position:absolute;width:14px;height:14px;border:1px solid rgba(244,183,40,.34);border-radius:50%;background:#1a1812}.groupGlyph i:nth-child(1){left:10px;top:0}.groupGlyph i:nth-child(2){left:2px;top:11px}.groupGlyph i:nth-child(3){right:2px;top:11px}
         .slotNode{width:84px;height:70px;border:1px dashed rgba(244,183,40,.22);border-radius:15px;background:rgba(244,183,40,.025);color:#a98735;display:grid;place-items:center;align-content:center;gap:3px;cursor:pointer}.slotNode span{font-size:1rem;font-weight:400}.slotNode small{max-width:72px;font-size:.48rem;font-weight:800;line-height:1.15}.slotNode:hover{border-color:rgba(244,183,40,.42);background:rgba(244,183,40,.055)}.slotNode:disabled{opacity:.28;cursor:default}
         .layoutControls{position:absolute;z-index:64;left:10px;top:10px;display:flex;align-items:center;gap:5px}.layoutControls button{min-height:31px;padding:0 9px;border:1px solid rgba(255,205,80,.13);border-radius:9px;background:rgba(18,18,15,.94);color:#a9a397;font:inherit;font-size:.52rem;font-weight:900;cursor:pointer;box-shadow:0 7px 18px rgba(0,0,0,.2)}.layoutControls .editLayoutButton:hover,.layoutControls .newGroupButton:hover,.layoutControls .groupsButton:hover,.layoutControls .groupsButton.active{border-color:rgba(244,183,40,.31);color:#e1bd5b}.layoutControls .saveLayoutButton{border-color:rgba(244,183,40,.32);background:linear-gradient(135deg,#e9b93c,#c98a18);color:#17120a}.layoutControls .cancelLayoutButton{color:#8d877e}
         .groupsPanel{position:absolute;z-index:81;left:10px;top:50px;width:min(235px,calc(100% - 20px));box-sizing:border-box;padding:11px;border:1px solid rgba(244,183,40,.17);border-radius:15px;background:rgba(14,14,12,.985);box-shadow:0 18px 40px rgba(0,0,0,.42);cursor:default}.groupsPanelHead{display:flex;align-items:center;justify-content:space-between}.groupsPanelHead strong{color:#e5dfd3;font-size:.62rem}.groupsPanelHead button{width:27px;height:27px;border:0;background:transparent;color:#817c73;font-size:.95rem;cursor:pointer}.groupsPanel p{margin:10px 0;color:#77736c;font-size:.53rem}.groupsList{display:grid;gap:5px;margin-top:7px}.groupsList>button{padding:7px 8px;border:1px solid rgba(255,255,255,.06);border-radius:9px;background:rgba(255,255,255,.025);color:#aaa398;text-align:left;cursor:pointer}.groupsList span,.groupsList small{display:block}.groupsList span{font-size:.54rem;font-weight:900}.groupsList small{margin-top:2px;color:#746e64;font-size:.46rem}.createFirstGroup{width:100%;min-height:32px;margin-top:8px;border:1px solid rgba(244,183,40,.22);border-radius:9px;background:rgba(244,183,40,.05);color:#c5a454;font:inherit;font-size:.52rem;font-weight:900;cursor:pointer}.groupBuilder{position:absolute;z-index:82;left:10px;top:50px;width:min(235px,calc(100% - 20px));box-sizing:border-box;padding:11px;border:1px solid rgba(244,183,40,.2);border-radius:15px;background:rgba(14,14,12,.985);box-shadow:0 18px 40px rgba(0,0,0,.42);cursor:default}.groupBuilderHead{display:flex;align-items:center;justify-content:space-between;gap:8px}.groupBuilderHead strong{color:#e5dfd3;font-size:.62rem}.groupBuilderHead button{width:27px;height:27px;border:0;background:transparent;color:#817c73;font-size:.95rem;cursor:pointer}.groupBuilder>input{width:100%;height:31px;margin-top:7px;box-sizing:border-box;padding:0 8px;border:1px solid rgba(255,205,80,.1);border-radius:8px;background:#11110f;color:#d8d3ca;font:inherit;font-size:.55rem;outline:none}.groupDropZone{min-height:74px;margin-top:8px;padding:9px;box-sizing:border-box;display:grid;place-items:center;align-content:center;gap:2px;border:1px dashed rgba(244,183,40,.34);border-radius:11px;background:rgba(244,183,40,.035);text-align:center}.dropIcon{color:#c99d35;font-size:.9rem}.groupDropZone strong{color:#b9aa83;font-size:.54rem}.groupDropZone small{color:#6d685e;font-size:.48rem}.groupDraftMembers{margin-top:7px;display:flex;flex-wrap:wrap;gap:4px}.groupDraftMembers button{padding:4px 6px;border:1px solid rgba(255,255,255,.06);border-radius:7px;background:rgba(255,255,255,.025);color:#89847a;font:inherit;font-size:.46rem;cursor:pointer}.groupDraftMembers button span{color:#a97f54}.groupMemberList span{display:inline-flex;align-items:center;gap:4px}.groupMemberList span button{width:18px;height:18px;border:0;border-radius:50%;background:rgba(255,255,255,.04);color:#8d8173;cursor:pointer}.groupToggleButton{width:100%;min-height:30px;margin-top:8px;border:1px solid rgba(244,183,40,.15);border-radius:9px;background:rgba(244,183,40,.035);color:#b69a57;font:inherit;font-size:.5rem;font-weight:900;cursor:pointer}.createGroupButton{width:100%;min-height:33px;margin-top:8px;border:0;border-radius:9px;background:linear-gradient(135deg,#ffd24d,#efa718);color:#17120a;font:inherit;font-size:.53rem;font-weight:950;cursor:pointer}.createGroupButton:disabled{background:rgba(255,255,255,.05);color:#68635b;cursor:default}
-        .viewControls{position:absolute;z-index:55;right:10px;bottom:10px;display:grid;grid-template-columns:repeat(3,34px);gap:5px}.viewControls button,.pager button{height:34px;border:1px solid rgba(255,205,80,.13);border-radius:10px;background:rgba(18,18,15,.92);color:#bbb5aa;font:inherit;font-size:.78rem;font-weight:850;cursor:pointer}.viewControls button:hover,.pager button:hover:not(:disabled){border-color:rgba(244,183,40,.28);color:#e4c36d}.pager{position:absolute;z-index:55;left:50%;bottom:10px;transform:translateX(-50%);display:flex;align-items:center;gap:7px;padding:4px;border:1px solid rgba(255,205,80,.08);border-radius:12px;background:rgba(12,12,10,.88)}.pager button{width:32px}.pager button:disabled{opacity:.28;cursor:default}.pager span{min-width:48px;color:#77736c;font-size:.53rem;font-weight:800;text-align:center}.parentReturn{position:absolute;z-index:55;left:10px;bottom:10px;min-height:34px;padding:0 11px;border:1px solid rgba(255,205,80,.12);border-radius:10px;background:rgba(18,18,15,.92);color:#a89c7b;font:inherit;font-size:.55rem;font-weight:850;cursor:pointer}.parentReturn:disabled{opacity:.4}
+        .viewControls{position:absolute;z-index:55;right:10px;bottom:10px;display:grid;grid-template-columns:34px auto 34px 34px;gap:5px}.viewControls .fitButton{width:auto;min-width:38px;padding:0 7px;font-size:.48rem}.viewControls button,.pager button{height:34px;border:1px solid rgba(255,205,80,.13);border-radius:10px;background:rgba(18,18,15,.92);color:#bbb5aa;font:inherit;font-size:.78rem;font-weight:850;cursor:pointer}.viewControls button:hover,.pager button:hover:not(:disabled){border-color:rgba(244,183,40,.28);color:#e4c36d}.pager{position:absolute;z-index:55;left:50%;bottom:10px;transform:translateX(-50%);display:flex;align-items:center;gap:7px;padding:4px;border:1px solid rgba(255,205,80,.08);border-radius:12px;background:rgba(12,12,10,.88)}.pager button{width:32px}.pager button:disabled{opacity:.28;cursor:default}.pager span{min-width:48px;color:#77736c;font-size:.53rem;font-weight:800;text-align:center}.parentReturn{position:absolute;z-index:55;left:10px;bottom:10px;min-height:34px;padding:0 11px;border:1px solid rgba(255,205,80,.12);border-radius:10px;background:rgba(18,18,15,.92);color:#a89c7b;font:inherit;font-size:.55rem;font-weight:850;cursor:pointer}.parentReturn:disabled{opacity:.4}
         .profileCard{position:absolute;z-index:75;right:10px;top:10px;width:min(245px,calc(100% - 20px));box-sizing:border-box;padding:13px;border:1px solid rgba(255,205,80,.15);border-radius:17px;background:rgba(15,15,13,.975);box-shadow:0 18px 42px rgba(0,0,0,.45);cursor:default}.profileClose{position:absolute;right:8px;top:7px;width:28px;height:28px;border:0;background:transparent;color:#817c73;font-size:1rem;cursor:pointer}.profileIdentity{padding-right:28px;display:flex;align-items:center;gap:9px}.profileIdentity :global(.identity){display:flex;align-items:center;gap:8px}.profileIdentity :global(.identityLabel){display:none}.profileIdentity :global(.avatarSlot){position:relative;display:grid;place-items:center}.profileIdentity :global(.neutralAvatar){display:grid;place-items:center;border:1px solid rgba(244,183,40,.13);border-radius:50%;background:#171611;color:#8e7b50}.profileIdentity :global(.avatarSlot img){position:absolute;inset:0;border-radius:50%;object-fit:cover}.profileIdentity>div>strong{display:block;color:#e7e1d6;font-size:.66rem}.profileIdentity>div>span{display:block;margin-top:3px;color:#877e69;font-size:.51rem}.profileAddress{margin-top:10px;padding:8px;border-radius:9px;background:rgba(255,255,255,.025);color:#67635d;font-size:.48rem;line-height:1.35;overflow-wrap:anywhere;user-select:text;-webkit-user-select:text}.profileStats{margin-top:9px;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:5px}.profileStats>div{padding:8px;border:1px solid rgba(255,255,255,.045);border-radius:9px;background:rgba(255,255,255,.018)}.profileStats strong{display:block;color:#d6d0c5;font-size:.62rem}.profileStats span{display:block;margin-top:2px;color:#68645e;font-size:.47rem}.profileAction{width:100%;min-height:36px;margin-top:9px;border:0;border-radius:10px;background:linear-gradient(135deg,#ffd24d,#efa718);color:#17120a;font:inherit;font-size:.57rem;font-weight:950;cursor:pointer}.profileAction:disabled{opacity:.45;cursor:default}
         .groupCardTitle{padding-right:28px;display:flex;align-items:center;gap:10px}.groupCardTitle>div strong{display:block;color:#e7dfcf;font-size:.65rem}.groupCardTitle>div span{display:block;margin-top:3px;color:#887c5e;font-size:.5rem}.groupMemberList{margin-top:10px;display:flex;flex-wrap:wrap;gap:5px}.groupMemberList span{padding:5px 6px;border:1px solid rgba(255,255,255,.05);border-radius:7px;background:rgba(255,255,255,.02);color:#777168;font-size:.47rem}.ungroupButton{width:100%;min-height:33px;margin-top:10px;border:1px solid rgba(194,118,90,.2);border-radius:9px;background:rgba(194,118,90,.06);color:#bd9889;font:inherit;font-size:.52rem;font-weight:900;cursor:pointer}
         .workspaceNotice{position:absolute;z-index:96;left:50%;bottom:56px;transform:translateX(-50%);padding:7px 11px;border:1px solid rgba(244,183,40,.18);border-radius:10px;background:rgba(21,19,14,.97);color:#d5b85f;font-size:.53rem;font-weight:850;white-space:nowrap;box-shadow:0 12px 28px rgba(0,0,0,.3)}
