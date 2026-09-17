@@ -31,6 +31,13 @@ test('V69 yields ordinary two-finger gestures back to the canvas unless a real c
   assert.doesNotMatch(dragGhostSource, /if \(touchPointers\.size > 1\) \{\s*multiTouchBlocked = true;/);
 });
 
+test('V69 clears stale touch ownership if the app is hidden or loses focus mid-gesture', () => {
+  assert.match(dragGhostSource, /const resetTouchOwnership = \(\) => \{[\s\S]*?touchPointers\.clear\(\);[\s\S]*?multiTouchBlocked = false;/);
+  assert.match(dragGhostSource, /document\.visibilityState !== 'hidden'/);
+  assert.match(dragGhostSource, /const onBlur = \(\) => \{[\s\S]*?resetTouchOwnership\(\)/);
+  assert.match(dragGhostSource, /document\.addEventListener\('visibilitychange', onVisibilityChange\)/);
+});
+
 test('V74 remeasures the natural mobile stage so a previous shrink cannot become the next resize ceiling', () => {
   assert.match(stabilitySource, /measureNaturalStage/);
   assert.match(stabilitySource, /stage\.style\.removeProperty\('height'\)/);
