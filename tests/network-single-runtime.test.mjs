@@ -225,3 +225,10 @@ test('final group workspace keeps one React-owned membership path and no +N desc
   assert.match(networkSource, /continuationEdge/);
   assert.doesNotMatch(networkSource, /hidden descendants|\+N|\+15/);
 });
+
+test('group transfers are unique, same-group drops are no-ops, and long-press native UI stays blocked', () => {
+  assert.match(workspaceSource, /target\.members\.some\(\(member\) => member\.toLowerCase\(\) === key\)\) return workspace/);
+  assert.match(workspaceSource, /const members = group\.members\.filter\(\(member\) => member\.toLowerCase\(\) !== key\)/);
+  assert.match(workspaceSource, /Array\.from\(new Set\(members\)\)/);
+  assert.match(networkSource, /onContextMenu=\{\(event\) => event\.preventDefault\(\)\}/);
+});
