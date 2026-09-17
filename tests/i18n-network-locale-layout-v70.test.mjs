@@ -91,35 +91,47 @@ test('Korean keeps phrase boundaries while Chinese and Japanese retain native li
   assert.match(source, /html\[lang='ko'\][\s\S]*?word-break:\s*keep-all\s*!important/);
   assert.match(source, /html:is\(\[lang='zh'\],\[lang='zh-tw'\],\[lang='ja'\]\)[\s\S]*?line-break:\s*strict/);
   assert.match(source, /html:is\(\[lang='zh'\],\[lang='zh-tw'\],\[lang='ja'\]\)[\s\S]*?word-break:\s*normal\s*!important/);
+  assert.doesNotMatch(source, /html:is\(\[lang='ko'\],\[lang='zh'/);
 });
 
 test('geometry-bound canvas labels stay one line while overlay copy can wrap safely', () => {
-  assert.match(source, /\.personNode > b,[\s\S]*?white-space:\s*nowrap\s*!important/);
-  assert.match(source, /\.personNode > small,[\s\S]*?white-space:\s*nowrap\s*!important/);
-  assert.match(source, /\.v42GroupHub > b,[\s\S]*?white-space:\s*nowrap\s*!important/);
-  assert.match(source, /\.v42GroupHub > small[\s\S]*?white-space:\s*nowrap\s*!important/);
-  assert.match(source, /\.v42GroupPanel,[\s\S]*?overflow-wrap:\s:anywhere\s*!important/);
+  for (const selector of [
+    '.centerWrap > b',
+    '.centerWrap > small',
+    '.personNode > b',
+    '.personNode > small',
+    '.slotNode > b',
+    '.v42GroupHub > b',
+    '.v42GroupHub > small',
+  ]) {
+    assert.ok(source.includes(selector), `missing geometry-bound label guard: ${selector}`);
+  }
+  assert.match(source, /white-space:\s*nowrap\s*!important/);
+  assert.match(source, /\.hint[\s\S]*?white-space:\s*normal\s*!important/);
+  assert.match(source, /\.notice,[\s\S]*?\.v42Notice[\s\S]*?white-space:\s*normal\s*!important/);
 });
 
 test('V70 never takes ownership of Network geometry, persistence, rewards or pointer gestures', () => {
   for (const forbidden of [
-    'localStorage.setItem',
+    'localStorage',
     'sessionStorage',
-    'setPointerCapture',
-    'releasePointerCapture',
     "setProperty('--x'",
     "setProperty('--y'",
     "setProperty('--gx'",
     "setProperty('--gy'",
-    '--v63-adjust-',
-    '--v63-drag-',
+    '--cameraX',
+    '--cameraY',
+    '--networkZoom',
+    '--v42-group-d',
     '--v50-adjust-',
     '--v52-adjust-',
-    '--v42-group-d',
+    '--v63-adjust-',
+    'pointerdown',
+    'pointermove',
+    'pointerup',
     'fetch(',
-    'supabase',
-    'reward',
+    '/api/',
   ]) {
-    assert.ok(!source.includes(forbidden), `V70 must remain locale/layout-only: ${forbidden}`);
+    assert.ok(!source.includes(forbidden), `V70 must remain presentation-only: ${forbidden}`);
   }
 });
