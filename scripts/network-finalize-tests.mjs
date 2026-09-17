@@ -4,6 +4,18 @@ const path = 'tests/network-single-runtime.test.mjs';
 let tests = await readFile(path, 'utf8');
 const lines = (...items) => items.join('\n');
 
+const staleParentCameraAssertion = '  assert.match(networkSource, /const exactParentView = returnViewByChildRef\\.current\\.get\\(current\\)/);';
+if (tests.includes(staleParentCameraAssertion)) {
+  tests = tests.replace(
+    staleParentCameraAssertion,
+    lines(
+      '  assert.match(networkSource, /const immediateParent = currentData\\.breadcrumb\\[currentData\\.breadcrumb\\.length - 2\\] \\?\\? null/);',
+      '  assert.match(networkSource, /const exactParentView = immediateParent && keyWallet\\(immediateParent\\) === target/);',
+      '  assert.match(networkSource, /returnViewByChildRef\\.current\\.get\\(current\\)/);'
+    ),
+  );
+}
+
 if (!tests.includes('final Network gestures are coordinate-owned')) {
   tests += '\n' + lines(
     "test('final Network gestures are coordinate-owned and deliberate', () => {",
