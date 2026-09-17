@@ -32,13 +32,20 @@ function NetworkParentReturnMotionV75() {
   return <style jsx global>{`
     .productionNetworkCanaryV45.v73ParentVisualOverlay.v75ParentReturnMotion .scene{
       transform-origin:50% 50%!important;
-      animation:v75ParentReturnReveal 720ms cubic-bezier(.18,.82,.2,1) both!important;
+      animation:v75ParentReturnReveal 1180ms both!important;
       will-change:transform
     }
 
     @keyframes v75ParentReturnReveal{
-      from{scale:1.05}
-      to{scale:1}
+      0%{
+        scale:1.05;
+        animation-timing-function:cubic-bezier(.18,.82,.2,1)
+      }
+      61%{
+        scale:1.003;
+        animation-timing-function:linear
+      }
+      100%{scale:1}
     }
 
     @media(prefers-reduced-motion:reduce){
