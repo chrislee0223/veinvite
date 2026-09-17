@@ -10,7 +10,7 @@ permissions:
 
 jobs:
   finalize:
-    if: github.actor != 'github-actions[bot]'
+    if: ${{ false }}
     runs-on: ubuntu-latest
     steps:
       - name: Checkout branch
