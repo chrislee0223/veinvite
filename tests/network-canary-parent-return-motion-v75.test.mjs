@@ -19,11 +19,21 @@ test('V75 observes only direct body additions and decorates only the preserved V
 
 test('V75 animates only the scene inside the visual overlay and never rewrites live geometry or camera state', () => {
   assert.match(source, /\.productionNetworkCanaryV45\.v73ParentVisualOverlay\.v75ParentReturnMotion \.scene\{/);
-  assert.match(source, /from\{scale:1\.05\}/);
-  assert.match(source, /to\{scale:1\}/);
-  assert.match(source, /720ms cubic-bezier\(\.18,\.82,\.2,1\)/);
+  assert.match(source, /animation:v75ParentReturnReveal 1180ms both!important/);
+  assert.match(source, /0%\{[\s\S]*?scale:1\.05/);
+  assert.match(source, /61%\{[\s\S]*?scale:1\.003/);
+  assert.match(source, /100%\{scale:1\}/);
+  assert.match(source, /animation-timing-function:cubic-bezier\(\.18,\.82,\.2,1\)/);
+  assert.match(source, /animation-timing-function:linear/);
   assert.doesNotMatch(source, /transform:scale/);
   assert.doesNotMatch(source, /cameraX|cameraY|--x|--y|setProperty\([^\n]*(?:camera|--x|--y)/);
+});
+
+test('V75 keeps the original roughly 720ms primary return feel while carrying only a tiny visual tail into the V73 handoff window', () => {
+  assert.match(source, /1180ms/);
+  assert.match(source, /61%/);
+  assert.match(source, /scale:1\.003/);
+  assert.doesNotMatch(source, /TRANSITION_LOCK_MS|RETURN_SETTLE|RETURN_REVEAL/);
 });
 
 test('V75 respects reduced-motion preferences', () => {
