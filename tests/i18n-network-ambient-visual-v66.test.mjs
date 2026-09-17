@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import test from 'node:test';
 
-const [visualSource, correctionSource, directDropSource, dragGhostSource, localeLayoutSource, rootIdentitySource, interactionOwnershipSource, parentVisualSource, guideSource] = await Promise.all([
+const [visualSource, correctionSource, directDropSource, dragGhostSource, localeLayoutSource, rootIdentitySource, interactionOwnershipSource, parentVisualSource, stabilitySource, guideSource] = await Promise.all([
   readFile('src/components/AppNetworkCanaryV66.tsx', 'utf8'),
   readFile('src/components/AppNetworkCanaryV67.tsx', 'utf8'),
   readFile('src/components/AppNetworkCanaryV68.tsx', 'utf8'),
@@ -11,6 +11,7 @@ const [visualSource, correctionSource, directDropSource, dragGhostSource, locale
   readFile('src/components/AppNetworkCanaryV71.tsx', 'utf8'),
   readFile('src/components/AppNetworkCanaryV72.tsx', 'utf8'),
   readFile('src/components/AppNetworkCanaryV73.tsx', 'utf8'),
+  readFile('src/components/AppNetworkCanaryV74.tsx', 'utf8'),
   readFile('src/components/AppGuide.tsx', 'utf8'),
 ]);
 
@@ -59,29 +60,21 @@ test('V67 is also presentation-only and wraps V66 without owning geometry', () =
   }
 });
 
-test('ambient motion does not replace the mature transform stack', () => {
-  assert.match(visualSource, /@supports \(translate: 1px 1px\)/);
-  assert.match(visualSource, /@keyframes v66AmbientFloat/);
-  assert.doesNotMatch(visualSource, /@keyframes v66AmbientFloat[\s\S]*?transform:/);
-  assert.match(visualSource, /translate: var\(--v66-fx1\) var\(--v66-fy1\)/);
+test('idle Network nodes stay visually stationary instead of running ambient translate animation', () => {
+  assert.match(visualSource, /animation-name:\s*none\s*!important/);
+  assert.match(visualSource, /translate:\s*none\s*!important/);
+  assert.doesNotMatch(visualSource, /@keyframes\s+v66AmbientFloat/);
+  assert.doesNotMatch(visualSource, /animation-duration:/);
+  assert.doesNotMatch(visualSource, /animation-delay:/);
+  assert.doesNotMatch(visualSource, /animation-play-state:/);
 });
 
-test('gesture and transition states pause ambience instead of fighting it', () => {
-  for (const selector of [
-    'veinviteInteracting',
-    'v63PinchGuard',
-    'v50NetworkTransition',
-    'v52NetworkTransition',
-    'stage.editMode',
-    'v63DirectDragging',
-    'v61DirectGroupDragging',
-    'v61GroupTransfer',
-    'v63TransferSettling',
-    'v61GroupDragging',
-  ]) {
-    assert.ok(visualSource.includes(selector), `missing ambient pause guard: ${selector}`);
-  }
-  assert.match(visualSource, /animation-play-state:\s*paused\s*!important/);
+test('V66 keeps edge softness without changing node coordinates', () => {
+  assert.match(visualSource, /\.v57DirectEdge[\s\S]*?stroke-width:\s*\.86/);
+  assert.match(visualSource, /\.v57GroupMember[\s\S]*?stroke-width:\s*\.9/);
+  assert.match(visualSource, /\.clusterSpoke[\s\S]*?opacity:\s*\.5/);
+  assert.doesNotMatch(visualSource, /setProperty\(['"]--x/);
+  assert.doesNotMatch(visualSource, /setProperty\(['"]--y/);
 });
 
 test('V67 removes oversized halos without re-owning mature circle visuals', () => {
@@ -130,23 +123,16 @@ test('V67 leaves mature endpoint stacking and metadata anchors untouched', () =>
   }
 });
 
-test('V67 keeps YOU opaque and avoids floating authoritative group hubs', () => {
+test('V67 keeps YOU opaque and authoritative group hubs stationary', () => {
   assert.match(correctionSource, /\.centerCircle[\s\S]*?rgb\(24, 21, 13\)[\s\S]*?rgb\(13, 13, 11\)/);
   assert.match(correctionSource, /\.v42GroupHub[\s\S]*?animation:\s*none\s*!important/);
   assert.match(correctionSource, /\.v42GroupHub[\s\S]*?translate:\s*none\s*!important/);
 });
 
-test('motion respects accessibility, mobile limits and dense-network cost caps', () => {
-  assert.match(visualSource, /prefers-reduced-motion:\s*reduce/);
-  assert.match(visualSource, /animation:\s*none\s*!important/);
-  assert.match(visualSource, /@media \(max-width: 640px\)/);
-  assert.match(visualSource, /\.personNode:nth-child\(n \+ 121\)/);
-  assert.match(correctionSource, /@media \(max-width: 640px\)/);
-  assert.match(correctionSource, /--v66-fy1:\s*-\.95px\s*!important/);
-});
-
-test('the special Network canary is wired through V73, V72, V71, V70, V69, V68, V67 and V66', () => {
-  assert.match(guideSource, /AppNetworkCanaryV73/);
+test('the special Network canary is wired through V74 down to the mature V66 chain', () => {
+  assert.match(guideSource, /AppNetworkCanaryV74/);
+  assert.match(stabilitySource, /AppNetworkCanaryV73/);
+  assert.match(stabilitySource, /<AppNetworkCanaryV73 locale=\{locale\} \/>/);
   assert.match(parentVisualSource, /AppNetworkCanaryV72/);
   assert.match(parentVisualSource, /<AppNetworkCanaryV72 locale=\{locale\} \/>/);
   assert.match(interactionOwnershipSource, /AppNetworkCanaryV71/);
