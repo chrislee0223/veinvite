@@ -11,6 +11,7 @@ import {
   type NetworkSummaryProbe,
 } from '@/lib/networkSummaryClientCache';
 import { AppNetwork } from './AppNetwork';
+import { NetworkCanonicalPresentation } from './NetworkCanonicalPresentation';
 import { useWalletLauncher } from './WalletControl';
 
 type ApiError = Error & { code?: string };
@@ -209,6 +210,7 @@ export function AppNetworkHub({ locale }: { locale: Locale }) {
   return (
     <section className="networkHubShell">
       <AppNetwork locale={locale} />
+      <NetworkCanonicalPresentation wallet={wallet} locale={locale} />
       <style jsx>{`
         .networkHubShell{width:min(100%,560px);margin:0 auto;padding:0;box-sizing:border-box}
         .networkHubPending{width:min(100%,560px);height:520px;margin:0 auto}
