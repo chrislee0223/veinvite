@@ -59,7 +59,10 @@ test('single runtime cannot revive legacy DOM transform or drag-patch ownership'
 
 test('parent return camera restoration has one explicit owner', () => {
   assert.match(network, /returnViewByChildRef\.current\.set\(target, view\)/);
-  assert.match(network, /const exactParentView = returnViewByChildRef\.current\.get\(current\)/);
+  assert.match(network, /const immediateParent = currentData\.breadcrumb\[currentData\.breadcrumb\.length - 2\] \?\? null/);
+  assert.match(network, /const exactParentView = immediateParent && keyWallet\(immediateParent\) === target/);
+  assert.match(network, /returnViewByChildRef\.current\.get\(current\)/);
+  assert.match(network, /viewByFocusRef\.current\.get\(target\)/);
   assert.match(network, /exactParentView \?\?/);
   assert.doesNotMatch(hub, /returnViewByChildRef/);
 });
