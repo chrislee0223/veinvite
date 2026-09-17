@@ -6,6 +6,8 @@ const client = fs.readFileSync('src/instrumentation-client.ts', 'utf8');
 const server = fs.readFileSync('sentry.server.config.ts', 'utf8');
 const edge = fs.readFileSync('sentry.edge.config.ts', 'utf8');
 const redaction = fs.readFileSync('src/lib/sentryRedaction.ts', 'utf8');
+const nextConfig = fs.readFileSync('next.config.mjs', 'utf8');
+const globalError = fs.readFileSync('src/app/global-error.tsx', 'utf8');
 
 test('Sentry never opts into default PII collection', () => {
   for (const config of [client, server, edge]) {
@@ -37,4 +39,15 @@ test('handled server console errors are captured only after structured redaction
   assert.match(server, /event\.request\.data = redactSentryValue/);
   assert.match(server, /event\.request\.headers = redactSentryValue/);
   assert.match(server, /breadcrumb\.data = redactSentryValue/);
+});
+
+test('App Router render failures are captured by the global error boundary', () => {
+  assert.match(globalError, /Sentry\.captureException\(error\)/);
+  assert.match(globalError, /reset:\s*\(\) => void/);
+});
+
+test('Sentry config uses the current Next.js config entrypoint and logger tree-shaking option', () => {
+  assert.match(nextConfig, /@sentry\/nextjs\/config/);
+  assert.match(nextConfig, /removeDebugLogging:\s*true/);
+  assert.doesNotMatch(nextConfig, /disableLogger/);
 });
