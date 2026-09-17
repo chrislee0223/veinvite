@@ -1,0 +1,37 @@
+name: Network Finalize Pass 2 Once
+
+on:
+  push:
+    branches:
+      - restore/network-final-interactions
+
+permissions:
+  contents: write
+
+jobs:
+  finalize:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout branch
+        uses: actions/checkout@v4
+        with:
+          ref: restore/network-final-interactions
+          fetch-depth: 0
+
+      - name: Apply guarded Network interaction patch
+        run: node scripts/network-finalize-pass2.mjs
+
+      - name: Verify patch contract
+        run: |
+          git diff --check
+          node --test tests/network-single-runtime.test.mjs
+
+      - name: Commit finalized Network interactions
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git rm scripts/network-finalize-pass2.mjs .github/workflows/network-finalize-pass2-once.yml
+          git add src/components/AppNetwork.tsx tests/network-single-runtime.test.mjs
+          git commit -m "Restore final Network gesture interactions"
+          git push origin HEAD:restore/network-final-interactions
