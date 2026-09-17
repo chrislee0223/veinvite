@@ -30,28 +30,21 @@ function NetworkParentReturnMotionV75() {
   }, []);
 
   return <style jsx global>{`
-    .productionNetworkCanaryV45.v73ParentVisualOverlay.v75ParentReturnMotion{
+    .productionNetworkCanaryV45.v73ParentVisualOverlay.v75ParentReturnMotion .scene{
       transform-origin:50% 50%!important;
-      animation:v75ParentReturnReveal 280ms cubic-bezier(.18,.82,.2,1) both!important;
-      will-change:transform,opacity
+      animation:v75ParentReturnReveal 720ms cubic-bezier(.18,.82,.2,1) both!important;
+      will-change:transform
     }
 
     @keyframes v75ParentReturnReveal{
-      from{
-        transform:scale(1.035);
-        opacity:.96
-      }
-      to{
-        transform:scale(1);
-        opacity:1
-      }
+      from{scale:1.05}
+      to{scale:1}
     }
 
     @media(prefers-reduced-motion:reduce){
-      .productionNetworkCanaryV45.v73ParentVisualOverlay.v75ParentReturnMotion{
+      .productionNetworkCanaryV45.v73ParentVisualOverlay.v75ParentReturnMotion .scene{
         animation:none!important;
-        transform:none!important;
-        opacity:1!important;
+        scale:1!important;
         will-change:auto
       }
     }
