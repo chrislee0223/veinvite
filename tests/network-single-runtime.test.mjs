@@ -30,9 +30,14 @@ test('Network runtime has no DOM observer or global viewport ownership', () => {
 test('ResizeObserver records size only and cannot auto-pan the camera', () => {
   const resizeStart = networkSource.indexOf('const observer = new ResizeObserver(update)');
   assert.ok(resizeStart >= 0);
-  const surrounding = networkSource.slice(Math.max(0, resizeStart - 900), resizeStart + 420);
-  assert.match(surrounding, /setStageSize/);
-  assert.doesNotMatch(surrounding, /setView/);
+  const effectStart = networkSource.lastIndexOf('  useEffect(() => {', resizeStart);
+  const effectEnd = networkSource.indexOf('  // Initial placement', resizeStart);
+  assert.ok(effectStart >= 0);
+  assert.ok(effectEnd > resizeStart);
+  const resizeEffect = networkSource.slice(effectStart, effectEnd);
+  assert.match(resizeEffect, /setStageSize/);
+  assert.match(resizeEffect, /new ResizeObserver\(update\)/);
+  assert.doesNotMatch(resizeEffect, /setView/);
   assert.doesNotMatch(networkSource, /safeBottom/);
   assert.doesNotMatch(networkSource, /safeRight/);
 });
