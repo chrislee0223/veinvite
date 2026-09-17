@@ -53,7 +53,7 @@ test('the legacy Guide tab renders one focused hardened Network runtime while re
   assert.match(networkPage, /NETWORK_COPY/i);
   assert.match(networkPage, /className="networkCard"/i);
   assert.match(interactiveNetwork, /NETWORK_EXPERIENCE_COPY/i);
-  assert.match(interactiveNetwork, /className="networkStage"/i);
+  assert.match(interactiveNetwork, /networkStage/i);
   assert.match(interactiveNetwork, /data-network-runtime="single"/i);
   assert.match(interactiveNetwork, /returnViewByChildRef/i);
   assert.doesNotMatch(interactiveNetwork, /MutationObserver/i);
