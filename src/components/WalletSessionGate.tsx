@@ -887,6 +887,17 @@ export function WalletSessionGate({
     );
   }
 
+  // VeWorld can expose the newly selected wallet before React has had a chance
+  // to re-arm verification for it. If the server bootstrap still says wallet A
+  // is verified while VeWorld already reports wallet B, keep that transient
+  // first frame on the neutral brand surface instead of flashing checking copy.
+  if (
+    state === 'verified' &&
+    verifiedWallet !== walletAddress
+  ) {
+    return <WalletSessionBrandSurface />;
+  }
+
   // Ownership verification is intentionally visually silent. Keep the stable
   // VeInvite brand screen in place while session checks and the wallet signing
   // prompt run; only a confirmed error or wallet mismatch replaces it.
