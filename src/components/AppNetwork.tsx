@@ -21,12 +21,17 @@ import {
   EMPTY_NETWORK_WORKSPACE_STORE,
   addWorkspaceGroup,
   cloneNetworkFocusWorkspace,
+  groupContainingWallet,
+  moveWorkspaceMemberToGroup,
   parseNetworkWorkspaceStore,
   removeWorkspaceGroup,
+  removeWorkspaceMemberFromGroup,
   serializeNetworkWorkspaceStore,
   withFocusWorkspace,
   withGroupPosition,
   withNodePosition,
+  withoutNodePositions,
+  withWorkspaceGroupCollapsed,
   workspaceForFocus,
   type NetworkFocusWorkspace,
   type NetworkWorkspaceStore,
@@ -114,8 +119,8 @@ const WORLD_W = 2600;
 const WORLD_H = 1900;
 const FOCUS_X = WORLD_W / 2;
 const FOCUS_Y = 350;
-const MIN_SCALE = 0.68;
-const MAX_SCALE = 1.55;
+const MIN_SCALE = 0.32;
+const MAX_SCALE = 2.5;
 const SEARCH_DELAY_MS = 280;
 const NAVIGATION_MS = 520;
 const GROUP_DROP_MS = 160;
@@ -412,6 +417,7 @@ export function AppNetwork({ locale }: { locale: Locale }) {
   const [cameraTransition, setCameraTransition] = useState(false);
   const [workspaceStore, setWorkspaceStore] = useState<NetworkWorkspaceStore>(EMPTY_NETWORK_WORKSPACE_STORE);
   const [editingLayout, setEditingLayout] = useState(false);
+  const [groupsOpen, setGroupsOpen] = useState(false);
   const [draftWorkspace, setDraftWorkspace] = useState<NetworkFocusWorkspace | null>(null);
   const [groupDraft, setGroupDraft] = useState<GroupDraft | null>(null);
   const [selectedGroupId, setSelectedGroupId] = useState<string | null>(null);
@@ -455,21 +461,49 @@ export function AppNetwork({ locale }: { locale: Locale }) {
     });
   }, [currentData, page, pageSize, isMobile, activeWorkspace.positions]);
 
-  const stagedGroupMembers = useMemo(() => {
+  const groupByMember = useMemo(() => {
+    const map = new Map<string, (typeof activeWorkspace.groups)[number]>();
+    activeWorkspace.groups.forEach((group) => {
+      group.members.forEach((member) => map.set(keyWallet(member), group));
+    });
+    return map;
+  }, [activeWorkspace.groups]);
+
+  const displayedChildren = useMemo(() => positionedChildren.map((child) => {
+    const memberKey = keyWallet(child.wallet);
+    const group = groupByMember.get(memberKey);
+    if (!group || group.collapsed !== false) return child;
+    const visibleMembers = group.members.filter((member) =>
+      positionedChildren.some((candidate) => keyWallet(candidate.wallet) === keyWallet(member)),
+    );
+    const index = Math.max(0, visibleMembers.findIndex((member) => keyWallet(member) === memberKey));
+    const count = Math.max(1, visibleMembers.length);
+    const span = Math.min(310, Math.max(90, (count - 1) * 76));
+    const ratio = count <= 1 ? 0.5 : index / (count - 1);
+    return {
+      ...child,
+      x: group.x - span / 2 + span * ratio,
+      y: group.y + 112 + Math.min(26, Math.abs(index - (count - 1) / 2) * 6),
+    };
+  }), [positionedChildren, groupByMember]);
+
+  const hiddenGroupMembers = useMemo(() => {
     const keys = new Set<string>();
-    activeWorkspace.groups.forEach((group) => group.members.forEach((member) => keys.add(keyWallet(member))));
+    activeWorkspace.groups.forEach((group) => {
+      if (group.collapsed !== false) group.members.forEach((member) => keys.add(keyWallet(member)));
+    });
     groupDraft?.members.forEach((member) => keys.add(keyWallet(member)));
     return keys;
   }, [activeWorkspace.groups, groupDraft]);
 
   const visibleChildren = useMemo(
-    () => positionedChildren.filter((child) => !stagedGroupMembers.has(keyWallet(child.wallet))),
-    [positionedChildren, stagedGroupMembers],
+    () => displayedChildren.filter((child) => !hiddenGroupMembers.has(keyWallet(child.wallet))),
+    [displayedChildren, hiddenGroupMembers],
   );
 
   const visibleWalletKeys = useMemo(
-    () => new Set(positionedChildren.map((child) => keyWallet(child.wallet))),
-    [positionedChildren],
+    () => new Set(displayedChildren.map((child) => keyWallet(child.wallet))),
+    [displayedChildren],
   );
 
   const visibleGroups = useMemo(
@@ -518,6 +552,19 @@ export function AppNetwork({ locale }: { locale: Locale }) {
       noticeTimerRef.current = null;
     }
   }, []);
+
+  const persistFocusWorkspace = useCallback((workspace: NetworkFocusWorkspace) => {
+    if (!wallet || !currentFocusKey) return;
+    setWorkspaceStore((current) => {
+      const next = withFocusWorkspace(current, currentFocusKey, workspace);
+      try {
+        window.localStorage.setItem(workspaceStorageKey(wallet), serializeNetworkWorkspaceStore(next));
+      } catch {
+        // Persistence is best-effort; the current runtime still keeps the layout.
+      }
+      return next;
+    });
+  }, [wallet, currentFocusKey]);
 
   const beginNavigationMotion = useCallback((direction: NavigationDirection) => {
     clearNavigationTimer();
@@ -611,6 +658,7 @@ export function AppNetwork({ locale }: { locale: Locale }) {
     setSelectedWallet(null);
     setSelectedGroupId(null);
     setEditingLayout(false);
+    setGroupsOpen(false);
     setDraftWorkspace(null);
     setGroupDraft(null);
     workspaceDragRef.current = null;
@@ -854,6 +902,22 @@ export function AppNetwork({ locale }: { locale: Locale }) {
     setEditingLayout(false);
   }, []);
 
+  const resetLayoutEdit = useCallback(() => {
+    setDraftWorkspace((current) => {
+      if (!current) return current;
+      const reset = withoutNodePositions(current);
+      const count = reset.groups.length;
+      return {
+        ...reset,
+        groups: reset.groups.map((group, index) => ({
+          ...group,
+          x: FOCUS_X + (index - (count - 1) / 2) * 150,
+          y: FOCUS_Y + 210,
+        })),
+      };
+    });
+  }, []);
+
   const saveLayoutEdit = useCallback(() => {
     if (!wallet || !currentFocusKey || !draftWorkspace) return;
     const nextStore = withFocusWorkspace(workspaceStore, currentFocusKey, draftWorkspace);
@@ -882,6 +946,32 @@ export function AppNetwork({ locale }: { locale: Locale }) {
     setSelectedGroupId(null);
     setGroupDraft({ id: newGroupId(), label: '', members: [] });
   }, [editingLayout]);
+
+  const beginGroupCreation = useCallback(() => {
+    if (!currentFocusKey) return;
+    setDraftWorkspace(cloneNetworkFocusWorkspace(workspaceForFocus(workspaceStore, currentFocusKey)));
+    setEditingLayout(true);
+    setGroupsOpen(true);
+    setSelectedWallet(null);
+    setSelectedGroupId(null);
+    setGroupDraft({ id: newGroupId(), label: '', members: [] });
+    setWorkspaceNotice('');
+  }, [currentFocusKey, workspaceStore]);
+
+  const toggleGroupCollapsed = useCallback((groupId: string) => {
+    if (editingLayout) {
+      setDraftWorkspace((current) => {
+        if (!current) return current;
+        const group = current.groups.find((item) => item.id === groupId);
+        if (!group) return current;
+        return withWorkspaceGroupCollapsed(current, groupId, group.collapsed === false);
+      });
+      return;
+    }
+    const group = committedWorkspace.groups.find((item) => item.id === groupId);
+    if (!group) return;
+    persistFocusWorkspace(withWorkspaceGroupCollapsed(committedWorkspace, groupId, group.collapsed === false));
+  }, [editingLayout, committedWorkspace, persistFocusWorkspace]);
 
   const createDraftGroup = useCallback(() => {
     if (!groupDraft || !draftWorkspace || groupDraft.members.length < 2) return;
@@ -936,7 +1026,23 @@ export function AppNetwork({ locale }: { locale: Locale }) {
   }, [editingLayout, draftWorkspace, view]);
 
   const finishWorkspaceDrop = useCallback((event: ReactPointerEvent<HTMLDivElement>, drag: WorkspaceDrag) => {
-    if (drag.kind !== 'node' || !groupDraft || event.type !== 'pointerup') return;
+    if (drag.kind !== 'node' || event.type !== 'pointerup') return;
+
+    const stage = stageRef.current;
+    if (stage) {
+      const targets = Array.from(stage.querySelectorAll<HTMLElement>('[data-group-drop-id]'));
+      const target = targets.find((element) => {
+        const rect = element.getBoundingClientRect();
+        return event.clientX >= rect.left && event.clientX <= rect.right && event.clientY >= rect.top && event.clientY <= rect.bottom;
+      });
+      const targetId = target?.dataset.groupDropId;
+      if (targetId) {
+        setDraftWorkspace((current) => current ? moveWorkspaceMemberToGroup(current, drag.key, targetId) : current);
+        return;
+      }
+    }
+
+    if (!groupDraft) return;
     const drop = groupDropRef.current?.getBoundingClientRect();
     if (!drop) return;
     const inside = event.clientX >= drop.left && event.clientX <= drop.right && event.clientY >= drop.top && event.clientY <= drop.bottom;
@@ -1252,7 +1358,7 @@ export function AppNetwork({ locale }: { locale: Locale }) {
         >
           <div className={`worldContent${navigationDirection ? ` nav-${navigationDirection}` : ''}`}>
             <svg className="edges" width={WORLD_W} height={WORLD_H} aria-hidden="true">
-              {visibleChildren.map((child) => (
+              {visibleChildren.filter((child) => !groupContainingWallet(activeWorkspace, child.wallet)).map((child) => (
                 <path
                   key={`edge:${keyWallet(child.wallet)}`}
                   d={edgePath(FOCUS_X, FOCUS_Y + 42, child.x, child.y - 34)}
@@ -1264,6 +1370,25 @@ export function AppNetwork({ locale }: { locale: Locale }) {
                   key={`group-edge:${group.id}`}
                   d={edgePath(FOCUS_X, FOCUS_Y + 42, group.x, group.y - 35)}
                   className="edge groupEdge"
+                />
+              ))}
+              {visibleGroups.filter((group) => group.collapsed === false).flatMap((group) =>
+                group.members.map((member) => {
+                  const child = visibleChildren.find((item) => keyWallet(item.wallet) === keyWallet(member));
+                  return child ? (
+                    <path
+                      key={`group-member-edge:${group.id}:${keyWallet(member)}`}
+                      d={edgePath(group.x, group.y + 35, child.x, child.y - 34)}
+                      className="edge groupMemberEdge"
+                    />
+                  ) : null;
+                }),
+              )}
+              {visibleChildren.filter((child) => child.network > 0).map((child) => (
+                <path
+                  key={`continuation:${keyWallet(child.wallet)}`}
+                  d={`M ${child.x} ${child.y + 35} C ${child.x} ${child.y + 50}, ${child.x} ${child.y + 57}, ${child.x} ${child.y + 70}`}
+                  className="continuationEdge"
                 />
               ))}
               {Array.from({ length: emptySlotCount }).map((_, index) => {
@@ -1331,7 +1456,7 @@ export function AppNetwork({ locale }: { locale: Locale }) {
               return (
                 <button
                   type="button"
-                  className={`groupNode${editingLayout ? ' draggable' : ''}${draggingWorkspaceKey === dragKey ? ' dragging' : ''}${selectedGroupId === group.id ? ' selected' : ''}`}
+                  className={`groupNode${editingLayout ? ' draggable' : ''}${draggingWorkspaceKey === dragKey ? ' dragging' : ''}${selectedGroupId === group.id ? ' selected' : ''}${group.collapsed === false ? ' expanded' : ''}`}
                   key={group.id}
                   style={{ left: group.x, top: group.y }}
                   onPointerDown={editingLayout ? (event) => beginWorkspaceDrag(event, 'group', group.id, { x: group.x, y: group.y }) : undefined}
@@ -1339,8 +1464,10 @@ export function AppNetwork({ locale }: { locale: Locale }) {
                     if (suppressClickRef.current) return;
                     setSelectedWallet(null);
                     setSelectedGroupId(group.id);
+                    toggleGroupCollapsed(group.id);
                   }}
                   data-no-pan="true"
+                  data-group-drop-id={group.id}
                   data-workspace-draggable={editingLayout ? 'true' : undefined}
                 >
                   <span className="groupGlyph" aria-hidden="true"><i /><i /><i /></span>
@@ -1374,15 +1501,39 @@ export function AppNetwork({ locale }: { locale: Locale }) {
 
         <div className="layoutControls" data-no-pan="true">
           {!editingLayout ? (
-            <button type="button" className="editLayoutButton" onClick={beginLayoutEdit}>✦ {w.editLayout}</button>
+            <>
+              <button type="button" className="editLayoutButton" onClick={beginLayoutEdit}>✦ {w.editLayout}</button>
+              <button type="button" className={`groupsButton${groupsOpen ? ' active' : ''}`} onClick={() => setGroupsOpen((open) => !open)}>◉ {w.groups}</button>
+            </>
           ) : (
             <>
+              <button type="button" className="resetLayoutButton" onClick={resetLayoutEdit}>{w.reset}</button>
               <button type="button" className="newGroupButton" onClick={openGroupBuilder}>+ {w.newGroup}</button>
               <button type="button" className="cancelLayoutButton" onClick={cancelLayoutEdit}>{w.cancel}</button>
-              <button type="button" className="saveLayoutButton" onClick={saveLayoutEdit}>{w.save}</button>
+              <button type="button" className="saveLayoutButton" onClick={saveLayoutEdit}>{w.done}</button>
             </>
           )}
         </div>
+
+        {groupsOpen && !editingLayout ? (
+          <aside className="groupsPanel" data-no-pan="true">
+            <div className="groupsPanelHead">
+              <strong>{w.myGroups}</strong>
+              <button type="button" onClick={() => setGroupsOpen(false)} aria-label={c.close}>×</button>
+            </div>
+            {committedWorkspace.groups.length ? (
+              <div className="groupsList">
+                {committedWorkspace.groups.map((group) => (
+                  <button type="button" key={group.id} onClick={() => { setSelectedGroupId(group.id); toggleGroupCollapsed(group.id); }}>
+                    <span>{group.label || w.group}</span>
+                    <small>{group.members.length} {w.members} · {group.collapsed === false ? w.collapseGroup : w.expandGroup}</small>
+                  </button>
+                ))}
+              </div>
+            ) : <p>{w.noGroups}</p>}
+            <button type="button" className="createFirstGroup" onClick={beginGroupCreation}>+ {w.newGroup}</button>
+          </aside>
+        ) : null}
 
         {editingLayout && groupDraft ? (
           <aside className="groupBuilder" data-no-pan="true">
@@ -1505,8 +1656,16 @@ export function AppNetwork({ locale }: { locale: Locale }) {
               <div><strong>{selectedGroup.label || w.group}</strong><span>{selectedGroup.members.length} {w.members}</span></div>
             </div>
             <div className="groupMemberList">
-              {selectedGroup.members.map((member) => <span key={member} title={member}>{shortWallet(member)}</span>)}
+              {selectedGroup.members.map((member) => (
+                <span key={member} title={member}>
+                  {shortWallet(member)}
+                  {editingLayout ? <button type="button" onClick={() => setDraftWorkspace((current) => current ? removeWorkspaceMemberFromGroup(current, member) : current)}>×</button> : null}
+                </span>
+              ))}
             </div>
+            <button type="button" className="groupToggleButton" onClick={() => toggleGroupCollapsed(selectedGroup.id)}>
+              {selectedGroup.collapsed === false ? w.collapseGroup : w.expandGroup}
+            </button>
             {editingLayout ? (
               <button
                 type="button"
@@ -1540,13 +1699,13 @@ export function AppNetwork({ locale }: { locale: Locale }) {
         .searchWrap{position:relative;flex:0 0 min(44%,205px)}.searchWrap input{width:100%;height:30px;box-sizing:border-box;padding:0 9px;border:1px solid rgba(255,205,80,.1);border-radius:9px;background:#11110f;color:#d8d3ca;font:inherit;font-size:.58rem;outline:none}.searchWrap input:focus{border-color:rgba(244,183,40,.34)}.searchWrap input:disabled{opacity:.45}.searchResults{position:absolute;z-index:90;top:35px;right:0;width:min(290px,78vw);max-height:245px;overflow:auto;padding:5px;border:1px solid rgba(255,205,80,.14);border-radius:12px;background:rgba(14,14,12,.985);box-shadow:0 18px 40px rgba(0,0,0,.42)}.searchResults button{width:100%;padding:8px;border:0;border-radius:8px;background:transparent;color:#ddd7cc;text-align:left;cursor:pointer}.searchResults button:hover{background:rgba(244,183,40,.06)}.searchResults strong{display:block;font-size:.62rem}.searchResults button span{display:block;margin-top:3px;color:#6f6b64;font-size:.52rem}.searchStatus{display:block;padding:11px 8px;color:#77736c;font-size:.56rem;line-height:1.45;text-align:center}
         .networkStage{position:relative;height:clamp(430px,68vh,650px);overflow:hidden;touch-action:none;overscroll-behavior:contain;background:radial-gradient(circle at 50% 34%,rgba(244,183,40,.045),transparent 31%),linear-gradient(rgba(255,255,255,.015) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.015) 1px,transparent 1px);background-size:auto,28px 28px,28px 28px;cursor:grab;user-select:none;-webkit-user-select:none}.networkStage:active{cursor:grabbing}.networkStage.layoutEditing{box-shadow:inset 0 0 0 1px rgba(244,183,40,.11)}
         .world{position:absolute;top:0;left:0;will-change:transform;backface-visibility:hidden}.world.cameraTransition{transition:transform ${NAVIGATION_MS}ms cubic-bezier(.18,.82,.2,1)}.worldContent{position:absolute;inset:0;transform-origin:${FOCUS_X}px ${FOCUS_Y}px}.worldContent.nav-forward{animation:networkForward ${NAVIGATION_MS}ms cubic-bezier(.18,.82,.2,1)}.worldContent.nav-back{animation:networkBack ${NAVIGATION_MS}ms cubic-bezier(.18,.82,.2,1)}
-        .edges{position:absolute;inset:0;overflow:visible;pointer-events:none}.edge{fill:none;stroke:rgba(176,145,73,.31);stroke-width:1.3;vector-effect:non-scaling-stroke}.edge.rewarded{stroke:rgba(232,183,62,.46)}.edge.groupEdge{stroke:rgba(224,178,65,.42);stroke-width:1.5}.slotEdge{stroke:rgba(232,183,62,.34);stroke-dasharray:7 8;animation:slotFlow 2.2s linear infinite}
+        .edges{position:absolute;inset:0;overflow:visible;pointer-events:none}.edge{fill:none;stroke:rgba(176,145,73,.31);stroke-width:1.3;vector-effect:non-scaling-stroke}.edge.rewarded{stroke:rgba(232,183,62,.46)}.edge.groupEdge{stroke:rgba(224,178,65,.42);stroke-width:1.5}.groupMemberEdge{stroke:rgba(194,157,75,.32);stroke-width:1.15}.continuationEdge{fill:none;stroke:rgba(176,145,73,.24);stroke-width:1.15;stroke-linecap:round;vector-effect:non-scaling-stroke}.slotEdge{stroke:rgba(232,183,62,.34);stroke-dasharray:7 8;animation:slotFlow 2.2s linear infinite}
         .personNode,.slotNode,.groupNode{position:absolute;z-index:4;transform:translate(-50%,-50%);font:inherit}.personNode{min-width:92px;padding:7px 8px 8px;border:1px solid rgba(255,255,255,.08);border-radius:15px;background:rgba(17,17,15,.94);color:#d9d4ca;display:grid;justify-items:center;gap:5px;box-shadow:0 8px 20px rgba(0,0,0,.23);cursor:pointer}.personNode:hover,.personNode.selected{border-color:rgba(244,183,40,.35);box-shadow:0 0 0 1px rgba(244,183,40,.07),0 10px 24px rgba(0,0,0,.3)}.focusNode{min-width:112px;padding:10px 11px 9px;border-color:rgba(244,183,40,.24);background:radial-gradient(circle at 50% 0,rgba(244,183,40,.12),transparent 52%),rgba(18,17,14,.97)}.childNode.status-rewarded{border-color:rgba(218,171,57,.17)}.childNode.status-qualified{border-color:rgba(155,136,82,.14)}.personNode.draggable,.groupNode.draggable{cursor:grab;touch-action:none}.personNode.draggable:active,.groupNode.draggable:active{cursor:grabbing}.personNode.dragging,.groupNode.dragging{z-index:12;border-color:rgba(244,183,40,.58);box-shadow:0 14px 30px rgba(0,0,0,.34),0 0 0 2px rgba(244,183,40,.11)}.personNode.grouping{animation:groupDropAway ${GROUP_DROP_MS}ms ease forwards}
         .personNode :global(.identity){display:grid;justify-items:center;gap:4px}.personNode :global(.avatarSlot){position:relative;display:grid;place-items:center}.personNode :global(.neutralAvatar){display:grid;place-items:center;border:1px solid rgba(244,183,40,.13);border-radius:50%;background:#171611;color:#8e7b50}.personNode :global(.avatarSlot img){position:absolute;inset:0;border-radius:50%;object-fit:cover;transition:opacity 160ms ease}.personNode :global(.identityLabel){max-width:88px;color:#a9a49b;font-size:.5rem;font-weight:750;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.nodeMeta{display:grid;justify-items:center;gap:2px}.nodeMeta strong{max-width:100px;color:#e5dfd5;font-size:.58rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.nodeMeta small{color:#6f6a62;font-size:.48rem}.focusNode .nodeMeta strong{color:#edc65c;font-size:.61rem}.nodeBusy{position:absolute;right:6px;top:6px;width:6px;height:6px;border-radius:50%;background:#e9bc45;box-shadow:0 0 10px rgba(233,188,69,.8);animation:pulse 900ms ease-in-out infinite alternate}
-        .groupNode{min-width:94px;padding:9px 10px;border:1px solid rgba(244,183,40,.26);border-radius:18px;background:radial-gradient(circle at 50% 0,rgba(244,183,40,.15),transparent 56%),rgba(18,17,14,.97);color:#dfd8ca;display:grid;justify-items:center;gap:4px;box-shadow:0 9px 22px rgba(0,0,0,.27);cursor:pointer}.groupNode:hover,.groupNode.selected{border-color:rgba(244,183,40,.46)}.groupNode strong{max-width:105px;font-size:.57rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.groupNode small{color:#8b805f;font-size:.48rem}.groupGlyph{position:relative;width:34px;height:26px;display:block}.groupGlyph i{position:absolute;width:14px;height:14px;border:1px solid rgba(244,183,40,.34);border-radius:50%;background:#1a1812}.groupGlyph i:nth-child(1){left:10px;top:0}.groupGlyph i:nth-child(2){left:2px;top:11px}.groupGlyph i:nth-child(3){right:2px;top:11px}
+        .groupNode{min-width:94px;padding:9px 10px;border:1px solid rgba(244,183,40,.26);border-radius:18px;background:radial-gradient(circle at 50% 0,rgba(244,183,40,.15),transparent 56%),rgba(18,17,14,.97);color:#dfd8ca;display:grid;justify-items:center;gap:4px;box-shadow:0 9px 22px rgba(0,0,0,.27);cursor:pointer}.groupNode:hover,.groupNode.selected,.groupNode.expanded{border-color:rgba(244,183,40,.46)}.groupNode strong{max-width:105px;font-size:.57rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.groupNode small{color:#8b805f;font-size:.48rem}.groupGlyph{position:relative;width:34px;height:26px;display:block}.groupGlyph i{position:absolute;width:14px;height:14px;border:1px solid rgba(244,183,40,.34);border-radius:50%;background:#1a1812}.groupGlyph i:nth-child(1){left:10px;top:0}.groupGlyph i:nth-child(2){left:2px;top:11px}.groupGlyph i:nth-child(3){right:2px;top:11px}
         .slotNode{width:84px;height:70px;border:1px dashed rgba(244,183,40,.22);border-radius:15px;background:rgba(244,183,40,.025);color:#a98735;display:grid;place-items:center;align-content:center;gap:3px;cursor:pointer}.slotNode span{font-size:1rem;font-weight:400}.slotNode small{max-width:72px;font-size:.48rem;font-weight:800;line-height:1.15}.slotNode:hover{border-color:rgba(244,183,40,.42);background:rgba(244,183,40,.055)}.slotNode:disabled{opacity:.28;cursor:default}
-        .layoutControls{position:absolute;z-index:64;left:10px;top:10px;display:flex;align-items:center;gap:5px}.layoutControls button{min-height:31px;padding:0 9px;border:1px solid rgba(255,205,80,.13);border-radius:9px;background:rgba(18,18,15,.94);color:#a9a397;font:inherit;font-size:.52rem;font-weight:900;cursor:pointer;box-shadow:0 7px 18px rgba(0,0,0,.2)}.layoutControls .editLayoutButton:hover,.layoutControls .newGroupButton:hover{border-color:rgba(244,183,40,.31);color:#e1bd5b}.layoutControls .saveLayoutButton{border-color:rgba(244,183,40,.32);background:linear-gradient(135deg,#e9b93c,#c98a18);color:#17120a}.layoutControls .cancelLayoutButton{color:#8d877e}
-        .groupBuilder{position:absolute;z-index:82;left:10px;top:50px;width:min(235px,calc(100% - 20px));box-sizing:border-box;padding:11px;border:1px solid rgba(244,183,40,.2);border-radius:15px;background:rgba(14,14,12,.985);box-shadow:0 18px 40px rgba(0,0,0,.42);cursor:default}.groupBuilderHead{display:flex;align-items:center;justify-content:space-between;gap:8px}.groupBuilderHead strong{color:#e5dfd3;font-size:.62rem}.groupBuilderHead button{width:27px;height:27px;border:0;background:transparent;color:#817c73;font-size:.95rem;cursor:pointer}.groupBuilder>input{width:100%;height:31px;margin-top:7px;box-sizing:border-box;padding:0 8px;border:1px solid rgba(255,205,80,.1);border-radius:8px;background:#11110f;color:#d8d3ca;font:inherit;font-size:.55rem;outline:none}.groupDropZone{min-height:74px;margin-top:8px;padding:9px;box-sizing:border-box;display:grid;place-items:center;align-content:center;gap:2px;border:1px dashed rgba(244,183,40,.34);border-radius:11px;background:rgba(244,183,40,.035);text-align:center}.dropIcon{color:#c99d35;font-size:.9rem}.groupDropZone strong{color:#b9aa83;font-size:.54rem}.groupDropZone small{color:#6d685e;font-size:.48rem}.groupDraftMembers{margin-top:7px;display:flex;flex-wrap:wrap;gap:4px}.groupDraftMembers button{padding:4px 6px;border:1px solid rgba(255,255,255,.06);border-radius:7px;background:rgba(255,255,255,.025);color:#89847a;font:inherit;font-size:.46rem;cursor:pointer}.groupDraftMembers button span{color:#a97f54}.createGroupButton{width:100%;min-height:33px;margin-top:8px;border:0;border-radius:9px;background:linear-gradient(135deg,#ffd24d,#efa718);color:#17120a;font:inherit;font-size:.53rem;font-weight:950;cursor:pointer}.createGroupButton:disabled{background:rgba(255,255,255,.05);color:#68635b;cursor:default}
+        .layoutControls{position:absolute;z-index:64;left:10px;top:10px;display:flex;align-items:center;gap:5px}.layoutControls button{min-height:31px;padding:0 9px;border:1px solid rgba(255,205,80,.13);border-radius:9px;background:rgba(18,18,15,.94);color:#a9a397;font:inherit;font-size:.52rem;font-weight:900;cursor:pointer;box-shadow:0 7px 18px rgba(0,0,0,.2)}.layoutControls .editLayoutButton:hover,.layoutControls .newGroupButton:hover,.layoutControls .groupsButton:hover,.layoutControls .groupsButton.active{border-color:rgba(244,183,40,.31);color:#e1bd5b}.layoutControls .saveLayoutButton{border-color:rgba(244,183,40,.32);background:linear-gradient(135deg,#e9b93c,#c98a18);color:#17120a}.layoutControls .cancelLayoutButton{color:#8d877e}
+        .groupsPanel{position:absolute;z-index:81;left:10px;top:50px;width:min(235px,calc(100% - 20px));box-sizing:border-box;padding:11px;border:1px solid rgba(244,183,40,.17);border-radius:15px;background:rgba(14,14,12,.985);box-shadow:0 18px 40px rgba(0,0,0,.42);cursor:default}.groupsPanelHead{display:flex;align-items:center;justify-content:space-between}.groupsPanelHead strong{color:#e5dfd3;font-size:.62rem}.groupsPanelHead button{width:27px;height:27px;border:0;background:transparent;color:#817c73;font-size:.95rem;cursor:pointer}.groupsPanel p{margin:10px 0;color:#77736c;font-size:.53rem}.groupsList{display:grid;gap:5px;margin-top:7px}.groupsList>button{padding:7px 8px;border:1px solid rgba(255,255,255,.06);border-radius:9px;background:rgba(255,255,255,.025);color:#aaa398;text-align:left;cursor:pointer}.groupsList span,.groupsList small{display:block}.groupsList span{font-size:.54rem;font-weight:900}.groupsList small{margin-top:2px;color:#746e64;font-size:.46rem}.createFirstGroup{width:100%;min-height:32px;margin-top:8px;border:1px solid rgba(244,183,40,.22);border-radius:9px;background:rgba(244,183,40,.05);color:#c5a454;font:inherit;font-size:.52rem;font-weight:900;cursor:pointer}.groupBuilder{position:absolute;z-index:82;left:10px;top:50px;width:min(235px,calc(100% - 20px));box-sizing:border-box;padding:11px;border:1px solid rgba(244,183,40,.2);border-radius:15px;background:rgba(14,14,12,.985);box-shadow:0 18px 40px rgba(0,0,0,.42);cursor:default}.groupBuilderHead{display:flex;align-items:center;justify-content:space-between;gap:8px}.groupBuilderHead strong{color:#e5dfd3;font-size:.62rem}.groupBuilderHead button{width:27px;height:27px;border:0;background:transparent;color:#817c73;font-size:.95rem;cursor:pointer}.groupBuilder>input{width:100%;height:31px;margin-top:7px;box-sizing:border-box;padding:0 8px;border:1px solid rgba(255,205,80,.1);border-radius:8px;background:#11110f;color:#d8d3ca;font:inherit;font-size:.55rem;outline:none}.groupDropZone{min-height:74px;margin-top:8px;padding:9px;box-sizing:border-box;display:grid;place-items:center;align-content:center;gap:2px;border:1px dashed rgba(244,183,40,.34);border-radius:11px;background:rgba(244,183,40,.035);text-align:center}.dropIcon{color:#c99d35;font-size:.9rem}.groupDropZone strong{color:#b9aa83;font-size:.54rem}.groupDropZone small{color:#6d685e;font-size:.48rem}.groupDraftMembers{margin-top:7px;display:flex;flex-wrap:wrap;gap:4px}.groupDraftMembers button{padding:4px 6px;border:1px solid rgba(255,255,255,.06);border-radius:7px;background:rgba(255,255,255,.025);color:#89847a;font:inherit;font-size:.46rem;cursor:pointer}.groupDraftMembers button span{color:#a97f54}.groupMemberList span{display:inline-flex;align-items:center;gap:4px}.groupMemberList span button{width:18px;height:18px;border:0;border-radius:50%;background:rgba(255,255,255,.04);color:#8d8173;cursor:pointer}.groupToggleButton{width:100%;min-height:30px;margin-top:8px;border:1px solid rgba(244,183,40,.15);border-radius:9px;background:rgba(244,183,40,.035);color:#b69a57;font:inherit;font-size:.5rem;font-weight:900;cursor:pointer}.createGroupButton{width:100%;min-height:33px;margin-top:8px;border:0;border-radius:9px;background:linear-gradient(135deg,#ffd24d,#efa718);color:#17120a;font:inherit;font-size:.53rem;font-weight:950;cursor:pointer}.createGroupButton:disabled{background:rgba(255,255,255,.05);color:#68635b;cursor:default}
         .viewControls{position:absolute;z-index:55;right:10px;bottom:10px;display:grid;grid-template-columns:repeat(3,34px);gap:5px}.viewControls button,.pager button{height:34px;border:1px solid rgba(255,205,80,.13);border-radius:10px;background:rgba(18,18,15,.92);color:#bbb5aa;font:inherit;font-size:.78rem;font-weight:850;cursor:pointer}.viewControls button:hover,.pager button:hover:not(:disabled){border-color:rgba(244,183,40,.28);color:#e4c36d}.pager{position:absolute;z-index:55;left:50%;bottom:10px;transform:translateX(-50%);display:flex;align-items:center;gap:7px;padding:4px;border:1px solid rgba(255,205,80,.08);border-radius:12px;background:rgba(12,12,10,.88)}.pager button{width:32px}.pager button:disabled{opacity:.28;cursor:default}.pager span{min-width:48px;color:#77736c;font-size:.53rem;font-weight:800;text-align:center}.parentReturn{position:absolute;z-index:55;left:10px;bottom:10px;min-height:34px;padding:0 11px;border:1px solid rgba(255,205,80,.12);border-radius:10px;background:rgba(18,18,15,.92);color:#a89c7b;font:inherit;font-size:.55rem;font-weight:850;cursor:pointer}.parentReturn:disabled{opacity:.4}
         .profileCard{position:absolute;z-index:75;right:10px;top:10px;width:min(245px,calc(100% - 20px));box-sizing:border-box;padding:13px;border:1px solid rgba(255,205,80,.15);border-radius:17px;background:rgba(15,15,13,.975);box-shadow:0 18px 42px rgba(0,0,0,.45);cursor:default}.profileClose{position:absolute;right:8px;top:7px;width:28px;height:28px;border:0;background:transparent;color:#817c73;font-size:1rem;cursor:pointer}.profileIdentity{padding-right:28px;display:flex;align-items:center;gap:9px}.profileIdentity :global(.identity){display:flex;align-items:center;gap:8px}.profileIdentity :global(.identityLabel){display:none}.profileIdentity :global(.avatarSlot){position:relative;display:grid;place-items:center}.profileIdentity :global(.neutralAvatar){display:grid;place-items:center;border:1px solid rgba(244,183,40,.13);border-radius:50%;background:#171611;color:#8e7b50}.profileIdentity :global(.avatarSlot img){position:absolute;inset:0;border-radius:50%;object-fit:cover}.profileIdentity>div>strong{display:block;color:#e7e1d6;font-size:.66rem}.profileIdentity>div>span{display:block;margin-top:3px;color:#877e69;font-size:.51rem}.profileAddress{margin-top:10px;padding:8px;border-radius:9px;background:rgba(255,255,255,.025);color:#67635d;font-size:.48rem;line-height:1.35;overflow-wrap:anywhere;user-select:text;-webkit-user-select:text}.profileStats{margin-top:9px;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:5px}.profileStats>div{padding:8px;border:1px solid rgba(255,255,255,.045);border-radius:9px;background:rgba(255,255,255,.018)}.profileStats strong{display:block;color:#d6d0c5;font-size:.62rem}.profileStats span{display:block;margin-top:2px;color:#68645e;font-size:.47rem}.profileAction{width:100%;min-height:36px;margin-top:9px;border:0;border-radius:10px;background:linear-gradient(135deg,#ffd24d,#efa718);color:#17120a;font:inherit;font-size:.57rem;font-weight:950;cursor:pointer}.profileAction:disabled{opacity:.45;cursor:default}
         .groupCardTitle{padding-right:28px;display:flex;align-items:center;gap:10px}.groupCardTitle>div strong{display:block;color:#e7dfcf;font-size:.65rem}.groupCardTitle>div span{display:block;margin-top:3px;color:#887c5e;font-size:.5rem}.groupMemberList{margin-top:10px;display:flex;flex-wrap:wrap;gap:5px}.groupMemberList span{padding:5px 6px;border:1px solid rgba(255,255,255,.05);border-radius:7px;background:rgba(255,255,255,.02);color:#777168;font-size:.47rem}.ungroupButton{width:100%;min-height:33px;margin-top:10px;border:1px solid rgba(194,118,90,.2);border-radius:9px;background:rgba(194,118,90,.06);color:#bd9889;font:inherit;font-size:.52rem;font-weight:900;cursor:pointer}

@@ -83,10 +83,14 @@ test('layout editing is React-owned and changes workspace coordinates rather tha
   assert.doesNotMatch(workspaceSource, /setView|ResizeObserver|PointerEvent|document\./);
 });
 
-test('layout Save is explicit, Cancel is reversible, and workspace persistence is isolated from camera session state', () => {
+test('layout Done/Reset are explicit, Cancel is reversible, and workspace persistence is isolated from camera session state', () => {
   assert.match(networkSource, /const WORKSPACE_PREFIX = 'veinvite-network-workspace-v1:'/);
   assert.match(networkSource, /window\.localStorage\.setItem\(workspaceStorageKey\(wallet\), serializeNetworkWorkspaceStore\(nextStore\)\)/);
   assert.match(networkSource, /const cancelLayoutEdit = useCallback/);
+  assert.match(networkSource, /const resetLayoutEdit = useCallback/);
+  assert.match(networkSource, /withoutNodePositions/);
+  assert.match(networkSource, /MIN_SCALE = 0\.32/);
+  assert.match(networkSource, /MAX_SCALE = 2\.5/);
   assert.match(networkSource, /setDraftWorkspace\(null\)/);
   assert.match(workspaceSource, /withFocusWorkspace/);
   assert.doesNotMatch(workspaceSource, /scale|focusWallet: string;\s*view/);
@@ -98,6 +102,10 @@ test('group creation is a draft-first interaction and preserves member positions
   assert.match(networkSource, /groupDraft\.members\.length < 2/);
   assert.match(networkSource, /addWorkspaceGroup\(draftWorkspace/);
   assert.match(networkSource, /removeWorkspaceGroup\(current, selectedGroup\.id\)/);
+  assert.match(networkSource, /moveWorkspaceMemberToGroup/);
+  assert.match(networkSource, /withWorkspaceGroupCollapsed/);
+  assert.match(networkSource, /groupsOpen/);
+  assert.match(networkSource, /continuationEdge/);
   const removeStart = workspaceSource.indexOf('export function removeWorkspaceGroup');
   const removeEnd = workspaceSource.indexOf('export function groupContainingWallet', removeStart);
   assert.ok(removeStart >= 0 && removeEnd > removeStart);
