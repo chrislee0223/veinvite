@@ -14,8 +14,6 @@ type IdleWindow = Window & {
 };
 
 const APP_READY_EVENT = 'veinvite-app-ready';
-const NETWORK_CANARY_WALLET =
-  '0xeff325935b63299e9eeda79931bed6ec119aefcb';
 const NETWORK_IDLE_TIMEOUT_MS = 900;
 const NETWORK_TIMEOUT_FALLBACK_MS = 240;
 
@@ -47,19 +45,14 @@ export function NetworkIdleWarmup() {
       }
 
       started = true;
-      const normalizedWallet = wallet.toLowerCase();
       const moduleLoads: Promise<unknown>[] = [
         import('./AppGuide'),
+        import('./AppNetworkHub'),
       ];
 
-      if (normalizedWallet === NETWORK_CANARY_WALLET) {
-        moduleLoads.push(import('./AppNetworkCanaryV71'));
-      } else {
-        moduleLoads.push(import('./AppNetworkHub'));
-        void prefetchNetworkSummary(wallet).catch(() => {
-          // Best-effort warmup only. AppNetworkHub owns visible retry/error UX.
-        });
-      }
+      void prefetchNetworkSummary(wallet).catch(() => {
+        // Best-effort warmup only. AppNetworkHub owns visible retry/error UX.
+      });
 
       void Promise.allSettled(moduleLoads);
     };

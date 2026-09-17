@@ -20,7 +20,7 @@ test('Network round metrics come from the reviewed chain resolver, are bounded, 
   assert.match(route, /p_round_id:\s*round\?\.id\s*\?\?\s*null/i);
   assert.match(route, /p_round_start_at:\s*round\?\.startAt\s*\?\?\s*null/i);
   assert.doesNotMatch(route, /operator_latest_round_growth_report_snapshots/i);
-  assert.match(network, /rootData\.summary\.thisRound\s*===\s*null[\s\S]*'—'/i);
+  assert.match(network, /rootData\.summary\.thisRound\s*===\s*null\s*\?\s*['’][–—]['’]/i);
 });
 
 test('Network runtime switch fails closed before chain and recursive graph work', () => {
@@ -54,17 +54,18 @@ test('Network recursive reads are time-bounded and return machine-readable failu
 });
 
 test('branch navigation actively cancels stale work instead of only ignoring late responses', () => {
-  assert.match(network, /branchRequestRef\s*=\s*useRef<AbortController \| null>/i);
-  assert.match(network, /branchRequestRef\.current\?\.abort\(\)/i);
-  assert.match(network, /const serial = cancelBranchRequest\(\)/i);
+  assert.match(network, /abortRef\s*=\s*useRef\(null as AbortController \| null\)|abortRef\s*=\s*useRef<AbortController \| null>\(null\)/i);
+  assert.match(network, /abortRef\.current\?\.abort\(\)/i);
+  assert.match(network, /const serial = cancelRequest\(\)/i);
   assert.match(network, /controller\.signal\.aborted \|\| serial !== requestSerialRef\.current/i);
-  assert.match(network, /cancelBranchRequest\(\);[\s\S]*setExplorerParent/i);
+  assert.match(network, /const moveToFocus = useCallback[\s\S]*const serial = cancelRequest\(\)[\s\S]*new AbortController\(\)/i);
 });
 
 test('Network search has an independent request budget from branch navigation', () => {
   assert.match(route, /network_search_wallet/i);
   assert.match(route, /network_read_wallet/i);
   assert.match(route, /limit:\s*isSearch \? 24 : 90/i);
+  assert.match(network, /const controller = new AbortController\(\);[\s\S]*const timer = window\.setTimeout/i);
 });
 
 test('non-root branch Qualified totals include the focused member when qualified or rewarded', () => {
@@ -74,7 +75,7 @@ test('non-root branch Qualified totals include the focused member when qualified
 
 test('Network canvas controls are localized for every supported locale and the graph is not mirrored', () => {
   const expectedLocales = [
-    'en','ko','zh','hi','es','ja','it','tr','nl','de','fr','ar','bn','pt','ru','id','vi','zh-tw','sv','ro','ur','pcm','arz','mr','te','sw','ha','el',
+    'en','ko','zh','hi','es','ja','it','tr','nl','de','fr','ar','bn','pt','ru','id','vi','zh-tw','sv','ro','ur','pcm','arz','mr','te','sw','ha','el','cs',
   ];
   for (const locale of expectedLocales) {
     const pattern = locale === 'zh-tw'
@@ -83,9 +84,12 @@ test('Network canvas controls are localized for every supported locale and the g
     assert.match(controls, pattern, `missing Network canvas controls for ${locale}`);
   }
   assert.match(network, /NETWORK_CANVAS_CONTROL_COPY/i);
-  assert.match(network, /<span>\{c\.you\}<\/span>/i);
-  assert.match(network, /aria-label=\{isOpen \? c\.collapseBranch : c\.expandBranch\}/i);
-  assert.match(network, /\{c\.networkBelow\}/i);
+  assert.match(network, /absoluteIndex === 0 \? c\.you : shortWallet\(item\)/i);
+  assert.match(network, /focusIsRoot \? c\.you : shortWallet\(currentData\.focusWallet\)/i);
+  assert.match(network, /\{c\.expandBranch\}/i);
+  assert.match(network, /aria-label=\{c\.zoomIn\}/i);
+  assert.match(network, /aria-label=\{c\.zoomOut\}/i);
+  assert.doesNotMatch(network, /scaleX\(-1\)/i);
   assert.doesNotMatch(network, /direction:\s*rtl[^}]*\.world/i);
 });
 

@@ -11,10 +11,7 @@ import {
   type PointerEvent as ReactPointerEvent,
   type WheelEvent as ReactWheelEvent,
 } from 'react';
-import {
-  useGetAvatar,
-  useVechainDomain,
-} from '@vechain/vechain-kit';
+import { useGetAvatar, useVechainDomain } from '@vechain/vechain-kit';
 
 import { NETWORK_CANVAS_CONTROL_COPY } from '@/lib/i18n/networkCanvasControlCopy';
 import { NETWORK_EXPERIENCE_COPY } from '@/lib/i18n/networkExperienceCopy';
@@ -24,7 +21,7 @@ import { useWalletLauncher } from './WalletControl';
 type MemberStatus = 'IN_PROGRESS' | 'QUALIFIED' | 'REWARDED';
 type View = { x: number; y: number; scale: number };
 type Point = { x: number; y: number };
-type Tone = 'focus' | 'near' | 'normal';
+type NavigationDirection = 'forward' | 'back';
 
 type NetworkChild = {
   wallet: string;
@@ -66,86 +63,36 @@ type NetworkData = {
   depthLimitReached: boolean;
 };
 
-type PersonVisual = {
-  kind: 'person';
-  key: string;
-  wallet: string;
+type PositionedChild = NetworkChild & {
   x: number;
   y: number;
-  depth: number;
-  parentWallet: string | null;
-  parentX: number;
-  parentY: number;
-  member: NetworkChild | null;
-  root: boolean;
 };
 
-type ClusterVisual = {
-  kind: 'cluster';
-  key: string;
-  parentWallet: string;
-  x: number;
-  y: number;
-  depth: number;
-  parentX: number;
-  parentY: number;
-  remaining: number;
-};
-
-type Visual = PersonVisual | ClusterVisual;
-
-type EdgeVisual = {
-  key: string;
-  parentWallet: string;
-  childWallet: string | null;
-  parentDepth: number;
-  x1: number;
-  y1: number;
-  x2: number;
-  y2: number;
-  active: boolean;
-  fresh: boolean;
-  stagger: number;
-};
-
-type PagerVisual = {
-  parentWallet: string;
-  x: number;
-  y: number;
-  page: number;
-  pageCount: number;
-  start: number;
-  end: number;
-  total: number;
-  depth: number;
-};
-
-type SavedState = {
-  activePath: string[];
-  pageByParent: Array<[string, number]>;
-  collapsedParents: string[];
+type StoredRuntimeState = {
+  focusWallet: string;
   view: View;
 };
 
-type BranchError = {
-  wallet: string;
-  parentDepth: number;
-  message: string;
+type PinchState = {
+  startDistance: number;
+  startCenter: Point;
+  startView: View;
+  worldAnchor: Point;
 };
 
-const PLANE_W = 3200;
-const PLANE_H = 2800;
-const CENTER_X = PLANE_W / 2;
-const ROOT_Y = 118;
-const LEVEL_GAP = 116;
-const MIN_SCALE = 0.68;
-const MAX_SCALE = 1.48;
-const COLLAPSE_MS = 175;
-const FRESH_MS = 920;
-const SEARCH_DELAY_MS = 280;
-const SESSION_PREFIX = 'veinvite-network-canvas-v1:';
 const NETWORK_CANVAS_ENABLED =
   process.env.NEXT_PUBLIC_NETWORK_CANVAS_ENABLED !== 'false';
+const WORLD_W = 2600;
+const WORLD_H = 1900;
+const FOCUS_X = WORLD_W / 2;
+const FOCUS_Y = 350;
+const MIN_SCALE = 0.68;
+const MAX_SCALE = 1.55;
+const SEARCH_DELAY_MS = 280;
+const NAVIGATION_MS = 520;
+const SESSION_PREFIX = 'veinvite-network-runtime-v1:';
+const EXPLORER_PAGE_SIZE_DESKTOP = 10;
+const EXPLORER_PAGE_SIZE_MOBILE = 6;
 
 function keyWallet(wallet: string): string {
   return wallet.toLowerCase();
@@ -153,7 +100,7 @@ function keyWallet(wallet: string): string {
 
 function shortWallet(wallet: string): string {
   if (wallet.length < 12) return wallet;
-  return `${wallet.slice(0, 5)}...${wallet.slice(-3).toUpperCase()}`;
+  return `${wallet.slice(0, 6)}…${wallet.slice(-4).toUpperCase()}`;
 }
 
 function validWallet(wallet: string): boolean {
@@ -172,25 +119,31 @@ function distance(a: Point, b: Point): number {
   return Math.hypot(a.x - b.x, a.y - b.y);
 }
 
-function sessionKey(wallet: string): string {
+function runtimeSessionKey(wallet: string): string {
   return `${SESSION_PREFIX}${keyWallet(wallet)}`;
 }
 
-function readSavedState(wallet: string): SavedState | null {
+function readStoredRuntimeState(wallet: string): StoredRuntimeState | null {
   try {
-    const raw = window.sessionStorage.getItem(sessionKey(wallet));
+    const raw = window.sessionStorage.getItem(runtimeSessionKey(wallet));
     if (!raw) return null;
-    const parsed = JSON.parse(raw) as Partial<SavedState>;
-    if (!Array.isArray(parsed.activePath) || !parsed.activePath.every((item) => typeof item === 'string')) {
+    const parsed = JSON.parse(raw) as Partial<StoredRuntimeState>;
+    if (!parsed.focusWallet || !validWallet(parsed.focusWallet)) return null;
+    if (
+      !parsed.view ||
+      typeof parsed.view.x !== 'number' ||
+      typeof parsed.view.y !== 'number' ||
+      typeof parsed.view.scale !== 'number'
+    ) {
       return null;
     }
     return {
-      activePath: parsed.activePath,
-      pageByParent: Array.isArray(parsed.pageByParent) ? parsed.pageByParent as Array<[string, number]> : [],
-      collapsedParents: Array.isArray(parsed.collapsedParents) ? parsed.collapsedParents.filter((item): item is string => typeof item === 'string') : [],
-      view: parsed.view && typeof parsed.view.x === 'number' && typeof parsed.view.y === 'number' && typeof parsed.view.scale === 'number'
-        ? parsed.view
-        : { x: 0, y: 30, scale: 1 },
+      focusWallet: parsed.focusWallet,
+      view: {
+        x: parsed.view.x,
+        y: parsed.view.y,
+        scale: clamp(parsed.view.scale, MIN_SCALE, MAX_SCALE),
+      },
     };
   } catch {
     return null;
@@ -199,11 +152,7 @@ function readSavedState(wallet: string): SavedState | null {
 
 async function fetchNetwork(
   rootWallet: string,
-  options: {
-    focus?: string;
-    query?: string;
-    signal?: AbortSignal;
-  } = {},
+  options: { focus?: string; query?: string; signal?: AbortSignal } = {},
 ): Promise<NetworkData> {
   const params = new URLSearchParams({ wallet: rootWallet });
   if (options.focus && keyWallet(options.focus) !== keyWallet(rootWallet)) {
@@ -218,7 +167,6 @@ async function fetchNetwork(
     headers: { Accept: 'application/json' },
     signal: options.signal,
   });
-
   const payload = await response.json().catch(() => null) as NetworkData | { error?: string } | null;
   if (!response.ok) {
     const message = payload && 'error' in payload && payload.error
@@ -232,22 +180,60 @@ async function fetchNetwork(
     !payload.rootWallet ||
     !payload.focusWallet ||
     !payload.summary ||
-    !Array.isArray(payload.children)
+    !Array.isArray(payload.children) ||
+    !Array.isArray(payload.breadcrumb)
   ) {
     throw new Error('Network response was incomplete.');
   }
   return payload as NetworkData;
 }
 
-function NeutralAvatar({ root = false }: { root?: boolean }) {
-  const size = root ? 38 : 30;
+function centeredView(
+  stage: { width: number; height: number },
+  scale = 1,
+): View {
+  return {
+    x: stage.width / 2 - FOCUS_X * scale,
+    y: Math.max(88, stage.height * 0.32) - FOCUS_Y * scale,
+    scale,
+  };
+}
+
+function statusLabel(status: MemberStatus, locale: Locale): string {
+  const t = NETWORK_EXPERIENCE_COPY[locale as SupportedLocale];
+  if (status === 'REWARDED') return t.rewarded;
+  if (status === 'QUALIFIED') return t.qualified;
+  return t.inProgress;
+}
+
+function NetworkGlyph({ size = 32 }: { size?: number }) {
   return (
-    <span
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      strokeLinejoin="round"
       aria-hidden="true"
-      className="neutralAvatar"
-      style={{ width: size, height: size }}
     >
-      <svg width={root ? 18 : 15} height={root ? 18 : 15} viewBox="0 0 20 20" fill="none">
+      <circle cx="12" cy="5" r="2.2" />
+      <circle cx="6" cy="17" r="2.2" />
+      <circle cx="18" cy="17" r="2.2" />
+      <path d="M10.8 6.9 7.2 15" />
+      <path d="m13.2 6.9 3.6 8.1" />
+      <path d="M8.2 17h7.6" />
+    </svg>
+  );
+}
+
+function NeutralAvatar({ root = false }: { root?: boolean }) {
+  const size = root ? 42 : 34;
+  return (
+    <span className="neutralAvatar" aria-hidden="true" style={{ width: size, height: size }}>
+      <svg width={root ? 20 : 16} height={root ? 20 : 16} viewBox="0 0 20 20" fill="none">
         <circle cx="10" cy="6.1" r="2.7" fill="currentColor" />
         <path d="M5 15.6c1.15-2.25 2.82-3.35 5-3.35s3.85 1.1 5 3.35" stroke="currentColor" strokeWidth="1.55" strokeLinecap="round" />
       </svg>
@@ -255,21 +241,13 @@ function NeutralAvatar({ root = false }: { root?: boolean }) {
   );
 }
 
-function profileFilter(tone: Tone, root: boolean): string {
-  if (root || tone === 'focus') return 'saturate(1) brightness(.96)';
-  if (tone === 'near') return 'saturate(.52) brightness(.72)';
-  return 'saturate(.78) brightness(.82)';
-}
-
 const NetworkIdentity = memo(function NetworkIdentity({
   address,
   root = false,
-  tone,
   showLabel = true,
 }: {
   address: string;
   root?: boolean;
-  tone: Tone;
   showLabel?: boolean;
 }) {
   const hostRef = useRef<HTMLSpanElement | null>(null);
@@ -279,8 +257,7 @@ const NetworkIdentity = memo(function NetworkIdentity({
   const { data: domainInfo } = useVechainDomain(shouldLoad ? address : undefined);
   const domain = domainInfo?.domain ?? '';
   const { data: avatarUrl } = useGetAvatar(domain);
-  const size = root ? 38 : 30;
-  const label = domain || shortWallet(address);
+  const size = root ? 42 : 34;
 
   useEffect(() => {
     const host = hostRef.current;
@@ -317,765 +294,443 @@ const NetworkIdentity = memo(function NetworkIdentity({
             referrerPolicy="no-referrer"
             onLoad={() => setLoaded(true)}
             onError={() => setBroken(true)}
-            style={{
-              width: size,
-              height: size,
-              opacity: loaded ? 1 : 0,
-              filter: profileFilter(tone, root),
-            }}
+            style={{ width: size, height: size, opacity: loaded ? 1 : 0 }}
           />
         ) : null}
       </span>
       {showLabel ? (
         <span className="identityLabel" dir={domain ? 'auto' : 'ltr'} title={domain || address}>
-          {label}
+          {domain || shortWallet(address)}
         </span>
       ) : null}
     </span>
   );
 });
 
-function statusLabel(status: MemberStatus, locale: Locale): string {
-  const t = NETWORK_EXPERIENCE_COPY[locale as SupportedLocale];
-  if (status === 'REWARDED') return t.rewarded;
-  if (status === 'QUALIFIED') return t.qualified;
-  return t.inProgress;
+function goHomeWithoutReload() {
+  const button = document.querySelector<HTMLButtonElement>('[data-veinvite-tab="home"]');
+  if (button) {
+    button.click();
+    return;
+  }
+  window.location.assign('/');
 }
 
-function buildLayout({
-  rootWallet,
-  activePath,
-  cache,
-  memberByWallet,
-  pageByParent,
-  collapsedParents,
-  explorerParent,
-  isMobile,
-  freshParent,
-}: {
-  rootWallet: string;
-  activePath: string[];
-  cache: Map<string, NetworkData>;
-  memberByWallet: Map<string, NetworkChild>;
-  pageByParent: Map<string, number>;
-  collapsedParents: Set<string>;
-  explorerParent: string | null;
-  isMobile: boolean;
-  freshParent: string | null;
-}) {
-  const visuals: Visual[] = [];
-  const edges: EdgeVisual[] = [];
-  const pagers: PagerVisual[] = [];
-  const positions = new Map<string, { x: number; y: number; depth: number }>();
-  const pageSize = isMobile ? 5 : 8;
-  const previewSize = isMobile ? 4 : 5;
-  const largeThreshold = isMobile ? 6 : 10;
-  const startDepth = Math.max(0, activePath.length - (isMobile ? 4 : 5));
-  const startWallet = activePath[startDepth] ?? rootWallet;
-  const startY = startDepth > 0 ? ROOT_Y + 26 : ROOT_Y;
-
-  positions.set(startWallet, { x: CENTER_X, y: startY, depth: startDepth });
-  visuals.push({
-    kind: 'person',
-    key: `person:${startWallet}`,
-    wallet: startWallet,
-    x: CENTER_X,
-    y: startY,
-    depth: startDepth,
-    parentWallet: startDepth > 0 ? activePath[startDepth - 1] ?? null : null,
-    parentX: CENTER_X,
-    parentY: startY,
-    member: startDepth === 0 ? null : memberByWallet.get(startWallet) ?? null,
-    root: startDepth === 0,
-  });
-
-  for (let depth = startDepth; depth < activePath.length; depth += 1) {
-    const parentWallet = activePath[depth];
-    const parentPosition = positions.get(parentWallet);
-    const data = cache.get(parentWallet);
-    if (!parentPosition || !data || collapsedParents.has(parentWallet)) break;
-
-    const activeChild = activePath[depth + 1] ?? null;
-    const children = data.children;
-    if (children.length === 0) continue;
-
-    let entries: Array<NetworkChild | 'cluster'>;
-    let page = pageByParent.get(parentWallet) ?? 0;
-    const activeIndex = activeChild
-      ? children.findIndex((child) => keyWallet(child.wallet) === activeChild)
-      : -1;
-    const activeBeyondPreview = activeIndex >= previewSize;
-    const showExplorer =
-      children.length > largeThreshold &&
-      (explorerParent === parentWallet || activeBeyondPreview);
-
-    if (children.length <= largeThreshold) {
-      entries = children;
-    } else if (showExplorer) {
-      if (activeIndex >= 0) page = Math.floor(activeIndex / pageSize);
-      const pageCount = Math.ceil(children.length / pageSize);
-      page = clamp(page, 0, pageCount - 1);
-      entries = children.slice(page * pageSize, page * pageSize + pageSize);
-      const start = page * pageSize;
-      pagers.push({
-        parentWallet,
-        x: parentPosition.x,
-        y: parentPosition.y + 58,
-        page,
-        pageCount,
-        start: start + 1,
-        end: Math.min(children.length, start + pageSize),
-        total: children.length,
-        depth,
-      });
-    } else {
-      entries = [...children.slice(0, previewSize), 'cluster'];
-    }
-
-    const centerIndex = (entries.length - 1) / 2;
-    const step = parentWallet === rootWallet
-      ? (isMobile ? 70 : 130)
-      : (isMobile ? 64 : 88);
-
-    entries.forEach((entry, index) => {
-      const offset = index - centerIndex;
-      const childX = parentPosition.x + offset * step;
-      const fanDrop = Math.min(10, Math.abs(offset) * 3);
-      const childY = parentPosition.y + LEVEL_GAP + fanDrop;
-      const stagger = Math.round(Math.abs(offset) * 34);
-
-      if (entry === 'cluster') {
-        const remaining = Math.max(0, children.length - previewSize);
-        visuals.push({
-          kind: 'cluster',
-          key: `cluster:${parentWallet}`,
-          parentWallet,
-          x: childX,
-          y: childY,
-          depth: depth + 1,
-          parentX: parentPosition.x,
-          parentY: parentPosition.y,
-          remaining,
-        });
-        edges.push({
-          key: `${parentWallet}->cluster`,
-          parentWallet,
-          childWallet: null,
-          parentDepth: depth,
-          x1: parentPosition.x,
-          y1: parentPosition.y + 20,
-          x2: childX,
-          y2: childY - 20,
-          active: false,
-          fresh: freshParent === parentWallet,
-          stagger,
-        });
-        return;
-      }
-
-      const childWallet = keyWallet(entry.wallet);
-      positions.set(childWallet, { x: childX, y: childY, depth: depth + 1 });
-      if (!visuals.some((visual) => visual.kind === 'person' && visual.wallet === childWallet)) {
-        visuals.push({
-          kind: 'person',
-          key: `person:${childWallet}`,
-          wallet: childWallet,
-          x: childX,
-          y: childY,
-          depth: depth + 1,
-          parentWallet,
-          parentX: parentPosition.x,
-          parentY: parentPosition.y,
-          member: entry,
-          root: false,
-        });
-      }
-      edges.push({
-        key: `${parentWallet}->${childWallet}`,
-        parentWallet,
-        childWallet,
-        parentDepth: depth,
-        x1: parentPosition.x,
-        y1: parentPosition.y + 20,
-        x2: childX,
-        y2: childY - 20,
-        active: activeChild === childWallet,
-        fresh: freshParent === parentWallet,
-        stagger,
-      });
-    });
-
-    if (activeChild && !positions.has(activeChild)) break;
-  }
-
-  return {
-    visuals,
-    edges,
-    pagers,
-    positions,
-    startDepth,
-    pageSize,
-    previewSize,
-    largeThreshold,
-  };
+function edgePath(x1: number, y1: number, x2: number, y2: number): string {
+  const midY = y1 + (y2 - y1) * 0.54;
+  return `M ${x1} ${y1} C ${x1} ${midY}, ${x2} ${midY}, ${x2} ${y2}`;
 }
 
 export function AppNetwork({ locale }: { locale: Locale }) {
   const t = NETWORK_EXPERIENCE_COPY[locale as SupportedLocale];
   const c = NETWORK_CANVAS_CONTROL_COPY[locale as SupportedLocale];
-  const {
-    wallet,
-    openWallet,
-    isWalletActionPending,
-  } = useWalletLauncher();
-  const rootWallet = wallet ? keyWallet(wallet) : '';
+  const { wallet, openWallet, isWalletActionPending } = useWalletLauncher();
   const stageRef = useRef<HTMLDivElement | null>(null);
-  const cacheRef = useRef<Map<string, NetworkData>>(new Map());
+  const cacheRef = useRef(new Map<string, NetworkData>());
+  const abortRef = useRef<AbortController | null>(null);
   const requestSerialRef = useRef(0);
-  const branchRequestRef = useRef<AbortController | null>(null);
-  const transitionTimerRef = useRef<number | null>(null);
-  const freshTimerRef = useRef<number | null>(null);
-  const saveTimerRef = useRef<number | null>(null);
-  const pointersRef = useRef<Map<number, Point>>(new Map());
-  const singlePointerRef = useRef<Point | null>(null);
-  const pinchRef = useRef<{ center: Point; distance: number } | null>(null);
-  const dragDistanceRef = useRef(0);
+  const pointersRef = useRef(new Map<number, Point>());
+  const panPointerRef = useRef<{ id: number; point: Point; allowed: boolean } | null>(null);
+  const pinchRef = useRef<PinchState | null>(null);
   const suppressClickRef = useRef(false);
+  const pinchReturnIntentRef = useRef(false);
+  const wheelReturnDistanceRef = useRef(0);
+  const returnViewByChildRef = useRef(new Map<string, View>());
+  const viewByFocusRef = useRef(new Map<string, View>());
+  const navigationTimerRef = useRef<number | null>(null);
+  const initializedWalletRef = useRef<string | null>(null);
+  const storedStateRef = useRef<StoredRuntimeState | null>(null);
 
+  const [rootData, setRootData] = useState<NetworkData | null>(null);
+  const [focusWallet, setFocusWallet] = useState<string | null>(null);
   const [cacheVersion, setCacheVersion] = useState(0);
   const [loadState, setLoadState] = useState<'idle' | 'loading' | 'ready' | 'error'>('idle');
   const [loadError, setLoadError] = useState('');
-  const [activePath, setActivePath] = useState<string[]>([]);
+  const [stageSize, setStageSize] = useState({ width: 0, height: 0 });
+  const [view, setView] = useState<View>({ x: 0, y: 0, scale: 1 });
   const [selectedWallet, setSelectedWallet] = useState<string | null>(null);
-  const [pendingWallet, setPendingWallet] = useState<string | null>(null);
-  const [branchError, setBranchError] = useState<BranchError | null>(null);
-  const [pageByParent, setPageByParent] = useState<Map<string, number>>(new Map());
-  const [collapsedParents, setCollapsedParents] = useState<Set<string>>(new Set());
-  const [explorerParent, setExplorerParent] = useState<string | null>(null);
-  const [collapseAfterDepth, setCollapseAfterDepth] = useState<number | null>(null);
-  const [freshParent, setFreshParent] = useState<string | null>(null);
-  const [view, setView] = useState<View>({ x: 0, y: 30, scale: 1 });
-  const [stageSize, setStageSize] = useState({ width: 1000, height: 620 });
+  const [page, setPage] = useState(0);
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
   const [searching, setSearching] = useState(false);
+  const [pendingFocus, setPendingFocus] = useState<string | null>(null);
+  const [navigationDirection, setNavigationDirection] = useState<NavigationDirection | null>(null);
+  const [cameraTransition, setCameraTransition] = useState(false);
 
-  const isMobile = stageSize.width < 640;
+  const currentData = useMemo(() => {
+    if (!focusWallet) return rootData;
+    return cacheRef.current.get(keyWallet(focusWallet)) ?? rootData;
+  }, [focusWallet, rootData, cacheVersion]);
 
-  const putCache = useCallback((data: NetworkData) => {
-    cacheRef.current.set(keyWallet(data.focusWallet), data);
-    setCacheVersion((value) => value + 1);
-  }, []);
+  const isMobile = stageSize.width > 0 && stageSize.width < 560;
+  const pageSize = isMobile ? EXPLORER_PAGE_SIZE_MOBILE : EXPLORER_PAGE_SIZE_DESKTOP;
 
-  const clearFreshSoon = useCallback(() => {
-    if (freshTimerRef.current) window.clearTimeout(freshTimerRef.current);
-    freshTimerRef.current = window.setTimeout(() => setFreshParent(null), FRESH_MS);
-  }, []);
+  const visibleChildren = useMemo(() => {
+    const children = currentData?.children ?? [];
+    const pageCount = Math.max(1, Math.ceil(children.length / pageSize));
+    const safePage = clamp(page, 0, pageCount - 1);
+    const start = safePage * pageSize;
+    const slice = children.slice(start, start + pageSize);
+    const count = slice.length;
+    const span = isMobile ? Math.min(390, Math.max(120, (count - 1) * 72)) : Math.min(920, Math.max(170, (count - 1) * 112));
+    return slice.map((child, index): PositionedChild => {
+      const ratio = count <= 1 ? 0.5 : index / (count - 1);
+      const x = FOCUS_X - span / 2 + span * ratio;
+      const distanceFromCenter = Math.abs(index - (count - 1) / 2);
+      const y = FOCUS_Y + (isMobile ? 178 : 188) + Math.min(46, distanceFromCenter * 9);
+      return { ...child, x, y };
+    });
+  }, [currentData, page, pageSize, isMobile]);
 
-  const cancelBranchRequest = useCallback(() => {
-    requestSerialRef.current += 1;
-    branchRequestRef.current?.abort();
-    branchRequestRef.current = null;
-    setPendingWallet(null);
-    if (transitionTimerRef.current) {
-      window.clearTimeout(transitionTimerRef.current);
-      transitionTimerRef.current = null;
-      setCollapseAfterDepth(null);
+  const childByWallet = useMemo(() => {
+    const map = new Map<string, NetworkChild>();
+    currentData?.children.forEach((child) => map.set(keyWallet(child.wallet), child));
+    return map;
+  }, [currentData]);
+
+  const selectedMember = selectedWallet ? childByWallet.get(selectedWallet) ?? null : null;
+  const selectedData = selectedWallet ? cacheRef.current.get(selectedWallet) ?? null : null;
+  const selectedIsFocus = Boolean(currentData && selectedWallet === keyWallet(currentData.focusWallet));
+  const selectedNetwork = selectedData?.summary.network ?? selectedMember?.network ?? currentData?.summary.network ?? 0;
+  const selectedDirect = selectedData?.summary.direct ?? selectedMember?.direct ?? currentData?.summary.direct ?? 0;
+  const selectedQualified = selectedData?.summary.qualified ?? selectedMember?.qualified ?? currentData?.summary.qualified ?? 0;
+  const selectedRound = selectedData?.summary.thisRound ?? selectedMember?.thisRound ?? currentData?.summary.thisRound ?? null;
+  const selectedStatus = selectedMember?.status ?? 'IN_PROGRESS';
+
+  const pageCount = Math.max(1, Math.ceil((currentData?.children.length ?? 0) / pageSize));
+  const safePage = clamp(page, 0, pageCount - 1);
+  const emptySlotCount = currentData && keyWallet(currentData.focusWallet) === keyWallet(currentData.rootWallet)
+    ? Math.max(0, Math.min(2, 2 - currentData.children.length))
+    : 0;
+
+  const clearNavigationTimer = useCallback(() => {
+    if (navigationTimerRef.current !== null) {
+      window.clearTimeout(navigationTimerRef.current);
+      navigationTimerRef.current = null;
     }
+  }, []);
+
+  const beginNavigationMotion = useCallback((direction: NavigationDirection) => {
+    clearNavigationTimer();
+    setNavigationDirection(direction);
+    setCameraTransition(true);
+    navigationTimerRef.current = window.setTimeout(() => {
+      navigationTimerRef.current = null;
+      setNavigationDirection(null);
+      setCameraTransition(false);
+    }, NAVIGATION_MS);
+  }, [clearNavigationTimer]);
+
+  const cancelRequest = useCallback(() => {
+    requestSerialRef.current += 1;
+    abortRef.current?.abort();
+    abortRef.current = null;
+    setPendingFocus(null);
     return requestSerialRef.current;
   }, []);
 
-  const hydrateSavedPath = useCallback(async (
-    desiredPath: string[],
-    signal: AbortSignal,
-  ) => {
-    if (!wallet || desiredPath.length < 2) return;
-    const start = Math.max(0, desiredPath.length - 5);
-    const parents = desiredPath.slice(start, -1);
-    const missing = parents.filter((item) => !cacheRef.current.has(item));
-    const payloads = await Promise.all(
-      missing.map((focus) => fetchNetwork(wallet, { focus, signal })),
-    );
-    payloads.forEach((payload) => cacheRef.current.set(keyWallet(payload.focusWallet), payload));
-    if (payloads.length > 0) setCacheVersion((value) => value + 1);
-  }, [wallet]);
+  const rememberPayload = useCallback((payload: NetworkData) => {
+    cacheRef.current.set(keyWallet(payload.focusWallet), payload);
+    setCacheVersion((value) => value + 1);
+  }, []);
 
-  const loadRoot = useCallback(async (signal?: AbortSignal) => {
+  const loadRoot = useCallback(async () => {
     if (!wallet) return;
-    const serial = ++requestSerialRef.current;
+    const requestWallet = wallet;
+    const serial = cancelRequest();
+    const controller = new AbortController();
+    abortRef.current = controller;
     setLoadState('loading');
     setLoadError('');
-    setBranchError(null);
-    try {
-      const root = await fetchNetwork(wallet, { signal });
-      if (serial !== requestSerialRef.current) return;
-      cacheRef.current.clear();
-      cacheRef.current.set(keyWallet(root.focusWallet), root);
-      setCacheVersion((value) => value + 1);
-
-      const saved = readSavedState(wallet);
-      let nextPath = [keyWallet(root.rootWallet)];
-      if (saved) {
-        const candidate = saved.activePath.map(keyWallet);
-        if (
-          candidate.length > 0 &&
-          candidate[0] === keyWallet(root.rootWallet) &&
-          candidate.every(validWallet)
-        ) {
-          try {
-            await hydrateSavedPath(candidate, signal ?? new AbortController().signal);
-            if (serial === requestSerialRef.current) nextPath = candidate;
-          } catch {
-            nextPath = [keyWallet(root.rootWallet)];
-          }
-        }
-        setPageByParent(new Map(saved.pageByParent.map(([parent, page]) => [keyWallet(parent), page])));
-        setCollapsedParents(new Set(saved.collapsedParents.map(keyWallet)));
-        setView({
-          x: saved.view.x,
-          y: saved.view.y,
-          scale: clamp(saved.view.scale, MIN_SCALE, MAX_SCALE),
-        });
-      } else {
-        setPageByParent(new Map());
-        setCollapsedParents(new Set());
-        setView({ x: 0, y: 30, scale: 1 });
-      }
-
-      if (serial !== requestSerialRef.current) return;
-      setActivePath(nextPath);
-      setSelectedWallet(null);
-      setExplorerParent(null);
-      setLoadState('ready');
-      setFreshParent(keyWallet(root.rootWallet));
-      clearFreshSoon();
-    } catch (error) {
-      if (signal?.aborted || serial !== requestSerialRef.current) return;
-      setLoadState('error');
-      setLoadError(error instanceof Error ? error.message : t.loadError);
-    }
-  }, [wallet, hydrateSavedPath, clearFreshSoon, t.loadError]);
-
-  useEffect(() => {
-    requestSerialRef.current += 1;
-    branchRequestRef.current?.abort();
-    branchRequestRef.current = null;
-    if (transitionTimerRef.current) window.clearTimeout(transitionTimerRef.current);
-    transitionTimerRef.current = null;
-    cacheRef.current.clear();
-    setCacheVersion((value) => value + 1);
-    setActivePath([]);
     setSelectedWallet(null);
-    setPendingWallet(null);
-    setBranchError(null);
-    setExplorerParent(null);
-    setCollapseAfterDepth(null);
     setSearchQuery('');
     setSearchResults([]);
+    try {
+      const payload = await fetchNetwork(requestWallet, { signal: controller.signal });
+      if (controller.signal.aborted || serial !== requestSerialRef.current) return;
+      if (keyWallet(requestWallet) !== keyWallet(wallet)) return;
+      cacheRef.current.clear();
+      cacheRef.current.set(keyWallet(payload.focusWallet), payload);
+      setRootData(payload);
 
-    if (!wallet || !NETWORK_CANVAS_ENABLED) {
+      const stored = storedStateRef.current;
+      if (stored && keyWallet(stored.focusWallet) !== keyWallet(payload.rootWallet)) {
+        try {
+          const restored = await fetchNetwork(requestWallet, {
+            focus: stored.focusWallet,
+            signal: controller.signal,
+          });
+          if (controller.signal.aborted || serial !== requestSerialRef.current) return;
+          cacheRef.current.set(keyWallet(restored.focusWallet), restored);
+          setFocusWallet(restored.focusWallet);
+          setView(stored.view);
+          initializedWalletRef.current = keyWallet(requestWallet);
+        } catch {
+          if (controller.signal.aborted || serial !== requestSerialRef.current) return;
+          setFocusWallet(payload.rootWallet);
+        }
+      } else {
+        setFocusWallet(payload.rootWallet);
+        if (stored) {
+          setView(stored.view);
+          initializedWalletRef.current = keyWallet(requestWallet);
+        }
+      }
+      setCacheVersion((value) => value + 1);
+      setLoadState('ready');
+    } catch (error) {
+      if (controller.signal.aborted || serial !== requestSerialRef.current) return;
+      setRootData(null);
+      setFocusWallet(null);
+      setLoadError(error instanceof Error ? error.message : t.loadError);
+      setLoadState('error');
+    } finally {
+      if (abortRef.current === controller) abortRef.current = null;
+    }
+  }, [wallet, cancelRequest, t.loadError]);
+
+  useEffect(() => {
+    cacheRef.current.clear();
+    returnViewByChildRef.current.clear();
+    viewByFocusRef.current.clear();
+    initializedWalletRef.current = null;
+    storedStateRef.current = wallet ? readStoredRuntimeState(wallet) : null;
+    setRootData(null);
+    setFocusWallet(null);
+    setPage(0);
+    setSelectedWallet(null);
+    setView({ x: 0, y: 0, scale: 1 });
+    if (!wallet) {
       setLoadState('idle');
+      setLoadError('');
       return;
     }
-
-    const controller = new AbortController();
-    void loadRoot(controller.signal);
-    return () => controller.abort();
-  }, [wallet, loadRoot]);
+    void loadRoot();
+    return () => {
+      cancelRequest();
+    };
+  }, [wallet, loadRoot, cancelRequest]);
 
   useEffect(() => {
     const stage = stageRef.current;
     if (!stage) return;
-    const sync = () => setStageSize({
-      width: stage.clientWidth || 1000,
-      height: stage.clientHeight || 620,
-    });
-    sync();
-    const observer = typeof ResizeObserver === 'function' ? new ResizeObserver(sync) : null;
-    observer?.observe(stage);
-    window.addEventListener('resize', sync);
+    const update = () => {
+      const rect = stage.getBoundingClientRect();
+      setStageSize((current) => {
+        const width = Math.max(0, Math.round(rect.width));
+        const height = Math.max(0, Math.round(rect.height));
+        return current.width === width && current.height === height
+          ? current
+          : { width, height };
+      });
+    };
+    update();
+    const observer = new ResizeObserver(update);
+    observer.observe(stage);
+    return () => observer.disconnect();
+  }, [loadState]);
+
+  // Initial placement is the only size-driven camera write. After this guard
+  // is satisfied, ResizeObserver can never move the camera or any node.
+  useEffect(() => {
+    if (!wallet || loadState !== 'ready' || !currentData) return;
+    if (stageSize.width <= 0 || stageSize.height <= 0) return;
+    const key = keyWallet(wallet);
+    if (initializedWalletRef.current === key) return;
+    initializedWalletRef.current = key;
+    setView(centeredView(stageSize, 1));
+  }, [wallet, loadState, currentData, stageSize]);
+
+  useEffect(() => {
+    if (!wallet || !focusWallet || loadState !== 'ready') return;
+    try {
+      window.sessionStorage.setItem(
+        runtimeSessionKey(wallet),
+        JSON.stringify({ focusWallet, view } satisfies StoredRuntimeState),
+      );
+    } catch {
+      // Session continuity is optional; runtime state remains fully in memory.
+    }
+  }, [wallet, focusWallet, view, loadState]);
+
+  useEffect(() => {
+    const stage = stageRef.current;
+    if (!stage) return;
+    const blockNativeGesture = (event: Event) => {
+      if (event.cancelable) event.preventDefault();
+    };
+    stage.addEventListener('gesturestart', blockNativeGesture, { passive: false });
+    stage.addEventListener('gesturechange', blockNativeGesture, { passive: false });
+    stage.addEventListener('gestureend', blockNativeGesture, { passive: false });
     return () => {
-      observer?.disconnect();
-      window.removeEventListener('resize', sync);
+      stage.removeEventListener('gesturestart', blockNativeGesture);
+      stage.removeEventListener('gesturechange', blockNativeGesture);
+      stage.removeEventListener('gestureend', blockNativeGesture);
     };
   }, [loadState]);
 
-  useEffect(() => {
-    if (!wallet || loadState !== 'ready') return;
-    if (saveTimerRef.current) window.clearTimeout(saveTimerRef.current);
-    saveTimerRef.current = window.setTimeout(() => {
-      const state: SavedState = {
-        activePath,
-        pageByParent: Array.from(pageByParent.entries()),
-        collapsedParents: Array.from(collapsedParents),
-        view,
-      };
-      try {
-        window.sessionStorage.setItem(sessionKey(wallet), JSON.stringify(state));
-      } catch {
-        // The server remains authoritative when storage is unavailable.
+  useEffect(() => () => {
+    cancelRequest();
+    clearNavigationTimer();
+  }, [cancelRequest, clearNavigationTimer]);
+
+  const moveToFocus = useCallback(async (
+    targetWallet: string,
+    direction: NavigationDirection,
+  ) => {
+    if (!wallet || !currentData || pendingFocus) return;
+    const target = keyWallet(targetWallet);
+    const current = keyWallet(currentData.focusWallet);
+    if (target === current) return;
+
+    viewByFocusRef.current.set(current, view);
+    if (direction === 'forward') {
+      returnViewByChildRef.current.set(target, view);
+    }
+
+    const serial = cancelRequest();
+    const controller = new AbortController();
+    abortRef.current = controller;
+    setPendingFocus(target);
+    try {
+      let payload = cacheRef.current.get(target) ?? null;
+      if (!payload) {
+        payload = await fetchNetwork(wallet, { focus: targetWallet, signal: controller.signal });
       }
-    }, 240);
-    return () => {
-      if (saveTimerRef.current) window.clearTimeout(saveTimerRef.current);
-    };
-  }, [wallet, loadState, activePath, pageByParent, collapsedParents, view]);
+      if (controller.signal.aborted || serial !== requestSerialRef.current || !payload) return;
+      rememberPayload(payload);
+      beginNavigationMotion(direction);
+      setFocusWallet(payload.focusWallet);
+      setSelectedWallet(null);
+      setPage(0);
+      setSearchQuery('');
+      setSearchResults([]);
+
+      if (direction === 'back') {
+        const exactParentView = returnViewByChildRef.current.get(current);
+        setView(
+          exactParentView ??
+          viewByFocusRef.current.get(target) ??
+          centeredView(stageSize, 1),
+        );
+      } else {
+        setView(
+          viewByFocusRef.current.get(target) ??
+          centeredView(stageSize, 1),
+        );
+      }
+    } catch (error) {
+      if (controller.signal.aborted || serial !== requestSerialRef.current) return;
+      setLoadError(error instanceof Error ? error.message : t.loadError);
+    } finally {
+      if (abortRef.current === controller) abortRef.current = null;
+      if (serial === requestSerialRef.current) setPendingFocus(null);
+    }
+  }, [wallet, currentData, pendingFocus, view, cancelRequest, rememberPayload, beginNavigationMotion, stageSize, t.loadError]);
+
+  const returnToParent = useCallback(() => {
+    if (!currentData || pendingFocus || currentData.breadcrumb.length <= 1) return;
+    const parent = currentData.breadcrumb[currentData.breadcrumb.length - 2];
+    void moveToFocus(parent, 'back');
+  }, [currentData, pendingFocus, moveToFocus]);
+
+  const centerNetwork = useCallback(() => {
+    if (stageSize.width <= 0 || stageSize.height <= 0) return;
+    setCameraTransition(true);
+    setView(centeredView(stageSize, 1));
+    window.setTimeout(() => setCameraTransition(false), 240);
+  }, [stageSize]);
+
+  const zoomAt = useCallback((screenPoint: Point, nextScale: number) => {
+    setView((current) => {
+      const scale = clamp(nextScale, MIN_SCALE, MAX_SCALE);
+      const worldX = (screenPoint.x - current.x) / current.scale;
+      const worldY = (screenPoint.y - current.y) / current.scale;
+      return {
+        x: screenPoint.x - worldX * scale,
+        y: screenPoint.y - worldY * scale,
+        scale,
+      };
+    });
+  }, []);
+
+  const zoomByButton = useCallback((direction: 1 | -1) => {
+    if (direction < 0 && view.scale <= MIN_SCALE + 0.015 && currentData && currentData.breadcrumb.length > 1) {
+      returnToParent();
+      return;
+    }
+    if (stageSize.width <= 0 || stageSize.height <= 0) return;
+    setCameraTransition(true);
+    const factor = direction > 0 ? 1.16 : 0.86;
+    zoomAt(
+      { x: stageSize.width / 2, y: stageSize.height / 2 },
+      view.scale * factor,
+    );
+    window.setTimeout(() => setCameraTransition(false), 220);
+  }, [view.scale, currentData, returnToParent, stageSize, zoomAt]);
 
   useEffect(() => {
-    if (!wallet || loadState !== 'ready') return;
-    const query = searchQuery.trim().toLowerCase();
+    if (!wallet || !currentData) return;
+    const query = searchQuery.trim();
     if (query.length < 3) {
       setSearchResults([]);
       setSearching(false);
       return;
     }
     const controller = new AbortController();
-    const timer = window.setTimeout(() => {
+    const timer = window.setTimeout(async () => {
       setSearching(true);
-      void fetchNetwork(wallet, { query, signal: controller.signal })
-        .then((payload) => setSearchResults(payload.searchResults ?? []))
-        .catch(() => setSearchResults([]))
-        .finally(() => {
-          if (!controller.signal.aborted) setSearching(false);
+      try {
+        const result = await fetchNetwork(wallet, {
+          focus: currentData.focusWallet,
+          query,
+          signal: controller.signal,
         });
+        if (!controller.signal.aborted) setSearchResults(result.searchResults ?? []);
+      } catch {
+        if (!controller.signal.aborted) setSearchResults([]);
+      } finally {
+        if (!controller.signal.aborted) setSearching(false);
+      }
     }, SEARCH_DELAY_MS);
     return () => {
-      controller.abort();
       window.clearTimeout(timer);
+      controller.abort();
     };
-  }, [wallet, loadState, searchQuery]);
+  }, [wallet, currentData, searchQuery]);
 
-  useEffect(() => () => {
-    branchRequestRef.current?.abort();
-    if (transitionTimerRef.current) window.clearTimeout(transitionTimerRef.current);
-    if (freshTimerRef.current) window.clearTimeout(freshTimerRef.current);
-    if (saveTimerRef.current) window.clearTimeout(saveTimerRef.current);
-  }, []);
-
-  const memberByWallet = useMemo(() => {
-    const map = new Map<string, NetworkChild>();
-    cacheRef.current.forEach((payload) => {
-      payload.children.forEach((child) => map.set(keyWallet(child.wallet), child));
-    });
-    return map;
-  }, [cacheVersion]);
-
-  const rootData = rootWallet ? cacheRef.current.get(rootWallet) ?? null : null;
-
-  const layout = useMemo(() => buildLayout({
-    rootWallet,
-    activePath,
-    cache: cacheRef.current,
-    memberByWallet,
-    pageByParent,
-    collapsedParents,
-    explorerParent,
-    isMobile,
-    freshParent,
-  }), [
-    rootWallet,
-    activePath,
-    memberByWallet,
-    pageByParent,
-    collapsedParents,
-    explorerParent,
-    isMobile,
-    freshParent,
-    cacheVersion,
-  ]);
-
-  const activeSet = useMemo(() => new Set(activePath), [activePath]);
-
-  const toneFor = useCallback((visual: PersonVisual): Tone => {
-    if (!selectedWallet) return 'normal';
-    if (visual.wallet === selectedWallet || activeSet.has(visual.wallet)) return 'focus';
-    if (visual.parentWallet && activeSet.has(visual.parentWallet)) return 'near';
-    return 'normal';
-  }, [selectedWallet, activeSet]);
-
-  const commitPath = useCallback((
-    nextPath: string[],
-    keepDepth: number,
-    bloomParent: string | null,
-  ) => {
-    if (transitionTimerRef.current) window.clearTimeout(transitionTimerRef.current);
-    transitionTimerRef.current = null;
-    const hasOldDescendants = activePath.length - 1 > keepDepth;
-    const finish = () => {
-      setActivePath(nextPath);
-      setCollapseAfterDepth(null);
-      setPendingWallet(null);
-      setBranchError(null);
-      setExplorerParent((current) => current && nextPath.includes(current) ? current : null);
-      if (bloomParent) {
-        setFreshParent(bloomParent);
-        clearFreshSoon();
-      }
-    };
-    if (!hasOldDescendants) {
-      finish();
-      return;
-    }
-    setCollapseAfterDepth(keepDepth);
-    transitionTimerRef.current = window.setTimeout(() => {
-      transitionTimerRef.current = null;
-      finish();
-    }, COLLAPSE_MS);
-  }, [activePath, clearFreshSoon]);
-
-  const activateWallet = useCallback(async (
-    targetWallet: string,
-    parentDepth: number,
-  ) => {
-    if (!wallet || suppressClickRef.current) return;
-    const serial = cancelBranchRequest();
-    const target = keyWallet(targetWallet);
-    setSelectedWallet(target);
-    setBranchError(null);
-
-    if (activePath[parentDepth + 1] === target) {
-      if (collapsedParents.has(target)) {
-        setCollapsedParents((current) => {
-          const next = new Set(current);
-          next.delete(target);
-          return next;
-        });
-        setFreshParent(target);
-        clearFreshSoon();
-      }
-      return;
-    }
-
-    const prefix = activePath.slice(0, parentDepth + 1);
-    const nextPath = [...prefix, target];
-    const parent = cacheRef.current.get(activePath[parentDepth]);
-    const member = parent?.children.find((child) => keyWallet(child.wallet) === target) ?? null;
-
-    setCollapsedParents((current) => {
-      if (!current.has(target)) return current;
-      const next = new Set(current);
-      next.delete(target);
-      return next;
-    });
-
-    if (!member || member.direct <= 0) {
-      commitPath(nextPath, parentDepth + 1, null);
-      return;
-    }
-
-    const cached = cacheRef.current.get(target);
-    if (cached) {
-      commitPath(nextPath, parentDepth + 1, target);
-      return;
-    }
-
-    const controller = new AbortController();
-    branchRequestRef.current = controller;
-    setPendingWallet(target);
-    try {
-      const payload = await fetchNetwork(wallet, { focus: target, signal: controller.signal });
-      if (controller.signal.aborted || serial !== requestSerialRef.current) return;
-      putCache(payload);
-      commitPath(nextPath, parentDepth + 1, target);
-    } catch (error) {
-      if (controller.signal.aborted || serial !== requestSerialRef.current) return;
-      setPendingWallet(null);
-      setBranchError({
-        wallet: target,
-        parentDepth,
-        message: error instanceof Error ? error.message : t.loadError,
-      });
-    } finally {
-      if (branchRequestRef.current === controller) branchRequestRef.current = null;
-    }
-  }, [
-    wallet,
-    activePath,
-    collapsedParents,
-    cancelBranchRequest,
-    commitPath,
-    clearFreshSoon,
-    putCache,
-    t.loadError,
-  ]);
-
-  const collapseNode = useCallback((walletToCollapse: string, depth: number) => {
-    if (suppressClickRef.current) return;
-    cancelBranchRequest();
-    const target = keyWallet(walletToCollapse);
-    setSelectedWallet(target);
-    if (collapsedParents.has(target)) {
-      setCollapsedParents((current) => {
-        const next = new Set(current);
-        next.delete(target);
-        return next;
-      });
-      setFreshParent(target);
-      clearFreshSoon();
-      return;
-    }
-
-    setCollapseAfterDepth(depth);
-    transitionTimerRef.current = window.setTimeout(() => {
-      transitionTimerRef.current = null;
-      setActivePath((current) => current.slice(0, depth + 1));
-      setCollapsedParents((current) => new Set(current).add(target));
-      setExplorerParent((current) => current === target ? null : current);
-      setCollapseAfterDepth(null);
-    }, COLLAPSE_MS);
-  }, [collapsedParents, cancelBranchRequest, clearFreshSoon]);
-
-  const openExplorer = useCallback((parentWallet: string) => {
-    if (suppressClickRef.current) return;
-    cancelBranchRequest();
-    setExplorerParent(parentWallet);
-    setPageByParent((current) => new Map(current).set(parentWallet, current.get(parentWallet) ?? 0));
-  }, [cancelBranchRequest]);
-
-  const changePage = useCallback((pager: PagerVisual, direction: number) => {
-    if (suppressClickRef.current) return;
-    cancelBranchRequest();
-    const nextPage = clamp(pager.page + direction, 0, pager.pageCount - 1);
-    if (nextPage === pager.page) return;
-    const parentDepth = activePath.indexOf(pager.parentWallet);
-    if (parentDepth >= 0 && activePath[parentDepth + 1]) {
-      const parent = cacheRef.current.get(pager.parentWallet);
-      const activeChild = activePath[parentDepth + 1];
-      const index = parent?.children.findIndex((child) => keyWallet(child.wallet) === activeChild) ?? -1;
-      const activePage = index >= 0 ? Math.floor(index / layout.pageSize) : -1;
-      if (activePage !== nextPage) {
-        setActivePath((current) => current.slice(0, parentDepth + 1));
-        setSelectedWallet(pager.parentWallet);
-      }
-    }
-    setPageByParent((current) => new Map(current).set(pager.parentWallet, nextPage));
-    setExplorerParent(pager.parentWallet);
-  }, [activePath, cancelBranchRequest, layout.pageSize]);
-
-  const closeExplorer = useCallback((pager: PagerVisual) => {
-    cancelBranchRequest();
-    const parentDepth = activePath.indexOf(pager.parentWallet);
-    const parent = cacheRef.current.get(pager.parentWallet);
-    const activeChild = parentDepth >= 0 ? activePath[parentDepth + 1] : null;
-    if (activeChild && parent) {
-      const index = parent.children.findIndex((child) => keyWallet(child.wallet) === activeChild);
-      if (index >= layout.previewSize) {
-        setActivePath((current) => current.slice(0, parentDepth + 1));
-        setSelectedWallet(pager.parentWallet);
-      }
-    }
-    setExplorerParent(null);
-  }, [activePath, cancelBranchRequest, layout.previewSize]);
-
-  const focusSearchResult = useCallback(async (targetWallet: string) => {
-    if (!wallet) return;
-    const serial = cancelBranchRequest();
-    const target = keyWallet(targetWallet);
-    const controller = new AbortController();
-    branchRequestRef.current = controller;
-    setPendingWallet(target);
-    setBranchError(null);
-    try {
-      const targetData = await fetchNetwork(wallet, { focus: target, signal: controller.signal });
-      if (controller.signal.aborted || serial !== requestSerialRef.current) return;
-      const breadcrumb = targetData.breadcrumb.map(keyWallet);
-      const start = Math.max(0, breadcrumb.length - 5);
-      const parents = breadcrumb.slice(start, -1);
-      const missing = parents.filter((item) => !cacheRef.current.has(item));
-      const payloads = await Promise.all(
-        missing.map((focus) => fetchNetwork(wallet, { focus, signal: controller.signal })),
-      );
-      if (controller.signal.aborted || serial !== requestSerialRef.current) return;
-      payloads.forEach((payload) => cacheRef.current.set(keyWallet(payload.focusWallet), payload));
-      cacheRef.current.set(target, targetData);
-      setCacheVersion((value) => value + 1);
-
-      const nextPages = new Map(pageByParent);
-      const pageSize = isMobile ? 5 : 8;
-      for (let depth = start; depth < breadcrumb.length - 1; depth += 1) {
-        const parentWallet = breadcrumb[depth];
-        const childWallet = breadcrumb[depth + 1];
-        const parent = cacheRef.current.get(parentWallet);
-        const index = parent?.children.findIndex((child) => keyWallet(child.wallet) === childWallet) ?? -1;
-        if (index >= 0) nextPages.set(parentWallet, Math.floor(index / pageSize));
-      }
-      setPageByParent(nextPages);
-      setCollapsedParents((current) => {
-        const next = new Set(current);
-        breadcrumb.forEach((item) => next.delete(item));
-        return next;
-      });
-
-      let common = 0;
-      while (common < activePath.length && common < breadcrumb.length && activePath[common] === breadcrumb[common]) common += 1;
-      const keepDepth = Math.max(0, common - 1);
-      setSelectedWallet(target);
-      setSearchQuery('');
-      setSearchResults([]);
-      commitPath(breadcrumb, keepDepth, target);
-    } catch (error) {
-      if (controller.signal.aborted || serial !== requestSerialRef.current) return;
-      setBranchError({
-        wallet: target,
-        parentDepth: Math.max(0, activePath.length - 1),
-        message: error instanceof Error ? error.message : t.loadError,
-      });
-      setPendingWallet(null);
-    } finally {
-      if (branchRequestRef.current === controller) branchRequestRef.current = null;
-    }
-  }, [wallet, activePath, pageByParent, isMobile, cancelBranchRequest, commitPath, t.loadError]);
-
-  useEffect(() => {
-    if (loadState !== 'ready' || activePath.length === 0) return;
-    const last = activePath[activePath.length - 1];
-    const position = layout.positions.get(last);
-    if (!position) return;
-    const safeTop = 88;
-    const safeBottom = stageSize.height - (isMobile ? 150 : 95);
-    const safeLeft = 68;
-    const safeRight = stageSize.width - (selectedWallet && !isMobile ? 270 : 68);
-    const screenX = stageSize.width / 2 + view.x + (position.x - CENTER_X) * view.scale;
-    const screenY = view.y + position.y * view.scale;
-    let dx = 0;
-    let dy = 0;
-    if (screenX < safeLeft) dx = safeLeft - screenX;
-    if (screenX > safeRight) dx = safeRight - screenX;
-    if (screenY < safeTop) dy = safeTop - screenY;
-    if (screenY > safeBottom) dy = safeBottom - screenY;
-    if (dx || dy) {
-      setView((current) => ({ ...current, x: current.x + dx, y: current.y + dy }));
-    }
-  }, [activePath, layout.positions, stageSize, view.scale, selectedWallet, isMobile]);
-
-  const selectedMember = selectedWallet ? memberByWallet.get(selectedWallet) ?? null : null;
-  const selectedData = selectedWallet ? cacheRef.current.get(selectedWallet) ?? null : null;
-  const selectedNetwork = selectedData?.summary.network ?? selectedMember?.network ?? 0;
-  const selectedDirect = selectedData?.summary.direct ?? selectedMember?.direct ?? 0;
-  const selectedQualified = selectedData?.summary.qualified ?? selectedMember?.qualified ?? 0;
-  const selectedStatus = selectedMember?.status ?? 'IN_PROGRESS';
-
-  const loadingVisual = pendingWallet
-    ? layout.visuals.find((visual) => visual.kind === 'person' && visual.wallet === pendingWallet) as PersonVisual | undefined
-    : undefined;
-  const errorVisual = branchError
-    ? layout.visuals.find((visual) => visual.kind === 'person' && visual.wallet === branchError.wallet) as PersonVisual | undefined
-    : undefined;
+  const focusSearchResult = useCallback((result: SearchResult) => {
+    void moveToFocus(result.wallet, 'forward');
+  }, [moveToFocus]);
 
   const onPointerDownCapture = (event: ReactPointerEvent<HTMLDivElement>) => {
-    if ((event.target as HTMLElement).closest('[data-no-pan="true"]')) return;
     const point = { x: event.clientX, y: event.clientY };
     pointersRef.current.set(event.pointerId, point);
-    dragDistanceRef.current = 0;
-    suppressClickRef.current = false;
+    const target = event.target instanceof Element ? event.target : null;
+    const interactive = Boolean(target?.closest('button,input,a,[data-no-pan="true"]'));
     try { event.currentTarget.setPointerCapture(event.pointerId); } catch { /* best effort */ }
+
     if (pointersRef.current.size === 1) {
-      singlePointerRef.current = point;
+      panPointerRef.current = { id: event.pointerId, point, allowed: !interactive };
       pinchRef.current = null;
-    } else if (pointersRef.current.size === 2) {
+      pinchReturnIntentRef.current = false;
+      return;
+    }
+
+    if (pointersRef.current.size === 2) {
       const [a, b] = Array.from(pointersRef.current.values());
-      pinchRef.current = { center: midpoint(a, b), distance: distance(a, b) };
-      singlePointerRef.current = null;
+      const center = midpoint(a, b);
+      const startView = view;
+      pinchRef.current = {
+        startDistance: Math.max(1, distance(a, b)),
+        startCenter: center,
+        startView,
+        worldAnchor: {
+          x: (center.x - (stageRef.current?.getBoundingClientRect().left ?? 0) - startView.x) / startView.scale,
+          y: (center.y - (stageRef.current?.getBoundingClientRect().top ?? 0) - startView.y) / startView.scale,
+        },
+      };
+      panPointerRef.current = null;
       suppressClickRef.current = true;
     }
   };
@@ -1083,42 +738,41 @@ export function AppNetwork({ locale }: { locale: Locale }) {
   const onPointerMoveCapture = (event: ReactPointerEvent<HTMLDivElement>) => {
     if (!pointersRef.current.has(event.pointerId)) return;
     pointersRef.current.set(event.pointerId, { x: event.clientX, y: event.clientY });
+
     if (pointersRef.current.size === 1) {
-      const current = Array.from(pointersRef.current.values())[0];
-      const previous = singlePointerRef.current;
-      if (previous) {
-        const dx = current.x - previous.x;
-        const dy = current.y - previous.y;
-        dragDistanceRef.current += Math.hypot(dx, dy);
-        if (dragDistanceRef.current > 6) suppressClickRef.current = true;
+      const pan = panPointerRef.current;
+      if (!pan || pan.id !== event.pointerId || !pan.allowed) return;
+      const current = { x: event.clientX, y: event.clientY };
+      const dx = current.x - pan.point.x;
+      const dy = current.y - pan.point.y;
+      if (Math.hypot(dx, dy) > 0) {
+        if (Math.hypot(current.x - pan.point.x, current.y - pan.point.y) > 2) {
+          suppressClickRef.current = true;
+        }
         setView((value) => ({ ...value, x: value.x + dx, y: value.y + dy }));
+        panPointerRef.current = { ...pan, point: current };
       }
-      singlePointerRef.current = current;
       return;
     }
-    if (pointersRef.current.size === 2) {
+
+    if (pointersRef.current.size === 2 && pinchRef.current) {
+      const rect = stageRef.current?.getBoundingClientRect();
+      if (!rect) return;
       const [a, b] = Array.from(pointersRef.current.values());
       const center = midpoint(a, b);
       const nextDistance = distance(a, b);
-      const previous = pinchRef.current;
-      if (previous && previous.distance > 0) {
-        const rect = stageRef.current?.getBoundingClientRect();
-        if (rect) {
-          const px = center.x - rect.left - rect.width / 2;
-          const py = center.y - rect.top;
-          setView((value) => {
-            const nextScale = clamp(value.scale * (nextDistance / previous.distance), MIN_SCALE, MAX_SCALE);
-            const worldX = (px - value.x) / value.scale;
-            const worldY = (py - value.y) / value.scale;
-            return {
-              x: px - worldX * nextScale + (center.x - previous.center.x),
-              y: py - worldY * nextScale + (center.y - previous.center.y),
-              scale: nextScale,
-            };
-          });
-        }
+      const pinch = pinchRef.current;
+      const rawScale = pinch.startView.scale * (nextDistance / pinch.startDistance);
+      const nextScale = clamp(rawScale, MIN_SCALE, MAX_SCALE);
+      const localCenter = { x: center.x - rect.left, y: center.y - rect.top };
+      setView({
+        x: localCenter.x - pinch.worldAnchor.x * nextScale,
+        y: localCenter.y - pinch.worldAnchor.y * nextScale,
+        scale: nextScale,
+      });
+      if (rawScale < MIN_SCALE * 0.88 && currentData && currentData.breadcrumb.length > 1) {
+        pinchReturnIntentRef.current = true;
       }
-      pinchRef.current = { center, distance: nextDistance };
       suppressClickRef.current = true;
     }
   };
@@ -1126,11 +780,22 @@ export function AppNetwork({ locale }: { locale: Locale }) {
   const onPointerEndCapture = (event: ReactPointerEvent<HTMLDivElement>) => {
     pointersRef.current.delete(event.pointerId);
     if (pointersRef.current.size === 1) {
-      singlePointerRef.current = Array.from(pointersRef.current.values())[0];
+      const [remainingId, remainingPoint] = Array.from(pointersRef.current.entries())[0];
+      panPointerRef.current = { id: remainingId, point: remainingPoint, allowed: false };
       pinchRef.current = null;
-    } else if (pointersRef.current.size === 0) {
-      singlePointerRef.current = null;
+      if (pinchReturnIntentRef.current) {
+        pinchReturnIntentRef.current = false;
+        returnToParent();
+      }
+      return;
+    }
+    if (pointersRef.current.size === 0) {
+      panPointerRef.current = null;
       pinchRef.current = null;
+      if (pinchReturnIntentRef.current) {
+        pinchReturnIntentRef.current = false;
+        returnToParent();
+      }
       window.setTimeout(() => {
         suppressClickRef.current = false;
       }, 0);
@@ -1141,27 +806,35 @@ export function AppNetwork({ locale }: { locale: Locale }) {
     event.preventDefault();
     const rect = stageRef.current?.getBoundingClientRect();
     if (!rect) return;
-    const px = event.clientX - rect.left - rect.width / 2;
-    const py = event.clientY - rect.top;
-    const factor = event.deltaY < 0 ? 1.08 : 0.92;
-    setView((value) => {
-      const nextScale = clamp(value.scale * factor, MIN_SCALE, MAX_SCALE);
-      const worldX = (px - value.x) / value.scale;
-      const worldY = (py - value.y) / value.scale;
-      return {
-        x: px - worldX * nextScale,
-        y: py - worldY * nextScale,
-        scale: nextScale,
-      };
-    });
+
+    if (
+      event.deltaY > 0 &&
+      view.scale <= MIN_SCALE + 0.01 &&
+      currentData &&
+      currentData.breadcrumb.length > 1
+    ) {
+      wheelReturnDistanceRef.current += Math.abs(event.deltaY);
+      if (wheelReturnDistanceRef.current >= 160) {
+        wheelReturnDistanceRef.current = 0;
+        returnToParent();
+      }
+      return;
+    }
+
+    if (event.deltaY <= 0 || view.scale > MIN_SCALE + 0.01) {
+      wheelReturnDistanceRef.current = 0;
+    }
+    const point = { x: event.clientX - rect.left, y: event.clientY - rect.top };
+    const factor = event.deltaY < 0 ? 1.09 : 0.91;
+    zoomAt(point, view.scale * factor);
   };
 
   if (!NETWORK_CANVAS_ENABLED) return null;
 
   if (!wallet) {
     return (
-      <section className="networkCard networkCanvasPage networkStateCard">
-        <div className="stateGlyph"><NeutralAvatar root /></div>
+      <section className="networkCard networkStateCard">
+        <div className="stateGlyph"><NetworkGlyph size={34} /></div>
         <h1>{t.connectTitle}</h1>
         <p>{t.connectDescription}</p>
         <button type="button" onClick={openWallet} disabled={isWalletActionPending}>{t.connectWallet}</button>
@@ -1172,7 +845,7 @@ export function AppNetwork({ locale }: { locale: Locale }) {
 
   if (loadState === 'loading' || loadState === 'idle') {
     return (
-      <section className="networkCard networkCanvasPage networkStateCard" aria-busy="true">
+      <section className="networkCard networkStateCard" aria-busy="true">
         <div className="loadingDots" aria-hidden="true"><i /><i /><i /></div>
         <h1>{t.title}</h1>
         <p>{t.directNetwork}</p>
@@ -1181,32 +854,33 @@ export function AppNetwork({ locale }: { locale: Locale }) {
     );
   }
 
-  if (loadState === 'error' || !rootData) {
+  if (loadState === 'error' || !rootData || !currentData) {
     return (
-      <section className="networkCard networkCanvasPage networkStateCard">
+      <section className="networkCard networkStateCard">
         <div className="stateGlyph error">!</div>
         <h1>{t.loadError}</h1>
-        <p>{loadError}</p>
+        <p>{loadError || t.loadError}</p>
         <button type="button" onClick={() => void loadRoot()}>{t.retry}</button>
         <style jsx>{stateStyles}</style>
       </section>
     );
   }
 
-  if (rootData.summary.network === 0) {
-    return (
-      <section className="networkCard networkCanvasPage networkStateCard">
-        <div className="stateGlyph"><NetworkIdentity address={rootWallet} root tone="focus" showLabel={false} /></div>
-        <h1>{t.emptyTitle}</h1>
-        <p>{t.emptyDescription}</p>
-        <button type="button" onClick={() => window.location.assign('/')}>{t.inviteFriend}</button>
-        <style jsx>{stateStyles}</style>
-      </section>
-    );
-  }
+  const focusKey = keyWallet(currentData.focusWallet);
+  const rootKey = keyWallet(currentData.rootWallet);
+  const focusIsRoot = focusKey === rootKey;
+  const breadcrumb = currentData.breadcrumb;
+  const breadcrumbStart = Math.max(0, breadcrumb.length - 4);
+  const shownBreadcrumb = breadcrumb.slice(breadcrumbStart);
+  const worldStyle: CSSProperties = {
+    width: WORLD_W,
+    height: WORLD_H,
+    transform: `translate3d(${view.x}px,${view.y}px,0) scale(${view.scale})`,
+    transformOrigin: '0 0',
+  };
 
   return (
-    <section className="networkCard networkCanvasPage">
+    <section className="networkCard networkCanvasPage" data-network-runtime="single">
       <header className="networkHeader" data-no-pan="true">
         <div className="headerTitle">
           <span>NETWORK</span>
@@ -1216,40 +890,62 @@ export function AppNetwork({ locale }: { locale: Locale }) {
           <strong>{rootData.summary.network.toLocaleString()}</strong>
           <span>{t.networkSize}</span>
           <i />
-          <strong className="growth">
-            {rootData.summary.thisRound === null
-              ? '—'
-              : `+${rootData.summary.thisRound.toLocaleString()}`}
-          </strong>
+          <strong className="growth">{rootData.summary.thisRound === null ? '–' : `+${rootData.summary.thisRound}`}</strong>
           <span>{t.thisRound}</span>
         </div>
       </header>
 
-      <div className="searchWrap" data-no-pan="true">
-        <span aria-hidden="true">⌕</span>
-        <input
-          value={searchQuery}
-          onChange={(event) => setSearchQuery(event.target.value)}
-          placeholder={t.searchPlaceholder}
-          aria-label={t.searchPlaceholder}
-          autoComplete="off"
-          spellCheck={false}
-        />
-        {searching ? <i className="searchSpinner" aria-hidden="true" /> : null}
-        {searchQuery.trim().length >= 3 ? (
-          <div className="searchResults">
-            {searchResults.length > 0 ? searchResults.map((result) => (
-              <button
-                key={result.wallet}
-                type="button"
-                onClick={() => void focusSearchResult(result.wallet)}
-              >
-                <span>{shortWallet(result.wallet)}</span>
-                <small>{result.depth}</small>
-              </button>
-            )) : !searching ? <p>{t.noSearchResults}</p> : null}
-          </div>
-        ) : null}
+      <div className="networkToolbar" data-no-pan="true">
+        <nav className="breadcrumbs" aria-label={t.directNetwork}>
+          {breadcrumbStart > 0 ? <span className="crumbEllipsis">…</span> : null}
+          {shownBreadcrumb.map((item, index) => {
+            const absoluteIndex = breadcrumbStart + index;
+            const isCurrent = absoluteIndex === breadcrumb.length - 1;
+            return (
+              <span className="crumbWrap" key={keyWallet(item)}>
+                {index > 0 || breadcrumbStart > 0 ? <span className="crumbSep">›</span> : null}
+                <button
+                  type="button"
+                  className={isCurrent ? 'crumb current' : 'crumb'}
+                  disabled={isCurrent || Boolean(pendingFocus)}
+                  onClick={() => {
+                    if (!isCurrent) void moveToFocus(item, 'back');
+                  }}
+                >
+                  {absoluteIndex === 0 ? c.you : shortWallet(item)}
+                </button>
+              </span>
+            );
+          })}
+        </nav>
+        <div className="searchWrap">
+          <input
+            value={searchQuery}
+            onChange={(event) => setSearchQuery(event.target.value)}
+            placeholder={t.searchPlaceholder}
+            aria-label={t.searchPlaceholder}
+            autoComplete="off"
+            spellCheck={false}
+          />
+          {searchQuery.trim().length >= 3 ? (
+            <div className="searchResults" role="listbox">
+              {searching ? (
+                <span className="searchStatus">…</span>
+              ) : searchResults.length ? searchResults.slice(0, 8).map((result) => (
+                <button
+                  type="button"
+                  key={`${keyWallet(result.wallet)}:${result.depth}`}
+                  onClick={() => focusSearchResult(result)}
+                >
+                  <strong>{shortWallet(result.wallet)}</strong>
+                  <span>{c.branch} · {result.depth}</span>
+                </button>
+              )) : (
+                <span className="searchStatus">{t.noSearchResults}</span>
+              )}
+            </div>
+          ) : null}
+        </div>
       </div>
 
       <div
@@ -1260,196 +956,200 @@ export function AppNetwork({ locale }: { locale: Locale }) {
         onPointerUpCapture={onPointerEndCapture}
         onPointerCancelCapture={onPointerEndCapture}
         onWheel={onWheel}
-        onClick={(event) => {
-          if ((event.target as HTMLElement).closest('[data-network-interactive="true"]')) return;
-          if (suppressClickRef.current || dragDistanceRef.current > 6) return;
-          setSelectedWallet(null);
-          setBranchError(null);
-        }}
       >
-        <div className="ambient" aria-hidden="true" />
+        <div
+          className={`world${cameraTransition ? ' cameraTransition' : ''}`}
+          style={worldStyle}
+          aria-busy={pendingFocus ? true : undefined}
+        >
+          <div className={`worldContent${navigationDirection ? ` nav-${navigationDirection}` : ''}`}>
+            <svg className="edges" width={WORLD_W} height={WORLD_H} aria-hidden="true">
+              {visibleChildren.map((child) => (
+                <path
+                  key={`edge:${keyWallet(child.wallet)}`}
+                  d={edgePath(FOCUS_X, FOCUS_Y + 42, child.x, child.y - 34)}
+                  className={child.status === 'REWARDED' ? 'edge rewarded' : 'edge'}
+                />
+              ))}
+              {Array.from({ length: emptySlotCount }).map((_, index) => {
+                const slotX = FOCUS_X + (index === 0 ? -95 : 95);
+                const slotY = FOCUS_Y + 184;
+                return (
+                  <path
+                    key={`slot-edge:${index}`}
+                    d={edgePath(FOCUS_X, FOCUS_Y + 42, slotX, slotY - 30)}
+                    className="edge slotEdge"
+                  />
+                );
+              })}
+            </svg>
 
-        {layout.startDepth > 0 ? (
-          <div className="pathContext" data-no-pan="true" data-network-interactive="true">
-            <span>{c.you}</span><i>›</i><span>…</span><i>›</i><strong>{shortWallet(activePath[layout.startDepth])}</strong>
+            <button
+              type="button"
+              className={`personNode focusNode${selectedWallet === focusKey ? ' selected' : ''}`}
+              style={{ left: FOCUS_X, top: FOCUS_Y }}
+              onClick={() => {
+                if (suppressClickRef.current) return;
+                setSelectedWallet(focusKey);
+              }}
+              data-no-pan="true"
+            >
+              <NetworkIdentity address={currentData.focusWallet} root />
+              <span className="nodeMeta">
+                <strong>{focusIsRoot ? c.you : shortWallet(currentData.focusWallet)}</strong>
+                <small>{currentData.summary.network.toLocaleString()} {t.networkSize}</small>
+              </span>
+            </button>
+
+            {visibleChildren.map((child) => {
+              const childKey = keyWallet(child.wallet);
+              const isSelected = selectedWallet === childKey;
+              return (
+                <button
+                  type="button"
+                  key={childKey}
+                  className={`personNode childNode status-${child.status.toLowerCase()}${isSelected ? ' selected' : ''}`}
+                  style={{ left: child.x, top: child.y }}
+                  onClick={() => {
+                    if (suppressClickRef.current) return;
+                    setSelectedWallet(childKey);
+                  }}
+                  data-no-pan="true"
+                >
+                  <NetworkIdentity address={child.wallet} />
+                  <span className="nodeMeta">
+                    <strong>{shortWallet(child.wallet)}</strong>
+                    <small>{statusLabel(child.status, locale)}</small>
+                  </span>
+                  {pendingFocus === childKey ? <span className="nodeBusy" aria-hidden="true" /> : null}
+                </button>
+              );
+            })}
+
+            {Array.from({ length: emptySlotCount }).map((_, index) => {
+              const slotX = FOCUS_X + (index === 0 ? -95 : 95);
+              const slotY = FOCUS_Y + 184;
+              return (
+                <button
+                  type="button"
+                  className="slotNode"
+                  key={`slot:${index}`}
+                  style={{ left: slotX, top: slotY }}
+                  onClick={goHomeWithoutReload}
+                  data-no-pan="true"
+                  aria-label={t.inviteFriend}
+                >
+                  <span>+</span>
+                  <small>{t.inviteFriend}</small>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        {pageCount > 1 ? (
+          <div className="pager" data-no-pan="true">
+            <button
+              type="button"
+              onClick={() => setPage((value) => clamp(value - 1, 0, pageCount - 1))}
+              disabled={safePage === 0}
+              aria-label={c.previous}
+            >‹</button>
+            <span>{safePage + 1} / {pageCount}</span>
+            <button
+              type="button"
+              onClick={() => setPage((value) => clamp(value + 1, 0, pageCount - 1))}
+              disabled={safePage >= pageCount - 1}
+              aria-label={c.next}
+            >›</button>
           </div>
         ) : null}
 
-        <div
-          className="world"
-          style={{
-            width: PLANE_W,
-            height: PLANE_H,
-            marginLeft: -PLANE_W / 2,
-            transform: `translate3d(${view.x}px,${view.y}px,0) scale(${view.scale})`,
-          }}
-        >
-          <svg className="edges" width={PLANE_W} height={PLANE_H} viewBox={`0 0 ${PLANE_W} ${PLANE_H}`} aria-hidden="true">
-            {layout.edges.map((edge) => {
-              const collapsing = collapseAfterDepth !== null && edge.parentDepth >= collapseAfterDepth;
-              return (
-                <line
-                  key={edge.key}
-                  className={`${edge.active ? 'activeEdge' : ''} ${edge.fresh ? 'freshEdge' : ''} ${collapsing ? 'collapsing' : ''}`}
-                  x1={edge.x1}
-                  y1={edge.y1}
-                  x2={edge.x2}
-                  y2={edge.y2}
-                  pathLength={1}
-                  style={{ '--stagger': `${edge.stagger}ms` } as CSSProperties}
-                />
-              );
-            })}
-          </svg>
-
-          {layout.visuals.map((visual) => {
-            const collapsing = collapseAfterDepth !== null && visual.depth > collapseAfterDepth;
-            if (visual.kind === 'cluster') {
-              return (
-                <button
-                  key={visual.key}
-                  type="button"
-                  className={`clusterNode ${freshParent === visual.parentWallet ? 'freshNode' : ''} ${collapsing ? 'collapsing' : ''}`}
-                  style={{ left: visual.x, top: visual.y } as CSSProperties}
-                  data-network-interactive="true"
-                  onClick={() => openExplorer(visual.parentWallet)}
-                >
-                  <span className="clusterStack" aria-hidden="true"><i /><i /><i /></span>
-                  <strong>+{visual.remaining}</strong>
-                  <small>{t.direct}</small>
-                </button>
-              );
-            }
-
-            const isRootNode = visual.root;
-            const isActiveNode = activeSet.has(visual.wallet);
-            const nodeTone = toneFor(visual);
-            const isSelected = selectedWallet === visual.wallet;
-            const isPending = pendingWallet === visual.wallet;
-            const focusData = cacheRef.current.get(visual.wallet);
-            const canExpand = isRootNode || (visual.member?.direct ?? focusData?.summary.direct ?? 0) > 0;
-            const isOpen = canExpand && isActiveNode && !collapsedParents.has(visual.wallet) && Boolean(cacheRef.current.get(visual.wallet));
-            const branchCount = isRootNode
-              ? rootData.summary.network
-              : 1 + (focusData?.summary.network ?? visual.member?.network ?? 0);
-            const parentDepth = Math.max(0, visual.depth - 1);
-
-            return (
-              <div
-                key={visual.key}
-                className={`personNode tone-${nodeTone} ${isSelected ? 'selected' : ''} ${isRootNode ? 'root' : ''} ${freshParent === visual.parentWallet ? 'freshNode' : ''} ${collapsing ? 'collapsing' : ''} ${isPending ? 'pending' : ''}`}
-                style={{ left: visual.x, top: visual.y } as CSSProperties}
-              >
-                <button
-                  type="button"
-                  className="personTap"
-                  data-network-interactive="true"
-                  aria-label={isRootNode ? c.you : shortWallet(visual.wallet)}
-                  onClick={() => {
-                    if (suppressClickRef.current) return;
-                    if (isActiveNode) {
-                      setSelectedWallet(visual.wallet);
-                      if (collapsedParents.has(visual.wallet) && canExpand) collapseNode(visual.wallet, visual.depth);
-                      return;
-                    }
-                    void activateWallet(visual.wallet, parentDepth);
-                  }}
-                >
-                  <NetworkIdentity address={visual.wallet} root={isRootNode} tone={nodeTone} />
-                  <small className="nodeMetric">
-                    {isRootNode ? `${rootData.summary.direct} ${t.direct}` : branchCount.toLocaleString()}
-                  </small>
-                </button>
-                {!isRootNode && canExpand && isActiveNode ? (
-                  <button
-                    type="button"
-                    className={`branchToggle ${isOpen ? 'open' : ''}`}
-                    data-network-interactive="true"
-                    aria-label={isOpen ? c.collapseBranch : c.expandBranch}
-                    onClick={() => collapseNode(visual.wallet, visual.depth)}
-                  ><span /></button>
-                ) : null}
-              </div>
-            );
-          })}
-
-          {layout.pagers.map((pager) => (
-            <div
-              key={pager.parentWallet}
-              className="siblingPager"
-              data-no-pan="true"
-              data-network-interactive="true"
-              style={{ left: pager.x, top: pager.y } as CSSProperties}
-            >
-              <button type="button" disabled={pager.page === 0} onClick={() => changePage(pager, -1)}>‹</button>
-              <span><b>{pager.start}–{pager.end}</b> / {pager.total}</span>
-              <button type="button" disabled={pager.page >= pager.pageCount - 1} onClick={() => changePage(pager, 1)}>›</button>
-              <button type="button" className="pagerClose" aria-label={c.close} onClick={() => closeExplorer(pager)}>×</button>
-            </div>
-          ))}
-
-          {loadingVisual ? (
-            <div className="branchLoader" style={{ left: loadingVisual.x, top: loadingVisual.y + 54 } as CSSProperties}><i /><i /><i /></div>
-          ) : null}
-
-          {errorVisual && branchError ? (
-            <div
-              className="branchError"
-              data-no-pan="true"
-              data-network-interactive="true"
-              style={{ left: errorVisual.x, top: errorVisual.y + 62 } as CSSProperties}
-            >
-              <span>{t.loadError}</span>
-              <button type="button" onClick={() => void activateWallet(branchError.wallet, branchError.parentDepth)}>{t.retry}</button>
-            </div>
-          ) : null}
+        <div className="viewControls" data-no-pan="true">
+          <button type="button" onClick={centerNetwork} aria-label={c.centerNetwork} title={c.centerNetwork}>◎</button>
+          <button type="button" onClick={() => zoomByButton(1)} aria-label={c.zoomIn} title={c.zoomIn}>+</button>
+          <button type="button" onClick={() => zoomByButton(-1)} aria-label={c.zoomOut} title={c.zoomOut}>−</button>
         </div>
 
-        {selectedWallet && selectedWallet !== rootWallet ? (
-          <aside className="inspector" data-no-pan="true" data-network-interactive="true">
-            <div className="inspectorHead">
-              <NetworkIdentity address={selectedWallet} tone="focus" showLabel={false} />
-              <div>
-                <strong>{shortWallet(selectedWallet)}</strong>
-                <small>{statusLabel(selectedStatus, locale)}</small>
-              </div>
-              <button type="button" onClick={() => setSelectedWallet(null)} aria-label={c.close}>×</button>
-            </div>
-            <code>{selectedWallet}</code>
-            <div className="inspectorMetrics">
-              <span><b>{(1 + selectedNetwork).toLocaleString()}</b>{c.branch}</span>
-              <span><b>{selectedNetwork.toLocaleString()}</b>{c.networkBelow}</span>
-              <span><b>{selectedDirect.toLocaleString()}</b>{t.direct}</span>
-              <span><b>{selectedQualified.toLocaleString()}</b>{t.qualified}</span>
-            </div>
-          </aside>
+        {!focusIsRoot ? (
+          <button
+            type="button"
+            className="parentReturn"
+            onClick={returnToParent}
+            disabled={Boolean(pendingFocus)}
+            data-no-pan="true"
+            aria-label={t.invitedBy}
+          >
+            ‹ {t.invitedBy}
+          </button>
         ) : null}
 
-        <div className="stageControls" data-no-pan="true" data-network-interactive="true">
-          <button type="button" aria-label={c.centerNetwork} onClick={() => setView({ x: 0, y: 30, scale: 1 })}>◎</button>
-          <button type="button" aria-label={c.zoomIn} onClick={() => setView((value) => ({ ...value, scale: clamp(value.scale + .1, MIN_SCALE, MAX_SCALE) }))}>+</button>
-          <button type="button" aria-label={c.zoomOut} onClick={() => setView((value) => ({ ...value, scale: clamp(value.scale - .1, MIN_SCALE, MAX_SCALE) }))}>−</button>
-        </div>
+        {selectedWallet ? (
+          <aside className="profileCard" data-no-pan="true">
+            <button className="profileClose" type="button" onClick={() => setSelectedWallet(null)} aria-label={c.close}>×</button>
+            <div className="profileIdentity">
+              <NetworkIdentity address={selectedIsFocus ? currentData.focusWallet : selectedMember?.wallet ?? selectedWallet} root />
+              <div>
+                <strong>{selectedIsFocus && focusIsRoot ? c.you : shortWallet(selectedIsFocus ? currentData.focusWallet : selectedMember?.wallet ?? selectedWallet)}</strong>
+                <span>{selectedIsFocus ? c.branch : statusLabel(selectedStatus, locale)}</span>
+              </div>
+            </div>
+            <div className="profileAddress" dir="ltr">{selectedIsFocus ? currentData.focusWallet : selectedMember?.wallet ?? selectedWallet}</div>
+            <div className="profileStats">
+              <div><strong>{selectedNetwork.toLocaleString()}</strong><span>{t.networkSize}</span></div>
+              <div><strong>{selectedDirect.toLocaleString()}</strong><span>{t.direct}</span></div>
+              <div><strong>{selectedQualified.toLocaleString()}</strong><span>{t.qualified}</span></div>
+              <div><strong>{selectedRound === null ? '–' : selectedRound.toLocaleString()}</strong><span>{t.thisRound}</span></div>
+            </div>
+            {!selectedIsFocus && selectedMember ? (
+              <button
+                type="button"
+                className="profileAction"
+                onClick={() => void moveToFocus(selectedMember.wallet, 'forward')}
+                disabled={Boolean(pendingFocus)}
+              >
+                {c.expandBranch}
+              </button>
+            ) : null}
+          </aside>
+        ) : null}
       </div>
 
+      {loadError && loadState === 'ready' ? (
+        <div className="inlineError" data-no-pan="true">
+          <span>{loadError}</span>
+          <button type="button" onClick={() => setLoadError('')} aria-label={c.close}>×</button>
+        </div>
+      ) : null}
+
       <style jsx>{`
-        .networkCanvasPage{width:min(calc(100vw - 28px),1180px);margin:0 auto;padding:0;min-height:0;border:0!important;border-radius:0!important;background:transparent!important;box-shadow:none!important}.networkHeader{min-height:52px;padding:0 12px;display:flex;align-items:center;justify-content:space-between;gap:18px}.headerTitle{display:grid;gap:2px}.headerTitle>span{color:#8c7d5d;font-size:.54rem;font-weight:950;letter-spacing:.14em}.headerTitle h1{margin:0;color:#f5f1e8;font-size:.92rem;letter-spacing:-.02em}.summary{display:flex;align-items:baseline;gap:5px;color:#716d65;font-size:.54rem;white-space:nowrap}.summary strong{color:#d7d0c3;font-size:.7rem}.summary .growth{color:#e7b63f}.summary i{width:1px;height:10px;margin:0 3px;background:rgba(255,255,255,.08)}
-        .searchWrap{position:relative;z-index:30;width:min(100% - 20px,420px);height:38px;margin:2px auto 5px;display:flex;align-items:center;gap:8px;padding:0 11px;box-sizing:border-box;border:1px solid rgba(255,255,255,.07);border-radius:13px;background:rgba(16,16,14,.72);backdrop-filter:blur(12px)}.searchWrap>span{color:#786f60;font-size:.92rem}.searchWrap input{min-width:0;flex:1;border:0;outline:0;background:transparent;color:#d8d3ca;font:inherit;font-size:.65rem;direction:ltr}.searchWrap input::placeholder{color:#625d54}.searchSpinner{width:10px;height:10px;border:1px solid rgba(244,183,40,.2);border-top-color:#c99c34;border-radius:50%;animation:spin .7s linear infinite}.searchResults{position:absolute;left:0;right:0;top:43px;padding:7px;border:1px solid rgba(255,255,255,.08);border-radius:13px;background:rgba(14,14,12,.97);box-shadow:0 18px 45px rgba(0,0,0,.38)}.searchResults button{width:100%;min-height:36px;padding:0 8px;border:0;border-radius:9px;background:transparent;display:flex;align-items:center;justify-content:space-between;color:#bdb6aa;font:inherit;font-size:.61rem;cursor:pointer}.searchResults button:hover{background:rgba(244,183,40,.06)}.searchResults button small{color:#736a5d}.searchResults p{margin:8px;color:#716c64;font-size:.58rem}
-        .networkStage{position:relative;height:clamp(540px,calc(100svh - 244px),760px);overflow:hidden;touch-action:none;user-select:none;cursor:grab}.networkStage:active{cursor:grabbing}.ambient{position:absolute;left:50%;top:0;width:min(860px,92vw);height:420px;transform:translateX(-50%);pointer-events:none;background:radial-gradient(ellipse,rgba(244,183,40,.045),transparent 68%)}.world{position:absolute;left:50%;top:0;transform-origin:50% 0;will-change:transform}.edges{position:absolute;inset:0;pointer-events:none;overflow:visible}.edges line{vector-effect:non-scaling-stroke;stroke:rgba(216,209,196,.115);stroke-width:1;stroke-linecap:round;transition:opacity 175ms ease,stroke 220ms ease}.edges line.activeEdge{stroke:rgba(226,183,72,.38)}.edges line.freshEdge{stroke:rgba(244,183,40,.62);stroke-dasharray:1;stroke-dashoffset:1;animation:drawEdge 500ms cubic-bezier(.22,1,.36,1) var(--stagger) forwards,settleEdge 700ms ease 420ms forwards}.edges line.collapsing{opacity:0}
-        .personNode,.clusterNode{position:absolute;z-index:4;transform:translate(-50%,-50%);transition:opacity 175ms ease,filter 230ms ease,transform 175ms ease}.personNode{width:92px;min-height:78px;display:flex;flex-direction:column;align-items:center}.personNode.tone-focus{opacity:1;z-index:8}.personNode.tone-near{opacity:.58;z-index:5}.personNode.tone-normal{opacity:.9}.personNode.collapsing,.clusterNode.collapsing{opacity:0;transform:translate(-50%,-64%) scale(.72)}.personNode.pending{opacity:.78}.personTap{min-width:44px;min-height:56px;padding:4px;border:0;background:transparent;color:inherit;font:inherit;display:flex;flex-direction:column;align-items:center;gap:4px;cursor:pointer}.selected :global(.avatarSlot){box-shadow:0 0 0 4px rgba(244,183,40,.075),0 0 22px rgba(244,183,40,.13)}.root :global(.avatarSlot){box-shadow:0 0 0 4px rgba(244,183,40,.05),0 0 24px rgba(244,183,40,.12)}.nodeMetric{color:#6c655a;font-size:.48rem;font-weight:800;line-height:1}.root .nodeMetric{color:#9b824a}.branchToggle{width:28px;height:16px;margin-top:-4px;border:0;background:transparent;display:grid;place-items:start center;cursor:pointer}.branchToggle span{position:relative;width:1px;height:7px;background:rgba(164,151,126,.30)}.branchToggle span:after{content:'';position:absolute;left:50%;bottom:-3px;width:4px;height:4px;border-right:1px solid rgba(164,151,126,.40);border-bottom:1px solid rgba(164,151,126,.40);transform:translateX(-50%) rotate(45deg)}.branchToggle.open span{background:rgba(218,177,75,.42)}.branchToggle.open span:after{bottom:-5px;transform:translateX(-50%) rotate(225deg)}
-        .clusterNode{width:82px;min-height:66px;padding:4px;border:0;background:transparent;color:inherit;font:inherit;display:flex;flex-direction:column;align-items:center;gap:1px;cursor:pointer}.clusterStack{width:54px;height:30px;display:flex;align-items:center;justify-content:center}.clusterStack i{width:27px;height:27px;margin-left:-9px;border:1px solid rgba(201,184,147,.16);border-radius:50%;background:#151410;box-shadow:0 5px 14px rgba(0,0,0,.26)}.clusterStack i:first-child{margin-left:0}.clusterNode strong{color:#b99b55;font-size:.64rem}.clusterNode small{color:#696155;font-size:.43rem}.freshNode{animation:bloomNode 690ms cubic-bezier(.16,1.04,.30,1) both}.freshNode :global(.avatarSlot){animation:freshHalo 920ms ease both}
-        :global(.identity){display:flex;flex-direction:column;align-items:center;gap:4px;max-width:88px}:global(.avatarSlot){position:relative;display:block;border-radius:50%;transition:box-shadow 220ms ease}:global(.neutralAvatar){display:grid;place-items:center;border:1px solid rgba(205,189,154,.19);border-radius:50%;background:radial-gradient(circle at 38% 32%,rgba(215,190,132,.06),transparent 45%),#141411;color:rgba(179,167,142,.58);box-shadow:0 5px 14px rgba(0,0,0,.22)}.root :global(.neutralAvatar){border-color:rgba(244,183,40,.48);color:rgba(224,187,92,.78);background:radial-gradient(circle at 38% 32%,rgba(244,183,40,.12),transparent 45%),#15140f}:global(.avatarSlot img){position:absolute;inset:0;object-fit:cover;border:1px solid rgba(205,189,154,.19);border-radius:50%;transition:opacity 190ms ease,filter 220ms ease}:global(.identityLabel){display:block;max-width:88px;overflow:hidden;color:#bdb6aa;font-size:.6rem;font-weight:850;line-height:1.1;text-overflow:ellipsis;white-space:nowrap}.root :global(.identityLabel){color:#dbb758}
-        .siblingPager{position:absolute;z-index:14;transform:translate(-50%,-50%);height:29px;padding:0 5px;display:flex;align-items:center;gap:3px;border:1px solid rgba(255,255,255,.07);border-radius:11px;background:rgba(15,15,13,.93);box-shadow:0 10px 30px rgba(0,0,0,.28)}.siblingPager button{width:26px;height:23px;border:0;border-radius:8px;background:transparent;color:#998c73;font:inherit;cursor:pointer}.siblingPager button:disabled{opacity:.24}.siblingPager span{min-width:82px;color:#71695d;font-size:.46rem;text-align:center}.siblingPager span b{color:#c9a953}.siblingPager .pagerClose{width:22px;color:#5e5951}.branchLoader{position:absolute;z-index:16;transform:translate(-50%,-50%);display:flex;gap:5px;pointer-events:none}.branchLoader i{width:4px;height:4px;border-radius:50%;background:#b89242;opacity:.25;animation:loaderPulse .78s ease-in-out infinite}.branchLoader i:nth-child(2){animation-delay:.11s}.branchLoader i:nth-child(3){animation-delay:.22s}.branchError{position:absolute;z-index:18;transform:translate(-50%,-50%);display:flex;align-items:center;gap:5px;padding:5px 6px;border:1px solid rgba(244,183,40,.13);border-radius:9px;background:rgba(17,16,13,.96);white-space:nowrap}.branchError span{color:#8b8170;font-size:.42rem}.branchError button{border:0;background:transparent;color:#d5aa43;font:inherit;font-size:.44rem;font-weight:900;cursor:pointer}
-        .pathContext{position:absolute;z-index:20;left:13px;top:10px;min-height:28px;padding:0 9px;display:flex;align-items:center;gap:6px;border:1px solid rgba(255,255,255,.06);border-radius:10px;background:rgba(14,14,12,.75);color:#6f695f;font-size:.47rem;backdrop-filter:blur(10px)}.pathContext i{font-style:normal;color:#48453f}.pathContext strong{color:#9f8a58;font-weight:850;direction:ltr}.inspector{position:absolute;z-index:24;right:14px;top:14px;width:224px;padding:13px;border:1px solid rgba(255,255,255,.07);border-radius:17px;background:rgba(17,17,15,.93);box-shadow:0 18px 50px rgba(0,0,0,.28);backdrop-filter:blur(16px)}.inspectorHead{display:flex;align-items:center;gap:9px}.inspectorHead>div{min-width:0;flex:1;display:grid;gap:2px}.inspectorHead strong{color:#e0d8ca;font-size:.65rem;direction:ltr}.inspectorHead small{color:#8c7e61;font-size:.45rem;font-weight:850}.inspectorHead>button{width:25px;height:25px;border:0;background:transparent;color:#666158;font:inherit;cursor:pointer}.inspector code{display:block;margin-top:8px;padding:6px 7px;overflow:hidden;border-radius:8px;background:rgba(255,255,255,.025);color:#625e57;font-size:.42rem;text-overflow:ellipsis;white-space:nowrap;direction:ltr}.inspectorMetrics{margin-top:8px;display:grid;grid-template-columns:repeat(2,1fr);gap:5px}.inspectorMetrics span{padding:6px 4px;border-radius:9px;background:rgba(255,255,255,.025);color:#666058;font-size:.42rem;text-align:center;overflow-wrap:anywhere}.inspectorMetrics b{display:block;margin-bottom:1px;color:#cec3b2;font-size:.6rem}.stageControls{position:absolute;z-index:25;right:12px;bottom:12px;display:flex;gap:5px}.stageControls button{width:34px;height:34px;border:1px solid rgba(255,255,255,.07);border-radius:11px;background:rgba(15,15,13,.82);color:#878176;font:inherit;font-size:.72rem;cursor:pointer;backdrop-filter:blur(10px)}
-        @keyframes spin{to{transform:rotate(360deg)}}@keyframes drawEdge{from{stroke-dashoffset:1;opacity:0}to{stroke-dashoffset:0;opacity:1}}@keyframes settleEdge{from{stroke:rgba(244,183,40,.62)}to{stroke:rgba(216,209,196,.115)}}@keyframes bloomNode{0%{opacity:0;transform:translate(-50%,-64%) scale(.58)}68%{opacity:1;transform:translate(-50%,-50%) scale(1.035)}100%{opacity:1;transform:translate(-50%,-50%) scale(1)}}@keyframes freshHalo{0%{box-shadow:0 0 0 0 rgba(244,183,40,.32)}65%{box-shadow:0 0 0 7px rgba(244,183,40,0)}100%{box-shadow:none}}@keyframes loaderPulse{0%,100%{opacity:.2;transform:translateY(0)}50%{opacity:1;transform:translateY(-2px)}}
-        @media(max-width:700px){.networkCanvasPage{width:100%}.networkHeader{min-height:46px;padding:0 5px}.headerTitle h1{font-size:.84rem}.summary{font-size:.48rem;gap:4px}.summary strong{font-size:.62rem}.searchWrap{width:calc(100% - 8px);height:36px;margin-bottom:2px}.networkStage{height:calc(100svh - 218px);min-height:520px}.personNode{width:80px}.tone-near{opacity:.52!important}:global(.identityLabel){font-size:.56rem}.inspector{left:8px;right:8px;top:auto;bottom:52px;width:auto}.stageControls{right:8px;bottom:8px}.pathContext{left:8px;top:8px}}
-        @media(prefers-reduced-motion:reduce){.freshNode,.freshNode :global(.avatarSlot),.freshEdge,.branchLoader i{animation:none!important}.personNode,.clusterNode,.edges line{transition:none!important}}
+        .networkCanvasPage{width:min(100%,560px);box-sizing:border-box;margin:0 auto;position:relative;overflow:hidden;border:1px solid rgba(255,205,80,.13);border-radius:22px;background:radial-gradient(circle at 50% -14%,rgba(244,183,40,.09),transparent 34%),rgba(10,10,9,.9);box-shadow:0 16px 45px rgba(0,0,0,.24)}
+        .networkHeader{min-height:62px;padding:12px 14px;box-sizing:border-box;display:flex;align-items:center;justify-content:space-between;gap:12px;border-bottom:1px solid rgba(255,255,255,.055);background:rgba(14,14,12,.94)}
+        .headerTitle{min-width:0}.headerTitle>span{display:block;color:#b78d2a;font-size:.52rem;font-weight:950;letter-spacing:.18em}.headerTitle h1{margin:3px 0 0;color:#f0ece3;font-size:.92rem;letter-spacing:-.025em}
+        .summary{display:grid;grid-template-columns:auto auto 1px auto auto;align-items:baseline;gap:4px 6px;white-space:nowrap}.summary strong{color:#f1ede4;font-size:.76rem}.summary strong.growth{color:#e6b943}.summary span{color:#77736c;font-size:.52rem}.summary i{width:1px;height:16px;background:rgba(255,255,255,.08);align-self:center}
+        .networkToolbar{position:relative;z-index:40;min-height:44px;padding:7px 9px;box-sizing:border-box;display:flex;align-items:center;gap:8px;border-bottom:1px solid rgba(255,255,255,.05);background:rgba(12,12,10,.96)}
+        .breadcrumbs{min-width:0;flex:1;display:flex;align-items:center;overflow:hidden;white-space:nowrap}.crumbWrap{display:flex;align-items:center;min-width:0}.crumbSep,.crumbEllipsis{flex:0 0 auto;color:#4f4c47;font-size:.66rem;margin:0 2px}.crumb{max-width:88px;padding:4px 5px;border:0;background:transparent;color:#8c867b;font:inherit;font-size:.56rem;font-weight:800;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;cursor:pointer}.crumb.current{color:#e5bd55;cursor:default}.crumb:disabled{opacity:.8}
+        .searchWrap{position:relative;flex:0 0 min(44%,205px)}.searchWrap input{width:100%;height:30px;box-sizing:border-box;padding:0 9px;border:1px solid rgba(255,205,80,.1);border-radius:9px;background:#11110f;color:#d8d3ca;font:inherit;font-size:.58rem;outline:none}.searchWrap input:focus{border-color:rgba(244,183,40,.34)}.searchResults{position:absolute;z-index:90;top:35px;right:0;width:min(290px,78vw);max-height:245px;overflow:auto;padding:5px;border:1px solid rgba(255,205,80,.14);border-radius:12px;background:rgba(14,14,12,.985);box-shadow:0 18px 40px rgba(0,0,0,.42)}.searchResults button{width:100%;padding:8px;border:0;border-radius:8px;background:transparent;color:#ddd7cc;text-align:left;cursor:pointer}.searchResults button:hover{background:rgba(244,183,40,.06)}.searchResults strong{display:block;font-size:.62rem}.searchResults button span{display:block;margin-top:3px;color:#6f6b64;font-size:.52rem}.searchStatus{display:block;padding:11px 8px;color:#77736c;font-size:.56rem;line-height:1.45;text-align:center}
+        .networkStage{position:relative;height:clamp(430px,68vh,650px);overflow:hidden;touch-action:none;overscroll-behavior:contain;background:radial-gradient(circle at 50% 34%,rgba(244,183,40,.045),transparent 31%),linear-gradient(rgba(255,255,255,.015) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.015) 1px,transparent 1px);background-size:auto,28px 28px,28px 28px;cursor:grab;user-select:none;-webkit-user-select:none}.networkStage:active{cursor:grabbing}
+        .world{position:absolute;top:0;left:0;will-change:transform;backface-visibility:hidden}.world.cameraTransition{transition:transform ${NAVIGATION_MS}ms cubic-bezier(.18,.82,.2,1)}.worldContent{position:absolute;inset:0;transform-origin:${FOCUS_X}px ${FOCUS_Y}px}.worldContent.nav-forward{animation:networkForward ${NAVIGATION_MS}ms cubic-bezier(.18,.82,.2,1)}.worldContent.nav-back{animation:networkBack ${NAVIGATION_MS}ms cubic-bezier(.18,.82,.2,1)}
+        .edges{position:absolute;inset:0;overflow:visible;pointer-events:none}.edge{fill:none;stroke:rgba(176,145,73,.31);stroke-width:1.3;vector-effect:non-scaling-stroke}.edge.rewarded{stroke:rgba(232,183,62,.46)}.slotEdge{stroke:rgba(232,183,62,.34);stroke-dasharray:7 8;animation:slotFlow 2.2s linear infinite}
+        .personNode,.slotNode{position:absolute;z-index:4;transform:translate(-50%,-50%);font:inherit}.personNode{min-width:92px;padding:7px 8px 8px;border:1px solid rgba(255,255,255,.08);border-radius:15px;background:rgba(17,17,15,.94);color:#d9d4ca;display:grid;justify-items:center;gap:5px;box-shadow:0 8px 20px rgba(0,0,0,.23);cursor:pointer}.personNode:hover,.personNode.selected{border-color:rgba(244,183,40,.35);box-shadow:0 0 0 1px rgba(244,183,40,.07),0 10px 24px rgba(0,0,0,.3)}.focusNode{min-width:112px;padding:10px 11px 9px;border-color:rgba(244,183,40,.24);background:radial-gradient(circle at 50% 0,rgba(244,183,40,.12),transparent 52%),rgba(18,17,14,.97)}.childNode.status-rewarded{border-color:rgba(218,171,57,.17)}.childNode.status-qualified{border-color:rgba(155,136,82,.14)}
+        .personNode :global(.identity){display:grid;justify-items:center;gap:4px}.personNode :global(.avatarSlot){position:relative;display:grid;place-items:center}.personNode :global(.neutralAvatar){display:grid;place-items:center;border:1px solid rgba(244,183,40,.13);border-radius:50%;background:#171611;color:#8e7b50}.personNode :global(.avatarSlot img){position:absolute;inset:0;border-radius:50%;object-fit:cover;transition:opacity 160ms ease}.personNode :global(.identityLabel){max-width:88px;color:#a9a49b;font-size:.5rem;font-weight:750;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.nodeMeta{display:grid;justify-items:center;gap:2px}.nodeMeta strong{max-width:100px;color:#e5dfd5;font-size:.58rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.nodeMeta small{color:#6f6a62;font-size:.48rem}.focusNode .nodeMeta strong{color:#edc65c;font-size:.61rem}.nodeBusy{position:absolute;right:6px;top:6px;width:6px;height:6px;border-radius:50%;background:#e9bc45;box-shadow:0 0 10px rgba(233,188,69,.8);animation:pulse 900ms ease-in-out infinite alternate}
+        .slotNode{width:84px;height:70px;border:1px dashed rgba(244,183,40,.22);border-radius:15px;background:rgba(244,183,40,.025);color:#a98735;display:grid;place-items:center;align-content:center;gap:3px;cursor:pointer}.slotNode span{font-size:1rem;font-weight:400}.slotNode small{max-width:72px;font-size:.48rem;font-weight:800;line-height:1.15}.slotNode:hover{border-color:rgba(244,183,40,.42);background:rgba(244,183,40,.055)}
+        .viewControls{position:absolute;z-index:55;right:10px;bottom:10px;display:grid;grid-template-columns:repeat(3,34px);gap:5px}.viewControls button,.pager button{height:34px;border:1px solid rgba(255,205,80,.13);border-radius:10px;background:rgba(18,18,15,.92);color:#bbb5aa;font:inherit;font-size:.78rem;font-weight:850;cursor:pointer}.viewControls button:hover,.pager button:hover:not(:disabled){border-color:rgba(244,183,40,.28);color:#e4c36d}.pager{position:absolute;z-index:55;left:50%;bottom:10px;transform:translateX(-50%);display:flex;align-items:center;gap:7px;padding:4px;border:1px solid rgba(255,205,80,.08);border-radius:12px;background:rgba(12,12,10,.88)}.pager button{width:32px}.pager button:disabled{opacity:.28;cursor:default}.pager span{min-width:48px;color:#77736c;font-size:.53rem;font-weight:800;text-align:center}.parentReturn{position:absolute;z-index:55;left:10px;bottom:10px;min-height:34px;padding:0 11px;border:1px solid rgba(255,205,80,.12);border-radius:10px;background:rgba(18,18,15,.92);color:#a89c7b;font:inherit;font-size:.55rem;font-weight:850;cursor:pointer}.parentReturn:disabled{opacity:.4}
+        .profileCard{position:absolute;z-index:75;right:10px;top:10px;width:min(245px,calc(100% - 20px));box-sizing:border-box;padding:13px;border:1px solid rgba(255,205,80,.15);border-radius:17px;background:rgba(15,15,13,.975);box-shadow:0 18px 42px rgba(0,0,0,.45);cursor:default}.profileClose{position:absolute;right:8px;top:7px;width:28px;height:28px;border:0;background:transparent;color:#817c73;font-size:1rem;cursor:pointer}.profileIdentity{padding-right:28px;display:flex;align-items:center;gap:9px}.profileIdentity :global(.identity){display:flex;align-items:center;gap:8px}.profileIdentity :global(.identityLabel){display:none}.profileIdentity :global(.avatarSlot){position:relative;display:grid;place-items:center}.profileIdentity :global(.neutralAvatar){display:grid;place-items:center;border:1px solid rgba(244,183,40,.13);border-radius:50%;background:#171611;color:#8e7b50}.profileIdentity :global(.avatarSlot img){position:absolute;inset:0;border-radius:50%;object-fit:cover}.profileIdentity>div>strong{display:block;color:#e7e1d6;font-size:.66rem}.profileIdentity>div>span{display:block;margin-top:3px;color:#877e69;font-size:.51rem}.profileAddress{margin-top:10px;padding:8px;border-radius:9px;background:rgba(255,255,255,.025);color:#67635d;font-size:.48rem;line-height:1.35;overflow-wrap:anywhere;user-select:text;-webkit-user-select:text}.profileStats{margin-top:9px;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:5px}.profileStats>div{padding:8px;border:1px solid rgba(255,255,255,.045);border-radius:9px;background:rgba(255,255,255,.018)}.profileStats strong{display:block;color:#d6d0c5;font-size:.62rem}.profileStats span{display:block;margin-top:2px;color:#68645e;font-size:.47rem}.profileAction{width:100%;min-height:36px;margin-top:9px;border:0;border-radius:10px;background:linear-gradient(135deg,#ffd24d,#efa718);color:#17120a;font:inherit;font-size:.57rem;font-weight:950;cursor:pointer}.profileAction:disabled{opacity:.45;cursor:default}
+        .inlineError{position:absolute;z-index:90;left:50%;bottom:54px;transform:translateX(-50%);max-width:calc(100% - 28px);padding:8px 9px 8px 11px;display:flex;align-items:center;gap:8px;border:1px solid rgba(194,118,90,.2);border-radius:10px;background:rgba(38,23,18,.96);color:#c7a294;font-size:.53rem;box-shadow:0 12px 30px rgba(0,0,0,.32)}.inlineError button{border:0;background:transparent;color:#9f7d71;font-size:.8rem;cursor:pointer}
+        @keyframes networkForward{0%{opacity:.7;scale:.965}100%{opacity:1;scale:1}}@keyframes networkBack{0%{opacity:.76;scale:1.045}100%{opacity:1;scale:1}}@keyframes slotFlow{to{stroke-dashoffset:-30}}@keyframes pulse{to{opacity:.38;transform:scale(.82)}}
+        @media(max-width:560px){.networkCanvasPage{width:100%;border-radius:18px}.networkHeader{min-height:58px;padding:10px 11px}.summary{gap:3px 4px}.summary strong{font-size:.68rem}.summary span{font-size:.46rem}.networkToolbar{padding:6px 7px;gap:5px}.searchWrap{flex-basis:43%}.crumb{max-width:64px}.networkStage{height:max(430px,calc(100dvh - 245px));max-height:620px}.profileCard{top:auto;right:8px;bottom:52px;left:8px;width:auto}.viewControls{right:8px;bottom:8px}.parentReturn{left:8px;bottom:8px}.pager{bottom:8px}.personNode{min-width:82px}.focusNode{min-width:101px}}
+        @media(prefers-reduced-motion:reduce){.world.cameraTransition{transition:none}.worldContent.nav-forward,.worldContent.nav-back,.slotEdge,.nodeBusy{animation:none!important}}
       `}</style>
     </section>
   );
 }
 
 const stateStyles = `
-  .networkStateCard{width:min(100%,520px);min-height:420px;margin:0 auto;padding:38px 24px;box-sizing:border-box;display:flex;flex-direction:column;align-items:center;justify-content:center;border:1px solid rgba(255,205,80,.12);border-radius:28px;background:radial-gradient(circle at 50% 24%,rgba(244,183,40,.10),transparent 35%),rgba(255,255,255,.025);text-align:center}
-  .stateGlyph{width:52px;height:52px;display:grid;place-items:center;margin-bottom:15px;border-radius:17px;background:rgba(244,183,40,.06);color:#cda444}.stateGlyph.error{color:#c58f67}.networkStateCard h1{margin:0;color:#eee9df;font-size:1.2rem;letter-spacing:-.03em}.networkStateCard p{max-width:410px;margin:10px 0 0;color:#8d8981;font-size:.76rem;line-height:1.55}.networkStateCard>button{min-width:150px;min-height:43px;margin-top:18px;padding:0 15px;border:0;border-radius:13px;background:linear-gradient(135deg,#ffd24d,#efa718);color:#17120a;font:inherit;font-size:.7rem;font-weight:950;cursor:pointer}.networkStateCard>button:disabled{opacity:.45;cursor:not-allowed}.loadingDots{height:30px;margin-bottom:14px;display:flex;align-items:center;gap:6px}.loadingDots i{width:5px;height:5px;border-radius:50%;background:#b9923d;animation:loaderPulse .78s ease-in-out infinite}.loadingDots i:nth-child(2){animation-delay:.11s}.loadingDots i:nth-child(3){animation-delay:.22s}@keyframes loaderPulse{0%,100%{opacity:.2;transform:translateY(0)}50%{opacity:1;transform:translateY(-2px)}}
+  .networkStateCard{width:min(100%,560px);box-sizing:border-box;margin:0 auto;padding:42px 22px;border:1px solid rgba(255,205,80,.13);border-radius:22px;background:radial-gradient(circle at 50% 0,rgba(244,183,40,.08),transparent 35%),rgba(255,255,255,.025);text-align:center}
+  .stateGlyph{width:62px;height:62px;margin:0 auto 16px;display:grid;place-items:center;border:1px solid rgba(244,183,40,.18);border-radius:50%;background:rgba(244,183,40,.055);color:#c59b3d}.stateGlyph.error{color:#bd8b77;border-color:rgba(189,139,119,.18);background:rgba(189,139,119,.045)}
+  .networkStateCard h1{margin:0;color:#efebe3;font-size:1.03rem;letter-spacing:-.025em}.networkStateCard p{max-width:390px;margin:9px auto 0;color:#858078;font-size:.7rem;line-height:1.55}.networkStateCard>button{min-width:160px;min-height:43px;margin-top:19px;padding:0 16px;border:0;border-radius:12px;background:linear-gradient(135deg,#ffd24d,#efa718);color:#17120a;font:inherit;font-size:.65rem;font-weight:950;cursor:pointer}.networkStateCard>button:disabled{opacity:.45;cursor:default}.loadingDots{height:62px;margin:0 auto 16px;display:flex;align-items:center;justify-content:center;gap:5px}.loadingDots i{width:6px;height:6px;border-radius:50%;background:#b58c31;animation:loadingDot 900ms ease-in-out infinite alternate}.loadingDots i:nth-child(2){animation-delay:150ms}.loadingDots i:nth-child(3){animation-delay:300ms}@keyframes loadingDot{to{opacity:.3;transform:translateY(3px)}}
+  @media(prefers-reduced-motion:reduce){.loadingDots i{animation:none}}
 `;

@@ -2,9 +2,9 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import test from 'node:test';
 
-const [patchSource, v70Source] = await Promise.all([
+const [patchSource, networkSource] = await Promise.all([
   readFile('src/lib/i18n/networkNaturalnessPolish.ts', 'utf8'),
-  readFile('src/components/AppNetworkCanaryV70.tsx', 'utf8'),
+  readFile('src/components/AppNetwork.tsx', 'utf8'),
 ]);
 
 const locales = [
@@ -12,8 +12,10 @@ const locales = [
   'ru', 'id', 'vi', 'zh-tw', 'sv', 'ro', 'ur', 'pcm', 'arz', 'mr', 'te', 'sw', 'ha', 'el', 'cs',
 ];
 
-test('V70 loads the Network naturalness pass before rendering localized UI', () => {
-  assert.match(v70Source, /import '@\/lib\/i18n\/networkNaturalnessPolish';/);
+test('single Network runtime consumes the canonical localized Network copy', () => {
+  assert.match(networkSource, /NETWORK_EXPERIENCE_COPY/);
+  assert.match(networkSource, /NETWORK_CANVAS_CONTROL_COPY/);
+  assert.doesNotMatch(networkSource, /AppNetworkCanaryV\d+/);
 });
 
 test('all supported locales receive semantic, count and user-facing terminology corrections', () => {

@@ -1,40 +1,65 @@
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
+import { readdirSync, readFileSync } from 'node:fs';
 import test from 'node:test';
 
 function read(path) {
   return readFileSync(new URL(`../${path}`, import.meta.url), 'utf8');
 }
 
-const v46 = read('src/components/AppNetworkCanaryV46.tsx');
-const v49 = read('src/components/AppNetworkCanaryV49.tsx');
-const v50 = read('src/components/AppNetworkCanaryV50.tsx');
-const v52 = read('src/components/AppNetworkCanaryV52.tsx');
-const v63 = read('src/components/AppNetworkCanaryV63.tsx');
+const guide = read('src/components/AppGuide.tsx');
+const hub = read('src/components/AppNetworkHub.tsx');
+const network = read('src/components/AppNetwork.tsx');
+const componentFiles = readdirSync(new URL('../src/components/', import.meta.url));
+const qaFiles = readdirSync(new URL('../src/qa/', import.meta.url));
 
-test('V46 stays presentation-only and cannot revive the retired drag-preview owner', () => {
-  assert.match(v46, /function NetworkViewportPolish\(\)/);
-  assert.match(v46, /function NetworkSlotLineOverlay\(\)/);
-  assert.doesNotMatch(v46, /type DragPreview/);
-  assert.doesNotMatch(v46, /veinviteNodeDragGhost/);
-  assert.doesNotMatch(v46, /onDocumentPointerDown/);
-  assert.doesNotMatch(v46, /document\.addEventListener\('pointer(?:down|move|up|cancel)'/);
+test('user-facing Network has one runtime path and no versioned canary owner', () => {
+  assert.match(guide, /<AppNetworkHub locale=\{locale\} \/>/);
+  assert.match(hub, /<AppNetwork locale=\{locale\} \/>/);
+  assert.doesNotMatch(guide, /AppNetworkCanaryV\d+/);
+  assert.doesNotMatch(hub, /AppNetworkCanaryV\d+/);
+  assert.equal(componentFiles.some((name) => /^AppNetworkCanaryV\d+\.tsx$/.test(name)), false);
+  assert.equal(qaFiles.some((name) => /^QaNetworkRadialPlaygroundV\d+\.tsx$/.test(name)), false);
 });
 
-test('pinch navigation remains single-owner while the mature pinch bridge stays intact', () => {
-  assert.match(v50, /const PINCH_ENTER_RATIO = 1\.28/);
-  assert.match(v50, /const PINCH_PARENT_RATIO = 0\.65/);
-  assert.match(v50, /const onTouchStart = \(event: TouchEvent\)/);
-  assert.match(v50, /const finishPinch = \(event: TouchEvent\)/);
-  assert.match(v49, /holdIntermediatePinchEnd/);
-  assert.doesNotMatch(v52, /addEventListener\('touchstart'/);
-  assert.doesNotMatch(v52, /addEventListener\('touchmove'/);
-  assert.doesNotMatch(v52, /addEventListener\('wheel'/);
+test('camera and gestures are owned by AppNetwork rather than an outer wrapper', () => {
+  assert.match(network, /const \[view, setView\] = useState<View>/);
+  assert.match(network, /onPointerDownCapture=\{onPointerDownCapture\}/);
+  assert.match(network, /onPointerMoveCapture=\{onPointerMoveCapture\}/);
+  assert.match(network, /onPointerUpCapture=\{onPointerEndCapture\}/);
+  assert.match(network, /onWheel=\{onWheel\}/);
+  assert.match(network, /returnViewByChildRef/);
+
+  for (const forbidden of [
+    'setView(',
+    'MutationObserver',
+    "addEventListener('pointerdown'",
+    "addEventListener('pointermove'",
+    "addEventListener('wheel'",
+  ]) {
+    assert.ok(!hub.includes(forbidden), `AppNetworkHub must not compete for runtime ownership: ${forbidden}`);
+  }
 });
 
-test('final node movement remains owned by the unified V63 transform layer', () => {
-  assert.match(v63, /function NetworkUnifiedNodeDragV63\(\)/);
-  assert.match(v63, /--v63-drag-x/);
-  assert.match(v63, /--v63-drag-y/);
-  assert.match(v63, /classList\.add\('v63DirectDragging'\)/);
+test('single runtime cannot revive legacy DOM transform or drag-patch ownership', () => {
+  for (const forbidden of [
+    'MutationObserver',
+    '--v63-drag-x',
+    '--v63-drag-y',
+    '--cameraX',
+    '--cameraY',
+    '--networkZoom',
+    "document.addEventListener('pointerdown'",
+    "document.addEventListener('pointermove'",
+    "document.addEventListener('pointerup'",
+    'veinviteNodeDragGhost',
+  ]) {
+    assert.ok(!network.includes(forbidden), `legacy Network owner must stay retired: ${forbidden}`);
+  }
+});
+
+test('parent return camera restoration has one explicit owner', () => {
+  assert.match(network, /returnViewByChildRef\.current\.set\(target, view\)/);
+  assert.match(network, /const exactParentView = returnViewByChildRef\.current\.get\(current\)/);
+  assert.match(network, /exactParentView \?\?/);
+  assert.doesNotMatch(hub, /returnViewByChildRef/);
 });
