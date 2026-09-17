@@ -7,11 +7,13 @@ function read(path) {
 }
 
 const guide = read('src/components/AppGuide.tsx');
+const v74 = read('src/components/AppNetworkCanaryV74.tsx');
 const v72 = read('src/components/AppNetworkCanaryV72.tsx');
 
-test('developer wallet routes through V73 while general users keep AppNetworkHub', () => {
-  assert.match(guide, /import\('\.\/AppNetworkCanaryV73'\)/);
-  assert.match(guide, /<AppNetworkCanaryV73 key=\{wallet\.toLowerCase\(\)\} locale=\{locale\} \/>/);
+test('developer wallet routes through V74 while general users keep AppNetworkHub', () => {
+  assert.match(guide, /import\('\.\/AppNetworkCanaryV74'\)/);
+  assert.match(guide, /<AppNetworkCanaryV74 key=\{wallet\.toLowerCase\(\)\} locale=\{locale\} \/>/);
+  assert.match(v74, /AppNetworkCanaryV73/);
   assert.match(guide, /<AppNetworkHub locale=\{locale\} \/>/);
 });
 
