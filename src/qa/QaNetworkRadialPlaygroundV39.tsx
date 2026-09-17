@@ -106,13 +106,17 @@ export function QaNetworkRadialPlaygroundV39() {
         const scenario = activeScenarioId(root);
         const manualKeys = savedManualKeys();
 
+        // Zoom may change presentation density (labels/line emphasis), but it
+        // must never move the underlying Network geometry. Keeping one stable
+        // compression factor prevents the old 0.98 threshold from rewriting
+        // every node's --x/--y while the user pinches or wheels.
         root.classList.toggle('v39MidZoom', midZoom);
         root.classList.toggle('v39DetailZoom', !clustered && !midZoom);
 
         const nodes = Array.from(stage.querySelectorAll<HTMLButtonElement>('.personNode'));
         const paths = Array.from(stage.querySelectorAll<SVGPathElement>('.spoke:not(.slotSpoke):not(.clusterSpoke)'));
         const safeRadius = compact ? 168 : 228;
-        const compression = midZoom ? (compact ? .82 : .84) : (compact ? .89 : .9);
+        const compression = compact ? .89 : .9;
 
         // Bind base referral paths once to a stable node id. Later class/UI
         // mutations must never change which line belongs to which node.
