@@ -7,13 +7,16 @@ function read(path) {
 }
 
 const guide = read('src/components/AppGuide.tsx');
+const v75 = read('src/components/AppNetworkCanaryV75.tsx');
 const v74 = read('src/components/AppNetworkCanaryV74.tsx');
 const v73 = read('src/components/AppNetworkCanaryV73.tsx');
 
-test('efcb developer canary routes through V74 while V74 preserves V73 and V72 underneath', () => {
+test('efcb developer canary routes through V75 while V75 preserves V74, V73 and V72 underneath', () => {
   assert.match(guide, /0xeff325935b63299e9eeda79931bed6ec119aefcb/);
-  assert.match(guide, /import\('\.\/AppNetworkCanaryV74'\)/);
-  assert.match(guide, /<AppNetworkCanaryV74 key=\{wallet\.toLowerCase\(\)\} locale=\{locale\} \/>/);
+  assert.match(guide, /import\('\.\/AppNetworkCanaryV75'\)/);
+  assert.match(guide, /<AppNetworkCanaryV75 key=\{wallet\.toLowerCase\(\)\} locale=\{locale\} \/>/);
+  assert.match(v75, /import \{ AppNetworkCanaryV74 \} from '\.\/AppNetworkCanaryV74'/);
+  assert.match(v75, /<AppNetworkCanaryV74 locale=\{locale\} \/>/);
   assert.match(v74, /import \{ AppNetworkCanaryV73 \} from '\.\/AppNetworkCanaryV73'/);
   assert.match(v74, /<AppNetworkCanaryV73 locale=\{locale\} \/>/);
   assert.match(v73, /import \{ AppNetworkCanaryV72 \} from '\.\/AppNetworkCanaryV72'/);

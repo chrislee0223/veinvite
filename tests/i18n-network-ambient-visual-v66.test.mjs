@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import test from 'node:test';
 
-const [visualSource, correctionSource, directDropSource, dragGhostSource, localeLayoutSource, rootIdentitySource, interactionOwnershipSource, parentVisualSource, stabilitySource, guideSource] = await Promise.all([
+const [visualSource, correctionSource, directDropSource, dragGhostSource, localeLayoutSource, rootIdentitySource, interactionOwnershipSource, parentVisualSource, stabilitySource, returnMotionSource, guideSource] = await Promise.all([
   readFile('src/components/AppNetworkCanaryV66.tsx', 'utf8'),
   readFile('src/components/AppNetworkCanaryV67.tsx', 'utf8'),
   readFile('src/components/AppNetworkCanaryV68.tsx', 'utf8'),
@@ -12,6 +12,7 @@ const [visualSource, correctionSource, directDropSource, dragGhostSource, locale
   readFile('src/components/AppNetworkCanaryV72.tsx', 'utf8'),
   readFile('src/components/AppNetworkCanaryV73.tsx', 'utf8'),
   readFile('src/components/AppNetworkCanaryV74.tsx', 'utf8'),
+  readFile('src/components/AppNetworkCanaryV75.tsx', 'utf8'),
   readFile('src/components/AppGuide.tsx', 'utf8'),
 ]);
 
@@ -129,8 +130,10 @@ test('V67 keeps YOU opaque and authoritative group hubs stationary', () => {
   assert.match(correctionSource, /\.v42GroupHub[\s\S]*?translate:\s*none\s*!important/);
 });
 
-test('the special Network canary is wired through V74 down to the mature V66 chain', () => {
-  assert.match(guideSource, /AppNetworkCanaryV74/);
+test('the special Network canary is wired through V75 and V74 down to the mature V66 chain', () => {
+  assert.match(guideSource, /AppNetworkCanaryV75/);
+  assert.match(returnMotionSource, /AppNetworkCanaryV74/);
+  assert.match(returnMotionSource, /<AppNetworkCanaryV74 locale=\{locale\} \/>/);
   assert.match(stabilitySource, /AppNetworkCanaryV73/);
   assert.match(stabilitySource, /<AppNetworkCanaryV73 locale=\{locale\} \/>/);
   assert.match(parentVisualSource, /AppNetworkCanaryV72/);
