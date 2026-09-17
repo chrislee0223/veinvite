@@ -71,18 +71,22 @@ test('V68 preserves the V63 drop-target priority contract', () => {
 test('V68 only assists a real moved node dropped on a different existing group', () => {
   assert.match(source, /Math\.hypot\(event\.clientX - current\.startX, event\.clientY - current\.startY\) >= DRAG_THRESHOLD_PX/);
   assert.match(source, /if \(action\?\.kind === 'existing'\)/);
-  assert.match(source, /targetGroupId && targetGroupId !== current\.sourceGroupId/);
+  assert.match(source, /targetGroupId && targetGroupId !== sourceGroupId/);
+  assert.doesNotMatch(source, /scheduleFallback\([^\n]*action\.kind === 'remove'/);
 });
 
 test('V68 ignores synthetic events and cancels on pinch or pointer cancellation', () => {
-  assert.match(source, /if \(!event\.isTrusted\) return/);
-  assert.match(source, /touchPointers\.size > 1/);
-  assert.match(source, /onPointerCancel/);
+  assert.match(source, /if \(!event\.isTrusted \|\| pinchBlocked/);
+  assert.match(source, /if \(touchPointers\.size > 1\)[\s\S]*?pinchBlocked = true;[\s\S]*?cancelDrag\(\)/);
+  assert.match(source, /window\.addEventListener\('pointercancel', cancelPointer, true\)/);
+  assert.match(source, /if \(touchPointers\.size === 0\) pinchBlocked = false/);
 });
 
 test('fallback still delegates the actual membership mutation to the mature V42 pointer contract', () => {
-  assert.match(source, /dispatchEvent\(new PointerEvent\('pointerdown'/);
-  assert.match(source, /dispatchEvent\(new PointerEvent\('pointermove'/);
-  assert.match(source, /dispatchEvent\(new PointerEvent\('pointerup'/);
-  assert.doesNotMatch(source, /writeGroups|setGroups|localStorage\.setItem/);
+  assert.match(source, /circle\.dispatchEvent\(new PointerEvent\('pointerdown'/);
+  assert.match(source, /circle\.dispatchEvent\(new PointerEvent\('pointermove'/);
+  assert.match(source, /circle\.dispatchEvent\(new PointerEvent\('pointerup'/);
+  assert.match(source, /pointerType: 'mouse'/);
+  assert.doesNotMatch(source, /\.members\.(?:push|splice|pop|shift|unshift)\(/);
+  assert.doesNotMatch(source, /localStorage\.setItem/);
 });
