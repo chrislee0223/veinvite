@@ -213,5 +213,15 @@ jobs:
       - name: Reward accounting regression tests
         run: npm run test:rewards
 
+      - name: Sentry observability regression tests
+        run: npm run test:sentry
+
       - name: Production build
+        env:
+          # Exercise the same withSentryConfig path used by Vercel without
+          # exposing or sending events to the real VeInvite Sentry project.
+          NEXT_PUBLIC_SENTRY_DSN: https://ci-public-key@o0.ingest.sentry.io/1
+          SENTRY_DSN: https://ci-public-key@o0.ingest.sentry.io/1
+          SENTRY_ENVIRONMENT: ci
+          NEXT_PUBLIC_SENTRY_ENVIRONMENT: ci
         run: npm run build
