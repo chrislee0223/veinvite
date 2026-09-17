@@ -2,20 +2,23 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import test from 'node:test';
 
-const [source, rootIdentitySource, interactionOwnershipSource, parentVisualSource, stabilitySource, guideSource, v69Source, controlCopySource] = await Promise.all([
+const [source, rootIdentitySource, interactionOwnershipSource, parentVisualSource, stabilitySource, returnMotionSource, guideSource, v69Source, controlCopySource] = await Promise.all([
   readFile('src/components/AppNetworkCanaryV70.tsx', 'utf8'),
   readFile('src/components/AppNetworkCanaryV71.tsx', 'utf8'),
   readFile('src/components/AppNetworkCanaryV72.tsx', 'utf8'),
   readFile('src/components/AppNetworkCanaryV73.tsx', 'utf8'),
   readFile('src/components/AppNetworkCanaryV74.tsx', 'utf8'),
+  readFile('src/components/AppNetworkCanaryV75.tsx', 'utf8'),
   readFile('src/components/AppGuide.tsx', 'utf8'),
   readFile('src/components/AppNetworkCanaryV69.tsx', 'utf8'),
   readFile('src/lib/i18n/networkCanvasControlCopy.ts', 'utf8'),
 ]);
 
-test('V74 is the final Network canary layer and preserves the mature V73 to V72 to V71 to V70 to V69 chain', () => {
-  assert.match(guideSource, /AppNetworkCanaryV74/);
-  assert.match(guideSource, /<AppNetworkCanaryV74 key=\{wallet\.toLowerCase\(\)\} locale=\{locale\} \/>/);
+test('V75 is the final Network canary layer and preserves the mature V74 to V73 to V72 to V71 to V70 to V69 chain', () => {
+  assert.match(guideSource, /AppNetworkCanaryV75/);
+  assert.match(guideSource, /<AppNetworkCanaryV75 key=\{wallet\.toLowerCase\(\)\} locale=\{locale\} \/>/);
+  assert.match(returnMotionSource, /AppNetworkCanaryV74/);
+  assert.match(returnMotionSource, /<AppNetworkCanaryV74 locale=\{locale\} \/>/);
   assert.match(stabilitySource, /AppNetworkCanaryV73/);
   assert.match(stabilitySource, /<AppNetworkCanaryV73 locale=\{locale\} \/>/);
   assert.match(parentVisualSource, /AppNetworkCanaryV72/);

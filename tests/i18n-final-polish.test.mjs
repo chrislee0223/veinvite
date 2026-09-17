@@ -15,6 +15,7 @@ const [
   interactionOwnershipSource,
   parentVisualSource,
   stabilitySource,
+  returnMotionSource,
   guideSource,
   layoutSource,
   polishCss,
@@ -34,6 +35,7 @@ const [
   readFile('src/components/AppNetworkCanaryV72.tsx', 'utf8'),
   readFile('src/components/AppNetworkCanaryV73.tsx', 'utf8'),
   readFile('src/components/AppNetworkCanaryV74.tsx', 'utf8'),
+  readFile('src/components/AppNetworkCanaryV75.tsx', 'utf8'),
   readFile('src/components/AppGuide.tsx', 'utf8'),
   readFile('src/app/layout.tsx', 'utf8'),
   readFile('src/app/localization-final-polish.css', 'utf8'),
@@ -102,15 +104,18 @@ test('final layout polish covers Network, RTL, CJK, Korean and tall-script metri
   assert.match(polishCss, /unicode-bidi:\s*isolate/);
 });
 
-test('the special Network canary keeps V74 stability over V73 visual preservation, V72 interaction ownership and the mature localized chain', () => {
-  assert.match(guideSource, /AppNetworkCanaryV74/);
-  assert.match(guideSource, /<AppNetworkCanaryV74 key=\{wallet\.toLowerCase\(\)\} locale=\{locale\} \/>/);
+test('the special Network canary keeps V75 return motion over V74 stability, V73 visual preservation, V72 interaction ownership and the mature localized chain', () => {
+  assert.match(guideSource, /AppNetworkCanaryV75/);
+  assert.match(guideSource, /<AppNetworkCanaryV75 key=\{wallet\.toLowerCase\(\)\} locale=\{locale\} \/>/);
+  assert.match(returnMotionSource, /AppNetworkCanaryV74/);
+  assert.match(returnMotionSource, /<AppNetworkCanaryV74 locale=\{locale\} \/>/);
   assert.match(stabilitySource, /AppNetworkCanaryV73/);
   assert.match(stabilitySource, /<AppNetworkCanaryV73 locale=\{locale\} \/>/);
   assert.match(parentVisualSource, /AppNetworkCanaryV72/);
   assert.match(parentVisualSource, /<AppNetworkCanaryV72 locale=\{locale\} \/>/);
   assert.match(interactionOwnershipSource, /AppNetworkCanaryV71/);
   assert.match(interactionOwnershipSource, /<AppNetworkCanaryV71 locale=\{locale\} \/>/);
+  assert.doesNotMatch(guideSource, /const AppNetworkCanaryV74/);
   assert.doesNotMatch(guideSource, /const AppNetworkCanaryV73/);
   assert.doesNotMatch(guideSource, /const AppNetworkCanaryV72/);
   assert.doesNotMatch(guideSource, /const AppNetworkCanaryV71/);
