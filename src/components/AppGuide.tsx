@@ -14,8 +14,8 @@ import { GUIDE_REWARD_STEP_COPY } from '@/lib/i18n/guideRewardStepCopy';
 import '@/lib/i18n/networkNativeReview';
 import type { Locale } from '@/lib/i18n/locales';
 
-const AppNetworkCanaryV74 = dynamic(
-  () => import('./AppNetworkCanaryV74').then((module) => module.AppNetworkCanaryV74),
+const AppNetworkCanaryV75 = dynamic(
+  () => import('./AppNetworkCanaryV75').then((module) => module.AppNetworkCanaryV75),
   { ssr: false },
 );
 
@@ -113,7 +113,7 @@ export function AppGuide({ locale }: { locale: Locale }) {
     return (
       <>
         <NetworkPageZoomGuard />
-        <AppNetworkCanaryV74 key={wallet.toLowerCase()} locale={locale} />
+        <AppNetworkCanaryV75 key={wallet.toLowerCase()} locale={locale} />
       </>
     );
   }
