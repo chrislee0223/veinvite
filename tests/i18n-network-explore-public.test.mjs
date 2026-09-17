@@ -131,7 +131,7 @@ test('Public visibility changes require auth/origin, are throttled, and avoid re
   assert.match(visibilityRoute, /current\?\.discoverable === discoverable/i);
 });
 
-test('Network Empty State uses a lightweight direct-edge probe, shared Network glyph, and only invite/explore actions', () => {
+test('Network Empty State uses a lightweight direct-edge probe, shared Network glyph, and one invite action', () => {
   assert.match(summaryRoute, /qualified_referral_network_edges/i);
   assert.match(summaryRoute, /\.limit\(1\)/i);
   assert.doesNotMatch(summaryRoute, /read_referral_network_focus_v2/i);
@@ -139,9 +139,8 @@ test('Network Empty State uses a lightweight direct-edge probe, shared Network g
   assert.match(hub, /probe\.summary\.network === 0/i);
   assert.match(hub, /goHomeWithoutReload/i);
   assert.match(hub, /data-veinvite-tab="home"/i);
-  assert.match(hub, /e\.exploreNetwork/i);
   const emptyBranch = hub.match(/if \(probe\.summary\.network === 0\)[\s\S]*?\n  }\n\n  return \(/i)?.[0] ?? '';
-  assert.doesNotMatch(emptyBranch, /publicSettings/i);
+  assert.doesNotMatch(emptyBranch, /exploreNetwork|publicSettings|PublicNetworkExplorer/i);
   assert.doesNotMatch(hub, /useGetAvatar/i);
   assert.doesNotMatch(hub, /useVechainDomain/i);
 });
@@ -154,17 +153,18 @@ test('Network runtime OFF is a dedicated maintenance state rather than a retry f
   assert.doesNotMatch(maintenanceBranch, /t\.retry/i);
 });
 
-test('Public visibility UI never guesses OFF when state is unknown and confirms first enable', () => {
-  assert.match(hub, /VisibilityLoadState = 'idle' \| 'loading' \| 'ready' \| 'error'/i);
-  assert.match(hub, /visibilityUnknown/i);
-  assert.match(hub, /window\.confirm\(h\.publicConfirm\)/i);
-  assert.match(hub, /A response can be lost after a successful DB write/i);
-  assert.match(hub, /const confirmed = await fetchVisibility\(\)/i);
+test('Public visibility controls stay dormant and are not mounted into the focused Network surface', () => {
+  assert.doesNotMatch(hub, /VisibilityLoadState/i);
+  assert.doesNotMatch(hub, /fetchVisibility|saveVisibility|publicConfirm|visibilityUnknown/i);
+  assert.doesNotMatch(hub, /exploreNetwork|publicSettings|PublicNetworkExplorer/i);
+  // Dormant backend controls remain hardened in case the product revisits them later.
+  assert.match(visibilityRoute, /requireWalletSession/i);
+  assert.match(visibilityRoute, /sameOrigin\(request\)/i);
 });
 
-test('Explore reuses mature My Network while Public canvas keeps separate state and true last-click-wins', () => {
+test('Focused Network mounts only AppNetwork while dormant Public explorer keeps its isolated safety state', () => {
   assert.match(hub, /<AppNetwork locale=\{locale\} \/>/i);
-  assert.match(hub, /<PublicNetworkExplorer/i);
+  assert.doesNotMatch(hub, /<PublicNetworkExplorer/i);
   assert.match(explorer, /PUBLIC_SESSION_PREFIX\s*=\s*'veinvite-network-public-v2:'/i);
   assert.match(explorer, /requestSerialRef/i);
   assert.match(explorer, /branchRequestRef/i);
