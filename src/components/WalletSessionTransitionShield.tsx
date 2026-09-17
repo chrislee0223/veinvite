@@ -187,7 +187,7 @@ export function WalletSessionTransitionShield() {
         zIndex: 9000,
         display: 'grid',
         placeItems: 'center',
-        pointerEvents: 'none',
+        pointerEvents: 'auto',
         background:
           'radial-gradient(circle at 50% 38%, rgba(244,183,40,0.10), transparent 32%), #080807',
       }}
