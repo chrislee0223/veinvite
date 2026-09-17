@@ -5,6 +5,7 @@ type FixtureNode = {
   parent: string | 'root';
   status: MemberStatus;
   joinedAt: string;
+  roundOffsetHours?: number;
 };
 
 type RoundContext = {
@@ -32,17 +33,17 @@ const WALLETS = {
 const NODES: FixtureNode[] = [
   { wallet: WALLETS.a, parent: 'root', status: 'REWARDED', joinedAt: '2026-09-01T09:00:00.000Z' },
   { wallet: WALLETS.b, parent: 'root', status: 'QUALIFIED', joinedAt: '2026-09-03T13:20:00.000Z' },
-  { wallet: WALLETS.c, parent: 'root', status: 'IN_PROGRESS', joinedAt: '2026-09-07T04:10:00.000Z' },
+  { wallet: WALLETS.c, parent: 'root', status: 'IN_PROGRESS', joinedAt: '2026-09-07T04:10:00.000Z', roundOffsetHours: 18 },
   { wallet: WALLETS.a1, parent: WALLETS.a, status: 'REWARDED', joinedAt: '2026-09-04T10:30:00.000Z' },
-  { wallet: WALLETS.a2, parent: WALLETS.a, status: 'QUALIFIED', joinedAt: '2026-09-05T08:15:00.000Z' },
+  { wallet: WALLETS.a2, parent: WALLETS.a, status: 'QUALIFIED', joinedAt: '2026-09-05T08:15:00.000Z', roundOffsetHours: 31 },
   { wallet: WALLETS.a3, parent: WALLETS.a, status: 'IN_PROGRESS', joinedAt: '2026-09-08T12:45:00.000Z' },
   { wallet: WALLETS.a11, parent: WALLETS.a1, status: 'REWARDED', joinedAt: '2026-09-06T02:40:00.000Z' },
-  { wallet: WALLETS.a12, parent: WALLETS.a1, status: 'QUALIFIED', joinedAt: '2026-09-09T11:05:00.000Z' },
+  { wallet: WALLETS.a12, parent: WALLETS.a1, status: 'QUALIFIED', joinedAt: '2026-09-09T11:05:00.000Z', roundOffsetHours: 52 },
   { wallet: WALLETS.a111, parent: WALLETS.a11, status: 'IN_PROGRESS', joinedAt: '2026-09-11T15:25:00.000Z' },
   { wallet: WALLETS.b1, parent: WALLETS.b, status: 'QUALIFIED', joinedAt: '2026-09-05T06:55:00.000Z' },
-  { wallet: WALLETS.b2, parent: WALLETS.b, status: 'IN_PROGRESS', joinedAt: '2026-09-10T09:35:00.000Z' },
+  { wallet: WALLETS.b2, parent: WALLETS.b, status: 'IN_PROGRESS', joinedAt: '2026-09-10T09:35:00.000Z', roundOffsetHours: 73 },
   { wallet: WALLETS.b11, parent: WALLETS.b1, status: 'REWARDED', joinedAt: '2026-09-12T01:50:00.000Z' },
-  { wallet: WALLETS.c1, parent: WALLETS.c, status: 'IN_PROGRESS', joinedAt: '2026-09-13T05:20:00.000Z' },
+  { wallet: WALLETS.c1, parent: WALLETS.c, status: 'IN_PROGRESS', joinedAt: '2026-09-13T05:20:00.000Z', roundOffsetHours: 94 },
 ];
 
 function key(wallet: string): string {
@@ -83,14 +84,32 @@ function breadcrumbFor(rootWallet: string, focusWallet: string): string[] {
   return [rootWallet, ...path];
 }
 
-function nodeSummary(parent: string | 'root') {
+function resolvedJoinedAt(node: FixtureNode, round: RoundContext): string {
+  if (!round || node.roundOffsetHours === undefined) return node.joinedAt;
+  const start = Date.parse(round.startAt);
+  const end = Date.parse(round.endAt);
+  if (!Number.isFinite(start) || !Number.isFinite(end) || end <= start) return node.joinedAt;
+  const requested = start + node.roundOffsetHours * 60 * 60 * 1000;
+  const latest = Math.max(start, end - 60 * 60 * 1000);
+  return new Date(Math.min(requested, latest)).toISOString();
+}
+
+function joinedThisRound(node: FixtureNode, round: RoundContext): boolean {
+  if (!round) return false;
+  const joined = Date.parse(resolvedJoinedAt(node, round));
+  const start = Date.parse(round.startAt);
+  const end = Date.parse(round.endAt);
+  return Number.isFinite(joined) && Number.isFinite(start) && Number.isFinite(end) && joined >= start && joined < end;
+}
+
+function nodeSummary(parent: string | 'root', round: RoundContext) {
   const direct = childrenOf(parent);
   const descendants = descendantsOf(parent);
   return {
     network: descendants.length,
     direct: direct.length,
     qualified: descendants.filter((node) => node.status !== 'IN_PROGRESS').length,
-    thisRound: descendants.filter((node) => node.joinedAt >= '2026-09-14T00:00:00.000Z').length,
+    thisRound: round ? descendants.filter((node) => joinedThisRound(node, round)).length : null,
   };
 }
 
@@ -110,13 +129,13 @@ export function buildNetworkCanaryFixture(
   }
 
   const parentKey: string | 'root' = focusIsRoot ? 'root' : focusNode!.wallet;
-  const summary = nodeSummary(parentKey);
+  const summary = nodeSummary(parentKey, round);
   const direct = childrenOf(parentKey).map((node) => {
-    const childSummary = nodeSummary(node.wallet);
+    const childSummary = nodeSummary(node.wallet, round);
     return {
       wallet: node.wallet,
       status: node.status,
-      joinedAt: node.joinedAt,
+      joinedAt: resolvedJoinedAt(node, round),
       network: childSummary.network,
       direct: childSummary.direct,
       qualified: childSummary.qualified,
