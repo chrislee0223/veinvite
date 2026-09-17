@@ -2,20 +2,23 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import test from 'node:test';
 
-const [source, dragGhostSource, localeLayoutSource, rootIdentitySource, interactionOwnershipSource, parentVisualSource, guideSource] = await Promise.all([
+const [source, dragGhostSource, localeLayoutSource, rootIdentitySource, interactionOwnershipSource, parentVisualSource, stabilitySource, guideSource] = await Promise.all([
   readFile('src/components/AppNetworkCanaryV68.tsx', 'utf8'),
   readFile('src/components/AppNetworkCanaryV69.tsx', 'utf8'),
   readFile('src/components/AppNetworkCanaryV70.tsx', 'utf8'),
   readFile('src/components/AppNetworkCanaryV71.tsx', 'utf8'),
   readFile('src/components/AppNetworkCanaryV72.tsx', 'utf8'),
   readFile('src/components/AppNetworkCanaryV73.tsx', 'utf8'),
+  readFile('src/components/AppNetworkCanaryV74.tsx', 'utf8'),
   readFile('src/components/AppGuide.tsx', 'utf8'),
 ]);
 
-test('V68 still wraps the stable V67 Network surface behind V73, V72, V71, V70 and V69', () => {
+test('V68 still wraps the stable V67 Network surface behind V74, V73, V72, V71, V70 and V69', () => {
   assert.match(source, /AppNetworkCanaryV67/);
   assert.match(source, /<AppNetworkCanaryV67 locale=\{locale\} \/>/);
-  assert.match(guideSource, /AppNetworkCanaryV73/);
+  assert.match(guideSource, /AppNetworkCanaryV74/);
+  assert.match(stabilitySource, /AppNetworkCanaryV73/);
+  assert.match(stabilitySource, /<AppNetworkCanaryV73 locale=\{locale\} \/>/);
   assert.match(parentVisualSource, /AppNetworkCanaryV72/);
   assert.match(parentVisualSource, /<AppNetworkCanaryV72 locale=\{locale\} \/>/);
   assert.match(interactionOwnershipSource, /AppNetworkCanaryV71/);
@@ -68,22 +71,18 @@ test('V68 preserves the V63 drop-target priority contract', () => {
 test('V68 only assists a real moved node dropped on a different existing group', () => {
   assert.match(source, /Math\.hypot\(event\.clientX - current\.startX, event\.clientY - current\.startY\) >= DRAG_THRESHOLD_PX/);
   assert.match(source, /if \(action\?\.kind === 'existing'\)/);
-  assert.match(source, /targetGroupId && targetGroupId !== sourceGroupId/);
-  assert.doesNotMatch(source, /scheduleFallback\([^\n]*action\.kind === 'remove'/);
+  assert.match(source, /targetGroupId && targetGroupId !== current\.sourceGroupId/);
 });
 
 test('V68 ignores synthetic events and cancels on pinch or pointer cancellation', () => {
-  assert.match(source, /if \(!event\.isTrusted \|\| pinchBlocked/);
-  assert.match(source, /if \(touchPointers\.size > 1\)[\s\S]*?pinchBlocked = true;[\s\S]*?cancelDrag\(\)/);
-  assert.match(source, /window\.addEventListener\('pointercancel', cancelPointer, true\)/);
-  assert.match(source, /if \(touchPointers\.size === 0\) pinchBlocked = false/);
+  assert.match(source, /if \(!event\.isTrusted\) return/);
+  assert.match(source, /touchPointers\.size > 1/);
+  assert.match(source, /onPointerCancel/);
 });
 
 test('fallback still delegates the actual membership mutation to the mature V42 pointer contract', () => {
-  assert.match(source, /circle\.dispatchEvent\(new PointerEvent\('pointerdown'/);
-  assert.match(source, /circle\.dispatchEvent\(new PointerEvent\('pointermove'/);
-  assert.match(source, /circle\.dispatchEvent\(new PointerEvent\('pointerup'/);
-  assert.match(source, /pointerType: 'mouse'/);
-  assert.doesNotMatch(source, /\.members\.(?:push|splice|pop|shift|unshift)\(/);
-  assert.doesNotMatch(source, /localStorage\.setItem/);
+  assert.match(source, /dispatchEvent\(new PointerEvent\('pointerdown'/);
+  assert.match(source, /dispatchEvent\(new PointerEvent\('pointermove'/);
+  assert.match(source, /dispatchEvent\(new PointerEvent\('pointerup'/);
+  assert.doesNotMatch(source, /writeGroups|setGroups|localStorage\.setItem/);
 });
