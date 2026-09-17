@@ -85,6 +85,11 @@ function NetworkCreateGroupDragGhostV69() {
       if (current) cancelUnderlyingCreateDrag(current);
     };
 
+    const resetTouchOwnership = () => {
+      touchPointers.clear();
+      multiTouchBlocked = false;
+    };
+
     const makeGhost = (current: CreateDrag) => {
       if (current.ghost || !current.node.isConnected) return current.ghost;
 
@@ -116,23 +121,31 @@ function NetworkCreateGroupDragGhostV69() {
     };
 
     const onPointerDown = (event: PointerEvent) => {
+      const target = event.target instanceof Element ? event.target : null;
+      const node = target?.closest<HTMLButtonElement>('button.personNode[data-node-id]') ?? null;
+
       if (event.pointerType === 'touch') {
         touchPointers.add(event.pointerId);
         if (touchPointers.size > 1) {
-          multiTouchBlocked = true;
-          cancelActiveDrag();
-          if (event.cancelable) event.preventDefault();
-          event.stopPropagation();
-          event.stopImmediatePropagation();
+          // A second finger normally belongs to canvas pinch. Only consume it
+          // when V69 already owns a real create-group drag past the movement
+          // threshold. A pending tap on a node is cancelled but yielded back to
+          // the canvas so two-finger zoom remains available everywhere.
+          const activeDrag = drag;
+          const ownsCreateGesture = Boolean(activeDrag?.moved || activeDrag?.ghost);
+          if (activeDrag) cancelActiveDrag();
+          if (ownsCreateGesture) {
+            multiTouchBlocked = true;
+            if (event.cancelable) event.preventDefault();
+            event.stopPropagation();
+            event.stopImmediatePropagation();
+          }
           return;
         }
       }
 
       if (!event.isTrusted || multiTouchBlocked || !createEditorOpen()) return;
       if (event.pointerType === 'mouse' && event.button !== 0) return;
-
-      const target = event.target instanceof Element ? event.target : null;
-      const node = target?.closest<HTMLButtonElement>('button.personNode[data-node-id]') ?? null;
       if (!node || !root.contains(node) || node.classList.contains('v42CollapsedMember')) return;
 
       clearDrag();
@@ -190,10 +203,15 @@ function NetworkCreateGroupDragGhostV69() {
     };
 
     const onVisibilityChange = () => {
-      if (document.visibilityState === 'hidden') cancelActiveDrag();
+      if (document.visibilityState !== 'hidden') return;
+      cancelActiveDrag();
+      resetTouchOwnership();
     };
 
-    const onBlur = () => cancelActiveDrag();
+    const onBlur = () => {
+      cancelActiveDrag();
+      resetTouchOwnership();
+    };
 
     window.addEventListener('pointerdown', onPointerDown, true);
     window.addEventListener('pointermove', onPointerMove, true);
@@ -210,7 +228,7 @@ function NetworkCreateGroupDragGhostV69() {
       window.removeEventListener('blur', onBlur);
       document.removeEventListener('visibilitychange', onVisibilityChange);
       clearDrag();
-      touchPointers.clear();
+      resetTouchOwnership();
     };
   }, []);
 

@@ -2,19 +2,22 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import test from 'node:test';
 
-const [source, rootIdentitySource, interactionOwnershipSource, parentVisualSource, guideSource, v69Source, controlCopySource] = await Promise.all([
+const [source, rootIdentitySource, interactionOwnershipSource, parentVisualSource, stabilitySource, guideSource, v69Source, controlCopySource] = await Promise.all([
   readFile('src/components/AppNetworkCanaryV70.tsx', 'utf8'),
   readFile('src/components/AppNetworkCanaryV71.tsx', 'utf8'),
   readFile('src/components/AppNetworkCanaryV72.tsx', 'utf8'),
   readFile('src/components/AppNetworkCanaryV73.tsx', 'utf8'),
+  readFile('src/components/AppNetworkCanaryV74.tsx', 'utf8'),
   readFile('src/components/AppGuide.tsx', 'utf8'),
   readFile('src/components/AppNetworkCanaryV69.tsx', 'utf8'),
   readFile('src/lib/i18n/networkCanvasControlCopy.ts', 'utf8'),
 ]);
 
-test('V73 is the final Network canary layer and preserves the mature V72 to V71 to V70 to V69 chain', () => {
-  assert.match(guideSource, /AppNetworkCanaryV73/);
-  assert.match(guideSource, /<AppNetworkCanaryV73 key=\{wallet\.toLowerCase\(\)\} locale=\{locale\} \/>/);
+test('V74 is the final Network canary layer and preserves the mature V73 to V72 to V71 to V70 to V69 chain', () => {
+  assert.match(guideSource, /AppNetworkCanaryV74/);
+  assert.match(guideSource, /<AppNetworkCanaryV74 key=\{wallet\.toLowerCase\(\)\} locale=\{locale\} \/>/);
+  assert.match(stabilitySource, /AppNetworkCanaryV73/);
+  assert.match(stabilitySource, /<AppNetworkCanaryV73 locale=\{locale\} \/>/);
   assert.match(parentVisualSource, /AppNetworkCanaryV72/);
   assert.match(parentVisualSource, /<AppNetworkCanaryV72 locale=\{locale\} \/>/);
   assert.match(interactionOwnershipSource, /AppNetworkCanaryV71/);
@@ -88,7 +91,7 @@ test('Korean keeps phrase boundaries while Chinese and Japanese retain native li
   assert.match(source, /html\[lang='ko'\][\s\S]*?word-break:\s*keep-all\s*!important/);
   assert.match(source, /html:is\(\[lang='zh'\],\[lang='zh-tw'\],\[lang='ja'\]\)[\s\S]*?line-break:\s*strict/);
   assert.match(source, /html:is\(\[lang='zh'\],\[lang='zh-tw'\],\[lang='ja'\]\)[\s\S]*?word-break:\s*normal\s*!important/);
-  assert.doesNotMatch(source, /html:is\(\[lang='ko'\],\[lang='zh'\]/);
+  assert.doesNotMatch(source, /html:is\(\[lang='ko'\],\[lang='zh'/);
 });
 
 test('geometry-bound canvas labels stay one line while overlay copy can wrap safely', () => {
