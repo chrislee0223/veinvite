@@ -4,18 +4,8 @@ import test from 'node:test';
 
 const [
   localeSource,
-  copySource,
-  canarySource,
-  ambientSource,
-  correctionSource,
-  directDropSource,
-  dragGhostSource,
-  localeLayoutSource,
-  rootIdentitySource,
-  interactionOwnershipSource,
-  parentVisualSource,
-  stabilitySource,
-  returnMotionSource,
+  canvasCopySource,
+  networkSource,
   guideSource,
   layoutSource,
   polishCss,
@@ -24,18 +14,8 @@ const [
   networkNavSource,
 ] = await Promise.all([
   readFile('src/lib/i18n/locales.ts', 'utf8'),
-  readFile('src/lib/i18n/networkCanaryInteractionCopy.ts', 'utf8'),
-  readFile('src/components/AppNetworkCanaryV65.tsx', 'utf8'),
-  readFile('src/components/AppNetworkCanaryV66.tsx', 'utf8'),
-  readFile('src/components/AppNetworkCanaryV67.tsx', 'utf8'),
-  readFile('src/components/AppNetworkCanaryV68.tsx', 'utf8'),
-  readFile('src/components/AppNetworkCanaryV69.tsx', 'utf8'),
-  readFile('src/components/AppNetworkCanaryV70.tsx', 'utf8'),
-  readFile('src/components/AppNetworkCanaryV71.tsx', 'utf8'),
-  readFile('src/components/AppNetworkCanaryV72.tsx', 'utf8'),
-  readFile('src/components/AppNetworkCanaryV73.tsx', 'utf8'),
-  readFile('src/components/AppNetworkCanaryV74.tsx', 'utf8'),
-  readFile('src/components/AppNetworkCanaryV75.tsx', 'utf8'),
+  readFile('src/lib/i18n/networkCanvasControlCopy.ts', 'utf8'),
+  readFile('src/components/AppNetwork.tsx', 'utf8'),
   readFile('src/components/AppGuide.tsx', 'utf8'),
   readFile('src/app/layout.tsx', 'utf8'),
   readFile('src/app/localization-final-polish.css', 'utf8'),
@@ -54,34 +34,17 @@ function localeObjectPattern(locale) {
   return new RegExp(`(?:^|\\n)\\s*${escaped}:\\s*\\{`, 'm');
 }
 
-test('Network interaction feedback has explicit copy for every supported locale', () => {
+test('Network canvas controls have explicit copy for every supported locale', () => {
   assert.equal(supportedLocales.length, 29);
   assert.equal(new Set(supportedLocales).size, supportedLocales.length);
 
   for (const locale of supportedLocales) {
     assert.match(
-      copySource,
+      canvasCopySource,
       localeObjectPattern(locale),
-      `Network interaction copy is missing for ${locale}`,
+      `Network canvas control copy is missing for ${locale}`,
     );
   }
-});
-
-test('Network interaction localization covers every legacy feedback source string', () => {
-  for (const source of [
-    'Already in ',
-    'Release to move to ',
-    'Release to add to ',
-    '✓ Moved',
-    '✓ Added',
-    'Couldn’t save this position.',
-    'Couldn’t confirm the group move.',
-  ]) {
-    assert.ok(canarySource.includes(source), `missing Network localization bridge for: ${source}`);
-  }
-
-  assert.match(copySource, /\\u2068/);
-  assert.match(copySource, /\\u2069/);
 });
 
 test('the final localization layer is loaded after the base typography layer', () => {
@@ -91,8 +54,7 @@ test('the final localization layer is loaded after the base typography layer', (
   assert.ok(finalIndex > baseIndex);
 });
 
-test('final layout polish covers Network, RTL, CJK, Korean and tall-script metrics', () => {
-  assert.match(polishCss, /\.productionNetworkCanaryV45/);
+test('final layout polish still covers public Network surfaces, RTL, CJK, Korean and tall-script metrics', () => {
   assert.match(polishCss, /\.publicExplorePage/);
   assert.match(polishCss, /html\[dir='rtl'\]/);
   assert.match(polishCss, /html\[lang='ko'\]/);
@@ -104,42 +66,27 @@ test('final layout polish covers Network, RTL, CJK, Korean and tall-script metri
   assert.match(polishCss, /unicode-bidi:\s*isolate/);
 });
 
-test('the special Network canary keeps V75 return motion over V74 stability, V73 visual preservation, V72 interaction ownership and the mature localized chain', () => {
-  assert.match(guideSource, /AppNetworkCanaryV75/);
-  assert.match(guideSource, /<AppNetworkCanaryV75 key=\{wallet\.toLowerCase\(\)\} locale=\{locale\} \/>/);
-  assert.match(returnMotionSource, /AppNetworkCanaryV74/);
-  assert.match(returnMotionSource, /<AppNetworkCanaryV74 locale=\{locale\} \/>/);
-  assert.match(stabilitySource, /AppNetworkCanaryV73/);
-  assert.match(stabilitySource, /<AppNetworkCanaryV73 locale=\{locale\} \/>/);
-  assert.match(parentVisualSource, /AppNetworkCanaryV72/);
-  assert.match(parentVisualSource, /<AppNetworkCanaryV72 locale=\{locale\} \/>/);
-  assert.match(interactionOwnershipSource, /AppNetworkCanaryV71/);
-  assert.match(interactionOwnershipSource, /<AppNetworkCanaryV71 locale=\{locale\} \/>/);
-  assert.doesNotMatch(guideSource, /const AppNetworkCanaryV74/);
-  assert.doesNotMatch(guideSource, /const AppNetworkCanaryV73/);
-  assert.doesNotMatch(guideSource, /const AppNetworkCanaryV72/);
-  assert.doesNotMatch(guideSource, /const AppNetworkCanaryV71/);
-  assert.doesNotMatch(guideSource, /const AppNetworkCanaryV70/);
-  assert.doesNotMatch(guideSource, /const AppNetworkCanaryV69/);
-  assert.doesNotMatch(guideSource, /const AppNetworkCanaryV68/);
-  assert.doesNotMatch(guideSource, /const AppNetworkCanaryV67/);
-  assert.doesNotMatch(guideSource, /const AppNetworkCanaryV66/);
-  assert.doesNotMatch(guideSource, /const AppNetworkCanaryV65/);
-  assert.match(rootIdentitySource, /AppNetworkCanaryV70/);
-  assert.match(rootIdentitySource, /<AppNetworkCanaryV70 locale=\{locale\} \/>/);
-  assert.match(localeLayoutSource, /AppNetworkCanaryV69/);
-  assert.match(localeLayoutSource, /<AppNetworkCanaryV69 locale=\{locale\} \/>/);
-  assert.match(dragGhostSource, /AppNetworkCanaryV68/);
-  assert.match(dragGhostSource, /<AppNetworkCanaryV68 locale=\{locale\} \/>/);
-  assert.match(directDropSource, /AppNetworkCanaryV67/);
-  assert.match(directDropSource, /<AppNetworkCanaryV67 locale=\{locale\} \/>/);
-  assert.match(correctionSource, /AppNetworkCanaryV66/);
-  assert.match(correctionSource, /<AppNetworkCanaryV66 locale=\{locale\} \/>/);
-  assert.match(ambientSource, /AppNetworkCanaryV65/);
-  assert.match(ambientSource, /<AppNetworkCanaryV65 locale=\{locale\} \/>/);
-  assert.match(canarySource, /const resolvedLocale = resolveLocale\(locale\)/);
-  assert.match(canarySource, /NETWORK_CANARY_UI_COPY\[resolvedLocale\]/);
-  assert.match(canarySource, /getNetworkCanaryInteractionCopy\(resolvedLocale\)/);
+test('Network routes every wallet through one production runtime', () => {
+  assert.match(guideSource, /<AppNetworkHub locale=\{locale\} \/>/);
+  assert.doesNotMatch(guideSource, /AppNetworkCanaryV\d+/);
+  assert.doesNotMatch(guideSource, /NETWORK_CANARY_WALLET/);
+  assert.doesNotMatch(guideSource, /NetworkPageZoomGuard/);
+  assert.match(networkSource, /data-network-runtime="single"/);
+  assert.doesNotMatch(networkSource, /MutationObserver/);
+  assert.doesNotMatch(networkSource, /productionNetworkCanary/);
+});
+
+test('single Network runtime owns camera changes explicitly and restores parent views', () => {
+  assert.match(networkSource, /returnViewByChildRef/);
+  assert.match(networkSource, /viewByFocusRef/);
+  assert.match(networkSource, /function centeredView/);
+  assert.match(networkSource, /const returnToParent = useCallback/);
+  assert.match(networkSource, /pinchReturnIntentRef/);
+  assert.match(networkSource, /wheelReturnDistanceRef/);
+  assert.match(networkSource, /touch-action:none/);
+  assert.match(networkSource, /const observer = new ResizeObserver\(update\)/);
+  assert.doesNotMatch(networkSource, /safeBottom/);
+  assert.doesNotMatch(networkSource, /safeRight/);
 });
 
 test('user-facing Network navigation has an explicit label in all locales', () => {
