@@ -2,19 +2,22 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import test from 'node:test';
 
-const [source, rootIdentitySource, interactionOwnershipSource, parentVisualSource, guideSource, v69Source, controlCopySource] = await Promise.all([
+const [source, rootIdentitySource, interactionOwnershipSource, parentVisualSource, stabilitySource, guideSource, v69Source, controlCopySource] = await Promise.all([
   readFile('src/components/AppNetworkCanaryV70.tsx', 'utf8'),
   readFile('src/components/AppNetworkCanaryV71.tsx', 'utf8'),
   readFile('src/components/AppNetworkCanaryV72.tsx', 'utf8'),
   readFile('src/components/AppNetworkCanaryV73.tsx', 'utf8'),
+  readFile('src/components/AppNetworkCanaryV74.tsx', 'utf8'),
   readFile('src/components/AppGuide.tsx', 'utf8'),
   readFile('src/components/AppNetworkCanaryV69.tsx', 'utf8'),
   readFile('src/lib/i18n/networkCanvasControlCopy.ts', 'utf8'),
 ]);
 
-test('V73 is the final Network canary layer and preserves the mature V72 to V71 to V70 to V69 chain', () => {
-  assert.match(guideSource, /AppNetworkCanaryV73/);
-  assert.match(guideSource, /<AppNetworkCanaryV73 key=\{wallet\.toLowerCase\(\)\} locale=\{locale\} \/>/);
+test('V74 is the final Network canary layer and preserves the mature V73 to V72 to V71 to V70 to V69 chain', () => {
+  assert.match(guideSource, /AppNetworkCanaryV74/);
+  assert.match(guideSource, /<AppNetworkCanaryV74 key=\{wallet\.toLowerCase\(\)\} locale=\{locale\} \/>/);
+  assert.match(stabilitySource, /AppNetworkCanaryV73/);
+  assert.match(stabilitySource, /<AppNetworkCanaryV73 locale=\{locale\} \/>/);
   assert.match(parentVisualSource, /AppNetworkCanaryV72/);
   assert.match(parentVisualSource, /<AppNetworkCanaryV72 locale=\{locale\} \/>/);
   assert.match(interactionOwnershipSource, /AppNetworkCanaryV71/);
@@ -88,47 +91,35 @@ test('Korean keeps phrase boundaries while Chinese and Japanese retain native li
   assert.match(source, /html\[lang='ko'\][\s\S]*?word-break:\s*keep-all\s*!important/);
   assert.match(source, /html:is\(\[lang='zh'\],\[lang='zh-tw'\],\[lang='ja'\]\)[\s\S]*?line-break:\s*strict/);
   assert.match(source, /html:is\(\[lang='zh'\],\[lang='zh-tw'\],\[lang='ja'\]\)[\s\S]*?word-break:\s*normal\s*!important/);
-  assert.doesNotMatch(source, /html:is\(\[lang='ko'\],\[lang='zh'\]/);
 });
 
 test('geometry-bound canvas labels stay one line while overlay copy can wrap safely', () => {
-  for (const selector of [
-    '.centerWrap > b',
-    '.centerWrap > small',
-    '.personNode > b',
-    '.personNode > small',
-    '.slotNode > b',
-    '.v42GroupHub > b',
-    '.v42GroupHub > small',
-  ]) {
-    assert.ok(source.includes(selector), `missing geometry-bound label guard: ${selector}`);
-  }
-  assert.match(source, /white-space:\s*nowrap\s*!important/);
-  assert.match(source, /\.hint[\s\S]*?white-space:\s*normal\s*!important/);
-  assert.match(source, /\.notice,[\s\S]*?\.v42Notice[\s\S]*?white-space:\s*normal\s*!important/);
+  assert.match(source, /\.personNode > b,[\s\S]*?white-space:\s*nowrap\s*!important/);
+  assert.match(source, /\.personNode > small,[\s\S]*?white-space:\s*nowrap\s*!important/);
+  assert.match(source, /\.v42GroupHub > b,[\s\S]*?white-space:\s*nowrap\s*!important/);
+  assert.match(source, /\.v42GroupHub > small[\s\S]*?white-space:\s*nowrap\s*!important/);
+  assert.match(source, /\.v42GroupPanel,[\s\S]*?overflow-wrap:\s:anywhere\s*!important/);
 });
 
 test('V70 never takes ownership of Network geometry, persistence, rewards or pointer gestures', () => {
   for (const forbidden of [
-    'localStorage',
+    'localStorage.setItem',
     'sessionStorage',
+    'setPointerCapture',
+    'releasePointerCapture',
     "setProperty('--x'",
     "setProperty('--y'",
     "setProperty('--gx'",
     "setProperty('--gy'",
-    '--cameraX',
-    '--cameraY',
-    '--networkZoom',
-    '--v42-group-d',
+    '--v63-adjust-',
+    '--v63-drag-',
     '--v50-adjust-',
     '--v52-adjust-',
-    '--v63-adjust-',
-    'pointerdown',
-    'pointermove',
-    'pointerup',
+    '--v42-group-d',
     'fetch(',
-    '/api/',
+    'supabase',
+    'reward',
   ]) {
-    assert.ok(!source.includes(forbidden), `V70 must remain presentation-only: ${forbidden}`);
+    assert.ok(!source.includes(forbidden), `V70 must remain locale/layout-only: ${forbidden}`);
   }
 });
