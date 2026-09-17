@@ -1,11 +1,7 @@
 'use client';
 
-import dynamic from 'next/dynamic';
-import { useLayoutEffect } from 'react';
-
 import { AppNetworkComingSoon } from './AppNetworkComingSoon';
 import { AppNetworkHub } from './AppNetworkHub';
-import { useWalletLauncher } from './WalletControl';
 import { GUIDE_COPY } from '@/lib/i18n/guideCopy';
 import { GUIDE_ELIGIBILITY_COPY } from '@/lib/i18n/guideEligibilityCopy';
 import { GUIDE_FLOW_COPY } from '@/lib/i18n/guideFlowCopy';
@@ -14,115 +10,15 @@ import { GUIDE_REWARD_STEP_COPY } from '@/lib/i18n/guideRewardStepCopy';
 import '@/lib/i18n/networkNativeReview';
 import type { Locale } from '@/lib/i18n/locales';
 
-const AppNetworkCanaryV75 = dynamic(
-  () => import('./AppNetworkCanaryV75').then((module) => module.AppNetworkCanaryV75),
-  { ssr: false },
-);
-
-const NETWORK_CANARY_WALLET = '0xeff325935b63299e9eeda79931bed6ec119aefcb';
-const NETWORK_PAGE_TOUCH_ACTION = 'pan-x pan-y';
-const NETWORK_VIEWPORT_ZOOM_KEYS = new Set([
-  'initial-scale',
-  'minimum-scale',
-  'maximum-scale',
-  'user-scalable',
-]);
-
-function lockedNetworkViewportContent(content: string | null): string {
-  const entries = (content ?? '')
-    .split(',')
-    .map((entry) => entry.trim())
-    .filter(Boolean)
-    .filter((entry) => {
-      const [key] = entry.split('=');
-      return !NETWORK_VIEWPORT_ZOOM_KEYS.has(key.trim().toLowerCase());
-    });
-
-  if (!entries.some((entry) => entry.toLowerCase().startsWith('width='))) {
-    entries.unshift('width=device-width');
-  }
-
-  entries.push(
-    'initial-scale=1',
-    'minimum-scale=1',
-    'maximum-scale=1',
-    'user-scalable=no',
-  );
-  return entries.join(', ');
-}
-
-function NetworkPageZoomGuard() {
-  useLayoutEffect(() => {
-    const viewport = document.querySelector<HTMLMetaElement>('meta[name="viewport"]');
-    if (!viewport) return;
-
-    const root = document.documentElement;
-    const previousContent = viewport.getAttribute('content');
-    const previousTouchAction = root.style.touchAction;
-    const lockedContent = lockedNetworkViewportContent(previousContent);
-
-    const blockNativePinch = (event: Event) => {
-      if (event.cancelable) event.preventDefault();
-    };
-
-    viewport.setAttribute('content', lockedContent);
-    root.style.touchAction = NETWORK_PAGE_TOUCH_ACTION;
-    root.dataset.veinviteNetworkViewportLocked = 'true';
-
-    // iOS Safari and embedded WKWebViews may still emit native gesture events
-    // even when viewport scaling is constrained. Block only the native page
-    // gesture; the Network canvases keep owning their existing pointer/touch
-    // pinch logic and one-finger pan/controls remain untouched.
-    document.addEventListener('gesturestart', blockNativePinch, { capture: true, passive: false });
-    document.addEventListener('gesturechange', blockNativePinch, { capture: true, passive: false });
-    document.addEventListener('gestureend', blockNativePinch, { capture: true, passive: false });
-
-    return () => {
-      document.removeEventListener('gesturestart', blockNativePinch, true);
-      document.removeEventListener('gesturechange', blockNativePinch, true);
-      document.removeEventListener('gestureend', blockNativePinch, true);
-
-      // Restore only values still owned by this guard so a future route or
-      // browser integration cannot be overwritten by stale cleanup.
-      if (viewport.getAttribute('content') === lockedContent) {
-        if (previousContent === null) viewport.removeAttribute('content');
-        else viewport.setAttribute('content', previousContent);
-      }
-      if (root.style.touchAction === NETWORK_PAGE_TOUCH_ACTION) {
-        root.style.touchAction = previousTouchAction;
-      }
-      if (root.dataset.veinviteNetworkViewportLocked === 'true') {
-        delete root.dataset.veinviteNetworkViewportLocked;
-      }
-    };
-  }, []);
-
-  return null;
-}
-
 // Keep the legacy `guide` tab key for analytics/database compatibility while
-// the user-facing tab is Network. The hub separates My Network, Empty State,
-// rollout maintenance, and privacy-gated Public Explore without changing the
-// underlying mature My Network canvas.
+// the user-facing tab is Network. All wallets now use the same production
+// Network runtime; experimental version chains no longer own a separate path.
 export function AppGuide({ locale }: { locale: Locale }) {
-  const { wallet } = useWalletLauncher();
   const networkEnabled =
     process.env.NEXT_PUBLIC_NETWORK_CANVAS_ENABLED !== 'false';
 
-  if (wallet?.toLowerCase() === NETWORK_CANARY_WALLET) {
-    return (
-      <>
-        <NetworkPageZoomGuard />
-        <AppNetworkCanaryV75 key={wallet.toLowerCase()} locale={locale} />
-      </>
-    );
-  }
-
   return networkEnabled ? (
-    <>
-      <NetworkPageZoomGuard />
-      <AppNetworkHub locale={locale} />
-    </>
+    <AppNetworkHub locale={locale} />
   ) : (
     <AppNetworkComingSoon locale={locale} />
   );
