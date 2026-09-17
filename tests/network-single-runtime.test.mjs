@@ -98,8 +98,12 @@ test('group creation is a draft-first interaction and preserves member positions
   assert.match(networkSource, /groupDraft\.members\.length < 2/);
   assert.match(networkSource, /addWorkspaceGroup\(draftWorkspace/);
   assert.match(networkSource, /removeWorkspaceGroup\(current, selectedGroup\.id\)/);
-  assert.match(workspaceSource, /positions: \{\.\.\.workspace\.positions\}/);
-  assert.match(workspaceSource, /groups: workspace\.groups\.filter/);
+  const removeStart = workspaceSource.indexOf('export function removeWorkspaceGroup');
+  const removeEnd = workspaceSource.indexOf('export function groupContainingWallet', removeStart);
+  assert.ok(removeStart >= 0 && removeEnd > removeStart);
+  const removeGroupSource = workspaceSource.slice(removeStart, removeEnd);
+  assert.match(removeGroupSource, /groups: workspace\.groups\.filter/);
+  assert.doesNotMatch(removeGroupSource, /positions\s*:/);
 });
 
 test('workspace copy covers every supported locale through a typed record', () => {
