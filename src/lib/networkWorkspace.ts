@@ -9,6 +9,7 @@ export type NetworkWorkspaceGroup = {
   members: string[];
   x: number;
   y: number;
+  collapsed?: boolean;
 };
 
 export type NetworkFocusWorkspace = {
@@ -47,6 +48,10 @@ function cleanWallet(value: unknown): string | null {
   return /^0x[0-9a-f]{40}$/.test(wallet) ? wallet : null;
 }
 
+function keepValidGroups(groups: NetworkWorkspaceGroup[]): NetworkWorkspaceGroup[] {
+  return groups.filter((group) => group.members.length >= 2).slice(-MAX_GROUPS_PER_FOCUS);
+}
+
 export function cloneNetworkFocusWorkspace(
   source: NetworkFocusWorkspace | null | undefined,
 ): NetworkFocusWorkspace {
@@ -58,6 +63,7 @@ export function cloneNetworkFocusWorkspace(
     groups: source.groups.map((group) => ({
       ...group,
       members: [...group.members],
+      collapsed: group.collapsed !== false,
     })),
   };
 }
@@ -102,6 +108,7 @@ export function parseNetworkWorkspaceStore(raw: string | null): NetworkWorkspace
             members,
             x: point.x,
             y: point.y,
+            collapsed: group.collapsed !== false,
           });
         }
       }
@@ -152,6 +159,15 @@ export function withNodePosition(
   };
 }
 
+export function withoutNodePositions(
+  workspace: NetworkFocusWorkspace,
+): NetworkFocusWorkspace {
+  return {
+    ...workspace,
+    positions: {},
+  };
+}
+
 export function withGroupPosition(
   workspace: NetworkFocusWorkspace,
   groupId: string,
@@ -165,25 +181,71 @@ export function withGroupPosition(
   };
 }
 
+export function withWorkspaceGroupCollapsed(
+  workspace: NetworkFocusWorkspace,
+  groupId: string,
+  collapsed: boolean,
+): NetworkFocusWorkspace {
+  return {
+    ...workspace,
+    groups: workspace.groups.map((group) => (
+      group.id === groupId ? { ...group, collapsed } : group
+    )),
+  };
+}
+
 export function addWorkspaceGroup(
   workspace: NetworkFocusWorkspace,
   group: NetworkWorkspaceGroup,
 ): NetworkFocusWorkspace {
-  const members = Array.from(new Set(group.members.map((wallet) => wallet.toLowerCase())));
+  const members = Array.from(new Set(group.members.map((wallet) => wallet.toLowerCase()))).slice(0, MAX_MEMBERS_PER_GROUP);
   if (members.length < 2) return workspace;
   const memberSet = new Set(members);
-  const groups = workspace.groups
-    .map((existing) => ({
-      ...existing,
-      members: existing.members.filter((wallet) => !memberSet.has(wallet.toLowerCase())),
-    }))
-    .filter((existing) => existing.members.length >= 2);
+  const groups = keepValidGroups(workspace.groups.map((existing) => ({
+    ...existing,
+    members: existing.members.filter((wallet) => !memberSet.has(wallet.toLowerCase())),
+  })));
   return {
     ...workspace,
     groups: [
       ...groups,
-      { ...group, members },
+      { ...group, members, collapsed: group.collapsed !== false },
     ].slice(-MAX_GROUPS_PER_FOCUS),
+  };
+}
+
+export function moveWorkspaceMemberToGroup(
+  workspace: NetworkFocusWorkspace,
+  wallet: string,
+  targetGroupId: string,
+): NetworkFocusWorkspace {
+  const key = wallet.toLowerCase();
+  const target = workspace.groups.find((group) => group.id === targetGroupId);
+  if (!target || target.members.some((member) => member.toLowerCase() === key)) return workspace;
+
+  const groups = workspace.groups.map((group) => {
+    const members = group.members.filter((member) => member.toLowerCase() !== key);
+    if (group.id === targetGroupId) members.push(key);
+    return { ...group, members: Array.from(new Set(members)).slice(0, MAX_MEMBERS_PER_GROUP) };
+  });
+
+  return {
+    ...workspace,
+    groups: keepValidGroups(groups),
+  };
+}
+
+export function removeWorkspaceMemberFromGroup(
+  workspace: NetworkFocusWorkspace,
+  wallet: string,
+): NetworkFocusWorkspace {
+  const key = wallet.toLowerCase();
+  return {
+    ...workspace,
+    groups: keepValidGroups(workspace.groups.map((group) => ({
+      ...group,
+      members: group.members.filter((member) => member.toLowerCase() !== key),
+    }))),
   };
 }
 
