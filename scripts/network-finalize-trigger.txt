@@ -1,1 +1,0 @@
-one-shot trigger for the guarded Network finalization workflow
