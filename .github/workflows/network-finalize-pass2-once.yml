@@ -1,14 +1,70 @@
 name: Network Finalize Pass 2 Once
 
 on:
-  workflow_dispatch:
+  push:
+    branches:
+      - restore/network-final-interactions
 
 permissions:
   contents: write
 
 jobs:
   finalize:
-    if: ${{ false }}
     runs-on: ubuntu-latest
     steps:
-      - run: echo "Paused while the guarded finalizer script is syntax-reviewed."
+      - name: Checkout branch
+        uses: actions/checkout@v7
+        with:
+          ref: restore/network-final-interactions
+          fetch-depth: 0
+
+      - name: Use Node.js 24
+        uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Syntax-check guarded patch scripts
+        run: |
+          node --check scripts/network-finalize-gesture-core.mjs
+          node --check scripts/network-finalize-camera.mjs
+          node --check scripts/network-finalize-group-drop.mjs
+          node --check scripts/network-finalize-hold.mjs
+          node --check scripts/network-finalize-zoom-entry.mjs
+          node --check scripts/network-finalize-tests.mjs
+
+      - name: Apply guarded Network finalization
+        run: |
+          node scripts/network-finalize-gesture-core.mjs
+          node scripts/network-finalize-camera.mjs
+          node scripts/network-finalize-group-drop.mjs
+          node scripts/network-finalize-hold.mjs
+          node scripts/network-finalize-zoom-entry.mjs
+          node scripts/network-finalize-tests.mjs
+
+      - name: Verify final Network contract
+        run: |
+          git diff --check
+          node --test tests/network-single-runtime.test.mjs
+          npm run typecheck
+
+      - name: Commit finalized Network interactions
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git rm \
+            scripts/network-finalize-prepass.mjs \
+            scripts/network-finalize-pass2.mjs \
+            scripts/network-finalize-gesture-core.mjs \
+            scripts/network-finalize-camera.mjs \
+            scripts/network-finalize-group-drop.mjs \
+            scripts/network-finalize-hold.mjs \
+            scripts/network-finalize-zoom-entry.mjs \
+            scripts/network-finalize-tests.mjs \
+            .github/workflows/network-finalize-pass2-once.yml
+          git add src/components/AppNetwork.tsx tests/network-single-runtime.test.mjs
+          git commit -m "Restore final coordinate-owned Network interactions"
+          git push origin HEAD:restore/network-final-interactions
