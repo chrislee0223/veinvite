@@ -40,19 +40,23 @@ test('Network replaces Guide only at the user-facing navigation layer', () => {
   assert.match(navigation, /activeTab === 'home'/i);
 });
 
-test('the legacy Guide tab renders the hardened Network hub by default while retaining a build-time fallback', () => {
+test('the legacy Guide tab renders the single hardened Network runtime while retaining a build-time fallback', () => {
   assert.match(guide, /import \{ AppNetworkHub \} from '\.\/AppNetworkHub'/i);
   assert.match(guide, /NEXT_PUBLIC_NETWORK_CANVAS_ENABLED/i);
   assert.match(guide, /<AppNetworkHub locale=\{locale\} \/>/i);
   assert.match(guide, /<AppNetworkComingSoon locale=\{locale\} \/>/i);
   assert.match(guide, /export function InviteGuideContent/i);
+  assert.doesNotMatch(guide, /AppNetworkCanaryV\d+/i);
+  assert.doesNotMatch(guide, /NetworkPageZoomGuard/i);
   assert.doesNotMatch(guide, /className="countCard"/i);
   assert.doesNotMatch(guide, /flow\.countDescription/i);
   assert.match(networkPage, /NETWORK_COPY/i);
   assert.match(networkPage, /className="networkCard"/i);
   assert.match(interactiveNetwork, /NETWORK_EXPERIENCE_COPY/i);
   assert.match(interactiveNetwork, /className="networkStage"/i);
-  assert.match(interactiveNetwork, /activePath/i);
+  assert.match(interactiveNetwork, /data-network-runtime="single"/i);
+  assert.match(interactiveNetwork, /returnViewByChildRef/i);
+  assert.doesNotMatch(interactiveNetwork, /MutationObserver/i);
   assert.match(networkHub, /<AppNetwork locale=\{locale\} \/>/i);
   assert.match(networkHub, /<PublicNetworkExplorer/i);
   assert.match(publicExplorer, /PUBLIC_SESSION_PREFIX/i);
