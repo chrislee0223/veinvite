@@ -136,7 +136,35 @@ test('an external VeWorld account switch repairs a persistent VeChainKit/DAppKit
   );
 });
 
-test('provider repair preserves the old A-session confirmation and only re-arms auth after it is safe', async () => {
+test('stable VeWorld provider agreement automatically retires a stale browser session before B verification', async () => {
+  const source = await readFile(
+    new URL(
+      '../src/components/WalletProviderAccountReconciler.tsx',
+      import.meta.url,
+    ),
+    'utf8',
+  );
+
+  assert.match(source, /sessionHandoffTargetRef/);
+  assert.match(
+    source,
+    /!connection\.isConnectedWithDappKit[\s\S]*connection\.isLoading[\s\S]*dappWallet !== canonicalWallet/,
+  );
+  assert.match(
+    source,
+    /session\.authenticated !== true[\s\S]*!sessionWallet[\s\S]*sessionWallet === targetWallet/,
+  );
+  assert.match(
+    source,
+    /cancelActiveWalletAuthentication\(\)[\s\S]*method:\s*'DELETE'[\s\S]*new Event\(WALLET_SESSION_INVALID_EVENT\)/,
+  );
+  assert.doesNotMatch(
+    source,
+    /sessionHandoffTargetRef[\s\S]*disconnect\(\)/,
+  );
+});
+
+test('provider repair leaves session destruction to the stable-provider handoff and only re-arms auth after it is safe', async () => {
   const source = await readFile(
     new URL(
       '../src/components/WalletProviderAccountReconciler.tsx',
