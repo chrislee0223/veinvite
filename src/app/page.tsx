@@ -49,6 +49,9 @@ export default async function HomePage() {
             ? 'verified'
             : 'none'
         }
+        data-veinvite-session-wallet={
+          initialSessionWallet ?? ''
+        }
       />
       <WalletSessionGate
         initialSessionWallet={
