@@ -31,9 +31,12 @@ const WALLETS = {
 } as const;
 
 const NODES: FixtureNode[] = [
+  // Root intentionally starts with one occupied invite branch. The second root
+  // slot stays empty so the production canary reproduces the real onboarding
+  // shape we want to validate: YOU -> person + available slot.
   { wallet: WALLETS.a, parent: 'root', status: 'REWARDED', joinedAt: '2026-09-01T09:00:00.000Z' },
-  { wallet: WALLETS.b, parent: 'root', status: 'QUALIFIED', joinedAt: '2026-09-03T13:20:00.000Z' },
-  { wallet: WALLETS.c, parent: 'root', status: 'IN_PROGRESS', joinedAt: '2026-09-07T04:10:00.000Z', roundOffsetHours: 18 },
+  { wallet: WALLETS.b, parent: WALLETS.a, status: 'QUALIFIED', joinedAt: '2026-09-03T13:20:00.000Z' },
+  { wallet: WALLETS.c, parent: WALLETS.a, status: 'IN_PROGRESS', joinedAt: '2026-09-07T04:10:00.000Z', roundOffsetHours: 18 },
   { wallet: WALLETS.a1, parent: WALLETS.a, status: 'REWARDED', joinedAt: '2026-09-04T10:30:00.000Z' },
   { wallet: WALLETS.a2, parent: WALLETS.a, status: 'QUALIFIED', joinedAt: '2026-09-05T08:15:00.000Z', roundOffsetHours: 31 },
   { wallet: WALLETS.a3, parent: WALLETS.a, status: 'IN_PROGRESS', joinedAt: '2026-09-08T12:45:00.000Z' },
