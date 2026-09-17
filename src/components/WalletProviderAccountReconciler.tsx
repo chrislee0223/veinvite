@@ -20,7 +20,9 @@ import {
 
 const WALLET_PATTERN = /^0x[0-9a-f]{40}$/;
 const PROVIDER_MISMATCH_GRACE_MS = 700;
+const PROVIDER_HANDOFF_GRACE_MS = 700;
 const PROVIDER_REPAIR_SETTLE_MS = 350;
+const AUTH_HANDOFF_SETTLE_MS = 1_000;
 const PROVIDER_REPAIR_RETRY_DELAYS_MS = [0, 450, 900] as const;
 const WALLET_SESSION_INVALID_EVENT =
   'veinvite-wallet-session-invalid';
@@ -116,6 +118,7 @@ export function WalletProviderAccountReconciler() {
   const repairTargetRef = useRef<string | null>(null);
   const repairGenerationRef = useRef(0);
   const sessionHandoffTargetRef = useRef<string | null>(null);
+  const sessionHandoffGenerationRef = useRef(0);
   const [authActivityEpoch, setAuthActivityEpoch] =
     useState(0);
 
@@ -147,15 +150,16 @@ export function WalletProviderAccountReconciler() {
 
   // A real external VeWorld account change can leave the browser authenticated
   // as wallet A while BOTH provider layers already agree that wallet B is now
-  // active. That is stronger evidence than a one-layer provider wobble. In this
-  // exact state, retire only this browser's old A session and immediately re-arm
-  // WalletSessionGate for B. This keeps the brand surface continuous and avoids
-  // routing a normal VeWorld switch through the generic mismatch screen.
+  // active. That is stronger evidence than a one-layer provider wobble. Require
+  // that agreement to remain stable for a short grace window before retiring
+  // only this browser's old A session and re-arming WalletSessionGate for B.
   //
   // If provider alignment changes, the session request fails, or DELETE fails,
-  // do nothing destructive beyond cancelling a stale in-flight proof. The
-  // existing WalletSessionGate mismatch surface remains the fallback.
+  // the existing WalletSessionGate mismatch surface remains the safe fallback.
   useEffect(() => {
+    const generation = sessionHandoffGenerationRef.current + 1;
+    sessionHandoffGenerationRef.current = generation;
+
     if (
       !connection.isConnectedWithDappKit ||
       connection.isLoading ||
@@ -170,71 +174,114 @@ export function WalletProviderAccountReconciler() {
     const targetWallet = canonicalWallet;
     sessionHandoffTargetRef.current = targetWallet;
 
-    void (async () => {
-      try {
-        const response = await fetch('/api/auth/session', {
-          method: 'GET',
-          cache: 'no-store',
-          credentials: 'include',
-        });
+    const handoffTimer = window.setTimeout(() => {
+      void (async () => {
+        try {
+          if (
+            cancelled ||
+            sessionHandoffGenerationRef.current !== generation ||
+            canonicalWalletRef.current !== targetWallet ||
+            dappWalletRef.current !== targetWallet
+          ) {
+            return;
+          }
 
-        if (
-          cancelled ||
-          canonicalWalletRef.current !== targetWallet ||
-          dappWalletRef.current !== targetWallet ||
-          !response.ok
-        ) {
-          return;
+          const response = await fetch('/api/auth/session', {
+            method: 'GET',
+            cache: 'no-store',
+            credentials: 'include',
+          });
+
+          if (
+            cancelled ||
+            sessionHandoffGenerationRef.current !== generation ||
+            canonicalWalletRef.current !== targetWallet ||
+            dappWalletRef.current !== targetWallet ||
+            !response.ok
+          ) {
+            return;
+          }
+
+          const session = (await response.json()) as SessionResponse;
+          const sessionWallet = normalizeWallet(session.walletAddress);
+
+          if (
+            session.authenticated !== true ||
+            !sessionWallet ||
+            sessionWallet === targetWallet
+          ) {
+            return;
+          }
+
+          // The old verification attempt may already have observed A and be on
+          // its way to the mismatch fallback. Invalidate that proof first.
+          const staleAuthentication =
+            cancelActiveWalletAuthentication();
+
+          const clearBrowserSession = async () => {
+            const clearResponse = await fetch('/api/auth/session', {
+              method: 'DELETE',
+              cache: 'no-store',
+              credentials: 'include',
+            });
+            return clearResponse.ok;
+          };
+
+          // First remove the known stale A session immediately.
+          if (!(await clearBrowserSession())) {
+            return;
+          }
+
+          // A wallet-owned certificate prompt cannot always be interrupted by
+          // AbortController. Give a cancelled proof a bounded settle window,
+          // then DELETE once more so a verify that crossed the first DELETE
+          // cannot recreate a stale browser session behind the new wallet.
+          if (staleAuthentication) {
+            await Promise.race([
+              staleAuthentication.promise.catch(
+                () => undefined,
+              ),
+              wait(AUTH_HANDOFF_SETTLE_MS),
+            ]);
+          }
+
+          if (
+            cancelled ||
+            sessionHandoffGenerationRef.current !== generation
+          ) {
+            return;
+          }
+
+          if (!(await clearBrowserSession())) {
+            return;
+          }
+
+          window.dispatchEvent(
+            new Event(WALLET_SESSION_INVALID_EVENT),
+          );
+        } catch (error) {
+          console.warn(
+            'VeInvite could not hand off the stale browser session to the current VeWorld wallet.',
+            error,
+          );
+        } finally {
+          if (
+            sessionHandoffTargetRef.current === targetWallet
+          ) {
+            sessionHandoffTargetRef.current = null;
+          }
         }
-
-        const session = (await response.json()) as SessionResponse;
-        const sessionWallet = normalizeWallet(session.walletAddress);
-
-        if (
-          session.authenticated !== true ||
-          !sessionWallet ||
-          sessionWallet === targetWallet
-        ) {
-          return;
-        }
-
-        // The old verification attempt may already have observed A and be on
-        // its way to the 600ms mismatch fallback. Invalidate that proof before
-        // revoking A so its delayed error cannot flash over the brand surface.
-        cancelActiveWalletAuthentication();
-
-        const clearResponse = await fetch('/api/auth/session', {
-          method: 'DELETE',
-          cache: 'no-store',
-          credentials: 'include',
-        });
-
-        if (!clearResponse.ok) {
-          return;
-        }
-
-        // Even if the user moved again while DELETE was in flight, the old A
-        // browser session is now gone and the gate must re-read the CURRENT
-        // provider wallet rather than preserving stale A state.
-        window.dispatchEvent(
-          new Event(WALLET_SESSION_INVALID_EVENT),
-        );
-      } catch (error) {
-        console.warn(
-          'VeInvite could not hand off the stale browser session to the current VeWorld wallet.',
-          error,
-        );
-      } finally {
-        if (
-          sessionHandoffTargetRef.current === targetWallet
-        ) {
-          sessionHandoffTargetRef.current = null;
-        }
-      }
-    })();
+      })();
+    }, PROVIDER_HANDOFF_GRACE_MS);
 
     return () => {
       cancelled = true;
+      window.clearTimeout(handoffTimer);
+      if (
+        sessionHandoffTargetRef.current === targetWallet
+      ) {
+        sessionHandoffTargetRef.current = null;
+      }
     };
   }, [
     canonicalWallet,
