@@ -85,6 +85,11 @@ function NetworkCreateGroupDragGhostV69() {
       if (current) cancelUnderlyingCreateDrag(current);
     };
 
+    const resetTouchOwnership = () => {
+      touchPointers.clear();
+      multiTouchBlocked = false;
+    };
+
     const makeGhost = (current: CreateDrag) => {
       if (current.ghost || !current.node.isConnected) return current.ghost;
 
@@ -198,10 +203,15 @@ function NetworkCreateGroupDragGhostV69() {
     };
 
     const onVisibilityChange = () => {
-      if (document.visibilityState === 'hidden') cancelActiveDrag();
+      if (document.visibilityState !== 'hidden') return;
+      cancelActiveDrag();
+      resetTouchOwnership();
     };
 
-    const onBlur = () => cancelActiveDrag();
+    const onBlur = () => {
+      cancelActiveDrag();
+      resetTouchOwnership();
+    };
 
     window.addEventListener('pointerdown', onPointerDown, true);
     window.addEventListener('pointermove', onPointerMove, true);
@@ -218,7 +228,7 @@ function NetworkCreateGroupDragGhostV69() {
       window.removeEventListener('blur', onBlur);
       document.removeEventListener('visibilitychange', onVisibilityChange);
       clearDrag();
-      touchPointers.clear();
+      resetTouchOwnership();
     };
   }, []);
 
