@@ -3,6 +3,7 @@ import { createHash } from 'node:crypto';
 import { NextRequest, NextResponse } from 'next/server';
 
 import { isLocale } from '@/lib/i18n/locales';
+import { capturePostHogEvent } from '@/lib/posthogAnalyticsServer';
 import {
   enforceRateLimits,
   getClientIpSubject,
@@ -344,6 +345,27 @@ export async function POST(request: NextRequest) {
     );
     return noStore(503);
   }
+
+  await capturePostHogEvent({
+    distinctId: hashedVisitor,
+    event: eventName,
+    uuid: eventId.toLowerCase(),
+    properties: {
+      session_id: sessionId.toLowerCase(),
+      event_sequence: eventSequence,
+      view,
+      locale,
+      device,
+      acquisition_source: source,
+      outcome,
+      failure_code: failureCode,
+      mission_key: missionKey,
+      flow_key: flowKey,
+      entry_class: entryClass,
+      build_id: buildId,
+      analytics_schema_version: 1,
+    },
+  });
 
   return noStore();
 }
