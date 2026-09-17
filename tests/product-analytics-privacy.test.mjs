@@ -21,6 +21,7 @@ const [
   homeClient,
   walletControl,
   walletAuth,
+  posthogTransport,
   privacyCopy,
   privacyControlCopy,
   legalPage,
@@ -48,6 +49,7 @@ const [
   read('src/components/HomeClient.tsx'),
   read('src/components/WalletControl.tsx'),
   read('src/hooks/useWalletAuthentication.ts'),
+  read('src/lib/posthogAnalyticsServer.ts'),
   read('src/lib/i18n/privacyProductAnalyticsCopy.ts'),
   read('src/lib/i18n/privacyUsageAnalyticsControlCopy.ts'),
   read('src/components/LocalizedLegalPage.tsx'),
@@ -105,12 +107,32 @@ test(
     assert.match(ingestion, /VERCEL_GIT_COMMIT_SHA/);
     assert.match(ingestion, /record_app_product_event/);
     assert.match(ingestion, /p_schema_version: 1/);
+    assert.match(ingestion, /capturePostHogEvent/);
     assert.doesNotMatch(ingestion, /record\.walletAddress/);
     assert.doesNotMatch(ingestion, /record\.inviteCode/);
     assert.doesNotMatch(ingestion, /record\.referralKey/);
     assert.doesNotMatch(ingestion, /record\.url/);
     assert.doesNotMatch(ingestion, /record\.query/);
     assert.doesNotMatch(ingestion, /record\.metadata/);
+  },
+);
+
+test(
+  'PostHog mirror is server-side, anonymous, optional and non-authoritative',
+  () => {
+    assert.match(posthogTransport, /POSTHOG_PROJECT_TOKEN/);
+    assert.match(posthogTransport, /POSTHOG_HOST/);
+    assert.match(posthogTransport, /parsedHost\.protocol !== 'https:'/);
+    assert.match(posthogTransport, /\$process_person_profile: false/);
+    assert.match(posthogTransport, /\$geoip_disable: true/);
+    assert.match(posthogTransport, /\$lib: 'veinvite-server'/);
+    assert.match(posthogTransport, /POSTHOG_TIMEOUT_MS = 1_500/);
+    assert.match(posthogTransport, /return false/);
+    assert.doesNotMatch(posthogTransport, /NEXT_PUBLIC_POSTHOG/);
+    assert.doesNotMatch(posthogTransport, /walletAddress/);
+    assert.doesNotMatch(posthogTransport, /inviteCode/);
+    assert.doesNotMatch(posthogTransport, /authToken/);
+    assert.doesNotMatch(posthogTransport, /email:/i);
   },
 );
 
