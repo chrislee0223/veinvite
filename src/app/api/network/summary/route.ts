@@ -1,6 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 
-import { canUseNetworkSurface } from '@/lib/networkRuntimeServer';
+import { getNetworkCanarySummary } from '@/lib/networkCanaryFixture';
+import {
+  canUseNetworkSurface,
+  isNetworkCanaryWallet,
+} from '@/lib/networkRuntimeServer';
 import { enforceRateLimits } from '@/lib/rateLimitServer';
 import { normalizeAddress } from '@/lib/serverStore';
 import { supabaseAdmin } from '@/lib/supabaseServer';
@@ -54,6 +58,10 @@ export async function GET(request: NextRequest) {
 
   if (!(await canUseNetworkSurface('my', walletAddress))) {
     return noStoreJson({ code: 'NETWORK_DISABLED', error: 'Network is temporarily unavailable.' }, 503);
+  }
+
+  if (await isNetworkCanaryWallet(walletAddress)) {
+    return noStoreJson(getNetworkCanarySummary());
   }
 
   const { data, error } = await supabaseAdmin

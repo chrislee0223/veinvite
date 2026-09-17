@@ -2,14 +2,24 @@ import assert from 'node:assert/strict';
 import { readdir, readFile } from 'node:fs/promises';
 import test from 'node:test';
 
-const [guideSource, networkSource, networkRouteSource] = await Promise.all([
+const [
+  guideSource,
+  networkSource,
+  networkRouteSource,
+  networkSummaryRouteSource,
+  canaryFixtureSource,
+] = await Promise.all([
   readFile('src/components/AppGuide.tsx', 'utf8'),
   readFile('src/components/AppNetwork.tsx', 'utf8'),
   readFile('src/app/api/network/route.ts', 'utf8'),
+  readFile('src/app/api/network/summary/route.ts', 'utf8'),
+  readFile('src/lib/networkCanaryFixture.ts', 'utf8'),
 ]);
 
 const componentFiles = await readdir('src/components');
 const qaFiles = await readdir('src/qa');
+
+const TEST_WALLET_LITERAL = '0xeff325935b63299e9eeda79931bed6ec119aefcb';
 
 test('Network has exactly one production component path and no version wrapper chain', () => {
   assert.match(guideSource, /<AppNetworkHub locale=\{locale\} \/>/);
@@ -64,6 +74,42 @@ test('single runtime keeps the authenticated read-only Network API contract', ()
   assert.doesNotMatch(networkSource, /supabaseAdmin/);
   assert.doesNotMatch(networkSource, /\/api\/rewards/);
   assert.doesNotMatch(networkSource, /request_reward_claim/);
+});
+
+test('canary test data is server-only and never creates a second frontend runtime', () => {
+  assert.doesNotMatch(guideSource, /networkCanaryFixture|isNetworkCanaryWallet/);
+  assert.doesNotMatch(networkSource, /networkCanaryFixture|isNetworkCanaryWallet|canaryFixture/);
+  assert.doesNotMatch(guideSource, new RegExp(TEST_WALLET_LITERAL, 'i'));
+  assert.doesNotMatch(networkSource, new RegExp(TEST_WALLET_LITERAL, 'i'));
+  assert.doesNotMatch(networkRouteSource, new RegExp(TEST_WALLET_LITERAL, 'i'));
+  assert.doesNotMatch(networkSummaryRouteSource, new RegExp(TEST_WALLET_LITERAL, 'i'));
+  assert.doesNotMatch(canaryFixtureSource, new RegExp(TEST_WALLET_LITERAL, 'i'));
+});
+
+test('only allowlisted canary wallets receive the synthetic graph and normal wallets keep the real RPC path', () => {
+  assert.match(networkRouteSource, /isNetworkCanaryWallet\(rootWallet\)/);
+  assert.match(networkRouteSource, /buildNetworkCanaryFixture\(rootWallet, focusWallet, search, round\)/);
+  assert.match(networkSummaryRouteSource, /isNetworkCanaryWallet\(walletAddress\)/);
+  assert.match(networkSummaryRouteSource, /getNetworkCanarySummary\(\)/);
+
+  const canaryCheck = networkRouteSource.indexOf('isNetworkCanaryWallet(rootWallet)');
+  const fixtureBuild = networkRouteSource.indexOf('buildNetworkCanaryFixture(rootWallet, focusWallet, search, round)');
+  const realRpc = networkRouteSource.indexOf(".rpc(\n        'read_referral_network_focus_v2'");
+  assert.ok(canaryCheck >= 0 && fixtureBuild > canaryCheck && realRpc > fixtureBuild);
+});
+
+test('canary fixture exercises multiple generations and follows the live round window', () => {
+  assert.match(canaryFixtureSource, /parent: 'root'/);
+  assert.match(canaryFixtureSource, /parent: WALLETS\.a/);
+  assert.match(canaryFixtureSource, /parent: WALLETS\.a1/);
+  assert.match(canaryFixtureSource, /parent: WALLETS\.a11/);
+  assert.match(canaryFixtureSource, /status: 'REWARDED'/);
+  assert.match(canaryFixtureSource, /status: 'QUALIFIED'/);
+  assert.match(canaryFixtureSource, /status: 'IN_PROGRESS'/);
+  assert.match(canaryFixtureSource, /roundOffsetHours/);
+  assert.match(canaryFixtureSource, /Date\.parse\(round\.startAt\)/);
+  assert.match(canaryFixtureSource, /Date\.parse\(round\.endAt\)/);
+  assert.match(canaryFixtureSource, /canaryFixture: true/);
 });
 
 test('navigation animation honors reduced motion and does not animate idle nodes', () => {
