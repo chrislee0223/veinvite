@@ -17,19 +17,19 @@ test('V75 observes only direct body additions and decorates only the preserved V
   assert.match(source, /classList\.add\('v75ParentReturnMotion'\)/);
 });
 
-test('V75 animates only the visual overlay and never the live scene, node geometry, or camera', () => {
-  assert.match(source, /\.productionNetworkCanaryV45\.v73ParentVisualOverlay\.v75ParentReturnMotion\{/);
-  assert.match(source, /transform:scale\(1\.035\)/);
-  assert.match(source, /transform:scale\(1\)/);
-  assert.match(source, /280ms cubic-bezier\(\.18,\.82,\.2,1\)/);
-  assert.doesNotMatch(source, /\.scene\s*\{/);
+test('V75 animates only the scene inside the visual overlay and never rewrites live geometry or camera state', () => {
+  assert.match(source, /\.productionNetworkCanaryV45\.v73ParentVisualOverlay\.v75ParentReturnMotion \.scene\{/);
+  assert.match(source, /from\{scale:1\.05\}/);
+  assert.match(source, /to\{scale:1\}/);
+  assert.match(source, /720ms cubic-bezier\(\.18,\.82,\.2,1\)/);
+  assert.doesNotMatch(source, /transform:scale/);
   assert.doesNotMatch(source, /cameraX|cameraY|--x|--y|setProperty\([^\n]*(?:camera|--x|--y)/);
 });
 
 test('V75 respects reduced-motion preferences', () => {
   assert.match(source, /@media\(prefers-reduced-motion:reduce\)/);
   assert.match(source, /animation:none!important/);
-  assert.match(source, /transform:none!important/);
+  assert.match(source, /scale:1!important/);
 });
 
 test('V75 is visual-only and cannot mutate app or backend state', () => {
