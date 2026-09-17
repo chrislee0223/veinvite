@@ -110,16 +110,18 @@ export function WalletSessionTransitionShield() {
       document.querySelector<HTMLElement>(
         SESSION_BOOTSTRAP_SELECTOR,
       );
-    const observer = markerElement
-      ? new MutationObserver(syncMarker)
-      : null;
-    observer?.observe(markerElement, {
-      attributes: true,
-      attributeFilter: [
-        'data-veinvite-session-bootstrap',
-        'data-veinvite-session-wallet',
-      ],
-    });
+    let observer: MutationObserver | null = null;
+
+    if (markerElement) {
+      observer = new MutationObserver(syncMarker);
+      observer.observe(markerElement, {
+        attributes: true,
+        attributeFilter: [
+          'data-veinvite-session-bootstrap',
+          'data-veinvite-session-wallet',
+        ],
+      });
+    }
 
     window.addEventListener(
       WALLET_SESSION_READY_EVENT,
