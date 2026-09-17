@@ -14,6 +14,7 @@ import {
 
 import {
   WALLET_AUTH_ACTIVITY_EVENT,
+  cancelActiveWalletAuthentication,
   isWalletAuthenticationInProgress,
 } from '@/lib/walletAuthenticationCoordinator';
 
@@ -61,10 +62,10 @@ async function resumeWalletSessionGate(
     const session = (await response.json()) as SessionResponse;
     const sessionWallet = normalizeWallet(session.walletAddress);
 
-    // If the old A session is still valid, leave WalletSessionGate's explicit
-    // A -> B confirmation intact. Once the user has already cleared A (or the
-    // repaired provider is already authenticated as B), re-arm verification so
-    // a previous provider-sync error recovers without another dead button tap.
+    // Provider repair itself never destroys a valid A session. The separate
+    // stable-provider handoff below owns automatic A -> B switching once both
+    // VeChainKit and DAppKit independently agree on B. If they do not agree,
+    // WalletSessionGate keeps the existing explicit mismatch fallback.
     if (
       session.authenticated === true &&
       sessionWallet &&
@@ -78,7 +79,7 @@ async function resumeWalletSessionGate(
     );
   } catch {
     // Provider reconciliation is best-effort. The interactive wallet gate stays
-    // visible if the session check itself is temporarily unavailable.
+    // available if the session check itself is temporarily unavailable.
   }
 }
 
@@ -114,6 +115,7 @@ export function WalletProviderAccountReconciler() {
   const dappWalletRef = useRef<string | null>(dappWallet);
   const repairTargetRef = useRef<string | null>(null);
   const repairGenerationRef = useRef(0);
+  const sessionHandoffTargetRef = useRef<string | null>(null);
   const [authActivityEpoch, setAuthActivityEpoch] =
     useState(0);
 
@@ -142,6 +144,104 @@ export function WalletProviderAccountReconciler() {
       );
     };
   }, []);
+
+  // A real external VeWorld account change can leave the browser authenticated
+  // as wallet A while BOTH provider layers already agree that wallet B is now
+  // active. That is stronger evidence than a one-layer provider wobble. In this
+  // exact state, retire only this browser's old A session and immediately re-arm
+  // WalletSessionGate for B. This keeps the brand surface continuous and avoids
+  // routing a normal VeWorld switch through the generic mismatch screen.
+  //
+  // If provider alignment changes, the session request fails, or DELETE fails,
+  // do nothing destructive beyond cancelling a stale in-flight proof. The
+  // existing WalletSessionGate mismatch surface remains the fallback.
+  useEffect(() => {
+    if (
+      !connection.isConnectedWithDappKit ||
+      connection.isLoading ||
+      !canonicalWallet ||
+      dappWallet !== canonicalWallet ||
+      sessionHandoffTargetRef.current === canonicalWallet
+    ) {
+      return;
+    }
+
+    let cancelled = false;
+    const targetWallet = canonicalWallet;
+    sessionHandoffTargetRef.current = targetWallet;
+
+    void (async () => {
+      try {
+        const response = await fetch('/api/auth/session', {
+          method: 'GET',
+          cache: 'no-store',
+          credentials: 'include',
+        });
+
+        if (
+          cancelled ||
+          canonicalWalletRef.current !== targetWallet ||
+          dappWalletRef.current !== targetWallet ||
+          !response.ok
+        ) {
+          return;
+        }
+
+        const session = (await response.json()) as SessionResponse;
+        const sessionWallet = normalizeWallet(session.walletAddress);
+
+        if (
+          session.authenticated !== true ||
+          !sessionWallet ||
+          sessionWallet === targetWallet
+        ) {
+          return;
+        }
+
+        // The old verification attempt may already have observed A and be on
+        // its way to the 600ms mismatch fallback. Invalidate that proof before
+        // revoking A so its delayed error cannot flash over the brand surface.
+        cancelActiveWalletAuthentication();
+
+        const clearResponse = await fetch('/api/auth/session', {
+          method: 'DELETE',
+          cache: 'no-store',
+          credentials: 'include',
+        });
+
+        if (!clearResponse.ok) {
+          return;
+        }
+
+        // Even if the user moved again while DELETE was in flight, the old A
+        // browser session is now gone and the gate must re-read the CURRENT
+        // provider wallet rather than preserving stale A state.
+        window.dispatchEvent(
+          new Event(WALLET_SESSION_INVALID_EVENT),
+        );
+      } catch (error) {
+        console.warn(
+          'VeInvite could not hand off the stale browser session to the current VeWorld wallet.',
+          error,
+        );
+      } finally {
+        if (
+          sessionHandoffTargetRef.current === targetWallet
+        ) {
+          sessionHandoffTargetRef.current = null;
+        }
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    canonicalWallet,
+    connection.isConnectedWithDappKit,
+    connection.isLoading,
+    dappWallet,
+  ]);
 
   useEffect(() => {
     const generation = repairGenerationRef.current + 1;
