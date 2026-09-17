@@ -5,12 +5,18 @@ import test from 'node:test';
 const [
   guideSource,
   networkSource,
+  workspaceSource,
+  workspaceCopySource,
+  localesSource,
   networkRouteSource,
   networkSummaryRouteSource,
   canaryFixtureSource,
 ] = await Promise.all([
   readFile('src/components/AppGuide.tsx', 'utf8'),
   readFile('src/components/AppNetwork.tsx', 'utf8'),
+  readFile('src/lib/networkWorkspace.ts', 'utf8'),
+  readFile('src/lib/i18n/networkWorkspaceCopy.ts', 'utf8'),
+  readFile('src/lib/i18n/locales.ts', 'utf8'),
   readFile('src/app/api/network/route.ts', 'utf8'),
   readFile('src/app/api/network/summary/route.ts', 'utf8'),
   readFile('src/lib/networkCanaryFixture.ts', 'utf8'),
@@ -31,6 +37,7 @@ test('Network has exactly one production component path and no version wrapper c
 
 test('Network runtime has no DOM observer or global viewport ownership', () => {
   assert.doesNotMatch(networkSource, /MutationObserver/);
+  assert.doesNotMatch(workspaceSource, /MutationObserver/);
   assert.doesNotMatch(networkSource, /document\.documentElement\.style\.touchAction/);
   assert.doesNotMatch(networkSource, /meta\[name=["']viewport/);
   assert.match(networkSource, /touch-action:none/);
@@ -67,6 +74,43 @@ test('blank-space pan and pinch own camera without making pinch a node click', (
   assert.match(networkSource, /wheelReturnDistanceRef/);
 });
 
+test('layout editing is React-owned and changes workspace coordinates rather than camera state', () => {
+  assert.match(networkSource, /const \[editingLayout, setEditingLayout\] = useState\(false\)/);
+  assert.match(networkSource, /const \[draftWorkspace, setDraftWorkspace\]/);
+  assert.match(networkSource, /withNodePosition\(current, workspaceDrag\.key, nextPoint\)/);
+  assert.match(networkSource, /withGroupPosition\(current, workspaceDrag\.key, nextPoint\)/);
+  assert.match(networkSource, /data-layout-editing=\{editingLayout \? 'true' : 'false'\}/);
+  assert.doesNotMatch(workspaceSource, /setView|ResizeObserver|PointerEvent|document\./);
+});
+
+test('layout Save is explicit, Cancel is reversible, and workspace persistence is isolated from camera session state', () => {
+  assert.match(networkSource, /const WORKSPACE_PREFIX = 'veinvite-network-workspace-v1:'/);
+  assert.match(networkSource, /window\.localStorage\.setItem\(workspaceStorageKey\(wallet\), serializeNetworkWorkspaceStore\(nextStore\)\)/);
+  assert.match(networkSource, /const cancelLayoutEdit = useCallback/);
+  assert.match(networkSource, /setDraftWorkspace\(null\)/);
+  assert.match(workspaceSource, /withFocusWorkspace/);
+  assert.doesNotMatch(workspaceSource, /scale|focusWallet: string;\s*view/);
+});
+
+test('group creation is a draft-first interaction and preserves member positions for ungrouping', () => {
+  assert.match(networkSource, /type GroupDraft/);
+  assert.match(networkSource, /groupDropRef/);
+  assert.match(networkSource, /groupDraft\.members\.length < 2/);
+  assert.match(networkSource, /addWorkspaceGroup\(draftWorkspace/);
+  assert.match(networkSource, /removeWorkspaceGroup\(current, selectedGroup\.id\)/);
+  assert.match(workspaceSource, /positions: \{\.\.\.workspace\.positions\}/);
+  assert.match(workspaceSource, /groups: workspace\.groups\.filter/);
+});
+
+test('workspace copy covers every supported locale through a typed record', () => {
+  assert.match(workspaceCopySource, /Record<SupportedLocale, NetworkWorkspaceCopy>/);
+  const localeMatches = [...localesSource.matchAll(/\{ locale: '([^']+)'/g)].map((match) => match[1]);
+  for (const locale of localeMatches) {
+    const escaped = locale.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    assert.match(workspaceCopySource, new RegExp(`(?:^|\\n)\\s*(?:'${escaped}'|${escaped}):\\s*\\{`));
+  }
+});
+
 test('single runtime keeps the authenticated read-only Network API contract', () => {
   assert.match(networkRouteSource, /requireWalletSession/);
   assert.match(networkRouteSource, /canUseNetworkSurface\('my'/);
@@ -74,6 +118,7 @@ test('single runtime keeps the authenticated read-only Network API contract', ()
   assert.doesNotMatch(networkSource, /supabaseAdmin/);
   assert.doesNotMatch(networkSource, /\/api\/rewards/);
   assert.doesNotMatch(networkSource, /request_reward_claim/);
+  assert.doesNotMatch(workspaceSource, /supabase|fetch\(|\/api\//);
 });
 
 test('canary test data is server-only and never creates a second frontend runtime', () => {
