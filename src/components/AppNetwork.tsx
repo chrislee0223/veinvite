@@ -1924,17 +1924,21 @@ export function AppNetwork({ locale }: { locale: Locale }) {
                   className="continuationEdge"
                 />
               ))}
-              {Array.from({ length: emptySlotCount }).map((_, index) => {
-                const slot = inviteSlotPoint(index, isMobile);
+              {positionedInviteSlots.map((slot, index) => {
                 const path = edgePath(FOCUS_X, FOCUS_Y, slot.x, slot.y);
                 return (
-                  <g key={`slot-edge:${index}`} className="slotEdgeGroup">
-                    <path d={path} className="edge slotEdgeBase" />
+                  <g key={`slot-edge:${slot.slot}`} className="slotEdgeGroup">
                     <path
                       d={path}
-                      className="edge slotEdgePulse"
-                      style={{ animationDelay: `${index * -0.92}s` }}
+                      className={slot.state === 'AVAILABLE' ? 'edge slotEdgeBase' : 'edge slotEdgeProgress'}
                     />
+                    {slot.state === 'AVAILABLE' ? (
+                      <path
+                        d={path}
+                        className="edge slotEdgePulse"
+                        style={{ animationDelay: `${index * -0.92}s` }}
+                      />
+                    ) : null}
                   </g>
                 );
               })}
@@ -2017,21 +2021,71 @@ export function AppNetwork({ locale }: { locale: Locale }) {
               );
             })}
 
-            {Array.from({ length: emptySlotCount }).map((_, index) => {
-              const slot = inviteSlotPoint(index, isMobile);
+            {positionedInviteSlots.map((slot) => {
+              const dragKey = `slot:${slot.key}`;
+              const isDragging = draggingWorkspaceKey === dragKey;
+              const point = { x: slot.x, y: slot.y };
+              const handlePointerDown = (event: ReactPointerEvent<HTMLButtonElement>) => {
+                if (editingLayout) beginWorkspaceDrag(event, 'slot', slot.key, point);
+                else beginHoldDrag(event, slot.key, point, 'slot');
+              };
+
+              if (slot.state === 'AVAILABLE') {
+                return (
+                  <button
+                    type="button"
+                    className={`slotNode${editingLayout ? ' draggable' : ''}${isDragging ? ' dragging' : ''}`}
+                    key={slot.key}
+                    style={{ left: slot.x, top: slot.y }}
+                    onPointerDown={handlePointerDown}
+                    onContextMenu={(event) => event.preventDefault()}
+                    onClick={() => {
+                      if (suppressClickRef.current || editingLayout) return;
+                      goHomeWithoutReload();
+                    }}
+                    data-no-pan="true"
+                    data-workspace-draggable={editingLayout ? 'true' : undefined}
+                    aria-label={t.inviteFriend}
+                  >
+                    <span className="slotCircle" aria-hidden="true">+</span>
+                    <strong>{u.available}</strong>
+                  </button>
+                );
+              }
+
+              const progressDegrees = `${Math.round(
+                (slot.completedSteps / Math.max(1, slot.totalSteps)) * 360,
+              )}deg`;
+              const progressStyle = {
+                left: slot.x,
+                top: slot.y,
+                '--slot-progress': progressDegrees,
+              } as CSSProperties;
+
               return (
                 <button
                   type="button"
-                  className="slotNode"
-                  key={`slot:${index}`}
-                  style={{ left: slot.x, top: slot.y }}
-                  onClick={editingLayout ? undefined : goHomeWithoutReload}
-                  disabled={editingLayout}
+                  className={`personNode childNode progressInviteNode${editingLayout ? ' draggable' : ''}${isDragging ? ' dragging' : ''}`}
+                  key={slot.key}
+                  style={progressStyle}
+                  onPointerDown={handlePointerDown}
+                  onContextMenu={(event) => event.preventDefault()}
                   data-no-pan="true"
-                  aria-label={t.inviteFriend}
+                  data-workspace-draggable={editingLayout ? 'true' : undefined}
+                  aria-label={t.inProgress}
+                  title={slot.inviteeWallet ?? t.inProgress}
                 >
-                  <span className="slotCircle" aria-hidden="true">+</span>
-                  <strong>{u.available}</strong>
+                  <span className="nodeCircle">
+                    {slot.inviteeWallet ? (
+                      <NetworkIdentity address={slot.inviteeWallet} showLabel={false} />
+                    ) : (
+                      <span className="pendingInviteGlyph" aria-hidden="true">…</span>
+                    )}
+                  </span>
+                  <span className="nodeMeta">
+                    <strong>{slot.inviteeWallet ? shortWallet(slot.inviteeWallet) : t.inProgress}</strong>
+                    <small>{t.inProgress} · {slot.completedSteps}/{slot.totalSteps}</small>
+                  </span>
                 </button>
               );
             })}
@@ -2102,24 +2156,6 @@ export function AppNetwork({ locale }: { locale: Locale }) {
               {groupDraft.members.length < 2 ? w.needTwo : w.createGroup}
             </button>
           </aside>
-        ) : null}
-
-        {pageCount > 1 ? (
-          <div className="pager" data-no-pan="true">
-            <button
-              type="button"
-              onClick={() => setPage((value) => clamp(value - 1, 0, pageCount - 1))}
-              disabled={safePage === 0 || editingLayout}
-              aria-label={c.previous}
-            >‹</button>
-            <span>{safePage + 1} / {pageCount}</span>
-            <button
-              type="button"
-              onClick={() => setPage((value) => clamp(value + 1, 0, pageCount - 1))}
-              disabled={safePage >= pageCount - 1 || editingLayout}
-              aria-label={c.next}
-            >›</button>
-          </div>
         ) : null}
 
         {!focusIsRoot ? (
