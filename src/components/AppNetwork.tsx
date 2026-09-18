@@ -585,7 +585,6 @@ export function AppNetwork({ locale }: { locale: Locale }) {
 
   const currentFocusKey = currentData ? keyWallet(currentData.focusWallet) : '';
   const isMobile = stageSize.width > 0 && stageSize.width < 560;
-  const pageSize = isMobile ? EXPLORER_PAGE_SIZE_MOBILE : EXPLORER_PAGE_SIZE_DESKTOP;
   const committedWorkspace = useMemo(
     () => currentFocusKey ? workspaceForFocus(workspaceStore, currentFocusKey) : cloneNetworkFocusWorkspace(null),
     [workspaceStore, currentFocusKey],
@@ -594,12 +593,8 @@ export function AppNetwork({ locale }: { locale: Locale }) {
 
   const positionedChildren = useMemo(() => {
     const children = currentData?.children ?? [];
-    const pageCount = Math.max(1, Math.ceil(children.length / pageSize));
-    const safePage = clamp(page, 0, pageCount - 1);
-    const start = safePage * pageSize;
-    const slice = children.slice(start, start + pageSize);
-    return slice.map((child, index): PositionedChild => {
-      const fallback = radialChildPoint(child.wallet, start + index, isMobile);
+    return children.map((child, index): PositionedChild => {
+      const fallback = radialChildPoint(child.wallet, index, isMobile);
       const saved = activeWorkspace.positions[keyWallet(child.wallet)];
       return {
         ...child,
@@ -607,7 +602,28 @@ export function AppNetwork({ locale }: { locale: Locale }) {
         y: saved?.y ?? fallback.y,
       };
     });
-  }, [currentData, page, pageSize, isMobile, activeWorkspace.positions]);
+  }, [currentData, isMobile, activeWorkspace.positions]);
+
+  const positionedInviteSlots = useMemo((): PositionedInviteSlot[] => {
+    if (
+      !currentData ||
+      keyWallet(currentData.focusWallet) !== keyWallet(currentData.rootWallet)
+    ) {
+      return [];
+    }
+
+    return inviteSlots.map((slot) => {
+      const key = `slot:${slot.slot}`;
+      const fallback = inviteSlotPoint(slot.slot - 1, isMobile);
+      const saved = activeWorkspace.positions[key];
+      return {
+        ...slot,
+        key,
+        x: saved?.x ?? fallback.x,
+        y: saved?.y ?? fallback.y,
+      };
+    });
+  }, [currentData, inviteSlots, isMobile, activeWorkspace.positions]);
 
   const groupByMember = useMemo(() => {
     const map = new Map<string, (typeof activeWorkspace.groups)[number]>();
@@ -703,11 +719,6 @@ export function AppNetwork({ locale }: { locale: Locale }) {
     ? activeWorkspace.groups.find((group) => group.id === selectedGroupId) ?? null
     : null;
 
-  const pageCount = Math.max(1, Math.ceil((currentData?.children.length ?? 0) / pageSize));
-  const safePage = clamp(page, 0, pageCount - 1);
-  const emptySlotCount = currentData && keyWallet(currentData.focusWallet) === keyWallet(currentData.rootWallet)
-    ? availableSlots
-    : 0;
 
   const clearNavigationTimer = useCallback(() => {
     if (navigationTimerRef.current !== null) {
