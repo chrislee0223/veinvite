@@ -1981,10 +1981,15 @@ export function AppNetwork({ locale }: { locale: Locale }) {
       <header className="networkHeader" data-no-pan="true">
         <h1>{t.title}</h1>
         <div className="summary" aria-label={t.networkSize}>
-          <strong>{headerNetwork.toLocaleString()}</strong>
+          <strong className="summaryNumber networkTotal">{headerNetwork.toLocaleString()}</strong>
           <span>{t.networkSize}</span>
           <i />
-          <strong className="growth">{headerThisRound === null ? '–' : `+${headerThisRound}`}</strong>
+          <strong
+            className="summaryNumber growth"
+            aria-label={headerThisRound === null ? undefined : `+${headerThisRound}`}
+          >
+            {headerThisRound === null ? ' ' : `+${headerThisRound}`}
+          </strong>
           <span>{t.thisRound}</span>
         </div>
       </header>
@@ -2456,7 +2461,7 @@ export function AppNetwork({ locale }: { locale: Locale }) {
       <style jsx>{`
         .networkCanvasPage{width:min(100%,520px);height:100%;min-height:0;box-sizing:border-box;margin:0 auto;position:relative;overflow:hidden;display:flex;flex-direction:column;border:1px solid rgba(255,255,255,.06);border-radius:18px;background:#090907;box-shadow:0 16px 45px rgba(0,0,0,.22)}
         .networkHeader{flex:0 0 auto;min-height:42px;padding:7px 9px;box-sizing:border-box;display:flex;align-items:center;justify-content:space-between;gap:10px;border-bottom:1px solid rgba(255,255,255,.055);background:rgba(14,14,12,.94)}.networkHeader h1{min-width:0;margin:0;color:#f0ece3;font-size:.82rem;letter-spacing:-.025em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-        .summary{display:grid;grid-template-columns:auto auto 1px auto auto;align-items:baseline;gap:2px 4px;white-space:nowrap}.summary strong{color:#f1ede4;font-size:.66rem}.summary strong.growth{color:#e6b943}.summary span{color:#77736c;font-size:.43rem}.summary i{width:1px;height:14px;background:rgba(255,255,255,.08);align-self:center}
+        .summary{display:grid;grid-template-columns:4.6ch auto 1px 4.6ch auto;align-items:baseline;gap:2px 4px;white-space:nowrap}.summary strong{color:#f1ede4;font-size:.66rem}.summaryNumber{display:block;width:100%;text-align:right;font-variant-numeric:tabular-nums}.summary strong.growth{color:#e6b943}.summary span{color:#77736c;font-size:.43rem}.summary i{width:1px;height:14px;background:rgba(255,255,255,.08);align-self:center}
         .networkUtilityRow{position:relative;z-index:70;flex:0 0 auto;min-height:39px;padding:4px 6px;box-sizing:border-box;display:flex;align-items:center;justify-content:space-between;gap:5px;border-bottom:1px solid rgba(255,255,255,.05);background:rgba(11,11,9,.98)}
         .breadcrumbs{position:absolute;z-index:60;left:8px;top:8px;max-width:calc(100% - 16px);padding:3px 5px;display:flex;align-items:center;overflow:hidden;white-space:nowrap;border:1px solid rgba(255,205,80,.08);border-radius:8px;background:rgba(12,12,10,.82);backdrop-filter:blur(5px)}.breadcrumbs.rootOnly{display:none}.crumbWrap{display:flex;align-items:center;min-width:0}.crumbSep,.crumbEllipsis{flex:0 0 auto;color:#4f4c47;font-size:.62rem;margin:0 1px}.crumb{max-width:74px;padding:2px 4px;border:0;background:transparent;color:#8c867b;font:inherit;font-size:.5rem;font-weight:800;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;cursor:pointer}.crumb.current{color:#e5bd55;cursor:default}.crumb:disabled{opacity:.8}
         .searchWrap{position:relative;min-width:64px;max-width:108px;flex:0 1 108px}.searchWrap input{width:100%;height:29px;box-sizing:border-box;padding:0 7px;border:1px solid rgba(255,205,80,.1);border-radius:9px;background:#11110f;color:#d8d3ca;font:inherit;font-size:.52rem;outline:none}.searchWrap input:focus{border-color:rgba(244,183,40,.34)}.searchWrap input:disabled{opacity:.45}.searchResults{position:absolute;z-index:90;top:35px;left:0;width:min(290px,78vw);max-height:245px;overflow:auto;padding:5px;border:1px solid rgba(255,205,80,.14);border-radius:12px;background:rgba(14,14,12,.985);box-shadow:0 18px 40px rgba(0,0,0,.42)}.searchResults button{width:100%;padding:8px;border:0;border-radius:8px;background:transparent;color:#ddd7cc;text-align:left;cursor:pointer}.searchResults button:hover{background:rgba(244,183,40,.06)}.searchResults strong{display:block;font-size:.62rem}.searchResults button span{display:block;margin-top:3px;color:#6f6b64;font-size:.52rem}.searchStatus{display:block;padding:11px 8px;color:#77736c;font-size:.56rem;line-height:1.45;text-align:center}
