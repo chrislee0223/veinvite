@@ -63,6 +63,18 @@ function isValidRootSnapshot(value: unknown, wallet: string): value is NetworkRo
   );
 }
 
+export function getNetworkRootCacheAgeMs(wallet: string | null): number | null {
+  if (!wallet) return null;
+  const entry = memory.get(walletKey(wallet));
+  if (!entry) return null;
+  const age = Date.now() - entry.savedAt;
+  if (age > MEMORY_TTL_MS) {
+    memory.delete(walletKey(wallet));
+    return null;
+  }
+  return Math.max(0, age);
+}
+
 export function getCachedNetworkRoot(wallet: string | null): NetworkRootSnapshot | null {
   if (!wallet) return null;
   const key = walletKey(wallet);
@@ -96,8 +108,12 @@ export async function prefetchNetworkRoot(
   const existing = inFlight.get(key);
   if (existing) return existing;
 
+  // Warm the complete root snapshot, including the live round context.
+  // A topology-only fast snapshot makes the Network render in two visible
+  // phases (graph first, This Round later), so startup warmup should cache the
+  // exact data the first interactive frame needs.
   const request = fetch(
-    `/api/network?wallet=${encodeURIComponent(wallet)}&fast=1`,
+    `/api/network?wallet=${encodeURIComponent(wallet)}`,
     {
       method: 'GET',
       credentials: 'include',
