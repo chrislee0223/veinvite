@@ -2121,6 +2121,13 @@ export function AppNetwork({ locale }: { locale: Locale }) {
   const onPointerMoveCapture = (event: ReactPointerEvent<HTMLDivElement>) => {
     if (!pointersRef.current.has(event.pointerId)) return;
     pointersRef.current.set(event.pointerId, { x: event.clientX, y: event.clientY });
+    const backgroundTap = backgroundTapRef.current;
+    if (backgroundTap && backgroundTap.pointerId === event.pointerId && !backgroundTap.moved) {
+      backgroundTap.moved = Math.hypot(
+        event.clientX - backgroundTap.start.x,
+        event.clientY - backgroundTap.start.y,
+      ) > HOLD_CANCEL_DISTANCE;
+    }
 
     const holdDrag = holdDragRef.current;
     if (holdDrag && holdDrag.pointerId === event.pointerId && pointersRef.current.size === 1 && !editingLayout) {
@@ -2138,8 +2145,11 @@ export function AppNetwork({ locale }: { locale: Locale }) {
         return;
       }
       if (screenDistance <= HOLD_CANCEL_DISTANCE && !holdDrag.moved) return;
-      moveDragGhost(event.clientX, event.clientY);
+      if (holdDrag.kind === 'node' || holdDrag.kind === 'group-member') {
+        moveDragGhost(event.clientX, event.clientY);
+      }
       setNewGroupDropActive(
+        holdDrag.kind === 'node' &&
         Boolean(groupsOpen) &&
         activeWorkspace.groups.length < MAX_GROUPS_PER_FOCUS &&
         isInsideNewGroupDropTarget(event.clientX, event.clientY),
@@ -2151,7 +2161,13 @@ export function AppNetwork({ locale }: { locale: Locale }) {
         y: clamp((event.clientY - rect.top - view.y) / view.scale - holdDrag.offset.y, 90, WORLD_H - 90),
       };
       holdDrag.moved = true;
-      persistNodePosition(holdDrag.key, nextPoint);
+      if (holdDrag.kind === 'group') {
+        persistGroupPosition(holdDrag.key, nextPoint);
+      } else if (holdDrag.kind === 'group-member' && holdDrag.groupId) {
+        persistGroupMemberPosition(holdDrag.groupId, holdDrag.key, nextPoint);
+      } else {
+        persistNodePosition(holdDrag.key, nextPoint);
+      }
       suppressClickRef.current = true;
       return;
     }
@@ -2163,7 +2179,7 @@ export function AppNetwork({ locale }: { locale: Locale }) {
       pointersRef.current.size === 1 &&
       editingLayout
     ) {
-      if (workspaceDrag.kind === 'node') {
+      if (workspaceDrag.kind === 'node' || workspaceDrag.kind === 'group-member') {
         moveDragGhost(event.clientX, event.clientY);
       }
       if (workspaceDrag.kind === 'node' && groupDraft) {
@@ -2196,9 +2212,22 @@ export function AppNetwork({ locale }: { locale: Locale }) {
       };
       setDraftWorkspace((current) => {
         if (!current) return current;
-        const next = workspaceDrag.kind === 'group'
-          ? withGroupPosition(current, workspaceDrag.key, nextPoint)
-          : withNodePosition(current, workspaceDrag.key, nextPoint);
+        let next = current;
+        if (workspaceDrag.kind === 'group') {
+          next = withGroupPosition(current, workspaceDrag.key, nextPoint);
+        } else if (workspaceDrag.kind === 'group-member' && workspaceDrag.groupId) {
+          const group = current.groups.find((item) => item.id === workspaceDrag.groupId);
+          if (group) {
+            next = withWorkspaceGroupMemberOffset(
+              current,
+              workspaceDrag.groupId,
+              workspaceDrag.key,
+              { x: nextPoint.x - group.x, y: nextPoint.y - group.y },
+            );
+          }
+        } else {
+          next = withNodePosition(current, workspaceDrag.key, nextPoint);
+        }
         draftWorkspaceRef.current = next;
         return next;
       });
