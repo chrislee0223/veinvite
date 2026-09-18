@@ -1753,7 +1753,7 @@ export function AppNetwork({ locale }: { locale: Locale }) {
     point: Point,
   ) => {
     const workspace = draftWorkspaceRef.current;
-    if (!editingLayout || !workspace) return;
+    if (!editingLayout || !workspace || groupingWallet) return;
     const stage = stageRef.current;
     if (!stage) return;
     event.preventDefault();
@@ -1772,10 +1772,11 @@ export function AppNetwork({ locale }: { locale: Locale }) {
       originalWorkspace: cloneNetworkFocusWorkspace(workspace),
     };
     suppressClickRef.current = true;
+    setGroupDropActive(false);
     setDraggingWorkspaceKey(`${kind}:${key}`);
     setSelectedWallet(null);
     setSelectedGroupId(null);
-  }, [editingLayout, view]);
+  }, [editingLayout, groupingWallet, view]);
 
   const cancelHoldDrag = useCallback((restore = false) => {
     if (holdTimerRef.current !== null) {
@@ -1830,6 +1831,8 @@ export function AppNetwork({ locale }: { locale: Locale }) {
   }, [editingLayout, pendingFocus, currentFocusKey, committedWorkspace, view]);
 
   const finishWorkspaceDrop = useCallback((event: ReactPointerEvent<HTMLDivElement>, drag: WorkspaceDrag) => {
+    setGroupDropActive(false);
+
     if (event.type !== 'pointerup') {
       setEditingWorkspace(cloneNetworkFocusWorkspace(drag.originalWorkspace));
       return;
@@ -1840,28 +1843,31 @@ export function AppNetwork({ locale }: { locale: Locale }) {
       return;
     }
 
-    const draftRect = groupDropRef.current?.getBoundingClientRect();
-    const insideDraft = Boolean(
-      groupDraft &&
-      draftRect &&
-      event.clientX >= draftRect.left &&
-      event.clientX <= draftRect.right &&
-      event.clientY >= draftRect.top &&
-      event.clientY <= draftRect.bottom
-    );
-    if (insideDraft && groupDraft && !groupDraft.members.includes(drag.key)) {
-      // Keep the node at the drop point for the short fade-out. Once hidden
-      // in the provisional group, restore its standalone coordinates behind
-      // the scenes so cancelling the builder returns it exactly.
+    if (groupDraft) {
+      const insideDraft = isInsideGroupDropTarget(event.clientX, event.clientY);
+      const alreadyAdded = groupDraft.members.some((member) => keyWallet(member) === keyWallet(drag.key));
+      const atCapacity = groupDraft.members.length >= MAX_MEMBERS_PER_GROUP;
+
+      if (!insideDraft || alreadyAdded || atCapacity) {
+        setEditingWorkspace(cloneNetworkFocusWorkspace(drag.originalWorkspace));
+        return;
+      }
+
+      groupingRestoreWorkspaceRef.current = cloneNetworkFocusWorkspace(drag.originalWorkspace);
       setGroupingWallet(drag.key);
+      setGroupDraft((current) => {
+        if (!current) return current;
+        if (current.members.some((member) => keyWallet(member) === keyWallet(drag.key))) return current;
+        if (current.members.length >= MAX_MEMBERS_PER_GROUP) return current;
+        return { ...current, members: [...current.members, keyWallet(drag.key)] };
+      });
+
       if (groupingTimerRef.current !== null) window.clearTimeout(groupingTimerRef.current);
       groupingTimerRef.current = window.setTimeout(() => {
         groupingTimerRef.current = null;
-        setEditingWorkspace(cloneNetworkFocusWorkspace(drag.originalWorkspace));
-        setGroupDraft((current) => {
-          if (!current || current.members.includes(drag.key)) return current;
-          return { ...current, members: [...current.members, drag.key] };
-        });
+        const restoreWorkspace = groupingRestoreWorkspaceRef.current;
+        if (restoreWorkspace) setEditingWorkspace(cloneNetworkFocusWorkspace(restoreWorkspace));
+        groupingRestoreWorkspaceRef.current = null;
         setGroupingWallet(null);
       }, GROUP_DROP_MS);
       return;
@@ -1879,11 +1885,17 @@ export function AppNetwork({ locale }: { locale: Locale }) {
     };
     const targetGroup = nearestVisibleGroup(worldPoint);
     if (targetGroup) {
-      // Membership changes keep the node's saved standalone position intact,
-      // so ungrouping returns it to the place the user chose before grouping.
-      commitEditingWorkspace(
-        moveWorkspaceMemberToGroup(drag.originalWorkspace, drag.key, targetGroup.id),
+      const nextWorkspace = moveWorkspaceMemberToGroup(
+        drag.originalWorkspace,
+        drag.key,
+        targetGroup.id,
       );
+      if (nextWorkspace !== drag.originalWorkspace) {
+        animateRestoredWallets([drag.key]);
+        commitEditingWorkspace(nextWorkspace);
+      } else {
+        setEditingWorkspace(cloneNetworkFocusWorkspace(drag.originalWorkspace));
+      }
       return;
     }
 
@@ -1892,6 +1904,8 @@ export function AppNetwork({ locale }: { locale: Locale }) {
     groupDraft,
     view,
     nearestVisibleGroup,
+    isInsideGroupDropTarget,
+    animateRestoredWallets,
     setEditingWorkspace,
     commitEditingWorkspace,
     commitCurrentDraftWorkspace,
