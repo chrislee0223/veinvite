@@ -69,6 +69,19 @@ function parseSlots(value: unknown): NetworkInviteSlotSnapshot[] {
   return slots;
 }
 
+export function getNetworkSlotsCacheAgeMs(wallet: string | null): number | null {
+  if (!wallet) return null;
+  const key = walletKey(wallet);
+  const entry = memory.get(key);
+  if (!entry) return null;
+  const age = Date.now() - entry.savedAt;
+  if (age > MEMORY_TTL_MS) {
+    memory.delete(key);
+    return null;
+  }
+  return Math.max(0, age);
+}
+
 export function getCachedNetworkSlots(
   wallet: string | null,
 ): NetworkInviteSlotSnapshot[] | null {
