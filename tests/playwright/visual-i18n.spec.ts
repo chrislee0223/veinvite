@@ -32,10 +32,6 @@ const CRITICAL_STATE_IDS = [
   'LEADERBOARD-LIST',
 ] as const;
 
-function safeName(value: string): string {
-  return value.replaceAll(/[^a-zA-Z0-9_-]/g, '-');
-}
-
 async function settleVisualPage(page: Page): Promise<void> {
   await page.waitForLoadState('domcontentloaded');
   await page.evaluate(async () => {
@@ -122,16 +118,12 @@ async function collectLayoutProblems(page: Page) {
 
 async function captureAndAssert(
   page: Page,
-  testInfo: TestInfo,
-  name: string,
+  _testInfo: TestInfo,
+  _name: string,
 ): Promise<void> {
   await settleVisualPage(page);
   const problems = await collectLayoutProblems(page);
 
-  await page.screenshot({
-    path: testInfo.outputPath(`${safeName(name)}.png`),
-    fullPage: true,
-  });
 
   expect(
     problems.horizontalOverflow,
