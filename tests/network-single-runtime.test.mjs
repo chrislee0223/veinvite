@@ -159,6 +159,40 @@ test('dragged Network nodes follow the pointer outside the clipped canvas and ca
   assert.match(networkSource, /beginGroupCreationWithMember\(workspaceDrag\.key, workspaceDrag\.originalWorkspace\)/);
 });
 
+test('expanded group members keep movable offsets and group hubs move as one unit', () => {
+  assert.match(workspaceSource, /memberOffsets\?: Record<string, NetworkWorkspacePoint>/);
+  assert.match(workspaceSource, /withWorkspaceGroupMemberOffset/);
+  assert.match(workspaceSource, /group\.memberOffsets && typeof group\.memberOffsets === 'object'/);
+  assert.match(networkSource, /defaultGroupMemberOffset/);
+  assert.match(networkSource, /group\.memberOffsets\?\.\[memberKey\]/);
+  assert.match(networkSource, /dragKind: WorkspaceDragKind = expandedGroupMember \? 'group-member' : 'node'/);
+  assert.match(networkSource, /persistGroupMemberPosition/);
+  assert.match(networkSource, /persistGroupPosition/);
+  assert.match(networkSource, /withWorkspaceGroupMemberOffset\([\s\S]*workspaceDrag\.groupId/);
+  assert.match(networkSource, /beginHoldDrag\(event, group\.id, \{ x: group\.x, y: group\.y \}, 'group'\)/);
+});
+
+test('blank tap exits layout editing without confusing pan, pinch, or group creation', () => {
+  assert.match(networkSource, /backgroundTapRef/);
+  assert.match(networkSource, /moved: false,[\s\S]*blocked: Boolean\(groupDraft\)/);
+  assert.match(networkSource, /if \(backgroundTapRef\.current\) backgroundTapRef\.current\.blocked = true/);
+  assert.match(networkSource, /finishEditingFromBlankTap/);
+  assert.match(networkSource, /!backgroundTap\.moved/);
+  assert.match(networkSource, /!backgroundTap\.blocked/);
+  assert.match(networkSource, /finishLayoutEdit\(\)/);
+});
+
+test('group hubs have a distinct solid visual language from invite slots', () => {
+  assert.match(networkSource, /<GroupsControlGlyph size=\{22\} \/>/);
+  assert.match(networkSource, /\.edge\.groupEdge\{[^}]*stroke-width:1\.35\}/);
+  assert.doesNotMatch(networkSource, /\.edge\.groupEdge\{[^}]*stroke-dasharray/);
+  assert.match(networkSource, /\.groupMemberEdge\{[^}]*stroke-width:\.82\}/);
+  assert.match(networkSource, /\.groupNode\{[^}]*border:1\.35px solid/);
+  assert.doesNotMatch(networkSource, /\.groupNode\.expanded\{[^}]*border-style:dashed/);
+  assert.match(networkSource, /\.slotEdgePulse\{[^}]*stroke-dasharray:5 38/);
+  assert.match(networkSource, /\.slotCircle\{[^}]*border:1px dashed/);
+});
+
 test('Network toolbar keeps navigation controls before edit and group controls', () => {
   const controlsStart = networkSource.indexOf('<div className="compactControls">');
   const controlsEnd = networkSource.indexOf('</div>\n      </div>', controlsStart);
@@ -295,7 +329,7 @@ test('invite slot state retries transient failures and refreshes when the app re
 test('available and in-progress invite slots are movable like ordinary nodes', () => {
   assert.match(workspaceSource, /function cleanPositionKey/);
   assert.match(workspaceSource, /\^slot:\[12\]\$/);
-  assert.match(networkSource, /kind: 'node' \| 'slot' \| 'group'/);
+  assert.match(networkSource, /type WorkspaceDragKind = 'node' \| 'slot' \| 'group' \| 'group-member'/);
   assert.match(networkSource, /beginWorkspaceDrag\(event, 'slot', slot\.key, point\)/);
   assert.match(networkSource, /beginHoldDrag\(event, slot\.key, point, 'slot'\)/);
   assert.match(networkSource, /withNodePosition\(current, workspaceDrag\.key, nextPoint\)/);
@@ -458,7 +492,7 @@ test('long-hold selection gives one optional haptic acknowledgement when drag ar
   assert.match(networkSource, /function triggerHoldHaptic\(\)/);
   assert.match(networkSource, /typeof navigator\.vibrate !== 'function'/);
   assert.match(networkSource, /navigator\.vibrate\(12\)/);
-  assert.match(networkSource, /hold\.armed = true;\s*triggerHoldHaptic\(\);[\s\S]{0,1200}setDraggingWorkspaceKey/);
+  assert.match(networkSource, /hold\.armed = true;[\s\S]{0,300}triggerHoldHaptic\(\);[\s\S]{0,1200}setDraggingWorkspaceKey/);
 });
 
 test('final Network gestures are coordinate-owned and deliberate', () => {

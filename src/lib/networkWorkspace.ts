@@ -10,6 +10,7 @@ export type NetworkWorkspaceGroup = {
   x: number;
   y: number;
   collapsed?: boolean;
+  memberOffsets?: Record<string, NetworkWorkspacePoint>;
 };
 
 export type NetworkFocusWorkspace = {
@@ -72,6 +73,11 @@ export function cloneNetworkFocusWorkspace(
       ...group,
       members: [...group.members],
       collapsed: group.collapsed !== false,
+      memberOffsets: group.memberOffsets
+        ? Object.fromEntries(
+            Object.entries(group.memberOffsets).map(([wallet, point]) => [wallet, { ...point }]),
+          )
+        : undefined,
     })),
   };
 }
@@ -110,6 +116,15 @@ export function parseNetworkWorkspaceStore(raw: string | null): NetworkWorkspace
               : [],
           )).slice(0, MAX_MEMBERS_PER_GROUP);
           if (!point || members.length < 1 || typeof group.id !== 'string') continue;
+          const memberSet = new Set(members);
+          const memberOffsets: Record<string, NetworkWorkspacePoint> = {};
+          if (group.memberOffsets && typeof group.memberOffsets === 'object') {
+            for (const [memberRaw, offsetRaw] of Object.entries(group.memberOffsets)) {
+              const member = cleanWallet(memberRaw);
+              const offset = finitePoint(offsetRaw);
+              if (member && memberSet.has(member) && offset) memberOffsets[member] = offset;
+            }
+          }
           groups.push({
             id: group.id.slice(0, 80),
             label: typeof group.label === 'string' ? group.label.slice(0, 42) : '',
@@ -117,6 +132,7 @@ export function parseNetworkWorkspaceStore(raw: string | null): NetworkWorkspace
             x: point.x,
             y: point.y,
             collapsed: group.collapsed !== false,
+            memberOffsets: Object.keys(memberOffsets).length ? memberOffsets : undefined,
           });
         }
       }
@@ -189,6 +205,31 @@ export function withGroupPosition(
   };
 }
 
+export function withWorkspaceGroupMemberOffset(
+  workspace: NetworkFocusWorkspace,
+  groupId: string,
+  wallet: string,
+  offset: NetworkWorkspacePoint,
+): NetworkFocusWorkspace {
+  const key = wallet.toLowerCase();
+  return {
+    ...workspace,
+    groups: workspace.groups.map((group) => {
+      if (
+        group.id !== groupId ||
+        !group.members.some((member) => member.toLowerCase() === key)
+      ) return group;
+      return {
+        ...group,
+        memberOffsets: {
+          ...(group.memberOffsets ?? {}),
+          [key]: { ...offset },
+        },
+      };
+    }),
+  };
+}
+
 export function withWorkspaceGroupCollapsed(
   workspace: NetworkFocusWorkspace,
   groupId: string,
@@ -209,16 +250,40 @@ export function addWorkspaceGroup(
   const members = Array.from(new Set(group.members.map((wallet) => wallet.toLowerCase())));
   if (members.length < 1 || members.length > MAX_MEMBERS_PER_GROUP) return workspace;
   const memberSet = new Set(members);
-  const groups = keepValidGroups(workspace.groups.map((existing) => ({
-    ...existing,
-    members: existing.members.filter((wallet) => !memberSet.has(wallet.toLowerCase())),
-  })));
+  const groups = keepValidGroups(workspace.groups.map((existing) => {
+    const existingMembers = existing.members.filter((wallet) => !memberSet.has(wallet.toLowerCase()));
+    const existingMemberSet = new Set(existingMembers.map((wallet) => wallet.toLowerCase()));
+    const memberOffsets = existing.memberOffsets
+      ? Object.fromEntries(
+          Object.entries(existing.memberOffsets)
+            .filter(([wallet]) => existingMemberSet.has(wallet.toLowerCase()))
+            .map(([wallet, point]) => [wallet.toLowerCase(), { ...point }]),
+        )
+      : undefined;
+    return {
+      ...existing,
+      members: existingMembers,
+      memberOffsets: memberOffsets && Object.keys(memberOffsets).length ? memberOffsets : undefined,
+    };
+  }));
   if (groups.length >= MAX_GROUPS_PER_FOCUS) return workspace;
+  const memberOffsets = group.memberOffsets
+    ? Object.fromEntries(
+        Object.entries(group.memberOffsets)
+          .filter(([wallet]) => memberSet.has(wallet.toLowerCase()))
+          .map(([wallet, point]) => [wallet.toLowerCase(), { ...point }]),
+      )
+    : undefined;
   return {
     ...workspace,
     groups: [
       ...groups,
-      { ...group, members, collapsed: group.collapsed !== false },
+      {
+        ...group,
+        members,
+        collapsed: group.collapsed !== false,
+        memberOffsets: memberOffsets && Object.keys(memberOffsets).length ? memberOffsets : undefined,
+      },
     ],
   };
 }
@@ -239,7 +304,20 @@ export function moveWorkspaceMemberToGroup(
   const groups = workspace.groups.map((group) => {
     const members = group.members.filter((member) => member.toLowerCase() !== key);
     if (group.id === targetGroupId) members.push(key);
-    return { ...group, members: Array.from(new Set(members)).slice(0, MAX_MEMBERS_PER_GROUP) };
+    const normalizedMembers = Array.from(new Set(members)).slice(0, MAX_MEMBERS_PER_GROUP);
+    const memberSet = new Set(normalizedMembers);
+    const memberOffsets = group.memberOffsets
+      ? Object.fromEntries(
+          Object.entries(group.memberOffsets)
+            .filter(([member]) => memberSet.has(member.toLowerCase()))
+            .map(([member, point]) => [member.toLowerCase(), { ...point }]),
+        )
+      : undefined;
+    return {
+      ...group,
+      members: normalizedMembers,
+      memberOffsets: memberOffsets && Object.keys(memberOffsets).length ? memberOffsets : undefined,
+    };
   });
 
   return {
@@ -255,10 +333,22 @@ export function removeWorkspaceMemberFromGroup(
   const key = wallet.toLowerCase();
   return {
     ...workspace,
-    groups: keepValidGroups(workspace.groups.map((group) => ({
-      ...group,
-      members: group.members.filter((member) => member.toLowerCase() !== key),
-    }))),
+    groups: keepValidGroups(workspace.groups.map((group) => {
+      const members = group.members.filter((member) => member.toLowerCase() !== key);
+      const memberSet = new Set(members);
+      const memberOffsets = group.memberOffsets
+        ? Object.fromEntries(
+            Object.entries(group.memberOffsets)
+              .filter(([member]) => memberSet.has(member.toLowerCase()))
+              .map(([member, point]) => [member.toLowerCase(), { ...point }]),
+          )
+        : undefined;
+      return {
+        ...group,
+        members,
+        memberOffsets: memberOffsets && Object.keys(memberOffsets).length ? memberOffsets : undefined,
+      };
+    })),
   };
 }
 
