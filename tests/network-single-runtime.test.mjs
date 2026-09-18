@@ -151,6 +151,7 @@ test('Network first paint is immediate, warmed, and never swaps to a blocking lo
   assert.match(networkSource, /rememberNetworkRoot\(requestWallet, payload\)/);
   assert.match(networkSource, /setLoadState\('ready'\)[\s\S]*void fetchNetwork\(requestWallet\)\.then/);
   assert.match(networkWarmupSource, /prefetchNetworkRoot\(wallet\)/);
+  assert.match(networkWarmupSource, /prefetchEnrichedNetworkRoot\(wallet, \{ force: true \}\)/);
   assert.doesNotMatch(networkSource, /if \(loadState === 'loading' \|\| loadState === 'idle'\)[\s\S]{0,260}networkStateCard/);
 });
 

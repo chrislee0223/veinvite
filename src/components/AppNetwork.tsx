@@ -19,8 +19,11 @@ import { NETWORK_EXPERIENCE_COPY } from '@/lib/i18n/networkExperienceCopy';
 import { NETWORK_WORKSPACE_COPY } from '@/lib/i18n/networkWorkspaceCopy';
 import type { Locale, SupportedLocale } from '@/lib/i18n/locales';
 import {
+  NETWORK_HEADER_METRICS_UPDATED_EVENT,
+  getCachedNetworkHeaderMetrics,
   getCachedNetworkRoot,
   rememberNetworkRoot,
+  type NetworkHeaderMetrics,
 } from '@/lib/networkRootClientCache';
 import {
   EMPTY_NETWORK_WORKSPACE_STORE,
@@ -539,6 +542,38 @@ export function AppNetwork({ locale }: { locale: Locale }) {
   const [groupingWallet, setGroupingWallet] = useState<string | null>(null);
   const [workspaceNotice, setWorkspaceNotice] = useState('');
   const [introActive, setIntroActive] = useState(false);
+  const [headerMetrics, setHeaderMetrics] = useState<NetworkHeaderMetrics | null>(
+    () => getCachedNetworkHeaderMetrics(wallet),
+  );
+
+  useEffect(() => {
+    const syncHeaderMetrics = () => {
+      setHeaderMetrics(getCachedNetworkHeaderMetrics(wallet));
+    };
+    syncHeaderMetrics();
+    if (!wallet) return;
+
+    const handleHeaderMetricsUpdated = (event: Event) => {
+      const detail = (event as CustomEvent<{ wallet?: unknown }>).detail;
+      if (
+        detail &&
+        typeof detail.wallet === 'string' &&
+        keyWallet(detail.wallet) !== keyWallet(wallet)
+      ) {
+        return;
+      }
+      syncHeaderMetrics();
+    };
+
+    window.addEventListener(
+      NETWORK_HEADER_METRICS_UPDATED_EVENT,
+      handleHeaderMetricsUpdated,
+    );
+    return () => window.removeEventListener(
+      NETWORK_HEADER_METRICS_UPDATED_EVENT,
+      handleHeaderMetricsUpdated,
+    );
+  }, [wallet]);
 
   const visibleRootData = useMemo(() => {
     if (!wallet) return null;
@@ -1914,6 +1949,12 @@ export function AppNetwork({ locale }: { locale: Locale }) {
   const breadcrumb = currentData.breadcrumb;
   const breadcrumbStart = Math.max(0, breadcrumb.length - 4);
   const shownBreadcrumb = breadcrumb.slice(breadcrumbStart);
+  const headerNetwork = rootTopologyReady
+    ? visibleRootData.summary.network
+    : headerMetrics?.network ?? visibleRootData.summary.network;
+  const headerThisRound =
+    visibleRootData.summary.thisRound ?? headerMetrics?.thisRound ?? null;
+
   const worldStyle: CSSProperties = {
     width: WORLD_W,
     height: WORLD_H,
@@ -1941,10 +1982,10 @@ export function AppNetwork({ locale }: { locale: Locale }) {
       <header className="networkHeader" data-no-pan="true">
         <h1>{t.title}</h1>
         <div className="summary" aria-label={t.networkSize}>
-          <strong>{visibleRootData.summary.network.toLocaleString()}</strong>
+          <strong>{headerNetwork.toLocaleString()}</strong>
           <span>{t.networkSize}</span>
           <i />
-          <strong className="growth">{visibleRootData.summary.thisRound === null ? '–' : `+${visibleRootData.summary.thisRound}`}</strong>
+          <strong className="growth">{headerThisRound === null ? '–' : `+${headerThisRound}`}</strong>
           <span>{t.thisRound}</span>
         </div>
       </header>
