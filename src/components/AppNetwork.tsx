@@ -528,6 +528,7 @@ export function AppNetwork({ locale }: { locale: Locale }) {
   const [cacheVersion, setCacheVersion] = useState(0);
   const [loadState, setLoadState] = useState<'idle' | 'loading' | 'ready' | 'error'>('idle');
   const [loadError, setLoadError] = useState('');
+  const [availableSlots, setAvailableSlots] = useState(0);
   const [stageSize, setStageSize] = useState({ width: 0, height: 0 });
   const [view, setView] = useState<View>({
     x: 260 - FOCUS_X,
@@ -694,7 +695,7 @@ export function AppNetwork({ locale }: { locale: Locale }) {
   const pageCount = Math.max(1, Math.ceil((currentData?.children.length ?? 0) / pageSize));
   const safePage = clamp(page, 0, pageCount - 1);
   const emptySlotCount = currentData && keyWallet(currentData.focusWallet) === keyWallet(currentData.rootWallet)
-    ? Math.max(0, Math.min(2, 2 - currentData.children.length))
+    ? availableSlots
     : 0;
 
   const clearNavigationTimer = useCallback(() => {
@@ -894,6 +895,7 @@ export function AppNetwork({ locale }: { locale: Locale }) {
     setDraggingWorkspaceKey(null);
     setGroupingWallet(null);
     setWorkspaceNotice('');
+    setAvailableSlots(0);
     setView({
       x: 260 - FOCUS_X,
       y: 300 - FOCUS_Y,
@@ -910,6 +912,31 @@ export function AppNetwork({ locale }: { locale: Locale }) {
       cancelRequest();
     };
   }, [wallet, loadRoot, cancelRequest]);
+
+  useEffect(() => {
+    if (!wallet) {
+      setAvailableSlots(0);
+      return;
+    }
+
+    const controller = new AbortController();
+    void fetch(`/api/network/slots?wallet=${encodeURIComponent(wallet)}`, {
+      method: 'GET',
+      credentials: 'include',
+      cache: 'no-store',
+      headers: { Accept: 'application/json' },
+      signal: controller.signal,
+    }).then(async (response) => {
+      if (!response.ok) return;
+      const payload = await response.json().catch(() => null) as { availableSlots?: unknown } | null;
+      if (!payload || typeof payload.availableSlots !== 'number') return;
+      setAvailableSlots(Math.max(0, Math.min(2, Math.trunc(payload.availableSlots))));
+    }).catch(() => {
+      // Slot availability is supplementary; the Network graph remains usable.
+    });
+
+    return () => controller.abort();
+  }, [wallet]);
 
   useEffect(() => {
     setEditingLayout(false);
@@ -2139,7 +2166,7 @@ export function AppNetwork({ locale }: { locale: Locale }) {
         .summary{display:grid;grid-template-columns:auto auto 1px auto auto;align-items:baseline;gap:2px 4px;white-space:nowrap}.summary strong{color:#f1ede4;font-size:.66rem}.summary strong.growth{color:#e6b943}.summary span{color:#77736c;font-size:.43rem}.summary i{width:1px;height:14px;background:rgba(255,255,255,.08);align-self:center}
         .networkUtilityRow{position:relative;z-index:70;flex:0 0 auto;min-height:39px;padding:4px 6px;box-sizing:border-box;display:flex;align-items:center;justify-content:space-between;gap:5px;border-bottom:1px solid rgba(255,255,255,.05);background:rgba(11,11,9,.98)}
         .breadcrumbs{position:absolute;z-index:60;left:8px;top:8px;max-width:calc(100% - 16px);padding:3px 5px;display:flex;align-items:center;overflow:hidden;white-space:nowrap;border:1px solid rgba(255,205,80,.08);border-radius:8px;background:rgba(12,12,10,.82);backdrop-filter:blur(5px)}.breadcrumbs.rootOnly{display:none}.crumbWrap{display:flex;align-items:center;min-width:0}.crumbSep,.crumbEllipsis{flex:0 0 auto;color:#4f4c47;font-size:.62rem;margin:0 1px}.crumb{max-width:74px;padding:2px 4px;border:0;background:transparent;color:#8c867b;font:inherit;font-size:.5rem;font-weight:800;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;cursor:pointer}.crumb.current{color:#e5bd55;cursor:default}.crumb:disabled{opacity:.8}
-        .searchWrap{position:relative;min-width:88px;max-width:148px;flex:0 1 148px}.searchWrap input{width:100%;height:29px;box-sizing:border-box;padding:0 7px;border:1px solid rgba(255,205,80,.1);border-radius:9px;background:#11110f;color:#d8d3ca;font:inherit;font-size:.52rem;outline:none}.searchWrap input:focus{border-color:rgba(244,183,40,.34)}.searchWrap input:disabled{opacity:.45}.searchResults{position:absolute;z-index:90;top:35px;left:0;width:min(290px,78vw);max-height:245px;overflow:auto;padding:5px;border:1px solid rgba(255,205,80,.14);border-radius:12px;background:rgba(14,14,12,.985);box-shadow:0 18px 40px rgba(0,0,0,.42)}.searchResults button{width:100%;padding:8px;border:0;border-radius:8px;background:transparent;color:#ddd7cc;text-align:left;cursor:pointer}.searchResults button:hover{background:rgba(244,183,40,.06)}.searchResults strong{display:block;font-size:.62rem}.searchResults button span{display:block;margin-top:3px;color:#6f6b64;font-size:.52rem}.searchStatus{display:block;padding:11px 8px;color:#77736c;font-size:.56rem;line-height:1.45;text-align:center}
+        .searchWrap{position:relative;min-width:78px;max-width:120px;flex:0 1 120px}.searchWrap input{width:100%;height:29px;box-sizing:border-box;padding:0 7px;border:1px solid rgba(255,205,80,.1);border-radius:9px;background:#11110f;color:#d8d3ca;font:inherit;font-size:.52rem;outline:none}.searchWrap input:focus{border-color:rgba(244,183,40,.34)}.searchWrap input:disabled{opacity:.45}.searchResults{position:absolute;z-index:90;top:35px;left:0;width:min(290px,78vw);max-height:245px;overflow:auto;padding:5px;border:1px solid rgba(255,205,80,.14);border-radius:12px;background:rgba(14,14,12,.985);box-shadow:0 18px 40px rgba(0,0,0,.42)}.searchResults button{width:100%;padding:8px;border:0;border-radius:8px;background:transparent;color:#ddd7cc;text-align:left;cursor:pointer}.searchResults button:hover{background:rgba(244,183,40,.06)}.searchResults strong{display:block;font-size:.62rem}.searchResults button span{display:block;margin-top:3px;color:#6f6b64;font-size:.52rem}.searchStatus{display:block;padding:11px 8px;color:#77736c;font-size:.56rem;line-height:1.45;text-align:center}
         .compactControls{flex:0 0 auto;margin-left:auto;display:flex;align-items:center;gap:3px}.networkCanvasPage[data-layout-editing='true'] .searchWrap{display:none}.networkStage{position:relative;flex:1 1 auto;min-height:0;height:auto;overflow:hidden;touch-action:none;overscroll-behavior:contain;background:radial-gradient(ellipse at 50% 50%,rgba(244,183,40,.036),transparent 36%),#080807;cursor:grab;user-select:none;-webkit-user-select:none}.networkStage:active{cursor:grabbing}.networkStage.layoutEditing{box-shadow:inset 0 0 0 1px rgba(244,183,40,.11)}
         .world{position:absolute;top:0;left:0;will-change:transform;backface-visibility:hidden}.world.cameraTransition{transition:transform ${NAVIGATION_MS}ms cubic-bezier(.18,.82,.2,1)}.introActive .world.cameraTransition{transition-duration:${FIT_TRANSITION_MS}ms}.worldContent{position:absolute;inset:0;transform-origin:${FOCUS_X}px ${FOCUS_Y}px}.worldContent.nav-forward{animation:networkForward ${NAVIGATION_MS}ms cubic-bezier(.18,.82,.2,1)}.worldContent.nav-back{animation:networkBack ${NAVIGATION_MS}ms cubic-bezier(.18,.82,.2,1)}
         .edges{position:absolute;inset:0;overflow:visible;pointer-events:none;z-index:2}.edge{fill:none;stroke:rgba(176,145,73,.31);stroke-width:1.05;stroke-linecap:round;vector-effect:non-scaling-stroke}.edge.rewarded{stroke:rgba(232,183,62,.46)}.edge.groupEdge{stroke:rgba(224,178,65,.42);stroke-width:1.15;stroke-dasharray:4 8}.groupMemberEdge{stroke:rgba(194,157,75,.32);stroke-width:.95;stroke-dasharray:4 8}.continuationEdge{fill:none;stroke:rgba(176,145,73,.24);stroke-width:1;stroke-linecap:round;vector-effect:non-scaling-stroke}.slotEdgeBase,.slotEdgePulse{fill:none;stroke-linecap:round;pointer-events:none;vector-effect:non-scaling-stroke}.slotEdgeBase{stroke:rgba(226,188,79,.62);stroke-width:1.05;opacity:.5}.slotEdgePulse{stroke:rgba(255,210,76,.95);stroke-width:1.55;stroke-dasharray:5 38;opacity:.8;filter:drop-shadow(0 0 2px rgba(244,183,40,.28));animation:networkSlotFlow 2.45s linear infinite}

@@ -16,7 +16,9 @@ type RoundContext = {
 
 export const NETWORK_CANARY_SAMPLE_SIZE = 500;
 
-const ROOT_BRANCH_WIDTH = 12;
+const ROOT_DIRECT_COUNT = 10;
+const EARLY_BRANCH_COUNTS = [0, 1, 2, 3, 5, 8, 4, 7, 2, 6] as const;
+const BRANCHING_PATTERN = [0, 1, 4, 2, 6, 3, 0, 5, 2, 7, 1, 3, 5, 0, 2, 4] as const;
 const SYNTHETIC_WALLET_PREFIX = 'ca11ab1e000000000000000000000000';
 const FIXTURE_START_MS = Date.UTC(2026, 7, 20, 0, 0, 0);
 
@@ -24,13 +26,51 @@ function walletFor(index: number): string {
   return `0x${SYNTHETIC_WALLET_PREFIX}${index.toString(16).padStart(8, '0')}`;
 }
 
+function childCountFor(parentIndex: number): number {
+  if (parentIndex <= EARLY_BRANCH_COUNTS.length) {
+    return EARLY_BRANCH_COUNTS[parentIndex - 1] ?? 0;
+  }
+  return BRANCHING_PATTERN[(parentIndex * 7 + Math.floor(parentIndex / 3)) % BRANCHING_PATTERN.length] ?? 0;
+}
+
+function buildParentAssignments(): Array<number | 'root'> {
+  const parents: Array<number | 'root'> = Array.from(
+    { length: NETWORK_CANARY_SAMPLE_SIZE + 1 },
+    () => 'root',
+  );
+
+  let nextIndex = ROOT_DIRECT_COUNT + 1;
+  let parentIndex = 1;
+
+  while (nextIndex <= NETWORK_CANARY_SAMPLE_SIZE) {
+    const childCount = childCountFor(parentIndex);
+    for (
+      let childOffset = 0;
+      childOffset < childCount && nextIndex <= NETWORK_CANARY_SAMPLE_SIZE;
+      childOffset += 1
+    ) {
+      parents[nextIndex] = parentIndex;
+      nextIndex += 1;
+    }
+
+    parentIndex += 1;
+
+    // The configured branching patterns have an average above one, but this
+    // guard keeps the fixture connected even if those patterns change later.
+    if (parentIndex >= nextIndex && nextIndex <= NETWORK_CANARY_SAMPLE_SIZE) {
+      parents[nextIndex] = Math.max(1, parentIndex - 1);
+      nextIndex += 1;
+    }
+  }
+
+  return parents;
+}
+
+const PARENT_ASSIGNMENTS = buildParentAssignments();
+
 function parentIndexFor(index: number): number | 'root' {
-  // Keep the root with one occupied direct slot so the real Network screen
-  // still exercises the Available invite slot. Entering that first branch
-  // reveals 12 direct children, then a balanced multi-generation tree.
-  if (index === 1) return 'root';
-  if (index <= ROOT_BRANCH_WIDTH + 1) return 1;
-  return 2 + Math.floor((index - (ROOT_BRANCH_WIDTH + 2)) / 3);
+  if (index <= ROOT_DIRECT_COUNT) return 'root';
+  return PARENT_ASSIGNMENTS[index] ?? 'root';
 }
 
 function statusFor(index: number): MemberStatus {

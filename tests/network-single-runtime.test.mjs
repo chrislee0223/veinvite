@@ -10,6 +10,7 @@ const [
   localesSource,
   networkRouteSource,
   networkSummaryRouteSource,
+  networkSlotsRouteSource,
   canaryFixtureSource,
 ] = await Promise.all([
   readFile('src/components/AppGuide.tsx', 'utf8'),
@@ -19,6 +20,7 @@ const [
   readFile('src/lib/i18n/locales.ts', 'utf8'),
   readFile('src/app/api/network/route.ts', 'utf8'),
   readFile('src/app/api/network/summary/route.ts', 'utf8'),
+  readFile('src/app/api/network/slots/route.ts', 'utf8'),
   readFile('src/lib/networkCanaryFixture.ts', 'utf8'),
 ]);
 
@@ -171,13 +173,14 @@ test('only allowlisted canary wallets receive the synthetic graph and normal wal
   assert.ok(canaryCheck >= 0 && fixtureBuild > canaryCheck && realRpc > fixtureBuild);
 });
 
-test('canary fixture supplies 500 deterministic multi-generation sample wallets', () => {
+test('canary fixture supplies 500 varied lifetime branches instead of a binary tree', () => {
   assert.match(canaryFixtureSource, /NETWORK_CANARY_SAMPLE_SIZE = 500/);
-  assert.match(canaryFixtureSource, /ROOT_BRANCH_WIDTH = 12/);
-  assert.match(canaryFixtureSource, /function parentIndexFor/);
-  assert.match(canaryFixtureSource, /if \(index === 1\) return 'root'/);
-  assert.match(canaryFixtureSource, /if \(index <= ROOT_BRANCH_WIDTH \+ 1\) return 1/);
-  assert.match(canaryFixtureSource, /Math\.floor\(\(index - \(ROOT_BRANCH_WIDTH \+ 2\)\) \/ 3\)/);
+  assert.match(canaryFixtureSource, /ROOT_DIRECT_COUNT = 10/);
+  assert.match(canaryFixtureSource, /EARLY_BRANCH_COUNTS = \[0, 1, 2, 3, 5, 8, 4, 7, 2, 6\]/);
+  assert.match(canaryFixtureSource, /BRANCHING_PATTERN/);
+  assert.match(canaryFixtureSource, /function childCountFor/);
+  assert.match(canaryFixtureSource, /function buildParentAssignments/);
+  assert.match(canaryFixtureSource, /if \(index <= ROOT_DIRECT_COUNT\) return 'root'/);
   assert.match(canaryFixtureSource, /statusFor/);
   assert.match(canaryFixtureSource, /'REWARDED'/);
   assert.match(canaryFixtureSource, /'QUALIFIED'/);
@@ -186,6 +189,19 @@ test('canary fixture supplies 500 deterministic multi-generation sample wallets'
   assert.match(canaryFixtureSource, /Date\.parse\(round\.startAt\)/);
   assert.match(canaryFixtureSource, /Date\.parse\(round\.endAt\)/);
   assert.match(canaryFixtureSource, /canaryFixture: true/);
+});
+
+test('two invite slots are current capacity, not a lifetime two-branch limit', () => {
+  assert.match(networkSlotsRouteSource, /requireWalletSession/);
+  assert.match(networkSlotsRouteSource, /canUseNetworkSurface\('my', wallet\)/);
+  assert.match(networkSlotsRouteSource, /slot_released_at/);
+  assert.match(networkSlotsRouteSource, /invite_slot/);
+  assert.match(networkSlotsRouteSource, /availableSlots: Math\.max\(0, 2 - occupiedSlots\.length\)/);
+  assert.match(networkSlotsRouteSource, /availableSlots: 1, occupiedSlots: \[1\]/);
+  assert.match(networkSource, /\/api\/network\/slots\?wallet=/);
+  assert.match(networkSource, /const \[availableSlots, setAvailableSlots\] = useState\(0\)/);
+  assert.match(networkSource, /\? availableSlots\s*: 0/);
+  assert.doesNotMatch(networkSource, /2 - currentData\.children\.length/);
 });
 
 test('single runtime keeps the approved radial Network visual and deliberate motion contract', () => {
