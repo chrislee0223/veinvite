@@ -89,15 +89,18 @@ test('layout editing is React-owned and changes workspace coordinates rather tha
   assert.doesNotMatch(workspaceSource, /setView|ResizeObserver|PointerEvent|document\./);
 });
 
-test('layout Done/Reset are explicit, Cancel is reversible, and workspace persistence is isolated from camera session state', () => {
+test('layout editing auto-saves completed actions and keeps camera state separate', () => {
   assert.match(networkSource, /const WORKSPACE_PREFIX = 'veinvite-network-workspace-v1:'/);
-  assert.match(networkSource, /window\.localStorage\.setItem\(workspaceStorageKey\(wallet\), serializeNetworkWorkspaceStore\(nextStore\)\)/);
-  assert.match(networkSource, /const cancelLayoutEdit = useCallback/);
-  assert.match(networkSource, /const resetLayoutEdit = useCallback/);
-  assert.match(networkSource, /withoutNodePositions/);
+  assert.match(networkSource, /const commitEditingWorkspace = useCallback/);
+  assert.match(networkSource, /const commitCurrentDraftWorkspace = useCallback/);
+  assert.match(networkSource, /persistFocusWorkspace\(current\)/);
+  assert.match(networkSource, /const finishLayoutEdit = useCallback/);
+  assert.match(networkSource, /onClick=\{editingLayout \? finishLayoutEdit : beginLayoutEdit\}/);
+  assert.doesNotMatch(networkSource, /const cancelLayoutEdit = useCallback/);
+  assert.doesNotMatch(networkSource, /const resetLayoutEdit = useCallback/);
+  assert.doesNotMatch(networkSource, /const saveLayoutEdit = useCallback/);
   assert.match(networkSource, /MIN_SCALE = 0\.32/);
   assert.match(networkSource, /MAX_SCALE = 2\.5/);
-  assert.match(networkSource, /setDraftWorkspace\(null\)/);
   assert.match(workspaceSource, /withFocusWorkspace/);
   assert.doesNotMatch(workspaceSource, /scale|focusWallet: string;\s*view/);
 });
@@ -106,7 +109,7 @@ test('group creation is a draft-first interaction and preserves member positions
   assert.match(networkSource, /type GroupDraft/);
   assert.match(networkSource, /groupDropRef/);
   assert.match(networkSource, /groupDraft\.members\.length < 2/);
-  assert.match(networkSource, /addWorkspaceGroup\(draftWorkspace/);
+  assert.match(networkSource, /addWorkspaceGroup\(workspace/);
   assert.match(networkSource, /removeWorkspaceGroup\(current, selectedGroup\.id\)/);
   assert.match(networkSource, /moveWorkspaceMemberToGroup/);
   assert.match(networkSource, /withWorkspaceGroupCollapsed/);
@@ -228,11 +231,38 @@ test('single runtime keeps the approved radial Network visual and deliberate mot
   assert.match(networkSource, /@keyframes networkSlotFlow/);
   assert.match(networkSource, /@keyframes networkYouIntro/);
   assert.match(networkSource, /@keyframes networkNodeBloom/);
-  assert.match(networkSource, /INTRO_SESSION_PREFIX/);
+  assert.match(networkSource, /setView\(centeredView\(stageSize, 1\)\)/);
+  assert.match(networkSource, /if \(!rootTopologyReady\) return/);
+  assert.match(networkSource, /if \(!inviteSlotsReady && !introReadyFallback\) return/);
+  assert.doesNotMatch(networkSource, /INTRO_SESSION_PREFIX|veinvite-network-intro-v5/);
   assert.match(networkSource, /breadcrumbs\.rootOnly\{display:none\}/);
   assert.match(networkSource, /width:min\(100%,520px\)/);
   assert.doesNotMatch(networkSource, /\.personNode\{min-width:92px;padding:7px/);
   assert.doesNotMatch(networkSource, /background-size:auto,28px 28px,28px 28px/);
+});
+
+test('Network entry repeats a stable YOU-to-fit motion on every mount without stale session camera restore', () => {
+  assert.doesNotMatch(networkSource, /sessionStorage/);
+  assert.doesNotMatch(networkSource, /StoredRuntimeState|runtimeSessionKey|readStoredRuntimeState/);
+  assert.match(networkSource, /const \[rootTopologyReady, setRootTopologyReady\] = useState\(false\)/);
+  assert.match(networkSource, /const \[inviteSlotsReady, setInviteSlotsReady\] = useState\(false\)/);
+  assert.match(networkSource, /const \[stageStable, setStageStable\] = useState\(false\)/);
+  assert.match(networkSource, /requestAnimationFrame[\s\S]*requestAnimationFrame/);
+  assert.match(networkSource, /setView\(centeredView\(stageSize, 1\)\)[\s\S]*setIntroActive\(true\)[\s\S]*fitNetwork\(\)/);
+  assert.match(networkSource, /const stopIntroForInteraction = useCallback/);
+  assert.match(networkSource, /onPointerDownCapture[\s\S]*stopIntroForInteraction\(\)/);
+  assert.match(networkSource, /onWheel[\s\S]*stopIntroForInteraction\(\)/);
+});
+
+test('invite slot fallback geometry is stable before and after stage measurement', () => {
+  const slotStart = networkSource.indexOf('function inviteSlotPoint');
+  const slotEnd = networkSource.indexOf('function fittedView', slotStart);
+  const slotSource = networkSource.slice(slotStart, slotEnd);
+  assert.match(slotSource, /FOCUS_X - 58/);
+  assert.match(slotSource, /FOCUS_X \+ 64/);
+  assert.doesNotMatch(slotSource, /compact|isMobile/);
+  assert.match(networkSource, /const saved = activeWorkspace\.positions\[key\]/);
+  assert.match(networkSource, /x: saved\?\.x \?\? fallback\.x/);
 });
 
 test('navigation animation honors reduced motion and keeps idle geometry stationary', () => {
@@ -274,7 +304,7 @@ test('final Network gestures are coordinate-owned and deliberate', () => {
 test('YOU return is separate from explicit Fit and multi-level back protects parent camera ownership', () => {
   assert.match(networkSource, /const returnToYou = useCallback/);
   assert.match(networkSource, /const fitNetwork = useCallback/);
-  assert.match(networkSource, /className="fitButton" onClick=\{fitNetwork\}/);
+  assert.match(networkSource, /className="fitButton" onClick=\{\(\) => \{ stopIntroForInteraction\(\); fitNetwork\(\); \}\}/);
   assert.match(networkSource, /onClick=\{returnToYou\}/);
   assert.match(networkSource, /immediateParent && keyWallet\(immediateParent\) === target/);
 });
@@ -290,14 +320,34 @@ test('pinch navigation waits until every pointer is released', () => {
   assert.match(endSource.slice(zeroPointerStart), /moveToFocus\(enterWallet, 'forward'\)/);
 });
 
-test('final group workspace keeps one React-owned membership path and no +N descendants badge', () => {
+test('final group workspace keeps one React-owned membership path and one persistent Groups control', () => {
   assert.match(networkSource, /moveWorkspaceMemberToGroup/);
   assert.match(networkSource, /withWorkspaceGroupCollapsed/);
   assert.match(networkSource, /className="groupsPanel"/);
-  assert.match(networkSource, /className="resetLayoutButton"/);
-  assert.match(networkSource, /className="saveLayoutButton"/);
+  assert.match(networkSource, /className="groupBuilder"/);
+  assert.match(networkSource, /className=\{\`editLayoutButton labeledControl/);
+  assert.doesNotMatch(networkSource, /className="resetLayoutButton"/);
+  assert.doesNotMatch(networkSource, /className="saveLayoutButton"/);
+  assert.doesNotMatch(networkSource, /className="cancelLayoutButton"/);
+  assert.doesNotMatch(networkSource, /groupBuilderAnchor/);
   assert.match(networkSource, /continuationEdge/);
   assert.doesNotMatch(networkSource, /hidden descendants|\+N|\+15/);
+});
+
+test('edit-mode drag commits only on completed drop and provisional group drops restore the original node position', () => {
+  assert.match(networkSource, /originalWorkspace: cloneNetworkFocusWorkspace\(workspace\)/);
+  assert.match(networkSource, /setDraftWorkspace\(\(current\) => \{[\s\S]*draftWorkspaceRef\.current = next/);
+  assert.match(networkSource, /if \(event\.type !== 'pointerup'\) \{[\s\S]*setEditingWorkspace\(cloneNetworkFocusWorkspace\(drag\.originalWorkspace\)\)/);
+  assert.match(networkSource, /insideDraft[\s\S]*setEditingWorkspace\(cloneNetworkFocusWorkspace\(drag\.originalWorkspace\)\)/);
+  assert.match(networkSource, /commitCurrentDraftWorkspace\(\)/);
+  assert.match(networkSource, /moveWorkspaceMemberToGroup\(drag\.originalWorkspace, drag\.key, targetGroup\.id\)/);
+});
+
+test('edit drag cancellation restores the pre-drag workspace for multitouch and provisional grouping', () => {
+  assert.match(networkSource, /const activeWorkspaceDrag = workspaceDragRef\.current/);
+  assert.match(networkSource, /setEditingWorkspace\(cloneNetworkFocusWorkspace\(activeWorkspaceDrag\.originalWorkspace\)\)/);
+  assert.match(networkSource, /groupingTimerRef\.current = window\.setTimeout\(\(\) => \{[\s\S]*setEditingWorkspace\(cloneNetworkFocusWorkspace\(drag\.originalWorkspace\)\)[\s\S]*setGroupDraft/);
+  assert.match(networkSource, /const finishLayoutEdit = useCallback[\s\S]*window\.clearTimeout\(groupingTimerRef\.current\)/);
 });
 
 test('group transfers are unique, same-group drops are no-ops, and long-press native UI stays blocked', () => {

@@ -27,9 +27,9 @@ test('Network title is one compact row and search plus every primary control sha
   assert.match(source, /\.networkUtilityRow\{[^}]*display:flex/);
   assert.match(source, /\.compactControls\{[^}]*display:flex/);
   assert.match(source, /\.searchWrap\{[^}]*max-width:108px[^}]*flex:0 1 108px/);
-  assert.match(source, /\.layoutControls>button,\.groupMenuAnchor>button,\.groupBuilderAnchor>button\{width:28px/);
+  assert.match(source, /\.layoutControls>button,\.groupMenuAnchor>button\{width:28px/);
   assert.match(source, /\.viewControls\{display:flex;align-items:center/);
-  assert.match(source, /className="editLayoutButton labeledControl"/);
+  assert.match(source, /className=\{\`editLayoutButton labeledControl/);
   assert.match(source, /className=\{\`groupsButton labeledControl/);
   assert.match(source, /className="youControl labeledControl"/);
 });
@@ -79,19 +79,30 @@ test('Network has one continuous canvas with no direct-node pagination', () => {
 });
 
 
-test('group popovers are anchored to their current toolbar buttons instead of the old stage coordinates', () => {
+test('group list and group builder share the same persistent Groups toolbar anchor', () => {
   const utility = source.indexOf('className="networkUtilityRow"');
   const stage = source.indexOf('ref={stageRef}', utility);
   const utilitySlice = source.slice(utility, stage);
   assert.match(utilitySlice, /className="groupMenuAnchor"/);
   assert.match(utilitySlice, /className="groupsPanel"/);
-  assert.match(utilitySlice, /className="groupBuilderAnchor"/);
   assert.match(utilitySlice, /className="groupBuilder"/);
+  assert.doesNotMatch(utilitySlice, /groupBuilderAnchor/);
   assert.match(source, /\.groupsPanel,\.groupBuilder\{position:absolute[^}]*top:calc\(100% \+ 7px\)[^}]*left:50%[^}]*translateX\(-50%\)/);
   assert.doesNotMatch(source, /\.groupsPanel\{position:absolute;z-index:81;left:10px;top:50px/);
   assert.doesNotMatch(source, /\.groupBuilder\{position:absolute;z-index:82;left:10px;top:50px/);
 });
 
+
+test('layout edit keeps the same compact toolbar instead of spawning reset/new/cancel/save buttons', () => {
+  assert.match(source, /onClick=\{editingLayout \? finishLayoutEdit : beginLayoutEdit\}/);
+  assert.match(source, /editingLayout \? w\.done : w\.editLayout/);
+  assert.match(source, /disabled=\{editingLayout\}/);
+  assert.doesNotMatch(source, /className="resetLayoutButton"/);
+  assert.doesNotMatch(source, /className="newGroupButton"/);
+  assert.doesNotMatch(source, /className="cancelLayoutButton"/);
+  assert.doesNotMatch(source, /className="saveLayoutButton"/);
+  assert.doesNotMatch(source, /data-layout-editing='true'[^\n]*\.searchWrap\{display:none\}/);
+});
 
 test('desktop Network height cap is scoped to the Network card only', () => {
   assert.match(home, /.screen.networkScreen {[^}]*height:100svh/);
