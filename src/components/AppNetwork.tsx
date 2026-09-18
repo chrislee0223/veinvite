@@ -19,6 +19,11 @@ import { NETWORK_EXPERIENCE_COPY } from '@/lib/i18n/networkExperienceCopy';
 import { NETWORK_WORKSPACE_COPY } from '@/lib/i18n/networkWorkspaceCopy';
 import type { Locale, SupportedLocale } from '@/lib/i18n/locales';
 import {
+  getCachedNetworkInviteSlots,
+  rememberNetworkInviteSlots,
+  type NetworkInviteSlotState,
+} from '@/lib/networkInviteSlotsClientCache';
+import {
   NETWORK_HEADER_METRICS_UPDATED_EVENT,
   getCachedNetworkHeaderMetrics,
   getCachedNetworkRoot,
@@ -110,13 +115,7 @@ type WorkspaceDrag = {
   originalWorkspace: NetworkFocusWorkspace;
 };
 
-type InviteSlotState = {
-  slot: 1 | 2;
-  state: 'AVAILABLE' | 'PENDING' | 'IN_PROGRESS';
-  inviteeWallet: string | null;
-  completedSteps: number;
-  totalSteps: number;
-};
+type InviteSlotState = NetworkInviteSlotState;
 
 type PositionedInviteSlot = InviteSlotState & {
   key: string;
@@ -542,9 +541,14 @@ export function AppNetwork({ locale }: { locale: Locale }) {
   const [cacheVersion, setCacheVersion] = useState(0);
   const [loadState, setLoadState] = useState<'idle' | 'loading' | 'ready' | 'error'>('idle');
   const [loadError, setLoadError] = useState('');
-  const [inviteSlots, setInviteSlots] = useState<InviteSlotState[]>([]);
+  const initialInviteSlots = getCachedNetworkInviteSlots(wallet);
+  const [inviteSlots, setInviteSlots] = useState<InviteSlotState[]>(
+    () => initialInviteSlots ?? [],
+  );
   const [rootTopologyReady, setRootTopologyReady] = useState(false);
-  const [inviteSlotsReady, setInviteSlotsReady] = useState(false);
+  const [inviteSlotsReady, setInviteSlotsReady] = useState(
+    () => Boolean(initialInviteSlots),
+  );
   const [stageStable, setStageStable] = useState(false);
   const [stageSize, setStageSize] = useState({ width: 0, height: 0 });
   const [view, setView] = useState<View>({
@@ -909,13 +913,7 @@ export function AppNetwork({ locale }: { locale: Locale }) {
       serial === requestSerialRef.current &&
       keyWallet(requestWallet) === keyWallet(wallet);
 
-    try {
-      const payload = await fetchNetwork(requestWallet, {
-        signal: controller.signal,
-        fast: true,
-      });
-      if (!canCommit()) return;
-
+    const commitRoot = (payload: NetworkData) => {
       cacheRef.current.clear();
       cacheRef.current.set(keyWallet(payload.focusWallet), payload);
       rememberNetworkRoot(requestWallet, payload);
@@ -924,37 +922,64 @@ export function AppNetwork({ locale }: { locale: Locale }) {
       setCacheVersion((value) => value + 1);
       setLoadState('ready');
       setRootTopologyReady(true);
+    };
 
-      void fetchNetwork(requestWallet).then((enriched) => {
-        if (!canCommit()) return;
-        cacheRef.current.set(keyWallet(enriched.focusWallet), enriched);
-        rememberNetworkRoot(requestWallet, enriched);
-        setRootData(enriched);
-        setCacheVersion((value) => value + 1);
-      }).catch(() => {
-        // Fast topology remains usable if round enrichment is unavailable.
-      });
+    // Start the fast topology and round-enriched root reads together. The
+    // enriched request must never sit behind the fast request, otherwise the
+    // header visibly changes from an unresolved round value to the real count.
+    const fastRequest = fetchNetwork(requestWallet, {
+      signal: controller.signal,
+      fast: true,
+    });
+    const enrichedRequest = fetchNetwork(requestWallet, {
+      signal: controller.signal,
+    });
+    let enrichedCommitted = false;
+
+    void enrichedRequest.then((enriched) => {
+      if (!canCommit()) return;
+      enrichedCommitted = true;
+      commitRoot(enriched);
+    }).catch(() => {
+      // Fast topology remains a valid fallback if round enrichment fails.
+    });
+
+    try {
+      const payload = await fastRequest;
+      if (!canCommit() || enrichedCommitted) return;
+      commitRoot(payload);
     } catch (error) {
       if (!canCommit()) return;
-      // Never replace the Network surface with a blocking loading/error card.
-      // Keep the warmed or provisional canvas visible and retry on the next
-      // entry while preserving the error for diagnostics.
-      setLoadError(error instanceof Error ? error.message : t.loadError);
-      setLoadState('ready');
-      setRootTopologyReady(true);
+
+      // Give the already-running enriched request a chance to become the first
+      // authoritative scene before exposing the provisional canvas.
+      try {
+        await enrichedRequest;
+        if (!canCommit()) return;
+      } catch {
+        if (!canCommit()) return;
+        setLoadError(error instanceof Error ? error.message : t.loadError);
+        setLoadState('ready');
+        setRootTopologyReady(true);
+      }
     } finally {
-      if (abortRef.current === controller) abortRef.current = null;
+      void Promise.allSettled([fastRequest, enrichedRequest]).then(() => {
+        if (abortRef.current === controller) abortRef.current = null;
+      });
     }
   }, [wallet, cancelRequest, t.loadError]);
 
   useEffect(() => {
+    const cachedInviteSlots = wallet
+      ? getCachedNetworkInviteSlots(wallet)
+      : null;
     cacheRef.current.clear();
     returnViewByChildRef.current.clear();
     viewByFocusRef.current.clear();
     initializedWalletRef.current = null;
     introCancelledRef.current = false;
     setRootTopologyReady(false);
-    setInviteSlotsReady(false);
+    setInviteSlotsReady(Boolean(cachedInviteSlots));
     setStageStable(false);
     if (introFitTimerRef.current !== null) {
       window.clearTimeout(introFitTimerRef.current);
@@ -986,7 +1011,7 @@ export function AppNetwork({ locale }: { locale: Locale }) {
     setDraggingWorkspaceKey(null);
     setGroupingWallet(null);
     setWorkspaceNotice('');
-    setInviteSlots([]);
+    setInviteSlots(cachedInviteSlots ?? []);
     setView({
       x: 260 - FOCUS_X,
       y: 300 - FOCUS_Y,
@@ -1011,8 +1036,15 @@ export function AppNetwork({ locale }: { locale: Locale }) {
       return;
     }
 
+    const cachedSlots = getCachedNetworkInviteSlots(wallet);
     let active = true;
-    setInviteSlotsReady(false);
+    if (cachedSlots) {
+      setInviteSlots(cachedSlots);
+      setInviteSlotsReady(true);
+    } else {
+      setInviteSlots([]);
+      setInviteSlotsReady(false);
+    }
 
     const controller = new AbortController();
     let retryTimer: number | null = null;
@@ -1121,6 +1153,7 @@ export function AppNetwork({ locale }: { locale: Locale }) {
           window.clearTimeout(retryTimer);
           retryTimer = null;
         }
+        rememberNetworkInviteSlots(wallet, slots);
         setInviteSlots(slots);
         setInviteSlotsReady(true);
       } catch (error) {
@@ -1980,6 +2013,8 @@ export function AppNetwork({ locale }: { locale: Locale }) {
     headerMetrics?.network ?? visibleRootData.summary.network;
   const headerThisRound =
     visibleRootData.summary.thisRound ?? headerMetrics?.thisRound ?? null;
+  const rootSceneReady = rootTopologyReady && inviteSlotsReady;
+  const headerMetricsReady = headerThisRound !== null;
 
   const worldStyle: CSSProperties = {
     width: WORLD_W,
@@ -2007,7 +2042,10 @@ export function AppNetwork({ locale }: { locale: Locale }) {
     >
       <header className="networkHeader" data-no-pan="true">
         <h1>{t.title}</h1>
-        <div className="summary" aria-label={t.networkSize}>
+        <div
+          className={`summary ${headerMetricsReady ? 'metricsReady' : 'metricsPending'}`}
+          aria-label={t.networkSize}
+        >
           <strong className="summaryNumber networkTotal">{headerNetwork.toLocaleString()}</strong>
           <span>{t.networkSize}</span>
           <i />
@@ -2196,7 +2234,7 @@ export function AppNetwork({ locale }: { locale: Locale }) {
           style={worldStyle}
           aria-busy={pendingFocus ? true : undefined}
         >
-          <div className={`worldContent${navigationDirection ? ` nav-${navigationDirection}` : ''}`}>
+          <div className={`worldContent ${rootSceneReady ? 'sceneReady' : 'scenePending'}${navigationDirection ? ` nav-${navigationDirection}` : ''}`}>
             <svg className="edges" width={WORLD_W} height={WORLD_H} aria-hidden="true">
               {visibleChildren.filter((child) => !groupContainingWallet(activeWorkspace, child.wallet)).map((child) => (
                 <path
@@ -2486,12 +2524,12 @@ export function AppNetwork({ locale }: { locale: Locale }) {
       <style jsx>{`
         .networkCanvasPage{width:min(100%,520px);height:100%;min-height:0;box-sizing:border-box;margin:0 auto;position:relative;overflow:hidden;display:flex;flex-direction:column;border:1px solid rgba(255,255,255,.06);border-radius:18px;background:#090907;box-shadow:0 16px 45px rgba(0,0,0,.22)}
         .networkHeader{flex:0 0 auto;min-height:42px;padding:7px 9px;box-sizing:border-box;display:flex;align-items:center;justify-content:space-between;gap:10px;border-bottom:1px solid rgba(255,255,255,.055);background:rgba(14,14,12,.94)}.networkHeader h1{min-width:0;margin:0;color:#f0ece3;font-size:.82rem;letter-spacing:-.025em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-        .summary{display:grid;grid-template-columns:4.6ch auto 1px 4.6ch auto;align-items:baseline;gap:2px 4px;white-space:nowrap}.summary strong{color:#f1ede4;font-size:.66rem}.summaryNumber{display:block;width:100%;text-align:right;font-variant-numeric:tabular-nums}.summary strong.growth{color:#e6b943}.summary span{color:#77736c;font-size:.43rem}.summary i{width:1px;height:14px;background:rgba(255,255,255,.08);align-self:center}
+        .summary{display:grid;grid-template-columns:4.6ch auto 1px 4.6ch auto;align-items:baseline;gap:2px 4px;white-space:nowrap}.summary.metricsPending{visibility:hidden}.summary.metricsReady{visibility:visible}.summary strong{color:#f1ede4;font-size:.66rem}.summaryNumber{display:block;width:100%;text-align:right;font-variant-numeric:tabular-nums}.summary strong.growth{color:#e6b943}.summary span{color:#77736c;font-size:.43rem}.summary i{width:1px;height:14px;background:rgba(255,255,255,.08);align-self:center}
         .networkUtilityRow{position:relative;z-index:70;flex:0 0 auto;min-height:39px;padding:4px 6px;box-sizing:border-box;display:flex;align-items:center;justify-content:space-between;gap:5px;border-bottom:1px solid rgba(255,255,255,.05);background:rgba(11,11,9,.98)}
         .breadcrumbs{position:absolute;z-index:60;left:8px;top:8px;max-width:calc(100% - 16px);padding:3px 5px;display:flex;align-items:center;overflow:hidden;white-space:nowrap;border:1px solid rgba(255,205,80,.08);border-radius:8px;background:rgba(12,12,10,.82);backdrop-filter:blur(5px)}.breadcrumbs.rootOnly{display:none}.crumbWrap{display:flex;align-items:center;min-width:0}.crumbSep,.crumbEllipsis{flex:0 0 auto;color:#4f4c47;font-size:.62rem;margin:0 1px}.crumb{max-width:74px;padding:2px 4px;border:0;background:transparent;color:#8c867b;font:inherit;font-size:.5rem;font-weight:800;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;cursor:pointer}.crumb.current{color:#e5bd55;cursor:default}.crumb:disabled{opacity:.8}
         .searchWrap{position:relative;min-width:64px;max-width:108px;flex:0 1 108px}.searchWrap input{width:100%;height:29px;box-sizing:border-box;padding:0 7px;border:1px solid rgba(255,205,80,.1);border-radius:9px;background:#11110f;color:#d8d3ca;font:inherit;font-size:.52rem;outline:none}.searchWrap input:focus{border-color:rgba(244,183,40,.34)}.searchWrap input:disabled{opacity:.45}.searchResults{position:absolute;z-index:90;top:35px;left:0;width:min(290px,78vw);max-height:245px;overflow:auto;padding:5px;border:1px solid rgba(255,205,80,.14);border-radius:12px;background:rgba(14,14,12,.985);box-shadow:0 18px 40px rgba(0,0,0,.42)}.searchResults button{width:100%;padding:8px;border:0;border-radius:8px;background:transparent;color:#ddd7cc;text-align:left;cursor:pointer}.searchResults button:hover{background:rgba(244,183,40,.06)}.searchResults strong{display:block;font-size:.62rem}.searchResults button span{display:block;margin-top:3px;color:#6f6b64;font-size:.52rem}.searchStatus{display:block;padding:11px 8px;color:#77736c;font-size:.56rem;line-height:1.45;text-align:center}
         .compactControls{flex:0 0 auto;margin-left:auto;display:flex;align-items:center;gap:3px}.networkStage{position:relative;flex:1 1 auto;min-height:0;height:auto;overflow:hidden;touch-action:none;overscroll-behavior:contain;background:radial-gradient(ellipse at 50% 50%,rgba(244,183,40,.036),transparent 36%),#080807;cursor:grab;user-select:none;-webkit-user-select:none}.networkStage:active{cursor:grabbing}.networkStage.layoutEditing{box-shadow:inset 0 0 0 1px rgba(244,183,40,.11)}
-        .world{position:absolute;top:0;left:0;will-change:transform;backface-visibility:hidden}.world.cameraTransition{transition:transform ${NAVIGATION_MS}ms cubic-bezier(.18,.82,.2,1)}.introActive .world.cameraTransition{transition-duration:${FIT_TRANSITION_MS}ms}.worldContent{position:absolute;inset:0;transform-origin:${FOCUS_X}px ${FOCUS_Y}px}.worldContent.nav-forward{animation:networkForward ${NAVIGATION_MS}ms cubic-bezier(.18,.82,.2,1)}.worldContent.nav-back{animation:networkBack ${NAVIGATION_MS}ms cubic-bezier(.18,.82,.2,1)}
+        .world{position:absolute;top:0;left:0;will-change:transform;backface-visibility:hidden}.world.cameraTransition{transition:transform ${NAVIGATION_MS}ms cubic-bezier(.18,.82,.2,1)}.introActive .world.cameraTransition{transition-duration:${FIT_TRANSITION_MS}ms}.worldContent{position:absolute;inset:0;transform-origin:${FOCUS_X}px ${FOCUS_Y}px}.worldContent.scenePending{opacity:0;pointer-events:none}.worldContent.sceneReady{opacity:1;transition:opacity 120ms ease-out}.worldContent.nav-forward{animation:networkForward ${NAVIGATION_MS}ms cubic-bezier(.18,.82,.2,1)}.worldContent.nav-back{animation:networkBack ${NAVIGATION_MS}ms cubic-bezier(.18,.82,.2,1)}
         .edges{position:absolute;inset:0;overflow:visible;pointer-events:none;z-index:2}.edge{fill:none;stroke:rgba(176,145,73,.31);stroke-width:1.05;stroke-linecap:round;vector-effect:non-scaling-stroke}.edge.rewarded{stroke:rgba(232,183,62,.46)}.edge.groupEdge{stroke:rgba(224,178,65,.42);stroke-width:1.15;stroke-dasharray:4 8}.groupMemberEdge{stroke:rgba(194,157,75,.32);stroke-width:.95;stroke-dasharray:4 8}.continuationEdge{fill:none;stroke:rgba(176,145,73,.24);stroke-width:1;stroke-linecap:round;vector-effect:non-scaling-stroke}.slotEdgeBase,.slotEdgePulse,.slotEdgeProgress{fill:none;stroke-linecap:round;pointer-events:none;vector-effect:non-scaling-stroke}.slotEdgeBase{stroke:rgba(226,188,79,.62);stroke-width:1.05;opacity:.5}.slotEdgePulse{stroke:rgba(255,210,76,.95);stroke-width:1.55;stroke-dasharray:5 38;opacity:.8;filter:drop-shadow(0 0 2px rgba(244,183,40,.28));animation:networkSlotFlow 2.45s linear infinite}.slotEdgeProgress{stroke:rgba(244,183,40,.62);stroke-width:1.25;stroke-dasharray:3 7;opacity:.78}
         .personNode,.slotNode,.groupNode{position:absolute;z-index:6;transform:translate(-50%,-50%);font:inherit;translate:none}.personNode{width:52px;height:52px;padding:0;border:0;border-radius:50%;background:transparent;color:#d9d4ca;display:block;cursor:pointer;user-select:none;-webkit-user-select:none;-webkit-touch-callout:none;touch-action:none;isolation:isolate}.focusNode{width:74px;height:74px;z-index:8}.childNode::before,.slotNode::before{content:'';position:absolute;left:50%;top:50%;border-radius:50%;transform:translate(-50%,-50%);pointer-events:none;z-index:0}.childNode::before{width:58px;height:58px;background:radial-gradient(circle,rgba(8,8,7,.94) 0 87%,rgba(8,8,7,.58) 91%,rgba(8,8,7,.17) 96%,rgba(8,8,7,0) 100%)}.slotNode::before{width:52px;height:52px;background:radial-gradient(circle,rgba(8,8,7,.92) 0 86%,rgba(8,8,7,.54) 91%,rgba(8,8,7,.15) 96%,rgba(8,8,7,0) 100%)}.nodeCircle,.slotCircle{position:absolute;inset:0;z-index:1;display:grid;place-items:center;border-radius:50%;box-sizing:border-box;background:#0d0d0b;overflow:hidden;transition:transform 170ms ease,border-color 170ms ease,box-shadow 170ms ease}.nodeCircle{border:1px solid rgba(210,174,65,.38);box-shadow:0 0 22px rgba(244,183,40,.025);transform:scale(var(--network-node-scale,1))}.focusCircle{border-color:rgba(255,207,71,.82);background:radial-gradient(circle at 50% 45%,rgb(24,21,13) 0%,rgb(13,13,11) 62%,rgb(13,13,11) 100%);box-shadow:0 0 0 1px rgba(244,183,40,.07),0 0 28px rgba(244,183,40,.08);transform:scale(var(--network-center-scale,1))}.focusNode::before{content:'';position:absolute;inset:-7px;border:1px solid rgba(244,183,40,.42);border-radius:50%;box-shadow:0 0 18px rgba(244,183,40,.055);animation:networkYouBreath 2.8s ease-in-out infinite;pointer-events:none}.introActive .focusNode::before{animation:networkYouIntro .72s ease-out 1,networkYouBreath 2.8s .72s ease-in-out infinite}.personNode:hover .nodeCircle,.personNode:focus-visible .nodeCircle,.personNode.selected .nodeCircle{border-color:rgba(244,183,40,.78);box-shadow:0 0 0 3px rgba(244,183,40,.08),0 0 26px rgba(244,183,40,.1);transform:scale(var(--network-node-selected-scale,1.07))}.focusNode:hover .focusCircle,.focusNode:focus-visible .focusCircle,.focusNode.selected .focusCircle{transform:scale(var(--network-center-selected-scale,1.07))}.childNode.status-rewarded .nodeCircle{border-color:rgba(232,183,62,.58)}.childNode.status-qualified .nodeCircle{border-color:rgba(193,166,90,.46)}.personNode.draggable,.slotNode.draggable,.groupNode.draggable{cursor:grab}.personNode.draggable:active,.slotNode.draggable:active,.groupNode.draggable:active{cursor:grabbing}.personNode.dragging,.slotNode.dragging{z-index:14}.personNode.dragging .nodeCircle,.slotNode.dragging .slotCircle{border-color:rgba(244,183,40,.92);box-shadow:0 0 0 4px rgba(244,183,40,.12),0 0 30px rgba(244,183,40,.18)}.groupNode.dragging{z-index:14;border-color:rgba(244,183,40,.82);box-shadow:0 14px 30px rgba(0,0,0,.34),0 0 0 3px rgba(244,183,40,.1)}.personNode.grouping{animation:groupDropAway ${GROUP_DROP_MS}ms ease forwards}
         .nodeCircle :global(.identity){width:100%;height:100%;display:grid;place-items:center}.nodeCircle :global(.avatarSlot){position:relative;display:grid;place-items:center}.childNode .nodeCircle :global(.avatarSlot),.childNode .nodeCircle :global(.neutralAvatar),.childNode .nodeCircle :global(.avatarSlot img){width:40px!important;height:40px!important}.focusNode .nodeCircle :global(.avatarSlot),.focusNode .nodeCircle :global(.neutralAvatar),.focusNode .nodeCircle :global(.avatarSlot img){width:56px!important;height:56px!important}.nodeCircle :global(.neutralAvatar){display:grid;place-items:center;border:0;border-radius:50%;background:#171611;color:#8e7b50}.nodeCircle :global(.avatarSlot img){position:absolute;inset:0;margin:auto;border-radius:50%;object-fit:cover;transition:opacity 160ms ease}.nodeMeta{position:absolute;left:50%;z-index:2;width:120px;display:grid;justify-items:center;gap:2px;transform:translateX(-50%);opacity:var(--network-label-opacity,1);pointer-events:none;transition:opacity 90ms linear}.childNode .nodeMeta{bottom:calc(100% + 6px)}.focusNode .nodeMeta{top:calc(100% + 7px)}.nodeMeta strong{max-width:112px;color:#e5dfd5;font-size:.52rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.nodeMeta small{max-width:116px;color:#6f6a62;font-size:.41rem;white-space:nowrap}.focusNode .nodeMeta strong{color:#edc65c;font-size:.61rem}.focusNode .nodeMeta small{font-size:.44rem}.nodeBusy{position:absolute;z-index:3;right:-2px;top:-2px;width:7px;height:7px;border-radius:50%;background:#e9bc45;box-shadow:0 0 10px rgba(233,188,69,.8);animation:pulse 900ms ease-in-out infinite alternate}
@@ -2507,7 +2545,7 @@ export function AppNetwork({ locale }: { locale: Locale }) {
         .inlineError{position:absolute;z-index:90;left:50%;bottom:54px;transform:translateX(-50%);max-width:calc(100% - 28px);padding:8px 9px 8px 11px;display:flex;align-items:center;gap:8px;border:1px solid rgba(194,118,90,.2);border-radius:10px;background:rgba(38,23,18,.96);color:#c7a294;font-size:.53rem;box-shadow:0 12px 30px rgba(0,0,0,.32)}.inlineError button{border:0;background:transparent;color:#9f7d71;font-size:.8rem;cursor:pointer}
         @keyframes networkForward{0%{opacity:.68;scale:.975}100%{opacity:1;scale:1}}@keyframes networkBack{0%{opacity:.74;scale:1.035}100%{opacity:1;scale:1}}@keyframes networkSlotFlow{from{stroke-dashoffset:43}to{stroke-dashoffset:-43}}@keyframes networkYouBreath{0%,100%{opacity:.46;transform:scale(.96)}50%{opacity:.92;transform:scale(1.06)}}@keyframes networkYouIntro{0%{opacity:.25;transform:scale(.78)}58%{opacity:1;transform:scale(1.14)}100%{opacity:.62;transform:scale(1)}}@keyframes networkNodeBloom{0%{transform:scale(.45);box-shadow:0 0 0 rgba(244,183,40,0)}55%{transform:scale(1.18);box-shadow:0 0 42px rgba(244,183,40,.22)}100%{transform:scale(var(--network-node-scale,1));box-shadow:0 0 22px rgba(244,183,40,.025)}}@keyframes slotPulse{0%,100%{box-shadow:0 0 0 rgba(244,183,40,0)}50%{box-shadow:0 0 22px rgba(244,183,40,.07)}}@keyframes pulse{to{opacity:.38;transform:scale(.82)}}@keyframes groupDropAway{to{opacity:0;scale:.72}}
         @media(max-width:560px){.networkCanvasPage{width:100%;border-radius:18px}.networkHeader{min-height:42px;padding:7px 9px}.networkHeader h1{font-size:.82rem}.summary{gap:2px 4px}.summary strong{font-size:.66rem}.summary span{font-size:.43rem}.networkUtilityRow{min-height:39px;padding:4px 6px;gap:4px}.searchWrap input{height:29px;padding:0 7px;font-size:.52rem}.compactControls{gap:3px}.layoutControls,.viewControls{gap:3px}.layoutControls>button,.groupMenuAnchor>button,.viewControls button,.viewControls .fitButton{height:29px;border-radius:8px}.groupsPanel,.groupBuilder{width:min(232px,calc(100vw - 28px))}.crumb{max-width:60px}.profileCard{top:auto;right:8px;bottom:52px;left:8px;width:auto}.parentReturn{left:8px;bottom:8px}.personNode{min-width:0}.focusNode{min-width:0}}
-        @media(prefers-reduced-motion:reduce){.world.cameraTransition{transition:none}.worldContent.nav-forward,.worldContent.nav-back,.slotEdgePulse,.nodeBusy,.personNode.grouping,.slotCircle,.focusNode::before,.worldContent.nav-forward .childNode .nodeCircle{animation:none!important}}
+        @media(prefers-reduced-motion:reduce){.world.cameraTransition{transition:none}.worldContent.sceneReady{transition:none}.worldContent.nav-forward,.worldContent.nav-back,.slotEdgePulse,.nodeBusy,.personNode.grouping,.slotCircle,.focusNode::before,.worldContent.nav-forward .childNode .nodeCircle{animation:none!important}}
       `}</style>
     </section>
   );
