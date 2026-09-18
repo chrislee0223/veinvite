@@ -1144,6 +1144,8 @@ export function AppNetwork({ locale }: { locale: Locale }) {
     setGroupDraft(null);
     workspaceDragRef.current = null;
     setDraggingWorkspaceKey(null);
+    setDragGhost(null);
+    setNewGroupDropActive(false);
     setGroupingWallet(null);
     setWorkspaceNotice('');
     setInviteSlots(cachedInviteSlots ?? []);
@@ -1655,6 +1657,7 @@ export function AppNetwork({ locale }: { locale: Locale }) {
     setCreatedGroupId(null);
     setDraggingWorkspaceKey(null);
     setGroupDropActive(false);
+    clearDragGhost();
     setGroupDraft(null);
     setGroupsOpen(false);
     draftWorkspaceRef.current = null;
@@ -1667,7 +1670,7 @@ export function AppNetwork({ locale }: { locale: Locale }) {
       noticeTimerRef.current = null;
       setWorkspaceNotice('');
     }, 1400);
-  }, [w.layoutSaved, restorePendingGroupDrop]);
+  }, [w.layoutSaved, restorePendingGroupDrop, clearDragGhost]);
 
   const startGroupCreation = useCallback((
     initialMember: string | null = null,
@@ -1864,8 +1867,11 @@ export function AppNetwork({ locale }: { locale: Locale }) {
     const hold = holdDragRef.current;
     if (restore && hold?.moved) persistFocusWorkspace(hold.originalWorkspace);
     holdDragRef.current = null;
-    if (hold) setDraggingWorkspaceKey(null);
-  }, [persistFocusWorkspace]);
+    if (hold) {
+      setDraggingWorkspaceKey(null);
+      clearDragGhost();
+    }
+  }, [persistFocusWorkspace, clearDragGhost]);
 
   const beginHoldDrag = useCallback((
     event: ReactPointerEvent<HTMLButtonElement>,
