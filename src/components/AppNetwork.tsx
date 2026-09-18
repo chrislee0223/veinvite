@@ -946,7 +946,7 @@ export function AppNetwork({ locale }: { locale: Locale }) {
     if (!wallet) {
       setInviteSlots([]);
       setInviteSlotsReady(false);
-        return;
+      return;
     }
 
     let active = true;
