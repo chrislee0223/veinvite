@@ -82,3 +82,15 @@ test('rollout keeps existing Home Claim and standalone receipt notice as tempora
   assert.match(home, /className="claimButton"/);
   assert.match(page, /<ActiveWalletRewardReceiptNotice \/>/);
 });
+
+
+test('notification reward actions stay visually stable across bell reopen', () => {
+  assert.match(center, /useLayoutEffect/);
+  const openEffectStart = center.indexOf('useLayoutEffect(() => {');
+  const openEffectEnd = center.indexOf('const claimReward = useCallback', openEffectStart);
+  assert.ok(openEffectStart >= 0 && openEffectEnd > openEffectStart);
+  const openEffect = center.slice(openEffectStart, openEffectEnd);
+  assert.match(openEffect, /void loadRewardActions\(\)/);
+  assert.doesNotMatch(openEffect, /setRewardActions\(\[\]\)/);
+  assert.match(center, /\.notificationActionLoading\{min-height:72px/);
+});

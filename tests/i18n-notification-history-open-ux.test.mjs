@@ -41,3 +41,17 @@ test('opening the notification dialog focuses the panel without painting the clo
   assert.match(center, /\.notificationHistoryClose:focus-visible/);
   assert.match(center, /FOCUSABLE_SELECTOR/);
 });
+
+
+test('reward action loading is present before the notification panel first paints', () => {
+  assert.match(center, /useLayoutEffect/);
+  assert.match(
+    center,
+    /useLayoutEffect\(\(\) => \{[\s\S]*void loadRewardActions\(\)/,
+  );
+  assert.doesNotMatch(
+    center,
+    /setRewardActions\(\[\]\)[\s\S]{0,260}if \(!open\)/,
+  );
+  assert.match(center, /\.notificationActionLoading\{min-height:72px/);
+});
