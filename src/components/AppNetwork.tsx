@@ -2351,7 +2351,7 @@ export function AppNetwork({ locale }: { locale: Locale }) {
                 onClick={() => {
                   stopIntroForInteraction();
                   if (groupDraft) {
-                    setGroupDraft(null);
+                    cancelGroupCreation();
                     setGroupsOpen(false);
                     return;
                   }
@@ -2367,7 +2367,7 @@ export function AppNetwork({ locale }: { locale: Locale }) {
                 <aside className="groupBuilder" data-no-pan="true">
                   <div className="groupBuilderHead">
                     <strong>{w.newGroup}</strong>
-                    <button type="button" onClick={() => setGroupDraft(null)} aria-label={c.close}>×</button>
+                    <button type="button" onClick={cancelGroupCreation} aria-label={c.close}>×</button>
                   </div>
                   <input
                     value={groupDraft.label}
@@ -2375,11 +2375,15 @@ export function AppNetwork({ locale }: { locale: Locale }) {
                     placeholder={w.groupName}
                     aria-label={w.groupName}
                     maxLength={42}
+                    autoComplete="off"
                   />
-                  <div ref={groupDropRef} className="groupDropZone">
+                  <div
+                    ref={groupDropRef}
+                    className={`groupDropZone${groupDropActive ? ' active' : ''}${groupingWallet ? ' memberAdded' : ''}`}
+                  >
                     <span className="dropIcon" aria-hidden="true">＋</span>
                     <strong>{w.dropHere}</strong>
-                    <small>{groupDraft.members.length} {w.members}</small>
+                    <small aria-live="polite">{groupDraft.members.length} {w.members}</small>
                   </div>
                   {groupDraft.members.length ? (
                     <div className="groupDraftMembers">
@@ -2388,10 +2392,7 @@ export function AppNetwork({ locale }: { locale: Locale }) {
                           type="button"
                           key={member}
                           title={member}
-                          onClick={() => setGroupDraft((current) => current ? {
-                            ...current,
-                            members: current.members.filter((walletKey) => walletKey !== member),
-                          } : current)}
+                          onClick={() => removeDraftGroupMember(member)}
                         >
                           {shortWallet(member)} <span>×</span>
                         </button>
@@ -2401,10 +2402,10 @@ export function AppNetwork({ locale }: { locale: Locale }) {
                   <button
                     type="button"
                     className="createGroupButton"
-                    disabled={groupDraft.members.length < 2}
+                    disabled={groupDraft.members.length < 1 || Boolean(groupingWallet)}
                     onClick={createDraftGroup}
                   >
-                    {groupDraft.members.length < 2 ? w.needTwo : w.createGroup}
+                    {w.createGroup}
                   </button>
                 </aside>
               ) : groupsOpen ? (
@@ -2423,7 +2424,12 @@ export function AppNetwork({ locale }: { locale: Locale }) {
                       ))}
                     </div>
                   ) : <p>{w.noGroups}</p>}
-                  <button type="button" className="createFirstGroup" onClick={beginGroupCreation}>+ {w.newGroup}</button>
+                  <button
+                    type="button"
+                    className="createFirstGroup"
+                    onClick={beginGroupCreation}
+                    disabled={activeWorkspace.groups.length >= MAX_GROUPS_PER_FOCUS}
+                  >+ {w.newGroup}</button>
                 </aside>
               ) : null}
             </div>
