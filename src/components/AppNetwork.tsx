@@ -3043,7 +3043,7 @@ export function AppNetwork({ locale }: { locale: Locale }) {
               return (
                 <button
                   type="button"
-                  className={`groupNode${editingLayout ? ' draggable' : ''}${draggingWorkspaceKey === dragKey ? ' dragging' : ''}${managedGroupId === group.id ? ' selected' : ''}${group.collapsed === false ? ' expanded' : ''}${createdGroupId === group.id ? ' created' : ''}`}
+                  className={`groupNode${editingLayout ? ' draggable' : ''}${draggingWorkspaceKey === dragKey ? ' dragging' : ''}${memberDropGroupId === group.id ? ' dropTarget' : ''}${group.collapsed === false ? ' expanded' : ''}${createdGroupId === group.id ? ' created' : ''}`}
                   key={group.id}
                   style={{ left: group.x, top: group.y }}
                   onPointerDown={(event) => {
@@ -3053,9 +3053,9 @@ export function AppNetwork({ locale }: { locale: Locale }) {
                   onClick={() => {
                     if (suppressClickRef.current) return;
                     setSelectedWallet(null);
-                    setManagedGroupId(group.id);
                     toggleGroupCollapsed(group.id);
                   }}
+                  aria-expanded={group.collapsed === false}
                   data-no-pan="true"
                   data-group-drop-id={group.id}
                   data-workspace-draggable={editingLayout ? 'true' : undefined}
@@ -3181,45 +3181,6 @@ export function AppNetwork({ locale }: { locale: Locale }) {
           </aside>
         ) : null}
 
-        {managedGroup ? (
-          <aside className="profileCard groupCard" data-no-pan="true">
-            <button className="profileClose" type="button" onClick={() => setManagedGroupId(null)} aria-label={c.close}>×</button>
-            <div className="groupCardTitle">
-              <span className="groupGlyph" aria-hidden="true"><i /><i /><i /></span>
-              <div><strong>{managedGroup.label || w.group}</strong><span>{managedGroup.members.length} {w.members}</span></div>
-            </div>
-            <div className="groupMemberList">
-              {managedGroup.members.map((member) => (
-                <span key={member} title={member}>
-                  {shortWallet(member)}
-                  {editingLayout ? (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        animateRestoredWallets([member]);
-                        mutateEditingWorkspace((current) => removeWorkspaceMemberFromGroup(current, member));
-                      }}
-                    >×</button>
-                  ) : null}
-                </span>
-              ))}
-            </div>
-            <button type="button" className="groupToggleButton" onClick={() => toggleGroupCollapsed(managedGroup.id)}>
-              {managedGroup.collapsed === false ? w.collapseGroup : w.expandGroup}
-            </button>
-            {editingLayout ? (
-              <button
-                type="button"
-                className="ungroupButton"
-                onClick={() => {
-                  animateRestoredWallets(managedGroup.members);
-                  mutateEditingWorkspace((current) => removeWorkspaceGroup(current, managedGroup.id));
-                  setManagedGroupId(null);
-                }}
-              >{w.ungroup}</button>
-            ) : null}
-          </aside>
-        ) : null}
       </div>
 
       {dragGhost && dragGhostChild && typeof document !== 'undefined' ? createPortal(
