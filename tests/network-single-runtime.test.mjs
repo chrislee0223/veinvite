@@ -142,6 +142,13 @@ test('single runtime keeps the authenticated read-only Network API contract', ()
   assert.doesNotMatch(workspaceSource, /supabase|fetch\(|\/api\//);
 });
 
+test('Network header metrics never use a dash placeholder or shift adjacent labels', () => {
+  assert.doesNotMatch(networkSource, /headerThisRound === null \? '–'/);
+  assert.match(networkSource, /headerThisRound === null \? '\\u00A0'/);
+  assert.match(networkSource, /grid-template-columns:4\.6ch auto 1px 4\.6ch auto/);
+  assert.match(networkSource, /font-variant-numeric:tabular-nums/);
+});
+
 test('Network first paint is immediate, warmed, and never swaps to a blocking loading card', () => {
   assert.match(networkRouteSource, /fastInitial = request\.nextUrl\.searchParams\.get\('fast'\) === '1'/);
   assert.match(networkRouteSource, /const round = fastInitial \? null : await readCurrentRoundContext\(\)/);
