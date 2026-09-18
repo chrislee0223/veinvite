@@ -347,7 +347,9 @@ export function WalletProviderAccountReconciler() {
 
           try {
             await runWalletProviderReconciliation(
-              () => initializeAsync(),
+              async () => {
+                await initializeAsync();
+              },
             );
           } catch (error) {
             if (index === PROVIDER_REPAIR_RETRY_DELAYS_MS.length - 1) {
