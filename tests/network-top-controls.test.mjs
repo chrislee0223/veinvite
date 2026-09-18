@@ -26,15 +26,16 @@ test('Network title is one compact row and search plus every primary control sha
 
   assert.match(source, /\.networkUtilityRow\{[^}]*display:flex/);
   assert.match(source, /\.compactControls\{[^}]*display:flex/);
-  assert.match(source, /\.layoutControls button\{width:30px/);
-  assert.match(source, /\.viewControls\{display:grid;grid-template-columns:repeat\(4,30px\)/);
+  assert.match(source, /\.searchWrap\{[^}]*max-width:148px[^}]*flex:0 1 148px/);
+  assert.match(source, /\.layoutControls button\{width:28px/);
+  assert.match(source, /\.viewControls\{display:grid;grid-template-columns:repeat\(4,28px\)/);
 });
 
 test('Network canvas fills the remaining tab height instead of creating page scroll', () => {
   assert.match(home, /screen\.networkScreen \{[^}]*height:100svh[^}]*overflow:hidden/);
   assert.match(home, /networkTabViewport \{[^}]*flex:1 1 auto[^}]*display:flex/);
   assert.match(hub, /networkHubShell\{[^}]*height:100%[^}]*min-height:0[^}]*display:flex/);
-  assert.match(source, /networkCanvasPage\{[^}]*height:100%[^}]*display:flex;flex-direction:column/);
+  assert.match(source, /networkCanvasPage\{[^}]*width:min\(100%,520px\)[^}]*height:100%[^}]*display:flex;flex-direction:column/);
   assert.match(source, /networkStage\{[^}]*flex:1 1 auto[^}]*min-height:0[^}]*height:auto/);
   assert.doesNotMatch(source, /networkStage\{[^}]*68vh/);
 });
@@ -52,4 +53,13 @@ test('stage does not steal pointer capture from buttons and inputs', () => {
   assert.match(source, /if \(!interactive\) \{[\s\S]*event\.currentTarget\.setPointerCapture/);
   assert.match(source, /beginWorkspaceDrag[\s\S]*event\.currentTarget\.setPointerCapture/);
   assert.match(source, /beginHoldDrag[\s\S]*event\.currentTarget\.setPointerCapture/);
+});
+
+
+test('desktop Network intentionally uses the same compact mobile shell', () => {
+  assert.match(source, /const EXPLORER_PAGE_SIZE_DESKTOP = 6/);
+  assert.match(source, /const EXPLORER_PAGE_SIZE_MOBILE = 6/);
+  assert.match(hub, /networkHubShell\{width:min\(100%,520px\)/);
+  assert.match(source, /networkHeader\{[^}]*min-height:42px[^}]*padding:7px 9px/);
+  assert.match(source, /networkUtilityRow\{[^}]*min-height:39px[^}]*padding:4px 6px/);
 });
