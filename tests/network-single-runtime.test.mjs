@@ -146,6 +146,19 @@ test('group builder is compact, edge-safe, animated, and keeps collapsed hubs vi
   assert.match(networkSource, /prefers-reduced-motion:reduce[\s\S]*groupNode\.created/);
 });
 
+test('dragged Network nodes follow the pointer outside the clipped canvas and can seed a new group', () => {
+  assert.match(networkSource, /import \{ createPortal \} from 'react-dom'/);
+  assert.match(networkSource, /createPortal\([\s\S]*nodeDragGhost[\s\S]*document\.body/);
+  assert.match(networkSource, /\.nodeDragGhost\{position:fixed;z-index:220/);
+  assert.match(networkSource, /moveDragGhost\(event\.clientX, event\.clientY\)/);
+  assert.match(networkSource, /dragGhost\?\.key === childKey \? ' dragGhostSource' : ''/);
+  assert.match(networkSource, /ref=\{createFirstGroupRef\}/);
+  assert.match(networkSource, /createFirstGroup\$\{newGroupDropActive \? ' dropActive' : ''\}/);
+  assert.match(networkSource, /isInsideNewGroupDropTarget\(event\.clientX, event\.clientY\)/);
+  assert.match(networkSource, /beginGroupCreationWithMember\(holdDrag\.key, holdDrag\.originalWorkspace\)/);
+  assert.match(networkSource, /beginGroupCreationWithMember\(workspaceDrag\.key, workspaceDrag\.originalWorkspace\)/);
+});
+
 test('Network toolbar keeps navigation controls before edit and group controls', () => {
   const controlsStart = networkSource.indexOf('<div className="compactControls">');
   const controlsEnd = networkSource.indexOf('</div>\n      </div>', controlsStart);
