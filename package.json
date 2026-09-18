@@ -10,7 +10,8 @@
     "typecheck": "npm run check:retired-routes && tsc --noEmit",
     "test:i18n": "node --test tests/i18n-*.test.mjs",
     "test:rewards": "node --experimental-strip-types --test tests/reward-*.test.mjs",
-    "test:sentry": "node --test tests/sentry-observability.test.mjs"
+    "test:sentry": "node --test tests/sentry-observability.test.mjs",
+    "test:playwright": "playwright test"
   },
   "dependencies": {
     "@chakra-ui/react": "2.8.2",
@@ -33,7 +34,8 @@
     "@types/node": "^20.17.0",
     "@types/react": "^18.3.0",
     "@types/react-dom": "^18.3.0",
-    "typescript": "^5.7.0"
+    "typescript": "^5.7.0",
+    "@playwright/test": "1.63.0"
   },
   "overrides": {
     "@solana/kit": "2.3.0",
