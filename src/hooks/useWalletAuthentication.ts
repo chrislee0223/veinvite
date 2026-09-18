@@ -380,7 +380,7 @@ export function useWalletAuthentication() {
                           type:
                             'text',
                           content:
-                            challenge.message,
+                            challenge.message!,
                         },
                       },
                       {
@@ -399,7 +399,7 @@ export function useWalletAuthentication() {
                       type:
                         'text',
                       content:
-                        challenge.message,
+                        challenge.message!,
                     },
                     domain:
                       certResponse.annex.domain,
