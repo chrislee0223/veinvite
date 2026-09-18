@@ -1853,13 +1853,100 @@ export function AppNetwork({ locale }: { locale: Locale }) {
           <div className="layoutControls">
             {!editingLayout ? (
               <>
-                <button type="button" className="editLayoutButton" onClick={beginLayoutEdit} aria-label={w.editLayout} title={w.editLayout}>✦</button>
-                <button type="button" className={`groupsButton${groupsOpen ? ' active' : ''}`} onClick={() => setGroupsOpen((open) => !open)} aria-label={w.groups} title={w.groups}>◉</button>
+                <button
+                  type="button"
+                  className="editLayoutButton labeledControl"
+                  onClick={beginLayoutEdit}
+                  aria-label={w.editLayout}
+                  title={w.editLayout}
+                >
+                  <span aria-hidden="true">✦</span>
+                  <span className="controlLabel">{w.editLayout}</span>
+                </button>
+                <div className="groupMenuAnchor">
+                  <button
+                    type="button"
+                    className={`groupsButton labeledControl${groupsOpen ? ' active' : ''}`}
+                    onClick={() => setGroupsOpen((open) => !open)}
+                    aria-label={w.groups}
+                    title={w.groups}
+                    aria-expanded={groupsOpen}
+                  >
+                    <span aria-hidden="true">◉</span>
+                    <span className="controlLabel">{w.groups}</span>
+                  </button>
+                  {groupsOpen ? (
+                    <aside className="groupsPanel" data-no-pan="true">
+                      <div className="groupsPanelHead">
+                        <strong>{w.myGroups}</strong>
+                        <button type="button" onClick={() => setGroupsOpen(false)} aria-label={c.close}>×</button>
+                      </div>
+                      {committedWorkspace.groups.length ? (
+                        <div className="groupsList">
+                          {committedWorkspace.groups.map((group) => (
+                            <button type="button" key={group.id} onClick={() => { setSelectedGroupId(group.id); toggleGroupCollapsed(group.id); }}>
+                              <span>{group.label || w.group}</span>
+                              <small>{group.members.length} {w.members} · {group.collapsed === false ? w.collapseGroup : w.expandGroup}</small>
+                            </button>
+                          ))}
+                        </div>
+                      ) : <p>{w.noGroups}</p>}
+                      <button type="button" className="createFirstGroup" onClick={beginGroupCreation}>+ {w.newGroup}</button>
+                    </aside>
+                  ) : null}
+                </div>
               </>
             ) : (
               <>
                 <button type="button" className="resetLayoutButton" onClick={resetLayoutEdit} aria-label={w.reset} title={w.reset}>↺</button>
-                <button type="button" className="newGroupButton" onClick={openGroupBuilder} aria-label={w.newGroup} title={w.newGroup}>⊕</button>
+                <div className="groupBuilderAnchor">
+                  <button type="button" className="newGroupButton" onClick={openGroupBuilder} aria-label={w.newGroup} title={w.newGroup}>⊕</button>
+                  {groupDraft ? (
+                    <aside className="groupBuilder" data-no-pan="true">
+                      <div className="groupBuilderHead">
+                        <strong>{w.newGroup}</strong>
+                        <button type="button" onClick={() => setGroupDraft(null)} aria-label={c.close}>×</button>
+                      </div>
+                      <input
+                        value={groupDraft.label}
+                        onChange={(event) => setGroupDraft((current) => current ? { ...current, label: event.target.value } : current)}
+                        placeholder={w.groupName}
+                        aria-label={w.groupName}
+                        maxLength={42}
+                      />
+                      <div ref={groupDropRef} className="groupDropZone">
+                        <span className="dropIcon" aria-hidden="true">＋</span>
+                        <strong>{w.dropHere}</strong>
+                        <small>{groupDraft.members.length} {w.members}</small>
+                      </div>
+                      {groupDraft.members.length ? (
+                        <div className="groupDraftMembers">
+                          {groupDraft.members.map((member) => (
+                            <button
+                              type="button"
+                              key={member}
+                              title={member}
+                              onClick={() => setGroupDraft((current) => current ? {
+                                ...current,
+                                members: current.members.filter((walletKey) => walletKey !== member),
+                              } : current)}
+                            >
+                              {shortWallet(member)} <span>×</span>
+                            </button>
+                          ))}
+                        </div>
+                      ) : null}
+                      <button
+                        type="button"
+                        className="createGroupButton"
+                        disabled={groupDraft.members.length < 2}
+                        onClick={createDraftGroup}
+                      >
+                        {groupDraft.members.length < 2 ? w.needTwo : w.createGroup}
+                      </button>
+                    </aside>
+                  ) : null}
+                </div>
                 <button type="button" className="cancelLayoutButton" onClick={cancelLayoutEdit} aria-label={w.cancel} title={w.cancel}>×</button>
                 <button type="button" className="saveLayoutButton" onClick={saveLayoutEdit} aria-label={w.done} title={w.done}>✓</button>
               </>
@@ -1867,7 +1954,10 @@ export function AppNetwork({ locale }: { locale: Locale }) {
           </div>
 
           <div className="viewControls">
-            <button type="button" onClick={returnToYou} aria-label={c.you} title={c.you}>◎</button>
+            <button type="button" className="youControl labeledControl" onClick={returnToYou} aria-label={c.you} title={c.you}>
+              <span aria-hidden="true">◎</span>
+              <span className="controlLabel">{c.you}</span>
+            </button>
             <button type="button" className="fitButton" onClick={fitNetwork} aria-label={w.fit} title={w.fit}>⛶</button>
             <button type="button" onClick={() => zoomByButton(1)} aria-label={c.zoomIn} title={c.zoomIn}>+</button>
             <button type="button" onClick={() => zoomByButton(-1)} aria-label={c.zoomOut} title={c.zoomOut}>−</button>
@@ -2113,72 +2203,6 @@ export function AppNetwork({ locale }: { locale: Locale }) {
             })}
           </div>
         </div>
-
-        {groupsOpen && !editingLayout ? (
-          <aside className="groupsPanel" data-no-pan="true">
-            <div className="groupsPanelHead">
-              <strong>{w.myGroups}</strong>
-              <button type="button" onClick={() => setGroupsOpen(false)} aria-label={c.close}>×</button>
-            </div>
-            {committedWorkspace.groups.length ? (
-              <div className="groupsList">
-                {committedWorkspace.groups.map((group) => (
-                  <button type="button" key={group.id} onClick={() => { setSelectedGroupId(group.id); toggleGroupCollapsed(group.id); }}>
-                    <span>{group.label || w.group}</span>
-                    <small>{group.members.length} {w.members} · {group.collapsed === false ? w.collapseGroup : w.expandGroup}</small>
-                  </button>
-                ))}
-              </div>
-            ) : <p>{w.noGroups}</p>}
-            <button type="button" className="createFirstGroup" onClick={beginGroupCreation}>+ {w.newGroup}</button>
-          </aside>
-        ) : null}
-
-        {editingLayout && groupDraft ? (
-          <aside className="groupBuilder" data-no-pan="true">
-            <div className="groupBuilderHead">
-              <strong>{w.newGroup}</strong>
-              <button type="button" onClick={() => setGroupDraft(null)} aria-label={c.close}>×</button>
-            </div>
-            <input
-              value={groupDraft.label}
-              onChange={(event) => setGroupDraft((current) => current ? { ...current, label: event.target.value } : current)}
-              placeholder={w.groupName}
-              aria-label={w.groupName}
-              maxLength={42}
-            />
-            <div ref={groupDropRef} className="groupDropZone">
-              <span className="dropIcon" aria-hidden="true">＋</span>
-              <strong>{w.dropHere}</strong>
-              <small>{groupDraft.members.length} {w.members}</small>
-            </div>
-            {groupDraft.members.length ? (
-              <div className="groupDraftMembers">
-                {groupDraft.members.map((member) => (
-                  <button
-                    type="button"
-                    key={member}
-                    title={member}
-                    onClick={() => setGroupDraft((current) => current ? {
-                      ...current,
-                      members: current.members.filter((walletKey) => walletKey !== member),
-                    } : current)}
-                  >
-                    {shortWallet(member)} <span>×</span>
-                  </button>
-                ))}
-              </div>
-            ) : null}
-            <button
-              type="button"
-              className="createGroupButton"
-              disabled={groupDraft.members.length < 2}
-              onClick={createDraftGroup}
-            >
-              {groupDraft.members.length < 2 ? w.needTwo : w.createGroup}
-            </button>
-          </aside>
-        ) : null}
 
         {!focusIsRoot ? (
           <button
