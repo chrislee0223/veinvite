@@ -625,6 +625,15 @@ export function AppNetwork({ locale }: { locale: Locale }) {
     });
   }, [currentData, inviteSlots, isMobile, activeWorkspace.positions]);
 
+  const activeInviteeKeys = useMemo(
+    () => new Set(
+      positionedInviteSlots
+        .filter((slot) => slot.state !== 'AVAILABLE' && slot.inviteeWallet)
+        .map((slot) => keyWallet(slot.inviteeWallet as string)),
+    ),
+    [positionedInviteSlots],
+  );
+
   const groupByMember = useMemo(() => {
     const map = new Map<string, (typeof activeWorkspace.groups)[number]>();
     activeWorkspace.groups.forEach((group) => {
@@ -661,13 +670,16 @@ export function AppNetwork({ locale }: { locale: Locale }) {
   }, [activeWorkspace.groups, groupDraft]);
 
   const visibleChildren = useMemo(
-    () => displayedChildren.filter((child) => !hiddenGroupMembers.has(keyWallet(child.wallet))),
-    [displayedChildren, hiddenGroupMembers],
+    () => displayedChildren.filter((child) => {
+      const key = keyWallet(child.wallet);
+      return !hiddenGroupMembers.has(key) && !activeInviteeKeys.has(key);
+    }),
+    [displayedChildren, hiddenGroupMembers, activeInviteeKeys],
   );
 
   const visibleWalletKeys = useMemo(
-    () => new Set(displayedChildren.map((child) => keyWallet(child.wallet))),
-    [displayedChildren],
+    () => new Set(visibleChildren.map((child) => keyWallet(child.wallet))),
+    [visibleChildren],
   );
 
   const visibleGroups = useMemo(
