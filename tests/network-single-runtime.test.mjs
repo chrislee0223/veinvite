@@ -166,10 +166,20 @@ test('expanded group members keep movable offsets and group hubs move as one uni
   assert.match(networkSource, /defaultGroupMemberOffset/);
   assert.match(networkSource, /group\.memberOffsets\?\.\[memberKey\]/);
   assert.match(networkSource, /dragKind: WorkspaceDragKind = expandedGroupMember \? 'group-member' : 'node'/);
-  assert.match(networkSource, /persistGroupMemberPosition/);
-  assert.match(networkSource, /persistGroupPosition/);
+  assert.match(networkSource, /updateGroupMemberPositionRuntime/);
+  assert.match(networkSource, /updateGroupPositionRuntime/);
   assert.match(networkSource, /withWorkspaceGroupMemberOffset\([\s\S]*workspaceDrag\.groupId/);
   assert.match(networkSource, /beginHoldDrag\(event, group\.id, \{ x: group\.x, y: group\.y \}, 'group'\)/);
+});
+
+test('expanded group layout uses indexed child membership instead of repeated full scans', () => {
+  assert.match(networkSource, /const positionedChildKeys = useMemo/);
+  assert.match(networkSource, /new Set\(positionedChildren\.map\(\(child\) => keyWallet\(child\.wallet\)\)\)/);
+  assert.match(networkSource, /positionedChildKeys\.has\(key\)/);
+  const displayedStart = networkSource.indexOf('const displayedChildren = useMemo');
+  const hiddenStart = networkSource.indexOf('const hiddenGroupMembers = useMemo', displayedStart);
+  assert.ok(displayedStart >= 0 && hiddenStart > displayedStart);
+  assert.doesNotMatch(networkSource.slice(displayedStart, hiddenStart), /positionedChildren\.some/);
 });
 
 test('blank tap exits layout editing without confusing pan, pinch, or group creation', () => {
