@@ -63,6 +63,18 @@ function isValidRootSnapshot(value: unknown, wallet: string): value is NetworkRo
   );
 }
 
+export function getNetworkRootCacheAgeMs(wallet: string | null): number | null {
+  if (!wallet) return null;
+  const entry = memory.get(walletKey(wallet));
+  if (!entry) return null;
+  const age = Date.now() - entry.savedAt;
+  if (age > MEMORY_TTL_MS) {
+    memory.delete(walletKey(wallet));
+    return null;
+  }
+  return Math.max(0, age);
+}
+
 export function getCachedNetworkRoot(wallet: string | null): NetworkRootSnapshot | null {
   if (!wallet) return null;
   const key = walletKey(wallet);
