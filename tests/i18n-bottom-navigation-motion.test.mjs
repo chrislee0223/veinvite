@@ -67,7 +67,7 @@ test('bottom navigation alignment uses equal tracks and fixed icon-label rows', 
   const desktopInnerWidth = desktopRail - desktopBorder - desktopInlinePadding;
   assert.equal(desktopInnerWidth, 508);
   assert.equal(desktopInnerWidth / 4, 127);
-  assert.match(source, /@media \(min-width: 561px\) \{ \.bottomNavigation > div \{ padding-left: 5px; padding-right: 5px; \} \}/);
+  assert.match(source, /@media \(min-width: 561px\) \{[\s\S]*\.bottomNavigation > div \{ padding-left: 5px; padding-right: 5px; \}[\s\S]*\.bottomNavigation\[data-veinvite-active-tab='guide'\] \{ position: absolute; \}/);
 });
 
 test('tab, indicator and button motion respect reduced-motion preferences', () => {
@@ -79,4 +79,10 @@ test('tab, indicator and button motion respect reduced-motion preferences', () =
   assert.match(source, /\.activeIndicator \{ transition: none !important; \}/);
   assert.match(source, /button \{ transition: none; \}/);
   assert.match(source, /button:active \{ transform: none; \}/);
+});
+
+
+test('desktop Network navigation anchors to the capped phone shell instead of the browser bottom', () => {
+  assert.match(source, /data-veinvite-active-tab=\{activeTab\}/);
+  assert.match(source, /\.bottomNavigation\[data-veinvite-active-tab='guide'\] \{ position: absolute; \}/);
 });
