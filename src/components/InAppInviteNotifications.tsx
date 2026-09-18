@@ -678,7 +678,6 @@ export function InAppInviteNotifications({
         }
 
         if (wallet) {
-          void loadLatestHistory({ requestWallet: wallet });
           void synchronizeNotifications(false);
         }
       } catch (error) {
@@ -699,9 +698,8 @@ export function InAppInviteNotifications({
       acknowledge,
       busy,
       items,
-      loadLatestHistory,
       nextCursor,
-      refreshLifecycle,
+      synchronizeNotifications,
       wallet,
     ],
   );
@@ -757,8 +755,7 @@ export function InAppInviteNotifications({
       }
 
       if (wallet) {
-        void loadLatestHistory({ requestWallet: wallet });
-        void refreshLifecycle(false);
+        void synchronizeNotifications(false);
       }
     } catch (error) {
       console.warn(
@@ -777,9 +774,8 @@ export function InAppInviteNotifications({
     acknowledge,
     busy,
     items,
-    loadLatestHistory,
     nextCursor,
-    refreshLifecycle,
+    synchronizeNotifications,
     unreadCount,
     wallet,
   ]);
