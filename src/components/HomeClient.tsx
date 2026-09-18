@@ -1108,9 +1108,14 @@ export function HomeClient() {
 
       <style jsx>{`
         .screen { min-height:100svh; box-sizing:border-box; padding:22px 18px 118px; color:#fff; background:radial-gradient(circle at 50% 16%,rgba(244,183,40,.14),transparent 32%),#080807; }
-        .screen.networkScreen { height:100svh; min-height:100svh; overflow:hidden; overscroll-behavior:none; padding-bottom:calc(92px + env(safe-area-inset-bottom)); display:flex; flex-direction:column; }
+        .screen.networkScreen { width:min(100%,548px); height:100svh; min-height:100svh; margin:0 auto; overflow:hidden; overscroll-behavior:none; padding:14px 14px calc(88px + env(safe-area-inset-bottom)); display:flex; flex-direction:column; }
         .topBar { width:min(100%,520px); margin:0 auto 26px; display:flex; align-items:center; justify-content:space-between; gap:16px; }
-        .networkScreen .topBar { flex:0 0 auto; margin-bottom:10px; }
+        .networkScreen .topBar { flex:0 0 auto; margin-bottom:8px; align-items:flex-start; }
+        .networkScreen .topActions { max-width:58%; align-items:flex-end; flex-direction:column-reverse; gap:7px; }
+        .networkScreen .utilityActions { width:100%; }
+        .networkScreen .utilityActions .languageSelect { min-width:0; width:auto; flex:1; }
+        .networkScreen .languageSelect { width:100%; max-width:155px; height:34px; border-radius:11px; font-size:.68rem; }
+        .networkScreen .accountChip { min-height:34px; padding:0 10px; border-radius:11px; font-size:.66rem; }
         .networkTabViewport { width:100%; min-height:0; flex:1 1 auto; display:flex; }
         .networkTabViewport :global(.networkHubShell) { width:100%; height:100%; min-height:0; display:flex; }
         .networkTabViewport :global(.networkCanvasPage) { flex:1 1 auto; min-height:0; }
