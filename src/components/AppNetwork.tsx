@@ -178,6 +178,15 @@ function shortWallet(wallet: string): string {
   return `${wallet.slice(0, 6)}…${wallet.slice(-4).toUpperCase()}`;
 }
 
+function triggerHoldHaptic() {
+  if (typeof navigator === 'undefined' || typeof navigator.vibrate !== 'function') return;
+  try {
+    navigator.vibrate(12);
+  } catch {
+    // Haptics are optional and unsupported browsers should stay silent.
+  }
+}
+
 function validWallet(wallet: string): boolean {
   return /^0x[0-9a-fA-F]{40}$/.test(wallet);
 }
@@ -1452,6 +1461,7 @@ export function AppNetwork({ locale }: { locale: Locale }) {
       const hold = holdDragRef.current;
       if (!hold || hold.pointerId !== event.pointerId || pointersRef.current.size !== 1) return;
       hold.armed = true;
+      triggerHoldHaptic();
       setDraggingWorkspaceKey(`${kind}:${key}`);
     }, HOLD_TO_MOVE_MS);
   }, [editingLayout, pendingFocus, currentFocusKey, committedWorkspace, view]);
