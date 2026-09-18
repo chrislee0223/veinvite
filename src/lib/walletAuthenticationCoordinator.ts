@@ -10,6 +10,7 @@ type ActiveWalletAuthentication = {
 
 let authenticationGeneration = 0;
 let activeAuthentication: ActiveWalletAuthentication | null = null;
+let activeWalletProviderReconciliation: Promise<unknown> | null = null;
 
 function emitActivityChange() {
   if (typeof window === 'undefined') {
@@ -81,4 +82,43 @@ ActiveWalletAuthentication | null {
   emitActivityChange();
 
   return current;
+}
+
+export async function waitForWalletProviderReconciliation(): Promise<void> {
+  const current = activeWalletProviderReconciliation;
+
+  if (!current) {
+    return;
+  }
+
+  try {
+    await current;
+  } catch {
+    // The owner of the provider reconciliation reports its own failure.
+    // Authentication only needs the wallet transport to stop mutating before
+    // it opens a VeWorld signing prompt.
+  }
+}
+
+export async function runWalletProviderReconciliation<T>(
+  operation: () => Promise<T>,
+): Promise<T> {
+  while (activeWalletProviderReconciliation) {
+    try {
+      await activeWalletProviderReconciliation;
+    } catch {
+      // A failed reconciliation still releases the transport lock.
+    }
+  }
+
+  const run = operation();
+  activeWalletProviderReconciliation = run;
+
+  try {
+    return await run;
+  } finally {
+    if (activeWalletProviderReconciliation === run) {
+      activeWalletProviderReconciliation = null;
+    }
+  }
 }
