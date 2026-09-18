@@ -1991,12 +1991,13 @@ export function AppNetwork({ locale }: { locale: Locale }) {
       return;
     }
 
-    if (drag.kind !== 'node') {
+    const memberDrag = drag.kind === 'node' || drag.kind === 'group-member';
+    if (!memberDrag) {
       commitCurrentDraftWorkspace();
       return;
     }
 
-    if (groupDraft) {
+    if (groupDraft && drag.kind === 'node') {
       const insideDraft = isInsideGroupDropTarget(event.clientX, event.clientY);
       const alreadyAdded = groupDraft.members.some((member) => keyWallet(member) === keyWallet(drag.key));
       const atCapacity = groupDraft.members.length >= MAX_MEMBERS_PER_GROUP;
@@ -2037,7 +2038,7 @@ export function AppNetwork({ locale }: { locale: Locale }) {
       y: (event.clientY - rect.top - view.y) / view.scale,
     };
     const targetGroup = nearestVisibleGroup(worldPoint);
-    if (targetGroup) {
+    if (targetGroup && targetGroup.id !== drag.groupId) {
       const nextWorkspace = moveWorkspaceMemberToGroup(
         drag.originalWorkspace,
         drag.key,
@@ -2291,6 +2292,7 @@ export function AppNetwork({ locale }: { locale: Locale }) {
       }
       const droppedToNewGroup =
         event.type === 'pointerup' &&
+        holdDrag.kind === 'node' &&
         holdDrag.armed &&
         groupsOpen &&
         activeWorkspace.groups.length < MAX_GROUPS_PER_FOCUS &&
