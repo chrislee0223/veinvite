@@ -2787,27 +2787,74 @@ export function AppNetwork({ locale }: { locale: Locale }) {
                 </aside>
               ) : groupsOpen ? (
                 <aside className="groupsPanel" data-no-pan="true">
-                  <div className="groupsPanelHead">
-                    <strong>{w.myGroups}</strong>
-                    <button type="button" onClick={() => setGroupsOpen(false)} aria-label={c.close}>×</button>
-                  </div>
-                  {activeWorkspace.groups.length ? (
-                    <div className="groupsList">
-                      {activeWorkspace.groups.map((group) => (
-                        <button type="button" key={group.id} onClick={() => { setManagedGroupId(group.id); toggleGroupCollapsed(group.id); }}>
-                          <span>{group.label || w.group}</span>
-                          <small>{group.members.length} {w.members} · {group.collapsed === false ? w.collapseGroup : w.expandGroup}</small>
-                        </button>
-                      ))}
-                    </div>
-                  ) : <p>{w.noGroups}</p>}
-                  <button
-                    ref={createFirstGroupRef}
-                    type="button"
-                    className={`createFirstGroup${newGroupDropActive ? ' dropActive' : ''}`}
-                    onClick={beginGroupCreation}
-                    disabled={activeWorkspace.groups.length >= MAX_GROUPS_PER_FOCUS}
-                  >+ {w.newGroup}</button>
+                  {managedGroup ? (
+                    <>
+                      <div className="groupsPanelHead groupManageHead">
+                        <button
+                          type="button"
+                          className="groupBackButton"
+                          onClick={() => setManagedGroupId(null)}
+                          aria-label={w.myGroups}
+                        >‹</button>
+                        <div className="groupManageTitle">
+                          <span className="groupManageGlyph" aria-hidden="true"><GroupsControlGlyph size={18} /></span>
+                          <strong>{managedGroup.label || w.group}</strong>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => { setManagedGroupId(null); setGroupsOpen(false); }}
+                          aria-label={c.close}
+                        >×</button>
+                      </div>
+                      <small className="groupManageCount">{managedGroup.members.length} {w.members}</small>
+                      <div className="groupManageMembers">
+                        {managedGroup.members.map((member) => (
+                          <div className="groupManageMember" key={member} title={member}>
+                            <span>{shortWallet(member)}</span>
+                            <button
+                              type="button"
+                              onClick={() => removeManagedGroupMember(member)}
+                              aria-label={`${w.removeFromGroup}: ${shortWallet(member)}`}
+                              title={w.removeFromGroup}
+                            >−</button>
+                          </div>
+                        ))}
+                      </div>
+                      <button
+                        type="button"
+                        className="ungroupButton groupManageUngroup"
+                        onClick={dissolveManagedGroup}
+                      >{w.ungroup}</button>
+                    </>
+                  ) : (
+                    <>
+                      <div className="groupsPanelHead">
+                        <strong>{w.myGroups}</strong>
+                        <button
+                          type="button"
+                          onClick={() => { setManagedGroupId(null); setGroupsOpen(false); }}
+                          aria-label={c.close}
+                        >×</button>
+                      </div>
+                      {activeWorkspace.groups.length ? (
+                        <div className="groupsList">
+                          {activeWorkspace.groups.map((group) => (
+                            <button type="button" key={group.id} onClick={() => setManagedGroupId(group.id)}>
+                              <span>{group.label || w.group}</span>
+                              <small>{group.members.length} {w.members} ›</small>
+                            </button>
+                          ))}
+                        </div>
+                      ) : <p>{w.noGroups}</p>}
+                      <button
+                        ref={createFirstGroupRef}
+                        type="button"
+                        className={`createFirstGroup${newGroupDropActive ? ' dropActive' : ''}`}
+                        onClick={beginGroupCreation}
+                        disabled={activeWorkspace.groups.length >= MAX_GROUPS_PER_FOCUS}
+                      >+ {w.newGroup}</button>
+                    </>
+                  )}
                 </aside>
               ) : null}
             </div>
