@@ -1669,12 +1669,15 @@ export function AppNetwork({ locale }: { locale: Locale }) {
     }, 1400);
   }, [w.layoutSaved, restorePendingGroupDrop]);
 
-  const beginGroupCreation = useCallback(() => {
+  const startGroupCreation = useCallback((initialMember: string | null = null) => {
     if (!currentFocusKey) return;
     const sourceWorkspace = editingLayout
       ? draftWorkspaceRef.current ?? committedWorkspace
       : workspaceForFocus(workspaceStore, currentFocusKey);
     if (sourceWorkspace.groups.length >= MAX_GROUPS_PER_FOCUS) return;
+
+    const initialKey = initialMember ? keyWallet(initialMember) : null;
+    if (initialKey && groupContainingWallet(sourceWorkspace, initialKey)) return;
 
     stopIntroForInteraction();
     restorePendingGroupDrop();
@@ -1690,8 +1693,22 @@ export function AppNetwork({ locale }: { locale: Locale }) {
     setSelectedWallet(null);
     setSelectedGroupId(null);
     setGroupDropActive(false);
-    setGroupDraft({ id: newGroupId(), label: '', members: [] });
+    setNewGroupDropActive(false);
+    setGroupDraft({
+      id: newGroupId(),
+      label: '',
+      members: initialKey ? [initialKey] : [],
+    });
     setWorkspaceNotice('');
+
+    if (initialKey) {
+      setGroupingWallet(initialKey);
+      if (groupingTimerRef.current !== null) window.clearTimeout(groupingTimerRef.current);
+      groupingTimerRef.current = window.setTimeout(() => {
+        groupingTimerRef.current = null;
+        setGroupingWallet(null);
+      }, GROUP_DROP_MS);
+    }
   }, [
     currentFocusKey,
     editingLayout,
@@ -1702,6 +1719,14 @@ export function AppNetwork({ locale }: { locale: Locale }) {
     restorePendingGroupDrop,
     closeSearch,
   ]);
+
+  const beginGroupCreation = useCallback(() => {
+    startGroupCreation(null);
+  }, [startGroupCreation]);
+
+  const beginGroupCreationWithMember = useCallback((member: string) => {
+    startGroupCreation(member);
+  }, [startGroupCreation]);
 
   const cancelGroupCreation = useCallback(() => {
     const members = groupDraft?.members ?? [];
