@@ -32,6 +32,8 @@ import {
 } from '@/lib/networkRootClientCache';
 import {
   EMPTY_NETWORK_WORKSPACE_STORE,
+  MAX_GROUPS_PER_FOCUS,
+  MAX_MEMBERS_PER_GROUP,
   addWorkspaceGroup,
   cloneNetworkFocusWorkspace,
   groupContainingWallet,
@@ -155,7 +157,10 @@ const INTRO_HOLD_MS = 150;
 const INTRO_END_MS = 940;
 const READABLE_FIT_MIN = 0.46;
 const GOLDEN_ANGLE = Math.PI * (3 - Math.sqrt(5));
-const GROUP_DROP_MS = 160;
+const GROUP_DROP_MS = 180;
+const GROUP_HUB_IN_MS = 220;
+const GROUP_DROP_HIT_SLOP_X = 18;
+const GROUP_DROP_HIT_SLOP_Y = 14;
 const HOLD_TO_MOVE_MS = 500;
 const HOLD_CANCEL_DISTANCE = 8;
 const NODE_ENTER_SCALE = 1.85;
@@ -555,6 +560,9 @@ export function AppNetwork({ locale }: { locale: Locale }) {
   const workspaceDragRef = useRef<WorkspaceDrag | null>(null);
   const draftWorkspaceRef = useRef<NetworkFocusWorkspace | null>(null);
   const groupingTimerRef = useRef<number | null>(null);
+  const groupingRestoreWorkspaceRef = useRef<NetworkFocusWorkspace | null>(null);
+  const restoreTimerRef = useRef<number | null>(null);
+  const groupCreatedTimerRef = useRef<number | null>(null);
   const noticeTimerRef = useRef<number | null>(null);
   const introFitTimerRef = useRef<number | null>(null);
   const introEndTimerRef = useRef<number | null>(null);
@@ -598,6 +606,9 @@ export function AppNetwork({ locale }: { locale: Locale }) {
   const [selectedGroupId, setSelectedGroupId] = useState<string | null>(null);
   const [draggingWorkspaceKey, setDraggingWorkspaceKey] = useState<string | null>(null);
   const [groupingWallet, setGroupingWallet] = useState<string | null>(null);
+  const [groupDropActive, setGroupDropActive] = useState(false);
+  const [restoringWallets, setRestoringWallets] = useState<string[]>([]);
+  const [createdGroupId, setCreatedGroupId] = useState<string | null>(null);
   const [workspaceNotice, setWorkspaceNotice] = useState('');
   const [introActive, setIntroActive] = useState(false);
   const [headerMetrics, setHeaderMetrics] = useState<NetworkHeaderMetrics | null>(
@@ -745,14 +756,20 @@ export function AppNetwork({ locale }: { locale: Locale }) {
     [displayedChildren, hiddenGroupMembers, activeInviteeKeys],
   );
 
-  const visibleWalletKeys = useMemo(
-    () => new Set(visibleChildren.map((child) => keyWallet(child.wallet))),
-    [visibleChildren],
+  const groupEligibleWalletKeys = useMemo(
+    () => new Set(
+      positionedChildren
+        .map((child) => keyWallet(child.wallet))
+        .filter((key) => !activeInviteeKeys.has(key)),
+    ),
+    [positionedChildren, activeInviteeKeys],
   );
 
   const visibleGroups = useMemo(
-    () => activeWorkspace.groups.filter((group) => group.members.some((member) => visibleWalletKeys.has(keyWallet(member)))),
-    [activeWorkspace.groups, visibleWalletKeys],
+    () => activeWorkspace.groups.filter((group) =>
+      group.members.some((member) => groupEligibleWalletKeys.has(keyWallet(member))),
+    ),
+    [activeWorkspace.groups, groupEligibleWalletKeys],
   );
 
   const nearestVisibleChild = useCallback((point: Point, radius = NODE_HIT_RADIUS): PositionedChild | null => {
