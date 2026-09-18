@@ -329,8 +329,13 @@ test('completed Network nodes show descendant counts below the node while active
   assert.match(childMarkup, /<NetworkCountGlyph \/>/);
   assert.match(childMarkup, /child\.network\.toLocaleString\(\)/);
   assert.match(childMarkup, /nodeWallet\(child\.wallet\)/);
+  assert.ok(
+    childMarkup.indexOf('nodeWallet(child.wallet)') < childMarkup.indexOf('child.network.toLocaleString()'),
+    'wallet label should render above the descendant count',
+  );
   assert.doesNotMatch(childMarkup, /statusLabel\(child\.status, locale\)/);
 
+  assert.match(networkSource, /\.nodeMeta\{[^}]*gap:1px/);
   assert.match(networkSource, /\.childNode \.nodeMeta\{top:calc\(100% \+ 6px\)\}/);
   assert.doesNotMatch(networkSource, /\.childNode \.nodeMeta\{bottom:/);
   assert.match(networkMigrationSource, /count\(fn\.wallet\) filter \(where fn\.depth > 1\)::integer as network_count/);
@@ -356,6 +361,10 @@ test('root YOU identity lives inside the center node and the top return control 
   assert.match(focusMarkup, /\{c\.you\}/);
   assert.match(focusMarkup, /<NetworkCountGlyph \/>/);
   assert.match(focusMarkup, /nodeWallet\(currentData\.focusWallet\)/);
+  assert.ok(
+    focusMarkup.indexOf('nodeWallet(currentData.focusWallet)') < focusMarkup.indexOf('currentData.summary.network.toLocaleString()'),
+    'center wallet label should render above the descendant count',
+  );
   assert.doesNotMatch(focusMarkup, /<strong>\{focusIsRoot \? c\.you/);
 
   const controlsStart = networkSource.indexOf('<div className="viewControls">');
