@@ -265,8 +265,17 @@ test('single runtime keeps the approved radial Network visual and deliberate mot
 });
 
 test('Network intro waits for the authoritative slot attempt to settle before YOU-to-fit motion', () => {
-  const readinessGate = networkSource.indexOf('if (!inviteSlotsReady) return;');
-  const introStart = networkSource.indexOf('setView(centeredView(stageSize, 1))');
+  const introEffectStart = networkSource.indexOf(
+    "if (!wallet || loadState !== 'ready' || !currentData) return;",
+  );
+  const introEffectEnd = networkSource.indexOf(
+    'const zoomAt = useCallback',
+    introEffectStart,
+  );
+  assert.ok(introEffectStart >= 0 && introEffectEnd > introEffectStart);
+  const introEffect = networkSource.slice(introEffectStart, introEffectEnd);
+  const readinessGate = introEffect.indexOf('if (!inviteSlotsReady) return;');
+  const introStart = introEffect.indexOf('setView(centeredView(stageSize, 1))');
   assert.ok(readinessGate >= 0 && introStart > readinessGate);
   assert.match(networkSource, /void refreshSlots\(false, false\)/);
   assert.match(networkSource, /setInviteSlots\(slots\);\s*setInviteSlotsReady\(true\);/);
