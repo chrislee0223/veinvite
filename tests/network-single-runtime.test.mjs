@@ -246,6 +246,13 @@ test('navigation animation honors reduced motion and keeps idle geometry station
   assert.doesNotMatch(networkSource, /setInterval\(/);
 });
 
+test('long-hold selection gives one optional haptic acknowledgement when drag arms', () => {
+  assert.match(networkSource, /function triggerHoldHaptic\(\)/);
+  assert.match(networkSource, /typeof navigator\.vibrate !== 'function'/);
+  assert.match(networkSource, /navigator\.vibrate\(12\)/);
+  assert.match(networkSource, /hold\.armed = true;\s*triggerHoldHaptic\(\);\s*setDraggingWorkspaceKey/);
+});
+
 test('final Network gestures are coordinate-owned and deliberate', () => {
   assert.match(networkSource, /const HOLD_TO_MOVE_MS = 500/);
   assert.match(networkSource, /const MIN_SCALE = 0\.32/);
