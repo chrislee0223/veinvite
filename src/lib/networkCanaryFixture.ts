@@ -16,7 +16,8 @@ type RoundContext = {
 
 export const NETWORK_CANARY_SAMPLE_SIZE = 500;
 
-const ROOT_BRANCH_WIDTH = 12;
+const ROOT_DIRECT_COUNT = 6;
+const SECOND_LEVEL_WIDTH = 6;
 const SYNTHETIC_WALLET_PREFIX = 'ca11ab1e000000000000000000000000';
 const FIXTURE_START_MS = Date.UTC(2026, 7, 20, 0, 0, 0);
 
@@ -25,12 +26,18 @@ function walletFor(index: number): string {
 }
 
 function parentIndexFor(index: number): number | 'root' {
-  // Keep the root with one occupied direct slot so the real Network screen
-  // still exercises the Available invite slot. Entering that first branch
-  // reveals 12 direct children, then a balanced multi-generation tree.
-  if (index === 1) return 'root';
-  if (index <= ROOT_BRANCH_WIDTH + 1) return 1;
-  return 2 + Math.floor((index - (ROOT_BRANCH_WIDTH + 2)) / 3);
+  // Test wallets should look visibly populated immediately. The first six
+  // synthetic wallets are direct children of YOU. Each receives six direct
+  // children, then the remainder continues as a balanced 3-ary tree so node
+  // entry/back navigation can be exercised across several generations.
+  if (index <= ROOT_DIRECT_COUNT) return 'root';
+
+  const secondLevelEnd = ROOT_DIRECT_COUNT + ROOT_DIRECT_COUNT * SECOND_LEVEL_WIDTH;
+  if (index <= secondLevelEnd) {
+    return 1 + Math.floor((index - (ROOT_DIRECT_COUNT + 1)) / SECOND_LEVEL_WIDTH);
+  }
+
+  return ROOT_DIRECT_COUNT + 1 + Math.floor((index - (secondLevelEnd + 1)) / 3);
 }
 
 function statusFor(index: number): MemberStatus {
