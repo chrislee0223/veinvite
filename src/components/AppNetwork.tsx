@@ -1753,7 +1753,13 @@ export function AppNetwork({ locale }: { locale: Locale }) {
     point: Point,
   ) => {
     const workspace = draftWorkspaceRef.current;
-    if (!editingLayout || !workspace || groupingWallet) return;
+    if (
+      !editingLayout ||
+      !workspace ||
+      groupingWallet ||
+      pointersRef.current.size !== 1 ||
+      pinchRef.current
+    ) return;
     const stage = stageRef.current;
     if (!stage) return;
     event.preventDefault();
@@ -1799,6 +1805,8 @@ export function AppNetwork({ locale }: { locale: Locale }) {
       editingLayout ||
       pendingFocus ||
       !currentFocusKey ||
+      pointersRef.current.size !== 1 ||
+      pinchRef.current ||
       (kind === 'node' && groupContainingWallet(committedWorkspace, key))
     ) return;
     const stage = stageRef.current;
