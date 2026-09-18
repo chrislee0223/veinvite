@@ -744,9 +744,12 @@ export function AppNetwork({ locale }: { locale: Locale }) {
     activeWorkspace.groups.forEach((group) => {
       if (group.collapsed !== false) group.members.forEach((member) => keys.add(keyWallet(member)));
     });
-    groupDraft?.members.forEach((member) => keys.add(keyWallet(member)));
+    groupDraft?.members.forEach((member) => {
+      const key = keyWallet(member);
+      if (key !== groupingWallet) keys.add(key);
+    });
     return keys;
-  }, [activeWorkspace.groups, groupDraft]);
+  }, [activeWorkspace.groups, groupDraft, groupingWallet]);
 
   const visibleChildren = useMemo(
     () => displayedChildren.filter((child) => {
@@ -815,7 +818,10 @@ export function AppNetwork({ locale }: { locale: Locale }) {
   const selectedGroup = selectedGroupId
     ? activeWorkspace.groups.find((group) => group.id === selectedGroupId) ?? null
     : null;
-
+  const restoringWalletSet = useMemo(
+    () => new Set(restoringWallets.map(keyWallet)),
+    [restoringWallets],
+  );
 
   const clearNavigationTimer = useCallback(() => {
     if (navigationTimerRef.current !== null) {
