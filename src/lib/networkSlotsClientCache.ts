@@ -14,6 +14,7 @@ type CacheEntry = {
 };
 
 const MEMORY_TTL_MS = 120_000;
+const REQUEST_TIMEOUT_MS = 1_800;
 const memory = new Map<string, CacheEntry>();
 const inFlight = new Map<string, Promise<NetworkInviteSlotSnapshot[]>>();
 
@@ -129,6 +130,12 @@ export async function prefetchNetworkSlots(
     if (existing) return existing;
   }
 
+  const controller = signal ? null : new AbortController();
+  const timeoutId = controller
+    ? window.setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS)
+    : null;
+  const requestSignal = signal ?? controller?.signal;
+
   const request = fetch(
     `/api/network/slots?wallet=${encodeURIComponent(wallet)}`,
     {
@@ -136,7 +143,7 @@ export async function prefetchNetworkSlots(
       credentials: 'include',
       cache: 'no-store',
       headers: { Accept: 'application/json' },
-      signal,
+      signal: requestSignal,
     },
   ).then(async (response) => {
     const payload = await response.json().catch(() => null) as
@@ -149,6 +156,8 @@ export async function prefetchNetworkSlots(
     const slots = parseSlots(payload?.slots);
     rememberNetworkSlots(wallet, slots);
     return slots;
+  }).finally(() => {
+    if (timeoutId !== null) window.clearTimeout(timeoutId);
   });
 
   if (signal) return request;
