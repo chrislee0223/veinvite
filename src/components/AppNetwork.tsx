@@ -47,6 +47,7 @@ import {
   withGroupPosition,
   withNodePosition,
   withWorkspaceGroupCollapsed,
+  withWorkspaceGroupMemberOffset,
   workspaceForFocus,
   type NetworkFocusWorkspace,
   type NetworkWorkspaceStore,
@@ -110,10 +111,13 @@ type PinchState = {
   worldAnchor: Point;
 };
 
+type WorkspaceDragKind = 'node' | 'slot' | 'group' | 'group-member';
+
 type WorkspaceDrag = {
   pointerId: number;
-  kind: 'node' | 'slot' | 'group';
+  kind: WorkspaceDragKind;
   key: string;
+  groupId?: string;
   offset: Point;
   originalWorkspace: NetworkFocusWorkspace;
 };
@@ -128,7 +132,9 @@ type PositionedInviteSlot = InviteSlotState & {
 
 type HoldDragState = {
   pointerId: number;
+  kind: WorkspaceDragKind;
   key: string;
+  groupId?: string;
   startScreen: Point;
   startNode: Point;
   offset: Point;
@@ -241,6 +247,16 @@ function inviteSlotPoint(index: number): Point {
     return { x: FOCUS_X - 58, y: FOCUS_Y + 74 };
   }
   return { x: FOCUS_X + 64, y: FOCUS_Y + 62 };
+}
+
+function defaultGroupMemberOffset(index: number, count: number): Point {
+  const safeCount = Math.max(1, count);
+  const span = Math.min(310, Math.max(90, (safeCount - 1) * 76));
+  const ratio = safeCount <= 1 ? 0.5 : index / (safeCount - 1);
+  return {
+    x: -span / 2 + span * ratio,
+    y: 112 + Math.min(26, Math.abs(index - (safeCount - 1) / 2) * 6),
+  };
 }
 
 function fittedView(stage: { width: number; height: number }, points: Point[]): View {
@@ -379,9 +395,9 @@ function LayoutControlGlyph({ done = false }: { done?: boolean }) {
   );
 }
 
-function GroupsControlGlyph() {
+function GroupsControlGlyph({ size = 15 }: { size?: number }) {
   return (
-    <svg width="15" height="15" viewBox="0 0 20 20" fill="none" aria-hidden="true">
+    <svg width={size} height={size} viewBox="0 0 20 20" fill="none" aria-hidden="true">
       <circle cx="10" cy="5" r="2" stroke="currentColor" strokeWidth="1.45" />
       <circle cx="5" cy="14" r="2" stroke="currentColor" strokeWidth="1.45" />
       <circle cx="15" cy="14" r="2" stroke="currentColor" strokeWidth="1.45" />
@@ -563,6 +579,12 @@ export function AppNetwork({ locale }: { locale: Locale }) {
   const wheelEnterWalletRef = useRef<string | null>(null);
   const holdDragRef = useRef<HoldDragState | null>(null);
   const holdTimerRef = useRef<number | null>(null);
+  const backgroundTapRef = useRef<{
+    pointerId: number;
+    start: Point;
+    moved: boolean;
+    blocked: boolean;
+  } | null>(null);
   const returnViewByChildRef = useRef(new Map<string, View>());
   const viewByFocusRef = useRef(new Map<string, View>());
   const navigationTimerRef = useRef<number | null>(null);
