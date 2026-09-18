@@ -1940,6 +1940,7 @@ export function AppNetwork({ locale }: { locale: Locale }) {
       }
       workspaceDragRef.current = null;
       setDraggingWorkspaceKey(null);
+      setGroupDropActive(false);
       const [a, b] = Array.from(pointersRef.current.values());
       const center = midpoint(a, b);
       const startView = view;
@@ -2002,6 +2003,17 @@ export function AppNetwork({ locale }: { locale: Locale }) {
       pointersRef.current.size === 1 &&
       editingLayout
     ) {
+      if (workspaceDrag.kind === 'node' && groupDraft) {
+        const alreadyAdded = groupDraft.members.some((member) => keyWallet(member) === keyWallet(workspaceDrag.key));
+        setGroupDropActive(
+          !alreadyAdded &&
+          groupDraft.members.length < MAX_MEMBERS_PER_GROUP &&
+          isInsideGroupDropTarget(event.clientX, event.clientY),
+        );
+      } else {
+        setGroupDropActive(false);
+      }
+
       const rect = stageRef.current?.getBoundingClientRect();
       if (!rect) return;
       const worldPoint = {
@@ -2070,6 +2082,7 @@ export function AppNetwork({ locale }: { locale: Locale }) {
   };
 
   const onPointerEndCapture = (event: ReactPointerEvent<HTMLDivElement>) => {
+    setGroupDropActive(false);
     const holdDrag = holdDragRef.current;
     if (holdDrag && holdDrag.pointerId === event.pointerId) {
       if (holdTimerRef.current !== null) {
