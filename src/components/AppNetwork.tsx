@@ -2192,23 +2192,52 @@ export function AppNetwork({ locale }: { locale: Locale }) {
 
   const onPointerEndCapture = (event: ReactPointerEvent<HTMLDivElement>) => {
     setGroupDropActive(false);
+    setNewGroupDropActive(false);
     const holdDrag = holdDragRef.current;
     if (holdDrag && holdDrag.pointerId === event.pointerId) {
       if (holdTimerRef.current !== null) {
         window.clearTimeout(holdTimerRef.current);
         holdTimerRef.current = null;
       }
-      if (event.type === 'pointercancel' && holdDrag.moved) persistFocusWorkspace(holdDrag.originalWorkspace);
-      if (holdDrag.moved) suppressClickRef.current = true;
+      const droppedToNewGroup =
+        event.type === 'pointerup' &&
+        holdDrag.armed &&
+        groupsOpen &&
+        activeWorkspace.groups.length < MAX_GROUPS_PER_FOCUS &&
+        isInsideNewGroupDropTarget(event.clientX, event.clientY);
+
+      if (droppedToNewGroup) {
+        if (holdDrag.moved) persistFocusWorkspace(holdDrag.originalWorkspace);
+        suppressClickRef.current = true;
+        beginGroupCreationWithMember(holdDrag.key, holdDrag.originalWorkspace);
+      } else {
+        if (event.type === 'pointercancel' && holdDrag.moved) persistFocusWorkspace(holdDrag.originalWorkspace);
+        if (holdDrag.moved) suppressClickRef.current = true;
+      }
       holdDragRef.current = null;
       setDraggingWorkspaceKey(null);
+      clearDragGhost();
     }
 
     const workspaceDrag = workspaceDragRef.current;
     if (workspaceDrag && workspaceDrag.pointerId === event.pointerId) {
-      finishWorkspaceDrop(event, workspaceDrag);
+      const droppedToNewGroup =
+        event.type === 'pointerup' &&
+        workspaceDrag.kind === 'node' &&
+        !groupDraft &&
+        groupsOpen &&
+        activeWorkspace.groups.length < MAX_GROUPS_PER_FOCUS &&
+        isInsideNewGroupDropTarget(event.clientX, event.clientY);
+
+      if (droppedToNewGroup) {
+        setEditingWorkspace(cloneNetworkFocusWorkspace(workspaceDrag.originalWorkspace));
+        beginGroupCreationWithMember(workspaceDrag.key, workspaceDrag.originalWorkspace);
+      } else {
+        finishWorkspaceDrop(event, workspaceDrag);
+      }
       workspaceDragRef.current = null;
       setDraggingWorkspaceKey(null);
+      clearDragGhost();
     }
 
     pointersRef.current.delete(event.pointerId);
