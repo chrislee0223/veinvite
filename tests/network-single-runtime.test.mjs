@@ -206,6 +206,16 @@ test('two invite slots are current capacity, not a lifetime two-branch limit', (
   assert.doesNotMatch(networkSource, /2 - currentData\.children\.length/);
 });
 
+test('invite slot state retries transient failures and refreshes when the app resumes', () => {
+  assert.match(networkSource, /SLOT_RETRY_DELAY_MS\s*=\s*650/);
+  assert.match(networkSource, /SLOT_REFRESH_MIN_INTERVAL_MS\s*=\s*1_500/);
+  assert.match(networkSource, /slots\.length === 2 \? slots : null/);
+  assert.match(networkSource, /window\.addEventListener\('focus', handleResume\)/);
+  assert.match(networkSource, /document\.addEventListener\('visibilitychange', handleResume\)/);
+  assert.match(networkSource, /void refreshSlots\(false\)/);
+  assert.doesNotMatch(networkSource, /setInterval\(/);
+});
+
 test('available and in-progress invite slots are movable like ordinary nodes', () => {
   assert.match(workspaceSource, /function cleanPositionKey/);
   assert.match(workspaceSource, /\^slot:\[12\]\$/);
