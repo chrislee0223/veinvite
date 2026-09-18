@@ -25,6 +25,7 @@ const [
 ]);
 
 const networkWarmupSource = await readFile('src/components/NetworkIdleWarmup.tsx', 'utf8');
+const networkSlotCacheSource = await readFile('src/lib/networkInviteSlotsClientCache.ts', 'utf8');
 
 const componentFiles = await readdir('src/components');
 const qaFiles = await readdir('src/qa');
@@ -142,6 +143,13 @@ test('single runtime keeps the authenticated read-only Network API contract', ()
   assert.doesNotMatch(workspaceSource, /supabase|fetch\(|\/api\//);
 });
 
+test('Network header metrics never use a dash placeholder or shift adjacent labels', () => {
+  assert.doesNotMatch(networkSource, /headerThisRound === null \? '–'/);
+  assert.match(networkSource, /headerThisRound === null \? '\\u00A0'/);
+  assert.match(networkSource, /grid-template-columns:4\.6ch auto 1px 4\.6ch auto/);
+  assert.match(networkSource, /font-variant-numeric:tabular-nums/);
+});
+
 test('Network first paint is immediate, warmed, and never swaps to a blocking loading card', () => {
   assert.match(networkRouteSource, /fastInitial = request\.nextUrl\.searchParams\.get\('fast'\) === '1'/);
   assert.match(networkRouteSource, /const round = fastInitial \? null : await readCurrentRoundContext\(\)/);
@@ -149,8 +157,16 @@ test('Network first paint is immediate, warmed, and never swaps to a blocking lo
   assert.match(networkSource, /getCachedNetworkRoot\(wallet\)/);
   assert.match(networkSource, /provisionalNetworkData\(wallet\)/);
   assert.match(networkSource, /rememberNetworkRoot\(requestWallet, payload\)/);
-  assert.match(networkSource, /setLoadState\('ready'\)[\s\S]*void fetchNetwork\(requestWallet\)\.then/);
+  assert.match(networkSource, /const fastRequest = fetchNetwork\(requestWallet,[\s\S]*fast: true/);
+  assert.match(networkSource, /const enrichedRequest = fetchNetwork\(requestWallet,[\s\S]*signal: controller\.signal/);
+  const fastRequestIndex = networkSource.indexOf('const fastRequest = fetchNetwork');
+  const enrichedRequestIndex = networkSource.indexOf('const enrichedRequest = fetchNetwork');
+  const fastAwaitIndex = networkSource.indexOf('await fastRequest', fastRequestIndex);
+  assert.ok(fastRequestIndex >= 0 && enrichedRequestIndex > fastRequestIndex);
+  assert.ok(fastAwaitIndex > enrichedRequestIndex);
   assert.match(networkWarmupSource, /prefetchNetworkRoot\(wallet\)/);
+  assert.match(networkWarmupSource, /prefetchEnrichedNetworkRoot\(wallet, \{ force: true \}\)/);
+  assert.match(networkWarmupSource, /prefetchNetworkInviteSlots\(wallet\)/);
   assert.doesNotMatch(networkSource, /if \(loadState === 'loading' \|\| loadState === 'idle'\)[\s\S]{0,260}networkStateCard/);
 });
 
@@ -204,7 +220,11 @@ test('two invite slots are current capacity, not a lifetime two-branch limit', (
   assert.match(networkSlotsRouteSource, /state: row\.invitee_wallet \? 'IN_PROGRESS'/);
   assert.match(networkSlotsRouteSource, /completedSteps/);
   assert.match(networkSource, /\/api\/network\/slots\?wallet=/);
-  assert.match(networkSource, /const \[inviteSlots, setInviteSlots\] = useState<InviteSlotState\[\]>\(\[\]\)/);
+  assert.match(networkSource, /getCachedNetworkInviteSlots\(wallet\)/);
+  assert.match(networkSource, /rememberNetworkInviteSlots\(wallet, slots\)/);
+  assert.match(networkSlotCacheSource, /STORAGE_KEY = 'veinvite_network_invite_slots_v1'/);
+  assert.match(networkSlotCacheSource, /window\.sessionStorage/);
+  assert.match(networkSlotCacheSource, /prefetchNetworkInviteSlots/);
   assert.match(networkSource, /positionedInviteSlots/);
   assert.doesNotMatch(networkSource, /2 - currentData\.children\.length/);
 });
@@ -212,10 +232,15 @@ test('two invite slots are current capacity, not a lifetime two-branch limit', (
 test('invite slot state retries transient failures and refreshes when the app resumes', () => {
   assert.match(networkSource, /SLOT_RETRY_DELAY_MS\s*=\s*650/);
   assert.match(networkSource, /SLOT_REFRESH_MIN_INTERVAL_MS\s*=\s*1_500/);
+  assert.match(networkSource, /SLOT_REQUEST_TIMEOUT_MS\s*=\s*2_000/);
+  assert.match(networkSource, /const fetchSlotResponse = async/);
+  assert.match(networkSource, /signal: requestController\.signal/);
   assert.match(networkSource, /slots\.length === 2 \? slots : null/);
   assert.match(networkSource, /window\.addEventListener\('focus', handleResume\)/);
   assert.match(networkSource, /document\.addEventListener\('visibilitychange', handleResume\)/);
-  assert.match(networkSource, /void refreshSlots\(false\)/);
+  assert.match(networkSource, /void refreshSlots\(false, false\)/);
+  assert.match(networkSource, /setInviteSlotsReady\(true\)/);
+  assert.doesNotMatch(networkSource, /introReadyFallback/);
   assert.doesNotMatch(networkSource, /setInterval\(/);
 });
 
@@ -243,7 +268,7 @@ test('single runtime keeps the approved radial Network visual and deliberate mot
   assert.match(networkSource, /@keyframes networkNodeBloom/);
   assert.match(networkSource, /setView\(centeredView\(stageSize, 1\)\)/);
   assert.match(networkSource, /if \(!rootTopologyReady\) return/);
-  assert.match(networkSource, /if \(!inviteSlotsReady && !introReadyFallback\) return/);
+  assert.match(networkSource, /if \(!inviteSlotsReady\) return/);
   assert.doesNotMatch(networkSource, /INTRO_SESSION_PREFIX|veinvite-network-intro-v5/);
   assert.match(networkSource, /breadcrumbs\.rootOnly\{display:none\}/);
   assert.match(networkSource, /width:min\(100%,520px\)/);
@@ -251,11 +276,36 @@ test('single runtime keeps the approved radial Network visual and deliberate mot
   assert.doesNotMatch(networkSource, /background-size:auto,28px 28px,28px 28px/);
 });
 
-test('Network entry repeats a stable YOU-to-fit motion on every mount without stale session camera restore', () => {
-  assert.doesNotMatch(networkSource, /sessionStorage/);
+test('Network hides the world until root topology and both invite slots form one complete scene', () => {
+  assert.match(networkSource, /const rootSceneReady = rootTopologyReady && inviteSlotsReady/);
+  assert.match(networkSource, /rootSceneReady \? 'sceneReady' : 'scenePending'/);
+  assert.match(networkSource, /\.worldContent\.scenePending\{opacity:0;pointer-events:none\}/);
+  assert.match(networkSource, /\.worldContent\.sceneReady\{opacity:1;transition:opacity 120ms ease-out\}/);
+  assert.match(networkSource, /setInviteSlots\(cachedInviteSlots \?\? \[\]\)/);
+});
+
+test('Network header reveals only a complete round metric and never a placeholder transition', () => {
+  assert.match(networkSource, /const headerMetricsReady = headerThisRound !== null/);
+  assert.match(networkSource, /metricsReady' : 'metricsPending'/);
+  assert.match(networkSource, /\.summary\.metricsPending\{visibility:hidden\}/);
+  assert.doesNotMatch(networkSource, /headerThisRound === null \? '–'/);
+});
+
+test('Network intro waits for the authoritative slot attempt to settle before YOU-to-fit motion', () => {
+  const readinessGate = networkSource.indexOf('if (!inviteSlotsReady) return;');
+  const introStart = networkSource.indexOf(
+    'setView(centeredView(stageSize, 1))',
+    readinessGate,
+  );
+  assert.ok(readinessGate >= 0 && introStart > readinessGate);
+  assert.match(networkSource, /void refreshSlots\(false, false\)/);
+  assert.match(networkSource, /setInviteSlots\(slots\);\s*setInviteSlotsReady\(true\);/);
+  assert.doesNotMatch(networkSource, /introReadyFallback|fallbackTimer/);
+});
+test('Network entry repeats a stable YOU-to-fit motion on every mount without stale camera restore', () => {
   assert.doesNotMatch(networkSource, /StoredRuntimeState|runtimeSessionKey|readStoredRuntimeState/);
   assert.match(networkSource, /const \[rootTopologyReady, setRootTopologyReady\] = useState\(false\)/);
-  assert.match(networkSource, /const \[inviteSlotsReady, setInviteSlotsReady\] = useState\(false\)/);
+  assert.match(networkSource, /const \[inviteSlotsReady, setInviteSlotsReady\] = useState\([\s\S]*Boolean\(initialInviteSlots\)/);
   assert.match(networkSource, /const \[stageStable, setStageStable\] = useState\(false\)/);
   assert.match(networkSource, /requestAnimationFrame[\s\S]*requestAnimationFrame/);
   assert.match(networkSource, /setView\(centeredView\(stageSize, 1\)\)[\s\S]*setIntroActive\(true\)[\s\S]*fitNetwork\(\)/);
@@ -335,7 +385,10 @@ test('final group workspace keeps one React-owned membership path and one persis
   assert.match(networkSource, /withWorkspaceGroupCollapsed/);
   assert.match(networkSource, /className="groupsPanel"/);
   assert.match(networkSource, /className="groupBuilder"/);
-  assert.match(networkSource, /className=\{\`editLayoutButton labeledControl/);
+  assert.match(networkSource, /className=\{\`editLayoutButton\$\{editingLayout \? ' active' : ''\}\`\}/);
+  assert.match(networkSource, /<LayoutControlGlyph done=\{editingLayout\} \/>/);
+  assert.match(networkSource, /<GroupsControlGlyph \/>/);
+  assert.doesNotMatch(networkSource, /'✦'|'◉'/);
   assert.doesNotMatch(networkSource, /className="resetLayoutButton"/);
   assert.doesNotMatch(networkSource, /className="saveLayoutButton"/);
   assert.doesNotMatch(networkSource, /className="cancelLayoutButton"/);

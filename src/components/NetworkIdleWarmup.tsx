@@ -2,7 +2,11 @@
 
 import { useEffect } from 'react';
 
-import { prefetchNetworkRoot } from '@/lib/networkRootClientCache';
+import { prefetchNetworkInviteSlots } from '@/lib/networkInviteSlotsClientCache';
+import {
+  prefetchEnrichedNetworkRoot,
+  prefetchNetworkRoot,
+} from '@/lib/networkRootClientCache';
 import { prefetchNetworkSummary } from '@/lib/networkSummaryClientCache';
 import { useWalletLauncher } from './WalletControl';
 
@@ -15,6 +19,7 @@ type IdleWindow = Window & {
 };
 
 const APP_READY_EVENT = 'veinvite-app-ready';
+const WALLET_SESSION_READY_EVENT = 'veinvite-wallet-session-ready';
 const NETWORK_IDLE_TIMEOUT_MS = 900;
 const NETWORK_TIMEOUT_FALLBACK_MS = 240;
 
@@ -31,95 +36,120 @@ export function NetworkIdleWarmup() {
     }
 
     let active = true;
-    let started = false;
-    let scheduled = false;
+    let sessionReadyObserved = false;
+    let dataStarted = false;
+    let modulesStarted = false;
+    let modulesScheduled = false;
     let idleId: number | null = null;
     let timeoutId = 0;
 
-    const warm = () => {
+    const warmData = () => {
       if (
         !active ||
-        started ||
+        dataStarted ||
         document.visibilityState !== 'visible'
       ) {
         return;
       }
 
-      started = true;
-      const moduleLoads: Promise<unknown>[] = [
+      dataStarted = true;
+      void prefetchNetworkSummary(wallet).catch(() => null);
+      void prefetchNetworkInviteSlots(wallet).catch(() => null);
+      // Start both root reads immediately. The round-enriched request must not
+      // wait behind the fast topology request or This Round will visibly appear
+      // one beat after the Network opens.
+      void prefetchNetworkRoot(wallet).catch(() => null);
+      void prefetchEnrichedNetworkRoot(wallet, { force: true })
+        .catch(() => null);
+    };
+
+    const warmModules = () => {
+      if (!active || modulesStarted || document.visibilityState !== 'visible') return;
+      modulesStarted = true;
+      void Promise.allSettled([
         import('./AppGuide'),
         import('./AppNetworkHub'),
-      ];
-
-      void Promise.allSettled([
-        prefetchNetworkSummary(wallet),
-        prefetchNetworkRoot(wallet),
-        ...moduleLoads,
       ]);
-
     };
 
-    const runWarmup = () => {
-      scheduled = false;
+    const runModuleWarmup = () => {
+      modulesScheduled = false;
       idleId = null;
       timeoutId = 0;
-      warm();
+      warmModules();
     };
 
-    const scheduleWarmup = () => {
-      if (!active || started || scheduled) return;
-      scheduled = true;
+    const scheduleModuleWarmup = () => {
+      if (!active || modulesStarted || modulesScheduled) return;
+      modulesScheduled = true;
 
       const idleWindow = window as IdleWindow;
       if (idleWindow.requestIdleCallback) {
         idleId = idleWindow.requestIdleCallback(
-          runWarmup,
+          runModuleWarmup,
           { timeout: NETWORK_IDLE_TIMEOUT_MS },
         );
         return;
       }
 
       timeoutId = window.setTimeout(
-        runWarmup,
+        runModuleWarmup,
         NETWORK_TIMEOUT_FALLBACK_MS,
       );
     };
 
-    const scheduleWhenVisible = () => {
-      if (
-        document.visibilityState === 'visible' &&
-        document.documentElement.dataset.veinviteAppReady === 'true'
-      ) {
-        scheduleWarmup();
-      }
+    const handleSessionReady = () => {
+      sessionReadyObserved = true;
+      warmData();
     };
 
-    if (
-      document.documentElement.dataset.veinviteAppReady === 'true'
-    ) {
-      scheduleWarmup();
+    const handleAppReady = () => {
+      sessionReadyObserved = true;
+      warmData();
+      scheduleModuleWarmup();
+    };
+
+    const handleVisible = () => {
+      if (document.visibilityState !== 'visible') return;
+      const appReady =
+        document.documentElement.dataset.veinviteAppReady === 'true';
+      if (sessionReadyObserved || appReady) warmData();
+      if (appReady) scheduleModuleWarmup();
+    };
+
+    window.addEventListener(
+      WALLET_SESSION_READY_EVENT,
+      handleSessionReady,
+    );
+
+    if (document.documentElement.dataset.veinviteAppReady === 'true') {
+      handleAppReady();
     } else {
       window.addEventListener(
         APP_READY_EVENT,
-        scheduleWarmup,
+        handleAppReady,
         { once: true },
       );
     }
 
     document.addEventListener(
       'visibilitychange',
-      scheduleWhenVisible,
+      handleVisible,
     );
 
     return () => {
       active = false;
       window.removeEventListener(
+        WALLET_SESSION_READY_EVENT,
+        handleSessionReady,
+      );
+      window.removeEventListener(
         APP_READY_EVENT,
-        scheduleWarmup,
+        handleAppReady,
       );
       document.removeEventListener(
         'visibilitychange',
-        scheduleWhenVisible,
+        handleVisible,
       );
 
       const idleWindow = window as IdleWindow;

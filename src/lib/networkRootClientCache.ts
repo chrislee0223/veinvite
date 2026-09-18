@@ -1,3 +1,13 @@
+export const NETWORK_HEADER_METRICS_UPDATED_EVENT =
+  'veinvite-network-header-metrics-updated';
+
+export type NetworkHeaderMetrics = {
+  network: number;
+  thisRound: number | null;
+  roundId: number | null;
+  roundEndAt: string | null;
+};
+
 export type NetworkRootSnapshot = {
   rootWallet: string;
   focusWallet: string;
@@ -39,12 +49,130 @@ type CacheEntry = {
   data: NetworkRootSnapshot;
 };
 
+type StoredHeaderMetrics = {
+  wallet: string;
+  savedAt: number;
+  data: NetworkHeaderMetrics;
+};
+
 const MEMORY_TTL_MS = 120_000;
+const HEADER_STORAGE_KEY = 'veinvite_network_header_metrics_v1';
 const memory = new Map<string, CacheEntry>();
+const headerMemory = new Map<string, StoredHeaderMetrics>();
 const inFlight = new Map<string, Promise<NetworkRootSnapshot>>();
+const enrichedInFlight = new Map<string, Promise<NetworkRootSnapshot>>();
 
 function walletKey(wallet: string): string {
   return wallet.trim().toLowerCase();
+}
+
+function isValidHeaderMetrics(value: unknown): value is NetworkHeaderMetrics {
+  if (!value || typeof value !== 'object') return false;
+  const data = value as Partial<NetworkHeaderMetrics>;
+  return Boolean(
+    typeof data.network === 'number' &&
+    Number.isInteger(data.network) &&
+    data.network >= 0 &&
+    (
+      data.thisRound === null ||
+      (
+        typeof data.thisRound === 'number' &&
+        Number.isInteger(data.thisRound) &&
+        data.thisRound >= 0
+      )
+    ) &&
+    (
+      data.roundId === null ||
+      (typeof data.roundId === 'number' && Number.isInteger(data.roundId))
+    ) &&
+    (data.roundEndAt === null || typeof data.roundEndAt === 'string')
+  );
+}
+
+function normalizeHeaderMetricsForNow(data: NetworkHeaderMetrics): NetworkHeaderMetrics {
+  if (!data.roundEndAt || data.thisRound === null) return data;
+  const roundEnd = Date.parse(data.roundEndAt);
+  if (!Number.isFinite(roundEnd) || Date.now() < roundEnd) return data;
+  return {
+    ...data,
+    thisRound: null,
+    roundId: null,
+    roundEndAt: null,
+  };
+}
+
+function readHeaderSession(wallet: string): StoredHeaderMetrics | null {
+  if (typeof window === 'undefined') return null;
+  const key = walletKey(wallet);
+  try {
+    const raw = window.sessionStorage.getItem(HEADER_STORAGE_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as Record<string, StoredHeaderMetrics>;
+    const entry = parsed[key];
+    if (
+      !entry ||
+      walletKey(entry.wallet) !== key ||
+      typeof entry.savedAt !== 'number' ||
+      !isValidHeaderMetrics(entry.data)
+    ) {
+      if (entry) {
+        delete parsed[key];
+        window.sessionStorage.setItem(HEADER_STORAGE_KEY, JSON.stringify(parsed));
+      }
+      return null;
+    }
+    const normalized = {
+      ...entry,
+      data: normalizeHeaderMetricsForNow(entry.data),
+    };
+    headerMemory.set(key, normalized);
+    return normalized;
+  } catch {
+    return null;
+  }
+}
+
+export function getCachedNetworkHeaderMetrics(wallet: string | null): NetworkHeaderMetrics | null {
+  if (!wallet) return null;
+  const key = walletKey(wallet);
+  const entry = headerMemory.get(key);
+  if (entry) {
+    return normalizeHeaderMetricsForNow(entry.data);
+  }
+  return readHeaderSession(wallet)?.data ?? null;
+}
+
+function rememberHeaderMetrics(wallet: string, data: NetworkRootSnapshot): void {
+  const key = walletKey(wallet);
+  const previous = getCachedNetworkHeaderMetrics(wallet);
+  const hasRoundMetrics = data.summary.thisRound !== null && data.round !== null;
+  const next: NetworkHeaderMetrics = {
+    network: data.summary.network,
+    thisRound: hasRoundMetrics ? data.summary.thisRound : previous?.thisRound ?? null,
+    roundId: hasRoundMetrics ? data.round?.id ?? null : previous?.roundId ?? null,
+    roundEndAt: hasRoundMetrics ? data.round?.endAt ?? null : previous?.roundEndAt ?? null,
+  };
+  const entry: StoredHeaderMetrics = {
+    wallet: key,
+    savedAt: Date.now(),
+    data: next,
+  };
+  headerMemory.set(key, entry);
+
+  if (typeof window === 'undefined') return;
+  try {
+    const raw = window.sessionStorage.getItem(HEADER_STORAGE_KEY);
+    const parsed = raw
+      ? (JSON.parse(raw) as Record<string, StoredHeaderMetrics>)
+      : {};
+    parsed[key] = entry;
+    window.sessionStorage.setItem(HEADER_STORAGE_KEY, JSON.stringify(parsed));
+  } catch {
+    // Header persistence is only a first-paint optimization.
+  }
+  window.dispatchEvent(new CustomEvent(NETWORK_HEADER_METRICS_UPDATED_EVENT, {
+    detail: { wallet: key },
+  }));
 }
 
 function isValidRootSnapshot(value: unknown, wallet: string): value is NetworkRootSnapshot {
@@ -81,6 +209,33 @@ export function rememberNetworkRoot(wallet: string, data: NetworkRootSnapshot): 
     savedAt: Date.now(),
     data,
   });
+  rememberHeaderMetrics(wallet, data);
+}
+
+async function fetchRootSnapshot(wallet: string, fast: boolean): Promise<NetworkRootSnapshot> {
+  const suffix = fast ? '&fast=1' : '';
+  const response = await fetch(
+    `/api/network?wallet=${encodeURIComponent(wallet)}${suffix}`,
+    {
+      method: 'GET',
+      credentials: 'include',
+      cache: 'no-store',
+      headers: { Accept: 'application/json' },
+    },
+  );
+  const payload = await response.json().catch(() => null);
+  if (!response.ok) {
+    throw new Error(
+      payload && typeof payload === 'object' && 'error' in payload
+        ? String((payload as { error?: unknown }).error ?? 'Failed to warm Network.')
+        : 'Failed to warm Network.',
+    );
+  }
+  if (!isValidRootSnapshot(payload, wallet)) {
+    throw new Error('Network warmup response was incomplete.');
+  }
+  rememberNetworkRoot(wallet, payload);
+  return payload;
 }
 
 export async function prefetchNetworkRoot(
@@ -96,34 +251,40 @@ export async function prefetchNetworkRoot(
   const existing = inFlight.get(key);
   if (existing) return existing;
 
-  const request = fetch(
-    `/api/network?wallet=${encodeURIComponent(wallet)}&fast=1`,
-    {
-      method: 'GET',
-      credentials: 'include',
-      cache: 'no-store',
-      headers: { Accept: 'application/json' },
-    },
-  )
-    .then(async (response) => {
-      const payload = await response.json().catch(() => null);
-      if (!response.ok) {
-        throw new Error(
-          payload && typeof payload === 'object' && 'error' in payload
-            ? String((payload as { error?: unknown }).error ?? 'Failed to warm Network.')
-            : 'Failed to warm Network.',
-        );
-      }
-      if (!isValidRootSnapshot(payload, wallet)) {
-        throw new Error('Network warmup response was incomplete.');
-      }
-      rememberNetworkRoot(wallet, payload);
-      return payload;
-    })
+  const request = fetchRootSnapshot(wallet, true)
     .finally(() => {
       inFlight.delete(key);
     });
 
   inFlight.set(key, request);
+  return request;
+}
+
+export async function prefetchEnrichedNetworkRoot(
+  wallet: string,
+  { force = false }: { force?: boolean } = {},
+): Promise<NetworkRootSnapshot> {
+  const key = walletKey(wallet);
+  if (!force) {
+    const cached = getCachedNetworkRoot(wallet);
+    const roundEnd = cached?.round?.endAt ? Date.parse(cached.round.endAt) : NaN;
+    if (
+      cached &&
+      cached.summary.thisRound !== null &&
+      (!Number.isFinite(roundEnd) || Date.now() < roundEnd)
+    ) {
+      return cached;
+    }
+  }
+
+  const existing = enrichedInFlight.get(key);
+  if (existing) return existing;
+
+  const request = fetchRootSnapshot(wallet, false)
+    .finally(() => {
+      enrichedInFlight.delete(key);
+    });
+
+  enrichedInFlight.set(key, request);
   return request;
 }

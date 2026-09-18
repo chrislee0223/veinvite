@@ -19,8 +19,16 @@ import { NETWORK_EXPERIENCE_COPY } from '@/lib/i18n/networkExperienceCopy';
 import { NETWORK_WORKSPACE_COPY } from '@/lib/i18n/networkWorkspaceCopy';
 import type { Locale, SupportedLocale } from '@/lib/i18n/locales';
 import {
+  getCachedNetworkInviteSlots,
+  rememberNetworkInviteSlots,
+  type NetworkInviteSlotState,
+} from '@/lib/networkInviteSlotsClientCache';
+import {
+  NETWORK_HEADER_METRICS_UPDATED_EVENT,
+  getCachedNetworkHeaderMetrics,
   getCachedNetworkRoot,
   rememberNetworkRoot,
+  type NetworkHeaderMetrics,
 } from '@/lib/networkRootClientCache';
 import {
   EMPTY_NETWORK_WORKSPACE_STORE,
@@ -107,13 +115,7 @@ type WorkspaceDrag = {
   originalWorkspace: NetworkFocusWorkspace;
 };
 
-type InviteSlotState = {
-  slot: 1 | 2;
-  state: 'AVAILABLE' | 'PENDING' | 'IN_PROGRESS';
-  inviteeWallet: string | null;
-  completedSteps: number;
-  totalSteps: number;
-};
+type InviteSlotState = NetworkInviteSlotState;
 
 type PositionedInviteSlot = InviteSlotState & {
   key: string;
@@ -343,6 +345,33 @@ function statusLabel(status: MemberStatus, locale: Locale): string {
   return t.inProgress;
 }
 
+function LayoutControlGlyph({ done = false }: { done?: boolean }) {
+  if (done) {
+    return (
+      <svg width="14" height="14" viewBox="0 0 20 20" fill="none" aria-hidden="true">
+        <path d="m4 10.4 3.4 3.4L16 5.8" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+      </svg>
+    );
+  }
+
+  return (
+    <svg width="14" height="14" viewBox="0 0 20 20" fill="none" aria-hidden="true">
+      <path d="M10 2.8v14.4M2.8 10h14.4M10 2.8 7.8 5M10 2.8 12.2 5M10 17.2 7.8 15M10 17.2 12.2 15M2.8 10 5 7.8M2.8 10 5 12.2M17.2 10 15 7.8M17.2 10 15 12.2" stroke="currentColor" strokeWidth="1.45" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+function GroupsControlGlyph() {
+  return (
+    <svg width="15" height="15" viewBox="0 0 20 20" fill="none" aria-hidden="true">
+      <circle cx="10" cy="5" r="2" stroke="currentColor" strokeWidth="1.45" />
+      <circle cx="5" cy="14" r="2" stroke="currentColor" strokeWidth="1.45" />
+      <circle cx="15" cy="14" r="2" stroke="currentColor" strokeWidth="1.45" />
+      <path d="M8.8 6.7 6.2 12M11.2 6.7l2.6 5.3M7 14h6" stroke="currentColor" strokeWidth="1.35" strokeLinecap="round" />
+    </svg>
+  );
+}
+
 function NetworkGlyph({ size = 32 }: { size?: number }) {
   return (
     <svg
@@ -512,10 +541,14 @@ export function AppNetwork({ locale }: { locale: Locale }) {
   const [cacheVersion, setCacheVersion] = useState(0);
   const [loadState, setLoadState] = useState<'idle' | 'loading' | 'ready' | 'error'>('idle');
   const [loadError, setLoadError] = useState('');
-  const [inviteSlots, setInviteSlots] = useState<InviteSlotState[]>([]);
+  const initialInviteSlots = getCachedNetworkInviteSlots(wallet);
+  const [inviteSlots, setInviteSlots] = useState<InviteSlotState[]>(
+    () => initialInviteSlots ?? [],
+  );
   const [rootTopologyReady, setRootTopologyReady] = useState(false);
-  const [inviteSlotsReady, setInviteSlotsReady] = useState(false);
-  const [introReadyFallback, setIntroReadyFallback] = useState(false);
+  const [inviteSlotsReady, setInviteSlotsReady] = useState(
+    () => Boolean(initialInviteSlots),
+  );
   const [stageStable, setStageStable] = useState(false);
   const [stageSize, setStageSize] = useState({ width: 0, height: 0 });
   const [view, setView] = useState<View>({
@@ -540,6 +573,38 @@ export function AppNetwork({ locale }: { locale: Locale }) {
   const [groupingWallet, setGroupingWallet] = useState<string | null>(null);
   const [workspaceNotice, setWorkspaceNotice] = useState('');
   const [introActive, setIntroActive] = useState(false);
+  const [headerMetrics, setHeaderMetrics] = useState<NetworkHeaderMetrics | null>(
+    () => getCachedNetworkHeaderMetrics(wallet),
+  );
+
+  useEffect(() => {
+    const syncHeaderMetrics = () => {
+      setHeaderMetrics(getCachedNetworkHeaderMetrics(wallet));
+    };
+    syncHeaderMetrics();
+    if (!wallet) return;
+
+    const handleHeaderMetricsUpdated = (event: Event) => {
+      const detail = (event as CustomEvent<{ wallet?: unknown }>).detail;
+      if (
+        detail &&
+        typeof detail.wallet === 'string' &&
+        keyWallet(detail.wallet) !== keyWallet(wallet)
+      ) {
+        return;
+      }
+      syncHeaderMetrics();
+    };
+
+    window.addEventListener(
+      NETWORK_HEADER_METRICS_UPDATED_EVENT,
+      handleHeaderMetricsUpdated,
+    );
+    return () => window.removeEventListener(
+      NETWORK_HEADER_METRICS_UPDATED_EVENT,
+      handleHeaderMetricsUpdated,
+    );
+  }, [wallet]);
 
   const visibleRootData = useMemo(() => {
     if (!wallet) return null;
@@ -848,13 +913,7 @@ export function AppNetwork({ locale }: { locale: Locale }) {
       serial === requestSerialRef.current &&
       keyWallet(requestWallet) === keyWallet(wallet);
 
-    try {
-      const payload = await fetchNetwork(requestWallet, {
-        signal: controller.signal,
-        fast: true,
-      });
-      if (!canCommit()) return;
-
+    const commitRoot = (payload: NetworkData) => {
       cacheRef.current.clear();
       cacheRef.current.set(keyWallet(payload.focusWallet), payload);
       rememberNetworkRoot(requestWallet, payload);
@@ -863,38 +922,64 @@ export function AppNetwork({ locale }: { locale: Locale }) {
       setCacheVersion((value) => value + 1);
       setLoadState('ready');
       setRootTopologyReady(true);
+    };
 
-      void fetchNetwork(requestWallet).then((enriched) => {
-        if (!canCommit()) return;
-        cacheRef.current.set(keyWallet(enriched.focusWallet), enriched);
-        rememberNetworkRoot(requestWallet, enriched);
-        setRootData(enriched);
-        setCacheVersion((value) => value + 1);
-      }).catch(() => {
-        // Fast topology remains usable if round enrichment is unavailable.
-      });
+    // Start the fast topology and round-enriched root reads together. The
+    // enriched request must never sit behind the fast request, otherwise the
+    // header visibly changes from an unresolved round value to the real count.
+    const fastRequest = fetchNetwork(requestWallet, {
+      signal: controller.signal,
+      fast: true,
+    });
+    const enrichedRequest = fetchNetwork(requestWallet, {
+      signal: controller.signal,
+    });
+    let enrichedCommitted = false;
+
+    void enrichedRequest.then((enriched) => {
+      if (!canCommit()) return;
+      enrichedCommitted = true;
+      commitRoot(enriched);
+    }).catch(() => {
+      // Fast topology remains a valid fallback if round enrichment fails.
+    });
+
+    try {
+      const payload = await fastRequest;
+      if (!canCommit() || enrichedCommitted) return;
+      commitRoot(payload);
     } catch (error) {
       if (!canCommit()) return;
-      // Never replace the Network surface with a blocking loading/error card.
-      // Keep the warmed or provisional canvas visible and retry on the next
-      // entry while preserving the error for diagnostics.
-      setLoadError(error instanceof Error ? error.message : t.loadError);
-      setLoadState('ready');
-      setRootTopologyReady(true);
+
+      // Give the already-running enriched request a chance to become the first
+      // authoritative scene before exposing the provisional canvas.
+      try {
+        await enrichedRequest;
+        if (!canCommit()) return;
+      } catch {
+        if (!canCommit()) return;
+        setLoadError(error instanceof Error ? error.message : t.loadError);
+        setLoadState('ready');
+        setRootTopologyReady(true);
+      }
     } finally {
-      if (abortRef.current === controller) abortRef.current = null;
+      void Promise.allSettled([fastRequest, enrichedRequest]).then(() => {
+        if (abortRef.current === controller) abortRef.current = null;
+      });
     }
   }, [wallet, cancelRequest, t.loadError]);
 
   useEffect(() => {
+    const cachedInviteSlots = wallet
+      ? getCachedNetworkInviteSlots(wallet)
+      : null;
     cacheRef.current.clear();
     returnViewByChildRef.current.clear();
     viewByFocusRef.current.clear();
     initializedWalletRef.current = null;
     introCancelledRef.current = false;
     setRootTopologyReady(false);
-    setInviteSlotsReady(false);
-    setIntroReadyFallback(false);
+    setInviteSlotsReady(Boolean(cachedInviteSlots));
     setStageStable(false);
     if (introFitTimerRef.current !== null) {
       window.clearTimeout(introFitTimerRef.current);
@@ -926,7 +1011,7 @@ export function AppNetwork({ locale }: { locale: Locale }) {
     setDraggingWorkspaceKey(null);
     setGroupingWallet(null);
     setWorkspaceNotice('');
-    setInviteSlots([]);
+    setInviteSlots(cachedInviteSlots ?? []);
     setView({
       x: 260 - FOCUS_X,
       y: 300 - FOCUS_Y,
@@ -948,33 +1033,30 @@ export function AppNetwork({ locale }: { locale: Locale }) {
     if (!wallet) {
       setInviteSlots([]);
       setInviteSlotsReady(false);
-      setIntroReadyFallback(false);
       return;
     }
 
+    const cachedSlots = getCachedNetworkInviteSlots(wallet);
     let active = true;
+    if (cachedSlots) {
+      setInviteSlots(cachedSlots);
+      setInviteSlotsReady(true);
+    } else {
+      setInviteSlots([]);
+      setInviteSlotsReady(false);
+    }
+
+    const controller = new AbortController();
     let retryTimer: number | null = null;
     let refreshInFlight = false;
     let lastAttemptAt = 0;
-    let initialSettled = false;
     const SLOT_RETRY_DELAY_MS = 650;
     const SLOT_REFRESH_MIN_INTERVAL_MS = 1_500;
+    const SLOT_REQUEST_TIMEOUT_MS = 2_000;
 
-    setInviteSlotsReady(false);
-    setIntroReadyFallback(false);
-    const fallbackTimer = window.setTimeout(() => {
-      if (active) setIntroReadyFallback(true);
-    }, 650);
-
-    const controller = new AbortController();
-
-    const markInitialSettled = () => {
-      if (!active || initialSettled) return;
-      initialSettled = true;
-      setInviteSlotsReady(true);
-    };
-
-    const parseSlots = (payload: { slots?: unknown } | null): InviteSlotState[] | null => {
+    const parseSlots = (
+      payload: { slots?: unknown } | null,
+    ): InviteSlotState[] | null => {
       if (!payload || !Array.isArray(payload.slots)) return null;
 
       const slots = payload.slots.flatMap((value): InviteSlotState[] => {
@@ -998,31 +1080,63 @@ export function AppNetwork({ locale }: { locale: Locale }) {
         }];
       }).sort((left, right) => left.slot - right.slot);
 
-      // The authoritative endpoint always returns both current-capacity slots.
-      // Preserve the last known good state if a response is partial/malformed.
+      // The authoritative route always returns both capacity slots. Keep the
+      // last-known-good view if a transient response is partial or malformed.
       return slots.length === 2 ? slots : null;
     };
 
-    const refreshSlots = async (allowRetry = true) => {
-      if (!active || controller.signal.aborted || refreshInFlight) return;
+    const fetchSlotResponse = async (): Promise<Response> => {
+      const requestController = new AbortController();
+      const abortRequest = () => requestController.abort();
 
-      const now = Date.now();
-      if (!allowRetry && now - lastAttemptAt < SLOT_REFRESH_MIN_INTERVAL_MS) return;
+      if (controller.signal.aborted) {
+        requestController.abort();
+      } else {
+        controller.signal.addEventListener('abort', abortRequest, { once: true });
+      }
 
-      refreshInFlight = true;
-      lastAttemptAt = now;
+      const timeoutId = window.setTimeout(
+        () => requestController.abort(),
+        SLOT_REQUEST_TIMEOUT_MS,
+      );
 
       try {
-        const response = await fetch(
+        return await fetch(
           `/api/network/slots?wallet=${encodeURIComponent(wallet)}`,
           {
             method: 'GET',
             credentials: 'include',
             cache: 'no-store',
             headers: { Accept: 'application/json' },
-            signal: controller.signal,
+            signal: requestController.signal,
           },
         );
+      } finally {
+        window.clearTimeout(timeoutId);
+        controller.signal.removeEventListener('abort', abortRequest);
+      }
+    };
+
+    const refreshSlots = async (
+      retryOnFailure = true,
+      respectThrottle = false,
+    ) => {
+      if (!active || controller.signal.aborted || refreshInFlight) return;
+
+      const now = Date.now();
+      if (
+        respectThrottle &&
+        lastAttemptAt > 0 &&
+        now - lastAttemptAt < SLOT_REFRESH_MIN_INTERVAL_MS
+      ) {
+        return;
+      }
+
+      refreshInFlight = true;
+      lastAttemptAt = now;
+
+      try {
+        const response = await fetchSlotResponse();
 
         if (!response.ok) {
           throw new Error(`Invite slot refresh failed (${response.status}).`);
@@ -1034,28 +1148,27 @@ export function AppNetwork({ locale }: { locale: Locale }) {
           throw new Error('Invite slot response was incomplete.');
         }
 
+        if (!active) return;
         if (retryTimer !== null) {
           window.clearTimeout(retryTimer);
           retryTimer = null;
         }
-
-        if (active) {
-          setInviteSlots(slots);
-          markInitialSettled();
-        }
+        rememberNetworkInviteSlots(wallet, slots);
+        setInviteSlots(slots);
+        setInviteSlotsReady(true);
       } catch (error) {
         if (!active || controller.signal.aborted) return;
 
-        if (allowRetry) {
+        if (retryOnFailure) {
           if (retryTimer !== null) window.clearTimeout(retryTimer);
           retryTimer = window.setTimeout(() => {
             retryTimer = null;
-            void refreshSlots(false);
+            void refreshSlots(false, false);
           }, SLOT_RETRY_DELAY_MS);
           return;
         }
 
-        markInitialSettled();
+        setInviteSlotsReady(true);
         console.warn(
           'VeInvite could not refresh Network invite slots after retry.',
           error,
@@ -1066,18 +1179,16 @@ export function AppNetwork({ locale }: { locale: Locale }) {
     };
 
     const handleResume = () => {
-      if (!active || document.visibilityState === 'hidden') return;
-      if (Date.now() - lastAttemptAt < SLOT_REFRESH_MIN_INTERVAL_MS) return;
-      void refreshSlots(true);
+      if (document.visibilityState === 'hidden') return;
+      void refreshSlots(true, true);
     };
 
-    void refreshSlots(true);
+    void refreshSlots(true, false);
     window.addEventListener('focus', handleResume);
     document.addEventListener('visibilitychange', handleResume);
 
     return () => {
       active = false;
-      window.clearTimeout(fallbackTimer);
       if (retryTimer !== null) window.clearTimeout(retryTimer);
       controller.abort();
       window.removeEventListener('focus', handleResume);
@@ -1265,7 +1376,7 @@ export function AppNetwork({ locale }: { locale: Locale }) {
     if (!wallet || loadState !== 'ready' || !currentData) return;
     if (stageSize.width <= 0 || stageSize.height <= 0 || !stageStable) return;
     if (!rootTopologyReady) return;
-    if (!inviteSlotsReady && !introReadyFallback) return;
+    if (!inviteSlotsReady) return;
     if (introCancelledRef.current) return;
     if (keyWallet(currentData.focusWallet) !== keyWallet(currentData.rootWallet)) return;
     const walletKey = keyWallet(wallet);
@@ -1297,7 +1408,6 @@ export function AppNetwork({ locale }: { locale: Locale }) {
     stageStable,
     rootTopologyReady,
     inviteSlotsReady,
-    introReadyFallback,
     fitNetwork,
   ]);
 
@@ -1899,6 +2009,13 @@ export function AppNetwork({ locale }: { locale: Locale }) {
   const breadcrumb = currentData.breadcrumb;
   const breadcrumbStart = Math.max(0, breadcrumb.length - 4);
   const shownBreadcrumb = breadcrumb.slice(breadcrumbStart);
+  const headerNetwork =
+    headerMetrics?.network ?? visibleRootData.summary.network;
+  const headerThisRound =
+    visibleRootData.summary.thisRound ?? headerMetrics?.thisRound ?? null;
+  const rootSceneReady = rootTopologyReady && inviteSlotsReady;
+  const headerMetricsReady = headerThisRound !== null;
+
   const worldStyle: CSSProperties = {
     width: WORLD_W,
     height: WORLD_H,
@@ -1925,11 +2042,19 @@ export function AppNetwork({ locale }: { locale: Locale }) {
     >
       <header className="networkHeader" data-no-pan="true">
         <h1>{t.title}</h1>
-        <div className="summary" aria-label={t.networkSize}>
-          <strong>{visibleRootData.summary.network.toLocaleString()}</strong>
+        <div
+          className={`summary ${headerMetricsReady ? 'metricsReady' : 'metricsPending'}`}
+          aria-label={t.networkSize}
+        >
+          <strong className="summaryNumber networkTotal">{headerNetwork.toLocaleString()}</strong>
           <span>{t.networkSize}</span>
           <i />
-          <strong className="growth">{visibleRootData.summary.thisRound === null ? '–' : `+${visibleRootData.summary.thisRound}`}</strong>
+          <strong
+            className="summaryNumber growth"
+            aria-label={headerThisRound === null ? undefined : `+${headerThisRound}`}
+          >
+            {headerThisRound === null ? '\u00A0' : `+${headerThisRound}`}
+          </strong>
           <span>{t.thisRound}</span>
         </div>
       </header>
@@ -1969,18 +2094,17 @@ export function AppNetwork({ locale }: { locale: Locale }) {
           <div className="layoutControls">
             <button
               type="button"
-              className={`editLayoutButton labeledControl${editingLayout ? ' active' : ''}`}
+              className={`editLayoutButton${editingLayout ? ' active' : ''}`}
               onClick={editingLayout ? finishLayoutEdit : beginLayoutEdit}
               aria-label={editingLayout ? w.done : w.editLayout}
               title={editingLayout ? w.done : w.editLayout}
             >
-              <span aria-hidden="true">{editingLayout ? '✓' : '✦'}</span>
-              <span className="controlLabel">{editingLayout ? w.done : w.editLayout}</span>
+              <LayoutControlGlyph done={editingLayout} />
             </button>
             <div className="groupMenuAnchor">
               <button
                 type="button"
-                className={`groupsButton labeledControl${groupsOpen || groupDraft ? ' active' : ''}`}
+                className={`groupsButton${groupsOpen || groupDraft ? ' active' : ''}`}
                 onClick={() => {
                   stopIntroForInteraction();
                   if (groupDraft) {
@@ -1994,8 +2118,7 @@ export function AppNetwork({ locale }: { locale: Locale }) {
                 title={w.groups}
                 aria-expanded={Boolean(groupsOpen || groupDraft)}
               >
-                <span aria-hidden="true">◉</span>
-                <span className="controlLabel">{w.groups}</span>
+                <GroupsControlGlyph />
               </button>
               {groupDraft ? (
                 <aside className="groupBuilder" data-no-pan="true">
@@ -2111,7 +2234,7 @@ export function AppNetwork({ locale }: { locale: Locale }) {
           style={worldStyle}
           aria-busy={pendingFocus ? true : undefined}
         >
-          <div className={`worldContent${navigationDirection ? ` nav-${navigationDirection}` : ''}`}>
+          <div className={`worldContent ${rootSceneReady ? 'sceneReady' : 'scenePending'}${navigationDirection ? ` nav-${navigationDirection}` : ''}`}>
             <svg className="edges" width={WORLD_W} height={WORLD_H} aria-hidden="true">
               {visibleChildren.filter((child) => !groupContainingWallet(activeWorkspace, child.wallet)).map((child) => (
                 <path
@@ -2401,19 +2524,19 @@ export function AppNetwork({ locale }: { locale: Locale }) {
       <style jsx>{`
         .networkCanvasPage{width:min(100%,520px);height:100%;min-height:0;box-sizing:border-box;margin:0 auto;position:relative;overflow:hidden;display:flex;flex-direction:column;border:1px solid rgba(255,255,255,.06);border-radius:18px;background:#090907;box-shadow:0 16px 45px rgba(0,0,0,.22)}
         .networkHeader{flex:0 0 auto;min-height:42px;padding:7px 9px;box-sizing:border-box;display:flex;align-items:center;justify-content:space-between;gap:10px;border-bottom:1px solid rgba(255,255,255,.055);background:rgba(14,14,12,.94)}.networkHeader h1{min-width:0;margin:0;color:#f0ece3;font-size:.82rem;letter-spacing:-.025em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-        .summary{display:grid;grid-template-columns:auto auto 1px auto auto;align-items:baseline;gap:2px 4px;white-space:nowrap}.summary strong{color:#f1ede4;font-size:.66rem}.summary strong.growth{color:#e6b943}.summary span{color:#77736c;font-size:.43rem}.summary i{width:1px;height:14px;background:rgba(255,255,255,.08);align-self:center}
+        .summary{display:grid;grid-template-columns:4.6ch auto 1px 4.6ch auto;align-items:baseline;gap:2px 4px;white-space:nowrap}.summary.metricsPending{visibility:hidden}.summary.metricsReady{visibility:visible}.summary strong{color:#f1ede4;font-size:.66rem}.summaryNumber{display:block;width:100%;text-align:right;font-variant-numeric:tabular-nums}.summary strong.growth{color:#e6b943}.summary span{color:#77736c;font-size:.43rem}.summary i{width:1px;height:14px;background:rgba(255,255,255,.08);align-self:center}
         .networkUtilityRow{position:relative;z-index:70;flex:0 0 auto;min-height:39px;padding:4px 6px;box-sizing:border-box;display:flex;align-items:center;justify-content:space-between;gap:5px;border-bottom:1px solid rgba(255,255,255,.05);background:rgba(11,11,9,.98)}
         .breadcrumbs{position:absolute;z-index:60;left:8px;top:8px;max-width:calc(100% - 16px);padding:3px 5px;display:flex;align-items:center;overflow:hidden;white-space:nowrap;border:1px solid rgba(255,205,80,.08);border-radius:8px;background:rgba(12,12,10,.82);backdrop-filter:blur(5px)}.breadcrumbs.rootOnly{display:none}.crumbWrap{display:flex;align-items:center;min-width:0}.crumbSep,.crumbEllipsis{flex:0 0 auto;color:#4f4c47;font-size:.62rem;margin:0 1px}.crumb{max-width:74px;padding:2px 4px;border:0;background:transparent;color:#8c867b;font:inherit;font-size:.5rem;font-weight:800;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;cursor:pointer}.crumb.current{color:#e5bd55;cursor:default}.crumb:disabled{opacity:.8}
         .searchWrap{position:relative;min-width:64px;max-width:108px;flex:0 1 108px}.searchWrap input{width:100%;height:29px;box-sizing:border-box;padding:0 7px;border:1px solid rgba(255,205,80,.1);border-radius:9px;background:#11110f;color:#d8d3ca;font:inherit;font-size:.52rem;outline:none}.searchWrap input:focus{border-color:rgba(244,183,40,.34)}.searchWrap input:disabled{opacity:.45}.searchResults{position:absolute;z-index:90;top:35px;left:0;width:min(290px,78vw);max-height:245px;overflow:auto;padding:5px;border:1px solid rgba(255,205,80,.14);border-radius:12px;background:rgba(14,14,12,.985);box-shadow:0 18px 40px rgba(0,0,0,.42)}.searchResults button{width:100%;padding:8px;border:0;border-radius:8px;background:transparent;color:#ddd7cc;text-align:left;cursor:pointer}.searchResults button:hover{background:rgba(244,183,40,.06)}.searchResults strong{display:block;font-size:.62rem}.searchResults button span{display:block;margin-top:3px;color:#6f6b64;font-size:.52rem}.searchStatus{display:block;padding:11px 8px;color:#77736c;font-size:.56rem;line-height:1.45;text-align:center}
         .compactControls{flex:0 0 auto;margin-left:auto;display:flex;align-items:center;gap:3px}.networkStage{position:relative;flex:1 1 auto;min-height:0;height:auto;overflow:hidden;touch-action:none;overscroll-behavior:contain;background:radial-gradient(ellipse at 50% 50%,rgba(244,183,40,.036),transparent 36%),#080807;cursor:grab;user-select:none;-webkit-user-select:none}.networkStage:active{cursor:grabbing}.networkStage.layoutEditing{box-shadow:inset 0 0 0 1px rgba(244,183,40,.11)}
-        .world{position:absolute;top:0;left:0;will-change:transform;backface-visibility:hidden}.world.cameraTransition{transition:transform ${NAVIGATION_MS}ms cubic-bezier(.18,.82,.2,1)}.introActive .world.cameraTransition{transition-duration:${FIT_TRANSITION_MS}ms}.worldContent{position:absolute;inset:0;transform-origin:${FOCUS_X}px ${FOCUS_Y}px}.worldContent.nav-forward{animation:networkForward ${NAVIGATION_MS}ms cubic-bezier(.18,.82,.2,1)}.worldContent.nav-back{animation:networkBack ${NAVIGATION_MS}ms cubic-bezier(.18,.82,.2,1)}
+        .world{position:absolute;top:0;left:0;will-change:transform;backface-visibility:hidden}.world.cameraTransition{transition:transform ${NAVIGATION_MS}ms cubic-bezier(.18,.82,.2,1)}.introActive .world.cameraTransition{transition-duration:${FIT_TRANSITION_MS}ms}.worldContent{position:absolute;inset:0;transform-origin:${FOCUS_X}px ${FOCUS_Y}px}.worldContent.scenePending{opacity:0;pointer-events:none}.worldContent.sceneReady{opacity:1;transition:opacity 120ms ease-out}.worldContent.nav-forward{animation:networkForward ${NAVIGATION_MS}ms cubic-bezier(.18,.82,.2,1)}.worldContent.nav-back{animation:networkBack ${NAVIGATION_MS}ms cubic-bezier(.18,.82,.2,1)}
         .edges{position:absolute;inset:0;overflow:visible;pointer-events:none;z-index:2}.edge{fill:none;stroke:rgba(176,145,73,.31);stroke-width:1.05;stroke-linecap:round;vector-effect:non-scaling-stroke}.edge.rewarded{stroke:rgba(232,183,62,.46)}.edge.groupEdge{stroke:rgba(224,178,65,.42);stroke-width:1.15;stroke-dasharray:4 8}.groupMemberEdge{stroke:rgba(194,157,75,.32);stroke-width:.95;stroke-dasharray:4 8}.continuationEdge{fill:none;stroke:rgba(176,145,73,.24);stroke-width:1;stroke-linecap:round;vector-effect:non-scaling-stroke}.slotEdgeBase,.slotEdgePulse,.slotEdgeProgress{fill:none;stroke-linecap:round;pointer-events:none;vector-effect:non-scaling-stroke}.slotEdgeBase{stroke:rgba(226,188,79,.62);stroke-width:1.05;opacity:.5}.slotEdgePulse{stroke:rgba(255,210,76,.95);stroke-width:1.55;stroke-dasharray:5 38;opacity:.8;filter:drop-shadow(0 0 2px rgba(244,183,40,.28));animation:networkSlotFlow 2.45s linear infinite}.slotEdgeProgress{stroke:rgba(244,183,40,.62);stroke-width:1.25;stroke-dasharray:3 7;opacity:.78}
         .personNode,.slotNode,.groupNode{position:absolute;z-index:6;transform:translate(-50%,-50%);font:inherit;translate:none}.personNode{width:52px;height:52px;padding:0;border:0;border-radius:50%;background:transparent;color:#d9d4ca;display:block;cursor:pointer;user-select:none;-webkit-user-select:none;-webkit-touch-callout:none;touch-action:none;isolation:isolate}.focusNode{width:74px;height:74px;z-index:8}.childNode::before,.slotNode::before{content:'';position:absolute;left:50%;top:50%;border-radius:50%;transform:translate(-50%,-50%);pointer-events:none;z-index:0}.childNode::before{width:58px;height:58px;background:radial-gradient(circle,rgba(8,8,7,.94) 0 87%,rgba(8,8,7,.58) 91%,rgba(8,8,7,.17) 96%,rgba(8,8,7,0) 100%)}.slotNode::before{width:52px;height:52px;background:radial-gradient(circle,rgba(8,8,7,.92) 0 86%,rgba(8,8,7,.54) 91%,rgba(8,8,7,.15) 96%,rgba(8,8,7,0) 100%)}.nodeCircle,.slotCircle{position:absolute;inset:0;z-index:1;display:grid;place-items:center;border-radius:50%;box-sizing:border-box;background:#0d0d0b;overflow:hidden;transition:transform 170ms ease,border-color 170ms ease,box-shadow 170ms ease}.nodeCircle{border:1px solid rgba(210,174,65,.38);box-shadow:0 0 22px rgba(244,183,40,.025);transform:scale(var(--network-node-scale,1))}.focusCircle{border-color:rgba(255,207,71,.82);background:radial-gradient(circle at 50% 45%,rgb(24,21,13) 0%,rgb(13,13,11) 62%,rgb(13,13,11) 100%);box-shadow:0 0 0 1px rgba(244,183,40,.07),0 0 28px rgba(244,183,40,.08);transform:scale(var(--network-center-scale,1))}.focusNode::before{content:'';position:absolute;inset:-7px;border:1px solid rgba(244,183,40,.42);border-radius:50%;box-shadow:0 0 18px rgba(244,183,40,.055);animation:networkYouBreath 2.8s ease-in-out infinite;pointer-events:none}.introActive .focusNode::before{animation:networkYouIntro .72s ease-out 1,networkYouBreath 2.8s .72s ease-in-out infinite}.personNode:hover .nodeCircle,.personNode:focus-visible .nodeCircle,.personNode.selected .nodeCircle{border-color:rgba(244,183,40,.78);box-shadow:0 0 0 3px rgba(244,183,40,.08),0 0 26px rgba(244,183,40,.1);transform:scale(var(--network-node-selected-scale,1.07))}.focusNode:hover .focusCircle,.focusNode:focus-visible .focusCircle,.focusNode.selected .focusCircle{transform:scale(var(--network-center-selected-scale,1.07))}.childNode.status-rewarded .nodeCircle{border-color:rgba(232,183,62,.58)}.childNode.status-qualified .nodeCircle{border-color:rgba(193,166,90,.46)}.personNode.draggable,.slotNode.draggable,.groupNode.draggable{cursor:grab}.personNode.draggable:active,.slotNode.draggable:active,.groupNode.draggable:active{cursor:grabbing}.personNode.dragging,.slotNode.dragging{z-index:14}.personNode.dragging .nodeCircle,.slotNode.dragging .slotCircle{border-color:rgba(244,183,40,.92);box-shadow:0 0 0 4px rgba(244,183,40,.12),0 0 30px rgba(244,183,40,.18)}.groupNode.dragging{z-index:14;border-color:rgba(244,183,40,.82);box-shadow:0 14px 30px rgba(0,0,0,.34),0 0 0 3px rgba(244,183,40,.1)}.personNode.grouping{animation:groupDropAway ${GROUP_DROP_MS}ms ease forwards}
         .nodeCircle :global(.identity){width:100%;height:100%;display:grid;place-items:center}.nodeCircle :global(.avatarSlot){position:relative;display:grid;place-items:center}.childNode .nodeCircle :global(.avatarSlot),.childNode .nodeCircle :global(.neutralAvatar),.childNode .nodeCircle :global(.avatarSlot img){width:40px!important;height:40px!important}.focusNode .nodeCircle :global(.avatarSlot),.focusNode .nodeCircle :global(.neutralAvatar),.focusNode .nodeCircle :global(.avatarSlot img){width:56px!important;height:56px!important}.nodeCircle :global(.neutralAvatar){display:grid;place-items:center;border:0;border-radius:50%;background:#171611;color:#8e7b50}.nodeCircle :global(.avatarSlot img){position:absolute;inset:0;margin:auto;border-radius:50%;object-fit:cover;transition:opacity 160ms ease}.nodeMeta{position:absolute;left:50%;z-index:2;width:120px;display:grid;justify-items:center;gap:2px;transform:translateX(-50%);opacity:var(--network-label-opacity,1);pointer-events:none;transition:opacity 90ms linear}.childNode .nodeMeta{bottom:calc(100% + 6px)}.focusNode .nodeMeta{top:calc(100% + 7px)}.nodeMeta strong{max-width:112px;color:#e5dfd5;font-size:.52rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.nodeMeta small{max-width:116px;color:#6f6a62;font-size:.41rem;white-space:nowrap}.focusNode .nodeMeta strong{color:#edc65c;font-size:.61rem}.focusNode .nodeMeta small{font-size:.44rem}.nodeBusy{position:absolute;z-index:3;right:-2px;top:-2px;width:7px;height:7px;border-radius:50%;background:#e9bc45;box-shadow:0 0 10px rgba(233,188,69,.8);animation:pulse 900ms ease-in-out infinite alternate}
         .groupNode{min-width:108px;max-width:160px;padding:8px 10px;border:1px solid rgba(244,183,40,.54);border-radius:14px;background:rgba(18,16,10,.96);color:#d8b450;display:grid;grid-template-columns:30px 1fr;column-gap:6px;row-gap:1px;align-items:center;text-align:left;box-shadow:0 8px 28px rgba(0,0,0,.26),0 0 24px rgba(244,183,40,.045);cursor:pointer;touch-action:none;user-select:none;-webkit-user-select:none;-webkit-touch-callout:none}.groupNode:hover,.groupNode.selected{border-color:rgba(255,207,71,.82);box-shadow:0 0 0 3px rgba(244,183,40,.09),0 8px 28px rgba(0,0,0,.3)}.groupNode.expanded{border-style:dashed;background:rgba(13,12,9,.9);opacity:.92}.groupNode .groupGlyph{grid-row:1/3}.groupNode strong{min-width:0;max-width:110px;font-size:.48rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.groupNode small{color:#756b55;font-size:.34rem;white-space:nowrap}.groupGlyph{position:relative;width:30px;height:24px;display:block}.groupGlyph i{position:absolute;width:13px;height:13px;border:1px solid rgba(244,183,40,.34);border-radius:50%;background:#1a1812}.groupGlyph i:nth-child(1){left:9px;top:0}.groupGlyph i:nth-child(2){left:2px;top:10px}.groupGlyph i:nth-child(3){right:2px;top:10px}
         .slotNode{width:46px;height:46px;padding:0;border:0;border-radius:50%;background:transparent;color:#c79f36;cursor:pointer;touch-action:none;user-select:none;-webkit-user-select:none;isolation:isolate}.slotCircle{border:1px dashed rgba(226,181,62,.52);color:#c79f36;font-size:.9rem;background:#0d0d0b;transform:scale(var(--network-node-scale,1));animation:slotPulse 5.6s ease-in-out infinite}.slotNode>strong{position:absolute;left:50%;top:calc(100% + 5px);z-index:2;width:92px;transform:translateX(-50%);color:#a98735;font-size:.47rem;white-space:nowrap;pointer-events:none;opacity:var(--network-label-opacity,1)}.slotNode:hover .slotCircle,.slotNode:focus-visible .slotCircle{border-style:solid;border-color:rgba(244,183,40,.9);box-shadow:0 0 28px rgba(244,183,40,.1);transform:scale(var(--network-node-selected-scale,1.07))}.progressInviteNode::after{content:'';position:absolute;z-index:0;inset:-5px;border-radius:50%;background:conic-gradient(rgba(244,183,40,.95) var(--slot-progress),rgba(244,183,40,.12) 0);-webkit-mask:radial-gradient(farthest-side,transparent calc(100% - 3px),#000 0);mask:radial-gradient(farthest-side,transparent calc(100% - 3px),#000 0);filter:drop-shadow(0 0 4px rgba(244,183,40,.18));pointer-events:none}.progressInviteNode .nodeCircle{border-color:rgba(244,183,40,.62);background:#11100c}.progressInviteNode .nodeMeta small{color:#b28c32}.pendingInviteGlyph{display:grid;place-items:center;width:100%;height:100%;color:#d3aa43;font-size:.9rem;font-weight:950;letter-spacing:.08em}
         .worldContent.nav-forward .childNode .nodeCircle{animation:networkNodeBloom 620ms cubic-bezier(.16,.82,.2,1) both}
-        .layoutControls{display:flex;align-items:center;gap:3px;min-width:0}.layoutControls>button,.groupMenuAnchor>button{width:28px;height:29px;padding:0;border:1px solid rgba(255,205,80,.13);border-radius:8px;background:rgba(18,18,15,.94);color:#a9a397;font:inherit;font-size:.65rem;font-weight:900;cursor:pointer;box-shadow:0 7px 18px rgba(0,0,0,.2)}.layoutControls .editLayoutButton:hover,.layoutControls .editLayoutButton.active,.layoutControls .groupsButton:hover,.layoutControls .groupsButton.active{border-color:rgba(244,183,40,.31);color:#e1bd5b}.layoutControls .editLayoutButton.active{background:rgba(244,183,40,.08)}.groupMenuAnchor{position:relative;display:flex;flex:0 0 auto}.labeledControl{width:auto!important;min-width:38px;max-width:64px;padding:0 6px!important;display:inline-flex;align-items:center;justify-content:center;gap:3px;white-space:nowrap}.controlLabel{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:.45rem;line-height:1}.editLayoutButton{max-width:62px}.groupsButton{max-width:56px}
+        .layoutControls{display:flex;align-items:center;gap:3px;min-width:0}.layoutControls>button,.groupMenuAnchor>button{width:28px;height:29px;padding:0;border:1px solid rgba(255,205,80,.13);border-radius:8px;background:rgba(18,18,15,.94);color:#a9a397;font:inherit;font-size:.65rem;font-weight:900;cursor:pointer;box-shadow:0 7px 18px rgba(0,0,0,.2)}.layoutControls .editLayoutButton:hover,.layoutControls .editLayoutButton.active,.layoutControls .groupsButton:hover,.layoutControls .groupsButton.active{border-color:rgba(244,183,40,.31);color:#e1bd5b}.layoutControls .editLayoutButton.active{background:rgba(244,183,40,.08)}.groupMenuAnchor{position:relative;display:flex;flex:0 0 auto}.labeledControl{width:auto!important;min-width:38px;max-width:64px;padding:0 6px!important;display:inline-flex;align-items:center;justify-content:center;gap:3px;white-space:nowrap}.controlLabel{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:.45rem;line-height:1}.editLayoutButton,.groupsButton{display:grid;place-items:center}
         .groupsPanel,.groupBuilder{position:absolute;z-index:95;left:50%;top:calc(100% + 7px);transform:translateX(-50%);width:min(235px,calc(100vw - 32px));box-sizing:border-box;padding:11px;border:1px solid rgba(244,183,40,.17);border-radius:15px;background:rgba(14,14,12,.985);box-shadow:0 18px 40px rgba(0,0,0,.42);cursor:default}.groupBuilder{z-index:96;border-color:rgba(244,183,40,.2)}.groupsPanelHead{display:flex;align-items:center;justify-content:space-between}.groupsPanelHead strong{color:#e5dfd3;font-size:.62rem}.groupsPanelHead button{width:27px;height:27px;border:0;background:transparent;color:#817c73;font-size:.95rem;cursor:pointer}.groupsPanel p{margin:10px 0;color:#77736c;font-size:.53rem}.groupsList{display:grid;gap:5px;margin-top:7px}.groupsList>button{width:100%;padding:7px 8px;border:1px solid rgba(255,255,255,.06);border-radius:9px;background:rgba(255,255,255,.025);color:#aaa398;text-align:left;cursor:pointer}.groupsList span,.groupsList small{display:block}.groupsList span{font-size:.54rem;font-weight:900}.groupsList small{margin-top:2px;color:#746e64;font-size:.46rem}.createFirstGroup{width:100%;min-height:32px;margin-top:8px;border:1px solid rgba(244,183,40,.22);border-radius:9px;background:rgba(244,183,40,.05);color:#c5a454;font:inherit;font-size:.52rem;font-weight:900;cursor:pointer}.groupBuilderHead{display:flex;align-items:center;justify-content:space-between;gap:8px}.groupBuilderHead strong{color:#e5dfd3;font-size:.62rem}.groupBuilderHead button{width:27px;height:27px;border:0;background:transparent;color:#817c73;font-size:.95rem;cursor:pointer}.groupBuilder>input{width:100%;height:31px;margin-top:7px;box-sizing:border-box;padding:0 8px;border:1px solid rgba(255,205,80,.1);border-radius:8px;background:#11110f;color:#d8d3ca;font:inherit;font-size:.55rem;outline:none}.groupDropZone{min-height:74px;margin-top:8px;padding:9px;box-sizing:border-box;display:grid;place-items:center;align-content:center;gap:2px;border:1px dashed rgba(244,183,40,.34);border-radius:11px;background:rgba(244,183,40,.035);text-align:center}.dropIcon{color:#c99d35;font-size:.9rem}.groupDropZone strong{color:#b9aa83;font-size:.54rem}.groupDropZone small{color:#6d685e;font-size:.48rem}.groupDraftMembers{margin-top:7px;display:flex;flex-wrap:wrap;gap:4px}.groupDraftMembers button{padding:4px 6px;border:1px solid rgba(255,255,255,.06);border-radius:7px;background:rgba(255,255,255,.025);color:#89847a;font:inherit;font-size:.46rem;cursor:pointer}.groupDraftMembers button span{color:#a97f54}.groupMemberList span{display:inline-flex;align-items:center;gap:4px}.groupMemberList span button{width:18px;height:18px;border:0;border-radius:50%;background:rgba(255,255,255,.04);color:#8d8173;cursor:pointer}.groupToggleButton{width:100%;min-height:30px;margin-top:8px;border:1px solid rgba(244,183,40,.15);border-radius:9px;background:rgba(244,183,40,.035);color:#b69a57;font:inherit;font-size:.5rem;font-weight:900;cursor:pointer}.createGroupButton{width:100%;min-height:33px;margin-top:8px;border:0;border-radius:9px;background:linear-gradient(135deg,#ffd24d,#efa718);color:#17120a;font:inherit;font-size:.53rem;font-weight:950;cursor:pointer}.createGroupButton:disabled{background:rgba(255,255,255,.05);color:#68635b;cursor:default}
         .viewControls{display:flex;align-items:center;gap:3px;flex:0 0 auto}.viewControls .fitButton{width:28px;min-width:28px;padding:0;font-size:.62rem}.viewControls button{width:28px;height:29px;padding:0;border:1px solid rgba(255,205,80,.13);border-radius:8px;background:rgba(18,18,15,.92);color:#bbb5aa;font:inherit;font-size:.68rem;font-weight:850;cursor:pointer}.viewControls .youControl{width:auto!important;min-width:38px;max-width:54px;padding:0 5px!important}.viewControls button:hover{border-color:rgba(244,183,40,.28);color:#e4c36d}.parentReturn{position:absolute;z-index:55;left:10px;bottom:10px;min-height:34px;padding:0 11px;border:1px solid rgba(255,205,80,.12);border-radius:10px;background:rgba(18,18,15,.92);color:#a89c7b;font:inherit;font-size:.55rem;font-weight:850;cursor:pointer}.parentReturn:disabled{opacity:.4}
         .profileCard{position:absolute;z-index:75;right:10px;top:10px;width:min(245px,calc(100% - 20px));box-sizing:border-box;padding:13px;border:1px solid rgba(255,205,80,.15);border-radius:17px;background:rgba(15,15,13,.975);box-shadow:0 18px 42px rgba(0,0,0,.45);cursor:default}.profileClose{position:absolute;right:8px;top:7px;width:28px;height:28px;border:0;background:transparent;color:#817c73;font-size:1rem;cursor:pointer}.profileIdentity{padding-right:28px;display:flex;align-items:center;gap:9px}.profileIdentity :global(.identity){display:flex;align-items:center;gap:8px}.profileIdentity :global(.identityLabel){display:none}.profileIdentity :global(.avatarSlot){position:relative;display:grid;place-items:center}.profileIdentity :global(.neutralAvatar){display:grid;place-items:center;border:1px solid rgba(244,183,40,.13);border-radius:50%;background:#171611;color:#8e7b50}.profileIdentity :global(.avatarSlot img){position:absolute;inset:0;border-radius:50%;object-fit:cover}.profileIdentity>div>strong{display:block;color:#e7e1d6;font-size:.66rem}.profileIdentity>div>span{display:block;margin-top:3px;color:#877e69;font-size:.51rem}.profileAddress{margin-top:10px;padding:8px;border-radius:9px;background:rgba(255,255,255,.025);color:#67635d;font-size:.48rem;line-height:1.35;overflow-wrap:anywhere;user-select:text;-webkit-user-select:text}.profileStats{margin-top:9px;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:5px}.profileStats>div{padding:8px;border:1px solid rgba(255,255,255,.045);border-radius:9px;background:rgba(255,255,255,.018)}.profileStats strong{display:block;color:#d6d0c5;font-size:.62rem}.profileStats span{display:block;margin-top:2px;color:#68645e;font-size:.47rem}.profileAction{width:100%;min-height:36px;margin-top:9px;border:0;border-radius:10px;background:linear-gradient(135deg,#ffd24d,#efa718);color:#17120a;font:inherit;font-size:.57rem;font-weight:950;cursor:pointer}.profileAction:disabled{opacity:.45;cursor:default}
@@ -2422,7 +2545,7 @@ export function AppNetwork({ locale }: { locale: Locale }) {
         .inlineError{position:absolute;z-index:90;left:50%;bottom:54px;transform:translateX(-50%);max-width:calc(100% - 28px);padding:8px 9px 8px 11px;display:flex;align-items:center;gap:8px;border:1px solid rgba(194,118,90,.2);border-radius:10px;background:rgba(38,23,18,.96);color:#c7a294;font-size:.53rem;box-shadow:0 12px 30px rgba(0,0,0,.32)}.inlineError button{border:0;background:transparent;color:#9f7d71;font-size:.8rem;cursor:pointer}
         @keyframes networkForward{0%{opacity:.68;scale:.975}100%{opacity:1;scale:1}}@keyframes networkBack{0%{opacity:.74;scale:1.035}100%{opacity:1;scale:1}}@keyframes networkSlotFlow{from{stroke-dashoffset:43}to{stroke-dashoffset:-43}}@keyframes networkYouBreath{0%,100%{opacity:.46;transform:scale(.96)}50%{opacity:.92;transform:scale(1.06)}}@keyframes networkYouIntro{0%{opacity:.25;transform:scale(.78)}58%{opacity:1;transform:scale(1.14)}100%{opacity:.62;transform:scale(1)}}@keyframes networkNodeBloom{0%{transform:scale(.45);box-shadow:0 0 0 rgba(244,183,40,0)}55%{transform:scale(1.18);box-shadow:0 0 42px rgba(244,183,40,.22)}100%{transform:scale(var(--network-node-scale,1));box-shadow:0 0 22px rgba(244,183,40,.025)}}@keyframes slotPulse{0%,100%{box-shadow:0 0 0 rgba(244,183,40,0)}50%{box-shadow:0 0 22px rgba(244,183,40,.07)}}@keyframes pulse{to{opacity:.38;transform:scale(.82)}}@keyframes groupDropAway{to{opacity:0;scale:.72}}
         @media(max-width:560px){.networkCanvasPage{width:100%;border-radius:18px}.networkHeader{min-height:42px;padding:7px 9px}.networkHeader h1{font-size:.82rem}.summary{gap:2px 4px}.summary strong{font-size:.66rem}.summary span{font-size:.43rem}.networkUtilityRow{min-height:39px;padding:4px 6px;gap:4px}.searchWrap input{height:29px;padding:0 7px;font-size:.52rem}.compactControls{gap:3px}.layoutControls,.viewControls{gap:3px}.layoutControls>button,.groupMenuAnchor>button,.viewControls button,.viewControls .fitButton{height:29px;border-radius:8px}.groupsPanel,.groupBuilder{width:min(232px,calc(100vw - 28px))}.crumb{max-width:60px}.profileCard{top:auto;right:8px;bottom:52px;left:8px;width:auto}.parentReturn{left:8px;bottom:8px}.personNode{min-width:0}.focusNode{min-width:0}}
-        @media(prefers-reduced-motion:reduce){.world.cameraTransition{transition:none}.worldContent.nav-forward,.worldContent.nav-back,.slotEdgePulse,.nodeBusy,.personNode.grouping,.slotCircle,.focusNode::before,.worldContent.nav-forward .childNode .nodeCircle{animation:none!important}}
+        @media(prefers-reduced-motion:reduce){.world.cameraTransition{transition:none}.worldContent.sceneReady{transition:none}.worldContent.nav-forward,.worldContent.nav-back,.slotEdgePulse,.nodeBusy,.personNode.grouping,.slotCircle,.focusNode::before,.worldContent.nav-forward .childNode .nodeCircle{animation:none!important}}
       `}</style>
     </section>
   );

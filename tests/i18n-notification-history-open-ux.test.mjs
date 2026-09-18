@@ -41,3 +41,34 @@ test('opening the notification dialog focuses the panel without painting the clo
   assert.match(center, /\.notificationHistoryClose:focus-visible/);
   assert.match(center, /FOCUSABLE_SELECTOR/);
 });
+
+
+test('reward action loading is present before the notification panel first paints', () => {
+  assert.match(center, /useLayoutEffect/);
+  assert.match(
+    center,
+    /useLayoutEffect\(\(\) => \{[\s\S]*void loadRewardActions\(\)/,
+  );
+  assert.doesNotMatch(
+    center,
+    /setRewardActions\(\[\]\)[\s\S]{0,260}if \(!open\)/,
+  );
+  assert.match(center, /\.notificationActionLoading\{min-height:72px/);
+});
+
+
+test('notification center opens as one fixed frame instead of growing after the header paints', () => {
+  assert.match(center, /className="notificationHistoryBodyFrame"/);
+  assert.match(
+    center,
+    /\.notificationHistoryPanel\{[^}]*height:min\(610px,calc\(100dvh - 92px\)\)/,
+  );
+  assert.match(center, /display:flex;flex-direction:column/);
+  assert.match(center, /\.notificationHistoryBodyFrame\{flex:1 1 auto;min-height:0;overflow:hidden\}/);
+  assert.match(center, /\.notificationHistoryScroll,\.notificationReceiptView\{height:100%;max-height:none/);
+  assert.match(center, /\.notificationHistoryState\{height:100%;min-height:0;box-sizing:border-box/);
+  assert.match(
+    center,
+    /@media\(max-width:560px\)[\s\S]*\.notificationHistoryPanel\{[^}]*height:calc\(74dvh - env\(safe-area-inset-bottom\)\)/,
+  );
+});

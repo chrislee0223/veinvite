@@ -20,7 +20,9 @@ test('Network round metrics come from the reviewed chain resolver, are bounded, 
   assert.match(route, /p_round_id:\s*round\?\.id\s*\?\?\s*null/i);
   assert.match(route, /p_round_start_at:\s*round\?\.startAt\s*\?\?\s*null/i);
   assert.doesNotMatch(route, /operator_latest_round_growth_report_snapshots/i);
-  assert.match(network, /rootData\.summary\.thisRound\s*===\s*null\s*\?\s*['’][–—]['’]/i);
+  assert.doesNotMatch(network, /headerThisRound === null \? ['’][–—]['’]/i);
+  assert.match(network, /const headerMetricsReady = headerThisRound !== null/);
+  assert.match(network, /\.summary\.metricsPending\{visibility:hidden\}/);
 });
 
 test('Network runtime switch fails closed before chain and recursive graph work', () => {
