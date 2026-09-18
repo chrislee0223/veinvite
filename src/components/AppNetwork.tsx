@@ -939,6 +939,28 @@ export function AppNetwork({ locale }: { locale: Locale }) {
     );
   }, []);
 
+  const isInsideNewGroupDropTarget = useCallback((clientX: number, clientY: number) => {
+    const rect = createFirstGroupRef.current?.getBoundingClientRect();
+    if (!rect) return false;
+    return (
+      clientX >= rect.left - GROUP_DROP_HIT_SLOP_X &&
+      clientX <= rect.right + GROUP_DROP_HIT_SLOP_X &&
+      clientY >= rect.top - GROUP_DROP_HIT_SLOP_Y &&
+      clientY <= rect.bottom + GROUP_DROP_HIT_SLOP_Y
+    );
+  }, []);
+
+  const moveDragGhost = useCallback((clientX: number, clientY: number) => {
+    const ghost = dragGhostRef.current;
+    if (!ghost) return;
+    ghost.style.transform = `translate3d(${clientX}px,${clientY}px,0) translate(-50%,-50%)`;
+  }, []);
+
+  const clearDragGhost = useCallback(() => {
+    setDragGhost(null);
+    setNewGroupDropActive(false);
+  }, []);
+
   const animateRestoredWallets = useCallback((wallets: string[]) => {
     const keys = Array.from(new Set(wallets.map(keyWallet)));
     if (!keys.length) return;
