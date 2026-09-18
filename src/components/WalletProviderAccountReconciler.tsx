@@ -16,6 +16,7 @@ import {
   WALLET_AUTH_ACTIVITY_EVENT,
   cancelActiveWalletAuthentication,
   isWalletAuthenticationInProgress,
+  runWalletProviderReconciliation,
 } from '@/lib/walletAuthenticationCoordinator';
 
 const WALLET_PATTERN = /^0x[0-9a-f]{40}$/;
@@ -345,7 +346,11 @@ export function WalletProviderAccountReconciler() {
           }
 
           try {
-            await initializeAsync();
+            await runWalletProviderReconciliation(
+              async () => {
+                await initializeAsync();
+              },
+            );
           } catch (error) {
             if (index === PROVIDER_REPAIR_RETRY_DELAYS_MS.length - 1) {
               console.warn(
