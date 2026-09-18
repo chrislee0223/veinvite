@@ -19,6 +19,7 @@ import {
   getActiveWalletAuthentication,
   isWalletAuthenticationGenerationCurrent,
   setActiveWalletAuthentication,
+  waitForWalletProviderReconciliation,
 } from '@/lib/walletAuthenticationCoordinator';
 import {
   reportProductAnalyticsEvent,
@@ -29,6 +30,7 @@ const WALLET_PATTERN =
   /^0x[0-9a-fA-F]{40}$/;
 const WALLET_SIGNATURE_TIMEOUT_MS = 15_000;
 const WALLET_SIGNATURE_SETTLE_MS = 350;
+const WALLET_PROVIDER_SETTLE_TIMEOUT_MS = 5_000;
 const CANCEL_SETTLE_TIMEOUT_MS = 1_000;
 const SESSION_CLEAR_RETRY_DELAYS_MS =
   [0, 180, 420] as const;
@@ -329,6 +331,18 @@ export function useWalletAuthentication() {
             if (
               connection.isConnectedWithDappKit
             ) {
+              // A VeWorld account restore can still have initializeAsync()
+              // running when VeChainKit publishes the new account. Wait for
+              // that provider mutation to finish before opening the native
+              // certificate prompt; otherwise VeWorld can complete the
+              // signature while leaving its confirmation sheet stuck loading.
+              await withTimeout(
+                waitForWalletProviderReconciliation(),
+                WALLET_PROVIDER_SETTLE_TIMEOUT_MS,
+                'Wallet connection is still synchronizing. Please try again.',
+              );
+              assertStillCurrent();
+
               const signer =
                 account?.address
                   ?.trim()
@@ -356,23 +370,26 @@ export function useWalletAuthentication() {
               );
               assertStillCurrent();
 
+              // Do not time out the native VeWorld certificate prompt here.
+              // requestCertificate() owns wallet UI that AbortController cannot
+              // reliably dismiss. Releasing VeInvite's auth lock while that
+              // sheet is still alive can open a second certificate request and
+              // recreate the orphaned spinner race. The user can cancel the
+              // wallet sheet explicitly; until it settles, this authentication
+              // remains the single browser-global signing flow.
               const certResponse =
-                await withTimeout(
-                  requestCertificate(
-                    {
-                      purpose: 'agreement',
-                      payload: {
-                        type: 'text',
-                        content:
-                          challenge.message,
-                      },
+                await requestCertificate(
+                  {
+                    purpose: 'agreement',
+                    payload: {
+                      type: 'text',
+                      content:
+                        challenge.message,
                     },
-                    {
-                      signer,
-                    },
-                  ),
-                  WALLET_SIGNATURE_TIMEOUT_MS,
-                  'Wallet signature request timed out.',
+                  },
+                  {
+                    signer,
+                  },
                 );
 
               assertStillCurrent();
