@@ -128,7 +128,7 @@ export async function GET(request: NextRequest) {
           {
             slot: 1,
             state: 'IN_PROGRESS',
-            inviteeWallet: '0xca11ab1e000000000000000000000000000001f5',
+            inviteeWallet: '0xca11ab1e0000000000000000000000000000000a',
             completedSteps: 3,
             totalSteps: 5,
           },
