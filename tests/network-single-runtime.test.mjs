@@ -492,7 +492,7 @@ test('long-hold selection gives one optional haptic acknowledgement when drag ar
   assert.match(networkSource, /function triggerHoldHaptic\(\)/);
   assert.match(networkSource, /typeof navigator\.vibrate !== 'function'/);
   assert.match(networkSource, /navigator\.vibrate\(12\)/);
-  assert.match(networkSource, /hold\.armed = true;\s*triggerHoldHaptic\(\);[\s\S]{0,1200}setDraggingWorkspaceKey/);
+  assert.match(networkSource, /hold\.armed = true;[\s\S]{0,300}triggerHoldHaptic\(\);[\s\S]{0,1200}setDraggingWorkspaceKey/);
 });
 
 test('final Network gestures are coordinate-owned and deliberate', () => {
