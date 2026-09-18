@@ -13,9 +13,44 @@ const nextConfig = {
       process.env.VERCEL_ENV === 'production'
         ? 'false'
         : process.env.NEXT_PUBLIC_DEMO_MODE ?? 'false',
+    // Embed the exact Vercel/Git release into the client bundle so an
+    // embedded VeWorld session can detect when it is still running an older
+    // document/bundle after a Production deployment.
+    NEXT_PUBLIC_APP_RELEASE:
+      process.env.VERCEL_GIT_COMMIT_SHA ??
+      process.env.NEXT_PUBLIC_APP_RELEASE ??
+      'dev',
   },
   async headers() {
     return [
+      {
+        // App Hub / VeWorld opens the root document inside an embedded
+        // browser. Never let that HTML shell become a long-lived cached
+        // snapshot; hashed Next.js static assets remain cacheable separately.
+        source: '/',
+        headers: [
+          {
+            key: 'Cache-Control',
+            value: 'no-store, no-cache, must-revalidate, max-age=0',
+          },
+          {
+            key: 'CDN-Cache-Control',
+            value: 'no-store',
+          },
+          {
+            key: 'Vercel-CDN-Cache-Control',
+            value: 'no-store',
+          },
+          {
+            key: 'Pragma',
+            value: 'no-cache',
+          },
+          {
+            key: 'Expires',
+            value: '0',
+          },
+        ],
+      },
       {
         source: '/:path*',
         headers: [
