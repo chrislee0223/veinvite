@@ -36,7 +36,10 @@ async function settleVisualPage(page: Page): Promise<void> {
   await page.waitForLoadState('domcontentloaded');
   await page.evaluate(async () => {
     if ('fonts' in document) {
-      await document.fonts.ready;
+      await Promise.race([
+        document.fonts.ready,
+        new Promise<void>((resolve) => window.setTimeout(resolve, 1_200)),
+      ]);
     }
     await new Promise<void>((resolve) => {
       requestAnimationFrame(() => requestAnimationFrame(() => resolve()));
@@ -144,11 +147,11 @@ for (const locale of SUPPORTED_LOCALES) {
     await page.setViewportSize(MOBILE_VIEWPORT);
     await page.goto(
       `/qa/render?scenario=invite-landing-ko-mobile&locale=${encodeURIComponent(locale)}`,
+      { waitUntil: 'domcontentloaded', timeout: 12_000 },
     );
     await captureAndAssert(page, testInfo, `landing-${locale}-mobile`);
 
     await page.setViewportSize(DESKTOP_VIEWPORT);
-    await page.reload();
     await captureAndAssert(page, testInfo, `landing-${locale}-desktop`);
   });
 }
@@ -159,6 +162,7 @@ for (const locale of HIGH_RISK_LOCALES) {
       await page.setViewportSize(MOBILE_VIEWPORT);
       await page.goto(
         `/qa/state?state=${encodeURIComponent(stateId)}&locale=${encodeURIComponent(locale)}`,
+        { waitUntil: 'domcontentloaded', timeout: 12_000 },
       );
       await captureAndAssert(
         page,
