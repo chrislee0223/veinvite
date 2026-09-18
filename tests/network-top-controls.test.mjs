@@ -26,9 +26,12 @@ test('Network title is one compact row and search plus every primary control sha
 
   assert.match(source, /\.networkUtilityRow\{[^}]*display:flex/);
   assert.match(source, /\.compactControls\{[^}]*display:flex/);
-  assert.match(source, /\.searchWrap\{[^}]*max-width:120px[^}]*flex:0 1 120px/);
-  assert.match(source, /\.layoutControls button\{width:28px/);
-  assert.match(source, /\.viewControls\{display:grid;grid-template-columns:repeat\(4,28px\)/);
+  assert.match(source, /\.searchWrap\{[^}]*max-width:108px[^}]*flex:0 1 108px/);
+  assert.match(source, /\.layoutControls>button,\.groupMenuAnchor>button,\.groupBuilderAnchor>button\{width:28px/);
+  assert.match(source, /\.viewControls\{display:flex;align-items:center/);
+  assert.match(source, /className="editLayoutButton labeledControl"/);
+  assert.match(source, /className=\{\`groupsButton labeledControl/);
+  assert.match(source, /className="youControl labeledControl"/);
 });
 
 test('Network canvas fills the remaining tab height instead of creating page scroll', () => {
@@ -72,4 +75,18 @@ test('Network has one continuous canvas with no direct-node pagination', () => {
   assert.doesNotMatch(source, /pageCount/);
   assert.doesNotMatch(source, /safePage/);
   assert.match(source, /const positionedChildren = useMemo\(\(\) => \{[\s\S]*children\.map/);
+});
+
+
+test('group popovers are anchored to their current toolbar buttons instead of the old stage coordinates', () => {
+  const utility = source.indexOf('className="networkUtilityRow"');
+  const stage = source.indexOf('ref={stageRef}', utility);
+  const utilitySlice = source.slice(utility, stage);
+  assert.match(utilitySlice, /className="groupMenuAnchor"/);
+  assert.match(utilitySlice, /className="groupsPanel"/);
+  assert.match(utilitySlice, /className="groupBuilderAnchor"/);
+  assert.match(utilitySlice, /className="groupBuilder"/);
+  assert.match(source, /\.groupsPanel,\.groupBuilder\{position:absolute[^}]*top:calc\(100% \+ 7px\)[^}]*left:50%[^}]*translateX\(-50%\)/);
+  assert.doesNotMatch(source, /\.groupsPanel\{position:absolute;z-index:81;left:10px;top:50px/);
+  assert.doesNotMatch(source, /\.groupBuilder\{position:absolute;z-index:82;left:10px;top:50px/);
 });
