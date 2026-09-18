@@ -343,6 +343,13 @@ test('edit-mode drag commits only on completed drop and provisional group drops 
   assert.match(networkSource, /moveWorkspaceMemberToGroup\(drag\.originalWorkspace, drag\.key, targetGroup\.id\)/);
 });
 
+test('edit drag cancellation restores the pre-drag workspace for multitouch and provisional grouping', () => {
+  assert.match(networkSource, /const activeWorkspaceDrag = workspaceDragRef\.current/);
+  assert.match(networkSource, /setEditingWorkspace\(cloneNetworkFocusWorkspace\(activeWorkspaceDrag\.originalWorkspace\)\)/);
+  assert.match(networkSource, /groupingTimerRef\.current = window\.setTimeout\(\(\) => \{[\s\S]*setEditingWorkspace\(cloneNetworkFocusWorkspace\(drag\.originalWorkspace\)\)[\s\S]*setGroupDraft/);
+  assert.match(networkSource, /const finishLayoutEdit = useCallback[\s\S]*window\.clearTimeout\(groupingTimerRef\.current\)/);
+});
+
 test('group transfers are unique, same-group drops are no-ops, and long-press native UI stays blocked', () => {
   assert.match(workspaceSource, /target\.members\.some\(\(member\) => member\.toLowerCase\(\) === key\)\) return workspace/);
   assert.match(workspaceSource, /const members = group\.members\.filter\(\(member\) => member\.toLowerCase\(\) !== key\)/);
