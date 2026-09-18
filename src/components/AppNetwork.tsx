@@ -1144,14 +1144,12 @@ export function AppNetwork({ locale }: { locale: Locale }) {
       { x: FOCUS_X, y: FOCUS_Y },
       ...visibleChildren.map((child) => ({ x: child.x, y: child.y })),
       ...visibleGroups.map((group) => ({ x: group.x, y: group.y })),
+      ...positionedInviteSlots.map((slot) => ({ x: slot.x, y: slot.y })),
     ];
-    for (let index = 0; index < emptySlotCount; index += 1) {
-      points.push(inviteSlotPoint(index, isMobile));
-    }
     setCameraTransition(true);
     setView(fittedView(stageSize, points));
     window.setTimeout(() => setCameraTransition(false), FIT_TRANSITION_MS);
-  }, [stageSize, visibleChildren, visibleGroups, emptySlotCount, isMobile]);
+  }, [stageSize, visibleChildren, visibleGroups, positionedInviteSlots]);
 
   useEffect(() => {
     if (!wallet || loadState !== 'ready' || !currentData) return;
@@ -1410,8 +1408,14 @@ export function AppNetwork({ locale }: { locale: Locale }) {
     event: ReactPointerEvent<HTMLButtonElement>,
     key: string,
     point: Point,
+    kind: 'node' | 'slot' = 'node',
   ) => {
-    if (editingLayout || pendingFocus || !currentFocusKey || groupContainingWallet(committedWorkspace, key)) return;
+    if (
+      editingLayout ||
+      pendingFocus ||
+      !currentFocusKey ||
+      (kind === 'node' && groupContainingWallet(committedWorkspace, key))
+    ) return;
     const stage = stageRef.current;
     if (!stage) return;
     try { event.currentTarget.setPointerCapture(event.pointerId); } catch { /* best effort */ }
@@ -1436,7 +1440,7 @@ export function AppNetwork({ locale }: { locale: Locale }) {
       const hold = holdDragRef.current;
       if (!hold || hold.pointerId !== event.pointerId || pointersRef.current.size !== 1) return;
       hold.armed = true;
-      setDraggingWorkspaceKey('node:' + key);
+      setDraggingWorkspaceKey(`${kind}:${key}`);
     }, HOLD_TO_MOVE_MS);
   }, [editingLayout, pendingFocus, currentFocusKey, committedWorkspace, view]);
 
@@ -1578,9 +1582,9 @@ export function AppNetwork({ locale }: { locale: Locale }) {
       };
       setDraftWorkspace((current) => {
         if (!current) return current;
-        return workspaceDrag.kind === 'node'
-          ? withNodePosition(current, workspaceDrag.key, nextPoint)
-          : withGroupPosition(current, workspaceDrag.key, nextPoint);
+        return workspaceDrag.kind === 'group'
+          ? withGroupPosition(current, workspaceDrag.key, nextPoint)
+          : withNodePosition(current, workspaceDrag.key, nextPoint);
       });
       suppressClickRef.current = true;
       return;
