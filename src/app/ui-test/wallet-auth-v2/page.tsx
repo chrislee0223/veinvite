@@ -3,6 +3,7 @@ import { notFound } from 'next/navigation';
 
 import { VeWorldTypedAuthProbe } from '@/components/VeWorldTypedAuthProbe';
 
+// QA branch marker: pushes this preview-only probe to the isolated QA project.
 export const dynamic = 'force-dynamic';
 
 export const metadata: Metadata = {
