@@ -32,8 +32,8 @@ export const EMPTY_NETWORK_WORKSPACE_STORE: NetworkWorkspaceStore = {
   focus: {},
 };
 
-const MAX_GROUPS_PER_FOCUS = 24;
-const MAX_MEMBERS_PER_GROUP = 80;
+export const MAX_GROUPS_PER_FOCUS = 24;
+export const MAX_MEMBERS_PER_GROUP = 80;
 
 function finitePoint(value: unknown): NetworkWorkspacePoint | null {
   if (!value || typeof value !== 'object') return null;
@@ -57,7 +57,7 @@ function cleanPositionKey(value: unknown): string | null {
 }
 
 function keepValidGroups(groups: NetworkWorkspaceGroup[]): NetworkWorkspaceGroup[] {
-  return groups.filter((group) => group.members.length >= 2).slice(-MAX_GROUPS_PER_FOCUS);
+  return groups.filter((group) => group.members.length >= 1).slice(-MAX_GROUPS_PER_FOCUS);
 }
 
 export function cloneNetworkFocusWorkspace(
@@ -109,7 +109,7 @@ export function parseNetworkWorkspaceStore(raw: string | null): NetworkWorkspace
               ? group.members.map(cleanWallet).filter((wallet): wallet is string => Boolean(wallet))
               : [],
           )).slice(0, MAX_MEMBERS_PER_GROUP);
-          if (!point || members.length < 2 || typeof group.id !== 'string') continue;
+          if (!point || members.length < 1 || typeof group.id !== 'string') continue;
           groups.push({
             id: group.id.slice(0, 80),
             label: typeof group.label === 'string' ? group.label.slice(0, 42) : '',
@@ -206,19 +206,20 @@ export function addWorkspaceGroup(
   workspace: NetworkFocusWorkspace,
   group: NetworkWorkspaceGroup,
 ): NetworkFocusWorkspace {
-  const members = Array.from(new Set(group.members.map((wallet) => wallet.toLowerCase()))).slice(0, MAX_MEMBERS_PER_GROUP);
-  if (members.length < 2) return workspace;
+  const members = Array.from(new Set(group.members.map((wallet) => wallet.toLowerCase())));
+  if (members.length < 1 || members.length > MAX_MEMBERS_PER_GROUP) return workspace;
   const memberSet = new Set(members);
   const groups = keepValidGroups(workspace.groups.map((existing) => ({
     ...existing,
     members: existing.members.filter((wallet) => !memberSet.has(wallet.toLowerCase())),
   })));
+  if (groups.length >= MAX_GROUPS_PER_FOCUS) return workspace;
   return {
     ...workspace,
     groups: [
       ...groups,
       { ...group, members, collapsed: group.collapsed !== false },
-    ].slice(-MAX_GROUPS_PER_FOCUS),
+    ],
   };
 }
 
@@ -229,7 +230,11 @@ export function moveWorkspaceMemberToGroup(
 ): NetworkFocusWorkspace {
   const key = wallet.toLowerCase();
   const target = workspace.groups.find((group) => group.id === targetGroupId);
-  if (!target || target.members.some((member) => member.toLowerCase() === key)) return workspace;
+  if (
+    !target ||
+    target.members.some((member) => member.toLowerCase() === key) ||
+    target.members.length >= MAX_MEMBERS_PER_GROUP
+  ) return workspace;
 
   const groups = workspace.groups.map((group) => {
     const members = group.members.filter((member) => member.toLowerCase() !== key);

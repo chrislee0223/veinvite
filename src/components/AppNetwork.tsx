@@ -32,6 +32,8 @@ import {
 } from '@/lib/networkRootClientCache';
 import {
   EMPTY_NETWORK_WORKSPACE_STORE,
+  MAX_GROUPS_PER_FOCUS,
+  MAX_MEMBERS_PER_GROUP,
   addWorkspaceGroup,
   cloneNetworkFocusWorkspace,
   groupContainingWallet,
@@ -155,7 +157,10 @@ const INTRO_HOLD_MS = 150;
 const INTRO_END_MS = 940;
 const READABLE_FIT_MIN = 0.46;
 const GOLDEN_ANGLE = Math.PI * (3 - Math.sqrt(5));
-const GROUP_DROP_MS = 160;
+const GROUP_DROP_MS = 180;
+const GROUP_HUB_IN_MS = 220;
+const GROUP_DROP_HIT_SLOP_X = 18;
+const GROUP_DROP_HIT_SLOP_Y = 14;
 const HOLD_TO_MOVE_MS = 500;
 const HOLD_CANCEL_DISTANCE = 8;
 const NODE_ENTER_SCALE = 1.85;
@@ -555,6 +560,9 @@ export function AppNetwork({ locale }: { locale: Locale }) {
   const workspaceDragRef = useRef<WorkspaceDrag | null>(null);
   const draftWorkspaceRef = useRef<NetworkFocusWorkspace | null>(null);
   const groupingTimerRef = useRef<number | null>(null);
+  const groupingRestoreWorkspaceRef = useRef<NetworkFocusWorkspace | null>(null);
+  const restoreTimerRef = useRef<number | null>(null);
+  const groupCreatedTimerRef = useRef<number | null>(null);
   const noticeTimerRef = useRef<number | null>(null);
   const introFitTimerRef = useRef<number | null>(null);
   const introEndTimerRef = useRef<number | null>(null);
@@ -598,6 +606,9 @@ export function AppNetwork({ locale }: { locale: Locale }) {
   const [selectedGroupId, setSelectedGroupId] = useState<string | null>(null);
   const [draggingWorkspaceKey, setDraggingWorkspaceKey] = useState<string | null>(null);
   const [groupingWallet, setGroupingWallet] = useState<string | null>(null);
+  const [groupDropActive, setGroupDropActive] = useState(false);
+  const [restoringWallets, setRestoringWallets] = useState<string[]>([]);
+  const [createdGroupId, setCreatedGroupId] = useState<string | null>(null);
   const [workspaceNotice, setWorkspaceNotice] = useState('');
   const [introActive, setIntroActive] = useState(false);
   const [headerMetrics, setHeaderMetrics] = useState<NetworkHeaderMetrics | null>(
@@ -733,9 +744,12 @@ export function AppNetwork({ locale }: { locale: Locale }) {
     activeWorkspace.groups.forEach((group) => {
       if (group.collapsed !== false) group.members.forEach((member) => keys.add(keyWallet(member)));
     });
-    groupDraft?.members.forEach((member) => keys.add(keyWallet(member)));
+    groupDraft?.members.forEach((member) => {
+      const key = keyWallet(member);
+      if (key !== groupingWallet) keys.add(key);
+    });
     return keys;
-  }, [activeWorkspace.groups, groupDraft]);
+  }, [activeWorkspace.groups, groupDraft, groupingWallet]);
 
   const visibleChildren = useMemo(
     () => displayedChildren.filter((child) => {
@@ -745,14 +759,20 @@ export function AppNetwork({ locale }: { locale: Locale }) {
     [displayedChildren, hiddenGroupMembers, activeInviteeKeys],
   );
 
-  const visibleWalletKeys = useMemo(
-    () => new Set(visibleChildren.map((child) => keyWallet(child.wallet))),
-    [visibleChildren],
+  const groupEligibleWalletKeys = useMemo(
+    () => new Set(
+      positionedChildren
+        .map((child) => keyWallet(child.wallet))
+        .filter((key) => !activeInviteeKeys.has(key)),
+    ),
+    [positionedChildren, activeInviteeKeys],
   );
 
   const visibleGroups = useMemo(
-    () => activeWorkspace.groups.filter((group) => group.members.some((member) => visibleWalletKeys.has(keyWallet(member)))),
-    [activeWorkspace.groups, visibleWalletKeys],
+    () => activeWorkspace.groups.filter((group) =>
+      group.members.some((member) => groupEligibleWalletKeys.has(keyWallet(member))),
+    ),
+    [activeWorkspace.groups, groupEligibleWalletKeys],
   );
 
   const nearestVisibleChild = useCallback((point: Point, radius = NODE_HIT_RADIUS): PositionedChild | null => {
@@ -798,7 +818,10 @@ export function AppNetwork({ locale }: { locale: Locale }) {
   const selectedGroup = selectedGroupId
     ? activeWorkspace.groups.find((group) => group.id === selectedGroupId) ?? null
     : null;
-
+  const restoringWalletSet = useMemo(
+    () => new Set(restoringWallets.map(keyWallet)),
+    [restoringWallets],
+  );
 
   const clearNavigationTimer = useCallback(() => {
     if (navigationTimerRef.current !== null) {
@@ -820,6 +843,15 @@ export function AppNetwork({ locale }: { locale: Locale }) {
       window.clearTimeout(groupingTimerRef.current);
       groupingTimerRef.current = null;
     }
+    if (restoreTimerRef.current !== null) {
+      window.clearTimeout(restoreTimerRef.current);
+      restoreTimerRef.current = null;
+    }
+    if (groupCreatedTimerRef.current !== null) {
+      window.clearTimeout(groupCreatedTimerRef.current);
+      groupCreatedTimerRef.current = null;
+    }
+    groupingRestoreWorkspaceRef.current = null;
     if (noticeTimerRef.current !== null) {
       window.clearTimeout(noticeTimerRef.current);
       noticeTimerRef.current = null;
@@ -884,6 +916,49 @@ export function AppNetwork({ locale }: { locale: Locale }) {
     const current = draftWorkspaceRef.current;
     if (current) persistFocusWorkspace(current);
   }, [persistFocusWorkspace]);
+
+  const isInsideGroupDropTarget = useCallback((clientX: number, clientY: number) => {
+    const rect = groupDropRef.current?.getBoundingClientRect();
+    if (!rect) return false;
+    return (
+      clientX >= rect.left - GROUP_DROP_HIT_SLOP_X &&
+      clientX <= rect.right + GROUP_DROP_HIT_SLOP_X &&
+      clientY >= rect.top - GROUP_DROP_HIT_SLOP_Y &&
+      clientY <= rect.bottom + GROUP_DROP_HIT_SLOP_Y
+    );
+  }, []);
+
+  const animateRestoredWallets = useCallback((wallets: string[]) => {
+    const keys = Array.from(new Set(wallets.map(keyWallet)));
+    if (!keys.length) return;
+    if (restoreTimerRef.current !== null) window.clearTimeout(restoreTimerRef.current);
+    setRestoringWallets(keys);
+    restoreTimerRef.current = window.setTimeout(() => {
+      restoreTimerRef.current = null;
+      setRestoringWallets([]);
+    }, GROUP_DROP_MS);
+  }, []);
+
+  const restorePendingGroupDrop = useCallback(() => {
+    if (groupingTimerRef.current !== null) {
+      window.clearTimeout(groupingTimerRef.current);
+      groupingTimerRef.current = null;
+    }
+    const restoreWorkspace = groupingRestoreWorkspaceRef.current;
+    if (restoreWorkspace) setEditingWorkspace(cloneNetworkFocusWorkspace(restoreWorkspace));
+    groupingRestoreWorkspaceRef.current = null;
+    setGroupingWallet(null);
+    setGroupDropActive(false);
+  }, [setEditingWorkspace]);
+
+  const markGroupCreated = useCallback((groupId: string) => {
+    if (groupCreatedTimerRef.current !== null) window.clearTimeout(groupCreatedTimerRef.current);
+    setCreatedGroupId(groupId);
+    groupCreatedTimerRef.current = window.setTimeout(() => {
+      groupCreatedTimerRef.current = null;
+      setCreatedGroupId(null);
+    }, GROUP_HUB_IN_MS);
+  }, []);
 
   const persistNodePosition = useCallback((walletKey: string, point: Point) => {
     if (!wallet || !currentFocusKey) return;
@@ -1534,12 +1609,19 @@ export function AppNetwork({ locale }: { locale: Locale }) {
 
   const finishLayoutEdit = useCallback(() => {
     workspaceDragRef.current = null;
-    if (groupingTimerRef.current !== null) {
-      window.clearTimeout(groupingTimerRef.current);
-      groupingTimerRef.current = null;
+    restorePendingGroupDrop();
+    if (restoreTimerRef.current !== null) {
+      window.clearTimeout(restoreTimerRef.current);
+      restoreTimerRef.current = null;
     }
+    if (groupCreatedTimerRef.current !== null) {
+      window.clearTimeout(groupCreatedTimerRef.current);
+      groupCreatedTimerRef.current = null;
+    }
+    setRestoringWallets([]);
+    setCreatedGroupId(null);
     setDraggingWorkspaceKey(null);
-    setGroupingWallet(null);
+    setGroupDropActive(false);
     setGroupDraft(null);
     setGroupsOpen(false);
     draftWorkspaceRef.current = null;
@@ -1552,21 +1634,29 @@ export function AppNetwork({ locale }: { locale: Locale }) {
       noticeTimerRef.current = null;
       setWorkspaceNotice('');
     }, 1400);
-  }, [w.layoutSaved]);
+  }, [w.layoutSaved, restorePendingGroupDrop]);
 
   const beginGroupCreation = useCallback(() => {
     if (!currentFocusKey) return;
+    const sourceWorkspace = editingLayout
+      ? draftWorkspaceRef.current ?? committedWorkspace
+      : workspaceForFocus(workspaceStore, currentFocusKey);
+    if (sourceWorkspace.groups.length >= MAX_GROUPS_PER_FOCUS) return;
+
     stopIntroForInteraction();
+    restorePendingGroupDrop();
     if (!editingLayout) {
-      const workspace = cloneNetworkFocusWorkspace(workspaceForFocus(workspaceStore, currentFocusKey));
+      const workspace = cloneNetworkFocusWorkspace(sourceWorkspace);
       setEditingWorkspace(workspace);
       setEditingLayout(true);
     } else if (!draftWorkspaceRef.current) {
       setEditingWorkspace(cloneNetworkFocusWorkspace(committedWorkspace));
     }
     setGroupsOpen(false);
+    closeSearch();
     setSelectedWallet(null);
     setSelectedGroupId(null);
+    setGroupDropActive(false);
     setGroupDraft({ id: newGroupId(), label: '', members: [] });
     setWorkspaceNotice('');
   }, [
@@ -1576,7 +1666,27 @@ export function AppNetwork({ locale }: { locale: Locale }) {
     committedWorkspace,
     setEditingWorkspace,
     stopIntroForInteraction,
+    restorePendingGroupDrop,
+    closeSearch,
   ]);
+
+  const cancelGroupCreation = useCallback(() => {
+    const members = groupDraft?.members ?? [];
+    restorePendingGroupDrop();
+    if (members.length) animateRestoredWallets(members);
+    setGroupDropActive(false);
+    setGroupDraft(null);
+  }, [groupDraft, restorePendingGroupDrop, animateRestoredWallets]);
+
+  const removeDraftGroupMember = useCallback((member: string) => {
+    const key = keyWallet(member);
+    if (groupingWallet === key) restorePendingGroupDrop();
+    animateRestoredWallets([key]);
+    setGroupDraft((current) => current ? {
+      ...current,
+      members: current.members.filter((walletKey) => keyWallet(walletKey) !== key),
+    } : current);
+  }, [groupingWallet, restorePendingGroupDrop, animateRestoredWallets]);
 
   const toggleGroupCollapsed = useCallback((groupId: string) => {
     if (editingLayout) {
@@ -1594,7 +1704,14 @@ export function AppNetwork({ locale }: { locale: Locale }) {
 
   const createDraftGroup = useCallback(() => {
     const workspace = draftWorkspaceRef.current;
-    if (!groupDraft || !workspace || groupDraft.members.length < 2) return;
+    if (
+      !groupDraft ||
+      !workspace ||
+      groupingWallet ||
+      groupDraft.members.length < 1 ||
+      groupDraft.members.length > MAX_MEMBERS_PER_GROUP
+    ) return;
+
     const members = groupDraft.members.map(keyWallet);
     const memberSet = new Set(members);
     const memberPositions = positionedChildren
@@ -1607,15 +1724,27 @@ export function AppNetwork({ locale }: { locale: Locale }) {
       ? memberPositions.reduce((sum, point) => sum + point.y, 0) / memberPositions.length
       : FOCUS_Y + 200;
     const label = groupDraft.label.trim() || `${w.group} ${workspace.groups.length + 1}`;
-    commitEditingWorkspace(addWorkspaceGroup(workspace, {
+    const nextWorkspace = addWorkspaceGroup(workspace, {
       id: groupDraft.id,
       label,
       members,
       x,
       y,
-    }));
+    });
+    if (nextWorkspace === workspace) return;
+
+    commitEditingWorkspace(nextWorkspace);
+    markGroupCreated(groupDraft.id);
+    setGroupDropActive(false);
     setGroupDraft(null);
-  }, [groupDraft, positionedChildren, w.group, commitEditingWorkspace]);
+  }, [
+    groupDraft,
+    groupingWallet,
+    positionedChildren,
+    w.group,
+    commitEditingWorkspace,
+    markGroupCreated,
+  ]);
 
   const beginWorkspaceDrag = useCallback((
     event: ReactPointerEvent<HTMLButtonElement>,
@@ -1624,7 +1753,7 @@ export function AppNetwork({ locale }: { locale: Locale }) {
     point: Point,
   ) => {
     const workspace = draftWorkspaceRef.current;
-    if (!editingLayout || !workspace) return;
+    if (!editingLayout || !workspace || groupingWallet) return;
     const stage = stageRef.current;
     if (!stage) return;
     event.preventDefault();
@@ -1643,10 +1772,11 @@ export function AppNetwork({ locale }: { locale: Locale }) {
       originalWorkspace: cloneNetworkFocusWorkspace(workspace),
     };
     suppressClickRef.current = true;
+    setGroupDropActive(false);
     setDraggingWorkspaceKey(`${kind}:${key}`);
     setSelectedWallet(null);
     setSelectedGroupId(null);
-  }, [editingLayout, view]);
+  }, [editingLayout, groupingWallet, view]);
 
   const cancelHoldDrag = useCallback((restore = false) => {
     if (holdTimerRef.current !== null) {
@@ -1701,6 +1831,8 @@ export function AppNetwork({ locale }: { locale: Locale }) {
   }, [editingLayout, pendingFocus, currentFocusKey, committedWorkspace, view]);
 
   const finishWorkspaceDrop = useCallback((event: ReactPointerEvent<HTMLDivElement>, drag: WorkspaceDrag) => {
+    setGroupDropActive(false);
+
     if (event.type !== 'pointerup') {
       setEditingWorkspace(cloneNetworkFocusWorkspace(drag.originalWorkspace));
       return;
@@ -1711,28 +1843,31 @@ export function AppNetwork({ locale }: { locale: Locale }) {
       return;
     }
 
-    const draftRect = groupDropRef.current?.getBoundingClientRect();
-    const insideDraft = Boolean(
-      groupDraft &&
-      draftRect &&
-      event.clientX >= draftRect.left &&
-      event.clientX <= draftRect.right &&
-      event.clientY >= draftRect.top &&
-      event.clientY <= draftRect.bottom
-    );
-    if (insideDraft && groupDraft && !groupDraft.members.includes(drag.key)) {
-      // Keep the node at the drop point for the short fade-out. Once hidden
-      // in the provisional group, restore its standalone coordinates behind
-      // the scenes so cancelling the builder returns it exactly.
+    if (groupDraft) {
+      const insideDraft = isInsideGroupDropTarget(event.clientX, event.clientY);
+      const alreadyAdded = groupDraft.members.some((member) => keyWallet(member) === keyWallet(drag.key));
+      const atCapacity = groupDraft.members.length >= MAX_MEMBERS_PER_GROUP;
+
+      if (!insideDraft || alreadyAdded || atCapacity) {
+        setEditingWorkspace(cloneNetworkFocusWorkspace(drag.originalWorkspace));
+        return;
+      }
+
+      groupingRestoreWorkspaceRef.current = cloneNetworkFocusWorkspace(drag.originalWorkspace);
       setGroupingWallet(drag.key);
+      setGroupDraft((current) => {
+        if (!current) return current;
+        if (current.members.some((member) => keyWallet(member) === keyWallet(drag.key))) return current;
+        if (current.members.length >= MAX_MEMBERS_PER_GROUP) return current;
+        return { ...current, members: [...current.members, keyWallet(drag.key)] };
+      });
+
       if (groupingTimerRef.current !== null) window.clearTimeout(groupingTimerRef.current);
       groupingTimerRef.current = window.setTimeout(() => {
         groupingTimerRef.current = null;
-        setEditingWorkspace(cloneNetworkFocusWorkspace(drag.originalWorkspace));
-        setGroupDraft((current) => {
-          if (!current || current.members.includes(drag.key)) return current;
-          return { ...current, members: [...current.members, drag.key] };
-        });
+        const restoreWorkspace = groupingRestoreWorkspaceRef.current;
+        if (restoreWorkspace) setEditingWorkspace(cloneNetworkFocusWorkspace(restoreWorkspace));
+        groupingRestoreWorkspaceRef.current = null;
         setGroupingWallet(null);
       }, GROUP_DROP_MS);
       return;
@@ -1750,11 +1885,17 @@ export function AppNetwork({ locale }: { locale: Locale }) {
     };
     const targetGroup = nearestVisibleGroup(worldPoint);
     if (targetGroup) {
-      // Membership changes keep the node's saved standalone position intact,
-      // so ungrouping returns it to the place the user chose before grouping.
-      commitEditingWorkspace(
-        moveWorkspaceMemberToGroup(drag.originalWorkspace, drag.key, targetGroup.id),
+      const nextWorkspace = moveWorkspaceMemberToGroup(
+        drag.originalWorkspace,
+        drag.key,
+        targetGroup.id,
       );
+      if (nextWorkspace !== drag.originalWorkspace) {
+        animateRestoredWallets([drag.key]);
+        commitEditingWorkspace(nextWorkspace);
+      } else {
+        setEditingWorkspace(cloneNetworkFocusWorkspace(drag.originalWorkspace));
+      }
       return;
     }
 
@@ -1763,6 +1904,8 @@ export function AppNetwork({ locale }: { locale: Locale }) {
     groupDraft,
     view,
     nearestVisibleGroup,
+    isInsideGroupDropTarget,
+    animateRestoredWallets,
     setEditingWorkspace,
     commitEditingWorkspace,
     commitCurrentDraftWorkspace,
@@ -1797,6 +1940,7 @@ export function AppNetwork({ locale }: { locale: Locale }) {
       }
       workspaceDragRef.current = null;
       setDraggingWorkspaceKey(null);
+      setGroupDropActive(false);
       const [a, b] = Array.from(pointersRef.current.values());
       const center = midpoint(a, b);
       const startView = view;
@@ -1859,6 +2003,17 @@ export function AppNetwork({ locale }: { locale: Locale }) {
       pointersRef.current.size === 1 &&
       editingLayout
     ) {
+      if (workspaceDrag.kind === 'node' && groupDraft) {
+        const alreadyAdded = groupDraft.members.some((member) => keyWallet(member) === keyWallet(workspaceDrag.key));
+        setGroupDropActive(
+          !alreadyAdded &&
+          groupDraft.members.length < MAX_MEMBERS_PER_GROUP &&
+          isInsideGroupDropTarget(event.clientX, event.clientY),
+        );
+      } else {
+        setGroupDropActive(false);
+      }
+
       const rect = stageRef.current?.getBoundingClientRect();
       if (!rect) return;
       const worldPoint = {
@@ -1927,6 +2082,7 @@ export function AppNetwork({ locale }: { locale: Locale }) {
   };
 
   const onPointerEndCapture = (event: ReactPointerEvent<HTMLDivElement>) => {
+    setGroupDropActive(false);
     const holdDrag = holdDragRef.current;
     if (holdDrag && holdDrag.pointerId === event.pointerId) {
       if (holdTimerRef.current !== null) {
@@ -2169,6 +2325,15 @@ export function AppNetwork({ locale }: { locale: Locale }) {
         </div>
 
         <div className="compactControls">
+          <div className="viewControls">
+            <button type="button" className="youControl" onClick={returnToYou} aria-label={c.you} title={c.you}>
+              <span aria-hidden="true">◎</span>
+            </button>
+            <button type="button" className="fitButton" onClick={() => { stopIntroForInteraction(); fitNetwork(); }} aria-label={w.fit} title={w.fit}>⛶</button>
+            <button type="button" onClick={() => zoomByButton(-1)} aria-label={c.zoomOut} title={c.zoomOut}>−</button>
+            <button type="button" onClick={() => zoomByButton(1)} aria-label={c.zoomIn} title={c.zoomIn}>+</button>
+          </div>
+
           <div className="layoutControls">
             <button
               type="button"
@@ -2186,7 +2351,7 @@ export function AppNetwork({ locale }: { locale: Locale }) {
                 onClick={() => {
                   stopIntroForInteraction();
                   if (groupDraft) {
-                    setGroupDraft(null);
+                    cancelGroupCreation();
                     setGroupsOpen(false);
                     return;
                   }
@@ -2202,7 +2367,7 @@ export function AppNetwork({ locale }: { locale: Locale }) {
                 <aside className="groupBuilder" data-no-pan="true">
                   <div className="groupBuilderHead">
                     <strong>{w.newGroup}</strong>
-                    <button type="button" onClick={() => setGroupDraft(null)} aria-label={c.close}>×</button>
+                    <button type="button" onClick={cancelGroupCreation} aria-label={c.close}>×</button>
                   </div>
                   <input
                     value={groupDraft.label}
@@ -2210,11 +2375,15 @@ export function AppNetwork({ locale }: { locale: Locale }) {
                     placeholder={w.groupName}
                     aria-label={w.groupName}
                     maxLength={42}
+                    autoComplete="off"
                   />
-                  <div ref={groupDropRef} className="groupDropZone">
+                  <div
+                    ref={groupDropRef}
+                    className={`groupDropZone${groupDropActive ? ' active' : ''}${groupingWallet ? ' memberAdded' : ''}`}
+                  >
                     <span className="dropIcon" aria-hidden="true">＋</span>
                     <strong>{w.dropHere}</strong>
-                    <small>{groupDraft.members.length} {w.members}</small>
+                    <small aria-live="polite">{groupDraft.members.length} {w.members}</small>
                   </div>
                   {groupDraft.members.length ? (
                     <div className="groupDraftMembers">
@@ -2223,10 +2392,7 @@ export function AppNetwork({ locale }: { locale: Locale }) {
                           type="button"
                           key={member}
                           title={member}
-                          onClick={() => setGroupDraft((current) => current ? {
-                            ...current,
-                            members: current.members.filter((walletKey) => walletKey !== member),
-                          } : current)}
+                          onClick={() => removeDraftGroupMember(member)}
                         >
                           {shortWallet(member)} <span>×</span>
                         </button>
@@ -2236,10 +2402,10 @@ export function AppNetwork({ locale }: { locale: Locale }) {
                   <button
                     type="button"
                     className="createGroupButton"
-                    disabled={groupDraft.members.length < 2}
+                    disabled={groupDraft.members.length < 1 || Boolean(groupingWallet)}
                     onClick={createDraftGroup}
                   >
-                    {groupDraft.members.length < 2 ? w.needTwo : w.createGroup}
+                    {w.createGroup}
                   </button>
                 </aside>
               ) : groupsOpen ? (
@@ -2258,19 +2424,15 @@ export function AppNetwork({ locale }: { locale: Locale }) {
                       ))}
                     </div>
                   ) : <p>{w.noGroups}</p>}
-                  <button type="button" className="createFirstGroup" onClick={beginGroupCreation}>+ {w.newGroup}</button>
+                  <button
+                    type="button"
+                    className="createFirstGroup"
+                    onClick={beginGroupCreation}
+                    disabled={activeWorkspace.groups.length >= MAX_GROUPS_PER_FOCUS}
+                  >+ {w.newGroup}</button>
                 </aside>
               ) : null}
             </div>
-          </div>
-
-          <div className="viewControls">
-            <button type="button" className="youControl" onClick={returnToYou} aria-label={c.you} title={c.you}>
-              <span aria-hidden="true">◎</span>
-            </button>
-            <button type="button" className="fitButton" onClick={() => { stopIntroForInteraction(); fitNetwork(); }} aria-label={w.fit} title={w.fit}>⛶</button>
-            <button type="button" onClick={() => zoomByButton(1)} aria-label={c.zoomIn} title={c.zoomIn}>+</button>
-            <button type="button" onClick={() => zoomByButton(-1)} aria-label={c.zoomOut} title={c.zoomOut}>−</button>
           </div>
         </div>
       </div>
@@ -2385,11 +2547,11 @@ export function AppNetwork({ locale }: { locale: Locale }) {
                 )}
               </span>
               <span className="nodeMeta">
+                <strong>{nodeWallet(currentData.focusWallet)}</strong>
                 <span className="nodeNetworkMetric">
                   <NetworkCountGlyph />
                   <span>{currentData.summary.network.toLocaleString()}</span>
                 </span>
-                <strong>{nodeWallet(currentData.focusWallet)}</strong>
               </span>
             </button>
 
@@ -2401,7 +2563,7 @@ export function AppNetwork({ locale }: { locale: Locale }) {
                 <button
                   type="button"
                   key={childKey}
-                  className={`personNode childNode status-${child.status.toLowerCase()}${isSelected ? ' selected' : ''}${editingLayout ? ' draggable' : ''}${draggingWorkspaceKey === dragKey ? ' dragging' : ''}${groupingWallet === childKey ? ' grouping' : ''}`}
+                  className={`personNode childNode status-${child.status.toLowerCase()}${isSelected ? ' selected' : ''}${editingLayout ? ' draggable' : ''}${draggingWorkspaceKey === dragKey ? ' dragging' : ''}${groupingWallet === childKey ? ' grouping' : ''}${restoringWalletSet.has(childKey) ? ' restoring' : ''}`}
                   style={{ left: child.x, top: child.y }}
                   onPointerDown={(event) => {
                     if (editingLayout) beginWorkspaceDrag(event, 'node', childKey, { x: child.x, y: child.y });
@@ -2418,6 +2580,7 @@ export function AppNetwork({ locale }: { locale: Locale }) {
                 >
                   <span className="nodeCircle"><NetworkIdentity address={child.wallet} showLabel={false} /></span>
                   <span className="nodeMeta">
+                    <strong>{nodeWallet(child.wallet)}</strong>
                     {child.status === 'IN_PROGRESS' ? (
                       <small className="nodeProgressStatus">{t.inProgress}</small>
                     ) : (
@@ -2426,7 +2589,6 @@ export function AppNetwork({ locale }: { locale: Locale }) {
                         <span>{child.network.toLocaleString()}</span>
                       </span>
                     )}
-                    <strong>{nodeWallet(child.wallet)}</strong>
                   </span>
                   {pendingFocus === childKey ? <span className="nodeBusy" aria-hidden="true" /> : null}
                 </button>
@@ -2438,7 +2600,7 @@ export function AppNetwork({ locale }: { locale: Locale }) {
               return (
                 <button
                   type="button"
-                  className={`groupNode${editingLayout ? ' draggable' : ''}${draggingWorkspaceKey === dragKey ? ' dragging' : ''}${selectedGroupId === group.id ? ' selected' : ''}${group.collapsed === false ? ' expanded' : ''}`}
+                  className={`groupNode${editingLayout ? ' draggable' : ''}${draggingWorkspaceKey === dragKey ? ' dragging' : ''}${selectedGroupId === group.id ? ' selected' : ''}${group.collapsed === false ? ' expanded' : ''}${createdGroupId === group.id ? ' created' : ''}`}
                   key={group.id}
                   style={{ left: group.x, top: group.y }}
                   onPointerDown={editingLayout ? (event) => beginWorkspaceDrag(event, 'group', group.id, { x: group.x, y: group.y }) : undefined}
@@ -2584,7 +2746,15 @@ export function AppNetwork({ locale }: { locale: Locale }) {
               {selectedGroup.members.map((member) => (
                 <span key={member} title={member}>
                   {shortWallet(member)}
-                  {editingLayout ? <button type="button" onClick={() => mutateEditingWorkspace((current) => removeWorkspaceMemberFromGroup(current, member))}>×</button> : null}
+                  {editingLayout ? (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        animateRestoredWallets([member]);
+                        mutateEditingWorkspace((current) => removeWorkspaceMemberFromGroup(current, member));
+                      }}
+                    >×</button>
+                  ) : null}
                 </span>
               ))}
             </div>
@@ -2596,6 +2766,7 @@ export function AppNetwork({ locale }: { locale: Locale }) {
                 type="button"
                 className="ungroupButton"
                 onClick={() => {
+                  animateRestoredWallets(selectedGroup.members);
                   mutateEditingWorkspace((current) => removeWorkspaceGroup(current, selectedGroup.id));
                   setSelectedGroupId(null);
                 }}
@@ -2624,21 +2795,21 @@ export function AppNetwork({ locale }: { locale: Locale }) {
         .compactControls{flex:0 0 auto;margin-left:auto;display:flex;align-items:center;gap:3px}.networkStage{position:relative;flex:1 1 auto;min-height:0;height:auto;overflow:hidden;touch-action:none;overscroll-behavior:contain;background:radial-gradient(ellipse at 50% 50%,rgba(244,183,40,.036),transparent 36%),#080807;cursor:grab;user-select:none;-webkit-user-select:none}.networkStage:active{cursor:grabbing}.networkStage.layoutEditing{box-shadow:inset 0 0 0 1px rgba(244,183,40,.11)}
         .world{position:absolute;top:0;left:0;will-change:transform;backface-visibility:hidden}.world.cameraTransition{transition:transform ${NAVIGATION_MS}ms cubic-bezier(.18,.82,.2,1)}.introActive .world.cameraTransition{transition-duration:${FIT_TRANSITION_MS}ms}.worldContent{position:absolute;inset:0;transform-origin:${FOCUS_X}px ${FOCUS_Y}px}.worldContent.scenePending{opacity:0;pointer-events:none}.worldContent.sceneReady{opacity:1;transition:opacity 120ms ease-out}.worldContent.nav-forward{animation:networkForward ${NAVIGATION_MS}ms cubic-bezier(.18,.82,.2,1)}.worldContent.nav-back{animation:networkBack ${NAVIGATION_MS}ms cubic-bezier(.18,.82,.2,1)}
         .edges{position:absolute;inset:0;overflow:visible;pointer-events:none;z-index:2}.edge{fill:none;stroke:rgba(176,145,73,.31);stroke-width:1.05;stroke-linecap:round;vector-effect:non-scaling-stroke}.edge.rewarded{stroke:rgba(232,183,62,.46)}.edge.groupEdge{stroke:rgba(224,178,65,.42);stroke-width:1.15;stroke-dasharray:4 8}.groupMemberEdge{stroke:rgba(194,157,75,.32);stroke-width:.95;stroke-dasharray:4 8}.continuationEdge{fill:none;stroke:rgba(176,145,73,.24);stroke-width:1;stroke-linecap:round;vector-effect:non-scaling-stroke}.slotEdgeBase,.slotEdgePulse,.slotEdgeProgress{fill:none;stroke-linecap:round;pointer-events:none;vector-effect:non-scaling-stroke}.slotEdgeBase{stroke:rgba(226,188,79,.62);stroke-width:1.05;opacity:.5}.slotEdgePulse{stroke:rgba(255,210,76,.95);stroke-width:1.55;stroke-dasharray:5 38;opacity:.8;filter:drop-shadow(0 0 2px rgba(244,183,40,.28));animation:networkSlotFlow 2.45s linear infinite}.slotEdgeProgress{stroke:rgba(244,183,40,.62);stroke-width:1.25;stroke-dasharray:3 7;opacity:.78}
-        .personNode,.slotNode,.groupNode{position:absolute;z-index:6;transform:translate(-50%,-50%);font:inherit;translate:none}.personNode{width:52px;height:52px;padding:0;border:0;border-radius:50%;background:transparent;color:#d9d4ca;display:block;cursor:pointer;user-select:none;-webkit-user-select:none;-webkit-touch-callout:none;touch-action:none;isolation:isolate}.focusNode{width:74px;height:74px;z-index:8}.childNode::before,.slotNode::before{content:'';position:absolute;left:50%;top:50%;border-radius:50%;transform:translate(-50%,-50%);pointer-events:none;z-index:0}.childNode::before{width:58px;height:58px;background:radial-gradient(circle,rgba(8,8,7,.94) 0 87%,rgba(8,8,7,.58) 91%,rgba(8,8,7,.17) 96%,rgba(8,8,7,0) 100%)}.slotNode::before{width:52px;height:52px;background:radial-gradient(circle,rgba(8,8,7,.92) 0 86%,rgba(8,8,7,.54) 91%,rgba(8,8,7,.15) 96%,rgba(8,8,7,0) 100%)}.nodeCircle,.slotCircle{position:absolute;inset:0;z-index:1;display:grid;place-items:center;border-radius:50%;box-sizing:border-box;background:#0d0d0b;overflow:hidden;transition:transform 170ms ease,border-color 170ms ease,box-shadow 170ms ease}.nodeCircle{border:1px solid rgba(210,174,65,.38);box-shadow:0 0 22px rgba(244,183,40,.025);transform:scale(var(--network-node-scale,1))}.focusCircle{border-color:rgba(255,207,71,.82);background:radial-gradient(circle at 50% 45%,rgb(24,21,13) 0%,rgb(13,13,11) 62%,rgb(13,13,11) 100%);box-shadow:0 0 0 1px rgba(244,183,40,.07),0 0 28px rgba(244,183,40,.08);transform:scale(var(--network-center-scale,1))}.focusNode::before{content:'';position:absolute;inset:-7px;border:1px solid rgba(244,183,40,.42);border-radius:50%;box-shadow:0 0 18px rgba(244,183,40,.055);animation:networkYouBreath 2.8s ease-in-out infinite;pointer-events:none}.introActive .focusNode::before{animation:networkYouIntro .72s ease-out 1,networkYouBreath 2.8s .72s ease-in-out infinite}.personNode:hover .nodeCircle,.personNode:focus-visible .nodeCircle,.personNode.selected .nodeCircle{border-color:rgba(244,183,40,.78);box-shadow:0 0 0 3px rgba(244,183,40,.08),0 0 26px rgba(244,183,40,.1);transform:scale(var(--network-node-selected-scale,1.07))}.focusNode:hover .focusCircle,.focusNode:focus-visible .focusCircle,.focusNode.selected .focusCircle{transform:scale(var(--network-center-selected-scale,1.07))}.childNode.status-rewarded .nodeCircle{border-color:rgba(232,183,62,.58)}.childNode.status-qualified .nodeCircle{border-color:rgba(193,166,90,.46)}.personNode.draggable,.slotNode.draggable,.groupNode.draggable{cursor:grab}.personNode.draggable:active,.slotNode.draggable:active,.groupNode.draggable:active{cursor:grabbing}.personNode.dragging,.slotNode.dragging{z-index:14}.personNode.dragging .nodeCircle,.slotNode.dragging .slotCircle{border-color:rgba(244,183,40,.92);box-shadow:0 0 0 4px rgba(244,183,40,.12),0 0 30px rgba(244,183,40,.18)}.groupNode.dragging{z-index:14;border-color:rgba(244,183,40,.82);box-shadow:0 14px 30px rgba(0,0,0,.34),0 0 0 3px rgba(244,183,40,.1)}.personNode.grouping{animation:groupDropAway ${GROUP_DROP_MS}ms ease forwards}
-        .nodeCircle :global(.identity){width:100%;height:100%;display:grid;place-items:center}.nodeCircle :global(.avatarSlot){position:relative;display:grid;place-items:center}.childNode .nodeCircle :global(.avatarSlot),.childNode .nodeCircle :global(.neutralAvatar),.childNode .nodeCircle :global(.avatarSlot img){width:40px!important;height:40px!important}.focusNode .nodeCircle :global(.avatarSlot),.focusNode .nodeCircle :global(.neutralAvatar),.focusNode .nodeCircle :global(.avatarSlot img){width:56px!important;height:56px!important}.nodeCircle :global(.neutralAvatar){display:grid;place-items:center;border:0;border-radius:50%;background:#171611;color:#8e7b50}.nodeCircle :global(.avatarSlot img){position:absolute;inset:0;margin:auto;border-radius:50%;object-fit:cover;transition:opacity 160ms ease}.focusYouLabel{display:grid;place-items:center;width:100%;height:100%;color:#edc65c;font-size:.78rem;font-weight:950;letter-spacing:-.03em}.nodeMeta{position:absolute;left:50%;z-index:2;width:92px;display:grid;justify-items:center;gap:2px;transform:translateX(-50%);opacity:var(--network-label-opacity,1);pointer-events:none;transition:opacity 90ms linear}.childNode .nodeMeta{top:calc(100% + 6px)}.focusNode .nodeMeta{top:calc(100% + 7px);width:110px}.nodeMeta strong{max-width:90px;color:#89837a;font-size:.46rem;font-weight:800;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.nodeNetworkMetric{display:inline-flex;align-items:center;justify-content:center;gap:3px;color:#d8b958;font-size:.48rem;font-weight:900;font-variant-numeric:tabular-nums;white-space:nowrap}.nodeNetworkMetric svg{flex:0 0 auto}.nodeProgressStatus{max-width:90px;color:#b28c32!important;font-size:.43rem!important;font-weight:900;white-space:nowrap}.focusNode .nodeMeta strong{color:#8b857c;font-size:.48rem}.focusNode .nodeNetworkMetric{color:#edc65c;font-size:.52rem}.nodeBusy{position:absolute;z-index:3;right:-2px;top:-2px;width:7px;height:7px;border-radius:50%;background:#e9bc45;box-shadow:0 0 10px rgba(233,188,69,.8);animation:pulse 900ms ease-in-out infinite alternate}
-        .groupNode{min-width:108px;max-width:160px;padding:8px 10px;border:1px solid rgba(244,183,40,.54);border-radius:14px;background:rgba(18,16,10,.96);color:#d8b450;display:grid;grid-template-columns:30px 1fr;column-gap:6px;row-gap:1px;align-items:center;text-align:left;box-shadow:0 8px 28px rgba(0,0,0,.26),0 0 24px rgba(244,183,40,.045);cursor:pointer;touch-action:none;user-select:none;-webkit-user-select:none;-webkit-touch-callout:none}.groupNode:hover,.groupNode.selected{border-color:rgba(255,207,71,.82);box-shadow:0 0 0 3px rgba(244,183,40,.09),0 8px 28px rgba(0,0,0,.3)}.groupNode.expanded{border-style:dashed;background:rgba(13,12,9,.9);opacity:.92}.groupNode .groupGlyph{grid-row:1/3}.groupNode strong{min-width:0;max-width:110px;font-size:.48rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.groupNode small{color:#756b55;font-size:.34rem;white-space:nowrap}.groupGlyph{position:relative;width:30px;height:24px;display:block}.groupGlyph i{position:absolute;width:13px;height:13px;border:1px solid rgba(244,183,40,.34);border-radius:50%;background:#1a1812}.groupGlyph i:nth-child(1){left:9px;top:0}.groupGlyph i:nth-child(2){left:2px;top:10px}.groupGlyph i:nth-child(3){right:2px;top:10px}
+        .personNode,.slotNode,.groupNode{position:absolute;z-index:6;transform:translate(-50%,-50%);font:inherit;translate:none}.personNode{width:52px;height:52px;padding:0;border:0;border-radius:50%;background:transparent;color:#d9d4ca;display:block;cursor:pointer;user-select:none;-webkit-user-select:none;-webkit-touch-callout:none;touch-action:none;isolation:isolate}.focusNode{width:74px;height:74px;z-index:8}.childNode::before,.slotNode::before{content:'';position:absolute;left:50%;top:50%;border-radius:50%;transform:translate(-50%,-50%);pointer-events:none;z-index:0}.childNode::before{width:58px;height:58px;background:radial-gradient(circle,rgba(8,8,7,.94) 0 87%,rgba(8,8,7,.58) 91%,rgba(8,8,7,.17) 96%,rgba(8,8,7,0) 100%)}.slotNode::before{width:52px;height:52px;background:radial-gradient(circle,rgba(8,8,7,.92) 0 86%,rgba(8,8,7,.54) 91%,rgba(8,8,7,.15) 96%,rgba(8,8,7,0) 100%)}.nodeCircle,.slotCircle{position:absolute;inset:0;z-index:1;display:grid;place-items:center;border-radius:50%;box-sizing:border-box;background:#0d0d0b;overflow:hidden;transition:transform 170ms ease,border-color 170ms ease,box-shadow 170ms ease}.nodeCircle{border:1px solid rgba(210,174,65,.38);box-shadow:0 0 22px rgba(244,183,40,.025);transform:scale(var(--network-node-scale,1))}.focusCircle{border-color:rgba(255,207,71,.82);background:radial-gradient(circle at 50% 45%,rgb(24,21,13) 0%,rgb(13,13,11) 62%,rgb(13,13,11) 100%);box-shadow:0 0 0 1px rgba(244,183,40,.07),0 0 28px rgba(244,183,40,.08);transform:scale(var(--network-center-scale,1))}.focusNode::before{content:'';position:absolute;inset:-7px;border:1px solid rgba(244,183,40,.42);border-radius:50%;box-shadow:0 0 18px rgba(244,183,40,.055);animation:networkYouBreath 2.8s ease-in-out infinite;pointer-events:none}.introActive .focusNode::before{animation:networkYouIntro .72s ease-out 1,networkYouBreath 2.8s .72s ease-in-out infinite}.personNode:hover .nodeCircle,.personNode:focus-visible .nodeCircle,.personNode.selected .nodeCircle{border-color:rgba(244,183,40,.78);box-shadow:0 0 0 3px rgba(244,183,40,.08),0 0 26px rgba(244,183,40,.1);transform:scale(var(--network-node-selected-scale,1.07))}.focusNode:hover .focusCircle,.focusNode:focus-visible .focusCircle,.focusNode.selected .focusCircle{transform:scale(var(--network-center-selected-scale,1.07))}.childNode.status-rewarded .nodeCircle{border-color:rgba(232,183,62,.58)}.childNode.status-qualified .nodeCircle{border-color:rgba(193,166,90,.46)}.personNode.draggable,.slotNode.draggable,.groupNode.draggable{cursor:grab}.personNode.draggable:active,.slotNode.draggable:active,.groupNode.draggable:active{cursor:grabbing}.personNode.dragging,.slotNode.dragging{z-index:14}.personNode.dragging .nodeCircle,.slotNode.dragging .slotCircle{border-color:rgba(244,183,40,.92);box-shadow:0 0 0 4px rgba(244,183,40,.12),0 0 30px rgba(244,183,40,.18)}.groupNode.dragging{z-index:14;border-color:rgba(244,183,40,.82);box-shadow:0 14px 30px rgba(0,0,0,.34),0 0 0 3px rgba(244,183,40,.1)}.personNode.grouping{animation:groupDropAway ${GROUP_DROP_MS}ms ease forwards}.personNode.restoring{animation:groupNodeRestore ${GROUP_DROP_MS}ms cubic-bezier(.2,.8,.2,1) both}
+        .nodeCircle :global(.identity){width:100%;height:100%;display:grid;place-items:center}.nodeCircle :global(.avatarSlot){position:relative;display:grid;place-items:center}.childNode .nodeCircle :global(.avatarSlot),.childNode .nodeCircle :global(.neutralAvatar),.childNode .nodeCircle :global(.avatarSlot img){width:40px!important;height:40px!important}.focusNode .nodeCircle :global(.avatarSlot),.focusNode .nodeCircle :global(.neutralAvatar),.focusNode .nodeCircle :global(.avatarSlot img){width:56px!important;height:56px!important}.nodeCircle :global(.neutralAvatar){display:grid;place-items:center;border:0;border-radius:50%;background:#171611;color:#8e7b50}.nodeCircle :global(.avatarSlot img){position:absolute;inset:0;margin:auto;border-radius:50%;object-fit:cover;transition:opacity 160ms ease}.focusYouLabel{display:grid;place-items:center;width:100%;height:100%;color:#edc65c;font-size:.78rem;font-weight:950;letter-spacing:-.03em}.nodeMeta{position:absolute;left:50%;z-index:2;width:92px;display:grid;justify-items:center;gap:1px;transform:translateX(-50%);opacity:var(--network-label-opacity,1);pointer-events:none;transition:opacity 90ms linear}.childNode .nodeMeta{top:calc(100% + 6px)}.focusNode .nodeMeta{top:calc(100% + 7px);width:110px}.nodeMeta strong{max-width:90px;color:#89837a;font-size:.46rem;font-weight:800;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.nodeNetworkMetric{display:inline-flex;align-items:center;justify-content:center;gap:3px;color:#d8b958;font-size:.48rem;font-weight:900;font-variant-numeric:tabular-nums;white-space:nowrap}.nodeNetworkMetric svg{flex:0 0 auto}.nodeProgressStatus{max-width:90px;color:#b28c32!important;font-size:.43rem!important;font-weight:900;white-space:nowrap}.focusNode .nodeMeta strong{color:#8b857c;font-size:.48rem}.focusNode .nodeNetworkMetric{color:#edc65c;font-size:.52rem}.nodeBusy{position:absolute;z-index:3;right:-2px;top:-2px;width:7px;height:7px;border-radius:50%;background:#e9bc45;box-shadow:0 0 10px rgba(233,188,69,.8);animation:pulse 900ms ease-in-out infinite alternate}
+        .groupNode{min-width:108px;max-width:160px;padding:8px 10px;border:1px solid rgba(244,183,40,.54);border-radius:14px;background:rgba(18,16,10,.96);color:#d8b450;display:grid;grid-template-columns:30px 1fr;column-gap:6px;row-gap:1px;align-items:center;text-align:left;box-shadow:0 8px 28px rgba(0,0,0,.26),0 0 24px rgba(244,183,40,.045);cursor:pointer;touch-action:none;user-select:none;-webkit-user-select:none;-webkit-touch-callout:none}.groupNode:hover,.groupNode.selected{border-color:rgba(255,207,71,.82);box-shadow:0 0 0 3px rgba(244,183,40,.09),0 8px 28px rgba(0,0,0,.3)}.groupNode.expanded{border-style:dashed;background:rgba(13,12,9,.9);opacity:.92}.groupNode.created{animation:groupHubIn ${GROUP_HUB_IN_MS}ms cubic-bezier(.16,.82,.2,1) both}.groupNode .groupGlyph{grid-row:1/3}.groupNode strong{min-width:0;max-width:110px;font-size:.48rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.groupNode small{color:#756b55;font-size:.34rem;white-space:nowrap}.groupGlyph{position:relative;width:30px;height:24px;display:block}.groupGlyph i{position:absolute;width:13px;height:13px;border:1px solid rgba(244,183,40,.34);border-radius:50%;background:#1a1812}.groupGlyph i:nth-child(1){left:9px;top:0}.groupGlyph i:nth-child(2){left:2px;top:10px}.groupGlyph i:nth-child(3){right:2px;top:10px}
         .slotNode{width:46px;height:46px;padding:0;border:0;border-radius:50%;background:transparent;color:#c79f36;cursor:pointer;touch-action:none;user-select:none;-webkit-user-select:none;isolation:isolate}.slotCircle{border:1px dashed rgba(226,181,62,.52);color:#c79f36;font-size:.9rem;background:#0d0d0b;transform:scale(var(--network-node-scale,1));animation:slotPulse 5.6s ease-in-out infinite}.slotNode>strong{position:absolute;left:50%;top:calc(100% + 5px);z-index:2;width:92px;transform:translateX(-50%);color:#a98735;font-size:.47rem;white-space:nowrap;pointer-events:none;opacity:var(--network-label-opacity,1)}.slotNode:hover .slotCircle,.slotNode:focus-visible .slotCircle{border-style:solid;border-color:rgba(244,183,40,.9);box-shadow:0 0 28px rgba(244,183,40,.1);transform:scale(var(--network-node-selected-scale,1.07))}.progressInviteNode::after{content:'';position:absolute;z-index:0;inset:-5px;border-radius:50%;background:conic-gradient(rgba(244,183,40,.95) var(--slot-progress),rgba(244,183,40,.12) 0);-webkit-mask:radial-gradient(farthest-side,transparent calc(100% - 3px),#000 0);mask:radial-gradient(farthest-side,transparent calc(100% - 3px),#000 0);filter:drop-shadow(0 0 4px rgba(244,183,40,.18));pointer-events:none}.progressInviteNode .nodeCircle{border-color:rgba(244,183,40,.62);background:#11100c}.progressInviteNode .nodeMeta small{color:#b28c32}.pendingInviteGlyph{display:grid;place-items:center;width:100%;height:100%;color:#d3aa43;font-size:.9rem;font-weight:950;letter-spacing:.08em}
         .worldContent.nav-forward .childNode .nodeCircle{animation:networkNodeBloom 620ms cubic-bezier(.16,.82,.2,1) both}
         .layoutControls{display:flex;align-items:center;gap:3px;min-width:0}.layoutControls>button,.groupMenuAnchor>button{width:28px;height:29px;padding:0;border:1px solid rgba(255,205,80,.13);border-radius:8px;background:rgba(18,18,15,.94);color:#a9a397;font:inherit;font-size:.65rem;font-weight:900;cursor:pointer;box-shadow:0 7px 18px rgba(0,0,0,.2)}.layoutControls .editLayoutButton:hover,.layoutControls .editLayoutButton.active,.layoutControls .groupsButton:hover,.layoutControls .groupsButton.active{border-color:rgba(244,183,40,.31);color:#e1bd5b}.layoutControls .editLayoutButton.active{background:rgba(244,183,40,.08)}.groupMenuAnchor{position:relative;display:flex;flex:0 0 auto}.labeledControl{width:auto!important;min-width:38px;max-width:64px;padding:0 6px!important;display:inline-flex;align-items:center;justify-content:center;gap:3px;white-space:nowrap}.controlLabel{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:.45rem;line-height:1}.editLayoutButton,.groupsButton{display:grid;place-items:center}
-        .groupsPanel,.groupBuilder{position:absolute;z-index:95;left:50%;top:calc(100% + 7px);transform:translateX(-50%);width:min(235px,calc(100vw - 32px));box-sizing:border-box;padding:11px;border:1px solid rgba(244,183,40,.17);border-radius:15px;background:rgba(14,14,12,.985);box-shadow:0 18px 40px rgba(0,0,0,.42);cursor:default}.groupBuilder{z-index:96;border-color:rgba(244,183,40,.2)}.groupsPanelHead{display:flex;align-items:center;justify-content:space-between}.groupsPanelHead strong{color:#e5dfd3;font-size:.62rem}.groupsPanelHead button{width:27px;height:27px;border:0;background:transparent;color:#817c73;font-size:.95rem;cursor:pointer}.groupsPanel p{margin:10px 0;color:#77736c;font-size:.53rem}.groupsList{display:grid;gap:5px;margin-top:7px}.groupsList>button{width:100%;padding:7px 8px;border:1px solid rgba(255,255,255,.06);border-radius:9px;background:rgba(255,255,255,.025);color:#aaa398;text-align:left;cursor:pointer}.groupsList span,.groupsList small{display:block}.groupsList span{font-size:.54rem;font-weight:900}.groupsList small{margin-top:2px;color:#746e64;font-size:.46rem}.createFirstGroup{width:100%;min-height:32px;margin-top:8px;border:1px solid rgba(244,183,40,.22);border-radius:9px;background:rgba(244,183,40,.05);color:#c5a454;font:inherit;font-size:.52rem;font-weight:900;cursor:pointer}.groupBuilderHead{display:flex;align-items:center;justify-content:space-between;gap:8px}.groupBuilderHead strong{color:#e5dfd3;font-size:.62rem}.groupBuilderHead button{width:27px;height:27px;border:0;background:transparent;color:#817c73;font-size:.95rem;cursor:pointer}.groupBuilder>input{width:100%;height:31px;margin-top:7px;box-sizing:border-box;padding:0 8px;border:1px solid rgba(255,205,80,.1);border-radius:8px;background:#11110f;color:#d8d3ca;font:inherit;font-size:.55rem;outline:none}.groupDropZone{min-height:74px;margin-top:8px;padding:9px;box-sizing:border-box;display:grid;place-items:center;align-content:center;gap:2px;border:1px dashed rgba(244,183,40,.34);border-radius:11px;background:rgba(244,183,40,.035);text-align:center}.dropIcon{color:#c99d35;font-size:.9rem}.groupDropZone strong{color:#b9aa83;font-size:.54rem}.groupDropZone small{color:#6d685e;font-size:.48rem}.groupDraftMembers{margin-top:7px;display:flex;flex-wrap:wrap;gap:4px}.groupDraftMembers button{padding:4px 6px;border:1px solid rgba(255,255,255,.06);border-radius:7px;background:rgba(255,255,255,.025);color:#89847a;font:inherit;font-size:.46rem;cursor:pointer}.groupDraftMembers button span{color:#a97f54}.groupMemberList span{display:inline-flex;align-items:center;gap:4px}.groupMemberList span button{width:18px;height:18px;border:0;border-radius:50%;background:rgba(255,255,255,.04);color:#8d8173;cursor:pointer}.groupToggleButton{width:100%;min-height:30px;margin-top:8px;border:1px solid rgba(244,183,40,.15);border-radius:9px;background:rgba(244,183,40,.035);color:#b69a57;font:inherit;font-size:.5rem;font-weight:900;cursor:pointer}.createGroupButton{width:100%;min-height:33px;margin-top:8px;border:0;border-radius:9px;background:linear-gradient(135deg,#ffd24d,#efa718);color:#17120a;font:inherit;font-size:.53rem;font-weight:950;cursor:pointer}.createGroupButton:disabled{background:rgba(255,255,255,.05);color:#68635b;cursor:default}
+        .groupsPanel,.groupBuilder{position:absolute;z-index:95;left:auto;right:0;top:calc(100% + 7px);transform:none;width:min(235px,calc(100vw - 32px));box-sizing:border-box;padding:11px;border:1px solid rgba(244,183,40,.17);border-radius:15px;background:rgba(14,14,12,.985);box-shadow:0 18px 40px rgba(0,0,0,.42);cursor:default}.groupBuilder{z-index:96;border-color:rgba(244,183,40,.2)}.groupsPanelHead{display:flex;align-items:center;justify-content:space-between}.groupsPanelHead strong{color:#e5dfd3;font-size:.62rem}.groupsPanelHead button{width:27px;height:27px;border:0;background:transparent;color:#817c73;font-size:.95rem;cursor:pointer}.groupsPanel p{margin:10px 0;color:#77736c;font-size:.53rem}.groupsList{display:grid;gap:5px;margin-top:7px}.groupsList>button{width:100%;padding:7px 8px;border:1px solid rgba(255,255,255,.06);border-radius:9px;background:rgba(255,255,255,.025);color:#aaa398;text-align:left;cursor:pointer}.groupsList span,.groupsList small{display:block}.groupsList span{font-size:.54rem;font-weight:900}.groupsList small{margin-top:2px;color:#746e64;font-size:.46rem}.createFirstGroup{width:100%;min-height:32px;margin-top:8px;border:1px solid rgba(244,183,40,.22);border-radius:9px;background:rgba(244,183,40,.05);color:#c5a454;font:inherit;font-size:.52rem;font-weight:900;cursor:pointer}.createFirstGroup:disabled{opacity:.42;cursor:default}.groupBuilderHead{display:flex;align-items:center;justify-content:space-between;gap:8px}.groupBuilderHead strong{color:#e5dfd3;font-size:.62rem}.groupBuilderHead button{width:27px;height:27px;border:0;background:transparent;color:#817c73;font-size:.95rem;cursor:pointer}.groupBuilder>input{width:100%;height:34px;margin-top:7px;box-sizing:border-box;padding:0 8px;border:1px solid rgba(255,205,80,.1);border-radius:8px;background:#11110f;color:#d8d3ca;font:inherit;font-size:16px;line-height:1;outline:none}.groupDropZone{min-height:42px;margin-top:8px;padding:7px 9px;box-sizing:border-box;display:grid;grid-template-columns:auto minmax(0,1fr) auto;align-items:center;gap:6px;border:1px dashed rgba(244,183,40,.34);border-radius:11px;background:rgba(244,183,40,.035);text-align:left;transform-origin:88% 50%;transition:transform 120ms ease,border-color 120ms ease,background 120ms ease,box-shadow 120ms ease}.groupDropZone.active{transform:scale(1.02);border-color:rgba(255,208,79,.72);background:rgba(244,183,40,.085);box-shadow:0 0 0 3px rgba(244,183,40,.07),0 8px 24px rgba(0,0,0,.22)}.dropIcon{color:#c99d35;font-size:.9rem;line-height:1}.groupDropZone strong{min-width:0;color:#b9aa83;font-size:.54rem;line-height:1.2;display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;overflow:hidden}.groupDropZone small{color:#6d685e;font-size:.48rem;white-space:nowrap;font-variant-numeric:tabular-nums}.groupDropZone.memberAdded small{animation:groupCountPop ${GROUP_DROP_MS}ms ease-out}.groupDraftMembers{margin-top:7px;display:flex;flex-wrap:wrap;gap:4px}.groupDraftMembers button{padding:4px 6px;border:1px solid rgba(255,255,255,.06);border-radius:7px;background:rgba(255,255,255,.025);color:#89847a;font:inherit;font-size:.46rem;cursor:pointer;animation:groupMemberIn 160ms ease-out both}.groupDraftMembers button span{color:#a97f54}.groupMemberList span{display:inline-flex;align-items:center;gap:4px}.groupMemberList span button{width:18px;height:18px;border:0;border-radius:50%;background:rgba(255,255,255,.04);color:#8d8173;cursor:pointer}.groupToggleButton{width:100%;min-height:30px;margin-top:8px;border:1px solid rgba(244,183,40,.15);border-radius:9px;background:rgba(244,183,40,.035);color:#b69a57;font:inherit;font-size:.5rem;font-weight:900;cursor:pointer}.createGroupButton{width:100%;min-height:33px;margin-top:8px;border:0;border-radius:9px;background:linear-gradient(135deg,#ffd24d,#efa718);color:#17120a;font:inherit;font-size:.53rem;font-weight:950;cursor:pointer}.createGroupButton:disabled{background:rgba(255,255,255,.05);color:#68635b;cursor:default}
         .viewControls{display:flex;align-items:center;gap:3px;flex:0 0 auto}.viewControls .fitButton{width:28px;min-width:28px;padding:0;font-size:.62rem}.viewControls button{width:28px;height:29px;padding:0;border:1px solid rgba(255,205,80,.13);border-radius:8px;background:rgba(18,18,15,.92);color:#bbb5aa;font:inherit;font-size:.68rem;font-weight:850;cursor:pointer}.viewControls .youControl{width:28px!important;min-width:28px;max-width:28px;padding:0!important}.viewControls button:hover{border-color:rgba(244,183,40,.28);color:#e4c36d}.parentReturn{position:absolute;z-index:55;left:10px;bottom:10px;min-height:34px;padding:0 11px;border:1px solid rgba(255,205,80,.12);border-radius:10px;background:rgba(18,18,15,.92);color:#a89c7b;font:inherit;font-size:.55rem;font-weight:850;cursor:pointer}.parentReturn:disabled{opacity:.4}
         .profileCard{position:absolute;z-index:75;right:10px;top:10px;width:min(245px,calc(100% - 20px));box-sizing:border-box;padding:13px;border:1px solid rgba(255,205,80,.15);border-radius:17px;background:rgba(15,15,13,.975);box-shadow:0 18px 42px rgba(0,0,0,.45);cursor:default}.profileClose{position:absolute;right:8px;top:7px;width:28px;height:28px;border:0;background:transparent;color:#817c73;font-size:1rem;cursor:pointer}.profileIdentity{padding-right:28px;display:flex;align-items:center;gap:9px}.profileIdentity :global(.identity){display:flex;align-items:center;gap:8px}.profileIdentity :global(.identityLabel){display:none}.profileIdentity :global(.avatarSlot){position:relative;display:grid;place-items:center}.profileIdentity :global(.neutralAvatar){display:grid;place-items:center;border:1px solid rgba(244,183,40,.13);border-radius:50%;background:#171611;color:#8e7b50}.profileIdentity :global(.avatarSlot img){position:absolute;inset:0;border-radius:50%;object-fit:cover}.profileIdentity>div>strong{display:block;color:#e7e1d6;font-size:.66rem}.profileIdentity>div>span{display:block;margin-top:3px;color:#877e69;font-size:.51rem}.profileAddress{margin-top:10px;padding:8px;border-radius:9px;background:rgba(255,255,255,.025);color:#67635d;font-size:.48rem;line-height:1.35;overflow-wrap:anywhere;user-select:text;-webkit-user-select:text}.profileStats{margin-top:9px;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:5px}.profileStats>div{padding:8px;border:1px solid rgba(255,255,255,.045);border-radius:9px;background:rgba(255,255,255,.018)}.profileStats strong{display:block;color:#d6d0c5;font-size:.62rem}.profileStats span{display:block;margin-top:2px;color:#68645e;font-size:.47rem}.profileAction{width:100%;min-height:36px;margin-top:9px;border:0;border-radius:10px;background:linear-gradient(135deg,#ffd24d,#efa718);color:#17120a;font:inherit;font-size:.57rem;font-weight:950;cursor:pointer}.profileAction:disabled{opacity:.45;cursor:default}
         .groupCardTitle{padding-right:28px;display:flex;align-items:center;gap:10px}.groupCardTitle>div strong{display:block;color:#e7dfcf;font-size:.65rem}.groupCardTitle>div span{display:block;margin-top:3px;color:#887c5e;font-size:.5rem}.groupMemberList{margin-top:10px;display:flex;flex-wrap:wrap;gap:5px}.groupMemberList span{padding:5px 6px;border:1px solid rgba(255,255,255,.05);border-radius:7px;background:rgba(255,255,255,.02);color:#777168;font-size:.47rem}.ungroupButton{width:100%;min-height:33px;margin-top:10px;border:1px solid rgba(194,118,90,.2);border-radius:9px;background:rgba(194,118,90,.06);color:#bd9889;font:inherit;font-size:.52rem;font-weight:900;cursor:pointer}
         .workspaceNotice{position:absolute;z-index:96;left:50%;bottom:56px;transform:translateX(-50%);padding:7px 11px;border:1px solid rgba(244,183,40,.18);border-radius:10px;background:rgba(21,19,14,.97);color:#d5b85f;font-size:.53rem;font-weight:850;white-space:nowrap;box-shadow:0 12px 28px rgba(0,0,0,.3)}
         .inlineError{position:absolute;z-index:90;left:50%;bottom:54px;transform:translateX(-50%);max-width:calc(100% - 28px);padding:8px 9px 8px 11px;display:flex;align-items:center;gap:8px;border:1px solid rgba(194,118,90,.2);border-radius:10px;background:rgba(38,23,18,.96);color:#c7a294;font-size:.53rem;box-shadow:0 12px 30px rgba(0,0,0,.32)}.inlineError button{border:0;background:transparent;color:#9f7d71;font-size:.8rem;cursor:pointer}
-        @keyframes networkForward{0%{opacity:.68;scale:.975}100%{opacity:1;scale:1}}@keyframes networkBack{0%{opacity:.74;scale:1.035}100%{opacity:1;scale:1}}@keyframes networkSlotFlow{from{stroke-dashoffset:43}to{stroke-dashoffset:-43}}@keyframes networkYouBreath{0%,100%{opacity:.46;transform:scale(.96)}50%{opacity:.92;transform:scale(1.06)}}@keyframes networkYouIntro{0%{opacity:.25;transform:scale(.78)}58%{opacity:1;transform:scale(1.14)}100%{opacity:.62;transform:scale(1)}}@keyframes networkNodeBloom{0%{transform:scale(.45);box-shadow:0 0 0 rgba(244,183,40,0)}55%{transform:scale(1.18);box-shadow:0 0 42px rgba(244,183,40,.22)}100%{transform:scale(var(--network-node-scale,1));box-shadow:0 0 22px rgba(244,183,40,.025)}}@keyframes slotPulse{0%,100%{box-shadow:0 0 0 rgba(244,183,40,0)}50%{box-shadow:0 0 22px rgba(244,183,40,.07)}}@keyframes pulse{to{opacity:.38;transform:scale(.82)}}@keyframes groupDropAway{to{opacity:0;scale:.72}}
+        @keyframes networkForward{0%{opacity:.68;scale:.975}100%{opacity:1;scale:1}}@keyframes networkBack{0%{opacity:.74;scale:1.035}100%{opacity:1;scale:1}}@keyframes networkSlotFlow{from{stroke-dashoffset:43}to{stroke-dashoffset:-43}}@keyframes networkYouBreath{0%,100%{opacity:.46;transform:scale(.96)}50%{opacity:.92;transform:scale(1.06)}}@keyframes networkYouIntro{0%{opacity:.25;transform:scale(.78)}58%{opacity:1;transform:scale(1.14)}100%{opacity:.62;transform:scale(1)}}@keyframes networkNodeBloom{0%{transform:scale(.45);box-shadow:0 0 0 rgba(244,183,40,0)}55%{transform:scale(1.18);box-shadow:0 0 42px rgba(244,183,40,.22)}100%{transform:scale(var(--network-node-scale,1));box-shadow:0 0 22px rgba(244,183,40,.025)}}@keyframes slotPulse{0%,100%{box-shadow:0 0 0 rgba(244,183,40,0)}50%{box-shadow:0 0 22px rgba(244,183,40,.07)}}@keyframes pulse{to{opacity:.38;transform:scale(.82)}}@keyframes groupDropAway{to{opacity:0;scale:.82}}@keyframes groupNodeRestore{0%{opacity:0;scale:.86}100%{opacity:1;scale:1}}@keyframes groupHubIn{0%{opacity:0;scale:.82}65%{opacity:1;scale:1.04}100%{opacity:1;scale:1}}@keyframes groupMemberIn{0%{opacity:0;translate:0 5px}100%{opacity:1;translate:0 0}}@keyframes groupCountPop{0%{scale:.8;opacity:.45}60%{scale:1.12;opacity:1}100%{scale:1;opacity:1}}
         @media(max-width:560px){.networkCanvasPage{width:100%;border-radius:18px}.networkHeader{min-height:42px;padding:7px 9px}.networkHeader h1{font-size:.82rem}.summary{gap:2px 4px}.summary strong{font-size:.66rem}.summary span{font-size:.43rem}.networkUtilityRow{min-height:39px;padding:4px 6px;gap:4px}.searchWrap.open{max-width:min(168px,48vw)}.searchField input{font-size:16px}.compactControls{gap:3px}.layoutControls,.viewControls{gap:3px}.layoutControls>button,.groupMenuAnchor>button,.viewControls button,.viewControls .fitButton{height:29px;border-radius:8px}.groupsPanel,.groupBuilder{width:min(232px,calc(100vw - 28px))}.crumb{max-width:60px}.profileCard{top:auto;right:8px;bottom:52px;left:8px;width:auto}.parentReturn{left:8px;bottom:8px}.personNode{min-width:0}.focusNode{min-width:0}}
-        @media(prefers-reduced-motion:reduce){.world.cameraTransition{transition:none}.worldContent.sceneReady{transition:none}.worldContent.nav-forward,.worldContent.nav-back,.slotEdgePulse,.nodeBusy,.personNode.grouping,.slotCircle,.focusNode::before,.worldContent.nav-forward .childNode .nodeCircle{animation:none!important}}
+        @media(prefers-reduced-motion:reduce){.world.cameraTransition{transition:none}.worldContent.sceneReady{transition:none}.groupDropZone{transition:none}.worldContent.nav-forward,.worldContent.nav-back,.slotEdgePulse,.nodeBusy,.personNode.grouping,.personNode.restoring,.groupNode.created,.groupDraftMembers button,.groupDropZone.memberAdded small,.slotCircle,.focusNode::before,.worldContent.nav-forward .childNode .nodeCircle{animation:none!important}}
       `}</style>
     </section>
   );

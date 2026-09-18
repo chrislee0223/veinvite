@@ -110,22 +110,53 @@ test('layout editing auto-saves completed actions and keeps camera state separat
   assert.doesNotMatch(workspaceSource, /scale|focusWallet: string;\s*view/);
 });
 
-test('group creation is a draft-first interaction and preserves member positions for ungrouping', () => {
+test('group creation is draft-first, supports one member, and preserves member positions for ungrouping', () => {
   assert.match(networkSource, /type GroupDraft/);
   assert.match(networkSource, /groupDropRef/);
-  assert.match(networkSource, /groupDraft\.members\.length < 2/);
+  assert.match(networkSource, /groupDraft\.members\.length < 1/);
+  assert.doesNotMatch(networkSource, /groupDraft\.members\.length < 2/);
   assert.match(networkSource, /addWorkspaceGroup\(workspace/);
   assert.match(networkSource, /removeWorkspaceGroup\(current, selectedGroup\.id\)/);
   assert.match(networkSource, /moveWorkspaceMemberToGroup/);
   assert.match(networkSource, /withWorkspaceGroupCollapsed/);
   assert.match(networkSource, /groupsOpen/);
   assert.match(networkSource, /continuationEdge/);
+  assert.match(workspaceSource, /group\.members\.length >= 1/);
+  assert.match(workspaceSource, /members\.length < 1/);
+  assert.doesNotMatch(workspaceSource, /members\.length < 2/);
   const removeStart = workspaceSource.indexOf('export function removeWorkspaceGroup');
   const removeEnd = workspaceSource.indexOf('export function groupContainingWallet', removeStart);
   assert.ok(removeStart >= 0 && removeEnd > removeStart);
   const removeGroupSource = workspaceSource.slice(removeStart, removeEnd);
   assert.match(removeGroupSource, /groups: workspace\.groups\.filter/);
   assert.doesNotMatch(removeGroupSource, /positions\s*:/);
+});
+
+test('group builder is compact, edge-safe, animated, and keeps collapsed hubs visible', () => {
+  assert.match(networkSource, /groupEligibleWalletKeys/);
+  assert.match(networkSource, /activeWorkspace\.groups\.filter\(\(group\) =>[\s\S]*groupEligibleWalletKeys\.has/);
+  assert.match(networkSource, /GROUP_DROP_HIT_SLOP_X = 18/);
+  assert.match(networkSource, /GROUP_DROP_HIT_SLOP_Y = 14/);
+  assert.match(networkSource, /className=\{\`groupDropZone\$\{groupDropActive \? ' active' : ''\}/);
+  assert.match(networkSource, /\.groupDropZone\{min-height:42px[\s\S]*grid-template-columns:auto minmax\(0,1fr\) auto/);
+  assert.match(networkSource, /\.groupsPanel,\.groupBuilder\{[^}]*left:auto;right:0/);
+  assert.match(networkSource, /\.groupBuilder>input\{[^}]*font-size:16px/);
+  assert.match(networkSource, /\.groupNode\.created\{animation:groupHubIn/);
+  assert.match(networkSource, /\.personNode\.restoring\{animation:groupNodeRestore/);
+  assert.match(networkSource, /prefers-reduced-motion:reduce[\s\S]*groupNode\.created/);
+});
+
+test('Network toolbar keeps navigation controls before edit and group controls', () => {
+  const controlsStart = networkSource.indexOf('<div className="compactControls">');
+  const controlsEnd = networkSource.indexOf('</div>\n      </div>', controlsStart);
+  assert.ok(controlsStart >= 0 && controlsEnd > controlsStart);
+  const controls = networkSource.slice(controlsStart, controlsEnd);
+  const view = controls.indexOf('<div className="viewControls">');
+  const layout = controls.indexOf('<div className="layoutControls">');
+  assert.ok(view >= 0 && layout > view);
+  const zoomOut = controls.indexOf('zoomByButton(-1)');
+  const zoomIn = controls.indexOf('zoomByButton(1)');
+  assert.ok(zoomOut >= 0 && zoomIn > zoomOut);
 });
 
 test('workspace copy covers every supported locale through a typed record', () => {
@@ -329,8 +360,13 @@ test('completed Network nodes show descendant counts below the node while active
   assert.match(childMarkup, /<NetworkCountGlyph \/>/);
   assert.match(childMarkup, /child\.network\.toLocaleString\(\)/);
   assert.match(childMarkup, /nodeWallet\(child\.wallet\)/);
+  assert.ok(
+    childMarkup.indexOf('nodeWallet(child.wallet)') < childMarkup.indexOf('child.network.toLocaleString()'),
+    'wallet label should render above the descendant count',
+  );
   assert.doesNotMatch(childMarkup, /statusLabel\(child\.status, locale\)/);
 
+  assert.match(networkSource, /\.nodeMeta\{[^}]*gap:1px/);
   assert.match(networkSource, /\.childNode \.nodeMeta\{top:calc\(100% \+ 6px\)\}/);
   assert.doesNotMatch(networkSource, /\.childNode \.nodeMeta\{bottom:/);
   assert.match(networkMigrationSource, /count\(fn\.wallet\) filter \(where fn\.depth > 1\)::integer as network_count/);
@@ -356,6 +392,10 @@ test('root YOU identity lives inside the center node and the top return control 
   assert.match(focusMarkup, /\{c\.you\}/);
   assert.match(focusMarkup, /<NetworkCountGlyph \/>/);
   assert.match(focusMarkup, /nodeWallet\(currentData\.focusWallet\)/);
+  assert.ok(
+    focusMarkup.indexOf('nodeWallet(currentData.focusWallet)') < focusMarkup.indexOf('currentData.summary.network.toLocaleString()'),
+    'center wallet label should render above the descendant count',
+  );
   assert.doesNotMatch(focusMarkup, /<strong>\{focusIsRoot \? c\.you/);
 
   const controlsStart = networkSource.indexOf('<div className="viewControls">');
@@ -466,21 +506,28 @@ test('edit-mode drag commits only on completed drop and provisional group drops 
   assert.match(networkSource, /originalWorkspace: cloneNetworkFocusWorkspace\(workspace\)/);
   assert.match(networkSource, /setDraftWorkspace\(\(current\) => \{[\s\S]*draftWorkspaceRef\.current = next/);
   assert.match(networkSource, /if \(event\.type !== 'pointerup'\) \{[\s\S]*setEditingWorkspace\(cloneNetworkFocusWorkspace\(drag\.originalWorkspace\)\)/);
-  assert.match(networkSource, /insideDraft[\s\S]*setEditingWorkspace\(cloneNetworkFocusWorkspace\(drag\.originalWorkspace\)\)/);
+  assert.match(networkSource, /isInsideGroupDropTarget\(event\.clientX, event\.clientY\)/);
+  assert.match(networkSource, /if \(!insideDraft \|\| alreadyAdded \|\| atCapacity\) \{[\s\S]*setEditingWorkspace\(cloneNetworkFocusWorkspace\(drag\.originalWorkspace\)\)/);
+  assert.match(networkSource, /groupingRestoreWorkspaceRef\.current = cloneNetworkFocusWorkspace\(drag\.originalWorkspace\)/);
+  assert.match(networkSource, /setGroupDraft\(\(current\) => \{[\s\S]*members: \[\.\.\.current\.members, keyWallet\(drag\.key\)\]/);
   assert.match(networkSource, /commitCurrentDraftWorkspace\(\)/);
-  assert.match(networkSource, /moveWorkspaceMemberToGroup\(drag\.originalWorkspace, drag\.key, targetGroup\.id\)/);
+  assert.match(networkSource, /moveWorkspaceMemberToGroup\([\s\S]*drag\.originalWorkspace,[\s\S]*drag\.key,[\s\S]*targetGroup\.id/);
 });
 
 test('edit drag cancellation restores the pre-drag workspace for multitouch and provisional grouping', () => {
   assert.match(networkSource, /const activeWorkspaceDrag = workspaceDragRef\.current/);
   assert.match(networkSource, /setEditingWorkspace\(cloneNetworkFocusWorkspace\(activeWorkspaceDrag\.originalWorkspace\)\)/);
-  assert.match(networkSource, /groupingTimerRef\.current = window\.setTimeout\(\(\) => \{[\s\S]*setEditingWorkspace\(cloneNetworkFocusWorkspace\(drag\.originalWorkspace\)\)[\s\S]*setGroupDraft/);
-  assert.match(networkSource, /const finishLayoutEdit = useCallback[\s\S]*window\.clearTimeout\(groupingTimerRef\.current\)/);
+  assert.match(networkSource, /groupingRestoreWorkspaceRef/);
+  assert.match(networkSource, /const restorePendingGroupDrop = useCallback[\s\S]*setEditingWorkspace\(cloneNetworkFocusWorkspace\(restoreWorkspace\)\)/);
+  assert.match(networkSource, /const finishLayoutEdit = useCallback[\s\S]*restorePendingGroupDrop\(\)/);
+  assert.match(networkSource, /setGroupDropActive\(false\)/);
 });
 
-test('group transfers are unique, same-group drops are no-ops, and long-press native UI stays blocked', () => {
-  assert.match(workspaceSource, /target\.members\.some\(\(member\) => member\.toLowerCase\(\) === key\)\) return workspace/);
+test('group transfers are unique, bounded, and long-press native UI stays blocked', () => {
+  assert.match(workspaceSource, /target\.members\.some\(\(member\) => member\.toLowerCase\(\) === key\)/);
+  assert.match(workspaceSource, /target\.members\.length >= MAX_MEMBERS_PER_GROUP/);
   assert.match(workspaceSource, /const members = group\.members\.filter\(\(member\) => member\.toLowerCase\(\) !== key\)/);
   assert.match(workspaceSource, /Array\.from\(new Set\(members\)\)/);
+  assert.match(workspaceSource, /if \(groups\.length >= MAX_GROUPS_PER_FOCUS\) return workspace/);
   assert.match(networkSource, /onContextMenu=\{\(event\) => event\.preventDefault\(\)\}/);
 });
