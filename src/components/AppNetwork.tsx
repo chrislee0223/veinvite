@@ -837,6 +837,15 @@ export function AppNetwork({ locale }: { locale: Locale }) {
       window.clearTimeout(groupingTimerRef.current);
       groupingTimerRef.current = null;
     }
+    if (restoreTimerRef.current !== null) {
+      window.clearTimeout(restoreTimerRef.current);
+      restoreTimerRef.current = null;
+    }
+    if (groupCreatedTimerRef.current !== null) {
+      window.clearTimeout(groupCreatedTimerRef.current);
+      groupCreatedTimerRef.current = null;
+    }
+    groupingRestoreWorkspaceRef.current = null;
     if (noticeTimerRef.current !== null) {
       window.clearTimeout(noticeTimerRef.current);
       noticeTimerRef.current = null;
@@ -901,6 +910,49 @@ export function AppNetwork({ locale }: { locale: Locale }) {
     const current = draftWorkspaceRef.current;
     if (current) persistFocusWorkspace(current);
   }, [persistFocusWorkspace]);
+
+  const isInsideGroupDropTarget = useCallback((clientX: number, clientY: number) => {
+    const rect = groupDropRef.current?.getBoundingClientRect();
+    if (!rect) return false;
+    return (
+      clientX >= rect.left - GROUP_DROP_HIT_SLOP_X &&
+      clientX <= rect.right + GROUP_DROP_HIT_SLOP_X &&
+      clientY >= rect.top - GROUP_DROP_HIT_SLOP_Y &&
+      clientY <= rect.bottom + GROUP_DROP_HIT_SLOP_Y
+    );
+  }, []);
+
+  const animateRestoredWallets = useCallback((wallets: string[]) => {
+    const keys = Array.from(new Set(wallets.map(keyWallet)));
+    if (!keys.length) return;
+    if (restoreTimerRef.current !== null) window.clearTimeout(restoreTimerRef.current);
+    setRestoringWallets(keys);
+    restoreTimerRef.current = window.setTimeout(() => {
+      restoreTimerRef.current = null;
+      setRestoringWallets([]);
+    }, GROUP_DROP_MS);
+  }, []);
+
+  const restorePendingGroupDrop = useCallback(() => {
+    if (groupingTimerRef.current !== null) {
+      window.clearTimeout(groupingTimerRef.current);
+      groupingTimerRef.current = null;
+    }
+    const restoreWorkspace = groupingRestoreWorkspaceRef.current;
+    if (restoreWorkspace) setEditingWorkspace(cloneNetworkFocusWorkspace(restoreWorkspace));
+    groupingRestoreWorkspaceRef.current = null;
+    setGroupingWallet(null);
+    setGroupDropActive(false);
+  }, [setEditingWorkspace]);
+
+  const markGroupCreated = useCallback((groupId: string) => {
+    if (groupCreatedTimerRef.current !== null) window.clearTimeout(groupCreatedTimerRef.current);
+    setCreatedGroupId(groupId);
+    groupCreatedTimerRef.current = window.setTimeout(() => {
+      groupCreatedTimerRef.current = null;
+      setCreatedGroupId(null);
+    }, GROUP_HUB_IN_MS);
+  }, []);
 
   const persistNodePosition = useCallback((walletKey: string, point: Point) => {
     if (!wallet || !currentFocusKey) return;
