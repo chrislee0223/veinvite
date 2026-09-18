@@ -1856,6 +1856,37 @@ export function AppNetwork({ locale }: { locale: Locale }) {
     persistFocusWorkspace(withWorkspaceGroupCollapsed(committedWorkspace, groupId, group.collapsed === false));
   }, [editingLayout, committedWorkspace, persistFocusWorkspace, mutateEditingWorkspace]);
 
+  const materializeExpandedGroupOffsets = useCallback((
+    workspace: NetworkFocusWorkspace,
+    groupId: string | undefined,
+  ) => {
+    if (!groupId) return workspace;
+    const group = workspace.groups.find((item) => item.id === groupId);
+    if (!group || group.collapsed !== false) return workspace;
+    let next = workspace;
+    for (const member of group.members) {
+      const key = keyWallet(member);
+      const point = displayedChildPointByWallet.get(key);
+      if (!point) continue;
+      next = withWorkspaceGroupMemberOffset(next, group.id, key, {
+        x: point.x - group.x,
+        y: point.y - group.y,
+      });
+    }
+    return next;
+  }, [displayedChildPointByWallet]);
+
+  const moveMemberBetweenGroups = useCallback((
+    workspace: NetworkFocusWorkspace,
+    walletKey: string,
+    sourceGroupId: string | undefined,
+    targetGroupId: string,
+  ) => {
+    let prepared = materializeExpandedGroupOffsets(workspace, sourceGroupId);
+    prepared = materializeExpandedGroupOffsets(prepared, targetGroupId);
+    return moveWorkspaceMemberToGroup(prepared, walletKey, targetGroupId);
+  }, [materializeExpandedGroupOffsets]);
+
   const updateManagedWorkspace = useCallback((
     update: (workspace: NetworkFocusWorkspace) => NetworkFocusWorkspace,
   ) => {
@@ -1871,15 +1902,17 @@ export function AppNetwork({ locale }: { locale: Locale }) {
     const key = keyWallet(member);
     const point = displayedChildPointByWallet.get(key) ?? null;
     animateRestoredWallets([key]);
-    updateManagedWorkspace((workspace) =>
-      removeWorkspaceMemberFromGroupAtPoint(workspace, key, point)
-    );
+    updateManagedWorkspace((workspace) => {
+      const prepared = materializeExpandedGroupOffsets(workspace, managedGroup.id);
+      return removeWorkspaceMemberFromGroupAtPoint(prepared, key, point);
+    });
     if (managedGroup.members.length <= 1) setManagedGroupId(null);
   }, [
     managedGroup,
     displayedChildPointByWallet,
     animateRestoredWallets,
     updateManagedWorkspace,
+    materializeExpandedGroupOffsets,
   ]);
 
   const dissolveManagedGroup = useCallback(() => {
@@ -2118,9 +2151,10 @@ export function AppNetwork({ locale }: { locale: Locale }) {
       drag.groupId,
     );
     if (targetGroup) {
-      const nextWorkspace = moveWorkspaceMemberToGroup(
+      const nextWorkspace = moveMemberBetweenGroups(
         drag.originalWorkspace,
         drag.key,
+        drag.groupId,
         targetGroup.id,
       );
       if (nextWorkspace !== drag.originalWorkspace) {
@@ -2141,6 +2175,7 @@ export function AppNetwork({ locale }: { locale: Locale }) {
     setEditingWorkspace,
     commitEditingWorkspace,
     commitCurrentDraftWorkspace,
+    moveMemberBetweenGroups,
   ]);
 
   const onPointerDownCapture = (event: ReactPointerEvent<HTMLDivElement>) => {
@@ -2418,9 +2453,10 @@ export function AppNetwork({ locale }: { locale: Locale }) {
         suppressClickRef.current = true;
         beginGroupCreationWithMember(holdDrag.key, holdDrag.originalWorkspace);
       } else if (droppedToExistingGroup) {
-        const nextWorkspace = moveWorkspaceMemberToGroup(
+        const nextWorkspace = moveMemberBetweenGroups(
           holdDrag.originalWorkspace,
           holdDrag.key,
+          holdDrag.groupId,
           droppedToExistingGroup.id,
         );
         if (nextWorkspace !== holdDrag.originalWorkspace) {
