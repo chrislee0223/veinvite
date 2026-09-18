@@ -229,6 +229,7 @@ export async function GET(request: NextRequest) {
 
   const search = normalizeSearch(request.nextUrl.searchParams.get('q'));
   const isSearch = search.length >= 3;
+  const fastInitial = request.nextUrl.searchParams.get('fast') === '1';
   const rateLimitResponse = await enforceRateLimits([
     {
       scope: isSearch ? 'network_search_wallet' : 'network_read_wallet',
@@ -249,7 +250,10 @@ export async function GET(request: NextRequest) {
     );
   }
 
-  const round = await readCurrentRoundContext();
+  // The first visual paint does not need live-round growth. Skipping
+  // the chain round lookup on fast=1 keeps Network entry responsive; the
+  // client immediately refreshes once in the background to fill This Round.
+  const round = fastInitial ? null : await readCurrentRoundContext();
 
   // Canary wallets exercise the exact same production React runtime as every
   // other wallet. Only the server-side graph data is synthetic, so camera,
