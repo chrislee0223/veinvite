@@ -13,6 +13,7 @@ import {
 } from 'react';
 import { useGetAvatar, useVechainDomain } from '@vechain/vechain-kit';
 
+import { NETWORK_CANARY_UI_COPY } from '@/lib/i18n/networkCanaryUiCopy';
 import { NETWORK_CANVAS_CONTROL_COPY } from '@/lib/i18n/networkCanvasControlCopy';
 import { NETWORK_EXPERIENCE_COPY } from '@/lib/i18n/networkExperienceCopy';
 import { NETWORK_WORKSPACE_COPY } from '@/lib/i18n/networkWorkspaceCopy';
@@ -133,7 +134,13 @@ const FOCUS_Y = 350;
 const MIN_SCALE = 0.32;
 const MAX_SCALE = 2.5;
 const SEARCH_DELAY_MS = 280;
-const NAVIGATION_MS = 520;
+const NAVIGATION_MS = 720;
+const FIT_TRANSITION_MS = 760;
+const INTRO_HOLD_MS = 150;
+const INTRO_END_MS = 940;
+const INTRO_SESSION_PREFIX = 'veinvite-network-intro-v4:';
+const READABLE_FIT_MIN = 0.46;
+const GOLDEN_ANGLE = Math.PI * (3 - Math.sqrt(5));
 const GROUP_DROP_MS = 160;
 const HOLD_TO_MOVE_MS = 500;
 const HOLD_CANCEL_DISTANCE = 8;
@@ -169,6 +176,56 @@ function midpoint(a: Point, b: Point): Point {
 
 function distance(a: Point, b: Point): number {
   return Math.hypot(a.x - b.x, a.y - b.y);
+}
+
+function stableHash(value: string): number {
+  let hash = 2166136261;
+  for (let index = 0; index < value.length; index += 1) {
+    hash ^= value.charCodeAt(index);
+    hash = Math.imul(hash, 16777619);
+  }
+  return hash >>> 0;
+}
+
+function radialChildPoint(wallet: string, index: number, compact: boolean): Point {
+  const jitter = ((stableHash(wallet) % 101) - 50) / 800;
+  const angle = -Math.PI / 2 + index * GOLDEN_ANGLE + jitter;
+  const radius = compact ? 118 + Math.sqrt(index) * 82 : 208 + Math.sqrt(index) * 128;
+  const yScale = compact ? 0.86 : 0.78;
+  return {
+    x: FOCUS_X + Math.cos(angle) * radius,
+    y: FOCUS_Y + Math.sin(angle) * radius * yScale + (compact ? 18 : 26),
+  };
+}
+
+function inviteSlotPoint(index: number, compact: boolean): Point {
+  if (index === 0) {
+    return { x: FOCUS_X + (compact ? -58 : -96), y: FOCUS_Y + (compact ? 74 : 92) };
+  }
+  return { x: FOCUS_X + (compact ? 64 : 108), y: FOCUS_Y + (compact ? 62 : 78) };
+}
+
+function fittedView(stage: { width: number; height: number }, points: Point[]): View {
+  if (!points.length) return centeredView(stage, 1);
+  const minX = Math.min(...points.map((point) => point.x));
+  const maxX = Math.max(...points.map((point) => point.x));
+  const minY = Math.min(...points.map((point) => point.y));
+  const maxY = Math.max(...points.map((point) => point.y));
+  const contentWidth = Math.max(220, maxX - minX + 190);
+  const contentHeight = Math.max(220, maxY - minY + 190);
+  const minimum = points.length < 16 ? READABLE_FIT_MIN : MIN_SCALE;
+  const scale = clamp(
+    Math.min(1, (stage.width - 34) / contentWidth, (stage.height - 50) / contentHeight),
+    minimum,
+    MAX_SCALE,
+  );
+  const centerX = (minX + maxX) / 2;
+  const centerY = (minY + maxY) / 2;
+  return {
+    x: stage.width / 2 - centerX * scale,
+    y: stage.height / 2 - centerY * scale,
+    scale,
+  };
 }
 
 function runtimeSessionKey(wallet: string): string {
@@ -265,7 +322,7 @@ function centeredView(
 ): View {
   return {
     x: stage.width / 2 - FOCUS_X * scale,
-    y: Math.max(88, stage.height * 0.32) - FOCUS_Y * scale,
+    y: Math.max(88, stage.height * 0.5) - FOCUS_Y * scale,
     scale,
   };
 }
@@ -388,14 +445,28 @@ function goHomeWithoutReload() {
 }
 
 function edgePath(x1: number, y1: number, x2: number, y2: number): string {
-  const midY = y1 + (y2 - y1) * 0.54;
-  return `M ${x1} ${y1} C ${x1} ${midY}, ${x2} ${midY}, ${x2} ${y2}`;
+  const dx = x2 - x1;
+  const dy = y2 - y1;
+  const bend = Math.sign(dx || 1) * Math.min(58, Math.abs(dx) * 0.16);
+  return `M ${x1} ${y1} C ${x1 + bend} ${y1 + dy * 0.22}, ${x2 - bend} ${y1 + dy * 0.78}, ${x2} ${y2}`;
+}
+
+function continuationEdgePath(x: number, y: number): string {
+  const dx = x - FOCUS_X;
+  const dy = y - FOCUS_Y;
+  const length = Math.max(1, Math.hypot(dx, dy));
+  const ux = dx / length;
+  const uy = dy / length;
+  const endX = x + ux * 70;
+  const endY = y + uy * 70;
+  return `M ${x} ${y} C ${x + ux * 32} ${y + uy * 32}, ${x + ux * 52} ${y + uy * 52}, ${endX} ${endY}`;
 }
 
 export function AppNetwork({ locale }: { locale: Locale }) {
   const t = NETWORK_EXPERIENCE_COPY[locale as SupportedLocale];
   const c = NETWORK_CANVAS_CONTROL_COPY[locale as SupportedLocale];
   const w = NETWORK_WORKSPACE_COPY[locale as SupportedLocale];
+  const u = NETWORK_CANARY_UI_COPY[locale as SupportedLocale];
   const { wallet, openWallet, isWalletActionPending } = useWalletLauncher();
   const stageRef = useRef<HTMLDivElement | null>(null);
   const groupDropRef = useRef<HTMLDivElement | null>(null);
@@ -422,6 +493,9 @@ export function AppNetwork({ locale }: { locale: Locale }) {
   const workspaceDragRef = useRef<WorkspaceDrag | null>(null);
   const groupingTimerRef = useRef<number | null>(null);
   const noticeTimerRef = useRef<number | null>(null);
+  const introFitTimerRef = useRef<number | null>(null);
+  const introEndTimerRef = useRef<number | null>(null);
+  const introWalletRef = useRef<string | null>(null);
 
   const [rootData, setRootData] = useState<NetworkData | null>(null);
   const [focusWallet, setFocusWallet] = useState<string | null>(null);
@@ -447,6 +521,7 @@ export function AppNetwork({ locale }: { locale: Locale }) {
   const [draggingWorkspaceKey, setDraggingWorkspaceKey] = useState<string | null>(null);
   const [groupingWallet, setGroupingWallet] = useState<string | null>(null);
   const [workspaceNotice, setWorkspaceNotice] = useState('');
+  const [introActive, setIntroActive] = useState(false);
 
   const currentData = useMemo(() => {
     if (!focusWallet) return rootData;
@@ -468,18 +543,13 @@ export function AppNetwork({ locale }: { locale: Locale }) {
     const safePage = clamp(page, 0, pageCount - 1);
     const start = safePage * pageSize;
     const slice = children.slice(start, start + pageSize);
-    const count = slice.length;
-    const span = isMobile ? Math.min(390, Math.max(120, (count - 1) * 72)) : Math.min(920, Math.max(170, (count - 1) * 112));
     return slice.map((child, index): PositionedChild => {
-      const ratio = count <= 1 ? 0.5 : index / (count - 1);
-      const defaultX = FOCUS_X - span / 2 + span * ratio;
-      const distanceFromCenter = Math.abs(index - (count - 1) / 2);
-      const defaultY = FOCUS_Y + (isMobile ? 178 : 188) + Math.min(46, distanceFromCenter * 9);
+      const fallback = radialChildPoint(child.wallet, start + index, isMobile);
       const saved = activeWorkspace.positions[keyWallet(child.wallet)];
       return {
         ...child,
-        x: saved?.x ?? defaultX,
-        y: saved?.y ?? defaultY,
+        x: saved?.x ?? fallback.x,
+        y: saved?.y ?? fallback.y,
       };
     });
   }, [currentData, page, pageSize, isMobile, activeWorkspace.positions]);
@@ -592,6 +662,14 @@ export function AppNetwork({ locale }: { locale: Locale }) {
   }, []);
 
   const clearWorkspaceTimers = useCallback(() => {
+    if (introFitTimerRef.current !== null) {
+      window.clearTimeout(introFitTimerRef.current);
+      introFitTimerRef.current = null;
+    }
+    if (introEndTimerRef.current !== null) {
+      window.clearTimeout(introEndTimerRef.current);
+      introEndTimerRef.current = null;
+    }
     if (groupingTimerRef.current !== null) {
       window.clearTimeout(groupingTimerRef.current);
       groupingTimerRef.current = null;
@@ -723,6 +801,16 @@ export function AppNetwork({ locale }: { locale: Locale }) {
     returnViewByChildRef.current.clear();
     viewByFocusRef.current.clear();
     initializedWalletRef.current = null;
+    if (introFitTimerRef.current !== null) {
+      window.clearTimeout(introFitTimerRef.current);
+      introFitTimerRef.current = null;
+    }
+    if (introEndTimerRef.current !== null) {
+      window.clearTimeout(introEndTimerRef.current);
+      introEndTimerRef.current = null;
+    }
+    introWalletRef.current = null;
+    setIntroActive(false);
     storedStateRef.current = wallet ? readStoredRuntimeState(wallet) : null;
     setWorkspaceStore(wallet ? readStoredWorkspace(wallet) : { version: 1, focus: {} });
     setRootData(null);
@@ -893,7 +981,7 @@ export function AppNetwork({ locale }: { locale: Locale }) {
     setCameraTransition(true);
     setView((current) => ({
       x: stageSize.width / 2 - FOCUS_X * current.scale,
-      y: Math.max(88, stageSize.height * 0.32) - FOCUS_Y * current.scale,
+      y: Math.max(88, stageSize.height * 0.5) - FOCUS_Y * current.scale,
       scale: current.scale,
     }));
     window.setTimeout(() => setCameraTransition(false), 240);
@@ -916,29 +1004,47 @@ export function AppNetwork({ locale }: { locale: Locale }) {
       ...visibleGroups.map((group) => ({ x: group.x, y: group.y })),
     ];
     for (let index = 0; index < emptySlotCount; index += 1) {
-      points.push({ x: FOCUS_X + (index === 0 ? -95 : 95), y: FOCUS_Y + 184 });
+      points.push(inviteSlotPoint(index, isMobile));
     }
-    const minX = Math.min(...points.map((point) => point.x));
-    const maxX = Math.max(...points.map((point) => point.x));
-    const minY = Math.min(...points.map((point) => point.y));
-    const maxY = Math.max(...points.map((point) => point.y));
-    const contentWidth = Math.max(220, maxX - minX + 190);
-    const contentHeight = Math.max(220, maxY - minY + 190);
-    const scale = clamp(
-      Math.min(1, (stageSize.width - 34) / contentWidth, (stageSize.height - 50) / contentHeight),
-      MIN_SCALE,
-      MAX_SCALE,
-    );
-    const centerX = (minX + maxX) / 2;
-    const centerY = (minY + maxY) / 2;
     setCameraTransition(true);
-    setView({
-      x: stageSize.width / 2 - centerX * scale,
-      y: stageSize.height / 2 - centerY * scale,
-      scale,
-    });
-    window.setTimeout(() => setCameraTransition(false), 240);
-  }, [stageSize, visibleChildren, visibleGroups, emptySlotCount]);
+    setView(fittedView(stageSize, points));
+    window.setTimeout(() => setCameraTransition(false), FIT_TRANSITION_MS);
+  }, [stageSize, visibleChildren, visibleGroups, emptySlotCount, isMobile]);
+
+  useEffect(() => {
+    if (!wallet || loadState !== 'ready' || !currentData) return;
+    if (stageSize.width <= 0 || stageSize.height <= 0) return;
+    if (storedStateRef.current) return;
+    const walletKey = keyWallet(wallet);
+    if (introWalletRef.current === walletKey) return;
+    introWalletRef.current = walletKey;
+
+    const introKey = `${INTRO_SESSION_PREFIX}${walletKey}`;
+    let seen = false;
+    try {
+      seen = window.sessionStorage.getItem(introKey) === '1';
+      if (!seen) window.sessionStorage.setItem(introKey, '1');
+    } catch {
+      seen = false;
+    }
+    if (seen) return;
+
+    const reducedMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false;
+    if (reducedMotion) {
+      fitNetwork();
+      return;
+    }
+
+    setIntroActive(true);
+    introFitTimerRef.current = window.setTimeout(() => {
+      introFitTimerRef.current = null;
+      fitNetwork();
+    }, INTRO_HOLD_MS);
+    introEndTimerRef.current = window.setTimeout(() => {
+      introEndTimerRef.current = null;
+      setIntroActive(false);
+    }, INTRO_END_MS);
+  }, [wallet, loadState, currentData, stageSize, fitNetwork]);
 
   const zoomAt = useCallback((screenPoint: Point, nextScale: number) => {
     setView((current) => {
@@ -1526,9 +1632,24 @@ export function AppNetwork({ locale }: { locale: Locale }) {
     transform: `translate3d(${view.x}px,${view.y}px,0) scale(${view.scale})`,
     transformOrigin: '0 0',
   };
+  const highZoom = clamp((view.scale - 1.45) / (MAX_SCALE - 1.45), 0, 1);
+  const labelOpacity = clamp((view.scale - 0.48) / 0.52, 0, 1);
+  const visualStyle = {
+    '--network-node-scale': String(1 - highZoom * 0.32),
+    '--network-node-selected-scale': String(Math.min(1.08, (1 - highZoom * 0.32) * 1.07)),
+    '--network-center-scale': String(1 - highZoom * 0.38),
+    '--network-center-selected-scale': String(Math.min(1.08, (1 - highZoom * 0.38) * 1.07)),
+    '--network-label-opacity': String(labelOpacity),
+  } as CSSProperties;
 
   return (
-    <section className="networkCard networkCanvasPage" data-network-runtime="single" data-layout-editing={editingLayout ? 'true' : 'false'}>
+    <section
+      className={`networkCard networkCanvasPage${introActive ? ' introActive' : ''}`}
+      data-network-runtime="single"
+      data-layout-editing={editingLayout ? 'true' : 'false'}
+      data-camera-transition={cameraTransition ? 'true' : 'false'}
+      style={visualStyle}
+    >
       <header className="networkHeader" data-no-pan="true">
         <div className="headerTitle">
           <span>NETWORK</span>
@@ -1544,7 +1665,7 @@ export function AppNetwork({ locale }: { locale: Locale }) {
       </header>
 
       <div className="networkToolbar" data-no-pan="true">
-        <nav className="breadcrumbs" aria-label={t.directNetwork}>
+        <nav className={`breadcrumbs${breadcrumb.length === 1 ? ' rootOnly' : ''}`} aria-label={t.directNetwork}>
           {breadcrumbStart > 0 ? <span className="crumbEllipsis">…</span> : null}
           {shownBreadcrumb.map((item, index) => {
             const absoluteIndex = breadcrumbStart + index;
@@ -1616,14 +1737,14 @@ export function AppNetwork({ locale }: { locale: Locale }) {
               {visibleChildren.filter((child) => !groupContainingWallet(activeWorkspace, child.wallet)).map((child) => (
                 <path
                   key={`edge:${keyWallet(child.wallet)}`}
-                  d={edgePath(FOCUS_X, FOCUS_Y + 42, child.x, child.y - 34)}
+                  d={edgePath(FOCUS_X, FOCUS_Y, child.x, child.y)}
                   className={child.status === 'REWARDED' ? 'edge rewarded' : 'edge'}
                 />
               ))}
               {visibleGroups.map((group) => (
                 <path
                   key={`group-edge:${group.id}`}
-                  d={edgePath(FOCUS_X, FOCUS_Y + 42, group.x, group.y - 35)}
+                  d={edgePath(FOCUS_X, FOCUS_Y, group.x, group.y)}
                   className="edge groupEdge"
                 />
               ))}
@@ -1633,7 +1754,7 @@ export function AppNetwork({ locale }: { locale: Locale }) {
                   return child ? (
                     <path
                       key={`group-member-edge:${group.id}:${keyWallet(member)}`}
-                      d={edgePath(group.x, group.y + 35, child.x, child.y - 34)}
+                      d={edgePath(group.x, group.y, child.x, child.y)}
                       className="edge groupMemberEdge"
                     />
                   ) : null;
@@ -1642,19 +1763,22 @@ export function AppNetwork({ locale }: { locale: Locale }) {
               {visibleChildren.filter((child) => child.network > 0).map((child) => (
                 <path
                   key={`continuation:${keyWallet(child.wallet)}`}
-                  d={`M ${child.x} ${child.y + 35} C ${child.x} ${child.y + 50}, ${child.x} ${child.y + 57}, ${child.x} ${child.y + 70}`}
+                  d={continuationEdgePath(child.x, child.y)}
                   className="continuationEdge"
                 />
               ))}
               {Array.from({ length: emptySlotCount }).map((_, index) => {
-                const slotX = FOCUS_X + (index === 0 ? -95 : 95);
-                const slotY = FOCUS_Y + 184;
+                const slot = inviteSlotPoint(index, isMobile);
+                const path = edgePath(FOCUS_X, FOCUS_Y, slot.x, slot.y);
                 return (
-                  <path
-                    key={`slot-edge:${index}`}
-                    d={edgePath(FOCUS_X, FOCUS_Y + 42, slotX, slotY - 30)}
-                    className="edge slotEdge"
-                  />
+                  <g key={`slot-edge:${index}`} className="slotEdgeGroup">
+                    <path d={path} className="edge slotEdgeBase" />
+                    <path
+                      d={path}
+                      className="edge slotEdgePulse"
+                      style={{ animationDelay: `${index * -0.92}s` }}
+                    />
+                  </g>
                 );
               })}
             </svg>
@@ -1670,7 +1794,7 @@ export function AppNetwork({ locale }: { locale: Locale }) {
               }}
               data-no-pan="true"
             >
-              <NetworkIdentity address={currentData.focusWallet} root />
+              <span className="nodeCircle focusCircle"><NetworkIdentity address={currentData.focusWallet} root showLabel={false} /></span>
               <span className="nodeMeta">
                 <strong>{focusIsRoot ? c.you : shortWallet(currentData.focusWallet)}</strong>
                 <small>{currentData.summary.network.toLocaleString()} {t.networkSize}</small>
@@ -1700,7 +1824,7 @@ export function AppNetwork({ locale }: { locale: Locale }) {
                   data-no-pan="true"
                   data-workspace-draggable={editingLayout ? 'true' : undefined}
                 >
-                  <NetworkIdentity address={child.wallet} />
+                  <span className="nodeCircle"><NetworkIdentity address={child.wallet} showLabel={false} /></span>
                   <span className="nodeMeta">
                     <strong>{shortWallet(child.wallet)}</strong>
                     <small>{statusLabel(child.status, locale)}</small>
@@ -1737,21 +1861,20 @@ export function AppNetwork({ locale }: { locale: Locale }) {
             })}
 
             {Array.from({ length: emptySlotCount }).map((_, index) => {
-              const slotX = FOCUS_X + (index === 0 ? -95 : 95);
-              const slotY = FOCUS_Y + 184;
+              const slot = inviteSlotPoint(index, isMobile);
               return (
                 <button
                   type="button"
                   className="slotNode"
                   key={`slot:${index}`}
-                  style={{ left: slotX, top: slotY }}
+                  style={{ left: slot.x, top: slot.y }}
                   onClick={editingLayout ? undefined : goHomeWithoutReload}
                   disabled={editingLayout}
                   data-no-pan="true"
                   aria-label={t.inviteFriend}
                 >
-                  <span>+</span>
-                  <small>{t.inviteFriend}</small>
+                  <span className="slotCircle" aria-hidden="true">+</span>
+                  <strong>{u.available}</strong>
                 </button>
               );
             })}
@@ -1950,20 +2073,21 @@ export function AppNetwork({ locale }: { locale: Locale }) {
       ) : null}
 
       <style jsx>{`
-        .networkCanvasPage{width:min(100%,560px);box-sizing:border-box;margin:0 auto;position:relative;overflow:hidden;border:1px solid rgba(255,205,80,.13);border-radius:22px;background:radial-gradient(circle at 50% -14%,rgba(244,183,40,.09),transparent 34%),rgba(10,10,9,.9);box-shadow:0 16px 45px rgba(0,0,0,.24)}
+        .networkCanvasPage{width:min(100%,560px);box-sizing:border-box;margin:0 auto;position:relative;overflow:hidden;border:1px solid rgba(255,255,255,.06);border-radius:18px;background:#090907;box-shadow:0 16px 45px rgba(0,0,0,.22)}
         .networkHeader{min-height:62px;padding:12px 14px;box-sizing:border-box;display:flex;align-items:center;justify-content:space-between;gap:12px;border-bottom:1px solid rgba(255,255,255,.055);background:rgba(14,14,12,.94)}
         .headerTitle{min-width:0}.headerTitle>span{display:block;color:#b78d2a;font-size:.52rem;font-weight:950;letter-spacing:.18em}.headerTitle h1{margin:3px 0 0;color:#f0ece3;font-size:.92rem;letter-spacing:-.025em}
         .summary{display:grid;grid-template-columns:auto auto 1px auto auto;align-items:baseline;gap:4px 6px;white-space:nowrap}.summary strong{color:#f1ede4;font-size:.76rem}.summary strong.growth{color:#e6b943}.summary span{color:#77736c;font-size:.52rem}.summary i{width:1px;height:16px;background:rgba(255,255,255,.08);align-self:center}
         .networkToolbar{position:relative;z-index:40;min-height:44px;padding:7px 9px;box-sizing:border-box;display:flex;align-items:center;gap:8px;border-bottom:1px solid rgba(255,255,255,.05);background:rgba(12,12,10,.96)}
-        .breadcrumbs{min-width:0;flex:1;display:flex;align-items:center;overflow:hidden;white-space:nowrap}.crumbWrap{display:flex;align-items:center;min-width:0}.crumbSep,.crumbEllipsis{flex:0 0 auto;color:#4f4c47;font-size:.66rem;margin:0 2px}.crumb{max-width:88px;padding:4px 5px;border:0;background:transparent;color:#8c867b;font:inherit;font-size:.56rem;font-weight:800;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;cursor:pointer}.crumb.current{color:#e5bd55;cursor:default}.crumb:disabled{opacity:.8}
+        .breadcrumbs{min-width:0;flex:1;display:flex;align-items:center;overflow:hidden;white-space:nowrap}.breadcrumbs.rootOnly{display:none}.breadcrumbs.rootOnly+.searchWrap{flex:1 1 auto;max-width:none}.crumbWrap{display:flex;align-items:center;min-width:0}.crumbSep,.crumbEllipsis{flex:0 0 auto;color:#4f4c47;font-size:.66rem;margin:0 2px}.crumb{max-width:88px;padding:4px 5px;border:0;background:transparent;color:#8c867b;font:inherit;font-size:.56rem;font-weight:800;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;cursor:pointer}.crumb.current{color:#e5bd55;cursor:default}.crumb:disabled{opacity:.8}
         .searchWrap{position:relative;flex:0 0 min(44%,205px)}.searchWrap input{width:100%;height:30px;box-sizing:border-box;padding:0 9px;border:1px solid rgba(255,205,80,.1);border-radius:9px;background:#11110f;color:#d8d3ca;font:inherit;font-size:.58rem;outline:none}.searchWrap input:focus{border-color:rgba(244,183,40,.34)}.searchWrap input:disabled{opacity:.45}.searchResults{position:absolute;z-index:90;top:35px;right:0;width:min(290px,78vw);max-height:245px;overflow:auto;padding:5px;border:1px solid rgba(255,205,80,.14);border-radius:12px;background:rgba(14,14,12,.985);box-shadow:0 18px 40px rgba(0,0,0,.42)}.searchResults button{width:100%;padding:8px;border:0;border-radius:8px;background:transparent;color:#ddd7cc;text-align:left;cursor:pointer}.searchResults button:hover{background:rgba(244,183,40,.06)}.searchResults strong{display:block;font-size:.62rem}.searchResults button span{display:block;margin-top:3px;color:#6f6b64;font-size:.52rem}.searchStatus{display:block;padding:11px 8px;color:#77736c;font-size:.56rem;line-height:1.45;text-align:center}
-        .networkStage{position:relative;height:clamp(430px,68vh,650px);overflow:hidden;touch-action:none;overscroll-behavior:contain;background:radial-gradient(circle at 50% 34%,rgba(244,183,40,.045),transparent 31%),linear-gradient(rgba(255,255,255,.015) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.015) 1px,transparent 1px);background-size:auto,28px 28px,28px 28px;cursor:grab;user-select:none;-webkit-user-select:none}.networkStage:active{cursor:grabbing}.networkStage.layoutEditing{box-shadow:inset 0 0 0 1px rgba(244,183,40,.11)}
-        .world{position:absolute;top:0;left:0;will-change:transform;backface-visibility:hidden}.world.cameraTransition{transition:transform ${NAVIGATION_MS}ms cubic-bezier(.18,.82,.2,1)}.worldContent{position:absolute;inset:0;transform-origin:${FOCUS_X}px ${FOCUS_Y}px}.worldContent.nav-forward{animation:networkForward ${NAVIGATION_MS}ms cubic-bezier(.18,.82,.2,1)}.worldContent.nav-back{animation:networkBack ${NAVIGATION_MS}ms cubic-bezier(.18,.82,.2,1)}
-        .edges{position:absolute;inset:0;overflow:visible;pointer-events:none}.edge{fill:none;stroke:rgba(176,145,73,.31);stroke-width:1.3;vector-effect:non-scaling-stroke}.edge.rewarded{stroke:rgba(232,183,62,.46)}.edge.groupEdge{stroke:rgba(224,178,65,.42);stroke-width:1.5}.groupMemberEdge{stroke:rgba(194,157,75,.32);stroke-width:1.15}.continuationEdge{fill:none;stroke:rgba(176,145,73,.24);stroke-width:1.15;stroke-linecap:round;vector-effect:non-scaling-stroke}.slotEdge{stroke:rgba(232,183,62,.34);stroke-dasharray:7 8;animation:slotFlow 2.2s linear infinite}
-        .personNode,.slotNode,.groupNode{position:absolute;z-index:4;transform:translate(-50%,-50%);font:inherit}.personNode{min-width:92px;padding:7px 8px 8px;border:1px solid rgba(255,255,255,.08);border-radius:15px;background:rgba(17,17,15,.94);color:#d9d4ca;display:grid;justify-items:center;gap:5px;box-shadow:0 8px 20px rgba(0,0,0,.23);cursor:pointer;user-select:none;-webkit-user-select:none;-webkit-touch-callout:none}.personNode:hover,.personNode.selected{border-color:rgba(244,183,40,.35);box-shadow:0 0 0 1px rgba(244,183,40,.07),0 10px 24px rgba(0,0,0,.3)}.focusNode{min-width:112px;padding:10px 11px 9px;border-color:rgba(244,183,40,.24);background:radial-gradient(circle at 50% 0,rgba(244,183,40,.12),transparent 52%),rgba(18,17,14,.97)}.childNode.status-rewarded{border-color:rgba(218,171,57,.17)}.childNode.status-qualified{border-color:rgba(155,136,82,.14)}.personNode.draggable,.groupNode.draggable{cursor:grab;touch-action:none}.personNode.draggable:active,.groupNode.draggable:active{cursor:grabbing}.personNode.dragging,.groupNode.dragging{z-index:12;border-color:rgba(244,183,40,.58);box-shadow:0 14px 30px rgba(0,0,0,.34),0 0 0 2px rgba(244,183,40,.11)}.personNode.grouping{animation:groupDropAway ${GROUP_DROP_MS}ms ease forwards}
-        .personNode :global(.identity){display:grid;justify-items:center;gap:4px}.personNode :global(.avatarSlot){position:relative;display:grid;place-items:center}.personNode :global(.neutralAvatar){display:grid;place-items:center;border:1px solid rgba(244,183,40,.13);border-radius:50%;background:#171611;color:#8e7b50}.personNode :global(.avatarSlot img){position:absolute;inset:0;border-radius:50%;object-fit:cover;transition:opacity 160ms ease}.personNode :global(.identityLabel){max-width:88px;color:#a9a49b;font-size:.5rem;font-weight:750;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.nodeMeta{display:grid;justify-items:center;gap:2px}.nodeMeta strong{max-width:100px;color:#e5dfd5;font-size:.58rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.nodeMeta small{color:#6f6a62;font-size:.48rem}.focusNode .nodeMeta strong{color:#edc65c;font-size:.61rem}.nodeBusy{position:absolute;right:6px;top:6px;width:6px;height:6px;border-radius:50%;background:#e9bc45;box-shadow:0 0 10px rgba(233,188,69,.8);animation:pulse 900ms ease-in-out infinite alternate}
-        .groupNode{min-width:94px;padding:9px 10px;border:1px solid rgba(244,183,40,.26);border-radius:18px;background:radial-gradient(circle at 50% 0,rgba(244,183,40,.15),transparent 56%),rgba(18,17,14,.97);color:#dfd8ca;display:grid;justify-items:center;gap:4px;box-shadow:0 9px 22px rgba(0,0,0,.27);cursor:pointer}.groupNode:hover,.groupNode.selected,.groupNode.expanded{border-color:rgba(244,183,40,.46)}.groupNode strong{max-width:105px;font-size:.57rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.groupNode small{color:#8b805f;font-size:.48rem}.groupGlyph{position:relative;width:34px;height:26px;display:block}.groupGlyph i{position:absolute;width:14px;height:14px;border:1px solid rgba(244,183,40,.34);border-radius:50%;background:#1a1812}.groupGlyph i:nth-child(1){left:10px;top:0}.groupGlyph i:nth-child(2){left:2px;top:11px}.groupGlyph i:nth-child(3){right:2px;top:11px}
-        .slotNode{width:84px;height:70px;border:1px dashed rgba(244,183,40,.22);border-radius:15px;background:rgba(244,183,40,.025);color:#a98735;display:grid;place-items:center;align-content:center;gap:3px;cursor:pointer}.slotNode span{font-size:1rem;font-weight:400}.slotNode small{max-width:72px;font-size:.48rem;font-weight:800;line-height:1.15}.slotNode:hover{border-color:rgba(244,183,40,.42);background:rgba(244,183,40,.055)}.slotNode:disabled{opacity:.28;cursor:default}
+        .networkStage{position:relative;height:clamp(430px,68vh,650px);overflow:hidden;touch-action:none;overscroll-behavior:contain;background:radial-gradient(ellipse at 50% 50%,rgba(244,183,40,.036),transparent 36%),#080807;cursor:grab;user-select:none;-webkit-user-select:none}.networkStage:active{cursor:grabbing}.networkStage.layoutEditing{box-shadow:inset 0 0 0 1px rgba(244,183,40,.11)}
+        .world{position:absolute;top:0;left:0;will-change:transform;backface-visibility:hidden}.world.cameraTransition{transition:transform ${NAVIGATION_MS}ms cubic-bezier(.18,.82,.2,1)}.introActive .world.cameraTransition{transition-duration:${FIT_TRANSITION_MS}ms}.worldContent{position:absolute;inset:0;transform-origin:${FOCUS_X}px ${FOCUS_Y}px}.worldContent.nav-forward{animation:networkForward ${NAVIGATION_MS}ms cubic-bezier(.18,.82,.2,1)}.worldContent.nav-back{animation:networkBack ${NAVIGATION_MS}ms cubic-bezier(.18,.82,.2,1)}
+        .edges{position:absolute;inset:0;overflow:visible;pointer-events:none;z-index:2}.edge{fill:none;stroke:rgba(176,145,73,.31);stroke-width:1.05;stroke-linecap:round;vector-effect:non-scaling-stroke}.edge.rewarded{stroke:rgba(232,183,62,.46)}.edge.groupEdge{stroke:rgba(224,178,65,.42);stroke-width:1.15;stroke-dasharray:4 8}.groupMemberEdge{stroke:rgba(194,157,75,.32);stroke-width:.95;stroke-dasharray:4 8}.continuationEdge{fill:none;stroke:rgba(176,145,73,.24);stroke-width:1;stroke-linecap:round;vector-effect:non-scaling-stroke}.slotEdgeBase,.slotEdgePulse{fill:none;stroke-linecap:round;pointer-events:none;vector-effect:non-scaling-stroke}.slotEdgeBase{stroke:rgba(226,188,79,.62);stroke-width:1.05;opacity:.5}.slotEdgePulse{stroke:rgba(255,210,76,.95);stroke-width:1.55;stroke-dasharray:5 38;opacity:.8;filter:drop-shadow(0 0 2px rgba(244,183,40,.28));animation:networkSlotFlow 2.45s linear infinite}
+        .personNode,.slotNode,.groupNode{position:absolute;z-index:6;transform:translate(-50%,-50%);font:inherit;translate:none}.personNode{width:52px;height:52px;padding:0;border:0;border-radius:50%;background:transparent;color:#d9d4ca;display:block;cursor:pointer;user-select:none;-webkit-user-select:none;-webkit-touch-callout:none;touch-action:none;isolation:isolate}.focusNode{width:74px;height:74px;z-index:8}.childNode::before,.slotNode::before{content:'';position:absolute;left:50%;top:50%;border-radius:50%;transform:translate(-50%,-50%);pointer-events:none;z-index:0}.childNode::before{width:58px;height:58px;background:radial-gradient(circle,rgba(8,8,7,.94) 0 87%,rgba(8,8,7,.58) 91%,rgba(8,8,7,.17) 96%,rgba(8,8,7,0) 100%)}.slotNode::before{width:52px;height:52px;background:radial-gradient(circle,rgba(8,8,7,.92) 0 86%,rgba(8,8,7,.54) 91%,rgba(8,8,7,.15) 96%,rgba(8,8,7,0) 100%)}.nodeCircle,.slotCircle{position:absolute;inset:0;z-index:1;display:grid;place-items:center;border-radius:50%;box-sizing:border-box;background:#0d0d0b;overflow:hidden;transition:transform 170ms ease,border-color 170ms ease,box-shadow 170ms ease}.nodeCircle{border:1px solid rgba(210,174,65,.38);box-shadow:0 0 22px rgba(244,183,40,.025);transform:scale(var(--network-node-scale,1))}.focusCircle{border-color:rgba(255,207,71,.82);background:radial-gradient(circle at 50% 45%,rgb(24,21,13) 0%,rgb(13,13,11) 62%,rgb(13,13,11) 100%);box-shadow:0 0 0 1px rgba(244,183,40,.07),0 0 28px rgba(244,183,40,.08);transform:scale(var(--network-center-scale,1))}.focusNode::before{content:'';position:absolute;inset:-7px;border:1px solid rgba(244,183,40,.42);border-radius:50%;box-shadow:0 0 18px rgba(244,183,40,.055);animation:networkYouBreath 2.8s ease-in-out infinite;pointer-events:none}.introActive .focusNode::before{animation:networkYouIntro .72s ease-out 1,networkYouBreath 2.8s .72s ease-in-out infinite}.personNode:hover .nodeCircle,.personNode:focus-visible .nodeCircle,.personNode.selected .nodeCircle{border-color:rgba(244,183,40,.78);box-shadow:0 0 0 3px rgba(244,183,40,.08),0 0 26px rgba(244,183,40,.1);transform:scale(var(--network-node-selected-scale,1.07))}.focusNode:hover .focusCircle,.focusNode:focus-visible .focusCircle,.focusNode.selected .focusCircle{transform:scale(var(--network-center-selected-scale,1.07))}.childNode.status-rewarded .nodeCircle{border-color:rgba(232,183,62,.58)}.childNode.status-qualified .nodeCircle{border-color:rgba(193,166,90,.46)}.personNode.draggable,.groupNode.draggable{cursor:grab}.personNode.draggable:active,.groupNode.draggable:active{cursor:grabbing}.personNode.dragging{z-index:14}.personNode.dragging .nodeCircle{border-color:rgba(244,183,40,.92);box-shadow:0 0 0 4px rgba(244,183,40,.12),0 0 30px rgba(244,183,40,.18)}.groupNode.dragging{z-index:14;border-color:rgba(244,183,40,.82);box-shadow:0 14px 30px rgba(0,0,0,.34),0 0 0 3px rgba(244,183,40,.1)}.personNode.grouping{animation:groupDropAway ${GROUP_DROP_MS}ms ease forwards}
+        .nodeCircle :global(.identity){width:100%;height:100%;display:grid;place-items:center}.nodeCircle :global(.avatarSlot){position:relative;display:grid;place-items:center}.childNode .nodeCircle :global(.avatarSlot),.childNode .nodeCircle :global(.neutralAvatar),.childNode .nodeCircle :global(.avatarSlot img){width:40px!important;height:40px!important}.focusNode .nodeCircle :global(.avatarSlot),.focusNode .nodeCircle :global(.neutralAvatar),.focusNode .nodeCircle :global(.avatarSlot img){width:56px!important;height:56px!important}.nodeCircle :global(.neutralAvatar){display:grid;place-items:center;border:0;border-radius:50%;background:#171611;color:#8e7b50}.nodeCircle :global(.avatarSlot img){position:absolute;inset:0;margin:auto;border-radius:50%;object-fit:cover;transition:opacity 160ms ease}.nodeMeta{position:absolute;left:50%;z-index:2;width:120px;display:grid;justify-items:center;gap:2px;transform:translateX(-50%);opacity:var(--network-label-opacity,1);pointer-events:none;transition:opacity 90ms linear}.childNode .nodeMeta{bottom:calc(100% + 6px)}.focusNode .nodeMeta{top:calc(100% + 7px)}.nodeMeta strong{max-width:112px;color:#e5dfd5;font-size:.52rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.nodeMeta small{max-width:116px;color:#6f6a62;font-size:.41rem;white-space:nowrap}.focusNode .nodeMeta strong{color:#edc65c;font-size:.61rem}.focusNode .nodeMeta small{font-size:.44rem}.nodeBusy{position:absolute;z-index:3;right:-2px;top:-2px;width:7px;height:7px;border-radius:50%;background:#e9bc45;box-shadow:0 0 10px rgba(233,188,69,.8);animation:pulse 900ms ease-in-out infinite alternate}
+        .groupNode{min-width:108px;max-width:160px;padding:8px 10px;border:1px solid rgba(244,183,40,.54);border-radius:14px;background:rgba(18,16,10,.96);color:#d8b450;display:grid;grid-template-columns:30px 1fr;column-gap:6px;row-gap:1px;align-items:center;text-align:left;box-shadow:0 8px 28px rgba(0,0,0,.26),0 0 24px rgba(244,183,40,.045);cursor:pointer;touch-action:none;user-select:none;-webkit-user-select:none;-webkit-touch-callout:none}.groupNode:hover,.groupNode.selected{border-color:rgba(255,207,71,.82);box-shadow:0 0 0 3px rgba(244,183,40,.09),0 8px 28px rgba(0,0,0,.3)}.groupNode.expanded{border-style:dashed;background:rgba(13,12,9,.9);opacity:.92}.groupNode .groupGlyph{grid-row:1/3}.groupNode strong{min-width:0;max-width:110px;font-size:.48rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.groupNode small{color:#756b55;font-size:.34rem;white-space:nowrap}.groupGlyph{position:relative;width:30px;height:24px;display:block}.groupGlyph i{position:absolute;width:13px;height:13px;border:1px solid rgba(244,183,40,.34);border-radius:50%;background:#1a1812}.groupGlyph i:nth-child(1){left:9px;top:0}.groupGlyph i:nth-child(2){left:2px;top:10px}.groupGlyph i:nth-child(3){right:2px;top:10px}
+        .slotNode{width:46px;height:46px;padding:0;border:0;border-radius:50%;background:transparent;color:#c79f36;cursor:pointer;touch-action:none;user-select:none;-webkit-user-select:none;isolation:isolate}.slotCircle{border:1px dashed rgba(226,181,62,.52);color:#c79f36;font-size:.9rem;background:#0d0d0b;transform:scale(var(--network-node-scale,1));animation:slotPulse 5.6s ease-in-out infinite}.slotNode>strong{position:absolute;left:50%;top:calc(100% + 5px);z-index:2;width:92px;transform:translateX(-50%);color:#a98735;font-size:.47rem;white-space:nowrap;pointer-events:none;opacity:var(--network-label-opacity,1)}.slotNode:hover .slotCircle,.slotNode:focus-visible .slotCircle{border-style:solid;border-color:rgba(244,183,40,.9);box-shadow:0 0 28px rgba(244,183,40,.1);transform:scale(var(--network-node-selected-scale,1.07))}.slotNode:disabled{opacity:.28;cursor:default}
+        .worldContent.nav-forward .childNode .nodeCircle{animation:networkNodeBloom 620ms cubic-bezier(.16,.82,.2,1) both}
         .layoutControls{position:absolute;z-index:64;left:10px;top:10px;display:flex;align-items:center;gap:5px}.layoutControls button{min-height:31px;padding:0 9px;border:1px solid rgba(255,205,80,.13);border-radius:9px;background:rgba(18,18,15,.94);color:#a9a397;font:inherit;font-size:.52rem;font-weight:900;cursor:pointer;box-shadow:0 7px 18px rgba(0,0,0,.2)}.layoutControls .editLayoutButton:hover,.layoutControls .newGroupButton:hover,.layoutControls .groupsButton:hover,.layoutControls .groupsButton.active{border-color:rgba(244,183,40,.31);color:#e1bd5b}.layoutControls .saveLayoutButton{border-color:rgba(244,183,40,.32);background:linear-gradient(135deg,#e9b93c,#c98a18);color:#17120a}.layoutControls .cancelLayoutButton{color:#8d877e}
         .groupsPanel{position:absolute;z-index:81;left:10px;top:50px;width:min(235px,calc(100% - 20px));box-sizing:border-box;padding:11px;border:1px solid rgba(244,183,40,.17);border-radius:15px;background:rgba(14,14,12,.985);box-shadow:0 18px 40px rgba(0,0,0,.42);cursor:default}.groupsPanelHead{display:flex;align-items:center;justify-content:space-between}.groupsPanelHead strong{color:#e5dfd3;font-size:.62rem}.groupsPanelHead button{width:27px;height:27px;border:0;background:transparent;color:#817c73;font-size:.95rem;cursor:pointer}.groupsPanel p{margin:10px 0;color:#77736c;font-size:.53rem}.groupsList{display:grid;gap:5px;margin-top:7px}.groupsList>button{padding:7px 8px;border:1px solid rgba(255,255,255,.06);border-radius:9px;background:rgba(255,255,255,.025);color:#aaa398;text-align:left;cursor:pointer}.groupsList span,.groupsList small{display:block}.groupsList span{font-size:.54rem;font-weight:900}.groupsList small{margin-top:2px;color:#746e64;font-size:.46rem}.createFirstGroup{width:100%;min-height:32px;margin-top:8px;border:1px solid rgba(244,183,40,.22);border-radius:9px;background:rgba(244,183,40,.05);color:#c5a454;font:inherit;font-size:.52rem;font-weight:900;cursor:pointer}.groupBuilder{position:absolute;z-index:82;left:10px;top:50px;width:min(235px,calc(100% - 20px));box-sizing:border-box;padding:11px;border:1px solid rgba(244,183,40,.2);border-radius:15px;background:rgba(14,14,12,.985);box-shadow:0 18px 40px rgba(0,0,0,.42);cursor:default}.groupBuilderHead{display:flex;align-items:center;justify-content:space-between;gap:8px}.groupBuilderHead strong{color:#e5dfd3;font-size:.62rem}.groupBuilderHead button{width:27px;height:27px;border:0;background:transparent;color:#817c73;font-size:.95rem;cursor:pointer}.groupBuilder>input{width:100%;height:31px;margin-top:7px;box-sizing:border-box;padding:0 8px;border:1px solid rgba(255,205,80,.1);border-radius:8px;background:#11110f;color:#d8d3ca;font:inherit;font-size:.55rem;outline:none}.groupDropZone{min-height:74px;margin-top:8px;padding:9px;box-sizing:border-box;display:grid;place-items:center;align-content:center;gap:2px;border:1px dashed rgba(244,183,40,.34);border-radius:11px;background:rgba(244,183,40,.035);text-align:center}.dropIcon{color:#c99d35;font-size:.9rem}.groupDropZone strong{color:#b9aa83;font-size:.54rem}.groupDropZone small{color:#6d685e;font-size:.48rem}.groupDraftMembers{margin-top:7px;display:flex;flex-wrap:wrap;gap:4px}.groupDraftMembers button{padding:4px 6px;border:1px solid rgba(255,255,255,.06);border-radius:7px;background:rgba(255,255,255,.025);color:#89847a;font:inherit;font-size:.46rem;cursor:pointer}.groupDraftMembers button span{color:#a97f54}.groupMemberList span{display:inline-flex;align-items:center;gap:4px}.groupMemberList span button{width:18px;height:18px;border:0;border-radius:50%;background:rgba(255,255,255,.04);color:#8d8173;cursor:pointer}.groupToggleButton{width:100%;min-height:30px;margin-top:8px;border:1px solid rgba(244,183,40,.15);border-radius:9px;background:rgba(244,183,40,.035);color:#b69a57;font:inherit;font-size:.5rem;font-weight:900;cursor:pointer}.createGroupButton{width:100%;min-height:33px;margin-top:8px;border:0;border-radius:9px;background:linear-gradient(135deg,#ffd24d,#efa718);color:#17120a;font:inherit;font-size:.53rem;font-weight:950;cursor:pointer}.createGroupButton:disabled{background:rgba(255,255,255,.05);color:#68635b;cursor:default}
         .viewControls{position:absolute;z-index:55;right:10px;bottom:10px;display:grid;grid-template-columns:34px auto 34px 34px;gap:5px}.viewControls .fitButton{width:auto;min-width:38px;padding:0 7px;font-size:.48rem}.viewControls button,.pager button{height:34px;border:1px solid rgba(255,205,80,.13);border-radius:10px;background:rgba(18,18,15,.92);color:#bbb5aa;font:inherit;font-size:.78rem;font-weight:850;cursor:pointer}.viewControls button:hover,.pager button:hover:not(:disabled){border-color:rgba(244,183,40,.28);color:#e4c36d}.pager{position:absolute;z-index:55;left:50%;bottom:10px;transform:translateX(-50%);display:flex;align-items:center;gap:7px;padding:4px;border:1px solid rgba(255,205,80,.08);border-radius:12px;background:rgba(12,12,10,.88)}.pager button{width:32px}.pager button:disabled{opacity:.28;cursor:default}.pager span{min-width:48px;color:#77736c;font-size:.53rem;font-weight:800;text-align:center}.parentReturn{position:absolute;z-index:55;left:10px;bottom:10px;min-height:34px;padding:0 11px;border:1px solid rgba(255,205,80,.12);border-radius:10px;background:rgba(18,18,15,.92);color:#a89c7b;font:inherit;font-size:.55rem;font-weight:850;cursor:pointer}.parentReturn:disabled{opacity:.4}
@@ -1971,9 +2095,9 @@ export function AppNetwork({ locale }: { locale: Locale }) {
         .groupCardTitle{padding-right:28px;display:flex;align-items:center;gap:10px}.groupCardTitle>div strong{display:block;color:#e7dfcf;font-size:.65rem}.groupCardTitle>div span{display:block;margin-top:3px;color:#887c5e;font-size:.5rem}.groupMemberList{margin-top:10px;display:flex;flex-wrap:wrap;gap:5px}.groupMemberList span{padding:5px 6px;border:1px solid rgba(255,255,255,.05);border-radius:7px;background:rgba(255,255,255,.02);color:#777168;font-size:.47rem}.ungroupButton{width:100%;min-height:33px;margin-top:10px;border:1px solid rgba(194,118,90,.2);border-radius:9px;background:rgba(194,118,90,.06);color:#bd9889;font:inherit;font-size:.52rem;font-weight:900;cursor:pointer}
         .workspaceNotice{position:absolute;z-index:96;left:50%;bottom:56px;transform:translateX(-50%);padding:7px 11px;border:1px solid rgba(244,183,40,.18);border-radius:10px;background:rgba(21,19,14,.97);color:#d5b85f;font-size:.53rem;font-weight:850;white-space:nowrap;box-shadow:0 12px 28px rgba(0,0,0,.3)}
         .inlineError{position:absolute;z-index:90;left:50%;bottom:54px;transform:translateX(-50%);max-width:calc(100% - 28px);padding:8px 9px 8px 11px;display:flex;align-items:center;gap:8px;border:1px solid rgba(194,118,90,.2);border-radius:10px;background:rgba(38,23,18,.96);color:#c7a294;font-size:.53rem;box-shadow:0 12px 30px rgba(0,0,0,.32)}.inlineError button{border:0;background:transparent;color:#9f7d71;font-size:.8rem;cursor:pointer}
-        @keyframes networkForward{0%{opacity:.7;scale:.965}100%{opacity:1;scale:1}}@keyframes networkBack{0%{opacity:.76;scale:1.045}100%{opacity:1;scale:1}}@keyframes slotFlow{to{stroke-dashoffset:-30}}@keyframes pulse{to{opacity:.38;transform:scale(.82)}}@keyframes groupDropAway{to{opacity:0;scale:.72}}
-        @media(max-width:560px){.networkCanvasPage{width:100%;border-radius:18px}.networkHeader{min-height:58px;padding:10px 11px}.summary{gap:3px 4px}.summary strong{font-size:.68rem}.summary span{font-size:.46rem}.networkToolbar{padding:6px 7px;gap:5px}.searchWrap{flex-basis:43%}.crumb{max-width:64px}.networkStage{height:max(430px,calc(100dvh - 245px));max-height:620px}.profileCard{top:auto;right:8px;bottom:52px;left:8px;width:auto}.groupBuilder{left:8px;top:49px;width:min(232px,calc(100% - 16px))}.layoutControls{left:8px;top:8px}.layoutControls button{padding:0 7px}.viewControls{right:8px;bottom:8px}.parentReturn{left:8px;bottom:8px}.pager{bottom:8px}.personNode{min-width:82px}.focusNode{min-width:101px}}
-        @media(prefers-reduced-motion:reduce){.world.cameraTransition{transition:none}.worldContent.nav-forward,.worldContent.nav-back,.slotEdge,.nodeBusy,.personNode.grouping{animation:none!important}}
+        @keyframes networkForward{0%{opacity:.68;scale:.975}100%{opacity:1;scale:1}}@keyframes networkBack{0%{opacity:.74;scale:1.035}100%{opacity:1;scale:1}}@keyframes networkSlotFlow{from{stroke-dashoffset:43}to{stroke-dashoffset:-43}}@keyframes networkYouBreath{0%,100%{opacity:.46;transform:scale(.96)}50%{opacity:.92;transform:scale(1.06)}}@keyframes networkYouIntro{0%{opacity:.25;transform:scale(.78)}58%{opacity:1;transform:scale(1.14)}100%{opacity:.62;transform:scale(1)}}@keyframes networkNodeBloom{0%{transform:scale(.45);box-shadow:0 0 0 rgba(244,183,40,0)}55%{transform:scale(1.18);box-shadow:0 0 42px rgba(244,183,40,.22)}100%{transform:scale(var(--network-node-scale,1));box-shadow:0 0 22px rgba(244,183,40,.025)}}@keyframes slotPulse{0%,100%{box-shadow:0 0 0 rgba(244,183,40,0)}50%{box-shadow:0 0 22px rgba(244,183,40,.07)}}@keyframes pulse{to{opacity:.38;transform:scale(.82)}}@keyframes groupDropAway{to{opacity:0;scale:.72}}
+        @media(max-width:560px){.networkCanvasPage{width:100%;border-radius:18px}.networkHeader{min-height:58px;padding:10px 11px}.summary{gap:3px 4px}.summary strong{font-size:.68rem}.summary span{font-size:.46rem}.networkToolbar{padding:6px 7px;gap:5px}.searchWrap{flex-basis:43%}.crumb{max-width:64px}.networkStage{height:max(430px,calc(100dvh - 245px));max-height:620px}.profileCard{top:auto;right:8px;bottom:52px;left:8px;width:auto}.groupBuilder{left:8px;top:49px;width:min(232px,calc(100% - 16px))}.layoutControls{left:8px;top:8px}.layoutControls button{padding:0 7px}.viewControls{right:8px;bottom:8px}.parentReturn{left:8px;bottom:8px}.pager{bottom:8px}.personNode{min-width:0}.focusNode{min-width:0}}
+        @media(prefers-reduced-motion:reduce){.world.cameraTransition{transition:none}.worldContent.nav-forward,.worldContent.nav-back,.slotEdgePulse,.nodeBusy,.personNode.grouping,.slotCircle,.focusNode::before,.worldContent.nav-forward .childNode .nodeCircle{animation:none!important}}
       `}</style>
     </section>
   );

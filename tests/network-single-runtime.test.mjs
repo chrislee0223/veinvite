@@ -171,9 +171,30 @@ test('canary fixture exercises multiple generations and follows the live round w
   assert.match(canaryFixtureSource, /canaryFixture: true/);
 });
 
-test('navigation animation honors reduced motion and does not animate idle nodes', () => {
+test('single runtime keeps the approved radial Network visual and deliberate motion contract', () => {
+  assert.match(networkSource, /function radialChildPoint/);
+  assert.match(networkSource, /const GOLDEN_ANGLE/);
+  assert.match(networkSource, /nodeCircle focusCircle/);
+  assert.match(networkSource, /className="slotCircle"/);
+  assert.match(networkSource, /\{u\.available\}/);
+  assert.match(networkSource, /slotEdgeBase/);
+  assert.match(networkSource, /slotEdgePulse/);
+  assert.match(networkSource, /@keyframes networkSlotFlow/);
+  assert.match(networkSource, /@keyframes networkYouIntro/);
+  assert.match(networkSource, /@keyframes networkNodeBloom/);
+  assert.match(networkSource, /INTRO_SESSION_PREFIX/);
+  assert.match(networkSource, /breadcrumbs\.rootOnly\{display:none\}/);
+  assert.match(networkSource, /width:min\(100%,560px\)/);
+  assert.doesNotMatch(networkSource, /\.personNode\{min-width:92px;padding:7px/);
+  assert.doesNotMatch(networkSource, /background-size:auto,28px 28px,28px 28px/);
+});
+
+test('navigation animation honors reduced motion and keeps idle geometry stationary', () => {
   assert.match(networkSource, /worldContent\.nav-forward/);
   assert.match(networkSource, /worldContent\.nav-back/);
+  assert.match(networkSource, /networkSlotFlow/);
+  assert.match(networkSource, /networkYouBreath/);
+  assert.match(networkSource, /networkNodeBloom/);
   assert.match(networkSource, /prefers-reduced-motion:reduce/);
   assert.doesNotMatch(networkSource, /ambient.*translate/i);
   assert.doesNotMatch(networkSource, /setInterval\(/);
