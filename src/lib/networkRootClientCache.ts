@@ -56,7 +56,6 @@ type StoredHeaderMetrics = {
 };
 
 const MEMORY_TTL_MS = 120_000;
-const HEADER_TTL_MS = 120_000;
 const HEADER_STORAGE_KEY = 'veinvite_network_header_metrics_v1';
 const memory = new Map<string, CacheEntry>();
 const headerMemory = new Map<string, StoredHeaderMetrics>();
@@ -114,7 +113,6 @@ function readHeaderSession(wallet: string): StoredHeaderMetrics | null {
       !entry ||
       walletKey(entry.wallet) !== key ||
       typeof entry.savedAt !== 'number' ||
-      Date.now() - entry.savedAt > HEADER_TTL_MS ||
       !isValidHeaderMetrics(entry.data)
     ) {
       if (entry) {
@@ -138,10 +136,9 @@ export function getCachedNetworkHeaderMetrics(wallet: string | null): NetworkHea
   if (!wallet) return null;
   const key = walletKey(wallet);
   const entry = headerMemory.get(key);
-  if (entry && Date.now() - entry.savedAt <= HEADER_TTL_MS) {
+  if (entry) {
     return normalizeHeaderMetricsForNow(entry.data);
   }
-  if (entry) headerMemory.delete(key);
   return readHeaderSession(wallet)?.data ?? null;
 }
 
