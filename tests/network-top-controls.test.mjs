@@ -57,12 +57,19 @@ test('stage does not steal pointer capture from buttons and inputs', () => {
 
 
 test('desktop Network intentionally uses the same compact mobile shell', () => {
-  assert.match(source, /const EXPLORER_PAGE_SIZE_DESKTOP = 6/);
-  assert.match(source, /const EXPLORER_PAGE_SIZE_MOBILE = 6/);
   assert.match(hub, /networkHubShell\{width:min\(100%,520px\)/);
   assert.match(source, /networkHeader\{[^}]*min-height:42px[^}]*padding:7px 9px/);
   assert.match(source, /networkUtilityRow\{[^}]*min-height:39px[^}]*padding:4px 6px/);
   assert.match(home, /networkScreen \.topActions \{[^}]*flex-direction:column-reverse/);
   assert.match(home, /networkScreen \.languageSelect \{[^}]*height:34px/);
   assert.match(home, /networkScreen \.accountChip \{[^}]*min-height:34px/);
+});
+
+
+test('Network has one continuous canvas with no direct-node pagination', () => {
+  assert.doesNotMatch(source, /EXPLORER_PAGE_SIZE/);
+  assert.doesNotMatch(source, /className="pager"/);
+  assert.doesNotMatch(source, /pageCount/);
+  assert.doesNotMatch(source, /safePage/);
+  assert.match(source, /const positionedChildren = useMemo\(\(\) => \{[\s\S]*children\.map/);
 });
