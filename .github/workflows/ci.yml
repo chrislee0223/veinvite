@@ -136,6 +136,7 @@ jobs:
           tests/referral-slot-capacity-parity.test.mjs
           tests/referral-two-slot-foundation.test.mjs
           tests/referral-view-migration-compat.test.mjs
+          tests/veworld-typed-auth-probe.test.mjs
 
       - name: Install dependencies
         shell: bash
