@@ -528,6 +528,7 @@ export function AppNetwork({ locale }: { locale: Locale }) {
   const [cacheVersion, setCacheVersion] = useState(0);
   const [loadState, setLoadState] = useState<'idle' | 'loading' | 'ready' | 'error'>('idle');
   const [loadError, setLoadError] = useState('');
+  const [availableSlots, setAvailableSlots] = useState(0);
   const [stageSize, setStageSize] = useState({ width: 0, height: 0 });
   const [view, setView] = useState<View>({
     x: 260 - FOCUS_X,
@@ -694,7 +695,7 @@ export function AppNetwork({ locale }: { locale: Locale }) {
   const pageCount = Math.max(1, Math.ceil((currentData?.children.length ?? 0) / pageSize));
   const safePage = clamp(page, 0, pageCount - 1);
   const emptySlotCount = currentData && keyWallet(currentData.focusWallet) === keyWallet(currentData.rootWallet)
-    ? Math.max(0, Math.min(2, 2 - currentData.children.length))
+    ? availableSlots
     : 0;
 
   const clearNavigationTimer = useCallback(() => {
@@ -894,6 +895,7 @@ export function AppNetwork({ locale }: { locale: Locale }) {
     setDraggingWorkspaceKey(null);
     setGroupingWallet(null);
     setWorkspaceNotice('');
+    setAvailableSlots(0);
     setView({
       x: 260 - FOCUS_X,
       y: 300 - FOCUS_Y,
@@ -910,6 +912,31 @@ export function AppNetwork({ locale }: { locale: Locale }) {
       cancelRequest();
     };
   }, [wallet, loadRoot, cancelRequest]);
+
+  useEffect(() => {
+    if (!wallet) {
+      setAvailableSlots(0);
+      return;
+    }
+
+    const controller = new AbortController();
+    void fetch(`/api/network/slots?wallet=${encodeURIComponent(wallet)}`, {
+      method: 'GET',
+      credentials: 'include',
+      cache: 'no-store',
+      headers: { Accept: 'application/json' },
+      signal: controller.signal,
+    }).then(async (response) => {
+      if (!response.ok) return;
+      const payload = await response.json().catch(() => null) as { availableSlots?: unknown } | null;
+      if (!payload || typeof payload.availableSlots !== 'number') return;
+      setAvailableSlots(Math.max(0, Math.min(2, Math.trunc(payload.availableSlots))));
+    }).catch(() => {
+      // Slot availability is supplementary; the Network graph remains usable.
+    });
+
+    return () => controller.abort();
+  }, [wallet]);
 
   useEffect(() => {
     setEditingLayout(false);
