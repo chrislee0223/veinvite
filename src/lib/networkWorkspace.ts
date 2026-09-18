@@ -250,10 +250,22 @@ export function addWorkspaceGroup(
   const members = Array.from(new Set(group.members.map((wallet) => wallet.toLowerCase())));
   if (members.length < 1 || members.length > MAX_MEMBERS_PER_GROUP) return workspace;
   const memberSet = new Set(members);
-  const groups = keepValidGroups(workspace.groups.map((existing) => ({
-    ...existing,
-    members: existing.members.filter((wallet) => !memberSet.has(wallet.toLowerCase())),
-  })));
+  const groups = keepValidGroups(workspace.groups.map((existing) => {
+    const existingMembers = existing.members.filter((wallet) => !memberSet.has(wallet.toLowerCase()));
+    const existingMemberSet = new Set(existingMembers.map((wallet) => wallet.toLowerCase()));
+    const memberOffsets = existing.memberOffsets
+      ? Object.fromEntries(
+          Object.entries(existing.memberOffsets)
+            .filter(([wallet]) => existingMemberSet.has(wallet.toLowerCase()))
+            .map(([wallet, point]) => [wallet.toLowerCase(), { ...point }]),
+        )
+      : undefined;
+    return {
+      ...existing,
+      members: existingMembers,
+      memberOffsets: memberOffsets && Object.keys(memberOffsets).length ? memberOffsets : undefined,
+    };
+  }));
   if (groups.length >= MAX_GROUPS_PER_FOCUS) return workspace;
   const memberSet = new Set(members);
   const memberOffsets = group.memberOffsets
