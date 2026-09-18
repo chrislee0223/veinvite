@@ -178,25 +178,14 @@ export function AppNetworkHub({ locale }: { locale: Locale }) {
     );
   }
 
-  if (probeState === 'loading' || probeState === 'idle') {
-    return <div className="networkHubPending" aria-busy="true" aria-live="polite" />;
-  }
-
   if (probeState === 'maintenance') {
     return <StateCard title={h.maintenanceTitle} description={h.maintenanceDescription} />;
   }
 
-  if (probeState === 'error' || !probe) {
-    return (
-      <StateCard title={t.loadError} description={t.loadError}>
-        <div className="stateActions">
-          <button type="button" className="primary" onClick={() => void loadProbe()}>{t.retry}</button>
-        </div>
-      </StateCard>
-    );
-  }
-
-  if (probe.summary.network === 0) {
+  // Summary probing is now advisory. Do not hold the Network canvas
+  // behind it: AppNetwork starts its authenticated fast topology read
+  // immediately, while the summary request continues in parallel.
+  if (probeState === 'ready' && probe?.summary.network === 0) {
     return (
       <StateCard title={t.emptyTitle} description={t.emptyDescription}>
         <div className="stateActions">
@@ -211,7 +200,6 @@ export function AppNetworkHub({ locale }: { locale: Locale }) {
       <AppNetwork locale={locale} />
       <style jsx>{`
         .networkHubShell{width:min(100%,560px);margin:0 auto;padding:0;box-sizing:border-box}
-        .networkHubPending{width:min(100%,560px);height:520px;margin:0 auto}
       `}</style>
     </section>
   );
