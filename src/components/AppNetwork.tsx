@@ -12,6 +12,7 @@ import {
   type WheelEvent as ReactWheelEvent,
 } from 'react';
 import { useGetAvatar, useVechainDomain } from '@vechain/vechain-kit';
+import { createPortal } from 'react-dom';
 
 import { NETWORK_CANARY_UI_COPY } from '@/lib/i18n/networkCanaryUiCopy';
 import { NETWORK_CANVAS_CONTROL_COPY } from '@/lib/i18n/networkCanvasControlCopy';
@@ -2922,7 +2923,7 @@ export function AppNetwork({ locale }: { locale: Locale }) {
         ) : null}
       </div>
 
-      {dragGhost && dragGhostChild ? (
+      {dragGhost && dragGhostChild && typeof document !== 'undefined' ? createPortal(
         <div
           ref={dragGhostRef}
           className={`nodeDragGhost status-${dragGhostChild.status.toLowerCase()}`}
@@ -2941,7 +2942,8 @@ export function AppNetwork({ locale }: { locale: Locale }) {
               </span>
             )}
           </span>
-        </div>
+        </div>,
+        document.body,
       ) : null}
 
       {workspaceNotice ? <div className="workspaceNotice" data-no-pan="true">✓ {workspaceNotice}</div> : null}
