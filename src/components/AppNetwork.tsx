@@ -1949,9 +1949,8 @@ export function AppNetwork({ locale }: { locale: Locale }) {
   const breadcrumb = currentData.breadcrumb;
   const breadcrumbStart = Math.max(0, breadcrumb.length - 4);
   const shownBreadcrumb = breadcrumb.slice(breadcrumbStart);
-  const headerNetwork = rootTopologyReady
-    ? visibleRootData.summary.network
-    : headerMetrics?.network ?? visibleRootData.summary.network;
+  const headerNetwork =
+    headerMetrics?.network ?? visibleRootData.summary.network;
   const headerThisRound =
     visibleRootData.summary.thisRound ?? headerMetrics?.thisRound ?? null;
 
