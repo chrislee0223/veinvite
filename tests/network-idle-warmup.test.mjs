@@ -29,6 +29,13 @@ test('Network warmup primes header data as soon as wallet authentication is read
   assert.match(warmup, /prefetchNetworkRoot\(wallet\)/);
   assert.match(warmup, /prefetchEnrichedNetworkRoot\(wallet, \{ force: true \}\)[\s\S]*\.catch\(\(\) => null\)/);
   assert.match(warmup, /prefetchNetworkSummary\(wallet\)\.catch\(\(\) => null\)/);
+  assert.match(warmup, /prefetchNetworkInviteSlots\(wallet\)\.catch\(\(\) => null\)/);
+
+  const fastWarmIndex = warmup.indexOf('void prefetchNetworkRoot(wallet)');
+  const enrichedWarmIndex = warmup.indexOf('void prefetchEnrichedNetworkRoot(wallet, { force: true })');
+  assert.ok(fastWarmIndex >= 0 && enrichedWarmIndex > fastWarmIndex);
+  const betweenRootReads = warmup.slice(fastWarmIndex, enrichedWarmIndex);
+  assert.doesNotMatch(betweenRootReads, /\.then\(/);
 
   assert.match(warmup, /requestIdleCallback/);
   const dataStart = warmup.indexOf('const warmData = () =>');
