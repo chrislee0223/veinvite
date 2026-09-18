@@ -1017,11 +1017,13 @@ export function AppNetwork({ locale }: { locale: Locale }) {
     }, GROUP_HUB_IN_MS);
   }, []);
 
-  const persistNodePosition = useCallback((walletKey: string, point: Point) => {
+  const persistWorkspaceMutation = useCallback((
+    update: (workspace: NetworkFocusWorkspace) => NetworkFocusWorkspace,
+  ) => {
     if (!wallet || !currentFocusKey) return;
     setWorkspaceStore((current) => {
       const focusWorkspace = workspaceForFocus(current, currentFocusKey);
-      const nextWorkspace = withNodePosition(focusWorkspace, walletKey, point);
+      const nextWorkspace = update(focusWorkspace);
       const nextStore = withFocusWorkspace(current, currentFocusKey, nextWorkspace);
       try {
         window.localStorage.setItem(workspaceStorageKey(wallet), serializeNetworkWorkspaceStore(nextStore));
@@ -1031,6 +1033,29 @@ export function AppNetwork({ locale }: { locale: Locale }) {
       return nextStore;
     });
   }, [wallet, currentFocusKey]);
+
+  const persistNodePosition = useCallback((walletKey: string, point: Point) => {
+    persistWorkspaceMutation((workspace) => withNodePosition(workspace, walletKey, point));
+  }, [persistWorkspaceMutation]);
+
+  const persistGroupPosition = useCallback((groupId: string, point: Point) => {
+    persistWorkspaceMutation((workspace) => withGroupPosition(workspace, groupId, point));
+  }, [persistWorkspaceMutation]);
+
+  const persistGroupMemberPosition = useCallback((
+    groupId: string,
+    walletKey: string,
+    point: Point,
+  ) => {
+    persistWorkspaceMutation((workspace) => {
+      const group = workspace.groups.find((item) => item.id === groupId);
+      if (!group) return workspace;
+      return withWorkspaceGroupMemberOffset(workspace, groupId, walletKey, {
+        x: point.x - group.x,
+        y: point.y - group.y,
+      });
+    });
+  }, [persistWorkspaceMutation]);
 
   const beginNavigationMotion = useCallback((direction: NavigationDirection) => {
     clearNavigationTimer();
