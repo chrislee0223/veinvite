@@ -22,6 +22,8 @@ const [
   readFile('src/lib/networkCanaryFixture.ts', 'utf8'),
 ]);
 
+const networkWarmupSource = await readFile('src/components/NetworkIdleWarmup.tsx', 'utf8');
+
 const componentFiles = await readdir('src/components');
 const qaFiles = await readdir('src/qa');
 
@@ -135,12 +137,16 @@ test('single runtime keeps the authenticated read-only Network API contract', ()
   assert.doesNotMatch(workspaceSource, /supabase|fetch\(|\/api\//);
 });
 
-test('Network first paint skips live-round chain enrichment and refreshes it after the canvas is usable', () => {
+test('Network first paint is immediate, warmed, and never swaps to a blocking loading card', () => {
   assert.match(networkRouteSource, /fastInitial = request\.nextUrl\.searchParams\.get\('fast'\) === '1'/);
   assert.match(networkRouteSource, /const round = fastInitial \? null : await readCurrentRoundContext\(\)/);
   assert.match(networkSource, /if \(options\.fast\) params\.set\('fast', '1'\)/);
-  assert.match(networkSource, /fetchNetwork\(requestWallet, \{[\s\S]*fast: true/);
+  assert.match(networkSource, /getCachedNetworkRoot\(wallet\)/);
+  assert.match(networkSource, /provisionalNetworkData\(wallet\)/);
+  assert.match(networkSource, /rememberNetworkRoot\(requestWallet, payload\)/);
   assert.match(networkSource, /setLoadState\('ready'\)[\s\S]*void fetchNetwork\(requestWallet\)\.then/);
+  assert.match(networkWarmupSource, /prefetchNetworkRoot\(wallet\)/);
+  assert.doesNotMatch(networkSource, /if \(loadState === 'loading' \|\| loadState === 'idle'\)[\s\S]{0,260}networkStateCard/);
 });
 
 test('canary test data is server-only and never creates a second frontend runtime', () => {

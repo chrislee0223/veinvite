@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { readFile } from 'node:fs/promises';
 
-test('Network warmup runs only after app-ready and never mounts Network early', async () => {
+test('Network warmup runs only after app-ready and primes both summary and root graph', async () => {
   const [providers, warmup] = await Promise.all([
     readFile(
       new URL('../src/components/AppProviders.tsx', import.meta.url),
@@ -21,25 +21,12 @@ test('Network warmup runs only after app-ready and never mounts Network early', 
   assert.match(warmup, /window\.location\.pathname !== '\/'/);
 
   assert.match(warmup, /import\('\.\/AppGuide'\)/);
-  assert.match(warmup, /import\('\.\/AppNetworkCanaryV71'\)/);
   assert.match(warmup, /import\('\.\/AppNetworkHub'\)/);
   assert.match(warmup, /prefetchNetworkSummary\(wallet\)/);
+  assert.match(warmup, /prefetchNetworkRoot\(wallet\)/);
+  assert.match(warmup, /Promise\.allSettled/);
 
   assert.doesNotMatch(warmup, /<AppGuide\b/);
-  assert.doesNotMatch(warmup, /<AppNetworkCanaryV71\b/);
   assert.doesNotMatch(warmup, /<AppNetworkHub\b/);
-  assert.doesNotMatch(warmup, /NetworkPageZoomGuard/);
-  assert.doesNotMatch(warmup, /method:\s*['\"]POST['\"]/);
-});
-
-test('canary warmup avoids the real-data summary request', async () => {
-  const warmup = await readFile(
-    new URL('../src/components/NetworkIdleWarmup.tsx', import.meta.url),
-    'utf8',
-  );
-
-  assert.match(
-    warmup,
-    /if \(normalizedWallet === NETWORK_CANARY_WALLET\) \{[\s\S]*AppNetworkCanaryV71[\s\S]*\} else \{[\s\S]*prefetchNetworkSummary\(wallet\)/,
-  );
+  assert.doesNotMatch(warmup, /method:\s*['"]POST['"]/);
 });

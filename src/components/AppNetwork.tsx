@@ -19,6 +19,10 @@ import { NETWORK_EXPERIENCE_COPY } from '@/lib/i18n/networkExperienceCopy';
 import { NETWORK_WORKSPACE_COPY } from '@/lib/i18n/networkWorkspaceCopy';
 import type { Locale, SupportedLocale } from '@/lib/i18n/locales';
 import {
+  getCachedNetworkRoot,
+  rememberNetworkRoot,
+} from '@/lib/networkRootClientCache';
+import {
   EMPTY_NETWORK_WORKSPACE_STORE,
   addWorkspaceGroup,
   cloneNetworkFocusWorkspace,
@@ -234,6 +238,27 @@ function runtimeSessionKey(wallet: string): string {
 
 function workspaceStorageKey(wallet: string): string {
   return `${WORKSPACE_PREFIX}${keyWallet(wallet)}`;
+}
+
+function provisionalNetworkData(wallet: string): NetworkData {
+  return {
+    rootWallet: wallet,
+    focusWallet: wallet,
+    focusDepth: 0,
+    invitedBy: null,
+    breadcrumb: [wallet],
+    summary: {
+      network: 0,
+      direct: 0,
+      qualified: 0,
+      thisRound: null,
+      depth: 0,
+    },
+    round: null,
+    children: [],
+    searchResults: [],
+    depthLimitReached: false,
+  };
 }
 
 function readStoredRuntimeState(wallet: string): StoredRuntimeState | null {
@@ -504,7 +529,11 @@ export function AppNetwork({ locale }: { locale: Locale }) {
   const [loadState, setLoadState] = useState<'idle' | 'loading' | 'ready' | 'error'>('idle');
   const [loadError, setLoadError] = useState('');
   const [stageSize, setStageSize] = useState({ width: 0, height: 0 });
-  const [view, setView] = useState<View>({ x: 0, y: 0, scale: 1 });
+  const [view, setView] = useState<View>({
+    x: 260 - FOCUS_X,
+    y: 300 - FOCUS_Y,
+    scale: 1,
+  });
   const [selectedWallet, setSelectedWallet] = useState<string | null>(null);
   const [page, setPage] = useState(0);
   const [searchQuery, setSearchQuery] = useState('');
@@ -524,10 +553,23 @@ export function AppNetwork({ locale }: { locale: Locale }) {
   const [workspaceNotice, setWorkspaceNotice] = useState('');
   const [introActive, setIntroActive] = useState(false);
 
+  const visibleRootData = useMemo(() => {
+    if (!wallet) return null;
+    if (rootData && keyWallet(rootData.rootWallet) === keyWallet(wallet)) {
+      return rootData;
+    }
+    return (getCachedNetworkRoot(wallet) as NetworkData | null) ?? provisionalNetworkData(wallet);
+  }, [wallet, rootData]);
+
   const currentData = useMemo(() => {
-    if (!focusWallet) return rootData;
-    return cacheRef.current.get(keyWallet(focusWallet)) ?? rootData;
-  }, [focusWallet, rootData, cacheVersion]);
+    if (!visibleRootData) return null;
+    if (!focusWallet) return visibleRootData;
+    const cached = cacheRef.current.get(keyWallet(focusWallet)) ?? null;
+    if (cached && keyWallet(cached.rootWallet) === keyWallet(visibleRootData.rootWallet)) {
+      return cached;
+    }
+    return visibleRootData;
+  }, [focusWallet, visibleRootData, cacheVersion]);
 
   const currentFocusKey = currentData ? keyWallet(currentData.focusWallet) : '';
   const isMobile = stageSize.width > 0 && stageSize.width < 560;
@@ -748,7 +790,6 @@ export function AppNetwork({ locale }: { locale: Locale }) {
     const serial = cancelRequest();
     const controller = new AbortController();
     abortRef.current = controller;
-    setLoadState('loading');
     setLoadError('');
     setSelectedWallet(null);
     setSearchQuery('');
@@ -760,9 +801,6 @@ export function AppNetwork({ locale }: { locale: Locale }) {
       keyWallet(requestWallet) === keyWallet(wallet);
 
     try {
-      // First paint intentionally skips live-round enrichment. Topology,
-      // statuses, counts and interactions can render immediately; the exact
-      // This Round values are refreshed just after the canvas becomes usable.
       const payload = await fetchNetwork(requestWallet, {
         signal: controller.signal,
         fast: true,
@@ -771,6 +809,7 @@ export function AppNetwork({ locale }: { locale: Locale }) {
 
       cacheRef.current.clear();
       cacheRef.current.set(keyWallet(payload.focusWallet), payload);
+      rememberNetworkRoot(requestWallet, payload);
       setRootData(payload);
       setFocusWallet(payload.rootWallet);
 
@@ -783,9 +822,6 @@ export function AppNetwork({ locale }: { locale: Locale }) {
       setCacheVersion((value) => value + 1);
       setLoadState('ready');
 
-      // Restore a previously focused branch without holding the whole Network
-      // behind a second request. Any deliberate navigation cancels this late
-      // restore through the request serial guard.
       if (stored && keyWallet(stored.focusWallet) !== keyWallet(payload.rootWallet)) {
         void fetchNetwork(requestWallet, {
           focus: stored.focusWallet,
@@ -798,28 +834,26 @@ export function AppNetwork({ locale }: { locale: Locale }) {
           initializedWalletRef.current = keyWallet(requestWallet);
           setCacheVersion((value) => value + 1);
         }).catch(() => {
-          // Root view is already usable; branch restoration is best-effort.
+          // Root view is already interactive; branch restoration is best-effort.
         });
       }
 
-      // Exact live-round metrics are enrichment, not a first-paint dependency.
-      // Keep the fast topology on screen while the authoritative round window
-      // resolves in the background.
       void fetchNetwork(requestWallet).then((enriched) => {
         if (!canCommit()) return;
         cacheRef.current.set(keyWallet(enriched.focusWallet), enriched);
+        rememberNetworkRoot(requestWallet, enriched);
         setRootData(enriched);
         setCacheVersion((value) => value + 1);
       }).catch(() => {
-        // The fast payload remains valid if round enrichment is temporarily
-        // unavailable.
+        // Fast topology remains usable if round enrichment is unavailable.
       });
     } catch (error) {
       if (!canCommit()) return;
-      setRootData(null);
-      setFocusWallet(null);
+      // Never replace the Network surface with a blocking loading/error card.
+      // Keep the warmed or provisional canvas visible and retry on the next
+      // entry while preserving the error for diagnostics.
       setLoadError(error instanceof Error ? error.message : t.loadError);
-      setLoadState('error');
+      setLoadState('ready');
     } finally {
       if (abortRef.current === controller) abortRef.current = null;
     }
@@ -842,8 +876,13 @@ export function AppNetwork({ locale }: { locale: Locale }) {
     setIntroActive(false);
     storedStateRef.current = wallet ? readStoredRuntimeState(wallet) : null;
     setWorkspaceStore(wallet ? readStoredWorkspace(wallet) : { version: 1, focus: {} });
-    setRootData(null);
-    setFocusWallet(null);
+    const warmedRoot = wallet ? getCachedNetworkRoot(wallet) as NetworkData | null : null;
+    const initialRoot = wallet ? (warmedRoot ?? provisionalNetworkData(wallet)) : null;
+    setRootData(initialRoot);
+    setFocusWallet(initialRoot?.focusWallet ?? null);
+    if (initialRoot) {
+      cacheRef.current.set(keyWallet(initialRoot.focusWallet), initialRoot);
+    }
     setPage(0);
     setSelectedWallet(null);
     setSelectedGroupId(null);
@@ -855,12 +894,17 @@ export function AppNetwork({ locale }: { locale: Locale }) {
     setDraggingWorkspaceKey(null);
     setGroupingWallet(null);
     setWorkspaceNotice('');
-    setView({ x: 0, y: 0, scale: 1 });
+    setView({
+      x: 260 - FOCUS_X,
+      y: 300 - FOCUS_Y,
+      scale: 1,
+    });
     if (!wallet) {
       setLoadState('idle');
       setLoadError('');
       return;
     }
+    setLoadState('ready');
     void loadRoot();
     return () => {
       cancelRequest();
@@ -1634,27 +1678,8 @@ export function AppNetwork({ locale }: { locale: Locale }) {
     );
   }
 
-  if (loadState === 'loading' || loadState === 'idle') {
-    return (
-      <section className="networkCard networkStateCard" aria-busy="true">
-        <div className="loadingDots" aria-hidden="true"><i /><i /><i /></div>
-        <h1>{t.title}</h1>
-        <p>{t.directNetwork}</p>
-        <style jsx>{stateStyles}</style>
-      </section>
-    );
-  }
-
-  if (loadState === 'error' || !rootData || !currentData) {
-    return (
-      <section className="networkCard networkStateCard">
-        <div className="stateGlyph error">!</div>
-        <h1>{t.loadError}</h1>
-        <p>{loadError || t.loadError}</p>
-        <button type="button" onClick={() => void loadRoot()}>{t.retry}</button>
-        <style jsx>{stateStyles}</style>
-      </section>
-    );
+  if (!visibleRootData || !currentData) {
+    return null;
   }
 
   const focusKey = keyWallet(currentData.focusWallet);
@@ -1693,10 +1718,10 @@ export function AppNetwork({ locale }: { locale: Locale }) {
           <h1>{t.title}</h1>
         </div>
         <div className="summary" aria-label={t.networkSize}>
-          <strong>{rootData.summary.network.toLocaleString()}</strong>
+          <strong>{visibleRootData.summary.network.toLocaleString()}</strong>
           <span>{t.networkSize}</span>
           <i />
-          <strong className="growth">{rootData.summary.thisRound === null ? '–' : `+${rootData.summary.thisRound}`}</strong>
+          <strong className="growth">{visibleRootData.summary.thisRound === null ? '–' : `+${visibleRootData.summary.thisRound}`}</strong>
           <span>{t.thisRound}</span>
         </div>
       </header>
