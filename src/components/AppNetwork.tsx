@@ -1301,6 +1301,10 @@ export function AppNetwork({ locale }: { locale: Locale }) {
 
   const finishLayoutEdit = useCallback(() => {
     workspaceDragRef.current = null;
+    if (groupingTimerRef.current !== null) {
+      window.clearTimeout(groupingTimerRef.current);
+      groupingTimerRef.current = null;
+    }
     setDraggingWorkspaceKey(null);
     setGroupingWallet(null);
     setGroupDraft(null);
@@ -1484,13 +1488,14 @@ export function AppNetwork({ locale }: { locale: Locale }) {
       event.clientY <= draftRect.bottom
     );
     if (insideDraft && groupDraft && !groupDraft.members.includes(drag.key)) {
-      // Group creation is provisional until Create group is pressed. Restore
-      // the node's pre-drag position so cancelling the builder restores exactly.
-      setEditingWorkspace(cloneNetworkFocusWorkspace(drag.originalWorkspace));
+      // Keep the node at the drop point for the short fade-out. Once hidden
+      // in the provisional group, restore its standalone coordinates behind
+      // the scenes so cancelling the builder returns it exactly.
       setGroupingWallet(drag.key);
       if (groupingTimerRef.current !== null) window.clearTimeout(groupingTimerRef.current);
       groupingTimerRef.current = window.setTimeout(() => {
         groupingTimerRef.current = null;
+        setEditingWorkspace(cloneNetworkFocusWorkspace(drag.originalWorkspace));
         setGroupDraft((current) => {
           if (!current || current.members.includes(drag.key)) return current;
           return { ...current, members: [...current.members, drag.key] };
@@ -1553,6 +1558,10 @@ export function AppNetwork({ locale }: { locale: Locale }) {
 
     if (pointersRef.current.size === 2) {
       cancelHoldDrag(true);
+      const activeWorkspaceDrag = workspaceDragRef.current;
+      if (activeWorkspaceDrag) {
+        setEditingWorkspace(cloneNetworkFocusWorkspace(activeWorkspaceDrag.originalWorkspace));
+      }
       workspaceDragRef.current = null;
       setDraggingWorkspaceKey(null);
       const [a, b] = Array.from(pointersRef.current.values());
