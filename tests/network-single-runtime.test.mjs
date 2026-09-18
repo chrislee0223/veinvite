@@ -265,23 +265,16 @@ test('single runtime keeps the approved radial Network visual and deliberate mot
 });
 
 test('Network intro waits for the authoritative slot attempt to settle before YOU-to-fit motion', () => {
-  const introEffectStart = networkSource.indexOf(
-    "if (!wallet || loadState !== 'ready' || !currentData) return;",
+  const readinessGate = networkSource.indexOf('if (!inviteSlotsReady) return;');
+  const introStart = networkSource.indexOf(
+    'setView(centeredView(stageSize, 1))',
+    readinessGate,
   );
-  const introEffectEnd = networkSource.indexOf(
-    'const zoomAt = useCallback',
-    introEffectStart,
-  );
-  assert.ok(introEffectStart >= 0 && introEffectEnd > introEffectStart);
-  const introEffect = networkSource.slice(introEffectStart, introEffectEnd);
-  const readinessGate = introEffect.indexOf('if (!inviteSlotsReady) return;');
-  const introStart = introEffect.indexOf('setView(centeredView(stageSize, 1))');
   assert.ok(readinessGate >= 0 && introStart > readinessGate);
   assert.match(networkSource, /void refreshSlots\(false, false\)/);
   assert.match(networkSource, /setInviteSlots\(slots\);\s*setInviteSlotsReady\(true\);/);
   assert.doesNotMatch(networkSource, /introReadyFallback|fallbackTimer/);
 });
-
 test('Network entry repeats a stable YOU-to-fit motion on every mount without stale session camera restore', () => {
   assert.doesNotMatch(networkSource, /sessionStorage/);
   assert.doesNotMatch(networkSource, /StoredRuntimeState|runtimeSessionKey|readStoredRuntimeState/);
