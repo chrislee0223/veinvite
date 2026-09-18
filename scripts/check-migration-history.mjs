@@ -18,6 +18,11 @@ const productionBaselinePath = path.join(
   'supabase',
   'production-migration-baseline.txt',
 );
+const productionObservedPath = path.join(
+  root,
+  'supabase',
+  'production-migration-observed.txt',
+);
 
 async function readTrackedLines(filePath) {
   return (await readFile(filePath, 'utf8'))
@@ -29,6 +34,7 @@ async function readTrackedLines(filePath) {
 const manifest = await readTrackedLines(manifestPath);
 const historicalLock = await readTrackedLines(historicalLockPath);
 const baselineLines = await readTrackedLines(productionBaselinePath);
+const observedLines = await readTrackedLines(productionObservedPath);
 
 if (baselineLines.length !== 1 || !/^\d{14}$/u.test(baselineLines[0])) {
   throw new Error(
@@ -41,14 +47,18 @@ const migrationFiles = (await readdir(migrationDir))
   .filter((name) => name.endsWith('.sql'))
   .sort();
 
-function versionOf(filename) {
-  const match = /^(\d{14})_.+\.sql$/u.exec(filename);
+function parseFilename(filename) {
+  const match = /^(\d{14})_(.+)\.sql$/u.exec(filename);
 
   if (!match) {
     throw new Error(`Invalid migration filename: ${filename}`);
   }
 
-  return match[1];
+  return { version: match[1], name: match[2] };
+}
+
+function versionOf(filename) {
+  return parseFilename(filename).version;
 }
 
 function assertUniqueAndSorted(label, entries) {
@@ -62,11 +72,27 @@ function assertUniqueAndSorted(label, entries) {
   }
 }
 
+function parseObserved(line) {
+  const match = /^(\d{14})\s+([a-z0-9_]+)(?:\s+([a-z0-9_]+))?$/u.exec(line);
+
+  if (!match) {
+    throw new Error(
+      `Invalid Production observed migration entry: ${line}. Expected "<14-digit version> <production_name> [repository_name]".`,
+    );
+  }
+
+  return {
+    version: match[1],
+    name: match[2],
+    repoName: match[3] ?? match[2],
+    line,
+  };
+}
+
 assertUniqueAndSorted('Production migration manifest', manifest);
 assertUniqueAndSorted('Historical migration lock', historicalLock);
 
 const manifestSet = new Set(manifest);
-const historicalLockSet = new Set(historicalLock);
 const overlap = historicalLock.filter((name) => manifestSet.has(name));
 if (overlap.length > 0) {
   throw new Error(
@@ -86,8 +112,9 @@ if (missing.length > 0) {
 }
 
 const versions = new Map();
+const filesByMigrationName = new Map();
 for (const filename of migrationFiles) {
-  const version = versionOf(filename);
+  const { version, name } = parseFilename(filename);
   const prior = versions.get(version);
 
   if (prior) {
@@ -97,51 +124,109 @@ for (const filename of migrationFiles) {
   }
 
   versions.set(version, filename);
-}
-
-const lockedBeyondBaseline = historicalEntries.filter(
-  (filename) => versionOf(filename) > productionBaseline,
-);
-if (lockedBeyondBaseline.length > 0) {
-  throw new Error(
-    'Historical migration lock contains versions newer than the recorded ' +
-      `Production baseline ${productionBaseline}:\n${lockedBeyondBaseline.join('\n')}`,
-  );
+  const matchingFiles = filesByMigrationName.get(name) ?? [];
+  matchingFiles.push(filename);
+  filesByMigrationName.set(name, matchingFiles);
 }
 
 const latestLockedVersion = historicalEntries
   .map(versionOf)
   .sort()
   .at(-1);
-if (latestLockedVersion !== productionBaseline) {
+
+if (!latestLockedVersion) {
+  throw new Error('Historical migration manifest is empty.');
+}
+
+const observed = observedLines.map(parseObserved);
+const observedVersions = observed.map(({ version }) => version);
+const observedNames = observed.map(({ name }) => name);
+const observedRepoNames = observed.map(({ repoName }) => repoName);
+
+if (new Set(observedVersions).size !== observedVersions.length) {
+  throw new Error('Production observed migrations contain duplicate versions.');
+}
+if (new Set(observedNames).size !== observedNames.length) {
+  throw new Error('Production observed migrations contain duplicate Production names.');
+}
+if (new Set(observedRepoNames).size !== observedRepoNames.length) {
+  throw new Error('Production observed migrations map multiple records to the same repository migration name.');
+}
+if (
+  [...observedVersions].sort().some(
+    (version, index) => version !== observedVersions[index],
+  )
+) {
+  throw new Error('Production observed migrations must be sorted by applied version.');
+}
+if (observed.some(({ version }) => version <= latestLockedVersion)) {
   throw new Error(
-    `Production baseline ${productionBaseline} is not represented by the ` +
-      `latest locked migration ${latestLockedVersion ?? 'none'}.`,
+    `Production observed migrations must all be newer than the locked legacy cutoff ${latestLockedVersion}.`,
   );
 }
 
-const unexpectedHistorical = migrationFiles.filter((filename) => {
+const latestObservedVersion = observedVersions.at(-1);
+if (latestObservedVersion !== productionBaseline) {
+  throw new Error(
+    `Production baseline ${productionBaseline} does not match the latest verified Production migration ${latestObservedVersion ?? 'none'}.`,
+  );
+}
+
+const observedRepoFiles = new Map();
+for (const record of observed) {
+  const matchingFiles = filesByMigrationName.get(record.repoName) ?? [];
+
+  if (matchingFiles.length === 0) {
+    throw new Error(
+      `Production migration ${record.version} ${record.name} has no matching repository migration file for canonical name ${record.repoName}.`,
+    );
+  }
+  if (matchingFiles.length > 1) {
+    throw new Error(
+      `Production migration ${record.version} ${record.name} maps to multiple repository files for canonical name ${record.repoName}:\n${matchingFiles.join('\n')}`,
+    );
+  }
+
+  observedRepoFiles.set(record.name, matchingFiles[0]);
+}
+
+const appliedRepoFiles = new Set([
+  ...historicalEntries,
+  ...observedRepoFiles.values(),
+]);
+
+const unclassifiedAtOrBeforeBaseline = migrationFiles.filter((filename) => {
   return (
-    !historicalSet.has(filename) &&
+    !appliedRepoFiles.has(filename) &&
     versionOf(filename) <= productionBaseline
   );
 });
 
-if (unexpectedHistorical.length > 0) {
+if (unclassifiedAtOrBeforeBaseline.length > 0) {
   throw new Error(
-    'Repository contains unclassified historical migration filenames at or ' +
-      `before Production baseline ${productionBaseline}:\n` +
-      unexpectedHistorical.join('\n'),
+    'Repository contains migration files at or before the Production baseline ' +
+      `${productionBaseline} that are not verified as applied in Production:\n` +
+      unclassifiedAtOrBeforeBaseline.join('\n'),
   );
 }
 
 const futureMigrations = migrationFiles.filter(
-  (filename) => versionOf(filename) > productionBaseline,
+  (filename) =>
+    !appliedRepoFiles.has(filename) && versionOf(filename) > productionBaseline,
 );
 
+if (futureMigrations.length > 0) {
+  throw new Error(
+    'Repository contains migrations that are not in the verified Production migration snapshot. ' +
+      'Apply and verify the Production migration before merging code that depends on it, then advance ' +
+      'production-migration-observed.txt and production-migration-baseline.txt:\n' +
+      futureMigrations.join('\n'),
+  );
+}
+
 console.log(
-  `Migration history OK: ${manifest.length} Production manifest migrations and ` +
-    `${historicalLock.length} explicitly locked historical variants are present; ` +
-    `Production baseline is ${productionBaseline}; ` +
-    `${futureMigrations.length} future migration(s) are allowed.`,
+  `Migration history OK: ${manifest.length} legacy manifest migrations, ` +
+    `${historicalLock.length} locked historical variants, and ` +
+    `${observed.length} post-cutoff Production migrations are verified; ` +
+    `Production baseline is ${productionBaseline}; no unverified migrations remain.`,
 );

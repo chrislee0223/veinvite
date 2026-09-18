@@ -1,0 +1,2 @@
+create index if not exists veinvite_analytics_hot_source_purge_ledger_manifest_id_idx
+  on public.veinvite_analytics_hot_source_purge_ledger (manifest_id);
