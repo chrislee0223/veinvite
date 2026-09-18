@@ -116,7 +116,8 @@ test('group creation is draft-first, supports one member, and preserves member p
   assert.match(networkSource, /groupDraft\.members\.length < 1/);
   assert.doesNotMatch(networkSource, /groupDraft\.members\.length < 2/);
   assert.match(networkSource, /addWorkspaceGroup\(workspace/);
-  assert.match(networkSource, /removeWorkspaceGroup\(current, selectedGroup\.id\)/);
+  assert.match(networkSource, /removeWorkspaceGroupAtMemberPoints/);
+  assert.match(networkSource, /removeWorkspaceMemberFromGroupAtPoint/);
   assert.match(networkSource, /moveWorkspaceMemberToGroup/);
   assert.match(networkSource, /withWorkspaceGroupCollapsed/);
   assert.match(networkSource, /groupsOpen/);
@@ -125,7 +126,7 @@ test('group creation is draft-first, supports one member, and preserves member p
   assert.match(workspaceSource, /members\.length < 1/);
   assert.doesNotMatch(workspaceSource, /members\.length < 2/);
   const removeStart = workspaceSource.indexOf('export function removeWorkspaceGroup');
-  const removeEnd = workspaceSource.indexOf('export function groupContainingWallet', removeStart);
+  const removeEnd = workspaceSource.indexOf('export function removeWorkspaceMemberFromGroupAtPoint', removeStart);
   assert.ok(removeStart >= 0 && removeEnd > removeStart);
   const removeGroupSource = workspaceSource.slice(removeStart, removeEnd);
   assert.match(removeGroupSource, /groups: workspace\.groups\.filter/);
@@ -510,7 +511,8 @@ test('final Network gestures are coordinate-owned and deliberate', () => {
   assert.match(networkSource, /const MIN_SCALE = 0\.32/);
   assert.match(networkSource, /const MAX_SCALE = 2\.5/);
   assert.match(networkSource, /nearestVisibleChild/);
-  assert.match(networkSource, /nearestVisibleGroup/);
+  assert.match(networkSource, /findGroupDropTarget/);
+  assert.match(networkSource, /GROUP_SCREEN_DROP_RADIUS = 58/);
   assert.match(networkSource, /beginHoldDrag/);
   assert.match(networkSource, /holdDrag\.armed/);
   assert.match(networkSource, /updateNodePositionRuntime/);
@@ -569,7 +571,8 @@ test('edit-mode drag commits only on completed drop and provisional group drops 
   assert.match(networkSource, /groupingRestoreWorkspaceRef\.current = cloneNetworkFocusWorkspace\(drag\.originalWorkspace\)/);
   assert.match(networkSource, /setGroupDraft\(\(current\) => \{[\s\S]*members: \[\.\.\.current\.members, keyWallet\(drag\.key\)\]/);
   assert.match(networkSource, /commitCurrentDraftWorkspace\(\)/);
-  assert.match(networkSource, /moveWorkspaceMemberToGroup\([\s\S]*drag\.originalWorkspace,[\s\S]*drag\.key,[\s\S]*targetGroup\.id/);
+  assert.match(networkSource, /findGroupDropTarget\([\s\S]*drag\.groupId/);
+  assert.match(networkSource, /moveMemberBetweenGroups\([\s\S]*drag\.originalWorkspace,[\s\S]*drag\.key,[\s\S]*drag\.groupId,[\s\S]*targetGroup\.id/);
 });
 
 test('edit drag cancellation restores the pre-drag workspace for multitouch and provisional grouping', () => {
@@ -601,6 +604,46 @@ test('group transfers are unique, bounded, and long-press native UI stays blocke
   assert.match(workspaceSource, /Array\.from\(new Set\(members\)\)/);
   assert.match(workspaceSource, /if \(groups\.length >= MAX_GROUPS_PER_FOCUS\) return workspace/);
   assert.match(networkSource, /onContextMenu=\{\(event\) => event\.preventDefault\(\)\}/);
+});
+
+test('canvas group clicks only expand or collapse while toolbar groups own management', () => {
+  const groupNodeStart = networkSource.indexOf('{visibleGroups.map((group) => {');
+  const slotsStart = networkSource.indexOf('{positionedInviteSlots.map((slot) => {', groupNodeStart);
+  assert.ok(groupNodeStart >= 0 && slotsStart > groupNodeStart);
+  const groupNodeSource = networkSource.slice(groupNodeStart, slotsStart);
+  assert.match(groupNodeSource, /toggleGroupCollapsed\(group\.id\)/);
+  assert.match(groupNodeSource, /aria-expanded=\{group\.collapsed === false\}/);
+  assert.doesNotMatch(groupNodeSource, /setManagedGroupId\(group\.id\)/);
+  assert.doesNotMatch(networkSource, /profileCard groupCard/);
+
+  assert.match(networkSource, /className="groupsPanel"/);
+  assert.match(networkSource, /onClick=\{\(\) => setManagedGroupId\(group\.id\)\}/);
+  assert.match(networkSource, /className="groupManageMembers"/);
+  assert.match(networkSource, /removeManagedGroupMember\(member\)/);
+  assert.match(networkSource, /onClick=\{dissolveManagedGroup\}/);
+});
+
+test('expanded members can move between groups with fixed screen-space targeting', () => {
+  assert.match(networkSource, /GROUP_SCREEN_DROP_RADIUS = 58/);
+  assert.match(networkSource, /const findGroupDropTarget = useCallback/);
+  assert.match(networkSource, /rect\.left \+ view\.x \+ group\.x \* view\.scale/);
+  assert.match(networkSource, /group\.members\.length >= MAX_MEMBERS_PER_GROUP/);
+  assert.match(networkSource, /holdDrag\.kind === 'group-member'/);
+  assert.match(networkSource, /const droppedToExistingGroup =/);
+  assert.match(networkSource, /moveMemberBetweenGroups\([\s\S]*holdDrag\.originalWorkspace,[\s\S]*holdDrag\.key,[\s\S]*holdDrag\.groupId,[\s\S]*droppedToExistingGroup\.id/);
+  assert.match(networkSource, /memberDropGroupId === group\.id \? ' dropTarget' : ''/);
+});
+
+test('member removal and group dissolution preserve current visible node positions', () => {
+  assert.match(workspaceSource, /export function removeWorkspaceMemberFromGroupAtPoint/);
+  assert.match(workspaceSource, /point \? withNodePosition\(withoutMember, key, point\) : withoutMember/);
+  assert.match(workspaceSource, /export function removeWorkspaceGroupAtMemberPoints/);
+  assert.match(workspaceSource, /if \(point\) next = withNodePosition\(next, key, point\)/);
+  assert.match(networkSource, /const displayedChildPointByWallet = useMemo/);
+  assert.match(networkSource, /const materializeExpandedGroupOffsets = useCallback/);
+  assert.match(networkSource, /materializeExpandedGroupOffsets\(workspace, managedGroup\.id\)/);
+  assert.match(networkSource, /removeWorkspaceMemberFromGroupAtPoint\(prepared, key, point\)/);
+  assert.match(networkSource, /removeWorkspaceGroupAtMemberPoints\(workspace, managedGroup\.id, memberPoints\)/);
 });
 
 test('long-press layout movement updates runtime state without synchronous storage churn', () => {
