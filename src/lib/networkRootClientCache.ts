@@ -71,10 +71,21 @@ function isValidHeaderMetrics(value: unknown): value is NetworkHeaderMetrics {
   if (!value || typeof value !== 'object') return false;
   const data = value as Partial<NetworkHeaderMetrics>;
   return Boolean(
+    typeof data.network === 'number' &&
     Number.isInteger(data.network) &&
-    Number(data.network) >= 0 &&
-    (data.thisRound === null || (Number.isInteger(data.thisRound) && Number(data.thisRound) >= 0)) &&
-    (data.roundId === null || Number.isInteger(data.roundId)) &&
+    data.network >= 0 &&
+    (
+      data.thisRound === null ||
+      (
+        typeof data.thisRound === 'number' &&
+        Number.isInteger(data.thisRound) &&
+        data.thisRound >= 0
+      )
+    ) &&
+    (
+      data.roundId === null ||
+      (typeof data.roundId === 'number' && Number.isInteger(data.roundId))
+    ) &&
     (data.roundEndAt === null || typeof data.roundEndAt === 'string')
   );
 }
