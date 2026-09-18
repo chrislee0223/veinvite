@@ -118,7 +118,7 @@ export function parseNetworkWorkspaceStore(raw: string | null): NetworkWorkspace
             Array.isArray(group.members)
               ? group.members
                   .map(cleanWallet)
-                  .filter((wallet): wallet is string => Boolean(wallet) && !assignedMembers.has(wallet))
+                  .filter((wallet): wallet is string => wallet !== null && !assignedMembers.has(wallet))
               : [],
           )).slice(0, MAX_MEMBERS_PER_GROUP);
           if (members.length < 1) continue;
