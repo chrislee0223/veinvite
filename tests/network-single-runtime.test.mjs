@@ -26,6 +26,10 @@ const [
 
 const networkWarmupSource = await readFile('src/components/NetworkIdleWarmup.tsx', 'utf8');
 const networkSlotCacheSource = await readFile('src/lib/networkInviteSlotsClientCache.ts', 'utf8');
+const networkMigrationSource = await readFile(
+  'supabase/migrations/20260909040000_harden_network_runtime_and_round_context.sql',
+  'utf8',
+);
 
 const componentFiles = await readdir('src/components');
 const qaFiles = await readdir('src/qa');
@@ -314,6 +318,67 @@ test('Network entry repeats a stable YOU-to-fit motion on every mount without st
   assert.match(networkSource, /onWheel[\s\S]*stopIntroForInteraction\(\)/);
 });
 
+test('completed Network nodes show descendant counts below the node while active invitations keep progress status', () => {
+  const childStart = networkSource.indexOf('{visibleChildren.map((child) => {');
+  const groupStart = networkSource.indexOf('{visibleGroups.map((group) => {', childStart);
+  assert.ok(childStart >= 0 && groupStart > childStart);
+  const childMarkup = networkSource.slice(childStart, groupStart);
+
+  assert.match(childMarkup, /child\.status === 'IN_PROGRESS'/);
+  assert.match(childMarkup, /nodeProgressStatus/);
+  assert.match(childMarkup, /<NetworkCountGlyph \/>/);
+  assert.match(childMarkup, /child\.network\.toLocaleString\(\)/);
+  assert.match(childMarkup, /nodeWallet\(child\.wallet\)/);
+  assert.doesNotMatch(childMarkup, /statusLabel\(child\.status, locale\)/);
+
+  assert.match(networkSource, /\.childNode \.nodeMeta\{top:calc\(100% \+ 6px\)\}/);
+  assert.doesNotMatch(networkSource, /\.childNode \.nodeMeta\{bottom:/);
+  assert.match(networkMigrationSource, /count\(fn\.wallet\) filter \(where fn\.depth > 1\)::integer as network_count/);
+  assert.match(canaryFixtureSource, /const childSummary = nodeSummary\(node\.wallet, round\)/);
+  assert.match(canaryFixtureSource, /network: descendants\.length/);
+});
+
+test('node wallet labels use 0x plus three leading and three trailing hex characters', () => {
+  assert.match(networkSource, /wallet\.slice\(2, 5\)\.toUpperCase\(\)/);
+  assert.match(networkSource, /wallet\.slice\(-3\)\.toUpperCase\(\)/);
+  assert.match(networkSource, /nodeWallet\(currentData\.focusWallet\)/);
+  assert.match(networkSource, /nodeWallet\(child\.wallet\)/);
+  assert.match(networkSource, /slot\.inviteeWallet \? nodeWallet\(slot\.inviteeWallet\) : t\.inProgress/);
+});
+
+test('root YOU identity lives inside the center node and the top return control stays icon-only', () => {
+  const focusStart = networkSource.indexOf('focusNode${selectedWallet');
+  const childrenStart = networkSource.indexOf('{visibleChildren.map((child) => {', focusStart);
+  assert.ok(focusStart >= 0 && childrenStart > focusStart);
+  const focusMarkup = networkSource.slice(focusStart, childrenStart);
+
+  assert.match(focusMarkup, /focusYouLabel/);
+  assert.match(focusMarkup, /\{c\.you\}/);
+  assert.match(focusMarkup, /<NetworkCountGlyph \/>/);
+  assert.match(focusMarkup, /nodeWallet\(currentData\.focusWallet\)/);
+  assert.doesNotMatch(focusMarkup, /<strong>\{focusIsRoot \? c\.you/);
+
+  const controlsStart = networkSource.indexOf('<div className="viewControls">');
+  const fitStart = networkSource.indexOf('className="fitButton"', controlsStart);
+  const controlsMarkup = networkSource.slice(controlsStart, fitStart);
+  assert.match(controlsMarkup, /className="youControl"/);
+  assert.match(controlsMarkup, /◎/);
+  assert.doesNotMatch(controlsMarkup, /controlLabel/);
+  assert.match(networkSource, /\.viewControls \.youControl\{width:28px!important;min-width:28px;max-width:28px/);
+});
+
+test('wallet search is magnifier-first and avoids iPhone focus zoom without disabling pinch zoom', () => {
+  assert.match(networkSource, /const \[searchOpen, setSearchOpen\] = useState\(false\)/);
+  assert.match(networkSource, /function SearchGlyph\(\)/);
+  assert.match(networkSource, /className="searchToggle"/);
+  assert.match(networkSource, /ref=\{searchInputRef\}/);
+  assert.match(networkSource, /searchInputRef\.current\?\.focus\(\{ preventScroll: true \}\)/);
+  assert.match(networkSource, /const closeSearch = useCallback/);
+  assert.match(networkSource, /closeSearch\(\);[\s\S]*moveToFocus\(result\.wallet, 'forward'\)/);
+  assert.match(networkSource, /\.searchField input\{[^}]*font-size:16px/);
+  assert.match(networkSource, /@media\(max-width:560px\)[^\n]*\.searchField input\{font-size:16px\}/);
+  assert.doesNotMatch(networkSource, /maximum-scale|user-scalable|document\.documentElement\.style\.touchAction/);
+});
 test('invite slot fallback geometry is stable before and after stage measurement', () => {
   const slotStart = networkSource.indexOf('function inviteSlotPoint');
   const slotEnd = networkSource.indexOf('function fittedView', slotStart);
