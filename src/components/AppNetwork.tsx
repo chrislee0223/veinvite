@@ -1988,7 +1988,7 @@ export function AppNetwork({ locale }: { locale: Locale }) {
             className="summaryNumber growth"
             aria-label={headerThisRound === null ? undefined : `+${headerThisRound}`}
           >
-            {headerThisRound === null ? ' ' : `+${headerThisRound}`}
+            {headerThisRound === null ? '\u00A0' : `+${headerThisRound}`}
           </strong>
           <span>{t.thisRound}</span>
         </div>
