@@ -18,6 +18,10 @@ const networkSummaryCache = readFileSync(
   new URL('../src/lib/networkSummaryClientCache.ts', import.meta.url),
   'utf8',
 );
+const networkRootCache = readFileSync(
+  new URL('../src/lib/networkRootClientCache.ts', import.meta.url),
+  'utf8',
+);
 
 test('app-ready warms leaderboard and Network readiness only after Home release', () => {
   assert.match(navigation, /APP_READY_EVENT = 'veinvite-app-ready'/);
@@ -28,7 +32,7 @@ test('app-ready warms leaderboard and Network readiness only after Home release'
   );
   assert.match(
     navigation,
-    /const onAppReady = \(\) => \{[\s\S]*preloadTabModule\('leaderboard'\)[\s\S]*preloadTabModule\('guide'\)[\s\S]*warmLeaderboard\(\)[\s\S]*prefetchNetworkSummary\(wallet\)[\s\S]*scheduleModulePrefetch\(\)/,
+    /const onAppReady = \(\) => \{[\s\S]*preloadTabModule\('leaderboard'\)[\s\S]*preloadTabModule\('guide'\)[\s\S]*warmLeaderboard\(\)[\s\S]*prefetchNetworkSummary\(wallet\)[\s\S]*prefetchNetworkRoot\(wallet\)[\s\S]*scheduleModulePrefetch\(\)/,
   );
   assert.match(navigation, /requestIdleCallback/);
   assert.match(
@@ -56,19 +60,23 @@ test('leaderboard tap waits only for public data when no usable seed exists', ()
   );
 });
 
-test('Network tap reuses a wallet-keyed summary seed instead of painting the intermediate loading card', () => {
+test('Network tap never waits for data and warms summary plus root graph in the background', () => {
   assert.match(navigation, /getCachedNetworkSummary\(wallet\)/);
   assert.match(
     navigation,
-    /if \(cachedNetworkSummary\) \{[\s\S]*prefetchNetworkSummary\(wallet, \{ force: true \}\)[\s\S]*return moduleReady;/,
+    /if \(cachedNetworkSummary\) \{[\s\S]*prefetchNetworkSummary\(wallet, \{ force: true \}\)[\s\S]*\} else \{[\s\S]*prefetchNetworkSummary\(wallet\)/,
   );
   assert.match(
     navigation,
-    /return Promise\.all\(\[\s*moduleReady,\s*prefetchNetworkSummary\(wallet\),\s*\]\)\.then\(\(\) => undefined\);/,
+    /void prefetchNetworkRoot\(wallet\)\.catch\(\(\) => undefined\);\s*return moduleReady;/,
+  );
+  assert.doesNotMatch(
+    navigation,
+    /tab === 'guide'[\s\S]{0,700}return Promise\.all\(\[[\s\S]*prefetchNetworkSummary/,
   );
   assert.match(networkSummaryCache, /veinvite_network_summary_seed_v1/);
-  assert.match(networkSummaryCache, /SESSION_TTL_MS = 10_000/);
-  assert.match(networkSummaryCache, /const inFlight = new Map<string, Promise<NetworkSummaryProbe>>\(\);/);
+  assert.match(networkRootCache, /const inFlight = new Map<string, Promise<NetworkRootSnapshot>>\(\);/);
+  assert.match(networkRootCache, /fast=1/);
 });
 
 test('leaderboard pointer, focus and touch warming shares public and avatar work', () => {
