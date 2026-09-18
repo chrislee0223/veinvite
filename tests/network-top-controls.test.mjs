@@ -59,15 +59,13 @@ test('stage does not steal pointer capture from buttons and inputs', () => {
 });
 
 
-test('desktop Network intentionally uses the same compact mobile shell', () => {
-  assert.match(home, /@media \(min-width:561px\) \{[\s\S]*screen\.networkScreen \{ height:min\(100svh,852px\); min-height:0; max-height:852px; \}/);
-  assert.match(home, /screen\.networkScreen \{ position:relative;/);
+test('desktop Network keeps the compact Network card without restacking the global app header', () => {
   assert.match(hub, /networkHubShell\{width:min\(100%,520px\)/);
   assert.match(source, /networkHeader\{[^}]*min-height:42px[^}]*padding:7px 9px/);
   assert.match(source, /networkUtilityRow\{[^}]*min-height:39px[^}]*padding:4px 6px/);
-  assert.match(home, /networkScreen \.topActions \{[^}]*flex-direction:column-reverse/);
-  assert.match(home, /networkScreen \.languageSelect \{[^}]*height:34px/);
-  assert.match(home, /networkScreen \.accountChip \{[^}]*min-height:34px/);
+  assert.match(home, /\.topActions \{ min-width:0; display:flex; align-items:center; gap:10px; \}/);
+  assert.doesNotMatch(home, /networkScreen \.topActions/);
+  assert.doesNotMatch(home, /height:min\(100svh,852px\)/);
 });
 
 
