@@ -759,9 +759,13 @@ export function AppNetwork({ locale }: { locale: Locale }) {
     const memberKey = keyWallet(child.wallet);
     const group = groupByMember.get(memberKey);
     if (!group || group.collapsed !== false) return child;
-    const visibleMembers = group.members.filter((member) =>
-      positionedChildren.some((candidate) => keyWallet(candidate.wallet) === keyWallet(member)),
-    );
+    const visibleMembers = group.members.filter((member) => {
+      const key = keyWallet(member);
+      return (
+        !activeInviteeKeys.has(key) &&
+        positionedChildren.some((candidate) => keyWallet(candidate.wallet) === key)
+      );
+    });
     const index = Math.max(0, visibleMembers.findIndex((member) => keyWallet(member) === memberKey));
     const offset =
       group.memberOffsets?.[memberKey] ??
@@ -771,7 +775,7 @@ export function AppNetwork({ locale }: { locale: Locale }) {
       x: group.x + offset.x,
       y: group.y + offset.y,
     };
-  }), [positionedChildren, groupByMember]);
+  }), [positionedChildren, groupByMember, activeInviteeKeys]);
 
   const hiddenGroupMembers = useMemo(() => {
     const keys = new Set<string>();
