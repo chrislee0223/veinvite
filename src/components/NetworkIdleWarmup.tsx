@@ -32,104 +32,117 @@ export function NetworkIdleWarmup() {
     }
 
     let active = true;
-    let started = false;
-    let scheduled = false;
+    let dataStarted = false;
+    let modulesStarted = false;
+    let modulesScheduled = false;
     let idleId: number | null = null;
     let timeoutId = 0;
 
-    const warm = () => {
+    const warmData = () => {
       if (
         !active ||
-        started ||
+        dataStarted ||
         document.visibilityState !== 'visible'
       ) {
         return;
       }
 
-      started = true;
-      const moduleLoads: Promise<unknown>[] = [
-        import('./AppGuide'),
-        import('./AppNetworkHub'),
-      ];
-
+      dataStarted = true;
       const rootWarmup = prefetchNetworkRoot(wallet).then((root) => {
         // The complete root already contains the empty/non-empty Network
-        // summary. Reuse it instead of issuing a separate summary request.
+        // summary. Reuse it instead of issuing a duplicate summary request.
         rememberNetworkSummary(wallet, {
           summary: { network: root.summary.network },
         });
         return root;
       });
 
+      // Data requests start as soon as authenticated Home is ready. They are
+      // read-only and network-bound, so waiting for browser idle only makes
+      // Network entry more likely to expose staggered late data.
       void Promise.allSettled([
         rootWarmup,
         prefetchNetworkSlots(wallet),
-        ...moduleLoads,
       ]);
-
     };
 
-    const runWarmup = () => {
-      scheduled = false;
+    const warmModules = () => {
+      modulesScheduled = false;
       idleId = null;
       timeoutId = 0;
-      warm();
+
+      if (
+        !active ||
+        modulesStarted ||
+        document.visibilityState !== 'visible'
+      ) {
+        return;
+      }
+
+      modulesStarted = true;
+      void Promise.allSettled([
+        import('./AppGuide'),
+        import('./AppNetworkHub'),
+      ]);
     };
 
-    const scheduleWarmup = () => {
-      if (!active || started || scheduled) return;
-      scheduled = true;
+    const scheduleModules = () => {
+      if (!active || modulesStarted || modulesScheduled) return;
+      modulesScheduled = true;
 
       const idleWindow = window as IdleWindow;
       if (idleWindow.requestIdleCallback) {
         idleId = idleWindow.requestIdleCallback(
-          runWarmup,
+          warmModules,
           { timeout: NETWORK_IDLE_TIMEOUT_MS },
         );
         return;
       }
 
       timeoutId = window.setTimeout(
-        runWarmup,
+        warmModules,
         NETWORK_TIMEOUT_FALLBACK_MS,
       );
     };
 
-    const scheduleWhenVisible = () => {
+    const warmWhenReadyAndVisible = () => {
       if (
-        document.visibilityState === 'visible' &&
-        document.documentElement.dataset.veinviteAppReady === 'true'
+        document.visibilityState !== 'visible' ||
+        document.documentElement.dataset.veinviteAppReady !== 'true'
       ) {
-        scheduleWarmup();
+        return;
       }
+
+      warmData();
+      scheduleModules();
     };
 
     if (
       document.documentElement.dataset.veinviteAppReady === 'true'
     ) {
-      scheduleWarmup();
+      warmWhenReadyAndVisible();
     } else {
       window.addEventListener(
         APP_READY_EVENT,
-        scheduleWarmup,
+        warmWhenReadyAndVisible,
         { once: true },
       );
     }
 
     document.addEventListener(
       'visibilitychange',
-      scheduleWhenVisible,
+      warmWhenReadyAndVisible,
     );
 
     return () => {
       active = false;
       window.removeEventListener(
         APP_READY_EVENT,
-        scheduleWarmup,
+        warmWhenReadyAndVisible,
       );
       document.removeEventListener(
         'visibilitychange',
-        scheduleWhenVisible,
+        warmWhenReadyAndVisible,
       );
 
       const idleWindow = window as IdleWindow;
