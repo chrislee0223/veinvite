@@ -763,13 +763,13 @@ export function AppNetwork({ locale }: { locale: Locale }) {
       positionedChildren.some((candidate) => keyWallet(candidate.wallet) === keyWallet(member)),
     );
     const index = Math.max(0, visibleMembers.findIndex((member) => keyWallet(member) === memberKey));
-    const count = Math.max(1, visibleMembers.length);
-    const span = Math.min(310, Math.max(90, (count - 1) * 76));
-    const ratio = count <= 1 ? 0.5 : index / (count - 1);
+    const offset =
+      group.memberOffsets?.[memberKey] ??
+      defaultGroupMemberOffset(index, visibleMembers.length);
     return {
       ...child,
-      x: group.x - span / 2 + span * ratio,
-      y: group.y + 112 + Math.min(26, Math.abs(index - (count - 1) / 2) * 6),
+      x: group.x + offset.x,
+      y: group.y + offset.y,
     };
   }), [positionedChildren, groupByMember]);
 
