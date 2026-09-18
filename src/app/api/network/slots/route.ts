@@ -16,9 +16,14 @@ type SlotRow = {
   status: 'PENDING_ACCEPTANCE' | 'ACTIVATING' | 'UNDER_REVIEW' | 'COMPLETED' | 'CANCELLED';
   eligibility_check_id: string | number | null;
   activation_network: string | null;
+  invitee_wallet: string | null;
   invite_slot: number;
   slot_released_at: string | null;
   sybil_status: 'NOT_CHECKED' | 'CLEAR' | 'REVIEW' | 'BLOCKED';
+  apps_completed: number | null;
+  vot3_converted: boolean | null;
+  vote_completed: boolean | null;
+  created_at: string;
 };
 
 const ACTIVE_STATUSES: SlotRow['status'][] = [
@@ -50,6 +55,18 @@ function occupiesInviteSlot(row: SlotRow): boolean {
     return hasEntryProof(row) && row.slot_released_at === null;
   }
   return false;
+}
+
+function slotProgress(row: SlotRow) {
+  const apps = Math.max(0, Math.min(3, row.apps_completed ?? 0));
+  const completedSteps =
+    apps +
+    (row.vot3_converted ? 1 : 0) +
+    (row.vote_completed ? 1 : 0);
+  return {
+    completedSteps,
+    totalSteps: 5,
+  };
 }
 
 export async function GET(request: NextRequest) {
@@ -104,7 +121,26 @@ export async function GET(request: NextRequest) {
   // historical branches and the Available-slot interaction at the same time.
   if (await isNetworkCanaryWallet(wallet)) {
     return NextResponse.json(
-      { availableSlots: 1, occupiedSlots: [1] },
+      {
+        availableSlots: 1,
+        occupiedSlots: [1],
+        slots: [
+          {
+            slot: 1,
+            state: 'IN_PROGRESS',
+            inviteeWallet: '0xca11ab1e0000000000000000000000000000000a',
+            completedSteps: 3,
+            totalSteps: 5,
+          },
+          {
+            slot: 2,
+            state: 'AVAILABLE',
+            inviteeWallet: null,
+            completedSteps: 0,
+            totalSteps: 5,
+          },
+        ],
+      },
       {
         headers: {
           'Cache-Control': 'private, no-store',
@@ -117,10 +153,11 @@ export async function GET(request: NextRequest) {
   const { data, error } = await supabaseAdmin
     .from('invitations')
     .select(
-      'status, eligibility_check_id, activation_network, invite_slot, slot_released_at, sybil_status',
+      'status, eligibility_check_id, activation_network, invitee_wallet, invite_slot, slot_released_at, sybil_status, apps_completed, vot3_converted, vote_completed, created_at',
     )
     .eq('inviter_wallet', wallet)
-    .in('status', ACTIVE_STATUSES);
+    .in('status', ACTIVE_STATUSES)
+    .order('created_at', { ascending: false });
 
   if (error) {
     console.error('Failed to load Network invite slots:', error);
@@ -130,17 +167,40 @@ export async function GET(request: NextRequest) {
     );
   }
 
-  const occupied = new Set<1 | 2>();
+  const occupied = new Map<1 | 2, SlotRow>();
   for (const row of (data ?? []) as SlotRow[]) {
     if (!occupiesInviteSlot(row)) continue;
-    occupied.add(row.invite_slot === 2 ? 2 : 1);
+    const slot = row.invite_slot === 2 ? 2 : 1;
+    if (!occupied.has(slot)) occupied.set(slot, row);
   }
 
-  const occupiedSlots = Array.from(occupied).sort((a, b) => a - b);
+  const occupiedSlots = Array.from(occupied.keys()).sort((a, b) => a - b);
+  const slots = ([1, 2] as const).map((slot) => {
+    const row = occupied.get(slot);
+    if (!row) {
+      return {
+        slot,
+        state: 'AVAILABLE' as const,
+        inviteeWallet: null,
+        completedSteps: 0,
+        totalSteps: 5,
+      };
+    }
+
+    const progress = slotProgress(row);
+    return {
+      slot,
+      state: row.invitee_wallet ? 'IN_PROGRESS' as const : 'PENDING' as const,
+      inviteeWallet: row.invitee_wallet,
+      ...progress,
+    };
+  });
+
   return NextResponse.json(
     {
       availableSlots: Math.max(0, 2 - occupiedSlots.length),
       occupiedSlots,
+      slots,
     },
     {
       headers: {

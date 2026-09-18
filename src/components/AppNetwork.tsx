@@ -107,9 +107,23 @@ type PinchState = {
 
 type WorkspaceDrag = {
   pointerId: number;
-  kind: 'node' | 'group';
+  kind: 'node' | 'slot' | 'group';
   key: string;
   offset: Point;
+};
+
+type InviteSlotState = {
+  slot: 1 | 2;
+  state: 'AVAILABLE' | 'PENDING' | 'IN_PROGRESS';
+  inviteeWallet: string | null;
+  completedSteps: number;
+  totalSteps: number;
+};
+
+type PositionedInviteSlot = InviteSlotState & {
+  key: string;
+  x: number;
+  y: number;
 };
 
 type HoldDragState = {
@@ -142,7 +156,7 @@ const NAVIGATION_MS = 720;
 const FIT_TRANSITION_MS = 760;
 const INTRO_HOLD_MS = 150;
 const INTRO_END_MS = 940;
-const INTRO_SESSION_PREFIX = 'veinvite-network-intro-v4:';
+const INTRO_SESSION_PREFIX = 'veinvite-network-intro-v5:';
 const READABLE_FIT_MIN = 0.46;
 const GOLDEN_ANGLE = Math.PI * (3 - Math.sqrt(5));
 const GROUP_DROP_MS = 160;
@@ -152,10 +166,8 @@ const NODE_ENTER_SCALE = 1.85;
 const NODE_HIT_RADIUS = 58;
 const GROUP_DROP_RADIUS = 92;
 const WHEEL_ENTER_DISTANCE = 120;
-const SESSION_PREFIX = 'veinvite-network-runtime-v1:';
+const SESSION_PREFIX = 'veinvite-network-runtime-v2:';
 const WORKSPACE_PREFIX = 'veinvite-network-workspace-v1:';
-const EXPLORER_PAGE_SIZE_DESKTOP = 6;
-const EXPLORER_PAGE_SIZE_MOBILE = 6;
 
 function keyWallet(wallet: string): string {
   return wallet.toLowerCase();
@@ -528,7 +540,7 @@ export function AppNetwork({ locale }: { locale: Locale }) {
   const [cacheVersion, setCacheVersion] = useState(0);
   const [loadState, setLoadState] = useState<'idle' | 'loading' | 'ready' | 'error'>('idle');
   const [loadError, setLoadError] = useState('');
-  const [availableSlots, setAvailableSlots] = useState(0);
+  const [inviteSlots, setInviteSlots] = useState<InviteSlotState[]>([]);
   const [stageSize, setStageSize] = useState({ width: 0, height: 0 });
   const [view, setView] = useState<View>({
     x: 260 - FOCUS_X,
@@ -536,7 +548,6 @@ export function AppNetwork({ locale }: { locale: Locale }) {
     scale: 1,
   });
   const [selectedWallet, setSelectedWallet] = useState<string | null>(null);
-  const [page, setPage] = useState(0);
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
   const [searching, setSearching] = useState(false);
@@ -574,7 +585,6 @@ export function AppNetwork({ locale }: { locale: Locale }) {
 
   const currentFocusKey = currentData ? keyWallet(currentData.focusWallet) : '';
   const isMobile = stageSize.width > 0 && stageSize.width < 560;
-  const pageSize = isMobile ? EXPLORER_PAGE_SIZE_MOBILE : EXPLORER_PAGE_SIZE_DESKTOP;
   const committedWorkspace = useMemo(
     () => currentFocusKey ? workspaceForFocus(workspaceStore, currentFocusKey) : cloneNetworkFocusWorkspace(null),
     [workspaceStore, currentFocusKey],
@@ -583,12 +593,8 @@ export function AppNetwork({ locale }: { locale: Locale }) {
 
   const positionedChildren = useMemo(() => {
     const children = currentData?.children ?? [];
-    const pageCount = Math.max(1, Math.ceil(children.length / pageSize));
-    const safePage = clamp(page, 0, pageCount - 1);
-    const start = safePage * pageSize;
-    const slice = children.slice(start, start + pageSize);
-    return slice.map((child, index): PositionedChild => {
-      const fallback = radialChildPoint(child.wallet, start + index, isMobile);
+    return children.map((child, index): PositionedChild => {
+      const fallback = radialChildPoint(child.wallet, index, isMobile);
       const saved = activeWorkspace.positions[keyWallet(child.wallet)];
       return {
         ...child,
@@ -596,7 +602,37 @@ export function AppNetwork({ locale }: { locale: Locale }) {
         y: saved?.y ?? fallback.y,
       };
     });
-  }, [currentData, page, pageSize, isMobile, activeWorkspace.positions]);
+  }, [currentData, isMobile, activeWorkspace.positions]);
+
+  const positionedInviteSlots = useMemo((): PositionedInviteSlot[] => {
+    if (
+      !currentData ||
+      keyWallet(currentData.focusWallet) !== keyWallet(currentData.rootWallet)
+    ) {
+      return [];
+    }
+
+    return inviteSlots.map((slot) => {
+      const key = `slot:${slot.slot}`;
+      const fallback = inviteSlotPoint(slot.slot - 1, isMobile);
+      const saved = activeWorkspace.positions[key];
+      return {
+        ...slot,
+        key,
+        x: saved?.x ?? fallback.x,
+        y: saved?.y ?? fallback.y,
+      };
+    });
+  }, [currentData, inviteSlots, isMobile, activeWorkspace.positions]);
+
+  const activeInviteeKeys = useMemo(
+    () => new Set(
+      positionedInviteSlots
+        .filter((slot) => slot.state !== 'AVAILABLE' && slot.inviteeWallet)
+        .map((slot) => keyWallet(slot.inviteeWallet as string)),
+    ),
+    [positionedInviteSlots],
+  );
 
   const groupByMember = useMemo(() => {
     const map = new Map<string, (typeof activeWorkspace.groups)[number]>();
@@ -634,13 +670,16 @@ export function AppNetwork({ locale }: { locale: Locale }) {
   }, [activeWorkspace.groups, groupDraft]);
 
   const visibleChildren = useMemo(
-    () => displayedChildren.filter((child) => !hiddenGroupMembers.has(keyWallet(child.wallet))),
-    [displayedChildren, hiddenGroupMembers],
+    () => displayedChildren.filter((child) => {
+      const key = keyWallet(child.wallet);
+      return !hiddenGroupMembers.has(key) && !activeInviteeKeys.has(key);
+    }),
+    [displayedChildren, hiddenGroupMembers, activeInviteeKeys],
   );
 
   const visibleWalletKeys = useMemo(
-    () => new Set(displayedChildren.map((child) => keyWallet(child.wallet))),
-    [displayedChildren],
+    () => new Set(visibleChildren.map((child) => keyWallet(child.wallet))),
+    [visibleChildren],
   );
 
   const visibleGroups = useMemo(
@@ -692,11 +731,6 @@ export function AppNetwork({ locale }: { locale: Locale }) {
     ? activeWorkspace.groups.find((group) => group.id === selectedGroupId) ?? null
     : null;
 
-  const pageCount = Math.max(1, Math.ceil((currentData?.children.length ?? 0) / pageSize));
-  const safePage = clamp(page, 0, pageCount - 1);
-  const emptySlotCount = currentData && keyWallet(currentData.focusWallet) === keyWallet(currentData.rootWallet)
-    ? availableSlots
-    : 0;
 
   const clearNavigationTimer = useCallback(() => {
     if (navigationTimerRef.current !== null) {
@@ -884,7 +918,6 @@ export function AppNetwork({ locale }: { locale: Locale }) {
     if (initialRoot) {
       cacheRef.current.set(keyWallet(initialRoot.focusWallet), initialRoot);
     }
-    setPage(0);
     setSelectedWallet(null);
     setSelectedGroupId(null);
     setEditingLayout(false);
@@ -895,7 +928,7 @@ export function AppNetwork({ locale }: { locale: Locale }) {
     setDraggingWorkspaceKey(null);
     setGroupingWallet(null);
     setWorkspaceNotice('');
-    setAvailableSlots(0);
+    setInviteSlots([]);
     setView({
       x: 260 - FOCUS_X,
       y: 300 - FOCUS_Y,
@@ -915,7 +948,7 @@ export function AppNetwork({ locale }: { locale: Locale }) {
 
   useEffect(() => {
     if (!wallet) {
-      setAvailableSlots(0);
+      setInviteSlots([]);
       return;
     }
 
@@ -928,9 +961,31 @@ export function AppNetwork({ locale }: { locale: Locale }) {
       signal: controller.signal,
     }).then(async (response) => {
       if (!response.ok) return;
-      const payload = await response.json().catch(() => null) as { availableSlots?: unknown } | null;
-      if (!payload || typeof payload.availableSlots !== 'number') return;
-      setAvailableSlots(Math.max(0, Math.min(2, Math.trunc(payload.availableSlots))));
+      const payload = await response.json().catch(() => null) as { slots?: unknown } | null;
+      if (!payload || !Array.isArray(payload.slots)) return;
+
+      const slots = payload.slots.flatMap((value): InviteSlotState[] => {
+        if (!value || typeof value !== 'object') return [];
+        const candidate = value as Partial<InviteSlotState>;
+        const slot = candidate.slot === 2 ? 2 : candidate.slot === 1 ? 1 : null;
+        const state = candidate.state === 'AVAILABLE' || candidate.state === 'PENDING' || candidate.state === 'IN_PROGRESS'
+          ? candidate.state
+          : null;
+        if (!slot || !state) return [];
+        const inviteeWallet =
+          typeof candidate.inviteeWallet === 'string' && validWallet(candidate.inviteeWallet)
+            ? candidate.inviteeWallet
+            : null;
+        return [{
+          slot,
+          state,
+          inviteeWallet,
+          completedSteps: Math.max(0, Math.min(5, Math.trunc(Number(candidate.completedSteps ?? 0)))),
+          totalSteps: 5,
+        }];
+      }).sort((left, right) => left.slot - right.slot);
+
+      setInviteSlots(slots);
     }).catch(() => {
       // Slot availability is supplementary; the Network graph remains usable.
     });
@@ -1041,8 +1096,7 @@ export function AppNetwork({ locale }: { locale: Locale }) {
       setFocusWallet(payload.focusWallet);
       setSelectedWallet(null);
       setSelectedGroupId(null);
-      setPage(0);
-      setSearchQuery('');
+        setSearchQuery('');
       setSearchResults([]);
 
       if (direction === 'back') {
@@ -1102,14 +1156,12 @@ export function AppNetwork({ locale }: { locale: Locale }) {
       { x: FOCUS_X, y: FOCUS_Y },
       ...visibleChildren.map((child) => ({ x: child.x, y: child.y })),
       ...visibleGroups.map((group) => ({ x: group.x, y: group.y })),
+      ...positionedInviteSlots.map((slot) => ({ x: slot.x, y: slot.y })),
     ];
-    for (let index = 0; index < emptySlotCount; index += 1) {
-      points.push(inviteSlotPoint(index, isMobile));
-    }
     setCameraTransition(true);
     setView(fittedView(stageSize, points));
     window.setTimeout(() => setCameraTransition(false), FIT_TRANSITION_MS);
-  }, [stageSize, visibleChildren, visibleGroups, emptySlotCount, isMobile]);
+  }, [stageSize, visibleChildren, visibleGroups, positionedInviteSlots]);
 
   useEffect(() => {
     if (!wallet || loadState !== 'ready' || !currentData) return;
@@ -1368,8 +1420,14 @@ export function AppNetwork({ locale }: { locale: Locale }) {
     event: ReactPointerEvent<HTMLButtonElement>,
     key: string,
     point: Point,
+    kind: 'node' | 'slot' = 'node',
   ) => {
-    if (editingLayout || pendingFocus || !currentFocusKey || groupContainingWallet(committedWorkspace, key)) return;
+    if (
+      editingLayout ||
+      pendingFocus ||
+      !currentFocusKey ||
+      (kind === 'node' && groupContainingWallet(committedWorkspace, key))
+    ) return;
     const stage = stageRef.current;
     if (!stage) return;
     try { event.currentTarget.setPointerCapture(event.pointerId); } catch { /* best effort */ }
@@ -1394,7 +1452,7 @@ export function AppNetwork({ locale }: { locale: Locale }) {
       const hold = holdDragRef.current;
       if (!hold || hold.pointerId !== event.pointerId || pointersRef.current.size !== 1) return;
       hold.armed = true;
-      setDraggingWorkspaceKey('node:' + key);
+      setDraggingWorkspaceKey(`${kind}:${key}`);
     }, HOLD_TO_MOVE_MS);
   }, [editingLayout, pendingFocus, currentFocusKey, committedWorkspace, view]);
 
@@ -1536,9 +1594,9 @@ export function AppNetwork({ locale }: { locale: Locale }) {
       };
       setDraftWorkspace((current) => {
         if (!current) return current;
-        return workspaceDrag.kind === 'node'
-          ? withNodePosition(current, workspaceDrag.key, nextPoint)
-          : withGroupPosition(current, workspaceDrag.key, nextPoint);
+        return workspaceDrag.kind === 'group'
+          ? withGroupPosition(current, workspaceDrag.key, nextPoint)
+          : withNodePosition(current, workspaceDrag.key, nextPoint);
       });
       suppressClickRef.current = true;
       return;
@@ -1878,17 +1936,21 @@ export function AppNetwork({ locale }: { locale: Locale }) {
                   className="continuationEdge"
                 />
               ))}
-              {Array.from({ length: emptySlotCount }).map((_, index) => {
-                const slot = inviteSlotPoint(index, isMobile);
+              {positionedInviteSlots.map((slot, index) => {
                 const path = edgePath(FOCUS_X, FOCUS_Y, slot.x, slot.y);
                 return (
-                  <g key={`slot-edge:${index}`} className="slotEdgeGroup">
-                    <path d={path} className="edge slotEdgeBase" />
+                  <g key={`slot-edge:${slot.slot}`} className="slotEdgeGroup">
                     <path
                       d={path}
-                      className="edge slotEdgePulse"
-                      style={{ animationDelay: `${index * -0.92}s` }}
+                      className={slot.state === 'AVAILABLE' ? 'edge slotEdgeBase' : 'edge slotEdgeProgress'}
                     />
+                    {slot.state === 'AVAILABLE' ? (
+                      <path
+                        d={path}
+                        className="edge slotEdgePulse"
+                        style={{ animationDelay: `${index * -0.92}s` }}
+                      />
+                    ) : null}
                   </g>
                 );
               })}
@@ -1971,21 +2033,71 @@ export function AppNetwork({ locale }: { locale: Locale }) {
               );
             })}
 
-            {Array.from({ length: emptySlotCount }).map((_, index) => {
-              const slot = inviteSlotPoint(index, isMobile);
+            {positionedInviteSlots.map((slot) => {
+              const dragKey = `slot:${slot.key}`;
+              const isDragging = draggingWorkspaceKey === dragKey;
+              const point = { x: slot.x, y: slot.y };
+              const handlePointerDown = (event: ReactPointerEvent<HTMLButtonElement>) => {
+                if (editingLayout) beginWorkspaceDrag(event, 'slot', slot.key, point);
+                else beginHoldDrag(event, slot.key, point, 'slot');
+              };
+
+              if (slot.state === 'AVAILABLE') {
+                return (
+                  <button
+                    type="button"
+                    className={`slotNode${editingLayout ? ' draggable' : ''}${isDragging ? ' dragging' : ''}`}
+                    key={slot.key}
+                    style={{ left: slot.x, top: slot.y }}
+                    onPointerDown={handlePointerDown}
+                    onContextMenu={(event) => event.preventDefault()}
+                    onClick={() => {
+                      if (suppressClickRef.current || editingLayout) return;
+                      goHomeWithoutReload();
+                    }}
+                    data-no-pan="true"
+                    data-workspace-draggable={editingLayout ? 'true' : undefined}
+                    aria-label={t.inviteFriend}
+                  >
+                    <span className="slotCircle" aria-hidden="true">+</span>
+                    <strong>{u.available}</strong>
+                  </button>
+                );
+              }
+
+              const progressDegrees = `${Math.round(
+                (slot.completedSteps / Math.max(1, slot.totalSteps)) * 360,
+              )}deg`;
+              const progressStyle = {
+                left: slot.x,
+                top: slot.y,
+                '--slot-progress': progressDegrees,
+              } as CSSProperties;
+
               return (
                 <button
                   type="button"
-                  className="slotNode"
-                  key={`slot:${index}`}
-                  style={{ left: slot.x, top: slot.y }}
-                  onClick={editingLayout ? undefined : goHomeWithoutReload}
-                  disabled={editingLayout}
+                  className={`personNode childNode progressInviteNode${editingLayout ? ' draggable' : ''}${isDragging ? ' dragging' : ''}`}
+                  key={slot.key}
+                  style={progressStyle}
+                  onPointerDown={handlePointerDown}
+                  onContextMenu={(event) => event.preventDefault()}
                   data-no-pan="true"
-                  aria-label={t.inviteFriend}
+                  data-workspace-draggable={editingLayout ? 'true' : undefined}
+                  aria-label={t.inProgress}
+                  title={slot.inviteeWallet ?? t.inProgress}
                 >
-                  <span className="slotCircle" aria-hidden="true">+</span>
-                  <strong>{u.available}</strong>
+                  <span className="nodeCircle">
+                    {slot.inviteeWallet ? (
+                      <NetworkIdentity address={slot.inviteeWallet} showLabel={false} />
+                    ) : (
+                      <span className="pendingInviteGlyph" aria-hidden="true">…</span>
+                    )}
+                  </span>
+                  <span className="nodeMeta">
+                    <strong>{slot.inviteeWallet ? shortWallet(slot.inviteeWallet) : t.inProgress}</strong>
+                    <small>{t.inProgress} · {slot.completedSteps}/{slot.totalSteps}</small>
+                  </span>
                 </button>
               );
             })}
@@ -2056,24 +2168,6 @@ export function AppNetwork({ locale }: { locale: Locale }) {
               {groupDraft.members.length < 2 ? w.needTwo : w.createGroup}
             </button>
           </aside>
-        ) : null}
-
-        {pageCount > 1 ? (
-          <div className="pager" data-no-pan="true">
-            <button
-              type="button"
-              onClick={() => setPage((value) => clamp(value - 1, 0, pageCount - 1))}
-              disabled={safePage === 0 || editingLayout}
-              aria-label={c.previous}
-            >‹</button>
-            <span>{safePage + 1} / {pageCount}</span>
-            <button
-              type="button"
-              onClick={() => setPage((value) => clamp(value + 1, 0, pageCount - 1))}
-              disabled={safePage >= pageCount - 1 || editingLayout}
-              aria-label={c.next}
-            >›</button>
-          </div>
         ) : null}
 
         {!focusIsRoot ? (
@@ -2169,21 +2263,21 @@ export function AppNetwork({ locale }: { locale: Locale }) {
         .searchWrap{position:relative;min-width:78px;max-width:120px;flex:0 1 120px}.searchWrap input{width:100%;height:29px;box-sizing:border-box;padding:0 7px;border:1px solid rgba(255,205,80,.1);border-radius:9px;background:#11110f;color:#d8d3ca;font:inherit;font-size:.52rem;outline:none}.searchWrap input:focus{border-color:rgba(244,183,40,.34)}.searchWrap input:disabled{opacity:.45}.searchResults{position:absolute;z-index:90;top:35px;left:0;width:min(290px,78vw);max-height:245px;overflow:auto;padding:5px;border:1px solid rgba(255,205,80,.14);border-radius:12px;background:rgba(14,14,12,.985);box-shadow:0 18px 40px rgba(0,0,0,.42)}.searchResults button{width:100%;padding:8px;border:0;border-radius:8px;background:transparent;color:#ddd7cc;text-align:left;cursor:pointer}.searchResults button:hover{background:rgba(244,183,40,.06)}.searchResults strong{display:block;font-size:.62rem}.searchResults button span{display:block;margin-top:3px;color:#6f6b64;font-size:.52rem}.searchStatus{display:block;padding:11px 8px;color:#77736c;font-size:.56rem;line-height:1.45;text-align:center}
         .compactControls{flex:0 0 auto;margin-left:auto;display:flex;align-items:center;gap:3px}.networkCanvasPage[data-layout-editing='true'] .searchWrap{display:none}.networkStage{position:relative;flex:1 1 auto;min-height:0;height:auto;overflow:hidden;touch-action:none;overscroll-behavior:contain;background:radial-gradient(ellipse at 50% 50%,rgba(244,183,40,.036),transparent 36%),#080807;cursor:grab;user-select:none;-webkit-user-select:none}.networkStage:active{cursor:grabbing}.networkStage.layoutEditing{box-shadow:inset 0 0 0 1px rgba(244,183,40,.11)}
         .world{position:absolute;top:0;left:0;will-change:transform;backface-visibility:hidden}.world.cameraTransition{transition:transform ${NAVIGATION_MS}ms cubic-bezier(.18,.82,.2,1)}.introActive .world.cameraTransition{transition-duration:${FIT_TRANSITION_MS}ms}.worldContent{position:absolute;inset:0;transform-origin:${FOCUS_X}px ${FOCUS_Y}px}.worldContent.nav-forward{animation:networkForward ${NAVIGATION_MS}ms cubic-bezier(.18,.82,.2,1)}.worldContent.nav-back{animation:networkBack ${NAVIGATION_MS}ms cubic-bezier(.18,.82,.2,1)}
-        .edges{position:absolute;inset:0;overflow:visible;pointer-events:none;z-index:2}.edge{fill:none;stroke:rgba(176,145,73,.31);stroke-width:1.05;stroke-linecap:round;vector-effect:non-scaling-stroke}.edge.rewarded{stroke:rgba(232,183,62,.46)}.edge.groupEdge{stroke:rgba(224,178,65,.42);stroke-width:1.15;stroke-dasharray:4 8}.groupMemberEdge{stroke:rgba(194,157,75,.32);stroke-width:.95;stroke-dasharray:4 8}.continuationEdge{fill:none;stroke:rgba(176,145,73,.24);stroke-width:1;stroke-linecap:round;vector-effect:non-scaling-stroke}.slotEdgeBase,.slotEdgePulse{fill:none;stroke-linecap:round;pointer-events:none;vector-effect:non-scaling-stroke}.slotEdgeBase{stroke:rgba(226,188,79,.62);stroke-width:1.05;opacity:.5}.slotEdgePulse{stroke:rgba(255,210,76,.95);stroke-width:1.55;stroke-dasharray:5 38;opacity:.8;filter:drop-shadow(0 0 2px rgba(244,183,40,.28));animation:networkSlotFlow 2.45s linear infinite}
-        .personNode,.slotNode,.groupNode{position:absolute;z-index:6;transform:translate(-50%,-50%);font:inherit;translate:none}.personNode{width:52px;height:52px;padding:0;border:0;border-radius:50%;background:transparent;color:#d9d4ca;display:block;cursor:pointer;user-select:none;-webkit-user-select:none;-webkit-touch-callout:none;touch-action:none;isolation:isolate}.focusNode{width:74px;height:74px;z-index:8}.childNode::before,.slotNode::before{content:'';position:absolute;left:50%;top:50%;border-radius:50%;transform:translate(-50%,-50%);pointer-events:none;z-index:0}.childNode::before{width:58px;height:58px;background:radial-gradient(circle,rgba(8,8,7,.94) 0 87%,rgba(8,8,7,.58) 91%,rgba(8,8,7,.17) 96%,rgba(8,8,7,0) 100%)}.slotNode::before{width:52px;height:52px;background:radial-gradient(circle,rgba(8,8,7,.92) 0 86%,rgba(8,8,7,.54) 91%,rgba(8,8,7,.15) 96%,rgba(8,8,7,0) 100%)}.nodeCircle,.slotCircle{position:absolute;inset:0;z-index:1;display:grid;place-items:center;border-radius:50%;box-sizing:border-box;background:#0d0d0b;overflow:hidden;transition:transform 170ms ease,border-color 170ms ease,box-shadow 170ms ease}.nodeCircle{border:1px solid rgba(210,174,65,.38);box-shadow:0 0 22px rgba(244,183,40,.025);transform:scale(var(--network-node-scale,1))}.focusCircle{border-color:rgba(255,207,71,.82);background:radial-gradient(circle at 50% 45%,rgb(24,21,13) 0%,rgb(13,13,11) 62%,rgb(13,13,11) 100%);box-shadow:0 0 0 1px rgba(244,183,40,.07),0 0 28px rgba(244,183,40,.08);transform:scale(var(--network-center-scale,1))}.focusNode::before{content:'';position:absolute;inset:-7px;border:1px solid rgba(244,183,40,.42);border-radius:50%;box-shadow:0 0 18px rgba(244,183,40,.055);animation:networkYouBreath 2.8s ease-in-out infinite;pointer-events:none}.introActive .focusNode::before{animation:networkYouIntro .72s ease-out 1,networkYouBreath 2.8s .72s ease-in-out infinite}.personNode:hover .nodeCircle,.personNode:focus-visible .nodeCircle,.personNode.selected .nodeCircle{border-color:rgba(244,183,40,.78);box-shadow:0 0 0 3px rgba(244,183,40,.08),0 0 26px rgba(244,183,40,.1);transform:scale(var(--network-node-selected-scale,1.07))}.focusNode:hover .focusCircle,.focusNode:focus-visible .focusCircle,.focusNode.selected .focusCircle{transform:scale(var(--network-center-selected-scale,1.07))}.childNode.status-rewarded .nodeCircle{border-color:rgba(232,183,62,.58)}.childNode.status-qualified .nodeCircle{border-color:rgba(193,166,90,.46)}.personNode.draggable,.groupNode.draggable{cursor:grab}.personNode.draggable:active,.groupNode.draggable:active{cursor:grabbing}.personNode.dragging{z-index:14}.personNode.dragging .nodeCircle{border-color:rgba(244,183,40,.92);box-shadow:0 0 0 4px rgba(244,183,40,.12),0 0 30px rgba(244,183,40,.18)}.groupNode.dragging{z-index:14;border-color:rgba(244,183,40,.82);box-shadow:0 14px 30px rgba(0,0,0,.34),0 0 0 3px rgba(244,183,40,.1)}.personNode.grouping{animation:groupDropAway ${GROUP_DROP_MS}ms ease forwards}
+        .edges{position:absolute;inset:0;overflow:visible;pointer-events:none;z-index:2}.edge{fill:none;stroke:rgba(176,145,73,.31);stroke-width:1.05;stroke-linecap:round;vector-effect:non-scaling-stroke}.edge.rewarded{stroke:rgba(232,183,62,.46)}.edge.groupEdge{stroke:rgba(224,178,65,.42);stroke-width:1.15;stroke-dasharray:4 8}.groupMemberEdge{stroke:rgba(194,157,75,.32);stroke-width:.95;stroke-dasharray:4 8}.continuationEdge{fill:none;stroke:rgba(176,145,73,.24);stroke-width:1;stroke-linecap:round;vector-effect:non-scaling-stroke}.slotEdgeBase,.slotEdgePulse,.slotEdgeProgress{fill:none;stroke-linecap:round;pointer-events:none;vector-effect:non-scaling-stroke}.slotEdgeBase{stroke:rgba(226,188,79,.62);stroke-width:1.05;opacity:.5}.slotEdgePulse{stroke:rgba(255,210,76,.95);stroke-width:1.55;stroke-dasharray:5 38;opacity:.8;filter:drop-shadow(0 0 2px rgba(244,183,40,.28));animation:networkSlotFlow 2.45s linear infinite}.slotEdgeProgress{stroke:rgba(244,183,40,.62);stroke-width:1.25;stroke-dasharray:3 7;opacity:.78}
+        .personNode,.slotNode,.groupNode{position:absolute;z-index:6;transform:translate(-50%,-50%);font:inherit;translate:none}.personNode{width:52px;height:52px;padding:0;border:0;border-radius:50%;background:transparent;color:#d9d4ca;display:block;cursor:pointer;user-select:none;-webkit-user-select:none;-webkit-touch-callout:none;touch-action:none;isolation:isolate}.focusNode{width:74px;height:74px;z-index:8}.childNode::before,.slotNode::before{content:'';position:absolute;left:50%;top:50%;border-radius:50%;transform:translate(-50%,-50%);pointer-events:none;z-index:0}.childNode::before{width:58px;height:58px;background:radial-gradient(circle,rgba(8,8,7,.94) 0 87%,rgba(8,8,7,.58) 91%,rgba(8,8,7,.17) 96%,rgba(8,8,7,0) 100%)}.slotNode::before{width:52px;height:52px;background:radial-gradient(circle,rgba(8,8,7,.92) 0 86%,rgba(8,8,7,.54) 91%,rgba(8,8,7,.15) 96%,rgba(8,8,7,0) 100%)}.nodeCircle,.slotCircle{position:absolute;inset:0;z-index:1;display:grid;place-items:center;border-radius:50%;box-sizing:border-box;background:#0d0d0b;overflow:hidden;transition:transform 170ms ease,border-color 170ms ease,box-shadow 170ms ease}.nodeCircle{border:1px solid rgba(210,174,65,.38);box-shadow:0 0 22px rgba(244,183,40,.025);transform:scale(var(--network-node-scale,1))}.focusCircle{border-color:rgba(255,207,71,.82);background:radial-gradient(circle at 50% 45%,rgb(24,21,13) 0%,rgb(13,13,11) 62%,rgb(13,13,11) 100%);box-shadow:0 0 0 1px rgba(244,183,40,.07),0 0 28px rgba(244,183,40,.08);transform:scale(var(--network-center-scale,1))}.focusNode::before{content:'';position:absolute;inset:-7px;border:1px solid rgba(244,183,40,.42);border-radius:50%;box-shadow:0 0 18px rgba(244,183,40,.055);animation:networkYouBreath 2.8s ease-in-out infinite;pointer-events:none}.introActive .focusNode::before{animation:networkYouIntro .72s ease-out 1,networkYouBreath 2.8s .72s ease-in-out infinite}.personNode:hover .nodeCircle,.personNode:focus-visible .nodeCircle,.personNode.selected .nodeCircle{border-color:rgba(244,183,40,.78);box-shadow:0 0 0 3px rgba(244,183,40,.08),0 0 26px rgba(244,183,40,.1);transform:scale(var(--network-node-selected-scale,1.07))}.focusNode:hover .focusCircle,.focusNode:focus-visible .focusCircle,.focusNode.selected .focusCircle{transform:scale(var(--network-center-selected-scale,1.07))}.childNode.status-rewarded .nodeCircle{border-color:rgba(232,183,62,.58)}.childNode.status-qualified .nodeCircle{border-color:rgba(193,166,90,.46)}.personNode.draggable,.slotNode.draggable,.groupNode.draggable{cursor:grab}.personNode.draggable:active,.slotNode.draggable:active,.groupNode.draggable:active{cursor:grabbing}.personNode.dragging,.slotNode.dragging{z-index:14}.personNode.dragging .nodeCircle,.slotNode.dragging .slotCircle{border-color:rgba(244,183,40,.92);box-shadow:0 0 0 4px rgba(244,183,40,.12),0 0 30px rgba(244,183,40,.18)}.groupNode.dragging{z-index:14;border-color:rgba(244,183,40,.82);box-shadow:0 14px 30px rgba(0,0,0,.34),0 0 0 3px rgba(244,183,40,.1)}.personNode.grouping{animation:groupDropAway ${GROUP_DROP_MS}ms ease forwards}
         .nodeCircle :global(.identity){width:100%;height:100%;display:grid;place-items:center}.nodeCircle :global(.avatarSlot){position:relative;display:grid;place-items:center}.childNode .nodeCircle :global(.avatarSlot),.childNode .nodeCircle :global(.neutralAvatar),.childNode .nodeCircle :global(.avatarSlot img){width:40px!important;height:40px!important}.focusNode .nodeCircle :global(.avatarSlot),.focusNode .nodeCircle :global(.neutralAvatar),.focusNode .nodeCircle :global(.avatarSlot img){width:56px!important;height:56px!important}.nodeCircle :global(.neutralAvatar){display:grid;place-items:center;border:0;border-radius:50%;background:#171611;color:#8e7b50}.nodeCircle :global(.avatarSlot img){position:absolute;inset:0;margin:auto;border-radius:50%;object-fit:cover;transition:opacity 160ms ease}.nodeMeta{position:absolute;left:50%;z-index:2;width:120px;display:grid;justify-items:center;gap:2px;transform:translateX(-50%);opacity:var(--network-label-opacity,1);pointer-events:none;transition:opacity 90ms linear}.childNode .nodeMeta{bottom:calc(100% + 6px)}.focusNode .nodeMeta{top:calc(100% + 7px)}.nodeMeta strong{max-width:112px;color:#e5dfd5;font-size:.52rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.nodeMeta small{max-width:116px;color:#6f6a62;font-size:.41rem;white-space:nowrap}.focusNode .nodeMeta strong{color:#edc65c;font-size:.61rem}.focusNode .nodeMeta small{font-size:.44rem}.nodeBusy{position:absolute;z-index:3;right:-2px;top:-2px;width:7px;height:7px;border-radius:50%;background:#e9bc45;box-shadow:0 0 10px rgba(233,188,69,.8);animation:pulse 900ms ease-in-out infinite alternate}
         .groupNode{min-width:108px;max-width:160px;padding:8px 10px;border:1px solid rgba(244,183,40,.54);border-radius:14px;background:rgba(18,16,10,.96);color:#d8b450;display:grid;grid-template-columns:30px 1fr;column-gap:6px;row-gap:1px;align-items:center;text-align:left;box-shadow:0 8px 28px rgba(0,0,0,.26),0 0 24px rgba(244,183,40,.045);cursor:pointer;touch-action:none;user-select:none;-webkit-user-select:none;-webkit-touch-callout:none}.groupNode:hover,.groupNode.selected{border-color:rgba(255,207,71,.82);box-shadow:0 0 0 3px rgba(244,183,40,.09),0 8px 28px rgba(0,0,0,.3)}.groupNode.expanded{border-style:dashed;background:rgba(13,12,9,.9);opacity:.92}.groupNode .groupGlyph{grid-row:1/3}.groupNode strong{min-width:0;max-width:110px;font-size:.48rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.groupNode small{color:#756b55;font-size:.34rem;white-space:nowrap}.groupGlyph{position:relative;width:30px;height:24px;display:block}.groupGlyph i{position:absolute;width:13px;height:13px;border:1px solid rgba(244,183,40,.34);border-radius:50%;background:#1a1812}.groupGlyph i:nth-child(1){left:9px;top:0}.groupGlyph i:nth-child(2){left:2px;top:10px}.groupGlyph i:nth-child(3){right:2px;top:10px}
-        .slotNode{width:46px;height:46px;padding:0;border:0;border-radius:50%;background:transparent;color:#c79f36;cursor:pointer;touch-action:none;user-select:none;-webkit-user-select:none;isolation:isolate}.slotCircle{border:1px dashed rgba(226,181,62,.52);color:#c79f36;font-size:.9rem;background:#0d0d0b;transform:scale(var(--network-node-scale,1));animation:slotPulse 5.6s ease-in-out infinite}.slotNode>strong{position:absolute;left:50%;top:calc(100% + 5px);z-index:2;width:92px;transform:translateX(-50%);color:#a98735;font-size:.47rem;white-space:nowrap;pointer-events:none;opacity:var(--network-label-opacity,1)}.slotNode:hover .slotCircle,.slotNode:focus-visible .slotCircle{border-style:solid;border-color:rgba(244,183,40,.9);box-shadow:0 0 28px rgba(244,183,40,.1);transform:scale(var(--network-node-selected-scale,1.07))}.slotNode:disabled{opacity:.28;cursor:default}
+        .slotNode{width:46px;height:46px;padding:0;border:0;border-radius:50%;background:transparent;color:#c79f36;cursor:pointer;touch-action:none;user-select:none;-webkit-user-select:none;isolation:isolate}.slotCircle{border:1px dashed rgba(226,181,62,.52);color:#c79f36;font-size:.9rem;background:#0d0d0b;transform:scale(var(--network-node-scale,1));animation:slotPulse 5.6s ease-in-out infinite}.slotNode>strong{position:absolute;left:50%;top:calc(100% + 5px);z-index:2;width:92px;transform:translateX(-50%);color:#a98735;font-size:.47rem;white-space:nowrap;pointer-events:none;opacity:var(--network-label-opacity,1)}.slotNode:hover .slotCircle,.slotNode:focus-visible .slotCircle{border-style:solid;border-color:rgba(244,183,40,.9);box-shadow:0 0 28px rgba(244,183,40,.1);transform:scale(var(--network-node-selected-scale,1.07))}.progressInviteNode::after{content:'';position:absolute;z-index:0;inset:-5px;border-radius:50%;background:conic-gradient(rgba(244,183,40,.95) var(--slot-progress),rgba(244,183,40,.12) 0);-webkit-mask:radial-gradient(farthest-side,transparent calc(100% - 3px),#000 0);mask:radial-gradient(farthest-side,transparent calc(100% - 3px),#000 0);filter:drop-shadow(0 0 4px rgba(244,183,40,.18));pointer-events:none}.progressInviteNode .nodeCircle{border-color:rgba(244,183,40,.62);background:#11100c}.progressInviteNode .nodeMeta small{color:#b28c32}.pendingInviteGlyph{display:grid;place-items:center;width:100%;height:100%;color:#d3aa43;font-size:.9rem;font-weight:950;letter-spacing:.08em}
         .worldContent.nav-forward .childNode .nodeCircle{animation:networkNodeBloom 620ms cubic-bezier(.16,.82,.2,1) both}
         .layoutControls{display:flex;align-items:center;gap:3px;min-width:0}.layoutControls button{width:28px;height:29px;padding:0;border:1px solid rgba(255,205,80,.13);border-radius:8px;background:rgba(18,18,15,.94);color:#a9a397;font:inherit;font-size:.65rem;font-weight:900;cursor:pointer;box-shadow:0 7px 18px rgba(0,0,0,.2)}.layoutControls .editLayoutButton:hover,.layoutControls .newGroupButton:hover,.layoutControls .groupsButton:hover,.layoutControls .groupsButton.active{border-color:rgba(244,183,40,.31);color:#e1bd5b}.layoutControls .saveLayoutButton{border-color:rgba(244,183,40,.32);background:linear-gradient(135deg,#e9b93c,#c98a18);color:#17120a}.layoutControls .cancelLayoutButton{color:#8d877e}
         .groupsPanel{position:absolute;z-index:81;left:10px;top:50px;width:min(235px,calc(100% - 20px));box-sizing:border-box;padding:11px;border:1px solid rgba(244,183,40,.17);border-radius:15px;background:rgba(14,14,12,.985);box-shadow:0 18px 40px rgba(0,0,0,.42);cursor:default}.groupsPanelHead{display:flex;align-items:center;justify-content:space-between}.groupsPanelHead strong{color:#e5dfd3;font-size:.62rem}.groupsPanelHead button{width:27px;height:27px;border:0;background:transparent;color:#817c73;font-size:.95rem;cursor:pointer}.groupsPanel p{margin:10px 0;color:#77736c;font-size:.53rem}.groupsList{display:grid;gap:5px;margin-top:7px}.groupsList>button{padding:7px 8px;border:1px solid rgba(255,255,255,.06);border-radius:9px;background:rgba(255,255,255,.025);color:#aaa398;text-align:left;cursor:pointer}.groupsList span,.groupsList small{display:block}.groupsList span{font-size:.54rem;font-weight:900}.groupsList small{margin-top:2px;color:#746e64;font-size:.46rem}.createFirstGroup{width:100%;min-height:32px;margin-top:8px;border:1px solid rgba(244,183,40,.22);border-radius:9px;background:rgba(244,183,40,.05);color:#c5a454;font:inherit;font-size:.52rem;font-weight:900;cursor:pointer}.groupBuilder{position:absolute;z-index:82;left:10px;top:50px;width:min(235px,calc(100% - 20px));box-sizing:border-box;padding:11px;border:1px solid rgba(244,183,40,.2);border-radius:15px;background:rgba(14,14,12,.985);box-shadow:0 18px 40px rgba(0,0,0,.42);cursor:default}.groupBuilderHead{display:flex;align-items:center;justify-content:space-between;gap:8px}.groupBuilderHead strong{color:#e5dfd3;font-size:.62rem}.groupBuilderHead button{width:27px;height:27px;border:0;background:transparent;color:#817c73;font-size:.95rem;cursor:pointer}.groupBuilder>input{width:100%;height:31px;margin-top:7px;box-sizing:border-box;padding:0 8px;border:1px solid rgba(255,205,80,.1);border-radius:8px;background:#11110f;color:#d8d3ca;font:inherit;font-size:.55rem;outline:none}.groupDropZone{min-height:74px;margin-top:8px;padding:9px;box-sizing:border-box;display:grid;place-items:center;align-content:center;gap:2px;border:1px dashed rgba(244,183,40,.34);border-radius:11px;background:rgba(244,183,40,.035);text-align:center}.dropIcon{color:#c99d35;font-size:.9rem}.groupDropZone strong{color:#b9aa83;font-size:.54rem}.groupDropZone small{color:#6d685e;font-size:.48rem}.groupDraftMembers{margin-top:7px;display:flex;flex-wrap:wrap;gap:4px}.groupDraftMembers button{padding:4px 6px;border:1px solid rgba(255,255,255,.06);border-radius:7px;background:rgba(255,255,255,.025);color:#89847a;font:inherit;font-size:.46rem;cursor:pointer}.groupDraftMembers button span{color:#a97f54}.groupMemberList span{display:inline-flex;align-items:center;gap:4px}.groupMemberList span button{width:18px;height:18px;border:0;border-radius:50%;background:rgba(255,255,255,.04);color:#8d8173;cursor:pointer}.groupToggleButton{width:100%;min-height:30px;margin-top:8px;border:1px solid rgba(244,183,40,.15);border-radius:9px;background:rgba(244,183,40,.035);color:#b69a57;font:inherit;font-size:.5rem;font-weight:900;cursor:pointer}.createGroupButton{width:100%;min-height:33px;margin-top:8px;border:0;border-radius:9px;background:linear-gradient(135deg,#ffd24d,#efa718);color:#17120a;font:inherit;font-size:.53rem;font-weight:950;cursor:pointer}.createGroupButton:disabled{background:rgba(255,255,255,.05);color:#68635b;cursor:default}
-        .viewControls{display:grid;grid-template-columns:repeat(4,28px);gap:3px;flex:0 0 auto}.viewControls .fitButton{width:28px;min-width:28px;padding:0;font-size:.62rem}.viewControls button,.pager button{width:28px;height:29px;padding:0;border:1px solid rgba(255,205,80,.13);border-radius:8px;background:rgba(18,18,15,.92);color:#bbb5aa;font:inherit;font-size:.68rem;font-weight:850;cursor:pointer}.viewControls button:hover,.pager button:hover:not(:disabled){border-color:rgba(244,183,40,.28);color:#e4c36d}.pager{position:absolute;z-index:55;left:50%;bottom:10px;transform:translateX(-50%);display:flex;align-items:center;gap:7px;padding:4px;border:1px solid rgba(255,205,80,.08);border-radius:12px;background:rgba(12,12,10,.88)}.pager button{width:32px}.pager button:disabled{opacity:.28;cursor:default}.pager span{min-width:48px;color:#77736c;font-size:.53rem;font-weight:800;text-align:center}.parentReturn{position:absolute;z-index:55;left:10px;bottom:10px;min-height:34px;padding:0 11px;border:1px solid rgba(255,205,80,.12);border-radius:10px;background:rgba(18,18,15,.92);color:#a89c7b;font:inherit;font-size:.55rem;font-weight:850;cursor:pointer}.parentReturn:disabled{opacity:.4}
+        .viewControls{display:grid;grid-template-columns:repeat(4,28px);gap:3px;flex:0 0 auto}.viewControls .fitButton{width:28px;min-width:28px;padding:0;font-size:.62rem}.viewControls button{width:28px;height:29px;padding:0;border:1px solid rgba(255,205,80,.13);border-radius:8px;background:rgba(18,18,15,.92);color:#bbb5aa;font:inherit;font-size:.68rem;font-weight:850;cursor:pointer}.viewControls button:hover{border-color:rgba(244,183,40,.28);color:#e4c36d}.parentReturn{position:absolute;z-index:55;left:10px;bottom:10px;min-height:34px;padding:0 11px;border:1px solid rgba(255,205,80,.12);border-radius:10px;background:rgba(18,18,15,.92);color:#a89c7b;font:inherit;font-size:.55rem;font-weight:850;cursor:pointer}.parentReturn:disabled{opacity:.4}
         .profileCard{position:absolute;z-index:75;right:10px;top:10px;width:min(245px,calc(100% - 20px));box-sizing:border-box;padding:13px;border:1px solid rgba(255,205,80,.15);border-radius:17px;background:rgba(15,15,13,.975);box-shadow:0 18px 42px rgba(0,0,0,.45);cursor:default}.profileClose{position:absolute;right:8px;top:7px;width:28px;height:28px;border:0;background:transparent;color:#817c73;font-size:1rem;cursor:pointer}.profileIdentity{padding-right:28px;display:flex;align-items:center;gap:9px}.profileIdentity :global(.identity){display:flex;align-items:center;gap:8px}.profileIdentity :global(.identityLabel){display:none}.profileIdentity :global(.avatarSlot){position:relative;display:grid;place-items:center}.profileIdentity :global(.neutralAvatar){display:grid;place-items:center;border:1px solid rgba(244,183,40,.13);border-radius:50%;background:#171611;color:#8e7b50}.profileIdentity :global(.avatarSlot img){position:absolute;inset:0;border-radius:50%;object-fit:cover}.profileIdentity>div>strong{display:block;color:#e7e1d6;font-size:.66rem}.profileIdentity>div>span{display:block;margin-top:3px;color:#877e69;font-size:.51rem}.profileAddress{margin-top:10px;padding:8px;border-radius:9px;background:rgba(255,255,255,.025);color:#67635d;font-size:.48rem;line-height:1.35;overflow-wrap:anywhere;user-select:text;-webkit-user-select:text}.profileStats{margin-top:9px;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:5px}.profileStats>div{padding:8px;border:1px solid rgba(255,255,255,.045);border-radius:9px;background:rgba(255,255,255,.018)}.profileStats strong{display:block;color:#d6d0c5;font-size:.62rem}.profileStats span{display:block;margin-top:2px;color:#68645e;font-size:.47rem}.profileAction{width:100%;min-height:36px;margin-top:9px;border:0;border-radius:10px;background:linear-gradient(135deg,#ffd24d,#efa718);color:#17120a;font:inherit;font-size:.57rem;font-weight:950;cursor:pointer}.profileAction:disabled{opacity:.45;cursor:default}
         .groupCardTitle{padding-right:28px;display:flex;align-items:center;gap:10px}.groupCardTitle>div strong{display:block;color:#e7dfcf;font-size:.65rem}.groupCardTitle>div span{display:block;margin-top:3px;color:#887c5e;font-size:.5rem}.groupMemberList{margin-top:10px;display:flex;flex-wrap:wrap;gap:5px}.groupMemberList span{padding:5px 6px;border:1px solid rgba(255,255,255,.05);border-radius:7px;background:rgba(255,255,255,.02);color:#777168;font-size:.47rem}.ungroupButton{width:100%;min-height:33px;margin-top:10px;border:1px solid rgba(194,118,90,.2);border-radius:9px;background:rgba(194,118,90,.06);color:#bd9889;font:inherit;font-size:.52rem;font-weight:900;cursor:pointer}
         .workspaceNotice{position:absolute;z-index:96;left:50%;bottom:56px;transform:translateX(-50%);padding:7px 11px;border:1px solid rgba(244,183,40,.18);border-radius:10px;background:rgba(21,19,14,.97);color:#d5b85f;font-size:.53rem;font-weight:850;white-space:nowrap;box-shadow:0 12px 28px rgba(0,0,0,.3)}
         .inlineError{position:absolute;z-index:90;left:50%;bottom:54px;transform:translateX(-50%);max-width:calc(100% - 28px);padding:8px 9px 8px 11px;display:flex;align-items:center;gap:8px;border:1px solid rgba(194,118,90,.2);border-radius:10px;background:rgba(38,23,18,.96);color:#c7a294;font-size:.53rem;box-shadow:0 12px 30px rgba(0,0,0,.32)}.inlineError button{border:0;background:transparent;color:#9f7d71;font-size:.8rem;cursor:pointer}
         @keyframes networkForward{0%{opacity:.68;scale:.975}100%{opacity:1;scale:1}}@keyframes networkBack{0%{opacity:.74;scale:1.035}100%{opacity:1;scale:1}}@keyframes networkSlotFlow{from{stroke-dashoffset:43}to{stroke-dashoffset:-43}}@keyframes networkYouBreath{0%,100%{opacity:.46;transform:scale(.96)}50%{opacity:.92;transform:scale(1.06)}}@keyframes networkYouIntro{0%{opacity:.25;transform:scale(.78)}58%{opacity:1;transform:scale(1.14)}100%{opacity:.62;transform:scale(1)}}@keyframes networkNodeBloom{0%{transform:scale(.45);box-shadow:0 0 0 rgba(244,183,40,0)}55%{transform:scale(1.18);box-shadow:0 0 42px rgba(244,183,40,.22)}100%{transform:scale(var(--network-node-scale,1));box-shadow:0 0 22px rgba(244,183,40,.025)}}@keyframes slotPulse{0%,100%{box-shadow:0 0 0 rgba(244,183,40,0)}50%{box-shadow:0 0 22px rgba(244,183,40,.07)}}@keyframes pulse{to{opacity:.38;transform:scale(.82)}}@keyframes groupDropAway{to{opacity:0;scale:.72}}
-        @media(max-width:560px){.networkCanvasPage{width:100%;border-radius:18px}.networkHeader{min-height:42px;padding:7px 9px}.networkHeader h1{font-size:.82rem}.summary{gap:2px 4px}.summary strong{font-size:.66rem}.summary span{font-size:.43rem}.networkUtilityRow{min-height:39px;padding:4px 6px;gap:4px}.searchWrap input{height:29px;padding:0 7px;font-size:.52rem}.compactControls{gap:3px}.layoutControls,.viewControls{gap:3px}.layoutControls button,.viewControls button,.viewControls .fitButton{width:28px;min-width:28px;height:29px;border-radius:8px}.crumb{max-width:60px}.profileCard{top:auto;right:8px;bottom:52px;left:8px;width:auto}.groupBuilder{left:8px;top:42px;width:min(232px,calc(100% - 16px))}.parentReturn{left:8px;bottom:8px}.pager{bottom:8px}.personNode{min-width:0}.focusNode{min-width:0}}
+        @media(max-width:560px){.networkCanvasPage{width:100%;border-radius:18px}.networkHeader{min-height:42px;padding:7px 9px}.networkHeader h1{font-size:.82rem}.summary{gap:2px 4px}.summary strong{font-size:.66rem}.summary span{font-size:.43rem}.networkUtilityRow{min-height:39px;padding:4px 6px;gap:4px}.searchWrap input{height:29px;padding:0 7px;font-size:.52rem}.compactControls{gap:3px}.layoutControls,.viewControls{gap:3px}.layoutControls button,.viewControls button,.viewControls .fitButton{width:28px;min-width:28px;height:29px;border-radius:8px}.crumb{max-width:60px}.profileCard{top:auto;right:8px;bottom:52px;left:8px;width:auto}.groupBuilder{left:8px;top:42px;width:min(232px,calc(100% - 16px))}.parentReturn{left:8px;bottom:8px}.personNode{min-width:0}.focusNode{min-width:0}}
         @media(prefers-reduced-motion:reduce){.world.cameraTransition{transition:none}.worldContent.nav-forward,.worldContent.nav-back,.slotEdgePulse,.nodeBusy,.personNode.grouping,.slotCircle,.focusNode::before,.worldContent.nav-forward .childNode .nodeCircle{animation:none!important}}
       `}</style>
     </section>
