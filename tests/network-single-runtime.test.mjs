@@ -135,6 +135,14 @@ test('single runtime keeps the authenticated read-only Network API contract', ()
   assert.doesNotMatch(workspaceSource, /supabase|fetch\(|\/api\//);
 });
 
+test('Network first paint skips live-round chain enrichment and refreshes it after the canvas is usable', () => {
+  assert.match(networkRouteSource, /fastInitial = request\.nextUrl\.searchParams\.get\('fast'\) === '1'/);
+  assert.match(networkRouteSource, /const round = fastInitial \? null : await readCurrentRoundContext\(\)/);
+  assert.match(networkSource, /if \(options\.fast\) params\.set\('fast', '1'\)/);
+  assert.match(networkSource, /fetchNetwork\(requestWallet, \{[\s\S]*fast: true/);
+  assert.match(networkSource, /setLoadState\('ready'\)[\s\S]*void fetchNetwork\(requestWallet\)\.then/);
+});
+
 test('canary test data is server-only and never creates a second frontend runtime', () => {
   assert.doesNotMatch(guideSource, /networkCanaryFixture|isNetworkCanaryWallet/);
   assert.doesNotMatch(networkSource, /networkCanaryFixture|isNetworkCanaryWallet|canaryFixture/);
