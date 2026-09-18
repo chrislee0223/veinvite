@@ -2169,6 +2169,15 @@ export function AppNetwork({ locale }: { locale: Locale }) {
         </div>
 
         <div className="compactControls">
+          <div className="viewControls">
+            <button type="button" className="youControl" onClick={returnToYou} aria-label={c.you} title={c.you}>
+              <span aria-hidden="true">◎</span>
+            </button>
+            <button type="button" className="fitButton" onClick={() => { stopIntroForInteraction(); fitNetwork(); }} aria-label={w.fit} title={w.fit}>⛶</button>
+            <button type="button" onClick={() => zoomByButton(-1)} aria-label={c.zoomOut} title={c.zoomOut}>−</button>
+            <button type="button" onClick={() => zoomByButton(1)} aria-label={c.zoomIn} title={c.zoomIn}>+</button>
+          </div>
+
           <div className="layoutControls">
             <button
               type="button"
@@ -2262,15 +2271,6 @@ export function AppNetwork({ locale }: { locale: Locale }) {
                 </aside>
               ) : null}
             </div>
-          </div>
-
-          <div className="viewControls">
-            <button type="button" className="youControl" onClick={returnToYou} aria-label={c.you} title={c.you}>
-              <span aria-hidden="true">◎</span>
-            </button>
-            <button type="button" className="fitButton" onClick={() => { stopIntroForInteraction(); fitNetwork(); }} aria-label={w.fit} title={w.fit}>⛶</button>
-            <button type="button" onClick={() => zoomByButton(1)} aria-label={c.zoomIn} title={c.zoomIn}>+</button>
-            <button type="button" onClick={() => zoomByButton(-1)} aria-label={c.zoomOut} title={c.zoomOut}>−</button>
           </div>
         </div>
       </div>
