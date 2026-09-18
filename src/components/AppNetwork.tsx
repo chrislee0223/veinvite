@@ -1696,6 +1696,7 @@ export function AppNetwork({ locale }: { locale: Locale }) {
   const finishLayoutEdit = useCallback(() => {
     workspaceDragRef.current = null;
     restorePendingGroupDrop();
+    commitCurrentDraftWorkspace();
     if (restoreTimerRef.current !== null) {
       window.clearTimeout(restoreTimerRef.current);
       restoreTimerRef.current = null;
@@ -1722,7 +1723,7 @@ export function AppNetwork({ locale }: { locale: Locale }) {
       noticeTimerRef.current = null;
       setWorkspaceNotice('');
     }, 1400);
-  }, [w.layoutSaved, restorePendingGroupDrop, clearDragGhost]);
+  }, [w.layoutSaved, restorePendingGroupDrop, commitCurrentDraftWorkspace, clearDragGhost]);
 
   const startGroupCreation = useCallback((
     initialMember: string | null = null,
