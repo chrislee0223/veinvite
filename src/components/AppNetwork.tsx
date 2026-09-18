@@ -1669,11 +1669,14 @@ export function AppNetwork({ locale }: { locale: Locale }) {
     }, 1400);
   }, [w.layoutSaved, restorePendingGroupDrop]);
 
-  const startGroupCreation = useCallback((initialMember: string | null = null) => {
+  const startGroupCreation = useCallback((
+    initialMember: string | null = null,
+    sourceOverride: NetworkFocusWorkspace | null = null,
+  ) => {
     if (!currentFocusKey) return;
-    const sourceWorkspace = editingLayout
+    const sourceWorkspace = sourceOverride ?? (editingLayout
       ? draftWorkspaceRef.current ?? committedWorkspace
-      : workspaceForFocus(workspaceStore, currentFocusKey);
+      : workspaceForFocus(workspaceStore, currentFocusKey));
     if (sourceWorkspace.groups.length >= MAX_GROUPS_PER_FOCUS) return;
 
     const initialKey = initialMember ? keyWallet(initialMember) : null;
@@ -1724,8 +1727,11 @@ export function AppNetwork({ locale }: { locale: Locale }) {
     startGroupCreation(null);
   }, [startGroupCreation]);
 
-  const beginGroupCreationWithMember = useCallback((member: string) => {
-    startGroupCreation(member);
+  const beginGroupCreationWithMember = useCallback((
+    member: string,
+    sourceWorkspace: NetworkFocusWorkspace | null = null,
+  ) => {
+    startGroupCreation(member, sourceWorkspace);
   }, [startGroupCreation]);
 
   const cancelGroupCreation = useCallback(() => {
