@@ -9,6 +9,9 @@ const [
   walletRuntime,
   appProviders,
   homeStartupReadiness,
+  walletAuthentication,
+  walletAuthenticationCoordinator,
+  walletProviderReconciler,
 ] = await Promise.all([
   readFile('src/components/HomeClient.tsx', 'utf8'),
   readFile('src/components/WalletControl.tsx', 'utf8'),
@@ -16,6 +19,9 @@ const [
   readFile('src/components/WalletRuntimeLifecycle.tsx', 'utf8'),
   readFile('src/components/AppProviders.tsx', 'utf8'),
   readFile('src/lib/homeStartupReadiness.ts', 'utf8'),
+  readFile('src/hooks/useWalletAuthentication.ts', 'utf8'),
+  readFile('src/lib/walletAuthenticationCoordinator.ts', 'utf8'),
+  readFile('src/components/WalletProviderAccountReconciler.tsx', 'utf8'),
 ]);
 
 test('Home restores permanent referral links from wallet-scoped session storage', () => {
@@ -68,6 +74,55 @@ test('VeWorld app return rehydrates dapp-kit and has a bounded reload fallback',
   assert.match(walletResume, /alreadyReloaded/);
   assert.match(walletResume, /window\.location\.reload\(\)/);
   assert.match(walletResume, /<Brand compact \/>/);
+});
+
+test('VeWorld provider recovery never overlaps the native certificate prompt', () => {
+  assert.match(
+    walletResume,
+    /isWalletAuthenticationInProgress\(\)/,
+  );
+  assert.match(
+    walletResume,
+    /runWalletProviderReconciliation[\s\S]*initializeAsync\(\)/,
+  );
+  assert.match(
+    walletProviderReconciler,
+    /runWalletProviderReconciliation[\s\S]*initializeAsync\(\)/,
+  );
+  assert.match(
+    walletAuthentication,
+    /waitForWalletProviderReconciliation\(\)/,
+  );
+  assert.match(
+    walletAuthentication,
+    /WALLET_PROVIDER_SETTLE_TIMEOUT_MS/,
+  );
+  assert.match(
+    walletAuthenticationCoordinator,
+    /activeWalletProviderReconciliation/,
+  );
+});
+
+test('native VeWorld certificate signing never releases the auth lock on a local timeout', () => {
+  const requestStart = walletAuthentication.indexOf(
+    'const certResponse =',
+  );
+  const requestEnd = walletAuthentication.indexOf(
+    'assertStillCurrent();',
+    requestStart,
+  );
+  const certificateBlock = walletAuthentication.slice(
+    requestStart,
+    requestEnd,
+  );
+
+  assert.ok(requestStart >= 0);
+  assert.ok(requestEnd > requestStart);
+  assert.match(certificateBlock, /await requestCertificate\(/);
+  assert.doesNotMatch(
+    certificateBlock,
+    /withTimeout\(|WALLET_SIGNATURE_TIMEOUT_MS/,
+  );
 });
 
 test('wallet resume recovery is mounted inside the VeChain provider', () => {

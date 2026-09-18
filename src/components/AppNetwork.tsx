@@ -953,6 +953,13 @@ export function AppNetwork({ locale }: { locale: Locale }) {
     }
 
     let active = true;
+    let retryTimer: number | null = null;
+    let refreshInFlight = false;
+    let lastAttemptAt = 0;
+    let initialSettled = false;
+    const SLOT_RETRY_DELAY_MS = 650;
+    const SLOT_REFRESH_MIN_INTERVAL_MS = 1_500;
+
     setInviteSlotsReady(false);
     setIntroReadyFallback(false);
     const fallbackTimer = window.setTimeout(() => {
@@ -960,16 +967,15 @@ export function AppNetwork({ locale }: { locale: Locale }) {
     }, 650);
 
     const controller = new AbortController();
-    void fetch(`/api/network/slots?wallet=${encodeURIComponent(wallet)}`, {
-      method: 'GET',
-      credentials: 'include',
-      cache: 'no-store',
-      headers: { Accept: 'application/json' },
-      signal: controller.signal,
-    }).then(async (response) => {
-      if (!response.ok) return;
-      const payload = await response.json().catch(() => null) as { slots?: unknown } | null;
-      if (!payload || !Array.isArray(payload.slots)) return;
+
+    const markInitialSettled = () => {
+      if (!active || initialSettled) return;
+      initialSettled = true;
+      setInviteSlotsReady(true);
+    };
+
+    const parseSlots = (payload: { slots?: unknown } | null): InviteSlotState[] | null => {
+      if (!payload || !Array.isArray(payload.slots)) return null;
 
       const slots = payload.slots.flatMap((value): InviteSlotState[] => {
         if (!value || typeof value !== 'object') return [];
@@ -992,17 +998,90 @@ export function AppNetwork({ locale }: { locale: Locale }) {
         }];
       }).sort((left, right) => left.slot - right.slot);
 
-      if (active) setInviteSlots(slots);
-    }).catch(() => {
-      // Slot availability is supplementary; the Network graph remains usable.
-    }).finally(() => {
-      if (active) setInviteSlotsReady(true);
-    });
+      // The authoritative endpoint always returns both current-capacity slots.
+      // Preserve the last known good state if a response is partial/malformed.
+      return slots.length === 2 ? slots : null;
+    };
+
+    const refreshSlots = async (allowRetry = true) => {
+      if (!active || controller.signal.aborted || refreshInFlight) return;
+
+      const now = Date.now();
+      if (!allowRetry && now - lastAttemptAt < SLOT_REFRESH_MIN_INTERVAL_MS) return;
+
+      refreshInFlight = true;
+      lastAttemptAt = now;
+
+      try {
+        const response = await fetch(
+          `/api/network/slots?wallet=${encodeURIComponent(wallet)}`,
+          {
+            method: 'GET',
+            credentials: 'include',
+            cache: 'no-store',
+            headers: { Accept: 'application/json' },
+            signal: controller.signal,
+          },
+        );
+
+        if (!response.ok) {
+          throw new Error(`Invite slot refresh failed (${response.status}).`);
+        }
+
+        const payload = await response.json().catch(() => null) as { slots?: unknown } | null;
+        const slots = parseSlots(payload);
+        if (!slots) {
+          throw new Error('Invite slot response was incomplete.');
+        }
+
+        if (retryTimer !== null) {
+          window.clearTimeout(retryTimer);
+          retryTimer = null;
+        }
+
+        if (active) {
+          setInviteSlots(slots);
+          markInitialSettled();
+        }
+      } catch (error) {
+        if (!active || controller.signal.aborted) return;
+
+        if (allowRetry) {
+          if (retryTimer !== null) window.clearTimeout(retryTimer);
+          retryTimer = window.setTimeout(() => {
+            retryTimer = null;
+            void refreshSlots(false);
+          }, SLOT_RETRY_DELAY_MS);
+          return;
+        }
+
+        markInitialSettled();
+        console.warn(
+          'VeInvite could not refresh Network invite slots after retry.',
+          error,
+        );
+      } finally {
+        refreshInFlight = false;
+      }
+    };
+
+    const handleResume = () => {
+      if (!active || document.visibilityState === 'hidden') return;
+      if (Date.now() - lastAttemptAt < SLOT_REFRESH_MIN_INTERVAL_MS) return;
+      void refreshSlots(true);
+    };
+
+    void refreshSlots(true);
+    window.addEventListener('focus', handleResume);
+    document.addEventListener('visibilitychange', handleResume);
 
     return () => {
       active = false;
       window.clearTimeout(fallbackTimer);
+      if (retryTimer !== null) window.clearTimeout(retryTimer);
       controller.abort();
+      window.removeEventListener('focus', handleResume);
+      document.removeEventListener('visibilitychange', handleResume);
     };
   }, [wallet]);
 
