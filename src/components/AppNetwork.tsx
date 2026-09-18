@@ -872,8 +872,13 @@ export function AppNetwork({ locale }: { locale: Locale }) {
     setIntroActive(false);
     storedStateRef.current = wallet ? readStoredRuntimeState(wallet) : null;
     setWorkspaceStore(wallet ? readStoredWorkspace(wallet) : { version: 1, focus: {} });
-    setRootData(null);
-    setFocusWallet(null);
+    const warmedRoot = wallet ? getCachedNetworkRoot(wallet) as NetworkData | null : null;
+    const initialRoot = wallet ? (warmedRoot ?? provisionalNetworkData(wallet)) : null;
+    setRootData(initialRoot);
+    setFocusWallet(initialRoot?.focusWallet ?? null);
+    if (initialRoot) {
+      cacheRef.current.set(keyWallet(initialRoot.focusWallet), initialRoot);
+    }
     setPage(0);
     setSelectedWallet(null);
     setSelectedGroupId(null);
@@ -891,6 +896,7 @@ export function AppNetwork({ locale }: { locale: Locale }) {
       setLoadError('');
       return;
     }
+    setLoadState('ready');
     void loadRoot();
     return () => {
       cancelRequest();
@@ -1664,27 +1670,8 @@ export function AppNetwork({ locale }: { locale: Locale }) {
     );
   }
 
-  if (loadState === 'loading' || loadState === 'idle') {
-    return (
-      <section className="networkCard networkStateCard" aria-busy="true">
-        <div className="loadingDots" aria-hidden="true"><i /><i /><i /></div>
-        <h1>{t.title}</h1>
-        <p>{t.directNetwork}</p>
-        <style jsx>{stateStyles}</style>
-      </section>
-    );
-  }
-
-  if (loadState === 'error' || !rootData || !currentData) {
-    return (
-      <section className="networkCard networkStateCard">
-        <div className="stateGlyph error">!</div>
-        <h1>{t.loadError}</h1>
-        <p>{loadError || t.loadError}</p>
-        <button type="button" onClick={() => void loadRoot()}>{t.retry}</button>
-        <style jsx>{stateStyles}</style>
-      </section>
-    );
+  if (!visibleRootData || !currentData) {
+    return null;
   }
 
   const focusKey = keyWallet(currentData.focusWallet);
@@ -1723,10 +1710,10 @@ export function AppNetwork({ locale }: { locale: Locale }) {
           <h1>{t.title}</h1>
         </div>
         <div className="summary" aria-label={t.networkSize}>
-          <strong>{rootData.summary.network.toLocaleString()}</strong>
+          <strong>{visibleRootData.summary.network.toLocaleString()}</strong>
           <span>{t.networkSize}</span>
           <i />
-          <strong className="growth">{rootData.summary.thisRound === null ? '–' : `+${rootData.summary.thisRound}`}</strong>
+          <strong className="growth">{visibleRootData.summary.thisRound === null ? '–' : `+${visibleRootData.summary.thisRound}`}</strong>
           <span>{t.thisRound}</span>
         </div>
       </header>
