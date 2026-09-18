@@ -3,16 +3,49 @@ import fs from 'node:fs';
 import test from 'node:test';
 
 const source = fs.readFileSync(new URL('../src/components/AppNetwork.tsx', import.meta.url), 'utf8');
+const home = fs.readFileSync(new URL('../src/components/HomeClient.tsx', import.meta.url), 'utf8');
+const hub = fs.readFileSync(new URL('../src/components/AppNetworkHub.tsx', import.meta.url), 'utf8');
 
-test('Network search and all primary controls are grouped above the canvas', () => {
-  const toolbar = source.indexOf('className="networkToolbar"');
-  const controls = source.indexOf('className="networkTopControls"');
+test('Network title is one compact row and search plus every primary control share one utility row', () => {
+  const header = source.indexOf('className="networkHeader"');
+  const utility = source.indexOf('className="networkUtilityRow"');
   const stage = source.indexOf('ref={stageRef}');
-  assert.ok(toolbar >= 0 && controls > toolbar && stage > controls);
-  assert.match(source, /networkTopControls[\s\S]*editLayoutButton[\s\S]*groupsButton[\s\S]*viewControls/);
-  assert.match(source, /networkTopControls\{[^}]*display:flex/);
-  assert.match(source, /\.viewControls\{position:static/);
-  assert.match(source, /\.layoutControls\{position:static/);
+  assert.ok(header >= 0 && utility > header && stage > utility);
+
+  const headerSlice = source.slice(header, utility);
+  assert.match(headerSlice, /<h1>\{t\.title\}<\/h1>/);
+  assert.doesNotMatch(headerSlice, />NETWORK</);
+
+  const utilitySlice = source.slice(utility, stage);
+  assert.match(utilitySlice, /searchWrap/);
+  assert.match(utilitySlice, /editLayoutButton/);
+  assert.match(utilitySlice, /groupsButton/);
+  assert.match(utilitySlice, /viewControls/);
+  assert.match(utilitySlice, /zoomByButton\(1\)/);
+  assert.match(utilitySlice, /zoomByButton\(-1\)/);
+
+  assert.match(source, /\.networkUtilityRow\{[^}]*display:flex/);
+  assert.match(source, /\.compactControls\{[^}]*display:flex/);
+  assert.match(source, /\.layoutControls button\{width:30px/);
+  assert.match(source, /\.viewControls\{display:grid;grid-template-columns:repeat\(4,30px\)/);
+});
+
+test('Network canvas fills the remaining tab height instead of creating page scroll', () => {
+  assert.match(home, /screen\.networkScreen \{[^}]*height:100svh[^}]*overflow:hidden/);
+  assert.match(home, /networkTabViewport \{[^}]*flex:1 1 auto[^}]*display:flex/);
+  assert.match(hub, /networkHubShell\{[^}]*height:100%[^}]*min-height:0[^}]*display:flex/);
+  assert.match(source, /networkCanvasPage\{[^}]*height:100%[^}]*display:flex;flex-direction:column/);
+  assert.match(source, /networkStage\{[^}]*flex:1 1 auto[^}]*min-height:0[^}]*height:auto/);
+  assert.doesNotMatch(source, /networkStage\{[^}]*68vh/);
+});
+
+test('breadcrumbs move into the canvas overlay so they do not consume another permanent row', () => {
+  const utility = source.indexOf('className="networkUtilityRow"');
+  const stage = source.indexOf('ref={stageRef}');
+  const breadcrumbs = source.indexOf('aria-label={t.directNetwork} data-no-pan="true"', stage);
+  assert.ok(utility >= 0 && stage > utility && breadcrumbs > stage);
+  assert.match(source, /\.breadcrumbs\{position:absolute/);
+  assert.match(source, /breadcrumbs\.rootOnly\{display:none\}/);
 });
 
 test('stage does not steal pointer capture from buttons and inputs', () => {

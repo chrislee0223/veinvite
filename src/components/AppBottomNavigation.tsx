@@ -21,6 +21,7 @@ import {
   getCachedNetworkSummary,
   prefetchNetworkSummary,
 } from '@/lib/networkSummaryClientCache';
+import { prefetchNetworkRoot } from '@/lib/networkRootClientCache';
 import { HomeGuideInfoPortal } from './HomeGuideInfoPortal';
 import { LeaderboardAvatarWarmup } from './LeaderboardAvatarWarmup';
 import { LeaderboardImpactInfoPortal } from './LeaderboardImpactInfoPortal';
@@ -199,6 +200,7 @@ export function AppBottomNavigation({
       void warmLeaderboard().catch(() => undefined);
       if (wallet) {
         void prefetchNetworkSummary(wallet).catch(() => undefined);
+        void prefetchNetworkRoot(wallet).catch(() => undefined);
       }
       scheduleModulePrefetch();
     };
@@ -312,6 +314,7 @@ export function AppBottomNavigation({
       void warmLeaderboard().catch(() => undefined);
     } else if (tab === 'guide' && wallet) {
       void prefetchNetworkSummary(wallet).catch(() => undefined);
+      void prefetchNetworkRoot(wallet).catch(() => undefined);
     }
   };
 
@@ -322,12 +325,13 @@ export function AppBottomNavigation({
       const cachedNetworkSummary = getCachedNetworkSummary(wallet);
       if (cachedNetworkSummary) {
         void prefetchNetworkSummary(wallet, { force: true }).catch(() => undefined);
-        return moduleReady;
+      } else {
+        void prefetchNetworkSummary(wallet).catch(() => undefined);
       }
-      return Promise.all([
-        moduleReady,
-        prefetchNetworkSummary(wallet),
-      ]).then(() => undefined);
+      // Network itself owns an immediate warmed/provisional first paint.
+      // Never make the tab tap wait for summary or graph data.
+      void prefetchNetworkRoot(wallet).catch(() => undefined);
+      return moduleReady;
     }
 
     if (tab !== 'leaderboard') {
