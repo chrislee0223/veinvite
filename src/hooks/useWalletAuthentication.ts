@@ -332,7 +332,8 @@ export function useWalletAuthentication() {
             let proofType:
               | 'typed_data'
               | 'certificate'
-              | 'message';
+              | 'message'
+              | undefined;
 
             if (
               connection.isConnectedWithDappKit
@@ -496,9 +497,12 @@ export function useWalletAuthentication() {
               assertStillCurrent();
             }
 
-            if (!signature) {
+            if (
+              !signature ||
+              !proofType
+            ) {
               throw new Error(
-                'Wallet verification signature was not returned.',
+                'Wallet verification proof was not returned.',
               );
             }
 
