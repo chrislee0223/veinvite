@@ -1870,6 +1870,53 @@ export function AppNetwork({ locale }: { locale: Locale }) {
     persistFocusWorkspace(withWorkspaceGroupCollapsed(committedWorkspace, groupId, group.collapsed === false));
   }, [editingLayout, committedWorkspace, persistFocusWorkspace, mutateEditingWorkspace]);
 
+  const updateManagedWorkspace = useCallback((
+    update: (workspace: NetworkFocusWorkspace) => NetworkFocusWorkspace,
+  ) => {
+    if (editingLayout) {
+      mutateEditingWorkspace(update);
+      return;
+    }
+    persistFocusWorkspace(update(committedWorkspace));
+  }, [editingLayout, committedWorkspace, mutateEditingWorkspace, persistFocusWorkspace]);
+
+  const removeManagedGroupMember = useCallback((member: string) => {
+    if (!managedGroup) return;
+    const key = keyWallet(member);
+    const point = displayedChildPointByWallet.get(key) ?? null;
+    animateRestoredWallets([key]);
+    updateManagedWorkspace((workspace) =>
+      removeWorkspaceMemberFromGroupAtPoint(workspace, key, point)
+    );
+    if (managedGroup.members.length <= 1) setManagedGroupId(null);
+  }, [
+    managedGroup,
+    displayedChildPointByWallet,
+    animateRestoredWallets,
+    updateManagedWorkspace,
+  ]);
+
+  const dissolveManagedGroup = useCallback(() => {
+    if (!managedGroup) return;
+    const memberPoints = Object.fromEntries(
+      managedGroup.members.flatMap((member) => {
+        const key = keyWallet(member);
+        const point = displayedChildPointByWallet.get(key);
+        return point ? [[key, point]] : [];
+      }),
+    );
+    animateRestoredWallets(managedGroup.members);
+    updateManagedWorkspace((workspace) =>
+      removeWorkspaceGroupAtMemberPoints(workspace, managedGroup.id, memberPoints)
+    );
+    setManagedGroupId(null);
+  }, [
+    managedGroup,
+    displayedChildPointByWallet,
+    animateRestoredWallets,
+    updateManagedWorkspace,
+  ]);
+
   const createDraftGroup = useCallback(() => {
     const workspace = draftWorkspaceRef.current;
     if (
@@ -2079,18 +2126,12 @@ export function AppNetwork({ locale }: { locale: Locale }) {
       return;
     }
 
-    const stage = stageRef.current;
-    if (!stage) {
-      commitCurrentDraftWorkspace();
-      return;
-    }
-    const rect = stage.getBoundingClientRect();
-    const worldPoint = {
-      x: (event.clientX - rect.left - view.x) / view.scale,
-      y: (event.clientY - rect.top - view.y) / view.scale,
-    };
-    const targetGroup = nearestVisibleGroup(worldPoint);
-    if (targetGroup && targetGroup.id !== drag.groupId) {
+    const targetGroup = findGroupDropTarget(
+      event.clientX,
+      event.clientY,
+      drag.groupId,
+    );
+    if (targetGroup) {
       const nextWorkspace = moveWorkspaceMemberToGroup(
         drag.originalWorkspace,
         drag.key,
@@ -2108,8 +2149,7 @@ export function AppNetwork({ locale }: { locale: Locale }) {
     commitCurrentDraftWorkspace();
   }, [
     groupDraft,
-    view,
-    nearestVisibleGroup,
+    findGroupDropTarget,
     isInsideGroupDropTarget,
     animateRestoredWallets,
     setEditingWorkspace,
