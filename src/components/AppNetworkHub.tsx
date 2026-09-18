@@ -185,14 +185,16 @@ export function AppNetworkHub({ locale }: { locale: Locale }) {
   // Summary probing is now advisory. Do not hold the Network canvas
   // behind it: AppNetwork starts its authenticated fast topology read
   // immediately, while the summary request continues in parallel.
-  if (probeState === 'ready' && probe?.summary.network === 0) {
-    return (
-      <StateCard title={t.emptyTitle} description={t.emptyDescription}>
-        <div className="stateActions">
-          <button type="button" className="primary" onClick={goHomeWithoutReload}>{t.inviteFriend}</button>
-        </div>
-      </StateCard>
-    );
+  if (probeState === 'ready' && probe) {
+    if (probe.summary.network === 0) {
+      return (
+        <StateCard title={t.emptyTitle} description={t.emptyDescription}>
+          <div className="stateActions">
+            <button type="button" className="primary" onClick={goHomeWithoutReload}>{t.inviteFriend}</button>
+          </div>
+        </StateCard>
+      );
+    }
   }
 
   return (
