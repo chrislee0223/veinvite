@@ -171,14 +171,17 @@ test('only allowlisted canary wallets receive the synthetic graph and normal wal
   assert.ok(canaryCheck >= 0 && fixtureBuild > canaryCheck && realRpc > fixtureBuild);
 });
 
-test('canary fixture exercises multiple generations and follows the live round window', () => {
-  assert.match(canaryFixtureSource, /parent: 'root'/);
-  assert.match(canaryFixtureSource, /parent: WALLETS\.a/);
-  assert.match(canaryFixtureSource, /parent: WALLETS\.a1/);
-  assert.match(canaryFixtureSource, /parent: WALLETS\.a11/);
-  assert.match(canaryFixtureSource, /status: 'REWARDED'/);
-  assert.match(canaryFixtureSource, /status: 'QUALIFIED'/);
-  assert.match(canaryFixtureSource, /status: 'IN_PROGRESS'/);
+test('canary fixture supplies 500 deterministic multi-generation sample wallets', () => {
+  assert.match(canaryFixtureSource, /NETWORK_CANARY_SAMPLE_SIZE = 500/);
+  assert.match(canaryFixtureSource, /ROOT_BRANCH_WIDTH = 12/);
+  assert.match(canaryFixtureSource, /function parentIndexFor/);
+  assert.match(canaryFixtureSource, /if \(index === 1\) return 'root'/);
+  assert.match(canaryFixtureSource, /if \(index <= ROOT_BRANCH_WIDTH \+ 1\) return 1/);
+  assert.match(canaryFixtureSource, /Math\.floor\(\(index - \(ROOT_BRANCH_WIDTH \+ 2\)\) \/ 3\)/);
+  assert.match(canaryFixtureSource, /statusFor/);
+  assert.match(canaryFixtureSource, /'REWARDED'/);
+  assert.match(canaryFixtureSource, /'QUALIFIED'/);
+  assert.match(canaryFixtureSource, /'IN_PROGRESS'/);
   assert.match(canaryFixtureSource, /roundOffsetHours/);
   assert.match(canaryFixtureSource, /Date\.parse\(round\.startAt\)/);
   assert.match(canaryFixtureSource, /Date\.parse\(round\.endAt\)/);
@@ -198,7 +201,7 @@ test('single runtime keeps the approved radial Network visual and deliberate mot
   assert.match(networkSource, /@keyframes networkNodeBloom/);
   assert.match(networkSource, /INTRO_SESSION_PREFIX/);
   assert.match(networkSource, /breadcrumbs\.rootOnly\{display:none\}/);
-  assert.match(networkSource, /width:min\(100%,560px\)/);
+  assert.match(networkSource, /width:min\(100%,520px\)/);
   assert.doesNotMatch(networkSource, /\.personNode\{min-width:92px;padding:7px/);
   assert.doesNotMatch(networkSource, /background-size:auto,28px 28px,28px 28px/);
 });
