@@ -1609,12 +1609,19 @@ export function AppNetwork({ locale }: { locale: Locale }) {
 
   const finishLayoutEdit = useCallback(() => {
     workspaceDragRef.current = null;
-    if (groupingTimerRef.current !== null) {
-      window.clearTimeout(groupingTimerRef.current);
-      groupingTimerRef.current = null;
+    restorePendingGroupDrop();
+    if (restoreTimerRef.current !== null) {
+      window.clearTimeout(restoreTimerRef.current);
+      restoreTimerRef.current = null;
     }
+    if (groupCreatedTimerRef.current !== null) {
+      window.clearTimeout(groupCreatedTimerRef.current);
+      groupCreatedTimerRef.current = null;
+    }
+    setRestoringWallets([]);
+    setCreatedGroupId(null);
     setDraggingWorkspaceKey(null);
-    setGroupingWallet(null);
+    setGroupDropActive(false);
     setGroupDraft(null);
     setGroupsOpen(false);
     draftWorkspaceRef.current = null;
@@ -1627,21 +1634,29 @@ export function AppNetwork({ locale }: { locale: Locale }) {
       noticeTimerRef.current = null;
       setWorkspaceNotice('');
     }, 1400);
-  }, [w.layoutSaved]);
+  }, [w.layoutSaved, restorePendingGroupDrop]);
 
   const beginGroupCreation = useCallback(() => {
     if (!currentFocusKey) return;
+    const sourceWorkspace = editingLayout
+      ? draftWorkspaceRef.current ?? committedWorkspace
+      : workspaceForFocus(workspaceStore, currentFocusKey);
+    if (sourceWorkspace.groups.length >= MAX_GROUPS_PER_FOCUS) return;
+
     stopIntroForInteraction();
+    restorePendingGroupDrop();
     if (!editingLayout) {
-      const workspace = cloneNetworkFocusWorkspace(workspaceForFocus(workspaceStore, currentFocusKey));
+      const workspace = cloneNetworkFocusWorkspace(sourceWorkspace);
       setEditingWorkspace(workspace);
       setEditingLayout(true);
     } else if (!draftWorkspaceRef.current) {
       setEditingWorkspace(cloneNetworkFocusWorkspace(committedWorkspace));
     }
     setGroupsOpen(false);
+    closeSearch();
     setSelectedWallet(null);
     setSelectedGroupId(null);
+    setGroupDropActive(false);
     setGroupDraft({ id: newGroupId(), label: '', members: [] });
     setWorkspaceNotice('');
   }, [
@@ -1651,7 +1666,27 @@ export function AppNetwork({ locale }: { locale: Locale }) {
     committedWorkspace,
     setEditingWorkspace,
     stopIntroForInteraction,
+    restorePendingGroupDrop,
+    closeSearch,
   ]);
+
+  const cancelGroupCreation = useCallback(() => {
+    const members = groupDraft?.members ?? [];
+    restorePendingGroupDrop();
+    if (members.length) animateRestoredWallets(members);
+    setGroupDropActive(false);
+    setGroupDraft(null);
+  }, [groupDraft, restorePendingGroupDrop, animateRestoredWallets]);
+
+  const removeDraftGroupMember = useCallback((member: string) => {
+    const key = keyWallet(member);
+    if (groupingWallet === key) restorePendingGroupDrop();
+    animateRestoredWallets([key]);
+    setGroupDraft((current) => current ? {
+      ...current,
+      members: current.members.filter((walletKey) => keyWallet(walletKey) !== key),
+    } : current);
+  }, [groupingWallet, restorePendingGroupDrop, animateRestoredWallets]);
 
   const toggleGroupCollapsed = useCallback((groupId: string) => {
     if (editingLayout) {
@@ -1669,7 +1704,14 @@ export function AppNetwork({ locale }: { locale: Locale }) {
 
   const createDraftGroup = useCallback(() => {
     const workspace = draftWorkspaceRef.current;
-    if (!groupDraft || !workspace || groupDraft.members.length < 2) return;
+    if (
+      !groupDraft ||
+      !workspace ||
+      groupingWallet ||
+      groupDraft.members.length < 1 ||
+      groupDraft.members.length > MAX_MEMBERS_PER_GROUP
+    ) return;
+
     const members = groupDraft.members.map(keyWallet);
     const memberSet = new Set(members);
     const memberPositions = positionedChildren
@@ -1682,15 +1724,27 @@ export function AppNetwork({ locale }: { locale: Locale }) {
       ? memberPositions.reduce((sum, point) => sum + point.y, 0) / memberPositions.length
       : FOCUS_Y + 200;
     const label = groupDraft.label.trim() || `${w.group} ${workspace.groups.length + 1}`;
-    commitEditingWorkspace(addWorkspaceGroup(workspace, {
+    const nextWorkspace = addWorkspaceGroup(workspace, {
       id: groupDraft.id,
       label,
       members,
       x,
       y,
-    }));
+    });
+    if (nextWorkspace === workspace) return;
+
+    commitEditingWorkspace(nextWorkspace);
+    markGroupCreated(groupDraft.id);
+    setGroupDropActive(false);
     setGroupDraft(null);
-  }, [groupDraft, positionedChildren, w.group, commitEditingWorkspace]);
+  }, [
+    groupDraft,
+    groupingWallet,
+    positionedChildren,
+    w.group,
+    commitEditingWorkspace,
+    markGroupCreated,
+  ]);
 
   const beginWorkspaceDrag = useCallback((
     event: ReactPointerEvent<HTMLButtonElement>,
