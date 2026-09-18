@@ -196,12 +196,25 @@ test('two invite slots are current capacity, not a lifetime two-branch limit', (
   assert.match(networkSlotsRouteSource, /canUseNetworkSurface\('my', wallet\)/);
   assert.match(networkSlotsRouteSource, /slot_released_at/);
   assert.match(networkSlotsRouteSource, /invite_slot/);
-  assert.match(networkSlotsRouteSource, /availableSlots: Math\.max\(0, 2 - occupiedSlots\.length\)/);
-  assert.match(networkSlotsRouteSource, /availableSlots: 1, occupiedSlots: \[1\]/);
+  assert.match(networkSlotsRouteSource, /slots = \(\[1, 2\] as const\)\.map/);
+  assert.match(networkSlotsRouteSource, /state: 'AVAILABLE'/);
+  assert.match(networkSlotsRouteSource, /state: row\.invitee_wallet \? 'IN_PROGRESS'/);
+  assert.match(networkSlotsRouteSource, /completedSteps/);
   assert.match(networkSource, /\/api\/network\/slots\?wallet=/);
-  assert.match(networkSource, /const \[availableSlots, setAvailableSlots\] = useState\(0\)/);
-  assert.match(networkSource, /\? availableSlots\s*: 0/);
+  assert.match(networkSource, /const \[inviteSlots, setInviteSlots\] = useState<InviteSlotState\[\]>\(\[\]\)/);
+  assert.match(networkSource, /positionedInviteSlots/);
   assert.doesNotMatch(networkSource, /2 - currentData\.children\.length/);
+});
+
+test('available and in-progress invite slots are movable like ordinary nodes', () => {
+  assert.match(workspaceSource, /function cleanPositionKey/);
+  assert.match(workspaceSource, /\^slot:\[12\]\$/);
+  assert.match(networkSource, /kind: 'node' \| 'slot' \| 'group'/);
+  assert.match(networkSource, /beginWorkspaceDrag\(event, 'slot', slot\.key, point\)/);
+  assert.match(networkSource, /beginHoldDrag\(event, slot\.key, point, 'slot'\)/);
+  assert.match(networkSource, /withNodePosition\(current, workspaceDrag\.key, nextPoint\)/);
+  assert.match(networkSource, /progressInviteNode/);
+  assert.match(networkSource, /--slot-progress/);
 });
 
 test('single runtime keeps the approved radial Network visual and deliberate motion contract', () => {
