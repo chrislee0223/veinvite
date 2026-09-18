@@ -27,7 +27,7 @@ test('Network title is one compact row and search plus every primary control sha
   assert.match(source, /\.networkUtilityRow\{[^}]*display:flex/);
   assert.match(source, /\.compactControls\{[^}]*display:flex/);
   assert.match(source, /\.searchWrap\{[^}]*max-width:108px[^}]*flex:0 1 108px/);
-  assert.match(source, /\.layoutControls>button,\.groupMenuAnchor>button,\.groupBuilderAnchor>button\{width:28px/);
+  assert.match(source, /\.layoutControls>button,\.groupMenuAnchor>button\{width:28px/);
   assert.match(source, /\.viewControls\{display:flex;align-items:center/);
   assert.match(source, /className=\{\`editLayoutButton labeledControl/);
   assert.match(source, /className=\{\`groupsButton labeledControl/);
