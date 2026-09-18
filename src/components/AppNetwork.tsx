@@ -23,6 +23,11 @@ import {
   rememberNetworkRoot,
 } from '@/lib/networkRootClientCache';
 import {
+  getCachedNetworkSlots,
+  prefetchNetworkSlots,
+  type NetworkInviteSlotSnapshot,
+} from '@/lib/networkSlotsClientCache';
+import {
   EMPTY_NETWORK_WORKSPACE_STORE,
   addWorkspaceGroup,
   cloneNetworkFocusWorkspace,
@@ -107,13 +112,7 @@ type WorkspaceDrag = {
   originalWorkspace: NetworkFocusWorkspace;
 };
 
-type InviteSlotState = {
-  slot: 1 | 2;
-  state: 'AVAILABLE' | 'PENDING' | 'IN_PROGRESS';
-  inviteeWallet: string | null;
-  completedSteps: number;
-  totalSteps: number;
-};
+type InviteSlotState = NetworkInviteSlotSnapshot;
 
 type PositionedInviteSlot = InviteSlotState & {
   key: string;
@@ -178,10 +177,6 @@ function triggerHoldHaptic() {
   } catch {
     // Haptics are optional and unsupported browsers should stay silent.
   }
-}
-
-function validWallet(wallet: string): boolean {
-  return /^0x[0-9a-fA-F]{40}$/.test(wallet);
 }
 
 function clamp(value: number, min: number, max: number): number {
@@ -515,7 +510,6 @@ export function AppNetwork({ locale }: { locale: Locale }) {
   const [inviteSlots, setInviteSlots] = useState<InviteSlotState[]>([]);
   const [rootTopologyReady, setRootTopologyReady] = useState(false);
   const [inviteSlotsReady, setInviteSlotsReady] = useState(false);
-  const [introReadyFallback, setIntroReadyFallback] = useState(false);
   const [stageStable, setStageStable] = useState(false);
   const [stageSize, setStageSize] = useState({ width: 0, height: 0 });
   const [view, setView] = useState<View>({
@@ -849,9 +843,11 @@ export function AppNetwork({ locale }: { locale: Locale }) {
       keyWallet(requestWallet) === keyWallet(wallet);
 
     try {
+      // The initial root request is now complete, not topology-only. Committing
+      // one authoritative payload prevents the graph and This Round metric from
+      // visibly arriving in separate phases.
       const payload = await fetchNetwork(requestWallet, {
         signal: controller.signal,
-        fast: true,
       });
       if (!canCommit()) return;
 
@@ -863,16 +859,6 @@ export function AppNetwork({ locale }: { locale: Locale }) {
       setCacheVersion((value) => value + 1);
       setLoadState('ready');
       setRootTopologyReady(true);
-
-      void fetchNetwork(requestWallet).then((enriched) => {
-        if (!canCommit()) return;
-        cacheRef.current.set(keyWallet(enriched.focusWallet), enriched);
-        rememberNetworkRoot(requestWallet, enriched);
-        setRootData(enriched);
-        setCacheVersion((value) => value + 1);
-      }).catch(() => {
-        // Fast topology remains usable if round enrichment is unavailable.
-      });
     } catch (error) {
       if (!canCommit()) return;
       // Never replace the Network surface with a blocking loading/error card.
@@ -894,7 +880,6 @@ export function AppNetwork({ locale }: { locale: Locale }) {
     introCancelledRef.current = false;
     setRootTopologyReady(false);
     setInviteSlotsReady(false);
-    setIntroReadyFallback(false);
     setStageStable(false);
     if (introFitTimerRef.current !== null) {
       window.clearTimeout(introFitTimerRef.current);
@@ -908,8 +893,10 @@ export function AppNetwork({ locale }: { locale: Locale }) {
     setIntroActive(false);
     setWorkspaceStore(wallet ? readStoredWorkspace(wallet) : { version: 1, focus: {} });
     const warmedRoot = wallet ? getCachedNetworkRoot(wallet) as NetworkData | null : null;
+    const warmedSlots = wallet ? getCachedNetworkSlots(wallet) : null;
     const initialRoot = wallet ? (warmedRoot ?? provisionalNetworkData(wallet)) : null;
     if (warmedRoot) setRootTopologyReady(true);
+    if (warmedSlots) setInviteSlotsReady(true);
     setRootData(initialRoot);
     setFocusWallet(initialRoot?.focusWallet ?? null);
     if (initialRoot) {
@@ -926,7 +913,7 @@ export function AppNetwork({ locale }: { locale: Locale }) {
     setDraggingWorkspaceKey(null);
     setGroupingWallet(null);
     setWorkspaceNotice('');
-    setInviteSlots([]);
+    setInviteSlots(warmedSlots ?? []);
     setView({
       x: 260 - FOCUS_X,
       y: 300 - FOCUS_Y,
@@ -938,7 +925,9 @@ export function AppNetwork({ locale }: { locale: Locale }) {
       return;
     }
     setLoadState('ready');
-    void loadRoot();
+    // A fresh complete warmup snapshot is already authoritative for this entry.
+    // Avoid an immediate duplicate request that could repaint the same surface.
+    if (!warmedRoot) void loadRoot();
     return () => {
       cancelRequest();
     };
@@ -948,60 +937,43 @@ export function AppNetwork({ locale }: { locale: Locale }) {
     if (!wallet) {
       setInviteSlots([]);
       setInviteSlotsReady(false);
-      setIntroReadyFallback(false);
       return;
     }
 
-    let active = true;
-    setInviteSlotsReady(false);
-    setIntroReadyFallback(false);
-    const fallbackTimer = window.setTimeout(() => {
-      if (active) setIntroReadyFallback(true);
-    }, 650);
+    const warmedSlots = getCachedNetworkSlots(wallet);
+    if (warmedSlots) {
+      setInviteSlots(warmedSlots);
+      setInviteSlotsReady(true);
+      return;
+    }
 
     const controller = new AbortController();
-    void fetch(`/api/network/slots?wallet=${encodeURIComponent(wallet)}`, {
-      method: 'GET',
-      credentials: 'include',
-      cache: 'no-store',
-      headers: { Accept: 'application/json' },
+    const timeoutId = window.setTimeout(() => {
+      controller.abort();
+    }, 2_500);
+
+    setInviteSlotsReady(false);
+    void prefetchNetworkSlots(wallet, {
+      force: true,
       signal: controller.signal,
-    }).then(async (response) => {
-      if (!response.ok) return;
-      const payload = await response.json().catch(() => null) as { slots?: unknown } | null;
-      if (!payload || !Array.isArray(payload.slots)) return;
-
-      const slots = payload.slots.flatMap((value): InviteSlotState[] => {
-        if (!value || typeof value !== 'object') return [];
-        const candidate = value as Partial<InviteSlotState>;
-        const slot = candidate.slot === 2 ? 2 : candidate.slot === 1 ? 1 : null;
-        const state = candidate.state === 'AVAILABLE' || candidate.state === 'PENDING' || candidate.state === 'IN_PROGRESS'
-          ? candidate.state
-          : null;
-        if (!slot || !state) return [];
-        const inviteeWallet =
-          typeof candidate.inviteeWallet === 'string' && validWallet(candidate.inviteeWallet)
-            ? candidate.inviteeWallet
-            : null;
-        return [{
-          slot,
-          state,
-          inviteeWallet,
-          completedSteps: Math.max(0, Math.min(5, Math.trunc(Number(candidate.completedSteps ?? 0)))),
-          totalSteps: 5,
-        }];
-      }).sort((left, right) => left.slot - right.slot);
-
-      if (active) setInviteSlots(slots);
+    }).then((slots) => {
+      if (controller.signal.aborted) return;
+      setInviteSlots(slots);
     }).catch(() => {
-      // Slot availability is supplementary; the Network graph remains usable.
+      // Slots are supplementary. A timeout/failure keeps the graph usable,
+      // but we do not append a late result after the intro has already run.
     }).finally(() => {
-      if (active) setInviteSlotsReady(true);
+      window.clearTimeout(timeoutId);
+      if (!controller.signal.aborted) {
+        setInviteSlotsReady(true);
+      } else {
+        // Bounded failure still releases the intro instead of hanging forever.
+        setInviteSlotsReady(true);
+      }
     });
 
     return () => {
-      active = false;
-      window.clearTimeout(fallbackTimer);
+      window.clearTimeout(timeoutId);
       controller.abort();
     };
   }, [wallet]);
@@ -1185,8 +1157,7 @@ export function AppNetwork({ locale }: { locale: Locale }) {
   useEffect(() => {
     if (!wallet || loadState !== 'ready' || !currentData) return;
     if (stageSize.width <= 0 || stageSize.height <= 0 || !stageStable) return;
-    if (!rootTopologyReady) return;
-    if (!inviteSlotsReady && !introReadyFallback) return;
+    if (!rootTopologyReady || !inviteSlotsReady) return;
     if (introCancelledRef.current) return;
     if (keyWallet(currentData.focusWallet) !== keyWallet(currentData.rootWallet)) return;
     const walletKey = keyWallet(wallet);
@@ -1218,7 +1189,6 @@ export function AppNetwork({ locale }: { locale: Locale }) {
     stageStable,
     rootTopologyReady,
     inviteSlotsReady,
-    introReadyFallback,
     fitNetwork,
   ]);
 
