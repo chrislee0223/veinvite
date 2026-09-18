@@ -105,17 +105,23 @@ export function parseNetworkWorkspaceStore(raw: string | null): NetworkWorkspace
       }
 
       const groups: NetworkWorkspaceGroup[] = [];
+      const seenGroupIds = new Set<string>();
+      const assignedMembers = new Set<string>();
       if (Array.isArray(workspace.groups)) {
         for (const groupRaw of workspace.groups.slice(0, MAX_GROUPS_PER_FOCUS)) {
           if (!groupRaw || typeof groupRaw !== 'object') continue;
           const group = groupRaw as Partial<NetworkWorkspaceGroup>;
           const point = finitePoint(group);
+          const groupId = typeof group.id === 'string' ? group.id.slice(0, 80) : '';
+          if (!point || !groupId || seenGroupIds.has(groupId)) continue;
           const members = Array.from(new Set(
             Array.isArray(group.members)
-              ? group.members.map(cleanWallet).filter((wallet): wallet is string => Boolean(wallet))
+              ? group.members
+                  .map(cleanWallet)
+                  .filter((wallet): wallet is string => Boolean(wallet) && !assignedMembers.has(wallet))
               : [],
           )).slice(0, MAX_MEMBERS_PER_GROUP);
-          if (!point || members.length < 1 || typeof group.id !== 'string') continue;
+          if (members.length < 1) continue;
           const memberSet = new Set(members);
           const memberOffsets: Record<string, NetworkWorkspacePoint> = {};
           if (group.memberOffsets && typeof group.memberOffsets === 'object') {
@@ -126,7 +132,7 @@ export function parseNetworkWorkspaceStore(raw: string | null): NetworkWorkspace
             }
           }
           groups.push({
-            id: group.id.slice(0, 80),
+            id: groupId,
             label: typeof group.label === 'string' ? group.label.slice(0, 42) : '',
             members,
             x: point.x,
@@ -134,6 +140,8 @@ export function parseNetworkWorkspaceStore(raw: string | null): NetworkWorkspace
             collapsed: group.collapsed !== false,
             memberOffsets: Object.keys(memberOffsets).length ? memberOffsets : undefined,
           });
+          seenGroupIds.add(groupId);
+          members.forEach((member) => assignedMembers.add(member));
         }
       }
       focus[focusWallet] = { positions, groups };
