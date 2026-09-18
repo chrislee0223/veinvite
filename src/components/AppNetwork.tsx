@@ -1235,6 +1235,7 @@ export function AppNetwork({ locale }: { locale: Locale }) {
     if (!stage) return;
     event.preventDefault();
     event.stopPropagation();
+    try { event.currentTarget.setPointerCapture(event.pointerId); } catch { /* best effort */ }
     const rect = stage.getBoundingClientRect();
     const worldPoint = {
       x: (event.clientX - rect.left - view.x) / view.scale,
@@ -1271,6 +1272,7 @@ export function AppNetwork({ locale }: { locale: Locale }) {
     if (editingLayout || pendingFocus || !currentFocusKey || groupContainingWallet(committedWorkspace, key)) return;
     const stage = stageRef.current;
     if (!stage) return;
+    try { event.currentTarget.setPointerCapture(event.pointerId); } catch { /* best effort */ }
     if (holdTimerRef.current !== null) window.clearTimeout(holdTimerRef.current);
     const rect = stage.getBoundingClientRect();
     const worldPoint = {
@@ -1341,7 +1343,13 @@ export function AppNetwork({ locale }: { locale: Locale }) {
     pointersRef.current.set(event.pointerId, point);
     const target = event.target instanceof Element ? event.target : null;
     const interactive = Boolean(target?.closest('button,input,a,[data-no-pan="true"]'));
-    try { event.currentTarget.setPointerCapture(event.pointerId); } catch { /* best effort */ }
+    // Never move pointer ownership away from an interactive control. Capturing
+    // button presses on the stage made pointerup land on the canvas instead of
+    // the button in VeWorld, so taps looked completely dead. Background drags
+    // still capture on the stage; draggable nodes capture themselves.
+    if (!interactive) {
+      try { event.currentTarget.setPointerCapture(event.pointerId); } catch { /* best effort */ }
+    }
 
     if (pointersRef.current.size === 1) {
       panPointerRef.current = { id: event.pointerId, point, allowed: !interactive };
@@ -1718,6 +1726,31 @@ export function AppNetwork({ locale }: { locale: Locale }) {
         </div>
       </div>
 
+      <div className="networkTopControls" data-no-pan="true">
+        <div className="layoutControls">
+          {!editingLayout ? (
+            <>
+              <button type="button" className="editLayoutButton" onClick={beginLayoutEdit}>✦ {w.editLayout}</button>
+              <button type="button" className={`groupsButton${groupsOpen ? ' active' : ''}`} onClick={() => setGroupsOpen((open) => !open)}>◉ {w.groups}</button>
+            </>
+          ) : (
+            <>
+              <button type="button" className="resetLayoutButton" onClick={resetLayoutEdit}>{w.reset}</button>
+              <button type="button" className="newGroupButton" onClick={openGroupBuilder}>+ {w.newGroup}</button>
+              <button type="button" className="cancelLayoutButton" onClick={cancelLayoutEdit}>{w.cancel}</button>
+              <button type="button" className="saveLayoutButton" onClick={saveLayoutEdit}>{w.done}</button>
+            </>
+          )}
+        </div>
+
+        <div className="viewControls">
+          <button type="button" onClick={returnToYou} aria-label={c.you} title={c.you}>◎</button>
+          <button type="button" className="fitButton" onClick={fitNetwork}>{w.fit}</button>
+          <button type="button" onClick={() => zoomByButton(1)} aria-label={c.zoomIn} title={c.zoomIn}>+</button>
+          <button type="button" onClick={() => zoomByButton(-1)} aria-label={c.zoomOut} title={c.zoomOut}>−</button>
+        </div>
+      </div>
+
       <div
         ref={stageRef}
         className={`networkStage${editingLayout ? ' layoutEditing' : ''}`}
@@ -1881,22 +1914,6 @@ export function AppNetwork({ locale }: { locale: Locale }) {
           </div>
         </div>
 
-        <div className="layoutControls" data-no-pan="true">
-          {!editingLayout ? (
-            <>
-              <button type="button" className="editLayoutButton" onClick={beginLayoutEdit}>✦ {w.editLayout}</button>
-              <button type="button" className={`groupsButton${groupsOpen ? ' active' : ''}`} onClick={() => setGroupsOpen((open) => !open)}>◉ {w.groups}</button>
-            </>
-          ) : (
-            <>
-              <button type="button" className="resetLayoutButton" onClick={resetLayoutEdit}>{w.reset}</button>
-              <button type="button" className="newGroupButton" onClick={openGroupBuilder}>+ {w.newGroup}</button>
-              <button type="button" className="cancelLayoutButton" onClick={cancelLayoutEdit}>{w.cancel}</button>
-              <button type="button" className="saveLayoutButton" onClick={saveLayoutEdit}>{w.done}</button>
-            </>
-          )}
-        </div>
-
         {groupsOpen && !editingLayout ? (
           <aside className="groupsPanel" data-no-pan="true">
             <div className="groupsPanelHead">
@@ -1980,13 +1997,6 @@ export function AppNetwork({ locale }: { locale: Locale }) {
             >›</button>
           </div>
         ) : null}
-
-        <div className="viewControls" data-no-pan="true">
-          <button type="button" onClick={returnToYou} aria-label={c.you} title={c.you}>◎</button>
-          <button type="button" className="fitButton" onClick={fitNetwork}>{w.fit}</button>
-          <button type="button" onClick={() => zoomByButton(1)} aria-label={c.zoomIn} title={c.zoomIn}>+</button>
-          <button type="button" onClick={() => zoomByButton(-1)} aria-label={c.zoomOut} title={c.zoomOut}>−</button>
-        </div>
 
         {!focusIsRoot ? (
           <button
@@ -2088,15 +2098,15 @@ export function AppNetwork({ locale }: { locale: Locale }) {
         .groupNode{min-width:108px;max-width:160px;padding:8px 10px;border:1px solid rgba(244,183,40,.54);border-radius:14px;background:rgba(18,16,10,.96);color:#d8b450;display:grid;grid-template-columns:30px 1fr;column-gap:6px;row-gap:1px;align-items:center;text-align:left;box-shadow:0 8px 28px rgba(0,0,0,.26),0 0 24px rgba(244,183,40,.045);cursor:pointer;touch-action:none;user-select:none;-webkit-user-select:none;-webkit-touch-callout:none}.groupNode:hover,.groupNode.selected{border-color:rgba(255,207,71,.82);box-shadow:0 0 0 3px rgba(244,183,40,.09),0 8px 28px rgba(0,0,0,.3)}.groupNode.expanded{border-style:dashed;background:rgba(13,12,9,.9);opacity:.92}.groupNode .groupGlyph{grid-row:1/3}.groupNode strong{min-width:0;max-width:110px;font-size:.48rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.groupNode small{color:#756b55;font-size:.34rem;white-space:nowrap}.groupGlyph{position:relative;width:30px;height:24px;display:block}.groupGlyph i{position:absolute;width:13px;height:13px;border:1px solid rgba(244,183,40,.34);border-radius:50%;background:#1a1812}.groupGlyph i:nth-child(1){left:9px;top:0}.groupGlyph i:nth-child(2){left:2px;top:10px}.groupGlyph i:nth-child(3){right:2px;top:10px}
         .slotNode{width:46px;height:46px;padding:0;border:0;border-radius:50%;background:transparent;color:#c79f36;cursor:pointer;touch-action:none;user-select:none;-webkit-user-select:none;isolation:isolate}.slotCircle{border:1px dashed rgba(226,181,62,.52);color:#c79f36;font-size:.9rem;background:#0d0d0b;transform:scale(var(--network-node-scale,1));animation:slotPulse 5.6s ease-in-out infinite}.slotNode>strong{position:absolute;left:50%;top:calc(100% + 5px);z-index:2;width:92px;transform:translateX(-50%);color:#a98735;font-size:.47rem;white-space:nowrap;pointer-events:none;opacity:var(--network-label-opacity,1)}.slotNode:hover .slotCircle,.slotNode:focus-visible .slotCircle{border-style:solid;border-color:rgba(244,183,40,.9);box-shadow:0 0 28px rgba(244,183,40,.1);transform:scale(var(--network-node-selected-scale,1.07))}.slotNode:disabled{opacity:.28;cursor:default}
         .worldContent.nav-forward .childNode .nodeCircle{animation:networkNodeBloom 620ms cubic-bezier(.16,.82,.2,1) both}
-        .layoutControls{position:absolute;z-index:64;left:10px;top:10px;display:flex;align-items:center;gap:5px}.layoutControls button{min-height:31px;padding:0 9px;border:1px solid rgba(255,205,80,.13);border-radius:9px;background:rgba(18,18,15,.94);color:#a9a397;font:inherit;font-size:.52rem;font-weight:900;cursor:pointer;box-shadow:0 7px 18px rgba(0,0,0,.2)}.layoutControls .editLayoutButton:hover,.layoutControls .newGroupButton:hover,.layoutControls .groupsButton:hover,.layoutControls .groupsButton.active{border-color:rgba(244,183,40,.31);color:#e1bd5b}.layoutControls .saveLayoutButton{border-color:rgba(244,183,40,.32);background:linear-gradient(135deg,#e9b93c,#c98a18);color:#17120a}.layoutControls .cancelLayoutButton{color:#8d877e}
+        .networkTopControls{position:relative;z-index:70;min-height:43px;padding:6px 9px;box-sizing:border-box;display:flex;align-items:center;justify-content:space-between;gap:7px;border-bottom:1px solid rgba(255,255,255,.05);background:rgba(11,11,9,.98)}.layoutControls{position:static;z-index:auto;display:flex;align-items:center;gap:5px;min-width:0}.layoutControls button{min-height:31px;padding:0 9px;border:1px solid rgba(255,205,80,.13);border-radius:9px;background:rgba(18,18,15,.94);color:#a9a397;font:inherit;font-size:.52rem;font-weight:900;cursor:pointer;box-shadow:0 7px 18px rgba(0,0,0,.2)}.layoutControls .editLayoutButton:hover,.layoutControls .newGroupButton:hover,.layoutControls .groupsButton:hover,.layoutControls .groupsButton.active{border-color:rgba(244,183,40,.31);color:#e1bd5b}.layoutControls .saveLayoutButton{border-color:rgba(244,183,40,.32);background:linear-gradient(135deg,#e9b93c,#c98a18);color:#17120a}.layoutControls .cancelLayoutButton{color:#8d877e}
         .groupsPanel{position:absolute;z-index:81;left:10px;top:50px;width:min(235px,calc(100% - 20px));box-sizing:border-box;padding:11px;border:1px solid rgba(244,183,40,.17);border-radius:15px;background:rgba(14,14,12,.985);box-shadow:0 18px 40px rgba(0,0,0,.42);cursor:default}.groupsPanelHead{display:flex;align-items:center;justify-content:space-between}.groupsPanelHead strong{color:#e5dfd3;font-size:.62rem}.groupsPanelHead button{width:27px;height:27px;border:0;background:transparent;color:#817c73;font-size:.95rem;cursor:pointer}.groupsPanel p{margin:10px 0;color:#77736c;font-size:.53rem}.groupsList{display:grid;gap:5px;margin-top:7px}.groupsList>button{padding:7px 8px;border:1px solid rgba(255,255,255,.06);border-radius:9px;background:rgba(255,255,255,.025);color:#aaa398;text-align:left;cursor:pointer}.groupsList span,.groupsList small{display:block}.groupsList span{font-size:.54rem;font-weight:900}.groupsList small{margin-top:2px;color:#746e64;font-size:.46rem}.createFirstGroup{width:100%;min-height:32px;margin-top:8px;border:1px solid rgba(244,183,40,.22);border-radius:9px;background:rgba(244,183,40,.05);color:#c5a454;font:inherit;font-size:.52rem;font-weight:900;cursor:pointer}.groupBuilder{position:absolute;z-index:82;left:10px;top:50px;width:min(235px,calc(100% - 20px));box-sizing:border-box;padding:11px;border:1px solid rgba(244,183,40,.2);border-radius:15px;background:rgba(14,14,12,.985);box-shadow:0 18px 40px rgba(0,0,0,.42);cursor:default}.groupBuilderHead{display:flex;align-items:center;justify-content:space-between;gap:8px}.groupBuilderHead strong{color:#e5dfd3;font-size:.62rem}.groupBuilderHead button{width:27px;height:27px;border:0;background:transparent;color:#817c73;font-size:.95rem;cursor:pointer}.groupBuilder>input{width:100%;height:31px;margin-top:7px;box-sizing:border-box;padding:0 8px;border:1px solid rgba(255,205,80,.1);border-radius:8px;background:#11110f;color:#d8d3ca;font:inherit;font-size:.55rem;outline:none}.groupDropZone{min-height:74px;margin-top:8px;padding:9px;box-sizing:border-box;display:grid;place-items:center;align-content:center;gap:2px;border:1px dashed rgba(244,183,40,.34);border-radius:11px;background:rgba(244,183,40,.035);text-align:center}.dropIcon{color:#c99d35;font-size:.9rem}.groupDropZone strong{color:#b9aa83;font-size:.54rem}.groupDropZone small{color:#6d685e;font-size:.48rem}.groupDraftMembers{margin-top:7px;display:flex;flex-wrap:wrap;gap:4px}.groupDraftMembers button{padding:4px 6px;border:1px solid rgba(255,255,255,.06);border-radius:7px;background:rgba(255,255,255,.025);color:#89847a;font:inherit;font-size:.46rem;cursor:pointer}.groupDraftMembers button span{color:#a97f54}.groupMemberList span{display:inline-flex;align-items:center;gap:4px}.groupMemberList span button{width:18px;height:18px;border:0;border-radius:50%;background:rgba(255,255,255,.04);color:#8d8173;cursor:pointer}.groupToggleButton{width:100%;min-height:30px;margin-top:8px;border:1px solid rgba(244,183,40,.15);border-radius:9px;background:rgba(244,183,40,.035);color:#b69a57;font:inherit;font-size:.5rem;font-weight:900;cursor:pointer}.createGroupButton{width:100%;min-height:33px;margin-top:8px;border:0;border-radius:9px;background:linear-gradient(135deg,#ffd24d,#efa718);color:#17120a;font:inherit;font-size:.53rem;font-weight:950;cursor:pointer}.createGroupButton:disabled{background:rgba(255,255,255,.05);color:#68635b;cursor:default}
-        .viewControls{position:absolute;z-index:55;right:10px;bottom:10px;display:grid;grid-template-columns:34px auto 34px 34px;gap:5px}.viewControls .fitButton{width:auto;min-width:38px;padding:0 7px;font-size:.48rem}.viewControls button,.pager button{height:34px;border:1px solid rgba(255,205,80,.13);border-radius:10px;background:rgba(18,18,15,.92);color:#bbb5aa;font:inherit;font-size:.78rem;font-weight:850;cursor:pointer}.viewControls button:hover,.pager button:hover:not(:disabled){border-color:rgba(244,183,40,.28);color:#e4c36d}.pager{position:absolute;z-index:55;left:50%;bottom:10px;transform:translateX(-50%);display:flex;align-items:center;gap:7px;padding:4px;border:1px solid rgba(255,205,80,.08);border-radius:12px;background:rgba(12,12,10,.88)}.pager button{width:32px}.pager button:disabled{opacity:.28;cursor:default}.pager span{min-width:48px;color:#77736c;font-size:.53rem;font-weight:800;text-align:center}.parentReturn{position:absolute;z-index:55;left:10px;bottom:10px;min-height:34px;padding:0 11px;border:1px solid rgba(255,205,80,.12);border-radius:10px;background:rgba(18,18,15,.92);color:#a89c7b;font:inherit;font-size:.55rem;font-weight:850;cursor:pointer}.parentReturn:disabled{opacity:.4}
+        .viewControls{position:static;z-index:auto;margin-left:auto;display:grid;grid-template-columns:32px auto 32px 32px;gap:5px;flex:0 0 auto}.viewControls .fitButton{width:auto;min-width:38px;padding:0 7px;font-size:.48rem}.viewControls button,.pager button{height:31px;border:1px solid rgba(255,205,80,.13);border-radius:9px;background:rgba(18,18,15,.92);color:#bbb5aa;font:inherit;font-size:.72rem;font-weight:850;cursor:pointer}.viewControls button:hover,.pager button:hover:not(:disabled){border-color:rgba(244,183,40,.28);color:#e4c36d}.pager{position:absolute;z-index:55;left:50%;bottom:10px;transform:translateX(-50%);display:flex;align-items:center;gap:7px;padding:4px;border:1px solid rgba(255,205,80,.08);border-radius:12px;background:rgba(12,12,10,.88)}.pager button{width:32px}.pager button:disabled{opacity:.28;cursor:default}.pager span{min-width:48px;color:#77736c;font-size:.53rem;font-weight:800;text-align:center}.parentReturn{position:absolute;z-index:55;left:10px;bottom:10px;min-height:34px;padding:0 11px;border:1px solid rgba(255,205,80,.12);border-radius:10px;background:rgba(18,18,15,.92);color:#a89c7b;font:inherit;font-size:.55rem;font-weight:850;cursor:pointer}.parentReturn:disabled{opacity:.4}
         .profileCard{position:absolute;z-index:75;right:10px;top:10px;width:min(245px,calc(100% - 20px));box-sizing:border-box;padding:13px;border:1px solid rgba(255,205,80,.15);border-radius:17px;background:rgba(15,15,13,.975);box-shadow:0 18px 42px rgba(0,0,0,.45);cursor:default}.profileClose{position:absolute;right:8px;top:7px;width:28px;height:28px;border:0;background:transparent;color:#817c73;font-size:1rem;cursor:pointer}.profileIdentity{padding-right:28px;display:flex;align-items:center;gap:9px}.profileIdentity :global(.identity){display:flex;align-items:center;gap:8px}.profileIdentity :global(.identityLabel){display:none}.profileIdentity :global(.avatarSlot){position:relative;display:grid;place-items:center}.profileIdentity :global(.neutralAvatar){display:grid;place-items:center;border:1px solid rgba(244,183,40,.13);border-radius:50%;background:#171611;color:#8e7b50}.profileIdentity :global(.avatarSlot img){position:absolute;inset:0;border-radius:50%;object-fit:cover}.profileIdentity>div>strong{display:block;color:#e7e1d6;font-size:.66rem}.profileIdentity>div>span{display:block;margin-top:3px;color:#877e69;font-size:.51rem}.profileAddress{margin-top:10px;padding:8px;border-radius:9px;background:rgba(255,255,255,.025);color:#67635d;font-size:.48rem;line-height:1.35;overflow-wrap:anywhere;user-select:text;-webkit-user-select:text}.profileStats{margin-top:9px;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:5px}.profileStats>div{padding:8px;border:1px solid rgba(255,255,255,.045);border-radius:9px;background:rgba(255,255,255,.018)}.profileStats strong{display:block;color:#d6d0c5;font-size:.62rem}.profileStats span{display:block;margin-top:2px;color:#68645e;font-size:.47rem}.profileAction{width:100%;min-height:36px;margin-top:9px;border:0;border-radius:10px;background:linear-gradient(135deg,#ffd24d,#efa718);color:#17120a;font:inherit;font-size:.57rem;font-weight:950;cursor:pointer}.profileAction:disabled{opacity:.45;cursor:default}
         .groupCardTitle{padding-right:28px;display:flex;align-items:center;gap:10px}.groupCardTitle>div strong{display:block;color:#e7dfcf;font-size:.65rem}.groupCardTitle>div span{display:block;margin-top:3px;color:#887c5e;font-size:.5rem}.groupMemberList{margin-top:10px;display:flex;flex-wrap:wrap;gap:5px}.groupMemberList span{padding:5px 6px;border:1px solid rgba(255,255,255,.05);border-radius:7px;background:rgba(255,255,255,.02);color:#777168;font-size:.47rem}.ungroupButton{width:100%;min-height:33px;margin-top:10px;border:1px solid rgba(194,118,90,.2);border-radius:9px;background:rgba(194,118,90,.06);color:#bd9889;font:inherit;font-size:.52rem;font-weight:900;cursor:pointer}
         .workspaceNotice{position:absolute;z-index:96;left:50%;bottom:56px;transform:translateX(-50%);padding:7px 11px;border:1px solid rgba(244,183,40,.18);border-radius:10px;background:rgba(21,19,14,.97);color:#d5b85f;font-size:.53rem;font-weight:850;white-space:nowrap;box-shadow:0 12px 28px rgba(0,0,0,.3)}
         .inlineError{position:absolute;z-index:90;left:50%;bottom:54px;transform:translateX(-50%);max-width:calc(100% - 28px);padding:8px 9px 8px 11px;display:flex;align-items:center;gap:8px;border:1px solid rgba(194,118,90,.2);border-radius:10px;background:rgba(38,23,18,.96);color:#c7a294;font-size:.53rem;box-shadow:0 12px 30px rgba(0,0,0,.32)}.inlineError button{border:0;background:transparent;color:#9f7d71;font-size:.8rem;cursor:pointer}
         @keyframes networkForward{0%{opacity:.68;scale:.975}100%{opacity:1;scale:1}}@keyframes networkBack{0%{opacity:.74;scale:1.035}100%{opacity:1;scale:1}}@keyframes networkSlotFlow{from{stroke-dashoffset:43}to{stroke-dashoffset:-43}}@keyframes networkYouBreath{0%,100%{opacity:.46;transform:scale(.96)}50%{opacity:.92;transform:scale(1.06)}}@keyframes networkYouIntro{0%{opacity:.25;transform:scale(.78)}58%{opacity:1;transform:scale(1.14)}100%{opacity:.62;transform:scale(1)}}@keyframes networkNodeBloom{0%{transform:scale(.45);box-shadow:0 0 0 rgba(244,183,40,0)}55%{transform:scale(1.18);box-shadow:0 0 42px rgba(244,183,40,.22)}100%{transform:scale(var(--network-node-scale,1));box-shadow:0 0 22px rgba(244,183,40,.025)}}@keyframes slotPulse{0%,100%{box-shadow:0 0 0 rgba(244,183,40,0)}50%{box-shadow:0 0 22px rgba(244,183,40,.07)}}@keyframes pulse{to{opacity:.38;transform:scale(.82)}}@keyframes groupDropAway{to{opacity:0;scale:.72}}
-        @media(max-width:560px){.networkCanvasPage{width:100%;border-radius:18px}.networkHeader{min-height:58px;padding:10px 11px}.summary{gap:3px 4px}.summary strong{font-size:.68rem}.summary span{font-size:.46rem}.networkToolbar{padding:6px 7px;gap:5px}.searchWrap{flex-basis:43%}.crumb{max-width:64px}.networkStage{height:max(430px,calc(100dvh - 245px));max-height:620px}.profileCard{top:auto;right:8px;bottom:52px;left:8px;width:auto}.groupBuilder{left:8px;top:49px;width:min(232px,calc(100% - 16px))}.layoutControls{left:8px;top:8px}.layoutControls button{padding:0 7px}.viewControls{right:8px;bottom:8px}.parentReturn{left:8px;bottom:8px}.pager{bottom:8px}.personNode{min-width:0}.focusNode{min-width:0}}
+        @media(max-width:560px){.networkCanvasPage{width:100%;border-radius:18px}.networkHeader{min-height:58px;padding:10px 11px}.summary{gap:3px 4px}.summary strong{font-size:.68rem}.summary span{font-size:.46rem}.networkToolbar{padding:6px 7px;gap:5px}.searchWrap{flex-basis:43%}.crumb{max-width:64px}.networkStage{height:max(430px,calc(100dvh - 245px));max-height:620px}.profileCard{top:auto;right:8px;bottom:52px;left:8px;width:auto}.groupBuilder{left:8px;top:49px;width:min(232px,calc(100% - 16px))}.networkTopControls{padding:5px 7px;gap:5px;flex-wrap:wrap}.layoutControls{gap:4px;flex-wrap:wrap}.layoutControls button{padding:0 7px}.viewControls{gap:4px;grid-template-columns:30px auto 30px 30px}.parentReturn{left:8px;bottom:8px}.pager{bottom:8px}.personNode{min-width:0}.focusNode{min-width:0}}
         @media(prefers-reduced-motion:reduce){.world.cameraTransition{transition:none}.worldContent.nav-forward,.worldContent.nav-back,.slotEdgePulse,.nodeBusy,.personNode.grouping,.slotCircle,.focusNode::before,.worldContent.nav-forward .childNode .nodeCircle{animation:none!important}}
       `}</style>
     </section>
