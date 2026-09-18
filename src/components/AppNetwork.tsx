@@ -2250,6 +2250,10 @@ export function AppNetwork({ locale }: { locale: Locale }) {
       if (holdDrag.kind === 'node' || holdDrag.kind === 'group-member') {
         moveDragGhost(event.clientX, event.clientY);
       }
+      const holdTargetGroup = holdDrag.kind === 'group-member'
+        ? findGroupDropTarget(event.clientX, event.clientY, holdDrag.groupId)
+        : null;
+      setMemberDropGroupId(holdTargetGroup?.id ?? null);
       setNewGroupDropActive(
         holdDrag.kind === 'node' &&
         Boolean(groupsOpen) &&
@@ -2301,6 +2305,11 @@ export function AppNetwork({ locale }: { locale: Locale }) {
         activeWorkspace.groups.length < MAX_GROUPS_PER_FOCUS &&
         isInsideNewGroupDropTarget(event.clientX, event.clientY),
       );
+      const workspaceTargetGroup =
+        !groupDraft && (workspaceDrag.kind === 'node' || workspaceDrag.kind === 'group-member')
+          ? findGroupDropTarget(event.clientX, event.clientY, workspaceDrag.groupId)
+          : null;
+      setMemberDropGroupId(workspaceTargetGroup?.id ?? null);
 
       const rect = stageRef.current?.getBoundingClientRect();
       if (!rect) return;
@@ -2410,11 +2419,31 @@ export function AppNetwork({ locale }: { locale: Locale }) {
         groupsOpen &&
         activeWorkspace.groups.length < MAX_GROUPS_PER_FOCUS &&
         isInsideNewGroupDropTarget(event.clientX, event.clientY);
+      const droppedToExistingGroup =
+        event.type === 'pointerup' &&
+        holdDrag.kind === 'group-member' &&
+        holdDrag.armed &&
+        holdDrag.moved
+          ? findGroupDropTarget(event.clientX, event.clientY, holdDrag.groupId)
+          : null;
 
       if (droppedToNewGroup) {
         if (holdDrag.moved) persistFocusWorkspace(holdDrag.originalWorkspace);
         suppressClickRef.current = true;
         beginGroupCreationWithMember(holdDrag.key, holdDrag.originalWorkspace);
+      } else if (droppedToExistingGroup) {
+        const nextWorkspace = moveWorkspaceMemberToGroup(
+          holdDrag.originalWorkspace,
+          holdDrag.key,
+          droppedToExistingGroup.id,
+        );
+        if (nextWorkspace !== holdDrag.originalWorkspace) {
+          persistFocusWorkspace(nextWorkspace);
+          animateRestoredWallets([holdDrag.key]);
+        } else {
+          persistFocusWorkspace(holdDrag.originalWorkspace);
+        }
+        suppressClickRef.current = true;
       } else if (event.type === 'pointercancel' && holdDrag.moved) {
         persistFocusWorkspace(holdDrag.originalWorkspace);
         suppressClickRef.current = true;
