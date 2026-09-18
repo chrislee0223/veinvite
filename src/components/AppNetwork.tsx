@@ -19,6 +19,10 @@ import { NETWORK_EXPERIENCE_COPY } from '@/lib/i18n/networkExperienceCopy';
 import { NETWORK_WORKSPACE_COPY } from '@/lib/i18n/networkWorkspaceCopy';
 import type { Locale, SupportedLocale } from '@/lib/i18n/locales';
 import {
+  getCachedNetworkRoot,
+  rememberNetworkRoot,
+} from '@/lib/networkRootClientCache';
+import {
   EMPTY_NETWORK_WORKSPACE_STORE,
   addWorkspaceGroup,
   cloneNetworkFocusWorkspace,
@@ -234,6 +238,27 @@ function runtimeSessionKey(wallet: string): string {
 
 function workspaceStorageKey(wallet: string): string {
   return `${WORKSPACE_PREFIX}${keyWallet(wallet)}`;
+}
+
+function provisionalNetworkData(wallet: string): NetworkData {
+  return {
+    rootWallet: wallet,
+    focusWallet: wallet,
+    focusDepth: 0,
+    invitedBy: null,
+    breadcrumb: [wallet],
+    summary: {
+      network: 0,
+      direct: 0,
+      qualified: 0,
+      thisRound: null,
+      depth: 0,
+    },
+    round: null,
+    children: [],
+    searchResults: [],
+    depthLimitReached: false,
+  };
 }
 
 function readStoredRuntimeState(wallet: string): StoredRuntimeState | null {
@@ -524,10 +549,23 @@ export function AppNetwork({ locale }: { locale: Locale }) {
   const [workspaceNotice, setWorkspaceNotice] = useState('');
   const [introActive, setIntroActive] = useState(false);
 
+  const visibleRootData = useMemo(() => {
+    if (!wallet) return null;
+    if (rootData && keyWallet(rootData.rootWallet) === keyWallet(wallet)) {
+      return rootData;
+    }
+    return provisionalNetworkData(wallet);
+  }, [wallet, rootData]);
+
   const currentData = useMemo(() => {
-    if (!focusWallet) return rootData;
-    return cacheRef.current.get(keyWallet(focusWallet)) ?? rootData;
-  }, [focusWallet, rootData, cacheVersion]);
+    if (!visibleRootData) return null;
+    if (!focusWallet) return visibleRootData;
+    const cached = cacheRef.current.get(keyWallet(focusWallet)) ?? null;
+    if (cached && keyWallet(cached.rootWallet) === keyWallet(visibleRootData.rootWallet)) {
+      return cached;
+    }
+    return visibleRootData;
+  }, [focusWallet, visibleRootData, cacheVersion]);
 
   const currentFocusKey = currentData ? keyWallet(currentData.focusWallet) : '';
   const isMobile = stageSize.width > 0 && stageSize.width < 560;
