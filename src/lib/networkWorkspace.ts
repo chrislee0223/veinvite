@@ -267,7 +267,6 @@ export function addWorkspaceGroup(
     };
   }));
   if (groups.length >= MAX_GROUPS_PER_FOCUS) return workspace;
-  const memberSet = new Set(members);
   const memberOffsets = group.memberOffsets
     ? Object.fromEntries(
         Object.entries(group.memberOffsets)
