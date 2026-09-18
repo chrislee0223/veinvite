@@ -103,6 +103,28 @@ test('VeWorld provider recovery never overlaps the native certificate prompt', (
   );
 });
 
+test('native VeWorld certificate signing never releases the auth lock on a local timeout', () => {
+  const requestStart = walletAuthentication.indexOf(
+    'const certResponse =',
+  );
+  const requestEnd = walletAuthentication.indexOf(
+    'assertStillCurrent();',
+    requestStart,
+  );
+  const certificateBlock = walletAuthentication.slice(
+    requestStart,
+    requestEnd,
+  );
+
+  assert.ok(requestStart >= 0);
+  assert.ok(requestEnd > requestStart);
+  assert.match(certificateBlock, /await requestCertificate\(/);
+  assert.doesNotMatch(
+    certificateBlock,
+    /withTimeout\(|WALLET_SIGNATURE_TIMEOUT_MS/,
+  );
+});
+
 test('wallet resume recovery is mounted inside the VeChain provider', () => {
   assert.match(appProviders, /<WalletConnectionResume \/>/);
   assert.match(
