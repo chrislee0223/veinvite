@@ -83,7 +83,7 @@ test('My Network and Public Network use independent staged runtime gates with vi
   assert.match(runtime, /isNetworkCanaryWallet/i);
 
   const privateSwitch = privateRoute.indexOf("canUseNetworkSurface('my', rootWallet)");
-  const privateRound = privateRoute.indexOf('const round = await readCurrentRoundContext();');
+  const privateRound = privateRoute.indexOf('const round = fastInitial ? null : await readCurrentRoundContext();');
   const privateRpc = privateRoute.indexOf("'read_referral_network_focus_v2'");
   assert.ok(privateSwitch >= 0);
   assert.ok(privateRound > privateSwitch);
