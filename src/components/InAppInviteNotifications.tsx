@@ -292,6 +292,7 @@ export function InAppInviteNotifications({
   const [loading, setLoading] = useState(false);
   const [busy, setBusy] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
+  const [presentationReady, setPresentationReady] = useState(false);
   const shownKeyRef = useRef<string | null>(null);
   const openSnapshotRef = useRef<string | null>(null);
   const activeWalletRef = useRef<string | null>(wallet);
@@ -301,7 +302,7 @@ export function InAppInviteNotifications({
   activeWalletRef.current = wallet;
   const latestHistoryRequestRef =
     useRef<Promise<HistoryPage | null> | null>(null);
-  const lifecycleRefreshRef = useRef<Promise<void> | null>(null);
+  const lifecycleRefreshRef = useRef<Promise<boolean> | null>(null);
 
   useEffect(() => {
     activeWalletRef.current = wallet;
@@ -314,6 +315,7 @@ export function InAppInviteNotifications({
     setLoading(false);
     setBusy(false);
     setErrorMessage('');
+    setPresentationReady(false);
     shownKeyRef.current = null;
     openSnapshotRef.current = null;
     latestHistoryRequestRef.current = null;
@@ -334,6 +336,7 @@ export function InAppInviteNotifications({
     setLoading(false);
     setBusy(false);
     setErrorMessage('');
+    setPresentationReady(false);
     shownKeyRef.current = null;
     openSnapshotRef.current = null;
     latestHistoryRequestRef.current = null;
@@ -470,23 +473,22 @@ export function InAppInviteNotifications({
   );
 
   const refreshLifecycle = useCallback(
-    async (autoOpen: boolean) => {
-      if (!wallet || lifecycleRefreshBackedOff()) return;
+    async (autoOpen: boolean): Promise<boolean> => {
+      if (!wallet || lifecycleRefreshBackedOff()) return false;
 
       if (lifecycleRefreshRef.current) {
-        await lifecycleRefreshRef.current;
-        return;
+        return await lifecycleRefreshRef.current;
       }
 
       const lifecycleLease = acquireLifecycleRequestLease();
-      if (lifecycleLease === null) return;
+      if (lifecycleLease === null) return false;
 
       const requestWallet = wallet;
-      const task = (async () => {
+      const task = (async (): Promise<boolean> => {
         try {
-          // Lifecycle derivation/materialization can be heavier than reading the
-          // already-persisted history. Keep it in the background so opening the
-          // bell never waits for this path.
+          // Materialize the current lifecycle first. The caller can then read
+          // persisted history once, instead of exposing an older history read
+          // and a second post-materialization read as two visible badge states.
           const notificationResponse = await fetch(
             '/api/notifications',
             { cache: 'no-store' },
@@ -494,11 +496,11 @@ export function InAppInviteNotifications({
 
           if (notificationResponse.status === 401) {
             if (!sameWallet(activeWalletRef.current, requestWallet)) {
-              return;
+              return false;
             }
             backOffLifecycleAfterUnauthorized();
             invalidateWalletSession(requestWallet);
-            return;
+            return false;
           }
 
           const notificationBody =
@@ -510,7 +512,7 @@ export function InAppInviteNotifications({
             );
           }
 
-          if (!sameWallet(activeWalletRef.current, requestWallet)) return;
+          if (!sameWallet(activeWalletRef.current, requestWallet)) return false;
 
           const currentNotifications =
             Array.isArray(notificationBody.notifications)
@@ -519,24 +521,12 @@ export function InAppInviteNotifications({
                 ? [notificationBody.notification]
                 : [];
 
-          if (currentNotifications.length < 1) return;
-
-          // If a fast history prefetch was already running, let that older read
-          // finish before fetching the newly materialized history. This prevents
-          // a stale response from overwriting the fresh milestone afterwards.
-          const pendingHistory = latestHistoryRequestRef.current;
-          if (pendingHistory) {
-            try {
-              await pendingHistory;
-            } catch {
-              // The fresh read below is authoritative for this lifecycle pass.
-            }
-          }
-
-          if (!sameWallet(activeWalletRef.current, requestWallet)) return;
+          if (currentNotifications.length < 1) return false;
 
           const history = await loadHistoryPage({ requestWallet });
-          if (!history || !sameWallet(activeWalletRef.current, requestWallet)) return;
+          if (!history || !sameWallet(activeWalletRef.current, requestWallet)) {
+            return false;
+          }
 
           applyLatestHistory(history, requestWallet);
           setErrorMessage('');
@@ -547,17 +537,19 @@ export function InAppInviteNotifications({
             openSnapshotRef.current = newestHistoryId(history.items);
             setOpen(true);
           }
+          return true;
         } catch (error) {
           console.warn(
             'VeInvite notification lifecycle refresh failed:',
             error,
           );
+          return false;
         }
       })();
 
       lifecycleRefreshRef.current = task;
       try {
-        await task;
+        return await task;
       } finally {
         releaseLifecycleRequestLease(lifecycleLease);
         if (lifecycleRefreshRef.current === task) {
@@ -571,6 +563,22 @@ export function InAppInviteNotifications({
       loadHistoryPage,
       wallet,
     ],
+  );
+
+  const synchronizeNotifications = useCallback(
+    async (autoOpen: boolean): Promise<void> => {
+      if (!wallet) return;
+      const requestWallet = wallet;
+      const lifecycleApplied = await refreshLifecycle(autoOpen);
+      if (!sameWallet(activeWalletRef.current, requestWallet)) return;
+
+      // When no new lifecycle item was materialized (or lifecycle work was
+      // temporarily unavailable), one authoritative history read is enough.
+      if (!lifecycleApplied) {
+        await loadLatestHistory({ requestWallet });
+      }
+    },
+    [loadLatestHistory, refreshLifecycle, wallet],
   );
 
   const acknowledge = useCallback(
@@ -671,7 +679,7 @@ export function InAppInviteNotifications({
 
         if (wallet) {
           void loadLatestHistory({ requestWallet: wallet });
-          void refreshLifecycle(false);
+          void synchronizeNotifications(false);
         }
       } catch (error) {
         console.warn(
@@ -820,14 +828,20 @@ export function InAppInviteNotifications({
   useEffect(() => {
     if (!wallet) return;
 
+    let active = true;
     const requestWallet = wallet;
-    void loadLatestHistory({ requestWallet });
-    void refreshLifecycle(true);
+    void synchronizeNotifications(true).finally(() => {
+      if (
+        active &&
+        sameWallet(activeWalletRef.current, requestWallet)
+      ) {
+        setPresentationReady(true);
+      }
+    });
 
     const refreshVisibleNotifications = () => {
       if (document.visibilityState !== 'visible') return;
-      void loadLatestHistory({ requestWallet });
-      void refreshLifecycle(true);
+      void synchronizeNotifications(true);
     };
 
     const timer = window.setInterval(
@@ -841,22 +855,22 @@ export function InAppInviteNotifications({
     );
 
     return () => {
+      active = false;
       window.clearInterval(timer);
       document.removeEventListener(
         'visibilitychange',
         refreshVisibleNotifications,
       );
     };
-  }, [loadLatestHistory, refreshLifecycle, wallet]);
+  }, [synchronizeNotifications, wallet]);
 
   useEffect(() => {
     const onRewardReceiptAcknowledged = () => {
       if (!wallet) return;
-      void loadLatestHistory({ requestWallet: wallet });
-      void refreshLifecycle(false);
+      void synchronizeNotifications(false);
     };
     const onRewardReservationReady = () => {
-      void refreshLifecycle(true);
+      void synchronizeNotifications(true);
     };
 
     window.addEventListener(
@@ -878,7 +892,7 @@ export function InAppInviteNotifications({
         onRewardReservationReady,
       );
     };
-  }, [loadLatestHistory, refreshLifecycle, wallet]);
+  }, [synchronizeNotifications, wallet]);
 
   if (!wallet) return null;
 
@@ -886,7 +900,8 @@ export function InAppInviteNotifications({
     <InviteNotificationHistoryCenter
       locale={locale}
       items={items}
-      unreadCount={unreadCount}
+      unreadCount={presentationReady ? unreadCount : 0}
+      presentationReady={presentationReady}
       markAllAvailable={items.some(
         (item) => item.readAt === null && item.kind !== 'REWARD_PAID',
       )}
