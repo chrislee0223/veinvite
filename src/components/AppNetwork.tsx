@@ -142,6 +142,13 @@ type GroupDraft = {
   members: string[];
 };
 
+type NodeDragGhost = {
+  key: string;
+  wallet: string;
+  x: number;
+  y: number;
+};
+
 const NETWORK_CANVAS_ENABLED =
   process.env.NEXT_PUBLIC_NETWORK_CANVAS_ENABLED !== 'false';
 const WORLD_W = 2600;
@@ -538,6 +545,8 @@ export function AppNetwork({ locale }: { locale: Locale }) {
   const { wallet, openWallet, isWalletActionPending } = useWalletLauncher();
   const stageRef = useRef<HTMLDivElement | null>(null);
   const groupDropRef = useRef<HTMLDivElement | null>(null);
+  const createFirstGroupRef = useRef<HTMLButtonElement | null>(null);
+  const dragGhostRef = useRef<HTMLDivElement | null>(null);
   const cacheRef = useRef(new Map<string, NetworkData>());
   const abortRef = useRef<AbortController | null>(null);
   const requestSerialRef = useRef(0);
@@ -607,6 +616,8 @@ export function AppNetwork({ locale }: { locale: Locale }) {
   const [draggingWorkspaceKey, setDraggingWorkspaceKey] = useState<string | null>(null);
   const [groupingWallet, setGroupingWallet] = useState<string | null>(null);
   const [groupDropActive, setGroupDropActive] = useState(false);
+  const [newGroupDropActive, setNewGroupDropActive] = useState(false);
+  const [dragGhost, setDragGhost] = useState<NodeDragGhost | null>(null);
   const [restoringWallets, setRestoringWallets] = useState<string[]>([]);
   const [createdGroupId, setCreatedGroupId] = useState<string | null>(null);
   const [workspaceNotice, setWorkspaceNotice] = useState('');
