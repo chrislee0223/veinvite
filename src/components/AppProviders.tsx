@@ -27,6 +27,7 @@ import { LegalDocumentSheetHost } from './LegalDocumentSheetHost';
 import { LegalNavigationMemory } from './LegalNavigationMemory';
 import { NetworkIdleWarmup } from './NetworkIdleWarmup';
 import { RewardReservationRecovery } from './RewardReservationRecovery';
+import { RuntimeVersionGuard } from './RuntimeVersionGuard';
 import { RouteScopedInviteEnhancements } from './RouteScopedInviteEnhancements';
 import { SecondaryPageLayoutPolish } from './SecondaryPageLayoutPolish';
 import { StartupHydrationPlaceholders } from './StartupHydrationPlaceholders';
@@ -89,6 +90,7 @@ export function AppProviders({
     <ChakraProvider theme={theme}>
       <VeChainProvider>
         <ProviderReadySignal />
+        <RuntimeVersionGuard />
         <LegalDocumentSheetHost />
         <StartupHydrationPlaceholders />
         <WalletSessionTransitionShield />
