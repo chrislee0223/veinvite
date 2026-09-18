@@ -2081,12 +2081,21 @@ export function AppNetwork({ locale }: { locale: Locale }) {
 
     if (pointersRef.current.size === 1) {
       panPointerRef.current = { id: event.pointerId, point, allowed: !interactive };
+      backgroundTapRef.current = editingLayout && !interactive
+        ? {
+            pointerId: event.pointerId,
+            start: point,
+            moved: false,
+            blocked: Boolean(groupDraft),
+          }
+        : null;
       pinchRef.current = null;
       pinchReturnIntentRef.current = false;
       return;
     }
 
     if (pointersRef.current.size === 2) {
+      if (backgroundTapRef.current) backgroundTapRef.current.blocked = true;
       cancelHoldDrag(true);
       const activeWorkspaceDrag = workspaceDragRef.current;
       if (activeWorkspaceDrag) {
@@ -2284,6 +2293,18 @@ export function AppNetwork({ locale }: { locale: Locale }) {
   const onPointerEndCapture = (event: ReactPointerEvent<HTMLDivElement>) => {
     setGroupDropActive(false);
     setNewGroupDropActive(false);
+    const backgroundTap = backgroundTapRef.current;
+    const finishEditingFromBlankTap = Boolean(
+      backgroundTap &&
+      backgroundTap.pointerId === event.pointerId &&
+      event.type === 'pointerup' &&
+      editingLayout &&
+      !groupDraft &&
+      !backgroundTap.moved &&
+      !backgroundTap.blocked &&
+      pointersRef.current.size === 1
+    );
+    if (backgroundTap?.pointerId === event.pointerId) backgroundTapRef.current = null;
     const holdDrag = holdDragRef.current;
     if (holdDrag && holdDrag.pointerId === event.pointerId) {
       if (holdTimerRef.current !== null) {
@@ -2346,7 +2367,9 @@ export function AppNetwork({ locale }: { locale: Locale }) {
       pinchCandidateWalletRef.current = null;
       pinchEnterIntentRef.current = null;
       pinchReturnIntentRef.current = false;
-      if (enterWallet && !editingLayout) {
+      if (finishEditingFromBlankTap) {
+        finishLayoutEdit();
+      } else if (enterWallet && !editingLayout) {
         void moveToFocus(enterWallet, 'forward');
       } else if (returnIntent) {
         returnToParent();
