@@ -107,9 +107,23 @@ type PinchState = {
 
 type WorkspaceDrag = {
   pointerId: number;
-  kind: 'node' | 'group';
+  kind: 'node' | 'slot' | 'group';
   key: string;
   offset: Point;
+};
+
+type InviteSlotState = {
+  slot: 1 | 2;
+  state: 'AVAILABLE' | 'PENDING' | 'IN_PROGRESS';
+  inviteeWallet: string | null;
+  completedSteps: number;
+  totalSteps: number;
+};
+
+type PositionedInviteSlot = InviteSlotState & {
+  key: string;
+  x: number;
+  y: number;
 };
 
 type HoldDragState = {
@@ -142,7 +156,7 @@ const NAVIGATION_MS = 720;
 const FIT_TRANSITION_MS = 760;
 const INTRO_HOLD_MS = 150;
 const INTRO_END_MS = 940;
-const INTRO_SESSION_PREFIX = 'veinvite-network-intro-v4:';
+const INTRO_SESSION_PREFIX = 'veinvite-network-intro-v5:';
 const READABLE_FIT_MIN = 0.46;
 const GOLDEN_ANGLE = Math.PI * (3 - Math.sqrt(5));
 const GROUP_DROP_MS = 160;
@@ -152,10 +166,8 @@ const NODE_ENTER_SCALE = 1.85;
 const NODE_HIT_RADIUS = 58;
 const GROUP_DROP_RADIUS = 92;
 const WHEEL_ENTER_DISTANCE = 120;
-const SESSION_PREFIX = 'veinvite-network-runtime-v1:';
+const SESSION_PREFIX = 'veinvite-network-runtime-v2:';
 const WORKSPACE_PREFIX = 'veinvite-network-workspace-v1:';
-const EXPLORER_PAGE_SIZE_DESKTOP = 6;
-const EXPLORER_PAGE_SIZE_MOBILE = 6;
 
 function keyWallet(wallet: string): string {
   return wallet.toLowerCase();
@@ -528,7 +540,7 @@ export function AppNetwork({ locale }: { locale: Locale }) {
   const [cacheVersion, setCacheVersion] = useState(0);
   const [loadState, setLoadState] = useState<'idle' | 'loading' | 'ready' | 'error'>('idle');
   const [loadError, setLoadError] = useState('');
-  const [availableSlots, setAvailableSlots] = useState(0);
+  const [inviteSlots, setInviteSlots] = useState<InviteSlotState[]>([]);
   const [stageSize, setStageSize] = useState({ width: 0, height: 0 });
   const [view, setView] = useState<View>({
     x: 260 - FOCUS_X,
@@ -536,7 +548,6 @@ export function AppNetwork({ locale }: { locale: Locale }) {
     scale: 1,
   });
   const [selectedWallet, setSelectedWallet] = useState<string | null>(null);
-  const [page, setPage] = useState(0);
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
   const [searching, setSearching] = useState(false);
