@@ -1837,10 +1837,18 @@ export function AppNetwork({ locale }: { locale: Locale }) {
     };
     suppressClickRef.current = true;
     setGroupDropActive(false);
+    setNewGroupDropActive(false);
+    if (kind === 'node') {
+      const child = positionedChildren.find((item) => keyWallet(item.wallet) === keyWallet(key));
+      if (child) {
+        setDragGhost({ key: keyWallet(key), wallet: child.wallet, x: event.clientX, y: event.clientY });
+        window.requestAnimationFrame(() => moveDragGhost(event.clientX, event.clientY));
+      }
+    }
     setDraggingWorkspaceKey(`${kind}:${key}`);
     setSelectedWallet(null);
     setSelectedGroupId(null);
-  }, [editingLayout, groupingWallet, view]);
+  }, [editingLayout, groupingWallet, view, positionedChildren, moveDragGhost]);
 
   const cancelHoldDrag = useCallback((restore = false) => {
     if (holdTimerRef.current !== null) {
@@ -1892,9 +1900,21 @@ export function AppNetwork({ locale }: { locale: Locale }) {
       if (!hold || hold.pointerId !== event.pointerId || pointersRef.current.size !== 1) return;
       hold.armed = true;
       triggerHoldHaptic();
+      if (kind === 'node') {
+        const child = positionedChildren.find((item) => keyWallet(item.wallet) === keyWallet(key));
+        if (child) {
+          setDragGhost({
+            key: keyWallet(key),
+            wallet: child.wallet,
+            x: hold.startScreen.x,
+            y: hold.startScreen.y,
+          });
+          window.requestAnimationFrame(() => moveDragGhost(hold.startScreen.x, hold.startScreen.y));
+        }
+      }
       setDraggingWorkspaceKey(`${kind}:${key}`);
     }, HOLD_TO_MOVE_MS);
-  }, [editingLayout, pendingFocus, currentFocusKey, committedWorkspace, view]);
+  }, [editingLayout, pendingFocus, currentFocusKey, committedWorkspace, view, positionedChildren, moveDragGhost]);
 
   const finishWorkspaceDrop = useCallback((event: ReactPointerEvent<HTMLDivElement>, drag: WorkspaceDrag) => {
     setGroupDropActive(false);
@@ -2007,6 +2027,7 @@ export function AppNetwork({ locale }: { locale: Locale }) {
       workspaceDragRef.current = null;
       setDraggingWorkspaceKey(null);
       setGroupDropActive(false);
+      clearDragGhost();
       const [a, b] = Array.from(pointersRef.current.values());
       const center = midpoint(a, b);
       const startView = view;
@@ -2050,6 +2071,12 @@ export function AppNetwork({ locale }: { locale: Locale }) {
         return;
       }
       if (screenDistance <= HOLD_CANCEL_DISTANCE && !holdDrag.moved) return;
+      moveDragGhost(event.clientX, event.clientY);
+      setNewGroupDropActive(
+        Boolean(groupsOpen) &&
+        activeWorkspace.groups.length < MAX_GROUPS_PER_FOCUS &&
+        isInsideNewGroupDropTarget(event.clientX, event.clientY),
+      );
       const rect = stageRef.current?.getBoundingClientRect();
       if (!rect) return;
       const nextPoint = {
@@ -2069,6 +2096,9 @@ export function AppNetwork({ locale }: { locale: Locale }) {
       pointersRef.current.size === 1 &&
       editingLayout
     ) {
+      if (workspaceDrag.kind === 'node') {
+        moveDragGhost(event.clientX, event.clientY);
+      }
       if (workspaceDrag.kind === 'node' && groupDraft) {
         const alreadyAdded = groupDraft.members.some((member) => keyWallet(member) === keyWallet(workspaceDrag.key));
         setGroupDropActive(
@@ -2079,6 +2109,13 @@ export function AppNetwork({ locale }: { locale: Locale }) {
       } else {
         setGroupDropActive(false);
       }
+      setNewGroupDropActive(
+        workspaceDrag.kind === 'node' &&
+        !groupDraft &&
+        groupsOpen &&
+        activeWorkspace.groups.length < MAX_GROUPS_PER_FOCUS &&
+        isInsideNewGroupDropTarget(event.clientX, event.clientY),
+      );
 
       const rect = stageRef.current?.getBoundingClientRect();
       if (!rect) return;
