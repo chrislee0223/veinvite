@@ -29,17 +29,21 @@ test('first visible load reads persisted history directly', () => {
   assert.doesNotMatch(openHandler, /refresh\(false\)/);
 });
 
-test('background lifecycle refresh is separate from visible history loading', () => {
+test('startup notification reconciliation materializes lifecycle before publishing one authoritative history state', () => {
   const lifecycleStart = source.indexOf('const refreshLifecycle = useCallback');
-  const lifecycleEnd = source.indexOf('const acknowledge = useCallback', lifecycleStart);
+  const lifecycleEnd = source.indexOf('const synchronizeNotifications = useCallback', lifecycleStart);
   const lifecycleBody = source.slice(lifecycleStart, lifecycleEnd);
+  const syncStart = source.indexOf('const synchronizeNotifications = useCallback');
+  const syncEnd = source.indexOf('const acknowledge = useCallback', syncStart);
+  const syncBody = source.slice(syncStart, syncEnd);
 
   assert.match(lifecycleBody, /fetch\(\s*'\/api\/notifications'/);
   assert.doesNotMatch(lifecycleBody, /setLoading\(/);
+  assert.match(syncBody, /await refreshLifecycle\(autoOpen\)/);
+  assert.match(syncBody, /if \(!lifecycleApplied\) \{\s*await loadLatestHistory/);
   assert.match(source, /latestHistoryRequestRef/);
-  assert.match(source, /lifecycleRefreshRef/);
+  assert.match(source, /lifecycleRefreshRef = useRef<Promise<boolean>/);
 });
-
 test('notification refresh effect is not keyed to history item count', () => {
   assert.doesNotMatch(
     source,
@@ -47,7 +51,7 @@ test('notification refresh effect is not keyed to history item count', () => {
   );
 });
 
-test('mark-all applies server-authoritative unread state before background reconciliation', () => {
+test('mark-all applies server-authoritative unread state before one coordinated background reconciliation', () => {
   const markAllStart = source.indexOf('const markAllRead = useCallback');
   const markAllEnd = source.indexOf('const loadMore = useCallback', markAllStart);
   assert.ok(markAllStart >= 0);
@@ -65,11 +69,18 @@ test('mark-all applies server-authoritative unread state before background recon
   assert.match(markAllBody, /setUnreadCount\(nextUnreadCount\)/);
 
   const localUpdateIndex = markAllBody.indexOf('setUnreadCount(nextUnreadCount)');
-  const historyReconcileIndex = markAllBody.indexOf('void loadLatestHistory');
-  const lifecycleReconcileIndex = markAllBody.indexOf('void refreshLifecycle(false)');
+  const reconcileIndex = markAllBody.indexOf('void synchronizeNotifications(false)');
   assert.ok(localUpdateIndex >= 0);
-  assert.ok(historyReconcileIndex > localUpdateIndex);
-  assert.ok(lifecycleReconcileIndex > localUpdateIndex);
-  assert.doesNotMatch(markAllBody, /await\s+loadLatestHistory/);
-  assert.doesNotMatch(markAllBody, /await\s+refreshLifecycle/);
+  assert.ok(reconcileIndex > localUpdateIndex);
+  assert.doesNotMatch(markAllBody, /void loadLatestHistory/);
+  assert.doesNotMatch(markAllBody, /void refreshLifecycle\(false\)/);
+});
+
+
+test('startup badge stays hidden until coordinated notification reconciliation settles', () => {
+  assert.match(source, /const \[presentationReady, setPresentationReady\] = useState\(false\)/);
+  assert.match(source, /void synchronizeNotifications\(true\)\.finally/);
+  assert.match(source, /setPresentationReady\(true\)/);
+  assert.match(source, /unreadCount=\{presentationReady \? unreadCount : 0\}/);
+  assert.match(source, /presentationReady=\{presentationReady\}/);
 });
