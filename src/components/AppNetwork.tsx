@@ -755,16 +755,18 @@ export function AppNetwork({ locale }: { locale: Locale }) {
     return map;
   }, [activeWorkspace.groups]);
 
+  const positionedChildKeys = useMemo(
+    () => new Set(positionedChildren.map((child) => keyWallet(child.wallet))),
+    [positionedChildren],
+  );
+
   const displayedChildren = useMemo(() => positionedChildren.map((child) => {
     const memberKey = keyWallet(child.wallet);
     const group = groupByMember.get(memberKey);
     if (!group || group.collapsed !== false) return child;
     const visibleMembers = group.members.filter((member) => {
       const key = keyWallet(member);
-      return (
-        !activeInviteeKeys.has(key) &&
-        positionedChildren.some((candidate) => keyWallet(candidate.wallet) === key)
-      );
+      return !activeInviteeKeys.has(key) && positionedChildKeys.has(key);
     });
     const index = Math.max(0, visibleMembers.findIndex((member) => keyWallet(member) === memberKey));
     const offset =
@@ -775,7 +777,7 @@ export function AppNetwork({ locale }: { locale: Locale }) {
       x: group.x + offset.x,
       y: group.y + offset.y,
     };
-  }), [positionedChildren, groupByMember, activeInviteeKeys]);
+  }), [positionedChildren, groupByMember, activeInviteeKeys, positionedChildKeys]);
 
   const hiddenGroupMembers = useMemo(() => {
     const keys = new Set<string>();
