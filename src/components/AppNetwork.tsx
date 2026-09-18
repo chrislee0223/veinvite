@@ -1713,10 +1713,7 @@ export function AppNetwork({ locale }: { locale: Locale }) {
       style={visualStyle}
     >
       <header className="networkHeader" data-no-pan="true">
-        <div className="headerTitle">
-          <span>NETWORK</span>
-          <h1>{t.title}</h1>
-        </div>
+        <h1>{t.title}</h1>
         <div className="summary" aria-label={t.networkSize}>
           <strong>{visibleRootData.summary.network.toLocaleString()}</strong>
           <span>{t.networkSize}</span>
@@ -1726,29 +1723,7 @@ export function AppNetwork({ locale }: { locale: Locale }) {
         </div>
       </header>
 
-      <div className="networkToolbar" data-no-pan="true">
-        <nav className={`breadcrumbs${breadcrumb.length === 1 ? ' rootOnly' : ''}`} aria-label={t.directNetwork}>
-          {breadcrumbStart > 0 ? <span className="crumbEllipsis">…</span> : null}
-          {shownBreadcrumb.map((item, index) => {
-            const absoluteIndex = breadcrumbStart + index;
-            const isCurrent = absoluteIndex === breadcrumb.length - 1;
-            return (
-              <span className="crumbWrap" key={keyWallet(item)}>
-                {index > 0 || breadcrumbStart > 0 ? <span className="crumbSep">›</span> : null}
-                <button
-                  type="button"
-                  className={isCurrent ? 'crumb current' : 'crumb'}
-                  disabled={isCurrent || Boolean(pendingFocus) || editingLayout}
-                  onClick={() => {
-                    if (!isCurrent) void moveToFocus(item, 'back');
-                  }}
-                >
-                  {absoluteIndex === 0 ? c.you : shortWallet(item)}
-                </button>
-              </span>
-            );
-          })}
-        </nav>
+      <div className="networkUtilityRow" data-no-pan="true">
         <div className="searchWrap">
           <input
             value={searchQuery}
@@ -1778,30 +1753,30 @@ export function AppNetwork({ locale }: { locale: Locale }) {
             </div>
           ) : null}
         </div>
-      </div>
 
-      <div className="networkTopControls" data-no-pan="true">
-        <div className="layoutControls">
-          {!editingLayout ? (
-            <>
-              <button type="button" className="editLayoutButton" onClick={beginLayoutEdit}>✦ {w.editLayout}</button>
-              <button type="button" className={`groupsButton${groupsOpen ? ' active' : ''}`} onClick={() => setGroupsOpen((open) => !open)}>◉ {w.groups}</button>
-            </>
-          ) : (
-            <>
-              <button type="button" className="resetLayoutButton" onClick={resetLayoutEdit}>{w.reset}</button>
-              <button type="button" className="newGroupButton" onClick={openGroupBuilder}>+ {w.newGroup}</button>
-              <button type="button" className="cancelLayoutButton" onClick={cancelLayoutEdit}>{w.cancel}</button>
-              <button type="button" className="saveLayoutButton" onClick={saveLayoutEdit}>{w.done}</button>
-            </>
-          )}
-        </div>
+        <div className="compactControls">
+          <div className="layoutControls">
+            {!editingLayout ? (
+              <>
+                <button type="button" className="editLayoutButton" onClick={beginLayoutEdit} aria-label={w.editLayout} title={w.editLayout}>✦</button>
+                <button type="button" className={`groupsButton${groupsOpen ? ' active' : ''}`} onClick={() => setGroupsOpen((open) => !open)} aria-label={w.groups} title={w.groups}>◉</button>
+              </>
+            ) : (
+              <>
+                <button type="button" className="resetLayoutButton" onClick={resetLayoutEdit} aria-label={w.reset} title={w.reset}>↺</button>
+                <button type="button" className="newGroupButton" onClick={openGroupBuilder} aria-label={w.newGroup} title={w.newGroup}>⊕</button>
+                <button type="button" className="cancelLayoutButton" onClick={cancelLayoutEdit} aria-label={w.cancel} title={w.cancel}>×</button>
+                <button type="button" className="saveLayoutButton" onClick={saveLayoutEdit} aria-label={w.done} title={w.done}>✓</button>
+              </>
+            )}
+          </div>
 
-        <div className="viewControls">
-          <button type="button" onClick={returnToYou} aria-label={c.you} title={c.you}>◎</button>
-          <button type="button" className="fitButton" onClick={fitNetwork}>{w.fit}</button>
-          <button type="button" onClick={() => zoomByButton(1)} aria-label={c.zoomIn} title={c.zoomIn}>+</button>
-          <button type="button" onClick={() => zoomByButton(-1)} aria-label={c.zoomOut} title={c.zoomOut}>−</button>
+          <div className="viewControls">
+            <button type="button" onClick={returnToYou} aria-label={c.you} title={c.you}>◎</button>
+            <button type="button" className="fitButton" onClick={fitNetwork} aria-label={w.fit} title={w.fit}>⌗</button>
+            <button type="button" onClick={() => zoomByButton(1)} aria-label={c.zoomIn} title={c.zoomIn}>+</button>
+            <button type="button" onClick={() => zoomByButton(-1)} aria-label={c.zoomOut} title={c.zoomOut}>−</button>
+          </div>
         </div>
       </div>
 
@@ -1814,6 +1789,28 @@ export function AppNetwork({ locale }: { locale: Locale }) {
         onPointerCancelCapture={onPointerEndCapture}
         onWheel={onWheel}
       >
+        <nav className={`breadcrumbs${breadcrumb.length === 1 ? ' rootOnly' : ''}`} aria-label={t.directNetwork} data-no-pan="true">
+          {breadcrumbStart > 0 ? <span className="crumbEllipsis">…</span> : null}
+          {shownBreadcrumb.map((item, index) => {
+            const absoluteIndex = breadcrumbStart + index;
+            const isCurrent = absoluteIndex === breadcrumb.length - 1;
+            return (
+              <span className="crumbWrap" key={keyWallet(item)}>
+                {index > 0 || breadcrumbStart > 0 ? <span className="crumbSep">›</span> : null}
+                <button
+                  type="button"
+                  className={isCurrent ? 'crumb current' : 'crumb'}
+                  disabled={isCurrent || Boolean(pendingFocus) || editingLayout}
+                  onClick={() => {
+                    if (!isCurrent) void moveToFocus(item, 'back');
+                  }}
+                >
+                  {absoluteIndex === 0 ? c.you : shortWallet(item)}
+                </button>
+              </span>
+            );
+          })}
+        </nav>
         <div
           className={`world${cameraTransition ? ' cameraTransition' : ''}`}
           style={worldStyle}
