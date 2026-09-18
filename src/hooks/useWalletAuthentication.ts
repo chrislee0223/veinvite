@@ -146,7 +146,6 @@ export function useWalletAuthentication() {
   const {
     account: dappKitAccount,
     source: dappKitSource,
-    availableMethods,
     connectV2,
     requestCertificate,
   } = useDappKitWallet();
@@ -369,17 +368,59 @@ export function useWalletAuthentication() {
               );
               assertStillCurrent();
 
-              const canUseVeWorldTypedData =
+              const signCertificateFallback =
+                async () => {
+                  const certResponse =
+                    await requestCertificate(
+                      {
+                        purpose:
+                          'agreement',
+                        payload: {
+                          type:
+                            'text',
+                          content:
+                            challenge.message,
+                        },
+                      },
+                      {
+                        signer,
+                      },
+                    );
+
+                  assertStillCurrent();
+
+                  signature =
+                    certResponse.signature;
+                  certificate = {
+                    purpose:
+                      'agreement',
+                    payload: {
+                      type:
+                        'text',
+                      content:
+                        challenge.message,
+                    },
+                    domain:
+                      certResponse.annex.domain,
+                    timestamp:
+                      certResponse.annex.timestamp,
+                    signer:
+                      certResponse.annex.signer,
+                    signature:
+                      certResponse.signature,
+                  };
+                  proofType =
+                    'certificate';
+                };
+
+              const shouldUseVeWorldTypedData =
                 dappKitSource === 'veworld' &&
-                availableMethods.includes(
-                  'thor_signTypedData',
-                ) &&
                 Boolean(
                   challenge.origin &&
                     challenge.network,
                 );
 
-              if (canUseVeWorldTypedData) {
+              if (shouldUseVeWorldTypedData) {
                 const typedData =
                   buildWalletAuthTypedData({
                     walletAddress,
@@ -395,79 +436,51 @@ export function useWalletAuthentication() {
                       challenge.message,
                   });
 
-                // QA on the real VeWorld in-app browser confirmed this v2
-                // typed-data path settles and dismisses its native sheet,
-                // unlike thor_signCertificate which can return successfully
-                // while leaving the certificate spinner orphaned on-screen.
-                const typedResult =
-                  await connectV2(
-                    typedData,
-                  );
+                try {
+                  // connectV2 intentionally re-discovers VeWorld methods when
+                  // account switching leaves availableMethods briefly empty.
+                  // Do not gate this call on the transient methods snapshot.
+                  const typedResult =
+                    await connectV2(
+                      typedData,
+                    );
 
-                assertStillCurrent();
+                  assertStillCurrent();
 
-                const returnedSigner =
-                  typedResult.signer
-                    ?.trim()
-                    .toLowerCase();
+                  const returnedSigner =
+                    typedResult.signer
+                      ?.trim()
+                      .toLowerCase();
 
-                if (
-                  returnedSigner !==
-                  walletAddress
-                ) {
-                  throw new Error(
-                    'The wallet changed while VeInvite was verifying ownership. Please try again.',
-                  );
+                  if (
+                    returnedSigner !==
+                    walletAddress
+                  ) {
+                    throw new Error(
+                      'The wallet changed while VeInvite was verifying ownership. Please try again.',
+                    );
+                  }
+
+                  signature =
+                    typedResult.signature;
+                  proofType =
+                    'typed_data';
+                } catch (error) {
+                  const v2Unavailable =
+                    error instanceof Error &&
+                    error.message ===
+                      'VeWorld v2 API is not available';
+
+                  if (!v2Unavailable) {
+                    throw error;
+                  }
+
+                  // Only a capability failure that occurs before a v2 signing
+                  // request is opened may use the legacy certificate fallback.
+                  await signCertificateFallback();
                 }
-
-                signature =
-                  typedResult.signature;
-                proofType =
-                  'typed_data';
               } else {
-                // Compatibility fallback for non-VeWorld DAppKit sources and
-                // older VeWorld builds that do not advertise typed-data.
-                const certResponse =
-                  await requestCertificate(
-                    {
-                      purpose:
-                        'agreement',
-                      payload: {
-                        type:
-                          'text',
-                        content:
-                          challenge.message,
-                      },
-                    },
-                    {
-                      signer,
-                    },
-                  );
-
-                assertStillCurrent();
-
-                signature =
-                  certResponse.signature;
-                certificate = {
-                  purpose:
-                    'agreement',
-                  payload: {
-                    type:
-                      'text',
-                    content:
-                      challenge.message,
-                  },
-                  domain:
-                    certResponse.annex.domain,
-                  timestamp:
-                    certResponse.annex.timestamp,
-                  signer:
-                    certResponse.annex.signer,
-                  signature:
-                    certResponse.signature,
-                };
-                proofType =
-                  'certificate';
+                await signCertificateFallback();
               }
             } else {
               signature =
@@ -595,7 +608,6 @@ export function useWalletAuthentication() {
         connection.isConnectedWithDappKit,
         dappKitAccount,
         dappKitSource,
-        availableMethods,
         connectV2,
         requestCertificate,
         signMessage,
