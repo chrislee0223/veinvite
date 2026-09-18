@@ -304,7 +304,7 @@ test('final Network gestures are coordinate-owned and deliberate', () => {
 test('YOU return is separate from explicit Fit and multi-level back protects parent camera ownership', () => {
   assert.match(networkSource, /const returnToYou = useCallback/);
   assert.match(networkSource, /const fitNetwork = useCallback/);
-  assert.match(networkSource, /className="fitButton" onClick=\{fitNetwork\}/);
+  assert.match(networkSource, /className="fitButton" onClick=\{\(\) => \{ stopIntroForInteraction\(\); fitNetwork\(\); \}\}/);
   assert.match(networkSource, /onClick=\{returnToYou\}/);
   assert.match(networkSource, /immediateParent && keyWallet\(immediateParent\) === target/);
 });
