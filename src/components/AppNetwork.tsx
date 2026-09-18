@@ -20,10 +20,12 @@ import { NETWORK_WORKSPACE_COPY } from '@/lib/i18n/networkWorkspaceCopy';
 import type { Locale, SupportedLocale } from '@/lib/i18n/locales';
 import {
   getCachedNetworkRoot,
+  getNetworkRootCacheAgeMs,
   rememberNetworkRoot,
 } from '@/lib/networkRootClientCache';
 import {
   getCachedNetworkSlots,
+  getNetworkSlotsCacheAgeMs,
   prefetchNetworkSlots,
   type NetworkInviteSlotSnapshot,
 } from '@/lib/networkSlotsClientCache';
@@ -893,6 +895,7 @@ export function AppNetwork({ locale }: { locale: Locale }) {
     setIntroActive(false);
     setWorkspaceStore(wallet ? readStoredWorkspace(wallet) : { version: 1, focus: {} });
     const warmedRoot = wallet ? getCachedNetworkRoot(wallet) as NetworkData | null : null;
+    const warmedRootAge = wallet ? getNetworkRootCacheAgeMs(wallet) : null;
     const warmedSlots = wallet ? getCachedNetworkSlots(wallet) : null;
     const initialRoot = wallet ? (warmedRoot ?? provisionalNetworkData(wallet)) : null;
     if (warmedRoot) setRootTopologyReady(true);
@@ -925,9 +928,12 @@ export function AppNetwork({ locale }: { locale: Locale }) {
       return;
     }
     setLoadState('ready');
-    // A fresh complete warmup snapshot is already authoritative for this entry.
-    // Avoid an immediate duplicate request that could repaint the same surface.
-    if (!warmedRoot) void loadRoot();
+    // Reuse a just-warmed complete snapshot without duplicating the same
+    // request. Older cached snapshots remain instant first paint, but receive
+    // one authoritative full revalidation in the background.
+    if (!warmedRoot || warmedRootAge === null || warmedRootAge > 10_000) {
+      void loadRoot();
+    }
     return () => {
       cancelRequest();
     };
@@ -940,39 +946,42 @@ export function AppNetwork({ locale }: { locale: Locale }) {
       return;
     }
 
+    let active = true;
     const warmedSlots = getCachedNetworkSlots(wallet);
+    const warmedSlotsAge = getNetworkSlotsCacheAgeMs(wallet);
     if (warmedSlots) {
       setInviteSlots(warmedSlots);
       setInviteSlotsReady(true);
-      return;
+      if (warmedSlotsAge !== null && warmedSlotsAge <= 10_000) {
+        return () => {
+          active = false;
+        };
+      }
+    } else {
+      setInviteSlotsReady(false);
     }
 
     const controller = new AbortController();
     const timeoutId = window.setTimeout(() => {
-      controller.abort();
+      if (active) controller.abort();
     }, 2_500);
 
-    setInviteSlotsReady(false);
     void prefetchNetworkSlots(wallet, {
       force: true,
       signal: controller.signal,
     }).then((slots) => {
-      if (controller.signal.aborted) return;
+      if (!active || controller.signal.aborted) return;
       setInviteSlots(slots);
     }).catch(() => {
-      // Slots are supplementary. A timeout/failure keeps the graph usable,
-      // but we do not append a late result after the intro has already run.
+      // Keep a warm snapshot when refresh fails. With no prior snapshot, the
+      // graph remains usable and the next Network entry will retry.
     }).finally(() => {
       window.clearTimeout(timeoutId);
-      if (!controller.signal.aborted) {
-        setInviteSlotsReady(true);
-      } else {
-        // Bounded failure still releases the intro instead of hanging forever.
-        setInviteSlotsReady(true);
-      }
+      if (active) setInviteSlotsReady(true);
     });
 
     return () => {
+      active = false;
       window.clearTimeout(timeoutId);
       controller.abort();
     };
