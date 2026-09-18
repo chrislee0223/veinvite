@@ -2,6 +2,7 @@
 
 import { useEffect } from 'react';
 
+import { prefetchNetworkInviteSlots } from '@/lib/networkInviteSlotsClientCache';
 import {
   prefetchEnrichedNetworkRoot,
   prefetchNetworkRoot,
@@ -53,13 +54,13 @@ export function NetworkIdleWarmup() {
 
       dataStarted = true;
       void prefetchNetworkSummary(wallet).catch(() => null);
-      void prefetchNetworkRoot(wallet)
-        .catch(() => null)
-        .then(() => {
-          if (!active) return;
-          void prefetchEnrichedNetworkRoot(wallet, { force: true })
-            .catch(() => null);
-        });
+      void prefetchNetworkInviteSlots(wallet).catch(() => null);
+      // Start both root reads immediately. The round-enriched request must not
+      // wait behind the fast topology request or This Round will visibly appear
+      // one beat after the Network opens.
+      void prefetchNetworkRoot(wallet).catch(() => null);
+      void prefetchEnrichedNetworkRoot(wallet, { force: true })
+        .catch(() => null);
     };
 
     const warmModules = () => {
