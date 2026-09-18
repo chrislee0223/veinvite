@@ -820,7 +820,7 @@ export function HomeClient() {
   };
 
   return (
-    <main className="screen">
+    <main className={`screen${activeTab === 'guide' ? ' networkScreen' : ''}`}>
       <header className="topBar">
         <Brand />
         <div className="topActions">
@@ -1036,7 +1036,9 @@ export function HomeClient() {
           ) : null}
         </section>
       ) : activeTab === 'guide' ? (
-        <AppGuide locale={locale} />
+        <div className="networkTabViewport">
+          <AppGuide locale={locale} />
+        </div>
       ) : activeTab === 'leaderboard' ? (
         <PublicLeaderboard locale={locale} wallet={wallet} />
       ) : (
@@ -1106,7 +1108,12 @@ export function HomeClient() {
 
       <style jsx>{`
         .screen { min-height:100svh; box-sizing:border-box; padding:22px 18px 118px; color:#fff; background:radial-gradient(circle at 50% 16%,rgba(244,183,40,.14),transparent 32%),#080807; }
+        .screen.networkScreen { height:100svh; min-height:100svh; overflow:hidden; overscroll-behavior:none; padding-bottom:calc(92px + env(safe-area-inset-bottom)); display:flex; flex-direction:column; }
         .topBar { width:min(100%,520px); margin:0 auto 26px; display:flex; align-items:center; justify-content:space-between; gap:16px; }
+        .networkScreen .topBar { flex:0 0 auto; margin-bottom:10px; }
+        .networkTabViewport { width:100%; min-height:0; flex:1 1 auto; display:flex; }
+        .networkTabViewport :global(.networkHubShell) { width:100%; height:100%; min-height:0; display:flex; }
+        .networkTabViewport :global(.networkCanvasPage) { flex:1 1 auto; min-height:0; }
         .topActions { min-width:0; display:flex; align-items:center; gap:10px; }
         .utilityActions { min-width:0; display:flex; align-items:center; justify-content:flex-end; gap:8px; }
         .languageSelect { max-width:155px; height:40px; padding:0 28px 0 11px; border:1px solid rgba(255,255,255,.1); border-radius:13px; background:#141625; color:#fff; font:inherit; font-size:.76rem; font-weight:800; cursor:pointer; }
@@ -1160,6 +1167,8 @@ export function HomeClient() {
         @keyframes skeletonPulse { 0%,100% { opacity:.5; } 50% { opacity:1; } }
         @media (max-width:560px) {
           .screen { padding:18px 14px 116px; }
+          .screen.networkScreen { padding:14px 14px calc(88px + env(safe-area-inset-bottom)); }
+          .networkScreen .topBar { margin-bottom:8px; }
           .topBar { align-items:flex-start; }
           .topActions { max-width:58%; align-items:flex-end; flex-direction:column-reverse; gap:7px; }
           .utilityActions { width:100%; }
