@@ -370,23 +370,26 @@ export function useWalletAuthentication() {
               );
               assertStillCurrent();
 
+              // Do not time out the native VeWorld certificate prompt here.
+              // requestCertificate() owns wallet UI that AbortController cannot
+              // reliably dismiss. Releasing VeInvite's auth lock while that
+              // sheet is still alive can open a second certificate request and
+              // recreate the orphaned spinner race. The user can cancel the
+              // wallet sheet explicitly; until it settles, this authentication
+              // remains the single browser-global signing flow.
               const certResponse =
-                await withTimeout(
-                  requestCertificate(
-                    {
-                      purpose: 'agreement',
-                      payload: {
-                        type: 'text',
-                        content:
-                          challenge.message,
-                      },
+                await requestCertificate(
+                  {
+                    purpose: 'agreement',
+                    payload: {
+                      type: 'text',
+                      content:
+                        challenge.message,
                     },
-                    {
-                      signer,
-                    },
-                  ),
-                  WALLET_SIGNATURE_TIMEOUT_MS,
-                  'Wallet signature request timed out.',
+                  },
+                  {
+                    signer,
+                  },
                 );
 
               assertStillCurrent();
