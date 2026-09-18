@@ -25,6 +25,7 @@ const [
 ]);
 
 const networkWarmupSource = await readFile('src/components/NetworkIdleWarmup.tsx', 'utf8');
+const networkSlotCacheSource = await readFile('src/lib/networkInviteSlotsClientCache.ts', 'utf8');
 
 const componentFiles = await readdir('src/components');
 const qaFiles = await readdir('src/qa');
@@ -156,9 +157,16 @@ test('Network first paint is immediate, warmed, and never swaps to a blocking lo
   assert.match(networkSource, /getCachedNetworkRoot\(wallet\)/);
   assert.match(networkSource, /provisionalNetworkData\(wallet\)/);
   assert.match(networkSource, /rememberNetworkRoot\(requestWallet, payload\)/);
-  assert.match(networkSource, /setLoadState\('ready'\)[\s\S]*void fetchNetwork\(requestWallet\)\.then/);
+  assert.match(networkSource, /const fastRequest = fetchNetwork\(requestWallet,[\s\S]*fast: true/);
+  assert.match(networkSource, /const enrichedRequest = fetchNetwork\(requestWallet,[\s\S]*signal: controller\.signal/);
+  const fastRequestIndex = networkSource.indexOf('const fastRequest = fetchNetwork');
+  const enrichedRequestIndex = networkSource.indexOf('const enrichedRequest = fetchNetwork');
+  const fastAwaitIndex = networkSource.indexOf('await fastRequest', fastRequestIndex);
+  assert.ok(fastRequestIndex >= 0 && enrichedRequestIndex > fastRequestIndex);
+  assert.ok(fastAwaitIndex > enrichedRequestIndex);
   assert.match(networkWarmupSource, /prefetchNetworkRoot\(wallet\)/);
   assert.match(networkWarmupSource, /prefetchEnrichedNetworkRoot\(wallet, \{ force: true \}\)/);
+  assert.match(networkWarmupSource, /prefetchNetworkInviteSlots\(wallet\)/);
   assert.doesNotMatch(networkSource, /if \(loadState === 'loading' \|\| loadState === 'idle'\)[\s\S]{0,260}networkStateCard/);
 });
 
@@ -212,7 +220,11 @@ test('two invite slots are current capacity, not a lifetime two-branch limit', (
   assert.match(networkSlotsRouteSource, /state: row\.invitee_wallet \? 'IN_PROGRESS'/);
   assert.match(networkSlotsRouteSource, /completedSteps/);
   assert.match(networkSource, /\/api\/network\/slots\?wallet=/);
-  assert.match(networkSource, /const \[inviteSlots, setInviteSlots\] = useState<InviteSlotState\[\]>\(\[\]\)/);
+  assert.match(networkSource, /getCachedNetworkInviteSlots\(wallet\)/);
+  assert.match(networkSource, /rememberNetworkInviteSlots\(wallet, slots\)/);
+  assert.match(networkSlotCacheSource, /STORAGE_KEY = 'veinvite_network_invite_slots_v1'/);
+  assert.match(networkSlotCacheSource, /window\.sessionStorage/);
+  assert.match(networkSlotCacheSource, /prefetchNetworkInviteSlots/);
   assert.match(networkSource, /positionedInviteSlots/);
   assert.doesNotMatch(networkSource, /2 - currentData\.children\.length/);
 });
@@ -264,6 +276,21 @@ test('single runtime keeps the approved radial Network visual and deliberate mot
   assert.doesNotMatch(networkSource, /background-size:auto,28px 28px,28px 28px/);
 });
 
+test('Network hides the world until root topology and both invite slots form one complete scene', () => {
+  assert.match(networkSource, /const rootSceneReady = rootTopologyReady && inviteSlotsReady/);
+  assert.match(networkSource, /rootSceneReady \? 'sceneReady' : 'scenePending'/);
+  assert.match(networkSource, /\.worldContent\.scenePending\{opacity:0;pointer-events:none\}/);
+  assert.match(networkSource, /\.worldContent\.sceneReady\{opacity:1;transition:opacity 120ms ease-out\}/);
+  assert.match(networkSource, /setInviteSlots\(cachedInviteSlots \?\? \[\]\)/);
+});
+
+test('Network header reveals only a complete round metric and never a placeholder transition', () => {
+  assert.match(networkSource, /const headerMetricsReady = headerThisRound !== null/);
+  assert.match(networkSource, /metricsReady' : 'metricsPending'/);
+  assert.match(networkSource, /\.summary\.metricsPending\{visibility:hidden\}/);
+  assert.doesNotMatch(networkSource, /headerThisRound === null \? '–'/);
+});
+
 test('Network intro waits for the authoritative slot attempt to settle before YOU-to-fit motion', () => {
   const readinessGate = networkSource.indexOf('if (!inviteSlotsReady) return;');
   const introStart = networkSource.indexOf(
@@ -275,11 +302,10 @@ test('Network intro waits for the authoritative slot attempt to settle before YO
   assert.match(networkSource, /setInviteSlots\(slots\);\s*setInviteSlotsReady\(true\);/);
   assert.doesNotMatch(networkSource, /introReadyFallback|fallbackTimer/);
 });
-test('Network entry repeats a stable YOU-to-fit motion on every mount without stale session camera restore', () => {
-  assert.doesNotMatch(networkSource, /sessionStorage/);
+test('Network entry repeats a stable YOU-to-fit motion on every mount without stale camera restore', () => {
   assert.doesNotMatch(networkSource, /StoredRuntimeState|runtimeSessionKey|readStoredRuntimeState/);
   assert.match(networkSource, /const \[rootTopologyReady, setRootTopologyReady\] = useState\(false\)/);
-  assert.match(networkSource, /const \[inviteSlotsReady, setInviteSlotsReady\] = useState\(false\)/);
+  assert.match(networkSource, /const \[inviteSlotsReady, setInviteSlotsReady\] = useState\([\s\S]*Boolean\(initialInviteSlots\)/);
   assert.match(networkSource, /const \[stageStable, setStageStable\] = useState\(false\)/);
   assert.match(networkSource, /requestAnimationFrame[\s\S]*requestAnimationFrame/);
   assert.match(networkSource, /setView\(centeredView\(stageSize, 1\)\)[\s\S]*setIntroActive\(true\)[\s\S]*fitNetwork\(\)/);
