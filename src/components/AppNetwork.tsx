@@ -40,8 +40,8 @@ import {
   groupContainingWallet,
   moveWorkspaceMemberToGroup,
   parseNetworkWorkspaceStore,
-  removeWorkspaceGroup,
-  removeWorkspaceMemberFromGroup,
+  removeWorkspaceGroupAtMemberPoints,
+  removeWorkspaceMemberFromGroupAtPoint,
   serializeNetworkWorkspaceStore,
   withFocusWorkspace,
   withGroupPosition,
@@ -180,6 +180,7 @@ const HOLD_CANCEL_DISTANCE = 8;
 const NODE_ENTER_SCALE = 1.85;
 const NODE_HIT_RADIUS = 58;
 const GROUP_DROP_RADIUS = 92;
+const GROUP_SCREEN_DROP_RADIUS = 58;
 const WHEEL_ENTER_DISTANCE = 120;
 const WORKSPACE_PREFIX = 'veinvite-network-workspace-v1:';
 
@@ -635,7 +636,8 @@ export function AppNetwork({ locale }: { locale: Locale }) {
   const [groupsOpen, setGroupsOpen] = useState(false);
   const [draftWorkspace, setDraftWorkspace] = useState<NetworkFocusWorkspace | null>(null);
   const [groupDraft, setGroupDraft] = useState<GroupDraft | null>(null);
-  const [selectedGroupId, setSelectedGroupId] = useState<string | null>(null);
+  const [managedGroupId, setManagedGroupId] = useState<string | null>(null);
+  const [memberDropGroupId, setMemberDropGroupId] = useState<string | null>(null);
   const [draggingWorkspaceKey, setDraggingWorkspaceKey] = useState<string | null>(null);
   const [groupingWallet, setGroupingWallet] = useState<string | null>(null);
   const [groupDropActive, setGroupDropActive] = useState(false);
@@ -855,8 +857,8 @@ export function AppNetwork({ locale }: { locale: Locale }) {
   const selectedQualified = selectedData?.summary.qualified ?? selectedMember?.qualified ?? currentData?.summary.qualified ?? 0;
   const selectedRound = selectedData?.summary.thisRound ?? selectedMember?.thisRound ?? currentData?.summary.thisRound ?? null;
   const selectedStatus = selectedMember?.status ?? 'IN_PROGRESS';
-  const selectedGroup = selectedGroupId
-    ? activeWorkspace.groups.find((group) => group.id === selectedGroupId) ?? null
+  const managedGroup = managedGroupId
+    ? activeWorkspace.groups.find((group) => group.id === managedGroupId) ?? null
     : null;
   const restoringWalletSet = useMemo(
     () => new Set(restoringWallets.map(keyWallet)),
@@ -1199,7 +1201,7 @@ export function AppNetwork({ locale }: { locale: Locale }) {
       cacheRef.current.set(keyWallet(initialRoot.focusWallet), initialRoot);
     }
     setSelectedWallet(null);
-    setSelectedGroupId(null);
+    setManagedGroupId(null);
     setEditingLayout(false);
     setGroupsOpen(false);
     draftWorkspaceRef.current = null;
@@ -1402,7 +1404,7 @@ export function AppNetwork({ locale }: { locale: Locale }) {
     draftWorkspaceRef.current = null;
     setDraftWorkspace(null);
     setGroupDraft(null);
-    setSelectedGroupId(null);
+    setManagedGroupId(null);
     workspaceDragRef.current = null;
     setDraggingWorkspaceKey(null);
     setGroupingWallet(null);
@@ -1504,7 +1506,7 @@ export function AppNetwork({ locale }: { locale: Locale }) {
       beginNavigationMotion(direction);
       setFocusWallet(payload.focusWallet);
       setSelectedWallet(null);
-      setSelectedGroupId(null);
+      setManagedGroupId(null);
         setSearchQuery('');
       setSearchResults([]);
 
@@ -1701,7 +1703,7 @@ export function AppNetwork({ locale }: { locale: Locale }) {
     setGroupsOpen(false);
     closeSearch();
     setSelectedWallet(null);
-    setSelectedGroupId(null);
+    setManagedGroupId(null);
     setGroupDraft(null);
     setWorkspaceNotice('');
   }, [currentFocusKey, workspaceStore, setEditingWorkspace, stopIntroForInteraction, closeSearch]);
@@ -1728,7 +1730,7 @@ export function AppNetwork({ locale }: { locale: Locale }) {
     setGroupsOpen(false);
     draftWorkspaceRef.current = null;
     setDraftWorkspace(null);
-    setSelectedGroupId(null);
+    setManagedGroupId(null);
     setEditingLayout(false);
     setWorkspaceNotice(w.layoutSaved);
     if (noticeTimerRef.current !== null) window.clearTimeout(noticeTimerRef.current);
@@ -1763,7 +1765,7 @@ export function AppNetwork({ locale }: { locale: Locale }) {
     setGroupsOpen(false);
     closeSearch();
     setSelectedWallet(null);
-    setSelectedGroupId(null);
+    setManagedGroupId(null);
     setGroupDropActive(false);
     setNewGroupDropActive(false);
     setGroupDraft({
@@ -1924,7 +1926,7 @@ export function AppNetwork({ locale }: { locale: Locale }) {
     }
     setDraggingWorkspaceKey(`${kind}:${key}`);
     setSelectedWallet(null);
-    setSelectedGroupId(null);
+    setManagedGroupId(null);
   }, [editingLayout, groupingWallet, view, positionedChildren, moveDragGhost]);
 
   const cancelHoldDrag = useCallback((restore = false) => {
@@ -2690,7 +2692,7 @@ export function AppNetwork({ locale }: { locale: Locale }) {
                   {activeWorkspace.groups.length ? (
                     <div className="groupsList">
                       {activeWorkspace.groups.map((group) => (
-                        <button type="button" key={group.id} onClick={() => { setSelectedGroupId(group.id); toggleGroupCollapsed(group.id); }}>
+                        <button type="button" key={group.id} onClick={() => { setManagedGroupId(group.id); toggleGroupCollapsed(group.id); }}>
                           <span>{group.label || w.group}</span>
                           <small>{group.members.length} {w.members} · {group.collapsed === false ? w.collapseGroup : w.expandGroup}</small>
                         </button>
@@ -2808,7 +2810,7 @@ export function AppNetwork({ locale }: { locale: Locale }) {
               style={{ left: FOCUS_X, top: FOCUS_Y }}
               onClick={() => {
                 if (suppressClickRef.current || editingLayout) return;
-                setSelectedGroupId(null);
+                setManagedGroupId(null);
                 setSelectedWallet(focusKey);
               }}
               data-no-pan="true"
@@ -2864,7 +2866,7 @@ export function AppNetwork({ locale }: { locale: Locale }) {
                   onContextMenu={(event) => event.preventDefault()}
                   onClick={() => {
                     if (suppressClickRef.current || editingLayout) return;
-                    setSelectedGroupId(null);
+                    setManagedGroupId(null);
                     setSelectedWallet(childKey);
                   }}
                   data-no-pan="true"
@@ -2892,7 +2894,7 @@ export function AppNetwork({ locale }: { locale: Locale }) {
               return (
                 <button
                   type="button"
-                  className={`groupNode${editingLayout ? ' draggable' : ''}${draggingWorkspaceKey === dragKey ? ' dragging' : ''}${selectedGroupId === group.id ? ' selected' : ''}${group.collapsed === false ? ' expanded' : ''}${createdGroupId === group.id ? ' created' : ''}`}
+                  className={`groupNode${editingLayout ? ' draggable' : ''}${draggingWorkspaceKey === dragKey ? ' dragging' : ''}${managedGroupId === group.id ? ' selected' : ''}${group.collapsed === false ? ' expanded' : ''}${createdGroupId === group.id ? ' created' : ''}`}
                   key={group.id}
                   style={{ left: group.x, top: group.y }}
                   onPointerDown={(event) => {
@@ -2902,7 +2904,7 @@ export function AppNetwork({ locale }: { locale: Locale }) {
                   onClick={() => {
                     if (suppressClickRef.current) return;
                     setSelectedWallet(null);
-                    setSelectedGroupId(group.id);
+                    setManagedGroupId(group.id);
                     toggleGroupCollapsed(group.id);
                   }}
                   data-no-pan="true"
@@ -3030,15 +3032,15 @@ export function AppNetwork({ locale }: { locale: Locale }) {
           </aside>
         ) : null}
 
-        {selectedGroup ? (
+        {managedGroup ? (
           <aside className="profileCard groupCard" data-no-pan="true">
-            <button className="profileClose" type="button" onClick={() => setSelectedGroupId(null)} aria-label={c.close}>×</button>
+            <button className="profileClose" type="button" onClick={() => setManagedGroupId(null)} aria-label={c.close}>×</button>
             <div className="groupCardTitle">
               <span className="groupGlyph" aria-hidden="true"><i /><i /><i /></span>
-              <div><strong>{selectedGroup.label || w.group}</strong><span>{selectedGroup.members.length} {w.members}</span></div>
+              <div><strong>{managedGroup.label || w.group}</strong><span>{managedGroup.members.length} {w.members}</span></div>
             </div>
             <div className="groupMemberList">
-              {selectedGroup.members.map((member) => (
+              {managedGroup.members.map((member) => (
                 <span key={member} title={member}>
                   {shortWallet(member)}
                   {editingLayout ? (
@@ -3053,17 +3055,17 @@ export function AppNetwork({ locale }: { locale: Locale }) {
                 </span>
               ))}
             </div>
-            <button type="button" className="groupToggleButton" onClick={() => toggleGroupCollapsed(selectedGroup.id)}>
-              {selectedGroup.collapsed === false ? w.collapseGroup : w.expandGroup}
+            <button type="button" className="groupToggleButton" onClick={() => toggleGroupCollapsed(managedGroup.id)}>
+              {managedGroup.collapsed === false ? w.collapseGroup : w.expandGroup}
             </button>
             {editingLayout ? (
               <button
                 type="button"
                 className="ungroupButton"
                 onClick={() => {
-                  animateRestoredWallets(selectedGroup.members);
-                  mutateEditingWorkspace((current) => removeWorkspaceGroup(current, selectedGroup.id));
-                  setSelectedGroupId(null);
+                  animateRestoredWallets(managedGroup.members);
+                  mutateEditingWorkspace((current) => removeWorkspaceGroup(current, managedGroup.id));
+                  setManagedGroupId(null);
                 }}
               >{w.ungroup}</button>
             ) : null}
