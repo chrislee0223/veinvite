@@ -786,7 +786,6 @@ export function AppNetwork({ locale }: { locale: Locale }) {
     const serial = cancelRequest();
     const controller = new AbortController();
     abortRef.current = controller;
-    setLoadState('loading');
     setLoadError('');
     setSelectedWallet(null);
     setSearchQuery('');
@@ -798,9 +797,6 @@ export function AppNetwork({ locale }: { locale: Locale }) {
       keyWallet(requestWallet) === keyWallet(wallet);
 
     try {
-      // First paint intentionally skips live-round enrichment. Topology,
-      // statuses, counts and interactions can render immediately; the exact
-      // This Round values are refreshed just after the canvas becomes usable.
       const payload = await fetchNetwork(requestWallet, {
         signal: controller.signal,
         fast: true,
@@ -809,6 +805,7 @@ export function AppNetwork({ locale }: { locale: Locale }) {
 
       cacheRef.current.clear();
       cacheRef.current.set(keyWallet(payload.focusWallet), payload);
+      rememberNetworkRoot(requestWallet, payload);
       setRootData(payload);
       setFocusWallet(payload.rootWallet);
 
@@ -821,9 +818,6 @@ export function AppNetwork({ locale }: { locale: Locale }) {
       setCacheVersion((value) => value + 1);
       setLoadState('ready');
 
-      // Restore a previously focused branch without holding the whole Network
-      // behind a second request. Any deliberate navigation cancels this late
-      // restore through the request serial guard.
       if (stored && keyWallet(stored.focusWallet) !== keyWallet(payload.rootWallet)) {
         void fetchNetwork(requestWallet, {
           focus: stored.focusWallet,
@@ -836,28 +830,26 @@ export function AppNetwork({ locale }: { locale: Locale }) {
           initializedWalletRef.current = keyWallet(requestWallet);
           setCacheVersion((value) => value + 1);
         }).catch(() => {
-          // Root view is already usable; branch restoration is best-effort.
+          // Root view is already interactive; branch restoration is best-effort.
         });
       }
 
-      // Exact live-round metrics are enrichment, not a first-paint dependency.
-      // Keep the fast topology on screen while the authoritative round window
-      // resolves in the background.
       void fetchNetwork(requestWallet).then((enriched) => {
         if (!canCommit()) return;
         cacheRef.current.set(keyWallet(enriched.focusWallet), enriched);
+        rememberNetworkRoot(requestWallet, enriched);
         setRootData(enriched);
         setCacheVersion((value) => value + 1);
       }).catch(() => {
-        // The fast payload remains valid if round enrichment is temporarily
-        // unavailable.
+        // Fast topology remains usable if round enrichment is unavailable.
       });
     } catch (error) {
       if (!canCommit()) return;
-      setRootData(null);
-      setFocusWallet(null);
+      // Never replace the Network surface with a blocking loading/error card.
+      // Keep the warmed or provisional canvas visible and retry on the next
+      // entry while preserving the error for diagnostics.
       setLoadError(error instanceof Error ? error.message : t.loadError);
-      setLoadState('error');
+      setLoadState('ready');
     } finally {
       if (abortRef.current === controller) abortRef.current = null;
     }
