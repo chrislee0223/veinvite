@@ -523,6 +523,19 @@ test('edit drag cancellation restores the pre-drag workspace for multitouch and 
   assert.match(networkSource, /setGroupDropActive\(false\)/);
 });
 
+test('second touch cannot restart a node drag after pinch handoff begins', () => {
+  const workspaceDragStart = networkSource.indexOf('const beginWorkspaceDrag = useCallback');
+  const holdDragStart = networkSource.indexOf('const beginHoldDrag = useCallback');
+  const dropStart = networkSource.indexOf('const finishWorkspaceDrop = useCallback');
+  assert.ok(workspaceDragStart >= 0 && holdDragStart > workspaceDragStart && dropStart > holdDragStart);
+  const workspaceDragSource = networkSource.slice(workspaceDragStart, holdDragStart);
+  const holdDragSource = networkSource.slice(holdDragStart, dropStart);
+  assert.match(workspaceDragSource, /pointersRef\.current\.size !== 1/);
+  assert.match(workspaceDragSource, /pinchRef\.current/);
+  assert.match(holdDragSource, /pointersRef\.current\.size !== 1/);
+  assert.match(holdDragSource, /pinchRef\.current/);
+});
+
 test('group transfers are unique, bounded, and long-press native UI stays blocked', () => {
   assert.match(workspaceSource, /target\.members\.some\(\(member\) => member\.toLowerCase\(\) === key\)/);
   assert.match(workspaceSource, /target\.members\.length >= MAX_MEMBERS_PER_GROUP/);
