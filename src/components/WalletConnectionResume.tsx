@@ -216,7 +216,9 @@ export function WalletConnectionResume() {
       // that transition. Re-initialize dapp-kit from its persisted state so the
       // current page receives the account without requiring a manual refresh.
       await runWalletProviderReconciliation(
-        () => initializeAsync(),
+        async () => {
+          await initializeAsync();
+        },
       );
     } catch (error) {
       console.warn(
