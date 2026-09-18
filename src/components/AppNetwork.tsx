@@ -2788,8 +2788,11 @@ export function AppNetwork({ locale }: { locale: Locale }) {
 
             {visibleChildren.map((child) => {
               const childKey = keyWallet(child.wallet);
+              const parentGroup = groupByMember.get(childKey) ?? null;
+              const expandedGroupMember = Boolean(parentGroup && parentGroup.collapsed === false);
+              const dragKind: WorkspaceDragKind = expandedGroupMember ? 'group-member' : 'node';
               const isSelected = selectedWallet === childKey;
-              const dragKey = `node:${childKey}`;
+              const dragKey = `${dragKind}:${childKey}`;
               return (
                 <button
                   type="button"
@@ -2797,8 +2800,23 @@ export function AppNetwork({ locale }: { locale: Locale }) {
                   className={`personNode childNode status-${child.status.toLowerCase()}${isSelected ? ' selected' : ''}${editingLayout ? ' draggable' : ''}${draggingWorkspaceKey === dragKey ? ' dragging' : ''}${dragGhost?.key === childKey ? ' dragGhostSource' : ''}${groupingWallet === childKey ? ' grouping' : ''}${restoringWalletSet.has(childKey) ? ' restoring' : ''}`}
                   style={{ left: child.x, top: child.y }}
                   onPointerDown={(event) => {
-                    if (editingLayout) beginWorkspaceDrag(event, 'node', childKey, { x: child.x, y: child.y });
-                    else beginHoldDrag(event, childKey, { x: child.x, y: child.y });
+                    if (editingLayout) {
+                      beginWorkspaceDrag(
+                        event,
+                        dragKind,
+                        childKey,
+                        { x: child.x, y: child.y },
+                        expandedGroupMember ? parentGroup?.id : undefined,
+                      );
+                    } else {
+                      beginHoldDrag(
+                        event,
+                        childKey,
+                        { x: child.x, y: child.y },
+                        dragKind,
+                        expandedGroupMember ? parentGroup?.id : undefined,
+                      );
+                    }
                   }}
                   onContextMenu={(event) => event.preventDefault()}
                   onClick={() => {
@@ -2834,7 +2852,10 @@ export function AppNetwork({ locale }: { locale: Locale }) {
                   className={`groupNode${editingLayout ? ' draggable' : ''}${draggingWorkspaceKey === dragKey ? ' dragging' : ''}${selectedGroupId === group.id ? ' selected' : ''}${group.collapsed === false ? ' expanded' : ''}${createdGroupId === group.id ? ' created' : ''}`}
                   key={group.id}
                   style={{ left: group.x, top: group.y }}
-                  onPointerDown={editingLayout ? (event) => beginWorkspaceDrag(event, 'group', group.id, { x: group.x, y: group.y }) : undefined}
+                  onPointerDown={(event) => {
+                    if (editingLayout) beginWorkspaceDrag(event, 'group', group.id, { x: group.x, y: group.y });
+                    else beginHoldDrag(event, group.id, { x: group.x, y: group.y }, 'group');
+                  }}
                   onClick={() => {
                     if (suppressClickRef.current) return;
                     setSelectedWallet(null);
@@ -2845,7 +2866,7 @@ export function AppNetwork({ locale }: { locale: Locale }) {
                   data-group-drop-id={group.id}
                   data-workspace-draggable={editingLayout ? 'true' : undefined}
                 >
-                  <span className="groupGlyph" aria-hidden="true"><i /><i /><i /></span>
+                  <span className="groupGlyph" aria-hidden="true"><GroupsControlGlyph size={22} /></span>
                   <strong>{group.label || w.group}</strong>
                   <small>{group.members.length} {w.members}</small>
                 </button>
