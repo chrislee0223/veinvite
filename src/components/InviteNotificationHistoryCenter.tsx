@@ -25,9 +25,14 @@ const WALLET_SESSION_INVALID_EVENT =
 
 type Props = ComponentProps<
   typeof UnifiedInviteNotificationHistoryCenter
->;
+> & {
+  presentationReady?: boolean;
+};
 
-export function InviteNotificationHistoryCenter(props: Props) {
+export function InviteNotificationHistoryCenter({
+  presentationReady = true,
+  ...props
+}: Props) {
   const { wallet } = useWalletLauncher();
   const [needsRewardClaim, setNeedsRewardClaim] = useState(false);
 
@@ -123,7 +128,9 @@ export function InviteNotificationHistoryCenter(props: Props) {
   }, [wallet]);
 
   const showClaimAttention =
-    needsRewardClaim && props.unreadCount < 1;
+    presentationReady &&
+    needsRewardClaim &&
+    props.unreadCount < 1;
   const supportedLocale = props.locale as SupportedLocale;
   const claimAttentionText =
     PROGRESS_CLAIM_COPY[supportedLocale].rewardAvailable;
