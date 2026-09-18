@@ -370,6 +370,32 @@ export function removeWorkspaceGroup(
   };
 }
 
+export function removeWorkspaceMemberFromGroupAtPoint(
+  workspace: NetworkFocusWorkspace,
+  wallet: string,
+  point: NetworkWorkspacePoint | null,
+): NetworkFocusWorkspace {
+  const key = wallet.toLowerCase();
+  const withoutMember = removeWorkspaceMemberFromGroup(workspace, key);
+  return point ? withNodePosition(withoutMember, key, point) : withoutMember;
+}
+
+export function removeWorkspaceGroupAtMemberPoints(
+  workspace: NetworkFocusWorkspace,
+  groupId: string,
+  memberPoints: Record<string, NetworkWorkspacePoint>,
+): NetworkFocusWorkspace {
+  const group = workspace.groups.find((item) => item.id === groupId);
+  if (!group) return workspace;
+  let next = removeWorkspaceGroup(workspace, groupId);
+  for (const member of group.members) {
+    const key = member.toLowerCase();
+    const point = memberPoints[key];
+    if (point) next = withNodePosition(next, key, point);
+  }
+  return next;
+}
+
 export function groupContainingWallet(
   workspace: NetworkFocusWorkspace,
   wallet: string,
