@@ -515,7 +515,6 @@ export function AppNetwork({ locale }: { locale: Locale }) {
   const [inviteSlots, setInviteSlots] = useState<InviteSlotState[]>([]);
   const [rootTopologyReady, setRootTopologyReady] = useState(false);
   const [inviteSlotsReady, setInviteSlotsReady] = useState(false);
-  const [introReadyFallback, setIntroReadyFallback] = useState(false);
   const [stageStable, setStageStable] = useState(false);
   const [stageSize, setStageSize] = useState({ width: 0, height: 0 });
   const [view, setView] = useState<View>({
@@ -894,7 +893,6 @@ export function AppNetwork({ locale }: { locale: Locale }) {
     introCancelledRef.current = false;
     setRootTopologyReady(false);
     setInviteSlotsReady(false);
-    setIntroReadyFallback(false);
     setStageStable(false);
     if (introFitTimerRef.current !== null) {
       window.clearTimeout(introFitTimerRef.current);
@@ -948,17 +946,11 @@ export function AppNetwork({ locale }: { locale: Locale }) {
     if (!wallet) {
       setInviteSlots([]);
       setInviteSlotsReady(false);
-      setIntroReadyFallback(false);
-      return;
+        return;
     }
 
     let active = true;
     setInviteSlotsReady(false);
-    setIntroReadyFallback(false);
-
-    const fallbackTimer = window.setTimeout(() => {
-      if (active) setIntroReadyFallback(true);
-    }, 650);
 
     const controller = new AbortController();
     let retryTimer: number | null = null;
@@ -966,6 +958,7 @@ export function AppNetwork({ locale }: { locale: Locale }) {
     let lastAttemptAt = 0;
     const SLOT_RETRY_DELAY_MS = 650;
     const SLOT_REFRESH_MIN_INTERVAL_MS = 1_500;
+    const SLOT_REQUEST_TIMEOUT_MS = 2_000;
 
     const parseSlots = (
       payload: { slots?: unknown } | null,
@@ -998,6 +991,38 @@ export function AppNetwork({ locale }: { locale: Locale }) {
       return slots.length === 2 ? slots : null;
     };
 
+    const fetchSlotResponse = async (): Promise<Response> => {
+      const requestController = new AbortController();
+      const abortRequest = () => requestController.abort();
+
+      if (controller.signal.aborted) {
+        requestController.abort();
+      } else {
+        controller.signal.addEventListener('abort', abortRequest, { once: true });
+      }
+
+      const timeoutId = window.setTimeout(
+        () => requestController.abort(),
+        SLOT_REQUEST_TIMEOUT_MS,
+      );
+
+      try {
+        return await fetch(
+          `/api/network/slots?wallet=${encodeURIComponent(wallet)}`,
+          {
+            method: 'GET',
+            credentials: 'include',
+            cache: 'no-store',
+            headers: { Accept: 'application/json' },
+            signal: requestController.signal,
+          },
+        );
+      } finally {
+        window.clearTimeout(timeoutId);
+        controller.signal.removeEventListener('abort', abortRequest);
+      }
+    };
+
     const refreshSlots = async (
       retryOnFailure = true,
       respectThrottle = false,
@@ -1017,16 +1042,7 @@ export function AppNetwork({ locale }: { locale: Locale }) {
       lastAttemptAt = now;
 
       try {
-        const response = await fetch(
-          `/api/network/slots?wallet=${encodeURIComponent(wallet)}`,
-          {
-            method: 'GET',
-            credentials: 'include',
-            cache: 'no-store',
-            headers: { Accept: 'application/json' },
-            signal: controller.signal,
-          },
-        );
+        const response = await fetchSlotResponse();
 
         if (!response.ok) {
           throw new Error(`Invite slot refresh failed (${response.status}).`);
@@ -1039,7 +1055,6 @@ export function AppNetwork({ locale }: { locale: Locale }) {
         }
 
         if (!active) return;
-        window.clearTimeout(fallbackTimer);
         if (retryTimer !== null) {
           window.clearTimeout(retryTimer);
           retryTimer = null;
@@ -1079,7 +1094,6 @@ export function AppNetwork({ locale }: { locale: Locale }) {
 
     return () => {
       active = false;
-      window.clearTimeout(fallbackTimer);
       if (retryTimer !== null) window.clearTimeout(retryTimer);
       controller.abort();
       window.removeEventListener('focus', handleResume);
@@ -1267,7 +1281,7 @@ export function AppNetwork({ locale }: { locale: Locale }) {
     if (!wallet || loadState !== 'ready' || !currentData) return;
     if (stageSize.width <= 0 || stageSize.height <= 0 || !stageStable) return;
     if (!rootTopologyReady) return;
-    if (!inviteSlotsReady && !introReadyFallback) return;
+    if (!inviteSlotsReady) return;
     if (introCancelledRef.current) return;
     if (keyWallet(currentData.focusWallet) !== keyWallet(currentData.rootWallet)) return;
     const walletKey = keyWallet(wallet);
@@ -1299,7 +1313,6 @@ export function AppNetwork({ locale }: { locale: Locale }) {
     stageStable,
     rootTopologyReady,
     inviteSlotsReady,
-    introReadyFallback,
     fitNetwork,
   ]);
 

@@ -212,11 +212,15 @@ test('two invite slots are current capacity, not a lifetime two-branch limit', (
 test('invite slot state retries transient failures and refreshes when the app resumes', () => {
   assert.match(networkSource, /SLOT_RETRY_DELAY_MS\s*=\s*650/);
   assert.match(networkSource, /SLOT_REFRESH_MIN_INTERVAL_MS\s*=\s*1_500/);
+  assert.match(networkSource, /SLOT_REQUEST_TIMEOUT_MS\s*=\s*2_000/);
+  assert.match(networkSource, /const fetchSlotResponse = async/);
+  assert.match(networkSource, /signal: requestController\.signal/);
   assert.match(networkSource, /slots\.length === 2 \? slots : null/);
   assert.match(networkSource, /window\.addEventListener\('focus', handleResume\)/);
   assert.match(networkSource, /document\.addEventListener\('visibilitychange', handleResume\)/);
   assert.match(networkSource, /void refreshSlots\(false, false\)/);
   assert.match(networkSource, /setInviteSlotsReady\(true\)/);
+  assert.doesNotMatch(networkSource, /introReadyFallback/);
   assert.doesNotMatch(networkSource, /setInterval\(/);
 });
 
@@ -244,12 +248,21 @@ test('single runtime keeps the approved radial Network visual and deliberate mot
   assert.match(networkSource, /@keyframes networkNodeBloom/);
   assert.match(networkSource, /setView\(centeredView\(stageSize, 1\)\)/);
   assert.match(networkSource, /if \(!rootTopologyReady\) return/);
-  assert.match(networkSource, /if \(!inviteSlotsReady && !introReadyFallback\) return/);
+  assert.match(networkSource, /if \(!inviteSlotsReady\) return/);
   assert.doesNotMatch(networkSource, /INTRO_SESSION_PREFIX|veinvite-network-intro-v5/);
   assert.match(networkSource, /breadcrumbs\.rootOnly\{display:none\}/);
   assert.match(networkSource, /width:min\(100%,520px\)/);
   assert.doesNotMatch(networkSource, /\.personNode\{min-width:92px;padding:7px/);
   assert.doesNotMatch(networkSource, /background-size:auto,28px 28px,28px 28px/);
+});
+
+test('Network intro waits for the authoritative slot attempt to settle before YOU-to-fit motion', () => {
+  const readinessGate = networkSource.indexOf('if (!inviteSlotsReady) return;');
+  const introStart = networkSource.indexOf('setView(centeredView(stageSize, 1))');
+  assert.ok(readinessGate >= 0 && introStart > readinessGate);
+  assert.match(networkSource, /void refreshSlots\(false, false\)/);
+  assert.match(networkSource, /setInviteSlots\(slots\);\s*setInviteSlotsReady\(true\);/);
+  assert.doesNotMatch(networkSource, /introReadyFallback|fallbackTimer/);
 });
 
 test('Network entry repeats a stable YOU-to-fit motion on every mount without stale session camera restore', () => {
