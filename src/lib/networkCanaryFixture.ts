@@ -14,54 +14,80 @@ type RoundContext = {
   endAt: string;
 } | null;
 
-const WALLETS = {
-  a: '0x1000000000000000000000000000000000000001',
-  b: '0x2000000000000000000000000000000000000002',
-  c: '0x3000000000000000000000000000000000000003',
-  a1: '0x1100000000000000000000000000000000000011',
-  a2: '0x1200000000000000000000000000000000000012',
-  a3: '0x1300000000000000000000000000000000000013',
-  a11: '0x1110000000000000000000000000000000000111',
-  a12: '0x1120000000000000000000000000000000000112',
-  a111: '0x1111000000000000000000000000000000001111',
-  b1: '0x2100000000000000000000000000000000000021',
-  b2: '0x2200000000000000000000000000000000000022',
-  b11: '0x2110000000000000000000000000000000000211',
-  c1: '0x3100000000000000000000000000000000000031',
-} as const;
+export const NETWORK_CANARY_SAMPLE_SIZE = 500;
 
-const NODES: FixtureNode[] = [
-  // Root intentionally starts with one occupied invite branch. The second root
-  // slot stays empty so the production canary reproduces the real onboarding
-  // shape we want to validate: YOU -> person + available slot.
-  { wallet: WALLETS.a, parent: 'root', status: 'REWARDED', joinedAt: '2026-09-01T09:00:00.000Z' },
-  { wallet: WALLETS.b, parent: WALLETS.a, status: 'QUALIFIED', joinedAt: '2026-09-03T13:20:00.000Z' },
-  { wallet: WALLETS.c, parent: WALLETS.a, status: 'IN_PROGRESS', joinedAt: '2026-09-07T04:10:00.000Z', roundOffsetHours: 18 },
-  { wallet: WALLETS.a1, parent: WALLETS.a, status: 'REWARDED', joinedAt: '2026-09-04T10:30:00.000Z' },
-  { wallet: WALLETS.a2, parent: WALLETS.a, status: 'QUALIFIED', joinedAt: '2026-09-05T08:15:00.000Z', roundOffsetHours: 31 },
-  { wallet: WALLETS.a3, parent: WALLETS.a, status: 'IN_PROGRESS', joinedAt: '2026-09-08T12:45:00.000Z' },
-  { wallet: WALLETS.a11, parent: WALLETS.a1, status: 'REWARDED', joinedAt: '2026-09-06T02:40:00.000Z' },
-  { wallet: WALLETS.a12, parent: WALLETS.a1, status: 'QUALIFIED', joinedAt: '2026-09-09T11:05:00.000Z', roundOffsetHours: 52 },
-  { wallet: WALLETS.a111, parent: WALLETS.a11, status: 'IN_PROGRESS', joinedAt: '2026-09-11T15:25:00.000Z' },
-  { wallet: WALLETS.b1, parent: WALLETS.b, status: 'QUALIFIED', joinedAt: '2026-09-05T06:55:00.000Z' },
-  { wallet: WALLETS.b2, parent: WALLETS.b, status: 'IN_PROGRESS', joinedAt: '2026-09-10T09:35:00.000Z', roundOffsetHours: 73 },
-  { wallet: WALLETS.b11, parent: WALLETS.b1, status: 'REWARDED', joinedAt: '2026-09-12T01:50:00.000Z' },
-  { wallet: WALLETS.c1, parent: WALLETS.c, status: 'IN_PROGRESS', joinedAt: '2026-09-13T05:20:00.000Z', roundOffsetHours: 94 },
-];
+const ROOT_BRANCH_WIDTH = 12;
+const SYNTHETIC_WALLET_PREFIX = 'ca11ab1e000000000000000000000000';
+const FIXTURE_START_MS = Date.UTC(2026, 7, 20, 0, 0, 0);
+
+function walletFor(index: number): string {
+  return `0x${SYNTHETIC_WALLET_PREFIX}${index.toString(16).padStart(8, '0')}`;
+}
+
+function parentIndexFor(index: number): number | 'root' {
+  // Keep the root with one occupied direct slot so the real Network screen
+  // still exercises the Available invite slot. Entering that first branch
+  // reveals 12 direct children, then a balanced multi-generation tree.
+  if (index === 1) return 'root';
+  if (index <= ROOT_BRANCH_WIDTH + 1) return 1;
+  return 2 + Math.floor((index - (ROOT_BRANCH_WIDTH + 2)) / 3);
+}
+
+function statusFor(index: number): MemberStatus {
+  if (index % 5 === 0) return 'IN_PROGRESS';
+  if (index % 3 === 0) return 'QUALIFIED';
+  return 'REWARDED';
+}
+
+function buildFixtureNodes(): FixtureNode[] {
+  return Array.from({ length: NETWORK_CANARY_SAMPLE_SIZE }, (_, offset) => {
+    const index = offset + 1;
+    const parentIndex = parentIndexFor(index);
+    return {
+      wallet: walletFor(index),
+      parent: parentIndex === 'root' ? 'root' : walletFor(parentIndex),
+      status: statusFor(index),
+      joinedAt: new Date(FIXTURE_START_MS + index * 3 * 60 * 60 * 1000).toISOString(),
+      // A deterministic subset follows the live round window so "This Round"
+      // remains testable without making every synthetic account look new.
+      ...(index % 5 === 0 ? { roundOffsetHours: index % 120 } : {}),
+    };
+  });
+}
+
+const NODES: FixtureNode[] = buildFixtureNodes();
 
 function key(wallet: string): string {
   return wallet.toLowerCase();
 }
 
 const NODE_BY_WALLET = new Map(NODES.map((node) => [key(node.wallet), node]));
+const CHILDREN_BY_PARENT = new Map<string, FixtureNode[]>();
 
-function childrenOf(parent: string | 'root'): FixtureNode[] {
-  return NODES.filter((node) => key(node.parent) === key(parent));
+for (const node of NODES) {
+  const parentKey = key(node.parent);
+  const siblings = CHILDREN_BY_PARENT.get(parentKey);
+  if (siblings) siblings.push(node);
+  else CHILDREN_BY_PARENT.set(parentKey, [node]);
 }
 
+function childrenOf(parent: string | 'root'): FixtureNode[] {
+  return CHILDREN_BY_PARENT.get(key(parent)) ?? [];
+}
+
+const DESCENDANT_CACHE = new Map<string, FixtureNode[]>();
+
 function descendantsOf(parent: string | 'root'): FixtureNode[] {
-  const direct = childrenOf(parent);
-  return direct.flatMap((node) => [node, ...descendantsOf(node.wallet)]);
+  const parentKey = key(parent);
+  const cached = DESCENDANT_CACHE.get(parentKey);
+  if (cached) return cached;
+
+  const descendants = childrenOf(parent).flatMap((node) => [
+    node,
+    ...descendantsOf(node.wallet),
+  ]);
+  DESCENDANT_CACHE.set(parentKey, descendants);
+  return descendants;
 }
 
 function depthOf(wallet: string): number {

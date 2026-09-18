@@ -92,7 +92,7 @@ function StateCard({
       <p>{description}</p>
       {children}
       <style jsx>{`
-        .networkHubState{width:min(100%,560px);box-sizing:border-box;margin:0 auto;padding:30px 22px 28px;border:1px solid rgba(255,205,80,.14);border-radius:22px;background:radial-gradient(circle at 50% 0,rgba(244,183,40,.08),transparent 34%),rgba(255,255,255,.025);text-align:center}
+        .networkHubState{width:min(100%,520px);box-sizing:border-box;margin:0 auto;padding:30px 22px 28px;border:1px solid rgba(255,205,80,.14);border-radius:22px;background:radial-gradient(circle at 50% 0,rgba(244,183,40,.08),transparent 34%),rgba(255,255,255,.025);text-align:center}
         .experienceGlyph{width:62px;height:62px;margin:0 auto 16px;display:grid;place-items:center;border:1px solid rgba(244,183,40,.19);border-radius:50%;background:rgba(244,183,40,.06);color:#d7aa3b}
         h1{margin:0;color:#f1eee6;font-size:1.05rem;letter-spacing:-.025em}
         p{max-width:410px;margin:9px auto 0;color:#858078;font-size:.72rem;line-height:1.55}
@@ -201,7 +201,7 @@ export function AppNetworkHub({ locale }: { locale: Locale }) {
     <section className="networkHubShell">
       <AppNetwork locale={locale} />
       <style jsx>{`
-        .networkHubShell{width:min(100%,560px);height:100%;min-height:0;margin:0 auto;padding:0;box-sizing:border-box;display:flex}
+        .networkHubShell{width:min(100%,520px);height:100%;min-height:0;margin:0 auto;padding:0;box-sizing:border-box;display:flex}
       `}</style>
     </section>
   );
