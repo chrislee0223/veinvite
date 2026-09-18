@@ -173,11 +173,12 @@ test('only allowlisted canary wallets receive the synthetic graph and normal wal
 
 test('canary fixture supplies 500 deterministic multi-generation sample wallets', () => {
   assert.match(canaryFixtureSource, /NETWORK_CANARY_SAMPLE_SIZE = 500/);
-  assert.match(canaryFixtureSource, /ROOT_BRANCH_WIDTH = 12/);
+  assert.match(canaryFixtureSource, /ROOT_DIRECT_COUNT = 6/);
+  assert.match(canaryFixtureSource, /SECOND_LEVEL_WIDTH = 6/);
   assert.match(canaryFixtureSource, /function parentIndexFor/);
-  assert.match(canaryFixtureSource, /if \(index === 1\) return 'root'/);
-  assert.match(canaryFixtureSource, /if \(index <= ROOT_BRANCH_WIDTH \+ 1\) return 1/);
-  assert.match(canaryFixtureSource, /Math\.floor\(\(index - \(ROOT_BRANCH_WIDTH \+ 2\)\) \/ 3\)/);
+  assert.match(canaryFixtureSource, /if \(index <= ROOT_DIRECT_COUNT\) return 'root'/);
+  assert.match(canaryFixtureSource, /ROOT_DIRECT_COUNT \+ ROOT_DIRECT_COUNT \* SECOND_LEVEL_WIDTH/);
+  assert.match(canaryFixtureSource, /Math\.floor\(\(index - \(secondLevelEnd \+ 1\)\) \/ 3\)/);
   assert.match(canaryFixtureSource, /statusFor/);
   assert.match(canaryFixtureSource, /'REWARDED'/);
   assert.match(canaryFixtureSource, /'QUALIFIED'/);
