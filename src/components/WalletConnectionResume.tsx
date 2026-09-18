@@ -16,6 +16,10 @@ import {
 
 import { Brand } from './Brand';
 import {
+  isWalletAuthenticationInProgress,
+  runWalletProviderReconciliation,
+} from '@/lib/walletAuthenticationCoordinator';
+import {
   WALLET_CONNECT_INTENT_EVENT,
   clearWalletConnectIntent,
   readPersistedDappKitAccount,
@@ -173,6 +177,7 @@ export function WalletConnectionResume() {
       document.visibilityState === 'hidden' ||
       veChainKitWalletRef.current ||
       inFlightRef.current ||
+      isWalletAuthenticationInProgress() ||
       Date.now() > resumeWindowUntilRef.current
     ) {
       return;
@@ -210,7 +215,9 @@ export function WalletConnectionResume() {
       // back from the wallet app, but the React provider subscription may miss
       // that transition. Re-initialize dapp-kit from its persisted state so the
       // current page receives the account without requiring a manual refresh.
-      await initializeAsync();
+      await runWalletProviderReconciliation(
+        () => initializeAsync(),
+      );
     } catch (error) {
       console.warn(
         'VeInvite could not rehydrate the VeWorld connection in place.',
