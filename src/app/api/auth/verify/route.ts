@@ -7,7 +7,10 @@ import {
   NextRequest,
   NextResponse,
 } from 'next/server';
-import { verifyMessage } from 'ethers';
+import {
+  verifyMessage,
+  verifyTypedData,
+} from 'ethers';
 import { Certificate } from '@vechain/sdk-core';
 
 import {
@@ -23,6 +26,9 @@ import {
 import {
   getVeBetterNetworkConfig,
 } from '@/lib/vebetter/network';
+import {
+  buildWalletAuthTypedData,
+} from '@/lib/walletAuthTypedData';
 import {
   LEGACY_WALLET_SESSION_COOKIE_NAME,
   WALLET_SESSION_COOKIE_NAME,
@@ -68,6 +74,10 @@ type VerifyRequestBody = {
   walletAddress?: string;
   nonce?: string;
   signature?: string;
+  proofType?:
+    | 'typed_data'
+    | 'certificate'
+    | 'message';
   certificate?: WalletCertificate;
 };
 
@@ -433,7 +443,81 @@ export async function POST(
     );
   }
 
-  if (body.certificate) {
+  const proofType =
+    body.proofType ??
+    (body.certificate
+      ? 'certificate'
+      : 'message');
+
+  if (
+    proofType !== 'typed_data' &&
+    proofType !== 'certificate' &&
+    proofType !== 'message'
+  ) {
+    return jsonError(
+      'Unsupported wallet proof type.',
+      400,
+    );
+  }
+
+  if (proofType === 'typed_data') {
+    if (body.certificate) {
+      return jsonError(
+        'Wallet proof types cannot be mixed.',
+        400,
+      );
+    }
+
+    let recoveredAddress: string;
+
+    try {
+      const typedData =
+        buildWalletAuthTypedData({
+          walletAddress,
+          nonce: challenge.nonce,
+          expiresAt:
+            challenge.expires_at,
+          origin:
+            challenge.origin || '',
+          network:
+            challenge.network || '',
+          message:
+            challenge.message,
+        });
+
+      recoveredAddress =
+        normalizeAddress(
+          verifyTypedData(
+            typedData.domain,
+            typedData.types,
+            typedData.value,
+            body.signature!,
+          ),
+        );
+    } catch {
+      return jsonError(
+        'Invalid typed wallet signature.',
+        401,
+      );
+    }
+
+    if (
+      recoveredAddress !==
+      walletAddress
+    ) {
+      return jsonError(
+        'The typed signature does not match the connected wallet.',
+        401,
+      );
+    }
+  } else if (proofType === 'certificate') {
+    if (!body.certificate) {
+      return jsonError(
+        'VeWorld certificate proof is missing.',
+        400,
+      );
+    }
+
     if (
       body.signature &&
       body.certificate.signature &&
@@ -463,6 +547,13 @@ export async function POST(
       );
     }
   } else {
+    if (body.certificate) {
+      return jsonError(
+        'Wallet proof types cannot be mixed.',
+        400,
+      );
+    }
+
     let recoveredAddress: string;
 
     try {
@@ -490,6 +581,13 @@ export async function POST(
       );
     }
   }
+
+  console.info(
+    'Wallet proof verified.',
+    {
+      proofType,
+    },
+  );
 
   const usedAt =
     now.toISOString();
