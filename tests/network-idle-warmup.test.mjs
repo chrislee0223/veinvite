@@ -40,6 +40,7 @@ test('Network warmup primes header data as soon as wallet authentication is read
   assert.match(warmup, /window\.location\.pathname !== '\/'/);
 
   assert.match(rootCache, /HEADER_STORAGE_KEY = 'veinvite_network_header_metrics_v1'/);
+  assert.doesNotMatch(rootCache, /HEADER_TTL_MS/);
   assert.match(rootCache, /getCachedNetworkHeaderMetrics/);
   assert.match(rootCache, /rememberHeaderMetrics\(wallet, data\)/);
   assert.match(rootCache, /NETWORK_HEADER_METRICS_UPDATED_EVENT/);
