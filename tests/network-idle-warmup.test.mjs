@@ -27,8 +27,8 @@ test('Network warmup primes header data as soon as wallet authentication is read
   assert.match(warmup, /window\.addEventListener\(\s*WALLET_SESSION_READY_EVENT,\s*handleSessionReady/);
   assert.match(warmup, /handleSessionReady[\s\S]*warmData\(\)/);
   assert.match(warmup, /prefetchNetworkRoot\(wallet\)/);
-  assert.match(warmup, /prefetchEnrichedNetworkRoot\(wallet, \{ force: true \}\)/);
-  assert.match(warmup, /prefetchNetworkSummary\(wallet\)/);
+  assert.match(warmup, /prefetchEnrichedNetworkRoot\(wallet, \{ force: true \}\)[\s\S]*\.catch\(\(\) => null\)/);
+  assert.match(warmup, /prefetchNetworkSummary\(wallet\)\.catch\(\(\) => null\)/);
 
   assert.match(warmup, /requestIdleCallback/);
   const dataStart = warmup.indexOf('const warmData = () =>');
@@ -47,7 +47,7 @@ test('Network warmup primes header data as soon as wallet authentication is read
 
   assert.match(network, /getCachedNetworkHeaderMetrics\(wallet\)/);
   assert.match(network, /NETWORK_HEADER_METRICS_UPDATED_EVENT/);
-  assert.match(network, /const headerNetwork = rootTopologyReady/);
+  assert.match(network, /const headerNetwork =\s*headerMetrics\?\.network \?\? visibleRootData\.summary\.network/);
   assert.match(network, /const headerThisRound =/);
 
   assert.doesNotMatch(warmup, /<AppGuide\b/);
