@@ -201,7 +201,7 @@ export function AppNetworkHub({ locale }: { locale: Locale }) {
     <section className="networkHubShell">
       <AppNetwork locale={locale} />
       <style jsx>{`
-        .networkHubShell{width:min(100%,560px);margin:0 auto;padding:0;box-sizing:border-box}
+        .networkHubShell{width:min(100%,560px);height:100%;min-height:0;margin:0 auto;padding:0;box-sizing:border-box;display:flex}
       `}</style>
     </section>
   );
