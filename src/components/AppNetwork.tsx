@@ -906,7 +906,6 @@ export function AppNetwork({ locale }: { locale: Locale }) {
     if (initialRoot) {
       cacheRef.current.set(keyWallet(initialRoot.focusWallet), initialRoot);
     }
-    setPage(0);
     setSelectedWallet(null);
     setSelectedGroupId(null);
     setEditingLayout(false);
@@ -917,7 +916,7 @@ export function AppNetwork({ locale }: { locale: Locale }) {
     setDraggingWorkspaceKey(null);
     setGroupingWallet(null);
     setWorkspaceNotice('');
-    setAvailableSlots(0);
+    setInviteSlots([]);
     setView({
       x: 260 - FOCUS_X,
       y: 300 - FOCUS_Y,
@@ -937,7 +936,7 @@ export function AppNetwork({ locale }: { locale: Locale }) {
 
   useEffect(() => {
     if (!wallet) {
-      setAvailableSlots(0);
+      setInviteSlots([]);
       return;
     }
 
@@ -950,9 +949,31 @@ export function AppNetwork({ locale }: { locale: Locale }) {
       signal: controller.signal,
     }).then(async (response) => {
       if (!response.ok) return;
-      const payload = await response.json().catch(() => null) as { availableSlots?: unknown } | null;
-      if (!payload || typeof payload.availableSlots !== 'number') return;
-      setAvailableSlots(Math.max(0, Math.min(2, Math.trunc(payload.availableSlots))));
+      const payload = await response.json().catch(() => null) as { slots?: unknown } | null;
+      if (!payload || !Array.isArray(payload.slots)) return;
+
+      const slots = payload.slots.flatMap((value): InviteSlotState[] => {
+        if (!value || typeof value !== 'object') return [];
+        const candidate = value as Partial<InviteSlotState>;
+        const slot = candidate.slot === 2 ? 2 : candidate.slot === 1 ? 1 : null;
+        const state = candidate.state === 'AVAILABLE' || candidate.state === 'PENDING' || candidate.state === 'IN_PROGRESS'
+          ? candidate.state
+          : null;
+        if (!slot || !state) return [];
+        const inviteeWallet =
+          typeof candidate.inviteeWallet === 'string' && validWallet(candidate.inviteeWallet)
+            ? candidate.inviteeWallet
+            : null;
+        return [{
+          slot,
+          state,
+          inviteeWallet,
+          completedSteps: Math.max(0, Math.min(5, Math.trunc(Number(candidate.completedSteps ?? 0)))),
+          totalSteps: 5,
+        }];
+      }).sort((left, right) => left.slot - right.slot);
+
+      setInviteSlots(slots);
     }).catch(() => {
       // Slot availability is supplementary; the Network graph remains usable.
     });
@@ -1063,8 +1084,7 @@ export function AppNetwork({ locale }: { locale: Locale }) {
       setFocusWallet(payload.focusWallet);
       setSelectedWallet(null);
       setSelectedGroupId(null);
-      setPage(0);
-      setSearchQuery('');
+        setSearchQuery('');
       setSearchResults([]);
 
       if (direction === 'back') {
