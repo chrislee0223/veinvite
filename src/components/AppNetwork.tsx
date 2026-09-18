@@ -1867,6 +1867,7 @@ export function AppNetwork({ locale }: { locale: Locale }) {
     kind: WorkspaceDrag['kind'],
     key: string,
     point: Point,
+    groupId?: string,
   ) => {
     const workspace = draftWorkspaceRef.current;
     if (
@@ -1890,13 +1891,14 @@ export function AppNetwork({ locale }: { locale: Locale }) {
       pointerId: event.pointerId,
       kind,
       key,
+      groupId,
       offset: { x: worldPoint.x - point.x, y: worldPoint.y - point.y },
       originalWorkspace: cloneNetworkFocusWorkspace(workspace),
     };
     suppressClickRef.current = true;
     setGroupDropActive(false);
     setNewGroupDropActive(false);
-    if (kind === 'node') {
+    if (kind === 'node' || kind === 'group-member') {
       const child = positionedChildren.find((item) => keyWallet(item.wallet) === keyWallet(key));
       if (child) {
         setDragGhost({ key: keyWallet(key), wallet: child.wallet, x: event.clientX, y: event.clientY });
@@ -1926,7 +1928,8 @@ export function AppNetwork({ locale }: { locale: Locale }) {
     event: ReactPointerEvent<HTMLButtonElement>,
     key: string,
     point: Point,
-    kind: 'node' | 'slot' = 'node',
+    kind: WorkspaceDragKind = 'node',
+    groupId?: string,
   ) => {
     if (
       editingLayout ||
@@ -1947,7 +1950,9 @@ export function AppNetwork({ locale }: { locale: Locale }) {
     };
     holdDragRef.current = {
       pointerId: event.pointerId,
+      kind,
       key,
+      groupId,
       startScreen: { x: event.clientX, y: event.clientY },
       startNode: point,
       offset: { x: worldPoint.x - point.x, y: worldPoint.y - point.y },
@@ -1960,8 +1965,9 @@ export function AppNetwork({ locale }: { locale: Locale }) {
       const hold = holdDragRef.current;
       if (!hold || hold.pointerId !== event.pointerId || pointersRef.current.size !== 1) return;
       hold.armed = true;
+      suppressClickRef.current = true;
       triggerHoldHaptic();
-      if (kind === 'node') {
+      if (kind === 'node' || kind === 'group-member') {
         const child = positionedChildren.find((item) => keyWallet(item.wallet) === keyWallet(key));
         if (child) {
           setDragGhost({
