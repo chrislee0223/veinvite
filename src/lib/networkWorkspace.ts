@@ -48,6 +48,14 @@ function cleanWallet(value: unknown): string | null {
   return /^0x[0-9a-f]{40}$/.test(wallet) ? wallet : null;
 }
 
+function cleanPositionKey(value: unknown): string | null {
+  const wallet = cleanWallet(value);
+  if (wallet) return wallet;
+  if (typeof value !== 'string') return null;
+  const key = value.trim().toLowerCase();
+  return /^slot:[12]$/.test(key) ? key : null;
+}
+
 function keepValidGroups(groups: NetworkWorkspaceGroup[]): NetworkWorkspaceGroup[] {
   return groups.filter((group) => group.members.length >= 2).slice(-MAX_GROUPS_PER_FOCUS);
 }
@@ -83,10 +91,10 @@ export function parseNetworkWorkspaceStore(raw: string | null): NetworkWorkspace
       const workspace = workspaceRaw as Partial<NetworkFocusWorkspace>;
       const positions: Record<string, NetworkWorkspacePoint> = {};
       if (workspace.positions && typeof workspace.positions === 'object') {
-        for (const [walletRaw, pointRaw] of Object.entries(workspace.positions)) {
-          const wallet = cleanWallet(walletRaw);
+        for (const [positionKeyRaw, pointRaw] of Object.entries(workspace.positions)) {
+          const positionKey = cleanPositionKey(positionKeyRaw);
           const point = finitePoint(pointRaw);
-          if (wallet && point) positions[wallet] = point;
+          if (positionKey && point) positions[positionKey] = point;
         }
       }
 
