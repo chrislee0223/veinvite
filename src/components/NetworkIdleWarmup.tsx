@@ -2,6 +2,7 @@
 
 import { useEffect } from 'react';
 
+import { prefetchNetworkRoot } from '@/lib/networkRootClientCache';
 import { prefetchNetworkSummary } from '@/lib/networkSummaryClientCache';
 import { useWalletLauncher } from './WalletControl';
 
@@ -50,11 +51,12 @@ export function NetworkIdleWarmup() {
         import('./AppNetworkHub'),
       ];
 
-      void prefetchNetworkSummary(wallet).catch(() => {
-        // Best-effort warmup only. AppNetworkHub owns visible retry/error UX.
-      });
+      void Promise.allSettled([
+        prefetchNetworkSummary(wallet),
+        prefetchNetworkRoot(wallet),
+        ...moduleLoads,
+      ]);
 
-      void Promise.allSettled(moduleLoads);
     };
 
     const runWarmup = () => {
