@@ -20,8 +20,16 @@ import { NETWORK_WORKSPACE_COPY } from '@/lib/i18n/networkWorkspaceCopy';
 import type { Locale, SupportedLocale } from '@/lib/i18n/locales';
 import {
   getCachedNetworkRoot,
+  getNetworkRootCacheAgeMs,
+  prefetchNetworkRoot,
   rememberNetworkRoot,
 } from '@/lib/networkRootClientCache';
+import {
+  getCachedNetworkSlots,
+  getNetworkSlotsCacheAgeMs,
+  prefetchNetworkSlots,
+  type NetworkInviteSlotSnapshot,
+} from '@/lib/networkSlotsClientCache';
 import {
   EMPTY_NETWORK_WORKSPACE_STORE,
   addWorkspaceGroup,
@@ -107,13 +115,7 @@ type WorkspaceDrag = {
   originalWorkspace: NetworkFocusWorkspace;
 };
 
-type InviteSlotState = {
-  slot: 1 | 2;
-  state: 'AVAILABLE' | 'PENDING' | 'IN_PROGRESS';
-  inviteeWallet: string | null;
-  completedSteps: number;
-  totalSteps: number;
-};
+type InviteSlotState = NetworkInviteSlotSnapshot;
 
 type PositionedInviteSlot = InviteSlotState & {
   key: string;
@@ -178,10 +180,6 @@ function triggerHoldHaptic() {
   } catch {
     // Haptics are optional and unsupported browsers should stay silent.
   }
-}
-
-function validWallet(wallet: string): boolean {
-  return /^0x[0-9a-fA-F]{40}$/.test(wallet);
 }
 
 function clamp(value: number, min: number, max: number): number {
@@ -515,7 +513,6 @@ export function AppNetwork({ locale }: { locale: Locale }) {
   const [inviteSlots, setInviteSlots] = useState<InviteSlotState[]>([]);
   const [rootTopologyReady, setRootTopologyReady] = useState(false);
   const [inviteSlotsReady, setInviteSlotsReady] = useState(false);
-  const [introReadyFallback, setIntroReadyFallback] = useState(false);
   const [stageStable, setStageStable] = useState(false);
   const [stageSize, setStageSize] = useState({ width: 0, height: 0 });
   const [view, setView] = useState<View>({
@@ -836,53 +833,38 @@ export function AppNetwork({ locale }: { locale: Locale }) {
     if (!wallet) return;
     const requestWallet = wallet;
     const serial = cancelRequest();
-    const controller = new AbortController();
-    abortRef.current = controller;
     setLoadError('');
     setSelectedWallet(null);
     setSearchQuery('');
     setSearchResults([]);
 
     const canCommit = () =>
-      !controller.signal.aborted &&
       serial === requestSerialRef.current &&
       keyWallet(requestWallet) === keyWallet(wallet);
 
     try {
-      const payload = await fetchNetwork(requestWallet, {
-        signal: controller.signal,
-        fast: true,
+      // Share the same complete root request with the post-startup warmup.
+      // Committing one payload avoids topology first / This Round later.
+      const payload = await prefetchNetworkRoot(requestWallet, {
+        force: true,
       });
       if (!canCommit()) return;
 
       cacheRef.current.clear();
-      cacheRef.current.set(keyWallet(payload.focusWallet), payload);
+      cacheRef.current.set(keyWallet(payload.focusWallet), payload as NetworkData);
       rememberNetworkRoot(requestWallet, payload);
-      setRootData(payload);
+      setRootData(payload as NetworkData);
       setFocusWallet(payload.rootWallet);
       setCacheVersion((value) => value + 1);
       setLoadState('ready');
       setRootTopologyReady(true);
-
-      void fetchNetwork(requestWallet).then((enriched) => {
-        if (!canCommit()) return;
-        cacheRef.current.set(keyWallet(enriched.focusWallet), enriched);
-        rememberNetworkRoot(requestWallet, enriched);
-        setRootData(enriched);
-        setCacheVersion((value) => value + 1);
-      }).catch(() => {
-        // Fast topology remains usable if round enrichment is unavailable.
-      });
     } catch (error) {
       if (!canCommit()) return;
-      // Never replace the Network surface with a blocking loading/error card.
-      // Keep the warmed or provisional canvas visible and retry on the next
-      // entry while preserving the error for diagnostics.
+      // A warm snapshot/provisional canvas remains available. Mark the root
+      // settled so a transient network error cannot deadlock the surface.
       setLoadError(error instanceof Error ? error.message : t.loadError);
       setLoadState('ready');
       setRootTopologyReady(true);
-    } finally {
-      if (abortRef.current === controller) abortRef.current = null;
     }
   }, [wallet, cancelRequest, t.loadError]);
 
@@ -894,7 +876,6 @@ export function AppNetwork({ locale }: { locale: Locale }) {
     introCancelledRef.current = false;
     setRootTopologyReady(false);
     setInviteSlotsReady(false);
-    setIntroReadyFallback(false);
     setStageStable(false);
     if (introFitTimerRef.current !== null) {
       window.clearTimeout(introFitTimerRef.current);
@@ -907,9 +888,25 @@ export function AppNetwork({ locale }: { locale: Locale }) {
     introWalletRef.current = null;
     setIntroActive(false);
     setWorkspaceStore(wallet ? readStoredWorkspace(wallet) : { version: 1, focus: {} });
+
     const warmedRoot = wallet ? getCachedNetworkRoot(wallet) as NetworkData | null : null;
+    const warmedRootAge = wallet ? getNetworkRootCacheAgeMs(wallet) : null;
+    const warmedRootFresh = Boolean(
+      warmedRoot &&
+      warmedRootAge !== null &&
+      warmedRootAge <= 10_000,
+    );
+    const warmedSlots = wallet ? getCachedNetworkSlots(wallet) : null;
+    const warmedSlotsAge = wallet ? getNetworkSlotsCacheAgeMs(wallet) : null;
+    const warmedSlotsFresh = Boolean(
+      warmedSlots &&
+      warmedSlotsAge !== null &&
+      warmedSlotsAge <= 10_000,
+    );
     const initialRoot = wallet ? (warmedRoot ?? provisionalNetworkData(wallet)) : null;
-    if (warmedRoot) setRootTopologyReady(true);
+
+    setRootTopologyReady(warmedRootFresh);
+    setInviteSlotsReady(warmedSlotsFresh);
     setRootData(initialRoot);
     setFocusWallet(initialRoot?.focusWallet ?? null);
     if (initialRoot) {
@@ -926,19 +923,26 @@ export function AppNetwork({ locale }: { locale: Locale }) {
     setDraggingWorkspaceKey(null);
     setGroupingWallet(null);
     setWorkspaceNotice('');
-    setInviteSlots([]);
+    setInviteSlots(warmedSlots ?? []);
     setView({
       x: 260 - FOCUS_X,
       y: 300 - FOCUS_Y,
       scale: 1,
     });
+
     if (!wallet) {
       setLoadState('idle');
       setLoadError('');
       return;
     }
+
     setLoadState('ready');
-    void loadRoot();
+    // Fresh post-startup warmup data is the first interactive frame. Older or
+    // absent root data gets one full revalidation before the graph is revealed.
+    if (!warmedRootFresh) {
+      void loadRoot();
+    }
+
     return () => {
       cancelRequest();
     };
@@ -948,7 +952,6 @@ export function AppNetwork({ locale }: { locale: Locale }) {
     if (!wallet) {
       setInviteSlots([]);
       setInviteSlotsReady(false);
-      setIntroReadyFallback(false);
       return;
     }
 
@@ -960,13 +963,17 @@ export function AppNetwork({ locale }: { locale: Locale }) {
     const SLOT_RETRY_DELAY_MS = 650;
     const SLOT_REFRESH_MIN_INTERVAL_MS = 1_500;
 
-    setInviteSlotsReady(false);
-    setIntroReadyFallback(false);
-    const fallbackTimer = window.setTimeout(() => {
-      if (active) setIntroReadyFallback(true);
-    }, 650);
+    const warmedSlots = getCachedNetworkSlots(wallet);
+    const warmedAge = getNetworkSlotsCacheAgeMs(wallet);
+    const warmedFresh = Boolean(
+      warmedSlots &&
+      warmedAge !== null &&
+      warmedAge <= 10_000,
+    );
 
-    const controller = new AbortController();
+    if (warmedSlots) setInviteSlots(warmedSlots);
+    setInviteSlotsReady(warmedFresh);
+    initialSettled = warmedFresh;
 
     const markInitialSettled = () => {
       if (!active || initialSettled) return;
@@ -974,37 +981,8 @@ export function AppNetwork({ locale }: { locale: Locale }) {
       setInviteSlotsReady(true);
     };
 
-    const parseSlots = (payload: { slots?: unknown } | null): InviteSlotState[] | null => {
-      if (!payload || !Array.isArray(payload.slots)) return null;
-
-      const slots = payload.slots.flatMap((value): InviteSlotState[] => {
-        if (!value || typeof value !== 'object') return [];
-        const candidate = value as Partial<InviteSlotState>;
-        const slot = candidate.slot === 2 ? 2 : candidate.slot === 1 ? 1 : null;
-        const state = candidate.state === 'AVAILABLE' || candidate.state === 'PENDING' || candidate.state === 'IN_PROGRESS'
-          ? candidate.state
-          : null;
-        if (!slot || !state) return [];
-        const inviteeWallet =
-          typeof candidate.inviteeWallet === 'string' && validWallet(candidate.inviteeWallet)
-            ? candidate.inviteeWallet
-            : null;
-        return [{
-          slot,
-          state,
-          inviteeWallet,
-          completedSteps: Math.max(0, Math.min(5, Math.trunc(Number(candidate.completedSteps ?? 0)))),
-          totalSteps: 5,
-        }];
-      }).sort((left, right) => left.slot - right.slot);
-
-      // The authoritative endpoint always returns both current-capacity slots.
-      // Preserve the last known good state if a response is partial/malformed.
-      return slots.length === 2 ? slots : null;
-    };
-
     const refreshSlots = async (allowRetry = true) => {
-      if (!active || controller.signal.aborted || refreshInFlight) return;
+      if (!active || refreshInFlight) return;
 
       const now = Date.now();
       if (!allowRetry && now - lastAttemptAt < SLOT_REFRESH_MIN_INTERVAL_MS) return;
@@ -1013,38 +991,18 @@ export function AppNetwork({ locale }: { locale: Locale }) {
       lastAttemptAt = now;
 
       try {
-        const response = await fetch(
-          `/api/network/slots?wallet=${encodeURIComponent(wallet)}`,
-          {
-            method: 'GET',
-            credentials: 'include',
-            cache: 'no-store',
-            headers: { Accept: 'application/json' },
-            signal: controller.signal,
-          },
-        );
-
-        if (!response.ok) {
-          throw new Error(`Invite slot refresh failed (${response.status}).`);
-        }
-
-        const payload = await response.json().catch(() => null) as { slots?: unknown } | null;
-        const slots = parseSlots(payload);
-        if (!slots) {
-          throw new Error('Invite slot response was incomplete.');
-        }
+        const slots = await prefetchNetworkSlots(wallet, { force: true });
+        if (!active) return;
 
         if (retryTimer !== null) {
           window.clearTimeout(retryTimer);
           retryTimer = null;
         }
 
-        if (active) {
-          setInviteSlots(slots);
-          markInitialSettled();
-        }
+        setInviteSlots(slots);
+        markInitialSettled();
       } catch (error) {
-        if (!active || controller.signal.aborted) return;
+        if (!active) return;
 
         if (allowRetry) {
           if (retryTimer !== null) window.clearTimeout(retryTimer);
@@ -1055,6 +1013,8 @@ export function AppNetwork({ locale }: { locale: Locale }) {
           return;
         }
 
+        // Keep any last known good snapshot. With no snapshot, settling after
+        // one bounded retry prevents Network from hanging forever.
         markInitialSettled();
         console.warn(
           'VeInvite could not refresh Network invite slots after retry.',
@@ -1071,15 +1031,18 @@ export function AppNetwork({ locale }: { locale: Locale }) {
       void refreshSlots(true);
     };
 
-    void refreshSlots(true);
+    if (!warmedFresh) {
+      void refreshSlots(true);
+    } else {
+      lastAttemptAt = Date.now();
+    }
+
     window.addEventListener('focus', handleResume);
     document.addEventListener('visibilitychange', handleResume);
 
     return () => {
       active = false;
-      window.clearTimeout(fallbackTimer);
       if (retryTimer !== null) window.clearTimeout(retryTimer);
-      controller.abort();
       window.removeEventListener('focus', handleResume);
       document.removeEventListener('visibilitychange', handleResume);
     };
@@ -1264,8 +1227,7 @@ export function AppNetwork({ locale }: { locale: Locale }) {
   useEffect(() => {
     if (!wallet || loadState !== 'ready' || !currentData) return;
     if (stageSize.width <= 0 || stageSize.height <= 0 || !stageStable) return;
-    if (!rootTopologyReady) return;
-    if (!inviteSlotsReady && !introReadyFallback) return;
+    if (!rootTopologyReady || !inviteSlotsReady) return;
     if (introCancelledRef.current) return;
     if (keyWallet(currentData.focusWallet) !== keyWallet(currentData.rootWallet)) return;
     const walletKey = keyWallet(wallet);
@@ -1297,7 +1259,6 @@ export function AppNetwork({ locale }: { locale: Locale }) {
     stageStable,
     rootTopologyReady,
     inviteSlotsReady,
-    introReadyFallback,
     fitNetwork,
   ]);
 
@@ -1920,16 +1881,17 @@ export function AppNetwork({ locale }: { locale: Locale }) {
       className={`networkCard networkCanvasPage${introActive ? ' introActive' : ''}`}
       data-network-runtime="single"
       data-layout-editing={editingLayout ? 'true' : 'false'}
+      data-initial-ready={rootTopologyReady && inviteSlotsReady ? 'true' : 'false'}
       data-camera-transition={cameraTransition ? 'true' : 'false'}
       style={visualStyle}
     >
       <header className="networkHeader" data-no-pan="true">
         <h1>{t.title}</h1>
         <div className="summary" aria-label={t.networkSize}>
-          <strong>{visibleRootData.summary.network.toLocaleString()}</strong>
+          <strong>{rootTopologyReady ? visibleRootData.summary.network.toLocaleString() : '–'}</strong>
           <span>{t.networkSize}</span>
           <i />
-          <strong className="growth">{visibleRootData.summary.thisRound === null ? '–' : `+${visibleRootData.summary.thisRound}`}</strong>
+          <strong className="growth">{rootTopologyReady && visibleRootData.summary.thisRound !== null ? `+${visibleRootData.summary.thisRound}` : '–'}</strong>
           <span>{t.thisRound}</span>
         </div>
       </header>
@@ -2406,7 +2368,7 @@ export function AppNetwork({ locale }: { locale: Locale }) {
         .breadcrumbs{position:absolute;z-index:60;left:8px;top:8px;max-width:calc(100% - 16px);padding:3px 5px;display:flex;align-items:center;overflow:hidden;white-space:nowrap;border:1px solid rgba(255,205,80,.08);border-radius:8px;background:rgba(12,12,10,.82);backdrop-filter:blur(5px)}.breadcrumbs.rootOnly{display:none}.crumbWrap{display:flex;align-items:center;min-width:0}.crumbSep,.crumbEllipsis{flex:0 0 auto;color:#4f4c47;font-size:.62rem;margin:0 1px}.crumb{max-width:74px;padding:2px 4px;border:0;background:transparent;color:#8c867b;font:inherit;font-size:.5rem;font-weight:800;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;cursor:pointer}.crumb.current{color:#e5bd55;cursor:default}.crumb:disabled{opacity:.8}
         .searchWrap{position:relative;min-width:64px;max-width:108px;flex:0 1 108px}.searchWrap input{width:100%;height:29px;box-sizing:border-box;padding:0 7px;border:1px solid rgba(255,205,80,.1);border-radius:9px;background:#11110f;color:#d8d3ca;font:inherit;font-size:.52rem;outline:none}.searchWrap input:focus{border-color:rgba(244,183,40,.34)}.searchWrap input:disabled{opacity:.45}.searchResults{position:absolute;z-index:90;top:35px;left:0;width:min(290px,78vw);max-height:245px;overflow:auto;padding:5px;border:1px solid rgba(255,205,80,.14);border-radius:12px;background:rgba(14,14,12,.985);box-shadow:0 18px 40px rgba(0,0,0,.42)}.searchResults button{width:100%;padding:8px;border:0;border-radius:8px;background:transparent;color:#ddd7cc;text-align:left;cursor:pointer}.searchResults button:hover{background:rgba(244,183,40,.06)}.searchResults strong{display:block;font-size:.62rem}.searchResults button span{display:block;margin-top:3px;color:#6f6b64;font-size:.52rem}.searchStatus{display:block;padding:11px 8px;color:#77736c;font-size:.56rem;line-height:1.45;text-align:center}
         .compactControls{flex:0 0 auto;margin-left:auto;display:flex;align-items:center;gap:3px}.networkStage{position:relative;flex:1 1 auto;min-height:0;height:auto;overflow:hidden;touch-action:none;overscroll-behavior:contain;background:radial-gradient(ellipse at 50% 50%,rgba(244,183,40,.036),transparent 36%),#080807;cursor:grab;user-select:none;-webkit-user-select:none}.networkStage:active{cursor:grabbing}.networkStage.layoutEditing{box-shadow:inset 0 0 0 1px rgba(244,183,40,.11)}
-        .world{position:absolute;top:0;left:0;will-change:transform;backface-visibility:hidden}.world.cameraTransition{transition:transform ${NAVIGATION_MS}ms cubic-bezier(.18,.82,.2,1)}.introActive .world.cameraTransition{transition-duration:${FIT_TRANSITION_MS}ms}.worldContent{position:absolute;inset:0;transform-origin:${FOCUS_X}px ${FOCUS_Y}px}.worldContent.nav-forward{animation:networkForward ${NAVIGATION_MS}ms cubic-bezier(.18,.82,.2,1)}.worldContent.nav-back{animation:networkBack ${NAVIGATION_MS}ms cubic-bezier(.18,.82,.2,1)}
+        .world{position:absolute;top:0;left:0;will-change:transform;backface-visibility:hidden;opacity:1}.networkCanvasPage[data-initial-ready='false'] .world{opacity:0}.world.cameraTransition{transition:transform ${NAVIGATION_MS}ms cubic-bezier(.18,.82,.2,1)}.introActive .world.cameraTransition{transition-duration:${FIT_TRANSITION_MS}ms}.worldContent{position:absolute;inset:0;transform-origin:${FOCUS_X}px ${FOCUS_Y}px}.worldContent.nav-forward{animation:networkForward ${NAVIGATION_MS}ms cubic-bezier(.18,.82,.2,1)}.worldContent.nav-back{animation:networkBack ${NAVIGATION_MS}ms cubic-bezier(.18,.82,.2,1)}
         .edges{position:absolute;inset:0;overflow:visible;pointer-events:none;z-index:2}.edge{fill:none;stroke:rgba(176,145,73,.31);stroke-width:1.05;stroke-linecap:round;vector-effect:non-scaling-stroke}.edge.rewarded{stroke:rgba(232,183,62,.46)}.edge.groupEdge{stroke:rgba(224,178,65,.42);stroke-width:1.15;stroke-dasharray:4 8}.groupMemberEdge{stroke:rgba(194,157,75,.32);stroke-width:.95;stroke-dasharray:4 8}.continuationEdge{fill:none;stroke:rgba(176,145,73,.24);stroke-width:1;stroke-linecap:round;vector-effect:non-scaling-stroke}.slotEdgeBase,.slotEdgePulse,.slotEdgeProgress{fill:none;stroke-linecap:round;pointer-events:none;vector-effect:non-scaling-stroke}.slotEdgeBase{stroke:rgba(226,188,79,.62);stroke-width:1.05;opacity:.5}.slotEdgePulse{stroke:rgba(255,210,76,.95);stroke-width:1.55;stroke-dasharray:5 38;opacity:.8;filter:drop-shadow(0 0 2px rgba(244,183,40,.28));animation:networkSlotFlow 2.45s linear infinite}.slotEdgeProgress{stroke:rgba(244,183,40,.62);stroke-width:1.25;stroke-dasharray:3 7;opacity:.78}
         .personNode,.slotNode,.groupNode{position:absolute;z-index:6;transform:translate(-50%,-50%);font:inherit;translate:none}.personNode{width:52px;height:52px;padding:0;border:0;border-radius:50%;background:transparent;color:#d9d4ca;display:block;cursor:pointer;user-select:none;-webkit-user-select:none;-webkit-touch-callout:none;touch-action:none;isolation:isolate}.focusNode{width:74px;height:74px;z-index:8}.childNode::before,.slotNode::before{content:'';position:absolute;left:50%;top:50%;border-radius:50%;transform:translate(-50%,-50%);pointer-events:none;z-index:0}.childNode::before{width:58px;height:58px;background:radial-gradient(circle,rgba(8,8,7,.94) 0 87%,rgba(8,8,7,.58) 91%,rgba(8,8,7,.17) 96%,rgba(8,8,7,0) 100%)}.slotNode::before{width:52px;height:52px;background:radial-gradient(circle,rgba(8,8,7,.92) 0 86%,rgba(8,8,7,.54) 91%,rgba(8,8,7,.15) 96%,rgba(8,8,7,0) 100%)}.nodeCircle,.slotCircle{position:absolute;inset:0;z-index:1;display:grid;place-items:center;border-radius:50%;box-sizing:border-box;background:#0d0d0b;overflow:hidden;transition:transform 170ms ease,border-color 170ms ease,box-shadow 170ms ease}.nodeCircle{border:1px solid rgba(210,174,65,.38);box-shadow:0 0 22px rgba(244,183,40,.025);transform:scale(var(--network-node-scale,1))}.focusCircle{border-color:rgba(255,207,71,.82);background:radial-gradient(circle at 50% 45%,rgb(24,21,13) 0%,rgb(13,13,11) 62%,rgb(13,13,11) 100%);box-shadow:0 0 0 1px rgba(244,183,40,.07),0 0 28px rgba(244,183,40,.08);transform:scale(var(--network-center-scale,1))}.focusNode::before{content:'';position:absolute;inset:-7px;border:1px solid rgba(244,183,40,.42);border-radius:50%;box-shadow:0 0 18px rgba(244,183,40,.055);animation:networkYouBreath 2.8s ease-in-out infinite;pointer-events:none}.introActive .focusNode::before{animation:networkYouIntro .72s ease-out 1,networkYouBreath 2.8s .72s ease-in-out infinite}.personNode:hover .nodeCircle,.personNode:focus-visible .nodeCircle,.personNode.selected .nodeCircle{border-color:rgba(244,183,40,.78);box-shadow:0 0 0 3px rgba(244,183,40,.08),0 0 26px rgba(244,183,40,.1);transform:scale(var(--network-node-selected-scale,1.07))}.focusNode:hover .focusCircle,.focusNode:focus-visible .focusCircle,.focusNode.selected .focusCircle{transform:scale(var(--network-center-selected-scale,1.07))}.childNode.status-rewarded .nodeCircle{border-color:rgba(232,183,62,.58)}.childNode.status-qualified .nodeCircle{border-color:rgba(193,166,90,.46)}.personNode.draggable,.slotNode.draggable,.groupNode.draggable{cursor:grab}.personNode.draggable:active,.slotNode.draggable:active,.groupNode.draggable:active{cursor:grabbing}.personNode.dragging,.slotNode.dragging{z-index:14}.personNode.dragging .nodeCircle,.slotNode.dragging .slotCircle{border-color:rgba(244,183,40,.92);box-shadow:0 0 0 4px rgba(244,183,40,.12),0 0 30px rgba(244,183,40,.18)}.groupNode.dragging{z-index:14;border-color:rgba(244,183,40,.82);box-shadow:0 14px 30px rgba(0,0,0,.34),0 0 0 3px rgba(244,183,40,.1)}.personNode.grouping{animation:groupDropAway ${GROUP_DROP_MS}ms ease forwards}
         .nodeCircle :global(.identity){width:100%;height:100%;display:grid;place-items:center}.nodeCircle :global(.avatarSlot){position:relative;display:grid;place-items:center}.childNode .nodeCircle :global(.avatarSlot),.childNode .nodeCircle :global(.neutralAvatar),.childNode .nodeCircle :global(.avatarSlot img){width:40px!important;height:40px!important}.focusNode .nodeCircle :global(.avatarSlot),.focusNode .nodeCircle :global(.neutralAvatar),.focusNode .nodeCircle :global(.avatarSlot img){width:56px!important;height:56px!important}.nodeCircle :global(.neutralAvatar){display:grid;place-items:center;border:0;border-radius:50%;background:#171611;color:#8e7b50}.nodeCircle :global(.avatarSlot img){position:absolute;inset:0;margin:auto;border-radius:50%;object-fit:cover;transition:opacity 160ms ease}.nodeMeta{position:absolute;left:50%;z-index:2;width:120px;display:grid;justify-items:center;gap:2px;transform:translateX(-50%);opacity:var(--network-label-opacity,1);pointer-events:none;transition:opacity 90ms linear}.childNode .nodeMeta{bottom:calc(100% + 6px)}.focusNode .nodeMeta{top:calc(100% + 7px)}.nodeMeta strong{max-width:112px;color:#e5dfd5;font-size:.52rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.nodeMeta small{max-width:116px;color:#6f6a62;font-size:.41rem;white-space:nowrap}.focusNode .nodeMeta strong{color:#edc65c;font-size:.61rem}.focusNode .nodeMeta small{font-size:.44rem}.nodeBusy{position:absolute;z-index:3;right:-2px;top:-2px;width:7px;height:7px;border-radius:50%;background:#e9bc45;box-shadow:0 0 10px rgba(233,188,69,.8);animation:pulse 900ms ease-in-out infinite alternate}
