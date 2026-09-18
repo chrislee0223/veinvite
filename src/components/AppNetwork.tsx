@@ -2563,7 +2563,7 @@ export function AppNetwork({ locale }: { locale: Locale }) {
                 <button
                   type="button"
                   key={childKey}
-                  className={`personNode childNode status-${child.status.toLowerCase()}${isSelected ? ' selected' : ''}${editingLayout ? ' draggable' : ''}${draggingWorkspaceKey === dragKey ? ' dragging' : ''}${groupingWallet === childKey ? ' grouping' : ''}`}
+                  className={`personNode childNode status-${child.status.toLowerCase()}${isSelected ? ' selected' : ''}${editingLayout ? ' draggable' : ''}${draggingWorkspaceKey === dragKey ? ' dragging' : ''}${groupingWallet === childKey ? ' grouping' : ''}${restoringWalletSet.has(childKey) ? ' restoring' : ''}`}
                   style={{ left: child.x, top: child.y }}
                   onPointerDown={(event) => {
                     if (editingLayout) beginWorkspaceDrag(event, 'node', childKey, { x: child.x, y: child.y });
@@ -2600,7 +2600,7 @@ export function AppNetwork({ locale }: { locale: Locale }) {
               return (
                 <button
                   type="button"
-                  className={`groupNode${editingLayout ? ' draggable' : ''}${draggingWorkspaceKey === dragKey ? ' dragging' : ''}${selectedGroupId === group.id ? ' selected' : ''}${group.collapsed === false ? ' expanded' : ''}`}
+                  className={`groupNode${editingLayout ? ' draggable' : ''}${draggingWorkspaceKey === dragKey ? ' dragging' : ''}${selectedGroupId === group.id ? ' selected' : ''}${group.collapsed === false ? ' expanded' : ''}${createdGroupId === group.id ? ' created' : ''}`}
                   key={group.id}
                   style={{ left: group.x, top: group.y }}
                   onPointerDown={editingLayout ? (event) => beginWorkspaceDrag(event, 'group', group.id, { x: group.x, y: group.y }) : undefined}
@@ -2746,7 +2746,15 @@ export function AppNetwork({ locale }: { locale: Locale }) {
               {selectedGroup.members.map((member) => (
                 <span key={member} title={member}>
                   {shortWallet(member)}
-                  {editingLayout ? <button type="button" onClick={() => mutateEditingWorkspace((current) => removeWorkspaceMemberFromGroup(current, member))}>×</button> : null}
+                  {editingLayout ? (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        animateRestoredWallets([member]);
+                        mutateEditingWorkspace((current) => removeWorkspaceMemberFromGroup(current, member));
+                      }}
+                    >×</button>
+                  ) : null}
                 </span>
               ))}
             </div>
@@ -2758,6 +2766,7 @@ export function AppNetwork({ locale }: { locale: Locale }) {
                 type="button"
                 className="ungroupButton"
                 onClick={() => {
+                  animateRestoredWallets(selectedGroup.members);
                   mutateEditingWorkspace((current) => removeWorkspaceGroup(current, selectedGroup.id));
                   setSelectedGroupId(null);
                 }}
