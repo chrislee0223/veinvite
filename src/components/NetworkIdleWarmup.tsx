@@ -3,7 +3,8 @@
 import { useEffect } from 'react';
 
 import { prefetchNetworkRoot } from '@/lib/networkRootClientCache';
-import { prefetchNetworkSummary } from '@/lib/networkSummaryClientCache';
+import { rememberNetworkSummary } from '@/lib/networkSummaryClientCache';
+import { prefetchNetworkSlots } from '@/lib/networkSlotsClientCache';
 import { useWalletLauncher } from './WalletControl';
 
 type IdleWindow = Window & {
@@ -51,9 +52,18 @@ export function NetworkIdleWarmup() {
         import('./AppNetworkHub'),
       ];
 
+      const rootWarmup = prefetchNetworkRoot(wallet).then((root) => {
+        // The complete root already contains the empty/non-empty Network
+        // summary. Reuse it instead of issuing a separate summary request.
+        rememberNetworkSummary(wallet, {
+          summary: { network: root.summary.network },
+        });
+        return root;
+      });
+
       void Promise.allSettled([
-        prefetchNetworkSummary(wallet),
-        prefetchNetworkRoot(wallet),
+        rootWarmup,
+        prefetchNetworkSlots(wallet),
         ...moduleLoads,
       ]);
 
