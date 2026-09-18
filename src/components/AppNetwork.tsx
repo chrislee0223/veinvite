@@ -984,11 +984,8 @@ export function AppNetwork({ locale }: { locale: Locale }) {
     const refreshSlots = async (allowRetry = true) => {
       if (!active || refreshInFlight) return;
 
-      const now = Date.now();
-      if (!allowRetry && now - lastAttemptAt < SLOT_REFRESH_MIN_INTERVAL_MS) return;
-
       refreshInFlight = true;
-      lastAttemptAt = now;
+      lastAttemptAt = Date.now();
 
       try {
         const slots = await prefetchNetworkSlots(wallet, { force: true });
@@ -1008,6 +1005,7 @@ export function AppNetwork({ locale }: { locale: Locale }) {
           if (retryTimer !== null) window.clearTimeout(retryTimer);
           retryTimer = window.setTimeout(() => {
             retryTimer = null;
+            // Resume throttling must never suppress the deliberate retry.
             void refreshSlots(false);
           }, SLOT_RETRY_DELAY_MS);
           return;
@@ -1888,10 +1886,10 @@ export function AppNetwork({ locale }: { locale: Locale }) {
       <header className="networkHeader" data-no-pan="true">
         <h1>{t.title}</h1>
         <div className="summary" aria-label={t.networkSize}>
-          <strong>{rootTopologyReady ? visibleRootData.summary.network.toLocaleString() : '–'}</strong>
+          <strong>{rootTopologyReady && inviteSlotsReady ? visibleRootData.summary.network.toLocaleString() : '–'}</strong>
           <span>{t.networkSize}</span>
           <i />
-          <strong className="growth">{rootTopologyReady && visibleRootData.summary.thisRound !== null ? `+${visibleRootData.summary.thisRound}` : '–'}</strong>
+          <strong className="growth">{rootTopologyReady && inviteSlotsReady && visibleRootData.summary.thisRound !== null ? `+${visibleRootData.summary.thisRound}` : '–'}</strong>
           <span>{t.thisRound}</span>
         </div>
       </header>
