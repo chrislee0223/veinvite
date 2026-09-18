@@ -52,12 +52,13 @@ export function NetworkIdleWarmup() {
       }
 
       dataStarted = true;
-      void prefetchNetworkSummary(wallet);
+      void prefetchNetworkSummary(wallet).catch(() => null);
       void prefetchNetworkRoot(wallet)
         .catch(() => null)
         .then(() => {
           if (!active) return;
-          void prefetchEnrichedNetworkRoot(wallet, { force: true });
+          void prefetchEnrichedNetworkRoot(wallet, { force: true })
+            .catch(() => null);
         });
     };
 
