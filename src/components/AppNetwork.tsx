@@ -1185,7 +1185,8 @@ export function AppNetwork({ locale }: { locale: Locale }) {
   useEffect(() => {
     if (!wallet || loadState !== 'ready' || !currentData) return;
     if (stageSize.width <= 0 || stageSize.height <= 0 || !stageStable) return;
-    if (!(rootTopologyReady && inviteSlotsReady) && !introReadyFallback) return;
+    if (!rootTopologyReady) return;
+    if (!inviteSlotsReady && !introReadyFallback) return;
     if (introCancelledRef.current) return;
     if (keyWallet(currentData.focusWallet) !== keyWallet(currentData.rootWallet)) return;
     const walletKey = keyWallet(wallet);
