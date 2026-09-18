@@ -357,7 +357,10 @@ test('final group workspace keeps one React-owned membership path and one persis
   assert.match(networkSource, /withWorkspaceGroupCollapsed/);
   assert.match(networkSource, /className="groupsPanel"/);
   assert.match(networkSource, /className="groupBuilder"/);
-  assert.match(networkSource, /className=\{\`editLayoutButton labeledControl/);
+  assert.match(networkSource, /className=\{\`editLayoutButton\$\{editingLayout \? ' active' : ''\}\`\}/);
+  assert.match(networkSource, /<LayoutControlGlyph done=\{editingLayout\} \/>/);
+  assert.match(networkSource, /<GroupsControlGlyph \/>/);
+  assert.doesNotMatch(networkSource, /'✦'|'◉'/);
   assert.doesNotMatch(networkSource, /className="resetLayoutButton"/);
   assert.doesNotMatch(networkSource, /className="saveLayoutButton"/);
   assert.doesNotMatch(networkSource, /className="cancelLayoutButton"/);
