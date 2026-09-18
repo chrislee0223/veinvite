@@ -503,7 +503,8 @@ test('final Network gestures are coordinate-owned and deliberate', () => {
   assert.match(networkSource, /nearestVisibleGroup/);
   assert.match(networkSource, /beginHoldDrag/);
   assert.match(networkSource, /holdDrag\.armed/);
-  assert.match(networkSource, /persistNodePosition/);
+  assert.match(networkSource, /updateNodePositionRuntime/);
+  assert.match(networkSource, /flushWorkspaceStore/);
   assert.match(networkSource, /cancelHoldDrag\(true\)/);
   assert.match(networkSource, /screenDistance <= HOLD_CANCEL_DISTANCE && !holdDrag\.moved/);
   assert.match(networkSource, /pinchCandidateWalletRef/);
@@ -590,4 +591,26 @@ test('group transfers are unique, bounded, and long-press native UI stays blocke
   assert.match(workspaceSource, /Array\.from\(new Set\(members\)\)/);
   assert.match(workspaceSource, /if \(groups\.length >= MAX_GROUPS_PER_FOCUS\) return workspace/);
   assert.match(networkSource, /onContextMenu=\{\(event\) => event\.preventDefault\(\)\}/);
+});
+
+test('long-press layout movement updates runtime state without synchronous storage churn', () => {
+  const runtimeStart = networkSource.indexOf('const updateWorkspaceRuntime = useCallback');
+  const flushStart = networkSource.indexOf('const flushWorkspaceStore = useCallback');
+  const navigationStart = networkSource.indexOf('const beginNavigationMotion = useCallback');
+  assert.ok(runtimeStart >= 0 && flushStart > runtimeStart && navigationStart > flushStart);
+  const runtimeSource = networkSource.slice(runtimeStart, flushStart);
+  const flushSource = networkSource.slice(flushStart, navigationStart);
+  assert.doesNotMatch(runtimeSource, /localStorage\.setItem/);
+  assert.match(flushSource, /localStorage\.setItem/);
+  assert.match(networkSource, /else if \(holdDrag\.moved\) \{\s*flushWorkspaceStore\(\)/);
+  assert.match(networkSource, /pointercancel[\s\S]{0,220}persistFocusWorkspace\(holdDrag\.originalWorkspace\)/);
+});
+
+test('stored group workspaces normalize duplicate group ids and duplicate member ownership', () => {
+  assert.match(workspaceSource, /const seenGroupIds = new Set<string>\(\)/);
+  assert.match(workspaceSource, /const assignedMembers = new Set<string>\(\)/);
+  assert.match(workspaceSource, /seenGroupIds\.has\(groupId\)/);
+  assert.match(workspaceSource, /!assignedMembers\.has\(wallet\)/);
+  assert.match(workspaceSource, /seenGroupIds\.add\(groupId\)/);
+  assert.match(workspaceSource, /members\.forEach\(\(member\) => assignedMembers\.add\(member\)\)/);
 });
