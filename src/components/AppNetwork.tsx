@@ -93,11 +93,6 @@ type PositionedChild = NetworkChild & {
   y: number;
 };
 
-type StoredRuntimeState = {
-  focusWallet: string;
-  view: View;
-};
-
 type PinchState = {
   startDistance: number;
   startCenter: Point;
@@ -156,7 +151,6 @@ const NAVIGATION_MS = 720;
 const FIT_TRANSITION_MS = 760;
 const INTRO_HOLD_MS = 150;
 const INTRO_END_MS = 940;
-const INTRO_SESSION_PREFIX = 'veinvite-network-intro-v5:';
 const READABLE_FIT_MIN = 0.46;
 const GOLDEN_ANGLE = Math.PI * (3 - Math.sqrt(5));
 const GROUP_DROP_MS = 160;
@@ -166,7 +160,6 @@ const NODE_ENTER_SCALE = 1.85;
 const NODE_HIT_RADIUS = 58;
 const GROUP_DROP_RADIUS = 92;
 const WHEEL_ENTER_DISTANCE = 120;
-const SESSION_PREFIX = 'veinvite-network-runtime-v2:';
 const WORKSPACE_PREFIX = 'veinvite-network-workspace-v1:';
 
 function keyWallet(wallet: string): string {
@@ -223,11 +216,11 @@ function radialChildPoint(wallet: string, index: number, compact: boolean): Poin
   };
 }
 
-function inviteSlotPoint(index: number, compact: boolean): Point {
+function inviteSlotPoint(index: number): Point {
   if (index === 0) {
-    return { x: FOCUS_X + (compact ? -58 : -96), y: FOCUS_Y + (compact ? 74 : 92) };
+    return { x: FOCUS_X - 58, y: FOCUS_Y + 74 };
   }
-  return { x: FOCUS_X + (compact ? 64 : 108), y: FOCUS_Y + (compact ? 62 : 78) };
+  return { x: FOCUS_X + 64, y: FOCUS_Y + 62 };
 }
 
 function fittedView(stage: { width: number; height: number }, points: Point[]): View {
@@ -253,10 +246,6 @@ function fittedView(stage: { width: number; height: number }, points: Point[]): 
   };
 }
 
-function runtimeSessionKey(wallet: string): string {
-  return `${SESSION_PREFIX}${keyWallet(wallet)}`;
-}
-
 function workspaceStorageKey(wallet: string): string {
   return `${WORKSPACE_PREFIX}${keyWallet(wallet)}`;
 }
@@ -280,33 +269,6 @@ function provisionalNetworkData(wallet: string): NetworkData {
     searchResults: [],
     depthLimitReached: false,
   };
-}
-
-function readStoredRuntimeState(wallet: string): StoredRuntimeState | null {
-  try {
-    const raw = window.sessionStorage.getItem(runtimeSessionKey(wallet));
-    if (!raw) return null;
-    const parsed = JSON.parse(raw) as Partial<StoredRuntimeState>;
-    if (!parsed.focusWallet || !validWallet(parsed.focusWallet)) return null;
-    if (
-      !parsed.view ||
-      typeof parsed.view.x !== 'number' ||
-      typeof parsed.view.y !== 'number' ||
-      typeof parsed.view.scale !== 'number'
-    ) {
-      return null;
-    }
-    return {
-      focusWallet: parsed.focusWallet,
-      view: {
-        x: parsed.view.x,
-        y: parsed.view.y,
-        scale: clamp(parsed.view.scale, MIN_SCALE, MAX_SCALE),
-      },
-    };
-  } catch {
-    return null;
-  }
 }
 
 function readStoredWorkspace(wallet: string): NetworkWorkspaceStore {
@@ -536,13 +498,13 @@ export function AppNetwork({ locale }: { locale: Locale }) {
   const viewByFocusRef = useRef(new Map<string, View>());
   const navigationTimerRef = useRef<number | null>(null);
   const initializedWalletRef = useRef<string | null>(null);
-  const storedStateRef = useRef<StoredRuntimeState | null>(null);
   const workspaceDragRef = useRef<WorkspaceDrag | null>(null);
   const groupingTimerRef = useRef<number | null>(null);
   const noticeTimerRef = useRef<number | null>(null);
   const introFitTimerRef = useRef<number | null>(null);
   const introEndTimerRef = useRef<number | null>(null);
   const introWalletRef = useRef<string | null>(null);
+  const introCancelledRef = useRef(false);
 
   const [rootData, setRootData] = useState<NetworkData | null>(null);
   const [focusWallet, setFocusWallet] = useState<string | null>(null);
@@ -550,6 +512,10 @@ export function AppNetwork({ locale }: { locale: Locale }) {
   const [loadState, setLoadState] = useState<'idle' | 'loading' | 'ready' | 'error'>('idle');
   const [loadError, setLoadError] = useState('');
   const [inviteSlots, setInviteSlots] = useState<InviteSlotState[]>([]);
+  const [rootTopologyReady, setRootTopologyReady] = useState(false);
+  const [inviteSlotsReady, setInviteSlotsReady] = useState(false);
+  const [introReadyFallback, setIntroReadyFallback] = useState(false);
+  const [stageStable, setStageStable] = useState(false);
   const [stageSize, setStageSize] = useState({ width: 0, height: 0 });
   const [view, setView] = useState<View>({
     x: 260 - FOCUS_X,
@@ -623,7 +589,7 @@ export function AppNetwork({ locale }: { locale: Locale }) {
 
     return inviteSlots.map((slot) => {
       const key = `slot:${slot.slot}`;
-      const fallback = inviteSlotPoint(slot.slot - 1, isMobile);
+      const fallback = inviteSlotPoint(slot.slot - 1);
       const saved = activeWorkspace.positions[key];
       return {
         ...slot,
@@ -632,7 +598,7 @@ export function AppNetwork({ locale }: { locale: Locale }) {
         y: saved?.y ?? fallback.y,
       };
     });
-  }, [currentData, inviteSlots, isMobile, activeWorkspace.positions]);
+  }, [currentData, inviteSlots, activeWorkspace.positions]);
 
   const activeInviteeKeys = useMemo(
     () => new Set(
@@ -776,6 +742,20 @@ export function AppNetwork({ locale }: { locale: Locale }) {
     wheelEnterWalletRef.current = null;
   }, []);
 
+  const stopIntroForInteraction = useCallback(() => {
+    introCancelledRef.current = true;
+    if (introFitTimerRef.current !== null) {
+      window.clearTimeout(introFitTimerRef.current);
+      introFitTimerRef.current = null;
+    }
+    if (introEndTimerRef.current !== null) {
+      window.clearTimeout(introEndTimerRef.current);
+      introEndTimerRef.current = null;
+    }
+    setIntroActive(false);
+    setCameraTransition(false);
+  }, []);
+
   const persistFocusWorkspace = useCallback((workspace: NetworkFocusWorkspace) => {
     if (!wallet || !currentFocusKey) return;
     setWorkspaceStore((current) => {
@@ -856,31 +836,9 @@ export function AppNetwork({ locale }: { locale: Locale }) {
       rememberNetworkRoot(requestWallet, payload);
       setRootData(payload);
       setFocusWallet(payload.rootWallet);
-
-      const stored = storedStateRef.current;
-      if (stored && keyWallet(stored.focusWallet) === keyWallet(payload.rootWallet)) {
-        setView(stored.view);
-        initializedWalletRef.current = keyWallet(requestWallet);
-      }
-
       setCacheVersion((value) => value + 1);
       setLoadState('ready');
-
-      if (stored && keyWallet(stored.focusWallet) !== keyWallet(payload.rootWallet)) {
-        void fetchNetwork(requestWallet, {
-          focus: stored.focusWallet,
-          fast: true,
-        }).then((restored) => {
-          if (!canCommit()) return;
-          cacheRef.current.set(keyWallet(restored.focusWallet), restored);
-          setFocusWallet(restored.focusWallet);
-          setView(stored.view);
-          initializedWalletRef.current = keyWallet(requestWallet);
-          setCacheVersion((value) => value + 1);
-        }).catch(() => {
-          // Root view is already interactive; branch restoration is best-effort.
-        });
-      }
+      setRootTopologyReady(true);
 
       void fetchNetwork(requestWallet).then((enriched) => {
         if (!canCommit()) return;
@@ -898,6 +856,7 @@ export function AppNetwork({ locale }: { locale: Locale }) {
       // entry while preserving the error for diagnostics.
       setLoadError(error instanceof Error ? error.message : t.loadError);
       setLoadState('ready');
+      setRootTopologyReady(true);
     } finally {
       if (abortRef.current === controller) abortRef.current = null;
     }
@@ -908,6 +867,11 @@ export function AppNetwork({ locale }: { locale: Locale }) {
     returnViewByChildRef.current.clear();
     viewByFocusRef.current.clear();
     initializedWalletRef.current = null;
+    introCancelledRef.current = false;
+    setRootTopologyReady(false);
+    setInviteSlotsReady(false);
+    setIntroReadyFallback(false);
+    setStageStable(false);
     if (introFitTimerRef.current !== null) {
       window.clearTimeout(introFitTimerRef.current);
       introFitTimerRef.current = null;
@@ -918,10 +882,10 @@ export function AppNetwork({ locale }: { locale: Locale }) {
     }
     introWalletRef.current = null;
     setIntroActive(false);
-    storedStateRef.current = wallet ? readStoredRuntimeState(wallet) : null;
     setWorkspaceStore(wallet ? readStoredWorkspace(wallet) : { version: 1, focus: {} });
     const warmedRoot = wallet ? getCachedNetworkRoot(wallet) as NetworkData | null : null;
     const initialRoot = wallet ? (warmedRoot ?? provisionalNetworkData(wallet)) : null;
+    if (warmedRoot) setRootTopologyReady(true);
     setRootData(initialRoot);
     setFocusWallet(initialRoot?.focusWallet ?? null);
     if (initialRoot) {
@@ -958,8 +922,17 @@ export function AppNetwork({ locale }: { locale: Locale }) {
   useEffect(() => {
     if (!wallet) {
       setInviteSlots([]);
+      setInviteSlotsReady(false);
+      setIntroReadyFallback(false);
       return;
     }
+
+    let active = true;
+    setInviteSlotsReady(false);
+    setIntroReadyFallback(false);
+    const fallbackTimer = window.setTimeout(() => {
+      if (active) setIntroReadyFallback(true);
+    }, 650);
 
     const controller = new AbortController();
     void fetch(`/api/network/slots?wallet=${encodeURIComponent(wallet)}`, {
@@ -994,12 +967,18 @@ export function AppNetwork({ locale }: { locale: Locale }) {
         }];
       }).sort((left, right) => left.slot - right.slot);
 
-      setInviteSlots(slots);
+      if (active) setInviteSlots(slots);
     }).catch(() => {
       // Slot availability is supplementary; the Network graph remains usable.
+    }).finally(() => {
+      if (active) setInviteSlotsReady(true);
     });
 
-    return () => controller.abort();
+    return () => {
+      active = false;
+      window.clearTimeout(fallbackTimer);
+      controller.abort();
+    };
   }, [wallet]);
 
   useEffect(() => {
@@ -1031,6 +1010,22 @@ export function AppNetwork({ locale }: { locale: Locale }) {
     return () => observer.disconnect();
   }, [loadState]);
 
+  useEffect(() => {
+    if (stageSize.width <= 0 || stageSize.height <= 0) {
+      setStageStable(false);
+      return;
+    }
+    setStageStable(false);
+    let secondFrame = 0;
+    const firstFrame = window.requestAnimationFrame(() => {
+      secondFrame = window.requestAnimationFrame(() => setStageStable(true));
+    });
+    return () => {
+      window.cancelAnimationFrame(firstFrame);
+      if (secondFrame) window.cancelAnimationFrame(secondFrame);
+    };
+  }, [stageSize.width, stageSize.height]);
+
   // Initial placement is the only size-driven camera write. After this guard
   // is satisfied, ResizeObserver can never move the camera or any node.
   useEffect(() => {
@@ -1041,18 +1036,6 @@ export function AppNetwork({ locale }: { locale: Locale }) {
     initializedWalletRef.current = key;
     setView(centeredView(stageSize, 1));
   }, [wallet, loadState, currentData, stageSize]);
-
-  useEffect(() => {
-    if (!wallet || !focusWallet || loadState !== 'ready') return;
-    try {
-      window.sessionStorage.setItem(
-        runtimeSessionKey(wallet),
-        JSON.stringify({ focusWallet, view } satisfies StoredRuntimeState),
-      );
-    } catch {
-      // Session continuity is optional; runtime state remains fully in memory.
-    }
-  }, [wallet, focusWallet, view, loadState]);
 
   useEffect(() => {
     const stage = stageRef.current;
@@ -1174,21 +1157,13 @@ export function AppNetwork({ locale }: { locale: Locale }) {
 
   useEffect(() => {
     if (!wallet || loadState !== 'ready' || !currentData) return;
-    if (stageSize.width <= 0 || stageSize.height <= 0) return;
-    if (storedStateRef.current) return;
+    if (stageSize.width <= 0 || stageSize.height <= 0 || !stageStable) return;
+    if (!(rootTopologyReady && inviteSlotsReady) && !introReadyFallback) return;
+    if (introCancelledRef.current) return;
+    if (keyWallet(currentData.focusWallet) !== keyWallet(currentData.rootWallet)) return;
     const walletKey = keyWallet(wallet);
     if (introWalletRef.current === walletKey) return;
     introWalletRef.current = walletKey;
-
-    const introKey = `${INTRO_SESSION_PREFIX}${walletKey}`;
-    let seen = false;
-    try {
-      seen = window.sessionStorage.getItem(introKey) === '1';
-      if (!seen) window.sessionStorage.setItem(introKey, '1');
-    } catch {
-      seen = false;
-    }
-    if (seen) return;
 
     const reducedMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false;
     if (reducedMotion) {
@@ -1196,16 +1171,28 @@ export function AppNetwork({ locale }: { locale: Locale }) {
       return;
     }
 
+    setView(centeredView(stageSize, 1));
     setIntroActive(true);
     introFitTimerRef.current = window.setTimeout(() => {
       introFitTimerRef.current = null;
+      if (introCancelledRef.current) return;
       fitNetwork();
     }, INTRO_HOLD_MS);
     introEndTimerRef.current = window.setTimeout(() => {
       introEndTimerRef.current = null;
       setIntroActive(false);
     }, INTRO_END_MS);
-  }, [wallet, loadState, currentData, stageSize, fitNetwork]);
+  }, [
+    wallet,
+    loadState,
+    currentData,
+    stageSize,
+    stageStable,
+    rootTopologyReady,
+    inviteSlotsReady,
+    introReadyFallback,
+    fitNetwork,
+  ]);
 
   const zoomAt = useCallback((screenPoint: Point, nextScale: number) => {
     setView((current) => {
@@ -1507,6 +1494,7 @@ export function AppNetwork({ locale }: { locale: Locale }) {
   }, [groupDraft, view, nearestVisibleGroup]);
 
   const onPointerDownCapture = (event: ReactPointerEvent<HTMLDivElement>) => {
+    stopIntroForInteraction();
     const point = { x: event.clientX, y: event.clientY };
     pointersRef.current.set(event.pointerId, point);
     const target = event.target instanceof Element ? event.target : null;
@@ -1704,6 +1692,7 @@ export function AppNetwork({ locale }: { locale: Locale }) {
 
   const onWheel = (event: ReactWheelEvent<HTMLDivElement>) => {
     event.preventDefault();
+    stopIntroForInteraction();
     const rect = stageRef.current?.getBoundingClientRect();
     if (!rect) return;
 
