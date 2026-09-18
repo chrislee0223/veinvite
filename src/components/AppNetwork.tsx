@@ -529,7 +529,11 @@ export function AppNetwork({ locale }: { locale: Locale }) {
   const [loadState, setLoadState] = useState<'idle' | 'loading' | 'ready' | 'error'>('idle');
   const [loadError, setLoadError] = useState('');
   const [stageSize, setStageSize] = useState({ width: 0, height: 0 });
-  const [view, setView] = useState<View>({ x: 0, y: 0, scale: 1 });
+  const [view, setView] = useState<View>({
+    x: 260 - FOCUS_X,
+    y: 300 - FOCUS_Y,
+    scale: 1,
+  });
   const [selectedWallet, setSelectedWallet] = useState<string | null>(null);
   const [page, setPage] = useState(0);
   const [searchQuery, setSearchQuery] = useState('');
@@ -554,7 +558,7 @@ export function AppNetwork({ locale }: { locale: Locale }) {
     if (rootData && keyWallet(rootData.rootWallet) === keyWallet(wallet)) {
       return rootData;
     }
-    return provisionalNetworkData(wallet);
+    return (getCachedNetworkRoot(wallet) as NetworkData | null) ?? provisionalNetworkData(wallet);
   }, [wallet, rootData]);
 
   const currentData = useMemo(() => {
@@ -890,7 +894,11 @@ export function AppNetwork({ locale }: { locale: Locale }) {
     setDraggingWorkspaceKey(null);
     setGroupingWallet(null);
     setWorkspaceNotice('');
-    setView({ x: 0, y: 0, scale: 1 });
+    setView({
+      x: 260 - FOCUS_X,
+      y: 300 - FOCUS_Y,
+      scale: 1,
+    });
     if (!wallet) {
       setLoadState('idle');
       setLoadError('');
