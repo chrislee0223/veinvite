@@ -817,6 +817,38 @@ export function AppNetwork({ locale }: { locale: Locale }) {
     [activeWorkspace.groups, groupEligibleWalletKeys],
   );
 
+  const displayedChildPointByWallet = useMemo(
+    () => new Map(
+      displayedChildren.map((child) => [
+        keyWallet(child.wallet),
+        { x: child.x, y: child.y } satisfies Point,
+      ]),
+    ),
+    [displayedChildren],
+  );
+
+  const findGroupDropTarget = useCallback((
+    clientX: number,
+    clientY: number,
+    sourceGroupId?: string,
+  ) => {
+    const rect = stageRef.current?.getBoundingClientRect();
+    if (!rect) return null;
+    let target: (typeof visibleGroups)[number] | null = null;
+    let nearestDistance = GROUP_SCREEN_DROP_RADIUS;
+    for (const group of visibleGroups) {
+      if (group.id === sourceGroupId || group.members.length >= MAX_MEMBERS_PER_GROUP) continue;
+      const screenX = rect.left + view.x + group.x * view.scale;
+      const screenY = rect.top + view.y + group.y * view.scale;
+      const candidateDistance = Math.hypot(clientX - screenX, clientY - screenY);
+      if (candidateDistance <= nearestDistance) {
+        target = group;
+        nearestDistance = candidateDistance;
+      }
+    }
+    return target;
+  }, [visibleGroups, view]);
+
   const nearestVisibleChild = useCallback((point: Point, radius = NODE_HIT_RADIUS): PositionedChild | null => {
     let nearest: PositionedChild | null = null;
     let nearestDistance = radius;
@@ -992,6 +1024,7 @@ export function AppNetwork({ locale }: { locale: Locale }) {
   const clearDragGhost = useCallback(() => {
     setDragGhost(null);
     setNewGroupDropActive(false);
+    setMemberDropGroupId(null);
   }, []);
 
   const animateRestoredWallets = useCallback((wallets: string[]) => {
