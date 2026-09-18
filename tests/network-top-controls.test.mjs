@@ -60,6 +60,7 @@ test('stage does not steal pointer capture from buttons and inputs', () => {
 
 
 test('desktop Network keeps the compact Network card without restacking the global app header', () => {
+  assert.match(home, /@media \(min-width:561px\) \{\s*\.networkTabViewport \{ flex:0 0 auto; height:min\(720px,calc\(100svh - 160px\)\); \}\s*\}/);
   assert.match(hub, /networkHubShell\{width:min\(100%,520px\)/);
   assert.match(source, /networkHeader\{[^}]*min-height:42px[^}]*padding:7px 9px/);
   assert.match(source, /networkUtilityRow\{[^}]*min-height:39px[^}]*padding:4px 6px/);
@@ -89,4 +90,12 @@ test('group popovers are anchored to their current toolbar buttons instead of th
   assert.match(source, /\.groupsPanel,\.groupBuilder\{position:absolute[^}]*top:calc\(100% \+ 7px\)[^}]*left:50%[^}]*translateX\(-50%\)/);
   assert.doesNotMatch(source, /\.groupsPanel\{position:absolute;z-index:81;left:10px;top:50px/);
   assert.doesNotMatch(source, /\.groupBuilder\{position:absolute;z-index:82;left:10px;top:50px/);
+});
+
+
+test('desktop Network height cap is scoped to the Network card only', () => {
+  assert.match(home, /.screen.networkScreen {[^}]*height:100svh/);
+  assert.match(home, /.networkTabViewport {[^}]*flex:1 1 auto[^}]*display:flex/);
+  assert.match(home, /@media (min-width:561px) {s*.networkTabViewport { flex:0 0 auto; height:min(720px,calc(100svh - 160px)); }s*}/);
+  assert.doesNotMatch(home, /@media (min-width:561px)[sS]{0,220}.screen.networkScreen {[^}]*max-height/);
 });
