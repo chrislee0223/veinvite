@@ -280,13 +280,14 @@ function newGroupId(): string {
 
 async function fetchNetwork(
   rootWallet: string,
-  options: { focus?: string; query?: string; signal?: AbortSignal } = {},
+  options: { focus?: string; query?: string; signal?: AbortSignal; fast?: boolean } = {},
 ): Promise<NetworkData> {
   const params = new URLSearchParams({ wallet: rootWallet });
   if (options.focus && keyWallet(options.focus) !== keyWallet(rootWallet)) {
     params.set('focus', options.focus);
   }
   if (options.query) params.set('q', options.query);
+  if (options.fast) params.set('fast', '1');
 
   const response = await fetch(`/api/network?${params.toString()}`, {
     method: 'GET',
@@ -752,41 +753,69 @@ export function AppNetwork({ locale }: { locale: Locale }) {
     setSelectedWallet(null);
     setSearchQuery('');
     setSearchResults([]);
+
+    const canCommit = () =>
+      !controller.signal.aborted &&
+      serial === requestSerialRef.current &&
+      keyWallet(requestWallet) === keyWallet(wallet);
+
     try {
-      const payload = await fetchNetwork(requestWallet, { signal: controller.signal });
-      if (controller.signal.aborted || serial !== requestSerialRef.current) return;
-      if (keyWallet(requestWallet) !== keyWallet(wallet)) return;
+      // First paint intentionally skips live-round enrichment. Topology,
+      // statuses, counts and interactions can render immediately; the exact
+      // This Round values are refreshed just after the canvas becomes usable.
+      const payload = await fetchNetwork(requestWallet, {
+        signal: controller.signal,
+        fast: true,
+      });
+      if (!canCommit()) return;
+
       cacheRef.current.clear();
       cacheRef.current.set(keyWallet(payload.focusWallet), payload);
       setRootData(payload);
+      setFocusWallet(payload.rootWallet);
 
       const stored = storedStateRef.current;
+      if (stored && keyWallet(stored.focusWallet) === keyWallet(payload.rootWallet)) {
+        setView(stored.view);
+        initializedWalletRef.current = keyWallet(requestWallet);
+      }
+
+      setCacheVersion((value) => value + 1);
+      setLoadState('ready');
+
+      // Restore a previously focused branch without holding the whole Network
+      // behind a second request. Any deliberate navigation cancels this late
+      // restore through the request serial guard.
       if (stored && keyWallet(stored.focusWallet) !== keyWallet(payload.rootWallet)) {
-        try {
-          const restored = await fetchNetwork(requestWallet, {
-            focus: stored.focusWallet,
-            signal: controller.signal,
-          });
-          if (controller.signal.aborted || serial !== requestSerialRef.current) return;
+        void fetchNetwork(requestWallet, {
+          focus: stored.focusWallet,
+          fast: true,
+        }).then((restored) => {
+          if (!canCommit()) return;
           cacheRef.current.set(keyWallet(restored.focusWallet), restored);
           setFocusWallet(restored.focusWallet);
           setView(stored.view);
           initializedWalletRef.current = keyWallet(requestWallet);
-        } catch {
-          if (controller.signal.aborted || serial !== requestSerialRef.current) return;
-          setFocusWallet(payload.rootWallet);
-        }
-      } else {
-        setFocusWallet(payload.rootWallet);
-        if (stored) {
-          setView(stored.view);
-          initializedWalletRef.current = keyWallet(requestWallet);
-        }
+          setCacheVersion((value) => value + 1);
+        }).catch(() => {
+          // Root view is already usable; branch restoration is best-effort.
+        });
       }
-      setCacheVersion((value) => value + 1);
-      setLoadState('ready');
+
+      // Exact live-round metrics are enrichment, not a first-paint dependency.
+      // Keep the fast topology on screen while the authoritative round window
+      // resolves in the background.
+      void fetchNetwork(requestWallet).then((enriched) => {
+        if (!canCommit()) return;
+        cacheRef.current.set(keyWallet(enriched.focusWallet), enriched);
+        setRootData(enriched);
+        setCacheVersion((value) => value + 1);
+      }).catch(() => {
+        // The fast payload remains valid if round enrichment is temporarily
+        // unavailable.
+      });
     } catch (error) {
-      if (controller.signal.aborted || serial !== requestSerialRef.current) return;
+      if (!canCommit()) return;
       setRootData(null);
       setFocusWallet(null);
       setLoadError(error instanceof Error ? error.message : t.loadError);

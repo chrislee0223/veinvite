@@ -35,11 +35,12 @@ test('Network runtime switch fails closed before chain and recursive graph work'
   assert.match(runtime, /export async function canUseNetworkSurface/i);
   assert.match(runtime, /return false/i);
   const switchCheck = route.indexOf("if (!(await canUseNetworkSurface('my', rootWallet)))");
-  const roundRead = route.indexOf('const round = await readCurrentRoundContext();');
+  const roundRead = route.indexOf('const round = fastInitial ? null : await readCurrentRoundContext();');
   const graphRead = route.indexOf(".rpc(\n        'read_referral_network_focus_v2'");
   assert.ok(switchCheck >= 0);
   assert.ok(roundRead > switchCheck);
   assert.ok(graphRead > roundRead);
+  assert.match(route, /fastInitial \? null : await readCurrentRoundContext\(\)/i);
   assert.match(route, /'NETWORK_DISABLED'/i);
   assert.match(route, /503/i);
 });
