@@ -16,8 +16,15 @@ const [
 
 test('VeWorld ownership auth prefers EIP-712 over certificates when supported', () => {
   assert.match(authHook, /dappKitSource === 'veworld'/);
-  assert.match(authHook, /availableMethods\.includes\(\s*'thor_signTypedData'/);
   assert.match(authHook, /await connectV2\(\s*typedData/);
+  assert.match(
+    authHook,
+    /Do not gate this call on the transient methods snapshot/,
+  );
+  assert.doesNotMatch(
+    authHook,
+    /availableMethods\.includes\(\s*'thor_signTypedData'/,
+  );
   assert.match(authHook, /proofType\s*=\s*'typed_data'/);
   assert.match(
     authHook,
