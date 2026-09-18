@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { readFile } from 'node:fs/promises';
 
-test('Network warmup runs only after app-ready and primes both summary and root graph', async () => {
+test('Network warmup starts complete data after app-ready and defers only module loading to idle', async () => {
   const [providers, warmup] = await Promise.all([
     readFile(
       new URL('../src/components/AppProviders.tsx', import.meta.url),
@@ -22,9 +22,18 @@ test('Network warmup runs only after app-ready and primes both summary and root 
 
   assert.match(warmup, /import\('\.\/AppGuide'\)/);
   assert.match(warmup, /import\('\.\/AppNetworkHub'\)/);
-  assert.match(warmup, /prefetchNetworkSummary\(wallet\)/);
+  assert.match(warmup, /const warmData = \(\) =>/);
   assert.match(warmup, /prefetchNetworkRoot\(wallet\)/);
+  assert.match(warmup, /prefetchNetworkSlots\(wallet\)/);
+  assert.match(warmup, /rememberNetworkSummary\(wallet/);
+  assert.match(warmup, /const warmModules = \(\) =>/);
+  assert.match(warmup, /requestIdleCallback/);
   assert.match(warmup, /Promise\.allSettled/);
+  const dataStart = warmup.indexOf('const warmData = () =>');
+  const moduleStart = warmup.indexOf('const warmModules = () =>');
+  assert.ok(dataStart >= 0 && moduleStart > dataStart);
+  const dataBody = warmup.slice(dataStart, moduleStart);
+  assert.doesNotMatch(dataBody, /requestIdleCallback/);
 
   assert.doesNotMatch(warmup, /<AppGuide\b/);
   assert.doesNotMatch(warmup, /<AppNetworkHub\b/);
