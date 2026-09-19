@@ -70,6 +70,9 @@ jobs:
       - name: Admin dynamic rendering gate
         run: node scripts/check-admin-dynamic.mjs
 
+      - name: Admin API authentication gate
+        run: node scripts/check-admin-api-auth.mjs
+
       - name: Forecast stability gate
         run: node scripts/check-forecast-stability.mjs
 
