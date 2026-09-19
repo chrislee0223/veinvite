@@ -183,6 +183,23 @@ test('expanded group layout uses indexed child membership instead of repeated fu
   assert.doesNotMatch(networkSource.slice(displayedStart, hiddenStart), /positionedChildren\.some/);
 });
 
+test('group rendering and drag start use indexed wallet lookups at larger network sizes', () => {
+  assert.match(networkSource, /const visibleChildByWallet = useMemo/);
+  assert.match(networkSource, /new Map\(visibleChildren\.map\(\(child\) => \[keyWallet\(child\.wallet\), child\]\)\)/);
+  assert.match(networkSource, /visibleChildByWallet\.get\(keyWallet\(member\)\)/);
+  assert.match(networkSource, /const child = childByWallet\.get\(keyWallet\(key\)\)/);
+
+  const edgesStart = networkSource.indexOf('{visibleGroups.filter((group) => group.collapsed === false).flatMap');
+  const continuationStart = networkSource.indexOf('{visibleChildren.filter((child) => child.network > 0).map', edgesStart);
+  assert.ok(edgesStart >= 0 && continuationStart > edgesStart);
+  assert.doesNotMatch(networkSource.slice(edgesStart, continuationStart), /visibleChildren\.find/);
+
+  const workspaceDragStart = networkSource.indexOf('const beginWorkspaceDrag = useCallback');
+  const finishDropStart = networkSource.indexOf('const finishWorkspaceDrop = useCallback', workspaceDragStart);
+  assert.ok(workspaceDragStart >= 0 && finishDropStart > workspaceDragStart);
+  assert.doesNotMatch(networkSource.slice(workspaceDragStart, finishDropStart), /positionedChildren\.find/);
+});
+
 test('blank tap exits layout editing without confusing pan, pinch, or group creation', () => {
   assert.match(networkSource, /backgroundTapRef/);
   assert.match(networkSource, /moved: false,[\s\S]*blocked: Boolean\(groupDraft\)/);
