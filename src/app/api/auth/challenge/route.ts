@@ -81,10 +81,14 @@ async function loadActiveChallenge({
 function challengeResponse({
   walletAddress,
   challenge,
+  origin,
+  network,
   status,
 }: {
   walletAddress: string;
   challenge: ChallengeRow;
+  origin: string;
+  network: string;
   status: 200 | 201;
 }) {
   return NextResponse.json(
@@ -93,6 +97,8 @@ function challengeResponse({
       nonce: challenge.nonce,
       expiresAt: challenge.expires_at,
       message: challenge.message,
+      origin,
+      network,
     },
     {
       status,
@@ -187,6 +193,8 @@ export async function POST(request: NextRequest) {
     return challengeResponse({
       walletAddress,
       challenge: activeChallenge,
+      origin,
+      network,
       status: 200,
     });
   }
@@ -245,6 +253,8 @@ export async function POST(request: NextRequest) {
     return challengeResponse({
       walletAddress,
       challenge: newChallenge,
+      origin,
+      network,
       status: 201,
     });
   }
@@ -265,6 +275,8 @@ export async function POST(request: NextRequest) {
         return challengeResponse({
           walletAddress,
           challenge: concurrentChallenge,
+          origin,
+          network,
           status: 200,
         });
       }
