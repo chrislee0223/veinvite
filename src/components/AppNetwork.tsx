@@ -870,9 +870,15 @@ export function AppNetwork({ locale }: { locale: Locale }) {
   const selectedMember = selectedWallet ? childByWallet.get(selectedWallet) ?? null : null;
   const selectedData = selectedWallet ? cacheRef.current.get(selectedWallet) ?? null : null;
   const selectedIsFocus = Boolean(currentData && selectedWallet === keyWallet(currentData.focusWallet));
-  const selectedNetwork = selectedData?.summary.network ?? selectedMember?.network ?? currentData?.summary.network ?? 0;
-  const selectedDirect = selectedData?.summary.direct ?? selectedMember?.direct ?? currentData?.summary.direct ?? 0;
-  const selectedQualified = selectedData?.summary.qualified ?? selectedMember?.qualified ?? currentData?.summary.qualified ?? 0;
+  const selectedNetwork = selectedIsFocus
+    ? currentData?.summary.network ?? 0
+    : selectedData?.summary.network ?? selectedMember?.network ?? 0;
+  const selectedDirect = selectedIsFocus
+    ? currentData?.summary.direct ?? 0
+    : selectedData?.summary.direct ?? selectedMember?.direct ?? 0;
+  const selectedQualified = selectedIsFocus
+    ? currentData?.summary.qualified ?? 0
+    : selectedData?.summary.qualified ?? selectedMember?.qualified ?? 0;
   const selectedRound = selectedIsFocus
     ? currentData?.summary.thisRound ?? null
     : selectedData?.summary.thisRound ?? selectedMember?.thisRound ?? null;
