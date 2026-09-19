@@ -634,6 +634,13 @@ test('expanded members can move between groups with fixed screen-space targeting
   assert.match(networkSource, /memberDropGroupId === group\.id \? ' dropTarget' : ''/);
 });
 
+test('group transfer targeting ignores covered UI and group menus stay bounded', () => {
+  assert.match(networkSource, /document\.elementFromPoint\(clientX, clientY\)/);
+  assert.match(networkSource, /\.networkUtilityRow,\.breadcrumbs,\.profileCard,\.parentReturn,\.workspaceNotice,\.inlineError/);
+  assert.match(networkSource, /\.groupsList\{max-height:216px;overflow-y:auto;overscroll-behavior:contain/);
+  assert.match(networkSource, /\.groupManageMembers\{max-height:216px;overflow-y:auto;overscroll-behavior:contain/);
+});
+
 test('member removal and group dissolution preserve current visible node positions', () => {
   assert.match(workspaceSource, /export function removeWorkspaceMemberFromGroupAtPoint/);
   assert.match(workspaceSource, /point \? withNodePosition\(withoutMember, key, point\) : withoutMember/);
