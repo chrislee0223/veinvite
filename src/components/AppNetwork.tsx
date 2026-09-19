@@ -833,12 +833,6 @@ export function AppNetwork({ locale }: { locale: Locale }) {
   ) => {
     const rect = stageRef.current?.getBoundingClientRect();
     if (!rect) return null;
-    const surfaceElement = typeof document !== 'undefined'
-      ? document.elementFromPoint(clientX, clientY)
-      : null;
-    if (surfaceElement?.closest(
-      '.networkUtilityRow,.breadcrumbs,.profileCard,.parentReturn,.workspaceNotice,.inlineError'
-    )) return null;
     let target: (typeof visibleGroups)[number] | null = null;
     let nearestDistance = GROUP_SCREEN_DROP_RADIUS;
     for (const group of visibleGroups) {
@@ -2040,6 +2034,7 @@ export function AppNetwork({ locale }: { locale: Locale }) {
     setDraggingWorkspaceKey(`${kind}:${key}`);
     setSelectedWallet(null);
     setManagedGroupId(null);
+    if (kind === 'group-member') setGroupsOpen(false);
   }, [editingLayout, groupingWallet, view, positionedChildren, moveDragGhost]);
 
   const cancelHoldDrag = useCallback((restore = false) => {
@@ -2099,6 +2094,11 @@ export function AppNetwork({ locale }: { locale: Locale }) {
       hold.armed = true;
       suppressClickRef.current = true;
       triggerHoldHaptic();
+      if (kind === 'group-member') {
+        setSelectedWallet(null);
+        setManagedGroupId(null);
+        setGroupsOpen(false);
+      }
       if (kind === 'node' || kind === 'group-member') {
         const child = positionedChildren.find((item) => keyWallet(item.wallet) === keyWallet(key));
         if (child) {
