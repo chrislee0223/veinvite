@@ -146,7 +146,7 @@ export function useWalletAuthentication() {
   const {
     account: dappKitAccount,
     source: dappKitSource,
-    connectV2,
+    requestTypedData,
     requestCertificate,
   } = useDappKitWallet();
 
@@ -437,49 +437,24 @@ export function useWalletAuthentication() {
                       challenge.message,
                   });
 
-                try {
-                  // connectV2 intentionally re-discovers VeWorld methods when
-                  // account switching leaves availableMethods briefly empty.
-                  // Do not gate this call on the transient methods snapshot.
-                  const typedResult =
-                    await connectV2(
-                      typedData,
-                    );
+                // The wallet is already connected at this point. Calling
+                // connectV2() again re-enters VeWorld's connection/login flow
+                // and can show a second login screen even though the first
+                // connection succeeded. Request only the EIP-712 signature
+                // from the established signer instead.
+                signature =
+                  await requestTypedData(
+                    typedData.domain,
+                    typedData.types,
+                    typedData.value,
+                    {
+                      signer,
+                    },
+                  );
 
-                  assertStillCurrent();
-
-                  const returnedSigner =
-                    typedResult.signer
-                      ?.trim()
-                      .toLowerCase();
-
-                  if (
-                    returnedSigner !==
-                    walletAddress
-                  ) {
-                    throw new Error(
-                      'The wallet changed while VeInvite was verifying ownership. Please try again.',
-                    );
-                  }
-
-                  signature =
-                    typedResult.signature;
-                  proofType =
-                    'typed_data';
-                } catch (error) {
-                  const v2Unavailable =
-                    error instanceof Error &&
-                    error.message ===
-                      'VeWorld v2 API is not available';
-
-                  if (!v2Unavailable) {
-                    throw error;
-                  }
-
-                  // Only a capability failure that occurs before a v2 signing
-                  // request is opened may use the legacy certificate fallback.
-                  await signCertificateFallback();
-                }
+                assertStillCurrent();
+                proofType =
+                  'typed_data';
               } else {
                 await signCertificateFallback();
               }
@@ -612,7 +587,7 @@ export function useWalletAuthentication() {
         connection.isConnectedWithDappKit,
         dappKitAccount,
         dappKitSource,
-        connectV2,
+        requestTypedData,
         requestCertificate,
         signMessage,
       ],
