@@ -632,18 +632,25 @@ test('expanded members can move between groups with fixed screen-space targeting
   assert.match(networkSource, /const droppedToExistingGroup =/);
   assert.match(networkSource, /moveMemberBetweenGroups\([\s\S]*holdDrag\.originalWorkspace,[\s\S]*holdDrag\.key,[\s\S]*holdDrag\.groupId,[\s\S]*droppedToExistingGroup\.id/);
   assert.match(networkSource, /memberDropGroupId === group\.id \? ' dropTarget' : ''/);
+  assert.match(networkSource, /target\?\.collapsed === false/);
+  assert.match(networkSource, /defaultGroupMemberOffset\(index, target\.members\.length\)/);
 });
 
-test('member removal and group dissolution preserve current visible node positions', () => {
+test('member removal and group dissolution preserve stable positions in expanded and collapsed groups', () => {
   assert.match(workspaceSource, /export function removeWorkspaceMemberFromGroupAtPoint/);
   assert.match(workspaceSource, /point \? withNodePosition\(withoutMember, key, point\) : withoutMember/);
   assert.match(workspaceSource, /export function removeWorkspaceGroupAtMemberPoints/);
   assert.match(workspaceSource, /if \(point\) next = withNodePosition\(next, key, point\)/);
   assert.match(networkSource, /const displayedChildPointByWallet = useMemo/);
+  assert.match(networkSource, /const groupMemberCanvasPoint = useCallback/);
+  assert.match(networkSource, /group\.collapsed === false/);
+  assert.match(networkSource, /group\.memberOffsets\?\.\[key\]/);
+  assert.match(networkSource, /defaultGroupMemberOffset\(index, group\.members\.length\)/);
   assert.match(networkSource, /const materializeExpandedGroupOffsets = useCallback/);
   assert.match(networkSource, /materializeExpandedGroupOffsets\(workspace, managedGroup\.id\)/);
   assert.match(networkSource, /removeWorkspaceMemberFromGroupAtPoint\(prepared, key, point\)/);
   assert.match(networkSource, /removeWorkspaceGroupAtMemberPoints\(workspace, managedGroup\.id, memberPoints\)/);
+  assert.match(networkSource, /if \(managedGroupId && !activeWorkspace\.groups\.some/);
 });
 
 test('long-press layout movement updates runtime state without synchronous storage churn', () => {
