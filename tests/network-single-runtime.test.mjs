@@ -65,6 +65,12 @@ test('node profile stays compact, preserves context, and exposes the selected wa
   assert.match(networkSource, /item === '…' \? '…' : index === 0 \? c\.you : nodeWallet\(item\)/);
   assert.match(networkSource, /className=\{\`profileStatus \$\{selectedIsFocus \? 'status-branch' : \`status-\$\{selectedStatus\.toLowerCase\(\)\}\`\}\`\}/);
   assert.match(networkSource, /https:\/\/explore\.vechain\.org\/address\/\$\{selectedAddress\}/);
+  assert.match(networkSource, /const selectedNetwork = selectedIsFocus[\s\S]*currentData\?\.summary\.network[\s\S]*selectedData\?\.summary\.network \?\? selectedMember\?\.network \?\? 0/);
+  assert.match(networkSource, /const selectedDirect = selectedIsFocus[\s\S]*currentData\?\.summary\.direct[\s\S]*selectedData\?\.summary\.direct \?\? selectedMember\?\.direct \?\? 0/);
+  assert.match(networkSource, /const selectedQualified = selectedIsFocus[\s\S]*currentData\?\.summary\.qualified[\s\S]*selectedData\?\.summary\.qualified \?\? selectedMember\?\.qualified \?\? 0/);
+  assert.doesNotMatch(networkSource, /selectedMember\?\.network \?\? currentData\?\.summary\.network/);
+  assert.doesNotMatch(networkSource, /selectedMember\?\.direct \?\? currentData\?\.summary\.direct/);
+  assert.doesNotMatch(networkSource, /selectedMember\?\.qualified \?\? currentData\?\.summary\.qualified/);
   assert.match(networkSource, /const selectedRound = selectedIsFocus[\s\S]*currentData\?\.summary\.thisRound[\s\S]*selectedData\?\.summary\.thisRound \?\? selectedMember\?\.thisRound \?\? null/);
   assert.doesNotMatch(networkSource, /selectedMember\?\.thisRound \?\? currentData\?\.summary\.thisRound/);
   assert.match(networkSource, /selectedRound === null \? '–' : \`\+\$\{selectedRound\.toLocaleString\(\)\}\`/);
