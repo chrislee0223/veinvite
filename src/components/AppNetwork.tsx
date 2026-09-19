@@ -800,6 +800,11 @@ export function AppNetwork({ locale }: { locale: Locale }) {
     [displayedChildren, hiddenGroupMembers, activeInviteeKeys],
   );
 
+  const visibleChildByWallet = useMemo(
+    () => new Map(visibleChildren.map((child) => [keyWallet(child.wallet), child])),
+    [visibleChildren],
+  );
+
   const groupEligibleWalletKeys = useMemo(
     () => new Set(
       positionedChildren
@@ -2025,7 +2030,7 @@ export function AppNetwork({ locale }: { locale: Locale }) {
     setGroupDropActive(false);
     setNewGroupDropActive(false);
     if (kind === 'node' || kind === 'group-member') {
-      const child = positionedChildren.find((item) => keyWallet(item.wallet) === keyWallet(key));
+      const child = childByWallet.get(keyWallet(key));
       if (child) {
         setDragGhost({ key: keyWallet(key), wallet: child.wallet, x: event.clientX, y: event.clientY });
         window.requestAnimationFrame(() => moveDragGhost(event.clientX, event.clientY));
@@ -2035,7 +2040,7 @@ export function AppNetwork({ locale }: { locale: Locale }) {
     setSelectedWallet(null);
     setManagedGroupId(null);
     if (kind === 'group-member') setGroupsOpen(false);
-  }, [editingLayout, groupingWallet, view, positionedChildren, moveDragGhost]);
+  }, [editingLayout, groupingWallet, view, childByWallet, moveDragGhost]);
 
   const cancelHoldDrag = useCallback((restore = false) => {
     if (holdTimerRef.current !== null) {
@@ -2100,7 +2105,7 @@ export function AppNetwork({ locale }: { locale: Locale }) {
         setGroupsOpen(false);
       }
       if (kind === 'node' || kind === 'group-member') {
-        const child = positionedChildren.find((item) => keyWallet(item.wallet) === keyWallet(key));
+        const child = childByWallet.get(keyWallet(key));
         if (child) {
           setDragGhost({
             key: keyWallet(key),
@@ -2113,7 +2118,7 @@ export function AppNetwork({ locale }: { locale: Locale }) {
       }
       setDraggingWorkspaceKey(`${kind}:${key}`);
     }, HOLD_TO_MOVE_MS);
-  }, [editingLayout, pendingFocus, currentFocusKey, committedWorkspace, view, positionedChildren, moveDragGhost]);
+  }, [editingLayout, pendingFocus, currentFocusKey, committedWorkspace, view, childByWallet, moveDragGhost]);
 
   const finishWorkspaceDrop = useCallback((event: ReactPointerEvent<HTMLDivElement>, drag: WorkspaceDrag) => {
     setGroupDropActive(false);
@@ -2953,7 +2958,7 @@ export function AppNetwork({ locale }: { locale: Locale }) {
               ))}
               {visibleGroups.filter((group) => group.collapsed === false).flatMap((group) =>
                 group.members.map((member) => {
-                  const child = visibleChildren.find((item) => keyWallet(item.wallet) === keyWallet(member));
+                  const child = visibleChildByWallet.get(keyWallet(member));
                   return child ? (
                     <path
                       key={`group-member-edge:${group.id}:${keyWallet(member)}`}
