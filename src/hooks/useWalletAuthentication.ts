@@ -24,6 +24,9 @@ import {
 import {
   reportProductAnalyticsEvent,
 } from '@/lib/productAnalytics';
+import {
+  buildWalletAuthTypedData,
+} from '@/lib/walletAuthTypedData';
 import { USAGE_ANALYTICS_WALLET_AUTH_EVENT } from '@/lib/usageAnalyticsPreference';
 
 const WALLET_PATTERN =
@@ -47,6 +50,8 @@ type ChallengeResponse = {
   nonce?: string;
   expiresAt?: string;
   message?: string;
+  origin?: string;
+  network?: string;
   error?: string;
 };
 
@@ -140,6 +145,8 @@ export function useWalletAuthentication() {
   } = useVeChainKitWallet();
   const {
     account: dappKitAccount,
+    source: dappKitSource,
+    connectV2,
     requestCertificate,
   } = useDappKitWallet();
 
@@ -322,20 +329,15 @@ export function useWalletAuthentication() {
             let certificate:
               | WalletCertificate
               | undefined;
+            let proofType:
+              | 'typed_data'
+              | 'certificate'
+              | 'message'
+              | undefined;
 
-            // VeWorld/DAppKit signs a VeChain certificate, not an Ethereum
-            // personal_sign message. Preserve the certificate annex so the
-            // backend can verify it with the VeChain SDK. A reconnect can leave
-            // VeChainKit and DAppKit briefly out of sync, so reject a mismatched
-            // signer instead of opening a request against stale wallet state.
             if (
               connection.isConnectedWithDappKit
             ) {
-              // A VeWorld account restore can still have initializeAsync()
-              // running when VeChainKit publishes the new account. Wait for
-              // that provider mutation to finish before opening the native
-              // certificate prompt; otherwise VeWorld can complete the
-              // signature while leaving its confirmation sheet stuck loading.
               await withTimeout(
                 waitForWalletProviderReconciliation(),
                 WALLET_PROVIDER_SETTLE_TIMEOUT_MS,
@@ -362,56 +364,125 @@ export function useWalletAuthentication() {
                 );
               }
 
-              // Let the newly established provider transport settle before the
-              // ownership prompt is opened. VeWorld/VeChainKit can report the
-              // account slightly before the signing channel is fully ready.
               await wait(
                 WALLET_SIGNATURE_SETTLE_MS,
               );
               assertStillCurrent();
 
-              // Do not time out the native VeWorld certificate prompt here.
-              // requestCertificate() owns wallet UI that AbortController cannot
-              // reliably dismiss. Releasing VeInvite's auth lock while that
-              // sheet is still alive can open a second certificate request and
-              // recreate the orphaned spinner race. The user can cancel the
-              // wallet sheet explicitly; until it settles, this authentication
-              // remains the single browser-global signing flow.
-              const certResponse =
-                await requestCertificate(
-                  {
-                    purpose: 'agreement',
+              const signCertificateFallback =
+                async () => {
+                  const certResponse =
+                    await requestCertificate(
+                      {
+                        purpose:
+                          'agreement',
+                        payload: {
+                          type:
+                            'text',
+                          content:
+                            challenge.message!,
+                        },
+                      },
+                      {
+                        signer,
+                      },
+                    );
+
+                  assertStillCurrent();
+
+                  signature =
+                    certResponse.signature;
+                  certificate = {
+                    purpose:
+                      'agreement',
                     payload: {
-                      type: 'text',
+                      type:
+                        'text',
                       content:
-                        challenge.message,
+                        challenge.message!,
                     },
-                  },
-                  {
-                    signer,
-                  },
+                    domain:
+                      certResponse.annex.domain,
+                    timestamp:
+                      certResponse.annex.timestamp,
+                    signer:
+                      certResponse.annex.signer,
+                    signature:
+                      certResponse.signature,
+                  };
+                  proofType =
+                    'certificate';
+                };
+
+              const shouldUseVeWorldTypedData =
+                dappKitSource === 'veworld' &&
+                Boolean(
+                  challenge.origin &&
+                    challenge.network,
                 );
 
-              assertStillCurrent();
+              if (shouldUseVeWorldTypedData) {
+                const typedData =
+                  buildWalletAuthTypedData({
+                    walletAddress,
+                    nonce:
+                      challenge.nonce,
+                    expiresAt:
+                      challenge.expiresAt,
+                    origin:
+                      challenge.origin!,
+                    network:
+                      challenge.network!,
+                    message:
+                      challenge.message,
+                  });
 
-              signature =
-                certResponse.signature;
-              certificate = {
-                purpose: 'agreement',
-                payload: {
-                  type: 'text',
-                  content:
-                    challenge.message,
-                },
-                domain:
-                  certResponse.annex.domain,
-                timestamp:
-                  certResponse.annex.timestamp,
-                signer:
-                  certResponse.annex.signer,
-                signature:
-                  certResponse.signature,
-              };
+                try {
+                  // connectV2 intentionally re-discovers VeWorld methods when
+                  // account switching leaves availableMethods briefly empty.
+                  // Do not gate this call on the transient methods snapshot.
+                  const typedResult =
+                    await connectV2(
+                      typedData,
+                    );
+
+                  assertStillCurrent();
+
+                  const returnedSigner =
+                    typedResult.signer
+                      ?.trim()
+                      .toLowerCase();
+
+                  if (
+                    returnedSigner !==
+                    walletAddress
+                  ) {
+                    throw new Error(
+                      'The wallet changed while VeInvite was verifying ownership. Please try again.',
+                    );
+                  }
+
+                  signature =
+                    typedResult.signature;
+                  proofType =
+                    'typed_data';
+                } catch (error) {
+                  const v2Unavailable =
+                    error instanceof Error &&
+                    error.message ===
+                      'VeWorld v2 API is not available';
+
+                  if (!v2Unavailable) {
+                    throw error;
+                  }
+
+                  // Only a capability failure that occurs before a v2 signing
+                  // request is opened may use the legacy certificate fallback.
+                  await signCertificateFallback();
+                }
+              } else {
+                await signCertificateFallback();
+              }
             } else {
               signature =
                 await withTimeout(
@@ -421,12 +492,17 @@ export function useWalletAuthentication() {
                   WALLET_SIGNATURE_TIMEOUT_MS,
                   'Wallet signature request timed out.',
                 );
+              proofType =
+                'message';
               assertStillCurrent();
             }
 
-            if (!signature) {
+            if (
+              !signature ||
+              !proofType
+            ) {
               throw new Error(
-                'Wallet verification signature was not returned.',
+                'Wallet verification proof was not returned.',
               );
             }
 
@@ -447,6 +523,7 @@ export function useWalletAuthentication() {
                     nonce:
                       challenge.nonce,
                     signature,
+                    proofType,
                     certificate,
                   }),
                   signal: controller.signal,
@@ -534,6 +611,8 @@ export function useWalletAuthentication() {
         account?.address,
         connection.isConnectedWithDappKit,
         dappKitAccount,
+        dappKitSource,
+        connectV2,
         requestCertificate,
         signMessage,
       ],
