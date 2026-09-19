@@ -53,6 +53,30 @@ test('Network runtime has no DOM observer or global viewport ownership', () => {
   assert.match(networkSource, /stage\.addEventListener\('gesturestart'/);
 });
 
+
+test('node profile stays compact, preserves context, and exposes the selected wallet safely', () => {
+  assert.match(networkSource, /const selectedAddress = selectedIsFocus/);
+  assert.match(networkSource, /const compactSelectedPath = selectedPath\.length <= 3/);
+  assert.match(networkSource, /className="profilePath"/);
+  assert.match(networkSource, /item === '…' \? '…' : index === 0 \? c\.you : nodeWallet\(item\)/);
+  assert.match(networkSource, /className=\{\`profileStatus status-\$\{selectedStatus\.toLowerCase\(\)\}\`\}/);
+  assert.match(networkSource, /https:\/\/explore\.vechain\.org\/address\/\$\{selectedAddress\}/);
+  assert.match(networkSource, /selectedRound === null \? '–' : \`\+\$\{selectedRound\.toLocaleString\(\)\}\`/);
+  assert.match(networkSource, /\.profileAddress>span\{[^}]*text-overflow:ellipsis[^}]*white-space:nowrap/);
+  assert.match(networkSource, /\.profileStats>div\{[^}]*padding:6px 7px/);
+});
+
+test('node profile dismissal and mobile chrome compaction do not take over Network gestures', () => {
+  assert.match(networkSource, /if \(!interactive && selectedWallet\) \{\s*setSelectedWallet\(null\);\s*\}/);
+  assert.match(networkSource, /\.personNode\.selected \.nodeCircle\{[^}]*0 0 34px/);
+  assert.match(networkSource, /\.profileCard\{top:auto;right:8px;bottom:8px;left:8px;width:auto\}/);
+  assert.match(networkSource, /\.profileCard\.hasParentReturn\{bottom:52px\}/);
+  assert.match(networkSource, /:global\(\.screen\.networkScreen\)\{padding-bottom:calc\(72px \+ env\(safe-area-inset-bottom\)\)!important\}/);
+  assert.match(networkSource, /:global\(\.screen\.networkScreen \.bottomNavigation\)\{padding-bottom:env\(safe-area-inset-bottom\)!important\}/);
+  assert.match(networkSource, /:global\(\.screen\.networkScreen \.bottomNavigation>div\)\{min-height:60px!important;padding:4px!important/);
+  assert.doesNotMatch(networkSource, /user-scalable|maximum-scale/);
+});
+
 test('ResizeObserver records size only and cannot auto-pan the camera', () => {
   const resizeStart = networkSource.indexOf('const observer = new ResizeObserver(update)');
   assert.ok(resizeStart >= 0);
