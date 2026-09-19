@@ -868,6 +868,20 @@ export function WalletSessionGate({
   }
 
   if (!walletAddress) {
+    // VeWorld can briefly clear the provider account while returning from a
+    // signing surface even though the verified browser session is still valid.
+    // Never expose the logged-out Home/connect screen during that provider
+    // wobble. An explicit or confirmed disconnect clears these refs first and
+    // then falls through to the normal disconnected Home.
+    if (
+      sessionWalletRef.current ||
+      verifiedWallet ||
+      state === 'checking' ||
+      state === 'verified'
+    ) {
+      return <WalletSessionBrandSurface />;
+    }
+
     return children;
   }
 
