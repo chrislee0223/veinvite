@@ -5,6 +5,8 @@ import test from 'node:test';
 const [
   guideSource,
   networkSource,
+  homeSource,
+  bottomNavigationSource,
   workspaceSource,
   workspaceCopySource,
   localesSource,
@@ -15,6 +17,8 @@ const [
 ] = await Promise.all([
   readFile('src/components/AppGuide.tsx', 'utf8'),
   readFile('src/components/AppNetwork.tsx', 'utf8'),
+  readFile('src/components/HomeClient.tsx', 'utf8'),
+  readFile('src/components/AppBottomNavigation.tsx', 'utf8'),
   readFile('src/lib/networkWorkspace.ts', 'utf8'),
   readFile('src/lib/i18n/networkWorkspaceCopy.ts', 'utf8'),
   readFile('src/lib/i18n/locales.ts', 'utf8'),
@@ -59,8 +63,10 @@ test('node profile stays compact, preserves context, and exposes the selected wa
   assert.match(networkSource, /const compactSelectedPath = selectedPath\.length <= 3/);
   assert.match(networkSource, /className="profilePath"/);
   assert.match(networkSource, /item === '…' \? '…' : index === 0 \? c\.you : nodeWallet\(item\)/);
-  assert.match(networkSource, /className=\{\`profileStatus status-\$\{selectedStatus\.toLowerCase\(\)\}\`\}/);
+  assert.match(networkSource, /className=\{\`profileStatus \$\{selectedIsFocus \? 'status-branch' : \`status-\$\{selectedStatus\.toLowerCase\(\)\}\`\}\`\}/);
   assert.match(networkSource, /https:\/\/explore\.vechain\.org\/address\/\$\{selectedAddress\}/);
+  assert.match(networkSource, /const selectedRound = selectedIsFocus[\s\S]*currentData\?\.summary\.thisRound[\s\S]*selectedData\?\.summary\.thisRound \?\? selectedMember\?\.thisRound \?\? null/);
+  assert.doesNotMatch(networkSource, /selectedMember\?\.thisRound \?\? currentData\?\.summary\.thisRound/);
   assert.match(networkSource, /selectedRound === null \? '–' : \`\+\$\{selectedRound\.toLocaleString\(\)\}\`/);
   assert.match(networkSource, /\.profileAddress>span\{[^}]*text-overflow:ellipsis[^}]*white-space:nowrap/);
   assert.match(networkSource, /\.profileStats>div\{[^}]*padding:6px 7px/);
@@ -71,9 +77,11 @@ test('node profile dismissal and mobile chrome compaction do not take over Netwo
   assert.match(networkSource, /\.personNode\.selected \.nodeCircle\{[^}]*0 0 34px/);
   assert.match(networkSource, /\.profileCard\{top:auto;right:8px;bottom:8px;left:8px;width:auto\}/);
   assert.match(networkSource, /\.profileCard\.hasParentReturn\{bottom:52px\}/);
-  assert.match(networkSource, /:global\(\.screen\.networkScreen\)\{padding-bottom:calc\(72px \+ env\(safe-area-inset-bottom\)\)!important\}/);
-  assert.match(networkSource, /:global\(\.screen\.networkScreen \.bottomNavigation\)\{padding-bottom:env\(safe-area-inset-bottom\)!important\}/);
-  assert.match(networkSource, /:global\(\.screen\.networkScreen \.bottomNavigation>div\)\{min-height:60px!important;padding:4px!important/);
+  assert.doesNotMatch(networkSource, /:global\(\.screen\.networkScreen \.bottomNavigation/);
+  assert.match(homeSource, /\.screen\.networkScreen \{ padding:14px 14px calc\(72px \+ env\(safe-area-inset-bottom\)\); \}/);
+  assert.match(bottomNavigationSource, /\.bottomNavigation\[data-veinvite-active-tab='guide'\] \{ padding-bottom: env\(safe-area-inset-bottom\); \}/);
+  assert.match(bottomNavigationSource, /\.bottomNavigation\[data-veinvite-active-tab='guide'\] > div \{ min-height: 60px; padding: 4px; border-radius: 20px; \}/);
+  assert.match(bottomNavigationSource, /\.bottomNavigation\[data-veinvite-active-tab='guide'\] button \{ min-height: 50px; padding: 4px 3px;/);
   assert.doesNotMatch(networkSource, /user-scalable|maximum-scale/);
 });
 
