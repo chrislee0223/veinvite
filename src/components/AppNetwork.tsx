@@ -826,6 +826,28 @@ export function AppNetwork({ locale }: { locale: Locale }) {
     [displayedChildren],
   );
 
+  const groupMemberCanvasPoint = useCallback((
+    group: (typeof activeWorkspace.groups)[number],
+    member: string,
+  ): Point => {
+    const key = keyWallet(member);
+    if (group.collapsed === false) {
+      const displayed = displayedChildPointByWallet.get(key);
+      if (displayed) return displayed;
+    }
+    const index = Math.max(
+      0,
+      group.members.findIndex((candidate) => keyWallet(candidate) === key),
+    );
+    const offset =
+      group.memberOffsets?.[key] ??
+      defaultGroupMemberOffset(index, group.members.length);
+    return {
+      x: group.x + offset.x,
+      y: group.y + offset.y,
+    };
+  }, [activeWorkspace.groups, displayedChildPointByWallet]);
+
   const findGroupDropTarget = useCallback((
     clientX: number,
     clientY: number,
@@ -1875,15 +1897,14 @@ export function AppNetwork({ locale }: { locale: Locale }) {
     let next = workspace;
     for (const member of group.members) {
       const key = keyWallet(member);
-      const point = displayedChildPointByWallet.get(key);
-      if (!point) continue;
+      const point = groupMemberCanvasPoint(group, key);
       next = withWorkspaceGroupMemberOffset(next, group.id, key, {
         x: point.x - group.x,
         y: point.y - group.y,
       });
     }
     return next;
-  }, [displayedChildPointByWallet]);
+  }, [groupMemberCanvasPoint]);
 
   const moveMemberBetweenGroups = useCallback((
     workspace: NetworkFocusWorkspace,
@@ -1909,7 +1930,7 @@ export function AppNetwork({ locale }: { locale: Locale }) {
   const removeManagedGroupMember = useCallback((member: string) => {
     if (!managedGroup) return;
     const key = keyWallet(member);
-    const point = displayedChildPointByWallet.get(key) ?? null;
+    const point = groupMemberCanvasPoint(managedGroup, key);
     animateRestoredWallets([key]);
     updateManagedWorkspace((workspace) => {
       const prepared = materializeExpandedGroupOffsets(workspace, managedGroup.id);
@@ -1918,7 +1939,7 @@ export function AppNetwork({ locale }: { locale: Locale }) {
     if (managedGroup.members.length <= 1) setManagedGroupId(null);
   }, [
     managedGroup,
-    displayedChildPointByWallet,
+    groupMemberCanvasPoint,
     animateRestoredWallets,
     updateManagedWorkspace,
     materializeExpandedGroupOffsets,
@@ -1929,8 +1950,7 @@ export function AppNetwork({ locale }: { locale: Locale }) {
     const memberPoints: Record<string, Point> = {};
     for (const member of managedGroup.members) {
       const key = keyWallet(member);
-      const point = displayedChildPointByWallet.get(key);
-      if (point) memberPoints[key] = point;
+      memberPoints[key] = groupMemberCanvasPoint(managedGroup, key);
     }
     animateRestoredWallets(managedGroup.members);
     updateManagedWorkspace((workspace) =>
@@ -1939,7 +1959,7 @@ export function AppNetwork({ locale }: { locale: Locale }) {
     setManagedGroupId(null);
   }, [
     managedGroup,
-    displayedChildPointByWallet,
+    groupMemberCanvasPoint,
     animateRestoredWallets,
     updateManagedWorkspace,
   ]);
