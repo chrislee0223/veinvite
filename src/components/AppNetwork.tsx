@@ -1911,10 +1911,20 @@ export function AppNetwork({ locale }: { locale: Locale }) {
     walletKey: string,
     sourceGroupId: string | undefined,
     targetGroupId: string,
+    droppedPoint?: Point,
   ) => {
     let prepared = materializeExpandedGroupOffsets(workspace, sourceGroupId);
     prepared = materializeExpandedGroupOffsets(prepared, targetGroupId);
-    return moveWorkspaceMemberToGroup(prepared, walletKey, targetGroupId);
+    let next = moveWorkspaceMemberToGroup(prepared, walletKey, targetGroupId);
+    if (next === prepared) return next;
+    const target = next.groups.find((group) => group.id === targetGroupId);
+    if (target?.collapsed === false && droppedPoint) {
+      next = withWorkspaceGroupMemberOffset(next, targetGroupId, walletKey, {
+        x: droppedPoint.x - target.x,
+        y: droppedPoint.y - target.y,
+      });
+    }
+    return next;
   }, [materializeExpandedGroupOffsets]);
 
   const updateManagedWorkspace = useCallback((
@@ -2179,11 +2189,25 @@ export function AppNetwork({ locale }: { locale: Locale }) {
       drag.groupId,
     );
     if (targetGroup) {
+      const stageRect = stageRef.current?.getBoundingClientRect();
+      const droppedPoint = stageRect ? {
+        x: clamp(
+          (event.clientX - stageRect.left - view.x) / view.scale - drag.offset.x,
+          90,
+          WORLD_W - 90,
+        ),
+        y: clamp(
+          (event.clientY - stageRect.top - view.y) / view.scale - drag.offset.y,
+          90,
+          WORLD_H - 90,
+        ),
+      } : undefined;
       const nextWorkspace = moveMemberBetweenGroups(
         drag.originalWorkspace,
         drag.key,
         drag.groupId,
         targetGroup.id,
+        droppedPoint,
       );
       if (nextWorkspace !== drag.originalWorkspace) {
         animateRestoredWallets([drag.key]);
@@ -2197,6 +2221,7 @@ export function AppNetwork({ locale }: { locale: Locale }) {
     commitCurrentDraftWorkspace();
   }, [
     groupDraft,
+    view,
     findGroupDropTarget,
     isInsideGroupDropTarget,
     animateRestoredWallets,
@@ -2481,11 +2506,25 @@ export function AppNetwork({ locale }: { locale: Locale }) {
         suppressClickRef.current = true;
         beginGroupCreationWithMember(holdDrag.key, holdDrag.originalWorkspace);
       } else if (droppedToExistingGroup) {
+        const stageRect = stageRef.current?.getBoundingClientRect();
+        const droppedPoint = stageRect ? {
+          x: clamp(
+            (event.clientX - stageRect.left - view.x) / view.scale - holdDrag.offset.x,
+            90,
+            WORLD_W - 90,
+          ),
+          y: clamp(
+            (event.clientY - stageRect.top - view.y) / view.scale - holdDrag.offset.y,
+            90,
+            WORLD_H - 90,
+          ),
+        } : undefined;
         const nextWorkspace = moveMemberBetweenGroups(
           holdDrag.originalWorkspace,
           holdDrag.key,
           holdDrag.groupId,
           droppedToExistingGroup.id,
+          droppedPoint,
         );
         if (nextWorkspace !== holdDrag.originalWorkspace) {
           persistFocusWorkspace(nextWorkspace);
