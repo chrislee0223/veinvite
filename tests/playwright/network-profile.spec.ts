@@ -210,3 +210,48 @@ test('compact profile stays inside a 320px viewport with long localized labels',
   await expect(card.locator('.profileAddress > span')).toHaveText(CHILD);
   await expect(card.locator('.profileStats > div')).toHaveCount(4);
 });
+
+
+test('deep-focus profile stays clear of the parent-return control', async ({ page }) => {
+  await page.setViewportSize({ width: 393, height: 852 });
+  await mockNetwork(page);
+
+  await page.goto('/ui-test/network-profile?locale=ko', {
+    waitUntil: 'domcontentloaded',
+  });
+
+  const child = page.locator('button.childNode').first();
+  await expect(child).toBeVisible({ timeout: 10_000 });
+  await child.click();
+
+  const action = page.locator('.profileAction');
+  await expect(action).toBeVisible();
+  await action.click();
+
+  const parentReturn = page.locator('.parentReturn');
+  await expect(parentReturn).toBeVisible({ timeout: 10_000 });
+
+  const focus = page.locator('button.focusNode');
+  await expect(focus).toBeVisible();
+  await focus.click();
+
+  const card = page.locator('.profileCard.hasParentReturn');
+  await expect(card).toBeVisible();
+
+  const [cardBounds, returnBounds] = await Promise.all([
+    card.boundingBox(),
+    parentReturn.boundingBox(),
+  ]);
+  expect(cardBounds).not.toBeNull();
+  expect(returnBounds).not.toBeNull();
+  expect(cardBounds!.y + cardBounds!.height).toBeLessThanOrEqual(
+    returnBounds!.y - 6,
+  );
+
+  const statValues = await card.locator('.profileStats > div > strong').allTextContents();
+  expect(statValues).toEqual(['7', '2', '5', '–']);
+
+  await parentReturn.click();
+  await expect(parentReturn).toBeHidden();
+  await expect(card).toBeHidden();
+});
