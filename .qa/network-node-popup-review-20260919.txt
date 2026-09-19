@@ -1,0 +1,3 @@
+QA review deployment trigger.
+Source head: 6fc3c532b0448821a26d31e7b0b4adea12a3d2df
+Purpose: mobile node popup, bottom navigation, safe-area, and gesture review.
