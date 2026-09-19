@@ -137,8 +137,9 @@ test('production Network node profile is compact and keeps child metrics isolate
   const bounds = await card.boundingBox();
   expect(bounds).not.toBeNull();
   expect(bounds!.height).toBeLessThan(300);
-  expect(bounds!.left).toBeGreaterThanOrEqual(6);
-  expect(bounds!.right).toBeUndefined;
+  expect(bounds!.x).toBeGreaterThanOrEqual(6);
+  expect(bounds!.width).toBeLessThanOrEqual(377);
+  expect(bounds!.x + bounds!.width).toBeLessThanOrEqual(387);
 
   const selected = page.locator('button.childNode.selected');
   await expect(selected).toHaveCount(1);
@@ -174,4 +175,38 @@ test('focus profile keeps its own round metric and branch state', async ({ page 
   expect(statValues).toEqual(['50', '4', '39', '+11']);
   await expect(card.locator('.profileStatus')).toHaveText('브랜치');
   await expect(card.locator('.profileStatus')).toHaveClass(/status-branch/);
+});
+
+
+test('compact profile stays inside a 320px viewport with long localized labels', async ({ page }) => {
+  await page.setViewportSize({ width: 320, height: 568 });
+  await mockNetwork(page);
+
+  await page.goto('/ui-test/network-profile?locale=de', {
+    waitUntil: 'domcontentloaded',
+  });
+
+  const child = page.locator('button.childNode').first();
+  await expect(child).toBeVisible({ timeout: 10_000 });
+  await child.click();
+
+  const card = page.locator('.profileCard');
+  await expect(card).toBeVisible();
+
+  const bounds = await card.boundingBox();
+  expect(bounds).not.toBeNull();
+  expect(bounds!.x).toBeGreaterThanOrEqual(6);
+  expect(bounds!.x + bounds!.width).toBeLessThanOrEqual(314);
+  expect(bounds!.y + bounds!.height).toBeLessThanOrEqual(562);
+
+  const horizontalOverflow = await page.evaluate(
+    () => Math.max(
+      document.documentElement.scrollWidth,
+      document.body?.scrollWidth ?? 0,
+    ) - window.innerWidth,
+  );
+  expect(horizontalOverflow).toBeLessThanOrEqual(1);
+
+  await expect(card.locator('.profileAddress > span')).toHaveText(CHILD);
+  await expect(card.locator('.profileStats > div')).toHaveCount(4);
 });
