@@ -1170,7 +1170,7 @@ export function HomeClient() {
         }
         @media (max-width:560px) {
           .screen { padding:18px 14px 116px; }
-          .screen.networkScreen { padding:14px 14px calc(88px + env(safe-area-inset-bottom)); }
+          .screen.networkScreen { padding:14px 14px calc(72px + env(safe-area-inset-bottom)); }
           .networkScreen .topBar { margin-bottom:8px; }
           .topBar { align-items:flex-start; }
           .topActions { max-width:58%; align-items:flex-end; flex-direction:column-reverse; gap:7px; }
