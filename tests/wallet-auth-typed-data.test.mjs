@@ -15,7 +15,10 @@ const [
 ]);
 
 test('VeWorld ownership auth prefers EIP-712 over certificates when supported', () => {
-  assert.match(authHook, /dappKitSource === 'veworld'/);
+  assert.match(
+    authHook,
+    /settledDappKitSource ===\s*'veworld'/,
+  );
   assert.match(authHook, /await connectV2\(\s*typedData/);
   assert.match(
     authHook,
@@ -29,6 +32,27 @@ test('VeWorld ownership auth prefers EIP-712 over certificates when supported', 
   assert.match(
     authHook,
     /returnedSigner\s*!==\s*walletAddress/,
+  );
+});
+
+test('wallet proof path waits for DAppKit source ownership before falling back', () => {
+  assert.match(authHook, /DAPP_KIT_SOURCE_SETTLE_DELAYS_MS/);
+  assert.match(authHook, /dappKitSourceRef\.current/);
+  assert.match(authHook, /if \(!settledDappKitSource\)/);
+  assert.match(
+    authHook,
+    /Wallet connection is still synchronizing\. Please try again\./,
+  );
+});
+
+test('server records privacy-safe wallet proof rejection reasons', () => {
+  assert.match(verifyRoute, /Wallet proof rejected\./);
+  assert.match(verifyRoute, /typed_signature_invalid/);
+  assert.match(verifyRoute, /typed_signature_wallet_mismatch/);
+  assert.match(verifyRoute, /certificate_invalid/);
+  assert.doesNotMatch(
+    verifyRoute,
+    /Wallet proof rejected\.[\s\S]{0,500}walletAddress/,
   );
 });
 
