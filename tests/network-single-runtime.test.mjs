@@ -634,6 +634,14 @@ test('expanded members can move between groups with fixed screen-space targeting
   assert.match(networkSource, /memberDropGroupId === group\.id \? ' dropTarget' : ''/);
 });
 
+test('group transfer targeting stays coordinate-owned and closes management overlays', () => {
+  assert.doesNotMatch(networkSource, /elementFromPoint|elementsFromPoint/);
+  assert.match(networkSource, /if \(kind === 'group-member'\) setGroupsOpen\(false\)/);
+  assert.match(networkSource, /if \(kind === 'group-member'\) \{[\s\S]{0,220}setSelectedWallet\(null\);[\s\S]{0,220}setManagedGroupId\(null\);[\s\S]{0,220}setGroupsOpen\(false\)/);
+  assert.match(networkSource, /\.groupsList\{max-height:216px;overflow-y:auto;overscroll-behavior:contain/);
+  assert.match(networkSource, /\.groupManageMembers\{max-height:216px;overflow-y:auto;overscroll-behavior:contain/);
+});
+
 test('member removal and group dissolution preserve current visible node positions', () => {
   assert.match(workspaceSource, /export function removeWorkspaceMemberFromGroupAtPoint/);
   assert.match(workspaceSource, /point \? withNodePosition\(withoutMember, key, point\) : withoutMember/);
