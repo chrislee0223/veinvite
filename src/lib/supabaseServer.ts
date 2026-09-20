@@ -6,7 +6,8 @@ const PRODUCTION_SUPABASE_PROJECT_REF =
   'upfjvkidaqtnbmmnhupz';
 const PREVIEW_SUPABASE_PROJECT_REF =
   'bpppslplhmppxzvdkwxs';
-const JWT_FUTURE_RETRY_DELAY_MS = 750;
+const JWT_FUTURE_RETRY_DELAYS_MS =
+  [750, 750] as const;
 const TRANSIENT_FETCH_RETRY_DELAY_MS = 125;
 const RETRIABLE_READ_METHODS = new Set([
   'GET',
@@ -227,40 +228,58 @@ const guardedFetch: typeof fetch = async (
     input,
     init,
   );
-  let response: Response;
+  let transientFetchRetryUsed = false;
+  let jwtFutureRetryIndex = 0;
 
-  try {
-    response = await fetch(input, init);
-  } catch (error) {
-    // Vercel -> Supabase can occasionally lose a cold/transient HTTP
-    // connection before a response exists. Retry exactly once only for
-    // idempotent reads. Claim, payout, reservation and every other mutation
-    // remain single-attempt so this resilience cannot duplicate side effects.
-    if (
-      !retriableRead ||
-      !isTransientFetchFailure(error)
-    ) {
-      throw error;
+  while (true) {
+    let response: Response;
+
+    try {
+      response = await fetch(input, init);
+    } catch (error) {
+      // Vercel -> Supabase can occasionally lose a cold/transient HTTP
+      // connection before a response exists. Retry exactly once only for
+      // idempotent reads. Claim, payout, reservation and every other mutation
+      // remain single-attempt so this resilience cannot duplicate side effects.
+      if (
+        !retriableRead ||
+        transientFetchRetryUsed ||
+        !isTransientFetchFailure(error)
+      ) {
+        throw error;
+      }
+
+      transientFetchRetryUsed = true;
+      await wait(
+        TRANSIENT_FETCH_RETRY_DELAY_MS,
+      );
+      assertSafeDatabaseEnvironment();
+      continue;
     }
 
-    await wait(TRANSIENT_FETCH_RETRY_DELAY_MS);
+    if (
+      !retriableRead ||
+      !(await hasJwtIssuedAtFuture(response))
+    ) {
+      return response;
+    }
+
+    const retryDelay =
+      JWT_FUTURE_RETRY_DELAYS_MS[
+        jwtFutureRetryIndex
+      ];
+
+    // A clock-skew rejection is safe to retry only for the reviewed
+    // idempotent reads above. Keep this bounded: two delayed retries cover
+    // short Vercel/Supabase clock convergence without ever retrying mutations.
+    if (retryDelay === undefined) {
+      return response;
+    }
+
+    jwtFutureRetryIndex += 1;
+    await wait(retryDelay);
     assertSafeDatabaseEnvironment();
-    return fetch(input, init);
   }
-
-  // Supabase can very occasionally reject a valid server-side JWT while
-  // clocks are converging. Retry only an idempotent read, only once, and only
-  // for the exact transient error. Mutations are never retried here.
-  if (
-    !retriableRead ||
-    !(await hasJwtIssuedAtFuture(response))
-  ) {
-    return response;
-  }
-
-  await wait(JWT_FUTURE_RETRY_DELAY_MS);
-  assertSafeDatabaseEnvironment();
-  return fetch(input, init);
 };
 
 export const supabaseAdmin = createClient(
