@@ -2,6 +2,8 @@
 
 import {
   useCallback,
+  useEffect,
+  useRef,
   useState,
 } from 'react';
 import {
@@ -34,6 +36,8 @@ const WALLET_PATTERN =
 const WALLET_SIGNATURE_TIMEOUT_MS = 15_000;
 const WALLET_SIGNATURE_SETTLE_MS = 350;
 const WALLET_PROVIDER_SETTLE_TIMEOUT_MS = 5_000;
+const DAPP_KIT_SOURCE_SETTLE_DELAYS_MS =
+  [120, 240, 480, 750] as const;
 const CANCEL_SETTLE_TIMEOUT_MS = 1_000;
 const SESSION_CLEAR_RETRY_DELAYS_MS =
   [0, 180, 420] as const;
@@ -149,6 +153,14 @@ export function useWalletAuthentication() {
     requestTypedData,
     requestCertificate,
   } = useDappKitWallet();
+
+  const dappKitSourceRef =
+    useRef(dappKitSource);
+
+  useEffect(() => {
+    dappKitSourceRef.current =
+      dappKitSource;
+  }, [dappKitSource]);
 
   const [
     isAuthenticating,
@@ -414,8 +426,38 @@ export function useWalletAuthentication() {
                     'certificate';
                 };
 
+              let settledDappKitSource =
+                dappKitSourceRef.current;
+
+              if (!settledDappKitSource) {
+                for (
+                  const delayMs of
+                  DAPP_KIT_SOURCE_SETTLE_DELAYS_MS
+                ) {
+                  await wait(delayMs);
+                  assertStillCurrent();
+
+                  settledDappKitSource =
+                    dappKitSourceRef.current;
+
+                  if (settledDappKitSource) {
+                    break;
+                  }
+                }
+              }
+
+              // During a VeWorld account switch DAppKit can briefly publish
+              // the account before its source. Never reopen the legacy
+              // certificate flow just because that source snapshot is late.
+              if (!settledDappKitSource) {
+                throw new Error(
+                  'Wallet connection is still synchronizing. Please try again.',
+                );
+              }
+
               const shouldUseVeWorldTypedData =
-                dappKitSource === 'veworld' &&
+                settledDappKitSource ===
+                  'veworld' &&
                 Boolean(
                   challenge.origin &&
                     challenge.network,
