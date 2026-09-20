@@ -6,7 +6,10 @@ const PRODUCTION_SUPABASE_PROJECT_REF =
   'upfjvkidaqtnbmmnhupz';
 const PREVIEW_SUPABASE_PROJECT_REF =
   'bpppslplhmppxzvdkwxs';
-const JWT_FUTURE_RETRY_DELAY_MS = 750;
+const JWT_FUTURE_RETRY_DELAYS_MS = [
+  750,
+  1_500,
+] as const;
 const TRANSIENT_FETCH_RETRY_DELAY_MS = 125;
 const RETRIABLE_READ_METHODS = new Set([
   'GET',
@@ -249,18 +252,32 @@ const guardedFetch: typeof fetch = async (
   }
 
   // Supabase can very occasionally reject a valid server-side JWT while
-  // clocks are converging. Retry only an idempotent read, only once, and only
-  // for the exact transient error. Mutations are never retried here.
-  if (
-    !retriableRead ||
-    !(await hasJwtIssuedAtFuture(response))
-  ) {
+  // clocks are converging. Retry only idempotent reads and only for the exact
+  // transient error. A second bounded retry covers the rare case where the
+  // original 750 ms retry still lands inside the same clock-skew window.
+  // Mutations remain non-retriable.
+  if (!retriableRead) {
     return response;
   }
 
-  await wait(JWT_FUTURE_RETRY_DELAY_MS);
-  assertSafeDatabaseEnvironment();
-  return fetch(input, init);
+  for (
+    const delayMs of
+    JWT_FUTURE_RETRY_DELAYS_MS
+  ) {
+    if (
+      !(await hasJwtIssuedAtFuture(
+        response,
+      ))
+    ) {
+      return response;
+    }
+
+    await wait(delayMs);
+    assertSafeDatabaseEnvironment();
+    response = await fetch(input, init);
+  }
+
+  return response;
 };
 
 export const supabaseAdmin = createClient(
