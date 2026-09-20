@@ -678,6 +678,15 @@ test('canvas group clicks only expand or collapse while toolbar groups own manag
   assert.match(networkSource, /onClick=\{dissolveManagedGroup\}/);
 });
 
+test('collapsed and expanded group member release positions stay stable', () => {
+  assert.match(networkSource, /const groupMemberCanvasPoint = useCallback/);
+  assert.match(networkSource, /group\.memberOffsets\?\.\[key\]/);
+  assert.match(networkSource, /defaultGroupMemberOffset\([\s\S]*group\.members\.length/);
+  assert.match(networkSource, /target\?\.collapsed === false/);
+  assert.match(networkSource, /defaultGroupMemberOffset\([\s\S]*target\.members\.length/);
+  assert.match(networkSource, /groupMemberCanvasPoint\(\s*managedGroup,/);
+});
+
 test('expanded members can move between groups with fixed screen-space targeting', () => {
   assert.match(networkSource, /GROUP_SCREEN_DROP_RADIUS = 58/);
   assert.match(networkSource, /const findGroupDropTarget = useCallback/);
