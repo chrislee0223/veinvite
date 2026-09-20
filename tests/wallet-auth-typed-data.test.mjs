@@ -28,6 +28,27 @@ test('VeWorld ownership auth prefers EIP-712 over certificates when supported', 
   );
 });
 
+test('wallet proof path waits for DAppKit source ownership before fallback', () => {
+  assert.match(authHook, /DAPP_KIT_SOURCE_SETTLE_DELAYS_MS/);
+  assert.match(authHook, /dappKitSourceRef\.current/);
+  assert.match(authHook, /settledDappKitSource ===\s*'veworld'/);
+  assert.match(
+    authHook,
+    /Wallet connection is still synchronizing\. Please try again\./,
+  );
+});
+
+test('server records privacy-safe wallet proof rejection reasons', () => {
+  assert.match(verifyRoute, /Wallet proof rejected\./);
+  assert.match(verifyRoute, /typed_signature_invalid/);
+  assert.match(verifyRoute, /typed_signature_wallet_mismatch/);
+  assert.match(verifyRoute, /certificate_invalid/);
+  assert.doesNotMatch(
+    verifyRoute,
+    /Wallet proof rejected\.[\s\S]{0,500}walletAddress/,
+  );
+});
+
 test('wallet challenge exposes the exact EIP-712 binding inputs', () => {
   assert.match(challengeRoute, /message: challenge\.message,[\s\S]*origin,[\s\S]*network/);
   assert.match(challengeRoute, /CHALLENGE_LIFETIME_MINUTES\s*=\s*5/);
