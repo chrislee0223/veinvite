@@ -31,7 +31,15 @@ test('transient Supabase retries remain limited to safe reads', () => {
   assert.match(source, /await wait\(TRANSIENT_FETCH_RETRY_DELAY_MS\)/);
 
   assert.match(source, /body\.includes\('JWT issued at future'\)/);
-  assert.match(source, /await wait\(JWT_FUTURE_RETRY_DELAY_MS\)/);
+  assert.match(
+    source,
+    /JWT_FUTURE_RETRY_DELAYS_MS\s*=\s*\[750, 750\] as const/,
+  );
+  assert.match(source, /jwtFutureRetryIndex/);
+  assert.match(source, /const retryDelay =/);
+  assert.match(source, /if \(retryDelay === undefined\)/);
+  assert.match(source, /await wait\(retryDelay\)/);
+  assert.match(source, /transientFetchRetryUsed/);
 
   assert.doesNotMatch(
     source,
