@@ -120,6 +120,33 @@ function jsonError(
   );
 }
 
+function rejectWalletProof({
+  message,
+  reason,
+  proofType = 'unknown',
+}: {
+  message: string;
+  reason: string;
+  proofType?:
+    | 'typed_data'
+    | 'certificate'
+    | 'message'
+    | 'unknown';
+}) {
+  console.info(
+    'Wallet proof rejected.',
+    {
+      proofType,
+      reason,
+    },
+  );
+
+  return jsonError(
+    message,
+    401,
+  );
+}
+
 function certificateDomainMatchesOrigin(
   domain: string,
   origin: string,
@@ -388,10 +415,11 @@ export async function POST(
       | null;
 
   if (!challenge) {
-    return jsonError(
-      'Wallet verification request was not found.',
-      401,
-    );
+    return rejectWalletProof({
+      message:
+        'Wallet verification request was not found.',
+      reason: 'challenge_not_found',
+    });
   }
 
   if (challenge.used_at) {
@@ -408,10 +436,11 @@ export async function POST(
       challenge.expires_at,
     ) <= now
   ) {
-    return jsonError(
-      'Wallet verification request has expired.',
-      401,
-    );
+    return rejectWalletProof({
+      message:
+        'Wallet verification request has expired.',
+      reason: 'challenge_expired',
+    });
   }
 
   const currentOrigin =
@@ -437,10 +466,11 @@ export async function POST(
     challenge.network !==
       currentNetwork
   ) {
-    return jsonError(
-      'Wallet verification request is no longer valid. Please start verification again.',
-      401,
-    );
+    return rejectWalletProof({
+      message:
+        'Wallet verification request is no longer valid. Please start verification again.',
+      reason: 'challenge_binding_mismatch',
+    });
   }
 
   const proofType =
@@ -495,20 +525,26 @@ export async function POST(
           ),
         );
     } catch {
-      return jsonError(
-        'Invalid typed wallet signature.',
-        401,
-      );
+      return rejectWalletProof({
+        message:
+          'Invalid typed wallet signature.',
+        reason:
+          'typed_signature_invalid',
+        proofType: 'typed_data',
+      });
     }
 
     if (
       recoveredAddress !==
       walletAddress
     ) {
-      return jsonError(
-        'The typed signature does not match the connected wallet.',
-        401,
-      );
+      return rejectWalletProof({
+        message:
+          'The typed signature does not match the connected wallet.',
+        reason:
+          'typed_signature_wallet_mismatch',
+        proofType: 'typed_data',
+      });
     }
   } else if (proofType === 'certificate') {
     if (!body.certificate) {
@@ -525,10 +561,13 @@ export async function POST(
         body.certificate.signature
           .toLowerCase()
     ) {
-      return jsonError(
-        'Wallet proof signatures do not match.',
-        401,
-      );
+      return rejectWalletProof({
+        message:
+          'Wallet proof signatures do not match.',
+        reason:
+          'certificate_signature_mismatch',
+        proofType: 'certificate',
+      });
     }
 
     const certificateError =
@@ -541,10 +580,12 @@ export async function POST(
       });
 
     if (certificateError) {
-      return jsonError(
-        certificateError,
-        401,
-      );
+      return rejectWalletProof({
+        message: certificateError,
+        reason:
+          'certificate_invalid',
+        proofType: 'certificate',
+      });
     }
   } else {
     if (body.certificate) {
@@ -565,20 +606,26 @@ export async function POST(
           ),
         );
     } catch {
-      return jsonError(
-        'Invalid wallet signature.',
-        401,
-      );
+      return rejectWalletProof({
+        message:
+          'Invalid wallet signature.',
+        reason:
+          'message_signature_invalid',
+        proofType: 'message',
+      });
     }
 
     if (
       recoveredAddress !==
       walletAddress
     ) {
-      return jsonError(
-        'The signature does not match the connected wallet.',
-        401,
-      );
+      return rejectWalletProof({
+        message:
+          'The signature does not match the connected wallet.',
+        reason:
+          'message_signature_wallet_mismatch',
+        proofType: 'message',
+      });
     }
   }
 
