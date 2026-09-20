@@ -140,6 +140,7 @@ jobs:
           tests/referral-two-slot-foundation.test.mjs
           tests/referral-view-migration-compat.test.mjs
           tests/wallet-auth-typed-data.test.mjs
+          tests/wallet-session-provider-gap.test.mjs
 
       - name: Install dependencies
         shell: bash

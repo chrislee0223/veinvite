@@ -12,15 +12,28 @@ test('anonymous visitors see VeInvite before wallet verification or legal consen
     'utf8',
   );
 
+  const disconnectedBranch = gateSource.indexOf(
+    'if (!walletAddress) {',
+  );
   const anonymousReturn = gateSource.indexOf(
-    "if (!walletAddress) {\n    return children;\n  }",
+    'return children;',
+    disconnectedBranch,
   );
   const verifiedBranch = gateSource.indexOf(
     "state === 'verified'",
+    anonymousReturn,
   );
-  const legalGate = gateSource.indexOf('<LegalConsentGate');
+  const legalGate = gateSource.indexOf(
+    '<LegalConsentGate',
+    verifiedBranch,
+  );
 
-  assert.ok(anonymousReturn >= 0);
+  assert.ok(disconnectedBranch >= 0);
+  assert.match(
+    gateSource.slice(disconnectedBranch, anonymousReturn),
+    /sessionWalletRef\.current[\s\S]*verifiedWallet[\s\S]*WalletSessionBrandSurface/,
+  );
+  assert.ok(anonymousReturn > disconnectedBranch);
   assert.ok(verifiedBranch > anonymousReturn);
   assert.ok(legalGate > verifiedBranch);
   assert.match(
