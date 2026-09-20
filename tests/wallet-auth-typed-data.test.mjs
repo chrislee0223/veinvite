@@ -15,7 +15,10 @@ const [
 ]);
 
 test('VeWorld ownership auth prefers EIP-712 over certificates when supported', () => {
-  assert.match(authHook, /dappKitSource === 'veworld'/);
+  assert.match(
+    authHook,
+    /settledDappKitSource ===\s*'veworld'/,
+  );
   assert.match(authHook, /await requestTypedData\(/);
   assert.match(authHook, /typedData\.domain/);
   assert.match(authHook, /typedData\.types/);
@@ -25,6 +28,29 @@ test('VeWorld ownership auth prefers EIP-712 over certificates when supported', 
   assert.match(
     authHook,
     /The wallet is already connected at this point/,
+  );
+});
+
+test('wallet proof path waits for DAppKit source ownership before certificate fallback', () => {
+  assert.match(
+    authHook,
+    /DAPP_KIT_SOURCE_SETTLE_DELAYS_MS/,
+  );
+  assert.match(
+    authHook,
+    /dappKitSourceRef\.current/,
+  );
+  assert.match(
+    authHook,
+    /if \(!settledDappKitSource\)/,
+  );
+  assert.match(
+    authHook,
+    /Wallet connection is still synchronizing\. Please try again\./,
+  );
+  assert.match(
+    authHook,
+    /Falling back to[\s\S]*certificate[\s\S]*Sign-certificate spinner/,
   );
 });
 
