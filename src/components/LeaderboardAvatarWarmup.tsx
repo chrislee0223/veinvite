@@ -7,6 +7,11 @@ import {
 } from '@vechain/vechain-kit';
 import { getPicassoImage } from '@vechain/vechain-kit/utils';
 
+import {
+  readCachedLeaderboardDomain,
+  rememberLeaderboardDomain,
+} from '@/lib/leaderboardDomainCache';
+
 const AVATAR_PROFILE_CACHE_TTL_MS = 15 * 60_000;
 const AVATAR_PROFILE_CACHE_KEY = 'veinvite_leaderboard_profile_avatar_v1';
 
@@ -64,15 +69,40 @@ function AvatarWarmProbe({ address }: { address: string }) {
     () => hasUsableCachedAvatar(address),
     [address],
   );
-  const fallbackUrl = useMemo(() => getPicassoImage(address), [address]);
-  const { data: domainInfo, isLoading: domainLoading } = useVechainDomain(
-    alreadyCached ? undefined : address,
+  const cachedDomain = useMemo(
+    () => readCachedLeaderboardDomain(address),
+    [address],
   );
-  const domain = domainInfo?.domain ?? '';
+  const fallbackUrl = useMemo(() => getPicassoImage(address), [address]);
+  const shouldResolveDomain = cachedDomain === undefined;
+  const { data: domainInfo, isLoading: domainLoading } = useVechainDomain(
+    shouldResolveDomain ? address : undefined,
+  );
+  const queriedDomain =
+    typeof domainInfo?.domain === 'string' && domainInfo.domain.trim()
+      ? domainInfo.domain.trim()
+      : null;
+  const domain =
+    cachedDomain !== undefined
+      ? cachedDomain ?? ''
+      : shouldResolveDomain && !domainLoading
+        ? queriedDomain ?? ''
+        : '';
   const { data: profileAvatarUrl, isLoading: avatarLoading } = useGetAvatar(domain);
 
   useEffect(() => {
-    if (alreadyCached || domainLoading) return;
+    if (!shouldResolveDomain || domainLoading) return;
+    rememberLeaderboardDomain(address, queriedDomain);
+  }, [
+    address,
+    domainLoading,
+    queriedDomain,
+    shouldResolveDomain,
+  ]);
+
+  useEffect(() => {
+    if (alreadyCached) return;
+    if (shouldResolveDomain && domainLoading) return;
     if (domain && avatarLoading) return;
 
     const resolvedUrl = profileAvatarUrl || fallbackUrl;
@@ -107,6 +137,7 @@ function AvatarWarmProbe({ address }: { address: string }) {
     domainLoading,
     fallbackUrl,
     profileAvatarUrl,
+    shouldResolveDomain,
   ]);
 
   return null;
