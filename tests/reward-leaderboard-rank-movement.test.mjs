@@ -114,7 +114,10 @@ test('snapshots are full, hashed, append-only and server-only', () => {
 test('rank movement uses only the immediately previous round and fails soft', () => {
   assert.match(route, /round\.currentRoundId - 1/);
   assert.match(route, /RANKING_ALGORITHM_VERSION = 'paid_referrals_v2'/);
-  assert.match(route, /falling back to the paid lifetime leaderboard/i);
+  assert.match(route, /retrying the authoritative paid lifetime ranking without movement/i);
+  assert.match(route, /get_public_lifetime_leaderboard_v2/);
+  assert.match(route, /p_comparison_round_id:\s*null/);
+  assert.doesNotMatch(route, /get_public_lifetime_leaderboard['\"]/);
   assert.match(route, /rankMovement: 'UNAVAILABLE'/);
   assert.match(route, /comparison\.available/);
 });
