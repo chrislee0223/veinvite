@@ -352,7 +352,9 @@ export function PublicLeaderboardHub({
 
   const openCountry = useCallback(() => {
     setRankingView('country');
-    refreshCountry(false);
+    // Keep cached rows visible, but revalidate on every explicit tab open so
+    // finalized activations and trusted country evidence appear immediately.
+    refreshCountry(true);
   }, [refreshCountry]);
 
   const retryCountry = useCallback(() => {
