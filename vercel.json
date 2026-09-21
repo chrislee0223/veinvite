@@ -41,6 +41,10 @@
     {
       "path": "/api/cron/analytics-maintenance",
       "schedule": "47 0 * * *"
+    },
+    {
+      "path": "/api/cron/reward-recovery",
+      "schedule": "*/5 * * * *"
     }
   ]
 }
