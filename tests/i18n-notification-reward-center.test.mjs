@@ -83,11 +83,11 @@ test('rollout keeps Home Claim and paid live sync without a duplicate standalone
   assert.match(home, /className="claimButton"/);
   assert.match(page, /<ActiveWalletRewardReceiptNotice \/>/);
   assert.match(activeReceipt, /<PaidActivationLiveSync/);
-  assert.doesNotMatch(
-    activeReceipt,
-    /import \\{ RewardReceiptNotice \\} from/u,
+  assert.equal(
+    activeReceipt.includes('import { RewardReceiptNotice }'),
+    false,
   );
-  assert.doesNotMatch(activeReceipt, /<RewardReceiptNotice\\b/u);
+  assert.equal(activeReceipt.includes('<RewardReceiptNotice'), false);
 });
 
 

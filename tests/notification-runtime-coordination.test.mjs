@@ -51,9 +51,9 @@ test('paid-state reload waits until modal work is finished', () => {
 
 test('standalone paid receipt popup is removed while paid live sync remains mounted', () => {
   assert.match(activeReceipt, /PaidActivationLiveSync/u);
-  assert.doesNotMatch(
-    activeReceipt,
-    /import \\{ RewardReceiptNotice \\} from/u,
+  assert.equal(
+    activeReceipt.includes('import { RewardReceiptNotice }'),
+    false,
   );
-  assert.doesNotMatch(activeReceipt, /<RewardReceiptNotice\\b/u);
+  assert.equal(activeReceipt.includes('<RewardReceiptNotice'), false);
 });
