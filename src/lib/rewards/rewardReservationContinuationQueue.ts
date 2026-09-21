@@ -38,7 +38,7 @@ export async function enqueueRewardReservationContinuation({
   inviteCode,
   detectedAt,
 }: RewardReservationContinuationMessage): Promise<{
-  messageId: string;
+  messageId: string | null;
 }> {
   const payload: RewardReservationContinuationMessage = {
     inviteCode: inviteCode.trim().toUpperCase(),
