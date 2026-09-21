@@ -25,15 +25,16 @@ test('notification acknowledgement uses authoritative remaining unread count', (
   assert.doesNotMatch(controller, /unreadCount - unreadThroughSnapshot\.length/);
 });
 
-test('reward-action loading and errors cannot be mistaken for an empty inbox', () => {
+test('reward-action loading, cached emptiness and errors stay distinguishable', () => {
   assert.match(
     center,
-    /rewardActions\.length === 0 &&\s*!actionLoading &&\s*!actionError/,
+    /rewardActions\.length === 0 &&\s*actionResolved &&\s*!actionError/,
   );
   assert.match(
     center,
-    /sorted\.length === 0 &&\s*rewardActions\.length === 0 &&\s*!actionLoading &&\s*!actionError/,
+    /sorted\.length === 0 &&\s*rewardActions\.length === 0 &&\s*actionResolved &&\s*!actionError/,
   );
+  assert.match(center, /actionLoading && !actionResolved/);
   assert.match(center, /notificationActionLoading/);
   assert.match(center, /notificationActionError/);
 });

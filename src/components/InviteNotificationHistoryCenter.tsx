@@ -13,6 +13,7 @@ import { useWalletLauncher } from './WalletControl';
 import type { SupportedLocale } from '@/lib/i18n/locales';
 import { PROGRESS_CLAIM_COPY } from '@/lib/i18n/progressClaimCopy';
 import type {
+  RewardActionItem,
   RewardActionResponse,
 } from '@/lib/notifications/rewardAction';
 
@@ -29,7 +30,8 @@ type Props = ComponentProps<
 
 export function InviteNotificationHistoryCenter(props: Props) {
   const { wallet } = useWalletLauncher();
-  const [needsRewardClaim, setNeedsRewardClaim] = useState(false);
+  const [rewardActions, setRewardActions] =
+    useState<RewardActionItem[] | null>(null);
 
   useEffect(() => {
     let disposed = false;
@@ -37,7 +39,7 @@ export function InviteNotificationHistoryCenter(props: Props) {
 
     const refreshClaimAttention = async () => {
       if (!wallet) {
-        setNeedsRewardClaim(false);
+        setRewardActions(null);
         return;
       }
 
@@ -53,7 +55,7 @@ export function InviteNotificationHistoryCenter(props: Props) {
         if (disposed || requestId !== requestVersion) return;
 
         if (response.status === 401 || response.status === 403) {
-          setNeedsRewardClaim(false);
+          setRewardActions(null);
           return;
         }
 
@@ -61,10 +63,8 @@ export function InviteNotificationHistoryCenter(props: Props) {
           return;
         }
 
-        setNeedsRewardClaim(
-          (body.actions ?? []).some(
-            (action) => action.status === 'AWAITING_CLAIM',
-          ),
+        setRewardActions(
+          Array.isArray(body.actions) ? body.actions : [],
         );
       } catch {
         // Keep the last verified attention state on transient network errors.
@@ -73,7 +73,7 @@ export function InviteNotificationHistoryCenter(props: Props) {
 
     // Wallet identity is the reward-action scope. Never let the previous
     // wallet's attention marker survive while the next session resolves.
-    setNeedsRewardClaim(false);
+    setRewardActions(null);
     void refreshClaimAttention();
 
     const onVisible = () => {
@@ -86,7 +86,7 @@ export function InviteNotificationHistoryCenter(props: Props) {
     };
     const onWalletSessionInvalid = () => {
       requestVersion += 1;
-      setNeedsRewardClaim(false);
+      setRewardActions(null);
     };
 
     document.addEventListener('visibilitychange', onVisible);
@@ -122,6 +122,10 @@ export function InviteNotificationHistoryCenter(props: Props) {
     };
   }, [wallet]);
 
+  const needsRewardClaim =
+    rewardActions?.some(
+      (action) => action.status === 'AWAITING_CLAIM',
+    ) ?? false;
   const showClaimAttention =
     needsRewardClaim && props.unreadCount < 1;
   const supportedLocale = props.locale as SupportedLocale;
@@ -133,6 +137,8 @@ export function InviteNotificationHistoryCenter(props: Props) {
       <UnifiedInviteNotificationHistoryCenter
         key={wallet?.toLowerCase() ?? 'disconnected'}
         {...props}
+        initialRewardActions={rewardActions}
+        onRewardActionsChange={setRewardActions}
       />
       {showClaimAttention ? (
         <>

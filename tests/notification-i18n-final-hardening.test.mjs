@@ -14,7 +14,7 @@ const review = readFileSync(
 const qaLayout = readFileSync('src/app/qa/layout.tsx', 'utf8');
 
 test('compact notification header gives translated mark-all copy its own row', () => {
-  assert.match(css, /@media \(max-width: 420px\)/u);
+  assert.match(css, /@media \(max-width: 560px\)/u);
   assert.match(css, /"heading close"\s*"markall markall"/u);
   assert.match(css, /\.notificationHistoryHeaderActions\s*\{\s*display: contents !important;/u);
   assert.match(css, /:has\(\.notificationHistoryMarkAll\)/u);
@@ -50,6 +50,7 @@ test('protected QA review can render all locales at real 320 and 390 iframe widt
   assert.match(review, /LANGUAGE_OPTIONS\.map/u);
   assert.match(review, /width: 320, height: 568/u);
   assert.match(review, /width: 390, height: 844/u);
+  assert.match(review, /width: 480, height: 840/u);
   assert.match(review, /\/qa\/state\?state=/u);
   assert.match(review, /'ar'/u);
   assert.match(review, /'ur'/u);

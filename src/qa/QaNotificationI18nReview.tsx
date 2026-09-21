@@ -9,7 +9,7 @@ import {
 import type { QaNotificationStateId } from './QaNotificationStateHarness';
 
 type ReviewViewport = {
-  id: 'compact' | 'iphone' | 'desktop';
+  id: 'compact' | 'iphone' | 'wide-mobile' | 'desktop';
   label: string;
   width: number;
   height: number;
@@ -18,6 +18,7 @@ type ReviewViewport = {
 const REVIEW_VIEWPORTS: ReviewViewport[] = [
   { id: 'compact', label: '320 × 568', width: 320, height: 568 },
   { id: 'iphone', label: '390 × 844', width: 390, height: 844 },
+  { id: 'wide-mobile', label: '480 × 840', width: 480, height: 840 },
   { id: 'desktop', label: '1180 × 820', width: 1180, height: 820 },
 ];
 
@@ -93,7 +94,7 @@ export function QaNotificationI18nReview() {
             }}
           >
             실제 Production 알림 컴포넌트를 29개 지원 언어와 실제 iframe
-            viewport로 재현합니다. 320/390px에서 헤더 충돌, 줄바꿈, RTL,
+            viewport로 재현합니다. 320/390/480px에서 헤더 충돌, 줄바꿈, RTL,
             높은 문자 계열의 세로 여백을 우선 확인하세요.
           </p>
         </header>

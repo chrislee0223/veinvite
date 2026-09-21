@@ -267,6 +267,29 @@ function historyIdAtOrBefore(id: string, throughId: string): boolean {
   }
 }
 
+const NOTIFICATION_DIALOG_ID = 'veinvite-notification-history';
+
+function hasBlockingDialogOpen(): boolean {
+  return Array.from(
+    document.querySelectorAll<HTMLElement>(
+      '[role="dialog"][aria-modal="true"], [role="alertdialog"][aria-modal="true"]',
+    ),
+  ).some(
+    (element) =>
+      element.id !== NOTIFICATION_DIALOG_ID &&
+      element.getAttribute('aria-hidden') !== 'true' &&
+      element.getClientRects().length > 0,
+  );
+}
+
+function notificationCenterIsClosing(): boolean {
+  return Boolean(
+    document.querySelector(
+      `#${NOTIFICATION_DIALOG_ID}.notificationHistoryPanel.isClosing`,
+    ),
+  );
+}
+
 function notificationRequiresHomeRefresh(
   notification: InviteNotificationHistoryItem,
 ): boolean {
@@ -282,7 +305,7 @@ export function InAppInviteNotifications({
 }: {
   locale: Locale;
 }) {
-  const { wallet } = useWalletLauncher();
+  const { wallet, isWalletModalOpen } = useWalletLauncher();
   const [items, setItems] =
     useState<InviteNotificationHistoryItem[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
@@ -543,9 +566,18 @@ export function InAppInviteNotifications({
 
           const key = notificationSetKey(currentNotifications);
           if (autoOpen && shownKeyRef.current !== key) {
-            shownKeyRef.current = key;
-            openSnapshotRef.current = newestHistoryId(history.items);
-            setOpen(true);
+            const blocked =
+              isWalletModalOpen ||
+              hasBlockingDialogOpen() ||
+              notificationCenterIsClosing();
+
+            if (!blocked) {
+              shownKeyRef.current = key;
+              openSnapshotRef.current = newestHistoryId(history.items);
+              if (!open) {
+                setOpen(true);
+              }
+            }
           }
         } catch (error) {
           console.warn(
@@ -570,6 +602,8 @@ export function InAppInviteNotifications({
       invalidateWalletSession,
       loadHistoryPage,
       wallet,
+      isWalletModalOpen,
+      open,
     ],
   );
 
@@ -896,6 +930,9 @@ export function InAppInviteNotifications({
       errorMessage={errorMessage}
       hasMore={Boolean(nextCursor)}
       onOpen={() => {
+        if (isWalletModalOpen || hasBlockingDialogOpen()) {
+          return;
+        }
         openSnapshotRef.current = newestHistoryId(items);
         setErrorMessage('');
         setOpen(true);

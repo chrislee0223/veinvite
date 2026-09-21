@@ -45,6 +45,8 @@ const NOTIFICATION_DIALOG_ID = 'veinvite-notification-history';
 const REDUCED_MOTION_QUERY = '(prefers-reduced-motion: reduce)';
 const REWARD_RECEIPT_ACKNOWLEDGED_EVENT =
   'veinvite-reward-receipt-acknowledged';
+const HOME_DATA_REFRESH_REQUESTED_EVENT =
+  'veinvite-home-data-refresh-requested';
 const FOCUSABLE_SELECTOR = [
   'button:not([disabled])',
   'a[href]',
@@ -242,6 +244,8 @@ export function InviteNotificationHistoryCenter({
   onMarkRead,
   onMarkAll,
   onLoadMore,
+  initialRewardActions = null,
+  onRewardActionsChange,
 }: {
   locale: Locale;
   items: InviteNotificationHistoryItem[];
@@ -258,6 +262,8 @@ export function InviteNotificationHistoryCenter({
   onMarkRead: (id: string) => void | Promise<void>;
   onMarkAll: () => void | Promise<void>;
   onLoadMore: () => void | Promise<void>;
+  initialRewardActions?: RewardActionItem[] | null;
+  onRewardActionsChange?: (actions: RewardActionItem[]) => void;
 }) {
   const supportedLocale = locale as SupportedLocale;
   const structure = NOTIFICATION_HISTORY_COPY[supportedLocale];
@@ -274,7 +280,13 @@ export function InviteNotificationHistoryCenter({
   const receiptRequestRef = useRef(0);
   const [clockTick, setClockTick] = useState(0);
   const [closing, setClosing] = useState(false);
-  const [rewardActions, setRewardActions] = useState<RewardActionItem[]>([]);
+  const [rewardActions, setRewardActions] = useState<RewardActionItem[]>(
+    () => initialRewardActions ?? [],
+  );
+  const [actionResolved, setActionResolved] = useState(
+    initialRewardActions !== null,
+  );
+  const actionResolvedRef = useRef(initialRewardActions !== null);
   const [actionLoading, setActionLoading] = useState(false);
   const [actionError, setActionError] = useState('');
   const [claimPendingCode, setClaimPendingCode] = useState<string | null>(null);
@@ -286,6 +298,13 @@ export function InviteNotificationHistoryCenter({
   useEffect(() => {
     onCloseRef.current = onClose;
   }, [onClose]);
+
+  useEffect(() => {
+    if (initialRewardActions === null) return;
+    actionResolvedRef.current = true;
+    setActionResolved(true);
+    setRewardActions(initialRewardActions);
+  }, [initialRewardActions]);
 
   const sorted = useMemo(
     () => [...items].sort((left, right) => {
@@ -317,30 +336,41 @@ export function InviteNotificationHistoryCenter({
       const response = await fetch('/api/notifications/reward-actions', {
         cache: 'no-store',
       });
-      const body = (await response.json()) as RewardActionResponse;
+      let body: RewardActionResponse = {};
+      try {
+        body = (await response.json()) as RewardActionResponse;
+      } catch {
+        // Keep malformed server details out of translated UI.
+      }
 
       if (!response.ok) {
         if (response.status === 401 || response.status === 403) {
           notifyRewardClaimSessionInvalid();
         }
-        throw new Error(body.error || 'Reward actions could not be loaded.');
+        if (body.error) {
+          console.warn('VeInvite reward actions request failed:', body.error);
+        }
+        throw new Error(structure.errorBody);
       }
       if (actionRequestRef.current !== requestId) return;
 
-      setRewardActions(Array.isArray(body.actions) ? body.actions : []);
+      const nextActions = Array.isArray(body.actions) ? body.actions : [];
+      actionResolvedRef.current = true;
+      setActionResolved(true);
+      setRewardActions(nextActions);
+      onRewardActionsChange?.(nextActions);
     } catch (error) {
       if (actionRequestRef.current !== requestId) return;
-      setActionError(
-        error instanceof Error
-          ? error.message
-          : 'Reward actions could not be loaded.',
-      );
+      console.warn('VeInvite reward actions load failed:', error);
+      if (!actionResolvedRef.current) {
+        setActionError(structure.errorBody);
+      }
     } finally {
       if (actionRequestRef.current === requestId) {
         setActionLoading(false);
       }
     }
-  }, []);
+  }, [onRewardActionsChange, structure.errorBody]);
 
   useLayoutEffect(() => {
     if (!open) {
@@ -427,7 +457,10 @@ export function InviteNotificationHistoryCenter({
         if (failureCode === 'wallet_auth') {
           notifyRewardClaimSessionInvalid();
         }
-        throw new Error(body.error || progressCopy.claimFailed);
+        if (body.error) {
+          console.warn('VeInvite notification Claim request failed:', body.error);
+        }
+        throw new Error(progressCopy.claimFailed);
       }
 
       setRewardActions((current) => current.map((item) =>
@@ -441,6 +474,9 @@ export function InviteNotificationHistoryCenter({
         flowKey: 'home',
       });
       dispatchRewardClaimUpdated(action.inviteCode);
+      window.dispatchEvent(
+        new Event(HOME_DATA_REFRESH_REQUESTED_EVENT),
+      );
       void loadRewardActions();
     } catch (error) {
       if (failureCode !== 'wallet_auth') {
@@ -474,6 +510,9 @@ export function InviteNotificationHistoryCenter({
             flowKey: 'home',
           });
           dispatchRewardClaimUpdated(action.inviteCode);
+          window.dispatchEvent(
+            new Event(HOME_DATA_REFRESH_REQUESTED_EVENT),
+          );
           void loadRewardActions();
           return;
         }
@@ -485,9 +524,8 @@ export function InviteNotificationHistoryCenter({
         failureCode,
         flowKey: 'home',
       });
-      setActionError(
-        error instanceof Error ? error.message : progressCopy.claimFailed,
-      );
+      console.warn('VeInvite notification Claim failed:', error);
+      setActionError(progressCopy.claimFailed);
       void loadRewardActions();
     } finally {
       setClaimPendingCode(null);
@@ -513,7 +551,10 @@ export function InviteNotificationHistoryCenter({
         notifyRewardClaimSessionInvalid();
       }
       if (!response.ok) {
-        throw new Error(body.error || receiptCopy.error);
+        if (body.error) {
+          console.warn('VeInvite reward receipt request failed:', body.error);
+        }
+        throw new Error(receiptCopy.error);
       }
       if (receiptRequestRef.current !== requestId) return;
 
@@ -524,9 +565,8 @@ export function InviteNotificationHistoryCenter({
       setReceipt(match);
     } catch (error) {
       if (receiptRequestRef.current !== requestId) return;
-      setReceiptError(
-        error instanceof Error ? error.message : receiptCopy.error,
-      );
+      console.warn('VeInvite reward receipt load failed:', error);
+      setReceiptError(receiptCopy.error);
     } finally {
       if (receiptRequestRef.current === requestId) {
         setReceiptLoading(false);
@@ -556,7 +596,10 @@ export function InviteNotificationHistoryCenter({
         notifyRewardClaimSessionInvalid();
       }
       if (!response.ok || !body.receipt) {
-        throw new Error(body.error || receiptCopy.error);
+        if (body.error) {
+          console.warn('VeInvite reward receipt acknowledgement failed:', body.error);
+        }
+        throw new Error(receiptCopy.error);
       }
 
       window.dispatchEvent(
@@ -566,9 +609,8 @@ export function InviteNotificationHistoryCenter({
       setReceipt(body.receipt);
     } catch (error) {
       if (receiptRequestRef.current !== requestId) return;
-      setReceiptError(
-        error instanceof Error ? error.message : receiptCopy.error,
-      );
+      console.warn('VeInvite reward receipt acknowledgement failed:', error);
+      setReceiptError(receiptCopy.error);
     } finally {
       if (receiptRequestRef.current === requestId) {
         setReceiptAcknowledging(false);
@@ -774,7 +816,7 @@ export function InviteNotificationHistoryCenter({
   const renderRewardActions = () => {
     if (
       rewardActions.length === 0 &&
-      !actionLoading &&
+      actionResolved &&
       !actionError
     ) {
       return null;
@@ -1036,7 +1078,10 @@ export function InviteNotificationHistoryCenter({
                   </div>
                 )}
               </div>
-            ) : loading && items.length === 0 && rewardActions.length === 0 ? (
+            ) : (
+              loading ||
+              (actionLoading && !actionResolved)
+            ) && items.length === 0 && rewardActions.length === 0 ? (
               <div className="notificationHistoryState" aria-live="polite" aria-busy="true">
                 <span className="notificationHistorySpinner" aria-hidden="true" />
                 <strong>{structure.loadingTitle}</strong>
@@ -1055,9 +1100,24 @@ export function InviteNotificationHistoryCenter({
                   {structure.retry}
                 </button>
               </div>
+            ) : actionError &&
+              sorted.length === 0 &&
+              rewardActions.length === 0 ? (
+              <div className="notificationHistoryState errorState" role="alert">
+                <span className="notificationHistoryStateIcon" aria-hidden="true">!</span>
+                <strong>{structure.errorTitle}</strong>
+                <p>{structure.errorBody}</p>
+                <button
+                  type="button"
+                  className="notificationHistoryRetry"
+                  onClick={() => void loadRewardActions()}
+                >
+                  {structure.retry}
+                </button>
+              </div>
             ) : sorted.length === 0 &&
               rewardActions.length === 0 &&
-              !actionLoading &&
+              actionResolved &&
               !actionError ? (
               <div className="notificationHistoryState">
                 <span className="notificationHistoryEmptyBell" aria-hidden="true">

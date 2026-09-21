@@ -9,6 +9,7 @@ const actionsRoute = read('src/app/api/notifications/reward-actions/route.ts');
 const claimRoute = read('src/app/api/rewards/claims/route.ts');
 const page = read('src/app/page.tsx');
 const home = read('src/components/HomeClient.tsx');
+const activeReceipt = read('src/components/ActiveWalletRewardReceiptNotice.tsx');
 
 test('notification reward actions are live wallet-scoped state, not cached history authority', () => {
   assert.match(actionsRoute, /requireWalletSession/);
@@ -77,10 +78,16 @@ test('reward-ready history is an event while paid history remains reopenable as 
   assert.match(center, /ACKNOWLEDGE_REWARD_RECEIPT/);
 });
 
-test('rollout keeps existing Home Claim and standalone receipt notice as temporary safety fallbacks', () => {
+test('rollout keeps Home Claim and paid live sync without a duplicate standalone receipt surface', () => {
   assert.match(home, /fetch\('\/api\/rewards\/claims'/);
   assert.match(home, /className="claimButton"/);
   assert.match(page, /<ActiveWalletRewardReceiptNotice \/>/);
+  assert.match(activeReceipt, /<PaidActivationLiveSync/);
+  assert.equal(
+    activeReceipt.includes('import { RewardReceiptNotice }'),
+    false,
+  );
+  assert.equal(activeReceipt.includes('<RewardReceiptNotice'), false);
 });
 
 
@@ -92,5 +99,7 @@ test('notification reward actions stay visually stable across bell reopen', () =
   const openEffect = center.slice(openEffectStart, openEffectEnd);
   assert.match(openEffect, /void loadRewardActions\(\)/);
   assert.doesNotMatch(openEffect, /setRewardActions\(\[\]\)/);
+  assert.match(center, /initialRewardActions/u);
+  assert.match(center, /actionResolved/u);
   assert.match(center, /\.notificationActionLoading\{min-height:72px/);
 });

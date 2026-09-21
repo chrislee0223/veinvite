@@ -3,13 +3,10 @@
  * Keep reward/read/Claim behavior owned by the React notification controller.
  */
 
-/* A reward-action request with no actual action is background discovery, not a
- * user-facing reward notification. Do not flash the reward heading/loading
- * shell before the authoritative response confirms an action exists. */
-.notificationHistoryPanel
-  .notificationActionSection:has(.notificationActionLoading):not(:has(.notificationActionCard)):not(:has(.notificationActionError)) {
-  display: none !important;
-}
+/* Reward-action discovery visibility is owned by React state now. A verified
+ * empty snapshot stays visible as the normal empty inbox while background
+ * revalidation runs; first-time discovery may render an explicit loading state.
+ * Never hide that state in CSS, which previously created a blank panel frame. */
 
 /* Keep title, body and timestamp on one consistent card grid. The unread dot
  * lives in the card gutter so it communicates state without indenting only the

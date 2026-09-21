@@ -6,6 +6,7 @@ import {
 } from '../../src/lib/i18n/locales';
 
 const MOBILE_VIEWPORT = { width: 393, height: 852 };
+const WIDE_MOBILE_VIEWPORT = { width: 480, height: 840 };
 const DESKTOP_VIEWPORT = { width: 1280, height: 900 };
 
 const HIGH_RISK_LOCALES = [
@@ -171,4 +172,20 @@ for (const locale of HIGH_RISK_LOCALES) {
       );
     });
   }
+}
+
+
+for (const locale of ['de', 'ur', 'ar', 'cs'] as const satisfies readonly SupportedLocale[]) {
+  test(`wide-mobile notification header: ${locale}`, async ({ page }, testInfo) => {
+    await page.setViewportSize(WIDE_MOBILE_VIEWPORT);
+    await page.goto(
+      `/qa/state?state=NOTI-HISTORY-OPEN&locale=${encodeURIComponent(locale)}`,
+      { waitUntil: 'domcontentloaded', timeout: 12_000 },
+    );
+    await captureAndAssert(
+      page,
+      testInfo,
+      `NOTI-HISTORY-OPEN-${locale}-wide-mobile`,
+    );
+  });
 }
