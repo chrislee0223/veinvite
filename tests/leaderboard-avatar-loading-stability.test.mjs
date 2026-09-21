@@ -12,9 +12,11 @@ test('avatar does not paint Picasso before profile resolution completes', () => 
     source,
     /const \[displayUrl, setDisplayUrl\] = useState<string \| null>\(\(\) =>\s*readCachedAvatar\(address\)/,
   );
-  assert.match(source, /if \(!shouldLoadProfile \|\| domainLoading\) return;/);
+  assert.match(source, /if \(!shouldLoadProfile\) return;/);
+  assert.match(source, /if \(shouldResolveDomain && domainLoading\) return;/);
   assert.match(source, /if \(domain && avatarLoading\) return;/);
   assert.match(source, /const resolvedUrl = profileAvatarUrl \|\| fallbackUrl;/);
+  assert.match(source, /const profileName = resolvedDomain;/);
   assert.match(source, /displayUrl \? \([\s\S]*<img[\s\S]*\) : \([\s\S]*walletAvatarNeutral/);
 });
 

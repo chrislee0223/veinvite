@@ -293,6 +293,17 @@ export function SecondaryPageLayoutPolish() {
         text-overflow:clip !important;
       }
 
+      .leaderboardPage .walletCell > .walletText[data-profile-name='true'] {
+        width:auto !important;
+        min-width:0 !important;
+        max-width:calc(100% - 31px) !important;
+        font-family:system-ui,-apple-system,"Segoe UI",Arial,sans-serif !important;
+        font-weight:800 !important;
+        letter-spacing:-.02em !important;
+        text-align:start !important;
+        text-overflow:ellipsis !important;
+      }
+
       .leaderboardPage .completedMetric {
         grid-column:3 !important;
         display:flex !important;

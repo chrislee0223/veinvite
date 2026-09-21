@@ -25,6 +25,10 @@ import type {
   PublicLeaderboardEntry,
   PublicLeaderboardResponse,
 } from '@/lib/types';
+import {
+  readCachedLeaderboardDomain,
+  rememberLeaderboardDomain,
+} from '@/lib/leaderboardDomainCache';
 import { getVeChainExplorerAddressUrl } from '@/lib/vechainExplorer';
 import {
   SOFT_FOCUS_MOTION_CSS,
@@ -135,7 +139,7 @@ function rankLabel(rank: number): string {
   return rank <= 0 ? '—' : String(rank);
 }
 
-function WalletAvatar({
+function WalletIdentity({
   address,
   eager = false,
 }: {
@@ -148,17 +152,44 @@ function WalletAvatar({
   const [displayUrl, setDisplayUrl] = useState<string | null>(() =>
     readCachedAvatar(address),
   );
+  const [displayDomain, setDisplayDomain] = useState<
+    string | null | undefined
+  >(() => readCachedLeaderboardDomain(address));
+  const shouldResolveDomain =
+    shouldLoadProfile && displayDomain === undefined;
   const { data: domainInfo, isLoading: domainLoading } = useVechainDomain(
-    shouldLoadProfile ? address : undefined,
+    shouldResolveDomain ? address : undefined,
   );
-  const domain = domainInfo?.domain ?? '';
+  const queriedDomain =
+    typeof domainInfo?.domain === 'string' && domainInfo.domain.trim()
+      ? domainInfo.domain.trim()
+      : null;
+  const resolvedDomain =
+    displayDomain !== undefined
+      ? displayDomain
+      : shouldResolveDomain && !domainLoading
+        ? queriedDomain
+        : null;
+  const domain = resolvedDomain ?? '';
   const { data: profileAvatarUrl, isLoading: avatarLoading } =
     useGetAvatar(domain);
 
   useEffect(() => {
     setDisplayUrl(readCachedAvatar(address));
+    setDisplayDomain(readCachedLeaderboardDomain(address));
     setShouldLoadProfile(eager);
   }, [address, eager]);
+
+  useEffect(() => {
+    if (!shouldResolveDomain || domainLoading) return;
+    rememberLeaderboardDomain(address, queriedDomain);
+    setDisplayDomain(queriedDomain);
+  }, [
+    address,
+    domainLoading,
+    queriedDomain,
+    shouldResolveDomain,
+  ]);
 
   useEffect(() => {
     if (eager) {
@@ -188,7 +219,8 @@ function WalletAvatar({
   }, [eager]);
 
   useEffect(() => {
-    if (!shouldLoadProfile || domainLoading) return;
+    if (!shouldLoadProfile) return;
+    if (shouldResolveDomain && domainLoading) return;
     if (domain && avatarLoading) return;
 
     const resolvedUrl = profileAvatarUrl || fallbackUrl;
@@ -224,34 +256,47 @@ function WalletAvatar({
     fallbackUrl,
     profileAvatarUrl,
     shouldLoadProfile,
+    shouldResolveDomain,
   ]);
 
+  const profileName = resolvedDomain;
+
   return (
-    <span
-      ref={avatarHostRef}
-      className="walletAvatar"
-      data-avatar-pending={!displayUrl ? 'true' : undefined}
-      aria-hidden="true"
-    >
-      {displayUrl ? (
-        <img
-          src={displayUrl}
-          alt=""
-          loading={eager ? 'eager' : 'lazy'}
-          fetchPriority={eager ? 'high' : 'auto'}
-          decoding="async"
-          style={{
-            width: '100%',
-            height: '100%',
-            display: 'block',
-            objectFit: 'contain',
-            borderRadius: 'inherit',
-          }}
-        />
-      ) : (
-        <span className="walletAvatarNeutral" />
-      )}
-    </span>
+    <>
+      <span
+        ref={avatarHostRef}
+        className="walletAvatar"
+        data-avatar-pending={!displayUrl ? 'true' : undefined}
+        aria-hidden="true"
+      >
+        {displayUrl ? (
+          <img
+            src={displayUrl}
+            alt=""
+            loading={eager ? 'eager' : 'lazy'}
+            fetchPriority={eager ? 'high' : 'auto'}
+            decoding="async"
+            style={{
+              width: '100%',
+              height: '100%',
+              display: 'block',
+              objectFit: 'contain',
+              borderRadius: 'inherit',
+            }}
+          />
+        ) : (
+          <span className="walletAvatarNeutral" />
+        )}
+      </span>
+      <span
+        className="walletText"
+        data-profile-name={profileName ? 'true' : undefined}
+        dir={profileName ? 'auto' : 'ltr'}
+        title={profileName ?? address}
+      >
+        {profileName ?? maskWallet(address)}
+      </span>
+    </>
   );
 }
 
@@ -609,16 +654,13 @@ export function PublicLeaderboard({
           {renderMovement(entry)}
         </span>
         <span className="walletCell">
-          <WalletAvatar
+          <WalletIdentity
             address={entry.walletAddress}
             eager={
               trailing ||
               (entry.rank > 0 && entry.rank <= EAGER_AVATAR_RANK_LIMIT)
             }
           />
-          <span className="walletText">
-            {maskWallet(entry.walletAddress)}
-          </span>
         </span>
         <span className="rankMetric completedMetric">
           <b>{entry.completedReferrals}</b>
@@ -1220,6 +1262,11 @@ export function PublicLeaderboard({
           overflow:hidden;
           text-overflow:ellipsis;
           white-space:nowrap;
+        }
+        .walletText[data-profile-name='true'] {
+          font-family:system-ui,-apple-system,"Segoe UI",Arial,sans-serif;
+          font-weight:800;
+          letter-spacing:-.02em;
         }
         .rankMetric {
           min-width:0;
