@@ -121,10 +121,23 @@ test('broadcast marker is bound to immutable journal and remains server-only', (
   );
 });
 
-test('confirmed older submissions are recovered oldest-first while claim work can continue', () => {
+test('unconfirmed broadcasts are recovered before older confirmed finality work', () => {
+  const unconfirmedIndex = recovery.indexOf(
+    ".is('broadcast_confirmed_at', null)",
+  );
+  const fallbackIndex = recovery.indexOf(
+    'const fallbackRoundResult',
+  );
+
+  assert.ok(unconfirmedIndex >= 0);
+  assert.ok(fallbackIndex > unconfirmedIndex);
   assert.match(
     recovery,
-    /\.order\('id', \{ ascending: true \}\)/,
+    /unconfirmedRoundResult\.data\s*\?\?\s*fallbackRoundResult\?\.data/,
+  );
+  assert.match(
+    recovery,
+    /\.is\('broadcast_confirmed_at', null\)[\s\S]*\.order\('id', \{ ascending: true \}\)/,
   );
   assert.match(
     wrapper,

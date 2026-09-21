@@ -3,6 +3,9 @@ import {
   recordVot3ConversionImpact,
   recordVoteImpact,
 } from '@/lib/impact/record';
+import {
+  enqueueRewardReservationContinuation,
+} from '@/lib/rewards/rewardReservationContinuationQueue';
 import { supabaseAdmin } from '@/lib/supabaseServer';
 import {
   evaluatePostVoteSybilRisk,
@@ -1032,6 +1035,30 @@ export async function syncInvitationEvidence(
     row.impact_last_synced_at;
   impactSyncCompleteAt =
     row.impact_sync_complete_at;
+
+  const becameRewardEligible =
+    initial.reward_status !== 'ELIGIBLE' &&
+    row.status === 'COMPLETED' &&
+    row.reward_status === 'ELIGIBLE';
+
+  if (becameRewardEligible) {
+    try {
+      await enqueueRewardReservationContinuation({
+        inviteCode: row.invite_code,
+        detectedAt: new Date().toISOString(),
+      });
+    } catch (queueError) {
+      // Eligibility is already durable. Queue delivery only accelerates
+      // finality-driven reservation; browser heartbeat and cron remain fallbacks.
+      console.error(
+        'Failed to queue reward reservation finality continuation:',
+        {
+          inviteCode: row.invite_code,
+          error: queueError,
+        },
+      );
+    }
+  }
 
   return {
     row,
