@@ -3,7 +3,6 @@
 import { useEffect, useState } from 'react';
 
 import { PaidActivationLiveSync } from './PaidActivationLiveSync';
-import { RewardReceiptNotice } from './RewardReceiptNotice';
 import { useActiveWallet } from './WalletControl';
 
 const APP_READY_EVENT = 'veinvite-app-ready';
@@ -46,9 +45,6 @@ export function ActiveWalletRewardReceiptNotice() {
   // so their receipt requests cannot compete with invite/link bootstrap. They
   // still remount on wallet changes to keep wallet-scoped baselines isolated.
   return (
-    <>
-      <PaidActivationLiveSync key={`paid-sync:${walletKey}`} />
-      <RewardReceiptNotice key={`receipt:${walletKey}`} />
-    </>
+    <PaidActivationLiveSync key={`paid-sync:${walletKey}`} />
   );
 }

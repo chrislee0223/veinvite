@@ -16,6 +16,19 @@ const PAID_ACTIVATION_UPDATED_EVENT = 'veinvite-paid-activation-updated';
 const CLAIM_POLL_INTERVAL_MS = 2_000;
 const CLAIM_POLL_TIMEOUT_MS = 120_000;
 const BACKGROUND_POLL_INTERVAL_MS = 30_000;
+const SAFE_RELOAD_RETRY_MS = 750;
+
+function hasBlockingDialogOpen(): boolean {
+  return Array.from(
+    document.querySelectorAll<HTMLElement>(
+      '[role="dialog"][aria-modal="true"], [role="alertdialog"][aria-modal="true"]',
+    ),
+  ).some(
+    (element) =>
+      element.getAttribute('aria-hidden') !== 'true' &&
+      element.getClientRects().length > 0,
+  );
+}
 
 type ReceiptResponse = {
   receipts?: RewardReceipt[];
@@ -94,6 +107,7 @@ export function PaidActivationLiveSync() {
   const claimPollTimerRef = useRef<number | null>(null);
   const claimPollDeadlineRef = useRef(0);
   const reloadRequestedRef = useRef(false);
+  const reloadTimerRef = useRef<number | null>(null);
   const readInFlightRef = useRef<Promise<ReceiptSnapshot | null> | null>(null);
 
   const readLatest = useCallback(async () => {
@@ -112,6 +126,26 @@ export function PaidActivationLiveSync() {
     }
   }, []);
 
+  const scheduleSafeReload = useCallback(() => {
+    const attempt = () => {
+      reloadTimerRef.current = null;
+
+      if (hasBlockingDialogOpen()) {
+        reloadTimerRef.current = window.setTimeout(
+          attempt,
+          SAFE_RELOAD_RETRY_MS,
+        );
+        return;
+      }
+
+      window.location.reload();
+    };
+
+    if (reloadTimerRef.current === null) {
+      attempt();
+    }
+  }, []);
+
   const requestPaidReload = useCallback((latestReceiptId: string | null) => {
     if (reloadRequestedRef.current) return false;
 
@@ -122,12 +156,9 @@ export function PaidActivationLiveSync() {
 
     window.dispatchEvent(new Event(PAID_ACTIVATION_UPDATED_EVENT));
 
-    // A reward receipt exists only after finalized on-chain settlement. Reload
-    // once at that boundary so the Home reward card, rank, impact totals and
-    // notifications all consume the same finalized PAID evidence.
-    window.location.reload();
+    scheduleSafeReload();
     return true;
-  }, []);
+  }, [scheduleSafeReload]);
 
   const applyLatestReceipt = useCallback(async (): Promise<boolean> => {
     const snapshot = await readLatest();
@@ -221,7 +252,7 @@ export function PaidActivationLiveSync() {
           // remains authoritative and idempotent; this is UI reconciliation.
           if (!reloadRequestedRef.current) {
             reloadRequestedRef.current = true;
-            window.location.reload();
+            scheduleSafeReload();
           }
           return;
         }
@@ -272,7 +303,19 @@ export function PaidActivationLiveSync() {
       window.clearInterval(backgroundTimer);
       document.removeEventListener('visibilitychange', onVisible);
     };
-  }, [applyLatestReceipt, scheduleClaimPoll, stopClaimPolling]);
+  }, [
+    applyLatestReceipt,
+    scheduleClaimPoll,
+    scheduleSafeReload,
+    stopClaimPolling,
+  ]);
+
+  useEffect(() => () => {
+    if (reloadTimerRef.current !== null) {
+      window.clearTimeout(reloadTimerRef.current);
+      reloadTimerRef.current = null;
+    }
+  }, []);
 
   return null;
 }

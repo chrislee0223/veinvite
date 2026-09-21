@@ -9,7 +9,7 @@
 /* Long mobile header copy must not compete with Mark-all and Close on the same
  * row. Keep title/unread + Close on the first row and give Mark-all the full
  * second row only on compact phone widths. Logical alignment mirrors in RTL. */
-@media (max-width: 420px) {
+@media (max-width: 560px) {
   .notificationHistoryPanel .notificationHistoryHeader {
     display: grid !important;
     grid-template-columns: minmax(0, 1fr) 36px !important;

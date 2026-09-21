@@ -46,16 +46,15 @@ test('ambiguous Claim recovery looks up the exact invite receipt instead of only
   assert.doesNotMatch(claimClient, /rewards\/receipts\?limit=50/u);
 });
 
-test('background reward discovery does not impersonate a real reward notification', () => {
+test('background reward discovery never creates a blank notification body', () => {
   assert.doesNotMatch(hardening, /notificationActionSection:has\(\.notificationActionLoading\)/u);
-  assert.match(center, /className="notificationActionLoading"/u);
-  assert.match(
-    runtimeFix,
-    /notificationActionSection:has\(\.notificationActionLoading\):not\(:has\(\.notificationActionCard\)\):not\(:has\(\.notificationActionError\)\)[\s\S]*display:\s*none\s*!important/u,
-  );
+  assert.match(center, /const \[actionResolved, setActionResolved\]/u);
+  assert.match(center, /initialRewardActions/u);
+  assert.match(center, /actionLoading && !actionResolved/u);
+  assert.match(center, /actionResolved &&\s*!actionError/u);
   assert.doesNotMatch(
     runtimeFix,
-    /notificationActionSection:has\(\.notificationActionError\)[\s\S]*display:\s*none/u,
+    /notificationActionSection:has\(\.notificationActionLoading\)[\s\S]*display:\s*none/u,
   );
 });
 
