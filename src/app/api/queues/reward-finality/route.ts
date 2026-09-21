@@ -30,36 +30,62 @@ const queueCallback = handleCallback(
       return;
     }
 
-    const result = await runImmediateClaimRewardPayout();
-    const manualIntervention =
-      readClaimPayoutManualIntervention(result);
+    const maxSettlementPasses = 6;
 
-    if (manualIntervention) {
-      // Repeating a deterministic safety stop cannot repair it and can create
-      // noisy queue churn. Prefer the submitted-recovery safety observation when
-      // present so a later IDLE/PAID transfer result cannot hide it.
-      console.error(
-        'Reward payout continuation requires manual intervention:',
-        {
-          inviteCode: message.inviteCode,
-          roundId: manualIntervention.roundId,
-          manifestId: manualIntervention.manifestId,
-          txId: manualIntervention.txId,
-          reason: manualIntervention.reason ?? null,
-        },
-      );
+    for (let pass = 0; pass < maxSettlementPasses; pass += 1) {
+      const result = await runImmediateClaimRewardPayout();
+      const manualIntervention =
+        readClaimPayoutManualIntervention(result);
+
+      if (manualIntervention) {
+        // Repeating a deterministic safety stop cannot repair it and can create
+        // noisy queue churn. Prefer the submitted-recovery safety observation when
+        // present so a later IDLE/PAID transfer result cannot hide it.
+        console.error(
+          'Reward payout continuation requires manual intervention:',
+          {
+            inviteCode: message.inviteCode,
+            roundId: manualIntervention.roundId,
+            manifestId: manualIntervention.manifestId,
+            txId: manualIntervention.txId,
+            reason: manualIntervention.reason ?? null,
+          },
+        );
+        return;
+      }
+
+      const recoveredPaidRound =
+        result.submittedRecovery?.status === 'PAID';
+      const transferWorkerIdle =
+        result.status === 'IDLE' &&
+        (result.queuedCount ?? 0) === 0;
+
+      if (recoveredPaidRound && transferWorkerIdle) {
+        // One immutable submitted round was just finalized. Continue within the
+        // same Queue delivery so a group of already-finalized payouts is not
+        // forced to wait for separate redeliveries one round at a time.
+        continue;
+      }
+
+      if (needsDurableClaimPayoutContinuation(result)) {
+        // Throwing tells Vercel Queues not to acknowledge the message. The same
+        // deployment receives it again after the retry delay. Existing payout
+        // locks, manifests, signed-transaction journals and settlement RPCs make
+        // this safe under at-least-once delivery.
+        throw new Error(
+          `Reward payout continuation remains pending: ${result.status}`,
+        );
+      }
+
       return;
     }
 
-    if (needsDurableClaimPayoutContinuation(result)) {
-      // Throwing tells Vercel Queues not to acknowledge the message. The same
-      // deployment receives it again after the retry delay. Existing payout
-      // locks, manifests, signed-transaction journals and settlement RPCs make
-      // this safe under at-least-once delivery.
-      throw new Error(
-        `Reward payout continuation remains pending: ${result.status}`,
-      );
-    }
+    // Keep the Queue message alive if an unusually large finalized backlog was
+    // drained up to the bounded per-delivery limit. The next delivery continues
+    // from the same immutable journals without ever creating a duplicate payout.
+    throw new Error(
+      'Reward payout continuation reached its bounded settlement-drain limit.',
+    );
   },
   {
     visibilityTimeoutSeconds: 180,
