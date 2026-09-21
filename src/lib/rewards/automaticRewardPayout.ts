@@ -230,14 +230,18 @@ async function loadActiveRewardState(
   network: string,
   appId: string,
 ): Promise<ActiveRewardState> {
+  // A payout whose canonical broadcast has already been confirmed no longer
+  // blocks the next claimed batch. Full finality for that older transaction is
+  // still reconciled independently by submittedPayoutRecovery.
   const roundResult = await supabaseAdmin
     .from('reward_rounds')
     .select(
-      'id, network, app_id, status, reward_budget_epoch_id, observed_pool_balance_wei, reserved_before_round_wei, distributable_wei, eligible_count, per_reward_wei, remainder_wei, created_at',
+      'id, network, app_id, status, reward_budget_epoch_id, observed_pool_balance_wei, reserved_before_round_wei, distributable_wei, eligible_count, per_reward_wei, remainder_wei, created_at, broadcast_confirmed_at',
     )
     .eq('network', network)
     .eq('app_id', appId)
     .in('status', ['CREATED', 'PAYING'])
+    .is('broadcast_confirmed_at', null)
     .order('id', { ascending: false })
     .limit(1)
     .maybeSingle();
