@@ -9,6 +9,8 @@ export type RewardActionItem = {
   reservedAmountWei: string;
   reservedAt: string;
   friendWallet: string | null;
+  broadcastConfirmedAt: string | null;
+  txId: string | null;
 };
 
 export type RewardActionResponse = {

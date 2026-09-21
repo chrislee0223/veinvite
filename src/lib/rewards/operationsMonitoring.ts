@@ -294,8 +294,11 @@ Promise<RewardOperationsHealth> {
       .eq('network', pool.network)
       .eq('app_id', pool.appId)
       .in('status', ['CREATED', 'PAYING'])
+      // Broadcast-confirmed rounds can remain open while newer rounds are
+      // created. Monitor the oldest open round so a stale finality wait cannot
+      // be hidden behind a newer healthy payout.
       .order('id', {
-        ascending: false,
+        ascending: true,
       })
       .limit(1)
       .maybeSingle(),
