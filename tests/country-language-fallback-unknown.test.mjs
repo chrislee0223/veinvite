@@ -48,80 +48,56 @@ const countryFlag = readFileSync(
   'utf8',
 );
 
-test('latest country leaderboard migration preserves display-language fallback', () => {
+test('latest country leaderboard migration requires trusted country evidence', () => {
   assert.ok(
     latestCountryMigration.file >
-      '20260921105223_restore_trusted_country_only_after_reward_liveness_merge.sql',
+      '20260921130939_restore_country_language_fallback_after_reward_liveness_merge.sql',
   );
   assert.match(
     migration,
-    /left join public\.referral_activation_language_facts l[\s\S]*l\.source_invitation_id = c\.invitation_id/,
+    /Country is attributed only from trusted activation or acquisition country evidence/i,
   );
   assert.match(
-    migration,
-    /lower\(l\.language_code\) = 'tr' then 'TR'/,
-  );
-  assert.doesNotMatch(
     migration,
     /Display language is never used to infer country/i,
   );
+  assert.doesNotMatch(
+    migration,
+    /left join public\.referral_activation_language_facts l/,
+  );
+  assert.doesNotMatch(
+    migration,
+    /lower\(l\.language_code\)/,
+  );
 });
 
-test('trusted country evidence stays ahead of display-language fallback', () => {
+test('trusted activation and acquisition evidence are the only country sources', () => {
   const trustedActivation = migration.indexOf(
     "f.country_source in ('TRUSTED_EDGE', 'OPERATOR_VERIFIED')",
   );
   const trustedAcquisition = migration.indexOf(
     "a.country_source = 'TRUSTED_EDGE'",
   );
-  const languageFallback = migration.indexOf(
-    "lower(l.language_code) = 'tr' then 'TR'",
-  );
 
   assert.ok(trustedActivation >= 0);
   assert.ok(trustedAcquisition > trustedActivation);
-  assert.ok(languageFallback > trustedAcquisition);
+  assert.match(
+    migration,
+    /when a\.country_source = 'TRUSTED_EDGE'[\s\S]*then a\.country_code[\s\S]*else null/,
+  );
 });
 
-test('VeInvite display languages map to the same representative countries as the language picker', () => {
-  const expectedMappings = [
-    ['en', 'US'],
-    ['ko', 'KR'],
-    ['zh', 'CN'],
-    ['hi', 'IN'],
-    ['es', 'ES'],
-    ['ja', 'JP'],
-    ['it', 'IT'],
-    ['tr', 'TR'],
-    ['nl', 'NL'],
-    ['de', 'DE'],
-    ['fr', 'FR'],
-    ['ar', 'AE'],
-    ['bn', 'BD'],
-    ['pt', 'BR'],
-    ['ru', 'RU'],
-    ['id', 'ID'],
-    ['vi', 'VN'],
-    ['zh-tw', 'TW'],
-    ['sv', 'SE'],
-    ['ro', 'RO'],
-    ['ur', 'PK'],
-    ['pcm', 'NG'],
-    ['arz', 'EG'],
-    ['mr', 'IN'],
-    ['te', 'IN'],
-    ['sw', 'KE'],
-    ['ha', 'NG'],
-    ['el', 'GR'],
+test('display language can never be converted into a country code', () => {
+  const forbiddenMappings = [
+    "then 'US'",
+    "then 'KR'",
+    "then 'TR'",
+    "then 'AE'",
+    "then 'BR'",
   ];
 
-  for (const [language, country] of expectedMappings) {
-    assert.match(
-      migration,
-      new RegExp(
-        `lower\\(l\\.language_code\\) = '${language}' then '${country}'`,
-      ),
-    );
+  for (const mapping of forbiddenMappings) {
+    assert.doesNotMatch(migration, new RegExp(mapping));
   }
 });
 
