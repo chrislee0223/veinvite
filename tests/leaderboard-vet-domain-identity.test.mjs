@@ -74,3 +74,28 @@ test('long VET domain names remain inside the inviter column with ellipsis', () 
     /\.walletCell > \.walletText \{[\s\S]*width:9ch !important[\s\S]*text-overflow:clip !important/,
   );
 });
+
+
+test('wallet details title keeps rank while preferring VET domain identity', () => {
+  assert.match(leaderboard, /function WalletDetailIdentity/);
+  assert.match(
+    leaderboard,
+    /entry\.rank > 0 \? `#\$\{entry\.rank\}` : '—'/,
+  );
+  assert.match(
+    leaderboard,
+    /\{profileName \?\? maskWallet\(address\)\}/,
+  );
+  assert.match(
+    leaderboard,
+    /<WalletDetailIdentity[\s\S]*entry=\{selectedEntry\}/,
+  );
+  assert.match(
+    leaderboard,
+    /\.walletIdentityName \{[\s\S]*overflow:hidden;[\s\S]*text-overflow:ellipsis;[\s\S]*white-space:nowrap;/,
+  );
+  assert.match(
+    leaderboard,
+    /<label>\{t\.fullAddress\}<\/label>[\s\S]*<code>\{selectedEntry\.walletAddress\}<\/code>/,
+  );
+});
