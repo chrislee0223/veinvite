@@ -56,14 +56,18 @@ const queueCallback = handleCallback(
 
       const recoveredPaidRound =
         result.submittedRecovery?.status === 'PAID';
-      const transferWorkerIdle =
-        result.status === 'IDLE' &&
+      const transferWorkerSettledOrIdle =
+        (
+          result.status === 'IDLE' ||
+          result.status === 'PAID'
+        ) &&
         (result.queuedCount ?? 0) === 0;
 
-      if (recoveredPaidRound && transferWorkerIdle) {
-        // One immutable submitted round was just finalized. Continue within the
-        // same Queue delivery so a group of already-finalized payouts is not
-        // forced to wait for separate redeliveries one round at a time.
+      if (recoveredPaidRound && transferWorkerSettledOrIdle) {
+        // One immutable submitted round was just finalized and no queued Claim
+        // remains behind the transfer worker. Continue within the same Queue
+        // delivery so a group of already-finalized payouts is not forced to wait
+        // for separate redeliveries one round at a time.
         continue;
       }
 
