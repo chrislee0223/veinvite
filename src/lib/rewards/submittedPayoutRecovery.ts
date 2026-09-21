@@ -230,26 +230,54 @@ Promise<SubmittedPayoutRecoveryResult> {
   }
 
   try {
-    // Oldest-first is intentional once confirmed broadcasts may coexist with a
-    // newer active batch. It prevents an older immutable submission from being
-    // starved by subsequent claimed cohorts.
-    const roundResult = await supabaseAdmin
+    // First release the throughput bottleneck: an active submission whose
+    // canonical receipt has not yet been recorded as broadcast-confirmed.
+    // An older already-confirmed round may still be waiting for full VeChain
+    // finality, but it must not starve a newer submitted payout and block every
+    // later Claim behind it. Once every active submission is broadcast-confirmed,
+    // fall back to oldest-first settlement so finalized history remains ordered.
+    const roundColumns =
+      'id, network, app_id, status, distributable_wei, eligible_count, created_at, broadcast_confirmed_at';
+
+    const unconfirmedRoundResult = await supabaseAdmin
       .from('reward_rounds')
-      .select(
-        'id, network, app_id, status, distributable_wei, eligible_count, created_at, broadcast_confirmed_at',
-      )
+      .select(roundColumns)
       .eq('network', network)
       .in('status', ['CREATED', 'PAYING'])
+      .is('broadcast_confirmed_at', null)
       .order('id', { ascending: true })
       .limit(1)
       .maybeSingle();
 
-    if (roundResult.error) {
+    if (unconfirmedRoundResult.error) {
       throw new Error(
-        `Submitted payout round could not be loaded: ${roundResult.error.message}`,
+        `Unconfirmed submitted payout round could not be loaded: ${unconfirmedRoundResult.error.message}`,
       );
     }
-    if (!roundResult.data) {
+
+    const fallbackRoundResult = unconfirmedRoundResult.data
+      ? null
+      : await supabaseAdmin
+          .from('reward_rounds')
+          .select(roundColumns)
+          .eq('network', network)
+          .in('status', ['CREATED', 'PAYING'])
+          .order('id', { ascending: true })
+          .limit(1)
+          .maybeSingle();
+
+    if (fallbackRoundResult?.error) {
+      throw new Error(
+        `Submitted payout round could not be loaded: ${fallbackRoundResult.error.message}`,
+      );
+    }
+
+    const roundData =
+      unconfirmedRoundResult.data ??
+      fallbackRoundResult?.data ??
+      null;
+
+    if (!roundData) {
       return {
         status: 'IDLE',
         roundId: null,
@@ -258,7 +286,7 @@ Promise<SubmittedPayoutRecoveryResult> {
       };
     }
 
-    const round = roundResult.data as RewardRoundForManifest & {
+    const round = roundData as RewardRoundForManifest & {
       created_at?: string;
       broadcast_confirmed_at?: string | null;
     };

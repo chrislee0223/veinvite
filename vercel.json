@@ -1,6 +1,8 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
-  "regions": ["icn1"],
+  "regions": [
+    "icn1"
+  ],
   "git": {
     "deploymentEnabled": {
       "**": false,
@@ -15,6 +17,16 @@
         {
           "type": "queue/v2beta",
           "topic": "veinvite-reward-finality",
+          "retryAfterSeconds": 60,
+          "initialDelaySeconds": 0
+        }
+      ]
+    },
+    "src/app/api/queues/reward-reservation/route.ts": {
+      "experimentalTriggers": [
+        {
+          "type": "queue/v2beta",
+          "topic": "veinvite-reward-reservation-finality",
           "retryAfterSeconds": 60,
           "initialDelaySeconds": 0
         }
