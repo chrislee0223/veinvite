@@ -19,6 +19,17 @@ type QueueRow = {
   reserved_amount_wei: string | number | null;
   reserved_at: string | null;
   eligible_at: string | null;
+  assigned_round_id: string | number | null;
+};
+
+type RoundRow = {
+  id: string | number;
+  broadcast_confirmed_at: string | null;
+};
+
+type SubmissionRow = {
+  round_id: string | number;
+  tx_id: string | null;
 };
 
 type InvitationRow = {
@@ -82,7 +93,7 @@ export async function GET(request: NextRequest) {
     const queueResult = await supabaseAdmin
       .from('reward_queue_entries')
       .select(
-        'invite_code, status, reserved_amount_wei, reserved_at, eligible_at',
+        'invite_code, status, reserved_amount_wei, reserved_at, eligible_at, assigned_round_id',
       )
       .eq('recipient_wallet', walletAddress)
       .in('status', ['AWAITING_CLAIM', 'QUEUED', 'ASSIGNED'])
@@ -132,6 +143,49 @@ export async function GET(request: NextRequest) {
       ]),
     );
 
+    const assignedRoundIds = Array.from(new Set(
+      queueRows
+        .map((row) =>
+          row.assigned_round_id === null
+            ? null
+            : String(row.assigned_round_id),
+        )
+        .filter((value): value is string => Boolean(value)),
+    ));
+    const roundById = new Map<string, RoundRow>();
+    const submissionByRound = new Map<string, SubmissionRow>();
+
+    if (assignedRoundIds.length > 0) {
+      const [roundResult, submissionResult] = await Promise.all([
+        supabaseAdmin
+          .from('reward_rounds')
+          .select('id, broadcast_confirmed_at')
+          .in('id', assignedRoundIds),
+        supabaseAdmin
+          .from('reward_payout_transaction_submissions')
+          .select('round_id, tx_id')
+          .in('round_id', assignedRoundIds),
+      ]);
+
+      if (roundResult.error) {
+        throw new Error(
+          `Reward broadcast state could not be loaded: ${roundResult.error.message}`,
+        );
+      }
+      if (submissionResult.error) {
+        throw new Error(
+          `Reward transaction submission could not be loaded: ${submissionResult.error.message}`,
+        );
+      }
+
+      for (const row of (roundResult.data ?? []) as RoundRow[]) {
+        roundById.set(String(row.id), row);
+      }
+      for (const row of (submissionResult.data ?? []) as SubmissionRow[]) {
+        submissionByRound.set(String(row.round_id), row);
+      }
+    }
+
     const actions: RewardActionItem[] = queueRows.flatMap((queue) => {
       const invitation = invitationByCode.get(queue.invite_code);
       const amount = positiveWei(queue.reserved_amount_wei);
@@ -152,6 +206,28 @@ export async function GET(request: NextRequest) {
         return [];
       }
 
+      const assignedRoundId =
+        queue.assigned_round_id === null
+          ? null
+          : String(queue.assigned_round_id);
+      const round = assignedRoundId
+        ? roundById.get(assignedRoundId) ?? null
+        : null;
+      const submission = assignedRoundId
+        ? submissionByRound.get(assignedRoundId) ?? null
+        : null;
+      const broadcastConfirmedAt =
+        typeof round?.broadcast_confirmed_at === 'string' &&
+        !Number.isNaN(Date.parse(round.broadcast_confirmed_at))
+          ? round.broadcast_confirmed_at
+          : null;
+      const txId =
+        broadcastConfirmedAt &&
+        typeof submission?.tx_id === 'string' &&
+        /^0x[0-9a-fA-F]{64}$/u.test(submission.tx_id)
+          ? submission.tx_id.toLowerCase()
+          : null;
+
       return [{
         inviteCode: queue.invite_code,
         status: queue.status,
@@ -159,6 +235,8 @@ export async function GET(request: NextRequest) {
         reservedAt: queue.reserved_at,
         friendWallet:
           invitation.invitee_wallet?.toLowerCase() ?? null,
+        broadcastConfirmedAt,
+        txId,
       }];
     });
 
