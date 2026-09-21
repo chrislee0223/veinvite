@@ -130,9 +130,16 @@ function isCancelledAuthentication(error: unknown): boolean {
     return true;
   }
 
+  if (!(error instanceof Error)) {
+    return false;
+  }
+
+  const message = error.message.trim().toLowerCase();
+
   return (
-    error instanceof Error &&
-    error.message === 'Wallet verification was cancelled.'
+    message === 'wallet verification was cancelled.' ||
+    message === 'user rejected request' ||
+    message === 'user rejected the request.'
   );
 }
 
