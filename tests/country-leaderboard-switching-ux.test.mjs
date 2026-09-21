@@ -76,9 +76,9 @@ test('country and inviter ranking viewports stay on the same responsive five-row
   assert.match(entry, /@media \(max-width:360px\)[\s\S]*height:44px !important;[\s\S]*height:220px !important;/);
 });
 
-test('country data remains cached and silently refreshed for fast repeat tab switches', () => {
+test('country data stays cached for preload but explicit tab opens always revalidate', () => {
   assert.match(hub, /COUNTRY_CACHE_TTL_MS\s*=\s*60_000/);
   assert.match(hub, /getFreshCountryCache\(\)/);
   assert.match(hub, /countryInFlight/);
-  assert.match(hub, /const openCountry = useCallback\([\s\S]*refreshCountry\(false\)/);
+  assert.match(hub, /const openCountry = useCallback\([\s\S]*refreshCountry\(true\)/);
 });
