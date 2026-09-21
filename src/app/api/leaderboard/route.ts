@@ -214,12 +214,6 @@ function normalizeLeaderboardRow(
   return withoutMovement(base);
 }
 
-function normalizeLegacyLeaderboardRow(
-  row: LeaderboardRow,
-): PublicLeaderboardEntry {
-  return withoutMovement(normalizeBaseLeaderboardRow(row));
-}
-
 function normalizeWallet(
   value: string | null,
 ): string | null | undefined {
@@ -475,13 +469,15 @@ export async function GET(
         },
       );
 
-    const readLegacyLeaderboard = () =>
+    const readLeaderboardWithoutMovement = () =>
       supabaseAdmin.rpc(
-        'get_public_lifetime_leaderboard',
+        'get_public_lifetime_leaderboard_v2',
         {
           p_network: round.network,
           p_wallet: wallet,
           p_limit: LEADERBOARD_SIZE,
+          p_comparison_round_id: null,
+          p_ranking_algorithm_version: RANKING_ALGORITHM_VERSION,
         },
       );
 
@@ -542,10 +538,10 @@ export async function GET(
         leaderboardResult.error,
       );
 
-      let fallbackResult = await readLegacyLeaderboard();
+      let fallbackResult = await readLeaderboardWithoutMovement();
       if (isTransientAuthClockSkew(fallbackResult.error)) {
         await wait(TRANSIENT_AUTH_RETRY_MS);
-        fallbackResult = await readLegacyLeaderboard();
+        fallbackResult = await readLeaderboardWithoutMovement();
       }
       if (fallbackResult.error) {
         throw new Error(
@@ -553,8 +549,9 @@ export async function GET(
         );
       }
 
-      entries = ((fallbackResult.data ?? []) as LeaderboardRow[])
-        .map(normalizeLegacyLeaderboardRow);
+      entries = (
+        (fallbackResult.data ?? []) as LeaderboardMovementRow[]
+      ).map(normalizeLeaderboardRow);
     } else {
       entries = (
         (leaderboardResult.data ?? []) as LeaderboardMovementRow[]

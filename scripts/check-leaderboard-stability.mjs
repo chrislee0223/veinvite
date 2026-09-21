@@ -17,6 +17,15 @@ const migration = read('supabase/migrations/20260829043433_add_public_lifetime_l
 if (!/LEADERBOARD_SIZE\s*=\s*100/.test(route) || !/p_limit:\s*LEADERBOARD_SIZE/.test(route)) {
   failures.push('Public leaderboard API must retain the reviewed Top 100 limit.');
 }
+if (/'get_public_lifetime_leaderboard'\s*,/.test(route)) {
+  failures.push('Leaderboard fallback must not call the retired legacy RPC.');
+}
+if (
+  !/const readLeaderboardWithoutMovement = \(\) =>[\s\S]*'get_public_lifetime_leaderboard_v2'[\s\S]*p_comparison_round_id:\s*null/.test(route) ||
+  !/fallbackResult = await readLeaderboardWithoutMovement\(\)/.test(route)
+) {
+  failures.push('Leaderboard fallback must reuse the authoritative v2 ranking with movement disabled.');
+}
 if (!/least\(coalesce\(p_limit,\s*5\),\s*100\)/.test(migration)) {
   failures.push('Leaderboard RPC no longer preserves its hard 100-entry ceiling.');
 }
