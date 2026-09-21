@@ -143,13 +143,16 @@ test('leaderboard snapshots run only after round growth reporting succeeds', () 
 
 test('leaderboard publication remains owned by reconcile while analytics maintenance stays isolated', () => {
   const config = JSON.parse(vercelConfig);
-  assert.equal(config.crons.length, 2);
+  assert.equal(config.crons.length, 3);
 
   const reconciliationCron = config.crons.find(
     (entry) => entry.path === '/api/cron/reconcile',
   );
   const analyticsMaintenanceCron = config.crons.find(
     (entry) => entry.path === '/api/cron/analytics-maintenance',
+  );
+  const rewardRecoveryCron = config.crons.find(
+    (entry) => entry.path === '/api/cron/reward-recovery',
   );
 
   assert.deepEqual(reconciliationCron, {
@@ -159,6 +162,10 @@ test('leaderboard publication remains owned by reconcile while analytics mainten
   assert.deepEqual(analyticsMaintenanceCron, {
     path: '/api/cron/analytics-maintenance',
     schedule: '47 0 * * *',
+  });
+  assert.deepEqual(rewardRecoveryCron, {
+    path: '/api/cron/reward-recovery',
+    schedule: '*/5 * * * *',
   });
 
   assert.match(cron, /publishLeaderboardRoundSnapshots/);
