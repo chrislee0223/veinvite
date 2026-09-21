@@ -490,7 +490,9 @@ export function PublicLeaderboardHub({
                     data-rank={row.rank <= 3 ? row.rank : undefined}
                     key={row.countryCode}
                   >
-                    <strong className="countryRank">{row.rank}</strong>
+                    <strong className="countryRank">
+                      {row.countryCode === 'ZZ' ? '—' : row.rank}
+                    </strong>
                     <div className="countryIdentity">
                       <CountryFlag countryCode={row.countryCode} />
                       <div className="countryNameLine">
