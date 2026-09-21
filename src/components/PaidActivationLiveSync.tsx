@@ -27,21 +27,28 @@ type ReceiptSnapshot = {
 };
 
 async function readReceiptSnapshot(): Promise<ReceiptSnapshot | null> {
-  const response = await fetch('/api/rewards/receipts?limit=50', {
-    cache: 'no-store',
-  });
+  try {
+    const response = await fetch('/api/rewards/receipts?limit=50', {
+      cache: 'no-store',
+    });
 
-  if (!response.ok) {
+    if (!response.ok) {
+      return null;
+    }
+
+    const body = (await response.json()) as ReceiptResponse;
+    const receipts = Array.isArray(body.receipts) ? body.receipts : [];
+
+    return {
+      latestReceiptId: receipts[0]?.id ?? null,
+      receipts,
+    };
+  } catch {
+    // Receipt polling is UI reconciliation only. A transient browser/network
+    // failure must not become an unhandled rejection or affect payout state;
+    // the next foreground/background poll will retry from server truth.
     return null;
   }
-
-  const body = (await response.json()) as ReceiptResponse;
-  const receipts = Array.isArray(body.receipts) ? body.receipts : [];
-
-  return {
-    latestReceiptId: receipts[0]?.id ?? null,
-    receipts,
-  };
 }
 
 async function readProcessingInviteCodes(): Promise<string[]> {
