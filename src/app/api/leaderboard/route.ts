@@ -214,12 +214,6 @@ function normalizeLeaderboardRow(
   return withoutMovement(base);
 }
 
-function normalizeLegacyLeaderboardRow(
-  row: LeaderboardRow,
-): PublicLeaderboardEntry {
-  return withoutMovement(normalizeBaseLeaderboardRow(row));
-}
-
 function normalizeWallet(
   value: string | null,
 ): string | null | undefined {
