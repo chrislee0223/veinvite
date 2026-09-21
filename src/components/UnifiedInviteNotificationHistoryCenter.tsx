@@ -791,6 +791,10 @@ export function InviteNotificationHistoryCenter({
           const amount = formatB3trWei(action.reservedAmountWei) ?? '—';
           const pending = claimPendingCode === action.inviteCode;
           const waiting = action.status === 'AWAITING_CLAIM';
+          const transferConfirmed = Boolean(
+            action.broadcastConfirmedAt &&
+            action.txId,
+          );
 
           return (
             <article key={action.inviteCode} className="notificationActionCard">
@@ -802,6 +806,15 @@ export function InviteNotificationHistoryCenter({
                     <span>{metaCopy.inviteCode}</span>
                     <span dir="ltr">({action.inviteCode})</span>
                   </span>
+                  {transferConfirmed ? (
+                    <span
+                      className="notificationActionMetaItem"
+                      title={action.txId ?? undefined}
+                    >
+                      <span>B3TR TX</span>
+                      <span aria-hidden="true">✓</span>
+                    </span>
+                  ) : null}
                 </small>
               </div>
               {waiting ? (
@@ -815,7 +828,9 @@ export function InviteNotificationHistoryCenter({
                 </button>
               ) : (
                 <span className="notificationProcessingBadge">
-                  {progressCopy.claimQueued}
+                  {transferConfirmed
+                    ? progressCopy.finalCheck
+                    : progressCopy.claimQueued}
                 </span>
               )}
             </article>
