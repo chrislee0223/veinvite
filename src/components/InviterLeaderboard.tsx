@@ -300,6 +300,66 @@ function WalletIdentity({
   );
 }
 
+
+function WalletDetailIdentity({
+  entry,
+}: {
+  entry: PublicLeaderboardEntry;
+}) {
+  const address = entry.walletAddress;
+  const [displayDomain, setDisplayDomain] = useState<
+    string | null | undefined
+  >(() => readCachedLeaderboardDomain(address));
+  const shouldResolveDomain = displayDomain === undefined;
+  const { data: domainInfo, isLoading: domainLoading } = useVechainDomain(
+    shouldResolveDomain ? address : undefined,
+  );
+  const queriedDomain =
+    typeof domainInfo?.domain === 'string' && domainInfo.domain.trim()
+      ? domainInfo.domain.trim()
+      : null;
+
+  useEffect(() => {
+    setDisplayDomain(readCachedLeaderboardDomain(address));
+  }, [address]);
+
+  useEffect(() => {
+    if (!shouldResolveDomain || domainLoading) return;
+    rememberLeaderboardDomain(address, queriedDomain);
+    setDisplayDomain(queriedDomain);
+  }, [
+    address,
+    domainLoading,
+    queriedDomain,
+    shouldResolveDomain,
+  ]);
+
+  const profileName =
+    displayDomain !== undefined
+      ? displayDomain
+      : shouldResolveDomain && !domainLoading
+        ? queriedDomain
+        : null;
+
+  return (
+    <span className="walletIdentityTitle">
+      <bdi className="walletIdentityRank" dir="ltr">
+        {entry.rank > 0 ? `#${entry.rank}` : '—'}
+      </bdi>
+      <span className="walletIdentitySeparator" aria-hidden="true">
+        ·
+      </span>
+      <span
+        className="walletIdentityName"
+        dir={profileName ? 'auto' : 'ltr'}
+        title={profileName ?? address}
+      >
+        {profileName ?? maskWallet(address)}
+      </span>
+    </span>
+  );
+}
+
 export function PublicLeaderboard({
   locale,
   wallet,
@@ -845,8 +905,10 @@ export function PublicLeaderboard({
               <div>
                 <small>{t.walletDetails}</small>
                 <h2 id="wallet-dialog-title">
-                  {rankLabel(selectedEntry.rank)}{' '}
-                  {maskWallet(selectedEntry.walletAddress)}
+                  <WalletDetailIdentity
+                    key={selectedEntry.walletAddress}
+                    entry={selectedEntry}
+                  />
                 </h2>
               </div>
               <button
@@ -1385,7 +1447,26 @@ export function PublicLeaderboard({
           letter-spacing:.08em;
         }
         .dialogTop h2 {
+          min-width:0;
           margin-top:5px;
+        }
+        .walletIdentityTitle {
+          min-width:0;
+          max-width:100%;
+          display:flex;
+          align-items:baseline;
+          gap:6px;
+          overflow:hidden;
+        }
+        .walletIdentityRank,
+        .walletIdentitySeparator {
+          flex:0 0 auto;
+        }
+        .walletIdentityName {
+          min-width:0;
+          overflow:hidden;
+          text-overflow:ellipsis;
+          white-space:nowrap;
         }
         .closeButton {
           flex:0 0 auto;
