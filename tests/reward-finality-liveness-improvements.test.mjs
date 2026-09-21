@@ -27,7 +27,7 @@ test('finality queue drains multiple already-finalized payouts without weakening
   );
   assert.match(
     finalityQueue,
-    /recoveredPaidRound && transferWorkerIdle[\s\S]*continue;/,
+    /recoveredPaidRound && transferWorkerSettledOrIdle[\s\S]*continue;/,
   );
   assert.match(
     finalityQueue,
