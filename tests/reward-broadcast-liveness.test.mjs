@@ -20,6 +20,13 @@ const wrapper = await readFile(
   ),
   'utf8',
 );
+const baseWorker = await readFile(
+  new URL(
+    '../src/lib/rewards/automaticRewardPayout.ts',
+    import.meta.url,
+  ),
+  'utf8',
+);
 const verifier = await readFile(
   new URL('../src/lib/rewards/transactionVerificationLegacy.ts', import.meta.url),
   'utf8',
@@ -146,6 +153,28 @@ test('unconfirmed broadcasts are recovered before older confirmed finality work'
   assert.match(
     wrapper,
     /await recoverSubmittedBeforePayout\(\);[\s\S]*await reserveEligibleReferralRewards\(\);/,
+  );
+});
+
+test('broadcast-confirmed rounds do not become active transfer-worker state', () => {
+  const activeLoaderStart = baseWorker.indexOf(
+    'async function loadActiveRewardState',
+  );
+  const activeLoaderEnd = baseWorker.indexOf(
+    'async function prepareRewardRound',
+  );
+
+  assert.ok(activeLoaderStart >= 0);
+  assert.ok(activeLoaderEnd > activeLoaderStart);
+
+  const activeLoader = baseWorker.slice(
+    activeLoaderStart,
+    activeLoaderEnd,
+  );
+
+  assert.match(
+    activeLoader,
+    /\.in\('status', \['CREATED', 'PAYING'\]\)[\s\S]*\.is\('broadcast_confirmed_at', null\)/,
   );
 });
 
