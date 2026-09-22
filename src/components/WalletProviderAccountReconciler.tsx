@@ -27,6 +27,7 @@ const PROVIDER_MISMATCH_GRACE_MS = 700;
 const PROVIDER_HANDOFF_GRACE_MS = 700;
 const PROVIDER_REPAIR_SETTLE_MS = 350;
 const AUTH_HANDOFF_SETTLE_MS = 1_000;
+const VEWORLD_HANDOFF_STABILITY_MS = 10_000;
 const PROVIDER_REPAIR_RETRY_DELAYS_MS = [0, 450, 900] as const;
 const WALLET_SESSION_INVALID_EVENT =
   'veinvite-wallet-session-invalid';
@@ -141,9 +142,11 @@ export function WalletProviderAccountReconciler() {
 
     if (
       pending &&
-      canonicalWallet !== pending
+      canonicalWallet !== pending.walletAddress
     ) {
-      clearPendingVeWorldWalletHandoff(pending);
+      clearPendingVeWorldWalletHandoff(
+        pending.walletAddress,
+      );
     }
   }, [canonicalWallet]);
 
@@ -256,10 +259,15 @@ export function WalletProviderAccountReconciler() {
 
           if (dappKitSource === 'veworld') {
             // Keep the known-good A browser session until B proves ownership.
-            // The next auth attempt will consume this marker and perform one
-            // connectV2(typedData) request, combining signer refresh + proof
-            // instead of opening a separate account-sync prompt first.
-            markPendingVeWorldWalletHandoff(targetWallet);
+            // The next auth attempt will consume this marker only after a
+            // bounded stability window. Production traces showed VeWorld's
+            // visible account can lead its signing transport by several
+            // seconds after an external wallet switch; waiting here prevents
+            // an avoidable stale-A signature prompt.
+            markPendingVeWorldWalletHandoff(
+              targetWallet,
+              Date.now() + VEWORLD_HANDOFF_STABILITY_MS,
+            );
             window.dispatchEvent(
               new Event(WALLET_SESSION_INVALID_EVENT),
             );
