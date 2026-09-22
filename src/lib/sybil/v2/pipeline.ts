@@ -64,6 +64,7 @@ type ScanCheckpoint = {
   invite_code: string;
   network: VeBetterNetwork;
   activation_block: number | string;
+  analyzer_version: string;
   historical_chain_status: 'PENDING' | 'COMPLETE' | 'FAILED';
   funding_chain_status: 'PENDING' | 'COMPLETE' | 'FAILED';
   historical_reward_event_count: number;
@@ -267,6 +268,7 @@ async function saveCheckpoint({
       historical_reward_event_count: historicalRewardEvents,
       preactivation_b3tr_outflow_count: b3trOutflows,
       attempt_count: attemptCount,
+      analyzer_version: SYBIL_V2_ANALYZER_VERSION,
       last_error: lastError,
       checked_at:
         historicalStatus === 'COMPLETE' && fundingStatus === 'COMPLETE'
@@ -529,6 +531,7 @@ export async function collectSybilV2EvidenceForInvite(
 
   if (
     previous &&
+    previous.analyzer_version === SYBIL_V2_ANALYZER_VERSION &&
     Number(previous.activation_block) === activationBlock &&
     previous.historical_chain_status === 'COMPLETE' &&
     previous.funding_chain_status === 'COMPLETE'
@@ -544,12 +547,28 @@ export async function collectSybilV2EvidenceForInvite(
   }
 
   const attemptCount = (previous?.attempt_count ?? 0) + 1;
+  const checkpointCurrent =
+    previous?.analyzer_version === SYBIL_V2_ANALYZER_VERSION &&
+    Number(previous.activation_block) === activationBlock;
+
   let historicalStatus: ScanCheckpoint['historical_chain_status'] =
-    previous?.historical_chain_status === 'COMPLETE' ? 'COMPLETE' : 'PENDING';
+    checkpointCurrent &&
+    previous?.historical_chain_status === 'COMPLETE'
+      ? 'COMPLETE'
+      : 'PENDING';
   let fundingStatus: ScanCheckpoint['funding_chain_status'] =
-    previous?.funding_chain_status === 'COMPLETE' ? 'COMPLETE' : 'PENDING';
-  let historicalRewardEvents = previous?.historical_reward_event_count ?? 0;
-  let b3trOutflows = previous?.preactivation_b3tr_outflow_count ?? 0;
+    checkpointCurrent &&
+    previous?.funding_chain_status === 'COMPLETE'
+      ? 'COMPLETE'
+      : 'PENDING';
+  let historicalRewardEvents =
+    checkpointCurrent
+      ? previous?.historical_reward_event_count ?? 0
+      : 0;
+  let b3trOutflows =
+    checkpointCurrent
+      ? previous?.preactivation_b3tr_outflow_count ?? 0
+      : 0;
   const errors: string[] = [];
 
   await saveCheckpoint({
