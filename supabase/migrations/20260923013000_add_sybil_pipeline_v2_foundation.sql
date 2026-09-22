@@ -208,7 +208,7 @@ create index if not exists sybil_v2_wallet_restrictions_history_idx
 
 create table if not exists public.sybil_v2_reward_clearances (
   id uuid primary key default gen_random_uuid(),
-  invite_code text not null unique
+  invite_code text not null
     references public.invitations(invite_code) on update cascade on delete restrict,
   network text not null
     check (network in ('mainnet','testnet','testnet-staging')),
@@ -222,8 +222,12 @@ create table if not exists public.sybil_v2_reward_clearances (
   reason_codes jsonb not null default '[]'::jsonb
     check (jsonb_typeof(reason_codes) = 'array'),
   evidence_digest text not null check (evidence_digest ~ '^[0-9a-f]{32}$'),
-  issued_at timestamptz not null default now()
+  issued_at timestamptz not null default now(),
+  unique(invite_code, assessment_revision)
 );
+
+create index if not exists sybil_v2_reward_clearances_invite_idx
+  on public.sybil_v2_reward_clearances(invite_code, assessment_revision desc);
 
 create index if not exists sybil_v2_reward_clearances_network_idx
   on public.sybil_v2_reward_clearances(network, issued_at desc);
@@ -444,7 +448,8 @@ begin
 
   select * into v_existing
   from public.sybil_v2_reward_clearances c
-  where c.invite_code = v_code;
+  where c.invite_code = v_code
+    and c.assessment_revision = p_expected_revision;
 
   if found then
     return jsonb_build_object(
@@ -611,10 +616,14 @@ as $$
          i.reward_cohort_round_id, i.reward_funding_allocation_receipt_id
   from public.invitations i
   cross join parameters p
+  join public.sybil_v2_referral_assessments a
+    on a.invite_code = i.invite_code
+   and a.state in ('CLEAR','WATCH')
   join public.sybil_v2_reward_clearances c
     on c.invite_code = i.invite_code
    and c.network = p.network
-   and c.verdict in ('CLEAR','WATCH')
+   and c.verdict = a.state
+   and c.assessment_revision = a.revision
   cross join lateral (
     select e.block_number,e.tx_index,e.clause_index
     from public.invite_impact_events e
@@ -716,8 +725,12 @@ begin
     return jsonb_build_object('reserved',false,'reason','NOT_ELIGIBLE');
   end if;
 
-  select * into v_clearance
+  select c.* into v_clearance
   from public.sybil_v2_reward_clearances c
+  join public.sybil_v2_referral_assessments a
+    on a.invite_code = c.invite_code
+   and a.revision = c.assessment_revision
+   and a.state = c.verdict
   where c.invite_code = v_code
     and c.network = v_network
     and c.verdict in ('CLEAR','WATCH');
