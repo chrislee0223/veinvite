@@ -61,7 +61,8 @@ test('Network runtime has no DOM observer or global viewport ownership', () => {
 test('node profile stays compact, prefers cached VET identity, and keeps wallet truth visible', () => {
   assert.match(networkSource, /readCachedLeaderboardDomain/);
   assert.match(networkSource, /rememberLeaderboardDomain/);
-  assert.match(networkSource, /const shouldResolveDomain = shouldLoad && displayDomain === undefined/);
+  assert.match(networkSource, /shouldLoad && \(!showLabel \|\| displayDomain === undefined\)/);
+  assert.match(networkSource, /showLabel \? readCachedLeaderboardDomain\(address\) : undefined/);
   assert.match(networkSource, /useVechainDomain\(\s*shouldResolveDomain \? address : undefined/);
   assert.match(networkSource, /<NetworkIdentity address=\{selectedAddress\} root size=\{34\} \/>/);
   assert.doesNotMatch(networkSource, /className=\{\`profileStatus/);
