@@ -22,7 +22,6 @@ import {
   type LocalizedLanguageNames,
 } from '@/lib/i18n/languageSearch';
 import { SETTINGS_COPY } from '@/lib/i18n/settingsCopy';
-import { NETWORK_EXPLORE_COPY } from '@/lib/i18n/networkExploreCopy';
 import { NOTIFICATION_COPY } from '@/lib/i18n/notificationCopy';
 import {
   LANGUAGE_OPTIONS,
@@ -86,15 +85,7 @@ export function AppSettings({
     useState<LocalizedLanguageNames>({});
   const [walletConfirmation, setWalletConfirmation] =
     useState<WalletConfirmation>(null);
-  const [publicVisibility, setPublicVisibility] = useState<{
-    publicEnabled: boolean;
-    discoverable: boolean;
-  } | null>(null);
-  const [publicVisibilityLoading, setPublicVisibilityLoading] = useState(false);
-  const [publicVisibilitySaving, setPublicVisibilitySaving] = useState(false);
-  const [publicVisibilityError, setPublicVisibilityError] = useState('');
   const feedbackIdRef = useRef(0);
-  const visibilityWalletRef = useRef<string | null>(wallet);
   const languageTriggerRef = useRef<HTMLButtonElement | null>(null);
   const languageDialogRef = useRef<HTMLDivElement | null>(null);
   const selectedLanguageRef = useRef<HTMLButtonElement | null>(null);
@@ -103,9 +94,7 @@ export function AppSettings({
   const walletConfirmationDialogRef = useRef<HTMLDivElement | null>(null);
   const walletConfirmationCancelRef = useRef<HTMLButtonElement | null>(null);
   const walletConfirmationOpenerRef = useRef<HTMLButtonElement | null>(null);
-  visibilityWalletRef.current = wallet;
   const t = SETTINGS_COPY[locale];
-  const networkCopy = NETWORK_EXPLORE_COPY[locale as SupportedLocale];
   const languageCopy = getLanguagePickerCopy(locale);
   const currentLanguage = getLanguageOption(locale);
   const normalizedLanguageQuery =
@@ -247,55 +236,6 @@ export function AppSettings({
     );
   }, [locale]);
 
-  useEffect(() => {
-    setPublicVisibility(null);
-    setPublicVisibilityError('');
-    if (!wallet) {
-      setPublicVisibilityLoading(false);
-      return;
-    }
-
-    const requestWallet = wallet.toLowerCase();
-    const controller = new AbortController();
-    setPublicVisibilityLoading(true);
-    void fetch('/api/network/public/visibility', {
-      method: 'GET',
-      credentials: 'include',
-      cache: 'no-store',
-      headers: { Accept: 'application/json' },
-      signal: controller.signal,
-    })
-      .then(async (response) => {
-        const payload = await response.json().catch(() => null) as {
-          publicEnabled?: boolean;
-          discoverable?: boolean;
-        } | null;
-        if (!response.ok) throw new Error('PUBLIC_VISIBILITY_READ_FAILED');
-        if (
-          controller.signal.aborted ||
-          visibilityWalletRef.current?.toLowerCase() !== requestWallet
-        ) return;
-        setPublicVisibility({
-          publicEnabled: payload?.publicEnabled === true,
-          discoverable: payload?.discoverable === true,
-        });
-      })
-      .catch(() => {
-        if (!controller.signal.aborted) {
-          setPublicVisibilityError(networkCopy.visibilityError);
-        }
-      })
-      .finally(() => {
-        if (
-          !controller.signal.aborted &&
-          visibilityWalletRef.current?.toLowerCase() === requestWallet
-        ) {
-          setPublicVisibilityLoading(false);
-        }
-      });
-
-    return () => controller.abort();
-  }, [wallet, networkCopy.visibilityError]);
 
   useEffect(() => {
     if (!languageOpen) return;
@@ -528,70 +468,6 @@ export function AppSettings({
         )}
       </section>
 
-      <section className="settingsCard publicNetworkCard">
-        <h2>{networkCopy.publicSettings}</h2>
-        {wallet ? (
-          publicVisibilityLoading && !publicVisibility ? (
-            <div className="visibilityLoading" aria-busy="true">…</div>
-          ) : (
-            <>
-              <div className="visibilityRow">
-                <span>
-                  <strong>{networkCopy.publicEnabled}</strong>
-                  <small>{networkCopy.publicEnabledNote}</small>
-                </span>
-                <button
-                  type="button"
-                  className={`visibilitySwitch${publicVisibility?.publicEnabled ? ' active' : ''}`}
-                  role="switch"
-                  aria-checked={publicVisibility?.publicEnabled === true}
-                  disabled={publicVisibilitySaving || !publicVisibility}
-                  onClick={() => {
-                    const next = !(publicVisibility?.publicEnabled === true);
-                    void savePublicVisibility(
-                      next,
-                      next ? publicVisibility?.discoverable === true : false,
-                    );
-                  }}
-                >
-                  <i />
-                </button>
-              </div>
-              {publicVisibility?.publicEnabled ? (
-                <div className="visibilityRow">
-                  <span>
-                    <strong>{networkCopy.discoverable}</strong>
-                    <small>{networkCopy.discoverableNote}</small>
-                  </span>
-                  <button
-                    type="button"
-                    className={`visibilitySwitch${publicVisibility.discoverable ? ' active' : ''}`}
-                    role="switch"
-                    aria-checked={publicVisibility.discoverable}
-                    disabled={publicVisibilitySaving}
-                    onClick={() =>
-                      void savePublicVisibility(
-                        true,
-                        !publicVisibility.discoverable,
-                      )
-                    }
-                  >
-                    <i />
-                  </button>
-                </div>
-              ) : null}
-              {publicVisibilityError ? (
-                <p className="visibilityError" role="status">
-                  {publicVisibilityError}
-                </p>
-              ) : null}
-            </>
-          )
-        ) : (
-          <p>{t.notConnected}</p>
-        )}
-      </section>
-
       <section className="settingsCard languageCard">
         <h2>{t.languageTitle}</h2>
         <button
@@ -801,7 +677,6 @@ export function AppSettings({
         .walletActions .primarySettingAction { margin-top:0; }
         .secondarySettingAction { border:1px solid rgba(255,255,255,.1); background:rgba(255,255,255,.04); color:#ddd9cf; }
         button:disabled { opacity:.48; cursor:not-allowed; }
-        .publicNetworkCard{padding-bottom:15px}.visibilityLoading{min-height:54px;margin-top:11px;display:grid;place-items:center;color:#8f8b83}.visibilityRow{min-height:62px;margin-top:10px;padding:9px 0;display:grid;grid-template-columns:minmax(0,1fr) 46px;align-items:center;gap:14px;border-top:1px solid rgba(255,255,255,.06)}.visibilityRow>span{min-width:0;display:grid;gap:4px}.visibilityRow strong{color:#e9e4d9;font-size:.78rem}.visibilityRow small{color:#868177;font-size:.66rem;line-height:1.4}.visibilitySwitch{position:relative;width:44px;height:25px;padding:0;border:1px solid rgba(255,255,255,.12);border-radius:999px;background:#171714;font:inherit;cursor:pointer;transition:background 160ms ease,border-color 160ms ease}.visibilitySwitch i{position:absolute;top:3px;left:3px;width:17px;height:17px;border-radius:50%;background:#8d887f;transition:transform 160ms ease,background 160ms ease}.visibilitySwitch.active{border-color:rgba(255,205,80,.34);background:rgba(244,183,40,.16)}.visibilitySwitch.active i{transform:translateX(19px);background:#ffd24d}.visibilitySwitch:focus-visible{outline:2px solid rgba(255,205,80,.75);outline-offset:2px}.visibilityError{color:#d79a7a!important;font-size:.68rem!important}
         .languageCard { padding-bottom:16px; }
         .languagePickerTrigger { width:100%; min-height:66px; margin-top:13px; padding:10px 12px; display:grid; grid-template-columns:34px minmax(0,1fr) 24px; align-items:center; gap:11px; border:1px solid rgba(255,255,255,.09); border-radius:15px; background:rgba(255,255,255,.035); color:#f5f2e9; font:inherit; cursor:pointer; text-align:left; }
         .languagePickerTrigger:hover { border-color:rgba(255,205,80,.3); background:rgba(255,201,61,.055); }
