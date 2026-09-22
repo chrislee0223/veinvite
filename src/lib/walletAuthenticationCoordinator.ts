@@ -11,12 +11,6 @@ type ActiveWalletAuthentication = {
 let authenticationGeneration = 0;
 let activeAuthentication: ActiveWalletAuthentication | null = null;
 let activeWalletProviderReconciliation: Promise<unknown> | null = null;
-type PendingVeWorldHandoff = {
-  walletAddress: string;
-  readyAt: number;
-};
-
-let pendingVeWorldHandoff: PendingVeWorldHandoff | null = null;
 
 function emitActivityChange() {
   if (typeof window === 'undefined') {
@@ -127,53 +121,4 @@ export async function runWalletProviderReconciliation<T>(
       activeWalletProviderReconciliation = null;
     }
   }
-}
-
-
-export function markPendingVeWorldWalletHandoff(
-  walletAddress: string,
-  readyAt: number,
-): void {
-  pendingVeWorldHandoff = {
-    walletAddress,
-    readyAt,
-  };
-}
-
-export function getPendingVeWorldWalletHandoff():
-PendingVeWorldHandoff | null {
-  return pendingVeWorldHandoff;
-}
-
-export function isPendingVeWorldWalletHandoff(
-  walletAddress: string,
-): boolean {
-  return pendingVeWorldHandoff?.walletAddress === walletAddress;
-}
-
-export function getPendingVeWorldWalletHandoffDelay(
-  walletAddress: string,
-): number {
-  if (
-    pendingVeWorldHandoff?.walletAddress !== walletAddress
-  ) {
-    return 0;
-  }
-
-  return Math.max(
-    0,
-    pendingVeWorldHandoff.readyAt - Date.now(),
-  );
-}
-
-export function clearPendingVeWorldWalletHandoff(
-  walletAddress?: string,
-): void {
-  if (
-    walletAddress &&
-    pendingVeWorldHandoff?.walletAddress !== walletAddress
-  ) {
-    return;
-  }
-  pendingVeWorldHandoff = null;
 }
