@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { readFile } from 'node:fs/promises';
+import { access, readFile } from 'node:fs/promises';
 import test from 'node:test';
 
 const [
@@ -10,6 +10,12 @@ const [
   publicExplorer,
   settings,
   domainCache,
+  publicApi,
+  migration,
+  emptyRootMigration,
+  hubCopy,
+  nativeReview,
+  naturalnessPolish,
 ] = await Promise.all([
   readFile('src/components/InviterLeaderboard.tsx', 'utf8'),
   readFile('src/components/HomeClient.tsx', 'utf8'),
@@ -18,6 +24,12 @@ const [
   readFile('src/components/PublicNetworkExplorer.tsx', 'utf8'),
   readFile('src/components/AppSettings.tsx', 'utf8'),
   readFile('src/lib/leaderboardDomainCache.ts', 'utf8'),
+  readFile('src/app/api/network/public/route.ts', 'utf8'),
+  readFile('supabase/migrations/20260923023000_make_network_default_public_readonly.sql', 'utf8'),
+  readFile('supabase/migrations/20260923034500_allow_empty_default_public_network_roots.sql', 'utf8'),
+  readFile('src/lib/i18n/networkHubCopy.ts', 'utf8'),
+  readFile('src/lib/i18n/networkNativeReview.ts', 'utf8'),
+  readFile('src/lib/i18n/networkNaturalnessPolish.ts', 'utf8'),
 ]);
 
 test('leaderboard can hand a wallet into the Network tab without prop-drilling the leaderboard tree', () => {
@@ -43,7 +55,7 @@ test('other-user Network uses a separate read-only explorer instead of AppNetwor
   assert.match(publicExplorer, /zoomOut/);
 });
 
-test('Network search resolves .vet domains and only falls back to explicitly public roots', () => {
+test('Network search resolves .vet domains and opens default-public read-only roots', () => {
   assert.match(network, /domainSearchInput/);
   assert.match(network, /useVechainDomain\(domainSearchInput\)/);
   assert.match(network, /resolvedSearchAddress/);
@@ -62,15 +74,40 @@ test('public Network display remains mobile-width and does not gain editing pers
   assert.match(publicExplorer, /formatCompactVechainDomain/);
 });
 
-test('public visibility is opt-in from Settings and uses the hardened visibility endpoint', () => {
-  assert.match(settings, /NETWORK_EXPLORE_COPY/);
-  assert.match(settings, /\/api\/network\/public\/visibility/);
-  assert.match(settings, /role="switch"/);
-  assert.match(settings, /publicEnabled/);
-  assert.match(settings, /discoverable/);
-  assert.match(settings, /credentials: 'include'/);
+test('old Network privacy opt-in cannot return through current Settings, API, or copy layers', async () => {
+  assert.doesNotMatch(settings, /NETWORK_EXPLORE_COPY/);
+  assert.doesNotMatch(settings, /network\/public\/visibility/);
+  assert.doesNotMatch(settings, /publicEnabled/);
+  assert.doesNotMatch(settings, /discoverable/);
+  assert.doesNotMatch(publicExplorer, /NETWORK_PRIVATE|FOCUS_NOT_PUBLIC|NETWORK_NOT_FOUND/);
+  assert.doesNotMatch(publicApi, /NETWORK_PRIVATE|FOCUS_NOT_PUBLIC|NETWORK_NOT_FOUND|hasPrivateBranches/);
+  assert.doesNotMatch(migration, /join public\.network_public_profiles/i);
+
+  for (const source of [hubCopy, nativeReview, naturalnessPolish]) {
+    assert.doesNotMatch(
+      source,
+      /publicConfirm|visibilityLoading|visibilityUnknown|publicEnabled|discoverableNote|networkPrivate|privateBranchesHidden/,
+    );
+  }
+
+  await assert.rejects(
+    access('src/app/api/network/public/visibility/route.ts'),
+  );
 });
 
+test('default-public reader remains graph-only and empty roots need no invitation metadata', () => {
+  assert.match(migration, /qualified_referral_network_edges/);
+  assert.match(emptyRootMigration, /qualified_referral_network_edges/);
+  assert.doesNotMatch(
+    emptyRootMigration,
+    /root_known|NETWORK_NOT_FOUND|invitations|reward_status|sybil_status|identity_link|mission_/i,
+  );
+  assert.ok(
+    emptyRootMigration.includes("p.root_wallet ~ '^0x[0-9a-f]{40}$'"),
+    'empty public Network roots must still require a valid VeChain address',
+  );
+  assert.match(publicApi, /Mission, reward,/);
+});
 
 test('partial domain autocomplete reuses only domains already cached in the current session', () => {
   assert.match(domainCache, /readCachedLeaderboardDomainSuggestions/);

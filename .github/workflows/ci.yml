@@ -133,6 +133,7 @@ jobs:
           tests/legacy-invite-cancel-retry.test.mjs
           tests/network-single-runtime.test.mjs
           tests/network-top-controls.test.mjs
+          tests/network-public-readonly-navigation.test.mjs
           tests/notification-ack-batch-atomicity.test.mjs
           tests/notification-history-fast-open.test.mjs
           tests/operator-fast-invitation-projection-privilege.test.mjs

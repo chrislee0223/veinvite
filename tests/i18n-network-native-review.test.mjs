@@ -25,15 +25,8 @@ test('all 29 supported locales receive a deliberate final review', () => {
 
   for (const key of [
     'hintView',
-    'exploreDescription',
-    'discoverable',
-    'discoverableNote',
-    'privateBranchesHidden',
     'maintenanceTitle',
     'maintenanceDescription',
-    'visibilityLoading',
-    'visibilityUnknown',
-    'publicConfirm',
   ]) {
     assert.equal(
       (reviewSource.match(new RegExp(`${key}:`, 'g')) ?? []).length,
@@ -49,7 +42,6 @@ test('Korean user-facing Network wording avoids developer-facing branch terminol
     "expandBranch: '연결 펼치기'",
     "collapseBranch: '연결 접기'",
     "noMatching: '일치하는 직접 초대 연결이 없어요.'",
-    "privateBranchesHidden: '비공개 연결은 표시되지 않아요'",
   ]) {
     assert.ok(reviewSource.includes(expected), `missing Korean native review: ${expected}`);
   }
@@ -68,7 +60,14 @@ test('high-risk locales no longer expose raw English Network rollout copy', () =
   assert.doesNotMatch(blocks.hi, /Public Network|referral paths|interactive canvas/);
   assert.doesNotMatch(blocks.ur, /Public Network|referral paths|interactive canvas/);
   assert.doesNotMatch(blocks.ha, /Public Network|referral paths|interactive canvas|Mission, reward|security details/);
-  assert.match(blocks.pcm, /Private connections no go show/);
+  assert.doesNotMatch(blocks.pcm, /Public Network|private connections|referral paths/i);
+});
+
+test('retired per-wallet visibility wording is absent from the final review layer', () => {
+  assert.doesNotMatch(
+    reviewSource,
+    /publicConfirm|visibilityLoading|visibilityUnknown|exploreDescription|privateBranchesHidden|discoverableNote/,
+  );
 });
 
 test('Traditional Chinese final review keeps Taiwan-standard 網路 terminology', () => {

@@ -16,8 +16,7 @@ import { requireWalletSession } from '@/lib/walletAuthServer';
 type PublicNetworkRpcError =
   | 'PUBLIC_NETWORK_DISABLED'
   | 'INVALID_WALLET'
-  | 'NETWORK_PRIVATE'
-  | 'FOCUS_NOT_PUBLIC';
+  | 'FOCUS_NOT_FOUND';
 
 type PublicNetworkPayload = {
   error?: PublicNetworkRpcError;
@@ -37,9 +36,7 @@ type PublicNetworkPayload = {
     direct: number;
     thisRound: number | null;
     depth: number;
-    hasPrivateBranches?: boolean;
   }>;
-  hasPrivateBranches?: boolean;
   depthLimitReached?: boolean;
 };
 
@@ -220,23 +217,15 @@ export async function GET(request: NextRequest) {
   if (payload.error === 'PUBLIC_NETWORK_DISABLED') {
     return noStoreJson({ code: 'PUBLIC_NETWORK_DISABLED', error: 'Public Network is temporarily unavailable.' }, 503);
   }
-  if (payload.error === 'NETWORK_PRIVATE') {
-    return noStoreJson({ code: 'NETWORK_PRIVATE', error: 'This network is private.' }, 404);
-  }
-  if (payload.error === 'FOCUS_NOT_PUBLIC') {
-    return noStoreJson({ code: 'FOCUS_NOT_PUBLIC', error: 'That branch is not public.' }, 404);
+  if (payload.error === 'FOCUS_NOT_FOUND') {
+    return noStoreJson({ code: 'FOCUS_NOT_FOUND', error: 'That wallet is not part of this network.' }, 404);
   }
   if (payload.error === 'INVALID_WALLET') {
     return noStoreJson({ code: 'INVALID_WALLET', error: 'Invalid wallet address.' }, 400);
   }
 
-  // Private-branch existence is intentionally not part of the browser payload.
-  // The graph itself already stops at non-public wallets in SQL.
-  const {
-    hasPrivateBranches: _rootPrivateMetadata,
-    children = [],
-    ...rest
-  } = payload;
-  const safeChildren = children.map(({ hasPrivateBranches: _privateMetadata, ...child }) => child);
-  return noStoreJson({ ...rest, children: safeChildren } as Record<string, unknown>);
+  // This endpoint exposes referral-graph structure only. Mission, reward,
+  // anti-Sybil, security, invitation-detail, and signing data are not selected
+  // by the database reader and therefore never enter the browser payload.
+  return noStoreJson(payload as Record<string, unknown>);
 }
