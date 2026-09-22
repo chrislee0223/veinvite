@@ -64,7 +64,7 @@ export async function GET(request: NextRequest) {
     );
   }
 
-  // Discovery only needs a root locator. Do not expose preference timestamps or
+  // Discovery only needs a root locator. Do not expose unrelated metadata or
   // any other metadata that the Explore UI does not use.
   const networks = Array.isArray(data)
     ? data.flatMap((item) => {
