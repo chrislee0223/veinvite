@@ -16,7 +16,7 @@ import { createPortal } from 'react-dom';
 
 import { NETWORK_CANARY_UI_COPY } from '@/lib/i18n/networkCanaryUiCopy';
 import { NETWORK_CANVAS_CONTROL_COPY } from '@/lib/i18n/networkCanvasControlCopy';
-import { NETWORK_EXPERIENCE_COPY } from '@/lib/i18n/networkExperienceCopy';
+import { NETWORK_EXPERIENCE_COPY, NETWORK_TOTAL_COPY } from '@/lib/i18n/networkExperienceCopy';
 import { NETWORK_WORKSPACE_COPY } from '@/lib/i18n/networkWorkspaceCopy';
 import { getLocaleDirection } from '@/lib/i18n/locales';
 import type { Locale, SupportedLocale } from '@/lib/i18n/locales';
@@ -2776,10 +2776,7 @@ export function AppNetwork({ locale }: { locale: Locale }) {
   const shownBreadcrumb = breadcrumb.slice(breadcrumbStart);
   const headerNetwork =
     headerMetrics?.network ?? visibleRootData.summary.network;
-  const headerThisRound =
-    visibleRootData.summary.thisRound ?? headerMetrics?.thisRound ?? null;
   const rootSceneReady = rootTopologyReady && inviteSlotsReady;
-  const headerMetricsReady = headerThisRound !== null;
 
   const worldStyle: CSSProperties = {
     width: WORLD_W,
@@ -2807,28 +2804,24 @@ export function AppNetwork({ locale }: { locale: Locale }) {
     >
       <div className="networkUtilityRow" data-no-pan="true">
         <div className="networkIdentity">
-          <h1>{t.title}</h1>
           <div
-            className={`summary ${headerMetricsReady ? 'metricsReady' : 'metricsPending'}`}
-            aria-label={t.networkSize}
+            className="summaryTotal"
+            aria-label={`${t.networkSize}: ${headerNetwork.toLocaleString()}`}
           >
-            <strong className="summaryNumber networkTotal">{headerNetwork.toLocaleString()}</strong>
-            <span title={t.networkSize}>{t.networkSize}</span>
-            <i />
-            <strong
-              className="summaryNumber growth"
-              aria-label={headerThisRound === null ? undefined : `+${headerThisRound}`}
-            >
-              {headerThisRound === null ? '\u00A0' : `+${headerThisRound}`}
-            </strong>
-            <span title={t.thisRound}>{t.thisRound}</span>
+            <span>{NETWORK_TOTAL_COPY[locale as SupportedLocale]}</span>
+            <strong className="networkTotal" dir="ltr">{headerNetwork.toLocaleString()}</strong>
           </div>
           <button
             type="button"
             className={`searchToggle${searchOpen ? ' active' : ''}`}
             onClick={() => {
-              if (searchOpen) closeSearch();
-              else setSearchOpen(true);
+              if (searchOpen) {
+                closeSearch();
+              } else {
+                setGroupsOpen(false);
+                setManagedGroupId(null);
+                setSearchOpen(true);
+              }
             }}
             aria-label={searchOpen ? c.close : t.searchPlaceholder}
             title={searchOpen ? c.close : t.searchPlaceholder}
@@ -3451,11 +3444,10 @@ export function AppNetwork({ locale }: { locale: Locale }) {
       <style jsx>{`
         .networkCanvasPage{width:min(100%,520px);height:100%;min-height:0;box-sizing:border-box;margin:0 auto;position:relative;overflow:hidden;display:flex;flex-direction:column;border:1px solid rgba(255,255,255,.06);border-radius:18px;background:#090907;box-shadow:0 16px 45px rgba(0,0,0,.22)}
         .networkUtilityRow{position:relative;z-index:70;flex:0 0 auto;min-height:40px;padding:4px 6px;box-sizing:border-box;display:flex;align-items:center;justify-content:space-between;gap:4px;border-bottom:1px solid rgba(255,255,255,.05);background:rgba(11,11,9,.98)}
-        .networkIdentity{min-width:0;flex:1 1 auto;display:flex;align-items:center;gap:6px;overflow:hidden}.networkIdentity h1{min-width:0;max-width:92px;flex:0 1 auto;margin:0;color:#f0ece3;font-size:.72rem;letter-spacing:-.025em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-        .summary{min-width:0;flex:0 1 auto;display:grid;grid-template-columns:4.2ch auto 1px 4.2ch auto;align-items:baseline;gap:2px 3px;white-space:nowrap}.summary.metricsPending{visibility:hidden}.summary.metricsReady{visibility:visible}.summary strong{color:#f1ede4;font-size:.62rem}.summaryNumber{display:block;width:100%;text-align:right;direction:ltr;font-variant-numeric:tabular-nums}.summary strong.growth{color:#e6b943}.summary span{min-width:0;max-width:58px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#77736c;font-size:.4rem}.summary i{width:1px;height:13px;background:rgba(255,255,255,.08);align-self:center}
+        .networkIdentity{min-width:0;flex:1 1 auto;display:flex;align-items:center;gap:6px;overflow:hidden}.summaryTotal{min-width:0;flex:0 1 auto;display:flex;align-items:baseline;gap:5px;white-space:nowrap}.summaryTotal span{min-width:0;overflow:hidden;text-overflow:ellipsis;color:#77736c;font-size:.48rem;font-weight:800}.summaryTotal strong{color:#f1ede4;font-size:.68rem;font-variant-numeric:tabular-nums}
         .breadcrumbs{position:absolute;z-index:60;left:8px;top:8px;max-width:calc(100% - 16px);padding:3px 5px;display:flex;align-items:center;overflow:hidden;white-space:nowrap;border:1px solid rgba(255,205,80,.08);border-radius:8px;background:rgba(12,12,10,.82);backdrop-filter:blur(5px)}.breadcrumbs.rootOnly{display:none}.crumbWrap{display:flex;align-items:center;min-width:0}.crumbSep,.crumbEllipsis{flex:0 0 auto;color:#4f4c47;font-size:.62rem;margin:0 1px}.crumb{max-width:60px;padding:2px 4px;border:0;background:transparent;color:#8c867b;font:inherit;font-size:.5rem;font-weight:800;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;cursor:pointer}.crumb.current{color:#e5bd55;cursor:default}.crumb:disabled{opacity:.8}
         .searchToggle{flex:0 0 auto;width:28px;height:29px;padding:0;display:grid;place-items:center;border:1px solid rgba(255,205,80,.13);border-radius:8px;background:rgba(18,18,15,.94);color:#a9a397;font:inherit;cursor:pointer}.searchToggle:hover,.searchToggle.active{border-color:rgba(244,183,40,.31);color:#e1bd5b;background:rgba(244,183,40,.055)}.searchToggle:disabled{opacity:.45;cursor:not-allowed}
-        .networkSearchRow{position:relative;z-index:69;flex:0 0 auto;padding:5px 6px 6px;box-sizing:border-box;border-bottom:1px solid rgba(255,255,255,.05);background:rgba(11,11,9,.98)}.searchWrap{position:relative;width:100%}.searchField{width:100%;height:32px;box-sizing:border-box;padding:0 3px 0 8px;display:flex;align-items:center;gap:5px;border:1px solid rgba(255,205,80,.14);border-radius:9px;background:#11110f;color:#8f887d}.searchField:focus-within{border-color:rgba(244,183,40,.34)}.searchField input{min-width:0;width:100%;height:30px;box-sizing:border-box;padding:0;border:0;background:transparent;color:#d8d3ca;font:inherit;font-size:16px;line-height:1.2;outline:none}.searchField input:disabled{opacity:.45}.searchClose{flex:0 0 25px;width:25px;height:25px;padding:0;border:0;border-radius:7px;background:transparent;color:#716d66;font:inherit;font-size:.9rem;cursor:pointer}.searchClose:hover{background:rgba(255,255,255,.035);color:#b4ada3}.searchResults{position:absolute;z-index:90;top:37px;left:0;width:100%;max-height:245px;overflow:auto;padding:5px;border:1px solid rgba(255,205,80,.14);border-radius:12px;background:rgba(14,14,12,.985);box-shadow:0 18px 40px rgba(0,0,0,.42)}.searchResults button{width:100%;padding:8px;border:0;border-radius:8px;background:transparent;color:#ddd7cc;text-align:start;cursor:pointer}.searchResults button:hover{background:rgba(244,183,40,.06)}.searchResults strong{display:block;font-size:.62rem}.searchResults button span{display:block;margin-top:3px;color:#6f6b64;font-size:.52rem}.searchStatus{display:block;padding:11px 8px;color:#77736c;font-size:.56rem;line-height:1.45;text-align:center}
+        .networkSearchRow{position:absolute;z-index:85;top:44px;inset-inline:6px;padding:5px;box-sizing:border-box;border:1px solid rgba(255,205,80,.13);border-radius:12px;background:rgba(11,11,9,.97);box-shadow:0 12px 30px rgba(0,0,0,.38);backdrop-filter:blur(10px)}.searchWrap{position:relative;width:100%}.searchField{width:100%;height:32px;box-sizing:border-box;padding:0 3px 0 8px;display:flex;align-items:center;gap:5px;border:1px solid rgba(255,205,80,.14);border-radius:9px;background:#11110f;color:#8f887d}.searchField:focus-within{border-color:rgba(244,183,40,.34)}.searchField input{min-width:0;width:100%;height:30px;box-sizing:border-box;padding:0;border:0;background:transparent;color:#d8d3ca;font:inherit;font-size:16px;line-height:1.2;outline:none}.searchField input:disabled{opacity:.45}.searchClose{flex:0 0 25px;width:25px;height:25px;padding:0;border:0;border-radius:7px;background:transparent;color:#716d66;font:inherit;font-size:.9rem;cursor:pointer}.searchClose:hover{background:rgba(255,255,255,.035);color:#b4ada3}.searchResults{position:absolute;z-index:90;top:37px;left:0;width:100%;max-height:245px;overflow:auto;padding:5px;border:1px solid rgba(255,205,80,.14);border-radius:12px;background:rgba(14,14,12,.985);box-shadow:0 18px 40px rgba(0,0,0,.42)}.searchResults button{width:100%;padding:8px;border:0;border-radius:8px;background:transparent;color:#ddd7cc;text-align:start;cursor:pointer}.searchResults button:hover{background:rgba(244,183,40,.06)}.searchResults strong{display:block;font-size:.62rem}.searchResults button span{display:block;margin-top:3px;color:#6f6b64;font-size:.52rem}.searchStatus{display:block;padding:11px 8px;color:#77736c;font-size:.56rem;line-height:1.45;text-align:center}
         .compactControls{flex:0 0 auto;margin-left:auto;display:flex;align-items:center;gap:3px}.networkStage{position:relative;flex:1 1 auto;min-height:0;height:auto;overflow:hidden;touch-action:none;overscroll-behavior:contain;background:radial-gradient(ellipse at 50% 50%,rgba(244,183,40,.036),transparent 36%),#080807;cursor:grab;user-select:none;-webkit-user-select:none}.networkStage:active{cursor:grabbing}.networkStage.layoutEditing{box-shadow:inset 0 0 0 1px rgba(244,183,40,.11)}
         .world{position:absolute;top:0;left:0;will-change:transform;backface-visibility:hidden}.world.cameraTransition{transition:transform ${NAVIGATION_MS}ms cubic-bezier(.18,.82,.2,1)}.introActive .world.cameraTransition{transition-duration:${FIT_TRANSITION_MS}ms}.worldContent{position:absolute;inset:0;transform-origin:${FOCUS_X}px ${FOCUS_Y}px}.worldContent.scenePending{opacity:0;pointer-events:none}.worldContent.sceneReady{opacity:1;transition:opacity 120ms ease-out}.worldContent.nav-forward{animation:networkForward ${NAVIGATION_MS}ms cubic-bezier(.18,.82,.2,1)}.worldContent.nav-back{animation:networkBack ${NAVIGATION_MS}ms cubic-bezier(.18,.82,.2,1)}
         .edges{position:absolute;inset:0;overflow:visible;pointer-events:none;z-index:2}.edge{fill:none;stroke:rgba(176,145,73,.31);stroke-width:1.05;stroke-linecap:round;vector-effect:non-scaling-stroke}.edge.rewarded{stroke:rgba(232,183,62,.46)}.edge.groupEdge{stroke:rgba(226,184,78,.5);stroke-width:1.35}.groupMemberEdge{stroke:rgba(190,158,88,.3);stroke-width:.82}.slotEdgeBase,.slotEdgePulse,.slotEdgeProgress{fill:none;stroke-linecap:round;pointer-events:none;vector-effect:non-scaling-stroke}.slotEdgeBase{stroke:rgba(226,188,79,.62);stroke-width:1.05;opacity:.5}.slotEdgePulse{stroke:rgba(255,210,76,.95);stroke-width:1.55;stroke-dasharray:5 38;opacity:.8;filter:drop-shadow(0 0 2px rgba(244,183,40,.28));animation:networkSlotFlow 2.45s linear infinite}.slotEdgeProgress{stroke:rgba(244,183,40,.62);stroke-width:1.25;stroke-dasharray:3 7;opacity:.78}

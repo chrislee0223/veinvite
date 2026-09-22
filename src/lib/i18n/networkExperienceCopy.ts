@@ -26,6 +26,38 @@ export type NetworkExperienceCopy = {
   noMatching: string;
 };
 
+export const NETWORK_TOTAL_COPY: Record<SupportedLocale, string> = {
+  en: 'Total',
+  ko: '전체',
+  zh: '总计',
+  hi: 'कुल',
+  es: 'Total',
+  ja: '合計',
+  it: 'Totale',
+  tr: 'Toplam',
+  nl: 'Totaal',
+  de: 'Gesamt',
+  fr: 'Total',
+  ar: 'الإجمالي',
+  bn: 'মোট',
+  pt: 'Total',
+  ru: 'Всего',
+  id: 'Total',
+  vi: 'Tổng',
+  'zh-tw': '總計',
+  sv: 'Totalt',
+  ro: 'Total',
+  ur: 'کل',
+  pcm: 'Total',
+  arz: 'الإجمالي',
+  mr: 'एकूण',
+  te: 'మొత్తం',
+  sw: 'Jumla',
+  ha: 'Jimilla',
+  el: 'Σύνολο',
+  cs: 'Celkem',
+};
+
 export const NETWORK_EXPERIENCE_COPY: Record<SupportedLocale, NetworkExperienceCopy> = {
   en: {
     title: 'My Network', direct: 'Direct', qualified: 'Qualified', thisRound: 'This Round', directNetwork: 'Direct Network', inProgress: 'In Progress', rewarded: 'Rewarded', searchPlaceholder: 'Search wallet in your network', noSearchResults: 'No wallet found in your network.', networkSize: 'Network size', recentGrowth: 'Recent growth', emptyTitle: 'Your network starts here', emptyDescription: 'Invite an eligible new or returning user. Once they pass VeInvite entry checks, they will appear here automatically.', inviteFriend: 'Invite a friend', connectTitle: 'Connect to see your network', connectDescription: 'Your VeInvite network is available only in your verified wallet session.', connectWallet: 'Connect wallet', loadError: 'We could not load your network.', retry: 'Try again', backToMine: 'Back to my network', invitedBy: 'Invited by', showAll: 'Show all', noMatching: 'No matching direct branches.',
