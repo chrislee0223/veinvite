@@ -74,7 +74,7 @@ test('stage does not steal pointer capture from buttons and inputs', () => {
 
 
 test('desktop Network keeps the compact Network card without restacking the global app header', () => {
-  assert.match(home, /@media \(min-width:561px\) \{\s*\.networkTabViewport \{ flex:0 0 auto; height:min\(720px,calc\(100svh - 160px\)\); \}\s*\}/);
+  assert.match(home, /@media \(min-width:561px\) \{\s*\.networkTabViewport \{ max-height:720px; \}\s*\}/);
   assert.match(hub, /networkHubShell\{width:min\(100%,520px\)/);
   assert.doesNotMatch(source, /networkHeader\{/);
   assert.match(source, /networkUtilityRow\{[^}]*min-height:40px[^}]*padding:4px 6px/);
@@ -82,7 +82,12 @@ test('desktop Network keeps the compact Network card without restacking the glob
   assert.match(source, /summaryTotal\{[^}]*display:flex/);
   assert.match(source, /networkSearchRow\{[^}]*position:absolute[^}]*top:44px/);
   assert.match(home, /\.topActions \{ min-width:0; display:flex; align-items:center; gap:10px; \}/);
+  assert.match(home, /\.screen\.networkScreen \{[^}]*padding:22px 14px calc\(96px \+ env\(safe-area-inset-bottom\)\)/);
+  assert.doesNotMatch(home, /networkScreen \.topBar/);
   assert.doesNotMatch(home, /networkScreen \.topActions/);
+  assert.doesNotMatch(home, /networkScreen \.utilityActions/);
+  assert.doesNotMatch(home, /networkScreen \.languageSelect/);
+  assert.doesNotMatch(home, /networkScreen \.accountChip/);
   assert.doesNotMatch(home, /height:min\(100svh,852px\)/);
 });
 
@@ -124,6 +129,7 @@ test('layout edit keeps the same compact toolbar instead of spawning reset/new/c
 test('desktop Network height cap is scoped to the Network card only', () => {
   assert.match(home, /.screen.networkScreen {[^}]*height:100svh/);
   assert.match(home, /.networkTabViewport {[^}]*flex:1 1 auto[^}]*display:flex/);
-  assert.match(home, /@media \(min-width:561px\) \{\s*\.networkTabViewport \{ flex:0 0 auto; height:min\(720px,calc\(100svh - 160px\)\); \}\s*\}/);
+  assert.match(home, /@media \(min-width:561px\) \{\s*\.networkTabViewport \{ max-height:720px; \}\s*\}/);
   assert.doesNotMatch(home, /@media \(min-width:561px\)[\s\S]{0,220}\.screen\.networkScreen \{[^}]*max-height/);
+  assert.doesNotMatch(home, /height:min\(720px,calc\(100svh - 160px\)\)/);
 });
