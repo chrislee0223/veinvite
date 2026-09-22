@@ -19,6 +19,7 @@ import {
   getActiveWalletAuthentication,
   isWalletAuthenticationGenerationCurrent,
   setActiveWalletAuthentication,
+  runWalletProviderReconciliation,
   waitForWalletProviderReconciliation,
 } from '@/lib/walletAuthenticationCoordinator';
 import {
@@ -153,6 +154,7 @@ export function useWalletAuthentication() {
   const {
     account: dappKitAccount,
     source: dappKitSource,
+    initializeAsync,
     requestTypedData,
     requestCertificate,
   } = useDappKitWallet();
@@ -351,6 +353,27 @@ export function useWalletAuthentication() {
                 'Wallet connection is still synchronizing. Please try again.',
               );
               assertStillCurrent();
+
+              // VeWorld can publish the new account through both React
+              // providers a little before its internal signing transport has
+              // finished switching away from the previous account. Refresh the
+              // already-established DAppKit transport here, before any wallet
+              // prompt exists, so the first ownership signature is issued by
+              // the wallet the UI is actually showing. This is deliberately
+              // initializeAsync(), not connectV2(): it rehydrates the existing
+              // connection without reopening VeWorld's login flow.
+              if (dappKitSource === 'veworld') {
+                await withTimeout(
+                  runWalletProviderReconciliation(
+                    async () => {
+                      await initializeAsync();
+                    },
+                  ),
+                  WALLET_PROVIDER_SETTLE_TIMEOUT_MS,
+                  'Wallet connection is still synchronizing. Please try again.',
+                );
+                assertStillCurrent();
+              }
 
               const signer =
                 account?.address
@@ -594,6 +617,7 @@ export function useWalletAuthentication() {
         connection.isConnectedWithDappKit,
         dappKitAccount,
         dappKitSource,
+        initializeAsync,
         requestTypedData,
         requestCertificate,
         signMessage,
