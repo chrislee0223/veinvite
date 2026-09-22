@@ -271,14 +271,25 @@ test('blank tap exits layout editing without confusing pan, pinch, or group crea
 });
 
 test('group hubs have a distinct solid visual language from invite slots', () => {
-  assert.match(networkSource, /<GroupsControlGlyph size=\{22\} \/>/);
+  assert.match(networkSource, /<GroupsControlGlyph size=\{20\} \/>/);
   assert.match(networkSource, /\.edge\.groupEdge\{[^}]*stroke-width:1\.35\}/);
   assert.doesNotMatch(networkSource, /\.edge\.groupEdge\{[^}]*stroke-dasharray/);
   assert.match(networkSource, /\.groupMemberEdge\{[^}]*stroke-width:\.82\}/);
-  assert.match(networkSource, /\.groupNode\{[^}]*border:1\.35px solid/);
+  assert.match(networkSource, /\.groupNode\{[^}]*border:1\.2px solid/);
   assert.doesNotMatch(networkSource, /\.groupNode\.expanded\{[^}]*border-style:dashed/);
   assert.match(networkSource, /\.slotEdgePulse\{[^}]*stroke-dasharray:5 38/);
   assert.match(networkSource, /\.slotCircle\{[^}]*border:1px dashed/);
+});
+
+test('group hubs stay compact without changing group interaction geometry', () => {
+  assert.match(networkSource, /\.groupNode\{min-width:94px;max-width:136px;min-height:42px;padding:6px 8px/);
+  assert.match(networkSource, /grid-template-columns:24px minmax\(0,1fr\);column-gap:5px;row-gap:0/);
+  assert.match(networkSource, /\.groupNode strong\{[^}]*max-width:92px;font-size:\.45rem;line-height:1\.15/);
+  assert.match(networkSource, /\.groupNode small\{[^}]*max-width:92px[^}]*font-size:\.32rem;line-height:1\.15[^}]*text-overflow:ellipsis/);
+  assert.match(networkSource, /\.groupGlyph\{width:24px;height:24px/);
+  assert.match(networkSource, /GROUP_SCREEN_DROP_RADIUS = 58/);
+  assert.match(networkSource, /GROUP_DROP_HIT_SLOP_X = 18/);
+  assert.match(networkSource, /GROUP_DROP_HIT_SLOP_Y = 14/);
 });
 
 test('Network toolbar keeps navigation controls before edit and group controls', () => {
