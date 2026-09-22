@@ -2,6 +2,8 @@
 
 import {
   useCallback,
+  useEffect,
+  useRef,
   useState,
 } from 'react';
 import {
@@ -158,6 +160,23 @@ export function useWalletAuthentication() {
     requestTypedData,
     requestCertificate,
   } = useDappKitWallet();
+
+  const canonicalWalletRef = useRef<string | null>(
+    account?.address?.trim().toLowerCase() ?? null,
+  );
+  const dappWalletRef = useRef<string | null>(
+    dappKitAccount?.trim().toLowerCase() ?? null,
+  );
+
+  useEffect(() => {
+    canonicalWalletRef.current =
+      account?.address?.trim().toLowerCase() ?? null;
+  }, [account?.address]);
+
+  useEffect(() => {
+    dappWalletRef.current =
+      dappKitAccount?.trim().toLowerCase() ?? null;
+  }, [dappKitAccount]);
 
   const [
     isAuthenticating,
@@ -375,15 +394,20 @@ export function useWalletAuthentication() {
                 assertStillCurrent();
               }
 
+              // Give React/provider subscriptions one short settle window after
+              // the transport refresh, then read refs rather than this callback's
+              // pre-refresh render snapshot. If either provider moved again,
+              // never open a signing prompt for the stale wallet.
+              await wait(
+                WALLET_SIGNATURE_SETTLE_MS,
+              );
+              assertStillCurrent();
+
               const signer =
-                account?.address
-                  ?.trim()
-                  .toLowerCase() ||
+                canonicalWalletRef.current ||
                 walletAddress;
               const dappSigner =
-                dappKitAccount
-                  ?.trim()
-                  .toLowerCase() || null;
+                dappWalletRef.current;
 
               if (
                 signer !== walletAddress ||
@@ -393,11 +417,6 @@ export function useWalletAuthentication() {
                   'Wallet connection is still synchronizing. Please disconnect and reconnect the wallet.',
                 );
               }
-
-              await wait(
-                WALLET_SIGNATURE_SETTLE_MS,
-              );
-              assertStillCurrent();
 
               const signCertificateFallback =
                 async () => {
