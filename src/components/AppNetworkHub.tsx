@@ -122,7 +122,7 @@ export function AppNetworkHub({ locale }: { locale: Locale }) {
     } catch (error) {
       if (signal?.aborted || !sameWallet(activeWalletRef.current, requestWallet)) return;
       if ((error as ApiError).code === 'NETWORK_DISABLED') {
-          setProbeState('maintenance');
+        setProbeState('maintenance');
         return;
       }
       if (cachedBefore) {

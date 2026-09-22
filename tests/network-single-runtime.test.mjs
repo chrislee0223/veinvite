@@ -457,6 +457,14 @@ test('invite slot state retries transient failures and refreshes when the app re
   assert.doesNotMatch(networkSource, /setInterval\(/);
 });
 
+test('pending acceptance stays distinct from mission progress in Network slots', () => {
+  assert.match(networkSource, /const pendingAcceptance = slot\.state === 'PENDING'/);
+  assert.match(networkSource, /const slotStatusLabel = pendingAcceptance \? t\.pendingAcceptance : t\.inProgress/);
+  assert.match(networkSource, /pendingAcceptance \? 'pendingInviteNode' : 'progressInviteNode'/);
+  assert.match(networkSource, /pendingAcceptance[\s\S]*t\.pendingAcceptance[\s\S]*slot\.completedSteps/);
+  assert.match(networkSource, /\.pendingInviteNode \.nodeCircle\{[^}]*border-style:dashed/);
+});
+
 test('available and in-progress invite slots are movable like ordinary nodes', () => {
   assert.match(workspaceSource, /function cleanPositionKey/);
   assert.match(workspaceSource, /\^slot:\[12\]\$/);
