@@ -443,7 +443,8 @@ test('VeWorld rebind happens only after a confirmed stale browser session', asyn
     'sessionWallet === targetWallet',
   );
   const rebind = source.indexOf(
-    'connectV2(null)',
+    'connectV2(null),',
+    staleSessionCheck,
   );
 
   assert.ok(staleSessionCheck >= 0);
