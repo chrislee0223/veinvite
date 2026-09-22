@@ -17,10 +17,12 @@ jobs:
         run: |
           python3 - <<'PY'
           import json, urllib.request
+          from collections import Counter
 
           NODE='https://mainnet.vechain.org'
           VTHO='0x0000000000000000000000000000456e65726779'
           TRANSFER='0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef'
+          BLOCKS_24H=8640
           cases={
             '74FQ6CB':('0x2d415cbf574177ccf0e8a178ef2c8df1dcdfa2cc',25825343),
             'F84ZL4N':('0xd2fe919a38fb7ab6f2c2df0fec7723cb778b0989',25831197),
@@ -39,36 +41,63 @@ jobs:
           }
 
           def post(path, body):
-            data=json.dumps(body).encode()
-            req=urllib.request.Request(NODE+path,data=data,headers={'content-type':'application/json'},method='POST')
+            req=urllib.request.Request(
+              NODE+path,
+              data=json.dumps(body).encode(),
+              headers={'content-type':'application/json'},
+              method='POST'
+            )
             with urllib.request.urlopen(req,timeout=30) as r:
               return json.loads(r.read().decode())
 
           def topic(addr):
             return '0x' + '0'*24 + addr.lower().replace('0x','')
 
-          out=[]
-          for code,(wallet,block) in cases.items():
-            common={'range':{'unit':'block','from':0,'to':block},'options':{'offset':0,'limit':1},'order':'asc'}
-            vet=post('/logs/transfer',{**common,'criteriaSet':[{'recipient':wallet}]})
-            vtho=post('/logs/event',{**common,'criteriaSet':[{'address':VTHO,'topic0':TRANSFER,'topic2':topic(wallet)}]})
-            v=vet[0] if vet else None
-            h=vtho[0] if vtho else None
-            vtho_sender=None
-            if h and isinstance(h.get('topics'),list) and len(h['topics'])>=3:
-              vtho_sender='0x'+h['topics'][1][-40:].lower()
+          def parse_vtho(e):
+            topics=e.get('topics') or []
+            sender='0x'+topics[1][-40:].lower() if len(topics)>=3 else None
+            data=e.get('data')
+            amount=None
+            if isinstance(data,str) and data.startswith('0x'):
+              try: amount=str(int(data,16))
+              except: pass
+            m=e.get('meta') or {}
+            return {
+              'sender':sender,
+              'block':m.get('blockNumber'),
+              'tx':m.get('txID'),
+              'amount_wei':amount,
+            }
+
+          def parse_vet(e):
+            m=e.get('meta') or {}
+            return {
+              'sender':e.get('sender'),
+              'block':m.get('blockNumber'),
+              'tx':m.get('txID'),
+              'amount_wei':e.get('amount'),
+            }
+
+          rows=[]
+          for code,(wallet,activation) in cases.items():
+            end=activation+BLOCKS_24H
+            common={'range':{'unit':'block','from':0,'to':end},'options':{'offset':0,'limit':5},'order':'asc'}
+            vets=post('/logs/transfer',{**common,'criteriaSet':[{'recipient':wallet}]})
+            vthos=post('/logs/event',{**common,'criteriaSet':[{'address':VTHO,'topic0':TRANSFER,'topic2':topic(wallet)}]})
             row={
               'invite_code':code,
               'wallet':wallet.lower(),
-              'activation_block':block,
-              'vet_sender': (v.get('sender') if v else None),
-              'vet_block': ((v.get('meta') or {}).get('blockNumber') if v else None),
-              'vet_tx': ((v.get('meta') or {}).get('txID') if v else None),
-              'vtho_sender':vtho_sender,
-              'vtho_block': ((h.get('meta') or {}).get('blockNumber') if h else None),
-              'vtho_tx': ((h.get('meta') or {}).get('txID') if h else None),
+              'activation_block':activation,
+              'scan_to_block':end,
+              'vet_in':[parse_vet(x) for x in vets[:5]],
+              'vtho_in':[parse_vtho(x) for x in vthos[:5]],
             }
-            out.append(row)
+            rows.append(row)
             print('AUDIT_ROW '+json.dumps(row,separators=(',',':')))
-          print('AUDIT_ALL '+json.dumps(out,separators=(',',':')))
+
+          first_vtho=[r['vtho_in'][0]['sender'] for r in rows if r['vtho_in'] and r['vtho_in'][0]['sender']]
+          first_vet=[r['vet_in'][0]['sender'] for r in rows if r['vet_in'] and r['vet_in'][0]['sender']]
+          print('VTHO_FUNDER_COUNTS '+json.dumps(Counter(first_vtho),separators=(',',':')))
+          print('VET_FUNDER_COUNTS '+json.dumps(Counter(first_vet),separators=(',',':')))
+          print('AUDIT_ALL '+json.dumps(rows,separators=(',',':')))
           PY
