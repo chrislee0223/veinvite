@@ -35,8 +35,11 @@ import {
 } from '@/lib/networkRootClientCache';
 import {
   formatCompactVechainDomain,
+  formatVechainDomainLabel,
   readCachedLeaderboardDomain,
+  readCachedLeaderboardDomainSuggestions,
   rememberLeaderboardDomain,
+  type CachedLeaderboardDomainSuggestion,
 } from '@/lib/leaderboardDomainCache';
 import { getVeChainExplorerAddressUrl } from '@/lib/vechainExplorer';
 import {
@@ -732,6 +735,13 @@ export function AppNetwork({ locale }: { locale: Locale }) {
     : validWallet(searchDomainAddress)
       ? searchDomainAddress
       : null;
+  const cachedDomainSuggestions = useMemo(
+    () =>
+      searchOpen
+        ? readCachedLeaderboardDomainSuggestions(normalizedSearchQuery)
+        : [],
+    [searchOpen, normalizedSearchQuery],
+  );
   const [pendingFocus, setPendingFocus] = useState<string | null>(null);
   const [navigationDirection, setNavigationDirection] = useState<NavigationDirection | null>(null);
   const [cameraTransition, setCameraTransition] = useState(false);
@@ -1920,6 +1930,40 @@ export function AppNetwork({ locale }: { locale: Locale }) {
       }),
     );
   }, [editingLayout, closeSearch]);
+
+  const openCachedDomainSuggestion = useCallback(async (
+    suggestion: CachedLeaderboardDomainSuggestion,
+  ) => {
+    if (editingLayout || !wallet || !currentData) return;
+    const target = keyWallet(suggestion.wallet);
+    setSearching(true);
+    try {
+      const result = await fetchNetwork(wallet, {
+        focus: currentData.focusWallet,
+        query: target,
+      });
+      const ownMatch = (result.searchResults ?? []).find(
+        (entry) => keyWallet(entry.wallet) === target,
+      );
+      if (ownMatch) {
+        closeSearch();
+        void moveToFocus(ownMatch.wallet, 'forward');
+        return;
+      }
+      openPublicSearchResult(target);
+    } catch {
+      openPublicSearchResult(target);
+    } finally {
+      setSearching(false);
+    }
+  }, [
+    editingLayout,
+    wallet,
+    currentData,
+    closeSearch,
+    moveToFocus,
+    openPublicSearchResult,
+  ]);
 
   const beginLayoutEdit = useCallback(() => {
     if (!currentFocusKey) return;
@@ -3164,7 +3208,16 @@ export function AppNetwork({ locale }: { locale: Locale }) {
                     <strong><NetworkNodeLabel address={publicSearchWallet} /></strong>
                     <span>{e.visibleNetwork}</span>
                   </button>
-                ) : (
+                ) : cachedDomainSuggestions.length ? cachedDomainSuggestions.map((suggestion) => (
+                  <button
+                    type="button"
+                    key={suggestion.wallet}
+                    onClick={() => void openCachedDomainSuggestion(suggestion)}
+                  >
+                    <strong dir="auto">{formatVechainDomainLabel(suggestion.domain)}</strong>
+                    <span dir="ltr">{nodeWallet(suggestion.wallet)}</span>
+                  </button>
+                )) : (
                   <span className="searchStatus">{t.noSearchResults}</span>
                 )}
               </div>

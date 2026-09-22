@@ -9,6 +9,7 @@ const [
   network,
   publicExplorer,
   settings,
+  domainCache,
 ] = await Promise.all([
   readFile('src/components/InviterLeaderboard.tsx', 'utf8'),
   readFile('src/components/HomeClient.tsx', 'utf8'),
@@ -16,6 +17,7 @@ const [
   readFile('src/components/AppNetwork.tsx', 'utf8'),
   readFile('src/components/PublicNetworkExplorer.tsx', 'utf8'),
   readFile('src/components/AppSettings.tsx', 'utf8'),
+  readFile('src/lib/leaderboardDomainCache.ts', 'utf8'),
 ]);
 
 test('leaderboard can hand a wallet into the Network tab without prop-drilling the leaderboard tree', () => {
@@ -67,4 +69,20 @@ test('public visibility is opt-in from Settings and uses the hardened visibility
   assert.match(settings, /publicEnabled/);
   assert.match(settings, /discoverable/);
   assert.match(settings, /credentials: 'include'/);
+});
+
+
+test('partial domain autocomplete reuses only domains already cached in the current session', () => {
+  assert.match(domainCache, /readCachedLeaderboardDomainSuggestions/);
+  assert.match(domainCache, /sessionStorage\.getItem\(DOMAIN_CACHE_KEY\)/);
+  assert.match(domainCache, /startsWith\(normalizedQuery\)/);
+  assert.match(domainCache, /DOMAIN_SUGGESTION_MIN_CHARS\s*=\s*3/);
+  assert.match(network, /cachedDomainSuggestions/);
+  assert.match(network, /openCachedDomainSuggestion/);
+  assert.match(network, /fetchNetwork\(wallet/);
+  assert.match(network, /formatVechainDomainLabel\(suggestion\.domain\)/);
+  assert.match(publicExplorer, /cachedDomainSuggestions/);
+  assert.match(publicExplorer, /focusCachedDomainSuggestion/);
+  assert.match(publicExplorer, /fetchPublicNetwork\(\s*root,\s*suggestion\.wallet/);
+  assert.doesNotMatch(domainCache, /fetch\(/);
 });

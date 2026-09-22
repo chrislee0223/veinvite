@@ -2,6 +2,9 @@ const DOMAIN_CACHE_TTL_MS = 15 * 60_000;
 const DOMAIN_CACHE_KEY = 'veinvite_leaderboard_profile_domain_v1';
 const VEWORLD_DOMAIN_SUFFIX = '.veworld.vet';
 const COMPACT_DOMAIN_VISIBLE_CHARS = 8;
+const DOMAIN_SUGGESTION_MIN_CHARS = 3;
+const DOMAIN_SUGGESTION_DEFAULT_LIMIT = 8;
+const VECHAIN_WALLET_PATTERN = /^0x[0-9a-fA-F]{40}$/;
 
 type StoredDomain = {
   domain: string | null;
@@ -9,6 +12,11 @@ type StoredDomain = {
 };
 
 type StoredDomainMap = Record<string, StoredDomain>;
+
+export type CachedLeaderboardDomainSuggestion = {
+  wallet: string;
+  domain: string;
+};
 
 const domainMemory = new Map<string, StoredDomain>();
 
@@ -99,6 +107,82 @@ export function rememberLeaderboardDomain(
   } catch {
     // VET-domain display stays functional even if session storage is blocked.
   }
+}
+
+export function formatVechainDomainLabel(
+  domain: string | null | undefined,
+): string | null {
+  if (typeof domain !== 'string') return null;
+  const normalized = domain.trim();
+  if (!normalized) return null;
+
+  return normalized.toLowerCase().endsWith(VEWORLD_DOMAIN_SUFFIX)
+    ? normalized.slice(0, -VEWORLD_DOMAIN_SUFFIX.length) || normalized
+    : normalized;
+}
+
+export function readCachedLeaderboardDomainSuggestions(
+  query: string,
+  limit = DOMAIN_SUGGESTION_DEFAULT_LIMIT,
+): CachedLeaderboardDomainSuggestion[] {
+  const normalizedQuery = query.trim().toLowerCase();
+  if (
+    normalizedQuery.length < DOMAIN_SUGGESTION_MIN_CHARS ||
+    typeof window === 'undefined'
+  ) {
+    return [];
+  }
+
+  const now = Date.now();
+  const combined = new Map<string, StoredDomain>(domainMemory);
+  let stored: StoredDomainMap = {};
+
+  try {
+    const raw = window.sessionStorage.getItem(DOMAIN_CACHE_KEY);
+    stored = raw ? (JSON.parse(raw) as StoredDomainMap) : {};
+    for (const [wallet, entry] of Object.entries(stored)) {
+      if (
+        entry &&
+        typeof entry.savedAt === 'number' &&
+        now - entry.savedAt <= DOMAIN_CACHE_TTL_MS &&
+        (entry.domain === null || typeof entry.domain === 'string')
+      ) {
+        combined.set(walletKey(wallet), entry);
+      }
+    }
+  } catch {
+    // Memory-only suggestions remain available.
+  }
+
+  return [...combined.entries()]
+    .flatMap(([wallet, entry]) => {
+      if (
+        !VECHAIN_WALLET_PATTERN.test(wallet) ||
+        now - entry.savedAt > DOMAIN_CACHE_TTL_MS
+      ) {
+        return [];
+      }
+      const domain = normalizeDomain(entry.domain);
+      const label = formatVechainDomainLabel(domain);
+      if (!domain || !label) return [];
+      const full = domain.toLowerCase();
+      const visible = label.toLowerCase();
+      if (
+        !visible.startsWith(normalizedQuery) &&
+        !full.startsWith(normalizedQuery)
+      ) {
+        return [];
+      }
+      return [{ wallet, domain }];
+    })
+    .sort((left, right) => {
+      const leftLabel = formatVechainDomainLabel(left.domain)?.toLowerCase() ?? left.domain.toLowerCase();
+      const rightLabel = formatVechainDomainLabel(right.domain)?.toLowerCase() ?? right.domain.toLowerCase();
+      const leftExact = leftLabel === normalizedQuery ? 0 : 1;
+      const rightExact = rightLabel === normalizedQuery ? 0 : 1;
+      return leftExact - rightExact || leftLabel.length - rightLabel.length || leftLabel.localeCompare(rightLabel);
+    })
+    .slice(0, Math.max(1, Math.min(12, limit)));
 }
 
 export function formatCompactVechainDomain(
