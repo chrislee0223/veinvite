@@ -92,7 +92,7 @@ function StateCard({
       <p>{description}</p>
       {children}
       <style jsx>{`
-        .networkHubState{width:min(100%,520px);box-sizing:border-box;margin:0 auto;padding:30px 22px 28px;border:1px solid rgba(255,205,80,.14);border-radius:22px;background:radial-gradient(circle at 50% 0,rgba(244,183,40,.08),transparent 34%),rgba(255,255,255,.025);text-align:center}
+        .networkHubState{width:min(100%,520px);box-sizing:border-box;margin:0 auto;padding:27px 18px 25px;border:1px solid rgba(255,205,80,.14);border-radius:22px;background:radial-gradient(circle at 50% 0,rgba(244,183,40,.08),transparent 34%),rgba(255,255,255,.025);text-align:center}
         .experienceGlyph{width:62px;height:62px;margin:0 auto 16px;display:grid;place-items:center;border:1px solid rgba(244,183,40,.19);border-radius:50%;background:rgba(244,183,40,.06);color:#d7aa3b}
         h1{margin:0;color:#f1eee6;font-size:1.05rem;letter-spacing:-.025em}
         p{max-width:410px;margin:9px auto 0;color:#858078;font-size:.72rem;line-height:1.55}
@@ -100,7 +100,6 @@ function StateCard({
         .stateActions :global(button){min-height:46px;border-radius:14px;font:inherit;font-size:.72rem;font-weight:900;cursor:pointer}
         .stateActions :global(.primary){border:0;background:linear-gradient(135deg,#ffd24d,#efa718);color:#17120a}
         .stateActions :global(.secondary){border:1px solid rgba(255,205,80,.17);background:rgba(244,183,40,.05);color:#d8c17d}
-        @media(max-width:560px){.networkHubState{padding:27px 18px 25px}}
       `}</style>
     </section>
   );

@@ -7,6 +7,7 @@ const [
   networkSource,
   homeSource,
   bottomNavigationSource,
+  networkHubSource,
   workspaceSource,
   workspaceCopySource,
   localesSource,
@@ -19,6 +20,7 @@ const [
   readFile('src/components/AppNetwork.tsx', 'utf8'),
   readFile('src/components/HomeClient.tsx', 'utf8'),
   readFile('src/components/AppBottomNavigation.tsx', 'utf8'),
+  readFile('src/components/AppNetworkHub.tsx', 'utf8'),
   readFile('src/lib/networkWorkspace.ts', 'utf8'),
   readFile('src/lib/i18n/networkWorkspaceCopy.ts', 'utf8'),
   readFile('src/lib/i18n/locales.ts', 'utf8'),
@@ -61,8 +63,10 @@ test('Network runtime has no DOM observer or global viewport ownership', () => {
 test('node profile stays compact, prefers cached VET identity, and keeps wallet truth visible', () => {
   assert.match(networkSource, /readCachedLeaderboardDomain/);
   assert.match(networkSource, /rememberLeaderboardDomain/);
-  assert.match(networkSource, /shouldLoad && \(!showLabel \|\| displayDomain === undefined\)/);
-  assert.match(networkSource, /showLabel \? readCachedLeaderboardDomain\(address\) : undefined/);
+  assert.match(networkSource, /shouldLoad && displayDomain === undefined/);
+  assert.match(networkSource, /\(\) => readCachedLeaderboardDomain\(address\)/);
+  assert.doesNotMatch(networkSource, /!showLabel \|\| displayDomain === undefined/);
+  assert.doesNotMatch(networkSource, /showLabel \? readCachedLeaderboardDomain\(address\) : undefined/);
   assert.match(networkSource, /useVechainDomain\(\s*shouldResolveDomain \? address : undefined/);
   assert.match(networkSource, /<NetworkIdentity address=\{selectedAddress\} root size=\{34\} \/>/);
   assert.doesNotMatch(networkSource, /className=\{\`profileStatus/);
@@ -103,6 +107,9 @@ test('node profile remains non-blocking and Network keeps one mobile geometry on
   assert.match(bottomNavigationSource, /\.bottomNavigation\[data-veinvite-active-tab='guide'\] \{ padding-bottom: env\(safe-area-inset-bottom\); \}/);
   assert.match(bottomNavigationSource, /\.bottomNavigation\[data-veinvite-active-tab='guide'\] > div \{ min-height: 60px; padding: 4px; border-radius: 20px; \}/);
   assert.match(bottomNavigationSource, /\.bottomNavigation\[data-veinvite-active-tab='guide'\] button \{ min-height: 50px; padding: 4px 3px;/);
+  assert.match(networkHubSource, /\.networkHubState\{[^}]*padding:27px 18px 25px/);
+  assert.doesNotMatch(networkHubSource, /@media\(max-width:560px\)/);
+  assert.doesNotMatch(bottomNavigationSource, /@media \(min-width: 561px\)/);
   assert.doesNotMatch(networkSource, /user-scalable|maximum-scale/);
 });
 

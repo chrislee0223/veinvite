@@ -476,10 +476,10 @@ const NetworkIdentity = memo(function NetworkIdentity({
   const [loaded, setLoaded] = useState(false);
   const [broken, setBroken] = useState(false);
   const [displayDomain, setDisplayDomain] = useState<string | null | undefined>(
-    () => showLabel ? readCachedLeaderboardDomain(address) : undefined,
+    () => readCachedLeaderboardDomain(address),
   );
   const shouldResolveDomain =
-    shouldLoad && (!showLabel || displayDomain === undefined);
+    shouldLoad && displayDomain === undefined;
   const { data: domainInfo, isLoading: domainLoading } = useVechainDomain(
     shouldResolveDomain ? address : undefined,
   );
@@ -488,7 +488,7 @@ const NetworkIdentity = memo(function NetworkIdentity({
       ? domainInfo.domain.trim()
       : null;
   const resolvedDomain =
-    showLabel && displayDomain !== undefined
+    displayDomain !== undefined
       ? displayDomain
       : shouldResolveDomain && !domainLoading
         ? queriedDomain
@@ -498,11 +498,9 @@ const NetworkIdentity = memo(function NetworkIdentity({
   const resolvedSize = size ?? (root ? 42 : 34);
 
   useEffect(() => {
-    setDisplayDomain(
-      showLabel ? readCachedLeaderboardDomain(address) : undefined,
-    );
+    setDisplayDomain(readCachedLeaderboardDomain(address));
     setShouldLoad(root);
-  }, [address, root, showLabel]);
+  }, [address, root]);
 
   useEffect(() => {
     const host = hostRef.current;
@@ -522,7 +520,7 @@ const NetworkIdentity = memo(function NetworkIdentity({
   }, [shouldLoad]);
 
   useEffect(() => {
-    if (!showLabel || !shouldResolveDomain || domainLoading) return;
+    if (!shouldResolveDomain || domainLoading) return;
     rememberLeaderboardDomain(address, queriedDomain);
     setDisplayDomain(queriedDomain);
   }, [
@@ -530,7 +528,6 @@ const NetworkIdentity = memo(function NetworkIdentity({
     domainLoading,
     queriedDomain,
     shouldResolveDomain,
-    showLabel,
   ]);
 
   useEffect(() => {

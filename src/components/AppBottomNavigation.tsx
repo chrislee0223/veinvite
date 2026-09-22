@@ -467,8 +467,6 @@ export function AppBottomNavigation({
           .bottomNavigation[data-veinvite-active-tab='guide'] button { min-height: 50px; padding: 4px 3px; grid-template-rows: 20px 12px; row-gap: 3px; }
           .bottomNavigation[data-veinvite-active-tab='guide'] .navIcon { width: 20px; height: 20px; }
           .bottomNavigation[data-veinvite-active-tab='guide'] .navIcon :global(svg) { width: 20px; height: 20px; }
-          /* At the fixed 520px desktop rail, 1px borders + 5px inline padding leave 508px. Four tabs are therefore 127px each instead of 126.5px fractional tracks. */
-          @media (min-width: 561px) { .bottomNavigation > div { padding-left: 5px; padding-right: 5px; } }
           @media (max-width: 360px) { button { font-size: .53rem; } }
           @media (prefers-reduced-motion: reduce) {
             .activeIndicator { transition: none !important; }
