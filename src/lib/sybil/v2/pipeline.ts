@@ -647,18 +647,18 @@ async function loadConsolidationSignals(
     .select('block_number')
     .eq('network', invitation.activation_network)
     .eq('wallet_address', wallet)
-    .order('block_number', { ascending: false })
+    .order('block_number', { ascending: true })
     .limit(1);
 
   if (ownRewardResult.error) {
     throw new Error(`Historical reward boundary could not be loaded: ${ownRewardResult.error.message}`);
   }
 
-  const lastRewardBlock = Number(
+  const firstRewardBlock = Number(
     ownRewardResult.data?.[0]?.block_number ?? 0,
   );
-  const minimumBlock = Number.isSafeInteger(lastRewardBlock)
-    ? Math.max(0, lastRewardBlock)
+  const minimumBlock = Number.isSafeInteger(firstRewardBlock)
+    ? Math.max(0, firstRewardBlock)
     : 0;
 
   const ownResult = await supabaseAdmin
