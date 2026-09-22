@@ -355,50 +355,6 @@ export function AppSettings({
     finishLanguagePickerClose();
   };
 
-  const savePublicVisibility = useCallback(async (
-    publicEnabled: boolean,
-    discoverable: boolean,
-  ) => {
-    if (!wallet || publicVisibilitySaving) return;
-    const requestWallet = wallet.toLowerCase();
-    setPublicVisibilitySaving(true);
-    setPublicVisibilityError('');
-    try {
-      const response = await fetch('/api/network/public/visibility', {
-        method: 'POST',
-        credentials: 'include',
-        cache: 'no-store',
-        headers: {
-          Accept: 'application/json',
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ publicEnabled, discoverable }),
-      });
-      const payload = await response.json().catch(() => null) as {
-        publicEnabled?: boolean;
-        discoverable?: boolean;
-      } | null;
-      if (!response.ok) throw new Error('PUBLIC_VISIBILITY_SAVE_FAILED');
-      if (visibilityWalletRef.current?.toLowerCase() !== requestWallet) return;
-      setPublicVisibility({
-        publicEnabled: payload?.publicEnabled === true,
-        discoverable: payload?.discoverable === true,
-      });
-    } catch {
-      if (visibilityWalletRef.current?.toLowerCase() === requestWallet) {
-        setPublicVisibilityError(networkCopy.visibilityError);
-      }
-    } finally {
-      if (visibilityWalletRef.current?.toLowerCase() === requestWallet) {
-        setPublicVisibilitySaving(false);
-      }
-    }
-  }, [
-    wallet,
-    publicVisibilitySaving,
-    networkCopy.visibilityError,
-  ]);
-
   const confirmWalletAction = async () => {
     const action = walletConfirmation;
     if (!action) return;
