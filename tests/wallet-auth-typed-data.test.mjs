@@ -14,18 +14,21 @@ const [
   readFile('src/lib/walletAuthTypedData.ts', 'utf8'),
 ]);
 
-test('VeWorld ownership auth prefers EIP-712 over certificates when supported', () => {
+test('VeWorld ownership auth uses one combined v2 prompt only for a confirmed external handoff', () => {
   assert.match(authHook, /dappKitSource === 'veworld'/);
-  assert.match(authHook, /await requestTypedData\(/);
-  assert.match(authHook, /typedData\.domain/);
-  assert.match(authHook, /typedData\.types/);
-  assert.match(authHook, /typedData\.value/);
-  assert.doesNotMatch(authHook, /await connectV2\(/);
-  assert.match(authHook, /proofType\s*=\s*'typed_data'/);
   assert.match(
     authHook,
-    /The wallet is already connected at this point/,
+    /const isVeWorldHandoff =[\s\S]*isPendingVeWorldWalletHandoff\([\s\S]*walletAddress/,
   );
+  assert.match(
+    authHook,
+    /if \(isVeWorldHandoff\) \{[\s\S]*await connectV2\(typedData\)[\s\S]*authFlow =[\s\S]*'veworld_handoff_connect_v2'[\s\S]*\} else \{[\s\S]*await requestTypedData\(/,
+  );
+  assert.doesNotMatch(
+    authHook,
+    /connectV2\(null\)/,
+  );
+  assert.match(authHook, /proofType\s*=\s*'typed_data'/);
 });
 
 test('VeWorld auth requires live provider addresses and validates the recovered signer locally', () => {
@@ -78,6 +81,10 @@ test('server reconstructs and verifies typed auth from stored challenge data', (
   assert.match(
     verifyRoute,
     /Wallet typed proof rejected\.[\s\S]*typed_signature_invalid[\s\S]*typed_signer_mismatch/,
+  );
+  assert.match(
+    verifyRoute,
+    /authFlow[\s\S]*veworld_handoff_connect_v2[\s\S]*veworld_request_typed_data/,
   );
   const diagnosticStart = verifyRoute.indexOf(
     'function logTypedProofRejection',
