@@ -471,7 +471,7 @@ function PublicNetworkCanvas({
     } catch (error) {
       if (signal?.aborted || serial !== requestSerialRef.current) return;
       const code = (error as Error & { code?: string }).code ?? 'PUBLIC_NETWORK_LOAD_FAILED';
-      if (code === 'NETWORK_NOT_FOUND' || code === 'FOCUS_NOT_FOUND') clearSavedState(root);
+      if (code === 'FOCUS_NOT_FOUND') clearSavedState(root);
       setState('error');
       setErrorCode(code);
     }
@@ -539,8 +539,7 @@ function PublicNetworkCanvas({
         if (controller.signal.aborted) return;
         const code = (error as Error & { code?: string }).code;
         setSearchState(
-          code === 'FOCUS_NOT_FOUND' || code === 'NETWORK_NOT_FOUND'
-            ? 'not-found'
+          code === 'FOCUS_NOT_FOUND' ? 'not-found'
             : 'error',
         );
         setSearchMatch(null);
@@ -595,8 +594,7 @@ function PublicNetworkCanvas({
     } catch (error) {
       const code = (error as Error & { code?: string }).code;
       setSearchState(
-        code === 'FOCUS_NOT_FOUND' || code === 'NETWORK_NOT_FOUND'
-          ? 'not-found'
+        code === 'FOCUS_NOT_FOUND' ? 'not-found'
           : 'error',
       );
     }
@@ -706,15 +704,7 @@ function PublicNetworkCanvas({
     } catch (error) {
       if (controller.signal.aborted || serial !== requestSerialRef.current) return;
       const code = (error as Error & { code?: string }).code;
-      if (code === 'NETWORK_NOT_FOUND') {
-        clearSavedState(root);
-        cacheRef.current.clear();
-        setCacheVersion((value) => value + 1);
-        setState('error');
-        setErrorCode(code);
-        setSelected(null);
-        setExplorerParent(null);
-      } else if (code === 'FOCUS_NOT_FOUND') {
+      if (code === 'FOCUS_NOT_FOUND') {
         clearSavedState(root);
         setActivePath([root]);
         setSelected(null);
