@@ -302,10 +302,39 @@ export async function runOperatorMonitoringAudit(
     );
   }
 
-  return normalizeRpcSnapshot(
+  const rpcSnapshot = normalizeRpcSnapshot(
     row,
     network,
     trigger,
+  );
+
+  // A BEFORE INSERT database trigger enriches the stored snapshot with Sybil
+  // v2 coverage/backlog invariants. The legacy RPC return variables are built
+  // before that trigger runs, so reload the immutable stored row by ID to make
+  // runtime alerts reflect the authoritative enriched snapshot.
+  const { data: stored, error: storedError } =
+    await supabaseAdmin
+      .from('operator_monitor_snapshots')
+      .select(
+        'id, network, trigger_source, severity, alert_count, metrics, alerts, captured_at',
+      )
+      .eq('id', rpcSnapshot.snapshotId)
+      .maybeSingle();
+
+  if (storedError) {
+    throw new Error(
+      `Enriched operator monitoring snapshot could not be reloaded: ${storedError.message}`,
+    );
+  }
+
+  if (!stored) {
+    throw new Error(
+      'Enriched operator monitoring snapshot disappeared after creation.',
+    );
+  }
+
+  return normalizeStoredSnapshot(
+    stored as StoredSnapshotRow,
   );
 }
 
