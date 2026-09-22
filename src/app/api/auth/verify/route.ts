@@ -120,6 +120,19 @@ function jsonError(
   );
 }
 
+function logTypedProofRejection(
+  reason:
+    | 'typed_signature_invalid'
+    | 'typed_signer_mismatch',
+) {
+  // Safe Production diagnostic only. Never log wallet addresses, signatures,
+  // nonces, or challenge contents.
+  console.info(
+    'Wallet typed proof rejected.',
+    { reason },
+  );
+}
+
 function certificateDomainMatchesOrigin(
   domain: string,
   origin: string,
@@ -495,6 +508,9 @@ export async function POST(
           ),
         );
     } catch {
+      logTypedProofRejection(
+        'typed_signature_invalid',
+      );
       return jsonError(
         'Invalid typed wallet signature.',
         401,
@@ -505,6 +521,9 @@ export async function POST(
       recoveredAddress !==
       walletAddress
     ) {
+      logTypedProofRejection(
+        'typed_signer_mismatch',
+      );
       return jsonError(
         'The typed signature does not match the connected wallet.',
         401,
