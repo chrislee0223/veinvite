@@ -7,6 +7,20 @@ export type WalletAuthTypedDataInput = {
   message: string;
 };
 
+export function canonicalizeWalletAuthExpiresAt(
+  expiresAt: string,
+): string {
+  const parsed = new Date(expiresAt);
+
+  if (Number.isNaN(parsed.getTime())) {
+    throw new Error(
+      'Invalid wallet authentication expiry.',
+    );
+  }
+
+  return parsed.toISOString();
+}
+
 function chainIdForNetwork(
   network: string,
 ): number {
@@ -23,6 +37,11 @@ export function buildWalletAuthTypedData({
   network,
   message,
 }: WalletAuthTypedDataInput) {
+  const canonicalExpiresAt =
+    canonicalizeWalletAuthExpiresAt(
+      expiresAt,
+    );
+
   return {
     domain: {
       name: 'VeInvite',
@@ -61,7 +80,7 @@ export function buildWalletAuthTypedData({
     value: {
       walletAddress,
       nonce,
-      expiresAt,
+      expiresAt: canonicalExpiresAt,
       origin,
       network,
       message,
