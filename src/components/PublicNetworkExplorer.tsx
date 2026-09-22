@@ -313,7 +313,6 @@ export function PublicNetworkExplorer({
         <button type="button" className="backButton" onClick={onBack} aria-label={NETWORK_CANVAS_CONTROL_COPY[locale as SupportedLocale].close}>‹</button>
         <div><span>{e.exploreNetwork}</span><h1>{e.exploreTitle}</h1></div>
       </header>
-      <p className="exploreDescription">{e.exploreDescription}</p>
       <div className="walletLookup">
         <input type="text" value={walletInput} onChange={(event) => setWalletInput(event.target.value)} placeholder={`${e.walletPlaceholder} · .vet`} aria-label={e.walletPlaceholder} dir="ltr" autoComplete="off" autoCapitalize="none" spellCheck={false} />
         <button type="button" disabled={!inputValid} onClick={() => { if (resolvedLookupWallet) setSelectedRoot(resolvedLookupWallet); }}>{e.openNetwork}</button>
@@ -472,7 +471,7 @@ function PublicNetworkCanvas({
     } catch (error) {
       if (signal?.aborted || serial !== requestSerialRef.current) return;
       const code = (error as Error & { code?: string }).code ?? 'PUBLIC_NETWORK_LOAD_FAILED';
-      if (code === 'NETWORK_PRIVATE' || code === 'FOCUS_NOT_PUBLIC') clearSavedState(root);
+      if (code === 'NETWORK_NOT_FOUND' || code === 'FOCUS_NOT_FOUND') clearSavedState(root);
       setState('error');
       setErrorCode(code);
     }
@@ -540,7 +539,7 @@ function PublicNetworkCanvas({
         if (controller.signal.aborted) return;
         const code = (error as Error & { code?: string }).code;
         setSearchState(
-          code === 'FOCUS_NOT_PUBLIC' || code === 'NETWORK_PRIVATE'
+          code === 'FOCUS_NOT_FOUND' || code === 'NETWORK_NOT_FOUND'
             ? 'not-found'
             : 'error',
         );
@@ -707,7 +706,7 @@ function PublicNetworkCanvas({
     } catch (error) {
       if (controller.signal.aborted || serial !== requestSerialRef.current) return;
       const code = (error as Error & { code?: string }).code;
-      if (code === 'NETWORK_PRIVATE') {
+      if (code === 'NETWORK_NOT_FOUND') {
         clearSavedState(root);
         cacheRef.current.clear();
         setCacheVersion((value) => value + 1);
@@ -715,7 +714,7 @@ function PublicNetworkCanvas({
         setErrorCode(code);
         setSelected(null);
         setExplorerParent(null);
-      } else if (code === 'FOCUS_NOT_PUBLIC') {
+      } else if (code === 'FOCUS_NOT_FOUND') {
         clearSavedState(root);
         setActivePath([root]);
         setSelected(null);
@@ -810,7 +809,7 @@ function PublicNetworkCanvas({
 
   if (state === 'error' || !rootData) {
     const maintenance = errorCode === 'PUBLIC_NETWORK_DISABLED';
-    return <section className="publicState networkCard"><div className="stateGlyph"><NetworkGlyph size={34} /></div><h1>{maintenance ? h.maintenanceTitle : e.exploreTitle}</h1><p>{maintenance ? h.maintenanceDescription : errorCode === 'NETWORK_PRIVATE' ? e.networkPrivate : e.maintenance}</p><div className="stateActions"><button type="button" onClick={onBack}>{e.exploreNetwork}</button>{maintenance ? null : <button type="button" onClick={() => void loadRoot()}>{t.retry}</button>}</div><PublicStateStyles /><style jsx>{`.stateActions{width:min(100%,320px);margin:18px auto 0;display:grid;grid-template-columns:1fr 1fr;gap:8px}.stateActions button{min-height:43px;border:1px solid rgba(255,205,80,.15);border-radius:12px;background:rgba(244,183,40,.05);color:#d5bd73;font:inherit;font-size:.66rem;font-weight:900;cursor:pointer}.stateActions button:only-child{grid-column:1/-1}`}</style></section>;
+    return <section className="publicState networkCard"><div className="stateGlyph"><NetworkGlyph size={34} /></div><h1>{maintenance ? h.maintenanceTitle : e.exploreTitle}</h1><p>{maintenance ? h.maintenanceDescription : e.maintenance}</p><div className="stateActions"><button type="button" onClick={onBack}>{e.exploreNetwork}</button>{maintenance ? null : <button type="button" onClick={() => void loadRoot()}>{t.retry}</button>}</div><PublicStateStyles /><style jsx>{`.stateActions{width:min(100%,320px);margin:18px auto 0;display:grid;grid-template-columns:1fr 1fr;gap:8px}.stateActions button{min-height:43px;border:1px solid rgba(255,205,80,.15);border-radius:12px;background:rgba(244,183,40,.05);color:#d5bd73;font:inherit;font-size:.66rem;font-weight:900;cursor:pointer}.stateActions button:only-child{grid-column:1/-1}`}</style></section>;
   }
 
   return (
