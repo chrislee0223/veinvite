@@ -545,7 +545,7 @@ test('node labels prefer VET domains while preserving the original scoped node D
   assert.match(labelSource, /readCachedLeaderboardDomain\(address\)/);
   assert.match(labelSource, /useVechainDomain\(\s*shouldResolveDomain \? address : undefined/);
   assert.match(labelSource, /rememberLeaderboardDomain\(address, queriedDomain\)/);
-  assert.match(labelSource, /return <>\{resolvedDomain \|\| nodeWallet\(address\)\}<\/>/);
+  assert.match(labelSource, /return <>\{formatCompactVechainDomain\(resolvedDomain\) \|\| nodeWallet\(address\)\}<\/>/);
   assert.doesNotMatch(labelSource, /className=|<span|<strong/);
 
   assert.match(networkSource, /<strong><NetworkNodeLabel address=\{currentData\.focusWallet\} \/><\/strong>/);
