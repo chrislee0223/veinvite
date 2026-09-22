@@ -390,23 +390,62 @@ test('country observation is server-bound to the wallet that initiated the reque
 });
 
 
-test('wallet handoff never reopens VeWorld login and refreshes transport only before signing', async () => {
+test('stale A -> B session handoff rebinds VeWorld before B ownership signing', async () => {
+  const [reconciler, authHook] = await Promise.all([
+    readFile(
+      new URL(
+        '../src/components/WalletProviderAccountReconciler.tsx',
+        import.meta.url,
+      ),
+      'utf8',
+    ),
+    readFile(
+      new URL(
+        '../src/hooks/useWalletAuthentication.ts',
+        import.meta.url,
+      ),
+      'utf8',
+    ),
+  ]);
+
+  assert.match(
+    reconciler,
+    /source:\s*dappKitSource[\s\S]*connectV2/,
+  );
+  assert.match(
+    reconciler,
+    /sessionWallet === targetWallet[\s\S]*cancelActiveWalletAuthentication\(\)[\s\S]*runWalletProviderReconciliation\([\s\S]*connectV2\(null\)[\s\S]*reboundWallet !== targetWallet[\s\S]*method:\s*'DELETE'[\s\S]*WALLET_SESSION_INVALID_EVENT/,
+  );
+  assert.match(
+    reconciler,
+    /VEWORLD_REBIND_TIMEOUT_MS\s*=\s*5_000/,
+  );
+  assert.doesNotMatch(
+    authHook,
+    /await connectV2\(/,
+  );
+  assert.doesNotMatch(
+    authHook,
+    /await initializeAsync\(/,
+  );
+});
+
+test('VeWorld rebind happens only after a confirmed stale browser session', async () => {
   const source = await readFile(
     new URL(
-      '../src/hooks/useWalletAuthentication.ts',
+      '../src/components/WalletProviderAccountReconciler.tsx',
       import.meta.url,
     ),
     'utf8',
   );
 
-  const refresh = source.indexOf('await initializeAsync();');
-  const typedPrompt = source.indexOf('await requestTypedData(');
-
-  assert.ok(refresh >= 0);
-  assert.ok(typedPrompt > refresh);
-  assert.match(
-    source,
-    /runWalletProviderReconciliation\([\s\S]*await initializeAsync\(\)/,
+  const staleSessionCheck = source.indexOf(
+    'sessionWallet === targetWallet',
   );
-  assert.doesNotMatch(source, /await connectV2\(/);
+  const rebind = source.indexOf(
+    'connectV2(null)',
+  );
+
+  assert.ok(staleSessionCheck >= 0);
+  assert.ok(rebind > staleSessionCheck);
 });
