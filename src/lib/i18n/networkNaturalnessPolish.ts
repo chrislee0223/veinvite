@@ -67,8 +67,6 @@ const NETWORK_NATURALNESS_PATCHES: Record<SupportedLocale, NetworkNaturalnessPat
       invitedBy: '초대한 사람',
       noMatching: '일치하는 직접 초대 분기가 없어요.',
     },
-    explore: {
-    },
     interaction: {
       confirmMoveError: '그룹 이동이 완료됐는지 확인하지 못했어요.',
     },
