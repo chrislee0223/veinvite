@@ -12,6 +12,7 @@ const [
   domainCache,
   publicApi,
   migration,
+  emptyRootMigration,
   hubCopy,
   nativeReview,
   naturalnessPolish,
@@ -25,6 +26,7 @@ const [
   readFile('src/lib/leaderboardDomainCache.ts', 'utf8'),
   readFile('src/app/api/network/public/route.ts', 'utf8'),
   readFile('supabase/migrations/20260923023000_make_network_default_public_readonly.sql', 'utf8'),
+  readFile('supabase/migrations/20260923034500_allow_empty_default_public_network_roots.sql', 'utf8'),
   readFile('src/lib/i18n/networkHubCopy.ts', 'utf8'),
   readFile('src/lib/i18n/networkNativeReview.ts', 'utf8'),
   readFile('src/lib/i18n/networkNaturalnessPolish.ts', 'utf8'),
@@ -77,8 +79,8 @@ test('old Network privacy opt-in cannot return through Settings, API, or databas
   assert.doesNotMatch(settings, /network\/public\/visibility/);
   assert.doesNotMatch(settings, /publicEnabled/);
   assert.doesNotMatch(settings, /discoverable/);
-  assert.doesNotMatch(publicExplorer, /NETWORK_PRIVATE|FOCUS_NOT_PUBLIC/);
-  assert.doesNotMatch(publicApi, /NETWORK_PRIVATE|FOCUS_NOT_PUBLIC|hasPrivateBranches/);
+  assert.doesNotMatch(publicExplorer, /NETWORK_PRIVATE|FOCUS_NOT_PUBLIC|NETWORK_NOT_FOUND/);
+  assert.doesNotMatch(publicApi, /NETWORK_PRIVATE|FOCUS_NOT_PUBLIC|NETWORK_NOT_FOUND|hasPrivateBranches/);
   assert.doesNotMatch(migration, /join public\.network_public_profiles/i);
   for (const source of [hubCopy, nativeReview, naturalnessPolish]) {
     assert.doesNotMatch(
@@ -91,10 +93,27 @@ test('old Network privacy opt-in cannot return through Settings, API, or databas
   );
 });
 
-test('default-public reader remains graph-only and does not expose mission, reward, or security state', () => {
+test('default-public reader remains graph-only and empty roots do not require invitation metadata', () => {
   assert.match(migration, /qualified_referral_network_edges/);
-  assert.match(migration, /operator_referral_leaderboard/);
-  assert.doesNotMatch(migration, /reward_status|sybil_status|identity_link|mission_/i);
+  assert.match(emptyRootMigration, /qualified_referral_network_edges/);
+  assert.doesNotMatch(emptyRootMigration, /root_known|NETWORK_NOT_FOUND|invitations|reward_status|sybil_status|identity_link|mission_/i);
+  assert.match(emptyRootMigration, /p\.root_wallet ~ '\^0x\[0-9a-f\]\{40\}\
+
+test('partial domain autocomplete reuses only domains already cached in the current session', () => {
+  assert.match(domainCache, /readCachedLeaderboardDomainSuggestions/);
+  assert.match(domainCache, /sessionStorage\.getItem\(DOMAIN_CACHE_KEY\)/);
+  assert.match(domainCache, /startsWith\(normalizedQuery\)/);
+  assert.match(domainCache, /DOMAIN_SUGGESTION_MIN_CHARS\s*=\s*3/);
+  assert.match(network, /cachedDomainSuggestions/);
+  assert.match(network, /openCachedDomainSuggestion/);
+  assert.match(network, /fetchNetwork\(wallet/);
+  assert.match(network, /formatVechainDomainLabel\(suggestion\.domain\)/);
+  assert.match(publicExplorer, /cachedDomainSuggestions/);
+  assert.match(publicExplorer, /focusCachedDomainSuggestion/);
+  assert.match(publicExplorer, /fetchPublicNetwork\(\s*root,\s*suggestion\.wallet/);
+  assert.doesNotMatch(domainCache, /fetch\(/);
+});
+/i);
   assert.match(publicApi, /Mission, reward,/);
 });
 
