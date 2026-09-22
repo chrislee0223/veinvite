@@ -12,6 +12,10 @@ import {
   type HistoricalWalletChainSnapshotV2,
 } from '@/lib/sybil/v2/historicalChain';
 import {
+  detectHistoricalB3trConsolidation,
+  detectHistoricalRewardCluster,
+} from '@/lib/sybil/v2/clusterMath';
+import {
   evaluateSybilV2Policy,
   SYBIL_V2_POLICY_VERSION,
   type SybilV2Signal,
@@ -580,116 +584,56 @@ async function loadHistoricalRewardSignals(
   }
 
   const ownRows = (ownResult.data ?? []) as HistoricalRewardRow[];
-  if (ownRows.length === 0) return [];
-
-  const signals: SybilV2Signal[] = [];
   const apps = unique(ownRows.map((row) => row.app_id));
+  if (apps.length === 0) return [];
 
-  for (const appId of apps) {
-    const ownAppRows = ownRows.filter((row) => row.app_id === appId);
-    const peerResult = await supabaseAdmin
-      .from('sybil_v2_historical_reward_events')
-      .select('wallet_address,app_id,block_number')
-      .eq('network', invitation.activation_network)
-      .eq('app_id', appId);
+  const peersResult = await supabaseAdmin
+    .from('sybil_v2_historical_reward_events')
+    .select('wallet_address,app_id,block_number')
+    .eq('network', invitation.activation_network)
+    .in('app_id', apps);
 
-    if (peerResult.error) {
-      throw new Error(`Historical reward peers could not be loaded: ${peerResult.error.message}`);
-    }
-
-    const allRows = (peerResult.data ?? []) as HistoricalRewardRow[];
-    const peerWallets = unique(
-      allRows
-        .map((row) => normalizeWallet(row.wallet_address))
-        .filter((peer) => peer !== wallet),
-    );
-
-    if (ownAppRows.length >= 3 && peerWallets.length >= 2) {
-      signals.push({
-        code: 'HISTORICAL_REWARD_APP_CLUSTER',
-        family: 'HISTORICAL_REWARD',
-        strength: 'MEDIUM',
-        score: Math.min(40, 20 + peerWallets.length * 3),
-        independentKey: appId,
-      });
-
-      await insertEvidenceRecord({
-        invitation,
-        subjectWallet: wallet,
-        family: 'HISTORICAL_REWARD',
-        signalCode: 'HISTORICAL_REWARD_APP_CLUSTER',
-        strength: 'MEDIUM',
-        score: Math.min(40, 20 + peerWallets.length * 3),
-        appId,
-        evidence: {
-          ownRewardCount: ownAppRows.length,
-          peerWalletCount: peerWallets.length,
-        },
-        dedupeKey:
-          `sybil-v2:${invitation.invite_code}:historical-app-cluster:${appId}`,
-      });
-    }
-
-    let synchronizedWindows = 0;
-    const synchronizedPeers = new Set<string>();
-
-    for (const own of ownAppRows) {
-      const ownBlock = Number(own.block_number);
-      if (!Number.isSafeInteger(ownBlock)) continue;
-
-      const windowPeers = new Set(
-        allRows
-          .filter((row) => {
-            const peer = normalizeWallet(row.wallet_address);
-            const block = Number(row.block_number);
-            return (
-              peer !== wallet &&
-              Number.isSafeInteger(block) &&
-              Math.abs(block - ownBlock) <= SYNC_REWARD_BLOCK_WINDOW
-            );
-          })
-          .map((row) => normalizeWallet(row.wallet_address)),
-      );
-
-      if (windowPeers.size >= 2) {
-        synchronizedWindows += 1;
-        for (const peer of windowPeers) synchronizedPeers.add(peer);
-      }
-    }
-
-    if (synchronizedWindows >= 2 && synchronizedPeers.size >= 2) {
-      const score = Math.min(
-        55,
-        35 + synchronizedPeers.size * 3 + Math.min(10, synchronizedWindows),
-      );
-      signals.push({
-        code: 'HISTORICAL_SYNCHRONIZED_REWARD_CLUSTER',
-        family: 'HISTORICAL_REWARD',
-        strength: 'HIGH',
-        score,
-        independentKey: `sync:${appId}`,
-      });
-
-      await insertEvidenceRecord({
-        invitation,
-        subjectWallet: wallet,
-        family: 'HISTORICAL_REWARD',
-        signalCode: 'HISTORICAL_SYNCHRONIZED_REWARD_CLUSTER',
-        strength: 'HIGH',
-        score,
-        appId,
-        evidence: {
-          synchronizedWindows,
-          synchronizedPeerWalletCount: synchronizedPeers.size,
-          blockWindow: SYNC_REWARD_BLOCK_WINDOW,
-        },
-        dedupeKey:
-          `sybil-v2:${invitation.invite_code}:historical-sync-cluster:${appId}`,
-      });
-    }
+  if (peersResult.error) {
+    throw new Error(`Historical reward peers could not be loaded: ${peersResult.error.message}`);
   }
 
-  return signals;
+  const rows = ((peersResult.data ?? []) as HistoricalRewardRow[])
+    .map((row) => ({
+      walletAddress: normalizeWallet(row.wallet_address),
+      appId: row.app_id.toLowerCase(),
+      blockNumber: Number(row.block_number),
+    }))
+    .filter((row) => Number.isSafeInteger(row.blockNumber));
+
+  const findings = detectHistoricalRewardCluster({
+    walletAddress: wallet,
+    rows,
+    synchronizedBlockWindow: SYNC_REWARD_BLOCK_WINDOW,
+  });
+
+  for (const finding of findings) {
+    await insertEvidenceRecord({
+      invitation,
+      subjectWallet: wallet,
+      family: finding.signal.family,
+      signalCode: finding.signal.code,
+      strength: finding.signal.strength,
+      score: finding.signal.score,
+      appId: finding.appId,
+      evidence: {
+        ownRewardCount: finding.ownRewardCount,
+        peerWalletCount: finding.peerWalletCount,
+        synchronizedWindows: finding.synchronizedWindows,
+        synchronizedPeerWalletCount:
+          finding.synchronizedPeerWalletCount,
+        blockWindow: SYNC_REWARD_BLOCK_WINDOW,
+      },
+      dedupeKey:
+        `sybil-v2:${invitation.invite_code}:${finding.signal.code.toLowerCase()}:${finding.appId}`,
+    });
+  }
+
+  return findings.map((finding) => finding.signal);
 }
 
 async function loadConsolidationSignals(
@@ -698,12 +642,31 @@ async function loadConsolidationSignals(
   if (!invitation.activation_network || !invitation.invitee_wallet) return [];
 
   const wallet = normalizeWallet(invitation.invitee_wallet);
-  const protocolDestinations = knownProtocolDestinations();
+  const ownRewardResult = await supabaseAdmin
+    .from('sybil_v2_historical_reward_events')
+    .select('block_number')
+    .eq('network', invitation.activation_network)
+    .eq('wallet_address', wallet)
+    .order('block_number', { ascending: false })
+    .limit(1);
+
+  if (ownRewardResult.error) {
+    throw new Error(`Historical reward boundary could not be loaded: ${ownRewardResult.error.message}`);
+  }
+
+  const lastRewardBlock = Number(
+    ownRewardResult.data?.[0]?.block_number ?? 0,
+  );
+  const minimumBlock = Number.isSafeInteger(lastRewardBlock)
+    ? Math.max(0, lastRewardBlock)
+    : 0;
+
   const ownResult = await supabaseAdmin
     .from('sybil_v2_preactivation_b3tr_outflows')
     .select('wallet_address,destination_wallet,block_number')
     .eq('network', invitation.activation_network)
-    .eq('wallet_address', wallet);
+    .eq('wallet_address', wallet)
+    .gte('block_number', minimumBlock);
 
   if (ownResult.error) {
     throw new Error(`Historical B3TR consolidation could not be loaded: ${ownResult.error.message}`);
@@ -713,92 +676,74 @@ async function loadConsolidationSignals(
   const destinations = unique(
     ownRows
       .map((row) => normalizeWallet(row.destination_wallet))
-      .filter((destination) => !protocolDestinations.has(destination)),
+      .filter(
+        (destination) =>
+          !knownProtocolDestinations().has(destination),
+      ),
   );
+  if (destinations.length === 0) return [];
 
-  const signals: SybilV2Signal[] = [];
-
-  for (const destination of destinations) {
-    const peersResult = await supabaseAdmin
+  const [peerResult, inviterResult] = await Promise.all([
+    supabaseAdmin
       .from('sybil_v2_preactivation_b3tr_outflows')
       .select('wallet_address,destination_wallet,block_number')
       .eq('network', invitation.activation_network)
-      .eq('destination_wallet', destination);
-
-    if (peersResult.error) {
-      throw new Error(`B3TR consolidation peers could not be loaded: ${peersResult.error.message}`);
-    }
-
-    const peerRows = (peersResult.data ?? []) as HistoricalOutflowRow[];
-    const wallets = unique(
-      peerRows.map((row) => normalizeWallet(row.wallet_address)),
-    );
-
-    if (wallets.length >= 3) {
-      const score = Math.min(60, 35 + wallets.length * 3);
-      signals.push({
-        code: 'HISTORICAL_COMMON_B3TR_SINK',
-        family: 'HISTORICAL_CONSOLIDATION',
-        strength: 'HIGH',
-        score,
-        independentKey: destination,
-      });
-
-      await insertEvidenceRecord({
-        invitation,
-        subjectWallet: wallet,
-        family: 'HISTORICAL_CONSOLIDATION',
-        signalCode: 'HISTORICAL_COMMON_B3TR_SINK',
-        strength: 'HIGH',
-        score,
-        relatedWallet: destination,
-        evidence: {
-          walletCount: wallets.length,
-        },
-        dedupeKey:
-          `sybil-v2:${invitation.invite_code}:common-b3tr-sink:${destination}`,
-      });
-    }
-
-    const inviterResult = await supabaseAdmin
+      .gte('block_number', minimumBlock)
+      .in('destination_wallet', destinations),
+    supabaseAdmin
       .from('invitations')
-      .select('invite_code')
+      .select('inviter_wallet')
       .eq('activation_network', invitation.activation_network)
-      .eq('inviter_wallet', destination)
-      .limit(1);
+      .not('inviter_wallet', 'is', null),
+  ]);
 
-    if (inviterResult.error) {
-      throw new Error(`Cluster-center inviter role could not be checked: ${inviterResult.error.message}`);
-    }
-
-    if ((inviterResult.data ?? []).length > 0 && wallets.length >= 2) {
-      const score = Math.min(55, 35 + wallets.length * 2);
-      signals.push({
-        code: 'HISTORICAL_SINK_REAPPEARS_AS_INVITER',
-        family: 'CLUSTER_LINK',
-        strength: 'HIGH',
-        score,
-        independentKey: destination,
-      });
-
-      await insertEvidenceRecord({
-        invitation,
-        subjectWallet: wallet,
-        family: 'CLUSTER_LINK',
-        signalCode: 'HISTORICAL_SINK_REAPPEARS_AS_INVITER',
-        strength: 'HIGH',
-        score,
-        relatedWallet: destination,
-        evidence: {
-          historicalSourceWalletCount: wallets.length,
-        },
-        dedupeKey:
-          `sybil-v2:${invitation.invite_code}:sink-reappears-inviter:${destination}`,
-      });
-    }
+  if (peerResult.error) {
+    throw new Error(`B3TR consolidation peers could not be loaded: ${peerResult.error.message}`);
+  }
+  if (inviterResult.error) {
+    throw new Error(`Cluster inviter roles could not be loaded: ${inviterResult.error.message}`);
   }
 
-  return signals;
+  const rows = ((peerResult.data ?? []) as HistoricalOutflowRow[])
+    .map((row) => ({
+      walletAddress: normalizeWallet(row.wallet_address),
+      destinationWallet: normalizeWallet(row.destination_wallet),
+      blockNumber: Number(row.block_number),
+    }))
+    .filter((row) => Number.isSafeInteger(row.blockNumber));
+
+  const inviterWallets = new Set(
+    (inviterResult.data ?? [])
+      .map((row) => normalizeWallet(String(row.inviter_wallet))),
+  );
+
+  const findings = detectHistoricalB3trConsolidation({
+    walletAddress: wallet,
+    rows,
+    inviterWallets,
+    knownProtocolDestinations: knownProtocolDestinations(),
+    minimumBlock,
+  });
+
+  for (const finding of findings) {
+    await insertEvidenceRecord({
+      invitation,
+      subjectWallet: wallet,
+      family: finding.signal.family,
+      signalCode: finding.signal.code,
+      strength: finding.signal.strength,
+      score: finding.signal.score,
+      relatedWallet: finding.destinationWallet,
+      evidence: {
+        walletCount: finding.walletCount,
+        minimumBlock,
+      },
+      dedupeKey:
+        `sybil-v2:${invitation.invite_code}:${finding.signal.code.toLowerCase()}:${finding.destinationWallet}`,
+    });
+  }
+
+  return findings.map((finding) => finding.signal);
 }
 
 async function loadFundingSignals(
