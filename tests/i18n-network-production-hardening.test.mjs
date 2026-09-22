@@ -94,6 +94,9 @@ test('Network canvas controls are localized for every supported locale and the g
   assert.match(network, /aria-label=\{c\.zoomIn\}/i);
   assert.match(network, /aria-label=\{c\.zoomOut\}/i);
   assert.doesNotMatch(network, /scaleX\(-1\)/i);
+  assert.match(network, /className="groupsPanel"[^>]*dir=\{profileDirection\}/i);
+  assert.match(network, /className="groupBuilder"[^>]*dir=\{profileDirection\}/i);
+  assert.match(network, /profileDirection === 'rtl' \? '›' : '‹'/i);
   assert.doesNotMatch(network, /direction:\s*rtl[^}]*\.world/i);
 });
 

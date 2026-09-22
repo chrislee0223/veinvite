@@ -336,6 +336,25 @@ test('Network header metrics never use a dash placeholder or shift adjacent labe
   assert.match(networkSource, /font-variant-numeric:tabular-nums/);
 });
 
+test('Network localized content stays bounded and RTL overlays adapt without mirroring the graph', () => {
+  assert.match(networkSource, /<span title=\{t\.networkSize\}>\{t\.networkSize\}<\/span>/);
+  assert.match(networkSource, /<span title=\{t\.thisRound\}>\{t\.thisRound\}<\/span>/);
+  assert.match(networkSource, /\.summary span\{[^}]*max-width:72px[^}]*overflow:hidden[^}]*text-overflow:ellipsis/);
+  assert.match(networkSource, /\.nodeProgressStatus\{[^}]*overflow:hidden[^}]*text-overflow:ellipsis/);
+  assert.match(networkSource, /\.slotNode>strong\{[^}]*width:92px[^}]*overflow:hidden[^}]*text-overflow:ellipsis/);
+  assert.match(networkSource, /\.workspaceNotice\{[^}]*max-width:calc\(100% - 28px\)[^}]*white-space:normal[^}]*overflow-wrap:anywhere/);
+  assert.match(networkSource, /className="searchResults" role="listbox" dir=\{profileDirection\}/);
+  assert.match(networkSource, /className="groupBuilder" data-no-pan="true" dir=\{profileDirection\}/);
+  assert.match(networkSource, /className="groupsPanel" data-no-pan="true" dir=\{profileDirection\}/);
+  assert.match(networkSource, /profileDirection === 'rtl' \? '›' : '‹'/);
+  assert.match(networkSource, /\.searchResults button\{[^}]*text-align:start/);
+  assert.match(networkSource, /\.groupsList>button\{[^}]*text-align:start/);
+  assert.match(networkSource, /\.groupManageTitleButton\{[^}]*text-align:start/);
+  assert.doesNotMatch(networkSource, /direction:\s*rtl[^}]*\.world/);
+  assert.doesNotMatch(networkSource, /scaleX\(-1\)/);
+});
+
+
 test('Network first paint is immediate, warmed, and never swaps to a blocking loading card', () => {
   assert.match(networkRouteSource, /fastInitial = request\.nextUrl\.searchParams\.get\('fast'\) === '1'/);
   assert.match(networkRouteSource, /const round = fastInitial \? null : await readCurrentRoundContext\(\)/);
