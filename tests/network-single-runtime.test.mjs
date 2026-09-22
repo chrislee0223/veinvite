@@ -90,7 +90,7 @@ test('node profile stays compact, prefers cached VET identity, and keeps wallet 
   assert.doesNotMatch(networkSource, /scaleX\(-1\)/);
 });
 
-test('node profile remains non-blocking and Network keeps one mobile geometry on desktop and phone', () => {
+test('node profile remains non-blocking and desktop keeps the mobile-width Network card with a bounded height', () => {
   const profileStart = networkSource.indexOf('{selectedWallet && !editingLayout ? (');
   const profileEnd = networkSource.indexOf('{dragGhost && dragGhostChild', profileStart);
   assert.ok(profileStart >= 0 && profileEnd > profileStart);
@@ -100,7 +100,7 @@ test('node profile remains non-blocking and Network keeps one mobile geometry on
   assert.match(networkSource, /if \(!interactive && selectedWallet\) \{\s*setSelectedWallet\(null\);\s*\}/);
   assert.match(networkSource, /\.personNode\.selected \.nodeCircle\{[^}]*0 0 34px/);
   assert.match(networkSource, /\.profileCard\.hasParentReturn\{bottom:52px\}/);
-  assert.doesNotMatch(homeSource, /height:min\(720px,calc\(100svh - 160px\)\)/);
+  assert.match(homeSource, /@media \(min-width:561px\) \{\s*\.networkTabViewport \{ flex:0 0 auto; height:min\(720px,calc\(100svh - 160px\)\); \}\s*\}/);
   assert.doesNotMatch(networkSource, /@media\(max-width:560px\)/);
   assert.match(homeSource, /\.screen\.networkScreen \{[^}]*padding:14px 14px calc\(72px \+ env\(safe-area-inset-bottom\)\)/);
   assert.match(homeSource, /\.networkScreen \.topActions \{ max-width:58%; align-items:flex-end; flex-direction:column-reverse; gap:7px; \}/);
@@ -332,14 +332,14 @@ test('single runtime keeps the authenticated read-only Network API contract', ()
 test('Network header metrics never use a dash placeholder or shift adjacent labels', () => {
   assert.doesNotMatch(networkSource, /headerThisRound === null \? '–'/);
   assert.match(networkSource, /headerThisRound === null \? '\\u00A0'/);
-  assert.match(networkSource, /grid-template-columns:4\.6ch auto 1px 4\.6ch auto/);
+  assert.match(networkSource, /grid-template-columns:4\.2ch auto 1px 4\.2ch auto/);
   assert.match(networkSource, /font-variant-numeric:tabular-nums/);
 });
 
 test('Network localized content stays bounded and RTL overlays adapt without mirroring the graph', () => {
   assert.match(networkSource, /<span title=\{t\.networkSize\}>\{t\.networkSize\}<\/span>/);
   assert.match(networkSource, /<span title=\{t\.thisRound\}>\{t\.thisRound\}<\/span>/);
-  assert.match(networkSource, /\.summary span\{[^}]*max-width:72px[^}]*overflow:hidden[^}]*text-overflow:ellipsis/);
+  assert.match(networkSource, /\.summary span\{[^}]*max-width:58px[^}]*overflow:hidden[^}]*text-overflow:ellipsis/);
   assert.match(networkSource, /\.nodeProgressStatus\{[^}]*overflow:hidden[^}]*text-overflow:ellipsis/);
   assert.match(networkSource, /\.slotNode>strong\{[^}]*width:92px[^}]*overflow:hidden[^}]*text-overflow:ellipsis/);
   assert.match(networkSource, /\.workspaceNotice\{[^}]*max-width:calc\(100% - 28px\)[^}]*white-space:normal[^}]*overflow-wrap:anywhere/);
@@ -612,7 +612,7 @@ test('root YOU identity lives inside the center node and the top return control 
 test('wallet search is magnifier-first and avoids iPhone focus zoom without disabling pinch zoom', () => {
   assert.match(networkSource, /const \[searchOpen, setSearchOpen\] = useState\(false\)/);
   assert.match(networkSource, /function SearchGlyph\(\)/);
-  assert.match(networkSource, /className="searchToggle"/);
+  assert.match(networkSource, /className=\{\`searchToggle\$\{searchOpen \? ' active' : ''\}\`\}/);
   assert.match(networkSource, /ref=\{searchInputRef\}/);
   assert.match(networkSource, /searchInputRef\.current\?\.focus\(\{ preventScroll: true \}\)/);
   assert.match(networkSource, /const closeSearch = useCallback/);
