@@ -103,7 +103,7 @@ test('node profile remains non-blocking and Network keeps one mobile geometry on
   assert.doesNotMatch(networkSource, /user-scalable|maximum-scale/);
 });
 
-test('ResizeObserver records size only and cannot auto-pan the camera', () => {test('ResizeObserver records size only and cannot auto-pan the camera', () => {
+test('ResizeObserver records size only and cannot auto-pan the camera', () => {
   const resizeStart = networkSource.indexOf('const observer = new ResizeObserver(update)');
   assert.ok(resizeStart >= 0);
   const effectStart = networkSource.lastIndexOf('  useEffect(() => {', resizeStart);
