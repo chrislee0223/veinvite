@@ -12,24 +12,30 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - name: Inspect only post-completion residual activity
+      - name: Audit linked wallets before VeInvite activation
         shell: bash
         run: |
           python3 - <<'PY'
           import json, urllib.request
-          from datetime import datetime, timezone
+          from collections import Counter
 
           NODE='https://mainnet.vechain.org'
           TRANSFER='0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef'
           cases={
-            '8GANYW6':('0x703210579b9f2fd2317415278af71f5fc59f6cc8',25884699),
-            '65242BC':('0x259a1644d0c97a823ca1d6d811f6e6b522d92e82',25895132),
-            'JEZP37F':('0x009c2dbbb4b823b0544c3580921b544baf77cb4d',25940316),
+            '74FQ6CB':('0x2d415cbf574177ccf0e8a178ef2c8df1dcdfa2cc',25825343),
+            'F84ZL4N':('0xd2fe919a38fb7ab6f2c2df0fec7723cb778b0989',25831197),
+            'SQCX6F9':('0x352ac255f820a9d5b952b52199f06f664b40ce15',25832252),
+            'V34W9PM':('0xbe38eb6be67e52c2743995a7bf59efd0e9265d5d',25833219),
+            '8GANYW6':('0x703210579b9f2fd2317415278af71f5fc59f6cc8',25834196),
+            'WPGLEGJ':('0x54f7d0b2f2cdc9be9d1be04c7101e984f2934c36',25834269),
+            'BGGJDJS':('0x37f983771b32d94e975e2568e5dca21d43d75a4d',25834638),
+            '8DNK7KV':('0x1bbd28f95af0df8edcf73431cab62af3b8807c39',25840115),
+            '9L4TMG5':('0x97e82cc272aaa9745b06525085f37b64e2382ff8',25840751),
+            'SBWYUFQ':('0x95af037750d985f094969d3cd741a0ff51082cba',25842235),
+            '2YYCS2X':('0x9fc31513746887e0d82f50aa41212913848feaa0',25875077),
+            'JEZP37F':('0x009c2dbbb4b823b0544c3580921b544baf77cb4d',25878913),
+            '65242BC':('0x259a1644d0c97a823ca1d6d811f6e6b522d92e82',25880600),
           }
-
-          def get(path):
-            with urllib.request.urlopen(NODE+path,timeout=30) as r:
-              return json.loads(r.read().decode())
 
           def post(path,body):
             req=urllib.request.Request(NODE+path,data=json.dumps(body).encode(),headers={'content-type':'application/json'},method='POST')
@@ -39,27 +45,37 @@ jobs:
           def topic(addr): return '0x'+'0'*24+addr.lower().replace('0x','')
           def addr(v): return '0x'+v[-40:].lower() if isinstance(v,str) and len(v)>=42 else None
 
-          best=get('/blocks/best')['number']
-          for code,(wallet,start) in cases.items():
-            base={'range':{'unit':'block','from':start+1,'to':best},'options':{'offset':0,'limit':1000},'order':'asc'}
+          for code,(wallet,activation) in cases.items():
+            base={'range':{'unit':'block','from':0,'to':activation-1},'options':{'offset':0,'limit':1000},'order':'asc'}
             inc=post('/logs/event',{**base,'criteriaSet':[{'topic0':TRANSFER,'topic2':topic(wallet)}]})
             out=post('/logs/event',{**base,'criteriaSet':[{'topic0':TRANSFER,'topic1':topic(wallet)}]})
-            rows=[]
-            for direction,logs in [('in',inc),('out',out)]:
+            vet_in=post('/logs/transfer',{**base,'criteriaSet':[{'recipient':wallet}]})
+            vet_out=post('/logs/transfer',{**base,'criteriaSet':[{'sender':wallet}]})
+            ev=[]
+            for d,logs in [('in',inc),('out',out)]:
               for e in logs:
-                ts=e.get('topics') or []
+                ts=e.get('topics') or []; m=e.get('meta') or {}
+                ev.append({'direction':d,'contract':(e.get('address') or '').lower(),
+                           'from':addr(ts[1]) if len(ts)>=3 else None,'to':addr(ts[2]) if len(ts)>=3 else None,
+                           'block':m.get('blockNumber'),'tx':m.get('txID')})
+            vet=[]
+            for d,logs in [('in',vet_in),('out',vet_out)]:
+              for e in logs:
                 m=e.get('meta') or {}
-                stamp=m.get('blockTimestamp')
-                rows.append({
-                  'direction':direction,
-                  'contract':(e.get('address') or '').lower(),
-                  'from':addr(ts[1]) if len(ts)>=3 else None,
-                  'to':addr(ts[2]) if len(ts)>=3 else None,
-                  'block':m.get('blockNumber'),
-                  'utc':datetime.fromtimestamp(stamp,tz=timezone.utc).isoformat() if isinstance(stamp,int) else None,
-                  'tx':m.get('txID'),
-                  'data':e.get('data')
-                })
-            rows.sort(key=lambda x:((x['block'] or 0),x['direction']))
-            print('DETAIL '+json.dumps({'invite_code':code,'wallet':wallet,'events':rows},separators=(',',':')))
+                vet.append({'direction':d,'from':(e.get('sender') or '').lower() or None,'to':(e.get('recipient') or '').lower() or None,
+                            'block':m.get('blockNumber'),'tx':m.get('txID')})
+            blocks=[x['block'] for x in ev+vet if isinstance(x.get('block'),int)]
+            txs={x['tx'] for x in ev+vet if x.get('tx')}
+            contracts=Counter(x['contract'] for x in ev if x.get('contract'))
+            first=min(blocks) if blocks else None
+            last=max(blocks) if blocks else None
+            print('PRE_ROW '+json.dumps({
+              'invite_code':code,'wallet':wallet,'activation_block':activation,
+              'pre_transfer_events':len(ev)+len(vet),'pre_unique_txs':len(txs),
+              'first_pre_block':first,'last_pre_block':last,
+              'blocks_between_last_pre_and_activation':(activation-last) if last is not None else None,
+              'token_event_count':len(ev),'vet_transfer_count':len(vet),
+              'unique_token_contracts':len(contracts),'top_contracts':contracts.most_common(6),
+              'first_events':sorted(ev+vet,key=lambda x:(x.get('block') or 0))[:8]
+            },separators=(',',':')))
           PY
