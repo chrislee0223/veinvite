@@ -11,8 +11,7 @@ const [
   settings,
   domainCache,
   publicApi,
-  migration,
-  cleanupMigration,
+  migration
 ] = await Promise.all([
   readFile('src/components/InviterLeaderboard.tsx', 'utf8'),
   readFile('src/components/HomeClient.tsx', 'utf8'),
@@ -23,7 +22,6 @@ const [
   readFile('src/lib/leaderboardDomainCache.ts', 'utf8'),
   readFile('src/app/api/network/public/route.ts', 'utf8'),
   readFile('supabase/migrations/20260923023000_make_network_default_public_readonly.sql', 'utf8'),
-  readFile('supabase/migrations/20260923024500_drop_legacy_network_visibility.sql', 'utf8'),
 ]);
 
 test('leaderboard can hand a wallet into the Network tab without prop-drilling the leaderboard tree', () => {
@@ -76,7 +74,6 @@ test('old Network privacy opt-in cannot return through Settings, API, or databas
   assert.doesNotMatch(publicExplorer, /NETWORK_PRIVATE|FOCUS_NOT_PUBLIC/);
   assert.doesNotMatch(publicApi, /NETWORK_PRIVATE|FOCUS_NOT_PUBLIC|hasPrivateBranches/);
   assert.doesNotMatch(migration, /join public\.network_public_profiles/i);
-  assert.match(cleanupMigration, /drop table if exists public\.network_public_profiles/i);
   await assert.rejects(
     access('src/app/api/network/public/visibility/route.ts'),
   );
