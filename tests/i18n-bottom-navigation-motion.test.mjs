@@ -61,13 +61,20 @@ test('bottom navigation alignment uses equal tracks and fixed icon-label rows', 
   assert.match(source, /\.navLabel \{[^}]*text-align: center; line-height: 13px; \}/);
   assert.match(source, /\.navIcon :global\(svg\) \{ display: block; width: 21px; height: 21px; \}/);
 
-  const desktopRail = 520;
-  const desktopBorder = 1 * 2;
-  const desktopInlinePadding = 5 * 2;
-  const desktopInnerWidth = desktopRail - desktopBorder - desktopInlinePadding;
-  assert.equal(desktopInnerWidth, 508);
-  assert.equal(desktopInnerWidth / 4, 127);
-  assert.match(source, /@media \(min-width: 561px\) \{ \.bottomNavigation > div \{ padding-left: 5px; padding-right: 5px; \} \}/);
+  const rail = 520;
+  const border = 1 * 2;
+  const sharedInlinePadding = 4 * 2;
+  const innerWidth = rail - border - sharedInlinePadding;
+  assert.equal(innerWidth, 510);
+  assert.equal(innerWidth / 4, 127.5);
+  assert.match(
+    source,
+    /bottomNavigation\[data-veinvite-active-tab='guide'\] > div \{ min-height: 60px; padding: 4px;/,
+  );
+  assert.doesNotMatch(
+    source,
+    /@media \(min-width: 561px\)[\s\S]*padding-left: 5px/,
+  );
 });
 
 test('tab, indicator and button motion respect reduced-motion preferences', () => {
