@@ -1302,6 +1302,171 @@ grant execute on function public.resolve_sybil_v2_review(
   text,text,text,bigint,text,text
 ) to service_role;
 
+create or replace function public.enrich_operator_monitor_snapshot_sybil_v2()
+returns trigger
+language plpgsql
+security definer
+set search_path = pg_catalog, public
+as $
+declare
+  v_health record;
+  v_stale_scan bigint := 0;
+  v_stale_assessment bigint := 0;
+  v_stale_failure bigint := 0;
+  v_claim_ready_without_clearance bigint := 0;
+  v_live_assessment_coverage_pct numeric := 100;
+  v_extra_alerts jsonb := '[]'::jsonb;
+  v_extra_metrics jsonb := '{}'::jsonb;
+begin
+  select *
+  into v_health
+  from public.operator_sybil_v2_health h
+  where h.network = new.network;
+
+  select count(*)::bigint
+  into v_stale_scan
+  from public.operator_sybil_v2_scan_candidates c
+  where c.network = new.network
+    and c.priority_at < clock_timestamp() - interval '15 minutes';
+
+  select count(*)::bigint
+  into v_stale_assessment
+  from public.operator_sybil_v2_assessment_candidates c
+  where c.network = new.network
+    and c.priority_at < clock_timestamp() - interval '15 minutes';
+
+  select count(*)::bigint
+  into v_stale_failure
+  from public.sybil_v2_referral_assessments a
+  join public.invitations i on i.invite_code = a.invite_code
+  where a.network = new.network
+    and a.state = 'ANALYSIS_FAILED'
+    and a.updated_at < clock_timestamp() - interval '15 minutes'
+    and i.reward_status not in ('PAID','FORFEITED');
+
+  select count(*)::bigint
+  into v_claim_ready_without_clearance
+  from public.reward_queue_entries q
+  join public.invitations i on i.invite_code = q.invite_code
+  where q.network = new.network
+    and q.status = 'AWAITING_CLAIM'
+    and q.sybil_clearance_id is null
+    and i.reward_status <> 'PAID';
+
+  if coalesce(v_health.relevant_referrals,0) > 0 then
+    v_live_assessment_coverage_pct := round(
+      coalesce(v_health.assessed_referrals,0)::numeric * 100
+      / v_health.relevant_referrals::numeric,
+      2
+    );
+  end if;
+
+  v_extra_metrics := jsonb_build_object(
+    'sybilV2',
+    jsonb_build_object(
+      'relevantReferrals', coalesce(v_health.relevant_referrals,0),
+      'assessedReferrals', coalesce(v_health.assessed_referrals,0),
+      'assessmentCoveragePct', v_live_assessment_coverage_pct,
+      'pendingReferrals', coalesce(v_health.pending_referrals,0),
+      'failedReferrals', coalesce(v_health.failed_referrals,0),
+      'heldReferrals', coalesce(v_health.held_referrals,0),
+      'watchReferrals', coalesce(v_health.watch_referrals,0),
+      'clearedForRewardReferrals', coalesce(v_health.cleared_for_reward_referrals,0),
+      'eligibleWithoutClearance', coalesce(v_health.eligible_without_v2_clearance,0),
+      'staleScanBacklog', v_stale_scan,
+      'staleAssessmentBacklog', v_stale_assessment,
+      'staleFailedAnalysis', v_stale_failure,
+      'claimReadyWithoutClearance', v_claim_ready_without_clearance,
+      'staleThresholdMinutes', 15
+    )
+  );
+
+  if v_claim_ready_without_clearance > 0 then
+    v_extra_alerts := v_extra_alerts || jsonb_build_array(
+      jsonb_build_object(
+        'code', 'SYBIL_V2_CLAIM_READY_WITHOUT_CLEARANCE',
+        'severity', 'CRITICAL',
+        'observed', v_claim_ready_without_clearance,
+        'message', 'A live reward reached AWAITING_CLAIM without a Sybil v2 clearance.'
+      )
+    );
+  end if;
+
+  if v_stale_scan > 0 then
+    v_extra_alerts := v_extra_alerts || jsonb_build_array(
+      jsonb_build_object(
+        'code', 'SYBIL_V2_STALE_SCAN_BACKLOG',
+        'severity', 'CRITICAL',
+        'observed', v_stale_scan,
+        'message', 'One or more live referrals have waited over 15 minutes for required Sybil v2 chain evidence.'
+      )
+    );
+  end if;
+
+  if v_stale_assessment > 0 then
+    v_extra_alerts := v_extra_alerts || jsonb_build_array(
+      jsonb_build_object(
+        'code', 'SYBIL_V2_STALE_CLEARANCE_BACKLOG',
+        'severity', 'CRITICAL',
+        'observed', v_stale_assessment,
+        'message', 'One or more reward-eligible referrals have waited over 15 minutes for a current Sybil v2 assessment/clearance.'
+      )
+    );
+  end if;
+
+  if v_stale_failure > 0 then
+    v_extra_alerts := v_extra_alerts || jsonb_build_array(
+      jsonb_build_object(
+        'code', 'SYBIL_V2_STALE_ANALYSIS_FAILURE',
+        'severity', 'CRITICAL',
+        'observed', v_stale_failure,
+        'message', 'A live Sybil v2 analysis failure has remained unresolved for over 15 minutes.'
+      )
+    );
+  elsif coalesce(v_health.failed_referrals,0) > 0 then
+    v_extra_alerts := v_extra_alerts || jsonb_build_array(
+      jsonb_build_object(
+        'code', 'SYBIL_V2_ANALYSIS_FAILURE',
+        'severity', 'WARNING',
+        'observed', coalesce(v_health.failed_referrals,0),
+        'message', 'A Sybil v2 analysis failed and is waiting for retry.'
+      )
+    );
+  end if;
+
+  if coalesce(v_health.held_referrals,0) > 0 then
+    v_extra_alerts := v_extra_alerts || jsonb_build_array(
+      jsonb_build_object(
+        'code', 'SYBIL_V2_OPERATOR_REVIEW_REQUIRED',
+        'severity', 'WARNING',
+        'observed', coalesce(v_health.held_referrals,0),
+        'message', 'One or more Sybil v2 HOLD referrals require operator review.'
+      )
+    );
+  end if;
+
+  new.metrics := coalesce(new.metrics,'{}'::jsonb) || v_extra_metrics;
+  new.alerts := coalesce(new.alerts,'[]'::jsonb) || v_extra_alerts;
+  new.alert_count := jsonb_array_length(new.alerts);
+  new.severity := case
+    when new.alerts @> '[{"severity":"CRITICAL"}]'::jsonb then 'CRITICAL'
+    when new.alert_count > 0 then 'WARNING'
+    else 'NORMAL'
+  end;
+
+  return new;
+end;
+$;
+
+revoke all on function public.enrich_operator_monitor_snapshot_sybil_v2()
+  from public, anon, authenticated, service_role;
+
+drop trigger if exists aa_operator_monitor_sybil_v2_enrichment
+  on public.operator_monitor_snapshots;
+create trigger aa_operator_monitor_sybil_v2_enrichment
+before insert on public.operator_monitor_snapshots
+for each row execute function public.enrich_operator_monitor_snapshot_sybil_v2();
+
 create or replace function public.prevent_v2_cleared_reward_reversal()
 returns trigger
 language plpgsql
