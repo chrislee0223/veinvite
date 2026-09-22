@@ -136,7 +136,7 @@ test('an external VeWorld account switch repairs a persistent VeChainKit/DAppKit
   );
 });
 
-test('stable VeWorld provider agreement automatically retires a stale browser session before B verification', async () => {
+test('stable provider agreement detects a stale browser session before wallet handoff verification', async () => {
   const source = await readFile(
     new URL(
       '../src/components/WalletProviderAccountReconciler.tsx',
@@ -156,7 +156,11 @@ test('stable VeWorld provider agreement automatically retires a stale browser se
   );
   assert.match(
     source,
-    /cancelActiveWalletAuthentication\(\)[\s\S]*method:\s*'DELETE'[\s\S]*new Event\(WALLET_SESSION_INVALID_EVENT\)/,
+    /cancelActiveWalletAuthentication\(\)[\s\S]*dappKitSource === 'veworld'[\s\S]*markPendingVeWorldWalletHandoff[\s\S]*new Event\(WALLET_SESSION_INVALID_EVENT\)/,
+  );
+  assert.match(
+    source,
+    /Non-VeWorld DAppKit sources[\s\S]*method:\s*'DELETE'[\s\S]*new Event\(WALLET_SESSION_INVALID_EVENT\)/,
   );
   assert.doesNotMatch(
     source,
@@ -417,11 +421,11 @@ test('stale A -> B VeWorld handoff keeps A session until one combined B proof pr
 
   assert.match(
     coordinator,
-    /pendingVeWorldHandoffWallet[\s\S]*markPendingVeWorldWalletHandoff[\s\S]*isPendingVeWorldWalletHandoff[\s\S]*clearPendingVeWorldWalletHandoff/,
+    /pendingVeWorldHandoff[\s\S]*markPendingVeWorldWalletHandoff[\s\S]*isPendingVeWorldWalletHandoff[\s\S]*clearPendingVeWorldWalletHandoff/,
   );
   assert.match(
     reconciler,
-    /sessionWallet === targetWallet[\s\S]*cancelActiveWalletAuthentication\(\)[\s\S]*dappKitSource === 'veworld'[\s\S]*markPendingVeWorldWalletHandoff\(targetWallet\)[\s\S]*WALLET_SESSION_INVALID_EVENT[\s\S]*return;/,
+    /sessionWallet === targetWallet[\s\S]*cancelActiveWalletAuthentication\(\)[\s\S]*dappKitSource === 'veworld'[\s\S]*markPendingVeWorldWalletHandoff\([\s\S]*targetWallet,[\s\S]*Date\.now\(\) \+ VEWORLD_HANDOFF_STABILITY_MS[\s\S]*WALLET_SESSION_INVALID_EVENT[\s\S]*return;/,
   );
 
   const veworldBranch = reconciler.slice(
@@ -434,6 +438,63 @@ test('stale A -> B VeWorld handoff keeps A session until one combined B proof pr
   assert.match(
     authHook,
     /if \(isVeWorldHandoff\) \{[\s\S]*await connectV2\(typedData\)[\s\S]*\} else \{[\s\S]*await requestTypedData\(/,
+  );
+});
+
+test('VeWorld external handoff waits for the signer transport stability window before any proof prompt', async () => {
+  const [reconciler, authHook, coordinator] = await Promise.all([
+    readFile(
+      new URL(
+        '../src/components/WalletProviderAccountReconciler.tsx',
+        import.meta.url,
+      ),
+      'utf8',
+    ),
+    readFile(
+      new URL(
+        '../src/hooks/useWalletAuthentication.ts',
+        import.meta.url,
+      ),
+      'utf8',
+    ),
+    readFile(
+      new URL(
+        '../src/lib/walletAuthenticationCoordinator.ts',
+        import.meta.url,
+      ),
+      'utf8',
+    ),
+  ]);
+
+  assert.match(
+    reconciler,
+    /VEWORLD_HANDOFF_STABILITY_MS\s*=\s*10_000/,
+  );
+  assert.match(
+    reconciler,
+    /markPendingVeWorldWalletHandoff\([\s\S]*targetWallet,[\s\S]*Date\.now\(\) \+ VEWORLD_HANDOFF_STABILITY_MS/,
+  );
+  assert.match(
+    coordinator,
+    /readyAt:[\s\S]*getPendingVeWorldWalletHandoffDelay[\s\S]*pendingVeWorldHandoff\.readyAt - Date\.now\(\)/,
+  );
+
+  const delayRead = authHook.indexOf(
+    'getPendingVeWorldWalletHandoffDelay(',
+  );
+  const challenge = authHook.indexOf(
+    "fetch(\n                '/api/auth/challenge'",
+  );
+  const handoffPrompt = authHook.indexOf(
+    'await connectV2(typedData)',
+  );
+
+  assert.ok(delayRead >= 0);
+  assert.ok(challenge > delayRead);
+  assert.ok(handoffPrompt > challenge);
+  assert.match(
+    authHook,
+    /if \(handoffDelay > 0\) \{[\s\S]*await wait\(handoffDelay\);[\s\S]*assertStillCurrent\(\);/,
   );
 });
 
@@ -450,7 +511,7 @@ test('VeWorld handoff marker is created only after a confirmed stale browser ses
     'sessionWallet === targetWallet',
   );
   const marker = source.indexOf(
-    'markPendingVeWorldWalletHandoff(targetWallet)',
+    'markPendingVeWorldWalletHandoff(',
     staleSessionCheck,
   );
 

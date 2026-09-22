@@ -23,6 +23,7 @@ import {
   clearPendingVeWorldWalletHandoff,
   createWalletAuthenticationGeneration,
   getActiveWalletAuthentication,
+  getPendingVeWorldWalletHandoffDelay,
   isPendingVeWorldWalletHandoff,
   isWalletAuthenticationGenerationCurrent,
   setActiveWalletAuthentication,
@@ -333,6 +334,32 @@ export function useWalletAuthentication() {
               );
             }
 
+            if (isVeWorldHandoff) {
+              const handoffDelay =
+                getPendingVeWorldWalletHandoffDelay(
+                  walletAddress,
+                );
+
+              if (handoffDelay > 0) {
+                await wait(handoffDelay);
+                assertStillCurrent();
+              }
+
+              if (
+                !isPendingVeWorldWalletHandoff(
+                  walletAddress,
+                ) ||
+                canonicalWalletRef.current !==
+                  walletAddress ||
+                dappWalletRef.current !==
+                  walletAddress
+              ) {
+                throw new Error(
+                  'Wallet verification was cancelled.',
+                );
+              }
+            }
+
             const challengeResponse =
               await fetch(
                 '/api/auth/challenge',
@@ -381,6 +408,9 @@ export function useWalletAuthentication() {
             let authFlow:
               | 'veworld_handoff_connect_v2'
               | 'veworld_request_typed_data'
+              | undefined;
+            let clientSignerCheck:
+              | 'matched'
               | undefined;
 
             if (
@@ -565,6 +595,8 @@ export function useWalletAuthentication() {
                   );
                 }
 
+                clientSignerCheck =
+                  'matched';
                 proofType =
                   'typed_data';
               } else {
@@ -612,6 +644,7 @@ export function useWalletAuthentication() {
                     signature,
                     proofType,
                     authFlow,
+                    clientSignerCheck,
                     certificate,
                   }),
                   signal: controller.signal,
