@@ -247,3 +247,66 @@ test('shared protocol destination is excluded from consolidation evidence', () =
 
   assert.deepEqual(findings, []);
 });
+
+
+test('recent VTHO sponsorship alone remains weak and does not HOLD', () => {
+  const result = evaluateSybilV2Policy({
+    signals: [{
+      code: 'RECENT_VTHO_FROM_INVITER',
+      family: 'FUNDING',
+      strength: 'LOW',
+      score: 14,
+    }],
+    requiredChecksComplete: true,
+  });
+
+  assert.equal(result.state, 'CLEAR');
+});
+
+test('shared recent funder plus independent cluster linkage escalates to HOLD', () => {
+  const result = evaluateSybilV2Policy({
+    signals: [
+      {
+        code: 'SHARED_RECENT_MULTI_ASSET_FUNDER',
+        family: 'FUNDING',
+        strength: 'MEDIUM',
+        score: 34,
+      },
+      {
+        code: 'SHARED_RECENT_FUNDER_IS_MULTI_INVITER',
+        family: 'CLUSTER_LINK',
+        strength: 'MEDIUM',
+        score: 35,
+      },
+    ],
+    requiredChecksComplete: true,
+  });
+
+  assert.equal(result.state, 'HOLD');
+  assert.deepEqual(
+    new Set(result.strongEvidenceFamilies),
+    new Set(['FUNDING', 'CLUSTER_LINK']),
+  );
+});
+
+test('historical sink link plus weak VTHO alone remains WATCH pending more evidence', () => {
+  const result = evaluateSybilV2Policy({
+    signals: [
+      {
+        code: 'RECENT_VTHO_FROM_INVITER',
+        family: 'FUNDING',
+        strength: 'LOW',
+        score: 14,
+      },
+      {
+        code: 'RECENT_FUNDER_IS_HISTORICAL_COMMON_SINK',
+        family: 'CLUSTER_LINK',
+        strength: 'HIGH',
+        score: 50,
+      },
+    ],
+    requiredChecksComplete: true,
+  });
+
+  assert.equal(result.state, 'WATCH');
+});
