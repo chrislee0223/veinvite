@@ -16,7 +16,6 @@ import { requireWalletSession } from '@/lib/walletAuthServer';
 type PublicNetworkRpcError =
   | 'PUBLIC_NETWORK_DISABLED'
   | 'INVALID_WALLET'
-  | 'NETWORK_NOT_FOUND'
   | 'FOCUS_NOT_FOUND';
 
 type PublicNetworkPayload = {
@@ -217,9 +216,6 @@ export async function GET(request: NextRequest) {
   const payload = (data ?? {}) as PublicNetworkPayload;
   if (payload.error === 'PUBLIC_NETWORK_DISABLED') {
     return noStoreJson({ code: 'PUBLIC_NETWORK_DISABLED', error: 'Public Network is temporarily unavailable.' }, 503);
-  }
-  if (payload.error === 'NETWORK_NOT_FOUND') {
-    return noStoreJson({ code: 'NETWORK_NOT_FOUND', error: 'This VeInvite network was not found.' }, 404);
   }
   if (payload.error === 'FOCUS_NOT_FOUND') {
     return noStoreJson({ code: 'FOCUS_NOT_FOUND', error: 'That wallet is not part of this network.' }, 404);
