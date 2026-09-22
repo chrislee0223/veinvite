@@ -543,7 +543,7 @@ test('wallet search is magnifier-first and avoids iPhone focus zoom without disa
   assert.match(networkSource, /const closeSearch = useCallback/);
   assert.match(networkSource, /closeSearch\(\);[\s\S]*moveToFocus\(result\.wallet, 'forward'\)/);
   assert.match(networkSource, /\.searchField input\{[^}]*font-size:16px/);
-  assert.match(networkSource, /@media\(max-width:560px\)[^\n]*\.searchField input\{font-size:16px\}/);
+  assert.doesNotMatch(networkSource, /@media\(max-width:560px\)/);
   assert.doesNotMatch(networkSource, /maximum-scale|user-scalable|document\.documentElement\.style\.touchAction/);
 });
 test('invite slot fallback geometry is stable before and after stage measurement', () => {
