@@ -716,7 +716,9 @@ export function AppNetwork({ locale }: { locale: Locale }) {
   const [publicSearchWallet, setPublicSearchWallet] = useState<string | null>(null);
   const [searching, setSearching] = useState(false);
   const searchInputRef = useRef<HTMLInputElement | null>(null);
+  const searchActionControllerRef = useRef<AbortController | null>(null);
   const normalizedSearchQuery = searchQuery.trim().toLowerCase();
+  const isWalletLikeSearch = normalizedSearchQuery.startsWith('0x');
   const domainSearchInput =
     searchOpen &&
     normalizedSearchQuery.length >= 3 &&
@@ -1828,11 +1830,20 @@ export function AppNetwork({ locale }: { locale: Locale }) {
   }, [searchOpen]);
 
   const closeSearch = useCallback(() => {
+    searchActionControllerRef.current?.abort();
+    searchActionControllerRef.current = null;
     setSearchOpen(false);
     setSearchQuery('');
     setSearchResults([]);
     setPublicSearchWallet(null);
     setSearching(false);
+  }, []);
+
+  const updateSearchQuery = useCallback((value: string) => {
+    searchActionControllerRef.current?.abort();
+    searchActionControllerRef.current = null;
+    setSearching(false);
+    setSearchQuery(value);
   }, []);
 
   useEffect(() => {
@@ -1851,6 +1862,15 @@ export function AppNetwork({ locale }: { locale: Locale }) {
       return;
     }
     if (domainSearchInput && !resolvedSearchAddress) {
+      setSearchResults([]);
+      setPublicSearchWallet(null);
+      setSearching(false);
+      return;
+    }
+    // Plain-text VET-domain prefixes (for example "yasi") are served from
+    // the session domain cache. Sending them to the wallet-address RPC can
+    // never match and only consumes the Network search rate limit.
+    if (!resolvedSearchAddress && !isWalletLikeSearch) {
       setSearchResults([]);
       setPublicSearchWallet(null);
       setSearching(false);
@@ -1912,6 +1932,7 @@ export function AppNetwork({ locale }: { locale: Locale }) {
     domainSearchInput,
     searchDomainLoading,
     resolvedSearchAddress,
+    isWalletLikeSearch,
     editingLayout,
   ]);
 
@@ -1936,12 +1957,17 @@ export function AppNetwork({ locale }: { locale: Locale }) {
   ) => {
     if (editingLayout || !wallet || !currentData) return;
     const target = keyWallet(suggestion.wallet);
+    searchActionControllerRef.current?.abort();
+    const controller = new AbortController();
+    searchActionControllerRef.current = controller;
     setSearching(true);
     try {
       const result = await fetchNetwork(wallet, {
         focus: currentData.focusWallet,
         query: target,
+        signal: controller.signal,
       });
+      if (controller.signal.aborted) return;
       const ownMatch = (result.searchResults ?? []).find(
         (entry) => keyWallet(entry.wallet) === target,
       );
@@ -1952,9 +1978,17 @@ export function AppNetwork({ locale }: { locale: Locale }) {
       }
       openPublicSearchResult(target);
     } catch {
-      openPublicSearchResult(target);
+      if (controller.signal.aborted) return;
+      // A transient My Network read failure is not evidence that the target
+      // belongs outside the current graph. Keep the search open so the same
+      // suggestion can be retried instead of navigating to the wrong root.
+      setSearchResults([]);
+      setPublicSearchWallet(null);
     } finally {
-      setSearching(false);
+      if (searchActionControllerRef.current === controller) {
+        searchActionControllerRef.current = null;
+        setSearching(false);
+      }
     }
   }, [
     editingLayout,
@@ -3164,7 +3198,7 @@ export function AppNetwork({ locale }: { locale: Locale }) {
               <input
                 ref={searchInputRef}
                 value={searchQuery}
-                onChange={(event) => setSearchQuery(event.target.value)}
+                onChange={(event) => updateSearchQuery(event.target.value)}
                 onKeyDown={(event) => {
                   if (event.key === 'Escape') closeSearch();
                 }}
