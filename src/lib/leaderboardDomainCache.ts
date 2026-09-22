@@ -1,5 +1,7 @@
 const DOMAIN_CACHE_TTL_MS = 15 * 60_000;
 const DOMAIN_CACHE_KEY = 'veinvite_leaderboard_profile_domain_v1';
+const VEWORLD_DOMAIN_SUFFIX = '.veworld.vet';
+const COMPACT_DOMAIN_VISIBLE_CHARS = 8;
 
 type StoredDomain = {
   domain: string | null;
@@ -97,4 +99,21 @@ export function rememberLeaderboardDomain(
   } catch {
     // VET-domain display stays functional even if session storage is blocked.
   }
+}
+
+export function formatCompactVechainDomain(
+  domain: string | null | undefined,
+): string | null {
+  if (typeof domain !== 'string') return null;
+  const normalized = domain.trim();
+  if (!normalized) return null;
+
+  const compactBase = normalized.toLowerCase().endsWith(VEWORLD_DOMAIN_SUFFIX)
+    ? normalized.slice(0, -VEWORLD_DOMAIN_SUFFIX.length)
+    : normalized;
+  const visible = compactBase || normalized;
+
+  return visible.length > COMPACT_DOMAIN_VISIBLE_CHARS
+    ? `${visible.slice(0, COMPACT_DOMAIN_VISIBLE_CHARS)}…`
+    : visible;
 }

@@ -26,6 +26,7 @@ import type {
   PublicLeaderboardResponse,
 } from '@/lib/types';
 import {
+  formatCompactVechainDomain,
   readCachedLeaderboardDomain,
   rememberLeaderboardDomain,
 } from '@/lib/leaderboardDomainCache';
@@ -260,6 +261,7 @@ function WalletIdentity({
   ]);
 
   const profileName = resolvedDomain;
+  const compactProfileName = formatCompactVechainDomain(profileName);
 
   return (
     <>
@@ -294,7 +296,7 @@ function WalletIdentity({
         dir={profileName ? 'auto' : 'ltr'}
         title={profileName ?? address}
       >
-        {profileName ?? maskWallet(address)}
+        {compactProfileName ?? maskWallet(address)}
       </span>
     </>
   );

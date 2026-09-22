@@ -32,6 +32,8 @@ const [
 
 const networkWarmupSource = await readFile('src/components/NetworkIdleWarmup.tsx', 'utf8');
 const networkSlotCacheSource = await readFile('src/lib/networkInviteSlotsClientCache.ts', 'utf8');
+const leaderboardDomainCacheSource = await readFile('src/lib/leaderboardDomainCache.ts', 'utf8');
+const leaderboardSource = await readFile('src/components/InviterLeaderboard.tsx', 'utf8');
 const networkMigrationSource = await readFile(
   'supabase/migrations/20260909040000_harden_network_runtime_and_round_context.sql',
   'utf8',
@@ -543,7 +545,7 @@ test('node labels prefer VET domains while preserving the original scoped node D
   assert.match(labelSource, /readCachedLeaderboardDomain\(address\)/);
   assert.match(labelSource, /useVechainDomain\(\s*shouldResolveDomain \? address : undefined/);
   assert.match(labelSource, /rememberLeaderboardDomain\(address, queriedDomain\)/);
-  assert.match(labelSource, /return <>\{resolvedDomain \|\| nodeWallet\(address\)\}<\/>/);
+  assert.match(labelSource, /return <>\{formatCompactVechainDomain\(resolvedDomain\) \|\| nodeWallet\(address\)\}<\/>/);
   assert.doesNotMatch(labelSource, /className=|<span|<strong/);
 
   assert.match(networkSource, /<strong><NetworkNodeLabel address=\{currentData\.focusWallet\} \/><\/strong>/);
@@ -552,6 +554,20 @@ test('node labels prefer VET domains while preserving the original scoped node D
   assert.match(networkSource, /<strong><NetworkNodeLabel address=\{dragGhost\.wallet\} \/><\/strong>/);
   assert.match(networkSource, /\.nodeMeta strong\{[^}]*max-width:90px[^}]*overflow:hidden[^}]*text-overflow:ellipsis[^}]*white-space:nowrap/);
 });
+
+test('Network and Leaderboard share the same compact VET-domain display rule', () => {
+  assert.match(leaderboardDomainCacheSource, /const VEWORLD_DOMAIN_SUFFIX = '\.veworld\.vet'/);
+  assert.match(leaderboardDomainCacheSource, /const COMPACT_DOMAIN_VISIBLE_CHARS = 8/);
+  assert.match(leaderboardDomainCacheSource, /normalized\.toLowerCase\(\)\.endsWith\(VEWORLD_DOMAIN_SUFFIX\)/);
+  assert.match(leaderboardDomainCacheSource, /normalized\.slice\(0, -VEWORLD_DOMAIN_SUFFIX\.length\)/);
+  assert.match(leaderboardDomainCacheSource, /visible\.slice\(0, COMPACT_DOMAIN_VISIBLE_CHARS\)/);
+  assert.match(networkSource, /formatCompactVechainDomain\(resolvedDomain\) \|\| nodeWallet\(address\)/);
+  assert.match(leaderboardSource, /const compactProfileName = formatCompactVechainDomain\(profileName\)/);
+  assert.match(leaderboardSource, /\{compactProfileName \?\? maskWallet\(address\)\}/);
+  assert.match(networkSource, /\.nodeMeta strong\{[^}]*max-width:90px[^}]*text-overflow:ellipsis[^}]*white-space:nowrap/);
+  assert.match(leaderboardSource, /\.walletText \{[\s\S]*overflow:hidden;[\s\S]*text-overflow:ellipsis;[\s\S]*white-space:nowrap;/);
+});
+
 
 test('root YOU identity lives inside the center node and the top return control stays icon-only', () => {
   const focusStart = networkSource.indexOf('focusNode${selectedWallet');
