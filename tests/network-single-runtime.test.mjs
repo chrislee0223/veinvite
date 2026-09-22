@@ -82,7 +82,8 @@ test('node profile stays compact, prefers cached VET identity, and keeps wallet 
   assert.match(networkSource, /\.profileIdentity :global\(\.identityLabel\)\{[^}]*text-overflow:ellipsis[^}]*white-space:nowrap/);
   assert.match(networkSource, /\.profileStats>div\{[^}]*padding:5px 6px/);
   assert.match(networkSource, /-webkit-line-clamp:2/);
-  assert.match(networkSource, /\.profileCard\[dir='rtl'\] \.profilePathChevron/);
+  assert.match(networkSource, /profileDirection === 'rtl' \? '‹' : '›'/);
+  assert.doesNotMatch(networkSource, /scaleX\(-1\)/);
 });
 
 test('node profile remains non-blocking and Network keeps one mobile geometry on desktop and phone', () => {
