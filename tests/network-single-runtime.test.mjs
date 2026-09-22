@@ -108,10 +108,12 @@ test('node profile remains non-blocking and desktop keeps the mobile-width Netwo
   assert.match(networkSource, /if \(!interactive && selectedWallet\) \{\s*setSelectedWallet\(null\);\s*\}/);
   assert.match(networkSource, /\.personNode\.selected \.nodeCircle\{[^}]*0 0 34px/);
   assert.match(networkSource, /\.profileCard\.hasParentReturn\{bottom:52px\}/);
-  assert.match(homeSource, /@media \(min-width:561px\) \{\s*\.networkTabViewport \{ flex:0 0 auto; height:min\(720px,calc\(100svh - 160px\)\); \}\s*\}/);
+  assert.match(homeSource, /@media \(min-width:561px\) \{\s*\.networkTabViewport \{ max-height:720px; \}\s*\}/);
   assert.doesNotMatch(networkSource, /@media\(max-width:560px\)/);
-  assert.match(homeSource, /\.screen\.networkScreen \{[^}]*padding:14px 14px calc\(96px \+ env\(safe-area-inset-bottom\)\)/);
-  assert.match(homeSource, /\.networkScreen \.topActions \{ max-width:58%; align-items:flex-end; flex-direction:column-reverse; gap:7px; \}/);
+  assert.match(homeSource, /\.screen\.networkScreen \{[^}]*padding:22px 14px calc\(96px \+ env\(safe-area-inset-bottom\)\)/);
+  assert.doesNotMatch(homeSource, /\.networkScreen \.topBar/);
+  assert.doesNotMatch(homeSource, /\.networkScreen \.topActions/);
+  assert.doesNotMatch(homeSource, /\.networkScreen \.accountChip/);
   assert.match(bottomNavigationSource, /\.bottomNavigation \{[^}]*padding: 0 12px calc\(10px \+ env\(safe-area-inset-bottom\)\)/);
   assert.match(bottomNavigationSource, /\.bottomNavigation > div \{[^}]*min-height: 70px[^}]*padding: 6px[^}]*border-radius: 23px/);
   assert.match(bottomNavigationSource, /button \{[^}]*min-height: 56px[^}]*padding: 6px 3px[^}]*grid-template-rows: 21px 13px/);
