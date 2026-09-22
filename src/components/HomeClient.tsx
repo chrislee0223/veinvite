@@ -1170,6 +1170,9 @@ export function HomeClient() {
         .modalCard p { margin:11px 0 0; color:#a39eaf; font-size:.88rem; line-height:1.55; overflow-wrap:anywhere; }
         .cancelConfirm { margin-top:16px; border:0; background:transparent; color:#ff7186; font:inherit; font-size:.8rem; font-weight:900; cursor:pointer; }
         @keyframes skeletonPulse { 0%,100% { opacity:.5; } 50% { opacity:1; } }
+        @media (min-width:561px) {
+          .networkTabViewport { flex:0 0 auto; height:min(720px,calc(100svh - 160px)); }
+        }
         @media (max-width:560px) {
           .screen { padding:18px 14px 116px; }
           .screen.networkScreen { padding:14px 14px calc(72px + env(safe-area-inset-bottom)); }

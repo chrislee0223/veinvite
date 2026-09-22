@@ -6,27 +6,35 @@ const source = fs.readFileSync(new URL('../src/components/AppNetwork.tsx', impor
 const home = fs.readFileSync(new URL('../src/components/HomeClient.tsx', import.meta.url), 'utf8');
 const hub = fs.readFileSync(new URL('../src/components/AppNetworkHub.tsx', import.meta.url), 'utf8');
 
-test('Network title is one compact row and search plus every primary control share one utility row', () => {
-  const header = source.indexOf('className="networkHeader"');
+test('Network summary and search trigger share one compact utility row, with search opening directly below', () => {
   const utility = source.indexOf('className="networkUtilityRow"');
+  const searchRow = source.indexOf('className="networkSearchRow"', utility);
   const stage = source.indexOf('ref={stageRef}');
-  assert.ok(header >= 0 && utility > header && stage > utility);
+  assert.ok(utility >= 0 && searchRow > utility && stage > searchRow);
+  assert.doesNotMatch(source, /className="networkHeader"/);
 
-  const headerSlice = source.slice(header, utility);
-  assert.match(headerSlice, /<h1>\{t\.title\}<\/h1>/);
-  assert.doesNotMatch(headerSlice, />NETWORK</);
-
-  const utilitySlice = source.slice(utility, stage);
-  assert.match(utilitySlice, /searchWrap/);
+  const utilitySlice = source.slice(utility, searchRow);
+  assert.match(utilitySlice, /className="networkIdentity"/);
+  assert.match(utilitySlice, /<h1>\{t\.title\}<\/h1>/);
+  assert.match(utilitySlice, /className=\{\`summary/);
+  assert.match(utilitySlice, /className=\{\`searchToggle/);
   assert.match(utilitySlice, /editLayoutButton/);
   assert.match(utilitySlice, /groupsButton/);
   assert.match(utilitySlice, /viewControls/);
   assert.match(utilitySlice, /zoomByButton\(1\)/);
   assert.match(utilitySlice, /zoomByButton\(-1\)/);
+  assert.doesNotMatch(utilitySlice, /className="searchField"/);
+
+  const searchSlice = source.slice(searchRow, stage);
+  assert.match(searchSlice, /className="searchWrap"/);
+  assert.match(searchSlice, /className="searchField"/);
+  assert.match(searchSlice, /className="searchResults"/);
 
   assert.match(source, /\.networkUtilityRow\{[^}]*display:flex/);
+  assert.match(source, /\.networkIdentity\{[^}]*display:flex/);
+  assert.match(source, /\.networkSearchRow\{[^}]*flex:0 0 auto/);
+  assert.match(source, /\.searchWrap\{[^}]*width:100%/);
   assert.match(source, /\.compactControls\{[^}]*display:flex/);
-  assert.match(source, /\.searchWrap\{[^}]*max-width:108px[^}]*flex:0 1 108px/);
   assert.match(source, /\.layoutControls>button,\.groupMenuAnchor>button\{width:28px/);
   assert.match(source, /\.viewControls\{display:flex;align-items:center/);
   assert.match(source, /className=\{\`editLayoutButton\$\{editingLayout \? ' active' : ''\}\`\}/);
@@ -34,7 +42,7 @@ test('Network title is one compact row and search plus every primary control sha
   assert.match(source, /<LayoutControlGlyph done=\{editingLayout\} \/>/);
   assert.match(source, /<GroupsControlGlyph \/>/);
   assert.doesNotMatch(source, /'✦'|'◉'/);
-  assert.match(source, /className="youControl labeledControl"/);
+  assert.match(source, /className="youControl"/);
 });
 
 test('Network canvas fills the remaining tab height instead of creating page scroll', () => {
@@ -65,8 +73,10 @@ test('stage does not steal pointer capture from buttons and inputs', () => {
 test('desktop Network keeps the compact Network card without restacking the global app header', () => {
   assert.match(home, /@media \(min-width:561px\) \{\s*\.networkTabViewport \{ flex:0 0 auto; height:min\(720px,calc\(100svh - 160px\)\); \}\s*\}/);
   assert.match(hub, /networkHubShell\{width:min\(100%,520px\)/);
-  assert.match(source, /networkHeader\{[^}]*min-height:42px[^}]*padding:7px 9px/);
-  assert.match(source, /networkUtilityRow\{[^}]*min-height:39px[^}]*padding:4px 6px/);
+  assert.doesNotMatch(source, /networkHeader\{/);
+  assert.match(source, /networkUtilityRow\{[^}]*min-height:40px[^}]*padding:4px 6px/);
+  assert.match(source, /networkIdentity\{[^}]*display:flex/);
+  assert.match(source, /networkSearchRow\{[^}]*padding:5px 6px 6px/);
   assert.match(home, /\.topActions \{ min-width:0; display:flex; align-items:center; gap:10px; \}/);
   assert.doesNotMatch(home, /networkScreen \.topActions/);
   assert.doesNotMatch(home, /height:min\(100svh,852px\)/);
@@ -110,6 +120,6 @@ test('layout edit keeps the same compact toolbar instead of spawning reset/new/c
 test('desktop Network height cap is scoped to the Network card only', () => {
   assert.match(home, /.screen.networkScreen {[^}]*height:100svh/);
   assert.match(home, /.networkTabViewport {[^}]*flex:1 1 auto[^}]*display:flex/);
-  assert.match(home, /@media (min-width:561px) {s*.networkTabViewport { flex:0 0 auto; height:min(720px,calc(100svh - 160px)); }s*}/);
-  assert.doesNotMatch(home, /@media (min-width:561px)[sS]{0,220}.screen.networkScreen {[^}]*max-height/);
+  assert.match(home, /@media \(min-width:561px\) \{\s*\.networkTabViewport \{ flex:0 0 auto; height:min\(720px,calc\(100svh - 160px\)\); \}\s*\}/);
+  assert.doesNotMatch(home, /@media \(min-width:561px\)[\s\S]{0,220}\.screen\.networkScreen \{[^}]*max-height/);
 });
