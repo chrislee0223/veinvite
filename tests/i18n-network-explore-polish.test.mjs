@@ -24,7 +24,7 @@ test('Public canvas expires and clears local path state when the saved target no
   assert.match(explorer, /PUBLIC_SESSION_TTL_MS\s*=\s*30 \* 60_000/i);
   assert.match(explorer, /savedAt:\s*Date\.now\(\)/i);
   assert.match(explorer, /Date\.now\(\) - parsed\.savedAt > PUBLIC_SESSION_TTL_MS/i);
-  assert.match(explorer, /code === 'NETWORK_NOT_FOUND' || code === 'FOCUS_NOT_FOUND'[\s\S]*clearSavedState\(root\)/i);
+  assert.match(explorer, /code === 'FOCUS_NOT_FOUND'[\s\S]*clearSavedState\(root\)/i);
 });
 
 test('Public canvas pager and motion controls respect accessibility settings', () => {
