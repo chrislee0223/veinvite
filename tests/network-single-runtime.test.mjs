@@ -332,14 +332,14 @@ test('single runtime keeps the authenticated read-only Network API contract', ()
 test('Network header metrics never use a dash placeholder or shift adjacent labels', () => {
   assert.doesNotMatch(networkSource, /headerThisRound === null \? '–'/);
   assert.match(networkSource, /headerThisRound === null \? '\\u00A0'/);
-  assert.match(networkSource, /grid-template-columns:4\.6ch auto 1px 4\.6ch auto/);
+  assert.match(networkSource, /grid-template-columns:4\.2ch auto 1px 4\.2ch auto/);
   assert.match(networkSource, /font-variant-numeric:tabular-nums/);
 });
 
 test('Network localized content stays bounded and RTL overlays adapt without mirroring the graph', () => {
   assert.match(networkSource, /<span title=\{t\.networkSize\}>\{t\.networkSize\}<\/span>/);
   assert.match(networkSource, /<span title=\{t\.thisRound\}>\{t\.thisRound\}<\/span>/);
-  assert.match(networkSource, /\.summary span\{[^}]*max-width:72px[^}]*overflow:hidden[^}]*text-overflow:ellipsis/);
+  assert.match(networkSource, /\.summary span\{[^}]*max-width:58px[^}]*overflow:hidden[^}]*text-overflow:ellipsis/);
   assert.match(networkSource, /\.nodeProgressStatus\{[^}]*overflow:hidden[^}]*text-overflow:ellipsis/);
   assert.match(networkSource, /\.slotNode>strong\{[^}]*width:92px[^}]*overflow:hidden[^}]*text-overflow:ellipsis/);
   assert.match(networkSource, /\.workspaceNotice\{[^}]*max-width:calc\(100% - 28px\)[^}]*white-space:normal[^}]*overflow-wrap:anywhere/);
@@ -612,7 +612,7 @@ test('root YOU identity lives inside the center node and the top return control 
 test('wallet search is magnifier-first and avoids iPhone focus zoom without disabling pinch zoom', () => {
   assert.match(networkSource, /const \[searchOpen, setSearchOpen\] = useState\(false\)/);
   assert.match(networkSource, /function SearchGlyph\(\)/);
-  assert.match(networkSource, /className="searchToggle"/);
+  assert.match(networkSource, /className=\{\`searchToggle\$\{searchOpen \? ' active' : ''\}\`\}/);
   assert.match(networkSource, /ref=\{searchInputRef\}/);
   assert.match(networkSource, /searchInputRef\.current\?\.focus\(\{ preventScroll: true \}\)/);
   assert.match(networkSource, /const closeSearch = useCallback/);
