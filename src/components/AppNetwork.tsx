@@ -8,7 +8,6 @@ import {
   useRef,
   useState,
   type CSSProperties,
-  type ReactNode,
   type PointerEvent as ReactPointerEvent,
   type WheelEvent as ReactWheelEvent,
 } from 'react';
@@ -461,13 +460,19 @@ function NeutralAvatar({ size = 34 }: { size?: number }) {
   );
 }
 
-function useNetworkIdentityProfile(
-  address: string,
-  eager: boolean,
-  loadAvatar = true,
-) {
+const NetworkIdentity = memo(function NetworkIdentity({
+  address,
+  root = false,
+  showLabel = true,
+  size,
+}: {
+  address: string;
+  root?: boolean;
+  showLabel?: boolean;
+  size?: number;
+}) {
   const hostRef = useRef<HTMLSpanElement | null>(null);
-  const [shouldLoad, setShouldLoad] = useState(eager);
+  const [shouldLoad, setShouldLoad] = useState(root);
   const [loaded, setLoaded] = useState(false);
   const [broken, setBroken] = useState(false);
   const [displayDomain, setDisplayDomain] = useState<string | null | undefined>(
@@ -489,12 +494,13 @@ function useNetworkIdentityProfile(
         ? queriedDomain
         : null;
   const domain = resolvedDomain ?? '';
-  const { data: avatarUrl } = useGetAvatar(loadAvatar ? domain : '');
+  const { data: avatarUrl } = useGetAvatar(domain);
+  const resolvedSize = size ?? (root ? 42 : 34);
 
   useEffect(() => {
     setDisplayDomain(readCachedLeaderboardDomain(address));
-    setShouldLoad(eager);
-  }, [address, eager]);
+    setShouldLoad(root);
+  }, [address, root]);
 
   useEffect(() => {
     const host = hostRef.current;
@@ -529,86 +535,23 @@ function useNetworkIdentityProfile(
     setBroken(false);
   }, [avatarUrl]);
 
-  return {
-    hostRef,
-    domain,
-    avatarUrl,
-    loaded,
-    broken,
-    setLoaded,
-    setBroken,
-  };
-}
-
-function NetworkAvatar({
-  avatarUrl,
-  loaded,
-  broken,
-  size,
-  eager,
-  onLoad,
-  onError,
-}: {
-  avatarUrl: string | null | undefined;
-  loaded: boolean;
-  broken: boolean;
-  size: number;
-  eager: boolean;
-  onLoad: () => void;
-  onError: () => void;
-}) {
-  return (
-    <span className="avatarSlot" style={{ width: size, height: size }}>
-      <NeutralAvatar size={size} />
-      {avatarUrl && !broken ? (
-        <img
-          src={avatarUrl}
-          alt=""
-          loading={eager ? 'eager' : 'lazy'}
-          decoding="async"
-          referrerPolicy="no-referrer"
-          onLoad={onLoad}
-          onError={onError}
-          style={{ width: size, height: size, opacity: loaded ? 1 : 0 }}
-        />
-      ) : null}
-    </span>
-  );
-}
-
-const NetworkIdentity = memo(function NetworkIdentity({
-  address,
-  root = false,
-  showLabel = true,
-  size,
-}: {
-  address: string;
-  root?: boolean;
-  showLabel?: boolean;
-  size?: number;
-}) {
-  const {
-    hostRef,
-    domain,
-    avatarUrl,
-    loaded,
-    broken,
-    setLoaded,
-    setBroken,
-  } = useNetworkIdentityProfile(address, root);
-  const resolvedSize = size ?? (root ? 42 : 34);
-
   return (
     <span className="identity" ref={hostRef}>
-      <NetworkAvatar
-        avatarUrl={avatarUrl}
-        loaded={loaded}
-        broken={broken}
-        size={resolvedSize}
-        eager={root}
-        onLoad={() => setLoaded(true)}
-        onError={() => setBroken(true)}
-      />
+      <span className="avatarSlot" style={{ width: resolvedSize, height: resolvedSize }}>
+        <NeutralAvatar size={resolvedSize} />
+        {avatarUrl && !broken ? (
+          <img
+            src={avatarUrl}
+            alt=""
+            loading={root ? 'eager' : 'lazy'}
+            decoding="async"
+            referrerPolicy="no-referrer"
+            onLoad={() => setLoaded(true)}
+            onError={() => setBroken(true)}
+            style={{ width: resolvedSize, height: resolvedSize, opacity: loaded ? 1 : 0 }}
+          />
+        ) : null}
+      </span>
       {showLabel ? (
         <span
           className="identityLabel"
@@ -622,65 +565,61 @@ const NetworkIdentity = memo(function NetworkIdentity({
   );
 });
 
-const NetworkNodeIdentity = memo(function NetworkNodeIdentity({
+const NetworkNodeLabel = memo(function NetworkNodeLabel({
   address,
-  root = false,
-  circleClassName = 'nodeCircle',
-  youLabel,
-  beforeLabel,
-  afterLabel,
 }: {
   address: string;
-  root?: boolean;
-  circleClassName?: string;
-  youLabel?: string;
-  beforeLabel?: ReactNode;
-  afterLabel?: ReactNode;
 }) {
-  const {
-    hostRef,
-    domain,
-    avatarUrl,
-    loaded,
-    broken,
-    setLoaded,
-    setBroken,
-  } = useNetworkIdentityProfile(address, root, !youLabel);
-  const resolvedSize = root ? 42 : 34;
-
-  return (
-    <>
-      <span className={circleClassName} ref={hostRef}>
-        {youLabel ? (
-          <span className="focusYouLabel">{youLabel}</span>
-        ) : (
-          <span className="identity">
-            <NetworkAvatar
-              avatarUrl={avatarUrl}
-              loaded={loaded}
-              broken={broken}
-              size={resolvedSize}
-              eager={root}
-              onLoad={() => setLoaded(true)}
-              onError={() => setBroken(true)}
-            />
-          </span>
-        )}
-      </span>
-      <span className="nodeMeta">
-        {beforeLabel}
-        <strong
-          dir={domain ? 'auto' : 'ltr'}
-          title={domain || address}
-        >
-          {domain || nodeWallet(address)}
-        </strong>
-        {afterLabel}
-      </span>
-    </>
+  const [domainState, setDomainState] = useState<{
+    address: string;
+    domain: string | null | undefined;
+  }>(() => ({
+    address,
+    domain: readCachedLeaderboardDomain(address),
+  }));
+  const cachedDomain =
+    domainState.address === address
+      ? domainState.domain
+      : readCachedLeaderboardDomain(address);
+  const shouldResolveDomain = cachedDomain === undefined;
+  const { data: domainInfo, isLoading: domainLoading } = useVechainDomain(
+    shouldResolveDomain ? address : undefined,
   );
-});
+  const queriedDomain =
+    typeof domainInfo?.domain === 'string' && domainInfo.domain.trim()
+      ? domainInfo.domain.trim()
+      : null;
+  const resolvedDomain =
+    cachedDomain !== undefined
+      ? cachedDomain
+      : !domainLoading
+        ? queriedDomain
+        : null;
 
+  useEffect(() => {
+    setDomainState({
+      address,
+      domain: readCachedLeaderboardDomain(address),
+    });
+  }, [address]);
+
+  useEffect(() => {
+    if (!shouldResolveDomain || domainLoading) return;
+    rememberLeaderboardDomain(address, queriedDomain);
+    setDomainState((current) =>
+      current.address === address
+        ? { address, domain: queriedDomain }
+        : current
+    );
+  }, [
+    address,
+    domainLoading,
+    queriedDomain,
+    shouldResolveDomain,
+  ]);
+
+  return <>{resolvedDomain || nodeWallet(address)}</>;
+});
 function goHomeWithoutReload() {
   const button = document.querySelector<HTMLButtonElement>('[data-veinvite-tab="home"]');
   if (button) {
@@ -3237,18 +3176,20 @@ export function AppNetwork({ locale }: { locale: Locale }) {
               }}
               data-no-pan="true"
             >
-              <NetworkNodeIdentity
-                address={currentData.focusWallet}
-                root
-                circleClassName="nodeCircle focusCircle"
-                youLabel={focusIsRoot ? c.you : undefined}
-                afterLabel={(
-                  <span className="nodeNetworkMetric">
-                    <NetworkCountGlyph />
-                    <span>{currentData.summary.network.toLocaleString()}</span>
-                  </span>
+              <span className="nodeCircle focusCircle">
+                {focusIsRoot ? (
+                  <span className="focusYouLabel">{c.you}</span>
+                ) : (
+                  <NetworkIdentity address={currentData.focusWallet} root showLabel={false} />
                 )}
-              />
+              </span>
+              <span className="nodeMeta">
+                <strong><NetworkNodeLabel address={currentData.focusWallet} /></strong>
+                <span className="nodeNetworkMetric">
+                  <NetworkCountGlyph />
+                  <span>{currentData.summary.network.toLocaleString()}</span>
+                </span>
+              </span>
             </button>
 
             {visibleChildren.map((child) => {
@@ -3292,9 +3233,10 @@ export function AppNetwork({ locale }: { locale: Locale }) {
                   data-no-pan="true"
                   data-workspace-draggable={editingLayout ? 'true' : undefined}
                 >
-                  <NetworkNodeIdentity
-                    address={child.wallet}
-                    afterLabel={child.status === 'IN_PROGRESS' ? (
+                  <span className="nodeCircle"><NetworkIdentity address={child.wallet} showLabel={false} /></span>
+                  <span className="nodeMeta">
+                    <strong><NetworkNodeLabel address={child.wallet} /></strong>
+                    {child.status === 'IN_PROGRESS' ? (
                       <small className="nodeProgressStatus">{t.inProgress}</small>
                     ) : (
                       <span className="nodeNetworkMetric">
@@ -3302,7 +3244,7 @@ export function AppNetwork({ locale }: { locale: Locale }) {
                         <span>{child.network.toLocaleString()}</span>
                       </span>
                     )}
-                  />
+                  </span>
                   {pendingFocus === childKey ? <span className="nodeBusy" aria-hidden="true" /> : null}
                 </button>
               );
@@ -3392,24 +3334,17 @@ export function AppNetwork({ locale }: { locale: Locale }) {
                   aria-label={t.inProgress}
                   title={slot.inviteeWallet ?? t.inProgress}
                 >
-                  {slot.inviteeWallet ? (
-                    <NetworkNodeIdentity
-                      address={slot.inviteeWallet}
-                      beforeLabel={(
-                        <small className="nodeProgressStatus">{t.inProgress} · {slot.completedSteps}/{slot.totalSteps}</small>
-                      )}
-                    />
-                  ) : (
-                    <>
-                      <span className="nodeCircle">
-                        <span className="pendingInviteGlyph" aria-hidden="true">…</span>
-                      </span>
-                      <span className="nodeMeta">
-                        <small className="nodeProgressStatus">{t.inProgress} · {slot.completedSteps}/{slot.totalSteps}</small>
-                        <strong>{t.inProgress}</strong>
-                      </span>
-                    </>
-                  )}
+                  <span className="nodeCircle">
+                    {slot.inviteeWallet ? (
+                      <NetworkIdentity address={slot.inviteeWallet} showLabel={false} />
+                    ) : (
+                      <span className="pendingInviteGlyph" aria-hidden="true">…</span>
+                    )}
+                  </span>
+                  <span className="nodeMeta">
+                    <small className="nodeProgressStatus">{t.inProgress} · {slot.completedSteps}/{slot.totalSteps}</small>
+                    <strong>{slot.inviteeWallet ? <NetworkNodeLabel address={slot.inviteeWallet} /> : t.inProgress}</strong>
+                  </span>
                 </button>
               );
             })}
@@ -3480,9 +3415,10 @@ export function AppNetwork({ locale }: { locale: Locale }) {
           style={{ transform: `translate3d(${dragGhost.x}px,${dragGhost.y}px,0) translate(-50%,-50%)` }}
           aria-hidden="true"
         >
-          <NetworkNodeIdentity
-            address={dragGhost.wallet}
-            afterLabel={dragGhostChild.status === 'IN_PROGRESS' ? (
+          <span className="nodeCircle"><NetworkIdentity address={dragGhost.wallet} showLabel={false} /></span>
+          <span className="nodeMeta">
+            <strong><NetworkNodeLabel address={dragGhost.wallet} /></strong>
+            {dragGhostChild.status === 'IN_PROGRESS' ? (
               <small className="nodeProgressStatus">{t.inProgress}</small>
             ) : (
               <span className="nodeNetworkMetric">
@@ -3490,7 +3426,7 @@ export function AppNetwork({ locale }: { locale: Locale }) {
                 <span>{dragGhostChild.network.toLocaleString()}</span>
               </span>
             )}
-          />
+          </span>
         </div>,
         document.body,
       ) : null}
