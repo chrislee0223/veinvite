@@ -795,7 +795,42 @@ function PublicNetworkCanvas({
     });
   };
 
-  if (state === 'loading') return <section className="publicState networkCard" aria-busy="true"><div className="stateGlyph"><NetworkGlyph size={34} /></div><h1>{e.viewing}</h1><p dir="ltr">{shortWallet(root)}</p><PublicStateStyles /></section>;
+  if (state === 'loading') {
+    return (
+      <section className="publicLoadingCanvas networkCard" aria-busy="true">
+        <header className="publicLoadingHeader" data-no-pan="true">
+          <div className="publicLoadingHeaderLeft">
+            <button type="button" className="backButton" onClick={onBack} aria-label={c.close}>‹</button>
+            <div>
+              <span>{e.viewing}</span>
+              <h1><PublicNodeLabel address={root} /></h1>
+            </div>
+          </div>
+        </header>
+        <div className="publicLoadingStage">
+          <div className="inlineNetworkLoading" role="status" aria-label={e.viewing}>
+            <i /><i /><i />
+          </div>
+        </div>
+        <style jsx>{`
+          .publicLoadingCanvas{width:min(100%,520px);height:100%;min-height:0;margin:0 auto;padding:0;box-sizing:border-box;display:flex;flex-direction:column;border:1px solid rgba(255,255,255,.06)!important;border-radius:18px;background:#090907!important;overflow:hidden}
+          .publicLoadingHeader{min-height:54px;padding:0 10px;display:flex;align-items:center}
+          .publicLoadingHeaderLeft{min-width:0;display:flex;align-items:center;gap:9px}
+          .backButton{flex:0 0 auto;width:36px;height:36px;border:1px solid rgba(255,255,255,.08);border-radius:11px;background:rgba(255,255,255,.03);color:#aaa398;font:inherit;font-size:1.25rem;cursor:pointer}
+          .publicLoadingHeaderLeft div{min-width:0}
+          .publicLoadingHeaderLeft span{color:#90702a;font-size:.52rem;font-weight:950;letter-spacing:.12em}
+          .publicLoadingHeaderLeft h1{max-width:220px;margin:2px 0 0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#ede9e0;font-size:.84rem}
+          .publicLoadingStage{position:relative;flex:1 1 auto;min-height:0;display:grid;place-items:center}
+          .inlineNetworkLoading{display:flex;align-items:center;justify-content:center;gap:5px;opacity:.66}
+          .inlineNetworkLoading i{width:5px;height:5px;border-radius:50%;background:#a67e20;animation:publicLoadingDot 850ms ease-in-out infinite}
+          .inlineNetworkLoading i:nth-child(2){animation-delay:120ms}
+          .inlineNetworkLoading i:nth-child(3){animation-delay:240ms}
+          @keyframes publicLoadingDot{0%,100%{opacity:.25}50%{opacity:1}}
+          @media(prefers-reduced-motion:reduce){.inlineNetworkLoading i{animation:none;opacity:.65}}
+        `}</style>
+      </section>
+    );
+  }
 
   if (state === 'error' || !rootData) {
     const maintenance = errorCode === 'PUBLIC_NETWORK_DISABLED';

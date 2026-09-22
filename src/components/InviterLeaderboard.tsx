@@ -965,7 +965,7 @@ export function PublicLeaderboard({
                 closeDialog();
               }}
             >
-              <span>VeInvite · {networkCopy.exploreNetwork}</span>
+              <span>{locale === 'ko' ? '이 초대자의 네트워크 보기' : networkCopy.openNetwork}</span>
               <span aria-hidden="true">›</span>
             </button>
             <p>{t.explorerNote}</p>
