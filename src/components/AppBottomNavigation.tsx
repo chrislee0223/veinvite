@@ -462,11 +462,6 @@ export function AppBottomNavigation({
           .navLabel { width: 100%; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-align: center; line-height: 13px; }
           button.visualActive { color: #ffd45f; }
           .navIcon :global(svg) { display: block; width: 21px; height: 21px; }
-          .bottomNavigation[data-veinvite-active-tab='guide'] { padding-bottom: env(safe-area-inset-bottom); }
-          .bottomNavigation[data-veinvite-active-tab='guide'] > div { min-height: 60px; padding: 4px; border-radius: 20px; }
-          .bottomNavigation[data-veinvite-active-tab='guide'] button { min-height: 50px; padding: 4px 3px; grid-template-rows: 20px 12px; row-gap: 3px; }
-          .bottomNavigation[data-veinvite-active-tab='guide'] .navIcon { width: 20px; height: 20px; }
-          .bottomNavigation[data-veinvite-active-tab='guide'] .navIcon :global(svg) { width: 20px; height: 20px; }
           @media (max-width: 360px) { button { font-size: .53rem; } }
           @media (prefers-reduced-motion: reduce) {
             .activeIndicator { transition: none !important; }

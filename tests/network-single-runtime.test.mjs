@@ -102,11 +102,12 @@ test('node profile remains non-blocking and desktop keeps the mobile-width Netwo
   assert.match(networkSource, /\.profileCard\.hasParentReturn\{bottom:52px\}/);
   assert.match(homeSource, /@media \(min-width:561px\) \{\s*\.networkTabViewport \{ flex:0 0 auto; height:min\(720px,calc\(100svh - 160px\)\); \}\s*\}/);
   assert.doesNotMatch(networkSource, /@media\(max-width:560px\)/);
-  assert.match(homeSource, /\.screen\.networkScreen \{[^}]*padding:14px 14px calc\(72px \+ env\(safe-area-inset-bottom\)\)/);
+  assert.match(homeSource, /\.screen\.networkScreen \{[^}]*padding:14px 14px calc\(96px \+ env\(safe-area-inset-bottom\)\)/);
   assert.match(homeSource, /\.networkScreen \.topActions \{ max-width:58%; align-items:flex-end; flex-direction:column-reverse; gap:7px; \}/);
-  assert.match(bottomNavigationSource, /\.bottomNavigation\[data-veinvite-active-tab='guide'\] \{ padding-bottom: env\(safe-area-inset-bottom\); \}/);
-  assert.match(bottomNavigationSource, /\.bottomNavigation\[data-veinvite-active-tab='guide'\] > div \{ min-height: 60px; padding: 4px; border-radius: 20px; \}/);
-  assert.match(bottomNavigationSource, /\.bottomNavigation\[data-veinvite-active-tab='guide'\] button \{ min-height: 50px; padding: 4px 3px;/);
+  assert.match(bottomNavigationSource, /\.bottomNavigation \{[^}]*padding: 0 12px calc\(10px \+ env\(safe-area-inset-bottom\)\)/);
+  assert.match(bottomNavigationSource, /\.bottomNavigation > div \{[^}]*min-height: 70px[^}]*padding: 6px[^}]*border-radius: 23px/);
+  assert.match(bottomNavigationSource, /button \{[^}]*min-height: 56px[^}]*padding: 6px 3px[^}]*grid-template-rows: 21px 13px/);
+  assert.doesNotMatch(bottomNavigationSource, /\.bottomNavigation\[data-veinvite-active-tab='guide'\]/);
   assert.match(networkHubSource, /\.networkHubState\{[^}]*padding:27px 18px 25px/);
   assert.doesNotMatch(networkHubSource, /@media\(max-width:560px\)/);
   assert.doesNotMatch(bottomNavigationSource, /@media \(min-width: 561px\)/);
