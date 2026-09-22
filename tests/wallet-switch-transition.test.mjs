@@ -388,3 +388,47 @@ test('country observation is server-bound to the wallet that initiated the reque
     /requireWalletSession\(\{[\s\S]*request,[\s\S]*expectedWallet,[\s\S]*\}\)/,
   );
 });
+
+
+test('external VeWorld handoff has no artificial auth stability window or reconnect prompt', async () => {
+  const [reconciler, authHook, coordinator] = await Promise.all([
+    readFile(
+      new URL(
+        '../src/components/WalletProviderAccountReconciler.tsx',
+        import.meta.url,
+      ),
+      'utf8',
+    ),
+    readFile(
+      new URL(
+        '../src/hooks/useWalletAuthentication.ts',
+        import.meta.url,
+      ),
+      'utf8',
+    ),
+    readFile(
+      new URL(
+        '../src/lib/walletAuthenticationCoordinator.ts',
+        import.meta.url,
+      ),
+      'utf8',
+    ),
+  ]);
+
+  assert.doesNotMatch(
+    reconciler,
+    /VEWORLD_HANDOFF_STABILITY_MS|markPendingVeWorldWalletHandoff/,
+  );
+  assert.doesNotMatch(
+    authHook,
+    /connectV2\(|getPendingVeWorldWalletHandoffDelay/,
+  );
+  assert.doesNotMatch(
+    coordinator,
+    /pendingVeWorldHandoff|readyAt/,
+  );
+  assert.match(
+    authHook,
+    /await requestTypedData\(/,
+  );
+});
