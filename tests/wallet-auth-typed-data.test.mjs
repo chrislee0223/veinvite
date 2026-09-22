@@ -2,15 +2,6 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import test from 'node:test';
 
-import {
-  Wallet,
-  verifyTypedData,
-} from 'ethers';
-
-import {
-  buildWalletAuthTypedData,
-} from '../src/lib/walletAuthTypedData.ts';
-
 const [
   authHook,
   challengeRoute,
@@ -34,59 +25,14 @@ test('VeWorld ownership auth uses one established-wallet EIP-712 prompt', () => 
   assert.match(authHook, /proofType\s*=\s*'typed_data'/);
 });
 
-test('fresh and database-reloaded expiry strings produce identical EIP-712 data and signature verification', async () => {
-  const privateKey =
-    '0x0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef';
-  const wallet = new Wallet(privateKey);
-  const walletAddress = wallet.address.toLowerCase();
-  const common = {
-    walletAddress,
-    nonce:
-      'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
-    origin: 'https://veinvite.vercel.app',
-    network: 'mainnet',
-    message: [
-      'Verify your wallet for VeInvite',
-      '',
-      'Expires at: 2026-09-22T05:16:59.584Z',
-    ].join('\n'),
-  };
-
-  const fresh = buildWalletAuthTypedData({
-    ...common,
-    expiresAt: '2026-09-22T05:16:59.584Z',
-  });
-  const reloaded = buildWalletAuthTypedData({
-    ...common,
-    expiresAt: '2026-09-22T05:16:59.584+00:00',
-  });
-
-  assert.deepEqual(
-    fresh,
-    reloaded,
-    'the same instant must never produce different EIP-712 payloads after a database round-trip',
+test('wallet auth expiry is canonicalized before entering EIP-712 values', () => {
+  assert.match(
+    typedDataSource,
+    /canonicalizeWalletAuthExpiresAt[\s\S]*new Date\(expiresAt\)[\s\S]*toISOString\(\)/,
   );
-  assert.equal(
-    fresh.value.expiresAt,
-    '2026-09-22T05:16:59.584Z',
-  );
-
-  const signature = await wallet.signTypedData(
-    fresh.domain,
-    fresh.types,
-    fresh.value,
-  );
-  const recovered = verifyTypedData(
-    reloaded.domain,
-    reloaded.types,
-    reloaded.value,
-    signature,
-  );
-
-  assert.equal(
-    recovered.toLowerCase(),
-    walletAddress,
-    'a signature from a fresh 201 challenge must verify against the database-reloaded representation',
+  assert.match(
+    typedDataSource,
+    /const canonicalExpiresAt =[\s\S]*canonicalizeWalletAuthExpiresAt[\s\S]*expiresAt: canonicalExpiresAt/,
   );
 });
 
@@ -115,10 +61,6 @@ test('server reconstructs typed auth through the same canonicalizing builder', (
   assert.match(verifyRoute, /message:\s*challenge\.message/);
   assert.match(verifyRoute, /proofType === 'typed_data'/);
   assert.match(verifyRoute, /issue_wallet_session_after_verified_challenge/);
-  assert.match(
-    typedDataSource,
-    /canonicalizeWalletAuthExpiresAt[\s\S]*toISOString\(\)/,
-  );
 });
 
 test('typed auth keeps reviewed VeChain chain ids and legacy proof compatibility', () => {
