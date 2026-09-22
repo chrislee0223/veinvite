@@ -149,6 +149,32 @@ create index if not exists sybil_v2_preactivation_b3tr_destination_idx
 create index if not exists sybil_v2_preactivation_b3tr_wallet_idx
   on public.sybil_v2_preactivation_b3tr_outflows(network, wallet_address, block_number);
 
+create table if not exists public.sybil_v2_scan_checkpoints (
+  invite_code text primary key
+    references public.invitations(invite_code) on update cascade on delete restrict,
+  network text not null
+    check (network in ('mainnet','testnet','testnet-staging')),
+  activation_block bigint not null check (activation_block > 0),
+  historical_chain_status text not null default 'PENDING'
+    check (historical_chain_status in ('PENDING','COMPLETE','FAILED')),
+  funding_chain_status text not null default 'PENDING'
+    check (funding_chain_status in ('PENDING','COMPLETE','FAILED')),
+  historical_reward_event_count integer not null default 0
+    check (historical_reward_event_count >= 0),
+  preactivation_b3tr_outflow_count integer not null default 0
+    check (preactivation_b3tr_outflow_count >= 0),
+  attempt_count integer not null default 0
+    check (attempt_count >= 0),
+  last_error text,
+  checked_at timestamptz,
+  updated_at timestamptz not null default now()
+);
+
+create index if not exists sybil_v2_scan_checkpoints_status_idx
+  on public.sybil_v2_scan_checkpoints(
+    network, historical_chain_status, funding_chain_status, updated_at
+  );
+
 create table if not exists public.sybil_v2_wallet_restrictions (
   id uuid primary key default gen_random_uuid(),
   wallet_address text not null
@@ -215,6 +241,7 @@ alter table public.sybil_v2_assessment_events enable row level security;
 alter table public.sybil_v2_evidence_records enable row level security;
 alter table public.sybil_v2_historical_reward_events enable row level security;
 alter table public.sybil_v2_preactivation_b3tr_outflows enable row level security;
+alter table public.sybil_v2_scan_checkpoints enable row level security;
 alter table public.sybil_v2_wallet_restrictions enable row level security;
 alter table public.sybil_v2_reward_clearances enable row level security;
 
@@ -223,6 +250,7 @@ revoke all on public.sybil_v2_assessment_events from public, anon, authenticated
 revoke all on public.sybil_v2_evidence_records from public, anon, authenticated;
 revoke all on public.sybil_v2_historical_reward_events from public, anon, authenticated;
 revoke all on public.sybil_v2_preactivation_b3tr_outflows from public, anon, authenticated;
+revoke all on public.sybil_v2_scan_checkpoints from public, anon, authenticated;
 revoke all on public.sybil_v2_wallet_restrictions from public, anon, authenticated;
 revoke all on public.sybil_v2_reward_clearances from public, anon, authenticated;
 
@@ -231,6 +259,7 @@ grant select, insert on public.sybil_v2_assessment_events to service_role;
 grant select, insert on public.sybil_v2_evidence_records to service_role;
 grant select, insert on public.sybil_v2_historical_reward_events to service_role;
 grant select, insert on public.sybil_v2_preactivation_b3tr_outflows to service_role;
+grant select, insert, update on public.sybil_v2_scan_checkpoints to service_role;
 grant select, insert, update on public.sybil_v2_wallet_restrictions to service_role;
 grant select, insert on public.sybil_v2_reward_clearances to service_role;
 grant usage, select on sequence public.sybil_v2_assessment_events_id_seq to service_role;
@@ -855,6 +884,36 @@ begin
   return query select v_queue.invite_code,v_queue.status,v_queue.claim_requested_at,v_queue.claim_requested_by_wallet;
 end;
 $$;
+
+create or replace function public.enforce_same_security_client_block_policy()
+returns trigger
+language plpgsql
+set search_path = pg_catalog, public
+as $
+begin
+  if new.sybil_status = 'REVIEW'
+     and new.sybil_source = 'SECURITY_CLIENT'
+     and coalesce((new.identity_link_evidence ->> 'sameInviterClient')::boolean, false)
+     and not coalesce((new.identity_link_evidence ->> 'operatorOverride')::boolean, false)
+  then
+    -- Sybil v2 policy: same-client evidence is strong review context, but it is
+    -- not sufficient by itself to permanently block or forfeit a reward.
+    -- Keep the referral on HOLD/UNDER_REVIEW until independent evidence or an
+    -- operator decision corroborates it.
+    new.sybil_status := 'REVIEW';
+    new.sybil_risk_level := 'HIGH';
+    new.sybil_risk_score := greatest(coalesce(new.sybil_risk_score,0), 90);
+    new.sybil_reason := 'Invitee and inviter were observed in the same VeInvite security client; additional independent evidence is required before restriction.';
+    new.sybil_checked_at := clock_timestamp();
+    new.sybil_source := 'SECURITY_CLIENT';
+    if new.status <> 'CANCELLED' then
+      new.status := 'UNDER_REVIEW';
+    end if;
+  end if;
+
+  return new;
+end;
+$;
 
 create or replace function public.prevent_v2_cleared_reward_reversal()
 returns trigger
