@@ -47,6 +47,10 @@ import {
   runSybilObservationBatch,
   type SybilObservationBatchSummary,
 } from '@/lib/sybil/observationBatch';
+import {
+  runSybilV2AssessmentBatch,
+  runSybilV2EvidenceCollectionBatch,
+} from '@/lib/sybil/v2/pipeline';
 import type { VeBetterNetwork } from '@/lib/vebetter/network';
 
 function secureEquals(a: string, b: string) {
@@ -92,6 +96,8 @@ function authorizeCron(request: NextRequest) {
 type CronStageFailure =
   | 'ALLOCATION_SYNC'
   | 'RECONCILIATION'
+  | 'SYBIL_V2_EVIDENCE'
+  | 'SYBIL_V2_ASSESSMENT'
   | 'SYBIL_OBSERVATION'
   | 'SYBIL_BEHAVIOR_OBSERVATION'
   | 'AUTOMATIC_REWARD_PAYOUT'
@@ -168,6 +174,10 @@ export async function GET(
     ReturnType<typeof syncVeInviteAllocationReceipts>
   > | null = null;
   let summary: ReconciliationBatchSummary | null = null;
+  let sybilV2Evidence:
+    Awaited<ReturnType<typeof runSybilV2EvidenceCollectionBatch>> | null = null;
+  let sybilV2Assessment:
+    Awaited<ReturnType<typeof runSybilV2AssessmentBatch>> | null = null;
   let sybilObservation:
     SybilObservationBatchSummary | null = null;
   let sybilBehaviorObservation:
@@ -204,6 +214,22 @@ export async function GET(
   } catch (error) {
     failedStages.push('RECONCILIATION');
     logStageFailure('RECONCILIATION', error);
+  }
+
+  try {
+    sybilV2Evidence =
+      await runSybilV2EvidenceCollectionBatch(4);
+  } catch (error) {
+    failedStages.push('SYBIL_V2_EVIDENCE');
+    logStageFailure('SYBIL_V2_EVIDENCE', error);
+  }
+
+  try {
+    sybilV2Assessment =
+      await runSybilV2AssessmentBatch(10);
+  } catch (error) {
+    failedStages.push('SYBIL_V2_ASSESSMENT');
+    logStageFailure('SYBIL_V2_ASSESSMENT', error);
   }
 
   try {
@@ -379,6 +405,8 @@ export async function GET(
                 ?.vebetter_round_id ?? null,
           }
         : null,
+      sybilV2Evidence,
+      sybilV2Assessment,
       sybilObservation,
       sybilBehaviorObservation,
       automaticRewardPayout,
