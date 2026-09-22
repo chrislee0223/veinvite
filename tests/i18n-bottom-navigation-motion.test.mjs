@@ -63,13 +63,17 @@ test('bottom navigation alignment uses equal tracks and fixed icon-label rows', 
 
   const rail = 520;
   const border = 1 * 2;
-  const sharedInlinePadding = 4 * 2;
+  const sharedInlinePadding = 6 * 2;
   const innerWidth = rail - border - sharedInlinePadding;
-  assert.equal(innerWidth, 510);
-  assert.equal(innerWidth / 4, 127.5);
+  assert.equal(innerWidth, 506);
+  assert.equal(innerWidth / 4, 126.5);
   assert.match(
     source,
-    /bottomNavigation\[data-veinvite-active-tab='guide'\] > div \{ min-height: 60px; padding: 4px;/,
+    /\.bottomNavigation > div \{[^}]*min-height: 70px[^}]*padding: 6px/,
+  );
+  assert.doesNotMatch(
+    source,
+    /\.bottomNavigation\[data-veinvite-active-tab='guide'\]/,
   );
   assert.doesNotMatch(
     source,
