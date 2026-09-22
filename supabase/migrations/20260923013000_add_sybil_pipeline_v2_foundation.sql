@@ -573,6 +573,9 @@ where i.invitee_wallet is not null
   and i.activation_network is not null
   and i.activation_block is not null
   and i.status in ('ACTIVATING','UNDER_REVIEW','COMPLETED')
+  -- Live pipeline only. Historical PAID/FORFEITED referrals are intentionally
+  -- excluded; their retroactive audit is a separate operator backfill task.
+  and i.reward_status not in ('PAID','FORFEITED')
   and (
     s.invite_code is null
     or s.historical_chain_status <> 'COMPLETE'
@@ -625,6 +628,7 @@ with relevant as (
   where i.activation_network is not null
     and i.invitee_wallet is not null
     and i.status in ('ACTIVATING','UNDER_REVIEW','COMPLETED')
+    and i.reward_status not in ('PAID','FORFEITED')
 ), joined as (
   select r.*,
          a.state as assessment_state,
