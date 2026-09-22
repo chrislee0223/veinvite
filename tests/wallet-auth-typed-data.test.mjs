@@ -52,6 +52,10 @@ test('VeWorld auth requires live provider addresses and validates the recovered 
     authHook,
     /recoveredSigner !== walletAddress[\s\S]*VeWorld is still switching wallets/,
   );
+  assert.match(
+    authHook,
+    /clientSignerCheck\s*=\s*[\s\S]*'matched'[\s\S]*proofType\s*=\s*[\s\S]*'typed_data'/,
+  );
 
   const localRecovery = authHook.indexOf(
     'recoveredSigner !== walletAddress',
@@ -85,6 +89,10 @@ test('server reconstructs and verifies typed auth from stored challenge data', (
   assert.match(
     verifyRoute,
     /authFlow[\s\S]*veworld_handoff_connect_v2[\s\S]*veworld_request_typed_data/,
+  );
+  assert.match(
+    verifyRoute,
+    /clientSignerCheck[\s\S]*matched[\s\S]*missing/,
   );
   const diagnosticStart = verifyRoute.indexOf(
     'function logTypedProofRejection',
