@@ -14,6 +14,7 @@ import {
   normalizeAddress,
 } from '@/lib/serverStore';
 import { supabaseAdmin } from '@/lib/supabaseServer';
+import { enqueueSybilV2EvidenceCollection } from '@/lib/sybil/v2/evidenceQueue';
 import {
   requireWalletSession,
   WalletAuthenticationError,
@@ -776,6 +777,21 @@ export async function POST(
           'Invitation was claimed but its stored state could not be verified.',
       },
       { status: 500 },
+    );
+  }
+
+  try {
+    await enqueueSybilV2EvidenceCollection({
+      inviteCode: normalizedCode,
+      detectedAt: new Date().toISOString(),
+    });
+  } catch (queueError) {
+    console.error(
+      'Failed to queue Sybil v2 activation evidence collection:',
+      {
+        inviteCode: normalizedCode,
+        error: queueError,
+      },
     );
   }
 
