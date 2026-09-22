@@ -52,6 +52,14 @@ test('Network has exactly one production component path and no version wrapper c
   assert.equal(qaFiles.some((name) => /^QaNetworkRadialPlaygroundV\d+\.tsx$/.test(name)), false);
 });
 
+test('zero-member wallets still enter the real Network canvas so invite slots remain visible', () => {
+  assert.doesNotMatch(networkHubSource, /probe\.summary\.network === 0/);
+  assert.doesNotMatch(networkHubSource, /t\.emptyTitle|t\.emptyDescription|t\.inviteFriend/);
+  const maintenance = networkHubSource.indexOf("probeState === 'maintenance'");
+  const canvas = networkHubSource.indexOf('<AppNetwork locale={locale} />');
+  assert.ok(maintenance >= 0 && canvas > maintenance);
+});
+
 test('Network runtime has no DOM observer or global viewport ownership', () => {
   assert.doesNotMatch(networkSource, /MutationObserver/);
   assert.doesNotMatch(workspaceSource, /MutationObserver/);
