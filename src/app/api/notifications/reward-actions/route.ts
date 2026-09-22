@@ -20,6 +20,13 @@ type QueueRow = {
   reserved_at: string | null;
   eligible_at: string | null;
   assigned_round_id: string | number | null;
+  sybil_clearance_id: string | null;
+};
+
+type SybilV2ClearanceRow = {
+  id: string;
+  invite_code: string;
+  verdict: string;
 };
 
 type RoundRow = {
@@ -93,7 +100,7 @@ export async function GET(request: NextRequest) {
     const queueResult = await supabaseAdmin
       .from('reward_queue_entries')
       .select(
-        'invite_code, status, reserved_amount_wei, reserved_at, eligible_at, assigned_round_id',
+        'invite_code, status, reserved_amount_wei, reserved_at, eligible_at, assigned_round_id, sybil_clearance_id',
       )
       .eq('recipient_wallet', walletAddress)
       .in('status', ['AWAITING_CLAIM', 'QUEUED', 'ASSIGNED'])
@@ -143,6 +150,31 @@ export async function GET(request: NextRequest) {
       ]),
     );
 
+    const clearanceIds = Array.from(new Set(
+      queueRows
+        .map((row) => row.sybil_clearance_id)
+        .filter((value): value is string => Boolean(value)),
+    ));
+    const validV2ClearanceById = new Map<string, SybilV2ClearanceRow>();
+
+    if (clearanceIds.length > 0) {
+      const clearanceResult = await supabaseAdmin
+        .from('sybil_v2_reward_clearances')
+        .select('id, invite_code, verdict')
+        .in('id', clearanceIds)
+        .in('verdict', ['CLEAR', 'WATCH']);
+
+      if (clearanceResult.error) {
+        throw new Error(
+          `Sybil v2 reward authority could not be loaded: ${clearanceResult.error.message}`,
+        );
+      }
+
+      for (const row of (clearanceResult.data ?? []) as SybilV2ClearanceRow[]) {
+        validV2ClearanceById.set(row.id, row);
+      }
+    }
+
     const assignedRoundIds = Array.from(new Set(
       queueRows
         .map((row) =>
@@ -190,15 +222,27 @@ export async function GET(request: NextRequest) {
       const invitation = invitationByCode.get(queue.invite_code);
       const amount = positiveWei(queue.reserved_amount_wei);
 
+      const v2Clearance = queue.sybil_clearance_id
+        ? validV2ClearanceById.get(queue.sybil_clearance_id) ?? null
+        : null;
+      const hasValidV2Authority = Boolean(
+        v2Clearance &&
+        v2Clearance.invite_code === queue.invite_code,
+      );
+      const legacyAuthority =
+        queue.sybil_clearance_id === null &&
+        invitation?.status === 'COMPLETED' &&
+        invitation.reward_status === 'ELIGIBLE' &&
+        invitation.reward_eligible_at !== null &&
+        invitation.sybil_status === 'CLEAR' &&
+        invitation.sybil_checked_at !== null &&
+        queue.eligible_at === invitation.reward_eligible_at;
+
       if (
         !invitation ||
         invitation.inviter_wallet.toLowerCase() !== walletAddress ||
-        invitation.status !== 'COMPLETED' ||
-        invitation.reward_status !== 'ELIGIBLE' ||
-        invitation.reward_eligible_at === null ||
-        invitation.sybil_status !== 'CLEAR' ||
-        invitation.sybil_checked_at === null ||
-        queue.eligible_at !== invitation.reward_eligible_at ||
+        invitation.reward_status === 'PAID' ||
+        (!hasValidV2Authority && !legacyAuthority) ||
         !amount ||
         !queue.reserved_at ||
         !isRewardActionQueueStatus(queue.status)
