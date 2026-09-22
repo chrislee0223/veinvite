@@ -13,6 +13,9 @@ import {
 import {
   useWallet as useDappKitWallet,
 } from '@vechain/dapp-kit-react';
+import {
+  verifyTypedData,
+} from 'ethers';
 
 import {
   cancelActiveWalletAuthentication,
@@ -21,7 +24,6 @@ import {
   getActiveWalletAuthentication,
   isWalletAuthenticationGenerationCurrent,
   setActiveWalletAuthentication,
-  runWalletProviderReconciliation,
   waitForWalletProviderReconciliation,
 } from '@/lib/walletAuthenticationCoordinator';
 import {
@@ -156,7 +158,6 @@ export function useWalletAuthentication() {
   const {
     account: dappKitAccount,
     source: dappKitSource,
-    initializeAsync,
     requestTypedData,
     requestCertificate,
   } = useDappKitWallet();
@@ -373,43 +374,26 @@ export function useWalletAuthentication() {
               );
               assertStillCurrent();
 
-              // VeWorld can publish the new account through both React
-              // providers a little before its internal signing transport has
-              // finished switching away from the previous account. Refresh the
-              // already-established DAppKit transport here, before any wallet
-              // prompt exists, so the first ownership signature is issued by
-              // the wallet the UI is actually showing. This is deliberately
-              // initializeAsync(), not connectV2(): it rehydrates the existing
-              // connection without reopening VeWorld's login flow.
-              if (dappKitSource === 'veworld') {
-                await withTimeout(
-                  runWalletProviderReconciliation(
-                    async () => {
-                      await initializeAsync();
-                    },
-                  ),
-                  WALLET_PROVIDER_SETTLE_TIMEOUT_MS,
-                  'Wallet connection is still synchronizing. Please try again.',
-                );
-                assertStillCurrent();
-              }
-
-              // Give React/provider subscriptions one short settle window after
-              // the transport refresh, then read refs rather than this callback's
-              // pre-refresh render snapshot. If either provider moved again,
-              // never open a signing prompt for the stale wallet.
+              // Provider reconciliation owns any active VeWorld account
+              // rebind before authentication starts. Do not call
+              // initializeAsync() here: DAppKit v2 can fall back to the
+              // persisted account because VeWorld does not expose a silent
+              // active-signer read through that method.
               await wait(
                 WALLET_SIGNATURE_SETTLE_MS,
               );
               assertStillCurrent();
 
               const signer =
-                canonicalWalletRef.current ||
-                walletAddress;
+                canonicalWalletRef.current;
               const dappSigner =
                 dappWalletRef.current;
 
+              // Never substitute the requested wallet when a provider address
+              // is temporarily missing. A missing address is an unresolved
+              // wallet transition, not proof that the requested signer is live.
               if (
+                !signer ||
                 signer !== walletAddress ||
                 dappSigner !== walletAddress
               ) {
@@ -502,6 +486,37 @@ export function useWalletAuthentication() {
                   );
 
                 assertStillCurrent();
+
+                // VeWorld can briefly display wallet B while its signing
+                // transport still signs with wallet A. Recover the actual
+                // signer locally before contacting VeInvite's verify endpoint
+                // so a stale-wallet proof can never become a server-side 401
+                // or a misleading "wallet verification failed" round-trip.
+                let recoveredSigner: string;
+                try {
+                  recoveredSigner =
+                    verifyTypedData(
+                      typedData.domain,
+                      typedData.types,
+                      typedData.value,
+                      signature,
+                    )
+                      .trim()
+                      .toLowerCase();
+                } catch {
+                  throw new Error(
+                    'VeWorld returned an invalid ownership signature.',
+                  );
+                }
+
+                if (
+                  recoveredSigner !== walletAddress
+                ) {
+                  throw new Error(
+                    'VeWorld is still switching wallets. Please return to VeInvite and try again after the wallet switch finishes.',
+                  );
+                }
+
                 proofType =
                   'typed_data';
               } else {
@@ -636,7 +651,6 @@ export function useWalletAuthentication() {
         connection.isConnectedWithDappKit,
         dappKitAccount,
         dappKitSource,
-        initializeAsync,
         requestTypedData,
         requestCertificate,
         signMessage,
