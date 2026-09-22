@@ -10,110 +10,130 @@ on:
 jobs:
   audit:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 22
-          cache: npm
-      - run: npm install --ignore-scripts --package-lock=false --no-audit --no-fund
-      - name: Compare historical RewardDistributed appIds
+      - name: Recover historical appIds from exact B3TR reward blocks
         shell: bash
         run: |
-          node --input-type=module <<'JS'
-          import { ABIEvent } from '@vechain/sdk-core';
-          import { ThorClient } from '@vechain/sdk-network';
+          python3 - <<'PY'
+          import json, urllib.request
+          from collections import Counter, defaultdict
 
-          const thor = ThorClient.at('https://mainnet.vechain.org');
-          const pool = '0x6Bee7DDab6c99d5B2Af0554EaEA484CE18F52631';
-          const ev = new ABIEvent(
-            'event RewardDistributed(uint256 amount, bytes32 indexed appId, address indexed receiver, string proof, address indexed distributor)',
-          );
-
-          const cases = {
-            '74FQ6CB':['0x2d415cbf574177ccf0e8a178ef2c8df1dcdfa2cc',25825343],
-            'F84ZL4N':['0xd2fe919a38fb7ab6f2c2df0fec7723cb778b0989',25831197],
-            'SQCX6F9':['0x352ac255f820a9d5b952b52199f06f664b40ce15',25832252],
-            'V34W9PM':['0xbe38eb6be67e52c2743995a7bf59efd0e9265d5d',25833219],
-            '8GANYW6':['0x703210579b9f2fd2317415278af71f5fc59f6cc8',25834196],
-            'WPGLEGJ':['0x54f7d0b2f2cdc9be9d1be04c7101e984f2934c36',25834269],
-            'BGGJDJS':['0x37f983771b32d94e975e2568e5dca21d43d75a4d',25834638],
-            '8DNK7KV':['0x1bbd28f95af0df8edcf73431cab62af3b8807c39',25840115],
-            '9L4TMG5':['0x97e82cc272aaa9745b06525085f37b64e2382ff8',25840751],
-            'SBWYUFQ':['0x95af037750d985f094969d3cd741a0ff51082cba',25842235],
-          };
-
-          const all = new Map();
-          const blockMembers = new Map();
-
-          for (const [code,[wallet,activation]] of Object.entries(cases)) {
-            const topics = ev.encodeFilterTopics([null,wallet,null]);
-            const rows = [];
-            let offset=0;
-            while (true) {
-              const logs = await thor.logs.filterRawEventLogs({
-                range:{unit:'block',from:0,to:activation-1},
-                options:{offset,limit:1000},
-                criteriaSet:[{
-                  address:pool,
-                  topic0: typeof topics[0] === 'string' ? topics[0] : undefined,
-                  topic1: typeof topics[1] === 'string' ? topics[1] : undefined,
-                  topic2: typeof topics[2] === 'string' ? topics[2] : undefined,
-                  topic3: typeof topics[3] === 'string' ? topics[3] : undefined,
-                }],
-                order:'asc',
-              });
-              for (const log of logs) {
-                const appId=log.topics?.[1]?.toLowerCase();
-                if (!appId) continue;
-                const row={
-                  app_id:appId,
-                  block:log.meta?.blockNumber ?? null,
-                  timestamp:log.meta?.blockTimestamp ?? null,
-                  tx:log.meta?.txID ?? null,
-                };
-                rows.push(row);
-                if (Number.isInteger(row.block)) {
-                  if (!blockMembers.has(row.block)) blockMembers.set(row.block,[]);
-                  blockMembers.get(row.block).push([code,appId]);
-                }
-              }
-              if (logs.length < 1000) break;
-              offset += 1000;
-            }
-            all.set(code,rows);
-            const counts={};
-            for(const r of rows) counts[r.app_id]=(counts[r.app_id]??0)+1;
-            console.log('HIST_ROW '+JSON.stringify({
-              invite_code:code,wallet,reward_count:rows.length,
-              unique_apps:Object.keys(counts).length,
-              app_counts:Object.entries(counts),
-              rewards:rows,
-            }));
+          NODE='https://mainnet.vechain.org'
+          POOL='0x6bee7ddab6c99d5b2af0554eaea484ce18f52631'
+          B3TR='0x5ef79995fe8a89e0812330e4378eb2660cede699'
+          TRANSFER='0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef'
+          cases={
+            '74FQ6CB':('0x2d415cbf574177ccf0e8a178ef2c8df1dcdfa2cc',25825343),
+            'F84ZL4N':('0xd2fe919a38fb7ab6f2c2df0fec7723cb778b0989',25831197),
+            'SQCX6F9':('0x352ac255f820a9d5b952b52199f06f664b40ce15',25832252),
+            'V34W9PM':('0xbe38eb6be67e52c2743995a7bf59efd0e9265d5d',25833219),
+            '8GANYW6':('0x703210579b9f2fd2317415278af71f5fc59f6cc8',25834196),
+            'WPGLEGJ':('0x54f7d0b2f2cdc9be9d1be04c7101e984f2934c36',25834269),
+            'BGGJDJS':('0x37f983771b32d94e975e2568e5dca21d43d75a4d',25834638),
+            '8DNK7KV':('0x1bbd28f95af0df8edcf73431cab62af3b8807c39',25840115),
+            '9L4TMG5':('0x97e82cc272aaa9745b06525085f37b64e2382ff8',25840751),
+            'SBWYUFQ':('0x95af037750d985f094969d3cd741a0ff51082cba',25842235),
           }
 
-          const seqGroups=new Map();
-          for(const [code,rows] of all){
-            const sig=JSON.stringify(rows.map(r=>r.app_id));
-            if(!seqGroups.has(sig)) seqGroups.set(sig,[]);
-            seqGroups.get(sig).push(code);
-          }
-          console.log('SEQUENCE_GROUPS '+JSON.stringify(
-            [...seqGroups.entries()].map(([sig,codes])=>({
-              wallet_count:codes.length,codes,sequence:JSON.parse(sig)
-            }))
-          ));
+          def post(path, body):
+            req=urllib.request.Request(
+              NODE+path,
+              data=json.dumps(body).encode(),
+              headers={'content-type':'application/json'},
+              method='POST'
+            )
+            with urllib.request.urlopen(req,timeout=30) as r:
+              return json.loads(r.read().decode())
 
-          const sync=[];
-          for(const [block,members] of blockMembers){
-            const codes=[...new Set(members.map(x=>x[0]))].sort();
-            if(codes.length<2) continue;
-            sync.push({
-              block,wallet_count:codes.length,codes,
-              app_ids:[...new Set(members.map(x=>x[1]))].sort()
-            });
-          }
-          sync.sort((a,b)=>a.block-b.block);
-          console.log('SYNC_BLOCKS '+JSON.stringify(sync));
-          JS
+          def topic(addr):
+            return '0x'+'0'*24+addr.lower().replace('0x','')
+
+          allrows={}
+          for code,(wallet,activation) in cases.items():
+            # First get only B3TR transfers from the official rewards pool to this wallet.
+            transfers=post('/logs/event',{
+              'criteriaSet':[{
+                'address':B3TR,
+                'topic0':TRANSFER,
+                'topic1':topic(POOL),
+                'topic2':topic(wallet)
+              }],
+              'range':{'unit':'block','from':0,'to':activation-1},
+              'options':{'offset':0,'limit':1000},
+              'order':'asc'
+            })
+
+            txs={}
+            for t in transfers:
+              m=t.get('meta') or {}
+              tx=m.get('txID')
+              block=m.get('blockNumber')
+              if tx and isinstance(block,int):
+                txs[tx]=block
+
+            rows=[]
+            for block in sorted(set(txs.values())):
+              # Query a single block only; this avoids broad pool scans.
+              logs=post('/logs/event',{
+                'criteriaSet':[{'address':POOL,'topic2':topic(wallet)}],
+                'range':{'unit':'block','from':block,'to':block},
+                'options':{'offset':0,'limit':1000},
+                'order':'asc'
+              })
+              for e in logs:
+                m=e.get('meta') or {}
+                topics=e.get('topics') or []
+                tx=m.get('txID')
+                if tx not in txs or len(topics)<3:
+                  continue
+                rows.append({
+                  'app_id':topics[1].lower(),
+                  'block':block,
+                  'timestamp':m.get('blockTimestamp'),
+                  'tx':tx
+                })
+
+            rows.sort(key=lambda x:(x['block'],x['tx']))
+            allrows[code]=rows
+            counts=Counter(r['app_id'] for r in rows)
+            print('HIST_ROW '+json.dumps({
+              'invite_code':code,'wallet':wallet,
+              'reward_transfer_count':len(transfers),
+              'matched_reward_events':len(rows),
+              'unique_apps':len(counts),
+              'app_counts':counts.most_common(),
+              'rewards':rows
+            },separators=(',',':')))
+
+          # Exact app-sequence groups.
+          groups=defaultdict(list)
+          for code,rows in allrows.items():
+            groups[tuple(r['app_id'] for r in rows)].append(code)
+          print('SEQUENCE_GROUPS '+json.dumps([
+            {'wallet_count':len(codes),'codes':codes,'sequence':list(seq)}
+            for seq,codes in groups.items()
+          ],separators=(',',':')))
+
+          # Near-synchronized rewards: group by app and blocks within 20 blocks.
+          points=[]
+          for code,rows in allrows.items():
+            for r in rows:
+              points.append((r['app_id'],r['block'],code))
+          sync=[]
+          byapp=defaultdict(list)
+          for app,block,code in points:
+            byapp[app].append((block,code))
+          for app,arr in byapp.items():
+            arr.sort()
+            for i,(b,_) in enumerate(arr):
+              members={}
+              for b2,c2 in arr[i:]:
+                if b2-b>20: break
+                members[c2]=b2
+              if len(members)>=2:
+                item={'app_id':app,'start_block':b,'end_block':max(members.values()),
+                      'wallet_count':len(members),'codes':sorted(members)}
+                if item not in sync: sync.append(item)
+          print('SYNC_WINDOWS '+json.dumps(sync,separators=(',',':')))
+          PY
