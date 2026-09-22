@@ -112,6 +112,7 @@ test('node profile remains non-blocking and desktop keeps the mobile-width Netwo
   assert.doesNotMatch(networkSource, /@media\(max-width:560px\)/);
   assert.match(homeSource, /\.screen \{[^}]*padding:22px 16px 118px[^}]*background:radial-gradient/);
   assert.match(homeSource, /\.screen\.networkScreen \{[^}]*height:100svh[^}]*display:flex[^}]*flex-direction:column/);
+  assert.match(homeSource, /\.networkTabViewport \{[^}]*width:min\(100%,520px\)[^}]*max-height:720px[^}]*margin:0 auto[^}]*flex:1 1 auto[^}]*display:flex/);
   assert.doesNotMatch(homeSource, /\.screen\.networkScreen \{[^}]*width:/);
   assert.doesNotMatch(homeSource, /\.screen\.networkScreen \{[^}]*margin:/);
   assert.doesNotMatch(homeSource, /\.screen\.networkScreen \{[^}]*padding:/);

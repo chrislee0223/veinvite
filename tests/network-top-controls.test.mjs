@@ -51,7 +51,7 @@ test('Network keeps only a compact total metric in the utility row and floats se
 test('Network canvas fills the remaining tab height inside the shared mobile-first shell', () => {
   assert.match(home, /screen\.networkScreen \{[^}]*height:100svh[^}]*overflow:hidden/);
   assert.doesNotMatch(home, /screen\.networkScreen \{[^}]*width:min\(100%,548px\)/);
-  assert.match(home, /networkTabViewport \{[^}]*flex:1 1 auto[^}]*display:flex/);
+  assert.match(home, /networkTabViewport \{[^}]*width:min\(100%,520px\)[^}]*max-height:720px[^}]*margin:0 auto[^}]*flex:1 1 auto[^}]*display:flex/);
   assert.match(hub, /networkHubShell\{[^}]*height:100%[^}]*min-height:0[^}]*display:flex/);
   assert.match(source, /networkCanvasPage\{[^}]*width:min\(100%,520px\)[^}]*height:100%[^}]*display:flex;flex-direction:column/);
   assert.match(source, /networkStage\{[^}]*flex:1 1 auto[^}]*min-height:0[^}]*height:auto/);
@@ -131,10 +131,9 @@ test('layout edit keeps the same compact toolbar instead of spawning reset/new/c
   assert.doesNotMatch(source, /data-layout-editing='true'[^\n]*\.searchWrap\{display:none\}/);
 });
 
-test('Network has no desktop-only height cap', () => {
+test('Network uses one mobile-sized frame and one universal height cap at every viewport width', () => {
   assert.match(home, /.screen.networkScreen {[^}]*height:100svh/);
-  assert.match(home, /.networkTabViewport {[^}]*flex:1 1 auto[^}]*display:flex/);
+  assert.match(home, /.networkTabViewport {[^}]*width:min\(100%,520px\)[^}]*max-height:720px[^}]*margin:0 auto[^}]*flex:1 1 auto[^}]*display:flex/);
   assert.doesNotMatch(home, /@media \(min-width:561px\)/);
-  assert.doesNotMatch(home, /\.networkTabViewport \{[^}]*max-height:/);
   assert.doesNotMatch(home, /height:min\(720px,calc\(100svh - 160px\)\)/);
 });
