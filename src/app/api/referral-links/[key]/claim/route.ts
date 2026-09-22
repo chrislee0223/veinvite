@@ -500,7 +500,7 @@ export async function POST(
         }
         try {
           await enqueueSybilV2EvidenceCollection({
-            inviteCode: result.invite_code,
+            inviteCode: invite.code,
             detectedAt: new Date().toISOString(),
           });
         } catch (queueError) {
