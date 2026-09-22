@@ -663,6 +663,9 @@ export function AppNetwork({ locale }: { locale: Locale }) {
   const [draftWorkspace, setDraftWorkspace] = useState<NetworkFocusWorkspace | null>(null);
   const [groupDraft, setGroupDraft] = useState<GroupDraft | null>(null);
   const [managedGroupId, setManagedGroupId] = useState<string | null>(null);
+  const [editingManagedGroupName, setEditingManagedGroupName] = useState(false);
+  const [managedGroupNameDraft, setManagedGroupNameDraft] = useState('');
+  const managedGroupNameInputRef = useRef<HTMLInputElement | null>(null);
   const [memberDropGroupId, setMemberDropGroupId] = useState<string | null>(null);
   const [draggingWorkspaceKey, setDraggingWorkspaceKey] = useState<string | null>(null);
   const [groupingWallet, setGroupingWallet] = useState<string | null>(null);
@@ -935,6 +938,20 @@ export function AppNetwork({ locale }: { locale: Locale }) {
       setManagedGroupId(null);
     }
   }, [managedGroupId, activeWorkspace.groups]);
+
+  useEffect(() => {
+    setEditingManagedGroupName(false);
+    setManagedGroupNameDraft('');
+  }, [managedGroupId, currentFocusKey]);
+
+  useEffect(() => {
+    if (!editingManagedGroupName) return;
+    const frame = window.requestAnimationFrame(() => {
+      managedGroupNameInputRef.current?.focus({ preventScroll: true });
+      managedGroupNameInputRef.current?.select();
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [editingManagedGroupName]);
 
   const restoringWalletSet = useMemo(
     () => new Set(restoringWallets.map(keyWallet)),
@@ -1957,6 +1974,31 @@ export function AppNetwork({ locale }: { locale: Locale }) {
     persistFocusWorkspace(update(committedWorkspace));
   }, [editingLayout, committedWorkspace, mutateEditingWorkspace, persistFocusWorkspace]);
 
+  const beginManagedGroupRename = useCallback(() => {
+    if (!managedGroup) return;
+    setManagedGroupNameDraft(managedGroup.label || w.group);
+    setEditingManagedGroupName(true);
+  }, [managedGroup, w.group]);
+
+  const commitManagedGroupRename = useCallback(() => {
+    if (!managedGroup) {
+      setEditingManagedGroupName(false);
+      setManagedGroupNameDraft('');
+      return;
+    }
+    const label = managedGroupNameDraft.trim();
+    if (label && label !== managedGroup.label) {
+      updateManagedWorkspace((workspace) => ({
+        ...workspace,
+        groups: workspace.groups.map((group) =>
+          group.id === managedGroup.id ? { ...group, label } : group
+        ),
+      }));
+    }
+    setEditingManagedGroupName(false);
+    setManagedGroupNameDraft('');
+  }, [managedGroup, managedGroupNameDraft, updateManagedWorkspace]);
+
   const removeManagedGroupMember = useCallback((member: string) => {
     if (!managedGroup) return;
     const key = keyWallet(member);
@@ -2262,7 +2304,7 @@ export function AppNetwork({ locale }: { locale: Locale }) {
 
     if (pointersRef.current.size === 1) {
       panPointerRef.current = { id: event.pointerId, point, allowed: !interactive };
-      backgroundTapRef.current = editingLayout && !interactive
+      backgroundTapRef.current = !interactive
         ? {
             pointerId: event.pointerId,
             start: point,
@@ -2484,16 +2526,15 @@ export function AppNetwork({ locale }: { locale: Locale }) {
     setGroupDropActive(false);
     setNewGroupDropActive(false);
     const backgroundTap = backgroundTapRef.current;
-    const finishEditingFromBlankTap = Boolean(
+    const blankCanvasTap = Boolean(
       backgroundTap &&
       backgroundTap.pointerId === event.pointerId &&
       event.type === 'pointerup' &&
-      editingLayout &&
-      !groupDraft &&
       !backgroundTap.moved &&
       !backgroundTap.blocked &&
       pointersRef.current.size === 1
     );
+    const finishEditingFromBlankTap = blankCanvasTap && editingLayout && !groupDraft;
     if (backgroundTap?.pointerId === event.pointerId) backgroundTapRef.current = null;
     const holdDrag = holdDragRef.current;
     if (holdDrag && holdDrag.pointerId === event.pointerId) {
@@ -2581,6 +2622,15 @@ export function AppNetwork({ locale }: { locale: Locale }) {
       pinchCandidateWalletRef.current = null;
       pinchEnterIntentRef.current = null;
       pinchReturnIntentRef.current = false;
+      if (blankCanvasTap) {
+        if (groupsOpen) {
+          setEditingManagedGroupName(false);
+          setManagedGroupNameDraft('');
+          setManagedGroupId(null);
+          setGroupsOpen(false);
+        }
+        if (searchOpen) closeSearch();
+      }
       if (finishEditingFromBlankTap) {
         finishLayoutEdit();
       } else if (enterWallet && !editingLayout) {
@@ -2889,7 +2939,38 @@ export function AppNetwork({ locale }: { locale: Locale }) {
                         >‹</button>
                         <div className="groupManageTitle">
                           <span className="groupManageGlyph" aria-hidden="true"><GroupsControlGlyph size={18} /></span>
-                          <strong>{managedGroup.label || w.group}</strong>
+                          {editingManagedGroupName ? (
+                            <input
+                              ref={managedGroupNameInputRef}
+                              className="groupManageTitleInput"
+                              value={managedGroupNameDraft}
+                              onChange={(event) => setManagedGroupNameDraft(event.target.value)}
+                              onBlur={commitManagedGroupRename}
+                              onKeyDown={(event) => {
+                                if (event.key === 'Enter') {
+                                  event.preventDefault();
+                                  event.currentTarget.blur();
+                                } else if (event.key === 'Escape') {
+                                  event.preventDefault();
+                                  setEditingManagedGroupName(false);
+                                  setManagedGroupNameDraft('');
+                                }
+                              }}
+                              aria-label={w.groupName}
+                              maxLength={42}
+                              autoComplete="off"
+                              enterKeyHint="done"
+                            />
+                          ) : (
+                            <button
+                              type="button"
+                              className="groupManageTitleButton"
+                              onClick={beginManagedGroupRename}
+                              title={w.groupName}
+                            >
+                              {managedGroup.label || w.group}
+                            </button>
+                          )}
                         </div>
                         <button
                           type="button"
@@ -3348,7 +3429,7 @@ export function AppNetwork({ locale }: { locale: Locale }) {
         .slotNode{width:52px;height:52px;padding:0;border:0;border-radius:50%;background:transparent;color:#c79f36;cursor:pointer;touch-action:none;user-select:none;-webkit-user-select:none;isolation:isolate}.slotCircle{border:1px dashed rgba(226,181,62,.52);color:#c79f36;font-size:.9rem;background:#0d0d0b;transform:scale(var(--network-node-scale,1));animation:slotPulse 5.6s ease-in-out infinite}.slotNode>strong{position:absolute;left:50%;top:calc(100% + 5px);z-index:2;width:92px;transform:translateX(-50%);color:#a98735;font-size:.47rem;white-space:nowrap;pointer-events:none;opacity:var(--network-label-opacity,1)}.slotNode:hover .slotCircle,.slotNode:focus-visible .slotCircle{border-style:solid;border-color:rgba(244,183,40,.9);box-shadow:0 0 28px rgba(244,183,40,.1);transform:scale(var(--network-node-selected-scale,1.07))}.progressInviteNode::after{content:'';position:absolute;z-index:0;inset:-3px;border-radius:50%;background:conic-gradient(rgba(244,183,40,.95) var(--slot-progress),rgba(244,183,40,.12) 0);-webkit-mask:radial-gradient(farthest-side,transparent calc(100% - 3px),#000 0);mask:radial-gradient(farthest-side,transparent calc(100% - 3px),#000 0);filter:drop-shadow(0 0 4px rgba(244,183,40,.18));pointer-events:none}.progressInviteNode .nodeCircle{border-color:rgba(244,183,40,.62);background:#11100c}.progressInviteNode .nodeMeta small{color:#b28c32}.pendingInviteGlyph{display:grid;place-items:center;width:100%;height:100%;color:#d3aa43;font-size:.9rem;font-weight:950;letter-spacing:.08em}
         .worldContent.nav-forward .childNode .nodeCircle{animation:networkNodeBloom 620ms cubic-bezier(.16,.82,.2,1) both}
         .layoutControls{display:flex;align-items:center;gap:3px;min-width:0}.layoutControls>button,.groupMenuAnchor>button{width:28px;height:29px;padding:0;border:1px solid rgba(255,205,80,.13);border-radius:8px;background:rgba(18,18,15,.94);color:#a9a397;font:inherit;font-size:.65rem;font-weight:900;cursor:pointer;box-shadow:0 7px 18px rgba(0,0,0,.2)}.layoutControls .editLayoutButton:hover,.layoutControls .editLayoutButton.active,.layoutControls .groupsButton:hover,.layoutControls .groupsButton.active{border-color:rgba(244,183,40,.31);color:#e1bd5b}.layoutControls .editLayoutButton.active{background:rgba(244,183,40,.08)}.groupMenuAnchor{position:relative;display:flex;flex:0 0 auto}.labeledControl{width:auto!important;min-width:38px;max-width:64px;padding:0 6px!important;display:inline-flex;align-items:center;justify-content:center;gap:3px;white-space:nowrap}.controlLabel{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:.45rem;line-height:1}.editLayoutButton,.groupsButton{display:grid;place-items:center}
-        .groupsPanel,.groupBuilder{position:absolute;z-index:95;left:auto;right:0;top:calc(100% + 7px);transform:none;width:min(232px,calc(100vw - 28px));box-sizing:border-box;padding:11px;border:1px solid rgba(244,183,40,.17);border-radius:15px;background:rgba(14,14,12,.985);box-shadow:0 18px 40px rgba(0,0,0,.42);cursor:default}.groupBuilder{z-index:96;border-color:rgba(244,183,40,.2)}.groupsPanelHead{display:flex;align-items:center;justify-content:space-between}.groupsPanelHead strong{color:#e5dfd3;font-size:.62rem}.groupsPanelHead button{width:27px;height:27px;border:0;background:transparent;color:#817c73;font-size:.95rem;cursor:pointer}.groupsPanel p{margin:10px 0;color:#77736c;font-size:.53rem}.groupsList{max-height:216px;overflow-y:auto;overscroll-behavior:contain;display:grid;gap:5px;margin-top:7px;padding-right:1px}.groupsList>button{width:100%;padding:7px 8px;border:1px solid rgba(255,255,255,.06);border-radius:9px;background:rgba(255,255,255,.025);color:#aaa398;text-align:left;cursor:pointer}.groupsList span,.groupsList small{display:block}.groupsList span{font-size:.54rem;font-weight:900}.groupsList small{margin-top:2px;color:#746e64;font-size:.46rem}.groupManageHead{display:grid;grid-template-columns:30px minmax(0,1fr) 27px;gap:4px}.groupBackButton{font-size:1.1rem!important}.groupManageTitle{min-width:0;display:flex;align-items:center;gap:6px}.groupManageTitle strong{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.groupManageGlyph{width:22px;height:22px;display:grid;place-items:center;color:#c8a34e;flex:0 0 auto}.groupManageCount{display:block;margin:5px 2px 7px;color:#756d5f;font-size:.47rem}.groupManageMembers{max-height:216px;overflow-y:auto;overscroll-behavior:contain;display:grid;gap:4px;padding-right:1px}.groupManageMember{min-height:36px;padding:4px 4px 4px 8px;box-sizing:border-box;display:flex;align-items:center;justify-content:space-between;gap:7px;border:1px solid rgba(255,255,255,.05);border-radius:8px;background:rgba(255,255,255,.02);color:#827c71;font-size:.48rem}.groupManageMember>span{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.groupManageMember>button{flex:0 0 36px;width:36px;height:36px;border:0;border-radius:8px;background:rgba(194,118,90,.07);color:#b08c7e;font:inherit;font-size:.8rem;font-weight:900;cursor:pointer}.groupManageUngroup{margin-top:8px!important}.createFirstGroup{width:100%;min-height:32px;margin-top:8px;border:1px solid rgba(244,183,40,.22);border-radius:9px;background:rgba(244,183,40,.05);color:#c5a454;font:inherit;font-size:.52rem;font-weight:900;cursor:pointer;transition:transform 120ms ease,border-color 120ms ease,background 120ms ease,box-shadow 120ms ease}.createFirstGroup.dropActive{transform:scale(1.02);border-color:rgba(255,208,79,.72);background:rgba(244,183,40,.11);box-shadow:0 0 0 3px rgba(244,183,40,.07)}.createFirstGroup:disabled{opacity:.42;cursor:default}.groupBuilderHead{display:flex;align-items:center;justify-content:space-between;gap:8px}.groupBuilderHead strong{color:#e5dfd3;font-size:.62rem}.groupBuilderHead button{width:27px;height:27px;border:0;background:transparent;color:#817c73;font-size:.95rem;cursor:pointer}.groupBuilder>input{width:100%;height:34px;margin-top:7px;box-sizing:border-box;padding:0 8px;border:1px solid rgba(255,205,80,.1);border-radius:8px;background:#11110f;color:#d8d3ca;font:inherit;font-size:16px;line-height:1;outline:none}.groupDropZone{min-height:42px;margin-top:8px;padding:7px 9px;box-sizing:border-box;display:grid;grid-template-columns:auto minmax(0,1fr) auto;align-items:center;gap:6px;border:1px dashed rgba(244,183,40,.34);border-radius:11px;background:rgba(244,183,40,.035);text-align:left;transform-origin:88% 50%;transition:transform 120ms ease,border-color 120ms ease,background 120ms ease,box-shadow 120ms ease}.groupDropZone.active{transform:scale(1.02);border-color:rgba(255,208,79,.72);background:rgba(244,183,40,.085);box-shadow:0 0 0 3px rgba(244,183,40,.07),0 8px 24px rgba(0,0,0,.22)}.dropIcon{color:#c99d35;font-size:.9rem;line-height:1}.groupDropZone strong{min-width:0;color:#b9aa83;font-size:.54rem;line-height:1.2;display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;overflow:hidden}.groupDropZone small{color:#6d685e;font-size:.48rem;white-space:nowrap;font-variant-numeric:tabular-nums}.groupDropZone.memberAdded small{animation:groupCountPop ${GROUP_DROP_MS}ms ease-out}.groupDraftMembers{margin-top:7px;display:flex;flex-wrap:wrap;gap:4px}.groupDraftMembers button{padding:4px 6px;border:1px solid rgba(255,255,255,.06);border-radius:7px;background:rgba(255,255,255,.025);color:#89847a;font:inherit;font-size:.46rem;cursor:pointer;animation:groupMemberIn 160ms ease-out both}.groupDraftMembers button span{color:#a97f54}.createGroupButton{width:100%;min-height:33px;margin-top:8px;border:0;border-radius:9px;background:linear-gradient(135deg,#ffd24d,#efa718);color:#17120a;font:inherit;font-size:.53rem;font-weight:950;cursor:pointer}.createGroupButton:disabled{background:rgba(255,255,255,.05);color:#68635b;cursor:default}
+        .groupsPanel,.groupBuilder{position:absolute;z-index:95;left:auto;right:0;top:calc(100% + 7px);transform:none;width:min(232px,calc(100vw - 28px));box-sizing:border-box;padding:11px;border:1px solid rgba(244,183,40,.17);border-radius:15px;background:rgba(14,14,12,.985);box-shadow:0 18px 40px rgba(0,0,0,.42);cursor:default}.groupBuilder{z-index:96;border-color:rgba(244,183,40,.2)}.groupsPanelHead{display:flex;align-items:center;justify-content:space-between}.groupsPanelHead strong{color:#e5dfd3;font-size:.62rem}.groupsPanelHead button{width:27px;height:27px;border:0;background:transparent;color:#817c73;font-size:.95rem;cursor:pointer}.groupsPanel p{margin:10px 0;color:#77736c;font-size:.53rem}.groupsList{max-height:216px;overflow-y:auto;overscroll-behavior:contain;display:grid;gap:5px;margin-top:7px;padding-right:1px}.groupsList>button{width:100%;padding:7px 8px;border:1px solid rgba(255,255,255,.06);border-radius:9px;background:rgba(255,255,255,.025);color:#aaa398;text-align:left;cursor:pointer}.groupsList span,.groupsList small{display:block}.groupsList span{font-size:.54rem;font-weight:900}.groupsList small{margin-top:2px;color:#746e64;font-size:.46rem}.groupManageHead{display:grid;grid-template-columns:30px minmax(0,1fr) 27px;gap:4px}.groupBackButton{font-size:1.1rem!important}.groupManageTitle{min-width:0;display:flex;align-items:center;gap:6px}.groupManageTitleButton{min-width:0;max-width:100%;padding:0;border:0;background:transparent;color:#e5dfd3;font:inherit;font-size:.62rem;font-weight:900;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;text-align:left;cursor:text}.groupManageTitleInput{min-width:0;width:100%;height:28px;box-sizing:border-box;padding:0 6px;border:1px solid rgba(244,183,40,.28);border-radius:7px;background:#11110f;color:#e5dfd3;font:inherit;font-size:16px;font-weight:800;outline:none}.groupManageTitleInput:focus{border-color:rgba(244,183,40,.58);box-shadow:0 0 0 2px rgba(244,183,40,.06)}.groupManageGlyph{width:22px;height:22px;display:grid;place-items:center;color:#c8a34e;flex:0 0 auto}.groupManageCount{display:block;margin:5px 2px 7px;color:#756d5f;font-size:.47rem}.groupManageMembers{max-height:216px;overflow-y:auto;overscroll-behavior:contain;display:grid;gap:4px;padding-right:1px}.groupManageMember{min-height:36px;padding:4px 4px 4px 8px;box-sizing:border-box;display:flex;align-items:center;justify-content:space-between;gap:7px;border:1px solid rgba(255,255,255,.05);border-radius:8px;background:rgba(255,255,255,.02);color:#827c71;font-size:.48rem}.groupManageMember>span{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.groupManageMember>button{flex:0 0 36px;width:36px;height:36px;border:0;border-radius:8px;background:rgba(194,118,90,.07);color:#b08c7e;font:inherit;font-size:.8rem;font-weight:900;cursor:pointer}.groupManageUngroup{margin-top:8px!important}.createFirstGroup{width:100%;min-height:32px;margin-top:8px;border:1px solid rgba(244,183,40,.22);border-radius:9px;background:rgba(244,183,40,.05);color:#c5a454;font:inherit;font-size:.52rem;font-weight:900;cursor:pointer;transition:transform 120ms ease,border-color 120ms ease,background 120ms ease,box-shadow 120ms ease}.createFirstGroup.dropActive{transform:scale(1.02);border-color:rgba(255,208,79,.72);background:rgba(244,183,40,.11);box-shadow:0 0 0 3px rgba(244,183,40,.07)}.createFirstGroup:disabled{opacity:.42;cursor:default}.groupBuilderHead{display:flex;align-items:center;justify-content:space-between;gap:8px}.groupBuilderHead strong{color:#e5dfd3;font-size:.62rem}.groupBuilderHead button{width:27px;height:27px;border:0;background:transparent;color:#817c73;font-size:.95rem;cursor:pointer}.groupBuilder>input{width:100%;height:34px;margin-top:7px;box-sizing:border-box;padding:0 8px;border:1px solid rgba(255,205,80,.1);border-radius:8px;background:#11110f;color:#d8d3ca;font:inherit;font-size:16px;line-height:1;outline:none}.groupDropZone{min-height:42px;margin-top:8px;padding:7px 9px;box-sizing:border-box;display:grid;grid-template-columns:auto minmax(0,1fr) auto;align-items:center;gap:6px;border:1px dashed rgba(244,183,40,.34);border-radius:11px;background:rgba(244,183,40,.035);text-align:left;transform-origin:88% 50%;transition:transform 120ms ease,border-color 120ms ease,background 120ms ease,box-shadow 120ms ease}.groupDropZone.active{transform:scale(1.02);border-color:rgba(255,208,79,.72);background:rgba(244,183,40,.085);box-shadow:0 0 0 3px rgba(244,183,40,.07),0 8px 24px rgba(0,0,0,.22)}.dropIcon{color:#c99d35;font-size:.9rem;line-height:1}.groupDropZone strong{min-width:0;color:#b9aa83;font-size:.54rem;line-height:1.2;display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;overflow:hidden}.groupDropZone small{color:#6d685e;font-size:.48rem;white-space:nowrap;font-variant-numeric:tabular-nums}.groupDropZone.memberAdded small{animation:groupCountPop ${GROUP_DROP_MS}ms ease-out}.groupDraftMembers{margin-top:7px;display:flex;flex-wrap:wrap;gap:4px}.groupDraftMembers button{padding:4px 6px;border:1px solid rgba(255,255,255,.06);border-radius:7px;background:rgba(255,255,255,.025);color:#89847a;font:inherit;font-size:.46rem;cursor:pointer;animation:groupMemberIn 160ms ease-out both}.groupDraftMembers button span{color:#a97f54}.createGroupButton{width:100%;min-height:33px;margin-top:8px;border:0;border-radius:9px;background:linear-gradient(135deg,#ffd24d,#efa718);color:#17120a;font:inherit;font-size:.53rem;font-weight:950;cursor:pointer}.createGroupButton:disabled{background:rgba(255,255,255,.05);color:#68635b;cursor:default}
         .viewControls{display:flex;align-items:center;gap:3px;flex:0 0 auto}.viewControls .fitButton{width:28px;min-width:28px;padding:0;font-size:.62rem}.viewControls button{width:28px;height:29px;padding:0;border:1px solid rgba(255,205,80,.13);border-radius:8px;background:rgba(18,18,15,.92);color:#bbb5aa;font:inherit;font-size:.68rem;font-weight:850;cursor:pointer}.viewControls .youControl{width:28px!important;min-width:28px;max-width:28px;padding:0!important}.viewControls button:hover{border-color:rgba(244,183,40,.28);color:#e4c36d}.parentReturn{position:absolute;z-index:55;left:8px;bottom:8px;min-height:34px;padding:0 11px;border:1px solid rgba(255,205,80,.12);border-radius:10px;background:rgba(18,18,15,.92);color:#a89c7b;font:inherit;font-size:.55rem;font-weight:850;cursor:pointer}.parentReturn:disabled{opacity:.4}
         .profileCard{position:absolute;z-index:75;inset-inline:8px;top:auto;bottom:8px;width:auto;box-sizing:border-box;padding:9px;border:1px solid rgba(255,205,80,.15);border-radius:14px;background:rgba(15,15,13,.975);box-shadow:0 16px 38px rgba(0,0,0,.42);cursor:default}.profileCard.hasParentReturn{bottom:52px}.profileClose{position:absolute;inset-inline-end:5px;top:4px;width:24px;height:24px;border:0;background:transparent;color:#817c73;font-size:.88rem;cursor:pointer}.profileIdentity{min-width:0;padding-inline-end:26px;display:flex;align-items:center;gap:7px}.profileIdentity :global(.identity){min-width:0;width:100%;display:flex;align-items:center;gap:7px}.profileIdentity :global(.identityLabel){min-width:0;display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#e7e1d6;font-size:.64rem;font-weight:800;line-height:1.2}.profileIdentity :global(.avatarSlot){position:relative;display:grid;place-items:center;flex:0 0 auto}.profileIdentity :global(.neutralAvatar){display:grid;place-items:center;border:1px solid rgba(244,183,40,.13);border-radius:50%;background:#171611;color:#8e7b50}.profileIdentity :global(.avatarSlot img){position:absolute;inset:0;border-radius:50%;object-fit:cover}.profilePath{min-width:0;margin-top:5px;display:flex;align-items:center;gap:3px;color:#716b60;font-size:.44rem;white-space:nowrap;overflow:hidden}.profilePath span{min-width:0;display:inline-flex;align-items:center;gap:3px;overflow:hidden;text-overflow:ellipsis}.profilePath bdi{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.profilePathChevron{display:inline-block;color:#49453e;font-weight:700}.profileAddress{min-width:0;height:27px;margin-top:5px;padding:0 5px 0 8px;box-sizing:border-box;display:flex;align-items:center;gap:5px;border-radius:8px;background:rgba(255,255,255,.025);color:#67635d;font-size:.45rem;line-height:1;user-select:text;-webkit-user-select:text}.profileAddress>span{min-width:0;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.profileAddress>a{flex:0 0 23px;width:23px;height:23px;display:grid;place-items:center;border-radius:7px;color:#9a8550;text-decoration:none;font-size:.64rem;user-select:none;-webkit-user-select:none}.profileAddress>a:hover,.profileAddress>a:focus-visible{background:rgba(244,183,40,.07);color:#d1ac4c}.profileStats{margin-top:5px;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:4px}.profileStats>div{min-width:0;padding:5px 6px;border:1px solid rgba(255,255,255,.045);border-radius:8px;background:rgba(255,255,255,.018)}.profileStats strong{display:block;color:#d6d0c5;font-size:.59rem;font-variant-numeric:tabular-nums}.profileStats span{display:-webkit-box;margin-top:1px;color:#68645e;font-size:.43rem;line-height:1.18;overflow:hidden;-webkit-box-orient:vertical;-webkit-line-clamp:2;white-space:normal}.profileAction{width:100%;min-height:32px;margin-top:5px;padding:4px 10px;border:0;border-radius:9px;background:linear-gradient(135deg,#ffd24d,#efa718);color:#17120a;font:inherit;font-size:.54rem;font-weight:950;line-height:1.15;white-space:normal;cursor:pointer}.profileAction:disabled{opacity:.45;cursor:default}
         .ungroupButton{width:100%;min-height:33px;margin-top:10px;border:1px solid rgba(194,118,90,.2);border-radius:9px;background:rgba(194,118,90,.06);color:#bd9889;font:inherit;font-size:.52rem;font-weight:900;cursor:pointer}

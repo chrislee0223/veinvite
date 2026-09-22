@@ -260,13 +260,16 @@ test('group rendering and drag start use indexed wallet lookups at larger networ
   assert.doesNotMatch(networkSource.slice(workspaceDragStart, finishDropStart), /positionedChildren\.find/);
 });
 
-test('blank tap exits layout editing without confusing pan, pinch, or group creation', () => {
+test('blank tap dismisses transient Network UI and still exits layout editing safely', () => {
   assert.match(networkSource, /backgroundTapRef/);
+  assert.match(networkSource, /backgroundTapRef\.current = !interactive/);
   assert.match(networkSource, /moved: false,[\s\S]*blocked: Boolean\(groupDraft\)/);
   assert.match(networkSource, /if \(backgroundTapRef\.current\) backgroundTapRef\.current\.blocked = true/);
-  assert.match(networkSource, /finishEditingFromBlankTap/);
+  assert.match(networkSource, /const blankCanvasTap = Boolean/);
   assert.match(networkSource, /!backgroundTap\.moved/);
   assert.match(networkSource, /!backgroundTap\.blocked/);
+  assert.match(networkSource, /if \(blankCanvasTap\) \{[\s\S]*setManagedGroupId\(null\);[\s\S]*setGroupsOpen\(false\);[\s\S]*if \(searchOpen\) closeSearch\(\)/);
+  assert.match(networkSource, /const finishEditingFromBlankTap = blankCanvasTap && editingLayout && !groupDraft/);
   assert.match(networkSource, /finishLayoutEdit\(\)/);
 });
 
@@ -720,6 +723,21 @@ test('canvas group clicks only expand or collapse while toolbar groups own manag
   assert.match(networkSource, /className="groupManageMembers"/);
   assert.match(networkSource, /removeManagedGroupMember\(member\)/);
   assert.match(networkSource, /onClick=\{dissolveManagedGroup\}/);
+});
+
+test('managed group title supports direct inline rename without changing canvas group click semantics', () => {
+  assert.match(networkSource, /const \[editingManagedGroupName, setEditingManagedGroupName\] = useState\(false\)/);
+  assert.match(networkSource, /const \[managedGroupNameDraft, setManagedGroupNameDraft\] = useState\(''\)/);
+  assert.match(networkSource, /managedGroupNameInputRef\.current\?\.select\(\)/);
+  assert.match(networkSource, /const beginManagedGroupRename = useCallback/);
+  assert.match(networkSource, /const commitManagedGroupRename = useCallback/);
+  assert.match(networkSource, /groups: workspace\.groups\.map\(\(group\) =>[\s\S]*group\.id === managedGroup\.id \? \{ \.\.\.group, label \} : group/);
+  assert.match(networkSource, /className="groupManageTitleButton"[\s\S]*onClick=\{beginManagedGroupRename\}/);
+  assert.match(networkSource, /className="groupManageTitleInput"/);
+  assert.match(networkSource, /onBlur=\{commitManagedGroupRename\}/);
+  assert.match(networkSource, /event\.key === 'Enter'[\s\S]*event\.currentTarget\.blur\(\)/);
+  assert.match(networkSource, /event\.key === 'Escape'[\s\S]*setEditingManagedGroupName\(false\)/);
+  assert.match(networkSource, /\.groupManageTitleInput\{[^}]*font-size:16px/);
 });
 
 test('expanded members can move between groups with fixed screen-space targeting', () => {
