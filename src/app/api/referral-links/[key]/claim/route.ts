@@ -8,6 +8,8 @@ import { isReferralKey } from '@/lib/referralLinks';
 import { createCode, normalizeAddress } from '@/lib/serverStore';
 import { supabaseAdmin } from '@/lib/supabaseServer';
 import { enqueueSybilV2EvidenceCollection } from '@/lib/sybil/v2/evidenceQueue';
+import { anyActiveSybilV2Restriction } from '@/lib/sybil/v2/restrictions';
+import { getVeBetterNetwork } from '@/lib/vebetter/network';
 import {
   requireWalletSession,
   WalletAuthenticationError,
@@ -325,6 +327,28 @@ export async function POST(
     },
   ]);
   if (rateLimitResponse) return rateLimitResponse;
+
+  try {
+    const restriction = await anyActiveSybilV2Restriction({
+      walletAddresses: [link.inviter_wallet, inviteeAddress],
+      network: getVeBetterNetwork(),
+    });
+    if (restriction) {
+      return NextResponse.json(
+        {
+          outcome: 'wallet_restricted',
+          error: 'This referral cannot participate in VeInvite.',
+        },
+        { status: 403, headers: { 'Cache-Control': 'no-store' } },
+      );
+    }
+  } catch (restrictionError) {
+    console.error('Failed to verify Sybil v2 wallet restrictions:', restrictionError);
+    return NextResponse.json(
+      { outcome: 'security_check_failed' },
+      { status: 503, headers: { 'Retry-After': '10', 'Cache-Control': 'no-store' } },
+    );
+  }
 
   if (inviteeAddress === normalizeAddress(link.inviter_wallet)) {
     await recordAttempt({
