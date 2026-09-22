@@ -5,6 +5,7 @@ import {
 } from '@/lib/sybil/v2/evidenceQueue';
 import {
   collectSybilV2EvidenceForInvite,
+  runSybilV2AssessmentBatch,
 } from '@/lib/sybil/v2/pipeline';
 
 const queueCallback = handleCallback(
@@ -32,6 +33,11 @@ const queueCallback = handleCallback(
         `Sybil v2 evidence collection incomplete for ${message.inviteCode}: ${result.error ?? 'unknown error'}`,
       );
     }
+
+    // New historical/funding evidence can strengthen an existing cluster.
+    // Reassess unreserved reward-eligible peers immediately instead of waiting
+    // for the daily recovery cron. Claim-ready rows are excluded by the DB view.
+    await runSybilV2AssessmentBatch(10);
   },
   {
     visibilityTimeoutSeconds: 240,
