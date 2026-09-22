@@ -1,0 +1,54 @@
+name: QA Sybil Pipeline v2
+
+on:
+  push:
+    branches:
+      - feature/sybil-pipeline-v2
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: qa-sybil-v2-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      NEXT_PUBLIC_SUPABASE_URL: https://bpppslplhmppxzvdkwxs.supabase.co
+      SUPABASE_SECRET_KEY: ci-placeholder-not-a-real-key
+      VERCEL_ENV: preview
+      VECHAIN_NETWORK: testnet
+      NEXT_PUBLIC_NETWORK_TYPE: test
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Use Node.js 24
+        uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Sybil v2 pure policy regression
+        run: node --experimental-strip-types --test tests/reward-sybil-v2-policy.test.mjs
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Typecheck without migration-history production gate
+        run: npx tsc --noEmit
+
+      - name: Reward regression tests
+        run: npm run test:rewards
+
+      - name: Production build
+        env:
+          NEXT_PUBLIC_SENTRY_DSN: https://ci-public-key@o0.ingest.sentry.io/1
+          SENTRY_DSN: https://ci-public-key@o0.ingest.sentry.io/1
+          SENTRY_ENVIRONMENT: ci
+          NEXT_PUBLIC_SENTRY_ENVIRONMENT: ci
+        run: npm run build
