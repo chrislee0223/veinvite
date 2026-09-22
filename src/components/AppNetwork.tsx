@@ -8,6 +8,7 @@ import {
   useRef,
   useState,
   type CSSProperties,
+  type ReactNode,
   type PointerEvent as ReactPointerEvent,
   type WheelEvent as ReactWheelEvent,
 } from 'react';
@@ -460,19 +461,13 @@ function NeutralAvatar({ size = 34 }: { size?: number }) {
   );
 }
 
-const NetworkIdentity = memo(function NetworkIdentity({
-  address,
-  root = false,
-  showLabel = true,
-  size,
-}: {
-  address: string;
-  root?: boolean;
-  showLabel?: boolean;
-  size?: number;
-}) {
+function useNetworkIdentityProfile(
+  address: string,
+  eager: boolean,
+  loadAvatar = true,
+) {
   const hostRef = useRef<HTMLSpanElement | null>(null);
-  const [shouldLoad, setShouldLoad] = useState(root);
+  const [shouldLoad, setShouldLoad] = useState(eager);
   const [loaded, setLoaded] = useState(false);
   const [broken, setBroken] = useState(false);
   const [displayDomain, setDisplayDomain] = useState<string | null | undefined>(
@@ -494,13 +489,12 @@ const NetworkIdentity = memo(function NetworkIdentity({
         ? queriedDomain
         : null;
   const domain = resolvedDomain ?? '';
-  const { data: avatarUrl } = useGetAvatar(domain);
-  const resolvedSize = size ?? (root ? 42 : 34);
+  const { data: avatarUrl } = useGetAvatar(loadAvatar ? domain : '');
 
   useEffect(() => {
     setDisplayDomain(readCachedLeaderboardDomain(address));
-    setShouldLoad(root);
-  }, [address, root]);
+    setShouldLoad(eager);
+  }, [address, eager]);
 
   useEffect(() => {
     const host = hostRef.current;
@@ -535,23 +529,86 @@ const NetworkIdentity = memo(function NetworkIdentity({
     setBroken(false);
   }, [avatarUrl]);
 
+  return {
+    hostRef,
+    domain,
+    avatarUrl,
+    loaded,
+    broken,
+    setLoaded,
+    setBroken,
+  };
+}
+
+function NetworkAvatar({
+  avatarUrl,
+  loaded,
+  broken,
+  size,
+  eager,
+  onLoad,
+  onError,
+}: {
+  avatarUrl: string | null | undefined;
+  loaded: boolean;
+  broken: boolean;
+  size: number;
+  eager: boolean;
+  onLoad: () => void;
+  onError: () => void;
+}) {
+  return (
+    <span className="avatarSlot" style={{ width: size, height: size }}>
+      <NeutralAvatar size={size} />
+      {avatarUrl && !broken ? (
+        <img
+          src={avatarUrl}
+          alt=""
+          loading={eager ? 'eager' : 'lazy'}
+          decoding="async"
+          referrerPolicy="no-referrer"
+          onLoad={onLoad}
+          onError={onError}
+          style={{ width: size, height: size, opacity: loaded ? 1 : 0 }}
+        />
+      ) : null}
+    </span>
+  );
+}
+
+const NetworkIdentity = memo(function NetworkIdentity({
+  address,
+  root = false,
+  showLabel = true,
+  size,
+}: {
+  address: string;
+  root?: boolean;
+  showLabel?: boolean;
+  size?: number;
+}) {
+  const {
+    hostRef,
+    domain,
+    avatarUrl,
+    loaded,
+    broken,
+    setLoaded,
+    setBroken,
+  } = useNetworkIdentityProfile(address, root);
+  const resolvedSize = size ?? (root ? 42 : 34);
+
   return (
     <span className="identity" ref={hostRef}>
-      <span className="avatarSlot" style={{ width: resolvedSize, height: resolvedSize }}>
-        <NeutralAvatar size={resolvedSize} />
-        {avatarUrl && !broken ? (
-          <img
-            src={avatarUrl}
-            alt=""
-            loading={root ? 'eager' : 'lazy'}
-            decoding="async"
-            referrerPolicy="no-referrer"
-            onLoad={() => setLoaded(true)}
-            onError={() => setBroken(true)}
-            style={{ width: resolvedSize, height: resolvedSize, opacity: loaded ? 1 : 0 }}
-          />
-        ) : null}
-      </span>
+      <NetworkAvatar
+        avatarUrl={avatarUrl}
+        loaded={loaded}
+        broken={broken}
+        size={resolvedSize}
+        eager={root}
+        onLoad={() => setLoaded(true)}
+        onError={() => setBroken(true)}
+      />
       {showLabel ? (
         <span
           className="identityLabel"
@@ -562,6 +619,65 @@ const NetworkIdentity = memo(function NetworkIdentity({
         </span>
       ) : null}
     </span>
+  );
+});
+
+const NetworkNodeIdentity = memo(function NetworkNodeIdentity({
+  address,
+  root = false,
+  circleClassName = 'nodeCircle',
+  youLabel,
+  beforeLabel,
+  afterLabel,
+}: {
+  address: string;
+  root?: boolean;
+  circleClassName?: string;
+  youLabel?: string;
+  beforeLabel?: ReactNode;
+  afterLabel?: ReactNode;
+}) {
+  const {
+    hostRef,
+    domain,
+    avatarUrl,
+    loaded,
+    broken,
+    setLoaded,
+    setBroken,
+  } = useNetworkIdentityProfile(address, root, !youLabel);
+  const resolvedSize = root ? 42 : 34;
+
+  return (
+    <>
+      <span className={circleClassName} ref={hostRef}>
+        {youLabel ? (
+          <span className="focusYouLabel">{youLabel}</span>
+        ) : (
+          <span className="identity">
+            <NetworkAvatar
+              avatarUrl={avatarUrl}
+              loaded={loaded}
+              broken={broken}
+              size={resolvedSize}
+              eager={root}
+              onLoad={() => setLoaded(true)}
+              onError={() => setBroken(true)}
+            />
+          </span>
+        )}
+      </span>
+      <span className="nodeMeta">
+        {beforeLabel}
+        <strong
+          dir={domain ? 'auto' : 'ltr'}
+          title={domain || address}
+        >
+          {domain || nodeWallet(address)}
+        </strong>
+        {afterLabel}
+      </span>
+    </>
   );
 });
 
@@ -3031,7 +3147,13 @@ export function AppNetwork({ locale }: { locale: Locale }) {
                         className="edge slotEdgePulse"
                         style={{ animationDelay: `${index * -0.92}s` }}
                       />
-                    ) : null}
+                    ) : (
+                      <path
+                        d={path}
+                        className="edge slotEdgeProgressPulse"
+                        style={{ animationDelay: `${index * -1.35}s` }}
+                      />
+                    )}
                   </g>
                 );
               })}
@@ -3048,20 +3170,19 @@ export function AppNetwork({ locale }: { locale: Locale }) {
               }}
               data-no-pan="true"
             >
-              <span className="nodeCircle focusCircle">
-                {focusIsRoot ? (
-                  <span className="focusYouLabel">{c.you}</span>
-                ) : (
-                  <NetworkIdentity address={currentData.focusWallet} root showLabel={false} />
+              <NetworkNodeIdentity
+                key={focusKey}
+                address={currentData.focusWallet}
+                root
+                circleClassName="nodeCircle focusCircle"
+                youLabel={focusIsRoot ? c.you : undefined}
+                afterLabel={(
+                  <span className="nodeNetworkMetric">
+                    <NetworkCountGlyph />
+                    <span>{currentData.summary.network.toLocaleString()}</span>
+                  </span>
                 )}
-              </span>
-              <span className="nodeMeta">
-                <strong>{nodeWallet(currentData.focusWallet)}</strong>
-                <span className="nodeNetworkMetric">
-                  <NetworkCountGlyph />
-                  <span>{currentData.summary.network.toLocaleString()}</span>
-                </span>
-              </span>
+              />
             </button>
 
             {visibleChildren.map((child) => {
@@ -3105,10 +3226,9 @@ export function AppNetwork({ locale }: { locale: Locale }) {
                   data-no-pan="true"
                   data-workspace-draggable={editingLayout ? 'true' : undefined}
                 >
-                  <span className="nodeCircle"><NetworkIdentity address={child.wallet} showLabel={false} /></span>
-                  <span className="nodeMeta">
-                    <strong>{nodeWallet(child.wallet)}</strong>
-                    {child.status === 'IN_PROGRESS' ? (
+                  <NetworkNodeIdentity
+                    address={child.wallet}
+                    afterLabel={child.status === 'IN_PROGRESS' ? (
                       <small className="nodeProgressStatus">{t.inProgress}</small>
                     ) : (
                       <span className="nodeNetworkMetric">
@@ -3116,7 +3236,7 @@ export function AppNetwork({ locale }: { locale: Locale }) {
                         <span>{child.network.toLocaleString()}</span>
                       </span>
                     )}
-                  </span>
+                  />
                   {pendingFocus === childKey ? <span className="nodeBusy" aria-hidden="true" /> : null}
                 </button>
               );
@@ -3206,17 +3326,28 @@ export function AppNetwork({ locale }: { locale: Locale }) {
                   aria-label={t.inProgress}
                   title={slot.inviteeWallet ?? t.inProgress}
                 >
-                  <span className="nodeCircle">
-                    {slot.inviteeWallet ? (
-                      <NetworkIdentity address={slot.inviteeWallet} showLabel={false} />
-                    ) : (
-                      <span className="pendingInviteGlyph" aria-hidden="true">…</span>
-                    )}
-                  </span>
-                  <span className="nodeMeta">
-                    <small className="nodeProgressStatus">{t.inProgress} · {slot.completedSteps}/{slot.totalSteps}</small>
-                    <strong>{slot.inviteeWallet ? nodeWallet(slot.inviteeWallet) : t.inProgress}</strong>
-                  </span>
+                  {slot.inviteeWallet ? (
+                    <NetworkNodeIdentity
+                      address={slot.inviteeWallet}
+                      beforeLabel={(
+                        <small className="nodeProgressStatus">
+                          {t.inProgress} · {slot.completedSteps}/{slot.totalSteps}
+                        </small>
+                      )}
+                    />
+                  ) : (
+                    <>
+                      <span className="nodeCircle">
+                        <span className="pendingInviteGlyph" aria-hidden="true">…</span>
+                      </span>
+                      <span className="nodeMeta">
+                        <small className="nodeProgressStatus">
+                          {t.inProgress} · {slot.completedSteps}/{slot.totalSteps}
+                        </small>
+                        <strong>{t.inProgress}</strong>
+                      </span>
+                    </>
+                  )}
                 </button>
               );
             })}
@@ -3307,10 +3438,9 @@ export function AppNetwork({ locale }: { locale: Locale }) {
           style={{ transform: `translate3d(${dragGhost.x}px,${dragGhost.y}px,0) translate(-50%,-50%)` }}
           aria-hidden="true"
         >
-          <span className="nodeCircle"><NetworkIdentity address={dragGhost.wallet} showLabel={false} /></span>
-          <span className="nodeMeta">
-            <strong>{nodeWallet(dragGhost.wallet)}</strong>
-            {dragGhostChild.status === 'IN_PROGRESS' ? (
+          <NetworkNodeIdentity
+            address={dragGhost.wallet}
+            afterLabel={dragGhostChild.status === 'IN_PROGRESS' ? (
               <small className="nodeProgressStatus">{t.inProgress}</small>
             ) : (
               <span className="nodeNetworkMetric">
@@ -3318,7 +3448,7 @@ export function AppNetwork({ locale }: { locale: Locale }) {
                 <span>{dragGhostChild.network.toLocaleString()}</span>
               </span>
             )}
-          </span>
+          />
         </div>,
         document.body,
       ) : null}
@@ -3341,7 +3471,7 @@ export function AppNetwork({ locale }: { locale: Locale }) {
         .searchWrap{position:relative;flex:0 0 auto;display:flex;align-items:center}.searchWrap.open{flex:0 1 168px;width:168px;max-width:min(168px,48vw)}.searchToggle{width:28px;height:29px;padding:0;display:grid;place-items:center;border:1px solid rgba(255,205,80,.13);border-radius:8px;background:rgba(18,18,15,.94);color:#a9a397;font:inherit;cursor:pointer}.searchToggle:hover{border-color:rgba(244,183,40,.31);color:#e1bd5b}.searchToggle:disabled{opacity:.45;cursor:not-allowed}.searchField{width:100%;height:32px;box-sizing:border-box;padding:0 3px 0 8px;display:flex;align-items:center;gap:5px;border:1px solid rgba(255,205,80,.14);border-radius:9px;background:#11110f;color:#8f887d}.searchField:focus-within{border-color:rgba(244,183,40,.34)}.searchField input{min-width:0;width:100%;height:30px;box-sizing:border-box;padding:0;border:0;background:transparent;color:#d8d3ca;font:inherit;font-size:16px;line-height:1;outline:none}.searchField input:disabled{opacity:.45}.searchClose{flex:0 0 25px;width:25px;height:25px;padding:0;border:0;border-radius:7px;background:transparent;color:#716d66;font:inherit;font-size:.9rem;cursor:pointer}.searchClose:hover{background:rgba(255,255,255,.035);color:#b4ada3}.searchResults{position:absolute;z-index:90;top:35px;left:0;width:min(290px,78vw);max-height:245px;overflow:auto;padding:5px;border:1px solid rgba(255,205,80,.14);border-radius:12px;background:rgba(14,14,12,.985);box-shadow:0 18px 40px rgba(0,0,0,.42)}.searchResults button{width:100%;padding:8px;border:0;border-radius:8px;background:transparent;color:#ddd7cc;text-align:left;cursor:pointer}.searchResults button:hover{background:rgba(244,183,40,.06)}.searchResults strong{display:block;font-size:.62rem}.searchResults button span{display:block;margin-top:3px;color:#6f6b64;font-size:.52rem}.searchStatus{display:block;padding:11px 8px;color:#77736c;font-size:.56rem;line-height:1.45;text-align:center}
         .compactControls{flex:0 0 auto;margin-left:auto;display:flex;align-items:center;gap:3px}.networkStage{position:relative;flex:1 1 auto;min-height:0;height:auto;overflow:hidden;touch-action:none;overscroll-behavior:contain;background:radial-gradient(ellipse at 50% 50%,rgba(244,183,40,.036),transparent 36%),#080807;cursor:grab;user-select:none;-webkit-user-select:none}.networkStage:active{cursor:grabbing}.networkStage.layoutEditing{box-shadow:inset 0 0 0 1px rgba(244,183,40,.11)}
         .world{position:absolute;top:0;left:0;will-change:transform;backface-visibility:hidden}.world.cameraTransition{transition:transform ${NAVIGATION_MS}ms cubic-bezier(.18,.82,.2,1)}.introActive .world.cameraTransition{transition-duration:${FIT_TRANSITION_MS}ms}.worldContent{position:absolute;inset:0;transform-origin:${FOCUS_X}px ${FOCUS_Y}px}.worldContent.scenePending{opacity:0;pointer-events:none}.worldContent.sceneReady{opacity:1;transition:opacity 120ms ease-out}.worldContent.nav-forward{animation:networkForward ${NAVIGATION_MS}ms cubic-bezier(.18,.82,.2,1)}.worldContent.nav-back{animation:networkBack ${NAVIGATION_MS}ms cubic-bezier(.18,.82,.2,1)}
-        .edges{position:absolute;inset:0;overflow:visible;pointer-events:none;z-index:2}.edge{fill:none;stroke:rgba(176,145,73,.31);stroke-width:1.05;stroke-linecap:round;vector-effect:non-scaling-stroke}.edge.rewarded{stroke:rgba(232,183,62,.46)}.edge.groupEdge{stroke:rgba(226,184,78,.5);stroke-width:1.35}.groupMemberEdge{stroke:rgba(190,158,88,.3);stroke-width:.82}.slotEdgeBase,.slotEdgePulse,.slotEdgeProgress{fill:none;stroke-linecap:round;pointer-events:none;vector-effect:non-scaling-stroke}.slotEdgeBase{stroke:rgba(226,188,79,.62);stroke-width:1.05;opacity:.5}.slotEdgePulse{stroke:rgba(255,210,76,.95);stroke-width:1.55;stroke-dasharray:5 38;opacity:.8;filter:drop-shadow(0 0 2px rgba(244,183,40,.28));animation:networkSlotFlow 2.45s linear infinite}.slotEdgeProgress{stroke:rgba(244,183,40,.62);stroke-width:1.25;stroke-dasharray:3 7;opacity:.78}
+        .edges{position:absolute;inset:0;overflow:visible;pointer-events:none;z-index:2}.edge{fill:none;stroke:rgba(176,145,73,.31);stroke-width:1.05;stroke-linecap:round;vector-effect:non-scaling-stroke}.edge.rewarded{stroke:rgba(232,183,62,.46)}.edge.groupEdge{stroke:rgba(226,184,78,.5);stroke-width:1.35}.groupMemberEdge{stroke:rgba(190,158,88,.3);stroke-width:.82}.slotEdgeBase,.slotEdgePulse,.slotEdgeProgress,.slotEdgeProgressPulse{fill:none;stroke-linecap:round;pointer-events:none;vector-effect:non-scaling-stroke}.slotEdgeBase{stroke:rgba(226,188,79,.62);stroke-width:1.05;opacity:.5}.slotEdgePulse{stroke:rgba(255,210,76,.95);stroke-width:1.55;stroke-dasharray:5 38;opacity:.8;filter:drop-shadow(0 0 2px rgba(244,183,40,.28));animation:networkSlotFlow 2.45s linear infinite}.slotEdgeProgress{stroke:rgba(244,183,40,.62);stroke-width:1.25;stroke-dasharray:3 7;opacity:.78}.slotEdgeProgressPulse{stroke:rgba(255,210,76,.72);stroke-width:1.15;stroke-dasharray:3 48;opacity:.34;filter:drop-shadow(0 0 1px rgba(244,183,40,.14));animation:networkSlotProgressFlow 4.6s linear infinite}
         .personNode,.slotNode,.groupNode{position:absolute;z-index:6;transform:translate(-50%,-50%);font:inherit;translate:none}.personNode{min-width:0;width:52px;height:52px;padding:0;border:0;border-radius:50%;background:transparent;color:#d9d4ca;display:block;cursor:pointer;user-select:none;-webkit-user-select:none;-webkit-touch-callout:none;touch-action:none;isolation:isolate}.focusNode{min-width:0;width:74px;height:74px;z-index:8}.childNode::before,.slotNode::before{content:'';position:absolute;left:50%;top:50%;border-radius:50%;transform:translate(-50%,-50%);pointer-events:none;z-index:0}.childNode::before{width:58px;height:58px;background:radial-gradient(circle,rgba(8,8,7,.94) 0 87%,rgba(8,8,7,.58) 91%,rgba(8,8,7,.17) 96%,rgba(8,8,7,0) 100%)}.slotNode::before{width:58px;height:58px;background:radial-gradient(circle,rgba(8,8,7,.92) 0 86%,rgba(8,8,7,.54) 91%,rgba(8,8,7,.15) 96%,rgba(8,8,7,0) 100%)}.nodeCircle,.slotCircle{position:absolute;inset:0;z-index:1;display:grid;place-items:center;border-radius:50%;box-sizing:border-box;background:#0d0d0b;overflow:hidden;transition:transform 170ms ease,border-color 170ms ease,box-shadow 170ms ease}.nodeCircle{border:1px solid rgba(210,174,65,.38);box-shadow:0 0 22px rgba(244,183,40,.025);transform:scale(var(--network-node-scale,1))}.focusCircle{border-color:rgba(255,207,71,.82);background:radial-gradient(circle at 50% 45%,rgb(24,21,13) 0%,rgb(13,13,11) 62%,rgb(13,13,11) 100%);box-shadow:0 0 0 1px rgba(244,183,40,.07),0 0 28px rgba(244,183,40,.08);transform:scale(var(--network-center-scale,1))}.focusNode::before{content:'';position:absolute;inset:-7px;border:1px solid rgba(244,183,40,.42);border-radius:50%;box-shadow:0 0 18px rgba(244,183,40,.055);animation:networkYouBreath 2.8s ease-in-out infinite;pointer-events:none}.introActive .focusNode::before{animation:networkYouIntro .72s ease-out 1,networkYouBreath 2.8s .72s ease-in-out infinite}.personNode:hover .nodeCircle,.personNode:focus-visible .nodeCircle,.personNode.selected .nodeCircle{border-color:rgba(244,183,40,.78);box-shadow:0 0 0 3px rgba(244,183,40,.08),0 0 26px rgba(244,183,40,.1);transform:scale(var(--network-node-selected-scale,1.07))}.personNode.selected .nodeCircle{border-color:rgba(255,211,88,.96);box-shadow:0 0 0 4px rgba(244,183,40,.11),0 0 34px rgba(244,183,40,.18)}.personNode.selected .nodeMeta{opacity:1}.focusNode:hover .focusCircle,.focusNode:focus-visible .focusCircle,.focusNode.selected .focusCircle{transform:scale(var(--network-center-selected-scale,1.07))}.childNode.status-rewarded .nodeCircle{border-color:rgba(232,183,62,.58)}.childNode.status-qualified .nodeCircle{border-color:rgba(193,166,90,.46)}.personNode.draggable,.slotNode.draggable,.groupNode.draggable{cursor:grab}.personNode.draggable:active,.slotNode.draggable:active,.groupNode.draggable:active{cursor:grabbing}.personNode.dragging,.slotNode.dragging{z-index:14}.personNode.dragGhostSource{opacity:.12}.personNode.dragging .nodeCircle,.slotNode.dragging .slotCircle{border-color:rgba(244,183,40,.92);box-shadow:0 0 0 4px rgba(244,183,40,.12),0 0 30px rgba(244,183,40,.18)}.groupNode.dragging{z-index:14;border-color:rgba(244,183,40,.82);box-shadow:0 14px 30px rgba(0,0,0,.34),0 0 0 3px rgba(244,183,40,.1)}.personNode.grouping{animation:groupDropAway ${GROUP_DROP_MS}ms ease forwards}.personNode.restoring{animation:groupNodeRestore ${GROUP_DROP_MS}ms cubic-bezier(.2,.8,.2,1) both}
         .nodeCircle :global(.identity){width:100%;height:100%;display:grid;place-items:center}.nodeCircle :global(.avatarSlot){position:relative;display:grid;place-items:center}.childNode .nodeCircle :global(.avatarSlot),.childNode .nodeCircle :global(.neutralAvatar),.childNode .nodeCircle :global(.avatarSlot img){width:40px!important;height:40px!important}.focusNode .nodeCircle :global(.avatarSlot),.focusNode .nodeCircle :global(.neutralAvatar),.focusNode .nodeCircle :global(.avatarSlot img){width:56px!important;height:56px!important}.nodeCircle :global(.neutralAvatar){display:grid;place-items:center;border:0;border-radius:50%;background:#171611;color:#8e7b50}.nodeCircle :global(.avatarSlot img){position:absolute;inset:0;margin:auto;border-radius:50%;object-fit:cover;transition:opacity 160ms ease}.focusYouLabel{display:grid;place-items:center;width:100%;height:100%;color:#edc65c;font-size:.78rem;font-weight:950;letter-spacing:-.03em}.nodeMeta{position:absolute;left:50%;z-index:2;width:92px;display:grid;justify-items:center;gap:1px;transform:translateX(-50%);opacity:var(--network-label-opacity,1);pointer-events:none;transition:opacity 90ms linear}.childNode .nodeMeta{top:calc(100% + 6px)}.focusNode .nodeMeta{top:calc(100% + 7px);width:110px}.nodeMeta strong{max-width:90px;color:#89837a;font-size:.46rem;font-weight:800;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.nodeNetworkMetric{display:inline-flex;align-items:center;justify-content:center;gap:3px;color:#d8b958;font-size:.48rem;font-weight:900;font-variant-numeric:tabular-nums;white-space:nowrap}.nodeNetworkMetric svg{flex:0 0 auto}.nodeProgressStatus{max-width:90px;color:#b28c32!important;font-size:.43rem!important;font-weight:900;white-space:nowrap}.focusNode .nodeMeta strong{color:#8b857c;font-size:.48rem}.focusNode .nodeNetworkMetric{color:#edc65c;font-size:.52rem}.nodeBusy{position:absolute;z-index:3;right:-2px;top:-2px;width:7px;height:7px;border-radius:50%;background:#e9bc45;box-shadow:0 0 10px rgba(233,188,69,.8);animation:pulse 900ms ease-in-out infinite alternate}
         .groupNode{min-width:112px;max-width:164px;padding:8px 11px;border:1.35px solid rgba(224,183,74,.62);border-radius:12px;background:linear-gradient(180deg,rgba(25,22,14,.97),rgba(16,15,11,.97));color:#d8b450;display:grid;grid-template-columns:28px 1fr;column-gap:7px;row-gap:1px;align-items:center;text-align:left;box-shadow:0 7px 24px rgba(0,0,0,.24);cursor:pointer;touch-action:none;user-select:none;-webkit-user-select:none;-webkit-touch-callout:none}.groupNode:hover,.groupNode.dropTarget{border-color:rgba(255,207,71,.84);box-shadow:0 0 0 3px rgba(244,183,40,.1),0 8px 26px rgba(0,0,0,.28)}.groupNode.dropTarget{background:linear-gradient(180deg,rgba(35,29,14,.99),rgba(20,17,10,.98));transform:translate(-50%,-50%) scale(1.035)}.groupNode.expanded{border-color:rgba(235,193,84,.72);background:linear-gradient(180deg,rgba(27,24,15,.98),rgba(17,16,12,.96))}.groupNode.expanded.dropTarget{border-color:rgba(255,207,71,.9);background:linear-gradient(180deg,rgba(38,31,14,.99),rgba(22,18,10,.98));box-shadow:0 0 0 3px rgba(244,183,40,.11),0 8px 26px rgba(0,0,0,.28)}.groupNode.created{animation:groupHubIn ${GROUP_HUB_IN_MS}ms cubic-bezier(.16,.82,.2,1) both}.groupNode .groupGlyph{grid-row:1/3}.groupNode strong{min-width:0;max-width:112px;font-size:.48rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.groupNode small{color:#857655;font-size:.34rem;white-space:nowrap}.groupGlyph{width:28px;height:28px;display:grid;place-items:center;color:#d6ad49}.groupGlyph svg{display:block}
@@ -3355,8 +3485,8 @@ export function AppNetwork({ locale }: { locale: Locale }) {
         .nodeDragGhost{position:fixed;z-index:220;left:0;top:0;width:52px;height:52px;pointer-events:none;touch-action:none;user-select:none;-webkit-user-select:none;filter:drop-shadow(0 12px 18px rgba(0,0,0,.38));will-change:transform}.nodeDragGhost .nodeCircle{border-color:rgba(244,183,40,.92);box-shadow:0 0 0 4px rgba(244,183,40,.13),0 0 30px rgba(244,183,40,.18)}.nodeDragGhost .nodeMeta{top:calc(100% + 5px);opacity:.96}
         .workspaceNotice{position:absolute;z-index:96;left:50%;bottom:56px;transform:translateX(-50%);padding:7px 11px;border:1px solid rgba(244,183,40,.18);border-radius:10px;background:rgba(21,19,14,.97);color:#d5b85f;font-size:.53rem;font-weight:850;white-space:nowrap;box-shadow:0 12px 28px rgba(0,0,0,.3)}
         .inlineError{position:absolute;z-index:90;left:50%;bottom:54px;transform:translateX(-50%);max-width:calc(100% - 28px);padding:8px 9px 8px 11px;display:flex;align-items:center;gap:8px;border:1px solid rgba(194,118,90,.2);border-radius:10px;background:rgba(38,23,18,.96);color:#c7a294;font-size:.53rem;box-shadow:0 12px 30px rgba(0,0,0,.32)}.inlineError button{border:0;background:transparent;color:#9f7d71;font-size:.8rem;cursor:pointer}
-        @keyframes networkForward{0%{opacity:.68;scale:.975}100%{opacity:1;scale:1}}@keyframes networkBack{0%{opacity:.74;scale:1.035}100%{opacity:1;scale:1}}@keyframes networkSlotFlow{from{stroke-dashoffset:43}to{stroke-dashoffset:-43}}@keyframes networkYouBreath{0%,100%{opacity:.46;transform:scale(.96)}50%{opacity:.92;transform:scale(1.06)}}@keyframes networkYouIntro{0%{opacity:.25;transform:scale(.78)}58%{opacity:1;transform:scale(1.14)}100%{opacity:.62;transform:scale(1)}}@keyframes networkNodeBloom{0%{transform:scale(.45);box-shadow:0 0 0 rgba(244,183,40,0)}55%{transform:scale(1.18);box-shadow:0 0 42px rgba(244,183,40,.22)}100%{transform:scale(var(--network-node-scale,1));box-shadow:0 0 22px rgba(244,183,40,.025)}}@keyframes slotPulse{0%,100%{box-shadow:0 0 0 rgba(244,183,40,0)}50%{box-shadow:0 0 22px rgba(244,183,40,.07)}}@keyframes pulse{to{opacity:.38;transform:scale(.82)}}@keyframes groupDropAway{to{opacity:0;scale:.82}}@keyframes groupNodeRestore{0%{opacity:0;scale:.86}100%{opacity:1;scale:1}}@keyframes groupHubIn{0%{opacity:0;scale:.82}65%{opacity:1;scale:1.04}100%{opacity:1;scale:1}}@keyframes groupMemberIn{0%{opacity:0;translate:0 5px}100%{opacity:1;translate:0 0}}@keyframes groupCountPop{0%{scale:.8;opacity:.45}60%{scale:1.12;opacity:1}100%{scale:1;opacity:1}}
-        @media(prefers-reduced-motion:reduce){.world.cameraTransition{transition:none}.worldContent.sceneReady{transition:none}.groupDropZone,.createFirstGroup{transition:none}.worldContent.nav-forward,.worldContent.nav-back,.slotEdgePulse,.nodeBusy,.personNode.grouping,.personNode.restoring,.groupNode.created,.groupDraftMembers button,.groupDropZone.memberAdded small,.slotCircle,.focusNode::before,.worldContent.nav-forward .childNode .nodeCircle{animation:none!important}}
+        @keyframes networkForward{0%{opacity:.68;scale:.975}100%{opacity:1;scale:1}}@keyframes networkBack{0%{opacity:.74;scale:1.035}100%{opacity:1;scale:1}}@keyframes networkSlotFlow{from{stroke-dashoffset:43}to{stroke-dashoffset:-43}}@keyframes networkSlotProgressFlow{from{stroke-dashoffset:51}to{stroke-dashoffset:-51}}@keyframes networkYouBreath{0%,100%{opacity:.46;transform:scale(.96)}50%{opacity:.92;transform:scale(1.06)}}@keyframes networkYouIntro{0%{opacity:.25;transform:scale(.78)}58%{opacity:1;transform:scale(1.14)}100%{opacity:.62;transform:scale(1)}}@keyframes networkNodeBloom{0%{transform:scale(.45);box-shadow:0 0 0 rgba(244,183,40,0)}55%{transform:scale(1.18);box-shadow:0 0 42px rgba(244,183,40,.22)}100%{transform:scale(var(--network-node-scale,1));box-shadow:0 0 22px rgba(244,183,40,.025)}}@keyframes slotPulse{0%,100%{box-shadow:0 0 0 rgba(244,183,40,0)}50%{box-shadow:0 0 22px rgba(244,183,40,.07)}}@keyframes pulse{to{opacity:.38;transform:scale(.82)}}@keyframes groupDropAway{to{opacity:0;scale:.82}}@keyframes groupNodeRestore{0%{opacity:0;scale:.86}100%{opacity:1;scale:1}}@keyframes groupHubIn{0%{opacity:0;scale:.82}65%{opacity:1;scale:1.04}100%{opacity:1;scale:1}}@keyframes groupMemberIn{0%{opacity:0;translate:0 5px}100%{opacity:1;translate:0 0}}@keyframes groupCountPop{0%{scale:.8;opacity:.45}60%{scale:1.12;opacity:1}100%{scale:1;opacity:1}}
+        @media(prefers-reduced-motion:reduce){.world.cameraTransition{transition:none}.worldContent.sceneReady{transition:none}.groupDropZone,.createFirstGroup{transition:none}.worldContent.nav-forward,.worldContent.nav-back,.slotEdgePulse,.slotEdgeProgressPulse,.nodeBusy,.personNode.grouping,.personNode.restoring,.groupNode.created,.groupDraftMembers button,.groupDropZone.memberAdded small,.slotCircle,.focusNode::before,.worldContent.nav-forward .childNode .nodeCircle{animation:none!important}}
       `}</style>
     </section>
   );
