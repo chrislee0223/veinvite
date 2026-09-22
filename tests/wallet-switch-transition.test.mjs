@@ -421,7 +421,7 @@ test('external VeWorld handoff has no artificial auth stability window or reconn
   );
   assert.doesNotMatch(
     authHook,
-    /connectV2\(|getPendingVeWorldWalletHandoffDelay/,
+    /await connectV2\(|getPendingVeWorldWalletHandoffDelay/,
   );
   assert.doesNotMatch(
     coordinator,
