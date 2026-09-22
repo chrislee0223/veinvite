@@ -94,6 +94,8 @@ create table if not exists public.sybil_v2_evidence_records (
 
 create index if not exists sybil_v2_evidence_subject_idx
   on public.sybil_v2_evidence_records(network, subject_wallet, evidence_family, created_at desc);
+create index if not exists sybil_v2_evidence_invite_idx
+  on public.sybil_v2_evidence_records(invite_code, created_at desc);
 create index if not exists sybil_v2_evidence_related_wallet_idx
   on public.sybil_v2_evidence_records(network, related_wallet)
   where related_wallet is not null;
@@ -205,6 +207,9 @@ create unique index if not exists sybil_v2_wallet_restrictions_one_active_idx
   where status = 'ACTIVE';
 create index if not exists sybil_v2_wallet_restrictions_history_idx
   on public.sybil_v2_wallet_restrictions(network, wallet_address, imposed_at desc);
+create index if not exists sybil_v2_wallet_restrictions_related_invite_idx
+  on public.sybil_v2_wallet_restrictions(related_invite_code)
+  where related_invite_code is not null;
 
 create table if not exists public.sybil_v2_reward_clearances (
   id uuid primary key default gen_random_uuid(),
