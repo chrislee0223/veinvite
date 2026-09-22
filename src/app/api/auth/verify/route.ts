@@ -78,6 +78,9 @@ type VerifyRequestBody = {
     | 'typed_data'
     | 'certificate'
     | 'message';
+  authFlow?:
+    | 'veworld_handoff_connect_v2'
+    | 'veworld_request_typed_data';
   certificate?: WalletCertificate;
 };
 
@@ -124,12 +127,16 @@ function logTypedProofRejection(
   reason:
     | 'typed_signature_invalid'
     | 'typed_signer_mismatch',
+  authFlow:
+    | 'veworld_handoff_connect_v2'
+    | 'veworld_request_typed_data'
+    | 'unknown',
 ) {
   // Safe Production diagnostic only. Never log wallet addresses, signatures,
   // nonces, or challenge contents.
   console.info(
     'Wallet typed proof rejected.',
-    { reason },
+    { reason, authFlow },
   );
 }
 
@@ -461,6 +468,11 @@ export async function POST(
     (body.certificate
       ? 'certificate'
       : 'message');
+  const authFlow =
+    body.authFlow === 'veworld_handoff_connect_v2' ||
+    body.authFlow === 'veworld_request_typed_data'
+      ? body.authFlow
+      : 'unknown';
 
   if (
     proofType !== 'typed_data' &&
@@ -510,6 +522,7 @@ export async function POST(
     } catch {
       logTypedProofRejection(
         'typed_signature_invalid',
+        authFlow,
       );
       return jsonError(
         'Invalid typed wallet signature.',
@@ -523,6 +536,7 @@ export async function POST(
     ) {
       logTypedProofRejection(
         'typed_signer_mismatch',
+        authFlow,
       );
       return jsonError(
         'The typed signature does not match the connected wallet.',
@@ -605,6 +619,10 @@ export async function POST(
     'Wallet proof verified.',
     {
       proofType,
+      authFlow:
+        proofType === 'typed_data'
+          ? authFlow
+          : undefined,
     },
   );
 
