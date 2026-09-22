@@ -12,33 +12,28 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - name: Query VeChain mainnet funding sources
+      - name: Trace Round 116 inviter funding graph
         shell: bash
         run: |
           python3 - <<'PY'
           import json, urllib.request
-          from collections import Counter
 
           NODE='https://mainnet.vechain.org'
           VTHO='0x0000000000000000000000000000456e65726779'
           TRANSFER='0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef'
-          BLOCKS_24H=8640
-          cases={
-            '74FQ6CB':('0x2d415cbf574177ccf0e8a178ef2c8df1dcdfa2cc',25825343),
-            'F84ZL4N':('0xd2fe919a38fb7ab6f2c2df0fec7723cb778b0989',25831197),
-            'SQCX6F9':('0x352ac255f820a9d5b952b52199f06f664b40ce15',25832252),
-            'V34W9PM':('0xbe38eb6be67e52c2743995a7bf59efd0e9265d5d',25833219),
-            '8GANYW6':('0x703210579b9f2fd2317415278af71f5fc59f6cc8',25834196),
-            'WPGLEGJ':('0x54f7d0b2f2cdc9be9d1be04c7101e984f2934c36',25834269),
-            'BGGJDJS':('0x37f983771b32d94e975e2568e5dca21d43d75a4d',25834638),
-            '8DNK7KV':('0x1bbd28f95af0df8edcf73431cab62af3b8807c39',25840115),
-            '9L4TMG5':('0x97e82cc272aaa9745b06525085f37b64e2382ff8',25840751),
-            'SBWYUFQ':('0x95af037750d985f094969d3cd741a0ff51082cba',25842235),
-            '7ACQA43':('0x79f1fa450b50a0e7ad5c7255ea8a59eb12e12c3e',25842288),
-            '2YYCS2X':('0x9fc31513746887e0d82f50aa41212913848feaa0',25875077),
-            'JEZP37F':('0x009c2dbbb4b823b0544c3580921b544baf77cb4d',25878913),
-            '65242BC':('0x259a1644d0c97a823ca1d6d811f6e6b522d92e82',25880600),
-          }
+          TO_BLOCK=25890000
+          inviters=[
+            '0x0533410815b0bb452362f91c6c9d1d64abf2c295',
+            '0x5ea9700efcfded17b7521186efc42e830501cb77',
+            '0xb7ce84c0c7fc87f64aa66399f65e3968062e1a2f',
+            '0x072f34d9e0f6535d5b25dcd722d85f13c50a4bc9',
+            '0x50db275162ce11662bea1f0d31eac1d7e33f565e',
+            '0x44f4665888f41e3b72db40e36fa06e62afc06ca5',
+            '0x377a18e24d64e0340f4e1a4b62a295f45b317cef',
+            '0xcb15dd2dbcd19d5e481d10d0edc657c2ce7f3909',
+            '0xbc147a036c266300c3c4fc20ca7886ada9a4b7ae',
+          ]
+          inviter_set=set(x.lower() for x in inviters)
 
           def post(path, body):
             req=urllib.request.Request(
@@ -51,53 +46,37 @@ jobs:
               return json.loads(r.read().decode())
 
           def topic(addr):
-            return '0x' + '0'*24 + addr.lower().replace('0x','')
+            return '0x'+'0'*24+addr.lower().replace('0x','')
 
           def parse_vtho(e):
             topics=e.get('topics') or []
             sender='0x'+topics[1][-40:].lower() if len(topics)>=3 else None
+            recipient='0x'+topics[2][-40:].lower() if len(topics)>=3 else None
+            m=e.get('meta') or {}
             data=e.get('data')
             amount=None
             if isinstance(data,str) and data.startswith('0x'):
               try: amount=str(int(data,16))
               except: pass
-            m=e.get('meta') or {}
-            return {
-              'sender':sender,
-              'block':m.get('blockNumber'),
-              'tx':m.get('txID'),
-              'amount_wei':amount,
-            }
+            return {'sender':sender,'recipient':recipient,'block':m.get('blockNumber'),'tx':m.get('txID'),'amount_wei':amount}
 
           def parse_vet(e):
             m=e.get('meta') or {}
-            return {
-              'sender':e.get('sender'),
-              'block':m.get('blockNumber'),
-              'tx':m.get('txID'),
-              'amount_wei':e.get('amount'),
-            }
+            return {'sender':e.get('sender'),'recipient':e.get('recipient'),'block':m.get('blockNumber'),'tx':m.get('txID'),'amount_wei':e.get('amount')}
 
-          rows=[]
-          for code,(wallet,activation) in cases.items():
-            end=activation+BLOCKS_24H
-            common={'range':{'unit':'block','from':0,'to':end},'options':{'offset':0,'limit':5},'order':'asc'}
-            vets=post('/logs/transfer',{**common,'criteriaSet':[{'recipient':wallet}]})
-            vthos=post('/logs/event',{**common,'criteriaSet':[{'address':VTHO,'topic0':TRANSFER,'topic2':topic(wallet)}]})
+          for wallet in inviters:
+            common={'range':{'unit':'block','from':0,'to':TO_BLOCK},'options':{'offset':0,'limit':10},'order':'asc'}
+            vin=post('/logs/transfer',{**common,'criteriaSet':[{'recipient':wallet}]})
+            hin=post('/logs/event',{**common,'criteriaSet':[{'address':VTHO,'topic0':TRANSFER,'topic2':topic(wallet)}]})
+            vout=post('/logs/event',{**common,'criteriaSet':[{'address':VTHO,'topic0':TRANSFER,'topic1':topic(wallet)}]})
             row={
-              'invite_code':code,
-              'wallet':wallet.lower(),
-              'activation_block':activation,
-              'scan_to_block':end,
-              'vet_in':[parse_vet(x) for x in vets[:5]],
-              'vtho_in':[parse_vtho(x) for x in vthos[:5]],
+              'wallet':wallet,
+              'vet_in':[parse_vet(x) for x in vin[:10]],
+              'vtho_in':[parse_vtho(x) for x in hin[:10]],
+              'vtho_out':[parse_vtho(x) for x in vout[:10]],
             }
-            rows.append(row)
-            print('AUDIT_ROW '+json.dumps(row,separators=(',',':')))
-
-          first_vtho=[r['vtho_in'][0]['sender'] for r in rows if r['vtho_in'] and r['vtho_in'][0]['sender']]
-          first_vet=[r['vet_in'][0]['sender'] for r in rows if r['vet_in'] and r['vet_in'][0]['sender']]
-          print('VTHO_FUNDER_COUNTS '+json.dumps(Counter(first_vtho),separators=(',',':')))
-          print('VET_FUNDER_COUNTS '+json.dumps(Counter(first_vet),separators=(',',':')))
-          print('AUDIT_ALL '+json.dumps(rows,separators=(',',':')))
+            print('INVITER_ROW '+json.dumps(row,separators=(',',':')))
+            for e in row['vtho_in']:
+              if e['sender'] in inviter_set:
+                print('INVITER_LINK '+json.dumps({'from':e['sender'],'to':wallet,'block':e['block'],'amount_wei':e['amount_wei'],'tx':e['tx']},separators=(',',':')))
           PY
