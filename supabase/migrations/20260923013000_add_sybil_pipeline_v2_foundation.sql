@@ -967,17 +967,15 @@ create or replace function public.enforce_same_security_client_block_policy()
 returns trigger
 language plpgsql
 set search_path = pg_catalog, public
-as $
+as $$
 begin
   if new.sybil_status = 'REVIEW'
      and new.sybil_source = 'SECURITY_CLIENT'
      and coalesce((new.identity_link_evidence ->> 'sameInviterClient')::boolean, false)
      and not coalesce((new.identity_link_evidence ->> 'operatorOverride')::boolean, false)
   then
-    -- Sybil v2 policy: same-client evidence is strong review context, but it is
-    -- not sufficient by itself to permanently block or forfeit a reward.
-    -- Keep the referral on HOLD/UNDER_REVIEW until independent evidence or an
-    -- operator decision corroborates it.
+    -- Same-client evidence is strong review context, but not sufficient by
+    -- itself for permanent restriction. Independent corroboration is required.
     new.sybil_status := 'REVIEW';
     new.sybil_risk_level := 'HIGH';
     new.sybil_risk_score := greatest(coalesce(new.sybil_risk_score,0), 90);
@@ -991,7 +989,7 @@ begin
 
   return new;
 end;
-$;
+$$;
 
 create or replace function public.resolve_sybil_v2_review(
   p_invite_code text,
@@ -1005,7 +1003,7 @@ returns jsonb
 language plpgsql
 security definer
 set search_path = pg_catalog, public
-as $
+as $$
 declare
   v_code text := upper(btrim(p_invite_code));
   v_decision text := upper(btrim(p_decision));
@@ -1019,108 +1017,24 @@ declare
   v_revision bigint;
   v_now timestamptz := clock_timestamp();
 begin
-  if v_code !~ '^[A-HJ-NP-Z2-9]{7}
-returns trigger
-language plpgsql
-set search_path = pg_catalog, public
-as $$
-begin
-  if old.reward_status = 'ELIGIBLE'
-     and new.reward_status not in ('ELIGIBLE','PAID')
-     and exists (
-       select 1
-       from public.reward_queue_entries q
-       where q.invite_code = old.invite_code
-         and q.sybil_clearance_id is not null
-         and q.status in ('AWAITING_CLAIM','QUEUED','ASSIGNED')
-     )
-  then
-    raise exception 'V2_CLEARED_REWARD_CANNOT_BE_REVERSED_AFTER_CLAIM_READY';
+  if v_code !~ '^[A-HJ-NP-Z2-9]{7}$' then
+    raise exception 'INVALID_INVITE_CODE';
   end if;
-
-  return new;
-end;
-$$;
-
-drop trigger if exists invitations_lock_v2_cleared_reward_after_reservation on public.invitations;
-create trigger invitations_lock_v2_cleared_reward_after_reservation
-before update of reward_status on public.invitations
-for each row execute function public.prevent_v2_cleared_reward_reversal();
-
-revoke all on function public.record_sybil_v2_assessment(
-  text,text,text,integer,text,text,bigint,jsonb,jsonb,jsonb,jsonb,text,bigint
-) from public, anon, authenticated;
-grant execute on function public.record_sybil_v2_assessment(
-  text,text,text,integer,text,text,bigint,jsonb,jsonb,jsonb,jsonb,text,bigint
-) to service_role;
-
-revoke all on function public.issue_sybil_v2_reward_clearance(text,bigint)
-  from public, anon, authenticated;
-grant execute on function public.issue_sybil_v2_reward_clearance(text,bigint)
-  to service_role;
-
-revoke all on function public.prevent_sybil_v2_append_only_mutation()
-  from public, anon, authenticated;
-revoke all on function public.prevent_v2_cleared_reward_reversal()
-  from public, anon, authenticated;
-
-commit;
- then raise exception 'INVALID_INVITE_CODE'; end if;
-  if v_decision not in ('CLEAR','BLACKLIST') then raise exception 'INVALID_SYBIL_V2_REVIEW_DECISION'; end if;
+  if v_decision not in ('CLEAR','BLACKLIST') then
+    raise exception 'INVALID_SYBIL_V2_REVIEW_DECISION';
+  end if;
   if v_reason is null or length(v_reason) < 12 or length(v_reason) > 500 then
     raise exception 'SYBIL_V2_REVIEW_REASON_LENGTH';
   end if;
   if p_expected_revision is null or p_expected_revision < 1 then
     raise exception 'INVALID_ASSESSMENT_REVISION';
   end if;
-  if v_operator !~ '^0x[0-9a-f]{40}
-returns trigger
-language plpgsql
-set search_path = pg_catalog, public
-as $$
-begin
-  if old.reward_status = 'ELIGIBLE'
-     and new.reward_status not in ('ELIGIBLE','PAID')
-     and exists (
-       select 1
-       from public.reward_queue_entries q
-       where q.invite_code = old.invite_code
-         and q.sybil_clearance_id is not null
-         and q.status in ('AWAITING_CLAIM','QUEUED','ASSIGNED')
-     )
-  then
-    raise exception 'V2_CLEARED_REWARD_CANNOT_BE_REVERSED_AFTER_CLAIM_READY';
+  if v_operator !~ '^0x[0-9a-f]{40}$' then
+    raise exception 'INVALID_OPERATOR_WALLET';
   end if;
-
-  return new;
-end;
-$$;
-
-drop trigger if exists invitations_lock_v2_cleared_reward_after_reservation on public.invitations;
-create trigger invitations_lock_v2_cleared_reward_after_reservation
-before update of reward_status on public.invitations
-for each row execute function public.prevent_v2_cleared_reward_reversal();
-
-revoke all on function public.record_sybil_v2_assessment(
-  text,text,text,integer,text,text,bigint,jsonb,jsonb,jsonb,jsonb,text,bigint
-) from public, anon, authenticated;
-grant execute on function public.record_sybil_v2_assessment(
-  text,text,text,integer,text,text,bigint,jsonb,jsonb,jsonb,jsonb,text,bigint
-) to service_role;
-
-revoke all on function public.issue_sybil_v2_reward_clearance(text,bigint)
-  from public, anon, authenticated;
-grant execute on function public.issue_sybil_v2_reward_clearance(text,bigint)
-  to service_role;
-
-revoke all on function public.prevent_sybil_v2_append_only_mutation()
-  from public, anon, authenticated;
-revoke all on function public.prevent_v2_cleared_reward_reversal()
-  from public, anon, authenticated;
-
-commit;
- then raise exception 'INVALID_OPERATOR_WALLET'; end if;
-  if v_network not in ('mainnet','testnet','testnet-staging') then raise exception 'INVALID_NETWORK'; end if;
+  if v_network not in ('mainnet','testnet','testnet-staging') then
+    raise exception 'INVALID_NETWORK';
+  end if;
 
   perform pg_advisory_xact_lock(hashtextextended('veinvite_sybil_v2_' || v_code,0));
 
@@ -1161,11 +1075,7 @@ commit;
 
   if v_decision = 'BLACKLIST' then
     perform public.set_invitation_sybil_decision(
-      v_code,
-      'BLOCKED',
-      'HIGH',
-      v_reason,
-      100
+      v_code, 'BLOCKED', 'HIGH', v_reason, 100
     );
 
     if not exists (
@@ -1247,11 +1157,7 @@ commit;
 
   if v_invitation.sybil_status = 'REVIEW' then
     perform public.set_invitation_sybil_decision(
-      v_code,
-      'CLEAR',
-      'NONE',
-      v_reason,
-      0
+      v_code, 'CLEAR', 'NONE', v_reason, 0
     );
   end if;
 
@@ -1293,7 +1199,7 @@ commit;
     'clearanceReason', v_clearance ->> 'reason'
   );
 end;
-$;
+$$;
 
 revoke all on function public.resolve_sybil_v2_review(
   text,text,text,bigint,text,text
@@ -1307,7 +1213,7 @@ returns trigger
 language plpgsql
 security definer
 set search_path = pg_catalog, public
-as $
+as $$
 declare
   v_health record;
   v_stale_scan bigint := 0;
@@ -1456,7 +1362,7 @@ begin
 
   return new;
 end;
-$;
+$$;
 
 revoke all on function public.enrich_operator_monitor_snapshot_sybil_v2()
   from public, anon, authenticated, service_role;
