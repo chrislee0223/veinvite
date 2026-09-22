@@ -12,107 +12,128 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - name: Trace Round 116 invitee B3TR outflows
+      - name: Analyze post-mission activity for linked Round 116 wallets
         shell: bash
         run: |
           python3 - <<'PY'
           import json, urllib.request
-          from collections import Counter, defaultdict
+          from collections import Counter
+          from datetime import datetime, timezone
 
           NODE='https://mainnet.vechain.org'
-          B3TR='0x5ef79995FE8a89e0812330E4378eB2660ceDe699'.lower()
           TRANSFER='0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef'
-          VOT3='0x76Ca782B59C74d088C7D2Cce2f211BC00836c602'.lower()
-          cases={
-            '74FQ6CB':('0x2d415cbf574177ccf0e8a178ef2c8df1dcdfa2cc',25825343),
-            'F84ZL4N':('0xd2fe919a38fb7ab6f2c2df0fec7723cb778b0989',25831197),
-            'SQCX6F9':('0x352ac255f820a9d5b952b52199f06f664b40ce15',25832252),
-            'V34W9PM':('0xbe38eb6be67e52c2743995a7bf59efd0e9265d5d',25833219),
-            '8GANYW6':('0x703210579b9f2fd2317415278af71f5fc59f6cc8',25834196),
-            'WPGLEGJ':('0x54f7d0b2f2cdc9be9d1be04c7101e984f2934c36',25834269),
-            'BGGJDJS':('0x37f983771b32d94e975e2568e5dca21d43d75a4d',25834638),
-            '8DNK7KV':('0x1bbd28f95af0df8edcf73431cab62af3b8807c39',25840115),
-            '9L4TMG5':('0x97e82cc272aaa9745b06525085f37b64e2382ff8',25840751),
-            'SBWYUFQ':('0x95af037750d985f094969d3cd741a0ff51082cba',25842235),
-            '7ACQA43':('0x79f1fa450b50a0e7ad5c7255ea8a59eb12e12c3e',25842288),
-            '2YYCS2X':('0x9fc31513746887e0d82f50aa41212913848feaa0',25875077),
-            'JEZP37F':('0x009c2dbbb4b823b0544c3580921b544baf77cb4d',25878913),
-            '65242BC':('0x259a1644d0c97a823ca1d6d811f6e6b522d92e82',25880600),
-          }
-          inviters={
+          B3TR='0x5ef79995fe8a89e0812330e4378eb2660cede699'
+          VOT3='0x76ca782b59c74d088c7d2cce2f211bc00836c602'
+          VTHO='0x0000000000000000000000000000456e65726779'
+          CENTRAL={
             '0x0533410815b0bb452362f91c6c9d1d64abf2c295',
             '0x5ea9700efcfded17b7521186efc42e830501cb77',
-            '0xb7ce84c0c7fc87f64aa66399f65e3968062e1a2f',
-            '0x072f34d9e0f6535d5b25dcd722d85f13c50a4bc9',
-            '0x50db275162ce11662bea1f0d31eac1d7e33f565e',
-            '0x44f4665888f41e3b72db40e36fa06e62afc06ca5',
-            '0x377a18e24d64e0340f4e1a4b62a295f45b317cef',
-            '0xcb15dd2dbcd19d5e481d10d0edc657c2ce7f3909',
             '0xbc147a036c266300c3c4fc20ca7886ada9a4b7ae',
           }
-          invitees=set(w for w,_ in cases.values())
+          cases={
+            '74FQ6CB':('0x2d415cbf574177ccf0e8a178ef2c8df1dcdfa2cc',25831103),
+            'F84ZL4N':('0xd2fe919a38fb7ab6f2c2df0fec7723cb778b0989',25831306),
+            'SQCX6F9':('0x352ac255f820a9d5b952b52199f06f664b40ce15',25833200),
+            'V34W9PM':('0xbe38eb6be67e52c2743995a7bf59efd0e9265d5d',25840514),
+            '8GANYW6':('0x703210579b9f2fd2317415278af71f5fc59f6cc8',25840566),
+            'WPGLEGJ':('0x54f7d0b2f2cdc9be9d1be04c7101e984f2934c36',25840606),
+            'BGGJDJS':('0x37f983771b32d94e975e2568e5dca21d43d75a4d',25849281),
+            '8DNK7KV':('0x1bbd28f95af0df8edcf73431cab62af3b8807c39',25840202),
+            '9L4TMG5':('0x97e82cc272aaa9745b06525085f37b64e2382ff8',25848598),
+            'SBWYUFQ':('0x95af037750d985f094969d3cd741a0ff51082cba',25848568),
+            '2YYCS2X':('0x9fc31513746887e0d82f50aa41212913848feaa0',25877091),
+            'JEZP37F':('0x009c2dbbb4b823b0544c3580921b544baf77cb4d',25879064),
+            '65242BC':('0x259a1644d0c97a823ca1d6d811f6e6b522d92e82',25880755),
+          }
+          linked=set(w for w,_ in cases.values())
+
+          def get(path):
+            with urllib.request.urlopen(NODE+path,timeout=30) as r:
+              return json.loads(r.read().decode())
 
           def post(path, body):
             req=urllib.request.Request(NODE+path,data=json.dumps(body).encode(),headers={'content-type':'application/json'},method='POST')
             with urllib.request.urlopen(req,timeout=30) as r:
               return json.loads(r.read().decode())
 
-          def get(path):
-            with urllib.request.urlopen(NODE+path,timeout=30) as r:
-              return json.loads(r.read().decode())
-
           def topic(addr):
             return '0x'+'0'*24+addr.lower().replace('0x','')
 
-          def parse(e):
-            ts=e.get('topics') or []
-            m=e.get('meta') or {}
-            amount=None
-            d=e.get('data')
-            if isinstance(d,str) and d.startswith('0x'):
-              try: amount=int(d,16)
-              except: pass
-            return {
-              'to':'0x'+ts[2][-40:].lower() if len(ts)>=3 else None,
-              'block':m.get('blockNumber'),
-              'tx':m.get('txID'),
-              'amount_wei':str(amount) if amount is not None else None,
-            }
+          def addr_from_topic(v):
+            return '0x'+v[-40:].lower() if isinstance(v,str) and len(v)>=42 else None
 
           best=get('/blocks/best')
-          best_num=best.get('number')
+          best_num=best['number']
           print('BEST_BLOCK '+str(best_num))
-          dest_wallets=defaultdict(set)
-          dest_counts=Counter()
-          for code,(wallet,start) in cases.items():
-            body={
-              'criteriaSet':[{'address':B3TR,'topic0':TRANSFER,'topic1':topic(wallet)}],
-              'range':{'unit':'block','from':start,'to':best_num},
-              'options':{'offset':0,'limit':100},
-              'order':'asc'
-            }
-            logs=post('/logs/event',body)
-            events=[parse(x) for x in logs]
-            for e in events:
-              d=e['to']
-              if d:
-                dest_wallets[d].add(wallet)
-                dest_counts[d]+=1
+
+          for code,(wallet,start_block) in cases.items():
+            base={'range':{'unit':'block','from':start_block+1,'to':best_num},'options':{'offset':0,'limit':1000},'order':'asc'}
+            incoming=post('/logs/event',{**base,'criteriaSet':[{'topic0':TRANSFER,'topic2':topic(wallet)}]})
+            outgoing=post('/logs/event',{**base,'criteriaSet':[{'topic0':TRANSFER,'topic1':topic(wallet)}]})
+            events=[]
+            for direction,logs in [('in',incoming),('out',outgoing)]:
+              for e in logs:
+                ts=e.get('topics') or []
+                m=e.get('meta') or {}
+                sender=addr_from_topic(ts[1]) if len(ts)>=3 else None
+                recipient=addr_from_topic(ts[2]) if len(ts)>=3 else None
+                contract=(e.get('address') or '').lower()
+                block=m.get('blockNumber')
+                stamp=m.get('blockTimestamp')
+                if stamp is None:
+                  stamp=m.get('blockTime')
+                events.append({
+                  'direction':direction,'contract':contract,'sender':sender,'recipient':recipient,
+                  'block':block,'timestamp':stamp,'tx':m.get('txID')
+                })
+
+            uniq_tx={e['tx'] for e in events if e['tx']}
+            contracts=Counter(e['contract'] for e in events if e['contract'])
+            peers=Counter((e['sender'] if e['direction']=='in' else e['recipient']) for e in events if (e['sender'] if e['direction']=='in' else e['recipient']))
+            central_edges=[e for e in events if ((e['sender'] in CENTRAL) or (e['recipient'] in CENTRAL))]
+            linked_edges=[e for e in events if ((e['sender'] in linked and e['sender']!=wallet) or (e['recipient'] in linked and e['recipient']!=wallet))]
+            b3tr=[e for e in events if e['contract']==B3TR]
+            vot3=[e for e in events if e['contract']==VOT3]
+            vtho=[e for e in events if e['contract']==VTHO]
+
+            timestamps=[e['timestamp'] for e in events if isinstance(e['timestamp'],int)]
+            days=set()
+            for t in timestamps:
+              # Thor logs expose Unix seconds in blockTimestamp.
+              try: days.add(datetime.fromtimestamp(t,tz=timezone.utc).strftime('%Y-%m-%d'))
+              except: pass
+
+            def cdir(arr,d): return sum(1 for e in arr if e['direction']==d)
+            first=min((e['block'] for e in events if isinstance(e['block'],int)),default=None)
+            last=max((e['block'] for e in events if isinstance(e['block'],int)),default=None)
             row={
               'invite_code':code,
               'wallet':wallet,
-              'outbound_count':len(events),
-              'events':events,
-              'to_any_round116_inviter':sum(1 for e in events if e['to'] in inviters),
-              'to_any_round116_invitee':sum(1 for e in events if e['to'] in invitees),
-              'to_vot3_contract':sum(1 for e in events if e['to']==VOT3),
+              'post_mission_transfer_events':len(events),
+              'post_mission_unique_txs':len(uniq_tx),
+              'active_days_utc':sorted(days),
+              'active_day_count':len(days),
+              'first_post_block':first,
+              'last_post_block':last,
+              'unique_token_contracts':len(contracts),
+              'top_contracts':contracts.most_common(8),
+              'unique_transfer_peers':len(peers),
+              'top_peers':peers.most_common(8),
+              'b3tr_in':cdir(b3tr,'in'),'b3tr_out':cdir(b3tr,'out'),
+              'vot3_in':cdir(vot3,'in'),'vot3_out':cdir(vot3,'out'),
+              'vtho_in':cdir(vtho,'in'),'vtho_out':cdir(vtho,'out'),
+              'central_wallet_edges':len(central_edges),
+              'central_edge_details':[{
+                'direction':e['direction'],
+                'peer':e['sender'] if e['direction']=='in' else e['recipient'],
+                'contract':e['contract'],'block':e['block'],'tx':e['tx']
+              } for e in central_edges[:20]],
+              'other_linked_wallet_edges':len(linked_edges),
+              'other_linked_edge_details':[{
+                'direction':e['direction'],
+                'peer':e['sender'] if e['direction']=='in' else e['recipient'],
+                'contract':e['contract'],'block':e['block'],'tx':e['tx']
+              } for e in linked_edges[:20]],
             }
-            print('B3TR_ROW '+json.dumps(row,separators=(',',':')))
-
-          common=[]
-          for d,ws in dest_wallets.items():
-            if len(ws)>=2:
-              common.append({'destination':d,'distinct_invitee_senders':len(ws),'transfer_count':dest_counts[d],'is_round116_inviter':d in inviters,'is_round116_invitee':d in invitees,'is_vot3':d==VOT3})
-          common.sort(key=lambda x:(-x['distinct_invitee_senders'],-x['transfer_count'],x['destination']))
-          print('COMMON_DESTINATIONS '+json.dumps(common,separators=(',',':')))
+            print('ACTIVITY_ROW '+json.dumps(row,separators=(',',':')))
           PY
