@@ -15,7 +15,10 @@ import {
 import {
   WALLET_AUTH_ACTIVITY_EVENT,
   cancelActiveWalletAuthentication,
+  clearPendingVeWorldWalletHandoff,
+  getPendingVeWorldWalletHandoff,
   isWalletAuthenticationInProgress,
+  markPendingVeWorldWalletHandoff,
   runWalletProviderReconciliation,
 } from '@/lib/walletAuthenticationCoordinator';
 
@@ -24,8 +27,6 @@ const PROVIDER_MISMATCH_GRACE_MS = 700;
 const PROVIDER_HANDOFF_GRACE_MS = 700;
 const PROVIDER_REPAIR_SETTLE_MS = 350;
 const AUTH_HANDOFF_SETTLE_MS = 1_000;
-const VEWORLD_REBIND_TIMEOUT_MS = 5_000;
-const VEWORLD_REBIND_SETTLE_MS = 250;
 const PROVIDER_REPAIR_RETRY_DELAYS_MS = [0, 450, 900] as const;
 const WALLET_SESSION_INVALID_EVENT =
   'veinvite-wallet-session-invalid';
@@ -48,28 +49,6 @@ function wait(milliseconds: number): Promise<void> {
   return new Promise((resolve) => {
     window.setTimeout(resolve, milliseconds);
   });
-}
-
-async function withTimeout<T>(
-  promise: Promise<T>,
-  timeoutMs: number,
-  message: string,
-): Promise<T> {
-  let timeoutId: number | undefined;
-  const timeout = new Promise<never>((_, reject) => {
-    timeoutId = window.setTimeout(
-      () => reject(new Error(message)),
-      timeoutMs,
-    );
-  });
-
-  try {
-    return await Promise.race([promise, timeout]);
-  } finally {
-    if (timeoutId !== undefined) {
-      window.clearTimeout(timeoutId);
-    }
-  }
 }
 
 async function resumeWalletSessionGate(
@@ -130,7 +109,6 @@ export function WalletProviderAccountReconciler() {
   const {
     account: dappKitAccount,
     source: dappKitSource,
-    connectV2,
     initializeAsync,
   } = useDappKitWallet();
 
@@ -158,6 +136,18 @@ export function WalletProviderAccountReconciler() {
   }, [dappWallet]);
 
   useEffect(() => {
+    const pending =
+      getPendingVeWorldWalletHandoff();
+
+    if (
+      pending &&
+      canonicalWallet !== pending
+    ) {
+      clearPendingVeWorldWalletHandoff(pending);
+    }
+  }, [canonicalWallet]);
+
+  useEffect(() => {
     const handleAuthActivity = () => {
       setAuthActivityEpoch((current) => current + 1);
     };
@@ -179,9 +169,9 @@ export function WalletProviderAccountReconciler() {
   // as wallet A while the app UI already displays wallet B. VeChainKit's direct
   // wallet account is derived from DAppKit, so B/B at the React layer is not
   // authoritative evidence that VeWorld's signing transport has switched.
-  // During an actual stale-session handoff only, re-run VeWorld v2 account
-  // binding with connectV2(null) before retiring A or opening B's ownership
-  // signature. Normal first login and same-wallet restores never take this path.
+  // During an actual stale-session handoff only, mark B for one combined
+  // VeWorld v2 connect+typed-data request. Normal first login and same-wallet
+  // restores never take this path.
   //
   // If provider alignment changes, the session request fails, or DELETE fails,
   // the existing WalletSessionGate mismatch surface remains the safe fallback.
@@ -264,46 +254,21 @@ export function WalletProviderAccountReconciler() {
             return;
           }
 
-          // DAppKit initializeAsync() cannot authoritatively read VeWorld's
-          // current v2 signer; it may reuse the persisted account. An explicit
-          // v2 account bind uses eth_requestAccounts underneath and returns the
-          // signer VeWorld currently exposes. This runs only for a confirmed
-          // A-session -> B-UI handoff, not on ordinary ownership checks.
           if (dappKitSource === 'veworld') {
-            const rebound =
-              await withTimeout(
-                runWalletProviderReconciliation(
-                  async () =>
-                    connectV2(null),
-                ),
-                VEWORLD_REBIND_TIMEOUT_MS,
-                'VeWorld account synchronization timed out.',
-              );
-
-            const reboundWallet =
-              normalizeWallet(rebound.signer);
-
-            if (
-              reboundWallet !== targetWallet
-            ) {
-              console.info(
-                'VeInvite deferred wallet-session handoff because VeWorld still exposed a different active signer.',
-              );
-              return;
-            }
-
-            await wait(VEWORLD_REBIND_SETTLE_MS);
-
-            if (
-              cancelled ||
-              sessionHandoffGenerationRef.current !== generation ||
-              canonicalWalletRef.current !== targetWallet ||
-              dappWalletRef.current !== targetWallet
-            ) {
-              return;
-            }
+            // Keep the known-good A browser session until B proves ownership.
+            // The next auth attempt will consume this marker and perform one
+            // connectV2(typedData) request, combining signer refresh + proof
+            // instead of opening a separate account-sync prompt first.
+            markPendingVeWorldWalletHandoff(targetWallet);
+            window.dispatchEvent(
+              new Event(WALLET_SESSION_INVALID_EVENT),
+            );
+            return;
           }
 
+          // Non-VeWorld DAppKit sources keep the previous conservative handoff:
+          // retire A, then let WalletSessionGate verify the newly connected
+          // wallet through that connector's normal proof path.
           const clearBrowserSession = async () => {
             const clearResponse = await fetch('/api/auth/session', {
               method: 'DELETE',
@@ -313,9 +278,6 @@ export function WalletProviderAccountReconciler() {
             return clearResponse.ok;
           };
 
-          // Only now retire the known-good A session. A second delete keeps the
-          // handoff race-safe if an old fetch crossed cancellation just before
-          // its promise settled.
           if (!(await clearBrowserSession())) {
             return;
           }
@@ -354,7 +316,6 @@ export function WalletProviderAccountReconciler() {
     canonicalWallet,
     connection.isConnectedWithDappKit,
     connection.isLoading,
-    connectV2,
     dappKitSource,
     dappWallet,
   ]);
