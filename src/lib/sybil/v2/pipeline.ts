@@ -1148,6 +1148,30 @@ export async function assessSybilV2Referral(
     };
   }
 
+  if (
+    currentAssessment?.source === 'OPERATOR' &&
+    currentAssessment.state === 'CLEAR'
+  ) {
+    const revision = safeRevision(currentAssessment.revision);
+    if (revision === null) {
+      throw new Error('Operator-cleared Sybil v2 assessment has an invalid revision.');
+    }
+
+    const clearance = await issueClearance(normalizedCode, revision);
+    return {
+      inviteCode: normalizedCode,
+      state: 'CLEAR',
+      riskScore: 0,
+      reasonCodes: ['OPERATOR_CLEARED'],
+      revision,
+      clearanceIssued: clearance.issued === true,
+      clearanceId:
+        typeof clearance.clearanceId === 'string'
+          ? clearance.clearanceId
+          : null,
+    };
+  }
+
   const checkpoint = await loadCheckpoint(normalizedCode);
   const completedChecks: string[] = [];
   const analysisFailed =
@@ -1312,49 +1336,21 @@ export async function runSybilV2EvidenceCollectionBatch(
   const bounded = Math.max(1, Math.min(MAX_BATCH_SIZE, Math.trunc(limit)));
 
   const { data, error } = await supabaseAdmin
-    .from('invitations')
-    .select(
-      'invite_code,invitee_wallet,activation_network,activation_block,activated_at,status',
-    )
-    .not('invitee_wallet', 'is', null)
-    .not('activation_network', 'is', null)
-    .not('activation_block', 'is', null)
-    .in('status', ['ACTIVATING', 'UNDER_REVIEW', 'COMPLETED'])
-    .order('activated_at', { ascending: false })
-    .limit(100);
+    .from('operator_sybil_v2_scan_candidates')
+    .select('invite_code')
+    .order('priority_at', {
+      ascending: true,
+      nullsFirst: true,
+    })
+    .limit(bounded);
 
   if (error) {
-    throw new Error(`Sybil v2 evidence batch candidates could not be loaded: ${error.message}`);
+    throw new Error(
+      `Sybil v2 evidence batch candidates could not be loaded: ${error.message}`,
+    );
   }
 
-  const rows = data ?? [];
-  const codes = rows.map((row) => String(row.invite_code));
-  const checkpointsResult = codes.length > 0
-    ? await supabaseAdmin
-        .from('sybil_v2_scan_checkpoints')
-        .select('invite_code,historical_chain_status,funding_chain_status,updated_at')
-        .in('invite_code', codes)
-    : { data: [], error: null };
-
-  if (checkpointsResult.error) {
-    throw new Error(`Sybil v2 evidence batch checkpoints could not be loaded: ${checkpointsResult.error.message}`);
-  }
-
-  const checkpointByCode = new Map(
-    (checkpointsResult.data ?? []).map((row) => [String(row.invite_code), row]),
-  );
-
-  const candidates = rows
-    .filter((row) => {
-      const checkpoint = checkpointByCode.get(String(row.invite_code));
-      return (
-        !checkpoint ||
-        checkpoint.historical_chain_status !== 'COMPLETE' ||
-        checkpoint.funding_chain_status !== 'COMPLETE'
-      );
-    })
-    .slice(0, bounded);
-
+  const candidates = data ?? [];
   let completed = 0;
   let failed = 0;
 
@@ -1392,82 +1388,31 @@ export async function runSybilV2AssessmentBatch(
   const bounded = Math.max(1, Math.min(MAX_BATCH_SIZE, Math.trunc(limit)));
 
   const { data, error } = await supabaseAdmin
-    .from('invitations')
+    .from('operator_sybil_v2_assessment_candidates')
     .select('invite_code')
-    .eq('status', 'COMPLETED')
-    .eq('reward_status', 'ELIGIBLE')
-    .order('reward_eligible_at', { ascending: true })
-    .limit(100);
+    .order('priority_at', {
+      ascending: true,
+      nullsFirst: true,
+    })
+    .limit(bounded);
 
   if (error) {
-    throw new Error(`Sybil v2 assessment batch candidates could not be loaded: ${error.message}`);
-  }
-
-  const codes = (data ?? []).map((row) => String(row.invite_code));
-  const clearances = codes.length > 0
-    ? await supabaseAdmin
-        .from('sybil_v2_reward_clearances')
-        .select('invite_code,assessment_revision')
-        .in('invite_code', codes)
-    : { data: [], error: null };
-  const assessments = codes.length > 0
-    ? await supabaseAdmin
-        .from('sybil_v2_referral_assessments')
-        .select('invite_code,state,revision,source')
-        .in('invite_code', codes)
-    : { data: [], error: null };
-
-  if (clearances.error || assessments.error) {
     throw new Error(
-      `Sybil v2 assessment batch state could not be loaded: ${
-        clearances.error?.message ?? assessments.error?.message
-      }`,
+      `Sybil v2 assessment batch candidates could not be loaded: ${error.message}`,
     );
   }
 
-  const clearanceRevisions = new Map(
-    (clearances.data ?? []).map((row) => [
-      String(row.invite_code),
-      safeRevision(row.assessment_revision),
-    ]),
-  );
-  const assessmentByCode = new Map(
-    ((assessments.data ?? []) as AssessmentRow[]).map((row) => [
-      row.invite_code,
-      row,
-    ]),
-  );
-
-  const candidates = codes
-    .filter((code) => {
-      const assessment = assessmentByCode.get(code);
-      const clearanceRevision = clearanceRevisions.get(code);
-      const assessmentRevision = safeRevision(assessment?.revision);
-
-      if (
-        assessment?.source === 'OPERATOR' &&
-        ['HOLD', 'RESTRICTED'].includes(assessment.state)
-      ) {
-        return false;
-      }
-
-      return (
-        !assessment ||
-        ['ANALYSIS_PENDING', 'ANALYSIS_FAILED'].includes(assessment.state) ||
-        clearanceRevision === undefined ||
-        clearanceRevision !== assessmentRevision
-      );
-    })
-    .slice(0, bounded);
-
+  const candidates = data ?? [];
   let clear = 0;
   let watch = 0;
   let hold = 0;
   let failedOrPending = 0;
 
-  for (const code of candidates) {
+  for (const candidate of candidates) {
     try {
-      const result = await ensureSybilV2ReadyForReward(code);
+      const result = await ensureSybilV2ReadyForReward(
+        String(candidate.invite_code),
+      );
       if (result.state === 'CLEAR') clear += 1;
       else if (result.state === 'WATCH') watch += 1;
       else if (result.state === 'HOLD' || result.state === 'RESTRICTED') {
