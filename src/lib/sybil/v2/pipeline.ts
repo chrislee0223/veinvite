@@ -78,6 +78,7 @@ type AssessmentRow = {
   state: string;
   revision: number | string;
   source: string;
+  updated_at: string;
 };
 
 type HistoricalRewardRow = {
@@ -1427,7 +1428,7 @@ async function loadFinalizedBlock(): Promise<number> {
 async function loadAssessment(inviteCode: string): Promise<AssessmentRow | null> {
   const { data, error } = await supabaseAdmin
     .from('sybil_v2_referral_assessments')
-    .select('invite_code,state,revision,source')
+    .select('invite_code,state,revision,source,updated_at')
     .eq('invite_code', inviteCode)
     .maybeSingle();
 
@@ -1436,6 +1437,24 @@ async function loadAssessment(inviteCode: string): Promise<AssessmentRow | null>
   }
 
   return data as AssessmentRow | null;
+}
+
+async function hasNewEvidenceForCurrentAssessment(
+  inviteCode: string,
+): Promise<boolean> {
+  const { data, error } = await supabaseAdmin
+    .from('operator_sybil_v2_assessment_candidates')
+    .select('invite_code')
+    .eq('invite_code', inviteCode)
+    .maybeSingle();
+
+  if (error) {
+    throw new Error(
+      `Sybil v2 reassessment freshness could not be loaded: ${error.message}`,
+    );
+  }
+
+  return Boolean(data);
 }
 
 async function recordAssessment({
@@ -1543,19 +1562,26 @@ export async function assessSybilV2Referral(
       throw new Error('Operator-cleared Sybil v2 assessment has an invalid revision.');
     }
 
-    const clearance = await issueClearance(normalizedCode, revision);
-    return {
-      inviteCode: normalizedCode,
-      state: 'CLEAR',
-      riskScore: 0,
-      reasonCodes: ['OPERATOR_CLEARED'],
-      revision,
-      clearanceIssued: clearance.issued === true,
-      clearanceId:
-        typeof clearance.clearanceId === 'string'
-          ? clearance.clearanceId
-          : null,
-    };
+    const hasNewEvidence =
+      await hasNewEvidenceForCurrentAssessment(normalizedCode);
+
+    // The operator cleared the exact evidence set represented by this revision.
+    // Keep that decision stable until genuinely newer evidence arrives.
+    if (!hasNewEvidence) {
+      const clearance = await issueClearance(normalizedCode, revision);
+      return {
+        inviteCode: normalizedCode,
+        state: 'CLEAR',
+        riskScore: 0,
+        reasonCodes: ['OPERATOR_CLEARED'],
+        revision,
+        clearanceIssued: clearance.issued === true,
+        clearanceId:
+          typeof clearance.clearanceId === 'string'
+            ? clearance.clearanceId
+            : null,
+      };
+    }
   }
 
   const checkpoint = await loadCheckpoint(normalizedCode);
