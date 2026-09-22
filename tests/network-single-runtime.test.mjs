@@ -462,6 +462,11 @@ test('invite slot state retries transient failures and refreshes when the app re
   assert.doesNotMatch(networkSource, /setInterval\(/);
 });
 
+test('Network slot API derives pending state from invitation status, not wallet presence', () => {
+  assert.match(networkSlotsRouteSource, /row\.status === 'PENDING_ACCEPTANCE' \? 'PENDING' as const : 'IN_PROGRESS' as const/);
+  assert.doesNotMatch(networkSlotsRouteSource, /row\.invitee_wallet \? 'IN_PROGRESS' as const : 'PENDING' as const/);
+});
+
 test('pending acceptance stays distinct from mission progress in Network slots', () => {
   assert.match(networkSource, /const pendingAcceptance = slot\.state === 'PENDING'/);
   assert.match(networkSource, /const slotStatusLabel = pendingAcceptance \? t\.pendingAcceptance : t\.inProgress/);
