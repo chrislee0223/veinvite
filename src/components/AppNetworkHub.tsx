@@ -42,15 +42,6 @@ async function fetchSummary(wallet: string, signal?: AbortSignal): Promise<Netwo
   return jsonRequest<NetworkSummaryProbe>(`/api/network/summary?wallet=${encodeURIComponent(wallet)}`, { signal });
 }
 
-function goHomeWithoutReload() {
-  const button = document.querySelector<HTMLButtonElement>('[data-veinvite-tab="home"]');
-  if (button) {
-    button.click();
-    return;
-  }
-  window.location.assign('/');
-}
-
 function NetworkGlyph({ size = 34 }: { size?: number }) {
   return (
     <svg
@@ -115,7 +106,6 @@ export function AppNetworkHub({ locale }: { locale: Locale }) {
   const [probeState, setProbeState] = useState<'idle' | 'loading' | 'ready' | 'error' | 'maintenance'>(
     initialProbe ? 'ready' : 'idle',
   );
-  const [probe, setProbe] = useState<NetworkSummaryProbe | null>(initialProbe);
 
   const loadProbe = useCallback(async (signal?: AbortSignal) => {
     if (!wallet) return;
@@ -123,43 +113,35 @@ export function AppNetworkHub({ locale }: { locale: Locale }) {
     const cachedBefore = getCachedNetworkSummary(requestWallet);
     if (!cachedBefore) {
       setProbeState('loading');
-      setProbe(null);
     }
     try {
       const data = await fetchSummary(requestWallet, signal);
       if (signal?.aborted || !sameWallet(activeWalletRef.current, requestWallet)) return;
       rememberNetworkSummary(requestWallet, data);
-      setProbe(data);
       setProbeState('ready');
     } catch (error) {
       if (signal?.aborted || !sameWallet(activeWalletRef.current, requestWallet)) return;
       if ((error as ApiError).code === 'NETWORK_DISABLED') {
-        setProbe(null);
         setProbeState('maintenance');
         return;
       }
       if (cachedBefore) {
-        setProbe(cachedBefore);
         setProbeState('ready');
         return;
       }
-      setProbe(null);
       setProbeState('error');
     }
   }, [wallet]);
 
   useEffect(() => {
     if (!wallet) {
-      setProbe(null);
       setProbeState('idle');
       return;
     }
     const cached = getCachedNetworkSummary(wallet);
     if (cached) {
-      setProbe(cached);
       setProbeState('ready');
     } else {
-      setProbe(null);
       setProbeState('loading');
     }
     const controller = new AbortController();
@@ -181,20 +163,9 @@ export function AppNetworkHub({ locale }: { locale: Locale }) {
     return <StateCard title={h.maintenanceTitle} description={h.maintenanceDescription} />;
   }
 
-  // Summary probing is now advisory. Do not hold the Network canvas
-  // behind it: AppNetwork starts its authenticated fast topology read
-  // immediately, while the summary request continues in parallel.
-  if (probeState === 'ready' && probe) {
-    if (probe.summary.network === 0) {
-      return (
-        <StateCard title={t.emptyTitle} description={t.emptyDescription}>
-          <div className="stateActions">
-            <button type="button" className="primary" onClick={goHomeWithoutReload}>{t.inviteFriend}</button>
-          </div>
-        </StateCard>
-      );
-    }
-  }
+  // Summary probing is advisory. Even a zero-member wallet enters the
+  // real Network canvas so its actual AVAILABLE/PENDING/IN_PROGRESS slots
+  // remain visible. Only an explicit runtime maintenance state blocks it.
 
   return (
     <section className="networkHubShell">

@@ -52,6 +52,14 @@ test('Network has exactly one production component path and no version wrapper c
   assert.equal(qaFiles.some((name) => /^QaNetworkRadialPlaygroundV\d+\.tsx$/.test(name)), false);
 });
 
+test('zero-member wallets still enter the real Network canvas so invite slots remain visible', () => {
+  assert.doesNotMatch(networkHubSource, /probe\.summary\.network === 0/);
+  assert.doesNotMatch(networkHubSource, /t\.emptyTitle|t\.emptyDescription|t\.inviteFriend/);
+  const maintenance = networkHubSource.indexOf("probeState === 'maintenance'");
+  const canvas = networkHubSource.indexOf('<AppNetwork locale={locale} />');
+  assert.ok(maintenance >= 0 && canvas > maintenance);
+});
+
 test('Network runtime has no DOM observer or global viewport ownership', () => {
   assert.doesNotMatch(networkSource, /MutationObserver/);
   assert.doesNotMatch(workspaceSource, /MutationObserver/);
@@ -452,6 +460,14 @@ test('invite slot state retries transient failures and refreshes when the app re
   assert.match(networkSource, /setInviteSlotsReady\(true\)/);
   assert.doesNotMatch(networkSource, /introReadyFallback/);
   assert.doesNotMatch(networkSource, /setInterval\(/);
+});
+
+test('pending acceptance stays distinct from mission progress in Network slots', () => {
+  assert.match(networkSource, /const pendingAcceptance = slot\.state === 'PENDING'/);
+  assert.match(networkSource, /const slotStatusLabel = pendingAcceptance \? t\.pendingAcceptance : t\.inProgress/);
+  assert.match(networkSource, /pendingAcceptance \? 'pendingInviteNode' : 'progressInviteNode'/);
+  assert.match(networkSource, /pendingAcceptance[\s\S]*t\.pendingAcceptance[\s\S]*slot\.completedSteps/);
+  assert.match(networkSource, /\.pendingInviteNode \.nodeCircle\{[^}]*border-style:dashed/);
 });
 
 test('available and in-progress invite slots are movable like ordinary nodes', () => {
