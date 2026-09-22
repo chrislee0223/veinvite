@@ -154,11 +154,13 @@ test('Network runtime OFF is a dedicated maintenance state rather than a retry f
   assert.doesNotMatch(maintenanceBranch, /t\.retry/i);
 });
 
-test('Public visibility controls stay dormant and are not mounted into the focused Network surface', () => {
+test('Public visibility controls stay out of the Network canvas and remain server hardened', () => {
   assert.doesNotMatch(hub, /VisibilityLoadState/i);
   assert.doesNotMatch(hub, /fetchVisibility|saveVisibility|publicConfirm|visibilityUnknown/i);
-  assert.doesNotMatch(hub, /exploreNetwork|publicSettings|PublicNetworkExplorer/i);
-  // Dormant backend controls remain hardened in case the product revisits them later.
+  assert.doesNotMatch(hub, /exploreNetwork|publicSettings/i);
+  // Visibility preferences live in Settings; the Network hub only chooses
+  // between the editable My Network runtime and the read-only public viewer.
+  assert.match(hub, /PublicNetworkExplorer/i);
   assert.match(visibilityRoute, /requireWalletSession/i);
   assert.match(visibilityRoute, /sameOrigin\(request\)/i);
 });
