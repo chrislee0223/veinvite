@@ -39,11 +39,11 @@ select
   a.revision as assessment_revision,
   a.source as assessment_source,
   c.id as current_clearance_id,
+  coalesce(a.updated_at, i.reward_eligible_at, i.updated_at) as priority_at,
   greatest(
     coalesce(n.newest_evidence_at, '-infinity'::timestamptz),
     coalesce(i.identity_link_checked_at, '-infinity'::timestamptz)
-  ) as newest_relevant_evidence_at,
-  coalesce(a.updated_at, i.reward_eligible_at, i.updated_at) as priority_at
+  ) as newest_relevant_evidence_at
 from public.invitations i
 left join public.sybil_v2_referral_assessments a
   on a.invite_code = i.invite_code
