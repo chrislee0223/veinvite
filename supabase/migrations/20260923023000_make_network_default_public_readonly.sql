@@ -318,5 +318,3 @@ grant execute on function public.read_public_network_discovery_v1(integer)
 
 comment on function public.read_public_network_discovery_v1(integer) is
   'Returns default-public VeInvite leaderboard roots that have at least one verified referral-network child. Ordering rotates deterministically by ISO week.';
-
-drop table if exists public.network_public_profiles;
