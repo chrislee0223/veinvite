@@ -58,6 +58,8 @@ const PublicLeaderboard = dynamic(() =>
 );
 
 const VERCEL_SHARE_STORAGE_KEY = 'veinvite_vercel_share';
+const PUBLIC_NETWORK_TARGET_STORAGE_KEY = 'veinvite-network-public-target-v1';
+const VECHAIN_WALLET_PATTERN = /^0x[0-9a-fA-F]{40}$/;
 const REFERRAL_LINK_SESSION_PREFIX = 'veinvite_referral_link_v1:';
 const ACTIVE_STATUSES = new Set([
   'PENDING_ACCEPTANCE',
@@ -303,6 +305,46 @@ export function HomeClient() {
     setLegacyCancelTarget(null);
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
+
+  useEffect(() => {
+    const openPublicNetwork = (event: Event) => {
+      const detail = (event as CustomEvent<{ wallet?: unknown }>).detail;
+      const requestedWallet =
+        typeof detail?.wallet === 'string'
+          ? detail.wallet.trim().toLowerCase()
+          : '';
+      if (!VECHAIN_WALLET_PATTERN.test(requestedWallet)) return;
+
+      try {
+        window.sessionStorage.setItem(
+          PUBLIC_NETWORK_TARGET_STORAGE_KEY,
+          requestedWallet,
+        );
+      } catch {
+        // Navigation still works while the Network surface is already mounted.
+      }
+
+      clearFeedback();
+      setLegacyCancelTarget(null);
+      setActiveTab('guide');
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+      window.dispatchEvent(
+        new CustomEvent('veinvite-analytics-view', {
+          detail: 'guide',
+        }),
+      );
+    };
+
+    window.addEventListener(
+      'veinvite-open-public-network',
+      openPublicNetwork,
+    );
+    return () =>
+      window.removeEventListener(
+        'veinvite-open-public-network',
+        openPublicNetwork,
+      );
+  }, [clearFeedback]);
 
   const load = useCallback(async (quiet = false) => {
     if (!wallet) return;

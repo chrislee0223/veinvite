@@ -58,10 +58,11 @@ test('the legacy Guide tab renders one focused hardened Network runtime while re
   assert.match(interactiveNetwork, /returnViewByChildRef/i);
   assert.doesNotMatch(interactiveNetwork, /MutationObserver/i);
   assert.match(networkHub, /<AppNetwork locale=\{locale\} \/>/i);
-  assert.doesNotMatch(networkHub, /PublicNetworkExplorer/i);
-  assert.doesNotMatch(networkHub, /exploreNetwork|publicSettings/i);
-  // The public explorer remains dormant code for now; removing its visible
-  // mode switch must not require destructive backend cleanup in the same pass.
+  assert.match(networkHub, /<PublicNetworkExplorer/i);
+  assert.match(networkHub, /publicRootWallet/i);
+  assert.doesNotMatch(networkHub, /publicSettings/i);
+  // Other-user browsing now mounts the isolated public explorer while
+  // My Network keeps the editable runtime as its separate default surface.
   assert.match(publicExplorer, /PUBLIC_SESSION_PREFIX/i);
   assert.match(publicExplorer, /requestSerialRef/i);
   assert.match(publicExplorer, /cancelNavigation/i);
