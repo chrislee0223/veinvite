@@ -2,6 +2,8 @@
 
 import {
   useCallback,
+  useEffect,
+  useRef,
   useState,
 } from 'react';
 import {
@@ -19,6 +21,7 @@ import {
   getActiveWalletAuthentication,
   isWalletAuthenticationGenerationCurrent,
   setActiveWalletAuthentication,
+  runWalletProviderReconciliation,
   waitForWalletProviderReconciliation,
 } from '@/lib/walletAuthenticationCoordinator';
 import {
@@ -153,9 +156,27 @@ export function useWalletAuthentication() {
   const {
     account: dappKitAccount,
     source: dappKitSource,
+    initializeAsync,
     requestTypedData,
     requestCertificate,
   } = useDappKitWallet();
+
+  const canonicalWalletRef = useRef<string | null>(
+    account?.address?.trim().toLowerCase() ?? null,
+  );
+  const dappWalletRef = useRef<string | null>(
+    dappKitAccount?.trim().toLowerCase() ?? null,
+  );
+
+  useEffect(() => {
+    canonicalWalletRef.current =
+      account?.address?.trim().toLowerCase() ?? null;
+  }, [account?.address]);
+
+  useEffect(() => {
+    dappWalletRef.current =
+      dappKitAccount?.trim().toLowerCase() ?? null;
+  }, [dappKitAccount]);
 
   const [
     isAuthenticating,
@@ -352,15 +373,41 @@ export function useWalletAuthentication() {
               );
               assertStillCurrent();
 
+              // VeWorld can publish the new account through both React
+              // providers a little before its internal signing transport has
+              // finished switching away from the previous account. Refresh the
+              // already-established DAppKit transport here, before any wallet
+              // prompt exists, so the first ownership signature is issued by
+              // the wallet the UI is actually showing. This is deliberately
+              // initializeAsync(), not connectV2(): it rehydrates the existing
+              // connection without reopening VeWorld's login flow.
+              if (dappKitSource === 'veworld') {
+                await withTimeout(
+                  runWalletProviderReconciliation(
+                    async () => {
+                      await initializeAsync();
+                    },
+                  ),
+                  WALLET_PROVIDER_SETTLE_TIMEOUT_MS,
+                  'Wallet connection is still synchronizing. Please try again.',
+                );
+                assertStillCurrent();
+              }
+
+              // Give React/provider subscriptions one short settle window after
+              // the transport refresh, then read refs rather than this callback's
+              // pre-refresh render snapshot. If either provider moved again,
+              // never open a signing prompt for the stale wallet.
+              await wait(
+                WALLET_SIGNATURE_SETTLE_MS,
+              );
+              assertStillCurrent();
+
               const signer =
-                account?.address
-                  ?.trim()
-                  .toLowerCase() ||
+                canonicalWalletRef.current ||
                 walletAddress;
               const dappSigner =
-                dappKitAccount
-                  ?.trim()
-                  .toLowerCase() || null;
+                dappWalletRef.current;
 
               if (
                 signer !== walletAddress ||
@@ -370,11 +417,6 @@ export function useWalletAuthentication() {
                   'Wallet connection is still synchronizing. Please disconnect and reconnect the wallet.',
                 );
               }
-
-              await wait(
-                WALLET_SIGNATURE_SETTLE_MS,
-              );
-              assertStillCurrent();
 
               const signCertificateFallback =
                 async () => {
@@ -594,6 +636,7 @@ export function useWalletAuthentication() {
         connection.isConnectedWithDappKit,
         dappKitAccount,
         dappKitSource,
+        initializeAsync,
         requestTypedData,
         requestCertificate,
         signMessage,

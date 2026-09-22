@@ -388,3 +388,25 @@ test('country observation is server-bound to the wallet that initiated the reque
     /requireWalletSession\(\{[\s\S]*request,[\s\S]*expectedWallet,[\s\S]*\}\)/,
   );
 });
+
+
+test('wallet handoff never reopens VeWorld login and refreshes transport only before signing', async () => {
+  const source = await readFile(
+    new URL(
+      '../src/hooks/useWalletAuthentication.ts',
+      import.meta.url,
+    ),
+    'utf8',
+  );
+
+  const refresh = source.indexOf('await initializeAsync();');
+  const typedPrompt = source.indexOf('await requestTypedData(');
+
+  assert.ok(refresh >= 0);
+  assert.ok(typedPrompt > refresh);
+  assert.match(
+    source,
+    /runWalletProviderReconciliation\([\s\S]*await initializeAsync\(\)/,
+  );
+  assert.doesNotMatch(source, /await connectV2\(/);
+});
