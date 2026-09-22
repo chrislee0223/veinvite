@@ -35,6 +35,8 @@ const [
 test('leaderboard can hand a wallet into the Network tab without prop-drilling the leaderboard tree', () => {
   assert.match(leaderboard, /veinvite-open-public-network/);
   assert.match(leaderboard, /networkViewButton/);
+  assert.match(leaderboard, /이 초대자의 네트워크 보기/);
+  assert.doesNotMatch(leaderboard, /VeInvite · \{networkCopy\.exploreNetwork\}/);
   assert.match(home, /PUBLIC_NETWORK_TARGET_STORAGE_KEY/);
   assert.match(home, /veinvite-open-public-network/);
   assert.match(home, /setActiveTab\('guide'\)/);
@@ -72,6 +74,9 @@ test('public Network display remains mobile-width and does not gain editing pers
   assert.match(publicExplorer, /\.publicStage\{position:relative;flex:1 1 auto;min-height:0;height:auto/);
   assert.match(publicExplorer, /PublicNodeLabel/);
   assert.match(publicExplorer, /formatCompactVechainDomain/);
+  assert.match(publicExplorer, /publicLoadingCanvas networkCard/);
+  assert.match(publicExplorer, /inlineNetworkLoading/);
+  assert.doesNotMatch(publicExplorer, /state === 'loading'\) return <section className="publicState networkCard"/);
 });
 
 test('old Network privacy opt-in cannot return through current Settings, API, or copy layers', async () => {
