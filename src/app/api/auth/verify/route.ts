@@ -78,10 +78,6 @@ type VerifyRequestBody = {
     | 'typed_data'
     | 'certificate'
     | 'message';
-  authFlow?:
-    | 'veworld_handoff_connect_v2'
-    | 'veworld_request_typed_data';
-  clientSignerCheck?: 'matched';
   certificate?: WalletCertificate;
 };
 
@@ -121,26 +117,6 @@ function jsonError(
         'Cache-Control': 'no-store',
       },
     },
-  );
-}
-
-function logTypedProofRejection(
-  reason:
-    | 'typed_signature_invalid'
-    | 'typed_signer_mismatch',
-  authFlow:
-    | 'veworld_handoff_connect_v2'
-    | 'veworld_request_typed_data'
-    | 'unknown',
-  clientSignerCheck:
-    | 'matched'
-    | 'missing',
-) {
-  // Safe Production diagnostic only. Never log wallet addresses, signatures,
-  // nonces, or challenge contents.
-  console.info(
-    'Wallet typed proof rejected.',
-    { reason, authFlow, clientSignerCheck },
   );
 }
 
@@ -472,15 +448,6 @@ export async function POST(
     (body.certificate
       ? 'certificate'
       : 'message');
-  const authFlow =
-    body.authFlow === 'veworld_handoff_connect_v2' ||
-    body.authFlow === 'veworld_request_typed_data'
-      ? body.authFlow
-      : 'unknown';
-  const clientSignerCheck =
-    body.clientSignerCheck === 'matched'
-      ? 'matched'
-      : 'missing';
 
   if (
     proofType !== 'typed_data' &&
@@ -528,11 +495,6 @@ export async function POST(
           ),
         );
     } catch {
-      logTypedProofRejection(
-        'typed_signature_invalid',
-        authFlow,
-        clientSignerCheck,
-      );
       return jsonError(
         'Invalid typed wallet signature.',
         401,
@@ -543,11 +505,6 @@ export async function POST(
       recoveredAddress !==
       walletAddress
     ) {
-      logTypedProofRejection(
-        'typed_signer_mismatch',
-        authFlow,
-        clientSignerCheck,
-      );
       return jsonError(
         'The typed signature does not match the connected wallet.',
         401,
@@ -629,14 +586,6 @@ export async function POST(
     'Wallet proof verified.',
     {
       proofType,
-      authFlow:
-        proofType === 'typed_data'
-          ? authFlow
-          : undefined,
-      clientSignerCheck:
-        proofType === 'typed_data'
-          ? clientSignerCheck
-          : undefined,
     },
   );
 
