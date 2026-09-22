@@ -131,16 +131,17 @@ test('Public visibility changes require auth/origin, are throttled, and avoid re
   assert.match(visibilityRoute, /current\?\.discoverable === discoverable/i);
 });
 
-test('Network Empty State uses a lightweight direct-edge probe, shared Network glyph, and one invite action', () => {
+test('Network summary stays lightweight and zero-member wallets continue into the real canvas', () => {
   assert.match(summaryRoute, /qualified_referral_network_edges/i);
   assert.match(summaryRoute, /\.limit\(1\)/i);
   assert.doesNotMatch(summaryRoute, /read_referral_network_focus_v2/i);
   assert.match(hub, /function NetworkGlyph/i);
-  assert.match(hub, /probe\.summary\.network === 0/i);
-  assert.match(hub, /goHomeWithoutReload/i);
-  assert.match(hub, /data-veinvite-tab="home"/i);
-  const emptyBranch = hub.match(/if \(probe\.summary\.network === 0\)[\s\S]*?\n  }\n\n  return \(/i)?.[0] ?? '';
-  assert.doesNotMatch(emptyBranch, /exploreNetwork|publicSettings|PublicNetworkExplorer/i);
+  assert.doesNotMatch(hub, /probe\.summary\.network === 0/i);
+  assert.doesNotMatch(hub, /goHomeWithoutReload/i);
+  assert.doesNotMatch(hub, /data-veinvite-tab="home"/i);
+  const maintenanceIndex = hub.indexOf("probeState === 'maintenance'");
+  const canvasIndex = hub.indexOf('<AppNetwork locale={locale} />');
+  assert.ok(maintenanceIndex >= 0 && canvasIndex > maintenanceIndex);
   assert.doesNotMatch(hub, /useGetAvatar/i);
   assert.doesNotMatch(hub, /useVechainDomain/i);
 });

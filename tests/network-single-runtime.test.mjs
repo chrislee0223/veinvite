@@ -52,6 +52,14 @@ test('Network has exactly one production component path and no version wrapper c
   assert.equal(qaFiles.some((name) => /^QaNetworkRadialPlaygroundV\d+\.tsx$/.test(name)), false);
 });
 
+test('zero-member wallets still enter the real Network canvas so invite slots remain visible', () => {
+  assert.doesNotMatch(networkHubSource, /probe\.summary\.network === 0/);
+  assert.doesNotMatch(networkHubSource, /t\.emptyTitle|t\.emptyDescription|t\.inviteFriend/);
+  const maintenance = networkHubSource.indexOf("probeState === 'maintenance'");
+  const canvas = networkHubSource.indexOf('<AppNetwork locale={locale} />');
+  assert.ok(maintenance >= 0 && canvas > maintenance);
+});
+
 test('Network runtime has no DOM observer or global viewport ownership', () => {
   assert.doesNotMatch(networkSource, /MutationObserver/);
   assert.doesNotMatch(workspaceSource, /MutationObserver/);
@@ -427,7 +435,7 @@ test('two invite slots are current capacity, not a lifetime two-branch limit', (
   assert.match(networkSlotsRouteSource, /invite_slot/);
   assert.match(networkSlotsRouteSource, /slots = \(\[1, 2\] as const\)\.map/);
   assert.match(networkSlotsRouteSource, /state: 'AVAILABLE'/);
-  assert.match(networkSlotsRouteSource, /state: row\.invitee_wallet \? 'IN_PROGRESS'/);
+  assert.match(networkSlotsRouteSource, /state: row\.status === 'PENDING_ACCEPTANCE' \? 'PENDING' as const : 'IN_PROGRESS' as const/);
   assert.match(networkSlotsRouteSource, /completedSteps/);
   assert.match(networkSource, /\/api\/network\/slots\?wallet=/);
   assert.match(networkSource, /getCachedNetworkInviteSlots\(wallet\)/);
@@ -452,6 +460,19 @@ test('invite slot state retries transient failures and refreshes when the app re
   assert.match(networkSource, /setInviteSlotsReady\(true\)/);
   assert.doesNotMatch(networkSource, /introReadyFallback/);
   assert.doesNotMatch(networkSource, /setInterval\(/);
+});
+
+test('Network slot API derives pending state from invitation status, not wallet presence', () => {
+  assert.match(networkSlotsRouteSource, /row\.status === 'PENDING_ACCEPTANCE' \? 'PENDING' as const : 'IN_PROGRESS' as const/);
+  assert.doesNotMatch(networkSlotsRouteSource, /row\.invitee_wallet \? 'IN_PROGRESS' as const : 'PENDING' as const/);
+});
+
+test('pending acceptance stays distinct from mission progress in Network slots', () => {
+  assert.match(networkSource, /const pendingAcceptance = slot\.state === 'PENDING'/);
+  assert.match(networkSource, /const slotStatusLabel = pendingAcceptance \? t\.pendingAcceptance : t\.inProgress/);
+  assert.match(networkSource, /pendingAcceptance \? 'pendingInviteNode' : 'progressInviteNode'/);
+  assert.match(networkSource, /pendingAcceptance[\s\S]*t\.pendingAcceptance[\s\S]*slot\.completedSteps/);
+  assert.match(networkSource, /\.pendingInviteNode \.nodeCircle\{[^}]*border-style:dashed/);
 });
 
 test('available and in-progress invite slots are movable like ordinary nodes', () => {
@@ -575,7 +596,7 @@ test('node labels prefer VET domains while preserving the original scoped node D
 
   assert.match(networkSource, /<strong><NetworkNodeLabel address=\{currentData\.focusWallet\} \/><\/strong>/);
   assert.match(networkSource, /<strong><NetworkNodeLabel address=\{child\.wallet\} \/><\/strong>/);
-  assert.match(networkSource, /slot\.inviteeWallet \? <NetworkNodeLabel address=\{slot\.inviteeWallet\} \/> : t\.inProgress/);
+  assert.match(networkSource, /slot\.inviteeWallet \? <NetworkNodeLabel address=\{slot\.inviteeWallet\} \/> : slotStatusLabel/);
   assert.match(networkSource, /<strong><NetworkNodeLabel address=\{dragGhost\.wallet\} \/><\/strong>/);
   assert.match(networkSource, /\.nodeMeta strong\{[^}]*max-width:90px[^}]*overflow:hidden[^}]*text-overflow:ellipsis[^}]*white-space:nowrap/);
 });
