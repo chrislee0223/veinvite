@@ -12,6 +12,10 @@ import {
   type HistoricalWalletChainSnapshotV2,
 } from '@/lib/sybil/v2/historicalChain';
 import {
+  readRecentPreActivationFundingV2,
+  type RecentPreActivationFunding,
+} from '@/lib/sybil/v2/recentFunding';
+import {
   detectHistoricalB3trConsolidation,
   detectHistoricalRewardCluster,
 } from '@/lib/sybil/v2/clusterMath';
@@ -462,6 +466,41 @@ async function persistFundingSnapshot({
   }
 }
 
+
+async function persistRecentFundingSnapshot({
+  invitation,
+  rows,
+}: {
+  invitation: InvitationV2Row;
+  rows: RecentPreActivationFunding[];
+}) {
+  if (!invitation.invitee_wallet) return;
+
+  for (const row of rows) {
+    await insertEvidenceRecord({
+      invitation,
+      subjectWallet: invitation.invitee_wallet,
+      family: 'FUNDING',
+      signalCode: `RECENT_PREACTIVATION_${row.asset}_FUNDER`,
+      strength: 'INFO',
+      score: 0,
+      relatedWallet: row.sender,
+      observedBlock: row.blockNumber,
+      evidence: {
+        asset: row.asset,
+        txId: row.txId,
+        amountWei: row.amountWei,
+        blocksBeforeActivation:
+          row.blocksBeforeActivation,
+        approximateSecondsBeforeActivation:
+          row.blocksBeforeActivation * 10,
+      },
+      dedupeKey:
+        `sybil-v2:${invitation.invite_code}:recent-${row.asset.toLowerCase()}-funder:${row.sender}:${row.blockNumber}`,
+    });
+  }
+}
+
 export async function collectSybilV2EvidenceForInvite(
   inviteCode: string,
 ): Promise<SybilV2EvidenceCollectionResult> {
@@ -533,11 +572,21 @@ export async function collectSybilV2EvidenceForInvite(
 
   if (fundingStatus !== 'COMPLETE') {
     try {
-      const snapshot = await readOnchainFundingSnapshot({
-        walletAddress: invitation.invitee_wallet,
-        activationBlock,
-      });
+      const [snapshot, recentFunding] = await Promise.all([
+        readOnchainFundingSnapshot({
+          walletAddress: invitation.invitee_wallet,
+          activationBlock,
+        }),
+        readRecentPreActivationFundingV2({
+          walletAddress: invitation.invitee_wallet,
+          activationBlock,
+        }),
+      ]);
       await persistFundingSnapshot({ invitation, snapshot });
+      await persistRecentFundingSnapshot({
+        invitation,
+        rows: recentFunding,
+      });
       fundingStatus = 'COMPLETE';
     } catch (error) {
       fundingStatus = 'FAILED';
