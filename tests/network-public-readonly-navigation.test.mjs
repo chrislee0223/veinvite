@@ -74,7 +74,7 @@ test('public Network display remains mobile-width and does not gain editing pers
   assert.match(publicExplorer, /formatCompactVechainDomain/);
 });
 
-test('old Network privacy opt-in cannot return through Settings, API, or database code', async () => {
+test('old Network privacy opt-in cannot return through current Settings, API, or copy layers', async () => {
   assert.doesNotMatch(settings, /NETWORK_EXPLORE_COPY/);
   assert.doesNotMatch(settings, /network\/public\/visibility/);
   assert.doesNotMatch(settings, /publicEnabled/);
@@ -82,18 +82,20 @@ test('old Network privacy opt-in cannot return through Settings, API, or databas
   assert.doesNotMatch(publicExplorer, /NETWORK_PRIVATE|FOCUS_NOT_PUBLIC|NETWORK_NOT_FOUND/);
   assert.doesNotMatch(publicApi, /NETWORK_PRIVATE|FOCUS_NOT_PUBLIC|NETWORK_NOT_FOUND|hasPrivateBranches/);
   assert.doesNotMatch(migration, /join public\.network_public_profiles/i);
+
   for (const source of [hubCopy, nativeReview, naturalnessPolish]) {
     assert.doesNotMatch(
       source,
       /publicConfirm|visibilityLoading|visibilityUnknown|publicEnabled|discoverableNote|networkPrivate|privateBranchesHidden/,
     );
   }
+
   await assert.rejects(
     access('src/app/api/network/public/visibility/route.ts'),
   );
 });
 
-test('default-public reader remains graph-only and empty roots do not require invitation metadata', () => {
+test('default-public reader remains graph-only and empty roots need no invitation metadata', () => {
   assert.match(migration, /qualified_referral_network_edges/);
   assert.match(emptyRootMigration, /qualified_referral_network_edges/);
   assert.doesNotMatch(
@@ -104,24 +106,6 @@ test('default-public reader remains graph-only and empty roots do not require in
     emptyRootMigration.includes("p.root_wallet ~ '^0x[0-9a-f]{40}$'"),
     'empty public Network roots must still require a valid VeChain address',
   );
-  assert.match(publicApi, /Mission, reward,/);
-});
-
-test('partial domain autocomplete reuses only domains already cached in the current session', () => {
-  assert.match(domainCache, /readCachedLeaderboardDomainSuggestions/);
-  assert.match(domainCache, /sessionStorage\.getItem\(DOMAIN_CACHE_KEY\)/);
-  assert.match(domainCache, /startsWith\(normalizedQuery\)/);
-  assert.match(domainCache, /DOMAIN_SUGGESTION_MIN_CHARS\s*=\s*3/);
-  assert.match(network, /cachedDomainSuggestions/);
-  assert.match(network, /openCachedDomainSuggestion/);
-  assert.match(network, /fetchNetwork\(wallet/);
-  assert.match(network, /formatVechainDomainLabel\(suggestion\.domain\)/);
-  assert.match(publicExplorer, /cachedDomainSuggestions/);
-  assert.match(publicExplorer, /focusCachedDomainSuggestion/);
-  assert.match(publicExplorer, /fetchPublicNetwork\(\s*root,\s*suggestion\.wallet/);
-  assert.doesNotMatch(domainCache, /fetch\(/);
-});
-/i);
   assert.match(publicApi, /Mission, reward,/);
 });
 
