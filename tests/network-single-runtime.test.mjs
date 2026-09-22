@@ -250,9 +250,9 @@ test('group rendering and drag start use indexed wallet lookups at larger networ
   assert.match(networkSource, /const child = childByWallet\.get\(keyWallet\(key\)\)/);
 
   const edgesStart = networkSource.indexOf('{visibleGroups.filter((group) => group.collapsed === false).flatMap');
-  const continuationStart = networkSource.indexOf('{visibleChildren.filter((child) => child.network > 0).map', edgesStart);
-  assert.ok(edgesStart >= 0 && continuationStart > edgesStart);
-  assert.doesNotMatch(networkSource.slice(edgesStart, continuationStart), /visibleChildren\.find/);
+  const slotEdgesStart = networkSource.indexOf('{positionedInviteSlots.map((slot, index) => {', edgesStart);
+  assert.ok(edgesStart >= 0 && slotEdgesStart > edgesStart);
+  assert.doesNotMatch(networkSource.slice(edgesStart, slotEdgesStart), /visibleChildren\.find/);
 
   const workspaceDragStart = networkSource.indexOf('const beginWorkspaceDrag = useCallback');
   const finishDropStart = networkSource.indexOf('const finishWorkspaceDrop = useCallback', workspaceDragStart);
