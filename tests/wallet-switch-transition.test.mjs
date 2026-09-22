@@ -421,11 +421,11 @@ test('stale A -> B VeWorld handoff keeps A session until one combined B proof pr
 
   assert.match(
     coordinator,
-    /pendingVeWorldHandoffWallet[\s\S]*markPendingVeWorldWalletHandoff[\s\S]*isPendingVeWorldWalletHandoff[\s\S]*clearPendingVeWorldWalletHandoff/,
+    /pendingVeWorldHandoff[\s\S]*markPendingVeWorldWalletHandoff[\s\S]*isPendingVeWorldWalletHandoff[\s\S]*clearPendingVeWorldWalletHandoff/,
   );
   assert.match(
     reconciler,
-    /sessionWallet === targetWallet[\s\S]*cancelActiveWalletAuthentication\(\)[\s\S]*dappKitSource === 'veworld'[\s\S]*markPendingVeWorldWalletHandoff\(targetWallet\)[\s\S]*WALLET_SESSION_INVALID_EVENT[\s\S]*return;/,
+    /sessionWallet === targetWallet[\s\S]*cancelActiveWalletAuthentication\(\)[\s\S]*dappKitSource === 'veworld'[\s\S]*markPendingVeWorldWalletHandoff\([\s\S]*targetWallet,[\s\S]*Date\.now\(\) \+ VEWORLD_HANDOFF_STABILITY_MS[\s\S]*WALLET_SESSION_INVALID_EVENT[\s\S]*return;/,
   );
 
   const veworldBranch = reconciler.slice(
@@ -511,7 +511,7 @@ test('VeWorld handoff marker is created only after a confirmed stale browser ses
     'sessionWallet === targetWallet',
   );
   const marker = source.indexOf(
-    'markPendingVeWorldWalletHandoff(targetWallet)',
+    'markPendingVeWorldWalletHandoff(',
     staleSessionCheck,
   );
 
