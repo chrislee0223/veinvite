@@ -58,33 +58,48 @@ test('Network runtime has no DOM observer or global viewport ownership', () => {
 });
 
 
-test('node profile stays compact, preserves context, and exposes the selected wallet safely', () => {
-  assert.match(networkSource, /const selectedAddress = selectedIsFocus/);
+test('node profile stays compact, prefers cached VET identity, and keeps wallet truth visible', () => {
+  assert.match(networkSource, /readCachedLeaderboardDomain/);
+  assert.match(networkSource, /rememberLeaderboardDomain/);
+  assert.match(networkSource, /shouldLoad && \(!showLabel \|\| displayDomain === undefined\)/);
+  assert.match(networkSource, /showLabel \? readCachedLeaderboardDomain\(address\) : undefined/);
+  assert.match(networkSource, /useVechainDomain\(\s*shouldResolveDomain \? address : undefined/);
+  assert.match(networkSource, /<NetworkIdentity address=\{selectedAddress\} root size=\{34\} \/>/);
+  assert.doesNotMatch(networkSource, /className=\{\`profileStatus/);
+  assert.doesNotMatch(networkSource, /selectedStatus = selectedMember/);
   assert.match(networkSource, /const compactSelectedPath = selectedPath\.length <= 3/);
-  assert.match(networkSource, /className="profilePath"/);
-  assert.match(networkSource, /item === '…' \? '…' : index === 0 \? c\.you : nodeWallet\(item\)/);
-  assert.match(networkSource, /className=\{\`profileStatus \$\{selectedIsFocus \? 'status-branch' : \`status-\$\{selectedStatus\.toLowerCase\(\)\}\`\}\`\}/);
-  assert.match(networkSource, /https:\/\/explore\.vechain\.org\/address\/\$\{selectedAddress\}/);
+  assert.match(networkSource, /const profileDirection = getLocaleDirection\(locale\)/);
+  assert.match(networkSource, /dir=\{profileDirection\}/);
+  assert.match(networkSource, /<bdi dir="ltr">\{nodeWallet\(item\)\}<\/bdi>/);
+  assert.match(networkSource, /className="profileAddress" dir="ltr"/);
+  assert.match(networkSource, /getVeChainExplorerAddressUrl\(selectedAddress\)/);
   assert.match(networkSource, /const selectedNetwork = selectedIsFocus[\s\S]*currentData\?\.summary\.network[\s\S]*selectedData\?\.summary\.network \?\? selectedMember\?\.network \?\? 0/);
   assert.match(networkSource, /const selectedDirect = selectedIsFocus[\s\S]*currentData\?\.summary\.direct[\s\S]*selectedData\?\.summary\.direct \?\? selectedMember\?\.direct \?\? 0/);
   assert.match(networkSource, /const selectedQualified = selectedIsFocus[\s\S]*currentData\?\.summary\.qualified[\s\S]*selectedData\?\.summary\.qualified \?\? selectedMember\?\.qualified \?\? 0/);
-  assert.doesNotMatch(networkSource, /selectedMember\?\.network \?\? currentData\?\.summary\.network/);
-  assert.doesNotMatch(networkSource, /selectedMember\?\.direct \?\? currentData\?\.summary\.direct/);
-  assert.doesNotMatch(networkSource, /selectedMember\?\.qualified \?\? currentData\?\.summary\.qualified/);
   assert.match(networkSource, /const selectedRound = selectedIsFocus[\s\S]*currentData\?\.summary\.thisRound[\s\S]*selectedData\?\.summary\.thisRound \?\? selectedMember\?\.thisRound \?\? null/);
-  assert.doesNotMatch(networkSource, /selectedMember\?\.thisRound \?\? currentData\?\.summary\.thisRound/);
   assert.match(networkSource, /selectedRound === null \? '–' : \`\+\$\{selectedRound\.toLocaleString\(\)\}\`/);
-  assert.match(networkSource, /\.profileAddress>span\{[^}]*text-overflow:ellipsis[^}]*white-space:nowrap/);
-  assert.match(networkSource, /\.profileStats>div\{[^}]*padding:6px 7px/);
+  assert.match(networkSource, /\.profileCard\{[^}]*inset-inline:8px[^}]*bottom:8px/);
+  assert.match(networkSource, /\.profileIdentity :global\(\.identityLabel\)\{[^}]*text-overflow:ellipsis[^}]*white-space:nowrap/);
+  assert.match(networkSource, /\.profileStats>div\{[^}]*padding:5px 6px/);
+  assert.match(networkSource, /-webkit-line-clamp:2/);
+  assert.match(networkSource, /profileDirection === 'rtl' \? '‹' : '›'/);
+  assert.doesNotMatch(networkSource, /scaleX\(-1\)/);
 });
 
-test('node profile dismissal and mobile chrome compaction do not take over Network gestures', () => {
+test('node profile remains non-blocking and Network keeps one mobile geometry on desktop and phone', () => {
+  const profileStart = networkSource.indexOf('{selectedWallet && !editingLayout ? (');
+  const profileEnd = networkSource.indexOf('{dragGhost && dragGhostChild', profileStart);
+  assert.ok(profileStart >= 0 && profileEnd > profileStart);
+  const profileSource = networkSource.slice(profileStart, profileEnd);
+  assert.doesNotMatch(profileSource, /fetch\(/);
+  assert.doesNotMatch(profileSource, /useVechainDomain\(/);
   assert.match(networkSource, /if \(!interactive && selectedWallet\) \{\s*setSelectedWallet\(null\);\s*\}/);
   assert.match(networkSource, /\.personNode\.selected \.nodeCircle\{[^}]*0 0 34px/);
-  assert.match(networkSource, /\.profileCard\{top:auto;right:8px;bottom:8px;left:8px;width:auto\}/);
   assert.match(networkSource, /\.profileCard\.hasParentReturn\{bottom:52px\}/);
-  assert.doesNotMatch(networkSource, /:global\(\.screen\.networkScreen \.bottomNavigation/);
-  assert.match(homeSource, /\.screen\.networkScreen \{ padding:14px 14px calc\(72px \+ env\(safe-area-inset-bottom\)\); \}/);
+  assert.doesNotMatch(homeSource, /height:min\(720px,calc\(100svh - 160px\)\)/);
+  assert.doesNotMatch(networkSource, /@media\(max-width:560px\)/);
+  assert.match(homeSource, /\.screen\.networkScreen \{[^}]*padding:14px 14px calc\(72px \+ env\(safe-area-inset-bottom\)\)/);
+  assert.match(homeSource, /\.networkScreen \.topActions \{ max-width:58%; align-items:flex-end; flex-direction:column-reverse; gap:7px; \}/);
   assert.match(bottomNavigationSource, /\.bottomNavigation\[data-veinvite-active-tab='guide'\] \{ padding-bottom: env\(safe-area-inset-bottom\); \}/);
   assert.match(bottomNavigationSource, /\.bottomNavigation\[data-veinvite-active-tab='guide'\] > div \{ min-height: 60px; padding: 4px; border-radius: 20px; \}/);
   assert.match(bottomNavigationSource, /\.bottomNavigation\[data-veinvite-active-tab='guide'\] button \{ min-height: 50px; padding: 4px 3px;/);
@@ -529,7 +544,7 @@ test('wallet search is magnifier-first and avoids iPhone focus zoom without disa
   assert.match(networkSource, /const closeSearch = useCallback/);
   assert.match(networkSource, /closeSearch\(\);[\s\S]*moveToFocus\(result\.wallet, 'forward'\)/);
   assert.match(networkSource, /\.searchField input\{[^}]*font-size:16px/);
-  assert.match(networkSource, /@media\(max-width:560px\)[^\n]*\.searchField input\{font-size:16px\}/);
+  assert.doesNotMatch(networkSource, /@media\(max-width:560px\)/);
   assert.doesNotMatch(networkSource, /maximum-scale|user-scalable|document\.documentElement\.style\.touchAction/);
 });
 test('invite slot fallback geometry is stable before and after stage measurement', () => {
