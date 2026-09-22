@@ -7,6 +7,7 @@ import {
 import { isReferralKey } from '@/lib/referralLinks';
 import { createCode, normalizeAddress } from '@/lib/serverStore';
 import { supabaseAdmin } from '@/lib/supabaseServer';
+import { enqueueSybilV2EvidenceCollection } from '@/lib/sybil/v2/evidenceQueue';
 import {
   requireWalletSession,
   WalletAuthenticationError,
@@ -473,6 +474,24 @@ export async function POST(
         if (!invite || !result.entry_class) {
           return NextResponse.json({ outcome: 'server_error' }, { status: 500 });
         }
+        try {
+          await enqueueSybilV2EvidenceCollection({
+            inviteCode: result.invite_code,
+            detectedAt: new Date().toISOString(),
+          });
+        } catch (queueError) {
+          // The referral is already durable. Queue delivery accelerates the
+          // activation-time historical scan; final assessment and cron both
+          // retry evidence collection before reward readiness.
+          console.error(
+            'Failed to queue Sybil v2 activation evidence collection:',
+            {
+              inviteCode: result.invite_code,
+              error: queueError,
+            },
+          );
+        }
+
         return NextResponse.json({
           outcome: 'claimed',
           invite,
