@@ -96,8 +96,16 @@ test('old Network privacy opt-in cannot return through Settings, API, or databas
 test('default-public reader remains graph-only and empty roots do not require invitation metadata', () => {
   assert.match(migration, /qualified_referral_network_edges/);
   assert.match(emptyRootMigration, /qualified_referral_network_edges/);
-  assert.doesNotMatch(emptyRootMigration, /root_known|NETWORK_NOT_FOUND|invitations|reward_status|sybil_status|identity_link|mission_/i);
-  assert.match(emptyRootMigration, /p\.root_wallet ~ '\^0x\[0-9a-f\]\{40\}\
+  assert.doesNotMatch(
+    emptyRootMigration,
+    /root_known|NETWORK_NOT_FOUND|invitations|reward_status|sybil_status|identity_link|mission_/i,
+  );
+  assert.ok(
+    emptyRootMigration.includes("p.root_wallet ~ '^0x[0-9a-f]{40}$'"),
+    'empty public Network roots must still require a valid VeChain address',
+  );
+  assert.match(publicApi, /Mission, reward,/);
+});
 
 test('partial domain autocomplete reuses only domains already cached in the current session', () => {
   assert.match(domainCache, /readCachedLeaderboardDomainSuggestions/);
