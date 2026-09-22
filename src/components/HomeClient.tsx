@@ -1149,13 +1149,13 @@ export function HomeClient() {
       />
 
       <style jsx>{`
-        .screen { min-height:100svh; box-sizing:border-box; padding:22px 18px 118px; color:#fff; background:radial-gradient(circle at 50% 16%,rgba(244,183,40,.14),transparent 32%),#080807; }
-        .screen.networkScreen { width:min(100%,548px); height:100svh; min-height:100svh; margin:0 auto; overflow:hidden; overscroll-behavior:none; padding:22px 14px calc(96px + env(safe-area-inset-bottom)); display:flex; flex-direction:column; }
+        .screen { min-height:100svh; box-sizing:border-box; padding:22px 16px 118px; color:#fff; background:radial-gradient(circle at 50% 16%,rgba(244,183,40,.14),transparent 32%),#080807; }
+        .screen.networkScreen { height:100svh; min-height:100svh; overflow:hidden; overscroll-behavior:none; display:flex; flex-direction:column; }
         .topBar { width:min(100%,520px); margin:0 auto 26px; display:flex; align-items:center; justify-content:space-between; gap:16px; }
         .networkTabViewport { width:100%; min-height:0; flex:1 1 auto; display:flex; }
         .networkTabViewport :global(.networkHubShell) { width:100%; height:100%; min-height:0; display:flex; }
         .networkTabViewport :global(.networkCanvasPage) { flex:1 1 auto; min-height:0; }
-        .topActions { min-width:0; display:flex; align-items:center; gap:10px; }
+        .topActions { min-width:0; display:flex; align-items:center; gap:8px; }
         .utilityActions { min-width:0; display:flex; align-items:center; justify-content:flex-end; gap:8px; }
         .languageSelect { max-width:155px; height:40px; padding:0 28px 0 11px; border:1px solid rgba(255,255,255,.1); border-radius:13px; background:#141625; color:#fff; font:inherit; font-size:.76rem; font-weight:800; cursor:pointer; }
         .accountChip { min-height:40px; padding:0 13px; display:inline-flex; align-items:center; gap:8px; border:1px solid rgba(255,255,255,.1); border-radius:13px; background:#141625; color:#fff; font:inherit; font-size:.72rem; font-weight:850; cursor:pointer; }
@@ -1206,17 +1206,7 @@ export function HomeClient() {
         .modalCard p { margin:11px 0 0; color:#a39eaf; font-size:.88rem; line-height:1.55; overflow-wrap:anywhere; }
         .cancelConfirm { margin-top:16px; border:0; background:transparent; color:#ff7186; font:inherit; font-size:.8rem; font-weight:900; cursor:pointer; }
         @keyframes skeletonPulse { 0%,100% { opacity:.5; } 50% { opacity:1; } }
-        @media (min-width:561px) {
-          .networkTabViewport { max-height:720px; }
-        }
         @media (max-width:560px) {
-          .screen { padding:18px 14px 116px; }
-          .topBar { align-items:flex-start; }
-          .topActions { max-width:58%; align-items:flex-end; flex-direction:column-reverse; gap:7px; }
-          .utilityActions { width:100%; }
-          .utilityActions .languageSelect { min-width:0; width:auto; flex:1; }
-          .languageSelect { width:100%; max-width:155px; height:34px; border-radius:11px; font-size:.68rem; }
-          .accountChip { min-height:34px; padding:0 10px; border-radius:11px; font-size:.66rem; }
           .missionCard { padding:21px 18px; border-radius:26px; }
           .missionCopy h1 { font-size:clamp(1.9rem,10vw,2.6rem); }
           .missionCopy.cjkCopy h1 { font-size:clamp(1.9rem,9vw,2.4rem); }

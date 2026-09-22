@@ -48,8 +48,9 @@ test('Network keeps only a compact total metric in the utility row and floats se
   assert.match(source, /className="youControl"/);
 });
 
-test('Network canvas fills the remaining tab height instead of creating page scroll', () => {
-  assert.match(home, /screen\.networkScreen \{[^}]*width:min\(100%,548px\)[^}]*height:100svh[^}]*overflow:hidden/);
+test('Network canvas fills the remaining tab height inside the shared mobile-first shell', () => {
+  assert.match(home, /screen\.networkScreen \{[^}]*height:100svh[^}]*overflow:hidden/);
+  assert.doesNotMatch(home, /screen\.networkScreen \{[^}]*width:min\(100%,548px\)/);
   assert.match(home, /networkTabViewport \{[^}]*flex:1 1 auto[^}]*display:flex/);
   assert.match(hub, /networkHubShell\{[^}]*height:100%[^}]*min-height:0[^}]*display:flex/);
   assert.match(source, /networkCanvasPage\{[^}]*width:min\(100%,520px\)[^}]*height:100%[^}]*display:flex;flex-direction:column/);
@@ -73,16 +74,20 @@ test('stage does not steal pointer capture from buttons and inputs', () => {
 });
 
 
-test('desktop Network keeps the compact Network card without restacking the global app header', () => {
-  assert.match(home, /@media \(min-width:561px\) \{\s*\.networkTabViewport \{ max-height:720px; \}\s*\}/);
+test('Network keeps the compact mobile-first card without viewport-specific header restacking', () => {
+  assert.doesNotMatch(home, /@media \(min-width:561px\)/);
   assert.match(hub, /networkHubShell\{width:min\(100%,520px\)/);
   assert.doesNotMatch(source, /networkHeader\{/);
   assert.match(source, /networkUtilityRow\{[^}]*min-height:40px[^}]*padding:4px 6px/);
   assert.match(source, /networkIdentity\{[^}]*display:flex/);
   assert.match(source, /summaryTotal\{[^}]*display:flex/);
   assert.match(source, /networkSearchRow\{[^}]*position:absolute[^}]*top:44px/);
-  assert.match(home, /\.topActions \{ min-width:0; display:flex; align-items:center; gap:10px; \}/);
-  assert.match(home, /\.screen\.networkScreen \{[^}]*padding:22px 14px calc\(96px \+ env\(safe-area-inset-bottom\)\)/);
+  assert.match(home, /\.topActions \{ min-width:0; display:flex; align-items:center; gap:8px; \}/);
+  assert.match(home, /\.screen \{[^}]*padding:22px 16px 118px[^}]*background:radial-gradient/);
+  assert.match(home, /\.screen\.networkScreen \{[^}]*height:100svh[^}]*display:flex[^}]*flex-direction:column/);
+  assert.doesNotMatch(home, /\.screen\.networkScreen \{[^}]*width:/);
+  assert.doesNotMatch(home, /\.screen\.networkScreen \{[^}]*margin:/);
+  assert.doesNotMatch(home, /\.screen\.networkScreen \{[^}]*padding:/);
   assert.doesNotMatch(home, /networkScreen \.topBar/);
   assert.doesNotMatch(home, /networkScreen \.topActions/);
   assert.doesNotMatch(home, /networkScreen \.utilityActions/);
@@ -126,10 +131,10 @@ test('layout edit keeps the same compact toolbar instead of spawning reset/new/c
   assert.doesNotMatch(source, /data-layout-editing='true'[^\n]*\.searchWrap\{display:none\}/);
 });
 
-test('desktop Network height cap is scoped to the Network card only', () => {
+test('Network has no desktop-only height cap', () => {
   assert.match(home, /.screen.networkScreen {[^}]*height:100svh/);
   assert.match(home, /.networkTabViewport {[^}]*flex:1 1 auto[^}]*display:flex/);
-  assert.match(home, /@media \(min-width:561px\) \{\s*\.networkTabViewport \{ max-height:720px; \}\s*\}/);
-  assert.doesNotMatch(home, /@media \(min-width:561px\)[\s\S]{0,220}\.screen\.networkScreen \{[^}]*max-height/);
+  assert.doesNotMatch(home, /@media \(min-width:561px\)/);
+  assert.doesNotMatch(home, /\.networkTabViewport \{[^}]*max-height:/);
   assert.doesNotMatch(home, /height:min\(720px,calc\(100svh - 160px\)\)/);
 });
