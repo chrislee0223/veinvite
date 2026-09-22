@@ -494,8 +494,8 @@ export function useWalletAuthentication() {
                   // v2 connect+typed-data path is intentional. It does not pass
                   // a cached signer override; VeWorld signs with its current
                   // active account and DAppKit returns that signer with the
-                  // signature. This replaces the previous connectV2(null) +
-                  // requestTypedData() two-prompt sequence.
+                  // signature. This replaces the previous separate account-sync
+                  // request plus requestTypedData() two-prompt sequence.
                   const handoffResult =
                     await connectV2(typedData);
 
