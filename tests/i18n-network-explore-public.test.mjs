@@ -39,11 +39,12 @@ test('historical opt-in rollout remains historical while the current reader is d
   assert.doesNotMatch(defaultPublicMigration, /public_enabled|discoverable/i);
   assert.match(defaultPublicMigration, /qualified_referral_network_edges/i);
   assert.match(defaultPublicMigration, /FOCUS_NOT_FOUND/i);
+
   assert.doesNotMatch(emptyRootMigration, /root_known|NETWORK_NOT_FOUND/i);
   assert.match(emptyRootMigration, /qualified_referral_network_edges/i);
   assert.ok(
     emptyRootMigration.includes("p.root_wallet ~ '^0x[0-9a-f]{40}$'"),
-    'empty public Network roots must still require a valid VeChain address',
+    'current public reader must allow a valid empty root without invitation metadata',
   );
 });
 
@@ -51,9 +52,9 @@ test('current public graph reader is service-role-only and graph-only', () => {
   assert.match(defaultPublicMigration, /revoke all on function public\.read_public_referral_network_focus_v1\([\s\S]*from public, anon, authenticated/i);
   assert.match(defaultPublicMigration, /grant execute on function public\.read_public_referral_network_focus_v1\([\s\S]*to service_role/i);
   assert.match(defaultPublicMigration, /revoke all on function public\.read_public_network_discovery_v1\(integer\)[\s\S]*from public, anon, authenticated/i);
-  assert.doesNotMatch(defaultPublicMigration, /reward_status|sybil_status|apps_completed|vot3_converted|vote_completed|identity_link|mission_/i);
+  assert.doesNotMatch(emptyRootMigration, /reward_status|sybil_status|apps_completed|vot3_converted|vote_completed|identity_link|mission_|invitations/i);
   assert.match(publicRoute, /Mission, reward,[\s\S]*anti-Sybil,[\s\S]*security/i);
-  assert.doesNotMatch(publicRoute, /NETWORK_PRIVATE|FOCUS_NOT_PUBLIC|hasPrivateBranches/i);
+  assert.doesNotMatch(publicRoute, /NETWORK_PRIVATE|FOCUS_NOT_PUBLIC|NETWORK_NOT_FOUND|hasPrivateBranches/i);
 });
 
 test('My Network and read-only public Network keep independent runtime rollout gates', () => {
@@ -97,7 +98,7 @@ test('obsolete per-wallet visibility API and settings flow stay deleted', async 
     access(new URL('../src/app/api/network/public/visibility/route.ts', import.meta.url)),
   );
   assert.doesNotMatch(hub, /fetchVisibility|saveVisibility|publicConfirm|visibilityUnknown|publicSettings/i);
-  assert.doesNotMatch(explorer, /NETWORK_PRIVATE|FOCUS_NOT_PUBLIC|hasPrivateBranches/i);
+  assert.doesNotMatch(explorer, /NETWORK_PRIVATE|FOCUS_NOT_PUBLIC|NETWORK_NOT_FOUND|hasPrivateBranches/i);
   assert.doesNotMatch(exploreCopy, /publicEnabled|discoverableNote|networkPrivate|privateBranchesHidden|visibilityError/i);
   assert.doesNotMatch(hubCopy, /publicConfirm|visibilityLoading|visibilityUnknown/i);
 });
