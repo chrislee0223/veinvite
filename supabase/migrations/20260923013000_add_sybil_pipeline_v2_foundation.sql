@@ -640,8 +640,12 @@ with relevant as (
          a.updated_at as assessment_updated_at,
          c.id as clearance_id
   from relevant r
-  left join public.sybil_v2_referral_assessments a on a.invite_code = r.invite_code
-  left join public.sybil_v2_reward_clearances c on c.invite_code = r.invite_code
+  left join public.sybil_v2_referral_assessments a
+    on a.invite_code = r.invite_code
+  left join public.sybil_v2_reward_clearances c
+    on c.invite_code = r.invite_code
+   and c.assessment_revision = a.revision
+   and c.verdict = a.state
 )
 select
   network,
