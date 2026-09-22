@@ -554,6 +554,67 @@ begin
 end;
 $$;
 
+create or replace view public.operator_sybil_v2_scan_candidates
+with (security_invoker = true)
+as
+select
+  i.invite_code,
+  i.activation_network as network,
+  i.invitee_wallet,
+  i.activation_block,
+  i.activated_at,
+  coalesce(s.historical_chain_status, 'PENDING') as historical_chain_status,
+  coalesce(s.funding_chain_status, 'PENDING') as funding_chain_status,
+  coalesce(s.updated_at, i.activated_at, i.created_at) as priority_at
+from public.invitations i
+left join public.sybil_v2_scan_checkpoints s
+  on s.invite_code = i.invite_code
+where i.invitee_wallet is not null
+  and i.activation_network is not null
+  and i.activation_block is not null
+  and i.status in ('ACTIVATING','UNDER_REVIEW','COMPLETED')
+  and (
+    s.invite_code is null
+    or s.historical_chain_status <> 'COMPLETE'
+    or s.funding_chain_status <> 'COMPLETE'
+  );
+
+revoke all on public.operator_sybil_v2_scan_candidates
+  from public, anon, authenticated;
+grant select on public.operator_sybil_v2_scan_candidates to service_role;
+
+create or replace view public.operator_sybil_v2_assessment_candidates
+with (security_invoker = true)
+as
+select
+  i.invite_code,
+  i.activation_network as network,
+  i.reward_eligible_at,
+  a.state as assessment_state,
+  a.revision as assessment_revision,
+  a.source as assessment_source,
+  c.id as current_clearance_id,
+  coalesce(a.updated_at, i.reward_eligible_at, i.updated_at) as priority_at
+from public.invitations i
+left join public.sybil_v2_referral_assessments a
+  on a.invite_code = i.invite_code
+left join public.sybil_v2_reward_clearances c
+  on c.invite_code = i.invite_code
+ and c.assessment_revision = a.revision
+ and c.verdict = a.state
+left join public.reward_queue_entries q
+  on q.invite_code = i.invite_code
+where i.status = 'COMPLETED'
+  and i.reward_status = 'ELIGIBLE'
+  and i.reward_eligible_at is not null
+  and q.invite_code is null
+  and c.id is null
+  and coalesce(a.state, '') not in ('HOLD','RESTRICTED');
+
+revoke all on public.operator_sybil_v2_assessment_candidates
+  from public, anon, authenticated;
+grant select on public.operator_sybil_v2_assessment_candidates to service_role;
+
 create or replace view public.operator_sybil_v2_health
 with (security_invoker = true)
 as
@@ -927,6 +988,315 @@ begin
   return new;
 end;
 $;
+
+create or replace function public.resolve_sybil_v2_review(
+  p_invite_code text,
+  p_decision text,
+  p_reason text,
+  p_expected_revision bigint,
+  p_operator_wallet text,
+  p_network text
+)
+returns jsonb
+language plpgsql
+security definer
+set search_path = pg_catalog, public
+as $
+declare
+  v_code text := upper(btrim(p_invite_code));
+  v_decision text := upper(btrim(p_decision));
+  v_reason text := nullif(btrim(coalesce(p_reason,'')), '');
+  v_operator text := lower(btrim(p_operator_wallet));
+  v_network text := lower(btrim(p_network));
+  v_assessment public.sybil_v2_referral_assessments%rowtype;
+  v_invitation public.invitations%rowtype;
+  v_record jsonb;
+  v_clearance jsonb := null;
+  v_revision bigint;
+  v_now timestamptz := clock_timestamp();
+begin
+  if v_code !~ '^[A-HJ-NP-Z2-9]{7}
+returns trigger
+language plpgsql
+set search_path = pg_catalog, public
+as $$
+begin
+  if old.reward_status = 'ELIGIBLE'
+     and new.reward_status not in ('ELIGIBLE','PAID')
+     and exists (
+       select 1
+       from public.reward_queue_entries q
+       where q.invite_code = old.invite_code
+         and q.sybil_clearance_id is not null
+         and q.status in ('AWAITING_CLAIM','QUEUED','ASSIGNED')
+     )
+  then
+    raise exception 'V2_CLEARED_REWARD_CANNOT_BE_REVERSED_AFTER_CLAIM_READY';
+  end if;
+
+  return new;
+end;
+$$;
+
+drop trigger if exists invitations_lock_v2_cleared_reward_after_reservation on public.invitations;
+create trigger invitations_lock_v2_cleared_reward_after_reservation
+before update of reward_status on public.invitations
+for each row execute function public.prevent_v2_cleared_reward_reversal();
+
+revoke all on function public.record_sybil_v2_assessment(
+  text,text,text,integer,text,text,bigint,jsonb,jsonb,jsonb,jsonb,text,bigint
+) from public, anon, authenticated;
+grant execute on function public.record_sybil_v2_assessment(
+  text,text,text,integer,text,text,bigint,jsonb,jsonb,jsonb,jsonb,text,bigint
+) to service_role;
+
+revoke all on function public.issue_sybil_v2_reward_clearance(text,bigint)
+  from public, anon, authenticated;
+grant execute on function public.issue_sybil_v2_reward_clearance(text,bigint)
+  to service_role;
+
+revoke all on function public.prevent_sybil_v2_append_only_mutation()
+  from public, anon, authenticated;
+revoke all on function public.prevent_v2_cleared_reward_reversal()
+  from public, anon, authenticated;
+
+commit;
+ then raise exception 'INVALID_INVITE_CODE'; end if;
+  if v_decision not in ('CLEAR','BLACKLIST') then raise exception 'INVALID_SYBIL_V2_REVIEW_DECISION'; end if;
+  if v_reason is null or length(v_reason) < 12 or length(v_reason) > 500 then
+    raise exception 'SYBIL_V2_REVIEW_REASON_LENGTH';
+  end if;
+  if p_expected_revision is null or p_expected_revision < 1 then
+    raise exception 'INVALID_ASSESSMENT_REVISION';
+  end if;
+  if v_operator !~ '^0x[0-9a-f]{40}
+returns trigger
+language plpgsql
+set search_path = pg_catalog, public
+as $$
+begin
+  if old.reward_status = 'ELIGIBLE'
+     and new.reward_status not in ('ELIGIBLE','PAID')
+     and exists (
+       select 1
+       from public.reward_queue_entries q
+       where q.invite_code = old.invite_code
+         and q.sybil_clearance_id is not null
+         and q.status in ('AWAITING_CLAIM','QUEUED','ASSIGNED')
+     )
+  then
+    raise exception 'V2_CLEARED_REWARD_CANNOT_BE_REVERSED_AFTER_CLAIM_READY';
+  end if;
+
+  return new;
+end;
+$$;
+
+drop trigger if exists invitations_lock_v2_cleared_reward_after_reservation on public.invitations;
+create trigger invitations_lock_v2_cleared_reward_after_reservation
+before update of reward_status on public.invitations
+for each row execute function public.prevent_v2_cleared_reward_reversal();
+
+revoke all on function public.record_sybil_v2_assessment(
+  text,text,text,integer,text,text,bigint,jsonb,jsonb,jsonb,jsonb,text,bigint
+) from public, anon, authenticated;
+grant execute on function public.record_sybil_v2_assessment(
+  text,text,text,integer,text,text,bigint,jsonb,jsonb,jsonb,jsonb,text,bigint
+) to service_role;
+
+revoke all on function public.issue_sybil_v2_reward_clearance(text,bigint)
+  from public, anon, authenticated;
+grant execute on function public.issue_sybil_v2_reward_clearance(text,bigint)
+  to service_role;
+
+revoke all on function public.prevent_sybil_v2_append_only_mutation()
+  from public, anon, authenticated;
+revoke all on function public.prevent_v2_cleared_reward_reversal()
+  from public, anon, authenticated;
+
+commit;
+ then raise exception 'INVALID_OPERATOR_WALLET'; end if;
+  if v_network not in ('mainnet','testnet','testnet-staging') then raise exception 'INVALID_NETWORK'; end if;
+
+  perform pg_advisory_xact_lock(hashtextextended('veinvite_sybil_v2_' || v_code,0));
+
+  select * into v_assessment
+  from public.sybil_v2_referral_assessments
+  where invite_code = v_code
+  for update;
+
+  if not found then raise exception 'SYBIL_V2_ASSESSMENT_NOT_FOUND'; end if;
+  if v_assessment.network <> v_network then raise exception 'SYBIL_V2_NETWORK_MISMATCH'; end if;
+  if v_assessment.revision <> p_expected_revision then
+    raise exception 'SYBIL_V2_REVIEW_STATE_CHANGED';
+  end if;
+  if v_assessment.state <> 'HOLD' then
+    raise exception 'SYBIL_V2_REVIEW_NOT_HOLD';
+  end if;
+
+  select * into v_invitation
+  from public.invitations
+  where invite_code = v_code
+  for update;
+
+  if not found or v_invitation.invitee_wallet is null then
+    raise exception 'SYBIL_V2_INVITATION_NOT_FOUND';
+  end if;
+
+  if exists (
+    select 1
+    from public.reward_queue_entries q
+    where q.invite_code = v_code
+      and q.sybil_clearance_id is not null
+      and q.status in ('AWAITING_CLAIM','QUEUED','ASSIGNED')
+  ) then
+    raise exception 'SYBIL_V2_REVIEW_ALREADY_CLAIM_READY';
+  end if;
+
+  perform set_config('veinvite.operator_wallet', v_operator, true);
+
+  if v_decision = 'BLACKLIST' then
+    perform public.set_invitation_sybil_decision(
+      v_code,
+      'BLOCKED',
+      'HIGH',
+      v_reason,
+      100
+    );
+
+    if not exists (
+      select 1 from public.sybil_v2_wallet_restrictions r
+      where r.network = v_network
+        and r.wallet_address = lower(v_invitation.invitee_wallet)
+        and r.status = 'ACTIVE'
+    ) then
+      insert into public.sybil_v2_wallet_restrictions(
+        wallet_address, network, status, reason_codes,
+        evidence_summary, source, related_invite_code, imposed_at
+      ) values (
+        lower(v_invitation.invitee_wallet), v_network, 'ACTIVE',
+        v_assessment.reason_codes || jsonb_build_array('OPERATOR_BLACKLIST'),
+        v_assessment.evidence_summary || jsonb_build_object(
+          'operatorReason', v_reason,
+          'operatorWallet', v_operator,
+          'operatorDecision', 'BLACKLIST'
+        ),
+        'OPERATOR', v_code, v_now
+      );
+    end if;
+
+    if not exists (
+      select 1 from public.sybil_v2_wallet_restrictions r
+      where r.network = v_network
+        and r.wallet_address = lower(v_invitation.inviter_wallet)
+        and r.status = 'ACTIVE'
+    ) then
+      insert into public.sybil_v2_wallet_restrictions(
+        wallet_address, network, status, reason_codes,
+        evidence_summary, source, related_invite_code, imposed_at
+      ) values (
+        lower(v_invitation.inviter_wallet), v_network, 'ACTIVE',
+        v_assessment.reason_codes || jsonb_build_array('OPERATOR_BLACKLIST'),
+        v_assessment.evidence_summary || jsonb_build_object(
+          'operatorReason', v_reason,
+          'operatorWallet', v_operator,
+          'operatorDecision', 'BLACKLIST',
+          'relationshipRole', 'INVITER'
+        ),
+        'OPERATOR', v_code, v_now
+      );
+    end if;
+
+    v_record := public.record_sybil_v2_assessment(
+      v_code,
+      v_network,
+      'RESTRICTED',
+      100,
+      v_assessment.policy_version,
+      v_assessment.analyzer_version,
+      v_assessment.evidence_cutoff_block,
+      v_assessment.required_checks,
+      v_assessment.completed_checks,
+      v_assessment.reason_codes || jsonb_build_array('OPERATOR_BLACKLIST'),
+      v_assessment.evidence_summary || jsonb_build_object(
+        'operatorReason', v_reason,
+        'operatorWallet', v_operator,
+        'operatorDecision', 'BLACKLIST',
+        'operatorDecidedAt', v_now
+      ),
+      'OPERATOR',
+      v_assessment.revision
+    );
+
+    return jsonb_build_object(
+      'changed', true,
+      'decision', 'BLACKLIST',
+      'state', 'RESTRICTED',
+      'assessmentRevision', v_record ->> 'revision',
+      'clearanceIssued', false
+    );
+  end if;
+
+  if v_invitation.sybil_status = 'BLOCKED' then
+    raise exception 'SYBIL_V2_CANNOT_CLEAR_LEGACY_BLOCK';
+  end if;
+
+  if v_invitation.sybil_status = 'REVIEW' then
+    perform public.set_invitation_sybil_decision(
+      v_code,
+      'CLEAR',
+      'NONE',
+      v_reason,
+      0
+    );
+  end if;
+
+  v_record := public.record_sybil_v2_assessment(
+    v_code,
+    v_network,
+    'CLEAR',
+    0,
+    v_assessment.policy_version,
+    v_assessment.analyzer_version,
+    v_assessment.evidence_cutoff_block,
+    v_assessment.required_checks,
+    v_assessment.completed_checks,
+    v_assessment.reason_codes || jsonb_build_array('OPERATOR_CLEARED'),
+    v_assessment.evidence_summary || jsonb_build_object(
+      'operatorReason', v_reason,
+      'operatorWallet', v_operator,
+      'operatorDecision', 'CLEAR',
+      'operatorDecidedAt', v_now
+    ),
+    'OPERATOR',
+    v_assessment.revision
+  );
+
+  v_revision := nullif(v_record ->> 'revision','')::bigint;
+  if v_revision is null then
+    raise exception 'SYBIL_V2_OPERATOR_CLEAR_REVISION_MISSING';
+  end if;
+
+  v_clearance := public.issue_sybil_v2_reward_clearance(v_code, v_revision);
+
+  return jsonb_build_object(
+    'changed', true,
+    'decision', 'CLEAR',
+    'state', 'CLEAR',
+    'assessmentRevision', v_revision,
+    'clearanceIssued', coalesce((v_clearance ->> 'issued')::boolean, false),
+    'clearanceId', v_clearance ->> 'clearanceId',
+    'clearanceReason', v_clearance ->> 'reason'
+  );
+end;
+$;
+
+revoke all on function public.resolve_sybil_v2_review(
+  text,text,text,bigint,text,text
+) from public, anon, authenticated;
+grant execute on function public.resolve_sybil_v2_review(
+  text,text,text,bigint,text,text
+) to service_role;
 
 create or replace function public.prevent_v2_cleared_reward_reversal()
 returns trigger
