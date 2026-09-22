@@ -815,6 +815,10 @@ export function useWalletAuthentication() {
           throw firstClearError;
         }
 
+        // Explicit/confirmed session teardown must not leave an old external
+        // handoff marker behind for a later login attempt.
+        clearPendingVeWorldWalletHandoff();
+
         // This event means the browser session is now actually gone. Emitting it
         // only after the authoritative server DELETE succeeds keeps the wallet
         // gate, startup bootstrap marker and persistent cookie consistent.
