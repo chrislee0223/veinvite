@@ -1,5 +1,7 @@
 import 'server-only';
 
+import { id } from 'ethers';
+
 import { getVeBetterNetworkConfig } from '@/lib/vebetter/network';
 
 const ADDRESS_PATTERN = /^0x[0-9a-fA-F]{40}$/;
@@ -7,6 +9,9 @@ const TX_ID_PATTERN = /^0x[0-9a-fA-F]{64}$/;
 const APP_ID_PATTERN = /^0x[0-9a-fA-F]{64}$/;
 const TRANSFER_TOPIC =
   '0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef';
+const REWARD_DISTRIBUTED_TOPIC = id(
+  'RewardDistributed(uint256,bytes32,address,string,address)',
+).toLowerCase();
 const PAGE_SIZE = 1000;
 const MAX_EVENT_LOGS_PER_QUERY = 5000;
 const REQUEST_TIMEOUT_MS = 15_000;
@@ -274,6 +279,7 @@ export async function readHistoricalWalletChainSnapshotV2({
       nodeUrl: config.nodeUrl,
       criteriaSet: [{
         address: pool,
+        topic0: REWARD_DISTRIBUTED_TOPIC,
         topic2: addressTopic(wallet),
       }],
       fromBlock: blockNumber,
