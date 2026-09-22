@@ -163,9 +163,10 @@ test('Public visibility controls stay dormant and are not mounted into the focus
   assert.match(visibilityRoute, /sameOrigin\(request\)/i);
 });
 
-test('Focused Network mounts only AppNetwork while dormant Public explorer keeps its isolated safety state', () => {
+test('My Network and read-only Public explorer stay isolated while sharing the Network tab', () => {
   assert.match(hub, /<AppNetwork locale=\{locale\} \/>/i);
-  assert.doesNotMatch(hub, /<PublicNetworkExplorer/i);
+  assert.match(hub, /<PublicNetworkExplorer/i);
+  assert.match(hub, /publicRootWallet/i);
   assert.match(explorer, /PUBLIC_SESSION_PREFIX\s*=\s*'veinvite-network-public-v2:'/i);
   assert.match(explorer, /requestSerialRef/i);
   assert.match(explorer, /branchRequestRef/i);

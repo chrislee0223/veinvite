@@ -17,6 +17,7 @@ import { createPortal } from 'react-dom';
 import { NETWORK_CANARY_UI_COPY } from '@/lib/i18n/networkCanaryUiCopy';
 import { NETWORK_CANVAS_CONTROL_COPY } from '@/lib/i18n/networkCanvasControlCopy';
 import { NETWORK_EXPERIENCE_COPY, NETWORK_TOTAL_COPY } from '@/lib/i18n/networkExperienceCopy';
+import { NETWORK_EXPLORE_COPY } from '@/lib/i18n/networkExploreCopy';
 import { NETWORK_WORKSPACE_COPY } from '@/lib/i18n/networkWorkspaceCopy';
 import { getLocaleDirection } from '@/lib/i18n/locales';
 import type { Locale, SupportedLocale } from '@/lib/i18n/locales';
@@ -642,6 +643,7 @@ export function AppNetwork({ locale }: { locale: Locale }) {
   const c = NETWORK_CANVAS_CONTROL_COPY[locale as SupportedLocale];
   const w = NETWORK_WORKSPACE_COPY[locale as SupportedLocale];
   const u = NETWORK_CANARY_UI_COPY[locale as SupportedLocale];
+  const e = NETWORK_EXPLORE_COPY[locale as SupportedLocale];
   const { wallet, openWallet, isWalletActionPending } = useWalletLauncher();
   const stageRef = useRef<HTMLDivElement | null>(null);
   const groupDropRef = useRef<HTMLDivElement | null>(null);
@@ -708,8 +710,28 @@ export function AppNetwork({ locale }: { locale: Locale }) {
   const [searchOpen, setSearchOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
+  const [publicSearchWallet, setPublicSearchWallet] = useState<string | null>(null);
   const [searching, setSearching] = useState(false);
   const searchInputRef = useRef<HTMLInputElement | null>(null);
+  const normalizedSearchQuery = searchQuery.trim().toLowerCase();
+  const domainSearchInput =
+    searchOpen &&
+    normalizedSearchQuery.length >= 3 &&
+    !validWallet(normalizedSearchQuery) &&
+    normalizedSearchQuery.includes('.')
+      ? normalizedSearchQuery
+      : undefined;
+  const { data: searchDomainInfo, isLoading: searchDomainLoading } =
+    useVechainDomain(domainSearchInput);
+  const searchDomainAddress =
+    typeof searchDomainInfo?.address === 'string'
+      ? searchDomainInfo.address.toLowerCase()
+      : '';
+  const resolvedSearchAddress = validWallet(normalizedSearchQuery)
+    ? normalizedSearchQuery
+    : validWallet(searchDomainAddress)
+      ? searchDomainAddress
+      : null;
   const [pendingFocus, setPendingFocus] = useState<string | null>(null);
   const [navigationDirection, setNavigationDirection] = useState<NavigationDirection | null>(null);
   const [cameraTransition, setCameraTransition] = useState(false);
@@ -1799,29 +1821,71 @@ export function AppNetwork({ locale }: { locale: Locale }) {
     setSearchOpen(false);
     setSearchQuery('');
     setSearchResults([]);
+    setPublicSearchWallet(null);
     setSearching(false);
   }, []);
 
   useEffect(() => {
     if (!searchOpen || !wallet || !currentData || editingLayout) return;
-    const query = searchQuery.trim();
+    const query = normalizedSearchQuery;
     if (query.length < 3) {
       setSearchResults([]);
+      setPublicSearchWallet(null);
       setSearching(false);
       return;
     }
+    if (domainSearchInput && searchDomainLoading) {
+      setSearchResults([]);
+      setPublicSearchWallet(null);
+      setSearching(true);
+      return;
+    }
+    if (domainSearchInput && !resolvedSearchAddress) {
+      setSearchResults([]);
+      setPublicSearchWallet(null);
+      setSearching(false);
+      return;
+    }
+
     const controller = new AbortController();
     const timer = window.setTimeout(async () => {
       setSearching(true);
+      setPublicSearchWallet(null);
       try {
+        const effectiveQuery = resolvedSearchAddress ?? query;
         const result = await fetchNetwork(wallet, {
           focus: currentData.focusWallet,
-          query,
+          query: effectiveQuery,
           signal: controller.signal,
         });
-        if (!controller.signal.aborted) setSearchResults(result.searchResults ?? []);
+        if (controller.signal.aborted) return;
+        const ownResults = result.searchResults ?? [];
+        setSearchResults(ownResults);
+
+        if (
+          ownResults.length === 0 &&
+          resolvedSearchAddress &&
+          keyWallet(resolvedSearchAddress) !== keyWallet(wallet)
+        ) {
+          const response = await fetch(
+            `/api/network/public?wallet=${encodeURIComponent(resolvedSearchAddress)}`,
+            {
+              method: 'GET',
+              credentials: 'include',
+              cache: 'no-store',
+              headers: { Accept: 'application/json' },
+              signal: controller.signal,
+            },
+          );
+          if (!controller.signal.aborted && response.ok) {
+            setPublicSearchWallet(keyWallet(resolvedSearchAddress));
+          }
+        }
       } catch {
-        if (!controller.signal.aborted) setSearchResults([]);
+        if (!controller.signal.aborted) {
+          setSearchResults([]);
+          setPublicSearchWallet(null);
+        }
       } finally {
         if (!controller.signal.aborted) setSearching(false);
       }
@@ -1830,13 +1894,32 @@ export function AppNetwork({ locale }: { locale: Locale }) {
       window.clearTimeout(timer);
       controller.abort();
     };
-  }, [searchOpen, wallet, currentData, searchQuery, editingLayout]);
+  }, [
+    searchOpen,
+    wallet,
+    currentData,
+    normalizedSearchQuery,
+    domainSearchInput,
+    searchDomainLoading,
+    resolvedSearchAddress,
+    editingLayout,
+  ]);
 
   const focusSearchResult = useCallback((result: SearchResult) => {
     if (editingLayout) return;
     closeSearch();
     void moveToFocus(result.wallet, 'forward');
   }, [editingLayout, closeSearch, moveToFocus]);
+
+  const openPublicSearchResult = useCallback((address: string) => {
+    if (editingLayout || !validWallet(address)) return;
+    closeSearch();
+    window.dispatchEvent(
+      new CustomEvent('veinvite-open-public-network', {
+        detail: { wallet: keyWallet(address) },
+      }),
+    );
+  }, [editingLayout, closeSearch]);
 
   const beginLayoutEdit = useCallback(() => {
     if (!currentFocusKey) return;
@@ -3041,7 +3124,7 @@ export function AppNetwork({ locale }: { locale: Locale }) {
                 onKeyDown={(event) => {
                   if (event.key === 'Escape') closeSearch();
                 }}
-                placeholder={t.searchPlaceholder}
+                placeholder={`${t.searchPlaceholder} · .vet`}
                 aria-label={t.searchPlaceholder}
                 autoComplete="off"
                 autoCapitalize="none"
@@ -3070,10 +3153,18 @@ export function AppNetwork({ locale }: { locale: Locale }) {
                     key={`${keyWallet(result.wallet)}:${result.depth}`}
                     onClick={() => focusSearchResult(result)}
                   >
-                    <strong dir="ltr">{shortWallet(result.wallet)}</strong>
+                    <strong><NetworkNodeLabel address={result.wallet} /></strong>
                     <span>{c.branch} · {result.depth}</span>
                   </button>
-                )) : (
+                )) : publicSearchWallet ? (
+                  <button
+                    type="button"
+                    onClick={() => openPublicSearchResult(publicSearchWallet)}
+                  >
+                    <strong><NetworkNodeLabel address={publicSearchWallet} /></strong>
+                    <span>{e.visibleNetwork}</span>
+                  </button>
+                ) : (
                   <span className="searchStatus">{t.noSearchResults}</span>
                 )}
               </div>

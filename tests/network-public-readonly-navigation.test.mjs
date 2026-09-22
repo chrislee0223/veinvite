@@ -1,0 +1,70 @@
+import assert from 'node:assert/strict';
+import { readFile } from 'node:fs/promises';
+import test from 'node:test';
+
+const [
+  leaderboard,
+  home,
+  hub,
+  network,
+  publicExplorer,
+  settings,
+] = await Promise.all([
+  readFile('src/components/InviterLeaderboard.tsx', 'utf8'),
+  readFile('src/components/HomeClient.tsx', 'utf8'),
+  readFile('src/components/AppNetworkHub.tsx', 'utf8'),
+  readFile('src/components/AppNetwork.tsx', 'utf8'),
+  readFile('src/components/PublicNetworkExplorer.tsx', 'utf8'),
+  readFile('src/components/AppSettings.tsx', 'utf8'),
+]);
+
+test('leaderboard can hand a wallet into the Network tab without prop-drilling the leaderboard tree', () => {
+  assert.match(leaderboard, /veinvite-open-public-network/);
+  assert.match(leaderboard, /networkViewButton/);
+  assert.match(home, /PUBLIC_NETWORK_TARGET_STORAGE_KEY/);
+  assert.match(home, /veinvite-open-public-network/);
+  assert.match(home, /setActiveTab\('guide'\)/);
+  assert.match(hub, /PUBLIC_NETWORK_TARGET_STORAGE_KEY/);
+  assert.match(hub, /publicRootWallet/);
+});
+
+test('other-user Network uses a separate read-only explorer instead of AppNetwork edit controls', () => {
+  assert.match(hub, /publicRootWallet \? \(/);
+  assert.match(hub, /<PublicNetworkExplorer/);
+  assert.match(hub, /<AppNetwork locale=\{locale\} \/>/);
+  assert.doesNotMatch(publicExplorer, /moveWorkspaceMemberToGroup/);
+  assert.doesNotMatch(publicExplorer, /beginLayoutEdit/);
+  assert.doesNotMatch(publicExplorer, /groupBuilder/);
+  assert.doesNotMatch(publicExplorer, /localStorage\.setItem/);
+  assert.match(publicExplorer, /onPointerMove/);
+  assert.match(publicExplorer, /zoomIn/);
+  assert.match(publicExplorer, /zoomOut/);
+});
+
+test('Network search resolves .vet domains and only falls back to explicitly public roots', () => {
+  assert.match(network, /domainSearchInput/);
+  assert.match(network, /useVechainDomain\(domainSearchInput\)/);
+  assert.match(network, /resolvedSearchAddress/);
+  assert.match(network, /\/api\/network\/public\?wallet=/);
+  assert.match(network, /publicSearchWallet/);
+  assert.match(network, /veinvite-open-public-network/);
+  assert.match(publicExplorer, /domainSearchInput/);
+  assert.match(publicExplorer, /resolvedSearchWallet/);
+  assert.match(publicExplorer, /fetchPublicNetwork\(\s*root,\s*resolvedSearchWallet/);
+});
+
+test('public Network display remains mobile-width and does not gain editing persistence', () => {
+  assert.match(publicExplorer, /\.publicCanvasPage\{width:min\(100%,520px\)/);
+  assert.match(publicExplorer, /\.publicStage\{position:relative;flex:1 1 auto;min-height:0;height:auto/);
+  assert.match(publicExplorer, /PublicNodeLabel/);
+  assert.match(publicExplorer, /formatCompactVechainDomain/);
+});
+
+test('public visibility is opt-in from Settings and uses the hardened visibility endpoint', () => {
+  assert.match(settings, /NETWORK_EXPLORE_COPY/);
+  assert.match(settings, /\/api\/network\/public\/visibility/);
+  assert.match(settings, /role="switch"/);
+  assert.match(settings, /publicEnabled/);
+  assert.match(settings, /discoverable/);
+  assert.match(settings, /credentials: 'include'/);
+});
