@@ -11,9 +11,13 @@ import {
   type NetworkSummaryProbe,
 } from '@/lib/networkSummaryClientCache';
 import { AppNetwork } from './AppNetwork';
+import { PublicNetworkExplorer } from './PublicNetworkExplorer';
 import { useWalletLauncher } from './WalletControl';
 
 type ApiError = Error & { code?: string };
+
+const PUBLIC_NETWORK_TARGET_STORAGE_KEY = 'veinvite-network-public-target-v1';
+const VECHAIN_WALLET_PATTERN = /^0x[0-9a-fA-F]{40}$/;
 
 function sameWallet(left: string | null, right: string | null): boolean {
   return Boolean(left && right && left.toLowerCase() === right.toLowerCase());
@@ -106,6 +110,7 @@ export function AppNetworkHub({ locale }: { locale: Locale }) {
   const [probeState, setProbeState] = useState<'idle' | 'loading' | 'ready' | 'error' | 'maintenance'>(
     initialProbe ? 'ready' : 'idle',
   );
+  const [publicRootWallet, setPublicRootWallet] = useState<string | null>(null);
 
   const loadProbe = useCallback(async (signal?: AbortSignal) => {
     if (!wallet) return;
@@ -131,6 +136,49 @@ export function AppNetworkHub({ locale }: { locale: Locale }) {
       }
       setProbeState('error');
     }
+  }, [wallet]);
+
+  useEffect(() => {
+    const openPublicRoot = (candidate: unknown) => {
+      const normalized =
+        typeof candidate === 'string'
+          ? candidate.trim().toLowerCase()
+          : '';
+      if (!VECHAIN_WALLET_PATTERN.test(normalized)) return;
+      if (sameWallet(normalized, wallet)) {
+        setPublicRootWallet(null);
+        return;
+      }
+      setPublicRootWallet(normalized);
+    };
+
+    try {
+      const stored = window.sessionStorage.getItem(
+        PUBLIC_NETWORK_TARGET_STORAGE_KEY,
+      );
+      if (stored) {
+        window.sessionStorage.removeItem(
+          PUBLIC_NETWORK_TARGET_STORAGE_KEY,
+        );
+        openPublicRoot(stored);
+      }
+    } catch {
+      // Session storage is an optional hand-off only.
+    }
+
+    const handleOpenPublicNetwork = (event: Event) => {
+      const detail = (event as CustomEvent<{ wallet?: unknown }>).detail;
+      openPublicRoot(detail?.wallet);
+    };
+    window.addEventListener(
+      'veinvite-open-public-network',
+      handleOpenPublicNetwork,
+    );
+    return () =>
+      window.removeEventListener(
+        'veinvite-open-public-network',
+        handleOpenPublicNetwork,
+      );
   }, [wallet]);
 
   useEffect(() => {
@@ -169,7 +217,16 @@ export function AppNetworkHub({ locale }: { locale: Locale }) {
 
   return (
     <section className="networkHubShell">
-      <AppNetwork locale={locale} />
+      {publicRootWallet ? (
+        <PublicNetworkExplorer
+          locale={locale}
+          hasWallet
+          initialRootWallet={publicRootWallet}
+          onBack={() => setPublicRootWallet(null)}
+        />
+      ) : (
+        <AppNetwork locale={locale} />
+      )}
       <style jsx>{`
         .networkHubShell{width:min(100%,520px);height:100%;min-height:0;margin:0 auto;padding:0;box-sizing:border-box;display:flex}
       `}</style>
