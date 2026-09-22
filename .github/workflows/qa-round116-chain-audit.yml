@@ -1,0 +1,74 @@
+name: QA Round116 Chain Audit
+
+on:
+  push:
+    branches:
+      - qa-round116-chain-audit
+    paths:
+      - '.github/workflows/qa-round116-chain-audit.yml'
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Query VeChain mainnet funding sources
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import json, urllib.request
+
+          NODE='https://mainnet.vechain.org'
+          VTHO='0x0000000000000000000000000000456e65726779'
+          TRANSFER='0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef'
+          cases={
+            '74FQ6CB':('0x2d415cbf574177ccf0e8a178ef2c8df1dcdfa2cc',25825343),
+            'F84ZL4N':('0xd2fe919a38fb7ab6f2c2df0fec7723cb778b0989',25831197),
+            'SQCX6F9':('0x352ac255f820a9d5b952b52199f06f664b40ce15',25832252),
+            'V34W9PM':('0xbe38eb6be67e52c2743995a7bf59efd0e9265d5d',25833219),
+            '8GANYW6':('0x703210579b9f2fd2317415278af71f5fc59f6cc8',25834196),
+            'WPGLEGJ':('0x54f7d0b2f2cdc9be9d1be04c7101e984f2934c36',25834269),
+            'BGGJDJS':('0x37f983771b32d94e975e2568e5dca21d43d75a4d',25834638),
+            '8DNK7KV':('0x1bbd28f95af0df8edcf73431cab62af3b8807c39',25840115),
+            '9L4TMG5':('0x97e82cc272aaa9745b06525085f37b64e2382ff8',25840751),
+            'SBWYUFQ':('0x95af037750d985f094969d3cd741a0ff51082cba',25842235),
+            '7ACQA43':('0x79f1fa450b50a0e7ad5c7255ea8a59eb12e12c3e',25842288),
+            '2YYCS2X':('0x9fc31513746887e0d82f50aa41212913848feaa0',25875077),
+            'JEZP37F':('0x009c2dbbb4b823b0544c3580921b544baf77cb4d',25878913),
+            '65242BC':('0x259a1644d0c97a823ca1d6d811f6e6b522d92e82',25880600),
+          }
+
+          def post(path, body):
+            data=json.dumps(body).encode()
+            req=urllib.request.Request(NODE+path,data=data,headers={'content-type':'application/json'},method='POST')
+            with urllib.request.urlopen(req,timeout=30) as r:
+              return json.loads(r.read().decode())
+
+          def topic(addr):
+            return '0x' + '0'*24 + addr.lower().replace('0x','')
+
+          out=[]
+          for code,(wallet,block) in cases.items():
+            common={'range':{'unit':'block','from':0,'to':block},'options':{'offset':0,'limit':1},'order':'asc'}
+            vet=post('/logs/transfer',{**common,'criteriaSet':[{'recipient':wallet}]})
+            vtho=post('/logs/event',{**common,'criteriaSet':[{'address':VTHO,'topic0':TRANSFER,'topic2':topic(wallet)}]})
+            v=vet[0] if vet else None
+            h=vtho[0] if vtho else None
+            vtho_sender=None
+            if h and isinstance(h.get('topics'),list) and len(h['topics'])>=3:
+              vtho_sender='0x'+h['topics'][1][-40:].lower()
+            row={
+              'invite_code':code,
+              'wallet':wallet.lower(),
+              'activation_block':block,
+              'vet_sender': (v.get('sender') if v else None),
+              'vet_block': ((v.get('meta') or {}).get('blockNumber') if v else None),
+              'vet_tx': ((v.get('meta') or {}).get('txID') if v else None),
+              'vtho_sender':vtho_sender,
+              'vtho_block': ((h.get('meta') or {}).get('blockNumber') if h else None),
+              'vtho_tx': ((h.get('meta') or {}).get('txID') if h else None),
+            }
+            out.append(row)
+            print('AUDIT_ROW '+json.dumps(row,separators=(',',':')))
+          print('AUDIT_ALL '+json.dumps(out,separators=(',',':')))
+          PY
