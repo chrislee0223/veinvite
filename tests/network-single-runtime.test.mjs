@@ -591,7 +591,7 @@ test('node labels prefer VET domains while preserving the original scoped node D
 
   assert.match(networkSource, /<strong><NetworkNodeLabel address=\{currentData\.focusWallet\} \/><\/strong>/);
   assert.match(networkSource, /<strong><NetworkNodeLabel address=\{child\.wallet\} \/><\/strong>/);
-  assert.match(networkSource, /slot\.inviteeWallet \? <NetworkNodeLabel address=\{slot\.inviteeWallet\} \/> : t\.inProgress/);
+  assert.match(networkSource, /slot\.inviteeWallet \? <NetworkNodeLabel address=\{slot\.inviteeWallet\} \/> : slotStatusLabel/);
   assert.match(networkSource, /<strong><NetworkNodeLabel address=\{dragGhost\.wallet\} \/><\/strong>/);
   assert.match(networkSource, /\.nodeMeta strong\{[^}]*max-width:90px[^}]*overflow:hidden[^}]*text-overflow:ellipsis[^}]*white-space:nowrap/);
 });
