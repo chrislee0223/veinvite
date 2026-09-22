@@ -435,7 +435,7 @@ test('two invite slots are current capacity, not a lifetime two-branch limit', (
   assert.match(networkSlotsRouteSource, /invite_slot/);
   assert.match(networkSlotsRouteSource, /slots = \(\[1, 2\] as const\)\.map/);
   assert.match(networkSlotsRouteSource, /state: 'AVAILABLE'/);
-  assert.match(networkSlotsRouteSource, /state: row\.invitee_wallet \? 'IN_PROGRESS'/);
+  assert.match(networkSlotsRouteSource, /state: row\.status === 'PENDING_ACCEPTANCE' \? 'PENDING' as const : 'IN_PROGRESS' as const/);
   assert.match(networkSlotsRouteSource, /completedSteps/);
   assert.match(networkSource, /\/api\/network\/slots\?wallet=/);
   assert.match(networkSource, /getCachedNetworkInviteSlots\(wallet\)/);
