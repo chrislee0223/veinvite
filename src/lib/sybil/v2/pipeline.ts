@@ -92,6 +92,13 @@ type HistoricalOutflowRow = {
   block_number: number | string;
 };
 
+type FundingEvidenceRow = {
+  signal_code: string;
+  subject_wallet?: string;
+  related_wallet: string | null;
+  evidence?: Record<string, unknown> | null;
+};
+
 type MissionFingerprintRow = {
   invite_code: string;
   inviter_wallet: string;
@@ -801,21 +808,32 @@ async function loadFundingSignals(
   if (!invitation.activation_network || !invitation.invitee_wallet) return [];
 
   const subject = normalizeWallet(invitation.invitee_wallet);
+  const inviter = normalizeWallet(invitation.inviter_wallet);
   const ownResult = await supabaseAdmin
     .from('sybil_v2_evidence_records')
-    .select('signal_code,related_wallet')
+    .select('signal_code,related_wallet,evidence')
     .eq('invite_code', invitation.invite_code)
     .eq('evidence_family', 'FUNDING')
-    .in('signal_code', ['FIRST_VET_FUNDER', 'FIRST_VTHO_FUNDER']);
+    .in('signal_code', [
+      'FIRST_VET_FUNDER',
+      'FIRST_VTHO_FUNDER',
+      'RECENT_PREACTIVATION_VET_FUNDER',
+      'RECENT_PREACTIVATION_VTHO_FUNDER',
+      'RECENT_PREACTIVATION_B3TR_FUNDER',
+    ]);
 
   if (ownResult.error) {
     throw new Error(`Funding evidence could not be loaded: ${ownResult.error.message}`);
   }
 
+  const ownRows = (ownResult.data ?? []) as FundingEvidenceRow[];
   const signals: SybilV2Signal[] = [];
 
-  for (const row of ownResult.data ?? []) {
-    const signalCode = String(row.signal_code ?? '');
+  // Preserve the deliberately weak first-funder correlation from v1.
+  for (const row of ownRows.filter((candidate) =>
+    ['FIRST_VET_FUNDER', 'FIRST_VTHO_FUNDER'].includes(candidate.signal_code),
+  )) {
+    const signalCode = row.signal_code;
     const funder = typeof row.related_wallet === 'string'
       ? normalizeWallet(row.related_wallet)
       : null;
@@ -834,7 +852,9 @@ async function loadFundingSignals(
     }
 
     const wallets = unique(
-      (peers.data ?? []).map((peer) => normalizeWallet(String(peer.subject_wallet))),
+      (peers.data ?? []).map((peer) =>
+        normalizeWallet(String(peer.subject_wallet)),
+      ),
     );
 
     if (wallets.length >= 3) {
@@ -869,6 +889,323 @@ async function loadFundingSignals(
         dedupeKey:
           `sybil-v2:${invitation.invite_code}:${code.toLowerCase()}:${funder}`,
       });
+    }
+  }
+
+  const recentRows = ownRows.filter((row) =>
+    row.signal_code.startsWith('RECENT_PREACTIVATION_'),
+  );
+  const closestByAssetFunder = new Map<string, FundingEvidenceRow>();
+
+  for (const row of recentRows) {
+    const funder = typeof row.related_wallet === 'string'
+      ? normalizeWallet(row.related_wallet)
+      : null;
+    if (!funder) continue;
+
+    const key = `${row.signal_code}:${funder}`;
+    const current = closestByAssetFunder.get(key);
+    const blocks = Number(row.evidence?.blocksBeforeActivation ?? Number.MAX_SAFE_INTEGER);
+    const currentBlocks = Number(
+      current?.evidence?.blocksBeforeActivation ?? Number.MAX_SAFE_INTEGER,
+    );
+
+    if (!current || blocks < currentBlocks) {
+      closestByAssetFunder.set(key, row);
+    }
+  }
+
+  const recentFunders = unique(
+    [...closestByAssetFunder.values()]
+      .map((row) => row.related_wallet)
+      .filter((value): value is string => typeof value === 'string')
+      .map(normalizeWallet),
+  );
+
+  for (const row of closestByAssetFunder.values()) {
+    const funder = row.related_wallet
+      ? normalizeWallet(row.related_wallet)
+      : null;
+    if (!funder) continue;
+
+    const asset = row.signal_code.includes('_B3TR_')
+      ? 'B3TR'
+      : row.signal_code.includes('_VTHO_')
+        ? 'VTHO'
+        : 'VET';
+    const blocksBefore = Number(
+      row.evidence?.blocksBeforeActivation ?? Number.MAX_SAFE_INTEGER,
+    );
+    const withinHour =
+      Number.isFinite(blocksBefore) && blocksBefore <= 360;
+    const withinDay =
+      Number.isFinite(blocksBefore) && blocksBefore <= 8_640;
+
+    if (funder === inviter && withinDay) {
+      const strength =
+        asset === 'B3TR' || (asset === 'VET' && withinHour)
+          ? 'MEDIUM'
+          : 'LOW';
+      const score =
+        asset === 'B3TR'
+          ? 28
+          : asset === 'VET'
+            ? (withinHour ? 24 : 16)
+            : (withinHour ? 14 : 10);
+      const code = `RECENT_${asset}_FROM_INVITER`;
+
+      signals.push({
+        code,
+        family: 'FUNDING',
+        strength,
+        score,
+        independentKey: funder,
+      });
+
+      await insertEvidenceRecord({
+        invitation,
+        subjectWallet: subject,
+        family: 'FUNDING',
+        signalCode: code,
+        strength,
+        score,
+        relatedWallet: funder,
+        observedBlock:
+          typeof row.evidence?.blocksBeforeActivation === 'number'
+            ? Number(invitation.activation_block) - blocksBefore
+            : null,
+        evidence: {
+          blocksBeforeActivation: blocksBefore,
+          withinHour,
+          withinDay,
+          asset,
+        },
+        dedupeKey:
+          `sybil-v2:${invitation.invite_code}:${code.toLowerCase()}:${funder}`,
+      });
+    }
+
+    const peerResult = await supabaseAdmin
+      .from('sybil_v2_evidence_records')
+      .select('subject_wallet')
+      .eq('network', invitation.activation_network)
+      .eq('evidence_family', 'FUNDING')
+      .eq('signal_code', row.signal_code)
+      .eq('related_wallet', funder);
+
+    if (peerResult.error) {
+      throw new Error(
+        `Recent shared funder evidence could not be loaded: ${peerResult.error.message}`,
+      );
+    }
+
+    const assetWallets = unique(
+      (peerResult.data ?? []).map((peer) =>
+        normalizeWallet(String(peer.subject_wallet)),
+      ),
+    );
+
+    if (assetWallets.length >= 3) {
+      const strength = asset === 'VTHO' ? 'LOW' : 'MEDIUM';
+      const score =
+        asset === 'B3TR'
+          ? Math.min(40, 22 + assetWallets.length * 3)
+          : asset === 'VET'
+            ? Math.min(34, 18 + assetWallets.length * 3)
+            : Math.min(20, 8 + assetWallets.length * 2);
+      const code = `SHARED_RECENT_${asset}_FUNDER`;
+
+      signals.push({
+        code,
+        family: 'FUNDING',
+        strength,
+        score,
+        independentKey: funder,
+      });
+
+      await insertEvidenceRecord({
+        invitation,
+        subjectWallet: subject,
+        family: 'FUNDING',
+        signalCode: code,
+        strength,
+        score,
+        relatedWallet: funder,
+        evidence: {
+          walletCount: assetWallets.length,
+          asset,
+        },
+        dedupeKey:
+          `sybil-v2:${invitation.invite_code}:${code.toLowerCase()}:${funder}`,
+      });
+    }
+  }
+
+  for (const funder of recentFunders) {
+    const peerFunding = await supabaseAdmin
+      .from('sybil_v2_evidence_records')
+      .select('subject_wallet,signal_code')
+      .eq('network', invitation.activation_network)
+      .eq('evidence_family', 'FUNDING')
+      .eq('related_wallet', funder)
+      .like('signal_code', 'RECENT_PREACTIVATION_%_FUNDER');
+
+    if (peerFunding.error) {
+      throw new Error(
+        `Recent multi-asset funder evidence could not be loaded: ${peerFunding.error.message}`,
+      );
+    }
+
+    const fundedWallets = unique(
+      ((peerFunding.data ?? []) as FundingEvidenceRow[])
+        .map((peer) => String(peer.subject_wallet ?? ''))
+        .filter(Boolean)
+        .map(normalizeWallet),
+    );
+    const fundedAssets = unique(
+      ((peerFunding.data ?? []) as FundingEvidenceRow[])
+        .map((peer) => peer.signal_code)
+        .map((code) =>
+          code.includes('_B3TR_')
+            ? 'B3TR'
+            : code.includes('_VTHO_')
+              ? 'VTHO'
+              : 'VET',
+        ),
+    );
+
+    if (fundedWallets.length >= 3) {
+      const score = Math.min(42, 22 + fundedWallets.length * 3);
+      signals.push({
+        code: 'SHARED_RECENT_MULTI_ASSET_FUNDER',
+        family: 'FUNDING',
+        strength: 'MEDIUM',
+        score,
+        independentKey: funder,
+      });
+
+      await insertEvidenceRecord({
+        invitation,
+        subjectWallet: subject,
+        family: 'FUNDING',
+        signalCode: 'SHARED_RECENT_MULTI_ASSET_FUNDER',
+        strength: 'MEDIUM',
+        score,
+        relatedWallet: funder,
+        evidence: {
+          walletCount: fundedWallets.length,
+          assets: fundedAssets,
+        },
+        dedupeKey:
+          `sybil-v2:${invitation.invite_code}:shared-recent-multi-asset-funder:${funder}`,
+      });
+    }
+
+    const sinkResult = await supabaseAdmin
+      .from('sybil_v2_preactivation_b3tr_outflows')
+      .select('wallet_address')
+      .eq('network', invitation.activation_network)
+      .eq('destination_wallet', funder);
+
+    if (sinkResult.error) {
+      throw new Error(
+        `Historical sink linkage could not be loaded: ${sinkResult.error.message}`,
+      );
+    }
+
+    const sinkWallets = unique(
+      (sinkResult.data ?? []).map((row) =>
+        normalizeWallet(String(row.wallet_address)),
+      ),
+    );
+
+    if (sinkWallets.length >= 3) {
+      const ownFundingRows = [...closestByAssetFunder.values()]
+        .filter((row) =>
+          row.related_wallet &&
+          normalizeWallet(row.related_wallet) === funder,
+        );
+      const closestBlocks = Math.min(
+        ...ownFundingRows.map((row) =>
+          Number(
+            row.evidence?.blocksBeforeActivation ??
+              Number.MAX_SAFE_INTEGER,
+          ),
+        ),
+      );
+
+      if (Number.isFinite(closestBlocks) && closestBlocks <= 8_640) {
+        signals.push({
+          code: 'RECENT_FUNDER_IS_HISTORICAL_COMMON_SINK',
+          family: 'CLUSTER_LINK',
+          strength: 'HIGH',
+          score: Math.min(60, 38 + sinkWallets.length * 2),
+          independentKey: funder,
+        });
+
+        await insertEvidenceRecord({
+          invitation,
+          subjectWallet: subject,
+          family: 'CLUSTER_LINK',
+          signalCode: 'RECENT_FUNDER_IS_HISTORICAL_COMMON_SINK',
+          strength: 'HIGH',
+          score: Math.min(60, 38 + sinkWallets.length * 2),
+          relatedWallet: funder,
+          evidence: {
+            historicalSinkWalletCount: sinkWallets.length,
+            blocksBeforeActivation: closestBlocks,
+          },
+          dedupeKey:
+            `sybil-v2:${invitation.invite_code}:recent-funder-historical-sink:${funder}`,
+        });
+      }
+    }
+
+    if (fundedWallets.length >= 3) {
+      const inviterResult = await supabaseAdmin
+        .from('invitations')
+        .select('invite_code')
+        .eq('activation_network', invitation.activation_network)
+        .eq('inviter_wallet', funder)
+        .not('invitee_wallet', 'is', null);
+
+      if (inviterResult.error) {
+        throw new Error(
+          `Recent funder inviter linkage could not be loaded: ${inviterResult.error.message}`,
+        );
+      }
+
+      const inviterCount = (inviterResult.data ?? []).length;
+      if (inviterCount >= 2) {
+        const score = Math.min(
+          45,
+          25 + fundedWallets.length * 2 + inviterCount * 2,
+        );
+        signals.push({
+          code: 'SHARED_RECENT_FUNDER_IS_MULTI_INVITER',
+          family: 'CLUSTER_LINK',
+          strength: 'MEDIUM',
+          score,
+          independentKey: funder,
+        });
+
+        await insertEvidenceRecord({
+          invitation,
+          subjectWallet: subject,
+          family: 'CLUSTER_LINK',
+          signalCode: 'SHARED_RECENT_FUNDER_IS_MULTI_INVITER',
+          strength: 'MEDIUM',
+          score,
+          relatedWallet: funder,
+          evidence: {
+            fundedWalletCount: fundedWallets.length,
+            inviterReferralCount: inviterCount,
+            assets: fundedAssets,
+          },
+          dedupeKey:
+            `sybil-v2:${invitation.invite_code}:shared-recent-funder-multi-inviter:${funder}`,
+        });
+      }
     }
   }
 
