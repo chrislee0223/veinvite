@@ -81,7 +81,7 @@ test('desktop Network keeps the compact Network card without restacking the glob
   assert.match(source, /networkIdentity\{[^}]*display:flex/);
   assert.match(source, /summaryTotal\{[^}]*display:flex/);
   assert.match(source, /networkSearchRow\{[^}]*position:absolute[^}]*top:44px/);
-  assert.match(home, /\.topActions \{ min-width:0; display:flex; align-items:center; gap:10px; \}/);
+  assert.match(home, /\.topActions \{ min-width:0; display:flex; align-items:center; gap:8px; \}/);
   assert.match(home, /\.screen \{[^}]*padding:22px 16px 118px[^}]*background:radial-gradient/);
   assert.match(home, /\.screen\.networkScreen \{[^}]*height:100svh[^}]*display:flex[^}]*flex-direction:column/);
   assert.doesNotMatch(home, /\.screen\.networkScreen \{[^}]*width:/);
