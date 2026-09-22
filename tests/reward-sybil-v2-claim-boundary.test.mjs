@@ -114,3 +114,52 @@ test('reward pricing excludes referrals without current v2 clearance', async () 
     /queuedEligibleCount: clearedQueuedEligibleCount/u,
   );
 });
+
+
+test('unclaimed referrals are reassessed when newer cluster evidence arrives', async () => {
+  const sql = await readFile(
+    'supabase/migrations/20260923031500_reassess_sybil_v2_on_new_evidence.sql',
+    'utf8',
+  );
+
+  assert.match(sql, /q\.invite_code is null/u);
+  assert.match(sql, /newest_network_evidence/u);
+  assert.match(sql, /> a\.updated_at/u);
+  assert.match(sql, /not in \('HOLD','RESTRICTED'\)/u);
+
+  const queueSource = await readFile(
+    'src/app/api/queues/sybil-v2-evidence/route.ts',
+    'utf8',
+  );
+  assert.match(queueSource, /runSybilV2AssessmentBatch\(10\)/u);
+
+  const pipeline = await readFile(
+    'src/lib/sybil/v2/pipeline.ts',
+    'utf8',
+  );
+  assert.match(
+    pipeline,
+    /hasNewEvidenceForCurrentAssessment/u,
+  );
+});
+
+test('old COMPLETE scan checkpoints cannot survive an analyzer upgrade', async () => {
+  const migration = await readFile(
+    'supabase/migrations/20260923033000_version_sybil_v2_scan_checkpoints.sql',
+    'utf8',
+  );
+  const pipeline = await readFile(
+    'src/lib/sybil/v2/pipeline.ts',
+    'utf8',
+  );
+
+  assert.match(migration, /analyzer_version/u);
+  assert.match(
+    pipeline,
+    /previous\.analyzer_version === SYBIL_V2_ANALYZER_VERSION/u,
+  );
+  assert.match(
+    pipeline,
+    /analyzer_version: SYBIL_V2_ANALYZER_VERSION/u,
+  );
+});
