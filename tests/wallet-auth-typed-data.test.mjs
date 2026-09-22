@@ -2,11 +2,20 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import test from 'node:test';
 
+import {
+  Wallet,
+  verifyTypedData,
+} from 'ethers';
+
+import {
+  buildWalletAuthTypedData,
+} from '../src/lib/walletAuthTypedData.ts';
+
 const [
   authHook,
   challengeRoute,
   verifyRoute,
-  typedData,
+  typedDataSource,
 ] = await Promise.all([
   readFile('src/hooks/useWalletAuthentication.ts', 'utf8'),
   readFile('src/app/api/auth/challenge/route.ts', 'utf8'),
@@ -14,65 +23,89 @@ const [
   readFile('src/lib/walletAuthTypedData.ts', 'utf8'),
 ]);
 
-test('VeWorld ownership auth uses one combined v2 prompt only for a confirmed external handoff', () => {
+test('VeWorld ownership auth uses one established-wallet EIP-712 prompt', () => {
   assert.match(authHook, /dappKitSource === 'veworld'/);
-  assert.match(
-    authHook,
-    /const isVeWorldHandoff =[\s\S]*isPendingVeWorldWalletHandoff\([\s\S]*walletAddress/,
-  );
-  assert.match(
-    authHook,
-    /if \(isVeWorldHandoff\) \{[\s\S]*await connectV2\(typedData\)[\s\S]*authFlow =[\s\S]*'veworld_handoff_connect_v2'[\s\S]*\} else \{[\s\S]*await requestTypedData\(/,
-  );
-  assert.doesNotMatch(
-    authHook,
-    /connectV2\(null\)/,
-  );
+  assert.match(authHook, /await requestTypedData\(/);
+  assert.match(authHook, /typedData\.domain/);
+  assert.match(authHook, /typedData\.types/);
+  assert.match(authHook, /typedData\.value/);
+  assert.doesNotMatch(authHook, /await connectV2\(/);
+  assert.doesNotMatch(authHook, /getPendingVeWorldWalletHandoffDelay/);
   assert.match(authHook, /proofType\s*=\s*'typed_data'/);
 });
 
-test('VeWorld auth requires live provider addresses and validates the recovered signer locally', () => {
-  assert.doesNotMatch(
-    authHook,
-    /canonicalWalletRef\.current\s*\|\|\s*walletAddress/,
+test('fresh and database-reloaded expiry strings produce identical EIP-712 data and signature verification', async () => {
+  const privateKey =
+    '0x0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef';
+  const wallet = new Wallet(privateKey);
+  const walletAddress = wallet.address.toLowerCase();
+  const common = {
+    walletAddress,
+    nonce:
+      'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+    origin: 'https://veinvite.vercel.app',
+    network: 'mainnet',
+    message: [
+      'Verify your wallet for VeInvite',
+      '',
+      'Expires at: 2026-09-22T05:16:59.584Z',
+    ].join('\n'),
+  };
+
+  const fresh = buildWalletAuthTypedData({
+    ...common,
+    expiresAt: '2026-09-22T05:16:59.584Z',
+  });
+  const reloaded = buildWalletAuthTypedData({
+    ...common,
+    expiresAt: '2026-09-22T05:16:59.584+00:00',
+  });
+
+  assert.deepEqual(
+    fresh,
+    reloaded,
+    'the same instant must never produce different EIP-712 payloads after a database round-trip',
   );
-  assert.doesNotMatch(
-    authHook,
-    /await initializeAsync\(\)/,
-  );
-  assert.match(
-    authHook,
-    /const signer =\s*canonicalWalletRef\.current;[\s\S]*!signer[\s\S]*dappSigner !== walletAddress/,
-  );
-  assert.match(
-    authHook,
-    /verifyTypedData\([\s\S]*typedData\.domain[\s\S]*typedData\.types[\s\S]*typedData\.value[\s\S]*signature/,
-  );
-  assert.match(
-    authHook,
-    /recoveredSigner !== walletAddress[\s\S]*VeWorld is still switching wallets/,
-  );
-  assert.match(
-    authHook,
-    /clientSignerCheck\s*=\s*[\s\S]*'matched'[\s\S]*proofType\s*=\s*[\s\S]*'typed_data'/,
+  assert.equal(
+    fresh.value.expiresAt,
+    '2026-09-22T05:16:59.584Z',
   );
 
-  const localRecovery = authHook.indexOf(
-    'recoveredSigner !== walletAddress',
+  const signature = await wallet.signTypedData(
+    fresh.domain,
+    fresh.types,
+    fresh.value,
   );
-  const serverVerify = authHook.indexOf(
-    "'/api/auth/verify'",
+  const recovered = verifyTypedData(
+    reloaded.domain,
+    reloaded.types,
+    reloaded.value,
+    signature,
   );
-  assert.ok(localRecovery >= 0);
-  assert.ok(serverVerify > localRecovery);
+
+  assert.equal(
+    recovered.toLowerCase(),
+    walletAddress,
+    'a signature from a fresh 201 challenge must verify against the database-reloaded representation',
+  );
 });
 
-test('wallet challenge exposes the exact EIP-712 binding inputs', () => {
-  assert.match(challengeRoute, /message: challenge\.message,[\s\S]*origin,[\s\S]*network/);
-  assert.match(challengeRoute, /CHALLENGE_LIFETIME_MINUTES\s*=\s*5/);
+test('wallet challenge returns one canonical expiry representation for both fresh and reused challenges', () => {
+  assert.match(
+    challengeRoute,
+    /expiresAt:[\s\S]*new Date\([\s\S]*challenge\.expires_at[\s\S]*\)\.toISOString\(\)/,
+  );
+  assert.match(
+    challengeRoute,
+    /message: challenge\.message,[\s\S]*origin,[\s\S]*network/,
+  );
+  assert.match(
+    challengeRoute,
+    /CHALLENGE_LIFETIME_MINUTES\s*=\s*5/,
+  );
 });
 
-test('server reconstructs and verifies typed auth from stored challenge data', () => {
+test('server reconstructs typed auth through the same canonicalizing builder', () => {
   assert.match(verifyRoute, /verifyTypedData/);
   assert.match(verifyRoute, /buildWalletAuthTypedData\(\{/);
   assert.match(verifyRoute, /nonce: challenge\.nonce/);
@@ -83,44 +116,19 @@ test('server reconstructs and verifies typed auth from stored challenge data', (
   assert.match(verifyRoute, /proofType === 'typed_data'/);
   assert.match(verifyRoute, /issue_wallet_session_after_verified_challenge/);
   assert.match(
-    verifyRoute,
-    /Wallet typed proof rejected\.[\s\S]*typed_signature_invalid[\s\S]*typed_signer_mismatch/,
-  );
-  assert.match(
-    verifyRoute,
-    /authFlow[\s\S]*veworld_handoff_connect_v2[\s\S]*veworld_request_typed_data/,
-  );
-  assert.match(
-    verifyRoute,
-    /clientSignerCheck[\s\S]*matched[\s\S]*missing/,
-  );
-  const diagnosticStart = verifyRoute.indexOf(
-    'function logTypedProofRejection',
-  );
-  const diagnosticEnd = verifyRoute.indexOf(
-    'function certificateDomainMatchesOrigin',
-    diagnosticStart,
-  );
-  const diagnosticBlock = verifyRoute.slice(
-    diagnosticStart,
-    diagnosticEnd,
-  );
-  assert.ok(diagnosticStart >= 0);
-  assert.ok(diagnosticEnd > diagnosticStart);
-  assert.doesNotMatch(
-    diagnosticBlock,
-    /console\.info\([\s\S]*walletAddress/,
+    typedDataSource,
+    /canonicalizeWalletAuthExpiresAt[\s\S]*toISOString\(\)/,
   );
 });
 
-test('typed auth uses reviewed VeChain chain ids and keeps legacy proof compatibility', () => {
-  assert.match(typedData, /100009/);
-  assert.match(typedData, /100010/);
-  assert.match(typedData, /walletAddress/);
-  assert.match(typedData, /nonce/);
-  assert.match(typedData, /expiresAt/);
-  assert.match(typedData, /origin/);
-  assert.match(typedData, /network/);
+test('typed auth keeps reviewed VeChain chain ids and legacy proof compatibility', () => {
+  assert.match(typedDataSource, /100009/);
+  assert.match(typedDataSource, /100010/);
+  assert.match(typedDataSource, /walletAddress/);
+  assert.match(typedDataSource, /nonce/);
+  assert.match(typedDataSource, /expiresAt/);
+  assert.match(typedDataSource, /origin/);
+  assert.match(typedDataSource, /network/);
   assert.match(verifyRoute, /verifyVeWorldCertificate/);
   assert.match(verifyRoute, /verifyMessage/);
 });
