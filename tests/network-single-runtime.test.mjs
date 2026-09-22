@@ -95,6 +95,7 @@ test('node profile remains non-blocking and Network keeps one mobile geometry on
   assert.match(networkSource, /\.personNode\.selected \.nodeCircle\{[^}]*0 0 34px/);
   assert.match(networkSource, /\.profileCard\.hasParentReturn\{bottom:52px\}/);
   assert.doesNotMatch(homeSource, /height:min\(720px,calc\(100svh - 160px\)\)/);
+  assert.doesNotMatch(networkSource, /@media\(max-width:560px\)/);
   assert.match(homeSource, /\.screen\.networkScreen \{[^}]*padding:14px 14px calc\(72px \+ env\(safe-area-inset-bottom\)\)/);
   assert.match(homeSource, /\.networkScreen \.topActions \{ max-width:58%; align-items:flex-end; flex-direction:column-reverse; gap:7px; \}/);
   assert.match(bottomNavigationSource, /\.bottomNavigation\[data-veinvite-active-tab='guide'\] \{ padding-bottom: env\(safe-area-inset-bottom\); \}/);
