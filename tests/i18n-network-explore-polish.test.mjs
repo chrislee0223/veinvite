@@ -45,7 +45,7 @@ test('Explore discovery uses verified referral roots without per-wallet visibili
 });
 
 test('Explore discovery API only returns the root wallet locator used by the UI', () => {
-  assert.match(discoverRoute, /Do not expose preference timestamps/i);
+  assert.match(discoverRoute, /Do not expose unrelated metadata/i);
   assert.match(discoverRoute, /return typeof wallet === 'string' \? \[\{ wallet \}\] : \[\]/i);
   assert.doesNotMatch(discoverRoute, /return noStoreJson\(\{ networks: data \}/i);
 });
