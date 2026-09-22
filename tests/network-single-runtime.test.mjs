@@ -517,38 +517,40 @@ test('completed Network nodes show descendant counts below the node while active
   assert.match(childMarkup, /nodeProgressStatus/);
   assert.match(childMarkup, /<NetworkCountGlyph \/>/);
   assert.match(childMarkup, /child\.network\.toLocaleString\(\)/);
-  assert.match(childMarkup, /<NetworkNodeIdentity[\s\S]*address=\{child\.wallet\}/);
+  assert.match(childMarkup, /<span className="nodeCircle"><NetworkIdentity address=\{child\.wallet\} showLabel=\{false\} \/><\/span>/);
+  assert.match(childMarkup, /<span className="nodeMeta">[\s\S]*<strong><NetworkNodeLabel address=\{child\.wallet\} \/><\/strong>/);
+  assert.doesNotMatch(childMarkup, /NetworkNodeIdentity/);
   assert.doesNotMatch(childMarkup, /statusLabel\(child\.status, locale\)/);
 
   assert.match(networkSource, /\.nodeMeta\{[^}]*gap:1px/);
   assert.match(networkSource, /\.childNode \.nodeMeta\{top:calc\(100% \+ 6px\)\}/);
+  assert.match(networkSource, /\.nodeMeta strong\{[^}]*max-width:90px[^}]*font-size:\.46rem[^}]*text-overflow:ellipsis[^}]*white-space:nowrap/);
   assert.doesNotMatch(networkSource, /\.childNode \.nodeMeta\{bottom:/);
   assert.match(networkMigrationSource, /count\(fn\.wallet\) filter \(where fn\.depth > 1\)::integer as network_count/);
   assert.match(canaryFixtureSource, /const childSummary = nodeSummary\(node\.wallet, round\)/);
   assert.match(canaryFixtureSource, /network: descendants\.length/);
 });
 
-test('node labels prefer VET domains and retain the compact wallet fallback without duplicate identity lookups', () => {
+test('node labels prefer VET domains while preserving the original scoped node DOM', () => {
   assert.match(networkSource, /wallet\.slice\(2, 5\)\.toUpperCase\(\)/);
   assert.match(networkSource, /wallet\.slice\(-3\)\.toUpperCase\(\)/);
-  assert.match(networkSource, /function useNetworkIdentityProfile/);
-  assert.match(networkSource, /const NetworkNodeIdentity = memo/);
-  assert.match(networkSource, /\{domain \|\| nodeWallet\(address\)\}/);
-  assert.match(networkSource, /dir=\{domain \? 'auto' : 'ltr'\}/);
-  assert.match(networkSource, /title=\{domain \|\| address\}/);
-  assert.match(networkSource, /<NetworkNodeIdentity[\s\S]*address=\{currentData\.focusWallet\}/);
-  assert.match(networkSource, /<NetworkNodeIdentity[\s\S]*address=\{child\.wallet\}/);
-  assert.match(networkSource, /<NetworkNodeIdentity[\s\S]*address=\{slot\.inviteeWallet\}/);
-  assert.match(networkSource, /<NetworkNodeIdentity[\s\S]*address=\{dragGhost\.wallet\}/);
-  const profileHookStart = networkSource.indexOf('function useNetworkIdentityProfile');
-  const profileHookEnd = networkSource.indexOf('function NetworkAvatar', profileHookStart);
-  assert.ok(profileHookStart >= 0 && profileHookEnd > profileHookStart);
-  assert.equal(
-    (networkSource.slice(profileHookStart, profileHookEnd).match(/useVechainDomain\(/g) ?? []).length,
-    1,
-  );
-  assert.match(networkSource, /readCachedLeaderboardDomain\(address\)/);
-  assert.match(networkSource, /rememberLeaderboardDomain\(address, queriedDomain\)/);
+  assert.match(networkSource, /const NetworkNodeLabel = memo/);
+  assert.doesNotMatch(networkSource, /NetworkNodeIdentity/);
+  const labelStart = networkSource.indexOf('const NetworkNodeLabel = memo');
+  const labelEnd = networkSource.indexOf('function goHomeWithoutReload', labelStart);
+  assert.ok(labelStart >= 0 && labelEnd > labelStart);
+  const labelSource = networkSource.slice(labelStart, labelEnd);
+  assert.match(labelSource, /readCachedLeaderboardDomain\(address\)/);
+  assert.match(labelSource, /useVechainDomain\(\s*shouldResolveDomain \? address : undefined/);
+  assert.match(labelSource, /rememberLeaderboardDomain\(address, queriedDomain\)/);
+  assert.match(labelSource, /return <>\{resolvedDomain \|\| nodeWallet\(address\)\}<\/>/);
+  assert.doesNotMatch(labelSource, /className=|<span|<strong/);
+
+  assert.match(networkSource, /<strong><NetworkNodeLabel address=\{currentData\.focusWallet\} \/><\/strong>/);
+  assert.match(networkSource, /<strong><NetworkNodeLabel address=\{child\.wallet\} \/><\/strong>/);
+  assert.match(networkSource, /slot\.inviteeWallet \? <NetworkNodeLabel address=\{slot\.inviteeWallet\} \/> : t\.inProgress/);
+  assert.match(networkSource, /<strong><NetworkNodeLabel address=\{dragGhost\.wallet\} \/><\/strong>/);
+  assert.match(networkSource, /\.nodeMeta strong\{[^}]*max-width:90px[^}]*overflow:hidden[^}]*text-overflow:ellipsis[^}]*white-space:nowrap/);
 });
 
 test('root YOU identity lives inside the center node and the top return control stays icon-only', () => {
@@ -557,12 +559,11 @@ test('root YOU identity lives inside the center node and the top return control 
   assert.ok(focusStart >= 0 && childrenStart > focusStart);
   const focusMarkup = networkSource.slice(focusStart, childrenStart);
 
-  assert.match(focusMarkup, /<NetworkNodeIdentity/);
-  assert.match(focusMarkup, /address=\{currentData\.focusWallet\}/);
-  assert.match(focusMarkup, /youLabel=\{focusIsRoot \? c\.you : undefined\}/);
+  assert.match(focusMarkup, /focusIsRoot \? \([\s\S]*focusYouLabel[\s\S]*\{c\.you\}/);
+  assert.match(focusMarkup, /<span className="nodeMeta">[\s\S]*<strong><NetworkNodeLabel address=\{currentData\.focusWallet\} \/><\/strong>/);
   assert.match(focusMarkup, /<NetworkCountGlyph \/>/);
   assert.match(focusMarkup, /currentData\.summary\.network\.toLocaleString\(\)/);
-  assert.doesNotMatch(focusMarkup, /<strong>\{focusIsRoot \? c\.you/);
+  assert.doesNotMatch(focusMarkup, /NetworkNodeIdentity/);
 
   const controlsStart = networkSource.indexOf('<div className="viewControls">');
   const fitStart = networkSource.indexOf('className="fitButton"', controlsStart);
