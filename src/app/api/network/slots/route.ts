@@ -190,7 +190,7 @@ export async function GET(request: NextRequest) {
     const progress = slotProgress(row);
     return {
       slot,
-      state: row.invitee_wallet ? 'IN_PROGRESS' as const : 'PENDING' as const,
+      state: row.status === 'PENDING_ACCEPTANCE' ? 'PENDING' as const : 'IN_PROGRESS' as const,
       inviteeWallet: row.invitee_wallet,
       ...progress,
     };
