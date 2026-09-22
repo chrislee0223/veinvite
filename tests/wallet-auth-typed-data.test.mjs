@@ -42,6 +42,10 @@ test('VeWorld refreshes the existing signing transport before the first ownershi
     authHook,
     /dappKitSource === 'veworld'[\s\S]*runWalletProviderReconciliation\([\s\S]*await initializeAsync\(\)[\s\S]*requestTypedData\(/,
   );
+  assert.match(
+    authHook,
+    /await wait\([\s\S]*WALLET_SIGNATURE_SETTLE_MS[\s\S]*canonicalWalletRef\.current[\s\S]*dappWalletRef\.current[\s\S]*requestTypedData\(/,
+  );
   assert.doesNotMatch(authHook, /await connectV2\(/);
 });
 
