@@ -7,6 +7,7 @@ import {
   reserveEligibleReferralRewards,
 } from '@/lib/rewards/rewardReservation';
 import { supabaseAdmin } from '@/lib/supabaseServer';
+import { ensureSybilV2ReadyForReward } from '@/lib/sybil/v2/pipeline';
 
 type ReservationQueueRow = {
   status: string;
@@ -108,6 +109,32 @@ const queueCallback = handleCallback(
       invitation.reward_status !== 'ELIGIBLE'
     ) {
       return;
+    }
+
+    const sybilV2 =
+      await ensureSybilV2ReadyForReward(
+        message.inviteCode,
+      );
+
+    if (
+      sybilV2.state === 'HOLD' ||
+      sybilV2.state === 'RESTRICTED'
+    ) {
+      // A durable security review/restriction is not a transient Queue error.
+      // Leave the reward unreserved until the operator explicitly clears it.
+      return;
+    }
+
+    if (
+      !(
+        (sybilV2.state === 'CLEAR' ||
+          sybilV2.state === 'WATCH') &&
+        sybilV2.clearanceIssued
+      )
+    ) {
+      throw new Error(
+        `Sybil v2 clearance is not ready for ${message.inviteCode}: ${sybilV2.state}`,
+      );
     }
 
     const sweep =
