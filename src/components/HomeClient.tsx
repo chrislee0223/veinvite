@@ -1152,7 +1152,7 @@ export function HomeClient() {
         .screen { min-height:100svh; box-sizing:border-box; padding:22px 16px 118px; color:#fff; background:radial-gradient(circle at 50% 16%,rgba(244,183,40,.14),transparent 32%),#080807; }
         .screen.networkScreen { height:100svh; min-height:100svh; overflow:hidden; overscroll-behavior:none; display:flex; flex-direction:column; }
         .topBar { width:min(100%,520px); margin:0 auto 26px; display:flex; align-items:center; justify-content:space-between; gap:16px; }
-        .networkTabViewport { width:100%; min-height:0; flex:1 1 auto; display:flex; }
+        .networkTabViewport { width:min(100%,520px); max-height:720px; min-height:0; margin:0 auto; flex:1 1 auto; display:flex; }
         .networkTabViewport :global(.networkHubShell) { width:100%; height:100%; min-height:0; display:flex; }
         .networkTabViewport :global(.networkCanvasPage) { flex:1 1 auto; min-height:0; }
         .topActions { min-width:0; display:flex; align-items:center; gap:8px; }
