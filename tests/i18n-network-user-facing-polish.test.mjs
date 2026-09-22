@@ -58,15 +58,18 @@ test('Korean Network wording uses one conversational tone and clearer search cop
   for (const expected of [
     "noSearchResults: '내 네트워크에 일치하는 지갑이 없어요.'",
     "noMatching: '조건에 맞는 직접 초대 분기가 없어요.'",
-    "publicEnabledNote: '내 지갑 주소를 아는 사람이 공개 네트워크를 볼 수 있게 해요.'",
-    "discoverableNote: '내 네트워크가 둘러보기 목록에 표시되게 해요.'",
     "noPublicNetworks: '아직 둘러볼 수 있는 공개 네트워크가 없어요.'",
-    "visibilityError: '공개 네트워크 설정을 변경하지 못했어요.'",
-    "networkPrivate: '이 네트워크는 비공개예요.'",
     "maintenance: '네트워크를 잠시 사용할 수 없어요.'",
   ]) {
     assert.ok(source.includes(expected), `missing Korean tone polish: ${expected}`);
   }
+});
+
+test('retired per-wallet visibility wording is absent from naturalness polish', () => {
+  assert.doesNotMatch(
+    source,
+    /publicEnabled|publicEnabledNote|discoverableNote|visibilityError|networkPrivate|privateBranchesHidden|exploreDescription/,
+  );
 });
 
 test('final terminology pass remains copy-only', () => {
