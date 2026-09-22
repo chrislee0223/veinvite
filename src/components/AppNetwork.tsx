@@ -33,6 +33,7 @@ import {
   type NetworkHeaderMetrics,
 } from '@/lib/networkRootClientCache';
 import {
+  formatCompactVechainDomain,
   readCachedLeaderboardDomain,
   rememberLeaderboardDomain,
 } from '@/lib/leaderboardDomainCache';
@@ -618,7 +619,7 @@ const NetworkNodeLabel = memo(function NetworkNodeLabel({
     shouldResolveDomain,
   ]);
 
-  return <>{resolvedDomain || nodeWallet(address)}</>;
+  return <>{formatCompactVechainDomain(resolvedDomain) || nodeWallet(address)}</>;
 });
 function goHomeWithoutReload() {
   const button = document.querySelector<HTMLButtonElement>('[data-veinvite-tab="home"]');
