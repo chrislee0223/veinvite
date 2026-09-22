@@ -14,6 +14,9 @@ import {
   type SybilStatus,
 } from '@/lib/sybil/risk';
 import {
+  ensureSybilV2ReadyForReward,
+} from '@/lib/sybil/v2/pipeline';
+import {
   getVeBetterActivityProgress,
   type QualifyingRewardEvent,
 } from '@/lib/vebetter/activity';
@@ -1043,18 +1046,40 @@ export async function syncInvitationEvidence(
 
   if (becameRewardEligible) {
     try {
-      await enqueueRewardReservationContinuation({
-        inviteCode: row.invite_code,
-        detectedAt: new Date().toISOString(),
-      });
-    } catch (queueError) {
-      // Eligibility is already durable. Queue delivery only accelerates
-      // finality-driven reservation; browser heartbeat and cron remain fallbacks.
+      const sybilV2 =
+        await ensureSybilV2ReadyForReward(
+          row.invite_code,
+        );
+
+      if (
+        (sybilV2.state === 'CLEAR' ||
+          sybilV2.state === 'WATCH') &&
+        sybilV2.clearanceIssued
+      ) {
+        await enqueueRewardReservationContinuation({
+          inviteCode: row.invite_code,
+          detectedAt: new Date().toISOString(),
+        });
+      } else {
+        console.warn(
+          'Reward reservation withheld pending Sybil v2 clearance:',
+          {
+            inviteCode: row.invite_code,
+            state: sybilV2.state,
+            riskScore: sybilV2.riskScore,
+            reasonCodes: sybilV2.reasonCodes,
+          },
+        );
+      }
+    } catch (sybilV2Error) {
+      // Eligibility is durable, but reward readiness is fail-closed until the
+      // separate Sybil v2 clearance exists. Cron and the evidence Queue retry
+      // this path without exposing AWAITING_CLAIM prematurely.
       console.error(
-        'Failed to queue reward reservation finality continuation:',
+        'Sybil v2 final assessment failed before reward reservation:',
         {
           inviteCode: row.invite_code,
-          error: queueError,
+          error: sybilV2Error,
         },
       );
     }
