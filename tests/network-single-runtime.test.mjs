@@ -503,11 +503,12 @@ test('Network hides the world until root topology and both invite slots form one
   assert.match(networkSource, /setInviteSlots\(cachedInviteSlots \?\? \[\]\)/);
 });
 
-test('Network header reveals only a complete round metric and never a placeholder transition', () => {
-  assert.match(networkSource, /const headerMetricsReady = headerThisRound !== null/);
-  assert.match(networkSource, /metricsReady' : 'metricsPending'/);
-  assert.match(networkSource, /\.summary\.metricsPending\{visibility:hidden\}/);
-  assert.doesNotMatch(networkSource, /headerThisRound === null \? '–'/);
+test('Network top metric is a stable total-only value with no round placeholder transition', () => {
+  assert.match(networkSource, /const headerNetwork =\s*headerMetrics\?\.network \?\? visibleRootData\.summary\.network/);
+  assert.match(networkSource, /className="summaryTotal"/);
+  assert.match(networkSource, /headerNetwork\.toLocaleString\(\)/);
+  assert.doesNotMatch(networkSource, /headerMetricsReady|metricsPending|metricsReady/);
+  assert.doesNotMatch(networkSource, /const headerThisRound/);
 });
 
 test('Network intro waits for the authoritative slot attempt to settle before YOU-to-fit motion', () => {
