@@ -738,6 +738,10 @@ test('managed group title supports direct inline rename without changing canvas 
   assert.match(networkSource, /event\.key === 'Enter'[\s\S]*event\.currentTarget\.blur\(\)/);
   assert.match(networkSource, /event\.key === 'Escape'[\s\S]*setEditingManagedGroupName\(false\)/);
   assert.match(networkSource, /\.groupManageTitleInput\{[^}]*font-size:16px/);
+  assert.match(networkSource, /\.groupsPanelHead>button\{[^}]*width:27px;height:27px[^}]*display:grid;place-items:center/);
+  assert.match(networkSource, /\.groupManageHead\{[^}]*grid-template-columns:27px minmax\(0,1fr\) 27px[^}]*align-items:center/);
+  assert.match(networkSource, /\.groupManageTitle\{[^}]*width:100%/);
+  assert.match(networkSource, /\.groupManageTitleButton\{[^}]*width:100%;height:auto[^}]*font-size:\.62rem/);
 });
 
 test('expanded members can move between groups with fixed screen-space targeting', () => {
