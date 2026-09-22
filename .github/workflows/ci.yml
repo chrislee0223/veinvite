@@ -163,6 +163,9 @@ jobs:
           done
           exit 1
 
+      - name: Wallet auth cryptographic regression gate
+        run: node --experimental-strip-types --test tests/wallet-auth-typed-data-crypto.test.mjs
+
       - name: Install Playwright Chromium
         run: npx playwright install --with-deps chromium
 
