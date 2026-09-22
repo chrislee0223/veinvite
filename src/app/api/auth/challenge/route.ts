@@ -95,7 +95,10 @@ function challengeResponse({
     {
       walletAddress,
       nonce: challenge.nonce,
-      expiresAt: challenge.expires_at,
+      expiresAt:
+        new Date(
+          challenge.expires_at,
+        ).toISOString(),
       message: challenge.message,
       origin,
       network,

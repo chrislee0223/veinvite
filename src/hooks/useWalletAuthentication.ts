@@ -2,8 +2,6 @@
 
 import {
   useCallback,
-  useEffect,
-  useRef,
   useState,
 } from 'react';
 import {
@@ -13,18 +11,12 @@ import {
 import {
   useWallet as useDappKitWallet,
 } from '@vechain/dapp-kit-react';
-import {
-  verifyTypedData,
-} from 'ethers';
 
 import {
   cancelActiveWalletAuthentication,
   clearActiveWalletAuthentication,
-  clearPendingVeWorldWalletHandoff,
   createWalletAuthenticationGeneration,
   getActiveWalletAuthentication,
-  getPendingVeWorldWalletHandoffDelay,
-  isPendingVeWorldWalletHandoff,
   isWalletAuthenticationGenerationCurrent,
   setActiveWalletAuthentication,
   waitForWalletProviderReconciliation,
@@ -161,27 +153,9 @@ export function useWalletAuthentication() {
   const {
     account: dappKitAccount,
     source: dappKitSource,
-    connectV2,
     requestTypedData,
     requestCertificate,
   } = useDappKitWallet();
-
-  const canonicalWalletRef = useRef<string | null>(
-    account?.address?.trim().toLowerCase() ?? null,
-  );
-  const dappWalletRef = useRef<string | null>(
-    dappKitAccount?.trim().toLowerCase() ?? null,
-  );
-
-  useEffect(() => {
-    canonicalWalletRef.current =
-      account?.address?.trim().toLowerCase() ?? null;
-  }, [account?.address]);
-
-  useEffect(() => {
-    dappWalletRef.current =
-      dappKitAccount?.trim().toLowerCase() ?? null;
-  }, [dappKitAccount]);
 
   const [
     isAuthenticating,
@@ -306,22 +280,10 @@ export function useWalletAuthentication() {
                 ?.toLowerCase() ===
                 walletAddress
             ) {
-              clearPendingVeWorldWalletHandoff(
-                walletAddress,
-              );
               return;
             }
 
-            const isVeWorldHandoff =
-              dappKitSource === 'veworld' &&
-              isPendingVeWorldWalletHandoff(
-                walletAddress,
-              );
-
-            if (
-              session.authenticated &&
-              !isVeWorldHandoff
-            ) {
+            if (session.authenticated) {
               // A provider can momentarily report a different account while
               // VeWorld/WalletConnect is restoring or while locale/UI state is
               // changing. Never destroy the known-good browser session or open
@@ -332,32 +294,6 @@ export function useWalletAuthentication() {
               throw new Error(
                 'The connected wallet changed while a verified VeInvite session is active. Use Connect another wallet to switch wallets.',
               );
-            }
-
-            if (isVeWorldHandoff) {
-              const handoffDelay =
-                getPendingVeWorldWalletHandoffDelay(
-                  walletAddress,
-                );
-
-              if (handoffDelay > 0) {
-                await wait(handoffDelay);
-                assertStillCurrent();
-              }
-
-              if (
-                !isPendingVeWorldWalletHandoff(
-                  walletAddress,
-                ) ||
-                canonicalWalletRef.current !==
-                  walletAddress ||
-                dappWalletRef.current !==
-                  walletAddress
-              ) {
-                throw new Error(
-                  'Wallet verification was cancelled.',
-                );
-              }
             }
 
             const challengeResponse =
@@ -405,13 +341,6 @@ export function useWalletAuthentication() {
               | 'certificate'
               | 'message'
               | undefined;
-            let authFlow:
-              | 'veworld_handoff_connect_v2'
-              | 'veworld_request_typed_data'
-              | undefined;
-            let clientSignerCheck:
-              | 'matched'
-              | undefined;
 
             if (
               connection.isConnectedWithDappKit
@@ -423,26 +352,17 @@ export function useWalletAuthentication() {
               );
               assertStillCurrent();
 
-              // Provider reconciliation owns any active VeWorld account
-              // rebind before authentication starts. Do not call
-              // initializeAsync() here: DAppKit v2 can fall back to the
-              // persisted account because VeWorld does not expose a silent
-              // active-signer read through that method.
-              await wait(
-                WALLET_SIGNATURE_SETTLE_MS,
-              );
-              assertStillCurrent();
-
               const signer =
-                canonicalWalletRef.current;
+                account?.address
+                  ?.trim()
+                  .toLowerCase() ||
+                walletAddress;
               const dappSigner =
-                dappWalletRef.current;
+                dappKitAccount
+                  ?.trim()
+                  .toLowerCase() || null;
 
-              // Never substitute the requested wallet when a provider address
-              // is temporarily missing. A missing address is an unresolved
-              // wallet transition, not proof that the requested signer is live.
               if (
-                !signer ||
                 signer !== walletAddress ||
                 dappSigner !== walletAddress
               ) {
@@ -450,6 +370,11 @@ export function useWalletAuthentication() {
                   'Wallet connection is still synchronizing. Please disconnect and reconnect the wallet.',
                 );
               }
+
+              await wait(
+                WALLET_SIGNATURE_SETTLE_MS,
+              );
+              assertStillCurrent();
 
               const signCertificateFallback =
                 async () => {
@@ -519,84 +444,22 @@ export function useWalletAuthentication() {
                       challenge.message,
                   });
 
-                if (isVeWorldHandoff) {
-                  // External A -> B switching is the one case where VeWorld's
-                  // v2 connect+typed-data path is intentional. It does not pass
-                  // a cached signer override; VeWorld signs with its current
-                  // active account and DAppKit returns that signer with the
-                  // signature. This replaces the previous separate account-sync
-                  // request plus requestTypedData() two-prompt sequence.
-                  const handoffResult =
-                    await connectV2(typedData);
-
-                  assertStillCurrent();
-
-                  const returnedSigner =
-                    handoffResult.signer
-                      ?.trim()
-                      .toLowerCase();
-
-                  if (
-                    returnedSigner !== walletAddress
-                  ) {
-                    throw new Error(
-                      'VeWorld is still switching wallets. Please return to VeInvite and try again after the wallet switch finishes.',
-                    );
-                  }
-
-                  signature =
-                    handoffResult.signature;
-                  authFlow =
-                    'veworld_handoff_connect_v2';
-                } else {
-                  // Normal first login / same-wallet verification stays on the
-                  // established signer path so it never re-enters VeWorld's
-                  // connection flow.
-                  signature =
-                    await requestTypedData(
-                      typedData.domain,
-                      typedData.types,
-                      typedData.value,
-                      {
-                        signer,
-                      },
-                    );
-                  authFlow =
-                    'veworld_request_typed_data';
-                }
+                // The wallet is already connected at this point. Calling
+                // connectV2() again re-enters VeWorld's connection/login flow
+                // and can show a second login screen even though the first
+                // connection succeeded. Request only the EIP-712 signature
+                // from the established signer instead.
+                signature =
+                  await requestTypedData(
+                    typedData.domain,
+                    typedData.types,
+                    typedData.value,
+                    {
+                      signer,
+                    },
+                  );
 
                 assertStillCurrent();
-
-                // Recover the actual key locally before contacting VeInvite's
-                // verify endpoint. A stale-wallet proof must never become a
-                // server-side 401.
-                let recoveredSigner: string;
-                try {
-                  recoveredSigner =
-                    verifyTypedData(
-                      typedData.domain,
-                      typedData.types,
-                      typedData.value,
-                      signature,
-                    )
-                      .trim()
-                      .toLowerCase();
-                } catch {
-                  throw new Error(
-                    'VeWorld returned an invalid ownership signature.',
-                  );
-                }
-
-                if (
-                  recoveredSigner !== walletAddress
-                ) {
-                  throw new Error(
-                    'VeWorld is still switching wallets. Please return to VeInvite and try again after the wallet switch finishes.',
-                  );
-                }
-
-                clientSignerCheck =
-                  'matched';
                 proofType =
                   'typed_data';
               } else {
@@ -643,8 +506,6 @@ export function useWalletAuthentication() {
                       challenge.nonce,
                     signature,
                     proofType,
-                    authFlow,
-                    clientSignerCheck,
                     certificate,
                   }),
                   signal: controller.signal,
@@ -689,10 +550,6 @@ export function useWalletAuthentication() {
                 'The browser did not retain the VeInvite wallet session. Please allow site cookies and try once more.',
               );
             }
-
-            clearPendingVeWorldWalletHandoff(
-              walletAddress,
-            );
           } finally {
             setIsAuthenticating(false);
           }
@@ -737,7 +594,6 @@ export function useWalletAuthentication() {
         connection.isConnectedWithDappKit,
         dappKitAccount,
         dappKitSource,
-        connectV2,
         requestTypedData,
         requestCertificate,
         signMessage,
@@ -847,10 +703,6 @@ export function useWalletAuthentication() {
         } else if (firstClearError) {
           throw firstClearError;
         }
-
-        // Explicit/confirmed session teardown must not leave an old external
-        // handoff marker behind for a later login attempt.
-        clearPendingVeWorldWalletHandoff();
 
         // This event means the browser session is now actually gone. Emitting it
         // only after the authoritative server DELETE succeeds keeps the wallet
