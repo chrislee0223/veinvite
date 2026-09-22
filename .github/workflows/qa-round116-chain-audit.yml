@@ -12,14 +12,16 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - name: Audit linked wallets before VeInvite activation
+      - name: Compare historical dApp rewards for the ten linked wallets
         shell: bash
         run: |
           python3 - <<'PY'
           import json, urllib.request
-          from collections import Counter
+          from collections import Counter, defaultdict
 
           NODE='https://mainnet.vechain.org'
+          POOL='0x6bee7ddab6c99d5b2af0554eaea484ce18f52631'
+          B3TR='0x5ef79995fe8a89e0812330e4378eb2660cede699'
           TRANSFER='0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef'
           cases={
             '74FQ6CB':('0x2d415cbf574177ccf0e8a178ef2c8df1dcdfa2cc',25825343),
@@ -32,50 +34,94 @@ jobs:
             '8DNK7KV':('0x1bbd28f95af0df8edcf73431cab62af3b8807c39',25840115),
             '9L4TMG5':('0x97e82cc272aaa9745b06525085f37b64e2382ff8',25840751),
             'SBWYUFQ':('0x95af037750d985f094969d3cd741a0ff51082cba',25842235),
-            '2YYCS2X':('0x9fc31513746887e0d82f50aa41212913848feaa0',25875077),
-            'JEZP37F':('0x009c2dbbb4b823b0544c3580921b544baf77cb4d',25878913),
-            '65242BC':('0x259a1644d0c97a823ca1d6d811f6e6b522d92e82',25880600),
           }
 
           def post(path,body):
-            req=urllib.request.Request(NODE+path,data=json.dumps(body).encode(),headers={'content-type':'application/json'},method='POST')
+            req=urllib.request.Request(
+              NODE+path,
+              data=json.dumps(body).encode(),
+              headers={'content-type':'application/json'},
+              method='POST'
+            )
             with urllib.request.urlopen(req,timeout=30) as r:
               return json.loads(r.read().decode())
 
-          def topic(addr): return '0x'+'0'*24+addr.lower().replace('0x','')
-          def addr(v): return '0x'+v[-40:].lower() if isinstance(v,str) and len(v)>=42 else None
+          def topic(addr):
+            return '0x'+'0'*24+addr.lower().replace('0x','')
 
+          allrows={}
           for code,(wallet,activation) in cases.items():
-            base={'range':{'unit':'block','from':0,'to':activation-1},'options':{'offset':0,'limit':1000},'order':'asc'}
-            inc=post('/logs/event',{**base,'criteriaSet':[{'topic0':TRANSFER,'topic2':topic(wallet)}]})
-            out=post('/logs/event',{**base,'criteriaSet':[{'topic0':TRANSFER,'topic1':topic(wallet)}]})
-            vet_in=post('/logs/transfer',{**base,'criteriaSet':[{'recipient':wallet}]})
-            vet_out=post('/logs/transfer',{**base,'criteriaSet':[{'sender':wallet}]})
-            ev=[]
-            for d,logs in [('in',inc),('out',out)]:
-              for e in logs:
-                ts=e.get('topics') or []; m=e.get('meta') or {}
-                ev.append({'direction':d,'contract':(e.get('address') or '').lower(),
-                           'from':addr(ts[1]) if len(ts)>=3 else None,'to':addr(ts[2]) if len(ts)>=3 else None,
-                           'block':m.get('blockNumber'),'tx':m.get('txID')})
-            vet=[]
-            for d,logs in [('in',vet_in),('out',vet_out)]:
-              for e in logs:
-                m=e.get('meta') or {}
-                vet.append({'direction':d,'from':(e.get('sender') or '').lower() or None,'to':(e.get('recipient') or '').lower() or None,
-                            'block':m.get('blockNumber'),'tx':m.get('txID')})
-            blocks=[x['block'] for x in ev+vet if isinstance(x.get('block'),int)]
-            txs={x['tx'] for x in ev+vet if x.get('tx')}
-            contracts=Counter(x['contract'] for x in ev if x.get('contract'))
-            first=min(blocks) if blocks else None
-            last=max(blocks) if blocks else None
-            print('PRE_ROW '+json.dumps({
-              'invite_code':code,'wallet':wallet,'activation_block':activation,
-              'pre_transfer_events':len(ev)+len(vet),'pre_unique_txs':len(txs),
-              'first_pre_block':first,'last_pre_block':last,
-              'blocks_between_last_pre_and_activation':(activation-last) if last is not None else None,
-              'token_event_count':len(ev),'vet_transfer_count':len(vet),
-              'unique_token_contracts':len(contracts),'top_contracts':contracts.most_common(6),
-              'first_events':sorted(ev+vet,key=lambda x:(x.get('block') or 0))[:8]
+            body={
+              'criteriaSet':[{'address':POOL,'topic2':topic(wallet)}],
+              'range':{'unit':'block','from':0,'to':activation-1},
+              'options':{'offset':0,'limit':1000},
+              'order':'asc'
+            }
+            logs=post('/logs/event',body)
+
+            # Cross-check only txs that also transferred B3TR from rewards pool to this wallet.
+            tlogs=post('/logs/event',{
+              'criteriaSet':[{'address':B3TR,'topic0':TRANSFER,'topic1':topic(POOL),'topic2':topic(wallet)}],
+              'range':{'unit':'block','from':0,'to':activation-1},
+              'options':{'offset':0,'limit':1000},
+              'order':'asc'
+            })
+            transfer_txs={(x.get('meta') or {}).get('txID') for x in tlogs}
+
+            rows=[]
+            for e in logs:
+              m=e.get('meta') or {}
+              topics=e.get('topics') or []
+              tx=m.get('txID')
+              if tx not in transfer_txs or len(topics)<3:
+                continue
+              data=(e.get('data') or '').replace('0x','')
+              amount=None
+              if len(data)>=64:
+                try: amount=int(data[:64],16)
+                except: pass
+              rows.append({
+                'app_id':topics[1].lower(),
+                'block':m.get('blockNumber'),
+                'timestamp':m.get('blockTimestamp'),
+                'tx':tx,
+                'amount_wei':str(amount) if amount is not None else None,
+              })
+
+            allrows[code]=rows
+            print('HIST_ROW '+json.dumps({
+              'invite_code':code,
+              'wallet':wallet,
+              'reward_count':len(rows),
+              'unique_apps':len(set(r['app_id'] for r in rows)),
+              'app_counts':Counter(r['app_id'] for r in rows).most_common(),
+              'rewards':rows[:100],
             },separators=(',',':')))
+
+          # Compare exact reward app sequences and synchronized reward blocks.
+          signature_groups=defaultdict(list)
+          for code,rows in allrows.items():
+            sig=tuple(r['app_id'] for r in rows)
+            signature_groups[sig].append(code)
+          print('SEQUENCE_GROUPS '+json.dumps([
+            {'wallet_count':len(codes),'codes':codes,'sequence':list(sig)}
+            for sig,codes in signature_groups.items()
+          ],separators=(',',':')))
+
+          block_members=defaultdict(list)
+          for code,rows in allrows.items():
+            for r in rows:
+              block_members[r['block']].append((code,r['app_id']))
+          synchronized=[]
+          for block,members in block_members.items():
+            codes=sorted(set(x[0] for x in members))
+            if len(codes)>=2:
+              synchronized.append({
+                'block':block,
+                'wallet_count':len(codes),
+                'codes':codes,
+                'app_ids':sorted(set(x[1] for x in members)),
+              })
+          synchronized.sort(key=lambda x:(x['block']))
+          print('SYNC_BLOCKS '+json.dumps(synchronized,separators=(',',':')))
           PY
