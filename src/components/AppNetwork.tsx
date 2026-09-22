@@ -18,6 +18,7 @@ import { NETWORK_CANARY_UI_COPY } from '@/lib/i18n/networkCanaryUiCopy';
 import { NETWORK_CANVAS_CONTROL_COPY } from '@/lib/i18n/networkCanvasControlCopy';
 import { NETWORK_EXPERIENCE_COPY } from '@/lib/i18n/networkExperienceCopy';
 import { NETWORK_WORKSPACE_COPY } from '@/lib/i18n/networkWorkspaceCopy';
+import { getLocaleDirection } from '@/lib/i18n/locales';
 import type { Locale, SupportedLocale } from '@/lib/i18n/locales';
 import {
   getCachedNetworkInviteSlots,
@@ -31,6 +32,11 @@ import {
   rememberNetworkRoot,
   type NetworkHeaderMetrics,
 } from '@/lib/networkRootClientCache';
+import {
+  readCachedLeaderboardDomain,
+  rememberLeaderboardDomain,
+} from '@/lib/leaderboardDomainCache';
+import { getVeChainExplorerAddressUrl } from '@/lib/vechainExplorer';
 import {
   EMPTY_NETWORK_WORKSPACE_STORE,
   MAX_GROUPS_PER_FOCUS,
@@ -372,14 +378,7 @@ function centeredView(
   };
 }
 
-function statusLabel(status: MemberStatus, locale: Locale): string {
-  const t = NETWORK_EXPERIENCE_COPY[locale as SupportedLocale];
-  if (status === 'REWARDED') return t.rewarded;
-  if (status === 'QUALIFIED') return t.qualified;
-  return t.inProgress;
-}
-
-function LayoutControlGlyph({ done = false }: { done?: boolean }) {
+function LayoutControlGlyphfunction LayoutControlGlyph({ done = false }: { done?: boolean }) {
   if (done) {
     return (
       <svg width="14" height="14" viewBox="0 0 20 20" fill="none" aria-hidden="true">
@@ -449,11 +448,11 @@ function NetworkGlyph({ size = 32 }: { size?: number }) {
   );
 }
 
-function NeutralAvatar({ root = false }: { root?: boolean }) {
-  const size = root ? 42 : 34;
+function NeutralAvatar({ size = 34 }: { size?: number }) {
+  const glyphSize = size >= 40 ? 20 : 16;
   return (
     <span className="neutralAvatar" aria-hidden="true" style={{ width: size, height: size }}>
-      <svg width={root ? 20 : 16} height={root ? 20 : 16} viewBox="0 0 20 20" fill="none">
+      <svg width={glyphSize} height={glyphSize} viewBox="0 0 20 20" fill="none">
         <circle cx="10" cy="6.1" r="2.7" fill="currentColor" />
         <path d="M5 15.6c1.15-2.25 2.82-3.35 5-3.35s3.85 1.1 5 3.35" stroke="currentColor" strokeWidth="1.55" strokeLinecap="round" />
       </svg>
@@ -465,19 +464,42 @@ const NetworkIdentity = memo(function NetworkIdentity({
   address,
   root = false,
   showLabel = true,
+  size,
 }: {
   address: string;
   root?: boolean;
   showLabel?: boolean;
+  size?: number;
 }) {
   const hostRef = useRef<HTMLSpanElement | null>(null);
   const [shouldLoad, setShouldLoad] = useState(root);
   const [loaded, setLoaded] = useState(false);
   const [broken, setBroken] = useState(false);
-  const { data: domainInfo } = useVechainDomain(shouldLoad ? address : undefined);
-  const domain = domainInfo?.domain ?? '';
+  const [displayDomain, setDisplayDomain] = useState<string | null | undefined>(
+    () => readCachedLeaderboardDomain(address),
+  );
+  const shouldResolveDomain = shouldLoad && displayDomain === undefined;
+  const { data: domainInfo, isLoading: domainLoading } = useVechainDomain(
+    shouldResolveDomain ? address : undefined,
+  );
+  const queriedDomain =
+    typeof domainInfo?.domain === 'string' && domainInfo.domain.trim()
+      ? domainInfo.domain.trim()
+      : null;
+  const resolvedDomain =
+    displayDomain !== undefined
+      ? displayDomain
+      : shouldResolveDomain && !domainLoading
+        ? queriedDomain
+        : null;
+  const domain = resolvedDomain ?? '';
   const { data: avatarUrl } = useGetAvatar(domain);
-  const size = root ? 42 : 34;
+  const resolvedSize = size ?? (root ? 42 : 34);
+
+  useEffect(() => {
+    setDisplayDomain(readCachedLeaderboardDomain(address));
+    setShouldLoad(root);
+  }, [address, root]);
 
   useEffect(() => {
     const host = hostRef.current;
@@ -497,14 +519,25 @@ const NetworkIdentity = memo(function NetworkIdentity({
   }, [shouldLoad]);
 
   useEffect(() => {
+    if (!shouldResolveDomain || domainLoading) return;
+    rememberLeaderboardDomain(address, queriedDomain);
+    setDisplayDomain(queriedDomain);
+  }, [
+    address,
+    domainLoading,
+    queriedDomain,
+    shouldResolveDomain,
+  ]);
+
+  useEffect(() => {
     setLoaded(false);
     setBroken(false);
   }, [avatarUrl]);
 
   return (
     <span className="identity" ref={hostRef}>
-      <span className="avatarSlot" style={{ width: size, height: size }}>
-        <NeutralAvatar root={root} />
+      <span className="avatarSlot" style={{ width: resolvedSize, height: resolvedSize }}>
+        <NeutralAvatar size={resolvedSize} />
         {avatarUrl && !broken ? (
           <img
             src={avatarUrl}
@@ -514,12 +547,16 @@ const NetworkIdentity = memo(function NetworkIdentity({
             referrerPolicy="no-referrer"
             onLoad={() => setLoaded(true)}
             onError={() => setBroken(true)}
-            style={{ width: size, height: size, opacity: loaded ? 1 : 0 }}
+            style={{ width: resolvedSize, height: resolvedSize, opacity: loaded ? 1 : 0 }}
           />
         ) : null}
       </span>
       {showLabel ? (
-        <span className="identityLabel" dir={domain ? 'auto' : 'ltr'} title={domain || address}>
+        <span
+          className="identityLabel"
+          dir={domain ? 'auto' : 'ltr'}
+          title={domain || address}
+        >
           {domain || shortWallet(address)}
         </span>
       ) : null}
@@ -887,7 +924,6 @@ export function AppNetwork({ locale }: { locale: Locale }) {
   const selectedRound = selectedIsFocus
     ? currentData?.summary.thisRound ?? null
     : selectedData?.summary.thisRound ?? selectedMember?.thisRound ?? null;
-  const selectedStatus = selectedMember?.status ?? 'IN_PROGRESS';
   const selectedAddress = selectedIsFocus
     ? currentData?.focusWallet ?? selectedWallet ?? ''
     : selectedMember?.wallet ?? selectedWallet ?? '';
@@ -899,6 +935,7 @@ export function AppNetwork({ locale }: { locale: Locale }) {
   const compactSelectedPath = selectedPath.length <= 3
     ? selectedPath
     : [selectedPath[0], '…', ...selectedPath.slice(-2)];
+  const profileDirection = getLocaleDirection(locale);
   const managedGroup = managedGroupId
     ? activeWorkspace.groups.find((group) => group.id === managedGroupId) ?? null
     : null;
@@ -3217,23 +3254,27 @@ export function AppNetwork({ locale }: { locale: Locale }) {
         ) : null}
 
         {selectedWallet && !editingLayout ? (
-          <aside className={`profileCard${!focusIsRoot ? ' hasParentReturn' : ''}`} data-no-pan="true">
+          <aside
+            className={`profileCard${!focusIsRoot ? ' hasParentReturn' : ''}`}
+            data-no-pan="true"
+            dir={profileDirection}
+          >
             <button className="profileClose" type="button" onClick={() => setSelectedWallet(null)} aria-label={c.close}>×</button>
             <div className="profileIdentity">
-              <NetworkIdentity address={selectedAddress} root />
-              <div>
-                <strong>{selectedIsFocus && focusIsRoot ? c.you : shortWallet(selectedAddress)}</strong>
-                <span className={`profileStatus ${selectedIsFocus ? 'status-branch' : `status-${selectedStatus.toLowerCase()}`}`}>
-                  {selectedIsFocus ? c.branch : statusLabel(selectedStatus, locale)}
-                </span>
-              </div>
+              <NetworkIdentity address={selectedAddress} root size={34} />
             </div>
             {compactSelectedPath.length > 1 ? (
               <div className="profilePath" aria-label={t.directNetwork}>
                 {compactSelectedPath.map((item, index) => (
                   <span key={`${item}-${index}`}>
-                    {index > 0 ? <b aria-hidden="true">›</b> : null}
-                    {item === '…' ? '…' : index === 0 ? c.you : nodeWallet(item)}
+                    {index > 0 ? <b className="profilePathChevron" aria-hidden="true">›</b> : null}
+                    {item === '…' ? (
+                      '…'
+                    ) : index === 0 ? (
+                      c.you
+                    ) : (
+                      <bdi dir="ltr">{nodeWallet(item)}</bdi>
+                    )}
                   </span>
                 ))}
               </div>
@@ -3242,7 +3283,7 @@ export function AppNetwork({ locale }: { locale: Locale }) {
               <span>{selectedAddress}</span>
               {validWallet(selectedAddress) ? (
                 <a
-                  href={`https://explore.vechain.org/address/${selectedAddress}`}
+                  href={getVeChainExplorerAddressUrl(selectedAddress)}
                   target="_blank"
                   rel="noopener noreferrer"
                   aria-label="VeChain Explorer"
@@ -3270,6 +3311,9 @@ export function AppNetwork({ locale }: { locale: Locale }) {
           </aside>
         ) : null}
 
+      </div>
+
+      {dragGhost && dragGhostChild
       </div>
 
       {dragGhost && dragGhostChild && typeof document !== 'undefined' ? createPortal(
@@ -3321,14 +3365,14 @@ export function AppNetwork({ locale }: { locale: Locale }) {
         .worldContent.nav-forward .childNode .nodeCircle{animation:networkNodeBloom 620ms cubic-bezier(.16,.82,.2,1) both}
         .layoutControls{display:flex;align-items:center;gap:3px;min-width:0}.layoutControls>button,.groupMenuAnchor>button{width:28px;height:29px;padding:0;border:1px solid rgba(255,205,80,.13);border-radius:8px;background:rgba(18,18,15,.94);color:#a9a397;font:inherit;font-size:.65rem;font-weight:900;cursor:pointer;box-shadow:0 7px 18px rgba(0,0,0,.2)}.layoutControls .editLayoutButton:hover,.layoutControls .editLayoutButton.active,.layoutControls .groupsButton:hover,.layoutControls .groupsButton.active{border-color:rgba(244,183,40,.31);color:#e1bd5b}.layoutControls .editLayoutButton.active{background:rgba(244,183,40,.08)}.groupMenuAnchor{position:relative;display:flex;flex:0 0 auto}.labeledControl{width:auto!important;min-width:38px;max-width:64px;padding:0 6px!important;display:inline-flex;align-items:center;justify-content:center;gap:3px;white-space:nowrap}.controlLabel{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:.45rem;line-height:1}.editLayoutButton,.groupsButton{display:grid;place-items:center}
         .groupsPanel,.groupBuilder{position:absolute;z-index:95;left:auto;right:0;top:calc(100% + 7px);transform:none;width:min(235px,calc(100vw - 32px));box-sizing:border-box;padding:11px;border:1px solid rgba(244,183,40,.17);border-radius:15px;background:rgba(14,14,12,.985);box-shadow:0 18px 40px rgba(0,0,0,.42);cursor:default}.groupBuilder{z-index:96;border-color:rgba(244,183,40,.2)}.groupsPanelHead{display:flex;align-items:center;justify-content:space-between}.groupsPanelHead strong{color:#e5dfd3;font-size:.62rem}.groupsPanelHead button{width:27px;height:27px;border:0;background:transparent;color:#817c73;font-size:.95rem;cursor:pointer}.groupsPanel p{margin:10px 0;color:#77736c;font-size:.53rem}.groupsList{max-height:216px;overflow-y:auto;overscroll-behavior:contain;display:grid;gap:5px;margin-top:7px;padding-right:1px}.groupsList>button{width:100%;padding:7px 8px;border:1px solid rgba(255,255,255,.06);border-radius:9px;background:rgba(255,255,255,.025);color:#aaa398;text-align:left;cursor:pointer}.groupsList span,.groupsList small{display:block}.groupsList span{font-size:.54rem;font-weight:900}.groupsList small{margin-top:2px;color:#746e64;font-size:.46rem}.groupManageHead{display:grid;grid-template-columns:30px minmax(0,1fr) 27px;gap:4px}.groupBackButton{font-size:1.1rem!important}.groupManageTitle{min-width:0;display:flex;align-items:center;gap:6px}.groupManageTitle strong{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.groupManageGlyph{width:22px;height:22px;display:grid;place-items:center;color:#c8a34e;flex:0 0 auto}.groupManageCount{display:block;margin:5px 2px 7px;color:#756d5f;font-size:.47rem}.groupManageMembers{max-height:216px;overflow-y:auto;overscroll-behavior:contain;display:grid;gap:4px;padding-right:1px}.groupManageMember{min-height:36px;padding:4px 4px 4px 8px;box-sizing:border-box;display:flex;align-items:center;justify-content:space-between;gap:7px;border:1px solid rgba(255,255,255,.05);border-radius:8px;background:rgba(255,255,255,.02);color:#827c71;font-size:.48rem}.groupManageMember>span{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.groupManageMember>button{flex:0 0 36px;width:36px;height:36px;border:0;border-radius:8px;background:rgba(194,118,90,.07);color:#b08c7e;font:inherit;font-size:.8rem;font-weight:900;cursor:pointer}.groupManageUngroup{margin-top:8px!important}.createFirstGroup{width:100%;min-height:32px;margin-top:8px;border:1px solid rgba(244,183,40,.22);border-radius:9px;background:rgba(244,183,40,.05);color:#c5a454;font:inherit;font-size:.52rem;font-weight:900;cursor:pointer;transition:transform 120ms ease,border-color 120ms ease,background 120ms ease,box-shadow 120ms ease}.createFirstGroup.dropActive{transform:scale(1.02);border-color:rgba(255,208,79,.72);background:rgba(244,183,40,.11);box-shadow:0 0 0 3px rgba(244,183,40,.07)}.createFirstGroup:disabled{opacity:.42;cursor:default}.groupBuilderHead{display:flex;align-items:center;justify-content:space-between;gap:8px}.groupBuilderHead strong{color:#e5dfd3;font-size:.62rem}.groupBuilderHead button{width:27px;height:27px;border:0;background:transparent;color:#817c73;font-size:.95rem;cursor:pointer}.groupBuilder>input{width:100%;height:34px;margin-top:7px;box-sizing:border-box;padding:0 8px;border:1px solid rgba(255,205,80,.1);border-radius:8px;background:#11110f;color:#d8d3ca;font:inherit;font-size:16px;line-height:1;outline:none}.groupDropZone{min-height:42px;margin-top:8px;padding:7px 9px;box-sizing:border-box;display:grid;grid-template-columns:auto minmax(0,1fr) auto;align-items:center;gap:6px;border:1px dashed rgba(244,183,40,.34);border-radius:11px;background:rgba(244,183,40,.035);text-align:left;transform-origin:88% 50%;transition:transform 120ms ease,border-color 120ms ease,background 120ms ease,box-shadow 120ms ease}.groupDropZone.active{transform:scale(1.02);border-color:rgba(255,208,79,.72);background:rgba(244,183,40,.085);box-shadow:0 0 0 3px rgba(244,183,40,.07),0 8px 24px rgba(0,0,0,.22)}.dropIcon{color:#c99d35;font-size:.9rem;line-height:1}.groupDropZone strong{min-width:0;color:#b9aa83;font-size:.54rem;line-height:1.2;display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;overflow:hidden}.groupDropZone small{color:#6d685e;font-size:.48rem;white-space:nowrap;font-variant-numeric:tabular-nums}.groupDropZone.memberAdded small{animation:groupCountPop ${GROUP_DROP_MS}ms ease-out}.groupDraftMembers{margin-top:7px;display:flex;flex-wrap:wrap;gap:4px}.groupDraftMembers button{padding:4px 6px;border:1px solid rgba(255,255,255,.06);border-radius:7px;background:rgba(255,255,255,.025);color:#89847a;font:inherit;font-size:.46rem;cursor:pointer;animation:groupMemberIn 160ms ease-out both}.groupDraftMembers button span{color:#a97f54}.createGroupButton{width:100%;min-height:33px;margin-top:8px;border:0;border-radius:9px;background:linear-gradient(135deg,#ffd24d,#efa718);color:#17120a;font:inherit;font-size:.53rem;font-weight:950;cursor:pointer}.createGroupButton:disabled{background:rgba(255,255,255,.05);color:#68635b;cursor:default}
-        .viewControls{display:flex;align-items:center;gap:3px;flex:0 0 auto}.viewControls .fitButton{width:28px;min-width:28px;padding:0;font-size:.62rem}.viewControls button{width:28px;height:29px;padding:0;border:1px solid rgba(255,205,80,.13);border-radius:8px;background:rgba(18,18,15,.92);color:#bbb5aa;font:inherit;font-size:.68rem;font-weight:850;cursor:pointer}.viewControls .youControl{width:28px!important;min-width:28px;max-width:28px;padding:0!important}.viewControls button:hover{border-color:rgba(244,183,40,.28);color:#e4c36d}.parentReturn{position:absolute;z-index:55;left:10px;bottom:10px;min-height:34px;padding:0 11px;border:1px solid rgba(255,205,80,.12);border-radius:10px;background:rgba(18,18,15,.92);color:#a89c7b;font:inherit;font-size:.55rem;font-weight:850;cursor:pointer}.parentReturn:disabled{opacity:.4}
-        .profileCard{position:absolute;z-index:75;right:10px;top:10px;width:min(245px,calc(100% - 20px));box-sizing:border-box;padding:11px;border:1px solid rgba(255,205,80,.15);border-radius:15px;background:rgba(15,15,13,.975);box-shadow:0 16px 38px rgba(0,0,0,.42);cursor:default}.profileClose{position:absolute;right:7px;top:6px;width:26px;height:26px;border:0;background:transparent;color:#817c73;font-size:.92rem;cursor:pointer}.profileIdentity{padding-right:27px;display:flex;align-items:center;gap:8px}.profileIdentity :global(.identity){display:flex;align-items:center;gap:8px}.profileIdentity :global(.identityLabel){display:none}.profileIdentity :global(.avatarSlot){position:relative;display:grid;place-items:center}.profileIdentity :global(.neutralAvatar){display:grid;place-items:center;border:1px solid rgba(244,183,40,.13);border-radius:50%;background:#171611;color:#8e7b50}.profileIdentity :global(.avatarSlot img){position:absolute;inset:0;border-radius:50%;object-fit:cover}.profileIdentity>div>strong{display:block;color:#e7e1d6;font-size:.64rem}.profileStatus{display:inline-flex!important;width:max-content;max-width:100%;margin-top:3px!important;padding:2px 6px;border:1px solid rgba(244,183,40,.12);border-radius:999px;background:rgba(244,183,40,.045);color:#8f805c!important;font-size:.46rem!important;line-height:1.25;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.profileStatus.status-branch{border-color:rgba(255,255,255,.08);background:rgba(255,255,255,.025);color:#8f887b!important}.profileStatus.status-rewarded{border-color:rgba(244,183,40,.2);color:#b99a48!important}.profileStatus.status-qualified{color:#9f9069!important}.profilePath{min-width:0;margin-top:7px;display:flex;align-items:center;gap:4px;color:#716b60;font-size:.45rem;white-space:nowrap;overflow:hidden}.profilePath span{min-width:0;display:inline-flex;align-items:center;gap:4px;overflow:hidden;text-overflow:ellipsis}.profilePath b{color:#49453e;font-weight:700}.profileAddress{min-width:0;height:29px;margin-top:7px;padding:0 6px 0 8px;box-sizing:border-box;display:flex;align-items:center;gap:6px;border-radius:8px;background:rgba(255,255,255,.025);color:#67635d;font-size:.46rem;line-height:1;user-select:text;-webkit-user-select:text}.profileAddress>span{min-width:0;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.profileAddress>a{flex:0 0 25px;width:25px;height:25px;display:grid;place-items:center;border-radius:7px;color:#9a8550;text-decoration:none;font-size:.66rem;user-select:none;-webkit-user-select:none}.profileAddress>a:hover,.profileAddress>a:focus-visible{background:rgba(244,183,40,.07);color:#d1ac4c}.profileStats{margin-top:7px;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:4px}.profileStats>div{min-width:0;padding:6px 7px;border:1px solid rgba(255,255,255,.045);border-radius:8px;background:rgba(255,255,255,.018)}.profileStats strong{display:block;color:#d6d0c5;font-size:.6rem;font-variant-numeric:tabular-nums}.profileStats span{display:block;margin-top:2px;color:#68645e;font-size:.45rem;line-height:1.2;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.profileAction{width:100%;min-height:34px;margin-top:7px;border:0;border-radius:9px;background:linear-gradient(135deg,#ffd24d,#efa718);color:#17120a;font:inherit;font-size:.55rem;font-weight:950;cursor:pointer}.profileAction:disabled{opacity:.45;cursor:default}
-        .ungroupButton{width:100%;min-height:33px;margin-top:10px;border:1px solid rgba(194,118,90,.2);border-radius:9px;background:rgba(194,118,90,.06);color:#bd9889;font:inherit;font-size:.52rem;font-weight:900;cursor:pointer}
+        .viewControls{display:flex;align-items:center;gap:3px;flex:0 0 auto}.viewControls .fitButton{width:28px;min-width:28px;padding:0;font-size:.62rem}.viewControls button{width:28px;height:29px;padding:0;border:1px solid rgba(255,205,80,.13);border-radius:8px;background:rgba(18,18,15,.92);color:#bbb5aa;font:inherit;font-size:.68rem;font-weight:850;cursor:pointer}.viewControls .youControl{width:28px!important;min-width:28px;max-width:28px;padding:0!important}.viewControls button:hover{border-color:rgba(244,183,40,.28);color:#e4c36d}.parentReturn{position:absolute;z-index:55;left:8px;bottom:8px;min-height:34px;padding:0 11px;border:1px solid rgba(255,205,80,.12);border-radius:10px;background:rgba(18,18,15,.92);color:#a89c7b;font:inherit;font-size:.55rem;font-weight:850;cursor:pointer}.parentReturn:disabled{opacity:.4}
+        .profileCard{position:absolute;z-index:75;inset-inline:8px;top:auto;bottom:8px;width:auto;box-sizing:border-box;padding:9px;border:1px solid rgba(255,205,80,.15);border-radius:14px;background:rgba(15,15,13,.975);box-shadow:0 16px 38px rgba(0,0,0,.42);cursor:default}.profileCard.hasParentReturn{bottom:52px}.profileClose{position:absolute;inset-inline-end:5px;top:4px;width:24px;height:24px;border:0;background:transparent;color:#817c73;font-size:.88rem;cursor:pointer}.profileIdentity{min-width:0;padding-inline-end:26px;display:flex;align-items:center;gap:7px}.profileIdentity :global(.identity){min-width:0;width:100%;display:flex;align-items:center;gap:7px}.profileIdentity :global(.identityLabel){min-width:0;display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#e7e1d6;font-size:.64rem;font-weight:800;line-height:1.2}.profileIdentity :global(.avatarSlot){position:relative;display:grid;place-items:center;flex:0 0 auto}.profileIdentity :global(.neutralAvatar){display:grid;place-items:center;border:1px solid rgba(244,183,40,.13);border-radius:50%;background:#171611;color:#8e7b50}.profileIdentity :global(.avatarSlot img){position:absolute;inset:0;border-radius:50%;object-fit:cover}.profilePath{min-width:0;margin-top:5px;display:flex;align-items:center;gap:3px;color:#716b60;font-size:.44rem;white-space:nowrap;overflow:hidden}.profilePath span{min-width:0;display:inline-flex;align-items:center;gap:3px;overflow:hidden;text-overflow:ellipsis}.profilePath bdi{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.profilePathChevron{color:#49453e;font-weight:700}.profileCard[dir='rtl'] .profilePathChevron{transform:scaleX(-1)}.profileAddress{min-width:0;height:27px;margin-top:5px;padding:0 5px 0 8px;box-sizing:border-box;display:flex;align-items:center;gap:5px;border-radius:8px;background:rgba(255,255,255,.025);color:#67635d;font-size:.45rem;line-height:1;user-select:text;-webkit-user-select:text}.profileAddress>span{min-width:0;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.profileAddress>a{flex:0 0 23px;width:23px;height:23px;display:grid;place-items:center;border-radius:7px;color:#9a8550;text-decoration:none;font-size:.64rem;user-select:none;-webkit-user-select:none}.profileAddress>a:hover,.profileAddress>a:focus-visible{background:rgba(244,183,40,.07);color:#d1ac4c}.profileStats{margin-top:5px;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:4px}.profileStats>div{min-width:0;padding:5px 6px;border:1px solid rgba(255,255,255,.045);border-radius:8px;background:rgba(255,255,255,.018)}.profileStats strong{display:block;color:#d6d0c5;font-size:.59rem;font-variant-numeric:tabular-nums}.profileStats span{display:-webkit-box;margin-top:1px;color:#68645e;font-size:.43rem;line-height:1.18;overflow:hidden;-webkit-box-orient:vertical;-webkit-line-clamp:2;white-space:normal}.profileAction{width:100%;min-height:32px;margin-top:5px;padding:4px 10px;border:0;border-radius:9px;background:linear-gradient(135deg,#ffd24d,#efa718);color:#17120a;font:inherit;font-size:.54rem;font-weight:950;line-height:1.15;white-space:normal;cursor:pointer}.profileAction:disabled{opacity:.45;cursor:default}
+        .ungroupButton{        .ungroupButton{width:100%;min-height:33px;margin-top:10px;border:1px solid rgba(194,118,90,.2);border-radius:9px;background:rgba(194,118,90,.06);color:#bd9889;font:inherit;font-size:.52rem;font-weight:900;cursor:pointer}
         .nodeDragGhost{position:fixed;z-index:220;left:0;top:0;width:52px;height:52px;pointer-events:none;touch-action:none;user-select:none;-webkit-user-select:none;filter:drop-shadow(0 12px 18px rgba(0,0,0,.38));will-change:transform}.nodeDragGhost .nodeCircle{border-color:rgba(244,183,40,.92);box-shadow:0 0 0 4px rgba(244,183,40,.13),0 0 30px rgba(244,183,40,.18)}.nodeDragGhost .nodeMeta{top:calc(100% + 5px);opacity:.96}
         .workspaceNotice{position:absolute;z-index:96;left:50%;bottom:56px;transform:translateX(-50%);padding:7px 11px;border:1px solid rgba(244,183,40,.18);border-radius:10px;background:rgba(21,19,14,.97);color:#d5b85f;font-size:.53rem;font-weight:850;white-space:nowrap;box-shadow:0 12px 28px rgba(0,0,0,.3)}
         .inlineError{position:absolute;z-index:90;left:50%;bottom:54px;transform:translateX(-50%);max-width:calc(100% - 28px);padding:8px 9px 8px 11px;display:flex;align-items:center;gap:8px;border:1px solid rgba(194,118,90,.2);border-radius:10px;background:rgba(38,23,18,.96);color:#c7a294;font-size:.53rem;box-shadow:0 12px 30px rgba(0,0,0,.32)}.inlineError button{border:0;background:transparent;color:#9f7d71;font-size:.8rem;cursor:pointer}
         @keyframes networkForward{0%{opacity:.68;scale:.975}100%{opacity:1;scale:1}}@keyframes networkBack{0%{opacity:.74;scale:1.035}100%{opacity:1;scale:1}}@keyframes networkSlotFlow{from{stroke-dashoffset:43}to{stroke-dashoffset:-43}}@keyframes networkYouBreath{0%,100%{opacity:.46;transform:scale(.96)}50%{opacity:.92;transform:scale(1.06)}}@keyframes networkYouIntro{0%{opacity:.25;transform:scale(.78)}58%{opacity:1;transform:scale(1.14)}100%{opacity:.62;transform:scale(1)}}@keyframes networkNodeBloom{0%{transform:scale(.45);box-shadow:0 0 0 rgba(244,183,40,0)}55%{transform:scale(1.18);box-shadow:0 0 42px rgba(244,183,40,.22)}100%{transform:scale(var(--network-node-scale,1));box-shadow:0 0 22px rgba(244,183,40,.025)}}@keyframes slotPulse{0%,100%{box-shadow:0 0 0 rgba(244,183,40,0)}50%{box-shadow:0 0 22px rgba(244,183,40,.07)}}@keyframes pulse{to{opacity:.38;transform:scale(.82)}}@keyframes groupDropAway{to{opacity:0;scale:.82}}@keyframes groupNodeRestore{0%{opacity:0;scale:.86}100%{opacity:1;scale:1}}@keyframes groupHubIn{0%{opacity:0;scale:.82}65%{opacity:1;scale:1.04}100%{opacity:1;scale:1}}@keyframes groupMemberIn{0%{opacity:0;translate:0 5px}100%{opacity:1;translate:0 0}}@keyframes groupCountPop{0%{scale:.8;opacity:.45}60%{scale:1.12;opacity:1}100%{scale:1;opacity:1}}
-        @media(max-width:560px){.networkCanvasPage{width:100%;border-radius:18px}.networkHeader{min-height:42px;padding:7px 9px}.networkHeader h1{font-size:.82rem}.summary{gap:2px 4px}.summary strong{font-size:.66rem}.summary span{font-size:.43rem}.networkUtilityRow{min-height:39px;padding:4px 6px;gap:4px}.searchWrap.open{max-width:min(168px,48vw)}.searchField input{font-size:16px}.compactControls{gap:3px}.layoutControls,.viewControls{gap:3px}.layoutControls>button,.groupMenuAnchor>button,.viewControls button,.viewControls .fitButton{height:29px;border-radius:8px}.groupsPanel,.groupBuilder{width:min(232px,calc(100vw - 28px))}.crumb{max-width:60px}.profileCard{top:auto;right:8px;bottom:8px;left:8px;width:auto}.profileCard.hasParentReturn{bottom:52px}.parentReturn{left:8px;bottom:8px}.personNode{min-width:0}.focusNode{min-width:0}}
+        @media(max-width:560px){.networkCanvasPage{width:100%;border-radius:18px}.networkHeader{min-height:42px;padding:7px 9px}.networkHeader h1{font-size:.82rem}.summary{gap:2px 4px}.summary strong{font-size:.66rem}.summary span{font-size:.43rem}.networkUtilityRow{min-height:39px;padding:4px 6px;gap:4px}.searchWrap.open{max-width:min(168px,48vw)}.searchField input{font-size:16px}.compactControls{gap:3px}.layoutControls,.viewControls{gap:3px}.layoutControls>button,.groupMenuAnchor>button,.viewControls button,.viewControls .fitButton{height:29px;border-radius:8px}.groupsPanel,.groupBuilder{width:min(232px,calc(100vw - 28px))}.crumb{max-width:60px}.personNode{min-width:0}.focusNode{min-width:0}}
         @media(prefers-reduced-motion:reduce){.world.cameraTransition{transition:none}.worldContent.sceneReady{transition:none}.groupDropZone,.createFirstGroup{transition:none}.worldContent.nav-forward,.worldContent.nav-back,.slotEdgePulse,.nodeBusy,.personNode.grouping,.personNode.restoring,.groupNode.created,.groupDraftMembers button,.groupDropZone.memberAdded small,.slotCircle,.focusNode::before,.worldContent.nav-forward .childNode .nodeCircle{animation:none!important}}
       `}</style>
     </section>
