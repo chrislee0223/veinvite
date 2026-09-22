@@ -12,17 +12,34 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - name: Trace Round 116 inviter funding graph
+      - name: Trace Round 116 invitee B3TR outflows
         shell: bash
         run: |
           python3 - <<'PY'
           import json, urllib.request
+          from collections import Counter, defaultdict
 
           NODE='https://mainnet.vechain.org'
-          VTHO='0x0000000000000000000000000000456e65726779'
+          B3TR='0x5ef79995FE8a89e0812330E4378eB2660ceDe699'.lower()
           TRANSFER='0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef'
-          TO_BLOCK=25890000
-          inviters=[
+          VOT3='0x76Ca782B59C74d088C7D2Cce2f211BC00836c602'.lower()
+          cases={
+            '74FQ6CB':('0x2d415cbf574177ccf0e8a178ef2c8df1dcdfa2cc',25825343),
+            'F84ZL4N':('0xd2fe919a38fb7ab6f2c2df0fec7723cb778b0989',25831197),
+            'SQCX6F9':('0x352ac255f820a9d5b952b52199f06f664b40ce15',25832252),
+            'V34W9PM':('0xbe38eb6be67e52c2743995a7bf59efd0e9265d5d',25833219),
+            '8GANYW6':('0x703210579b9f2fd2317415278af71f5fc59f6cc8',25834196),
+            'WPGLEGJ':('0x54f7d0b2f2cdc9be9d1be04c7101e984f2934c36',25834269),
+            'BGGJDJS':('0x37f983771b32d94e975e2568e5dca21d43d75a4d',25834638),
+            '8DNK7KV':('0x1bbd28f95af0df8edcf73431cab62af3b8807c39',25840115),
+            '9L4TMG5':('0x97e82cc272aaa9745b06525085f37b64e2382ff8',25840751),
+            'SBWYUFQ':('0x95af037750d985f094969d3cd741a0ff51082cba',25842235),
+            '7ACQA43':('0x79f1fa450b50a0e7ad5c7255ea8a59eb12e12c3e',25842288),
+            '2YYCS2X':('0x9fc31513746887e0d82f50aa41212913848feaa0',25875077),
+            'JEZP37F':('0x009c2dbbb4b823b0544c3580921b544baf77cb4d',25878913),
+            '65242BC':('0x259a1644d0c97a823ca1d6d811f6e6b522d92e82',25880600),
+          }
+          inviters={
             '0x0533410815b0bb452362f91c6c9d1d64abf2c295',
             '0x5ea9700efcfded17b7521186efc42e830501cb77',
             '0xb7ce84c0c7fc87f64aa66399f65e3968062e1a2f',
@@ -32,51 +49,70 @@ jobs:
             '0x377a18e24d64e0340f4e1a4b62a295f45b317cef',
             '0xcb15dd2dbcd19d5e481d10d0edc657c2ce7f3909',
             '0xbc147a036c266300c3c4fc20ca7886ada9a4b7ae',
-          ]
-          inviter_set=set(x.lower() for x in inviters)
+          }
+          invitees=set(w for w,_ in cases.values())
 
           def post(path, body):
-            req=urllib.request.Request(
-              NODE+path,
-              data=json.dumps(body).encode(),
-              headers={'content-type':'application/json'},
-              method='POST'
-            )
+            req=urllib.request.Request(NODE+path,data=json.dumps(body).encode(),headers={'content-type':'application/json'},method='POST')
             with urllib.request.urlopen(req,timeout=30) as r:
+              return json.loads(r.read().decode())
+
+          def get(path):
+            with urllib.request.urlopen(NODE+path,timeout=30) as r:
               return json.loads(r.read().decode())
 
           def topic(addr):
             return '0x'+'0'*24+addr.lower().replace('0x','')
 
-          def parse_vtho(e):
-            topics=e.get('topics') or []
-            sender='0x'+topics[1][-40:].lower() if len(topics)>=3 else None
-            recipient='0x'+topics[2][-40:].lower() if len(topics)>=3 else None
+          def parse(e):
+            ts=e.get('topics') or []
             m=e.get('meta') or {}
-            data=e.get('data')
             amount=None
-            if isinstance(data,str) and data.startswith('0x'):
-              try: amount=str(int(data,16))
+            d=e.get('data')
+            if isinstance(d,str) and d.startswith('0x'):
+              try: amount=int(d,16)
               except: pass
-            return {'sender':sender,'recipient':recipient,'block':m.get('blockNumber'),'tx':m.get('txID'),'amount_wei':amount}
-
-          def parse_vet(e):
-            m=e.get('meta') or {}
-            return {'sender':e.get('sender'),'recipient':e.get('recipient'),'block':m.get('blockNumber'),'tx':m.get('txID'),'amount_wei':e.get('amount')}
-
-          for wallet in inviters:
-            common={'range':{'unit':'block','from':0,'to':TO_BLOCK},'options':{'offset':0,'limit':10},'order':'asc'}
-            vin=post('/logs/transfer',{**common,'criteriaSet':[{'recipient':wallet}]})
-            hin=post('/logs/event',{**common,'criteriaSet':[{'address':VTHO,'topic0':TRANSFER,'topic2':topic(wallet)}]})
-            vout=post('/logs/event',{**common,'criteriaSet':[{'address':VTHO,'topic0':TRANSFER,'topic1':topic(wallet)}]})
-            row={
-              'wallet':wallet,
-              'vet_in':[parse_vet(x) for x in vin[:10]],
-              'vtho_in':[parse_vtho(x) for x in hin[:10]],
-              'vtho_out':[parse_vtho(x) for x in vout[:10]],
+            return {
+              'to':'0x'+ts[2][-40:].lower() if len(ts)>=3 else None,
+              'block':m.get('blockNumber'),
+              'tx':m.get('txID'),
+              'amount_wei':str(amount) if amount is not None else None,
             }
-            print('INVITER_ROW '+json.dumps(row,separators=(',',':')))
-            for e in row['vtho_in']:
-              if e['sender'] in inviter_set:
-                print('INVITER_LINK '+json.dumps({'from':e['sender'],'to':wallet,'block':e['block'],'amount_wei':e['amount_wei'],'tx':e['tx']},separators=(',',':')))
+
+          best=get('/blocks/best')
+          best_num=best.get('number')
+          print('BEST_BLOCK '+str(best_num))
+          dest_wallets=defaultdict(set)
+          dest_counts=Counter()
+          for code,(wallet,start) in cases.items():
+            body={
+              'criteriaSet':[{'address':B3TR,'topic0':TRANSFER,'topic1':topic(wallet)}],
+              'range':{'unit':'block','from':start,'to':best_num},
+              'options':{'offset':0,'limit':100},
+              'order':'asc'
+            }
+            logs=post('/logs/event',body)
+            events=[parse(x) for x in logs]
+            for e in events:
+              d=e['to']
+              if d:
+                dest_wallets[d].add(wallet)
+                dest_counts[d]+=1
+            row={
+              'invite_code':code,
+              'wallet':wallet,
+              'outbound_count':len(events),
+              'events':events,
+              'to_any_round116_inviter':sum(1 for e in events if e['to'] in inviters),
+              'to_any_round116_invitee':sum(1 for e in events if e['to'] in invitees),
+              'to_vot3_contract':sum(1 for e in events if e['to']==VOT3),
+            }
+            print('B3TR_ROW '+json.dumps(row,separators=(',',':')))
+
+          common=[]
+          for d,ws in dest_wallets.items():
+            if len(ws)>=2:
+              common.append({'destination':d,'distinct_invitee_senders':len(ws),'transfer_count':dest_counts[d],'is_round116_inviter':d in inviters,'is_round116_invitee':d in invitees,'is_vot3':d==VOT3})
+          common.sort(key=lambda x:(-x['distinct_invitee_senders'],-x['transfer_count'],x['destination']))
+          print('COMMON_DESTINATIONS '+json.dumps(common,separators=(',',':')))
           PY
