@@ -4,7 +4,7 @@ import test from 'node:test';
 
 const [explorer, discoveryMigration, discoverRoute, controls] = await Promise.all([
   readFile(new URL('../src/components/PublicNetworkExplorer.tsx', import.meta.url), 'utf8'),
-  readFile(new URL('../supabase/migrations/20260909064500_stabilize_public_network_discovery.sql', import.meta.url), 'utf8'),
+  readFile(new URL('../supabase/migrations/20260923023000_make_network_default_public_readonly.sql', import.meta.url), 'utf8'),
   readFile(new URL('../src/app/api/network/public/discover/route.ts', import.meta.url), 'utf8'),
   readFile(new URL('../src/lib/i18n/networkCanvasControlCopy.ts', import.meta.url), 'utf8'),
 ]);
@@ -20,11 +20,11 @@ test('Public canvas keeps mobile overlays mutually exclusive', () => {
   assert.match(explorer, /selected && selected !== root && !explorerParent/i);
 });
 
-test('Public canvas expires and clears local path state when visibility disappears', () => {
+test('Public canvas expires and clears local path state when the saved target no longer exists', () => {
   assert.match(explorer, /PUBLIC_SESSION_TTL_MS\s*=\s*30 \* 60_000/i);
   assert.match(explorer, /savedAt:\s*Date\.now\(\)/i);
   assert.match(explorer, /Date\.now\(\) - parsed\.savedAt > PUBLIC_SESSION_TTL_MS/i);
-  assert.match(explorer, /code === 'NETWORK_PRIVATE' \|\| code === 'FOCUS_NOT_PUBLIC'[\s\S]*clearSavedState\(root\)/i);
+  assert.match(explorer, /code === 'NETWORK_NOT_FOUND' || code === 'FOCUS_NOT_FOUND'[\s\S]*clearSavedState\(root\)/i);
 });
 
 test('Public canvas pager and motion controls respect accessibility settings', () => {
@@ -36,8 +36,9 @@ test('Public canvas pager and motion controls respect accessibility settings', (
   assert.match(controls, /next:\s*string/i);
 });
 
-test('Explore discovery excludes empty public roots and cannot be bumped by toggling visibility', () => {
-  assert.match(discoveryMigration, /exists \([\s\S]*qualified_referral_network_edges[\s\S]*child_profile\.public_enabled is true/i);
+test('Explore discovery uses verified referral roots without per-wallet visibility preferences', () => {
+  assert.match(discoveryMigration, /exists \([\s\S]*qualified_referral_network_edges/i);
+  assert.doesNotMatch(discoveryMigration, /network_public_profiles|public_enabled|discoverable/i);
   assert.match(discoveryMigration, /md5\([\s\S]*IYYY-IW/i);
   assert.match(discoveryMigration, /order by rotation_key asc, wallet_address asc/i);
   assert.doesNotMatch(discoveryMigration, /order by np\.updated_at desc/i);
