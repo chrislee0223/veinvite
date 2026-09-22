@@ -11,6 +11,7 @@ type ActiveWalletAuthentication = {
 let authenticationGeneration = 0;
 let activeAuthentication: ActiveWalletAuthentication | null = null;
 let activeWalletProviderReconciliation: Promise<unknown> | null = null;
+let pendingVeWorldHandoffWallet: string | null = null;
 
 function emitActivityChange() {
   if (typeof window === 'undefined') {
@@ -121,4 +122,34 @@ export async function runWalletProviderReconciliation<T>(
       activeWalletProviderReconciliation = null;
     }
   }
+}
+
+
+export function markPendingVeWorldWalletHandoff(
+  walletAddress: string,
+): void {
+  pendingVeWorldHandoffWallet = walletAddress;
+}
+
+export function getPendingVeWorldWalletHandoff():
+string | null {
+  return pendingVeWorldHandoffWallet;
+}
+
+export function isPendingVeWorldWalletHandoff(
+  walletAddress: string,
+): boolean {
+  return pendingVeWorldHandoffWallet === walletAddress;
+}
+
+export function clearPendingVeWorldWalletHandoff(
+  walletAddress?: string,
+): void {
+  if (
+    walletAddress &&
+    pendingVeWorldHandoffWallet !== walletAddress
+  ) {
+    return;
+  }
+  pendingVeWorldHandoffWallet = null;
 }
