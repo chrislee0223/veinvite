@@ -30,6 +30,13 @@ test('country ranking renders flags instead of country-code badges', () => {
   assert.match(countryFlag, /object-fit:contain;/);
 });
 
+test('unknown country uses a crisp vector fallback instead of an emoji globe', () => {
+  assert.match(countryFlag, /countryFlagUnknownFrame/);
+  assert.match(countryFlag, /countryFlagUnknownIcon/);
+  assert.match(countryFlag, /<svg/);
+  assert.doesNotMatch(countryFlag, /return '🌐'/);
+});
+
 test('country header uses a short localized country label', () => {
   assert.match(hub, /countryCopy\.country/);
   assert.match(countryCopy, /country: string/);
