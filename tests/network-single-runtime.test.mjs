@@ -271,7 +271,7 @@ test('blank tap exits layout editing without confusing pan, pinch, or group crea
 });
 
 test('group hubs have a distinct solid visual language from invite slots', () => {
-  assert.match(networkSource, /<GroupsControlGlyph size=\{20\} \/>/);
+  assert.match(networkSource, /<GroupsControlGlyph size=\{18\} \/>/);
   assert.match(networkSource, /\.edge\.groupEdge\{[^}]*stroke-width:1\.35\}/);
   assert.doesNotMatch(networkSource, /\.edge\.groupEdge\{[^}]*stroke-dasharray/);
   assert.match(networkSource, /\.groupMemberEdge\{[^}]*stroke-width:\.82\}/);
@@ -281,12 +281,14 @@ test('group hubs have a distinct solid visual language from invite slots', () =>
   assert.match(networkSource, /\.slotCircle\{[^}]*border:1px dashed/);
 });
 
-test('group hubs stay compact without changing group interaction geometry', () => {
-  assert.match(networkSource, /\.groupNode\{min-width:94px;max-width:136px;min-height:42px;padding:6px 8px/);
-  assert.match(networkSource, /grid-template-columns:24px minmax\(0,1fr\);column-gap:5px;row-gap:0/);
-  assert.match(networkSource, /\.groupNode strong\{[^}]*max-width:92px;font-size:\.45rem;line-height:1\.15/);
-  assert.match(networkSource, /\.groupNode small\{[^}]*max-width:92px[^}]*font-size:\.32rem;line-height:1\.15[^}]*text-overflow:ellipsis/);
-  assert.match(networkSource, /\.groupGlyph\{width:24px;height:24px/);
+test('group hubs use a fixed rounded-square visual without changing interaction geometry', () => {
+  assert.match(networkSource, /\.groupNode\{width:64px;height:64px;min-width:64px;max-width:64px;padding:5px 4px/);
+  assert.match(networkSource, /border-radius:14px/);
+  assert.match(networkSource, /grid-template-columns:1fr;grid-template-rows:20px auto auto;row-gap:1px/);
+  assert.match(networkSource, /align-content:center;justify-items:center;text-align:center/);
+  assert.match(networkSource, /\.groupNode strong\{[^}]*max-width:54px;font-size:\.42rem;line-height:1\.08/);
+  assert.match(networkSource, /\.groupNode small\{[^}]*max-width:54px[^}]*font-size:\.29rem;line-height:1\.08[^}]*text-overflow:ellipsis/);
+  assert.match(networkSource, /\.groupGlyph\{width:20px;height:20px/);
   assert.match(networkSource, /GROUP_SCREEN_DROP_RADIUS = 58/);
   assert.match(networkSource, /GROUP_DROP_HIT_SLOP_X = 18/);
   assert.match(networkSource, /GROUP_DROP_HIT_SLOP_Y = 14/);
