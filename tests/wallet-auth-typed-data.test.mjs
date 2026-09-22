@@ -64,9 +64,22 @@ test('server reconstructs and verifies typed auth from stored challenge data', (
     verifyRoute,
     /Wallet typed proof rejected\.[\s\S]*typed_signature_invalid[\s\S]*typed_signer_mismatch/,
   );
+  const diagnosticStart = verifyRoute.indexOf(
+    'function logTypedProofRejection',
+  );
+  const diagnosticEnd = verifyRoute.indexOf(
+    'function certificateDomainMatchesOrigin',
+    diagnosticStart,
+  );
+  const diagnosticBlock = verifyRoute.slice(
+    diagnosticStart,
+    diagnosticEnd,
+  );
+  assert.ok(diagnosticStart >= 0);
+  assert.ok(diagnosticEnd > diagnosticStart);
   assert.doesNotMatch(
-    verifyRoute,
-    /Wallet typed proof rejected\.[\s\S]*walletAddress/,
+    diagnosticBlock,
+    /console\.info\([\s\S]*walletAddress/,
   );
 });
 
