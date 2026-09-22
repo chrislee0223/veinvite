@@ -20,8 +20,10 @@ import {
 import {
   cancelActiveWalletAuthentication,
   clearActiveWalletAuthentication,
+  clearPendingVeWorldWalletHandoff,
   createWalletAuthenticationGeneration,
   getActiveWalletAuthentication,
+  isPendingVeWorldWalletHandoff,
   isWalletAuthenticationGenerationCurrent,
   setActiveWalletAuthentication,
   waitForWalletProviderReconciliation,
@@ -158,6 +160,7 @@ export function useWalletAuthentication() {
   const {
     account: dappKitAccount,
     source: dappKitSource,
+    connectV2,
     requestTypedData,
     requestCertificate,
   } = useDappKitWallet();
@@ -302,10 +305,22 @@ export function useWalletAuthentication() {
                 ?.toLowerCase() ===
                 walletAddress
             ) {
+              clearPendingVeWorldWalletHandoff(
+                walletAddress,
+              );
               return;
             }
 
-            if (session.authenticated) {
+            const isVeWorldHandoff =
+              dappKitSource === 'veworld' &&
+              isPendingVeWorldWalletHandoff(
+                walletAddress,
+              );
+
+            if (
+              session.authenticated &&
+              !isVeWorldHandoff
+            ) {
               // A provider can momentarily report a different account while
               // VeWorld/WalletConnect is restoring or while locale/UI state is
               // changing. Never destroy the known-good browser session or open
@@ -362,6 +377,10 @@ export function useWalletAuthentication() {
               | 'typed_data'
               | 'certificate'
               | 'message'
+              | undefined;
+            let authFlow:
+              | 'veworld_handoff_connect_v2'
+              | 'veworld_request_typed_data'
               | undefined;
 
             if (
@@ -470,28 +489,57 @@ export function useWalletAuthentication() {
                       challenge.message,
                   });
 
-                // The wallet is already connected at this point. Calling
-                // connectV2() again re-enters VeWorld's connection/login flow
-                // and can show a second login screen even though the first
-                // connection succeeded. Request only the EIP-712 signature
-                // from the established signer instead.
-                signature =
-                  await requestTypedData(
-                    typedData.domain,
-                    typedData.types,
-                    typedData.value,
-                    {
-                      signer,
-                    },
-                  );
+                if (isVeWorldHandoff) {
+                  // External A -> B switching is the one case where VeWorld's
+                  // v2 connect+typed-data path is intentional. It does not pass
+                  // a cached signer override; VeWorld signs with its current
+                  // active account and DAppKit returns that signer with the
+                  // signature. This replaces the previous connectV2(null) +
+                  // requestTypedData() two-prompt sequence.
+                  const handoffResult =
+                    await connectV2(typedData);
+
+                  assertStillCurrent();
+
+                  const returnedSigner =
+                    handoffResult.signer
+                      ?.trim()
+                      .toLowerCase();
+
+                  if (
+                    returnedSigner !== walletAddress
+                  ) {
+                    throw new Error(
+                      'VeWorld is still switching wallets. Please return to VeInvite and try again after the wallet switch finishes.',
+                    );
+                  }
+
+                  signature =
+                    handoffResult.signature;
+                  authFlow =
+                    'veworld_handoff_connect_v2';
+                } else {
+                  // Normal first login / same-wallet verification stays on the
+                  // established signer path so it never re-enters VeWorld's
+                  // connection flow.
+                  signature =
+                    await requestTypedData(
+                      typedData.domain,
+                      typedData.types,
+                      typedData.value,
+                      {
+                        signer,
+                      },
+                    );
+                  authFlow =
+                    'veworld_request_typed_data';
+                }
 
                 assertStillCurrent();
 
-                // VeWorld can briefly display wallet B while its signing
-                // transport still signs with wallet A. Recover the actual
-                // signer locally before contacting VeInvite's verify endpoint
-                // so a stale-wallet proof can never become a server-side 401
-                // or a misleading "wallet verification failed" round-trip.
+                // Recover the actual key locally before contacting VeInvite's
+                // verify endpoint. A stale-wallet proof must never become a
+                // server-side 401.
                 let recoveredSigner: string;
                 try {
                   recoveredSigner =
@@ -563,6 +611,7 @@ export function useWalletAuthentication() {
                       challenge.nonce,
                     signature,
                     proofType,
+                    authFlow,
                     certificate,
                   }),
                   signal: controller.signal,
@@ -607,6 +656,10 @@ export function useWalletAuthentication() {
                 'The browser did not retain the VeInvite wallet session. Please allow site cookies and try once more.',
               );
             }
+
+            clearPendingVeWorldWalletHandoff(
+              walletAddress,
+            );
           } finally {
             setIsAuthenticating(false);
           }
@@ -651,6 +704,7 @@ export function useWalletAuthentication() {
         connection.isConnectedWithDappKit,
         dappKitAccount,
         dappKitSource,
+        connectV2,
         requestTypedData,
         requestCertificate,
         signMessage,
