@@ -329,17 +329,22 @@ test('single runtime keeps the authenticated read-only Network API contract', ()
   assert.doesNotMatch(workspaceSource, /supabase|fetch\(|\/api\//);
 });
 
-test('Network header metrics never use a dash placeholder or shift adjacent labels', () => {
-  assert.doesNotMatch(networkSource, /headerThisRound === null \? '–'/);
-  assert.match(networkSource, /headerThisRound === null \? '\\u00A0'/);
-  assert.match(networkSource, /grid-template-columns:4\.2ch auto 1px 4\.2ch auto/);
-  assert.match(networkSource, /font-variant-numeric:tabular-nums/);
+test('Network toolbar shows only the localized total count and does not expose round growth', () => {
+  const utilityStart = networkSource.indexOf('className="networkUtilityRow"');
+  const searchStart = networkSource.indexOf('className="networkSearchRow"', utilityStart);
+  const utilitySource = networkSource.slice(utilityStart, searchStart);
+  assert.match(utilitySource, /className="summaryTotal"/);
+  assert.match(utilitySource, /NETWORK_TOTAL_COPY\[locale as SupportedLocale\]/);
+  assert.match(utilitySource, /headerNetwork\.toLocaleString\(\)/);
+  assert.doesNotMatch(utilitySource, /headerThisRound|t\.thisRound|className="growth"/);
+  assert.doesNotMatch(networkSource, /const headerThisRound/);
 });
 
 test('Network localized content stays bounded and RTL overlays adapt without mirroring the graph', () => {
-  assert.match(networkSource, /<span title=\{t\.networkSize\}>\{t\.networkSize\}<\/span>/);
-  assert.match(networkSource, /<span title=\{t\.thisRound\}>\{t\.thisRound\}<\/span>/);
-  assert.match(networkSource, /\.summary span\{[^}]*max-width:58px[^}]*overflow:hidden[^}]*text-overflow:ellipsis/);
+  assert.match(networkSource, /className="summaryTotal"/);
+  assert.match(networkSource, /NETWORK_TOTAL_COPY\[locale as SupportedLocale\]/);
+  assert.match(networkSource, /\.summaryTotal span\{[^}]*overflow:hidden[^}]*text-overflow:ellipsis/);
+  assert.match(networkSource, /\.networkSearchRow\{[^}]*position:absolute[^}]*top:44px[^}]*inset-inline:6px/);
   assert.match(networkSource, /\.nodeProgressStatus\{[^}]*overflow:hidden[^}]*text-overflow:ellipsis/);
   assert.match(networkSource, /\.slotNode>strong\{[^}]*width:92px[^}]*overflow:hidden[^}]*text-overflow:ellipsis/);
   assert.match(networkSource, /\.workspaceNotice\{[^}]*max-width:calc\(100% - 28px\)[^}]*white-space:normal[^}]*overflow-wrap:anywhere/);
@@ -498,11 +503,12 @@ test('Network hides the world until root topology and both invite slots form one
   assert.match(networkSource, /setInviteSlots\(cachedInviteSlots \?\? \[\]\)/);
 });
 
-test('Network header reveals only a complete round metric and never a placeholder transition', () => {
-  assert.match(networkSource, /const headerMetricsReady = headerThisRound !== null/);
-  assert.match(networkSource, /metricsReady' : 'metricsPending'/);
-  assert.match(networkSource, /\.summary\.metricsPending\{visibility:hidden\}/);
-  assert.doesNotMatch(networkSource, /headerThisRound === null \? '–'/);
+test('Network top metric is a stable total-only value with no round placeholder transition', () => {
+  assert.match(networkSource, /const headerNetwork =\s*headerMetrics\?\.network \?\? visibleRootData\.summary\.network/);
+  assert.match(networkSource, /className="summaryTotal"/);
+  assert.match(networkSource, /headerNetwork\.toLocaleString\(\)/);
+  assert.doesNotMatch(networkSource, /headerMetricsReady|metricsPending|metricsReady/);
+  assert.doesNotMatch(networkSource, /const headerThisRound/);
 });
 
 test('Network intro waits for the authoritative slot attempt to settle before YOU-to-fit motion', () => {
@@ -618,6 +624,8 @@ test('wallet search is magnifier-first and avoids iPhone focus zoom without disa
   assert.match(networkSource, /const closeSearch = useCallback/);
   assert.match(networkSource, /closeSearch\(\);[\s\S]*moveToFocus\(result\.wallet, 'forward'\)/);
   assert.match(networkSource, /\.searchField input\{[^}]*font-size:16px/);
+  assert.match(networkSource, /\.networkSearchRow\{[^}]*position:absolute/);
+  assert.doesNotMatch(networkSource, /\.networkSearchRow\{[^}]*flex:0 0 auto/);
   assert.doesNotMatch(networkSource, /@media\(max-width:560px\)/);
   assert.doesNotMatch(networkSource, /maximum-scale|user-scalable|document\.documentElement\.style\.touchAction/);
 });

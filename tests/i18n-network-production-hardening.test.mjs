@@ -11,7 +11,7 @@ const [route, runtime, network, controls, migration, rollout] = await Promise.al
   readFile(new URL('../supabase/migrations/20260909040500_stage_network_runtime_disabled_for_rollout.sql', import.meta.url), 'utf8'),
 ]);
 
-test('Network round metrics come from the reviewed chain resolver, are bounded, and fail soft when unavailable', () => {
+test('Network round context still uses the reviewed chain resolver while the compact toolbar omits round growth', () => {
   assert.match(route, /readVeBetterRoundWindow/i);
   assert.match(route, /ROUND_CACHE_MS\s*=\s*60_000/i);
   assert.match(route, /ROUND_RESOLVE_TIMEOUT_MS\s*=\s*2_500/i);
@@ -20,9 +20,12 @@ test('Network round metrics come from the reviewed chain resolver, are bounded, 
   assert.match(route, /p_round_id:\s*round\?\.id\s*\?\?\s*null/i);
   assert.match(route, /p_round_start_at:\s*round\?\.startAt\s*\?\?\s*null/i);
   assert.doesNotMatch(route, /operator_latest_round_growth_report_snapshots/i);
-  assert.doesNotMatch(network, /headerThisRound === null \? ['’][–—]['’]/i);
-  assert.match(network, /const headerMetricsReady = headerThisRound !== null/);
-  assert.match(network, /\.summary\.metricsPending\{visibility:hidden\}/);
+  const utilityStart = network.indexOf('className="networkUtilityRow"');
+  const searchStart = network.indexOf('className="networkSearchRow"', utilityStart);
+  const utility = network.slice(utilityStart, searchStart);
+  assert.match(utility, /className="summaryTotal"/);
+  assert.doesNotMatch(utility, /headerThisRound|t\.thisRound|className="growth"/);
+  assert.doesNotMatch(network, /const headerThisRound|headerMetricsReady|metricsPending/);
 });
 
 test('Network runtime switch fails closed before chain and recursive graph work', () => {

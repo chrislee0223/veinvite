@@ -6,7 +6,7 @@ const source = fs.readFileSync(new URL('../src/components/AppNetwork.tsx', impor
 const home = fs.readFileSync(new URL('../src/components/HomeClient.tsx', import.meta.url), 'utf8');
 const hub = fs.readFileSync(new URL('../src/components/AppNetworkHub.tsx', import.meta.url), 'utf8');
 
-test('Network summary and search trigger share one compact utility row, with search opening directly below', () => {
+test('Network keeps only a compact total metric in the utility row and floats search over the canvas', () => {
   const utility = source.indexOf('className="networkUtilityRow"');
   const searchRow = source.indexOf('className="networkSearchRow"', utility);
   const stage = source.indexOf('ref={stageRef}');
@@ -15,8 +15,10 @@ test('Network summary and search trigger share one compact utility row, with sea
 
   const utilitySlice = source.slice(utility, searchRow);
   assert.match(utilitySlice, /className="networkIdentity"/);
-  assert.match(utilitySlice, /<h1>\{t\.title\}<\/h1>/);
-  assert.match(utilitySlice, /className=\{\`summary/);
+  assert.doesNotMatch(utilitySlice, /<h1>/);
+  assert.match(utilitySlice, /className="summaryTotal"/);
+  assert.match(utilitySlice, /NETWORK_TOTAL_COPY\[locale as SupportedLocale\]/);
+  assert.doesNotMatch(utilitySlice, /headerThisRound|t\.thisRound/);
   assert.match(utilitySlice, /className=\{\`searchToggle/);
   assert.match(utilitySlice, /editLayoutButton/);
   assert.match(utilitySlice, /groupsButton/);
@@ -32,7 +34,8 @@ test('Network summary and search trigger share one compact utility row, with sea
 
   assert.match(source, /\.networkUtilityRow\{[^}]*display:flex/);
   assert.match(source, /\.networkIdentity\{[^}]*display:flex/);
-  assert.match(source, /\.networkSearchRow\{[^}]*flex:0 0 auto/);
+  assert.match(source, /\.networkSearchRow\{[^}]*position:absolute[^}]*top:44px[^}]*inset-inline:6px/);
+  assert.doesNotMatch(source, /\.networkSearchRow\{[^}]*flex:0 0 auto/);
   assert.match(source, /\.searchWrap\{[^}]*width:100%/);
   assert.match(source, /\.compactControls\{[^}]*display:flex/);
   assert.match(source, /\.layoutControls>button,\.groupMenuAnchor>button\{width:28px/);
@@ -76,7 +79,8 @@ test('desktop Network keeps the compact Network card without restacking the glob
   assert.doesNotMatch(source, /networkHeader\{/);
   assert.match(source, /networkUtilityRow\{[^}]*min-height:40px[^}]*padding:4px 6px/);
   assert.match(source, /networkIdentity\{[^}]*display:flex/);
-  assert.match(source, /networkSearchRow\{[^}]*padding:5px 6px 6px/);
+  assert.match(source, /summaryTotal\{[^}]*display:flex/);
+  assert.match(source, /networkSearchRow\{[^}]*position:absolute[^}]*top:44px/);
   assert.match(home, /\.topActions \{ min-width:0; display:flex; align-items:center; gap:10px; \}/);
   assert.doesNotMatch(home, /networkScreen \.topActions/);
   assert.doesNotMatch(home, /height:min\(100svh,852px\)/);
