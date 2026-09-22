@@ -88,7 +88,7 @@ test('Network canvas controls are localized for every supported locale and the g
   }
   assert.match(network, /NETWORK_CANVAS_CONTROL_COPY/i);
   assert.match(network, /absoluteIndex === 0 \? c\.you : shortWallet\(item\)/i);
-  assert.match(network, /focusIsRoot \? \([\s\S]*focusYouLabel[\s\S]*\{c\.you\}/i);
+  assert.match(network, /youLabel=\{focusIsRoot \? c\.you : undefined\}/i);
   assert.match(network, /className="youControl"[\s\S]*aria-label=\{c\.you\}/i);
   assert.match(network, /\{c\.expandBranch\}/i);
   assert.match(network, /aria-label=\{c\.zoomIn\}/i);
