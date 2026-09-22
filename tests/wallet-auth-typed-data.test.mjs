@@ -28,25 +28,36 @@ test('VeWorld ownership auth prefers EIP-712 over certificates when supported', 
   );
 });
 
-test('VeWorld refreshes the existing signing transport before the first ownership prompt', () => {
-  const refresh = authHook.indexOf(
-    'await initializeAsync();',
+test('VeWorld auth requires live provider addresses and validates the recovered signer locally', () => {
+  assert.doesNotMatch(
+    authHook,
+    /canonicalWalletRef\.current\s*\|\|\s*walletAddress/,
   );
-  const typedPrompt = authHook.indexOf(
-    'await requestTypedData(',
+  assert.doesNotMatch(
+    authHook,
+    /await initializeAsync\(\)/,
+  );
+  assert.match(
+    authHook,
+    /const signer =\s*canonicalWalletRef\.current;[\s\S]*!signer[\s\S]*dappSigner !== walletAddress/,
+  );
+  assert.match(
+    authHook,
+    /verifyTypedData\([\s\S]*typedData\.domain[\s\S]*typedData\.types[\s\S]*typedData\.value[\s\S]*signature/,
+  );
+  assert.match(
+    authHook,
+    /recoveredSigner !== walletAddress[\s\S]*VeWorld is still switching wallets/,
   );
 
-  assert.ok(refresh >= 0);
-  assert.ok(typedPrompt > refresh);
-  assert.match(
-    authHook,
-    /dappKitSource === 'veworld'[\s\S]*runWalletProviderReconciliation\([\s\S]*await initializeAsync\(\)[\s\S]*requestTypedData\(/,
+  const localRecovery = authHook.indexOf(
+    'recoveredSigner !== walletAddress',
   );
-  assert.match(
-    authHook,
-    /await wait\([\s\S]*WALLET_SIGNATURE_SETTLE_MS[\s\S]*canonicalWalletRef\.current[\s\S]*dappWalletRef\.current[\s\S]*requestTypedData\(/,
+  const serverVerify = authHook.indexOf(
+    "'/api/auth/verify'",
   );
-  assert.doesNotMatch(authHook, /await connectV2\(/);
+  assert.ok(localRecovery >= 0);
+  assert.ok(serverVerify > localRecovery);
 });
 
 test('wallet challenge exposes the exact EIP-712 binding inputs', () => {
