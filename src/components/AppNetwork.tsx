@@ -549,7 +549,7 @@ function NetworkAvatar({
   onLoad,
   onError,
 }: {
-  avatarUrl: string | undefined;
+  avatarUrl: string | null | undefined;
   loaded: boolean;
   broken: boolean;
   size: number;
@@ -3171,6 +3171,7 @@ export function AppNetwork({ locale }: { locale: Locale }) {
               data-no-pan="true"
             >
               <NetworkNodeIdentity
+                key={focusKey}
                 address={currentData.focusWallet}
                 root
                 circleClassName="nodeCircle focusCircle"
