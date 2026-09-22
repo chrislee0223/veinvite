@@ -181,7 +181,7 @@ test('group creation is draft-first, supports one member, and preserves member p
   assert.match(networkSource, /moveWorkspaceMemberToGroup/);
   assert.match(networkSource, /withWorkspaceGroupCollapsed/);
   assert.match(networkSource, /groupsOpen/);
-  assert.match(networkSource, /continuationEdge/);
+  assert.doesNotMatch(networkSource, /continuationEdge/);
   assert.match(workspaceSource, /group\.members\.length >= 1/);
   assert.match(workspaceSource, /members\.length < 1/);
   assert.doesNotMatch(workspaceSource, /members\.length < 2/);
@@ -250,9 +250,9 @@ test('group rendering and drag start use indexed wallet lookups at larger networ
   assert.match(networkSource, /const child = childByWallet\.get\(keyWallet\(key\)\)/);
 
   const edgesStart = networkSource.indexOf('{visibleGroups.filter((group) => group.collapsed === false).flatMap');
-  const continuationStart = networkSource.indexOf('{visibleChildren.filter((child) => child.network > 0).map', edgesStart);
-  assert.ok(edgesStart >= 0 && continuationStart > edgesStart);
-  assert.doesNotMatch(networkSource.slice(edgesStart, continuationStart), /visibleChildren\.find/);
+  const slotEdgesStart = networkSource.indexOf('{positionedInviteSlots.map((slot, index) => {', edgesStart);
+  assert.ok(edgesStart >= 0 && slotEdgesStart > edgesStart);
+  assert.doesNotMatch(networkSource.slice(edgesStart, slotEdgesStart), /visibleChildren\.find/);
 
   const workspaceDragStart = networkSource.indexOf('const beginWorkspaceDrag = useCallback');
   const finishDropStart = networkSource.indexOf('const finishWorkspaceDrop = useCallback', workspaceDragStart);
@@ -423,6 +423,15 @@ test('available and in-progress invite slots are movable like ordinary nodes', (
   assert.match(networkSource, /withNodePosition\(current, workspaceDrag\.key, nextPoint\)/);
   assert.match(networkSource, /progressInviteNode/);
   assert.match(networkSource, /--slot-progress/);
+});
+
+test('invite slot visual states keep one 52px body and restrained progress ring', () => {
+  assert.match(networkSource, /\.personNode\{[^}]*width:52px;height:52px/);
+  assert.match(networkSource, /\.slotNode\{width:52px;height:52px/);
+  assert.match(networkSource, /\.childNode::before\{width:58px;height:58px/);
+  assert.match(networkSource, /\.slotNode::before\{width:58px;height:58px/);
+  assert.match(networkSource, /\.progressInviteNode::after\{[^}]*inset:-3px/);
+  assert.doesNotMatch(networkSource, /continuationEdgePath|className="continuationEdge"|\.continuationEdge\{/);
 });
 
 test('single runtime keeps the approved radial Network visual and deliberate motion contract', () => {
@@ -635,7 +644,7 @@ test('final group workspace keeps one React-owned membership path and one persis
   assert.doesNotMatch(networkSource, /className="saveLayoutButton"/);
   assert.doesNotMatch(networkSource, /className="cancelLayoutButton"/);
   assert.doesNotMatch(networkSource, /groupBuilderAnchor/);
-  assert.match(networkSource, /continuationEdge/);
+  assert.doesNotMatch(networkSource, /continuationEdge/);
   assert.doesNotMatch(networkSource, /hidden descendants|\+N|\+15/);
 });
 
