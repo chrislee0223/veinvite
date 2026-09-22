@@ -28,10 +28,6 @@ const NETWORK_NATIVE_REVIEW: Record<SupportedLocale, NetworkNativeReviewPatch> =
   en: {
     canary: { hintView: 'Press and hold a person to edit · drag the screen to move · pinch to zoom' },
     explore: {
-      exploreDescription: 'Browse public VeInvite networks in the same Network view. Private connections stay hidden.',
-      discoverable: 'Show in public list',
-      discoverableNote: 'Show your network in the public network list.',
-      privateBranchesHidden: 'Private connections stay hidden',
     },
     hub: {
       maintenanceTitle: 'Network is being prepared',
@@ -45,10 +41,6 @@ const NETWORK_NATIVE_REVIEW: Record<SupportedLocale, NetworkNativeReviewPatch> =
   ko: {
     canary: { hintView: '사람을 길게 눌러 편집 · 화면을 끌어 이동 · 두 손가락으로 확대/축소' },
     explore: {
-      exploreDescription: '같은 네트워크 화면에서 공개된 VeInvite 네트워크를 둘러보세요. 비공개 연결은 표시되지 않아요.',
-      discoverable: '공개 목록에 표시',
-      discoverableNote: '내 네트워크를 공개 목록에 표시해요.',
-      privateBranchesHidden: '비공개 연결은 표시되지 않아요',
     },
     hub: {
       maintenanceTitle: '네트워크를 준비 중이에요',
@@ -69,10 +61,6 @@ const NETWORK_NATIVE_REVIEW: Record<SupportedLocale, NetworkNativeReviewPatch> =
   zh: {
     canary: { hintView: '长按成员进行编辑 · 拖动画面移动 · 双指缩放' },
     explore: {
-      exploreDescription: '在同一网络画面中浏览公开的 VeInvite 网络。私密连接不会显示。',
-      discoverable: '显示在公开列表中',
-      discoverableNote: '让你的网络显示在公开网络列表中。',
-      privateBranchesHidden: '私密连接不会显示',
     },
     hub: {
       maintenanceTitle: '网络功能正在准备中',
@@ -86,10 +74,6 @@ const NETWORK_NATIVE_REVIEW: Record<SupportedLocale, NetworkNativeReviewPatch> =
   hi: {
     canary: { hintView: 'किसी व्यक्ति को संपादित करने के लिए दबाकर रखें · स्क्रीन खींचकर चलाएँ · दो उँगलियों से ज़ूम करें' },
     explore: {
-      exploreDescription: 'इसी नेटवर्क दृश्य में सार्वजनिक VeInvite नेटवर्क देखें। निजी जुड़ाव दिखाई नहीं देंगे।',
-      discoverable: 'सार्वजनिक सूची में दिखाएँ',
-      discoverableNote: 'अपने नेटवर्क को सार्वजनिक नेटवर्क सूची में दिखाएँ।',
-      privateBranchesHidden: 'निजी जुड़ाव छिपे रहते हैं',
     },
     hub: {
       maintenanceTitle: 'नेटवर्क तैयार किया जा रहा है',
@@ -103,10 +87,6 @@ const NETWORK_NATIVE_REVIEW: Record<SupportedLocale, NetworkNativeReviewPatch> =
   es: {
     canary: { hintView: 'Mantén pulsado sobre una persona para editar · arrastra la pantalla para moverte · haz zoom con dos dedos' },
     explore: {
-      exploreDescription: 'Explora redes públicas de VeInvite en la misma vista de Red. Las conexiones privadas permanecen ocultas.',
-      discoverable: 'Mostrar en la lista pública',
-      discoverableNote: 'Muestra tu red en la lista de redes públicas.',
-      privateBranchesHidden: 'Las conexiones privadas permanecen ocultas',
     },
     hub: {
       maintenanceTitle: 'La red se está preparando',
@@ -120,10 +100,6 @@ const NETWORK_NATIVE_REVIEW: Record<SupportedLocale, NetworkNativeReviewPatch> =
   ja: {
     canary: { hintView: '人を長押しして編集 · 画面をドラッグして移動 · 2本指で拡大・縮小' },
     explore: {
-      exploreDescription: '同じネットワーク画面で公開されている VeInvite ネットワークを見てみましょう。非公開のつながりは表示されません。',
-      discoverable: '公開一覧に表示',
-      discoverableNote: '自分のネットワークを公開一覧に表示します。',
-      privateBranchesHidden: '非公開のつながりは表示されません',
     },
     hub: {
       maintenanceTitle: 'ネットワークを準備しています',
@@ -137,10 +113,6 @@ const NETWORK_NATIVE_REVIEW: Record<SupportedLocale, NetworkNativeReviewPatch> =
   it: {
     canary: { hintView: 'Tieni premuto su una persona per modificare · trascina lo schermo per spostarti · usa due dita per lo zoom' },
     explore: {
-      exploreDescription: 'Esplora le reti VeInvite pubbliche nella stessa vista Rete. I collegamenti privati restano nascosti.',
-      discoverable: 'Mostra nell’elenco pubblico',
-      discoverableNote: 'Mostra la tua rete nell’elenco delle reti pubbliche.',
-      privateBranchesHidden: 'I collegamenti privati restano nascosti',
     },
     hub: {
       maintenanceTitle: 'La rete è in preparazione',
@@ -154,10 +126,6 @@ const NETWORK_NATIVE_REVIEW: Record<SupportedLocale, NetworkNativeReviewPatch> =
   tr: {
     canary: { hintView: 'Düzenlemek için kişiye basılı tut · ekranı sürükleyerek hareket et · iki parmakla yakınlaştırıp uzaklaştır' },
     explore: {
-      exploreDescription: 'Aynı Ağ ekranında herkese açık VeInvite ağlarını keşfet. Özel bağlantılar gizli kalır.',
-      discoverable: 'Herkese açık listede göster',
-      discoverableNote: 'Ağını herkese açık ağlar listesinde gösterir.',
-      privateBranchesHidden: 'Özel bağlantılar gizli kalır',
     },
     hub: {
       maintenanceTitle: 'Ağ hazırlanıyor',
@@ -171,10 +139,6 @@ const NETWORK_NATIVE_REVIEW: Record<SupportedLocale, NetworkNativeReviewPatch> =
   nl: {
     canary: { hintView: 'Houd een persoon ingedrukt om te bewerken · versleep het scherm om te bewegen · knijp met twee vingers om te zoomen' },
     explore: {
-      exploreDescription: 'Bekijk openbare VeInvite-netwerken in dezelfde netwerkweergave. Privéverbindingen blijven verborgen.',
-      discoverable: 'In openbare lijst tonen',
-      discoverableNote: 'Toon je netwerk in de lijst met openbare netwerken.',
-      privateBranchesHidden: 'Privéverbindingen blijven verborgen',
     },
     hub: {
       maintenanceTitle: 'Netwerk wordt voorbereid',
@@ -188,10 +152,6 @@ const NETWORK_NATIVE_REVIEW: Record<SupportedLocale, NetworkNativeReviewPatch> =
   de: {
     canary: { hintView: 'Person zum Bearbeiten gedrückt halten · Bildschirm ziehen, um dich zu bewegen · mit zwei Fingern zoomen' },
     explore: {
-      exploreDescription: 'Entdecke öffentliche VeInvite-Netzwerke in derselben Netzwerkansicht. Private Verbindungen bleiben verborgen.',
-      discoverable: 'In öffentlicher Liste anzeigen',
-      discoverableNote: 'Zeigt dein Netzwerk in der Liste öffentlicher Netzwerke an.',
-      privateBranchesHidden: 'Private Verbindungen bleiben verborgen',
     },
     hub: {
       maintenanceTitle: 'Netzwerk wird vorbereitet',
@@ -205,10 +165,6 @@ const NETWORK_NATIVE_REVIEW: Record<SupportedLocale, NetworkNativeReviewPatch> =
   fr: {
     canary: { hintView: 'Maintenez le doigt sur une personne pour modifier · faites glisser l’écran pour vous déplacer · zoomez avec deux doigts' },
     explore: {
-      exploreDescription: 'Explorez les réseaux VeInvite publics dans la même vue Réseau. Les connexions privées restent masquées.',
-      discoverable: 'Afficher dans la liste publique',
-      discoverableNote: 'Affiche votre réseau dans la liste des réseaux publics.',
-      privateBranchesHidden: 'Les connexions privées restent masquées',
     },
     hub: {
       maintenanceTitle: 'Le réseau est en préparation',
@@ -222,10 +178,6 @@ const NETWORK_NATIVE_REVIEW: Record<SupportedLocale, NetworkNativeReviewPatch> =
   ar: {
     canary: { hintView: 'اضغط مطولًا على الشخص للتعديل · اسحب الشاشة للتنقل · استخدم إصبعين للتكبير والتصغير' },
     explore: {
-      exploreDescription: 'استعرض شبكات VeInvite العامة في شاشة الشبكة نفسها. تظل الاتصالات الخاصة مخفية.',
-      discoverable: 'إظهار في القائمة العامة',
-      discoverableNote: 'إظهار شبكتك في قائمة الشبكات العامة.',
-      privateBranchesHidden: 'تظل الاتصالات الخاصة مخفية',
     },
     hub: {
       maintenanceTitle: 'يجري تجهيز الشبكة',
@@ -239,10 +191,6 @@ const NETWORK_NATIVE_REVIEW: Record<SupportedLocale, NetworkNativeReviewPatch> =
   bn: {
     canary: { hintView: 'সম্পাদনা করতে কাউকে চেপে ধরে রাখুন · স্ক্রিন টেনে সরান · দুই আঙুলে জুম করুন' },
     explore: {
-      exploreDescription: 'একই নেটওয়ার্ক স্ক্রিনে পাবলিক VeInvite নেটওয়ার্কগুলো দেখুন। ব্যক্তিগত সংযোগগুলো লুকানো থাকবে।',
-      discoverable: 'পাবলিক তালিকায় দেখান',
-      discoverableNote: 'আপনার নেটওয়ার্ককে পাবলিক নেটওয়ার্ক তালিকায় দেখান।',
-      privateBranchesHidden: 'ব্যক্তিগত সংযোগগুলো লুকানো থাকবে',
     },
     hub: {
       maintenanceTitle: 'নেটওয়ার্ক প্রস্তুত করা হচ্ছে',
@@ -256,10 +204,6 @@ const NETWORK_NATIVE_REVIEW: Record<SupportedLocale, NetworkNativeReviewPatch> =
   pt: {
     canary: { hintView: 'Toque e segure uma pessoa para editar · arraste a tela para se mover · use dois dedos para dar zoom' },
     explore: {
-      exploreDescription: 'Explore redes públicas do VeInvite na mesma visualização de Rede. As conexões privadas continuam ocultas.',
-      discoverable: 'Mostrar na lista pública',
-      discoverableNote: 'Mostra sua rede na lista de redes públicas.',
-      privateBranchesHidden: 'As conexões privadas continuam ocultas',
     },
     hub: {
       maintenanceTitle: 'A rede está sendo preparada',
@@ -273,10 +217,6 @@ const NETWORK_NATIVE_REVIEW: Record<SupportedLocale, NetworkNativeReviewPatch> =
   ru: {
     canary: { hintView: 'Нажмите и удерживайте человека для редактирования · перетаскивайте экран для перемещения · масштабируйте двумя пальцами' },
     explore: {
-      exploreDescription: 'Просматривайте публичные сети VeInvite в том же представлении сети. Приватные связи остаются скрытыми.',
-      discoverable: 'Показывать в публичном списке',
-      discoverableNote: 'Показывает вашу сеть в списке публичных сетей.',
-      privateBranchesHidden: 'Приватные связи остаются скрытыми',
     },
     hub: {
       maintenanceTitle: 'Сеть готовится',
@@ -290,10 +230,6 @@ const NETWORK_NATIVE_REVIEW: Record<SupportedLocale, NetworkNativeReviewPatch> =
   id: {
     canary: { hintView: 'Tekan dan tahan orang untuk mengedit · seret layar untuk bergerak · cubit dengan dua jari untuk memperbesar atau memperkecil' },
     explore: {
-      exploreDescription: 'Jelajahi jaringan VeInvite publik di tampilan Jaringan yang sama. Koneksi privat tetap disembunyikan.',
-      discoverable: 'Tampilkan di daftar publik',
-      discoverableNote: 'Tampilkan jaringan Anda di daftar jaringan publik.',
-      privateBranchesHidden: 'Koneksi privat tetap disembunyikan',
     },
     hub: {
       maintenanceTitle: 'Jaringan sedang disiapkan',
@@ -307,10 +243,6 @@ const NETWORK_NATIVE_REVIEW: Record<SupportedLocale, NetworkNativeReviewPatch> =
   vi: {
     canary: { hintView: 'Nhấn và giữ một người để chỉnh sửa · kéo màn hình để di chuyển · chụm hai ngón tay để phóng to hoặc thu nhỏ' },
     explore: {
-      exploreDescription: 'Khám phá các mạng VeInvite công khai ngay trong cùng màn hình Mạng lưới. Các kết nối riêng tư vẫn được ẩn.',
-      discoverable: 'Hiển thị trong danh sách công khai',
-      discoverableNote: 'Hiển thị mạng lưới của bạn trong danh sách mạng công khai.',
-      privateBranchesHidden: 'Các kết nối riêng tư vẫn được ẩn',
     },
     hub: {
       maintenanceTitle: 'Mạng lưới đang được chuẩn bị',
@@ -324,10 +256,6 @@ const NETWORK_NATIVE_REVIEW: Record<SupportedLocale, NetworkNativeReviewPatch> =
   'zh-tw': {
     canary: { hintView: '長按成員進行編輯 · 拖動畫面移動 · 雙指縮放' },
     explore: {
-      exploreDescription: '在同一個網路畫面中瀏覽公開的 VeInvite 網路。私人連結不會顯示。',
-      discoverable: '顯示於公開清單',
-      discoverableNote: '將你的網路顯示於公開網路清單中。',
-      privateBranchesHidden: '私人連結不會顯示',
     },
     hub: {
       maintenanceTitle: '網路功能正在準備中',
@@ -341,10 +269,6 @@ const NETWORK_NATIVE_REVIEW: Record<SupportedLocale, NetworkNativeReviewPatch> =
   sv: {
     canary: { hintView: 'Tryck och håll på en person för att redigera · dra skärmen för att flytta · nyp med två fingrar för att zooma' },
     explore: {
-      exploreDescription: 'Utforska offentliga VeInvite-nätverk i samma nätverksvy. Privata anslutningar förblir dolda.',
-      discoverable: 'Visa i den offentliga listan',
-      discoverableNote: 'Visa ditt nätverk i listan över offentliga nätverk.',
-      privateBranchesHidden: 'Privata anslutningar förblir dolda',
     },
     hub: {
       maintenanceTitle: 'Nätverket förbereds',
@@ -358,10 +282,6 @@ const NETWORK_NATIVE_REVIEW: Record<SupportedLocale, NetworkNativeReviewPatch> =
   ro: {
     canary: { hintView: 'Ține apăsat pe o persoană pentru editare · trage ecranul pentru deplasare · folosește două degete pentru zoom' },
     explore: {
-      exploreDescription: 'Explorează rețele VeInvite publice în aceeași vizualizare a rețelei. Conexiunile private rămân ascunse.',
-      discoverable: 'Afișează în lista publică',
-      discoverableNote: 'Afișează rețeaua ta în lista rețelelor publice.',
-      privateBranchesHidden: 'Conexiunile private rămân ascunse',
     },
     hub: {
       maintenanceTitle: 'Rețeaua este în pregătire',
@@ -375,10 +295,6 @@ const NETWORK_NATIVE_REVIEW: Record<SupportedLocale, NetworkNativeReviewPatch> =
   ur: {
     canary: { hintView: 'ترمیم کے لیے کسی شخص کو دبا کر رکھیں · اسکرین گھسیٹ کر حرکت کریں · دو انگلیوں سے زوم کریں' },
     explore: {
-      exploreDescription: 'اسی نیٹ ورک اسکرین میں عوامی VeInvite نیٹ ورکس دیکھیں۔ نجی روابط پوشیدہ رہیں گے۔',
-      discoverable: 'عوامی فہرست میں دکھائیں',
-      discoverableNote: 'اپنے نیٹ ورک کو عوامی نیٹ ورک فہرست میں دکھائیں۔',
-      privateBranchesHidden: 'نجی روابط پوشیدہ رہیں گے',
     },
     hub: {
       maintenanceTitle: 'نیٹ ورک تیار کیا جا رہا ہے',
@@ -392,10 +308,6 @@ const NETWORK_NATIVE_REVIEW: Record<SupportedLocale, NetworkNativeReviewPatch> =
   pcm: {
     canary: { hintView: 'Press and hold person to edit · drag screen move around · pinch to zoom' },
     explore: {
-      exploreDescription: 'Check public VeInvite networks for the same Network screen. Private connections no go show.',
-      discoverable: 'Show for public list',
-      discoverableNote: 'Make your network show for public network list.',
-      privateBranchesHidden: 'Private connections no go show',
     },
     hub: {
       maintenanceTitle: 'Network dey prepare',
@@ -409,10 +321,6 @@ const NETWORK_NATIVE_REVIEW: Record<SupportedLocale, NetworkNativeReviewPatch> =
   arz: {
     canary: { hintView: 'دوس ضغطة مطوّلة على الشخص عشان تعدّله · اسحب الشاشة عشان تتحرك · قرّب وبعّد بإصبعين' },
     explore: {
-      exploreDescription: 'اتفرّج على شبكات VeInvite العامة في نفس شاشة الشبكة. الاتصالات الخاصة هتفضل مخفية.',
-      discoverable: 'اظهر في القائمة العامة',
-      discoverableNote: 'يخلّي شبكتك تظهر في قائمة الشبكات العامة.',
-      privateBranchesHidden: 'الاتصالات الخاصة هتفضل مخفية',
     },
     hub: {
       maintenanceTitle: 'الشبكة بتتجهز',
@@ -426,10 +334,6 @@ const NETWORK_NATIVE_REVIEW: Record<SupportedLocale, NetworkNativeReviewPatch> =
   mr: {
     canary: { hintView: 'संपादित करण्यासाठी व्यक्तीवर दाबून ठेवा · हलण्यासाठी स्क्रीन ओढा · दोन बोटांनी झूम करा' },
     explore: {
-      exploreDescription: 'याच नेटवर्क स्क्रीनवर सार्वजनिक VeInvite नेटवर्क पाहा. खाजगी जोडण्या लपलेल्या राहतील.',
-      discoverable: 'सार्वजनिक यादीत दाखवा',
-      discoverableNote: 'तुमचे नेटवर्क सार्वजनिक नेटवर्कच्या यादीत दाखवा.',
-      privateBranchesHidden: 'खाजगी जोडण्या लपलेल्या राहतील',
     },
     hub: {
       maintenanceTitle: 'नेटवर्क तयार केले जात आहे',
@@ -443,10 +347,6 @@ const NETWORK_NATIVE_REVIEW: Record<SupportedLocale, NetworkNativeReviewPatch> =
   te: {
     canary: { hintView: 'సవరించడానికి వ్యక్తిని నొక్కి పట్టుకోండి · కదలడానికి స్క్రీన్‌ను లాగండి · రెండు వేళ్లతో జూమ్ చేయండి' },
     explore: {
-      exploreDescription: 'అదే నెట్‌వర్క్ స్క్రీన్‌లో బహిరంగ VeInvite నెట్‌వర్క్‌లను చూడండి. గోప్య అనుసంధానాలు కనిపించవు.',
-      discoverable: 'బహిరంగ జాబితాలో చూపించండి',
-      discoverableNote: 'మీ నెట్‌వర్క్‌ను బహిరంగ నెట్‌వర్క్‌ల జాబితాలో చూపిస్తుంది.',
-      privateBranchesHidden: 'గోప్య అనుసంధానాలు కనిపించవు',
     },
     hub: {
       maintenanceTitle: 'నెట్‌వర్క్ సిద్ధం అవుతోంది',
@@ -460,10 +360,6 @@ const NETWORK_NATIVE_REVIEW: Record<SupportedLocale, NetworkNativeReviewPatch> =
   sw: {
     canary: { hintView: 'Bonyeza na ushikilie mtu ili kuhariri · buruta skrini ili kusogea · tumia vidole viwili kukuza au kupunguza' },
     explore: {
-      exploreDescription: 'Vinjari mitandao ya VeInvite iliyo wazi kwenye mwonekano huo huo wa Mtandao. Miunganisho ya faragha hubaki imefichwa.',
-      discoverable: 'Onyesha kwenye orodha ya umma',
-      discoverableNote: 'Onyesha mtandao wako kwenye orodha ya mitandao ya umma.',
-      privateBranchesHidden: 'Miunganisho ya faragha hubaki imefichwa',
     },
     hub: {
       maintenanceTitle: 'Mtandao unaandaliwa',
@@ -477,10 +373,6 @@ const NETWORK_NATIVE_REVIEW: Record<SupportedLocale, NetworkNativeReviewPatch> =
   ha: {
     canary: { hintView: 'Danna ka riƙe mutum don gyarawa · ja allon don motsawa · ƙara ko rage girma da yatsu biyu' },
     explore: {
-      exploreDescription: 'Duba cibiyoyin VeInvite na jama’a a wannan allon cibiyar sadarwa. Haɗin sirri ba za su bayyana ba.',
-      discoverable: 'Nuna a jerin jama’a',
-      discoverableNote: 'Nuna cibiyar sadarwarka a jerin cibiyoyin jama’a.',
-      privateBranchesHidden: 'Haɗin sirri ba za su bayyana ba',
     },
     hub: {
       maintenanceTitle: 'Ana shirya cibiyar sadarwa',
@@ -494,10 +386,6 @@ const NETWORK_NATIVE_REVIEW: Record<SupportedLocale, NetworkNativeReviewPatch> =
   el: {
     canary: { hintView: 'Πατήστε παρατεταμένα ένα άτομο για επεξεργασία · σύρετε την οθόνη για μετακίνηση · κάντε ζουμ με δύο δάχτυλα' },
     explore: {
-      exploreDescription: 'Εξερευνήστε δημόσια δίκτυα VeInvite στην ίδια προβολή Δικτύου. Οι ιδιωτικές συνδέσεις παραμένουν κρυφές.',
-      discoverable: 'Εμφάνιση στη δημόσια λίστα',
-      discoverableNote: 'Εμφανίζει το δίκτυό σας στη λίστα δημόσιων δικτύων.',
-      privateBranchesHidden: 'Οι ιδιωτικές συνδέσεις παραμένουν κρυφές',
     },
     hub: {
       maintenanceTitle: 'Το δίκτυο προετοιμάζεται',
@@ -510,7 +398,6 @@ const NETWORK_NATIVE_REVIEW: Record<SupportedLocale, NetworkNativeReviewPatch> =
   },
   cs: {
     canary: { hintView: 'Podrž člověka pro úpravy · táhni obrazovku · sevřením prstů měň přiblížení' },
-    explore: { exploreDescription: 'Procházej veřejné sítě VeInvite ve stejném zobrazení sítě. Soukromá spojení zůstávají skrytá.', discoverable: 'Zobrazit ve veřejném seznamu', discoverableNote: 'Zobraz svou síť v seznamu veřejných sítí.', privateBranchesHidden: 'Soukromá spojení zůstávají skrytá' },
     hub: { maintenanceTitle: 'Síť se připravuje', maintenanceDescription: 'Nové prostředí sítě připravujeme bezpečně. Zkus to prosím znovu za chvíli.', visibilityLoading: 'Kontrolujeme nastavení veřejné sítě…', visibilityUnknown: 'Nastavení veřejné sítě se nepodařilo ověřit. Zkus to znovu.', publicConfirm: 'Zapnout veřejnou síť? Ostatní uvidí adresu tvé peněženky a cesty pozvánek, které se rozhodneš zveřejnit. Informace o misích, odměnách a zabezpečení zůstanou soukromé.' },
     network: { title: 'Tvoje síť bude brzy dostupná' },
   },
