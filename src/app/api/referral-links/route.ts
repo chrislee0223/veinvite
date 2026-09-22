@@ -8,6 +8,8 @@ import {
 } from '@/lib/referralLinks';
 import { normalizeAddress } from '@/lib/serverStore';
 import { supabaseAdmin } from '@/lib/supabaseServer';
+import { loadActiveSybilV2Restriction } from '@/lib/sybil/v2/restrictions';
+import { getVeBetterNetwork } from '@/lib/vebetter/network';
 import {
   requireWalletSession,
   WalletAuthenticationError,
@@ -169,6 +171,21 @@ export async function GET(request: NextRequest) {
   if (owner.response || !owner.wallet) return owner.response!;
 
   try {
+    const network = getVeBetterNetwork();
+    const restriction = await loadActiveSybilV2Restriction({
+      walletAddress: owner.wallet,
+      network,
+    });
+    if (restriction) {
+      return NextResponse.json(
+        {
+          error: 'This wallet is restricted from VeInvite participation.',
+          outcome: 'wallet_restricted',
+        },
+        { status: 403, headers: { 'Cache-Control': 'no-store' } },
+      );
+    }
+
     const [link, slotsAvailable] = await Promise.all([
       loadActiveReferralLink(owner.wallet),
       loadSlotsAvailable(owner.wallet),
@@ -199,6 +216,21 @@ export async function POST(request: NextRequest) {
   if (owner.response || !owner.wallet) return owner.response!;
 
   try {
+    const network = getVeBetterNetwork();
+    const restriction = await loadActiveSybilV2Restriction({
+      walletAddress: owner.wallet,
+      network,
+    });
+    if (restriction) {
+      return NextResponse.json(
+        {
+          error: 'This wallet is restricted from VeInvite participation.',
+          outcome: 'wallet_restricted',
+        },
+        { status: 403, headers: { 'Cache-Control': 'no-store' } },
+      );
+    }
+
     // Home uses this endpoint as an idempotent "ensure link" operation. Reading
     // an already-existing permanent link must not consume the creation-rate
     // budget merely because the user reopened or refreshed the app.
