@@ -82,7 +82,7 @@ type PublicEdge = {
   active: boolean;
 };
 
-const PUBLIC_SESSION_PREFIX = 'veinvite-network-public-v2:';
+const PUBLIC_SESSION_PREFIX = 'veinvite-network-public-v3:';
 const PUBLIC_SESSION_TTL_MS = 30 * 60_000;
 const PLANE_W = 2600;
 const PLANE_H = 2200;
@@ -376,6 +376,7 @@ function PublicNetworkCanvas({
   const [explorerParent, setExplorerParent] = useState<string | null>(null);
   const [explorerPage, setExplorerPage] = useState(0);
   const [branchError, setBranchError] = useState(false);
+  const [searchOpen, setSearchOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [searchState, setSearchState] = useState<
     'idle' | 'loading' | 'found' | 'not-found' | 'error'
@@ -403,8 +404,8 @@ function PublicNetworkCanvas({
       ? searchDomainAddress
       : null;
   const cachedDomainSuggestions = useMemo(
-    () => readCachedLeaderboardDomainSuggestions(normalizedSearch),
-    [normalizedSearch],
+    () => searchOpen ? readCachedLeaderboardDomainSuggestions(normalizedSearch) : [],
+    [searchOpen, normalizedSearch],
   );
 
   const putCache = useCallback((data: PublicNetworkData) => {
@@ -489,7 +490,7 @@ function PublicNetworkCanvas({
   }, [loadRoot]);
 
   useEffect(() => {
-    if (state !== 'ready' || normalizedSearch.length < 3) {
+    if (!searchOpen || state !== 'ready' || normalizedSearch.length < 3) {
       setSearchState('idle');
       setSearchMatch(null);
       return;
@@ -551,6 +552,7 @@ function PublicNetworkCanvas({
       controller.abort();
     };
   }, [
+    searchOpen,
     state,
     normalizedSearch,
     domainSearchInput,
@@ -639,7 +641,7 @@ function PublicNetworkCanvas({
     const startY = startDepth > 0 ? ROOT_Y + 24 : ROOT_Y;
     positions.set(startWallet, { x: CENTER_X, y: startY, depth: startDepth });
     visuals.push({ wallet: startWallet, parentWallet: startDepth > 0 ? activePath[startDepth - 1] ?? null : null, x: CENTER_X, y: startY, depth: startDepth, root: startDepth === 0, member: startDepth === 0 ? null : memberByWallet.get(startWallet) ?? null });
-    const maxVisible = isMobile ? 5 : 7;
+    const maxVisible = data.children.length;
 
     for (let depth = startDepth; depth < activePath.length; depth += 1) {
       const parentWallet = activePath[depth];
