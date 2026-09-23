@@ -97,3 +97,17 @@ test('pre-enforcement Claim-ready rewards are grandfathered in monitoring', asyn
     /sybil_v2_enforcement_changed_at/u,
   );
 });
+
+
+test('wallet restrictions remain non-authoritative in shadow mode', async () => {
+  const source = await readFile(
+    'src/lib/sybil/v2/restrictions.ts',
+    'utf8',
+  );
+
+  assert.match(source, /isSybilV2EnforcementEnabled/u);
+  assert.match(
+    source,
+    /if \(!\(await isSybilV2EnforcementEnabled\(\)\)\) \{\s*return null;/u,
+  );
+});
