@@ -5,6 +5,7 @@ import { useEffect, useRef } from 'react';
 import { INELIGIBLE_INVITER_COPY } from '@/lib/i18n/ineligibleInviterCopy';
 import { NOTIFICATION_COPY } from '@/lib/i18n/notificationCopy';
 import { NOTIFICATION_V2_COPY } from '@/lib/i18n/notificationV2Copy';
+import { SECURITY_NOTIFICATION_COPY } from '@/lib/i18n/securityNotificationCopy';
 import {
   isRtlLocale,
   type Locale,
@@ -43,6 +44,7 @@ function statusText(
   const v2 = NOTIFICATION_V2_COPY[locale];
   const ineligible = INELIGIBLE_INVITER_COPY[locale] ??
     INELIGIBLE_INVITER_COPY.en;
+  const security = SECURITY_NOTIFICATION_COPY[locale];
 
   switch (notification.kind) {
     case 'INVITE_ACCEPTED':
@@ -93,6 +95,18 @@ function statusText(
         body: ineligible.body,
         hint: null,
       };
+    case 'SECURITY_REVIEW_STARTED':
+      return {
+        title: security.reviewTitle,
+        body: security.reviewBody,
+        hint: null,
+      };
+    case 'SECURITY_RESTRICTION_CONFIRMED':
+      return {
+        title: security.restrictionTitle,
+        body: security.restrictionBody,
+        hint: null,
+      };
   }
 }
 
@@ -118,6 +132,12 @@ function shortStatus(
   }
   if (notification.kind === 'INVITE_ACCEPTED') {
     return NOTIFICATION_COPY[locale].acceptedTitle;
+  }
+  if (notification.kind === 'SECURITY_REVIEW_STARTED') {
+    return SECURITY_NOTIFICATION_COPY[locale].reviewTitle;
+  }
+  if (notification.kind === 'SECURITY_RESTRICTION_CONFIRMED') {
+    return SECURITY_NOTIFICATION_COPY[locale].restrictionTitle;
   }
   return (INELIGIBLE_INVITER_COPY[locale] ?? INELIGIBLE_INVITER_COPY.en).title;
 }
