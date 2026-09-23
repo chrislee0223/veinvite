@@ -493,7 +493,7 @@ export async function recordPostPayoutSybilV2Observation(
       observationOnly: true,
     },
     dedupeKey:
-      `sybil-v2:${snapshot.inviteCode}:post-payout:complete:${snapshot.receiptId}`,
+      `sybil-v2:${snapshot.inviteCode}:post-payout:complete:${snapshot.receiptId}:${snapshot.scanToBlock}`,
   });
 
   return {
