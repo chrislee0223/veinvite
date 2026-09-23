@@ -111,3 +111,22 @@ test('wallet restrictions remain non-authoritative in shadow mode', async () => 
     /if \(!\(await isSybilV2EnforcementEnabled\(\)\)\) \{\s*return null;/u,
   );
 });
+
+
+test('reward reservation queue is non-blocking in shadow mode', async () => {
+  const source = await readFile(
+    'src/app/api/queues/reward-reservation/route.ts',
+    'utf8',
+  );
+
+  assert.match(source, /isSybilV2EnforcementEnabled/u);
+  assert.match(source, /if \(sybilV2Enforced\) \{/u);
+  assert.match(
+    source,
+    /Shadow mode records\/retries analysis but must never block the legacy/u,
+  );
+  assert.match(
+    source,
+    /await reserveEligibleReferralRewards\(\)/u,
+  );
+});
