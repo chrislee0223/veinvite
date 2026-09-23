@@ -53,7 +53,10 @@ test('other-user Network stays read-only while matching My Network chrome', () =
   assert.match(publicExplorer, /className="networkUtilityRow"/);
   assert.match(publicExplorer, /className="otherNetworkBadge"/);
   assert.match(publicExplorer, /className="publicControls topControls"/);
-  assert.match(publicExplorer, /onClick=\{onBackToMine \?\? onBack\}>◎<\/button>/);
+  assert.match(publicExplorer, /onClick=\{returnToViewedRoot\}>◎<\/button>/);
+  assert.match(publicExplorer, /const returnToViewedRoot = useCallback/);
+  assert.match(publicExplorer, /void activate\(root, 0, 'back'\)/);
+  assert.doesNotMatch(publicExplorer, /onClick=\{onBackToMine \?\? onBack\}>◎<\/button>/);
   assert.match(publicExplorer, /searchOpen \? \(/);
   assert.doesNotMatch(publicExplorer, /className="publicSummary"|className="backMine"|className="publicCluster"/);
   assert.doesNotMatch(publicExplorer, /thisRound|publicSummary|backMine|publicCluster/);
@@ -68,6 +71,30 @@ test('other-user Network stays read-only while matching My Network chrome', () =
   assert.match(publicExplorer, /className=\{\`breadcrumbs\$\{activePath\.length === 1 \? ' rootOnly' : ''\}\`\}/);
   assert.match(publicExplorer, /const breadcrumbStart = Math\.max\(0, activePath\.length - 4\)/);
   assert.doesNotMatch(publicExplorer, /className="publicPath"|\.publicPath\{/);
+  assert.match(publicExplorer, /function publicEdgePath\(x1: number, y1: number, x2: number, y2: number\)/);
+  assert.match(publicExplorer, /Math\.min\(58, Math\.abs\(dx\) \* 0\.16\)/);
+  assert.match(network, /function edgePath\(x1: number, y1: number, x2: number, y2: number\)/);
+  assert.match(network, /Math\.min\(58, Math\.abs\(dx\) \* 0\.16\)/);
+  assert.match(publicExplorer, /d=\{publicEdgePath\(edge\.x1, edge\.y1, edge\.x2, edge\.y2\)\}/);
+  assert.match(publicExplorer, /const factor = direction > 0 \? 1\.16 : 0\.86/);
+  assert.match(publicExplorer, /zoomAt\([\s\S]*stageSize\.width \/ 2[\s\S]*stageSize\.height \/ 2/);
+  assert.match(publicExplorer, /if \(searchOpen\) closeSearch\(\)/);
+  assert.match(publicExplorer, /if \(suppressClickRef\.current\) return/);
+  assert.match(publicExplorer, /setSelected\(null\); if \(searchOpen\) closeSearch\(\)/);
+  assert.match(publicExplorer, /event\.deltaY < 0 \? 1\.09 : 0\.91/);
+  assert.match(network, /event\.deltaY < 0 \? 1\.09 : 0\.91/);
+  assert.match(publicExplorer, /WHEEL_ENTER_DISTANCE = 120/);
+  assert.match(network, /WHEEL_ENTER_DISTANCE = 120/);
+  assert.match(publicExplorer, /NODE_ENTER_SCALE = 1\.85/);
+  assert.match(network, /NODE_ENTER_SCALE = 1\.85/);
+  assert.match(publicExplorer, /pinchEnterIntentRef/);
+  assert.match(publicExplorer, /pinchReturnIntentRef/);
+  assert.match(publicExplorer, /gesturestart/);
+  assert.match(publicExplorer, /gesturechange/);
+  assert.match(publicExplorer, /gestureend/);
+  assert.match(publicExplorer, /viewByFocusRef/);
+  assert.match(publicExplorer, /returnViewByChildRef/);
+  assert.doesNotMatch(publicExplorer, /sessionStorage|PUBLIC_SESSION_PREFIX|readSavedState|clearSavedState/);
 });
 
 test('Network search resolves .vet domains and opens default-public read-only roots', () => {
@@ -91,7 +118,7 @@ test('public Network display remains mobile-width and keeps loading inside the c
   assert.match(publicExplorer, /loadingNetworkBadge/);
   assert.match(publicExplorer, /inlineNetworkLoading/);
   assert.doesNotMatch(publicExplorer, /e\.viewing|publicLoadingHeader/);
-  assert.match(publicExplorer, /PUBLIC_SESSION_PREFIX = 'veinvite-network-public-v3:'/);
+  assert.doesNotMatch(publicExplorer, /sessionStorage|PUBLIC_SESSION_PREFIX|readSavedState|clearSavedState/);
 });
 
 test('old Network privacy opt-in cannot return through current Settings, API, or copy layers', async () => {
