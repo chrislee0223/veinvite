@@ -133,7 +133,7 @@ returns trigger
 language plpgsql
 security definer
 set search_path = pg_catalog, public
-as $
+as $$
 begin
   if not public.sybil_v2_enforcement_enabled() then
     return new;
@@ -171,7 +171,7 @@ returns trigger
 language plpgsql
 security definer
 set search_path = pg_catalog, public
-as $
+as $$
 begin
   if not public.sybil_v2_enforcement_enabled() then
     return new;
