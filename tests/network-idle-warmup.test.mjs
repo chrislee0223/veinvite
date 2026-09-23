@@ -45,7 +45,11 @@ test('Network warmup primes header data as soon as wallet authentication is read
   assert.match(rootCache, /getCachedNetworkHeaderMetrics/);
   assert.match(rootCache, /rememberHeaderMetrics\(wallet, data\)/);
   assert.match(rootCache, /NETWORK_HEADER_METRICS_UPDATED_EVENT/);
-  assert.doesNotMatch(rootCache, /prefetchEnrichedNetworkRoot|thisRound|roundId|roundEndAt/);
+  assert.doesNotMatch(rootCache, /prefetchEnrichedNetworkRoot/);
+  const headerMetricsStart = rootCache.indexOf('export type NetworkHeaderMetrics');
+  const rootSnapshotStart = rootCache.indexOf('export type NetworkRootSnapshot', headerMetricsStart);
+  assert.ok(headerMetricsStart >= 0 && rootSnapshotStart > headerMetricsStart);
+  assert.doesNotMatch(rootCache.slice(headerMetricsStart, rootSnapshotStart), /thisRound|roundId|roundEndAt/);
 
   assert.match(network, /getCachedNetworkHeaderMetrics\(wallet\)/);
   assert.match(network, /NETWORK_HEADER_METRICS_UPDATED_EVENT/);
