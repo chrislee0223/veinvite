@@ -628,7 +628,7 @@ function PublicNetworkCanvas({
         cacheRef.current.set(key, parentPayload);
       }
       putCache(payload);
-      viewByFocusRef.current.set(keyWallet(focusWallet), view);
+      viewByFocusRef.current.set(keyWallet(activePath[activePath.length - 1] ?? root), view);
       returnViewByChildRef.current.set(keyWallet(payload.focusWallet), view);
       setActivePath(payload.breadcrumb.map(keyWallet));
       setSelected(null);
@@ -645,7 +645,7 @@ function PublicNetworkCanvas({
           : 'error',
       );
     }
-  }, [root, putCache, focusWallet, view, stageSize, closeSearch, bloom]);
+  }, [root, putCache, activePath, view, stageSize, closeSearch, bloom]);
 
 
   useEffect(() => {
