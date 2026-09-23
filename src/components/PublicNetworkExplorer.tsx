@@ -40,7 +40,6 @@ type PublicNetworkData = {
   summary: {
     network: number;
     direct: number;
-    thisRound: number | null;
     depth: number;
   };
   children: PublicChild[];
