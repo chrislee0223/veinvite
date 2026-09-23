@@ -774,29 +774,23 @@ function PublicNetworkCanvas({
   if (state === 'loading') {
     return (
       <section className="publicLoadingCanvas networkCard" aria-busy="true">
-        <header className="publicLoadingHeader" data-no-pan="true">
-          <div className="publicLoadingHeaderLeft">
-            <button type="button" className="backButton" onClick={onBack} aria-label={c.close}>‹</button>
-            <div>
-              <span>{e.viewing}</span>
-              <h1><PublicNodeLabel address={root} /></h1>
-            </div>
-          </div>
-        </header>
+        <div className="publicLoadingUtility" data-no-pan="true">
+          <span className="loadingNetworkBadge" title={rootWallet}>
+            <span aria-hidden="true">↗</span>
+            <PublicNodeLabel address={root} />
+          </span>
+        </div>
         <div className="publicLoadingStage">
-          <div className="inlineNetworkLoading" role="status" aria-label={e.viewing}>
+          <div className="inlineNetworkLoading" role="status" aria-label={e.visibleNetwork}>
             <i /><i /><i />
           </div>
         </div>
         <style jsx>{`
           .publicLoadingCanvas{width:min(100%,520px);height:100%;min-height:0;margin:0 auto;padding:0;box-sizing:border-box;display:flex;flex-direction:column;border:1px solid rgba(255,255,255,.06)!important;border-radius:18px;background:#090907!important;overflow:hidden}
-          .publicLoadingHeader{min-height:54px;padding:0 10px;display:flex;align-items:center}
-          .publicLoadingHeaderLeft{min-width:0;display:flex;align-items:center;gap:9px}
-          .backButton{flex:0 0 auto;width:36px;height:36px;border:1px solid rgba(255,255,255,.08);border-radius:11px;background:rgba(255,255,255,.03);color:#aaa398;font:inherit;font-size:1.25rem;cursor:pointer}
-          .publicLoadingHeaderLeft div{min-width:0}
-          .publicLoadingHeaderLeft span{color:#90702a;font-size:.52rem;font-weight:950;letter-spacing:.12em}
-          .publicLoadingHeaderLeft h1{max-width:220px;margin:2px 0 0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#ede9e0;font-size:.84rem}
-          .publicLoadingStage{position:relative;flex:1 1 auto;min-height:0;display:grid;place-items:center}
+          .publicLoadingUtility{min-height:40px;padding:4px 6px;box-sizing:border-box;display:flex;align-items:center;border-bottom:1px solid rgba(255,255,255,.05);background:rgba(11,11,9,.98)}
+          .loadingNetworkBadge{min-width:0;max-width:124px;height:20px;padding:0 6px;box-sizing:border-box;display:flex;align-items:center;gap:3px;border:1px solid rgba(244,183,40,.13);border-radius:7px;background:rgba(244,183,40,.035);color:#9c8242;font-size:.44rem;font-weight:850;overflow:hidden;white-space:nowrap}
+          .loadingNetworkBadge :global(*){min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+          .publicLoadingStage{position:relative;flex:1 1 auto;min-height:0;display:grid;place-items:center;background:radial-gradient(ellipse at 50% 50%,rgba(244,183,40,.036),transparent 36%),#080807}
           .inlineNetworkLoading{display:flex;align-items:center;justify-content:center;gap:5px;opacity:.66}
           .inlineNetworkLoading i{width:5px;height:5px;border-radius:50%;background:#a67e20;animation:publicLoadingDot 850ms ease-in-out infinite}
           .inlineNetworkLoading i:nth-child(2){animation-delay:120ms}
