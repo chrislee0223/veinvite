@@ -214,3 +214,39 @@ test('post-payout HOLDs and bridge delays are operator-monitoring alerts', async
     /SYBIL_V2_POST_PAYOUT_REVIEW_OVER_48H/u,
   );
 });
+
+
+test('automatic post-payout observation excludes historical paid rewards', async () => {
+  const sql = await readFile(
+    'supabase/migrations/20260923062000_gate_automatic_sybil_v2_post_payout_observation.sql',
+    'utf8',
+  );
+
+  assert.match(
+    sql,
+    /sybil_v2_automatic_observation_started_at/u,
+  );
+  assert.match(
+    sql,
+    /r\.sybil_v2_enforcement_enabled is true/u,
+  );
+  assert.match(
+    sql,
+    /s\.paid_at >= r\.sybil_v2_automatic_observation_started_at/u,
+  );
+  assert.match(
+    sql,
+    /Historical paid rewards are excluded for separate operator-controlled backfill/u,
+  );
+});
+
+test('Production explicitly opts into the B3TR observation worker', async () => {
+  const vercel = JSON.parse(
+    await readFile('vercel.json', 'utf8'),
+  );
+
+  assert.equal(
+    vercel.env?.SYBIL_B3TR_OBSERVATION_ENABLED,
+    'true',
+  );
+});
