@@ -668,9 +668,7 @@ function PublicNetworkCanvas({
       cancelNavigation();
       setActivePath(payload.breadcrumb.map(keyWallet));
       setSelected(keyWallet(payload.focusWallet));
-      
-      setSearchQuery('');
-      setSearchState('idle');
+      closeSearch();
       bloom(payload.focusWallet);
     } catch (error) {
       const code = (error as Error & { code?: string }).code;
@@ -679,7 +677,7 @@ function PublicNetworkCanvas({
           : 'error',
       );
     }
-  }, [root, putCache, cancelNavigation, bloom]);
+  }, [root, putCache, cancelNavigation, closeSearch, bloom]);
 
   useEffect(() => {
     if (state !== 'ready') return;
@@ -852,14 +850,17 @@ function PublicNetworkCanvas({
 
   const returnToViewedRoot = useCallback(() => {
     closeSearch();
-    setSelected(null);
     if (pending) return;
+    setSelected(null);
     if (keyWallet(focusWallet) !== root) {
-      void activate(root, 0);
+      cancelNavigation();
+      const cachedRoot = cacheRef.current.get(root);
+      setActivePath(cachedRoot?.breadcrumb.map(keyWallet) ?? [root]);
+      bloom(root);
       return;
     }
     centerViewedNetwork();
-  }, [closeSearch, pending, focusWallet, root, activate, centerViewedNetwork]);
+  }, [closeSearch, pending, focusWallet, root, cancelNavigation, bloom, centerViewedNetwork]);
 
   const zoomAt = useCallback((screenPoint: Point, nextScale: number) => {
     setView((current) => {
@@ -1064,10 +1065,7 @@ function PublicNetworkCanvas({
                     cancelNavigation();
                     setActivePath(searchMatch.path);
                     setSelected(searchMatch.wallet);
-                                  
-                    setSearchOpen(false);
-                    setSearchQuery('');
-                    setSearchState('idle');
+                    closeSearch();
                     bloom(searchMatch.wallet);
                   }}
                 >
