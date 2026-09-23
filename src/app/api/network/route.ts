@@ -112,29 +112,6 @@ function normalizeSearch(value: string | null): string {
     .slice(0, 42);
 }
 
-function withTimeout<T>(
-  promise: Promise<T>,
-  timeoutMs: number,
-  label: string,
-): Promise<T> {
-  return new Promise<T>((resolve, reject) => {
-    const timer = setTimeout(() => {
-      reject(new Error(`${label} timed out after ${timeoutMs}ms.`));
-    }, timeoutMs);
-
-    promise.then(
-      (value) => {
-        clearTimeout(timer);
-        resolve(value);
-      },
-      (error) => {
-        clearTimeout(timer);
-        reject(error);
-      },
-    );
-  });
-}
-
 export async function GET(request: NextRequest) {
   const walletParam = request.nextUrl.searchParams.get('wallet');
   if (!walletParam) {
@@ -197,7 +174,7 @@ export async function GET(request: NextRequest) {
   // other wallet. Only the server-side graph data is synthetic, so camera,
   // gestures, navigation and layout cannot diverge into a second UI version.
   if (await isNetworkCanaryWallet(rootWallet)) {
-    const payload = buildNetworkCanaryFixture(rootWallet, focusWallet, search, round);
+    const payload = buildNetworkCanaryFixture(rootWallet, focusWallet, search, null);
     if (payload.error === 'FOCUS_NOT_IN_NETWORK') {
       return networkError(
         'FOCUS_NOT_IN_NETWORK',
@@ -228,9 +205,9 @@ export async function GET(request: NextRequest) {
           p_root_wallet: rootWallet,
           p_focus_wallet: focusWallet,
           p_search: isSearch ? search : null,
-          p_round_id: round?.id ?? null,
-          p_round_start_at: round?.startAt ?? null,
-          p_round_end_at: round?.endAt ?? null,
+          p_round_id: null,
+          p_round_start_at: null,
+          p_round_end_at: null,
         },
       )
       .abortSignal(rpcController.signal);
