@@ -118,13 +118,16 @@ test('My Network and other-user read-only explorer stay isolated', () => {
   assert.match(hub, /<AppNetwork locale=\{locale\} \/>/i);
   assert.match(hub, /<PublicNetworkExplorer/i);
   assert.match(hub, /publicRootWallet/i);
-  assert.match(explorer, /PUBLIC_SESSION_PREFIX\s*=\s*'veinvite-network-public-v2:'/i);
+  assert.match(explorer, /PUBLIC_SESSION_PREFIX\s*=\s*'veinvite-network-public-v3:'/i);
   assert.match(explorer, /requestSerialRef/i);
   assert.match(explorer, /branchRequestRef/i);
   assert.match(explorer, /onPointerMove/i);
   assert.match(explorer, /pinchRef/i);
   assert.doesNotMatch(explorer, /moveWorkspaceMemberToGroup|beginLayoutEdit|groupBuilder/i);
   assert.doesNotMatch(explorer, /IN_PROGRESS|QUALIFIED|REWARDED|sybil/i);
+  assert.match(explorer, /className="networkUtilityRow"/i);
+  assert.match(explorer, /className="otherNetworkBadge"/i);
+  assert.doesNotMatch(explorer, /className="publicSummary"|className="backMine"|className="publicCluster"/i);
 });
 
 test('Network Explore and maintenance copy cover every supported locale', () => {
