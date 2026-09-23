@@ -26,14 +26,12 @@ type PublicNetworkPayload = {
   summary?: {
     network: number;
     direct: number;
-    thisRound: number | null;
     depth: number;
   };
   children?: Array<{
     wallet: string;
     network: number;
     direct: number;
-    thisRound: number | null;
     depth: number;
   }>;
   depthLimitReached?: boolean;
