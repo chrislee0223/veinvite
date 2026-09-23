@@ -393,6 +393,27 @@ export async function recordPostPayoutSybilV2Observation(
     });
   }
 
+  // Completion marker is written last. If any bridge step above fails, the
+  // snapshot remains eligible for the recovery/backfill view and will retry.
+  await insertPostPayoutEvidence({
+    inviteCode: snapshot.inviteCode,
+    network: snapshot.network,
+    subjectWallet: recipientWallet,
+    signalCode: 'POST_PAYOUT_OBSERVATION_COMPLETE',
+    strength: 'INFO',
+    score: 0,
+    relatedWallet: null,
+    observedBlock: snapshot.scanToBlock,
+    evidence: {
+      receiptId: snapshot.receiptId,
+      payoutTxId: snapshot.payoutTxId,
+      scanToBlock: snapshot.scanToBlock,
+      observationOnly: true,
+    },
+    dedupeKey:
+      `sybil-v2:${snapshot.inviteCode}:post-payout:complete:${snapshot.receiptId}`,
+  });
+
   return {
     reviewOpened: review.opened,
     clusterRecipientCount:
