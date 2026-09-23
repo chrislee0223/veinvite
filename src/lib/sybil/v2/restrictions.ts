@@ -2,6 +2,7 @@ import 'server-only';
 
 import { supabaseAdmin } from '@/lib/supabaseServer';
 import type { VeBetterNetwork } from '@/lib/vebetter/network';
+import { isSybilV2EnforcementEnabled } from './rollout';
 
 const ADDRESS_PATTERN = /^0x[0-9a-f]{40}$/;
 
@@ -35,6 +36,11 @@ export async function loadActiveSybilV2Restriction({
   network: VeBetterNetwork;
 }): Promise<ActiveSybilV2Restriction | null> {
   const wallet = normalizeWallet(walletAddress);
+
+  if (!(await isSybilV2EnforcementEnabled())) {
+    return null;
+  }
+
   const [restrictionResult, holdResult] = await Promise.all([
     supabaseAdmin
       .from('sybil_v2_wallet_restrictions')
@@ -91,6 +97,10 @@ export async function anyActiveSybilV2Restriction({
 }): Promise<ActiveSybilV2Restriction | null> {
   const wallets = [...new Set(walletAddresses.map(normalizeWallet))];
   if (wallets.length === 0) return null;
+
+  if (!(await isSybilV2EnforcementEnabled())) {
+    return null;
+  }
 
   const [restrictionResult, holdResult] = await Promise.all([
     supabaseAdmin
