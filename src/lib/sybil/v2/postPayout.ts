@@ -30,6 +30,21 @@ type PostPayoutSnapshot = {
   indicators: PostPayoutIndicator[];
 };
 
+type PostPayoutBridgeCandidateRow = {
+  receipt_id: number | string;
+  invite_code: string;
+  network: string;
+  recipient_wallet: string;
+  payout_tx_id: string;
+  payout_block_number: number | string;
+  scan_to_block: number | string;
+  first_outbound_destination: string | null;
+  dominant_destination: string | null;
+  shared_destination_recipient_count: number | string;
+  known_protocol_destination: boolean;
+  indicators: unknown;
+};
+
 type ExistingEvidenceRow = {
   evidence_family: SybilV2EvidenceFamily;
   signal_code: string;
@@ -72,6 +87,73 @@ function safeScore(value: unknown): number {
   const parsed = Number(value);
   if (!Number.isFinite(parsed)) return 0;
   return Math.max(0, Math.min(100, Math.round(parsed)));
+}
+
+
+function safeNonNegativeInteger(
+  value: unknown,
+  label: string,
+): number {
+  const parsed =
+    typeof value === 'number'
+      ? value
+      : typeof value === 'string' && /^\d+$/u.test(value)
+        ? Number(value)
+        : Number.NaN;
+
+  if (
+    !Number.isSafeInteger(parsed) ||
+    parsed < 0
+  ) {
+    throw new Error(
+      `Post-payout Sybil v2 candidate has invalid ${label}.`,
+    );
+  }
+
+  return parsed;
+}
+
+function parseIndicators(
+  value: unknown,
+): PostPayoutIndicator[] {
+  if (!Array.isArray(value)) return [];
+
+  return value.flatMap((item) => {
+    if (
+      !item ||
+      typeof item !== 'object' ||
+      Array.isArray(item)
+    ) {
+      return [];
+    }
+
+    const record = item as Record<string, unknown>;
+    const code = typeof record.code === 'string'
+      ? record.code
+      : '';
+    const level = typeof record.level === 'string'
+      ? record.level
+      : '';
+    const message = typeof record.message === 'string'
+      ? record.message
+      : '';
+    const score = safeScore(record.score);
+
+    if (
+      !code ||
+      !['INFO', 'LOW', 'MEDIUM', 'HIGH'].includes(level)
+    ) {
+      return [];
+    }
+
+    return [{
+      code,
+      level:
+        level as PostPayoutIndicator['level'],
+      score,
+      message,
+    }];
+  });
 }
 
 async function insertPostPayoutEvidence({
@@ -418,5 +500,103 @@ export async function recordPostPayoutSybilV2Observation(
     reviewOpened: review.opened,
     clusterRecipientCount:
       snapshot.sharedDestinationRecipientCount,
+  };
+}
+
+
+export async function runPostPayoutSybilV2BridgeBatch(
+  limit = 10,
+): Promise<{
+  attempted: number;
+  completed: number;
+  failed: number;
+  reviewsOpened: number;
+}> {
+  const bounded = Math.max(
+    1,
+    Math.min(25, Math.trunc(limit)),
+  );
+
+  const { data, error } = await supabaseAdmin
+    .from('operator_sybil_v2_post_payout_candidates')
+    .select(
+      'receipt_id,invite_code,network,recipient_wallet,payout_tx_id,payout_block_number,scan_to_block,first_outbound_destination,dominant_destination,shared_destination_recipient_count,known_protocol_destination,indicators',
+    )
+    .order('receipt_id', { ascending: true })
+    .limit(bounded);
+
+  if (error) {
+    throw new Error(
+      `Post-payout Sybil v2 bridge candidates could not be loaded: ${error.message}`,
+    );
+  }
+
+  const rows =
+    (data ?? []) as PostPayoutBridgeCandidateRow[];
+  let completed = 0;
+  let failed = 0;
+  let reviewsOpened = 0;
+
+  for (const row of rows) {
+    try {
+      const result =
+        await recordPostPayoutSybilV2Observation({
+          receiptId: safeNonNegativeInteger(
+            row.receipt_id,
+            'receipt_id',
+          ),
+          inviteCode:
+            row.invite_code.trim().toUpperCase(),
+          network: row.network,
+          recipientWallet:
+            normalizeWallet(row.recipient_wallet),
+          payoutTxId: row.payout_tx_id.toLowerCase(),
+          payoutBlockNumber:
+            safeNonNegativeInteger(
+              row.payout_block_number,
+              'payout_block_number',
+            ),
+          scanToBlock:
+            safeNonNegativeInteger(
+              row.scan_to_block,
+              'scan_to_block',
+            ),
+          firstOutboundDestination:
+            row.first_outbound_destination
+              ? normalizeWallet(
+                  row.first_outbound_destination,
+                )
+              : null,
+          dominantDestination:
+            row.dominant_destination
+              ? normalizeWallet(
+                  row.dominant_destination,
+                )
+              : null,
+          sharedDestinationRecipientCount:
+            safeNonNegativeInteger(
+              row.shared_destination_recipient_count,
+              'shared_destination_recipient_count',
+            ),
+          knownProtocolDestination:
+            row.known_protocol_destination === true,
+          indicators:
+            parseIndicators(row.indicators),
+        });
+
+      completed += 1;
+      if (result.reviewOpened) {
+        reviewsOpened += 1;
+      }
+    } catch {
+      failed += 1;
+    }
+  }
+
+  return {
+    attempted: rows.length,
+    completed,
+    failed,
+    reviewsOpened,
   };
 }
