@@ -78,12 +78,13 @@ type PublicEdge = {
 const PUBLIC_SESSION_PREFIX = 'veinvite-network-public-v3:';
 const PUBLIC_SESSION_TTL_MS = 30 * 60_000;
 const PLANE_W = 2600;
-const PLANE_H = 2200;
+const PLANE_H = 1900;
 const CENTER_X = PLANE_W / 2;
-const ROOT_Y = 118;
-const LEVEL_GAP = 116;
-const MIN_SCALE = 0.7;
-const MAX_SCALE = 1.45;
+const ROOT_Y = 350;
+const MIN_SCALE = 0.32;
+const MAX_SCALE = 2.5;
+const READABLE_FIT_MIN = 0.46;
+const GOLDEN_ANGLE = Math.PI * (3 - Math.sqrt(5));
 
 function keyWallet(wallet: string): string {
   return wallet.toLowerCase();
@@ -117,6 +118,57 @@ function midpoint(a: Point, b: Point): Point {
 
 function pointDistance(a: Point, b: Point): number {
   return Math.hypot(a.x - b.x, a.y - b.y);
+}
+
+function stablePublicHash(value: string): number {
+  let hash = 2166136261;
+  for (let index = 0; index < value.length; index += 1) {
+    hash ^= value.charCodeAt(index);
+    hash = Math.imul(hash, 16777619);
+  }
+  return hash >>> 0;
+}
+
+function publicChildPoint(wallet: string, index: number, compact: boolean): Point {
+  const jitter = ((stablePublicHash(wallet) % 101) - 50) / 800;
+  const angle = -Math.PI / 2 + index * GOLDEN_ANGLE + jitter;
+  const radius = compact ? 118 + Math.sqrt(index) * 82 : 208 + Math.sqrt(index) * 128;
+  const yScale = compact ? 0.86 : 0.78;
+  return {
+    x: CENTER_X + Math.cos(angle) * radius,
+    y: ROOT_Y + Math.sin(angle) * radius * yScale + (compact ? 18 : 26),
+  };
+}
+
+function publicCenteredView(stage: { width: number; height: number }, scale = 1): View {
+  return {
+    x: stage.width / 2 - CENTER_X * scale,
+    y: Math.max(88, stage.height * 0.5) - ROOT_Y * scale,
+    scale,
+  };
+}
+
+function publicFittedView(stage: { width: number; height: number }, points: Point[]): View {
+  if (!points.length) return publicCenteredView(stage, 1);
+  const minX = Math.min(...points.map((point) => point.x));
+  const maxX = Math.max(...points.map((point) => point.x));
+  const minY = Math.min(...points.map((point) => point.y));
+  const maxY = Math.max(...points.map((point) => point.y));
+  const contentWidth = Math.max(220, maxX - minX + 190);
+  const contentHeight = Math.max(220, maxY - minY + 190);
+  const minimum = points.length < 16 ? READABLE_FIT_MIN : MIN_SCALE;
+  const scale = clamp(
+    Math.min(1, (stage.width - 34) / contentWidth, (stage.height - 50) / contentHeight),
+    minimum,
+    MAX_SCALE,
+  );
+  const centerX = (minX + maxX) / 2;
+  const centerY = (minY + maxY) / 2;
+  return {
+    x: stage.width / 2 - centerX * scale,
+    y: stage.height / 2 - centerY * scale,
+    scale,
+  };
 }
 
 function SearchGlyph() {
@@ -458,10 +510,10 @@ function PublicNetworkCanvas({
         } catch {
           clearSavedState(root);
           nextPath = [root];
-          setView({ x: 0, y: 28, scale: 1 });
+          setView(publicCenteredView(stageSize, 1));
         }
       } else {
-        setView({ x: 0, y: 28, scale: 1 });
+        setView(publicCenteredView(stageSize, 1));
       }
       if (signal?.aborted || serial !== requestSerialRef.current) return;
       setActivePath(nextPath);
@@ -587,7 +639,7 @@ function PublicNetworkCanvas({
       cancelNavigation();
       setActivePath(payload.breadcrumb.map(keyWallet));
       setSelected(keyWallet(payload.focusWallet));
-      setView({ x: 0, y: 28, scale: 1 });
+      setView(publicCenteredView(stageSize, 1));
       setSearchQuery('');
       setSearchState('idle');
       bloom(payload.focusWallet);
@@ -629,54 +681,97 @@ function PublicNetworkCanvas({
     return map;
   }, [cacheVersion]);
 
+  const focusWallet = activePath[activePath.length - 1] ?? root;
+  const focusData = cacheRef.current.get(focusWallet) ?? rootData;
+
   const layout = useMemo(() => {
     const visuals: PublicVisual[] = [];
     const edges: PublicEdge[] = [];
     const positions = new Map<string, { x: number; y: number; depth: number }>();
-    const startDepth = Math.max(0, activePath.length - (isMobile ? 4 : 5));
-    const startWallet = activePath[startDepth] ?? root;
-    const startY = startDepth > 0 ? ROOT_Y + 24 : ROOT_Y;
-    positions.set(startWallet, { x: CENTER_X, y: startY, depth: startDepth });
-    visuals.push({ wallet: startWallet, parentWallet: startDepth > 0 ? activePath[startDepth - 1] ?? null : null, x: CENTER_X, y: startY, depth: startDepth, root: startDepth === 0, member: startDepth === 0 ? null : memberByWallet.get(startWallet) ?? null });
-    const maxVisible = data.children.length;
-
-    for (let depth = startDepth; depth < activePath.length; depth += 1) {
-      const parentWallet = activePath[depth];
-      const parent = positions.get(parentWallet);
-      const data = cacheRef.current.get(parentWallet);
-      if (!parent || !data || data.children.length === 0) break;
-      const activeChild = activePath[depth + 1] ?? null;
-      let shown = data.children.slice(0, maxVisible);
-      if (activeChild && !shown.some((child) => keyWallet(child.wallet) === activeChild)) {
-        const activeMember = data.children.find((child) => keyWallet(child.wallet) === activeChild);
-        if (activeMember) shown = [...shown.slice(0, Math.max(0, maxVisible - 1)), activeMember];
-      }
-      const center = (shown.length - 1) / 2;
-      const step = parentWallet === root ? (isMobile ? 68 : 118) : (isMobile ? 62 : 84);
-      shown.forEach((child, index) => {
-        const offset = index - center;
-        const wallet = keyWallet(child.wallet);
-        const x = parent.x + offset * step;
-        const y = parent.y + LEVEL_GAP + Math.min(9, Math.abs(offset) * 3);
-        positions.set(wallet, { x, y, depth: depth + 1 });
-        if (!visuals.some((visual) => visual.wallet === wallet)) visuals.push({ wallet, parentWallet, x, y, depth: depth + 1, root: false, member: child });
-        edges.push({ key: `${parentWallet}->${wallet}`, x1: parent.x, y1: parent.y + 19, x2: x, y2: y - 19, active: activeChild === wallet });
-      });
+    if (!focusData) {
+      return { visuals, edges, positions, startDepth: Math.max(0, activePath.length - 1) };
     }
-    return { visuals, edges, positions, startDepth };
-  }, [activePath, isMobile, memberByWallet, cacheVersion, root]);
 
-  const activate = useCallback(async (targetWallet: string, parentDepth: number) => {
+    const focusKey = keyWallet(focusData.focusWallet);
+    positions.set(focusKey, { x: CENTER_X, y: ROOT_Y, depth: focusData.focusDepth });
+    visuals.push({
+      wallet: focusKey,
+      parentWallet: focusData.breadcrumb.length > 1
+        ? keyWallet(focusData.breadcrumb[focusData.breadcrumb.length - 2])
+        : null,
+      x: CENTER_X,
+      y: ROOT_Y,
+      depth: focusData.focusDepth,
+      root: true,
+      member: null,
+    });
+
+    focusData.children.forEach((child, index) => {
+      const wallet = keyWallet(child.wallet);
+      const point = publicChildPoint(wallet, index, isMobile);
+      positions.set(wallet, { x: point.x, y: point.y, depth: child.depth });
+      visuals.push({
+        wallet,
+        parentWallet: focusKey,
+        x: point.x,
+        y: point.y,
+        depth: child.depth,
+        root: false,
+        member: child,
+      });
+      edges.push({
+        key: focusKey + '->' + wallet,
+        x1: CENTER_X,
+        y1: ROOT_Y,
+        x2: point.x,
+        y2: point.y,
+        active: selected === wallet,
+      });
+    });
+
+    return {
+      visuals,
+      edges,
+      positions,
+      startDepth: Math.max(0, activePath.length - 1),
+    };
+  }, [activePath.length, focusData, isMobile, selected]);
+
+  const fitPublicNetwork = useCallback(() => {
+    if (stageSize.width <= 0 || stageSize.height <= 0) return;
+    const points = layout.visuals.map((visual) => ({ x: visual.x, y: visual.y }));
+    setView(publicFittedView(stageSize, points));
+  }, [stageSize, layout.visuals]);
+
+  useEffect(() => {
+    if (state !== 'ready' || !focusData || stageSize.width <= 0 || stageSize.height <= 0) return;
+    const reducedMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false;
+    setView(publicCenteredView(stageSize, 1));
+    if (reducedMotion) {
+      fitPublicNetwork();
+      return;
+    }
+    const timer = window.setTimeout(() => fitPublicNetwork(), 140);
+    return () => window.clearTimeout(timer);
+  }, [state, focusData?.focusWallet, stageSize.width, stageSize.height, fitPublicNetwork]);
+
+  const activate = useCallback(async (targetWallet: string, _parentDepth: number) => {
     const serial = cancelNavigation();
     const target = keyWallet(targetWallet);
     setSelected(target);
-    const nextPath = [...activePath.slice(0, parentDepth + 1), target];
     const member = memberByWallet.get(target);
+    const cached = cacheRef.current.get(target) ?? null;
 
-    if (!member || member.direct <= 0 || cacheRef.current.has(target)) {
+    if (cached) {
       if (serial !== requestSerialRef.current) return;
-      setActivePath(nextPath);
-      if (member?.direct) bloom(target);
+      setActivePath(cached.breadcrumb.map(keyWallet));
+      bloom(target);
+      return;
+    }
+
+    if (!member || member.direct <= 0) {
+      if (serial !== requestSerialRef.current) return;
+      setActivePath([...activePath, target]);
       return;
     }
 
@@ -687,7 +782,7 @@ function PublicNetworkCanvas({
       const data = await fetchPublicNetwork(root, target, controller.signal);
       if (controller.signal.aborted || serial !== requestSerialRef.current) return;
       putCache(data);
-      setActivePath(nextPath);
+      setActivePath(data.breadcrumb.map(keyWallet));
       bloom(target);
     } catch (error) {
       if (controller.signal.aborted || serial !== requestSerialRef.current) return;
@@ -737,7 +832,7 @@ function PublicNetworkCanvas({
       const previous = pinchRef.current;
       const rect = stageRef.current?.getBoundingClientRect();
       if (previous && previous.distance > 0 && rect) {
-        const px = center.x - rect.left - rect.width / 2;
+        const px = center.x - rect.left;
         const py = center.y - rect.top;
         setView((value) => {
           const nextScale = clamp(value.scale * (distance / previous.distance), MIN_SCALE, MAX_SCALE);
@@ -760,7 +855,7 @@ function PublicNetworkCanvas({
     event.preventDefault();
     const rect = stageRef.current?.getBoundingClientRect();
     if (!rect) return;
-    const px = event.clientX - rect.left - rect.width / 2;
+    const px = event.clientX - rect.left;
     const py = event.clientY - rect.top;
     const factor = event.deltaY < 0 ? 1.08 : 0.92;
     setView((value) => {
@@ -841,7 +936,7 @@ function PublicNetworkCanvas({
         </div>
         <div className="publicControls topControls" data-network-interactive="true">
           <button type="button" aria-label={e.backToMyNetwork} title={e.backToMyNetwork} onClick={onBackToMine ?? onBack}>◎</button>
-          <button type="button" aria-label={c.centerNetwork} title={c.centerNetwork} onClick={() => setView({ x: 0, y: 28, scale: 1 })}>⛶</button>
+          <button type="button" aria-label={c.centerNetwork} title={c.centerNetwork} onClick={fitPublicNetwork}>⛶</button>
           <button type="button" aria-label={c.zoomOut} title={c.zoomOut} onClick={() => setView((value) => ({ ...value, scale: clamp(value.scale - .1, MIN_SCALE, MAX_SCALE) }))}>−</button>
           <button type="button" aria-label={c.zoomIn} title={c.zoomIn} onClick={() => setView((value) => ({ ...value, scale: clamp(value.scale + .1, MIN_SCALE, MAX_SCALE) }))}>+</button>
         </div>
@@ -870,7 +965,7 @@ function PublicNetworkCanvas({
                     cancelNavigation();
                     setActivePath(searchMatch.path);
                     setSelected(searchMatch.wallet);
-                                  setView({ x: 0, y: 28, scale: 1 });
+                                  setView(publicCenteredView(stageSize, 1));
                     setSearchOpen(false);
                     setSearchQuery('');
                     setSearchState('idle');
@@ -907,8 +1002,8 @@ function PublicNetworkCanvas({
       <div ref={stageRef} className="publicStage" onPointerDown={onPointerDown} onPointerMove={onPointerMove} onPointerUp={onPointerEnd} onPointerCancel={onPointerEnd} onWheel={onWheel} onClick={(event) => { if ((event.target as HTMLElement).closest('[data-network-interactive="true"]')) return; if (dragDistanceRef.current > 6) return; setSelected(null); }}>
         <div className="publicAmbient" aria-hidden="true" />
         {layout.startDepth > 0 ? <div className="publicPath" data-no-pan="true" data-network-interactive="true"><span dir="ltr">{shortWallet(root)}</span><i>›</i><span>…</span><i>›</i><strong dir="ltr">{shortWallet(activePath[layout.startDepth])}</strong></div> : null}
-        <div className="publicWorld" style={{ width: PLANE_W, height: PLANE_H, marginLeft: -PLANE_W / 2, transform: `translate3d(${view.x}px,${view.y}px,0) scale(${view.scale})` }}>
-          <svg className="publicEdges" width={PLANE_W} height={PLANE_H} viewBox={`0 0 ${PLANE_W} ${PLANE_H}`} aria-hidden="true">{layout.edges.map((edge) => <line key={edge.key} className={edge.active ? 'active' : ''} x1={edge.x1} y1={edge.y1} x2={edge.x2} y2={edge.y2} />)}</svg>
+        <div className="publicWorld" style={{ width: PLANE_W, height: PLANE_H, transform: `translate3d(${view.x}px,${view.y}px,0) scale(${view.scale})`, transformOrigin: '0 0' }}>
+          <svg className="publicEdges" width={PLANE_W} height={PLANE_H} viewBox={`0 0 ${PLANE_W} ${PLANE_H}`} aria-hidden="true">{layout.edges.map((edge) => <path key={edge.key} className={edge.active ? 'active' : ''} d={`M ${edge.x1} ${edge.y1} C ${edge.x1} ${(edge.y1 + edge.y2) / 2}, ${edge.x2} ${(edge.y1 + edge.y2) / 2}, ${edge.x2} ${edge.y2}`} />)}</svg>
           {layout.visuals.map((visual) => {
             const member = visual.member;
             const data = cacheRef.current.get(visual.wallet);
@@ -928,7 +1023,7 @@ function PublicNetworkCanvas({
         .networkIdentity{min-width:0;flex:1 1 auto;display:flex;align-items:center;gap:6px;overflow:hidden}.summaryTotal{min-width:0;flex:0 0 auto;display:flex;align-items:baseline;gap:5px;white-space:nowrap}.summaryTotal span{color:#77736c;font-size:.48rem;font-weight:800}.summaryTotal strong{color:#f1ede4;font-size:.68rem;font-variant-numeric:tabular-nums}
         .otherNetworkBadge{min-width:0;max-width:112px;height:20px;padding:0 6px;box-sizing:border-box;display:flex;align-items:center;gap:3px;border:1px solid rgba(244,183,40,.13);border-radius:7px;background:rgba(244,183,40,.035);color:#9c8242;font-size:.44rem;font-weight:850;overflow:hidden;white-space:nowrap}.otherNetworkBadge>span:first-child{flex:0 0 auto}.otherNetworkBadge :global(*){min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
         .searchToggle{flex:0 0 auto;width:28px;height:29px;padding:0;display:grid;place-items:center;border:1px solid rgba(255,205,80,.13);border-radius:8px;background:rgba(18,18,15,.94);color:#a9a397;font:inherit;cursor:pointer}.searchToggle:hover,.searchToggle.active{border-color:rgba(244,183,40,.31);color:#e1bd5b;background:rgba(244,183,40,.055)}
-        .publicControls.topControls{position:static;z-index:auto;right:auto;bottom:auto;display:flex;align-items:center;gap:3px;flex:0 0 auto}.publicControls.topControls button{width:28px;height:29px;border:1px solid rgba(255,205,80,.13);border-radius:8px;background:rgba(18,18,15,.92);color:#bbb5aa;font:inherit;font-size:.68rem;font-weight:850;cursor:pointer}.publicControls.topControls button:hover{border-color:rgba(244,183,40,.28);color:#e4c36d}.publicCanvasHeader{min-height:54px;padding:0 10px;display:flex;align-items:center;justify-content:space-between;gap:14px}.publicHeaderLeft{min-width:0;display:flex;align-items:center;gap:9px}.backButton{flex:0 0 auto;width:36px;height:36px;border:1px solid rgba(255,255,255,.08);border-radius:11px;background:rgba(255,255,255,.03);color:#aaa398;font:inherit;font-size:1.25rem;cursor:pointer}.publicHeaderLeft div{min-width:0}.publicHeaderLeft span{color:#90702a;font-size:.52rem;font-weight:950;letter-spacing:.12em}.publicHeaderLeft h1{max-width:220px;margin:2px 0 0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#ede9e0;font-size:.84rem}.publicSummary{display:flex;align-items:baseline;gap:5px;color:#746f67;font-size:.52rem;white-space:nowrap}.publicSummary strong{color:#d2ccc1;font-size:.69rem}.publicSummary .growth{color:#dbaa36}.publicSummary i{width:1px;height:10px;margin:0 2px;background:rgba(255,255,255,.08)}.backMine{display:block;width:max-content;min-height:30px;margin:0 10px 4px;padding:0 10px;border:1px solid rgba(244,183,40,.13);border-radius:9px;background:rgba(244,183,40,.04);color:#9c8242;font:inherit;font-size:.56rem;font-weight:900;cursor:pointer}.publicSearchBar{position:relative;z-index:42;margin:0 8px 5px}.publicSearchBar>input{width:100%;height:34px;box-sizing:border-box;padding:0 10px;border:1px solid rgba(255,205,80,.12);border-radius:10px;background:#11110f;color:#d8d3ca;font:inherit;font-size:16px;outline:none}.publicSearchBar>input:focus{border-color:rgba(244,183,40,.34)}.publicSearchResult{position:absolute;z-index:50;top:38px;left:0;width:100%;box-sizing:border-box;padding:5px;border:1px solid rgba(255,205,80,.14);border-radius:11px;background:rgba(14,14,12,.985);box-shadow:0 16px 36px rgba(0,0,0,.42)}.publicSearchResult>span{display:block;padding:8px;color:#77736c;font-size:.56rem;text-align:center}.publicSearchResult>button{width:100%;min-height:38px;padding:0 10px;display:flex;align-items:center;justify-content:space-between;gap:8px;border:0;border-radius:8px;background:transparent;color:#ddd7cc;font:inherit;font-size:.62rem;font-weight:850;cursor:pointer}.domainSuggestionIdentity{min-width:0;display:grid;gap:1px;text-align:left}.domainSuggestionIdentity strong{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.domainSuggestionIdentity small{color:#77736c;font-size:.5rem;font-weight:700}.publicSearchResult>button:hover{background:rgba(244,183,40,.06)}.publicSearchResult i{font-style:normal;color:#9c8242}.publicStage{position:relative;flex:1 1 auto;min-height:0;height:auto;overflow:hidden;touch-action:none;user-select:none;cursor:grab}.publicStage:active{cursor:grabbing}.publicAmbient{position:absolute;left:50%;top:0;width:min(820px,92vw);height:410px;transform:translateX(-50%);background:radial-gradient(ellipse,rgba(244,183,40,.045),transparent 68%);pointer-events:none}.publicWorld{position:absolute;left:50%;top:0;transform-origin:50% 0;will-change:transform}.publicEdges{position:absolute;inset:0;pointer-events:none;overflow:visible}.publicEdges line{vector-effect:non-scaling-stroke;stroke:rgba(214,207,194,.12);stroke-width:1;stroke-linecap:round}.publicEdges line.active{stroke:rgba(226,183,72,.37)}.publicNode{position:absolute;transform:translate(-50%,-50%);font:inherit;cursor:pointer}.publicNode{z-index:5;width:96px;min-height:77px;padding:4px;border:0;background:transparent;color:#c4beb3;display:flex;flex-direction:column;align-items:center;gap:4px}.publicNode strong{max-width:88px;overflow:hidden;text-overflow:ellipsis;color:#8f887d;font-size:.5rem;font-weight:800}.publicNode small{color:#665f55;font-size:.46rem}.publicNode.active strong,.publicNode.selected strong{color:#c5b99d}.publicNode.selected .publicAvatar{box-shadow:0 0 0 4px rgba(244,183,40,.07),0 0 20px rgba(244,183,40,.12)}.publicNode.root .publicAvatar{width:39px;height:39px;border-color:rgba(244,183,40,.38);color:#d0a23b;background:#17140d;position:relative}.publicNode.root .publicAvatar::after{content:'';position:absolute;inset:-7px;border:1px solid rgba(244,183,40,.4);border-radius:50%;box-shadow:0 0 18px rgba(244,183,40,.055);animation:publicRootBreath 2.8s ease-in-out infinite;pointer-events:none}.publicNode.root strong{color:#bda35d}.publicAvatar{width:31px;height:31px;display:grid;place-items:center;border:1px solid rgba(203,188,155,.18);border-radius:50%;background:#151411;color:#887c64;box-shadow:0 5px 14px rgba(0,0,0,.22)}.publicNode.bloom{animation:publicBloom 620ms cubic-bezier(.16,1.04,.3,1) both}.publicPath{position:absolute;z-index:25;left:12px;top:7px;display:flex;align-items:center;gap:5px;padding:5px 8px;border:1px solid rgba(255,255,255,.06);border-radius:9px;background:rgba(14,14,12,.72);color:#756e63;font-size:.5rem}.publicPath strong{color:#aa9e88}.publicInspector{position:absolute;z-index:35;right:12px;top:66px;width:220px;padding:13px;border:1px solid rgba(255,205,80,.14);border-radius:16px;background:rgba(16,15,13,.94);box-shadow:0 18px 44px rgba(0,0,0,.34)}.publicInspector>div{display:grid;grid-template-columns:34px minmax(0,1fr) 28px;align-items:center;gap:8px}.inspectorAvatar{width:32px;height:32px;display:grid;place-items:center;border-radius:50%;background:rgba(244,183,40,.06);color:#a98638}.publicInspector strong{font-size:.66rem;overflow:hidden;text-overflow:ellipsis}.publicInspector>div button{width:28px;height:28px;border:0;background:transparent;color:#80796f;font:inherit;font-size:1rem;cursor:pointer}.publicInspector section{margin-top:11px;display:grid;grid-template-columns:1fr 1fr;gap:7px}.publicInspector section span{padding:8px;border-radius:10px;background:rgba(255,255,255,.025);color:#746d63;font-size:.48rem}.publicInspector section b{display:block;margin-bottom:2px;color:#d4cbb9;font-size:.7rem}.publicControls{position:absolute;z-index:30;right:12px;bottom:14px;display:flex;gap:5px}.publicControls button{width:36px;height:36px;border:1px solid rgba(255,255,255,.07);border-radius:11px;background:rgba(15,15,13,.78);color:#8f877a;font:inherit;font-size:.85rem;cursor:pointer}.pendingBranch{position:absolute;z-index:20;transform:translate(-50%,-50%);display:flex;gap:4px}.pendingBranch i{width:4px;height:4px;border-radius:50%;background:#a67e20;animation:publicDot 800ms ease-in-out infinite}.pendingBranch i:nth-child(2){animation-delay:110ms}.pendingBranch i:nth-child(3){animation-delay:220ms}.branchError{position:absolute;z-index:45;left:50%;bottom:14px;transform:translateX(-50%);display:flex;align-items:center;gap:8px;padding:7px 9px 7px 11px;border:1px solid rgba(255,160,120,.14);border-radius:10px;background:rgba(20,14,12,.9);color:#b98e7b;font-size:.52rem}.branchError button{width:24px;height:24px;border:0;background:transparent;color:#9b7768;cursor:pointer}.publicCanvasPage button:focus-visible,.publicExplorePage button:focus-visible{outline:2px solid rgba(255,205,80,.72);outline-offset:2px}@keyframes publicRootBreath{0%,100%{opacity:.45;transform:scale(.96)}50%{opacity:.92;transform:scale(1.06)}}@keyframes publicBloom{0%{opacity:0;transform:translate(-50%,-42%) scale(.72)}65%{opacity:1;transform:translate(-50%,-50%) scale(1.04)}100%{opacity:1;transform:translate(-50%,-50%) scale(1)}}@keyframes publicDot{0%,100%{opacity:.25}50%{opacity:1}}@media(max-width:700px){.publicSummary span{display:none}.publicInspector{left:12px;right:12px;top:auto;bottom:65px;width:auto}.publicControls{bottom:13px}.branchError{bottom:61px}}@media(prefers-reduced-motion:reduce){.publicNode.bloom,.publicNode.root .publicAvatar::after,.pendingBranch i{animation:none}.publicWorld{will-change:auto}}
+        .publicControls.topControls{position:static;z-index:auto;right:auto;bottom:auto;display:flex;align-items:center;gap:3px;flex:0 0 auto}.publicControls.topControls button{width:28px;height:29px;border:1px solid rgba(255,205,80,.13);border-radius:8px;background:rgba(18,18,15,.92);color:#bbb5aa;font:inherit;font-size:.68rem;font-weight:850;cursor:pointer}.publicControls.topControls button:hover{border-color:rgba(244,183,40,.28);color:#e4c36d}.publicCanvasHeader{min-height:54px;padding:0 10px;display:flex;align-items:center;justify-content:space-between;gap:14px}.publicHeaderLeft{min-width:0;display:flex;align-items:center;gap:9px}.backButton{flex:0 0 auto;width:36px;height:36px;border:1px solid rgba(255,255,255,.08);border-radius:11px;background:rgba(255,255,255,.03);color:#aaa398;font:inherit;font-size:1.25rem;cursor:pointer}.publicHeaderLeft div{min-width:0}.publicHeaderLeft span{color:#90702a;font-size:.52rem;font-weight:950;letter-spacing:.12em}.publicHeaderLeft h1{max-width:220px;margin:2px 0 0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#ede9e0;font-size:.84rem}.publicSummary{display:flex;align-items:baseline;gap:5px;color:#746f67;font-size:.52rem;white-space:nowrap}.publicSummary strong{color:#d2ccc1;font-size:.69rem}.publicSummary .growth{color:#dbaa36}.publicSummary i{width:1px;height:10px;margin:0 2px;background:rgba(255,255,255,.08)}.backMine{display:block;width:max-content;min-height:30px;margin:0 10px 4px;padding:0 10px;border:1px solid rgba(244,183,40,.13);border-radius:9px;background:rgba(244,183,40,.04);color:#9c8242;font:inherit;font-size:.56rem;font-weight:900;cursor:pointer}.publicSearchBar{position:relative;z-index:42;margin:0 8px 5px}.publicSearchBar>input{width:100%;height:34px;box-sizing:border-box;padding:0 10px;border:1px solid rgba(255,205,80,.12);border-radius:10px;background:#11110f;color:#d8d3ca;font:inherit;font-size:16px;outline:none}.publicSearchBar>input:focus{border-color:rgba(244,183,40,.34)}.publicSearchResult{position:absolute;z-index:50;top:38px;left:0;width:100%;box-sizing:border-box;padding:5px;border:1px solid rgba(255,205,80,.14);border-radius:11px;background:rgba(14,14,12,.985);box-shadow:0 16px 36px rgba(0,0,0,.42)}.publicSearchResult>span{display:block;padding:8px;color:#77736c;font-size:.56rem;text-align:center}.publicSearchResult>button{width:100%;min-height:38px;padding:0 10px;display:flex;align-items:center;justify-content:space-between;gap:8px;border:0;border-radius:8px;background:transparent;color:#ddd7cc;font:inherit;font-size:.62rem;font-weight:850;cursor:pointer}.domainSuggestionIdentity{min-width:0;display:grid;gap:1px;text-align:left}.domainSuggestionIdentity strong{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.domainSuggestionIdentity small{color:#77736c;font-size:.5rem;font-weight:700}.publicSearchResult>button:hover{background:rgba(244,183,40,.06)}.publicSearchResult i{font-style:normal;color:#9c8242}.publicStage{position:relative;flex:1 1 auto;min-height:0;height:auto;overflow:hidden;touch-action:none;user-select:none;cursor:grab}.publicStage:active{cursor:grabbing}.publicAmbient{position:absolute;left:50%;top:0;width:min(820px,92vw);height:410px;transform:translateX(-50%);background:radial-gradient(ellipse,rgba(244,183,40,.045),transparent 68%);pointer-events:none}.publicWorld{position:absolute;left:0;top:0;transform-origin:0 0;will-change:transform}.publicEdges{position:absolute;inset:0;pointer-events:none;overflow:visible}.publicEdges path{fill:none;vector-effect:non-scaling-stroke;stroke:rgba(176,145,73,.31);stroke-width:1.05;stroke-linecap:round}.publicEdges path.active{stroke:rgba(232,183,62,.48);stroke-width:1.2}.publicNode{position:absolute;transform:translate(-50%,-50%);font:inherit;cursor:pointer}.publicNode{z-index:5;width:52px;height:52px;padding:0;border:0;border-radius:50%;background:transparent;color:#c4beb3;display:block}.publicNode.root{width:74px;height:74px;z-index:8}.publicNode strong{position:absolute;left:50%;top:calc(100% + 6px);width:92px;transform:translateX(-50%);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#89837a;font-size:.46rem;font-weight:800}.publicNode small{position:absolute;left:50%;top:calc(100% + 20px);transform:translateX(-50%);color:#d8b958;font-size:.48rem;font-weight:900;white-space:nowrap}.publicNode.root strong{top:calc(100% + 7px);width:110px;color:#8b857c;font-size:.48rem}.publicNode.root small{top:calc(100% + 22px);color:#edc65c;font-size:.52rem}.publicNode.active strong,.publicNode.selected strong{color:#c5b99d}.publicNode.selected .publicAvatar{box-shadow:0 0 0 4px rgba(244,183,40,.07),0 0 20px rgba(244,183,40,.12)}.publicNode.root .publicAvatar{width:74px;height:74px;border-color:rgba(255,207,71,.82);color:#d0a23b;background:radial-gradient(circle at 50% 45%,rgb(24,21,13) 0%,rgb(13,13,11) 62%,rgb(13,13,11) 100%);position:relative}.publicNode.root .publicAvatar::after{content:'';position:absolute;inset:-7px;border:1px solid rgba(244,183,40,.4);border-radius:50%;box-shadow:0 0 18px rgba(244,183,40,.055);animation:publicRootBreath 2.8s ease-in-out infinite;pointer-events:none}.publicNode.root strong{color:#bda35d}.publicAvatar{position:absolute;inset:0;width:52px;height:52px;display:grid;place-items:center;border:1px solid rgba(210,174,65,.38);border-radius:50%;box-sizing:border-box;background:#0d0d0b;color:#887c64;box-shadow:0 0 22px rgba(244,183,40,.025)}.publicNode.bloom{animation:publicBloom 620ms cubic-bezier(.16,1.04,.3,1) both}.publicPath{position:absolute;z-index:25;left:12px;top:7px;display:flex;align-items:center;gap:5px;padding:5px 8px;border:1px solid rgba(255,255,255,.06);border-radius:9px;background:rgba(14,14,12,.72);color:#756e63;font-size:.5rem}.publicPath strong{color:#aa9e88}.publicInspector{position:absolute;z-index:35;right:12px;top:66px;width:220px;padding:13px;border:1px solid rgba(255,205,80,.14);border-radius:16px;background:rgba(16,15,13,.94);box-shadow:0 18px 44px rgba(0,0,0,.34)}.publicInspector>div{display:grid;grid-template-columns:34px minmax(0,1fr) 28px;align-items:center;gap:8px}.inspectorAvatar{width:32px;height:32px;display:grid;place-items:center;border-radius:50%;background:rgba(244,183,40,.06);color:#a98638}.publicInspector strong{font-size:.66rem;overflow:hidden;text-overflow:ellipsis}.publicInspector>div button{width:28px;height:28px;border:0;background:transparent;color:#80796f;font:inherit;font-size:1rem;cursor:pointer}.publicInspector section{margin-top:11px;display:grid;grid-template-columns:1fr 1fr;gap:7px}.publicInspector section span{padding:8px;border-radius:10px;background:rgba(255,255,255,.025);color:#746d63;font-size:.48rem}.publicInspector section b{display:block;margin-bottom:2px;color:#d4cbb9;font-size:.7rem}.publicControls{position:absolute;z-index:30;right:12px;bottom:14px;display:flex;gap:5px}.publicControls button{width:36px;height:36px;border:1px solid rgba(255,255,255,.07);border-radius:11px;background:rgba(15,15,13,.78);color:#8f877a;font:inherit;font-size:.85rem;cursor:pointer}.pendingBranch{position:absolute;z-index:20;transform:translate(-50%,-50%);display:flex;gap:4px}.pendingBranch i{width:4px;height:4px;border-radius:50%;background:#a67e20;animation:publicDot 800ms ease-in-out infinite}.pendingBranch i:nth-child(2){animation-delay:110ms}.pendingBranch i:nth-child(3){animation-delay:220ms}.branchError{position:absolute;z-index:45;left:50%;bottom:14px;transform:translateX(-50%);display:flex;align-items:center;gap:8px;padding:7px 9px 7px 11px;border:1px solid rgba(255,160,120,.14);border-radius:10px;background:rgba(20,14,12,.9);color:#b98e7b;font-size:.52rem}.branchError button{width:24px;height:24px;border:0;background:transparent;color:#9b7768;cursor:pointer}.publicCanvasPage button:focus-visible,.publicExplorePage button:focus-visible{outline:2px solid rgba(255,205,80,.72);outline-offset:2px}@keyframes publicRootBreath{0%,100%{opacity:.45;transform:scale(.96)}50%{opacity:.92;transform:scale(1.06)}}@keyframes publicBloom{0%{opacity:0;transform:translate(-50%,-42%) scale(.72)}65%{opacity:1;transform:translate(-50%,-50%) scale(1.04)}100%{opacity:1;transform:translate(-50%,-50%) scale(1)}}@keyframes publicDot{0%,100%{opacity:.25}50%{opacity:1}}@media(max-width:700px){.publicSummary span{display:none}.publicInspector{left:12px;right:12px;top:auto;bottom:65px;width:auto}.publicControls{bottom:13px}.branchError{bottom:61px}}@media(prefers-reduced-motion:reduce){.publicNode.bloom,.publicNode.root .publicAvatar::after,.pendingBranch i{animation:none}.publicWorld{will-change:auto}}
       `}</style>
     </section>
   );
