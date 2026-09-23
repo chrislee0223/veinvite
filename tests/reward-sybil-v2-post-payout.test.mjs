@@ -52,7 +52,7 @@ test('post-payout evidence can HOLD only with another independent strong family'
 
 test('post-payout blacklist cannot rewrite an already-paid reward', async () => {
   const sql = await readFile(
-    'supabase/migrations/20260923034500_add_sybil_v2_post_payout_reviews.sql',
+    'supabase/migrations/20260923035000_add_sybil_v2_post_payout_reviews.sql',
     'utf8',
   );
   const start = sql.indexOf(
