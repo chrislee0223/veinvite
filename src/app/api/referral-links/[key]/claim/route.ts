@@ -7,6 +7,9 @@ import {
 import { isReferralKey } from '@/lib/referralLinks';
 import { createCode, normalizeAddress } from '@/lib/serverStore';
 import { supabaseAdmin } from '@/lib/supabaseServer';
+import { enqueueSybilV2EvidenceCollection } from '@/lib/sybil/v2/evidenceQueue';
+import { anyActiveSybilV2Restriction } from '@/lib/sybil/v2/restrictions';
+import { getVeBetterNetwork } from '@/lib/vebetter/network';
 import {
   requireWalletSession,
   WalletAuthenticationError,
@@ -325,6 +328,34 @@ export async function POST(
   ]);
   if (rateLimitResponse) return rateLimitResponse;
 
+  try {
+    const restriction = await anyActiveSybilV2Restriction({
+      walletAddresses: [link.inviter_wallet, inviteeAddress],
+      network: getVeBetterNetwork(),
+    });
+    if (restriction) {
+      const reviewPending =
+        restriction.restriction_kind !== 'BLACKLIST';
+      return NextResponse.json(
+        {
+          outcome: 'wallet_restricted',
+          error: reviewPending
+            ? 'This referral is temporarily paused while an additional security review is in progress.'
+            : 'This referral cannot participate in VeInvite.',
+          restrictionKind: restriction.restriction_kind,
+          reviewPending,
+        },
+        { status: 403, headers: { 'Cache-Control': 'no-store' } },
+      );
+    }
+  } catch (restrictionError) {
+    console.error('Failed to verify Sybil v2 wallet restrictions:', restrictionError);
+    return NextResponse.json(
+      { outcome: 'security_check_failed' },
+      { status: 503, headers: { 'Retry-After': '10', 'Cache-Control': 'no-store' } },
+    );
+  }
+
   if (inviteeAddress === normalizeAddress(link.inviter_wallet)) {
     await recordAttempt({
       linkId: link.id,
@@ -473,6 +504,24 @@ export async function POST(
         if (!invite || !result.entry_class) {
           return NextResponse.json({ outcome: 'server_error' }, { status: 500 });
         }
+        try {
+          await enqueueSybilV2EvidenceCollection({
+            inviteCode: invite.code,
+            detectedAt: new Date().toISOString(),
+          });
+        } catch (queueError) {
+          // The referral is already durable. Queue delivery accelerates the
+          // activation-time historical scan; final assessment and cron both
+          // retry evidence collection before reward readiness.
+          console.error(
+            'Failed to queue Sybil v2 activation evidence collection:',
+            {
+              inviteCode: result.invite_code,
+              error: queueError,
+            },
+          );
+        }
+
         return NextResponse.json({
           outcome: 'claimed',
           invite,

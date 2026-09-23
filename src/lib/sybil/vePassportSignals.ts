@@ -355,8 +355,12 @@ export async function readVePassportSignalSnapshot(
 }
 
 /**
- * Re-check every currently queued referral against the shared VePassport
+ * Re-check only legacy queued referrals against the shared VePassport
  * signal/blacklist state immediately before a reward round is reserved.
+ *
+ * Sybil v2 rows already carry an immutable pre-Claim clearance. Re-checking
+ * them here would violate the Claim boundary by allowing a later signal to
+ * revoke a reward after AWAITING_CLAIM was exposed.
  *
  * Both the inviter (the B3TR recipient) and invitee (the mission actor) are
  * checked. A stricter decision on either party wins. Existing operator
@@ -377,10 +381,11 @@ export async function refreshQueuedReferralSignalChecks({
   const queueResult =
     await supabaseAdmin
       .from('reward_queue_entries')
-      .select('invite_code')
+      .select('invite_code, sybil_clearance_id')
       .eq('network', network)
       .eq('status', 'QUEUED')
-      .is('assigned_round_id', null);
+      .is('assigned_round_id', null)
+      .is('sybil_clearance_id', null);
 
   if (queueResult.error) {
     throw new Error(

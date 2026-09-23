@@ -14,6 +14,12 @@ import {
   type SybilStatus,
 } from '@/lib/sybil/risk';
 import {
+  ensureSybilV2ReadyForReward,
+} from '@/lib/sybil/v2/pipeline';
+import {
+  isSybilV2EnforcementEnabled,
+} from '@/lib/sybil/v2/rollout';
+import {
   getVeBetterActivityProgress,
   type QualifyingRewardEvent,
 } from '@/lib/vebetter/activity';
@@ -1042,21 +1048,67 @@ export async function syncInvitationEvidence(
     row.reward_status === 'ELIGIBLE';
 
   if (becameRewardEligible) {
+    let sybilV2Enforced = true;
+
     try {
-      await enqueueRewardReservationContinuation({
-        inviteCode: row.invite_code,
-        detectedAt: new Date().toISOString(),
-      });
-    } catch (queueError) {
-      // Eligibility is already durable. Queue delivery only accelerates
-      // finality-driven reservation; browser heartbeat and cron remain fallbacks.
-      console.error(
-        'Failed to queue reward reservation finality continuation:',
-        {
+      sybilV2Enforced =
+        await isSybilV2EnforcementEnabled();
+
+      const sybilV2 =
+        await ensureSybilV2ReadyForReward(
+          row.invite_code,
+        );
+
+      const v2Ready =
+        (sybilV2.state === 'CLEAR' ||
+          sybilV2.state === 'WATCH') &&
+        sybilV2.clearanceIssued;
+
+      if (!sybilV2Enforced || v2Ready) {
+        await enqueueRewardReservationContinuation({
           inviteCode: row.invite_code,
-          error: queueError,
-        },
-      );
+          detectedAt: new Date().toISOString(),
+        });
+      } else {
+        console.warn(
+          'Reward reservation withheld pending Sybil v2 clearance:',
+          {
+            inviteCode: row.invite_code,
+            state: sybilV2.state,
+            riskScore: sybilV2.riskScore,
+            reasonCodes: sybilV2.reasonCodes,
+          },
+        );
+      }
+    } catch (sybilV2Error) {
+      if (!sybilV2Enforced) {
+        // Shadow mode must never alter current reward UX. Analysis failures are
+        // observed and retried, while the legacy reservation flow continues.
+        try {
+          await enqueueRewardReservationContinuation({
+            inviteCode: row.invite_code,
+            detectedAt: new Date().toISOString(),
+          });
+        } catch (reservationError) {
+          console.error(
+            'Legacy reward reservation queue failed during Sybil v2 shadow mode:',
+            {
+              inviteCode: row.invite_code,
+              error: reservationError,
+            },
+          );
+        }
+      } else {
+        // Enforcement mode is fail-closed. Eligibility is durable, but reward
+        // readiness waits for a successful current v2 clearance.
+        console.error(
+          'Sybil v2 final assessment failed before reward reservation:',
+          {
+            inviteCode: row.invite_code,
+            error: sybilV2Error,
+          },
+        );
+      }
     }
   }
 

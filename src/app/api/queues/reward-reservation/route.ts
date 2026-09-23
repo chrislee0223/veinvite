@@ -7,6 +7,8 @@ import {
   reserveEligibleReferralRewards,
 } from '@/lib/rewards/rewardReservation';
 import { supabaseAdmin } from '@/lib/supabaseServer';
+import { ensureSybilV2ReadyForReward } from '@/lib/sybil/v2/pipeline';
+import { isSybilV2EnforcementEnabled } from '@/lib/sybil/v2/rollout';
 
 type ReservationQueueRow = {
   status: string;
@@ -108,6 +110,54 @@ const queueCallback = handleCallback(
       invitation.reward_status !== 'ELIGIBLE'
     ) {
       return;
+    }
+
+    const sybilV2Enforced =
+      await isSybilV2EnforcementEnabled();
+
+    try {
+      const sybilV2 =
+        await ensureSybilV2ReadyForReward(
+          message.inviteCode,
+        );
+
+      if (sybilV2Enforced) {
+        if (
+          sybilV2.state === 'HOLD' ||
+          sybilV2.state === 'RESTRICTED'
+        ) {
+          // A durable security review/restriction is not a transient Queue
+          // error once enforcement is live. Leave the reward unreserved until
+          // the operator explicitly clears it.
+          return;
+        }
+
+        if (
+          !(
+            (sybilV2.state === 'CLEAR' ||
+              sybilV2.state === 'WATCH') &&
+            sybilV2.clearanceIssued
+          )
+        ) {
+          throw new Error(
+            `Sybil v2 clearance is not ready for ${message.inviteCode}: ${sybilV2.state}`,
+          );
+        }
+      }
+    } catch (sybilV2Error) {
+      if (sybilV2Enforced) {
+        throw sybilV2Error;
+      }
+
+      // Shadow mode records/retries analysis but must never block the legacy
+      // reservation path because of v2 state or a transient v2 failure.
+      console.warn(
+        'Ignoring Sybil v2 reservation gate during shadow mode:',
+        {
+          inviteCode: message.inviteCode,
+          error: sybilV2Error,
+        },
+      );
     }
 
     const sweep =

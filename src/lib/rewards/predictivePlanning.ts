@@ -167,14 +167,43 @@ export async function readPredictiveRewardPlanning(input: {
     ? null
     : readPositiveIntegerString(record.rewardCohortRoundId, 'rewardCohortRoundId');
   const rawPipeline = readPipeline(record.pipeline);
-  const pipeline: RewardPipelineSnapshot = input.includePendingAcceptance === false
-    ? {
-        ...rawPipeline,
-        pendingAcceptanceCount: 0,
-      }
-    : rawPipeline;
   const latestAllocation = readAllocation(record.latestAllocation);
   const activeEpoch = readEpoch(record.activeEpoch);
+
+  let clearedQueuedEligibleCount = 0;
+  if (latestAllocation && rewardCohortRoundId) {
+    const { data: clearedCountData, error: clearedCountError } =
+      await supabaseAdmin.rpc(
+        'read_sybil_v2_cleared_unreserved_count',
+        {
+          p_network: input.network,
+          p_reward_cohort_round_id: rewardCohortRoundId,
+          p_allocation_receipt_id: latestAllocation.id,
+        },
+      );
+
+    if (clearedCountError) {
+      throw new Error(
+        `Sybil v2 cleared reward count could not be loaded: ${clearedCountError.message}`,
+      );
+    }
+
+    clearedQueuedEligibleCount = readCount(
+      clearedCountData,
+      'sybilV2ClearedQueuedEligibleCount',
+    );
+  }
+
+  const pipeline: RewardPipelineSnapshot = {
+    ...rawPipeline,
+    // Legacy reward_status=ELIGIBLE is no longer sufficient for pricing.
+    // Only the current CLEAR/WATCH assessment revision may dilute the fixed
+    // reservation amount offered to legitimate users.
+    queuedEligibleCount: clearedQueuedEligibleCount,
+    ...(input.includePendingAcceptance === false
+      ? { pendingAcceptanceCount: 0 }
+      : {}),
+  };
 
   let cohortReservedWei = readIntegerString(record.cohortReservedWei, 'cohortReservedWei');
   if (latestAllocation && rewardCohortRoundId) {

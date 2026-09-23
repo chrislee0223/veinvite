@@ -18,15 +18,20 @@ test('notification reward actions are live wallet-scoped state, not cached histo
     actionsRoute,
     /\.in\('status', \['AWAITING_CLAIM', 'QUEUED', 'ASSIGNED'\]\)/,
   );
-  assert.match(actionsRoute, /invitation\.status !== 'COMPLETED'/);
-  assert.match(actionsRoute, /invitation\.reward_status !== 'ELIGIBLE'/);
-  assert.match(actionsRoute, /invitation\.reward_eligible_at === null/);
-  assert.match(actionsRoute, /invitation\.sybil_status !== 'CLEAR'/);
-  assert.match(actionsRoute, /invitation\.sybil_checked_at === null/);
+  assert.match(actionsRoute, /sybil_v2_reward_clearances/);
   assert.match(
     actionsRoute,
-    /queue\.eligible_at !== invitation\.reward_eligible_at/,
+    /\.in\('verdict', \['CLEAR', 'WATCH'\]\)/,
   );
+  assert.match(
+    actionsRoute,
+    /v2Clearance\.invite_code === queue\.invite_code/,
+  );
+  assert.match(
+    actionsRoute,
+    /queue\.sybil_clearance_id === null[\s\S]*invitation\?\.status === 'COMPLETED'[\s\S]*invitation\.reward_status === 'ELIGIBLE'[\s\S]*invitation\.reward_eligible_at !== null[\s\S]*invitation\.sybil_status === 'CLEAR'[\s\S]*invitation\.sybil_checked_at !== null[\s\S]*queue\.eligible_at === invitation\.reward_eligible_at/,
+  );
+  assert.match(actionsRoute, /invitation\.reward_status === 'PAID'/);
   assert.match(actionsRoute, /'Cache-Control': 'no-store'/);
   assert.match(center, /fetch\('\/api\/notifications\/reward-actions'/);
   assert.doesNotMatch(center, /sessionStorage/);

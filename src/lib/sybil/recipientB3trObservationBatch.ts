@@ -41,6 +41,8 @@ export type B3trRecipientObservationBatchSummary = {
 };
 
 function observationEnabled() {
+  // Keep scheduled chain observation behind an explicit server-side opt-in.
+  // Production rollout enables this deliberately after code and DB validation.
   return process.env.SYBIL_B3TR_OBSERVATION_ENABLED === 'true';
 }
 
