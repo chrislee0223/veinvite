@@ -189,6 +189,13 @@ export async function GET(request: NextRequest) {
     );
   }
 
+  // Root slot availability is optional display metadata. Start it beside the
+  // graph read so it cannot add a second serial wait to first paint.
+  const availableSlotsPromise =
+    focusWallet === rootWallet
+      ? readPublicAvailableSlots(rootWallet)
+      : Promise.resolve<number | null>(null);
+
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), PUBLIC_NETWORK_RPC_TIMEOUT_MS);
 
@@ -231,7 +238,7 @@ export async function GET(request: NextRequest) {
   }
 
   if (focusWallet === rootWallet) {
-    const availableSlots = await readPublicAvailableSlots(rootWallet);
+    const availableSlots = await availableSlotsPromise;
     if (availableSlots !== null) {
       payload.availableSlots = availableSlots;
     }
