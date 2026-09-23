@@ -76,7 +76,7 @@ test('node profile stays compact, prefers cached VET identity, and keeps wallet 
   assert.match(networkIdentitySource, /readCachedLeaderboardDomain/);
   assert.match(networkIdentitySource, /rememberLeaderboardDomain/);
   assert.match(networkIdentitySource, /shouldLoad && displayDomain === undefined/);
-  assert.match(networkIdentitySource, /\(\) => readCachedLeaderboardDomain\(address\)/);
+  assert.match(networkIdentitySource, /\(\) => root \? undefined : readCachedLeaderboardDomain\(address\)/);
   assert.match(networkIdentitySource, /useVechainDomain\(\s*shouldResolveDomain \? address : undefined/);
   assert.match(networkIdentitySource, /getPicassoImage\(address\)/);
   assert.match(networkIdentitySource, /useGetAvatar\(domain\)/);
