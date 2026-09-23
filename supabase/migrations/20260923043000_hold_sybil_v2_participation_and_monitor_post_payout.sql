@@ -15,7 +15,8 @@ select
 from public.sybil_v2_referral_assessments a
 join public.invitations i
   on i.invite_code = a.invite_code
-where a.state = 'HOLD'
+where public.sybil_v2_enforcement_enabled()
+  and a.state = 'HOLD'
   and i.inviter_wallet is not null
 
 union all
@@ -32,7 +33,8 @@ select
 from public.sybil_v2_referral_assessments a
 join public.invitations i
   on i.invite_code = a.invite_code
-where a.state = 'HOLD'
+where public.sybil_v2_enforcement_enabled()
+  and a.state = 'HOLD'
   and i.invitee_wallet is not null
 
 union all
@@ -47,7 +49,8 @@ select
   r.invite_code as related_invite_code,
   r.updated_at as imposed_at
 from public.sybil_v2_post_payout_reviews r
-where r.state = 'HOLD';
+where public.sybil_v2_enforcement_enabled()
+  and r.state = 'HOLD';
 
 revoke all on public.operator_sybil_v2_temporary_participation_holds
   from public, anon, authenticated;
@@ -72,6 +75,18 @@ declare
   v_extra_alerts jsonb := '[]'::jsonb;
   v_extra_metrics jsonb := '{}'::jsonb;
 begin
+  if not public.sybil_v2_enforcement_enabled() then
+    new.metrics := coalesce(new.metrics,'{}'::jsonb) ||
+      jsonb_build_object(
+        'sybilV2PostPayout',
+        jsonb_build_object(
+          'mode','SHADOW',
+          'enforcementEnabled',false
+        )
+      );
+    return new;
+  end if;
+
   select count(*)::bigint
   into v_post_hold
   from public.sybil_v2_post_payout_reviews r
