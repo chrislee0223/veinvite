@@ -378,8 +378,10 @@ test('Network localized content stays bounded and RTL overlays adapt without mir
 
 
 test('Network first paint is immediate, warmed, and never swaps to a blocking loading card', () => {
-  assert.match(networkRouteSource, /fastInitial = request\.nextUrl\.searchParams\.get\('fast'\) === '1'/);
-  assert.match(networkRouteSource, /const round = fastInitial \? null : await readCurrentRoundContext\(\)/);
+  assert.doesNotMatch(networkRouteSource, /fastInitial|readCurrentRoundContext|readVeBetterRoundWindow/);
+  assert.match(networkRouteSource, /p_round_id:\s*null/);
+  assert.match(networkRouteSource, /p_round_start_at:\s*null/);
+  assert.match(networkRouteSource, /p_round_end_at:\s*null/);
   assert.match(networkSource, /if \(options\.fast\) params\.set\('fast', '1'\)/);
   assert.match(networkSource, /getCachedNetworkRoot\(wallet\)/);
   assert.match(networkSource, /provisionalNetworkData\(wallet\)/);
@@ -404,12 +406,12 @@ test('canary test data is server-only and never creates a second frontend runtim
 
 test('only allowlisted canary wallets receive the synthetic graph and normal wallets keep the real RPC path', () => {
   assert.match(networkRouteSource, /isNetworkCanaryWallet\(rootWallet\)/);
-  assert.match(networkRouteSource, /buildNetworkCanaryFixture\(rootWallet, focusWallet, search, round\)/);
+  assert.match(networkRouteSource, /buildNetworkCanaryFixture\(rootWallet, focusWallet, search, null\)/);
   assert.match(networkSummaryRouteSource, /isNetworkCanaryWallet\(walletAddress\)/);
   assert.match(networkSummaryRouteSource, /getNetworkCanarySummary\(\)/);
 
   const canaryCheck = networkRouteSource.indexOf('isNetworkCanaryWallet(rootWallet)');
-  const fixtureBuild = networkRouteSource.indexOf('buildNetworkCanaryFixture(rootWallet, focusWallet, search, round)');
+  const fixtureBuild = networkRouteSource.indexOf('buildNetworkCanaryFixture(rootWallet, focusWallet, search, null)');
   const realRpc = networkRouteSource.indexOf(".rpc(\n        'read_referral_network_focus_v2'");
   assert.ok(canaryCheck >= 0 && fixtureBuild > canaryCheck && realRpc > fixtureBuild);
 });
