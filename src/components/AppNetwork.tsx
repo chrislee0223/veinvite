@@ -1,7 +1,6 @@
 'use client';
 
 import {
-  memo,
   useCallback,
   useEffect,
   useMemo,
@@ -11,7 +10,7 @@ import {
   type PointerEvent as ReactPointerEvent,
   type WheelEvent as ReactWheelEvent,
 } from 'react';
-import { useGetAvatar, useVechainDomain } from '@vechain/vechain-kit';
+import { useVechainDomain } from '@vechain/vechain-kit';
 import { createPortal } from 'react-dom';
 
 import { NETWORK_CANARY_UI_COPY } from '@/lib/i18n/networkCanaryUiCopy';
@@ -34,11 +33,8 @@ import {
   type NetworkHeaderMetrics,
 } from '@/lib/networkRootClientCache';
 import {
-  formatCompactVechainDomain,
   formatVechainDomainLabel,
-  readCachedLeaderboardDomain,
   readCachedLeaderboardDomainSuggestions,
-  rememberLeaderboardDomain,
   type CachedLeaderboardDomainSuggestion,
 } from '@/lib/leaderboardDomainCache';
 import { getVeChainExplorerAddressUrl } from '@/lib/vechainExplorer';
@@ -63,6 +59,10 @@ import {
   type NetworkFocusWorkspace,
   type NetworkWorkspaceStore,
 } from '@/lib/networkWorkspace';
+import {
+  NetworkWalletIdentity,
+  NetworkWalletLabel,
+} from './NetworkWalletIdentity';
 import { useWalletLauncher } from './WalletControl';
 
 type MemberStatus = 'IN_PROGRESS' | 'QUALIFIED' | 'REWARDED';
@@ -443,178 +443,6 @@ function NetworkGlyph({ size = 32 }: { size?: number }) {
   );
 }
 
-function NeutralAvatar({ size = 34 }: { size?: number }) {
-  const glyphSize = size >= 40 ? 20 : 16;
-  return (
-    <span className="neutralAvatar" aria-hidden="true" style={{ width: size, height: size }}>
-      <svg width={glyphSize} height={glyphSize} viewBox="0 0 20 20" fill="none">
-        <circle cx="10" cy="6.1" r="2.7" fill="currentColor" />
-        <path d="M5 15.6c1.15-2.25 2.82-3.35 5-3.35s3.85 1.1 5 3.35" stroke="currentColor" strokeWidth="1.55" strokeLinecap="round" />
-      </svg>
-    </span>
-  );
-}
-
-const NetworkIdentity = memo(function NetworkIdentity({
-  address,
-  root = false,
-  showLabel = true,
-  size,
-}: {
-  address: string;
-  root?: boolean;
-  showLabel?: boolean;
-  size?: number;
-}) {
-  const hostRef = useRef<HTMLSpanElement | null>(null);
-  const [shouldLoad, setShouldLoad] = useState(root);
-  const [loaded, setLoaded] = useState(false);
-  const [broken, setBroken] = useState(false);
-  const [displayDomain, setDisplayDomain] = useState<string | null | undefined>(
-    () => readCachedLeaderboardDomain(address),
-  );
-  const shouldResolveDomain =
-    shouldLoad && displayDomain === undefined;
-  const { data: domainInfo, isLoading: domainLoading } = useVechainDomain(
-    shouldResolveDomain ? address : undefined,
-  );
-  const queriedDomain =
-    typeof domainInfo?.domain === 'string' && domainInfo.domain.trim()
-      ? domainInfo.domain.trim()
-      : null;
-  const resolvedDomain =
-    displayDomain !== undefined
-      ? displayDomain
-      : shouldResolveDomain && !domainLoading
-        ? queriedDomain
-        : null;
-  const domain = resolvedDomain ?? '';
-  const { data: avatarUrl } = useGetAvatar(domain);
-  const resolvedSize = size ?? (root ? 42 : 34);
-
-  useEffect(() => {
-    setDisplayDomain(readCachedLeaderboardDomain(address));
-    setShouldLoad(root);
-  }, [address, root]);
-
-  useEffect(() => {
-    const host = hostRef.current;
-    if (!host || shouldLoad) return;
-    if (typeof IntersectionObserver === 'undefined') {
-      setShouldLoad(true);
-      return;
-    }
-    const observer = new IntersectionObserver((entries) => {
-      if (entries.some((entry) => entry.isIntersecting)) {
-        setShouldLoad(true);
-        observer.disconnect();
-      }
-    }, { rootMargin: '120px' });
-    observer.observe(host);
-    return () => observer.disconnect();
-  }, [shouldLoad]);
-
-  useEffect(() => {
-    if (!shouldResolveDomain || domainLoading) return;
-    rememberLeaderboardDomain(address, queriedDomain);
-    setDisplayDomain(queriedDomain);
-  }, [
-    address,
-    domainLoading,
-    queriedDomain,
-    shouldResolveDomain,
-  ]);
-
-  useEffect(() => {
-    setLoaded(false);
-    setBroken(false);
-  }, [avatarUrl]);
-
-  return (
-    <span className="identity" ref={hostRef}>
-      <span className="avatarSlot" style={{ width: resolvedSize, height: resolvedSize }}>
-        <NeutralAvatar size={resolvedSize} />
-        {avatarUrl && !broken ? (
-          <img
-            src={avatarUrl}
-            alt=""
-            loading={root ? 'eager' : 'lazy'}
-            decoding="async"
-            referrerPolicy="no-referrer"
-            onLoad={() => setLoaded(true)}
-            onError={() => setBroken(true)}
-            style={{ width: resolvedSize, height: resolvedSize, opacity: loaded ? 1 : 0 }}
-          />
-        ) : null}
-      </span>
-      {showLabel ? (
-        <span
-          className="identityLabel"
-          dir={domain ? 'auto' : 'ltr'}
-          title={domain || address}
-        >
-          {domain || shortWallet(address)}
-        </span>
-      ) : null}
-    </span>
-  );
-});
-
-const NetworkNodeLabel = memo(function NetworkNodeLabel({
-  address,
-}: {
-  address: string;
-}) {
-  const [domainState, setDomainState] = useState<{
-    address: string;
-    domain: string | null | undefined;
-  }>(() => ({
-    address,
-    domain: readCachedLeaderboardDomain(address),
-  }));
-  const cachedDomain =
-    domainState.address === address
-      ? domainState.domain
-      : readCachedLeaderboardDomain(address);
-  const shouldResolveDomain = cachedDomain === undefined;
-  const { data: domainInfo, isLoading: domainLoading } = useVechainDomain(
-    shouldResolveDomain ? address : undefined,
-  );
-  const queriedDomain =
-    typeof domainInfo?.domain === 'string' && domainInfo.domain.trim()
-      ? domainInfo.domain.trim()
-      : null;
-  const resolvedDomain =
-    cachedDomain !== undefined
-      ? cachedDomain
-      : !domainLoading
-        ? queriedDomain
-        : null;
-
-  useEffect(() => {
-    setDomainState({
-      address,
-      domain: readCachedLeaderboardDomain(address),
-    });
-  }, [address]);
-
-  useEffect(() => {
-    if (!shouldResolveDomain || domainLoading) return;
-    rememberLeaderboardDomain(address, queriedDomain);
-    setDomainState((current) =>
-      current.address === address
-        ? { address, domain: queriedDomain }
-        : current
-    );
-  }, [
-    address,
-    domainLoading,
-    queriedDomain,
-    shouldResolveDomain,
-  ]);
-
-  return <>{formatCompactVechainDomain(resolvedDomain) || nodeWallet(address)}</>;
-});
 function goHomeWithoutReload() {
   const button = document.querySelector<HTMLButtonElement>('[data-veinvite-tab="home"]');
   if (button) {
@@ -3189,7 +3017,7 @@ export function AppNetwork({ locale }: { locale: Locale }) {
                     key={`${keyWallet(result.wallet)}:${result.depth}`}
                     onClick={() => focusSearchResult(result)}
                   >
-                    <strong><NetworkNodeLabel address={result.wallet} /></strong>
+                    <strong><NetworkWalletLabel address={result.wallet} /></strong>
                     <span>{c.branch} · {result.depth}</span>
                   </button>
                 )) : publicSearchWallet ? (
@@ -3197,7 +3025,7 @@ export function AppNetwork({ locale }: { locale: Locale }) {
                     type="button"
                     onClick={() => openPublicSearchResult(publicSearchWallet)}
                   >
-                    <strong><NetworkNodeLabel address={publicSearchWallet} /></strong>
+                    <strong><NetworkWalletLabel address={publicSearchWallet} /></strong>
                     <span>{e.visibleNetwork}</span>
                   </button>
                 ) : cachedDomainSuggestions.length ? cachedDomainSuggestions.map((suggestion) => (
@@ -3317,11 +3145,11 @@ export function AppNetwork({ locale }: { locale: Locale }) {
                 {focusIsRoot ? (
                   <span className="focusYouLabel">{c.you}</span>
                 ) : (
-                  <NetworkIdentity address={currentData.focusWallet} root showLabel={false} />
+                  <NetworkWalletIdentity address={currentData.focusWallet} root showLabel={false} />
                 )}
               </span>
               <span className="nodeMeta">
-                <strong><NetworkNodeLabel address={currentData.focusWallet} /></strong>
+                <strong><NetworkWalletLabel address={currentData.focusWallet} /></strong>
                 <span className="nodeNetworkMetric">
                   <NetworkCountGlyph />
                   <span>{currentData.summary.network.toLocaleString()}</span>
@@ -3370,9 +3198,9 @@ export function AppNetwork({ locale }: { locale: Locale }) {
                   data-no-pan="true"
                   data-workspace-draggable={editingLayout ? 'true' : undefined}
                 >
-                  <span className="nodeCircle"><NetworkIdentity address={child.wallet} showLabel={false} /></span>
+                  <span className="nodeCircle"><NetworkWalletIdentity address={child.wallet} showLabel={false} /></span>
                   <span className="nodeMeta">
-                    <strong><NetworkNodeLabel address={child.wallet} /></strong>
+                    <strong><NetworkWalletLabel address={child.wallet} /></strong>
                     {child.status === 'IN_PROGRESS' ? (
                       <small className="nodeProgressStatus">{t.inProgress}</small>
                     ) : (
@@ -3475,7 +3303,7 @@ export function AppNetwork({ locale }: { locale: Locale }) {
                 >
                   <span className="nodeCircle">
                     {slot.inviteeWallet ? (
-                      <NetworkIdentity address={slot.inviteeWallet} showLabel={false} />
+                      <NetworkWalletIdentity address={slot.inviteeWallet} showLabel={false} />
                     ) : (
                       <span className="pendingInviteGlyph" aria-hidden="true">…</span>
                     )}
@@ -3486,7 +3314,7 @@ export function AppNetwork({ locale }: { locale: Locale }) {
                         ? t.pendingAcceptance
                         : `${t.inProgress} · ${slot.completedSteps}/${slot.totalSteps}`}
                     </small>
-                    <strong>{slot.inviteeWallet ? <NetworkNodeLabel address={slot.inviteeWallet} /> : slotStatusLabel}</strong>
+                    <strong>{slot.inviteeWallet ? <NetworkWalletLabel address={slot.inviteeWallet} /> : slotStatusLabel}</strong>
                   </span>
                 </button>
               );
@@ -3515,7 +3343,7 @@ export function AppNetwork({ locale }: { locale: Locale }) {
           >
             <button className="profileClose" type="button" onClick={() => setSelectedWallet(null)} aria-label={c.close}>×</button>
             <div className="profileIdentity">
-              <NetworkIdentity address={selectedAddress} root size={34} />
+              <NetworkWalletIdentity address={selectedAddress} root size={34} />
             </div>
             <div className="profileAddress" dir="ltr" title={selectedAddress}>
               <span>{selectedAddress}</span>
@@ -3557,9 +3385,9 @@ export function AppNetwork({ locale }: { locale: Locale }) {
           style={{ transform: `translate3d(${dragGhost.x}px,${dragGhost.y}px,0) translate(-50%,-50%)` }}
           aria-hidden="true"
         >
-          <span className="nodeCircle"><NetworkIdentity address={dragGhost.wallet} showLabel={false} /></span>
+          <span className="nodeCircle"><NetworkWalletIdentity address={dragGhost.wallet} showLabel={false} /></span>
           <span className="nodeMeta">
-            <strong><NetworkNodeLabel address={dragGhost.wallet} /></strong>
+            <strong><NetworkWalletLabel address={dragGhost.wallet} /></strong>
             {dragGhostChild.status === 'IN_PROGRESS' ? (
               <small className="nodeProgressStatus">{t.inProgress}</small>
             ) : (
