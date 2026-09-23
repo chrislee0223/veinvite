@@ -353,7 +353,6 @@ export function PublicNetworkExplorer({
             ? onBack
             : () => setSelectedRoot(null)
         }
-        onBackToMine={hasWallet ? onBack : undefined}
       />
     );
   }
@@ -415,12 +414,10 @@ function PublicNetworkCanvas({
   locale,
   rootWallet,
   onBack,
-  onBackToMine,
 }: {
   locale: Locale;
   rootWallet: string;
   onBack: () => void;
-  onBackToMine?: () => void;
 }) {
   const e = NETWORK_EXPLORE_COPY[locale as SupportedLocale];
   const h = NETWORK_HUB_COPY[locale as SupportedLocale];
