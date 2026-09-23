@@ -10,7 +10,9 @@ export type InviteNotificationKindV2 =
   | 'VOT3_CONVERTED'
   | 'REWARD_READY'
   | 'REWARD_PAID'
-  | 'INVITE_INELIGIBLE';
+  | 'INVITE_INELIGIBLE'
+  | 'SECURITY_REVIEW_STARTED'
+  | 'SECURITY_RESTRICTION_CONFIRMED';
 
 export type RewardReadyEvidence = {
   invite_code: string;
