@@ -43,11 +43,23 @@ test('Network gesture hardening preserves native editing and intentional address
   );
   assert.match(
     publicNetwork,
-    /\.profileAddress span\{[^}]*user-select:text[^}]*-webkit-user-select:text/,
+    /\.profileAddress span\{[^}]*user-select:text[^}]*-webkit-user-select:text[^}]*-webkit-touch-callout:default/,
   );
   assert.match(
     myNetwork,
-    /\.profileAddress\{[^}]*user-select:text[^}]*-webkit-user-select:text/,
+    /\.searchField input\{[^}]*user-select:text[^}]*-webkit-user-select:text[^}]*-webkit-touch-callout:default/,
+  );
+  assert.match(
+    myNetwork,
+    /\.groupManageTitleInput\{[^}]*user-select:text[^}]*-webkit-user-select:text[^}]*-webkit-touch-callout:default/,
+  );
+  assert.match(
+    myNetwork,
+    /\.groupBuilder>input\{[^}]*user-select:text[^}]*-webkit-user-select:text[^}]*-webkit-touch-callout:default/,
+  );
+  assert.match(
+    myNetwork,
+    /\.profileAddress\{[^}]*user-select:text[^}]*-webkit-user-select:text[^}]*-webkit-touch-callout:default/,
   );
 });
 
