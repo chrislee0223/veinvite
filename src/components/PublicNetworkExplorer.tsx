@@ -458,6 +458,7 @@ function PublicNetworkCanvas({
   const viewByFocusRef = useRef(new Map<string, View>());
   const returnViewByChildRef = useRef(new Map<string, View>());
   const introRootRef = useRef<string | null>(null);
+  const introCancelledRef = useRef(false);
   const dragDistanceRef = useRef(0);
   const [cacheVersion, setCacheVersion] = useState(0);
   const [state, setState] = useState<'loading' | 'ready' | 'error'>('loading');
@@ -550,6 +551,7 @@ function PublicNetworkCanvas({
     viewByFocusRef.current.clear();
     returnViewByChildRef.current.clear();
     introRootRef.current = null;
+    introCancelledRef.current = false;
     if (introFitTimerRef.current !== null) {
       window.clearTimeout(introFitTimerRef.current);
       introFitTimerRef.current = null;
@@ -849,6 +851,7 @@ function PublicNetworkCanvas({
   }, [stageSize]);
 
   const stopIntroForInteraction = useCallback(() => {
+    introCancelledRef.current = true;
     if (introFitTimerRef.current !== null) {
       window.clearTimeout(introFitTimerRef.current);
       introFitTimerRef.current = null;
@@ -902,10 +905,16 @@ function PublicNetworkCanvas({
 
   useEffect(() => {
     if (state !== 'ready' || !focusData || stageSize.width <= 0 || stageSize.height <= 0) return;
-    if (!stageStable) return;
+    if (!stageStable || introCancelledRef.current) return;
     if (keyWallet(focusData.focusWallet) !== root) return;
-    if (introRootRef.current === root) return;
-    introRootRef.current = root;
+
+    // The mobile shell can settle through more than one measured size.
+    // Re-center for each new stable viewport until the user interacts.
+    // After interaction, ResizeObserver must never overwrite their camera.
+    const introKey = `${root}:${stageSize.width}x${stageSize.height}`;
+    if (introRootRef.current === introKey) return;
+    introRootRef.current = introKey;
+
     const reducedMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false;
     setView(publicCenteredView(stageSize, 1));
     if (reducedMotion) {
@@ -914,6 +923,7 @@ function PublicNetworkCanvas({
     }
     introFitTimerRef.current = window.setTimeout(() => {
       introFitTimerRef.current = null;
+      if (introCancelledRef.current) return;
       fitViewedRootInPlace(true);
     }, 140);
     return () => {
