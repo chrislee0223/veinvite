@@ -54,7 +54,7 @@ export const NetworkWalletIdentity = memo(function NetworkWalletIdentity({
   const [loaded, setLoaded] = useState(false);
   const [broken, setBroken] = useState(false);
   const [displayDomain, setDisplayDomain] = useState<string | null | undefined>(
-    () => readCachedLeaderboardDomain(address),
+    () => root ? undefined : readCachedLeaderboardDomain(address),
   );
   const shouldResolveDomain = shouldLoad && displayDomain === undefined;
   const { data: domainInfo, isLoading: domainLoading } = useVechainDomain(
@@ -75,7 +75,9 @@ export const NetworkWalletIdentity = memo(function NetworkWalletIdentity({
   const resolvedSize = size ?? (root ? 42 : 34);
 
   useEffect(() => {
-    setDisplayDomain(readCachedLeaderboardDomain(address));
+    // Center/root identities are visually prominent, so refresh their VeWorld
+    // domain instead of trusting a stale positive/negative session cache entry.
+    setDisplayDomain(root ? undefined : readCachedLeaderboardDomain(address));
     setShouldLoad(root);
   }, [address, root]);
 

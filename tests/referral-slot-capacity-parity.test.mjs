@@ -2,10 +2,11 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import test from 'node:test';
 
-const [ownerApi, claimApi, legacyInviteApi] = await Promise.all([
+const [ownerApi, claimApi, legacyInviteApi, publicNetworkApi] = await Promise.all([
   readFile(new URL('../src/app/api/referral-links/route.ts', import.meta.url), 'utf8'),
   readFile(new URL('../src/app/api/referral-links/[key]/claim/route.ts', import.meta.url), 'utf8'),
   readFile(new URL('../src/app/api/invites/route.ts', import.meta.url), 'utf8'),
+  readFile(new URL('../src/app/api/network/public/route.ts', import.meta.url), 'utf8'),
 ]);
 
 function assertReservationAwareCapacity(source, label) {
@@ -50,4 +51,13 @@ test('legacy one-time creation treats an unreleased completed slot as active', (
     /invitation\.status === 'COMPLETED'[\s\S]*hasEntryProof\(invitation\)[\s\S]*invitation\.slot_released_at === null/i,
     'legacy invite creation must return a conflict while a completed slot is held for reward reservation',
   );
+});
+
+
+test('public Network empty-slot display keeps the same reservation-release capacity rule', () => {
+  assert.match(publicNetworkApi, /slot_released_at:\s*string\s*\|\s*null/i);
+  assert.match(publicNetworkApi, /PUBLIC_SLOT_ACTIVE_STATUSES[\s\S]*'COMPLETED'/i);
+  assert.match(publicNetworkApi, /return publicSlotHasEntryProof\(row\) && row\.slot_released_at === null/i);
+  assert.match(publicNetworkApi, /row\.sybil_status === 'BLOCKED'/i);
+  assert.match(publicNetworkApi, /\(\[1, 2\] as const\)\.filter\(\(slot\) => !occupied\.has\(slot\)\)/);
 });

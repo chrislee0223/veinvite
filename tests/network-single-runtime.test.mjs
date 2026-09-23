@@ -76,7 +76,7 @@ test('node profile stays compact, prefers cached VET identity, and keeps wallet 
   assert.match(networkIdentitySource, /readCachedLeaderboardDomain/);
   assert.match(networkIdentitySource, /rememberLeaderboardDomain/);
   assert.match(networkIdentitySource, /shouldLoad && displayDomain === undefined/);
-  assert.match(networkIdentitySource, /\(\) => readCachedLeaderboardDomain\(address\)/);
+  assert.match(networkIdentitySource, /\(\) => root \? undefined : readCachedLeaderboardDomain\(address\)/);
   assert.match(networkIdentitySource, /useVechainDomain\(\s*shouldResolveDomain \? address : undefined/);
   assert.match(networkIdentitySource, /getPicassoImage\(address\)/);
   assert.match(networkIdentitySource, /useGetAvatar\(domain\)/);
@@ -622,17 +622,18 @@ test('Network and Leaderboard share the same compact VET-domain display rule', (
 });
 
 
-test('root YOU identity lives inside the center node and the top return control stays icon-only', () => {
+test('root center identity uses the wallet avatar and one compact label while the top return control stays icon-only', () => {
   const focusStart = networkSource.indexOf('focusNode${selectedWallet');
   const childrenStart = networkSource.indexOf('{visibleChildren.map((child) => {', focusStart);
   assert.ok(focusStart >= 0 && childrenStart > focusStart);
   const focusMarkup = networkSource.slice(focusStart, childrenStart);
 
-  assert.match(focusMarkup, /focusIsRoot \? \([\s\S]*focusYouLabel[\s\S]*\{c\.you\}/);
-  assert.match(focusMarkup, /<span className="nodeMeta">[\s\S]*<strong><NetworkWalletLabel address=\{currentData\.focusWallet\} \/><\/strong>/);
-  assert.match(focusMarkup, /<NetworkCountGlyph \/>/);
-  assert.match(focusMarkup, /currentData\.summary\.network\.toLocaleString\(\)/);
-  assert.doesNotMatch(focusMarkup, /NetworkNodeIdentity/);
+  assert.match(focusMarkup, /<NetworkWalletIdentity[\s\S]*address=\{currentData\.focusWallet\}[\s\S]*root[\s\S]*showLabel=\{false\}[\s\S]*size=\{56\}/);
+  assert.match(focusMarkup, /nodeMeta\$\{focusIsRoot \? ' rootIdentityOnly' : ''\}/);
+  assert.match(focusMarkup, /<strong><NetworkWalletLabel address=\{currentData\.focusWallet\} \/><\/strong>/);
+  assert.match(focusMarkup, /!focusIsRoot \? \([\s\S]*<NetworkCountGlyph \/>[\s\S]*currentData\.summary\.network\.toLocaleString\(\)/);
+  assert.doesNotMatch(focusMarkup, /focusYouLabel|\{c\.you\}/);
+  assert.match(networkSource, /\.focusNode \.nodeMeta\.rootIdentityOnly\{top:calc\(100% \+ 8px\)\}/);
 
   const controlsStart = networkSource.indexOf('<div className="viewControls">');
   const fitStart = networkSource.indexOf('className="fitButton"', controlsStart);

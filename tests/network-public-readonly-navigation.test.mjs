@@ -197,7 +197,7 @@ test('old Network privacy opt-in cannot return through current Settings, API, or
   );
 });
 
-test('default-public reader stays graph-only except for aggregate invite-slot availability', () => {
+test('default-public reader stays graph-only while exposing only exact empty capacity-slot IDs', () => {
   assert.match(migration, /qualified_referral_network_edges/);
   assert.match(emptyRootMigration, /qualified_referral_network_edges/);
   assert.doesNotMatch(
@@ -208,12 +208,19 @@ test('default-public reader stays graph-only except for aggregate invite-slot av
     emptyRootMigration.includes("p.root_wallet ~ '^0x[0-9a-f]{40}$'"),
     'empty public Network roots must still require a valid VeChain address',
   );
-  assert.match(publicApi, /readPublicAvailableSlots/);
-  assert.match(publicApi, /availableSlots/);
+  assert.match(publicApi, /readPublicAvailableSlotIds/);
+  assert.match(publicApi, /availableSlotIds/);
+  assert.match(publicApi, /slotAvailabilityKnown/);
+  assert.match(publicApi, /readPublicAvailableSlotIds\(focusWallet\)/);
+  assert.match(publicApi, /\(\[1, 2\] as const\)\.filter/);
   assert.match(publicApi, /invitee identity\/progress/);
   assert.doesNotMatch(publicApi, /invitee_wallet|apps_completed|vot3_converted|vote_completed/);
-  assert.match(publicExplorer, /publicInviteSlotPoint/);
-  assert.match(publicExplorer, /className="publicSlotNode"/);
+  assert.match(publicExplorer, /publicInviteSlotPoint\(slot\)/);
+  assert.match(publicExplorer, /data-slot-id=\{slot\.slot\}/);
+  assert.match(publicExplorer, /className="publicSlotEdgeBase"/);
+  assert.match(publicExplorer, /className="publicSlotEdgePulse"/);
+  assert.match(publicExplorer, /@keyframes publicSlotFlow/);
+  assert.match(publicExplorer, /prefers-reduced-motion:reduce[\s\S]*publicSlotEdgePulse/);
   assert.match(publicExplorer, /pointer-events:none/);
 });
 
@@ -230,4 +237,36 @@ test('partial domain autocomplete reuses only domains already cached in the curr
   assert.match(publicExplorer, /focusCachedDomainSuggestion/);
   assert.match(publicExplorer, /fetchPublicNetwork\(\s*root,\s*suggestion\.wallet/);
   assert.doesNotMatch(domainCache, /fetch\(/);
+});
+
+
+test('public slot metadata follows the currently centered wallet and never turns unknown into a false zero', () => {
+  assert.match(publicApi, /const availableSlotIdsPromise = readPublicAvailableSlotIds\(focusWallet\)/);
+  assert.doesNotMatch(publicApi, /focusWallet === rootWallet[\s\S]*readPublicAvailableSlotIds/);
+  assert.match(publicApi, /payload\.slotAvailabilityKnown = availableSlotIds !== null/);
+  assert.match(publicExplorer, /data\.slotAvailabilityKnown === false[\s\S]*previous\?\.slotAvailabilityKnown === true/);
+  assert.match(publicExplorer, /slotRetryAttemptedRef/);
+  assert.match(publicExplorer, /slotRetryControllerRef/);
+  assert.match(publicExplorer, /fetchPublicNetwork\(root, focusKey, controller\.signal\)/);
+  assert.match(publicExplorer, /focusData\.slotAvailabilityKnown !== true/);
+});
+
+test('public available slots keep exact owner-side positions and stay read-only', () => {
+  assert.match(publicExplorer, /function publicInviteSlotPoint\(slot: 1 \| 2\)/);
+  assert.match(publicExplorer, /slot === 1[\s\S]*CENTER_X - 58[\s\S]*CENTER_X \+ 64/);
+  assert.match(publicExplorer, /publicEdgePath\(CENTER_X, ROOT_Y, slot\.x, slot\.y\)/);
+  assert.match(publicExplorer, /public-slot-edge:\$\{slot\.slot\}/);
+  assert.match(publicExplorer, /className="publicSlotNode"/);
+  assert.match(publicExplorer, /\.publicSlotNode\{[^}]*pointer-events:none/);
+});
+
+test('viewed root center de-duplicates the top-left network total', () => {
+  assert.match(publicExplorer, /const isViewedRoot = visual\.root && keyWallet\(focusWallet\) === root/);
+  assert.match(publicExplorer, /\{!isViewedRoot \? <small className="nodeNetworkMetric">/);
+  assert.match(publicExplorer, /rootIdentityOnly/);
+});
+
+test('prominent center identities bypass stale session-domain cache once per address', () => {
+  assert.match(networkIdentity, /\(\) => root \? undefined : readCachedLeaderboardDomain\(address\)/);
+  assert.match(networkIdentity, /setDisplayDomain\(root \? undefined : readCachedLeaderboardDomain\(address\)\)/);
 });

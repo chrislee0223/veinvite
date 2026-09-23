@@ -36,6 +36,8 @@ type PublicNetworkPayload = {
   }>;
   depthLimitReached?: boolean;
   availableSlots?: number;
+  availableSlotIds?: Array<1 | 2>;
+  slotAvailabilityKnown?: boolean;
 };
 
 const PUBLIC_NETWORK_RPC_TIMEOUT_MS = 5_000;
@@ -70,8 +72,9 @@ function publicSlotOccupies(row: PublicInviteSlotRow): boolean {
   return publicSlotHasEntryProof(row) && row.slot_released_at === null;
 }
 
-async function readPublicAvailableSlots(rootWallet: string): Promise<number | null> {
-  if (await isNetworkCanaryWallet(rootWallet)) return 1;
+async function readPublicAvailableSlotIds(wallet: string): Promise<Array<1 | 2> | null> {
+  // The canary mirrors the owner-slot fixture: slot 1 occupied, slot 2 free.
+  if (await isNetworkCanaryWallet(wallet)) return [2];
 
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), PUBLIC_SLOT_LOOKUP_TIMEOUT_MS);
@@ -81,7 +84,7 @@ async function readPublicAvailableSlots(rootWallet: string): Promise<number | nu
       .select(
         'status, eligibility_check_id, activation_network, invite_slot, slot_released_at, sybil_status',
       )
-      .eq('inviter_wallet', rootWallet)
+      .eq('inviter_wallet', wallet)
       .in('status', PUBLIC_SLOT_ACTIVE_STATUSES)
       .abortSignal(controller.signal);
 
@@ -96,7 +99,7 @@ async function readPublicAvailableSlots(rootWallet: string): Promise<number | nu
       occupied.add(row.invite_slot === 2 ? 2 : 1);
     }
 
-    return Math.max(0, 2 - occupied.size);
+    return ([1, 2] as const).filter((slot) => !occupied.has(slot));
   } catch (error) {
     if (!controller.signal.aborted) {
       console.error('Public Network slot availability lookup failed:', error);
@@ -189,12 +192,11 @@ export async function GET(request: NextRequest) {
     );
   }
 
-  // Root slot availability is optional display metadata. Start it beside the
-  // graph read so it cannot add a second serial wait to first paint.
-  const availableSlotsPromise =
-    focusWallet === rootWallet
-      ? readPublicAvailableSlots(rootWallet)
-      : Promise.resolve<number | null>(null);
+  // Slot availability belongs to whichever wallet is currently centered.
+  // Start it beside the graph read so subnetwork navigation does not create a
+  // second serial wait. Only empty slot IDs are returned; no invitee identity,
+  // mission progress, reward, or anti-Sybil detail enters the browser payload.
+  const availableSlotIdsPromise = readPublicAvailableSlotIds(focusWallet);
 
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), PUBLIC_NETWORK_RPC_TIMEOUT_MS);
@@ -237,16 +239,16 @@ export async function GET(request: NextRequest) {
     return noStoreJson({ code: 'INVALID_WALLET', error: 'Invalid wallet address.' }, 400);
   }
 
-  if (focusWallet === rootWallet) {
-    const availableSlots = await availableSlotsPromise;
-    if (availableSlots !== null) {
-      payload.availableSlots = availableSlots;
-    }
+  const availableSlotIds = await availableSlotIdsPromise;
+  payload.slotAvailabilityKnown = availableSlotIds !== null;
+  if (availableSlotIds !== null) {
+    payload.availableSlotIds = availableSlotIds;
+    payload.availableSlots = availableSlotIds.length;
   }
 
-  // This endpoint exposes referral-graph structure plus only the aggregate
-  // count of currently available invite slots. Mission, reward, anti-Sybil,
-  // security, invitee identity/progress, invitation detail, and signing data
-  // never enter the browser payload.
+  // This endpoint exposes referral-graph structure plus only the exact empty
+  // capacity slot IDs needed to mirror the owner's two-slot layout. Mission,
+  // reward, anti-Sybil, security, invitee identity/progress, invitation detail,
+  // and signing data never enter the browser payload.
   return noStoreJson(payload as Record<string, unknown>);
 }
