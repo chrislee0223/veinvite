@@ -19,7 +19,7 @@ test('paid backfill cron is isolated, authenticated, and capped at 10', async ()
   assert.doesNotMatch(source, /record_sybil_v2_assessment/u);
 });
 
-test('Vercel schedules only the isolated paid backfill route every 15 minutes', async () => {
+test('Vercel schedules the isolated paid backfill route once daily on Hobby', async () => {
   const config = JSON.parse(
     await readFile('vercel.json', 'utf8'),
   );
@@ -30,7 +30,7 @@ test('Vercel schedules only the isolated paid backfill route every 15 minutes', 
   );
 
   assert.ok(cron);
-  assert.equal(cron.schedule, '*/15 * * * *');
+  assert.equal(cron.schedule, '17 1 * * *');
 });
 
 test('paid backfill publisher remains PAID-scoped and observation-only', async () => {
