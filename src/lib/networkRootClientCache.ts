@@ -15,14 +15,8 @@ export type NetworkRootSnapshot = {
     network: number;
     direct: number;
     qualified: number;
-    thisRound: number | null;
     depth: number;
   };
-  round: {
-    id: number;
-    startAt: string;
-    endAt: string;
-  } | null;
   children: Array<{
     wallet: string;
     status: 'IN_PROGRESS' | 'QUALIFIED' | 'REWARDED';
@@ -30,7 +24,6 @@ export type NetworkRootSnapshot = {
     network: number;
     direct: number;
     qualified: number;
-    thisRound: number | null;
     depth: number;
   }>;
   searchResults: Array<{
