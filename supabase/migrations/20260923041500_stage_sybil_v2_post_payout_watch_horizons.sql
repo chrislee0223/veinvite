@@ -10,7 +10,7 @@ with base as (
     l.network,
     l.invite_code,
     l.recipient_wallet,
-    l.amount_wei as payout_amount_wei,
+    l.amount_wei::text as payout_amount_wei,
     l.tx_id as payout_tx_id,
     l.paid_at,
     s.block_number as payout_block_number,
