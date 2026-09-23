@@ -31,6 +31,12 @@ type ReviewRow = {
   v2_revision: number | string | null;
   v2_reason_codes: unknown;
   v2_updated_at: string | null;
+  post_payout_state: string | null;
+  post_payout_risk_score: number | null;
+  post_payout_revision: number | string | null;
+  post_payout_reason_codes: unknown;
+  post_payout_subject_wallet: string | null;
+  post_payout_updated_at: string | null;
 };
 
 type ReviewEvent = {
@@ -63,6 +69,19 @@ type V2Assessment = {
   updated_at: string;
 };
 
+type PostPayoutReview = {
+  invite_code: string;
+  network: string;
+  subject_wallet: string;
+  state: string;
+  risk_score: number;
+  revision: number | string;
+  reason_codes: unknown;
+  evidence_summary: unknown;
+  source: string;
+  updated_at: string;
+};
+
 type V2Evidence = {
   id: string | number;
   evidence_family: string;
@@ -82,8 +101,14 @@ type ReviewDetailResponse = {
   invitation: ReviewRow;
   reviewEvents: ReviewEvent[];
   v2Assessment?: V2Assessment | null;
+  postPayoutReview?: PostPayoutReview | null;
+  postPayoutReviewEvents?: unknown[];
   v2Evidence?: V2Evidence[];
-  reviewMode?: 'V2' | 'LEGACY' | 'NONE';
+  reviewMode?:
+    | 'POST_PAYOUT'
+    | 'V2'
+    | 'LEGACY'
+    | 'NONE';
   canResolve: boolean;
 };
 
