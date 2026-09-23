@@ -545,6 +545,8 @@ function PublicNetworkCanvas({
     requestSerialRef.current += 1;
     branchRequestRef.current?.abort();
     branchRequestRef.current = null;
+    slotRetryControllerRef.current?.abort();
+    slotRetryControllerRef.current = null;
     setPending(null);
     setBranchError(false);
     return requestSerialRef.current;
