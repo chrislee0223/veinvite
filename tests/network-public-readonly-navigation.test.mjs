@@ -44,17 +44,21 @@ test('leaderboard can hand a wallet into the Network tab without prop-drilling t
   assert.match(hub, /publicRootWallet/);
 });
 
-test('other-user Network uses a separate read-only explorer instead of AppNetwork edit controls', () => {
+test('other-user Network stays read-only while matching My Network chrome', () => {
   assert.match(hub, /publicRootWallet \? \(/);
   assert.match(hub, /<PublicNetworkExplorer/);
   assert.match(hub, /<AppNetwork locale=\{locale\} \/>/);
-  assert.doesNotMatch(publicExplorer, /moveWorkspaceMemberToGroup/);
-  assert.doesNotMatch(publicExplorer, /beginLayoutEdit/);
-  assert.doesNotMatch(publicExplorer, /groupBuilder/);
-  assert.doesNotMatch(publicExplorer, /localStorage\.setItem/);
+  assert.match(hub, /setPublicRootWallet\(null\);[\s\S]*\}, \[wallet\]\);/);
+  assert.doesNotMatch(publicExplorer, /moveWorkspaceMemberToGroup|beginLayoutEdit|groupBuilder|localStorage\.setItem/);
+  assert.match(publicExplorer, /className="networkUtilityRow"/);
+  assert.match(publicExplorer, /className="otherNetworkBadge"/);
+  assert.match(publicExplorer, /className="publicControls topControls"/);
+  assert.match(publicExplorer, /onClick=\{onBackToMine \?\? onBack\}>◎<\/button>/);
+  assert.match(publicExplorer, /searchOpen \? \(/);
+  assert.doesNotMatch(publicExplorer, /className="publicSummary"|className="backMine"|className="publicCluster"/);
+  assert.doesNotMatch(publicExplorer, /rootData\.summary\.thisRound/);
+  assert.match(publicExplorer, /publicRootBreath/);
   assert.match(publicExplorer, /onPointerMove/);
-  assert.match(publicExplorer, /zoomIn/);
-  assert.match(publicExplorer, /zoomOut/);
 });
 
 test('Network search resolves .vet domains and opens default-public read-only roots', () => {
@@ -69,14 +73,16 @@ test('Network search resolves .vet domains and opens default-public read-only ro
   assert.match(publicExplorer, /fetchPublicNetwork\(\s*root,\s*resolvedSearchWallet/);
 });
 
-test('public Network display remains mobile-width and does not gain editing persistence', () => {
+test('public Network display remains mobile-width and keeps loading inside the canvas shell', () => {
   assert.match(publicExplorer, /\.publicCanvasPage\{width:min\(100%,520px\)/);
   assert.match(publicExplorer, /\.publicStage\{position:relative;flex:1 1 auto;min-height:0;height:auto/);
   assert.match(publicExplorer, /PublicNodeLabel/);
   assert.match(publicExplorer, /formatCompactVechainDomain/);
   assert.match(publicExplorer, /publicLoadingCanvas networkCard/);
+  assert.match(publicExplorer, /loadingNetworkBadge/);
   assert.match(publicExplorer, /inlineNetworkLoading/);
-  assert.doesNotMatch(publicExplorer, /state === 'loading'\) return <section className="publicState networkCard"/);
+  assert.doesNotMatch(publicExplorer, /e\.viewing|publicLoadingHeader/);
+  assert.match(publicExplorer, /PUBLIC_SESSION_PREFIX = 'veinvite-network-public-v3:'/);
 });
 
 test('old Network privacy opt-in cannot return through current Settings, API, or copy layers', async () => {
