@@ -99,6 +99,42 @@ test('other-user Network stays read-only while matching My Network chrome', () =
   assert.doesNotMatch(publicExplorer, /sessionStorage|PUBLIC_SESSION_PREFIX|readSavedState|clearSavedState/);
 });
 
+test('other-user Network first paint keeps the viewed root centered after real mobile sizing', () => {
+  assert.match(publicExplorer, /useState\(\{ width: 0, height: 0 \}\)/);
+  assert.match(publicExplorer, /const \[stageStable, setStageStable\] = useState\(false\)/);
+  assert.match(publicExplorer, /getBoundingClientRect\(\)/);
+  assert.match(publicExplorer, /requestAnimationFrame\(\(\) => \{[\s\S]*requestAnimationFrame\(\(\) => setStageStable\(true\)\)/);
+  assert.match(publicExplorer, /function publicRootCenteredFittedView/);
+  assert.match(
+    publicExplorer,
+    /return publicCenteredView\(stage, scale\);/,
+  );
+  assert.match(
+    publicExplorer,
+    /if \(!stageStable\) return;[\s\S]*setView\(publicCenteredView\(stageSize, 1\)\);/,
+  );
+  assert.match(
+    publicExplorer,
+    /if \(reducedMotion\) \{[\s\S]*fitViewedRootInPlace\(false\)/,
+  );
+  assert.match(
+    publicExplorer,
+    /introFitTimerRef\.current = window\.setTimeout\([\s\S]*fitViewedRootInPlace\(true\)/,
+  );
+  assert.match(
+    publicExplorer,
+    /const fitPublicNetwork = useCallback[\s\S]*setView\(publicFittedView\(stageSize, points\)\)/,
+  );
+  assert.match(
+    publicExplorer,
+    /onClick=\{\(\) => \{ stopIntroForInteraction\(\); fitPublicNetwork\(true\); \}\}>⛶<\/button>/,
+  );
+  assert.match(
+    publicExplorer,
+    /const centerViewedNetwork = useCallback[\s\S]*stageSize\.width \/ 2 - CENTER_X \* current\.scale/,
+  );
+});
+
 test('Network search resolves .vet domains and opens default-public read-only roots', () => {
   assert.match(network, /domainSearchInput/);
   assert.match(network, /useVechainDomain\(domainSearchInput\)/);
