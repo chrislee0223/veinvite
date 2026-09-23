@@ -58,7 +58,7 @@ test('current public reader keeps graph data service-role-only and exposes only 
   assert.match(publicRoute, /slotAvailabilityKnown/i);
   assert.match(publicRoute, /invite_slot, slot_released_at, sybil_status/i);
   assert.doesNotMatch(publicRoute, /invitee_wallet|apps_completed|vot3_converted|vote_completed/i);
-  assert.match(publicRoute, /Mission, reward,[\s\S]*anti-Sybil,[\s\S]*security/i);
+  assert.match(publicRoute, /Mission,[\s\S]*reward,[\s\S]*anti-Sybil,[\s\S]*security/i);
   assert.doesNotMatch(publicRoute, /NETWORK_PRIVATE|FOCUS_NOT_PUBLIC|NETWORK_NOT_FOUND|hasPrivateBranches/i);
 });
 
