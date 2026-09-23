@@ -42,5 +42,8 @@
       "path": "/api/cron/analytics-maintenance",
       "schedule": "47 0 * * *"
     }
-  ]
+  ],
+  "env": {
+    "SYBIL_B3TR_OBSERVATION_ENABLED": "true"
+  }
 }
