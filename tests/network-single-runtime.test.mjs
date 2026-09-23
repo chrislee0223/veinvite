@@ -382,11 +382,12 @@ test('Network first paint is immediate, warmed, and never swaps to a blocking lo
   assert.match(networkRouteSource, /p_round_id:\s*null/);
   assert.match(networkRouteSource, /p_round_start_at:\s*null/);
   assert.match(networkRouteSource, /p_round_end_at:\s*null/);
-  assert.match(networkSource, /if \(options\.fast\) params\.set\('fast', '1'\)/);
+  assert.doesNotMatch(networkSource, /options\.fast|params\.set\('fast'/);
   assert.match(networkSource, /getCachedNetworkRoot\(wallet\)/);
   assert.match(networkSource, /provisionalNetworkData\(wallet\)/);
   assert.match(networkSource, /rememberNetworkRoot\(requestWallet, payload\)/);
-  assert.match(networkSource, /await fetchNetwork\(requestWallet,[\s\S]*fast: true/);
+  assert.match(networkSource, /await fetchNetwork\(requestWallet,[\s\S]*signal: controller\.signal/);
+  assert.doesNotMatch(networkSource, /fast:\s*true/);
   assert.doesNotMatch(networkSource, /enrichedRequest|prefetchEnrichedNetworkRoot/);
   assert.match(networkWarmupSource, /prefetchNetworkRoot\(wallet\)/);
   assert.doesNotMatch(networkWarmupSource, /prefetchEnrichedNetworkRoot/);
