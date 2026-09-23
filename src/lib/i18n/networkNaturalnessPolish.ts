@@ -62,7 +62,6 @@ const NETWORK_NATURALNESS_PATCHES: Record<SupportedLocale, NetworkNaturalnessPat
     },
     experience: {
       directNetwork: '직접 초대 네트워크',
-      recentGrowth: '최근 증가',
       emptyTitle: '내 네트워크는 여기서 시작돼요',
       invitedBy: '초대한 사람',
       noMatching: '일치하는 직접 초대 분기가 없어요.',

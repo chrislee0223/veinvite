@@ -15,9 +15,10 @@ test('Public Explore maintenance action really opens the wallet for guests', () 
   assert.match(explorer, /disabled=\{!hasWallet && isWalletActionPending\}/i);
 });
 
-test('Public canvas keeps mobile overlays mutually exclusive', () => {
-  assert.match(explorer, /const openExplorer = useCallback\([\s\S]*setSelected\(null\);[\s\S]*setExplorerParent\(parentWallet\)/i);
-  assert.match(explorer, /selected && selected !== root && !explorerParent/i);
+test('Public canvas keeps read-only overlays simple and removes the legacy sibling pager', () => {
+  assert.doesNotMatch(explorer, /openExplorer|explorerParent|publicSiblingExplorer|publicCluster/i);
+  assert.match(explorer, /selected \? <aside className=\{\`publicInspector/i);
+  assert.match(explorer, /searchOpen \? \(/i);
 });
 
 test('Public canvas expires and clears local path state when the saved target no longer exists', () => {
@@ -27,13 +28,16 @@ test('Public canvas expires and clears local path state when the saved target no
   assert.match(explorer, /code === 'FOCUS_NOT_FOUND'[\s\S]*clearSavedState\(root\)/i);
 });
 
-test('Public canvas pager and motion controls respect accessibility settings', () => {
-  assert.match(explorer, /aria-label=\{c\.previous\}/i);
-  assert.match(explorer, /aria-label=\{c\.next\}/i);
+test('Public canvas motion controls respect accessibility settings without a separate pager', () => {
+  assert.match(explorer, /aria-label=\{c\.centerNetwork\}/i);
+  assert.match(explorer, /aria-label=\{c\.zoomIn\}/i);
+  assert.match(explorer, /aria-label=\{c\.zoomOut\}/i);
   assert.match(explorer, /prefers-reduced-motion:reduce/i);
   assert.match(explorer, /focus-visible/i);
-  assert.match(controls, /previous:\s*string/i);
-  assert.match(controls, /next:\s*string/i);
+  assert.doesNotMatch(explorer, /aria-label=\{c\.previous\}|aria-label=\{c\.next\}/i);
+  assert.match(controls, /centerNetwork:\s*string/i);
+  assert.match(controls, /zoomIn:\s*string/i);
+  assert.match(controls, /zoomOut:\s*string/i);
 });
 
 test('Explore discovery uses verified referral roots without per-wallet visibility preferences', () => {

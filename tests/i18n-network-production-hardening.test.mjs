@@ -11,21 +11,19 @@ const [route, runtime, network, controls, migration, rollout] = await Promise.al
   readFile(new URL('../supabase/migrations/20260909040500_stage_network_runtime_disabled_for_rollout.sql', import.meta.url), 'utf8'),
 ]);
 
-test('Network round context still uses the reviewed chain resolver while the compact toolbar omits round growth', () => {
-  assert.match(route, /readVeBetterRoundWindow/i);
-  assert.match(route, /ROUND_CACHE_MS\s*=\s*60_000/i);
-  assert.match(route, /ROUND_RESOLVE_TIMEOUT_MS\s*=\s*2_500/i);
-  assert.match(route, /withTimeout\([\s\S]*readVeBetterRoundWindow\(\)[\s\S]*ROUND_RESOLVE_TIMEOUT_MS/i);
+test('Network round growth is fully retired from the runtime and compact toolbar', () => {
+  assert.doesNotMatch(route, /readVeBetterRoundWindow|ROUND_CACHE_MS|ROUND_RESOLVE_TIMEOUT_MS|readCurrentRoundContext/i);
   assert.match(route, /read_referral_network_focus_v2/i);
-  assert.match(route, /p_round_id:\s*round\?\.id\s*\?\?\s*null/i);
-  assert.match(route, /p_round_start_at:\s*round\?\.startAt\s*\?\?\s*null/i);
+  assert.match(route, /p_round_id:\s*null/i);
+  assert.match(route, /p_round_start_at:\s*null/i);
+  assert.match(route, /p_round_end_at:\s*null/i);
   assert.doesNotMatch(route, /operator_latest_round_growth_report_snapshots/i);
   const utilityStart = network.indexOf('className="networkUtilityRow"');
   const searchStart = network.indexOf('className="networkSearchRow"', utilityStart);
   const utility = network.slice(utilityStart, searchStart);
   assert.match(utility, /className="summaryTotal"/);
   assert.doesNotMatch(utility, /headerThisRound|t\.thisRound|className="growth"/);
-  assert.doesNotMatch(network, /const headerThisRound|headerMetricsReady|metricsPending/);
+  assert.doesNotMatch(network, /const headerThisRound|headerMetricsReady|metricsPending|selectedRound|thisRound/);
 });
 
 test('Network runtime switch fails closed before chain and recursive graph work', () => {
@@ -40,12 +38,10 @@ test('Network runtime switch fails closed before chain and recursive graph work'
   assert.match(runtime, /export async function canUseNetworkSurface/i);
   assert.match(runtime, /return false/i);
   const switchCheck = route.indexOf("if (!(await canUseNetworkSurface('my', rootWallet)))");
-  const roundRead = route.indexOf('const round = fastInitial ? null : await readCurrentRoundContext();');
   const graphRead = route.indexOf(".rpc(\n        'read_referral_network_focus_v2'");
   assert.ok(switchCheck >= 0);
-  assert.ok(roundRead > switchCheck);
-  assert.ok(graphRead > roundRead);
-  assert.match(route, /fastInitial \? null : await readCurrentRoundContext\(\)/i);
+  assert.ok(graphRead > switchCheck);
+  assert.doesNotMatch(route, /fastInitial|readCurrentRoundContext|readVeBetterRoundWindow/i);
   assert.match(route, /'NETWORK_DISABLED'/i);
   assert.match(route, /503/i);
 });

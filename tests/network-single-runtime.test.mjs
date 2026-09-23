@@ -89,8 +89,9 @@ test('node profile stays compact, prefers cached VET identity, and keeps wallet 
   assert.match(networkSource, /const selectedNetwork = selectedIsFocus[\s\S]*currentData\?\.summary\.network[\s\S]*selectedData\?\.summary\.network \?\? selectedMember\?\.network \?\? 0/);
   assert.match(networkSource, /const selectedDirect = selectedIsFocus[\s\S]*currentData\?\.summary\.direct[\s\S]*selectedData\?\.summary\.direct \?\? selectedMember\?\.direct \?\? 0/);
   assert.match(networkSource, /const selectedQualified = selectedIsFocus[\s\S]*currentData\?\.summary\.qualified[\s\S]*selectedData\?\.summary\.qualified \?\? selectedMember\?\.qualified \?\? 0/);
-  assert.match(networkSource, /const selectedRound = selectedIsFocus[\s\S]*currentData\?\.summary\.thisRound[\s\S]*selectedData\?\.summary\.thisRound \?\? selectedMember\?\.thisRound \?\? null/);
-  assert.match(networkSource, /selectedRound === null \? '–' : \`\+\$\{selectedRound\.toLocaleString\(\)\}\`/);
+  assert.doesNotMatch(networkSource, /const selectedRound =/);
+  assert.doesNotMatch(networkSource, /selectedRound === null|t\.thisRound/);
+  assert.match(networkSource, /\.profileStats\{[^}]*grid-template-columns:repeat\(3,minmax\(0,1fr\)\)/);
   assert.match(networkSource, /\.profileCard\{[^}]*inset-inline:8px[^}]*bottom:8px/);
   assert.match(networkSource, /\.profileIdentity :global\(\.identityLabel\)\{[^}]*text-overflow:ellipsis[^}]*white-space:nowrap/);
   assert.match(networkSource, /\.profileStats>div\{[^}]*padding:5px 6px/);
@@ -377,21 +378,19 @@ test('Network localized content stays bounded and RTL overlays adapt without mir
 
 
 test('Network first paint is immediate, warmed, and never swaps to a blocking loading card', () => {
-  assert.match(networkRouteSource, /fastInitial = request\.nextUrl\.searchParams\.get\('fast'\) === '1'/);
-  assert.match(networkRouteSource, /const round = fastInitial \? null : await readCurrentRoundContext\(\)/);
-  assert.match(networkSource, /if \(options\.fast\) params\.set\('fast', '1'\)/);
+  assert.doesNotMatch(networkRouteSource, /fastInitial|readCurrentRoundContext|readVeBetterRoundWindow/);
+  assert.match(networkRouteSource, /p_round_id:\s*null/);
+  assert.match(networkRouteSource, /p_round_start_at:\s*null/);
+  assert.match(networkRouteSource, /p_round_end_at:\s*null/);
+  assert.doesNotMatch(networkSource, /options\.fast|params\.set\('fast'/);
   assert.match(networkSource, /getCachedNetworkRoot\(wallet\)/);
   assert.match(networkSource, /provisionalNetworkData\(wallet\)/);
   assert.match(networkSource, /rememberNetworkRoot\(requestWallet, payload\)/);
-  assert.match(networkSource, /const fastRequest = fetchNetwork\(requestWallet,[\s\S]*fast: true/);
-  assert.match(networkSource, /const enrichedRequest = fetchNetwork\(requestWallet,[\s\S]*signal: controller\.signal/);
-  const fastRequestIndex = networkSource.indexOf('const fastRequest = fetchNetwork');
-  const enrichedRequestIndex = networkSource.indexOf('const enrichedRequest = fetchNetwork');
-  const fastAwaitIndex = networkSource.indexOf('await fastRequest', fastRequestIndex);
-  assert.ok(fastRequestIndex >= 0 && enrichedRequestIndex > fastRequestIndex);
-  assert.ok(fastAwaitIndex > enrichedRequestIndex);
+  assert.match(networkSource, /await fetchNetwork\(requestWallet,[\s\S]*signal: controller\.signal/);
+  assert.doesNotMatch(networkSource, /fast:\s*true/);
+  assert.doesNotMatch(networkSource, /enrichedRequest|prefetchEnrichedNetworkRoot/);
   assert.match(networkWarmupSource, /prefetchNetworkRoot\(wallet\)/);
-  assert.match(networkWarmupSource, /prefetchEnrichedNetworkRoot\(wallet, \{ force: true \}\)/);
+  assert.doesNotMatch(networkWarmupSource, /prefetchEnrichedNetworkRoot/);
   assert.match(networkWarmupSource, /prefetchNetworkInviteSlots\(wallet\)/);
   assert.doesNotMatch(networkSource, /if \(loadState === 'loading' \|\| loadState === 'idle'\)[\s\S]{0,260}networkStateCard/);
 });
@@ -408,12 +407,12 @@ test('canary test data is server-only and never creates a second frontend runtim
 
 test('only allowlisted canary wallets receive the synthetic graph and normal wallets keep the real RPC path', () => {
   assert.match(networkRouteSource, /isNetworkCanaryWallet\(rootWallet\)/);
-  assert.match(networkRouteSource, /buildNetworkCanaryFixture\(rootWallet, focusWallet, search, round\)/);
+  assert.match(networkRouteSource, /buildNetworkCanaryFixture\(rootWallet, focusWallet, search, null\)/);
   assert.match(networkSummaryRouteSource, /isNetworkCanaryWallet\(walletAddress\)/);
   assert.match(networkSummaryRouteSource, /getNetworkCanarySummary\(\)/);
 
   const canaryCheck = networkRouteSource.indexOf('isNetworkCanaryWallet(rootWallet)');
-  const fixtureBuild = networkRouteSource.indexOf('buildNetworkCanaryFixture(rootWallet, focusWallet, search, round)');
+  const fixtureBuild = networkRouteSource.indexOf('buildNetworkCanaryFixture(rootWallet, focusWallet, search, null)');
   const realRpc = networkRouteSource.indexOf(".rpc(\n        'read_referral_network_focus_v2'");
   assert.ok(canaryCheck >= 0 && fixtureBuild > canaryCheck && realRpc > fixtureBuild);
 });
