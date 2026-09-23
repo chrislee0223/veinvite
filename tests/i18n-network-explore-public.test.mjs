@@ -130,6 +130,12 @@ test('My Network and other-user read-only explorer stay isolated', () => {
   assert.doesNotMatch(explorer, /className="publicSummary"|className="backMine"|className="publicCluster"/i);
 });
 
+test('Korean Network Explore wording stays concise', () => {
+  assert.match(exploreCopy, /exploreNetwork:'다른 네트워크 보기'/);
+  assert.match(exploreCopy, /exploreTitle:'다른 네트워크 보기'/);
+  assert.doesNotMatch(exploreCopy, /다른 네트워크 둘러보기|공개 네트워크 둘러보기/);
+});
+
 test('Network Explore and maintenance copy cover every supported locale', () => {
   const expectedLocales = [
     'en','ko','zh','hi','es','ja','it','tr','nl','de','fr','ar','bn','pt','ru','id','vi','zh-tw','sv','ro','ur','pcm','arz','mr','te','sw','ha','el','cs',
