@@ -419,6 +419,8 @@ export function AppBottomNavigation({
         data-veinvite-active-tab={activeTab}
         data-veinvite-visual-tab={visualTab}
         aria-label={labels.ariaLabel}
+        onContextMenu={(event) => event.preventDefault()}
+        onDragStart={(event) => event.preventDefault()}
       >
         <div ref={navigationTrackRef}>
           <span
@@ -453,10 +455,10 @@ export function AppBottomNavigation({
 
         <style jsx>{`
           .bottomNavigation { position: fixed; z-index: 90; right: 0; bottom: 0; left: 0; padding: 0 12px calc(10px + env(safe-area-inset-bottom)); pointer-events: none; background: linear-gradient(to top,rgba(7,7,7,.98) 58%,transparent); }
-          .bottomNavigation > div { position: relative; width: min(100%,520px); min-height: 70px; margin: 0 auto; padding: 6px; display: grid; grid-template-columns: repeat(4,minmax(0,1fr)); border: 1px solid rgba(255,205,80,.16); border-radius: 23px; background: rgba(22,22,20,.985); box-shadow: 0 18px 55px rgba(0,0,0,.5); pointer-events: auto; isolation: isolate; }
+          .bottomNavigation > div { position: relative; width: min(100%,520px); min-height: 70px; margin: 0 auto; padding: 6px; display: grid; grid-template-columns: repeat(4,minmax(0,1fr)); border: 1px solid rgba(255,205,80,.16); border-radius: 23px; background: rgba(22,22,20,.985); box-shadow: 0 18px 55px rgba(0,0,0,.5); pointer-events: auto; isolation: isolate; user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; touch-action: manipulation; }
           .activeIndicator { position: absolute; z-index: 0; top: 0; left: 0; border-radius: 17px; background: rgba(255,201,61,.1); opacity: 0; pointer-events: none; }
           .activeIndicator[data-ready='true'] { opacity: 1; }
-          button { position: relative; z-index: 1; width: 100%; min-width: 0; min-height: 56px; padding: 6px 3px; display: grid; grid-template-columns: minmax(0,1fr); grid-template-rows: 21px 13px; justify-items: center; align-content: center; row-gap: 4px; border: 0; border-radius: 17px; background: transparent; color: #77736c; font: inherit; font-size: .6rem; font-weight: 850; cursor: pointer; transition: color 180ms ease, transform 90ms ease; }
+          button { position: relative; z-index: 1; width: 100%; min-width: 0; min-height: 56px; padding: 6px 3px; display: grid; grid-template-columns: minmax(0,1fr); grid-template-rows: 21px 13px; justify-items: center; align-content: center; row-gap: 4px; border: 0; border-radius: 17px; background: transparent; color: #77736c; font: inherit; font-size: .6rem; font-weight: 850; cursor: pointer; transition: color 180ms ease, transform 90ms ease; user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; touch-action: manipulation; }
           button:active { transform: scale(.98); }
           .navIcon { width: 21px; height: 21px; display: block; line-height: 0; }
           .navLabel { width: 100%; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-align: center; line-height: 13px; }
