@@ -8,7 +8,6 @@ import {
 import { enforceRateLimits } from '@/lib/rateLimitServer';
 import { normalizeAddress } from '@/lib/serverStore';
 import { supabaseAdmin } from '@/lib/supabaseServer';
-import { readVeBetterRoundWindow } from '@/lib/vebetter/entryEligibility';
 import {
   requireWalletSession,
   WalletAuthenticationError,
@@ -37,7 +36,6 @@ type NetworkChild = {
   network: number;
   direct: number;
   qualified: number;
-  thisRound: number | null;
   depth: number;
 };
 
@@ -58,34 +56,14 @@ type NetworkPayload = {
     network: number;
     direct: number;
     qualified: number;
-    thisRound: number | null;
-    depth: number;
+      depth: number;
   };
-  round?: {
-    id: number;
-    startAt: string;
-    endAt: string;
-  } | null;
   children?: NetworkChild[];
   searchResults?: NetworkSearchResult[];
   depthLimitReached?: boolean;
 };
 
-type CurrentRoundContext = {
-  id: number;
-  startAt: string;
-  endAt: string;
-};
-
-const ROUND_CACHE_MS = 60_000;
-const ROUND_FAILURE_CACHE_MS = 10_000;
-const ROUND_RESOLVE_TIMEOUT_MS = 2_500;
 const NETWORK_RPC_TIMEOUT_MS = 5_000;
-let roundCache: {
-  value: CurrentRoundContext | null;
-  expiresAt: number;
-} | null = null;
-let roundInFlight: Promise<CurrentRoundContext | null> | null = null;
 
 function walletAuthResponse(error: unknown): NextResponse | null {
   if (!(error instanceof WalletAuthenticationError)) return null;
@@ -127,71 +105,6 @@ function normalizeSearch(value: string | null): string {
     .slice(0, 42);
 }
 
-function withTimeout<T>(
-  promise: Promise<T>,
-  timeoutMs: number,
-  label: string,
-): Promise<T> {
-  return new Promise<T>((resolve, reject) => {
-    const timer = setTimeout(() => {
-      reject(new Error(`${label} timed out after ${timeoutMs}ms.`));
-    }, timeoutMs);
-
-    promise.then(
-      (value) => {
-        clearTimeout(timer);
-        resolve(value);
-      },
-      (error) => {
-        clearTimeout(timer);
-        reject(error);
-      },
-    );
-  });
-}
-
-async function readCurrentRoundContext(): Promise<CurrentRoundContext | null> {
-  const now = Date.now();
-  if (roundCache && roundCache.expiresAt > now) {
-    return roundCache.value;
-  }
-  if (roundInFlight) return roundInFlight;
-
-  roundInFlight = withTimeout(
-    readVeBetterRoundWindow(),
-    ROUND_RESOLVE_TIMEOUT_MS,
-    'Network current-round resolver',
-  )
-    .then((round) => {
-      const value = {
-        id: round.roundId,
-        startAt: round.roundStartAt,
-        endAt: round.roundEndAt,
-      } satisfies CurrentRoundContext;
-      roundCache = {
-        value,
-        expiresAt: Date.now() + ROUND_CACHE_MS,
-      };
-      return value;
-    })
-    .catch((error) => {
-      console.warn(
-        'Network current-round context is temporarily unavailable; serving Network without This Round metrics:',
-        error,
-      );
-      roundCache = {
-        value: null,
-        expiresAt: Date.now() + ROUND_FAILURE_CACHE_MS,
-      };
-      return null;
-    })
-    .finally(() => {
-      roundInFlight = null;
-    });
-
-  return roundInFlight;
-}
-
 export async function GET(request: NextRequest) {
   const walletParam = request.nextUrl.searchParams.get('wallet');
   if (!walletParam) {
@@ -229,7 +142,6 @@ export async function GET(request: NextRequest) {
 
   const search = normalizeSearch(request.nextUrl.searchParams.get('q'));
   const isSearch = search.length >= 3;
-  const fastInitial = request.nextUrl.searchParams.get('fast') === '1';
   const rateLimitResponse = await enforceRateLimits([
     {
       scope: isSearch ? 'network_search_wallet' : 'network_read_wallet',
@@ -250,16 +162,12 @@ export async function GET(request: NextRequest) {
     );
   }
 
-  // The first visual paint does not need live-round growth. Skipping
-  // the chain round lookup on fast=1 keeps Network entry responsive; the
-  // client immediately refreshes once in the background to fill This Round.
-  const round = fastInitial ? null : await readCurrentRoundContext();
 
   // Canary wallets exercise the exact same production React runtime as every
   // other wallet. Only the server-side graph data is synthetic, so camera,
   // gestures, navigation and layout cannot diverge into a second UI version.
   if (await isNetworkCanaryWallet(rootWallet)) {
-    const payload = buildNetworkCanaryFixture(rootWallet, focusWallet, search, round);
+    const payload = buildNetworkCanaryFixture(rootWallet, focusWallet, search, null);
     if (payload.error === 'FOCUS_NOT_IN_NETWORK') {
       return networkError(
         'FOCUS_NOT_IN_NETWORK',
@@ -290,9 +198,9 @@ export async function GET(request: NextRequest) {
           p_root_wallet: rootWallet,
           p_focus_wallet: focusWallet,
           p_search: isSearch ? search : null,
-          p_round_id: round?.id ?? null,
-          p_round_start_at: round?.startAt ?? null,
-          p_round_end_at: round?.endAt ?? null,
+          p_round_id: null,
+          p_round_start_at: null,
+          p_round_end_at: null,
         },
       )
       .abortSignal(rpcController.signal);

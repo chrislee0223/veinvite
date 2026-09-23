@@ -236,6 +236,7 @@ export function AppSettings({
     );
   }, [locale]);
 
+
   useEffect(() => {
     if (!languageOpen) return;
 

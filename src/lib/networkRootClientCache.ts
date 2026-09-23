@@ -3,9 +3,6 @@ export const NETWORK_HEADER_METRICS_UPDATED_EVENT =
 
 export type NetworkHeaderMetrics = {
   network: number;
-  thisRound: number | null;
-  roundId: number | null;
-  roundEndAt: string | null;
 };
 
 export type NetworkRootSnapshot = {
@@ -18,14 +15,8 @@ export type NetworkRootSnapshot = {
     network: number;
     direct: number;
     qualified: number;
-    thisRound: number | null;
     depth: number;
   };
-  round: {
-    id: number;
-    startAt: string;
-    endAt: string;
-  } | null;
   children: Array<{
     wallet: string;
     status: 'IN_PROGRESS' | 'QUALIFIED' | 'REWARDED';
@@ -33,7 +24,6 @@ export type NetworkRootSnapshot = {
     network: number;
     direct: number;
     qualified: number;
-    thisRound: number | null;
     depth: number;
   }>;
   searchResults: Array<{
@@ -56,11 +46,10 @@ type StoredHeaderMetrics = {
 };
 
 const MEMORY_TTL_MS = 120_000;
-const HEADER_STORAGE_KEY = 'veinvite_network_header_metrics_v1';
+const HEADER_STORAGE_KEY = 'veinvite_network_header_metrics_v2';
 const memory = new Map<string, CacheEntry>();
 const headerMemory = new Map<string, StoredHeaderMetrics>();
 const inFlight = new Map<string, Promise<NetworkRootSnapshot>>();
-const enrichedInFlight = new Map<string, Promise<NetworkRootSnapshot>>();
 
 function walletKey(wallet: string): string {
   return wallet.trim().toLowerCase();
@@ -72,33 +61,8 @@ function isValidHeaderMetrics(value: unknown): value is NetworkHeaderMetrics {
   return Boolean(
     typeof data.network === 'number' &&
     Number.isInteger(data.network) &&
-    data.network >= 0 &&
-    (
-      data.thisRound === null ||
-      (
-        typeof data.thisRound === 'number' &&
-        Number.isInteger(data.thisRound) &&
-        data.thisRound >= 0
-      )
-    ) &&
-    (
-      data.roundId === null ||
-      (typeof data.roundId === 'number' && Number.isInteger(data.roundId))
-    ) &&
-    (data.roundEndAt === null || typeof data.roundEndAt === 'string')
+    data.network >= 0
   );
-}
-
-function normalizeHeaderMetricsForNow(data: NetworkHeaderMetrics): NetworkHeaderMetrics {
-  if (!data.roundEndAt || data.thisRound === null) return data;
-  const roundEnd = Date.parse(data.roundEndAt);
-  if (!Number.isFinite(roundEnd) || Date.now() < roundEnd) return data;
-  return {
-    ...data,
-    thisRound: null,
-    roundId: null,
-    roundEndAt: null,
-  };
 }
 
 function readHeaderSession(wallet: string): StoredHeaderMetrics | null {
@@ -121,12 +85,8 @@ function readHeaderSession(wallet: string): StoredHeaderMetrics | null {
       }
       return null;
     }
-    const normalized = {
-      ...entry,
-      data: normalizeHeaderMetricsForNow(entry.data),
-    };
-    headerMemory.set(key, normalized);
-    return normalized;
+    headerMemory.set(key, entry);
+    return entry;
   } catch {
     return null;
   }
@@ -137,25 +97,19 @@ export function getCachedNetworkHeaderMetrics(wallet: string | null): NetworkHea
   const key = walletKey(wallet);
   const entry = headerMemory.get(key);
   if (entry) {
-    return normalizeHeaderMetricsForNow(entry.data);
+    return entry.data;
   }
   return readHeaderSession(wallet)?.data ?? null;
 }
 
 function rememberHeaderMetrics(wallet: string, data: NetworkRootSnapshot): void {
   const key = walletKey(wallet);
-  const previous = getCachedNetworkHeaderMetrics(wallet);
-  const hasRoundMetrics = data.summary.thisRound !== null && data.round !== null;
-  const next: NetworkHeaderMetrics = {
-    network: data.summary.network,
-    thisRound: hasRoundMetrics ? data.summary.thisRound : previous?.thisRound ?? null,
-    roundId: hasRoundMetrics ? data.round?.id ?? null : previous?.roundId ?? null,
-    roundEndAt: hasRoundMetrics ? data.round?.endAt ?? null : previous?.roundEndAt ?? null,
-  };
   const entry: StoredHeaderMetrics = {
     wallet: key,
     savedAt: Date.now(),
-    data: next,
+    data: {
+      network: data.summary.network,
+    },
   };
   headerMemory.set(key, entry);
 
@@ -212,10 +166,9 @@ export function rememberNetworkRoot(wallet: string, data: NetworkRootSnapshot): 
   rememberHeaderMetrics(wallet, data);
 }
 
-async function fetchRootSnapshot(wallet: string, fast: boolean): Promise<NetworkRootSnapshot> {
-  const suffix = fast ? '&fast=1' : '';
+async function fetchRootSnapshot(wallet: string): Promise<NetworkRootSnapshot> {
   const response = await fetch(
-    `/api/network?wallet=${encodeURIComponent(wallet)}${suffix}`,
+    `/api/network?wallet=${encodeURIComponent(wallet)}`,
     {
       method: 'GET',
       credentials: 'include',
@@ -251,40 +204,11 @@ export async function prefetchNetworkRoot(
   const existing = inFlight.get(key);
   if (existing) return existing;
 
-  const request = fetchRootSnapshot(wallet, true)
+  const request = fetchRootSnapshot(wallet)
     .finally(() => {
       inFlight.delete(key);
     });
 
   inFlight.set(key, request);
-  return request;
-}
-
-export async function prefetchEnrichedNetworkRoot(
-  wallet: string,
-  { force = false }: { force?: boolean } = {},
-): Promise<NetworkRootSnapshot> {
-  const key = walletKey(wallet);
-  if (!force) {
-    const cached = getCachedNetworkRoot(wallet);
-    const roundEnd = cached?.round?.endAt ? Date.parse(cached.round.endAt) : NaN;
-    if (
-      cached &&
-      cached.summary.thisRound !== null &&
-      (!Number.isFinite(roundEnd) || Date.now() < roundEnd)
-    ) {
-      return cached;
-    }
-  }
-
-  const existing = enrichedInFlight.get(key);
-  if (existing) return existing;
-
-  const request = fetchRootSnapshot(wallet, false)
-    .finally(() => {
-      enrichedInFlight.delete(key);
-    });
-
-  enrichedInFlight.set(key, request);
   return request;
 }

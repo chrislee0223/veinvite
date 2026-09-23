@@ -17,6 +17,7 @@ import { createPortal } from 'react-dom';
 import { NETWORK_CANARY_UI_COPY } from '@/lib/i18n/networkCanaryUiCopy';
 import { NETWORK_CANVAS_CONTROL_COPY } from '@/lib/i18n/networkCanvasControlCopy';
 import { NETWORK_EXPERIENCE_COPY, NETWORK_TOTAL_COPY } from '@/lib/i18n/networkExperienceCopy';
+import { NETWORK_EXPLORE_COPY } from '@/lib/i18n/networkExploreCopy';
 import { NETWORK_WORKSPACE_COPY } from '@/lib/i18n/networkWorkspaceCopy';
 import { getLocaleDirection } from '@/lib/i18n/locales';
 import type { Locale, SupportedLocale } from '@/lib/i18n/locales';
@@ -34,8 +35,11 @@ import {
 } from '@/lib/networkRootClientCache';
 import {
   formatCompactVechainDomain,
+  formatVechainDomainLabel,
   readCachedLeaderboardDomain,
+  readCachedLeaderboardDomainSuggestions,
   rememberLeaderboardDomain,
+  type CachedLeaderboardDomainSuggestion,
 } from '@/lib/leaderboardDomainCache';
 import { getVeChainExplorerAddressUrl } from '@/lib/vechainExplorer';
 import {
@@ -73,7 +77,6 @@ type NetworkChild = {
   network: number;
   direct: number;
   qualified: number;
-  thisRound: number | null;
   depth: number;
 };
 
@@ -93,14 +96,8 @@ type NetworkData = {
     network: number;
     direct: number;
     qualified: number;
-    thisRound: number | null;
-    depth: number;
+      depth: number;
   };
-  round: {
-    id: number;
-    startAt: string;
-    endAt: string;
-  } | null;
   children: NetworkChild[];
   searchResults: SearchResult[];
   depthLimitReached: boolean;
@@ -304,11 +301,9 @@ function provisionalNetworkData(wallet: string): NetworkData {
       network: 0,
       direct: 0,
       qualified: 0,
-      thisRound: null,
-      depth: 0,
+        depth: 0,
     },
-    round: null,
-    children: [],
+      children: [],
     searchResults: [],
     depthLimitReached: false,
   };
@@ -331,14 +326,13 @@ function newGroupId(): string {
 
 async function fetchNetwork(
   rootWallet: string,
-  options: { focus?: string; query?: string; signal?: AbortSignal; fast?: boolean } = {},
+  options: { focus?: string; query?: string; signal?: AbortSignal } = {},
 ): Promise<NetworkData> {
   const params = new URLSearchParams({ wallet: rootWallet });
   if (options.focus && keyWallet(options.focus) !== keyWallet(rootWallet)) {
     params.set('focus', options.focus);
   }
   if (options.query) params.set('q', options.query);
-  if (options.fast) params.set('fast', '1');
 
   const response = await fetch(`/api/network?${params.toString()}`, {
     method: 'GET',
@@ -642,6 +636,7 @@ export function AppNetwork({ locale }: { locale: Locale }) {
   const c = NETWORK_CANVAS_CONTROL_COPY[locale as SupportedLocale];
   const w = NETWORK_WORKSPACE_COPY[locale as SupportedLocale];
   const u = NETWORK_CANARY_UI_COPY[locale as SupportedLocale];
+  const e = NETWORK_EXPLORE_COPY[locale as SupportedLocale];
   const { wallet, openWallet, isWalletActionPending } = useWalletLauncher();
   const stageRef = useRef<HTMLDivElement | null>(null);
   const groupDropRef = useRef<HTMLDivElement | null>(null);
@@ -708,8 +703,37 @@ export function AppNetwork({ locale }: { locale: Locale }) {
   const [searchOpen, setSearchOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
+  const [publicSearchWallet, setPublicSearchWallet] = useState<string | null>(null);
   const [searching, setSearching] = useState(false);
   const searchInputRef = useRef<HTMLInputElement | null>(null);
+  const searchActionControllerRef = useRef<AbortController | null>(null);
+  const normalizedSearchQuery = searchQuery.trim().toLowerCase();
+  const isWalletLikeSearch = normalizedSearchQuery.startsWith('0x');
+  const domainSearchInput =
+    searchOpen &&
+    normalizedSearchQuery.length >= 3 &&
+    !validWallet(normalizedSearchQuery) &&
+    normalizedSearchQuery.includes('.')
+      ? normalizedSearchQuery
+      : undefined;
+  const { data: searchDomainInfo, isLoading: searchDomainLoading } =
+    useVechainDomain(domainSearchInput);
+  const searchDomainAddress =
+    typeof searchDomainInfo?.address === 'string'
+      ? searchDomainInfo.address.toLowerCase()
+      : '';
+  const resolvedSearchAddress = validWallet(normalizedSearchQuery)
+    ? normalizedSearchQuery
+    : validWallet(searchDomainAddress)
+      ? searchDomainAddress
+      : null;
+  const cachedDomainSuggestions = useMemo(
+    () =>
+      searchOpen
+        ? readCachedLeaderboardDomainSuggestions(normalizedSearchQuery)
+        : [],
+    [searchOpen, normalizedSearchQuery],
+  );
   const [pendingFocus, setPendingFocus] = useState<string | null>(null);
   const [navigationDirection, setNavigationDirection] = useState<NavigationDirection | null>(null);
   const [cameraTransition, setCameraTransition] = useState(false);
@@ -970,9 +994,6 @@ export function AppNetwork({ locale }: { locale: Locale }) {
   const selectedQualified = selectedIsFocus
     ? currentData?.summary.qualified ?? 0
     : selectedData?.summary.qualified ?? selectedMember?.qualified ?? 0;
-  const selectedRound = selectedIsFocus
-    ? currentData?.summary.thisRound ?? null
-    : selectedData?.summary.thisRound ?? selectedMember?.thisRound ?? null;
   const selectedAddress = selectedIsFocus
     ? currentData?.focusWallet ?? selectedWallet ?? ''
     : selectedMember?.wallet ?? selectedWallet ?? '';
@@ -1267,48 +1288,19 @@ export function AppNetwork({ locale }: { locale: Locale }) {
       setRootTopologyReady(true);
     };
 
-    // Start the fast topology and round-enriched root reads together. The
-    // enriched request must never sit behind the fast request, otherwise the
-    // header visibly changes from an unresolved round value to the real count.
-    const fastRequest = fetchNetwork(requestWallet, {
-      signal: controller.signal,
-      fast: true,
-    });
-    const enrichedRequest = fetchNetwork(requestWallet, {
-      signal: controller.signal,
-    });
-    let enrichedCommitted = false;
-
-    void enrichedRequest.then((enriched) => {
-      if (!canCommit()) return;
-      enrichedCommitted = true;
-      commitRoot(enriched);
-    }).catch(() => {
-      // Fast topology remains a valid fallback if round enrichment fails.
-    });
-
     try {
-      const payload = await fastRequest;
-      if (!canCommit() || enrichedCommitted) return;
+      const payload = await fetchNetwork(requestWallet, {
+        signal: controller.signal,
+      });
+      if (!canCommit()) return;
       commitRoot(payload);
     } catch (error) {
       if (!canCommit()) return;
-
-      // Give the already-running enriched request a chance to become the first
-      // authoritative scene before exposing the provisional canvas.
-      try {
-        await enrichedRequest;
-        if (!canCommit()) return;
-      } catch {
-        if (!canCommit()) return;
-        setLoadError(error instanceof Error ? error.message : t.loadError);
-        setLoadState('ready');
-        setRootTopologyReady(true);
-      }
+      setLoadError(error instanceof Error ? error.message : t.loadError);
+      setLoadState('ready');
+      setRootTopologyReady(true);
     } finally {
-      void Promise.allSettled([fastRequest, enrichedRequest]).then(() => {
-        if (abortRef.current === controller) abortRef.current = null;
-      });
+      if (abortRef.current === controller) abortRef.current = null;
     }
   }, [wallet, cancelRequest, t.loadError]);
 
@@ -1796,32 +1788,92 @@ export function AppNetwork({ locale }: { locale: Locale }) {
   }, [searchOpen]);
 
   const closeSearch = useCallback(() => {
+    searchActionControllerRef.current?.abort();
+    searchActionControllerRef.current = null;
     setSearchOpen(false);
     setSearchQuery('');
     setSearchResults([]);
+    setPublicSearchWallet(null);
     setSearching(false);
+  }, []);
+
+  const updateSearchQuery = useCallback((value: string) => {
+    searchActionControllerRef.current?.abort();
+    searchActionControllerRef.current = null;
+    setSearching(false);
+    setSearchQuery(value);
   }, []);
 
   useEffect(() => {
     if (!searchOpen || !wallet || !currentData || editingLayout) return;
-    const query = searchQuery.trim();
+    const query = normalizedSearchQuery;
     if (query.length < 3) {
       setSearchResults([]);
+      setPublicSearchWallet(null);
       setSearching(false);
       return;
     }
+    if (domainSearchInput && searchDomainLoading) {
+      setSearchResults([]);
+      setPublicSearchWallet(null);
+      setSearching(true);
+      return;
+    }
+    if (domainSearchInput && !resolvedSearchAddress) {
+      setSearchResults([]);
+      setPublicSearchWallet(null);
+      setSearching(false);
+      return;
+    }
+    // Plain-text VET-domain prefixes (for example "yasi") are served from
+    // the session domain cache. Sending them to the wallet-address RPC can
+    // never match and only consumes the Network search rate limit.
+    if (!resolvedSearchAddress && !isWalletLikeSearch) {
+      setSearchResults([]);
+      setPublicSearchWallet(null);
+      setSearching(false);
+      return;
+    }
+
     const controller = new AbortController();
     const timer = window.setTimeout(async () => {
       setSearching(true);
+      setPublicSearchWallet(null);
       try {
+        const effectiveQuery = resolvedSearchAddress ?? query;
         const result = await fetchNetwork(wallet, {
           focus: currentData.focusWallet,
-          query,
+          query: effectiveQuery,
           signal: controller.signal,
         });
-        if (!controller.signal.aborted) setSearchResults(result.searchResults ?? []);
+        if (controller.signal.aborted) return;
+        const ownResults = result.searchResults ?? [];
+        setSearchResults(ownResults);
+
+        if (
+          ownResults.length === 0 &&
+          resolvedSearchAddress &&
+          keyWallet(resolvedSearchAddress) !== keyWallet(wallet)
+        ) {
+          const response = await fetch(
+            `/api/network/public?wallet=${encodeURIComponent(resolvedSearchAddress)}`,
+            {
+              method: 'GET',
+              credentials: 'include',
+              cache: 'no-store',
+              headers: { Accept: 'application/json' },
+              signal: controller.signal,
+            },
+          );
+          if (!controller.signal.aborted && response.ok) {
+            setPublicSearchWallet(keyWallet(resolvedSearchAddress));
+          }
+        }
       } catch {
-        if (!controller.signal.aborted) setSearchResults([]);
+        if (!controller.signal.aborted) {
+          setSearchResults([]);
+          setPublicSearchWallet(null);
+        }
       } finally {
         if (!controller.signal.aborted) setSearching(false);
       }
@@ -1830,13 +1882,80 @@ export function AppNetwork({ locale }: { locale: Locale }) {
       window.clearTimeout(timer);
       controller.abort();
     };
-  }, [searchOpen, wallet, currentData, searchQuery, editingLayout]);
+  }, [
+    searchOpen,
+    wallet,
+    currentData,
+    normalizedSearchQuery,
+    domainSearchInput,
+    searchDomainLoading,
+    resolvedSearchAddress,
+    isWalletLikeSearch,
+    editingLayout,
+  ]);
 
   const focusSearchResult = useCallback((result: SearchResult) => {
     if (editingLayout) return;
     closeSearch();
     void moveToFocus(result.wallet, 'forward');
   }, [editingLayout, closeSearch, moveToFocus]);
+
+  const openPublicSearchResult = useCallback((address: string) => {
+    if (editingLayout || !validWallet(address)) return;
+    closeSearch();
+    window.dispatchEvent(
+      new CustomEvent('veinvite-open-public-network', {
+        detail: { wallet: keyWallet(address) },
+      }),
+    );
+  }, [editingLayout, closeSearch]);
+
+  const openCachedDomainSuggestion = useCallback(async (
+    suggestion: CachedLeaderboardDomainSuggestion,
+  ) => {
+    if (editingLayout || !wallet || !currentData) return;
+    const target = keyWallet(suggestion.wallet);
+    searchActionControllerRef.current?.abort();
+    const controller = new AbortController();
+    searchActionControllerRef.current = controller;
+    setSearching(true);
+    try {
+      const result = await fetchNetwork(wallet, {
+        focus: currentData.focusWallet,
+        query: target,
+        signal: controller.signal,
+      });
+      if (controller.signal.aborted) return;
+      const ownMatch = (result.searchResults ?? []).find(
+        (entry) => keyWallet(entry.wallet) === target,
+      );
+      if (ownMatch) {
+        closeSearch();
+        void moveToFocus(ownMatch.wallet, 'forward');
+        return;
+      }
+      openPublicSearchResult(target);
+    } catch {
+      if (controller.signal.aborted) return;
+      // A transient My Network read failure is not evidence that the target
+      // belongs outside the current graph. Keep the search open so the same
+      // suggestion can be retried instead of navigating to the wrong root.
+      setSearchResults([]);
+      setPublicSearchWallet(null);
+    } finally {
+      if (searchActionControllerRef.current === controller) {
+        searchActionControllerRef.current = null;
+        setSearching(false);
+      }
+    }
+  }, [
+    editingLayout,
+    wallet,
+    currentData,
+    closeSearch,
+    moveToFocus,
+    openPublicSearchResult,
+  ]);
 
   const beginLayoutEdit = useCallback(() => {
     if (!currentFocusKey) return;
@@ -3037,11 +3156,11 @@ export function AppNetwork({ locale }: { locale: Locale }) {
               <input
                 ref={searchInputRef}
                 value={searchQuery}
-                onChange={(event) => setSearchQuery(event.target.value)}
+                onChange={(event) => updateSearchQuery(event.target.value)}
                 onKeyDown={(event) => {
                   if (event.key === 'Escape') closeSearch();
                 }}
-                placeholder={t.searchPlaceholder}
+                placeholder={`${t.searchPlaceholder} · .vet`}
                 aria-label={t.searchPlaceholder}
                 autoComplete="off"
                 autoCapitalize="none"
@@ -3070,8 +3189,25 @@ export function AppNetwork({ locale }: { locale: Locale }) {
                     key={`${keyWallet(result.wallet)}:${result.depth}`}
                     onClick={() => focusSearchResult(result)}
                   >
-                    <strong dir="ltr">{shortWallet(result.wallet)}</strong>
+                    <strong><NetworkNodeLabel address={result.wallet} /></strong>
                     <span>{c.branch} · {result.depth}</span>
+                  </button>
+                )) : publicSearchWallet ? (
+                  <button
+                    type="button"
+                    onClick={() => openPublicSearchResult(publicSearchWallet)}
+                  >
+                    <strong><NetworkNodeLabel address={publicSearchWallet} /></strong>
+                    <span>{e.visibleNetwork}</span>
+                  </button>
+                ) : cachedDomainSuggestions.length ? cachedDomainSuggestions.map((suggestion) => (
+                  <button
+                    type="button"
+                    key={suggestion.wallet}
+                    onClick={() => void openCachedDomainSuggestion(suggestion)}
+                  >
+                    <strong dir="auto">{formatVechainDomainLabel(suggestion.domain)}</strong>
+                    <span dir="ltr">{nodeWallet(suggestion.wallet)}</span>
                   </button>
                 )) : (
                   <span className="searchStatus">{t.noSearchResults}</span>
@@ -3398,7 +3534,6 @@ export function AppNetwork({ locale }: { locale: Locale }) {
               <div><strong>{selectedNetwork.toLocaleString()}</strong><span>{t.networkSize}</span></div>
               <div><strong>{selectedDirect.toLocaleString()}</strong><span>{t.direct}</span></div>
               <div><strong>{selectedQualified.toLocaleString()}</strong><span>{t.qualified}</span></div>
-              <div><strong>{selectedRound === null ? '–' : `+${selectedRound.toLocaleString()}`}</strong><span>{t.thisRound}</span></div>
             </div>
             {!selectedIsFocus && selectedMember ? (
               <button
@@ -3465,7 +3600,7 @@ export function AppNetwork({ locale }: { locale: Locale }) {
         .layoutControls{display:flex;align-items:center;gap:3px;min-width:0}.layoutControls>button,.groupMenuAnchor>button{width:28px;height:29px;padding:0;border:1px solid rgba(255,205,80,.13);border-radius:8px;background:rgba(18,18,15,.94);color:#a9a397;font:inherit;font-size:.65rem;font-weight:900;cursor:pointer;box-shadow:0 7px 18px rgba(0,0,0,.2)}.layoutControls .editLayoutButton:hover,.layoutControls .editLayoutButton.active,.layoutControls .groupsButton:hover,.layoutControls .groupsButton.active{border-color:rgba(244,183,40,.31);color:#e1bd5b}.layoutControls .editLayoutButton.active{background:rgba(244,183,40,.08)}.groupMenuAnchor{position:relative;display:flex;flex:0 0 auto}.labeledControl{width:auto!important;min-width:38px;max-width:64px;padding:0 6px!important;display:inline-flex;align-items:center;justify-content:center;gap:3px;white-space:nowrap}.controlLabel{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:.45rem;line-height:1}.editLayoutButton,.groupsButton{display:grid;place-items:center}
         .groupsPanel,.groupBuilder{position:absolute;z-index:95;left:auto;right:0;top:calc(100% + 7px);transform:none;width:min(232px,calc(100vw - 28px));box-sizing:border-box;padding:11px;border:1px solid rgba(244,183,40,.17);border-radius:15px;background:rgba(14,14,12,.985);box-shadow:0 18px 40px rgba(0,0,0,.42);cursor:default}.groupBuilder{z-index:96;border-color:rgba(244,183,40,.2)}.groupsPanelHead{display:flex;align-items:center;justify-content:space-between}.groupsPanelHead strong{color:#e5dfd3;font-size:.62rem}.groupsPanelHead>button{width:27px;height:27px;padding:0;border:0;background:transparent;color:#817c73;font-size:.95rem;line-height:1;display:grid;place-items:center;cursor:pointer}.groupsPanel p{margin:10px 0;color:#77736c;font-size:.53rem}.groupsList{max-height:216px;overflow-y:auto;overscroll-behavior:contain;display:grid;gap:5px;margin-top:7px;padding-right:1px}.groupsList>button{width:100%;padding:7px 8px;border:1px solid rgba(255,255,255,.06);border-radius:9px;background:rgba(255,255,255,.025);color:#aaa398;text-align:start;cursor:pointer}.groupsList span,.groupsList small{display:block}.groupsList span{font-size:.54rem;font-weight:900}.groupsList small{margin-top:2px;color:#746e64;font-size:.46rem}.groupManageHead{display:grid;grid-template-columns:27px minmax(0,1fr) 27px;gap:5px;align-items:center}.groupManageHead>button{font-size:1rem;line-height:1;display:grid;place-items:center}.groupManageTitle{min-width:0;width:100%;display:flex;align-items:center;gap:6px}.groupManageTitleButton{min-width:0;width:100%;height:auto;padding:0;border:0;background:transparent;color:#e5dfd3;font:inherit;font-size:.62rem;font-weight:900;line-height:1.2;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;text-align:start;cursor:text}.groupManageTitleInput{min-width:0;width:100%;height:28px;box-sizing:border-box;padding:0 6px;border:1px solid rgba(244,183,40,.28);border-radius:7px;background:#11110f;color:#e5dfd3;font:inherit;font-size:16px;font-weight:800;line-height:1.2;outline:none}.groupManageTitleInput:focus{border-color:rgba(244,183,40,.58);box-shadow:0 0 0 2px rgba(244,183,40,.06)}.groupManageGlyph{width:22px;height:22px;display:grid;place-items:center;color:#c8a34e;flex:0 0 auto}.groupManageCount{display:block;margin:5px 2px 7px;color:#756d5f;font-size:.47rem}.groupManageMembers{max-height:216px;overflow-y:auto;overscroll-behavior:contain;display:grid;gap:4px;padding-right:1px}.groupManageMember{min-height:36px;padding:4px 4px 4px 8px;box-sizing:border-box;display:flex;align-items:center;justify-content:space-between;gap:7px;border:1px solid rgba(255,255,255,.05);border-radius:8px;background:rgba(255,255,255,.02);color:#827c71;font-size:.48rem}.groupManageMember>span{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.groupManageMember>button{flex:0 0 36px;width:36px;height:36px;border:0;border-radius:8px;background:rgba(194,118,90,.07);color:#b08c7e;font:inherit;font-size:.8rem;font-weight:900;cursor:pointer}.groupManageUngroup{margin-top:8px!important}.createFirstGroup{width:100%;min-height:32px;margin-top:8px;border:1px solid rgba(244,183,40,.22);border-radius:9px;background:rgba(244,183,40,.05);color:#c5a454;font:inherit;font-size:.52rem;font-weight:900;cursor:pointer;transition:transform 120ms ease,border-color 120ms ease,background 120ms ease,box-shadow 120ms ease}.createFirstGroup.dropActive{transform:scale(1.02);border-color:rgba(255,208,79,.72);background:rgba(244,183,40,.11);box-shadow:0 0 0 3px rgba(244,183,40,.07)}.createFirstGroup:disabled{opacity:.42;cursor:default}.groupBuilderHead{display:flex;align-items:center;justify-content:space-between;gap:8px}.groupBuilderHead strong{color:#e5dfd3;font-size:.62rem}.groupBuilderHead button{width:27px;height:27px;border:0;background:transparent;color:#817c73;font-size:.95rem;cursor:pointer}.groupBuilder>input{width:100%;height:34px;margin-top:7px;box-sizing:border-box;padding:0 8px;border:1px solid rgba(255,205,80,.1);border-radius:8px;background:#11110f;color:#d8d3ca;font:inherit;font-size:16px;line-height:1.2;outline:none}.groupDropZone{min-height:42px;margin-top:8px;padding:7px 9px;box-sizing:border-box;display:grid;grid-template-columns:auto minmax(0,1fr) auto;align-items:center;gap:6px;border:1px dashed rgba(244,183,40,.34);border-radius:11px;background:rgba(244,183,40,.035);text-align:start;transform-origin:88% 50%;transition:transform 120ms ease,border-color 120ms ease,background 120ms ease,box-shadow 120ms ease}.groupDropZone.active{transform:scale(1.02);border-color:rgba(255,208,79,.72);background:rgba(244,183,40,.085);box-shadow:0 0 0 3px rgba(244,183,40,.07),0 8px 24px rgba(0,0,0,.22)}.dropIcon{color:#c99d35;font-size:.9rem;line-height:1}.groupDropZone strong{min-width:0;color:#b9aa83;font-size:.54rem;line-height:1.2;display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;overflow:hidden}.groupDropZone small{min-width:0;max-width:76px;overflow:hidden;text-overflow:ellipsis;color:#6d685e;font-size:.48rem;white-space:nowrap;font-variant-numeric:tabular-nums}.groupDropZone.memberAdded small{animation:groupCountPop ${GROUP_DROP_MS}ms ease-out}.groupDraftMembers{margin-top:7px;display:flex;flex-wrap:wrap;gap:4px}.groupDraftMembers button{padding:4px 6px;border:1px solid rgba(255,255,255,.06);border-radius:7px;background:rgba(255,255,255,.025);color:#89847a;font:inherit;font-size:.46rem;cursor:pointer;animation:groupMemberIn 160ms ease-out both}.groupDraftMembers button span{color:#a97f54}.createGroupButton{width:100%;min-height:33px;margin-top:8px;border:0;border-radius:9px;background:linear-gradient(135deg,#ffd24d,#efa718);color:#17120a;font:inherit;font-size:.53rem;font-weight:950;cursor:pointer}.createGroupButton:disabled{background:rgba(255,255,255,.05);color:#68635b;cursor:default}
         .viewControls{display:flex;align-items:center;gap:3px;flex:0 0 auto}.viewControls .fitButton{width:28px;min-width:28px;padding:0;font-size:.62rem}.viewControls button{width:28px;height:29px;padding:0;border:1px solid rgba(255,205,80,.13);border-radius:8px;background:rgba(18,18,15,.92);color:#bbb5aa;font:inherit;font-size:.68rem;font-weight:850;cursor:pointer}.viewControls .youControl{width:28px!important;min-width:28px;max-width:28px;padding:0!important}.viewControls button:hover{border-color:rgba(244,183,40,.28);color:#e4c36d}.parentReturn{position:absolute;z-index:55;left:8px;bottom:8px;min-height:34px;padding:0 11px;border:1px solid rgba(255,205,80,.12);border-radius:10px;background:rgba(18,18,15,.92);color:#a89c7b;font:inherit;font-size:.55rem;font-weight:850;cursor:pointer}.parentReturn:disabled{opacity:.4}
-        .profileCard{position:absolute;z-index:75;inset-inline:8px;top:auto;bottom:8px;width:auto;box-sizing:border-box;padding:9px;border:1px solid rgba(255,205,80,.15);border-radius:14px;background:rgba(15,15,13,.975);box-shadow:0 16px 38px rgba(0,0,0,.42);cursor:default}.profileCard.hasParentReturn{bottom:52px}.profileClose{position:absolute;inset-inline-end:5px;top:4px;width:24px;height:24px;border:0;background:transparent;color:#817c73;font-size:.88rem;cursor:pointer}.profileIdentity{min-width:0;padding-inline-end:26px;display:flex;align-items:center;gap:7px}.profileIdentity :global(.identity){min-width:0;width:100%;display:flex;align-items:center;gap:7px}.profileIdentity :global(.identityLabel){min-width:0;display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#e7e1d6;font-size:.64rem;font-weight:800;line-height:1.2}.profileIdentity :global(.avatarSlot){position:relative;display:grid;place-items:center;flex:0 0 auto}.profileIdentity :global(.neutralAvatar){display:grid;place-items:center;border:1px solid rgba(244,183,40,.13);border-radius:50%;background:#171611;color:#8e7b50}.profileIdentity :global(.avatarSlot img){position:absolute;inset:0;border-radius:50%;object-fit:cover}.profileAddress{min-width:0;height:27px;margin-top:5px;padding:0 5px 0 8px;box-sizing:border-box;display:flex;align-items:center;gap:5px;border-radius:8px;background:rgba(255,255,255,.025);color:#67635d;font-size:.45rem;line-height:1;user-select:text;-webkit-user-select:text}.profileAddress>span{min-width:0;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.profileAddress>a{flex:0 0 23px;width:23px;height:23px;display:grid;place-items:center;border-radius:7px;color:#9a8550;text-decoration:none;font-size:.64rem;user-select:none;-webkit-user-select:none}.profileAddress>a:hover,.profileAddress>a:focus-visible{background:rgba(244,183,40,.07);color:#d1ac4c}.profileStats{margin-top:5px;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:4px}.profileStats>div{min-width:0;padding:5px 6px;border:1px solid rgba(255,255,255,.045);border-radius:8px;background:rgba(255,255,255,.018)}.profileStats strong{display:block;direction:ltr;color:#d6d0c5;font-size:.59rem;font-variant-numeric:tabular-nums}.profileStats span{display:-webkit-box;margin-top:1px;color:#68645e;font-size:.43rem;line-height:1.18;overflow:hidden;-webkit-box-orient:vertical;-webkit-line-clamp:2;white-space:normal}.profileAction{width:100%;min-height:32px;margin-top:5px;padding:4px 10px;border:0;border-radius:9px;background:linear-gradient(135deg,#ffd24d,#efa718);color:#17120a;font:inherit;font-size:.54rem;font-weight:950;line-height:1.15;white-space:normal;cursor:pointer}.profileAction:disabled{opacity:.45;cursor:default}
+        .profileCard{position:absolute;z-index:75;inset-inline:8px;top:auto;bottom:8px;width:auto;box-sizing:border-box;padding:9px;border:1px solid rgba(255,205,80,.15);border-radius:14px;background:rgba(15,15,13,.975);box-shadow:0 16px 38px rgba(0,0,0,.42);cursor:default}.profileCard.hasParentReturn{bottom:52px}.profileClose{position:absolute;inset-inline-end:5px;top:4px;width:24px;height:24px;border:0;background:transparent;color:#817c73;font-size:.88rem;cursor:pointer}.profileIdentity{min-width:0;padding-inline-end:26px;display:flex;align-items:center;gap:7px}.profileIdentity :global(.identity){min-width:0;width:100%;display:flex;align-items:center;gap:7px}.profileIdentity :global(.identityLabel){min-width:0;display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#e7e1d6;font-size:.64rem;font-weight:800;line-height:1.2}.profileIdentity :global(.avatarSlot){position:relative;display:grid;place-items:center;flex:0 0 auto}.profileIdentity :global(.neutralAvatar){display:grid;place-items:center;border:1px solid rgba(244,183,40,.13);border-radius:50%;background:#171611;color:#8e7b50}.profileIdentity :global(.avatarSlot img){position:absolute;inset:0;border-radius:50%;object-fit:cover}.profileAddress{min-width:0;height:27px;margin-top:5px;padding:0 5px 0 8px;box-sizing:border-box;display:flex;align-items:center;gap:5px;border-radius:8px;background:rgba(255,255,255,.025);color:#67635d;font-size:.45rem;line-height:1;user-select:text;-webkit-user-select:text}.profileAddress>span{min-width:0;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.profileAddress>a{flex:0 0 23px;width:23px;height:23px;display:grid;place-items:center;border-radius:7px;color:#9a8550;text-decoration:none;font-size:.64rem;user-select:none;-webkit-user-select:none}.profileAddress>a:hover,.profileAddress>a:focus-visible{background:rgba(244,183,40,.07);color:#d1ac4c}.profileStats{margin-top:5px;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:4px}.profileStats>div{min-width:0;padding:5px 6px;border:1px solid rgba(255,255,255,.045);border-radius:8px;background:rgba(255,255,255,.018)}.profileStats strong{display:block;direction:ltr;color:#d6d0c5;font-size:.59rem;font-variant-numeric:tabular-nums}.profileStats span{display:-webkit-box;margin-top:1px;color:#68645e;font-size:.43rem;line-height:1.18;overflow:hidden;-webkit-box-orient:vertical;-webkit-line-clamp:2;white-space:normal}.profileAction{width:100%;min-height:32px;margin-top:5px;padding:4px 10px;border:0;border-radius:9px;background:linear-gradient(135deg,#ffd24d,#efa718);color:#17120a;font:inherit;font-size:.54rem;font-weight:950;line-height:1.15;white-space:normal;cursor:pointer}.profileAction:disabled{opacity:.45;cursor:default}
         .ungroupButton{width:100%;min-height:33px;margin-top:10px;border:1px solid rgba(194,118,90,.2);border-radius:9px;background:rgba(194,118,90,.06);color:#bd9889;font:inherit;font-size:.52rem;font-weight:900;cursor:pointer}
         .nodeDragGhost{position:fixed;z-index:220;left:0;top:0;width:52px;height:52px;pointer-events:none;touch-action:none;user-select:none;-webkit-user-select:none;filter:drop-shadow(0 12px 18px rgba(0,0,0,.38));will-change:transform}.nodeDragGhost .nodeCircle{border-color:rgba(244,183,40,.92);box-shadow:0 0 0 4px rgba(244,183,40,.13),0 0 30px rgba(244,183,40,.18)}.nodeDragGhost .nodeMeta{top:calc(100% + 5px);opacity:.96}
         .workspaceNotice{position:absolute;z-index:96;left:50%;bottom:56px;transform:translateX(-50%);max-width:calc(100% - 28px);box-sizing:border-box;padding:7px 11px;border:1px solid rgba(244,183,40,.18);border-radius:10px;background:rgba(21,19,14,.97);color:#d5b85f;font-size:.53rem;font-weight:850;line-height:1.25;text-align:center;white-space:normal;overflow-wrap:anywhere;box-shadow:0 12px 28px rgba(0,0,0,.3)}

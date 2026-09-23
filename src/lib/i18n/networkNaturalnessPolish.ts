@@ -62,17 +62,9 @@ const NETWORK_NATURALNESS_PATCHES: Record<SupportedLocale, NetworkNaturalnessPat
     },
     experience: {
       directNetwork: '직접 초대 네트워크',
-      recentGrowth: '최근 증가',
       emptyTitle: '내 네트워크는 여기서 시작돼요',
       invitedBy: '초대한 사람',
       noMatching: '일치하는 직접 초대 분기가 없어요.',
-    },
-    explore: {
-      exploreDescription: '같은 네트워크 화면에서 공개된 VeInvite 네트워크를 둘러보세요. 비공개 분기는 표시되지 않아요.',
-      publicEnabled: '공개 접근 허용',
-      discoverable: '둘러보기에 표시',
-      discoverableNote: '내 네트워크가 둘러보기 목록에 표시되게 합니다.',
-      privateBranchesHidden: '비공개 분기는 숨겨져 있어요',
     },
     interaction: {
       confirmMoveError: '그룹 이동이 완료됐는지 확인하지 못했어요.',
@@ -601,10 +593,6 @@ Object.assign(NETWORK_EXPERIENCE_COPY.ko, {
 });
 
 Object.assign(NETWORK_EXPLORE_COPY.ko, {
-  publicEnabledNote: '내 지갑 주소를 아는 사람이 공개 네트워크를 볼 수 있게 해요.',
-  discoverableNote: '내 네트워크가 둘러보기 목록에 표시되게 해요.',
   noPublicNetworks: '아직 둘러볼 수 있는 공개 네트워크가 없어요.',
-  visibilityError: '공개 네트워크 설정을 변경하지 못했어요.',
-  networkPrivate: '이 네트워크는 비공개예요.',
   maintenance: '네트워크를 잠시 사용할 수 없어요.',
 });

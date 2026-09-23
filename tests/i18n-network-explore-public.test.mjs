@@ -1,16 +1,17 @@
 import assert from 'node:assert/strict';
-import { readFile } from 'node:fs/promises';
+import { access, readFile } from 'node:fs/promises';
 import test from 'node:test';
 
 const [
-  migration,
+  legacyMigration,
   auditMigration,
+  defaultPublicMigration,
+  emptyRootMigration,
   runtime,
   privateRoute,
   summaryRoute,
   publicRoute,
   discoverRoute,
-  visibilityRoute,
   hub,
   explorer,
   exploreCopy,
@@ -18,99 +19,71 @@ const [
 ] = await Promise.all([
   readFile(new URL('../supabase/migrations/20260909051843_network_explore_public_v1.sql', import.meta.url), 'utf8'),
   readFile(new URL('../supabase/migrations/20260909053519_audit_network_public_visibility_and_runtime.sql', import.meta.url), 'utf8'),
+  readFile(new URL('../supabase/migrations/20260923023000_make_network_default_public_readonly.sql', import.meta.url), 'utf8'),
+  readFile(new URL('../supabase/migrations/20260923034500_allow_empty_default_public_network_roots.sql', import.meta.url), 'utf8'),
   readFile(new URL('../src/lib/networkRuntimeServer.ts', import.meta.url), 'utf8'),
   readFile(new URL('../src/app/api/network/route.ts', import.meta.url), 'utf8'),
   readFile(new URL('../src/app/api/network/summary/route.ts', import.meta.url), 'utf8'),
   readFile(new URL('../src/app/api/network/public/route.ts', import.meta.url), 'utf8'),
   readFile(new URL('../src/app/api/network/public/discover/route.ts', import.meta.url), 'utf8'),
-  readFile(new URL('../src/app/api/network/public/visibility/route.ts', import.meta.url), 'utf8'),
   readFile(new URL('../src/components/AppNetworkHub.tsx', import.meta.url), 'utf8'),
   readFile(new URL('../src/components/PublicNetworkExplorer.tsx', import.meta.url), 'utf8'),
   readFile(new URL('../src/lib/i18n/networkExploreCopy.ts', import.meta.url), 'utf8'),
   readFile(new URL('../src/lib/i18n/networkHubCopy.ts', import.meta.url), 'utf8'),
 ]);
 
-test('Public Network preferences default private and rollout modes fail closed', () => {
-  assert.match(migration, /my_mode text not null default 'off'/i);
-  assert.match(migration, /public_mode text not null default 'off'/i);
-  assert.match(migration, /my_mode in \('off', 'canary', 'on'\)/i);
-  assert.match(migration, /public_mode in \('off', 'canary', 'on'\)/i);
-  assert.match(migration, /create table if not exists public\.network_runtime_canary_wallets/i);
-  assert.match(migration, /create table if not exists public\.network_public_profiles/i);
-  assert.match(migration, /public_enabled boolean not null default false/i);
-  assert.match(migration, /discoverable boolean not null default false/i);
-  assert.match(migration, /check \(not discoverable or public_enabled\)/i);
-  assert.match(migration, /enabled = false,[\s\S]*my_mode = 'off',[\s\S]*public_mode = 'off'/i);
-  assert.match(auditMigration, /alter column enabled set default false/i);
+test('historical opt-in rollout remains historical while the current reader is default-public', () => {
+  assert.match(legacyMigration, /create table if not exists public\.network_public_profiles/i);
+  assert.match(auditMigration, /network_public_profile_events/i);
+  assert.doesNotMatch(defaultPublicMigration, /join public\.network_public_profiles/i);
+  assert.doesNotMatch(defaultPublicMigration, /public_enabled|discoverable/i);
+  assert.match(defaultPublicMigration, /qualified_referral_network_edges/i);
+  assert.match(defaultPublicMigration, /FOCUS_NOT_FOUND/i);
+
+  assert.doesNotMatch(emptyRootMigration, /root_known|NETWORK_NOT_FOUND/i);
+  assert.match(emptyRootMigration, /qualified_referral_network_edges/i);
+  assert.ok(
+    emptyRootMigration.includes("p.root_wallet ~ '^0x[0-9a-f]{40}$'"),
+    'current public reader must allow a valid empty root without invitation metadata',
+  );
 });
 
-test('Production visibility/runtime audit migration is tracked and append-only to service-role callers', () => {
-  assert.match(auditMigration, /create table if not exists public\.network_public_profile_events/i);
-  assert.match(auditMigration, /create table if not exists public\.network_runtime_config_events/i);
-  assert.match(auditMigration, /generated always as identity primary key/i);
-  assert.match(auditMigration, /audit_network_public_profile_change_trigger/i);
-  assert.match(auditMigration, /audit_network_runtime_config_change_trigger/i);
-  assert.match(auditMigration, /revoke all on table public\.network_public_profile_events from public, anon, authenticated, service_role/i);
-  assert.match(auditMigration, /grant select on table public\.network_public_profile_events to service_role/i);
-  assert.match(auditMigration, /revoke all on table public\.network_runtime_config_events from public, anon, authenticated, service_role/i);
-  assert.match(auditMigration, /grant select on table public\.network_runtime_config_events to service_role/i);
+test('current public graph reader is service-role-only and graph-only', () => {
+  assert.match(defaultPublicMigration, /revoke all on function public\.read_public_referral_network_focus_v1\([\s\S]*from public, anon, authenticated/i);
+  assert.match(defaultPublicMigration, /grant execute on function public\.read_public_referral_network_focus_v1\([\s\S]*to service_role/i);
+  assert.match(defaultPublicMigration, /revoke all on function public\.read_public_network_discovery_v1\(integer\)[\s\S]*from public, anon, authenticated/i);
+  assert.doesNotMatch(emptyRootMigration, /reward_status|sybil_status|apps_completed|vot3_converted|vote_completed|identity_link|mission_|invitations/i);
+  assert.match(publicRoute, /Mission, reward,[\s\S]*anti-Sybil,[\s\S]*security/i);
+  assert.doesNotMatch(publicRoute, /NETWORK_PRIVATE|FOCUS_NOT_PUBLIC|NETWORK_NOT_FOUND|hasPrivateBranches/i);
 });
 
-test('Public Network tables and readers are service-role-only', () => {
-  assert.match(migration, /revoke all on table public\.network_public_profiles from public, anon, authenticated/i);
-  assert.match(migration, /revoke all on table public\.network_runtime_canary_wallets from public, anon, authenticated/i);
-  assert.match(migration, /to service_role/i);
-  assert.match(migration, /revoke all on function public\.read_public_referral_network_focus_v1\([\s\S]*from public, anon, authenticated/i);
-  assert.match(migration, /grant execute on function public\.read_public_referral_network_focus_v1\([\s\S]*to service_role/i);
-  assert.match(migration, /revoke all on function public\.read_public_network_discovery_v1\(integer\)[\s\S]*from public, anon, authenticated/i);
-});
-
-test('Public graph traversal only follows explicitly public wallets and excludes private mission/reward evidence', () => {
-  assert.match(migration, /join public\.network_public_profiles np[\s\S]*np\.public_enabled is true/i);
-  assert.doesNotMatch(migration, /i\.status/i);
-  assert.doesNotMatch(migration, /sybil_status/i);
-  assert.doesNotMatch(migration, /reward_status/i);
-  assert.doesNotMatch(migration, /apps_completed/i);
-  assert.doesNotMatch(migration, /vot3_converted/i);
-  assert.doesNotMatch(migration, /vote_completed/i);
-  assert.match(publicRoute, /Private-branch existence is intentionally not part of the browser payload/i);
-  assert.match(publicRoute, /safeChildren/i);
-});
-
-test('My Network and Public Network use independent staged runtime gates with viewer-based Public canary', () => {
+test('My Network and read-only public Network keep independent runtime rollout gates', () => {
   assert.match(runtime, /NetworkRuntimeSurface = 'my' \| 'public'/i);
   assert.match(runtime, /readNetworkRuntimeMode/i);
   assert.match(runtime, /isNetworkCanaryWallet/i);
 
   const privateSwitch = privateRoute.indexOf("canUseNetworkSurface('my', rootWallet)");
-  const privateRound = privateRoute.indexOf('const round = fastInitial ? null : await readCurrentRoundContext();');
   const privateRpc = privateRoute.indexOf("'read_referral_network_focus_v2'");
   assert.ok(privateSwitch >= 0);
-  assert.ok(privateRound > privateSwitch);
-  assert.ok(privateRpc > privateRound);
+  assert.ok(privateRpc > privateSwitch);
 
   assert.match(publicRoute, /readNetworkRuntimeMode\('public'\)/i);
-  assert.match(publicRoute, /requireWalletSession\(\{ request \}\)/i);
-  assert.match(publicRoute, /isNetworkCanaryWallet\(session\.walletAddress\)/i);
   const viewerGate = publicRoute.indexOf('canCurrentViewerUsePublicNetwork(request)');
-  const publicRound = publicRoute.indexOf('const round = await readCurrentRoundContext();');
   const publicRpc = publicRoute.indexOf("'read_public_referral_network_focus_v1'");
   assert.ok(viewerGate >= 0);
-  assert.ok(publicRound > viewerGate);
-  assert.ok(publicRpc > publicRound);
+  assert.ok(publicRpc > viewerGate);
 });
 
-test('Public discovery distinguishes rollout maintenance from a valid empty list', () => {
+test('Public discovery remains bounded and only returns root locators', () => {
   assert.match(discoverRoute, /readNetworkRuntimeMode\('public'\)/i);
-  assert.match(discoverRoute, /requireWalletSession\(\{ request \}\)/i);
   assert.match(discoverRoute, /PUBLIC_NETWORK_DISABLED/i);
-  const gate = discoverRoute.indexOf('canCurrentViewerDiscoverPublicNetwork(request)');
-  const rpc = discoverRoute.indexOf("'read_public_network_discovery_v1'");
-  assert.ok(gate >= 0);
-  assert.ok(rpc > gate);
+  assert.match(discoverRoute, /network_public_discover_ip/i);
+  assert.match(discoverRoute, /Do not expose unrelated metadata/i);
+  assert.match(discoverRoute, /return typeof wallet === 'string' \? \[\{ wallet \}\] : \[\]/i);
+  assert.doesNotMatch(discoverRoute, /return noStoreJson\(\{ networks: data \}/i);
 });
 
-test('Guest Public Network reads have target and privacy-safe client throttles plus bounded recursive work', () => {
+test('Guest public Network reads stay throttled, bounded, and no-store', () => {
   assert.match(publicRoute, /getClientIpSubject/i);
   assert.match(publicRoute, /network_public_ip/i);
   assert.match(publicRoute, /network_public_target/i);
@@ -118,17 +91,16 @@ test('Guest Public Network reads have target and privacy-safe client throttles p
   assert.match(publicRoute, /AbortController\(\)/i);
   assert.match(publicRoute, /\.abortSignal\(controller\.signal\)/i);
   assert.match(publicRoute, /Cache-Control': 'no-store'/i);
-  assert.match(discoverRoute, /network_public_discover_ip/i);
 });
 
-test('Public visibility changes require auth/origin, are throttled, and avoid redundant audit writes', () => {
-  assert.match(visibilityRoute, /requireWalletSession/i);
-  assert.match(visibilityRoute, /sameOrigin\(request\)/i);
-  assert.match(visibilityRoute, /network_public_visibility_wallet/i);
-  assert.match(visibilityRoute, /limit:\s*12/i);
-  assert.match(visibilityRoute, /const discoverable = publicEnabled \? requestedDiscoverable : false/i);
-  assert.match(visibilityRoute, /current\?\.public_enabled === publicEnabled/i);
-  assert.match(visibilityRoute, /current\?\.discoverable === discoverable/i);
+test('obsolete per-wallet visibility API and settings flow stay deleted', async () => {
+  await assert.rejects(
+    access(new URL('../src/app/api/network/public/visibility/route.ts', import.meta.url)),
+  );
+  assert.doesNotMatch(hub, /fetchVisibility|saveVisibility|publicConfirm|visibilityUnknown|publicSettings/i);
+  assert.doesNotMatch(explorer, /NETWORK_PRIVATE|FOCUS_NOT_PUBLIC|NETWORK_NOT_FOUND|hasPrivateBranches/i);
+  assert.doesNotMatch(exploreCopy, /publicEnabled|discoverableNote|networkPrivate|privateBranchesHidden|visibilityError/i);
+  assert.doesNotMatch(hubCopy, /publicConfirm|visibilityLoading|visibilityUnknown/i);
 });
 
 test('Network summary stays lightweight and zero-member wallets continue into the real canvas', () => {
@@ -137,52 +109,36 @@ test('Network summary stays lightweight and zero-member wallets continue into th
   assert.doesNotMatch(summaryRoute, /read_referral_network_focus_v2/i);
   assert.match(hub, /function NetworkGlyph/i);
   assert.doesNotMatch(hub, /probe\.summary\.network === 0/i);
-  assert.doesNotMatch(hub, /goHomeWithoutReload/i);
-  assert.doesNotMatch(hub, /data-veinvite-tab="home"/i);
   const maintenanceIndex = hub.indexOf("probeState === 'maintenance'");
   const canvasIndex = hub.indexOf('<AppNetwork locale={locale} />');
   assert.ok(maintenanceIndex >= 0 && canvasIndex > maintenanceIndex);
-  assert.doesNotMatch(hub, /useGetAvatar/i);
-  assert.doesNotMatch(hub, /useVechainDomain/i);
 });
 
-test('Network runtime OFF is a dedicated maintenance state rather than a retry failure', () => {
-  assert.match(hub, /probeState === 'maintenance'/i);
-  assert.match(hub, /h\.maintenanceTitle/i);
-  assert.match(hub, /h\.maintenanceDescription/i);
-  const maintenanceBranch = hub.match(/if \(probeState === 'maintenance'\)[\s\S]*?\n  }\n\n  if \(probeState === 'error'/i)?.[0] ?? '';
-  assert.doesNotMatch(maintenanceBranch, /t\.retry/i);
-});
-
-test('Public visibility controls stay dormant and are not mounted into the focused Network surface', () => {
-  assert.doesNotMatch(hub, /VisibilityLoadState/i);
-  assert.doesNotMatch(hub, /fetchVisibility|saveVisibility|publicConfirm|visibilityUnknown/i);
-  assert.doesNotMatch(hub, /exploreNetwork|publicSettings|PublicNetworkExplorer/i);
-  // Dormant backend controls remain hardened in case the product revisits them later.
-  assert.match(visibilityRoute, /requireWalletSession/i);
-  assert.match(visibilityRoute, /sameOrigin\(request\)/i);
-});
-
-test('Focused Network mounts only AppNetwork while dormant Public explorer keeps its isolated safety state', () => {
+test('My Network and other-user read-only explorer stay isolated', () => {
   assert.match(hub, /<AppNetwork locale=\{locale\} \/>/i);
-  assert.doesNotMatch(hub, /<PublicNetworkExplorer/i);
-  assert.match(explorer, /PUBLIC_SESSION_PREFIX\s*=\s*'veinvite-network-public-v2:'/i);
+  assert.match(hub, /<PublicNetworkExplorer/i);
+  assert.match(hub, /publicRootWallet/i);
+  assert.match(explorer, /PUBLIC_SESSION_PREFIX\s*=\s*'veinvite-network-public-v3:'/i);
   assert.match(explorer, /requestSerialRef/i);
   assert.match(explorer, /branchRequestRef/i);
-  assert.match(explorer, /cancelNavigation/i);
-  assert.match(explorer, /serial !== requestSerialRef\.current/i);
   assert.match(explorer, /onPointerMove/i);
   assert.match(explorer, /pinchRef/i);
-  assert.doesNotMatch(explorer, /hasPrivateBranches/i);
-  assert.doesNotMatch(explorer, /IN_PROGRESS/i);
-  assert.doesNotMatch(explorer, /QUALIFIED/i);
-  assert.doesNotMatch(explorer, /REWARDED/i);
-  assert.doesNotMatch(explorer, /sybil/i);
+  assert.doesNotMatch(explorer, /moveWorkspaceMemberToGroup|beginLayoutEdit|groupBuilder/i);
+  assert.doesNotMatch(explorer, /IN_PROGRESS|QUALIFIED|REWARDED|sybil/i);
+  assert.match(explorer, /className="networkUtilityRow"/i);
+  assert.match(explorer, /className="otherNetworkBadge"/i);
+  assert.doesNotMatch(explorer, /className="publicSummary"|className="backMine"|className="publicCluster"/i);
 });
 
-test('Network Explore and rollout copy cover every supported locale', () => {
+test('Korean Network Explore wording stays concise', () => {
+  assert.match(exploreCopy, /exploreNetwork:'다른 네트워크 보기'/);
+  assert.match(exploreCopy, /exploreTitle:'다른 네트워크 보기'/);
+  assert.doesNotMatch(exploreCopy, /다른 네트워크 둘러보기|공개 네트워크 둘러보기/);
+});
+
+test('Network Explore and maintenance copy cover every supported locale', () => {
   const expectedLocales = [
-    'en','ko','zh','hi','es','ja','it','tr','nl','de','fr','ar','bn','pt','ru','id','vi','zh-tw','sv','ro','ur','pcm','arz','mr','te','sw','ha','el',
+    'en','ko','zh','hi','es','ja','it','tr','nl','de','fr','ar','bn','pt','ru','id','vi','zh-tw','sv','ro','ur','pcm','arz','mr','te','sw','ha','el','cs',
   ];
   for (const locale of expectedLocales) {
     const pattern = locale === 'zh-tw'

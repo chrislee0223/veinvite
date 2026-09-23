@@ -15,7 +15,8 @@ import { getPicassoImage } from '@vechain/vechain-kit/utils';
 
 import { LEADERBOARD_COPY } from '@/lib/i18n/leaderboardCopy';
 import { getLeaderboardMovementCopy } from '@/lib/i18n/leaderboardMovementCopy';
-import type { Locale } from '@/lib/i18n/locales';
+import { NETWORK_EXPLORE_COPY } from '@/lib/i18n/networkExploreCopy';
+import type { Locale, SupportedLocale } from '@/lib/i18n/locales';
 import {
   getCachedPublicLeaderboard,
   getPublicLeaderboardCacheKey,
@@ -398,6 +399,7 @@ export function PublicLeaderboard({
   const openerRef = useRef<HTMLElement | null>(null);
   const t = LEADERBOARD_COPY[locale];
   const movementCopy = getLeaderboardMovementCopy(locale);
+  const networkCopy = NETWORK_EXPLORE_COPY[locale as SupportedLocale];
 
   const data =
     dataState.cacheKey === cacheKey
@@ -949,6 +951,23 @@ export function PublicLeaderboard({
               {t.viewExplorer}
               <span aria-hidden="true">↗</span>
             </a>
+            <button
+              type="button"
+              className="networkViewButton"
+              onClick={() => {
+                window.dispatchEvent(
+                  new CustomEvent('veinvite-open-public-network', {
+                    detail: {
+                      wallet: selectedEntry.walletAddress.toLowerCase(),
+                    },
+                  }),
+                );
+                closeDialog();
+              }}
+            >
+              <span>{locale === 'ko' ? '이 초대자의 네트워크 보기' : networkCopy.openNetwork}</span>
+              <span aria-hidden="true">›</span>
+            </button>
             <p>{t.explorerNote}</p>
           </div>
         </div>
@@ -1547,6 +1566,32 @@ export function PublicLeaderboard({
           font-weight:950;
           text-decoration:none;
           text-align:center;
+        }
+        .networkViewButton {
+          width:100%;
+          min-height:48px;
+          margin-top:8px;
+          padding:0 15px;
+          display:flex;
+          align-items:center;
+          justify-content:center;
+          gap:8px;
+          border:1px solid rgba(255,205,80,.18);
+          border-radius:15px;
+          background:rgba(244,183,40,.055);
+          color:#e7cf84;
+          font:inherit;
+          font-size:.8rem;
+          font-weight:900;
+          cursor:pointer;
+        }
+        .networkViewButton:hover {
+          border-color:rgba(255,205,80,.34);
+          background:rgba(244,183,40,.085);
+        }
+        .networkViewButton:focus-visible {
+          outline:2px solid rgba(255,205,80,.72);
+          outline-offset:2px;
         }
         .walletDialog > p {
           margin:9px 0 0;

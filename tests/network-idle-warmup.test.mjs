@@ -27,15 +27,9 @@ test('Network warmup primes header data as soon as wallet authentication is read
   assert.match(warmup, /window\.addEventListener\(\s*WALLET_SESSION_READY_EVENT,\s*handleSessionReady/);
   assert.match(warmup, /handleSessionReady[\s\S]*warmData\(\)/);
   assert.match(warmup, /prefetchNetworkRoot\(wallet\)/);
-  assert.match(warmup, /prefetchEnrichedNetworkRoot\(wallet, \{ force: true \}\)[\s\S]*\.catch\(\(\) => null\)/);
+  assert.doesNotMatch(warmup, /prefetchEnrichedNetworkRoot/);
   assert.match(warmup, /prefetchNetworkSummary\(wallet\)\.catch\(\(\) => null\)/);
   assert.match(warmup, /prefetchNetworkInviteSlots\(wallet\)\.catch\(\(\) => null\)/);
-
-  const fastWarmIndex = warmup.indexOf('void prefetchNetworkRoot(wallet)');
-  const enrichedWarmIndex = warmup.indexOf('void prefetchEnrichedNetworkRoot(wallet, { force: true })');
-  assert.ok(fastWarmIndex >= 0 && enrichedWarmIndex > fastWarmIndex);
-  const betweenRootReads = warmup.slice(fastWarmIndex, enrichedWarmIndex);
-  assert.doesNotMatch(betweenRootReads, /\.then\(/);
 
   assert.match(warmup, /requestIdleCallback/);
   const dataStart = warmup.indexOf('const warmData = () =>');
@@ -46,17 +40,21 @@ test('Network warmup primes header data as soon as wallet authentication is read
   assert.match(warmup, /import\('\.\/AppNetworkHub'\)/);
   assert.match(warmup, /window\.location\.pathname !== '\/'/);
 
-  assert.match(rootCache, /HEADER_STORAGE_KEY = 'veinvite_network_header_metrics_v1'/);
+  assert.match(rootCache, /HEADER_STORAGE_KEY = 'veinvite_network_header_metrics_v2'/);
   assert.doesNotMatch(rootCache, /HEADER_TTL_MS/);
   assert.match(rootCache, /getCachedNetworkHeaderMetrics/);
   assert.match(rootCache, /rememberHeaderMetrics\(wallet, data\)/);
   assert.match(rootCache, /NETWORK_HEADER_METRICS_UPDATED_EVENT/);
-  assert.match(rootCache, /prefetchEnrichedNetworkRoot/);
+  assert.doesNotMatch(rootCache, /prefetchEnrichedNetworkRoot/);
+  const headerMetricsStart = rootCache.indexOf('export type NetworkHeaderMetrics');
+  const rootSnapshotStart = rootCache.indexOf('export type NetworkRootSnapshot', headerMetricsStart);
+  assert.ok(headerMetricsStart >= 0 && rootSnapshotStart > headerMetricsStart);
+  assert.doesNotMatch(rootCache.slice(headerMetricsStart, rootSnapshotStart), /thisRound|roundId|roundEndAt/);
 
   assert.match(network, /getCachedNetworkHeaderMetrics\(wallet\)/);
   assert.match(network, /NETWORK_HEADER_METRICS_UPDATED_EVENT/);
   assert.match(network, /const headerNetwork =\s*headerMetrics\?\.network \?\? visibleRootData\.summary\.network/);
-  assert.match(network, /const headerThisRound =/);
+  assert.doesNotMatch(network, /const headerThisRound|selectedRound/);
 
   assert.doesNotMatch(warmup, /<AppGuide\b/);
   assert.doesNotMatch(warmup, /<AppNetworkHub\b/);

@@ -10,14 +10,12 @@ import {
 } from '@/lib/rateLimitServer';
 import { normalizeAddress } from '@/lib/serverStore';
 import { supabaseAdmin } from '@/lib/supabaseServer';
-import { readVeBetterRoundWindow } from '@/lib/vebetter/entryEligibility';
 import { requireWalletSession } from '@/lib/walletAuthServer';
 
 type PublicNetworkRpcError =
   | 'PUBLIC_NETWORK_DISABLED'
   | 'INVALID_WALLET'
-  | 'NETWORK_PRIVATE'
-  | 'FOCUS_NOT_PUBLIC';
+  | 'FOCUS_NOT_FOUND';
 
 type PublicNetworkPayload = {
   error?: PublicNetworkRpcError;
@@ -28,34 +26,19 @@ type PublicNetworkPayload = {
   summary?: {
     network: number;
     direct: number;
-    thisRound: number | null;
     depth: number;
   };
   children?: Array<{
     wallet: string;
     network: number;
     direct: number;
-    thisRound: number | null;
     depth: number;
-    hasPrivateBranches?: boolean;
   }>;
-  hasPrivateBranches?: boolean;
   depthLimitReached?: boolean;
 };
 
-type CurrentRoundContext = {
-  id: number;
-  startAt: string;
-  endAt: string;
-};
-
-const ROUND_RESOLVE_TIMEOUT_MS = 2_500;
 const PUBLIC_NETWORK_RPC_TIMEOUT_MS = 5_000;
-const ROUND_CACHE_MS = 60_000;
-const ROUND_FAILURE_CACHE_MS = 10_000;
 
-let roundCache: { value: CurrentRoundContext | null; expiresAt: number } | null = null;
-let roundInFlight: Promise<CurrentRoundContext | null> | null = null;
 
 function noStoreJson(body: Record<string, unknown>, status = 200) {
   return NextResponse.json(body, {
@@ -76,22 +59,6 @@ function normalizeOptionalWallet(value: string | null): string | null {
   }
 }
 
-function withTimeout<T>(promise: Promise<T>, timeoutMs: number): Promise<T> {
-  return new Promise<T>((resolve, reject) => {
-    const timer = setTimeout(() => reject(new Error('PUBLIC_NETWORK_TIMEOUT')), timeoutMs);
-    promise.then(
-      (value) => {
-        clearTimeout(timer);
-        resolve(value);
-      },
-      (error) => {
-        clearTimeout(timer);
-        reject(error);
-      },
-    );
-  });
-}
-
 async function canCurrentViewerUsePublicNetwork(request: NextRequest): Promise<boolean> {
   const mode = await readNetworkRuntimeMode('public');
   if (mode === 'on') return true;
@@ -105,36 +72,6 @@ async function canCurrentViewerUsePublicNetwork(request: NextRequest): Promise<b
   } catch {
     return false;
   }
-}
-
-async function readCurrentRoundContext(): Promise<CurrentRoundContext | null> {
-  const now = Date.now();
-  if (roundCache && roundCache.expiresAt > now) return roundCache.value;
-  if (roundInFlight) return roundInFlight;
-
-  roundInFlight = withTimeout(
-    readVeBetterRoundWindow(),
-    ROUND_RESOLVE_TIMEOUT_MS,
-  )
-    .then((round) => {
-      const value = {
-        id: round.roundId,
-        startAt: round.roundStartAt,
-        endAt: round.roundEndAt,
-      } satisfies CurrentRoundContext;
-      roundCache = { value, expiresAt: Date.now() + ROUND_CACHE_MS };
-      return value;
-    })
-    .catch((error) => {
-      console.warn('Public Network current-round context unavailable:', error);
-      roundCache = { value: null, expiresAt: Date.now() + ROUND_FAILURE_CACHE_MS };
-      return null;
-    })
-    .finally(() => {
-      roundInFlight = null;
-    });
-
-  return roundInFlight;
 }
 
 export async function GET(request: NextRequest) {
@@ -185,7 +122,6 @@ export async function GET(request: NextRequest) {
     );
   }
 
-  const round = await readCurrentRoundContext();
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), PUBLIC_NETWORK_RPC_TIMEOUT_MS);
 
@@ -195,9 +131,9 @@ export async function GET(request: NextRequest) {
       .rpc('read_public_referral_network_focus_v1', {
         p_root_wallet: rootWallet,
         p_focus_wallet: focusWallet,
-        p_round_id: round?.id ?? null,
-        p_round_start_at: round?.startAt ?? null,
-        p_round_end_at: round?.endAt ?? null,
+        p_round_id: null,
+        p_round_start_at: null,
+        p_round_end_at: null,
       })
       .abortSignal(controller.signal);
   } catch (error) {
@@ -220,23 +156,15 @@ export async function GET(request: NextRequest) {
   if (payload.error === 'PUBLIC_NETWORK_DISABLED') {
     return noStoreJson({ code: 'PUBLIC_NETWORK_DISABLED', error: 'Public Network is temporarily unavailable.' }, 503);
   }
-  if (payload.error === 'NETWORK_PRIVATE') {
-    return noStoreJson({ code: 'NETWORK_PRIVATE', error: 'This network is private.' }, 404);
-  }
-  if (payload.error === 'FOCUS_NOT_PUBLIC') {
-    return noStoreJson({ code: 'FOCUS_NOT_PUBLIC', error: 'That branch is not public.' }, 404);
+  if (payload.error === 'FOCUS_NOT_FOUND') {
+    return noStoreJson({ code: 'FOCUS_NOT_FOUND', error: 'That wallet is not part of this network.' }, 404);
   }
   if (payload.error === 'INVALID_WALLET') {
     return noStoreJson({ code: 'INVALID_WALLET', error: 'Invalid wallet address.' }, 400);
   }
 
-  // Private-branch existence is intentionally not part of the browser payload.
-  // The graph itself already stops at non-public wallets in SQL.
-  const {
-    hasPrivateBranches: _rootPrivateMetadata,
-    children = [],
-    ...rest
-  } = payload;
-  const safeChildren = children.map(({ hasPrivateBranches: _privateMetadata, ...child }) => child);
-  return noStoreJson({ ...rest, children: safeChildren } as Record<string, unknown>);
+  // This endpoint exposes referral-graph structure only. Mission, reward,
+  // anti-Sybil, security, invitation-detail, and signing data are not selected
+  // by the database reader and therefore never enter the browser payload.
+  return noStoreJson(payload as Record<string, unknown>);
 }
