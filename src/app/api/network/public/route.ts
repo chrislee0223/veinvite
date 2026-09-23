@@ -39,6 +39,7 @@ type PublicNetworkPayload = {
 };
 
 const PUBLIC_NETWORK_RPC_TIMEOUT_MS = 5_000;
+const PUBLIC_SLOT_LOOKUP_TIMEOUT_MS = 1_500;
 
 type PublicInviteSlotRow = {
   status: 'PENDING_ACCEPTANCE' | 'ACTIVATING' | 'UNDER_REVIEW' | 'COMPLETED';
@@ -72,28 +73,39 @@ function publicSlotOccupies(row: PublicInviteSlotRow): boolean {
 async function readPublicAvailableSlots(rootWallet: string): Promise<number | null> {
   if (await isNetworkCanaryWallet(rootWallet)) return 1;
 
-  const { data, error } = await supabaseAdmin
-    .from('invitations')
-    .select(
-      'status, eligibility_check_id, activation_network, invite_slot, slot_released_at, sybil_status',
-    )
-    .eq('inviter_wallet', rootWallet)
-    .in('status', PUBLIC_SLOT_ACTIVE_STATUSES);
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), PUBLIC_SLOT_LOOKUP_TIMEOUT_MS);
+  try {
+    const { data, error } = await supabaseAdmin
+      .from('invitations')
+      .select(
+        'status, eligibility_check_id, activation_network, invite_slot, slot_released_at, sybil_status',
+      )
+      .eq('inviter_wallet', rootWallet)
+      .in('status', PUBLIC_SLOT_ACTIVE_STATUSES)
+      .abortSignal(controller.signal);
 
-  if (error) {
-    console.error('Failed to load public Network slot availability:', error);
+    if (error) {
+      console.error('Failed to load public Network slot availability:', error);
+      return null;
+    }
+
+    const occupied = new Set<1 | 2>();
+    for (const row of (data ?? []) as PublicInviteSlotRow[]) {
+      if (!publicSlotOccupies(row)) continue;
+      occupied.add(row.invite_slot === 2 ? 2 : 1);
+    }
+
+    return Math.max(0, 2 - occupied.size);
+  } catch (error) {
+    if (!controller.signal.aborted) {
+      console.error('Public Network slot availability lookup failed:', error);
+    }
     return null;
+  } finally {
+    clearTimeout(timer);
   }
-
-  const occupied = new Set<1 | 2>();
-  for (const row of (data ?? []) as PublicInviteSlotRow[]) {
-    if (!publicSlotOccupies(row)) continue;
-    occupied.add(row.invite_slot === 2 ? 2 : 1);
-  }
-
-  return Math.max(0, 2 - occupied.size);
 }
-
 
 function noStoreJson(body: Record<string, unknown>, status = 200) {
   return NextResponse.json(body, {
