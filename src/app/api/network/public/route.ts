@@ -35,9 +35,64 @@ type PublicNetworkPayload = {
     depth: number;
   }>;
   depthLimitReached?: boolean;
+  availableSlots?: number;
 };
 
 const PUBLIC_NETWORK_RPC_TIMEOUT_MS = 5_000;
+
+type PublicInviteSlotRow = {
+  status: 'PENDING_ACCEPTANCE' | 'ACTIVATING' | 'UNDER_REVIEW' | 'COMPLETED';
+  eligibility_check_id: string | number | null;
+  activation_network: string | null;
+  invite_slot: number;
+  slot_released_at: string | null;
+  sybil_status: 'NOT_CHECKED' | 'CLEAR' | 'REVIEW' | 'BLOCKED';
+};
+
+const PUBLIC_SLOT_ACTIVE_STATUSES: PublicInviteSlotRow['status'][] = [
+  'PENDING_ACCEPTANCE',
+  'ACTIVATING',
+  'UNDER_REVIEW',
+  'COMPLETED',
+];
+
+function publicSlotHasEntryProof(row: PublicInviteSlotRow): boolean {
+  return row.eligibility_check_id !== null && Boolean(row.activation_network);
+}
+
+function publicSlotOccupies(row: PublicInviteSlotRow): boolean {
+  if (row.sybil_status === 'BLOCKED') return false;
+  if (row.status === 'PENDING_ACCEPTANCE') return true;
+  if (row.status === 'ACTIVATING' || row.status === 'UNDER_REVIEW') {
+    return publicSlotHasEntryProof(row);
+  }
+  return publicSlotHasEntryProof(row) && row.slot_released_at === null;
+}
+
+async function readPublicAvailableSlots(rootWallet: string): Promise<number | null> {
+  if (await isNetworkCanaryWallet(rootWallet)) return 1;
+
+  const { data, error } = await supabaseAdmin
+    .from('invitations')
+    .select(
+      'status, eligibility_check_id, activation_network, invite_slot, slot_released_at, sybil_status',
+    )
+    .eq('inviter_wallet', rootWallet)
+    .in('status', PUBLIC_SLOT_ACTIVE_STATUSES);
+
+  if (error) {
+    console.error('Failed to load public Network slot availability:', error);
+    return null;
+  }
+
+  const occupied = new Set<1 | 2>();
+  for (const row of (data ?? []) as PublicInviteSlotRow[]) {
+    if (!publicSlotOccupies(row)) continue;
+    occupied.add(row.invite_slot === 2 ? 2 : 1);
+  }
+
+  return Math.max(0, 2 - occupied.size);
+}
 
 
 function noStoreJson(body: Record<string, unknown>, status = 200) {
@@ -163,8 +218,16 @@ export async function GET(request: NextRequest) {
     return noStoreJson({ code: 'INVALID_WALLET', error: 'Invalid wallet address.' }, 400);
   }
 
-  // This endpoint exposes referral-graph structure only. Mission, reward,
-  // anti-Sybil, security, invitation-detail, and signing data are not selected
-  // by the database reader and therefore never enter the browser payload.
+  if (focusWallet === rootWallet) {
+    const availableSlots = await readPublicAvailableSlots(rootWallet);
+    if (availableSlots !== null) {
+      payload.availableSlots = availableSlots;
+    }
+  }
+
+  // This endpoint exposes referral-graph structure plus only the aggregate
+  // count of currently available invite slots. Mission, reward, anti-Sybil,
+  // security, invitee identity/progress, invitation detail, and signing data
+  // never enter the browser payload.
   return noStoreJson(payload as Record<string, unknown>);
 }
