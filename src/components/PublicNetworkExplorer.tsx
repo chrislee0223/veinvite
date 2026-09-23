@@ -255,7 +255,6 @@ export function PublicNetworkExplorer({
 }) {
   const e = NETWORK_EXPLORE_COPY[locale as SupportedLocale];
   const h = NETWORK_HUB_COPY[locale as SupportedLocale];
-  const u = NETWORK_CANARY_UI_COPY[locale as SupportedLocale];
   const t = NETWORK_EXPERIENCE_COPY[locale as SupportedLocale];
   const { openWallet, isWalletActionPending } = useWalletLauncher();
   const normalizedInitialRoot =
@@ -396,6 +395,7 @@ function PublicNetworkCanvas({
   const e = NETWORK_EXPLORE_COPY[locale as SupportedLocale];
   const h = NETWORK_HUB_COPY[locale as SupportedLocale];
   const t = NETWORK_EXPERIENCE_COPY[locale as SupportedLocale];
+  const u = NETWORK_CANARY_UI_COPY[locale as SupportedLocale];
   const c = NETWORK_CANVAS_CONTROL_COPY[locale as SupportedLocale];
   const profileDirection = getLocaleDirection(locale);
   const root = keyWallet(rootWallet);
