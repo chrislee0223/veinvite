@@ -52,7 +52,7 @@ test('post-payout evidence can HOLD only with another independent strong family'
 
 test('post-payout blacklist cannot rewrite an already-paid reward', async () => {
   const sql = await readFile(
-    'supabase/migrations/20260923035000_add_sybil_v2_post_payout_reviews.sql',
+    'supabase/migrations/20260923060500_add_sybil_v2_post_payout_reviews.sql',
     'utf8',
   );
   const start = sql.indexOf(
@@ -111,7 +111,7 @@ test('post-payout bridge is retryable and completion-marked only after processin
   );
 
   const migration = await readFile(
-    'supabase/migrations/20260923040000_add_sybil_v2_post_payout_bridge_queue.sql',
+    'supabase/migrations/20260923060600_add_sybil_v2_post_payout_bridge_queue.sql',
     'utf8',
   );
   assert.match(
@@ -135,7 +135,7 @@ test('recipient B3TR observation defaults on unless explicitly disabled', async 
 
 test('WATCH rewards receive staged 24h, 7d, and 30d post-payout observation', async () => {
   const sql = await readFile(
-    'supabase/migrations/20260923041500_stage_sybil_v2_post_payout_watch_horizons.sql',
+    'supabase/migrations/20260923060700_stage_sybil_v2_post_payout_watch_horizons.sql',
     'utf8',
   );
 
@@ -154,7 +154,7 @@ test('each post-payout observation horizon gets its own completion marker', asyn
     'utf8',
   );
   const sql = await readFile(
-    'supabase/migrations/20260923041500_stage_sybil_v2_post_payout_watch_horizons.sql',
+    'supabase/migrations/20260923060700_stage_sybil_v2_post_payout_watch_horizons.sql',
     'utf8',
   );
 
@@ -170,7 +170,7 @@ test('each post-payout observation horizon gets its own completion marker', asyn
 
 test('pending Sybil reviews temporarily stop new participation without changing past rewards', async () => {
   const sql = await readFile(
-    'supabase/migrations/20260923043000_hold_sybil_v2_participation_and_monitor_post_payout.sql',
+    'supabase/migrations/20260923060800_hold_sybil_v2_participation_and_monitor_post_payout.sql',
     'utf8',
   );
   const source = await readFile(
@@ -193,7 +193,7 @@ test('pending Sybil reviews temporarily stop new participation without changing 
 
 test('post-payout HOLDs and bridge delays are operator-monitoring alerts', async () => {
   const sql = await readFile(
-    'supabase/migrations/20260923043000_hold_sybil_v2_participation_and_monitor_post_payout.sql',
+    'supabase/migrations/20260923060800_hold_sybil_v2_participation_and_monitor_post_payout.sql',
     'utf8',
   );
 
