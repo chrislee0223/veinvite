@@ -65,6 +65,9 @@ test('other-user Network stays read-only while matching My Network chrome', () =
   assert.match(publicExplorer, /className="profileAddress"/);
   assert.match(publicExplorer, /getVeChainExplorerAddressUrl\(selected\)/);
   assert.match(publicExplorer, /profileDirection === 'rtl' \? '›' : '‹'/);
+  assert.match(publicExplorer, /className=\{\`breadcrumbs\$\{activePath\.length === 1 \? ' rootOnly' : ''\}\`\}/);
+  assert.match(publicExplorer, /const breadcrumbStart = Math\.max\(0, activePath\.length - 4\)/);
+  assert.doesNotMatch(publicExplorer, /className="publicPath"|\.publicPath\{/);
 });
 
 test('Network search resolves .vet domains and opens default-public read-only roots', () => {
