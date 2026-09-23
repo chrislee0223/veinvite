@@ -51,6 +51,10 @@
     {
       "path": "/api/cron/analytics-maintenance",
       "schedule": "47 0 * * *"
+    },
+    {
+      "path": "/api/cron/sybil-v2-paid-backfill",
+      "schedule": "*/15 * * * *"
     }
   ],
   "env": {
