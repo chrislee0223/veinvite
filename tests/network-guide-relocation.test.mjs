@@ -61,11 +61,13 @@ test('the legacy Guide tab renders one focused hardened Network runtime while re
   assert.match(networkHub, /<PublicNetworkExplorer/i);
   assert.match(networkHub, /publicRootWallet/i);
   assert.doesNotMatch(networkHub, /publicSettings/i);
-  // Other-user browsing now mounts the isolated public explorer while
-  // My Network keeps the editable runtime as its separate default surface.
-  assert.match(publicExplorer, /PUBLIC_SESSION_PREFIX/i);
+  // Other-user browsing keeps a separate read-only data surface but mirrors
+  // My Network navigation semantics without public-only camera persistence.
+  assert.doesNotMatch(publicExplorer, /PUBLIC_SESSION_PREFIX|sessionStorage|readSavedState|clearSavedState/i);
   assert.match(publicExplorer, /requestSerialRef/i);
   assert.match(publicExplorer, /cancelNavigation/i);
+  assert.match(publicExplorer, /viewByFocusRef/i);
+  assert.match(publicExplorer, /returnViewByChildRef/i);
 });
 
 test('Home exposes the invitation guide contextually without modifying the new progress and reward-claim Home implementation', () => {
