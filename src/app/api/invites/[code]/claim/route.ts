@@ -545,10 +545,16 @@ export async function POST(
       network: getVeBetterNetwork(),
     });
     if (restriction) {
+      const reviewPending =
+        restriction.restriction_kind !== 'BLACKLIST';
       return NextResponse.json(
         {
           outcome: 'wallet_restricted',
-          error: 'This referral cannot participate in VeInvite.',
+          error: reviewPending
+            ? 'This referral is temporarily paused while an additional security review is in progress.'
+            : 'This referral cannot participate in VeInvite.',
+          restrictionKind: restriction.restriction_kind,
+          reviewPending,
         },
         { status: 403, headers: { 'Cache-Control': 'no-store' } },
       );
