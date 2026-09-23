@@ -59,12 +59,35 @@ type V2AssessmentRow = {
   updated_at: string;
 };
 
+type PostPayoutReviewRow = {
+  invite_code: string;
+  network: string;
+  subject_wallet: string;
+  state: string;
+  risk_score: number;
+  revision: number | string;
+  reason_codes: unknown;
+  evidence_summary: unknown;
+  source: string;
+  opened_at: string;
+  resolved_at: string | null;
+  operator_wallet: string | null;
+  operator_reason: string | null;
+  updated_at: string;
+};
+
 type ReviewRow = InvitationReviewRow & {
   v2_state: string | null;
   v2_risk_score: number | null;
   v2_revision: number | string | null;
   v2_reason_codes: unknown;
   v2_updated_at: string | null;
+  post_payout_state: string | null;
+  post_payout_risk_score: number | null;
+  post_payout_revision: number | string | null;
+  post_payout_reason_codes: unknown;
+  post_payout_subject_wallet: string | null;
+  post_payout_updated_at: string | null;
 };
 
 function noStoreHeaders() {
@@ -180,9 +203,52 @@ async function loadV2Assessment(
   return (data as V2AssessmentRow | null) ?? null;
 }
 
+async function loadPostPayoutReview(
+  inviteCode: string,
+): Promise<PostPayoutReviewRow | null> {
+  const { data, error } = await supabaseAdmin
+    .from('sybil_v2_post_payout_reviews')
+    .select(
+      'invite_code,network,subject_wallet,state,risk_score,revision,reason_codes,evidence_summary,source,opened_at,resolved_at,operator_wallet,operator_reason,updated_at',
+    )
+    .eq('invite_code', inviteCode)
+    .maybeSingle();
+
+  if (error) {
+    throw new Error(
+      `Post-payout Sybil v2 review could not be loaded: ${error.message}`,
+    );
+  }
+
+  return (data as PostPayoutReviewRow | null) ?? null;
+}
+
+async function loadPostPayoutReviewEvents(
+  inviteCode: string,
+) {
+  const { data, error } = await supabaseAdmin
+    .from('sybil_v2_post_payout_review_events')
+    .select(
+      'id,action,risk_score,revision,reason_codes,evidence_summary,source,operator_wallet,operator_reason,created_at',
+    )
+    .eq('invite_code', inviteCode)
+    .order('revision', { ascending: false })
+    .limit(20);
+
+  if (error) {
+    throw new Error(
+      `Post-payout Sybil v2 review history could not be loaded: ${error.message}`,
+    );
+  }
+
+  return data ?? [];
+}
+
+
 function decorateReview(
   invitation: InvitationReviewRow,
   assessment: V2AssessmentRow | null,
+  postPayout: PostPayoutReviewRow | null = null,
 ): ReviewRow {
   return {
     ...invitation,
@@ -191,6 +257,17 @@ function decorateReview(
     v2_revision: assessment?.revision ?? null,
     v2_reason_codes: assessment?.reason_codes ?? [],
     v2_updated_at: assessment?.updated_at ?? null,
+    post_payout_state: postPayout?.state ?? null,
+    post_payout_risk_score:
+      postPayout?.risk_score ?? null,
+    post_payout_revision:
+      postPayout?.revision ?? null,
+    post_payout_reason_codes:
+      postPayout?.reason_codes ?? [],
+    post_payout_subject_wallet:
+      postPayout?.subject_wallet ?? null,
+    post_payout_updated_at:
+      postPayout?.updated_at ?? null,
   };
 }
 
