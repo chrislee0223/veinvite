@@ -130,3 +130,36 @@ test('reward reservation queue is non-blocking in shadow mode', async () => {
     /await reserveEligibleReferralRewards\(\)/u,
   );
 });
+
+
+test('Sybil v2 enforcement activation is atomic and starts future-only observation', async () => {
+  const sql = await readFile(
+    'supabase/migrations/20260923063000_activate_sybil_v2_enforcement.sql',
+    'utf8',
+  );
+
+  assert.match(
+    sql,
+    /sybil_v2_enforcement_enabled = true/u,
+  );
+  assert.match(
+    sql,
+    /sybil_v2_enforcement_changed_at = v_now/u,
+  );
+  assert.match(
+    sql,
+    /sybil_v2_automatic_observation_started_at =\s*coalesce\(sybil_v2_automatic_observation_started_at, v_now\)/u,
+  );
+  assert.match(
+    sql,
+    /SYBIL_V2_ACTIVATION_PRECONDITION_FAILED/u,
+  );
+  assert.doesNotMatch(
+    sql,
+    /update public\.invitations/u,
+  );
+  assert.doesNotMatch(
+    sql,
+    /update public\.reward_queue_entries/u,
+  );
+});
