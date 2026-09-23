@@ -177,10 +177,16 @@ export async function GET(request: NextRequest) {
       network,
     });
     if (restriction) {
+      const reviewPending =
+        restriction.restriction_kind !== 'BLACKLIST';
       return NextResponse.json(
         {
-          error: 'This wallet is restricted from VeInvite participation.',
+          error: reviewPending
+            ? 'VeInvite participation is temporarily paused while an additional security review is in progress.'
+            : 'This wallet is restricted from VeInvite participation.',
           outcome: 'wallet_restricted',
+          restrictionKind: restriction.restriction_kind,
+          reviewPending,
         },
         { status: 403, headers: { 'Cache-Control': 'no-store' } },
       );
@@ -222,10 +228,16 @@ export async function POST(request: NextRequest) {
       network,
     });
     if (restriction) {
+      const reviewPending =
+        restriction.restriction_kind !== 'BLACKLIST';
       return NextResponse.json(
         {
-          error: 'This wallet is restricted from VeInvite participation.',
+          error: reviewPending
+            ? 'VeInvite participation is temporarily paused while an additional security review is in progress.'
+            : 'This wallet is restricted from VeInvite participation.',
           outcome: 'wallet_restricted',
+          restrictionKind: restriction.restriction_kind,
+          reviewPending,
         },
         { status: 403, headers: { 'Cache-Control': 'no-store' } },
       );
