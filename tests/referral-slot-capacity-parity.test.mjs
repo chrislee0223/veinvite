@@ -57,7 +57,7 @@ test('legacy one-time creation treats an unreleased completed slot as active', (
 test('public Network empty-slot display keeps the same reservation-release capacity rule', () => {
   assert.match(publicNetworkApi, /slot_released_at:\s*string\s*\|\s*null/i);
   assert.match(publicNetworkApi, /PUBLIC_SLOT_ACTIVE_STATUSES[\s\S]*'COMPLETED'/i);
-  assert.match(publicNetworkApi, /row\.status === 'COMPLETED'[\s\S]*row\.slot_released_at === null/i);
+  assert.match(publicNetworkApi, /return publicSlotHasEntryProof\(row\) && row\.slot_released_at === null/i);
   assert.match(publicNetworkApi, /row\.sybil_status === 'BLOCKED'/i);
   assert.match(publicNetworkApi, /\(\[1, 2\] as const\)\.filter\(\(slot\) => !occupied\.has\(slot\)\)/);
 });
