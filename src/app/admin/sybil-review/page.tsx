@@ -530,6 +530,13 @@ export default function SybilReviewPage() {
         (value): value is string => typeof value === 'string',
       )
     : [];
+  const postPayoutReasonCodes = Array.isArray(
+    detail?.postPayoutReview?.reason_codes,
+  )
+    ? detail.postPayoutReview.reason_codes.filter(
+        (value): value is string => typeof value === 'string',
+      )
+    : [];
   const indicators = parseIndicators(onchainSnapshot?.indicators);
   const analyticsStale = snapshotIsStale(onchainSnapshot);
   const actionReady = Boolean(
@@ -617,23 +624,35 @@ export default function SybilReviewPage() {
                       <div className="reviewTop">
                         <strong>{review.invite_code}</strong>
                         <span className="badge">
-                          {review.v2_state === 'HOLD'
-                            ? `HOLD · ${review.v2_risk_score ?? 0}`
-                            : `${review.sybil_risk_level} · ${review.sybil_risk_score}`}
+                          {review.post_payout_state === 'HOLD'
+                            ? `POST · ${review.post_payout_risk_score ?? 0}`
+                            : review.v2_state === 'HOLD'
+                              ? `HOLD · ${review.v2_risk_score ?? 0}`
+                              : `${review.sybil_risk_level} · ${review.sybil_risk_score}`}
                         </span>
                       </div>
-                      <span>Invitee {shortAddress(review.invitee_wallet)}</span>
                       <span>
-                        {review.v2_state === 'HOLD'
-                          ? `SYBIL_V2 · ${formatDate(review.v2_updated_at)}`
-                          : `${review.sybil_source} · ${formatDate(review.sybil_checked_at)}`}
+                        {review.post_payout_state === 'HOLD'
+                          ? `Reward recipient ${shortAddress(review.post_payout_subject_wallet)}`
+                          : `Invitee ${shortAddress(review.invitee_wallet)}`}
+                      </span>
+                      <span>
+                        {review.post_payout_state === 'HOLD'
+                          ? `POST_PAYOUT · ${formatDate(review.post_payout_updated_at)}`
+                          : review.v2_state === 'HOLD'
+                            ? `SYBIL_V2 · ${formatDate(review.v2_updated_at)}`
+                            : `${review.sybil_source} · ${formatDate(review.sybil_checked_at)}`}
                       </span>
                       <small>
-                        {review.v2_state === 'HOLD'
-                          ? (Array.isArray(review.v2_reason_codes)
-                              ? review.v2_reason_codes.join(', ')
-                              : 'Sybil v2 evidence requires review.')
-                          : (review.sybil_reason ?? 'No review reason.')}
+                        {review.post_payout_state === 'HOLD'
+                          ? (Array.isArray(review.post_payout_reason_codes)
+                              ? review.post_payout_reason_codes.join(', ')
+                              : 'Post-payout evidence requires review.')
+                          : review.v2_state === 'HOLD'
+                            ? (Array.isArray(review.v2_reason_codes)
+                                ? review.v2_reason_codes.join(', ')
+                                : 'Sybil v2 evidence requires review.')
+                            : (review.sybil_reason ?? 'No review reason.')}
                       </small>
                     </button>
                   ))}
@@ -657,9 +676,11 @@ export default function SybilReviewPage() {
                         <h2>{selected.invite_code}</h2>
                       </div>
                       <span className="badge">
-                        {selected.v2_state === 'HOLD'
-                          ? 'HOLD'
-                          : selected.sybil_status}
+                        {selected.post_payout_state === 'HOLD'
+                          ? 'POST_PAYOUT HOLD'
+                          : selected.v2_state === 'HOLD'
+                            ? 'HOLD'
+                            : selected.sybil_status}
                       </span>
                     </div>
 
