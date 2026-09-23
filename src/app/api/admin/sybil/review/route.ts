@@ -772,11 +772,15 @@ export async function POST(request: NextRequest) {
     const operator = await loadVerifiedOperator(request);
     if (operator.response) return operator.response;
 
-    const [before, v2Assessment] =
-      await Promise.all([
-        loadInvitationReview(inviteCode),
-        loadV2Assessment(inviteCode),
-      ]);
+    const [
+      before,
+      v2Assessment,
+      postPayoutReview,
+    ] = await Promise.all([
+      loadInvitationReview(inviteCode),
+      loadV2Assessment(inviteCode),
+      loadPostPayoutReview(inviteCode),
+    ]);
 
     if (!before || !before.invitee_wallet) {
       return NextResponse.json(
@@ -802,6 +806,122 @@ export async function POST(request: NextRequest) {
         },
         {
           status: 409,
+          headers: noStoreHeaders(),
+        },
+      );
+    }
+
+    if (postPayoutReview?.state === 'HOLD') {
+      const expectedRevision =
+        'expectedRevision' in body
+          ? safeRevision(body.expectedRevision)
+          : null;
+
+      if (expectedRevision === null) {
+        return NextResponse.json(
+          {
+            error:
+              'expectedRevision is required for a post-payout HOLD decision.',
+          },
+          {
+            status: 400,
+            headers: noStoreHeaders(),
+          },
+        );
+      }
+
+      const currentRevision =
+        safeRevision(postPayoutReview.revision);
+
+      if (
+        currentRevision === null ||
+        currentRevision !== expectedRevision
+      ) {
+        return NextResponse.json(
+          {
+            error:
+              'This post-payout review changed after it was opened. Reload the latest review state before deciding.',
+          },
+          {
+            status: 409,
+            headers: noStoreHeaders(),
+          },
+        );
+      }
+
+      const { data, error } = await supabaseAdmin.rpc(
+        'resolve_sybil_v2_post_payout_review',
+        {
+          p_invite_code: inviteCode,
+          p_decision:
+            decision === 'BLOCKED'
+              ? 'BLACKLIST'
+              : 'CLEAR',
+          p_reason: reason,
+          p_expected_revision: expectedRevision,
+          p_operator_wallet:
+            operator.session!.walletAddress,
+          p_network: operator.pool!.network,
+        },
+      );
+
+      if (error) {
+        if (
+          error.message.includes(
+            'POST_PAYOUT_REVIEW_STATE_CHANGED',
+          )
+        ) {
+          return NextResponse.json(
+            {
+              error:
+                'This post-payout review changed after it was opened. Reload the latest review state before deciding.',
+            },
+            {
+              status: 409,
+              headers: noStoreHeaders(),
+            },
+          );
+        }
+
+        throw new Error(
+          `resolve_sybil_v2_post_payout_review failed: ${error.message}`,
+        );
+      }
+
+      const [
+        after,
+        afterAssessment,
+        afterPostPayout,
+      ] = await Promise.all([
+        loadInvitationReview(inviteCode),
+        loadV2Assessment(inviteCode),
+        loadPostPayoutReview(inviteCode),
+      ]);
+
+      return NextResponse.json(
+        {
+          changed: true,
+          reviewMode: 'POST_PAYOUT',
+          network: operator.pool!.network,
+          verifiedOperator:
+            operator.session!.walletAddress,
+          decision,
+          result: data,
+          invitation: after
+            ? decorateReview(
+                after,
+                afterAssessment,
+                afterPostPayout,
+              )
+            : null,
+          v2Assessment: afterAssessment,
+          postPayoutReview: afterPostPayout,
+          rewardStatus:
+            after?.reward_status ?? null,
+          pastRewardChanged: false,
+          transfersPerformed: false,
+        },
+        {
           headers: noStoreHeaders(),
         },
       );
