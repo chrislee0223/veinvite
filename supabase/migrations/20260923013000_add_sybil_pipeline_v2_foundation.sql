@@ -690,10 +690,9 @@ as $$
          i.reward_cohort_round_id, i.reward_funding_allocation_receipt_id
   from public.invitations i
   cross join parameters p
-  join public.sybil_v2_referral_assessments a
+  left join public.sybil_v2_referral_assessments a
     on a.invite_code = i.invite_code
-   and a.state in ('CLEAR','WATCH')
-  join public.sybil_v2_reward_clearances c
+  left join public.sybil_v2_reward_clearances c
     on c.invite_code = i.invite_code
    and c.network = p.network
    and c.verdict = a.state
@@ -716,7 +715,16 @@ as $$
     and i.eligibility_check_id is not null
     and i.reward_cohort_round_id is not null
     and i.reward_funding_allocation_receipt_id is not null
-    and not exists (
+    and (
+      not public.sybil_v2_enforcement_enabled()
+      or (
+        a.state in ('CLEAR','WATCH')
+        and c.id is not null
+      )
+    )
+    and (
+      not public.sybil_v2_enforcement_enabled()
+      or not exists (
       select 1
       from public.sybil_v2_wallet_restrictions r
       where r.network = p.network
@@ -725,6 +733,7 @@ as $$
           lower(i.inviter_wallet),
           lower(i.invitee_wallet)
         )
+      )
     )
     and not exists (
       select 1 from public.reward_queue_entries q where q.invite_code = i.invite_code
@@ -766,6 +775,7 @@ declare
   v_completion_clause_index integer;
   v_mainnet_enabled boolean;
   v_emergency_paused boolean;
+  v_sybil_v2_enforced boolean := false;
   v_now timestamptz := now();
 begin
   if v_code is null or v_code='' then raise exception 'INVITE_CODE_REQUIRED'; end if;
@@ -778,7 +788,10 @@ begin
   if p_basis is null or jsonb_typeof(p_basis) <> 'object' then raise exception 'INVALID_RESERVATION_BASIS'; end if;
 
   perform pg_advisory_xact_lock(hashtextextended('veinvite_emergency_reward_pause',0));
-  select mainnet_funded_rewards_enabled, emergency_rewards_paused into v_mainnet_enabled, v_emergency_paused from public.reward_runtime_config where id = 1;
+  select mainnet_funded_rewards_enabled, emergency_rewards_paused, sybil_v2_enforcement_enabled
+  into v_mainnet_enabled, v_emergency_paused, v_sybil_v2_enforced
+  from public.reward_runtime_config
+  where id = 1;
   if not found then raise exception 'REWARD_RUNTIME_CONFIG_MISSING'; end if;
   if v_emergency_paused then raise exception 'REWARD_RESERVATION_PAUSED'; end if;
   if v_network = 'mainnet' and not v_mainnet_enabled then raise exception 'REWARD_RESERVATION_DISABLED'; end if;
@@ -809,11 +822,11 @@ begin
     and c.network = v_network
     and c.verdict in ('CLEAR','WATCH');
 
-  if not found then
+  if v_sybil_v2_enforced and not found then
     return jsonb_build_object('reserved',false,'reason','SYBIL_V2_CLEARANCE_MISSING');
   end if;
 
-  if exists (
+  if v_sybil_v2_enforced and exists (
     select 1
     from public.sybil_v2_wallet_restrictions r
     where r.network = v_network
@@ -880,11 +893,12 @@ begin
       'observedPoolBalanceWei',p_observed_pool_balance_wei::text,
       'reservedBeforeWei',v_reserved::text,
       'finalizedBlock',p_finalized_block,
-      'sybilClearanceId',v_clearance.id::text,
-      'sybilVerdict',v_clearance.verdict,
-      'sybilAssessmentRevision',v_clearance.assessment_revision
+      'sybilV2Enforced',v_sybil_v2_enforced,
+      'sybilClearanceId',case when v_sybil_v2_enforced then v_clearance.id::text else null end,
+      'sybilVerdict',case when v_sybil_v2_enforced then v_clearance.verdict else null end,
+      'sybilAssessmentRevision',case when v_sybil_v2_enforced then v_clearance.assessment_revision else null end
     ),
-    v_clearance.id
+    case when v_sybil_v2_enforced then v_clearance.id else null end
   ) returning * into v_queue;
 
   return jsonb_build_object(
@@ -1233,6 +1247,18 @@ declare
   v_extra_alerts jsonb := '[]'::jsonb;
   v_extra_metrics jsonb := '{}'::jsonb;
 begin
+  if not public.sybil_v2_enforcement_enabled() then
+    new.metrics := coalesce(new.metrics,'{}'::jsonb) ||
+      jsonb_build_object(
+        'sybilV2',
+        jsonb_build_object(
+          'mode','SHADOW',
+          'enforcementEnabled',false
+        )
+      );
+    return new;
+  end if;
+
   select *
   into v_health
   from public.operator_sybil_v2_health h
