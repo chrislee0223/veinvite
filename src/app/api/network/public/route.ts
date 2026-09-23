@@ -61,22 +61,6 @@ function normalizeOptionalWallet(value: string | null): string | null {
   }
 }
 
-function withTimeout<T>(promise: Promise<T>, timeoutMs: number): Promise<T> {
-  return new Promise<T>((resolve, reject) => {
-    const timer = setTimeout(() => reject(new Error('PUBLIC_NETWORK_TIMEOUT')), timeoutMs);
-    promise.then(
-      (value) => {
-        clearTimeout(timer);
-        resolve(value);
-      },
-      (error) => {
-        clearTimeout(timer);
-        reject(error);
-      },
-    );
-  });
-}
-
 async function canCurrentViewerUsePublicNetwork(request: NextRequest): Promise<boolean> {
   const mode = await readNetworkRuntimeMode('public');
   if (mode === 'on') return true;
