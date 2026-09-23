@@ -120,13 +120,17 @@ test('post-payout bridge is retryable and completion-marked only after processin
   );
 });
 
-test('recipient B3TR observation defaults on unless explicitly disabled', async () => {
+test('recipient B3TR observation requires explicit server-side opt-in', async () => {
   const source = await readFile(
     'src/lib/sybil/recipientB3trObservationBatch.ts',
     'utf8',
   );
 
   assert.match(
+    source,
+    /SYBIL_B3TR_OBSERVATION_ENABLED === 'true'/u,
+  );
+  assert.doesNotMatch(
     source,
     /SYBIL_B3TR_OBSERVATION_ENABLED !== 'false'/u,
   );
