@@ -159,6 +159,38 @@ function publicCenteredView(stage: { width: number; height: number }, scale = 1)
   };
 }
 
+function publicRootCenteredFittedView(
+  stage: { width: number; height: number },
+  points: Point[],
+): View {
+  if (!points.length) return publicCenteredView(stage, 1);
+
+  const minX = Math.min(...points.map((point) => point.x));
+  const maxX = Math.max(...points.map((point) => point.x));
+  const minY = Math.min(...points.map((point) => point.y));
+  const maxY = Math.max(...points.map((point) => point.y));
+  const horizontalExtent = Math.max(
+    110,
+    Math.max(CENTER_X - minX, maxX - CENTER_X) + 95,
+  );
+  const topExtent = Math.max(110, ROOT_Y - minY + 95);
+  const bottomExtent = Math.max(110, maxY - ROOT_Y + 95);
+  const screenCenterY = Math.max(88, stage.height * 0.5);
+  const minimum = points.length < 16 ? READABLE_FIT_MIN : MIN_SCALE;
+  const scale = clamp(
+    Math.min(
+      1,
+      Math.max(1, stage.width / 2 - 17) / horizontalExtent,
+      Math.max(1, screenCenterY - 25) / topExtent,
+      Math.max(1, stage.height - screenCenterY - 25) / bottomExtent,
+    ),
+    minimum,
+    MAX_SCALE,
+  );
+
+  return publicCenteredView(stage, scale);
+}
+
 function publicFittedView(stage: { width: number; height: number }, points: Point[]): View {
   if (!points.length) return publicCenteredView(stage, 1);
   const minX = Math.min(...points.map((point) => point.x));
@@ -436,7 +468,8 @@ function PublicNetworkCanvas({
   const [bloomWallet, setBloomWallet] = useState<string | null>(null);
   const [view, setView] = useState<View>({ x: 0, y: 28, scale: 1 });
   const [cameraTransition, setCameraTransition] = useState(false);
-  const [stageSize, setStageSize] = useState({ width: 900, height: 620 });
+  const [stageSize, setStageSize] = useState({ width: 0, height: 0 });
+  const [stageStable, setStageStable] = useState(false);
   const [branchError, setBranchError] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
@@ -517,6 +550,15 @@ function PublicNetworkCanvas({
     viewByFocusRef.current.clear();
     returnViewByChildRef.current.clear();
     introRootRef.current = null;
+    if (introFitTimerRef.current !== null) {
+      window.clearTimeout(introFitTimerRef.current);
+      introFitTimerRef.current = null;
+    }
+    if (cameraTimerRef.current !== null) {
+      window.clearTimeout(cameraTimerRef.current);
+      cameraTimerRef.current = null;
+    }
+    setCameraTransition(false);
     try {
       const data = await fetchPublicNetwork(root, undefined, signal);
       if (signal?.aborted || serial !== requestSerialRef.current) return;
@@ -666,13 +708,44 @@ function PublicNetworkCanvas({
   useEffect(() => {
     const stage = stageRef.current;
     if (!stage) return;
-    const sync = () => setStageSize({ width: stage.clientWidth || 900, height: stage.clientHeight || 620 });
+    const sync = () => {
+      const rect = stage.getBoundingClientRect();
+      setStageSize((current) => {
+        const width = Math.max(0, Math.round(rect.width));
+        const height = Math.max(0, Math.round(rect.height));
+        return current.width === width && current.height === height
+          ? current
+          : { width, height };
+      });
+    };
     sync();
-    const observer = typeof ResizeObserver === 'function' ? new ResizeObserver(sync) : null;
+    const observer =
+      typeof ResizeObserver === 'function'
+        ? new ResizeObserver(sync)
+        : null;
     observer?.observe(stage);
     window.addEventListener('resize', sync);
-    return () => { observer?.disconnect(); window.removeEventListener('resize', sync); };
+    return () => {
+      observer?.disconnect();
+      window.removeEventListener('resize', sync);
+    };
   }, [state]);
+
+  useEffect(() => {
+    if (stageSize.width <= 0 || stageSize.height <= 0) {
+      setStageStable(false);
+      return;
+    }
+    setStageStable(false);
+    let secondFrame = 0;
+    const firstFrame = window.requestAnimationFrame(() => {
+      secondFrame = window.requestAnimationFrame(() => setStageStable(true));
+    });
+    return () => {
+      window.cancelAnimationFrame(firstFrame);
+      if (secondFrame) window.cancelAnimationFrame(secondFrame);
+    };
+  }, [stageSize.width, stageSize.height]);
 
   useEffect(() => {
     const stage = stageRef.current;
@@ -812,20 +885,36 @@ function PublicNetworkCanvas({
     }, animate ? 760 : 0);
   }, [stageSize, layout.visuals, publicInviteSlots]);
 
+  const fitViewedRootInPlace = useCallback((animate = true) => {
+    if (stageSize.width <= 0 || stageSize.height <= 0) return;
+    const points = [
+      ...layout.visuals.map((visual) => ({ x: visual.x, y: visual.y })),
+      ...publicInviteSlots,
+    ];
+    if (animate) setCameraTransition(true);
+    setView(publicRootCenteredFittedView(stageSize, points));
+    if (cameraTimerRef.current) window.clearTimeout(cameraTimerRef.current);
+    cameraTimerRef.current = window.setTimeout(() => {
+      setCameraTransition(false);
+      cameraTimerRef.current = null;
+    }, animate ? 760 : 0);
+  }, [stageSize, layout.visuals, publicInviteSlots]);
+
   useEffect(() => {
     if (state !== 'ready' || !focusData || stageSize.width <= 0 || stageSize.height <= 0) return;
+    if (!stageStable) return;
     if (keyWallet(focusData.focusWallet) !== root) return;
     if (introRootRef.current === root) return;
     introRootRef.current = root;
     const reducedMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false;
     setView(publicCenteredView(stageSize, 1));
     if (reducedMotion) {
-      fitPublicNetwork(false);
+      fitViewedRootInPlace(false);
       return;
     }
     introFitTimerRef.current = window.setTimeout(() => {
       introFitTimerRef.current = null;
-      fitPublicNetwork(true);
+      fitViewedRootInPlace(true);
     }, 140);
     return () => {
       if (introFitTimerRef.current !== null) {
@@ -833,7 +922,15 @@ function PublicNetworkCanvas({
         introFitTimerRef.current = null;
       }
     };
-  }, [state, focusData?.focusWallet, root, stageSize.width, stageSize.height, fitPublicNetwork]);
+  }, [
+    state,
+    focusData?.focusWallet,
+    root,
+    stageSize.width,
+    stageSize.height,
+    stageStable,
+    fitViewedRootInPlace,
+  ]);
 
   const activate = useCallback(async (
     targetWallet: string,
