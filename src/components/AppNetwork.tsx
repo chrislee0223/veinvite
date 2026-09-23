@@ -77,7 +77,6 @@ type NetworkChild = {
   network: number;
   direct: number;
   qualified: number;
-  thisRound: number | null;
   depth: number;
 };
 
@@ -97,14 +96,8 @@ type NetworkData = {
     network: number;
     direct: number;
     qualified: number;
-    thisRound: number | null;
-    depth: number;
+      depth: number;
   };
-  round: {
-    id: number;
-    startAt: string;
-    endAt: string;
-  } | null;
   children: NetworkChild[];
   searchResults: SearchResult[];
   depthLimitReached: boolean;
@@ -308,11 +301,9 @@ function provisionalNetworkData(wallet: string): NetworkData {
       network: 0,
       direct: 0,
       qualified: 0,
-      thisRound: null,
-      depth: 0,
+        depth: 0,
     },
-    round: null,
-    children: [],
+      children: [],
     searchResults: [],
     depthLimitReached: false,
   };
