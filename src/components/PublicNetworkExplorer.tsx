@@ -75,8 +75,6 @@ type PublicEdge = {
   active: boolean;
 };
 
-const PUBLIC_SESSION_PREFIX = 'veinvite-network-public-v3:';
-const PUBLIC_SESSION_TTL_MS = 30 * 60_000;
 const PLANE_W = 2600;
 const PLANE_H = 1900;
 const CENTER_X = PLANE_W / 2;
@@ -85,6 +83,9 @@ const MIN_SCALE = 0.32;
 const MAX_SCALE = 2.5;
 const READABLE_FIT_MIN = 0.46;
 const GOLDEN_ANGLE = Math.PI * (3 - Math.sqrt(5));
+const NODE_ENTER_SCALE = 1.85;
+const NODE_HIT_RADIUS = 58;
+const WHEEL_ENTER_DISTANCE = 120;
 
 function keyWallet(wallet: string): string {
   return wallet.toLowerCase();
@@ -236,37 +237,6 @@ async function fetchPublicNetwork(root: string, focus?: string, signal?: AbortSi
   const params = new URLSearchParams({ wallet: root });
   if (focus && keyWallet(focus) !== keyWallet(root)) params.set('focus', focus);
   return jsonRequest<PublicNetworkData>(`/api/network/public?${params.toString()}`, signal);
-}
-
-function clearSavedState(root: string) {
-  try {
-    window.sessionStorage.removeItem(`${PUBLIC_SESSION_PREFIX}${root}`);
-  } catch {
-    // Optional local restoration only.
-  }
-}
-
-function readSavedState(root: string): { activePath: string[]; view: View } | null {
-  try {
-    const storageKey = `${PUBLIC_SESSION_PREFIX}${root}`;
-    const raw = window.sessionStorage.getItem(storageKey);
-    if (!raw) return null;
-    const parsed = JSON.parse(raw) as { activePath?: unknown; view?: Partial<View>; savedAt?: unknown };
-    if (typeof parsed.savedAt !== 'number' || Date.now() - parsed.savedAt > PUBLIC_SESSION_TTL_MS) {
-      window.sessionStorage.removeItem(storageKey);
-      return null;
-    }
-    if (!Array.isArray(parsed.activePath) || !parsed.activePath.every((item) => typeof item === 'string')) return null;
-    const view = parsed.view;
-    return {
-      activePath: parsed.activePath.map(keyWallet),
-      view: view && typeof view.x === 'number' && typeof view.y === 'number' && typeof view.scale === 'number'
-        ? { x: view.x, y: view.y, scale: clamp(view.scale, MIN_SCALE, MAX_SCALE) }
-        : { x: 0, y: 28, scale: 1 },
-    };
-  } catch {
-    return null;
-  }
 }
 
 export function PublicNetworkExplorer({
@@ -433,7 +403,23 @@ function PublicNetworkCanvas({
   const cameraTimerRef = useRef<number | null>(null);
   const pointersRef = useRef<Map<number, Point>>(new Map());
   const singlePointerRef = useRef<Point | null>(null);
-  const pinchRef = useRef<{ center: Point; distance: number } | null>(null);
+  const singlePointerAllowedRef = useRef(false);
+  const pinchRef = useRef<{
+    startDistance: number;
+    startCenter: Point;
+    startView: View;
+    worldAnchor: Point;
+  } | null>(null);
+  const pinchCandidateWalletRef = useRef<string | null>(null);
+  const pinchEnterIntentRef = useRef<string | null>(null);
+  const pinchReturnIntentRef = useRef(false);
+  const wheelEnterWalletRef = useRef<string | null>(null);
+  const wheelEnterDistanceRef = useRef(0);
+  const wheelReturnDistanceRef = useRef(0);
+  const suppressClickRef = useRef(false);
+  const viewByFocusRef = useRef(new Map<string, View>());
+  const returnViewByChildRef = useRef(new Map<string, View>());
+  const introRootRef = useRef<string | null>(null);
   const dragDistanceRef = useRef(0);
   const [cacheVersion, setCacheVersion] = useState(0);
   const [state, setState] = useState<'loading' | 'ready' | 'error'>('loading');
@@ -512,47 +498,27 @@ function PublicNetworkCanvas({
     const serial = cancelNavigation();
     setState('loading');
     setErrorCode(null);
+    closeSearch();
+    setSelected(null);
+    viewByFocusRef.current.clear();
+    returnViewByChildRef.current.clear();
+    introRootRef.current = null;
     try {
       const data = await fetchPublicNetwork(root, undefined, signal);
       if (signal?.aborted || serial !== requestSerialRef.current) return;
       cacheRef.current.clear();
       cacheRef.current.set(root, data);
       setCacheVersion((value) => value + 1);
-      let nextPath = [root];
-      const saved = readSavedState(root);
-      if (saved && saved.activePath[0] === root && saved.activePath.every(validWallet)) {
-        try {
-          const start = Math.max(0, saved.activePath.length - 5);
-          for (const focus of saved.activePath.slice(start, -1)) {
-            if (focus === root || cacheRef.current.has(focus)) continue;
-            const payload = await fetchPublicNetwork(root, focus, signal);
-            if (signal?.aborted || serial !== requestSerialRef.current) return;
-            cacheRef.current.set(focus, payload);
-          }
-          nextPath = saved.activePath;
-          setCacheVersion((value) => value + 1);
-          setView(saved.view);
-        } catch {
-          clearSavedState(root);
-          nextPath = [root];
-          
-        }
-      } else {
-        
-      }
-      if (signal?.aborted || serial !== requestSerialRef.current) return;
-      setActivePath(nextPath);
-      setSelected(null);
+      setActivePath([root]);
       setState('ready');
       bloom(root);
     } catch (error) {
       if (signal?.aborted || serial !== requestSerialRef.current) return;
       const code = (error as Error & { code?: string }).code ?? 'PUBLIC_NETWORK_LOAD_FAILED';
-      if (code === 'FOCUS_NOT_FOUND') clearSavedState(root);
       setState('error');
       setErrorCode(code);
     }
-  }, [root, cancelNavigation, bloom]);
+  }, [root, cancelNavigation, closeSearch, bloom]);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -662,9 +628,14 @@ function PublicNetworkCanvas({
         cacheRef.current.set(key, parentPayload);
       }
       putCache(payload);
-      cancelNavigation();
+      viewByFocusRef.current.set(keyWallet(focusWallet), view);
+      returnViewByChildRef.current.set(keyWallet(payload.focusWallet), view);
       setActivePath(payload.breadcrumb.map(keyWallet));
-      setSelected(keyWallet(payload.focusWallet));
+      setSelected(null);
+      setView(
+        viewByFocusRef.current.get(keyWallet(payload.focusWallet)) ??
+        publicCenteredView(stageSize, 1),
+      );
       closeSearch();
       bloom(payload.focusWallet);
     } catch (error) {
@@ -674,16 +645,8 @@ function PublicNetworkCanvas({
           : 'error',
       );
     }
-  }, [root, putCache, cancelNavigation, closeSearch, bloom]);
+  }, [root, putCache, focusWallet, view, stageSize, closeSearch, bloom]);
 
-  useEffect(() => {
-    if (state !== 'ready') return;
-    try {
-      window.sessionStorage.setItem(`${PUBLIC_SESSION_PREFIX}${root}`, JSON.stringify({ activePath, view, savedAt: Date.now() }));
-    } catch {
-      // Optional local restoration only.
-    }
-  }, [root, state, activePath, view]);
 
   useEffect(() => {
     const stage = stageRef.current;
@@ -694,6 +657,22 @@ function PublicNetworkCanvas({
     observer?.observe(stage);
     window.addEventListener('resize', sync);
     return () => { observer?.disconnect(); window.removeEventListener('resize', sync); };
+  }, [state]);
+
+  useEffect(() => {
+    const stage = stageRef.current;
+    if (!stage) return;
+    const blockNativeGesture = (event: Event) => {
+      if (event.cancelable) event.preventDefault();
+    };
+    stage.addEventListener('gesturestart', blockNativeGesture, { passive: false });
+    stage.addEventListener('gesturechange', blockNativeGesture, { passive: false });
+    stage.addEventListener('gestureend', blockNativeGesture, { passive: false });
+    return () => {
+      stage.removeEventListener('gesturestart', blockNativeGesture);
+      stage.removeEventListener('gesturechange', blockNativeGesture);
+      stage.removeEventListener('gestureend', blockNativeGesture);
+    };
   }, [state]);
 
   const isMobile = stageSize.width < 640;
@@ -776,6 +755,20 @@ function PublicNetworkCanvas({
     }, 240);
   }, [stageSize]);
 
+  const nearestVisibleChild = useCallback((point: Point, radius = NODE_HIT_RADIUS) => {
+    let nearest: PublicVisual | null = null;
+    let nearestDistance = radius;
+    for (const visual of layout.visuals) {
+      if (visual.root) continue;
+      const candidateDistance = Math.hypot(visual.x - point.x, visual.y - point.y);
+      if (candidateDistance <= nearestDistance) {
+        nearest = visual;
+        nearestDistance = candidateDistance;
+      }
+    }
+    return nearest;
+  }, [layout.visuals]);
+
   const fitPublicNetwork = useCallback((animate = true) => {
     if (stageSize.width <= 0 || stageSize.height <= 0) return;
     const points = layout.visuals.map((visual) => ({ x: visual.x, y: visual.y }));
@@ -790,74 +783,93 @@ function PublicNetworkCanvas({
 
   useEffect(() => {
     if (state !== 'ready' || !focusData || stageSize.width <= 0 || stageSize.height <= 0) return;
+    if (keyWallet(focusData.focusWallet) !== root) return;
+    if (introRootRef.current === root) return;
+    introRootRef.current = root;
     const reducedMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false;
-    
+    setView(publicCenteredView(stageSize, 1));
     if (reducedMotion) {
       fitPublicNetwork(false);
       return;
     }
     const timer = window.setTimeout(() => fitPublicNetwork(true), 140);
     return () => window.clearTimeout(timer);
-  }, [state, focusData?.focusWallet, stageSize.width, stageSize.height, fitPublicNetwork]);
+  }, [state, focusData?.focusWallet, root, stageSize.width, stageSize.height, fitPublicNetwork]);
 
-  const activate = useCallback(async (targetWallet: string, _parentDepth: number) => {
-    const serial = cancelNavigation();
+  const activate = useCallback(async (
+    targetWallet: string,
+    _parentDepth: number,
+    direction: 'forward' | 'back' = 'forward',
+  ) => {
+    if (pending) return;
     const target = keyWallet(targetWallet);
-    setSelected(target);
-    const member = memberByWallet.get(target);
-    const cached = cacheRef.current.get(target) ?? null;
+    const current = keyWallet(focusWallet);
+    if (target === current) return;
 
-    if (cached) {
-      if (serial !== requestSerialRef.current) return;
-      setActivePath(cached.breadcrumb.map(keyWallet));
-      bloom(target);
-      return;
+    viewByFocusRef.current.set(current, view);
+    if (direction === 'forward') {
+      returnViewByChildRef.current.set(target, view);
     }
 
-    if (!member || member.direct <= 0) {
-      if (serial !== requestSerialRef.current) return;
-      setActivePath([...activePath, target]);
-      return;
-    }
-
+    const serial = cancelNavigation();
+    setSelected(null);
     const controller = new AbortController();
     branchRequestRef.current = controller;
     setPending(target);
+
     try {
-      const data = await fetchPublicNetwork(root, target, controller.signal);
-      if (controller.signal.aborted || serial !== requestSerialRef.current) return;
+      let data = cacheRef.current.get(target) ?? null;
+      if (!data) {
+        data = await fetchPublicNetwork(root, target, controller.signal);
+      }
+      if (controller.signal.aborted || serial !== requestSerialRef.current || !data) return;
       putCache(data);
       setActivePath(data.breadcrumb.map(keyWallet));
       bloom(target);
+
+      if (direction === 'back') {
+        const immediateParent =
+          focusData?.breadcrumb[focusData.breadcrumb.length - 2] ?? null;
+        const exactParentView =
+          immediateParent && keyWallet(immediateParent) === target
+            ? returnViewByChildRef.current.get(current)
+            : undefined;
+        setView(
+          exactParentView ??
+          viewByFocusRef.current.get(target) ??
+          publicCenteredView(stageSize, 1),
+        );
+      } else {
+        setView(
+          viewByFocusRef.current.get(target) ??
+          publicCenteredView(stageSize, 1),
+        );
+      }
     } catch (error) {
       if (controller.signal.aborted || serial !== requestSerialRef.current) return;
       const code = (error as Error & { code?: string }).code;
       if (code === 'FOCUS_NOT_FOUND') {
-        clearSavedState(root);
         setActivePath([root]);
         setSelected(null);
-        } else {
+      } else {
         setBranchError(true);
       }
     } finally {
       if (branchRequestRef.current === controller) branchRequestRef.current = null;
       if (serial === requestSerialRef.current) setPending(null);
     }
-  }, [activePath, memberByWallet, cancelNavigation, root, putCache, bloom]);
+  }, [pending, focusWallet, focusData, view, cancelNavigation, root, putCache, bloom, stageSize]);
 
   const returnToViewedRoot = useCallback(() => {
     closeSearch();
     if (pending) return;
     setSelected(null);
     if (keyWallet(focusWallet) !== root) {
-      cancelNavigation();
-      const cachedRoot = cacheRef.current.get(root);
-      setActivePath(cachedRoot?.breadcrumb.map(keyWallet) ?? [root]);
-      bloom(root);
+      void activate(root, 0, 'back');
       return;
     }
     centerViewedNetwork();
-  }, [closeSearch, pending, focusWallet, root, cancelNavigation, bloom, centerViewedNetwork]);
+  }, [closeSearch, pending, focusWallet, root, activate, centerViewedNetwork]);
 
   const zoomAt = useCallback((screenPoint: Point, nextScale: number) => {
     setView((current) => {
@@ -881,6 +893,7 @@ function PublicNetworkCanvas({
       void activate(
         activePath[activePath.length - 2],
         Math.max(0, activePath.length - 2),
+        'back',
       );
       return;
     }
@@ -906,64 +919,192 @@ function PublicNetworkCanvas({
   const shownBreadcrumb = activePath.slice(breadcrumbStart);
 
   const onPointerDown = (event: ReactPointerEvent<HTMLDivElement>) => {
-    if ((event.target as HTMLElement).closest('[data-no-pan="true"]')) return;
+    const target = event.target as HTMLElement | null;
+    const interactive = Boolean(target?.closest('button,input,a,[data-no-pan="true"]'));
     const point = { x: event.clientX, y: event.clientY };
     pointersRef.current.set(event.pointerId, point);
     dragDistanceRef.current = 0;
-    try { event.currentTarget.setPointerCapture(event.pointerId); } catch { /* best effort */ }
-    if (pointersRef.current.size === 1) { singlePointerRef.current = point; pinchRef.current = null; }
-    else if (pointersRef.current.size === 2) { const [a, b] = Array.from(pointersRef.current.values()); pinchRef.current = { center: midpoint(a, b), distance: pointDistance(a, b) }; singlePointerRef.current = null; }
+
+    if (!interactive) {
+      try { event.currentTarget.setPointerCapture(event.pointerId); } catch { /* best effort */ }
+    }
+
+    if (pointersRef.current.size === 1) {
+      singlePointerRef.current = point;
+      singlePointerAllowedRef.current = !interactive;
+      pinchRef.current = null;
+      pinchEnterIntentRef.current = null;
+      pinchReturnIntentRef.current = false;
+      return;
+    }
+
+    if (pointersRef.current.size === 2) {
+      const [a, b] = Array.from(pointersRef.current.values());
+      const center = midpoint(a, b);
+      const startView = view;
+      const rect = stageRef.current?.getBoundingClientRect();
+      const worldAnchor = {
+        x: (center.x - (rect?.left ?? 0) - startView.x) / startView.scale,
+        y: (center.y - (rect?.top ?? 0) - startView.y) / startView.scale,
+      };
+      pinchRef.current = {
+        startDistance: Math.max(1, pointDistance(a, b)),
+        startCenter: center,
+        startView,
+        worldAnchor,
+      };
+      pinchCandidateWalletRef.current = nearestVisibleChild(worldAnchor)?.wallet ?? null;
+      pinchEnterIntentRef.current = null;
+      pinchReturnIntentRef.current = false;
+      singlePointerRef.current = null;
+      singlePointerAllowedRef.current = false;
+      suppressClickRef.current = true;
+    }
   };
 
   const onPointerMove = (event: ReactPointerEvent<HTMLDivElement>) => {
     if (!pointersRef.current.has(event.pointerId)) return;
     pointersRef.current.set(event.pointerId, { x: event.clientX, y: event.clientY });
+
     if (pointersRef.current.size === 1) {
+      if (!singlePointerAllowedRef.current) return;
       const current = Array.from(pointersRef.current.values())[0];
       const previous = singlePointerRef.current;
-      if (previous) { const dx = current.x - previous.x; const dy = current.y - previous.y; dragDistanceRef.current += Math.hypot(dx, dy); setView((value) => ({ ...value, x: value.x + dx, y: value.y + dy })); }
+      if (previous) {
+        const dx = current.x - previous.x;
+        const dy = current.y - previous.y;
+        dragDistanceRef.current += Math.hypot(dx, dy);
+        if (dragDistanceRef.current > 2) suppressClickRef.current = true;
+        setView((value) => ({ ...value, x: value.x + dx, y: value.y + dy }));
+      }
       singlePointerRef.current = current;
       return;
     }
-    if (pointersRef.current.size === 2) {
+
+    if (pointersRef.current.size === 2 && pinchRef.current) {
+      const rect = stageRef.current?.getBoundingClientRect();
+      if (!rect) return;
       const [a, b] = Array.from(pointersRef.current.values());
       const center = midpoint(a, b);
-      const distance = pointDistance(a, b);
-      const previous = pinchRef.current;
-      const rect = stageRef.current?.getBoundingClientRect();
-      if (previous && previous.distance > 0 && rect) {
-        const px = center.x - rect.left;
-        const py = center.y - rect.top;
-        setView((value) => {
-          const nextScale = clamp(value.scale * (distance / previous.distance), MIN_SCALE, MAX_SCALE);
-          const worldX = (px - value.x) / value.scale;
-          const worldY = (py - value.y) / value.scale;
-          return { x: px - worldX * nextScale + (center.x - previous.center.x), y: py - worldY * nextScale + (center.y - previous.center.y), scale: nextScale };
-        });
+      const nextDistance = pointDistance(a, b);
+      const pinch = pinchRef.current;
+      const rawScale = pinch.startView.scale * (nextDistance / pinch.startDistance);
+      const nextScale = clamp(rawScale, MIN_SCALE, MAX_SCALE);
+      const localCenter = { x: center.x - rect.left, y: center.y - rect.top };
+      setView({
+        x: localCenter.x - pinch.worldAnchor.x * nextScale,
+        y: localCenter.y - pinch.worldAnchor.y * nextScale,
+        scale: nextScale,
+      });
+
+      if (
+        pinchCandidateWalletRef.current &&
+        rawScale >= Math.max(NODE_ENTER_SCALE, pinch.startView.scale * 1.18)
+      ) {
+        pinchEnterIntentRef.current = pinchCandidateWalletRef.current;
       }
-      pinchRef.current = { center, distance };
+      if (rawScale < MIN_SCALE * 0.88 && activePath.length > 1) {
+        pinchReturnIntentRef.current = true;
+      }
+      suppressClickRef.current = true;
     }
   };
 
   const onPointerEnd = (event: ReactPointerEvent<HTMLDivElement>) => {
     pointersRef.current.delete(event.pointerId);
-    if (pointersRef.current.size === 1) { singlePointerRef.current = Array.from(pointersRef.current.values())[0]; pinchRef.current = null; }
-    else if (pointersRef.current.size === 0) { singlePointerRef.current = null; pinchRef.current = null; }
+
+    if (pointersRef.current.size === 1) {
+      singlePointerRef.current = Array.from(pointersRef.current.values())[0];
+      singlePointerAllowedRef.current = false;
+      return;
+    }
+
+    if (pointersRef.current.size === 0) {
+      const enterWallet = pinchEnterIntentRef.current;
+      const returnIntent = pinchReturnIntentRef.current;
+      singlePointerRef.current = null;
+      singlePointerAllowedRef.current = false;
+      pinchRef.current = null;
+      pinchCandidateWalletRef.current = null;
+      pinchEnterIntentRef.current = null;
+      pinchReturnIntentRef.current = false;
+
+      if (enterWallet) {
+        void activate(enterWallet, Math.max(0, activePath.length - 1), 'forward');
+      } else if (returnIntent && activePath.length > 1) {
+        void activate(
+          activePath[activePath.length - 2],
+          Math.max(0, activePath.length - 2),
+          'back',
+        );
+      }
+
+      window.setTimeout(() => {
+        suppressClickRef.current = false;
+      }, 0);
+    }
   };
 
   const onWheel = (event: ReactWheelEvent<HTMLDivElement>) => {
     event.preventDefault();
     const rect = stageRef.current?.getBoundingClientRect();
     if (!rect) return;
-    const px = event.clientX - rect.left;
-    const py = event.clientY - rect.top;
-    const factor = event.deltaY < 0 ? 1.08 : 0.92;
-    setView((value) => {
-      const nextScale = clamp(value.scale * factor, MIN_SCALE, MAX_SCALE);
-      const worldX = (px - value.x) / value.scale;
-      const worldY = (py - value.y) / value.scale;
-      return { x: px - worldX * nextScale, y: py - worldY * nextScale, scale: nextScale };
-    });
+
+    if (
+      event.deltaY > 0 &&
+      view.scale <= MIN_SCALE + 0.01 &&
+      activePath.length > 1
+    ) {
+      wheelReturnDistanceRef.current += Math.abs(event.deltaY);
+      if (wheelReturnDistanceRef.current >= 160) {
+        wheelReturnDistanceRef.current = 0;
+        void activate(
+          activePath[activePath.length - 2],
+          Math.max(0, activePath.length - 2),
+          'back',
+        );
+      }
+      return;
+    }
+
+    if (event.deltaY <= 0 || view.scale > MIN_SCALE + 0.01) {
+      wheelReturnDistanceRef.current = 0;
+    }
+
+    const point = { x: event.clientX - rect.left, y: event.clientY - rect.top };
+    const factor = event.deltaY < 0 ? 1.09 : 0.91;
+    const nextScale = view.scale * factor;
+
+    if (event.deltaY < 0) {
+      const worldPoint = {
+        x: (point.x - view.x) / view.scale,
+        y: (point.y - view.y) / view.scale,
+      };
+      const candidate = nearestVisibleChild(worldPoint);
+      if (candidate && nextScale >= NODE_ENTER_SCALE) {
+        const candidateKey = keyWallet(candidate.wallet);
+        if (wheelEnterWalletRef.current === candidateKey) {
+          wheelEnterDistanceRef.current += Math.abs(event.deltaY);
+        } else {
+          wheelEnterWalletRef.current = candidateKey;
+          wheelEnterDistanceRef.current = Math.abs(event.deltaY);
+        }
+        if (wheelEnterDistanceRef.current >= WHEEL_ENTER_DISTANCE) {
+          wheelEnterDistanceRef.current = 0;
+          wheelEnterWalletRef.current = null;
+          void activate(candidate.wallet, Math.max(0, activePath.length - 1), 'forward');
+          return;
+        }
+      } else {
+        wheelEnterDistanceRef.current = 0;
+        wheelEnterWalletRef.current = null;
+      }
+    } else {
+      wheelEnterDistanceRef.current = 0;
+      wheelEnterWalletRef.current = null;
+    }
+
+    zoomAt(point, nextScale);
   };
 
   if (state === 'loading') {
@@ -1059,11 +1200,8 @@ function PublicNetworkCanvas({
                 <button
                   type="button"
                   onClick={() => {
-                    cancelNavigation();
-                    setActivePath(searchMatch.path);
-                    setSelected(searchMatch.wallet);
                     closeSearch();
-                    bloom(searchMatch.wallet);
+                    void activate(searchMatch.wallet, Math.max(0, activePath.length - 1), 'forward');
                   }}
                 >
                   <PublicNodeLabel address={searchMatch.wallet} />
@@ -1093,7 +1231,7 @@ function PublicNetworkCanvas({
           ) : null}
         </div>
       ) : null}
-      <div ref={stageRef} className="publicStage" onPointerDown={onPointerDown} onPointerMove={onPointerMove} onPointerUp={onPointerEnd} onPointerCancel={onPointerEnd} onWheel={onWheel} onClick={(event) => { if ((event.target as HTMLElement).closest('[data-network-interactive="true"]')) return; if (dragDistanceRef.current > 6) return; setSelected(null); if (searchOpen) closeSearch(); }}>
+      <div ref={stageRef} className="publicStage" onPointerDown={onPointerDown} onPointerMove={onPointerMove} onPointerUp={onPointerEnd} onPointerCancel={onPointerEnd} onWheel={onWheel} onClick={(event) => { if (suppressClickRef.current) return; if ((event.target as HTMLElement).closest('[data-network-interactive="true"]')) return; if (dragDistanceRef.current > 6) return; setSelected(null); if (searchOpen) closeSearch(); }}>
         <div className="publicAmbient" aria-hidden="true" />
         <nav className={`breadcrumbs${activePath.length === 1 ? ' rootOnly' : ''}`} aria-label={t.directNetwork} data-no-pan="true" data-network-interactive="true">
           {breadcrumbStart > 0 ? <span className="crumbEllipsis">…</span> : null}
@@ -1107,7 +1245,7 @@ function PublicNetworkCanvas({
                   type="button"
                   className={isCurrent ? 'crumb current' : 'crumb'}
                   disabled={isCurrent || Boolean(pending)}
-                  onClick={() => { if (!isCurrent) void activate(item, Math.max(0, absoluteIndex - 1)); }}
+                  onClick={() => { if (!isCurrent) void activate(item, Math.max(0, absoluteIndex - 1), 'back'); }}
                 >
                   <PublicNodeLabel address={item} />
                 </button>
@@ -1130,8 +1268,8 @@ function PublicNetworkCanvas({
           {pending ? <div className="pendingBranch" style={{ left: layout.positions.get(pending)?.x ?? CENTER_X, top: (layout.positions.get(pending)?.y ?? ROOT_Y) + 48 } as CSSProperties}><i /><i /><i /></div> : null}
         </div>
         {branchError ? <div className="branchError" data-no-pan="true"><span>{e.maintenance}</span><button type="button" onClick={() => setBranchError(false)} aria-label={c.close}>×</button></div> : null}
-        {activePath.length > 1 ? <button type="button" className="parentReturn" data-no-pan="true" data-network-interactive="true" onClick={() => void activate(activePath[activePath.length - 2], Math.max(0, activePath.length - 2))} disabled={Boolean(pending)}>{profileDirection === 'rtl' ? '›' : '‹'} {t.invitedBy}</button> : null}
-        {selected ? <aside className={`publicInspector${activePath.length > 1 ? ' hasParentReturn' : ''}`} data-no-pan="true" data-network-interactive="true" dir={profileDirection}><div><span className="inspectorAvatar"><NetworkGlyph size={18} /></span><strong><PublicNodeLabel address={selected} /></strong><button type="button" onClick={() => setSelected(null)} aria-label={c.close}>×</button></div><div className="profileAddress" dir="ltr" title={selected}><span>{selected}</span>{validWallet(selected) ? <a href={getVeChainExplorerAddressUrl(selected)} target="_blank" rel="noopener noreferrer" aria-label="VeChain Explorer">↗</a> : null}</div><section><span><b>{selectedNetwork.toLocaleString()}</b>{t.networkSize}</span><span><b>{selectedDirect.toLocaleString()}</b>{t.direct}</span></section>{selected !== focusWallet && selectedMember && selectedMember.direct > 0 ? <button type="button" className="profileAction" onClick={() => void activate(selectedMember.wallet, Math.max(0, activePath.length - 1))} disabled={Boolean(pending)}>{c.expandBranch}</button> : null}</aside> : null}
+        {activePath.length > 1 ? <button type="button" className="parentReturn" data-no-pan="true" data-network-interactive="true" onClick={() => void activate(activePath[activePath.length - 2], Math.max(0, activePath.length - 2), 'back')} disabled={Boolean(pending)}>{profileDirection === 'rtl' ? '›' : '‹'} {t.invitedBy}</button> : null}
+        {selected ? <aside className={`publicInspector${activePath.length > 1 ? ' hasParentReturn' : ''}`} data-no-pan="true" data-network-interactive="true" dir={profileDirection}><div><span className="inspectorAvatar"><NetworkGlyph size={18} /></span><strong><PublicNodeLabel address={selected} /></strong><button type="button" onClick={() => setSelected(null)} aria-label={c.close}>×</button></div><div className="profileAddress" dir="ltr" title={selected}><span>{selected}</span>{validWallet(selected) ? <a href={getVeChainExplorerAddressUrl(selected)} target="_blank" rel="noopener noreferrer" aria-label="VeChain Explorer">↗</a> : null}</div><section><span><b>{selectedNetwork.toLocaleString()}</b>{t.networkSize}</span><span><b>{selectedDirect.toLocaleString()}</b>{t.direct}</span></section>{selected !== focusWallet && selectedMember && selectedMember.direct > 0 ? <button type="button" className="profileAction" onClick={() => void activate(selectedMember.wallet, Math.max(0, activePath.length - 1), 'forward')} disabled={Boolean(pending)}>{c.expandBranch}</button> : null}</aside> : null}
       </div>
       <style jsx>{`
         .publicCanvasPage{width:min(100%,520px);height:100%;min-height:0;margin:0 auto;padding:0;box-sizing:border-box;display:flex;flex-direction:column;border:1px solid rgba(255,255,255,.06)!important;border-radius:18px;background:#090907!important;overflow:hidden}
