@@ -690,47 +690,75 @@ export default function SybilReviewPage() {
                       <Fact
                         label="Risk"
                         value={
-                          selected.v2_state === 'HOLD'
-                            ? `V2 · ${selected.v2_risk_score ?? 0}`
-                            : `${selected.sybil_risk_level} · ${selected.sybil_risk_score}`
+                          selected.post_payout_state === 'HOLD'
+                            ? `POST · ${selected.post_payout_risk_score ?? 0}`
+                            : selected.v2_state === 'HOLD'
+                              ? `V2 · ${selected.v2_risk_score ?? 0}`
+                              : `${selected.sybil_risk_level} · ${selected.sybil_risk_score}`
                         }
                       />
                       <Fact
                         label="Source"
                         value={
-                          selected.v2_state === 'HOLD'
-                            ? 'SYBIL_V2'
-                            : selected.sybil_source
+                          selected.post_payout_state === 'HOLD'
+                            ? 'POST_PAYOUT'
+                            : selected.v2_state === 'HOLD'
+                              ? 'SYBIL_V2'
+                              : selected.sybil_source
                         }
                       />
                       <Fact label="Reward" value={selected.reward_status} />
-                      <Fact label="Checked" value={formatDate(selected.sybil_checked_at)} />
+                      <Fact
+                        label="Checked"
+                        value={formatDate(
+                          selected.post_payout_state === 'HOLD'
+                            ? selected.post_payout_updated_at
+                            : selected.v2_state === 'HOLD'
+                              ? selected.v2_updated_at
+                              : selected.sybil_checked_at,
+                        )}
+                      />
                     </div>
 
                     <div className="reasonBox">
                       <span>현재 검토 사유 / Current reason</span>
                       <p>
-                        {selected.v2_state === 'HOLD'
-                          ? (v2ReasonCodes.join(', ') || 'Sybil v2 evidence requires review.')
-                          : (selected.sybil_reason ?? '—')}
+                        {selected.post_payout_state === 'HOLD'
+                          ? (postPayoutReasonCodes.join(', ') || 'Post-payout evidence requires review.')
+                          : selected.v2_state === 'HOLD'
+                            ? (v2ReasonCodes.join(', ') || 'Sybil v2 evidence requires review.')
+                            : (selected.sybil_reason ?? '—')}
                       </p>
                     </div>
 
-                    {selected.v2_state === 'HOLD' ? (
+                    {selected.post_payout_state === 'HOLD' ||
+                    selected.v2_state === 'HOLD' ? (
                       <section className="onchainSection">
                         <div className="sectionHeaderRow">
                           <div>
-                            <span className="sectionLabel">SYBIL V2 EVIDENCE</span>
+                            <span className="sectionLabel">
+                              {selected.post_payout_state === 'HOLD'
+                                ? 'POST-PAYOUT EVIDENCE'
+                                : 'SYBIL V2 EVIDENCE'}
+                            </span>
                             <h3>자동 탐지 근거 / Detection evidence</h3>
                           </div>
                           <span className="badge">
-                            revision {String(selected.v2_revision ?? '—')}
+                            revision {String(
+                              selected.post_payout_state === 'HOLD'
+                                ? selected.post_payout_revision ?? '—'
+                                : selected.v2_revision ?? '—',
+                            )}
                           </span>
                         </div>
                         <p className="observationNote">
-                          여러 독립 증거군이 결합되어 HOLD된 건입니다. 단일 신호만으로 BLACKLIST하지 않습니다.
+                          {selected.post_payout_state === 'HOLD'
+                            ? '이미 지급된 보상은 변경하지 않습니다. 지급 후 B3TR 흐름과 기존 독립 증거가 함께 확인된 건만 수동 검토합니다.'
+                            : '여러 독립 증거군이 결합되어 HOLD된 건입니다. 단일 신호만으로 BLACKLIST하지 않습니다.'}
                           <br />
-                          HOLD requires corroborating evidence families; one signal alone is not a blacklist.
+                          {selected.post_payout_state === 'HOLD'
+                            ? 'Past rewards stay final; only corroborated post-payout evidence can open a future-participation review.'
+                            : 'HOLD requires corroborating evidence families; one signal alone is not a blacklist.'}
                         </p>
                         {v2Evidence.length > 0 ? (
                           <div className="history">
