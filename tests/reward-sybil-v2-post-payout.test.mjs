@@ -131,3 +131,82 @@ test('recipient B3TR observation defaults on unless explicitly disabled', async 
     /SYBIL_B3TR_OBSERVATION_ENABLED !== 'false'/u,
   );
 });
+
+
+test('WATCH rewards receive staged 24h, 7d, and 30d post-payout observation', async () => {
+  const sql = await readFile(
+    'supabase/migrations/20260923041500_stage_sybil_v2_post_payout_watch_horizons.sql',
+    'utf8',
+  );
+
+  assert.match(sql, /interval '24 hours'/u);
+  assert.match(sql, /interval '7 days'/u);
+  assert.match(sql, /interval '30 days'/u);
+  assert.match(sql, /sybil_v2_verdict = 'WATCH'/u);
+  assert.match(sql, /payout_block_number \+ 8640/u);
+  assert.match(sql, /payout_block_number \+ 60480/u);
+  assert.match(sql, /payout_block_number \+ 259200/u);
+});
+
+test('each post-payout observation horizon gets its own completion marker', async () => {
+  const source = await readFile(
+    'src/lib/sybil/v2/postPayout.ts',
+    'utf8',
+  );
+  const sql = await readFile(
+    'supabase/migrations/20260923041500_stage_sybil_v2_post_payout_watch_horizons.sql',
+    'utf8',
+  );
+
+  assert.match(
+    source,
+    /post-payout:complete:\$\{snapshot\.receiptId\}:\$\{snapshot\.scanToBlock\}/u,
+  );
+  assert.match(
+    sql,
+    /e\.evidence ->> 'scanToBlock' = f\.scan_to_block::text/u,
+  );
+});
+
+test('pending Sybil reviews temporarily stop new participation without changing past rewards', async () => {
+  const sql = await readFile(
+    'supabase/migrations/20260923043000_hold_sybil_v2_participation_and_monitor_post_payout.sql',
+    'utf8',
+  );
+  const source = await readFile(
+    'src/lib/sybil/v2/restrictions.ts',
+    'utf8',
+  );
+
+  assert.match(sql, /PRE_CLAIM_HOLD/u);
+  assert.match(sql, /POST_PAYOUT_HOLD/u);
+  assert.match(
+    sql,
+    /operator_sybil_v2_temporary_participation_holds/u,
+  );
+  assert.match(
+    source,
+    /operator_sybil_v2_temporary_participation_holds/u,
+  );
+  assert.match(source, /restriction_kind: 'BLACKLIST'/u);
+});
+
+test('post-payout HOLDs and bridge delays are operator-monitoring alerts', async () => {
+  const sql = await readFile(
+    'supabase/migrations/20260923043000_hold_sybil_v2_participation_and_monitor_post_payout.sql',
+    'utf8',
+  );
+
+  assert.match(
+    sql,
+    /SYBIL_V2_POST_PAYOUT_REVIEW_REQUIRED/u,
+  );
+  assert.match(
+    sql,
+    /SYBIL_V2_POST_PAYOUT_BRIDGE_STALE/u,
+  );
+  assert.match(
+    sql,
+    /SYBIL_V2_POST_PAYOUT_REVIEW_OVER_48H/u,
+  );
+});
