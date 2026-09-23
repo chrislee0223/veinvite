@@ -159,7 +159,17 @@ test('default-public reader stays graph-only except for aggregate invite-slot av
     /root_known|NETWORK_NOT_FOUND|invitations|reward_status|sybil_status|identity_link|mission_/i,
   );
   assert.ok(
-    emptyRootMigration.includes("p.root_wallet ~ '^0x[0-9a-f]{40}
+    emptyRootMigration.includes("p.root_wallet ~ '^0x[0-9a-f]{40}$'"),
+    'empty public Network roots must still require a valid VeChain address',
+  );
+  assert.match(publicApi, /readPublicAvailableSlots/);
+  assert.match(publicApi, /availableSlots/);
+  assert.match(publicApi, /invitee identity\/progress/);
+  assert.doesNotMatch(publicApi, /invitee_wallet|apps_completed|vot3_converted|vote_completed/);
+  assert.match(publicExplorer, /publicInviteSlotPoint/);
+  assert.match(publicExplorer, /className="publicSlotNode"/);
+  assert.match(publicExplorer, /pointer-events:none/);
+});
 
 test('partial domain autocomplete reuses only domains already cached in the current session', () => {
   assert.match(domainCache, /readCachedLeaderboardDomainSuggestions/);
