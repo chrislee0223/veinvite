@@ -11,6 +11,9 @@
     }
   },
   "ignoreCommand": "node scripts/vercel-ignore-build.mjs",
+  "env": {
+    "SYBIL_B3TR_OBSERVATION_ENABLED": "true"
+  },
   "functions": {
     "src/app/api/queues/reward-finality/route.ts": {
       "experimentalTriggers": [
@@ -56,8 +59,5 @@
       "path": "/api/cron/sybil-v2-paid-backfill",
       "schedule": "*/15 * * * *"
     }
-  ],
-  "env": {
-    "SYBIL_B3TR_OBSERVATION_ENABLED": "true"
-  }
+  ]
 }
