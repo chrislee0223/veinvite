@@ -130,3 +130,23 @@ test('reward reservation queue is non-blocking in shadow mode', async () => {
     /await reserveEligibleReferralRewards\(\)/u,
   );
 });
+
+
+test('Vercel binds the Sybil v2 evidence topic to its queue consumer', async () => {
+  const config = JSON.parse(
+    await readFile('vercel.json', 'utf8'),
+  );
+
+  const trigger =
+    config.functions?.[
+      'src/app/api/queues/sybil-v2-evidence/route.ts'
+    ]?.experimentalTriggers?.[0];
+
+  assert.equal(trigger?.type, 'queue/v2beta');
+  assert.equal(
+    trigger?.topic,
+    'veinvite-sybil-v2-evidence',
+  );
+  assert.equal(trigger?.initialDelaySeconds, 0);
+  assert.equal(trigger?.retryAfterSeconds, 60);
+});
