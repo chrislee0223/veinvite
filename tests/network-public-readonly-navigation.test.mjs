@@ -105,13 +105,23 @@ test('other-user Network first paint keeps the viewed root centered after real m
   assert.match(publicExplorer, /getBoundingClientRect\(\)/);
   assert.match(publicExplorer, /requestAnimationFrame\(\(\) => \{[\s\S]*requestAnimationFrame\(\(\) => setStageStable\(true\)\)/);
   assert.match(publicExplorer, /function publicRootCenteredFittedView/);
+  assert.match(publicExplorer, /return publicCenteredView\(stage, scale\);/);
+  assert.match(publicExplorer, /const introCancelledRef = useRef\(false\)/);
   assert.match(
     publicExplorer,
-    /return publicCenteredView\(stage, scale\);/,
+    /if \(!stageStable \|\| introCancelledRef\.current\) return;/,
   );
   assert.match(
     publicExplorer,
-    /if \(!stageStable\) return;[\s\S]*setView\(publicCenteredView\(stageSize, 1\)\);/,
+    /const introKey = `\$\{root\}:\$\{stageSize\.width\}x\$\{stageSize\.height\}`;/,
+  );
+  assert.match(
+    publicExplorer,
+    /if \(introRootRef\.current === introKey\) return;[\s\S]*setView\(publicCenteredView\(stageSize, 1\)\);/,
+  );
+  assert.match(
+    publicExplorer,
+    /const stopIntroForInteraction = useCallback\(\(\) => \{[\s\S]*introCancelledRef\.current = true/,
   );
   assert.match(
     publicExplorer,
@@ -119,7 +129,7 @@ test('other-user Network first paint keeps the viewed root centered after real m
   );
   assert.match(
     publicExplorer,
-    /introFitTimerRef\.current = window\.setTimeout\([\s\S]*fitViewedRootInPlace\(true\)/,
+    /introFitTimerRef\.current = window\.setTimeout\([\s\S]*if \(introCancelledRef\.current\) return;[\s\S]*fitViewedRootInPlace\(true\)/,
   );
   assert.match(
     publicExplorer,
