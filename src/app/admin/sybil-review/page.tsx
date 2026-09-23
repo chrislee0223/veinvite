@@ -950,15 +950,18 @@ export default function SybilReviewPage() {
                           disabled={!actionReady}
                           onClick={() => void resolveReview('BLOCKED')}
                         >
-                          {detail?.reviewMode === 'V2'
+                          {detail?.reviewMode === 'V2' ||
+                          detail?.reviewMode === 'POST_PAYOUT'
                             ? '블랙리스트 / BLACKLIST'
                             : '차단 / BLOCK'}
                         </button>
                       </div>
                       <p className="note">
-                        CLEAR는 v2 clearance를 발급해 보상 준비를 재개합니다.
-                        v2 BLACKLIST는 이번 미지급 보상을 제외하고 초대자·초대받은 지갑의 향후 VeInvite 참여를 제한합니다.
-                        기존 REVIEW의 BLOCKED 처리도 기존 규칙대로 보상 대상에서 제외합니다.
+                        {detail?.reviewMode === 'POST_PAYOUT'
+                          ? 'POST_PAYOUT CLEAR는 사후 의심을 해제합니다. POST_PAYOUT BLACKLIST는 이미 지급된 보상은 그대로 두고 해당 보상 수령자 지갑의 향후 VeInvite 참여만 제한합니다.'
+                          : detail?.reviewMode === 'V2'
+                            ? 'CLEAR는 v2 clearance를 발급해 보상 준비를 재개합니다. v2 BLACKLIST는 이번 미지급 보상을 제외하고 초대자·초대받은 지갑의 향후 VeInvite 참여를 제한합니다.'
+                            : '기존 REVIEW의 BLOCKED 처리는 기존 규칙대로 보상 대상에서 제외합니다.'}
                       </p>
                     </div>
                   </>
