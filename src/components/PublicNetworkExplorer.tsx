@@ -51,6 +51,8 @@ type PublicNetworkData = {
   children: PublicChild[];
   depthLimitReached: boolean;
   availableSlots?: number;
+  availableSlotIds?: Array<1 | 2>;
+  slotAvailabilityKnown?: boolean;
 };
 
 type DiscoveryRoot = {
@@ -60,6 +62,7 @@ type DiscoveryRoot = {
 
 type View = { x: number; y: number; scale: number };
 type Point = { x: number; y: number };
+type PublicInviteSlotVisual = Point & { slot: 1 | 2 };
 
 type PublicVisual = {
   wallet: string;
@@ -144,8 +147,8 @@ function publicChildPoint(wallet: string, index: number, compact: boolean): Poin
   };
 }
 
-function publicInviteSlotPoint(index: number): Point {
-  if (index === 0) {
+function publicInviteSlotPoint(slot: 1 | 2): Point {
+  if (slot === 1) {
     return { x: CENTER_X - 58, y: ROOT_Y + 74 };
   }
   return { x: CENTER_X + 64, y: ROOT_Y + 62 };
@@ -459,6 +462,8 @@ function PublicNetworkCanvas({
   const returnViewByChildRef = useRef(new Map<string, View>());
   const introRootRef = useRef<string | null>(null);
   const introCancelledRef = useRef(false);
+  const slotRetryControllerRef = useRef<AbortController | null>(null);
+  const slotRetryAttemptedRef = useRef(new Set<string>());
   const dragDistanceRef = useRef(0);
   const [cacheVersion, setCacheVersion] = useState(0);
   const [state, setState] = useState<'loading' | 'ready' | 'error'>('loading');
@@ -520,7 +525,19 @@ function PublicNetworkCanvas({
   }, [searchOpen]);
 
   const putCache = useCallback((data: PublicNetworkData) => {
-    cacheRef.current.set(keyWallet(data.focusWallet), data);
+    const key = keyWallet(data.focusWallet);
+    const previous = cacheRef.current.get(key);
+    const next =
+      data.slotAvailabilityKnown === false &&
+      previous?.slotAvailabilityKnown === true
+        ? {
+            ...data,
+            availableSlots: previous.availableSlots,
+            availableSlotIds: previous.availableSlotIds,
+            slotAvailabilityKnown: true,
+          }
+        : data;
+    cacheRef.current.set(key, next);
     setCacheVersion((value) => value + 1);
   }, []);
 
@@ -550,6 +567,9 @@ function PublicNetworkCanvas({
     setSelected(null);
     viewByFocusRef.current.clear();
     returnViewByChildRef.current.clear();
+    slotRetryControllerRef.current?.abort();
+    slotRetryControllerRef.current = null;
+    slotRetryAttemptedRef.current.clear();
     introRootRef.current = null;
     introCancelledRef.current = false;
     if (introFitTimerRef.current !== null) {
@@ -584,6 +604,8 @@ function PublicNetworkCanvas({
     return () => {
       controller.abort();
       branchRequestRef.current?.abort();
+      slotRetryControllerRef.current?.abort();
+      slotRetryControllerRef.current = null;
       requestSerialRef.current += 1;
       if (bloomTimerRef.current) window.clearTimeout(bloomTimerRef.current);
       if (cameraTimerRef.current) window.clearTimeout(cameraTimerRef.current);
@@ -776,11 +798,58 @@ function PublicNetworkCanvas({
 
   const focusWallet = activePath[activePath.length - 1] ?? root;
   const focusData = cacheRef.current.get(focusWallet) ?? rootData;
-  const publicInviteSlots = useMemo(() => {
-    if (!rootData || keyWallet(focusWallet) !== root) return [] as Point[];
-    const count = clamp(Math.trunc(rootData.availableSlots ?? 0), 0, 2);
-    return Array.from({ length: count }, (_, index) => publicInviteSlotPoint(index));
-  }, [rootData, focusWallet, root]);
+  const publicInviteSlots = useMemo((): PublicInviteSlotVisual[] => {
+    if (
+      !focusData ||
+      focusData.slotAvailabilityKnown !== true ||
+      !Array.isArray(focusData.availableSlotIds)
+    ) {
+      return [];
+    }
+    return focusData.availableSlotIds
+      .filter((slot): slot is 1 | 2 => slot === 1 || slot === 2)
+      .map((slot) => ({ slot, ...publicInviteSlotPoint(slot) }));
+  }, [focusData]);
+
+  useEffect(() => {
+    if (
+      state !== 'ready' ||
+      !focusData ||
+      focusData.slotAvailabilityKnown !== false
+    ) {
+      return;
+    }
+
+    const focusKey = keyWallet(focusData.focusWallet);
+    if (slotRetryAttemptedRef.current.has(focusKey)) return;
+    slotRetryAttemptedRef.current.add(focusKey);
+
+    const controller = new AbortController();
+    slotRetryControllerRef.current?.abort();
+    slotRetryControllerRef.current = controller;
+    const timer = window.setTimeout(async () => {
+      try {
+        const refreshed = await fetchPublicNetwork(root, focusKey, controller.signal);
+        if (controller.signal.aborted) return;
+        putCache(refreshed);
+      } catch {
+        // Slot availability is optional display metadata. Keep the graph usable
+        // and never turn an unknown lookup into a false zero-slot state.
+      } finally {
+        if (slotRetryControllerRef.current === controller) {
+          slotRetryControllerRef.current = null;
+        }
+      }
+    }, 650);
+
+    return () => {
+      window.clearTimeout(timer);
+      controller.abort();
+      if (slotRetryControllerRef.current === controller) {
+        slotRetryControllerRef.current = null;
+      }
+    };
+  }, [state, focusData, root, putCache]);
 
   const layout = useMemo(() => {
     const visuals: PublicVisual[] = [];
