@@ -169,7 +169,7 @@ test('leaderboard publication remains owned by reconcile while maintenance and S
   });
   assert.deepEqual(sybilBackfillCron, {
     path: '/api/cron/sybil-v2-paid-backfill',
-    schedule: '*/15 * * * *',
+    schedule: '17 1 * * *',
   });
 
   assert.match(cron, /publishLeaderboardRoundSnapshots/);
