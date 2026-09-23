@@ -118,7 +118,7 @@ test('My Network and other-user read-only explorer stay isolated', () => {
   assert.match(hub, /<AppNetwork locale=\{locale\} \/>/i);
   assert.match(hub, /<PublicNetworkExplorer/i);
   assert.match(hub, /publicRootWallet/i);
-  assert.match(explorer, /PUBLIC_SESSION_PREFIX\s*=\s*'veinvite-network-public-v3:'/i);
+  assert.doesNotMatch(explorer, /PUBLIC_SESSION_PREFIX|sessionStorage|readSavedState|clearSavedState/i);
   assert.match(explorer, /requestSerialRef/i);
   assert.match(explorer, /branchRequestRef/i);
   assert.match(explorer, /onPointerMove/i);
