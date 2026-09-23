@@ -410,19 +410,33 @@ export default function SybilReviewPage() {
       return;
     }
 
+    const isPostPayout =
+      detail.reviewMode === 'POST_PAYOUT';
     const isV2 = detail.reviewMode === 'V2';
-    const expectedRevision = Number(invitation.v2_revision);
+    const expectedRevision = Number(
+      isPostPayout
+        ? invitation.post_payout_revision
+        : invitation.v2_revision,
+    );
+
     if (
-      isV2 &&
-      (!Number.isSafeInteger(expectedRevision) || expectedRevision < 1)
+      (isPostPayout || isV2) &&
+      (!Number.isSafeInteger(expectedRevision) ||
+        expectedRevision < 1)
     ) {
       setError(
-        '최신 v2 판정 버전을 확인할 수 없습니다. 새로고침 후 다시 시도해 주세요. / The latest v2 review revision is unavailable.',
+        isPostPayout
+          ? '최신 사후 판정 버전을 확인할 수 없습니다. 새로고침 후 다시 시도해 주세요. / The latest post-payout review revision is unavailable.'
+          : '최신 v2 판정 버전을 확인할 수 없습니다. 새로고침 후 다시 시도해 주세요. / The latest v2 review revision is unavailable.',
       );
       return;
     }
 
-    if (!isV2 && !invitation.sybil_checked_at) {
+    if (
+      !isPostPayout &&
+      !isV2 &&
+      !invitation.sybil_checked_at
+    ) {
       setError(
         '기존 Sybil 검토 시점을 확인할 수 없습니다. 새로고침 후 다시 시도해 주세요. / The legacy review timestamp is unavailable.',
       );
@@ -445,15 +459,15 @@ export default function SybilReviewPage() {
     const label =
       decision === 'CLEAR'
         ? '승인(CLEAR)'
-        : isV2
+        : isPostPayout || isV2
           ? '블랙리스트(BLACKLIST)'
           : '차단(BLOCKED)';
 
-    if (
-      !window.confirm(
-        `${invitation.invite_code}를 ${label} 처리할까요? 이 판정은 보상 자격에 영향을 줄 수 있지만 B3TR 전송은 실행하지 않습니다.`,
-      )
-    ) {
+    const confirmMessage = isPostPayout
+      ? `${invitation.invite_code}를 ${label} 처리할까요? 이미 지급된 보상은 변경되지 않으며, BLACKLIST 시 해당 보상 수령자 지갑의 향후 VeInvite 참여만 제한됩니다.`
+      : `${invitation.invite_code}를 ${label} 처리할까요? 이 판정은 보상 자격에 영향을 줄 수 있지만 B3TR 전송은 실행하지 않습니다.`;
+
+    if (!window.confirm(confirmMessage)) {
       return;
     }
 
@@ -475,18 +489,24 @@ export default function SybilReviewPage() {
           confirmation: normalizedConfirmation,
           expectedCheckedAt: invitation.sybil_checked_at,
           expectedRevision:
-            isV2 ? expectedRevision : undefined,
+            isPostPayout || isV2
+              ? expectedRevision
+              : undefined,
         }),
       });
 
       await readJson<{ invitation: ReviewRow }>(response);
 
       setMessage(
-        decision === 'CLEAR'
-          ? '검토를 승인했습니다. 보상 전송은 실행되지 않았습니다. / Review cleared; no reward transfer was performed.'
-          : isV2
-            ? '블랙리스트로 확정했습니다. 이번 미지급 보상은 제외되고 향후 VeInvite 참여가 제한됩니다. / Blacklist confirmed; the unpaid reward is forfeited and future VeInvite participation is restricted.'
-            : '검토를 차단 처리했습니다. 보상 전송은 실행되지 않았습니다. / Review blocked; no reward transfer was performed.',
+        isPostPayout
+          ? decision === 'CLEAR'
+            ? '사후 검토를 정상으로 승인했습니다. 기존 지급 보상은 변경되지 않습니다. / Post-payout review cleared; the past reward remains unchanged.'
+            : '사후 블랙리스트로 확정했습니다. 기존 지급 보상은 유지되고 해당 보상 수령자 지갑의 향후 VeInvite 참여만 제한됩니다. / Post-payout blacklist confirmed; the past reward remains unchanged and only future participation of the reward-recipient wallet is restricted.'
+          : decision === 'CLEAR'
+            ? '검토를 승인했습니다. 보상 전송은 실행되지 않았습니다. / Review cleared; no reward transfer was performed.'
+            : isV2
+              ? '블랙리스트로 확정했습니다. 이번 미지급 보상은 제외되고 향후 VeInvite 참여가 제한됩니다. / Blacklist confirmed; the unpaid reward is forfeited and future VeInvite participation is restricted.'
+              : '검토를 차단 처리했습니다. 보상 전송은 실행되지 않았습니다. / Review blocked; no reward transfer was performed.',
       );
 
       clearSelection();
