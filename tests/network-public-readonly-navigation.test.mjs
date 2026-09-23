@@ -185,29 +185,3 @@ test('partial domain autocomplete reuses only domains already cached in the curr
   assert.match(publicExplorer, /fetchPublicNetwork\(\s*root,\s*suggestion\.wallet/);
   assert.doesNotMatch(domainCache, /fetch\(/);
 });
-"),
-    'empty public Network roots must still require a valid VeChain address',
-  );
-  assert.match(publicApi, /readPublicAvailableSlots/);
-  assert.match(publicApi, /availableSlots/);
-  assert.match(publicApi, /invitee identity\/progress/);
-  assert.doesNotMatch(publicApi, /invitee_wallet|apps_completed|vot3_converted|vote_completed/);
-  assert.match(publicExplorer, /publicInviteSlotPoint/);
-  assert.match(publicExplorer, /className="publicSlotNode"/);
-  assert.match(publicExplorer, /pointer-events:none/);
-});
-
-test('partial domain autocomplete reuses only domains already cached in the current session', () => {
-  assert.match(domainCache, /readCachedLeaderboardDomainSuggestions/);
-  assert.match(domainCache, /sessionStorage\.getItem\(DOMAIN_CACHE_KEY\)/);
-  assert.match(domainCache, /startsWith\(normalizedQuery\)/);
-  assert.match(domainCache, /DOMAIN_SUGGESTION_MIN_CHARS\s*=\s*3/);
-  assert.match(network, /cachedDomainSuggestions/);
-  assert.match(network, /openCachedDomainSuggestion/);
-  assert.match(network, /fetchNetwork\(wallet/);
-  assert.match(network, /formatVechainDomainLabel\(suggestion\.domain\)/);
-  assert.match(publicExplorer, /cachedDomainSuggestions/);
-  assert.match(publicExplorer, /focusCachedDomainSuggestion/);
-  assert.match(publicExplorer, /fetchPublicNetwork\(\s*root,\s*suggestion\.wallet/);
-  assert.doesNotMatch(domainCache, /fetch\(/);
-});
