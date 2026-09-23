@@ -274,7 +274,11 @@ function decorateReview(
 async function loadOpenReviews(
   network: string,
 ): Promise<ReviewRow[]> {
-  const [legacyResult, v2Result] = await Promise.all([
+  const [
+    legacyResult,
+    v2Result,
+    postPayoutResult,
+  ] = await Promise.all([
     supabaseAdmin
       .from('invitations')
       .select(
@@ -297,6 +301,15 @@ async function loadOpenReviews(
       .eq('state', 'HOLD')
       .order('updated_at', { ascending: true })
       .limit(REVIEW_LIST_LIMIT),
+    supabaseAdmin
+      .from('sybil_v2_post_payout_reviews')
+      .select(
+        'invite_code,network,subject_wallet,state,risk_score,revision,reason_codes,evidence_summary,source,opened_at,resolved_at,operator_wallet,operator_reason,updated_at',
+      )
+      .eq('network', network)
+      .eq('state', 'HOLD')
+      .order('updated_at', { ascending: true })
+      .limit(REVIEW_LIST_LIMIT),
   ]);
 
   if (legacyResult.error) {
@@ -309,47 +322,68 @@ async function loadOpenReviews(
       `Open Sybil v2 reviews could not be loaded: ${v2Result.error.message}`,
     );
   }
+  if (postPayoutResult.error) {
+    throw new Error(
+      `Open post-payout Sybil reviews could not be loaded: ${postPayoutResult.error.message}`,
+    );
+  }
 
   const legacyRows =
     (legacyResult.data ?? []) as InvitationReviewRow[];
   const v2Rows =
     (v2Result.data ?? []) as V2AssessmentRow[];
+  const postPayoutRows =
+    (postPayoutResult.data ?? []) as PostPayoutReviewRow[];
+
   const v2ByCode = new Map(
     v2Rows.map((row) => [row.invite_code, row]),
   );
+  const postPayoutByCode = new Map(
+    postPayoutRows.map((row) => [
+      row.invite_code,
+      row,
+    ]),
+  );
 
-  const v2OnlyCodes = v2Rows
-    .map((row) => row.invite_code)
-    .filter(
-      (code) =>
-        !legacyRows.some(
-          (legacy) => legacy.invite_code === code,
-        ),
-    );
+  const allReviewCodes = Array.from(new Set([
+    ...legacyRows.map((row) => row.invite_code),
+    ...v2Rows.map((row) => row.invite_code),
+    ...postPayoutRows.map((row) => row.invite_code),
+  ]));
 
-  let v2Invitations: InvitationReviewRow[] = [];
+  const legacyByCode = new Map(
+    legacyRows.map((row) => [
+      row.invite_code,
+      row,
+    ]),
+  );
 
-  if (v2OnlyCodes.length > 0) {
+  const missingCodes = allReviewCodes.filter(
+    (code) => !legacyByCode.has(code),
+  );
+
+  let supplementalInvitations: InvitationReviewRow[] = [];
+  if (missingCodes.length > 0) {
     const invitationResult = await supabaseAdmin
       .from('invitations')
       .select(
         'invite_code, inviter_wallet, invitee_wallet, activation_network, status, reward_status, sybil_status, sybil_risk_level, sybil_risk_score, sybil_reason, sybil_checked_at, sybil_source, activated_at, updated_at',
       )
-      .in('invite_code', v2OnlyCodes);
+      .in('invite_code', missingCodes);
 
     if (invitationResult.error) {
       throw new Error(
-        `Sybil v2 review invitations could not be loaded: ${invitationResult.error.message}`,
+        `Sybil review invitations could not be loaded: ${invitationResult.error.message}`,
       );
     }
 
-    v2Invitations =
+    supplementalInvitations =
       (invitationResult.data ?? []) as InvitationReviewRow[];
   }
 
   const allInvitations = [
     ...legacyRows,
-    ...v2Invitations,
+    ...supplementalInvitations,
   ];
 
   const deduped = new Map<string, ReviewRow>();
@@ -359,6 +393,7 @@ async function loadOpenReviews(
       decorateReview(
         invitation,
         v2ByCode.get(invitation.invite_code) ?? null,
+        postPayoutByCode.get(invitation.invite_code) ?? null,
       ),
     );
   }
@@ -366,12 +401,14 @@ async function loadOpenReviews(
   return [...deduped.values()]
     .sort((left, right) => {
       const leftTime = Date.parse(
-        left.v2_updated_at ??
+        left.post_payout_updated_at ??
+          left.v2_updated_at ??
           left.sybil_checked_at ??
           left.updated_at,
       );
       const rightTime = Date.parse(
-        right.v2_updated_at ??
+        right.post_payout_updated_at ??
+          right.v2_updated_at ??
           right.sybil_checked_at ??
           right.updated_at,
       );
