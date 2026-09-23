@@ -48,6 +48,10 @@ import {
   type SybilObservationBatchSummary,
 } from '@/lib/sybil/observationBatch';
 import {
+  enqueueSybilV2EvidenceBacklogBatch,
+  type SybilV2EvidenceBacklogEnqueueSummary,
+} from '@/lib/sybil/v2/evidenceQueue';
+import {
   runSybilV2AssessmentBatch,
   runSybilV2EvidenceCollectionBatch,
 } from '@/lib/sybil/v2/pipeline';
@@ -100,6 +104,7 @@ type CronStageFailure =
   | 'ALLOCATION_SYNC'
   | 'RECONCILIATION'
   | 'SYBIL_V2_EVIDENCE'
+  | 'SYBIL_V2_EVIDENCE_QUEUE'
   | 'SYBIL_V2_ASSESSMENT'
   | 'SYBIL_OBSERVATION'
   | 'SYBIL_BEHAVIOR_OBSERVATION'
@@ -180,6 +185,8 @@ export async function GET(
   let summary: ReconciliationBatchSummary | null = null;
   let sybilV2Evidence:
     Awaited<ReturnType<typeof runSybilV2EvidenceCollectionBatch>> | null = null;
+  let sybilV2EvidenceQueue:
+    SybilV2EvidenceBacklogEnqueueSummary | null = null;
   let sybilV2Assessment:
     Awaited<ReturnType<typeof runSybilV2AssessmentBatch>> | null = null;
   let sybilObservation:
@@ -228,6 +235,14 @@ export async function GET(
   } catch (error) {
     failedStages.push('SYBIL_V2_EVIDENCE');
     logStageFailure('SYBIL_V2_EVIDENCE', error);
+  }
+
+  try {
+    sybilV2EvidenceQueue =
+      await enqueueSybilV2EvidenceBacklogBatch(50);
+  } catch (error) {
+    failedStages.push('SYBIL_V2_EVIDENCE_QUEUE');
+    logStageFailure('SYBIL_V2_EVIDENCE_QUEUE', error);
   }
 
   try {
@@ -420,6 +435,7 @@ export async function GET(
           }
         : null,
       sybilV2Evidence,
+      sybilV2EvidenceQueue,
       sybilV2Assessment,
       sybilObservation,
       sybilBehaviorObservation,
