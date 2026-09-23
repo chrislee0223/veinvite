@@ -326,14 +326,13 @@ function newGroupId(): string {
 
 async function fetchNetwork(
   rootWallet: string,
-  options: { focus?: string; query?: string; signal?: AbortSignal; fast?: boolean } = {},
+  options: { focus?: string; query?: string; signal?: AbortSignal } = {},
 ): Promise<NetworkData> {
   const params = new URLSearchParams({ wallet: rootWallet });
   if (options.focus && keyWallet(options.focus) !== keyWallet(rootWallet)) {
     params.set('focus', options.focus);
   }
   if (options.query) params.set('q', options.query);
-  if (options.fast) params.set('fast', '1');
 
   const response = await fetch(`/api/network?${params.toString()}`, {
     method: 'GET',
@@ -1292,7 +1291,6 @@ export function AppNetwork({ locale }: { locale: Locale }) {
     try {
       const payload = await fetchNetwork(requestWallet, {
         signal: controller.signal,
-        fast: true,
       });
       if (!canCommit()) return;
       commitRoot(payload);
@@ -1637,7 +1635,7 @@ export function AppNetwork({ locale }: { locale: Locale }) {
     try {
       let payload = cacheRef.current.get(target) ?? null;
       if (!payload) {
-        payload = await fetchNetwork(wallet, { focus: targetWallet, signal: controller.signal, fast: true });
+        payload = await fetchNetwork(wallet, { focus: targetWallet, signal: controller.signal });
       }
       if (controller.signal.aborted || serial !== requestSerialRef.current || !payload) return;
       rememberPayload(payload);
@@ -1847,7 +1845,6 @@ export function AppNetwork({ locale }: { locale: Locale }) {
           focus: currentData.focusWallet,
           query: effectiveQuery,
           signal: controller.signal,
-          fast: true,
         });
         if (controller.signal.aborted) return;
         const ownResults = result.searchResults ?? [];
@@ -1927,7 +1924,6 @@ export function AppNetwork({ locale }: { locale: Locale }) {
         focus: currentData.focusWallet,
         query: target,
         signal: controller.signal,
-        fast: true,
       });
       if (controller.signal.aborted) return;
       const ownMatch = (result.searchResults ?? []).find(
