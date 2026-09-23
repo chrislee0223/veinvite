@@ -879,6 +879,7 @@ function PublicNetworkCanvas({
   }, [pending, focusWallet, focusData, view, cancelNavigation, root, putCache, bloom, stageSize]);
 
   const returnToViewedRoot = useCallback(() => {
+    stopIntroForInteraction();
     closeSearch();
     if (pending) return;
     setSelected(null);
@@ -887,7 +888,7 @@ function PublicNetworkCanvas({
       return;
     }
     centerViewedNetwork();
-  }, [closeSearch, pending, focusWallet, root, activate, centerViewedNetwork]);
+  }, [stopIntroForInteraction, closeSearch, pending, focusWallet, root, activate, centerViewedNetwork]);
 
   const zoomAt = useCallback((screenPoint: Point, nextScale: number) => {
     setView((current) => {
@@ -1195,7 +1196,7 @@ function PublicNetworkCanvas({
         </div>
         <div className="publicControls topControls" data-network-interactive="true">
           <button type="button" aria-label={e.visibleNetwork} title={e.visibleNetwork} onClick={returnToViewedRoot}>◎</button>
-          <button type="button" aria-label={c.centerNetwork} title={c.centerNetwork} onClick={() => fitPublicNetwork(true)}>⛶</button>
+          <button type="button" aria-label={c.centerNetwork} title={c.centerNetwork} onClick={() => { stopIntroForInteraction(); fitPublicNetwork(true); }}>⛶</button>
           <button type="button" aria-label={c.zoomOut} title={c.zoomOut} onClick={() => zoomByButton(-1)}>−</button>
           <button type="button" aria-label={c.zoomIn} title={c.zoomIn} onClick={() => zoomByButton(1)}>+</button>
         </div>
