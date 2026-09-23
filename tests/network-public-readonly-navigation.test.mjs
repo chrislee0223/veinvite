@@ -56,7 +56,7 @@ test('other-user Network stays read-only while matching My Network chrome', () =
   assert.match(publicExplorer, /onClick=\{onBackToMine \?\? onBack\}>◎<\/button>/);
   assert.match(publicExplorer, /searchOpen \? \(/);
   assert.doesNotMatch(publicExplorer, /className="publicSummary"|className="backMine"|className="publicCluster"/);
-  assert.doesNotMatch(publicExplorer, /rootData\.summary\.thisRound/);
+  assert.doesNotMatch(publicExplorer, /thisRound|publicSummary|backMine|publicCluster/);
   assert.match(publicExplorer, /publicRootBreath/);
   assert.match(publicExplorer, /onPointerMove/);
 });
