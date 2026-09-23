@@ -166,10 +166,9 @@ export function rememberNetworkRoot(wallet: string, data: NetworkRootSnapshot): 
   rememberHeaderMetrics(wallet, data);
 }
 
-async function fetchRootSnapshot(wallet: string, fast: boolean): Promise<NetworkRootSnapshot> {
-  const suffix = fast ? '&fast=1' : '';
+async function fetchRootSnapshot(wallet: string): Promise<NetworkRootSnapshot> {
   const response = await fetch(
-    `/api/network?wallet=${encodeURIComponent(wallet)}${suffix}`,
+    `/api/network?wallet=${encodeURIComponent(wallet)}`,
     {
       method: 'GET',
       credentials: 'include',
@@ -205,7 +204,7 @@ export async function prefetchNetworkRoot(
   const existing = inFlight.get(key);
   if (existing) return existing;
 
-  const request = fetchRootSnapshot(wallet, true)
+  const request = fetchRootSnapshot(wallet)
     .finally(() => {
       inFlight.delete(key);
     });
