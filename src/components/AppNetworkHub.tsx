@@ -112,6 +112,10 @@ export function AppNetworkHub({ locale }: { locale: Locale }) {
   );
   const [publicRootWallet, setPublicRootWallet] = useState<string | null>(null);
 
+  useEffect(() => {
+    setPublicRootWallet(null);
+  }, [wallet]);
+
   const loadProbe = useCallback(async (signal?: AbortSignal) => {
     if (!wallet) return;
     const requestWallet = wallet;
