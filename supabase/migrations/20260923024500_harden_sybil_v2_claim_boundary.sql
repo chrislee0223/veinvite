@@ -267,10 +267,9 @@ set search_path = pg_catalog, public
 as $$
   select count(*)::integer
   from public.invitations i
-  join public.sybil_v2_referral_assessments a
+  left join public.sybil_v2_referral_assessments a
     on a.invite_code = i.invite_code
-   and a.state in ('CLEAR','WATCH')
-  join public.sybil_v2_reward_clearances c
+  left join public.sybil_v2_reward_clearances c
     on c.invite_code = i.invite_code
    and c.network = lower(btrim(p_network))
    and c.assessment_revision = a.revision
@@ -281,21 +280,31 @@ as $$
     and i.status = 'COMPLETED'
     and i.reward_status = 'ELIGIBLE'
     and i.reward_eligible_at is not null
+    and (
+      not public.sybil_v2_enforcement_enabled()
+      or (
+        a.state in ('CLEAR','WATCH')
+        and c.id is not null
+      )
+    )
     and not exists (
       select 1
       from public.reward_queue_entries q
       where q.invite_code = i.invite_code
         and q.reserved_amount_wei is not null
     )
-    and not exists (
-      select 1
-      from public.sybil_v2_wallet_restrictions r
-      where r.network = i.activation_network
-        and r.status = 'ACTIVE'
-        and r.wallet_address in (
-          lower(i.inviter_wallet),
-          lower(i.invitee_wallet)
-        )
+    and (
+      not public.sybil_v2_enforcement_enabled()
+      or not exists (
+        select 1
+        from public.sybil_v2_wallet_restrictions r
+        where r.network = i.activation_network
+          and r.status = 'ACTIVE'
+          and r.wallet_address in (
+            lower(i.inviter_wallet),
+            lower(i.invitee_wallet)
+          )
+      )
     )
     and not exists (
       select 1
