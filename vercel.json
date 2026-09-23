@@ -31,6 +31,16 @@
           "initialDelaySeconds": 0
         }
       ]
+    },
+    "src/app/api/queues/sybil-v2-evidence/route.ts": {
+      "experimentalTriggers": [
+        {
+          "type": "queue/v2beta",
+          "topic": "veinvite-sybil-v2-evidence",
+          "retryAfterSeconds": 60,
+          "initialDelaySeconds": 0
+        }
+      ]
     }
   },
   "crons": [
