@@ -546,11 +546,15 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    const [invitation, v2Assessment] =
-      await Promise.all([
-        loadInvitationReview(inviteCode),
-        loadV2Assessment(inviteCode),
-      ]);
+    const [
+      invitation,
+      v2Assessment,
+      postPayoutReview,
+    ] = await Promise.all([
+      loadInvitationReview(inviteCode),
+      loadV2Assessment(inviteCode),
+      loadPostPayoutReview(inviteCode),
+    ]);
 
     if (!invitation) {
       return NextResponse.json(
@@ -583,10 +587,12 @@ export async function GET(request: NextRequest) {
       reviewEvents,
       v2AssessmentEvents,
       v2Evidence,
+      postPayoutReviewEvents,
     ] = await Promise.all([
       loadLegacyReviewEvents(inviteCode),
       loadV2AssessmentEvents(inviteCode),
       loadV2Evidence(inviteCode),
+      loadPostPayoutReviewEvents(inviteCode),
     ]);
 
     const legacyCanResolve =
@@ -594,6 +600,8 @@ export async function GET(request: NextRequest) {
       invitation.sybil_status === 'REVIEW';
     const v2CanResolve =
       v2Assessment?.state === 'HOLD';
+    const postPayoutCanResolve =
+      postPayoutReview?.state === 'HOLD';
 
     return NextResponse.json(
       {
@@ -603,18 +611,25 @@ export async function GET(request: NextRequest) {
         invitation: decorateReview(
           invitation,
           v2Assessment,
+          postPayoutReview,
         ),
         v2Assessment,
+        postPayoutReview,
         reviewEvents,
         v2AssessmentEvents,
+        postPayoutReviewEvents,
         v2Evidence,
-        reviewMode: v2CanResolve
-          ? 'V2'
-          : legacyCanResolve
-            ? 'LEGACY'
-            : 'NONE',
+        reviewMode: postPayoutCanResolve
+          ? 'POST_PAYOUT'
+          : v2CanResolve
+            ? 'V2'
+            : legacyCanResolve
+              ? 'LEGACY'
+              : 'NONE',
         canResolve:
-          v2CanResolve || legacyCanResolve,
+          postPayoutCanResolve ||
+          v2CanResolve ||
+          legacyCanResolve,
         allowedDecisions: ['CLEAR', 'BLOCKED'],
         transfersPerformed: false,
       },
