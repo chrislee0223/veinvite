@@ -28,6 +28,10 @@ const analyticsCron = await readFile(
   new URL('../src/app/api/cron/analytics-maintenance/route.ts', import.meta.url),
   'utf8',
 );
+const sybilPaidBackfillCron = await readFile(
+  new URL('../src/app/api/cron/sybil-v2-paid-backfill/route.ts', import.meta.url),
+  'utf8',
+);
 const vercelConfig = await readFile(
   new URL('../vercel.json', import.meta.url),
   'utf8',
@@ -141,15 +145,18 @@ test('leaderboard snapshots run only after round growth reporting succeeds', () 
   );
 });
 
-test('leaderboard publication remains owned by reconcile while analytics maintenance stays isolated', () => {
+test('leaderboard publication remains owned by reconcile while maintenance and Sybil backfill stay isolated', () => {
   const config = JSON.parse(vercelConfig);
-  assert.equal(config.crons.length, 2);
+  assert.equal(config.crons.length, 3);
 
   const reconciliationCron = config.crons.find(
     (entry) => entry.path === '/api/cron/reconcile',
   );
   const analyticsMaintenanceCron = config.crons.find(
     (entry) => entry.path === '/api/cron/analytics-maintenance',
+  );
+  const sybilBackfillCron = config.crons.find(
+    (entry) => entry.path === '/api/cron/sybil-v2-paid-backfill',
   );
 
   assert.deepEqual(reconciliationCron, {
@@ -159,6 +166,10 @@ test('leaderboard publication remains owned by reconcile while analytics mainten
   assert.deepEqual(analyticsMaintenanceCron, {
     path: '/api/cron/analytics-maintenance',
     schedule: '47 0 * * *',
+  });
+  assert.deepEqual(sybilBackfillCron, {
+    path: '/api/cron/sybil-v2-paid-backfill',
+    schedule: '*/15 * * * *',
   });
 
   assert.match(cron, /publishLeaderboardRoundSnapshots/);
@@ -174,6 +185,21 @@ test('leaderboard publication remains owned by reconcile while analytics mainten
   assert.doesNotMatch(analyticsCron, /maintainRoundGrowthSnapshots/);
   assert.doesNotMatch(analyticsCron, /reward_receipts/i);
   assert.doesNotMatch(analyticsCron, /reward_payout/i);
+
+  assert.match(
+    sybilPaidBackfillCron,
+    /enqueueSybilV2PaidBackfillBatch\(10\)/,
+  );
+  assert.doesNotMatch(
+    sybilPaidBackfillCron,
+    /publishLeaderboardRoundSnapshots/,
+  );
+  assert.doesNotMatch(
+    sybilPaidBackfillCron,
+    /maintainRoundGrowthSnapshots/,
+  );
+  assert.doesNotMatch(sybilPaidBackfillCron, /reward_receipts/i);
+  assert.doesNotMatch(sybilPaidBackfillCron, /reward_payout/i);
 });
 
 test('movement arithmetic examples preserve direction semantics', () => {
