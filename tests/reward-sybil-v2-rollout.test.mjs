@@ -4,7 +4,7 @@ import test from 'node:test';
 
 test('Sybil v2 rollout starts in shadow mode by default', async () => {
   const sql = await readFile(
-    'supabase/migrations/20260923012000_prepare_sybil_v2_shadow_rollout.sql',
+    'supabase/migrations/20260923060000_prepare_sybil_v2_shadow_rollout.sql',
     'utf8',
   );
 
@@ -24,7 +24,7 @@ test('Sybil v2 rollout starts in shadow mode by default', async () => {
 
 test('shadow mode does not require v2 clearance for legacy reward reservation', async () => {
   const sql = await readFile(
-    'supabase/migrations/20260923050000_finalize_sybil_v2_shadow_compatibility.sql',
+    'supabase/migrations/20260923061000_finalize_sybil_v2_shadow_compatibility.sql',
     'utf8',
   );
 
@@ -44,7 +44,7 @@ test('shadow mode does not require v2 clearance for legacy reward reservation', 
 
 test('shadow mode keeps temporary HOLDs and user security notifications inactive', async () => {
   const sql = await readFile(
-    'supabase/migrations/20260923050000_finalize_sybil_v2_shadow_compatibility.sql',
+    'supabase/migrations/20260923061000_finalize_sybil_v2_shadow_compatibility.sql',
     'utf8',
   );
 
@@ -84,7 +84,7 @@ test('eligible reward flow continues in shadow but fails closed after enforcemen
 
 test('pre-enforcement Claim-ready rewards are grandfathered in monitoring', async () => {
   const sql = await readFile(
-    'supabase/migrations/20260923013000_add_sybil_pipeline_v2_foundation.sql',
+    'supabase/migrations/20260923060100_add_sybil_pipeline_v2_foundation.sql',
     'utf8',
   );
 
