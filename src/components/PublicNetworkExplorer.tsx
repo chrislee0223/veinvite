@@ -401,6 +401,7 @@ function PublicNetworkCanvas({
   const branchRequestRef = useRef<AbortController | null>(null);
   const bloomTimerRef = useRef<number | null>(null);
   const cameraTimerRef = useRef<number | null>(null);
+  const introFitTimerRef = useRef<number | null>(null);
   const pointersRef = useRef<Map<number, Point>>(new Map());
   const singlePointerRef = useRef<Point | null>(null);
   const singlePointerAllowedRef = useRef(false);
@@ -529,6 +530,7 @@ function PublicNetworkCanvas({
       requestSerialRef.current += 1;
       if (bloomTimerRef.current) window.clearTimeout(bloomTimerRef.current);
       if (cameraTimerRef.current) window.clearTimeout(cameraTimerRef.current);
+      if (introFitTimerRef.current) window.clearTimeout(introFitTimerRef.current);
     };
   }, [loadRoot]);
 
@@ -755,6 +757,14 @@ function PublicNetworkCanvas({
     }, 240);
   }, [stageSize]);
 
+  const stopIntroForInteraction = useCallback(() => {
+    if (introFitTimerRef.current !== null) {
+      window.clearTimeout(introFitTimerRef.current);
+      introFitTimerRef.current = null;
+    }
+    setCameraTransition(false);
+  }, []);
+
   const nearestVisibleChild = useCallback((point: Point, radius = NODE_HIT_RADIUS) => {
     let nearest: PublicVisual | null = null;
     let nearestDistance = radius;
@@ -792,8 +802,16 @@ function PublicNetworkCanvas({
       fitPublicNetwork(false);
       return;
     }
-    const timer = window.setTimeout(() => fitPublicNetwork(true), 140);
-    return () => window.clearTimeout(timer);
+    introFitTimerRef.current = window.setTimeout(() => {
+      introFitTimerRef.current = null;
+      fitPublicNetwork(true);
+    }, 140);
+    return () => {
+      if (introFitTimerRef.current !== null) {
+        window.clearTimeout(introFitTimerRef.current);
+        introFitTimerRef.current = null;
+      }
+    };
   }, [state, focusData?.focusWallet, root, stageSize.width, stageSize.height, fitPublicNetwork]);
 
   const activate = useCallback(async (
@@ -885,6 +903,7 @@ function PublicNetworkCanvas({
   }, []);
 
   const zoomByButton = useCallback((direction: 1 | -1) => {
+    stopIntroForInteraction();
     if (
       direction < 0 &&
       view.scale <= MIN_SCALE + 0.015 &&
@@ -909,7 +928,7 @@ function PublicNetworkCanvas({
       setCameraTransition(false);
       cameraTimerRef.current = null;
     }, 220);
-  }, [view.scale, activePath, activate, stageSize, zoomAt]);
+  }, [view.scale, activePath, activate, stageSize, zoomAt, stopIntroForInteraction]);
 
   const selectedMember = selected ? memberByWallet.get(selected) ?? null : null;
   const selectedData = selected ? cacheRef.current.get(selected) ?? null : null;
@@ -919,6 +938,7 @@ function PublicNetworkCanvas({
   const shownBreadcrumb = activePath.slice(breadcrumbStart);
 
   const onPointerDown = (event: ReactPointerEvent<HTMLDivElement>) => {
+    stopIntroForInteraction();
     const target = event.target as HTMLElement | null;
     const interactive = Boolean(target?.closest('button,input,a,[data-no-pan="true"]'));
     const point = { x: event.clientX, y: event.clientY };
@@ -1047,6 +1067,7 @@ function PublicNetworkCanvas({
 
   const onWheel = (event: ReactWheelEvent<HTMLDivElement>) => {
     event.preventDefault();
+    stopIntroForInteraction();
     const rect = stageRef.current?.getBoundingClientRect();
     if (!rect) return;
 
