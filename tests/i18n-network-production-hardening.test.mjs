@@ -2,10 +2,11 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import test from 'node:test';
 
-const [route, runtime, network, controls, migration, rollout] = await Promise.all([
+const [route, runtime, network, identity, controls, migration, rollout] = await Promise.all([
   readFile(new URL('../src/app/api/network/route.ts', import.meta.url), 'utf8'),
   readFile(new URL('../src/lib/networkRuntimeServer.ts', import.meta.url), 'utf8'),
   readFile(new URL('../src/components/AppNetwork.tsx', import.meta.url), 'utf8'),
+  readFile(new URL('../src/components/NetworkWalletIdentity.tsx', import.meta.url), 'utf8'),
   readFile(new URL('../src/lib/i18n/networkCanvasControlCopy.ts', import.meta.url), 'utf8'),
   readFile(new URL('../supabase/migrations/20260909040000_harden_network_runtime_and_round_context.sql', import.meta.url), 'utf8'),
   readFile(new URL('../supabase/migrations/20260909040500_stage_network_runtime_disabled_for_rollout.sql', import.meta.url), 'utf8'),
@@ -100,5 +101,6 @@ test('Network canvas controls are localized for every supported locale and the g
 });
 
 test('profile images do not forward the app referrer', () => {
-  assert.match(network, /referrerPolicy="no-referrer"/i);
+  assert.match(network, /NetworkWalletIdentity/i);
+  assert.match(identity, /referrerPolicy="no-referrer"/i);
 });

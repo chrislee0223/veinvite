@@ -48,11 +48,15 @@ test('historical opt-in rollout remains historical while the current reader is d
   );
 });
 
-test('current public graph reader is service-role-only and graph-only', () => {
+test('current public reader keeps graph data service-role-only and exposes only aggregate slot availability', () => {
   assert.match(defaultPublicMigration, /revoke all on function public\.read_public_referral_network_focus_v1\([\s\S]*from public, anon, authenticated/i);
   assert.match(defaultPublicMigration, /grant execute on function public\.read_public_referral_network_focus_v1\([\s\S]*to service_role/i);
   assert.match(defaultPublicMigration, /revoke all on function public\.read_public_network_discovery_v1\(integer\)[\s\S]*from public, anon, authenticated/i);
   assert.doesNotMatch(emptyRootMigration, /reward_status|sybil_status|apps_completed|vot3_converted|vote_completed|identity_link|mission_|invitations/i);
+  assert.match(publicRoute, /readPublicAvailableSlots/i);
+  assert.match(publicRoute, /availableSlots/i);
+  assert.match(publicRoute, /invite_slot, slot_released_at, sybil_status/i);
+  assert.doesNotMatch(publicRoute, /invitee_wallet|apps_completed|vot3_converted|vote_completed/i);
   assert.match(publicRoute, /Mission, reward,[\s\S]*anti-Sybil,[\s\S]*security/i);
   assert.doesNotMatch(publicRoute, /NETWORK_PRIVATE|FOCUS_NOT_PUBLIC|NETWORK_NOT_FOUND|hasPrivateBranches/i);
 });

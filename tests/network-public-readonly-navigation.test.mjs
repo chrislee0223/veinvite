@@ -16,6 +16,7 @@ const [
   hubCopy,
   nativeReview,
   naturalnessPolish,
+  networkIdentity,
 ] = await Promise.all([
   readFile('src/components/InviterLeaderboard.tsx', 'utf8'),
   readFile('src/components/HomeClient.tsx', 'utf8'),
@@ -30,6 +31,7 @@ const [
   readFile('src/lib/i18n/networkHubCopy.ts', 'utf8'),
   readFile('src/lib/i18n/networkNativeReview.ts', 'utf8'),
   readFile('src/lib/i18n/networkNaturalnessPolish.ts', 'utf8'),
+  readFile('src/components/NetworkWalletIdentity.tsx', 'utf8'),
 ]);
 
 test('leaderboard can hand a wallet into the Network tab without prop-drilling the leaderboard tree', () => {
@@ -109,14 +111,21 @@ test('Network search resolves .vet domains and opens default-public read-only ro
   assert.match(publicExplorer, /fetchPublicNetwork\(\s*root,\s*resolvedSearchWallet/);
 });
 
-test('public Network display remains mobile-width and keeps loading inside the canvas shell', () => {
-  assert.match(publicExplorer, /\.publicCanvasPage\{width:min\(100%,520px\)/);
+test('public Network display keeps one mobile-width shell, overlay search, and shared identities', () => {
+  assert.match(publicExplorer, /\.publicCanvasPage\{width:min\(100%,520px\)[^}]*position:relative/);
   assert.match(publicExplorer, /\.publicStage\{position:relative;flex:1 1 auto;min-height:0;height:auto/);
-  assert.match(publicExplorer, /PublicNodeLabel/);
-  assert.match(publicExplorer, /formatCompactVechainDomain/);
+  assert.match(publicExplorer, /NetworkWalletLabel/);
+  assert.match(publicExplorer, /NetworkWalletIdentity/);
+  assert.match(networkIdentity, /getPicassoImage\(address\)/);
+  assert.match(networkIdentity, /useGetAvatar\(domain\)/);
+  assert.match(publicExplorer, /ref=\{searchInputRef\}/);
+  assert.match(publicExplorer, /searchInputRef\.current\?\.focus\(\{ preventScroll: true \}\)/);
+  assert.match(publicExplorer, /\.publicSearchBar\{[^}]*position:absolute[^}]*top:44px/);
   assert.match(publicExplorer, /publicLoadingCanvas networkCard/);
   assert.match(publicExplorer, /loadingNetworkBadge/);
   assert.match(publicExplorer, /inlineNetworkLoading/);
+  assert.doesNotMatch(publicExplorer, /<span aria-hidden="true">↗<\/span>[\s\S]*NetworkWalletLabel address=\{root\}/);
+  assert.match(publicExplorer, /aria-label="VeChain Explorer">↗<\/a>/);
   assert.doesNotMatch(publicExplorer, /e\.viewing|publicLoadingHeader/);
   assert.doesNotMatch(publicExplorer, /sessionStorage|PUBLIC_SESSION_PREFIX|readSavedState|clearSavedState/);
 });
@@ -142,7 +151,7 @@ test('old Network privacy opt-in cannot return through current Settings, API, or
   );
 });
 
-test('default-public reader remains graph-only and empty roots need no invitation metadata', () => {
+test('default-public reader stays graph-only except for aggregate invite-slot availability', () => {
   assert.match(migration, /qualified_referral_network_edges/);
   assert.match(emptyRootMigration, /qualified_referral_network_edges/);
   assert.doesNotMatch(
@@ -153,7 +162,13 @@ test('default-public reader remains graph-only and empty roots need no invitatio
     emptyRootMigration.includes("p.root_wallet ~ '^0x[0-9a-f]{40}$'"),
     'empty public Network roots must still require a valid VeChain address',
   );
-  assert.match(publicApi, /Mission, reward,/);
+  assert.match(publicApi, /readPublicAvailableSlots/);
+  assert.match(publicApi, /availableSlots/);
+  assert.match(publicApi, /invitee identity\/progress/);
+  assert.doesNotMatch(publicApi, /invitee_wallet|apps_completed|vot3_converted|vote_completed/);
+  assert.match(publicExplorer, /publicInviteSlotPoint/);
+  assert.match(publicExplorer, /className="publicSlotNode"/);
+  assert.match(publicExplorer, /pointer-events:none/);
 });
 
 test('partial domain autocomplete reuses only domains already cached in the current session', () => {
