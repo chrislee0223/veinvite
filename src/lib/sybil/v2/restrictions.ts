@@ -17,6 +17,10 @@ export type ActiveSybilV2Restriction = {
   id: string;
   wallet_address: string;
   network: VeBetterNetwork;
+  restriction_kind:
+    | 'BLACKLIST'
+    | 'PRE_CLAIM_HOLD'
+    | 'POST_PAYOUT_HOLD';
   reason_codes: unknown;
   evidence_summary: unknown;
   related_invite_code: string | null;
@@ -31,26 +35,51 @@ export async function loadActiveSybilV2Restriction({
   network: VeBetterNetwork;
 }): Promise<ActiveSybilV2Restriction | null> {
   const wallet = normalizeWallet(walletAddress);
-  const { data, error } = await supabaseAdmin
-    .from('sybil_v2_wallet_restrictions')
-    .select(
-      'id,wallet_address,network,reason_codes,evidence_summary,related_invite_code,imposed_at',
-    )
-    .eq('wallet_address', wallet)
-    .eq('network', network)
-    .eq('status', 'ACTIVE')
-    .maybeSingle();
+  const [restrictionResult, holdResult] = await Promise.all([
+    supabaseAdmin
+      .from('sybil_v2_wallet_restrictions')
+      .select(
+        'id,wallet_address,network,reason_codes,evidence_summary,related_invite_code,imposed_at',
+      )
+      .eq('wallet_address', wallet)
+      .eq('network', network)
+      .eq('status', 'ACTIVE')
+      .maybeSingle(),
+    supabaseAdmin
+      .from('operator_sybil_v2_temporary_participation_holds')
+      .select(
+        'id,wallet_address,network,restriction_kind,reason_codes,evidence_summary,related_invite_code,imposed_at',
+      )
+      .eq('wallet_address', wallet)
+      .eq('network', network)
+      .order('imposed_at', { ascending: false })
+      .limit(1),
+  ]);
 
-  if (error) {
-    // Before the v2 migration exists, callers on a Preview deployment should
-    // fail closed rather than silently treating a missing restriction table as
-    // proof that the wallet is clean.
+  if (restrictionResult.error) {
     throw new Error(
-      `Sybil v2 restriction state could not be loaded: ${error.message}`,
+      `Sybil v2 restriction state could not be loaded: ${restrictionResult.error.message}`,
+    );
+  }
+  if (holdResult.error) {
+    throw new Error(
+      `Sybil v2 temporary HOLD state could not be loaded: ${holdResult.error.message}`,
     );
   }
 
-  return (data as ActiveSybilV2Restriction | null) ?? null;
+  if (restrictionResult.data) {
+    return {
+      ...(restrictionResult.data as Omit<
+        ActiveSybilV2Restriction,
+        'restriction_kind'
+      >),
+      restriction_kind: 'BLACKLIST',
+    };
+  }
+
+  return ((holdResult.data ?? [])[0] as
+    | ActiveSybilV2Restriction
+    | undefined) ?? null;
 }
 
 export async function anyActiveSybilV2Restriction({
@@ -63,22 +92,51 @@ export async function anyActiveSybilV2Restriction({
   const wallets = [...new Set(walletAddresses.map(normalizeWallet))];
   if (wallets.length === 0) return null;
 
-  const { data, error } = await supabaseAdmin
-    .from('sybil_v2_wallet_restrictions')
-    .select(
-      'id,wallet_address,network,reason_codes,evidence_summary,related_invite_code,imposed_at',
-    )
-    .eq('network', network)
-    .eq('status', 'ACTIVE')
-    .in('wallet_address', wallets)
-    .order('imposed_at', { ascending: false })
-    .limit(1);
+  const [restrictionResult, holdResult] = await Promise.all([
+    supabaseAdmin
+      .from('sybil_v2_wallet_restrictions')
+      .select(
+        'id,wallet_address,network,reason_codes,evidence_summary,related_invite_code,imposed_at',
+      )
+      .eq('network', network)
+      .eq('status', 'ACTIVE')
+      .in('wallet_address', wallets)
+      .order('imposed_at', { ascending: false })
+      .limit(1),
+    supabaseAdmin
+      .from('operator_sybil_v2_temporary_participation_holds')
+      .select(
+        'id,wallet_address,network,restriction_kind,reason_codes,evidence_summary,related_invite_code,imposed_at',
+      )
+      .eq('network', network)
+      .in('wallet_address', wallets)
+      .order('imposed_at', { ascending: false })
+      .limit(1),
+  ]);
 
-  if (error) {
+  if (restrictionResult.error) {
     throw new Error(
-      `Sybil v2 restriction state could not be loaded: ${error.message}`,
+      `Sybil v2 restriction state could not be loaded: ${restrictionResult.error.message}`,
+    );
+  }
+  if (holdResult.error) {
+    throw new Error(
+      `Sybil v2 temporary HOLD state could not be loaded: ${holdResult.error.message}`,
     );
   }
 
-  return ((data ?? [])[0] as ActiveSybilV2Restriction | undefined) ?? null;
+  const activeRestriction =
+    (restrictionResult.data ?? [])[0] as
+      | Omit<ActiveSybilV2Restriction, 'restriction_kind'>
+      | undefined;
+  if (activeRestriction) {
+    return {
+      ...activeRestriction,
+      restriction_kind: 'BLACKLIST',
+    };
+  }
+
+  return ((holdResult.data ?? [])[0] as
+    | ActiveSybilV2Restriction
+    | undefined) ?? null;
 }
