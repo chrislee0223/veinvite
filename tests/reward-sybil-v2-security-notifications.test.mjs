@@ -10,7 +10,7 @@ import {
 } from '../src/lib/i18n/locales.ts';
 
 const migrationPath =
-  'supabase/migrations/20260923044500_add_sybil_v2_security_notifications.sql';
+  'supabase/migrations/20260923060900_add_sybil_v2_security_notifications.sql';
 
 test('Sybil v2 security notifications are history-only events', async () => {
   const sql = await readFile(migrationPath, 'utf8');
