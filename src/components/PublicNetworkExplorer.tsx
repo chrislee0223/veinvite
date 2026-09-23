@@ -120,6 +120,13 @@ function pointDistance(a: Point, b: Point): number {
   return Math.hypot(a.x - b.x, a.y - b.y);
 }
 
+function publicEdgePath(x1: number, y1: number, x2: number, y2: number): string {
+  const dx = x2 - x1;
+  const dy = y2 - y1;
+  const bend = Math.sign(dx || 1) * Math.min(58, Math.abs(dx) * 0.16);
+  return `M ${x1} ${y1} C ${x1 + bend} ${y1 + dy * 0.22}, ${x2 - bend} ${y1 + dy * 0.78}, ${x2} ${y2}`;
+}
+
 function stablePublicHash(value: string): number {
   let hash = 2166136261;
   for (let index = 0; index < value.length; index += 1) {
@@ -474,6 +481,13 @@ function PublicNetworkCanvas({
     [searchOpen, normalizedSearch],
   );
 
+  const closeSearch = useCallback(() => {
+    setSearchOpen(false);
+    setSearchQuery('');
+    setSearchState('idle');
+    setSearchMatch(null);
+  }, []);
+
   const putCache = useCallback((data: PublicNetworkData) => {
     cacheRef.current.set(keyWallet(data.focusWallet), data);
     setCacheVersion((value) => value + 1);
@@ -752,6 +766,21 @@ function PublicNetworkCanvas({
     };
   }, [activePath.length, focusData, isMobile]);
 
+  const centerViewedNetwork = useCallback(() => {
+    if (stageSize.width <= 0 || stageSize.height <= 0) return;
+    setCameraTransition(true);
+    setView((current) => ({
+      x: stageSize.width / 2 - CENTER_X * current.scale,
+      y: Math.max(88, stageSize.height * 0.5) - ROOT_Y * current.scale,
+      scale: current.scale,
+    }));
+    if (cameraTimerRef.current) window.clearTimeout(cameraTimerRef.current);
+    cameraTimerRef.current = window.setTimeout(() => {
+      setCameraTransition(false);
+      cameraTimerRef.current = null;
+    }, 240);
+  }, [stageSize]);
+
   const fitPublicNetwork = useCallback((animate = true) => {
     if (stageSize.width <= 0 || stageSize.height <= 0) return;
     const points = layout.visuals.map((visual) => ({ x: visual.x, y: visual.y }));
@@ -820,6 +849,56 @@ function PublicNetworkCanvas({
       if (serial === requestSerialRef.current) setPending(null);
     }
   }, [activePath, memberByWallet, cancelNavigation, root, putCache, bloom]);
+
+  const returnToViewedRoot = useCallback(() => {
+    closeSearch();
+    setSelected(null);
+    if (pending) return;
+    if (keyWallet(focusWallet) !== root) {
+      void activate(root, 0);
+      return;
+    }
+    centerViewedNetwork();
+  }, [closeSearch, pending, focusWallet, root, activate, centerViewedNetwork]);
+
+  const zoomAt = useCallback((screenPoint: Point, nextScale: number) => {
+    setView((current) => {
+      const scale = clamp(nextScale, MIN_SCALE, MAX_SCALE);
+      const worldX = (screenPoint.x - current.x) / current.scale;
+      const worldY = (screenPoint.y - current.y) / current.scale;
+      return {
+        x: screenPoint.x - worldX * scale,
+        y: screenPoint.y - worldY * scale,
+        scale,
+      };
+    });
+  }, []);
+
+  const zoomByButton = useCallback((direction: 1 | -1) => {
+    if (
+      direction < 0 &&
+      view.scale <= MIN_SCALE + 0.015 &&
+      activePath.length > 1
+    ) {
+      void activate(
+        activePath[activePath.length - 2],
+        Math.max(0, activePath.length - 2),
+      );
+      return;
+    }
+    if (stageSize.width <= 0 || stageSize.height <= 0) return;
+    setCameraTransition(true);
+    const factor = direction > 0 ? 1.16 : 0.86;
+    zoomAt(
+      { x: stageSize.width / 2, y: stageSize.height / 2 },
+      view.scale * factor,
+    );
+    if (cameraTimerRef.current) window.clearTimeout(cameraTimerRef.current);
+    cameraTimerRef.current = window.setTimeout(() => {
+      setCameraTransition(false);
+      cameraTimerRef.current = null;
+    }, 220);
+  }, [view.scale, activePath, activate, stageSize, zoomAt]);
 
   const selectedMember = selected ? memberByWallet.get(selected) ?? null : null;
   const selectedData = selected ? cacheRef.current.get(selected) ?? null : null;
@@ -942,10 +1021,7 @@ function PublicNetworkCanvas({
             className={`searchToggle${searchOpen ? ' active' : ''}`}
             onClick={() => {
               if (searchOpen) {
-                setSearchOpen(false);
-                setSearchQuery('');
-                setSearchState('idle');
-                setSearchMatch(null);
+                closeSearch();
               } else {
                 setSearchOpen(true);
               }
@@ -958,10 +1034,10 @@ function PublicNetworkCanvas({
           </button>
         </div>
         <div className="publicControls topControls" data-network-interactive="true">
-          <button type="button" aria-label={e.backToMyNetwork} title={e.backToMyNetwork} onClick={onBackToMine ?? onBack}>◎</button>
+          <button type="button" aria-label={e.visibleNetwork} title={e.visibleNetwork} onClick={returnToViewedRoot}>◎</button>
           <button type="button" aria-label={c.centerNetwork} title={c.centerNetwork} onClick={() => fitPublicNetwork(true)}>⛶</button>
-          <button type="button" aria-label={c.zoomOut} title={c.zoomOut} onClick={() => setView((value) => ({ ...value, scale: clamp(value.scale - .1, MIN_SCALE, MAX_SCALE) }))}>−</button>
-          <button type="button" aria-label={c.zoomIn} title={c.zoomIn} onClick={() => setView((value) => ({ ...value, scale: clamp(value.scale + .1, MIN_SCALE, MAX_SCALE) }))}>+</button>
+          <button type="button" aria-label={c.zoomOut} title={c.zoomOut} onClick={() => zoomByButton(-1)}>−</button>
+          <button type="button" aria-label={c.zoomIn} title={c.zoomIn} onClick={() => zoomByButton(1)}>+</button>
         </div>
       </div>
       {searchOpen ? (
@@ -1022,7 +1098,7 @@ function PublicNetworkCanvas({
           ) : null}
         </div>
       ) : null}
-      <div ref={stageRef} className="publicStage" onPointerDown={onPointerDown} onPointerMove={onPointerMove} onPointerUp={onPointerEnd} onPointerCancel={onPointerEnd} onWheel={onWheel} onClick={(event) => { if ((event.target as HTMLElement).closest('[data-network-interactive="true"]')) return; if (dragDistanceRef.current > 6) return; setSelected(null); }}>
+      <div ref={stageRef} className="publicStage" onPointerDown={onPointerDown} onPointerMove={onPointerMove} onPointerUp={onPointerEnd} onPointerCancel={onPointerEnd} onWheel={onWheel} onClick={(event) => { if ((event.target as HTMLElement).closest('[data-network-interactive="true"]')) return; if (dragDistanceRef.current > 6) return; setSelected(null); if (searchOpen) closeSearch(); }}>
         <div className="publicAmbient" aria-hidden="true" />
         <nav className={`breadcrumbs${activePath.length === 1 ? ' rootOnly' : ''}`} aria-label={t.directNetwork} data-no-pan="true" data-network-interactive="true">
           {breadcrumbStart > 0 ? <span className="crumbEllipsis">…</span> : null}
@@ -1045,7 +1121,7 @@ function PublicNetworkCanvas({
           })}
         </nav>
         <div className={`publicWorld${cameraTransition ? ' cameraTransition' : ''}`} style={{ width: PLANE_W, height: PLANE_H, transform: `translate3d(${view.x}px,${view.y}px,0) scale(${view.scale})`, transformOrigin: '0 0' }}>
-          <svg className="publicEdges" width={PLANE_W} height={PLANE_H} viewBox={`0 0 ${PLANE_W} ${PLANE_H}`} aria-hidden="true">{layout.edges.map((edge) => <path key={edge.key} className={edge.active || (selected ? edge.key.endsWith('->' + selected) : false) ? 'active' : ''} d={`M ${edge.x1} ${edge.y1} C ${edge.x1} ${(edge.y1 + edge.y2) / 2}, ${edge.x2} ${(edge.y1 + edge.y2) / 2}, ${edge.x2} ${edge.y2}`} />)}</svg>
+          <svg className="publicEdges" width={PLANE_W} height={PLANE_H} viewBox={`0 0 ${PLANE_W} ${PLANE_H}`} aria-hidden="true">{layout.edges.map((edge) => <path key={edge.key} className={edge.active || (selected ? edge.key.endsWith('->' + selected) : false) ? 'active' : ''} d={publicEdgePath(edge.x1, edge.y1, edge.x2, edge.y2)} />)}</svg>
           {layout.visuals.map((visual) => {
             const member = visual.member;
             const data = cacheRef.current.get(visual.wallet);
