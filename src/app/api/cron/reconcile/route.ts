@@ -51,6 +51,9 @@ import {
   runSybilV2AssessmentBatch,
   runSybilV2EvidenceCollectionBatch,
 } from '@/lib/sybil/v2/pipeline';
+import {
+  runPostPayoutSybilV2BridgeBatch,
+} from '@/lib/sybil/v2/postPayout';
 import type { VeBetterNetwork } from '@/lib/vebetter/network';
 
 function secureEquals(a: string, b: string) {
@@ -102,6 +105,7 @@ type CronStageFailure =
   | 'SYBIL_BEHAVIOR_OBSERVATION'
   | 'AUTOMATIC_REWARD_PAYOUT'
   | 'B3TR_RECIPIENT_OBSERVATION'
+  | 'SYBIL_V2_POST_PAYOUT'
   | 'ROUND_GROWTH_REPORTING'
   | 'LEADERBOARD_SNAPSHOTS'
   | 'HOUSEKEEPING'
@@ -186,6 +190,8 @@ export async function GET(
     AutomaticRewardPayoutResult | null = null;
   let b3trRecipientObservation:
     B3trRecipientObservationBatchSummary | null = null;
+  let sybilV2PostPayout:
+    Awaited<ReturnType<typeof runPostPayoutSybilV2BridgeBatch>> | null = null;
   let roundGrowthReports: Awaited<
     ReturnType<typeof maintainRoundGrowthSnapshots>
   > | null = null;
@@ -297,6 +303,14 @@ export async function GET(
       'B3TR_RECIPIENT_OBSERVATION',
       error,
     );
+  }
+
+  try {
+    sybilV2PostPayout =
+      await runPostPayoutSybilV2BridgeBatch(10);
+  } catch (error) {
+    failedStages.push('SYBIL_V2_POST_PAYOUT');
+    logStageFailure('SYBIL_V2_POST_PAYOUT', error);
   }
 
   if (summary) {
@@ -411,6 +425,7 @@ export async function GET(
       sybilBehaviorObservation,
       automaticRewardPayout,
       b3trRecipientObservation,
+      sybilV2PostPayout,
       roundGrowthReports,
       leaderboardSnapshots,
       housekeeping,
