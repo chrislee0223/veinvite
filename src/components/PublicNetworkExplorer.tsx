@@ -126,6 +126,15 @@ function pointDistance(a: Point, b: Point): number {
   return Math.hypot(a.x - b.x, a.y - b.y);
 }
 
+function SearchGlyph() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 20 20" fill="none" aria-hidden="true">
+      <circle cx="8.5" cy="8.5" r="4.8" stroke="currentColor" strokeWidth="1.6" />
+      <path d="m12.2 12.2 4 4" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+    </svg>
+  );
+}
+
 function NetworkGlyph({ size = 30 }: { size?: number }) {
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
@@ -841,67 +850,102 @@ function PublicNetworkCanvas({
 
   return (
     <section className="publicCanvasPage networkCard">
-      <header className="publicCanvasHeader" data-no-pan="true">
-        <div className="publicHeaderLeft"><button type="button" className="backButton" onClick={onBack} aria-label={c.close}>‹</button><div><span>{e.viewing}</span><h1><PublicNodeLabel address={root} /></h1></div></div>
-        <div className="publicSummary"><strong>{rootData.summary.network.toLocaleString()}</strong><span>{e.visibleNetwork}</span><i /><strong className="growth">{rootData.summary.thisRound === null ? '—' : `+${rootData.summary.thisRound.toLocaleString()}`}</strong><span>{t.thisRound}</span></div>
-      </header>
-      <div className="publicSearchBar" data-no-pan="true" data-network-interactive="true">
-        <input
-          type="text"
-          value={searchQuery}
-          onChange={(event) => setSearchQuery(event.target.value)}
-          placeholder={`${e.walletPlaceholder} · .vet`}
-          aria-label={e.walletPlaceholder}
-          autoComplete="off"
-          autoCapitalize="none"
-          spellCheck={false}
-          dir="ltr"
-        />
-        {normalizedSearch.length >= 3 ? (
-          <div className="publicSearchResult">
-            {searchState === 'loading' ? (
-              <span>…</span>
-            ) : searchState === 'found' && searchMatch ? (
-              <button
-                type="button"
-                onClick={() => {
-                  cancelNavigation();
-                  setActivePath(searchMatch.path);
-                  setSelected(searchMatch.wallet);
-                  setExplorerParent(null);
-                  setView({ x: 0, y: 28, scale: 1 });
-                  setSearchQuery('');
-                  setSearchState('idle');
-                  bloom(searchMatch.wallet);
-                }}
-              >
-                <PublicNodeLabel address={searchMatch.wallet} />
-                <i aria-hidden="true">›</i>
-              </button>
-            ) : searchState === 'error' ? (
-              <span>{e.maintenance}</span>
-            ) : cachedDomainSuggestions.length ? (
-              cachedDomainSuggestions.map((suggestion) => (
+      <div className="networkUtilityRow" data-no-pan="true">
+        <div className="networkIdentity">
+          <div className="summaryTotal" aria-label={`${t.networkSize}: ${rootData.summary.network.toLocaleString()}`}>
+            <span>{t.networkSize}</span>
+            <strong>{rootData.summary.network.toLocaleString()}</strong>
+          </div>
+          <span className="otherNetworkBadge" title={rootWallet} aria-label={e.visibleNetwork}>
+            <span aria-hidden="true">↗</span>
+            <PublicNodeLabel address={root} />
+          </span>
+          <button
+            type="button"
+            className={`searchToggle${searchOpen ? ' active' : ''}`}
+            onClick={() => {
+              if (searchOpen) {
+                setSearchOpen(false);
+                setSearchQuery('');
+                setSearchState('idle');
+                setSearchMatch(null);
+              } else {
+                setSearchOpen(true);
+              }
+            }}
+            aria-label={searchOpen ? c.close : e.walletPlaceholder}
+            title={searchOpen ? c.close : e.walletPlaceholder}
+            aria-expanded={searchOpen}
+          >
+            <SearchGlyph />
+          </button>
+        </div>
+        <div className="publicControls topControls" data-network-interactive="true">
+          <button type="button" aria-label={e.backToMyNetwork} title={e.backToMyNetwork} onClick={onBackToMine ?? onBack}>◎</button>
+          <button type="button" aria-label={c.centerNetwork} title={c.centerNetwork} onClick={() => setView({ x: 0, y: 28, scale: 1 })}>⛶</button>
+          <button type="button" aria-label={c.zoomOut} title={c.zoomOut} onClick={() => setView((value) => ({ ...value, scale: clamp(value.scale - .1, MIN_SCALE, MAX_SCALE) }))}>−</button>
+          <button type="button" aria-label={c.zoomIn} title={c.zoomIn} onClick={() => setView((value) => ({ ...value, scale: clamp(value.scale + .1, MIN_SCALE, MAX_SCALE) }))}>+</button>
+        </div>
+      </div>
+      {searchOpen ? (
+        <div className="publicSearchBar" data-no-pan="true" data-network-interactive="true">
+          <input
+            type="text"
+            value={searchQuery}
+            onChange={(event) => setSearchQuery(event.target.value)}
+            placeholder={`${e.walletPlaceholder} · .vet`}
+            aria-label={e.walletPlaceholder}
+            autoComplete="off"
+            autoCapitalize="none"
+            spellCheck={false}
+            dir="ltr"
+          />
+          {normalizedSearch.length >= 3 ? (
+            <div className="publicSearchResult">
+              {searchState === 'loading' ? (
+                <span>…</span>
+              ) : searchState === 'found' && searchMatch ? (
                 <button
                   type="button"
-                  className="domainSuggestion"
-                  key={suggestion.wallet}
-                  onClick={() => void focusCachedDomainSuggestion(suggestion)}
+                  onClick={() => {
+                    cancelNavigation();
+                    setActivePath(searchMatch.path);
+                    setSelected(searchMatch.wallet);
+                    setExplorerParent(null);
+                    setView({ x: 0, y: 28, scale: 1 });
+                    setSearchOpen(false);
+                    setSearchQuery('');
+                    setSearchState('idle');
+                    bloom(searchMatch.wallet);
+                  }}
                 >
-                  <span className="domainSuggestionIdentity">
-                    <strong dir="auto">{formatVechainDomainLabel(suggestion.domain)}</strong>
-                    <small dir="ltr">{shortWallet(suggestion.wallet)}</small>
-                  </span>
+                  <PublicNodeLabel address={searchMatch.wallet} />
                   <i aria-hidden="true">›</i>
                 </button>
-              ))
-            ) : (
-              <span>{t.noMatching}</span>
-            )}
-          </div>
-        ) : null}
-      </div>
-      {onBackToMine ? <button type="button" className="backMine" data-no-pan="true" onClick={onBackToMine}>{e.backToMyNetwork}</button> : null}
+              ) : searchState === 'error' ? (
+                <span>{e.maintenance}</span>
+              ) : cachedDomainSuggestions.length ? (
+                cachedDomainSuggestions.map((suggestion) => (
+                  <button
+                    type="button"
+                    className="domainSuggestion"
+                    key={suggestion.wallet}
+                    onClick={() => void focusCachedDomainSuggestion(suggestion)}
+                  >
+                    <span className="domainSuggestionIdentity">
+                      <strong dir="auto">{formatVechainDomainLabel(suggestion.domain)}</strong>
+                      <small dir="ltr">{shortWallet(suggestion.wallet)}</small>
+                    </span>
+                    <i aria-hidden="true">›</i>
+                  </button>
+                ))
+              ) : (
+                <span>{t.noMatching}</span>
+              )}
+            </div>
+          ) : null}
+        </div>
+      ) : null}
       <div ref={stageRef} className="publicStage" onPointerDown={onPointerDown} onPointerMove={onPointerMove} onPointerUp={onPointerEnd} onPointerCancel={onPointerEnd} onWheel={onWheel} onClick={(event) => { if ((event.target as HTMLElement).closest('[data-network-interactive="true"]')) return; if (dragDistanceRef.current > 6) return; setSelected(null); }}>
         <div className="publicAmbient" aria-hidden="true" />
         {layout.startDepth > 0 ? <div className="publicPath" data-no-pan="true" data-network-interactive="true"><span dir="ltr">{shortWallet(root)}</span><i>›</i><span>…</span><i>›</i><strong dir="ltr">{shortWallet(activePath[layout.startDepth])}</strong></div> : null}
@@ -913,15 +957,13 @@ function PublicNetworkCanvas({
             const branchCount = visual.root ? rootData.summary.network : 1 + (data?.summary.network ?? member?.network ?? 0);
             const isActive = activePath.includes(visual.wallet);
             const isSelected = selected === visual.wallet;
-            return <button key={visual.wallet} type="button" className={`publicNode ${visual.root ? 'root' : ''} ${isActive ? 'active' : ''} ${isSelected ? 'selected' : ''} ${bloomWallet === visual.wallet ? 'bloom' : ''}`} style={{ left: visual.x, top: visual.y } as CSSProperties} data-network-interactive="true" onClick={(event) => { event.stopPropagation(); if (dragDistanceRef.current > 6) return; if (visual.root) { cancelNavigation(); setSelected(root); setActivePath([root]); setExplorerParent(null); return; } setSelected(visual.wallet); if (!isActive) void activate(visual.wallet, Math.max(0, visual.depth - 1)); }}><span className="publicAvatar"><NetworkGlyph size={visual.root ? 20 : 16} /></span><strong><PublicNodeLabel address={visual.wallet} /></strong><small>{visual.root ? `${rootData.summary.direct} ${t.direct}` : branchCount.toLocaleString()}</small></button>;
+            return <button key={visual.wallet} type="button" className={`publicNode ${visual.root ? 'root' : ''} ${isActive ? 'active' : ''} ${isSelected ? 'selected' : ''} ${bloomWallet === visual.wallet ? 'bloom' : ''}`} style={{ left: visual.x, top: visual.y } as CSSProperties} data-network-interactive="true" onClick={(event) => { event.stopPropagation(); if (dragDistanceRef.current > 6) return; if (visual.root) { cancelNavigation(); setSelected(root); setActivePath([root]); setExplorerParent(null); return; } setSelected(visual.wallet); if (!isActive) void activate(visual.wallet, Math.max(0, visual.depth - 1)); }}><span className="publicAvatar"><NetworkGlyph size={visual.root ? 20 : 16} /></span><strong><PublicNodeLabel address={visual.wallet} /></strong><small>{visual.root ? rootData.summary.network.toLocaleString() : branchCount.toLocaleString()}</small></button>;
           })}
-          {layout.clusters.map((cluster) => <button key={`cluster:${cluster.parentWallet}`} type="button" className="publicCluster" style={{ left: cluster.x, top: cluster.y } as CSSProperties} data-network-interactive="true" onClick={(event) => { event.stopPropagation(); openExplorer(cluster.parentWallet); }}><span><i /><i /><i /></span><strong>+{cluster.remaining}</strong><small>{t.direct}</small></button>)}
           {pending ? <div className="pendingBranch" style={{ left: layout.positions.get(pending)?.x ?? CENTER_X, top: (layout.positions.get(pending)?.y ?? ROOT_Y) + 48 } as CSSProperties}><i /><i /><i /></div> : null}
         </div>
         {branchError ? <div className="branchError" data-no-pan="true"><span>{e.maintenance}</span><button type="button" onClick={() => setBranchError(false)} aria-label={c.close}>×</button></div> : null}
         {selected && selected !== root && !explorerParent ? <aside className="publicInspector" data-no-pan="true" data-network-interactive="true"><div><span className="inspectorAvatar"><NetworkGlyph size={18} /></span><strong><PublicNodeLabel address={selected} /></strong><button type="button" onClick={() => setSelected(null)} aria-label={c.close}>×</button></div><section><span><b>{(1 + selectedNetwork).toLocaleString()}</b>{t.networkSize}</span><span><b>{selectedNetwork.toLocaleString()}</b>{e.visibleNetwork}</span><span><b>{selectedDirect.toLocaleString()}</b>{t.direct}</span></section></aside> : null}
         {explorerParent && explorerData ? <div className="publicSiblingExplorer" data-no-pan="true" data-network-interactive="true"><div className="explorerHead"><strong><PublicNodeLabel address={explorerParent} /></strong><span>{explorerPage + 1}/{explorerPageCount}</span><button type="button" onClick={() => setExplorerParent(null)} aria-label={c.close}>×</button></div><div className="explorerList">{explorerChildren.map((child) => <button key={child.wallet} type="button" dir="ltr" onClick={() => { const depth = activePath.indexOf(explorerParent); void activate(child.wallet, Math.max(0, depth)); }}>{shortWallet(child.wallet)}<span>›</span></button>)}</div><div className="explorerPager"><button type="button" disabled={explorerPage <= 0} onClick={() => setExplorerPage((page) => Math.max(0, page - 1))} aria-label={c.previous}>‹</button><button type="button" disabled={explorerPage >= explorerPageCount - 1} onClick={() => setExplorerPage((page) => Math.min(explorerPageCount - 1, page + 1))} aria-label={c.next}>›</button></div></div> : null}
-        <div className="publicControls" data-no-pan="true" data-network-interactive="true"><button type="button" aria-label={c.centerNetwork} onClick={() => setView({ x: 0, y: 28, scale: 1 })}>◎</button><button type="button" aria-label={c.zoomIn} onClick={() => setView((value) => ({ ...value, scale: clamp(value.scale + .1, MIN_SCALE, MAX_SCALE) }))}>+</button><button type="button" aria-label={c.zoomOut} onClick={() => setView((value) => ({ ...value, scale: clamp(value.scale - .1, MIN_SCALE, MAX_SCALE) }))}>−</button></div>
       </div>
       <style jsx>{`
         .publicCanvasPage{width:min(100%,520px);height:100%;min-height:0;margin:0 auto;padding:0;box-sizing:border-box;display:flex;flex-direction:column;border:1px solid rgba(255,255,255,.06)!important;border-radius:18px;background:#090907!important;overflow:hidden}.publicCanvasHeader{min-height:54px;padding:0 10px;display:flex;align-items:center;justify-content:space-between;gap:14px}.publicHeaderLeft{min-width:0;display:flex;align-items:center;gap:9px}.backButton{flex:0 0 auto;width:36px;height:36px;border:1px solid rgba(255,255,255,.08);border-radius:11px;background:rgba(255,255,255,.03);color:#aaa398;font:inherit;font-size:1.25rem;cursor:pointer}.publicHeaderLeft div{min-width:0}.publicHeaderLeft span{color:#90702a;font-size:.52rem;font-weight:950;letter-spacing:.12em}.publicHeaderLeft h1{max-width:220px;margin:2px 0 0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#ede9e0;font-size:.84rem}.publicSummary{display:flex;align-items:baseline;gap:5px;color:#746f67;font-size:.52rem;white-space:nowrap}.publicSummary strong{color:#d2ccc1;font-size:.69rem}.publicSummary .growth{color:#dbaa36}.publicSummary i{width:1px;height:10px;margin:0 2px;background:rgba(255,255,255,.08)}.backMine{display:block;width:max-content;min-height:30px;margin:0 10px 4px;padding:0 10px;border:1px solid rgba(244,183,40,.13);border-radius:9px;background:rgba(244,183,40,.04);color:#9c8242;font:inherit;font-size:.56rem;font-weight:900;cursor:pointer}.publicSearchBar{position:relative;z-index:42;margin:0 8px 5px}.publicSearchBar>input{width:100%;height:34px;box-sizing:border-box;padding:0 10px;border:1px solid rgba(255,205,80,.12);border-radius:10px;background:#11110f;color:#d8d3ca;font:inherit;font-size:16px;outline:none}.publicSearchBar>input:focus{border-color:rgba(244,183,40,.34)}.publicSearchResult{position:absolute;z-index:50;top:38px;left:0;width:100%;box-sizing:border-box;padding:5px;border:1px solid rgba(255,205,80,.14);border-radius:11px;background:rgba(14,14,12,.985);box-shadow:0 16px 36px rgba(0,0,0,.42)}.publicSearchResult>span{display:block;padding:8px;color:#77736c;font-size:.56rem;text-align:center}.publicSearchResult>button{width:100%;min-height:38px;padding:0 10px;display:flex;align-items:center;justify-content:space-between;gap:8px;border:0;border-radius:8px;background:transparent;color:#ddd7cc;font:inherit;font-size:.62rem;font-weight:850;cursor:pointer}.domainSuggestionIdentity{min-width:0;display:grid;gap:1px;text-align:left}.domainSuggestionIdentity strong{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.domainSuggestionIdentity small{color:#77736c;font-size:.5rem;font-weight:700}.publicSearchResult>button:hover{background:rgba(244,183,40,.06)}.publicSearchResult i{font-style:normal;color:#9c8242}.publicStage{position:relative;flex:1 1 auto;min-height:0;height:auto;overflow:hidden;touch-action:none;user-select:none;cursor:grab}.publicStage:active{cursor:grabbing}.publicAmbient{position:absolute;left:50%;top:0;width:min(820px,92vw);height:410px;transform:translateX(-50%);background:radial-gradient(ellipse,rgba(244,183,40,.045),transparent 68%);pointer-events:none}.publicWorld{position:absolute;left:50%;top:0;transform-origin:50% 0;will-change:transform}.publicEdges{position:absolute;inset:0;pointer-events:none;overflow:visible}.publicEdges line{vector-effect:non-scaling-stroke;stroke:rgba(214,207,194,.12);stroke-width:1;stroke-linecap:round}.publicEdges line.active{stroke:rgba(226,183,72,.37)}.publicNode,.publicCluster{position:absolute;transform:translate(-50%,-50%);font:inherit;cursor:pointer}.publicNode{z-index:5;width:96px;min-height:77px;padding:4px;border:0;background:transparent;color:#c4beb3;display:flex;flex-direction:column;align-items:center;gap:4px}.publicNode strong{max-width:88px;overflow:hidden;text-overflow:ellipsis;color:#8f887d;font-size:.5rem;font-weight:800}.publicNode small{color:#665f55;font-size:.46rem}.publicNode.active strong,.publicNode.selected strong{color:#c5b99d}.publicNode.selected .publicAvatar{box-shadow:0 0 0 4px rgba(244,183,40,.07),0 0 20px rgba(244,183,40,.12)}.publicNode.root .publicAvatar{width:39px;height:39px;border-color:rgba(244,183,40,.38);color:#d0a23b;background:#17140d}.publicNode.root strong{color:#bda35d}.publicAvatar{width:31px;height:31px;display:grid;place-items:center;border:1px solid rgba(203,188,155,.18);border-radius:50%;background:#151411;color:#887c64;box-shadow:0 5px 14px rgba(0,0,0,.22)}.publicNode.bloom{animation:publicBloom 620ms cubic-bezier(.16,1.04,.3,1) both}.publicCluster{z-index:4;width:80px;min-height:62px;padding:4px;border:0;background:transparent;color:#a68743;display:flex;flex-direction:column;align-items:center;gap:1px}.publicCluster>span{height:27px;display:flex;align-items:center}.publicCluster>span i{width:25px;height:25px;margin-left:-8px;border:1px solid rgba(201,184,147,.15);border-radius:50%;background:#151410}.publicCluster>span i:first-child{margin-left:0}.publicCluster strong{font-size:.61rem}.publicCluster small{color:#665f55;font-size:.43rem}.publicPath{position:absolute;z-index:25;left:12px;top:7px;display:flex;align-items:center;gap:5px;padding:5px 8px;border:1px solid rgba(255,255,255,.06);border-radius:9px;background:rgba(14,14,12,.72);color:#756e63;font-size:.5rem}.publicPath strong{color:#aa9e88}.publicInspector{position:absolute;z-index:35;right:12px;top:66px;width:220px;padding:13px;border:1px solid rgba(255,205,80,.14);border-radius:16px;background:rgba(16,15,13,.94);box-shadow:0 18px 44px rgba(0,0,0,.34)}.publicInspector>div{display:grid;grid-template-columns:34px minmax(0,1fr) 28px;align-items:center;gap:8px}.inspectorAvatar{width:32px;height:32px;display:grid;place-items:center;border-radius:50%;background:rgba(244,183,40,.06);color:#a98638}.publicInspector strong{font-size:.66rem;overflow:hidden;text-overflow:ellipsis}.publicInspector>div button{width:28px;height:28px;border:0;background:transparent;color:#80796f;font:inherit;font-size:1rem;cursor:pointer}.publicInspector section{margin-top:11px;display:grid;grid-template-columns:1fr 1fr;gap:7px}.publicInspector section span{padding:8px;border-radius:10px;background:rgba(255,255,255,.025);color:#746d63;font-size:.48rem}.publicInspector section b{display:block;margin-bottom:2px;color:#d4cbb9;font-size:.7rem}.publicSiblingExplorer{position:absolute;z-index:40;left:50%;bottom:18px;width:min(calc(100% - 30px),430px);transform:translateX(-50%);padding:11px;border:1px solid rgba(255,205,80,.15);border-radius:16px;background:rgba(15,15,13,.96);box-shadow:0 22px 55px rgba(0,0,0,.42)}.explorerHead{display:grid;grid-template-columns:minmax(0,1fr) auto 28px;align-items:center;gap:8px;color:#80786b;font-size:.55rem}.explorerHead strong{overflow:hidden;text-overflow:ellipsis;color:#b4a78f}.explorerHead button{width:28px;height:28px;border:0;background:transparent;color:#817a70;font:inherit;cursor:pointer}.explorerList{margin-top:8px;display:grid;grid-template-columns:1fr 1fr;gap:6px}.explorerList button{min-height:37px;padding:0 9px;display:flex;align-items:center;justify-content:space-between;border:1px solid rgba(255,255,255,.06);border-radius:10px;background:rgba(255,255,255,.02);color:#aaa296;font:inherit;font-size:.55rem;cursor:pointer}.explorerPager{margin-top:8px;display:flex;justify-content:center;gap:7px}.explorerPager button{width:34px;height:30px;border:1px solid rgba(255,255,255,.07);border-radius:9px;background:rgba(255,255,255,.025);color:#9c9386;font:inherit;cursor:pointer}.explorerPager button:disabled{opacity:.3}.publicControls{position:absolute;z-index:30;right:12px;bottom:14px;display:flex;gap:5px}.publicControls button{width:36px;height:36px;border:1px solid rgba(255,255,255,.07);border-radius:11px;background:rgba(15,15,13,.78);color:#8f877a;font:inherit;font-size:.85rem;cursor:pointer}.pendingBranch{position:absolute;z-index:20;transform:translate(-50%,-50%);display:flex;gap:4px}.pendingBranch i{width:4px;height:4px;border-radius:50%;background:#a67e20;animation:publicDot 800ms ease-in-out infinite}.pendingBranch i:nth-child(2){animation-delay:110ms}.pendingBranch i:nth-child(3){animation-delay:220ms}.branchError{position:absolute;z-index:45;left:50%;bottom:14px;transform:translateX(-50%);display:flex;align-items:center;gap:8px;padding:7px 9px 7px 11px;border:1px solid rgba(255,160,120,.14);border-radius:10px;background:rgba(20,14,12,.9);color:#b98e7b;font-size:.52rem}.branchError button{width:24px;height:24px;border:0;background:transparent;color:#9b7768;cursor:pointer}.publicCanvasPage button:focus-visible,.publicExplorePage button:focus-visible{outline:2px solid rgba(255,205,80,.72);outline-offset:2px}@keyframes publicBloom{0%{opacity:0;transform:translate(-50%,-42%) scale(.72)}65%{opacity:1;transform:translate(-50%,-50%) scale(1.04)}100%{opacity:1;transform:translate(-50%,-50%) scale(1)}}@keyframes publicDot{0%,100%{opacity:.25}50%{opacity:1}}@media(max-width:700px){.publicSummary span{display:none}.publicInspector{left:12px;right:12px;top:auto;bottom:65px;width:auto}.publicSiblingExplorer{bottom:62px}.explorerList{grid-template-columns:1fr}.publicControls{bottom:13px}.branchError{bottom:61px}}@media(prefers-reduced-motion:reduce){.publicNode.bloom,.pendingBranch i{animation:none}.publicWorld{will-change:auto}}
