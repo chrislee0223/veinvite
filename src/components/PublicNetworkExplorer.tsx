@@ -29,7 +29,6 @@ type PublicChild = {
   wallet: string;
   network: number;
   direct: number;
-  thisRound: number | null;
   depth: number;
 };
 
