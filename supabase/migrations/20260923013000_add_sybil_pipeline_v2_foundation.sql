@@ -1292,7 +1292,16 @@ begin
   where q.network = new.network
     and q.status = 'AWAITING_CLAIM'
     and q.sybil_clearance_id is null
-    and i.reward_status <> 'PAID';
+    and i.reward_status <> 'PAID'
+    and q.reserved_at >= coalesce(
+      (
+        select cfg.sybil_v2_enforcement_changed_at
+        from public.reward_runtime_config cfg
+        where cfg.id = 1
+          and cfg.sybil_v2_enforcement_enabled is true
+      ),
+      '-infinity'::timestamptz
+    );
 
   if coalesce(v_health.relevant_referrals,0) > 0 then
     v_live_assessment_coverage_pct := round(
