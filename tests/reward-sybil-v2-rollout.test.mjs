@@ -24,7 +24,7 @@ test('Sybil v2 rollout starts in shadow mode by default', async () => {
 
 test('shadow mode does not require v2 clearance for legacy reward reservation', async () => {
   const sql = await readFile(
-    'supabase/migrations/20260923045500_finalize_sybil_v2_shadow_compatibility.sql',
+    'supabase/migrations/20260923050000_finalize_sybil_v2_shadow_compatibility.sql',
     'utf8',
   );
 
@@ -44,7 +44,7 @@ test('shadow mode does not require v2 clearance for legacy reward reservation', 
 
 test('shadow mode keeps temporary HOLDs and user security notifications inactive', async () => {
   const sql = await readFile(
-    'supabase/migrations/20260923045500_finalize_sybil_v2_shadow_compatibility.sql',
+    'supabase/migrations/20260923050000_finalize_sybil_v2_shadow_compatibility.sql',
     'utf8',
   );
 
