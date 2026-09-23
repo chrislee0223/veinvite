@@ -6,6 +6,7 @@ import {
   useMemo,
   useRef,
   useState,
+  type CSSProperties,
 } from 'react';
 import {
   useGetAvatar,
@@ -28,6 +29,13 @@ function nodeWallet(wallet: string): string {
   if (wallet.length < 10) return wallet;
   return `0x${wallet.slice(2, 5).toUpperCase()}…${wallet.slice(-3).toUpperCase()}`;
 }
+
+const NON_INTERACTIVE_IMAGE_STYLE = {
+  pointerEvents: 'none',
+  userSelect: 'none',
+  WebkitUserSelect: 'none',
+  WebkitTouchCallout: 'none',
+} as CSSProperties;
 
 export const NetworkWalletIdentity = memo(function NetworkWalletIdentity({
   address,
@@ -118,7 +126,13 @@ export const NetworkWalletIdentity = memo(function NetworkWalletIdentity({
           loading="eager"
           decoding="async"
           draggable={false}
-          style={{ width: resolvedSize, height: resolvedSize }}
+          onDragStart={(event) => event.preventDefault()}
+          onContextMenu={(event) => event.preventDefault()}
+          style={{
+            ...NON_INTERACTIVE_IMAGE_STYLE,
+            width: resolvedSize,
+            height: resolvedSize,
+          }}
         />
         {avatarUrl && !broken ? (
           <img
@@ -131,7 +145,10 @@ export const NetworkWalletIdentity = memo(function NetworkWalletIdentity({
             onLoad={() => setLoaded(true)}
             onError={() => setBroken(true)}
             draggable={false}
+            onDragStart={(event) => event.preventDefault()}
+            onContextMenu={(event) => event.preventDefault()}
             style={{
+              ...NON_INTERACTIVE_IMAGE_STYLE,
               width: resolvedSize,
               height: resolvedSize,
               opacity: loaded ? 1 : 0,
