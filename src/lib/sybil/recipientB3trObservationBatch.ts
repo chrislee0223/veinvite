@@ -41,7 +41,9 @@ export type B3trRecipientObservationBatchSummary = {
 };
 
 function observationEnabled() {
-  return process.env.SYBIL_B3TR_OBSERVATION_ENABLED === 'true';
+  // Sybil v2 depends on the finalized 24h recipient-flow observation. Keep it
+  // on by default and allow an explicit emergency opt-out only.
+  return process.env.SYBIL_B3TR_OBSERVATION_ENABLED !== 'false';
 }
 
 function normalizeBatchSize(value: number) {
