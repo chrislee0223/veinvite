@@ -36,7 +36,6 @@ type NetworkChild = {
   network: number;
   direct: number;
   qualified: number;
-  thisRound: number | null;
   depth: number;
 };
 
@@ -57,14 +56,8 @@ type NetworkPayload = {
     network: number;
     direct: number;
     qualified: number;
-    thisRound: number | null;
-    depth: number;
+      depth: number;
   };
-  round?: {
-    id: number;
-    startAt: string;
-    endAt: string;
-  } | null;
   children?: NetworkChild[];
   searchResults?: NetworkSearchResult[];
   depthLimitReached?: boolean;
