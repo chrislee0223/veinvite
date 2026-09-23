@@ -3,7 +3,7 @@ import { readFile } from 'node:fs/promises';
 import test from 'node:test';
 
 const migrationPath =
-  'supabase/migrations/20260923024500_harden_sybil_v2_claim_boundary.sql';
+  'supabase/migrations/20260923060200_harden_sybil_v2_claim_boundary.sql';
 
 test('v2 Claim uses immutable queue clearance instead of mutable Sybil state', async () => {
   const sql = await readFile(migrationPath, 'utf8');
@@ -118,7 +118,7 @@ test('reward pricing excludes referrals without current v2 clearance', async () 
 
 test('unclaimed referrals are reassessed when newer cluster evidence arrives', async () => {
   const sql = await readFile(
-    'supabase/migrations/20260923031500_reassess_sybil_v2_on_new_evidence.sql',
+    'supabase/migrations/20260923060300_reassess_sybil_v2_on_new_evidence.sql',
     'utf8',
   );
 
@@ -145,7 +145,7 @@ test('unclaimed referrals are reassessed when newer cluster evidence arrives', a
 
 test('old COMPLETE scan checkpoints cannot survive an analyzer upgrade', async () => {
   const migration = await readFile(
-    'supabase/migrations/20260923033000_version_sybil_v2_scan_checkpoints.sql',
+    'supabase/migrations/20260923060400_version_sybil_v2_scan_checkpoints.sql',
     'utf8',
   );
   const pipeline = await readFile(
