@@ -46,6 +46,18 @@ const STRENGTH_RANK: Record<SybilV2SignalStrength, number> = {
   HIGH: 3,
 };
 
+const EARLY_HOLD_FAMILIES = new Set<SybilV2EvidenceFamily>([
+  'FUNDING',
+  'HISTORICAL_REWARD',
+  'HISTORICAL_CONSOLIDATION',
+  'CLUSTER_LINK',
+]);
+
+const EARLY_GRAPH_ANCHOR_FAMILIES = new Set<SybilV2EvidenceFamily>([
+  'HISTORICAL_CONSOLIDATION',
+  'CLUSTER_LINK',
+]);
+
 function clampScore(value: number): number {
   if (!Number.isFinite(value)) return 0;
   return Math.max(0, Math.min(100, Math.round(value)));
@@ -71,11 +83,13 @@ export function evaluateSybilV2Policy({
   requiredChecksComplete,
   analysisFailed = false,
   activeRestriction = false,
+  allowEarlyHold = false,
 }: {
   signals: SybilV2Signal[];
   requiredChecksComplete: boolean;
   analysisFailed?: boolean;
   activeRestriction?: boolean;
+  allowEarlyHold?: boolean;
 }): SybilV2PolicyResult {
   const normalized = signals
     .filter((signal) =>
@@ -145,6 +159,31 @@ export function evaluateSybilV2Policy({
   }
 
   if (!requiredChecksComplete) {
+    const earlyStrongEvidenceFamilies = strongEvidenceFamilies.filter(
+      (family) => EARLY_HOLD_FAMILIES.has(family),
+    );
+    const hasEarlyGraphAnchor = earlyStrongEvidenceFamilies.some(
+      (family) => EARLY_GRAPH_ANCHOR_FAMILIES.has(family),
+    );
+
+    // Early HOLD is intentionally much stricter than the final reward gate.
+    // It exists only to surface obvious historical wallet clusters before the
+    // user reaches Claim. A shared sponsor, one popular dApp, or one strong
+    // family alone can never open an early HOLD.
+    if (
+      allowEarlyHold &&
+      earlyStrongEvidenceFamilies.length >= 2 &&
+      hasEarlyGraphAnchor
+    ) {
+      return {
+        state: 'HOLD',
+        riskScore: Math.max(60, riskScore),
+        reasonCodes: unique(['EARLY_MULTI_FAMILY_CLUSTER', ...reasonCodes]),
+        evidenceFamilies,
+        strongEvidenceFamilies,
+      };
+    }
+
     return {
       state: 'ANALYSIS_PENDING',
       riskScore,
