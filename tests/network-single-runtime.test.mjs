@@ -569,6 +569,36 @@ test('Network center intro hands off to breathing without a restart jump', () =>
   );
 });
 
+test('sparse root entry keeps YOU centered and uses a scene zoom-out instead of a Fit pan', () => {
+  assert.match(networkSource, /const rootEntryFitView = useMemo/);
+  assert.match(
+    networkSource,
+    /visibleChildren\.length === 0[\s\S]*visibleGroups\.length === 0[\s\S]*rootEntryFitView\.scale >= 0\.995/,
+  );
+  assert.match(
+    networkSource,
+    /if \(reducedMotion\) \{[\s\S]*if \(sparseRootIntro\) \{[\s\S]*setView\(centeredView\(stageSize, 1\)\);[\s\S]*\} else \{[\s\S]*fitNetwork\(\);/,
+  );
+  assert.match(
+    networkSource,
+    /setIntroActive\(true\);[\s\S]*if \(!sparseRootIntro\) \{[\s\S]*introFitTimerRef\.current = window\.setTimeout[\s\S]*fitNetwork\(\);/,
+  );
+  assert.ok(
+    networkSource.includes(
+      '.sparseRootIntro.introActive .worldContent.sceneReady{animation:networkSparseRootIntro ${FIT_TRANSITION_MS}ms ${INTRO_HOLD_MS}ms cubic-bezier(.18,.82,.2,1) both}',
+    ),
+  );
+  assert.match(networkSource, /@keyframes networkSparseRootIntro\{0%\{scale:1\.14\}100%\{scale:1\}\}/);
+  assert.match(
+    networkSource,
+    /\.sparseRootIntro\.introActive \.focusNode::before\{animation:none;opacity:\.46;transform:scale\(\.96\)\}/,
+  );
+  assert.match(
+    networkSource,
+    /@media\(prefers-reduced-motion:reduce\)[\s\S]*\.sparseRootIntro\.introActive \.worldContent\.sceneReady\{animation:none!important\}/,
+  );
+});
+
 test('Network intro waits for the authoritative slot attempt to settle before YOU-to-fit motion', () => {
   const readinessGate = networkSource.indexOf('if (!inviteSlotsReady) return;');
   const introStart = networkSource.indexOf(
