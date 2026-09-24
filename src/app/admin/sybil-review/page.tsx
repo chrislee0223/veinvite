@@ -539,7 +539,7 @@ export default function SybilReviewPage() {
           : decision === 'CLEAR'
             ? '검토를 승인했습니다. 보상 전송은 실행되지 않았습니다. / Review cleared; no reward transfer was performed.'
             : isV2
-              ? '블랙리스트로 확정했습니다. 이번 미지급 보상은 제외되고 향후 VeInvite 참여가 제한됩니다. / Blacklist confirmed; the unpaid reward is forfeited and future VeInvite participation is restricted.'
+              ? '블랙리스트로 확정했습니다. 이번 미지급 보상은 제외되고 초대받은 지갑의 향후 VeInvite 참여가 제한됩니다. 초대자는 90일 반복 적발 정책으로 별도 평가됩니다. / Blacklist confirmed; the unpaid reward is forfeited and future VeInvite participation of the invitee is restricted. The inviter is evaluated separately by the rolling 90-day incident policy.'
               : '검토를 차단 처리했습니다. 보상 전송은 실행되지 않았습니다. / Review blocked; no reward transfer was performed.',
       );
 
