@@ -267,7 +267,7 @@ function WalletIdentity({
             loading={eager ? 'eager' : 'lazy'}
             fetchPriority={eager ? 'high' : 'auto'}
             decoding="async"
-            referrerPolicy={displayUrl ? 'no-referrer' : undefined}
+            referrerPolicy="no-referrer"
             onError={() => {
               if (!displayUrl) return;
               setDisplayUrl(null);
