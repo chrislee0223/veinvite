@@ -55,6 +55,7 @@ import {
 } from '@/lib/sybil/v2/evidenceQueue';
 import {
   runSybilV2AssessmentBatch,
+  runSybilV2EarlyAssessmentBatch,
   runSybilV2EvidenceCollectionBatch,
 } from '@/lib/sybil/v2/pipeline';
 import {
@@ -108,6 +109,7 @@ type CronStageFailure =
   | 'SYBIL_V2_EVIDENCE'
   | 'SYBIL_V2_EVIDENCE_QUEUE'
   | 'SYBIL_V2_PAID_BACKFILL'
+  | 'SYBIL_V2_EARLY_ASSESSMENT'
   | 'SYBIL_V2_ASSESSMENT'
   | 'SYBIL_OBSERVATION'
   | 'SYBIL_BEHAVIOR_OBSERVATION'
@@ -192,6 +194,8 @@ export async function GET(
     SybilV2EvidenceBacklogEnqueueSummary | null = null;
   let sybilV2PaidBackfill:
     SybilV2PaidBackfillEnqueueSummary | null = null;
+  let sybilV2EarlyAssessment:
+    Awaited<ReturnType<typeof runSybilV2EarlyAssessmentBatch>> | null = null;
   let sybilV2Assessment:
     Awaited<ReturnType<typeof runSybilV2AssessmentBatch>> | null = null;
   let sybilObservation:
@@ -256,6 +260,14 @@ export async function GET(
   } catch (error) {
     failedStages.push('SYBIL_V2_PAID_BACKFILL');
     logStageFailure('SYBIL_V2_PAID_BACKFILL', error);
+  }
+
+  try {
+    sybilV2EarlyAssessment =
+      await runSybilV2EarlyAssessmentBatch(10);
+  } catch (error) {
+    failedStages.push('SYBIL_V2_EARLY_ASSESSMENT');
+    logStageFailure('SYBIL_V2_EARLY_ASSESSMENT', error);
   }
 
   try {
@@ -450,6 +462,7 @@ export async function GET(
       sybilV2Evidence,
       sybilV2EvidenceQueue,
       sybilV2PaidBackfill,
+      sybilV2EarlyAssessment,
       sybilV2Assessment,
       sybilObservation,
       sybilBehaviorObservation,
