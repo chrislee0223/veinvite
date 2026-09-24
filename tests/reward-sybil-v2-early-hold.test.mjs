@@ -183,3 +183,25 @@ test('operator early CLEAR survives transient incomplete final checks', async ()
     /operatorClearedEarlyBaseline[\s\S]*!requiredChecksComplete[\s\S]*clearanceIssued: false/u,
   );
 });
+
+
+test('active mission sync rechecks early HOLD without weakening final reward gate', async () => {
+  const source = await readFile(
+    'src/lib/impact/syncInvitation.ts',
+    'utf8',
+  );
+
+  const earlyIndex = source.indexOf(
+    'await assessSybilV2EarlyReferral',
+  );
+  const finalIndex = source.indexOf(
+    'await ensureSybilV2ReadyForReward',
+  );
+
+  assert.ok(earlyIndex >= 0);
+  assert.ok(finalIndex > earlyIndex);
+  assert.match(
+    source,
+    /Early review is defense-in-depth[\s\S]*final fail-closed reward/u,
+  );
+});
