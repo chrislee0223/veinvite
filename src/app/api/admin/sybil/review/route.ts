@@ -22,7 +22,7 @@ const MIN_REASON_LENGTH = 12;
 const MAX_REASON_LENGTH = 500;
 const REVIEW_LIST_LIMIT = 100;
 
-type ReviewDecision = 'CLEAR' | 'BLOCKED';
+type ReviewDecision = 'CLEAR' | 'BLOCKED' | 'REINSTATE';
 
 type InvitationReviewRow = {
   invite_code: string;
@@ -695,11 +695,13 @@ export async function GET(request: NextRequest) {
       v2Assessment,
       postPayoutReview,
       inviterReview,
+      activeInviterRestriction,
     ] = await Promise.all([
       loadInvitationReview(inviteCode),
       loadV2Assessment(inviteCode),
       loadPostPayoutReview(inviteCode),
       loadInviterReviewCandidate(inviteCode),
+      loadActiveInviterRestriction(inviteCode),
     ]);
 
     if (!invitation) {
@@ -750,6 +752,8 @@ export async function GET(request: NextRequest) {
       postPayoutReview?.state === 'HOLD';
     const inviterCanResolve =
       inviterReview?.posture === 'HOLD';
+    const inviterRestrictionCanResolve =
+      Boolean(activeInviterRestriction);
 
     return NextResponse.json(
       {
@@ -761,17 +765,21 @@ export async function GET(request: NextRequest) {
           v2Assessment,
           postPayoutReview,
           inviterReview,
+          activeInviterRestriction,
         ),
         v2Assessment,
         postPayoutReview,
         inviterReview,
+        activeInviterRestriction,
         reviewEvents,
         v2AssessmentEvents,
         postPayoutReviewEvents,
         v2Evidence,
-        reviewMode: inviterCanResolve
-          ? 'INVITER'
-          : postPayoutCanResolve
+        reviewMode: inviterRestrictionCanResolve
+          ? 'INVITER_RESTRICTION'
+          : inviterCanResolve
+            ? 'INVITER'
+            : postPayoutCanResolve
             ? 'POST_PAYOUT'
             : v2CanResolve
               ? 'V2'
@@ -779,11 +787,14 @@ export async function GET(request: NextRequest) {
                 ? 'LEGACY'
                 : 'NONE',
         canResolve:
+          inviterRestrictionCanResolve ||
           inviterCanResolve ||
           postPayoutCanResolve ||
           v2CanResolve ||
           legacyCanResolve,
-        allowedDecisions: ['CLEAR', 'BLOCKED'],
+        allowedDecisions: inviterRestrictionCanResolve
+          ? ['REINSTATE']
+          : ['CLEAR', 'BLOCKED'],
         transfersPerformed: false,
       },
       {
@@ -852,7 +863,8 @@ export async function POST(request: NextRequest) {
     !('inviteCode' in body) ||
     !('decision' in body) ||
     (body.decision !== 'CLEAR' &&
-      body.decision !== 'BLOCKED') ||
+      body.decision !== 'BLOCKED' &&
+      body.decision !== 'REINSTATE') ||
     !('reason' in body) ||
     typeof body.reason !== 'string' ||
     !('confirmation' in body) ||
@@ -861,7 +873,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json(
       {
         error:
-          `intent must be ${RESOLVE_REVIEW_INTENT}; inviteCode, decision (CLEAR or BLOCKED), reason, and confirmation are required.`,
+          `intent must be ${RESOLVE_REVIEW_INTENT}; inviteCode, decision (CLEAR, BLOCKED, or REINSTATE), reason, and confirmation are required.`,
       },
       {
         status: 400,
@@ -930,11 +942,13 @@ export async function POST(request: NextRequest) {
       v2Assessment,
       postPayoutReview,
       inviterReview,
+      activeInviterRestriction,
     ] = await Promise.all([
       loadInvitationReview(inviteCode),
       loadV2Assessment(inviteCode),
       loadPostPayoutReview(inviteCode),
       loadInviterReviewCandidate(inviteCode),
+      loadActiveInviterRestriction(inviteCode),
     ]);
 
     if (!before || !before.invitee_wallet) {
@@ -958,6 +972,123 @@ export async function POST(request: NextRequest) {
         {
           error:
             'Invitation network does not match the operator network.',
+        },
+        {
+          status: 409,
+          headers: noStoreHeaders(),
+        },
+      );
+    }
+
+    if (activeInviterRestriction) {
+      if (decision !== 'REINSTATE') {
+        return NextResponse.json(
+          {
+            error:
+              'An active inviter restriction can only be resolved with REINSTATE.',
+          },
+          {
+            status: 409,
+            headers: noStoreHeaders(),
+          },
+        );
+      }
+
+      const expectedRestrictionId =
+        'expectedInviterRestrictionId' in body &&
+        typeof body.expectedInviterRestrictionId === 'string'
+          ? body.expectedInviterRestrictionId.trim().toLowerCase()
+          : '';
+
+      if (
+        !expectedRestrictionId ||
+        expectedRestrictionId !==
+          activeInviterRestriction.restriction_id.toLowerCase()
+      ) {
+        return NextResponse.json(
+          {
+            error:
+              'This inviter restriction changed after it was opened. Reload the latest state before reinstating.',
+          },
+          {
+            status: 409,
+            headers: noStoreHeaders(),
+          },
+        );
+      }
+
+      const { data, error } = await supabaseAdmin.rpc(
+        'reinstate_sybil_v2_inviter_restriction',
+        {
+          p_restriction_id:
+            activeInviterRestriction.restriction_id,
+          p_reason: reason,
+          p_operator_wallet:
+            operator.session!.walletAddress,
+          p_network: operator.pool!.network,
+        },
+      );
+
+      if (error) {
+        if (
+          error.message.includes('INVITER_RESTRICTION_NOT_ACTIVE') ||
+          error.message.includes('INVITER_RESTRICTION_STATE_CHANGED') ||
+          error.message.includes('INVITER_RESTRICTION_NOT_FOUND')
+        ) {
+          return NextResponse.json(
+            {
+              error:
+                'This inviter restriction changed after it was opened. Reload the latest state before reinstating.',
+            },
+            {
+              status: 409,
+              headers: noStoreHeaders(),
+            },
+          );
+        }
+
+        throw new Error(
+          `reinstate_sybil_v2_inviter_restriction failed: ${error.message}`,
+        );
+      }
+
+      const after =
+        await loadInvitationReview(inviteCode);
+
+      return NextResponse.json(
+        {
+          changed: true,
+          reviewMode: 'INVITER_RESTRICTION',
+          network: operator.pool!.network,
+          verifiedOperator:
+            operator.session!.walletAddress,
+          decision,
+          result: data,
+          invitation: after
+            ? decorateReview(
+                after,
+                v2Assessment,
+                postPayoutReview,
+                inviterReview,
+                null,
+              )
+            : null,
+          rewardStatus:
+            after?.reward_status ?? null,
+          pastRewardChanged: false,
+          transfersPerformed: false,
+        },
+        {
+          headers: noStoreHeaders(),
+        },
+      );
+    }
+
+    if (decision === 'REINSTATE') {
+      return NextResponse.json(
+        {
+          error:
+            'No active inviter restriction is available to reinstate.',
         },
         {
           status: 409,
