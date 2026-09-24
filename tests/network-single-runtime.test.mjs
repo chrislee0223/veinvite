@@ -558,7 +558,7 @@ test('Network center intro hands off to breathing without a restart jump', () =>
   );
   assert.match(
     networkSource,
-    /@keyframes networkYouIntro\{[^}]*100%\{opacity:\.46;transform:scale\(\.96\)\}\}/,
+    /@keyframes networkYouIntro\{0%\{opacity:\.25;transform:scale\(\.78\)\}58%\{opacity:1;transform:scale\(1\.14\)\}100%\{opacity:\.46;transform:scale\(\.96\)\}\}/,
   );
   assert.match(networkSource, /const INTRO_HOLD_MS = 150/);
   assert.match(networkSource, /const FIT_TRANSITION_MS = 760/);
