@@ -181,6 +181,13 @@ export const QA_KNOWN_STATES: QaKnownState[] = [
   knownState({ id: 'LEADERBOARD-WALLET-DETAIL', label: '지갑 상세 팝업', area: '리더보드', lifecycle: 'production', coverage: 'partial', kind: 'overlay', priority: 'high', userVisible: true, sourcePaths: [leaderboard], scenarioIds: ['existing-preview-hub'] }),
   knownState({ id: 'LEADERBOARD-IMPACT-DETAIL', label: '신규/복귀 영향 상세 팝업', area: '리더보드', lifecycle: 'production', coverage: 'partial', kind: 'overlay', priority: 'high', userVisible: true, sourcePaths: [leaderboard], scenarioIds: ['existing-preview-hub'] }),
 
+  // Production Network multilingual geometry QA. These states use a QA-only
+  // presentation harness with the same production copy and critical dimensions;
+  // they never call wallet, Network API, database, reward, or Sybil paths.
+  knownState({ id: 'NETWORK-I18N-MY', label: '내 Network 다국어 핵심 상태', area: '네트워크', lifecycle: 'production', coverage: 'missing', kind: 'screen', priority: 'high', userVisible: true, sourcePaths: ['src/components/AppNetwork.tsx'], scenarioIds: [] }),
+  knownState({ id: 'NETWORK-I18N-GROUPS', label: 'Network 그룹 패널 다국어', area: '네트워크', lifecycle: 'production', coverage: 'missing', kind: 'overlay', priority: 'high', userVisible: true, sourcePaths: ['src/components/AppNetwork.tsx'], scenarioIds: [] }),
+  knownState({ id: 'NETWORK-I18N-PUBLIC', label: '친구/Public Network 다국어', area: '네트워크', lifecycle: 'production', coverage: 'missing', kind: 'screen', priority: 'high', userVisible: true, sourcePaths: ['src/components/PublicNetworkExplorer.tsx'], scenarioIds: [] }),
+
   // Future feature kept separate from current Production denominator.
   knownState({ id: 'NETWORK-CANVAS', label: '2-slot 추천 네트워크 캔버스', area: '추천 네트워크', lifecycle: 'future', coverage: 'direct', kind: 'screen', priority: 'normal', userVisible: true, sourcePaths: ['src/components/InfiniteReferralCanvasPreview.tsx'], scenarioIds: ['network-preview'] }),
 
