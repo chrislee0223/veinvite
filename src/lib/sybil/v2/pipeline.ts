@@ -1697,6 +1697,29 @@ export async function assessSybilV2Referral(
     allowEarlyHold: earlyMode,
   });
 
+  if (
+    operatorClearedEarlyBaseline &&
+    !earlyMode &&
+    !requiredChecksComplete &&
+    (
+      policy.state === 'ANALYSIS_PENDING' ||
+      policy.state === 'ANALYSIS_FAILED'
+    )
+  ) {
+    return {
+      inviteCode: normalizedCode,
+      state: policy.state,
+      riskScore: policy.riskScore,
+      reasonCodes: unique([
+        'OPERATOR_CLEARED_AWAITING_FINAL_CHECKS',
+        ...policy.reasonCodes,
+      ]),
+      revision: safeRevision(currentAssessment?.revision),
+      clearanceIssued: false,
+      clearanceId: null,
+    };
+  }
+
   const evidenceSummary = {
     assessmentMode: mode,
     operatorClearedEarlyBaseline,
