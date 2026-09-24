@@ -60,7 +60,7 @@ test('operator decisions and reinstatement create inviter result notifications',
   assert.match(sql, /new\.decision = 'CLEAR'[\s\S]*SECURITY_INVITER_ACCESS_RESTORED/u);
   assert.match(sql, /new\.decision = 'RESTRICT'[\s\S]*SECURITY_INVITER_RESTRICTED/u);
   assert.match(sql, /sybil_v2_inviter_reinstatement_events/u);
-  assert.match(sql, /inviter-reinstated-[\s\S]*SECURITY_INVITER_ACCESS_RESTORED/u);
+  assert.match(sql, /SECURITY_INVITER_ACCESS_RESTORED[\s\S]*inviter-reinstated-/u);
 });
 
 test('operator monitoring warns on WATCH and keeps HOLD review alerts', async () => {
