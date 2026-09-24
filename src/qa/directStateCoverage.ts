@@ -154,6 +154,8 @@ export const QA_DIRECT_STATE_RENDERERS: QaDirectStateRenderer[] = [
   { stateId: 'NOTI-REWARD-READY', renderer: 'notification', notificationStateId: 'NOTI-REWARD-READY', defaultLocale: 'ko' },
   { stateId: 'NOTI-REWARD-PAID', renderer: 'notification', notificationStateId: 'NOTI-REWARD-PAID', defaultLocale: 'ko' },
   { stateId: 'NOTI-INELIGIBLE', renderer: 'notification', notificationStateId: 'NOTI-INELIGIBLE', defaultLocale: 'ko' },
+  { stateId: 'NOTI-SECURITY-REVIEW', renderer: 'notification', notificationStateId: 'NOTI-SECURITY-REVIEW', defaultLocale: 'ko' },
+  { stateId: 'NOTI-SECURITY-RESTRICTED', renderer: 'notification', notificationStateId: 'NOTI-SECURITY-RESTRICTED', defaultLocale: 'ko' },
   { stateId: 'NOTI-ACK-BUSY', renderer: 'notification', notificationStateId: 'NOTI-ACK-BUSY', defaultLocale: 'ko' },
   { stateId: 'NOTI-ACK-ERROR', renderer: 'notification', notificationStateId: 'NOTI-ACK-ERROR', defaultLocale: 'ko' },
 
