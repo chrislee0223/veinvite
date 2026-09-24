@@ -5,77 +5,33 @@ import {
   useGetAvatar,
   useVechainDomain,
 } from '@vechain/vechain-kit';
-import { getPicassoImage } from '@vechain/vechain-kit/utils';
 
 import {
   readCachedLeaderboardDomain,
   rememberLeaderboardDomain,
 } from '@/lib/leaderboardDomainCache';
-
-const AVATAR_PROFILE_CACHE_TTL_MS = 15 * 60_000;
-const AVATAR_PROFILE_CACHE_KEY = 'veinvite_leaderboard_profile_avatar_v1';
-
-type StoredProfileAvatar = {
-  url: string;
-  savedAt: number;
-};
-
-type StoredProfileAvatarMap = Record<string, StoredProfileAvatar>;
-
-function avatarKey(address: string): string {
-  return address.trim().toLowerCase();
-}
-
-function hasUsableCachedAvatar(address: string): boolean {
-  if (typeof window === 'undefined') return false;
-  const key = avatarKey(address);
-  try {
-    const raw = window.sessionStorage.getItem(AVATAR_PROFILE_CACHE_KEY);
-    if (!raw) return false;
-    const stored = JSON.parse(raw) as StoredProfileAvatarMap;
-    const entry = stored[key];
-    return Boolean(
-      entry &&
-      typeof entry.url === 'string' &&
-      entry.url &&
-      typeof entry.savedAt === 'number' &&
-      Date.now() - entry.savedAt <= AVATAR_PROFILE_CACHE_TTL_MS,
-    );
-  } catch {
-    return false;
-  }
-}
-
-function rememberAvatar(address: string, url: string): void {
-  if (typeof window === 'undefined') return;
-  const key = avatarKey(address);
-  try {
-    const raw = window.sessionStorage.getItem(AVATAR_PROFILE_CACHE_KEY);
-    const stored = raw
-      ? (JSON.parse(raw) as StoredProfileAvatarMap)
-      : {};
-    stored[key] = { url, savedAt: Date.now() };
-    window.sessionStorage.setItem(
-      AVATAR_PROFILE_CACHE_KEY,
-      JSON.stringify(stored),
-    );
-  } catch {
-    // Avatar warmup is optional and never blocks leaderboard rendering.
-  }
-}
+import {
+  readCachedProfileAvatar,
+  rememberProfileAvatar,
+} from '@/lib/profileAvatarCache';
 
 function AvatarWarmProbe({ address }: { address: string }) {
   const alreadyCached = useMemo(
-    () => hasUsableCachedAvatar(address),
+    () => Boolean(readCachedProfileAvatar(address)),
     [address],
   );
   const cachedDomain = useMemo(
     () => readCachedLeaderboardDomain(address),
     [address],
   );
-  const fallbackUrl = useMemo(() => getPicassoImage(address), [address]);
-  const shouldResolveDomain = cachedDomain === undefined;
-  const { data: domainInfo, isLoading: domainLoading } = useVechainDomain(
+  const shouldResolveDomain =
+    !alreadyCached && cachedDomain === undefined;
+  const {
+    data: domainInfo,
+    isLoading: domainLoading,
+    isError: domainError,
+    isSuccess: domainSuccess,
+  } = useVechainDomain(
     shouldResolveDomain ? address : undefined,
   );
   const queriedDomain =
@@ -85,46 +41,53 @@ function AvatarWarmProbe({ address }: { address: string }) {
   const domain =
     cachedDomain !== undefined
       ? cachedDomain ?? ''
-      : shouldResolveDomain && !domainLoading
+      : shouldResolveDomain && domainSuccess
         ? queriedDomain ?? ''
         : '';
-  const { data: profileAvatarUrl, isLoading: avatarLoading } = useGetAvatar(domain);
+  const {
+    data: profileAvatarUrl,
+    isLoading: avatarLoading,
+    isError: avatarError,
+    isSuccess: avatarSuccess,
+  } = useGetAvatar(
+    !alreadyCached ? domain : '',
+  );
 
   useEffect(() => {
-    if (!shouldResolveDomain || domainLoading) return;
+    if (
+      !shouldResolveDomain ||
+      domainLoading ||
+      domainError ||
+      !domainSuccess
+    ) {
+      return;
+    }
     rememberLeaderboardDomain(address, queriedDomain);
   }, [
     address,
+    domainError,
     domainLoading,
+    domainSuccess,
     queriedDomain,
     shouldResolveDomain,
   ]);
 
   useEffect(() => {
     if (alreadyCached) return;
-    if (shouldResolveDomain && domainLoading) return;
-    if (domain && avatarLoading) return;
-
-    const resolvedUrl = profileAvatarUrl || fallbackUrl;
-    if (!resolvedUrl) return;
+    if (shouldResolveDomain) {
+      if (domainLoading || domainError || !domainSuccess) return;
+    }
+    if (!domain || avatarLoading || avatarError || !avatarSuccess) return;
+    if (!profileAvatarUrl) return;
 
     let active = true;
     const image = new Image();
     image.referrerPolicy = 'no-referrer';
     image.onload = () => {
       if (!active) return;
-      rememberAvatar(address, resolvedUrl);
+      rememberProfileAvatar(address, profileAvatarUrl);
     };
-    image.onerror = () => {
-      if (!active || resolvedUrl === fallbackUrl) return;
-      const fallbackImage = new Image();
-      fallbackImage.referrerPolicy = 'no-referrer';
-      fallbackImage.onload = () => {
-        if (active) rememberAvatar(address, fallbackUrl);
-      };
-      fallbackImage.src = fallbackUrl;
-    };
-    image.src = resolvedUrl;
+    image.src = profileAvatarUrl;
 
     return () => {
       active = false;
@@ -132,10 +95,13 @@ function AvatarWarmProbe({ address }: { address: string }) {
   }, [
     address,
     alreadyCached,
+    avatarError,
     avatarLoading,
+    avatarSuccess,
     domain,
+    domainError,
     domainLoading,
-    fallbackUrl,
+    domainSuccess,
     profileAvatarUrl,
     shouldResolveDomain,
   ]);

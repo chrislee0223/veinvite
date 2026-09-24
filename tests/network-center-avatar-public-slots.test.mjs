@@ -40,6 +40,10 @@ test('slot lookup failure preserves known focus slots and retries once without b
   assert.match(explorer, /controller\.abort\(\)/);
 });
 
-test('center identities refresh their VeWorld domain instead of trusting stale negative cache', () => {
-  assert.match(identity, /root \? undefined : readCachedLeaderboardDomain\(address\)/);
+test('center identities keep cached display state while revalidating VeWorld identity', () => {
+  assert.match(identity, /root \|\|/);
+  assert.match(identity, /displayDomain === undefined/);
+  assert.match(identity, /displayDomain === null && Boolean\(displayUrl\)/);
+  assert.match(identity, /readCachedProfileAvatar\(address\)/);
+  assert.match(identity, /objectFit: 'contain'/);
 });

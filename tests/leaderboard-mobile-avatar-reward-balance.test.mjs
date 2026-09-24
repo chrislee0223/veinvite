@@ -17,14 +17,15 @@ const layoutPolish = readFileSync(
   'utf8',
 );
 
-test('leaderboard shows an immediate address avatar and upgrades to a real VET Domain profile without a blank state', () => {
+test('leaderboard reserves avatar geometry until verified profile resolution, then falls back safely', () => {
   assert.match(inviter, /getPicassoImage\(address\)/);
   assert.match(inviter, /useVechainDomain/);
   assert.match(inviter, /useGetAvatar/);
   assert.doesNotMatch(inviter, /useGetAvatarOfAddress/);
-  assert.match(inviter, /const \[shouldLoadProfile, setShouldLoadProfile\] = useState\(eager\)/);
-  assert.match(inviter, /const \[displayUrl, setDisplayUrl\] = useState\(fallbackUrl\)/);
-  assert.match(inviter, /image\.onload = \(\) => \{[\s\S]*?setDisplayUrl\(profileAvatarUrl\)/);
+  assert.match(inviter, /readCachedProfileAvatar\(address\)/);
+  assert.match(inviter, /const \[showFallback, setShowFallback\] = useState\(false\)/);
+  assert.match(inviter, /const visibleUrl = displayUrl \|\| \(showFallback \? fallbackUrl : null\)/);
+  assert.match(inviter, /walletAvatarNeutral/);
   assert.match(inviter, /loading=\{eager \? 'eager' : 'lazy'\}/);
   assert.match(inviter, /fetchPriority=\{eager \? 'high' : 'auto'\}/);
   assert.match(
@@ -36,25 +37,9 @@ test('leaderboard shows an immediate address avatar and upgrades to a real VET D
     source,
     /\.walletAvatar img\[src\^=['"]data:image\/svg\+xml['"]\][\s\S]*?display:none/,
   );
-  assert.doesNotMatch(
-    inviter,
-    /radial-gradient\(circle at 50% 35%,#eec04c/,
-  );
-  assert.doesNotMatch(
-    inviter,
-    /radial-gradient\(ellipse at 50% 82%,#eec04c/,
-  );
   assert.match(
     layoutPolish,
     /\.leaderboardPage \.walletAvatar:empty \{[\s\S]*?background:rgba\(255,205,80,\.055\) !important;/,
-  );
-  assert.doesNotMatch(
-    layoutPolish,
-    /radial-gradient\(circle at 50% 35%,#eec04c/,
-  );
-  assert.doesNotMatch(
-    layoutPolish,
-    /radial-gradient\(ellipse at 50% 82%,#eec04c/,
   );
 });
 

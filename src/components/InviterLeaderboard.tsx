@@ -31,6 +31,11 @@ import {
   readCachedLeaderboardDomain,
   rememberLeaderboardDomain,
 } from '@/lib/leaderboardDomainCache';
+import {
+  clearCachedProfileAvatar,
+  readCachedProfileAvatar,
+  rememberProfileAvatar,
+} from '@/lib/profileAvatarCache';
 import { getVeChainExplorerAddressUrl } from '@/lib/vechainExplorer';
 import {
   SOFT_FOCUS_MOTION_CSS,
@@ -41,87 +46,13 @@ const PUBLIC_RANK_LIMIT = 100;
 const EAGER_AVATAR_RANK_LIMIT = 5;
 const WALLET_PREFIX_LENGTH = 5;
 const WALLET_SUFFIX_LENGTH = 3;
-const AVATAR_PROFILE_CACHE_TTL_MS = 15 * 60_000;
-const AVATAR_PROFILE_CACHE_KEY = 'veinvite_leaderboard_profile_avatar_v1';
 const RANK_SLOTS = Array.from(
   { length: PUBLIC_RANK_LIMIT },
   (_, index) => index + 1,
 );
 
-const resolvedAvatarMemory = new Map<string, string>();
-
-type StoredProfileAvatar = {
-  url: string;
-  savedAt: number;
-};
-
-type StoredProfileAvatarMap = Record<string, StoredProfileAvatar>;
-
 function maskWallet(address: string): string {
   return `${address.slice(0, WALLET_PREFIX_LENGTH)}…${address.slice(-WALLET_SUFFIX_LENGTH)}`;
-}
-
-function avatarKey(address: string): string {
-  return address.trim().toLowerCase();
-}
-
-function readCachedAvatar(address: string): string | null {
-  const key = avatarKey(address);
-  const memory = resolvedAvatarMemory.get(key);
-  if (memory) return memory;
-  if (typeof window === 'undefined') return null;
-
-  try {
-    const raw = window.sessionStorage.getItem(AVATAR_PROFILE_CACHE_KEY);
-    if (!raw) return null;
-    const stored = JSON.parse(raw) as StoredProfileAvatarMap;
-    const entry = stored[key];
-    if (
-      !entry ||
-      typeof entry.url !== 'string' ||
-      !entry.url ||
-      typeof entry.savedAt !== 'number' ||
-      Date.now() - entry.savedAt > AVATAR_PROFILE_CACHE_TTL_MS
-    ) {
-      if (entry) {
-        delete stored[key];
-        window.sessionStorage.setItem(
-          AVATAR_PROFILE_CACHE_KEY,
-          JSON.stringify(stored),
-        );
-      }
-      return null;
-    }
-
-    resolvedAvatarMemory.set(key, entry.url);
-    return entry.url;
-  } catch {
-    return null;
-  }
-}
-
-function rememberResolvedAvatar(
-  address: string,
-  url: string,
-  persistProfile: boolean,
-): void {
-  const key = avatarKey(address);
-  resolvedAvatarMemory.set(key, url);
-  if (!persistProfile || typeof window === 'undefined') return;
-
-  try {
-    const raw = window.sessionStorage.getItem(AVATAR_PROFILE_CACHE_KEY);
-    const stored = raw
-      ? (JSON.parse(raw) as StoredProfileAvatarMap)
-      : {};
-    stored[key] = { url, savedAt: Date.now() };
-    window.sessionStorage.setItem(
-      AVATAR_PROFILE_CACHE_KEY,
-      JSON.stringify(stored),
-    );
-  } catch {
-    // Avatar resolution remains correct even if session storage is unavailable.
-  }
 }
 
 function formatRewardWei(value: string): string {
@@ -152,14 +83,24 @@ function WalletIdentity({
   const fallbackUrl = useMemo(() => getPicassoImage(address), [address]);
   const [shouldLoadProfile, setShouldLoadProfile] = useState(eager);
   const [displayUrl, setDisplayUrl] = useState<string | null>(() =>
-    readCachedAvatar(address),
+    readCachedProfileAvatar(address),
   );
+  const [showFallback, setShowFallback] = useState(false);
   const [displayDomain, setDisplayDomain] = useState<
     string | null | undefined
   >(() => readCachedLeaderboardDomain(address));
   const shouldResolveDomain =
-    shouldLoadProfile && displayDomain === undefined;
-  const { data: domainInfo, isLoading: domainLoading } = useVechainDomain(
+    shouldLoadProfile &&
+    (
+      displayDomain === undefined ||
+      (displayDomain === null && Boolean(displayUrl))
+    );
+  const {
+    data: domainInfo,
+    isLoading: domainLoading,
+    isError: domainError,
+    isSuccess: domainSuccess,
+  } = useVechainDomain(
     shouldResolveDomain ? address : undefined,
   );
   const queriedDomain =
@@ -169,26 +110,40 @@ function WalletIdentity({
   const resolvedDomain =
     displayDomain !== undefined
       ? displayDomain
-      : shouldResolveDomain && !domainLoading
+      : shouldResolveDomain && domainSuccess
         ? queriedDomain
         : null;
   const domain = resolvedDomain ?? '';
-  const { data: profileAvatarUrl, isLoading: avatarLoading } =
-    useGetAvatar(domain);
+  const {
+    data: profileAvatarUrl,
+    isLoading: avatarLoading,
+    isError: avatarError,
+    isSuccess: avatarSuccess,
+  } = useGetAvatar(shouldLoadProfile ? domain : '');
 
   useEffect(() => {
-    setDisplayUrl(readCachedAvatar(address));
+    setDisplayUrl(readCachedProfileAvatar(address));
+    setShowFallback(false);
     setDisplayDomain(readCachedLeaderboardDomain(address));
     setShouldLoadProfile(eager);
   }, [address, eager]);
 
   useEffect(() => {
-    if (!shouldResolveDomain || domainLoading) return;
+    if (
+      !shouldResolveDomain ||
+      domainLoading ||
+      domainError ||
+      !domainSuccess
+    ) {
+      return;
+    }
     rememberLeaderboardDomain(address, queriedDomain);
     setDisplayDomain(queriedDomain);
   }, [
     address,
+    domainError,
     domainLoading,
+    domainSuccess,
     queriedDomain,
     shouldResolveDomain,
   ]);
@@ -222,40 +177,72 @@ function WalletIdentity({
 
   useEffect(() => {
     if (!shouldLoadProfile) return;
-    if (shouldResolveDomain && domainLoading) return;
-    if (domain && avatarLoading) return;
 
-    const resolvedUrl = profileAvatarUrl || fallbackUrl;
-    const persistProfile = Boolean(profileAvatarUrl);
-    if (resolvedUrl === displayUrl) {
-      rememberResolvedAvatar(address, resolvedUrl, persistProfile);
+    if (shouldResolveDomain) {
+      if (domainLoading) return;
+      if (domainError || !domainSuccess) {
+        if (!displayUrl) setShowFallback(true);
+        return;
+      }
+    }
+
+    if (!domain) {
+      if (!shouldResolveDomain || domainSuccess) {
+        clearCachedProfileAvatar(address);
+        setDisplayUrl(null);
+        setShowFallback(true);
+      }
+      return;
+    }
+
+    if (avatarLoading) return;
+    if (avatarError || !avatarSuccess) {
+      if (!displayUrl) setShowFallback(true);
+      return;
+    }
+
+    if (!profileAvatarUrl) {
+      clearCachedProfileAvatar(address);
+      setDisplayUrl(null);
+      setShowFallback(true);
+      return;
+    }
+
+    if (profileAvatarUrl === displayUrl) {
+      rememberProfileAvatar(address, profileAvatarUrl);
+      setShowFallback(false);
       return;
     }
 
     let active = true;
+    const requestAddress = address;
     const image = new Image();
+    image.referrerPolicy = 'no-referrer';
     image.onload = () => {
-      if (!active) return;
-      rememberResolvedAvatar(address, resolvedUrl, persistProfile);
-      setDisplayUrl(resolvedUrl);
+      if (!active || requestAddress !== address) return;
+      rememberProfileAvatar(requestAddress, profileAvatarUrl);
+      setDisplayUrl(profileAvatarUrl);
+      setShowFallback(false);
     };
     image.onerror = () => {
-      if (!active) return;
-      rememberResolvedAvatar(address, fallbackUrl, false);
-      setDisplayUrl(fallbackUrl);
+      if (!active || requestAddress !== address) return;
+      if (!displayUrl) setShowFallback(true);
     };
-    image.src = resolvedUrl;
+    image.src = profileAvatarUrl;
 
     return () => {
       active = false;
     };
   }, [
     address,
+    avatarError,
     avatarLoading,
+    avatarSuccess,
     displayUrl,
     domain,
+    domainError,
     domainLoading,
-    fallbackUrl,
+    domainSuccess,
     profileAvatarUrl,
     shouldLoadProfile,
     shouldResolveDomain,
@@ -263,22 +250,29 @@ function WalletIdentity({
 
   const profileName = resolvedDomain;
   const compactProfileName = formatCompactVechainDomain(profileName);
+  const visibleUrl = displayUrl || (showFallback ? fallbackUrl : null);
 
   return (
     <>
       <span
         ref={avatarHostRef}
         className="walletAvatar"
-        data-avatar-pending={!displayUrl ? 'true' : undefined}
+        data-avatar-pending={!visibleUrl ? 'true' : undefined}
         aria-hidden="true"
       >
-        {displayUrl ? (
+        {visibleUrl ? (
           <img
-            src={displayUrl}
+            src={visibleUrl}
             alt=""
             loading={eager ? 'eager' : 'lazy'}
             fetchPriority={eager ? 'high' : 'auto'}
             decoding="async"
+            referrerPolicy="no-referrer"
+            onError={() => {
+              if (!displayUrl) return;
+              setDisplayUrl(null);
+              setShowFallback(true);
+            }}
             style={{
               width: '100%',
               height: '100%',
@@ -303,7 +297,6 @@ function WalletIdentity({
   );
 }
 
-
 function WalletDetailIdentity({
   entry,
 }: {
@@ -314,7 +307,12 @@ function WalletDetailIdentity({
     string | null | undefined
   >(() => readCachedLeaderboardDomain(address));
   const shouldResolveDomain = displayDomain === undefined;
-  const { data: domainInfo, isLoading: domainLoading } = useVechainDomain(
+  const {
+    data: domainInfo,
+    isLoading: domainLoading,
+    isError: domainError,
+    isSuccess: domainSuccess,
+  } = useVechainDomain(
     shouldResolveDomain ? address : undefined,
   );
   const queriedDomain =
@@ -327,12 +325,21 @@ function WalletDetailIdentity({
   }, [address]);
 
   useEffect(() => {
-    if (!shouldResolveDomain || domainLoading) return;
+    if (
+      !shouldResolveDomain ||
+      domainLoading ||
+      domainError ||
+      !domainSuccess
+    ) {
+      return;
+    }
     rememberLeaderboardDomain(address, queriedDomain);
     setDisplayDomain(queriedDomain);
   }, [
     address,
+    domainError,
     domainLoading,
+    domainSuccess,
     queriedDomain,
     shouldResolveDomain,
   ]);
@@ -340,7 +347,7 @@ function WalletDetailIdentity({
   const profileName =
     displayDomain !== undefined
       ? displayDomain
-      : shouldResolveDomain && !domainLoading
+      : shouldResolveDomain && domainSuccess
         ? queriedDomain
         : null;
 

@@ -58,6 +58,14 @@ jobs:
       - name: Leaderboard stability gate
         run: node scripts/check-leaderboard-stability.mjs
 
+      - name: Profile avatar parity gate
+        run: >-
+          node --test
+          tests/leaderboard-avatar-loading-stability.test.mjs
+          tests/leaderboard-mobile-avatar-reward-balance.test.mjs
+          tests/network-center-avatar-public-slots.test.mjs
+          tests/network-ios-native-gesture-guard.test.mjs
+
       - name: User-facing copy and UX gate
         run: node scripts/check-user-facing-copy.mjs
 

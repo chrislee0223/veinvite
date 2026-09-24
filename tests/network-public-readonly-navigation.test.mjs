@@ -163,7 +163,7 @@ test('public Network display keeps one mobile-width shell, overlay search, and s
   assert.match(publicExplorer, /NetworkWalletLabel/);
   assert.match(publicExplorer, /NetworkWalletIdentity/);
   assert.match(networkIdentity, /getPicassoImage\(address\)/);
-  assert.match(networkIdentity, /useGetAvatar\(domain\)/);
+  assert.match(networkIdentity, /useGetAvatar\(shouldLoad \? domain : ''\)/);
   assert.match(publicExplorer, /ref=\{searchInputRef\}/);
   assert.match(publicExplorer, /searchInputRef\.current\?\.focus\(\{ preventScroll: true \}\)/);
   assert.match(publicExplorer, /\.publicSearchBar\{[^}]*position:absolute[^}]*top:44px/);
@@ -266,7 +266,10 @@ test('viewed root center de-duplicates the top-left network total', () => {
   assert.match(publicExplorer, /rootIdentityOnly/);
 });
 
-test('prominent center identities bypass stale session-domain cache once per address', () => {
-  assert.match(networkIdentity, /\(\) => root \? undefined : readCachedLeaderboardDomain\(address\)/);
-  assert.match(networkIdentity, /setDisplayDomain\(root \? undefined : readCachedLeaderboardDomain\(address\)\)/);
+test('prominent center identities preserve verified display state while revalidating VeWorld data', () => {
+  assert.match(networkIdentity, /root \|\|/);
+  assert.match(networkIdentity, /displayDomain === undefined/);
+  assert.match(networkIdentity, /displayDomain === null && Boolean\(displayUrl\)/);
+  assert.match(networkIdentity, /setDisplayDomain\(readCachedLeaderboardDomain\(address\)\)/);
+  assert.match(networkIdentity, /readCachedProfileAvatar\(address\)/);
 });
