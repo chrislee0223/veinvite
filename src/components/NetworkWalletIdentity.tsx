@@ -290,7 +290,12 @@ export const NetworkWalletLabel = memo(function NetworkWalletLabel({
       ? domainState.domain
       : readCachedLeaderboardDomain(address);
   const shouldResolveDomain = cachedDomain === undefined;
-  const { data: domainInfo, isLoading: domainLoading } = useVechainDomain(
+  const {
+    data: domainInfo,
+    isLoading: domainLoading,
+    isError: domainError,
+    isSuccess: domainSuccess,
+  } = useVechainDomain(
     shouldResolveDomain ? address : undefined,
   );
   const queriedDomain =
@@ -300,7 +305,7 @@ export const NetworkWalletLabel = memo(function NetworkWalletLabel({
   const resolvedDomain =
     cachedDomain !== undefined
       ? cachedDomain
-      : !domainLoading
+      : domainSuccess
         ? queriedDomain
         : null;
 
@@ -312,7 +317,14 @@ export const NetworkWalletLabel = memo(function NetworkWalletLabel({
   }, [address]);
 
   useEffect(() => {
-    if (!shouldResolveDomain || domainLoading) return;
+    if (
+      !shouldResolveDomain ||
+      domainLoading ||
+      domainError ||
+      !domainSuccess
+    ) {
+      return;
+    }
     rememberLeaderboardDomain(address, queriedDomain);
     setDomainState((current) =>
       current.address === address
@@ -321,7 +333,9 @@ export const NetworkWalletLabel = memo(function NetworkWalletLabel({
     );
   }, [
     address,
+    domainError,
     domainLoading,
+    domainSuccess,
     queriedDomain,
     shouldResolveDomain,
   ]);
