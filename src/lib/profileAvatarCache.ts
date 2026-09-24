@@ -24,6 +24,7 @@ function validEntry(
     entry.url.trim() &&
     typeof entry.savedAt === 'number' &&
     Number.isFinite(entry.savedAt) &&
+    entry.savedAt <= now &&
     now - entry.savedAt <= PROFILE_AVATAR_CACHE_TTL_MS,
   );
 }
