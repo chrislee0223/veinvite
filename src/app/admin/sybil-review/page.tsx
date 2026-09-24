@@ -37,6 +37,12 @@ type ReviewRow = {
   post_payout_reason_codes: unknown;
   post_payout_subject_wallet: string | null;
   post_payout_updated_at: string | null;
+  inviter_escalation_posture: string | null;
+  inviter_escalation_incident_count_90d: number | string | null;
+  inviter_escalation_strong_direct_link_count_90d: number | string | null;
+  inviter_escalation_reason_codes: unknown;
+  inviter_escalation_latest_incident_at: string | null;
+  inviter_escalation_latest_incident_id: string | null;
 };
 
 type ReviewEvent = {
@@ -105,6 +111,7 @@ type ReviewDetailResponse = {
   postPayoutReviewEvents?: unknown[];
   v2Evidence?: V2Evidence[];
   reviewMode?:
+    | 'INVITER'
     | 'POST_PAYOUT'
     | 'V2'
     | 'LEGACY'
@@ -410,6 +417,8 @@ export default function SybilReviewPage() {
       return;
     }
 
+    const isInviter =
+      detail.reviewMode === 'INVITER';
     const isPostPayout =
       detail.reviewMode === 'POST_PAYOUT';
     const isV2 = detail.reviewMode === 'V2';
@@ -433,12 +442,23 @@ export default function SybilReviewPage() {
     }
 
     if (
+      !isInviter &&
       !isPostPayout &&
       !isV2 &&
       !invitation.sybil_checked_at
     ) {
       setError(
         '기존 Sybil 검토 시점을 확인할 수 없습니다. 새로고침 후 다시 시도해 주세요. / The legacy review timestamp is unavailable.',
+      );
+      return;
+    }
+
+    if (
+      isInviter &&
+      !invitation.inviter_escalation_latest_incident_id
+    ) {
+      setError(
+        '최신 초대자 검토 사건을 확인할 수 없습니다. 새로고침 후 다시 시도해 주세요. / The latest inviter escalation incident is unavailable.',
       );
       return;
     }
@@ -459,13 +479,19 @@ export default function SybilReviewPage() {
     const label =
       decision === 'CLEAR'
         ? '승인(CLEAR)'
-        : isPostPayout || isV2
-          ? '블랙리스트(BLACKLIST)'
-          : '차단(BLOCKED)';
+        : isInviter
+          ? '초대자 제한(RESTRICT)'
+          : isPostPayout || isV2
+            ? '블랙리스트(BLACKLIST)'
+            : '차단(BLOCKED)';
 
-    const confirmMessage = isPostPayout
-      ? `${invitation.invite_code}를 ${label} 처리할까요? 이미 지급된 보상은 변경되지 않으며, BLACKLIST 시 해당 보상 수령자 지갑의 향후 VeInvite 참여만 제한됩니다.`
-      : `${invitation.invite_code}를 ${label} 처리할까요? 이 판정은 보상 자격에 영향을 줄 수 있지만 B3TR 전송은 실행하지 않습니다.`;
+    const confirmMessage = isInviter
+      ? decision === 'CLEAR'
+        ? `${invitation.invite_code} 기준 초대자 HOLD를 CLEAR할까요? 현재까지의 사건 기록은 감사용으로 유지되며, 새로운 파밍 사건이 확인되면 다시 HOLD될 수 있습니다.`
+        : `${invitation.invite_code} 기준 초대자를 RESTRICT할까요? 과거 보상은 변경하지 않고 이 초대자 지갑의 향후 VeInvite 참여만 제한합니다.`
+      : isPostPayout
+        ? `${invitation.invite_code}를 ${label} 처리할까요? 이미 지급된 보상은 변경되지 않으며, BLACKLIST 시 해당 보상 수령자 지갑의 향후 VeInvite 참여만 제한됩니다.`
+        : `${invitation.invite_code}를 ${label} 처리할까요? 이 판정은 보상 자격에 영향을 줄 수 있지만 B3TR 전송은 실행하지 않습니다.`;
 
     if (!window.confirm(confirmMessage)) {
       return;
@@ -492,20 +518,28 @@ export default function SybilReviewPage() {
             isPostPayout || isV2
               ? expectedRevision
               : undefined,
+          expectedInviterIncidentId:
+            isInviter
+              ? invitation.inviter_escalation_latest_incident_id
+              : undefined,
         }),
       });
 
       await readJson<{ invitation: ReviewRow }>(response);
 
       setMessage(
-        isPostPayout
+        isInviter
+          ? decision === 'CLEAR'
+            ? '초대자 HOLD를 해제했습니다. 현재 사건 기록은 감사용으로 유지되며 새로운 파밍 사건이 생기면 다시 검토됩니다. / Inviter HOLD cleared; the current incident history remains for audit and new abuse can reopen review.'
+            : '초대자 제한을 확정했습니다. 과거 보상은 변경되지 않고 이 지갑의 향후 VeInvite 참여만 제한됩니다. / Inviter restriction confirmed; past rewards remain unchanged and only future VeInvite participation is restricted.'
+          : isPostPayout
           ? decision === 'CLEAR'
             ? '사후 검토를 정상으로 승인했습니다. 기존 지급 보상은 변경되지 않습니다. / Post-payout review cleared; the past reward remains unchanged.'
             : '사후 블랙리스트로 확정했습니다. 기존 지급 보상은 유지되고 해당 보상 수령자 지갑의 향후 VeInvite 참여만 제한됩니다. / Post-payout blacklist confirmed; the past reward remains unchanged and only future participation of the reward-recipient wallet is restricted.'
           : decision === 'CLEAR'
             ? '검토를 승인했습니다. 보상 전송은 실행되지 않았습니다. / Review cleared; no reward transfer was performed.'
             : isV2
-              ? '블랙리스트로 확정했습니다. 이번 미지급 보상은 제외되고 향후 VeInvite 참여가 제한됩니다. / Blacklist confirmed; the unpaid reward is forfeited and future VeInvite participation is restricted.'
+              ? '블랙리스트로 확정했습니다. 이번 미지급 보상은 제외되고 초대받은 지갑의 향후 VeInvite 참여가 제한됩니다. 초대자는 90일 반복 적발 정책으로 별도 평가됩니다. / Blacklist confirmed; the unpaid reward is forfeited and future VeInvite participation of the invitee is restricted. The inviter is evaluated separately by the rolling 90-day incident policy.'
               : '검토를 차단 처리했습니다. 보상 전송은 실행되지 않았습니다. / Review blocked; no reward transfer was performed.',
       );
 
@@ -527,6 +561,13 @@ export default function SybilReviewPage() {
   const v2Evidence = detail?.v2Evidence ?? [];
   const v2ReasonCodes = Array.isArray(detail?.v2Assessment?.reason_codes)
     ? detail.v2Assessment.reason_codes.filter(
+        (value): value is string => typeof value === 'string',
+      )
+    : [];
+  const inviterReasonCodes = Array.isArray(
+    selected?.inviter_escalation_reason_codes,
+  )
+    ? selected.inviter_escalation_reason_codes.filter(
         (value): value is string => typeof value === 'string',
       )
     : [];
@@ -555,7 +596,7 @@ export default function SybilReviewPage() {
             <span className="eyebrow">VEINVITE ADMIN</span>
             <h1>수동 Sybil 검토 / Manual Review</h1>
             <p>
-              자동 탐지에서 REVIEW로 보류된 추천을 사람이 최종 검토합니다.
+              자동 탐지에서 보류된 추천과 반복 파밍으로 HOLD된 초대자를 사람이 최종 검토합니다.
               온체인 신호는 판단 보조 정보일 뿐 자동 승인·차단이나 B3TR 전송을 실행하지 않습니다.
             </p>
           </div>
@@ -624,35 +665,45 @@ export default function SybilReviewPage() {
                       <div className="reviewTop">
                         <strong>{review.invite_code}</strong>
                         <span className="badge">
-                          {review.post_payout_state === 'HOLD'
-                            ? `POST · ${review.post_payout_risk_score ?? 0}`
-                            : review.v2_state === 'HOLD'
-                              ? `HOLD · ${review.v2_risk_score ?? 0}`
-                              : `${review.sybil_risk_level} · ${review.sybil_risk_score}`}
+                          {review.inviter_escalation_posture === 'HOLD'
+                            ? `INVITER · ${formatInteger(review.inviter_escalation_incident_count_90d)}건`
+                            : review.post_payout_state === 'HOLD'
+                              ? `POST · ${review.post_payout_risk_score ?? 0}`
+                              : review.v2_state === 'HOLD'
+                                ? `HOLD · ${review.v2_risk_score ?? 0}`
+                                : `${review.sybil_risk_level} · ${review.sybil_risk_score}`}
                         </span>
                       </div>
                       <span>
-                        {review.post_payout_state === 'HOLD'
-                          ? `Reward recipient ${shortAddress(review.post_payout_subject_wallet)}`
-                          : `Invitee ${shortAddress(review.invitee_wallet)}`}
+                        {review.inviter_escalation_posture === 'HOLD'
+                          ? `Inviter ${shortAddress(review.inviter_wallet)}`
+                          : review.post_payout_state === 'HOLD'
+                            ? `Reward recipient ${shortAddress(review.post_payout_subject_wallet)}`
+                            : `Invitee ${shortAddress(review.invitee_wallet)}`}
                       </span>
                       <span>
-                        {review.post_payout_state === 'HOLD'
-                          ? `POST_PAYOUT · ${formatDate(review.post_payout_updated_at)}`
-                          : review.v2_state === 'HOLD'
-                            ? `SYBIL_V2 · ${formatDate(review.v2_updated_at)}`
-                            : `${review.sybil_source} · ${formatDate(review.sybil_checked_at)}`}
+                        {review.inviter_escalation_posture === 'HOLD'
+                          ? `INVITER_ESCALATION · ${formatDate(review.inviter_escalation_latest_incident_at)}`
+                          : review.post_payout_state === 'HOLD'
+                            ? `POST_PAYOUT · ${formatDate(review.post_payout_updated_at)}`
+                            : review.v2_state === 'HOLD'
+                              ? `SYBIL_V2 · ${formatDate(review.v2_updated_at)}`
+                              : `${review.sybil_source} · ${formatDate(review.sybil_checked_at)}`}
                       </span>
                       <small>
-                        {review.post_payout_state === 'HOLD'
-                          ? (Array.isArray(review.post_payout_reason_codes)
-                              ? review.post_payout_reason_codes.join(', ')
-                              : 'Post-payout evidence requires review.')
-                          : review.v2_state === 'HOLD'
-                            ? (Array.isArray(review.v2_reason_codes)
-                                ? review.v2_reason_codes.join(', ')
-                                : 'Sybil v2 evidence requires review.')
-                            : (review.sybil_reason ?? 'No review reason.')}
+                        {review.inviter_escalation_posture === 'HOLD'
+                          ? (Array.isArray(review.inviter_escalation_reason_codes)
+                              ? review.inviter_escalation_reason_codes.join(', ')
+                              : 'Inviter escalation requires review.')
+                          : review.post_payout_state === 'HOLD'
+                            ? (Array.isArray(review.post_payout_reason_codes)
+                                ? review.post_payout_reason_codes.join(', ')
+                                : 'Post-payout evidence requires review.')
+                            : review.v2_state === 'HOLD'
+                              ? (Array.isArray(review.v2_reason_codes)
+                                  ? review.v2_reason_codes.join(', ')
+                                  : 'Sybil v2 evidence requires review.')
+                              : (review.sybil_reason ?? 'No review reason.')}
                       </small>
                     </button>
                   ))}
@@ -676,11 +727,13 @@ export default function SybilReviewPage() {
                         <h2>{selected.invite_code}</h2>
                       </div>
                       <span className="badge">
-                        {selected.post_payout_state === 'HOLD'
-                          ? 'POST_PAYOUT HOLD'
-                          : selected.v2_state === 'HOLD'
-                            ? 'HOLD'
-                            : selected.sybil_status}
+                        {selected.inviter_escalation_posture === 'HOLD'
+                          ? 'INVITER HOLD'
+                          : selected.post_payout_state === 'HOLD'
+                            ? 'POST_PAYOUT HOLD'
+                            : selected.v2_state === 'HOLD'
+                              ? 'HOLD'
+                              : selected.sybil_status}
                       </span>
                     </div>
 
@@ -690,32 +743,38 @@ export default function SybilReviewPage() {
                       <Fact
                         label="Risk"
                         value={
-                          selected.post_payout_state === 'HOLD'
-                            ? `POST · ${selected.post_payout_risk_score ?? 0}`
-                            : selected.v2_state === 'HOLD'
-                              ? `V2 · ${selected.v2_risk_score ?? 0}`
-                              : `${selected.sybil_risk_level} · ${selected.sybil_risk_score}`
+                          selected.inviter_escalation_posture === 'HOLD'
+                            ? `INVITER · ${formatInteger(selected.inviter_escalation_incident_count_90d)}건`
+                            : selected.post_payout_state === 'HOLD'
+                              ? `POST · ${selected.post_payout_risk_score ?? 0}`
+                              : selected.v2_state === 'HOLD'
+                                ? `V2 · ${selected.v2_risk_score ?? 0}`
+                                : `${selected.sybil_risk_level} · ${selected.sybil_risk_score}`
                         }
                       />
                       <Fact
                         label="Source"
                         value={
-                          selected.post_payout_state === 'HOLD'
-                            ? 'POST_PAYOUT'
-                            : selected.v2_state === 'HOLD'
-                              ? 'SYBIL_V2'
-                              : selected.sybil_source
+                          selected.inviter_escalation_posture === 'HOLD'
+                            ? 'INVITER_ESCALATION'
+                            : selected.post_payout_state === 'HOLD'
+                              ? 'POST_PAYOUT'
+                              : selected.v2_state === 'HOLD'
+                                ? 'SYBIL_V2'
+                                : selected.sybil_source
                         }
                       />
                       <Fact label="Reward" value={selected.reward_status} />
                       <Fact
                         label="Checked"
                         value={formatDate(
-                          selected.post_payout_state === 'HOLD'
-                            ? selected.post_payout_updated_at
-                            : selected.v2_state === 'HOLD'
-                              ? selected.v2_updated_at
-                              : selected.sybil_checked_at,
+                          selected.inviter_escalation_posture === 'HOLD'
+                            ? selected.inviter_escalation_latest_incident_at
+                            : selected.post_payout_state === 'HOLD'
+                              ? selected.post_payout_updated_at
+                              : selected.v2_state === 'HOLD'
+                                ? selected.v2_updated_at
+                                : selected.sybil_checked_at,
                         )}
                       />
                     </div>
@@ -723,23 +782,28 @@ export default function SybilReviewPage() {
                     <div className="reasonBox">
                       <span>현재 검토 사유 / Current reason</span>
                       <p>
-                        {selected.post_payout_state === 'HOLD'
-                          ? (postPayoutReasonCodes.join(', ') || 'Post-payout evidence requires review.')
-                          : selected.v2_state === 'HOLD'
-                            ? (v2ReasonCodes.join(', ') || 'Sybil v2 evidence requires review.')
-                            : (selected.sybil_reason ?? '—')}
+                        {selected.inviter_escalation_posture === 'HOLD'
+                          ? (inviterReasonCodes.join(', ') || 'Inviter escalation requires review.')
+                          : selected.post_payout_state === 'HOLD'
+                            ? (postPayoutReasonCodes.join(', ') || 'Post-payout evidence requires review.')
+                            : selected.v2_state === 'HOLD'
+                              ? (v2ReasonCodes.join(', ') || 'Sybil v2 evidence requires review.')
+                              : (selected.sybil_reason ?? '—')}
                       </p>
                     </div>
 
-                    {selected.post_payout_state === 'HOLD' ||
+                    {selected.inviter_escalation_posture === 'HOLD' ||
+                    selected.post_payout_state === 'HOLD' ||
                     selected.v2_state === 'HOLD' ? (
                       <section className="onchainSection">
                         <div className="sectionHeaderRow">
                           <div>
                             <span className="sectionLabel">
-                              {selected.post_payout_state === 'HOLD'
-                                ? 'POST-PAYOUT EVIDENCE'
-                                : 'SYBIL V2 EVIDENCE'}
+                              {selected.inviter_escalation_posture === 'HOLD'
+                                ? 'INVITER ESCALATION EVIDENCE'
+                                : selected.post_payout_state === 'HOLD'
+                                  ? 'POST-PAYOUT EVIDENCE'
+                                  : 'SYBIL V2 EVIDENCE'}
                             </span>
                             <h3>자동 탐지 근거 / Detection evidence</h3>
                           </div>
@@ -950,18 +1014,22 @@ export default function SybilReviewPage() {
                           disabled={!actionReady}
                           onClick={() => void resolveReview('BLOCKED')}
                         >
-                          {detail?.reviewMode === 'V2' ||
-                          detail?.reviewMode === 'POST_PAYOUT'
-                            ? '블랙리스트 / BLACKLIST'
-                            : '차단 / BLOCK'}
+                          {detail?.reviewMode === 'INVITER'
+                            ? '초대자 제한 / RESTRICT'
+                            : detail?.reviewMode === 'V2' ||
+                              detail?.reviewMode === 'POST_PAYOUT'
+                              ? '블랙리스트 / BLACKLIST'
+                              : '차단 / BLOCK'}
                         </button>
                       </div>
                       <p className="note">
-                        {detail?.reviewMode === 'POST_PAYOUT'
-                          ? 'POST_PAYOUT CLEAR는 사후 의심을 해제합니다. POST_PAYOUT BLACKLIST는 이미 지급된 보상은 그대로 두고 해당 보상 수령자 지갑의 향후 VeInvite 참여만 제한합니다.'
-                          : detail?.reviewMode === 'V2'
-                            ? 'CLEAR는 v2 clearance를 발급해 보상 준비를 재개합니다. v2 BLACKLIST는 이번 미지급 보상을 제외하고 초대자·초대받은 지갑의 향후 VeInvite 참여를 제한합니다.'
-                            : '기존 REVIEW의 BLOCKED 처리는 기존 규칙대로 보상 대상에서 제외합니다.'}
+                        {detail?.reviewMode === 'INVITER'
+                          ? 'INVITER CLEAR는 현재 반복 파밍 HOLD를 해제하지만 사건 기록은 감사용으로 유지합니다. 새 사건이 발생하면 다시 HOLD될 수 있습니다. RESTRICT는 과거 보상은 건드리지 않고 초대자 지갑의 향후 VeInvite 참여만 제한합니다.'
+                          : detail?.reviewMode === 'POST_PAYOUT'
+                            ? 'POST_PAYOUT CLEAR는 사후 의심을 해제합니다. POST_PAYOUT BLACKLIST는 이미 지급된 보상은 그대로 두고 해당 보상 수령자 지갑의 향후 VeInvite 참여만 제한합니다.'
+                            : detail?.reviewMode === 'V2'
+                              ? 'CLEAR는 v2 clearance를 발급해 보상 준비를 재개합니다. v2 BLACKLIST는 이번 미지급 보상을 제외하고 초대받은 지갑의 향후 VeInvite 참여만 제한하며, 사용된 초대 슬롯은 기존 정책대로 다시 열립니다.'
+                              : '기존 REVIEW의 BLOCKED 처리는 기존 규칙대로 보상 대상에서 제외합니다.'}
                       </p>
                     </div>
                   </>
