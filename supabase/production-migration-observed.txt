@@ -79,3 +79,4 @@
 20260923063621 audit_sybil_v2_runtime_toggles
 20260923073206 add_sybil_v2_paid_backfill_candidates
 20260924061453 backfill_sybil_v2_activation_audit
+20260924145153 align_sybil_v2_authority
