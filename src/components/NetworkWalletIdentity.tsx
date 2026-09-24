@@ -19,6 +19,11 @@ import {
   readCachedLeaderboardDomain,
   rememberLeaderboardDomain,
 } from '@/lib/leaderboardDomainCache';
+import {
+  clearCachedProfileAvatar,
+  readCachedProfileAvatar,
+  rememberProfileAvatar,
+} from '@/lib/profileAvatarCache';
 
 function shortWallet(wallet: string): string {
   if (wallet.length < 12) return wallet;
@@ -51,13 +56,21 @@ export const NetworkWalletIdentity = memo(function NetworkWalletIdentity({
   const hostRef = useRef<HTMLSpanElement | null>(null);
   const fallbackUrl = useMemo(() => getPicassoImage(address), [address]);
   const [shouldLoad, setShouldLoad] = useState(root);
-  const [loaded, setLoaded] = useState(false);
-  const [broken, setBroken] = useState(false);
-  const [displayDomain, setDisplayDomain] = useState<string | null | undefined>(
-    () => root ? undefined : readCachedLeaderboardDomain(address),
+  const [displayUrl, setDisplayUrl] = useState<string | null>(() =>
+    readCachedProfileAvatar(address),
   );
-  const shouldResolveDomain = shouldLoad && displayDomain === undefined;
-  const { data: domainInfo, isLoading: domainLoading } = useVechainDomain(
+  const [showFallback, setShowFallback] = useState(false);
+  const [displayDomain, setDisplayDomain] = useState<string | null | undefined>(
+    () => readCachedLeaderboardDomain(address),
+  );
+  const shouldResolveDomain =
+    shouldLoad && (root || displayDomain === undefined);
+  const {
+    data: domainInfo,
+    isLoading: domainLoading,
+    isError: domainError,
+    isSuccess: domainSuccess,
+  } = useVechainDomain(
     shouldResolveDomain ? address : undefined,
   );
   const queriedDomain =
@@ -67,17 +80,24 @@ export const NetworkWalletIdentity = memo(function NetworkWalletIdentity({
   const resolvedDomain =
     displayDomain !== undefined
       ? displayDomain
-      : shouldResolveDomain && !domainLoading
+      : shouldResolveDomain && domainSuccess
         ? queriedDomain
         : null;
   const domain = resolvedDomain ?? '';
-  const { data: avatarUrl } = useGetAvatar(domain);
+  const {
+    data: profileAvatarUrl,
+    isLoading: avatarLoading,
+    isError: avatarError,
+    isSuccess: avatarSuccess,
+  } = useGetAvatar(shouldLoad ? domain : '');
   const resolvedSize = size ?? (root ? 42 : 34);
 
   useEffect(() => {
-    // Center/root identities are visually prominent, so refresh their VeWorld
-    // domain instead of trusting a stale positive/negative session cache entry.
-    setDisplayDomain(root ? undefined : readCachedLeaderboardDomain(address));
+    // Keep the last verified identity painted immediately. Prominent root
+    // identities still revalidate their VeWorld domain in the background.
+    setDisplayUrl(readCachedProfileAvatar(address));
+    setShowFallback(false);
+    setDisplayDomain(readCachedLeaderboardDomain(address));
     setShouldLoad(root);
   }, [address, root]);
 
@@ -99,20 +119,99 @@ export const NetworkWalletIdentity = memo(function NetworkWalletIdentity({
   }, [shouldLoad]);
 
   useEffect(() => {
-    if (!shouldResolveDomain || domainLoading) return;
+    if (!shouldResolveDomain || domainLoading || domainError || !domainSuccess) {
+      return;
+    }
     rememberLeaderboardDomain(address, queriedDomain);
     setDisplayDomain(queriedDomain);
   }, [
     address,
+    domainError,
     domainLoading,
+    domainSuccess,
     queriedDomain,
     shouldResolveDomain,
   ]);
 
   useEffect(() => {
-    setLoaded(false);
-    setBroken(false);
-  }, [avatarUrl]);
+    if (!shouldLoad) return;
+
+    if (shouldResolveDomain) {
+      if (domainLoading) return;
+      if (domainError || !domainSuccess) {
+        if (!displayUrl) setShowFallback(true);
+        return;
+      }
+    }
+
+    if (!domain) {
+      // Only a successful no-domain resolution may invalidate a previously
+      // verified profile avatar. Transient lookup failures preserve it.
+      if (!shouldResolveDomain || domainSuccess) {
+        clearCachedProfileAvatar(address);
+        setDisplayUrl(null);
+        setShowFallback(true);
+      }
+      return;
+    }
+
+    if (avatarLoading) return;
+    if (avatarError || !avatarSuccess) {
+      if (!displayUrl) setShowFallback(true);
+      return;
+    }
+
+    if (!profileAvatarUrl) {
+      clearCachedProfileAvatar(address);
+      setDisplayUrl(null);
+      setShowFallback(true);
+      return;
+    }
+
+    if (profileAvatarUrl === displayUrl) {
+      rememberProfileAvatar(address, profileAvatarUrl);
+      setShowFallback(false);
+      return;
+    }
+
+    let active = true;
+    const requestAddress = address;
+    const image = new Image();
+    image.referrerPolicy = 'no-referrer';
+    image.onload = () => {
+      if (!active || requestAddress !== address) return;
+      rememberProfileAvatar(requestAddress, profileAvatarUrl);
+      setDisplayUrl(profileAvatarUrl);
+      setShowFallback(false);
+    };
+    image.onerror = () => {
+      if (!active || requestAddress !== address) return;
+      // A failed CDN/image read must never replace a previously verified
+      // profile image. With no verified image, fail open to Picasso.
+      if (!displayUrl) setShowFallback(true);
+    };
+    image.src = profileAvatarUrl;
+
+    return () => {
+      active = false;
+    };
+  }, [
+    address,
+    avatarError,
+    avatarLoading,
+    avatarSuccess,
+    displayUrl,
+    domain,
+    domainError,
+    domainLoading,
+    domainSuccess,
+    profileAvatarUrl,
+    shouldLoad,
+    shouldResolveDomain,
+  ]);
+
+  const visibleUrl = displayUrl || (showFallback ? fallbackUrl : null);
+  const imageClassName = displayUrl ? 'profileAvatar' : 'neutralAvatar';
 
   return (
     <span className="identity" ref={hostRef}>
@@ -120,32 +219,15 @@ export const NetworkWalletIdentity = memo(function NetworkWalletIdentity({
         className="avatarSlot"
         style={{ width: resolvedSize, height: resolvedSize }}
       >
-        <img
-          className="neutralAvatar"
-          src={fallbackUrl}
-          alt=""
-          aria-hidden="true"
-          loading="eager"
-          decoding="async"
-          draggable={false}
-          onDragStart={(event) => event.preventDefault()}
-          onContextMenu={(event) => event.preventDefault()}
-          style={{
-            ...NON_INTERACTIVE_IMAGE_STYLE,
-            width: resolvedSize,
-            height: resolvedSize,
-          }}
-        />
-        {avatarUrl && !broken ? (
+        {visibleUrl ? (
           <img
-            className="profileAvatar"
-            src={avatarUrl}
+            className={imageClassName}
+            src={visibleUrl}
             alt=""
+            aria-hidden="true"
             loading={root ? 'eager' : 'lazy'}
             decoding="async"
-            referrerPolicy="no-referrer"
-            onLoad={() => setLoaded(true)}
-            onError={() => setBroken(true)}
+            referrerPolicy={displayUrl ? 'no-referrer' : undefined}
             draggable={false}
             onDragStart={(event) => event.preventDefault()}
             onContextMenu={(event) => event.preventDefault()}
@@ -153,10 +235,20 @@ export const NetworkWalletIdentity = memo(function NetworkWalletIdentity({
               ...NON_INTERACTIVE_IMAGE_STYLE,
               width: resolvedSize,
               height: resolvedSize,
-              opacity: loaded ? 1 : 0,
+              objectFit: 'contain',
             }}
           />
-        ) : null}
+        ) : (
+          <span
+            className="neutralAvatar avatarPending"
+            aria-hidden="true"
+            style={{
+              ...NON_INTERACTIVE_IMAGE_STYLE,
+              width: resolvedSize,
+              height: resolvedSize,
+            }}
+          />
+        )}
       </span>
       {showLabel ? (
         <span
