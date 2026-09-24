@@ -114,7 +114,7 @@ test('group list and group builder share the same persistent Groups toolbar anch
   assert.match(utilitySlice, /className="groupsPanel"/);
   assert.match(utilitySlice, /className="groupBuilder"/);
   assert.doesNotMatch(utilitySlice, /groupBuilderAnchor/);
-  assert.match(source, /\.groupsPanel,\.groupBuilder\{position:absolute[^}]*left:auto[^}]*right:0[^}]*top:calc\(100% \+ 7px\)[^}]*transform:none/);
+  assert.match(source, /\.groupsPanel,\.groupBuilder\{position:absolute[^}]*inset-inline-start:auto[^}]*inset-inline-end:0[^}]*top:calc\(100% \+ 7px\)[^}]*transform:none/);
   assert.doesNotMatch(source, /\.groupsPanel\{position:absolute;z-index:81;left:10px;top:50px/);
   assert.doesNotMatch(source, /\.groupBuilder\{position:absolute;z-index:82;left:10px;top:50px/);
 });
