@@ -1004,7 +1004,11 @@ export async function POST(request: NextRequest) {
         );
       }
 
-      if (decision === 'CLEAR') {
+      if (
+        decision === 'CLEAR' &&
+        before.status === 'COMPLETED' &&
+        before.reward_status === 'ELIGIBLE'
+      ) {
         await enqueueClearedReward(inviteCode);
       }
 
