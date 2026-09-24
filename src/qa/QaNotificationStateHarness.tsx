@@ -39,6 +39,8 @@ export type QaNotificationStateId =
   | 'NOTI-REWARD-READY'
   | 'NOTI-REWARD-PAID'
   | 'NOTI-INELIGIBLE'
+  | 'NOTI-SECURITY-REVIEW'
+  | 'NOTI-SECURITY-RESTRICTED'
   | 'NOTI-ACK-BUSY'
   | 'NOTI-ACK-ERROR';
 
@@ -303,6 +305,32 @@ function fixtureForState(
       return {
         mode: 'surface',
         notifications: [surfaceItem({ kind: 'INVITE_INELIGIBLE' })],
+      };
+    case 'NOTI-SECURITY-REVIEW':
+      return {
+        mode: 'history',
+        items: [
+          historyItem({
+            id: '11',
+            kind: 'SECURITY_REVIEW_STARTED',
+            minutes: 4,
+          }),
+        ],
+        unreadCount: 1,
+        open: true,
+      };
+    case 'NOTI-SECURITY-RESTRICTED':
+      return {
+        mode: 'history',
+        items: [
+          historyItem({
+            id: '12',
+            kind: 'SECURITY_RESTRICTION_CONFIRMED',
+            minutes: 7,
+          }),
+        ],
+        unreadCount: 1,
+        open: true,
       };
     case 'NOTI-ACK-BUSY':
       return {
