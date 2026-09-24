@@ -84,8 +84,11 @@ test('admin API exposes and resolves inviter escalation reviews', async () => {
     source,
     /operator_sybil_v2_inviter_review_candidates/u,
   );
-  assert.match(source, /reviewMode: inviterCanResolve/u);
-  assert.match(source, /\? 'INVITER'/u);
+  assert.match(source, /reviewMode: inviterRestrictionCanResolve/u);
+  assert.match(
+    source,
+    /\? 'INVITER_RESTRICTION'[\s\S]*inviterCanResolve[\s\S]*\? 'INVITER'/u,
+  );
   assert.match(source, /expectedInviterIncidentId/u);
   assert.match(source, /resolve_sybil_v2_inviter_review/u);
   assert.match(source, /\? 'RESTRICT'/u);
