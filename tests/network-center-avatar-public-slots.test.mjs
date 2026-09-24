@@ -47,6 +47,26 @@ test('center ring geometry stays 56px avatar, 60px inner ring, and 74px animated
   assert.match(explorer, /size=\{visual\.root \? 56 : 40\}/);
 });
 
+test('friend Network focus bloom keeps root geometry stable while preserving navigation cues', () => {
+  assert.match(
+    explorer,
+    /\.publicNode\.root\.bloom:not\(\.selected\) \.publicAvatar\{animation:publicNodeBloom 620ms cubic-bezier\(\.16,\.82,\.2,1\) both\}/,
+  );
+  const bloomKeyframes = explorer.match(/@keyframes publicNodeBloom\{([^}]|\}(?!@keyframes))*\}/)?.[0] ?? '';
+  assert.ok(bloomKeyframes, 'publicNodeBloom keyframes must exist');
+  assert.doesNotMatch(bloomKeyframes, /transform:|scale\(/);
+  assert.match(bloomKeyframes, /55%\{box-shadow:0 0 42px rgba\(244,183,40,\.22\)\}/);
+  assert.match(bloomKeyframes, /100%\{box-shadow:0 0 22px rgba\(244,183,40,\.025\)\}/);
+  assert.match(explorer, /bloom\(root\)/);
+  assert.match(explorer, /bloom\(payload\.focusWallet\)/);
+  assert.match(explorer, /bloom\(target\)/);
+  assert.match(explorer, /publicRootBreath 2\.8s ease-in-out infinite/);
+  assert.match(
+    explorer,
+    /prefers-reduced-motion:reduce[\s\S]*\.publicNode\.root\.bloom:not\(\.selected\) \.publicAvatar/,
+  );
+});
+
 test('public focus slot metadata exposes only empty slot IDs and no invitee details', () => {
   assert.match(publicApi, /readPublicAvailableSlotIds\(focusWallet\)/);
   assert.match(publicApi, /availableSlotIds/);
