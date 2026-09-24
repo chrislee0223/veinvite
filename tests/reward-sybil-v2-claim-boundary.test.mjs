@@ -139,7 +139,7 @@ test('unclaimed referrals are reassessed when newer cluster evidence arrives', a
   );
   assert.match(
     pipeline,
-    /hasNewEvidenceForCurrentAssessment/u,
+    /hasNewEarlyClusterEvidence/u,
   );
 });
 
