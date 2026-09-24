@@ -232,7 +232,7 @@ export const NetworkWalletIdentity = memo(function NetworkWalletIdentity({
             aria-hidden="true"
             loading={root ? 'eager' : 'lazy'}
             decoding="async"
-            referrerPolicy={displayUrl ? 'no-referrer' : undefined}
+            referrerPolicy="no-referrer"
             draggable={false}
             onDragStart={(event) => event.preventDefault()}
             onContextMenu={(event) => event.preventDefault()}
