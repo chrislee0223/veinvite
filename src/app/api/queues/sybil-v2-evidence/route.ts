@@ -4,8 +4,10 @@ import {
   isSybilV2EvidenceMessage,
 } from '@/lib/sybil/v2/evidenceQueue';
 import {
+  assessSybilV2EarlyReferral,
   collectSybilV2EvidenceForInvite,
   runSybilV2AssessmentBatch,
+  runSybilV2EarlyAssessmentBatch,
 } from '@/lib/sybil/v2/pipeline';
 
 const queueCallback = handleCallback(
@@ -34,9 +36,18 @@ const queueCallback = handleCallback(
       );
     }
 
-    // New historical/funding evidence can strengthen an existing cluster.
-    // Reassess unreserved reward-eligible peers immediately instead of waiting
-    // for the daily recovery cron. Claim-ready rows are excluded by the DB view.
+    // Assess the just-scanned referral first so a strong historical
+    // cluster can open HOLD during ACTIVATING, well before reward readiness.
+    // PAID/Claim-ready rows are excluded by the service-only early candidate
+    // view, so historical backfill remains observation-only.
+    await assessSybilV2EarlyReferral(
+      message.inviteCode,
+    );
+
+    // New peer evidence can strengthen the same app/sink/funder cluster for
+    // other active referrals. Reassess a bounded peer batch immediately, then
+    // keep the final reward gate as a separate stage.
+    await runSybilV2EarlyAssessmentBatch(10);
     await runSybilV2AssessmentBatch(10);
   },
   {
