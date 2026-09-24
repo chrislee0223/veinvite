@@ -543,6 +543,28 @@ test('Network top metric is a stable total-only value with no round placeholder 
   assert.doesNotMatch(networkSource, /const headerThisRound/);
 });
 
+test('Network center intro hands off to breathing without a restart jump', () => {
+  assert.match(
+    networkSource,
+    /\.introActive \.focusNode::before\{animation:networkYouIntro \.72s ease-out both\}/,
+  );
+  assert.doesNotMatch(
+    networkSource,
+    /\.introActive \.focusNode::before\{[^}]*networkYouBreath/,
+  );
+  assert.match(
+    networkSource,
+    /@keyframes networkYouBreath\{0%,100%\{opacity:\.46;transform:scale\(\.96\)\}/,
+  );
+  assert.match(
+    networkSource,
+    /@keyframes networkYouIntro\{[^}]*100%\{opacity:\.46;transform:scale\(\.96\)\}\}/,
+  );
+  assert.match(networkSource, /const INTRO_HOLD_MS = 150/);
+  assert.match(networkSource, /const FIT_TRANSITION_MS = 760/);
+  assert.match(networkSource, /const INTRO_END_MS = 940/);
+});
+
 test('Network intro waits for the authoritative slot attempt to settle before YOU-to-fit motion', () => {
   const readinessGate = networkSource.indexOf('if (!inviteSlotsReady) return;');
   const introStart = networkSource.indexOf(
