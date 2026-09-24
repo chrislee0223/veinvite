@@ -303,7 +303,12 @@ function WalletDetailIdentity({
     string | null | undefined
   >(() => readCachedLeaderboardDomain(address));
   const shouldResolveDomain = displayDomain === undefined;
-  const { data: domainInfo, isLoading: domainLoading } = useVechainDomain(
+  const {
+    data: domainInfo,
+    isLoading: domainLoading,
+    isError: domainError,
+    isSuccess: domainSuccess,
+  } = useVechainDomain(
     shouldResolveDomain ? address : undefined,
   );
   const queriedDomain =
@@ -316,12 +321,21 @@ function WalletDetailIdentity({
   }, [address]);
 
   useEffect(() => {
-    if (!shouldResolveDomain || domainLoading) return;
+    if (
+      !shouldResolveDomain ||
+      domainLoading ||
+      domainError ||
+      !domainSuccess
+    ) {
+      return;
+    }
     rememberLeaderboardDomain(address, queriedDomain);
     setDisplayDomain(queriedDomain);
   }, [
     address,
+    domainError,
     domainLoading,
+    domainSuccess,
     queriedDomain,
     shouldResolveDomain,
   ]);
@@ -329,7 +343,7 @@ function WalletDetailIdentity({
   const profileName =
     displayDomain !== undefined
       ? displayDomain
-      : shouldResolveDomain && !domainLoading
+      : shouldResolveDomain && domainSuccess
         ? queriedDomain
         : null;
 
