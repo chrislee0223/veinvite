@@ -83,3 +83,4 @@
 20260924151957 add_sybil_v2_inviter_escalation
 20260924152331 make_inviter_escalation_reinstatement_aware
 20260924161716 add_sybil_v2_inviter_review_flow
+20260924165354 add_sybil_v2_inviter_reinstate
