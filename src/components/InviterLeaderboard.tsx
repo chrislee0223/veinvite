@@ -51,6 +51,10 @@ const RANK_SLOTS = Array.from(
   (_, index) => index + 1,
 );
 
+function maskWallet(address: string): string {
+  return `${address.slice(0, WALLET_PREFIX_LENGTH)}…${address.slice(-WALLET_SUFFIX_LENGTH)}`;
+}
+
 function formatRewardWei(value: string): string {
   if (!/^\d+$/.test(value)) return '0.00';
 
