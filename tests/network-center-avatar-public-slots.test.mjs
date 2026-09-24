@@ -16,6 +16,37 @@ test('My Network root stays at the same coordinate with avatar plus one identity
   assert.doesNotMatch(network, /focusYouLabel/);
 });
 
+test('center ring geometry stays 56px avatar, 60px inner ring, and 74px animated outer ring', () => {
+  assert.match(network, /\.focusNode\{[^}]*width:74px[^}]*height:74px/);
+  assert.match(network, /\.focusCircle\{[^}]*inset:7px[^}]*z-index:2/);
+  assert.match(
+    network,
+    /\.focusNode::before\{[^}]*inset:0[^}]*scale:var\(--network-center-scale,1\)/,
+  );
+  assert.match(
+    network,
+    /\.focusNode::after\{[^}]*inset:0[^}]*background:radial-gradient[^}]*scale:var\(--network-center-scale,1\)/,
+  );
+  assert.match(
+    network,
+    /\.focusNode \.nodeCircle :global\(\.avatarSlot\)[^\n]*56px!important/,
+  );
+
+  assert.match(
+    explorer,
+    /\.publicNode\.root\{[^}]*width:74px[^}]*height:74px[^}]*background:radial-gradient/,
+  );
+  assert.match(
+    explorer,
+    /\.publicNode\.root \.publicAvatar\{[^}]*inset:7px[^}]*width:auto[^}]*height:auto[^}]*position:absolute/,
+  );
+  assert.match(
+    explorer,
+    /\.publicNode\.root \.publicAvatar::after\{[^}]*inset:-7px/,
+  );
+  assert.match(explorer, /size=\{visual\.root \? 56 : 40\}/);
+});
+
 test('public focus slot metadata exposes only empty slot IDs and no invitee details', () => {
   assert.match(publicApi, /readPublicAvailableSlotIds\(focusWallet\)/);
   assert.match(publicApi, /availableSlotIds/);
