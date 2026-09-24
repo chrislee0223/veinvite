@@ -134,6 +134,10 @@ export type SybilV2EvidenceCollectionResult = {
   error: string | null;
 };
 
+export type SybilV2AssessmentMode =
+  | 'EARLY'
+  | 'FINAL';
+
 export type SybilV2AssessmentResult = {
   inviteCode: string;
   state:
@@ -1461,19 +1465,31 @@ async function loadAssessment(inviteCode: string): Promise<AssessmentRow | null>
 async function hasNewEvidenceForCurrentAssessment(
   inviteCode: string,
 ): Promise<boolean> {
-  const { data, error } = await supabaseAdmin
-    .from('operator_sybil_v2_assessment_candidates')
-    .select('invite_code')
-    .eq('invite_code', inviteCode)
-    .maybeSingle();
+  const [earlyResult, finalResult] = await Promise.all([
+    supabaseAdmin
+      .from('operator_sybil_v2_early_assessment_candidates')
+      .select('invite_code')
+      .eq('invite_code', inviteCode)
+      .maybeSingle(),
+    supabaseAdmin
+      .from('operator_sybil_v2_assessment_candidates')
+      .select('invite_code')
+      .eq('invite_code', inviteCode)
+      .maybeSingle(),
+  ]);
 
-  if (error) {
+  if (earlyResult.error) {
     throw new Error(
-      `Sybil v2 reassessment freshness could not be loaded: ${error.message}`,
+      `Sybil v2 early reassessment freshness could not be loaded: ${earlyResult.error.message}`,
+    );
+  }
+  if (finalResult.error) {
+    throw new Error(
+      `Sybil v2 final reassessment freshness could not be loaded: ${finalResult.error.message}`,
     );
   }
 
-  return Boolean(data);
+  return Boolean(earlyResult.data || finalResult.data);
 }
 
 async function recordAssessment({
@@ -1542,8 +1558,14 @@ async function issueClearance(
 
 export async function assessSybilV2Referral(
   inviteCode: string,
+  {
+    mode = 'FINAL',
+  }: {
+    mode?: SybilV2AssessmentMode;
+  } = {},
 ): Promise<SybilV2AssessmentResult> {
   const normalizedCode = inviteCode.trim().toUpperCase();
+  const earlyMode = mode === 'EARLY';
   const invitation = await loadInvitation(normalizedCode);
 
   if (
@@ -1556,9 +1578,11 @@ export async function assessSybilV2Referral(
 
   const currentAssessment = await loadAssessment(normalizedCode);
 
-  // Never let a background worker overwrite an operator HOLD/restriction.
+  // Any HOLD/restriction is durable until an operator explicitly resolves it.
+  // This is especially important for EARLY system HOLDs: later background
+  // stages must not silently clear a referral that is waiting for review.
   if (
-    currentAssessment?.source === 'OPERATOR' &&
+    currentAssessment &&
     ['HOLD', 'RESTRICTED'].includes(currentAssessment.state)
   ) {
     return {
@@ -1587,6 +1611,18 @@ export async function assessSybilV2Referral(
     // The operator cleared the exact evidence set represented by this revision.
     // Keep that decision stable until genuinely newer evidence arrives.
     if (!hasNewEvidence) {
+      if (earlyMode) {
+        return {
+          inviteCode: normalizedCode,
+          state: 'CLEAR',
+          riskScore: 0,
+          reasonCodes: ['OPERATOR_CLEARED'],
+          revision,
+          clearanceIssued: false,
+          clearanceId: null,
+        };
+      }
+
       const clearance = await issueClearance(normalizedCode, revision);
       return {
         inviteCode: normalizedCode,
@@ -1665,9 +1701,11 @@ export async function assessSybilV2Referral(
         finalizedBlock === null
       ),
     activeRestriction,
+    allowEarlyHold: earlyMode,
   });
 
   const evidenceSummary = {
+    assessmentMode: mode,
     signalCount: signals.length,
     signalCodes: unique(signals.map((signal) => signal.code)),
     evidenceFamilies: policy.evidenceFamilies,
@@ -1720,6 +1758,7 @@ export async function assessSybilV2Referral(
   let clearanceId: string | null = null;
 
   if (
+    !earlyMode &&
     revision !== null &&
     (policy.state === 'CLEAR' || policy.state === 'WATCH')
   ) {
@@ -1740,6 +1779,32 @@ export async function assessSybilV2Referral(
     clearanceIssued,
     clearanceId,
   };
+}
+
+export async function assessSybilV2EarlyReferral(
+  inviteCode: string,
+): Promise<SybilV2AssessmentResult | null> {
+  const normalizedCode = inviteCode.trim().toUpperCase();
+  const { data, error } = await supabaseAdmin
+    .from('operator_sybil_v2_early_assessment_candidates')
+    .select('invite_code')
+    .eq('invite_code', normalizedCode)
+    .maybeSingle();
+
+  if (error) {
+    throw new Error(
+      `Sybil v2 early assessment eligibility could not be loaded: ${error.message}`,
+    );
+  }
+
+  if (!data) {
+    return null;
+  }
+
+  return assessSybilV2Referral(
+    normalizedCode,
+    { mode: 'EARLY' },
+  );
 }
 
 export async function ensureSybilV2ReadyForReward(
@@ -1803,6 +1868,73 @@ export async function runSybilV2EvidenceCollectionBatch(
   return {
     attempted: candidates.length,
     completed,
+    failed,
+  };
+}
+
+export async function runSybilV2EarlyAssessmentBatch(
+  limit = 10,
+): Promise<{
+  attempted: number;
+  pending: number;
+  hold: number;
+  restricted: number;
+  skipped: number;
+  failed: number;
+}> {
+  const bounded = Math.max(
+    1,
+    Math.min(MAX_BATCH_SIZE, Math.trunc(limit)),
+  );
+
+  const { data, error } = await supabaseAdmin
+    .from('operator_sybil_v2_early_assessment_candidates')
+    .select('invite_code')
+    .order('priority_at', {
+      ascending: true,
+      nullsFirst: true,
+    })
+    .limit(bounded);
+
+  if (error) {
+    throw new Error(
+      `Sybil v2 early assessment candidates could not be loaded: ${error.message}`,
+    );
+  }
+
+  const candidates = data ?? [];
+  let pending = 0;
+  let hold = 0;
+  let restricted = 0;
+  let skipped = 0;
+  let failed = 0;
+
+  for (const candidate of candidates) {
+    try {
+      const result = await assessSybilV2EarlyReferral(
+        String(candidate.invite_code),
+      );
+
+      if (!result) {
+        skipped += 1;
+      } else if (result.state === 'HOLD') {
+        hold += 1;
+      } else if (result.state === 'RESTRICTED') {
+        restricted += 1;
+      } else {
+        pending += 1;
+      }
+    } catch {
+      failed += 1;
+    }
+  }
+
+  return {
+    attempted: candidates.length,
+    pending,
+    hold,
+    restricted,
+    skipped,
     failed,
   };
 }
