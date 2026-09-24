@@ -563,6 +563,10 @@ test('Network center intro hands off to breathing without a restart jump', () =>
   assert.match(networkSource, /const INTRO_HOLD_MS = 150/);
   assert.match(networkSource, /const FIT_TRANSITION_MS = 760/);
   assert.match(networkSource, /const INTRO_END_MS = 940/);
+  assert.match(
+    networkSource,
+    /introEndTimerRef\.current = window\.setTimeout\(\(\) => \{[\s\S]*?setIntroActive\(false\);[\s\S]*?\}, INTRO_END_MS\);/,
+  );
 });
 
 test('Network intro waits for the authoritative slot attempt to settle before YOU-to-fit motion', () => {
