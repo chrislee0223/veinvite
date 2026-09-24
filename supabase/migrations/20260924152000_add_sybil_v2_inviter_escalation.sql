@@ -31,6 +31,8 @@ create index if not exists sybil_v2_inviter_incidents_wallet_time_idx
   on public.sybil_v2_inviter_incidents(network, inviter_wallet, recorded_at desc);
 create index if not exists sybil_v2_inviter_incidents_restriction_idx
   on public.sybil_v2_inviter_incidents(restriction_id);
+create index if not exists sybil_v2_inviter_incidents_invite_idx
+  on public.sybil_v2_inviter_incidents(invite_code);
 
 alter table public.sybil_v2_inviter_incidents enable row level security;
 revoke all on public.sybil_v2_inviter_incidents from public, anon, authenticated;
