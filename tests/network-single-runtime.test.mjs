@@ -221,7 +221,7 @@ test('group builder is compact, edge-safe, animated, and keeps collapsed hubs vi
   assert.match(networkSource, /GROUP_DROP_HIT_SLOP_Y = 14/);
   assert.match(networkSource, /className=\{\`groupDropZone\$\{groupDropActive \? ' active' : ''\}/);
   assert.match(networkSource, /\.groupDropZone\{min-height:42px[\s\S]*grid-template-columns:auto minmax\(0,1fr\) auto/);
-  assert.match(networkSource, /\.groupsPanel,\.groupBuilder\{[^}]*left:auto;right:0/);
+  assert.match(networkSource, /\.groupsPanel,\.groupBuilder\{[^}]*inset-inline-start:auto;inset-inline-end:0/);
   assert.match(networkSource, /\.groupBuilder>input\{[^}]*font-size:16px/);
   assert.match(networkSource, /\.groupNode\.created\{animation:groupHubIn/);
   assert.match(networkSource, /\.personNode\.restoring\{animation:groupNodeRestore/);
