@@ -29,8 +29,13 @@ const CRITICAL_STATE_IDS = [
   'HOME-SLOTS-FULL',
   'REWARD-AWAITING-CLAIM',
   'NOTI-HISTORY-OPEN',
+  'NOTI-SECURITY-REVIEW',
+  'NOTI-SECURITY-RESTRICTED',
   'SETTINGS-LANGUAGE-OPEN',
   'LEADERBOARD-LIST',
+  'NETWORK-I18N-MY',
+  'NETWORK-I18N-GROUPS',
+  'NETWORK-I18N-PUBLIC',
 ] as const;
 
 async function settleVisualPage(page: Page): Promise<void> {
@@ -174,6 +179,23 @@ for (const locale of HIGH_RISK_LOCALES) {
   }
 }
 
+
+
+
+for (const locale of SUPPORTED_LOCALES) {
+  test(`all-locale Network group layout: ${locale}`, async ({ page }, testInfo) => {
+    await page.setViewportSize(MOBILE_VIEWPORT);
+    await page.goto(
+      `/qa/state?state=NETWORK-I18N-GROUPS&locale=${encodeURIComponent(locale)}`,
+      { waitUntil: 'domcontentloaded', timeout: 12_000 },
+    );
+    await captureAndAssert(
+      page,
+      testInfo,
+      `NETWORK-I18N-GROUPS-${locale}-mobile`,
+    );
+  });
+}
 
 for (const locale of ['de', 'ur', 'ar', 'cs'] as const satisfies readonly SupportedLocale[]) {
   test(`wide-mobile notification header: ${locale}`, async ({ page }, testInfo) => {

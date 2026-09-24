@@ -137,6 +137,8 @@ export const QA_KNOWN_STATES: QaKnownState[] = [
   knownState({ id: 'NOTI-REWARD-READY', label: '보상 예약 완료 강조 알림', area: '알림', lifecycle: 'production', coverage: 'partial', kind: 'overlay', priority: 'critical', userVisible: true, sourcePaths: [notifications, notificationSurface], scenarioIds: ['notification-preview'] }),
   knownState({ id: 'NOTI-REWARD-PAID', label: '보상 지급 완료 강조 알림', area: '알림', lifecycle: 'production', coverage: 'partial', kind: 'overlay', priority: 'critical', userVisible: true, sourcePaths: [notifications, notificationSurface], scenarioIds: ['notification-preview'] }),
   knownState({ id: 'NOTI-INELIGIBLE', label: '친구 참여 조건 미충족 알림', area: '알림', lifecycle: 'production', coverage: 'partial', kind: 'overlay', priority: 'critical', userVisible: true, sourcePaths: [notifications, notificationSurface], scenarioIds: ['notification-preview'] }),
+  knownState({ id: 'NOTI-SECURITY-REVIEW', label: '추가 보안 확인 알림', area: '알림', lifecycle: 'production', coverage: 'missing', kind: 'screen', priority: 'critical', userVisible: true, sourcePaths: [notifications, notificationHistory], scenarioIds: [] }),
+  knownState({ id: 'NOTI-SECURITY-RESTRICTED', label: '향후 VeInvite 참여 제한 알림', area: '알림', lifecycle: 'production', coverage: 'missing', kind: 'screen', priority: 'critical', userVisible: true, sourcePaths: [notifications, notificationHistory], scenarioIds: [] }),
   knownState({ id: 'NOTI-ACK-BUSY', label: '알림 확인 처리 중', area: '알림', lifecycle: 'production', coverage: 'partial', kind: 'feedback', priority: 'high', userVisible: true, sourcePaths: [notifications, notificationSurface], scenarioIds: ['notification-preview'] }),
   knownState({ id: 'NOTI-ACK-ERROR', label: '알림 확인 실패', area: '알림', lifecycle: 'production', coverage: 'partial', kind: 'feedback', priority: 'high', userVisible: true, sourcePaths: [notifications, notificationSurface], scenarioIds: ['notification-preview'] }),
 
@@ -178,6 +180,13 @@ export const QA_KNOWN_STATES: QaKnownState[] = [
   knownState({ id: 'LEADERBOARD-MOVE-SAME', label: '순위 변동 없음 표시', area: '리더보드', lifecycle: 'production', coverage: 'missing', kind: 'feedback', priority: 'normal', userVisible: true, sourcePaths: [leaderboard], scenarioIds: [] }),
   knownState({ id: 'LEADERBOARD-WALLET-DETAIL', label: '지갑 상세 팝업', area: '리더보드', lifecycle: 'production', coverage: 'partial', kind: 'overlay', priority: 'high', userVisible: true, sourcePaths: [leaderboard], scenarioIds: ['existing-preview-hub'] }),
   knownState({ id: 'LEADERBOARD-IMPACT-DETAIL', label: '신규/복귀 영향 상세 팝업', area: '리더보드', lifecycle: 'production', coverage: 'partial', kind: 'overlay', priority: 'high', userVisible: true, sourcePaths: [leaderboard], scenarioIds: ['existing-preview-hub'] }),
+
+  // Production Network multilingual geometry QA. These states use a QA-only
+  // presentation harness with the same production copy and critical dimensions;
+  // they never call wallet, Network API, database, reward, or Sybil paths.
+  knownState({ id: 'NETWORK-I18N-MY', label: '내 Network 다국어 핵심 상태', area: '추천 네트워크', lifecycle: 'production', coverage: 'missing', kind: 'screen', priority: 'high', userVisible: true, sourcePaths: ['src/components/AppNetwork.tsx'], scenarioIds: [] }),
+  knownState({ id: 'NETWORK-I18N-GROUPS', label: 'Network 그룹 패널 다국어', area: '추천 네트워크', lifecycle: 'production', coverage: 'missing', kind: 'overlay', priority: 'high', userVisible: true, sourcePaths: ['src/components/AppNetwork.tsx'], scenarioIds: [] }),
+  knownState({ id: 'NETWORK-I18N-PUBLIC', label: '친구/Public Network 다국어', area: '추천 네트워크', lifecycle: 'production', coverage: 'missing', kind: 'screen', priority: 'high', userVisible: true, sourcePaths: ['src/components/PublicNetworkExplorer.tsx'], scenarioIds: [] }),
 
   // Future feature kept separate from current Production denominator.
   knownState({ id: 'NETWORK-CANVAS', label: '2-slot 추천 네트워크 캔버스', area: '추천 네트워크', lifecycle: 'future', coverage: 'direct', kind: 'screen', priority: 'normal', userVisible: true, sourcePaths: ['src/components/InfiniteReferralCanvasPreview.tsx'], scenarioIds: ['network-preview'] }),

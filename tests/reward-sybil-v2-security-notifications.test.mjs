@@ -105,3 +105,41 @@ test('notification UI renders both security event kinds', async () => {
     /SECURITY_NOTIFICATION_COPY/u,
   );
 });
+
+
+test('security history events remain warm-cache compatible and directly QA-renderable', async () => {
+  const [
+    notifications,
+    harness,
+    review,
+    directCoverage,
+    registry,
+  ] = await Promise.all([
+    readFile('src/components/InAppInviteNotifications.tsx', 'utf8'),
+    readFile('src/qa/QaNotificationStateHarness.tsx', 'utf8'),
+    readFile('src/qa/QaNotificationI18nReview.tsx', 'utf8'),
+    readFile('src/qa/directStateCoverage.ts', 'utf8'),
+    readFile('src/qa/stateRegistry.ts', 'utf8'),
+  ]);
+
+  for (const kind of [
+    'SECURITY_REVIEW_STARTED',
+    'SECURITY_RESTRICTION_CONFIRMED',
+  ]) {
+    assert.match(
+      notifications,
+      new RegExp(`NOTIFICATION_HISTORY_KINDS[\\s\\S]*'${kind}'`, 'u'),
+      `warm history cache must accept ${kind}`,
+    );
+  }
+
+  for (const stateId of [
+    'NOTI-SECURITY-REVIEW',
+    'NOTI-SECURITY-RESTRICTED',
+  ]) {
+    assert.ok(harness.includes(stateId), `QA harness is missing ${stateId}`);
+    assert.ok(review.includes(stateId), `i18n review is missing ${stateId}`);
+    assert.ok(directCoverage.includes(stateId), `direct QA coverage is missing ${stateId}`);
+    assert.ok(registry.includes(stateId), `QA registry is missing ${stateId}`);
+  }
+});

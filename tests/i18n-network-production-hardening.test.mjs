@@ -2,12 +2,14 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import test from 'node:test';
 
-const [route, runtime, network, identity, controls, migration, rollout] = await Promise.all([
+const [route, runtime, network, publicNetwork, identity, controls, exploreCopy, migration, rollout] = await Promise.all([
   readFile(new URL('../src/app/api/network/route.ts', import.meta.url), 'utf8'),
   readFile(new URL('../src/lib/networkRuntimeServer.ts', import.meta.url), 'utf8'),
   readFile(new URL('../src/components/AppNetwork.tsx', import.meta.url), 'utf8'),
+  readFile(new URL('../src/components/PublicNetworkExplorer.tsx', import.meta.url), 'utf8'),
   readFile(new URL('../src/components/NetworkWalletIdentity.tsx', import.meta.url), 'utf8'),
   readFile(new URL('../src/lib/i18n/networkCanvasControlCopy.ts', import.meta.url), 'utf8'),
+  readFile(new URL('../src/lib/i18n/networkExploreCopy.ts', import.meta.url), 'utf8'),
   readFile(new URL('../supabase/migrations/20260909040000_harden_network_runtime_and_round_context.sql', import.meta.url), 'utf8'),
   readFile(new URL('../supabase/migrations/20260909040500_stage_network_runtime_disabled_for_rollout.sql', import.meta.url), 'utf8'),
 ]);
@@ -99,6 +101,37 @@ test('Network canvas controls are localized for every supported locale and the g
   assert.match(network, /className="groupBuilder"[^>]*dir=\{profileDirection\}/i);
   assert.match(network, /profileDirection === 'rtl' \? '›' : '‹'/i);
   assert.doesNotMatch(network, /direction:\s*rtl[^}]*\.world/i);
+});
+
+
+
+test('Production Network uses grammar-safe count copy and logical RTL overlay geometry', () => {
+  assert.doesNotMatch(network, /\{[^\n}]*\.length\}\s*\{w\.members\}/u);
+  assert.doesNotMatch(network, /w\.members/u);
+  assert.match(network, /u\.peopleCount\.replace\('\{count\}', String\(/u);
+  assert.match(network, /u\.savedCount\.replace\('\{count\}', String\(/u);
+
+  for (const source of [network, publicNetwork]) {
+    assert.match(source, /\.breadcrumbs\{[^}]*inset-inline-start:8px/u);
+    assert.match(source, /\.parentReturn\{[^}]*inset-inline-start:8px/u);
+    assert.doesNotMatch(source, /\.breadcrumbs\{[^}]*\bleft:8px/u);
+    assert.doesNotMatch(source, /\.parentReturn\{[^}]*\bleft:8px/u);
+    assert.match(source, /profileDirection === 'rtl' \? '‹' : '›'/u);
+  }
+
+  assert.match(network, /\.compactControls\{[^}]*margin-inline-start:auto/u);
+  assert.doesNotMatch(network, /\.compactControls\{[^}]*margin-left:auto/u);
+  assert.match(publicNetwork, /\.domainSuggestionIdentity\{[^}]*text-align:start/u);
+});
+
+test('reviewed public Network terminology stays consistent in Korean and Hausa', () => {
+  assert.match(exploreCopy, /ko:\s*\{[^\n]*visibleNetwork:'공개 네트워크'/u);
+  assert.match(exploreCopy, /ha:\s*\{[^\n]*myNetwork:'Cibiyata'/u);
+  assert.match(exploreCopy, /ha:\s*\{[^\n]*visibleNetwork:'Cibiyar sadarwar jama’a'/u);
+  assert.doesNotMatch(
+    exploreCopy,
+    /ha:\s*\{[^\n]*(?:Public network|Network dina|Bincika network)/u,
+  );
 });
 
 test('profile images do not forward the app referrer', () => {
