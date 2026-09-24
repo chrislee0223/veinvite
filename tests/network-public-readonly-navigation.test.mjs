@@ -266,7 +266,10 @@ test('viewed root center de-duplicates the top-left network total', () => {
   assert.match(publicExplorer, /rootIdentityOnly/);
 });
 
-test('prominent center identities bypass stale session-domain cache once per address', () => {
-  assert.match(networkIdentity, /\(\) => root \? undefined : readCachedLeaderboardDomain\(address\)/);
-  assert.match(networkIdentity, /setDisplayDomain\(root \? undefined : readCachedLeaderboardDomain\(address\)\)/);
+test('prominent center identities preserve verified display state while revalidating VeWorld data', () => {
+  assert.match(networkIdentity, /root \|\|/);
+  assert.match(networkIdentity, /displayDomain === undefined/);
+  assert.match(networkIdentity, /displayDomain === null && Boolean\(displayUrl\)/);
+  assert.match(networkIdentity, /setDisplayDomain\(readCachedLeaderboardDomain\(address\)\)/);
+  assert.match(networkIdentity, /readCachedProfileAvatar\(address\)/);
 });
