@@ -2,6 +2,13 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import test from 'node:test';
 
+import {
+  INVITER_SECURITY_NOTIFICATION_COPY,
+} from '../src/lib/i18n/inviterSecurityNotificationCopy.ts';
+import {
+  SUPPORTED_LOCALES,
+} from '../src/lib/i18n/locales.ts';
+
 const migrationPath =
   'supabase/migrations/20260924172000_add_sybil_v2_inviter_notifications.sql';
 
@@ -66,41 +73,95 @@ test('operator monitoring warns on WATCH and keeps HOLD review alerts', async ()
   assert.match(sql, /'SYBIL_V2_INVITER_REVIEW_OVER_48H'/u);
 });
 
-test('UI renders all inviter security lifecycle kinds', async () => {
-  const source = await readFile(
-    'src/components/UnifiedInviteNotificationHistoryCenter.tsx',
-    'utf8',
-  );
+test('history UI and live surface render all inviter security lifecycle kinds', async () => {
+  const [history, surface] = await Promise.all([
+    readFile(
+      'src/components/UnifiedInviteNotificationHistoryCenter.tsx',
+      'utf8',
+    ),
+    readFile(
+      'src/components/InviteNotificationSurfaceV2.tsx',
+      'utf8',
+    ),
+  ]);
 
-  assert.match(source, /INVITER_SECURITY_NOTIFICATION_COPY/u);
-  assert.match(source, /case 'SECURITY_INVITER_WATCH'/u);
-  assert.match(source, /case 'SECURITY_INVITER_HOLD'/u);
-  assert.match(source, /case 'SECURITY_INVITER_RESTRICTED'/u);
-  assert.match(source, /case 'SECURITY_INVITER_ACCESS_RESTORED'/u);
+  for (const source of [history, surface]) {
+    assert.match(source, /INVITER_SECURITY_NOTIFICATION_COPY/u);
+    assert.match(source, /SECURITY_INVITER_WATCH/u);
+    assert.match(source, /SECURITY_INVITER_HOLD/u);
+    assert.match(source, /SECURITY_INVITER_RESTRICTED/u);
+    assert.match(source, /SECURITY_INVITER_ACCESS_RESTORED/u);
+  }
 });
 
-test('localized inviter security copy covers every supported locale structurally', async () => {
+test('warm notification cache accepts every inviter security lifecycle kind', async () => {
   const source = await readFile(
-    'src/lib/i18n/inviterSecurityNotificationCopy.ts',
+    'src/components/InAppInviteNotifications.tsx',
     'utf8',
   );
 
-  assert.match(
-    source,
-    /Record<[\s\S]*SupportedLocale,[\s\S]*InviterSecurityNotificationCopy/u,
-  );
-  for (const field of [
-    'watchTitle',
-    'watchBody',
-    'holdTitle',
-    'holdBody',
-    'restrictedTitle',
-    'restrictedBody',
-    'restoredTitle',
-    'restoredBody',
+  for (const kind of [
+    'SECURITY_INVITER_WATCH',
+    'SECURITY_INVITER_HOLD',
+    'SECURITY_INVITER_RESTRICTED',
+    'SECURITY_INVITER_ACCESS_RESTORED',
   ]) {
-    assert.match(source, new RegExp(field, 'u'));
+    assert.match(
+      source,
+      new RegExp(`NOTIFICATION_HISTORY_KINDS[\\s\\S]*'${kind}'`, 'u'),
+    );
   }
-  assert.match(source, /현재 VeInvite 이용 제한은 없으며/u);
-  assert.match(source, /이미 지급된 보상은 변경되지 않아요/u);
+});
+
+test('localized inviter security copy covers every supported locale', () => {
+  for (const locale of SUPPORTED_LOCALES) {
+    const copy = INVITER_SECURITY_NOTIFICATION_COPY[locale];
+    assert.ok(copy, `missing inviter security copy for ${locale}`);
+
+    for (const field of [
+      'watchTitle',
+      'watchBody',
+      'holdTitle',
+      'holdBody',
+      'restrictedTitle',
+      'restrictedBody',
+      'restoredTitle',
+      'restoredBody',
+    ]) {
+      assert.ok(
+        typeof copy[field] === 'string' && copy[field].trim().length > 0,
+        `missing ${field} for ${locale}`,
+      );
+    }
+  }
+
+  assert.match(
+    INVITER_SECURITY_NOTIFICATION_COPY.ko.watchBody,
+    /현재 VeInvite 이용 제한은 없으며/u,
+  );
+  assert.match(
+    INVITER_SECURITY_NOTIFICATION_COPY.ko.holdBody,
+    /이미 지급된 보상은 변경되지 않아요/u,
+  );
+});
+
+test('all inviter security notification states are directly QA-renderable', async () => {
+  const [harness, review, directCoverage, registry] = await Promise.all([
+    readFile('src/qa/QaNotificationStateHarness.tsx', 'utf8'),
+    readFile('src/qa/QaNotificationI18nReview.tsx', 'utf8'),
+    readFile('src/qa/directStateCoverage.ts', 'utf8'),
+    readFile('src/qa/stateRegistry.ts', 'utf8'),
+  ]);
+
+  for (const stateId of [
+    'NOTI-INVITER-WATCH',
+    'NOTI-INVITER-HOLD',
+    'NOTI-INVITER-RESTRICTED',
+    'NOTI-INVITER-RESTORED',
+  ]) {
+    assert.ok(harness.includes(stateId), `QA harness missing ${stateId}`);
+    assert.ok(review.includes(stateId), `i18n review missing ${stateId}`);
+    assert.ok(directCoverage.includes(stateId), `direct coverage missing ${stateId}`);
+    assert.ok(registry.includes(stateId), `state registry missing ${stateId}`);
+  }
 });
