@@ -43,6 +43,9 @@ type ReviewRow = {
   inviter_escalation_reason_codes: unknown;
   inviter_escalation_latest_incident_at: string | null;
   inviter_escalation_latest_incident_id: string | null;
+  inviter_active_restriction_id: string | null;
+  inviter_active_restriction_reason_codes: unknown;
+  inviter_active_restriction_imposed_at: string | null;
 };
 
 type ReviewEvent = {
@@ -110,7 +113,17 @@ type ReviewDetailResponse = {
   postPayoutReview?: PostPayoutReview | null;
   postPayoutReviewEvents?: unknown[];
   v2Evidence?: V2Evidence[];
+  activeInviterRestriction?: {
+    restriction_id: string;
+    network: string;
+    inviter_wallet: string;
+    reason_codes: unknown;
+    evidence_summary: unknown;
+    related_invite_code: string;
+    imposed_at: string;
+  } | null;
   reviewMode?:
+    | 'INVITER_RESTRICTION'
     | 'INVITER'
     | 'POST_PAYOUT'
     | 'V2'
@@ -156,7 +169,7 @@ type OnchainPostResponse = {
   transfersPerformed: false;
 };
 
-type Decision = 'CLEAR' | 'BLOCKED';
+type Decision = 'CLEAR' | 'BLOCKED' | 'REINSTATE';
 
 const REVIEW_API = '/api/admin/sybil/review';
 const ONCHAIN_API = '/api/admin/sybil/onchain';
@@ -417,6 +430,8 @@ export default function SybilReviewPage() {
       return;
     }
 
+    const isInviterRestriction =
+      detail.reviewMode === 'INVITER_RESTRICTION';
     const isInviter =
       detail.reviewMode === 'INVITER';
     const isPostPayout =
@@ -442,6 +457,7 @@ export default function SybilReviewPage() {
     }
 
     if (
+      !isInviterRestriction &&
       !isInviter &&
       !isPostPayout &&
       !isV2 &&
@@ -449,6 +465,16 @@ export default function SybilReviewPage() {
     ) {
       setError(
         '기존 Sybil 검토 시점을 확인할 수 없습니다. 새로고침 후 다시 시도해 주세요. / The legacy review timestamp is unavailable.',
+      );
+      return;
+    }
+
+    if (
+      isInviterRestriction &&
+      !invitation.inviter_active_restriction_id
+    ) {
+      setError(
+        '활성 초대자 제한 ID를 확인할 수 없습니다. 새로고침 후 다시 시도해 주세요. / The active inviter restriction id is unavailable.',
       );
       return;
     }
@@ -477,16 +503,20 @@ export default function SybilReviewPage() {
     }
 
     const label =
-      decision === 'CLEAR'
-        ? '승인(CLEAR)'
-        : isInviter
+      decision === 'REINSTATE'
+        ? '제한 해제(REINSTATE)'
+        : decision === 'CLEAR'
+          ? '승인(CLEAR)'
+          : isInviter
           ? '초대자 제한(RESTRICT)'
           : isPostPayout || isV2
             ? '블랙리스트(BLACKLIST)'
             : '차단(BLOCKED)';
 
-    const confirmMessage = isInviter
-      ? decision === 'CLEAR'
+    const confirmMessage = isInviterRestriction
+      ? `${invitation.invite_code} 기준 초대자 제한을 REINSTATE할까요? 과거 사건·보상 기록은 유지되고 이 초대자의 향후 VeInvite 참여 제한만 해제됩니다.`
+      : isInviter
+        ? decision === 'CLEAR'
         ? `${invitation.invite_code} 기준 초대자 HOLD를 CLEAR할까요? 현재까지의 사건 기록은 감사용으로 유지되며, 새로운 파밍 사건이 확인되면 다시 HOLD될 수 있습니다.`
         : `${invitation.invite_code} 기준 초대자를 RESTRICT할까요? 과거 보상은 변경하지 않고 이 초대자 지갑의 향후 VeInvite 참여만 제한합니다.`
       : isPostPayout
@@ -522,14 +552,20 @@ export default function SybilReviewPage() {
             isInviter
               ? invitation.inviter_escalation_latest_incident_id
               : undefined,
+          expectedInviterRestrictionId:
+            isInviterRestriction
+              ? invitation.inviter_active_restriction_id
+              : undefined,
         }),
       });
 
       await readJson<{ invitation: ReviewRow }>(response);
 
       setMessage(
-        isInviter
-          ? decision === 'CLEAR'
+        isInviterRestriction
+          ? '초대자 제한을 해제했습니다. 과거 사건·보상 기록은 변경되지 않고 향후 VeInvite 참여 제한만 해제됩니다. / Inviter restriction reinstated; historical incidents and past rewards remain unchanged.'
+          : isInviter
+            ? decision === 'CLEAR'
             ? '초대자 HOLD를 해제했습니다. 현재 사건 기록은 감사용으로 유지되며 새로운 파밍 사건이 생기면 다시 검토됩니다. / Inviter HOLD cleared; the current incident history remains for audit and new abuse can reopen review.'
             : '초대자 제한을 확정했습니다. 과거 보상은 변경되지 않고 이 지갑의 향후 VeInvite 참여만 제한됩니다. / Inviter restriction confirmed; past rewards remain unchanged and only future VeInvite participation is restricted.'
           : isPostPayout
@@ -1000,31 +1036,46 @@ export default function SybilReviewPage() {
                         />
                       </label>
                       <div className="decisionButtons">
-                        <button
-                          type="button"
-                          className="clear"
-                          disabled={!actionReady}
-                          onClick={() => void resolveReview('CLEAR')}
-                        >
-                          승인 / CLEAR
-                        </button>
-                        <button
-                          type="button"
-                          className="block"
-                          disabled={!actionReady}
-                          onClick={() => void resolveReview('BLOCKED')}
-                        >
-                          {detail?.reviewMode === 'INVITER'
-                            ? '초대자 제한 / RESTRICT'
-                            : detail?.reviewMode === 'V2' ||
-                              detail?.reviewMode === 'POST_PAYOUT'
-                              ? '블랙리스트 / BLACKLIST'
-                              : '차단 / BLOCK'}
-                        </button>
+                        {detail?.reviewMode === 'INVITER_RESTRICTION' ? (
+                          <button
+                            type="button"
+                            className="clear"
+                            disabled={!actionReady}
+                            onClick={() => void resolveReview('REINSTATE')}
+                          >
+                            제한 해제 / REINSTATE
+                          </button>
+                        ) : (
+                          <>
+                            <button
+                              type="button"
+                              className="clear"
+                              disabled={!actionReady}
+                              onClick={() => void resolveReview('CLEAR')}
+                            >
+                              승인 / CLEAR
+                            </button>
+                            <button
+                              type="button"
+                              className="block"
+                              disabled={!actionReady}
+                              onClick={() => void resolveReview('BLOCKED')}
+                            >
+                              {detail?.reviewMode === 'INVITER'
+                                ? '초대자 제한 / RESTRICT'
+                                : detail?.reviewMode === 'V2' ||
+                                  detail?.reviewMode === 'POST_PAYOUT'
+                                  ? '블랙리스트 / BLACKLIST'
+                                  : '차단 / BLOCK'}
+                            </button>
+                          </>
+                        )}
                       </div>
                       <p className="note">
-                        {detail?.reviewMode === 'INVITER'
-                          ? 'INVITER CLEAR는 현재 반복 파밍 HOLD를 해제하지만 사건 기록은 감사용으로 유지합니다. 새 사건이 발생하면 다시 HOLD될 수 있습니다. RESTRICT는 과거 보상은 건드리지 않고 초대자 지갑의 향후 VeInvite 참여만 제한합니다.'
+                        {detail?.reviewMode === 'INVITER_RESTRICTION'
+                          ? 'REINSTATE는 초대자의 향후 VeInvite 참여 제한만 해제합니다. 과거 사건 기록·운영자 결정·이미 지급된 보상은 변경하지 않습니다.'
+                          : detail?.reviewMode === 'INVITER'
+                            ? 'INVITER CLEAR는 현재 반복 파밍 HOLD를 해제하지만 사건 기록은 감사용으로 유지합니다. 새 사건이 발생하면 다시 HOLD될 수 있습니다. RESTRICT는 과거 보상은 건드리지 않고 초대자 지갑의 향후 VeInvite 참여만 제한합니다.'
                           : detail?.reviewMode === 'POST_PAYOUT'
                             ? 'POST_PAYOUT CLEAR는 사후 의심을 해제합니다. POST_PAYOUT BLACKLIST는 이미 지급된 보상은 그대로 두고 해당 보상 수령자 지갑의 향후 VeInvite 참여만 제한합니다.'
                             : detail?.reviewMode === 'V2'
