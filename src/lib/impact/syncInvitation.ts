@@ -14,6 +14,7 @@ import {
   type SybilStatus,
 } from '@/lib/sybil/risk';
 import {
+  assessSybilV2EarlyReferral,
   ensureSybilV2ReadyForReward,
 } from '@/lib/sybil/v2/pipeline';
 import {
@@ -1041,6 +1042,27 @@ export async function syncInvitationEvidence(
     row.impact_last_synced_at;
   impactSyncCompleteAt =
     row.impact_sync_complete_at;
+
+  try {
+    // Fast path: the service-only candidate view returns null when this
+    // referral has no new cluster evidence. This gives active users an
+    // additional early-review checkpoint during normal mission sync without
+    // coupling mission progress to the final reward clearance.
+    await assessSybilV2EarlyReferral(
+      row.invite_code,
+    );
+  } catch (earlySybilError) {
+    // Early review is defense-in-depth. A transient error must not break
+    // mission progress; Queue/cron recovery and the final fail-closed reward
+    // gate remain authoritative.
+    console.error(
+      'Sybil v2 early assessment failed during invitation sync:',
+      {
+        inviteCode: row.invite_code,
+        error: earlySybilError,
+      },
+    );
+  }
 
   const becameRewardEligible =
     initial.reward_status !== 'ELIGIBLE' &&
