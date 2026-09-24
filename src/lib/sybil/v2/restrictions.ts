@@ -21,7 +21,8 @@ export type ActiveSybilV2Restriction = {
   restriction_kind:
     | 'BLACKLIST'
     | 'PRE_CLAIM_HOLD'
-    | 'POST_PAYOUT_HOLD';
+    | 'POST_PAYOUT_HOLD'
+    | 'INVITER_ESCALATION_HOLD';
   reason_codes: unknown;
   evidence_summary: unknown;
   related_invite_code: string | null;
