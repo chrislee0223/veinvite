@@ -64,7 +64,12 @@ export const NetworkWalletIdentity = memo(function NetworkWalletIdentity({
     () => readCachedLeaderboardDomain(address),
   );
   const shouldResolveDomain =
-    shouldLoad && (root || displayDomain === undefined);
+    shouldLoad &&
+    (
+      root ||
+      displayDomain === undefined ||
+      (displayDomain === null && Boolean(displayUrl))
+    );
   const {
     data: domainInfo,
     isLoading: domainLoading,
@@ -231,6 +236,11 @@ export const NetworkWalletIdentity = memo(function NetworkWalletIdentity({
             draggable={false}
             onDragStart={(event) => event.preventDefault()}
             onContextMenu={(event) => event.preventDefault()}
+            onError={() => {
+              if (!displayUrl) return;
+              setDisplayUrl(null);
+              setShowFallback(true);
+            }}
             style={{
               ...NON_INTERACTIVE_IMAGE_STYLE,
               width: resolvedSize,
