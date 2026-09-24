@@ -26,15 +26,27 @@ const REVIEW_STATES: Array<{
   id: QaNotificationStateId;
   label: string;
 }> = [
+  { id: 'NOTI-BELL-EMPTY', label: '알림 없음' },
+  { id: 'NOTI-BELL-UNREAD', label: '읽지 않은 알림 배지' },
   { id: 'NOTI-HISTORY-OPEN', label: '알림 이력 · 혼합' },
-  { id: 'NOTI-HISTORY-UNREAD', label: '읽지 않은 알림' },
+  { id: 'NOTI-HISTORY-LOADING', label: '알림 이력 · 로딩' },
+  { id: 'NOTI-HISTORY-ERROR', label: '알림 이력 · 오류' },
   { id: 'NOTI-HISTORY-READ', label: '읽은 지급 알림' },
+  { id: 'NOTI-HISTORY-UNREAD', label: '읽지 않은 알림' },
   { id: 'NOTI-HISTORY-MORE', label: '과거 알림 더 보기' },
-  { id: 'NOTI-HISTORY-LOADING', label: '로딩' },
-  { id: 'NOTI-HISTORY-ERROR', label: '오류' },
-  { id: 'NOTI-INELIGIBLE', label: '참여 불가 알림' },
+  { id: 'NOTI-INVITE-ACCEPTED', label: '초대 수락' },
+  { id: 'NOTI-DAPP-1', label: 'dApp 1/3' },
+  { id: 'NOTI-DAPP-2', label: 'dApp 2/3' },
+  { id: 'NOTI-DAPP-3', label: 'dApp 3/3' },
+  { id: 'NOTI-VOT3', label: 'VOT3 전환 완료' },
+  { id: 'NOTI-COLLAPSED-PROGRESS', label: '여러 단계 동시 확인' },
   { id: 'NOTI-REWARD-READY', label: '보상 준비 알림' },
   { id: 'NOTI-REWARD-PAID', label: '보상 지급 알림' },
+  { id: 'NOTI-INELIGIBLE', label: '참여 불가 알림' },
+  { id: 'NOTI-SECURITY-REVIEW', label: '보안 추가 확인' },
+  { id: 'NOTI-SECURITY-RESTRICTED', label: '향후 참여 제한' },
+  { id: 'NOTI-ACK-BUSY', label: '알림 확인 처리 중' },
+  { id: 'NOTI-ACK-ERROR', label: '알림 확인 실패' },
 ];
 
 const STRESS_LOCALES: SupportedLocale[] = [
