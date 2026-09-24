@@ -94,3 +94,27 @@ test('runtime restriction type recognizes inviter escalation hold', async () => 
     /operator_sybil_v2_temporary_participation_holds/u,
   );
 });
+
+
+test('reinstated restrictions stop counting without deleting incident history', async () => {
+  const sql = await readFile(
+    'supabase/migrations/20260924153500_make_inviter_escalation_reinstatement_aware.sql',
+    'utf8',
+  );
+
+  assert.match(
+    sql,
+    /join public\.sybil_v2_wallet_restrictions r/u,
+  );
+  assert.match(sql, /r\.id = i\.restriction_id/u);
+  assert.match(sql, /r\.status = 'ACTIVE'/u);
+  assert.match(sql, /'activeRestrictionsOnly', true/u);
+  assert.doesNotMatch(
+    sql,
+    /delete\s+from\s+public\.sybil_v2_inviter_incidents/iu,
+  );
+  assert.doesNotMatch(
+    sql,
+    /update\s+public\.sybil_v2_inviter_incidents/iu,
+  );
+});
