@@ -142,3 +142,44 @@ test('clearing an early HOLD never queues a reward before completion', async () 
     /decision === 'CLEAR'[\s\S]*before\.status === 'COMPLETED'[\s\S]*before\.reward_status === 'ELIGIBLE'[\s\S]*await enqueueClearedReward\(inviteCode\)/u,
   );
 });
+
+
+test('operator-cleared early evidence is suppressed at final unless the cluster changes', async () => {
+  const source = await readFile(
+    'src/lib/sybil/v2/pipeline.ts',
+    'utf8',
+  );
+
+  assert.match(
+    source,
+    /OPERATOR_CLEARED_EARLY_FAMILIES/u,
+  );
+  assert.match(
+    source,
+    /operatorClearedEarlyBaseline && !earlyMode/u,
+  );
+  assert.match(
+    source,
+    /!OPERATOR_CLEARED_EARLY_FAMILIES\.has\(signal\.family\)/u,
+  );
+  assert.match(
+    source,
+    /hasNewEarlyClusterEvidence/u,
+  );
+});
+
+test('operator early CLEAR survives transient incomplete final checks', async () => {
+  const source = await readFile(
+    'src/lib/sybil/v2/pipeline.ts',
+    'utf8',
+  );
+
+  assert.match(
+    source,
+    /OPERATOR_CLEARED_AWAITING_FINAL_CHECKS/u,
+  );
+  assert.match(
+    source,
+    /operatorClearedEarlyBaseline[\s\S]*!requiredChecksComplete[\s\S]*clearanceIssued: false/u,
+  );
+});
