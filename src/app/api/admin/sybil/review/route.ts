@@ -89,6 +89,16 @@ type InviterReviewCandidateRow = {
   latest_incident_id: string;
 };
 
+type ActiveInviterRestrictionRow = {
+  restriction_id: string;
+  network: string;
+  inviter_wallet: string;
+  reason_codes: unknown;
+  evidence_summary: unknown;
+  related_invite_code: string;
+  imposed_at: string;
+};
+
 type ReviewRow = InvitationReviewRow & {
   v2_state: string | null;
   v2_risk_score: number | null;
@@ -107,6 +117,9 @@ type ReviewRow = InvitationReviewRow & {
   inviter_escalation_reason_codes: unknown;
   inviter_escalation_latest_incident_at: string | null;
   inviter_escalation_latest_incident_id: string | null;
+  inviter_active_restriction_id: string | null;
+  inviter_active_restriction_reason_codes: unknown;
+  inviter_active_restriction_imposed_at: string | null;
 };
 
 function noStoreHeaders() {
@@ -262,6 +275,26 @@ async function loadInviterReviewCandidate(
   return (data as InviterReviewCandidateRow | null) ?? null;
 }
 
+async function loadActiveInviterRestriction(
+  inviteCode: string,
+): Promise<ActiveInviterRestrictionRow | null> {
+  const { data, error } = await supabaseAdmin
+    .from('operator_sybil_v2_active_inviter_restrictions')
+    .select(
+      'restriction_id,network,inviter_wallet,reason_codes,evidence_summary,related_invite_code,imposed_at',
+    )
+    .eq('related_invite_code', inviteCode)
+    .maybeSingle();
+
+  if (error) {
+    throw new Error(
+      `Active inviter restriction could not be loaded: ${error.message}`,
+    );
+  }
+
+  return (data as ActiveInviterRestrictionRow | null) ?? null;
+}
+
 async function loadPostPayoutReviewEvents(
   inviteCode: string,
 ) {
@@ -289,6 +322,7 @@ function decorateReview(
   assessment: V2AssessmentRow | null,
   postPayout: PostPayoutReviewRow | null = null,
   inviterReview: InviterReviewCandidateRow | null = null,
+  activeInviterRestriction: ActiveInviterRestrictionRow | null = null,
 ): ReviewRow {
   return {
     ...invitation,
@@ -320,6 +354,12 @@ function decorateReview(
       inviterReview?.latest_incident_at ?? null,
     inviter_escalation_latest_incident_id:
       inviterReview?.latest_incident_id ?? null,
+    inviter_active_restriction_id:
+      activeInviterRestriction?.restriction_id ?? null,
+    inviter_active_restriction_reason_codes:
+      activeInviterRestriction?.reason_codes ?? [],
+    inviter_active_restriction_imposed_at:
+      activeInviterRestriction?.imposed_at ?? null,
   };
 }
 
@@ -331,6 +371,7 @@ async function loadOpenReviews(
     v2Result,
     postPayoutResult,
     inviterResult,
+    activeInviterRestrictionResult,
   ] = await Promise.all([
     supabaseAdmin
       .from('invitations')
@@ -371,6 +412,14 @@ async function loadOpenReviews(
       .eq('network', network)
       .order('latest_incident_at', { ascending: true })
       .limit(REVIEW_LIST_LIMIT),
+    supabaseAdmin
+      .from('operator_sybil_v2_active_inviter_restrictions')
+      .select(
+        'restriction_id,network,inviter_wallet,reason_codes,evidence_summary,related_invite_code,imposed_at',
+      )
+      .eq('network', network)
+      .order('imposed_at', { ascending: true })
+      .limit(REVIEW_LIST_LIMIT),
   ]);
 
   if (legacyResult.error) {
@@ -393,6 +442,11 @@ async function loadOpenReviews(
       `Open inviter escalation reviews could not be loaded: ${inviterResult.error.message}`,
     );
   }
+  if (activeInviterRestrictionResult.error) {
+    throw new Error(
+      `Active inviter restrictions could not be loaded: ${activeInviterRestrictionResult.error.message}`,
+    );
+  }
 
   const legacyRows =
     (legacyResult.data ?? []) as InvitationReviewRow[];
@@ -402,6 +456,8 @@ async function loadOpenReviews(
     (postPayoutResult.data ?? []) as PostPayoutReviewRow[];
   const inviterRows =
     (inviterResult.data ?? []) as InviterReviewCandidateRow[];
+  const activeInviterRestrictionRows =
+    (activeInviterRestrictionResult.data ?? []) as ActiveInviterRestrictionRow[];
 
   const v2ByCode = new Map(
     v2Rows.map((row) => [row.invite_code, row]),
@@ -418,12 +474,19 @@ async function loadOpenReviews(
       row,
     ]),
   );
+  const activeInviterRestrictionByCode = new Map(
+    activeInviterRestrictionRows.map((row) => [
+      row.related_invite_code,
+      row,
+    ]),
+  );
 
   const allReviewCodes = Array.from(new Set([
     ...legacyRows.map((row) => row.invite_code),
     ...v2Rows.map((row) => row.invite_code),
     ...postPayoutRows.map((row) => row.invite_code),
     ...inviterRows.map((row) => row.latest_invite_code),
+    ...activeInviterRestrictionRows.map((row) => row.related_invite_code),
   ]));
 
   const legacyByCode = new Map(
@@ -470,6 +533,7 @@ async function loadOpenReviews(
         v2ByCode.get(invitation.invite_code) ?? null,
         postPayoutByCode.get(invitation.invite_code) ?? null,
         inviterByCode.get(invitation.invite_code) ?? null,
+        activeInviterRestrictionByCode.get(invitation.invite_code) ?? null,
       ),
     );
   }
@@ -477,14 +541,16 @@ async function loadOpenReviews(
   return [...deduped.values()]
     .sort((left, right) => {
       const leftTime = Date.parse(
-        left.inviter_escalation_latest_incident_at ??
+        left.inviter_active_restriction_imposed_at ??
+          left.inviter_escalation_latest_incident_at ??
           left.post_payout_updated_at ??
           left.v2_updated_at ??
           left.sybil_checked_at ??
           left.updated_at,
       );
       const rightTime = Date.parse(
-        right.inviter_escalation_latest_incident_at ??
+        right.inviter_active_restriction_imposed_at ??
+          right.inviter_escalation_latest_incident_at ??
           right.post_payout_updated_at ??
           right.v2_updated_at ??
           right.sybil_checked_at ??
