@@ -129,3 +129,16 @@ test('reconcile keeps early and final assessment as isolated stages', async () =
     /sybilV2EarlyAssessment/u,
   );
 });
+
+
+test('clearing an early HOLD never queues a reward before completion', async () => {
+  const source = await readFile(
+    'src/app/api/admin/sybil/review/route.ts',
+    'utf8',
+  );
+
+  assert.match(
+    source,
+    /decision === 'CLEAR'[\s\S]*before\.status === 'COMPLETED'[\s\S]*before\.reward_status === 'ELIGIBLE'[\s\S]*await enqueueClearedReward\(inviteCode\)/u,
+  );
+});
