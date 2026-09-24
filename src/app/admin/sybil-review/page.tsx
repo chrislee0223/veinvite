@@ -701,8 +701,10 @@ export default function SybilReviewPage() {
                       <div className="reviewTop">
                         <strong>{review.invite_code}</strong>
                         <span className="badge">
-                          {review.inviter_escalation_posture === 'HOLD'
-                            ? `INVITER · ${formatInteger(review.inviter_escalation_incident_count_90d)}건`
+                          {review.inviter_active_restriction_id
+                            ? 'INVITER RESTRICTED'
+                            : review.inviter_escalation_posture === 'HOLD'
+                              ? `INVITER · ${formatInteger(review.inviter_escalation_incident_count_90d)}건`
                             : review.post_payout_state === 'HOLD'
                               ? `POST · ${review.post_payout_risk_score ?? 0}`
                               : review.v2_state === 'HOLD'
@@ -711,15 +713,19 @@ export default function SybilReviewPage() {
                         </span>
                       </div>
                       <span>
-                        {review.inviter_escalation_posture === 'HOLD'
+                        {review.inviter_active_restriction_id
                           ? `Inviter ${shortAddress(review.inviter_wallet)}`
+                          : review.inviter_escalation_posture === 'HOLD'
+                            ? `Inviter ${shortAddress(review.inviter_wallet)}`
                           : review.post_payout_state === 'HOLD'
                             ? `Reward recipient ${shortAddress(review.post_payout_subject_wallet)}`
                             : `Invitee ${shortAddress(review.invitee_wallet)}`}
                       </span>
                       <span>
-                        {review.inviter_escalation_posture === 'HOLD'
-                          ? `INVITER_ESCALATION · ${formatDate(review.inviter_escalation_latest_incident_at)}`
+                        {review.inviter_active_restriction_id
+                          ? `INVITER_RESTRICTION · ${formatDate(review.inviter_active_restriction_imposed_at)}`
+                          : review.inviter_escalation_posture === 'HOLD'
+                            ? `INVITER_ESCALATION · ${formatDate(review.inviter_escalation_latest_incident_at)}`
                           : review.post_payout_state === 'HOLD'
                             ? `POST_PAYOUT · ${formatDate(review.post_payout_updated_at)}`
                             : review.v2_state === 'HOLD'
@@ -727,8 +733,12 @@ export default function SybilReviewPage() {
                               : `${review.sybil_source} · ${formatDate(review.sybil_checked_at)}`}
                       </span>
                       <small>
-                        {review.inviter_escalation_posture === 'HOLD'
-                          ? (Array.isArray(review.inviter_escalation_reason_codes)
+                        {review.inviter_active_restriction_id
+                          ? (Array.isArray(review.inviter_active_restriction_reason_codes)
+                              ? review.inviter_active_restriction_reason_codes.join(', ')
+                              : 'Active inviter restriction.')
+                          : review.inviter_escalation_posture === 'HOLD'
+                            ? (Array.isArray(review.inviter_escalation_reason_codes)
                               ? review.inviter_escalation_reason_codes.join(', ')
                               : 'Inviter escalation requires review.')
                           : review.post_payout_state === 'HOLD'
@@ -763,8 +773,10 @@ export default function SybilReviewPage() {
                         <h2>{selected.invite_code}</h2>
                       </div>
                       <span className="badge">
-                        {selected.inviter_escalation_posture === 'HOLD'
-                          ? 'INVITER HOLD'
+                        {selected.inviter_active_restriction_id
+                          ? 'INVITER RESTRICTED'
+                          : selected.inviter_escalation_posture === 'HOLD'
+                            ? 'INVITER HOLD'
                           : selected.post_payout_state === 'HOLD'
                             ? 'POST_PAYOUT HOLD'
                             : selected.v2_state === 'HOLD'
@@ -779,8 +791,10 @@ export default function SybilReviewPage() {
                       <Fact
                         label="Risk"
                         value={
-                          selected.inviter_escalation_posture === 'HOLD'
-                            ? `INVITER · ${formatInteger(selected.inviter_escalation_incident_count_90d)}건`
+                          selected.inviter_active_restriction_id
+                            ? 'INVITER · RESTRICTED'
+                            : selected.inviter_escalation_posture === 'HOLD'
+                              ? `INVITER · ${formatInteger(selected.inviter_escalation_incident_count_90d)}건`
                             : selected.post_payout_state === 'HOLD'
                               ? `POST · ${selected.post_payout_risk_score ?? 0}`
                               : selected.v2_state === 'HOLD'
@@ -791,8 +805,10 @@ export default function SybilReviewPage() {
                       <Fact
                         label="Source"
                         value={
-                          selected.inviter_escalation_posture === 'HOLD'
-                            ? 'INVITER_ESCALATION'
+                          selected.inviter_active_restriction_id
+                            ? 'INVITER_RESTRICTION'
+                            : selected.inviter_escalation_posture === 'HOLD'
+                              ? 'INVITER_ESCALATION'
                             : selected.post_payout_state === 'HOLD'
                               ? 'POST_PAYOUT'
                               : selected.v2_state === 'HOLD'
@@ -804,8 +820,10 @@ export default function SybilReviewPage() {
                       <Fact
                         label="Checked"
                         value={formatDate(
-                          selected.inviter_escalation_posture === 'HOLD'
-                            ? selected.inviter_escalation_latest_incident_at
+                          selected.inviter_active_restriction_id
+                            ? selected.inviter_active_restriction_imposed_at
+                            : selected.inviter_escalation_posture === 'HOLD'
+                              ? selected.inviter_escalation_latest_incident_at
                             : selected.post_payout_state === 'HOLD'
                               ? selected.post_payout_updated_at
                               : selected.v2_state === 'HOLD'
@@ -818,8 +836,12 @@ export default function SybilReviewPage() {
                     <div className="reasonBox">
                       <span>현재 검토 사유 / Current reason</span>
                       <p>
-                        {selected.inviter_escalation_posture === 'HOLD'
-                          ? (inviterReasonCodes.join(', ') || 'Inviter escalation requires review.')
+                        {selected.inviter_active_restriction_id
+                          ? (Array.isArray(selected.inviter_active_restriction_reason_codes)
+                              ? selected.inviter_active_restriction_reason_codes.join(', ')
+                              : 'Active inviter restriction.')
+                          : selected.inviter_escalation_posture === 'HOLD'
+                            ? (inviterReasonCodes.join(', ') || 'Inviter escalation requires review.')
                           : selected.post_payout_state === 'HOLD'
                             ? (postPayoutReasonCodes.join(', ') || 'Post-payout evidence requires review.')
                             : selected.v2_state === 'HOLD'
