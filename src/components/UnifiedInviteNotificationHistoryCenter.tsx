@@ -10,6 +10,7 @@ import {
 } from 'react';
 
 import { INELIGIBLE_INVITER_COPY } from '@/lib/i18n/ineligibleInviterCopy';
+import { INVITER_SECURITY_NOTIFICATION_COPY } from '@/lib/i18n/inviterSecurityNotificationCopy';
 import { NOTIFICATION_COPY } from '@/lib/i18n/notificationCopy';
 import { NOTIFICATION_HISTORY_COPY } from '@/lib/i18n/notificationHistoryCopy';
 import { NOTIFICATION_META_COPY } from '@/lib/i18n/notificationMetaCopy';
@@ -191,6 +192,7 @@ function itemCopy(
     INELIGIBLE_INVITER_COPY[locale] ?? INELIGIBLE_INVITER_COPY.en;
   const amount = formatB3trWei(item.rewardAmountWei);
   const security = SECURITY_NOTIFICATION_COPY[locale];
+  const inviterSecurity = INVITER_SECURITY_NOTIFICATION_COPY[locale];
 
   switch (item.kind) {
     case 'INVITE_ACCEPTED':
@@ -237,6 +239,30 @@ function itemCopy(
       return {
         title: security.restrictionTitle,
         body: security.restrictionBody,
+        hint: null,
+      };
+    case 'SECURITY_INVITER_WATCH':
+      return {
+        title: inviterSecurity.watchTitle,
+        body: inviterSecurity.watchBody,
+        hint: null,
+      };
+    case 'SECURITY_INVITER_HOLD':
+      return {
+        title: inviterSecurity.holdTitle,
+        body: inviterSecurity.holdBody,
+        hint: null,
+      };
+    case 'SECURITY_INVITER_RESTRICTED':
+      return {
+        title: inviterSecurity.restrictedTitle,
+        body: inviterSecurity.restrictedBody,
+        hint: null,
+      };
+    case 'SECURITY_INVITER_ACCESS_RESTORED':
+      return {
+        title: inviterSecurity.restoredTitle,
+        body: inviterSecurity.restoredBody,
         hint: null,
       };
   }
