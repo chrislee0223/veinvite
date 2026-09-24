@@ -76,6 +76,19 @@ type PostPayoutReviewRow = {
   updated_at: string;
 };
 
+type InviterReviewCandidateRow = {
+  network: string;
+  inviter_wallet: string;
+  incident_count_90d: number | string;
+  strong_direct_link_incident_count_90d: number | string;
+  posture: string;
+  reason_codes: unknown;
+  evidence_summary: unknown;
+  latest_invite_code: string;
+  latest_incident_at: string;
+  latest_incident_id: string;
+};
+
 type ReviewRow = InvitationReviewRow & {
   v2_state: string | null;
   v2_risk_score: number | null;
@@ -88,6 +101,12 @@ type ReviewRow = InvitationReviewRow & {
   post_payout_reason_codes: unknown;
   post_payout_subject_wallet: string | null;
   post_payout_updated_at: string | null;
+  inviter_escalation_posture: string | null;
+  inviter_escalation_incident_count_90d: number | string | null;
+  inviter_escalation_strong_direct_link_count_90d: number | string | null;
+  inviter_escalation_reason_codes: unknown;
+  inviter_escalation_latest_incident_at: string | null;
+  inviter_escalation_latest_incident_id: string | null;
 };
 
 function noStoreHeaders() {
@@ -223,6 +242,26 @@ async function loadPostPayoutReview(
   return (data as PostPayoutReviewRow | null) ?? null;
 }
 
+async function loadInviterReviewCandidate(
+  inviteCode: string,
+): Promise<InviterReviewCandidateRow | null> {
+  const { data, error } = await supabaseAdmin
+    .from('operator_sybil_v2_inviter_review_candidates')
+    .select(
+      'network,inviter_wallet,incident_count_90d,strong_direct_link_incident_count_90d,posture,reason_codes,evidence_summary,latest_invite_code,latest_incident_at,latest_incident_id',
+    )
+    .eq('latest_invite_code', inviteCode)
+    .maybeSingle();
+
+  if (error) {
+    throw new Error(
+      `Inviter escalation review could not be loaded: ${error.message}`,
+    );
+  }
+
+  return (data as InviterReviewCandidateRow | null) ?? null;
+}
+
 async function loadPostPayoutReviewEvents(
   inviteCode: string,
 ) {
@@ -249,6 +288,7 @@ function decorateReview(
   invitation: InvitationReviewRow,
   assessment: V2AssessmentRow | null,
   postPayout: PostPayoutReviewRow | null = null,
+  inviterReview: InviterReviewCandidateRow | null = null,
 ): ReviewRow {
   return {
     ...invitation,
@@ -268,6 +308,18 @@ function decorateReview(
       postPayout?.subject_wallet ?? null,
     post_payout_updated_at:
       postPayout?.updated_at ?? null,
+    inviter_escalation_posture:
+      inviterReview?.posture ?? null,
+    inviter_escalation_incident_count_90d:
+      inviterReview?.incident_count_90d ?? null,
+    inviter_escalation_strong_direct_link_count_90d:
+      inviterReview?.strong_direct_link_incident_count_90d ?? null,
+    inviter_escalation_reason_codes:
+      inviterReview?.reason_codes ?? [],
+    inviter_escalation_latest_incident_at:
+      inviterReview?.latest_incident_at ?? null,
+    inviter_escalation_latest_incident_id:
+      inviterReview?.latest_incident_id ?? null,
   };
 }
 
@@ -278,6 +330,7 @@ async function loadOpenReviews(
     legacyResult,
     v2Result,
     postPayoutResult,
+    inviterResult,
   ] = await Promise.all([
     supabaseAdmin
       .from('invitations')
@@ -310,6 +363,14 @@ async function loadOpenReviews(
       .eq('state', 'HOLD')
       .order('updated_at', { ascending: true })
       .limit(REVIEW_LIST_LIMIT),
+    supabaseAdmin
+      .from('operator_sybil_v2_inviter_review_candidates')
+      .select(
+        'network,inviter_wallet,incident_count_90d,strong_direct_link_incident_count_90d,posture,reason_codes,evidence_summary,latest_invite_code,latest_incident_at,latest_incident_id',
+      )
+      .eq('network', network)
+      .order('latest_incident_at', { ascending: true })
+      .limit(REVIEW_LIST_LIMIT),
   ]);
 
   if (legacyResult.error) {
@@ -327,6 +388,11 @@ async function loadOpenReviews(
       `Open post-payout Sybil reviews could not be loaded: ${postPayoutResult.error.message}`,
     );
   }
+  if (inviterResult.error) {
+    throw new Error(
+      `Open inviter escalation reviews could not be loaded: ${inviterResult.error.message}`,
+    );
+  }
 
   const legacyRows =
     (legacyResult.data ?? []) as InvitationReviewRow[];
@@ -334,6 +400,8 @@ async function loadOpenReviews(
     (v2Result.data ?? []) as V2AssessmentRow[];
   const postPayoutRows =
     (postPayoutResult.data ?? []) as PostPayoutReviewRow[];
+  const inviterRows =
+    (inviterResult.data ?? []) as InviterReviewCandidateRow[];
 
   const v2ByCode = new Map(
     v2Rows.map((row) => [row.invite_code, row]),
@@ -344,11 +412,18 @@ async function loadOpenReviews(
       row,
     ]),
   );
+  const inviterByCode = new Map(
+    inviterRows.map((row) => [
+      row.latest_invite_code,
+      row,
+    ]),
+  );
 
   const allReviewCodes = Array.from(new Set([
     ...legacyRows.map((row) => row.invite_code),
     ...v2Rows.map((row) => row.invite_code),
     ...postPayoutRows.map((row) => row.invite_code),
+    ...inviterRows.map((row) => row.latest_invite_code),
   ]));
 
   const legacyByCode = new Map(
@@ -394,6 +469,7 @@ async function loadOpenReviews(
         invitation,
         v2ByCode.get(invitation.invite_code) ?? null,
         postPayoutByCode.get(invitation.invite_code) ?? null,
+        inviterByCode.get(invitation.invite_code) ?? null,
       ),
     );
   }
@@ -401,13 +477,15 @@ async function loadOpenReviews(
   return [...deduped.values()]
     .sort((left, right) => {
       const leftTime = Date.parse(
-        left.post_payout_updated_at ??
+        left.inviter_escalation_latest_incident_at ??
+          left.post_payout_updated_at ??
           left.v2_updated_at ??
           left.sybil_checked_at ??
           left.updated_at,
       );
       const rightTime = Date.parse(
-        right.post_payout_updated_at ??
+        right.inviter_escalation_latest_incident_at ??
+          right.post_payout_updated_at ??
           right.v2_updated_at ??
           right.sybil_checked_at ??
           right.updated_at,
@@ -550,10 +628,12 @@ export async function GET(request: NextRequest) {
       invitation,
       v2Assessment,
       postPayoutReview,
+      inviterReview,
     ] = await Promise.all([
       loadInvitationReview(inviteCode),
       loadV2Assessment(inviteCode),
       loadPostPayoutReview(inviteCode),
+      loadInviterReviewCandidate(inviteCode),
     ]);
 
     if (!invitation) {
@@ -602,6 +682,8 @@ export async function GET(request: NextRequest) {
       v2Assessment?.state === 'HOLD';
     const postPayoutCanResolve =
       postPayoutReview?.state === 'HOLD';
+    const inviterCanResolve =
+      inviterReview?.posture === 'HOLD';
 
     return NextResponse.json(
       {
@@ -612,21 +694,26 @@ export async function GET(request: NextRequest) {
           invitation,
           v2Assessment,
           postPayoutReview,
+          inviterReview,
         ),
         v2Assessment,
         postPayoutReview,
+        inviterReview,
         reviewEvents,
         v2AssessmentEvents,
         postPayoutReviewEvents,
         v2Evidence,
-        reviewMode: postPayoutCanResolve
-          ? 'POST_PAYOUT'
-          : v2CanResolve
-            ? 'V2'
-            : legacyCanResolve
-              ? 'LEGACY'
-              : 'NONE',
+        reviewMode: inviterCanResolve
+          ? 'INVITER'
+          : postPayoutCanResolve
+            ? 'POST_PAYOUT'
+            : v2CanResolve
+              ? 'V2'
+              : legacyCanResolve
+                ? 'LEGACY'
+                : 'NONE',
         canResolve:
+          inviterCanResolve ||
           postPayoutCanResolve ||
           v2CanResolve ||
           legacyCanResolve,
@@ -776,10 +863,12 @@ export async function POST(request: NextRequest) {
       before,
       v2Assessment,
       postPayoutReview,
+      inviterReview,
     ] = await Promise.all([
       loadInvitationReview(inviteCode),
       loadV2Assessment(inviteCode),
       loadPostPayoutReview(inviteCode),
+      loadInviterReviewCandidate(inviteCode),
     ]);
 
     if (!before || !before.invitee_wallet) {
@@ -806,6 +895,95 @@ export async function POST(request: NextRequest) {
         },
         {
           status: 409,
+          headers: noStoreHeaders(),
+        },
+      );
+    }
+
+    if (inviterReview?.posture === 'HOLD') {
+      const expectedIncidentId =
+        'expectedInviterIncidentId' in body &&
+        typeof body.expectedInviterIncidentId === 'string'
+          ? body.expectedInviterIncidentId.trim().toLowerCase()
+          : '';
+
+      if (
+        !expectedIncidentId ||
+        expectedIncidentId !==
+          inviterReview.latest_incident_id.toLowerCase()
+      ) {
+        return NextResponse.json(
+          {
+            error:
+              'This inviter escalation review changed after it was opened. Reload the latest review state before deciding.',
+          },
+          {
+            status: 409,
+            headers: noStoreHeaders(),
+          },
+        );
+      }
+
+      const { data, error } = await supabaseAdmin.rpc(
+        'resolve_sybil_v2_inviter_review',
+        {
+          p_inviter_wallet: inviterReview.inviter_wallet,
+          p_decision:
+            decision === 'BLOCKED'
+              ? 'RESTRICT'
+              : 'CLEAR',
+          p_reason: reason,
+          p_expected_latest_incident_id:
+            inviterReview.latest_incident_id,
+          p_operator_wallet:
+            operator.session!.walletAddress,
+          p_network: operator.pool!.network,
+        },
+      );
+
+      if (error) {
+        if (
+          error.message.includes('INVITER_REVIEW_STATE_CHANGED') ||
+          error.message.includes('INVITER_REVIEW_NOT_HOLD')
+        ) {
+          return NextResponse.json(
+            {
+              error:
+                'This inviter escalation review changed after it was opened. Reload the latest review state before deciding.',
+            },
+            {
+              status: 409,
+              headers: noStoreHeaders(),
+            },
+          );
+        }
+
+        throw new Error(
+          `resolve_sybil_v2_inviter_review failed: ${error.message}`,
+        );
+      }
+
+      const after =
+        await loadInvitationReview(inviteCode);
+
+      return NextResponse.json(
+        {
+          changed: true,
+          reviewMode: 'INVITER',
+          network: operator.pool!.network,
+          verifiedOperator:
+            operator.session!.walletAddress,
+          decision,
+          result: data,
+          invitation: after
+            ? decorateReview(after, v2Assessment, postPayoutReview)
+            : null,
+          rewardStatus:
+            after?.reward_status ?? null,
+          pastRewardChanged: false,
+          transfersPerformed: false,
+        },
+        {
           headers: noStoreHeaders(),
         },
       );
