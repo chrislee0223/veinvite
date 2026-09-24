@@ -41,6 +41,10 @@ export type QaNotificationStateId =
   | 'NOTI-INELIGIBLE'
   | 'NOTI-SECURITY-REVIEW'
   | 'NOTI-SECURITY-RESTRICTED'
+  | 'NOTI-INVITER-WATCH'
+  | 'NOTI-INVITER-HOLD'
+  | 'NOTI-INVITER-RESTRICTED'
+  | 'NOTI-INVITER-RESTORED'
   | 'NOTI-ACK-BUSY'
   | 'NOTI-ACK-ERROR';
 
@@ -327,6 +331,58 @@ function fixtureForState(
             id: '12',
             kind: 'SECURITY_RESTRICTION_CONFIRMED',
             minutes: 7,
+          }),
+        ],
+        unreadCount: 1,
+        open: true,
+      };
+    case 'NOTI-INVITER-WATCH':
+      return {
+        mode: 'history',
+        items: [
+          historyItem({
+            id: '13',
+            kind: 'SECURITY_INVITER_WATCH',
+            minutes: 5,
+          }),
+        ],
+        unreadCount: 1,
+        open: true,
+      };
+    case 'NOTI-INVITER-HOLD':
+      return {
+        mode: 'history',
+        items: [
+          historyItem({
+            id: '14',
+            kind: 'SECURITY_INVITER_HOLD',
+            minutes: 5,
+          }),
+        ],
+        unreadCount: 1,
+        open: true,
+      };
+    case 'NOTI-INVITER-RESTRICTED':
+      return {
+        mode: 'history',
+        items: [
+          historyItem({
+            id: '15',
+            kind: 'SECURITY_INVITER_RESTRICTED',
+            minutes: 5,
+          }),
+        ],
+        unreadCount: 1,
+        open: true,
+      };
+    case 'NOTI-INVITER-RESTORED':
+      return {
+        mode: 'history',
+        items: [
+          historyItem({
+            id: '16',
+            kind: 'SECURITY_INVITER_ACCESS_RESTORED',
+            minutes: 5,
           }),
         ],
         unreadCount: 1,

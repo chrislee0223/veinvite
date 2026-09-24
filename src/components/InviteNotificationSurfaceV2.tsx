@@ -3,6 +3,7 @@
 import { useEffect, useRef } from 'react';
 
 import { INELIGIBLE_INVITER_COPY } from '@/lib/i18n/ineligibleInviterCopy';
+import { INVITER_SECURITY_NOTIFICATION_COPY } from '@/lib/i18n/inviterSecurityNotificationCopy';
 import { NOTIFICATION_COPY } from '@/lib/i18n/notificationCopy';
 import { NOTIFICATION_V2_COPY } from '@/lib/i18n/notificationV2Copy';
 import { SECURITY_NOTIFICATION_COPY } from '@/lib/i18n/securityNotificationCopy';
@@ -45,6 +46,7 @@ function statusText(
   const ineligible = INELIGIBLE_INVITER_COPY[locale] ??
     INELIGIBLE_INVITER_COPY.en;
   const security = SECURITY_NOTIFICATION_COPY[locale];
+  const inviterSecurity = INVITER_SECURITY_NOTIFICATION_COPY[locale];
 
   switch (notification.kind) {
     case 'INVITE_ACCEPTED':
@@ -107,6 +109,30 @@ function statusText(
         body: security.restrictionBody,
         hint: null,
       };
+    case 'SECURITY_INVITER_WATCH':
+      return {
+        title: inviterSecurity.watchTitle,
+        body: inviterSecurity.watchBody,
+        hint: null,
+      };
+    case 'SECURITY_INVITER_HOLD':
+      return {
+        title: inviterSecurity.holdTitle,
+        body: inviterSecurity.holdBody,
+        hint: null,
+      };
+    case 'SECURITY_INVITER_RESTRICTED':
+      return {
+        title: inviterSecurity.restrictedTitle,
+        body: inviterSecurity.restrictedBody,
+        hint: null,
+      };
+    case 'SECURITY_INVITER_ACCESS_RESTORED':
+      return {
+        title: inviterSecurity.restoredTitle,
+        body: inviterSecurity.restoredBody,
+        hint: null,
+      };
   }
 }
 
@@ -138,6 +164,18 @@ function shortStatus(
   }
   if (notification.kind === 'SECURITY_RESTRICTION_CONFIRMED') {
     return SECURITY_NOTIFICATION_COPY[locale].restrictionTitle;
+  }
+  if (notification.kind === 'SECURITY_INVITER_WATCH') {
+    return INVITER_SECURITY_NOTIFICATION_COPY[locale].watchTitle;
+  }
+  if (notification.kind === 'SECURITY_INVITER_HOLD') {
+    return INVITER_SECURITY_NOTIFICATION_COPY[locale].holdTitle;
+  }
+  if (notification.kind === 'SECURITY_INVITER_RESTRICTED') {
+    return INVITER_SECURITY_NOTIFICATION_COPY[locale].restrictedTitle;
+  }
+  if (notification.kind === 'SECURITY_INVITER_ACCESS_RESTORED') {
+    return INVITER_SECURITY_NOTIFICATION_COPY[locale].restoredTitle;
   }
   return (INELIGIBLE_INVITER_COPY[locale] ?? INELIGIBLE_INVITER_COPY.en).title;
 }

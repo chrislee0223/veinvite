@@ -161,6 +161,10 @@ export const QA_DIRECT_STATE_RENDERERS: QaDirectStateRenderer[] = [
   { stateId: 'NOTI-INELIGIBLE', renderer: 'notification', notificationStateId: 'NOTI-INELIGIBLE', defaultLocale: 'ko' },
   { stateId: 'NOTI-SECURITY-REVIEW', renderer: 'notification', notificationStateId: 'NOTI-SECURITY-REVIEW', defaultLocale: 'ko' },
   { stateId: 'NOTI-SECURITY-RESTRICTED', renderer: 'notification', notificationStateId: 'NOTI-SECURITY-RESTRICTED', defaultLocale: 'ko' },
+  { stateId: 'NOTI-INVITER-WATCH', renderer: 'notification', notificationStateId: 'NOTI-INVITER-WATCH', defaultLocale: 'ko' },
+  { stateId: 'NOTI-INVITER-HOLD', renderer: 'notification', notificationStateId: 'NOTI-INVITER-HOLD', defaultLocale: 'ko' },
+  { stateId: 'NOTI-INVITER-RESTRICTED', renderer: 'notification', notificationStateId: 'NOTI-INVITER-RESTRICTED', defaultLocale: 'ko' },
+  { stateId: 'NOTI-INVITER-RESTORED', renderer: 'notification', notificationStateId: 'NOTI-INVITER-RESTORED', defaultLocale: 'ko' },
   { stateId: 'NOTI-ACK-BUSY', renderer: 'notification', notificationStateId: 'NOTI-ACK-BUSY', defaultLocale: 'ko' },
   { stateId: 'NOTI-ACK-ERROR', renderer: 'notification', notificationStateId: 'NOTI-ACK-ERROR', defaultLocale: 'ko' },
 

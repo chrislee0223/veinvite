@@ -45,6 +45,10 @@ const REVIEW_STATES: Array<{
   { id: 'NOTI-INELIGIBLE', label: '참여 불가 알림' },
   { id: 'NOTI-SECURITY-REVIEW', label: '보안 추가 확인' },
   { id: 'NOTI-SECURITY-RESTRICTED', label: '향후 참여 제한' },
+  { id: 'NOTI-INVITER-WATCH', label: '초대자 반복 활동 WATCH' },
+  { id: 'NOTI-INVITER-HOLD', label: '초대자 참여 임시 HOLD' },
+  { id: 'NOTI-INVITER-RESTRICTED', label: '초대자 참여 제한 확정' },
+  { id: 'NOTI-INVITER-RESTORED', label: '초대자 참여 복구' },
   { id: 'NOTI-ACK-BUSY', label: '알림 확인 처리 중' },
   { id: 'NOTI-ACK-ERROR', label: '알림 확인 실패' },
 ];
