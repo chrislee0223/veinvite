@@ -42,6 +42,12 @@ const REQUIRED_CHECKS = [
 const SYNC_REWARD_BLOCK_WINDOW = 30;
 const MISSION_PEER_WINDOW_SECONDS = 7 * 24 * 60 * 60;
 const MAX_BATCH_SIZE = 10;
+const OPERATOR_CLEARED_EARLY_FAMILIES = new Set([
+  'FUNDING',
+  'HISTORICAL_REWARD',
+  'HISTORICAL_CONSOLIDATION',
+  'CLUSTER_LINK',
+]);
 
 type InvitationV2Row = {
   invite_code: string;
@@ -1462,34 +1468,22 @@ async function loadAssessment(inviteCode: string): Promise<AssessmentRow | null>
   return data as AssessmentRow | null;
 }
 
-async function hasNewEvidenceForCurrentAssessment(
+async function hasNewEarlyClusterEvidence(
   inviteCode: string,
 ): Promise<boolean> {
-  const [earlyResult, finalResult] = await Promise.all([
-    supabaseAdmin
-      .from('operator_sybil_v2_early_assessment_candidates')
-      .select('invite_code')
-      .eq('invite_code', inviteCode)
-      .maybeSingle(),
-    supabaseAdmin
-      .from('operator_sybil_v2_assessment_candidates')
-      .select('invite_code')
-      .eq('invite_code', inviteCode)
-      .maybeSingle(),
-  ]);
+  const { data, error } = await supabaseAdmin
+    .from('operator_sybil_v2_early_assessment_candidates')
+    .select('invite_code')
+    .eq('invite_code', inviteCode)
+    .maybeSingle();
 
-  if (earlyResult.error) {
+  if (error) {
     throw new Error(
-      `Sybil v2 early reassessment freshness could not be loaded: ${earlyResult.error.message}`,
-    );
-  }
-  if (finalResult.error) {
-    throw new Error(
-      `Sybil v2 final reassessment freshness could not be loaded: ${finalResult.error.message}`,
+      `Sybil v2 early cluster freshness could not be loaded: ${error.message}`,
     );
   }
 
-  return Boolean(earlyResult.data || finalResult.data);
+  return Boolean(data);
 }
 
 async function recordAssessment({
@@ -1577,6 +1571,7 @@ export async function assessSybilV2Referral(
   }
 
   const currentAssessment = await loadAssessment(normalizedCode);
+  let operatorClearedEarlyBaseline = false;
 
   // Any HOLD/restriction is durable until an operator explicitly resolves it.
   // This is especially important for EARLY system HOLDs: later background
@@ -1605,38 +1600,28 @@ export async function assessSybilV2Referral(
       throw new Error('Operator-cleared Sybil v2 assessment has an invalid revision.');
     }
 
-    const hasNewEvidence =
-      await hasNewEvidenceForCurrentAssessment(normalizedCode);
+    const hasNewClusterEvidence =
+      await hasNewEarlyClusterEvidence(normalizedCode);
 
-    // The operator cleared the exact evidence set represented by this revision.
-    // Keep that decision stable until genuinely newer evidence arrives.
-    if (!hasNewEvidence) {
-      if (earlyMode) {
-        return {
-          inviteCode: normalizedCode,
-          state: 'CLEAR',
-          riskScore: 0,
-          reasonCodes: ['OPERATOR_CLEARED'],
-          revision,
-          clearanceIssued: false,
-          clearanceId: null,
-        };
-      }
-
-      const clearance = await issueClearance(normalizedCode, revision);
+    // EARLY review is stable until the same app/sink/funder cluster actually
+    // gains newer evidence. Normal mission progress must not reopen it.
+    if (earlyMode && !hasNewClusterEvidence) {
       return {
         inviteCode: normalizedCode,
         state: 'CLEAR',
         riskScore: 0,
         reasonCodes: ['OPERATOR_CLEARED'],
         revision,
-        clearanceIssued: clearance.issued === true,
-        clearanceId:
-          typeof clearance.clearanceId === 'string'
-            ? clearance.clearanceId
-            : null,
+        clearanceIssued: false,
+        clearanceId: null,
       };
     }
+
+    // FINAL assessment still has to verify mission/security/finality. When no
+    // newer early-cluster evidence exists, do not punish the user twice for
+    // the historical/funding evidence the operator already reviewed.
+    operatorClearedEarlyBaseline =
+      !hasNewClusterEvidence;
   }
 
   const checkpoint = await loadCheckpoint(normalizedCode);
@@ -1690,8 +1675,16 @@ export async function assessSybilV2Referral(
     completedChecks.includes(check),
   );
 
+  const policySignals =
+    operatorClearedEarlyBaseline && !earlyMode
+      ? signals.filter(
+          (signal) =>
+            !OPERATOR_CLEARED_EARLY_FAMILIES.has(signal.family),
+        )
+      : signals;
+
   const policy = evaluateSybilV2Policy({
-    signals,
+    signals: policySignals,
     requiredChecksComplete,
     analysisFailed:
       analysisFailed ||
@@ -1706,8 +1699,13 @@ export async function assessSybilV2Referral(
 
   const evidenceSummary = {
     assessmentMode: mode,
-    signalCount: signals.length,
-    signalCodes: unique(signals.map((signal) => signal.code)),
+    operatorClearedEarlyBaseline,
+    suppressedOperatorClearedEarlyFamilies:
+      operatorClearedEarlyBaseline && !earlyMode
+        ? [...OPERATOR_CLEARED_EARLY_FAMILIES]
+        : [],
+    signalCount: policySignals.length,
+    signalCodes: unique(policySignals.map((signal) => signal.code)),
     evidenceFamilies: policy.evidenceFamilies,
     strongEvidenceFamilies: policy.strongEvidenceFamilies,
     checkpoint: checkpoint
