@@ -3143,6 +3143,7 @@ export function AppNetwork({ locale }: { locale: Locale }) {
             >
               <span className="nodeCircle focusCircle">
                 <NetworkWalletIdentity
+                  key={currentData.focusWallet}
                   address={currentData.focusWallet}
                   root
                   showLabel={false}
@@ -3306,7 +3307,7 @@ export function AppNetwork({ locale }: { locale: Locale }) {
                 >
                   <span className="nodeCircle">
                     {slot.inviteeWallet ? (
-                      <NetworkWalletIdentity address={slot.inviteeWallet} showLabel={false} />
+                      <NetworkWalletIdentity key={slot.inviteeWallet} address={slot.inviteeWallet} showLabel={false} />
                     ) : (
                       <span className="pendingInviteGlyph" aria-hidden="true">…</span>
                     )}
@@ -3346,7 +3347,7 @@ export function AppNetwork({ locale }: { locale: Locale }) {
           >
             <button className="profileClose" type="button" onClick={() => setSelectedWallet(null)} aria-label={c.close}>×</button>
             <div className="profileIdentity">
-              <NetworkWalletIdentity address={selectedAddress} root size={34} />
+              <NetworkWalletIdentity key={selectedAddress} address={selectedAddress} root size={34} />
             </div>
             <div className="profileAddress" dir="ltr" title={selectedAddress}>
               <span>{selectedAddress}</span>
@@ -3388,7 +3389,7 @@ export function AppNetwork({ locale }: { locale: Locale }) {
           style={{ transform: `translate3d(${dragGhost.x}px,${dragGhost.y}px,0) translate(-50%,-50%)` }}
           aria-hidden="true"
         >
-          <span className="nodeCircle"><NetworkWalletIdentity address={dragGhost.wallet} showLabel={false} /></span>
+          <span className="nodeCircle"><NetworkWalletIdentity key={dragGhost.wallet} address={dragGhost.wallet} showLabel={false} /></span>
           <span className="nodeMeta">
             <strong><NetworkWalletLabel address={dragGhost.wallet} /></strong>
             {dragGhostChild.status === 'IN_PROGRESS' ? (
