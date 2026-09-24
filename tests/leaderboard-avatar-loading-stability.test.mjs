@@ -2,41 +2,99 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import test from 'node:test';
 
-const source = readFileSync(
+const leaderboard = readFileSync(
   new URL('../src/components/InviterLeaderboard.tsx', import.meta.url),
   'utf8',
 );
+const networkIdentity = readFileSync(
+  new URL('../src/components/NetworkWalletIdentity.tsx', import.meta.url),
+  'utf8',
+);
+const warmup = readFileSync(
+  new URL('../src/components/LeaderboardAvatarWarmup.tsx', import.meta.url),
+  'utf8',
+);
+const avatarCache = readFileSync(
+  new URL('../src/lib/profileAvatarCache.ts', import.meta.url),
+  'utf8',
+);
+
+test('Network and leaderboard share the verified profile-avatar v2 cache', () => {
+  assert.match(leaderboard, /readCachedProfileAvatar/);
+  assert.match(leaderboard, /rememberProfileAvatar/);
+  assert.match(networkIdentity, /readCachedProfileAvatar/);
+  assert.match(networkIdentity, /rememberProfileAvatar/);
+  assert.match(warmup, /readCachedProfileAvatar/);
+  assert.match(warmup, /rememberProfileAvatar/);
+  assert.match(avatarCache, /veinvite_profile_avatar_v2/);
+  assert.match(avatarCache, /PROFILE_AVATAR_CACHE_TTL_MS = 15 \* 60_000/);
+  assert.match(
+    avatarCache,
+    /const profileAvatarMemory = new Map<string, StoredProfileAvatar>\(\)/,
+  );
+  assert.doesNotMatch(avatarCache, /veinvite_leaderboard_profile_avatar_v1/);
+});
+
+test('Picasso stays a display fallback and is never persisted as a profile avatar', () => {
+  assert.match(leaderboard, /getPicassoImage\(address\)/);
+  assert.match(networkIdentity, /getPicassoImage\(address\)/);
+  assert.doesNotMatch(warmup, /getPicassoImage/);
+  assert.doesNotMatch(
+    leaderboard,
+    /rememberProfileAvatar\([^\n]*fallbackUrl/,
+  );
+  assert.doesNotMatch(
+    networkIdentity,
+    /rememberProfileAvatar\([^\n]*fallbackUrl/,
+  );
+  assert.doesNotMatch(avatarCache, /getPicassoImage/);
+});
 
 test('avatar does not paint Picasso before profile resolution completes', () => {
   assert.match(
-    source,
-    /const \[displayUrl, setDisplayUrl\] = useState<string \| null>\(\(\) =>\s*readCachedAvatar\(address\)/,
+    leaderboard,
+    /const \[displayUrl, setDisplayUrl\] = useState<string \| null>\(\(\) =>\s*readCachedProfileAvatar\(address\)/,
   );
-  assert.match(source, /if \(!shouldLoadProfile\) return;/);
-  assert.match(source, /if \(shouldResolveDomain && domainLoading\) return;/);
-  assert.match(source, /if \(domain && avatarLoading\) return;/);
-  assert.match(source, /const resolvedUrl = profileAvatarUrl \|\| fallbackUrl;/);
-  assert.match(source, /const profileName = resolvedDomain;/);
-  assert.match(source, /displayUrl \? \([\s\S]*<img[\s\S]*\) : \([\s\S]*walletAvatarNeutral/);
+  assert.match(leaderboard, /const \[showFallback, setShowFallback\] = useState\(false\)/);
+  assert.match(leaderboard, /const visibleUrl = displayUrl \|\| \(showFallback \? fallbackUrl : null\)/);
+  assert.match(
+    leaderboard,
+    /data-avatar-pending=\{!visibleUrl \? 'true' : undefined\}/,
+  );
+  assert.match(
+    leaderboard,
+    /visibleUrl \? \([\s\S]*<img[\s\S]*\) : \([\s\S]*walletAvatarNeutral/,
+  );
 });
 
-test('resolved profile avatar is reused across leaderboard remounts and hard refreshes', () => {
-  assert.match(source, /const resolvedAvatarMemory = new Map<string, string>\(\)/);
-  assert.match(source, /AVATAR_PROFILE_CACHE_KEY = 'veinvite_leaderboard_profile_avatar_v1'/);
-  assert.match(source, /AVATAR_PROFILE_CACHE_TTL_MS = 15 \* 60_000/);
-  assert.match(source, /rememberResolvedAvatar\(address, resolvedUrl, persistProfile\)/);
-  assert.match(source, /if \(!persistProfile \|\| typeof window === 'undefined'\) return;/);
+test('profile image is preloaded before becoming visible and transient failures preserve verified state', () => {
+  for (const source of [leaderboard, networkIdentity]) {
+    assert.match(source, /const image = new Image\(\);/);
+    assert.match(source, /image\.referrerPolicy = 'no-referrer';/);
+    assert.match(
+      source,
+      /image\.onload = \(\) => \{[\s\S]*rememberProfileAvatar[\s\S]*setDisplayUrl\(profileAvatarUrl\)/,
+    );
+    assert.match(
+      source,
+      /avatarError \|\| !avatarSuccess[\s\S]*if \(!displayUrl\) setShowFallback\(true\)/,
+    );
+  }
 });
 
-test('profile image is preloaded before becoming visible and fallback remains fail-safe', () => {
-  assert.match(source, /const image = new Image\(\);/);
-  assert.match(source, /image\.onload = \(\) => \{[\s\S]*setDisplayUrl\(resolvedUrl\)/);
-  assert.match(source, /image\.onerror = \(\) => \{[\s\S]*setDisplayUrl\(fallbackUrl\)/);
-  assert.doesNotMatch(source, /useEffect\(\(\) => \{\s*setDisplayUrl\(fallbackUrl\);\s*\}, \[fallbackUrl\]\)/);
+test('confirmed profile removal clears only the verified profile cache', () => {
+  for (const source of [leaderboard, networkIdentity]) {
+    assert.match(
+      source,
+      /if \(!profileAvatarUrl\) \{[\s\S]*clearCachedProfileAvatar\(address\)[\s\S]*setShowFallback\(true\)/,
+    );
+  }
+  assert.match(avatarCache, /export function clearCachedProfileAvatar/);
 });
 
-test('pending avatar keeps fixed geometry without a pulse animation', () => {
-  assert.match(source, /data-avatar-pending=!displayUrl/);
-  assert.match(source, /\.walletAvatarNeutral \{[\s\S]*width:100%;[\s\S]*height:100%;/);
-  assert.doesNotMatch(source, /walletAvatarNeutral[\s\S]{0,300}animation:/);
+test('Network profile images use uncropped contain rendering and keep iOS image guards', () => {
+  assert.match(networkIdentity, /objectFit: 'contain'/);
+  assert.match(networkIdentity, /pointerEvents:\s*'none'/);
+  assert.match(networkIdentity, /WebkitTouchCallout:\s*'none'/);
+  assert.match(networkIdentity, /draggable=\{false\}/);
 });
