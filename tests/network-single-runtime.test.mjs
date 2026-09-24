@@ -75,12 +75,14 @@ test('node profile stays compact, prefers cached VET identity, and keeps wallet 
   assert.match(networkSource, /NetworkWalletIdentity/);
   assert.match(networkIdentitySource, /readCachedLeaderboardDomain/);
   assert.match(networkIdentitySource, /rememberLeaderboardDomain/);
-  assert.match(networkIdentitySource, /shouldLoad && displayDomain === undefined/);
-  assert.match(networkIdentitySource, /\(\) => root \? undefined : readCachedLeaderboardDomain\(address\)/);
+  assert.match(networkIdentitySource, /readCachedProfileAvatar\(address\)/);
+  assert.match(networkIdentitySource, /root \|\|/);
+  assert.match(networkIdentitySource, /displayDomain === undefined/);
+  assert.match(networkIdentitySource, /displayDomain === null && Boolean\(displayUrl\)/);
   assert.match(networkIdentitySource, /useVechainDomain\(\s*shouldResolveDomain \? address : undefined/);
   assert.match(networkIdentitySource, /getPicassoImage\(address\)/);
-  assert.match(networkIdentitySource, /useGetAvatar\(domain\)/);
-  assert.match(networkSource, /<NetworkWalletIdentity address=\{selectedAddress\} root size=\{34\} \/>/);
+  assert.match(networkIdentitySource, /useGetAvatar\(shouldLoad \? domain : ''\)/);
+  assert.match(networkSource, /<NetworkWalletIdentity key=\{selectedAddress\} address=\{selectedAddress\} root size=\{34\} \/>/);
   assert.doesNotMatch(networkSource, /className=\{\`profileStatus/);
   assert.doesNotMatch(networkSource, /selectedStatus = selectedMember/);
   assert.doesNotMatch(networkSource, /compactSelectedPath|className="profilePath"|profilePathChevron/);
@@ -599,7 +601,9 @@ test('node labels and avatars share one cached Network identity renderer', () =>
   assert.match(networkIdentitySource, /rememberLeaderboardDomain\(address, queriedDomain\)/);
   assert.match(networkIdentitySource, /formatCompactVechainDomain\(resolvedDomain\) \|\| nodeWallet\(address\)/);
   assert.match(networkIdentitySource, /getPicassoImage\(address\)/);
-  assert.match(networkIdentitySource, /className="neutralAvatar"/);
+  assert.match(networkIdentitySource, /const imageClassName = displayUrl \? 'profileAvatar' : 'neutralAvatar'/);
+  assert.match(networkIdentitySource, /className="neutralAvatar avatarPending"/);
+  assert.match(networkIdentitySource, /rememberProfileAvatar\(requestAddress, profileAvatarUrl\)/);
 
   assert.match(networkSource, /<strong><NetworkWalletLabel address=\{currentData\.focusWallet\} \/><\/strong>/);
   assert.match(networkSource, /<strong><NetworkWalletLabel address=\{child\.wallet\} \/><\/strong>/);
