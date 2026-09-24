@@ -163,7 +163,7 @@ test('public Network display keeps one mobile-width shell, overlay search, and s
   assert.match(publicExplorer, /NetworkWalletLabel/);
   assert.match(publicExplorer, /NetworkWalletIdentity/);
   assert.match(networkIdentity, /getPicassoImage\(address\)/);
-  assert.match(networkIdentity, /useGetAvatar\(domain\)/);
+  assert.match(networkIdentity, /useGetAvatar\(shouldLoad \? domain : ''\)/);
   assert.match(publicExplorer, /ref=\{searchInputRef\}/);
   assert.match(publicExplorer, /searchInputRef\.current\?\.focus\(\{ preventScroll: true \}\)/);
   assert.match(publicExplorer, /\.publicSearchBar\{[^}]*position:absolute[^}]*top:44px/);
