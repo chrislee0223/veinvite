@@ -8,6 +8,7 @@ import type { QaSettingsStateId } from './QaSettingsStateHarness';
 import type { QaLeaderboardStateId } from './QaLeaderboardStateHarness';
 import type { QaInviteLandingStateId } from './QaInviteLandingStateHarness';
 import type { QaLegacyInviteStateId } from './QaLegacyInviteStateHarness';
+import type { QaNetworkI18nStateId } from './QaNetworkI18nStateHarness';
 import {
   QA_KNOWN_STATES,
   type QaKnownState,
@@ -59,6 +60,10 @@ export type QaDirectStateRenderer =
   | (QaDirectStateRendererBase & {
       renderer: 'leaderboard';
       leaderboardStateId: QaLeaderboardStateId;
+    })
+  | (QaDirectStateRendererBase & {
+      renderer: 'network-i18n';
+      networkI18nStateId: QaNetworkI18nStateId;
     });
 
 export const QA_DIRECT_STATE_RENDERERS: QaDirectStateRenderer[] = [
@@ -154,8 +159,14 @@ export const QA_DIRECT_STATE_RENDERERS: QaDirectStateRenderer[] = [
   { stateId: 'NOTI-REWARD-READY', renderer: 'notification', notificationStateId: 'NOTI-REWARD-READY', defaultLocale: 'ko' },
   { stateId: 'NOTI-REWARD-PAID', renderer: 'notification', notificationStateId: 'NOTI-REWARD-PAID', defaultLocale: 'ko' },
   { stateId: 'NOTI-INELIGIBLE', renderer: 'notification', notificationStateId: 'NOTI-INELIGIBLE', defaultLocale: 'ko' },
+  { stateId: 'NOTI-SECURITY-REVIEW', renderer: 'notification', notificationStateId: 'NOTI-SECURITY-REVIEW', defaultLocale: 'ko' },
+  { stateId: 'NOTI-SECURITY-RESTRICTED', renderer: 'notification', notificationStateId: 'NOTI-SECURITY-RESTRICTED', defaultLocale: 'ko' },
   { stateId: 'NOTI-ACK-BUSY', renderer: 'notification', notificationStateId: 'NOTI-ACK-BUSY', defaultLocale: 'ko' },
   { stateId: 'NOTI-ACK-ERROR', renderer: 'notification', notificationStateId: 'NOTI-ACK-ERROR', defaultLocale: 'ko' },
+
+  { stateId: 'NETWORK-I18N-MY', renderer: 'network-i18n', networkI18nStateId: 'NETWORK-I18N-MY', defaultLocale: 'ko' },
+  { stateId: 'NETWORK-I18N-GROUPS', renderer: 'network-i18n', networkI18nStateId: 'NETWORK-I18N-GROUPS', defaultLocale: 'ko' },
+  { stateId: 'NETWORK-I18N-PUBLIC', renderer: 'network-i18n', networkI18nStateId: 'NETWORK-I18N-PUBLIC', defaultLocale: 'ko' },
 
   { stateId: 'SETTINGS-WALLET-DISCONNECTED', renderer: 'settings', settingsStateId: 'SETTINGS-WALLET-DISCONNECTED', defaultLocale: 'ko' },
   { stateId: 'SETTINGS-WALLET-CONNECTED', renderer: 'settings', settingsStateId: 'SETTINGS-WALLET-CONNECTED', defaultLocale: 'ko' },

@@ -22,10 +22,10 @@ export const SECURITY_NOTIFICATION_COPY: Record<
   ko: {
     reviewTitle: '추가 확인 중',
     reviewBody:
-      '이 초대는 보상 확정 전 추가 확인이 필요합니다. 검토가 끝나면 알려드릴게요.',
+      '이 초대는 보상 확정 전에 추가 확인이 필요해요. 검토가 끝나면 알려드릴게요.',
     restrictionTitle: 'VeInvite 참여 제한',
     restrictionBody:
-      '검토 결과 이 지갑의 향후 VeInvite 참여가 제한되었습니다. 이미 지급된 보상은 변경되지 않습니다.',
+      '검토 결과 이 지갑의 향후 VeInvite 참여가 제한됐어요. 이미 지급된 보상은 그대로 유지돼요.',
   },
   zh: {
     reviewTitle: '正在进行额外核验',
