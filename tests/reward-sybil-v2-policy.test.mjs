@@ -310,3 +310,68 @@ test('historical sink link plus weak VTHO alone remains WATCH pending more evide
 
   assert.equal(result.state, 'WATCH');
 });
+
+
+test('early HOLD opens for corroborated historical reward plus common sink evidence', () => {
+  const result = evaluateSybilV2Policy({
+    requiredChecksComplete: false,
+    allowEarlyHold: true,
+    signals: [
+      {
+        code: 'HISTORICAL_REWARD_APP_CLUSTER',
+        family: 'HISTORICAL_REWARD',
+        strength: 'MEDIUM',
+        score: 40,
+      },
+      {
+        code: 'HISTORICAL_COMMON_B3TR_SINK',
+        family: 'HISTORICAL_CONSOLIDATION',
+        strength: 'HIGH',
+        score: 60,
+      },
+    ],
+  });
+
+  assert.equal(result.state, 'HOLD');
+  assert.ok(result.reasonCodes.includes('EARLY_MULTI_FAMILY_CLUSTER'));
+});
+
+test('early assessment stays pending for one strong family only', () => {
+  const result = evaluateSybilV2Policy({
+    requiredChecksComplete: false,
+    allowEarlyHold: true,
+    signals: [
+      {
+        code: 'HISTORICAL_SYNCHRONIZED_REWARD_CLUSTER',
+        family: 'HISTORICAL_REWARD',
+        strength: 'HIGH',
+        score: 55,
+      },
+    ],
+  });
+
+  assert.equal(result.state, 'ANALYSIS_PENDING');
+});
+
+test('early assessment requires a graph anchor and does not HOLD same-app plus funding alone', () => {
+  const result = evaluateSybilV2Policy({
+    requiredChecksComplete: false,
+    allowEarlyHold: true,
+    signals: [
+      {
+        code: 'HISTORICAL_REWARD_APP_CLUSTER',
+        family: 'HISTORICAL_REWARD',
+        strength: 'MEDIUM',
+        score: 40,
+      },
+      {
+        code: 'SHARED_RECENT_B3TR_FUNDER',
+        family: 'FUNDING',
+        strength: 'MEDIUM',
+        score: 34,
+      },
+    ],
+  });
+
+  assert.equal(result.state, 'ANALYSIS_PENDING');
+});
