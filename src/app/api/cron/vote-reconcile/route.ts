@@ -1,5 +1,7 @@
 import { randomUUID, timingSafeEqual } from 'node:crypto';
 
+import { ABIEvent } from '@vechain/sdk-core';
+import { ThorClient } from '@vechain/sdk-network';
 import {
   NextRequest,
   NextResponse,
@@ -18,12 +20,37 @@ import {
 } from '@/lib/sybil/v2/pipeline';
 import {
   getVeBetterNetworkConfig,
+  type VeBetterNetwork,
 } from '@/lib/vebetter/network';
 
 export const maxDuration = 300;
 
 const BATCH_SIZE = 25;
+const EVENT_PAGE_SIZE = 1000;
+const INITIAL_LOOKBACK_BLOCKS = 360;
+const FALLBACK_INTERVAL_MINUTES = 30;
+const RECOVERY_INTERVAL_MINUTES = 5;
 const RECONCILIATION_LEASE_SECONDS = 600;
+const EVENT_WATCH_LEASE_SECONDS = 180;
+
+const allocationVoteCastEvent =
+  new ABIEvent(
+    'event AllocationVoteCast(address indexed voter, uint256 indexed roundId, bytes32[] appsIds, uint256[] voteWeights)',
+  );
+
+type RawVoteLog = {
+  topics?: string[];
+  meta?: {
+    blockNumber?: number;
+    txID?: string;
+  };
+};
+
+type VoteEventPointer = {
+  walletAddress: string;
+  blockNumber: number;
+  txId: string;
+};
 
 const invitationEvidenceColumns = `
   invite_code,
@@ -100,16 +127,63 @@ function authorizeCron(request: NextRequest) {
   return { ok: true as const };
 }
 
+function getSingleTopic(
+  topic:
+    | `0x${string}`
+    | `0x${string}`[]
+    | null
+    | undefined,
+): string | undefined {
+  return typeof topic === 'string'
+    ? topic
+    : undefined;
+}
+
+function readIndexedAddress(
+  topic: string | undefined,
+): string | null {
+  if (
+    !topic ||
+    !/^0x[0-9a-fA-F]{64}$/.test(topic)
+  ) {
+    return null;
+  }
+
+  const walletAddress =
+    `0x${topic.slice(-40)}`.toLowerCase();
+
+  return /^0x[0-9a-f]{40}$/.test(
+    walletAddress,
+  )
+    ? walletAddress
+    : null;
+}
+
+function readSafeBlockNumber(
+  value: unknown,
+): number | null {
+  const parsed =
+    typeof value === 'number'
+      ? value
+      : Number(value);
+
+  return Number.isSafeInteger(parsed) &&
+    parsed >= 0
+    ? parsed
+    : null;
+}
+
 async function acquireLock(
   lockName: string,
   ownerToken: string,
+  leaseSeconds: number,
 ): Promise<boolean> {
   const { data, error } = await supabaseAdmin.rpc(
     'try_acquire_operator_lock',
     {
       p_lock_name: lockName,
       p_owner_token: ownerToken,
-      p_lease_seconds: RECONCILIATION_LEASE_SECONDS,
+      p_lease_seconds: leaseSeconds,
     },
   );
 
@@ -142,66 +216,266 @@ async function releaseLock(
   }
 }
 
-async function reconcileVoteOnlyCandidates() {
-  const { network } = getVeBetterNetworkConfig();
-  const lockName = `chain_reconcile:${network}`;
+async function loadActivePendingInvitations(
+  network: VeBetterNetwork,
+): Promise<InvitationEvidenceRow[]> {
+  const { data, error } = await supabaseAdmin
+    .from('invitations')
+    .select(invitationEvidenceColumns)
+    .eq('activation_network', network)
+    .eq('reward_status', 'PENDING')
+    .neq('status', 'CANCELLED')
+    .or(
+      'vote_completed.eq.false,vote_completed.is.null',
+    )
+    .not('invitee_wallet', 'is', null)
+    .not('eligibility_check_id', 'is', null)
+    .is('impact_sync_complete_at', null)
+    .order('activated_at', {
+      ascending: true,
+      nullsFirst: true,
+    })
+    .limit(1000);
+
+  if (error) {
+    throw new Error(
+      `Failed to load active vote-watch invitations: ${error.message}`,
+    );
+  }
+
+  return (data ?? []) as InvitationEvidenceRow[];
+}
+
+async function readVoteScanCheckpoint(
+  network: VeBetterNetwork,
+): Promise<number | null> {
+  const { data, error } = await supabaseAdmin
+    .from('vote_reconcile_scan_checkpoints')
+    .select('last_scanned_block')
+    .eq('network', network)
+    .maybeSingle();
+
+  if (error) {
+    throw new Error(
+      `Failed to load vote scan checkpoint: ${error.message}`,
+    );
+  }
+
+  return readSafeBlockNumber(
+    data?.last_scanned_block,
+  );
+}
+
+async function saveVoteScanCheckpoint(
+  network: VeBetterNetwork,
+  lastScannedBlock: number,
+) {
+  const { error } = await supabaseAdmin
+    .from('vote_reconcile_scan_checkpoints')
+    .upsert(
+      {
+        network,
+        last_scanned_block:
+          lastScannedBlock,
+        updated_at:
+          new Date().toISOString(),
+      },
+      {
+        onConflict: 'network',
+      },
+    );
+
+  if (error) {
+    throw new Error(
+      `Failed to persist vote scan checkpoint: ${error.message}`,
+    );
+  }
+}
+
+async function readFinalizedBlockNumber(
+  nodeUrl: string,
+): Promise<number> {
+  const thor = ThorClient.at(nodeUrl);
+  const finalized =
+    await thor.blocks.getBlockCompressed(
+      'finalized',
+    );
+  const blockNumber =
+    readSafeBlockNumber(finalized?.number);
+
+  if (blockNumber === null) {
+    throw new Error(
+      'VeChain finalized block is unavailable.',
+    );
+  }
+
+  return blockNumber;
+}
+
+async function readFinalizedVoteEvents({
+  nodeUrl,
+  votingAddress,
+  fromBlock,
+  toBlock,
+}: {
+  nodeUrl: string;
+  votingAddress: string;
+  fromBlock: number;
+  toBlock: number;
+}): Promise<{
+  eventCount: number;
+  voters: Map<string, VoteEventPointer>;
+}> {
+  if (fromBlock > toBlock) {
+    return {
+      eventCount: 0,
+      voters: new Map(),
+    };
+  }
+
+  const thor = ThorClient.at(nodeUrl);
+  const topics =
+    allocationVoteCastEvent
+      .encodeFilterTopics([
+        null,
+        null,
+      ]);
+  const topic0 =
+    getSingleTopic(topics[0]);
+
+  if (!topic0) {
+    throw new Error(
+      'AllocationVoteCast topic could not be encoded.',
+    );
+  }
+
+  let offset = 0;
+  let eventCount = 0;
+  const voters =
+    new Map<string, VoteEventPointer>();
+
+  while (true) {
+    const logs =
+      await thor.logs.filterRawEventLogs({
+        range: {
+          unit: 'block',
+          from: fromBlock,
+          to: toBlock,
+        },
+        options: {
+          offset,
+          limit: EVENT_PAGE_SIZE,
+        },
+        criteriaSet: [
+          {
+            address: votingAddress,
+            topic0,
+          },
+        ],
+        order: 'asc',
+      });
+
+    const rawLogs =
+      logs as RawVoteLog[];
+
+    for (const log of rawLogs) {
+      const walletAddress =
+        readIndexedAddress(
+          log.topics?.[1],
+        );
+      const blockNumber =
+        readSafeBlockNumber(
+          log.meta?.blockNumber,
+        );
+      const txId =
+        log.meta?.txID?.toLowerCase();
+
+      if (
+        !walletAddress ||
+        blockNumber === null ||
+        !txId ||
+        !/^0x[0-9a-f]{64}$/.test(txId)
+      ) {
+        continue;
+      }
+
+      eventCount += 1;
+      voters.set(
+        walletAddress,
+        {
+          walletAddress,
+          blockNumber,
+          txId,
+        },
+      );
+    }
+
+    if (
+      rawLogs.length <
+      EVENT_PAGE_SIZE
+    ) {
+      break;
+    }
+
+    offset += EVENT_PAGE_SIZE;
+  }
+
+  return {
+    eventCount,
+    voters,
+  };
+}
+
+async function reconcileRows(
+  rows: InvitationEvidenceRow[],
+  network: VeBetterNetwork,
+) {
+  if (rows.length === 0) {
+    return {
+      skippedBecauseLocked: false,
+      selected: 0,
+      voteDetected: 0,
+      failed: 0,
+      overflow: false,
+    };
+  }
+
+  const lockName =
+    `chain_reconcile:${network}`;
   const ownerToken = randomUUID();
 
   const acquired =
-    await acquireLock(lockName, ownerToken);
+    await acquireLock(
+      lockName,
+      ownerToken,
+      RECONCILIATION_LEASE_SECONDS,
+    );
 
   if (!acquired) {
     return {
-      network,
       skippedBecauseLocked: true,
       selected: 0,
       voteDetected: 0,
       failed: 0,
+      overflow: rows.length > 0,
     };
   }
 
   try {
-    const { data, error } = await supabaseAdmin
-      .from('invitations')
-      .select(invitationEvidenceColumns)
-      .eq('activation_network', network)
-      .eq('status', 'ACTIVATING')
-      .eq('reward_status', 'PENDING')
-      .gte('apps_completed', 3)
-      .gte('rewards_received', 3)
-      .eq('vot3_converted', true)
-      .or('vote_completed.eq.false,vote_completed.is.null')
-      .not('invitee_wallet', 'is', null)
-      .not('eligibility_check_id', 'is', null)
-      .is('impact_sync_complete_at', null)
-      .order('impact_last_synced_at', {
-        ascending: true,
-        nullsFirst: true,
-      })
-      .order('activated_at', {
-        ascending: true,
-        nullsFirst: true,
-      })
-      .limit(BATCH_SIZE);
-
-    if (error) {
-      throw new Error(
-        `Failed to load vote reconciliation candidates: ${error.message}`,
-      );
-    }
-
-    const rows =
-      (data ?? []) as InvitationEvidenceRow[];
+    const selectedRows =
+      rows.slice(0, BATCH_SIZE);
 
     let voteDetected = 0;
     let failed = 0;
 
-    for (const row of rows) {
+    for (const row of selectedRows) {
       try {
         const synced =
           await syncInvitationEvidence(row);
 
-        if (synced.progress.voteCompleted) {
+        if (
+          synced.progress.voteCompleted
+        ) {
           voteDetected += 1;
         }
       } catch (syncError) {
@@ -214,28 +488,261 @@ async function reconcileVoteOnlyCandidates() {
     }
 
     return {
-      network,
       skippedBecauseLocked: false,
-      selected: rows.length,
+      selected: selectedRows.length,
       voteDetected,
       failed,
+      overflow:
+        rows.length >
+        selectedRows.length,
     };
   } finally {
-    await releaseLock(lockName, ownerToken);
+    await releaseLock(
+      lockName,
+      ownerToken,
+    );
   }
 }
 
+async function runEventDrivenVoteWatcher() {
+  const {
+    network,
+    nodeUrl,
+    xAllocationVotingAddress,
+  } = getVeBetterNetworkConfig();
+
+  const watchLockName =
+    `vote_event_watch:${network}`;
+  const ownerToken = randomUUID();
+
+  const acquired =
+    await acquireLock(
+      watchLockName,
+      ownerToken,
+      EVENT_WATCH_LEASE_SECONDS,
+    );
+
+  if (!acquired) {
+    return {
+      network,
+      skippedBecauseLocked: true,
+      activePending: 0,
+      fromBlock: null,
+      toBlock: null,
+      chainVoteEvents: 0,
+      matchedInvitations: 0,
+      selected: 0,
+      voteDetected: 0,
+      failed: 0,
+      checkpointAdvanced: false,
+    };
+  }
+
+  try {
+    const activeRows =
+      await loadActivePendingInvitations(
+        network,
+      );
+
+    if (activeRows.length === 0) {
+      return {
+        network,
+        skippedBecauseLocked: false,
+        activePending: 0,
+        fromBlock: null,
+        toBlock: null,
+        chainVoteEvents: 0,
+        matchedInvitations: 0,
+        selected: 0,
+        voteDetected: 0,
+        failed: 0,
+        checkpointAdvanced: false,
+      };
+    }
+
+    const finalizedBlock =
+      await readFinalizedBlockNumber(
+        nodeUrl,
+      );
+    const checkpoint =
+      await readVoteScanCheckpoint(
+        network,
+      );
+    const recoveryFloor =
+      Math.max(
+        0,
+        finalizedBlock -
+          INITIAL_LOOKBACK_BLOCKS,
+      );
+    const fromBlock =
+      checkpoint === null
+        ? recoveryFloor
+        : Math.max(
+            checkpoint + 1,
+            recoveryFloor,
+          );
+
+    if (fromBlock > finalizedBlock) {
+      return {
+        network,
+        skippedBecauseLocked: false,
+        activePending: activeRows.length,
+        fromBlock,
+        toBlock: finalizedBlock,
+        chainVoteEvents: 0,
+        matchedInvitations: 0,
+        selected: 0,
+        voteDetected: 0,
+        failed: 0,
+        checkpointAdvanced: false,
+      };
+    }
+
+    const voteEvents =
+      await readFinalizedVoteEvents({
+        nodeUrl,
+        votingAddress:
+          xAllocationVotingAddress,
+        fromBlock,
+        toBlock: finalizedBlock,
+      });
+
+    const matchedRows =
+      activeRows.filter((row) => {
+        const wallet =
+          row.invitee_wallet
+            ?.toLowerCase();
+
+        return Boolean(
+          wallet &&
+            voteEvents.voters.has(
+              wallet,
+            ),
+        );
+      });
+
+    const reconciliation =
+      await reconcileRows(
+        matchedRows,
+        network,
+      );
+
+    const checkpointSafe =
+      !reconciliation
+        .skippedBecauseLocked &&
+      reconciliation.failed === 0 &&
+      !reconciliation.overflow;
+
+    if (checkpointSafe) {
+      await saveVoteScanCheckpoint(
+        network,
+        finalizedBlock,
+      );
+    }
+
+    return {
+      network,
+      skippedBecauseLocked: false,
+      activePending: activeRows.length,
+      fromBlock,
+      toBlock: finalizedBlock,
+      chainVoteEvents:
+        voteEvents.eventCount,
+      matchedInvitations:
+        matchedRows.length,
+      selected:
+        reconciliation.selected,
+      voteDetected:
+        reconciliation.voteDetected,
+      failed: reconciliation.failed,
+      checkpointAdvanced:
+        checkpointSafe,
+      overflow:
+        reconciliation.overflow,
+      reconciliationLocked:
+        reconciliation
+          .skippedBecauseLocked,
+    };
+  } finally {
+    await releaseLock(
+      watchLockName,
+      ownerToken,
+    );
+  }
+}
+
+async function reconcileVoteOnlyCandidates() {
+  const { network } =
+    getVeBetterNetworkConfig();
+
+  const { data, error } =
+    await supabaseAdmin
+      .from('invitations')
+      .select(invitationEvidenceColumns)
+      .eq('activation_network', network)
+      .eq('status', 'ACTIVATING')
+      .eq('reward_status', 'PENDING')
+      .gte('apps_completed', 3)
+      .gte('rewards_received', 3)
+      .eq('vot3_converted', true)
+      .or(
+        'vote_completed.eq.false,vote_completed.is.null',
+      )
+      .not('invitee_wallet', 'is', null)
+      .not(
+        'eligibility_check_id',
+        'is',
+        null,
+      )
+      .is(
+        'impact_sync_complete_at',
+        null,
+      )
+      .order('impact_last_synced_at', {
+        ascending: true,
+        nullsFirst: true,
+      })
+      .order('activated_at', {
+        ascending: true,
+        nullsFirst: true,
+      })
+      .limit(BATCH_SIZE);
+
+  if (error) {
+    throw new Error(
+      `Failed to load vote reconciliation fallback candidates: ${error.message}`,
+    );
+  }
+
+  const rows =
+    (data ?? []) as InvitationEvidenceRow[];
+
+  const reconciliation =
+    await reconcileRows(
+      rows,
+      network,
+    );
+
+  return {
+    network,
+    ...reconciliation,
+  };
+}
+
 /**
- * Pro-plan fast safety net for invitees who have finished every mission except
- * governance voting. It intentionally avoids the heavier daily maintenance
- * work in /api/cron/reconcile.
+ * Pro-plan vote watcher:
+ * - every minute: scan only newly finalized AllocationVoteCast events and
+ *   reconcile VeInvite referrals whose invitee actually voted;
+ * - every 5 minutes: retry pending Sybil v2 assessment / reward reservation;
+ * - every 30 minutes: bounded direct vote-only reconciliation as an independent
+ *   safety net if the event cursor or chain event scan ever misses something.
  *
- * Once a vote is finalized, syncInvitationEvidence performs the current
- * Security Client refresh and Sybil v2 gate before any reward reservation can
- * continue. The assessment and reservation sweeps below provide a bounded,
- * fail-closed recovery path for transient final-assessment/finality delays.
+ * Reward authority remains unchanged: syncInvitationEvidence and the existing
+ * Sybil v2 clearance / reservation gates stay fail-closed.
  */
-export async function GET(request: NextRequest) {
+export async function GET(
+  request: NextRequest,
+) {
   const authorization =
     authorizeCron(request);
 
@@ -243,54 +750,139 @@ export async function GET(request: NextRequest) {
     return NextResponse.json(
       { error: authorization.error },
       {
-        status: authorization.status,
+        status:
+          authorization.status,
         headers: {
           'Cache-Control': 'no-store',
         },
       },
     );
   }
+
+  const minute =
+    new Date().getUTCMinutes();
+  const errors: string[] = [];
+
+  let eventWatcher:
+    Awaited<
+      ReturnType<
+        typeof runEventDrivenVoteWatcher
+      >
+    > | null = null;
+  let fallback:
+    Awaited<
+      ReturnType<
+        typeof reconcileVoteOnlyCandidates
+      >
+    > | null = null;
+  let sybilV2Assessment:
+    Awaited<
+      ReturnType<
+        typeof runSybilV2AssessmentBatch
+      >
+    > | null = null;
+  let rewardReservation:
+    Awaited<
+      ReturnType<
+        typeof reserveEligibleReferralRewards
+      >
+    > | null = null;
 
   try {
-    const reconciliation =
-      await reconcileVoteOnlyCandidates();
-
-    const sybilV2Assessment =
-      await runSybilV2AssessmentBatch(25);
-
-    const rewardReservation =
-      await reserveEligibleReferralRewards();
-
-    return NextResponse.json(
-      {
-        mode: 'VOTE_RECONCILIATION',
-        reconciliation,
-        sybilV2Assessment,
-        rewardReservation,
-      },
-      {
-        headers: {
-          'Cache-Control': 'no-store',
-        },
-      },
-    );
+    eventWatcher =
+      await runEventDrivenVoteWatcher();
   } catch (error) {
     console.error(
-      'Frequent vote reconciliation failed:',
+      'Vote event watcher failed:',
       error,
     );
-
-    return NextResponse.json(
-      {
-        error:
-          'Frequent vote reconciliation failed.',
-      },
-      {
-        status: 500,
-        headers: {
-          'Cache-Control': 'no-store',
-        },
-      },
-    );
+    errors.push('EVENT_WATCHER_FAILED');
   }
+
+  const fallbackDue =
+    minute %
+      FALLBACK_INTERVAL_MINUTES ===
+    0;
+
+  if (fallbackDue) {
+    try {
+      fallback =
+        await reconcileVoteOnlyCandidates();
+    } catch (error) {
+      console.error(
+        'Vote reconciliation fallback failed:',
+        error,
+      );
+      errors.push(
+        'FALLBACK_RECONCILIATION_FAILED',
+      );
+    }
+  }
+
+  const recoveryDue =
+    minute %
+      RECOVERY_INTERVAL_MINUTES ===
+      0 ||
+    (eventWatcher?.voteDetected ??
+      0) > 0 ||
+    (fallback?.voteDetected ??
+      0) > 0;
+
+  if (recoveryDue) {
+    try {
+      sybilV2Assessment =
+        await runSybilV2AssessmentBatch(
+          25,
+        );
+    } catch (error) {
+      console.error(
+        'Vote watcher Sybil v2 recovery failed:',
+        error,
+      );
+      errors.push(
+        'SYBIL_V2_RECOVERY_FAILED',
+      );
+    }
+
+    try {
+      rewardReservation =
+        await reserveEligibleReferralRewards();
+    } catch (error) {
+      console.error(
+        'Vote watcher reward reservation recovery failed:',
+        error,
+      );
+      errors.push(
+        'REWARD_RESERVATION_RECOVERY_FAILED',
+      );
+    }
+  }
+
+  return NextResponse.json(
+    {
+      mode:
+        'EVENT_DRIVEN_VOTE_RECONCILIATION',
+      cadence: {
+        eventWatcherMinutes: 1,
+        sybilRewardRecoveryMinutes:
+          RECOVERY_INTERVAL_MINUTES,
+        fallbackMinutes:
+          FALLBACK_INTERVAL_MINUTES,
+      },
+      eventWatcher,
+      fallback,
+      sybilV2Assessment,
+      rewardReservation,
+      errors,
+    },
+    {
+      status:
+        errors.length > 0
+          ? 500
+          : 200,
+      headers: {
+        'Cache-Control': 'no-store',
+      },
+    },
+  );
 }

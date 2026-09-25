@@ -53,7 +53,7 @@
     },
     {
       "path": "/api/cron/vote-reconcile",
-      "schedule": "*/5 * * * *"
+      "schedule": "* * * * *"
     },
     {
       "path": "/api/cron/analytics-maintenance",

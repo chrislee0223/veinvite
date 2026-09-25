@@ -172,7 +172,7 @@ test('leaderboard publication remains owned by reconcile while maintenance and S
   });
   assert.deepEqual(voteReconciliationCron, {
     path: '/api/cron/vote-reconcile',
-    schedule: '*/5 * * * *',
+    schedule: '* * * * *',
   });
   assert.deepEqual(analyticsMaintenanceCron, {
     path: '/api/cron/analytics-maintenance',
