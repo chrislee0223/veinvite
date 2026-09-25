@@ -87,3 +87,4 @@
 20260924172128 add_sybil_v2_inviter_notifications
 20260924174528 fix_inviter_hold_reopen_notification
 20260925030033 fix_sybil_blocked_terminal_state
+20260925173258 add_vote_reconcile_scan_checkpoint
