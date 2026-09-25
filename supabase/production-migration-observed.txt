@@ -86,3 +86,4 @@
 20260924165354 add_sybil_v2_inviter_reinstate
 20260924172128 add_sybil_v2_inviter_notifications
 20260924174528 fix_inviter_hold_reopen_notification
+20260925030033 fix_sybil_blocked_terminal_state
