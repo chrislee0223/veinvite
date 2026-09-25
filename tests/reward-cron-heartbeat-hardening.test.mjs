@@ -63,7 +63,7 @@ test('cron state is service-only and has no reward authority', () => {
   );
   assert.match(
     migration,
-    /security invoker[\s\S]*try_claim_cron_job/i,
+    /try_claim_cron_job[\s\S]*security invoker/i,
   );
   assert.doesNotMatch(
     migration,
