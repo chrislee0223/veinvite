@@ -61,7 +61,7 @@
     },
     {
       "path": "/api/cron/sybil-v2-paid-backfill",
-      "schedule": "17 1 * * *"
+      "schedule": "*/15 * * * *"
     }
   ]
 }
