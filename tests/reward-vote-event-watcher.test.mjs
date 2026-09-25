@@ -47,7 +47,7 @@ test('minute watcher scans finalized governance vote events before reconciling r
   assert.match(route, /AllocationVoteCast/);
   assert.match(
     route,
-    /getBlockCompressed\(\s*'finalized'\s*\)/,
+    /getBlockCompressed\([\s\S]*?'finalized'[\s\S]*?\)/,
   );
   assert.match(
     route,
