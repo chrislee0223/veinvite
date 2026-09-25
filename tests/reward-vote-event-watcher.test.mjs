@@ -70,11 +70,11 @@ test('watcher keeps bounded recovery and direct reconciliation safety nets', () 
   );
   assert.match(
     route,
-    /RECOVERY_INTERVAL_MINUTES = 5/,
+    /RECOVERY_INTERVAL_SECONDS = 5 \* 60/,
   );
   assert.match(
     route,
-    /FALLBACK_INTERVAL_MINUTES = 30/,
+    /FALLBACK_INTERVAL_SECONDS = 30 \* 60/,
   );
   assert.match(
     route,
@@ -83,6 +83,18 @@ test('watcher keeps bounded recovery and direct reconciliation safety nets', () 
   assert.match(
     route,
     /reserveEligibleReferralRewards/,
+  );
+  assert.match(
+    route,
+    /tryClaimCronJob/,
+  );
+  assert.match(
+    route,
+    /basis: 'LAST_SUCCESS'/,
+  );
+  assert.doesNotMatch(
+    route,
+    /getUTCMinutes|%\s*FALLBACK_INTERVAL|%\s*RECOVERY_INTERVAL/,
   );
   assert.doesNotMatch(
     route,
