@@ -52,6 +52,10 @@
       "schedule": "17 0 * * *"
     },
     {
+      "path": "/api/cron/vote-reconcile",
+      "schedule": "*/5 * * * *"
+    },
+    {
       "path": "/api/cron/analytics-maintenance",
       "schedule": "47 0 * * *"
     },

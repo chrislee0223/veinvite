@@ -32,6 +32,10 @@ const sybilPaidBackfillCron = await readFile(
   new URL('../src/app/api/cron/sybil-v2-paid-backfill/route.ts', import.meta.url),
   'utf8',
 );
+const voteReconcileCron = await readFile(
+  new URL('../src/app/api/cron/vote-reconcile/route.ts', import.meta.url),
+  'utf8',
+);
 const vercelConfig = await readFile(
   new URL('../vercel.json', import.meta.url),
   'utf8',
@@ -147,7 +151,7 @@ test('leaderboard snapshots run only after round growth reporting succeeds', () 
 
 test('leaderboard publication remains owned by reconcile while maintenance and Sybil backfill stay isolated', () => {
   const config = JSON.parse(vercelConfig);
-  assert.equal(config.crons.length, 3);
+  assert.equal(config.crons.length, 4);
 
   const reconciliationCron = config.crons.find(
     (entry) => entry.path === '/api/cron/reconcile',
@@ -158,10 +162,17 @@ test('leaderboard publication remains owned by reconcile while maintenance and S
   const sybilBackfillCron = config.crons.find(
     (entry) => entry.path === '/api/cron/sybil-v2-paid-backfill',
   );
+  const voteReconciliationCron = config.crons.find(
+    (entry) => entry.path === '/api/cron/vote-reconcile',
+  );
 
   assert.deepEqual(reconciliationCron, {
     path: '/api/cron/reconcile',
     schedule: '17 0 * * *',
+  });
+  assert.deepEqual(voteReconciliationCron, {
+    path: '/api/cron/vote-reconcile',
+    schedule: '*/5 * * * *',
   });
   assert.deepEqual(analyticsMaintenanceCron, {
     path: '/api/cron/analytics-maintenance',
@@ -173,6 +184,8 @@ test('leaderboard publication remains owned by reconcile while maintenance and S
   });
 
   assert.match(cron, /publishLeaderboardRoundSnapshots/);
+  assert.doesNotMatch(voteReconcileCron, /publishLeaderboardRoundSnapshots/);
+  assert.doesNotMatch(voteReconcileCron, /maintainRoundGrowthSnapshots/);
   assert.match(analyticsCron, /finalize_long_term_analytics/);
   assert.match(analyticsCron, /mode: 'MIXED_MAINTENANCE'/);
   assert.match(analyticsCron, /analyticsMode: 'NON_DESTRUCTIVE'/);
