@@ -6,6 +6,7 @@ import { INELIGIBLE_INVITER_COPY } from '@/lib/i18n/ineligibleInviterCopy';
 import { INVITER_SECURITY_NOTIFICATION_COPY } from '@/lib/i18n/inviterSecurityNotificationCopy';
 import { NOTIFICATION_COPY } from '@/lib/i18n/notificationCopy';
 import { NOTIFICATION_V2_COPY } from '@/lib/i18n/notificationV2Copy';
+import { REFERRAL_INVALIDATED_COPY } from '@/lib/i18n/referralInvalidatedCopy';
 import { SECURITY_NOTIFICATION_COPY } from '@/lib/i18n/securityNotificationCopy';
 import {
   isRtlLocale,
@@ -47,6 +48,7 @@ function statusText(
     INELIGIBLE_INVITER_COPY.en;
   const security = SECURITY_NOTIFICATION_COPY[locale];
   const inviterSecurity = INVITER_SECURITY_NOTIFICATION_COPY[locale];
+  const invalidated = REFERRAL_INVALIDATED_COPY[locale];
 
   switch (notification.kind) {
     case 'INVITE_ACCEPTED':
@@ -133,6 +135,12 @@ function statusText(
         body: inviterSecurity.restoredBody,
         hint: null,
       };
+    case 'SECURITY_REFERRAL_INVALIDATED':
+      return {
+        title: invalidated.title,
+        body: invalidated.body,
+        hint: null,
+      };
   }
 }
 
@@ -176,6 +184,9 @@ function shortStatus(
   }
   if (notification.kind === 'SECURITY_INVITER_ACCESS_RESTORED') {
     return INVITER_SECURITY_NOTIFICATION_COPY[locale].restoredTitle;
+  }
+  if (notification.kind === 'SECURITY_REFERRAL_INVALIDATED') {
+    return REFERRAL_INVALIDATED_COPY[locale].title;
   }
   return (INELIGIBLE_INVITER_COPY[locale] ?? INELIGIBLE_INVITER_COPY.en).title;
 }
