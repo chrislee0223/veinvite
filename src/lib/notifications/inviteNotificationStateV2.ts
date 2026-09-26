@@ -16,7 +16,8 @@ export type InviteNotificationKindV2 =
   | 'SECURITY_INVITER_WATCH'
   | 'SECURITY_INVITER_HOLD'
   | 'SECURITY_INVITER_RESTRICTED'
-  | 'SECURITY_INVITER_ACCESS_RESTORED';
+  | 'SECURITY_INVITER_ACCESS_RESTORED'
+  | 'SECURITY_REFERRAL_INVALIDATED';
 
 export type RewardReadyEvidence = {
   invite_code: string;

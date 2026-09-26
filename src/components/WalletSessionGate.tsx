@@ -26,6 +26,9 @@ import {
   type Locale,
 } from '@/lib/i18n/locales';
 import {
+  SECURITY_NOTIFICATION_COPY,
+} from '@/lib/i18n/securityNotificationCopy';
+import {
   WALLET_SESSION_COPY,
 } from '@/lib/i18n/walletSessionCopy';
 import {
@@ -42,6 +45,27 @@ type VerificationState =
   | 'checking'
   | 'verified'
   | 'error';
+
+type RestrictionKind =
+  | 'BLACKLIST'
+  | 'PRE_CLAIM_HOLD'
+  | 'POST_PAYOUT_HOLD'
+  | 'INVITER_ESCALATION_HOLD';
+
+type RestrictionResponse = {
+  authenticated?: boolean;
+  restricted?: boolean;
+  restrictionKind?: RestrictionKind | null;
+  reviewPending?: boolean;
+  error?: string;
+};
+
+const RESTRICTION_KINDS = new Set<RestrictionKind>([
+  'BLACKLIST',
+  'PRE_CLAIM_HOLD',
+  'POST_PAYOUT_HOLD',
+  'INVITER_ESCALATION_HOLD',
+]);
 
 export type WalletSessionQaState =
   | 'idle-brand'
@@ -82,6 +106,43 @@ function initialLocale(): Locale {
     window.navigator.languages,
     'en',
   );
+}
+
+async function readWalletRestriction(): Promise<RestrictionKind | null> {
+  const response = await fetch('/api/auth/restriction', {
+    method: 'GET',
+    cache: 'no-store',
+    credentials: 'include',
+  });
+
+  let payload: RestrictionResponse;
+  try {
+    payload = (await response.json()) as RestrictionResponse;
+  } catch {
+    throw new Error(
+      `VeInvite returned an invalid participation response (${response.status}).`,
+    );
+  }
+
+  if (!response.ok) {
+    throw new Error(
+      payload.error ||
+        'Could not verify VeInvite participation access.',
+    );
+  }
+
+  const kind = payload.restrictionKind ?? null;
+  if (!payload.restricted || !kind) {
+    return null;
+  }
+
+  if (!RESTRICTION_KINDS.has(kind)) {
+    throw new Error(
+      'VeInvite returned an unknown participation restriction.',
+    );
+  }
+
+  return kind;
 }
 
 function WalletSessionBrandSurface() {
@@ -289,13 +350,156 @@ export function WalletSessionSurface({
   );
 }
 
+function WalletRestrictionSurface({
+  locale,
+  restrictionKind,
+  isDisconnecting,
+  onChooseAnother,
+  onDisconnect,
+}: {
+  locale: Locale;
+  restrictionKind: RestrictionKind;
+  isDisconnecting: boolean;
+  onChooseAnother: () => void;
+  onDisconnect: () => void;
+}) {
+  const supportedLocale = isLocale(locale) ? locale : 'en';
+  const security = SECURITY_NOTIFICATION_COPY[supportedLocale];
+  const session = WALLET_SESSION_COPY[supportedLocale];
+  const switchCopy = WALLET_SWITCH_COPY[supportedLocale];
+  const permanent = restrictionKind === 'BLACKLIST';
+
+  return (
+    <div
+      data-veinvite-wallet-restriction="active"
+      style={{
+        minHeight: '100dvh',
+        display: 'grid',
+        placeItems: 'center',
+        boxSizing: 'border-box',
+        padding: '24px',
+        background:
+          'radial-gradient(circle at 50% 32%, rgba(255,113,134,0.10), transparent 34%), #080807',
+        color: '#ffffff',
+        textAlign: 'center',
+      }}
+    >
+      <div
+        role="alert"
+        aria-live="polite"
+        style={{
+          width: 'min(420px, 100%)',
+          boxSizing: 'border-box',
+          display: 'grid',
+          gap: '14px',
+          padding: '26px 22px',
+          border: '1px solid rgba(255,113,134,0.24)',
+          borderRadius: '24px',
+          background: 'rgba(18,20,33,0.94)',
+          boxShadow: '0 24px 70px rgba(0,0,0,0.34)',
+        }}
+      >
+        <div
+          aria-hidden="true"
+          style={{
+            width: '48px',
+            height: '48px',
+            margin: '0 auto 2px',
+            display: 'grid',
+            placeItems: 'center',
+            borderRadius: '16px',
+            background: 'rgba(255,113,134,0.12)',
+            color: '#ff8da0',
+            fontSize: '1.35rem',
+            fontWeight: 900,
+          }}
+        >
+          !
+        </div>
+        <strong
+          style={{
+            fontSize: '1.2rem',
+            letterSpacing: '-0.02em',
+          }}
+        >
+          {permanent
+            ? security.restrictionTitle
+            : security.reviewTitle}
+        </strong>
+        <span
+          style={{
+            opacity: 0.82,
+            lineHeight: 1.55,
+            fontSize: '0.9rem',
+          }}
+        >
+          {permanent
+            ? security.restrictionBody
+            : security.reviewBody}
+        </span>
+        <div
+          style={{
+            display: 'grid',
+            gap: '10px',
+            marginTop: '4px',
+          }}
+        >
+          <button
+            type="button"
+            disabled={isDisconnecting}
+            onClick={onChooseAnother}
+            style={{
+              width: '100%',
+              minHeight: '48px',
+              borderRadius: '14px',
+              border: 0,
+              background:
+                'linear-gradient(135deg, #ffd24d, #efa718)',
+              color: '#17120a',
+              cursor: isDisconnecting ? 'wait' : 'pointer',
+              font: 'inherit',
+              fontWeight: 800,
+              opacity: isDisconnecting ? 0.62 : 1,
+            }}
+          >
+            {switchCopy.chooseAnother}
+          </button>
+          <button
+            type="button"
+            disabled={isDisconnecting}
+            onClick={onDisconnect}
+            style={{
+              width: '100%',
+              minHeight: '46px',
+              borderRadius: '14px',
+              border: '1px solid rgba(255,255,255,0.16)',
+              background: 'rgba(255,255,255,0.04)',
+              color: '#f8f6ef',
+              cursor: isDisconnecting ? 'wait' : 'pointer',
+              font: 'inherit',
+              fontWeight: 750,
+              opacity: isDisconnecting ? 0.62 : 0.9,
+            }}
+          >
+            {isDisconnecting
+              ? session.disconnectingWallet
+              : session.disconnectWallet}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export function WalletSessionGate({
   children,
   initialSessionWallet = null,
+  initialRestrictionKind = null,
   qaPreview = null,
 }: {
   children: ReactNode;
   initialSessionWallet?: string | null;
+  initialRestrictionKind?: RestrictionKind | null;
   qaPreview?: WalletSessionQaPreview | null;
 }) {
   const previewMode = qaPreview !== null;
@@ -322,6 +526,10 @@ export function WalletSessionGate({
     );
   const [verifiedWallet, setVerifiedWallet] =
     useState<string | null>(initialWallet);
+  const [restrictionKind, setRestrictionKind] =
+    useState<RestrictionKind | null>(
+      initialWallet ? initialRestrictionKind : null,
+    );
   const [locale, setLocale] =
     useState<Locale>('en');
   const [isDisconnecting, setIsDisconnecting] =
@@ -409,6 +617,7 @@ export function WalletSessionGate({
         pendingErrorTimerRef.current = null;
       }
       setVerifiedWallet(null);
+      setRestrictionKind(null);
       setState('idle');
     };
 
@@ -572,12 +781,14 @@ export function WalletSessionGate({
 
     try {
       await ensureWalletSession(walletAddress);
+      const activeRestriction = await readWalletRestriction();
 
       if (attemptRef.current !== attempt) {
         return;
       }
 
       sessionWalletRef.current = walletAddress;
+      setRestrictionKind(activeRestriction);
       setVerifiedWallet(walletAddress);
       setState('verified');
       bootReadyDispatchedRef.current = true;
@@ -595,6 +806,7 @@ export function WalletSessionGate({
       );
 
       setVerifiedWallet(null);
+      setRestrictionKind(null);
       pendingErrorTimerRef.current = window.setTimeout(() => {
         pendingErrorTimerRef.current = null;
 
@@ -660,6 +872,7 @@ export function WalletSessionGate({
       bootReadyDispatchedRef.current = false;
       sessionWalletRef.current = null;
       setVerifiedWallet(null);
+      setRestrictionKind(null);
 
       if (!walletAddress) {
         setState('idle');
@@ -834,6 +1047,7 @@ export function WalletSessionGate({
     autoAttemptedWalletRef.current =
       walletAddress;
     setVerifiedWallet(null);
+    setRestrictionKind(null);
     void verify();
   }, [
     previewMode,
@@ -883,6 +1097,26 @@ export function WalletSessionGate({
     }
 
     return children;
+  }
+
+  if (
+    state === 'verified' &&
+    verifiedWallet === walletAddress &&
+    restrictionKind
+  ) {
+    return (
+      <WalletRestrictionSurface
+        locale={locale}
+        restrictionKind={restrictionKind}
+        isDisconnecting={isDisconnecting}
+        onChooseAnother={() => {
+          void chooseAnotherWallet();
+        }}
+        onDisconnect={() => {
+          void disconnectFromVerification();
+        }}
+      />
+    );
   }
 
   if (
