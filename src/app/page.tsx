@@ -72,7 +72,9 @@ export default async function HomePage() {
           initialSessionWallet
         }
         initialRestrictionKind={
-          initialRestriction?.restriction_kind ?? null
+          initialRestriction?.restriction_kind === 'BLACKLIST'
+            ? 'BLACKLIST'
+            : null
         }
       >
         <InviteStatusAutoRefresh />
