@@ -17,6 +17,7 @@ import { NOTIFICATION_META_COPY } from '@/lib/i18n/notificationMetaCopy';
 import { NOTIFICATION_V2_COPY } from '@/lib/i18n/notificationV2Copy';
 import { PROGRESS_CLAIM_COPY } from '@/lib/i18n/progressClaimCopy';
 import { REWARD_RECEIPT_COPY } from '@/lib/i18n/rewardReceiptCopy';
+import { REFERRAL_INVALIDATED_COPY } from '@/lib/i18n/referralInvalidatedCopy';
 import { SECURITY_NOTIFICATION_COPY } from '@/lib/i18n/securityNotificationCopy';
 import {
   isRtlLocale,
@@ -193,6 +194,7 @@ function itemCopy(
   const amount = formatB3trWei(item.rewardAmountWei);
   const security = SECURITY_NOTIFICATION_COPY[locale];
   const inviterSecurity = INVITER_SECURITY_NOTIFICATION_COPY[locale];
+  const invalidated = REFERRAL_INVALIDATED_COPY[locale];
 
   switch (item.kind) {
     case 'INVITE_ACCEPTED':
@@ -263,6 +265,12 @@ function itemCopy(
       return {
         title: inviterSecurity.restoredTitle,
         body: inviterSecurity.restoredBody,
+        hint: null,
+      };
+    case 'SECURITY_REFERRAL_INVALIDATED':
+      return {
+        title: invalidated.title,
+        body: invalidated.body,
         hint: null,
       };
   }
