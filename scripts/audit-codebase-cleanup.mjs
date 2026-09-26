@@ -202,9 +202,29 @@ for (const file of sourceFiles) {
   families.get(key).push(rel(file));
 }
 
+function runtimeImporters(filePath) {
+  const absolute = path.resolve(ROOT, filePath);
+  const importers = [];
+
+  for (const [candidate, dependencies] of graph.entries()) {
+    if (dependencies.includes(absolute)) {
+      importers.push(rel(candidate));
+    }
+  }
+
+  return importers.sort();
+}
+
 const versionFamilies = [...families.entries()]
   .filter(([, files]) => files.length > 1)
-  .map(([family, files]) => ({ family, files: files.sort() }))
+  .map(([family, files]) => ({
+    family,
+    files: files.sort().map((file) => ({
+      path: file,
+      bytes: fs.statSync(path.join(ROOT, file)).size,
+      runtimeImporters: runtimeImporters(file),
+    })),
+  }))
   .sort((a, b) => a.family.localeCompare(b.family));
 
 function printSection(title, items, render) {
@@ -240,7 +260,22 @@ printSection(
 printSection(
   'VERSIONED / DUPLICATE-LOOKING FAMILIES',
   versionFamilies,
-  (item) => item.family + '\t=> ' + item.files.join(' | '),
+  (item) =>
+    item.family +
+    '\n' +
+    item.files
+      .map(
+        (file) =>
+          '  - ' +
+          file.bytes +
+          '\t' +
+          file.path +
+          '\t<- ' +
+          (file.runtimeImporters.length > 0
+            ? file.runtimeImporters.join(', ')
+            : '(no runtime importer)'),
+      )
+      .join('\n'),
 );
 
 console.log('\nAudit is advisory only; it never fails CI.');
