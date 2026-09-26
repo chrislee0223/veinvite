@@ -363,9 +363,10 @@ function WalletRestrictionSurface({
   onChooseAnother: () => void;
   onDisconnect: () => void;
 }) {
-  const security = SECURITY_NOTIFICATION_COPY[locale];
-  const session = WALLET_SESSION_COPY[locale];
-  const switchCopy = WALLET_SWITCH_COPY[locale];
+  const supportedLocale = isLocale(locale) ? locale : 'en';
+  const security = SECURITY_NOTIFICATION_COPY[supportedLocale];
+  const session = WALLET_SESSION_COPY[supportedLocale];
+  const switchCopy = WALLET_SWITCH_COPY[supportedLocale];
   const permanent = restrictionKind === 'BLACKLIST';
 
   return (
