@@ -43,7 +43,7 @@ test('Pro vote watcher runs every minute without moving daily maintenance', () =
   });
 });
 
-test('minute watcher scans finalized governance vote events before reconciling referrals', () => {
+test('minute watcher scans finalized governance vote events before loading or reconciling referrals', () => {
   assert.match(route, /AllocationVoteCast/);
   assert.match(
     route,
@@ -52,6 +52,19 @@ test('minute watcher scans finalized governance vote events before reconciling r
   assert.match(
     route,
     /vote_reconcile_scan_checkpoints/,
+  );
+  const eventReadIndex = route.indexOf(
+    'await readFinalizedVoteEvents',
+  );
+  const activeLoadIndex = route.indexOf(
+    'await loadActivePendingInvitations',
+  );
+
+  assert.ok(eventReadIndex >= 0);
+  assert.ok(activeLoadIndex > eventReadIndex);
+  assert.match(
+    route,
+    /voteEvents\.eventCount === 0[\s\S]*await saveVoteScanCheckpoint/,
   );
   assert.match(
     route,
@@ -75,6 +88,14 @@ test('watcher keeps bounded recovery and direct reconciliation safety nets', () 
   assert.match(
     route,
     /FALLBACK_INTERVAL_SECONDS = 30 \* 60/,
+  );
+  assert.match(
+    route,
+    /EVENT_RECONCILIATION_BATCH_SIZE = 25/,
+  );
+  assert.match(
+    route,
+    /FALLBACK_RECONCILIATION_BATCH_SIZE = 10/,
   );
   assert.match(
     route,
