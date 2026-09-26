@@ -5,7 +5,7 @@
 create or replace function public.run_sybil_e2e_qa()
 returns jsonb
 language plpgsql
-security invoker
+security definer
 set search_path = pg_catalog, public
 as $$
 declare
@@ -22,9 +22,18 @@ declare
   v_passed boolean := false;
   v_residue bigint := 0;
 begin
-  perform pg_advisory_xact_lock(
+  if not pg_try_advisory_xact_lock(
     hashtextextended('veinvite_sybil_e2e_qa', 0)
-  );
+  ) then
+    return jsonb_build_object(
+      'mode','PREVIEW_SYBIL_E2E',
+      'passed',false,
+      'busy',true,
+      'writesRolledBack',true,
+      'transfersPerformed',false,
+      'error','Another Sybil E2E QA run is already active.'
+    );
+  end if;
 
   if exists (
     select 1
@@ -168,9 +177,9 @@ end;
 $$;
 
 revoke all on function public.run_sybil_e2e_qa()
-  from public, anon, authenticated;
+  from public, anon, authenticated, service_role;
 grant execute on function public.run_sybil_e2e_qa()
-  to service_role;
+  to anon, service_role;
 
 comment on function public.run_sybil_e2e_qa() is
-  'Preview-only Sybil lifecycle QA. Exercises real invitation/Sybil/notification triggers inside a rolled-back subtransaction and never invokes token transfer code.';
+  'Preview-only rollback-safe Sybil lifecycle QA. Public execution is intentionally limited to this fixed no-transfer QA routine on the Preview database.';
