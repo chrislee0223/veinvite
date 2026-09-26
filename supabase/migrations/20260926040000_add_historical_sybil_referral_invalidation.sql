@@ -50,6 +50,12 @@ create table if not exists public.sybil_v2_referral_invalidations (
     )
 );
 
+create index if not exists sybil_v2_referral_invalidations_invitation_idx
+  on public.sybil_v2_referral_invalidations(invitation_id);
+
+create index if not exists sybil_v2_referral_invalidations_invite_code_idx
+  on public.sybil_v2_referral_invalidations(invite_code);
+
 create index if not exists sybil_v2_referral_invalidations_invitee_idx
   on public.sybil_v2_referral_invalidations(
     network,
@@ -102,6 +108,9 @@ create table if not exists public.sybil_v2_referral_invalidation_events (
     check (length(btrim(operator_reason)) between 12 and 500),
   created_at timestamptz not null default now()
 );
+
+create index if not exists sybil_v2_referral_invalidation_events_invalidation_idx
+  on public.sybil_v2_referral_invalidation_events(invalidation_id);
 
 create index if not exists sybil_v2_referral_invalidation_events_invite_idx
   on public.sybil_v2_referral_invalidation_events(
