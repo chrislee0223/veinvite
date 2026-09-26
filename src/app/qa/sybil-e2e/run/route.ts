@@ -2,8 +2,7 @@ import {
   NextRequest,
   NextResponse,
 } from 'next/server';
-
-import { supabaseAdmin } from '@/lib/supabaseServer';
+import { createClient } from '@supabase/supabase-js';
 
 const PREVIEW_SUPABASE_PROJECT_REF =
   'bpppslplhmppxzvdkwxs';
@@ -61,21 +60,44 @@ function configuredProjectRef() {
   }
 }
 
-function previewQaAllowed() {
+function dedicatedQaPreviewAllowed() {
   return (
     process.env.VERCEL_ENV ===
       'preview' &&
-    process.env.VEINVITE_QA_STUDIO !==
+    process.env.VEINVITE_QA_STUDIO ===
       'true' &&
     configuredProjectRef() ===
       PREVIEW_SUPABASE_PROJECT_REF
   );
 }
 
+function createQaRollbackClient() {
+  const url =
+    process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const anonKey =
+    process.env
+      .NEXT_PUBLIC_SUPABASE_ANON_KEY;
+
+  if (!url || !anonKey) {
+    return null;
+  }
+
+  return createClient(
+    url,
+    anonKey,
+    {
+      auth: {
+        persistSession: false,
+        autoRefreshToken: false,
+      },
+    },
+  );
+}
+
 export async function POST(
   request: NextRequest,
 ) {
-  if (!previewQaAllowed()) {
+  if (!dedicatedQaPreviewAllowed()) {
     return new NextResponse(
       'Not Found',
       {
@@ -98,8 +120,24 @@ export async function POST(
     );
   }
 
+  const qaClient =
+    createQaRollbackClient();
+
+  if (!qaClient) {
+    return NextResponse.json(
+      {
+        error:
+          'Preview QA Supabase client is not configured.',
+      },
+      {
+        status: 503,
+        headers: noStoreHeaders(),
+      },
+    );
+  }
+
   const { data, error } =
-    await supabaseAdmin.rpc(
+    await qaClient.rpc(
       'run_sybil_e2e_qa',
     );
 
@@ -136,13 +174,24 @@ export async function POST(
 
   const report =
     data as Record<string, unknown>;
-  const passed =
-    report.passed === true;
+
+  if (report.busy === true) {
+    return NextResponse.json(
+      report,
+      {
+        status: 409,
+        headers: noStoreHeaders(),
+      },
+    );
+  }
 
   return NextResponse.json(
     report,
     {
-      status: passed ? 200 : 500,
+      status:
+        report.passed === true
+          ? 200
+          : 500,
       headers: noStoreHeaders(),
     },
   );
