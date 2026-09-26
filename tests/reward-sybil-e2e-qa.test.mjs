@@ -32,11 +32,19 @@ test('Sybil E2E runner is Preview-only and pinned to the reviewed Preview databa
   );
   assert.match(
     route,
-    /VEINVITE_QA_STUDIO !==\s*'true'/u,
+    /VEINVITE_QA_STUDIO ===\s*'true'/u,
   );
   assert.match(
     route,
     /requestHasSameOrigin/u,
+  );
+  assert.match(
+    route,
+    /NEXT_PUBLIC_SUPABASE_ANON_KEY/u,
+  );
+  assert.match(
+    route,
+    /createClient/u,
   );
   assert.doesNotMatch(
     route,
@@ -64,6 +72,18 @@ test('Sybil E2E SQL exercises real security lifecycle state and always rolls fix
   assert.match(
     qaSql,
     /SECURITY_INVITER_HOLD/u,
+  );
+  assert.match(
+    qaSql,
+    /security definer/u,
+  );
+  assert.match(
+    qaSql,
+    /pg_try_advisory_xact_lock/u,
+  );
+  assert.match(
+    qaSql,
+    /grant execute on function public\.run_sybil_e2e_qa\(\)[\s\S]*to anon, service_role/u,
   );
   assert.match(
     qaSql,
