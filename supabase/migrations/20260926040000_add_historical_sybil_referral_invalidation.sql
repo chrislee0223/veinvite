@@ -1,5 +1,26 @@
 begin;
 
+alter table public.invite_notification_history
+  drop constraint if exists invite_notification_history_kind_check;
+
+alter table public.invite_notification_history
+  add constraint invite_notification_history_kind_check
+  check (kind in (
+    'INVITE_ACCEPTED',
+    'DAPP_PROGRESS',
+    'VOT3_CONVERTED',
+    'REWARD_READY',
+    'REWARD_PAID',
+    'INVITE_INELIGIBLE',
+    'SECURITY_REVIEW_STARTED',
+    'SECURITY_RESTRICTION_CONFIRMED',
+    'SECURITY_INVITER_WATCH',
+    'SECURITY_INVITER_HOLD',
+    'SECURITY_INVITER_RESTRICTED',
+    'SECURITY_INVITER_ACCESS_RESTORED',
+    'SECURITY_REFERRAL_INVALIDATED'
+  ));
+
 create table if not exists public.sybil_v2_referral_invalidations (
   id uuid primary key default gen_random_uuid(),
   network text not null
@@ -438,16 +459,32 @@ begin
       v_now
     );
 
-    if to_regprocedure(
-      'public.record_invite_security_notification(text,text,text,timestamptz)'
-    ) is not null then
-      perform public.record_invite_security_notification(
-        v_code,
-        'SECURITY_RESTRICTION_CONFIRMED',
-        'historical-invalidated-' || v_invalidation.id::text,
-        v_now
-      );
-    end if;
+    insert into public.invite_notification_history(
+      inviter_wallet,
+      invite_code,
+      kind,
+      stage,
+      event_at,
+      reward_amount_wei,
+      dapp_progress,
+      collapsed_progress,
+      friend_wallet,
+      dedupe_key
+    ) values (
+      lower(v_invitation.inviter_wallet),
+      v_code,
+      'SECURITY_REFERRAL_INVALIDATED',
+      6,
+      v_now,
+      null,
+      null,
+      false,
+      lower(v_invitation.invitee_wallet),
+      'security-v3:' || v_code
+        || ':SECURITY_REFERRAL_INVALIDATED:'
+        || v_invalidation.id::text
+    )
+    on conflict (dedupe_key) do nothing;
 
     return jsonb_build_object(
       'changed', true,
