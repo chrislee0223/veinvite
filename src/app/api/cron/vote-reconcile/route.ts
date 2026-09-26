@@ -31,7 +31,8 @@ import {
 
 export const maxDuration = 300;
 
-const BATCH_SIZE = 25;
+const EVENT_RECONCILIATION_BATCH_SIZE = 25;
+const FALLBACK_RECONCILIATION_BATCH_SIZE = 10;
 const EVENT_PAGE_SIZE = 1000;
 const INITIAL_LOOKBACK_BLOCKS = 360;
 const FALLBACK_INTERVAL_SECONDS = 30 * 60;
@@ -443,6 +444,7 @@ async function readFinalizedVoteEvents({
 async function reconcileRows(
   rows: InvitationEvidenceRow[],
   network: VeBetterNetwork,
+  limit: number,
 ) {
   if (rows.length === 0) {
     return {
@@ -477,7 +479,7 @@ async function reconcileRows(
 
   try {
     const selectedRows =
-      rows.slice(0, BATCH_SIZE);
+      rows.slice(0, limit);
 
     let voteDetected = 0;
     let failed = 0;
@@ -553,27 +555,6 @@ async function runEventDrivenVoteWatcher() {
   }
 
   try {
-    const activeRows =
-      await loadActivePendingInvitations(
-        network,
-      );
-
-    if (activeRows.length === 0) {
-      return {
-        network,
-        skippedBecauseLocked: false,
-        activePending: 0,
-        fromBlock: null,
-        toBlock: null,
-        chainVoteEvents: 0,
-        matchedInvitations: 0,
-        selected: 0,
-        voteDetected: 0,
-        failed: 0,
-        checkpointAdvanced: false,
-      };
-    }
-
     const finalizedBlock =
       await readFinalizedBlockNumber(
         nodeUrl,
@@ -600,7 +581,7 @@ async function runEventDrivenVoteWatcher() {
       return {
         network,
         skippedBecauseLocked: false,
-        activePending: activeRows.length,
+        activePending: null,
         fromBlock,
         toBlock: finalizedBlock,
         chainVoteEvents: 0,
@@ -621,6 +602,57 @@ async function runEventDrivenVoteWatcher() {
         toBlock: finalizedBlock,
       });
 
+    // Most one-minute passes contain no AllocationVoteCast event. Advance the
+    // finalized cursor immediately and avoid loading every active invitation
+    // from Postgres unless there is an actual governance vote to match.
+    if (voteEvents.eventCount === 0) {
+      await saveVoteScanCheckpoint(
+        network,
+        finalizedBlock,
+      );
+
+      return {
+        network,
+        skippedBecauseLocked: false,
+        activePending: null,
+        fromBlock,
+        toBlock: finalizedBlock,
+        chainVoteEvents: 0,
+        matchedInvitations: 0,
+        selected: 0,
+        voteDetected: 0,
+        failed: 0,
+        checkpointAdvanced: true,
+      };
+    }
+
+    const activeRows =
+      await loadActivePendingInvitations(
+        network,
+      );
+
+    if (activeRows.length === 0) {
+      await saveVoteScanCheckpoint(
+        network,
+        finalizedBlock,
+      );
+
+      return {
+        network,
+        skippedBecauseLocked: false,
+        activePending: 0,
+        fromBlock,
+        toBlock: finalizedBlock,
+        chainVoteEvents:
+          voteEvents.eventCount,
+        matchedInvitations: 0,
+        selected: 0,
+        voteDetected: 0,
+        failed: 0,
+        checkpointAdvanced: true,
+      };
+    }
+
     const matchedRows =
       activeRows.filter((row) => {
         const wallet =
@@ -639,6 +671,7 @@ async function runEventDrivenVoteWatcher() {
       await reconcileRows(
         matchedRows,
         network,
+        EVENT_RECONCILIATION_BATCH_SIZE,
       );
 
     const checkpointSafe =
@@ -720,7 +753,7 @@ async function reconcileVoteOnlyCandidates() {
         ascending: true,
         nullsFirst: true,
       })
-      .limit(BATCH_SIZE);
+      .limit(FALLBACK_RECONCILIATION_BATCH_SIZE);
 
   if (error) {
     throw new Error(
@@ -735,6 +768,7 @@ async function reconcileVoteOnlyCandidates() {
     await reconcileRows(
       rows,
       network,
+      FALLBACK_RECONCILIATION_BATCH_SIZE,
     );
 
   return {
@@ -745,13 +779,15 @@ async function reconcileVoteOnlyCandidates() {
 
 /**
  * Pro-plan vote watcher:
- * - every minute: scan only newly finalized AllocationVoteCast events and
- *   reconcile VeInvite referrals whose invitee actually voted;
+ * - every minute: scan only newly finalized AllocationVoteCast events; load
+ *   active VeInvite referrals from Postgres only when at least one vote exists,
+ *   then reconcile only matching invitees;
  * - after five minutes without a successful recovery pass: retry pending
  *   Sybil v2 assessment / reward reservation; a newly detected vote can trigger
  *   this recovery immediately;
- * - after 30 minutes without a successful fallback pass: run bounded direct
- *   vote-only reconciliation as an independent safety net. Failed passes release
+ * - after 30 minutes without a successful fallback pass: run a smaller bounded
+ *   direct vote-only reconciliation batch as an independent safety net. Failed
+ *   passes release
  *   their lease so the next one-minute invocation can retry instead of waiting
  *   for the next wall-clock boundary.
  *
