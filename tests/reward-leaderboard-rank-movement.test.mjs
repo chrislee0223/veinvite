@@ -151,7 +151,7 @@ test('leaderboard snapshots run only after round growth reporting succeeds', () 
 
 test('leaderboard publication remains owned by reconcile while maintenance and Sybil backfill stay isolated', () => {
   const config = JSON.parse(vercelConfig);
-  assert.equal(config.crons.length, 4);
+  assert.equal(config.crons.length, 3);
 
   const reconciliationCron = config.crons.find(
     (entry) => entry.path === '/api/cron/reconcile',
@@ -178,10 +178,7 @@ test('leaderboard publication remains owned by reconcile while maintenance and S
     path: '/api/cron/analytics-maintenance',
     schedule: '47 0 * * *',
   });
-  assert.deepEqual(sybilBackfillCron, {
-    path: '/api/cron/sybil-v2-paid-backfill',
-    schedule: '*/15 * * * *',
-  });
+  assert.equal(sybilBackfillCron, undefined);
 
   assert.match(cron, /publishLeaderboardRoundSnapshots/);
   assert.doesNotMatch(voteReconcileCron, /publishLeaderboardRoundSnapshots/);

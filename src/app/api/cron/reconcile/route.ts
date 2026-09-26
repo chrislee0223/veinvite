@@ -10,6 +10,11 @@ import {
   type EphemeralCleanupSummary,
 } from '@/lib/housekeeping/ephemeralCleanup';
 import {
+  markCronJobFailed,
+  markCronJobStarted,
+  markCronJobSucceeded,
+} from '@/lib/monitoring/cronHeartbeat';
+import {
   DEFAULT_RECONCILIATION_BATCH_SIZE,
   runReconciliationBatch,
   type ReconciliationBatchSummary,
@@ -118,7 +123,8 @@ type CronStageFailure =
   | 'LEADERBOARD_SNAPSHOTS'
   | 'HOUSEKEEPING'
   | 'FAST_STATUS_RECONCILIATION'
-  | 'MONITORING';
+  | 'MONITORING'
+  | 'CRON_HEARTBEAT';
 
 function logStageFailure(
   stage: CronStageFailure,
@@ -182,6 +188,18 @@ export async function GET(
   }
 
   const failedStages: CronStageFailure[] = [];
+
+  try {
+    await markCronJobStarted(
+      'daily-reconcile',
+    );
+  } catch (error) {
+    failedStages.push('CRON_HEARTBEAT');
+    logStageFailure(
+      'CRON_HEARTBEAT',
+      error,
+    );
+  }
   let allocationSync: Awaited<
     ReturnType<typeof syncVeInviteAllocationReceipts>
   > | null = null;
@@ -422,6 +440,33 @@ export async function GET(
           (alert) => alert.code,
         ),
       },
+    );
+  }
+
+  try {
+    if (failedStages.length > 0) {
+      await markCronJobFailed(
+        'daily-reconcile',
+        failedStages.join(','),
+      );
+    } else {
+      await markCronJobSucceeded(
+        'daily-reconcile',
+      );
+    }
+  } catch (error) {
+    if (
+      !failedStages.includes(
+        'CRON_HEARTBEAT',
+      )
+    ) {
+      failedStages.push(
+        'CRON_HEARTBEAT',
+      );
+    }
+    logStageFailure(
+      'CRON_HEARTBEAT',
+      error,
     );
   }
 

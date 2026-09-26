@@ -12,6 +12,12 @@ import {
   type InvitationEvidenceRow,
 } from '@/lib/impact/syncInvitation';
 import {
+  markCronJobFailed,
+  markCronJobStarted,
+  markCronJobSucceeded,
+  tryClaimCronJob,
+} from '@/lib/monitoring/cronHeartbeat';
+import {
   reserveEligibleReferralRewards,
 } from '@/lib/rewards/rewardReservation';
 import { supabaseAdmin } from '@/lib/supabaseServer';
@@ -28,10 +34,18 @@ export const maxDuration = 300;
 const BATCH_SIZE = 25;
 const EVENT_PAGE_SIZE = 1000;
 const INITIAL_LOOKBACK_BLOCKS = 360;
-const FALLBACK_INTERVAL_MINUTES = 30;
-const RECOVERY_INTERVAL_MINUTES = 5;
+const FALLBACK_INTERVAL_SECONDS = 30 * 60;
+const RECOVERY_INTERVAL_SECONDS = 5 * 60;
+const CADENCE_LEASE_SECONDS = 180;
 const RECONCILIATION_LEASE_SECONDS = 600;
 const EVENT_WATCH_LEASE_SECONDS = 180;
+
+const VOTE_RECONCILE_JOB =
+  'vote-reconcile';
+const VOTE_RECOVERY_JOB =
+  'vote-reconcile:sybil-reward-recovery';
+const VOTE_FALLBACK_JOB =
+  'vote-reconcile:full-fallback';
 
 const allocationVoteCastEvent =
   new ABIEvent(
@@ -733,9 +747,13 @@ async function reconcileVoteOnlyCandidates() {
  * Pro-plan vote watcher:
  * - every minute: scan only newly finalized AllocationVoteCast events and
  *   reconcile VeInvite referrals whose invitee actually voted;
- * - every 5 minutes: retry pending Sybil v2 assessment / reward reservation;
- * - every 30 minutes: bounded direct vote-only reconciliation as an independent
- *   safety net if the event cursor or chain event scan ever misses something.
+ * - after five minutes without a successful recovery pass: retry pending
+ *   Sybil v2 assessment / reward reservation; a newly detected vote can trigger
+ *   this recovery immediately;
+ * - after 30 minutes without a successful fallback pass: run bounded direct
+ *   vote-only reconciliation as an independent safety net. Failed passes release
+ *   their lease so the next one-minute invocation can retry instead of waiting
+ *   for the next wall-clock boundary.
  *
  * Reward authority remains unchanged: syncInvitationEvidence and the existing
  * Sybil v2 clearance / reservation gates stay fail-closed.
@@ -759,9 +777,21 @@ export async function GET(
     );
   }
 
-  const minute =
-    new Date().getUTCMinutes();
   const errors: string[] = [];
+
+  try {
+    await markCronJobStarted(
+      VOTE_RECONCILE_JOB,
+    );
+  } catch (error) {
+    console.error(
+      'Vote reconcile heartbeat start failed:',
+      error,
+    );
+    errors.push(
+      'CRON_HEARTBEAT_START_FAILED',
+    );
+  }
 
   let eventWatcher:
     Awaited<
@@ -799,15 +829,33 @@ export async function GET(
     errors.push('EVENT_WATCHER_FAILED');
   }
 
-  const fallbackDue =
-    minute %
-      FALLBACK_INTERVAL_MINUTES ===
-    0;
+  let fallbackClaimed = false;
 
-  if (fallbackDue) {
+  try {
+    fallbackClaimed =
+      await tryClaimCronJob(
+        VOTE_FALLBACK_JOB,
+        FALLBACK_INTERVAL_SECONDS,
+        CADENCE_LEASE_SECONDS,
+      );
+  } catch (error) {
+    console.error(
+      'Vote fallback cadence claim failed:',
+      error,
+    );
+    errors.push(
+      'FALLBACK_CADENCE_CLAIM_FAILED',
+    );
+  }
+
+  if (fallbackClaimed) {
     try {
       fallback =
         await reconcileVoteOnlyCandidates();
+
+      await markCronJobSucceeded(
+        VOTE_FALLBACK_JOB,
+      );
     } catch (error) {
       console.error(
         'Vote reconciliation fallback failed:',
@@ -816,25 +864,59 @@ export async function GET(
       errors.push(
         'FALLBACK_RECONCILIATION_FAILED',
       );
+
+      try {
+        await markCronJobFailed(
+          VOTE_FALLBACK_JOB,
+          error,
+        );
+      } catch (heartbeatError) {
+        console.error(
+          'Vote fallback heartbeat failure:',
+          heartbeatError,
+        );
+      }
     }
   }
 
-  const recoveryDue =
-    minute %
-      RECOVERY_INTERVAL_MINUTES ===
-      0 ||
+  const voteTriggeredRecovery =
     (eventWatcher?.voteDetected ??
       0) > 0 ||
     (fallback?.voteDetected ??
       0) > 0;
 
-  if (recoveryDue) {
+  let recoveryClaimed = false;
+
+  try {
+    recoveryClaimed =
+      await tryClaimCronJob(
+        VOTE_RECOVERY_JOB,
+        voteTriggeredRecovery
+          ? 0
+          : RECOVERY_INTERVAL_SECONDS,
+        CADENCE_LEASE_SECONDS,
+      );
+  } catch (error) {
+    console.error(
+      'Sybil/reward recovery cadence claim failed:',
+      error,
+    );
+    errors.push(
+      'RECOVERY_CADENCE_CLAIM_FAILED',
+    );
+  }
+
+  if (recoveryClaimed) {
+    let recoveryFailure:
+      unknown | null = null;
+
     try {
       sybilV2Assessment =
         await runSybilV2AssessmentBatch(
           25,
         );
     } catch (error) {
+      recoveryFailure = error;
       console.error(
         'Vote watcher Sybil v2 recovery failed:',
         error,
@@ -848,6 +930,7 @@ export async function GET(
       rewardReservation =
         await reserveEligibleReferralRewards();
     } catch (error) {
+      recoveryFailure ??= error;
       console.error(
         'Vote watcher reward reservation recovery failed:',
         error,
@@ -856,6 +939,45 @@ export async function GET(
         'REWARD_RESERVATION_RECOVERY_FAILED',
       );
     }
+
+    try {
+      if (recoveryFailure) {
+        await markCronJobFailed(
+          VOTE_RECOVERY_JOB,
+          recoveryFailure,
+        );
+      } else {
+        await markCronJobSucceeded(
+          VOTE_RECOVERY_JOB,
+        );
+      }
+    } catch (heartbeatError) {
+      console.error(
+        'Sybil/reward recovery heartbeat failure:',
+        heartbeatError,
+      );
+    }
+  }
+
+  try {
+    if (errors.length > 0) {
+      await markCronJobFailed(
+        VOTE_RECONCILE_JOB,
+        errors.join(','),
+      );
+    } else {
+      await markCronJobSucceeded(
+        VOTE_RECONCILE_JOB,
+      );
+    }
+  } catch (error) {
+    console.error(
+      'Vote reconcile heartbeat completion failed:',
+      error,
+    );
+    errors.push(
+      'CRON_HEARTBEAT_COMPLETION_FAILED',
+    );
   }
 
   return NextResponse.json(
@@ -865,9 +987,10 @@ export async function GET(
       cadence: {
         eventWatcherMinutes: 1,
         sybilRewardRecoveryMinutes:
-          RECOVERY_INTERVAL_MINUTES,
+          RECOVERY_INTERVAL_SECONDS / 60,
         fallbackMinutes:
-          FALLBACK_INTERVAL_MINUTES,
+          FALLBACK_INTERVAL_SECONDS / 60,
+        basis: 'LAST_SUCCESS',
       },
       eventWatcher,
       fallback,

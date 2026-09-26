@@ -2,6 +2,11 @@ import { timingSafeEqual } from 'node:crypto';
 
 import { NextRequest, NextResponse } from 'next/server';
 
+import {
+  markCronJobFailed,
+  markCronJobStarted,
+  markCronJobSucceeded,
+} from '@/lib/monitoring/cronHeartbeat';
 import { supabaseAdmin } from '@/lib/supabaseServer';
 
 export const dynamic = 'force-dynamic';
@@ -76,6 +81,17 @@ export async function GET(request: NextRequest) {
   }
 
   try {
+    await markCronJobStarted(
+      'analytics-maintenance',
+    );
+  } catch (error) {
+    console.error(
+      'Analytics maintenance heartbeat start failed:',
+      error,
+    );
+  }
+
+  try {
     const { data: finalization, error: finalizationError } =
       await supabaseAdmin.rpc('finalize_long_term_analytics');
 
@@ -130,6 +146,18 @@ export async function GET(request: NextRequest) {
       longTermReady: false,
     } as const;
 
+    try {
+      await markCronJobSucceeded(
+        'analytics-maintenance',
+      );
+    } catch (heartbeatError) {
+      console.error(
+        'Analytics maintenance heartbeat completion failed:',
+        heartbeatError,
+      );
+      throw heartbeatError;
+    }
+
     return NextResponse.json(
       {
         trigger: 'VERCEL_CRON',
@@ -152,6 +180,18 @@ export async function GET(request: NextRequest) {
       'Scheduled long-term analytics/security retention maintenance failed:',
       error,
     );
+
+    try {
+      await markCronJobFailed(
+        'analytics-maintenance',
+        error,
+      );
+    } catch (heartbeatError) {
+      console.error(
+        'Analytics maintenance heartbeat failure recording failed:',
+        heartbeatError,
+      );
+    }
 
     return NextResponse.json(
       {
