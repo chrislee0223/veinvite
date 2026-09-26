@@ -49,11 +49,14 @@ export async function GET(request: NextRequest) {
       });
     }
 
+    const blacklisted =
+      restriction.restriction_kind === 'BLACKLIST';
+
     return noStoreJson({
       authenticated: true,
-      restricted: true,
-      restrictionKind: restriction.restriction_kind,
-      reviewPending: restriction.restriction_kind !== 'BLACKLIST',
+      restricted: blacklisted,
+      restrictionKind: blacklisted ? 'BLACKLIST' : null,
+      reviewPending: !blacklisted,
     });
   } catch (error) {
     console.error('Failed to read VeInvite wallet restriction:', error);
