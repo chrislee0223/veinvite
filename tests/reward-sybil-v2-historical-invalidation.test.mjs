@@ -17,6 +17,8 @@ test('historical Sybil invalidation is reversible and never rewrites paid reward
   assert.match(sql, /'restrictionScope', 'HISTORICAL_INVITEE_ONLY'/u);
   assert.match(sql, /lower\(v_invitation\.invitee_wallet\)/u);
   assert.match(sql, /HISTORICAL_REFERRAL_OPERATOR_BLACKLIST/u);
+  assert.match(sql, /SECURITY_REFERRAL_INVALIDATED/u);
+  assert.match(sql, /update public\.wallet_auth_sessions/u);
   assert.match(sql, /REINSTATED/u);
   assert.match(sql, /append-only/u);
 
@@ -102,4 +104,25 @@ test('wallet session gate checks participation restrictions before rendering the
   assert.match(route, /reviewPending/u);
   assert.match(page, /initialRestrictionKind/u);
   assert.match(page, /loadActiveSybilV2Restriction/u);
+});
+
+
+test('invalidated referral notification explains recognized-performance removal', async () => {
+  const copy = await readFile(
+    'src/lib/i18n/referralInvalidatedCopy.ts',
+    'utf8',
+  );
+  const state = await readFile(
+    'src/lib/notifications/inviteNotificationStateV2.ts',
+    'utf8',
+  );
+  const history = await readFile(
+    'src/components/UnifiedInviteNotificationHistoryCenter.tsx',
+    'utf8',
+  );
+
+  assert.match(state, /SECURITY_REFERRAL_INVALIDATED/u);
+  assert.match(history, /REFERRAL_INVALIDATED_COPY/u);
+  assert.match(copy, /리더보드 보상 실적/u);
+  assert.match(copy, /이미 온체인으로 지급된 B3TR은 변경되지 않아요/u);
 });
