@@ -6,6 +6,8 @@ import { InviteStatusAutoRefresh } from '@/components/InviteStatusAutoRefresh';
 import { RewardForecastSeedProvider } from '@/components/RewardForecastSeedProvider';
 import { WalletSessionGate } from '@/components/WalletSessionGate';
 import { readPublicRewardForecastSeed } from '@/lib/rewards/publicRewardForecastSeedServer';
+import { loadActiveSybilV2Restriction } from '@/lib/sybil/v2/restrictions';
+import { getVeBetterNetwork } from '@/lib/vebetter/network';
 import {
   getWalletSessionFromTokens,
   LEGACY_WALLET_SESSION_COOKIE_NAME,
@@ -39,6 +41,18 @@ export default async function HomePage() {
   ]);
   const initialSessionWallet =
     initialSession?.walletAddress ?? null;
+  const initialRestriction = initialSessionWallet
+    ? await loadActiveSybilV2Restriction({
+        walletAddress: initialSessionWallet,
+        network: getVeBetterNetwork(),
+      }).catch((error) => {
+        console.error(
+          'Failed to bootstrap VeInvite participation restriction:',
+          error,
+        );
+        return null;
+      })
+    : null;
 
   return (
     <>
@@ -56,6 +70,9 @@ export default async function HomePage() {
       <WalletSessionGate
         initialSessionWallet={
           initialSessionWallet
+        }
+        initialRestrictionKind={
+          initialRestriction?.restriction_kind ?? null
         }
       >
         <InviteStatusAutoRefresh />
