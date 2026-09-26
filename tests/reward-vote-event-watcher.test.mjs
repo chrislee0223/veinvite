@@ -76,7 +76,7 @@ test('minute watcher scans finalized governance vote events before loading or re
   );
 });
 
-test('watcher keeps bounded recovery and direct reconciliation safety nets', () => {
+test('watcher keeps bounded catch-up and event-replay recovery safety nets', () => {
   assert.match(
     route,
     /INITIAL_LOOKBACK_BLOCKS = 360/,
@@ -95,7 +95,15 @@ test('watcher keeps bounded recovery and direct reconciliation safety nets', () 
   );
   assert.match(
     route,
-    /FALLBACK_RECONCILIATION_BATCH_SIZE = 10/,
+    /MAX_EVENT_CATCHUP_BLOCKS = 3600/,
+  );
+  assert.match(
+    route,
+    /FALLBACK_REPLAY_LOOKBACK_BLOCKS = 720/,
+  );
+  assert.match(
+    route,
+    /FALLBACK_CANDIDATE_LIMIT = 500/,
   );
   assert.match(
     route,
@@ -120,6 +128,67 @@ test('watcher keeps bounded recovery and direct reconciliation safety nets', () 
   assert.doesNotMatch(
     route,
     /publishLeaderboardRoundSnapshots/,
+  );
+});
+
+
+test('persisted vote cursor catches up without skipping outage blocks', () => {
+  assert.match(
+    route,
+    /checkpoint === null\s*\? recoveryFloor\s*:\s*checkpoint \+ 1/,
+  );
+  assert.match(
+    route,
+    /const scanToBlock =\s*Math\.min\([\s\S]*MAX_EVENT_CATCHUP_BLOCKS/,
+  );
+  assert.match(
+    route,
+    /toBlock: scanToBlock/,
+  );
+  assert.match(
+    route,
+    /saveVoteScanCheckpoint\(\s*network,\s*scanToBlock/,
+  );
+  assert.doesNotMatch(
+    route,
+    /checkpoint \+ 1,\s*recoveryFloor/,
+  );
+});
+
+test('thirty-minute fallback replays recent votes and full-syncs only matching wallets', () => {
+  assert.match(
+    route,
+    /async function replayRecentVoteEventsFallback/,
+  );
+  assert.match(
+    route,
+    /finalizedBlock -\s*FALLBACK_REPLAY_LOOKBACK_BLOCKS/,
+  );
+  const replayIndex = route.indexOf(
+    'async function replayRecentVoteEventsFallback',
+  );
+  const replay = route.slice(replayIndex);
+
+  const eventReadIndex = replay.indexOf(
+    'await readFinalizedVoteEvents',
+  );
+  const candidateLoadIndex = replay.indexOf(
+    'await loadVoteOnlyFallbackCandidates',
+  );
+  const matchIndex = replay.indexOf(
+    'voteEvents.voters.has',
+  );
+  const reconcileIndex = replay.indexOf(
+    'await reconcileRows',
+  );
+
+  assert.ok(eventReadIndex >= 0);
+  assert.ok(candidateLoadIndex > eventReadIndex);
+  assert.ok(matchIndex > candidateLoadIndex);
+  assert.ok(reconcileIndex > matchIndex);
+  assert.doesNotMatch(
+    route,
+    /async function reconcileVoteOnlyCandidates/,
   );
 });
 
