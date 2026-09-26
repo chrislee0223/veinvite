@@ -404,6 +404,12 @@ begin
       returning id into v_restriction_id;
     end if;
 
+    update public.wallet_auth_sessions s
+    set revoked_at = v_now
+    where s.wallet_address = lower(v_invitation.invitee_wallet)
+      and s.revoked_at is null
+      and s.expires_at > v_now;
+
     insert into public.sybil_v2_referral_invalidation_events(
       invalidation_id,
       action,
