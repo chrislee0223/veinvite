@@ -32,9 +32,11 @@ import {
 export const maxDuration = 300;
 
 const EVENT_RECONCILIATION_BATCH_SIZE = 25;
-const FALLBACK_RECONCILIATION_BATCH_SIZE = 10;
+const FALLBACK_CANDIDATE_LIMIT = 500;
 const EVENT_PAGE_SIZE = 1000;
 const INITIAL_LOOKBACK_BLOCKS = 360;
+const MAX_EVENT_CATCHUP_BLOCKS = 3600;
+const FALLBACK_REPLAY_LOOKBACK_BLOCKS = 720;
 const FALLBACK_INTERVAL_SECONDS = 30 * 60;
 const RECOVERY_INTERVAL_SECONDS = 5 * 60;
 const CADENCE_LEASE_SECONDS = 180;
@@ -569,13 +571,21 @@ async function runEventDrivenVoteWatcher() {
         finalizedBlock -
           INITIAL_LOOKBACK_BLOCKS,
       );
+    // A persisted cursor is authoritative. Never jump it forward to a recent
+    // recovery floor after an outage, because doing so can permanently skip
+    // governance votes that happened while the cron was unavailable. Bound
+    // each pass instead and catch up over successive one-minute invocations.
     const fromBlock =
       checkpoint === null
         ? recoveryFloor
-        : Math.max(
-            checkpoint + 1,
-            recoveryFloor,
-          );
+        : checkpoint + 1;
+    const scanToBlock =
+      Math.min(
+        finalizedBlock,
+        fromBlock +
+          MAX_EVENT_CATCHUP_BLOCKS -
+          1,
+      );
 
     if (fromBlock > finalizedBlock) {
       return {
@@ -584,6 +594,8 @@ async function runEventDrivenVoteWatcher() {
         activePending: null,
         fromBlock,
         toBlock: finalizedBlock,
+        finalizedBlock,
+        catchupRemainingBlocks: 0,
         chainVoteEvents: 0,
         matchedInvitations: 0,
         selected: 0,
@@ -599,7 +611,7 @@ async function runEventDrivenVoteWatcher() {
         votingAddress:
           xAllocationVotingAddress,
         fromBlock,
-        toBlock: finalizedBlock,
+        toBlock: scanToBlock,
       });
 
     // Most one-minute passes contain no AllocationVoteCast event. Advance the
@@ -608,7 +620,7 @@ async function runEventDrivenVoteWatcher() {
     if (voteEvents.eventCount === 0) {
       await saveVoteScanCheckpoint(
         network,
-        finalizedBlock,
+        scanToBlock,
       );
 
       return {
@@ -616,7 +628,10 @@ async function runEventDrivenVoteWatcher() {
         skippedBecauseLocked: false,
         activePending: null,
         fromBlock,
-        toBlock: finalizedBlock,
+        toBlock: scanToBlock,
+        finalizedBlock,
+        catchupRemainingBlocks:
+          finalizedBlock - scanToBlock,
         chainVoteEvents: 0,
         matchedInvitations: 0,
         selected: 0,
@@ -634,7 +649,7 @@ async function runEventDrivenVoteWatcher() {
     if (activeRows.length === 0) {
       await saveVoteScanCheckpoint(
         network,
-        finalizedBlock,
+        scanToBlock,
       );
 
       return {
@@ -642,7 +657,10 @@ async function runEventDrivenVoteWatcher() {
         skippedBecauseLocked: false,
         activePending: 0,
         fromBlock,
-        toBlock: finalizedBlock,
+        toBlock: scanToBlock,
+        finalizedBlock,
+        catchupRemainingBlocks:
+          finalizedBlock - scanToBlock,
         chainVoteEvents:
           voteEvents.eventCount,
         matchedInvitations: 0,
@@ -683,7 +701,7 @@ async function runEventDrivenVoteWatcher() {
     if (checkpointSafe) {
       await saveVoteScanCheckpoint(
         network,
-        finalizedBlock,
+        scanToBlock,
       );
     }
 
@@ -692,7 +710,10 @@ async function runEventDrivenVoteWatcher() {
       skippedBecauseLocked: false,
       activePending: activeRows.length,
       fromBlock,
-      toBlock: finalizedBlock,
+      toBlock: scanToBlock,
+      finalizedBlock,
+      catchupRemainingBlocks:
+        finalizedBlock - scanToBlock,
       chainVoteEvents:
         voteEvents.eventCount,
       matchedInvitations:
@@ -718,10 +739,9 @@ async function runEventDrivenVoteWatcher() {
   }
 }
 
-async function reconcileVoteOnlyCandidates() {
-  const { network } =
-    getVeBetterNetworkConfig();
-
+async function loadVoteOnlyFallbackCandidates(
+  network: VeBetterNetwork,
+): Promise<InvitationEvidenceRow[]> {
   const { data, error } =
     await supabaseAdmin
       .from('invitations')
@@ -745,34 +765,102 @@ async function reconcileVoteOnlyCandidates() {
         'impact_sync_complete_at',
         null,
       )
-      .order('impact_last_synced_at', {
-        ascending: true,
-        nullsFirst: true,
-      })
       .order('activated_at', {
         ascending: true,
         nullsFirst: true,
       })
-      .limit(FALLBACK_RECONCILIATION_BATCH_SIZE);
+      .limit(FALLBACK_CANDIDATE_LIMIT);
 
   if (error) {
     throw new Error(
-      `Failed to load vote reconciliation fallback candidates: ${error.message}`,
+      `Failed to load vote replay fallback candidates: ${error.message}`,
     );
   }
 
+  return (data ?? []) as InvitationEvidenceRow[];
+}
+
+async function replayRecentVoteEventsFallback() {
+  const {
+    network,
+    nodeUrl,
+    xAllocationVotingAddress,
+  } = getVeBetterNetworkConfig();
+
+  const finalizedBlock =
+    await readFinalizedBlockNumber(
+      nodeUrl,
+    );
+  const fromBlock =
+    Math.max(
+      0,
+      finalizedBlock -
+        FALLBACK_REPLAY_LOOKBACK_BLOCKS,
+    );
+
+  // This replay is deliberately independent of the primary cursor. It is a
+  // cheap safety net for a cursor/write race or a transient one-minute watcher
+  // failure, not a second full mission reconciliation loop.
+  const voteEvents =
+    await readFinalizedVoteEvents({
+      nodeUrl,
+      votingAddress:
+        xAllocationVotingAddress,
+      fromBlock,
+      toBlock: finalizedBlock,
+    });
+
+  if (voteEvents.eventCount === 0) {
+    return {
+      network,
+      fromBlock,
+      toBlock: finalizedBlock,
+      chainVoteEvents: 0,
+      candidateCount: 0,
+      matchedInvitations: 0,
+      selected: 0,
+      voteDetected: 0,
+      failed: 0,
+      overflow: false,
+      skippedBecauseLocked: false,
+    };
+  }
+
   const rows =
-    (data ?? []) as InvitationEvidenceRow[];
+    await loadVoteOnlyFallbackCandidates(
+      network,
+    );
+  const matchedRows =
+    rows.filter((row) => {
+      const wallet =
+        row.invitee_wallet
+          ?.toLowerCase();
+
+      return Boolean(
+        wallet &&
+          voteEvents.voters.has(
+            wallet,
+          ),
+      );
+    });
 
   const reconciliation =
     await reconcileRows(
-      rows,
+      matchedRows,
       network,
-      FALLBACK_RECONCILIATION_BATCH_SIZE,
+      EVENT_RECONCILIATION_BATCH_SIZE,
     );
 
   return {
     network,
+    fromBlock,
+    toBlock: finalizedBlock,
+    chainVoteEvents:
+      voteEvents.eventCount,
+    candidateCount:
+      rows.length,
+    matchedInvitations:
+      matchedRows.length,
     ...reconciliation,
   };
 }
@@ -785,11 +873,11 @@ async function reconcileVoteOnlyCandidates() {
  * - after five minutes without a successful recovery pass: retry pending
  *   Sybil v2 assessment / reward reservation; a newly detected vote can trigger
  *   this recovery immediately;
- * - after 30 minutes without a successful fallback pass: run a smaller bounded
- *   direct vote-only reconciliation batch as an independent safety net. Failed
- *   passes release
- *   their lease so the next one-minute invocation can retry instead of waiting
- *   for the next wall-clock boundary.
+ * - after 30 minutes without a successful fallback pass: replay the most recent
+ *   finalized vote window without consulting the primary cursor, then run the
+ *   existing full reconciliation only for VeInvite wallets that actually voted.
+ *   Failed passes release their lease so the next one-minute invocation can
+ *   retry instead of waiting for the next wall-clock boundary.
  *
  * Reward authority remains unchanged: syncInvitationEvidence and the existing
  * Sybil v2 clearance / reservation gates stay fail-closed.
@@ -838,7 +926,7 @@ export async function GET(
   let fallback:
     Awaited<
       ReturnType<
-        typeof reconcileVoteOnlyCandidates
+        typeof replayRecentVoteEventsFallback
       >
     > | null = null;
   let sybilV2Assessment:
@@ -887,7 +975,7 @@ export async function GET(
   if (fallbackClaimed) {
     try {
       fallback =
-        await reconcileVoteOnlyCandidates();
+        await replayRecentVoteEventsFallback();
 
       await markCronJobSucceeded(
         VOTE_FALLBACK_JOB,
