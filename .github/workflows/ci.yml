@@ -46,6 +46,9 @@ jobs:
           bash -n scripts/backup-production-db.sh scripts/restore-db-drill.sh
           node scripts/check-disaster-recovery.mjs
 
+      - name: Codebase cleanup audit
+        run: node scripts/audit-codebase-cleanup.mjs
+
       - name: UI stability gate
         run: node scripts/check-ui-stability.mjs
 
