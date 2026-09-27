@@ -102,6 +102,20 @@ test('operator watchlist surfaces Sybil v2 historical WATCH referrals without re
   assert.match(sql, /Reward-recipient post-payout behavior belongs to the inviter/u);
 });
 
+
+test('operator watchlist includes active historical BLACKLIST invalidations', async () => {
+  const sql = await readFile(
+    'supabase/migrations/20260927150000_surface_historical_blacklists_in_sybil_watchlist.sql',
+    'utf8',
+  );
+
+  assert.match(sql, /sybil_v2_referral_invalidations/u);
+  assert.match(sql, /x\.status = 'ACTIVE'/u);
+  assert.match(sql, /SYBIL_V2_HISTORICAL_BLACKLIST/u);
+  assert.match(sql, /then 'BLOCKED'/u);
+  assert.match(sql, /then 100/u);
+});
+
 test('wallet session gate checks participation restrictions before rendering the app', async () => {
   const gate = await readFile(
     'src/components/WalletSessionGate.tsx',
