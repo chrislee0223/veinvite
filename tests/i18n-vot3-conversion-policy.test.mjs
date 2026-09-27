@@ -8,7 +8,7 @@ const read = (path) =>
 const policySource = read('src/lib/i18n/inviteeConversionPolicyPolish.ts');
 const guidePolicySource = read('src/lib/i18n/guideVot3PolicyPolish.ts');
 const localesSource = read('src/lib/i18n/locales.ts');
-const providersSource = read('src/components/AppProviders.tsx');
+const providersSource = read('src/lib/i18n/runtimePatches.ts');
 
 test('conversion and allocation-vote copy matches the final mission policy in every locale', () => {
   const supported = [
