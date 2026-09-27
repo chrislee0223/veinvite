@@ -7,6 +7,7 @@ const [
   languageSetupSource,
   polishSource,
   providerSource,
+  runtimePatchesSource,
   pickerSource,
   scopedSource,
   finalCopySource,
@@ -15,6 +16,7 @@ const [
   readFile('src/components/LanguageSelectV2.tsx', 'utf8'),
   readFile('src/components/InviteFlowVisualPolish.tsx', 'utf8'),
   readFile('src/components/AppProviders.tsx', 'utf8'),
+  readFile('src/lib/i18n/runtimePatches.ts', 'utf8'),
   readFile('src/components/HeaderLanguagePickerPortal.tsx', 'utf8'),
   readFile('src/components/RouteScopedInviteEnhancements.tsx', 'utf8'),
   readFile('src/lib/i18n/inviteLandingFinalPolish.ts', 'utf8'),
@@ -88,8 +90,8 @@ test('final invite headline copy is applied after expanded locales register', ()
   assert.match(finalCopySource, /pcm: \{/u);
   assert.match(finalCopySource, /arz: \{/u);
   assert.ok(
-    providerSource.indexOf("import '@/lib/i18n/localePacks/registerExpandedLocales';") <
-      providerSource.indexOf("import '@/lib/i18n/inviteLandingFinalPolish';"),
+    runtimePatchesSource.indexOf("import '@/lib/i18n/localePacks/registerExpandedLocales';") <
+      runtimePatchesSource.indexOf("import '@/lib/i18n/inviteLandingFinalPolish';"),
   );
 });
 
