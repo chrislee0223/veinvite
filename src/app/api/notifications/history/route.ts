@@ -27,6 +27,16 @@ type NotificationHistoryRow = {
   read_at: string | null;
 };
 
+const PRESENTATION_KIND_FALLBACKS: Record<string, string> = {
+  SECURITY_POST_PAYOUT_REVIEW_STARTED: 'SECURITY_REVIEW_STARTED',
+  SECURITY_POST_PAYOUT_REVIEW_CLEARED: 'SECURITY_INVITER_ACCESS_RESTORED',
+  SECURITY_REFERRAL_RESTORED: 'SECURITY_INVITER_ACCESS_RESTORED',
+};
+
+function compatibleHistoryKind(kind: string): string {
+  return PRESENTATION_KIND_FALLBACKS[kind] ?? kind;
+}
+
 function noStoreJson(body: unknown, init?: ResponseInit) {
   return NextResponse.json(body, {
     ...init,
@@ -136,7 +146,8 @@ export async function GET(request: NextRequest) {
     const items = rows.map((row) => ({
       id: String(row.id),
       inviteCode: row.invite_code,
-      kind: row.kind,
+      kind: compatibleHistoryKind(row.kind),
+      presentationKind: row.kind,
       stage: Number(row.stage),
       eventAt: row.event_at,
       rewardAmountWei: row.reward_amount_wei,
