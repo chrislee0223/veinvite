@@ -249,6 +249,22 @@ test('automatic post-payout observation excludes historical paid rewards', async
 });
 
 
+
+test('operator WATCH baseline joins later post-payout evidence without auto-blacklisting', async () => {
+  const source = await readFile(
+    'src/lib/sybil/v2/postPayout.ts',
+    'utf8',
+  );
+
+  assert.match(source, /OPERATOR_HISTORICAL_WATCH_BASELINE/u);
+  assert.match(source, /sybil_v2_referral_assessments/u);
+  assert.match(source, /assessment\.source !== 'OPERATOR'/u);
+  assert.match(source, /assessment\.state !== 'WATCH'/u);
+  assert.match(source, /assessment\.policy_version !== 'sybil-v2\.1'/u);
+  assert.match(source, /operatorWatchBaselineApplied/u);
+  assert.match(source, /strongEvidenceDomains\.includes\('POST_PAYOUT'\)/u);
+});
+
 test('explicit operator WATCH re-enables staged observation for reviewed historical payouts only', async () => {
   const sql = await readFile(
     'supabase/migrations/20260927121000_include_operator_watch_in_post_payout_observation.sql',
