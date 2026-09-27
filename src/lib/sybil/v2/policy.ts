@@ -78,15 +78,6 @@ const STANDALONE_HOLD_CODES = new Set([
   'SECURITY_CLIENT_INVITER_LINK',
 ]);
 
-function maxSignalScore(
-  signals: SybilV2Signal[],
-  code: string,
-): number {
-  return signals
-    .filter((signal) => signal.code === code)
-    .reduce((max, signal) => Math.max(max, signal.score), 0);
-}
-
 function hasExtremeSingleDomainPattern(
   signals: SybilV2Signal[],
 ): boolean {
@@ -110,28 +101,12 @@ function hasExtremeSingleDomainPattern(
     return true;
   }
 
-  const hasHistoricalActivity = signals.some((signal) =>
-    (
-      signal.code === 'HISTORICAL_REWARD_APP_CLUSTER' ||
-      signal.code === 'HISTORICAL_SYNCHRONIZED_REWARD_CLUSTER'
-    ) &&
-    STRENGTH_RANK[signal.strength] >= STRENGTH_RANK.MEDIUM &&
-    signal.score > 0,
-  );
-  const commonSinkScore = maxSignalScore(
-    signals,
-    'HISTORICAL_COMMON_B3TR_SINK',
-  );
-  const sinkInviterScore = maxSignalScore(
-    signals,
-    'HISTORICAL_SINK_REAPPEARS_AS_INVITER',
-  );
-
-  return (
-    hasHistoricalActivity &&
-    commonSinkScore >= 50 &&
-    sinkInviterScore >= 45
-  );
+  // Correlated historical reward/consolidation signals remain one
+  // HISTORICAL_ACTIVITY domain. Even when the common sink later appears as an
+  // inviter, that historical flow alone is not enough to HOLD because a
+  // legitimate app settlement/redemption wallet can produce the same pattern.
+  // A second independent domain is still required for escalation.
+  return false;
 }
 
 function evidenceDomain(
@@ -165,10 +140,12 @@ function evidenceDomain(
  * domains. Closely related signals derived from the same historical flow or
  * recent funding relationship are collapsed into one domain before escalation.
  *
- * A narrow set of very-low-normal-plausibility patterns may HOLD from one
- * domain. These are review pauses, not automatic BLACKLIST decisions. VeInvite
- * intentionally avoids fabricated numeric probabilities until enough labeled
- * normal-vs-Sybil data exists to calibrate them. RESTRICTED remains reserved
+ * A narrow set of very-low-normal-plausibility direct identity/funding patterns
+ * may HOLD from one domain. Correlated historical reward/consolidation flows do
+ * not qualify on their own and still require a second independent domain. These
+ * are review pauses, not automatic BLACKLIST decisions. VeInvite intentionally
+ * avoids fabricated numeric probabilities until enough labeled normal-vs-Sybil
+ * data exists to calibrate them. RESTRICTED remains reserved
  * for an already-active operator/system wallet restriction decided outside
  * this scoring function.
  */
