@@ -101,6 +101,13 @@ type FundingEvidenceRow = {
   evidence?: Record<string, unknown> | null;
 };
 
+type WatchFollowupEvidenceRow = {
+  signal_code: string;
+  strength: 'INFO' | 'LOW' | 'MEDIUM' | 'HIGH';
+  score: number | string;
+  related_wallet: string | null;
+};
+
 type MissionFingerprintRow = {
   invite_code: string;
   inviter_wallet: string;
@@ -1233,6 +1240,71 @@ async function loadFundingSignals(
   return signals;
 }
 
+async function loadWatchFollowupSignals(
+  invitation: InvitationV2Row,
+): Promise<SybilV2Signal[]> {
+  if (
+    !invitation.activation_network ||
+    !invitation.invitee_wallet
+  ) {
+    return [];
+  }
+
+  const subject =
+    normalizeWallet(invitation.invitee_wallet);
+
+  const { data, error } = await supabaseAdmin
+    .from('sybil_v2_evidence_records')
+    .select(
+      'signal_code,strength,score,related_wallet',
+    )
+    .eq('invite_code', invitation.invite_code)
+    .eq('network', invitation.activation_network)
+    .eq('subject_wallet', subject)
+    .eq('evidence_family', 'POST_PAYOUT')
+    .in('signal_code', [
+      'WATCH_SUBJECT_TO_INVITER',
+      'WATCH_SUBJECT_TO_ACTIVE_BLACKLIST',
+      'WATCH_SUBJECT_TO_CLUSTER_HUB',
+    ]);
+
+  if (error) {
+    throw new Error(
+      `WATCH follow-up evidence could not be loaded: ${error.message}`,
+    );
+  }
+
+  const rows =
+    (data ?? []) as WatchFollowupEvidenceRow[];
+
+  const signals: SybilV2Signal[] = [];
+
+  for (const row of rows) {
+    const score = Number(row.score);
+    if (
+      !Number.isFinite(score) ||
+      score <= 0
+    ) {
+      continue;
+    }
+
+    signals.push({
+      code: row.signal_code,
+      family: 'POST_PAYOUT',
+      strength: row.strength,
+      score,
+      independentKey:
+        row.related_wallet
+          ? normalizeWallet(
+              row.related_wallet,
+            )
+          : undefined,
+    });
+  }
+
+  return signals;
+}
+
 function intervalsSimilar(
   left: Array<number | string> | null,
   right: Array<number | string> | null,
@@ -1640,6 +1712,16 @@ export async function assessSybilV2Referral(
   signals.push(...security.signals);
   if (security.complete) completedChecks.push('SECURITY_IDENTITY');
 
+  // WATCH follow-up evidence is reintroduced into the normal policy.
+  // Direct post-payout links use the POST_PAYOUT domain, while a concentration
+  // hub link is deliberately collapsed back into HISTORICAL_ACTIVITY so the
+  // same consolidation relationship cannot be counted twice.
+  signals.push(
+    ...await loadWatchFollowupSignals(
+      invitation,
+    ),
+  );
+
   let finalizedBlock: number | null = null;
   try {
     finalizedBlock = await loadFinalizedBlock();
@@ -1728,6 +1810,7 @@ export async function assessSybilV2Referral(
 
   if (
     revision !== null &&
+    invitation.reward_status !== 'PAID' &&
     (policy.state === 'CLEAR' || policy.state === 'WATCH')
   ) {
     const clearance = await issueClearance(normalizedCode, revision);

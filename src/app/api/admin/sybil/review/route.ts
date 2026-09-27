@@ -1340,6 +1340,162 @@ export async function POST(request: NextRequest) {
         );
       }
 
+      if (before.reward_status === 'PAID') {
+        const existingReasonCodes =
+          Array.isArray(v2Assessment.reason_codes)
+            ? v2Assessment.reason_codes
+            : [];
+        const existingEvidenceSummary =
+          typeof v2Assessment.evidence_summary === 'object' &&
+          v2Assessment.evidence_summary !== null &&
+          !Array.isArray(v2Assessment.evidence_summary)
+            ? v2Assessment.evidence_summary
+            : {};
+
+        let historicalResult: unknown = null;
+
+        if (decision === 'BLOCKED') {
+          const historical =
+            await supabaseAdmin.rpc(
+              'resolve_sybil_v2_historical_referral',
+              {
+                p_invite_code: inviteCode,
+                p_decision: 'BLACKLIST',
+                p_reason: reason,
+                p_operator_wallet:
+                  operator.session!.walletAddress,
+                p_network: operator.pool!.network,
+                p_case_key:
+                  `watch-followup-v2:${inviteCode}:${expectedRevision}`,
+                p_reason_codes: [
+                  ...existingReasonCodes,
+                  'WATCH_FOLLOWUP_OPERATOR_BLACKLIST',
+                ],
+                p_evidence_summary: {
+                  ...existingEvidenceSummary,
+                  reviewPath:
+                    'PAID_V2_WATCH_FOLLOWUP',
+                  sourceAssessmentRevision:
+                    expectedRevision,
+                },
+              },
+            );
+
+          if (historical.error) {
+            throw new Error(
+              `resolve_sybil_v2_historical_referral failed: ${historical.error.message}`,
+            );
+          }
+
+          historicalResult = historical.data;
+        }
+
+        const assessmentDecision =
+          decision === 'BLOCKED'
+            ? 'RESTRICTED'
+            : 'CLEAR';
+        const assessmentRiskScore =
+          decision === 'BLOCKED'
+            ? 100
+            : 0;
+        const assessmentReasonCodes =
+          decision === 'BLOCKED'
+            ? [
+                ...existingReasonCodes,
+                'WATCH_FOLLOWUP_OPERATOR_BLACKLIST',
+              ]
+            : [
+                ...existingReasonCodes,
+                'WATCH_FOLLOWUP_OPERATOR_CLEARED',
+              ];
+
+        const assessment =
+          await supabaseAdmin.rpc(
+            'record_sybil_v2_assessment',
+            {
+              p_invite_code: inviteCode,
+              p_network:
+                operator.pool!.network,
+              p_state: assessmentDecision,
+              p_risk_score:
+                assessmentRiskScore,
+              p_policy_version:
+                v2Assessment.policy_version,
+              p_analyzer_version:
+                v2Assessment.analyzer_version,
+              p_evidence_cutoff_block:
+                v2Assessment.evidence_cutoff_block,
+              p_required_checks:
+                v2Assessment.required_checks,
+              p_completed_checks:
+                v2Assessment.completed_checks,
+              p_reason_codes:
+                assessmentReasonCodes,
+              p_evidence_summary: {
+                ...existingEvidenceSummary,
+                operatorReason: reason,
+                operatorWallet:
+                  operator.session!.walletAddress,
+                operatorDecision:
+                  decision === 'BLOCKED'
+                    ? 'BLACKLIST'
+                    : 'CLEAR',
+                reviewPath:
+                  'PAID_V2_WATCH_FOLLOWUP',
+                pastRewardChanged: false,
+              },
+              p_source: 'OPERATOR',
+              p_expected_revision:
+                expectedRevision,
+            },
+          );
+
+        if (assessment.error) {
+          throw new Error(
+            `record_sybil_v2_assessment failed: ${assessment.error.message}`,
+          );
+        }
+
+        const [after, afterAssessment] =
+          await Promise.all([
+            loadInvitationReview(inviteCode),
+            loadV2Assessment(inviteCode),
+          ]);
+
+        return NextResponse.json(
+          {
+            changed: true,
+            reviewMode: 'V2',
+            network:
+              operator.pool!.network,
+            verifiedOperator:
+              operator.session!.walletAddress,
+            decision,
+            result: {
+              historical:
+                historicalResult,
+              assessment:
+                assessment.data,
+            },
+            invitation: after
+              ? decorateReview(
+                  after,
+                  afterAssessment,
+                )
+              : null,
+            v2Assessment:
+              afterAssessment,
+            rewardStatus:
+              after?.reward_status ?? null,
+            pastRewardChanged: false,
+            transfersPerformed: false,
+          },
+          {
+            headers: noStoreHeaders(),
+          },
+        );
+      }
+
       const { data, error } = await supabaseAdmin.rpc(
         'resolve_sybil_v2_review',
         {
