@@ -233,8 +233,8 @@ export function evaluateSybilV2Policy({
     };
   }
 
-  // One strong family or a meaningful combination of weaker families remains
-  // payable but is watched after payout.
+  // One strong domain or a meaningful combination of weaker independent domains
+  // remains payable but is watched after payout.
   if (
     strongEvidenceDomains.length === 1 ||
     riskScore >= 25 ||
@@ -257,5 +257,7 @@ export function evaluateSybilV2Policy({
     reasonCodes,
     evidenceFamilies,
     strongEvidenceFamilies,
+    evidenceDomains,
+    strongEvidenceDomains,
   };
 }
