@@ -51,3 +51,17 @@ test('Sentry config uses the current Next.js config entrypoint and logger tree-s
   assert.match(nextConfig, /removeDebugLogging:\s*true/);
   assert.doesNotMatch(nextConfig, /disableLogger/);
 });
+
+test('client drops only verified external browser-extension noise', () => {
+  assert.match(client, /KNOWN_EXTERNAL_EXTENSION_ERRORS/);
+  assert.match(client, /Could not establish connection\. Receiving end does not exist\./);
+  assert.match(client, /MetaMask extension not found/);
+  assert.match(client, /Failed to connect to MetaMask/);
+  assert.match(client, /app:\/\/\/injectedScript\.bundle\.js/);
+  assert.match(client, /app:\/\/\/scripts\/inpage\.js/);
+  assert.match(
+    client,
+    /if \(isKnownExternalExtensionNoise\(event\)\) return null;/,
+  );
+  assert.doesNotMatch(client, /ignoreErrors\s*:/);
+});

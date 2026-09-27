@@ -8,6 +8,7 @@ const PREVIEW_SUPABASE_PROJECT_REF =
   'bpppslplhmppxzvdkwxs';
 const JWT_FUTURE_RETRY_DELAY_MS = 750;
 const TRANSIENT_FETCH_RETRY_DELAY_MS = 125;
+const FORECAST_READ_TIMEOUT_MS = 5_000;
 const RETRIABLE_READ_METHODS = new Set([
   'GET',
   'HEAD',
@@ -185,6 +186,72 @@ function isRetriableReadRequest(
   );
 }
 
+function isBoundedForecastReadRequest(
+  input: Parameters<typeof fetch>[0],
+  init?: Parameters<typeof fetch>[1],
+): boolean {
+  if (getRequestMethod(input, init) !== 'POST') {
+    return false;
+  }
+
+  const url = getRequestUrl(input);
+  return Boolean(
+    url &&
+      url.origin === configuredSupabaseOrigin &&
+      RETRIABLE_READ_RPC_PATHS.has(url.pathname),
+  );
+}
+
+function getRequestSignal(
+  input: Parameters<typeof fetch>[0],
+  init?: Parameters<typeof fetch>[1],
+): AbortSignal | undefined {
+  if (init?.signal) return init.signal;
+  if (input instanceof Request) return input.signal;
+  return undefined;
+}
+
+async function fetchWithForecastReadTimeout(
+  input: Parameters<typeof fetch>[0],
+  init?: Parameters<typeof fetch>[1],
+): Promise<Response> {
+  if (!isBoundedForecastReadRequest(input, init)) {
+    return fetch(input, init);
+  }
+
+  const controller = new AbortController();
+  const upstreamSignal = getRequestSignal(input, init);
+  const forwardAbort = () => {
+    controller.abort(upstreamSignal?.reason);
+  };
+
+  if (upstreamSignal?.aborted) {
+    forwardAbort();
+  } else {
+    upstreamSignal?.addEventListener('abort', forwardAbort, {
+      once: true,
+    });
+  }
+
+  const timeoutId = setTimeout(() => {
+    controller.abort(
+      new Error(
+        `Supabase forecast read exceeded ${FORECAST_READ_TIMEOUT_MS}ms.`,
+      ),
+    );
+  }, FORECAST_READ_TIMEOUT_MS);
+
+  try {
+    return await fetch(input, {
+      ...(init ?? {}),
+      signal: controller.signal,
+    });
+  } finally {
+    clearTimeout(timeoutId);
+    upstreamSignal?.removeEventListener('abort', forwardAbort);
+  }
+}
+
 function isTransientFetchFailure(
   error: unknown,
 ): boolean {
@@ -230,7 +297,7 @@ const guardedFetch: typeof fetch = async (
   let response: Response;
 
   try {
-    response = await fetch(input, init);
+    response = await fetchWithForecastReadTimeout(input, init);
   } catch (error) {
     // Vercel -> Supabase can occasionally lose a cold/transient HTTP
     // connection before a response exists. Retry exactly once only for
@@ -245,7 +312,7 @@ const guardedFetch: typeof fetch = async (
 
     await wait(TRANSIENT_FETCH_RETRY_DELAY_MS);
     assertSafeDatabaseEnvironment();
-    return fetch(input, init);
+    return fetchWithForecastReadTimeout(input, init);
   }
 
   // Supabase can very occasionally reject a valid server-side JWT while
@@ -260,7 +327,7 @@ const guardedFetch: typeof fetch = async (
 
   await wait(JWT_FUTURE_RETRY_DELAY_MS);
   assertSafeDatabaseEnvironment();
-  return fetch(input, init);
+  return fetchWithForecastReadTimeout(input, init);
 };
 
 export const supabaseAdmin = createClient(
