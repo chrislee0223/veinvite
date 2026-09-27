@@ -117,7 +117,7 @@ test('active wallet restriction is authoritative for future participation', () =
   assert.equal(result.riskScore, 100);
 });
 
-test('extreme historical activity plus consolidation HOLDs for review', () => {
+test('extreme correlated historical activity remains WATCH without an independent domain', () => {
   const appId =
     '0x9643ed1637948cc571b23f836ade2bdb104de88e627fa6e8e3ffef1ee5a1739a';
   const sink =
@@ -233,8 +233,8 @@ test('extreme historical activity plus consolidation HOLDs for review', () => {
 
     assert.equal(
       policy.state,
-      'HOLD',
-      `${wallet} extreme historical reward/consolidation pattern should pause for review`,
+      'WATCH',
+      `${wallet} correlated historical reward/consolidation remains one domain`,
     );
     assert.deepEqual(
       new Set(policy.strongEvidenceDomains),
@@ -347,7 +347,7 @@ test('historical activity plus separate recent funding escalates to HOLD', () =>
   );
 });
 
-test('high-score historical sink funding link HOLDs without another domain', () => {
+test('high-score historical sink funding link remains WATCH without another domain', () => {
   const result = evaluateSybilV2Policy({
     signals: [
       {
@@ -366,7 +366,7 @@ test('high-score historical sink funding link HOLDs without another domain', () 
     requiredChecksComplete: true,
   });
 
-  assert.equal(result.state, 'HOLD');
+  assert.equal(result.state, 'WATCH');
 });
 
 test('smaller historical-sink funding link remains WATCH', () => {
