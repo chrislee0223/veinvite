@@ -1,5 +1,7 @@
 export const NETWORK_HEADER_METRICS_UPDATED_EVENT =
   'veinvite-network-header-metrics-updated';
+export const NETWORK_DATA_REFRESH_REQUESTED_EVENT =
+  'veinvite-network-data-refresh-requested';
 
 export type NetworkHeaderMetrics = {
   network: number;
@@ -146,6 +148,29 @@ function isValidRootSnapshot(value: unknown, wallet: string): value is NetworkRo
     Array.isArray(data.breadcrumb) &&
     Array.isArray(data.searchResults),
   );
+}
+
+export function invalidateNetworkRootCache(wallet: string | null): void {
+  if (!wallet) return;
+  const key = walletKey(wallet);
+  memory.delete(key);
+  headerMemory.delete(key);
+
+  if (typeof window === 'undefined') return;
+  try {
+    const raw = window.sessionStorage.getItem(HEADER_STORAGE_KEY);
+    if (!raw) return;
+    const parsed = JSON.parse(raw) as Record<string, StoredHeaderMetrics>;
+    if (parsed[key]) {
+      delete parsed[key];
+      window.sessionStorage.setItem(
+        HEADER_STORAGE_KEY,
+        JSON.stringify(parsed),
+      );
+    }
+  } catch {
+    // Cache invalidation is best effort; the next no-store fetch is authoritative.
+  }
 }
 
 export function getCachedNetworkRoot(wallet: string | null): NetworkRootSnapshot | null {
