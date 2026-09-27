@@ -347,7 +347,7 @@ test('historical activity plus separate recent funding escalates to HOLD', () =>
   );
 });
 
-test('high-score historical sink funding link remains WATCH without another domain', () => {
+test('high-score historical sink funding link HOLDs without another domain', () => {
   const result = evaluateSybilV2Policy({
     signals: [
       {
@@ -366,7 +366,7 @@ test('high-score historical sink funding link remains WATCH without another doma
     requiredChecksComplete: true,
   });
 
-  assert.equal(result.state, 'WATCH');
+  assert.equal(result.state, 'HOLD');
 });
 
 test('smaller historical-sink funding link remains WATCH', () => {
