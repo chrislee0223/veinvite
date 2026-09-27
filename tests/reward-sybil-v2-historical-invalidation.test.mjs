@@ -86,6 +86,22 @@ test('leaderboard movement is hidden when a later Sybil invalidation makes the o
   assert.match(sql, /x\.status = 'ACTIVE'/u);
 });
 
+
+test('operator watchlist surfaces Sybil v2 historical WATCH referrals without reward-recipient mixing', async () => {
+  const sql = await readFile(
+    'supabase/migrations/20260927143000_surface_sybil_v2_operator_watchlist.sql',
+    'utf8',
+  );
+
+  assert.match(sql, /operator_sybil_watchlist/u);
+  assert.match(sql, /a\.state in \('WATCH','HOLD','RESTRICTED','ANALYSIS_FAILED'\)/u);
+  assert.match(sql, /operator_sybil_v2_historical_watch_followups/u);
+  assert.match(sql, /a\.source = 'OPERATOR'/u);
+  assert.match(sql, /i\.reward_status = 'PAID'/u);
+  assert.match(sql, /MANUAL_SAME_SUBJECT_REVIEW/u);
+  assert.match(sql, /Reward-recipient post-payout behavior belongs to the inviter/u);
+});
+
 test('wallet session gate checks participation restrictions before rendering the app', async () => {
   const gate = await readFile(
     'src/components/WalletSessionGate.tsx',
