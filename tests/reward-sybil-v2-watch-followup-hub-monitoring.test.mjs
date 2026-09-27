@@ -249,7 +249,7 @@ test('flagged WATCH follow-up is persisted as POST_PAYOUT evidence and immediate
   );
   assert.match(
     pipeline,
-    /family: 'POST_PAYOUT' as const/u,
+    /family: 'POST_PAYOUT'/u,
   );
   assert.match(
     pipeline,
