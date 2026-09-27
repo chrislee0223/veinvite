@@ -1164,7 +1164,7 @@ export async function GET(
 
       sybilV2WatchFollowup =
         await runSybilV2WatchFollowupBatch(
-          2,
+          4,
         );
 
       if (sybilV2WatchFollowup.failed > 0) {
