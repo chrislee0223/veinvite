@@ -1490,17 +1490,19 @@ async function hasActiveRestriction(
 ): Promise<boolean> {
   if (!invitation.activation_network || !invitation.invitee_wallet) return false;
 
-  const wallets = [
-    normalizeWallet(invitation.inviter_wallet),
-    normalizeWallet(invitation.invitee_wallet),
-  ];
+  // Referral-level Sybil assessment is scoped to the invitee subject.
+  // An inviter restriction is intentionally INVITER_ONLY and is enforced
+  // against that inviter's own VeInvite participation, not inherited by
+  // otherwise independent invitees.
+  const subjectWallet =
+    normalizeWallet(invitation.invitee_wallet);
 
   const { data, error } = await supabaseAdmin
     .from('sybil_v2_wallet_restrictions')
     .select('id')
     .eq('network', invitation.activation_network)
     .eq('status', 'ACTIVE')
-    .in('wallet_address', wallets)
+    .eq('wallet_address', subjectWallet)
     .limit(1);
 
   if (error) {
