@@ -13,6 +13,7 @@ const [
   greekSource,
   networkNavSource,
   networkGeometrySource,
+  runtimeCopyPatchesSource,
 ] = await Promise.all([
   readFile('src/lib/i18n/locales.ts', 'utf8'),
   readFile('src/lib/i18n/networkCanvasControlCopy.ts', 'utf8'),
@@ -24,6 +25,7 @@ const [
   readFile('src/lib/i18n/greekFinalPolish.ts', 'utf8'),
   readFile('src/lib/i18n/networkNavigationCopyPolish.ts', 'utf8'),
   readFile('src/lib/networkCanvasGeometry.ts', 'utf8'),
+  readFile('src/lib/i18n/runtimeCopyPatches.ts', 'utf8'),
 ]);
 
 const supportedLocales = [
@@ -112,9 +114,14 @@ test('user-facing Network navigation has an explicit label in all locales', () =
 });
 
 test('Greek final product polish runs after shared i18n hardening', () => {
-  const sharedIndex = providerSource.indexOf("@/lib/i18n/guideRewardClaimHardening");
-  const greekIndex = providerSource.indexOf("@/lib/i18n/greekFinalPolish");
-  const networkNavIndex = providerSource.indexOf("@/lib/i18n/networkNavigationCopyPolish");
+  assert.match(
+    providerSource,
+    /@\/lib\/i18n\/runtimeCopyPatches/,
+  );
+
+  const sharedIndex = runtimeCopyPatchesSource.indexOf("./guideRewardClaimHardening");
+  const greekIndex = runtimeCopyPatchesSource.indexOf("./greekFinalPolish");
+  const networkNavIndex = runtimeCopyPatchesSource.indexOf("./networkNavigationCopyPolish");
   assert.ok(sharedIndex >= 0);
   assert.ok(greekIndex > sharedIndex);
   assert.ok(networkNavIndex > greekIndex);
