@@ -40,7 +40,11 @@ export type QaNotificationStateId =
   | 'NOTI-REWARD-PAID'
   | 'NOTI-INELIGIBLE'
   | 'NOTI-SECURITY-REVIEW'
+  | 'NOTI-POST-PAYOUT-REVIEW'
+  | 'NOTI-POST-PAYOUT-CLEARED'
   | 'NOTI-SECURITY-RESTRICTED'
+  | 'NOTI-REFERRAL-INVALIDATED'
+  | 'NOTI-REFERRAL-RESTORED'
   | 'NOTI-INVITER-WATCH'
   | 'NOTI-INVITER-HOLD'
   | 'NOTI-INVITER-RESTRICTED'
@@ -323,6 +327,32 @@ function fixtureForState(
         unreadCount: 1,
         open: true,
       };
+    case 'NOTI-POST-PAYOUT-REVIEW':
+      return {
+        mode: 'history',
+        items: [
+          historyItem({
+            id: '17',
+            kind: 'SECURITY_POST_PAYOUT_REVIEW_STARTED',
+            minutes: 5,
+          }),
+        ],
+        unreadCount: 1,
+        open: true,
+      };
+    case 'NOTI-POST-PAYOUT-CLEARED':
+      return {
+        mode: 'history',
+        items: [
+          historyItem({
+            id: '18',
+            kind: 'SECURITY_POST_PAYOUT_REVIEW_CLEARED',
+            minutes: 6,
+          }),
+        ],
+        unreadCount: 1,
+        open: true,
+      };
     case 'NOTI-SECURITY-RESTRICTED':
       return {
         mode: 'history',
@@ -331,6 +361,32 @@ function fixtureForState(
             id: '12',
             kind: 'SECURITY_RESTRICTION_CONFIRMED',
             minutes: 7,
+          }),
+        ],
+        unreadCount: 1,
+        open: true,
+      };
+    case 'NOTI-REFERRAL-INVALIDATED':
+      return {
+        mode: 'history',
+        items: [
+          historyItem({
+            id: '19',
+            kind: 'SECURITY_REFERRAL_INVALIDATED',
+            minutes: 8,
+          }),
+        ],
+        unreadCount: 1,
+        open: true,
+      };
+    case 'NOTI-REFERRAL-RESTORED':
+      return {
+        mode: 'history',
+        items: [
+          historyItem({
+            id: '20',
+            kind: 'SECURITY_REFERRAL_RESTORED',
+            minutes: 9,
           }),
         ],
         unreadCount: 1,
