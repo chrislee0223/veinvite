@@ -14,6 +14,7 @@ type StoredInviteSlots = {
   slots: NetworkInviteSlotState[];
 };
 
+const SESSION_TTL_MS = 10_000;
 const STORAGE_KEY = 'veinvite_network_invite_slots_v1';
 const memory = new Map<string, StoredInviteSlots>();
 const inFlight = new Map<string, Promise<NetworkInviteSlotState[]>>();
@@ -99,6 +100,7 @@ function readSession(wallet: string): StoredInviteSlots | null {
       !entry ||
       walletKey(entry.wallet) !== key ||
       typeof entry.savedAt !== 'number' ||
+      Date.now() - entry.savedAt > SESSION_TTL_MS ||
       !slots
     ) {
       if (entry) {
@@ -125,7 +127,12 @@ export function getCachedNetworkInviteSlots(
 ): NetworkInviteSlotState[] | null {
   if (!wallet) return null;
   const key = walletKey(wallet);
-  const entry = memory.get(key) ?? readSession(wallet);
+  const cached = memory.get(key);
+  if (cached && Date.now() - cached.savedAt <= SESSION_TTL_MS) {
+    return cached.slots.map((slot) => ({ ...slot }));
+  }
+  if (cached) memory.delete(key);
+  const entry = readSession(wallet);
   return entry ? entry.slots.map((slot) => ({ ...slot })) : null;
 }
 

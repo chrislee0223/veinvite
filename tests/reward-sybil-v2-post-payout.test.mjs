@@ -19,7 +19,7 @@ test('one post-payout sweep signal never becomes HOLD by itself', () => {
 
   assert.equal(result.state, 'WATCH');
   assert.deepEqual(
-    result.strongEvidenceFamilies,
+    result.strongEvidenceDomains,
     ['POST_PAYOUT'],
   );
 });
@@ -45,8 +45,8 @@ test('post-payout evidence can HOLD only with another independent strong family'
 
   assert.equal(result.state, 'HOLD');
   assert.deepEqual(
-    new Set(result.strongEvidenceFamilies),
-    new Set(['HISTORICAL_REWARD', 'POST_PAYOUT']),
+    new Set(result.strongEvidenceDomains),
+    new Set(['HISTORICAL_ACTIVITY', 'POST_PAYOUT']),
   );
 });
 
@@ -108,6 +108,14 @@ test('post-payout bridge is retryable and completion-marked only after processin
   assert.match(
     source,
     /operator_sybil_v2_post_payout_candidates/u,
+  );
+  assert.match(
+    source,
+    /strongEvidenceDomains\.includes\('POST_PAYOUT'\)/u,
+  );
+  assert.match(
+    source,
+    /evidenceDomains: policy\.evidenceDomains/u,
   );
 
   const migration = await readFile(
@@ -238,6 +246,51 @@ test('automatic post-payout observation excludes historical paid rewards', async
     sql,
     /Historical paid rewards are excluded for separate operator-controlled backfill/u,
   );
+});
+
+
+
+test('operator WATCH baseline joins later post-payout evidence without auto-blacklisting', async () => {
+  const source = await readFile(
+    'src/lib/sybil/v2/postPayout.ts',
+    'utf8',
+  );
+
+  assert.match(source, /OPERATOR_HISTORICAL_WATCH_BASELINE/u);
+  assert.match(source, /sybil_v2_referral_assessments/u);
+  assert.match(source, /assessment\.source !== 'OPERATOR'/u);
+  assert.match(source, /assessment\.state !== 'WATCH'/u);
+  assert.match(source, /assessment\.policy_version !== 'sybil-v2\.1'/u);
+  assert.match(source, /operatorWatchBaselineApplied/u);
+  assert.match(source, /strongEvidenceDomains\.includes\('POST_PAYOUT'\)/u);
+});
+
+test('explicit operator WATCH re-enables staged observation for reviewed historical payouts only', async () => {
+  const sql = await readFile(
+    'supabase/migrations/20260927121000_include_operator_watch_in_post_payout_observation.sql',
+    'utf8',
+  );
+
+  assert.match(sql, /a\.source = 'OPERATOR'/u);
+  assert.match(sql, /a\.state = 'WATCH'/u);
+  assert.match(sql, /a\.policy_version = 'sybil-v2\.1'/u);
+  assert.match(sql, /postPayoutObservationEnabled/u);
+  assert.match(sql, /operator_historical_watch/u);
+  assert.match(sql, /interval '24 hours'/u);
+  assert.match(sql, /interval '7 days'/u);
+  assert.match(sql, /interval '30 days'/u);
+});
+
+
+test('explicit operator WATCH overrides any older clearance verdict for observation', async () => {
+  const sql = await readFile(
+    'supabase/migrations/20260927122500_prioritize_operator_watch_observation.sql',
+    'utf8',
+  );
+
+  assert.match(sql, /then 'WATCH'/u);
+  assert.match(sql, /else c\.verdict/u);
+  assert.match(sql, /postPayoutObservationEnabled/u);
 });
 
 test('Production explicitly opts into the B3TR observation worker', async () => {

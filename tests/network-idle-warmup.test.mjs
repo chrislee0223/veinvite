@@ -3,7 +3,7 @@ import test from 'node:test';
 import { readFile } from 'node:fs/promises';
 
 test('Network warmup primes header data as soon as wallet authentication is ready and leaves module preloads idle', async () => {
-  const [providers, warmup, rootCache, network] = await Promise.all([
+  const [providers, warmup, rootCache, slotsCache, network] = await Promise.all([
     readFile(
       new URL('../src/components/AppProviders.tsx', import.meta.url),
       'utf8',
@@ -14,6 +14,10 @@ test('Network warmup primes header data as soon as wallet authentication is read
     ),
     readFile(
       new URL('../src/lib/networkRootClientCache.ts', import.meta.url),
+      'utf8',
+    ),
+    readFile(
+      new URL('../src/lib/networkInviteSlotsClientCache.ts', import.meta.url),
       'utf8',
     ),
     readFile(
@@ -41,11 +45,15 @@ test('Network warmup primes header data as soon as wallet authentication is read
   assert.match(warmup, /window\.location\.pathname !== '\/'/);
 
   assert.match(rootCache, /HEADER_STORAGE_KEY = 'veinvite_network_header_metrics_v2'/);
-  assert.doesNotMatch(rootCache, /HEADER_TTL_MS/);
+  assert.match(rootCache, /HEADER_SESSION_TTL_MS = 15_000/);
+  assert.match(rootCache, /Date\.now\(\) - entry\.savedAt > HEADER_SESSION_TTL_MS/);
   assert.match(rootCache, /getCachedNetworkHeaderMetrics/);
   assert.match(rootCache, /rememberHeaderMetrics\(wallet, data\)/);
   assert.match(rootCache, /NETWORK_HEADER_METRICS_UPDATED_EVENT/);
   assert.doesNotMatch(rootCache, /prefetchEnrichedNetworkRoot/);
+  assert.match(slotsCache, /SESSION_TTL_MS = 10_000/);
+  assert.match(slotsCache, /Date\.now\(\) - entry\.savedAt > SESSION_TTL_MS/);
+  assert.match(slotsCache, /Date\.now\(\) - cached\.savedAt <= SESSION_TTL_MS/);
   const headerMetricsStart = rootCache.indexOf('export type NetworkHeaderMetrics');
   const rootSnapshotStart = rootCache.indexOf('export type NetworkRootSnapshot', headerMetricsStart);
   assert.ok(headerMetricsStart >= 0 && rootSnapshotStart > headerMetricsStart);
