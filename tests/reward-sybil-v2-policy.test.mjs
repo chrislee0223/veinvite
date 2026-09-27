@@ -25,15 +25,32 @@ test('single weak onboarding signal never HOLDs a referral', () => {
   assert.equal(result.state, 'CLEAR');
 });
 
-test('one same-client or one strong family becomes WATCH, not HOLD', () => {
+test('direct invitee-inviter same-client evidence HOLDs for review', () => {
   const result = evaluateSybilV2Policy({
     requiredChecksComplete: true,
     signals: [
       {
         code: 'SECURITY_CLIENT_INVITER_LINK',
         family: 'SECURITY_IDENTITY',
-        strength: 'MEDIUM',
-        score: 45,
+        strength: 'HIGH',
+        score: 90,
+      },
+    ],
+  });
+
+  assert.equal(result.state, 'HOLD');
+  assert.ok(result.riskScore >= 70);
+});
+
+test('one generic strong historical signal remains WATCH', () => {
+  const result = evaluateSybilV2Policy({
+    requiredChecksComplete: true,
+    signals: [
+      {
+        code: 'HISTORICAL_SYNCHRONIZED_REWARD_CLUSTER',
+        family: 'HISTORICAL_REWARD',
+        strength: 'HIGH',
+        score: 55,
       },
     ],
   });
@@ -100,7 +117,7 @@ test('active wallet restriction is authoritative for future participation', () =
   assert.equal(result.riskScore, 100);
 });
 
-test('correlated historical cluster fixture stays WATCH without a second independent domain', () => {
+test('extreme historical activity plus consolidation HOLDs for review', () => {
   const appId =
     '0x9643ed1637948cc571b23f836ade2bdb104de88e627fa6e8e3ffef1ee5a1739a';
   const sink =
@@ -216,8 +233,8 @@ test('correlated historical cluster fixture stays WATCH without a second indepen
 
     assert.equal(
       policy.state,
-      'WATCH',
-      `${wallet} historical reward/consolidation evidence is one correlated domain`,
+      'HOLD',
+      `${wallet} extreme historical reward/consolidation pattern should pause for review`,
     );
     assert.deepEqual(
       new Set(policy.strongEvidenceDomains),
@@ -330,7 +347,7 @@ test('historical activity plus separate recent funding escalates to HOLD', () =>
   );
 });
 
-test('historical sink link plus weak VTHO alone remains WATCH pending more evidence', () => {
+test('high-score historical sink funding link remains WATCH without another domain', () => {
   const result = evaluateSybilV2Policy({
     signals: [
       {
@@ -344,6 +361,44 @@ test('historical sink link plus weak VTHO alone remains WATCH pending more evide
         family: 'CLUSTER_LINK',
         strength: 'HIGH',
         score: 50,
+      },
+    ],
+    requiredChecksComplete: true,
+  });
+
+  assert.equal(result.state, 'WATCH');
+});
+
+test('smaller historical-sink funding link remains WATCH', () => {
+  const result = evaluateSybilV2Policy({
+    signals: [
+      {
+        code: 'RECENT_FUNDER_IS_HISTORICAL_COMMON_SINK',
+        family: 'CLUSTER_LINK',
+        strength: 'HIGH',
+        score: 48,
+      },
+    ],
+    requiredChecksComplete: true,
+  });
+
+  assert.equal(result.state, 'WATCH');
+});
+
+test('friend-style shared VTHO plus similar mission behavior remains WATCH', () => {
+  const result = evaluateSybilV2Policy({
+    signals: [
+      {
+        code: 'SHARED_PREACTIVATION_VTHO_FUNDER',
+        family: 'FUNDING',
+        strength: 'LOW',
+        score: 14,
+      },
+      {
+        code: 'MISSION_PATTERN_CLUSTER',
+        family: 'MISSION_BEHAVIOR',
+        strength: 'MEDIUM',
+        score: 40,
       },
     ],
     requiredChecksComplete: true,
