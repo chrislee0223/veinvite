@@ -26,6 +26,7 @@ with rollout as (
         when a.source = 'OPERATOR'
          and a.state = 'WATCH'
          and a.policy_version = 'sybil-v2.1'
+         and a.evidence_summary ->> 'postPayoutObservationEnabled' = 'true'
           then 'WATCH'
         else null
       end
@@ -110,6 +111,6 @@ grant select on table public.operator_reward_recipient_b3tr_observation_due
   to service_role;
 
 comment on view public.operator_reward_recipient_b3tr_observation_due is
-  'Automatic finalized reward-recipient B3TR observation schedule. Payouts after the rollout boundary are eligible normally. Historical payouts remain excluded unless an operator explicitly records a sybil-v2.1 WATCH assessment, in which case only that reviewed referral receives the staged 24h, 7d and 30d observation schedule.';
+  'Automatic finalized reward-recipient B3TR observation schedule. Payouts after the rollout boundary are eligible normally. Historical payouts remain excluded unless an operator explicitly records a sybil-v2.1 WATCH assessment and enables post-payout observation for that reviewed referral, in which case only that referral receives the staged 24h, 7d and 30d observation schedule.';
 
 commit;
