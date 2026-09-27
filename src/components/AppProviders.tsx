@@ -5,23 +5,10 @@ import { useEffect } from 'react';
 import { ChakraProvider, extendTheme } from '@chakra-ui/react';
 import dynamic from 'next/dynamic';
 
-// Register every supported locale before shared copy hardening runs. Some
-// hardening passes intentionally iterate the dictionaries that exist at import
-// time, so this order keeps newly added locale packs inside those safeguards.
-import '@/lib/i18n/localePacks/registerExpandedLocales';
-import '@/lib/i18n/inviteLandingFinalPolish';
-import '@/lib/i18n/copyHardening';
-import '@/lib/i18n/inviteeMissionCopyPolish';
-import '@/lib/i18n/inviteeConversionPolicyPolish';
-import '@/lib/i18n/guideCopyFinalHardening';
-import '@/lib/i18n/guideNaturalnessPolish';
-import '@/lib/i18n/guideVot3PolicyPolish';
-import '@/lib/i18n/secondaryPageCopyHardening';
-import '@/lib/i18n/referralLinkCopy';
-import '@/lib/i18n/referralLinkCopyFinalHardening';
-import '@/lib/i18n/guideRewardClaimHardening';
-import '@/lib/i18n/greekFinalPolish';
-import '@/lib/i18n/networkNavigationCopyPolish';
+// Copy dictionaries are refined by ordered side-effect passes. Keep that
+// ordering contract in one audited runtime entrypoint instead of duplicating
+// it in the app provider shell.
+import '@/lib/i18n/runtimeCopyPatches';
 import { LeaderboardMovementColorPolish } from './LeaderboardMovementColorPolish';
 import { LegalDocumentSheetHost } from './LegalDocumentSheetHost';
 import { LegalNavigationMemory } from './LegalNavigationMemory';
