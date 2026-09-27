@@ -11,6 +11,10 @@ const appProvidersSource = readFileSync(
   'src/components/AppProviders.tsx',
   'utf8',
 );
+const runtimePatchesSource = readFileSync(
+  'src/lib/i18n/runtimePatches.ts',
+  'utf8',
+);
 const legalPageSource = readFileSync(
   'src/components/LocalizedLegalPage.tsx',
   'utf8',
@@ -310,9 +314,13 @@ test('regional-register reuse is explicit rather than accidental untranslated fa
   assert.match(pidgin, /deliberate locale choice, not a missing translation/);
 });
 
-test('expanded locales are registered before main app children render', () => {
+test('expanded locales are registered through the app i18n runtime before children render', () => {
   assert.match(
     appProvidersSource,
+    /import ['"]@\/lib\/i18n\/runtimePatches['"];?/,
+  );
+  assert.match(
+    runtimePatchesSource,
     /import ['"]@\/lib\/i18n\/localePacks\/registerExpandedLocales['"];?/,
   );
 });

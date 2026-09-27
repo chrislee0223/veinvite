@@ -20,7 +20,7 @@ const [
   readFile('src/components/AppGuide.tsx', 'utf8'),
   readFile('src/app/layout.tsx', 'utf8'),
   readFile('src/app/localization-final-polish.css', 'utf8'),
-  readFile('src/components/AppProviders.tsx', 'utf8'),
+  readFile('src/lib/i18n/runtimePatches.ts', 'utf8'),
   readFile('src/lib/i18n/greekFinalPolish.ts', 'utf8'),
   readFile('src/lib/i18n/networkNavigationCopyPolish.ts', 'utf8'),
   readFile('src/lib/networkCanvasGeometry.ts', 'utf8'),

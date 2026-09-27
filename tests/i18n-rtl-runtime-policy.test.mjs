@@ -11,7 +11,7 @@ const [
 ] = await Promise.all([
   readFile('src/lib/i18n/locales.ts', 'utf8'),
   readFile('src/lib/i18n/inviteeConversionPolicyPolish.ts', 'utf8'),
-  readFile('src/components/AppProviders.tsx', 'utf8'),
+  readFile('src/lib/i18n/runtimePatches.ts', 'utf8'),
   readFile('src/lib/i18n/guideVot3PolicyPolish.ts', 'utf8'),
   readFile('src/app/localized-typography.css', 'utf8'),
 ]);

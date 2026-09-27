@@ -32,7 +32,7 @@ const [
   readFile(new URL('../src/app/r/[key]/page.tsx', import.meta.url), 'utf8'),
   readFile(new URL('../src/lib/i18n/referralLinkCopy.ts', import.meta.url), 'utf8'),
   readFile(new URL('../src/lib/i18n/referralLinkCopyFinalHardening.ts', import.meta.url), 'utf8'),
-  readFile(new URL('../src/components/AppProviders.tsx', import.meta.url), 'utf8'),
+  readFile(new URL('../src/lib/i18n/runtimePatches.ts', import.meta.url), 'utf8'),
   readFile(new URL('../src/lib/i18n/guideFlowCopy.ts', import.meta.url), 'utf8'),
   readFile(new URL('../src/components/RewardReceiptNotice.tsx', import.meta.url), 'utf8'),
   readFile(new URL('../src/components/UsageAnalyticsTracker.tsx', import.meta.url), 'utf8'),
