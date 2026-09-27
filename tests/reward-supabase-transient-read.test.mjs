@@ -24,9 +24,22 @@ test('transient Supabase retries remain limited to safe reads', () => {
   assert.match(source, /TRANSIENT_FETCH_RETRY_DELAY_MS = 125/);
   assert.match(source, /error instanceof TypeError/);
   assert.match(source, /fetch failed/i);
+  assert.match(source, /function isForecastReadTimeout/);
   assert.match(
     source,
-    /if \(\s*!retriableRead \|\|\s*!isTransientFetchFailure\(error\)\s*\) \{\s*throw error;\s*\}/s,
+    /error\.message ===\s*`Supabase forecast read exceeded \$\{FORECAST_READ_TIMEOUT_MS\}ms\.\`/s,
+  );
+  assert.match(
+    source,
+    /const boundedForecastRead =\s*isBoundedForecastReadRequest\(input, init\)/s,
+  );
+  assert.match(
+    source,
+    /isTransientFetchFailure\(error\) \|\|\s*\(boundedForecastRead &&\s*isForecastReadTimeout\(error\)\)/s,
+  );
+  assert.match(
+    source,
+    /if \(\s*!retriableRead \|\|\s*!retryableTransportFailure\s*\) \{\s*throw error;\s*\}/s,
   );
   assert.match(source, /await wait\(TRANSIENT_FETCH_RETRY_DELAY_MS\)/);
 
@@ -71,6 +84,10 @@ test('reward forecast RPC reads are abort-bounded without widening mutation retr
   assert.match(
     source,
     /response = await fetchWithForecastReadTimeout\(input, init\)/,
+  );
+  assert.match(
+    source,
+    /return fetchWithForecastReadTimeout\(input, init\)/,
   );
   assert.doesNotMatch(
     source,
