@@ -196,6 +196,20 @@ test('WATCH follow-up excludes active historical BLACKLIST invalidations', async
 
 
 
+
+test('historical WATCH monitor reports automatic same-subject follow-up mode', async () => {
+  const sql = await readFile(
+    'supabase/migrations/20260928160000_align_historical_watch_monitor_mode.sql',
+    'utf8',
+  );
+
+  assert.match(sql, /AUTOMATIC_SAME_SUBJECT_REVIEW/u);
+  assert.match(sql, /followupHorizonsHours/u);
+  assert.match(sql, /jsonb_build_array\(24,168,720\)/u);
+  assert.match(sql, /rewardRecipientEvidenceCombined', false/u);
+  assert.doesNotMatch(sql, /MANUAL_SAME_SUBJECT_REVIEW/u);
+});
+
 test('WATCH follow-up failures are isolated from core reward recovery health', async () => {
   const source = await readFile(
     'src/app/api/cron/vote-reconcile/route.ts',
