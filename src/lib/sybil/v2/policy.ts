@@ -1,4 +1,4 @@
-export const SYBIL_V2_POLICY_VERSION = 'sybil-v2.2';
+export const SYBIL_V2_POLICY_VERSION = 'sybil-v2.3';
 
 export type SybilV2EvidenceFamily =
   | 'FUNDING'
@@ -81,10 +81,47 @@ const STANDALONE_HOLD_CODES = new Set([
 function hasExtremeSingleDomainPattern(
   signals: SybilV2Signal[],
 ): boolean {
-  return signals.some((signal) =>
-    STANDALONE_HOLD_CODES.has(signal.code) &&
+  if (
+    signals.some((signal) =>
+      STANDALONE_HOLD_CODES.has(signal.code) &&
+      STRENGTH_RANK[signal.strength] >= STRENGTH_RANK.MEDIUM &&
+      signal.score > 0,
+    )
+  ) {
+    return true;
+  }
+
+  if (
+    signals.some((signal) =>
+      signal.code === 'RECENT_FUNDER_IS_HISTORICAL_COMMON_SINK' &&
+      signal.strength === 'HIGH' &&
+      signal.score >= 50,
+    )
+  ) {
+    return true;
+  }
+
+  const hasHistoricalActivity = signals.some((signal) =>
+    (
+      signal.code === 'HISTORICAL_REWARD_APP_CLUSTER' ||
+      signal.code === 'HISTORICAL_SYNCHRONIZED_REWARD_CLUSTER'
+    ) &&
     STRENGTH_RANK[signal.strength] >= STRENGTH_RANK.MEDIUM &&
     signal.score > 0,
+  );
+
+  const commonSinkScore = signals
+    .filter((signal) => signal.code === 'HISTORICAL_COMMON_B3TR_SINK')
+    .reduce((max, signal) => Math.max(max, signal.score), 0);
+
+  const sinkInviterScore = signals
+    .filter((signal) => signal.code === 'HISTORICAL_SINK_REAPPEARS_AS_INVITER')
+    .reduce((max, signal) => Math.max(max, signal.score), 0);
+
+  return (
+    hasHistoricalActivity &&
+    commonSinkScore >= 50 &&
+    sinkInviterScore >= 45
   );
 }
 
