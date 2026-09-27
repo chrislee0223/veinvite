@@ -81,35 +81,10 @@ const STANDALONE_HOLD_CODES = new Set([
 function hasExtremeSingleDomainPattern(
   signals: SybilV2Signal[],
 ): boolean {
-  if (
-    signals.some((signal) =>
-      STANDALONE_HOLD_CODES.has(signal.code) &&
-      STRENGTH_RANK[signal.strength] >= STRENGTH_RANK.MEDIUM &&
-      signal.score > 0,
-    )
-  ) {
-    return true;
-  }
-
-  const hasHistoricalActivity = signals.some((signal) =>
-    (
-      signal.code === 'HISTORICAL_REWARD_APP_CLUSTER' ||
-      signal.code === 'HISTORICAL_SYNCHRONIZED_REWARD_CLUSTER'
-    ) &&
+  return signals.some((signal) =>
+    STANDALONE_HOLD_CODES.has(signal.code) &&
     STRENGTH_RANK[signal.strength] >= STRENGTH_RANK.MEDIUM &&
     signal.score > 0,
-  );
-  const commonSinkScore = signals
-    .filter((signal) => signal.code === 'HISTORICAL_COMMON_B3TR_SINK')
-    .reduce((max, signal) => Math.max(max, signal.score), 0);
-  const sinkInviterScore = signals
-    .filter((signal) => signal.code === 'HISTORICAL_SINK_REAPPEARS_AS_INVITER')
-    .reduce((max, signal) => Math.max(max, signal.score), 0);
-
-  return (
-    hasHistoricalActivity &&
-    commonSinkScore >= 50 &&
-    sinkInviterScore >= 45
   );
 }
 
