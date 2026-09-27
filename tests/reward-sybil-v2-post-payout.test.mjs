@@ -323,6 +323,20 @@ test('latest post-payout scheduler keeps referral WATCH separate from reward-rec
   assert.doesNotMatch(sql, /postPayoutObservationEnabled/u);
 });
 
+
+test('post-payout CLEAR emits an access-restored notification and backfills missed clears', async () => {
+  const sql = await readFile(
+    'supabase/migrations/20260927135000_notify_post_payout_clearance.sql',
+    'utf8',
+  );
+
+  assert.match(sql, /new\.state = 'CLEARED'/u);
+  assert.match(sql, /SECURITY_INVITER_ACCESS_RESTORED/u);
+  assert.match(sql, /postpayout-clear-r/u);
+  assert.match(sql, /r\.state = 'CLEARED'/u);
+  assert.match(sql, /SECURITY_REVIEW_STARTED/u);
+});
+
 test('five-minute vote recovery drains bounded post-payout WATCH work', async () => {
   const source = await readFile(
     'src/app/api/cron/vote-reconcile/route.ts',
