@@ -257,7 +257,7 @@ async function maybeOpenPostPayoutReview({
 
   if (
     policy.state !== 'HOLD' ||
-    !policy.strongEvidenceFamilies.includes('POST_PAYOUT')
+    !policy.strongEvidenceDomains.includes('POST_PAYOUT')
   ) {
     return {
       opened: false,
@@ -279,6 +279,9 @@ async function maybeOpenPostPayoutReview({
         evidenceFamilies: policy.evidenceFamilies,
         strongEvidenceFamilies:
           policy.strongEvidenceFamilies,
+        evidenceDomains: policy.evidenceDomains,
+        strongEvidenceDomains:
+          policy.strongEvidenceDomains,
       },
     },
   );
