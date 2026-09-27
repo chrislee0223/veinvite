@@ -1380,13 +1380,23 @@ async function loadSecurityIdentitySignals(
     invitation.identity_link_status === 'REVIEW' ||
     invitation.identity_link_status === 'LINKED_EXISTING'
   ) {
-    const score = sameInviterClient ? 45 : relatedRewarded ? 40 : 30;
+    // Keep Sybil v2 aligned with the security-client gate's evidence severity.
+    // A direct invitee<->inviter client link is far less plausible for two
+    // independent users than a generic shared-device relationship, so the
+    // policy may HOLD it for review from this single domain.
+    const score = sameInviterClient ? 90 : relatedRewarded ? 80 : 60;
+    const strength =
+      sameInviterClient || relatedRewarded
+        ? 'HIGH'
+        : 'MEDIUM';
+    const signalCode = sameInviterClient
+      ? 'SECURITY_CLIENT_INVITER_LINK'
+      : 'SECURITY_CLIENT_PARTICIPANT_LINK';
+
     signals.push({
-      code: sameInviterClient
-        ? 'SECURITY_CLIENT_INVITER_LINK'
-        : 'SECURITY_CLIENT_PARTICIPANT_LINK',
+      code: signalCode,
       family: 'SECURITY_IDENTITY',
-      strength: 'MEDIUM',
+      strength,
       score,
     });
 
@@ -1394,10 +1404,8 @@ async function loadSecurityIdentitySignals(
       invitation,
       subjectWallet: invitation.invitee_wallet!,
       family: 'SECURITY_IDENTITY',
-      signalCode: sameInviterClient
-        ? 'SECURITY_CLIENT_INVITER_LINK'
-        : 'SECURITY_CLIENT_PARTICIPANT_LINK',
-      strength: 'MEDIUM',
+      signalCode,
+      strength,
       score,
       relatedWallet: sameInviterClient ? invitation.inviter_wallet : null,
       evidence,
