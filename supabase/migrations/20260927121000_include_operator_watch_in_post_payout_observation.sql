@@ -64,7 +64,8 @@ with rollout as (
     c.verdict,
     a.source,
     a.state,
-    a.policy_version
+    a.policy_version,
+    a.evidence_summary
 ), staged as (
   select
     b.*,
