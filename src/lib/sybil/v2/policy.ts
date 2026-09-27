@@ -1,4 +1,4 @@
-export const SYBIL_V2_POLICY_VERSION = 'sybil-v2.1';
+export const SYBIL_V2_POLICY_VERSION = 'sybil-v2.2';
 
 export type SybilV2EvidenceFamily =
   | 'FUNDING'
@@ -74,6 +74,81 @@ const FUNDING_DERIVED_CLUSTER_CODES = new Set([
   'SHARED_RECENT_FUNDER_IS_MULTI_INVITER',
 ]);
 
+const STANDALONE_HOLD_CODES = new Set([
+  'SECURITY_CLIENT_INVITER_LINK',
+]);
+
+function maxSignalScore(
+  signals: SybilV2Signal[],
+  code: string,
+): number {
+  return signals
+    .filter((signal) => signal.code === code)
+    .reduce((max, signal) => Math.max(max, signal.score), 0);
+}
+
+function hasExtremeSingleDomainPattern(
+  signals: SybilV2Signal[],
+): boolean {
+  // Do not pretend we have calibrated absolute probabilities without a
+  // sufficiently labeled normal-vs-Sybil dataset. Instead, only a narrow set
+  // of patterns with very low normal-user plausibility can override the usual
+  // two-domain HOLD requirement.
+  if (
+    signals.some((signal) =>
+      STANDALONE_HOLD_CODES.has(signal.code) &&
+      STRENGTH_RANK[signal.strength] >= STRENGTH_RANK.MEDIUM &&
+      signal.score > 0,
+    )
+  ) {
+    return true;
+  }
+
+  // A wallet that recently receives funding from a wallet which previously
+  // acted as a common B3TR sink for many onboarding wallets is a temporal
+  // controller-style link. Require a high-strength / high-score instance so a
+  // small family or friend funding pattern remains WATCH rather than HOLD.
+  if (
+    signals.some((signal) =>
+      signal.code === 'RECENT_FUNDER_IS_HISTORICAL_COMMON_SINK' &&
+      signal.strength === 'HIGH' &&
+      signal.score >= 50,
+    )
+  ) {
+    return true;
+  }
+
+  // Historical dApp similarity alone or a shared destination alone can occur
+  // legitimately. The joint pattern below is materially different: repeated
+  // historical app activity, many wallets consolidating to one non-protocol
+  // sink, and that same sink later reappearing as an inviter. At sufficiently
+  // high cluster scores, the normal-independent-user explanation becomes
+  // implausible enough to pause payout for review even though all observations
+  // are grouped under HISTORICAL_ACTIVITY.
+  const hasHistoricalActivity = signals.some((signal) =>
+    (
+      signal.code === 'HISTORICAL_REWARD_APP_CLUSTER' ||
+      signal.code === 'HISTORICAL_SYNCHRONIZED_REWARD_CLUSTER'
+    ) &&
+    STRENGTH_RANK[signal.strength] >= STRENGTH_RANK.MEDIUM &&
+    signal.score > 0,
+  );
+  const commonSinkScore = maxSignalScore(
+    signals,
+    'HISTORICAL_COMMON_B3TR_SINK',
+  );
+  const sinkInviterScore = maxSignalScore(
+    signals,
+    'HISTORICAL_SINK_REAPPEARS_AS_INVITER',
+  );
+
+  return (
+    hasHistoricalActivity &&
+    commonSinkScore >= 50 &&
+    sinkInviterScore >= 45
+  );
+}
+
 function evidenceDomain(
   signal: SybilV2Signal,
 ): SybilV2EvidenceDomain {
@@ -101,12 +176,16 @@ function evidenceDomain(
  * product where a friend can legitimately sponsor VTHO, share a device once,
  * or recommend the same dApps.
  *
- * HOLD requires corroboration from at least two independent evidence domains.
- * Closely related signals derived from the same historical flow or recent
- * funding relationship are collapsed into one domain before escalation.
- * A single domain can become WATCH, but never BLACKLIST/RESTRICTED on its own.
- * RESTRICTED is reserved for an already-active operator/system wallet
- * restriction that was decided outside this scoring function.
+ * HOLD normally requires corroboration from at least two independent evidence
+ * domains. Closely related signals derived from the same historical flow or
+ * recent funding relationship are collapsed into one domain before escalation.
+ *
+ * A narrow set of very-low-normal-plausibility patterns may HOLD from one
+ * domain. These are review pauses, not automatic BLACKLIST decisions. This
+ * avoids false precision: VeInvite does not assign fabricated numeric
+ * probabilities until enough labeled normal-vs-Sybil data exists to calibrate
+ * them. RESTRICTED remains reserved for an already-active operator/system
+ * wallet restriction decided outside this scoring function.
  */
 export function evaluateSybilV2Policy({
   signals,
@@ -218,7 +297,22 @@ export function evaluateSybilV2Policy({
     };
   }
 
-  // Two independent medium/high evidence domains are required to HOLD.
+  // A very-low-normal-plausibility pattern can justify a review pause even
+  // when the evidence intentionally collapses to one domain. This never
+  // auto-RESTRICTs or BLACKLISTs a wallet.
+  if (hasExtremeSingleDomainPattern(normalized)) {
+    return {
+      state: 'HOLD',
+      riskScore: Math.max(70, riskScore),
+      reasonCodes,
+      evidenceFamilies,
+      strongEvidenceFamilies,
+      evidenceDomains,
+      strongEvidenceDomains,
+    };
+  }
+
+  // Two independent medium/high evidence domains are normally required to HOLD.
   // This prevents correlated historical flows or one recent-funder relationship
   // from being counted twice under different signal families.
   if (strongEvidenceDomains.length >= 2) {
