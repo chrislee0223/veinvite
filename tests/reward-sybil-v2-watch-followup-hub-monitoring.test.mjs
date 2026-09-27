@@ -30,7 +30,7 @@ test('WATCH follow-up stays scoped to the invitee subject at 24h, 7d and 30d', a
   );
 });
 
-test('WATCH follow-up evidence is observation-only and never auto-restricts rewards or wallets', async () => {
+test('WATCH follow-up evidence can trigger reassessment but never auto-restricts or auto-blacklists', async () => {
   const sql = await readFile(migrationPath, 'utf8');
   const source = await readFile(
     'src/lib/sybil/v2/watchFollowup.ts',
@@ -128,7 +128,7 @@ test('vote recovery drains WATCH follow-up work on the existing five-minute reco
   );
   assert.match(
     source,
-    /await runSybilV2WatchFollowupBatch\([\s\S]*?2,[\s\S]*?\)/u,
+    /await runSybilV2WatchFollowupBatch\([\s\S]*?4,[\s\S]*?\)/u,
   );
   assert.match(
     source,
@@ -224,3 +224,59 @@ test('WATCH follow-up failures are isolated from core reward recovery health', a
   );
 });
 
+
+test('flagged WATCH follow-up is persisted as POST_PAYOUT evidence and immediately reassessed', async () => {
+  const followup = await readFile(
+    'src/lib/sybil/v2/watchFollowup.ts',
+    'utf8',
+  );
+  const pipeline = await readFile(
+    'src/lib/sybil/v2/pipeline.ts',
+    'utf8',
+  );
+
+  assert.match(
+    followup,
+    /evidence_family: 'POST_PAYOUT'/u,
+  );
+  assert.match(
+    followup,
+    /await assessSybilV2Referral\([\s\S]*due\.invite_code/u,
+  );
+  assert.match(
+    pipeline,
+    /loadWatchFollowupSignals/u,
+  );
+  assert.match(
+    pipeline,
+    /family: 'POST_PAYOUT' as const/u,
+  );
+  assert.match(
+    pipeline,
+    /invitation\.reward_status !== 'PAID'/u,
+  );
+});
+
+test('paid V2 HOLD resolution uses historical invalidation path without changing past reward', async () => {
+  const route = await readFile(
+    'src/app/api/admin/sybil/review/route.ts',
+    'utf8',
+  );
+
+  assert.match(
+    route,
+    /before\.reward_status === 'PAID'/u,
+  );
+  assert.match(
+    route,
+    /resolve_sybil_v2_historical_referral/u,
+  );
+  assert.match(
+    route,
+    /WATCH_FOLLOWUP_OPERATOR_BLACKLIST/u,
+  );
+  assert.match(
+    route,
+    /pastRewardChanged: false/u,
+  );
+});
