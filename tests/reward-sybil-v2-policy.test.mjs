@@ -100,7 +100,7 @@ test('active wallet restriction is authoritative for future participation', () =
   assert.equal(result.riskScore, 100);
 });
 
-test('Round 116 historical cluster fixture HOLDs all ten core wallets', () => {
+test('correlated historical cluster fixture stays WATCH without a second independent domain', () => {
   const appId =
     '0x9643ed1637948cc571b23f836ade2bdb104de88e627fa6e8e3ffef1ee5a1739a';
   const sink =
@@ -216,8 +216,12 @@ test('Round 116 historical cluster fixture HOLDs all ten core wallets', () => {
 
     assert.equal(
       policy.state,
-      'HOLD',
-      `${wallet} must not pass Round 116-style evidence as CLEAR/WATCH`,
+      'WATCH',
+      `${wallet} historical reward/consolidation evidence is one correlated domain`,
+    );
+    assert.deepEqual(
+      new Set(policy.strongEvidenceDomains),
+      new Set(['HISTORICAL_ACTIVITY']),
     );
   }
 });
@@ -263,7 +267,7 @@ test('recent VTHO sponsorship alone remains weak and does not HOLD', () => {
   assert.equal(result.state, 'CLEAR');
 });
 
-test('shared recent funder plus independent cluster linkage escalates to HOLD', () => {
+test('shared recent funder plus a derivative inviter link stays one funding domain', () => {
   const result = evaluateSybilV2Policy({
     signals: [
       {
@@ -282,10 +286,47 @@ test('shared recent funder plus independent cluster linkage escalates to HOLD', 
     requiredChecksComplete: true,
   });
 
-  assert.equal(result.state, 'HOLD');
+  assert.equal(result.state, 'WATCH');
   assert.deepEqual(
     new Set(result.strongEvidenceFamilies),
     new Set(['FUNDING', 'CLUSTER_LINK']),
+  );
+  assert.deepEqual(
+    new Set(result.strongEvidenceDomains),
+    new Set(['FUNDING']),
+  );
+});
+
+
+test('historical activity plus separate recent funding escalates to HOLD', () => {
+  const result = evaluateSybilV2Policy({
+    signals: [
+      {
+        code: 'HISTORICAL_SYNCHRONIZED_REWARD_CLUSTER',
+        family: 'HISTORICAL_REWARD',
+        strength: 'HIGH',
+        score: 55,
+      },
+      {
+        code: 'HISTORICAL_COMMON_B3TR_SINK',
+        family: 'HISTORICAL_CONSOLIDATION',
+        strength: 'HIGH',
+        score: 60,
+      },
+      {
+        code: 'RECENT_FUNDER_IS_HISTORICAL_COMMON_SINK',
+        family: 'CLUSTER_LINK',
+        strength: 'HIGH',
+        score: 60,
+      },
+    ],
+    requiredChecksComplete: true,
+  });
+
+  assert.equal(result.state, 'HOLD');
+  assert.deepEqual(
+    new Set(result.strongEvidenceDomains),
+    new Set(['HISTORICAL_ACTIVITY', 'FUNDING']),
   );
 });
 
