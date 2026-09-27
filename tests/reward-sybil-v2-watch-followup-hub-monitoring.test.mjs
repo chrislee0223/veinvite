@@ -135,3 +135,62 @@ test('vote recovery drains WATCH follow-up work on the existing five-minute reco
     /watchFollowupMinutes:[\s\S]*RECOVERY_INTERVAL_SECONDS \/ 60/u,
   );
 });
+
+
+test('WATCH follow-up observations are versioned by assessment revision end-to-end', async () => {
+  const versionSql = await readFile(
+    'supabase/migrations/20260928150000_version_sybil_v2_watch_followup_by_assessment.sql',
+    'utf8',
+  );
+  const source = await readFile(
+    'src/lib/sybil/v2/watchFollowup.ts',
+    'utf8',
+  );
+
+  assert.match(
+    versionSql,
+    /unique\(invite_code, assessment_revision, horizon_hours\)/u,
+  );
+  assert.match(
+    versionSql,
+    /a\.revision as assessment_revision/u,
+  );
+  assert.match(
+    source,
+    /assessment_revision: number \| string/u,
+  );
+  assert.match(
+    source,
+    /assessment_revision:[\s\S]*safeNonNegativeInteger\([\s\S]*due\.assessment_revision/u,
+  );
+  assert.match(
+    source,
+    /scan_from_block,assessment_revision/u,
+  );
+});
+
+test('WATCH follow-up excludes active historical BLACKLIST invalidations', async () => {
+  const versionSql = await readFile(
+    'supabase/migrations/20260928150000_version_sybil_v2_watch_followup_by_assessment.sql',
+    'utf8',
+  );
+
+  const matches =
+    versionSql.match(
+      /is_sybil_v2_referral_invalidated/g,
+    ) ?? [];
+
+  assert.ok(
+    matches.length >= 2,
+    'due scheduler and historical follow-up view must both exclude active invalidations',
+  );
+  assert.match(
+    versionSql,
+    /operator_sybil_v2_historical_watch_followups/u,
+  );
+  assert.match(
+    versionSql,
+    /AUTOMATIC_SAME_SUBJECT_REVIEW/u,
+  );
+});
+
