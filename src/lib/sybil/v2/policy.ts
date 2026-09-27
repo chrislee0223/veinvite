@@ -1,9 +1,17 @@
-export const SYBIL_V2_POLICY_VERSION = 'sybil-v2.0';
+export const SYBIL_V2_POLICY_VERSION = 'sybil-v2.1';
 
 export type SybilV2EvidenceFamily =
   | 'FUNDING'
   | 'HISTORICAL_REWARD'
   | 'HISTORICAL_CONSOLIDATION'
+  | 'MISSION_BEHAVIOR'
+  | 'SECURITY_IDENTITY'
+  | 'POST_PAYOUT'
+  | 'CLUSTER_LINK';
+
+export type SybilV2EvidenceDomain =
+  | 'HISTORICAL_ACTIVITY'
+  | 'FUNDING'
   | 'MISSION_BEHAVIOR'
   | 'SECURITY_IDENTITY'
   | 'POST_PAYOUT'
@@ -37,6 +45,8 @@ export type SybilV2PolicyResult = {
   reasonCodes: string[];
   evidenceFamilies: SybilV2EvidenceFamily[];
   strongEvidenceFamilies: SybilV2EvidenceFamily[];
+  evidenceDomains: SybilV2EvidenceDomain[];
+  strongEvidenceDomains: SybilV2EvidenceDomain[];
 };
 
 const STRENGTH_RANK: Record<SybilV2SignalStrength, number> = {
@@ -55,14 +65,46 @@ function unique<T>(values: T[]): T[] {
   return [...new Set(values)];
 }
 
+const HISTORICAL_ACTIVITY_CLUSTER_CODES = new Set([
+  'HISTORICAL_SINK_REAPPEARS_AS_INVITER',
+]);
+
+const FUNDING_DERIVED_CLUSTER_CODES = new Set([
+  'RECENT_FUNDER_IS_HISTORICAL_COMMON_SINK',
+  'SHARED_RECENT_FUNDER_IS_MULTI_INVITER',
+]);
+
+function evidenceDomain(
+  signal: SybilV2Signal,
+): SybilV2EvidenceDomain {
+  if (
+    signal.family === 'HISTORICAL_REWARD' ||
+    signal.family === 'HISTORICAL_CONSOLIDATION' ||
+    HISTORICAL_ACTIVITY_CLUSTER_CODES.has(signal.code)
+  ) {
+    return 'HISTORICAL_ACTIVITY';
+  }
+
+  if (
+    signal.family === 'FUNDING' ||
+    FUNDING_DERIVED_CLUSTER_CODES.has(signal.code)
+  ) {
+    return 'FUNDING';
+  }
+
+  return signal.family;
+}
+
 /**
  * Sybil v2 intentionally evaluates independent evidence families instead of
  * treating one suspicious event as proof. This is important for an onboarding
  * product where a friend can legitimately sponsor VTHO, share a device once,
  * or recommend the same dApps.
  *
- * HOLD requires corroboration from at least two independent evidence families.
- * A single family can become WATCH, but never BLACKLIST/RESTRICTED on its own.
+ * HOLD requires corroboration from at least two independent evidence domains.
+ * Closely related signals derived from the same historical flow or recent
+ * funding relationship are collapsed into one domain before escalation.
+ * A single domain can become WATCH, but never BLACKLIST/RESTRICTED on its own.
  * RESTRICTED is reserved for an already-active operator/system wallet
  * restriction that was decided outside this scoring function.
  */
@@ -109,18 +151,34 @@ export function evaluateSybilV2Policy({
       .map((signal) => signal.family),
   );
 
-  // Cap each family contribution so a single repeated pattern cannot inflate
-  // itself into HOLD merely by creating many near-duplicate signals.
-  const familyScores = new Map<SybilV2EvidenceFamily, number>();
+  const evidenceDomains = unique(
+    normalized
+      .filter((signal) => signal.score > 0)
+      .map(evidenceDomain),
+  );
+
+  const strongEvidenceDomains = unique(
+    normalized
+      .filter((signal) =>
+        signal.score > 0 &&
+        STRENGTH_RANK[signal.strength] >= STRENGTH_RANK.MEDIUM,
+      )
+      .map(evidenceDomain),
+  );
+
+  // Cap each independent-domain contribution so several signals derived from
+  // one underlying flow cannot inflate risk or self-escalate into HOLD.
+  const domainScores = new Map<SybilV2EvidenceDomain, number>();
   for (const signal of normalized) {
-    const current = familyScores.get(signal.family) ?? 0;
-    familyScores.set(
-      signal.family,
+    const domain = evidenceDomain(signal);
+    const current = domainScores.get(domain) ?? 0;
+    domainScores.set(
+      domain,
       Math.max(current, signal.score),
     );
   }
 
-  const rawRiskScore = [...familyScores.values()]
+  const rawRiskScore = [...domainScores.values()]
     .reduce((sum, score) => sum + score, 0);
   const riskScore = clampScore(rawRiskScore);
 
@@ -131,6 +189,8 @@ export function evaluateSybilV2Policy({
       reasonCodes: unique(['ACTIVE_WALLET_RESTRICTION', ...reasonCodes]),
       evidenceFamilies,
       strongEvidenceFamilies,
+      evidenceDomains,
+      strongEvidenceDomains,
     };
   }
 
@@ -141,6 +201,8 @@ export function evaluateSybilV2Policy({
       reasonCodes: unique(['ANALYSIS_FAILED', ...reasonCodes]),
       evidenceFamilies,
       strongEvidenceFamilies,
+      evidenceDomains,
+      strongEvidenceDomains,
     };
   }
 
@@ -151,28 +213,32 @@ export function evaluateSybilV2Policy({
       reasonCodes,
       evidenceFamilies,
       strongEvidenceFamilies,
+      evidenceDomains,
+      strongEvidenceDomains,
     };
   }
 
-  // Two independent medium/high evidence families are required to HOLD.
-  // This prevents same-device, shared VTHO, or one common dApp from blocking
-  // a legitimate onboarding referral on their own.
-  if (strongEvidenceFamilies.length >= 2) {
+  // Two independent medium/high evidence domains are required to HOLD.
+  // This prevents correlated historical flows or one recent-funder relationship
+  // from being counted twice under different signal families.
+  if (strongEvidenceDomains.length >= 2) {
     return {
       state: 'HOLD',
       riskScore: Math.max(60, riskScore),
       reasonCodes,
       evidenceFamilies,
       strongEvidenceFamilies,
+      evidenceDomains,
+      strongEvidenceDomains,
     };
   }
 
   // One strong family or a meaningful combination of weaker families remains
   // payable but is watched after payout.
   if (
-    strongEvidenceFamilies.length === 1 ||
+    strongEvidenceDomains.length === 1 ||
     riskScore >= 25 ||
-    evidenceFamilies.length >= 2
+    evidenceDomains.length >= 2
   ) {
     return {
       state: 'WATCH',
@@ -180,6 +246,8 @@ export function evaluateSybilV2Policy({
       reasonCodes,
       evidenceFamilies,
       strongEvidenceFamilies,
+      evidenceDomains,
+      strongEvidenceDomains,
     };
   }
 
