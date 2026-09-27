@@ -22,8 +22,14 @@ import {
 } from '@/lib/rewards/rewardReservation';
 import { supabaseAdmin } from '@/lib/supabaseServer';
 import {
+  runB3trRecipientObservationBatch,
+} from '@/lib/sybil/recipientB3trObservationBatch';
+import {
   runSybilV2AssessmentBatch,
 } from '@/lib/sybil/v2/pipeline';
+import {
+  runPostPayoutSybilV2BridgeBatch,
+} from '@/lib/sybil/v2/postPayout';
 import {
   getVeBetterNetworkConfig,
   type VeBetterNetwork,
@@ -871,8 +877,9 @@ async function replayRecentVoteEventsFallback() {
  *   active VeInvite referrals from Postgres only when at least one vote exists,
  *   then reconcile only matching invitees;
  * - after five minutes without a successful recovery pass: retry pending
- *   Sybil v2 assessment / reward reservation; a newly detected vote can trigger
- *   this recovery immediately;
+ *   Sybil v2 assessment / reward reservation and drain a bounded amount of
+ *   due post-payout observation / bridge work; a newly detected vote can
+ *   trigger this recovery immediately;
  * - after 30 minutes without a successful fallback pass: replay the most recent
  *   finalized vote window without consulting the primary cursor, then run the
  *   existing full reconciliation only for VeInvite wallets that actually voted.
@@ -939,6 +946,18 @@ export async function GET(
     Awaited<
       ReturnType<
         typeof reserveEligibleReferralRewards
+      >
+    > | null = null;
+  let b3trRecipientObservation:
+    Awaited<
+      ReturnType<
+        typeof runB3trRecipientObservationBatch
+      >
+    > | null = null;
+  let sybilV2PostPayout:
+    Awaited<
+      ReturnType<
+        typeof runPostPayoutSybilV2BridgeBatch
       >
     > | null = null;
 
@@ -1065,6 +1084,38 @@ export async function GET(
     }
 
     try {
+      b3trRecipientObservation =
+        await runB3trRecipientObservationBatch(
+          3,
+        );
+    } catch (error) {
+      recoveryFailure ??= error;
+      console.error(
+        'Vote watcher B3TR recipient observation recovery failed:',
+        error,
+      );
+      errors.push(
+        'B3TR_RECIPIENT_OBSERVATION_RECOVERY_FAILED',
+      );
+    }
+
+    try {
+      sybilV2PostPayout =
+        await runPostPayoutSybilV2BridgeBatch(
+          10,
+        );
+    } catch (error) {
+      recoveryFailure ??= error;
+      console.error(
+        'Vote watcher Sybil v2 post-payout recovery failed:',
+        error,
+      );
+      errors.push(
+        'SYBIL_V2_POST_PAYOUT_RECOVERY_FAILED',
+      );
+    }
+
+    try {
       if (recoveryFailure) {
         await markCronJobFailed(
           VOTE_RECOVERY_JOB,
@@ -1112,6 +1163,8 @@ export async function GET(
         eventWatcherMinutes: 1,
         sybilRewardRecoveryMinutes:
           RECOVERY_INTERVAL_SECONDS / 60,
+        postPayoutRecoveryMinutes:
+          RECOVERY_INTERVAL_SECONDS / 60,
         fallbackMinutes:
           FALLBACK_INTERVAL_SECONDS / 60,
         basis: 'LAST_SUCCESS',
@@ -1120,6 +1173,8 @@ export async function GET(
       fallback,
       sybilV2Assessment,
       rewardReservation,
+      b3trRecipientObservation,
+      sybilV2PostPayout,
       errors,
     },
     {
