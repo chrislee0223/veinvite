@@ -1380,13 +1380,19 @@ async function loadSecurityIdentitySignals(
     invitation.identity_link_status === 'REVIEW' ||
     invitation.identity_link_status === 'LINKED_EXISTING'
   ) {
-    const score = sameInviterClient ? 45 : relatedRewarded ? 40 : 30;
+    const score = sameInviterClient ? 90 : relatedRewarded ? 80 : 60;
+    const strength =
+      sameInviterClient || relatedRewarded
+        ? 'HIGH'
+        : 'MEDIUM';
+    const signalCode = sameInviterClient
+      ? 'SECURITY_CLIENT_INVITER_LINK'
+      : 'SECURITY_CLIENT_PARTICIPANT_LINK';
+
     signals.push({
-      code: sameInviterClient
-        ? 'SECURITY_CLIENT_INVITER_LINK'
-        : 'SECURITY_CLIENT_PARTICIPANT_LINK',
+      code: signalCode,
       family: 'SECURITY_IDENTITY',
-      strength: 'MEDIUM',
+      strength,
       score,
     });
 
@@ -1394,10 +1400,8 @@ async function loadSecurityIdentitySignals(
       invitation,
       subjectWallet: invitation.invitee_wallet!,
       family: 'SECURITY_IDENTITY',
-      signalCode: sameInviterClient
-        ? 'SECURITY_CLIENT_INVITER_LINK'
-        : 'SECURITY_CLIENT_PARTICIPANT_LINK',
-      strength: 'MEDIUM',
+      signalCode,
+      strength,
       score,
       relatedWallet: sameInviterClient ? invitation.inviter_wallet : null,
       evidence,
@@ -1807,6 +1811,65 @@ export async function runSybilV2EvidenceCollectionBatch(
     attempted: candidates.length,
     completed,
     failed,
+  };
+}
+
+export async function runSybilV2PolicyReassessmentBatch(
+  limit = 10,
+): Promise<{
+  attempted: number;
+  clear: number;
+  watch: number;
+  hold: number;
+  failedOrPending: number;
+}> {
+  const bounded = Math.max(1, Math.min(MAX_BATCH_SIZE, Math.trunc(limit)));
+
+  const { data, error } = await supabaseAdmin
+    .from('operator_sybil_v2_policy_reassessment_candidates')
+    .select('invite_code,policy_version')
+    .neq('policy_version', SYBIL_V2_POLICY_VERSION)
+    .order('priority_at', {
+      ascending: true,
+      nullsFirst: true,
+    })
+    .limit(bounded);
+
+  if (error) {
+    throw new Error(
+      `Sybil v2 policy reassessment candidates could not be loaded: ${error.message}`,
+    );
+  }
+
+  const candidates = data ?? [];
+  let clear = 0;
+  let watch = 0;
+  let hold = 0;
+  let failedOrPending = 0;
+
+  for (const candidate of candidates) {
+    try {
+      const result = await ensureSybilV2ReadyForReward(
+        String(candidate.invite_code),
+      );
+      if (result.state === 'CLEAR') clear += 1;
+      else if (result.state === 'WATCH') watch += 1;
+      else if (result.state === 'HOLD' || result.state === 'RESTRICTED') {
+        hold += 1;
+      } else {
+        failedOrPending += 1;
+      }
+    } catch {
+      failedOrPending += 1;
+    }
+  }
+
+  return {
+    attempted: candidates.length,
+    clear,
+    watch,
+    hold,
+    failedOrPending,
   };
 }
 
