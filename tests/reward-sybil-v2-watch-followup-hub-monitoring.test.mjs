@@ -194,3 +194,33 @@ test('WATCH follow-up excludes active historical BLACKLIST invalidations', async
   );
 });
 
+
+
+test('WATCH follow-up failures are isolated from core reward recovery health', async () => {
+  const source = await readFile(
+    'src/app/api/cron/vote-reconcile/route.ts',
+    'utf8',
+  );
+
+  assert.match(
+    source,
+    /vote-reconcile:sybil-watch-followup/u,
+  );
+  assert.match(
+    source,
+    /warnings\.push\([\s\S]*SYBIL_V2_WATCH_FOLLOWUP_FAILED/u,
+  );
+  assert.match(
+    source,
+    /markCronJobFailed\([\s\S]*VOTE_WATCH_FOLLOWUP_JOB/u,
+  );
+  assert.doesNotMatch(
+    source,
+    /recoveryFailure \?\?= watchFollowupError/u,
+  );
+  assert.doesNotMatch(
+    source,
+    /errors\.push\([\s\S]{0,120}SYBIL_V2_WATCH_FOLLOWUP_FAILED/u,
+  );
+});
+
