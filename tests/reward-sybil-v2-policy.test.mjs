@@ -243,6 +243,59 @@ test('extreme correlated historical activity remains WATCH without an independen
   }
 });
 
+
+test('historical activity plus WATCH transfer to the same cluster hub remains one domain', () => {
+  const result = evaluateSybilV2Policy({
+    requiredChecksComplete: true,
+    signals: [
+      {
+        code: 'HISTORICAL_COMMON_B3TR_SINK',
+        family: 'HISTORICAL_CONSOLIDATION',
+        strength: 'HIGH',
+        score: 60,
+      },
+      {
+        code: 'WATCH_SUBJECT_TO_CLUSTER_HUB',
+        family: 'POST_PAYOUT',
+        strength: 'HIGH',
+        score: 60,
+      },
+    ],
+  });
+
+  assert.equal(result.state, 'WATCH');
+  assert.deepEqual(
+    new Set(result.strongEvidenceDomains),
+    new Set(['HISTORICAL_ACTIVITY']),
+  );
+});
+
+test('historical activity plus WATCH transfer to inviter remains independent and HOLDs', () => {
+  const result = evaluateSybilV2Policy({
+    requiredChecksComplete: true,
+    signals: [
+      {
+        code: 'HISTORICAL_COMMON_B3TR_SINK',
+        family: 'HISTORICAL_CONSOLIDATION',
+        strength: 'HIGH',
+        score: 60,
+      },
+      {
+        code: 'WATCH_SUBJECT_TO_INVITER',
+        family: 'POST_PAYOUT',
+        strength: 'MEDIUM',
+        score: 35,
+      },
+    ],
+  });
+
+  assert.equal(result.state, 'HOLD');
+  assert.deepEqual(
+    new Set(result.strongEvidenceDomains),
+    new Set(['HISTORICAL_ACTIVITY', 'POST_PAYOUT']),
+  );
+});
+
 test('shared protocol destination is excluded from consolidation evidence', () => {
   const wallet = '0x1111111111111111111111111111111111111111';
   const protocol = '0x9999999999999999999999999999999999999999';
