@@ -26,6 +26,7 @@ import {
   type NetworkInviteSlotState,
 } from '@/lib/networkInviteSlotsClientCache';
 import {
+  NETWORK_DATA_REFRESH_REQUESTED_EVENT,
   NETWORK_HEADER_METRICS_UPDATED_EVENT,
   getCachedNetworkHeaderMetrics,
   getCachedNetworkRoot,
@@ -1105,6 +1106,23 @@ export function AppNetwork({ locale }: { locale: Locale }) {
       if (abortRef.current === controller) abortRef.current = null;
     }
   }, [wallet, cancelRequest, t.loadError]);
+
+  useEffect(() => {
+    if (!wallet) return;
+
+    const refreshNetworkData = () => {
+      void loadRoot();
+    };
+
+    window.addEventListener(
+      NETWORK_DATA_REFRESH_REQUESTED_EVENT,
+      refreshNetworkData,
+    );
+    return () => window.removeEventListener(
+      NETWORK_DATA_REFRESH_REQUESTED_EVENT,
+      refreshNetworkData,
+    );
+  }, [wallet, loadRoot]);
 
   useEffect(() => {
     const cachedInviteSlots = wallet

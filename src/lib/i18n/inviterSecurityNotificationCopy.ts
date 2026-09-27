@@ -26,13 +26,13 @@ export const INVITER_SECURITY_NOTIFICATION_COPY: Record<
     restoredBody: 'The review is complete and the VeInvite participation restriction has been lifted. You can use VeInvite normally again.',
   },
   ko: {
-    watchTitle: '초대 활동 추가 확인',
-    watchBody: '최근 일부 초대 활동을 추가 확인하고 있어요. 현재 VeInvite 이용 제한은 없으며 정상적인 초대는 계속할 수 있어요.',
+    watchTitle: '초대 활동 확인 중',
+    watchBody: '최근 일부 초대 활동을 확인하고 있어요. 현재 이용 제한은 없고 평소처럼 계속 초대할 수 있어요.',
     holdTitle: 'VeInvite 참여 임시 제한',
     holdBody: '최근 초대 활동을 확인하는 동안 VeInvite 참여가 일시적으로 제한돼요. 검토가 끝나면 알려드릴게요. 이미 지급된 보상은 변경되지 않아요.',
     restrictedTitle: 'VeInvite 참여 제한',
     restrictedBody: '검토 결과 이 지갑의 향후 VeInvite 참여가 제한됐어요. 이미 지급된 보상은 변경되지 않아요.',
-    restoredTitle: 'VeInvite 이용 가능',
+    restoredTitle: 'VeInvite 이용이 다시 가능해졌어요',
     restoredBody: '검토가 완료되어 VeInvite 참여 제한이 해제됐어요. 다시 정상적으로 이용할 수 있어요.',
   },
   zh: {

@@ -17,6 +17,13 @@ import type {
 import type {
   InviteNotificationPayloadV2,
 } from '@/lib/notifications/inviteNotificationStateV2';
+import {
+  NETWORK_DATA_REFRESH_REQUESTED_EVENT,
+  invalidateNetworkRootCache,
+} from '@/lib/networkRootClientCache';
+import {
+  invalidateNetworkSummaryCache,
+} from '@/lib/networkSummaryClientCache';
 
 type NotificationResponse = {
   notification?: InviteNotificationPayloadV2 | null;
@@ -69,11 +76,15 @@ const NOTIFICATION_HISTORY_KINDS = new Set([
   'REWARD_PAID',
   'INVITE_INELIGIBLE',
   'SECURITY_REVIEW_STARTED',
+  'SECURITY_POST_PAYOUT_REVIEW_STARTED',
+  'SECURITY_POST_PAYOUT_REVIEW_CLEARED',
   'SECURITY_RESTRICTION_CONFIRMED',
   'SECURITY_INVITER_WATCH',
   'SECURITY_INVITER_HOLD',
   'SECURITY_INVITER_RESTRICTED',
   'SECURITY_INVITER_ACCESS_RESTORED',
+  'SECURITY_REFERRAL_INVALIDATED',
+  'SECURITY_REFERRAL_RESTORED',
 ]);
 
 function notificationSetKey(
@@ -182,6 +193,13 @@ function isCachedHistoryItem(
     typeof item.inviteCode === 'string' &&
     typeof item.kind === 'string' &&
     NOTIFICATION_HISTORY_KINDS.has(item.kind) &&
+    (
+      item.presentationKind === undefined ||
+      (
+        typeof item.presentationKind === 'string' &&
+        NOTIFICATION_HISTORY_KINDS.has(item.presentationKind)
+      )
+    ) &&
     typeof item.stage === 'number' &&
     Number.isFinite(item.stage) &&
     typeof item.eventAt === 'string' &&
@@ -296,13 +314,32 @@ function notificationCenterIsClosing(): boolean {
   );
 }
 
+function effectiveNotificationKind(
+  notification: InviteNotificationHistoryItem,
+): string {
+  return notification.presentationKind ?? notification.kind;
+}
+
 function notificationRequiresHomeRefresh(
   notification: InviteNotificationHistoryItem,
 ): boolean {
+  const kind = effectiveNotificationKind(notification);
   return (
-    notification.kind === 'INVITE_INELIGIBLE' ||
-    notification.kind === 'REWARD_READY' ||
-    notification.kind === 'REWARD_PAID'
+    kind === 'INVITE_INELIGIBLE' ||
+    kind === 'REWARD_READY' ||
+    kind === 'REWARD_PAID' ||
+    kind === 'SECURITY_REFERRAL_INVALIDATED' ||
+    kind === 'SECURITY_REFERRAL_RESTORED'
+  );
+}
+
+function notificationRequiresNetworkRefresh(
+  notification: InviteNotificationHistoryItem,
+): boolean {
+  const kind = effectiveNotificationKind(notification);
+  return (
+    kind === 'SECURITY_REFERRAL_INVALIDATED' ||
+    kind === 'SECURITY_REFERRAL_RESTORED'
   );
 }
 
@@ -323,6 +360,8 @@ export function InAppInviteNotifications({
   const [errorMessage, setErrorMessage] = useState('');
   const shownKeyRef = useRef<string | null>(null);
   const openSnapshotRef = useRef<string | null>(null);
+  const lastDataRefreshNotificationIdRef =
+    useRef<string | null>(null);
   const activeWalletRef = useRef<string | null>(wallet);
   const historyResolvedRef = useRef(false);
   // Make the newest wallet visible to requests from the prior render before
@@ -345,6 +384,7 @@ export function InAppInviteNotifications({
     setErrorMessage('');
     shownKeyRef.current = null;
     openSnapshotRef.current = null;
+    lastDataRefreshNotificationIdRef.current = null;
     latestHistoryRequestRef.current = null;
     lifecycleRefreshRef.current = null;
   }, [wallet]);
@@ -365,6 +405,7 @@ export function InAppInviteNotifications({
     setErrorMessage('');
     shownKeyRef.current = null;
     openSnapshotRef.current = null;
+    lastDataRefreshNotificationIdRef.current = null;
     latestHistoryRequestRef.current = null;
     lifecycleRefreshRef.current = null;
     window.dispatchEvent(
@@ -434,6 +475,24 @@ export function InAppInviteNotifications({
       setUnreadCount(history.unreadCount);
       setNextCursor(history.nextCursor);
       writeHistoryCache(requestWallet, history);
+
+      const latestDataRefreshId = newestHistoryId(
+        history.items.filter(notificationRequiresNetworkRefresh),
+      );
+      if (
+        latestDataRefreshId &&
+        lastDataRefreshNotificationIdRef.current !== latestDataRefreshId
+      ) {
+        lastDataRefreshNotificationIdRef.current = latestDataRefreshId;
+        invalidateNetworkRootCache(requestWallet);
+        invalidateNetworkSummaryCache(requestWallet);
+        window.dispatchEvent(
+          new Event(HOME_DATA_REFRESH_REQUESTED_EVENT),
+        );
+        window.dispatchEvent(
+          new Event(NETWORK_DATA_REFRESH_REQUESTED_EVENT),
+        );
+      }
     },
     [],
   );

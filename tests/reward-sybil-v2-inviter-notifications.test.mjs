@@ -137,7 +137,7 @@ test('localized inviter security copy covers every supported locale', () => {
 
   assert.match(
     INVITER_SECURITY_NOTIFICATION_COPY.ko.watchBody,
-    /현재 VeInvite 이용 제한은 없으며/u,
+    /현재 이용 제한은 없고 평소처럼 계속 초대할 수 있어요/u,
   );
   assert.match(
     INVITER_SECURITY_NOTIFICATION_COPY.ko.holdBody,

@@ -7,6 +7,8 @@ import { INVITER_SECURITY_NOTIFICATION_COPY } from '@/lib/i18n/inviterSecurityNo
 import { NOTIFICATION_COPY } from '@/lib/i18n/notificationCopy';
 import { NOTIFICATION_V2_COPY } from '@/lib/i18n/notificationV2Copy';
 import { REFERRAL_INVALIDATED_COPY } from '@/lib/i18n/referralInvalidatedCopy';
+import { REFERRAL_RESTORED_COPY } from '@/lib/i18n/referralRestoredCopy';
+import { POST_PAYOUT_SECURITY_NOTIFICATION_COPY } from '@/lib/i18n/postPayoutSecurityNotificationCopy';
 import { SECURITY_NOTIFICATION_COPY } from '@/lib/i18n/securityNotificationCopy';
 import {
   isRtlLocale,
@@ -49,6 +51,8 @@ function statusText(
   const security = SECURITY_NOTIFICATION_COPY[locale];
   const inviterSecurity = INVITER_SECURITY_NOTIFICATION_COPY[locale];
   const invalidated = REFERRAL_INVALIDATED_COPY[locale];
+  const restored = REFERRAL_RESTORED_COPY[locale];
+  const postPayout = POST_PAYOUT_SECURITY_NOTIFICATION_COPY[locale];
 
   switch (notification.kind) {
     case 'INVITE_ACCEPTED':
@@ -105,6 +109,18 @@ function statusText(
         body: security.reviewBody,
         hint: null,
       };
+    case 'SECURITY_POST_PAYOUT_REVIEW_STARTED':
+      return {
+        title: postPayout.reviewTitle,
+        body: postPayout.reviewBody,
+        hint: null,
+      };
+    case 'SECURITY_POST_PAYOUT_REVIEW_CLEARED':
+      return {
+        title: postPayout.clearedTitle,
+        body: postPayout.clearedBody,
+        hint: null,
+      };
     case 'SECURITY_RESTRICTION_CONFIRMED':
       return {
         title: security.restrictionTitle,
@@ -141,6 +157,12 @@ function statusText(
         body: invalidated.body,
         hint: null,
       };
+    case 'SECURITY_REFERRAL_RESTORED':
+      return {
+        title: restored.title,
+        body: restored.body,
+        hint: null,
+      };
   }
 }
 
@@ -170,6 +192,12 @@ function shortStatus(
   if (notification.kind === 'SECURITY_REVIEW_STARTED') {
     return SECURITY_NOTIFICATION_COPY[locale].reviewTitle;
   }
+  if (notification.kind === 'SECURITY_POST_PAYOUT_REVIEW_STARTED') {
+    return POST_PAYOUT_SECURITY_NOTIFICATION_COPY[locale].reviewTitle;
+  }
+  if (notification.kind === 'SECURITY_POST_PAYOUT_REVIEW_CLEARED') {
+    return POST_PAYOUT_SECURITY_NOTIFICATION_COPY[locale].clearedTitle;
+  }
   if (notification.kind === 'SECURITY_RESTRICTION_CONFIRMED') {
     return SECURITY_NOTIFICATION_COPY[locale].restrictionTitle;
   }
@@ -187,6 +215,9 @@ function shortStatus(
   }
   if (notification.kind === 'SECURITY_REFERRAL_INVALIDATED') {
     return REFERRAL_INVALIDATED_COPY[locale].title;
+  }
+  if (notification.kind === 'SECURITY_REFERRAL_RESTORED') {
+    return REFERRAL_RESTORED_COPY[locale].title;
   }
   return (INELIGIBLE_INVITER_COPY[locale] ?? INELIGIBLE_INVITER_COPY.en).title;
 }
