@@ -406,3 +406,55 @@ test('friend-style shared VTHO plus similar mission behavior remains WATCH', () 
 
   assert.equal(result.state, 'WATCH');
 });
+
+test('WATCH cluster-hub follow-up stays in historical activity instead of double-counting as post-payout', () => {
+  const result = evaluateSybilV2Policy({
+    requiredChecksComplete: true,
+    signals: [
+      {
+        code: 'HISTORICAL_COMMON_B3TR_SINK',
+        family: 'HISTORICAL_CONSOLIDATION',
+        strength: 'HIGH',
+        score: 60,
+      },
+      {
+        code: 'WATCH_SUBJECT_TO_CLUSTER_HUB',
+        family: 'POST_PAYOUT',
+        strength: 'HIGH',
+        score: 60,
+      },
+    ],
+  });
+
+  assert.equal(result.state, 'WATCH');
+  assert.deepEqual(
+    new Set(result.strongEvidenceDomains),
+    new Set(['HISTORICAL_ACTIVITY']),
+  );
+});
+
+test('WATCH transfer to an active blacklisted wallet corroborates a separate historical domain and HOLDs for review', () => {
+  const result = evaluateSybilV2Policy({
+    requiredChecksComplete: true,
+    signals: [
+      {
+        code: 'HISTORICAL_COMMON_B3TR_SINK',
+        family: 'HISTORICAL_CONSOLIDATION',
+        strength: 'HIGH',
+        score: 60,
+      },
+      {
+        code: 'WATCH_SUBJECT_TO_ACTIVE_BLACKLIST',
+        family: 'POST_PAYOUT',
+        strength: 'HIGH',
+        score: 70,
+      },
+    ],
+  });
+
+  assert.equal(result.state, 'HOLD');
+  assert.deepEqual(
+    new Set(result.strongEvidenceDomains),
+    new Set(['HISTORICAL_ACTIVITY', 'POST_PAYOUT']),
+  );
+});
