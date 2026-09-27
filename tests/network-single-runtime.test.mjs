@@ -780,8 +780,22 @@ test('long-hold selection gives one optional haptic acknowledgement when drag ar
 
 test('final Network gestures are coordinate-owned and deliberate', () => {
   assert.match(networkSource, /const HOLD_TO_MOVE_MS = 500/);
-  assert.match(networkSource, /const MIN_SCALE = 0\.32/);
-  assert.match(networkSource, /const MAX_SCALE = 2\.5/);
+  assert.match(
+    networkSource,
+    /NETWORK_CANVAS_MIN_SCALE as MIN_SCALE/,
+  );
+  assert.match(
+    networkSource,
+    /NETWORK_CANVAS_MAX_SCALE as MAX_SCALE/,
+  );
+  assert.match(
+    networkGeometrySource,
+    /NETWORK_CANVAS_MIN_SCALE = 0\.32/,
+  );
+  assert.match(
+    networkGeometrySource,
+    /NETWORK_CANVAS_MAX_SCALE = 2\.5/,
+  );
   assert.match(networkSource, /nearestVisibleChild/);
   assert.match(networkSource, /findGroupDropTarget/);
   assert.match(networkSource, /GROUP_SCREEN_DROP_RADIUS = 58/);
