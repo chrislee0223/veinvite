@@ -1277,35 +1277,32 @@ async function loadWatchFollowupSignals(
   const rows =
     (data ?? []) as WatchFollowupEvidenceRow[];
 
-  return rows
-    .map((row) => {
-      const score = Number(row.score);
-      if (
-        !Number.isFinite(score) ||
-        score <= 0
-      ) {
-        return null;
-      }
+  const signals: SybilV2Signal[] = [];
 
-      return {
-        code: row.signal_code,
-        family: 'POST_PAYOUT' as const,
-        strength: row.strength,
-        score,
-        independentKey:
-          row.related_wallet
-            ? normalizeWallet(
-                row.related_wallet,
-              )
-            : undefined,
-      };
-    })
-    .filter(
-      (
-        signal,
-      ): signal is SybilV2Signal =>
-        signal !== null,
-    );
+  for (const row of rows) {
+    const score = Number(row.score);
+    if (
+      !Number.isFinite(score) ||
+      score <= 0
+    ) {
+      continue;
+    }
+
+    signals.push({
+      code: row.signal_code,
+      family: 'POST_PAYOUT',
+      strength: row.strength,
+      score,
+      independentKey:
+        row.related_wallet
+          ? normalizeWallet(
+              row.related_wallet,
+            )
+          : undefined,
+    });
+  }
+
+  return signals;
 }
 
 function intervalsSimilar(
