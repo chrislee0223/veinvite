@@ -113,3 +113,19 @@ test('reviewed Korean notification copy uses the final wording', async () => {
   assert.match(postPayout, /추가 확인이 완료됐어요/u);
   assert.match(restored, /초대 기록이 복구됐어요/u);
 });
+
+test('legacy post-payout rows are reinterpreted without mutating append-only history', async () => {
+  const route = await read('src/app/api/notifications/history/route.ts');
+
+  assert.match(
+    route,
+    /SECURITY_REVIEW_STARTED[\\s\\S]*postpayout-r[\\s\\S]*SECURITY_POST_PAYOUT_REVIEW_STARTED/u,
+  );
+  assert.match(
+    route,
+    /SECURITY_INVITER_ACCESS_RESTORED[\\s\\S]*postpayout-clear-r[\\s\\S]*SECURITY_POST_PAYOUT_REVIEW_CLEARED/u,
+  );
+  assert.match(route, /from\('invite_notification_history'\)/u);
+  assert.match(route, /\.eq\('inviter_wallet', wallet\)/u);
+  assert.doesNotMatch(route, /\.update\(/u);
+});
