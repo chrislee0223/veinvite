@@ -7,7 +7,7 @@ const root = process.cwd();
 const read = (path) => readFileSync(join(root, path), 'utf8');
 
 test('expanded locale packs register before global copy hardening', () => {
-  const source = read('src/components/AppProviders.tsx');
+  const source = read('src/lib/i18n/runtimePatches.ts');
   const expanded = source.indexOf("import '@/lib/i18n/localePacks/registerExpandedLocales';");
   const primary = source.indexOf("import '@/lib/i18n/copyHardening';");
   const secondary = source.indexOf("import '@/lib/i18n/secondaryPageCopyHardening';");
