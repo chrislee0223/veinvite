@@ -31,7 +31,8 @@ test('security notification presentation kinds stay backward compatible', async 
     route,
     /SECURITY_REFERRAL_RESTORED:\s*'SECURITY_INVITER_ACCESS_RESTORED'/u,
   );
-  assert.match(route, /presentationKind:\s*row\.kind/u);
+  assert.match(route, /const presentationKind = presentationHistoryKind/u);
+  assert.match(route, /presentationKind,/u);
 });
 
 test('notification cache and data refresh include invalidation and restoration', async () => {
@@ -119,11 +120,11 @@ test('legacy post-payout rows are reinterpreted without mutating append-only his
 
   assert.match(
     route,
-    /SECURITY_REVIEW_STARTED[\\s\\S]*postpayout-r[\\s\\S]*SECURITY_POST_PAYOUT_REVIEW_STARTED/u,
+    /SECURITY_REVIEW_STARTED[\s\S]*postpayout-r[\s\S]*SECURITY_POST_PAYOUT_REVIEW_STARTED/u,
   );
   assert.match(
     route,
-    /SECURITY_INVITER_ACCESS_RESTORED[\\s\\S]*postpayout-clear-r[\\s\\S]*SECURITY_POST_PAYOUT_REVIEW_CLEARED/u,
+    /SECURITY_INVITER_ACCESS_RESTORED[\s\S]*postpayout-clear-r[\s\S]*SECURITY_POST_PAYOUT_REVIEW_CLEARED/u,
   );
   assert.match(route, /from\('invite_notification_history'\)/u);
   assert.match(route, /\.eq\('inviter_wallet', wallet\)/u);
