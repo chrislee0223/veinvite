@@ -1,4 +1,4 @@
-export const SYBIL_V2_POLICY_VERSION = 'sybil-v2.4';
+export const SYBIL_V2_POLICY_VERSION = 'sybil-v2.5';
 
 export type SybilV2EvidenceFamily =
   | 'FUNDING'
@@ -86,10 +86,54 @@ const STANDALONE_HOLD_CODES = new Set([
 function hasExtremeSingleDomainPattern(
   signals: SybilV2Signal[],
 ): boolean {
-  return signals.some((signal) =>
-    STANDALONE_HOLD_CODES.has(signal.code) &&
+  if (
+    signals.some((signal) =>
+      STANDALONE_HOLD_CODES.has(signal.code) &&
+      STRENGTH_RANK[signal.strength] >= STRENGTH_RANK.MEDIUM &&
+      signal.score > 0,
+    )
+  ) {
+    return true;
+  }
+
+  // A recent funder that previously acted as a common B3TR sink for many
+  // onboarding wallets is a controller-style temporal link. Require a high
+  // score so smaller family/friend funding patterns remain WATCH.
+  if (
+    signals.some((signal) =>
+      signal.code === 'RECENT_FUNDER_IS_HISTORICAL_COMMON_SINK' &&
+      signal.strength === 'HIGH' &&
+      signal.score >= 50,
+    )
+  ) {
+    return true;
+  }
+
+  // Historical similarity alone stays WATCH. Escalate only the extreme
+  // composite where repeated historical dApp activity, a high-confidence
+  // non-protocol common B3TR sink, and that same sink reappearing as a
+  // VeInvite inviter all coincide.
+  const hasHistoricalActivity = signals.some((signal) =>
+    (
+      signal.code === 'HISTORICAL_REWARD_APP_CLUSTER' ||
+      signal.code === 'HISTORICAL_SYNCHRONIZED_REWARD_CLUSTER'
+    ) &&
     STRENGTH_RANK[signal.strength] >= STRENGTH_RANK.MEDIUM &&
     signal.score > 0,
+  );
+
+  const commonSinkScore = signals
+    .filter((signal) => signal.code === 'HISTORICAL_COMMON_B3TR_SINK')
+    .reduce((max, signal) => Math.max(max, signal.score), 0);
+
+  const sinkInviterScore = signals
+    .filter((signal) => signal.code === 'HISTORICAL_SINK_REAPPEARS_AS_INVITER')
+    .reduce((max, signal) => Math.max(max, signal.score), 0);
+
+  return (
+    hasHistoricalActivity &&
+    commonSinkScore >= 50 &&
+    sinkInviterScore >= 45
   );
 }
 
@@ -125,9 +169,10 @@ function evidenceDomain(
  * recent funding relationship are collapsed into one domain before escalation.
  *
  * Direct invitee↔inviter same-security-client evidence may HOLD from one
- * domain because it is an identity-level conflict. Funding or correlated
- * historical activity alone remains WATCH and still requires a second
- * independent domain for HOLD. These are review pauses, not automatic
+ * domain because it is an identity-level conflict. A narrowly defined,
+ * high-confidence controller-style funding link or extreme historical
+ * consolidation composite may also HOLD from one domain. Ordinary funding or
+ * historical similarity remains WATCH. These are review pauses, not automatic
  * BLACKLIST decisions. VeInvite intentionally
  * avoids fabricated numeric probabilities until enough labeled normal-vs-Sybil
  * data exists to calibrate them. RESTRICTED remains reserved

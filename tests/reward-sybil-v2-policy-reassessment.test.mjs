@@ -83,11 +83,11 @@ test('vote recovery reassesses stale policy before current assessment and reward
 });
 
 
-test('Sybil v2.4 reassesses stale SYSTEM HOLDs but not operator decisions or reserved rewards', async () => {
+test('current Sybil policy reassesses stale SYSTEM HOLDs but not operator decisions or reserved rewards', async () => {
   const sql = await read(v24MigrationPath);
   const policy = await read('src/lib/sybil/v2/policy.ts');
 
-  assert.match(policy, /SYBIL_V2_POLICY_VERSION = 'sybil-v2\.4'/u);
+  assert.match(policy, /SYBIL_V2_POLICY_VERSION = 'sybil-v2\.5'/u);
   assert.match(sql, /a\.source = 'SYSTEM'/u);
   assert.match(sql, /a\.state in \('CLEAR','WATCH','HOLD'\)/u);
   assert.match(sql, /q\.invite_code is null/u);
