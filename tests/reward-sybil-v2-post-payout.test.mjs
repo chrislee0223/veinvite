@@ -250,19 +250,32 @@ test('automatic post-payout observation excludes historical paid rewards', async
 
 
 
-test('operator WATCH baseline joins later post-payout evidence without auto-blacklisting', async () => {
+test('post-payout evidence is scoped to the reward-recipient subject wallet', async () => {
   const source = await readFile(
     'src/lib/sybil/v2/postPayout.ts',
     'utf8',
   );
 
-  assert.match(source, /OPERATOR_HISTORICAL_WATCH_BASELINE/u);
-  assert.match(source, /sybil_v2_referral_assessments/u);
-  assert.match(source, /assessment\.source !== 'OPERATOR'/u);
-  assert.match(source, /assessment\.state !== 'WATCH'/u);
-  assert.match(source, /assessment\.policy_version !== 'sybil-v2\.1'/u);
-  assert.match(source, /operatorWatchBaselineApplied/u);
-  assert.match(source, /strongEvidenceDomains\.includes\('POST_PAYOUT'\)/u);
+  assert.match(
+    source,
+    /\.eq\('subject_wallet', subject\)/u,
+  );
+  assert.match(
+    source,
+    /loadAllSignals\(\s*inviteCode,\s*subjectWallet,?\s*\)/u,
+  );
+  assert.doesNotMatch(
+    source,
+    /OPERATOR_HISTORICAL_WATCH_BASELINE/u,
+  );
+  assert.doesNotMatch(
+    source,
+    /loadOperatorWatchBaseline/u,
+  );
+  assert.doesNotMatch(
+    source,
+    /operatorWatchBaselineApplied/u,
+  );
 });
 
 test('explicit operator WATCH re-enables staged observation for reviewed historical payouts only', async () => {
@@ -293,6 +306,36 @@ test('explicit operator WATCH overrides any older clearance verdict for observat
   assert.match(sql, /postPayoutObservationEnabled/u);
 });
 
+
+
+test('latest post-payout scheduler keeps referral WATCH separate from reward-recipient observation', async () => {
+  const sql = await readFile(
+    'supabase/migrations/20260927133500_restore_post_payout_subject_boundary.sql',
+    'utf8',
+  );
+
+  assert.match(
+    sql,
+    /s\.paid_at >= r\.sybil_v2_automatic_observation_started_at/u,
+  );
+  assert.doesNotMatch(sql, /sybil_v2_referral_assessments/u);
+  assert.doesNotMatch(sql, /operator_historical_watch/u);
+  assert.doesNotMatch(sql, /postPayoutObservationEnabled/u);
+});
+
+
+test('post-payout CLEAR emits an access-restored notification and backfills missed clears', async () => {
+  const sql = await readFile(
+    'supabase/migrations/20260927135000_notify_post_payout_clearance.sql',
+    'utf8',
+  );
+
+  assert.match(sql, /new\.state = 'CLEARED'/u);
+  assert.match(sql, /SECURITY_INVITER_ACCESS_RESTORED/u);
+  assert.match(sql, /postpayout-clear-r/u);
+  assert.match(sql, /r\.state = 'CLEARED'/u);
+  assert.match(sql, /SECURITY_REVIEW_STARTED/u);
+});
 
 test('five-minute vote recovery drains bounded post-payout WATCH work', async () => {
   const source = await readFile(
