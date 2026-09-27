@@ -53,6 +53,14 @@ type ExistingEvidenceRow = {
   related_wallet: string | null;
 };
 
+type OperatorWatchAssessmentRow = {
+  state: string;
+  source: string;
+  risk_score: number;
+  policy_version: string;
+  evidence_summary: Record<string, unknown> | null;
+};
+
 type RecipientClusterRow = {
   receipt_id: number | string;
   recipient_wallet: string;
@@ -238,6 +246,49 @@ async function loadAllSignals(
     }));
 }
 
+async function loadOperatorWatchBaseline(
+  inviteCode: string,
+): Promise<SybilV2Signal[]> {
+  const { data, error } = await supabaseAdmin
+    .from('sybil_v2_referral_assessments')
+    .select('state,source,risk_score,policy_version,evidence_summary')
+    .eq('invite_code', inviteCode)
+    .maybeSingle();
+
+  if (error) {
+    throw new Error(
+      `Post-payout operator WATCH baseline could not be loaded: ${error.message}`,
+    );
+  }
+
+  const assessment = data as OperatorWatchAssessmentRow | null;
+  if (
+    !assessment ||
+    assessment.source !== 'OPERATOR' ||
+    assessment.state !== 'WATCH' ||
+    assessment.policy_version !== 'sybil-v2.1'
+  ) {
+    return [];
+  }
+
+  const domains = Array.isArray(
+    assessment.evidence_summary?.strongEvidenceDomains,
+  )
+    ? assessment.evidence_summary.strongEvidenceDomains
+    : [];
+
+  if (!domains.includes('HISTORICAL_ACTIVITY')) {
+    return [];
+  }
+
+  return [{
+    code: 'OPERATOR_HISTORICAL_WATCH_BASELINE',
+    family: 'HISTORICAL_REWARD',
+    strength: 'MEDIUM',
+    score: Math.max(25, Math.min(60, safeScore(assessment.risk_score))),
+  }];
+}
+
 async function maybeOpenPostPayoutReview({
   inviteCode,
   network,
@@ -249,7 +300,11 @@ async function maybeOpenPostPayoutReview({
   subjectWallet: string;
   context: Record<string, unknown>;
 }) {
-  const signals = await loadAllSignals(inviteCode);
+  const [storedSignals, operatorWatchBaseline] = await Promise.all([
+    loadAllSignals(inviteCode),
+    loadOperatorWatchBaseline(inviteCode),
+  ]);
+  const signals = [...storedSignals, ...operatorWatchBaseline];
   const policy = evaluateSybilV2Policy({
     signals,
     requiredChecksComplete: true,
@@ -282,6 +337,8 @@ async function maybeOpenPostPayoutReview({
         evidenceDomains: policy.evidenceDomains,
         strongEvidenceDomains:
           policy.strongEvidenceDomains,
+        operatorWatchBaselineApplied:
+          operatorWatchBaseline.length > 0,
       },
     },
   );
