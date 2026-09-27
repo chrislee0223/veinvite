@@ -130,6 +130,19 @@ test('operator watchlist includes active historical BLACKLIST invalidations', as
   assert.match(sql, /then 100/u);
 });
 
+
+test('historical WATCH followups exclude active historical BLACKLIST invalidations', async () => {
+  const sql = await readFile(
+    'supabase/migrations/20260927151000_exclude_blacklisted_from_historical_watch_followups.sql',
+    'utf8',
+  );
+
+  assert.match(sql, /operator_sybil_v2_historical_watch_followups/u);
+  assert.match(sql, /not public\.is_sybil_v2_referral_invalidated/u);
+  assert.match(sql, /a\.invite_code/u);
+  assert.match(sql, /a\.network/u);
+});
+
 test('wallet session gate checks participation restrictions before rendering the app', async () => {
   const gate = await readFile(
     'src/components/WalletSessionGate.tsx',
