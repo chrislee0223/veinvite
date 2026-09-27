@@ -67,6 +67,7 @@ function unique<T>(values: T[]): T[] {
 
 const HISTORICAL_ACTIVITY_CLUSTER_CODES = new Set([
   'HISTORICAL_SINK_REAPPEARS_AS_INVITER',
+  'WATCH_SUBJECT_TO_CLUSTER_HUB',
 ]);
 
 const FUNDING_DERIVED_CLUSTER_CODES = new Set([
