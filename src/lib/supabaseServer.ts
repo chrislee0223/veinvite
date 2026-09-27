@@ -261,6 +261,16 @@ function isTransientFetchFailure(
   );
 }
 
+function isForecastReadTimeout(
+  error: unknown,
+): boolean {
+  return (
+    error instanceof Error &&
+    error.message ===
+      `Supabase forecast read exceeded ${FORECAST_READ_TIMEOUT_MS}ms.`
+  );
+}
+
 async function wait(
   milliseconds: number,
 ): Promise<void> {
@@ -294,18 +304,28 @@ const guardedFetch: typeof fetch = async (
     input,
     init,
   );
+  const boundedForecastRead =
+    isBoundedForecastReadRequest(input, init);
   let response: Response;
 
   try {
     response = await fetchWithForecastReadTimeout(input, init);
   } catch (error) {
     // Vercel -> Supabase can occasionally lose a cold/transient HTTP
-    // connection before a response exists. Retry exactly once only for
-    // idempotent reads. Claim, payout, reservation and every other mutation
-    // remain single-attempt so this resilience cannot duplicate side effects.
+    // connection before a response exists. A bounded forecast RPC can also
+    // cross its five-second transport budget even though the database query
+    // itself is healthy. Retry exactly once only for safe reads, and accept
+    // the timeout case only for the two explicitly reviewed forecast RPCs.
+    // Claim, payout, reservation and every other mutation remain single-attempt
+    // so this resilience cannot duplicate side effects.
+    const retryableTransportFailure =
+      isTransientFetchFailure(error) ||
+      (boundedForecastRead &&
+        isForecastReadTimeout(error));
+
     if (
       !retriableRead ||
-      !isTransientFetchFailure(error)
+      !retryableTransportFailure
     ) {
       throw error;
     }
