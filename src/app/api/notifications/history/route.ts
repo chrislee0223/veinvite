@@ -206,19 +206,19 @@ export async function GET(request: NextRequest) {
       );
 
       return {
-      id: String(row.id),
-      inviteCode: row.invite_code,
-      kind: compatibleHistoryKind(rawKind),
-      presentationKind,
-      stage: Number(row.stage),
-      eventAt: row.event_at,
-      rewardAmountWei: row.reward_amount_wei,
-      dappProgress:
-        row.dapp_progress === null ? null : Number(row.dapp_progress),
-      collapsedProgress: Boolean(row.collapsed_progress),
-      friendWallet: row.friend_wallet,
-      readAt: row.read_at,
-    };
+        id: String(row.id),
+        inviteCode: row.invite_code,
+        kind: compatibleHistoryKind(rawKind),
+        presentationKind,
+        stage: Number(row.stage),
+        eventAt: row.event_at,
+        rewardAmountWei: row.reward_amount_wei,
+        dappProgress:
+          row.dapp_progress === null ? null : Number(row.dapp_progress),
+        collapsedProgress: Boolean(row.collapsed_progress),
+        friendWallet: row.friend_wallet,
+        readAt: row.read_at,
+      };
     });
 
     return noStoreJson({
