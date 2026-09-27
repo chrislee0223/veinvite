@@ -280,3 +280,15 @@ test('paid V2 HOLD resolution uses historical invalidation path without changing
     /pastRewardChanged: false/u,
   );
 });
+
+test('cluster-hub follow-up cannot double-count the same historical consolidation relationship', async () => {
+  const policy = await readFile(
+    'src/lib/sybil/v2/policy.ts',
+    'utf8',
+  );
+
+  assert.match(
+    policy,
+    /HISTORICAL_ACTIVITY_CLUSTER_CODES[\s\S]*WATCH_SUBJECT_TO_CLUSTER_HUB/u,
+  );
+});
