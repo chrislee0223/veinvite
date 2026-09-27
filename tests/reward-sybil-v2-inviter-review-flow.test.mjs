@@ -42,6 +42,37 @@ test('operator can clear a HOLD snapshot or restrict only the inviter', async ()
   assert.doesNotMatch(fn, /insert\s+into\s+public\.reward_/iu);
 });
 
+
+test('referral Sybil restriction checks remain invitee-scoped after inviter RESTRICT', async () => {
+  const source = await readFile(
+    'src/lib/sybil/v2/pipeline.ts',
+    'utf8',
+  );
+
+  const start = source.indexOf(
+    'async function hasActiveRestriction',
+  );
+  assert.ok(start >= 0);
+  const fn = source.slice(start, start + 1800);
+
+  assert.match(
+    fn,
+    /normalizeWallet\(invitation\.invitee_wallet\)/u,
+  );
+  assert.match(
+    fn,
+    /\.eq\('wallet_address', subjectWallet\)/u,
+  );
+  assert.doesNotMatch(
+    fn,
+    /normalizeWallet\(invitation\.inviter_wallet\)/u,
+  );
+  assert.doesNotMatch(
+    fn,
+    /\.in\('wallet_address'/u,
+  );
+});
+
 test('clear releases only the reviewed snapshot so a later incident can reopen review', async () => {
   const sql = await readFile(migrationPath, 'utf8');
 
