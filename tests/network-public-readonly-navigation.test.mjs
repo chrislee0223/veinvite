@@ -87,10 +87,30 @@ test('other-user Network stays read-only while matching My Network chrome', () =
   assert.match(publicExplorer, /setSelected\(null\); if \(searchOpen\) closeSearch\(\)/);
   assert.match(publicExplorer, /event\.deltaY < 0 \? 1\.09 : 0\.91/);
   assert.match(network, /event\.deltaY < 0 \? 1\.09 : 0\.91/);
-  assert.match(publicExplorer, /WHEEL_ENTER_DISTANCE = 120/);
-  assert.match(network, /WHEEL_ENTER_DISTANCE = 120/);
-  assert.match(publicExplorer, /NODE_ENTER_SCALE = 1\.85/);
-  assert.match(network, /NODE_ENTER_SCALE = 1\.85/);
+  assert.match(
+    publicExplorer,
+    /NETWORK_CANVAS_WHEEL_ENTER_DISTANCE as WHEEL_ENTER_DISTANCE/,
+  );
+  assert.match(
+    network,
+    /NETWORK_CANVAS_WHEEL_ENTER_DISTANCE as WHEEL_ENTER_DISTANCE/,
+  );
+  assert.match(
+    publicExplorer,
+    /NETWORK_CANVAS_NODE_ENTER_SCALE as NODE_ENTER_SCALE/,
+  );
+  assert.match(
+    network,
+    /NETWORK_CANVAS_NODE_ENTER_SCALE as NODE_ENTER_SCALE/,
+  );
+  assert.match(
+    networkGeometry,
+    /NETWORK_CANVAS_WHEEL_ENTER_DISTANCE = 120/,
+  );
+  assert.match(
+    networkGeometry,
+    /NETWORK_CANVAS_NODE_ENTER_SCALE = 1\.85/,
+  );
   assert.match(publicExplorer, /pinchEnterIntentRef/);
   assert.match(publicExplorer, /pinchReturnIntentRef/);
   assert.match(publicExplorer, /gesturestart/);
