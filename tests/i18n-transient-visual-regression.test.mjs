@@ -5,7 +5,7 @@ import { test } from 'node:test';
 const read = (path) => readFileSync(path, 'utf8');
 const locales = read('src/lib/i18n/locales.ts');
 const preview = read('src/components/NotificationUiPreview.tsx');
-const surface = read('src/components/InviteNotificationSurface.tsx');
+const surface = read('src/components/InviteNotificationSurfaceV2.tsx');
 const receipt = read('src/components/RewardReceiptNotice.tsx');
 const typography = read('src/app/localized-typography.css');
 
