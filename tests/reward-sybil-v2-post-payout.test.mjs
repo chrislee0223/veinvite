@@ -250,19 +250,32 @@ test('automatic post-payout observation excludes historical paid rewards', async
 
 
 
-test('operator WATCH baseline joins later post-payout evidence without auto-blacklisting', async () => {
+test('post-payout evidence is scoped to the reward-recipient subject wallet', async () => {
   const source = await readFile(
     'src/lib/sybil/v2/postPayout.ts',
     'utf8',
   );
 
-  assert.match(source, /OPERATOR_HISTORICAL_WATCH_BASELINE/u);
-  assert.match(source, /sybil_v2_referral_assessments/u);
-  assert.match(source, /assessment\.source !== 'OPERATOR'/u);
-  assert.match(source, /assessment\.state !== 'WATCH'/u);
-  assert.match(source, /assessment\.policy_version !== 'sybil-v2\.1'/u);
-  assert.match(source, /operatorWatchBaselineApplied/u);
-  assert.match(source, /strongEvidenceDomains\.includes\('POST_PAYOUT'\)/u);
+  assert.match(
+    source,
+    /\.eq\('subject_wallet', subject\)/u,
+  );
+  assert.match(
+    source,
+    /loadAllSignals\(\s*inviteCode,\s*subjectWallet,?\s*\)/u,
+  );
+  assert.doesNotMatch(
+    source,
+    /OPERATOR_HISTORICAL_WATCH_BASELINE/u,
+  );
+  assert.doesNotMatch(
+    source,
+    /loadOperatorWatchBaseline/u,
+  );
+  assert.doesNotMatch(
+    source,
+    /operatorWatchBaselineApplied/u,
+  );
 });
 
 test('explicit operator WATCH re-enables staged observation for reviewed historical payouts only', async () => {
