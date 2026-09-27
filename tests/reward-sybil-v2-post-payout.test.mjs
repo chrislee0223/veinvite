@@ -307,6 +307,22 @@ test('explicit operator WATCH overrides any older clearance verdict for observat
 });
 
 
+
+test('latest post-payout scheduler keeps referral WATCH separate from reward-recipient observation', async () => {
+  const sql = await readFile(
+    'supabase/migrations/20260927133500_restore_post_payout_subject_boundary.sql',
+    'utf8',
+  );
+
+  assert.match(
+    sql,
+    /s\.paid_at >= r\.sybil_v2_automatic_observation_started_at/u,
+  );
+  assert.doesNotMatch(sql, /sybil_v2_referral_assessments/u);
+  assert.doesNotMatch(sql, /operator_historical_watch/u);
+  assert.doesNotMatch(sql, /postPayoutObservationEnabled/u);
+});
+
 test('five-minute vote recovery drains bounded post-payout WATCH work', async () => {
   const source = await readFile(
     'src/app/api/cron/vote-reconcile/route.ts',
