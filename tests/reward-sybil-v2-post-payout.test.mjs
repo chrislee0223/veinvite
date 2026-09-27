@@ -281,6 +281,18 @@ test('explicit operator WATCH re-enables staged observation for reviewed histori
   assert.match(sql, /interval '30 days'/u);
 });
 
+
+test('explicit operator WATCH overrides any older clearance verdict for observation', async () => {
+  const sql = await readFile(
+    'supabase/migrations/20260927122500_prioritize_operator_watch_observation.sql',
+    'utf8',
+  );
+
+  assert.match(sql, /then 'WATCH'/u);
+  assert.match(sql, /else c\.verdict/u);
+  assert.match(sql, /postPayoutObservationEnabled/u);
+});
+
 test('Production explicitly opts into the B3TR observation worker', async () => {
   const vercel = JSON.parse(
     await readFile('vercel.json', 'utf8'),
