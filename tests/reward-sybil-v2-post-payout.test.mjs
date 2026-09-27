@@ -274,6 +274,7 @@ test('explicit operator WATCH re-enables staged observation for reviewed histori
   assert.match(sql, /a\.source = 'OPERATOR'/u);
   assert.match(sql, /a\.state = 'WATCH'/u);
   assert.match(sql, /a\.policy_version = 'sybil-v2\.1'/u);
+  assert.match(sql, /postPayoutObservationEnabled/u);
   assert.match(sql, /operator_historical_watch/u);
   assert.match(sql, /interval '24 hours'/u);
   assert.match(sql, /interval '7 days'/u);
