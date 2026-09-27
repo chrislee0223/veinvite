@@ -1,3 +1,7 @@
+import {
+  buildLeaderboardPreviewScenario,
+  DEFAULT_LEADERBOARD_PREVIEW_SCENARIO,
+} from '../tests/fixtures/leaderboardPreviewScenarios.mjs';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
@@ -11,7 +15,6 @@ const leaderboardHub = read('src/components/PublicLeaderboardHub.tsx');
 const leaderboard = read('src/components/InviterLeaderboard.tsx');
 const layoutPolish = read('src/components/SecondaryPageLayoutPolish.tsx');
 const appProviders = read('src/components/AppProviders.tsx');
-const preview = read('src/components/LeaderboardUiPreview.tsx');
 const migration = read('supabase/migrations/20260829043433_add_public_lifetime_leaderboard.sql');
 
 if (!/LEADERBOARD_SIZE\s*=\s*100/.test(route) || !/p_limit:\s*LEADERBOARD_SIZE/.test(route)) {
@@ -177,14 +180,31 @@ if (/trailingCurrent[\s\S]*completedMetric[\s\S]*content:\s*['"]—['"]/.test(le
   failures.push('Approved unranked layout shows invite count 0; do not replace it with a CSS dash.');
 }
 
-if (!/Array\.from\(\{\s*length:\s*100\s*\}/.test(preview)) {
-  failures.push('UI test leaderboard must exercise a full 100-row preview.');
+const insidePreview =
+  buildLeaderboardPreviewScenario('inside');
+const outsidePreview =
+  buildLeaderboardPreviewScenario('outside');
+const unrankedPreview =
+  buildLeaderboardPreviewScenario(
+    DEFAULT_LEADERBOARD_PREVIEW_SCENARIO,
+  );
+
+if (insidePreview.leaders.length !== 100) {
+  failures.push('Leaderboard regression fixture must exercise a full 100-row preview.');
 }
-if (!/rank:\s*137/.test(preview) || !/100위 밖/.test(preview)) {
-  failures.push('UI test leaderboard must cover the current-wallet outside-Top-100 state.');
+if (
+  outsidePreview.currentUser?.rank !== 137 ||
+  outsidePreview.currentUser?.rankMovement !== 'DOWN'
+) {
+  failures.push('Leaderboard regression fixture must cover the current-wallet outside-Top-100 state.');
 }
-if (!/PreviewScenario = 'inside' \| 'outside' \| 'unranked'/.test(preview) || !/scenario === 'unranked'\) return \[\]/.test(preview) || !/useState<PreviewScenario>\('unranked'\)/.test(preview) || !/미순위 · (?:초대 0건|비교 없음)/.test(preview)) {
-  failures.push('UI test must default to the exact unranked zero-invite state that previously regressed in production.');
+if (
+  DEFAULT_LEADERBOARD_PREVIEW_SCENARIO !== 'unranked' ||
+  unrankedPreview.leaders.length !== 0 ||
+  unrankedPreview.currentUser !== null ||
+  unrankedPreview.comparison.available !== false
+) {
+  failures.push('Leaderboard regression fixture must default to the exact unranked zero-invite state that previously regressed in production.');
 }
 
 if (failures.length > 0) {
