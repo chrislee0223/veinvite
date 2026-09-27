@@ -1672,6 +1672,8 @@ export async function assessSybilV2Referral(
     signalCodes: unique(signals.map((signal) => signal.code)),
     evidenceFamilies: policy.evidenceFamilies,
     strongEvidenceFamilies: policy.strongEvidenceFamilies,
+    evidenceDomains: policy.evidenceDomains,
+    strongEvidenceDomains: policy.strongEvidenceDomains,
     checkpoint: checkpoint
       ? {
           historicalChainStatus: checkpoint.historical_chain_status,
