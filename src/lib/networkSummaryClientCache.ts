@@ -59,6 +59,28 @@ function readSession(wallet: string): StoredNetworkSummary | null {
   }
 }
 
+export function invalidateNetworkSummaryCache(wallet: string | null): void {
+  if (!wallet) return;
+  const key = walletKey(wallet);
+  memory.delete(key);
+
+  if (typeof window === 'undefined') return;
+  try {
+    const raw = window.sessionStorage.getItem(STORAGE_KEY);
+    if (!raw) return;
+    const parsed = JSON.parse(raw) as Record<string, StoredNetworkSummary>;
+    if (parsed[key]) {
+      delete parsed[key];
+      window.sessionStorage.setItem(
+        STORAGE_KEY,
+        JSON.stringify(parsed),
+      );
+    }
+  } catch {
+    // Cache invalidation is best effort; the next no-store fetch is authoritative.
+  }
+}
+
 export function getCachedNetworkSummary(wallet: string | null): NetworkSummaryProbe | null {
   if (!wallet) return null;
   const key = walletKey(wallet);
