@@ -103,6 +103,20 @@ test('operator watchlist surfaces Sybil v2 historical WATCH referrals without re
 });
 
 
+
+test('historical WATCH count is included in operator monitor snapshots without subject mixing', async () => {
+  const sql = await readFile(
+    'supabase/migrations/20260927144000_add_historical_watch_monitor_metric.sql',
+    'utf8',
+  );
+
+  assert.match(sql, /sybilV2HistoricalWatch/u);
+  assert.match(sql, /operator_sybil_v2_historical_watch_followups/u);
+  assert.match(sql, /MANUAL_SAME_SUBJECT_REVIEW/u);
+  assert.match(sql, /rewardRecipientEvidenceCombined', false/u);
+  assert.match(sql, /ae_operator_monitor_sybil_v2_historical_watch_enrichment/u);
+});
+
 test('operator watchlist includes active historical BLACKLIST invalidations', async () => {
   const sql = await readFile(
     'supabase/migrations/20260927150000_surface_historical_blacklists_in_sybil_watchlist.sql',
