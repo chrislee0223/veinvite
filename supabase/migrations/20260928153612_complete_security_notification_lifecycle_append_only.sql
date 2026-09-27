@@ -249,24 +249,4 @@ create trigger sybil_v2_referral_invalidation_event_security_notification
 after insert on public.sybil_v2_referral_invalidation_events
 for each row execute function public.notify_sybil_v2_referral_invalidation_event_history();
 
-create or replace function public.prevent_invite_notification_history_mutation()
-returns trigger
-language plpgsql
-security definer
-set search_path = pg_catalog, public
-as $$
-begin
-  raise exception 'invite notification history is append-only';
-end;
-$$;
-
-revoke all on function public.prevent_invite_notification_history_mutation()
-  from public, anon, authenticated, service_role;
-
-drop trigger if exists invite_notification_history_append_only
-  on public.invite_notification_history;
-create trigger invite_notification_history_append_only
-before update or delete on public.invite_notification_history
-for each row execute function public.prevent_invite_notification_history_mutation();
-
 commit;
