@@ -8,10 +8,12 @@ import {
 
 import { Brand } from './Brand';
 import {
-  InviteNotificationSurface,
-  type InviteNotificationKind,
-  type InviteNotificationPayload,
-} from './InviteNotificationSurface';
+  InviteNotificationSurfaceV2,
+} from './InviteNotificationSurfaceV2';
+import type {
+  InviteNotificationKindV2,
+  InviteNotificationPayloadV2,
+} from '@/lib/notifications/inviteNotificationStateV2';
 import { HOME_COPY } from '@/lib/i18n/homeCopy';
 import { NAV_COPY } from '@/lib/i18n/navCopy';
 import {
@@ -50,8 +52,9 @@ type Scenario = {
   id: ScenarioId;
   label: string;
   description: string;
-  kind: InviteNotificationKind;
+  kind: InviteNotificationKindV2;
   stage: number;
+  dappProgress: number | null;
   collapsedProgress: boolean;
   rewardAmountWei: string | null;
 };
@@ -91,6 +94,7 @@ const SCENARIOS: Scenario[] = [
     description: '초대 링크가 수락된 직후',
     kind: 'INVITE_ACCEPTED',
     stage: 1,
+    dappProgress: null,
     collapsedProgress: false,
     rewardAmountWei: null,
   },
@@ -98,8 +102,9 @@ const SCENARIOS: Scenario[] = [
     id: 'dapp',
     label: 'dApp 미션 완료',
     description: '서로 다른 dApp 3개에서 B3TR 획득 완료',
-    kind: 'DAPP_MISSION_COMPLETED',
+    kind: 'DAPP_PROGRESS',
     stage: 2,
+    dappProgress: 3,
     collapsedProgress: false,
     rewardAmountWei: null,
   },
@@ -109,6 +114,7 @@ const SCENARIOS: Scenario[] = [
     description: 'B3TR → VOT3 전환 완료',
     kind: 'VOT3_CONVERTED',
     stage: 3,
+    dappProgress: 3,
     collapsedProgress: false,
     rewardAmountWei: null,
   },
@@ -118,17 +124,19 @@ const SCENARIOS: Scenario[] = [
     description: '접속하지 않은 사이 dApp + VOT3까지 완료',
     kind: 'VOT3_CONVERTED',
     stage: 3,
+    dappProgress: 3,
     collapsedProgress: true,
     rewardAmountWei: null,
   },
   {
     id: 'all-missions',
-    label: '모든 미션 완료',
-    description: '거버넌스 투표까지 완료, 최종 확인 중',
-    kind: 'ALL_MISSIONS_COMPLETED',
+    label: '보상 준비 완료',
+    description: '거버넌스 투표와 최종 검증이 끝나 보상 수령 가능',
+    kind: 'REWARD_READY',
     stage: 4,
+    dappProgress: 3,
     collapsedProgress: false,
-    rewardAmountWei: null,
+    rewardAmountWei: '123450000000000000000',
   },
   {
     id: 'reward',
@@ -136,6 +144,7 @@ const SCENARIOS: Scenario[] = [
     description: '최종 검증 + 실제 지급 완료 알림',
     kind: 'REWARD_PAID',
     stage: 5,
+    dappProgress: 3,
     collapsedProgress: false,
     rewardAmountWei: '123450000000000000000',
   },
@@ -265,14 +274,14 @@ export function UiTestLab() {
           ? t.completed
           : t.noActive;
 
-  const notification = useMemo<InviteNotificationPayload>(
+  const notification = useMemo<InviteNotificationPayloadV2>(
     () => ({
       inviteCode: 'TEST234',
       kind: scenario.kind,
       stage: scenario.stage,
       eventAt: '2026-08-31T00:00:00.000Z',
       rewardAmountWei: scenario.rewardAmountWei,
-      acknowledgedStage: 0,
+      dappProgress: scenario.dappProgress,
       collapsedProgress: scenario.collapsedProgress,
     }),
     [scenario],
@@ -310,10 +319,9 @@ export function UiTestLab() {
               </button>
             ) : null}
 
-            <InviteNotificationSurface
+            <InviteNotificationSurfaceV2
               locale={locale}
-              notification={notification}
-              unreadCount={unread ? 1 : 0}
+              notifications={unread ? [notification] : []}
               open={open}
               onOpen={() => setOpen(true)}
               onClose={() => {
