@@ -19,7 +19,7 @@ test('one post-payout sweep signal never becomes HOLD by itself', () => {
 
   assert.equal(result.state, 'WATCH');
   assert.deepEqual(
-    result.strongEvidenceFamilies,
+    result.strongEvidenceDomains,
     ['POST_PAYOUT'],
   );
 });
@@ -45,8 +45,8 @@ test('post-payout evidence can HOLD only with another independent strong family'
 
   assert.equal(result.state, 'HOLD');
   assert.deepEqual(
-    new Set(result.strongEvidenceFamilies),
-    new Set(['HISTORICAL_REWARD', 'POST_PAYOUT']),
+    new Set(result.strongEvidenceDomains),
+    new Set(['HISTORICAL_ACTIVITY', 'POST_PAYOUT']),
   );
 });
 
@@ -108,6 +108,14 @@ test('post-payout bridge is retryable and completion-marked only after processin
   assert.match(
     source,
     /operator_sybil_v2_post_payout_candidates/u,
+  );
+  assert.match(
+    source,
+    /strongEvidenceDomains\.includes\('POST_PAYOUT'\)/u,
+  );
+  assert.match(
+    source,
+    /evidenceDomains: policy\.evidenceDomains/u,
   );
 
   const migration = await readFile(
