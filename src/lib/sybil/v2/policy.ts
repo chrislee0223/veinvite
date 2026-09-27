@@ -91,12 +91,26 @@ function hasExtremeSingleDomainPattern(
     return true;
   }
 
-  // Correlated historical reward/consolidation signals remain one
-  // HISTORICAL_ACTIVITY domain. Even when the common sink later appears as an
-  // inviter, that historical flow alone is not enough to HOLD because a
-  // legitimate app settlement/redemption wallet can produce the same pattern.
-  // A second independent domain is still required for escalation.
-  return false;
+  const hasHistoricalActivity = signals.some((signal) =>
+    (
+      signal.code === 'HISTORICAL_REWARD_APP_CLUSTER' ||
+      signal.code === 'HISTORICAL_SYNCHRONIZED_REWARD_CLUSTER'
+    ) &&
+    STRENGTH_RANK[signal.strength] >= STRENGTH_RANK.MEDIUM &&
+    signal.score > 0,
+  );
+  const commonSinkScore = signals
+    .filter((signal) => signal.code === 'HISTORICAL_COMMON_B3TR_SINK')
+    .reduce((max, signal) => Math.max(max, signal.score), 0);
+  const sinkInviterScore = signals
+    .filter((signal) => signal.code === 'HISTORICAL_SINK_REAPPEARS_AS_INVITER')
+    .reduce((max, signal) => Math.max(max, signal.score), 0);
+
+  return (
+    hasHistoricalActivity &&
+    commonSinkScore >= 50 &&
+    sinkInviterScore >= 45
+  );
 }
 
 function evidenceDomain(
