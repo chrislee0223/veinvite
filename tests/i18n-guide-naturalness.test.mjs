@@ -3,7 +3,7 @@ import { readFile } from 'node:fs/promises';
 import test from 'node:test';
 
 const [providerSource, polishSource] = await Promise.all([
-  readFile('src/components/AppProviders.tsx', 'utf8'),
+  readFile('src/lib/i18n/runtimePatches.ts', 'utf8'),
   readFile('src/lib/i18n/guideNaturalnessPolish.ts', 'utf8'),
 ]);
 
