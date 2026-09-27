@@ -42,3 +42,38 @@ test('transient Supabase retries remain limited to safe reads', () => {
     /RETRIABLE_READ_RPC_PATHS[^;]*\/rest\/v1\/rpc\/[^'\n]*(?:insert|update|delete|create|claim|finalize|prepare|register|pause|queue)/i,
   );
 });
+
+test('reward forecast RPC reads are abort-bounded without widening mutation retries', () => {
+  assert.match(source, /FORECAST_READ_TIMEOUT_MS = 5_000/);
+  assert.match(source, /function isBoundedForecastReadRequest/);
+  assert.match(
+    source,
+    /getRequestMethod\(input, init\) !== 'POST'/,
+  );
+  assert.match(source, /RETRIABLE_READ_RPC_PATHS\.has\(url\.pathname\)/);
+  assert.match(source, /const controller = new AbortController\(\)/);
+  assert.match(
+    source,
+    /controller\.abort\([\s\S]*Supabase forecast read exceeded/,
+  );
+  assert.match(
+    source,
+    /signal: controller\.signal/,
+  );
+  assert.match(
+    source,
+    /upstreamSignal\?\.addEventListener\('abort', forwardAbort/,
+  );
+  assert.match(
+    source,
+    /upstreamSignal\?\.removeEventListener\('abort', forwardAbort\)/,
+  );
+  assert.match(
+    source,
+    /response = await fetchWithForecastReadTimeout\(input, init\)/,
+  );
+  assert.doesNotMatch(
+    source,
+    /(?:claim|finalize|prepare|register|pause|queue)[^\n]*FORECAST_READ_TIMEOUT_MS/i,
+  );
+});
