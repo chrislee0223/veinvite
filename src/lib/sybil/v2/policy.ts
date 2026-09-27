@@ -91,6 +91,16 @@ function hasExtremeSingleDomainPattern(
     return true;
   }
 
+  if (
+    signals.some((signal) =>
+      signal.code === 'RECENT_FUNDER_IS_HISTORICAL_COMMON_SINK' &&
+      signal.strength === 'HIGH' &&
+      signal.score >= 50,
+    )
+  ) {
+    return true;
+  }
+
   const hasHistoricalActivity = signals.some((signal) =>
     (
       signal.code === 'HISTORICAL_REWARD_APP_CLUSTER' ||
