@@ -4,6 +4,52 @@ import { redactSentryText, redactSentryUrl } from '@/lib/sentryRedaction';
 
 const dsn = process.env.NEXT_PUBLIC_SENTRY_DSN;
 
+const KNOWN_EXTERNAL_EXTENSION_ERRORS = new Set([
+  'Could not establish connection. Receiving end does not exist.',
+  'MetaMask extension not found',
+  'Failed to connect to MetaMask',
+]);
+
+const KNOWN_EXTERNAL_EXTENSION_FRAMES = new Set([
+  'app:///injectedScript.bundle.js',
+  'app:///scripts/inpage.js',
+]);
+
+function isKnownExternalExtensionNoise(event: {
+  message?: string;
+  exception?: {
+    values?: Array<{
+      value?: string;
+      stacktrace?: {
+        frames?: Array<{
+          filename?: string;
+        }>;
+      };
+    }>;
+  };
+}): boolean {
+  const exceptions = event.exception?.values ?? [];
+  const messages = [
+    event.message,
+    ...exceptions.map((exception) => exception.value),
+  ];
+
+  const hasKnownMessage = messages.some(
+    (message) =>
+      typeof message === 'string' &&
+      KNOWN_EXTERNAL_EXTENSION_ERRORS.has(message.trim()),
+  );
+  if (!hasKnownMessage) return false;
+
+  return exceptions.some((exception) =>
+    exception.stacktrace?.frames?.some(
+      (frame) =>
+        typeof frame.filename === 'string' &&
+        KNOWN_EXTERNAL_EXTENSION_FRAMES.has(frame.filename),
+    ),
+  );
+}
+
 Sentry.init({
   dsn,
   enabled: Boolean(dsn),
@@ -20,6 +66,8 @@ Sentry.init({
   replaysSessionSampleRate: 0,
   replaysOnErrorSampleRate: 1,
   beforeSend(event) {
+    if (isKnownExternalExtensionNoise(event)) return null;
+
     if (event.message) event.message = redactSentryText(event.message);
     if (event.request?.url) event.request.url = redactSentryUrl(event.request.url);
 
