@@ -26,6 +26,27 @@ import { getLocaleDirection } from '@/lib/i18n/locales';
 import type { Locale, SupportedLocale } from '@/lib/i18n/locales';
 import { getVeChainExplorerAddressUrl } from '@/lib/vechainExplorer';
 import {
+  NETWORK_CANVAS_CENTER_X as CENTER_X,
+  NETWORK_CANVAS_HEIGHT as PLANE_H,
+  NETWORK_CANVAS_MAX_SCALE as MAX_SCALE,
+  NETWORK_CANVAS_MIN_SCALE as MIN_SCALE,
+  NETWORK_CANVAS_NODE_ENTER_SCALE as NODE_ENTER_SCALE,
+  NETWORK_CANVAS_NODE_HIT_RADIUS as NODE_HIT_RADIUS,
+  NETWORK_CANVAS_ROOT_Y as ROOT_Y,
+  NETWORK_CANVAS_WHEEL_ENTER_DISTANCE as WHEEL_ENTER_DISTANCE,
+  NETWORK_CANVAS_WIDTH as PLANE_W,
+  clampNetworkCanvas as clamp,
+  isValidNetworkWallet as validWallet,
+  networkCanvasCenteredView as publicCenteredView,
+  networkCanvasChildPoint as publicChildPoint,
+  networkCanvasDistance as pointDistance,
+  networkCanvasFittedView as publicFittedView,
+  networkCanvasInviteSlotPointById as publicInviteSlotPoint,
+  networkCanvasMidpoint as midpoint,
+  networkCanvasRootCenteredFittedView as publicRootCenteredFittedView,
+  normalizeNetworkWallet as keyWallet,
+} from '@/lib/networkCanvasGeometry';
+import {
   NetworkWalletIdentity,
   NetworkWalletLabel,
 } from './NetworkWalletIdentity';
@@ -83,41 +104,9 @@ type PublicEdge = {
   active: boolean;
 };
 
-const PLANE_W = 2600;
-const PLANE_H = 1900;
-const CENTER_X = PLANE_W / 2;
-const ROOT_Y = 350;
-const MIN_SCALE = 0.32;
-const MAX_SCALE = 2.5;
-const READABLE_FIT_MIN = 0.46;
-const GOLDEN_ANGLE = Math.PI * (3 - Math.sqrt(5));
-const NODE_ENTER_SCALE = 1.85;
-const NODE_HIT_RADIUS = 58;
-const WHEEL_ENTER_DISTANCE = 120;
-
-function keyWallet(wallet: string): string {
-  return wallet.toLowerCase();
-}
-
-function validWallet(wallet: string): boolean {
-  return /^0x[0-9a-fA-F]{40}$/.test(wallet);
-}
-
 function shortWallet(wallet: string): string {
   if (wallet.length < 12) return wallet;
   return `${wallet.slice(0, 5)}...${wallet.slice(-3).toUpperCase()}`;
-}
-
-function clamp(value: number, min: number, max: number): number {
-  return Math.max(min, Math.min(max, value));
-}
-
-function midpoint(a: Point, b: Point): Point {
-  return { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
-}
-
-function pointDistance(a: Point, b: Point): number {
-  return Math.hypot(a.x - b.x, a.y - b.y);
 }
 
 function publicEdgePath(x1: number, y1: number, x2: number, y2: number): string {
@@ -125,96 +114,6 @@ function publicEdgePath(x1: number, y1: number, x2: number, y2: number): string 
   const dy = y2 - y1;
   const bend = Math.sign(dx || 1) * Math.min(58, Math.abs(dx) * 0.16);
   return `M ${x1} ${y1} C ${x1 + bend} ${y1 + dy * 0.22}, ${x2 - bend} ${y1 + dy * 0.78}, ${x2} ${y2}`;
-}
-
-function stablePublicHash(value: string): number {
-  let hash = 2166136261;
-  for (let index = 0; index < value.length; index += 1) {
-    hash ^= value.charCodeAt(index);
-    hash = Math.imul(hash, 16777619);
-  }
-  return hash >>> 0;
-}
-
-function publicChildPoint(wallet: string, index: number, compact: boolean): Point {
-  const jitter = ((stablePublicHash(wallet) % 101) - 50) / 800;
-  const angle = -Math.PI / 2 + index * GOLDEN_ANGLE + jitter;
-  const radius = compact ? 118 + Math.sqrt(index) * 82 : 208 + Math.sqrt(index) * 128;
-  const yScale = compact ? 0.86 : 0.78;
-  return {
-    x: CENTER_X + Math.cos(angle) * radius,
-    y: ROOT_Y + Math.sin(angle) * radius * yScale + (compact ? 18 : 26),
-  };
-}
-
-function publicInviteSlotPoint(slot: 1 | 2): Point {
-  if (slot === 1) {
-    return { x: CENTER_X - 58, y: ROOT_Y + 74 };
-  }
-  return { x: CENTER_X + 64, y: ROOT_Y + 62 };
-}
-
-function publicCenteredView(stage: { width: number; height: number }, scale = 1): View {
-  return {
-    x: stage.width / 2 - CENTER_X * scale,
-    y: Math.max(88, stage.height * 0.5) - ROOT_Y * scale,
-    scale,
-  };
-}
-
-function publicRootCenteredFittedView(
-  stage: { width: number; height: number },
-  points: Point[],
-): View {
-  if (!points.length) return publicCenteredView(stage, 1);
-
-  const minX = Math.min(...points.map((point) => point.x));
-  const maxX = Math.max(...points.map((point) => point.x));
-  const minY = Math.min(...points.map((point) => point.y));
-  const maxY = Math.max(...points.map((point) => point.y));
-  const horizontalExtent = Math.max(
-    110,
-    Math.max(CENTER_X - minX, maxX - CENTER_X) + 95,
-  );
-  const topExtent = Math.max(110, ROOT_Y - minY + 95);
-  const bottomExtent = Math.max(110, maxY - ROOT_Y + 95);
-  const screenCenterY = Math.max(88, stage.height * 0.5);
-  const minimum = points.length < 16 ? READABLE_FIT_MIN : MIN_SCALE;
-  const scale = clamp(
-    Math.min(
-      1,
-      Math.max(1, stage.width / 2 - 17) / horizontalExtent,
-      Math.max(1, screenCenterY - 25) / topExtent,
-      Math.max(1, stage.height - screenCenterY - 25) / bottomExtent,
-    ),
-    minimum,
-    MAX_SCALE,
-  );
-
-  return publicCenteredView(stage, scale);
-}
-
-function publicFittedView(stage: { width: number; height: number }, points: Point[]): View {
-  if (!points.length) return publicCenteredView(stage, 1);
-  const minX = Math.min(...points.map((point) => point.x));
-  const maxX = Math.max(...points.map((point) => point.x));
-  const minY = Math.min(...points.map((point) => point.y));
-  const maxY = Math.max(...points.map((point) => point.y));
-  const contentWidth = Math.max(220, maxX - minX + 190);
-  const contentHeight = Math.max(220, maxY - minY + 190);
-  const minimum = points.length < 16 ? READABLE_FIT_MIN : MIN_SCALE;
-  const scale = clamp(
-    Math.min(1, (stage.width - 34) / contentWidth, (stage.height - 50) / contentHeight),
-    minimum,
-    MAX_SCALE,
-  );
-  const centerX = (minX + maxX) / 2;
-  const centerY = (minY + maxY) / 2;
-  return {
-    x: stage.width / 2 - centerX * scale,
-    y: stage.height / 2 - centerY * scale,
-    scale,
-  };
 }
 
 function SearchGlyph() {

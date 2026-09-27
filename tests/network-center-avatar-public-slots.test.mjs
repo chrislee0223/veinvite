@@ -2,11 +2,12 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import test from 'node:test';
 
-const [network, explorer, publicApi, identity] = await Promise.all([
+const [network, explorer, publicApi, identity, networkGeometry] = await Promise.all([
   readFile('src/components/AppNetwork.tsx', 'utf8'),
   readFile('src/components/PublicNetworkExplorer.tsx', 'utf8'),
   readFile('src/app/api/network/public/route.ts', 'utf8'),
   readFile('src/components/NetworkWalletIdentity.tsx', 'utf8'),
+  readFile('src/lib/networkCanvasGeometry.ts', 'utf8'),
 ]);
 
 test('My Network root stays at the same coordinate with avatar plus one identity line', () => {
@@ -75,8 +76,18 @@ test('public focus slot metadata exposes only empty slot IDs and no invitee deta
 });
 
 test('friend Network slots share owner coordinates, edges, motion reduction, and read-only behavior', () => {
-  assert.match(explorer, /CENTER_X - 58/);
-  assert.match(explorer, /CENTER_X \+ 64/);
+  assert.match(
+    explorer,
+    /networkCanvasInviteSlotPointById as publicInviteSlotPoint/,
+  );
+  assert.match(
+    networkGeometry,
+    /NETWORK_CANVAS_CENTER_X - 58/,
+  );
+  assert.match(
+    networkGeometry,
+    /NETWORK_CANVAS_CENTER_X \+ 64/,
+  );
   assert.match(explorer, /publicSlotEdgeBase/);
   assert.match(explorer, /publicSlotEdgePulse/);
   assert.match(explorer, /publicSlotFlow/);

@@ -12,6 +12,7 @@ const [
   providerSource,
   greekSource,
   networkNavSource,
+  networkGeometrySource,
 ] = await Promise.all([
   readFile('src/lib/i18n/locales.ts', 'utf8'),
   readFile('src/lib/i18n/networkCanvasControlCopy.ts', 'utf8'),
@@ -22,6 +23,7 @@ const [
   readFile('src/components/AppProviders.tsx', 'utf8'),
   readFile('src/lib/i18n/greekFinalPolish.ts', 'utf8'),
   readFile('src/lib/i18n/networkNavigationCopyPolish.ts', 'utf8'),
+  readFile('src/lib/networkCanvasGeometry.ts', 'utf8'),
 ]);
 
 const supportedLocales = [
@@ -79,7 +81,14 @@ test('Network routes every wallet through one production runtime', () => {
 test('single Network runtime owns camera changes explicitly and restores parent views', () => {
   assert.match(networkSource, /returnViewByChildRef/);
   assert.match(networkSource, /viewByFocusRef/);
-  assert.match(networkSource, /function centeredView/);
+  assert.match(
+    networkSource,
+    /networkCanvasCenteredView as centeredView/,
+  );
+  assert.match(
+    networkGeometrySource,
+    /export function networkCanvasCenteredView/,
+  );
   assert.match(networkSource, /const returnToParent = useCallback/);
   assert.match(networkSource, /pinchReturnIntentRef/);
   assert.match(networkSource, /wheelReturnDistanceRef/);

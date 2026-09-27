@@ -39,6 +39,26 @@ import {
 } from '@/lib/leaderboardDomainCache';
 import { getVeChainExplorerAddressUrl } from '@/lib/vechainExplorer';
 import {
+  NETWORK_CANVAS_CENTER_X as FOCUS_X,
+  NETWORK_CANVAS_HEIGHT as WORLD_H,
+  NETWORK_CANVAS_MAX_SCALE as MAX_SCALE,
+  NETWORK_CANVAS_MIN_SCALE as MIN_SCALE,
+  NETWORK_CANVAS_NODE_ENTER_SCALE as NODE_ENTER_SCALE,
+  NETWORK_CANVAS_NODE_HIT_RADIUS as NODE_HIT_RADIUS,
+  NETWORK_CANVAS_ROOT_Y as FOCUS_Y,
+  NETWORK_CANVAS_WHEEL_ENTER_DISTANCE as WHEEL_ENTER_DISTANCE,
+  NETWORK_CANVAS_WIDTH as WORLD_W,
+  clampNetworkCanvas as clamp,
+  isValidNetworkWallet as validWallet,
+  networkCanvasCenteredView as centeredView,
+  networkCanvasChildPoint as radialChildPoint,
+  networkCanvasDistance as distance,
+  networkCanvasFittedView as fittedView,
+  networkCanvasInviteSlotPoint as inviteSlotPoint,
+  networkCanvasMidpoint as midpoint,
+  normalizeNetworkWallet as keyWallet,
+} from '@/lib/networkCanvasGeometry';
+import {
   EMPTY_NETWORK_WORKSPACE_STORE,
   MAX_GROUPS_PER_FOCUS,
   MAX_MEMBERS_PER_GROUP,
@@ -162,34 +182,19 @@ type NodeDragGhost = {
 
 const NETWORK_CANVAS_ENABLED =
   process.env.NEXT_PUBLIC_NETWORK_CANVAS_ENABLED !== 'false';
-const WORLD_W = 2600;
-const WORLD_H = 1900;
-const FOCUS_X = WORLD_W / 2;
-const FOCUS_Y = 350;
-const MIN_SCALE = 0.32;
-const MAX_SCALE = 2.5;
 const SEARCH_DELAY_MS = 280;
 const NAVIGATION_MS = 720;
 const FIT_TRANSITION_MS = 760;
 const INTRO_HOLD_MS = 150;
 const INTRO_END_MS = 940;
-const READABLE_FIT_MIN = 0.46;
-const GOLDEN_ANGLE = Math.PI * (3 - Math.sqrt(5));
 const GROUP_DROP_MS = 180;
 const GROUP_HUB_IN_MS = 220;
 const GROUP_DROP_HIT_SLOP_X = 18;
 const GROUP_DROP_HIT_SLOP_Y = 14;
 const HOLD_TO_MOVE_MS = 500;
 const HOLD_CANCEL_DISTANCE = 8;
-const NODE_ENTER_SCALE = 1.85;
-const NODE_HIT_RADIUS = 58;
 const GROUP_SCREEN_DROP_RADIUS = 58;
-const WHEEL_ENTER_DISTANCE = 120;
 const WORKSPACE_PREFIX = 'veinvite-network-workspace-v1:';
-
-function keyWallet(wallet: string): string {
-  return wallet.toLowerCase();
-}
 
 function shortWallet(wallet: string): string {
   if (wallet.length < 12) return wallet;
@@ -210,49 +215,6 @@ function triggerHoldHaptic() {
   }
 }
 
-function validWallet(wallet: string): boolean {
-  return /^0x[0-9a-fA-F]{40}$/.test(wallet);
-}
-
-function clamp(value: number, min: number, max: number): number {
-  return Math.max(min, Math.min(max, value));
-}
-
-function midpoint(a: Point, b: Point): Point {
-  return { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
-}
-
-function distance(a: Point, b: Point): number {
-  return Math.hypot(a.x - b.x, a.y - b.y);
-}
-
-function stableHash(value: string): number {
-  let hash = 2166136261;
-  for (let index = 0; index < value.length; index += 1) {
-    hash ^= value.charCodeAt(index);
-    hash = Math.imul(hash, 16777619);
-  }
-  return hash >>> 0;
-}
-
-function radialChildPoint(wallet: string, index: number, compact: boolean): Point {
-  const jitter = ((stableHash(wallet) % 101) - 50) / 800;
-  const angle = -Math.PI / 2 + index * GOLDEN_ANGLE + jitter;
-  const radius = compact ? 118 + Math.sqrt(index) * 82 : 208 + Math.sqrt(index) * 128;
-  const yScale = compact ? 0.86 : 0.78;
-  return {
-    x: FOCUS_X + Math.cos(angle) * radius,
-    y: FOCUS_Y + Math.sin(angle) * radius * yScale + (compact ? 18 : 26),
-  };
-}
-
-function inviteSlotPoint(index: number): Point {
-  if (index === 0) {
-    return { x: FOCUS_X - 58, y: FOCUS_Y + 74 };
-  }
-  return { x: FOCUS_X + 64, y: FOCUS_Y + 62 };
-}
-
 function defaultGroupMemberOffset(index: number, count: number): Point {
   const safeCount = Math.max(1, count);
   const span = Math.min(310, Math.max(90, (safeCount - 1) * 76));
@@ -260,29 +222,6 @@ function defaultGroupMemberOffset(index: number, count: number): Point {
   return {
     x: -span / 2 + span * ratio,
     y: 112 + Math.min(26, Math.abs(index - (safeCount - 1) / 2) * 6),
-  };
-}
-
-function fittedView(stage: { width: number; height: number }, points: Point[]): View {
-  if (!points.length) return centeredView(stage, 1);
-  const minX = Math.min(...points.map((point) => point.x));
-  const maxX = Math.max(...points.map((point) => point.x));
-  const minY = Math.min(...points.map((point) => point.y));
-  const maxY = Math.max(...points.map((point) => point.y));
-  const contentWidth = Math.max(220, maxX - minX + 190);
-  const contentHeight = Math.max(220, maxY - minY + 190);
-  const minimum = points.length < 16 ? READABLE_FIT_MIN : MIN_SCALE;
-  const scale = clamp(
-    Math.min(1, (stage.width - 34) / contentWidth, (stage.height - 50) / contentHeight),
-    minimum,
-    MAX_SCALE,
-  );
-  const centerX = (minX + maxX) / 2;
-  const centerY = (minY + maxY) / 2;
-  return {
-    x: stage.width / 2 - centerX * scale,
-    y: stage.height / 2 - centerY * scale,
-    scale,
   };
 }
 
@@ -360,17 +299,6 @@ async function fetchNetwork(
     throw new Error('Network response was incomplete.');
   }
   return payload as NetworkData;
-}
-
-function centeredView(
-  stage: { width: number; height: number },
-  scale = 1,
-): View {
-  return {
-    x: stage.width / 2 - FOCUS_X * scale,
-    y: Math.max(88, stage.height * 0.5) - FOCUS_Y * scale,
-    scale,
-  };
 }
 
 function LayoutControlGlyph({ done = false }: { done?: boolean }) {
