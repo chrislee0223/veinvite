@@ -117,7 +117,7 @@ test('active wallet restriction is authoritative for future participation', () =
   assert.equal(result.riskScore, 100);
 });
 
-test('extreme historical activity plus consolidation HOLDs for review', () => {
+test('correlated historical activity plus consolidation stays WATCH without a second domain', () => {
   const appId =
     '0x9643ed1637948cc571b23f836ade2bdb104de88e627fa6e8e3ffef1ee5a1739a';
   const sink =
@@ -233,8 +233,8 @@ test('extreme historical activity plus consolidation HOLDs for review', () => {
 
     assert.equal(
       policy.state,
-      'HOLD',
-      `${wallet} extreme historical reward/consolidation pattern should pause for review`,
+      'WATCH',
+      `${wallet} correlated historical reward/consolidation remains one domain`,
     );
     assert.deepEqual(
       new Set(policy.strongEvidenceDomains),
