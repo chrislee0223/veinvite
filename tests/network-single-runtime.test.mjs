@@ -30,6 +30,7 @@ const [
   readFile('src/lib/networkCanaryFixture.ts', 'utf8'),
 ]);
 
+const networkGeometrySource = await readFile('src/lib/networkCanvasGeometry.ts', 'utf8');
 const networkIdentitySource = await readFile('src/components/NetworkWalletIdentity.tsx', 'utf8');
 const networkWarmupSource = await readFile('src/components/NetworkIdleWarmup.tsx', 'utf8');
 const networkSlotCacheSource = await readFile('src/lib/networkInviteSlotsClientCache.ts', 'utf8');
@@ -185,8 +186,22 @@ test('layout editing auto-saves completed actions and keeps camera state separat
   assert.doesNotMatch(networkSource, /const cancelLayoutEdit = useCallback/);
   assert.doesNotMatch(networkSource, /const resetLayoutEdit = useCallback/);
   assert.doesNotMatch(networkSource, /const saveLayoutEdit = useCallback/);
-  assert.match(networkSource, /MIN_SCALE = 0\.32/);
-  assert.match(networkSource, /MAX_SCALE = 2\.5/);
+  assert.match(
+    networkSource,
+    /NETWORK_CANVAS_MIN_SCALE as MIN_SCALE/,
+  );
+  assert.match(
+    networkSource,
+    /NETWORK_CANVAS_MAX_SCALE as MAX_SCALE/,
+  );
+  assert.match(
+    networkGeometrySource,
+    /NETWORK_CANVAS_MIN_SCALE = 0\.32/,
+  );
+  assert.match(
+    networkGeometrySource,
+    /NETWORK_CANVAS_MAX_SCALE = 2\.5/,
+  );
   assert.match(workspaceSource, /withFocusWorkspace/);
   assert.doesNotMatch(workspaceSource, /scale|focusWallet: string;\s*view/);
 });
@@ -507,8 +522,14 @@ test('invite slot visual states keep one 52px body and restrained progress ring'
 });
 
 test('single runtime keeps the approved radial Network visual and deliberate motion contract', () => {
-  assert.match(networkSource, /function radialChildPoint/);
-  assert.match(networkSource, /const GOLDEN_ANGLE/);
+  assert.match(
+    networkSource,
+    /networkCanvasChildPoint as radialChildPoint/,
+  );
+  assert.match(
+    networkGeometrySource,
+    /const GOLDEN_ANGLE/,
+  );
   assert.match(networkSource, /nodeCircle focusCircle/);
   assert.match(networkSource, /className="slotCircle"/);
   assert.match(networkSource, /\{u\.available\}/);
@@ -718,13 +739,23 @@ test('wallet search is magnifier-first and avoids iPhone focus zoom without disa
   assert.doesNotMatch(networkSource, /@media\(max-width:560px\)/);
   assert.doesNotMatch(networkSource, /maximum-scale|user-scalable|document\.documentElement\.style\.touchAction/);
 });
-test('invite slot fallback geometry is stable before and after stage measurement', () => {
-  const slotStart = networkSource.indexOf('function inviteSlotPoint');
-  const slotEnd = networkSource.indexOf('function fittedView', slotStart);
-  const slotSource = networkSource.slice(slotStart, slotEnd);
-  assert.match(slotSource, /FOCUS_X - 58/);
-  assert.match(slotSource, /FOCUS_X \+ 64/);
-  assert.doesNotMatch(slotSource, /compact|isMobile/);
+test('invite slot fallback geometry is shared and stable before and after stage measurement', () => {
+  assert.match(
+    networkSource,
+    /networkCanvasInviteSlotPoint as inviteSlotPoint/,
+  );
+  assert.match(
+    networkGeometrySource,
+    /NETWORK_CANVAS_CENTER_X - 58/,
+  );
+  assert.match(
+    networkGeometrySource,
+    /NETWORK_CANVAS_CENTER_X \+ 64/,
+  );
+  assert.doesNotMatch(
+    networkGeometrySource,
+    /isMobile/,
+  );
   assert.match(networkSource, /const saved = activeWorkspace\.positions\[key\]/);
   assert.match(networkSource, /x: saved\?\.x \?\? fallback\.x/);
 });
