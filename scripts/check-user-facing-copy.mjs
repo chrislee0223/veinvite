@@ -264,9 +264,13 @@ if (!/LEGAL_RETURN_STORAGE_KEY/.test(legalPage) || !/window\.history\.back\(\)/.
 }
 
 const uiTestPage = read('src/app/ui-test/page.tsx');
-const guidePreview = read('src/components/GuideUiPreview.tsx');
-if (!/GuideUiPreview/.test(uiTestPage) || !/<AppGuide locale=\{locale\}/.test(guidePreview)) {
-  failures.push('UI test page is not rendering the real production Guide component.');
+const uiTestHub = read('src/components/UiTestHub.tsx');
+if (
+  !/UiTestHub/.test(uiTestPage) ||
+  !/import \{ AppGuide \}/.test(uiTestHub) ||
+  !/<AppGuide locale=\{locale\}/.test(uiTestHub)
+) {
+  failures.push('UI test page is not rendering the real production Guide component directly through UiTestHub.');
 }
 
 if (failures.length > 0) {
