@@ -5,6 +5,7 @@ import {
   type SupportedLocale,
 } from '../../src/lib/i18n/locales';
 
+const NARROW_MOBILE_VIEWPORT = { width: 320, height: 740 };
 const MOBILE_VIEWPORT = { width: 393, height: 852 };
 const WIDE_MOBILE_VIEWPORT = { width: 480, height: 840 };
 const DESKTOP_VIEWPORT = { width: 1280, height: 900 };
@@ -30,7 +31,11 @@ const CRITICAL_STATE_IDS = [
   'REWARD-AWAITING-CLAIM',
   'NOTI-HISTORY-OPEN',
   'NOTI-SECURITY-REVIEW',
+  'NOTI-POST-PAYOUT-REVIEW',
+  'NOTI-POST-PAYOUT-CLEARED',
   'NOTI-SECURITY-RESTRICTED',
+  'NOTI-REFERRAL-INVALIDATED',
+  'NOTI-REFERRAL-RESTORED',
   'SETTINGS-LANGUAGE-OPEN',
   'LEADERBOARD-LIST',
   'NETWORK-I18N-MY',
@@ -181,6 +186,29 @@ for (const locale of HIGH_RISK_LOCALES) {
 
 
 
+
+for (const locale of ['ko', 'de', 'fr', 'ar', 'ur', 'bn', 'mr', 'te'] as const satisfies readonly SupportedLocale[]) {
+  for (const stateId of [
+    'NOTI-HISTORY-OPEN',
+    'NOTI-POST-PAYOUT-REVIEW',
+    'NOTI-POST-PAYOUT-CLEARED',
+    'NOTI-REFERRAL-INVALIDATED',
+    'NOTI-REFERRAL-RESTORED',
+  ] as const) {
+    test(`narrow-mobile notification layout: ${locale} / ${stateId}`, async ({ page }, testInfo) => {
+      await page.setViewportSize(NARROW_MOBILE_VIEWPORT);
+      await page.goto(
+        `/qa/state?state=${encodeURIComponent(stateId)}&locale=${encodeURIComponent(locale)}`,
+        { waitUntil: 'domcontentloaded', timeout: 12_000 },
+      );
+      await captureAndAssert(
+        page,
+        testInfo,
+        `${stateId}-${locale}-narrow-mobile`,
+      );
+    });
+  }
+}
 
 for (const locale of SUPPORTED_LOCALES) {
   test(`all-locale Network group layout: ${locale}`, async ({ page }, testInfo) => {
