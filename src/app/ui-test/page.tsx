@@ -4,10 +4,9 @@ import { notFound } from 'next/navigation';
 import { UiTestHub } from '@/components/UiTestHub';
 
 // PRODUCTION PARITY: UiTestHub renders the real AppGuide directly for the
-// clean app-like flow. GuideUiPreview remains the audited wrapper baseline,
-// while InviteRejectionPreview stays available in the participant-only area
-// so production invite-ineligibility feedback remains covered without
-// stacking every preview on one long page.
+// clean app-like flow, while InviteRejectionPreview stays available in the
+// participant-only area so production invite-ineligibility feedback remains
+// covered without stacking every preview on one long page.
 
 export const dynamic = 'force-dynamic';
 
