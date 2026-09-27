@@ -26,6 +26,7 @@ type WatchFollowupDueRow = {
   horizon_hours: number | string;
   due_at: string;
   scan_from_block: number | string;
+  assessment_revision: number | string;
 };
 
 type RawTransferLog = {
@@ -470,6 +471,11 @@ async function persistObservation({
           due.horizon_hours,
           'horizon_hours',
         ),
+      assessment_revision:
+        safeNonNegativeInteger(
+          due.assessment_revision,
+          'assessment_revision',
+        ),
       scan_from_block:
         safeNonNegativeInteger(
           due.scan_from_block,
@@ -579,7 +585,7 @@ export async function runSybilV2WatchFollowupBatch(
   const { data, error } = await supabaseAdmin
     .from('operator_sybil_v2_watch_followup_due')
     .select(
-      'invite_code,network,inviter_wallet,subject_wallet,watch_started_at,horizon_hours,due_at,scan_from_block',
+      'invite_code,network,inviter_wallet,subject_wallet,watch_started_at,horizon_hours,due_at,scan_from_block,assessment_revision',
     )
     .eq('network', config.network)
     .order('due_at', {
