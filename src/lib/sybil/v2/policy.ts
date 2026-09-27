@@ -67,6 +67,11 @@ function unique<T>(values: T[]): T[] {
 
 const HISTORICAL_ACTIVITY_CLUSTER_CODES = new Set([
   'HISTORICAL_SINK_REAPPEARS_AS_INVITER',
+  // A later transfer to the same kind of B3TR concentration hub is useful
+  // new evidence, but it is still the same underlying consolidation
+  // relationship. Keep it in HISTORICAL_ACTIVITY so one hub cannot count
+  // twice as two independent domains and manufacture a HOLD.
+  'WATCH_SUBJECT_TO_CLUSTER_HUB',
 ]);
 
 const FUNDING_DERIVED_CLUSTER_CODES = new Set([
