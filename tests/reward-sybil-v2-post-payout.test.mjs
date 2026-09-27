@@ -250,6 +250,19 @@ test('automatic post-payout observation excludes historical paid rewards', async
 
 
 
+
+test('pre-activation funding evidence is scoped to the invitee subject wallet', async () => {
+  const source = await readFile(
+    'src/lib/sybil/v2/pipeline.ts',
+    'utf8',
+  );
+
+  assert.match(
+    source,
+    /\.eq\('invite_code', invitation\.invite_code\)\s*\.eq\('subject_wallet', subject\)\s*\.eq\('evidence_family', 'FUNDING'\)/u,
+  );
+});
+
 test('post-payout evidence is scoped to the reward-recipient subject wallet', async () => {
   const source = await readFile(
     'src/lib/sybil/v2/postPayout.ts',

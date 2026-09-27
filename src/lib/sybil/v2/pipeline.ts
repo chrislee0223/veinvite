@@ -833,6 +833,7 @@ async function loadFundingSignals(
     .from('sybil_v2_evidence_records')
     .select('signal_code,related_wallet,evidence')
     .eq('invite_code', invitation.invite_code)
+    .eq('subject_wallet', subject)
     .eq('evidence_family', 'FUNDING')
     .in('signal_code', [
       'FIRST_VET_FUNDER',
