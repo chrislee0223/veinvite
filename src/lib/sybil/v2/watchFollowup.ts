@@ -405,10 +405,12 @@ function watchIndicatorScore(
 async function persistWatchFollowupEvidence({
   due,
   scanToBlock,
+  outflows,
   indicators,
 }: {
   due: WatchFollowupDueRow;
   scanToBlock: number;
+  outflows: WatchOutflow[];
   indicators: WatchIndicator[];
 }) {
   if (indicators.length === 0) return;
@@ -429,36 +431,61 @@ async function persistWatchFollowupEvidence({
   const { error } = await supabaseAdmin
     .from('sybil_v2_evidence_records')
     .upsert(
-      indicators.map((indicator) => ({
-        invite_code: due.invite_code,
-        network: due.network,
-        subject_wallet:
-          normalizeWallet(due.subject_wallet),
-        evidence_family: 'POST_PAYOUT',
-        signal_code: indicator.code,
-        strength: indicator.level,
-        score:
-          watchIndicatorScore(indicator),
-        related_wallet:
+      indicators.map((indicator) => {
+        const destination =
           normalizeWallet(
             indicator.destination,
-          ),
-        app_id: null,
-        observed_block: scanToBlock,
-        observed_at: observedAt,
-        analyzer_version:
-          SYBIL_V2_ANALYZER_VERSION,
-        evidence: {
-          ...indicator.details,
-          source: 'WATCH_FOLLOWUP',
-          horizonHours,
-          assessmentRevision,
-          automaticBlacklist: false,
-          automaticRestriction: false,
-        },
-        dedupe_key:
-          `sybil-v2:${due.invite_code}:watch-followup:${assessmentRevision}:${horizonHours}:${indicator.code.toLowerCase()}:${indicator.destination}`,
-      })),
+          );
+        const matchingOutflows =
+          outflows.filter(
+            (outflow) =>
+              outflow.destinationWallet ===
+              destination,
+          );
+        const latestOutflow =
+          [...matchingOutflows]
+            .sort(
+              (left, right) =>
+                right.blockNumber -
+                left.blockNumber,
+            )[0];
+
+        return {
+          invite_code: due.invite_code,
+          network: due.network,
+          subject_wallet:
+            normalizeWallet(
+              due.subject_wallet,
+            ),
+          evidence_family: 'POST_PAYOUT',
+          signal_code: indicator.code,
+          strength: indicator.level,
+          score:
+            watchIndicatorScore(indicator),
+          related_wallet: destination,
+          app_id: null,
+          observed_block:
+            latestOutflow?.blockNumber ??
+            scanToBlock,
+          observed_at:
+            latestOutflow?.blockTimestamp ??
+            observedAt,
+          analyzer_version:
+            SYBIL_V2_ANALYZER_VERSION,
+          evidence: {
+            ...indicator.details,
+            source: 'WATCH_FOLLOWUP',
+            horizonHours,
+            assessmentRevision,
+            transferCount:
+              matchingOutflows.length,
+            automaticBlacklist: false,
+            automaticRestriction: false,
+          },
+          dedupe_key:
+            `sybil-v2:${due.invite_code}:watch-followup:${assessmentRevision}:${horizonHours}:${indicator.code.toLowerCase()}:${destination}`,
+        };
+      }),
       {
         onConflict: 'dedupe_key',
         ignoreDuplicates: true,
@@ -653,6 +680,7 @@ async function runWatchFollowup({
     await persistWatchFollowupEvidence({
       due,
       scanToBlock: finalizedBlock,
+      outflows,
       indicators,
     });
 
