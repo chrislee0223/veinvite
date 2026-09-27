@@ -31,7 +31,8 @@ test('security notification presentation kinds stay backward compatible', async 
     route,
     /SECURITY_REFERRAL_RESTORED:\s*'SECURITY_INVITER_ACCESS_RESTORED'/u,
   );
-  assert.match(route, /presentationKind:\s*row\.kind/u);
+  assert.match(route, /const presentationKind = presentationHistoryKind/u);
+  assert.match(route, /presentationKind,/u);
 });
 
 test('notification cache and data refresh include invalidation and restoration', async () => {
@@ -112,4 +113,20 @@ test('reviewed Korean notification copy uses the final wording', async () => {
   assert.match(postPayout, /보상 지급 후 추가 확인 중/u);
   assert.match(postPayout, /추가 확인이 완료됐어요/u);
   assert.match(restored, /초대 기록이 복구됐어요/u);
+});
+
+test('legacy post-payout rows are reinterpreted without mutating append-only history', async () => {
+  const route = await read('src/app/api/notifications/history/route.ts');
+
+  assert.match(
+    route,
+    /SECURITY_REVIEW_STARTED[\s\S]*postpayout-r[\s\S]*SECURITY_POST_PAYOUT_REVIEW_STARTED/u,
+  );
+  assert.match(
+    route,
+    /SECURITY_INVITER_ACCESS_RESTORED[\s\S]*postpayout-clear-r[\s\S]*SECURITY_POST_PAYOUT_REVIEW_CLEARED/u,
+  );
+  assert.match(route, /from\('invite_notification_history'\)/u);
+  assert.match(route, /\.eq\('inviter_wallet', wallet\)/u);
+  assert.doesNotMatch(route, /\.update\(/u);
 });

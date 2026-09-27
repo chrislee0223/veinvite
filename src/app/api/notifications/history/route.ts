@@ -27,6 +27,11 @@ type NotificationHistoryRow = {
   read_at: string | null;
 };
 
+type NotificationHistoryDedupeRow = {
+  id: string | number;
+  dedupe_key: string;
+};
+
 const PRESENTATION_KIND_FALLBACKS: Record<string, string> = {
   SECURITY_POST_PAYOUT_REVIEW_STARTED: 'SECURITY_REVIEW_STARTED',
   SECURITY_POST_PAYOUT_REVIEW_CLEARED: 'SECURITY_INVITER_ACCESS_RESTORED',
@@ -35,6 +40,29 @@ const PRESENTATION_KIND_FALLBACKS: Record<string, string> = {
 
 function compatibleHistoryKind(kind: string): string {
   return PRESENTATION_KIND_FALLBACKS[kind] ?? kind;
+}
+
+function presentationHistoryKind(
+  kind: string,
+  dedupeKey: string | null,
+): string {
+  if (
+    kind === 'SECURITY_REVIEW_STARTED' &&
+    dedupeKey?.includes(':SECURITY_REVIEW_STARTED:postpayout-r')
+  ) {
+    return 'SECURITY_POST_PAYOUT_REVIEW_STARTED';
+  }
+
+  if (
+    kind === 'SECURITY_INVITER_ACCESS_RESTORED' &&
+    dedupeKey?.includes(
+      ':SECURITY_INVITER_ACCESS_RESTORED:postpayout-clear-r',
+    )
+  ) {
+    return 'SECURITY_POST_PAYOUT_REVIEW_CLEARED';
+  }
+
+  return kind;
 }
 
 function noStoreJson(body: unknown, init?: ResponseInit) {
@@ -143,20 +171,55 @@ export async function GET(request: NextRequest) {
     }
 
     const rows = (historyResult.data ?? []) as NotificationHistoryRow[];
-    const items = rows.map((row) => ({
-      id: String(row.id),
-      inviteCode: row.invite_code,
-      kind: compatibleHistoryKind(row.kind),
-      presentationKind: row.kind,
-      stage: Number(row.stage),
-      eventAt: row.event_at,
-      rewardAmountWei: row.reward_amount_wei,
-      dappProgress:
-        row.dapp_progress === null ? null : Number(row.dapp_progress),
-      collapsedProgress: Boolean(row.collapsed_progress),
-      friendWallet: row.friend_wallet,
-      readAt: row.read_at,
-    }));
+    const legacySecurityIds = rows
+      .filter(
+        (row) =>
+          row.kind === 'SECURITY_REVIEW_STARTED' ||
+          row.kind === 'SECURITY_INVITER_ACCESS_RESTORED',
+      )
+      .map((row) => String(row.id));
+
+    const dedupeKeyById = new Map<string, string>();
+    if (legacySecurityIds.length > 0) {
+      const dedupeResult = await supabaseAdmin
+        .from('invite_notification_history')
+        .select('id,dedupe_key')
+        .eq('inviter_wallet', wallet)
+        .in('id', legacySecurityIds);
+
+      if (dedupeResult.error) {
+        throw new Error(
+          `Notification security context could not be loaded: ${dedupeResult.error.message}`,
+        );
+      }
+
+      for (const row of (dedupeResult.data ?? []) as NotificationHistoryDedupeRow[]) {
+        dedupeKeyById.set(String(row.id), row.dedupe_key);
+      }
+    }
+
+    const items = rows.map((row) => {
+      const rawKind = row.kind;
+      const presentationKind = presentationHistoryKind(
+        rawKind,
+        dedupeKeyById.get(String(row.id)) ?? null,
+      );
+
+      return {
+        id: String(row.id),
+        inviteCode: row.invite_code,
+        kind: compatibleHistoryKind(rawKind),
+        presentationKind,
+        stage: Number(row.stage),
+        eventAt: row.event_at,
+        rewardAmountWei: row.reward_amount_wei,
+        dappProgress:
+          row.dapp_progress === null ? null : Number(row.dapp_progress),
+        collapsedProgress: Boolean(row.collapsed_progress),
+        friendWallet: row.friend_wallet,
+        readAt: row.read_at,
+      };
+    });
 
     return noStoreJson({
       items,
