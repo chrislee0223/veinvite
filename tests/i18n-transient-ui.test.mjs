@@ -15,7 +15,7 @@ const legalGate = readFileSync(
   'utf8',
 );
 const notificationSurface = readFileSync(
-  'src/components/InviteNotificationSurface.tsx',
+  'src/components/InviteNotificationSurfaceV2.tsx',
   'utf8',
 );
 const rewardReceipt = readFileSync(
