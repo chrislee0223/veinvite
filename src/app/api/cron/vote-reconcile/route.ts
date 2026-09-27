@@ -31,6 +31,9 @@ import {
   runPostPayoutSybilV2BridgeBatch,
 } from '@/lib/sybil/v2/postPayout';
 import {
+  runSybilV2WatchFollowupBatch,
+} from '@/lib/sybil/v2/watchFollowup';
+import {
   getVeBetterNetworkConfig,
   type VeBetterNetwork,
 } from '@/lib/vebetter/network';
@@ -960,6 +963,12 @@ export async function GET(
         typeof runPostPayoutSybilV2BridgeBatch
       >
     > | null = null;
+  let sybilV2WatchFollowup:
+    Awaited<
+      ReturnType<
+        typeof runSybilV2WatchFollowupBatch
+      >
+    > | null = null;
 
   try {
     eventWatcher =
@@ -1116,6 +1125,33 @@ export async function GET(
     }
 
     try {
+      sybilV2WatchFollowup =
+        await runSybilV2WatchFollowupBatch(
+          2,
+        );
+
+      if (sybilV2WatchFollowup.failed > 0) {
+        const watchFollowupError =
+          new Error(
+            'One or more Sybil v2 WATCH follow-up scans failed.',
+          );
+        recoveryFailure ??= watchFollowupError;
+        errors.push(
+          'SYBIL_V2_WATCH_FOLLOWUP_FAILED',
+        );
+      }
+    } catch (error) {
+      recoveryFailure ??= error;
+      console.error(
+        'Vote watcher Sybil v2 WATCH follow-up recovery failed:',
+        error,
+      );
+      errors.push(
+        'SYBIL_V2_WATCH_FOLLOWUP_FAILED',
+      );
+    }
+
+    try {
       if (recoveryFailure) {
         await markCronJobFailed(
           VOTE_RECOVERY_JOB,
@@ -1165,6 +1201,8 @@ export async function GET(
           RECOVERY_INTERVAL_SECONDS / 60,
         postPayoutRecoveryMinutes:
           RECOVERY_INTERVAL_SECONDS / 60,
+        watchFollowupMinutes:
+          RECOVERY_INTERVAL_SECONDS / 60,
         fallbackMinutes:
           FALLBACK_INTERVAL_SECONDS / 60,
         basis: 'LAST_SUCCESS',
@@ -1175,6 +1213,7 @@ export async function GET(
       rewardReservation,
       b3trRecipientObservation,
       sybilV2PostPayout,
+      sybilV2WatchFollowup,
       errors,
     },
     {
