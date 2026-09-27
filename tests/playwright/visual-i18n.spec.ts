@@ -158,7 +158,13 @@ for (const locale of SUPPORTED_LOCALES) {
     await page.setViewportSize(MOBILE_VIEWPORT);
     await page.goto(
       `/qa/render?scenario=invite-landing-ko-mobile&locale=${encodeURIComponent(locale)}`,
-      { waitUntil: 'domcontentloaded', timeout: 12_000 },
+      {
+        waitUntil: 'domcontentloaded',
+        // The first parallel landing requests can trigger the QA route's
+        // cold compilation on CI. Keep layout assertions strict, but give
+        // initial navigation enough time to finish compiling.
+        timeout: 30_000,
+      },
     );
     await captureAndAssert(page, testInfo, `landing-${locale}-mobile`);
 

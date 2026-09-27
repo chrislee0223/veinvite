@@ -102,6 +102,47 @@ test('operator watchlist surfaces Sybil v2 historical WATCH referrals without re
   assert.match(sql, /Reward-recipient post-payout behavior belongs to the inviter/u);
 });
 
+
+
+test('historical WATCH count is included in operator monitor snapshots without subject mixing', async () => {
+  const sql = await readFile(
+    'supabase/migrations/20260927144000_add_historical_watch_monitor_metric.sql',
+    'utf8',
+  );
+
+  assert.match(sql, /sybilV2HistoricalWatch/u);
+  assert.match(sql, /operator_sybil_v2_historical_watch_followups/u);
+  assert.match(sql, /MANUAL_SAME_SUBJECT_REVIEW/u);
+  assert.match(sql, /rewardRecipientEvidenceCombined', false/u);
+  assert.match(sql, /ae_operator_monitor_sybil_v2_historical_watch_enrichment/u);
+});
+
+test('operator watchlist includes active historical BLACKLIST invalidations', async () => {
+  const sql = await readFile(
+    'supabase/migrations/20260927150000_surface_historical_blacklists_in_sybil_watchlist.sql',
+    'utf8',
+  );
+
+  assert.match(sql, /sybil_v2_referral_invalidations/u);
+  assert.match(sql, /x\.status = 'ACTIVE'/u);
+  assert.match(sql, /SYBIL_V2_HISTORICAL_BLACKLIST/u);
+  assert.match(sql, /then 'BLOCKED'/u);
+  assert.match(sql, /then 100/u);
+});
+
+
+test('historical WATCH followups exclude active historical BLACKLIST invalidations', async () => {
+  const sql = await readFile(
+    'supabase/migrations/20260927151000_exclude_blacklisted_from_historical_watch_followups.sql',
+    'utf8',
+  );
+
+  assert.match(sql, /operator_sybil_v2_historical_watch_followups/u);
+  assert.match(sql, /not public\.is_sybil_v2_referral_invalidated/u);
+  assert.match(sql, /a\.invite_code/u);
+  assert.match(sql, /a\.network/u);
+});
+
 test('wallet session gate checks participation restrictions before rendering the app', async () => {
   const gate = await readFile(
     'src/components/WalletSessionGate.tsx',
