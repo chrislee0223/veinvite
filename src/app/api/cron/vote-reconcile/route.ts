@@ -26,6 +26,7 @@ import {
 } from '@/lib/sybil/recipientB3trObservationBatch';
 import {
   runSybilV2AssessmentBatch,
+  runSybilV2PolicyReassessmentBatch,
 } from '@/lib/sybil/v2/pipeline';
 import {
   runPostPayoutSybilV2BridgeBatch,
@@ -942,6 +943,12 @@ export async function GET(
         typeof replayRecentVoteEventsFallback
       >
     > | null = null;
+  let sybilV2PolicyReassessment:
+    Awaited<
+      ReturnType<
+        typeof runSybilV2PolicyReassessmentBatch
+      >
+    > | null = null;
   let sybilV2Assessment:
     Awaited<
       ReturnType<
@@ -1064,6 +1071,22 @@ export async function GET(
   if (recoveryClaimed) {
     let recoveryFailure:
       unknown | null = null;
+
+    try {
+      sybilV2PolicyReassessment =
+        await runSybilV2PolicyReassessmentBatch(
+          10,
+        );
+    } catch (error) {
+      recoveryFailure = error;
+      console.error(
+        'Vote watcher Sybil v2 policy reassessment failed:',
+        error,
+      );
+      errors.push(
+        'SYBIL_V2_POLICY_REASSESSMENT_FAILED',
+      );
+    }
 
     try {
       sybilV2Assessment =
@@ -1254,6 +1277,7 @@ export async function GET(
       },
       eventWatcher,
       fallback,
+      sybilV2PolicyReassessment,
       sybilV2Assessment,
       rewardReservation,
       b3trRecipientObservation,
