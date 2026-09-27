@@ -18,6 +18,8 @@ import { NOTIFICATION_V2_COPY } from '@/lib/i18n/notificationV2Copy';
 import { PROGRESS_CLAIM_COPY } from '@/lib/i18n/progressClaimCopy';
 import { REWARD_RECEIPT_COPY } from '@/lib/i18n/rewardReceiptCopy';
 import { REFERRAL_INVALIDATED_COPY } from '@/lib/i18n/referralInvalidatedCopy';
+import { REFERRAL_RESTORED_COPY } from '@/lib/i18n/referralRestoredCopy';
+import { POST_PAYOUT_SECURITY_NOTIFICATION_COPY } from '@/lib/i18n/postPayoutSecurityNotificationCopy';
 import { SECURITY_NOTIFICATION_COPY } from '@/lib/i18n/securityNotificationCopy';
 import {
   isRtlLocale,
@@ -195,8 +197,11 @@ function itemCopy(
   const security = SECURITY_NOTIFICATION_COPY[locale];
   const inviterSecurity = INVITER_SECURITY_NOTIFICATION_COPY[locale];
   const invalidated = REFERRAL_INVALIDATED_COPY[locale];
+  const restored = REFERRAL_RESTORED_COPY[locale];
+  const postPayout = POST_PAYOUT_SECURITY_NOTIFICATION_COPY[locale];
+  const effectiveKind = item.presentationKind ?? item.kind;
 
-  switch (item.kind) {
+  switch (effectiveKind) {
     case 'INVITE_ACCEPTED':
       return { title: copy.acceptedTitle, body: copy.acceptedBody, hint: null };
     case 'DAPP_PROGRESS':
@@ -237,6 +242,18 @@ function itemCopy(
         body: security.reviewBody,
         hint: null,
       };
+    case 'SECURITY_POST_PAYOUT_REVIEW_STARTED':
+      return {
+        title: postPayout.reviewTitle,
+        body: postPayout.reviewBody,
+        hint: null,
+      };
+    case 'SECURITY_POST_PAYOUT_REVIEW_CLEARED':
+      return {
+        title: postPayout.clearedTitle,
+        body: postPayout.clearedBody,
+        hint: null,
+      };
     case 'SECURITY_RESTRICTION_CONFIRMED':
       return {
         title: security.restrictionTitle,
@@ -271,6 +288,12 @@ function itemCopy(
       return {
         title: invalidated.title,
         body: invalidated.body,
+        hint: null,
+      };
+    case 'SECURITY_REFERRAL_RESTORED':
+      return {
+        title: restored.title,
+        body: restored.body,
         hint: null,
       };
   }
@@ -864,7 +887,6 @@ export function InviteNotificationHistoryCenter({
   const renderRewardActions = () => {
     if (
       rewardActions.length === 0 &&
-      actionResolved &&
       !actionError
     ) {
       return null;
@@ -926,13 +948,6 @@ export function InviteNotificationHistoryCenter({
             </article>
           );
         })}
-
-        {actionLoading && rewardActions.length === 0 ? (
-          <div className="notificationActionLoading" aria-busy="true">
-            <span className="notificationMiniSpinner" aria-hidden="true" />
-            <span>{structure.loadingBody}</span>
-          </div>
-        ) : null}
 
         {actionError ? (
           <div className="notificationActionError" role="alert">
