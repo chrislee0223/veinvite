@@ -293,6 +293,35 @@ test('explicit operator WATCH overrides any older clearance verdict for observat
   assert.match(sql, /postPayoutObservationEnabled/u);
 });
 
+
+test('five-minute vote recovery drains bounded post-payout WATCH work', async () => {
+  const source = await readFile(
+    'src/app/api/cron/vote-reconcile/route.ts',
+    'utf8',
+  );
+
+  assert.match(
+    source,
+    /runB3trRecipientObservationBatch\(\s*3,?\s*\)/u,
+  );
+  assert.match(
+    source,
+    /runPostPayoutSybilV2BridgeBatch\(\s*10,?\s*\)/u,
+  );
+  assert.match(
+    source,
+    /postPayoutRecoveryMinutes:\s*RECOVERY_INTERVAL_SECONDS \/ 60/u,
+  );
+  assert.match(
+    source,
+    /B3TR_RECIPIENT_OBSERVATION_RECOVERY_FAILED/u,
+  );
+  assert.match(
+    source,
+    /SYBIL_V2_POST_PAYOUT_RECOVERY_FAILED/u,
+  );
+});
+
 test('Production explicitly opts into the B3TR observation worker', async () => {
   const vercel = JSON.parse(
     await readFile('vercel.json', 'utf8'),
