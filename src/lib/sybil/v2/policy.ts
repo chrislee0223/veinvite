@@ -1,4 +1,4 @@
-export const SYBIL_V2_POLICY_VERSION = 'sybil-v2.1';
+export const SYBIL_V2_POLICY_VERSION = 'sybil-v2.2';
 
 export type SybilV2EvidenceFamily =
   | 'FUNDING'
@@ -74,6 +74,20 @@ const FUNDING_DERIVED_CLUSTER_CODES = new Set([
   'SHARED_RECENT_FUNDER_IS_MULTI_INVITER',
 ]);
 
+const STANDALONE_HOLD_CODES = new Set([
+  'SECURITY_CLIENT_INVITER_LINK',
+]);
+
+function hasExtremeSingleDomainPattern(
+  signals: SybilV2Signal[],
+): boolean {
+  return signals.some((signal) =>
+    STANDALONE_HOLD_CODES.has(signal.code) &&
+    STRENGTH_RANK[signal.strength] >= STRENGTH_RANK.MEDIUM &&
+    signal.score > 0,
+  );
+}
+
 function evidenceDomain(
   signal: SybilV2Signal,
 ): SybilV2EvidenceDomain {
@@ -101,12 +115,19 @@ function evidenceDomain(
  * product where a friend can legitimately sponsor VTHO, share a device once,
  * or recommend the same dApps.
  *
- * HOLD requires corroboration from at least two independent evidence domains.
- * Closely related signals derived from the same historical flow or recent
- * funding relationship are collapsed into one domain before escalation.
- * A single domain can become WATCH, but never BLACKLIST/RESTRICTED on its own.
- * RESTRICTED is reserved for an already-active operator/system wallet
- * restriction that was decided outside this scoring function.
+ * HOLD normally requires corroboration from at least two independent evidence
+ * domains. Closely related signals derived from the same historical flow or
+ * recent funding relationship are collapsed into one domain before escalation.
+ *
+ * Direct invitee↔inviter same-security-client evidence may HOLD from one
+ * domain because it is an identity-level conflict. Funding or correlated
+ * historical activity alone remains WATCH and still requires a second
+ * independent domain for HOLD. These are review pauses, not automatic
+ * BLACKLIST decisions. VeInvite intentionally
+ * avoids fabricated numeric probabilities until enough labeled normal-vs-Sybil
+ * data exists to calibrate them. RESTRICTED remains reserved
+ * for an already-active operator/system wallet restriction decided outside
+ * this scoring function.
  */
 export function evaluateSybilV2Policy({
   signals,
@@ -218,7 +239,19 @@ export function evaluateSybilV2Policy({
     };
   }
 
-  // Two independent medium/high evidence domains are required to HOLD.
+  if (hasExtremeSingleDomainPattern(normalized)) {
+    return {
+      state: 'HOLD',
+      riskScore: Math.max(70, riskScore),
+      reasonCodes,
+      evidenceFamilies,
+      strongEvidenceFamilies,
+      evidenceDomains,
+      strongEvidenceDomains,
+    };
+  }
+
+  // Two independent medium/high evidence domains are normally required to HOLD.
   // This prevents correlated historical flows or one recent-funder relationship
   // from being counted twice under different signal families.
   if (strongEvidenceDomains.length >= 2) {
