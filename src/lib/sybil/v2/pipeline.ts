@@ -1715,9 +1715,10 @@ export async function assessSybilV2Referral(
   signals.push(...security.signals);
   if (security.complete) completedChecks.push('SECURITY_IDENTITY');
 
-  // WATCH follow-up evidence is its own independent POST_PAYOUT domain.
-  // Multiple destinations in this family collapse to one domain in policy.ts,
-  // so one flow cannot be counted twice to manufacture a HOLD.
+  // WATCH follow-up evidence is reintroduced into the normal policy.
+  // Direct post-payout links use the POST_PAYOUT domain, while a concentration
+  // hub link is deliberately collapsed back into HISTORICAL_ACTIVITY so the
+  // same consolidation relationship cannot be counted twice.
   signals.push(
     ...await loadWatchFollowupSignals(
       invitation,
