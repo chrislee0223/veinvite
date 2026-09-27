@@ -6,6 +6,8 @@ const read = (path) => readFile(path, 'utf8');
 
 const migrationPath =
   'supabase/migrations/20260927160604_align_sybil_v2_likelihood_review_and_policy_reassessment.sql';
+const v24MigrationPath =
+  'supabase/migrations/20260928163000_reassess_stale_system_holds_under_v24.sql';
 
 test('same-client evidence stays review-only until Sybil v2 assessment', async () => {
   const sql = await read(migrationPath);
@@ -78,4 +80,17 @@ test('vote recovery reassesses stale policy before current assessment and reward
   assert.ok(policy >= 0);
   assert.ok(assessment > policy);
   assert.ok(reservation > assessment);
+});
+
+
+test('Sybil v2.4 reassesses stale SYSTEM HOLDs but not operator decisions or reserved rewards', async () => {
+  const sql = await read(v24MigrationPath);
+  const policy = await read('src/lib/sybil/v2/policy.ts');
+
+  assert.match(policy, /SYBIL_V2_POLICY_VERSION = 'sybil-v2\.4'/u);
+  assert.match(sql, /a\.source = 'SYSTEM'/u);
+  assert.match(sql, /a\.state in \('CLEAR','WATCH','HOLD'\)/u);
+  assert.match(sql, /q\.invite_code is null/u);
+  assert.match(sql, /i\.reward_status = 'ELIGIBLE'/u);
+  assert.match(sql, /OPERATOR decisions and reserved rewards remain excluded/u);
 });
