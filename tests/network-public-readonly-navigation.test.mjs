@@ -17,6 +17,7 @@ const [
   nativeReview,
   naturalnessPolish,
   networkIdentity,
+  networkGeometry,
 ] = await Promise.all([
   readFile('src/components/InviterLeaderboard.tsx', 'utf8'),
   readFile('src/components/HomeClient.tsx', 'utf8'),
@@ -32,6 +33,7 @@ const [
   readFile('src/lib/i18n/networkNativeReview.ts', 'utf8'),
   readFile('src/lib/i18n/networkNaturalnessPolish.ts', 'utf8'),
   readFile('src/components/NetworkWalletIdentity.tsx', 'utf8'),
+  readFile('src/lib/networkCanvasGeometry.ts', 'utf8'),
 ]);
 
 test('leaderboard can hand a wallet into the Network tab without prop-drilling the leaderboard tree', () => {
@@ -104,8 +106,18 @@ test('other-user Network first paint keeps the viewed root centered after real m
   assert.match(publicExplorer, /const \[stageStable, setStageStable\] = useState\(false\)/);
   assert.match(publicExplorer, /getBoundingClientRect\(\)/);
   assert.match(publicExplorer, /requestAnimationFrame\(\(\) => \{[\s\S]*requestAnimationFrame\(\(\) => setStageStable\(true\)\)/);
-  assert.match(publicExplorer, /function publicRootCenteredFittedView/);
-  assert.match(publicExplorer, /return publicCenteredView\(stage, scale\);/);
+  assert.match(
+    publicExplorer,
+    /networkCanvasRootCenteredFittedView as publicRootCenteredFittedView/,
+  );
+  assert.match(
+    networkGeometry,
+    /export function networkCanvasRootCenteredFittedView/,
+  );
+  assert.match(
+    networkGeometry,
+    /return networkCanvasCenteredView\([\s\S]*stage,[\s\S]*scale/,
+  );
   assert.match(publicExplorer, /const introCancelledRef = useRef\(false\)/);
   assert.match(
     publicExplorer,
@@ -252,8 +264,18 @@ test('public slot metadata follows the currently centered wallet and never turns
 });
 
 test('public available slots keep exact owner-side positions and stay read-only', () => {
-  assert.match(publicExplorer, /function publicInviteSlotPoint\(slot: 1 \| 2\)/);
-  assert.match(publicExplorer, /slot === 1[\s\S]*CENTER_X - 58[\s\S]*CENTER_X \+ 64/);
+  assert.match(
+    publicExplorer,
+    /networkCanvasInviteSlotPointById as publicInviteSlotPoint/,
+  );
+  assert.match(
+    networkGeometry,
+    /NETWORK_CANVAS_CENTER_X - 58/,
+  );
+  assert.match(
+    networkGeometry,
+    /NETWORK_CANVAS_CENTER_X \+ 64/,
+  );
   assert.match(publicExplorer, /publicEdgePath\(CENTER_X, ROOT_Y, slot\.x, slot\.y\)/);
   assert.match(publicExplorer, /public-slot-edge:\$\{slot\.slot\}/);
   assert.match(publicExplorer, /className="publicSlotNode"/);
