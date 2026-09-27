@@ -248,6 +248,22 @@ test('automatic post-payout observation excludes historical paid rewards', async
   );
 });
 
+
+test('explicit operator WATCH re-enables staged observation for reviewed historical payouts only', async () => {
+  const sql = await readFile(
+    'supabase/migrations/20260927121000_include_operator_watch_in_post_payout_observation.sql',
+    'utf8',
+  );
+
+  assert.match(sql, /a\.source = 'OPERATOR'/u);
+  assert.match(sql, /a\.state = 'WATCH'/u);
+  assert.match(sql, /a\.policy_version = 'sybil-v2\.1'/u);
+  assert.match(sql, /operator_historical_watch/u);
+  assert.match(sql, /interval '24 hours'/u);
+  assert.match(sql, /interval '7 days'/u);
+  assert.match(sql, /interval '30 days'/u);
+});
+
 test('Production explicitly opts into the B3TR observation worker', async () => {
   const vercel = JSON.parse(
     await readFile('vercel.json', 'utf8'),
