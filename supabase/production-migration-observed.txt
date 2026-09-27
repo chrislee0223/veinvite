@@ -97,3 +97,4 @@
 20260927121810 prioritize_operator_watch_observation
 20260927133103 restore_post_payout_subject_boundary
 20260927133746 notify_post_payout_clearance
+20260927142807 surface_sybil_v2_operator_watchlist
