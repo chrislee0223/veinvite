@@ -91,16 +91,6 @@ function hasExtremeSingleDomainPattern(
     return true;
   }
 
-  if (
-    signals.some((signal) =>
-      signal.code === 'RECENT_FUNDER_IS_HISTORICAL_COMMON_SINK' &&
-      signal.strength === 'HIGH' &&
-      signal.score >= 50,
-    )
-  ) {
-    return true;
-  }
-
   // Correlated historical reward/consolidation signals remain one
   // HISTORICAL_ACTIVITY domain. Even when the common sink later appears as an
   // inviter, that historical flow alone is not enough to HOLD because a
@@ -140,10 +130,11 @@ function evidenceDomain(
  * domains. Closely related signals derived from the same historical flow or
  * recent funding relationship are collapsed into one domain before escalation.
  *
- * A narrow set of very-low-normal-plausibility direct identity/funding patterns
- * may HOLD from one domain. Correlated historical reward/consolidation flows do
- * not qualify on their own and still require a second independent domain. These
- * are review pauses, not automatic BLACKLIST decisions. VeInvite intentionally
+ * Direct invitee↔inviter same-security-client evidence may HOLD from one
+ * domain because it is an identity-level conflict. Funding or correlated
+ * historical activity alone remains WATCH and still requires a second
+ * independent domain for HOLD. These are review pauses, not automatic
+ * BLACKLIST decisions. VeInvite intentionally
  * avoids fabricated numeric probabilities until enough labeled normal-vs-Sybil
  * data exists to calibrate them. RESTRICTED remains reserved
  * for an already-active operator/system wallet restriction decided outside
