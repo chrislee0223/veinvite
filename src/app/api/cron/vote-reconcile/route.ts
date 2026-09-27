@@ -56,6 +56,8 @@ const VOTE_RECONCILE_JOB =
   'vote-reconcile';
 const VOTE_RECOVERY_JOB =
   'vote-reconcile:sybil-reward-recovery';
+const VOTE_WATCH_FOLLOWUP_JOB =
+  'vote-reconcile:sybil-watch-followup';
 const VOTE_FALLBACK_JOB =
   'vote-reconcile:full-fallback';
 
@@ -912,6 +914,7 @@ export async function GET(
   }
 
   const errors: string[] = [];
+  const warnings: string[] = [];
 
   try {
     await markCronJobStarted(
@@ -1125,6 +1128,17 @@ export async function GET(
     }
 
     try {
+      try {
+        await markCronJobStarted(
+          VOTE_WATCH_FOLLOWUP_JOB,
+        );
+      } catch (heartbeatError) {
+        console.error(
+          'WATCH follow-up heartbeat start failed:',
+          heartbeatError,
+        );
+      }
+
       sybilV2WatchFollowup =
         await runSybilV2WatchFollowupBatch(
           2,
@@ -1135,20 +1149,51 @@ export async function GET(
           new Error(
             'One or more Sybil v2 WATCH follow-up scans failed.',
           );
-        recoveryFailure ??= watchFollowupError;
-        errors.push(
+        warnings.push(
           'SYBIL_V2_WATCH_FOLLOWUP_FAILED',
         );
+        try {
+          await markCronJobFailed(
+            VOTE_WATCH_FOLLOWUP_JOB,
+            watchFollowupError,
+          );
+        } catch (heartbeatError) {
+          console.error(
+            'WATCH follow-up failure heartbeat failed:',
+            heartbeatError,
+          );
+        }
+      } else {
+        try {
+          await markCronJobSucceeded(
+            VOTE_WATCH_FOLLOWUP_JOB,
+          );
+        } catch (heartbeatError) {
+          console.error(
+            'WATCH follow-up success heartbeat failed:',
+            heartbeatError,
+          );
+        }
       }
     } catch (error) {
-      recoveryFailure ??= error;
       console.error(
         'Vote watcher Sybil v2 WATCH follow-up recovery failed:',
         error,
       );
-      errors.push(
+      warnings.push(
         'SYBIL_V2_WATCH_FOLLOWUP_FAILED',
       );
+      try {
+        await markCronJobFailed(
+          VOTE_WATCH_FOLLOWUP_JOB,
+          error,
+        );
+      } catch (heartbeatError) {
+        console.error(
+          'WATCH follow-up failure heartbeat failed:',
+          heartbeatError,
+        );
+      }
     }
 
     try {
@@ -1215,6 +1260,7 @@ export async function GET(
       sybilV2PostPayout,
       sybilV2WatchFollowup,
       errors,
+      warnings,
     },
     {
       status:
