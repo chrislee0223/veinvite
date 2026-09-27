@@ -2,6 +2,10 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import test from 'node:test';
 
+import {
+  buildLeaderboardPreviewScenario,
+} from './fixtures/leaderboardPreviewScenarios.mjs';
+
 const localeSource = await readFile(
   new URL('../src/lib/i18n/locales.ts', import.meta.url),
   'utf8',
@@ -12,10 +16,6 @@ const movementCopy = await readFile(
 );
 const leaderboard = await readFile(
   new URL('../src/components/InviterLeaderboard.tsx', import.meta.url),
-  'utf8',
-);
-const preview = await readFile(
-  new URL('../src/components/LeaderboardUiPreview.tsx', import.meta.url),
   'utf8',
 );
 const layout = await readFile(
@@ -125,11 +125,36 @@ test('screen readers receive localized movement context in row labels', () => {
 });
 
 test('large movement and top-100 boundary scenarios are represented in preview fixtures', () => {
-  assert.match(preview, /previousRank: 163,[\s\S]*rankChange: 126/);
-  assert.match(preview, /rank: 137,[\s\S]*previousRank: 27,[\s\S]*rankChange: -110/);
-  assert.match(preview, /rankMovement: 'NEW'/);
-  assert.match(preview, /rankMovement: 'SAME'/);
-  assert.match(preview, /rankMovement: 'UNAVAILABLE'/);
+  const inside =
+    buildLeaderboardPreviewScenario('inside');
+  const outside =
+    buildLeaderboardPreviewScenario('outside');
+
+  const currentInside =
+    inside.currentUser;
+  assert.equal(currentInside?.previousRank, 163);
+  assert.equal(currentInside?.rankChange, 126);
+
+  assert.equal(outside.currentUser?.rank, 137);
+  assert.equal(
+    outside.currentUser?.previousRank,
+    27,
+  );
+  assert.equal(
+    outside.currentUser?.rankChange,
+    -110,
+  );
+
+  const movementKinds = new Set(
+    inside.leaders.map(
+      (entry) => entry.rankMovement,
+    ),
+  );
+  assert.ok(movementKinds.has('NEW'));
+  assert.ok(movementKinds.has('SAME'));
+  assert.ok(
+    movementKinds.has('UNAVAILABLE'),
+  );
 });
 
 test('final inviter grid keeps header, top-100 rows, placeholders, and current-user row on one coordinate system', () => {
