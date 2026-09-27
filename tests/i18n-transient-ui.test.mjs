@@ -19,7 +19,7 @@ const notificationSurface = readFileSync(
   'utf8',
 );
 const rewardReceipt = readFileSync(
-  'src/components/RewardReceiptNotice.tsx',
+  'src/components/UnifiedInviteNotificationHistoryCenter.tsx',
   'utf8',
 );
 const walletCopy = readFileSync(
@@ -47,7 +47,7 @@ test('notification, reward receipt and settings-style dialogs do not use break-a
     ['wallet gate', walletGate],
     ['legal gate', legalGate],
     ['notification surface', notificationSurface],
-    ['reward receipt', rewardReceipt],
+    ['notification reward receipt', rewardReceipt],
   ]) {
     assert.doesNotMatch(
       source,

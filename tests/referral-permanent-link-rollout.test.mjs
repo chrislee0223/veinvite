@@ -17,7 +17,7 @@ const [
   referralCopyFinalHardening,
   appProviders,
   guideFlow,
-  receiptNotice,
+  notificationCenter,
   analyticsTracker,
 ] = await Promise.all([
   readFile(new URL('../supabase/migrations/20260903190000_enable_permanent_referral_links_two_slots.sql', import.meta.url), 'utf8'),
@@ -34,7 +34,7 @@ const [
   readFile(new URL('../src/lib/i18n/referralLinkCopyFinalHardening.ts', import.meta.url), 'utf8'),
   readFile(new URL('../src/lib/i18n/runtimePatches.ts', import.meta.url), 'utf8'),
   readFile(new URL('../src/lib/i18n/guideFlowCopy.ts', import.meta.url), 'utf8'),
-  readFile(new URL('../src/components/RewardReceiptNotice.tsx', import.meta.url), 'utf8'),
+  readFile(new URL('../src/components/UnifiedInviteNotificationHistoryCenter.tsx', import.meta.url), 'utf8'),
   readFile(new URL('../src/components/UsageAnalyticsTracker.tsx', import.meta.url), 'utf8'),
 ]);
 
@@ -210,8 +210,13 @@ test('core guide no longer teaches the one-active-invite rule', () => {
   assert.match(guideFlow, /친구 슬롯 2개/i);
 });
 
-test('two payouts in one session can show consecutive unseen reward receipts', () => {
-  assert.match(receiptNotice, /await loadReceipt\(\);[\s\S]*finally/i);
+test('multiple paid referrals remain independently reopenable from notification history', () => {
+  assert.match(notificationCenter, /const paid = item\.kind === 'REWARD_PAID'/i);
+  assert.match(notificationCenter, /openRewardReceipt\(item\)/i);
+  assert.match(
+    notificationCenter,
+    /rewards\/receipts\?inviteCode=\$\{encodeURIComponent\(item\.inviteCode\)\}/i,
+  );
 });
 
 test('analytics classifies permanent links without sending raw referral paths', () => {

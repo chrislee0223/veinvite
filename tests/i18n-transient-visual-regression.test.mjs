@@ -6,7 +6,7 @@ const read = (path) => readFileSync(path, 'utf8');
 const locales = read('src/lib/i18n/locales.ts');
 const preview = read('src/components/NotificationUiPreview.tsx');
 const surface = read('src/components/InviteNotificationSurfaceV2.tsx');
-const receipt = read('src/components/RewardReceiptNotice.tsx');
+const receipt = read('src/components/UnifiedInviteNotificationHistoryCenter.tsx');
 const typography = read('src/app/localized-typography.css');
 
 test('VeInvite keeps the reviewed locale matrix in one registry', () => {
@@ -27,10 +27,10 @@ test('transient surfaces stay fluid on narrow mobile screens', () => {
   assert.match(surface, /width:min\(100%,520px\)/);
   assert.match(surface, /@media \(max-width:560px\)/);
   assert.match(surface, /padding:0;/);
-  assert.match(receipt, /width: min\(calc\(100vw - 28px\), 500px\)/);
-  assert.match(receipt, /max-height: calc\(100dvh/);
-  assert.match(receipt, /overflow: auto/);
-  assert.match(receipt, /@media \(max-width: 420px\)/);
+  assert.match(receipt, /\.notificationHistoryPanel\{[^}]*overflow:hidden/s);
+  assert.match(receipt, /@media\(max-width:560px\)/);
+  assert.match(receipt, /height:calc\(74dvh - env\(safe-area-inset-bottom\)\)/);
+  assert.match(receipt, /\.notificationReceiptView\{padding:16px 14px\}/);
 });
 
 test('localized typography protects translated words and RTL transient UI', () => {

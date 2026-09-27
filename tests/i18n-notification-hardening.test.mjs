@@ -8,7 +8,7 @@ const ineligibleCopy = read('src/lib/i18n/ineligibleInviterCopy.ts');
 const hardening = read('src/app/notification-i18n-hardening.css');
 const layout = read('src/app/layout.tsx');
 const preview = read('src/components/NotificationUiPreview.tsx');
-const receipt = read('src/components/RewardReceiptNotice.tsx');
+const receiptCenter = read('src/components/UnifiedInviteNotificationHistoryCenter.tsx');
 const notifications = read('src/components/InAppInviteNotifications.tsx');
 const receiptSeenRoute = read('src/app/api/rewards/receipts/[id]/seen/route.ts');
 
@@ -74,8 +74,8 @@ test('notification QA lab tracks the same v2 lifecycle as Production', () => {
 test('reading the rich reward receipt also clears the duplicate paid bell notification', () => {
   assert.match(receiptSeenRoute, /acknowledge_invite_notification/);
   assert.match(receiptSeenRoute, /INVITE_NOTIFICATION_STAGE\.rewardPaid/);
-  assert.match(receipt, /veinvite-reward-receipt-acknowledged/);
-  assert.match(receipt, /window\.dispatchEvent/);
+  assert.match(receiptCenter, /veinvite-reward-receipt-acknowledged/);
+  assert.match(receiptCenter, /window\.dispatchEvent/);
   assert.match(notifications, /veinvite-reward-receipt-acknowledged/);
   assert.match(notifications, /void loadLatestHistory\(\{ requestWallet: wallet \}\)/);
   assert.match(notifications, /void refreshLifecycle\(false\)/);
