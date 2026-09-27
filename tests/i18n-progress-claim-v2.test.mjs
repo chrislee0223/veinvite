@@ -19,7 +19,7 @@ const guideHardening = await readFile(
   'utf8',
 );
 const providers = await readFile(
-  new URL('../src/components/AppProviders.tsx', import.meta.url),
+  new URL('../src/lib/i18n/runtimePatches.ts', import.meta.url),
   'utf8',
 );
 const notificationState = await readFile(
