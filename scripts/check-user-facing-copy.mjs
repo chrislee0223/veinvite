@@ -204,11 +204,13 @@ if (!/Du kannst VeBetterDAO weiterhin ganz normal nutzen/.test(entryRejection)) 
 }
 
 const appProviders = read('src/components/AppProviders.tsx');
+const i18nRuntimePatches = read('src/lib/i18n/runtimePatches.ts');
 if (
-  !/import '@\/lib\/i18n\/copyHardening';/.test(appProviders) ||
-  !/import '@\/lib\/i18n\/secondaryPageCopyHardening';/.test(appProviders)
+  !/import '@\/lib\/i18n\/runtimePatches';/.test(appProviders) ||
+  !/import '@\/lib\/i18n\/copyHardening';/.test(i18nRuntimePatches) ||
+  !/import '@\/lib\/i18n\/secondaryPageCopyHardening';/.test(i18nRuntimePatches)
 ) {
-  failures.push('Global multilingual copy hardening must stay mounted in AppProviders.');
+  failures.push('Global multilingual copy hardening must stay mounted through the AppProviders i18n runtime entrypoint.');
 }
 
 const rewardReceipt = read('src/lib/i18n/rewardReceiptCopy.ts');
