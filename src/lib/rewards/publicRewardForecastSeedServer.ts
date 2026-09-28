@@ -20,10 +20,27 @@ const readCachedPublicRewardForecastSeed = unstable_cache(
     network: string,
     appId: string,
   ): Promise<PublicRewardForecastSeed | null> => {
-    const snapshot = await readLatestRewardForecastSnapshot({
-      network,
-      appId,
-    });
+    let snapshot;
+
+    try {
+      snapshot = await readLatestRewardForecastSnapshot({
+        network,
+        appId,
+      });
+    } catch (error) {
+      // The Home startup race returns after 1.2s, but an unstable_cache
+      // revalidation can continue in the background. Resolve a transient
+      // Supabase transport failure as a cached null instead of letting the
+      // background revalidation throw and repeatedly surface as a Production
+      // runtime error. The browser forecast endpoint/persisted value remains
+      // the user-facing fallback.
+      console.warn(
+        'Public reward forecast seed cache refresh failed; using browser/API fallback:',
+        error,
+      );
+      return null;
+    }
+
     if (!snapshot) return null;
     if (snapshot.modelVersion !== REWARD_FORECAST_MODEL_VERSION) {
       return null;
