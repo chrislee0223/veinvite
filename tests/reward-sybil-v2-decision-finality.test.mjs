@@ -46,3 +46,16 @@ test('Sybil verdict does not wait for chain finality while reward clearance stil
     /v_assessment\.evidence_cutoff_block < v_invitation\.vote_completed_block/u,
   );
 });
+
+test('vote-triggered assessment batches can honor the requested 25-referral burst', async () => {
+  const pipeline = await readFile(
+    'src/lib/sybil/v2/pipeline.ts',
+    'utf8',
+  );
+
+  assert.match(pipeline, /MAX_ASSESSMENT_BATCH_SIZE = 25/u);
+  const start = pipeline.indexOf('export async function runSybilV2AssessmentBatch');
+  assert.ok(start >= 0);
+  const body = pipeline.slice(start);
+  assert.match(body, /Math\.min\(MAX_ASSESSMENT_BATCH_SIZE, Math\.trunc\(limit\)\)/u);
+});

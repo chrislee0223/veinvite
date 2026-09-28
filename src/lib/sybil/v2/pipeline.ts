@@ -46,6 +46,7 @@ const REQUIRED_CHECKS = [
 const SYNC_REWARD_BLOCK_WINDOW = 30;
 const MISSION_PEER_WINDOW_SECONDS = 7 * 24 * 60 * 60;
 const MAX_BATCH_SIZE = 10;
+const MAX_ASSESSMENT_BATCH_SIZE = 25;
 
 type InvitationV2Row = {
   invite_code: string;
@@ -1969,7 +1970,10 @@ export async function runSybilV2AssessmentBatch(
   hold: number;
   failedOrPending: number;
 }> {
-  const bounded = Math.max(1, Math.min(MAX_BATCH_SIZE, Math.trunc(limit)));
+  const bounded = Math.max(
+    1,
+    Math.min(MAX_ASSESSMENT_BATCH_SIZE, Math.trunc(limit)),
+  );
 
   const { data, error } = await supabaseAdmin
     .from('operator_sybil_v2_assessment_candidates')
