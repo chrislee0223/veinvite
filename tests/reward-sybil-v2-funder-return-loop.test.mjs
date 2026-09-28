@@ -95,4 +95,12 @@ test('activation queue assesses the exact invite and cron recovers wider unpaid 
     cron,
     /runSybilV2AssessmentBatch\(25\)/u,
   );
+  assert.match(
+    pipeline,
+    /staleRestrictionPeer/u,
+  );
+  assert.match(
+    pipeline,
+    /sybil_v2_wallet_restrictions/u,
+  );
 });

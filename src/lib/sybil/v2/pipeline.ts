@@ -2763,26 +2763,35 @@ export async function runSybilV2AssessmentBatch(
   // policy version or newly confirmed cluster hub also invalidates the prior
   // SYSTEM assessment once, allowing retrospective protection of unpaid users.
   if (candidates.length < bounded) {
-    const [{ data: checkpoints, error: checkpointError }, { data: latestHubRows, error: hubError }] =
-      await Promise.all([
-        supabaseAdmin
-          .from('sybil_v2_scan_checkpoints')
-          .select('invite_code,checked_at')
-          .eq('historical_chain_status', 'COMPLETE')
-          .eq('funding_chain_status', 'COMPLETE')
-          .order('checked_at', {
-            ascending: false,
-            nullsFirst: false,
-          })
-          .limit(Math.max(100, bounded * 8)),
-        supabaseAdmin
-          .from('sybil_v2_confirmed_cluster_hubs')
-          .select('confirmed_at')
-          .eq('status', 'ACTIVE')
-          .is('revoked_at', null)
-          .order('confirmed_at', { ascending: false })
-          .limit(1),
-      ]);
+    const [
+      { data: checkpoints, error: checkpointError },
+      { data: latestHubRows, error: hubError },
+      { data: latestRestrictionRows, error: restrictionError },
+    ] = await Promise.all([
+      supabaseAdmin
+        .from('sybil_v2_scan_checkpoints')
+        .select('invite_code,checked_at')
+        .eq('historical_chain_status', 'COMPLETE')
+        .eq('funding_chain_status', 'COMPLETE')
+        .order('checked_at', {
+          ascending: false,
+          nullsFirst: false,
+        })
+        .limit(Math.max(100, bounded * 8)),
+      supabaseAdmin
+        .from('sybil_v2_confirmed_cluster_hubs')
+        .select('confirmed_at')
+        .eq('status', 'ACTIVE')
+        .is('revoked_at', null)
+        .order('confirmed_at', { ascending: false })
+        .limit(1),
+      supabaseAdmin
+        .from('sybil_v2_wallet_restrictions')
+        .select('imposed_at')
+        .eq('status', 'ACTIVE')
+        .order('imposed_at', { ascending: false })
+        .limit(1),
+    ]);
 
     if (checkpointError) {
       throw new Error(
@@ -2794,10 +2803,19 @@ export async function runSybilV2AssessmentBatch(
         `Sybil v2 confirmed-hub freshness could not be loaded: ${hubError.message}`,
       );
     }
+    if (restrictionError) {
+      throw new Error(
+        `Sybil v2 restriction freshness could not be loaded: ${restrictionError.message}`,
+      );
+    }
 
     const latestHubConfirmedAt =
       typeof latestHubRows?.[0]?.confirmed_at === 'string'
         ? Date.parse(latestHubRows[0].confirmed_at)
+        : Number.NaN;
+    const latestRestrictionAt =
+      typeof latestRestrictionRows?.[0]?.imposed_at === 'string'
+        ? Date.parse(latestRestrictionRows[0].imposed_at)
         : Number.NaN;
 
     for (const checkpoint of checkpoints ?? []) {
@@ -2835,11 +2853,19 @@ export async function runSybilV2AssessmentBatch(
         assessment !== null &&
         !Number.isNaN(latestHubConfirmedAt) &&
         (Number.isNaN(assessedAt) || assessedAt < latestHubConfirmedAt);
+      // A dense cluster can become decisive only after sibling wallets are
+      // restricted. Revisit SYSTEM HOLDs after a newer restriction appears so
+      // HOLD -> RESTRICTED can happen automatically without operator prompting.
+      const staleRestrictionPeer =
+        assessment?.state === 'HOLD' &&
+        !Number.isNaN(latestRestrictionAt) &&
+        (Number.isNaN(assessedAt) || assessedAt < latestRestrictionAt);
 
       if (
         assessment !== null &&
         !stalePolicy &&
-        !staleConfirmedHub
+        !staleConfirmedHub &&
+        !staleRestrictionPeer
       ) {
         continue;
       }
