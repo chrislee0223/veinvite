@@ -1,4 +1,4 @@
-export const SYBIL_V2_POLICY_VERSION = 'sybil-v2.9';
+export const SYBIL_V2_POLICY_VERSION = 'sybil-v2.10';
 
 export type SybilV2EvidenceFamily =
   | 'FUNDING'
@@ -35,7 +35,7 @@ export type SybilV2AssessmentState =
   | 'ANALYSIS_PENDING'
   | 'ANALYSIS_FAILED'
   | 'CLEAR'
-  // Legacy persisted value only. Sybil v2.9 never emits WATCH for a new
+  // Legacy persisted value only. Sybil v2.10 never emits WATCH for a new
   // reward decision; historical rows remain readable for audit compatibility.
   | 'WATCH'
   | 'HOLD'
