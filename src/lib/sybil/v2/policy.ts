@@ -1,4 +1,4 @@
-export const SYBIL_V2_POLICY_VERSION = 'sybil-v2.10';
+export const SYBIL_V2_POLICY_VERSION = 'sybil-v2.11';
 
 export type SybilV2EvidenceFamily =
   | 'FUNDING'
@@ -35,7 +35,7 @@ export type SybilV2AssessmentState =
   | 'ANALYSIS_PENDING'
   | 'ANALYSIS_FAILED'
   | 'CLEAR'
-  // Legacy persisted value only. Sybil v2.10 never emits WATCH for a new
+  // Legacy persisted value only. Sybil v2.11 never emits WATCH for a new
   // reward decision; historical rows remain readable for audit compatibility.
   | 'WATCH'
   | 'HOLD'
@@ -69,6 +69,10 @@ function unique<T>(values: T[]): T[] {
 
 const HISTORICAL_ACTIVITY_CLUSTER_CODES = new Set([
   'HISTORICAL_SINK_REAPPEARS_AS_INVITER',
+  // A direct transfer to an operator-confirmed historical cluster hub is
+  // historical-activity evidence, not a separate independent domain from
+  // common-sink/consolidation evidence derived from the same B3TR flow.
+  'HISTORICAL_DIRECT_CONFIRMED_HUB_TRANSFER',
   // A later transfer to the same kind of B3TR concentration hub is useful
   // new evidence, but it is still the same underlying consolidation
   // relationship. Keep it in HISTORICAL_ACTIVITY so one hub cannot count
