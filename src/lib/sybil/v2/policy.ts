@@ -1,4 +1,4 @@
-export const SYBIL_V2_POLICY_VERSION = 'sybil-v2.9';
+export const SYBIL_V2_POLICY_VERSION = 'sybil-v2.10';
 
 export type SybilV2EvidenceFamily =
   | 'FUNDING'
@@ -35,7 +35,7 @@ export type SybilV2AssessmentState =
   | 'ANALYSIS_PENDING'
   | 'ANALYSIS_FAILED'
   | 'CLEAR'
-  // Legacy persisted value only. Sybil v2.9 never emits WATCH for a new
+  // Legacy persisted value only. Sybil v2.10 never emits WATCH for a new
   // reward decision; historical rows remain readable for audit compatibility.
   | 'WATCH'
   | 'HOLD'
@@ -109,7 +109,7 @@ function hasExtremeSingleDomainPattern(
   // separate historical, mission, identity, or post-payout domain, but it must
   // not HOLD by itself.
 
-  // A single generic historical clue remains WATCH. However, synchronized
+  // A single generic historical clue remains monitoring-only. However, synchronized
   // reward behavior + a common B3TR consolidation sink + that same sink
   // reappearing as a VeInvite inviter is a high-likelihood coordinated pattern.
   // The three conditions describe distinct structural observations of the same
@@ -171,7 +171,7 @@ function evidenceDomain(
  * domain because it is an identity-level conflict. A high-likelihood
  * historical cluster may also HOLD when synchronized rewards, a common B3TR
  * sink, and that sink reappearing as a VeInvite inviter all corroborate the
- * same coordinated cluster. Generic historical or funding clues remain WATCH
+ * same coordinated cluster. Generic historical or funding clues remain monitoring-only
  * unless separately corroborated. These are review pauses, not automatic
  * BLACKLIST decisions. VeInvite intentionally
  * avoids fabricated numeric probabilities until enough labeled normal-vs-Sybil
@@ -277,18 +277,9 @@ export function evaluateSybilV2Policy({
     };
   }
 
-  if (!requiredChecksComplete) {
-    return {
-      state: 'ANALYSIS_PENDING',
-      riskScore,
-      reasonCodes,
-      evidenceFamilies,
-      strongEvidenceFamilies,
-      evidenceDomains,
-      strongEvidenceDomains,
-    };
-  }
-
+  // Strong adverse evidence may pause participation before every later-stage
+  // check (for example post-vote identity/finality) is available. Partial
+  // analysis may never CLEAR a wallet; it can only fail closed into HOLD.
   if (hasExtremeSingleDomainPattern(normalized)) {
     return {
       state: 'HOLD',
@@ -325,12 +316,26 @@ export function evaluateSybilV2Policy({
   }
 
   // Two independent MEDIUM-or-stronger domains also require review. A single
-  // LOW/MEDIUM observation stays CLEAR, with reasonCodes/evidence retained as
-  // internal monitoring metadata rather than a separate reward state.
+  // LOW/MEDIUM observation is not enough to HOLD by itself.
   if (strongEvidenceDomains.length >= 2) {
     return {
       state: 'HOLD',
       riskScore: Math.max(60, riskScore),
+      reasonCodes,
+      evidenceFamilies,
+      strongEvidenceFamilies,
+      evidenceDomains,
+      strongEvidenceDomains,
+    };
+  }
+
+  // Missing later-stage checks can never produce CLEAR. This is deliberately
+  // after adverse-signal escalation so strong historical evidence can HOLD a
+  // pre-vote referral while identity/finality remain pending.
+  if (!requiredChecksComplete) {
+    return {
+      state: 'ANALYSIS_PENDING',
+      riskScore,
       reasonCodes,
       evidenceFamilies,
       strongEvidenceFamilies,

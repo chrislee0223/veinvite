@@ -290,7 +290,7 @@ export async function GET(
 
   try {
     sybilV2Assessment =
-      await runSybilV2AssessmentBatch(10);
+      await runSybilV2AssessmentBatch(25);
   } catch (error) {
     failedStages.push('SYBIL_V2_ASSESSMENT');
     logStageFailure('SYBIL_V2_ASSESSMENT', error);

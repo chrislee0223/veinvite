@@ -45,6 +45,10 @@ test('activation-time publisher and consumer use the same evidence topic', async
   );
   assert.match(
     consumer,
+    /assessSybilV2Referral\(message\.inviteCode\)/u,
+  );
+  assert.match(
+    consumer,
     /handleCallback/u,
   );
 });
