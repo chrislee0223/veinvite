@@ -197,6 +197,21 @@ test('WATCH follow-up excludes active historical BLACKLIST invalidations', async
 
 
 
+
+test('historical paid WATCH provenance survives same-subject SYSTEM reassessment', async () => {
+  const sql = await readFile(
+    'supabase/migrations/20260928170000_preserve_historical_watch_provenance.sql',
+    'utf8',
+  );
+
+  assert.match(sql, /sybil_v2_assessment_events/u);
+  assert.match(sql, /e\.source = 'OPERATOR'/u);
+  assert.match(sql, /e\.state = 'WATCH'/u);
+  assert.match(sql, /a\.state = 'WATCH'/u);
+  assert.doesNotMatch(sql, /a\.source = 'OPERATOR'/u);
+  assert.match(sql, /AUTOMATIC_SAME_SUBJECT_REVIEW/u);
+});
+
 test('historical WATCH monitor reports automatic same-subject follow-up mode', async () => {
   const sql = await readFile(
     'supabase/migrations/20260928160000_align_historical_watch_monitor_mode.sql',
