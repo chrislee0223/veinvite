@@ -44,6 +44,9 @@ const REQUIRED_CHECKS = [
 ] as const;
 
 const SYNC_REWARD_BLOCK_WINDOW = 30;
+const DENSE_B3TR_BURST_BLOCK_WINDOW = 180;
+const DENSE_B3TR_BURST_MIN_WALLETS = 6;
+const DENSE_B3TR_BURST_MAX_GAP_BLOCKS = 24;
 const MISSION_PEER_WINDOW_SECONDS = 7 * 24 * 60 * 60;
 const MAX_BATCH_SIZE = 10;
 const MAX_ASSESSMENT_BATCH_SIZE = 25;
@@ -156,6 +159,13 @@ type ConfirmedClusterHubRow = {
 };
 
 type ConfirmedClusterBlacklistRpcResult = {
+  changed?: boolean;
+  state?: string;
+  revision?: number | string;
+  reason?: string;
+};
+
+type BehaviorPatternRestrictionRpcResult = {
   changed?: boolean;
   state?: string;
   revision?: number | string;
@@ -837,6 +847,9 @@ async function loadConsolidationSignals(
     inviterWallets,
     knownProtocolDestinations: knownProtocolDestinations(),
     minimumBlock,
+    denseBurstBlockWindow: DENSE_B3TR_BURST_BLOCK_WINDOW,
+    denseBurstMinimumWallets: DENSE_B3TR_BURST_MIN_WALLETS,
+    denseBurstMaximumGapBlocks: DENSE_B3TR_BURST_MAX_GAP_BLOCKS,
   });
 
   for (const finding of findings) {
@@ -851,6 +864,13 @@ async function loadConsolidationSignals(
       evidence: {
         walletCount: finding.walletCount,
         minimumBlock,
+        burstStartBlock: finding.burstStartBlock ?? null,
+        burstEndBlock: finding.burstEndBlock ?? null,
+        burstSpanBlocks: finding.burstSpanBlocks ?? null,
+        burstMaxGapBlocks: finding.burstMaxGapBlocks ?? null,
+        denseBurstBlockWindow: DENSE_B3TR_BURST_BLOCK_WINDOW,
+        denseBurstMinimumWallets: DENSE_B3TR_BURST_MIN_WALLETS,
+        denseBurstMaximumGapBlocks: DENSE_B3TR_BURST_MAX_GAP_BLOCKS,
       },
       dedupeKey:
         `sybil-v2:${invitation.invite_code}:${finding.signal.code.toLowerCase()}:${finding.destinationWallet}`,
@@ -1700,6 +1720,79 @@ async function applyConfirmedClusterBlacklist({
   return (data ?? {}) as ConfirmedClusterBlacklistRpcResult;
 }
 
+async function findBehaviorPatternHub(
+  invitation: InvitationV2Row,
+): Promise<string | null> {
+  if (!invitation.activation_network || !invitation.invitee_wallet) {
+    return null;
+  }
+
+  const { data, error } = await supabaseAdmin
+    .from('sybil_v2_evidence_records')
+    .select('related_wallet,strength,score')
+    .eq('invite_code', invitation.invite_code)
+    .eq('network', invitation.activation_network)
+    .eq('subject_wallet', normalizeWallet(invitation.invitee_wallet))
+    .eq('signal_code', 'HISTORICAL_DENSE_B3TR_BURST')
+    .eq('strength', 'HIGH')
+    .gt('score', 0);
+
+  if (error) {
+    throw new Error(
+      `Behavior-pattern burst evidence could not be loaded: ${error.message}`,
+    );
+  }
+
+  const rows = (data ?? []) as Array<{
+    related_wallet: string | null;
+    strength: string;
+    score: number | string;
+  }>;
+
+  const eligible = rows
+    .filter((row) => row.related_wallet)
+    .sort((left, right) => Number(right.score) - Number(left.score));
+
+  return eligible[0]?.related_wallet
+    ? normalizeWallet(eligible[0].related_wallet)
+    : null;
+}
+
+async function applyBehaviorPatternRestriction({
+  invitation,
+  expectedRevision,
+  hubWallet,
+}: {
+  invitation: InvitationV2Row;
+  expectedRevision: number;
+  hubWallet: string;
+}): Promise<BehaviorPatternRestrictionRpcResult> {
+  if (!invitation.activation_network) {
+    return {
+      changed: false,
+      reason: 'NETWORK_MISSING',
+    };
+  }
+
+  const { data, error } = await supabaseAdmin.rpc(
+    'apply_sybil_v2_behavior_pattern_restriction',
+    {
+      p_invite_code: invitation.invite_code,
+      p_expected_revision: expectedRevision,
+      p_hub_wallet: normalizeWallet(hubWallet),
+      p_network: invitation.activation_network,
+    },
+  );
+
+  if (error) {
+    throw new Error(
+      `Behavior-pattern restriction could not be applied: ${error.message}`,
+    );
+  }
+
+  return (data ?? {}) as BehaviorPatternRestrictionRpcResult;
+}
+
 async function loadFinalizedBlock(): Promise<number> {
   const { nodeUrl } = getVeBetterNetworkConfig();
   const thor = ThorClient.at(nodeUrl);
@@ -1949,6 +2042,10 @@ export async function assessSybilV2Referral(
           signals,
         )
       : null;
+  const behaviorPatternHub =
+    policy.state === 'HOLD'
+      ? await findBehaviorPatternHub(invitation)
+      : null;
 
   const evidenceSummary = {
     signalCount: signals.length,
@@ -1977,8 +2074,12 @@ export async function assessSybilV2Referral(
       confirmedClusterHub
         ? CONFIRMED_CLUSTER_SIGNATURE_CODE
         : null,
+    behaviorPatternHub,
+    behaviorPatternAutomaticRestrictionCandidate:
+      behaviorPatternHub !== null,
     automaticBlacklistEligible:
-      confirmedClusterHub !== null,
+      confirmedClusterHub !== null ||
+      behaviorPatternHub !== null,
   };
 
   const expectedRevision =
@@ -2056,6 +2157,63 @@ export async function assessSybilV2Referral(
         reasonCodes: unique([
           ...policy.reasonCodes,
           'AUTO_CONFIRMED_CLUSTER_BLACKLIST',
+        ]),
+        revision:
+          safeRevision(fresh.revision) ??
+          automaticRevision ??
+          revision,
+        clearanceIssued: false,
+        clearanceId: null,
+      };
+    }
+  }
+
+
+  if (
+    revision !== null &&
+    policy.state === 'HOLD' &&
+    behaviorPatternHub
+  ) {
+    const automatic =
+      await applyBehaviorPatternRestriction({
+        invitation,
+        expectedRevision: revision,
+        hubWallet: behaviorPatternHub,
+      });
+
+    const automaticRevision =
+      safeRevision(automatic.revision);
+
+    if (
+      automatic.changed === true &&
+      automatic.state === 'RESTRICTED'
+    ) {
+      return {
+        inviteCode: normalizedCode,
+        state: 'RESTRICTED',
+        riskScore: 100,
+        reasonCodes: unique([
+          ...policy.reasonCodes,
+          'AUTO_BEHAVIOR_PATTERN_RESTRICTION',
+        ]),
+        revision:
+          automaticRevision ?? revision,
+        clearanceIssued: false,
+        clearanceId: null,
+      };
+    }
+
+    const fresh =
+      await loadAssessment(normalizedCode);
+
+    if (fresh?.state === 'RESTRICTED') {
+      return {
+        inviteCode: normalizedCode,
+        state: 'RESTRICTED',
+        riskScore: 100,
+        reasonCodes: unique([
+          ...policy.reasonCodes,
+          'AUTO_BEHAVIOR_PATTERN_RESTRICTION',
         ]),
         revision:
           safeRevision(fresh.revision) ??
