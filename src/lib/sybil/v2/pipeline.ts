@@ -96,6 +96,7 @@ type AssessmentRow = {
   state: string;
   revision: number | string;
   source: string;
+  policy_version: string;
   updated_at: string;
   evidence_summary: Record<string, unknown> | null;
 };
@@ -2039,7 +2040,7 @@ async function loadFinalizedBlock(): Promise<number> {
 async function loadAssessment(inviteCode: string): Promise<AssessmentRow | null> {
   const { data, error } = await supabaseAdmin
     .from('sybil_v2_referral_assessments')
-    .select('invite_code,state,revision,source,updated_at,evidence_summary')
+    .select('invite_code,state,revision,source,policy_version,updated_at,evidence_summary')
     .eq('invite_code', inviteCode)
     .maybeSingle();
 
@@ -2752,7 +2753,102 @@ export async function runSybilV2AssessmentBatch(
     );
   }
 
-  const candidates = data ?? [];
+  const candidates = [...(data ?? [])];
+  const seen = new Set(
+    candidates.map((candidate) => String(candidate.invite_code)),
+  );
+
+  // Recovery/pre-vote path: raw chain evidence is collected at activation, so
+  // scan completed unpaid referrals even before reward eligibility. A new
+  // policy version or newly confirmed cluster hub also invalidates the prior
+  // SYSTEM assessment once, allowing retrospective protection of unpaid users.
+  if (candidates.length < bounded) {
+    const [{ data: checkpoints, error: checkpointError }, { data: latestHubRows, error: hubError }] =
+      await Promise.all([
+        supabaseAdmin
+          .from('sybil_v2_scan_checkpoints')
+          .select('invite_code,checked_at')
+          .eq('historical_chain_status', 'COMPLETE')
+          .eq('funding_chain_status', 'COMPLETE')
+          .order('checked_at', {
+            ascending: false,
+            nullsFirst: false,
+          })
+          .limit(Math.max(100, bounded * 8)),
+        supabaseAdmin
+          .from('sybil_v2_confirmed_cluster_hubs')
+          .select('confirmed_at')
+          .eq('status', 'ACTIVE')
+          .is('revoked_at', null)
+          .order('confirmed_at', { ascending: false })
+          .limit(1),
+      ]);
+
+    if (checkpointError) {
+      throw new Error(
+        `Sybil v2 pre-vote assessment checkpoints could not be loaded: ${checkpointError.message}`,
+      );
+    }
+    if (hubError) {
+      throw new Error(
+        `Sybil v2 confirmed-hub freshness could not be loaded: ${hubError.message}`,
+      );
+    }
+
+    const latestHubConfirmedAt =
+      typeof latestHubRows?.[0]?.confirmed_at === 'string'
+        ? Date.parse(latestHubRows[0].confirmed_at)
+        : Number.NaN;
+
+    for (const checkpoint of checkpoints ?? []) {
+      if (candidates.length >= bounded) break;
+
+      const inviteCode = String(checkpoint.invite_code);
+      if (seen.has(inviteCode)) continue;
+
+      const invitation = await loadInvitation(inviteCode);
+      if (
+        !invitation ||
+        !invitation.invitee_wallet ||
+        !['ACTIVATING', 'UNDER_REVIEW', 'COMPLETED'].includes(
+          invitation.status,
+        ) ||
+        ['PAID', 'FORFEITED'].includes(invitation.reward_status)
+      ) {
+        continue;
+      }
+
+      const assessment = await loadAssessment(inviteCode);
+      if (
+        assessment?.source === 'OPERATOR'
+      ) {
+        continue;
+      }
+
+      const assessedAt = assessment?.updated_at
+        ? Date.parse(assessment.updated_at)
+        : Number.NaN;
+      const stalePolicy =
+        assessment !== null &&
+        assessment.policy_version !== SYBIL_V2_POLICY_VERSION;
+      const staleConfirmedHub =
+        assessment !== null &&
+        !Number.isNaN(latestHubConfirmedAt) &&
+        (Number.isNaN(assessedAt) || assessedAt < latestHubConfirmedAt);
+
+      if (
+        assessment !== null &&
+        !stalePolicy &&
+        !staleConfirmedHub
+      ) {
+        continue;
+      }
+
+      candidates.push({ invite_code: inviteCode });
+      seen.add(inviteCode);
+    }
+  }
+
   let clear = 0;
   let watch = 0;
   let hold = 0;
