@@ -47,7 +47,7 @@ test('policy reassessment candidates are service-only, unreserved and system-own
   );
 });
 
-test('runtime selects only stale policy versions for reassessment', async () => {
+test('runtime reassesses stale policy plus same-policy HOLDs missing the current behavior pass', async () => {
   const source = await read('src/lib/sybil/v2/pipeline.ts');
 
   assert.match(
@@ -57,6 +57,22 @@ test('runtime selects only stale policy versions for reassessment', async () => 
   assert.match(
     source,
     /\.neq\('policy_version', SYBIL_V2_POLICY_VERSION\)/u,
+  );
+  assert.match(
+    source,
+    /SYBIL_V2_BEHAVIOR_ENFORCEMENT_VERSION = 'behavior-pattern-v1'/u,
+  );
+  assert.match(
+    source,
+    /\.eq\('policy_version', SYBIL_V2_POLICY_VERSION\)[\s\S]*\.eq\('state', 'HOLD'\)/u,
+  );
+  assert.match(
+    source,
+    /behaviorPatternEnforcementVersion/u,
+  );
+  assert.match(
+    source,
+    /enforcementVersion ===[\s\S]*SYBIL_V2_BEHAVIOR_ENFORCEMENT_VERSION/u,
   );
   assert.match(
     source,
