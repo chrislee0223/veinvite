@@ -2030,32 +2030,58 @@ async function findConfirmedHubDirectRestrictionHub(
   invitation: InvitationV2Row,
   signals: SybilV2Signal[],
 ): Promise<string | null> {
-  if (
-    !invitation.activation_network ||
-    !invitation.invitee_wallet ||
-    !hasIndependentConfirmedHubCorroboration(signals)
-  ) {
+  if (!invitation.activation_network || !invitation.invitee_wallet) {
     return null;
   }
 
-  const { data, error } = await supabaseAdmin
-    .from('sybil_v2_evidence_records')
-    .select('related_wallet,strength,score')
-    .eq('invite_code', invitation.invite_code)
-    .eq('network', invitation.activation_network)
-    .eq('subject_wallet', normalizeWallet(invitation.invitee_wallet))
-    .eq('signal_code', 'HISTORICAL_DIRECT_CONFIRMED_HUB_TRANSFER')
-    .in('strength', ['MEDIUM', 'HIGH'])
-    .gt('score', 0);
+  const subjectWallet = normalizeWallet(invitation.invitee_wallet);
+  const independentCorroboration =
+    hasIndependentConfirmedHubCorroboration(signals);
 
-  if (error) {
+  const [directResult, denseResult] = await Promise.all([
+    supabaseAdmin
+      .from('sybil_v2_evidence_records')
+      .select('related_wallet,strength,score')
+      .eq('invite_code', invitation.invite_code)
+      .eq('network', invitation.activation_network)
+      .eq('subject_wallet', subjectWallet)
+      .eq('signal_code', 'HISTORICAL_DIRECT_CONFIRMED_HUB_TRANSFER')
+      .in('strength', ['MEDIUM', 'HIGH'])
+      .gt('score', 0),
+    supabaseAdmin
+      .from('sybil_v2_evidence_records')
+      .select('related_wallet,strength,score')
+      .eq('invite_code', invitation.invite_code)
+      .eq('network', invitation.activation_network)
+      .eq('subject_wallet', subjectWallet)
+      .eq('signal_code', 'HISTORICAL_DENSE_B3TR_BURST')
+      .eq('strength', 'HIGH')
+      .gt('score', 0),
+  ]);
+
+  if (directResult.error) {
     throw new Error(
-      `Confirmed-hub direct evidence could not be loaded: ${error.message}`,
+      `Confirmed-hub direct evidence could not be loaded: ${directResult.error.message}`,
+    );
+  }
+  if (denseResult.error) {
+    throw new Error(
+      `Confirmed-hub dense-burst evidence could not be loaded: ${denseResult.error.message}`,
     );
   }
 
-  const eligible = (data ?? [])
-    .filter((row) => row.related_wallet)
+  const denseHubs = new Set(
+    (denseResult.data ?? [])
+      .filter((row) => row.related_wallet)
+      .map((row) => normalizeWallet(String(row.related_wallet))),
+  );
+
+  const eligible = (directResult.data ?? [])
+    .filter((row) => {
+      if (!row.related_wallet) return false;
+      const hub = normalizeWallet(String(row.related_wallet));
+      return independentCorroboration || denseHubs.has(hub);
+    })
     .sort((left, right) => Number(right.score) - Number(left.score));
 
   return eligible[0]?.related_wallet
