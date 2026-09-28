@@ -53,6 +53,13 @@ const CONFIRMED_CLUSTER_LINK_CODES = [
   'HISTORICAL_COMMON_B3TR_SINK',
   'HISTORICAL_SINK_REAPPEARS_AS_INVITER',
 ] as const;
+const B3TR_BURST_WINDOW_SECONDS = 30 * 60;
+const B3TR_BURST_MIN_WALLETS = 8;
+const COORDINATED_BURST_LINK_CODES = [
+  'HISTORICAL_COMMON_B3TR_SINK',
+  'HISTORICAL_SINK_REAPPEARS_AS_INVITER',
+  'HISTORICAL_TIGHT_B3TR_CONSOLIDATION_BURST',
+] as const;
 
 type InvitationV2Row = {
   invite_code: string;
@@ -103,6 +110,7 @@ type HistoricalOutflowRow = {
   wallet_address: string;
   destination_wallet: string;
   block_number: number | string;
+  block_timestamp: string | null;
 };
 
 type FundingEvidenceRow = {
@@ -148,6 +156,7 @@ type ConfirmedClusterEvidenceRow = {
   strength: string;
   score: number | string;
   related_wallet: string | null;
+  evidence?: Record<string, unknown> | null;
 };
 
 type ConfirmedClusterHubRow = {
@@ -777,7 +786,7 @@ async function loadConsolidationSignals(
 
   const ownResult = await supabaseAdmin
     .from('sybil_v2_preactivation_b3tr_outflows')
-    .select('wallet_address,destination_wallet,block_number')
+    .select('wallet_address,destination_wallet,block_number,block_timestamp')
     .eq('network', invitation.activation_network)
     .eq('wallet_address', wallet)
     .gte('block_number', minimumBlock);
@@ -800,7 +809,7 @@ async function loadConsolidationSignals(
   const [peerResult, inviterResult] = await Promise.all([
     supabaseAdmin
       .from('sybil_v2_preactivation_b3tr_outflows')
-      .select('wallet_address,destination_wallet,block_number')
+      .select('wallet_address,destination_wallet,block_number,block_timestamp')
       .eq('network', invitation.activation_network)
       .gte('block_number', minimumBlock)
       .in('destination_wallet', destinations),
@@ -823,6 +832,7 @@ async function loadConsolidationSignals(
       walletAddress: normalizeWallet(row.wallet_address),
       destinationWallet: normalizeWallet(row.destination_wallet),
       blockNumber: Number(row.block_number),
+      blockTimestamp: row.block_timestamp,
     }))
     .filter((row) => Number.isSafeInteger(row.blockNumber));
 
@@ -837,6 +847,8 @@ async function loadConsolidationSignals(
     inviterWallets,
     knownProtocolDestinations: knownProtocolDestinations(),
     minimumBlock,
+    burstWindowSeconds: B3TR_BURST_WINDOW_SECONDS,
+    burstMinimumWallets: B3TR_BURST_MIN_WALLETS,
   });
 
   for (const finding of findings) {
@@ -848,9 +860,14 @@ async function loadConsolidationSignals(
       strength: finding.signal.strength,
       score: finding.signal.score,
       relatedWallet: finding.destinationWallet,
+      observedAt: finding.burstStartAt ?? null,
       evidence: {
         walletCount: finding.walletCount,
         minimumBlock,
+        burstWalletCount: finding.burstWalletCount,
+        burstWindowSeconds: finding.burstWindowSeconds,
+        burstStartAt: finding.burstStartAt,
+        burstEndAt: finding.burstEndAt,
       },
       dedupeKey:
         `sybil-v2:${invitation.invite_code}:${finding.signal.code.toLowerCase()}:${finding.destinationWallet}`,
@@ -1555,6 +1572,141 @@ function hasHighSignal(
   );
 }
 
+async function findCoordinatedBurstHubMatch(
+  invitation: InvitationV2Row,
+  signals: SybilV2Signal[],
+): Promise<string | null> {
+  if (
+    !invitation.activation_network ||
+    !invitation.invitee_wallet ||
+    !hasHighSignal(
+      signals,
+      'HISTORICAL_SYNCHRONIZED_REWARD_CLUSTER',
+    ) ||
+    !hasHighSignal(
+      signals,
+      'HISTORICAL_TIGHT_B3TR_CONSOLIDATION_BURST',
+    )
+  ) {
+    return null;
+  }
+
+  const subjectWallet = normalizeWallet(invitation.invitee_wallet);
+  const evidenceResult = await supabaseAdmin
+    .from('sybil_v2_evidence_records')
+    .select('signal_code,strength,score,related_wallet,evidence')
+    .eq('invite_code', invitation.invite_code)
+    .eq('network', invitation.activation_network)
+    .eq('subject_wallet', subjectWallet)
+    .in('signal_code', [...COORDINATED_BURST_LINK_CODES]);
+
+  if (evidenceResult.error) {
+    throw new Error(
+      `Coordinated burst evidence could not be loaded: ${evidenceResult.error.message}`,
+    );
+  }
+
+  const codesByHub = new Map<string, Set<string>>();
+  const validBurstHubs = new Set<string>();
+
+  for (
+    const row of
+      (evidenceResult.data ?? []) as ConfirmedClusterEvidenceRow[]
+  ) {
+    if (
+      row.strength !== 'HIGH' ||
+      Number(row.score) <= 0 ||
+      !row.related_wallet
+    ) {
+      continue;
+    }
+
+    const hub = normalizeWallet(row.related_wallet);
+    const codes = codesByHub.get(hub) ?? new Set<string>();
+    codes.add(row.signal_code);
+    codesByHub.set(hub, codes);
+
+    if (
+      row.signal_code ===
+        'HISTORICAL_TIGHT_B3TR_CONSOLIDATION_BURST' &&
+      Number(row.evidence?.burstWalletCount) >= B3TR_BURST_MIN_WALLETS &&
+      Number(row.evidence?.burstWindowSeconds) <= B3TR_BURST_WINDOW_SECONDS
+    ) {
+      validBurstHubs.add(hub);
+    }
+  }
+
+  const candidateHubs = [...codesByHub.entries()]
+    .filter(([hub, codes]) =>
+      validBurstHubs.has(hub) &&
+      COORDINATED_BURST_LINK_CODES.every((code) =>
+        codes.has(code),
+      ),
+    )
+    .map(([hub]) => hub);
+
+  if (candidateHubs.length === 0) return null;
+
+  const allowlistResult = await supabaseAdmin
+    .from('sybil_v2_cluster_hub_allowlist')
+    .select('wallet_address')
+    .eq('network', invitation.activation_network)
+    .in('wallet_address', candidateHubs);
+
+  if (allowlistResult.error) {
+    throw new Error(
+      `Coordinated burst allowlist could not be loaded: ${allowlistResult.error.message}`,
+    );
+  }
+
+  const allowlisted = new Set(
+    (allowlistResult.data ?? []).map((row) =>
+      normalizeWallet(String(row.wallet_address)),
+    ),
+  );
+
+  return (
+    candidateHubs
+      .filter((hub) => !allowlisted.has(hub))
+      .sort()[0] ?? null
+  );
+}
+
+async function applyCoordinatedBurstBlacklist({
+  invitation,
+  expectedRevision,
+  hubWallet,
+}: {
+  invitation: InvitationV2Row;
+  expectedRevision: number;
+  hubWallet: string;
+}): Promise<ConfirmedClusterBlacklistRpcResult> {
+  if (!invitation.activation_network) {
+    return {
+      changed: false,
+      reason: 'NETWORK_MISSING',
+    };
+  }
+
+  const { data, error } = await supabaseAdmin.rpc(
+    'apply_sybil_v2_behavior_pattern_blacklist',
+    {
+      p_invite_code: invitation.invite_code,
+      p_expected_revision: expectedRevision,
+      p_hub_wallet: normalizeWallet(hubWallet),
+      p_network: invitation.activation_network,
+    },
+  );
+
+  if (error) {
+    throw new Error(
+      `Coordinated burst blacklist could not be applied: ${error.message}`,
+    );
+  }
+
+  return (data ?? {}) as ConfirmedClusterBlacklistRpcResult;
+}
+
 async function findConfirmedClusterHubMatch(
   invitation: InvitationV2Row,
   signals: SybilV2Signal[],
@@ -1942,6 +2094,14 @@ export async function assessSybilV2Referral(
     activeRestriction,
   });
 
+  const coordinatedBurstHub =
+    policy.state === 'HOLD'
+      ? await findCoordinatedBurstHubMatch(
+          invitation,
+          signals,
+        )
+      : null;
+
   const confirmedClusterHub =
     policy.state === 'HOLD'
       ? await findConfirmedClusterHubMatch(
@@ -1971,6 +2131,11 @@ export async function assessSybilV2Referral(
     completedChecks,
     requiredChecks: [...REQUIRED_CHECKS],
     finalizedBlock,
+    coordinatedBurstHub,
+    coordinatedBurstWindowSeconds:
+      coordinatedBurstHub ? B3TR_BURST_WINDOW_SECONDS : null,
+    coordinatedBurstMinimumWallets:
+      coordinatedBurstHub ? B3TR_BURST_MIN_WALLETS : null,
     confirmedClusterHub:
       confirmedClusterHub?.wallet_address ?? null,
     confirmedClusterSignature:
@@ -1978,6 +2143,7 @@ export async function assessSybilV2Referral(
         ? CONFIRMED_CLUSTER_SIGNATURE_CODE
         : null,
     automaticBlacklistEligible:
+      coordinatedBurstHub !== null ||
       confirmedClusterHub !== null,
   };
 
@@ -2009,6 +2175,62 @@ export async function assessSybilV2Referral(
   }
 
   const revision = safeRevision(recorded.revision);
+
+  if (
+    revision !== null &&
+    policy.state === 'HOLD' &&
+    coordinatedBurstHub
+  ) {
+    const automatic =
+      await applyCoordinatedBurstBlacklist({
+        invitation,
+        expectedRevision: revision,
+        hubWallet: coordinatedBurstHub,
+      });
+
+    const automaticRevision =
+      safeRevision(automatic.revision);
+
+    if (
+      automatic.changed === true &&
+      automatic.state === 'RESTRICTED'
+    ) {
+      return {
+        inviteCode: normalizedCode,
+        state: 'RESTRICTED',
+        riskScore: 100,
+        reasonCodes: unique([
+          ...policy.reasonCodes,
+          'AUTO_COORDINATED_BURST_BLACKLIST',
+        ]),
+        revision:
+          automaticRevision ?? revision,
+        clearanceIssued: false,
+        clearanceId: null,
+      };
+    }
+
+    const fresh =
+      await loadAssessment(normalizedCode);
+
+    if (fresh?.state === 'RESTRICTED') {
+      return {
+        inviteCode: normalizedCode,
+        state: 'RESTRICTED',
+        riskScore: 100,
+        reasonCodes: unique([
+          ...policy.reasonCodes,
+          'AUTO_COORDINATED_BURST_BLACKLIST',
+        ]),
+        revision:
+          safeRevision(fresh.revision) ??
+          automaticRevision ??
+          revision,
+        clearanceIssued: false,
+        clearanceId: null,
+      };
+    }
+  }
 
   if (
     revision !== null &&
