@@ -68,6 +68,19 @@ test('forecast seed failures and cold reads stay isolated from Home startup', ()
     seedServer,
     /Public reward forecast seed could not be loaded/,
   );
+  assert.match(seedServer, /isRecoverableForecastSeedReadFailure/);
+  assert.match(
+    seedServer,
+    /Supabase forecast read exceeded 5000ms\|fetch failed/,
+  );
+  assert.match(
+    seedServer,
+    /cache refresh skipped after a recoverable Supabase transport failure/,
+  );
+  assert.match(
+    seedServer,
+    /if \(!isRecoverableForecastSeedReadFailure\(error\)\) \{[\s\S]*throw error;/,
+  );
   assert.match(seedServer, /return null;/);
   assert.doesNotMatch(homePage, /throw new Error\([^)]*forecast/i);
 });
