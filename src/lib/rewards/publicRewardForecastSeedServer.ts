@@ -20,75 +20,67 @@ const readCachedPublicRewardForecastSeed = unstable_cache(
     network: string,
     appId: string,
   ): Promise<PublicRewardForecastSeed | null> => {
-    const snapshot = await readLatestRewardForecastSnapshot({
-      network,
-      appId,
-    });
-    if (!snapshot) return null;
-    if (snapshot.modelVersion !== REWARD_FORECAST_MODEL_VERSION) {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(
+      () => controller.abort(),
+      FORECAST_SEED_STARTUP_TIMEOUT_MS,
+    );
+
+    try {
+      const snapshot = await readLatestRewardForecastSnapshot({
+        network,
+        appId,
+        signal: controller.signal,
+      });
+      if (!snapshot) return null;
+      if (snapshot.modelVersion !== REWARD_FORECAST_MODEL_VERSION) {
+        return null;
+      }
+
+      const generatedAtMs = Date.parse(snapshot.generatedAt);
+      if (Number.isNaN(generatedAtMs)) return null;
+
+      const ageMs = Date.now() - generatedAtMs;
+      if (ageMs < 0 || ageMs > FORECAST_SEED_MAX_AGE_MS) {
+        return null;
+      }
+
+      return {
+        generatedAt: snapshot.generatedAt,
+        modelVersion: snapshot.modelVersion,
+        status: 'ready',
+        estimatedRewardWei: snapshot.estimatedRewardWei,
+        stale: ageMs > FORECAST_SEED_STALE_MS,
+      };
+    } catch (error) {
+      if (controller.signal.aborted) {
+        console.warn(
+          `Public reward forecast seed exceeded the ${FORECAST_SEED_STARTUP_TIMEOUT_MS}ms Home startup budget.`,
+        );
+        return null;
+      }
+
+      // A failed background cache refresh must resolve safely instead of
+      // rejecting through Next.js cache revalidation and producing a runtime
+      // error cluster for an optional Home convenience surface.
+      console.warn('Public reward forecast seed could not be loaded:', error);
       return null;
+    } finally {
+      clearTimeout(timeoutId);
     }
-
-    const generatedAtMs = Date.parse(snapshot.generatedAt);
-    if (Number.isNaN(generatedAtMs)) return null;
-
-    const ageMs = Date.now() - generatedAtMs;
-    if (ageMs < 0 || ageMs > FORECAST_SEED_MAX_AGE_MS) {
-      return null;
-    }
-
-    return {
-      generatedAt: snapshot.generatedAt,
-      modelVersion: snapshot.modelVersion,
-      status: 'ready',
-      estimatedRewardWei: snapshot.estimatedRewardWei,
-      stale: ageMs > FORECAST_SEED_STALE_MS,
-    };
   },
   ['public-reward-forecast-seed-v1'],
   { revalidate: FORECAST_SEED_CACHE_SECONDS },
 );
 
-async function readSeedWithinStartupBudget(
-  network: string,
-): Promise<PublicRewardForecastSeed | null> {
-  let timeoutId: ReturnType<typeof setTimeout> | null = null;
-  let timedOut = false;
-
-  try {
-    const seed = await Promise.race([
-      readCachedPublicRewardForecastSeed(
-        network,
-        VEINVITE_APP_ID,
-      ),
-      new Promise<null>((resolve) => {
-        timeoutId = setTimeout(
-          () => {
-            timedOut = true;
-            resolve(null);
-          },
-          FORECAST_SEED_STARTUP_TIMEOUT_MS,
-        );
-      }),
-    ]);
-
-    if (timedOut) {
-      console.warn(
-        `Public reward forecast seed exceeded the ${FORECAST_SEED_STARTUP_TIMEOUT_MS}ms Home startup budget.`,
-      );
-    }
-
-    return seed;
-  } finally {
-    if (timeoutId !== null) clearTimeout(timeoutId);
-  }
-}
-
 export async function readPublicRewardForecastSeed(): Promise<PublicRewardForecastSeed | null> {
   const { network } = getVeBetterNetworkConfig();
 
   try {
-    return await readSeedWithinStartupBudget(network);
+    return await readCachedPublicRewardForecastSeed(
+      network,
+      VEINVITE_APP_ID,
+    );
   } catch (error) {
     // Forecast is a public convenience surface. A cache/database failure must
     // never block Home or wallet-session bootstrap.
