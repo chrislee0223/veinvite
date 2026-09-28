@@ -50,6 +50,84 @@ function isKnownExternalExtensionNoise(event: {
   );
 }
 
+
+const VECHAIN_GENESIS_ABORT_MESSAGE_PARTS = [
+  "Method 'HttpClient.http()' failed.",
+  'signal is aborted without reason',
+  '/blocks/0',
+];
+
+function hasVeChainGenesisAbortMessage(
+  value: unknown,
+): boolean {
+  return (
+    typeof value === 'string' &&
+    VECHAIN_GENESIS_ABORT_MESSAGE_PARTS.every((part) =>
+      value.includes(part),
+    )
+  );
+}
+
+function isKnownVeChainGenesisAbortReason(
+  reason: unknown,
+): boolean {
+  if (!reason || typeof reason !== 'object') return false;
+
+  const candidate = reason as {
+    message?: unknown;
+    stack?: unknown;
+  };
+  if (!hasVeChainGenesisAbortMessage(candidate.message)) {
+    return false;
+  }
+
+  return (
+    typeof candidate.stack === 'string' &&
+    candidate.stack.includes('getGenesisBlock') &&
+    candidate.stack.includes('getBlockCompressed')
+  );
+}
+
+function isKnownVeChainGenesisAbortEvent(event: {
+  message?: string;
+  exception?: {
+    values?: Array<{
+      value?: string;
+      stacktrace?: {
+        frames?: Array<{
+          filename?: string;
+          function?: string;
+        }>;
+      };
+    }>;
+  };
+}): boolean {
+  const exceptions = event.exception?.values ?? [];
+  const hasKnownMessage = [
+    event.message,
+    ...exceptions.map((exception) => exception.value),
+  ].some(hasVeChainGenesisAbortMessage);
+  if (!hasKnownMessage) return false;
+
+  return exceptions.some((exception) =>
+    exception.stacktrace?.frames?.some((frame) =>
+      frame.function?.includes('getGenesisBlock') ||
+      frame.filename === 'app:///blocks/0',
+    ),
+  );
+}
+
+if (typeof window !== 'undefined') {
+  window.addEventListener('unhandledrejection', (event) => {
+    if (isKnownVeChainGenesisAbortReason(event.reason)) {
+      // VeChain Kit can abort its genesis-block bootstrap request when a
+      // WebView/navigation lifecycle changes. That cancellation is expected
+      // and must not surface as an unhandled application error.
+      event.preventDefault();
+    }
+  });
+}
+
 Sentry.init({
   dsn,
   enabled: Boolean(dsn),
@@ -67,6 +145,7 @@ Sentry.init({
   replaysOnErrorSampleRate: 1,
   beforeSend(event) {
     if (isKnownExternalExtensionNoise(event)) return null;
+    if (isKnownVeChainGenesisAbortEvent(event)) return null;
 
     if (event.message) event.message = redactSentryText(event.message);
     if (event.request?.url) event.request.url = redactSentryUrl(event.request.url);
