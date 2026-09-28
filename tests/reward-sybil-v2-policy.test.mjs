@@ -106,6 +106,39 @@ test('incomplete required checks remain pending', () => {
   assert.equal(result.state, 'ANALYSIS_PENDING');
 });
 
+test('strong funder-return evidence HOLDs before vote while later checks are incomplete', () => {
+  const result = evaluateSybilV2Policy({
+    requiredChecksComplete: false,
+    signals: [
+      {
+        code: 'HISTORICAL_FUNDER_RETURN_LOOP',
+        family: 'CLUSTER_LINK',
+        strength: 'HIGH',
+        score: 80,
+      },
+    ],
+  });
+
+  assert.equal(result.state, 'HOLD');
+  assert.ok(result.riskScore >= 60);
+});
+
+test('incomplete checks with only weak evidence never CLEAR', () => {
+  const result = evaluateSybilV2Policy({
+    requiredChecksComplete: false,
+    signals: [
+      {
+        code: 'SHARED_PREACTIVATION_VTHO_FUNDER',
+        family: 'FUNDING',
+        strength: 'LOW',
+        score: 14,
+      },
+    ],
+  });
+
+  assert.equal(result.state, 'ANALYSIS_PENDING');
+});
+
 test('active wallet restriction is authoritative for future participation', () => {
   const result = evaluateSybilV2Policy({
     requiredChecksComplete: true,
