@@ -532,3 +532,50 @@ test('WATCH transfer to an active blacklisted wallet corroborates a separate his
     new Set(['HISTORICAL_ACTIVITY', 'POST_PAYOUT']),
   );
 });
+
+
+test('direct confirmed-hub transfer alone remains insufficient for HOLD', () => {
+  const result = evaluateSybilV2Policy({
+    requiredChecksComplete: true,
+    signals: [
+      {
+        code: 'HISTORICAL_DIRECT_CONFIRMED_HUB_TRANSFER',
+        family: 'CLUSTER_LINK',
+        strength: 'MEDIUM',
+        score: 45,
+      },
+    ],
+  });
+
+  assert.equal(result.state, 'CLEAR');
+  assert.deepEqual(
+    new Set(result.strongEvidenceDomains),
+    new Set(['HISTORICAL_ACTIVITY']),
+  );
+});
+
+test('direct confirmed-hub transfer plus independent mission evidence HOLDs', () => {
+  const result = evaluateSybilV2Policy({
+    requiredChecksComplete: true,
+    signals: [
+      {
+        code: 'HISTORICAL_DIRECT_CONFIRMED_HUB_TRANSFER',
+        family: 'CLUSTER_LINK',
+        strength: 'MEDIUM',
+        score: 45,
+      },
+      {
+        code: 'MISSION_PATTERN_CLUSTER',
+        family: 'MISSION_BEHAVIOR',
+        strength: 'MEDIUM',
+        score: 32,
+      },
+    ],
+  });
+
+  assert.equal(result.state, 'HOLD');
+  assert.deepEqual(
+    new Set(result.strongEvidenceDomains),
+    new Set(['HISTORICAL_ACTIVITY', 'MISSION_BEHAVIOR']),
+  );
+});
