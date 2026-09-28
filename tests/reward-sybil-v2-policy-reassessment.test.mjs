@@ -8,6 +8,8 @@ const migrationPath =
   'supabase/migrations/20260927160604_align_sybil_v2_likelihood_review_and_policy_reassessment.sql';
 const v24MigrationPath =
   'supabase/migrations/20260928163000_reassess_stale_system_holds_under_v24.sql';
+const cancelledRewardMigrationPath =
+  'supabase/migrations/20260928090037_allow_cancelled_rewards_policy_reassessment.sql';
 
 test('same-client evidence stays review-only until Sybil v2 assessment', async () => {
   const sql = await read(migrationPath);
@@ -94,3 +96,20 @@ test('current Sybil policy reassesses stale SYSTEM HOLDs but not operator decisi
   assert.match(sql, /i\.reward_status = 'ELIGIBLE'/u);
   assert.match(sql, /OPERATOR decisions and reserved rewards remain excluded/u);
 });
+
+test('cancelled rewards may be policy-reassessed while active liabilities stay excluded', async () => {
+  const sql = await read(cancelledRewardMigrationPath);
+
+  assert.match(sql, /a\.state in \('CLEAR','WATCH','HOLD'\)/u);
+  assert.match(
+    sql,
+    /not exists \([\s\S]*reward_queue_entries q[\s\S]*q\.status in \('AWAITING_CLAIM','QUEUED','ASSIGNED'\)/u,
+  );
+  assert.match(sql, /CANCELLED queue rows do not block reassessment/u);
+  assert.match(sql, /with \(security_invoker = true\)/u);
+  assert.match(
+    sql,
+    /revoke all on table public\.operator_sybil_v2_policy_reassessment_candidates[\s\S]*from public, anon, authenticated/u,
+  );
+});
+
