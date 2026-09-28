@@ -58,8 +58,10 @@ test('forecast seed failures and cold reads stay isolated from Home startup', ()
     seedServer,
     /FORECAST_SEED_STARTUP_TIMEOUT_MS = 1_200/,
   );
-  assert.match(seedServer, /Promise\.race\(/);
-  assert.match(seedServer, /timedOut = true/);
+  assert.match(seedServer, /const controller = new AbortController\(\)/);
+  assert.match(seedServer, /\(\) => controller\.abort\(\)/);
+  assert.match(seedServer, /signal: controller\.signal/);
+  assert.match(seedServer, /controller\.signal\.aborted/);
   assert.match(
     seedServer,
     /Public reward forecast seed exceeded the/,
