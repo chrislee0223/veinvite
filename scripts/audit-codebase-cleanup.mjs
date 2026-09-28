@@ -4,6 +4,8 @@ import path from 'node:path';
 const ROOT = process.cwd();
 const SOURCE_ROOT = path.join(ROOT, 'src');
 const SOURCE_EXTENSIONS = new Set(['.ts', '.tsx', '.js', '.jsx']);
+const jsonArg = process.argv.find((arg) => arg.startsWith('--json='));
+const jsonOutputPath = jsonArg ? path.resolve(ROOT, jsonArg.slice('--json='.length)) : null;
 const NEXT_ROOT_BASENAMES = new Set([
   'page',
   'layout',
@@ -277,5 +279,23 @@ printSection(
       )
       .join('\n'),
 );
+
+const report = {
+  generatedAt: new Date().toISOString(),
+  runtimeRoots: roots.length,
+  sourceFiles: sourceFiles.length,
+  runtimeReachable: reachable.size,
+  runtimeUnreachable: runtimeUnreachable.length,
+  highConfidenceUnused: safeDelete,
+  unreachableButReferenced: review,
+  largeFiles,
+  versionFamilies,
+};
+
+if (jsonOutputPath) {
+  fs.mkdirSync(path.dirname(jsonOutputPath), { recursive: true });
+  fs.writeFileSync(jsonOutputPath, JSON.stringify(report, null, 2) + '\n');
+  console.log('\nJSON report:', rel(jsonOutputPath));
+}
 
 console.log('\nAudit is advisory only; it never fails CI.');
