@@ -101,11 +101,18 @@ function mapSnapshotRow(row: Record<string, unknown>): RewardForecastSnapshot {
 export async function readLatestRewardForecastSnapshot(input: {
   network: string;
   appId: string;
+  signal?: AbortSignal;
 }): Promise<RewardForecastSnapshot | null> {
-  const { data, error } = await supabaseAdmin.rpc(
+  let request = supabaseAdmin.rpc(
     'read_latest_reward_forecast_snapshot',
     { p_network: input.network, p_app_id: input.appId },
   );
+
+  if (input.signal) {
+    request = request.abortSignal(input.signal);
+  }
+
+  const { data, error } = await request;
   if (error) {
     throw new Error(`Latest reward forecast snapshot could not be loaded: ${error.message}`);
   }
