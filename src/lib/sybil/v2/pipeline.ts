@@ -177,6 +177,7 @@ export type SybilV2AssessmentResult = {
     | 'ANALYSIS_PENDING'
     | 'ANALYSIS_FAILED'
     | 'CLEAR'
+    // Legacy persisted state only; v2.9 policy does not emit WATCH.
     | 'WATCH'
     | 'HOLD'
     | 'RESTRICTED';
@@ -1931,9 +1932,9 @@ export async function assessSybilV2Referral(
   );
 
   // Finality protects reward clearance/reservation, not the abuse verdict itself.
-  // This lets CLEAR/WATCH/HOLD be decided on the next assessment pass while the
+  // This lets CLEAR/HOLD be decided on the next assessment pass while the
   // existing DB clearance gate still requires CHAIN_FINALITY before any reward
-  // can be reserved or claimed.
+  // can be reserved or claimed. WATCH is legacy-only as of Sybil v2.9.
   const policy = evaluateSybilV2Policy({
     signals,
     requiredChecksComplete: decisionChecksComplete,
@@ -2072,7 +2073,7 @@ export async function assessSybilV2Referral(
   if (
     revision !== null &&
     invitation.reward_status !== 'PAID' &&
-    (policy.state === 'CLEAR' || policy.state === 'WATCH')
+    policy.state === 'CLEAR'
   ) {
     const clearance = await issueClearance(normalizedCode, revision);
     clearanceIssued = clearance.issued === true;
