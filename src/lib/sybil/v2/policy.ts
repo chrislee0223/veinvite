@@ -96,18 +96,10 @@ function hasExtremeSingleDomainPattern(
     return true;
   }
 
-  // A recent funder that previously acted as a common B3TR sink for many
-  // onboarding wallets is a controller-style temporal link. Require a high
-  // score so smaller family/friend funding patterns remain WATCH.
-  if (
-    signals.some((signal) =>
-      signal.code === 'RECENT_FUNDER_IS_HISTORICAL_COMMON_SINK' &&
-      signal.strength === 'HIGH' &&
-      signal.score >= 50,
-    )
-  ) {
-    return true;
-  }
+  // Funding evidence remains one FUNDING domain even when a recent funder
+  // was also a historical common sink. That relationship can corroborate a
+  // separate historical, mission, identity, or post-payout domain, but it must
+  // not HOLD by itself.
 
   // Historical reward/consolidation evidence remains one underlying
   // HISTORICAL_ACTIVITY domain even when the pattern is large. A shared dApp
@@ -148,10 +140,9 @@ function evidenceDomain(
  * recent funding relationship are collapsed into one domain before escalation.
  *
  * Direct invitee↔inviter same-security-client evidence may HOLD from one
- * domain because it is an identity-level conflict. A narrowly defined,
- * high-confidence controller-style funding link may also HOLD from one domain.
- * Historical reward/consolidation patterns remain WATCH unless a separate
- * independent evidence domain corroborates them. These are review pauses, not automatic
+ * domain because it is an identity-level conflict. Historical and funding
+ * patterns remain WATCH unless a separate independent evidence domain
+ * corroborates them. These are review pauses, not automatic
  * BLACKLIST decisions. VeInvite intentionally
  * avoids fabricated numeric probabilities until enough labeled normal-vs-Sybil
  * data exists to calibrate them. RESTRICTED remains reserved
