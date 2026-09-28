@@ -31,6 +31,7 @@ const [
 ]);
 
 const networkGeometrySource = await readFile('src/lib/networkCanvasGeometry.ts', 'utf8');
+const networkAppClientSource = await readFile('src/lib/networkAppClient.ts', 'utf8');
 const networkIdentitySource = await readFile('src/components/NetworkWalletIdentity.tsx', 'utf8');
 const networkWarmupSource = await readFile('src/components/NetworkIdleWarmup.tsx', 'utf8');
 const networkSlotCacheSource = await readFile('src/lib/networkInviteSlotsClientCache.ts', 'utf8');
@@ -177,7 +178,7 @@ test('layout editing is React-owned and changes workspace coordinates rather tha
 });
 
 test('layout editing auto-saves completed actions and keeps camera state separate', () => {
-  assert.match(networkSource, /const WORKSPACE_PREFIX = 'veinvite-network-workspace-v1:'/);
+  assert.match(networkAppClientSource, /const WORKSPACE_PREFIX = 'veinvite-network-workspace-v1:'/);
   assert.match(networkSource, /const commitEditingWorkspace = useCallback/);
   assert.match(networkSource, /const commitCurrentDraftWorkspace = useCallback/);
   assert.match(networkSource, /persistFocusWorkspace\(current\)/);
