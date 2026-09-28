@@ -30,6 +30,7 @@ import {
 } from '@/lib/vebetter/network';
 
 export const SYBIL_V2_ANALYZER_VERSION = 'sybil-v2.0';
+const SYBIL_V2_BEHAVIOR_ENFORCEMENT_VERSION = 'behavior-pattern-v1';
 
 const DECISION_CHECKS = [
   'HISTORICAL_CHAIN',
@@ -94,6 +95,7 @@ type AssessmentRow = {
   revision: number | string;
   source: string;
   updated_at: string;
+  evidence_summary: Record<string, unknown> | null;
 };
 
 type HistoricalRewardRow = {
@@ -1807,7 +1809,7 @@ async function loadFinalizedBlock(): Promise<number> {
 async function loadAssessment(inviteCode: string): Promise<AssessmentRow | null> {
   const { data, error } = await supabaseAdmin
     .from('sybil_v2_referral_assessments')
-    .select('invite_code,state,revision,source,updated_at')
+    .select('invite_code,state,revision,source,updated_at,evidence_summary')
     .eq('invite_code', inviteCode)
     .maybeSingle();
 
@@ -2048,6 +2050,8 @@ export async function assessSybilV2Referral(
       : null;
 
   const evidenceSummary = {
+    behaviorPatternEnforcementVersion:
+      SYBIL_V2_BEHAVIOR_ENFORCEMENT_VERSION,
     signalCount: signals.length,
     signalCodes: unique(signals.map((signal) => signal.code)),
     evidenceFamilies: policy.evidenceFamilies,
@@ -2328,9 +2332,9 @@ export async function runSybilV2PolicyReassessmentBatch(
 }> {
   const bounded = Math.max(1, Math.min(MAX_BATCH_SIZE, Math.trunc(limit)));
 
-  const { data, error } = await supabaseAdmin
+  const { data: staleData, error: staleError } = await supabaseAdmin
     .from('operator_sybil_v2_policy_reassessment_candidates')
-    .select('invite_code,policy_version')
+    .select('invite_code,policy_version,state')
     .neq('policy_version', SYBIL_V2_POLICY_VERSION)
     .order('priority_at', {
       ascending: true,
@@ -2338,13 +2342,61 @@ export async function runSybilV2PolicyReassessmentBatch(
     })
     .limit(bounded);
 
-  if (error) {
+  if (staleError) {
     throw new Error(
-      `Sybil v2 policy reassessment candidates could not be loaded: ${error.message}`,
+      `Sybil v2 policy reassessment candidates could not be loaded: ${staleError.message}`,
     );
   }
 
-  const candidates = data ?? [];
+  const candidates = [...(staleData ?? [])];
+  const seen = new Set(
+    candidates.map((candidate) => String(candidate.invite_code)),
+  );
+
+  if (candidates.length < bounded) {
+    const scanLimit = Math.min(
+      100,
+      Math.max(25, bounded * 5),
+    );
+    const { data: currentHoldData, error: currentHoldError } =
+      await supabaseAdmin
+        .from('operator_sybil_v2_policy_reassessment_candidates')
+        .select('invite_code,policy_version,state')
+        .eq('policy_version', SYBIL_V2_POLICY_VERSION)
+        .eq('state', 'HOLD')
+        .order('priority_at', {
+          ascending: true,
+          nullsFirst: true,
+        })
+        .limit(scanLimit);
+
+    if (currentHoldError) {
+      throw new Error(
+        `Sybil v2 behavior reassessment candidates could not be loaded: ${currentHoldError.message}`,
+      );
+    }
+
+    for (const candidate of currentHoldData ?? []) {
+      if (candidates.length >= bounded) break;
+
+      const inviteCode = String(candidate.invite_code);
+      if (seen.has(inviteCode)) continue;
+
+      const assessment = await loadAssessment(inviteCode);
+      const enforcementVersion =
+        assessment?.evidence_summary?.behaviorPatternEnforcementVersion;
+
+      if (
+        enforcementVersion ===
+        SYBIL_V2_BEHAVIOR_ENFORCEMENT_VERSION
+      ) {
+        continue;
+      }
+
+      candidates.push(candidate);
+      seen.add(inviteCode);
+    }
+  }
   let clear = 0;
   let watch = 0;
   let hold = 0;
