@@ -47,6 +47,12 @@ const SYNC_REWARD_BLOCK_WINDOW = 30;
 const MISSION_PEER_WINDOW_SECONDS = 7 * 24 * 60 * 60;
 const MAX_BATCH_SIZE = 10;
 const MAX_ASSESSMENT_BATCH_SIZE = 25;
+const CONFIRMED_CLUSTER_SIGNATURE_CODE =
+  'SYNC_REWARD_COMMON_SINK_INVITER_V1';
+const CONFIRMED_CLUSTER_LINK_CODES = [
+  'HISTORICAL_COMMON_B3TR_SINK',
+  'HISTORICAL_SINK_REAPPEARS_AS_INVITER',
+] as const;
 
 type InvitationV2Row = {
   invite_code: string;
@@ -135,6 +141,25 @@ type ClearanceRpcResult = {
   clearanceId?: string;
   verdict?: string;
   assessmentRevision?: number | string;
+};
+
+type ConfirmedClusterEvidenceRow = {
+  signal_code: string;
+  strength: string;
+  score: number | string;
+  related_wallet: string | null;
+};
+
+type ConfirmedClusterHubRow = {
+  wallet_address: string;
+  confirmed_at: string;
+};
+
+type ConfirmedClusterBlacklistRpcResult = {
+  changed?: boolean;
+  state?: string;
+  revision?: number | string;
+  reason?: string;
 };
 
 export type SybilV2EvidenceCollectionResult = {
@@ -1517,6 +1542,163 @@ async function hasActiveRestriction(
   return (data ?? []).length > 0;
 }
 
+function hasHighSignal(
+  signals: SybilV2Signal[],
+  code: string,
+): boolean {
+  return signals.some(
+    (signal) =>
+      signal.code === code &&
+      signal.strength === 'HIGH' &&
+      signal.score > 0,
+  );
+}
+
+async function findConfirmedClusterHubMatch(
+  invitation: InvitationV2Row,
+  signals: SybilV2Signal[],
+): Promise<ConfirmedClusterHubRow | null> {
+  if (
+    !invitation.activation_network ||
+    !invitation.invitee_wallet ||
+    !invitation.activated_at ||
+    !hasHighSignal(
+      signals,
+      'HISTORICAL_SYNCHRONIZED_REWARD_CLUSTER',
+    )
+  ) {
+    return null;
+  }
+
+  const subjectWallet =
+    normalizeWallet(invitation.invitee_wallet);
+  const evidenceResult = await supabaseAdmin
+    .from('sybil_v2_evidence_records')
+    .select('signal_code,strength,score,related_wallet')
+    .eq('invite_code', invitation.invite_code)
+    .eq('network', invitation.activation_network)
+    .eq('subject_wallet', subjectWallet)
+    .in('signal_code', [...CONFIRMED_CLUSTER_LINK_CODES]);
+
+  if (evidenceResult.error) {
+    throw new Error(
+      `Confirmed cluster evidence could not be loaded: ${evidenceResult.error.message}`,
+    );
+  }
+
+  const codesByHub = new Map<string, Set<string>>();
+
+  for (
+    const row of
+      (evidenceResult.data ?? []) as ConfirmedClusterEvidenceRow[]
+  ) {
+    if (
+      row.strength !== 'HIGH' ||
+      Number(row.score) <= 0 ||
+      !row.related_wallet
+    ) {
+      continue;
+    }
+
+    const hub = normalizeWallet(row.related_wallet);
+    const codes = codesByHub.get(hub) ?? new Set<string>();
+    codes.add(row.signal_code);
+    codesByHub.set(hub, codes);
+  }
+
+  const candidateHubs = [...codesByHub.entries()]
+    .filter(([, codes]) =>
+      CONFIRMED_CLUSTER_LINK_CODES.every((code) =>
+        codes.has(code),
+      ),
+    )
+    .map(([hub]) => hub);
+
+  if (candidateHubs.length === 0) {
+    return null;
+  }
+
+  const confirmedResult = await supabaseAdmin
+    .from('sybil_v2_confirmed_cluster_hubs')
+    .select('wallet_address,confirmed_at')
+    .eq('network', invitation.activation_network)
+    .eq('status', 'ACTIVE')
+    .eq(
+      'signature_code',
+      CONFIRMED_CLUSTER_SIGNATURE_CODE,
+    )
+    .in('wallet_address', candidateHubs);
+
+  if (confirmedResult.error) {
+    throw new Error(
+      `Confirmed cluster hubs could not be loaded: ${confirmedResult.error.message}`,
+    );
+  }
+
+  const activatedAt =
+    Date.parse(invitation.activated_at);
+  if (Number.isNaN(activatedAt)) {
+    return null;
+  }
+
+  const matches = (
+    confirmedResult.data ?? []
+  ) as ConfirmedClusterHubRow[];
+
+  return (
+    matches
+      .filter((row) => {
+        const confirmedAt = Date.parse(row.confirmed_at);
+        return (
+          !Number.isNaN(confirmedAt) &&
+          activatedAt >= confirmedAt
+        );
+      })
+      .sort(
+        (left, right) =>
+          Date.parse(left.confirmed_at) -
+          Date.parse(right.confirmed_at),
+      )[0] ?? null
+  );
+}
+
+async function applyConfirmedClusterBlacklist({
+  invitation,
+  expectedRevision,
+  hubWallet,
+}: {
+  invitation: InvitationV2Row;
+  expectedRevision: number;
+  hubWallet: string;
+}): Promise<ConfirmedClusterBlacklistRpcResult> {
+  if (!invitation.activation_network) {
+    return {
+      changed: false,
+      reason: 'NETWORK_MISSING',
+    };
+  }
+
+  const { data, error } = await supabaseAdmin.rpc(
+    'apply_sybil_v2_confirmed_cluster_blacklist',
+    {
+      p_invite_code: invitation.invite_code,
+      p_expected_revision: expectedRevision,
+      p_hub_wallet: normalizeWallet(hubWallet),
+      p_signature_code:
+        CONFIRMED_CLUSTER_SIGNATURE_CODE,
+      p_network: invitation.activation_network,
+    },
+  );
+
+  if (error) {
+    throw new Error(
+      `Confirmed cluster blacklist could not be applied: ${error.message}`,
+    );
+  }
+
+  return (data ?? {}) as ConfirmedClusterBlacklistRpcResult;
+}
+
 async function loadFinalizedBlock(): Promise<number> {
   const { nodeUrl } = getVeBetterNetworkConfig();
   const thor = ThorClient.at(nodeUrl);
@@ -1759,6 +1941,14 @@ export async function assessSybilV2Referral(
     activeRestriction,
   });
 
+  const confirmedClusterHub =
+    policy.state === 'HOLD'
+      ? await findConfirmedClusterHubMatch(
+          invitation,
+          signals,
+        )
+      : null;
+
   const evidenceSummary = {
     signalCount: signals.length,
     signalCodes: unique(signals.map((signal) => signal.code)),
@@ -1780,6 +1970,14 @@ export async function assessSybilV2Referral(
     completedChecks,
     requiredChecks: [...REQUIRED_CHECKS],
     finalizedBlock,
+    confirmedClusterHub:
+      confirmedClusterHub?.wallet_address ?? null,
+    confirmedClusterSignature:
+      confirmedClusterHub
+        ? CONFIRMED_CLUSTER_SIGNATURE_CODE
+        : null,
+    automaticBlacklistEligible:
+      confirmedClusterHub !== null,
   };
 
   const expectedRevision =
@@ -1810,6 +2008,64 @@ export async function assessSybilV2Referral(
   }
 
   const revision = safeRevision(recorded.revision);
+
+  if (
+    revision !== null &&
+    policy.state === 'HOLD' &&
+    confirmedClusterHub
+  ) {
+    const automatic =
+      await applyConfirmedClusterBlacklist({
+        invitation,
+        expectedRevision: revision,
+        hubWallet:
+          confirmedClusterHub.wallet_address,
+      });
+
+    const automaticRevision =
+      safeRevision(automatic.revision);
+
+    if (
+      automatic.changed === true &&
+      automatic.state === 'RESTRICTED'
+    ) {
+      return {
+        inviteCode: normalizedCode,
+        state: 'RESTRICTED',
+        riskScore: 100,
+        reasonCodes: unique([
+          ...policy.reasonCodes,
+          'AUTO_CONFIRMED_CLUSTER_BLACKLIST',
+        ]),
+        revision:
+          automaticRevision ?? revision,
+        clearanceIssued: false,
+        clearanceId: null,
+      };
+    }
+
+    const fresh =
+      await loadAssessment(normalizedCode);
+
+    if (fresh?.state === 'RESTRICTED') {
+      return {
+        inviteCode: normalizedCode,
+        state: 'RESTRICTED',
+        riskScore: 100,
+        reasonCodes: unique([
+          ...policy.reasonCodes,
+          'AUTO_CONFIRMED_CLUSTER_BLACKLIST',
+        ]),
+        revision:
+          safeRevision(fresh.revision) ??
+          automaticRevision ??
+          revision,
+        clearanceIssued: false,
+        clearanceId: null,
+      };
+    }
+  }
+
   let clearanceIssued = false;
   let clearanceId: string | null = null;
 
