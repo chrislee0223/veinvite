@@ -4,6 +4,7 @@ import {
   isSybilV2EvidenceMessage,
 } from '@/lib/sybil/v2/evidenceQueue';
 import {
+  assessSybilV2Referral,
   collectSybilV2EvidenceForInvite,
   runSybilV2AssessmentBatch,
 } from '@/lib/sybil/v2/pipeline';
@@ -34,9 +35,14 @@ const queueCallback = handleCallback(
       );
     }
 
+    // Assess the exact activated referral immediately. Strong adverse evidence
+    // may HOLD/RESTRICT before vote completion, while incomplete later-stage
+    // checks can never produce CLEAR or reward clearance.
+    await assessSybilV2Referral(message.inviteCode);
+
     // New historical/funding evidence can strengthen an existing cluster.
-    // Reassess unreserved reward-eligible peers immediately instead of waiting
-    // for the daily recovery cron. Claim-ready rows are excluded by the DB view.
+    // Reassess unreserved peers immediately instead of waiting for the daily
+    // recovery cron. Claim-ready rows remain protected by the reward gates.
     await runSybilV2AssessmentBatch(10);
   },
   {
