@@ -1,4 +1,4 @@
-export const SYBIL_V2_POLICY_VERSION = 'sybil-v2.6';
+export const SYBIL_V2_POLICY_VERSION = 'sybil-v2.7';
 
 export type SybilV2EvidenceFamily =
   | 'FUNDING'
@@ -83,6 +83,12 @@ const STANDALONE_HOLD_CODES = new Set([
   'SECURITY_CLIENT_INVITER_LINK',
 ]);
 
+const HIGH_LIKELIHOOD_HISTORICAL_HOLD_CODES = [
+  'HISTORICAL_SYNCHRONIZED_REWARD_CLUSTER',
+  'HISTORICAL_COMMON_B3TR_SINK',
+  'HISTORICAL_SINK_REAPPEARS_AS_INVITER',
+] as const;
+
 function hasExtremeSingleDomainPattern(
   signals: SybilV2Signal[],
 ): boolean {
@@ -101,10 +107,30 @@ function hasExtremeSingleDomainPattern(
   // separate historical, mission, identity, or post-payout domain, but it must
   // not HOLD by itself.
 
-  // Historical reward/consolidation evidence remains one underlying
-  // HISTORICAL_ACTIVITY domain even when the pattern is large. A shared dApp
-  // reward flow and a common sink can come from one legitimate service path,
-  // so size alone must not manufacture an independent second domain.
+  // A single generic historical clue remains WATCH. However, synchronized
+  // reward behavior + a common B3TR consolidation sink + that same sink
+  // reappearing as a VeInvite inviter is a high-likelihood coordinated pattern.
+  // The three conditions describe distinct structural observations of the same
+  // cluster and are sufficiently unlikely to be treated as ordinary user
+  // similarity, so pause the reward for operator review even though the policy
+  // intentionally keeps them in one HISTORICAL_ACTIVITY domain.
+  const highHistoricalCodes = new Set(
+    signals
+      .filter((signal) =>
+        signal.score > 0 &&
+        STRENGTH_RANK[signal.strength] >= STRENGTH_RANK.HIGH,
+      )
+      .map((signal) => signal.code),
+  );
+
+  if (
+    HIGH_LIKELIHOOD_HISTORICAL_HOLD_CODES.every((code) =>
+      highHistoricalCodes.has(code),
+    )
+  ) {
+    return true;
+  }
+
   return false;
 }
 
@@ -140,9 +166,11 @@ function evidenceDomain(
  * recent funding relationship are collapsed into one domain before escalation.
  *
  * Direct invitee↔inviter same-security-client evidence may HOLD from one
- * domain because it is an identity-level conflict. Historical and funding
- * patterns remain WATCH unless a separate independent evidence domain
- * corroborates them. These are review pauses, not automatic
+ * domain because it is an identity-level conflict. A high-likelihood
+ * historical cluster may also HOLD when synchronized rewards, a common B3TR
+ * sink, and that sink reappearing as a VeInvite inviter all corroborate the
+ * same coordinated cluster. Generic historical or funding clues remain WATCH
+ * unless separately corroborated. These are review pauses, not automatic
  * BLACKLIST decisions. VeInvite intentionally
  * avoids fabricated numeric probabilities until enough labeled normal-vs-Sybil
  * data exists to calibrate them. RESTRICTED remains reserved

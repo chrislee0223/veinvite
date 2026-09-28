@@ -117,7 +117,7 @@ test('active wallet restriction is authoritative for future participation', () =
   assert.equal(result.riskScore, 100);
 });
 
-test('extreme historical activity plus consolidation remains WATCH without an independent second domain', () => {
+test('coordinated historical reward and inviter-sink cluster HOLDs even within one evidence domain', () => {
   const appId =
     '0x9643ed1637948cc571b23f836ade2bdb104de88e627fa6e8e3ffef1ee5a1739a';
   const sink =
@@ -231,16 +231,58 @@ test('extreme historical activity plus consolidation remains WATCH without an in
       ],
     });
 
+    const synchronized = rewardFindings.some((finding) => finding.signal.code === 'HISTORICAL_SYNCHRONIZED_REWARD_CLUSTER' && finding.signal.strength === 'HIGH');
     assert.equal(
       policy.state,
-      'WATCH',
-      `${wallet} historical reward/consolidation remains one domain and should stay WATCH`,
+      synchronized ? 'HOLD' : 'WATCH',
+      `${wallet} should HOLD only when synchronized rewards corroborate the common inviter sink`,
     );
     assert.deepEqual(
       new Set(policy.strongEvidenceDomains),
       new Set(['HISTORICAL_ACTIVITY']),
     );
   }
+});
+
+test('partial historical cluster evidence remains WATCH', () => {
+  const commonSinkAndInviter = evaluateSybilV2Policy({
+    requiredChecksComplete: true,
+    signals: [
+      {
+        code: 'HISTORICAL_COMMON_B3TR_SINK',
+        family: 'HISTORICAL_CONSOLIDATION',
+        strength: 'HIGH',
+        score: 60,
+      },
+      {
+        code: 'HISTORICAL_SINK_REAPPEARS_AS_INVITER',
+        family: 'CLUSTER_LINK',
+        strength: 'HIGH',
+        score: 55,
+      },
+    ],
+  });
+
+  const synchronizedAndSink = evaluateSybilV2Policy({
+    requiredChecksComplete: true,
+    signals: [
+      {
+        code: 'HISTORICAL_SYNCHRONIZED_REWARD_CLUSTER',
+        family: 'HISTORICAL_REWARD',
+        strength: 'HIGH',
+        score: 55,
+      },
+      {
+        code: 'HISTORICAL_COMMON_B3TR_SINK',
+        family: 'HISTORICAL_CONSOLIDATION',
+        strength: 'HIGH',
+        score: 60,
+      },
+    ],
+  });
+
+  assert.equal(commonSinkAndInviter.state, 'WATCH');
+  assert.equal(synchronizedAndSink.state, 'WATCH');
 });
 
 test('shared protocol destination is excluded from consolidation evidence', () => {
