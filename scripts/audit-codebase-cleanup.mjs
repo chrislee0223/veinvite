@@ -6,6 +6,11 @@ const SOURCE_ROOT = path.join(ROOT, 'src');
 const SOURCE_EXTENSIONS = new Set(['.ts', '.tsx', '.js', '.jsx']);
 const jsonArg = process.argv.find((arg) => arg.startsWith('--json='));
 const jsonOutputPath = jsonArg ? path.resolve(ROOT, jsonArg.slice('--json='.length)) : null;
+const enforceUnused = process.argv.includes('--enforce-unused');
+const largeBaselineArg = process.argv.find((arg) => arg.startsWith('--large-baseline='));
+const largeBaselinePath = largeBaselineArg
+  ? path.resolve(ROOT, largeBaselineArg.slice('--large-baseline='.length))
+  : null;
 const NEXT_ROOT_BASENAMES = new Set([
   'page',
   'layout',
@@ -298,4 +303,40 @@ if (jsonOutputPath) {
   console.log('\nJSON report:', rel(jsonOutputPath));
 }
 
-console.log('\nAudit is advisory only; it never fails CI.');
+const enforcementFailures = [];
+
+if (enforceUnused && safeDelete.length > 0) {
+  enforcementFailures.push(
+    'New high-confidence unused source files detected: ' +
+      safeDelete.map((item) => item.path).join(', '),
+  );
+}
+
+if (largeBaselinePath) {
+  const baseline = JSON.parse(fs.readFileSync(largeBaselinePath, 'utf8'));
+  if (!Array.isArray(baseline.allowedLargeSourceFiles)) {
+    throw new Error('Large-source baseline must contain allowedLargeSourceFiles[].');
+  }
+
+  const allowed = new Set(baseline.allowedLargeSourceFiles);
+  const newLargeFiles = largeFiles.filter((item) => !allowed.has(item.path));
+
+  if (newLargeFiles.length > 0) {
+    enforcementFailures.push(
+      'New source files >= 30KB require an explicit baseline review: ' +
+        newLargeFiles.map((item) => item.path).join(', '),
+    );
+  }
+}
+
+if (enforcementFailures.length > 0) {
+  console.error('\nCleanup regression gate failed:');
+  for (const failure of enforcementFailures) {
+    console.error('- ' + failure);
+  }
+  process.exitCode = 1;
+} else if (enforceUnused || largeBaselinePath) {
+  console.log('\nCleanup regression gate passed.');
+} else {
+  console.log('\nAudit is advisory only; it never fails CI.');
+}
