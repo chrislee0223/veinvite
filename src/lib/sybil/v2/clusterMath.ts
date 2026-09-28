@@ -27,6 +27,10 @@ export type HistoricalConsolidationFinding = {
   signal: SybilV2Signal;
   destinationWallet: string;
   walletCount: number;
+  burstStartBlock?: number;
+  burstEndBlock?: number;
+  burstSpanBlocks?: number;
+  burstMaxGapBlocks?: number;
 };
 
 function unique<T>(values: T[]): T[] {
@@ -134,12 +138,18 @@ export function detectHistoricalB3trConsolidation({
   inviterWallets,
   knownProtocolDestinations,
   minimumBlock = 0,
+  denseBurstBlockWindow = 180,
+  denseBurstMinimumWallets = 6,
+  denseBurstMaximumGapBlocks = 24,
 }: {
   walletAddress: string;
   rows: HistoricalB3trClusterPoint[];
   inviterWallets: Set<string>;
   knownProtocolDestinations: Set<string>;
   minimumBlock?: number;
+  denseBurstBlockWindow?: number;
+  denseBurstMinimumWallets?: number;
+  denseBurstMaximumGapBlocks?: number;
 }): HistoricalConsolidationFinding[] {
   const wallet = walletAddress.toLowerCase();
   const ownRows = rows.filter(
@@ -167,6 +177,90 @@ export function detectHistoricalB3trConsolidation({
     const wallets = unique(
       destinationRows.map((row) => row.walletAddress.toLowerCase()),
     );
+
+    const sortedRows = [...destinationRows].sort(
+      (left, right) => left.blockNumber - right.blockNumber,
+    );
+    let bestBurst:
+      | {
+          walletCount: number;
+          startBlock: number;
+          endBlock: number;
+          spanBlocks: number;
+          maxGapBlocks: number;
+        }
+      | null = null;
+
+    for (let start = 0; start < sortedRows.length; start += 1) {
+      const burstWallets = new Set<string>();
+      let maxGapBlocks = 0;
+      let previousBlock = sortedRows[start]!.blockNumber;
+
+      for (let end = start; end < sortedRows.length; end += 1) {
+        const row = sortedRows[end]!;
+        if (
+          row.blockNumber - sortedRows[start]!.blockNumber >
+          denseBurstBlockWindow
+        ) {
+          break;
+        }
+
+        if (end > start) {
+          maxGapBlocks = Math.max(
+            maxGapBlocks,
+            row.blockNumber - previousBlock,
+          );
+        }
+        previousBlock = row.blockNumber;
+        burstWallets.add(row.walletAddress.toLowerCase());
+
+        if (
+          burstWallets.size < denseBurstMinimumWallets ||
+          maxGapBlocks > denseBurstMaximumGapBlocks ||
+          !burstWallets.has(wallet)
+        ) {
+          continue;
+        }
+
+        const candidate = {
+          walletCount: burstWallets.size,
+          startBlock: sortedRows[start]!.blockNumber,
+          endBlock: row.blockNumber,
+          spanBlocks:
+            row.blockNumber - sortedRows[start]!.blockNumber,
+          maxGapBlocks,
+        };
+
+        if (
+          !bestBurst ||
+          candidate.walletCount > bestBurst.walletCount ||
+          (
+            candidate.walletCount === bestBurst.walletCount &&
+            candidate.spanBlocks < bestBurst.spanBlocks
+          )
+        ) {
+          bestBurst = candidate;
+        }
+      }
+    }
+
+    if (bestBurst) {
+      findings.push({
+        signal: {
+          code: 'HISTORICAL_DENSE_B3TR_BURST',
+          family: 'HISTORICAL_CONSOLIDATION',
+          strength: 'HIGH',
+          score: Math.min(70, 45 + bestBurst.walletCount * 2),
+          independentKey: `burst:${destination}`,
+        },
+        destinationWallet: destination,
+        walletCount: bestBurst.walletCount,
+        burstStartBlock: bestBurst.startBlock,
+        burstEndBlock: bestBurst.endBlock,
+        burstSpanBlocks: bestBurst.spanBlocks,
+        burstMaxGapBlocks: bestBurst.maxGapBlocks,
+      });
+    }
 
     if (wallets.length >= 3) {
       findings.push({
