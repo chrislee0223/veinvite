@@ -499,3 +499,57 @@ test('WATCH transfer to an active blacklisted wallet corroborates a separate his
     new Set(['HISTORICAL_ACTIVITY', 'POST_PAYOUT']),
   );
 });
+
+
+test('tight B3TR consolidation burst requires at least eight wallets inside 30 minutes', () => {
+  const sink = '0x4444444444444444444444444444444444444444';
+  const wallets = Array.from({ length: 8 }, (_, index) =>
+    `0x${(index + 1).toString(16).padStart(40, '0')}`,
+  );
+  const start = Date.parse('2025-09-04T06:18:30.000Z');
+
+  const rows = wallets.map((walletAddress, index) => ({
+    walletAddress,
+    destinationWallet: sink,
+    blockNumber: 1000 + index,
+    blockTimestamp: new Date(start + index * 120_000).toISOString(),
+  }));
+
+  const findings = detectHistoricalB3trConsolidation({
+    walletAddress: wallets[3],
+    rows,
+    inviterWallets: new Set([sink]),
+    knownProtocolDestinations: new Set(),
+    burstWindowSeconds: 30 * 60,
+    burstMinimumWallets: 8,
+  });
+
+  const burst = findings.find(
+    (finding) =>
+      finding.signal.code ===
+      'HISTORICAL_TIGHT_B3TR_CONSOLIDATION_BURST',
+  );
+
+  assert.ok(burst);
+  assert.equal(burst.signal.strength, 'HIGH');
+  assert.equal(burst.burstWalletCount, 8);
+  assert.ok((burst.burstWindowSeconds ?? Number.MAX_SAFE_INTEGER) <= 1800);
+
+  const sevenWalletFindings = detectHistoricalB3trConsolidation({
+    walletAddress: wallets[3],
+    rows: rows.slice(0, 7),
+    inviterWallets: new Set([sink]),
+    knownProtocolDestinations: new Set(),
+    burstWindowSeconds: 30 * 60,
+    burstMinimumWallets: 8,
+  });
+
+  assert.equal(
+    sevenWalletFindings.some(
+      (finding) =>
+        finding.signal.code ===
+        'HISTORICAL_TIGHT_B3TR_CONSOLIDATION_BURST',
+    ),
+    false,
+  );
+});
