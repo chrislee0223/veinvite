@@ -1,4 +1,4 @@
-export const SYBIL_V2_POLICY_VERSION = 'sybil-v2.9';
+export const SYBIL_V2_POLICY_VERSION = 'sybil-v2.10';
 
 export type SybilV2EvidenceFamily =
   | 'FUNDING'
@@ -277,18 +277,9 @@ export function evaluateSybilV2Policy({
     };
   }
 
-  if (!requiredChecksComplete) {
-    return {
-      state: 'ANALYSIS_PENDING',
-      riskScore,
-      reasonCodes,
-      evidenceFamilies,
-      strongEvidenceFamilies,
-      evidenceDomains,
-      strongEvidenceDomains,
-    };
-  }
-
+  // Strong adverse evidence may pause participation before every later-stage
+  // check (for example post-vote identity/finality) is available. Partial
+  // analysis may never CLEAR a wallet; it can only fail closed into HOLD.
   if (hasExtremeSingleDomainPattern(normalized)) {
     return {
       state: 'HOLD',
@@ -325,12 +316,26 @@ export function evaluateSybilV2Policy({
   }
 
   // Two independent MEDIUM-or-stronger domains also require review. A single
-  // LOW/MEDIUM observation stays CLEAR, with reasonCodes/evidence retained as
-  // internal monitoring metadata rather than a separate reward state.
+  // LOW/MEDIUM observation is not enough to HOLD by itself.
   if (strongEvidenceDomains.length >= 2) {
     return {
       state: 'HOLD',
       riskScore: Math.max(60, riskScore),
+      reasonCodes,
+      evidenceFamilies,
+      strongEvidenceFamilies,
+      evidenceDomains,
+      strongEvidenceDomains,
+    };
+  }
+
+  // Missing later-stage checks can never produce CLEAR. This is deliberately
+  // after adverse-signal escalation so strong historical evidence can HOLD a
+  // pre-vote referral while identity/finality remain pending.
+  if (!requiredChecksComplete) {
+    return {
+      state: 'ANALYSIS_PENDING',
+      riskScore,
       reasonCodes,
       evidenceFamilies,
       strongEvidenceFamilies,
