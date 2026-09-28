@@ -12,6 +12,7 @@ export type HistoricalB3trClusterPoint = {
   walletAddress: string;
   destinationWallet: string;
   blockNumber: number;
+  blockTimestamp?: string | null;
 };
 
 export type HistoricalRewardClusterFinding = {
@@ -27,10 +28,20 @@ export type HistoricalConsolidationFinding = {
   signal: SybilV2Signal;
   destinationWallet: string;
   walletCount: number;
+  burstWalletCount?: number;
+  burstWindowSeconds?: number;
+  burstStartAt?: string;
+  burstEndAt?: string;
 };
 
 function unique<T>(values: T[]): T[] {
   return [...new Set(values)];
+}
+
+function timestampMs(value: string | null | undefined): number | null {
+  if (!value) return null;
+  const parsed = Date.parse(value);
+  return Number.isNaN(parsed) ? null : parsed;
 }
 
 export function detectHistoricalRewardCluster({
@@ -134,12 +145,16 @@ export function detectHistoricalB3trConsolidation({
   inviterWallets,
   knownProtocolDestinations,
   minimumBlock = 0,
+  burstWindowSeconds = 30 * 60,
+  burstMinimumWallets = 8,
 }: {
   walletAddress: string;
   rows: HistoricalB3trClusterPoint[];
   inviterWallets: Set<string>;
   knownProtocolDestinations: Set<string>;
   minimumBlock?: number;
+  burstWindowSeconds?: number;
+  burstMinimumWallets?: number;
 }): HistoricalConsolidationFinding[] {
   const wallet = walletAddress.toLowerCase();
   const ownRows = rows.filter(
@@ -196,6 +211,89 @@ export function detectHistoricalB3trConsolidation({
         },
         destinationWallet: destination,
         walletCount: wallets.length,
+      });
+    }
+
+    const timedRows = destinationRows
+      .map((row) => ({
+        ...row,
+        timestampMs: timestampMs(row.blockTimestamp),
+      }))
+      .filter(
+        (row): row is HistoricalB3trClusterPoint & { timestampMs: number } =>
+          row.timestampMs !== null,
+      )
+      .sort((left, right) => left.timestampMs - right.timestampMs);
+
+    const ownTimedRows = timedRows.filter(
+      (row) => row.walletAddress.toLowerCase() === wallet,
+    );
+    let bestBurst:
+      | {
+          walletCount: number;
+          windowSeconds: number;
+          startAt: string;
+          endAt: string;
+        }
+      | null = null;
+    const windowMs = burstWindowSeconds * 1000;
+
+    for (const own of ownTimedRows) {
+      for (const start of timedRows) {
+        if (
+          start.timestampMs > own.timestampMs ||
+          own.timestampMs > start.timestampMs + windowMs
+        ) {
+          continue;
+        }
+
+        const inWindow = timedRows.filter(
+          (row) =>
+            row.timestampMs >= start.timestampMs &&
+            row.timestampMs <= start.timestampMs + windowMs,
+        );
+        const burstWallets = unique(
+          inWindow.map((row) => row.walletAddress.toLowerCase()),
+        );
+        if (burstWallets.length < burstMinimumWallets) continue;
+
+        const firstMs = Math.min(...inWindow.map((row) => row.timestampMs));
+        const lastMs = Math.max(...inWindow.map((row) => row.timestampMs));
+        const candidate = {
+          walletCount: burstWallets.length,
+          windowSeconds: Math.max(0, Math.round((lastMs - firstMs) / 1000)),
+          startAt: new Date(firstMs).toISOString(),
+          endAt: new Date(lastMs).toISOString(),
+        };
+
+        if (
+          !bestBurst ||
+          candidate.walletCount > bestBurst.walletCount ||
+          (
+            candidate.walletCount === bestBurst.walletCount &&
+            candidate.windowSeconds < bestBurst.windowSeconds
+          )
+        ) {
+          bestBurst = candidate;
+        }
+      }
+    }
+
+    if (bestBurst) {
+      findings.push({
+        signal: {
+          code: 'HISTORICAL_TIGHT_B3TR_CONSOLIDATION_BURST',
+          family: 'HISTORICAL_CONSOLIDATION',
+          strength: 'HIGH',
+          score: Math.min(70, 45 + bestBurst.walletCount * 2),
+          independentKey: destination,
+        },
+        destinationWallet: destination,
+        walletCount: wallets.length,
+        burstWalletCount: bestBurst.walletCount,
+        burstWindowSeconds: bestBurst.windowSeconds,
+        burstStartAt: bestBurst.startAt,
+        burstEndAt: bestBurst.endAt,
       });
     }
   }
