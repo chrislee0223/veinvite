@@ -13,6 +13,7 @@ import {
 } from '@vechain/vechain-kit';
 
 import { Brand } from '@/components/Brand';
+import { RestrictedApprovedRewardClaims } from '@/components/RestrictedApprovedRewardClaims';
 import {
   LegalConsentGate,
 } from '@/components/LegalConsentGate';
@@ -437,6 +438,11 @@ function WalletRestrictionSurface({
             ? security.restrictionBody
             : security.reviewBody}
         </span>
+        {permanent ? (
+          <RestrictedApprovedRewardClaims
+            locale={supportedLocale}
+          />
+        ) : null}
         <div
           style={{
             display: 'grid',
