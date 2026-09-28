@@ -68,6 +68,14 @@ test('forecast seed failures and cold reads stay isolated from Home startup', ()
     seedServer,
     /Public reward forecast seed could not be loaded/,
   );
+  assert.match(
+    seedServer,
+    /Public reward forecast seed cache refresh failed; using browser\/API fallback/,
+  );
+  assert.match(
+    seedServer,
+    /try \{[\s\S]*readLatestRewardForecastSnapshot\([\s\S]*catch \(error\)[\s\S]*return null;/,
+  );
   assert.match(seedServer, /return null;/);
   assert.doesNotMatch(homePage, /throw new Error\([^)]*forecast/i);
 });
