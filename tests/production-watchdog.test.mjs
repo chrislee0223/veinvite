@@ -2,9 +2,10 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import test from 'node:test';
 
-const [healthRoute, watchdogWorkflow] = await Promise.all([
+const [healthRoute, watchdogWorkflow, postDeploySmokeWorkflow] = await Promise.all([
   readFile(new URL('../src/app/api/health/route.ts', import.meta.url), 'utf8'),
   readFile(new URL('../.github/workflows/production-watchdog.yml', import.meta.url), 'utf8'),
+  readFile(new URL('../.github/workflows/production-post-deploy-smoke.yml', import.meta.url), 'utf8'),
 ]);
 
 test('public health exposes only coarse operational freshness for the two daily jobs', () => {
@@ -29,4 +30,21 @@ test('GitHub independently checks the public Production endpoint every six hours
   assert.match(watchdogWorkflow, /health\.network !== 'mainnet'/);
   assert.doesNotMatch(watchdogWorkflow, /CRON_SECRET/);
   assert.doesNotMatch(watchdogWorkflow, /vercel\/api\/cron/);
+});
+
+
+test('successful main CI is followed by an exact-commit Production smoke check', () => {
+  assert.match(postDeploySmokeWorkflow, /workflow_run:/);
+  assert.match(postDeploySmokeWorkflow, /workflows:\s*\n\s*- VeInvite CI/);
+  assert.match(postDeploySmokeWorkflow, /github\.event\.workflow_run\.conclusion == 'success'/);
+  assert.match(postDeploySmokeWorkflow, /github\.event\.workflow_run\.head_branch == 'main'/);
+  assert.match(postDeploySmokeWorkflow, /EXPECTED_GIT_SHA: \$\{\{ github\.event\.workflow_run\.head_sha \}\}/);
+  assert.match(postDeploySmokeWorkflow, /https:\/\/veinvite\.vercel\.app\/api\/health/);
+  assert.match(postDeploySmokeWorkflow, /for attempt in \$\(seq 1 20\)/);
+  assert.match(postDeploySmokeWorkflow, /deployedSha === expectedSha/);
+  assert.match(postDeploySmokeWorkflow, /health\.database === 'ready'/);
+  assert.match(postDeploySmokeWorkflow, /health\.network === 'mainnet'/);
+  assert.match(postDeploySmokeWorkflow, /health\.deployment\?\.environment === 'production'/);
+  assert.match(postDeploySmokeWorkflow, /health\.operations\?\.reconcileFresh === true/);
+  assert.match(postDeploySmokeWorkflow, /health\.operations\?\.analyticsFresh === true/);
 });
