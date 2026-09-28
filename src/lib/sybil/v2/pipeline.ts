@@ -177,6 +177,9 @@ type BehaviorPatternRestrictionRpcResult = {
   reason?: string;
 };
 
+type ConfirmedHubDirectRestrictionRpcResult =
+  BehaviorPatternRestrictionRpcResult;
+
 export type SybilV2EvidenceCollectionResult = {
   inviteCode: string;
   historicalChainComplete: boolean;
@@ -192,7 +195,7 @@ export type SybilV2AssessmentResult = {
     | 'ANALYSIS_PENDING'
     | 'ANALYSIS_FAILED'
     | 'CLEAR'
-    // Legacy persisted state only; v2.10 policy does not emit WATCH.
+    // Legacy persisted state only; v2.11 policy does not emit WATCH.
     | 'WATCH'
     | 'HOLD'
     | 'RESTRICTED';
@@ -883,6 +886,130 @@ async function loadConsolidationSignals(
   }
 
   return findings.map((finding) => finding.signal);
+}
+
+async function loadConfirmedHubDirectSignals(
+  invitation: InvitationV2Row,
+): Promise<SybilV2Signal[]> {
+  if (!invitation.activation_network || !invitation.invitee_wallet) return [];
+
+  const wallet = normalizeWallet(invitation.invitee_wallet);
+  const rewardBoundary = await supabaseAdmin
+    .from('sybil_v2_historical_reward_events')
+    .select('block_number')
+    .eq('network', invitation.activation_network)
+    .eq('wallet_address', wallet)
+    .order('block_number', { ascending: true })
+    .limit(1);
+
+  if (rewardBoundary.error) {
+    throw new Error(
+      `Confirmed-hub reward boundary could not be loaded: ${rewardBoundary.error.message}`,
+    );
+  }
+
+  const firstRewardBlock = Number(
+    rewardBoundary.data?.[0]?.block_number ?? Number.NaN,
+  );
+  if (!Number.isSafeInteger(firstRewardBlock) || firstRewardBlock < 0) {
+    return [];
+  }
+
+  const [hubResult, allowlistResult] = await Promise.all([
+    supabaseAdmin
+      .from('sybil_v2_confirmed_cluster_hubs')
+      .select('wallet_address')
+      .eq('network', invitation.activation_network)
+      .eq('status', 'ACTIVE')
+      .eq('signature_code', CONFIRMED_CLUSTER_SIGNATURE_CODE)
+      .is('revoked_at', null),
+    supabaseAdmin
+      .from('sybil_v2_cluster_hub_allowlist')
+      .select('wallet_address')
+      .eq('network', invitation.activation_network),
+  ]);
+
+  if (hubResult.error) {
+    throw new Error(
+      `Confirmed Sybil hubs could not be loaded: ${hubResult.error.message}`,
+    );
+  }
+  if (allowlistResult.error) {
+    throw new Error(
+      `Confirmed-hub allowlist could not be loaded: ${allowlistResult.error.message}`,
+    );
+  }
+
+  const allowlisted = new Set(
+    (allowlistResult.data ?? []).map((row) =>
+      normalizeWallet(String(row.wallet_address)),
+    ),
+  );
+  const activeHubs = unique(
+    (hubResult.data ?? [])
+      .map((row) => normalizeWallet(String(row.wallet_address)))
+      .filter((hub) => hub !== wallet && !allowlisted.has(hub)),
+  );
+
+  if (activeHubs.length === 0) return [];
+
+  const outflowResult = await supabaseAdmin
+    .from('sybil_v2_preactivation_b3tr_outflows')
+    .select('destination_wallet,block_number')
+    .eq('network', invitation.activation_network)
+    .eq('wallet_address', wallet)
+    .gte('block_number', firstRewardBlock)
+    .in('destination_wallet', activeHubs);
+
+  if (outflowResult.error) {
+    throw new Error(
+      `Confirmed-hub historical transfers could not be loaded: ${outflowResult.error.message}`,
+    );
+  }
+
+  const byHub = new Map<string, number[]>();
+  for (const row of outflowResult.data ?? []) {
+    const hub = normalizeWallet(String(row.destination_wallet));
+    const block = Number(row.block_number);
+    if (!Number.isSafeInteger(block)) continue;
+    const blocks = byHub.get(hub) ?? [];
+    blocks.push(block);
+    byHub.set(hub, blocks);
+  }
+
+  const signals: SybilV2Signal[] = [];
+  for (const [hub, blocks] of byHub) {
+    const signal: SybilV2Signal = {
+      code: 'HISTORICAL_DIRECT_CONFIRMED_HUB_TRANSFER',
+      family: 'CLUSTER_LINK',
+      strength: 'MEDIUM',
+      score: 45,
+      independentKey: hub,
+    };
+    signals.push(signal);
+
+    await insertEvidenceRecord({
+      invitation,
+      subjectWallet: wallet,
+      family: 'CLUSTER_LINK',
+      signalCode: signal.code,
+      strength: signal.strength,
+      score: signal.score,
+      relatedWallet: hub,
+      observedBlock: Math.min(...blocks),
+      evidence: {
+        transferCount: blocks.length,
+        firstRewardBlock,
+        firstTransferBlock: Math.min(...blocks),
+        lastTransferBlock: Math.max(...blocks),
+        confirmedClusterSignature: CONFIRMED_CLUSTER_SIGNATURE_CODE,
+      },
+      dedupeKey:
+        `sybil-v2:${invitation.invite_code}:historical-direct-confirmed-hub:${hub}`,
+    });
+  }
+
+  return signals;
 }
 
 async function loadFundingSignals(
@@ -1878,6 +2005,99 @@ async function applyConfirmedClusterBlacklist({
   return (data ?? {}) as ConfirmedClusterBlacklistRpcResult;
 }
 
+function hasIndependentConfirmedHubCorroboration(
+  signals: SybilV2Signal[],
+): boolean {
+  return signals.some((signal) => {
+    if (signal.score <= 0) return false;
+
+    if (
+      signal.family === 'MISSION_BEHAVIOR' ||
+      signal.family === 'FUNDING'
+    ) {
+      return ['MEDIUM', 'HIGH'].includes(signal.strength);
+    }
+
+    if (signal.family === 'SECURITY_IDENTITY') {
+      return signal.strength === 'HIGH';
+    }
+
+    return false;
+  });
+}
+
+async function findConfirmedHubDirectRestrictionHub(
+  invitation: InvitationV2Row,
+  signals: SybilV2Signal[],
+): Promise<string | null> {
+  if (
+    !invitation.activation_network ||
+    !invitation.invitee_wallet ||
+    !hasIndependentConfirmedHubCorroboration(signals)
+  ) {
+    return null;
+  }
+
+  const { data, error } = await supabaseAdmin
+    .from('sybil_v2_evidence_records')
+    .select('related_wallet,strength,score')
+    .eq('invite_code', invitation.invite_code)
+    .eq('network', invitation.activation_network)
+    .eq('subject_wallet', normalizeWallet(invitation.invitee_wallet))
+    .eq('signal_code', 'HISTORICAL_DIRECT_CONFIRMED_HUB_TRANSFER')
+    .in('strength', ['MEDIUM', 'HIGH'])
+    .gt('score', 0);
+
+  if (error) {
+    throw new Error(
+      `Confirmed-hub direct evidence could not be loaded: ${error.message}`,
+    );
+  }
+
+  const eligible = (data ?? [])
+    .filter((row) => row.related_wallet)
+    .sort((left, right) => Number(right.score) - Number(left.score));
+
+  return eligible[0]?.related_wallet
+    ? normalizeWallet(String(eligible[0].related_wallet))
+    : null;
+}
+
+async function applyConfirmedHubDirectRestriction({
+  invitation,
+  expectedRevision,
+  hubWallet,
+}: {
+  invitation: InvitationV2Row;
+  expectedRevision: number;
+  hubWallet: string;
+}): Promise<ConfirmedHubDirectRestrictionRpcResult> {
+  if (!invitation.activation_network) {
+    return {
+      changed: false,
+      reason: 'NETWORK_MISSING',
+    };
+  }
+
+  const { data, error } = await supabaseAdmin.rpc(
+    'apply_sybil_v2_confirmed_hub_direct_restriction',
+    {
+      p_invite_code: invitation.invite_code,
+      p_expected_revision: expectedRevision,
+      p_hub_wallet: normalizeWallet(hubWallet),
+      p_network: invitation.activation_network,
+    },
+  );
+
+  if (error) {
+    throw new Error(
+      `Confirmed-hub direct restriction could not be applied: ${error.message}`,
+    );
+  }
+
+  return (data ?? {}) as ConfirmedHubDirectRestrictionRpcResult;
+}
+
 async function findBehaviorPatternHub(
   invitation: InvitationV2Row,
 ): Promise<string | null> {
@@ -2214,6 +2434,7 @@ export async function assessSybilV2Referral(
   if (checkpoint?.historical_chain_status === 'COMPLETE') {
     signals.push(...await loadHistoricalRewardSignals(invitation));
     signals.push(...await loadConsolidationSignals(invitation));
+    signals.push(...await loadConfirmedHubDirectSignals(invitation));
   }
 
   if (checkpoint?.funding_chain_status === 'COMPLETE') {
@@ -2261,7 +2482,7 @@ export async function assessSybilV2Referral(
   // Finality protects reward clearance/reservation, not the abuse verdict itself.
   // This lets CLEAR/HOLD be decided on the next assessment pass while the
   // existing DB clearance gate still requires CHAIN_FINALITY before any reward
-  // can be reserved or claimed. WATCH is legacy-only as of Sybil v2.10.
+  // can be reserved or claimed. WATCH is legacy-only as of Sybil v2.11.
   const policy = evaluateSybilV2Policy({
     signals,
     requiredChecksComplete: decisionChecksComplete,
@@ -2272,6 +2493,13 @@ export async function assessSybilV2Referral(
   const confirmedClusterHub =
     policy.state === 'HOLD'
       ? await findConfirmedClusterHubMatch(
+          invitation,
+          signals,
+        )
+      : null;
+  const confirmedHubDirect =
+    policy.state === 'HOLD'
+      ? await findConfirmedHubDirectRestrictionHub(
           invitation,
           signals,
         )
@@ -2314,6 +2542,9 @@ export async function assessSybilV2Referral(
       confirmedClusterHub
         ? CONFIRMED_CLUSTER_SIGNATURE_CODE
         : null,
+    confirmedHubDirect,
+    confirmedHubDirectAutomaticRestrictionCandidate:
+      confirmedHubDirect !== null,
     behaviorPatternHub,
     behaviorPatternAutomaticRestrictionCandidate:
       behaviorPatternHub !== null,
@@ -2322,6 +2553,7 @@ export async function assessSybilV2Referral(
       funderReturnLoopHub !== null,
     automaticBlacklistEligible:
       confirmedClusterHub !== null ||
+      confirmedHubDirect !== null ||
       behaviorPatternHub !== null ||
       funderReturnLoopHub !== null,
   };
@@ -2412,6 +2644,62 @@ export async function assessSybilV2Referral(
     }
   }
 
+
+  if (
+    revision !== null &&
+    policy.state === 'HOLD' &&
+    confirmedHubDirect
+  ) {
+    const automatic =
+      await applyConfirmedHubDirectRestriction({
+        invitation,
+        expectedRevision: revision,
+        hubWallet: confirmedHubDirect,
+      });
+
+    const automaticRevision =
+      safeRevision(automatic.revision);
+
+    if (
+      automatic.changed === true &&
+      automatic.state === 'RESTRICTED'
+    ) {
+      return {
+        inviteCode: normalizedCode,
+        state: 'RESTRICTED',
+        riskScore: 100,
+        reasonCodes: unique([
+          ...policy.reasonCodes,
+          'AUTO_CONFIRMED_HUB_DIRECT_RESTRICTION',
+        ]),
+        revision:
+          automaticRevision ?? revision,
+        clearanceIssued: false,
+        clearanceId: null,
+      };
+    }
+
+    const fresh =
+      await loadAssessment(normalizedCode);
+
+    if (fresh?.state === 'RESTRICTED') {
+      return {
+        inviteCode: normalizedCode,
+        state: 'RESTRICTED',
+        riskScore: 100,
+        reasonCodes: unique([
+          ...policy.reasonCodes,
+          'AUTO_CONFIRMED_HUB_DIRECT_RESTRICTION',
+        ]),
+        revision:
+          safeRevision(fresh.revision) ??
+          automaticRevision ??
+          revision,
+        clearanceIssued: false,
+        clearanceId: null,
+      };
+    }
+  }
 
   if (
     revision !== null &&
