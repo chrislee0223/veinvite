@@ -31,11 +31,15 @@ import {
 
 export const SYBIL_V2_ANALYZER_VERSION = 'sybil-v2.0';
 
-const REQUIRED_CHECKS = [
+const DECISION_CHECKS = [
   'HISTORICAL_CHAIN',
   'FUNDING_CHAIN',
   'MISSION_BEHAVIOR',
   'SECURITY_IDENTITY',
+] as const;
+
+const REQUIRED_CHECKS = [
+  ...DECISION_CHECKS,
   'CHAIN_FINALITY',
 ] as const;
 
@@ -1739,20 +1743,18 @@ export async function assessSybilV2Referral(
   }
 
   const activeRestriction = await hasActiveRestriction(invitation);
-  const requiredChecksComplete = REQUIRED_CHECKS.every((check) =>
+  const decisionChecksComplete = DECISION_CHECKS.every((check) =>
     completedChecks.includes(check),
   );
 
+  // Finality protects reward clearance/reservation, not the abuse verdict itself.
+  // This lets CLEAR/WATCH/HOLD be decided on the next assessment pass while the
+  // existing DB clearance gate still requires CHAIN_FINALITY before any reward
+  // can be reserved or claimed.
   const policy = evaluateSybilV2Policy({
     signals,
-    requiredChecksComplete,
-    analysisFailed:
-      analysisFailed ||
-      (
-        invitation.status === 'COMPLETED' &&
-        invitation.reward_status === 'ELIGIBLE' &&
-        finalizedBlock === null
-      ),
+    requiredChecksComplete: decisionChecksComplete,
+    analysisFailed,
     activeRestriction,
   });
 
