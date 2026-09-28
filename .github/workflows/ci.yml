@@ -47,7 +47,7 @@ jobs:
           node scripts/check-disaster-recovery.mjs
 
       - name: Codebase cleanup audit
-        run: node scripts/audit-codebase-cleanup.mjs --json=.ci/codebase-cleanup-audit.json
+        run: node scripts/audit-codebase-cleanup.mjs --json=.ci/codebase-cleanup-audit.json --enforce-unused --large-baseline=scripts/codebase-large-source-baseline.json
 
       - name: Upload codebase cleanup audit
         if: always()
