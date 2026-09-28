@@ -42,7 +42,7 @@ test('direct invitee-inviter same-client evidence HOLDs for review', () => {
   assert.ok(result.riskScore >= 70);
 });
 
-test('one generic strong historical signal remains WATCH', () => {
+test('one generic HIGH historical signal HOLDs before payout', () => {
   const result = evaluateSybilV2Policy({
     requiredChecksComplete: true,
     signals: [
@@ -55,10 +55,10 @@ test('one generic strong historical signal remains WATCH', () => {
     ],
   });
 
-  assert.equal(result.state, 'WATCH');
+  assert.equal(result.state, 'HOLD');
 });
 
-test('repeating many signals from one family cannot self-inflate into HOLD', () => {
+test('one HIGH domain HOLDs even when several signals share the same family', () => {
   const result = evaluateSybilV2Policy({
     requiredChecksComplete: true,
     signals: [
@@ -83,7 +83,7 @@ test('repeating many signals from one family cannot self-inflate into HOLD', () 
     ],
   });
 
-  assert.equal(result.state, 'WATCH');
+  assert.equal(result.state, 'HOLD');
   assert.equal(result.strongEvidenceFamilies.length, 1);
 });
 
@@ -231,11 +231,10 @@ test('coordinated historical reward and inviter-sink cluster HOLDs even within o
       ],
     });
 
-    const synchronized = rewardFindings.some((finding) => finding.signal.code === 'HISTORICAL_SYNCHRONIZED_REWARD_CLUSTER' && finding.signal.strength === 'HIGH');
     assert.equal(
       policy.state,
-      synchronized ? 'HOLD' : 'WATCH',
-      `${wallet} should HOLD only when synchronized rewards corroborate the common inviter sink`,
+      'HOLD',
+      `${wallet} has HIGH historical cluster evidence and should pause before payout`,
     );
     assert.deepEqual(
       new Set(policy.strongEvidenceDomains),
@@ -244,7 +243,7 @@ test('coordinated historical reward and inviter-sink cluster HOLDs even within o
   }
 });
 
-test('partial historical cluster evidence remains WATCH', () => {
+test('partial HIGH historical cluster evidence HOLDs before payout', () => {
   const commonSinkAndInviter = evaluateSybilV2Policy({
     requiredChecksComplete: true,
     signals: [
@@ -281,8 +280,8 @@ test('partial historical cluster evidence remains WATCH', () => {
     ],
   });
 
-  assert.equal(commonSinkAndInviter.state, 'WATCH');
-  assert.equal(synchronizedAndSink.state, 'WATCH');
+  assert.equal(commonSinkAndInviter.state, 'HOLD');
+  assert.equal(synchronizedAndSink.state, 'HOLD');
 });
 
 test('shared protocol destination is excluded from consolidation evidence', () => {
@@ -326,7 +325,7 @@ test('recent VTHO sponsorship alone remains weak and does not HOLD', () => {
   assert.equal(result.state, 'CLEAR');
 });
 
-test('shared recent funder plus a derivative inviter link stays one funding domain', () => {
+test('shared recent MEDIUM funder evidence stays CLEAR as one internal observation domain', () => {
   const result = evaluateSybilV2Policy({
     signals: [
       {
@@ -345,7 +344,7 @@ test('shared recent funder plus a derivative inviter link stays one funding doma
     requiredChecksComplete: true,
   });
 
-  assert.equal(result.state, 'WATCH');
+  assert.equal(result.state, 'CLEAR');
   assert.deepEqual(
     new Set(result.strongEvidenceFamilies),
     new Set(['FUNDING', 'CLUSTER_LINK']),
@@ -389,7 +388,7 @@ test('historical activity plus separate recent funding escalates to HOLD', () =>
   );
 });
 
-test('high-score historical sink funding link remains WATCH without another domain', () => {
+test('HIGH historical sink funding link HOLDs without another domain', () => {
   const result = evaluateSybilV2Policy({
     signals: [
       {
@@ -408,10 +407,10 @@ test('high-score historical sink funding link remains WATCH without another doma
     requiredChecksComplete: true,
   });
 
-  assert.equal(result.state, 'WATCH');
+  assert.equal(result.state, 'HOLD');
 });
 
-test('smaller historical-sink funding link remains WATCH', () => {
+test('smaller HIGH historical-sink funding link HOLDs', () => {
   const result = evaluateSybilV2Policy({
     signals: [
       {
@@ -424,10 +423,10 @@ test('smaller historical-sink funding link remains WATCH', () => {
     requiredChecksComplete: true,
   });
 
-  assert.equal(result.state, 'WATCH');
+  assert.equal(result.state, 'HOLD');
 });
 
-test('friend-style shared VTHO plus similar mission behavior remains WATCH', () => {
+test('friend-style LOW plus one MEDIUM domain stays CLEAR with evidence recorded', () => {
   const result = evaluateSybilV2Policy({
     signals: [
       {
@@ -446,10 +445,10 @@ test('friend-style shared VTHO plus similar mission behavior remains WATCH', () 
     requiredChecksComplete: true,
   });
 
-  assert.equal(result.state, 'WATCH');
+  assert.equal(result.state, 'CLEAR');
 });
 
-test('WATCH cluster-hub follow-up stays in historical activity instead of double-counting as post-payout', () => {
+test('legacy WATCH cluster-hub evidence stays one domain but HIGH evidence HOLDs', () => {
   const result = evaluateSybilV2Policy({
     requiredChecksComplete: true,
     signals: [
@@ -468,7 +467,7 @@ test('WATCH cluster-hub follow-up stays in historical activity instead of double
     ],
   });
 
-  assert.equal(result.state, 'WATCH');
+  assert.equal(result.state, 'HOLD');
   assert.deepEqual(
     new Set(result.strongEvidenceDomains),
     new Set(['HISTORICAL_ACTIVITY']),

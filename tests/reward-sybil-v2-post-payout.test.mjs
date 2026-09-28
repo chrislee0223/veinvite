@@ -6,7 +6,7 @@ import {
   evaluateSybilV2Policy,
 } from '../src/lib/sybil/v2/policy.ts';
 
-test('one post-payout sweep signal never becomes HOLD by itself', () => {
+test('one MEDIUM post-payout signal stays CLEAR with evidence recorded', () => {
   const result = evaluateSybilV2Policy({
     signals: [{
       code: 'RAPID_LARGE_B3TR_SWEEP',
@@ -17,7 +17,7 @@ test('one post-payout sweep signal never becomes HOLD by itself', () => {
     requiredChecksComplete: true,
   });
 
-  assert.equal(result.state, 'WATCH');
+  assert.equal(result.state, 'CLEAR');
   assert.deepEqual(
     result.strongEvidenceDomains,
     ['POST_PAYOUT'],
