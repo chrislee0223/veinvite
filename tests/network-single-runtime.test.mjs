@@ -31,6 +31,7 @@ const [
 ]);
 
 const networkGeometrySource = await readFile('src/lib/networkCanvasGeometry.ts', 'utf8');
+const networkGlyphSource = await readFile('src/components/NetworkGlyphs.tsx', 'utf8');
 const networkAppClientSource = await readFile('src/lib/networkAppClient.ts', 'utf8');
 const networkIdentitySource = await readFile('src/components/NetworkWalletIdentity.tsx', 'utf8');
 const networkWarmupSource = await readFile('src/components/NetworkIdleWarmup.tsx', 'utf8');
@@ -728,7 +729,7 @@ test('root center identity uses the wallet avatar and one compact label while th
 
 test('wallet search is magnifier-first and avoids iPhone focus zoom without disabling pinch zoom', () => {
   assert.match(networkSource, /const \[searchOpen, setSearchOpen\] = useState\(false\)/);
-  assert.match(networkSource, /function SearchGlyph\(\)/);
+  assert.match(networkGlyphSource, /export function SearchGlyph\(\)/);
   assert.match(networkSource, /className=\{\`searchToggle\$\{searchOpen \? ' active' : ''\}\`\}/);
   assert.match(networkSource, /ref=\{searchInputRef\}/);
   assert.match(networkSource, /searchInputRef\.current\?\.focus\(\{ preventScroll: true \}\)/);
