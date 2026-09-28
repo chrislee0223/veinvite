@@ -67,7 +67,6 @@ import {
   cloneNetworkFocusWorkspace,
   groupContainingWallet,
   moveWorkspaceMemberToGroup,
-  parseNetworkWorkspaceStore,
   removeWorkspaceGroupAtMemberPoints,
   removeWorkspaceMemberFromGroupAtPoint,
   serializeNetworkWorkspaceStore,
@@ -88,6 +87,7 @@ import {
   goHomeWithoutReload,
   newGroupId,
   readStoredWorkspace,
+  workspaceStorageKey,
 } from '@/lib/networkAppClient';
 import { useWalletLauncher } from './WalletControl';
 
