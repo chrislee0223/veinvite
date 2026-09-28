@@ -67,7 +67,6 @@ import {
   cloneNetworkFocusWorkspace,
   groupContainingWallet,
   moveWorkspaceMemberToGroup,
-  parseNetworkWorkspaceStore,
   removeWorkspaceGroupAtMemberPoints,
   removeWorkspaceMemberFromGroupAtPoint,
   serializeNetworkWorkspaceStore,
@@ -84,6 +83,12 @@ import {
   NetworkWalletIdentity,
   NetworkWalletLabel,
 } from './NetworkWalletIdentity';
+import {
+  goHomeWithoutReload,
+  newGroupId,
+  readStoredWorkspace,
+  workspaceStorageKey,
+} from '@/lib/networkAppClient';
 import { useWalletLauncher } from './WalletControl';
 
 type MemberStatus = 'IN_PROGRESS' | 'QUALIFIED' | 'REWARDED';
@@ -195,8 +200,6 @@ const GROUP_DROP_HIT_SLOP_Y = 14;
 const HOLD_TO_MOVE_MS = 500;
 const HOLD_CANCEL_DISTANCE = 8;
 const GROUP_SCREEN_DROP_RADIUS = 58;
-const WORKSPACE_PREFIX = 'veinvite-network-workspace-v1:';
-
 function shortWallet(wallet: string): string {
   if (wallet.length < 12) return wallet;
   return `${wallet.slice(0, 6)}…${wallet.slice(-4).toUpperCase()}`;
@@ -226,10 +229,6 @@ function defaultGroupMemberOffset(index: number, count: number): Point {
   };
 }
 
-function workspaceStorageKey(wallet: string): string {
-  return `${WORKSPACE_PREFIX}${keyWallet(wallet)}`;
-}
-
 function provisionalNetworkData(wallet: string): NetworkData {
   return {
     rootWallet: wallet,
@@ -247,21 +246,6 @@ function provisionalNetworkData(wallet: string): NetworkData {
     searchResults: [],
     depthLimitReached: false,
   };
-}
-
-function readStoredWorkspace(wallet: string): NetworkWorkspaceStore {
-  try {
-    return parseNetworkWorkspaceStore(window.localStorage.getItem(workspaceStorageKey(wallet)));
-  } catch {
-    return { version: 1, focus: {} };
-  }
-}
-
-function newGroupId(): string {
-  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
-    return crypto.randomUUID();
-  }
-  return `group-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
 }
 
 async function fetchNetwork(
@@ -370,15 +354,6 @@ function NetworkGlyph({ size = 32 }: { size?: number }) {
       <path d="M8.2 17h7.6" />
     </svg>
   );
-}
-
-function goHomeWithoutReload() {
-  const button = document.querySelector<HTMLButtonElement>('[data-veinvite-tab="home"]');
-  if (button) {
-    button.click();
-    return;
-  }
-  window.location.assign('/');
 }
 
 function edgePath(x1: number, y1: number, x2: number, y2: number): string {
