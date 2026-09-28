@@ -1,4 +1,4 @@
-export const SYBIL_V2_POLICY_VERSION = 'sybil-v2.8';
+export const SYBIL_V2_POLICY_VERSION = 'sybil-v2.9';
 
 export type SybilV2EvidenceFamily =
   | 'FUNDING'
@@ -35,6 +35,8 @@ export type SybilV2AssessmentState =
   | 'ANALYSIS_PENDING'
   | 'ANALYSIS_FAILED'
   | 'CLEAR'
+  // Legacy persisted value only. Sybil v2.9 never emits WATCH for a new
+  // reward decision; historical rows remain readable for audit compatibility.
   | 'WATCH'
   | 'HOLD'
   | 'RESTRICTED';
@@ -299,10 +301,18 @@ export function evaluateSybilV2Policy({
     };
   }
 
-  // Two independent medium/high evidence domains are normally required to HOLD.
-  // This prevents correlated historical flows or one recent-funder relationship
-  // from being counted twice under different signal families.
-  if (strongEvidenceDomains.length >= 2) {
+  const highEvidenceDomains = unique(
+    normalized
+      .filter((signal) =>
+        signal.score > 0 &&
+        STRENGTH_RANK[signal.strength] >= STRENGTH_RANK.HIGH,
+      )
+      .map(evidenceDomain),
+  );
+
+  // WATCH is no longer a payable decision state. Any HIGH evidence domain is
+  // uncertain enough to stop the reward before money leaves VeInvite.
+  if (highEvidenceDomains.length >= 1) {
     return {
       state: 'HOLD',
       riskScore: Math.max(60, riskScore),
@@ -314,16 +324,13 @@ export function evaluateSybilV2Policy({
     };
   }
 
-  // One strong domain or a meaningful combination of weaker independent domains
-  // remains payable but is watched after payout.
-  if (
-    strongEvidenceDomains.length === 1 ||
-    riskScore >= 25 ||
-    evidenceDomains.length >= 2
-  ) {
+  // Two independent MEDIUM-or-stronger domains also require review. A single
+  // LOW/MEDIUM observation stays CLEAR, with reasonCodes/evidence retained as
+  // internal monitoring metadata rather than a separate reward state.
+  if (strongEvidenceDomains.length >= 2) {
     return {
-      state: 'WATCH',
-      riskScore,
+      state: 'HOLD',
+      riskScore: Math.max(60, riskScore),
       reasonCodes,
       evidenceFamilies,
       strongEvidenceFamilies,
