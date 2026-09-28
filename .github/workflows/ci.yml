@@ -47,7 +47,16 @@ jobs:
           node scripts/check-disaster-recovery.mjs
 
       - name: Codebase cleanup audit
-        run: node scripts/audit-codebase-cleanup.mjs
+        run: node scripts/audit-codebase-cleanup.mjs --json=.ci/codebase-cleanup-audit.json
+
+      - name: Upload codebase cleanup audit
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: codebase-cleanup-audit-${{ github.run_id }}
+          path: .ci/codebase-cleanup-audit.json
+          if-no-files-found: error
+          retention-days: 7
 
       - name: UI stability gate
         run: node scripts/check-ui-stability.mjs
