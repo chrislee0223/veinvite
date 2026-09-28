@@ -15,37 +15,73 @@ const FORECAST_SEED_MAX_AGE_MS = 24 * 60 * 60_000;
 // cold TLS/HTTP connection so the very first visitor also receives a seed.
 const FORECAST_SEED_STARTUP_TIMEOUT_MS = 1_200;
 
+
+function isRecoverableForecastSeedReadFailure(
+  error: unknown,
+): boolean {
+  const message =
+    error instanceof Error
+      ? error.message
+      : String(error ?? '');
+
+  return (
+    /Latest reward forecast snapshot could not be loaded:/i.test(
+      message,
+    ) &&
+    /(?:Supabase forecast read exceeded 5000ms|fetch failed)/i.test(
+      message,
+    )
+  );
+}
+
 const readCachedPublicRewardForecastSeed = unstable_cache(
   async (
     network: string,
     appId: string,
   ): Promise<PublicRewardForecastSeed | null> => {
-    const snapshot = await readLatestRewardForecastSnapshot({
-      network,
-      appId,
-    });
-    if (!snapshot) return null;
-    if (snapshot.modelVersion !== REWARD_FORECAST_MODEL_VERSION) {
+    try {
+      const snapshot = await readLatestRewardForecastSnapshot({
+        network,
+        appId,
+      });
+      if (!snapshot) return null;
+      if (snapshot.modelVersion !== REWARD_FORECAST_MODEL_VERSION) {
+        return null;
+      }
+
+      const generatedAtMs = Date.parse(snapshot.generatedAt);
+      if (Number.isNaN(generatedAtMs)) return null;
+
+      const ageMs = Date.now() - generatedAtMs;
+      if (ageMs < 0 || ageMs > FORECAST_SEED_MAX_AGE_MS) {
+        return null;
+      }
+
+      return {
+        generatedAt: snapshot.generatedAt,
+        modelVersion: snapshot.modelVersion,
+        status: 'ready',
+        estimatedRewardWei: snapshot.estimatedRewardWei,
+        stale: ageMs > FORECAST_SEED_STALE_MS,
+      };
+    } catch (error) {
+      if (!isRecoverableForecastSeedReadFailure(error)) {
+        throw error;
+      }
+
+      // Next retries a failed stale-cache revalidation on later requests. Once
+      // the safe Supabase read retry is already exhausted, returning null lets
+      // the cache remember the miss for one normal TTL instead of turning a
+      // transient Vercel -> Supabase transport problem into a request-driven
+      // error storm. The browser /api/rewards/estimate path remains the
+      // authoritative fallback and refreshes independently after app-ready.
+      console.warn(
+        'Public reward forecast seed cache refresh skipped after a recoverable Supabase transport failure.',
+      );
       return null;
     }
-
-    const generatedAtMs = Date.parse(snapshot.generatedAt);
-    if (Number.isNaN(generatedAtMs)) return null;
-
-    const ageMs = Date.now() - generatedAtMs;
-    if (ageMs < 0 || ageMs > FORECAST_SEED_MAX_AGE_MS) {
-      return null;
-    }
-
-    return {
-      generatedAt: snapshot.generatedAt,
-      modelVersion: snapshot.modelVersion,
-      status: 'ready',
-      estimatedRewardWei: snapshot.estimatedRewardWei,
-      stale: ageMs > FORECAST_SEED_STALE_MS,
-    };
   },
-  ['public-reward-forecast-seed-v1'],
+  ['public-reward-forecast-seed-v2'],
   { revalidate: FORECAST_SEED_CACHE_SECONDS },
 );
 
