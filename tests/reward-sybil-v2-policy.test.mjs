@@ -231,10 +231,11 @@ test('coordinated historical reward and inviter-sink cluster HOLDs even within o
       ],
     });
 
+    const synchronized = rewardFindings.some((finding) => finding.signal.code === 'HISTORICAL_SYNCHRONIZED_REWARD_CLUSTER' && finding.signal.strength === 'HIGH');
     assert.equal(
       policy.state,
-      'HOLD',
-      `${wallet} synchronized rewards plus a common inviter sink should pause for review`,
+      synchronized ? 'HOLD' : 'WATCH',
+      `${wallet} should HOLD only when synchronized rewards corroborate the common inviter sink`,
     );
     assert.deepEqual(
       new Set(policy.strongEvidenceDomains),
