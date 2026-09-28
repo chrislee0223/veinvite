@@ -65,3 +65,24 @@ test('client drops only verified external browser-extension noise', () => {
   );
   assert.doesNotMatch(client, /ignoreErrors\s*:/);
 });
+
+test('client handles only the reviewed VeChain genesis bootstrap abort', () => {
+  assert.match(client, /VECHAIN_GENESIS_ABORT_MESSAGE_PARTS/);
+  assert.match(client, /Method 'HttpClient\.http\(\)' failed\./);
+  assert.match(client, /signal is aborted without reason/);
+  assert.match(client, /'\/blocks\/0'/);
+  assert.match(client, /candidate\.stack\.includes\('getGenesisBlock'\)/);
+  assert.match(client, /candidate\.stack\.includes\('getBlockCompressed'\)/);
+  assert.match(
+    client,
+    /window\.addEventListener\('unhandledrejection',[\s\S]*event\.preventDefault\(\)/,
+  );
+  assert.match(
+    client,
+    /if \(isKnownVeChainGenesisAbortEvent\(event\)\) return null;/,
+  );
+  assert.doesNotMatch(
+    client,
+    /signal is aborted without reason[^\n]*ignoreErrors/,
+  );
+});
