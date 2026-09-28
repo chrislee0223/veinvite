@@ -136,6 +136,6 @@ test('runtime keeps the normal policy at HOLD and only then invokes confirmed-cl
 test('Sybil policy version advances for prospective confirmed-cluster enforcement', () => {
   assert.match(
     policy,
-    /SYBIL_V2_POLICY_VERSION = 'sybil-v2\\.10'/u,
+    /SYBIL_V2_POLICY_VERSION = 'sybil-v2\.10'/u,
   );
 });
