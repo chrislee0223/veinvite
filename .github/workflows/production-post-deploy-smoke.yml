@@ -1,0 +1,85 @@
+name: Production Post-Deploy Smoke
+
+on:
+  workflow_run:
+    workflows:
+      - VeInvite CI
+    types:
+      - completed
+
+permissions:
+  contents: read
+
+concurrency:
+  group: veinvite-production-post-deploy-smoke
+  cancel-in-progress: true
+
+jobs:
+  smoke:
+    if: >-
+      github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.head_branch == 'main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 7
+
+    steps:
+      - name: Wait for matching Production deployment and verify health
+        env:
+          EXPECTED_GIT_SHA: ${{ github.event.workflow_run.head_sha }}
+          HEALTH_URL: https://veinvite.vercel.app/api/health
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          for attempt in $(seq 1 20); do
+            response="$(
+              curl                 --silent                 --show-error                 --location                 --max-time 20                 --retry 1                 --retry-delay 2                 --retry-all-errors                 "$HEALTH_URL"                 || true
+            )"
+
+            if [ -n "$response" ]; then
+              if HEALTH_JSON="$response" EXPECTED_GIT_SHA="$EXPECTED_GIT_SHA" node <<'NODE'
+          const health = JSON.parse(process.env.HEALTH_JSON ?? '{}');
+          const expectedSha = process.env.EXPECTED_GIT_SHA ?? '';
+          const deployedSha = health.deployment?.gitCommitSha ?? '';
+
+          const ready =
+            health.ok === true &&
+            health.database === 'ready' &&
+            health.network === 'mainnet' &&
+            health.deployment?.environment === 'production' &&
+            health.operations?.reconcileFresh === true &&
+            health.operations?.analyticsFresh === true &&
+            deployedSha === expectedSha;
+
+          if (!ready) {
+            console.log(
+              JSON.stringify({
+                ok: health.ok ?? null,
+                database: health.database ?? null,
+                network: health.network ?? null,
+                environment: health.deployment?.environment ?? null,
+                deployedSha: deployedSha ? deployedSha.slice(0, 12) : null,
+                expectedSha: expectedSha ? expectedSha.slice(0, 12) : null,
+                reconcileFresh: health.operations?.reconcileFresh ?? null,
+                analyticsFresh: health.operations?.analyticsFresh ?? null,
+              }),
+            );
+            process.exit(1);
+          }
+
+          console.log(
+            `Production smoke passed for ${deployedSha.slice(0, 12)}.`,
+          );
+          NODE
+              then
+                exit 0
+              fi
+            fi
+
+            if [ "$attempt" -lt 20 ]; then
+              sleep 15
+            fi
+          done
+
+          echo "Production did not become healthy on the expected commit within the smoke window." >&2
+          exit 1
