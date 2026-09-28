@@ -49,6 +49,8 @@ const DENSE_B3TR_BURST_BLOCK_WINDOW = 180;
 const DENSE_B3TR_BURST_MIN_WALLETS = 6;
 const DENSE_B3TR_BURST_MAX_GAP_BLOCKS = 24;
 const MISSION_PEER_WINDOW_SECONDS = 7 * 24 * 60 * 60;
+const FUNDER_RETURN_LOOP_MAX_BLOCKS = 12;
+const FUNDER_RETURN_LOOP_MIN_WALLETS = 3;
 const MAX_BATCH_SIZE = 10;
 const MAX_ASSESSMENT_BATCH_SIZE = 25;
 const CONFIRMED_CLUSTER_SIGNATURE_CODE =
@@ -189,7 +191,7 @@ export type SybilV2AssessmentResult = {
     | 'ANALYSIS_PENDING'
     | 'ANALYSIS_FAILED'
     | 'CLEAR'
-    // Legacy persisted state only; v2.9 policy does not emit WATCH.
+    // Legacy persisted state only; v2.10 policy does not emit WATCH.
     | 'WATCH'
     | 'HOLD'
     | 'RESTRICTED';
@@ -1293,6 +1295,168 @@ async function loadFundingSignals(
   return signals;
 }
 
+async function loadHistoricalFunderReturnLoopSignals(
+  invitation: InvitationV2Row,
+): Promise<SybilV2Signal[]> {
+  if (!invitation.activation_network || !invitation.invitee_wallet) {
+    return [];
+  }
+
+  const network = invitation.activation_network;
+  const subject = normalizeWallet(invitation.invitee_wallet);
+
+  const ownFunderResult = await supabaseAdmin
+    .from('sybil_v2_evidence_records')
+    .select('related_wallet,observed_block')
+    .eq('invite_code', invitation.invite_code)
+    .eq('network', network)
+    .eq('subject_wallet', subject)
+    .eq('evidence_family', 'FUNDING')
+    .eq('signal_code', 'FIRST_VTHO_FUNDER')
+    .not('related_wallet', 'is', null)
+    .not('observed_block', 'is', null);
+
+  if (ownFunderResult.error) {
+    throw new Error(
+      `Historical funder-return seed evidence could not be loaded: ${ownFunderResult.error.message}`,
+    );
+  }
+
+  const candidateHubs = unique([
+    ...((ownFunderResult.data ?? []) as Array<{
+      related_wallet: string | null;
+      observed_block: number | string | null;
+    }>)
+      .map((row) => row.related_wallet)
+      .filter((value): value is string => typeof value === 'string')
+      .map(normalizeWallet),
+    subject,
+  ]);
+
+  const signals: SybilV2Signal[] = [];
+
+  for (const hub of candidateHubs) {
+    if (knownProtocolDestinations().has(hub)) continue;
+
+    const fundingResult = await supabaseAdmin
+      .from('sybil_v2_evidence_records')
+      .select('subject_wallet,observed_block')
+      .eq('network', network)
+      .eq('evidence_family', 'FUNDING')
+      .eq('signal_code', 'FIRST_VTHO_FUNDER')
+      .eq('related_wallet', hub)
+      .not('observed_block', 'is', null);
+
+    if (fundingResult.error) {
+      throw new Error(
+        `Historical funder-return peers could not be loaded: ${fundingResult.error.message}`,
+      );
+    }
+
+    const fundingRows = (fundingResult.data ?? [])
+      .map((row) => ({
+        wallet: normalizeWallet(String(row.subject_wallet)),
+        fundingBlock: Number(row.observed_block),
+      }))
+      .filter((row) => Number.isSafeInteger(row.fundingBlock));
+
+    const fundedWallets = unique(fundingRows.map((row) => row.wallet));
+    if (fundedWallets.length < FUNDER_RETURN_LOOP_MIN_WALLETS) {
+      continue;
+    }
+
+    const outflowResult = await supabaseAdmin
+      .from('sybil_v2_preactivation_b3tr_outflows')
+      .select('wallet_address,block_number')
+      .eq('network', network)
+      .eq('destination_wallet', hub)
+      .in('wallet_address', fundedWallets);
+
+    if (outflowResult.error) {
+      throw new Error(
+        `Historical funder-return outflows could not be loaded: ${outflowResult.error.message}`,
+      );
+    }
+
+    const outflowRows = (outflowResult.data ?? []).map((row) => ({
+      wallet: normalizeWallet(String(row.wallet_address)),
+      blockNumber: Number(row.block_number),
+    }));
+
+    const matches = fundingRows.flatMap((funding) => {
+      const returnBlock = outflowRows
+        .filter((outflow) =>
+          outflow.wallet === funding.wallet &&
+          Number.isSafeInteger(outflow.blockNumber) &&
+          outflow.blockNumber >= funding.fundingBlock &&
+          outflow.blockNumber - funding.fundingBlock <=
+            FUNDER_RETURN_LOOP_MAX_BLOCKS,
+        )
+        .map((outflow) => outflow.blockNumber)
+        .sort((left, right) => left - right)[0];
+
+      return returnBlock === undefined
+        ? []
+        : [{
+            wallet: funding.wallet,
+            fundingBlock: funding.fundingBlock,
+            returnBlock,
+            returnBlocks: returnBlock - funding.fundingBlock,
+          }];
+    });
+
+    const uniqueMatches = [
+      ...new Map(matches.map((match) => [match.wallet, match])).values(),
+    ];
+
+    if (uniqueMatches.length < FUNDER_RETURN_LOOP_MIN_WALLETS) {
+      continue;
+    }
+
+    const ownMatch = uniqueMatches.find((match) => match.wallet === subject);
+    const subjectIsHub = subject === hub;
+    if (!ownMatch && !subjectIsHub) continue;
+
+    const code = subjectIsHub
+      ? 'HISTORICAL_FUNDER_RETURN_LOOP_HUB'
+      : 'HISTORICAL_FUNDER_RETURN_LOOP';
+    const score = Math.min(85, 60 + uniqueMatches.length * 4);
+
+    signals.push({
+      code,
+      family: 'CLUSTER_LINK',
+      strength: 'HIGH',
+      score,
+      independentKey: `funder-return:${hub}`,
+    });
+
+    await insertEvidenceRecord({
+      invitation,
+      subjectWallet: subject,
+      family: 'CLUSTER_LINK',
+      signalCode: code,
+      strength: 'HIGH',
+      score,
+      relatedWallet: hub,
+      evidence: {
+        loopWalletCount: uniqueMatches.length,
+        maxReturnBlocks: FUNDER_RETURN_LOOP_MAX_BLOCKS,
+        observedMaxReturnBlocks: Math.max(
+          ...uniqueMatches.map((match) => match.returnBlocks),
+        ),
+        ownFundingBlock: ownMatch?.fundingBlock ?? null,
+        ownReturnBlock: ownMatch?.returnBlock ?? null,
+        ownReturnBlocks: ownMatch?.returnBlocks ?? null,
+        subjectIsHub,
+      },
+      dedupeKey:
+        `sybil-v2:${invitation.invite_code}:${code.toLowerCase()}:${hub}`,
+    });
+  }
+
+  return signals;
+}
+
 async function loadWatchFollowupSignals(
   invitation: InvitationV2Row,
 ): Promise<SybilV2Signal[]> {
@@ -1584,7 +1748,6 @@ async function findConfirmedClusterHubMatch(
   if (
     !invitation.activation_network ||
     !invitation.invitee_wallet ||
-    !invitation.activated_at ||
     !hasHighSignal(
       signals,
       'HISTORICAL_SYNCHRONIZED_REWARD_CLUSTER',
@@ -1658,25 +1821,17 @@ async function findConfirmedClusterHubMatch(
     );
   }
 
-  const activatedAt =
-    Date.parse(invitation.activated_at);
-  if (Number.isNaN(activatedAt)) {
-    return null;
-  }
-
   const matches = (
     confirmedResult.data ?? []
   ) as ConfirmedClusterHubRow[];
 
+  // Confirmation time is knowledge time, not offense time. For any unpaid
+  // referral, newly confirmed historical cluster evidence may be applied
+  // retroactively. Paid/assigned rewards remain protected by the enforcement
+  // RPC and post-payout review path.
   return (
     matches
-      .filter((row) => {
-        const confirmedAt = Date.parse(row.confirmed_at);
-        return (
-          !Number.isNaN(confirmedAt) &&
-          activatedAt >= confirmedAt
-        );
-      })
+      .filter((row) => !Number.isNaN(Date.parse(row.confirmed_at)))
       .sort(
         (left, right) =>
           Date.parse(left.confirmed_at) -
@@ -1758,6 +1913,81 @@ async function findBehaviorPatternHub(
   return eligible[0]?.related_wallet
     ? normalizeWallet(eligible[0].related_wallet)
     : null;
+}
+
+async function findFunderReturnLoopHub(
+  invitation: InvitationV2Row,
+): Promise<string | null> {
+  if (!invitation.activation_network || !invitation.invitee_wallet) {
+    return null;
+  }
+
+  const { data, error } = await supabaseAdmin
+    .from('sybil_v2_evidence_records')
+    .select('related_wallet,strength,score')
+    .eq('invite_code', invitation.invite_code)
+    .eq('network', invitation.activation_network)
+    .eq('subject_wallet', normalizeWallet(invitation.invitee_wallet))
+    .in('signal_code', [
+      'HISTORICAL_FUNDER_RETURN_LOOP',
+      'HISTORICAL_FUNDER_RETURN_LOOP_HUB',
+    ])
+    .eq('strength', 'HIGH')
+    .gt('score', 0);
+
+  if (error) {
+    throw new Error(
+      `Funder-return loop evidence could not be loaded: ${error.message}`,
+    );
+  }
+
+  const rows = (data ?? []) as Array<{
+    related_wallet: string | null;
+    score: number | string;
+  }>;
+
+  const eligible = rows
+    .filter((row) => row.related_wallet)
+    .sort((left, right) => Number(right.score) - Number(left.score));
+
+  return eligible[0]?.related_wallet
+    ? normalizeWallet(eligible[0].related_wallet)
+    : null;
+}
+
+async function applyFunderReturnLoopRestriction({
+  invitation,
+  expectedRevision,
+  hubWallet,
+}: {
+  invitation: InvitationV2Row;
+  expectedRevision: number;
+  hubWallet: string;
+}): Promise<BehaviorPatternRestrictionRpcResult> {
+  if (!invitation.activation_network) {
+    return {
+      changed: false,
+      reason: 'NETWORK_MISSING',
+    };
+  }
+
+  const { data, error } = await supabaseAdmin.rpc(
+    'apply_sybil_v2_funder_return_loop_restriction',
+    {
+      p_invite_code: invitation.invite_code,
+      p_expected_revision: expectedRevision,
+      p_hub_wallet: normalizeWallet(hubWallet),
+      p_network: invitation.activation_network,
+    },
+  );
+
+  if (error) {
+    throw new Error(
+      `Funder-return loop restriction could not be applied: ${error.message}`,
+    );
+  }
+
+  return (data ?? {}) as BehaviorPatternRestrictionRpcResult;
 }
 
 async function applyBehaviorPatternRestriction({
@@ -1987,6 +2217,7 @@ export async function assessSybilV2Referral(
 
   if (checkpoint?.funding_chain_status === 'COMPLETE') {
     signals.push(...await loadFundingSignals(invitation));
+    signals.push(...await loadHistoricalFunderReturnLoopSignals(invitation));
   }
 
   const mission = await loadMissionBehaviorSignals(invitation);
@@ -2029,7 +2260,7 @@ export async function assessSybilV2Referral(
   // Finality protects reward clearance/reservation, not the abuse verdict itself.
   // This lets CLEAR/HOLD be decided on the next assessment pass while the
   // existing DB clearance gate still requires CHAIN_FINALITY before any reward
-  // can be reserved or claimed. WATCH is legacy-only as of Sybil v2.9.
+  // can be reserved or claimed. WATCH is legacy-only as of Sybil v2.10.
   const policy = evaluateSybilV2Policy({
     signals,
     requiredChecksComplete: decisionChecksComplete,
@@ -2047,6 +2278,10 @@ export async function assessSybilV2Referral(
   const behaviorPatternHub =
     policy.state === 'HOLD'
       ? await findBehaviorPatternHub(invitation)
+      : null;
+  const funderReturnLoopHub =
+    policy.state === 'HOLD'
+      ? await findFunderReturnLoopHub(invitation)
       : null;
 
   const evidenceSummary = {
@@ -2081,9 +2316,13 @@ export async function assessSybilV2Referral(
     behaviorPatternHub,
     behaviorPatternAutomaticRestrictionCandidate:
       behaviorPatternHub !== null,
+    funderReturnLoopHub,
+    funderReturnLoopAutomaticRestrictionCandidate:
+      funderReturnLoopHub !== null,
     automaticBlacklistEligible:
       confirmedClusterHub !== null ||
-      behaviorPatternHub !== null,
+      behaviorPatternHub !== null ||
+      funderReturnLoopHub !== null,
   };
 
   const expectedRevision =
@@ -2172,6 +2411,62 @@ export async function assessSybilV2Referral(
     }
   }
 
+
+  if (
+    revision !== null &&
+    policy.state === 'HOLD' &&
+    funderReturnLoopHub
+  ) {
+    const automatic =
+      await applyFunderReturnLoopRestriction({
+        invitation,
+        expectedRevision: revision,
+        hubWallet: funderReturnLoopHub,
+      });
+
+    const automaticRevision =
+      safeRevision(automatic.revision);
+
+    if (
+      automatic.changed === true &&
+      automatic.state === 'RESTRICTED'
+    ) {
+      return {
+        inviteCode: normalizedCode,
+        state: 'RESTRICTED',
+        riskScore: 100,
+        reasonCodes: unique([
+          ...policy.reasonCodes,
+          'AUTO_FUNDER_RETURN_LOOP_RESTRICTION',
+        ]),
+        revision:
+          automaticRevision ?? revision,
+        clearanceIssued: false,
+        clearanceId: null,
+      };
+    }
+
+    const fresh =
+      await loadAssessment(normalizedCode);
+
+    if (fresh?.state === 'RESTRICTED') {
+      return {
+        inviteCode: normalizedCode,
+        state: 'RESTRICTED',
+        riskScore: 100,
+        reasonCodes: unique([
+          ...policy.reasonCodes,
+          'AUTO_FUNDER_RETURN_LOOP_RESTRICTION',
+        ]),
+        revision:
+          safeRevision(fresh.revision) ??
+          automaticRevision ??
+          revision,
+        clearanceIssued: false,
+        clearanceId: null,
+      };
+    }
+  }
 
   if (
     revision !== null &&
