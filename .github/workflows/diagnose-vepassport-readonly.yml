@@ -1,0 +1,23 @@
+name: Read-only VePassport diagnostic
+
+on:
+  push:
+    branches:
+      - diagnostic/vepassport-readonly-0929
+
+permissions:
+  contents: read
+
+jobs:
+  scan:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+      - run: npm ci --ignore-scripts
+      - name: Query VePassport mainnet
+        run: node scripts/diagnose-vepassport-readonly.mjs
