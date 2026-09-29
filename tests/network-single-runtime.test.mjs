@@ -817,7 +817,9 @@ test('final Network gestures are coordinate-owned and deliberate', () => {
   assert.match(networkSource, /updateNodePositionRuntime/);
   assert.match(networkSource, /flushWorkspaceStore/);
   assert.match(networkSource, /cancelHoldDrag\(true\)/);
-  assert.match(networkSource, /screenDistance <= HOLD_CANCEL_DISTANCE && !holdDrag\.moved/);
+  assert.match(networkImplementationSource, /NETWORK_HOLD_CANCEL_DISTANCE = 8/);
+  assert.match(networkImplementationSource, /function networkPointerMovedBeyond/);
+  assert.match(networkSource, /!movedBeyondHoldThreshold && !holdDrag\.moved/);
   assert.match(networkSource, /pinchCandidateWalletRef/);
   assert.match(networkSource, /pinchEnterIntentRef/);
   assert.match(networkSource, /wheelEnterDistanceRef/);
