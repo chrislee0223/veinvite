@@ -106,13 +106,13 @@ test('paid evidence collection itself has no PAID rejection or payout mutation',
 
 test('analyzer upgrades requeue both live and paid COMPLETE checkpoints', async () => {
   const sql = await readFile(analyzerRefreshMigrationPath, 'utf8');
-  const source = await readFile(
-    'src/lib/sybil/v2/pipeline.ts',
+  const versionSource = await readFile(
+    'src/lib/sybil/v2/version.ts',
     'utf8',
   );
 
   assert.match(
-    source,
+    versionSource,
     /SYBIL_V2_ANALYZER_VERSION = 'sybil-v2\.1'/u,
   );
   assert.match(
@@ -161,5 +161,50 @@ test('stale COMPLETE checkpoints cannot satisfy CLEAR decision checks', async ()
   assert.match(
     assessor,
     /currentAnalyzerVersion: SYBIL_V2_ANALYZER_VERSION/u,
+  );
+});
+
+
+test('five-minute vote recovery drains stale live and paid analyzer backlogs', async () => {
+  const source = await readFile(
+    'src/app/api/cron/vote-reconcile/route.ts',
+    'utf8',
+  );
+
+  const liveQueue = source.indexOf(
+    'await enqueueSybilV2EvidenceBacklogBatch',
+  );
+  const paidQueue = source.indexOf(
+    'await enqueueSybilV2PaidBackfillBatch',
+  );
+  const policy = source.indexOf(
+    'await runSybilV2PolicyReassessmentBatch',
+    paidQueue,
+  );
+  const assessment = source.indexOf(
+    'await runSybilV2AssessmentBatch',
+    policy,
+  );
+  const reservation = source.indexOf(
+    'await reserveEligibleReferralRewards',
+    assessment,
+  );
+
+  assert.ok(liveQueue >= 0);
+  assert.ok(paidQueue > liveQueue);
+  assert.ok(policy > paidQueue);
+  assert.ok(assessment > policy);
+  assert.ok(reservation > assessment);
+  assert.match(
+    source,
+    /enqueueSybilV2EvidenceBacklogBatch\(\s*50,?\s*\)/u,
+  );
+  assert.match(
+    source,
+    /enqueueSybilV2PaidBackfillBatch\(\s*10,?\s*\)/u,
+  );
+  assert.match(
+    source,
+    /sybilRewardRecoveryMinutes:\s*RECOVERY_INTERVAL_SECONDS \/ 60/u,
   );
 });

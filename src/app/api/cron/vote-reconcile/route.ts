@@ -25,6 +25,10 @@ import {
   runB3trRecipientObservationBatch,
 } from '@/lib/sybil/recipientB3trObservationBatch';
 import {
+  enqueueSybilV2EvidenceBacklogBatch,
+  enqueueSybilV2PaidBackfillBatch,
+} from '@/lib/sybil/v2/evidenceQueue';
+import {
   runSybilV2AssessmentBatch,
   runSybilV2PolicyReassessmentBatch,
 } from '@/lib/sybil/v2/pipeline';
@@ -943,6 +947,18 @@ export async function GET(
         typeof replayRecentVoteEventsFallback
       >
     > | null = null;
+  let sybilV2EvidenceQueue:
+    Awaited<
+      ReturnType<
+        typeof enqueueSybilV2EvidenceBacklogBatch
+      >
+    > | null = null;
+  let sybilV2PaidBackfill:
+    Awaited<
+      ReturnType<
+        typeof enqueueSybilV2PaidBackfillBatch
+      >
+    > | null = null;
   let sybilV2PolicyReassessment:
     Awaited<
       ReturnType<
@@ -1071,6 +1087,43 @@ export async function GET(
   if (recoveryClaimed) {
     let recoveryFailure:
       unknown | null = null;
+
+    // Analyzer upgrades intentionally make old COMPLETE checkpoints stale.
+    // Publish the live and already-paid evidence backlogs from the existing
+    // five-minute recovery loop so a new analyzer does not take days to reach
+    // every referral. Queue delivery remains idempotent and chain scans stay
+    // isolated from reward reservation in the dedicated queue consumer.
+    try {
+      sybilV2EvidenceQueue =
+        await enqueueSybilV2EvidenceBacklogBatch(
+          50,
+        );
+    } catch (error) {
+      recoveryFailure = error;
+      console.error(
+        'Vote watcher Sybil v2 evidence backlog publish failed:',
+        error,
+      );
+      errors.push(
+        'SYBIL_V2_EVIDENCE_QUEUE_FAILED',
+      );
+    }
+
+    try {
+      sybilV2PaidBackfill =
+        await enqueueSybilV2PaidBackfillBatch(
+          10,
+        );
+    } catch (error) {
+      recoveryFailure ??= error;
+      console.error(
+        'Vote watcher Sybil v2 PAID backfill publish failed:',
+        error,
+      );
+      errors.push(
+        'SYBIL_V2_PAID_BACKFILL_FAILED',
+      );
+    }
 
     try {
       sybilV2PolicyReassessment =
@@ -1277,6 +1330,8 @@ export async function GET(
       },
       eventWatcher,
       fallback,
+      sybilV2EvidenceQueue,
+      sybilV2PaidBackfill,
       sybilV2PolicyReassessment,
       sybilV2Assessment,
       rewardReservation,

@@ -36,11 +36,14 @@ import {
   unique,
 } from '@/lib/sybil/v2/pipelinePrimitives';
 import {
+  SYBIL_V2_ANALYZER_VERSION,
+} from '@/lib/sybil/v2/version';
+import {
   getVeBetterNetworkConfig,
   type VeBetterNetwork,
 } from '@/lib/vebetter/network';
 
-export const SYBIL_V2_ANALYZER_VERSION = 'sybil-v2.1';
+export { SYBIL_V2_ANALYZER_VERSION } from '@/lib/sybil/v2/version';
 const SYBIL_V2_BEHAVIOR_ENFORCEMENT_VERSION = 'behavior-pattern-v2';
 
 const DECISION_CHECKS = [
