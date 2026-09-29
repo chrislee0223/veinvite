@@ -3,6 +3,9 @@ import 'server-only';
 import { send } from '@vercel/queue';
 
 import { supabaseAdmin } from '@/lib/supabaseServer';
+import {
+  SYBIL_V2_ANALYZER_VERSION,
+} from '@/lib/sybil/v2/version';
 
 export const SYBIL_V2_EVIDENCE_TOPIC =
   'veinvite-sybil-v2-evidence';
@@ -72,7 +75,7 @@ export async function enqueueSybilV2EvidenceCollection({
     {
       delaySeconds: 1,
       idempotencyKey:
-        `veinvite-sybil-v2-evidence-${payload.inviteCode}`,
+        `veinvite-sybil-v2-evidence-${SYBIL_V2_ANALYZER_VERSION}-${payload.inviteCode}`,
       retentionSeconds: MESSAGE_RETENTION_SECONDS,
     },
   );
@@ -108,9 +111,10 @@ function normalizePaidBackfillBatchSize(value: number) {
  * queue consumer, so reconciliation does not accumulate many long RPC scans in
  * one serverless invocation.
  *
- * Idempotency is intentionally shared with the activation-time publisher.
- * Re-publishing a still-live message is harmless, while an expired/missed
- * activation message can be recreated from the authoritative DB backlog.
+ * Idempotency is shared within one analyzer version, while the analyzer
+ * version is part of the key. An analyzer upgrade must create a fresh queue
+ * message even when the same invite was scanned recently under an older
+ * detector. Re-publishing within the same version remains harmless.
  */
 export async function enqueueSybilV2EvidenceBacklogBatch(
   requestedLimit = DEFAULT_BACKLOG_ENQUEUE_BATCH_SIZE,
