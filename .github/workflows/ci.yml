@@ -93,6 +93,9 @@ jobs:
       - name: Network group workspace behavior gate
         run: node --experimental-strip-types --test tests/network-workspace-group-operations.test.mjs
 
+      - name: Network gesture geometry behavior gate
+        run: node --experimental-strip-types --test tests/network-gesture-geometry.test.mjs
+
       - name: User-facing copy and UX gate
         run: node scripts/check-user-facing-copy.mjs
 
