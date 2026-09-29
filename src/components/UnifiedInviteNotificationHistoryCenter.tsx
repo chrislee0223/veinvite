@@ -52,6 +52,8 @@ const REWARD_RECEIPT_ACKNOWLEDGED_EVENT =
   'veinvite-reward-receipt-acknowledged';
 const HOME_DATA_REFRESH_REQUESTED_EVENT =
   'veinvite-home-data-refresh-requested';
+const REWARD_ACTION_PENDING_TRANSFER_POLL_MS = 5_000;
+const REWARD_ACTION_IDLE_POLL_MS = 60_000;
 const FOCUSABLE_SELECTOR = [
   'button:not([disabled])',
   'a[href]',
@@ -460,14 +462,23 @@ export function InviteNotificationHistoryCenter({
     // This keeps the first visible frame structurally complete instead of
     // inserting an action/loading section one frame later.
     void loadRewardActions();
+
+    const hasPendingTransferConfirmation = rewardActions.some(
+      (action) =>
+        action.status !== 'AWAITING_CLAIM' &&
+        (!action.broadcastConfirmedAt || !action.txId),
+    );
+    const pollIntervalMs = hasPendingTransferConfirmation
+      ? REWARD_ACTION_PENDING_TRANSFER_POLL_MS
+      : REWARD_ACTION_IDLE_POLL_MS;
     const timer = window.setInterval(() => {
       if (document.visibilityState === 'visible') {
         void loadRewardActions();
       }
-    }, 60_000);
+    }, pollIntervalMs);
 
     return () => window.clearInterval(timer);
-  }, [loadRewardActions, open]);
+  }, [loadRewardActions, open, rewardActions]);
 
   const claimReward = useCallback(async (action: RewardActionItem) => {
     if (
@@ -941,8 +952,8 @@ export function InviteNotificationHistoryCenter({
               ) : (
                 <span className="notificationProcessingBadge">
                   {transferConfirmed
-                    ? progressCopy.finalCheck
-                    : progressCopy.claimQueued}
+                    ? `B3TR ✓ · ${progressCopy.finalCheck}`
+                    : `B3TR → · ${progressCopy.claimQueued}`}
                 </span>
               )}
             </article>
