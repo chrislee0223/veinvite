@@ -78,6 +78,25 @@ test('recognized metrics exclude invalidated referrals without changing accounti
   assert.doesNotMatch(sql, /get_veinvite_vebetter_round_report_v1_internal/u);
 });
 
+test('current unpaid RESTRICTED referrals are invalidated automatically without rewriting paid history', async () => {
+  const sql = await readFile(
+    'supabase/migrations/20260929194500_sync_current_restrictions_to_referral_invalidation.sql',
+    'utf8',
+  );
+
+  assert.match(sql, /sybil_v2_referral_assessments/u);
+  assert.match(sql, /a\.state = 'RESTRICTED'/u);
+  assert.match(sql, /sybil_v2_wallet_restrictions/u);
+  assert.match(sql, /r\.status = 'ACTIVE'/u);
+  assert.match(sql, /r\.related_invite_code = i\.invite_code/u);
+  assert.match(sql, /i\.reward_status <> 'PAID'/u);
+  assert.match(sql, /q\.status = 'ASSIGNED'/u);
+  assert.match(sql, /sybil_v2_referral_invalidations/u);
+  assert.doesNotMatch(sql, /insert into public\.sybil_v2_referral_invalidations/u);
+  assert.doesNotMatch(sql, /update public\.reward_receipts/u);
+  assert.doesNotMatch(sql, /update public\.reward_payouts/u);
+});
+
 test('leaderboard movement is hidden when a later Sybil invalidation makes the old snapshot incomparable', async () => {
   const sql = await readFile(metricsPath, 'utf8');
 
