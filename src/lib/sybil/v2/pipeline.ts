@@ -30,7 +30,7 @@ import {
 } from '@/lib/vebetter/network';
 
 export const SYBIL_V2_ANALYZER_VERSION = 'sybil-v2.0';
-const SYBIL_V2_BEHAVIOR_ENFORCEMENT_VERSION = 'behavior-pattern-v1';
+const SYBIL_V2_BEHAVIOR_ENFORCEMENT_VERSION = 'behavior-pattern-v2';
 
 const DECISION_CHECKS = [
   'HISTORICAL_CHAIN',
@@ -240,6 +240,11 @@ function knownProtocolDestinations(): Set<string> {
     config.x2EarnAppsAddress.toLowerCase(),
     config.x2EarnRewardsPoolAddress.toLowerCase(),
     config.xAllocationVotingAddress.toLowerCase(),
+    // Known service/protocol wallets that can look like shared Sybil hubs.
+    '0x76ca782b59c74d088c7d2cce2f211bc00836c602', // VOT3
+    '0x8692410da301a9b796b68a58ff660d51e979c6fa', // gas abstraction paymaster
+    '0xf9a1bc92e0eeee598b9fdb45397107b1f05f6cc1', // VeSwap router
+    '0xf21dd7108d93af56fab07423efb90f4a3604da89', // BetterSwap aggregator
   ]);
 }
 
@@ -922,6 +927,7 @@ async function loadFundingSignals(
       ? normalizeWallet(row.related_wallet)
       : null;
     if (!funder) continue;
+    if (knownProtocolDestinations().has(funder)) continue;
 
     const peers = await supabaseAdmin
       .from('sybil_v2_evidence_records')
@@ -986,6 +992,7 @@ async function loadFundingSignals(
       ? normalizeWallet(row.related_wallet)
       : null;
     if (!funder) continue;
+    if (knownProtocolDestinations().has(funder)) continue;
 
     const key = `${row.signal_code}:${funder}`;
     const current = closestByAssetFunder.get(key);
@@ -1011,6 +1018,7 @@ async function loadFundingSignals(
       ? normalizeWallet(row.related_wallet)
       : null;
     if (!funder) continue;
+    if (knownProtocolDestinations().has(funder)) continue;
 
     const asset = row.signal_code.includes('_B3TR_')
       ? 'B3TR'
@@ -1458,6 +1466,125 @@ async function loadHistoricalFunderReturnLoopSignals(
   return signals;
 }
 
+async function loadHistoricalSinkRecentRefunderSignals(
+  invitation: InvitationV2Row,
+): Promise<SybilV2Signal[]> {
+  if (!invitation.activation_network || !invitation.invitee_wallet) return [];
+
+  const network = invitation.activation_network;
+  const subject = normalizeWallet(invitation.invitee_wallet);
+  const protocol = knownProtocolDestinations();
+  const funding = await supabaseAdmin
+    .from('sybil_v2_evidence_records')
+    .select('related_wallet,observed_block')
+    .eq('invite_code', invitation.invite_code)
+    .eq('network', network)
+    .eq('subject_wallet', subject)
+    .eq('evidence_family', 'FUNDING')
+    .in('signal_code', [
+      'RECENT_PREACTIVATION_VET_FUNDER',
+      'RECENT_PREACTIVATION_B3TR_FUNDER',
+    ])
+    .not('related_wallet', 'is', null)
+    .not('observed_block', 'is', null);
+
+  if (funding.error) {
+    throw new Error(`Recent refunder evidence could not be loaded: ${funding.error.message}`);
+  }
+
+  const hubs = unique(
+    (funding.data ?? [])
+      .map((row) => normalizeWallet(String(row.related_wallet)))
+      .filter((hub) => !protocol.has(hub)),
+  );
+  const signals: SybilV2Signal[] = [];
+
+  for (const hub of hubs) {
+    const peerFunding = await supabaseAdmin
+      .from('sybil_v2_evidence_records')
+      .select('subject_wallet,observed_block')
+      .eq('network', network)
+      .eq('evidence_family', 'FUNDING')
+      .in('signal_code', [
+        'RECENT_PREACTIVATION_VET_FUNDER',
+        'RECENT_PREACTIVATION_B3TR_FUNDER',
+      ])
+      .eq('related_wallet', hub)
+      .not('observed_block', 'is', null);
+
+    if (peerFunding.error) {
+      throw new Error(`Recent refunder peers could not be loaded: ${peerFunding.error.message}`);
+    }
+
+    const earliestFunding = new Map<string, number>();
+    for (const row of peerFunding.data ?? []) {
+      const wallet = normalizeWallet(String(row.subject_wallet));
+      const block = Number(row.observed_block);
+      if (!Number.isSafeInteger(block)) continue;
+      const current = earliestFunding.get(wallet);
+      if (current === undefined || block < current) earliestFunding.set(wallet, block);
+    }
+
+    const wallets = [...earliestFunding.keys()];
+    if (wallets.length < 3) continue;
+
+    const outflows = await supabaseAdmin
+      .from('sybil_v2_preactivation_b3tr_outflows')
+      .select('wallet_address,block_number')
+      .eq('network', network)
+      .eq('destination_wallet', hub)
+      .in('wallet_address', wallets);
+
+    if (outflows.error) {
+      throw new Error(`Historical sink/refunder outflows could not be loaded: ${outflows.error.message}`);
+    }
+
+    const matched = new Set<string>();
+    for (const row of outflows.data ?? []) {
+      const wallet = normalizeWallet(String(row.wallet_address));
+      const outBlock = Number(row.block_number);
+      const fundingBlock = earliestFunding.get(wallet);
+      if (
+        fundingBlock !== undefined &&
+        Number.isSafeInteger(outBlock) &&
+        outBlock < fundingBlock
+      ) {
+        matched.add(wallet);
+      }
+    }
+
+    if (matched.size < 3 || !matched.has(subject)) continue;
+
+    const score = Math.min(90, 70 + matched.size * 4);
+    const signal: SybilV2Signal = {
+      code: 'HISTORICAL_SINK_RECENT_REFUNDER_CLUSTER',
+      family: 'CLUSTER_LINK',
+      strength: 'HIGH',
+      score,
+      independentKey: hub,
+    };
+    signals.push(signal);
+
+    await insertEvidenceRecord({
+      invitation,
+      subjectWallet: subject,
+      family: 'CLUSTER_LINK',
+      signalCode: signal.code,
+      strength: signal.strength,
+      score: signal.score,
+      relatedWallet: hub,
+      evidence: {
+        matchedWalletCount: matched.size,
+        pattern: 'HISTORICAL_SINK_RECENT_REFUNDER_V1',
+      },
+      dedupeKey:
+        `sybil-v2:${invitation.invite_code}:historical-sink-recent-refunder:${hub}`,
+    });
+  }
+
+  return signals;
+}
+
 async function loadWatchFollowupSignals(
   invitation: InvitationV2Row,
 ): Promise<SybilV2Signal[]> {
@@ -1635,6 +1762,63 @@ async function loadSecurityIdentitySignals(
   signals: SybilV2Signal[];
   complete: boolean;
 }> {
+  if (invitation.invitee_wallet) {
+    const inviteeWallet = normalizeWallet(invitation.invitee_wallet);
+    const inviterWallet = normalizeWallet(invitation.inviter_wallet);
+    const inviteeClients = await supabaseAdmin
+      .from('security_client_wallet_observations')
+      .select('client_id')
+      .eq('wallet_address', inviteeWallet);
+
+    if (inviteeClients.error) {
+      throw new Error(`Security client evidence could not be loaded: ${inviteeClients.error.message}`);
+    }
+
+    const clientIds = unique(
+      (inviteeClients.data ?? []).map((row) => String(row.client_id)),
+    );
+
+    if (clientIds.length > 0) {
+      const inviterClient = await supabaseAdmin
+        .from('security_client_wallet_observations')
+        .select('client_id')
+        .eq('wallet_address', inviterWallet)
+        .in('client_id', clientIds)
+        .limit(1);
+
+      if (inviterClient.error) {
+        throw new Error(`Inviter security client evidence could not be loaded: ${inviterClient.error.message}`);
+      }
+
+      const sharedClientId = inviterClient.data?.[0]?.client_id;
+      if (sharedClientId) {
+        const signal: SybilV2Signal = {
+          code: 'SECURITY_CLIENT_INVITER_LINK',
+          family: 'SECURITY_IDENTITY',
+          strength: 'HIGH',
+          score: 95,
+          independentKey: String(sharedClientId),
+        };
+        await insertEvidenceRecord({
+          invitation,
+          subjectWallet: inviteeWallet,
+          family: 'SECURITY_IDENTITY',
+          signalCode: signal.code,
+          strength: signal.strength,
+          score: signal.score,
+          relatedWallet: inviterWallet,
+          evidence: {
+            sameInviterClient: true,
+            sharedClientId: String(sharedClientId),
+            preVoteDetection: true,
+          },
+          dedupeKey:
+            `sybil-v2:${invitation.invite_code}:security-client-inviter-link:${sharedClientId}`,
+        });
+        return { signals: [signal], complete: true };
+      }
+    }
+  }
   const checkedAt = invitation.identity_link_checked_at
     ? Date.parse(invitation.identity_link_checked_at)
     : Number.NaN;
@@ -1950,6 +2134,7 @@ async function findFunderReturnLoopHub(
     .in('signal_code', [
       'HISTORICAL_FUNDER_RETURN_LOOP',
       'HISTORICAL_FUNDER_RETURN_LOOP_HUB',
+      'HISTORICAL_SINK_RECENT_REFUNDER_CLUSTER',
     ])
     .eq('strength', 'HIGH')
     .gt('score', 0);
@@ -1972,6 +2157,30 @@ async function findFunderReturnLoopHub(
   return eligible[0]?.related_wallet
     ? normalizeWallet(eligible[0].related_wallet)
     : null;
+}
+
+async function applySecurityClientInviterRestriction({
+  invitation,
+  expectedRevision,
+}: {
+  invitation: InvitationV2Row;
+  expectedRevision: number;
+}): Promise<BehaviorPatternRestrictionRpcResult> {
+  if (!invitation.activation_network) {
+    return { changed: false, reason: 'NETWORK_MISSING' };
+  }
+  const { data, error } = await supabaseAdmin.rpc(
+    'apply_sybil_v2_security_client_inviter_restriction',
+    {
+      p_invite_code: invitation.invite_code,
+      p_expected_revision: expectedRevision,
+      p_network: invitation.activation_network,
+    },
+  );
+  if (error) {
+    throw new Error(`Security-client restriction could not be applied: ${error.message}`);
+  }
+  return (data ?? {}) as BehaviorPatternRestrictionRpcResult;
 }
 
 async function applyFunderReturnLoopRestriction({
@@ -2237,6 +2446,7 @@ export async function assessSybilV2Referral(
   if (checkpoint?.funding_chain_status === 'COMPLETE') {
     signals.push(...await loadFundingSignals(invitation));
     signals.push(...await loadHistoricalFunderReturnLoopSignals(invitation));
+    signals.push(...await loadHistoricalSinkRecentRefunderSignals(invitation));
   }
 
   const mission = await loadMissionBehaviorSignals(invitation);
@@ -2302,6 +2512,9 @@ export async function assessSybilV2Referral(
     policy.state === 'HOLD'
       ? await findFunderReturnLoopHub(invitation)
       : null;
+  const securityClientInviterLink =
+    policy.state === 'HOLD' &&
+    hasHighSignal(signals, 'SECURITY_CLIENT_INVITER_LINK');
 
   const evidenceSummary = {
     behaviorPatternEnforcementVersion:
@@ -2338,10 +2551,13 @@ export async function assessSybilV2Referral(
     funderReturnLoopHub,
     funderReturnLoopAutomaticRestrictionCandidate:
       funderReturnLoopHub !== null,
+    securityClientInviterLinkAutomaticRestrictionCandidate:
+      securityClientInviterLink,
     automaticBlacklistEligible:
       confirmedClusterHub !== null ||
       behaviorPatternHub !== null ||
-      funderReturnLoopHub !== null,
+      funderReturnLoopHub !== null ||
+      securityClientInviterLink,
   };
 
   const expectedRevision =
@@ -2372,6 +2588,32 @@ export async function assessSybilV2Referral(
   }
 
   const revision = safeRevision(recorded.revision);
+
+  if (
+    revision !== null &&
+    policy.state === 'HOLD' &&
+    securityClientInviterLink
+  ) {
+    const automatic = await applySecurityClientInviterRestriction({
+      invitation,
+      expectedRevision: revision,
+    });
+    const automaticRevision = safeRevision(automatic.revision);
+    if (automatic.changed === true && automatic.state === 'RESTRICTED') {
+      return {
+        inviteCode: normalizedCode,
+        state: 'RESTRICTED',
+        riskScore: 100,
+        reasonCodes: unique([
+          ...policy.reasonCodes,
+          'AUTO_SECURITY_CLIENT_INVITER_RESTRICTION',
+        ]),
+        revision: automaticRevision ?? revision,
+        clearanceIssued: false,
+        clearanceId: null,
+      };
+    }
+  }
 
   if (
     revision !== null &&
