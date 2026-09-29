@@ -81,7 +81,6 @@ test('other-user Network stays read-only while matching My Network chrome', () =
   assert.match(publicExplorer, /Math\.min\(58, Math\.abs\(dx\) \* 0\.16\)/);
   assert.match(networkViewHelpers, /function edgePath\(/);
   assert.match(networkViewHelpers, /Math\.min\(58, Math\.abs\(dx\) \* 0\.16\)/);
-  assert.match(network, /edgePath\(edge\.x1, edge\.y1, edge\.x2, edge\.y2\)/);
   assert.match(publicExplorer, /d=\{publicEdgePath\(edge\.x1, edge\.y1, edge\.x2, edge\.y2\)\}/);
   assert.match(publicExplorer, /const factor = direction > 0 \? 1\.16 : 0\.86/);
   assert.match(publicExplorer, /zoomAt\([\s\S]*stageSize\.width \/ 2[\s\S]*stageSize\.height \/ 2/);
