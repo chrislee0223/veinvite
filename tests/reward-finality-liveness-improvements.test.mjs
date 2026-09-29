@@ -98,6 +98,14 @@ test('notification reward actions poll quickly only until canonical transfer con
   );
   assert.match(
     notificationCenter,
+    /\[hasPendingTransferConfirmation, loadRewardActions, open\]/,
+  );
+  assert.doesNotMatch(
+    notificationCenter,
+    /\[loadRewardActions, open, rewardActions\]/,
+  );
+  assert.match(
+    notificationCenter,
     /B3TR ✓ · \$\{progressCopy\.finalCheck\}/,
   );
   assert.match(
