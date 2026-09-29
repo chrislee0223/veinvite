@@ -68,6 +68,8 @@ export async function GET() {
           signalCount: 0,
           protocolSignalThreshold: 1,
           veInviteReviewThreshold: 2,
+          signalingCheckEnabled: true,
+          blacklistCheckEnabled: true,
           blacklisted: false,
         });
 
@@ -92,6 +94,8 @@ export async function GET() {
           signalCount: 1,
           protocolSignalThreshold: 1,
           veInviteReviewThreshold: 2,
+          signalingCheckEnabled: true,
+          blacklistCheckEnabled: true,
           blacklisted: false,
         });
 
@@ -116,6 +120,8 @@ export async function GET() {
           signalCount: 2,
           protocolSignalThreshold: 3,
           veInviteReviewThreshold: 2,
+          signalingCheckEnabled: true,
+          blacklistCheckEnabled: true,
           blacklisted: false,
         });
 
@@ -135,6 +141,8 @@ export async function GET() {
           signalCount: 1,
           protocolSignalThreshold: 3,
           veInviteReviewThreshold: 2,
+          signalingCheckEnabled: true,
+          blacklistCheckEnabled: true,
           blacklisted: false,
         });
 
@@ -159,6 +167,8 @@ export async function GET() {
           signalCount: 0,
           protocolSignalThreshold: 1,
           veInviteReviewThreshold: 2,
+          signalingCheckEnabled: true,
+          blacklistCheckEnabled: true,
           blacklisted: true,
         });
 
@@ -171,6 +181,32 @@ export async function GET() {
         result.riskScore,
         100,
         'riskScore',
+      );
+    },
+  );
+
+  await test(
+    'disabled protocol blacklist remains observation-only',
+    () => {
+      const result =
+        evaluateVePassportSignalRisk({
+          signalCount: 0,
+          protocolSignalThreshold: 1,
+          veInviteReviewThreshold: 2,
+          signalingCheckEnabled: true,
+          blacklistCheckEnabled: false,
+          blacklisted: true,
+        });
+
+      expectEqual(
+        result.status,
+        'CLEAR',
+        'status',
+      );
+      expectEqual(
+        result.riskLevel,
+        'LOW',
+        'riskLevel',
       );
     },
   );

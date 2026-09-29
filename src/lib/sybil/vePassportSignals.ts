@@ -13,26 +13,43 @@ import {
 } from '@/lib/vebetter/network';
 
 const ADDRESS_PATTERN = /^0x[0-9a-fA-F]{40}$/;
+const ZERO_ADDRESS = '0x0000000000000000000000000000000000000000';
 const DEFAULT_REVIEW_THRESHOLD = 2;
 const PASSPORT_WALLET_BATCH_SIZE = 8;
-
-const REVIEWED_PASSPORT_ADDRESSES: Record<
-  VeBetterNetwork,
-  string
-> = {
-  mainnet:
-    '0x35a267671d8EDD607B2056A9a13E7ba7CF53c8b3',
-  testnet:
-    '0x4d0882e0a38daabb395cbe869db9405ea5860d7b',
-  'testnet-staging':
-    '0x592c756df7a5d39de1735030e8b9c18b7417e6c4',
-};
 
 const veBetterPassportAbi = [
   {
     inputs: [],
+    name: 'version',
+    outputs: [{ name: '', type: 'string' }],
+    stateMutability: 'pure',
+    type: 'function',
+  },
+  {
+    inputs: [],
     name: 'signalingThreshold',
     outputs: [{ name: '', type: 'uint256' }],
+    stateMutability: 'view',
+    type: 'function',
+  },
+  {
+    inputs: [],
+    name: 'thresholdPoPScore',
+    outputs: [{ name: '', type: 'uint256' }],
+    stateMutability: 'view',
+    type: 'function',
+  },
+  {
+    inputs: [],
+    name: 'roundsForCumulativeScore',
+    outputs: [{ name: '', type: 'uint256' }],
+    stateMutability: 'view',
+    type: 'function',
+  },
+  {
+    inputs: [{ name: 'check', type: 'uint8' }],
+    name: 'isCheckEnabled',
+    outputs: [{ name: '', type: 'bool' }],
     stateMutability: 'view',
     type: 'function',
   },
@@ -50,7 +67,152 @@ const veBetterPassportAbi = [
     stateMutability: 'view',
     type: 'function',
   },
+  {
+    inputs: [{ name: 'passport', type: 'address' }],
+    name: 'isPassportBlacklisted',
+    outputs: [{ name: '', type: 'bool' }],
+    stateMutability: 'view',
+    type: 'function',
+  },
+  {
+    inputs: [{ name: 'user', type: 'address' }],
+    name: 'isEntity',
+    outputs: [{ name: '', type: 'bool' }],
+    stateMutability: 'view',
+    type: 'function',
+  },
+  {
+    inputs: [{ name: 'user', type: 'address' }],
+    name: 'isPassport',
+    outputs: [{ name: '', type: 'bool' }],
+    stateMutability: 'view',
+    type: 'function',
+  },
+  {
+    inputs: [{ name: 'entity', type: 'address' }],
+    name: 'getPassportForEntity',
+    outputs: [{ name: '', type: 'address' }],
+    stateMutability: 'view',
+    type: 'function',
+  },
+  {
+    inputs: [{ name: 'passport', type: 'address' }],
+    name: 'getEntitiesLinkedToPassport',
+    outputs: [{ name: '', type: 'address[]' }],
+    stateMutability: 'view',
+    type: 'function',
+  },
+  {
+    inputs: [{ name: 'delegator', type: 'address' }],
+    name: 'getDelegatee',
+    outputs: [{ name: '', type: 'address' }],
+    stateMutability: 'view',
+    type: 'function',
+  },
+  {
+    inputs: [{ name: 'delegatee', type: 'address' }],
+    name: 'getDelegator',
+    outputs: [{ name: '', type: 'address' }],
+    stateMutability: 'view',
+    type: 'function',
+  },
+  {
+    inputs: [{ name: 'user', type: 'address' }],
+    name: 'userTotalScore',
+    outputs: [{ name: '', type: 'uint256' }],
+    stateMutability: 'view',
+    type: 'function',
+  },
+  {
+    inputs: [
+      { name: 'user', type: 'address' },
+      { name: 'lastRound', type: 'uint256' },
+    ],
+    name: 'getCumulativeScoreWithDecay',
+    outputs: [{ name: '', type: 'uint256' }],
+    stateMutability: 'view',
+    type: 'function',
+  },
+  {
+    inputs: [
+      { name: 'user', type: 'address' },
+      { name: 'round', type: 'uint256' },
+    ],
+    name: 'userRoundActionCount',
+    outputs: [{ name: '', type: 'uint256' }],
+    stateMutability: 'view',
+    type: 'function',
+  },
+  {
+    inputs: [
+      { name: 'user', type: 'address' },
+      { name: 'round', type: 'uint256' },
+    ],
+    name: 'userRoundAppCount',
+    outputs: [{ name: '', type: 'uint256' }],
+    stateMutability: 'view',
+    type: 'function',
+  },
+  {
+    inputs: [{ name: 'user', type: 'address' }],
+    name: 'isPerson',
+    outputs: [
+      { name: 'person', type: 'bool' },
+      { name: 'reason', type: 'string' },
+    ],
+    stateMutability: 'view',
+    type: 'function',
+  },
 ] as const;
+
+const xAllocationVotingAbi = [
+  {
+    inputs: [],
+    name: 'currentRoundId',
+    outputs: [{ name: '', type: 'uint256' }],
+    stateMutability: 'view',
+    type: 'function',
+  },
+] as const;
+
+export type VePassportPartySnapshot = {
+  walletAddress: string;
+  resolvedPassport: string;
+  isEntity: boolean;
+  isPassport: boolean;
+  linkedEntities: string[];
+  delegatee: string | null;
+  delegator: string | null;
+  signalCount: number;
+  blacklisted: boolean;
+  passportBlacklisted: boolean;
+  totalScore: number;
+  cumulativeScore: number;
+  isPerson: boolean;
+  personReason: string;
+  preActivationCumulativeScore: number;
+};
+
+export type VePassportReferralSnapshot = {
+  network: VeBetterNetwork;
+  passportAddress: string;
+  passportVersion: string;
+  checkedAt: string;
+  currentRoundId: number;
+  activationRoundId: number | null;
+  roundsForCumulativeScore: number;
+  participationThreshold: number;
+  protocolSignalThreshold: number;
+  veInviteReviewThreshold: number;
+  enabledChecks: {
+    blacklist: boolean;
+    signaling: boolean;
+    participation: boolean;
+  };
+  inviter: VePassportPartySnapshot;
+  invitee: VePassportPartySnapshot;
+  sameResolvedPassport: boolean;
+};
 
 export type VePassportSignalSnapshot = {
   walletAddress: string;
@@ -59,6 +221,8 @@ export type VePassportSignalSnapshot = {
   signalCount: number;
   protocolSignalThreshold: number;
   veInviteReviewThreshold: number;
+  signalingCheckEnabled: boolean;
+  blacklistCheckEnabled: boolean;
   blacklisted: boolean;
   checkedAt: string;
 };
@@ -74,6 +238,60 @@ type QueuedInvitationRow = {
   sybil_reason: string | null;
   sybil_source: string;
 };
+
+function toAddress(
+  value: unknown,
+  label: string,
+): string {
+  if (
+    typeof value !== 'string' ||
+    !ADDRESS_PATTERN.test(value)
+  ) {
+    throw new Error(
+      `${label} returned an invalid address.`,
+    );
+  }
+
+  return value.toLowerCase();
+}
+
+function toOptionalAddress(
+  value: unknown,
+  label: string,
+): string | null {
+  const address = toAddress(value, label);
+  return address === ZERO_ADDRESS
+    ? null
+    : address;
+}
+
+function toStringValue(
+  value: unknown,
+  label: string,
+): string {
+  if (typeof value !== 'string') {
+    throw new Error(
+      `${label} returned an invalid string value.`,
+    );
+  }
+
+  return value;
+}
+
+function toAddressArray(
+  value: unknown,
+  label: string,
+): string[] {
+  if (!Array.isArray(value)) {
+    throw new Error(
+      `${label} returned an invalid address array.`,
+    );
+  }
+
+  return value.map((entry) =>
+    toAddress(entry, label),
+  );
+}
 
 function toSafeInteger(
   value: unknown,
@@ -183,10 +401,15 @@ export function evaluateVePassportSignalRisk(
     | 'signalCount'
     | 'protocolSignalThreshold'
     | 'veInviteReviewThreshold'
+    | 'signalingCheckEnabled'
+    | 'blacklistCheckEnabled'
     | 'blacklisted'
   >,
 ): SybilDecision {
-  if (snapshot.blacklisted) {
+  if (
+    snapshot.blacklistCheckEnabled &&
+    snapshot.blacklisted
+  ) {
     return {
       status: 'BLOCKED',
       riskLevel: 'HIGH',
@@ -201,8 +424,9 @@ export function evaluateVePassportSignalRisk(
     effectiveSignalThreshold(snapshot);
 
   if (
+    snapshot.signalingCheckEnabled &&
     snapshot.signalCount >=
-    reviewThreshold
+      reviewThreshold
   ) {
     return {
       status: 'REVIEW',
@@ -217,16 +441,26 @@ export function evaluateVePassportSignalRisk(
     };
   }
 
-  if (snapshot.signalCount > 0) {
+  if (
+    snapshot.signalCount > 0 ||
+    snapshot.blacklisted
+  ) {
     return {
       status: 'CLEAR',
       riskLevel: 'LOW',
       riskScore: Math.min(
         49,
-        snapshot.signalCount * 20,
+        snapshot.signalCount * 20 +
+          (snapshot.blacklisted ? 10 : 0),
       ),
       reason:
-        `VePassport signal count ${snapshot.signalCount} remains below the effective review threshold ${reviewThreshold}.`,
+        !snapshot.signalingCheckEnabled &&
+        snapshot.signalCount > 0
+          ? 'VePassport signaling is currently disabled by the protocol; the signal is retained as observation-only context.'
+          : !snapshot.blacklistCheckEnabled &&
+              snapshot.blacklisted
+            ? 'VePassport blacklist checking is currently disabled by the protocol; the blacklist value is retained as observation-only context.'
+            : `VePassport signal count ${snapshot.signalCount} remains below the effective review threshold ${reviewThreshold}.`,
       source: 'VEPASSPORT',
     };
   }
@@ -256,20 +490,37 @@ async function readVePassportSignalSnapshots(
   const {
     network,
     nodeUrl,
+    veBetterPassportAddress:
+      passportAddress,
   } = getVeBetterNetworkConfig();
-  const passportAddress =
-    REVIEWED_PASSPORT_ADDRESSES[network];
   const thor = ThorClient.at(nodeUrl);
   const contract = thor.contracts.load(
     passportAddress,
     veBetterPassportAbi,
   );
-  const thresholdResult =
-    await contract.read.signalingThreshold();
+  const [
+    thresholdResult,
+    signalingCheckResult,
+    blacklistCheckResult,
+  ] = await Promise.all([
+    contract.read.signalingThreshold(),
+    contract.read.isCheckEnabled(3),
+    contract.read.isCheckEnabled(2),
+  ]);
   const protocolSignalThreshold =
     toSafeInteger(
       thresholdResult[0],
       'VePassport signalingThreshold',
+    );
+  const signalingCheckEnabled =
+    toBoolean(
+      signalingCheckResult[0],
+      'VePassport signaling check',
+    );
+  const blacklistCheckEnabled =
+    toBoolean(
+      blacklistCheckResult[0],
+      'VePassport blacklist check',
     );
   const veInviteReviewThreshold =
     getVeInviteReviewThreshold();
@@ -313,6 +564,8 @@ async function readVePassportSignalSnapshots(
           ),
           protocolSignalThreshold,
           veInviteReviewThreshold,
+          signalingCheckEnabled,
+          blacklistCheckEnabled,
           blacklisted: toBoolean(
             blacklistedResult[0],
             'VePassport isBlacklisted',
@@ -352,6 +605,276 @@ export async function readVePassportSignalSnapshot(
   }
 
   return snapshot;
+}
+
+function loadVePassportContract(
+  thor: ReturnType<typeof ThorClient.at>,
+  passportAddress: string,
+) {
+  return thor.contracts.load(
+    passportAddress,
+    veBetterPassportAbi,
+  );
+}
+
+type VePassportReadContract =
+  ReturnType<typeof loadVePassportContract>;
+
+async function readVePassportPartySnapshot({
+  contract,
+  walletAddress,
+  currentRoundId,
+  activationRoundId,
+}: {
+  contract: VePassportReadContract;
+  walletAddress: string;
+  currentRoundId: number;
+  activationRoundId: number | null;
+}): Promise<VePassportPartySnapshot> {
+  const [
+    entityResult,
+    passportResult,
+    resolvedPassportResult,
+    delegateeResult,
+    delegatorResult,
+    blacklistedResult,
+    personResult,
+  ] = await Promise.all([
+    contract.read.isEntity(walletAddress),
+    contract.read.isPassport(walletAddress),
+    contract.read.getPassportForEntity(walletAddress),
+    contract.read.getDelegatee(walletAddress),
+    contract.read.getDelegator(walletAddress),
+    contract.read.isBlacklisted(walletAddress),
+    contract.read.isPerson(walletAddress),
+  ]);
+
+  const resolvedPassport = toAddress(
+    resolvedPassportResult[0],
+    'VePassport getPassportForEntity',
+  );
+  const preActivationRound =
+    activationRoundId !== null &&
+    activationRoundId > 1
+      ? activationRoundId - 1
+      : null;
+
+  const [
+    linkedEntitiesResult,
+    passportBlacklistedResult,
+    signalResult,
+    totalScoreResult,
+    cumulativeScoreResult,
+    preActivationCumulativeScoreResult,
+  ] = await Promise.all([
+    contract.read.getEntitiesLinkedToPassport(
+      resolvedPassport,
+    ),
+    contract.read.isPassportBlacklisted(
+      resolvedPassport,
+    ),
+    contract.read.signaledCounter(
+      resolvedPassport,
+    ),
+    contract.read.userTotalScore(
+      resolvedPassport,
+    ),
+    contract.read.getCumulativeScoreWithDecay(
+      resolvedPassport,
+      BigInt(currentRoundId),
+    ),
+    preActivationRound !== null
+      ? contract.read.getCumulativeScoreWithDecay(
+          resolvedPassport,
+          BigInt(preActivationRound),
+        )
+      : Promise.resolve([0n] as const),
+  ]);
+
+  return {
+    walletAddress,
+    resolvedPassport,
+    isEntity: toBoolean(
+      entityResult[0],
+      'VePassport isEntity',
+    ),
+    isPassport: toBoolean(
+      passportResult[0],
+      'VePassport isPassport',
+    ),
+    linkedEntities: toAddressArray(
+      linkedEntitiesResult[0],
+      'VePassport getEntitiesLinkedToPassport',
+    ),
+    delegatee: toOptionalAddress(
+      delegateeResult[0],
+      'VePassport getDelegatee',
+    ),
+    delegator: toOptionalAddress(
+      delegatorResult[0],
+      'VePassport getDelegator',
+    ),
+    signalCount: toSafeInteger(
+      signalResult[0],
+      'VePassport signaledCounter',
+    ),
+    blacklisted: toBoolean(
+      blacklistedResult[0],
+      'VePassport isBlacklisted',
+    ),
+    passportBlacklisted: toBoolean(
+      passportBlacklistedResult[0],
+      'VePassport isPassportBlacklisted',
+    ),
+    totalScore: toSafeInteger(
+      totalScoreResult[0],
+      'VePassport userTotalScore',
+    ),
+    cumulativeScore: toSafeInteger(
+      cumulativeScoreResult[0],
+      'VePassport getCumulativeScoreWithDecay',
+    ),
+    isPerson: toBoolean(
+      personResult[0],
+      'VePassport isPerson',
+    ),
+    personReason: toStringValue(
+      personResult[1],
+      'VePassport isPerson reason',
+    ),
+    preActivationCumulativeScore:
+      toSafeInteger(
+        preActivationCumulativeScoreResult[0],
+        'VePassport pre-activation cumulative score',
+      ),
+  };
+}
+
+export async function readVePassportReferralSnapshot({
+  inviterWallet,
+  inviteeWallet,
+  activationRoundId = null,
+}: {
+  inviterWallet: string;
+  inviteeWallet: string;
+  activationRoundId?: number | null;
+}): Promise<VePassportReferralSnapshot> {
+  const normalizedInviter =
+    normalizeCheckedWallet(inviterWallet);
+  const normalizedInvitee =
+    normalizeCheckedWallet(inviteeWallet);
+
+  const {
+    network,
+    nodeUrl,
+    veBetterPassportAddress,
+    xAllocationVotingAddress,
+  } = getVeBetterNetworkConfig();
+
+  const thor = ThorClient.at(nodeUrl);
+  const passport =
+    loadVePassportContract(
+      thor,
+      veBetterPassportAddress,
+    );
+  const allocationVoting = thor.contracts.load(
+    xAllocationVotingAddress,
+    xAllocationVotingAbi,
+  );
+
+  const [
+    versionResult,
+    currentRoundResult,
+    participationThresholdResult,
+    roundsResult,
+    signalThresholdResult,
+    blacklistCheckResult,
+    signalingCheckResult,
+    participationCheckResult,
+  ] = await Promise.all([
+    passport.read.version(),
+    allocationVoting.read.currentRoundId(),
+    passport.read.thresholdPoPScore(),
+    passport.read.roundsForCumulativeScore(),
+    passport.read.signalingThreshold(),
+    passport.read.isCheckEnabled(2),
+    passport.read.isCheckEnabled(3),
+    passport.read.isCheckEnabled(4),
+  ]);
+
+  const currentRoundId = toSafeInteger(
+    currentRoundResult[0],
+    'XAllocationVoting currentRoundId',
+  );
+  const roundsForCumulativeScore =
+    toSafeInteger(
+      roundsResult[0],
+      'VePassport roundsForCumulativeScore',
+    );
+  const protocolSignalThreshold =
+    toSafeInteger(
+      signalThresholdResult[0],
+      'VePassport signalingThreshold',
+    );
+
+  const [inviter, invitee] =
+    await Promise.all([
+      readVePassportPartySnapshot({
+        contract: passport,
+        walletAddress: normalizedInviter,
+        currentRoundId,
+        activationRoundId,
+      }),
+      readVePassportPartySnapshot({
+        contract: passport,
+        walletAddress: normalizedInvitee,
+        currentRoundId,
+        activationRoundId,
+      }),
+    ]);
+
+  return {
+    network,
+    passportAddress:
+      veBetterPassportAddress.toLowerCase(),
+    passportVersion: toStringValue(
+      versionResult[0],
+      'VePassport version',
+    ),
+    checkedAt: new Date().toISOString(),
+    currentRoundId,
+    activationRoundId,
+    roundsForCumulativeScore,
+    participationThreshold:
+      toSafeInteger(
+        participationThresholdResult[0],
+        'VePassport thresholdPoPScore',
+      ),
+    protocolSignalThreshold,
+    veInviteReviewThreshold:
+      getVeInviteReviewThreshold(),
+    enabledChecks: {
+      blacklist: toBoolean(
+        blacklistCheckResult[0],
+        'VePassport blacklist check',
+      ),
+      signaling: toBoolean(
+        signalingCheckResult[0],
+        'VePassport signaling check',
+      ),
+      participation: toBoolean(
+        participationCheckResult[0],
+        'VePassport participation check',
+      ),
+    },
+    inviter,
+    invitee,
+    sameResolvedPassport:
+      normalizedInviter !==
+        normalizedInvitee &&
+      inviter.resolvedPassport ===
+        invitee.resolvedPassport,
+  };
 }
 
 /**

@@ -1,4 +1,4 @@
-export const SYBIL_V2_POLICY_VERSION = 'sybil-v2.13';
+export const SYBIL_V2_POLICY_VERSION = 'sybil-v2.14';
 
 export type SybilV2EvidenceFamily =
   | 'FUNDING'
@@ -7,7 +7,8 @@ export type SybilV2EvidenceFamily =
   | 'MISSION_BEHAVIOR'
   | 'SECURITY_IDENTITY'
   | 'POST_PAYOUT'
-  | 'CLUSTER_LINK';
+  | 'CLUSTER_LINK'
+  | 'ECOSYSTEM_REPUTATION';
 
 export type SybilV2EvidenceDomain =
   | 'HISTORICAL_ACTIVITY'
@@ -15,7 +16,8 @@ export type SybilV2EvidenceDomain =
   | 'MISSION_BEHAVIOR'
   | 'SECURITY_IDENTITY'
   | 'POST_PAYOUT'
-  | 'CLUSTER_LINK';
+  | 'CLUSTER_LINK'
+  | 'ECOSYSTEM_REPUTATION';
 
 export type SybilV2SignalStrength =
   | 'INFO'
@@ -35,7 +37,7 @@ export type SybilV2AssessmentState =
   | 'ANALYSIS_PENDING'
   | 'ANALYSIS_FAILED'
   | 'CLEAR'
-  // Legacy persisted value only. Sybil v2.13 never emits WATCH for a new
+  // Legacy persisted value only. Sybil v2.14 never emits WATCH for a new
   // reward decision; historical rows remain readable for audit compatibility.
   | 'WATCH'
   | 'HOLD'
