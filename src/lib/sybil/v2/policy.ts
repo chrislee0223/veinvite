@@ -35,7 +35,7 @@ export type SybilV2AssessmentState =
   | 'ANALYSIS_PENDING'
   | 'ANALYSIS_FAILED'
   | 'CLEAR'
-  // Legacy persisted value only. Sybil v2.11 never emits WATCH for a new
+  // Legacy persisted value only. Sybil v2.12 never emits WATCH for a new
   // reward decision; historical rows remain readable for audit compatibility.
   | 'WATCH'
   | 'HOLD'
