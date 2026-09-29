@@ -2,10 +2,14 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import test from 'node:test';
 
-const [pipeline, migration, policy] = await Promise.all([
+const [pipeline, migration, inviterMigration, policy] = await Promise.all([
   readFile('src/lib/sybil/v2/pipeline.ts', 'utf8'),
   readFile(
     'supabase/migrations/20260929213000_detect_same_inviter_security_client_siblings.sql',
+    'utf8',
+  ),
+  readFile(
+    'supabase/migrations/20260929214500_review_same_client_sibling_inviter.sql',
     'utf8',
   ),
   readFile('src/lib/sybil/v2/policy.ts', 'utf8'),
@@ -76,4 +80,18 @@ test('migration backfills already-observed unpaid sibling switches', () => {
   assert.match(migration, /b\.client_id = a\.client_id/u);
   assert.match(migration, /b\.inviter_wallet = a\.inviter_wallet/u);
   assert.match(migration, /'backfill', true/u);
+});
+
+
+test('the downstream inviter is review-only when an immediate sibling cluster appears', () => {
+  assert.match(inviterMigration, /review_security_client_sibling_inviter_cluster/u);
+  assert.match(inviterMigration, /identity_link_status = case[\s\S]*else 'REVIEW'/u);
+  assert.match(inviterMigration, /identity_link_risk_score =[\s\S]*70/u);
+  assert.match(inviterMigration, /downstreamSameClientSibling', true/u);
+  assert.match(inviterMigration, /signalFamily', 'CLUSTER_LINK'/u);
+  assert.match(inviterMigration, /v_switch_gap_seconds <= 600/u);
+  assert.doesNotMatch(inviterMigration, /sybil_status\s*=\s*'BLOCKED'/u);
+  assert.doesNotMatch(inviterMigration, /reward_status\s*=\s*'FORFEITED'/u);
+  assert.match(inviterMigration, /reward_status <> 'PAID'/u);
+  assert.match(inviterMigration, /q\.status = 'ASSIGNED'/u);
 });
