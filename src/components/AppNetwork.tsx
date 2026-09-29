@@ -236,6 +236,7 @@ export function AppNetwork({ locale }: { locale: Locale }) {
   const returnViewByChildRef = useRef(new Map<string, View>());
   const viewByFocusRef = useRef(new Map<string, View>());
   const navigationTimerRef = useRef<number | null>(null);
+  const cameraTransitionTimerRef = useRef<number | null>(null);
   const initializedWalletRef = useRef<string | null>(null);
   const workspaceDragRef = useRef<WorkspaceDrag | null>(null);
   const draftWorkspaceRef = useRef<NetworkFocusWorkspace | null>(null);
@@ -644,7 +645,24 @@ export function AppNetwork({ locale }: { locale: Locale }) {
     }
   }, []);
 
+  const clearCameraTransitionTimer = useCallback(() => {
+    if (cameraTransitionTimerRef.current !== null) {
+      window.clearTimeout(cameraTransitionTimerRef.current);
+      cameraTransitionTimerRef.current = null;
+    }
+  }, []);
+
+  const beginCameraTransition = useCallback((durationMs: number) => {
+    clearCameraTransitionTimer();
+    setCameraTransition(true);
+    cameraTransitionTimerRef.current = window.setTimeout(() => {
+      cameraTransitionTimerRef.current = null;
+      setCameraTransition(false);
+    }, durationMs);
+  }, [clearCameraTransitionTimer]);
+
   const clearWorkspaceTimers = useCallback(() => {
+    clearCameraTransitionTimer();
     if (introFitTimerRef.current !== null) {
       window.clearTimeout(introFitTimerRef.current);
       introFitTimerRef.current = null;
@@ -681,7 +699,7 @@ export function AppNetwork({ locale }: { locale: Locale }) {
     pinchEnterIntentRef.current = null;
     wheelEnterDistanceRef.current = 0;
     wheelEnterWalletRef.current = null;
-  }, []);
+  }, [clearCameraTransitionTimer]);
 
   const stopIntroForInteraction = useCallback(() => {
     introCancelledRef.current = true;
@@ -693,9 +711,10 @@ export function AppNetwork({ locale }: { locale: Locale }) {
       window.clearTimeout(introEndTimerRef.current);
       introEndTimerRef.current = null;
     }
+    clearCameraTransitionTimer();
     setIntroActive(false);
     setCameraTransition(false);
-  }, []);
+  }, [clearCameraTransitionTimer]);
 
   const persistFocusWorkspace = useCallback((workspace: NetworkFocusWorkspace) => {
     if (!wallet || !currentFocusKey) return;
@@ -841,13 +860,12 @@ export function AppNetwork({ locale }: { locale: Locale }) {
   const beginNavigationMotion = useCallback((direction: NavigationDirection) => {
     clearNavigationTimer();
     setNavigationDirection(direction);
-    setCameraTransition(true);
+    beginCameraTransition(NAVIGATION_MS);
     navigationTimerRef.current = window.setTimeout(() => {
       navigationTimerRef.current = null;
       setNavigationDirection(null);
-      setCameraTransition(false);
     }, NAVIGATION_MS);
-  }, [clearNavigationTimer]);
+  }, [clearNavigationTimer, beginCameraTransition]);
 
   const cancelRequest = useCallback(() => {
     requestSerialRef.current += 1;
@@ -1297,10 +1315,9 @@ export function AppNetwork({ locale }: { locale: Locale }) {
 
   const centerNetwork = useCallback(() => {
     if (stageSize.width <= 0 || stageSize.height <= 0) return;
-    setCameraTransition(true);
+    beginCameraTransition(240);
     setView((current) => centeredView(stageSize, current.scale));
-    window.setTimeout(() => setCameraTransition(false), 240);
-  }, [stageSize]);
+  }, [stageSize, beginCameraTransition]);
 
   const returnToYou = useCallback(() => {
     stopIntroForInteraction();
@@ -1320,10 +1337,9 @@ export function AppNetwork({ locale }: { locale: Locale }) {
       ...visibleGroups.map((group) => ({ x: group.x, y: group.y })),
       ...positionedInviteSlots.map((slot) => ({ x: slot.x, y: slot.y })),
     ];
-    setCameraTransition(true);
+    beginCameraTransition(FIT_TRANSITION_MS);
     setView(fittedView(stageSize, points));
-    window.setTimeout(() => setCameraTransition(false), FIT_TRANSITION_MS);
-  }, [stageSize, visibleChildren, visibleGroups, positionedInviteSlots]);
+  }, [stageSize, visibleChildren, visibleGroups, positionedInviteSlots, beginCameraTransition]);
 
   useEffect(() => {
     if (!wallet || loadState !== 'ready' || !currentData) return;
@@ -1382,14 +1398,13 @@ export function AppNetwork({ locale }: { locale: Locale }) {
       return;
     }
     if (stageSize.width <= 0 || stageSize.height <= 0) return;
-    setCameraTransition(true);
+    beginCameraTransition(220);
     const factor = direction > 0 ? 1.16 : 0.86;
     zoomAt(
       { x: stageSize.width / 2, y: stageSize.height / 2 },
       view.scale * factor,
     );
-    window.setTimeout(() => setCameraTransition(false), 220);
-  }, [editingLayout, view.scale, currentData, returnToParent, stageSize, zoomAt, stopIntroForInteraction]);
+  }, [editingLayout, view.scale, currentData, returnToParent, stageSize, zoomAt, stopIntroForInteraction, beginCameraTransition]);
 
   useEffect(() => {
     if (!searchOpen) return;
