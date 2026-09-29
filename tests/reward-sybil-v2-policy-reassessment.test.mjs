@@ -129,3 +129,37 @@ test('cancelled rewards may be policy-reassessed while active liabilities stay e
   );
 });
 
+
+
+test('operator CLEAR is automatically revisited only after newer adverse evidence appears', async () => {
+  const source = await read('src/lib/sybil/v2/pipeline.ts');
+
+  assert.match(
+    source,
+    /identity_link_status,identity_link_checked_at/u,
+  );
+  assert.match(
+    source,
+    /\.in\('strength', \['MEDIUM', 'HIGH'\]\)/u,
+  );
+  assert.match(
+    source,
+    /identityCheckedAt > assessedAt/u,
+  );
+  assert.match(
+    source,
+    /operatorClearWithNewEvidence/u,
+  );
+  assert.match(
+    source,
+    /\['HOLD', 'RESTRICTED'\][\s\S]*continue/u,
+  );
+  assert.match(
+    source,
+    /assessment\.state !== 'CLEAR'[\s\S]*continue/u,
+  );
+  assert.match(
+    source,
+    /hasNewEvidenceForCurrentAssessment\([\s\S]*inviteCode/u,
+  );
+});
