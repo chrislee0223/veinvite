@@ -57,6 +57,17 @@ test('operator decisions preserve their verdict while invalid pre-vote finality 
   );
 });
 
+test('operator finality metadata bypasses the normal operator-clear recovery skip', () => {
+  assert.match(
+    pipeline,
+    /operatorInvalidPreVoteFinality/u,
+  );
+  assert.match(
+    pipeline,
+    /!operatorClearWithNewEvidence\s*&&\s*!operatorInvalidPreVoteFinality/u,
+  );
+});
+
 test('third dApp completion triggers immediate lightweight Sybil reassessment', () => {
   assert.match(
     syncInvitation,
