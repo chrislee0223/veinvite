@@ -235,8 +235,8 @@ test('group creation is draft-first, supports one member, and preserves member p
 test('group builder is compact, edge-safe, animated, and keeps collapsed hubs visible', () => {
   assert.match(networkSource, /groupEligibleWalletKeys/);
   assert.match(networkSource, /activeWorkspace\.groups\.filter\(\(group\) =>[\s\S]*groupEligibleWalletKeys\.has/);
-  assert.match(networkSource, /GROUP_DROP_HIT_SLOP_X = 18/);
-  assert.match(networkSource, /GROUP_DROP_HIT_SLOP_Y = 14/);
+  assert.match(networkImplementationSource, /NETWORK_GROUP_DROP_HIT_SLOP_X = 18/);
+  assert.match(networkImplementationSource, /NETWORK_GROUP_DROP_HIT_SLOP_Y = 14/);
   assert.match(networkSource, /className=\{\`groupDropZone\$\{groupDropActive \? ' active' : ''\}/);
   assert.match(networkSource, /\.groupDropZone\{min-height:42px[\s\S]*grid-template-columns:auto minmax\(0,1fr\) auto/);
   assert.match(networkSource, /\.groupsPanel,\.groupBuilder\{[^}]*inset-inline-start:auto;inset-inline-end:0/);
@@ -331,9 +331,9 @@ test('group hubs use a refined fixed rounded-square visual without changing inte
   assert.match(networkSource, /\.groupNode strong\{[^}]*max-width:52px;font-size:\.44rem;line-height:1\.1/);
   assert.match(networkSource, /\.groupNode small\{[^}]*max-width:52px[^}]*font-size:\.31rem;line-height:1\.1[^}]*text-overflow:ellipsis/);
   assert.match(networkSource, /\.groupGlyph\{width:18px;height:18px/);
-  assert.match(networkSource, /GROUP_SCREEN_DROP_RADIUS = 58/);
-  assert.match(networkSource, /GROUP_DROP_HIT_SLOP_X = 18/);
-  assert.match(networkSource, /GROUP_DROP_HIT_SLOP_Y = 14/);
+  assert.match(networkImplementationSource, /NETWORK_GROUP_SCREEN_DROP_RADIUS = 58/);
+  assert.match(networkImplementationSource, /NETWORK_GROUP_DROP_HIT_SLOP_X = 18/);
+  assert.match(networkImplementationSource, /NETWORK_GROUP_DROP_HIT_SLOP_Y = 14/);
 });
 
 test('Network toolbar keeps navigation controls before edit and group controls', () => {
@@ -811,7 +811,7 @@ test('final Network gestures are coordinate-owned and deliberate', () => {
   );
   assert.match(networkSource, /nearestVisibleChild/);
   assert.match(networkSource, /findGroupDropTarget/);
-  assert.match(networkSource, /GROUP_SCREEN_DROP_RADIUS = 58/);
+  assert.match(networkImplementationSource, /NETWORK_GROUP_SCREEN_DROP_RADIUS = 58/);
   assert.match(networkSource, /beginHoldDrag/);
   assert.match(networkSource, /holdDrag\.armed/);
   assert.match(networkSource, /updateNodePositionRuntime/);
@@ -942,10 +942,11 @@ test('managed group title supports direct inline rename without changing canvas 
 });
 
 test('expanded members can move between groups with fixed screen-space targeting', () => {
-  assert.match(networkSource, /GROUP_SCREEN_DROP_RADIUS = 58/);
+  assert.match(networkImplementationSource, /NETWORK_GROUP_SCREEN_DROP_RADIUS = 58/);
   assert.match(networkSource, /const findGroupDropTarget = useCallback/);
-  assert.match(networkSource, /rect\.left \+ view\.x \+ group\.x \* view\.scale/);
-  assert.match(networkSource, /group\.members\.length >= MAX_MEMBERS_PER_GROUP/);
+  assert.match(networkImplementationSource, /stageRect\.left \+[\s\S]*view\.x \+[\s\S]*group\.x \* view\.scale/);
+  assert.match(networkImplementationSource, /group\.members\.length >=[\s\S]*maxMembers/);
+  assert.match(networkSource, /sourceGroupId,[\s\S]*MAX_MEMBERS_PER_GROUP,[\s\S]*\);/);
   assert.match(networkSource, /holdDrag\.kind === 'group-member'/);
   assert.match(networkSource, /const droppedToExistingGroup =/);
   assert.match(networkSource, /moveMemberBetweenGroups\([\s\S]*holdDrag\.originalWorkspace,[\s\S]*holdDrag\.key,[\s\S]*holdDrag\.groupId,[\s\S]*droppedToExistingGroup\.id/);

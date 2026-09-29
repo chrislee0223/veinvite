@@ -114,6 +114,12 @@ import {
   type NetworkSearchResult as SearchResult,
 } from '@/lib/networkDataClient';
 import {
+  findNearestNetworkGroupDropTarget,
+  isNetworkPointInsideExpandedRect,
+  networkClientPointToWorld,
+  networkDragPointFromClient,
+} from '@/lib/networkWorkspaceDragGeometry';
+import {
   deriveNetworkSearchInput,
   getNetworkSearchReadiness,
   resolveNetworkSearchAddress,
@@ -188,11 +194,8 @@ const INTRO_HOLD_MS = 150;
 const INTRO_END_MS = 940;
 const GROUP_DROP_MS = 180;
 const GROUP_HUB_IN_MS = 220;
-const GROUP_DROP_HIT_SLOP_X = 18;
-const GROUP_DROP_HIT_SLOP_Y = 14;
 const HOLD_TO_MOVE_MS = 500;
 const HOLD_CANCEL_DISTANCE = 8;
-const GROUP_SCREEN_DROP_RADIUS = 58;
 export function AppNetwork({ locale }: { locale: Locale }) {
   const t = NETWORK_EXPERIENCE_COPY[locale as SupportedLocale];
   const c = NETWORK_CANVAS_CONTROL_COPY[locale as SupportedLocale];
@@ -554,19 +557,14 @@ export function AppNetwork({ locale }: { locale: Locale }) {
   ) => {
     const rect = stageRef.current?.getBoundingClientRect();
     if (!rect) return null;
-    let target: (typeof visibleGroups)[number] | null = null;
-    let nearestDistance = GROUP_SCREEN_DROP_RADIUS;
-    for (const group of visibleGroups) {
-      if (group.id === sourceGroupId || group.members.length >= MAX_MEMBERS_PER_GROUP) continue;
-      const screenX = rect.left + view.x + group.x * view.scale;
-      const screenY = rect.top + view.y + group.y * view.scale;
-      const candidateDistance = Math.hypot(clientX - screenX, clientY - screenY);
-      if (candidateDistance <= nearestDistance) {
-        target = group;
-        nearestDistance = candidateDistance;
-      }
-    }
-    return target;
+    return findNearestNetworkGroupDropTarget(
+      visibleGroups,
+      { x: clientX, y: clientY },
+      rect,
+      view,
+      sourceGroupId,
+      MAX_MEMBERS_PER_GROUP,
+    );
   }, [visibleGroups, view]);
 
   const nearestVisibleChild = useCallback((point: Point, radius = NODE_HIT_RADIUS): PositionedChild | null => {
@@ -732,24 +730,16 @@ export function AppNetwork({ locale }: { locale: Locale }) {
 
   const isInsideGroupDropTarget = useCallback((clientX: number, clientY: number) => {
     const rect = groupDropRef.current?.getBoundingClientRect();
-    if (!rect) return false;
-    return (
-      clientX >= rect.left - GROUP_DROP_HIT_SLOP_X &&
-      clientX <= rect.right + GROUP_DROP_HIT_SLOP_X &&
-      clientY >= rect.top - GROUP_DROP_HIT_SLOP_Y &&
-      clientY <= rect.bottom + GROUP_DROP_HIT_SLOP_Y
-    );
+    return rect
+      ? isNetworkPointInsideExpandedRect({ x: clientX, y: clientY }, rect)
+      : false;
   }, []);
 
   const isInsideNewGroupDropTarget = useCallback((clientX: number, clientY: number) => {
     const rect = createFirstGroupRef.current?.getBoundingClientRect();
-    if (!rect) return false;
-    return (
-      clientX >= rect.left - GROUP_DROP_HIT_SLOP_X &&
-      clientX <= rect.right + GROUP_DROP_HIT_SLOP_X &&
-      clientY >= rect.top - GROUP_DROP_HIT_SLOP_Y &&
-      clientY <= rect.bottom + GROUP_DROP_HIT_SLOP_Y
-    );
+    return rect
+      ? isNetworkPointInsideExpandedRect({ x: clientX, y: clientY }, rect)
+      : false;
   }, []);
 
   const moveDragGhost = useCallback((clientX: number, clientY: number) => {
@@ -1877,10 +1867,11 @@ export function AppNetwork({ locale }: { locale: Locale }) {
     event.stopPropagation();
     try { event.currentTarget.setPointerCapture(event.pointerId); } catch { /* best effort */ }
     const rect = stage.getBoundingClientRect();
-    const worldPoint = {
-      x: (event.clientX - rect.left - view.x) / view.scale,
-      y: (event.clientY - rect.top - view.y) / view.scale,
-    };
+    const worldPoint = networkClientPointToWorld(
+      { x: event.clientX, y: event.clientY },
+      rect,
+      view,
+    );
     workspaceDragRef.current = {
       pointerId: event.pointerId,
       kind,
@@ -1939,10 +1930,11 @@ export function AppNetwork({ locale }: { locale: Locale }) {
     try { event.currentTarget.setPointerCapture(event.pointerId); } catch { /* best effort */ }
     if (holdTimerRef.current !== null) window.clearTimeout(holdTimerRef.current);
     const rect = stage.getBoundingClientRect();
-    const worldPoint = {
-      x: (event.clientX - rect.left - view.x) / view.scale,
-      y: (event.clientY - rect.top - view.y) / view.scale,
-    };
+    const worldPoint = networkClientPointToWorld(
+      { x: event.clientX, y: event.clientY },
+      rect,
+      view,
+    );
     holdDragRef.current = {
       pointerId: event.pointerId,
       kind,
@@ -2168,10 +2160,13 @@ export function AppNetwork({ locale }: { locale: Locale }) {
       );
       const rect = stageRef.current?.getBoundingClientRect();
       if (!rect) return;
-      const nextPoint = {
-        x: clamp((event.clientX - rect.left - view.x) / view.scale - holdDrag.offset.x, 90, WORLD_W - 90),
-        y: clamp((event.clientY - rect.top - view.y) / view.scale - holdDrag.offset.y, 90, WORLD_H - 90),
-      };
+      const nextPoint = networkDragPointFromClient(
+        { x: event.clientX, y: event.clientY },
+        rect,
+        view,
+        holdDrag.offset,
+        { width: WORLD_W, height: WORLD_H },
+      );
       holdDrag.moved = true;
       if (holdDrag.kind === 'group') {
         updateGroupPositionRuntime(holdDrag.key, nextPoint);
@@ -2219,14 +2214,13 @@ export function AppNetwork({ locale }: { locale: Locale }) {
 
       const rect = stageRef.current?.getBoundingClientRect();
       if (!rect) return;
-      const worldPoint = {
-        x: (event.clientX - rect.left - view.x) / view.scale - workspaceDrag.offset.x,
-        y: (event.clientY - rect.top - view.y) / view.scale - workspaceDrag.offset.y,
-      };
-      const nextPoint = {
-        x: clamp(worldPoint.x, 90, WORLD_W - 90),
-        y: clamp(worldPoint.y, 90, WORLD_H - 90),
-      };
+      const nextPoint = networkDragPointFromClient(
+        { x: event.clientX, y: event.clientY },
+        rect,
+        view,
+        workspaceDrag.offset,
+        { width: WORLD_W, height: WORLD_H },
+      );
       setDraftWorkspace((current) => {
         if (!current) return current;
         let next = current;
