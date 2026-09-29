@@ -106,13 +106,13 @@ test('paid evidence collection itself has no PAID rejection or payout mutation',
 
 test('analyzer upgrades requeue both live and paid COMPLETE checkpoints', async () => {
   const sql = await readFile(analyzerRefreshMigrationPath, 'utf8');
-  const source = await readFile(
-    'src/lib/sybil/v2/pipeline.ts',
+  const versionSource = await readFile(
+    'src/lib/sybil/v2/version.ts',
     'utf8',
   );
 
   assert.match(
-    source,
+    versionSource,
     /SYBIL_V2_ANALYZER_VERSION = 'sybil-v2\.1'/u,
   );
   assert.match(
