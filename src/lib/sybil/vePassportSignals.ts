@@ -619,7 +619,7 @@ async function readVePassportPartySnapshot({
     contract.read.userTotalScore(walletAddress),
     contract.read.getCumulativeScoreWithDecay(
       walletAddress,
-      currentRoundId,
+      BigInt(currentRoundId),
     ),
     contract.read.isPerson(walletAddress),
   ]);
@@ -664,11 +664,11 @@ async function readVePassportPartySnapshot({
       ] = await Promise.all([
         contract.read.userRoundActionCount(
           walletAddress,
-          round,
+          BigInt(round),
         ),
         contract.read.userRoundAppCount(
           walletAddress,
-          round,
+          BigInt(round),
         ),
       ]);
 
