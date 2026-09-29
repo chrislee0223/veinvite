@@ -223,12 +223,37 @@ function knownProtocolDestinations(): Set<string> {
     config.x2EarnAppsAddress.toLowerCase(),
     config.x2EarnRewardsPoolAddress.toLowerCase(),
     config.xAllocationVotingAddress.toLowerCase(),
-    // Known service/protocol wallets that can look like shared Sybil hubs.
+    // Bootstrap known service/protocol wallets. Production's DB allowlist is
+    // also loaded below so future protocol additions do not require a deploy.
     '0x76ca782b59c74d088c7d2cce2f211bc00836c602', // VOT3
     '0x8692410da301a9b796b68a58ff660d51e979c6fa', // gas abstraction paymaster
     '0xf9a1bc92e0eeee598b9fdb45397107b1f05f6cc1', // VeSwap router
     '0xf21dd7108d93af56fab07423efb90f4a3604da89', // BetterSwap aggregator
   ]);
+}
+
+async function loadKnownProtocolDestinations(
+  network: VeBetterNetwork,
+): Promise<Set<string>> {
+  const destinations = knownProtocolDestinations();
+  const { data, error } = await supabaseAdmin
+    .from('sybil_v2_cluster_hub_allowlist')
+    .select('wallet_address')
+    .eq('network', network);
+
+  if (error) {
+    throw new Error(
+      `Sybil protocol allowlist could not be loaded: ${error.message}`,
+    );
+  }
+
+  for (const row of data ?? []) {
+    if (typeof row.wallet_address === 'string') {
+      destinations.add(normalizeWallet(row.wallet_address));
+    }
+  }
+
+  return destinations;
 }
 
 async function loadInvitation(inviteCode: string): Promise<InvitationV2Row | null> {
@@ -755,6 +780,7 @@ async function loadHistoricalRewardSignals(
 
 async function loadConsolidationSignals(
   invitation: InvitationV2Row,
+  protocolDestinations: Set<string>,
 ): Promise<SybilV2Signal[]> {
   if (!invitation.activation_network || !invitation.invitee_wallet) return [];
 
@@ -795,7 +821,7 @@ async function loadConsolidationSignals(
       .map((row) => normalizeWallet(row.destination_wallet))
       .filter(
         (destination) =>
-          !knownProtocolDestinations().has(destination),
+          !protocolDestinations.has(destination),
       ),
   );
   if (destinations.length === 0) return [];
@@ -838,7 +864,7 @@ async function loadConsolidationSignals(
     walletAddress: wallet,
     rows,
     inviterWallets,
-    knownProtocolDestinations: knownProtocolDestinations(),
+    knownProtocolDestinations: protocolDestinations,
     minimumBlock,
     denseBurstBlockWindow: DENSE_B3TR_BURST_BLOCK_WINDOW,
     denseBurstMinimumWallets: DENSE_B3TR_BURST_MIN_WALLETS,
@@ -875,6 +901,7 @@ async function loadConsolidationSignals(
 
 async function loadFundingSignals(
   invitation: InvitationV2Row,
+  protocolDestinations: Set<string>,
 ): Promise<SybilV2Signal[]> {
   if (!invitation.activation_network || !invitation.invitee_wallet) return [];
 
@@ -910,7 +937,7 @@ async function loadFundingSignals(
       ? normalizeWallet(row.related_wallet)
       : null;
     if (!funder) continue;
-    if (knownProtocolDestinations().has(funder)) continue;
+    if (protocolDestinations.has(funder)) continue;
 
     const peers = await supabaseAdmin
       .from('sybil_v2_evidence_records')
@@ -975,7 +1002,7 @@ async function loadFundingSignals(
       ? normalizeWallet(row.related_wallet)
       : null;
     if (!funder) continue;
-    if (knownProtocolDestinations().has(funder)) continue;
+    if (protocolDestinations.has(funder)) continue;
 
     const key = `${row.signal_code}:${funder}`;
     const current = closestByAssetFunder.get(key);
@@ -1001,7 +1028,7 @@ async function loadFundingSignals(
       ? normalizeWallet(row.related_wallet)
       : null;
     if (!funder) continue;
-    if (knownProtocolDestinations().has(funder)) continue;
+    if (protocolDestinations.has(funder)) continue;
 
     const asset = row.signal_code.includes('_B3TR_')
       ? 'B3TR'
@@ -1289,6 +1316,7 @@ async function loadFundingSignals(
 
 async function loadHistoricalFunderReturnLoopSignals(
   invitation: InvitationV2Row,
+  protocolDestinations: Set<string>,
 ): Promise<SybilV2Signal[]> {
   if (!invitation.activation_network || !invitation.invitee_wallet) {
     return [];
@@ -1328,7 +1356,7 @@ async function loadHistoricalFunderReturnLoopSignals(
   const signals: SybilV2Signal[] = [];
 
   for (const hub of candidateHubs) {
-    if (knownProtocolDestinations().has(hub)) continue;
+    if (protocolDestinations.has(hub)) continue;
 
     const fundingResult = await supabaseAdmin
       .from('sybil_v2_evidence_records')
@@ -1451,12 +1479,13 @@ async function loadHistoricalFunderReturnLoopSignals(
 
 async function loadHistoricalSinkRecentRefunderSignals(
   invitation: InvitationV2Row,
+  protocolDestinations: Set<string>,
 ): Promise<SybilV2Signal[]> {
   if (!invitation.activation_network || !invitation.invitee_wallet) return [];
 
   const network = invitation.activation_network;
   const subject = normalizeWallet(invitation.invitee_wallet);
-  const protocol = knownProtocolDestinations();
+  const protocol = protocolDestinations;
   const funding = await supabaseAdmin
     .from('sybil_v2_evidence_records')
     .select('related_wallet,observed_block')
@@ -1720,7 +1749,7 @@ async function loadSecurityIdentitySignals(
     const inviterWallet = normalizeWallet(invitation.inviter_wallet);
     const inviteeClients = await supabaseAdmin
       .from('security_client_wallet_observations')
-      .select('client_id')
+      .select('client_id,first_seen_at,last_seen_at')
       .eq('wallet_address', inviteeWallet);
 
     if (inviteeClients.error) {
@@ -1734,41 +1763,85 @@ async function loadSecurityIdentitySignals(
     if (clientIds.length > 0) {
       const inviterClient = await supabaseAdmin
         .from('security_client_wallet_observations')
-        .select('client_id')
+        .select('client_id,first_seen_at,last_seen_at')
         .eq('wallet_address', inviterWallet)
-        .in('client_id', clientIds)
-        .limit(1);
+        .in('client_id', clientIds);
 
       if (inviterClient.error) {
         throw new Error(`Inviter security client evidence could not be loaded: ${inviterClient.error.message}`);
       }
 
-      const sharedClientId = inviterClient.data?.[0]?.client_id;
-      if (sharedClientId) {
-        const signal: SybilV2Signal = {
+      const inviterRows = inviterClient.data ?? [];
+      const inviteeRows = inviteeClients.data ?? [];
+      const activationAt = invitation.activated_at
+        ? Date.parse(invitation.activated_at)
+        : Number.NaN;
+
+      for (const inviterRow of inviterRows) {
+        const sharedClientId = String(inviterRow.client_id);
+        const inviteeRow = inviteeRows.find(
+          (row) => String(row.client_id) === sharedClientId,
+        );
+        if (!inviteeRow) continue;
+
+        const inviterLastSeen = Date.parse(String(inviterRow.last_seen_at));
+        const inviteeFirstSeen = Date.parse(String(inviteeRow.first_seen_at));
+        const switchGapSeconds =
+          Number.isNaN(inviterLastSeen) || Number.isNaN(inviteeFirstSeen)
+            ? null
+            : (inviteeFirstSeen - inviterLastSeen) / 1000;
+        const activationGapSeconds =
+          Number.isNaN(activationAt) || Number.isNaN(inviteeFirstSeen)
+            ? null
+            : Math.abs(activationAt - inviteeFirstSeen) / 1000;
+        const immediateSwitch =
+          switchGapSeconds !== null &&
+          activationGapSeconds !== null &&
+          switchGapSeconds >= 0 &&
+          switchGapSeconds <= 10 * 60 &&
+          activationGapSeconds <= 10 * 60;
+
+        const signals: SybilV2Signal[] = [{
           code: 'SECURITY_CLIENT_INVITER_LINK',
           family: 'SECURITY_IDENTITY',
           strength: 'HIGH',
           score: 95,
-          independentKey: String(sharedClientId),
-        };
-        await insertEvidenceRecord({
-          invitation,
-          subjectWallet: inviteeWallet,
-          family: 'SECURITY_IDENTITY',
-          signalCode: signal.code,
-          strength: signal.strength,
-          score: signal.score,
-          relatedWallet: inviterWallet,
-          evidence: {
-            sameInviterClient: true,
-            sharedClientId: String(sharedClientId),
-            preVoteDetection: true,
-          },
-          dedupeKey:
-            `sybil-v2:${invitation.invite_code}:security-client-inviter-link:${sharedClientId}`,
-        });
-        return { signals: [signal], complete: true };
+          independentKey: sharedClientId,
+        }];
+
+        if (immediateSwitch) {
+          signals.push({
+            code: 'SECURITY_CLIENT_INVITER_IMMEDIATE_SWITCH',
+            family: 'SECURITY_IDENTITY',
+            strength: 'HIGH',
+            score: 100,
+            independentKey: sharedClientId,
+          });
+        }
+
+        for (const signal of signals) {
+          await insertEvidenceRecord({
+            invitation,
+            subjectWallet: inviteeWallet,
+            family: 'SECURITY_IDENTITY',
+            signalCode: signal.code,
+            strength: signal.strength,
+            score: signal.score,
+            relatedWallet: inviterWallet,
+            evidence: {
+              sameInviterClient: true,
+              sharedClientId,
+              preVoteDetection: true,
+              immediateSwitch,
+              switchGapSeconds,
+              activationGapSeconds,
+            },
+            dedupeKey:
+              `sybil-v2:${invitation.invite_code}:${signal.code.toLowerCase()}:${sharedClientId}`,
+          });
+        }
+
+        return { signals, complete: true };
       }
     }
   }
@@ -2378,16 +2451,31 @@ export async function assessSybilV2Referral(
   }
 
   const signals: SybilV2Signal[] = [];
+  const protocolDestinations = invitation.activation_network
+    ? await loadKnownProtocolDestinations(invitation.activation_network)
+    : knownProtocolDestinations();
 
   if (checkpoint?.historical_chain_status === 'COMPLETE') {
     signals.push(...await loadHistoricalRewardSignals(invitation));
-    signals.push(...await loadConsolidationSignals(invitation));
+    signals.push(...await loadConsolidationSignals(
+      invitation,
+      protocolDestinations,
+    ));
   }
 
   if (checkpoint?.funding_chain_status === 'COMPLETE') {
-    signals.push(...await loadFundingSignals(invitation));
-    signals.push(...await loadHistoricalFunderReturnLoopSignals(invitation));
-    signals.push(...await loadHistoricalSinkRecentRefunderSignals(invitation));
+    signals.push(...await loadFundingSignals(
+      invitation,
+      protocolDestinations,
+    ));
+    signals.push(...await loadHistoricalFunderReturnLoopSignals(
+      invitation,
+      protocolDestinations,
+    ));
+    signals.push(...await loadHistoricalSinkRecentRefunderSignals(
+      invitation,
+      protocolDestinations,
+    ));
   }
 
   const mission = await loadMissionBehaviorSignals(invitation);
@@ -2453,9 +2541,9 @@ export async function assessSybilV2Referral(
     policy.state === 'HOLD'
       ? await findFunderReturnLoopHub(invitation)
       : null;
-  const securityClientInviterLink =
+  const securityClientInviterImmediateSwitch =
     policy.state === 'HOLD' &&
-    hasHighSignal(signals, 'SECURITY_CLIENT_INVITER_LINK');
+    hasHighSignal(signals, 'SECURITY_CLIENT_INVITER_IMMEDIATE_SWITCH');
 
   const evidenceSummary = {
     behaviorPatternEnforcementVersion:
@@ -2492,13 +2580,13 @@ export async function assessSybilV2Referral(
     funderReturnLoopHub,
     funderReturnLoopAutomaticRestrictionCandidate:
       funderReturnLoopHub !== null,
-    securityClientInviterLinkAutomaticRestrictionCandidate:
-      securityClientInviterLink,
+    securityClientInviterImmediateSwitchAutomaticRestrictionCandidate:
+      securityClientInviterImmediateSwitch,
     automaticBlacklistEligible:
       confirmedClusterHub !== null ||
       behaviorPatternHub !== null ||
       funderReturnLoopHub !== null ||
-      securityClientInviterLink,
+      securityClientInviterImmediateSwitch,
   };
 
   const expectedRevision =
@@ -2533,7 +2621,7 @@ export async function assessSybilV2Referral(
   if (
     revision !== null &&
     policy.state === 'HOLD' &&
-    securityClientInviterLink
+    securityClientInviterImmediateSwitch
   ) {
     const automatic = await applySecurityClientInviterRestriction({
       invitation,

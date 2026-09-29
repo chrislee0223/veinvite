@@ -1,4 +1,4 @@
-export const SYBIL_V2_POLICY_VERSION = 'sybil-v2.12';
+export const SYBIL_V2_POLICY_VERSION = 'sybil-v2.13';
 
 export type SybilV2EvidenceFamily =
   | 'FUNDING'
@@ -35,7 +35,7 @@ export type SybilV2AssessmentState =
   | 'ANALYSIS_PENDING'
   | 'ANALYSIS_FAILED'
   | 'CLEAR'
-  // Legacy persisted value only. Sybil v2.12 never emits WATCH for a new
+  // Legacy persisted value only. Sybil v2.13 never emits WATCH for a new
   // reward decision; historical rows remain readable for audit compatibility.
   | 'WATCH'
   | 'HOLD'
@@ -83,6 +83,13 @@ const FUNDING_DERIVED_CLUSTER_CODES = new Set([
 
 const STANDALONE_HOLD_CODES = new Set([
   'SECURITY_CLIENT_INVITER_LINK',
+]);
+
+// These are meaningful association signals, but association alone is not
+// sufficient to pause a legitimate referral. They still contribute risk and
+// can corroborate another independent domain.
+const ASSOCIATION_ONLY_HIGH_CODES = new Set([
+  'RECENT_FUNDER_IS_HISTORICAL_COMMON_SINK',
 ]);
 
 const HIGH_LIKELIHOOD_HISTORICAL_HOLD_CODES = [
@@ -296,13 +303,16 @@ export function evaluateSybilV2Policy({
     normalized
       .filter((signal) =>
         signal.score > 0 &&
-        STRENGTH_RANK[signal.strength] >= STRENGTH_RANK.HIGH,
+        STRENGTH_RANK[signal.strength] >= STRENGTH_RANK.HIGH &&
+        !ASSOCIATION_ONLY_HIGH_CODES.has(signal.code),
       )
       .map(evidenceDomain),
   );
 
-  // WATCH is no longer a payable decision state. Any HIGH evidence domain is
-  // uncertain enough to stop the reward before money leaves VeInvite.
+  // WATCH is no longer a payable decision state. A directly adverse HIGH
+  // evidence domain stops the reward before money leaves VeInvite. Pure
+  // association-only HIGH signals do not HOLD by themselves; they must be
+  // corroborated by another independent domain.
   if (highEvidenceDomains.length >= 1) {
     return {
       state: 'HOLD',
