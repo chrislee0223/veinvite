@@ -928,7 +928,8 @@ test('managed group title supports direct inline rename without changing canvas 
   assert.match(networkSource, /managedGroupNameInputRef\.current\?\.select\(\)/);
   assert.match(networkSource, /const beginManagedGroupRename = useCallback/);
   assert.match(networkSource, /const commitManagedGroupRename = useCallback/);
-  assert.match(networkSource, /groups: workspace\.groups\.map\(\(group\) =>[\s\S]*group\.id === managedGroup\.id \? \{ \.\.\.group, label \} : group/);
+  assert.match(workspaceSource, /export function withWorkspaceGroupLabel/);
+  assert.match(networkSource, /withWorkspaceGroupLabel\(workspace, managedGroup\.id, label\)/);
   assert.match(networkSource, /className="groupManageTitleButton"[\s\S]*onClick=\{beginManagedGroupRename\}/);
   assert.match(networkSource, /className="groupManageTitleInput"/);
   assert.match(networkSource, /onBlur=\{commitManagedGroupRename\}/);
