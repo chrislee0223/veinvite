@@ -13,26 +13,43 @@ import {
 } from '@/lib/vebetter/network';
 
 const ADDRESS_PATTERN = /^0x[0-9a-fA-F]{40}$/;
+const ZERO_ADDRESS = '0x0000000000000000000000000000000000000000';
 const DEFAULT_REVIEW_THRESHOLD = 2;
 const PASSPORT_WALLET_BATCH_SIZE = 8;
-
-const REVIEWED_PASSPORT_ADDRESSES: Record<
-  VeBetterNetwork,
-  string
-> = {
-  mainnet:
-    '0x35a267671d8EDD607B2056A9a13E7ba7CF53c8b3',
-  testnet:
-    '0x4d0882e0a38daabb395cbe869db9405ea5860d7b',
-  'testnet-staging':
-    '0x592c756df7a5d39de1735030e8b9c18b7417e6c4',
-};
 
 const veBetterPassportAbi = [
   {
     inputs: [],
+    name: 'version',
+    outputs: [{ name: '', type: 'string' }],
+    stateMutability: 'pure',
+    type: 'function',
+  },
+  {
+    inputs: [],
     name: 'signalingThreshold',
     outputs: [{ name: '', type: 'uint256' }],
+    stateMutability: 'view',
+    type: 'function',
+  },
+  {
+    inputs: [],
+    name: 'thresholdPoPScore',
+    outputs: [{ name: '', type: 'uint256' }],
+    stateMutability: 'view',
+    type: 'function',
+  },
+  {
+    inputs: [],
+    name: 'roundsForCumulativeScore',
+    outputs: [{ name: '', type: 'uint256' }],
+    stateMutability: 'view',
+    type: 'function',
+  },
+  {
+    inputs: [{ name: 'check', type: 'uint8' }],
+    name: 'isCheckEnabled',
+    outputs: [{ name: '', type: 'bool' }],
     stateMutability: 'view',
     type: 'function',
   },
@@ -50,7 +67,153 @@ const veBetterPassportAbi = [
     stateMutability: 'view',
     type: 'function',
   },
+  {
+    inputs: [{ name: 'passport', type: 'address' }],
+    name: 'isPassportBlacklisted',
+    outputs: [{ name: '', type: 'bool' }],
+    stateMutability: 'view',
+    type: 'function',
+  },
+  {
+    inputs: [{ name: 'user', type: 'address' }],
+    name: 'isEntity',
+    outputs: [{ name: '', type: 'bool' }],
+    stateMutability: 'view',
+    type: 'function',
+  },
+  {
+    inputs: [{ name: 'user', type: 'address' }],
+    name: 'isPassport',
+    outputs: [{ name: '', type: 'bool' }],
+    stateMutability: 'view',
+    type: 'function',
+  },
+  {
+    inputs: [{ name: 'entity', type: 'address' }],
+    name: 'getPassportForEntity',
+    outputs: [{ name: '', type: 'address' }],
+    stateMutability: 'view',
+    type: 'function',
+  },
+  {
+    inputs: [{ name: 'passport', type: 'address' }],
+    name: 'getEntitiesLinkedToPassport',
+    outputs: [{ name: '', type: 'address[]' }],
+    stateMutability: 'view',
+    type: 'function',
+  },
+  {
+    inputs: [{ name: 'delegator', type: 'address' }],
+    name: 'getDelegatee',
+    outputs: [{ name: '', type: 'address' }],
+    stateMutability: 'view',
+    type: 'function',
+  },
+  {
+    inputs: [{ name: 'delegatee', type: 'address' }],
+    name: 'getDelegator',
+    outputs: [{ name: '', type: 'address' }],
+    stateMutability: 'view',
+    type: 'function',
+  },
+  {
+    inputs: [{ name: 'user', type: 'address' }],
+    name: 'userTotalScore',
+    outputs: [{ name: '', type: 'uint256' }],
+    stateMutability: 'view',
+    type: 'function',
+  },
+  {
+    inputs: [
+      { name: 'user', type: 'address' },
+      { name: 'lastRound', type: 'uint256' },
+    ],
+    name: 'getCumulativeScoreWithDecay',
+    outputs: [{ name: '', type: 'uint256' }],
+    stateMutability: 'view',
+    type: 'function',
+  },
+  {
+    inputs: [
+      { name: 'user', type: 'address' },
+      { name: 'round', type: 'uint256' },
+    ],
+    name: 'userRoundActionCount',
+    outputs: [{ name: '', type: 'uint256' }],
+    stateMutability: 'view',
+    type: 'function',
+  },
+  {
+    inputs: [
+      { name: 'user', type: 'address' },
+      { name: 'round', type: 'uint256' },
+    ],
+    name: 'userRoundAppCount',
+    outputs: [{ name: '', type: 'uint256' }],
+    stateMutability: 'view',
+    type: 'function',
+  },
+  {
+    inputs: [{ name: 'user', type: 'address' }],
+    name: 'isPerson',
+    outputs: [
+      { name: 'person', type: 'bool' },
+      { name: 'reason', type: 'string' },
+    ],
+    stateMutability: 'view',
+    type: 'function',
+  },
 ] as const;
+
+const xAllocationVotingAbi = [
+  {
+    inputs: [],
+    name: 'currentRoundId',
+    outputs: [{ name: '', type: 'uint256' }],
+    stateMutability: 'view',
+    type: 'function',
+  },
+] as const;
+
+export type VePassportPartySnapshot = {
+  walletAddress: string;
+  resolvedPassport: string;
+  isEntity: boolean;
+  isPassport: boolean;
+  linkedEntities: string[];
+  delegatee: string | null;
+  delegator: string | null;
+  signalCount: number;
+  blacklisted: boolean;
+  passportBlacklisted: boolean;
+  totalScore: number;
+  cumulativeScore: number;
+  isPerson: boolean;
+  personReason: string;
+  preActivationActionCount: number;
+  preActivationAppCount: number;
+};
+
+export type VePassportReferralSnapshot = {
+  network: VeBetterNetwork;
+  passportAddress: string;
+  passportVersion: string;
+  checkedAt: string;
+  currentRoundId: number;
+  activationRoundId: number | null;
+  roundsForCumulativeScore: number;
+  participationThreshold: number;
+  protocolSignalThreshold: number;
+  veInviteReviewThreshold: number;
+  enabledChecks: {
+    blacklist: boolean;
+    signaling: boolean;
+    participation: boolean;
+  };
+  inviter: VePassportPartySnapshot;
+  invitee: VePassportPartySnapshot;
+  sameResolvedPassport: boolean;
+};
 
 export type VePassportSignalSnapshot = {
   walletAddress: string;
@@ -74,6 +237,60 @@ type QueuedInvitationRow = {
   sybil_reason: string | null;
   sybil_source: string;
 };
+
+function toAddress(
+  value: unknown,
+  label: string,
+): string {
+  if (
+    typeof value !== 'string' ||
+    !ADDRESS_PATTERN.test(value)
+  ) {
+    throw new Error(
+      `${label} returned an invalid address.`,
+    );
+  }
+
+  return value.toLowerCase();
+}
+
+function toOptionalAddress(
+  value: unknown,
+  label: string,
+): string | null {
+  const address = toAddress(value, label);
+  return address === ZERO_ADDRESS
+    ? null
+    : address;
+}
+
+function toStringValue(
+  value: unknown,
+  label: string,
+): string {
+  if (typeof value !== 'string') {
+    throw new Error(
+      `${label} returned an invalid string value.`,
+    );
+  }
+
+  return value;
+}
+
+function toAddressArray(
+  value: unknown,
+  label: string,
+): string[] {
+  if (!Array.isArray(value)) {
+    throw new Error(
+      `${label} returned an invalid address array.`,
+    );
+  }
+
+  return value.map((entry) =>
+    toAddress(entry, label),
+  );
+}
 
 function toSafeInteger(
   value: unknown,
@@ -256,9 +473,9 @@ async function readVePassportSignalSnapshots(
   const {
     network,
     nodeUrl,
+    veBetterPassportAddress:
+      passportAddress,
   } = getVeBetterNetworkConfig();
-  const passportAddress =
-    REVIEWED_PASSPORT_ADDRESSES[network];
   const thor = ThorClient.at(nodeUrl);
   const contract = thor.contracts.load(
     passportAddress,
@@ -352,6 +569,293 @@ export async function readVePassportSignalSnapshot(
   }
 
   return snapshot;
+}
+
+async function readVePassportPartySnapshot({
+  contract,
+  walletAddress,
+  currentRoundId,
+  activationRoundId,
+  roundsForCumulativeScore,
+}: {
+  contract: ReturnType<
+    ReturnType<typeof ThorClient.at>['contracts']['load']
+  >;
+  walletAddress: string;
+  currentRoundId: number;
+  activationRoundId: number | null;
+  roundsForCumulativeScore: number;
+}): Promise<VePassportPartySnapshot> {
+  const [
+    entityResult,
+    passportResult,
+    resolvedPassportResult,
+    delegateeResult,
+    delegatorResult,
+    signalResult,
+    blacklistedResult,
+    totalScoreResult,
+    cumulativeScoreResult,
+    personResult,
+  ] = await Promise.all([
+    contract.read.isEntity(walletAddress),
+    contract.read.isPassport(walletAddress),
+    contract.read.getPassportForEntity(walletAddress),
+    contract.read.getDelegatee(walletAddress),
+    contract.read.getDelegator(walletAddress),
+    contract.read.signaledCounter(walletAddress),
+    contract.read.isBlacklisted(walletAddress),
+    contract.read.userTotalScore(walletAddress),
+    contract.read.getCumulativeScoreWithDecay(
+      walletAddress,
+      currentRoundId,
+    ),
+    contract.read.isPerson(walletAddress),
+  ]);
+
+  const resolvedPassport = toAddress(
+    resolvedPassportResult[0],
+    'VePassport getPassportForEntity',
+  );
+  const [
+    linkedEntitiesResult,
+    passportBlacklistedResult,
+  ] = await Promise.all([
+    contract.read.getEntitiesLinkedToPassport(
+      resolvedPassport,
+    ),
+    contract.read.isPassportBlacklisted(
+      resolvedPassport,
+    ),
+  ]);
+
+  let preActivationActionCount = 0;
+  let preActivationAppCount = 0;
+
+  if (
+    activationRoundId !== null &&
+    activationRoundId > 1
+  ) {
+    const startRound = Math.max(
+      1,
+      activationRoundId -
+        roundsForCumulativeScore,
+    );
+
+    for (
+      let round = startRound;
+      round < activationRoundId;
+      round += 1
+    ) {
+      const [
+        actionsResult,
+        appsResult,
+      ] = await Promise.all([
+        contract.read.userRoundActionCount(
+          walletAddress,
+          round,
+        ),
+        contract.read.userRoundAppCount(
+          walletAddress,
+          round,
+        ),
+      ]);
+
+      preActivationActionCount +=
+        toSafeInteger(
+          actionsResult[0],
+          'VePassport userRoundActionCount',
+        );
+      preActivationAppCount +=
+        toSafeInteger(
+          appsResult[0],
+          'VePassport userRoundAppCount',
+        );
+    }
+  }
+
+  return {
+    walletAddress,
+    resolvedPassport,
+    isEntity: toBoolean(
+      entityResult[0],
+      'VePassport isEntity',
+    ),
+    isPassport: toBoolean(
+      passportResult[0],
+      'VePassport isPassport',
+    ),
+    linkedEntities: toAddressArray(
+      linkedEntitiesResult[0],
+      'VePassport getEntitiesLinkedToPassport',
+    ),
+    delegatee: toOptionalAddress(
+      delegateeResult[0],
+      'VePassport getDelegatee',
+    ),
+    delegator: toOptionalAddress(
+      delegatorResult[0],
+      'VePassport getDelegator',
+    ),
+    signalCount: toSafeInteger(
+      signalResult[0],
+      'VePassport signaledCounter',
+    ),
+    blacklisted: toBoolean(
+      blacklistedResult[0],
+      'VePassport isBlacklisted',
+    ),
+    passportBlacklisted: toBoolean(
+      passportBlacklistedResult[0],
+      'VePassport isPassportBlacklisted',
+    ),
+    totalScore: toSafeInteger(
+      totalScoreResult[0],
+      'VePassport userTotalScore',
+    ),
+    cumulativeScore: toSafeInteger(
+      cumulativeScoreResult[0],
+      'VePassport getCumulativeScoreWithDecay',
+    ),
+    isPerson: toBoolean(
+      personResult[0],
+      'VePassport isPerson',
+    ),
+    personReason: toStringValue(
+      personResult[1],
+      'VePassport isPerson reason',
+    ),
+    preActivationActionCount,
+    preActivationAppCount,
+  };
+}
+
+export async function readVePassportReferralSnapshot({
+  inviterWallet,
+  inviteeWallet,
+  activationRoundId = null,
+}: {
+  inviterWallet: string;
+  inviteeWallet: string;
+  activationRoundId?: number | null;
+}): Promise<VePassportReferralSnapshot> {
+  const normalizedInviter =
+    normalizeCheckedWallet(inviterWallet);
+  const normalizedInvitee =
+    normalizeCheckedWallet(inviteeWallet);
+
+  const {
+    network,
+    nodeUrl,
+    veBetterPassportAddress,
+    xAllocationVotingAddress,
+  } = getVeBetterNetworkConfig();
+
+  const thor = ThorClient.at(nodeUrl);
+  const passport = thor.contracts.load(
+    veBetterPassportAddress,
+    veBetterPassportAbi,
+  );
+  const allocationVoting = thor.contracts.load(
+    xAllocationVotingAddress,
+    xAllocationVotingAbi,
+  );
+
+  const [
+    versionResult,
+    currentRoundResult,
+    participationThresholdResult,
+    roundsResult,
+    signalThresholdResult,
+    blacklistCheckResult,
+    signalingCheckResult,
+    participationCheckResult,
+  ] = await Promise.all([
+    passport.read.version(),
+    allocationVoting.read.currentRoundId(),
+    passport.read.thresholdPoPScore(),
+    passport.read.roundsForCumulativeScore(),
+    passport.read.signalingThreshold(),
+    passport.read.isCheckEnabled(2),
+    passport.read.isCheckEnabled(3),
+    passport.read.isCheckEnabled(4),
+  ]);
+
+  const currentRoundId = toSafeInteger(
+    currentRoundResult[0],
+    'XAllocationVoting currentRoundId',
+  );
+  const roundsForCumulativeScore =
+    toSafeInteger(
+      roundsResult[0],
+      'VePassport roundsForCumulativeScore',
+    );
+  const protocolSignalThreshold =
+    toSafeInteger(
+      signalThresholdResult[0],
+      'VePassport signalingThreshold',
+    );
+
+  const [inviter, invitee] =
+    await Promise.all([
+      readVePassportPartySnapshot({
+        contract: passport,
+        walletAddress: normalizedInviter,
+        currentRoundId,
+        activationRoundId,
+        roundsForCumulativeScore,
+      }),
+      readVePassportPartySnapshot({
+        contract: passport,
+        walletAddress: normalizedInvitee,
+        currentRoundId,
+        activationRoundId,
+        roundsForCumulativeScore,
+      }),
+    ]);
+
+  return {
+    network,
+    passportAddress:
+      veBetterPassportAddress.toLowerCase(),
+    passportVersion: toStringValue(
+      versionResult[0],
+      'VePassport version',
+    ),
+    checkedAt: new Date().toISOString(),
+    currentRoundId,
+    activationRoundId,
+    roundsForCumulativeScore,
+    participationThreshold:
+      toSafeInteger(
+        participationThresholdResult[0],
+        'VePassport thresholdPoPScore',
+      ),
+    protocolSignalThreshold,
+    veInviteReviewThreshold:
+      getVeInviteReviewThreshold(),
+    enabledChecks: {
+      blacklist: toBoolean(
+        blacklistCheckResult[0],
+        'VePassport blacklist check',
+      ),
+      signaling: toBoolean(
+        signalingCheckResult[0],
+        'VePassport signaling check',
+      ),
+      participation: toBoolean(
+        participationCheckResult[0],
+        'VePassport participation check',
+      ),
+    },
+    inviter,
+    invitee,
+    sameResolvedPassport:
+      normalizedInviter !==
+        normalizedInvitee &&
+      inviter.resolvedPassport ===
+        invitee.resolvedPassport,
+  };
 }
 
 /**
