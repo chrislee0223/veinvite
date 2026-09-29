@@ -24,10 +24,12 @@ const layoutCss = readFileSync(
 test('country ranking renders flags instead of country-code badges', () => {
   assert.match(hub, /<CountryFlag countryCode=\{row\.countryCode\} \/>/);
   assert.doesNotMatch(hub, /className="countryCode"/);
-  assert.match(countryFlag, /LOCALE_DEFINITIONS/);
-  assert.match(countryFlag, /definition\.flagSource/);
-  assert.match(countryFlag, /String\.fromCodePoint/);
+  assert.match(countryFlag, /normalizeIsoCountryCode/);
+  assert.match(countryFlag, /country-flag-icons@1\.6\.20\/3x2/);
+  assert.match(countryFlag, /src=\{\`\$\{COUNTRY_FLAG_CDN_BASE\}\/\$\{isoCountryCode\}\.svg\`\}/);
   assert.match(countryFlag, /object-fit:contain;/);
+  assert.doesNotMatch(countryFlag, /LOCALE_DEFINITIONS/);
+  assert.doesNotMatch(countryFlag, /String\.fromCodePoint/);
 });
 
 test('unknown country uses a crisp vector fallback instead of an emoji globe', () => {
@@ -35,6 +37,7 @@ test('unknown country uses a crisp vector fallback instead of an emoji globe', (
   assert.match(countryFlag, /countryFlagUnknownIcon/);
   assert.match(countryFlag, /<svg/);
   assert.doesNotMatch(countryFlag, /return '🌐'/);
+  assert.doesNotMatch(countryFlag, /countryFlagEmoji/);
 });
 
 test('country header uses a short localized country label', () => {

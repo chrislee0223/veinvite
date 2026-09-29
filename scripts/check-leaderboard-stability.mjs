@@ -12,6 +12,9 @@ const read = (path) => readFileSync(join(root, path), 'utf8');
 const route = read('src/app/api/leaderboard/route.ts');
 const leaderboardEntry = read('src/components/PublicLeaderboard.tsx');
 const leaderboardHub = read('src/components/PublicLeaderboardHub.tsx');
+const countryFlag = read('src/components/CountryFlag.tsx');
+const countryCodes = read('src/lib/countryCodes.ts');
+const countryRoute = read('src/app/api/leaderboard/country/route.ts');
 const leaderboard = read('src/components/InviterLeaderboard.tsx');
 const layoutPolish = read('src/components/SecondaryPageLayoutPolish.tsx');
 const appProviders = read('src/components/AppProviders.tsx');
@@ -70,6 +73,22 @@ if (
   !/currentUser:\s*resolvedCurrentUser/.test(leaderboardHub)
 ) {
   failures.push('Country hub must embed the reviewed inviter leaderboard with the public snapshot plus resolved current-wallet personalization.');
+}
+
+if (
+  !/normalizeIsoCountryCode/.test(countryFlag) ||
+  !/country-flag-icons@1\.6\.20\/3x2/.test(countryFlag) ||
+  !/onError=\{\(\) => setFailedCode\(normalized\)\}/.test(countryFlag) ||
+  /LOCALE_DEFINITIONS|String\.fromCodePoint|countryFlagEmoji/.test(countryFlag)
+) {
+  failures.push('Country flags must use pinned SVG assets with a vector fallback instead of OS emoji rendering.');
+}
+if (
+  !/'PA'/.test(countryCodes) ||
+  !/normalizeIsoCountryCode/.test(countryRoute) ||
+  /COUNTRY_PATTERN/.test(countryRoute)
+) {
+  failures.push('Country leaderboard must validate real ISO country codes and retain Panama SVG coverage.');
 }
 
 if (!/import \{ SecondaryPageLayoutPolish \} from '\.\/SecondaryPageLayoutPolish';/.test(appProviders) || !/<SecondaryPageLayoutPolish\s*\/>/.test(appProviders)) {
