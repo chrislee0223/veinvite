@@ -81,6 +81,9 @@ jobs:
           tests/network-center-avatar-public-slots.test.mjs
           tests/network-ios-native-gesture-guard.test.mjs
 
+      - name: Network camera geometry behavior gate
+        run: node --experimental-strip-types --test tests/network-canvas-geometry-behavior.test.mjs
+
       - name: User-facing copy and UX gate
         run: node scripts/check-user-facing-copy.mjs
 

@@ -67,6 +67,30 @@ export function networkCanvasDistance(
   );
 }
 
+export function networkCanvasZoomViewAt(
+  view: NetworkCanvasView,
+  screenPoint: NetworkCanvasPoint,
+  nextScale: number,
+): NetworkCanvasView {
+  const scale = clampNetworkCanvas(
+    nextScale,
+    NETWORK_CANVAS_MIN_SCALE,
+    NETWORK_CANVAS_MAX_SCALE,
+  );
+  const worldX =
+    (screenPoint.x - view.x) /
+    view.scale;
+  const worldY =
+    (screenPoint.y - view.y) /
+    view.scale;
+
+  return {
+    x: screenPoint.x - worldX * scale,
+    y: screenPoint.y - worldY * scale,
+    scale,
+  };
+}
+
 function stableNetworkHash(
   value: string,
 ): number {

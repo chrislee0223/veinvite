@@ -57,7 +57,10 @@ import {
   networkCanvasFittedView as fittedView,
   networkCanvasInviteSlotPoint as inviteSlotPoint,
   networkCanvasMidpoint as midpoint,
+  networkCanvasZoomViewAt as zoomViewAt,
   normalizeNetworkWallet as keyWallet,
+  type NetworkCanvasPoint as Point,
+  type NetworkCanvasView as View,
 } from '@/lib/networkCanvasGeometry';
 import {
   EMPTY_NETWORK_WORKSPACE_STORE,
@@ -112,8 +115,6 @@ import {
 } from '@/lib/networkDataClient';
 import { useWalletLauncher } from './WalletControl';
 
-type View = { x: number; y: number; scale: number };
-type Point = { x: number; y: number };
 type NavigationDirection = 'forward' | 'back';
 
 type PositionedChild = NetworkChild & {
@@ -1299,11 +1300,7 @@ export function AppNetwork({ locale }: { locale: Locale }) {
   const centerNetwork = useCallback(() => {
     if (stageSize.width <= 0 || stageSize.height <= 0) return;
     setCameraTransition(true);
-    setView((current) => ({
-      x: stageSize.width / 2 - FOCUS_X * current.scale,
-      y: Math.max(88, stageSize.height * 0.5) - FOCUS_Y * current.scale,
-      scale: current.scale,
-    }));
+    setView((current) => centeredView(stageSize, current.scale));
     window.setTimeout(() => setCameraTransition(false), 240);
   }, [stageSize]);
 
@@ -1377,16 +1374,7 @@ export function AppNetwork({ locale }: { locale: Locale }) {
   ]);
 
   const zoomAt = useCallback((screenPoint: Point, nextScale: number) => {
-    setView((current) => {
-      const scale = clamp(nextScale, MIN_SCALE, MAX_SCALE);
-      const worldX = (screenPoint.x - current.x) / current.scale;
-      const worldY = (screenPoint.y - current.y) / current.scale;
-      return {
-        x: screenPoint.x - worldX * scale,
-        y: screenPoint.y - worldY * scale,
-        scale,
-      };
-    });
+    setView((current) => zoomViewAt(current, screenPoint, nextScale));
   }, []);
 
   const zoomByButton = useCallback((direction: 1 | -1) => {
