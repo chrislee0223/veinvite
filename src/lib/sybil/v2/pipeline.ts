@@ -2749,7 +2749,7 @@ function vePassportSnapshotFingerprint(
     snapshot.inviter.blacklisted ? 1 : 0,
     snapshot.invitee.blacklisted ? 1 : 0,
     snapshot.invitee.passportBlacklisted ? 1 : 0,
-    snapshot.invitee.preActivationActionCount,
+    snapshot.invitee.preActivationCumulativeScore,
     snapshot.invitee.delegatee ?? 'none',
     snapshot.invitee.delegator ?? 'none',
   ].join(':');
@@ -3087,15 +3087,9 @@ async function loadVePassportSignals(
     if (
       eligibility.entryClass === 'NEW' &&
       snapshot.invitee
-        .preActivationActionCount > 0
+        .preActivationCumulativeScore > 0
     ) {
-      const score = Math.min(
-        55,
-        35 +
-          snapshot.invitee
-            .preActivationActionCount *
-            5,
-      );
+      const score = 45;
       const signal: SybilV2Signal = {
         code:
           'VEPASSPORT_PREACTIVATION_ACTIVITY',
@@ -3121,19 +3115,16 @@ async function loadVePassportSignals(
             eligibility.entryClass,
           activationRoundId:
             eligibility.activationRoundId,
-          preActivationActionCount:
+          preActivationCumulativeScore:
             snapshot.invitee
-              .preActivationActionCount,
-          preActivationAppCount:
-            snapshot.invitee
-              .preActivationAppCount,
+              .preActivationCumulativeScore,
           roundsForCumulativeScore:
             snapshot.roundsForCumulativeScore,
           checkedAt:
             snapshot.checkedAt,
         },
         dedupeKey:
-          `sybil-v2:${invitation.invite_code}:vepassport-preactivation:${snapshot.invitee.preActivationActionCount}:${snapshot.invitee.preActivationAppCount}`,
+          `sybil-v2:${invitation.invite_code}:vepassport-preactivation:${snapshot.invitee.preActivationCumulativeScore}`,
       });
     }
 
@@ -3573,7 +3564,7 @@ export async function assessSybilV2Referral(
               .passportBlacklisted,
           inviteePreActivationActionCount:
             vePassport.snapshot.invitee
-              .preActivationActionCount,
+              .preActivationCumulativeScore,
           inviteeIsPerson:
             vePassport.snapshot.invitee
               .isPerson,
