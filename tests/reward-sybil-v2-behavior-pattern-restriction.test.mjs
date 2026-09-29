@@ -58,5 +58,5 @@ test('pipeline applies behavior restriction only after normal HOLD decision', ()
 });
 
 test('policy version advances for generalized behavior enforcement', () => {
-  assert.match(policy, /SYBIL_V2_POLICY_VERSION = 'sybil-v2\.14'/u);
+  assert.match(policy, /SYBIL_V2_POLICY_VERSION = 'sybil-v2\.15'/u);
 });
