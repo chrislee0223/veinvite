@@ -58,6 +58,9 @@ jobs:
           if-no-files-found: error
           retention-days: 7
 
+      - name: Browser QA scope policy gate
+        run: node --test tests/ci-browser-scope.test.mjs
+
       - name: UI stability gate
         run: node scripts/check-ui-stability.mjs
 
@@ -172,6 +175,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
 
       - name: Use Node.js 24
         uses: actions/setup-node@v6
@@ -179,7 +184,50 @@ jobs:
           node-version: 24
           cache: npm
 
+      - name: Detect browser QA scope
+        id: browser-scope
+        shell: bash
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          REF_NAME: ${{ github.ref }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
+          HEAD_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+
+          changed_paths=''
+          if [ "$EVENT_NAME" = 'push' ] && [ "$REF_NAME" = 'refs/heads/main' ]; then
+            changed_paths='main-push'
+          elif [ -n "${BASE_SHA:-}" ] && git cat-file -e "${BASE_SHA}^{commit}" 2>/dev/null; then
+            changed_paths="$(git diff --name-only "$BASE_SHA" "$HEAD_SHA")"
+          fi
+
+          result="$(
+            CHANGED_PATHS="$changed_paths" \
+            GITHUB_EVENT_NAME="$EVENT_NAME" \
+            GITHUB_REF="$REF_NAME" \
+            node scripts/should-run-browser-qa.mjs
+          )"
+
+          if [ "$result" != 'true' ] && [ "$result" != 'false' ]; then
+            echo "Invalid browser QA scope result: $result" >&2
+            exit 1
+          fi
+
+          echo "run_browser=$result" >> "$GITHUB_OUTPUT"
+          printf 'Browser QA required: %s\n' "$result"
+          if [ -n "$changed_paths" ]; then
+            printf '%s\n' "$changed_paths"
+          else
+            echo 'No reliable diff was available; classifier fails safe to browser QA.'
+          fi
+
+      - name: Browser QA skipped for backend-only pull request
+        if: steps.browser-scope.outputs.run_browser == 'false'
+        run: echo 'Full browser QA is skipped on this pull request; main pushes always run it.'
+
       - name: Restore Playwright browser cache
+        if: steps.browser-scope.outputs.run_browser == 'true'
         id: playwright-cache
         uses: actions/cache@v4
         with:
@@ -187,6 +235,7 @@ jobs:
           key: ${{ runner.os }}-playwright-${{ hashFiles('package-lock.json') }}
 
       - name: Install dependencies
+        if: steps.browser-scope.outputs.run_browser == 'true'
         shell: bash
         run: |
           for attempt in 1 2; do
@@ -208,17 +257,19 @@ jobs:
           exit 1
 
       - name: Install Playwright system dependencies
+        if: steps.browser-scope.outputs.run_browser == 'true'
         run: npx playwright install-deps chromium
 
       - name: Install Playwright Chromium
-        if: steps.playwright-cache.outputs.cache-hit != 'true'
+        if: steps.browser-scope.outputs.run_browser == 'true' && steps.playwright-cache.outputs.cache-hit != 'true'
         run: npx playwright install chromium
 
       - name: Visual and multilingual browser QA
+        if: steps.browser-scope.outputs.run_browser == 'true'
         run: npm run test:playwright
 
       - name: Upload Playwright QA evidence
-        if: always()
+        if: always() && steps.browser-scope.outputs.run_browser == 'true'
         uses: actions/upload-artifact@v4
         with:
           name: playwright-visual-qa-${{ github.run_id }}
