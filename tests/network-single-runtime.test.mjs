@@ -33,6 +33,7 @@ const [
 const networkGeometrySource = await readFile('src/lib/networkCanvasGeometry.ts', 'utf8');
 const networkGlyphSource = await readFile('src/components/NetworkGlyphs.tsx', 'utf8');
 const networkAppClientSource = await readFile('src/lib/networkAppClient.ts', 'utf8');
+const networkDataClientSource = await readFile('src/lib/networkDataClient.ts', 'utf8');
 const networkViewHelpersSource = await readFile('src/lib/networkAppViewHelpers.ts', 'utf8');
 const networkIdentitySource = await readFile('src/components/NetworkWalletIdentity.tsx', 'utf8');
 const networkWarmupSource = await readFile('src/components/NetworkIdleWarmup.tsx', 'utf8');
@@ -398,6 +399,16 @@ test('Network localized content stays bounded and RTL overlays adapt without mir
   assert.doesNotMatch(networkSource, /scaleX\(-1\)/);
 });
 
+
+test('Network data client keeps the authenticated no-store read contract and payload guard', () => {
+  assert.match(networkDataClientSource, /credentials:\s*'include'/);
+  assert.match(networkDataClientSource, /cache:\s*'no-store'/);
+  assert.match(networkDataClientSource, /signal:\s*options\.signal/);
+  assert.match(networkDataClientSource, /Failed to load network\./);
+  assert.match(networkDataClientSource, /Network response was incomplete\./);
+  assert.match(networkDataClientSource, /Array\.isArray\(payload\.children\)/);
+  assert.match(networkDataClientSource, /Array\.isArray\(payload\.breadcrumb\)/);
+});
 
 test('Network first paint is immediate, warmed, and never swaps to a blocking loading card', () => {
   assert.doesNotMatch(networkRouteSource, /fastInitial|readCurrentRoundContext|readVeBetterRoundWindow/);
