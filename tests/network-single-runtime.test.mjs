@@ -986,6 +986,18 @@ test('member removal and group dissolution preserve stable positions in expanded
   assert.match(networkSource, /removeWorkspaceGroupAtMemberPoints\(workspace, managedGroup\.id, memberPoints\)/);
 });
 
+test('camera transitions use one cancellable timer across navigation and controls', () => {
+  assert.match(networkSource, /const cameraTransitionTimerRef = useRef<number \| null>\(null\)/);
+  assert.match(networkSource, /const clearCameraTransitionTimer = useCallback/);
+  assert.match(networkSource, /const beginCameraTransition = useCallback/);
+  assert.match(networkSource, /clearCameraTransitionTimer\(\);[\s\S]{0,180}cameraTransitionTimerRef\.current = window\.setTimeout/);
+  assert.match(networkSource, /beginCameraTransition\(NAVIGATION_MS\)/);
+  assert.match(networkSource, /beginCameraTransition\(240\)/);
+  assert.match(networkSource, /beginCameraTransition\(FIT_TRANSITION_MS\)/);
+  assert.match(networkSource, /beginCameraTransition\(220\)/);
+  assert.doesNotMatch(networkSource, /window\.setTimeout\(\(\) => setCameraTransition\(false\)/);
+});
+
 test('long-press layout movement updates runtime state without synchronous storage churn', () => {
   const runtimeStart = networkSource.indexOf('const updateWorkspaceRuntime = useCallback');
   const flushStart = networkSource.indexOf('const flushWorkspaceStore = useCallback');
