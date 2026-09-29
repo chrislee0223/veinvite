@@ -217,8 +217,8 @@ test('group creation is draft-first, supports one member, and preserves member p
   assert.match(networkSource, /addWorkspaceGroup\(workspace/);
   assert.match(networkSource, /removeWorkspaceGroupAtMemberPoints/);
   assert.match(networkSource, /removeWorkspaceMemberFromGroupAtPoint/);
-  assert.match(networkSource, /moveWorkspaceMemberToGroup/);
-  assert.match(networkSource, /withWorkspaceGroupCollapsed/);
+  assert.match(workspaceSource, /export function moveWorkspaceMemberBetweenGroups/);
+  assert.match(workspaceSource, /export function toggleWorkspaceGroupCollapsed/);
   assert.match(networkSource, /groupsOpen/);
   assert.doesNotMatch(networkSource, /continuationEdge/);
   assert.match(workspaceSource, /group\.members\.length >= 1/);
@@ -845,8 +845,8 @@ test('pinch navigation waits until every pointer is released', () => {
 });
 
 test('final group workspace keeps one React-owned membership path and one persistent Groups control', () => {
-  assert.match(networkSource, /moveWorkspaceMemberToGroup/);
-  assert.match(networkSource, /withWorkspaceGroupCollapsed/);
+  assert.match(workspaceSource, /export function moveWorkspaceMemberBetweenGroups/);
+  assert.match(workspaceSource, /export function toggleWorkspaceGroupCollapsed/);
   assert.match(networkSource, /className="groupsPanel"/);
   assert.match(networkSource, /className="groupBuilder"/);
   assert.match(networkSource, /className=\{\`editLayoutButton\$\{editingLayout \? ' active' : ''\}\`\}/);
@@ -928,7 +928,8 @@ test('managed group title supports direct inline rename without changing canvas 
   assert.match(networkSource, /managedGroupNameInputRef\.current\?\.select\(\)/);
   assert.match(networkSource, /const beginManagedGroupRename = useCallback/);
   assert.match(networkSource, /const commitManagedGroupRename = useCallback/);
-  assert.match(networkSource, /groups: workspace\.groups\.map\(\(group\) =>[\s\S]*group\.id === managedGroup\.id \? \{ \.\.\.group, label \} : group/);
+  assert.match(workspaceSource, /export function withWorkspaceGroupLabel/);
+  assert.match(networkSource, /withWorkspaceGroupLabel\(workspace, managedGroup\.id, label\)/);
   assert.match(networkSource, /className="groupManageTitleButton"[\s\S]*onClick=\{beginManagedGroupRename\}/);
   assert.match(networkSource, /className="groupManageTitleInput"/);
   assert.match(networkSource, /onBlur=\{commitManagedGroupRename\}/);
@@ -951,8 +952,8 @@ test('expanded members can move between groups with fixed screen-space targeting
   assert.match(networkSource, /const droppedToExistingGroup =/);
   assert.match(networkSource, /moveMemberBetweenGroups\([\s\S]*holdDrag\.originalWorkspace,[\s\S]*holdDrag\.key,[\s\S]*holdDrag\.groupId,[\s\S]*droppedToExistingGroup\.id/);
   assert.match(networkSource, /memberDropGroupId === group\.id \? ' dropTarget' : ''/);
-  assert.match(networkSource, /target\?\.collapsed === false/);
-  assert.match(networkSource, /defaultGroupMemberOffset\(index, target\.members\.length\)/);
+  assert.match(workspaceSource, /target\?\.collapsed === false/);
+  assert.match(workspaceSource, /defaultMemberOffset\(index, target\.members\.length\)/);
 });
 
 test('group transfer targeting stays coordinate-owned and closes management overlays', () => {

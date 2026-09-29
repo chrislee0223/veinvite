@@ -69,14 +69,16 @@ import {
   addWorkspaceGroup,
   cloneNetworkFocusWorkspace,
   groupContainingWallet,
-  moveWorkspaceMemberToGroup,
+  materializeExpandedWorkspaceGroupOffsets,
+  moveWorkspaceMemberBetweenGroups,
   removeWorkspaceGroupAtMemberPoints,
   removeWorkspaceMemberFromGroupAtPoint,
   serializeNetworkWorkspaceStore,
   withFocusWorkspace,
   withGroupPosition,
   withNodePosition,
-  withWorkspaceGroupCollapsed,
+  toggleWorkspaceGroupCollapsed,
+  withWorkspaceGroupLabel,
   withWorkspaceGroupMemberOffset,
   workspaceForFocus,
   type NetworkFocusWorkspace,
@@ -1672,63 +1674,38 @@ export function AppNetwork({ locale }: { locale: Locale }) {
 
   const toggleGroupCollapsed = useCallback((groupId: string) => {
     if (editingLayout) {
-      mutateEditingWorkspace((current) => {
-        const group = current.groups.find((item) => item.id === groupId);
-        if (!group) return current;
-        return withWorkspaceGroupCollapsed(current, groupId, group.collapsed === false);
-      });
+      mutateEditingWorkspace((current) =>
+        toggleWorkspaceGroupCollapsed(current, groupId)
+      );
       return;
     }
-    const group = committedWorkspace.groups.find((item) => item.id === groupId);
-    if (!group) return;
-    persistFocusWorkspace(withWorkspaceGroupCollapsed(committedWorkspace, groupId, group.collapsed === false));
+    persistFocusWorkspace(
+      toggleWorkspaceGroupCollapsed(committedWorkspace, groupId),
+    );
   }, [editingLayout, committedWorkspace, persistFocusWorkspace, mutateEditingWorkspace]);
 
   const materializeExpandedGroupOffsets = useCallback((
     workspace: NetworkFocusWorkspace,
     groupId: string | undefined,
-  ) => {
-    if (!groupId) return workspace;
-    const group = workspace.groups.find((item) => item.id === groupId);
-    if (!group || group.collapsed !== false) return workspace;
-    let next = workspace;
-    for (const member of group.members) {
-      const key = keyWallet(member);
-      const point = groupMemberCanvasPoint(group, key);
-      next = withWorkspaceGroupMemberOffset(next, group.id, key, {
-        x: point.x - group.x,
-        y: point.y - group.y,
-      });
-    }
-    return next;
-  }, [groupMemberCanvasPoint]);
+  ) => materializeExpandedWorkspaceGroupOffsets(
+    workspace,
+    groupId,
+    groupMemberCanvasPoint,
+  ), [groupMemberCanvasPoint]);
 
   const moveMemberBetweenGroups = useCallback((
     workspace: NetworkFocusWorkspace,
     walletKey: string,
     sourceGroupId: string | undefined,
     targetGroupId: string,
-  ) => {
-    let prepared = materializeExpandedGroupOffsets(workspace, sourceGroupId);
-    prepared = materializeExpandedGroupOffsets(prepared, targetGroupId);
-    let next = moveWorkspaceMemberToGroup(prepared, walletKey, targetGroupId);
-    if (next === prepared) return next;
-    const target = next.groups.find((group) => group.id === targetGroupId);
-    if (target?.collapsed === false) {
-      const key = keyWallet(walletKey);
-      const index = Math.max(
-        0,
-        target.members.findIndex((member) => keyWallet(member) === key),
-      );
-      next = withWorkspaceGroupMemberOffset(
-        next,
-        targetGroupId,
-        key,
-        defaultGroupMemberOffset(index, target.members.length),
-      );
-    }
-    return next;
-  }, [materializeExpandedGroupOffsets]);
+  ) => moveWorkspaceMemberBetweenGroups(
+    workspace,
+    walletKey,
+    sourceGroupId,
+    targetGroupId,
+    groupMemberCanvasPoint,
+    defaultGroupMemberOffset,
+  ), [groupMemberCanvasPoint]);
 
   const updateManagedWorkspace = useCallback((
     update: (workspace: NetworkFocusWorkspace) => NetworkFocusWorkspace,
@@ -1754,12 +1731,9 @@ export function AppNetwork({ locale }: { locale: Locale }) {
     }
     const label = managedGroupNameDraft.trim();
     if (label && label !== managedGroup.label) {
-      updateManagedWorkspace((workspace) => ({
-        ...workspace,
-        groups: workspace.groups.map((group) =>
-          group.id === managedGroup.id ? { ...group, label } : group
-        ),
-      }));
+      updateManagedWorkspace((workspace) =>
+        withWorkspaceGroupLabel(workspace, managedGroup.id, label)
+      );
     }
     setEditingManagedGroupName(false);
     setManagedGroupNameDraft('');
