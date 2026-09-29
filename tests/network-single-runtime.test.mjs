@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { readdir, readFile } from 'node:fs/promises';
 import test from 'node:test';
+import { readNetworkImplementationBundle } from './helpers/network-implementation-source.mjs';
 
 const [
   guideSource,
@@ -32,10 +33,8 @@ const [
 
 const networkGeometrySource = await readFile('src/lib/networkCanvasGeometry.ts', 'utf8');
 const networkGlyphSource = await readFile('src/components/NetworkGlyphs.tsx', 'utf8');
-const networkAppClientSource = await readFile('src/lib/networkAppClient.ts', 'utf8');
-const networkDataClientSource = await readFile('src/lib/networkDataClient.ts', 'utf8');
-const networkViewHelpersSource = await readFile('src/lib/networkAppViewHelpers.ts', 'utf8');
 const networkIdentitySource = await readFile('src/components/NetworkWalletIdentity.tsx', 'utf8');
+const networkImplementationSource = await readNetworkImplementationBundle();
 const networkWarmupSource = await readFile('src/components/NetworkIdleWarmup.tsx', 'utf8');
 const networkSlotCacheSource = await readFile('src/lib/networkInviteSlotsClientCache.ts', 'utf8');
 const leaderboardDomainCacheSource = await readFile('src/lib/leaderboardDomainCache.ts', 'utf8');
@@ -181,7 +180,7 @@ test('layout editing is React-owned and changes workspace coordinates rather tha
 });
 
 test('layout editing auto-saves completed actions and keeps camera state separate', () => {
-  assert.match(networkAppClientSource, /const WORKSPACE_PREFIX = 'veinvite-network-workspace-v1:'/);
+  assert.match(networkImplementationSource, /const WORKSPACE_PREFIX = 'veinvite-network-workspace-v1:'/);
   assert.match(networkSource, /const commitEditingWorkspace = useCallback/);
   assert.match(networkSource, /const commitCurrentDraftWorkspace = useCallback/);
   assert.match(networkSource, /persistFocusWorkspace\(current\)/);
@@ -401,13 +400,13 @@ test('Network localized content stays bounded and RTL overlays adapt without mir
 
 
 test('Network data client keeps the authenticated no-store read contract and payload guard', () => {
-  assert.match(networkDataClientSource, /credentials:\s*'include'/);
-  assert.match(networkDataClientSource, /cache:\s*'no-store'/);
-  assert.match(networkDataClientSource, /signal:\s*options\.signal/);
-  assert.match(networkDataClientSource, /Failed to load network\./);
-  assert.match(networkDataClientSource, /Network response was incomplete\./);
-  assert.match(networkDataClientSource, /Array\.isArray\(payload\.children\)/);
-  assert.match(networkDataClientSource, /Array\.isArray\(payload\.breadcrumb\)/);
+  assert.match(networkImplementationSource, /credentials:\s*'include'/);
+  assert.match(networkImplementationSource, /cache:\s*'no-store'/);
+  assert.match(networkImplementationSource, /signal:\s*options\.signal/);
+  assert.match(networkImplementationSource, /Failed to load network\./);
+  assert.match(networkImplementationSource, /Network response was incomplete\./);
+  assert.match(networkImplementationSource, /Array\.isArray\(payload\.children\)/);
+  assert.match(networkImplementationSource, /Array\.isArray\(payload\.breadcrumb\)/);
 });
 
 test('Network first paint is immediate, warmed, and never swaps to a blocking loading card', () => {
@@ -786,9 +785,9 @@ test('navigation animation honors reduced motion and keeps idle geometry station
 });
 
 test('long-hold selection gives one optional haptic acknowledgement when drag arms', () => {
-  assert.match(networkViewHelpersSource, /function triggerHoldHaptic\(\)/);
-  assert.match(networkViewHelpersSource, /typeof navigator\.vibrate !== 'function'/);
-  assert.match(networkViewHelpersSource, /navigator\.vibrate\(12\)/);
+  assert.match(networkImplementationSource, /function triggerHoldHaptic\(\)/);
+  assert.match(networkImplementationSource, /typeof navigator\.vibrate !== 'function'/);
+  assert.match(networkImplementationSource, /navigator\.vibrate\(12\)/);
   assert.match(networkSource, /hold\.armed = true;[\s\S]{0,300}triggerHoldHaptic\(\);[\s\S]{0,1200}setDraggingWorkspaceKey/);
 });
 
