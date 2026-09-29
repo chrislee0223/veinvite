@@ -1,4 +1,4 @@
-export const SYBIL_V2_POLICY_VERSION = 'sybil-v2.11';
+export const SYBIL_V2_POLICY_VERSION = 'sybil-v2.12';
 
 export type SybilV2EvidenceFamily =
   | 'FUNDING'
