@@ -79,6 +79,33 @@ test('notification UI distinguishes sent rewards from ordinary payout processing
   );
 });
 
+test('notification reward actions poll quickly only until canonical transfer confirmation', () => {
+  assert.match(
+    notificationCenter,
+    /REWARD_ACTION_PENDING_TRANSFER_POLL_MS = 5_000/,
+  );
+  assert.match(
+    notificationCenter,
+    /REWARD_ACTION_IDLE_POLL_MS = 60_000/,
+  );
+  assert.match(
+    notificationCenter,
+    /action\.status !== 'AWAITING_CLAIM'[\s\S]*!action\.broadcastConfirmedAt[\s\S]*!action\.txId/,
+  );
+  assert.match(
+    notificationCenter,
+    /hasPendingTransferConfirmation[\s\S]*REWARD_ACTION_PENDING_TRANSFER_POLL_MS[\s\S]*REWARD_ACTION_IDLE_POLL_MS/,
+  );
+  assert.match(
+    notificationCenter,
+    /B3TR ✓ · \$\{progressCopy\.finalCheck\}/,
+  );
+  assert.match(
+    notificationCenter,
+    /B3TR → · \$\{progressCopy\.claimQueued\}/,
+  );
+});
+
 test('reward operations monitoring observes the oldest open round', () => {
   const activeRoundStart = operationsMonitoring.indexOf(
     ".from('reward_rounds')",
