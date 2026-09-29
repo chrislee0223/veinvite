@@ -18,6 +18,8 @@ const REVIEWED_NETWORKS = {
       '0x6Bee7DDab6c99d5B2Af0554EaEA484CE18F52631',
     xAllocationVotingAddress:
       '0x89A00Bb0947a30FF95BEeF77a66AEdE3842Fe5B7',
+    veBetterPassportAddress:
+      '0x35a267671d8EDD607B2056A9a13E7ba7CF53c8b3',
   },
   testnet: {
     nodeUrl: 'https://testnet.vechain.org',
@@ -31,6 +33,8 @@ const REVIEWED_NETWORKS = {
       '0x23bca0fa2e0028c09bd962ec7f521e84b3b2561a',
     xAllocationVotingAddress:
       '0xe3c043786e991bd446be5242e79dff757fbda348',
+    veBetterPassportAddress:
+      '0x4d0882e0a38daabb395cbe869db9405ea5860d7b',
   },
   'testnet-staging': {
     nodeUrl: 'https://testnet.vechain.org',
@@ -44,6 +48,8 @@ const REVIEWED_NETWORKS = {
       '0x2d2a2207c68a46fc79325d7718e639d1047b0d8b',
     xAllocationVotingAddress:
       '0x8800592c463f0b21ae08732559ee8e146db1d7b2',
+    veBetterPassportAddress:
+      '0x592c756df7a5d39de1735030e8b9c18b7417e6c4',
   },
 } as const;
 
@@ -325,6 +331,17 @@ export function getVeBetterNetworkConfig() {
       network,
     });
 
+  const veBetterPassportAddress =
+    resolveContractAddress({
+      envValue:
+        process.env.VEBETTER_PASSPORT_ADDRESS,
+      officialValue:
+        reviewed.veBetterPassportAddress,
+      fieldName:
+        'VEBETTER_PASSPORT_ADDRESS',
+      network,
+    });
+
   return {
     network,
     nodeUrl,
@@ -333,5 +350,6 @@ export function getVeBetterNetworkConfig() {
     x2EarnAppsAddress,
     x2EarnRewardsPoolAddress,
     xAllocationVotingAddress,
+    veBetterPassportAddress,
   } as const;
 }
