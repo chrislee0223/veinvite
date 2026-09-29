@@ -60,7 +60,7 @@ test('runtime reassesses stale policy plus same-policy HOLDs missing the current
   );
   assert.match(
     source,
-    /SYBIL_V2_BEHAVIOR_ENFORCEMENT_VERSION = 'behavior-pattern-v1'/u,
+    /SYBIL_V2_BEHAVIOR_ENFORCEMENT_VERSION = 'behavior-pattern-v2'/u,
   );
   assert.match(
     source,
@@ -105,7 +105,7 @@ test('current Sybil policy reassesses stale SYSTEM HOLDs but not operator decisi
   const sql = await read(v24MigrationPath);
   const policy = await read('src/lib/sybil/v2/policy.ts');
 
-  assert.match(policy, /SYBIL_V2_POLICY_VERSION = 'sybil-v2\.11'/u);
+  assert.match(policy, /SYBIL_V2_POLICY_VERSION = 'sybil-v2\.12'/u);
   assert.match(sql, /a\.source = 'SYSTEM'/u);
   assert.match(sql, /a\.state in \('CLEAR','WATCH','HOLD'\)/u);
   assert.match(sql, /q\.invite_code is null/u);
