@@ -1,6 +1,6 @@
 {
   "thresholdBytes": 30000,
-  "capturedFromCommit": "c15cf35a36c7d7254fdf025e7cd32486f43cfd4c",
+  "capturedFromCommit": "23aa1942691cff91783a98c177cab2cef5ae45fd",
   "note": "Known large source files at the stabilization baseline. The cleanup gate blocks new >=30KB source files and prevents selected hotspot files from growing past their reviewed ceilings unless the baseline is intentionally reviewed and updated.",
   "allowedLargeSourceFiles": [
     "src/components/AppNetwork.tsx",
@@ -34,7 +34,7 @@
     "src/lib/i18n/localePacks/ur.ts"
   ],
   "growthCeilingsBytes": {
-    "src/components/AppNetwork.tsx": 150989,
-    "src/lib/sybil/v2/pipeline.ts": 137693
+    "src/components/AppNetwork.tsx": 148481,
+    "src/lib/sybil/v2/pipeline.ts": 136533
   }
 }
