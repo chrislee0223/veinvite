@@ -1,7 +1,7 @@
 {
   "thresholdBytes": 30000,
-  "capturedFromCommit": "68d18573a606f853caa6ea99d3bbcb6a506b66fa",
-  "note": "Known large source files at the stabilization baseline. The cleanup gate blocks new >=30KB source files unless this list is intentionally reviewed and updated.",
+  "capturedFromCommit": "c15cf35a36c7d7254fdf025e7cd32486f43cfd4c",
+  "note": "Known large source files at the stabilization baseline. The cleanup gate blocks new >=30KB source files and prevents selected hotspot files from growing past their reviewed ceilings unless the baseline is intentionally reviewed and updated.",
   "allowedLargeSourceFiles": [
     "src/components/AppNetwork.tsx",
     "src/components/PublicNetworkExplorer.tsx",
@@ -32,5 +32,9 @@
     "src/lib/i18n/localePacks/ru.ts",
     "src/lib/i18n/inviterSecurityNotificationCopy.ts",
     "src/lib/i18n/localePacks/ur.ts"
-  ]
+  ],
+  "growthCeilingsBytes": {
+    "src/components/AppNetwork.tsx": 150989,
+    "src/lib/sybil/v2/pipeline.ts": 137693
+  }
 }

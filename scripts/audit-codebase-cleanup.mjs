@@ -327,6 +327,36 @@ if (largeBaselinePath) {
         newLargeFiles.map((item) => item.path).join(', '),
     );
   }
+
+  const growthCeilingsBytes = baseline.growthCeilingsBytes ?? {};
+  if (
+    growthCeilingsBytes === null ||
+    typeof growthCeilingsBytes !== 'object' ||
+    Array.isArray(growthCeilingsBytes)
+  ) {
+    throw new Error('Large-source baseline growthCeilingsBytes must be an object.');
+  }
+
+  for (const [filePath, maxBytes] of Object.entries(growthCeilingsBytes)) {
+    if (!Number.isInteger(maxBytes) || maxBytes < 1) {
+      throw new Error(
+        `Invalid large-source growth ceiling for ${filePath}: ${maxBytes}.`,
+      );
+    }
+
+    const absolute = path.resolve(ROOT, filePath);
+    if (!sourceSet.has(absolute)) {
+      continue;
+    }
+
+    const currentBytes = fs.statSync(absolute).size;
+    if (currentBytes > maxBytes) {
+      enforcementFailures.push(
+        `Existing large source file grew beyond its reviewed ceiling: ${filePath} ` +
+          `(${currentBytes} > ${maxBytes} bytes). Extract or explicitly review the baseline before merging.`,
+      );
+    }
+  }
 }
 
 if (enforcementFailures.length > 0) {
