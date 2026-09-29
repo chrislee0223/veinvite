@@ -23,7 +23,10 @@ test('Sybil block and revision parsing preserves strict integer boundaries', () 
 
   assert.equal(safeNonNegativeBlock(0), 0);
   assert.equal(safeNonNegativeBlock('0'), 0);
-  assert.equal(safeNonNegativeBlock(null), 0);
+  assert.equal(safeNonNegativeBlock(null), null);
+  assert.equal(safeNonNegativeBlock(undefined), null);
+  assert.equal(safeNonNegativeBlock(''), null);
+  assert.equal(safeNonNegativeBlock('   '), null);
   assert.equal(safeNonNegativeBlock(-1), null);
 
   assert.equal(safeRevision(0), 0);
