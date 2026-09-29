@@ -571,6 +571,19 @@ export async function readVePassportSignalSnapshot(
   return snapshot;
 }
 
+function loadVePassportContract(
+  thor: ReturnType<typeof ThorClient.at>,
+  passportAddress: string,
+) {
+  return thor.contracts.load(
+    passportAddress,
+    veBetterPassportAbi,
+  );
+}
+
+type VePassportReadContract =
+  ReturnType<typeof loadVePassportContract>;
+
 async function readVePassportPartySnapshot({
   contract,
   walletAddress,
@@ -578,9 +591,7 @@ async function readVePassportPartySnapshot({
   activationRoundId,
   roundsForCumulativeScore,
 }: {
-  contract: ReturnType<
-    ReturnType<typeof ThorClient.at>['contracts']['load']
-  >;
+  contract: VePassportReadContract;
   walletAddress: string;
   currentRoundId: number;
   activationRoundId: number | null;
@@ -752,10 +763,11 @@ export async function readVePassportReferralSnapshot({
   } = getVeBetterNetworkConfig();
 
   const thor = ThorClient.at(nodeUrl);
-  const passport = thor.contracts.load(
-    veBetterPassportAddress,
-    veBetterPassportAbi,
-  );
+  const passport =
+    loadVePassportContract(
+      thor,
+      veBetterPassportAddress,
+    );
   const allocationVoting = thor.contracts.load(
     xAllocationVotingAddress,
     xAllocationVotingAbi,
