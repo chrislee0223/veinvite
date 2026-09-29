@@ -7,10 +7,12 @@ import {
   intervalsSimilar,
   isFinalizedVoteCheckpoint,
   normalizeWallet,
+  safeEligibilityRound,
   safeError,
   safeNonNegativeBlock,
   safePositiveBlock,
   safeRevision,
+  sequentialWalletSwitchGapSeconds,
   unique,
 } from '../src/lib/sybil/v2/pipelinePrimitives.ts';
 
@@ -147,3 +149,57 @@ test('high-signal lookup requires matching code, HIGH strength, and positive sco
   assert.equal(hasHighSignal(signals, 'C'), true);
   assert.equal(hasHighSignal(signals, 'D'), false);
 });
+
+test('eligibility round parsing remains strict and positive', () => {
+  assert.equal(safeEligibilityRound(1), 1);
+  assert.equal(safeEligibilityRound('118'), 118);
+  assert.equal(safeEligibilityRound(0), null);
+  assert.equal(safeEligibilityRound(-1), null);
+  assert.equal(safeEligibilityRound('0'), null);
+  assert.equal(safeEligibilityRound(' 118 '), null);
+  assert.equal(safeEligibilityRound('1.5'), null);
+  assert.equal(safeEligibilityRound(null), null);
+});
+
+test('same-client wallet switching preserves sequential and overlap timing semantics', () => {
+  assert.equal(
+    sequentialWalletSwitchGapSeconds({
+      leftFirstSeenAt: '2026-09-29T10:00:00.000Z',
+      leftLastSeenAt: '2026-09-29T10:05:00.000Z',
+      rightFirstSeenAt: '2026-09-29T10:07:30.000Z',
+      rightLastSeenAt: '2026-09-29T10:10:00.000Z',
+    }),
+    150,
+  );
+
+  assert.equal(
+    sequentialWalletSwitchGapSeconds({
+      leftFirstSeenAt: '2026-09-29T10:08:00.000Z',
+      leftLastSeenAt: '2026-09-29T10:10:00.000Z',
+      rightFirstSeenAt: '2026-09-29T10:00:00.000Z',
+      rightLastSeenAt: '2026-09-29T10:06:30.000Z',
+    }),
+    90,
+  );
+
+  assert.equal(
+    sequentialWalletSwitchGapSeconds({
+      leftFirstSeenAt: '2026-09-29T10:00:00.000Z',
+      leftLastSeenAt: '2026-09-29T10:10:00.000Z',
+      rightFirstSeenAt: '2026-09-29T10:05:00.000Z',
+      rightLastSeenAt: '2026-09-29T10:15:00.000Z',
+    }),
+    0,
+  );
+
+  assert.equal(
+    sequentialWalletSwitchGapSeconds({
+      leftFirstSeenAt: 'invalid',
+      leftLastSeenAt: '2026-09-29T10:10:00.000Z',
+      rightFirstSeenAt: '2026-09-29T10:05:00.000Z',
+      rightLastSeenAt: '2026-09-29T10:15:00.000Z',
+    }),
+    null,
+  );
+});
+

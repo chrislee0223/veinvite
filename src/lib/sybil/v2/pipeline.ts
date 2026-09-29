@@ -30,10 +30,12 @@ import {
   intervalsSimilar,
   isFinalizedVoteCheckpoint,
   normalizeWallet,
+  safeEligibilityRound,
   safeError,
   safeNonNegativeBlock,
   safePositiveBlock,
   safeRevision,
+  sequentialWalletSwitchGapSeconds,
   unique,
 } from '@/lib/sybil/v2/pipelinePrimitives';
 import {
@@ -1793,41 +1795,6 @@ async function loadAnalyticsExcludedWallets(
   );
 }
 
-function sequentialWalletSwitchGapSeconds({
-  leftFirstSeenAt,
-  leftLastSeenAt,
-  rightFirstSeenAt,
-  rightLastSeenAt,
-}: {
-  leftFirstSeenAt: string;
-  leftLastSeenAt: string;
-  rightFirstSeenAt: string;
-  rightLastSeenAt: string;
-}): number | null {
-  const leftFirst = Date.parse(leftFirstSeenAt);
-  const leftLast = Date.parse(leftLastSeenAt);
-  const rightFirst = Date.parse(rightFirstSeenAt);
-  const rightLast = Date.parse(rightLastSeenAt);
-
-  if (
-    [leftFirst, leftLast, rightFirst, rightLast]
-      .some((value) => Number.isNaN(value))
-  ) {
-    return null;
-  }
-
-  if (rightFirst >= leftLast) {
-    return (rightFirst - leftLast) / 1000;
-  }
-  if (leftFirst >= rightLast) {
-    return (leftFirst - rightLast) / 1000;
-  }
-
-  // Overlapping observations on one pseudonymous client are at least as
-  // suspicious as an immediate sequential switch.
-  return 0;
-}
-
 async function loadSecurityIdentitySignals(
   invitation: InvitationV2Row,
 ): Promise<{
@@ -2684,25 +2651,6 @@ type VePassportAssessmentEvidence = {
   relatedParticipantInviteCode: string | null;
   error: string | null;
 };
-
-function safeEligibilityRound(
-  value: unknown,
-): number | null {
-  const parsed =
-    typeof value === 'number'
-      ? value
-      : typeof value === 'string' && /^\d+$/.test(value)
-        ? Number(value)
-        : null;
-
-  return (
-    parsed !== null &&
-    Number.isSafeInteger(parsed) &&
-    parsed > 0
-  )
-    ? parsed
-    : null;
-}
 
 async function loadVePassportEligibilityContext(
   invitation: InvitationV2Row,

@@ -190,3 +190,57 @@ export function hasHighSignal(
       signal.score > 0,
   );
 }
+
+export function sequentialWalletSwitchGapSeconds({
+  leftFirstSeenAt,
+  leftLastSeenAt,
+  rightFirstSeenAt,
+  rightLastSeenAt,
+}: {
+  leftFirstSeenAt: string;
+  leftLastSeenAt: string;
+  rightFirstSeenAt: string;
+  rightLastSeenAt: string;
+}): number | null {
+  const leftFirst = Date.parse(leftFirstSeenAt);
+  const leftLast = Date.parse(leftLastSeenAt);
+  const rightFirst = Date.parse(rightFirstSeenAt);
+  const rightLast = Date.parse(rightLastSeenAt);
+
+  if (
+    [leftFirst, leftLast, rightFirst, rightLast]
+      .some((value) => Number.isNaN(value))
+  ) {
+    return null;
+  }
+
+  if (rightFirst >= leftLast) {
+    return (rightFirst - leftLast) / 1000;
+  }
+  if (leftFirst >= rightLast) {
+    return (leftFirst - rightLast) / 1000;
+  }
+
+  return 0;
+}
+
+export function safeEligibilityRound(
+  value: unknown,
+): number | null {
+  const parsed =
+    typeof value === 'number'
+      ? value
+      : typeof value === 'string' &&
+          /^\d+$/.test(value)
+        ? Number(value)
+        : null;
+
+  return (
+    parsed !== null &&
+    Number.isSafeInteger(parsed) &&
+    parsed > 0
+  )
+    ? parsed
+    : null;
+}
+
