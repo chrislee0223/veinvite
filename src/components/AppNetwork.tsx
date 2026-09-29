@@ -103,45 +103,18 @@ import {
   shortWallet,
   triggerHoldHaptic,
 } from '@/lib/networkAppViewHelpers';
+import {
+  fetchNetwork,
+  provisionalNetworkData,
+  type NetworkChild,
+  type NetworkData,
+  type NetworkSearchResult as SearchResult,
+} from '@/lib/networkDataClient';
 import { useWalletLauncher } from './WalletControl';
 
-type MemberStatus = 'IN_PROGRESS' | 'QUALIFIED' | 'REWARDED';
 type View = { x: number; y: number; scale: number };
 type Point = { x: number; y: number };
 type NavigationDirection = 'forward' | 'back';
-
-type NetworkChild = {
-  wallet: string;
-  status: MemberStatus;
-  joinedAt: string | null;
-  network: number;
-  direct: number;
-  qualified: number;
-  depth: number;
-};
-
-type SearchResult = {
-  wallet: string;
-  parentWallet: string | null;
-  depth: number;
-};
-
-type NetworkData = {
-  rootWallet: string;
-  focusWallet: string;
-  focusDepth: number;
-  invitedBy: string | null;
-  breadcrumb: string[];
-  summary: {
-    network: number;
-    direct: number;
-    qualified: number;
-      depth: number;
-  };
-  children: NetworkChild[];
-  searchResults: SearchResult[];
-  depthLimitReached: boolean;
-};
 
 type PositionedChild = NetworkChild & {
   x: number;
@@ -214,63 +187,6 @@ const GROUP_DROP_HIT_SLOP_Y = 14;
 const HOLD_TO_MOVE_MS = 500;
 const HOLD_CANCEL_DISTANCE = 8;
 const GROUP_SCREEN_DROP_RADIUS = 58;
-function provisionalNetworkData(wallet: string): NetworkData {
-  return {
-    rootWallet: wallet,
-    focusWallet: wallet,
-    focusDepth: 0,
-    invitedBy: null,
-    breadcrumb: [wallet],
-    summary: {
-      network: 0,
-      direct: 0,
-      qualified: 0,
-        depth: 0,
-    },
-      children: [],
-    searchResults: [],
-    depthLimitReached: false,
-  };
-}
-
-async function fetchNetwork(
-  rootWallet: string,
-  options: { focus?: string; query?: string; signal?: AbortSignal } = {},
-): Promise<NetworkData> {
-  const params = new URLSearchParams({ wallet: rootWallet });
-  if (options.focus && keyWallet(options.focus) !== keyWallet(rootWallet)) {
-    params.set('focus', options.focus);
-  }
-  if (options.query) params.set('q', options.query);
-
-  const response = await fetch(`/api/network?${params.toString()}`, {
-    method: 'GET',
-    credentials: 'include',
-    cache: 'no-store',
-    headers: { Accept: 'application/json' },
-    signal: options.signal,
-  });
-  const payload = await response.json().catch(() => null) as NetworkData | { error?: string } | null;
-  if (!response.ok) {
-    const message = payload && 'error' in payload && payload.error
-      ? payload.error
-      : 'Failed to load network.';
-    throw new Error(message);
-  }
-  if (
-    !payload ||
-    !('rootWallet' in payload) ||
-    !payload.rootWallet ||
-    !payload.focusWallet ||
-    !payload.summary ||
-    !Array.isArray(payload.children) ||
-    !Array.isArray(payload.breadcrumb)
-  ) {
-    throw new Error('Network response was incomplete.');
-  }
-  return payload as NetworkData;
-}
-
 export function AppNetwork({ locale }: { locale: Locale }) {
   const t = NETWORK_EXPERIENCE_COPY[locale as SupportedLocale];
   const c = NETWORK_CANVAS_CONTROL_COPY[locale as SupportedLocale];
