@@ -3,6 +3,7 @@ import {
   NextResponse,
 } from 'next/server';
 
+import { normalizeIsoCountryCode } from '@/lib/countryCodes';
 import {
   enforceRateLimits,
   getClientIpSubject,
@@ -16,7 +17,6 @@ import { readCurrentVeBetterRound } from '@/lib/vebetter/currentRound';
 
 export const dynamic = 'force-dynamic';
 
-const COUNTRY_PATTERN = /^[A-Z]{2}$/;
 const UNKNOWN_COUNTRY_CODE = 'ZZ';
 const LEADERBOARD_SIZE = 100;
 
@@ -69,7 +69,10 @@ function normalizePayload(value: unknown): {
       const countryCode = typeof row.countryCode === 'string'
         ? row.countryCode.trim().toUpperCase()
         : '';
-      if (!COUNTRY_PATTERN.test(countryCode)) {
+      if (
+        countryCode !== UNKNOWN_COUNTRY_CODE &&
+        normalizeIsoCountryCode(countryCode) === null
+      ) {
         throw new Error('Country arrival data returned an invalid country code.');
       }
 
