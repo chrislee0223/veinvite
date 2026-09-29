@@ -1,5 +1,7 @@
 const NODE = 'https://mainnet.vechain.org';
 const B3TR = '0x5ef79995FE8a89e0812330E4378eB2660ceDe699'.toLowerCase();
+const VOT3 = '0x76Ca782B59C74d088C7D2Cce2f211BC00836c602'.toLowerCase();
+const VTHO = '0x0000000000000000000000000000456E65726779'.toLowerCase();
 const REWARDS_POOL = '0x6Bee7DDab6c99d5B2Af0554EaEA484CE18F52631'.toLowerCase();
 const TRANSFER_TOPIC = '0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef';
 const PAGE_SIZE = 1000;
@@ -121,22 +123,26 @@ function summarizeTransfers(logs, wallet, direction) {
   };
 }
 
-async function scanWallet(wallet, fromBlock, toBlock) {
+async function scanTokenWallet(token, wallet, fromBlock, toBlock) {
   const topic = topicForAddress(wallet);
   const inbound = await eventLogs({
     from: fromBlock,
     to: toBlock,
-    criteria: { address: B3TR, topic0: TRANSFER_TOPIC, topic2: topic }
+    criteria: { address: token, topic0: TRANSFER_TOPIC, topic2: topic }
   });
   const outbound = await eventLogs({
     from: fromBlock,
     to: toBlock,
-    criteria: { address: B3TR, topic0: TRANSFER_TOPIC, topic1: topic }
+    criteria: { address: token, topic0: TRANSFER_TOPIC, topic1: topic }
   });
   return {
     inbound: summarizeTransfers(inbound, wallet, 'in'),
     outbound: summarizeTransfers(outbound, wallet, 'out'),
   };
+}
+
+async function scanWallet(wallet, fromBlock, toBlock) {
+  return await scanTokenWallet(B3TR, wallet, fromBlock, toBlock);
 }
 
 const best = await bestBlock();
@@ -150,6 +156,26 @@ for (const target of targets) {
 }
 
 const prior = await scanWallet(m89PriorWallet.wallet, m89PriorWallet.fromBlock, Math.min(m89PriorWallet.toBlock,bestNumber));
+const priorVot3 = await scanTokenWallet(VOT3, m89PriorWallet.wallet, m89PriorWallet.fromBlock, Math.min(m89PriorWallet.toBlock,bestNumber));
+
+const preactivationVtho = {};
+for (const target of targets) {
+  const fromBlock = Math.max(0, target.voteBlock - 30000);
+  const activation = target.code === 'QNU8TDF' ? 25818695 :
+    target.code === 'EALXSC8' ? 25818965 :
+    target.code === '7ACQA43' ? 25842288 :
+    target.code === '65242BC' ? 25880600 :
+    target.code === 'JEZP37F' ? 25878913 :
+    25930475;
+  const scanFrom = Math.max(0, activation - 20000);
+  const scan = await scanTokenWallet(VTHO, target.wallet, scanFrom, activation);
+  preactivationVtho[target.code] = {
+    wallet: target.wallet,
+    scanFromBlock: scanFrom,
+    scanToBlock: activation,
+    inbound: scan.inbound,
+  };
+}
 
 const sharedOutbound = {};
 for (const r of results) {
@@ -168,7 +194,8 @@ const output = {
   rewardsPool: REWARDS_POOL,
   results,
   sharedOutboundDestinations: sharedOutbound,
-  m89PriorWallet: {...m89PriorWallet, scanToBlock: Math.min(m89PriorWallet.toBlock,bestNumber), ...prior},
+  m89PriorWallet: {...m89PriorWallet, scanToBlock: Math.min(m89PriorWallet.toBlock,bestNumber), ...prior, vot3: priorVot3},
+  preactivationVtho,
 };
 
 console.log('FORENSIC_RESULT=' + JSON.stringify(output));
