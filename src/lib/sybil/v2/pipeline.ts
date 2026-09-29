@@ -1741,6 +1741,74 @@ async function loadMissionBehaviorSignals(
   return { signals, complete: true };
 }
 
+async function loadAnalyticsExcludedWallets(
+  wallets: string[],
+): Promise<Set<string>> {
+  const normalized = unique(
+    wallets
+      .filter(Boolean)
+      .map((wallet) => normalizeWallet(wallet)),
+  );
+  if (normalized.length === 0) return new Set<string>();
+
+  const { data, error } = await supabaseAdmin
+    .from('analytics_excluded_wallets')
+    .select('wallet_address')
+    .eq('active', true)
+    .in('wallet_address', normalized);
+
+  if (error) {
+    throw new Error(
+      `Sybil analytics-exclusion lookup failed: ${error.message}`,
+    );
+  }
+
+  return new Set(
+    (data ?? [])
+      .map((row) =>
+        typeof row.wallet_address === 'string'
+          ? normalizeWallet(row.wallet_address)
+          : null,
+      )
+      .filter((wallet): wallet is string => Boolean(wallet)),
+  );
+}
+
+function sequentialWalletSwitchGapSeconds({
+  leftFirstSeenAt,
+  leftLastSeenAt,
+  rightFirstSeenAt,
+  rightLastSeenAt,
+}: {
+  leftFirstSeenAt: string;
+  leftLastSeenAt: string;
+  rightFirstSeenAt: string;
+  rightLastSeenAt: string;
+}): number | null {
+  const leftFirst = Date.parse(leftFirstSeenAt);
+  const leftLast = Date.parse(leftLastSeenAt);
+  const rightFirst = Date.parse(rightFirstSeenAt);
+  const rightLast = Date.parse(rightLastSeenAt);
+
+  if (
+    [leftFirst, leftLast, rightFirst, rightLast]
+      .some((value) => Number.isNaN(value))
+  ) {
+    return null;
+  }
+
+  if (rightFirst >= leftLast) {
+    return (rightFirst - leftLast) / 1000;
+  }
+  if (leftFirst >= rightLast) {
+    return (leftFirst - rightLast) / 1000;
+  }
+
+  // Overlapping observations on one pseudonymous client are at least as
+  // suspicious as an immediate sequential switch.
+  return 0;
+}
+
 async function loadSecurityIdentitySignals(
   invitation: InvitationV2Row,
 ): Promise<{
@@ -1764,14 +1832,24 @@ async function loadSecurityIdentitySignals(
     );
 
     if (clientIds.length > 0) {
-      const inviterClient = await supabaseAdmin
-        .from('security_client_wallet_observations')
-        .select('client_id,first_seen_at,last_seen_at')
-        .eq('wallet_address', inviterWallet)
-        .in('client_id', clientIds);
+      const [inviterClient, relatedClientRowsResult] = await Promise.all([
+        supabaseAdmin
+          .from('security_client_wallet_observations')
+          .select('client_id,first_seen_at,last_seen_at')
+          .eq('wallet_address', inviterWallet)
+          .in('client_id', clientIds),
+        supabaseAdmin
+          .from('security_client_wallet_observations')
+          .select('client_id,wallet_address,first_seen_at,last_seen_at')
+          .in('client_id', clientIds)
+          .neq('wallet_address', inviteeWallet),
+      ]);
 
       if (inviterClient.error) {
         throw new Error(`Inviter security client evidence could not be loaded: ${inviterClient.error.message}`);
+      }
+      if (relatedClientRowsResult.error) {
+        throw new Error(`Related security client evidence could not be loaded: ${relatedClientRowsResult.error.message}`);
       }
 
       const inviterRows = inviterClient.data ?? [];
@@ -1846,8 +1924,312 @@ async function loadSecurityIdentitySignals(
 
         return { signals, complete: true };
       }
+
+      const relatedClientRows = (relatedClientRowsResult.data ?? []) as Array<{
+        client_id: string;
+        wallet_address: string;
+        first_seen_at: string;
+        last_seen_at: string;
+      }>;
+      const relatedWallets = unique(
+        relatedClientRows
+          .map((row) => normalizeWallet(row.wallet_address))
+          .filter((wallet) => wallet !== inviterWallet),
+      );
+      const excludedWallets = await loadAnalyticsExcludedWallets([
+        inviteeWallet,
+        inviterWallet,
+        ...relatedWallets,
+      ]);
+
+      if (
+        !excludedWallets.has(inviteeWallet) &&
+        !excludedWallets.has(inviterWallet) &&
+        relatedWallets.length > 0
+      ) {
+        const siblingInvitationsResult = await supabaseAdmin
+          .from('invitations')
+          .select(
+            'invite_code,inviter_wallet,invitee_wallet,activated_at,status,sybil_status,eligibility_check_id,ineligibility_check_id',
+          )
+          .eq('inviter_wallet', inviterWallet)
+          .in('invitee_wallet', relatedWallets);
+
+        if (siblingInvitationsResult.error) {
+          throw new Error(
+            `Sibling security-client invitations could not be loaded: ${siblingInvitationsResult.error.message}`,
+          );
+        }
+
+        const siblingInvitations = (siblingInvitationsResult.data ?? [])
+          .filter((row) =>
+            typeof row.invitee_wallet === 'string' &&
+            row.eligibility_check_id !== null &&
+            row.ineligibility_check_id === null &&
+            ['ACTIVATING', 'UNDER_REVIEW', 'COMPLETED'].includes(String(row.status)) &&
+            row.sybil_status !== 'BLOCKED' &&
+            !excludedWallets.has(normalizeWallet(row.invitee_wallet)),
+          );
+
+        for (const sibling of siblingInvitations) {
+          const siblingWallet = normalizeWallet(String(sibling.invitee_wallet));
+          const siblingRows = relatedClientRows.filter(
+            (row) => normalizeWallet(row.wallet_address) === siblingWallet,
+          );
+
+          for (const siblingRow of siblingRows) {
+            const sharedClientId = String(siblingRow.client_id);
+            const ownRow = inviteeRows.find(
+              (row) => String(row.client_id) === sharedClientId,
+            );
+            if (!ownRow) continue;
+
+            const switchGapSeconds = sequentialWalletSwitchGapSeconds({
+              leftFirstSeenAt: String(ownRow.first_seen_at),
+              leftLastSeenAt: String(ownRow.last_seen_at),
+              rightFirstSeenAt: siblingRow.first_seen_at,
+              rightLastSeenAt: siblingRow.last_seen_at,
+            });
+            const ownFirstSeen = Date.parse(String(ownRow.first_seen_at));
+            const siblingFirstSeen = Date.parse(siblingRow.first_seen_at);
+            const siblingActivatedAt =
+              typeof sibling.activated_at === 'string'
+                ? Date.parse(sibling.activated_at)
+                : Number.NaN;
+            const activationGapSeconds =
+              Number.isNaN(activationAt) || Number.isNaN(ownFirstSeen)
+                ? null
+                : Math.abs(activationAt - ownFirstSeen) / 1000;
+            const siblingActivationGapSeconds =
+              Number.isNaN(siblingActivatedAt) ||
+              Number.isNaN(siblingFirstSeen)
+                ? null
+                : Math.abs(siblingActivatedAt - siblingFirstSeen) / 1000;
+            const immediateSwitch =
+              switchGapSeconds !== null &&
+              activationGapSeconds !== null &&
+              siblingActivationGapSeconds !== null &&
+              switchGapSeconds <= 10 * 60 &&
+              activationGapSeconds <= 10 * 60 &&
+              siblingActivationGapSeconds <= 10 * 60;
+
+            const signals: SybilV2Signal[] = [{
+              code: 'SECURITY_CLIENT_SIBLING_LINK',
+              family: 'SECURITY_IDENTITY',
+              strength: 'MEDIUM',
+              score: 60,
+              independentKey: sharedClientId,
+            }];
+
+            if (immediateSwitch) {
+              signals.push({
+                code: 'SECURITY_CLIENT_SIBLING_IMMEDIATE_SWITCH',
+                family: 'SECURITY_IDENTITY',
+                strength: 'HIGH',
+                score: 100,
+                independentKey: sharedClientId,
+              });
+            }
+
+            for (const signal of signals) {
+              await insertEvidenceRecord({
+                invitation,
+                subjectWallet: inviteeWallet,
+                family: 'SECURITY_IDENTITY',
+                signalCode: signal.code,
+                strength: signal.strength,
+                score: signal.score,
+                relatedWallet: siblingWallet,
+                evidence: {
+                  sameInviterSibling: true,
+                  inviterWallet,
+                  peerInviteCode: sibling.invite_code,
+                  peerWallet: siblingWallet,
+                  sharedClientId,
+                  preVoteDetection: true,
+                  immediateSwitch,
+                  switchGapSeconds,
+                  activationGapSeconds,
+                  peerActivationGapSeconds: siblingActivationGapSeconds,
+                },
+                dedupeKey:
+                  `sybil-v2:${invitation.invite_code}:${signal.code.toLowerCase()}:${sharedClientId}:${sibling.invite_code}`,
+              });
+            }
+
+            return { signals, complete: true };
+          }
+        }
+      }
+    }
+
+    // A suspicious inviter may itself be a recent VeInvite invitee. If two of
+    // its downstream invitees immediately switch wallets on one security
+    // client, surface that as a separate cluster-link domain. This does not
+    // blacklist the inviter by association; it only corroborates other
+    // independent evidence such as funding or historical behavior.
+    const downstreamInvitationsResult = await supabaseAdmin
+      .from('invitations')
+      .select(
+        'invite_code,invitee_wallet,activated_at,status,sybil_status,eligibility_check_id,ineligibility_check_id',
+      )
+      .eq('inviter_wallet', inviteeWallet);
+
+    if (downstreamInvitationsResult.error) {
+      throw new Error(
+        `Downstream security-client invitations could not be loaded: ${downstreamInvitationsResult.error.message}`,
+      );
+    }
+
+    const downstreamInvitations = (downstreamInvitationsResult.data ?? [])
+      .filter((row) =>
+        typeof row.invitee_wallet === 'string' &&
+        row.eligibility_check_id !== null &&
+        row.ineligibility_check_id === null &&
+        ['ACTIVATING', 'UNDER_REVIEW', 'COMPLETED'].includes(String(row.status)) &&
+        row.sybil_status !== 'BLOCKED',
+      );
+
+    if (downstreamInvitations.length >= 2) {
+      const downstreamWallets = unique(
+        downstreamInvitations.map((row) =>
+          normalizeWallet(String(row.invitee_wallet)),
+        ),
+      );
+      const excludedDownstreamWallets =
+        await loadAnalyticsExcludedWallets([
+          inviteeWallet,
+          ...downstreamWallets,
+        ]);
+
+      if (!excludedDownstreamWallets.has(inviteeWallet)) {
+        const downstreamObservationsResult = await supabaseAdmin
+          .from('security_client_wallet_observations')
+          .select('client_id,wallet_address,first_seen_at,last_seen_at')
+          .in(
+            'wallet_address',
+            downstreamWallets.filter(
+              (wallet) => !excludedDownstreamWallets.has(wallet),
+            ),
+          );
+
+        if (downstreamObservationsResult.error) {
+          throw new Error(
+            `Downstream security-client observations could not be loaded: ${downstreamObservationsResult.error.message}`,
+          );
+        }
+
+        const downstreamObservations =
+          (downstreamObservationsResult.data ?? []) as Array<{
+            client_id: string;
+            wallet_address: string;
+            first_seen_at: string;
+            last_seen_at: string;
+          }>;
+
+        for (let leftIndex = 0; leftIndex < downstreamInvitations.length; leftIndex += 1) {
+          const left = downstreamInvitations[leftIndex];
+          if (!left.invitee_wallet) continue;
+          const leftWallet = normalizeWallet(left.invitee_wallet);
+          if (excludedDownstreamWallets.has(leftWallet)) continue;
+
+          for (
+            let rightIndex = leftIndex + 1;
+            rightIndex < downstreamInvitations.length;
+            rightIndex += 1
+          ) {
+            const right = downstreamInvitations[rightIndex];
+            if (!right.invitee_wallet) continue;
+            const rightWallet = normalizeWallet(right.invitee_wallet);
+            if (excludedDownstreamWallets.has(rightWallet)) continue;
+
+            const leftRows = downstreamObservations.filter(
+              (row) => normalizeWallet(row.wallet_address) === leftWallet,
+            );
+            const rightRows = downstreamObservations.filter(
+              (row) => normalizeWallet(row.wallet_address) === rightWallet,
+            );
+
+            for (const leftRow of leftRows) {
+              const rightRow = rightRows.find(
+                (row) => String(row.client_id) === String(leftRow.client_id),
+              );
+              if (!rightRow) continue;
+
+              const switchGapSeconds = sequentialWalletSwitchGapSeconds({
+                leftFirstSeenAt: leftRow.first_seen_at,
+                leftLastSeenAt: leftRow.last_seen_at,
+                rightFirstSeenAt: rightRow.first_seen_at,
+                rightLastSeenAt: rightRow.last_seen_at,
+              });
+              const leftActivated = left.activated_at
+                ? Date.parse(String(left.activated_at))
+                : Number.NaN;
+              const rightActivated = right.activated_at
+                ? Date.parse(String(right.activated_at))
+                : Number.NaN;
+              const leftFirstSeen = Date.parse(leftRow.first_seen_at);
+              const rightFirstSeen = Date.parse(rightRow.first_seen_at);
+              const leftActivationGap =
+                Number.isNaN(leftActivated) || Number.isNaN(leftFirstSeen)
+                  ? null
+                  : Math.abs(leftActivated - leftFirstSeen) / 1000;
+              const rightActivationGap =
+                Number.isNaN(rightActivated) || Number.isNaN(rightFirstSeen)
+                  ? null
+                  : Math.abs(rightActivated - rightFirstSeen) / 1000;
+
+              const immediateSwitch =
+                switchGapSeconds !== null &&
+                leftActivationGap !== null &&
+                rightActivationGap !== null &&
+                switchGapSeconds <= 10 * 60 &&
+                leftActivationGap <= 10 * 60 &&
+                rightActivationGap <= 10 * 60;
+
+              if (!immediateSwitch) continue;
+
+              const signal: SybilV2Signal = {
+                code: 'SECURITY_CLIENT_DOWNSTREAM_SIBLING_SWITCH',
+                family: 'CLUSTER_LINK',
+                strength: 'MEDIUM',
+                score: 60,
+                independentKey: String(leftRow.client_id),
+              };
+
+              await insertEvidenceRecord({
+                invitation,
+                subjectWallet: inviteeWallet,
+                family: 'CLUSTER_LINK',
+                signalCode: signal.code,
+                strength: signal.strength,
+                score: signal.score,
+                relatedWallet: rightWallet,
+                evidence: {
+                  inviterWallet: inviteeWallet,
+                  downstreamInviteCodes: [
+                    left.invite_code,
+                    right.invite_code,
+                  ],
+                  downstreamWallets: [leftWallet, rightWallet],
+                  sharedClientId: String(leftRow.client_id),
+                  immediateSwitch: true,
+                  switchGapSeconds,
+                  leftActivationGapSeconds: leftActivationGap,
+                  rightActivationGapSeconds: rightActivationGap,
+                },
+                dedupeKey:
+                  `sybil-v2:${invitation.invite_code}:security-client-downstream-sibling-switch:${String(leftRow.client_id)}:${left.invite_code}:${right.invite_code}`,
+              });
+
+              return { signals: [signal], complete: false };
+            }
+          }
+        }
+      }
     }
   }
+
   const checkedAt = invitation.identity_link_checked_at
     ? Date.parse(invitation.identity_link_checked_at)
     : Number.NaN;
