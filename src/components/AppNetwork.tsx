@@ -172,7 +172,6 @@ type HoldDragState = {
   key: string;
   groupId?: string;
   startScreen: Point;
-  startNode: Point;
   offset: Point;
   armed: boolean;
   moved: boolean;
@@ -1919,7 +1918,6 @@ export function AppNetwork({ locale }: { locale: Locale }) {
       key,
       groupId,
       startScreen: { x: event.clientX, y: event.clientY },
-      startNode: point,
       offset: { x: worldPoint.x - point.x, y: worldPoint.y - point.y },
       armed: false,
       moved: false,
