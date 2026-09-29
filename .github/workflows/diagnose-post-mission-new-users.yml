@@ -1,0 +1,21 @@
+name: One-off post-mission forensic diagnostic
+
+on:
+  push:
+    branches:
+      - diagnostic/post-mission-new-users-0929
+
+permissions:
+  contents: read
+
+jobs:
+  scan:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Scan six NEW users on VeChain mainnet
+        run: node scripts/diagnose-post-mission-new-users.mjs
