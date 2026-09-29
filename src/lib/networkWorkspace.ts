@@ -516,3 +516,185 @@ export function groupContainingWallet(
     group.members.some((member) => member.toLowerCase() === key)
   )) ?? null;
 }
+
+export type NetworkWorkspaceVisibilityChild = {
+  wallet: string;
+  x: number;
+  y: number;
+};
+
+export type NetworkWorkspaceVisibilityInviteSlot = {
+  state: string;
+  inviteeWallet: string | null;
+};
+
+export function deriveNetworkWorkspaceVisibility<
+  TChild extends NetworkWorkspaceVisibilityChild,
+  TSlot extends NetworkWorkspaceVisibilityInviteSlot,
+>({
+  positionedChildren,
+  positionedInviteSlots,
+  groups,
+  groupDraft,
+  groupingWallet,
+  defaultMemberOffset,
+}: {
+  positionedChildren: readonly TChild[];
+  positionedInviteSlots: readonly TSlot[];
+  groups: readonly NetworkWorkspaceGroup[];
+  groupDraft: { members: string[] } | null;
+  groupingWallet: string | null;
+  defaultMemberOffset: (
+    index: number,
+    count: number,
+  ) => NetworkWorkspacePoint;
+}) {
+  const activeInviteeKeys = new Set(
+    positionedInviteSlots
+      .filter(
+        (slot) =>
+          slot.state !== 'AVAILABLE' &&
+          slot.inviteeWallet,
+      )
+      .map((slot) =>
+        (slot.inviteeWallet as string).toLowerCase(),
+      ),
+  );
+
+  const groupByMember =
+    new Map<string, NetworkWorkspaceGroup>();
+  for (const group of groups) {
+    for (const member of group.members) {
+      groupByMember.set(
+        member.toLowerCase(),
+        group,
+      );
+    }
+  }
+
+  const positionedChildKeys = new Set(
+    positionedChildren.map((child) =>
+      child.wallet.toLowerCase(),
+    ),
+  );
+
+  const displayedChildren =
+    positionedChildren.map((child) => {
+      const memberKey =
+        child.wallet.toLowerCase();
+      const group =
+        groupByMember.get(memberKey);
+
+      if (
+        !group ||
+        group.collapsed !== false
+      ) {
+        return child;
+      }
+
+      const visibleMembers =
+        group.members.filter((member) => {
+          const key =
+            member.toLowerCase();
+          return (
+            !activeInviteeKeys.has(key) &&
+            positionedChildKeys.has(key)
+          );
+        });
+      const index = Math.max(
+        0,
+        visibleMembers.findIndex(
+          (member) =>
+            member.toLowerCase() ===
+            memberKey,
+        ),
+      );
+      const offset =
+        group.memberOffsets?.[memberKey] ??
+        defaultMemberOffset(
+          index,
+          visibleMembers.length,
+        );
+
+      return {
+        ...child,
+        x: group.x + offset.x,
+        y: group.y + offset.y,
+      };
+    });
+
+  const hiddenGroupMembers =
+    new Set<string>();
+  for (const group of groups) {
+    if (group.collapsed !== false) {
+      for (const member of group.members) {
+        hiddenGroupMembers.add(
+          member.toLowerCase(),
+        );
+      }
+    }
+  }
+
+  for (const member of groupDraft?.members ?? []) {
+    const key = member.toLowerCase();
+    if (key !== groupingWallet) {
+      hiddenGroupMembers.add(key);
+    }
+  }
+
+  const visibleChildren =
+    displayedChildren.filter((child) => {
+      const key =
+        child.wallet.toLowerCase();
+      return (
+        !hiddenGroupMembers.has(key) &&
+        !activeInviteeKeys.has(key)
+      );
+    });
+
+  const visibleChildByWallet = new Map(
+    visibleChildren.map((child) => [
+      child.wallet.toLowerCase(),
+      child,
+    ] as const),
+  );
+
+  const groupEligibleWalletKeys = new Set(
+    positionedChildren
+      .map((child) =>
+        child.wallet.toLowerCase(),
+      )
+      .filter(
+        (key) =>
+          !activeInviteeKeys.has(key),
+      ),
+  );
+
+  const visibleGroups = groups.filter(
+    (group) =>
+      group.members.some((member) =>
+        groupEligibleWalletKeys.has(
+          member.toLowerCase(),
+        ),
+      ),
+  );
+
+  const displayedChildPointByWallet =
+    new Map(
+      displayedChildren.map((child) => [
+        child.wallet.toLowerCase(),
+        { x: child.x, y: child.y },
+      ] as const),
+    );
+
+  return {
+    activeInviteeKeys,
+    groupByMember,
+    displayedChildren,
+    visibleChildren,
+    visibleChildByWallet,
+    visibleGroups,
+    displayedChildPointByWallet,
+  };
+}
+

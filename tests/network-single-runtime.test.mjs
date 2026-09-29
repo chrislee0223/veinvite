@@ -233,8 +233,9 @@ test('group creation is draft-first, supports one member, and preserves member p
 });
 
 test('group builder is compact, edge-safe, animated, and keeps collapsed hubs visible', () => {
-  assert.match(networkSource, /groupEligibleWalletKeys/);
-  assert.match(networkSource, /activeWorkspace\.groups\.filter\(\(group\) =>[\s\S]*groupEligibleWalletKeys\.has/);
+  assert.match(networkSource, /deriveNetworkWorkspaceVisibility\(\{/);
+  assert.match(workspaceSource, /const groupEligibleWalletKeys = new Set/);
+  assert.match(workspaceSource, /const visibleGroups = groups\.filter\([\s\S]*groupEligibleWalletKeys\.has/);
   assert.match(networkImplementationSource, /NETWORK_GROUP_DROP_HIT_SLOP_X = 18/);
   assert.match(networkImplementationSource, /NETWORK_GROUP_DROP_HIT_SLOP_Y = 14/);
   assert.match(networkSource, /className=\{\`groupDropZone\$\{groupDropActive \? ' active' : ''\}/);
@@ -263,8 +264,8 @@ test('expanded group members keep movable offsets and group hubs move as one uni
   assert.match(workspaceSource, /memberOffsets\?: Record<string, NetworkWorkspacePoint>/);
   assert.match(workspaceSource, /withWorkspaceGroupMemberOffset/);
   assert.match(workspaceSource, /group\.memberOffsets && typeof group\.memberOffsets === 'object'/);
-  assert.match(networkSource, /defaultGroupMemberOffset/);
-  assert.match(networkSource, /group\.memberOffsets\?\.\[memberKey\]/);
+  assert.match(networkSource, /defaultMemberOffset:[\s\S]*defaultGroupMemberOffset/);
+  assert.match(workspaceSource, /group\.memberOffsets\?\.\[memberKey\]/);
   assert.match(networkSource, /dragKind: WorkspaceDragKind = expandedGroupMember \? 'group-member' : 'node'/);
   assert.match(networkSource, /updateGroupMemberPositionRuntime/);
   assert.match(networkSource, /updateGroupPositionRuntime/);
@@ -273,18 +274,18 @@ test('expanded group members keep movable offsets and group hubs move as one uni
 });
 
 test('expanded group layout uses indexed child membership instead of repeated full scans', () => {
-  assert.match(networkSource, /const positionedChildKeys = useMemo/);
-  assert.match(networkSource, /new Set\(positionedChildren\.map\(\(child\) => keyWallet\(child\.wallet\)\)\)/);
-  assert.match(networkSource, /positionedChildKeys\.has\(key\)/);
-  const displayedStart = networkSource.indexOf('const displayedChildren = useMemo');
-  const hiddenStart = networkSource.indexOf('const hiddenGroupMembers = useMemo', displayedStart);
+  assert.match(workspaceSource, /const positionedChildKeys = new Set/);
+  assert.match(workspaceSource, /positionedChildren\.map\(\(child\) =>[\s\S]*child\.wallet\.toLowerCase\(\)/);
+  assert.match(workspaceSource, /positionedChildKeys\.has\(key\)/);
+  const displayedStart = workspaceSource.indexOf('const displayedChildren =');
+  const hiddenStart = workspaceSource.indexOf('const hiddenGroupMembers =', displayedStart);
   assert.ok(displayedStart >= 0 && hiddenStart > displayedStart);
-  assert.doesNotMatch(networkSource.slice(displayedStart, hiddenStart), /positionedChildren\.some/);
+  assert.doesNotMatch(workspaceSource.slice(displayedStart, hiddenStart), /positionedChildren\.some/);
 });
 
 test('group rendering and drag start use indexed wallet lookups at larger network sizes', () => {
-  assert.match(networkSource, /const visibleChildByWallet = useMemo/);
-  assert.match(networkSource, /new Map\(visibleChildren\.map\(\(child\) => \[keyWallet\(child\.wallet\), child\]\)\)/);
+  assert.match(workspaceSource, /const visibleChildByWallet = new Map/);
+  assert.match(workspaceSource, /visibleChildren\.map\(\(child\) => \[[\s\S]*child\.wallet\.toLowerCase\(\),[\s\S]*child/);
   assert.match(networkSource, /visibleChildByWallet\.get\(keyWallet\(member\)\)/);
   assert.match(networkSource, /const child = childByWallet\.get\(keyWallet\(key\)\)/);
 
@@ -975,7 +976,7 @@ test('member removal and group dissolution preserve stable positions in expanded
   assert.match(workspaceSource, /point \? withNodePosition\(withoutMember, key, point\) : withoutMember/);
   assert.match(workspaceSource, /export function removeWorkspaceGroupAtMemberPoints/);
   assert.match(workspaceSource, /if \(point\) next = withNodePosition\(next, key, point\)/);
-  assert.match(networkSource, /const displayedChildPointByWallet = useMemo/);
+  assert.match(workspaceSource, /const displayedChildPointByWallet =/);
   assert.match(networkSource, /const groupMemberCanvasPoint = useCallback/);
   assert.match(networkSource, /group\.collapsed === false/);
   assert.match(networkSource, /group\.memberOffsets\?\.\[key\]/);

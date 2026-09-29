@@ -66,6 +66,7 @@ import {
   MAX_MEMBERS_PER_GROUP,
   addWorkspaceGroup,
   cloneNetworkFocusWorkspace,
+  deriveNetworkWorkspaceVisibility,
   groupContainingWallet,
   materializeExpandedWorkspaceGroupOffsets,
   moveWorkspaceMemberBetweenGroups,
@@ -418,86 +419,32 @@ export function AppNetwork({ locale }: { locale: Locale }) {
     });
   }, [currentData, inviteSlots, activeWorkspace.positions]);
 
-  const activeInviteeKeys = useMemo(
-    () => new Set(
-      positionedInviteSlots
-        .filter((slot) => slot.state !== 'AVAILABLE' && slot.inviteeWallet)
-        .map((slot) => keyWallet(slot.inviteeWallet as string)),
-    ),
-    [positionedInviteSlots],
-  );
-
-  const groupByMember = useMemo(() => {
-    const map = new Map<string, (typeof activeWorkspace.groups)[number]>();
-    activeWorkspace.groups.forEach((group) => {
-      group.members.forEach((member) => map.set(keyWallet(member), group));
-    });
-    return map;
-  }, [activeWorkspace.groups]);
-
-  const positionedChildKeys = useMemo(
-    () => new Set(positionedChildren.map((child) => keyWallet(child.wallet))),
-    [positionedChildren],
-  );
-
-  const displayedChildren = useMemo(() => positionedChildren.map((child) => {
-    const memberKey = keyWallet(child.wallet);
-    const group = groupByMember.get(memberKey);
-    if (!group || group.collapsed !== false) return child;
-    const visibleMembers = group.members.filter((member) => {
-      const key = keyWallet(member);
-      return !activeInviteeKeys.has(key) && positionedChildKeys.has(key);
-    });
-    const index = Math.max(0, visibleMembers.findIndex((member) => keyWallet(member) === memberKey));
-    const offset =
-      group.memberOffsets?.[memberKey] ??
-      defaultGroupMemberOffset(index, visibleMembers.length);
-    return {
-      ...child,
-      x: group.x + offset.x,
-      y: group.y + offset.y,
-    };
-  }), [positionedChildren, groupByMember, activeInviteeKeys, positionedChildKeys]);
-
-  const hiddenGroupMembers = useMemo(() => {
-    const keys = new Set<string>();
-    activeWorkspace.groups.forEach((group) => {
-      if (group.collapsed !== false) group.members.forEach((member) => keys.add(keyWallet(member)));
-    });
-    groupDraft?.members.forEach((member) => {
-      const key = keyWallet(member);
-      if (key !== groupingWallet) keys.add(key);
-    });
-    return keys;
-  }, [activeWorkspace.groups, groupDraft, groupingWallet]);
-
-  const visibleChildren = useMemo(
-    () => displayedChildren.filter((child) => {
-      const key = keyWallet(child.wallet);
-      return !hiddenGroupMembers.has(key) && !activeInviteeKeys.has(key);
-    }),
-    [displayedChildren, hiddenGroupMembers, activeInviteeKeys],
-  );
-
-  const visibleChildByWallet = useMemo(
-    () => new Map(visibleChildren.map((child) => [keyWallet(child.wallet), child])),
-    [visibleChildren],
-  );
-
-  const groupEligibleWalletKeys = useMemo(
-    () => new Set(
-      positionedChildren
-        .map((child) => keyWallet(child.wallet))
-        .filter((key) => !activeInviteeKeys.has(key)),
-    ),
-    [positionedChildren, activeInviteeKeys],
-  );
-
-  const visibleGroups = useMemo(
-    () => activeWorkspace.groups.filter((group) =>
-      group.members.some((member) => groupEligibleWalletKeys.has(keyWallet(member))),
-    ),
-    [activeWorkspace.groups, groupEligibleWalletKeys],
+  const {
+    activeInviteeKeys,
+    groupByMember,
+    displayedChildren,
+    visibleChildren,
+    visibleChildByWallet,
+    visibleGroups,
+    displayedChildPointByWallet,
+  } = useMemo(
+    () =>
+      deriveNetworkWorkspaceVisibility({
+        positionedChildren,
+        positionedInviteSlots,
+        groups: activeWorkspace.groups,
+        groupDraft,
+        groupingWallet,
+        defaultMemberOffset:
+          defaultGroupMemberOffset,
+      }),
+    [
+      positionedChildren,
+      positionedInviteSlots,
+      activeWorkspace.groups,
+      groupDraft,
+      groupingWallet,
+    ],
   );
 
   const rootEntryFitView = useMemo(() => {
@@ -522,16 +469,6 @@ export function AppNetwork({ locale }: { locale: Locale }) {
     visibleChildren.length === 0 &&
     visibleGroups.length === 0 &&
     rootEntryFitView.scale >= 0.995
-  );
-
-  const displayedChildPointByWallet = useMemo(
-    () => new Map(
-      displayedChildren.map((child) => [
-        keyWallet(child.wallet),
-        { x: child.x, y: child.y } satisfies Point,
-      ]),
-    ),
-    [displayedChildren],
   );
 
   const groupMemberCanvasPoint = useCallback((
