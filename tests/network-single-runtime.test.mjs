@@ -33,6 +33,7 @@ const [
 const networkGeometrySource = await readFile('src/lib/networkCanvasGeometry.ts', 'utf8');
 const networkGlyphSource = await readFile('src/components/NetworkGlyphs.tsx', 'utf8');
 const networkAppClientSource = await readFile('src/lib/networkAppClient.ts', 'utf8');
+const networkViewHelpersSource = await readFile('src/lib/networkAppViewHelpers.ts', 'utf8');
 const networkIdentitySource = await readFile('src/components/NetworkWalletIdentity.tsx', 'utf8');
 const networkWarmupSource = await readFile('src/components/NetworkIdleWarmup.tsx', 'utf8');
 const networkSlotCacheSource = await readFile('src/lib/networkInviteSlotsClientCache.ts', 'utf8');
@@ -774,9 +775,9 @@ test('navigation animation honors reduced motion and keeps idle geometry station
 });
 
 test('long-hold selection gives one optional haptic acknowledgement when drag arms', () => {
-  assert.match(networkSource, /function triggerHoldHaptic\(\)/);
-  assert.match(networkSource, /typeof navigator\.vibrate !== 'function'/);
-  assert.match(networkSource, /navigator\.vibrate\(12\)/);
+  assert.match(networkViewHelpersSource, /function triggerHoldHaptic\(\)/);
+  assert.match(networkViewHelpersSource, /typeof navigator\.vibrate !== 'function'/);
+  assert.match(networkViewHelpersSource, /navigator\.vibrate\(12\)/);
   assert.match(networkSource, /hold\.armed = true;[\s\S]{0,300}triggerHoldHaptic\(\);[\s\S]{0,1200}setDraggingWorkspaceKey/);
 });
 
