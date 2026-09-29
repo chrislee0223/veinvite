@@ -1,0 +1,20 @@
+name: Diagnostic B3TR retention scan
+
+on:
+  push:
+    branches:
+      - diag/retention-b3tr-20260929
+  workflow_dispatch:
+
+jobs:
+  scan:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: node scripts/diag-retention-b3tr.mjs
