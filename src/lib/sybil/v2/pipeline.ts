@@ -4519,6 +4519,16 @@ export async function runSybilV2AssessmentBatch(
       const assessment = await loadAssessment(inviteCode);
       let operatorClearWithNewEvidence = false;
 
+      const operatorInvalidPreVoteFinality =
+        assessment?.source === 'OPERATOR' &&
+        invitation.vote_completed !== true &&
+        Array.isArray(
+          assessment.completed_checks,
+        ) &&
+        assessment.completed_checks.includes(
+          'CHAIN_FINALITY',
+        );
+
       if (
         assessment?.source === 'OPERATOR'
       ) {
@@ -4527,19 +4537,26 @@ export async function runSybilV2AssessmentBatch(
             assessment.state,
           )
         ) {
-          continue;
-        }
+          if (
+            !operatorInvalidPreVoteFinality
+          ) {
+            continue;
+          }
+        } else if (
+          assessment.state === 'CLEAR'
+        ) {
+          operatorClearWithNewEvidence =
+            await hasNewEvidenceForCurrentAssessment(
+              inviteCode,
+            );
 
-        if (assessment.state !== 'CLEAR') {
-          continue;
-        }
-
-        operatorClearWithNewEvidence =
-          await hasNewEvidenceForCurrentAssessment(
-            inviteCode,
-          );
-
-        if (!operatorClearWithNewEvidence) {
+          if (
+            !operatorClearWithNewEvidence &&
+            !operatorInvalidPreVoteFinality
+          ) {
+            continue;
+          }
+        } else {
           continue;
         }
       }
