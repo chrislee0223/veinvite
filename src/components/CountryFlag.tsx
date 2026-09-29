@@ -1,46 +1,35 @@
-import { LOCALE_DEFINITIONS } from '@/lib/i18n/locales';
+'use client';
 
-const APP_COUNTRY_FLAG_SOURCE = LOCALE_DEFINITIONS.reduce<Record<string, string>>(
-  (sources, definition) => {
-    const match = definition.flagSource.match(/\/flags\/([a-z]{2})\.svg$/i);
-    if (match?.[1]) {
-      sources[match[1].toUpperCase()] = definition.flagSource;
-    }
-    return sources;
-  },
-  {},
-);
+import { useState } from 'react';
 
-function countryFlagEmoji(countryCode: string): string {
-  const normalized = countryCode.trim().toUpperCase();
+import { normalizeIsoCountryCode } from '@/lib/countryCodes';
 
-  return String.fromCodePoint(
-    ...Array.from(normalized, (letter) => 127397 + letter.charCodeAt(0)),
-  );
-}
-
-function isUnknownCountryCode(countryCode: string): boolean {
-  return countryCode === 'ZZ' || !/^[A-Z]{2}$/.test(countryCode);
-}
+const COUNTRY_FLAG_CDN_BASE =
+  'https://cdn.jsdelivr.net/npm/country-flag-icons@1.6.20/3x2';
 
 export function CountryFlag({ countryCode }: { countryCode: string }) {
   const normalized = countryCode.trim().toUpperCase();
-  const source = APP_COUNTRY_FLAG_SOURCE[normalized];
-  const isUnknown = isUnknownCountryCode(normalized);
+  const isoCountryCode = normalizeIsoCountryCode(normalized);
+  const [failedCode, setFailedCode] = useState<string | null>(null);
+  const imageFailed = failedCode === normalized;
+  const showUnknown = !isoCountryCode || imageFailed;
 
   return (
     <span
-      className={`countryFlag${isUnknown ? ' countryFlagUnknownFrame' : ''}`}
+      className={`countryFlag${showUnknown ? ' countryFlagUnknownFrame' : ''}`}
       aria-hidden="true"
     >
-      {source ? (
+      {isoCountryCode && !imageFailed ? (
         <img
           className="countryFlagImage"
-          src={source}
+          src={`${COUNTRY_FLAG_CDN_BASE}/${isoCountryCode}.svg`}
           alt=""
           draggable={false}
+          decoding="async"
+          referrerPolicy="no-referrer"
+          onError={() => setFailedCode(normalized)}
         />
-      ) : isUnknown ? (
+      ) : (
         <span className="countryFlagUnknown">
           <svg
             className="countryFlagUnknownIcon"
@@ -55,8 +44,6 @@ export function CountryFlag({ countryCode }: { countryCode: string }) {
             <path d="M5.4 7.25h13.2M5.4 16.75h13.2" />
           </svg>
         </span>
-      ) : (
-        <span className="countryFlagEmoji">{countryFlagEmoji(normalized)}</span>
       )}
 
       <style jsx>{`
@@ -102,19 +89,11 @@ export function CountryFlag({ countryCode }: { countryCode: string }) {
           stroke-linejoin:round;
           vector-effect:non-scaling-stroke;
         }
-        .countryFlagEmoji {
-          display:block;
-          font-size:1rem;
-          line-height:1;
-        }
         @media (max-width:430px) {
           .countryFlag {
             width:25px;
             height:17px;
             flex-basis:25px;
-          }
-          .countryFlagEmoji {
-            font-size:.92rem;
           }
         }
       `}</style>
