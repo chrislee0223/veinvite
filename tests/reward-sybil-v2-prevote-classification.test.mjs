@@ -63,5 +63,5 @@ test('association-only high funding linkage cannot HOLD by itself', () => {
     policy,
     /!ASSOCIATION_ONLY_HIGH_CODES\.has\(signal\.code\)/u,
   );
-  assert.match(policy, /SYBIL_V2_POLICY_VERSION = 'sybil-v2\.14'/u);
+  assert.match(policy, /SYBIL_V2_POLICY_VERSION = 'sybil-v2\.15'/u);
 });
