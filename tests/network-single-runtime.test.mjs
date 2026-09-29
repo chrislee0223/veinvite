@@ -304,11 +304,15 @@ test('blank tap dismisses transient Network UI and still exits layout editing sa
   assert.match(networkSource, /backgroundTapRef\.current = !interactive/);
   assert.match(networkSource, /moved: false,[\s\S]*blocked: Boolean\(groupDraft\)/);
   assert.match(networkSource, /if \(backgroundTapRef\.current\) backgroundTapRef\.current\.blocked = true/);
-  assert.match(networkSource, /const blankCanvasTap = Boolean/);
-  assert.match(networkSource, /!backgroundTap\.moved/);
-  assert.match(networkSource, /!backgroundTap\.blocked/);
+  assert.match(networkSource, /isNetworkBlankCanvasTap\(\{/);
+  assert.match(networkImplementationSource, /export function isNetworkBlankCanvasTap/);
+  assert.match(networkImplementationSource, /eventType === 'pointerup'/);
+  assert.match(networkImplementationSource, /!backgroundTap\.moved/);
+  assert.match(networkImplementationSource, /!backgroundTap\.blocked/);
   assert.match(networkSource, /if \(blankCanvasTap\) \{[\s\S]*setManagedGroupId\(null\);[\s\S]*setGroupsOpen\(false\);[\s\S]*if \(searchOpen\) closeSearch\(\)/);
-  assert.match(networkSource, /const finishEditingFromBlankTap = blankCanvasTap && editingLayout && !groupDraft/);
+  assert.match(networkSource, /resolveNetworkPointerEndAction\(\{/);
+  assert.match(networkImplementationSource, /blankCanvasTap &&[\s\S]*editingLayout &&[\s\S]*!hasGroupDraft/);
+  assert.match(networkSource, /pointerEndAction === 'finish-layout-edit'/);
   assert.match(networkSource, /finishLayoutEdit\(\)/);
 });
 

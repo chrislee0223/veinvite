@@ -127,9 +127,11 @@ import {
 import {
   NETWORK_HOLD_CANCEL_DISTANCE,
   createNetworkPinchState,
+  isNetworkBlankCanvasTap,
   networkPanView,
   networkPointerMovedBeyond,
   resolveNetworkPinchFrame,
+  resolveNetworkPointerEndAction,
   resolveNetworkWheelEnterIntent,
   resolveNetworkWheelReturnIntent,
   shouldEnterNetworkPinchTarget,
@@ -2275,15 +2277,12 @@ export function AppNetwork({ locale }: { locale: Locale }) {
     setGroupDropActive(false);
     setNewGroupDropActive(false);
     const backgroundTap = backgroundTapRef.current;
-    const blankCanvasTap = Boolean(
-      backgroundTap &&
-      backgroundTap.pointerId === event.pointerId &&
-      event.type === 'pointerup' &&
-      !backgroundTap.moved &&
-      !backgroundTap.blocked &&
-      pointersRef.current.size === 1
-    );
-    const finishEditingFromBlankTap = blankCanvasTap && editingLayout && !groupDraft;
+    const blankCanvasTap = isNetworkBlankCanvasTap({
+      backgroundTap,
+      endingPointerId: event.pointerId,
+      eventType: event.type,
+      activePointerCount: pointersRef.current.size,
+    });
     if (backgroundTap?.pointerId === event.pointerId) backgroundTapRef.current = null;
     const holdDrag = holdDragRef.current;
     if (holdDrag && holdDrag.pointerId === event.pointerId) {
@@ -2380,11 +2379,18 @@ export function AppNetwork({ locale }: { locale: Locale }) {
         }
         if (searchOpen) closeSearch();
       }
-      if (finishEditingFromBlankTap) {
+      const pointerEndAction = resolveNetworkPointerEndAction({
+        blankCanvasTap,
+        editingLayout,
+        hasGroupDraft: Boolean(groupDraft),
+        enterWallet,
+        returnIntent,
+      });
+      if (pointerEndAction === 'finish-layout-edit') {
         finishLayoutEdit();
-      } else if (enterWallet && !editingLayout) {
+      } else if (pointerEndAction === 'enter-wallet' && enterWallet) {
         void moveToFocus(enterWallet, 'forward');
-      } else if (returnIntent) {
+      } else if (pointerEndAction === 'return-parent') {
         returnToParent();
       }
       window.setTimeout(() => {

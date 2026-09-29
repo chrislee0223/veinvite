@@ -5,9 +5,11 @@ import {
   NETWORK_HOLD_CANCEL_DISTANCE,
   createNetworkPinchState,
   networkGestureDistance,
+  isNetworkBlankCanvasTap,
   networkPanView,
   networkPointerMovedBeyond,
   resolveNetworkPinchFrame,
+  resolveNetworkPointerEndAction,
   resolveNetworkWheelEnterIntent,
   resolveNetworkWheelReturnIntent,
   shouldEnterNetworkPinchTarget,
@@ -304,4 +306,80 @@ test('wheel enter intent resets when direction, scale eligibility, or edit mode 
       },
     );
   }
+});
+
+
+test('blank canvas tap requires an unblocked unmoved final pointerup', () => {
+  const backgroundTap = {
+    pointerId: 7,
+    moved: false,
+    blocked: false,
+  };
+
+  assert.equal(
+    isNetworkBlankCanvasTap({
+      backgroundTap,
+      endingPointerId: 7,
+      eventType: 'pointerup',
+      activePointerCount: 1,
+    }),
+    true,
+  );
+
+  for (const input of [
+    { backgroundTap: null, endingPointerId: 7, eventType: 'pointerup', activePointerCount: 1 },
+    { backgroundTap, endingPointerId: 8, eventType: 'pointerup', activePointerCount: 1 },
+    { backgroundTap, endingPointerId: 7, eventType: 'pointercancel', activePointerCount: 1 },
+    { backgroundTap: { ...backgroundTap, moved: true }, endingPointerId: 7, eventType: 'pointerup', activePointerCount: 1 },
+    { backgroundTap: { ...backgroundTap, blocked: true }, endingPointerId: 7, eventType: 'pointerup', activePointerCount: 1 },
+    { backgroundTap, endingPointerId: 7, eventType: 'pointerup', activePointerCount: 2 },
+  ]) {
+    assert.equal(isNetworkBlankCanvasTap(input), false);
+  }
+});
+
+test('pointer end action preserves edit, enter, and return precedence', () => {
+  assert.equal(
+    resolveNetworkPointerEndAction({
+      blankCanvasTap: true,
+      editingLayout: true,
+      hasGroupDraft: false,
+      enterWallet: 'wallet-a',
+      returnIntent: true,
+    }),
+    'finish-layout-edit',
+  );
+
+  assert.equal(
+    resolveNetworkPointerEndAction({
+      blankCanvasTap: false,
+      editingLayout: false,
+      hasGroupDraft: false,
+      enterWallet: 'wallet-a',
+      returnIntent: true,
+    }),
+    'enter-wallet',
+  );
+
+  assert.equal(
+    resolveNetworkPointerEndAction({
+      blankCanvasTap: false,
+      editingLayout: true,
+      hasGroupDraft: false,
+      enterWallet: 'wallet-a',
+      returnIntent: true,
+    }),
+    'return-parent',
+  );
+
+  assert.equal(
+    resolveNetworkPointerEndAction({
+      blankCanvasTap: true,
+      editingLayout: true,
+      hasGroupDraft: true,
+      enterWallet: null,
+      returnIntent: false,
+    }),
+    'none',
+  );
 });

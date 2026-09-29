@@ -38,6 +38,12 @@ export type NetworkWheelEnterDecision = {
   shouldEnter: boolean;
 };
 
+export type NetworkPointerEndAction =
+  | 'finish-layout-edit'
+  | 'enter-wallet'
+  | 'return-parent'
+  | 'none';
+
 export function networkGestureDistance(
   a: NetworkGesturePoint,
   b: NetworkGesturePoint,
@@ -264,3 +270,58 @@ export function resolveNetworkWheelEnterIntent({
     shouldEnter: false,
   };
 }
+
+export function isNetworkBlankCanvasTap({
+  backgroundTap,
+  endingPointerId,
+  eventType,
+  activePointerCount,
+}: {
+  backgroundTap: {
+    pointerId: number;
+    moved: boolean;
+    blocked: boolean;
+  } | null;
+  endingPointerId: number;
+  eventType: string;
+  activePointerCount: number;
+}): boolean {
+  return Boolean(
+    backgroundTap &&
+    backgroundTap.pointerId === endingPointerId &&
+    eventType === 'pointerup' &&
+    !backgroundTap.moved &&
+    !backgroundTap.blocked &&
+    activePointerCount === 1
+  );
+}
+
+export function resolveNetworkPointerEndAction({
+  blankCanvasTap,
+  editingLayout,
+  hasGroupDraft,
+  enterWallet,
+  returnIntent,
+}: {
+  blankCanvasTap: boolean;
+  editingLayout: boolean;
+  hasGroupDraft: boolean;
+  enterWallet: string | null;
+  returnIntent: boolean;
+}): NetworkPointerEndAction {
+  if (
+    blankCanvasTap &&
+    editingLayout &&
+    !hasGroupDraft
+  ) {
+    return 'finish-layout-edit';
+  }
+  if (enterWallet && !editingLayout) {
+    return 'enter-wallet';
+  }
+  if (returnIntent) {
+    return 'return-parent';
+  }
+  return 'none';
+}
+
