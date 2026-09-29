@@ -53,10 +53,8 @@ import {
   isValidNetworkWallet as validWallet,
   networkCanvasCenteredView as centeredView,
   networkCanvasChildPoint as radialChildPoint,
-  networkCanvasDistance as distance,
   networkCanvasFittedView as fittedView,
   networkCanvasInviteSlotPoint as inviteSlotPoint,
-  networkCanvasMidpoint as midpoint,
   networkCanvasZoomViewAt as zoomViewAt,
   normalizeNetworkWallet as keyWallet,
   type NetworkCanvasPoint as Point,
@@ -126,6 +124,16 @@ import {
   getNetworkSearchReadiness,
   resolveNetworkSearchAddress,
 } from '@/lib/networkSearch';
+import {
+  NETWORK_HOLD_CANCEL_DISTANCE,
+  createNetworkPinchState,
+  networkPanView,
+  networkPointerMovedBeyond,
+  resolveNetworkPinchFrame,
+  shouldEnterNetworkPinchTarget,
+  shouldReturnFromNetworkPinch,
+  type NetworkPinchState,
+} from '@/lib/networkGestureGeometry';
 import { useWalletLauncher } from './WalletControl';
 
 type NavigationDirection = 'forward' | 'back';
@@ -133,13 +141,6 @@ type NavigationDirection = 'forward' | 'back';
 type PositionedChild = NetworkChild & {
   x: number;
   y: number;
-};
-
-type PinchState = {
-  startDistance: number;
-  startCenter: Point;
-  startView: View;
-  worldAnchor: Point;
 };
 
 type WorkspaceDragKind = 'node' | 'slot' | 'group' | 'group-member';
@@ -197,7 +198,6 @@ const INTRO_END_MS = 940;
 const GROUP_DROP_MS = 180;
 const GROUP_HUB_IN_MS = 220;
 const HOLD_TO_MOVE_MS = 500;
-const HOLD_CANCEL_DISTANCE = 8;
 export function AppNetwork({ locale }: { locale: Locale }) {
   const t = NETWORK_EXPERIENCE_COPY[locale as SupportedLocale];
   const c = NETWORK_CANVAS_CONTROL_COPY[locale as SupportedLocale];
@@ -214,7 +214,7 @@ export function AppNetwork({ locale }: { locale: Locale }) {
   const requestSerialRef = useRef(0);
   const pointersRef = useRef(new Map<number, Point>());
   const panPointerRef = useRef<{ id: number; point: Point; allowed: boolean } | null>(null);
-  const pinchRef = useRef<PinchState | null>(null);
+  const pinchRef = useRef<NetworkPinchState | null>(null);
   const suppressClickRef = useRef(false);
   const pinchReturnIntentRef = useRef(false);
   const pinchCandidateWalletRef = useRef<string | null>(null);
@@ -2070,22 +2070,20 @@ export function AppNetwork({ locale }: { locale: Locale }) {
       setGroupDropActive(false);
       clearDragGhost();
       const [a, b] = Array.from(pointersRef.current.values());
-      const center = midpoint(a, b);
-      const startView = view;
       const stageRect = stageRef.current?.getBoundingClientRect();
-      const worldAnchor = {
-        x: (center.x - (stageRect?.left ?? 0) - startView.x) / startView.scale,
-        y: (center.y - (stageRect?.top ?? 0) - startView.y) / startView.scale,
-      };
-      pinchRef.current = {
-        startDistance: Math.max(1, distance(a, b)),
-        startCenter: center,
-        startView,
-        worldAnchor,
-      };
+      const pinch = createNetworkPinchState(
+        a,
+        b,
+        view,
+        {
+          left: stageRect?.left ?? 0,
+          top: stageRect?.top ?? 0,
+        },
+      );
+      pinchRef.current = pinch;
       pinchCandidateWalletRef.current = editingLayout
         ? null
-        : nearestVisibleChild(worldAnchor)?.wallet ?? null;
+        : nearestVisibleChild(pinch.worldAnchor)?.wallet ?? null;
       pinchEnterIntentRef.current = null;
       panPointerRef.current = null;
       suppressClickRef.current = true;
@@ -2097,20 +2095,20 @@ export function AppNetwork({ locale }: { locale: Locale }) {
     pointersRef.current.set(event.pointerId, { x: event.clientX, y: event.clientY });
     const backgroundTap = backgroundTapRef.current;
     if (backgroundTap && backgroundTap.pointerId === event.pointerId && !backgroundTap.moved) {
-      backgroundTap.moved = Math.hypot(
-        event.clientX - backgroundTap.start.x,
-        event.clientY - backgroundTap.start.y,
-      ) > HOLD_CANCEL_DISTANCE;
+      backgroundTap.moved = networkPointerMovedBeyond(
+        backgroundTap.start,
+        { x: event.clientX, y: event.clientY },
+      );
     }
 
     const holdDrag = holdDragRef.current;
     if (holdDrag && holdDrag.pointerId === event.pointerId && pointersRef.current.size === 1 && !editingLayout) {
-      const screenDistance = Math.hypot(
-        event.clientX - holdDrag.startScreen.x,
-        event.clientY - holdDrag.startScreen.y,
+      const movedBeyondHoldThreshold = networkPointerMovedBeyond(
+        holdDrag.startScreen,
+        { x: event.clientX, y: event.clientY },
       );
       if (!holdDrag.armed) {
-        if (screenDistance > HOLD_CANCEL_DISTANCE) {
+        if (movedBeyondHoldThreshold) {
           if (holdTimerRef.current !== null) window.clearTimeout(holdTimerRef.current);
           holdTimerRef.current = null;
           holdDragRef.current = null;
@@ -2118,7 +2116,7 @@ export function AppNetwork({ locale }: { locale: Locale }) {
         }
         return;
       }
-      if (screenDistance <= HOLD_CANCEL_DISTANCE && !holdDrag.moved) return;
+      if (!movedBeyondHoldThreshold && !holdDrag.moved) return;
       if (holdDrag.kind === 'node' || holdDrag.kind === 'group-member') {
         moveDragGhost(event.clientX, event.clientY);
       }
@@ -2224,13 +2222,11 @@ export function AppNetwork({ locale }: { locale: Locale }) {
       const pan = panPointerRef.current;
       if (!pan || pan.id !== event.pointerId || !pan.allowed) return;
       const current = { x: event.clientX, y: event.clientY };
-      const dx = current.x - pan.point.x;
-      const dy = current.y - pan.point.y;
-      if (Math.hypot(dx, dy) > 0) {
-        if (Math.hypot(current.x - pan.point.x, current.y - pan.point.y) > 2) {
+      if (networkPointerMovedBeyond(pan.point, current, 0)) {
+        if (networkPointerMovedBeyond(pan.point, current, 2)) {
           suppressClickRef.current = true;
         }
-        setView((value) => ({ ...value, x: value.x + dx, y: value.y + dy }));
+        setView((value) => networkPanView(value, pan.point, current));
         panPointerRef.current = { ...pan, point: current };
       }
       return;
@@ -2240,25 +2236,33 @@ export function AppNetwork({ locale }: { locale: Locale }) {
       const rect = stageRef.current?.getBoundingClientRect();
       if (!rect) return;
       const [a, b] = Array.from(pointersRef.current.values());
-      const center = midpoint(a, b);
-      const nextDistance = distance(a, b);
       const pinch = pinchRef.current;
-      const rawScale = pinch.startView.scale * (nextDistance / pinch.startDistance);
-      const nextScale = clamp(rawScale, MIN_SCALE, MAX_SCALE);
-      const localCenter = { x: center.x - rect.left, y: center.y - rect.top };
-      setView({
-        x: localCenter.x - pinch.worldAnchor.x * nextScale,
-        y: localCenter.y - pinch.worldAnchor.y * nextScale,
-        scale: nextScale,
-      });
+      const frame = resolveNetworkPinchFrame(
+        pinch,
+        a,
+        b,
+        rect,
+        MIN_SCALE,
+        MAX_SCALE,
+      );
+      setView(frame.view);
       if (
         !editingLayout &&
         pinchCandidateWalletRef.current &&
-        rawScale >= Math.max(NODE_ENTER_SCALE, pinch.startView.scale * 1.18)
+        shouldEnterNetworkPinchTarget(
+          frame.rawScale,
+          pinch.startView.scale,
+          NODE_ENTER_SCALE,
+        )
       ) {
         pinchEnterIntentRef.current = pinchCandidateWalletRef.current;
       }
-      if (!editingLayout && rawScale < MIN_SCALE * 0.88 && currentData && currentData.breadcrumb.length > 1) {
+      if (
+        !editingLayout &&
+        shouldReturnFromNetworkPinch(frame.rawScale, MIN_SCALE) &&
+        currentData &&
+        currentData.breadcrumb.length > 1
+      ) {
         pinchReturnIntentRef.current = true;
       }
       suppressClickRef.current = true;
