@@ -190,8 +190,7 @@ export type VePassportPartySnapshot = {
   cumulativeScore: number;
   isPerson: boolean;
   personReason: string;
-  preActivationActionCount: number;
-  preActivationAppCount: number;
+  preActivationCumulativeScore: number;
 };
 
 export type VePassportReferralSnapshot = {
@@ -626,13 +625,11 @@ async function readVePassportPartySnapshot({
   walletAddress,
   currentRoundId,
   activationRoundId,
-  roundsForCumulativeScore,
 }: {
   contract: VePassportReadContract;
   walletAddress: string;
   currentRoundId: number;
   activationRoundId: number | null;
-  roundsForCumulativeScore: number;
 }): Promise<VePassportPartySnapshot> {
   const [
     entityResult,
@@ -640,10 +637,7 @@ async function readVePassportPartySnapshot({
     resolvedPassportResult,
     delegateeResult,
     delegatorResult,
-    signalResult,
     blacklistedResult,
-    totalScoreResult,
-    cumulativeScoreResult,
     personResult,
   ] = await Promise.all([
     contract.read.isEntity(walletAddress),
@@ -651,13 +645,7 @@ async function readVePassportPartySnapshot({
     contract.read.getPassportForEntity(walletAddress),
     contract.read.getDelegatee(walletAddress),
     contract.read.getDelegator(walletAddress),
-    contract.read.signaledCounter(walletAddress),
     contract.read.isBlacklisted(walletAddress),
-    contract.read.userTotalScore(walletAddress),
-    contract.read.getCumulativeScoreWithDecay(
-      walletAddress,
-      BigInt(currentRoundId),
-    ),
     contract.read.isPerson(walletAddress),
   ]);
 
@@ -665,9 +653,19 @@ async function readVePassportPartySnapshot({
     resolvedPassportResult[0],
     'VePassport getPassportForEntity',
   );
+  const preActivationRound =
+    activationRoundId !== null &&
+    activationRoundId > 1
+      ? activationRoundId - 1
+      : null;
+
   const [
     linkedEntitiesResult,
     passportBlacklistedResult,
+    signalResult,
+    totalScoreResult,
+    cumulativeScoreResult,
+    preActivationCumulativeScoreResult,
   ] = await Promise.all([
     contract.read.getEntitiesLinkedToPassport(
       resolvedPassport,
@@ -675,52 +673,23 @@ async function readVePassportPartySnapshot({
     contract.read.isPassportBlacklisted(
       resolvedPassport,
     ),
+    contract.read.signaledCounter(
+      resolvedPassport,
+    ),
+    contract.read.userTotalScore(
+      resolvedPassport,
+    ),
+    contract.read.getCumulativeScoreWithDecay(
+      resolvedPassport,
+      BigInt(currentRoundId),
+    ),
+    preActivationRound !== null
+      ? contract.read.getCumulativeScoreWithDecay(
+          resolvedPassport,
+          BigInt(preActivationRound),
+        )
+      : Promise.resolve([0n] as const),
   ]);
-
-  let preActivationActionCount = 0;
-  let preActivationAppCount = 0;
-
-  if (
-    activationRoundId !== null &&
-    activationRoundId > 1
-  ) {
-    const startRound = Math.max(
-      1,
-      activationRoundId -
-        roundsForCumulativeScore,
-    );
-
-    for (
-      let round = startRound;
-      round < activationRoundId;
-      round += 1
-    ) {
-      const [
-        actionsResult,
-        appsResult,
-      ] = await Promise.all([
-        contract.read.userRoundActionCount(
-          walletAddress,
-          BigInt(round),
-        ),
-        contract.read.userRoundAppCount(
-          walletAddress,
-          BigInt(round),
-        ),
-      ]);
-
-      preActivationActionCount +=
-        toSafeInteger(
-          actionsResult[0],
-          'VePassport userRoundActionCount',
-        );
-      preActivationAppCount +=
-        toSafeInteger(
-          appsResult[0],
-          'VePassport userRoundAppCount',
-        );
-    }
-  }
 
   return {
     walletAddress,
@@ -773,8 +742,11 @@ async function readVePassportPartySnapshot({
       personResult[1],
       'VePassport isPerson reason',
     ),
-    preActivationActionCount,
-    preActivationAppCount,
+    preActivationCumulativeScore:
+      toSafeInteger(
+        preActivationCumulativeScoreResult[0],
+        'VePassport pre-activation cumulative score',
+      ),
   };
 }
 
@@ -852,14 +824,12 @@ export async function readVePassportReferralSnapshot({
         walletAddress: normalizedInviter,
         currentRoundId,
         activationRoundId,
-        roundsForCumulativeScore,
       }),
       readVePassportPartySnapshot({
         contract: passport,
         walletAddress: normalizedInvitee,
         currentRoundId,
         activationRoundId,
-        roundsForCumulativeScore,
       }),
     ]);
 
