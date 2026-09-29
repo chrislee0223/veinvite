@@ -13,8 +13,23 @@ export function safePositiveBlock(
 }
 
 export function safeNonNegativeBlock(
-  value: number | string | null,
+  value:
+    | number
+    | string
+    | null
+    | undefined,
 ): number | null {
+  if (
+    value === null ||
+    value === undefined ||
+    (
+      typeof value === 'string' &&
+      value.trim() === ''
+    )
+  ) {
+    return null;
+  }
+
   const parsed =
     typeof value === 'number'
       ? value
