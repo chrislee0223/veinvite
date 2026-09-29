@@ -1759,7 +1759,7 @@ async function loadAnalyticsExcludedWallets(
 
   if (error) {
     throw new Error(
-      \`Sybil analytics-exclusion lookup failed: \${error.message}\`,
+      `Sybil analytics-exclusion lookup failed: ${error.message}`,
     );
   }
 
@@ -1824,7 +1824,7 @@ async function loadSecurityIdentitySignals(
       .eq('wallet_address', inviteeWallet);
 
     if (inviteeClients.error) {
-      throw new Error(\`Security client evidence could not be loaded: \${inviteeClients.error.message}\`);
+      throw new Error(`Security client evidence could not be loaded: ${inviteeClients.error.message}`);
     }
 
     const clientIds = unique(
@@ -1846,10 +1846,10 @@ async function loadSecurityIdentitySignals(
       ]);
 
       if (inviterClient.error) {
-        throw new Error(\`Inviter security client evidence could not be loaded: \${inviterClient.error.message}\`);
+        throw new Error(`Inviter security client evidence could not be loaded: ${inviterClient.error.message}`);
       }
       if (relatedClientRowsResult.error) {
-        throw new Error(\`Related security client evidence could not be loaded: \${relatedClientRowsResult.error.message}\`);
+        throw new Error(`Related security client evidence could not be loaded: ${relatedClientRowsResult.error.message}`);
       }
 
       const inviterRows = inviterClient.data ?? [];
@@ -1918,7 +1918,7 @@ async function loadSecurityIdentitySignals(
               activationGapSeconds,
             },
             dedupeKey:
-              \`sybil-v2:\${invitation.invite_code}:\${signal.code.toLowerCase()}:\${sharedClientId}\`,
+              `sybil-v2:${invitation.invite_code}:${signal.code.toLowerCase()}:${sharedClientId}`,
           });
         }
 
@@ -1957,7 +1957,7 @@ async function loadSecurityIdentitySignals(
 
         if (siblingInvitationsResult.error) {
           throw new Error(
-            \`Sibling security-client invitations could not be loaded: \${siblingInvitationsResult.error.message}\`,
+            `Sibling security-client invitations could not be loaded: ${siblingInvitationsResult.error.message}`,
           );
         }
 
@@ -2053,7 +2053,7 @@ async function loadSecurityIdentitySignals(
                   peerActivationGapSeconds: siblingActivationGapSeconds,
                 },
                 dedupeKey:
-                  \`sybil-v2:\${invitation.invite_code}:\${signal.code.toLowerCase()}:\${sharedClientId}:\${sibling.invite_code}\`,
+                  `sybil-v2:${invitation.invite_code}:${signal.code.toLowerCase()}:${sharedClientId}:${sibling.invite_code}`,
               });
             }
 
@@ -2077,7 +2077,7 @@ async function loadSecurityIdentitySignals(
 
     if (downstreamInvitationsResult.error) {
       throw new Error(
-        \`Downstream security-client invitations could not be loaded: \${downstreamInvitationsResult.error.message}\`,
+        `Downstream security-client invitations could not be loaded: ${downstreamInvitationsResult.error.message}`,
       );
     }
 
@@ -2115,7 +2115,7 @@ async function loadSecurityIdentitySignals(
 
         if (downstreamObservationsResult.error) {
           throw new Error(
-            \`Downstream security-client observations could not be loaded: \${downstreamObservationsResult.error.message}\`,
+            `Downstream security-client observations could not be loaded: ${downstreamObservationsResult.error.message}`,
           );
         }
 
@@ -2219,7 +2219,7 @@ async function loadSecurityIdentitySignals(
                   rightActivationGapSeconds: rightActivationGap,
                 },
                 dedupeKey:
-                  \`sybil-v2:\${invitation.invite_code}:security-client-downstream-sibling-switch:\${String(leftRow.client_id)}:\${left.invite_code}:\${right.invite_code}\`,
+                  `sybil-v2:${invitation.invite_code}:security-client-downstream-sibling-switch:${String(leftRow.client_id)}:${left.invite_code}:${right.invite_code}`,
               });
 
               return { signals: [signal], complete: false };
@@ -2291,7 +2291,7 @@ async function loadSecurityIdentitySignals(
       relatedWallet: sameInviterClient ? invitation.inviter_wallet : null,
       evidence,
       dedupeKey:
-        \`sybil-v2:\${invitation.invite_code}:security-identity-link\`,
+        `sybil-v2:${invitation.invite_code}:security-identity-link`,
     });
   }
 
