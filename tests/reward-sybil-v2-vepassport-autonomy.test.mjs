@@ -2,8 +2,14 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import test from 'node:test';
 
-const [pipeline, policy, passport, network, migration] =
-  await Promise.all([
+const [
+  pipeline,
+  policy,
+  passport,
+  network,
+  migration,
+  evidenceFamilyMigration,
+] = await Promise.all([
     readFile(
       'src/lib/sybil/v2/pipeline.ts',
       'utf8',
@@ -24,6 +30,10 @@ const [pipeline, policy, passport, network, migration] =
       'supabase/migrations/20260929223000_add_sybil_v2_vepassport_identity_restriction.sql',
       'utf8',
     ),
+    readFile(
+      'supabase/migrations/20260929224500_allow_sybil_v2_ecosystem_reputation_evidence.sql',
+      'utf8',
+    ),
   ]);
 
 test('Sybil v2 reads the reviewed VePassport as an independent evidence source', () => {
@@ -37,7 +47,7 @@ test('Sybil v2 reads the reviewed VePassport as an independent evidence source',
   );
   assert.match(
     policy,
-    /sybil-v2\.14/u,
+    /sybil-v2\.15/u,
   );
   assert.match(
     network,
@@ -176,5 +186,21 @@ test('same-identity restriction preserves already-final rewards', () => {
   assert.match(
     migration,
     /REWARD_ALREADY_FINAL/u,
+  );
+});
+
+
+test('VePassport evidence is fail-closed and its evidence family is accepted by the database', () => {
+  assert.match(
+    pipeline,
+    /const DECISION_CHECKS = \[[\s\S]*'VEPASSPORT'/u,
+  );
+  assert.match(
+    evidenceFamilyMigration,
+    /ECOSYSTEM_REPUTATION/u,
+  );
+  assert.match(
+    evidenceFamilyMigration,
+    /sybil_v2_evidence_records_evidence_family_check/u,
   );
 });
