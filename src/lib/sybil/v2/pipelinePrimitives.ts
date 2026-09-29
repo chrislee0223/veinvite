@@ -13,8 +13,23 @@ export function safePositiveBlock(
 }
 
 export function safeNonNegativeBlock(
-  value: number | string | null,
+  value:
+    | number
+    | string
+    | null
+    | undefined,
 ): number | null {
+  if (
+    value === null ||
+    value === undefined ||
+    (
+      typeof value === 'string' &&
+      value.trim() === ''
+    )
+  ) {
+    return null;
+  }
+
   const parsed =
     typeof value === 'number'
       ? value
@@ -24,6 +39,40 @@ export function safeNonNegativeBlock(
     parsed >= 0
     ? parsed
     : null;
+}
+
+export function isFinalizedVoteCheckpoint({
+  voteCompleted,
+  voteBlock,
+  finalizedBlock,
+}: {
+  voteCompleted: boolean;
+  voteBlock:
+    | number
+    | string
+    | null
+    | undefined;
+  finalizedBlock:
+    | number
+    | string
+    | null
+    | undefined;
+}): boolean {
+  if (!voteCompleted) {
+    return false;
+  }
+
+  const parsedVoteBlock =
+    safeNonNegativeBlock(voteBlock);
+  const parsedFinalizedBlock =
+    safeNonNegativeBlock(finalizedBlock);
+
+  return (
+    parsedVoteBlock !== null &&
+    parsedFinalizedBlock !== null &&
+    parsedFinalizedBlock >=
+      parsedVoteBlock
+  );
 }
 
 export function safeRevision(

@@ -28,6 +28,7 @@ import {
   appOverlap,
   hasHighSignal,
   intervalsSimilar,
+  isFinalizedVoteCheckpoint,
   normalizeWallet,
   safeError,
   safeNonNegativeBlock,
@@ -90,6 +91,8 @@ type InvitationV2Row = {
   activated_at: string | null;
   status: string;
   reward_status: string;
+  apps_completed: number | string | null;
+  apps_completed_at: string | null;
   vote_completed: boolean;
   vote_completed_at: string | null;
   vote_completed_block: number | string | null;
@@ -119,6 +122,7 @@ type AssessmentRow = {
   source: string;
   policy_version: string;
   updated_at: string;
+  completed_checks: string[] | null;
   evidence_summary: Record<string, unknown> | null;
 };
 
@@ -279,6 +283,8 @@ async function loadInvitation(inviteCode: string): Promise<InvitationV2Row | nul
         'activated_at',
         'status',
         'reward_status',
+        'apps_completed',
+        'apps_completed_at',
         'vote_completed',
         'vote_completed_at',
         'vote_completed_block',
@@ -3202,7 +3208,7 @@ async function loadFinalizedBlock(): Promise<number> {
 async function loadAssessment(inviteCode: string): Promise<AssessmentRow | null> {
   const { data, error } = await supabaseAdmin
     .from('sybil_v2_referral_assessments')
-    .select('invite_code,state,revision,source,policy_version,updated_at,evidence_summary')
+    .select('invite_code,state,revision,source,policy_version,updated_at,completed_checks,evidence_summary')
     .eq('invite_code', inviteCode)
     .maybeSingle();
 
@@ -3541,10 +3547,14 @@ export async function assessSybilV2Referral(
   let finalizedBlock: number | null = null;
   try {
     finalizedBlock = await loadFinalizedBlock();
-    const voteBlock = safeNonNegativeBlock(invitation.vote_completed_block);
     if (
-      voteBlock !== null &&
-      finalizedBlock >= voteBlock
+      isFinalizedVoteCheckpoint({
+        voteCompleted:
+          invitation.vote_completed === true,
+        voteBlock:
+          invitation.vote_completed_block,
+        finalizedBlock,
+      })
     ) {
       completedChecks.push('CHAIN_FINALITY');
     }
@@ -4365,6 +4375,32 @@ export async function runSybilV2AssessmentBatch(
       const assessedAt = assessment?.updated_at
         ? Date.parse(assessment.updated_at)
         : Number.NaN;
+      const completedChecks =
+        Array.isArray(
+          assessment?.completed_checks,
+        )
+          ? assessment.completed_checks
+          : [];
+      const appsCompleted =
+        typeof invitation.apps_completed ===
+        'number'
+          ? invitation.apps_completed
+          : Number(
+              invitation.apps_completed ?? 0,
+            );
+      const appsCompletedAt =
+        invitation.apps_completed_at
+          ? Date.parse(
+              invitation.apps_completed_at,
+            )
+          : Number.NaN;
+      const identityCheckedAt =
+        invitation.identity_link_checked_at
+          ? Date.parse(
+              invitation.identity_link_checked_at,
+            )
+          : Number.NaN;
+
       const stalePolicy =
         assessment !== null &&
         assessment.policy_version !== SYBIL_V2_POLICY_VERSION;
@@ -4380,12 +4416,108 @@ export async function runSybilV2AssessmentBatch(
         !Number.isNaN(latestRestrictionAt) &&
         (Number.isNaN(assessedAt) || assessedAt < latestRestrictionAt);
 
+      const missionProgressStale =
+        Number.isFinite(appsCompleted) &&
+        appsCompleted >= 3 &&
+        (
+          !completedChecks.includes(
+            'MISSION_BEHAVIOR',
+          ) ||
+          (
+            !Number.isNaN(
+              appsCompletedAt,
+            ) &&
+            (
+              Number.isNaN(
+                assessedAt,
+              ) ||
+              appsCompletedAt >
+                assessedAt
+            )
+          )
+        );
+
+      const identityAssessmentStale =
+        !Number.isNaN(
+          identityCheckedAt,
+        ) &&
+        (
+          Number.isNaN(assessedAt) ||
+          identityCheckedAt >
+            assessedAt
+        );
+
+      const vePassportSummary =
+        assessment?.evidence_summary
+          ?.vePassport;
+      const vePassportCheckedAt =
+        vePassportSummary &&
+        typeof vePassportSummary ===
+          'object' &&
+        !Array.isArray(
+          vePassportSummary,
+        ) &&
+        typeof (
+          vePassportSummary as Record<
+            string,
+            unknown
+          >
+        ).checkedAt === 'string'
+          ? Date.parse(
+              String(
+                (
+                  vePassportSummary as Record<
+                    string,
+                    unknown
+                  >
+                ).checkedAt,
+              ),
+            )
+          : Number.NaN;
+      const vePassportMissing =
+        !completedChecks.includes(
+          'VEPASSPORT',
+        );
+      const vePassportRetryDue =
+        assessment?.source ===
+          'SYSTEM' &&
+        (
+          (
+            vePassportMissing &&
+            !Number.isNaN(
+              assessedAt,
+            ) &&
+            Date.now() -
+                assessedAt >=
+              5 * 60 * 1000
+          ) ||
+          (
+            !Number.isNaN(
+              vePassportCheckedAt,
+            ) &&
+            Date.now() -
+                vePassportCheckedAt >=
+              VEPASSPORT_RECHECK_INTERVAL_MS
+          )
+        );
+
+      const invalidPreVoteFinality =
+        invitation.vote_completed !==
+          true &&
+        completedChecks.includes(
+          'CHAIN_FINALITY',
+        );
+
       if (
         assessment !== null &&
         !stalePolicy &&
         !staleConfirmedHub &&
         !staleRestrictionPeer &&
-        !operatorClearWithNewEvidence
+        !operatorClearWithNewEvidence &&
+        !missionProgressStale &&
+        !identityAssessmentStale &&
+        !vePassportRetryDue &&
+        !invalidPreVoteFinality
       ) {
         continue;
       }

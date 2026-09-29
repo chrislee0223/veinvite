@@ -5,6 +5,7 @@ import {
   appOverlap,
   hasHighSignal,
   intervalsSimilar,
+  isFinalizedVoteCheckpoint,
   normalizeWallet,
   safeError,
   safeNonNegativeBlock,
@@ -23,9 +24,53 @@ test('Sybil block and revision parsing preserves strict integer boundaries', () 
 
   assert.equal(safeNonNegativeBlock(0), 0);
   assert.equal(safeNonNegativeBlock('0'), 0);
-  assert.equal(safeNonNegativeBlock(null), 0);
+  assert.equal(safeNonNegativeBlock(null), null);
+  assert.equal(safeNonNegativeBlock(undefined), null);
+  assert.equal(safeNonNegativeBlock(''), null);
+  assert.equal(safeNonNegativeBlock('   '), null);
   assert.equal(safeNonNegativeBlock(-1), null);
 
+
+  assert.equal(
+    isFinalizedVoteCheckpoint({
+      voteCompleted: false,
+      voteBlock: null,
+      finalizedBlock: 100,
+    }),
+    false,
+  );
+  assert.equal(
+    isFinalizedVoteCheckpoint({
+      voteCompleted: false,
+      voteBlock: 0,
+      finalizedBlock: 100,
+    }),
+    false,
+  );
+  assert.equal(
+    isFinalizedVoteCheckpoint({
+      voteCompleted: true,
+      voteBlock: null,
+      finalizedBlock: 100,
+    }),
+    false,
+  );
+  assert.equal(
+    isFinalizedVoteCheckpoint({
+      voteCompleted: true,
+      voteBlock: 101,
+      finalizedBlock: 100,
+    }),
+    false,
+  );
+  assert.equal(
+    isFinalizedVoteCheckpoint({
+      voteCompleted: true,
+      voteBlock: 100,
+      finalizedBlock: 100,
+    }),
+    true,
+  );
   assert.equal(safeRevision(0), 0);
   assert.equal(safeRevision('7'), 7);
   assert.equal(safeRevision(null), 0);

@@ -14,6 +14,7 @@ import {
   type SybilStatus,
 } from '@/lib/sybil/risk';
 import {
+  assessSybilV2Referral,
   ensureSybilV2ReadyForReward,
 } from '@/lib/sybil/v2/pipeline';
 import {
@@ -275,8 +276,11 @@ export async function syncInvitationEvidence(
 }> {
   let row = { ...initial };
 
-  let appsCompleted =
+  const initialAppsCompleted =
     row.apps_completed ?? 0;
+
+  let appsCompleted =
+    initialAppsCompleted;
   let rewardsReceived =
     row.rewards_received ?? 0;
   let appsCompletedAt =
@@ -506,6 +510,33 @@ export async function syncInvitationEvidence(
     } else if (persistedActivity) {
       row =
         persistedActivity as InvitationEvidenceRow;
+
+      const thirdAppJustCompleted =
+        initialAppsCompleted < 3 &&
+        appsCompleted >= 3 &&
+        threeRewardEventsPersisted;
+
+      if (thirdAppJustCompleted) {
+        try {
+          await assessSybilV2Referral(
+            row.invite_code,
+          );
+        } catch (sybilStageError) {
+          // Mission progress must remain durable even if the lightweight
+          // Sybil reassessment is temporarily unavailable. The five-minute
+          // recovery path retries stale stage assessments before reward
+          // clearance can be issued.
+          console.error(
+            'Sybil v2 third-app reassessment failed:',
+            {
+              inviteCode:
+                row.invite_code,
+              error:
+                sybilStageError,
+            },
+          );
+        }
+      }
     }
   } catch (activityError) {
     activityCheckpointSaved = false;
