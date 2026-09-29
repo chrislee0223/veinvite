@@ -84,6 +84,9 @@ jobs:
       - name: Network camera geometry behavior gate
         run: node --experimental-strip-types --test tests/network-canvas-geometry-behavior.test.mjs
 
+      - name: Network search regression gate
+        run: node --test tests/network-domain-autocomplete-hardening.test.mjs
+
       - name: User-facing copy and UX gate
         run: node scripts/check-user-facing-copy.mjs
 
