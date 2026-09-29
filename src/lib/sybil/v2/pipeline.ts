@@ -40,7 +40,7 @@ import {
   type VeBetterNetwork,
 } from '@/lib/vebetter/network';
 
-export const SYBIL_V2_ANALYZER_VERSION = 'sybil-v2.0';
+export const SYBIL_V2_ANALYZER_VERSION = 'sybil-v2.1';
 const SYBIL_V2_BEHAVIOR_ENFORCEMENT_VERSION = 'behavior-pattern-v2';
 
 const DECISION_CHECKS = [
@@ -2438,15 +2438,29 @@ export async function assessSybilV2Referral(
   }
 
   const checkpoint = await loadCheckpoint(normalizedCode);
+  const checkpointCurrent =
+    checkpoint?.analyzer_version === SYBIL_V2_ANALYZER_VERSION;
   const completedChecks: string[] = [];
   const analysisFailed =
-    checkpoint?.historical_chain_status === 'FAILED' ||
-    checkpoint?.funding_chain_status === 'FAILED';
+    checkpointCurrent &&
+    (
+      checkpoint?.historical_chain_status === 'FAILED' ||
+      checkpoint?.funding_chain_status === 'FAILED'
+    );
 
-  if (checkpoint?.historical_chain_status === 'COMPLETE') {
+  // A COMPLETE checkpoint is only authoritative for the analyzer version
+  // that produced it. New detector logic must force ANALYSIS_PENDING until
+  // historical/funding evidence is recollected under the current analyzer.
+  if (
+    checkpointCurrent &&
+    checkpoint?.historical_chain_status === 'COMPLETE'
+  ) {
     completedChecks.push('HISTORICAL_CHAIN');
   }
-  if (checkpoint?.funding_chain_status === 'COMPLETE') {
+  if (
+    checkpointCurrent &&
+    checkpoint?.funding_chain_status === 'COMPLETE'
+  ) {
     completedChecks.push('FUNDING_CHAIN');
   }
 
@@ -2455,7 +2469,10 @@ export async function assessSybilV2Referral(
     ? await loadKnownProtocolDestinations(invitation.activation_network)
     : knownProtocolDestinations();
 
-  if (checkpoint?.historical_chain_status === 'COMPLETE') {
+  if (
+    checkpointCurrent &&
+    checkpoint?.historical_chain_status === 'COMPLETE'
+  ) {
     signals.push(...await loadHistoricalRewardSignals(invitation));
     signals.push(...await loadConsolidationSignals(
       invitation,
@@ -2463,7 +2480,10 @@ export async function assessSybilV2Referral(
     ));
   }
 
-  if (checkpoint?.funding_chain_status === 'COMPLETE') {
+  if (
+    checkpointCurrent &&
+    checkpoint?.funding_chain_status === 'COMPLETE'
+  ) {
     signals.push(...await loadFundingSignals(
       invitation,
       protocolDestinations,
@@ -2556,6 +2576,9 @@ export async function assessSybilV2Referral(
     strongEvidenceDomains: policy.strongEvidenceDomains,
     checkpoint: checkpoint
       ? {
+          analyzerVersion: checkpoint.analyzer_version,
+          currentAnalyzerVersion: SYBIL_V2_ANALYZER_VERSION,
+          current: checkpointCurrent,
           historicalChainStatus: checkpoint.historical_chain_status,
           fundingChainStatus: checkpoint.funding_chain_status,
           historicalRewardEventCount:
