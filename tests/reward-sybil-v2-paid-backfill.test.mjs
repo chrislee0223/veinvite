@@ -163,3 +163,48 @@ test('stale COMPLETE checkpoints cannot satisfy CLEAR decision checks', async ()
     /currentAnalyzerVersion: SYBIL_V2_ANALYZER_VERSION/u,
   );
 });
+
+
+test('five-minute vote recovery drains stale live and paid analyzer backlogs', async () => {
+  const source = await readFile(
+    'src/app/api/cron/vote-reconcile/route.ts',
+    'utf8',
+  );
+
+  const liveQueue = source.indexOf(
+    'await enqueueSybilV2EvidenceBacklogBatch',
+  );
+  const paidQueue = source.indexOf(
+    'await enqueueSybilV2PaidBackfillBatch',
+  );
+  const policy = source.indexOf(
+    'await runSybilV2PolicyReassessmentBatch',
+    paidQueue,
+  );
+  const assessment = source.indexOf(
+    'await runSybilV2AssessmentBatch',
+    policy,
+  );
+  const reservation = source.indexOf(
+    'await reserveEligibleReferralRewards',
+    assessment,
+  );
+
+  assert.ok(liveQueue >= 0);
+  assert.ok(paidQueue > liveQueue);
+  assert.ok(policy > paidQueue);
+  assert.ok(assessment > policy);
+  assert.ok(reservation > assessment);
+  assert.match(
+    source,
+    /enqueueSybilV2EvidenceBacklogBatch\(\s*50,?\s*\)/u,
+  );
+  assert.match(
+    source,
+    /enqueueSybilV2PaidBackfillBatch\(\s*10,?\s*\)/u,
+  );
+  assert.match(
+    source,
+    /sybilRewardRecoveryMinutes:\s*RECOVERY_INTERVAL_SECONDS \/ 60/u,
+  );
+});
