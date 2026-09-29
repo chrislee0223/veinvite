@@ -14,7 +14,7 @@ create or replace function public.apply_sybil_v2_vepassport_same_passport_restri
 returns jsonb
 language plpgsql
 security definer
-set search_path to 'pg_catalog', 'public'
+set search_path = ''
 as $function$
 declare
   v_code text := upper(btrim(p_invite_code));
