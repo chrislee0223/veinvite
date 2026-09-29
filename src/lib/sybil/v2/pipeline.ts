@@ -39,12 +39,18 @@ import {
   SYBIL_V2_ANALYZER_VERSION,
 } from '@/lib/sybil/v2/version';
 import {
+  readVePassportReferralSnapshot,
+  type VePassportReferralSnapshot,
+} from '@/lib/sybil/vePassportSignals';
+import {
   getVeBetterNetworkConfig,
   type VeBetterNetwork,
 } from '@/lib/vebetter/network';
 
 export { SYBIL_V2_ANALYZER_VERSION } from '@/lib/sybil/v2/version';
 const SYBIL_V2_BEHAVIOR_ENFORCEMENT_VERSION = 'behavior-pattern-v2';
+const SYBIL_V2_VEPASSPORT_EVIDENCE_VERSION = 'vepassport-v1';
+const VEPASSPORT_RECHECK_INTERVAL_MS = 6 * 60 * 60 * 1000;
 
 const DECISION_CHECKS = [
   'HISTORICAL_CHAIN',
@@ -376,7 +382,8 @@ async function insertEvidenceRecord({
     | 'MISSION_BEHAVIOR'
     | 'SECURITY_IDENTITY'
     | 'POST_PAYOUT'
-    | 'CLUSTER_LINK';
+    | 'CLUSTER_LINK'
+    | 'ECOSYSTEM_REPUTATION';
   signalCode: string;
   strength: 'INFO' | 'LOW' | 'MEDIUM' | 'HIGH';
   score: number;
@@ -2652,6 +2659,540 @@ async function applyBehaviorPatternRestriction({
   return (data ?? {}) as BehaviorPatternRestrictionRpcResult;
 }
 
+type VePassportEligibilityContext = {
+  activationRoundId: number | null;
+  entryClass: string | null;
+};
+
+type VePassportAssessmentEvidence = {
+  signals: SybilV2Signal[];
+  snapshot: VePassportReferralSnapshot | null;
+  complete: boolean;
+  automaticRestrictionCandidate: boolean;
+  relatedParticipantInviteCode: string | null;
+  error: string | null;
+};
+
+function safeEligibilityRound(
+  value: unknown,
+): number | null {
+  const parsed =
+    typeof value === 'number'
+      ? value
+      : typeof value === 'string' && /^\d+$/.test(value)
+        ? Number(value)
+        : null;
+
+  return (
+    parsed !== null &&
+    Number.isSafeInteger(parsed) &&
+    parsed > 0
+  )
+    ? parsed
+    : null;
+}
+
+async function loadVePassportEligibilityContext(
+  invitation: InvitationV2Row,
+): Promise<VePassportEligibilityContext> {
+  const { data, error } = await supabaseAdmin
+    .from('eligibility_check_events')
+    .select('entry_class,details')
+    .eq('invite_code', invitation.invite_code)
+    .eq('wallet_address', normalizeWallet(invitation.invitee_wallet!))
+    .eq('network', invitation.activation_network!)
+    .eq('outcome', 'ELIGIBLE')
+    .order('created_at', {
+      ascending: false,
+    })
+    .limit(1)
+    .maybeSingle();
+
+  if (error) {
+    throw new Error(
+      `VePassport eligibility context could not be loaded: ${error.message}`,
+    );
+  }
+
+  const details =
+    data?.details &&
+    typeof data.details === 'object' &&
+    !Array.isArray(data.details)
+      ? data.details as Record<string, unknown>
+      : {};
+
+  return {
+    activationRoundId:
+      safeEligibilityRound(
+        details.currentRoundId ??
+        details.entryRoundId,
+      ),
+    entryClass:
+      typeof data?.entry_class === 'string'
+        ? data.entry_class
+        : null,
+  };
+}
+
+function vePassportSnapshotFingerprint(
+  snapshot: VePassportReferralSnapshot,
+  entryClass: string | null,
+): string {
+  return [
+    snapshot.passportVersion,
+    snapshot.activationRoundId ?? 'none',
+    entryClass ?? 'none',
+    snapshot.inviter.resolvedPassport,
+    snapshot.invitee.resolvedPassport,
+    snapshot.inviter.signalCount,
+    snapshot.invitee.signalCount,
+    snapshot.inviter.blacklisted ? 1 : 0,
+    snapshot.invitee.blacklisted ? 1 : 0,
+    snapshot.invitee.passportBlacklisted ? 1 : 0,
+    snapshot.invitee.preActivationActionCount,
+    snapshot.invitee.delegatee ?? 'none',
+    snapshot.invitee.delegator ?? 'none',
+  ].join(':');
+}
+
+async function loadVePassportSignals(
+  invitation: InvitationV2Row,
+): Promise<VePassportAssessmentEvidence> {
+  if (!invitation.invitee_wallet) {
+    return {
+      signals: [],
+      snapshot: null,
+      complete: false,
+      automaticRestrictionCandidate: false,
+      relatedParticipantInviteCode: null,
+      error: 'INVITEE_WALLET_MISSING',
+    };
+  }
+
+  try {
+    const eligibility =
+      await loadVePassportEligibilityContext(
+        invitation,
+      );
+    const snapshot =
+      await readVePassportReferralSnapshot({
+        inviterWallet:
+          invitation.inviter_wallet,
+        inviteeWallet:
+          invitation.invitee_wallet,
+        activationRoundId:
+          eligibility.activationRoundId,
+      });
+
+    const signals: SybilV2Signal[] = [];
+    const inviteeWallet =
+      normalizeWallet(
+        invitation.invitee_wallet,
+      );
+    const inviterWallet =
+      normalizeWallet(
+        invitation.inviter_wallet,
+      );
+
+    const snapshotEvidence = {
+      evidenceVersion:
+        SYBIL_V2_VEPASSPORT_EVIDENCE_VERSION,
+      passportVersion:
+        snapshot.passportVersion,
+      checkedAt: snapshot.checkedAt,
+      currentRoundId:
+        snapshot.currentRoundId,
+      activationRoundId:
+        snapshot.activationRoundId,
+      roundsForCumulativeScore:
+        snapshot.roundsForCumulativeScore,
+      participationThreshold:
+        snapshot.participationThreshold,
+      protocolSignalThreshold:
+        snapshot.protocolSignalThreshold,
+      veInviteReviewThreshold:
+        snapshot.veInviteReviewThreshold,
+      enabledChecks:
+        snapshot.enabledChecks,
+      entryClass:
+        eligibility.entryClass,
+      sameResolvedPassport:
+        snapshot.sameResolvedPassport,
+      inviter: snapshot.inviter,
+      invitee: snapshot.invitee,
+    };
+
+    await insertEvidenceRecord({
+      invitation,
+      subjectWallet: inviteeWallet,
+      family: 'ECOSYSTEM_REPUTATION',
+      signalCode: 'VEPASSPORT_SNAPSHOT',
+      strength: 'INFO',
+      score: 0,
+      evidence: snapshotEvidence,
+      dedupeKey:
+        `sybil-v2:${invitation.invite_code}:vepassport-snapshot:${vePassportSnapshotFingerprint(snapshot, eligibility.entryClass)}`,
+    });
+
+    let automaticRestrictionCandidate =
+      false;
+    let relatedParticipantInviteCode:
+      string | null = null;
+
+    if (snapshot.sameResolvedPassport) {
+      const signal: SybilV2Signal = {
+        code:
+          'VEPASSPORT_SAME_PASSPORT_INVITER',
+        family: 'SECURITY_IDENTITY',
+        strength: 'HIGH',
+        score: 100,
+        independentKey:
+          snapshot.invitee.resolvedPassport,
+      };
+      signals.push(signal);
+      automaticRestrictionCandidate = true;
+
+      await insertEvidenceRecord({
+        invitation,
+        subjectWallet: inviteeWallet,
+        family: 'SECURITY_IDENTITY',
+        signalCode: signal.code,
+        strength: signal.strength,
+        score: signal.score,
+        relatedWallet: inviterWallet,
+        evidence: {
+          passport:
+            snapshot.invitee.resolvedPassport,
+          inviterWallet,
+          inviteeWallet,
+          evidenceVersion:
+            SYBIL_V2_VEPASSPORT_EVIDENCE_VERSION,
+          checkedAt: snapshot.checkedAt,
+        },
+        dedupeKey:
+          `sybil-v2:${invitation.invite_code}:vepassport-same-passport-inviter:${snapshot.invitee.resolvedPassport}`,
+      });
+    }
+
+    const linkedAddresses = unique([
+      snapshot.invitee.resolvedPassport,
+      ...snapshot.invitee.linkedEntities,
+    ]).filter(
+      (wallet) =>
+        wallet !== inviteeWallet &&
+        wallet !== inviterWallet,
+    );
+
+    if (linkedAddresses.length > 0) {
+      const peerResult = await supabaseAdmin
+        .from('invitations')
+        .select(
+          'invite_code,invitee_wallet,reward_status,status,eligibility_check_id,ineligibility_check_id',
+        )
+        .in(
+          'invitee_wallet',
+          linkedAddresses,
+        )
+        .not(
+          'eligibility_check_id',
+          'is',
+          null,
+        )
+        .is(
+          'ineligibility_check_id',
+          null,
+        )
+        .neq(
+          'invite_code',
+          invitation.invite_code,
+        )
+        .order('activated_at', {
+          ascending: true,
+          nullsFirst: false,
+        })
+        .limit(1)
+        .maybeSingle();
+
+      if (peerResult.error) {
+        throw new Error(
+          `VePassport linked participant lookup failed: ${peerResult.error.message}`,
+        );
+      }
+
+      if (
+        peerResult.data?.invite_code &&
+        peerResult.data?.invitee_wallet
+      ) {
+        relatedParticipantInviteCode =
+          String(
+            peerResult.data.invite_code,
+          );
+        const relatedWallet =
+          normalizeWallet(
+            String(
+              peerResult.data
+                .invitee_wallet,
+            ),
+          );
+        const signal: SybilV2Signal = {
+          code:
+            'VEPASSPORT_SHARED_PASSPORT_PARTICIPANT',
+          family: 'SECURITY_IDENTITY',
+          strength: 'HIGH',
+          score: 100,
+          independentKey:
+            snapshot.invitee.resolvedPassport,
+        };
+        signals.push(signal);
+        automaticRestrictionCandidate =
+          true;
+
+        await insertEvidenceRecord({
+          invitation,
+          subjectWallet: inviteeWallet,
+          family: 'SECURITY_IDENTITY',
+          signalCode: signal.code,
+          strength: signal.strength,
+          score: signal.score,
+          relatedWallet,
+          evidence: {
+            passport:
+              snapshot.invitee
+                .resolvedPassport,
+            peerInviteCode:
+              relatedParticipantInviteCode,
+            peerStatus:
+              peerResult.data.status,
+            peerRewardStatus:
+              peerResult.data
+                .reward_status,
+            evidenceVersion:
+              SYBIL_V2_VEPASSPORT_EVIDENCE_VERSION,
+            checkedAt:
+              snapshot.checkedAt,
+          },
+          dedupeKey:
+            `sybil-v2:${invitation.invite_code}:vepassport-shared-participant:${snapshot.invitee.resolvedPassport}:${relatedParticipantInviteCode}`,
+        });
+      }
+    }
+
+    const effectiveSignalThreshold =
+      snapshot.protocolSignalThreshold > 0
+        ? Math.min(
+            snapshot.protocolSignalThreshold,
+            snapshot.veInviteReviewThreshold,
+          )
+        : snapshot.veInviteReviewThreshold;
+
+    if (
+      snapshot.enabledChecks.signaling &&
+      snapshot.invitee.signalCount >=
+        effectiveSignalThreshold
+    ) {
+      const signal: SybilV2Signal = {
+        code:
+          'VEPASSPORT_SIGNAL_THRESHOLD_REACHED',
+        family:
+          'ECOSYSTEM_REPUTATION',
+        strength: 'HIGH',
+        score: 80,
+        independentKey:
+          snapshot.invitee.resolvedPassport,
+      };
+      signals.push(signal);
+
+      await insertEvidenceRecord({
+        invitation,
+        subjectWallet: inviteeWallet,
+        family:
+          'ECOSYSTEM_REPUTATION',
+        signalCode: signal.code,
+        strength: signal.strength,
+        score: signal.score,
+        evidence: {
+          signalCount:
+            snapshot.invitee.signalCount,
+          effectiveSignalThreshold,
+          protocolSignalThreshold:
+            snapshot.protocolSignalThreshold,
+          veInviteReviewThreshold:
+            snapshot.veInviteReviewThreshold,
+          checkedAt:
+            snapshot.checkedAt,
+        },
+        dedupeKey:
+          `sybil-v2:${invitation.invite_code}:vepassport-signal-threshold:${snapshot.invitee.signalCount}:${effectiveSignalThreshold}`,
+      });
+    } else if (
+      snapshot.invitee.signalCount > 0
+    ) {
+      signals.push({
+        code:
+          'VEPASSPORT_SIGNAL_BELOW_THRESHOLD',
+        family:
+          'ECOSYSTEM_REPUTATION',
+        strength: 'LOW',
+        score: 20,
+        independentKey:
+          snapshot.invitee.resolvedPassport,
+      });
+    }
+
+    if (
+      snapshot.invitee.blacklisted ||
+      snapshot.invitee
+        .passportBlacklisted
+    ) {
+      const signal: SybilV2Signal = {
+        code:
+          'VEPASSPORT_BLACKLISTED',
+        family:
+          'ECOSYSTEM_REPUTATION',
+        strength: 'HIGH',
+        score: 90,
+        independentKey:
+          snapshot.invitee.resolvedPassport,
+      };
+      signals.push(signal);
+
+      await insertEvidenceRecord({
+        invitation,
+        subjectWallet: inviteeWallet,
+        family:
+          'ECOSYSTEM_REPUTATION',
+        signalCode: signal.code,
+        strength: signal.strength,
+        score: signal.score,
+        evidence: {
+          walletBlacklisted:
+            snapshot.invitee.blacklisted,
+          passportBlacklisted:
+            snapshot.invitee
+              .passportBlacklisted,
+          blacklistCheckEnabled:
+            snapshot.enabledChecks
+              .blacklist,
+          checkedAt:
+            snapshot.checkedAt,
+        },
+        dedupeKey:
+          `sybil-v2:${invitation.invite_code}:vepassport-blacklisted:${snapshot.invitee.blacklisted ? 1 : 0}:${snapshot.invitee.passportBlacklisted ? 1 : 0}`,
+      });
+    }
+
+    if (
+      eligibility.entryClass === 'NEW' &&
+      snapshot.invitee
+        .preActivationActionCount > 0
+    ) {
+      const score = Math.min(
+        55,
+        35 +
+          snapshot.invitee
+            .preActivationActionCount *
+            5,
+      );
+      const signal: SybilV2Signal = {
+        code:
+          'VEPASSPORT_PREACTIVATION_ACTIVITY',
+        family:
+          'HISTORICAL_REWARD',
+        strength: 'MEDIUM',
+        score,
+        independentKey:
+          inviteeWallet,
+      };
+      signals.push(signal);
+
+      await insertEvidenceRecord({
+        invitation,
+        subjectWallet: inviteeWallet,
+        family:
+          'HISTORICAL_REWARD',
+        signalCode: signal.code,
+        strength: signal.strength,
+        score: signal.score,
+        evidence: {
+          entryClass:
+            eligibility.entryClass,
+          activationRoundId:
+            eligibility.activationRoundId,
+          preActivationActionCount:
+            snapshot.invitee
+              .preActivationActionCount,
+          preActivationAppCount:
+            snapshot.invitee
+              .preActivationAppCount,
+          roundsForCumulativeScore:
+            snapshot.roundsForCumulativeScore,
+          checkedAt:
+            snapshot.checkedAt,
+        },
+        dedupeKey:
+          `sybil-v2:${invitation.invite_code}:vepassport-preactivation:${snapshot.invitee.preActivationActionCount}:${snapshot.invitee.preActivationAppCount}`,
+      });
+    }
+
+    return {
+      signals,
+      snapshot,
+      complete: true,
+      automaticRestrictionCandidate,
+      relatedParticipantInviteCode,
+      error: null,
+    };
+  } catch (error) {
+    return {
+      signals: [],
+      snapshot: null,
+      complete: false,
+      automaticRestrictionCandidate:
+        false,
+      relatedParticipantInviteCode:
+        null,
+      error: safeError(error),
+    };
+  }
+}
+
+async function applyVePassportSamePassportRestriction({
+  invitation,
+  expectedRevision,
+}: {
+  invitation: InvitationV2Row;
+  expectedRevision: number;
+}): Promise<BehaviorPatternRestrictionRpcResult> {
+  if (!invitation.activation_network) {
+    return {
+      changed: false,
+      reason: 'NETWORK_MISSING',
+    };
+  }
+
+  const { data, error } =
+    await supabaseAdmin.rpc(
+      'apply_sybil_v2_vepassport_same_passport_restriction',
+      {
+        p_invite_code:
+          invitation.invite_code,
+        p_expected_revision:
+          expectedRevision,
+        p_network:
+          invitation.activation_network,
+      },
+    );
+
+  if (error) {
+    throw new Error(
+      `VePassport same-passport restriction could not be applied: ${error.message}`,
+    );
+  }
+
+  return (data ?? {}) as
+    BehaviorPatternRestrictionRpcResult;
+}
+
 async function loadFinalizedBlock(): Promise<number> {
   const { nodeUrl } = getVeBetterNetworkConfig();
   const thor = ThorClient.at(nodeUrl);
@@ -2891,6 +3432,13 @@ export async function assessSybilV2Referral(
   signals.push(...security.signals);
   if (security.complete) completedChecks.push('SECURITY_IDENTITY');
 
+  const vePassport =
+    await loadVePassportSignals(invitation);
+  signals.push(...vePassport.signals);
+  if (vePassport.complete) {
+    completedChecks.push('VEPASSPORT');
+  }
+
   // WATCH follow-up evidence is reintroduced into the normal policy.
   // Direct post-payout links use the POST_PAYOUT domain, while a concentration
   // hub link is deliberately collapsed back into HISTORICAL_ACTIVITY so the
@@ -2990,11 +3538,67 @@ export async function assessSybilV2Referral(
       funderReturnLoopHub !== null,
     securityClientInviterImmediateSwitchAutomaticRestrictionCandidate:
       securityClientInviterImmediateSwitch,
+    vePassport: vePassport.snapshot
+      ? {
+          evidenceVersion:
+            SYBIL_V2_VEPASSPORT_EVIDENCE_VERSION,
+          checkedAt:
+            vePassport.snapshot.checkedAt,
+          passportVersion:
+            vePassport.snapshot
+              .passportVersion,
+          activationRoundId:
+            vePassport.snapshot
+              .activationRoundId,
+          currentRoundId:
+            vePassport.snapshot
+              .currentRoundId,
+          sameResolvedPassport:
+            vePassport.snapshot
+              .sameResolvedPassport,
+          inviteeResolvedPassport:
+            vePassport.snapshot.invitee
+              .resolvedPassport,
+          inviteeSignalCount:
+            vePassport.snapshot.invitee
+              .signalCount,
+          inviteeBlacklisted:
+            vePassport.snapshot.invitee
+              .blacklisted,
+          inviteePassportBlacklisted:
+            vePassport.snapshot.invitee
+              .passportBlacklisted,
+          inviteePreActivationActionCount:
+            vePassport.snapshot.invitee
+              .preActivationActionCount,
+          inviteeIsPerson:
+            vePassport.snapshot.invitee
+              .isPerson,
+          inviteePersonReason:
+            vePassport.snapshot.invitee
+              .personReason,
+          inviterResolvedPassport:
+            vePassport.snapshot.inviter
+              .resolvedPassport,
+          relatedParticipantInviteCode:
+            vePassport
+              .relatedParticipantInviteCode,
+        }
+      : {
+          evidenceVersion:
+            SYBIL_V2_VEPASSPORT_EVIDENCE_VERSION,
+          checkedAt: null,
+          error: vePassport.error,
+        },
+    vePassportAutomaticRestrictionCandidate:
+      vePassport
+        .automaticRestrictionCandidate,
     automaticBlacklistEligible:
       confirmedClusterHub !== null ||
       behaviorPatternHub !== null ||
       funderReturnLoopHub !== null ||
-      securityClientInviterImmediateSwitch,
+      securityClientInviterImmediateSwitch ||
+      vePassport.automaticRestrictionCandidate,
   };
 
   const expectedRevision =
@@ -3025,6 +3629,61 @@ export async function assessSybilV2Referral(
   }
 
   const revision = safeRevision(recorded.revision);
+
+  if (
+    revision !== null &&
+    policy.state === 'HOLD' &&
+    vePassport
+      .automaticRestrictionCandidate
+  ) {
+    const automatic =
+      await applyVePassportSamePassportRestriction({
+        invitation,
+        expectedRevision: revision,
+      });
+    const automaticRevision =
+      safeRevision(automatic.revision);
+
+    if (
+      automatic.changed === true &&
+      automatic.state === 'RESTRICTED'
+    ) {
+      return {
+        inviteCode: normalizedCode,
+        state: 'RESTRICTED',
+        riskScore: 100,
+        reasonCodes: unique([
+          ...policy.reasonCodes,
+          'AUTO_VEPASSPORT_SAME_PASSPORT_RESTRICTION',
+        ]),
+        revision:
+          automaticRevision ?? revision,
+        clearanceIssued: false,
+        clearanceId: null,
+      };
+    }
+
+    const fresh =
+      await loadAssessment(normalizedCode);
+
+    if (fresh?.state === 'RESTRICTED') {
+      return {
+        inviteCode: normalizedCode,
+        state: 'RESTRICTED',
+        riskScore: 100,
+        reasonCodes: unique([
+          ...policy.reasonCodes,
+          'AUTO_VEPASSPORT_SAME_PASSPORT_RESTRICTION',
+        ]),
+        revision:
+          safeRevision(fresh.revision) ??
+          automaticRevision ??
+          revision,
+        clearanceIssued: false,
+        clearanceId: null,
+      };
+    }
+  }
 
   if (
     revision !== null &&
@@ -3378,10 +4037,63 @@ export async function runSybilV2PolicyReassessmentBatch(
       const assessment = await loadAssessment(inviteCode);
       const enforcementVersion =
         assessment?.evidence_summary?.behaviorPatternEnforcementVersion;
+      const signalCodes =
+        Array.isArray(
+          assessment?.evidence_summary
+            ?.signalCodes,
+        )
+          ? assessment?.evidence_summary
+              ?.signalCodes
+          : [];
+      const hasVePassportSignal =
+        signalCodes.some(
+          (code) =>
+            typeof code === 'string' &&
+            code.startsWith(
+              'VEPASSPORT_',
+            ),
+        );
+      const vePassportCheckedAt =
+        typeof assessment
+          ?.evidence_summary
+          ?.vePassport === 'object' &&
+        assessment?.evidence_summary
+          ?.vePassport !== null &&
+        typeof (
+          assessment.evidence_summary
+            .vePassport as Record<
+              string,
+              unknown
+            >
+        ).checkedAt === 'string'
+          ? Date.parse(
+              String(
+                (
+                  assessment
+                    .evidence_summary
+                    .vePassport as Record<
+                      string,
+                      unknown
+                    >
+                ).checkedAt,
+              ),
+            )
+          : Number.NaN;
+      const vePassportStale =
+        hasVePassportSignal &&
+        (
+          Number.isNaN(
+            vePassportCheckedAt,
+          ) ||
+          Date.now() -
+              vePassportCheckedAt >=
+            VEPASSPORT_RECHECK_INTERVAL_MS
+        );
 
       if (
         enforcementVersion ===
-        SYBIL_V2_BEHAVIOR_ENFORCEMENT_VERSION
+          SYBIL_V2_BEHAVIOR_ENFORCEMENT_VERSION &&
+        !vePassportStale
       ) {
         continue;
       }
