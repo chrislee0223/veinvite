@@ -222,6 +222,8 @@ export type VePassportSignalSnapshot = {
   signalCount: number;
   protocolSignalThreshold: number;
   veInviteReviewThreshold: number;
+  signalingCheckEnabled: boolean;
+  blacklistCheckEnabled: boolean;
   blacklisted: boolean;
   checkedAt: string;
 };
@@ -400,10 +402,15 @@ export function evaluateVePassportSignalRisk(
     | 'signalCount'
     | 'protocolSignalThreshold'
     | 'veInviteReviewThreshold'
+    | 'signalingCheckEnabled'
+    | 'blacklistCheckEnabled'
     | 'blacklisted'
   >,
 ): SybilDecision {
-  if (snapshot.blacklisted) {
+  if (
+    snapshot.blacklistCheckEnabled &&
+    snapshot.blacklisted
+  ) {
     return {
       status: 'BLOCKED',
       riskLevel: 'HIGH',
@@ -418,8 +425,9 @@ export function evaluateVePassportSignalRisk(
     effectiveSignalThreshold(snapshot);
 
   if (
+    snapshot.signalingCheckEnabled &&
     snapshot.signalCount >=
-    reviewThreshold
+      reviewThreshold
   ) {
     return {
       status: 'REVIEW',
@@ -434,16 +442,26 @@ export function evaluateVePassportSignalRisk(
     };
   }
 
-  if (snapshot.signalCount > 0) {
+  if (
+    snapshot.signalCount > 0 ||
+    snapshot.blacklisted
+  ) {
     return {
       status: 'CLEAR',
       riskLevel: 'LOW',
       riskScore: Math.min(
         49,
-        snapshot.signalCount * 20,
+        snapshot.signalCount * 20 +
+          (snapshot.blacklisted ? 10 : 0),
       ),
       reason:
-        `VePassport signal count ${snapshot.signalCount} remains below the effective review threshold ${reviewThreshold}.`,
+        !snapshot.signalingCheckEnabled &&
+        snapshot.signalCount > 0
+          ? 'VePassport signaling is currently disabled by the protocol; the signal is retained as observation-only context.'
+          : !snapshot.blacklistCheckEnabled &&
+              snapshot.blacklisted
+            ? 'VePassport blacklist checking is currently disabled by the protocol; the blacklist value is retained as observation-only context.'
+            : `VePassport signal count ${snapshot.signalCount} remains below the effective review threshold ${reviewThreshold}.`,
       source: 'VEPASSPORT',
     };
   }
@@ -481,12 +499,29 @@ async function readVePassportSignalSnapshots(
     passportAddress,
     veBetterPassportAbi,
   );
-  const thresholdResult =
-    await contract.read.signalingThreshold();
+  const [
+    thresholdResult,
+    signalingCheckResult,
+    blacklistCheckResult,
+  ] = await Promise.all([
+    contract.read.signalingThreshold(),
+    contract.read.isCheckEnabled(3),
+    contract.read.isCheckEnabled(2),
+  ]);
   const protocolSignalThreshold =
     toSafeInteger(
       thresholdResult[0],
       'VePassport signalingThreshold',
+    );
+  const signalingCheckEnabled =
+    toBoolean(
+      signalingCheckResult[0],
+      'VePassport signaling check',
+    );
+  const blacklistCheckEnabled =
+    toBoolean(
+      blacklistCheckResult[0],
+      'VePassport blacklist check',
     );
   const veInviteReviewThreshold =
     getVeInviteReviewThreshold();
@@ -530,6 +565,8 @@ async function readVePassportSignalSnapshots(
           ),
           protocolSignalThreshold,
           veInviteReviewThreshold,
+          signalingCheckEnabled,
+          blacklistCheckEnabled,
           blacklisted: toBoolean(
             blacklistedResult[0],
             'VePassport isBlacklisted',
