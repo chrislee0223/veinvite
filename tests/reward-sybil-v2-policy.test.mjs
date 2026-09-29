@@ -421,7 +421,7 @@ test('historical activity plus separate recent funding escalates to HOLD', () =>
   );
 });
 
-test('HIGH historical sink funding link HOLDs without another domain', () => {
+test('HIGH historical sink funding association stays CLEAR without another domain', () => {
   const result = evaluateSybilV2Policy({
     signals: [
       {
@@ -440,10 +440,10 @@ test('HIGH historical sink funding link HOLDs without another domain', () => {
     requiredChecksComplete: true,
   });
 
-  assert.equal(result.state, 'HOLD');
+  assert.equal(result.state, 'CLEAR');
 });
 
-test('smaller HIGH historical-sink funding link HOLDs', () => {
+test('smaller HIGH historical-sink funding association stays CLEAR', () => {
   const result = evaluateSybilV2Policy({
     signals: [
       {
@@ -456,7 +456,7 @@ test('smaller HIGH historical-sink funding link HOLDs', () => {
     requiredChecksComplete: true,
   });
 
-  assert.equal(result.state, 'HOLD');
+  assert.equal(result.state, 'CLEAR');
 });
 
 test('friend-style LOW plus one MEDIUM domain stays CLEAR with evidence recorded', () => {
