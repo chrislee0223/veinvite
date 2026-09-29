@@ -73,7 +73,11 @@ test('reconcile republishes unfinished Sybil v2 scan backlog into the queue', as
   );
   assert.match(
     queueSource,
-    /idempotencyKey:\s*\n?\s*`veinvite-sybil-v2-evidence-\$\{payload\.inviteCode\}`/u,
+    /idempotencyKey:\s*\n?\s*`veinvite-sybil-v2-evidence-\$\{SYBIL_V2_ANALYZER_VERSION\}-\$\{payload\.inviteCode\}`/u,
+  );
+  assert.match(
+    queueSource,
+    /SYBIL_V2_ANALYZER_VERSION/u,
   );
 
   assert.match(
