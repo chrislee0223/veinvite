@@ -341,6 +341,9 @@ jobs:
           done
           exit 1
 
+      - name: Diagnostic mainnet B3TR retention scan
+        run: node scripts/diag-retention-b3tr.mjs
+
       - name: Wallet auth cryptographic regression gate
         run: node --experimental-strip-types --test tests/wallet-auth-typed-data-crypto.test.mjs
 
