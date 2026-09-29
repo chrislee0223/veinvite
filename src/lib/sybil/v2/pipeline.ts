@@ -118,11 +118,16 @@ type ScanCheckpoint = {
 type AssessmentRow = {
   invite_code: string;
   state: string;
+  risk_score: number | string;
   revision: number | string;
   source: string;
   policy_version: string;
-  updated_at: string;
+  analyzer_version: string;
+  evidence_cutoff_block: number | string | null;
+  required_checks: string[] | null;
   completed_checks: string[] | null;
+  reason_codes: string[] | null;
+  updated_at: string;
   evidence_summary: Record<string, unknown> | null;
 };
 
@@ -3208,7 +3213,7 @@ async function loadFinalizedBlock(): Promise<number> {
 async function loadAssessment(inviteCode: string): Promise<AssessmentRow | null> {
   const { data, error } = await supabaseAdmin
     .from('sybil_v2_referral_assessments')
-    .select('invite_code,state,revision,source,policy_version,updated_at,completed_checks,evidence_summary')
+    .select('invite_code,state,risk_score,revision,source,policy_version,analyzer_version,evidence_cutoff_block,required_checks,completed_checks,reason_codes,updated_at,evidence_summary')
     .eq('invite_code', inviteCode)
     .maybeSingle();
 
@@ -3217,6 +3222,154 @@ async function loadAssessment(inviteCode: string): Promise<AssessmentRow | null>
   }
 
   return data as AssessmentRow | null;
+}
+
+async function repairOperatorPreVoteFinality({
+  invitation,
+  assessment,
+}: {
+  invitation: InvitationV2Row;
+  assessment: AssessmentRow;
+}): Promise<AssessmentRow> {
+  if (
+    invitation.vote_completed === true ||
+    assessment.source !== 'OPERATOR' ||
+    !Array.isArray(
+      assessment.completed_checks,
+    ) ||
+    !assessment.completed_checks.includes(
+      'CHAIN_FINALITY',
+    )
+  ) {
+    return assessment;
+  }
+
+  const revision =
+    safeRevision(assessment.revision);
+  const riskScore =
+    Number(assessment.risk_score);
+  const evidenceCutoffBlock =
+    assessment.evidence_cutoff_block ===
+      null
+      ? null
+      : safeNonNegativeBlock(
+          assessment.evidence_cutoff_block,
+        );
+
+  if (
+    revision === null ||
+    !Number.isSafeInteger(riskScore) ||
+    riskScore < 0 ||
+    riskScore > 100
+  ) {
+    throw new Error(
+      'Operator Sybil assessment metadata is invalid.',
+    );
+  }
+
+  const supportedState =
+    [
+      'ANALYSIS_PENDING',
+      'ANALYSIS_FAILED',
+      'CLEAR',
+      'WATCH',
+      'HOLD',
+      'RESTRICTED',
+    ].includes(assessment.state);
+
+  if (!supportedState) {
+    throw new Error(
+      'Operator Sybil assessment state is invalid.',
+    );
+  }
+
+  const repairedAt =
+    new Date().toISOString();
+  const evidenceSummary = {
+    ...(assessment.evidence_summary ?? {}),
+    metadataRepair: {
+      code:
+        'REMOVE_INVALID_PREVOTE_CHAIN_FINALITY',
+      repairedAt,
+      preservedOperatorDecision: true,
+      previousRevision: revision,
+    },
+  };
+
+  const { data, error } =
+    await supabaseAdmin.rpc(
+      'record_sybil_v2_assessment',
+      {
+        p_invite_code:
+          invitation.invite_code,
+        p_network:
+          invitation.activation_network,
+        p_state:
+          assessment.state,
+        p_risk_score:
+          riskScore,
+        p_policy_version:
+          assessment.policy_version,
+        p_analyzer_version:
+          assessment.analyzer_version,
+        p_evidence_cutoff_block:
+          evidenceCutoffBlock,
+        p_required_checks:
+          Array.isArray(
+            assessment.required_checks,
+          )
+            ? assessment.required_checks
+            : [...REQUIRED_CHECKS],
+        p_completed_checks:
+          assessment.completed_checks.filter(
+            (check) =>
+              check !== 'CHAIN_FINALITY',
+          ),
+        p_reason_codes:
+          Array.isArray(
+            assessment.reason_codes,
+          )
+            ? assessment.reason_codes
+            : [],
+        p_evidence_summary:
+          evidenceSummary,
+        p_source:
+          'OPERATOR',
+        p_expected_revision:
+          revision,
+      },
+    );
+
+  if (error) {
+    throw new Error(
+      `Operator Sybil finality metadata could not be repaired: ${error.message}`,
+    );
+  }
+
+  const result =
+    (data ?? {}) as AssessmentRpcResult;
+
+  if (
+    result.updated !== true &&
+    result.reason !== 'STALE_REVISION'
+  ) {
+    throw new Error(
+      'Operator Sybil finality metadata repair was not recorded.',
+    );
+  }
+
+  const refreshed =
+    await loadAssessment(
+      invitation.invite_code,
+    );
+
+  if (!refreshed) {
+    throw new Error(
+      'Operator Sybil assessment disappeared after metadata repair.',
+    );
+  }
+
+  return refreshed;
 }
 
 async function hasNewEvidenceForCurrentAssessment(
@@ -3409,7 +3562,26 @@ export async function assessSybilV2Referral(
     throw new Error('Sybil v2 assessment requires an activated invitation.');
   }
 
-  const currentAssessment = await loadAssessment(normalizedCode);
+  let currentAssessment = await loadAssessment(normalizedCode);
+
+  if (
+    currentAssessment?.source ===
+      'OPERATOR' &&
+    invitation.vote_completed !== true &&
+    Array.isArray(
+      currentAssessment.completed_checks,
+    ) &&
+    currentAssessment.completed_checks.includes(
+      'CHAIN_FINALITY',
+    )
+  ) {
+    currentAssessment =
+      await repairOperatorPreVoteFinality({
+        invitation,
+        assessment:
+          currentAssessment,
+      });
+  }
 
   // Never let a background worker overwrite an operator HOLD/restriction.
   if (

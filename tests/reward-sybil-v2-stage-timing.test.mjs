@@ -34,6 +34,29 @@ test('pre-vote referrals cannot complete CHAIN_FINALITY', () => {
   );
 });
 
+test('operator decisions preserve their verdict while invalid pre-vote finality is repaired', () => {
+  assert.match(
+    pipeline,
+    /repairOperatorPreVoteFinality/u,
+  );
+  assert.match(
+    pipeline,
+    /preservedOperatorDecision:\s*true/u,
+  );
+  assert.match(
+    pipeline,
+    /check !== 'CHAIN_FINALITY'/u,
+  );
+  assert.match(
+    pipeline,
+    /p_source:\s*'OPERATOR'/u,
+  );
+  assert.match(
+    pipeline,
+    /p_expected_revision:\s*revision/u,
+  );
+});
+
 test('third dApp completion triggers immediate lightweight Sybil reassessment', () => {
   assert.match(
     syncInvitation,
