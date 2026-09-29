@@ -3040,9 +3040,12 @@ async function loadVePassportSignals(
     }
 
     if (
-      snapshot.invitee.blacklisted ||
-      snapshot.invitee
-        .passportBlacklisted
+      snapshot.enabledChecks.blacklist &&
+      (
+        snapshot.invitee.blacklisted ||
+        snapshot.invitee
+          .passportBlacklisted
+      )
     ) {
       const signal: SybilV2Signal = {
         code:
