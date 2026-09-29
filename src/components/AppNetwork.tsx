@@ -113,6 +113,11 @@ import {
   type NetworkData,
   type NetworkSearchResult as SearchResult,
 } from '@/lib/networkDataClient';
+import {
+  deriveNetworkSearchInput,
+  getNetworkSearchReadiness,
+  resolveNetworkSearchAddress,
+} from '@/lib/networkSearch';
 import { useWalletLauncher } from './WalletControl';
 
 type NavigationDirection = 'forward' | 'back';
@@ -264,26 +269,24 @@ export function AppNetwork({ locale }: { locale: Locale }) {
   const [searching, setSearching] = useState(false);
   const searchInputRef = useRef<HTMLInputElement | null>(null);
   const searchActionControllerRef = useRef<AbortController | null>(null);
-  const normalizedSearchQuery = searchQuery.trim().toLowerCase();
-  const isWalletLikeSearch = normalizedSearchQuery.startsWith('0x');
-  const domainSearchInput =
-    searchOpen &&
-    normalizedSearchQuery.length >= 3 &&
-    !validWallet(normalizedSearchQuery) &&
-    normalizedSearchQuery.includes('.')
-      ? normalizedSearchQuery
-      : undefined;
+  const {
+    normalizedQuery: normalizedSearchQuery,
+    isWalletLikeSearch,
+    domainSearchInput,
+  } = deriveNetworkSearchInput(searchOpen, searchQuery);
   const { data: searchDomainInfo, isLoading: searchDomainLoading } =
     useVechainDomain(domainSearchInput);
-  const searchDomainAddress =
-    typeof searchDomainInfo?.address === 'string'
-      ? searchDomainInfo.address.toLowerCase()
-      : '';
-  const resolvedSearchAddress = validWallet(normalizedSearchQuery)
-    ? normalizedSearchQuery
-    : validWallet(searchDomainAddress)
-      ? searchDomainAddress
-      : null;
+  const resolvedSearchAddress = resolveNetworkSearchAddress(
+    normalizedSearchQuery,
+    searchDomainInfo?.address,
+  );
+  const searchReadiness = getNetworkSearchReadiness({
+    normalizedQuery: normalizedSearchQuery,
+    isWalletLikeSearch,
+    domainSearchInput,
+    domainSearchLoading: searchDomainLoading,
+    resolvedSearchAddress,
+  });
   const cachedDomainSuggestions = useMemo(
     () =>
       searchOpen
@@ -1421,31 +1424,10 @@ export function AppNetwork({ locale }: { locale: Locale }) {
   useEffect(() => {
     if (!searchOpen || !wallet || !currentData || editingLayout) return;
     const query = normalizedSearchQuery;
-    if (query.length < 3) {
+    if (searchReadiness !== 'ready') {
       setSearchResults([]);
       setPublicSearchWallet(null);
-      setSearching(false);
-      return;
-    }
-    if (domainSearchInput && searchDomainLoading) {
-      setSearchResults([]);
-      setPublicSearchWallet(null);
-      setSearching(true);
-      return;
-    }
-    if (domainSearchInput && !resolvedSearchAddress) {
-      setSearchResults([]);
-      setPublicSearchWallet(null);
-      setSearching(false);
-      return;
-    }
-    // Plain-text VET-domain prefixes (for example "yasi") are served from
-    // the session domain cache. Sending them to the wallet-address RPC can
-    // never match and only consumes the Network search rate limit.
-    if (!resolvedSearchAddress && !isWalletLikeSearch) {
-      setSearchResults([]);
-      setPublicSearchWallet(null);
-      setSearching(false);
+      setSearching(searchReadiness === 'domain-loading');
       return;
     }
 
@@ -1501,10 +1483,8 @@ export function AppNetwork({ locale }: { locale: Locale }) {
     wallet,
     currentData,
     normalizedSearchQuery,
-    domainSearchInput,
-    searchDomainLoading,
     resolvedSearchAddress,
-    isWalletLikeSearch,
+    searchReadiness,
     editingLayout,
   ]);
 
