@@ -130,6 +130,8 @@ import {
   networkPanView,
   networkPointerMovedBeyond,
   resolveNetworkPinchFrame,
+  resolveNetworkWheelEnterIntent,
+  resolveNetworkWheelReturnIntent,
   shouldEnterNetworkPinchTarget,
   shouldReturnFromNetworkPinch,
   type NetworkPinchState,
@@ -2397,55 +2399,53 @@ export function AppNetwork({ locale }: { locale: Locale }) {
     const rect = stageRef.current?.getBoundingClientRect();
     if (!rect) return;
 
-    if (
-      !editingLayout &&
-      event.deltaY > 0 &&
-      view.scale <= MIN_SCALE + 0.01 &&
-      currentData &&
-      currentData.breadcrumb.length > 1
-    ) {
-      wheelReturnDistanceRef.current += Math.abs(event.deltaY);
-      if (wheelReturnDistanceRef.current >= 160) {
-        wheelReturnDistanceRef.current = 0;
-        returnToParent();
-      }
+    const returnDecision = resolveNetworkWheelReturnIntent({
+      editingLayout,
+      deltaY: event.deltaY,
+      scale: view.scale,
+      minScale: MIN_SCALE,
+      hasParent: Boolean(currentData && currentData.breadcrumb.length > 1),
+      accumulatedDistance: wheelReturnDistanceRef.current,
+    });
+    wheelReturnDistanceRef.current = returnDecision.distance;
+    if (returnDecision.shouldReturn) {
+      returnToParent();
+    }
+    if (returnDecision.consume) {
       return;
     }
 
-    if (event.deltaY <= 0 || view.scale > MIN_SCALE + 0.01) {
-      wheelReturnDistanceRef.current = 0;
-    }
     const point = { x: event.clientX - rect.left, y: event.clientY - rect.top };
     const factor = event.deltaY < 0 ? 1.09 : 0.91;
     const nextScale = view.scale * factor;
+    let candidate: PositionedChild | null = null;
     if (!editingLayout && event.deltaY < 0) {
       const worldPoint = {
         x: (point.x - view.x) / view.scale,
         y: (point.y - view.y) / view.scale,
       };
-      const candidate = nearestVisibleChild(worldPoint);
-      if (candidate && nextScale >= NODE_ENTER_SCALE) {
-        const candidateKey = keyWallet(candidate.wallet);
-        if (wheelEnterWalletRef.current === candidateKey) {
-          wheelEnterDistanceRef.current += Math.abs(event.deltaY);
-        } else {
-          wheelEnterWalletRef.current = candidateKey;
-          wheelEnterDistanceRef.current = Math.abs(event.deltaY);
-        }
-        if (wheelEnterDistanceRef.current >= WHEEL_ENTER_DISTANCE) {
-          wheelEnterDistanceRef.current = 0;
-          wheelEnterWalletRef.current = null;
-          void moveToFocus(candidate.wallet, 'forward');
-          return;
-        }
-      } else {
-        wheelEnterDistanceRef.current = 0;
-        wheelEnterWalletRef.current = null;
-      }
-    } else {
-      wheelEnterDistanceRef.current = 0;
-      wheelEnterWalletRef.current = null;
+      candidate = nearestVisibleChild(worldPoint);
     }
+
+    const enterDecision = resolveNetworkWheelEnterIntent({
+      editingLayout,
+      deltaY: event.deltaY,
+      nextScale,
+      enterScale: NODE_ENTER_SCALE,
+      candidateWalletKey: candidate
+        ? keyWallet(candidate.wallet)
+        : null,
+      activeWalletKey: wheelEnterWalletRef.current,
+      accumulatedDistance: wheelEnterDistanceRef.current,
+      enterDistance: WHEEL_ENTER_DISTANCE,
+    });
+    wheelEnterDistanceRef.current = enterDecision.distance;
+    wheelEnterWalletRef.current = enterDecision.walletKey;
+    if (enterDecision.shouldEnter && candidate) {
+      void moveToFocus(candidate.wallet, 'forward');
+      return;
+    }
+
     zoomAt(point, nextScale);
   };
 

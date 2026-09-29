@@ -8,8 +8,11 @@ import {
   networkPanView,
   networkPointerMovedBeyond,
   resolveNetworkPinchFrame,
+  resolveNetworkWheelEnterIntent,
+  resolveNetworkWheelReturnIntent,
   shouldEnterNetworkPinchTarget,
   shouldReturnFromNetworkPinch,
+  NETWORK_WHEEL_RETURN_DISTANCE,
 } from '../src/lib/networkGestureGeometry.ts';
 
 function assertClose(actual, expected, message) {
@@ -143,4 +146,162 @@ test('pinch enter and return intent thresholds preserve the current gesture poli
     5,
     'gesture distance',
   );
+});
+
+
+test('wheel return intent preserves the existing accumulated-distance policy', () => {
+  const first = resolveNetworkWheelReturnIntent({
+    editingLayout: false,
+    deltaY: 60,
+    scale: 0.5,
+    minScale: 0.5,
+    hasParent: true,
+    accumulatedDistance: 0,
+  });
+
+  assert.deepEqual(first, {
+    distance: 60,
+    shouldReturn: false,
+    consume: true,
+  });
+
+  const beforeThreshold = resolveNetworkWheelReturnIntent({
+    editingLayout: false,
+    deltaY: NETWORK_WHEEL_RETURN_DISTANCE - 61,
+    scale: 0.5,
+    minScale: 0.5,
+    hasParent: true,
+    accumulatedDistance: first.distance,
+  });
+
+  assert.equal(beforeThreshold.distance, NETWORK_WHEEL_RETURN_DISTANCE - 1);
+  assert.equal(beforeThreshold.shouldReturn, false);
+  assert.equal(beforeThreshold.consume, true);
+
+  const atThreshold = resolveNetworkWheelReturnIntent({
+    editingLayout: false,
+    deltaY: 1,
+    scale: 0.5,
+    minScale: 0.5,
+    hasParent: true,
+    accumulatedDistance: beforeThreshold.distance,
+  });
+
+  assert.deepEqual(atThreshold, {
+    distance: 0,
+    shouldReturn: true,
+    consume: true,
+  });
+
+  const reversed = resolveNetworkWheelReturnIntent({
+    editingLayout: false,
+    deltaY: -1,
+    scale: 0.5,
+    minScale: 0.5,
+    hasParent: true,
+    accumulatedDistance: 75,
+  });
+
+  assert.deepEqual(reversed, {
+    distance: 0,
+    shouldReturn: false,
+    consume: false,
+  });
+});
+
+test('wheel enter intent accumulates only for the same eligible child', () => {
+  const first = resolveNetworkWheelEnterIntent({
+    editingLayout: false,
+    deltaY: -40,
+    nextScale: 1.6,
+    enterScale: 1.5,
+    candidateWalletKey: 'wallet-a',
+    activeWalletKey: null,
+    accumulatedDistance: 0,
+    enterDistance: 100,
+  });
+
+  assert.deepEqual(first, {
+    distance: 40,
+    walletKey: 'wallet-a',
+    shouldEnter: false,
+  });
+
+  const sameWallet = resolveNetworkWheelEnterIntent({
+    editingLayout: false,
+    deltaY: -30,
+    nextScale: 1.7,
+    enterScale: 1.5,
+    candidateWalletKey: 'wallet-a',
+    activeWalletKey: first.walletKey,
+    accumulatedDistance: first.distance,
+    enterDistance: 100,
+  });
+
+  assert.deepEqual(sameWallet, {
+    distance: 70,
+    walletKey: 'wallet-a',
+    shouldEnter: false,
+  });
+
+  const switchedWallet = resolveNetworkWheelEnterIntent({
+    editingLayout: false,
+    deltaY: -25,
+    nextScale: 1.8,
+    enterScale: 1.5,
+    candidateWalletKey: 'wallet-b',
+    activeWalletKey: sameWallet.walletKey,
+    accumulatedDistance: sameWallet.distance,
+    enterDistance: 100,
+  });
+
+  assert.deepEqual(switchedWallet, {
+    distance: 25,
+    walletKey: 'wallet-b',
+    shouldEnter: false,
+  });
+
+  const entered = resolveNetworkWheelEnterIntent({
+    editingLayout: false,
+    deltaY: -75,
+    nextScale: 1.9,
+    enterScale: 1.5,
+    candidateWalletKey: 'wallet-b',
+    activeWalletKey: switchedWallet.walletKey,
+    accumulatedDistance: switchedWallet.distance,
+    enterDistance: 100,
+  });
+
+  assert.deepEqual(entered, {
+    distance: 0,
+    walletKey: null,
+    shouldEnter: true,
+  });
+});
+
+test('wheel enter intent resets when direction, scale eligibility, or edit mode changes', () => {
+  const base = {
+    nextScale: 1.6,
+    enterScale: 1.5,
+    candidateWalletKey: 'wallet-a',
+    activeWalletKey: 'wallet-a',
+    accumulatedDistance: 70,
+    enterDistance: 100,
+  };
+
+  for (const input of [
+    { ...base, editingLayout: false, deltaY: 1 },
+    { ...base, editingLayout: false, deltaY: -1, nextScale: 1.49 },
+    { ...base, editingLayout: true, deltaY: -1 },
+    { ...base, editingLayout: false, deltaY: -1, candidateWalletKey: null },
+  ]) {
+    assert.deepEqual(
+      resolveNetworkWheelEnterIntent(input),
+      {
+        distance: 0,
+        walletKey: null,
+        shouldEnter: false,
+      },
+    );
+  }
 });
