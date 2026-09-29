@@ -80,14 +80,22 @@ test('same VePassport identity is a high direct identity conflict and automatic 
   );
 });
 
-test('VePassport blacklist and bot signals pause for review but cannot auto blacklist by themselves', () => {
+test('VePassport blacklist and bot signals pause for review only when their protocol checks are enabled', () => {
   assert.match(
     pipeline,
-    /VEPASSPORT_SIGNAL_THRESHOLD_REACHED[\s\S]*family:\s*'ECOSYSTEM_REPUTATION'[\s\S]*strength:\s*'HIGH'/u,
+    /snapshot\.enabledChecks\.signaling[\s\S]*VEPASSPORT_SIGNAL_THRESHOLD_REACHED[\s\S]*family:\s*'ECOSYSTEM_REPUTATION'[\s\S]*strength:\s*'HIGH'/u,
   );
   assert.match(
     pipeline,
-    /VEPASSPORT_BLACKLISTED[\s\S]*family:\s*'ECOSYSTEM_REPUTATION'[\s\S]*strength:\s*'HIGH'/u,
+    /snapshot\.enabledChecks\.blacklist[\s\S]*VEPASSPORT_BLACKLISTED[\s\S]*family:\s*'ECOSYSTEM_REPUTATION'[\s\S]*strength:\s*'HIGH'/u,
+  );
+  assert.match(
+    passport,
+    /signalingCheckEnabled/u,
+  );
+  assert.match(
+    passport,
+    /blacklistCheckEnabled/u,
   );
   assert.doesNotMatch(
     migration,
@@ -99,7 +107,7 @@ test('VePassport blacklist and bot signals pause for review but cannot auto blac
   );
 });
 
-test('pre-activation Passport activity corroborates historical activity instead of double-counting a new domain', () => {
+test('pre-activation Passport activity corroborates historical activity with one Passport-level cumulative score read', () => {
   assert.match(
     pipeline,
     /VEPASSPORT_PREACTIVATION_ACTIVITY[\s\S]*family:\s*'HISTORICAL_REWARD'[\s\S]*strength:\s*'MEDIUM'/u,
@@ -107,6 +115,14 @@ test('pre-activation Passport activity corroborates historical activity instead 
   assert.match(
     pipeline,
     /entryClass === 'NEW'/u,
+  );
+  assert.match(
+    passport,
+    /preActivationCumulativeScore/u,
+  );
+  assert.match(
+    passport,
+    /getCumulativeScoreWithDecay\([\s\S]*resolvedPassport[\s\S]*BigInt\(preActivationRound\)/u,
   );
 });
 
