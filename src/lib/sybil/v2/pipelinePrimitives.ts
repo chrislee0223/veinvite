@@ -41,6 +41,40 @@ export function safeNonNegativeBlock(
     : null;
 }
 
+export function isFinalizedVoteCheckpoint({
+  voteCompleted,
+  voteBlock,
+  finalizedBlock,
+}: {
+  voteCompleted: boolean;
+  voteBlock:
+    | number
+    | string
+    | null
+    | undefined;
+  finalizedBlock:
+    | number
+    | string
+    | null
+    | undefined;
+}): boolean {
+  if (!voteCompleted) {
+    return false;
+  }
+
+  const parsedVoteBlock =
+    safeNonNegativeBlock(voteBlock);
+  const parsedFinalizedBlock =
+    safeNonNegativeBlock(finalizedBlock);
+
+  return (
+    parsedVoteBlock !== null &&
+    parsedFinalizedBlock !== null &&
+    parsedFinalizedBlock >=
+      parsedVoteBlock
+  );
+}
+
 export function safeRevision(
   value:
     | number
