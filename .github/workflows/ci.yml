@@ -129,6 +129,9 @@ jobs:
       - name: Recipient B3TR forensic gate
         run: node scripts/check-recipient-b3tr-forensics.mjs
 
+      - name: Sybil v2 pipeline primitives gate
+        run: node --experimental-strip-types --test tests/reward-sybil-v2-pipeline-primitives.test.mjs
+
       - name: Re-entry persistence gate
         run: node scripts/check-reentry-persistence.mjs
 

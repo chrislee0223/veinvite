@@ -25,6 +25,17 @@ import {
   type SybilV2Signal,
 } from '@/lib/sybil/v2/policy';
 import {
+  appOverlap,
+  hasHighSignal,
+  intervalsSimilar,
+  normalizeWallet,
+  safeError,
+  safeNonNegativeBlock,
+  safePositiveBlock,
+  safeRevision,
+  unique,
+} from '@/lib/sybil/v2/pipelinePrimitives';
+import {
   getVeBetterNetworkConfig,
   type VeBetterNetwork,
 } from '@/lib/vebetter/network';
@@ -202,34 +213,6 @@ export type SybilV2AssessmentResult = {
   clearanceIssued: boolean;
   clearanceId: string | null;
 };
-
-function safePositiveBlock(value: number | string | null): number | null {
-  const parsed = typeof value === 'number' ? value : Number(value);
-  return Number.isSafeInteger(parsed) && parsed > 0 ? parsed : null;
-}
-
-function safeNonNegativeBlock(value: number | string | null): number | null {
-  const parsed = typeof value === 'number' ? value : Number(value);
-  return Number.isSafeInteger(parsed) && parsed >= 0 ? parsed : null;
-}
-
-function safeRevision(value: number | string | null | undefined): number | null {
-  const parsed = typeof value === 'number' ? value : Number(value);
-  return Number.isSafeInteger(parsed) && parsed >= 0 ? parsed : null;
-}
-
-function safeError(error: unknown): string {
-  const message = error instanceof Error ? error.message : String(error);
-  return message.slice(0, 1000);
-}
-
-function normalizeWallet(value: string): string {
-  return value.trim().toLowerCase();
-}
-
-function unique<T>(values: T[]): T[] {
-  return [...new Set(values)];
-}
 
 function knownProtocolDestinations(): Set<string> {
   const config = getVeBetterNetworkConfig();
@@ -1650,36 +1633,6 @@ async function loadWatchFollowupSignals(
   return signals;
 }
 
-function intervalsSimilar(
-  left: Array<number | string> | null,
-  right: Array<number | string> | null,
-): boolean {
-  if (!left || !right || left.length === 0 || left.length !== right.length) {
-    return false;
-  }
-
-  return left.every((value, index) => {
-    const a = Number(value);
-    const b = Number(right[index]);
-    if (!Number.isFinite(a) || !Number.isFinite(b)) return false;
-    const absolute = Math.abs(a - b);
-    const relative = absolute / Math.max(60, a, b);
-    return absolute <= 600 && relative <= 0.35;
-  });
-}
-
-function appOverlap(left: string[], right: string[]): number {
-  const a = new Set(left);
-  const b = new Set(right);
-  const union = new Set([...a, ...b]);
-  if (union.size === 0) return 0;
-  let intersection = 0;
-  for (const value of a) {
-    if (b.has(value)) intersection += 1;
-  }
-  return intersection / union.size;
-}
-
 async function loadMissionBehaviorSignals(
   invitation: InvitationV2Row,
 ): Promise<{
@@ -1912,18 +1865,6 @@ async function hasActiveRestriction(
   }
 
   return (data ?? []).length > 0;
-}
-
-function hasHighSignal(
-  signals: SybilV2Signal[],
-  code: string,
-): boolean {
-  return signals.some(
-    (signal) =>
-      signal.code === code &&
-      signal.strength === 'HIGH' &&
-      signal.score > 0,
-  );
 }
 
 async function findConfirmedClusterHubMatch(
