@@ -79,26 +79,18 @@ test('notification UI distinguishes sent rewards from ordinary payout processing
   );
 });
 
-test('notification reward actions poll quickly only until canonical transfer confirmation', () => {
+test('notification reward actions use the tested polling policy without depending on action array identity', () => {
   assert.match(
     notificationCenter,
-    /REWARD_ACTION_PENDING_TRANSFER_POLL_MS = 5_000/,
+    /getRewardActionPollingMode\(rewardActions\)/,
   );
   assert.match(
     notificationCenter,
-    /REWARD_ACTION_IDLE_POLL_MS = 60_000/,
+    /rewardActionPollingIntervalMs\([\s\S]*rewardActionPollingMode/,
   );
   assert.match(
     notificationCenter,
-    /action\.status !== 'AWAITING_CLAIM'[\s\S]*!action\.broadcastConfirmedAt[\s\S]*!action\.txId/,
-  );
-  assert.match(
-    notificationCenter,
-    /hasPendingTransferConfirmation[\s\S]*REWARD_ACTION_PENDING_TRANSFER_POLL_MS[\s\S]*REWARD_ACTION_IDLE_POLL_MS/,
-  );
-  assert.match(
-    notificationCenter,
-    /\[hasPendingTransferConfirmation, loadRewardActions, open\]/,
+    /\[loadRewardActions, open, rewardActionPollingMode\]/,
   );
   assert.doesNotMatch(
     notificationCenter,

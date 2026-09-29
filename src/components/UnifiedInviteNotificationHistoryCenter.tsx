@@ -34,6 +34,10 @@ import type {
   RewardActionResponse,
 } from '@/lib/notifications/rewardAction';
 import {
+  getRewardActionPollingMode,
+  rewardActionPollingIntervalMs,
+} from '@/lib/notifications/rewardActionPolling';
+import {
   reportProductAnalyticsEvent,
 } from '@/lib/productAnalytics';
 import {
@@ -52,8 +56,6 @@ const REWARD_RECEIPT_ACKNOWLEDGED_EVENT =
   'veinvite-reward-receipt-acknowledged';
 const HOME_DATA_REFRESH_REQUESTED_EVENT =
   'veinvite-home-data-refresh-requested';
-const REWARD_ACTION_PENDING_TRANSFER_POLL_MS = 5_000;
-const REWARD_ACTION_IDLE_POLL_MS = 60_000;
 const FOCUSABLE_SELECTOR = [
   'button:not([disabled])',
   'a[href]',
@@ -445,11 +447,8 @@ export function InviteNotificationHistoryCenter({
     }
   }, [onRewardActionsChange, structure.errorBody]);
 
-  const hasPendingTransferConfirmation = rewardActions.some(
-    (action) =>
-      action.status !== 'AWAITING_CLAIM' &&
-      (!action.broadcastConfirmedAt || !action.txId),
-  );
+  const rewardActionPollingMode =
+    getRewardActionPollingMode(rewardActions);
 
   useLayoutEffect(() => {
     if (!open) {
@@ -469,9 +468,10 @@ export function InviteNotificationHistoryCenter({
     // inserting an action/loading section one frame later.
     void loadRewardActions();
 
-    const pollIntervalMs = hasPendingTransferConfirmation
-      ? REWARD_ACTION_PENDING_TRANSFER_POLL_MS
-      : REWARD_ACTION_IDLE_POLL_MS;
+    const pollIntervalMs =
+      rewardActionPollingIntervalMs(
+        rewardActionPollingMode,
+      );
     const timer = window.setInterval(() => {
       if (document.visibilityState === 'visible') {
         void loadRewardActions();
@@ -479,7 +479,7 @@ export function InviteNotificationHistoryCenter({
     }, pollIntervalMs);
 
     return () => window.clearInterval(timer);
-  }, [hasPendingTransferConfirmation, loadRewardActions, open]);
+  }, [loadRewardActions, open, rewardActionPollingMode]);
 
   const claimReward = useCallback(async (action: RewardActionItem) => {
     if (
