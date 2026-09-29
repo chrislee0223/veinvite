@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 import {
+  deriveNetworkWorkspaceVisibility,
   materializeExpandedWorkspaceGroupOffsets,
   moveWorkspaceMemberBetweenGroups,
   toggleWorkspaceGroupCollapsed,
@@ -11,6 +12,7 @@ import {
 const A = '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';
 const B = '0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb';
 const C = '0xcccccccccccccccccccccccccccccccccccccccc';
+const D = '0xdddddddddddddddddddddddddddddddddddddddd';
 
 function workspace(groups) {
   return { positions: {}, groups };
@@ -146,3 +148,108 @@ test('moving an expanded member preserves materialized offsets and gives the mov
     [A]: { x: 71, y: 82 },
   });
 });
+
+test('workspace visibility keeps expanded offsets and hides active invitees', () => {
+  const result = deriveNetworkWorkspaceVisibility({
+    positionedChildren: [
+      { wallet: A, x: 10, y: 20, status: 'QUALIFIED' },
+      { wallet: B, x: 30, y: 40, status: 'QUALIFIED' },
+      { wallet: C, x: 50, y: 60, status: 'IN_PROGRESS' },
+    ],
+    positionedInviteSlots: [
+      {
+        state: 'IN_PROGRESS',
+        inviteeWallet: C.toUpperCase(),
+      },
+    ],
+    groups: [
+      {
+        id: 'expanded',
+        label: 'Expanded',
+        members: [A, B],
+        x: 100,
+        y: 200,
+        collapsed: false,
+        memberOffsets: {
+          [A]: { x: 5, y: 6 },
+        },
+      },
+    ],
+    groupDraft: null,
+    groupingWallet: null,
+    defaultMemberOffset: (index, count) => ({
+      x: index * 10,
+      y: count * 10,
+    }),
+  });
+
+  assert.equal(result.activeInviteeKeys.has(C), true);
+  assert.deepEqual(
+    result.displayedChildren.map(({ wallet, x, y }) => ({ wallet, x, y })),
+    [
+      { wallet: A, x: 105, y: 206 },
+      { wallet: B, x: 110, y: 220 },
+      { wallet: C, x: 50, y: 60 },
+    ],
+  );
+  assert.deepEqual(
+    result.visibleChildren.map((child) => child.wallet),
+    [A, B],
+  );
+  assert.equal(
+    result.visibleChildByWallet.get(B)?.x,
+    110,
+  );
+  assert.deepEqual(
+    result.visibleGroups.map((group) => group.id),
+    ['expanded'],
+  );
+  assert.deepEqual(
+    result.displayedChildPointByWallet.get(C),
+    { x: 50, y: 60 },
+  );
+});
+
+test('workspace visibility preserves collapsed groups and draft grouping behavior', () => {
+  const result = deriveNetworkWorkspaceVisibility({
+    positionedChildren: [
+      { wallet: A, x: 10, y: 20 },
+      { wallet: B, x: 30, y: 40 },
+      { wallet: C, x: 50, y: 60 },
+      { wallet: D, x: 70, y: 80 },
+    ],
+    positionedInviteSlots: [],
+    groups: [
+      {
+        id: 'collapsed',
+        label: 'Collapsed',
+        members: [A],
+        x: 100,
+        y: 200,
+        collapsed: true,
+      },
+    ],
+    groupDraft: {
+      members: [B, C],
+    },
+    groupingWallet: B,
+    defaultMemberOffset: () => ({
+      x: 0,
+      y: 0,
+    }),
+  });
+
+  assert.deepEqual(
+    result.visibleChildren.map((child) => child.wallet),
+    [B, D],
+  );
+  assert.equal(
+    result.groupByMember.get(A)?.id,
+    'collapsed',
+  );
+  assert.deepEqual(
+    result.visibleGroups.map((group) => group.id),
+    ['collapsed'],
+  );
+});
+
