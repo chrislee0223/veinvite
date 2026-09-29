@@ -445,6 +445,12 @@ export function InviteNotificationHistoryCenter({
     }
   }, [onRewardActionsChange, structure.errorBody]);
 
+  const hasPendingTransferConfirmation = rewardActions.some(
+    (action) =>
+      action.status !== 'AWAITING_CLAIM' &&
+      (!action.broadcastConfirmedAt || !action.txId),
+  );
+
   useLayoutEffect(() => {
     if (!open) {
       actionRequestRef.current += 1;
@@ -463,11 +469,6 @@ export function InviteNotificationHistoryCenter({
     // inserting an action/loading section one frame later.
     void loadRewardActions();
 
-    const hasPendingTransferConfirmation = rewardActions.some(
-      (action) =>
-        action.status !== 'AWAITING_CLAIM' &&
-        (!action.broadcastConfirmedAt || !action.txId),
-    );
     const pollIntervalMs = hasPendingTransferConfirmation
       ? REWARD_ACTION_PENDING_TRANSFER_POLL_MS
       : REWARD_ACTION_IDLE_POLL_MS;
@@ -478,7 +479,7 @@ export function InviteNotificationHistoryCenter({
     }, pollIntervalMs);
 
     return () => window.clearInterval(timer);
-  }, [loadRewardActions, open, rewardActions]);
+  }, [hasPendingTransferConfirmation, loadRewardActions, open]);
 
   const claimReward = useCallback(async (action: RewardActionItem) => {
     if (
