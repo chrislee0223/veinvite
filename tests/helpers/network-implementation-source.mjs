@@ -5,6 +5,7 @@ export const NETWORK_IMPLEMENTATION_PATHS = Object.freeze([
   'src/lib/networkAppClient.ts',
   'src/lib/networkAppViewHelpers.ts',
   'src/lib/networkDataClient.ts',
+  'src/lib/networkSearch.ts',
 ]);
 
 export async function readNetworkImplementationBundle() {

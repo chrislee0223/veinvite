@@ -2,7 +2,10 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import test from 'node:test';
 
-const network = await readFile('src/components/AppNetwork.tsx', 'utf8');
+const [network, networkSearch] = await Promise.all([
+  readFile('src/components/AppNetwork.tsx', 'utf8'),
+  readFile('src/lib/networkSearch.ts', 'utf8'),
+]);
 
 function sliceBetween(source, start, end) {
   const from = source.indexOf(start);
@@ -13,11 +16,13 @@ function sliceBetween(source, start, end) {
 }
 
 test('plain-text VET domain prefixes do not waste wallet-search API quota', () => {
-  assert.match(network, /const isWalletLikeSearch = normalizedSearchQuery\.startsWith\('0x'\)/);
+  assert.match(networkSearch, /normalizedQuery\.startsWith\('0x'\)/);
   assert.match(
-    network,
-    /if \(!resolvedSearchAddress && !isWalletLikeSearch\) \{[\s\S]*setSearchResults\(\[\]\);[\s\S]*setPublicSearchWallet\(null\);[\s\S]*setSearching\(false\);[\s\S]*return;/,
+    networkSearch,
+    /!resolvedSearchAddress &&[\s\S]*!isWalletLikeSearch[\s\S]*return 'blocked'/,
   );
+  assert.match(networkSearch, /normalizedQuery\.includes\('\.'\)/);
+  assert.match(network, /getNetworkSearchReadiness\(/);
   assert.match(network, /readCachedLeaderboardDomainSuggestions\(normalizedSearchQuery\)/);
 });
 
