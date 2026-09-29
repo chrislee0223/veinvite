@@ -251,6 +251,63 @@ export function withWorkspaceGroupCollapsed(
   };
 }
 
+export function toggleWorkspaceGroupCollapsed(
+  workspace: NetworkFocusWorkspace,
+  groupId: string,
+): NetworkFocusWorkspace {
+  const group = workspace.groups.find((item) => item.id === groupId);
+  if (!group) return workspace;
+  return withWorkspaceGroupCollapsed(
+    workspace,
+    groupId,
+    group.collapsed === false,
+  );
+}
+
+export function withWorkspaceGroupLabel(
+  workspace: NetworkFocusWorkspace,
+  groupId: string,
+  label: string,
+): NetworkFocusWorkspace {
+  const group = workspace.groups.find((item) => item.id === groupId);
+  if (!group || group.label === label) return workspace;
+  return {
+    ...workspace,
+    groups: workspace.groups.map((item) => (
+      item.id === groupId ? { ...item, label } : item
+    )),
+  };
+}
+
+export function materializeExpandedWorkspaceGroupOffsets(
+  workspace: NetworkFocusWorkspace,
+  groupId: string | undefined,
+  resolveMemberPoint: (
+    group: NetworkWorkspaceGroup,
+    member: string,
+  ) => NetworkWorkspacePoint,
+): NetworkFocusWorkspace {
+  if (!groupId) return workspace;
+  const group = workspace.groups.find((item) => item.id === groupId);
+  if (!group || group.collapsed !== false) return workspace;
+
+  let next = workspace;
+  for (const member of group.members) {
+    const key = member.toLowerCase();
+    const point = resolveMemberPoint(group, key);
+    next = withWorkspaceGroupMemberOffset(
+      next,
+      group.id,
+      key,
+      {
+        x: point.x - group.x,
+        y: point.y - group.y,
+      },
+    );
+  }
+  return next;
+}
+
 export function addWorkspaceGroup(
   workspace: NetworkFocusWorkspace,
   group: NetworkWorkspaceGroup,
@@ -332,6 +389,60 @@ export function moveWorkspaceMemberToGroup(
     ...workspace,
     groups: keepValidGroups(groups),
   };
+}
+
+export function moveWorkspaceMemberBetweenGroups(
+  workspace: NetworkFocusWorkspace,
+  wallet: string,
+  sourceGroupId: string | undefined,
+  targetGroupId: string,
+  resolveMemberPoint: (
+    group: NetworkWorkspaceGroup,
+    member: string,
+  ) => NetworkWorkspacePoint,
+  defaultMemberOffset: (
+    index: number,
+    count: number,
+  ) => NetworkWorkspacePoint,
+): NetworkFocusWorkspace {
+  let prepared = materializeExpandedWorkspaceGroupOffsets(
+    workspace,
+    sourceGroupId,
+    resolveMemberPoint,
+  );
+  prepared = materializeExpandedWorkspaceGroupOffsets(
+    prepared,
+    targetGroupId,
+    resolveMemberPoint,
+  );
+
+  let next = moveWorkspaceMemberToGroup(
+    prepared,
+    wallet,
+    targetGroupId,
+  );
+  if (next === prepared) return next;
+
+  const target = next.groups.find(
+    (group) => group.id === targetGroupId,
+  );
+  if (target?.collapsed === false) {
+    const key = wallet.toLowerCase();
+    const index = Math.max(
+      0,
+      target.members.findIndex(
+        (member) => member.toLowerCase() === key,
+      ),
+    );
+    next = withWorkspaceGroupMemberOffset(
+      next,
+      targetGroupId,
+      key,
+      defaultMemberOffset(index, target.members.length),
+    );
+  }
+
+  return next;
 }
 
 export function removeWorkspaceMemberFromGroup(
