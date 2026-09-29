@@ -4518,6 +4518,14 @@ export async function runSybilV2AssessmentBatch(
 
       const assessment = await loadAssessment(inviteCode);
       let operatorClearWithNewEvidence = false;
+      const operatorInvalidPreVoteFinality =
+        invitation.vote_completed !== true &&
+        Array.isArray(
+          assessment?.completed_checks,
+        ) &&
+        assessment.completed_checks.includes(
+          'CHAIN_FINALITY',
+        );
 
       if (
         assessment?.source === 'OPERATOR'
@@ -4539,7 +4547,10 @@ export async function runSybilV2AssessmentBatch(
             inviteCode,
           );
 
-        if (!operatorClearWithNewEvidence) {
+        if (
+          !operatorClearWithNewEvidence &&
+          !operatorInvalidPreVoteFinality
+        ) {
           continue;
         }
       }
