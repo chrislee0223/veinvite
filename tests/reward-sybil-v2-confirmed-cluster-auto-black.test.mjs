@@ -10,6 +10,10 @@ const migration = await readFile(
   'supabase/migrations/20260929174500_add_prevote_funder_return_loop_enforcement.sql',
   'utf8',
 );
+const corroborationMigration = await readFile(
+  'supabase/migrations/20260929193000_expand_confirmed_hub_corroboration.sql',
+  'utf8',
+);
 const pipeline = await readFile(
   'src/lib/sybil/v2/pipeline.ts',
   'utf8',
@@ -100,6 +104,45 @@ test('confirmed cluster blacklist is retrospective only for unpaid/unassigned SY
   );
 });
 
+test('confirmed malicious hub enforcement accepts only strong corroboration beyond the hub link', () => {
+  assert.match(
+    corroborationMigration,
+    /HISTORICAL_COMMON_B3TR_SINK/u,
+  );
+  assert.match(
+    corroborationMigration,
+    /HISTORICAL_SINK_REAPPEARS_AS_INVITER/u,
+  );
+  assert.match(
+    corroborationMigration,
+    /HISTORICAL_DENSE_B3TR_BURST/u,
+  );
+  assert.match(
+    corroborationMigration,
+    /MISSION_PATTERN_CLUSTER/u,
+  );
+  assert.match(
+    corroborationMigration,
+    /CONFIRMED_CLUSTER_CORROBORATION_MISSING/u,
+  );
+  assert.match(
+    corroborationMigration,
+    /confirmedClusterCorroboration/u,
+  );
+  assert.match(
+    corroborationMigration,
+    /v_invitation\.reward_status = 'PAID'/u,
+  );
+  assert.match(
+    corroborationMigration,
+    /q\.status = 'ASSIGNED'/u,
+  );
+  assert.match(
+    corroborationMigration,
+    /sybil_v2_cluster_hub_allowlist/u,
+  );
+});
+
 test('runtime keeps the normal policy at HOLD and only then invokes confirmed-cluster enforcement', () => {
   const policyIndex = pipeline.indexOf(
     'const policy = evaluateSybilV2Policy',
@@ -129,6 +172,14 @@ test('runtime keeps the normal policy at HOLD and only then invokes confirmed-cl
   );
   assert.match(
     pipeline,
+    /HISTORICAL_DENSE_B3TR_BURST/u,
+  );
+  assert.match(
+    pipeline,
+    /MISSION_PATTERN_CLUSTER/u,
+  );
+  assert.match(
+    pipeline,
     /CONFIRMED_CLUSTER_LINK_CODES/u,
   );
   assert.doesNotMatch(
@@ -144,6 +195,6 @@ test('runtime keeps the normal policy at HOLD and only then invokes confirmed-cl
 test('Sybil policy version advances for pre-vote and retrospective enforcement', () => {
   assert.match(
     policy,
-    /SYBIL_V2_POLICY_VERSION = 'sybil-v2\.10'/u,
+    /SYBIL_V2_POLICY_VERSION = 'sybil-v2\.11'/u,
   );
 });
