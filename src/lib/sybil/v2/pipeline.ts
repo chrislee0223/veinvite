@@ -1748,11 +1748,7 @@ async function findConfirmedClusterHubMatch(
 ): Promise<ConfirmedClusterHubRow | null> {
   if (
     !invitation.activation_network ||
-    !invitation.invitee_wallet ||
-    !hasHighSignal(
-      signals,
-      'HISTORICAL_SYNCHRONIZED_REWARD_CLUSTER',
-    )
+    !invitation.invitee_wallet
   ) {
     return null;
   }
@@ -1765,7 +1761,10 @@ async function findConfirmedClusterHubMatch(
     .eq('invite_code', invitation.invite_code)
     .eq('network', invitation.activation_network)
     .eq('subject_wallet', subjectWallet)
-    .in('signal_code', [...CONFIRMED_CLUSTER_LINK_CODES]);
+    .in('signal_code', [
+      ...CONFIRMED_CLUSTER_LINK_CODES,
+      'HISTORICAL_DENSE_B3TR_BURST',
+    ]);
 
   if (evidenceResult.error) {
     throw new Error(
@@ -1793,10 +1792,26 @@ async function findConfirmedClusterHubMatch(
     codesByHub.set(hub, codes);
   }
 
+  const hasSynchronizedReward = hasHighSignal(
+    signals,
+    'HISTORICAL_SYNCHRONIZED_REWARD_CLUSTER',
+  );
+  const hasMissionPattern = signals.some(
+    (signal) =>
+      signal.code === 'MISSION_PATTERN_CLUSTER' &&
+      ['MEDIUM', 'HIGH'].includes(signal.strength) &&
+      signal.score > 0,
+  );
+
   const candidateHubs = [...codesByHub.entries()]
     .filter(([, codes]) =>
       CONFIRMED_CLUSTER_LINK_CODES.every((code) =>
         codes.has(code),
+      ) &&
+      (
+        hasSynchronizedReward ||
+        hasMissionPattern ||
+        codes.has('HISTORICAL_DENSE_B3TR_BURST')
       ),
     )
     .map(([hub]) => hub);
@@ -1828,8 +1843,11 @@ async function findConfirmedClusterHubMatch(
 
   // Confirmation time is knowledge time, not offense time. For any unpaid
   // referral, newly confirmed historical cluster evidence may be applied
-  // retroactively. Paid/assigned rewards remain protected by the enforcement
-  // RPC and post-payout review path.
+  // retroactively. Hub linkage alone is never enough: the subject must also
+  // reproduce the common-sink/inviter relationship and have synchronized
+  // rewards, a dense B3TR burst, or an independent mission-pattern cluster.
+  // Paid/assigned rewards remain protected by the enforcement RPC and
+  // post-payout review path.
   return (
     matches
       .filter((row) => !Number.isNaN(Date.parse(row.confirmed_at)))
