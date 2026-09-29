@@ -23,6 +23,20 @@ export type NetworkPinchState = {
 export const NETWORK_HOLD_CANCEL_DISTANCE = 8;
 export const NETWORK_PINCH_ENTER_SCALE_MULTIPLIER = 1.18;
 export const NETWORK_PINCH_RETURN_SCALE_MULTIPLIER = 0.88;
+export const NETWORK_WHEEL_RETURN_DISTANCE = 160;
+export const NETWORK_WHEEL_MIN_SCALE_TOLERANCE = 0.01;
+
+export type NetworkWheelReturnDecision = {
+  distance: number;
+  shouldReturn: boolean;
+  consume: boolean;
+};
+
+export type NetworkWheelEnterDecision = {
+  distance: number;
+  walletKey: string | null;
+  shouldEnter: boolean;
+};
 
 export function networkGestureDistance(
   a: NetworkGesturePoint,
@@ -154,4 +168,99 @@ export function shouldReturnFromNetworkPinch(
   return rawScale <
     minScale *
       NETWORK_PINCH_RETURN_SCALE_MULTIPLIER;
+}
+
+export function resolveNetworkWheelReturnIntent({
+  editingLayout,
+  deltaY,
+  scale,
+  minScale,
+  hasParent,
+  accumulatedDistance,
+}: {
+  editingLayout: boolean;
+  deltaY: number;
+  scale: number;
+  minScale: number;
+  hasParent: boolean;
+  accumulatedDistance: number;
+}): NetworkWheelReturnDecision {
+  const atMinimumScale =
+    scale <= minScale + NETWORK_WHEEL_MIN_SCALE_TOLERANCE;
+  const shouldAccumulate =
+    !editingLayout &&
+    deltaY > 0 &&
+    atMinimumScale &&
+    hasParent;
+
+  if (shouldAccumulate) {
+    const distance =
+      accumulatedDistance +
+      Math.abs(deltaY);
+    const shouldReturn =
+      distance >= NETWORK_WHEEL_RETURN_DISTANCE;
+
+    return {
+      distance: shouldReturn ? 0 : distance,
+      shouldReturn,
+      consume: true,
+    };
+  }
+
+  return {
+    distance:
+      deltaY <= 0 || !atMinimumScale
+        ? 0
+        : accumulatedDistance,
+    shouldReturn: false,
+    consume: false,
+  };
+}
+
+export function resolveNetworkWheelEnterIntent({
+  editingLayout,
+  deltaY,
+  nextScale,
+  enterScale,
+  candidateWalletKey,
+  activeWalletKey,
+  accumulatedDistance,
+  enterDistance,
+}: {
+  editingLayout: boolean;
+  deltaY: number;
+  nextScale: number;
+  enterScale: number;
+  candidateWalletKey: string | null;
+  activeWalletKey: string | null;
+  accumulatedDistance: number;
+  enterDistance: number;
+}): NetworkWheelEnterDecision {
+  if (
+    !editingLayout &&
+    deltaY < 0 &&
+    candidateWalletKey &&
+    nextScale >= enterScale
+  ) {
+    const distance =
+      activeWalletKey === candidateWalletKey
+        ? accumulatedDistance + Math.abs(deltaY)
+        : Math.abs(deltaY);
+    const shouldEnter =
+      distance >= enterDistance;
+
+    return {
+      distance: shouldEnter ? 0 : distance,
+      walletKey: shouldEnter
+        ? null
+        : candidateWalletKey,
+      shouldEnter,
+    };
+  }
+
+  return {
+    distance: 0,
+    walletKey: null,
+    shouldEnter: false,
+  };
 }
