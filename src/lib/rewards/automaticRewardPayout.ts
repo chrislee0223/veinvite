@@ -949,13 +949,10 @@ async function broadcastSignedTransaction({
     await thor.transactions.sendTransaction(signed);
   const sentId = String(sent.id).toLowerCase();
 
-  console.info(
-    'Automatic reward broadcast completed:',
-    {
-      txId,
-      durationMs: Date.now() - broadcastStartedAt,
-    },
-  );
+  console.info('Reward broadcast:', {
+    txId,
+    durationMs: Date.now() - broadcastStartedAt,
+  });
 
   if (sentId !== txId) {
     throw new Error(
