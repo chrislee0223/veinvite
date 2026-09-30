@@ -66,7 +66,12 @@ where r.status = 'ACTIVE'
   and r.source in ('OPERATOR','SYSTEM')
   and r.related_invite_code is not null
   and (r.evidence_summary ->> 'restrictionScope') = 'INVITEE_ONLY'
-  and i.reward_status <> 'PAID'
+  and i.referral_link_id is not null
+  and i.invite_slot is not null
+  and i.status = 'CANCELLED'
+  and i.reward_status = 'FORFEITED'
+  and i.sybil_status = 'BLOCKED'
+  and i.slot_released_at is not null
   and not exists (
     select 1
     from public.reward_queue_entries q
@@ -102,6 +107,11 @@ declare
   v_network text := lower(btrim(p_network));
   v_row public.sybil_v2_wallet_restrictions%rowtype;
   v_invitation public.invitations%rowtype;
+  v_assessment public.sybil_v2_referral_assessments%rowtype;
+  v_record jsonb;
+  v_clearance jsonb := null;
+  v_revision bigint := null;
+  v_restore_status text;
   v_now timestamptz := clock_timestamp();
   v_remaining bigint := 0;
 begin
@@ -158,8 +168,15 @@ begin
   if lower(coalesce(v_invitation.activation_network,'')) <> v_network then
     raise exception 'INVITEE_RESTRICTION_NETWORK_MISMATCH';
   end if;
-  if v_invitation.reward_status = 'PAID'
-     or exists (
+  if v_invitation.referral_link_id is null
+     or v_invitation.invite_slot is null
+     or v_invitation.status <> 'CANCELLED'
+     or v_invitation.reward_status <> 'FORFEITED'
+     or v_invitation.sybil_status <> 'BLOCKED'
+     or v_invitation.slot_released_at is null then
+    raise exception 'INVITEE_RESTRICTION_NOT_RESTORABLE';
+  end if;
+  if exists (
        select 1
        from public.reward_queue_entries q
        where q.invite_code = v_invitation.invite_code
@@ -174,6 +191,57 @@ begin
     raise exception 'INVITEE_RESTRICTION_REWARD_ALREADY_FINAL';
   end if;
 
+  perform pg_advisory_xact_lock(
+    hashtextextended(
+      'veinvite_referral_inviter_' || lower(v_invitation.inviter_wallet),
+      0
+    )
+  );
+  perform pg_advisory_xact_lock(
+    hashtextextended(
+      'veinvite_sybil_v2_' || v_invitation.invite_code,
+      0
+    )
+  );
+
+  if exists (
+    select 1
+    from public.invitations i
+    where i.id <> v_invitation.id
+      and lower(btrim(i.inviter_wallet)) =
+        lower(btrim(v_invitation.inviter_wallet))
+      and i.invite_slot = v_invitation.invite_slot
+      and (
+        i.status = 'PENDING_ACCEPTANCE'
+        or (
+          i.status in ('ACTIVATING','UNDER_REVIEW')
+          and i.eligibility_check_id is not null
+          and i.activation_network is not null
+          and i.sybil_status <> 'BLOCKED'
+        )
+        or (
+          i.status = 'COMPLETED'
+          and i.eligibility_check_id is not null
+          and i.activation_network is not null
+          and i.sybil_status <> 'BLOCKED'
+          and i.slot_released_at is null
+        )
+      )
+  ) then
+    raise exception 'INVITEE_RESTRICTION_SLOT_REUSED';
+  end if;
+
+  select *
+  into v_assessment
+  from public.sybil_v2_referral_assessments a
+  where a.invite_code = v_invitation.invite_code
+    and a.network = v_network
+  for update;
+
+  if not found or v_assessment.state <> 'RESTRICTED' then
+    raise exception 'INVITEE_RESTRICTION_ASSESSMENT_NOT_RESTRICTED';
+  end if;
+
   update public.sybil_v2_wallet_restrictions
   set
     status = 'REINSTATED',
@@ -184,6 +252,72 @@ begin
   if not found then
     raise exception 'INVITEE_RESTRICTION_STATE_CHANGED';
   end if;
+
+  v_restore_status := case
+    when v_invitation.vote_completed = true
+     and v_invitation.vote_completed_at is not null
+     and v_invitation.vote_completed_block is not null
+     and v_invitation.vote_round_id is not null
+     and coalesce(v_invitation.apps_completed, 0) >= 3
+     and v_invitation.apps_completed_block is not null
+     and v_invitation.activation_block is not null
+     and v_invitation.apps_completed_block >= v_invitation.activation_block
+     and v_invitation.vote_completed_block >= v_invitation.apps_completed_block
+      then 'COMPLETED'
+    else 'ACTIVATING'
+  end;
+
+  update public.invitations
+  set
+    status = v_restore_status,
+    sybil_status = 'CLEAR',
+    sybil_risk_level = 'NONE',
+    sybil_risk_score = 0,
+    sybil_reason = v_reason,
+    sybil_checked_at = v_now,
+    sybil_source = 'OPERATOR',
+    slot_released_at = null
+  where id = v_invitation.id;
+
+  v_record := public.record_sybil_v2_assessment(
+    v_invitation.invite_code,
+    v_network,
+    'CLEAR',
+    0,
+    v_assessment.policy_version,
+    v_assessment.analyzer_version,
+    v_assessment.evidence_cutoff_block,
+    v_assessment.required_checks,
+    v_assessment.completed_checks,
+    v_assessment.reason_codes
+      || jsonb_build_array('OPERATOR_REINSTATED_FALSE_POSITIVE'),
+    v_assessment.evidence_summary
+      || jsonb_build_object(
+        'operatorReason', v_reason,
+        'operatorWallet', v_operator,
+        'operatorDecision', 'REINSTATE',
+        'operatorReinstatedAt', v_now,
+        'previousRestrictionId', v_row.id,
+        'previousRestrictionSource', v_row.source,
+        'restoredInvitationStatus', v_restore_status
+      ),
+    'OPERATOR',
+    v_assessment.revision
+  );
+
+  if coalesce((v_record ->> 'updated')::boolean, false) is not true then
+    raise exception 'INVITEE_RESTRICTION_ASSESSMENT_STATE_CHANGED';
+  end if;
+
+  v_revision := nullif(v_record ->> 'revision','')::bigint;
+  if v_revision is null then
+    raise exception 'INVITEE_RESTRICTION_CLEAR_REVISION_MISSING';
+  end if;
+
+  v_clearance := public.issue_sybil_v2_reward_clearance(
+    v_invitation.invite_code,
+    v_revision
+  );
 
   insert into public.sybil_v2_invitee_reinstatement_events(
     restriction_id,
@@ -229,8 +363,14 @@ begin
     'reinstatedAt', v_now,
     'remainingActiveRestrictionCount', v_remaining,
     'futureParticipationRestored', v_remaining = 0,
-    'invitationChanged', false,
-    'pastRewardChanged', false
+    'invitationChanged', true,
+    'restoredInvitationStatus', v_restore_status,
+    'assessmentRevision', v_revision,
+    'clearanceIssued',
+      coalesce((v_clearance ->> 'issued')::boolean, false),
+    'clearanceId', v_clearance ->> 'clearanceId',
+    'clearanceReason', v_clearance ->> 'reason',
+    'pastPaidRewardChanged', false
   );
 end;
 $function$;
@@ -243,11 +383,11 @@ grant execute on function public.reinstate_sybil_v2_invitee_restriction(
 ) to service_role;
 
 comment on view public.operator_sybil_v2_active_invitee_restrictions is
-  'Service-only active unpaid INVITEE_ONLY restrictions that may be explicitly reinstated by an operator. Reinstatement restores future VeInvite access only; the blocked referral and past reward outcome remain immutable.';
+  'Service-only active unpaid modern INVITEE_ONLY restrictions whose original referral slot is still recoverable. They are not added to the normal manual-review queue.';
 
 comment on function public.reinstate_sybil_v2_invitee_restriction(
   uuid,text,text,text
 ) is
-  'Audited operator recovery for a false-positive unpaid invitee restriction. It only resolves the active wallet restriction and never resurrects the cancelled referral or changes past reward state.';
+  'Audited false-positive recovery for an unpaid blocked invitee. It restores the original referral only while its permanent-link slot has not been reused, records an OPERATOR CLEAR assessment, preserves any already-paid reward history, and never changes inviter identity or network provenance.';
 
 commit;
