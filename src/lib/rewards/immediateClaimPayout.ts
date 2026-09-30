@@ -3,7 +3,6 @@ import 'server-only';
 import { randomUUID } from 'node:crypto';
 
 import { readVeInviteRewardPoolStatus } from '@/lib/rewards/onchainPool';
-import { readRewardRuntimeSafety } from '@/lib/rewards/runtimeSafety';
 import { supabaseAdmin } from '@/lib/supabaseServer';
 import { getVeBetterNetworkConfig } from '@/lib/vebetter/network';
 
@@ -118,14 +117,11 @@ Promise<ClaimFastPathPreparation> {
   }
 
   try {
-    const [pool, runtime] = await Promise.all([
-      readVeInviteRewardPoolStatus(),
-      readRewardRuntimeSafety(),
-    ]);
+    const pool = await readVeInviteRewardPoolStatus();
 
     if (
       network === 'mainnet' &&
-      !runtime.mainnetFundedRewardsEnabled
+      !pool.mainnetFundedRewardsEnabled
     ) {
       return {
         status: 'SAFETY_BLOCKED',
@@ -134,10 +130,7 @@ Promise<ClaimFastPathPreparation> {
       };
     }
 
-    if (
-      runtime.emergencyRewardsPaused ||
-      pool.distributionPaused
-    ) {
+    if (pool.distributionPaused) {
       return {
         status: 'SAFETY_BLOCKED',
         roundId: null,
