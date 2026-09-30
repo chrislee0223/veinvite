@@ -78,8 +78,8 @@ test('automatic payout refreshes funding and runtime safety immediately before s
   assert.ok(liabilityIndex >= 0);
   assert.ok(privateKeyIndex > freshPoolIndex);
   assert.ok(privateKeyIndex > liabilityIndex);
-  assert.match(signer, /readRewardRuntimeSafety\(\)/u);
-  assert.match(signer, /freshRuntime\.emergencyRewardsPaused/u);
+  assert.doesNotMatch(signer, /readRewardRuntimeSafety\(\)/u);
+  assert.match(signer, /freshPool\.mainnetFundedRewardsEnabled/u);
   assert.match(signer, /freshPool\.distributionPaused/u);
   assert.match(signer, /freshPool\.rewardDistributors\.includes/u);
   assert.match(

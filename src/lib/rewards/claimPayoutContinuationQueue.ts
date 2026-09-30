@@ -161,7 +161,7 @@ function initialDelaySeconds(
     // The transaction is already journaled/submitted. Give the chain time to
     // advance before the first durable reconciliation instead of immediately
     // repeating the same finality read performed by the Claim request.
-    return 30;
+    return 10;
   }
 
   // LOCKED / PREPARED / temporary operational stops / a failed synchronous

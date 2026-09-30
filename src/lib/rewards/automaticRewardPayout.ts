@@ -23,9 +23,6 @@ import {
   readPredictiveRewardPlanning,
 } from '@/lib/rewards/predictivePlanning';
 import {
-  readRewardRuntimeSafety,
-} from '@/lib/rewards/runtimeSafety';
-import {
   RewardTransactionVerificationError,
   verifyFinalizedRewardTransactionOnChain,
 } from '@/lib/rewards/transactionVerification';
@@ -720,11 +717,9 @@ async function signAndJournalTransaction({
   // prepared but before its immutable transaction is signed.
   const [
     freshPool,
-    freshRuntime,
     outstandingLiabilityWei,
   ] = await Promise.all([
     readVeInviteRewardPoolStatus(),
-    readRewardRuntimeSafety(),
     readOutstandingRewardLiability(network, appId),
   ]);
 
@@ -738,17 +733,14 @@ async function signAndJournalTransaction({
 
   if (
     network === 'mainnet' &&
-    !freshRuntime.mainnetFundedRewardsEnabled
+    !freshPool.mainnetFundedRewardsEnabled
   ) {
     throw new Error(
       'Mainnet funded rewards were disabled before automatic payout signing.',
     );
   }
 
-  if (
-    freshRuntime.emergencyRewardsPaused ||
-    freshPool.distributionPaused
-  ) {
+  if (freshPool.distributionPaused) {
     throw new Error(
       'Reward distribution was paused before automatic payout signing.',
     );
@@ -924,23 +916,27 @@ function isNotFoundError(error: unknown): boolean {
 async function broadcastSignedTransaction({
   txId,
   rawTxHex,
+  checkExisting = true,
 }: {
   txId: string;
   rawTxHex: string;
+  checkExisting?: boolean;
 }): Promise<boolean> {
   const { nodeUrl } = getVeBetterNetworkConfig();
   const thor = ThorClient.at(nodeUrl);
 
-  try {
-    const existing =
-      await thor.transactions.getTransaction(txId);
+  if (checkExisting) {
+    try {
+      const existing =
+        await thor.transactions.getTransaction(txId);
 
-    if (existing) {
-      return false;
-    }
-  } catch (error) {
-    if (!isNotFoundError(error)) {
-      throw error;
+      if (existing) {
+        return false;
+      }
+    } catch (error) {
+      if (!isNotFoundError(error)) {
+        throw error;
+      }
     }
   }
 
@@ -948,9 +944,15 @@ async function broadcastSignedTransaction({
     Hex.of(rawTxHex).bytes,
     true,
   );
+  const broadcastStartedAt = Date.now();
   const sent =
     await thor.transactions.sendTransaction(signed);
   const sentId = String(sent.id).toLowerCase();
+
+  console.info('Reward broadcast:', {
+    txId,
+    durationMs: Date.now() - broadcastStartedAt,
+  });
 
   if (sentId !== txId) {
     throw new Error(
@@ -1137,12 +1139,10 @@ export async function runAutomaticRewardPayout(
     identity.expectedAddress;
   const pool =
     await readVeInviteRewardPoolStatus();
-  const runtime =
-    await readRewardRuntimeSafety();
 
   if (
     network === 'mainnet' &&
-    !runtime.mainnetFundedRewardsEnabled
+    !pool.mainnetFundedRewardsEnabled
   ) {
     return {
       status: 'DISABLED',
@@ -1157,10 +1157,7 @@ export async function runAutomaticRewardPayout(
     };
   }
 
-  if (
-    runtime.emergencyRewardsPaused ||
-    pool.distributionPaused
-  ) {
+  if (pool.distributionPaused) {
     return {
       status: 'DISABLED',
       network,
@@ -1363,11 +1360,10 @@ export async function runAutomaticRewardPayout(
     }
 
     if (!state.checkpoint) {
-      await ensureCheckpoint(manifestId);
-      state = await loadActiveRewardState(
-        network,
-        pool.appId,
-      );
+      state = {
+        ...state,
+        checkpoint: await ensureCheckpoint(manifestId),
+      };
     }
 
     const manifest = rebuildManifest(
@@ -1467,7 +1463,10 @@ export async function runAutomaticRewardPayout(
     });
 
     const transferred =
-      await broadcastSignedTransaction(signed);
+      await broadcastSignedTransaction({
+        ...signed,
+        checkExisting: false,
+      });
 
     return {
       status: 'SUBMITTED',

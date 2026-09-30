@@ -216,3 +216,35 @@ test(
     );
   },
 );
+
+
+test(
+  'submitted payout continuation checks canonical receipt after a short chain advance',
+  () => {
+    const start = queueHelper.indexOf(
+      'function initialDelaySeconds',
+    );
+    const end = queueHelper.indexOf(
+      'function idempotencyKey',
+      start,
+    );
+    const initialDelay = queueHelper.slice(start, end);
+
+    assert.match(
+      initialDelay,
+      /result\?\.status === 'SUBMITTED'/,
+    );
+    assert.match(
+      initialDelay,
+      /recovery\?\.status === 'WAITING_FINALITY'/,
+    );
+    assert.match(
+      initialDelay,
+      /return 10;/,
+    );
+    assert.match(
+      initialDelay,
+      /return 5;/,
+    );
+  },
+);
