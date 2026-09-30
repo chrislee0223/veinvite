@@ -99,6 +99,18 @@ type ActiveInviterRestrictionRow = {
   imposed_at: string;
 };
 
+type ActiveInviteeRestrictionRow = {
+  restriction_id: string;
+  network: string;
+  invitee_wallet: string;
+  inviter_wallet: string;
+  restriction_source: string;
+  reason_codes: unknown;
+  evidence_summary: unknown;
+  related_invite_code: string;
+  imposed_at: string;
+};
+
 type ReviewRow = InvitationReviewRow & {
   v2_state: string | null;
   v2_risk_score: number | null;
@@ -120,6 +132,10 @@ type ReviewRow = InvitationReviewRow & {
   inviter_active_restriction_id: string | null;
   inviter_active_restriction_reason_codes: unknown;
   inviter_active_restriction_imposed_at: string | null;
+  invitee_active_restriction_id: string | null;
+  invitee_active_restriction_source: string | null;
+  invitee_active_restriction_reason_codes: unknown;
+  invitee_active_restriction_imposed_at: string | null;
 };
 
 function noStoreHeaders() {
@@ -315,6 +331,26 @@ async function loadActiveInviterRestriction(
   return (data as ActiveInviterRestrictionRow | null) ?? null;
 }
 
+async function loadActiveInviteeRestriction(
+  inviteCode: string,
+): Promise<ActiveInviteeRestrictionRow | null> {
+  const { data, error } = await supabaseAdmin
+    .from('operator_sybil_v2_active_invitee_restrictions')
+    .select(
+      'restriction_id,network,invitee_wallet,inviter_wallet,restriction_source,reason_codes,evidence_summary,related_invite_code,imposed_at',
+    )
+    .eq('related_invite_code', inviteCode)
+    .maybeSingle();
+
+  if (error) {
+    throw new Error(
+      `Active invitee restriction could not be loaded: ${error.message}`,
+    );
+  }
+
+  return (data as ActiveInviteeRestrictionRow | null) ?? null;
+}
+
 async function loadPostPayoutReviewEvents(
   inviteCode: string,
 ) {
@@ -343,6 +379,7 @@ function decorateReview(
   postPayout: PostPayoutReviewRow | null = null,
   inviterReview: InviterReviewCandidateRow | null = null,
   activeInviterRestriction: ActiveInviterRestrictionRow | null = null,
+  activeInviteeRestriction: ActiveInviteeRestrictionRow | null = null,
 ): ReviewRow {
   return {
     ...invitation,
@@ -380,6 +417,14 @@ function decorateReview(
       activeInviterRestriction?.reason_codes ?? [],
     inviter_active_restriction_imposed_at:
       activeInviterRestriction?.imposed_at ?? null,
+    invitee_active_restriction_id:
+      activeInviteeRestriction?.restriction_id ?? null,
+    invitee_active_restriction_source:
+      activeInviteeRestriction?.restriction_source ?? null,
+    invitee_active_restriction_reason_codes:
+      activeInviteeRestriction?.reason_codes ?? [],
+    invitee_active_restriction_imposed_at:
+      activeInviteeRestriction?.imposed_at ?? null,
   };
 }
 
