@@ -46,6 +46,10 @@ type ReviewRow = {
   inviter_active_restriction_id: string | null;
   inviter_active_restriction_reason_codes: unknown;
   inviter_active_restriction_imposed_at: string | null;
+  invitee_active_restriction_id: string | null;
+  invitee_active_restriction_source: string | null;
+  invitee_active_restriction_reason_codes: unknown;
+  invitee_active_restriction_imposed_at: string | null;
 };
 
 type ReviewEvent = {
@@ -122,7 +126,19 @@ type ReviewDetailResponse = {
     related_invite_code: string;
     imposed_at: string;
   } | null;
+  activeInviteeRestriction?: {
+    restriction_id: string;
+    network: string;
+    invitee_wallet: string;
+    inviter_wallet: string;
+    restriction_source: string;
+    reason_codes: unknown;
+    evidence_summary: unknown;
+    related_invite_code: string;
+    imposed_at: string;
+  } | null;
   reviewMode?:
+    | 'INVITEE_RESTRICTION'
     | 'INVITER_RESTRICTION'
     | 'INVITER'
     | 'POST_PAYOUT'
@@ -430,6 +446,8 @@ export default function SybilReviewPage() {
       return;
     }
 
+    const isInviteeRestriction =
+      detail.reviewMode === 'INVITEE_RESTRICTION';
     const isInviterRestriction =
       detail.reviewMode === 'INVITER_RESTRICTION';
     const isInviter =
@@ -457,6 +475,7 @@ export default function SybilReviewPage() {
     }
 
     if (
+      !isInviteeRestriction &&
       !isInviterRestriction &&
       !isInviter &&
       !isPostPayout &&
@@ -465,6 +484,16 @@ export default function SybilReviewPage() {
     ) {
       setError(
         '기존 Sybil 검토 시점을 확인할 수 없습니다. 새로고침 후 다시 시도해 주세요. / The legacy review timestamp is unavailable.',
+      );
+      return;
+    }
+
+    if (
+      isInviteeRestriction &&
+      !invitation.invitee_active_restriction_id
+    ) {
+      setError(
+        '활성 피초대자 제한 ID를 확인할 수 없습니다. 새로고침 후 다시 시도해 주세요. / The active invitee restriction id is unavailable.',
       );
       return;
     }
@@ -513,9 +542,11 @@ export default function SybilReviewPage() {
             ? '블랙리스트(BLACKLIST)'
             : '차단(BLOCKED)';
 
-    const confirmMessage = isInviterRestriction
-      ? `${invitation.invite_code} 기준 초대자 제한을 REINSTATE할까요? 과거 사건·보상 기록은 유지되고 이 초대자의 향후 VeInvite 참여 제한만 해제됩니다.`
-      : isInviter
+    const confirmMessage = isInviteeRestriction
+      ? `${invitation.invite_code}의 피초대자 제한을 REINSTATE할까요? 기존 차단 추천과 과거 보상 결과는 그대로 유지하고, 해당 지갑의 향후 VeInvite 이용 제한만 해제합니다.`
+      : isInviterRestriction
+        ? `${invitation.invite_code} 기준 초대자 제한을 REINSTATE할까요? 과거 사건·보상 기록은 유지되고 이 초대자의 향후 VeInvite 참여 제한만 해제됩니다.`
+        : isInviter
         ? decision === 'CLEAR'
         ? `${invitation.invite_code} 기준 초대자 HOLD를 CLEAR할까요? 현재까지의 사건 기록은 감사용으로 유지되며, 새로운 파밍 사건이 확인되면 다시 HOLD될 수 있습니다.`
         : `${invitation.invite_code} 기준 초대자를 RESTRICT할까요? 과거 보상은 변경하지 않고 이 초대자 지갑의 향후 VeInvite 참여만 제한합니다.`
@@ -556,15 +587,21 @@ export default function SybilReviewPage() {
             isInviterRestriction
               ? invitation.inviter_active_restriction_id
               : undefined,
+          expectedInviteeRestrictionId:
+            isInviteeRestriction
+              ? invitation.invitee_active_restriction_id
+              : undefined,
         }),
       });
 
       await readJson<{ invitation: ReviewRow }>(response);
 
       setMessage(
-        isInviterRestriction
-          ? '초대자 제한을 해제했습니다. 과거 사건·보상 기록은 변경되지 않고 향후 VeInvite 참여 제한만 해제됩니다. / Inviter restriction reinstated; historical incidents and past rewards remain unchanged.'
-          : isInviter
+        isInviteeRestriction
+          ? '피초대자 제한을 해제했습니다. 기존 차단 추천과 과거 보상 결과는 변경하지 않고 이 지갑의 향후 VeInvite 이용 제한만 해제했습니다. / Invitee restriction reinstated; the blocked referral and past reward outcome remain unchanged while future VeInvite access is restored.'
+          : isInviterRestriction
+            ? '초대자 제한을 해제했습니다. 과거 사건·보상 기록은 변경되지 않고 향후 VeInvite 참여 제한만 해제됩니다. / Inviter restriction reinstated; historical incidents and past rewards remain unchanged.'
+            : isInviter
             ? decision === 'CLEAR'
             ? '초대자 HOLD를 해제했습니다. 현재 사건 기록은 감사용으로 유지되며 새로운 파밍 사건이 생기면 다시 검토됩니다. / Inviter HOLD cleared; the current incident history remains for audit and new abuse can reopen review.'
             : '초대자 제한을 확정했습니다. 과거 보상은 변경되지 않고 이 지갑의 향후 VeInvite 참여만 제한됩니다. / Inviter restriction confirmed; past rewards remain unchanged and only future VeInvite participation is restricted.'
@@ -1058,7 +1095,8 @@ export default function SybilReviewPage() {
                         />
                       </label>
                       <div className="decisionButtons">
-                        {detail?.reviewMode === 'INVITER_RESTRICTION' ? (
+                        {detail?.reviewMode === 'INVITEE_RESTRICTION' ||
+                        detail?.reviewMode === 'INVITER_RESTRICTION' ? (
                           <button
                             type="button"
                             className="clear"
@@ -1094,9 +1132,11 @@ export default function SybilReviewPage() {
                         )}
                       </div>
                       <p className="note">
-                        {detail?.reviewMode === 'INVITER_RESTRICTION'
-                          ? 'REINSTATE는 초대자의 향후 VeInvite 참여 제한만 해제합니다. 과거 사건 기록·운영자 결정·이미 지급된 보상은 변경하지 않습니다.'
-                          : detail?.reviewMode === 'INVITER'
+                        {detail?.reviewMode === 'INVITEE_RESTRICTION'
+                          ? 'REINSTATE는 피초대자 지갑의 향후 VeInvite 이용 제한만 해제합니다. 기존 차단 추천은 되살리지 않고 과거 보상 결과도 변경하지 않습니다.'
+                          : detail?.reviewMode === 'INVITER_RESTRICTION'
+                            ? 'REINSTATE는 초대자의 향후 VeInvite 참여 제한만 해제합니다. 과거 사건 기록·운영자 결정·이미 지급된 보상은 변경하지 않습니다.'
+                            : detail?.reviewMode === 'INVITER'
                             ? 'INVITER CLEAR는 현재 반복 파밍 HOLD를 해제하지만 사건 기록은 감사용으로 유지합니다. 새 사건이 발생하면 다시 HOLD될 수 있습니다. RESTRICT는 과거 보상은 건드리지 않고 초대자 지갑의 향후 VeInvite 참여만 제한합니다.'
                           : detail?.reviewMode === 'POST_PAYOUT'
                             ? 'POST_PAYOUT CLEAR는 사후 의심을 해제합니다. POST_PAYOUT BLACKLIST는 이미 지급된 보상은 그대로 두고 해당 보상 수령자 지갑의 향후 VeInvite 참여만 제한합니다.'
