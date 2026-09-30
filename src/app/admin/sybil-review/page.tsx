@@ -556,7 +556,7 @@ export default function SybilReviewPage() {
             : '차단(BLOCKED)';
 
     const confirmMessage = isInviteeRestriction
-      ? `${invitation.invite_code}의 피초대자 제한을 REINSTATE할까요? 기존 차단 추천과 과거 보상 결과는 그대로 유지하고, 해당 지갑의 향후 VeInvite 이용 제한만 해제합니다.`
+      ? `${invitation.invite_code}의 피초대자 오탐 차단을 REINSTATE할까요? 원래 초대 관계와 진행 기록을 복구하고, 이미 지급된 보상 기록은 건드리지 않습니다. 원래 슬롯이 다른 초대에 재사용된 경우에는 자동 복구되지 않습니다.`
       : isInviterRestriction
         ? `${invitation.invite_code} 기준 초대자 제한을 REINSTATE할까요? 과거 사건·보상 기록은 유지되고 이 초대자의 향후 VeInvite 참여 제한만 해제됩니다.`
         : isInviter
@@ -611,7 +611,7 @@ export default function SybilReviewPage() {
 
       setMessage(
         isInviteeRestriction
-          ? '피초대자 제한을 해제했습니다. 기존 차단 추천과 과거 보상 결과는 변경하지 않고 이 지갑의 향후 VeInvite 이용 제한만 해제했습니다. / Invitee restriction reinstated; the blocked referral and past reward outcome remain unchanged while future VeInvite access is restored.'
+          ? '피초대자 오탐 차단을 해제하고 원래 초대 관계를 복구했습니다. 완료된 미션 기록은 유지되며, 보상 자격은 현재 안전성·최종성 조건에 따라 다시 계산됩니다. / False-positive invitee restriction reinstated; the original referral was restored and reward eligibility will be recalculated under the current safety and finality rules.'
           : isInviterRestriction
             ? '초대자 제한을 해제했습니다. 과거 사건·보상 기록은 변경되지 않고 향후 VeInvite 참여 제한만 해제됩니다. / Inviter restriction reinstated; historical incidents and past rewards remain unchanged.'
             : isInviter
@@ -761,7 +761,7 @@ export default function SybilReviewPage() {
                     <br />
                     No referrals require manual review.
                     <br />
-                    <small>오탐 제한 해제가 필요한 경우 위 초대 코드로 직접 조회할 수 있습니다.</small>
+                    <small>오탐 차단 복구가 필요한 경우 위 초대 코드로 직접 조회할 수 있습니다.</small>
                   </div>
                 ) : null}
 
@@ -1175,7 +1175,7 @@ export default function SybilReviewPage() {
                       </div>
                       <p className="note">
                         {detail?.reviewMode === 'INVITEE_RESTRICTION'
-                          ? 'REINSTATE는 피초대자 지갑의 향후 VeInvite 이용 제한만 해제합니다. 기존 차단 추천은 되살리지 않고 과거 보상 결과도 변경하지 않습니다.'
+                          ? 'REINSTATE는 오탐으로 차단된 원래 초대 관계를 복구합니다. 기존 미션 진행은 유지하고, 이미 지급된 보상은 변경하지 않습니다. 원래 슬롯이 재사용된 경우에는 자동 복구를 거부합니다.'
                           : detail?.reviewMode === 'INVITER_RESTRICTION'
                             ? 'REINSTATE는 초대자의 향후 VeInvite 참여 제한만 해제합니다. 과거 사건 기록·운영자 결정·이미 지급된 보상은 변경하지 않습니다.'
                             : detail?.reviewMode === 'INVITER'
