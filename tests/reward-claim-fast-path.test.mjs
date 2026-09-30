@@ -96,11 +96,11 @@ test('Claim fast preparation fails closed before assigning work when payout safe
   assert.match(immediateFunction, /!readiness\.configured/);
   assert.match(immediateFunction, /!readiness\.distributorAddress/);
 
-  const runtimeIndex = fastPath.indexOf(
-    'readRewardRuntimeSafety()',
+  const poolReadIndex = fastPath.indexOf(
+    'readVeInviteRewardPoolStatus()',
   );
-  const emergencyPauseIndex = fastPath.indexOf(
-    'runtime.emergencyRewardsPaused',
+  const fundedIndex = fastPath.indexOf(
+    'pool.mainnetFundedRewardsEnabled',
   );
   const poolPauseIndex = fastPath.indexOf(
     'pool.distributionPaused',
@@ -112,13 +112,17 @@ test('Claim fast preparation fails closed before assigning work when payout safe
     "'prepare_predictive_reward_batch'",
   );
 
-  assert.ok(runtimeIndex >= 0);
-  assert.ok(emergencyPauseIndex > runtimeIndex);
-  assert.ok(poolPauseIndex > runtimeIndex);
-  assert.ok(distributorIndex > runtimeIndex);
-  assert.ok(batchIndex > emergencyPauseIndex);
+  assert.ok(poolReadIndex >= 0);
+  assert.ok(fundedIndex > poolReadIndex);
+  assert.ok(poolPauseIndex > poolReadIndex);
+  assert.ok(distributorIndex > poolReadIndex);
+  assert.ok(batchIndex > fundedIndex);
   assert.ok(batchIndex > poolPauseIndex);
   assert.ok(batchIndex > distributorIndex);
+  assert.doesNotMatch(
+    fastPath,
+    /readRewardRuntimeSafety/,
+  );
   assert.match(fastPath, /MAINNET_FUNDED_REWARDS_DISABLED/);
   assert.match(fastPath, /REWARD_DISTRIBUTION_PAUSED/);
   assert.match(fastPath, /DISTRIBUTOR_ADMIN_CONFLICT/);
@@ -155,5 +159,52 @@ test('standard automatic payout keeps offline reservation behavior unchanged', (
   assert.doesNotMatch(
     standardFunction,
     /allowGeneralRoundPreparation:\s*false/,
+  );
+});
+
+
+test('Claim transfer path reuses checkpoint state without a full reward-state reload', () => {
+  const workerStart = basePayoutWorker.indexOf(
+    'export async function runAutomaticRewardPayout',
+  );
+  const worker = basePayoutWorker.slice(workerStart);
+  const checkpointStart = worker.indexOf(
+    'if (!state.checkpoint)',
+  );
+  const checkpointEnd = worker.indexOf(
+    'const manifest = rebuildManifest',
+    checkpointStart,
+  );
+  const checkpointBlock = worker.slice(
+    checkpointStart,
+    checkpointEnd,
+  );
+
+  assert.match(
+    checkpointBlock,
+    /checkpoint:\s*await ensureCheckpoint\(manifestId\)/,
+  );
+  assert.doesNotMatch(
+    checkpointBlock,
+    /loadActiveRewardState/,
+  );
+});
+
+test('fresh payout broadcast skips only the redundant existence lookup', () => {
+  assert.match(
+    basePayoutWorker,
+    /checkExisting = true/,
+  );
+  assert.match(
+    basePayoutWorker,
+    /if \(checkExisting\)[\s\S]*getTransaction\(txId\)/,
+  );
+  assert.match(
+    basePayoutWorker,
+    /await broadcastSignedTransaction\(\{[\s\S]*\.\.\.signed,[\s\S]*checkExisting: false,[\s\S]*\}\)/,
+  );
+  assert.match(
+    basePayoutWorker,
+    /Automatic reward rebroadcast failed:/,
   );
 });
