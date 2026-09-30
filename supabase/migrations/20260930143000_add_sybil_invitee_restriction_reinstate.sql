@@ -74,6 +74,30 @@ where r.status = 'ACTIVE'
   and i.slot_released_at is not null
   and not exists (
     select 1
+    from public.invitations replacement
+    where replacement.id <> i.id
+      and lower(btrim(replacement.inviter_wallet)) =
+        lower(btrim(i.inviter_wallet))
+      and replacement.invite_slot = i.invite_slot
+      and (
+        replacement.status = 'PENDING_ACCEPTANCE'
+        or (
+          replacement.status in ('ACTIVATING','UNDER_REVIEW')
+          and replacement.eligibility_check_id is not null
+          and replacement.activation_network is not null
+          and replacement.sybil_status <> 'BLOCKED'
+        )
+        or (
+          replacement.status = 'COMPLETED'
+          and replacement.eligibility_check_id is not null
+          and replacement.activation_network is not null
+          and replacement.sybil_status <> 'BLOCKED'
+          and replacement.slot_released_at is null
+        )
+      )
+  )
+  and not exists (
+    select 1
     from public.reward_queue_entries q
     where q.invite_code = i.invite_code
       and q.status = 'ASSIGNED'
