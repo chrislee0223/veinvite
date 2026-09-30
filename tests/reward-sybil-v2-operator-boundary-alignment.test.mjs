@@ -118,3 +118,19 @@ test('new reward decisions remain CLEAR-only; WATCH reward authority is not reop
     /a\.state in \('CLEAR','WATCH'\)/u,
   );
 });
+
+
+test('inviter notification history uses the same direct-evidence HOLD rule', () => {
+  assert.match(
+    migration,
+    /v_previous_hold := v_previous_strong > 0/u,
+  );
+  assert.doesNotMatch(
+    migration,
+    /v_previous_count >= 3\s*\n\s*or v_previous_strong > 0/u,
+  );
+  assert.match(
+    migration,
+    /v_posture\.posture = 'WATCH'[\s\S]*v_previous_count < 2/u,
+  );
+});
