@@ -130,7 +130,7 @@ test('admin review detail can reinstate a known active invitee restriction witho
     'async function loadOpenReviews',
   );
   const openReviewEnd = reviewRoute.indexOf(
-    '\\nasync function loadInvitationReview',
+    '\nasync function loadInvitationReview',
     openReviewStart,
   );
   assert.ok(openReviewStart >= 0);
