@@ -625,7 +625,7 @@ export default function SybilReviewPage() {
           : decision === 'CLEAR'
             ? '검토를 승인했습니다. 보상 전송은 실행되지 않았습니다. / Review cleared; no reward transfer was performed.'
             : isV2
-              ? '블랙리스트로 확정했습니다. 이번 미지급 보상은 제외되고 초대받은 지갑의 향후 VeInvite 참여가 제한됩니다. 초대자는 90일 반복 적발 정책으로 별도 평가됩니다. / Blacklist confirmed; the unpaid reward is forfeited and future VeInvite participation of the invitee is restricted. The inviter is evaluated separately by the rolling 90-day incident policy.'
+              ? '블랙리스트로 확정했습니다. 이번 미지급 보상은 제외되고 초대받은 지갑의 향후 VeInvite 참여가 제한됩니다. 초대자는 반복 적발 시 WATCH로 추적하고 직접 연결 증거가 있을 때만 수동 검토합니다. / Blacklist confirmed; the unpaid reward is forfeited and future VeInvite participation of the invitee is restricted. Repeated inviter incidents stay under WATCH unless strong direct-link evidence requires manual review.'
               : '검토를 차단 처리했습니다. 보상 전송은 실행되지 않았습니다. / Review blocked; no reward transfer was performed.',
       );
 
@@ -682,7 +682,7 @@ export default function SybilReviewPage() {
             <span className="eyebrow">VEINVITE ADMIN</span>
             <h1>수동 Sybil 검토 / Manual Review</h1>
             <p>
-              자동 탐지에서 보류된 추천과 반복 파밍으로 HOLD된 초대자를 사람이 최종 검토합니다.
+              자동 검사가 끝난 뒤에도 HOLD로 남은 추천과 직접 연결 증거로 HOLD된 초대자만 사람이 최종 검토합니다.
               온체인 신호는 판단 보조 정보일 뿐 자동 승인·차단이나 B3TR 전송을 실행하지 않습니다.
             </p>
           </div>
@@ -1179,7 +1179,7 @@ export default function SybilReviewPage() {
                           : detail?.reviewMode === 'INVITER_RESTRICTION'
                             ? 'REINSTATE는 초대자의 향후 VeInvite 참여 제한만 해제합니다. 과거 사건 기록·운영자 결정·이미 지급된 보상은 변경하지 않습니다.'
                             : detail?.reviewMode === 'INVITER'
-                            ? 'INVITER CLEAR는 현재 반복 파밍 HOLD를 해제하지만 사건 기록은 감사용으로 유지합니다. 새 사건이 발생하면 다시 HOLD될 수 있습니다. RESTRICT는 과거 보상은 건드리지 않고 초대자 지갑의 향후 VeInvite 참여만 제한합니다.'
+                            ? 'INVITER CLEAR는 현재 직접 연결 증거 HOLD를 해제하지만 사건 기록은 감사용으로 유지합니다. 새 직접 연결 증거가 확인되면 다시 HOLD될 수 있습니다. RESTRICT는 과거 보상은 건드리지 않고 초대자 지갑의 향후 VeInvite 참여만 제한합니다.'
                           : detail?.reviewMode === 'POST_PAYOUT'
                             ? 'POST_PAYOUT CLEAR는 사후 의심을 해제합니다. POST_PAYOUT BLACKLIST는 이미 지급된 보상은 그대로 두고 해당 보상 수령자 지갑의 향후 VeInvite 참여만 제한합니다.'
                             : detail?.reviewMode === 'V2'
