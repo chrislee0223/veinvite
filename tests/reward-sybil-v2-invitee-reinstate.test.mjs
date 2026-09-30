@@ -126,10 +126,19 @@ test('admin review detail can reinstate a known active invitee restriction witho
     /expectedInviteeRestrictionId/u,
   );
 
-  const openReviewLoader = reviewRoute.match(
-    /async function loadOpenReviews[\s\S]*?\n}\n\nasync function/u,
-  )?.[0] ?? '';
-  assert.ok(openReviewLoader.length > 0);
+  const openReviewStart = reviewRoute.indexOf(
+    'async function loadOpenReviews',
+  );
+  const openReviewEnd = reviewRoute.indexOf(
+    '\\nasync function loadInvitationReview',
+    openReviewStart,
+  );
+  assert.ok(openReviewStart >= 0);
+  assert.ok(openReviewEnd > openReviewStart);
+  const openReviewLoader = reviewRoute.slice(
+    openReviewStart,
+    openReviewEnd,
+  );
   assert.doesNotMatch(
     openReviewLoader,
     /operator_sybil_v2_active_invitee_restrictions/u,
