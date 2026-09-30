@@ -42,39 +42,47 @@ test('unpaid invitee restrictions have an audited operator reinstatement path', 
   );
 });
 
-test('invitee reinstatement never resurrects the blocked referral or rewrites reward history', () => {
+test('invitee reinstatement restores the original referral only while its slot is still free', () => {
   const functionBody = migration.match(
     /create or replace function public\.reinstate_sybil_v2_invitee_restriction[\s\S]*?\n\$function\$;/u,
   )?.[0] ?? '';
 
   assert.ok(functionBody.length > 0);
-  assert.doesNotMatch(
+  assert.match(
     functionBody,
-    /update\s+public\.invitations/iu,
+    /INVITEE_RESTRICTION_SLOT_REUSED/u,
   );
-  assert.doesNotMatch(
+  assert.match(
     functionBody,
-    /update\s+public\.reward_/iu,
+    /status = v_restore_status[\s\S]*sybil_status = 'CLEAR'[\s\S]*slot_released_at = null/u,
+  );
+  assert.match(
+    functionBody,
+    /record_sybil_v2_assessment[\s\S]*'CLEAR'[\s\S]*OPERATOR_REINSTATED_FALSE_POSITIVE/u,
+  );
+  assert.match(
+    functionBody,
+    /issue_sybil_v2_reward_clearance/u,
   );
   assert.doesNotMatch(
     functionBody,
     /delete\s+from\s+public\.reward_/iu,
   );
-  assert.match(
+  assert.doesNotMatch(
     functionBody,
-    /'invitationChanged', false/u,
+    /update\s+public\.reward_payouts/iu,
   );
   assert.match(
     functionBody,
-    /'pastRewardChanged', false/u,
+    /'invitationChanged', true/u,
+  );
+  assert.match(
+    functionBody,
+    /'pastPaidRewardChanged', false/u,
   );
 });
 
 test('paid or already-assigned rewards cannot use invitee reinstatement recovery', () => {
-  assert.match(
-    migration,
-    /v_invitation\.reward_status = 'PAID'/u,
-  );
   assert.match(
     migration,
     /q\.status = 'ASSIGNED'/u,
@@ -82,6 +90,10 @@ test('paid or already-assigned rewards cannot use invitee reinstatement recovery
   assert.match(
     migration,
     /p\.status in \('PENDING','SENDING','PAID'\)/u,
+  );
+  assert.match(
+    migration,
+    /v_invitation\.reward_status <> 'FORFEITED'/u,
   );
   assert.match(
     migration,
@@ -160,6 +172,30 @@ test('admin UI exposes exceptional recovery by direct invite-code lookup', () =>
   );
   assert.match(
     reviewPage,
-    /기존 차단 추천과 과거 보상 결과는 변경하지 않고/u,
+    /원래 초대 관계/u,
+  );
+});
+
+
+test('recovery keeps referral identity immutable and reuses the original permanent-link slot', () => {
+  assert.match(
+    migration,
+    /v_invitation\.referral_link_id is null/u,
+  );
+  assert.match(
+    migration,
+    /v_invitation\.invite_slot is null/u,
+  );
+  assert.match(
+    migration,
+    /veinvite_referral_inviter_/u,
+  );
+  assert.doesNotMatch(
+    migration,
+    /update\s+public\.referral_relationships/iu,
+  );
+  assert.doesNotMatch(
+    migration,
+    /delete\s+from\s+public\.referral_relationships/iu,
   );
 });
