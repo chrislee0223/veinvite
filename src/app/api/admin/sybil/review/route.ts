@@ -1142,10 +1142,28 @@ export async function POST(request: NextRequest) {
           );
         }
 
+        if (
+          error.message.includes('INVITEE_RESTRICTION_SLOT_REUSED') ||
+          error.message.includes('INVITEE_RESTRICTION_NOT_RESTORABLE')
+        ) {
+          return NextResponse.json(
+            {
+              error:
+                'The original referral can no longer be restored automatically because its released slot is unavailable or the referral is no longer in a restorable blocked state.',
+            },
+            {
+              status: 409,
+              headers: noStoreHeaders(),
+            },
+          );
+        }
+
         throw new Error(
           `reinstate_sybil_v2_invitee_restriction failed: ${error.message}`,
         );
       }
+
+      await enqueueClearedReward(inviteCode);
 
       const after =
         await loadInvitationReview(inviteCode);
@@ -1171,8 +1189,8 @@ export async function POST(request: NextRequest) {
             : null,
           rewardStatus:
             after?.reward_status ?? null,
-          pastRewardChanged: false,
-          invitationChanged: false,
+          pastPaidRewardChanged: false,
+          invitationChanged: true,
           transfersPerformed: false,
         },
         {
