@@ -206,6 +206,7 @@ export type VeInviteRewardPoolStatus = {
   totalBalanceWei: string;
   effectiveRewardPoolWei: string;
   onChainDistributionPaused: boolean;
+  mainnetFundedRewardsEnabled: boolean;
   emergencyRewardsPaused: boolean;
   emergencyPauseReason: string | null;
   distributionPaused: boolean;
@@ -373,6 +374,8 @@ Promise<VeInviteRewardPoolStatus> {
     totalBalanceWei,
     effectiveRewardPoolWei,
     onChainDistributionPaused,
+    mainnetFundedRewardsEnabled:
+      runtimeSafety.mainnetFundedRewardsEnabled,
     emergencyRewardsPaused:
       runtimeSafety.emergencyRewardsPaused,
     emergencyPauseReason:
