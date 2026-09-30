@@ -115,10 +115,10 @@ test('admin API exposes and resolves inviter escalation reviews', async () => {
     source,
     /operator_sybil_v2_inviter_review_candidates/u,
   );
-  assert.match(source, /reviewMode: inviterRestrictionCanResolve/u);
+  assert.match(source, /reviewMode: inviteeRestrictionCanResolve/u);
   assert.match(
     source,
-    /\? 'INVITER_RESTRICTION'[\s\S]*inviterCanResolve[\s\S]*\? 'INVITER'/u,
+    /\? 'INVITEE_RESTRICTION'[\s\S]*inviterRestrictionCanResolve[\s\S]*\? 'INVITER_RESTRICTION'[\s\S]*inviterCanResolve[\s\S]*\? 'INVITER'/u,
   );
   assert.match(source, /expectedInviterIncidentId/u);
   assert.match(source, /resolve_sybil_v2_inviter_review/u);
@@ -135,7 +135,10 @@ test('admin UI explains inviter and invitee consequences separately', async () =
   assert.match(source, /초대자 제한 \/ RESTRICT/u);
   assert.match(source, /inviter_escalation_latest_incident_id/u);
   assert.match(source, /초대받은 지갑의 향후 VeInvite 참여가 제한됩니다/u);
-  assert.match(source, /초대자는 90일 반복 적발 정책으로 별도 평가됩니다/u);
+  assert.match(
+    source,
+    /초대자는 반복 적발 시 WATCH로 추적하고 직접 연결 증거가 있을 때만 수동 검토합니다/u,
+  );
   assert.doesNotMatch(
     source,
     /초대자·초대받은 지갑의 향후 VeInvite 참여를 제한/u,

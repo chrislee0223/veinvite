@@ -46,6 +46,10 @@ type ReviewRow = {
   inviter_active_restriction_id: string | null;
   inviter_active_restriction_reason_codes: unknown;
   inviter_active_restriction_imposed_at: string | null;
+  invitee_active_restriction_id: string | null;
+  invitee_active_restriction_source: string | null;
+  invitee_active_restriction_reason_codes: unknown;
+  invitee_active_restriction_imposed_at: string | null;
 };
 
 type ReviewEvent = {
@@ -122,7 +126,19 @@ type ReviewDetailResponse = {
     related_invite_code: string;
     imposed_at: string;
   } | null;
+  activeInviteeRestriction?: {
+    restriction_id: string;
+    network: string;
+    invitee_wallet: string;
+    inviter_wallet: string;
+    restriction_source: string;
+    reason_codes: unknown;
+    evidence_summary: unknown;
+    related_invite_code: string;
+    imposed_at: string;
+  } | null;
   reviewMode?:
+    | 'INVITEE_RESTRICTION'
     | 'INVITER_RESTRICTION'
     | 'INVITER'
     | 'POST_PAYOUT'
@@ -274,6 +290,7 @@ export default function SybilReviewPage() {
     useState<ReviewDetailResponse | null>(null);
   const [selectedCode, setSelectedCode] =
     useState<string | null>(null);
+  const [lookupCode, setLookupCode] = useState('');
   const [onchainSnapshot, setOnchainSnapshot] =
     useState<OnchainSnapshot | null>(null);
   const [onchainError, setOnchainError] = useState('');
@@ -384,6 +401,18 @@ export default function SybilReviewPage() {
     void loadReviews();
   }, [loadReviews]);
 
+  const loadCodeDirectly = async () => {
+    const normalized = lookupCode.trim().toUpperCase();
+    if (!/^[A-HJ-NP-Z2-9]{7}$/.test(normalized)) {
+      setError(
+        '유효한 7자리 초대 코드를 입력해 주세요. / Enter a valid 7-character invite code.',
+      );
+      return;
+    }
+
+    await loadDetail(normalized);
+  };
+
   const runOnchainAnalytics = async () => {
     const inviteCode = detail?.invitation.invite_code;
     if (!inviteCode || analyticsRunning) return;
@@ -430,6 +459,8 @@ export default function SybilReviewPage() {
       return;
     }
 
+    const isInviteeRestriction =
+      detail.reviewMode === 'INVITEE_RESTRICTION';
     const isInviterRestriction =
       detail.reviewMode === 'INVITER_RESTRICTION';
     const isInviter =
@@ -457,6 +488,7 @@ export default function SybilReviewPage() {
     }
 
     if (
+      !isInviteeRestriction &&
       !isInviterRestriction &&
       !isInviter &&
       !isPostPayout &&
@@ -465,6 +497,16 @@ export default function SybilReviewPage() {
     ) {
       setError(
         '기존 Sybil 검토 시점을 확인할 수 없습니다. 새로고침 후 다시 시도해 주세요. / The legacy review timestamp is unavailable.',
+      );
+      return;
+    }
+
+    if (
+      isInviteeRestriction &&
+      !invitation.invitee_active_restriction_id
+    ) {
+      setError(
+        '활성 피초대자 제한 ID를 확인할 수 없습니다. 새로고침 후 다시 시도해 주세요. / The active invitee restriction id is unavailable.',
       );
       return;
     }
@@ -513,9 +555,11 @@ export default function SybilReviewPage() {
             ? '블랙리스트(BLACKLIST)'
             : '차단(BLOCKED)';
 
-    const confirmMessage = isInviterRestriction
-      ? `${invitation.invite_code} 기준 초대자 제한을 REINSTATE할까요? 과거 사건·보상 기록은 유지되고 이 초대자의 향후 VeInvite 참여 제한만 해제됩니다.`
-      : isInviter
+    const confirmMessage = isInviteeRestriction
+      ? `${invitation.invite_code}의 피초대자 오탐 차단을 REINSTATE할까요? 원래 초대 관계와 진행 기록을 복구하고, 이미 지급된 보상 기록은 건드리지 않습니다. 원래 슬롯이 다른 초대에 재사용된 경우에는 자동 복구되지 않습니다.`
+      : isInviterRestriction
+        ? `${invitation.invite_code} 기준 초대자 제한을 REINSTATE할까요? 과거 사건·보상 기록은 유지되고 이 초대자의 향후 VeInvite 참여 제한만 해제됩니다.`
+        : isInviter
         ? decision === 'CLEAR'
         ? `${invitation.invite_code} 기준 초대자 HOLD를 CLEAR할까요? 현재까지의 사건 기록은 감사용으로 유지되며, 새로운 파밍 사건이 확인되면 다시 HOLD될 수 있습니다.`
         : `${invitation.invite_code} 기준 초대자를 RESTRICT할까요? 과거 보상은 변경하지 않고 이 초대자 지갑의 향후 VeInvite 참여만 제한합니다.`
@@ -556,15 +600,21 @@ export default function SybilReviewPage() {
             isInviterRestriction
               ? invitation.inviter_active_restriction_id
               : undefined,
+          expectedInviteeRestrictionId:
+            isInviteeRestriction
+              ? invitation.invitee_active_restriction_id
+              : undefined,
         }),
       });
 
       await readJson<{ invitation: ReviewRow }>(response);
 
       setMessage(
-        isInviterRestriction
-          ? '초대자 제한을 해제했습니다. 과거 사건·보상 기록은 변경되지 않고 향후 VeInvite 참여 제한만 해제됩니다. / Inviter restriction reinstated; historical incidents and past rewards remain unchanged.'
-          : isInviter
+        isInviteeRestriction
+          ? '피초대자 오탐 차단을 해제하고 원래 초대 관계를 복구했습니다. 완료된 미션 기록은 유지되며, 보상 자격은 현재 안전성·최종성 조건에 따라 다시 계산됩니다. / False-positive invitee restriction reinstated; the original referral was restored and reward eligibility will be recalculated under the current safety and finality rules.'
+          : isInviterRestriction
+            ? '초대자 제한을 해제했습니다. 과거 사건·보상 기록은 변경되지 않고 향후 VeInvite 참여 제한만 해제됩니다. / Inviter restriction reinstated; historical incidents and past rewards remain unchanged.'
+            : isInviter
             ? decision === 'CLEAR'
             ? '초대자 HOLD를 해제했습니다. 현재 사건 기록은 감사용으로 유지되며 새로운 파밍 사건이 생기면 다시 검토됩니다. / Inviter HOLD cleared; the current incident history remains for audit and new abuse can reopen review.'
             : '초대자 제한을 확정했습니다. 과거 보상은 변경되지 않고 이 지갑의 향후 VeInvite 참여만 제한됩니다. / Inviter restriction confirmed; past rewards remain unchanged and only future VeInvite participation is restricted.'
@@ -575,7 +625,7 @@ export default function SybilReviewPage() {
           : decision === 'CLEAR'
             ? '검토를 승인했습니다. 보상 전송은 실행되지 않았습니다. / Review cleared; no reward transfer was performed.'
             : isV2
-              ? '블랙리스트로 확정했습니다. 이번 미지급 보상은 제외되고 초대받은 지갑의 향후 VeInvite 참여가 제한됩니다. 초대자는 90일 반복 적발 정책으로 별도 평가됩니다. / Blacklist confirmed; the unpaid reward is forfeited and future VeInvite participation of the invitee is restricted. The inviter is evaluated separately by the rolling 90-day incident policy.'
+              ? '블랙리스트로 확정했습니다. 이번 미지급 보상은 제외되고 초대받은 지갑의 향후 VeInvite 참여가 제한됩니다. 초대자는 반복 적발 시 WATCH로 추적하고 직접 연결 증거가 있을 때만 수동 검토합니다. / Blacklist confirmed; the unpaid reward is forfeited and future VeInvite participation of the invitee is restricted. Repeated inviter incidents stay under WATCH unless strong direct-link evidence requires manual review.'
               : '검토를 차단 처리했습니다. 보상 전송은 실행되지 않았습니다. / Review blocked; no reward transfer was performed.',
       );
 
@@ -632,7 +682,7 @@ export default function SybilReviewPage() {
             <span className="eyebrow">VEINVITE ADMIN</span>
             <h1>수동 Sybil 검토 / Manual Review</h1>
             <p>
-              자동 탐지에서 보류된 추천과 반복 파밍으로 HOLD된 초대자를 사람이 최종 검토합니다.
+              자동 검사가 끝난 뒤에도 HOLD로 남은 추천과 직접 연결 증거로 HOLD된 초대자만 사람이 최종 검토합니다.
               온체인 신호는 판단 보조 정보일 뿐 자동 승인·차단이나 B3TR 전송을 실행하지 않습니다.
             </p>
           </div>
@@ -678,11 +728,40 @@ export default function SybilReviewPage() {
                   </button>
                 </div>
 
+                <div className="lookupRow">
+                  <input
+                    value={lookupCode}
+                    maxLength={7}
+                    autoComplete="off"
+                    placeholder="Invite code"
+                    aria-label="Invite code lookup"
+                    onChange={(event) =>
+                      setLookupCode(event.target.value.toUpperCase())
+                    }
+                    onKeyDown={(event) => {
+                      if (event.key === 'Enter') {
+                        event.preventDefault();
+                        void loadCodeDirectly();
+                      }
+                    }}
+                  />
+                  <button
+                    type="button"
+                    className="ghost"
+                    disabled={detailLoading || lookupCode.trim().length !== 7}
+                    onClick={() => void loadCodeDirectly()}
+                  >
+                    직접 조회 / Lookup
+                  </button>
+                </div>
+
                 {overview?.reviews.length === 0 ? (
                   <div className="emptyState">
                     현재 수동 검토가 필요한 추천이 없습니다.
                     <br />
                     No referrals require manual review.
+                    <br />
+                    <small>오탐 차단 복구가 필요한 경우 위 초대 코드로 직접 조회할 수 있습니다.</small>
                   </div>
                 ) : null}
 
@@ -1058,7 +1137,8 @@ export default function SybilReviewPage() {
                         />
                       </label>
                       <div className="decisionButtons">
-                        {detail?.reviewMode === 'INVITER_RESTRICTION' ? (
+                        {detail?.reviewMode === 'INVITEE_RESTRICTION' ||
+                        detail?.reviewMode === 'INVITER_RESTRICTION' ? (
                           <button
                             type="button"
                             className="clear"
@@ -1094,10 +1174,12 @@ export default function SybilReviewPage() {
                         )}
                       </div>
                       <p className="note">
-                        {detail?.reviewMode === 'INVITER_RESTRICTION'
-                          ? 'REINSTATE는 초대자의 향후 VeInvite 참여 제한만 해제합니다. 과거 사건 기록·운영자 결정·이미 지급된 보상은 변경하지 않습니다.'
-                          : detail?.reviewMode === 'INVITER'
-                            ? 'INVITER CLEAR는 현재 반복 파밍 HOLD를 해제하지만 사건 기록은 감사용으로 유지합니다. 새 사건이 발생하면 다시 HOLD될 수 있습니다. RESTRICT는 과거 보상은 건드리지 않고 초대자 지갑의 향후 VeInvite 참여만 제한합니다.'
+                        {detail?.reviewMode === 'INVITEE_RESTRICTION'
+                          ? 'REINSTATE는 오탐으로 차단된 원래 초대 관계를 복구합니다. 기존 미션 진행은 유지하고, 이미 지급된 보상은 변경하지 않습니다. 원래 슬롯이 재사용된 경우에는 자동 복구를 거부합니다.'
+                          : detail?.reviewMode === 'INVITER_RESTRICTION'
+                            ? 'REINSTATE는 초대자의 향후 VeInvite 참여 제한만 해제합니다. 과거 사건 기록·운영자 결정·이미 지급된 보상은 변경하지 않습니다.'
+                            : detail?.reviewMode === 'INVITER'
+                            ? 'INVITER CLEAR는 현재 직접 연결 증거 HOLD를 해제하지만 사건 기록은 감사용으로 유지합니다. 새 직접 연결 증거가 확인되면 다시 HOLD될 수 있습니다. RESTRICT는 과거 보상은 건드리지 않고 초대자 지갑의 향후 VeInvite 참여만 제한합니다.'
                           : detail?.reviewMode === 'POST_PAYOUT'
                             ? 'POST_PAYOUT CLEAR는 사후 의심을 해제합니다. POST_PAYOUT BLACKLIST는 이미 지급된 보상은 그대로 두고 해당 보상 수령자 지갑의 향후 VeInvite 참여만 제한합니다.'
                             : detail?.reviewMode === 'V2'
@@ -1114,7 +1196,7 @@ export default function SybilReviewPage() {
       </div>
 
       <style jsx>{`
-        .adminScreen{min-height:100dvh;box-sizing:border-box;padding:24px 16px 56px;background:linear-gradient(180deg,#171024,#0d0a14);color:#fff}.shell{width:min(1180px,100%);margin:0 auto;display:grid;gap:18px}.header{display:flex;align-items:flex-start;justify-content:space-between;gap:20px;flex-wrap:wrap}.eyebrow,.sectionLabel{color:#ffbd59;font-size:.72rem;font-weight:900;letter-spacing:.09em}.header h1{margin:6px 0 7px;font-size:clamp(1.65rem,4vw,2.55rem);letter-spacing:-.035em}.header p{max-width:760px;margin:0;color:#aaa2b7;font-size:.9rem;line-height:1.6}.headerActions{display:flex;align-items:center;gap:9px;flex-wrap:wrap}.headerActions :global(a){padding:10px 13px;border:1px solid rgba(255,255,255,.14);border-radius:12px;color:#fff;font-size:.78rem;font-weight:800;text-decoration:none}.panel,.safety,.notice{border:1px solid rgba(255,255,255,.1);border-radius:20px;background:rgba(255,255,255,.045)}.panel{padding:19px}.emptyPanel{line-height:1.65}.safety{padding:14px 17px;display:grid;gap:5px;border-color:rgba(255,190,84,.25);background:rgba(255,184,77,.07)}.safety strong{color:#ffd283;font-size:.84rem}.safety span{color:#aaa3b2;font-size:.76rem;line-height:1.5}.notice{padding:12px 15px;font-size:.8rem;font-weight:750;line-height:1.45}.notice.error{border-color:rgba(255,101,126,.3);color:#ff9aac}.notice.success{border-color:rgba(81,225,163,.28);color:#82efbf}.grid{display:grid;grid-template-columns:minmax(290px,.76fr) minmax(0,1.4fr);gap:16px;align-items:start}.panelHeader,.reviewTop,.historyItem>div,.sectionHeaderRow,.analyticsMeta{display:flex;align-items:flex-start;justify-content:space-between;gap:10px}.panel h2{margin:4px 0 0;font-size:1.25rem}.panel h3{margin:0;font-size:.88rem}.ghost,.analyticsButton{min-height:38px;padding:0 12px;border:1px solid rgba(255,255,255,.12);border-radius:11px;background:rgba(255,255,255,.04);color:#eee;font:inherit;font-size:.72rem;font-weight:800;cursor:pointer}.analyticsButton{border-color:rgba(255,190,84,.3);color:#ffd27c;background:rgba(255,184,77,.08)}button:disabled{opacity:.4;cursor:not-allowed}.reviewList{margin-top:14px;display:grid;gap:9px;max-height:720px;overflow:auto}.review{width:100%;padding:13px;display:grid;gap:6px;border:1px solid rgba(255,255,255,.09);border-radius:14px;background:rgba(255,255,255,.035);color:#c7c1ce;font:inherit;text-align:left;cursor:pointer}.review.selected{border-color:rgba(255,190,84,.55);background:rgba(255,184,77,.1)}.review strong{color:#fff}.review>span,.review small{font-size:.68rem}.review small{color:#8e8799;line-height:1.4}.badge{padding:4px 8px;border-radius:999px;background:rgba(255,184,77,.12);color:#ffd27c;font-size:.62rem;font-weight:900}.emptyState{min-height:180px;display:grid;place-items:center;color:#817989;font-size:.82rem;line-height:1.6;text-align:center}.facts{margin-top:16px;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:9px}.reasonBox{margin-top:14px;padding:13px;border:1px solid rgba(255,255,255,.08);border-radius:13px;background:rgba(0,0,0,.14)}.reasonBox span,.indicatorArea>span{color:#817989;font-size:.65rem;font-weight:800}.reasonBox p{margin:6px 0 0;color:#d7d1dc;font-size:.78rem;line-height:1.5}.onchainSection,.history,.decision{margin-top:18px;padding-top:17px;border-top:1px solid rgba(255,255,255,.08)}.onchainSection{display:grid;gap:12px}.observationNote{margin:0;padding:10px 12px;border:1px solid rgba(79,169,255,.16);border-radius:12px;background:rgba(70,147,224,.06);color:#9eaabd;font-size:.68rem;line-height:1.55}.analyticsEmpty,.analyticsWarning{padding:14px;border:1px dashed rgba(255,255,255,.12);border-radius:13px;color:#817989;font-size:.74rem;line-height:1.5}.analyticsWarning{display:grid;gap:4px;border-style:solid;border-color:rgba(255,173,78,.2);background:rgba(255,157,45,.06);color:#c9a77d}.analyticsWarning strong{color:#ffd08c}.analyticsWarning small{color:#8e8173}.analyticsMeta{align-items:center;color:#817989;font-size:.66rem}.freshness{padding:4px 8px;border-radius:999px;background:rgba(72,208,151,.1);color:#7ee7b7;font-weight:900}.freshness.stale{background:rgba(255,167,62,.1);color:#ffc06e}.signalFacts{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}.indicatorArea{padding:12px;border:1px solid rgba(255,255,255,.07);border-radius:13px;background:rgba(0,0,0,.1)}.indicatorList{margin-top:8px;display:flex;gap:7px;flex-wrap:wrap}.indicator{padding:6px 9px;border:1px solid rgba(255,164,86,.22);border-radius:999px;background:rgba(255,132,62,.08);color:#ffbc87;font-size:.66rem;font-weight:850}.indicatorArea p{margin:7px 0 0;color:#817989;font-size:.67rem;line-height:1.5}.history{display:grid;gap:7px}.historyItem{padding:10px 11px;border-radius:12px;background:rgba(255,255,255,.035)}.historyItem strong{font-size:.72rem}.historyItem span,.historyItem small{color:#837c8c;font-size:.64rem}.historyItem p{margin:5px 0;color:#bbb4c2;font-size:.7rem;line-height:1.4}.muted{color:#817989;font-size:.72rem}.decision{display:grid;gap:12px}.decision label{display:grid;gap:6px}.decision label>span{color:#aaa3b2;font-size:.7rem;font-weight:800}.decision textarea,.decision input{width:100%;box-sizing:border-box;border:1px solid rgba(255,255,255,.12);border-radius:12px;background:#0d0b12;color:#fff;font:inherit}.decision textarea{padding:11px 12px;resize:vertical;line-height:1.5}.decision input{min-height:43px;padding:0 12px;text-transform:uppercase}.decisionButtons{display:grid;grid-template-columns:1fr 1fr;gap:9px}.decisionButtons button{min-height:48px;border-radius:13px;font:inherit;font-weight:900;cursor:pointer}.clear{border:1px solid rgba(77,225,160,.35);background:rgba(58,200,137,.14);color:#85efbe}.block{border:1px solid rgba(255,94,122,.35);background:rgba(255,75,106,.12);color:#ff9aac}.note{margin:0;color:#817989;font-size:.67rem;line-height:1.5}.review:focus-visible,.ghost:focus-visible,.analyticsButton:focus-visible,.decision textarea:focus-visible,.decision input:focus-visible,.decisionButtons button:focus-visible{outline:2px solid rgba(255,190,84,.75);outline-offset:2px}@media(max-width:840px){.grid{grid-template-columns:1fr}.reviewList{max-height:360px}.facts,.signalFacts{grid-template-columns:repeat(2,minmax(0,1fr))}}@media(max-width:480px){.adminScreen{padding:18px 12px 42px}.panel{padding:15px}.facts,.signalFacts,.decisionButtons{grid-template-columns:1fr}.sectionHeaderRow{align-items:stretch;flex-direction:column}.analyticsButton{width:100%}}
+        .adminScreen{min-height:100dvh;box-sizing:border-box;padding:24px 16px 56px;background:linear-gradient(180deg,#171024,#0d0a14);color:#fff}.shell{width:min(1180px,100%);margin:0 auto;display:grid;gap:18px}.header{display:flex;align-items:flex-start;justify-content:space-between;gap:20px;flex-wrap:wrap}.eyebrow,.sectionLabel{color:#ffbd59;font-size:.72rem;font-weight:900;letter-spacing:.09em}.header h1{margin:6px 0 7px;font-size:clamp(1.65rem,4vw,2.55rem);letter-spacing:-.035em}.header p{max-width:760px;margin:0;color:#aaa2b7;font-size:.9rem;line-height:1.6}.headerActions{display:flex;align-items:center;gap:9px;flex-wrap:wrap}.headerActions :global(a){padding:10px 13px;border:1px solid rgba(255,255,255,.14);border-radius:12px;color:#fff;font-size:.78rem;font-weight:800;text-decoration:none}.panel,.safety,.notice{border:1px solid rgba(255,255,255,.1);border-radius:20px;background:rgba(255,255,255,.045)}.panel{padding:19px}.emptyPanel{line-height:1.65}.safety{padding:14px 17px;display:grid;gap:5px;border-color:rgba(255,190,84,.25);background:rgba(255,184,77,.07)}.safety strong{color:#ffd283;font-size:.84rem}.safety span{color:#aaa3b2;font-size:.76rem;line-height:1.5}.notice{padding:12px 15px;font-size:.8rem;font-weight:750;line-height:1.45}.notice.error{border-color:rgba(255,101,126,.3);color:#ff9aac}.notice.success{border-color:rgba(81,225,163,.28);color:#82efbf}.grid{display:grid;grid-template-columns:minmax(290px,.76fr) minmax(0,1.4fr);gap:16px;align-items:start}.panelHeader,.reviewTop,.historyItem>div,.sectionHeaderRow,.analyticsMeta{display:flex;align-items:flex-start;justify-content:space-between;gap:10px}.panel h2{margin:4px 0 0;font-size:1.25rem}.panel h3{margin:0;font-size:.88rem}.lookupRow{display:flex;gap:8px;margin:14px 0}.lookupRow input{min-width:0;flex:1;height:38px;box-sizing:border-box;padding:0 11px;border:1px solid rgba(255,255,255,.12);border-radius:11px;background:rgba(255,255,255,.04);color:#fff;text-transform:uppercase;font:inherit;font-size:.78rem}.ghost,.analyticsButton{min-height:38px;padding:0 12px;border:1px solid rgba(255,255,255,.12);border-radius:11px;background:rgba(255,255,255,.04);color:#eee;font:inherit;font-size:.72rem;font-weight:800;cursor:pointer}.analyticsButton{border-color:rgba(255,190,84,.3);color:#ffd27c;background:rgba(255,184,77,.08)}button:disabled{opacity:.4;cursor:not-allowed}.reviewList{margin-top:14px;display:grid;gap:9px;max-height:720px;overflow:auto}.review{width:100%;padding:13px;display:grid;gap:6px;border:1px solid rgba(255,255,255,.09);border-radius:14px;background:rgba(255,255,255,.035);color:#c7c1ce;font:inherit;text-align:left;cursor:pointer}.review.selected{border-color:rgba(255,190,84,.55);background:rgba(255,184,77,.1)}.review strong{color:#fff}.review>span,.review small{font-size:.68rem}.review small{color:#8e8799;line-height:1.4}.badge{padding:4px 8px;border-radius:999px;background:rgba(255,184,77,.12);color:#ffd27c;font-size:.62rem;font-weight:900}.emptyState{min-height:180px;display:grid;place-items:center;color:#817989;font-size:.82rem;line-height:1.6;text-align:center}.facts{margin-top:16px;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:9px}.reasonBox{margin-top:14px;padding:13px;border:1px solid rgba(255,255,255,.08);border-radius:13px;background:rgba(0,0,0,.14)}.reasonBox span,.indicatorArea>span{color:#817989;font-size:.65rem;font-weight:800}.reasonBox p{margin:6px 0 0;color:#d7d1dc;font-size:.78rem;line-height:1.5}.onchainSection,.history,.decision{margin-top:18px;padding-top:17px;border-top:1px solid rgba(255,255,255,.08)}.onchainSection{display:grid;gap:12px}.observationNote{margin:0;padding:10px 12px;border:1px solid rgba(79,169,255,.16);border-radius:12px;background:rgba(70,147,224,.06);color:#9eaabd;font-size:.68rem;line-height:1.55}.analyticsEmpty,.analyticsWarning{padding:14px;border:1px dashed rgba(255,255,255,.12);border-radius:13px;color:#817989;font-size:.74rem;line-height:1.5}.analyticsWarning{display:grid;gap:4px;border-style:solid;border-color:rgba(255,173,78,.2);background:rgba(255,157,45,.06);color:#c9a77d}.analyticsWarning strong{color:#ffd08c}.analyticsWarning small{color:#8e8173}.analyticsMeta{align-items:center;color:#817989;font-size:.66rem}.freshness{padding:4px 8px;border-radius:999px;background:rgba(72,208,151,.1);color:#7ee7b7;font-weight:900}.freshness.stale{background:rgba(255,167,62,.1);color:#ffc06e}.signalFacts{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}.indicatorArea{padding:12px;border:1px solid rgba(255,255,255,.07);border-radius:13px;background:rgba(0,0,0,.1)}.indicatorList{margin-top:8px;display:flex;gap:7px;flex-wrap:wrap}.indicator{padding:6px 9px;border:1px solid rgba(255,164,86,.22);border-radius:999px;background:rgba(255,132,62,.08);color:#ffbc87;font-size:.66rem;font-weight:850}.indicatorArea p{margin:7px 0 0;color:#817989;font-size:.67rem;line-height:1.5}.history{display:grid;gap:7px}.historyItem{padding:10px 11px;border-radius:12px;background:rgba(255,255,255,.035)}.historyItem strong{font-size:.72rem}.historyItem span,.historyItem small{color:#837c8c;font-size:.64rem}.historyItem p{margin:5px 0;color:#bbb4c2;font-size:.7rem;line-height:1.4}.muted{color:#817989;font-size:.72rem}.decision{display:grid;gap:12px}.decision label{display:grid;gap:6px}.decision label>span{color:#aaa3b2;font-size:.7rem;font-weight:800}.decision textarea,.decision input{width:100%;box-sizing:border-box;border:1px solid rgba(255,255,255,.12);border-radius:12px;background:#0d0b12;color:#fff;font:inherit}.decision textarea{padding:11px 12px;resize:vertical;line-height:1.5}.decision input{min-height:43px;padding:0 12px;text-transform:uppercase}.decisionButtons{display:grid;grid-template-columns:1fr 1fr;gap:9px}.decisionButtons button{min-height:48px;border-radius:13px;font:inherit;font-weight:900;cursor:pointer}.clear{border:1px solid rgba(77,225,160,.35);background:rgba(58,200,137,.14);color:#85efbe}.block{border:1px solid rgba(255,94,122,.35);background:rgba(255,75,106,.12);color:#ff9aac}.note{margin:0;color:#817989;font-size:.67rem;line-height:1.5}.review:focus-visible,.ghost:focus-visible,.analyticsButton:focus-visible,.decision textarea:focus-visible,.decision input:focus-visible,.decisionButtons button:focus-visible{outline:2px solid rgba(255,190,84,.75);outline-offset:2px}@media(max-width:840px){.grid{grid-template-columns:1fr}.reviewList{max-height:360px}.facts,.signalFacts{grid-template-columns:repeat(2,minmax(0,1fr))}}@media(max-width:480px){.adminScreen{padding:18px 12px 42px}.panel{padding:15px}.facts,.signalFacts,.decisionButtons{grid-template-columns:1fr}.sectionHeaderRow{align-items:stretch;flex-direction:column}.analyticsButton{width:100%}}
       `}</style>
     </main>
   );
