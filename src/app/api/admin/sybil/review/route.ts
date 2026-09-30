@@ -195,6 +195,26 @@ function safeRevision(value: unknown): number | null {
     : null;
 }
 
+
+function hasCompletedRequiredChecks(
+  assessment: V2AssessmentRow,
+): boolean {
+  const required = Array.isArray(assessment.required_checks)
+    ? assessment.required_checks.filter(
+        (value): value is string => typeof value === 'string',
+      )
+    : [];
+  const completed = new Set(
+    Array.isArray(assessment.completed_checks)
+      ? assessment.completed_checks.filter(
+          (value): value is string => typeof value === 'string',
+        )
+      : [],
+  );
+
+  return required.every((check) => completed.has(check));
+}
+
 async function loadInvitationReview(
   inviteCode: string,
 ): Promise<InvitationReviewRow | null> {
@@ -387,12 +407,11 @@ async function loadOpenReviews(
       })
       .limit(REVIEW_LIST_LIMIT),
     supabaseAdmin
-      .from('sybil_v2_referral_assessments')
+      .from('operator_sybil_v2_manual_review_candidates')
       .select(
         'invite_code,network,state,risk_score,policy_version,analyzer_version,revision,evidence_cutoff_block,required_checks,completed_checks,reason_codes,evidence_summary,source,assessed_at,updated_at',
       )
       .eq('network', network)
-      .eq('state', 'HOLD')
       .order('updated_at', { ascending: true })
       .limit(REVIEW_LIST_LIMIT),
     supabaseAdmin
@@ -747,7 +766,8 @@ export async function GET(request: NextRequest) {
       invitation.status === 'UNDER_REVIEW' &&
       invitation.sybil_status === 'REVIEW';
     const v2CanResolve =
-      v2Assessment?.state === 'HOLD';
+      v2Assessment?.state === 'HOLD' &&
+      hasCompletedRequiredChecks(v2Assessment);
     const postPayoutCanResolve =
       postPayoutReview?.state === 'HOLD';
     const inviterCanResolve =
@@ -1303,6 +1323,19 @@ export async function POST(request: NextRequest) {
     }
 
     if (v2Assessment?.state === 'HOLD') {
+      if (!hasCompletedRequiredChecks(v2Assessment)) {
+        return NextResponse.json(
+          {
+            error:
+              'Automatic Sybil checks are still in progress. This HOLD is not ready for operator review yet.',
+          },
+          {
+            status: 409,
+            headers: noStoreHeaders(),
+          },
+        );
+      }
+
       const expectedRevision =
         'expectedRevision' in body
           ? safeRevision(body.expectedRevision)
