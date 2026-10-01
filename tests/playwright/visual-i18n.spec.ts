@@ -193,6 +193,91 @@ for (const locale of HIGH_RISK_LOCALES) {
 
 
 
+async function assertPublicInviteSlotsVisible(page: Page): Promise<void> {
+  const slotNodes = page.locator('.publicSlotNode');
+  await expect(slotNodes).toHaveCount(2);
+
+  const slotMetrics = await slotNodes.evaluateAll((nodes) =>
+    nodes.map((node) => {
+      const element = node as HTMLElement;
+      const rect = element.getBoundingClientRect();
+      const style = getComputedStyle(element);
+      return {
+        width: rect.width,
+        height: rect.height,
+        display: style.display,
+        visibility: style.visibility,
+        opacity: Number(style.opacity || '1'),
+        position: style.position,
+      };
+    }),
+  );
+
+  for (const metric of slotMetrics) {
+    expect(metric.width).toBeGreaterThanOrEqual(51);
+    expect(metric.height).toBeGreaterThanOrEqual(51);
+    expect(metric.display).not.toBe('none');
+    expect(metric.visibility).toBe('visible');
+    expect(metric.opacity).toBeGreaterThan(0);
+    expect(metric.position).toBe('absolute');
+  }
+
+  const states = await slotNodes.evaluateAll((nodes) =>
+    nodes.map((node) => node.getAttribute('data-slot-state')),
+  );
+  expect(states).toEqual(['AVAILABLE', 'IN_PROGRESS']);
+
+  const edgeMetrics = await page
+    .locator('[data-public-slot-edges="true"] path')
+    .evaluateAll((paths) =>
+      paths.map((path) => {
+        const style = getComputedStyle(path);
+        return {
+          stroke: style.stroke,
+          strokeWidth: Number.parseFloat(style.strokeWidth || '0'),
+          opacity: Number(style.opacity || '1'),
+        };
+      }),
+    );
+
+  expect(edgeMetrics.length).toBeGreaterThanOrEqual(2);
+  for (const edge of edgeMetrics) {
+    expect(edge.stroke).not.toBe('none');
+    expect(edge.strokeWidth).toBeGreaterThan(0);
+    expect(edge.opacity).toBeGreaterThan(0);
+  }
+}
+
+test('public Network invite slots are visibly rendered on mobile and desktop', async ({ page }) => {
+  for (const viewport of [MOBILE_VIEWPORT, DESKTOP_VIEWPORT]) {
+    await page.setViewportSize(viewport);
+    await page.goto(
+      '/qa/state?state=NETWORK-I18N-PUBLIC&locale=ko',
+      { waitUntil: 'domcontentloaded', timeout: 12_000 },
+    );
+    await settleVisualPage(page);
+    await assertPublicInviteSlotsVisible(page);
+  }
+
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  await page.setViewportSize(MOBILE_VIEWPORT);
+  await page.goto(
+    '/qa/state?state=NETWORK-I18N-PUBLIC&locale=ko',
+    { waitUntil: 'domcontentloaded', timeout: 12_000 },
+  );
+  await settleVisualPage(page);
+
+  const availableCircleAnimation = await page
+    .locator('.publicSlotNode[data-slot-state="AVAILABLE"] .publicSlotCircle')
+    .evaluate((element) => getComputedStyle(element).animationName);
+  expect(availableCircleAnimation).toBe('none');
+
+  const pulseAnimation = await page
+    .locator('.publicSlotEdgePulse')
+    .evaluate((element) => getComputedStyle(element).animationName);
+  expect(pulseAnimation).toBe('none');
+}
+
 for (const locale of ['ko', 'de', 'fr', 'ar', 'ur', 'bn', 'mr', 'te'] as const satisfies readonly SupportedLocale[]) {
   for (const stateId of [
     'NOTI-HISTORY-OPEN',
