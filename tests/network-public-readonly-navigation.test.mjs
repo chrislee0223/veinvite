@@ -24,6 +24,7 @@ const [
   publicOwnerLayoutView,
   slotRetryHook,
   publicSlots,
+  publicSlotStyles,
 ] = await Promise.all([
   readFile('src/components/InviterLeaderboard.tsx', 'utf8'),
   readFile('src/components/HomeClient.tsx', 'utf8'),
@@ -43,6 +44,7 @@ const [
   readFile('src/lib/networkPublicOwnerLayoutView.ts', 'utf8'),
   readFile('src/hooks/usePublicNetworkSlotRetry.ts', 'utf8'),
   readFile('src/components/PublicNetworkInviteSlots.tsx', 'utf8'),
+  readFile('src/components/PublicNetworkInviteSlots.module.css', 'utf8'),
 ]);
 
 test('leaderboard can hand a wallet into the Network tab without prop-drilling the leaderboard tree', () => {
@@ -259,11 +261,12 @@ test('default-public reader stays graph-only while exposing only anonymous capac
   assert.match(publicOwnerLayoutView, /networkCanvasInviteSlotPointById\([\s\S]*slot/);
   assert.match(publicSlots, /data-slot-id=\{slot\.slot\}/);
   assert.match(publicSlots, /data-slot-state=\{slot\.state\}/);
-  assert.match(publicSlots, /publicSlotEdgeBase/);
-  assert.match(publicSlots, /publicSlotEdgePulse/);
-  assert.match(publicSlots, /@keyframes publicSlotFlow/);
-  assert.match(publicSlots, /prefers-reduced-motion:reduce[\s\S]*publicSlotEdgePulse/);
-  assert.match(publicSlots, /\.publicSlotNode\s*\{[^}]*pointer-events:none/);
+  assert.match(publicSlots, /styles\.edgeBase/);
+  assert.match(publicSlots, /styles\.edgePulse/);
+  assert.match(publicSlots, /styles\.slotNode/);
+  assert.match(publicSlotStyles, /@keyframes publicSlotFlow/);
+  assert.match(publicSlotStyles, /@media \(prefers-reduced-motion: reduce\)/);
+  assert.match(publicSlotStyles, /\.slotNode\s*\{[\s\S]*pointer-events: none/);
   assert.doesNotMatch(publicExplorer, /\.publicSlotNode\{/);
 });
 
@@ -314,9 +317,10 @@ test('public invite slots keep exact owner-side positions and stay read-only', (
   );
   assert.match(publicSlots, /edgePath\([\s\S]*centerX,[\s\S]*rootY,[\s\S]*slot\.x,[\s\S]*slot\.y/);
   assert.match(publicSlots, /public-slot-edge:\$\{slot\.slot\}/);
-  assert.match(publicSlots, /className="publicSlotNode"/);
-  assert.match(publicSlots, /\.publicSlotNode\s*\{[^}]*pointer-events:none/);
-  assert.match(publicSlots, /\.publicSlotCircle\s*\{[^}]*animation:publicSlotPulse/);
+  assert.match(publicSlots, /styles\.slotNode/);
+  assert.match(publicSlots, /styles\.slotCircle/);
+  assert.match(publicSlotStyles, /\.slotNode\s*\{[\s\S]*pointer-events: none/);
+  assert.match(publicSlotStyles, /\.slotCircle\s*\{[\s\S]*animation: publicSlotPulse/);
 });
 
 test('viewed root center de-duplicates the top-left network total', () => {
