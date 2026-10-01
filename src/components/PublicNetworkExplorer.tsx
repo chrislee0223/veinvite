@@ -732,6 +732,81 @@ function PublicNetworkCanvas({
     ],
   );
 
+  useEffect(() => {
+    if (
+      state !== 'ready' ||
+      !focusData ||
+      focusData.slotAvailabilityKnown !== false
+    ) {
+      return;
+    }
+
+    const retryFocusKey =
+      keyWallet(focusData.focusWallet);
+    if (
+      slotRetryAttemptedRef.current.has(
+        retryFocusKey,
+      )
+    ) {
+      return;
+    }
+    slotRetryAttemptedRef.current.add(
+      retryFocusKey,
+    );
+
+    const controller =
+      new AbortController();
+    slotRetryControllerRef.current
+      ?.abort();
+    slotRetryControllerRef.current =
+      controller;
+
+    const timer =
+      window.setTimeout(async () => {
+        try {
+          const refreshed =
+            await fetchPublicNetwork(
+              root,
+              retryFocusKey,
+              controller.signal,
+            );
+          if (
+            controller.signal.aborted
+          ) {
+            return;
+          }
+          putCache(refreshed);
+        } catch {
+          // Slot availability is optional metadata. The graph remains usable.
+        } finally {
+          if (
+            slotRetryControllerRef
+              .current === controller
+          ) {
+            slotRetryControllerRef.current =
+              null;
+          }
+        }
+      }, 650);
+
+    return () => {
+      window.clearTimeout(timer);
+      controller.abort();
+      if (
+        slotRetryControllerRef.current ===
+        controller
+      ) {
+        slotRetryControllerRef.current =
+          null;
+      }
+    };
+  }, [
+    state,
+    focusData,
+    root,
+    putCache,
+  ]);
+
   const togglePublicGroup =
     useCallback((groupId: string) => {
       if (
