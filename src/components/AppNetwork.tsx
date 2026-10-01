@@ -734,10 +734,227 @@ export function AppNetwork({ locale }: { locale: Locale }) {
     setCameraTransition(false);
   }, [clearCameraTransitionTimer]);
 
+  const materializeWorkspaceForPublish =
+    useCallback((
+      workspace: NetworkFocusWorkspace,
+    ) => {
+      if (!currentData) return workspace;
+
+      const childPoints =
+        currentData.children.map(
+          (child, index) => {
+            const key =
+              keyWallet(child.wallet);
+            const fallback =
+              radialChildPoint(
+                child.wallet,
+                index,
+                isMobile,
+              );
+            const saved =
+              workspace.positions[key];
+            return {
+              key,
+              x: saved?.x ?? fallback.x,
+              y: saved?.y ?? fallback.y,
+            };
+          },
+        );
+
+      const slotPoints =
+        keyWallet(currentData.focusWallet) ===
+        keyWallet(currentData.rootWallet)
+          ? inviteSlots.map((slot) => {
+              const key =
+                `slot:${slot.slot}`;
+              const fallback =
+                inviteSlotPoint(
+                  slot.slot - 1,
+                );
+              const saved =
+                workspace.positions[key];
+              return {
+                key,
+                x:
+                  saved?.x ??
+                  fallback.x,
+                y:
+                  saved?.y ??
+                  fallback.y,
+              };
+            })
+          : [];
+
+      return materializeNetworkWorkspaceForPublish({
+        workspace,
+        childPoints,
+        slotPoints,
+      });
+    }, [
+      currentData,
+      inviteSlots,
+      isMobile,
+    ]);
+
+  const queuePublishedWorkspace =
+    useCallback((
+      workspace: NetworkFocusWorkspace,
+    ) => {
+      if (
+        !wallet ||
+        !currentData ||
+        !currentFocusKey ||
+        currentData
+          .publicLayoutPublishingEnabled !==
+          true
+      ) {
+        return;
+      }
+
+      const rootWallet =
+        keyWallet(currentData.rootWallet);
+      const focusKey = currentFocusKey;
+      const fallbackRevision =
+        currentData.publishedLayout
+          ?.revision ?? 0;
+      const publishWorkspace =
+        materializeWorkspaceForPublish(
+          workspace,
+        );
+
+      layoutPublishQueueRef.current =
+        layoutPublishQueueRef.current
+          .catch(() => undefined)
+          .then(async () => {
+            const expectedRevision =
+              publishedRevisionsRef
+                .current[focusKey] ??
+              fallbackRevision;
+
+            try {
+              const snapshot =
+                await publishNetworkLayout({
+                  rootWallet,
+                  focusWallet: focusKey,
+                  expectedRevision,
+                  workspace:
+                    publishWorkspace,
+                });
+
+              const revisions = {
+                ...publishedRevisionsRef
+                  .current,
+                [focusKey]:
+                  snapshot.revision,
+              };
+              publishedRevisionsRef.current =
+                revisions;
+              writePublishedRevisionMap(
+                rootWallet,
+                revisions,
+              );
+
+              const cached =
+                cacheRef.current.get(
+                  focusKey,
+                );
+              if (cached) {
+                cacheRef.current.set(
+                  focusKey,
+                  {
+                    ...cached,
+                    publishedLayout:
+                      snapshot,
+                  },
+                );
+                setCacheVersion(
+                  (value) => value + 1,
+                );
+              }
+
+              if (
+                focusKey === rootWallet
+              ) {
+                setRootData(
+                  (current) =>
+                    current &&
+                    keyWallet(
+                      current.focusWallet,
+                    ) === focusKey
+                      ? {
+                          ...current,
+                          publishedLayout:
+                            snapshot,
+                        }
+                      : current,
+                );
+              }
+
+              setWorkspaceNotice(
+                `${w.layoutSaved} · ${e.visibleNetwork}`,
+              );
+              if (
+                noticeTimerRef.current !==
+                null
+              ) {
+                window.clearTimeout(
+                  noticeTimerRef.current,
+                );
+              }
+              noticeTimerRef.current =
+                window.setTimeout(() => {
+                  noticeTimerRef.current =
+                    null;
+                  setWorkspaceNotice('');
+                }, 1600);
+            } catch (error) {
+              if (
+                error instanceof
+                  NetworkLayoutPublishError &&
+                error.code ===
+                  'PUBLIC_LAYOUT_DISABLED'
+              ) {
+                return;
+              }
+
+              console.warn(
+                'Network layout remained local because public sync failed.',
+                error,
+              );
+              setWorkspaceNotice(
+                `${w.layoutSaved} · ${e.maintenance}`,
+              );
+              if (
+                noticeTimerRef.current !==
+                null
+              ) {
+                window.clearTimeout(
+                  noticeTimerRef.current,
+                );
+              }
+              noticeTimerRef.current =
+                window.setTimeout(() => {
+                  noticeTimerRef.current =
+                    null;
+                  setWorkspaceNotice('');
+                }, 2200);
+            }
+          });
+    }, [
+      wallet,
+      currentData,
+      currentFocusKey,
+      materializeWorkspaceForPublish,
+      w.layoutSaved,
+      e.visibleNetwork,
+      e.maintenance,
+    ]);
+
   const persistFocusWorkspace = useCallback((workspace: NetworkFocusWorkspace) => {
     if (!wallet || !currentFocusKey) return;
     setWorkspaceStore((current) => {
       const next = withFocusWorkspace(current, currentFocusKey, workspace);
+      workspaceStoreRef.current = next;
       try {
         window.localStorage.setItem(workspaceStorageKey(wallet), serializeNetworkWorkspaceStore(next));
       } catch {
@@ -745,7 +962,12 @@ export function AppNetwork({ locale }: { locale: Locale }) {
       }
       return next;
     });
-  }, [wallet, currentFocusKey]);
+    queuePublishedWorkspace(workspace);
+  }, [
+    wallet,
+    currentFocusKey,
+    queuePublishedWorkspace,
+  ]);
 
   const setEditingWorkspace = useCallback((workspace: NetworkFocusWorkspace) => {
     draftWorkspaceRef.current = workspace;
@@ -836,21 +1058,44 @@ export function AppNetwork({ locale }: { locale: Locale }) {
       const focusWorkspace = workspaceForFocus(current, currentFocusKey);
       const nextWorkspace = update(focusWorkspace);
       if (nextWorkspace === focusWorkspace) return current;
-      return withFocusWorkspace(current, currentFocusKey, nextWorkspace);
+      const next = withFocusWorkspace(
+        current,
+        currentFocusKey,
+        nextWorkspace,
+      );
+      workspaceStoreRef.current = next;
+      return next;
     });
   }, [currentFocusKey]);
 
   const flushWorkspaceStore = useCallback(() => {
     if (!wallet) return;
-    setWorkspaceStore((current) => {
-      try {
-        window.localStorage.setItem(workspaceStorageKey(wallet), serializeNetworkWorkspaceStore(current));
-      } catch {
-        // Runtime state remains authoritative when storage is unavailable.
-      }
-      return current;
-    });
-  }, [wallet]);
+    const current =
+      workspaceStoreRef.current;
+    try {
+      window.localStorage.setItem(
+        workspaceStorageKey(wallet),
+        serializeNetworkWorkspaceStore(
+          current,
+        ),
+      );
+    } catch {
+      // Runtime state remains authoritative when storage is unavailable.
+    }
+
+    if (currentFocusKey) {
+      queuePublishedWorkspace(
+        workspaceForFocus(
+          current,
+          currentFocusKey,
+        ),
+      );
+    }
+  }, [
+    wallet,
+    currentFocusKey,
+    queuePublishedWorkspace,
+  ]);
 
   const updateNodePositionRuntime = useCallback((walletKey: string, point: Point) => {
     updateWorkspaceRuntime((workspace) => withNodePosition(workspace, walletKey, point));
