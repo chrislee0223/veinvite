@@ -5,6 +5,7 @@ import {
   materializeNetworkWorkspaceForPublish,
   networkWorkspaceIsEmpty,
   sanitizePublishedNetworkWorkspace,
+  shouldAdoptPublishedNetworkWorkspace,
 } from '../src/lib/networkPublishedLayout.ts';
 
 const A='0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';
@@ -128,4 +129,54 @@ test('empty workspace detection stays explicit', () => {
     }),
     false,
   );
+});
+
+
+test('published server layout wins on a newly synced device but preserves same-revision local edits', () => {
+  const legacyLocal={
+    positions:{[A]:{x:111,y:222}},
+    groups:[],
+  };
+  const serverWorkspace={
+    positions:{[A]:{x:333,y:444}},
+    groups:[],
+  };
+
+  assert.equal(
+    shouldAdoptPublishedNetworkWorkspace({
+      localWorkspace:legacyLocal,
+      localRevision:0,
+      publishedRevision:1,
+    }),
+    true,
+  );
+
+  assert.equal(
+    shouldAdoptPublishedNetworkWorkspace({
+      localWorkspace:legacyLocal,
+      localRevision:2,
+      publishedRevision:2,
+    }),
+    false,
+  );
+
+  assert.equal(
+    shouldAdoptPublishedNetworkWorkspace({
+      localWorkspace:legacyLocal,
+      localRevision:2,
+      publishedRevision:3,
+    }),
+    true,
+  );
+
+  assert.equal(
+    shouldAdoptPublishedNetworkWorkspace({
+      localWorkspace:{positions:{},groups:[]},
+      localRevision:2,
+      publishedRevision:2,
+    }),
+    true,
+  );
+
+  assert.notDeepEqual(legacyLocal,serverWorkspace);
 });

@@ -109,6 +109,22 @@ export function networkWorkspaceIsEmpty(
   );
 }
 
+export function shouldAdoptPublishedNetworkWorkspace({
+  localWorkspace,
+  localRevision,
+  publishedRevision,
+}: {
+  localWorkspace: NetworkFocusWorkspace;
+  localRevision: number;
+  publishedRevision: number;
+}): boolean {
+  return (
+    localRevision === 0 ||
+    publishedRevision > localRevision ||
+    networkWorkspaceIsEmpty(localWorkspace)
+  );
+}
+
 export function materializeNetworkWorkspaceForPublish({
   workspace,
   childPoints,

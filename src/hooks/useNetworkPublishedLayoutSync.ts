@@ -19,7 +19,7 @@ import type {
 } from '@/lib/networkDataClient';
 import {
   materializeNetworkWorkspaceForPublish,
-  networkWorkspaceIsEmpty,
+  shouldAdoptPublishedNetworkWorkspace,
 } from '@/lib/networkPublishedLayout';
 import {
   NetworkLayoutPublishError,
@@ -144,14 +144,12 @@ export function useNetworkPublishedLayoutSync({
           currentFocusKey,
         );
       const shouldAdopt =
-        networkWorkspaceIsEmpty(
+        shouldAdoptPublishedNetworkWorkspace({
           localWorkspace,
-        ) ||
-        (
-          localRevision > 0 &&
-          snapshot.revision >
-            localRevision
-        );
+          localRevision,
+          publishedRevision:
+            snapshot.revision,
+        });
 
       if (!shouldAdopt) {
         return current;
