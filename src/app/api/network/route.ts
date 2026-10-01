@@ -69,6 +69,7 @@ type NetworkPayload = {
   searchResults?: NetworkSearchResult[];
   depthLimitReached?: boolean;
   publishedLayout?: PublishedNetworkLayoutSnapshot | null;
+  publicLayoutPublishingEnabled?: boolean;
 };
 
 const NETWORK_RPC_TIMEOUT_MS = 5_000;
@@ -122,10 +123,14 @@ async function attachPublishedLayout({
   focusWallet: string;
   payload: NetworkPayload;
 }): Promise<NetworkPayload> {
-  if (
-    !(await canUseNetworkPublicLayout(rootWallet))
-  ) {
-    return payload;
+  const enabled =
+    await canUseNetworkPublicLayout(rootWallet);
+
+  if (!enabled) {
+    return {
+      ...payload,
+      publicLayoutPublishingEnabled: false,
+    };
   }
 
   try {
@@ -141,13 +146,17 @@ async function attachPublishedLayout({
     return {
       ...payload,
       publishedLayout,
+      publicLayoutPublishingEnabled: true,
     };
   } catch (error) {
     console.error(
       'Failed to read published Network layout:',
       error,
     );
-    return payload;
+    return {
+      ...payload,
+      publicLayoutPublishingEnabled: true,
+    };
   }
 }
 
