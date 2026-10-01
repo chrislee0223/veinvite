@@ -2500,10 +2500,7 @@ export function AppNetwork({ locale }: { locale: Locale }) {
 
           <div className="layoutControls">
             {currentData.publicLayoutPublishingEnabled === true ? (
-              <span
-                className="publicLayoutBadge"
-                title={e.visibleNetwork}
-              >
+              <span className="publicLayoutBadge">
                 {e.visibleNetwork}
               </span>
             ) : null}
