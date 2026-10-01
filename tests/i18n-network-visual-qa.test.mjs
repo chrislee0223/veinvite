@@ -57,9 +57,13 @@ test('Network i18n QA mirrors critical Production geometry without runtime depen
 });
 
 
-test('public slot visual QA bypass is exact-path-only and renders the real Network harness', () => {
-  assert.match(slotQaPage, /QaNetworkI18nStateHarness/u);
-  assert.match(slotQaPage, /NETWORK-I18N-PUBLIC/u);
+test('public slot visual QA bypass is exact-path-only and renders the production slot renderer directly', () => {
+  assert.match(slotQaPage, /PublicNetworkInviteSlotEdges/u);
+  assert.match(slotQaPage, /PublicNetworkInviteSlotNodes/u);
+  assert.match(slotQaPage, /data-qa-slot-visual="ready"/u);
+  assert.match(slotQaPage, /state: 'AVAILABLE'/u);
+  assert.match(slotQaPage, /state: 'IN_PROGRESS'/u);
+  assert.doesNotMatch(slotQaPage, /QaNetworkI18nStateHarness/u);
   assert.match(providers, /NETWORK_SLOT_VISUAL_QA_PATH = '\/qa\/network-slot-visual'/u);
   assert.match(providers, /pathname === NETWORK_SLOT_VISUAL_QA_PATH/u);
   assert.match(hydrationShield, /NETWORK_SLOT_VISUAL_QA_PATH = '\/qa\/network-slot-visual'/u);
