@@ -212,12 +212,14 @@ function safeRevision(value: unknown): number | null {
 }
 
 
-function hasCompletedRequiredChecks(
+function hasCompletedDecisionChecks(
   assessment: V2AssessmentRow,
 ): boolean {
   const required = Array.isArray(assessment.required_checks)
     ? assessment.required_checks.filter(
-        (value): value is string => typeof value === 'string',
+        (value): value is string =>
+          typeof value === 'string' &&
+          value !== 'CHAIN_FINALITY',
       )
     : [];
   const completed = new Set(
@@ -452,7 +454,7 @@ async function loadOpenReviews(
       })
       .limit(REVIEW_LIST_LIMIT),
     supabaseAdmin
-      .from('operator_sybil_v2_manual_review_candidates')
+      .from('operator_sybil_v2_operator_action_candidates')
       .select(
         'invite_code,network,state,risk_score,policy_version,analyzer_version,revision,evidence_cutoff_block,required_checks,completed_checks,reason_codes,evidence_summary,source,assessed_at,updated_at',
       )
@@ -813,8 +815,11 @@ export async function GET(request: NextRequest) {
       invitation.status === 'UNDER_REVIEW' &&
       invitation.sybil_status === 'REVIEW';
     const v2CanResolve =
-      v2Assessment?.state === 'HOLD' &&
-      hasCompletedRequiredChecks(v2Assessment);
+      v2Assessment?.state === 'HOLD';
+    const v2CanClear =
+      v2CanResolve &&
+      v2Assessment !== null &&
+      hasCompletedDecisionChecks(v2Assessment);
     const postPayoutCanResolve =
       postPayoutReview?.state === 'HOLD';
     const inviterCanResolve =
@@ -870,7 +875,9 @@ export async function GET(request: NextRequest) {
           inviteeRestrictionCanResolve ||
           inviterRestrictionCanResolve
             ? ['REINSTATE']
-            : ['CLEAR', 'BLOCKED'],
+            : v2CanResolve && !v2CanClear
+              ? ['BLOCKED']
+              : ['CLEAR', 'BLOCKED'],
         transfersPerformed: false,
       },
       {
@@ -1522,11 +1529,14 @@ export async function POST(request: NextRequest) {
     }
 
     if (v2Assessment?.state === 'HOLD') {
-      if (!hasCompletedRequiredChecks(v2Assessment)) {
+      if (
+        decision === 'CLEAR' &&
+        !hasCompletedDecisionChecks(v2Assessment)
+      ) {
         return NextResponse.json(
           {
             error:
-              'Automatic Sybil checks are still in progress. This HOLD is not ready for operator review yet.',
+              'Core Sybil decision checks are still in progress. This HOLD may be blacklisted now, but it cannot be cleared yet.',
           },
           {
             status: 409,
