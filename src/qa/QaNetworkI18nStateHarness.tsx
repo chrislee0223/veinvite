@@ -195,7 +195,11 @@ export function QaNetworkI18nStateHarness({
   const direction = getLocaleDirection(locale);
 
   return (
-    <main className="qaNetworkPage" dir={direction}>
+    <main
+      className="qaNetworkPage"
+      dir={direction}
+      data-qa-network-state={stateId}
+    >
       <section className="qaNetworkCard">
         {stateId === 'NETWORK-I18N-MY' ? <MyNetworkState locale={locale} /> : null}
         {stateId === 'NETWORK-I18N-GROUPS' ? <GroupsState locale={locale} /> : null}
