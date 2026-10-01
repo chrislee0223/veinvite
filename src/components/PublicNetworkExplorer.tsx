@@ -880,18 +880,50 @@ function PublicNetworkCanvas({
   const layout = useMemo(() => {
     const visuals: PublicVisual[] = [];
     const edges: PublicEdge[] = [];
-    const positions = new Map<string, { x: number; y: number; depth: number }>();
+    const positions =
+      new Map<
+        string,
+        {
+          x: number;
+          y: number;
+          depth: number;
+        }
+      >();
+
     if (!focusData) {
-      return { visuals, edges, positions, startDepth: Math.max(0, activePath.length - 1) };
+      return {
+        visuals,
+        edges,
+        positions,
+        groups: [],
+        startDepth:
+          Math.max(
+            0,
+            activePath.length - 1,
+          ),
+      };
     }
 
-    const focusKey = keyWallet(focusData.focusWallet);
-    positions.set(focusKey, { x: CENTER_X, y: ROOT_Y, depth: focusData.focusDepth });
+    const currentFocusKey =
+      keyWallet(focusData.focusWallet);
+    positions.set(
+      currentFocusKey,
+      {
+        x: CENTER_X,
+        y: ROOT_Y,
+        depth: focusData.focusDepth,
+      },
+    );
     visuals.push({
-      wallet: focusKey,
-      parentWallet: focusData.breadcrumb.length > 1
-        ? keyWallet(focusData.breadcrumb[focusData.breadcrumb.length - 2])
-        : null,
+      wallet: currentFocusKey,
+      parentWallet:
+        focusData.breadcrumb.length > 1
+          ? keyWallet(
+              focusData.breadcrumb[
+                focusData.breadcrumb.length - 2
+              ],
+            )
+          : null,
       x: CENTER_X,
       y: ROOT_Y,
       depth: focusData.focusDepth,
@@ -899,36 +931,116 @@ function PublicNetworkCanvas({
       member: null,
     });
 
-    focusData.children.forEach((child, index) => {
-      const wallet = keyWallet(child.wallet);
-      const point = publicChildPoint(wallet, index, isMobile);
-      positions.set(wallet, { x: point.x, y: point.y, depth: child.depth });
+    for (
+      const child of
+        publicWorkspaceVisibility.displayedChildren
+    ) {
+      positions.set(
+        keyWallet(child.wallet),
+        {
+          x: child.x,
+          y: child.y,
+          depth: child.depth,
+        },
+      );
+    }
+
+    for (
+      const child of
+        publicWorkspaceVisibility.visibleChildren
+    ) {
+      const wallet =
+        keyWallet(child.wallet);
       visuals.push({
         wallet,
-        parentWallet: focusKey,
-        x: point.x,
-        y: point.y,
+        parentWallet:
+          currentFocusKey,
+        x: child.x,
+        y: child.y,
         depth: child.depth,
         root: false,
         member: child,
       });
+
+      if (
+        !groupContainingWallet(
+          publicWorkspace,
+          wallet,
+        )
+      ) {
+        edges.push({
+          key:
+            currentFocusKey +
+            '->' +
+            wallet,
+          x1: CENTER_X,
+          y1: ROOT_Y,
+          x2: child.x,
+          y2: child.y,
+          active: false,
+        });
+      }
+    }
+
+    for (
+      const group of
+        publicWorkspaceVisibility.visibleGroups
+    ) {
       edges.push({
-        key: focusKey + '->' + wallet,
+        key:
+          currentFocusKey +
+          '->group:' +
+          group.id,
         x1: CENTER_X,
         y1: ROOT_Y,
-        x2: point.x,
-        y2: point.y,
+        x2: group.x,
+        y2: group.y,
         active: false,
       });
-    });
+
+      if (group.collapsed === false) {
+        for (const member of group.members) {
+          const child =
+            publicWorkspaceVisibility
+              .visibleChildByWallet
+              .get(keyWallet(member));
+          if (!child) continue;
+
+          edges.push({
+            key:
+              'group:' +
+              group.id +
+              '->' +
+              keyWallet(member),
+            x1: group.x,
+            y1: group.y,
+            x2: child.x,
+            y2: child.y,
+            active: false,
+          });
+        }
+      }
+    }
 
     return {
       visuals,
       edges,
       positions,
-      startDepth: Math.max(0, activePath.length - 1),
+      groups:
+        publicWorkspaceVisibility
+          .visibleGroups,
+      startDepth:
+        Math.max(
+          0,
+          activePath.length - 1,
+        ),
     };
-  }, [activePath.length, focusData, isMobile]);
+  }, [
+    activePath.length,
+    focusData,
+    publicWorkspace,
+    publicWorkspaceVisibility,
+  ]);
 
   const centerViewedNetwork = useCallback(() => {
     if (stageSize.width <= 0 || stageSize.height <= 0) return;
