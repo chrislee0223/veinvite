@@ -26,12 +26,21 @@ export type PublicLayoutChild = {
   depth: number;
 };
 
+export type PublicSlotState =
+  | 'AVAILABLE'
+  | 'PENDING'
+  | 'IN_PROGRESS';
+
 export type PublicLayoutData = {
   focusWallet: string;
   focusDepth: number;
   breadcrumb: string[];
   children: PublicLayoutChild[];
   availableSlotIds?: Array<1 | 2>;
+  slots?: Array<{
+    slot: 1 | 2;
+    state: PublicSlotState;
+  }>;
   slotAvailabilityKnown?: boolean;
   publishedLayout?:
     PublishedNetworkLayoutSnapshot | null;
@@ -39,6 +48,7 @@ export type PublicLayoutData = {
 
 export type PublicInviteSlotVisual = {
   slot: 1 | 2;
+  state: PublicSlotState;
   x: number;
   y: number;
 };
@@ -158,41 +168,56 @@ export function derivePublicOwnerLayoutView({
       },
     );
 
-  const inviteSlots =
-    focusData.slotAvailabilityKnown ===
-      true &&
-    Array.isArray(
-      focusData.availableSlotIds,
-    )
-      ? focusData.availableSlotIds
-          .filter(
+  const publicSlotStates =
+    focusData.slotAvailabilityKnown === true &&
+    Array.isArray(focusData.slots) &&
+    focusData.slots.length === 2
+      ? focusData.slots.filter(
+          (slot): slot is {
+            slot: 1 | 2;
+            state: PublicSlotState;
+          } =>
+            (slot.slot === 1 || slot.slot === 2) &&
             (
+              slot.state === 'AVAILABLE' ||
+              slot.state === 'PENDING' ||
+              slot.state === 'IN_PROGRESS'
+            ),
+        )
+      : focusData.slotAvailabilityKnown === true &&
+          Array.isArray(focusData.availableSlotIds)
+        ? focusData.availableSlotIds
+            .filter(
+              (slot): slot is 1 | 2 =>
+                slot === 1 || slot === 2,
+            )
+            .map((slot) => ({
               slot,
-            ): slot is 1 | 2 =>
-              slot === 1 ||
-              slot === 2,
-          )
-          .map((slot) => {
-            const fallback =
-              networkCanvasInviteSlotPointById(
-                slot,
-              );
-            const saved =
-              workspace.positions[
-                `slot:${slot}`
-              ];
+              state: 'AVAILABLE' as const,
+            }))
+        : [];
 
-            return {
-              slot,
-              x:
-                saved?.x ??
-                fallback.x,
-              y:
-                saved?.y ??
-                fallback.y,
-            };
-          })
-      : [];
+  const inviteSlots =
+    publicSlotStates.map((slotState) => {
+      const fallback =
+        networkCanvasInviteSlotPointById(
+          slotState.slot,
+        );
+      const saved =
+        workspace.positions[
+          `slot:${slotState.slot}`
+        ];
+
+      return {
+        ...slotState,
+        x:
+          saved?.x ??
+          fallback.x,
+        y:
+          saved?.y ??
+          fallback.y,
+      };
+    });
 
   const visibility =
     deriveNetworkWorkspaceVisibility({
@@ -200,7 +225,6 @@ export function derivePublicOwnerLayoutView({
       positionedInviteSlots:
         inviteSlots.map((slot) => ({
           ...slot,
-          state: 'AVAILABLE',
           inviteeWallet: null,
         })),
       groups: workspace.groups,
