@@ -246,7 +246,26 @@ test('default-public reader stays graph-only while exposing only anonymous capac
     /root_known|NETWORK_NOT_FOUND|invitations|reward_status|sybil_status|identity_link|mission_/i,
   );
   assert.ok(
-    emptyRootMigration.includes("p.root_wallet ~ '^0x[0-9a-f]{40}
+    emptyRootMigration.includes("p.root_wallet ~ '^0x[0-9a-f]{40}$'"),
+    'empty public Network roots must still require a valid VeChain address',
+  );
+  assert.match(publicApi, /readPublicSlotSnapshot/);
+  assert.match(publicApi, /slots\?: PublicInviteSlotMetadata\[\]/);
+  assert.match(publicApi, /'AVAILABLE' \| 'PENDING' \| 'IN_PROGRESS'/);
+  assert.match(publicApi, /slotAvailabilityKnown/);
+  assert.match(publicApi, /occupiedInviteeWallets/);
+  assert.match(publicApi, /payload\.children = payload\.children\.filter/);
+  assert.doesNotMatch(publicApi, /apps_completed|vot3_converted|vote_completed/);
+  assert.match(publicOwnerLayoutView, /networkCanvasInviteSlotPointById\([\s\S]*slot/);
+  assert.match(publicSlots, /data-slot-id=\{slot\.slot\}/);
+  assert.match(publicSlots, /data-slot-state=\{slot\.state\}/);
+  assert.match(publicSlots, /publicSlotEdgeBase/);
+  assert.match(publicSlots, /publicSlotEdgePulse/);
+  assert.match(publicExplorer, /@keyframes publicSlotFlow/);
+  assert.match(publicExplorer, /prefers-reduced-motion:reduce[\s\S]*publicSlotEdgePulse/);
+  assert.match(publicExplorer, /\.publicSlotNode\{[^}]*pointer-events:none/);
+});
+
 test('partial domain autocomplete reuses only domains already cached in the current session', () => {
   assert.match(domainCache, /readCachedLeaderboardDomainSuggestions/);
   assert.match(domainCache, /sessionStorage\.getItem\(DOMAIN_CACHE_KEY\)/);
@@ -295,85 +314,6 @@ test('public invite slots keep exact owner-side positions and stay read-only', (
   assert.match(publicSlots, /edgePath\([\s\S]*centerX,[\s\S]*rootY,[\s\S]*slot\.x,[\s\S]*slot\.y/);
   assert.match(publicSlots, /public-slot-edge:\$\{slot\.slot\}/);
   assert.match(publicSlots, /className="publicSlotNode"/);
-  assert.match(publicExplorer, /\.publicSlotNode\{[^}]*pointer-events:none/);
-});
-
-test('viewed root center de-duplicates the top-left network total', () => {
-  assert.match(publicExplorer, /const isViewedRoot = visual\.root && keyWallet\(focusWallet\) === root/);
-  assert.match(publicExplorer, /\{!isViewedRoot \? <small className="nodeNetworkMetric">/);
-  assert.match(publicExplorer, /rootIdentityOnly/);
-});
-
-test('prominent center identities preserve verified display state while revalidating VeWorld data', () => {
-  assert.match(networkIdentity, /root \|\|/);
-  assert.match(networkIdentity, /displayDomain === undefined/);
-  assert.match(networkIdentity, /displayDomain === null && Boolean\(displayUrl\)/);
-  assert.match(networkIdentity, /setDisplayDomain\(readCachedLeaderboardDomain\(address\)\)/);
-  assert.match(networkIdentity, /readCachedProfileAvatar\(address\)/);
-});
-"),
-    'empty public Network roots must still require a valid VeChain address',
-  );
-  assert.match(publicApi, /readPublicSlotSnapshot/);
-  assert.match(publicApi, /slots\?: PublicInviteSlotMetadata\[\]/);
-  assert.match(publicApi, /'AVAILABLE' \| 'PENDING' \| 'IN_PROGRESS'/);
-  assert.match(publicApi, /slotAvailabilityKnown/);
-  assert.match(publicApi, /occupiedInviteeWallets/);
-  assert.match(publicApi, /payload\.children = payload\.children\.filter/);
-  assert.doesNotMatch(publicApi, /apps_completed|vot3_converted|vote_completed/);
-  assert.match(publicOwnerLayoutView, /networkCanvasInviteSlotPointById\([\s\S]*slot/);
-  assert.match(publicSlots, /data-slot-id=\{slot\.slot\}/);
-  assert.match(publicSlots, /data-slot-state=\{slot\.state\}/);
-  assert.match(publicSlots, /publicSlotEdgeBase/);
-  assert.match(publicSlots, /publicSlotEdgePulse/);
-  assert.match(publicExplorer, /@keyframes publicSlotFlow/);
-  assert.match(publicExplorer, /prefers-reduced-motion:reduce[\s\S]*publicSlotEdgePulse/);
-  assert.match(publicExplorer, /\.publicSlotNode\{[^}]*pointer-events:none/);
-});
-
-test('partial domain autocomplete reuses only domains already cached in the current session', () => {
-  assert.match(domainCache, /readCachedLeaderboardDomainSuggestions/);
-  assert.match(domainCache, /sessionStorage\.getItem\(DOMAIN_CACHE_KEY\)/);
-  assert.match(domainCache, /startsWith\(normalizedQuery\)/);
-  assert.match(domainCache, /DOMAIN_SUGGESTION_MIN_CHARS\s*=\s*3/);
-  assert.match(network, /cachedDomainSuggestions/);
-  assert.match(network, /openCachedDomainSuggestion/);
-  assert.match(network, /fetchNetwork\(wallet/);
-  assert.match(network, /formatVechainDomainLabel\(suggestion\.domain\)/);
-  assert.match(publicExplorer, /cachedDomainSuggestions/);
-  assert.match(publicExplorer, /focusCachedDomainSuggestion/);
-  assert.match(publicExplorer, /fetchPublicNetwork\(\s*root,\s*suggestion\.wallet/);
-  assert.doesNotMatch(domainCache, /fetch\(/);
-});
-
-
-test('public slot metadata follows the currently centered wallet and never turns unknown into a false zero', () => {
-  assert.match(publicApi, /const availableSlotIdsPromise = readPublicAvailableSlotIds\(focusWallet\)/);
-  assert.doesNotMatch(publicApi, /focusWallet === rootWallet[\s\S]*readPublicAvailableSlotIds/);
-  assert.match(publicApi, /payload\.slotAvailabilityKnown = availableSlotIds !== null/);
-  assert.match(publicExplorer, /data\.slotAvailabilityKnown === false[\s\S]*previous\?\.slotAvailabilityKnown === true/);
-  assert.match(publicExplorer, /slotRetryAttemptedRef/);
-  assert.match(publicExplorer, /slotRetryControllerRef/);
-  assert.match(slotRetryHook, /fetchFocus\([\s\S]*root,[\s\S]*focusKey,[\s\S]*controller\.signal/);
-  assert.match(slotRetryHook, /slotAvailabilityKnown !== false/);
-});
-
-test('public available slots keep exact owner-side positions and stay read-only', () => {
-  assert.match(
-    publicOwnerLayoutView,
-    /networkCanvasInviteSlotPointById/,
-  );
-  assert.match(
-    networkGeometry,
-    /NETWORK_CANVAS_CENTER_X - 58/,
-  );
-  assert.match(
-    networkGeometry,
-    /NETWORK_CANVAS_CENTER_X \+ 64/,
-  );
-  assert.match(publicExplorer, /publicEdgePath\(CENTER_X, ROOT_Y, slot\.x, slot\.y\)/);
-  assert.match(publicExplorer, /public-slot-edge:\$\{slot\.slot\}/);
-  assert.match(publicExplorer, /className="publicSlotNode"/);
   assert.match(publicExplorer, /\.publicSlotNode\{[^}]*pointer-events:none/);
 });
 
