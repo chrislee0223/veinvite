@@ -7,7 +7,6 @@ type RuntimeRow = {
   enabled: boolean;
   my_mode: NetworkRuntimeMode | null;
   public_mode: NetworkRuntimeMode | null;
-  public_layout_mode: NetworkRuntimeMode | null;
 };
 
 function isRuntimeMode(value: unknown): value is NetworkRuntimeMode {
@@ -34,7 +33,7 @@ export async function readNetworkRuntimeMode(
 ): Promise<NetworkRuntimeMode> {
   const { data, error } = await supabaseAdmin
     .from('network_runtime_config')
-    .select('enabled, my_mode, public_mode, public_layout_mode')
+    .select('enabled, my_mode, public_mode')
     .eq('id', 1)
     .maybeSingle();
 
