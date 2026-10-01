@@ -70,11 +70,25 @@ test('friend Network focus bloom keeps root geometry stable while preserving nav
   );
 });
 
-test('public focus slot metadata exposes only empty slot IDs and no invitee details', () => {
-  assert.match(publicApi, /readPublicAvailableSlotIds\(focusWallet\)/);
-  assert.match(publicApi, /availableSlotIds/);
+test('public focus exposes anonymous state for both slots without browser invitee detail', () => {
+  assert.match(publicApi, /readPublicSlotSnapshot\(focusWallet\)/);
+  assert.match(publicApi, /slots\?: PublicInviteSlotMetadata\[\]/);
+  assert.match(publicApi, /'AVAILABLE' \| 'PENDING' \| 'IN_PROGRESS'/);
+  assert.match(publicApi, /occupiedInviteeWallets/);
+  assert.match(
+    publicApi,
+    /payload\.children = payload\.children\.filter[\s\S]*occupiedInviteeWallets/u,
+  );
+  assert.match(
+    publicApi,
+    /allowedSlotIds: slotSnapshot[\s\S]*slotSnapshot\.slots\.map/u,
+  );
   assert.match(publicApi, /slotAvailabilityKnown/);
-  assert.doesNotMatch(publicApi, /invitee_wallet|apps_completed|vot3_converted|vote_completed/);
+  assert.doesNotMatch(publicApi, /apps_completed|vot3_converted|vote_completed/);
+  assert.doesNotMatch(
+    publicApi,
+    /payload\.slots[\s\S]{0,300}invitee_wallet/u,
+  );
 });
 
 test('friend Network slots share owner coordinates, edges, motion reduction, and read-only behavior', () => {
@@ -91,10 +105,19 @@ test('friend Network slots share owner coordinates, edges, motion reduction, and
     /NETWORK_CANVAS_CENTER_X \+ 64/,
   );
   assert.match(explorer, /publicSlotEdgeBase/);
+  assert.match(explorer, /publicSlotEdgeProgress/);
   assert.match(explorer, /publicSlotEdgePulse/);
+  assert.match(explorer, /data-slot-state=\{slot\.state\}/);
   assert.match(explorer, /publicSlotFlow/);
   assert.match(explorer, /prefers-reduced-motion:reduce[\s\S]*publicSlotEdgePulse/);
   assert.match(explorer, /\.publicSlotNode\{[^}]*pointer-events:none/);
+});
+
+test('public owner layout keeps both occupied and available slots at owner-authored coordinates', () => {
+  assert.match(ownerLayoutView, /focusData\.slots/);
+  assert.match(ownerLayoutView, /state: PublicSlotState/);
+  assert.match(ownerLayoutView, /workspace\.positions[\s\S]*slot:/u);
+  assert.match(ownerLayoutView, /inviteeWallet: null/);
 });
 
 test('slot lookup failure preserves known focus slots and retries once without blocking the graph', () => {
