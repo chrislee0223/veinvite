@@ -63,9 +63,11 @@ test('layout metadata is optional and cannot take the graph down', () => {
   assert.match(publicRoute,/Failed to load public Network owner layout/u);
 });
 
-test('legacy local workspaces are not auto-published on hydration', () => {
-  assert.match(publishedLayoutSyncHook,/networkWorkspaceIsEmpty\([\s\S]*localWorkspace/u);
-  assert.match(publishedLayoutSyncHook,/localRevision > 0[\s\S]*snapshot\.revision >[\s\S]*localRevision/u);
+test('legacy local workspaces stay private until explicit publish, then server layout syncs across devices', () => {
+  assert.match(
+    publishedLayoutSyncHook,
+    /shouldAdoptPublishedNetworkWorkspace\([\s\S]*localRevision[\s\S]*publishedRevision:[\s\S]*snapshot\.revision/u,
+  );
   assert.match(publishedLayoutSyncHook,/publishableFocusRef/u);
   assert.match(appNetwork,/markCurrentFocusPublishable\(\)[\s\S]*commitCurrentDraftWorkspace\(\)/u);
   assert.doesNotMatch(
