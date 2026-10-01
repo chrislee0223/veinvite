@@ -105,13 +105,15 @@ test('friend Network slots share owner coordinates, edges, motion reduction, and
     networkGeometry,
     /NETWORK_CANVAS_CENTER_X \+ 64/,
   );
-  assert.match(explorer, /publicSlotEdgeBase/);
-  assert.match(explorer, /publicSlotEdgeProgress/);
-  assert.match(explorer, /publicSlotEdgePulse/);
+  assert.match(publicSlots, /publicSlotEdgeBase/);
+  assert.match(publicSlots, /publicSlotEdgeProgress/);
+  assert.match(publicSlots, /publicSlotEdgePulse/);
   assert.match(publicSlots, /data-slot-state=\{slot\.state\}/);
-  assert.match(explorer, /publicSlotFlow/);
-  assert.match(explorer, /prefers-reduced-motion:reduce[\s\S]*publicSlotEdgePulse/);
-  assert.match(explorer, /\.publicSlotNode\{[^}]*pointer-events:none/);
+  assert.match(publicSlots, /publicSlotFlow/);
+  assert.match(publicSlots, /prefers-reduced-motion:reduce[\s\S]*publicSlotEdgePulse/);
+  assert.match(publicSlots, /\.publicSlotNode\s*\{[^}]*pointer-events:none/);
+  assert.match(publicSlots, /\.publicSlotNode\s*\{[^}]*width:52px[^}]*height:52px/);
+  assert.doesNotMatch(explorer, /\.publicSlotNode\{/);
 });
 
 test('public owner layout keeps both occupied and available slots at owner-authored coordinates', () => {
