@@ -59,10 +59,11 @@ export function readPublishedRevisionMap(
       const key = keyWallet(focus);
       if (
         /^0x[0-9a-f]{40}$/u.test(key) &&
+        typeof revision === 'number' &&
         Number.isSafeInteger(revision) &&
-        Number(revision) > 0
+        revision > 0
       ) {
-        next[key] = Number(revision);
+        next[key] = revision;
       }
     }
 
@@ -140,10 +141,11 @@ export async function publishNetworkLayout({
       {
         code: payload?.code ?? null,
         currentRevision:
+          typeof payload?.currentRevision === 'number' &&
           Number.isSafeInteger(
-            payload?.currentRevision,
+            payload.currentRevision,
           )
-            ? Number(payload?.currentRevision)
+            ? payload.currentRevision
             : null,
       },
     );
