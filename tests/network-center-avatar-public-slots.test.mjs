@@ -2,12 +2,14 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import test from 'node:test';
 
-const [network, explorer, publicApi, identity, networkGeometry] = await Promise.all([
+const [network, explorer, publicApi, identity, networkGeometry, ownerLayoutView, slotRetryHook] = await Promise.all([
   readFile('src/components/AppNetwork.tsx', 'utf8'),
   readFile('src/components/PublicNetworkExplorer.tsx', 'utf8'),
   readFile('src/app/api/network/public/route.ts', 'utf8'),
   readFile('src/components/NetworkWalletIdentity.tsx', 'utf8'),
   readFile('src/lib/networkCanvasGeometry.ts', 'utf8'),
+  readFile('src/lib/networkPublicOwnerLayoutView.ts', 'utf8'),
+  readFile('src/hooks/usePublicNetworkSlotRetry.ts', 'utf8'),
 ]);
 
 test('My Network root stays at the same coordinate with avatar plus one identity line', () => {
@@ -77,8 +79,8 @@ test('public focus slot metadata exposes only empty slot IDs and no invitee deta
 
 test('friend Network slots share owner coordinates, edges, motion reduction, and read-only behavior', () => {
   assert.match(
-    explorer,
-    /networkCanvasInviteSlotPointById as publicInviteSlotPoint/,
+    ownerLayoutView,
+    /networkCanvasInviteSlotPointById/,
   );
   assert.match(
     networkGeometry,
@@ -97,9 +99,9 @@ test('friend Network slots share owner coordinates, edges, motion reduction, and
 
 test('slot lookup failure preserves known focus slots and retries once without blocking the graph', () => {
   assert.match(explorer, /previous\?\.slotAvailabilityKnown === true/);
-  assert.match(explorer, /slotRetryAttemptedRef\.current\.has\(focusKey\)/);
-  assert.match(explorer, /window\.setTimeout\(async \(\) =>/);
-  assert.match(explorer, /controller\.abort\(\)/);
+  assert.match(slotRetryHook, /retryAttemptedRef\.current\.has\([\s\S]*focusKey/);
+  assert.match(slotRetryHook, /window\.setTimeout\(async \(\) =>/);
+  assert.match(slotRetryHook, /controller\.abort\(\)/);
 });
 
 test('center identities keep cached display state while revalidating VeWorld identity', () => {
