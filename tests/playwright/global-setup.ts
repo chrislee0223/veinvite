@@ -24,4 +24,5 @@ export default async function globalSetup(): Promise<void> {
   // layout failure on the first four tests.
   await warm('/qa/render?scenario=invite-landing-ko-mobile&locale=en');
   await warm('/qa/state?state=LEGAL-REQUIRED&locale=en');
+  await warm('/qa/network-slot-visual');
 }
