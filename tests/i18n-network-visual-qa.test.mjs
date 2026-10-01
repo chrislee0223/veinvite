@@ -11,6 +11,7 @@ const [
   providers,
   hydrationShield,
   slotQaPage,
+  playwrightGlobalSetup,
 ] = await Promise.all([
   readFile('src/qa/QaNetworkI18nStateHarness.tsx', 'utf8'),
   readFile('src/qa/stateRegistry.ts', 'utf8'),
@@ -20,6 +21,7 @@ const [
   readFile('src/components/AppProviders.tsx', 'utf8'),
   readFile('src/components/LocaleHydrationShield.tsx', 'utf8'),
   readFile('src/app/qa/network-slot-visual/page.tsx', 'utf8'),
+  readFile('tests/playwright/global-setup.ts', 'utf8'),
 ]);
 
 const NETWORK_I18N_STATES = [
@@ -65,4 +67,5 @@ test('public slot visual QA bypass is exact-path-only and renders the real Netwo
   assert.doesNotMatch(providers, /pathname\.startsWith\('\/qa'/u);
   assert.doesNotMatch(hydrationShield, /pathname\.startsWith\('\/qa'/u);
   assert.match(visual, /\/qa\/network-slot-visual/u);
+  assert.match(playwrightGlobalSetup, /warm\('\/qa\/network-slot-visual'\)/u);
 });
