@@ -259,7 +259,7 @@ test('public Network invite slots are visibly rendered on mobile and desktop', a
   for (const viewport of [MOBILE_VIEWPORT, DESKTOP_VIEWPORT]) {
     await page.setViewportSize(viewport);
     await page.goto(
-      '/qa/state?state=NETWORK-I18N-PUBLIC&locale=ko',
+      '/qa/network-slot-visual',
       { waitUntil: 'domcontentloaded', timeout: 12_000 },
     );
     await waitForPublicNetworkQaState(page);
@@ -269,7 +269,7 @@ test('public Network invite slots are visibly rendered on mobile and desktop', a
   await page.emulateMedia({ reducedMotion: 'reduce' });
   await page.setViewportSize(MOBILE_VIEWPORT);
   await page.goto(
-    '/qa/state?state=NETWORK-I18N-PUBLIC&locale=ko',
+    '/qa/network-slot-visual',
     { waitUntil: 'domcontentloaded', timeout: 12_000 },
   );
   await waitForPublicNetworkQaState(page);
