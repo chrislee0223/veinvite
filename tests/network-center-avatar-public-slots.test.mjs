@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import test from 'node:test';
 
-const [network, explorer, publicApi, identity, networkGeometry, ownerLayoutView, slotRetryHook] = await Promise.all([
+const [network, explorer, publicApi, identity, networkGeometry, ownerLayoutView, slotRetryHook, publicSlots] = await Promise.all([
   readFile('src/components/AppNetwork.tsx', 'utf8'),
   readFile('src/components/PublicNetworkExplorer.tsx', 'utf8'),
   readFile('src/app/api/network/public/route.ts', 'utf8'),
@@ -10,6 +10,7 @@ const [network, explorer, publicApi, identity, networkGeometry, ownerLayoutView,
   readFile('src/lib/networkCanvasGeometry.ts', 'utf8'),
   readFile('src/lib/networkPublicOwnerLayoutView.ts', 'utf8'),
   readFile('src/hooks/usePublicNetworkSlotRetry.ts', 'utf8'),
+  readFile('src/components/PublicNetworkInviteSlots.tsx', 'utf8'),
 ]);
 
 test('My Network root stays at the same coordinate with avatar plus one identity line', () => {
@@ -107,7 +108,7 @@ test('friend Network slots share owner coordinates, edges, motion reduction, and
   assert.match(explorer, /publicSlotEdgeBase/);
   assert.match(explorer, /publicSlotEdgeProgress/);
   assert.match(explorer, /publicSlotEdgePulse/);
-  assert.match(explorer, /data-slot-state=\{slot\.state\}/);
+  assert.match(publicSlots, /data-slot-state=\{slot\.state\}/);
   assert.match(explorer, /publicSlotFlow/);
   assert.match(explorer, /prefers-reduced-motion:reduce[\s\S]*publicSlotEdgePulse/);
   assert.match(explorer, /\.publicSlotNode\{[^}]*pointer-events:none/);
