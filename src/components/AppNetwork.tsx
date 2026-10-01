@@ -1225,7 +1225,17 @@ export function AppNetwork({ locale }: { locale: Locale }) {
     }
     introWalletRef.current = null;
     setIntroActive(false);
-    setWorkspaceStore(wallet ? readStoredWorkspace(wallet) : { version: 1, focus: {} });
+    const storedWorkspace = wallet
+      ? readStoredWorkspace(wallet)
+      : { version: 1, focus: {} } as NetworkWorkspaceStore;
+    workspaceStoreRef.current = storedWorkspace;
+    setWorkspaceStore(storedWorkspace);
+    publishedRevisionsRef.current = wallet
+      ? readPublishedRevisionMap(wallet)
+      : {};
+    layoutPublishQueueRef.current =
+      Promise.resolve();
+
     const warmedRoot = wallet ? getCachedNetworkRoot(wallet) as NetworkData | null : null;
     const initialRoot = wallet ? (warmedRoot ?? provisionalNetworkData(wallet)) : null;
     if (warmedRoot) setRootTopologyReady(true);
