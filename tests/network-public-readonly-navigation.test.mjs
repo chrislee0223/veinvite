@@ -22,6 +22,7 @@ const [
   networkIdentity,
   networkGeometry,
   publicOwnerLayoutView,
+  slotRetryHook,
 ] = await Promise.all([
   readFile('src/components/InviterLeaderboard.tsx', 'utf8'),
   readFile('src/components/HomeClient.tsx', 'utf8'),
@@ -39,6 +40,7 @@ const [
   readFile('src/components/NetworkWalletIdentity.tsx', 'utf8'),
   readFile('src/lib/networkCanvasGeometry.ts', 'utf8'),
   readFile('src/lib/networkPublicOwnerLayoutView.ts', 'utf8'),
+  readFile('src/hooks/usePublicNetworkSlotRetry.ts', 'utf8'),
 ]);
 
 test('leaderboard can hand a wallet into the Network tab without prop-drilling the leaderboard tree', () => {
@@ -284,8 +286,8 @@ test('public slot metadata follows the currently centered wallet and never turns
   assert.match(publicExplorer, /data\.slotAvailabilityKnown === false[\s\S]*previous\?\.slotAvailabilityKnown === true/);
   assert.match(publicExplorer, /slotRetryAttemptedRef/);
   assert.match(publicExplorer, /slotRetryControllerRef/);
-  assert.match(publicExplorer, /fetchPublicNetwork\(root, focusKey, controller\.signal\)/);
-  assert.match(publicExplorer, /focusData\.slotAvailabilityKnown !== true/);
+  assert.match(slotRetryHook, /fetchFocus\([\s\S]*root,[\s\S]*focusKey,[\s\S]*controller\.signal/);
+  assert.match(slotRetryHook, /slotAvailabilityKnown !== false/);
 });
 
 test('public available slots keep exact owner-side positions and stay read-only', () => {
