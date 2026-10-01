@@ -40,6 +40,7 @@ export type NetworkData = {
   searchResults: NetworkSearchResult[];
   depthLimitReached: boolean;
   publishedLayout?: PublishedNetworkLayoutSnapshot | null;
+  publicLayoutPublishingEnabled?: boolean;
 };
 
 export function provisionalNetworkData(wallet: string): NetworkData {
@@ -59,6 +60,7 @@ export function provisionalNetworkData(wallet: string): NetworkData {
     searchResults: [],
     depthLimitReached: false,
     publishedLayout: null,
+    publicLayoutPublishingEnabled: false,
   };
 }
 
