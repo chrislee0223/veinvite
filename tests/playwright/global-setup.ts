@@ -1,8 +1,11 @@
 const QA_BASE_URL = 'http://127.0.0.1:3100';
 
-async function warm(path: string): Promise<void> {
+async function warm(
+  path: string,
+  timeoutMs = 30_000,
+): Promise<void> {
   const response = await fetch(`${QA_BASE_URL}${path}`, {
-    signal: AbortSignal.timeout(30_000),
+    signal: AbortSignal.timeout(timeoutMs),
     headers: {
       Accept: 'text/html',
     },
@@ -24,5 +27,5 @@ export default async function globalSetup(): Promise<void> {
   // layout failure on the first four tests.
   await warm('/qa/render?scenario=invite-landing-ko-mobile&locale=en');
   await warm('/qa/state?state=LEGAL-REQUIRED&locale=en');
-  await warm('/qa/network-slot-visual');
+  await warm('/qa/network-slot-visual', 60_000);
 }
