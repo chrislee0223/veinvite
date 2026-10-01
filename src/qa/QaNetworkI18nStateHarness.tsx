@@ -11,6 +11,13 @@ import {
   getLocaleDirection,
   type SupportedLocale,
 } from '@/lib/i18n/locales';
+import {
+  PublicNetworkInviteSlotEdges,
+  PublicNetworkInviteSlotNodes,
+} from '@/components/PublicNetworkInviteSlots';
+import type {
+  PublicInviteSlotVisual,
+} from '@/lib/networkPublicOwnerLayoutView';
 
 export type QaNetworkI18nStateId =
   | 'NETWORK-I18N-MY'
@@ -110,7 +117,12 @@ function PublicState({ locale }: { locale: SupportedLocale }) {
   const t = NETWORK_EXPERIENCE_COPY[locale];
   const c = NETWORK_CANVAS_CONTROL_COPY[locale];
   const e = NETWORK_EXPLORE_COPY[locale];
+  const u = NETWORK_CANARY_UI_COPY[locale];
   const direction = getLocaleDirection(locale);
+  const slotProbe: PublicInviteSlotVisual[] = [
+    { slot: 1, state: 'AVAILABLE', x: 112, y: 228 },
+    { slot: 2, state: 'IN_PROGRESS', x: 248, y: 228 },
+  ];
 
   return (
     <>
@@ -132,6 +144,30 @@ function PublicState({ locale }: { locale: SupportedLocale }) {
           <strong>friend.vet</strong>
           <small>{e.visibleNetwork}</small>
         </div>
+        <svg
+          className="qaPublicSlotEdges"
+          width="360"
+          height="320"
+          viewBox="0 0 360 320"
+          aria-hidden="true"
+        >
+          <PublicNetworkInviteSlotEdges
+            slots={slotProbe}
+            centerX={180}
+            rootY={128}
+            edgePath={(x1, y1, x2, y2) =>
+              `M ${x1} ${y1} L ${x2} ${y2}`
+            }
+          />
+        </svg>
+        <PublicNetworkInviteSlotNodes
+          slots={slotProbe}
+          labels={{
+            available: u.available,
+            pending: t.pendingAcceptance,
+            inProgress: t.inProgress,
+          }}
+        />
         <button type="button" className="qaParentReturn">
           {direction === 'rtl' ? '›' : '‹'} {t.invitedBy}
         </button>
@@ -195,6 +231,7 @@ export function QaNetworkI18nStateHarness({
         .qaSearch button{min-height:34px;padding-inline:10px;border:0;border-radius:8px;background:#f4b728;color:#17120a;font-size:.56rem;font-weight:900;white-space:normal}
         .qaPublicResult{margin:7px 6px 0;padding:9px;display:grid;gap:3px;border:1px solid rgba(255,255,255,.05);border-radius:10px;background:#11110f}
         .qaPublicResult strong{font-size:.62rem}.qaPublicResult small{font-size:.52rem;color:#77736c}
+        .qaPublicSlotEdges{position:absolute;left:0;top:0;width:360px;height:320px;overflow:visible;pointer-events:none}
         .qaParentReturn{position:absolute;inset-inline-start:8px;bottom:8px;min-height:34px;max-width:calc(100% - 16px);padding:4px 11px;border:1px solid rgba(255,205,80,.12);border-radius:10px;background:#12120f;color:#a89c7b;font-size:.55rem;font-weight:850;white-space:normal}
         .qaInspector{position:absolute;inset-inline:8px;bottom:52px;padding:9px;border:1px solid rgba(255,205,80,.15);border-radius:14px;background:rgba(15,15,13,.975)}
         .qaInspector>strong{display:block;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:.66rem}
