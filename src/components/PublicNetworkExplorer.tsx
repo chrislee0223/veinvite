@@ -811,7 +811,7 @@ function PublicNetworkCanvas({
   }, []);
 
   const nearestVisibleChild = useCallback((point: Point, radius = NODE_HIT_RADIUS) => {
-    let nearest: PublicVisual | null = null;
+    let nearest: (typeof layout.visuals)[number] | null = null;
     let nearestDistance = radius;
     for (const visual of layout.visuals) {
       if (visual.root) continue;
