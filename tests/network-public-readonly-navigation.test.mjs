@@ -261,9 +261,10 @@ test('default-public reader stays graph-only while exposing only anonymous capac
   assert.match(publicSlots, /data-slot-state=\{slot\.state\}/);
   assert.match(publicSlots, /publicSlotEdgeBase/);
   assert.match(publicSlots, /publicSlotEdgePulse/);
-  assert.match(publicExplorer, /@keyframes publicSlotFlow/);
-  assert.match(publicExplorer, /prefers-reduced-motion:reduce[\s\S]*publicSlotEdgePulse/);
-  assert.match(publicExplorer, /\.publicSlotNode\{[^}]*pointer-events:none/);
+  assert.match(publicSlots, /@keyframes publicSlotFlow/);
+  assert.match(publicSlots, /prefers-reduced-motion:reduce[\s\S]*publicSlotEdgePulse/);
+  assert.match(publicSlots, /\.publicSlotNode\s*\{[^}]*pointer-events:none/);
+  assert.doesNotMatch(publicExplorer, /\.publicSlotNode\{/);
 });
 
 test('partial domain autocomplete reuses only domains already cached in the current session', () => {
@@ -314,7 +315,8 @@ test('public invite slots keep exact owner-side positions and stay read-only', (
   assert.match(publicSlots, /edgePath\([\s\S]*centerX,[\s\S]*rootY,[\s\S]*slot\.x,[\s\S]*slot\.y/);
   assert.match(publicSlots, /public-slot-edge:\$\{slot\.slot\}/);
   assert.match(publicSlots, /className="publicSlotNode"/);
-  assert.match(publicExplorer, /\.publicSlotNode\{[^}]*pointer-events:none/);
+  assert.match(publicSlots, /\.publicSlotNode\s*\{[^}]*pointer-events:none/);
+  assert.match(publicSlots, /\.publicSlotCircle\s*\{[^}]*animation:publicSlotPulse/);
 });
 
 test('viewed root center de-duplicates the top-left network total', () => {
