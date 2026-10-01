@@ -247,8 +247,6 @@ function knownProtocolDestinations(): Set<string> {
     config.x2EarnAppsAddress.toLowerCase(),
     config.x2EarnRewardsPoolAddress.toLowerCase(),
     config.xAllocationVotingAddress.toLowerCase(),
-    // Bootstrap known service/protocol wallets. Production's DB allowlist is
-    // also loaded below so future protocol additions do not require a deploy.
     '0x76ca782b59c74d088c7d2cce2f211bc00836c602', // VOT3
     '0x8692410da301a9b796b68a58ff660d51e979c6fa', // gas abstraction paymaster
     '0xf9a1bc92e0eeee598b9fdb45397107b1f05f6cc1', // VeSwap router
@@ -2413,13 +2411,6 @@ async function findConfirmedClusterHubMatch(
     confirmedResult.data ?? []
   ) as ConfirmedClusterHubRow[];
 
-  // Confirmation time is knowledge time, not offense time. For any unpaid
-  // referral, newly confirmed historical cluster evidence may be applied
-  // retroactively. Hub linkage alone is never enough: the subject must also
-  // reproduce the common-sink/inviter relationship and have synchronized
-  // rewards, a dense B3TR burst, or an independent mission-pattern cluster.
-  // Paid/assigned rewards remain protected by the enforcement RPC and
-  // post-payout review path.
   return (
     matches
       .filter((row) => !Number.isNaN(Date.parse(row.confirmed_at)))
