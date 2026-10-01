@@ -382,6 +382,7 @@ export function AppNetwork({ locale }: { locale: Locale }) {
 
   const {
     resetSyncState,
+    markCurrentFocusPublishable,
     persistFocusWorkspace,
     updateWorkspaceRuntime,
     flushWorkspaceStore,
@@ -411,8 +412,15 @@ export function AppNetwork({ locale }: { locale: Locale }) {
 
   const positionedChildren = useMemo(() => {
     const children = currentData?.children ?? [];
+    const usePublishedCanonicalFallback =
+      currentData?.publicLayoutPublishingEnabled === true &&
+      Boolean(currentData.publishedLayout);
     return children.map((child, index): PositionedChild => {
-      const fallback = radialChildPoint(child.wallet, index, isMobile);
+      const fallback = radialChildPoint(
+        child.wallet,
+        index,
+        usePublishedCanonicalFallback ? false : isMobile,
+      );
       const saved = activeWorkspace.positions[keyWallet(child.wallet)];
       return {
         ...child,
@@ -1507,6 +1515,7 @@ export function AppNetwork({ locale }: { locale: Locale }) {
   const finishLayoutEdit = useCallback(() => {
     workspaceDragRef.current = null;
     restorePendingGroupDrop();
+    markCurrentFocusPublishable();
     commitCurrentDraftWorkspace();
     if (restoreTimerRef.current !== null) {
       window.clearTimeout(restoreTimerRef.current);
@@ -1534,7 +1543,13 @@ export function AppNetwork({ locale }: { locale: Locale }) {
       noticeTimerRef.current = null;
       setWorkspaceNotice('');
     }, 1400);
-  }, [w.layoutSaved, restorePendingGroupDrop, commitCurrentDraftWorkspace, clearDragGhost]);
+  }, [
+    w.layoutSaved,
+    restorePendingGroupDrop,
+    markCurrentFocusPublishable,
+    commitCurrentDraftWorkspace,
+    clearDragGhost,
+  ]);
 
   const startGroupCreation = useCallback((
     initialMember: string | null = null,
