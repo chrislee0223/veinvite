@@ -71,5 +71,5 @@ test('public slot visual QA bypass is exact-path-only and renders the production
   assert.doesNotMatch(providers, /pathname\.startsWith\('\/qa'/u);
   assert.doesNotMatch(hydrationShield, /pathname\.startsWith\('\/qa'/u);
   assert.match(visual, /\/qa\/network-slot-visual/u);
-  assert.match(playwrightGlobalSetup, /warm\('\/qa\/network-slot-visual'\)/u);
+  assert.match(playwrightGlobalSetup, /warm\('\/qa\/network-slot-visual', 60_000\)/u);
 });
