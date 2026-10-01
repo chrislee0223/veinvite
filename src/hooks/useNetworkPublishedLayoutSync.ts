@@ -24,7 +24,9 @@ import {
 import {
   NetworkLayoutPublishError,
   publishNetworkLayout,
+  readPublishedConflictMap,
   readPublishedRevisionMap,
+  writePublishedConflictMap,
   writePublishedRevisionMap,
   type NetworkPublishedRevisionMap,
 } from '@/lib/networkPublishedLayoutClient';
@@ -100,6 +102,8 @@ export function useNetworkPublishedLayoutSync({
     );
   const publishableFocusRef =
     useRef<Set<string>>(new Set());
+  const conflictRevisionsRef =
+    useRef<NetworkPublishedRevisionMap>({});
 
   const resetSyncState = useCallback((
     rootWallet: string | null,
@@ -117,6 +121,12 @@ export function useNetworkPublishedLayoutSync({
       Promise.resolve();
     publishableFocusRef.current =
       new Set();
+    conflictRevisionsRef.current =
+      rootWallet
+        ? readPublishedConflictMap(
+            rootWallet,
+          )
+        : {};
   }, []);
 
   useEffect(() => {
@@ -136,6 +146,39 @@ export function useNetworkPublishedLayoutSync({
     const localRevision =
       publishedRevisionsRef
         .current[currentFocusKey] ?? 0;
+    const conflictRevision =
+      conflictRevisionsRef
+        .current[currentFocusKey] ?? null;
+
+    if (conflictRevision !== null) {
+      const nextRevision = Math.max(
+        conflictRevision,
+        snapshot.revision,
+      );
+      const revisions = {
+        ...publishedRevisionsRef.current,
+        [currentFocusKey]:
+          nextRevision,
+      };
+      const conflicts = {
+        ...conflictRevisionsRef.current,
+        [currentFocusKey]:
+          nextRevision,
+      };
+      publishedRevisionsRef.current =
+        revisions;
+      conflictRevisionsRef.current =
+        conflicts;
+      writePublishedRevisionMap(
+        wallet,
+        revisions,
+      );
+      writePublishedConflictMap(
+        wallet,
+        conflicts,
+      );
+      return;
+    }
 
     setWorkspaceStore((current) => {
       const localWorkspace =
@@ -321,6 +364,14 @@ export function useNetworkPublishedLayoutSync({
           !publishableFocusRef.current.has(
             currentFocusKey,
           )
+        ) ||
+        (
+          conflictRevisionsRef.current[
+            currentFocusKey
+          ] !== undefined &&
+          !publishableFocusRef.current.has(
+            currentFocusKey,
+          )
         )
       ) {
         return;
@@ -373,6 +424,23 @@ export function useNetworkPublishedLayoutSync({
                 revisions,
               );
 
+              if (
+                conflictRevisionsRef.current[
+                  focusKey
+                ] !== undefined
+              ) {
+                const conflicts = {
+                  ...conflictRevisionsRef.current,
+                };
+                delete conflicts[focusKey];
+                conflictRevisionsRef.current =
+                  conflicts;
+                writePublishedConflictMap(
+                  rootWallet,
+                  conflicts,
+                );
+              }
+
               const cached =
                 cacheRef.current.get(
                   focusKey,
@@ -422,6 +490,41 @@ export function useNetworkPublishedLayoutSync({
                   'PUBLIC_LAYOUT_DISABLED'
               ) {
                 return;
+              }
+
+              if (
+                error instanceof
+                  NetworkLayoutPublishError &&
+                error.code ===
+                  'LAYOUT_REVISION_CONFLICT' &&
+                error.currentRevision !== null &&
+                error.currentRevision > 0
+              ) {
+                const revisions = {
+                  ...publishedRevisionsRef.current,
+                  [focusKey]:
+                    error.currentRevision,
+                };
+                const conflicts = {
+                  ...conflictRevisionsRef.current,
+                  [focusKey]:
+                    error.currentRevision,
+                };
+                publishedRevisionsRef.current =
+                  revisions;
+                conflictRevisionsRef.current =
+                  conflicts;
+                publishableFocusRef.current.delete(
+                  focusKey,
+                );
+                writePublishedRevisionMap(
+                  rootWallet,
+                  revisions,
+                );
+                writePublishedConflictMap(
+                  rootWallet,
+                  conflicts,
+                );
               }
 
               console.warn(
@@ -579,12 +682,35 @@ export function useNetworkPublishedLayoutSync({
 
   const markCurrentFocusPublishable =
     useCallback(() => {
-      if (currentFocusKey) {
-        publishableFocusRef.current.add(
-          currentFocusKey,
+      if (!currentFocusKey) {
+        return;
+      }
+
+      publishableFocusRef.current.add(
+        currentFocusKey,
+      );
+
+      if (
+        wallet &&
+        conflictRevisionsRef.current[
+          currentFocusKey
+        ] !== undefined
+      ) {
+        const conflicts = {
+          ...conflictRevisionsRef.current,
+        };
+        delete conflicts[currentFocusKey];
+        conflictRevisionsRef.current =
+          conflicts;
+        writePublishedConflictMap(
+          wallet,
+          conflicts,
         );
       }
-    }, [currentFocusKey]);
+    }, [
+      wallet,
+      currentFocusKey,
+    ]);
 
   return {
     resetSyncState,
