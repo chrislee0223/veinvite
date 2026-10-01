@@ -276,7 +276,7 @@ test('public Network invite slots are visibly rendered on mobile and desktop', a
     .locator('.publicSlotEdgePulse')
     .evaluate((element) => getComputedStyle(element).animationName);
   expect(pulseAnimation).toBe('none');
-}
+});
 
 for (const locale of ['ko', 'de', 'fr', 'ar', 'ur', 'bn', 'mr', 'te'] as const satisfies readonly SupportedLocale[]) {
   for (const stateId of [
