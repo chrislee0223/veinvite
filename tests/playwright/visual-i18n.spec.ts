@@ -195,7 +195,7 @@ for (const locale of HIGH_RISK_LOCALES) {
 
 async function waitForPublicNetworkQaState(page: Page): Promise<void> {
   await expect(
-    page.locator('[data-qa-network-state="NETWORK-I18N-PUBLIC"]'),
+    page.locator('[data-qa-slot-visual="ready"]'),
   ).toBeVisible({ timeout: 12_000 });
   await settleVisualPage(page);
 }
