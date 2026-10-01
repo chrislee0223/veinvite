@@ -380,10 +380,7 @@ export function AppNetwork({ locale }: { locale: Locale }) {
   const currentFocusKey = currentData ? keyWallet(currentData.focusWallet) : '';
   const isMobile = stageSize.width > 0 && stageSize.width < 560;
 
-  const {
-    resetSyncState, markCurrentFocusPublishable,
-    persistFocusWorkspace, updateWorkspaceRuntime, flushWorkspaceStore,
-  } = useNetworkPublishedLayoutSync({
+  const { resetSyncState, markCurrentFocusPublishable, persistFocusWorkspace, updateWorkspaceRuntime, flushWorkspaceStore } = useNetworkPublishedLayoutSync({
     wallet,
     currentData,
     currentFocusKey,
