@@ -230,12 +230,17 @@ export async function GET(request: NextRequest) {
         404,
       );
     }
-    const responsePayload =
-      await attachPublishedLayout({
-        rootWallet,
-        focusWallet,
-        payload: payload as NetworkPayload,
-      });
+    const responsePayload = isSearch
+      ? {
+          ...(payload as NetworkPayload),
+          publicLayoutPublishingEnabled:
+            await canUseNetworkPublicLayout(rootWallet),
+        }
+      : await attachPublishedLayout({
+          rootWallet,
+          focusWallet,
+          payload: payload as NetworkPayload,
+        });
     return NextResponse.json(responsePayload, {
       headers: {
         'Cache-Control': 'private, no-store',
@@ -313,12 +318,17 @@ export async function GET(request: NextRequest) {
     return networkError('INVALID_WALLET', 'Invalid wallet address.', 400);
   }
 
-  const responsePayload =
-    await attachPublishedLayout({
-      rootWallet,
-      focusWallet,
-      payload,
-    });
+  const responsePayload = isSearch
+    ? {
+        ...payload,
+        publicLayoutPublishingEnabled:
+          await canUseNetworkPublicLayout(rootWallet),
+      }
+    : await attachPublishedLayout({
+        rootWallet,
+        focusWallet,
+        payload,
+      });
 
   return NextResponse.json(responsePayload, {
     headers: {
