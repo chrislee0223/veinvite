@@ -193,6 +193,13 @@ for (const locale of HIGH_RISK_LOCALES) {
 
 
 
+async function waitForPublicNetworkQaState(page: Page): Promise<void> {
+  await expect(
+    page.locator('[data-qa-network-state="NETWORK-I18N-PUBLIC"]'),
+  ).toBeVisible({ timeout: 12_000 });
+  await settleVisualPage(page);
+}
+
 async function assertPublicInviteSlotsVisible(page: Page): Promise<void> {
   const slotNodes = page.locator('.publicSlotNode');
   await expect(slotNodes).toHaveCount(2);
@@ -255,7 +262,7 @@ test('public Network invite slots are visibly rendered on mobile and desktop', a
       '/qa/state?state=NETWORK-I18N-PUBLIC&locale=ko',
       { waitUntil: 'domcontentloaded', timeout: 12_000 },
     );
-    await settleVisualPage(page);
+    await waitForPublicNetworkQaState(page);
     await assertPublicInviteSlotsVisible(page);
   }
 
@@ -265,7 +272,7 @@ test('public Network invite slots are visibly rendered on mobile and desktop', a
     '/qa/state?state=NETWORK-I18N-PUBLIC&locale=ko',
     { waitUntil: 'domcontentloaded', timeout: 12_000 },
   );
-  await settleVisualPage(page);
+  await waitForPublicNetworkQaState(page);
 
   const availableCircleAnimation = await page
     .locator('.publicSlotNode[data-slot-state="AVAILABLE"] .publicSlotCircle')
