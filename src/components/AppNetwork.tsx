@@ -381,11 +381,8 @@ export function AppNetwork({ locale }: { locale: Locale }) {
   const isMobile = stageSize.width > 0 && stageSize.width < 560;
 
   const {
-    resetSyncState,
-    markCurrentFocusPublishable,
-    persistFocusWorkspace,
-    updateWorkspaceRuntime,
-    flushWorkspaceStore,
+    resetSyncState, markCurrentFocusPublishable,
+    persistFocusWorkspace, updateWorkspaceRuntime, flushWorkspaceStore,
   } = useNetworkPublishedLayoutSync({
     wallet,
     currentData,
@@ -412,14 +409,14 @@ export function AppNetwork({ locale }: { locale: Locale }) {
 
   const positionedChildren = useMemo(() => {
     const children = currentData?.children ?? [];
-    const usePublishedCanonicalFallback =
+    const canonicalFallback =
       currentData?.publicLayoutPublishingEnabled === true &&
       Boolean(currentData.publishedLayout);
     return children.map((child, index): PositionedChild => {
       const fallback = radialChildPoint(
         child.wallet,
         index,
-        usePublishedCanonicalFallback ? false : isMobile,
+        canonicalFallback ? false : isMobile,
       );
       const saved = activeWorkspace.positions[keyWallet(child.wallet)];
       return {
