@@ -61,6 +61,17 @@ import {
   type NetworkCanvasView as View,
 } from '@/lib/networkCanvasGeometry';
 import {
+  materializeNetworkWorkspaceForPublish,
+  networkWorkspaceIsEmpty,
+} from '@/lib/networkPublishedLayout';
+import {
+  NetworkLayoutPublishError,
+  publishNetworkLayout,
+  readPublishedRevisionMap,
+  writePublishedRevisionMap,
+  type NetworkPublishedRevisionMap,
+} from '@/lib/networkPublishedLayoutClient';
+import {
   EMPTY_NETWORK_WORKSPACE_STORE,
   MAX_GROUPS_PER_FOCUS,
   MAX_MEMBERS_PER_GROUP,
@@ -250,6 +261,14 @@ export function AppNetwork({ locale }: { locale: Locale }) {
   const introEndTimerRef = useRef<number | null>(null);
   const introWalletRef = useRef<string | null>(null);
   const introCancelledRef = useRef(false);
+  const workspaceStoreRef =
+    useRef<NetworkWorkspaceStore>(
+      EMPTY_NETWORK_WORKSPACE_STORE,
+    );
+  const publishedRevisionsRef =
+    useRef<NetworkPublishedRevisionMap>({});
+  const layoutPublishQueueRef =
+    useRef<Promise<void>>(Promise.resolve());
 
   const [rootData, setRootData] = useState<NetworkData | null>(null);
   const [focusWallet, setFocusWallet] = useState<string | null>(null);
