@@ -188,7 +188,11 @@ test('runtime keeps the normal policy at HOLD and only then invokes confirmed-cl
   );
   assert.match(
     pipeline,
-    /Confirmation time is knowledge time/u,
+    /Date\.parse\(row\.confirmed_at\)/u,
+  );
+  assert.match(
+    pipeline,
+    /Date\.parse\(left\.confirmed_at\)[\s\S]*Date\.parse\(right\.confirmed_at\)/u,
   );
 });
 
