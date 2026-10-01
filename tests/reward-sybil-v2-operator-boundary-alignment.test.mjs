@@ -10,6 +10,10 @@ const reviewRoute = await readFile(
   'src/app/api/admin/sybil/review/route.ts',
   'utf8',
 );
+const earlyDecisionMigration = await readFile(
+  'supabase/migrations/20261001082500_allow_early_sybil_operator_blacklist.sql',
+  'utf8',
+);
 
 test('automatic and operator invitee restrictions both feed inviter incident history', () => {
   assert.match(
@@ -57,7 +61,7 @@ test('repeat-only inviter history stays WATCH and direct evidence is required fo
   );
 });
 
-test('intermediate HOLDs remain fail-closed but are not operator decisions yet', () => {
+test('fully assessed HOLD view remains intact for monitoring readiness', () => {
   assert.match(
     migration,
     /operator_sybil_v2_manual_review_candidates/u,
@@ -68,19 +72,54 @@ test('intermediate HOLDs remain fail-closed but are not operator decisions yet',
   );
   assert.match(
     migration,
-    /SYBIL_V2_REVIEW_CHECKS_INCOMPLETE/u,
+    /manualReviewReadyReferrals/u,
+  );
+});
+
+test('early HOLDs are operator-visible for BLACKLIST while CLEAR stays gated', () => {
+  assert.match(
+    earlyDecisionMigration,
+    /operator_sybil_v2_operator_action_candidates/u,
+  );
+  assert.match(
+    earlyDecisionMigration,
+    /a\.state = 'HOLD'/u,
+  );
+  assert.match(
+    earlyDecisionMigration,
+    /new\.state = 'CLEAR'/u,
+  );
+  assert.match(
+    earlyDecisionMigration,
+    /- 'CHAIN_FINALITY'/u,
+  );
+  assert.match(
+    earlyDecisionMigration,
+    /SYBIL_V2_CLEAR_CHECKS_INCOMPLETE/u,
+  );
+  assert.doesNotMatch(
+    earlyDecisionMigration,
+    /new\.state in \('CLEAR','RESTRICTED'\)/u,
   );
   assert.match(
     reviewRoute,
-    /operator_sybil_v2_manual_review_candidates/u,
+    /operator_sybil_v2_operator_action_candidates/u,
   );
   assert.match(
     reviewRoute,
-    /hasCompletedRequiredChecks\(v2Assessment\)/u,
+    /hasCompletedDecisionChecks/u,
   );
   assert.match(
     reviewRoute,
-    /Automatic Sybil checks are still in progress/u,
+    /value !== 'CHAIN_FINALITY'/u,
+  );
+  assert.match(
+    reviewRoute,
+    /v2CanResolve && !v2CanClear[\s\S]*\['BLOCKED'\]/u,
+  );
+  assert.match(
+    reviewRoute,
+    /decision === 'CLEAR'[\s\S]*Core Sybil decision checks are still in progress/u,
   );
 });
 

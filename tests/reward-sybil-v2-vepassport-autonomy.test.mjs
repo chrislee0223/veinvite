@@ -47,7 +47,7 @@ test('Sybil v2 reads the reviewed VePassport as an independent evidence source',
   );
   assert.match(
     policy,
-    /sybil-v2\.15/u,
+    /sybil-v2\.16/u,
   );
   assert.match(
     network,

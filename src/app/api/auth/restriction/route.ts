@@ -54,8 +54,8 @@ export async function GET(request: NextRequest) {
 
     return noStoreJson({
       authenticated: true,
-      restricted: blacklisted,
-      restrictionKind: blacklisted ? 'BLACKLIST' : null,
+      restricted: true,
+      restrictionKind: restriction.restriction_kind,
       reviewPending: !blacklisted,
     });
   } catch (error) {

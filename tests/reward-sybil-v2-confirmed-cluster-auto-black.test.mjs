@@ -188,13 +188,17 @@ test('runtime keeps the normal policy at HOLD and only then invokes confirmed-cl
   );
   assert.match(
     pipeline,
-    /Confirmation time is knowledge time/u,
+    /Date\.parse\(row\.confirmed_at\)/u,
+  );
+  assert.match(
+    pipeline,
+    /Date\.parse\(left\.confirmed_at\)[\s\S]*Date\.parse\(right\.confirmed_at\)/u,
   );
 });
 
 test('Sybil policy version advances for pre-vote and retrospective enforcement', () => {
   assert.match(
     policy,
-    /SYBIL_V2_POLICY_VERSION = 'sybil-v2\.15'/u,
+    /SYBIL_V2_POLICY_VERSION = 'sybil-v2\.16'/u,
   );
 });
