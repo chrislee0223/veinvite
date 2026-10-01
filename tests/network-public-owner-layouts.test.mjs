@@ -10,6 +10,8 @@ const [
   publishRoute,
   appNetwork,
   publicExplorer,
+  publicOwnerLayoutView,
+  publicOwnerGroups,
 ] = await Promise.all([
   readFile(
     'supabase/migrations/20261001103444_add_public_network_owner_layout_foundation.sql',
@@ -21,6 +23,8 @@ const [
   readFile('src/app/api/network/layout/route.ts','utf8'),
   readFile('src/components/AppNetwork.tsx','utf8'),
   readFile('src/components/PublicNetworkExplorer.tsx','utf8'),
+  readFile('src/lib/networkPublicOwnerLayoutView.ts','utf8'),
+  readFile('src/components/PublicNetworkOwnerGroups.tsx','utf8'),
 ]);
 
 test('published Network layouts default OFF and are never browser-direct tables', () => {
@@ -68,11 +72,11 @@ test('published focus snapshots materialize all current child and slot positions
 });
 
 test('Public Network reuses workspace grouping read-only and keeps viewer changes ephemeral', () => {
-  assert.match(publicExplorer,/deriveNetworkWorkspaceVisibility/u);
-  assert.match(publicExplorer,/ownerLayoutActive \? false : isMobile/u);
+  assert.match(publicOwnerLayoutView,/deriveNetworkWorkspaceVisibility/u);
+  assert.match(publicOwnerLayoutView,/ownerLayoutActive[\s\S]*false[\s\S]*isMobile/u);
   assert.match(publicExplorer,/workspaceOverrides/u);
   assert.match(publicExplorer,/toggleWorkspaceGroupCollapsed/u);
-  assert.match(publicExplorer,/publicGroupNode/u);
+  assert.match(publicOwnerGroups,/publicGroupNode/u);
   assert.doesNotMatch(publicExplorer,/localStorage\.setItem/u);
   assert.doesNotMatch(publicExplorer,/\/api\/network\/layout/u);
 });
