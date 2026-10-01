@@ -146,6 +146,7 @@ type ReviewDetailResponse = {
     | 'LEGACY'
     | 'NONE';
   canResolve: boolean;
+  allowedDecisions?: Array<'CLEAR' | 'BLOCKED' | 'REINSTATE'>;
 };
 
 type OnchainSnapshot = {
@@ -673,6 +674,10 @@ export default function SybilReviewPage() {
       confirmation.trim().toUpperCase() === selected.invite_code &&
       !submitting,
   );
+  const clearAllowed =
+    detail?.allowedDecisions?.includes('CLEAR') ?? true;
+  const blockedAllowed =
+    detail?.allowedDecisions?.includes('BLOCKED') ?? true;
 
   return (
     <main className="adminScreen">
@@ -682,8 +687,8 @@ export default function SybilReviewPage() {
             <span className="eyebrow">VEINVITE ADMIN</span>
             <h1>수동 Sybil 검토 / Manual Review</h1>
             <p>
-              자동 검사가 끝난 뒤에도 HOLD로 남은 추천과 직접 연결 증거로 HOLD된 초대자만 사람이 최종 검토합니다.
-              온체인 신호는 판단 보조 정보일 뿐 자동 승인·차단이나 B3TR 전송을 실행하지 않습니다.
+              강한 증거로 조기 HOLD된 추천과 자동 검사가 끝난 뒤에도 HOLD로 남은 추천을 사람이 검토합니다.
+              조기 HOLD는 BLACKLIST만 확정할 수 있고, CLEAR는 핵심 Sybil 검사가 끝난 뒤에만 가능합니다.
             </p>
           </div>
           <div className="headerActions">
@@ -1152,7 +1157,7 @@ export default function SybilReviewPage() {
                             <button
                               type="button"
                               className="clear"
-                              disabled={!actionReady}
+                              disabled={!actionReady || !clearAllowed}
                               onClick={() => void resolveReview('CLEAR')}
                             >
                               승인 / CLEAR
@@ -1160,7 +1165,7 @@ export default function SybilReviewPage() {
                             <button
                               type="button"
                               className="block"
-                              disabled={!actionReady}
+                              disabled={!actionReady || !blockedAllowed}
                               onClick={() => void resolveReview('BLOCKED')}
                             >
                               {detail?.reviewMode === 'INVITER'
@@ -1183,7 +1188,9 @@ export default function SybilReviewPage() {
                           : detail?.reviewMode === 'POST_PAYOUT'
                             ? 'POST_PAYOUT CLEAR는 사후 의심을 해제합니다. POST_PAYOUT BLACKLIST는 이미 지급된 보상은 그대로 두고 해당 보상 수령자 지갑의 향후 VeInvite 참여만 제한합니다.'
                             : detail?.reviewMode === 'V2'
-                              ? 'CLEAR는 v2 clearance를 발급해 보상 준비를 재개합니다. v2 BLACKLIST는 이번 미지급 보상을 제외하고 초대받은 지갑의 향후 VeInvite 참여만 제한하며, 사용된 초대 슬롯은 기존 정책대로 다시 열립니다.'
+                              ? clearAllowed
+                                ? 'CLEAR는 핵심 Sybil 검사가 끝난 경우에만 가능하며, 보상 clearance는 기존처럼 전체 검사와 chain finality가 충족된 뒤 발급됩니다. BLACKLIST는 미지급 보상을 제외하고 초대받은 지갑의 향후 VeInvite 참여를 제한합니다.'
+                                : '현재는 강한 증거로 조기 HOLD된 상태라 BLACKLIST만 확정할 수 있습니다. CLEAR는 핵심 Sybil 검사가 끝날 때까지 잠겨 있습니다.'
                               : '기존 REVIEW의 BLOCKED 처리는 기존 규칙대로 보상 대상에서 제외합니다.'}
                       </p>
                     </div>
