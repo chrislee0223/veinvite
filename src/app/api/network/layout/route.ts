@@ -184,9 +184,29 @@ export async function POST(
     );
   }
 
+  let rawBody: string;
+  try {
+    rawBody = await request.text();
+  } catch {
+    return noStoreJson(
+      { error: 'Failed to read request body.' },
+      400,
+    );
+  }
+
+  if (
+    new TextEncoder().encode(rawBody)
+      .byteLength > MAX_BODY_BYTES
+  ) {
+    return noStoreJson(
+      { error: 'Layout payload is too large.' },
+      413,
+    );
+  }
+
   let body: PublishBody;
   try {
-    body = (await request.json()) as PublishBody;
+    body = JSON.parse(rawBody) as PublishBody;
   } catch {
     return noStoreJson(
       { error: 'Invalid JSON body.' },
@@ -310,7 +330,10 @@ export async function POST(
         expectedRevision,
         workspace: body.workspace,
         allowedWallets,
-        allowedSlotIds: [1, 2],
+        allowedSlotIds:
+          focusWallet === rootWallet
+            ? [1, 2]
+            : [],
       });
 
     return noStoreJson({
