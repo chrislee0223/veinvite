@@ -10,6 +10,8 @@ import {
 
 const SYNC_PREFIX =
   'veinvite-network-public-layout-sync-v1:';
+const CONFLICT_PREFIX =
+  'veinvite-network-public-layout-conflict-v1:';
 
 export type NetworkPublishedRevisionMap =
   Record<string, number>;
@@ -41,12 +43,18 @@ function syncStorageKey(
   return `${SYNC_PREFIX}${keyWallet(wallet)}`;
 }
 
-export function readPublishedRevisionMap(
+function conflictStorageKey(
   wallet: string,
+): string {
+  return `${CONFLICT_PREFIX}${keyWallet(wallet)}`;
+}
+
+function readRevisionMapFromStorage(
+  storageKey: string,
 ): NetworkPublishedRevisionMap {
   try {
     const raw = window.localStorage.getItem(
-      syncStorageKey(wallet),
+      storageKey,
     );
     if (!raw) return {};
 
@@ -73,19 +81,54 @@ export function readPublishedRevisionMap(
   }
 }
 
-export function writePublishedRevisionMap(
-  wallet: string,
+function writeRevisionMapToStorage(
+  storageKey: string,
   revisions: NetworkPublishedRevisionMap,
 ) {
   try {
     window.localStorage.setItem(
-      syncStorageKey(wallet),
+      storageKey,
       JSON.stringify(revisions),
     );
   } catch {
-    // Revision persistence is best-effort. The server still protects writes
-    // with optimistic concurrency.
+    // Local sync metadata is best-effort. Server revision checks still guard writes.
   }
+}
+
+export function readPublishedRevisionMap(
+  wallet: string,
+): NetworkPublishedRevisionMap {
+  return readRevisionMapFromStorage(
+    syncStorageKey(wallet),
+  );
+}
+
+export function writePublishedRevisionMap(
+  wallet: string,
+  revisions: NetworkPublishedRevisionMap,
+) {
+  writeRevisionMapToStorage(
+    syncStorageKey(wallet),
+    revisions,
+  );
+}
+
+export function readPublishedConflictMap(
+  wallet: string,
+): NetworkPublishedRevisionMap {
+  return readRevisionMapFromStorage(
+    conflictStorageKey(wallet),
+  );
+}
+
+export function writePublishedConflictMap(
+  wallet: string,
+  conflicts: NetworkPublishedRevisionMap,
+) {
+  writeRevisionMapToStorage(
+    conflictStorageKey(wallet),
+    conflicts,
+  );
 }
 
 export async function publishNetworkLayout({
