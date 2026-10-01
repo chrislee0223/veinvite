@@ -1,4 +1,7 @@
 import { normalizeNetworkWallet as keyWallet } from '@/lib/networkCanvasGeometry';
+import type {
+  PublishedNetworkLayoutSnapshot,
+} from '@/lib/networkPublishedLayout';
 
 export type NetworkMemberStatus =
   | 'IN_PROGRESS'
@@ -36,6 +39,8 @@ export type NetworkData = {
   children: NetworkChild[];
   searchResults: NetworkSearchResult[];
   depthLimitReached: boolean;
+  publishedLayout?: PublishedNetworkLayoutSnapshot | null;
+  publicLayoutPublishingEnabled?: boolean;
 };
 
 export function provisionalNetworkData(wallet: string): NetworkData {
@@ -54,6 +59,8 @@ export function provisionalNetworkData(wallet: string): NetworkData {
     children: [],
     searchResults: [],
     depthLimitReached: false,
+    publishedLayout: null,
+    publicLayoutPublishingEnabled: false,
   };
 }
 

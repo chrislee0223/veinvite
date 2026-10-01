@@ -22,6 +22,7 @@ import { NETWORK_CANVAS_CONTROL_COPY } from '@/lib/i18n/networkCanvasControlCopy
 import { NETWORK_EXPERIENCE_COPY, NETWORK_TOTAL_COPY } from '@/lib/i18n/networkExperienceCopy';
 import { NETWORK_EXPLORE_COPY } from '@/lib/i18n/networkExploreCopy';
 import { NETWORK_HUB_COPY } from '@/lib/i18n/networkHubCopy';
+import { NETWORK_WORKSPACE_COPY } from '@/lib/i18n/networkWorkspaceCopy';
 import { getLocaleDirection } from '@/lib/i18n/locales';
 import type { Locale, SupportedLocale } from '@/lib/i18n/locales';
 import { getVeChainExplorerAddressUrl } from '@/lib/vechainExplorer';
@@ -38,14 +39,28 @@ import {
   clampNetworkCanvas as clamp,
   isValidNetworkWallet as validWallet,
   networkCanvasCenteredView as publicCenteredView,
-  networkCanvasChildPoint as publicChildPoint,
   networkCanvasDistance as pointDistance,
   networkCanvasFittedView as publicFittedView,
-  networkCanvasInviteSlotPointById as publicInviteSlotPoint,
   networkCanvasMidpoint as midpoint,
   networkCanvasRootCenteredFittedView as publicRootCenteredFittedView,
   normalizeNetworkWallet as keyWallet,
 } from '@/lib/networkCanvasGeometry';
+import type {
+  PublishedNetworkLayoutSnapshot,
+} from '@/lib/networkPublishedLayout';
+import {
+  toggleWorkspaceGroupCollapsed,
+  type NetworkFocusWorkspace,
+} from '@/lib/networkWorkspace';
+import {
+  derivePublicOwnerLayoutView,
+} from '@/lib/networkPublicOwnerLayoutView';
+import {
+  usePublicNetworkSlotRetry,
+} from '@/hooks/usePublicNetworkSlotRetry';
+import {
+  PublicNetworkOwnerGroups,
+} from './PublicNetworkOwnerGroups';
 import {
   NetworkWalletIdentity,
   NetworkWalletLabel,
@@ -74,6 +89,7 @@ type PublicNetworkData = {
   availableSlots?: number;
   availableSlotIds?: Array<1 | 2>;
   slotAvailabilityKnown?: boolean;
+  publishedLayout?: PublishedNetworkLayoutSnapshot | null;
 };
 
 type DiscoveryRoot = {
@@ -83,26 +99,8 @@ type DiscoveryRoot = {
 
 type View = { x: number; y: number; scale: number };
 type Point = { x: number; y: number };
-type PublicInviteSlotVisual = Point & { slot: 1 | 2 };
 
-type PublicVisual = {
-  wallet: string;
-  parentWallet: string | null;
-  x: number;
-  y: number;
-  depth: number;
-  root: boolean;
-  member: PublicChild | null;
-};
 
-type PublicEdge = {
-  key: string;
-  x1: number;
-  y1: number;
-  x2: number;
-  y2: number;
-  active: boolean;
-};
 
 function shortWallet(wallet: string): string {
   if (wallet.length < 12) return wallet;
@@ -330,6 +328,7 @@ function PublicNetworkCanvas({
   const h = NETWORK_HUB_COPY[locale as SupportedLocale];
   const t = NETWORK_EXPERIENCE_COPY[locale as SupportedLocale];
   const u = NETWORK_CANARY_UI_COPY[locale as SupportedLocale];
+  const w = NETWORK_WORKSPACE_COPY[locale as SupportedLocale];
   const c = NETWORK_CANVAS_CONTROL_COPY[locale as SupportedLocale];
   const profileDirection = getLocaleDirection(locale);
   const root = keyWallet(rootWallet);
@@ -376,6 +375,8 @@ function PublicNetworkCanvas({
   const [stageSize, setStageSize] = useState({ width: 0, height: 0 });
   const [stageStable, setStageStable] = useState(false);
   const [branchError, setBranchError] = useState(false);
+  const [workspaceOverrides, setWorkspaceOverrides] =
+    useState<Record<string, NetworkFocusWorkspace>>({});
   const [searchOpen, setSearchOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [searchState, setSearchState] = useState<
@@ -489,6 +490,7 @@ function PublicNetworkCanvas({
       cacheRef.current.set(root, data);
       setCacheVersion((value) => value + 1);
       setActivePath([root]);
+      setWorkspaceOverrides({});
       setState('ready');
       bloom(root);
     } catch (error) {
@@ -697,113 +699,92 @@ function PublicNetworkCanvas({
     return map;
   }, [cacheVersion]);
 
-  const focusWallet = activePath[activePath.length - 1] ?? root;
-  const focusData = cacheRef.current.get(focusWallet) ?? rootData;
-  const publicInviteSlots = useMemo((): PublicInviteSlotVisual[] => {
-    if (
-      !focusData ||
-      focusData.slotAvailabilityKnown !== true ||
-      !Array.isArray(focusData.availableSlotIds)
-    ) {
-      return [];
-    }
-    return focusData.availableSlotIds
-      .filter((slot): slot is 1 | 2 => slot === 1 || slot === 2)
-      .map((slot) => ({ slot, ...publicInviteSlotPoint(slot) }));
-  }, [focusData]);
+  const focusWallet =
+    activePath[activePath.length - 1] ??
+    root;
+  const focusData =
+    cacheRef.current.get(focusWallet) ??
+    rootData;
+  const fallbackFocusKey =
+    focusData
+      ? keyWallet(focusData.focusWallet)
+      : keyWallet(focusWallet);
+  const {
+    focusKey,
+    workspace: publicWorkspace,
+    inviteSlots: publicInviteSlots,
+    layout,
+  } = useMemo(
+    () =>
+      derivePublicOwnerLayoutView({
+        focusData,
+        workspaceOverride:
+          workspaceOverrides[
+            fallbackFocusKey
+          ] ?? null,
+        isMobile,
+        activePathLength:
+          activePath.length,
+      }),
+    [
+      focusData,
+      workspaceOverrides,
+      fallbackFocusKey,
+      isMobile,
+      activePath.length,
+    ],
+  );
 
-  useEffect(() => {
-    if (
-      state !== 'ready' ||
-      !focusData ||
-      focusData.slotAvailabilityKnown !== false
-    ) {
-      return;
-    }
+  usePublicNetworkSlotRetry({
+    ready:
+      state === 'ready' &&
+      Boolean(focusData),
+    focusKey:
+      focusData
+        ? keyWallet(
+            focusData.focusWallet,
+          )
+        : '',
+    slotAvailabilityKnown:
+      focusData?.slotAvailabilityKnown,
+    root,
+    retryAttemptedRef:
+      slotRetryAttemptedRef,
+    retryControllerRef:
+      slotRetryControllerRef,
+    fetchFocus: fetchPublicNetwork,
+    commit: putCache,
+  });
 
-    const focusKey = keyWallet(focusData.focusWallet);
-    if (slotRetryAttemptedRef.current.has(focusKey)) return;
-    slotRetryAttemptedRef.current.add(focusKey);
-
-    const controller = new AbortController();
-    slotRetryControllerRef.current?.abort();
-    slotRetryControllerRef.current = controller;
-    const timer = window.setTimeout(async () => {
-      try {
-        const refreshed = await fetchPublicNetwork(root, focusKey, controller.signal);
-        if (controller.signal.aborted) return;
-        putCache(refreshed);
-      } catch {
-        // Slot availability is optional display metadata. Keep the graph usable
-        // and never turn an unknown lookup into a false zero-slot state.
-      } finally {
-        if (slotRetryControllerRef.current === controller) {
-          slotRetryControllerRef.current = null;
-        }
+  const togglePublicGroup =
+    useCallback((groupId: string) => {
+      if (
+        !focusData?.publishedLayout ||
+        !focusKey
+      ) {
+        return;
       }
-    }, 650);
 
-    return () => {
-      window.clearTimeout(timer);
-      controller.abort();
-      if (slotRetryControllerRef.current === controller) {
-        slotRetryControllerRef.current = null;
-      }
-    };
-  }, [state, focusData, root, putCache]);
-
-  const layout = useMemo(() => {
-    const visuals: PublicVisual[] = [];
-    const edges: PublicEdge[] = [];
-    const positions = new Map<string, { x: number; y: number; depth: number }>();
-    if (!focusData) {
-      return { visuals, edges, positions, startDepth: Math.max(0, activePath.length - 1) };
-    }
-
-    const focusKey = keyWallet(focusData.focusWallet);
-    positions.set(focusKey, { x: CENTER_X, y: ROOT_Y, depth: focusData.focusDepth });
-    visuals.push({
-      wallet: focusKey,
-      parentWallet: focusData.breadcrumb.length > 1
-        ? keyWallet(focusData.breadcrumb[focusData.breadcrumb.length - 2])
-        : null,
-      x: CENTER_X,
-      y: ROOT_Y,
-      depth: focusData.focusDepth,
-      root: true,
-      member: null,
-    });
-
-    focusData.children.forEach((child, index) => {
-      const wallet = keyWallet(child.wallet);
-      const point = publicChildPoint(wallet, index, isMobile);
-      positions.set(wallet, { x: point.x, y: point.y, depth: child.depth });
-      visuals.push({
-        wallet,
-        parentWallet: focusKey,
-        x: point.x,
-        y: point.y,
-        depth: child.depth,
-        root: false,
-        member: child,
-      });
-      edges.push({
-        key: focusKey + '->' + wallet,
-        x1: CENTER_X,
-        y1: ROOT_Y,
-        x2: point.x,
-        y2: point.y,
-        active: false,
-      });
-    });
-
-    return {
-      visuals,
-      edges,
-      positions,
-      startDepth: Math.max(0, activePath.length - 1),
-    };
-  }, [activePath.length, focusData, isMobile]);
+      setWorkspaceOverrides(
+        (current) => {
+          const source =
+            current[focusKey] ??
+            publicWorkspace;
+          return {
+            ...current,
+            [focusKey]:
+              toggleWorkspaceGroupCollapsed(
+                source,
+                groupId,
+              ),
+          };
+        },
+      );
+    }, [
+      focusData,
+      focusKey,
+      publicWorkspace,
+    ]);
 
   const centerViewedNetwork = useCallback(() => {
     if (stageSize.width <= 0 || stageSize.height <= 0) return;
@@ -830,7 +811,7 @@ function PublicNetworkCanvas({
   }, []);
 
   const nearestVisibleChild = useCallback((point: Point, radius = NODE_HIT_RADIUS) => {
-    let nearest: PublicVisual | null = null;
+    let nearest: (typeof layout.visuals)[number] | null = null;
     let nearestDistance = radius;
     for (const visual of layout.visuals) {
       if (visual.root) continue;
@@ -847,6 +828,7 @@ function PublicNetworkCanvas({
     if (stageSize.width <= 0 || stageSize.height <= 0) return;
     const points = [
       ...layout.visuals.map((visual) => ({ x: visual.x, y: visual.y })),
+      ...layout.groups.map((group) => ({ x: group.x, y: group.y })),
       ...publicInviteSlots,
     ];
     if (animate) setCameraTransition(true);
@@ -856,12 +838,13 @@ function PublicNetworkCanvas({
       setCameraTransition(false);
       cameraTimerRef.current = null;
     }, animate ? 760 : 0);
-  }, [stageSize, layout.visuals, publicInviteSlots]);
+  }, [stageSize, layout.visuals, layout.groups, publicInviteSlots]);
 
   const fitViewedRootInPlace = useCallback((animate = true) => {
     if (stageSize.width <= 0 || stageSize.height <= 0) return;
     const points = [
       ...layout.visuals.map((visual) => ({ x: visual.x, y: visual.y })),
+      ...layout.groups.map((group) => ({ x: group.x, y: group.y })),
       ...publicInviteSlots,
     ];
     if (animate) setCameraTransition(true);
@@ -871,7 +854,7 @@ function PublicNetworkCanvas({
       setCameraTransition(false);
       cameraTimerRef.current = null;
     }, animate ? 760 : 0);
-  }, [stageSize, layout.visuals, publicInviteSlots]);
+  }, [stageSize, layout.visuals, layout.groups, publicInviteSlots]);
 
   useEffect(() => {
     if (state !== 'ready' || !focusData || stageSize.width <= 0 || stageSize.height <= 0) return;
@@ -1406,6 +1389,18 @@ function PublicNetworkCanvas({
             const isSelected = selected === visual.wallet;
             return <button key={visual.wallet} type="button" className={`publicNode ${visual.root ? 'root' : ''} ${isViewedRoot ? 'rootIdentityOnly' : ''} ${isActive ? 'active' : ''} ${isSelected ? 'selected' : ''} ${bloomWallet === visual.wallet ? 'bloom' : ''}`} style={{ left: visual.x, top: visual.y } as CSSProperties} data-network-interactive="true" onContextMenu={(event) => event.preventDefault()} onDragStart={(event) => event.preventDefault()} onClick={(event) => { event.stopPropagation(); if (dragDistanceRef.current > 6) return; setSelected(visual.wallet); }}><span className="publicAvatar"><NetworkWalletIdentity address={visual.wallet} root={visual.root} showLabel={false} size={visual.root ? 56 : 40} /></span><strong><NetworkWalletLabel address={visual.wallet} /></strong>{!isViewedRoot ? <small className="nodeNetworkMetric"><NetworkCountGlyph /><span>{branchCount.toLocaleString()}</span></small> : null}</button>;
           })}
+          <PublicNetworkOwnerGroups
+            groups={layout.groups}
+            groupFallback={w.group}
+            peopleCount={u.peopleCount}
+            shouldIgnoreClick={() =>
+              dragDistanceRef.current > 6
+            }
+            onToggle={(groupId) => {
+              setSelected(null);
+              togglePublicGroup(groupId);
+            }}
+          />
           {publicInviteSlots.map((slot) => (
             <div
               className="publicSlotNode"

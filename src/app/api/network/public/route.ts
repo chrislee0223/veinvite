@@ -1,9 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server';
 
 import {
+  canUseNetworkPublicLayout,
   isNetworkCanaryWallet,
   readNetworkRuntimeMode,
 } from '@/lib/networkRuntimeServer';
+import {
+  readPublishedNetworkLayout,
+} from '@/lib/networkPublishedLayoutServer';
+import type {
+  PublishedNetworkLayoutSnapshot,
+} from '@/lib/networkPublishedLayout';
 import {
   enforceRateLimits,
   getClientIpSubject,
@@ -38,6 +45,7 @@ type PublicNetworkPayload = {
   availableSlots?: number;
   availableSlotIds?: Array<1 | 2>;
   slotAvailabilityKnown?: boolean;
+  publishedLayout?: PublishedNetworkLayoutSnapshot | null;
 };
 
 const PUBLIC_NETWORK_RPC_TIMEOUT_MS = 5_000;
@@ -244,6 +252,26 @@ export async function GET(request: NextRequest) {
   if (availableSlotIds !== null) {
     payload.availableSlotIds = availableSlotIds;
     payload.availableSlots = availableSlotIds.length;
+  }
+
+  if (await canUseNetworkPublicLayout(rootWallet)) {
+    try {
+      payload.publishedLayout =
+        await readPublishedNetworkLayout({
+          rootWallet,
+          focusWallet,
+          allowedWallets: (payload.children ?? [])
+            .map((child) => child.wallet),
+          allowedSlotIds: availableSlotIds ?? [],
+        });
+    } catch (error) {
+      // Layout is optional display metadata. Never make the public graph fail
+      // because its owner-authored arrangement could not be loaded.
+      console.error(
+        'Failed to load public Network owner layout:',
+        error,
+      );
+    }
   }
 
   // This endpoint exposes referral-graph structure plus only the exact empty

@@ -37,6 +37,10 @@ const networkIdentitySource = await readFile('src/components/NetworkWalletIdenti
 const networkImplementationSource = await readNetworkImplementationBundle();
 const networkWarmupSource = await readFile('src/components/NetworkIdleWarmup.tsx', 'utf8');
 const networkSlotCacheSource = await readFile('src/lib/networkInviteSlotsClientCache.ts', 'utf8');
+const networkPublishedLayoutSyncSource = await readFile(
+  'src/hooks/useNetworkPublishedLayoutSync.ts',
+  'utf8',
+);
 const leaderboardDomainCacheSource = await readFile('src/lib/leaderboardDomainCache.ts', 'utf8');
 const leaderboardSource = await readFile('src/components/InviterLeaderboard.tsx', 'utf8');
 const networkMigrationSource = await readFile(
@@ -1000,16 +1004,39 @@ test('camera transitions use one cancellable timer across navigation and control
 });
 
 test('long-press layout movement updates runtime state without synchronous storage churn', () => {
-  const runtimeStart = networkSource.indexOf('const updateWorkspaceRuntime = useCallback');
-  const flushStart = networkSource.indexOf('const flushWorkspaceStore = useCallback');
-  const navigationStart = networkSource.indexOf('const beginNavigationMotion = useCallback');
-  assert.ok(runtimeStart >= 0 && flushStart > runtimeStart && navigationStart > flushStart);
-  const runtimeSource = networkSource.slice(runtimeStart, flushStart);
-  const flushSource = networkSource.slice(flushStart, navigationStart);
+  const runtimeStart = networkPublishedLayoutSyncSource.indexOf(
+    'const updateWorkspaceRuntime =',
+  );
+  const flushStart = networkPublishedLayoutSyncSource.indexOf(
+    'const flushWorkspaceStore =',
+  );
+  const returnStart = networkPublishedLayoutSyncSource.indexOf(
+    'return {',
+    flushStart,
+  );
+  assert.ok(
+    runtimeStart >= 0 &&
+      flushStart > runtimeStart &&
+      returnStart > flushStart,
+  );
+  const runtimeSource = networkPublishedLayoutSyncSource.slice(
+    runtimeStart,
+    flushStart,
+  );
+  const flushSource = networkPublishedLayoutSyncSource.slice(
+    flushStart,
+    returnStart,
+  );
   assert.doesNotMatch(runtimeSource, /localStorage\.setItem/);
   assert.match(flushSource, /localStorage\.setItem/);
-  assert.match(networkSource, /else if \(holdDrag\.moved\) \{\s*flushWorkspaceStore\(\)/);
-  assert.match(networkSource, /pointercancel[\s\S]{0,220}persistFocusWorkspace\(holdDrag\.originalWorkspace\)/);
+  assert.match(
+    networkSource,
+    /else if \(holdDrag\.moved\) \{\s*flushWorkspaceStore\(\)/,
+  );
+  assert.match(
+    networkSource,
+    /pointercancel[\s\S]{0,220}persistFocusWorkspace\(holdDrag\.originalWorkspace\)/,
+  );
 });
 
 test('stored group workspaces normalize duplicate group ids and duplicate member ownership', () => {

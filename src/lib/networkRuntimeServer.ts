@@ -50,6 +50,34 @@ export async function readNetworkRuntimeMode(
   return isRuntimeMode(row.public_mode) ? row.public_mode : 'off';
 }
 
+export async function canUseNetworkPublicLayout(
+  rootWallet: string,
+): Promise<boolean> {
+  const { data, error } = await supabaseAdmin
+    .from('network_runtime_config')
+    .select('public_layout_mode')
+    .eq('id', 1)
+    .maybeSingle();
+
+  if (error || !data) {
+    if (error) {
+      console.error(
+        'Failed to read Network public layout mode:',
+        error,
+      );
+    }
+    return false;
+  }
+
+  const mode = isRuntimeMode(data.public_layout_mode)
+    ? data.public_layout_mode
+    : 'off';
+
+  if (mode === 'on') return true;
+  if (mode === 'off') return false;
+  return isNetworkCanaryWallet(rootWallet);
+}
+
 export async function canUseNetworkSurface(
   surface: NetworkRuntimeSurface,
   walletAddress?: string | null,

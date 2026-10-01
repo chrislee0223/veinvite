@@ -2,9 +2,16 @@ import { NextRequest, NextResponse } from 'next/server';
 
 import { buildNetworkCanaryFixture } from '@/lib/networkCanaryFixture';
 import {
+  canUseNetworkPublicLayout,
   canUseNetworkSurface,
   isNetworkCanaryWallet,
 } from '@/lib/networkRuntimeServer';
+import {
+  readPublishedNetworkLayout,
+} from '@/lib/networkPublishedLayoutServer';
+import type {
+  PublishedNetworkLayoutSnapshot,
+} from '@/lib/networkPublishedLayout';
 import { enforceRateLimits } from '@/lib/rateLimitServer';
 import { normalizeAddress } from '@/lib/serverStore';
 import { supabaseAdmin } from '@/lib/supabaseServer';
@@ -61,6 +68,8 @@ type NetworkPayload = {
   children?: NetworkChild[];
   searchResults?: NetworkSearchResult[];
   depthLimitReached?: boolean;
+  publishedLayout?: PublishedNetworkLayoutSnapshot | null;
+  publicLayoutPublishingEnabled?: boolean;
 };
 
 const NETWORK_RPC_TIMEOUT_MS = 5_000;
@@ -103,6 +112,52 @@ function normalizeSearch(value: string | null): string {
     .toLowerCase()
     .replace(/[^0-9a-fx]/g, '')
     .slice(0, 42);
+}
+
+async function attachPublishedLayout({
+  rootWallet,
+  focusWallet,
+  payload,
+}: {
+  rootWallet: string;
+  focusWallet: string;
+  payload: NetworkPayload;
+}): Promise<NetworkPayload> {
+  const enabled =
+    await canUseNetworkPublicLayout(rootWallet);
+
+  if (!enabled) {
+    return {
+      ...payload,
+      publicLayoutPublishingEnabled: false,
+    };
+  }
+
+  try {
+    const publishedLayout =
+      await readPublishedNetworkLayout({
+        rootWallet,
+        focusWallet,
+        allowedWallets: (payload.children ?? [])
+          .map((child) => child.wallet),
+        allowedSlotIds: [1, 2],
+      });
+
+    return {
+      ...payload,
+      publishedLayout,
+      publicLayoutPublishingEnabled: true,
+    };
+  } catch (error) {
+    console.error(
+      'Failed to read published Network layout:',
+      error,
+    );
+    return {
+      ...payload,
+      publicLayoutPublishingEnabled: true,
+    };
+  }
 }
 
 export async function GET(request: NextRequest) {
@@ -175,7 +230,18 @@ export async function GET(request: NextRequest) {
         404,
       );
     }
-    return NextResponse.json(payload, {
+    const responsePayload = isSearch
+      ? {
+          ...(payload as NetworkPayload),
+          publicLayoutPublishingEnabled:
+            await canUseNetworkPublicLayout(rootWallet),
+        }
+      : await attachPublishedLayout({
+          rootWallet,
+          focusWallet,
+          payload: payload as NetworkPayload,
+        });
+    return NextResponse.json(responsePayload, {
       headers: {
         'Cache-Control': 'private, no-store',
         'X-Content-Type-Options': 'nosniff',
@@ -252,7 +318,19 @@ export async function GET(request: NextRequest) {
     return networkError('INVALID_WALLET', 'Invalid wallet address.', 400);
   }
 
-  return NextResponse.json(payload, {
+  const responsePayload = isSearch
+    ? {
+        ...payload,
+        publicLayoutPublishingEnabled:
+          await canUseNetworkPublicLayout(rootWallet),
+      }
+    : await attachPublishedLayout({
+        rootWallet,
+        focusWallet,
+        payload,
+      });
+
+  return NextResponse.json(responsePayload, {
     headers: {
       'Cache-Control': 'private, no-store',
       'X-Content-Type-Options': 'nosniff',
