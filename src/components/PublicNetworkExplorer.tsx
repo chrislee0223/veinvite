@@ -510,6 +510,7 @@ function PublicNetworkCanvas({
       cacheRef.current.set(root, data);
       setCacheVersion((value) => value + 1);
       setActivePath([root]);
+      setWorkspaceOverrides({});
       setState('ready');
       bloom(root);
     } catch (error) {
@@ -720,6 +721,43 @@ function PublicNetworkCanvas({
 
   const focusWallet = activePath[activePath.length - 1] ?? root;
   const focusData = cacheRef.current.get(focusWallet) ?? rootData;
+  const focusKey = focusData
+    ? keyWallet(focusData.focusWallet)
+    : keyWallet(focusWallet);
+  const ownerWorkspace =
+    focusData?.publishedLayout?.workspace ??
+    EMPTY_NETWORK_FOCUS_WORKSPACE;
+  const publicWorkspace =
+    workspaceOverrides[focusKey] ??
+    ownerWorkspace;
+  const ownerLayoutActive =
+    Boolean(focusData?.publishedLayout);
+
+  const positionedPublicChildren = useMemo(() => {
+    const children = focusData?.children ?? [];
+    return children.map((child, index) => {
+      const wallet = keyWallet(child.wallet);
+      const fallback = publicChildPoint(
+        wallet,
+        index,
+        ownerLayoutActive ? false : isMobile,
+      );
+      const saved =
+        publicWorkspace.positions[wallet];
+
+      return {
+        ...child,
+        x: saved?.x ?? fallback.x,
+        y: saved?.y ?? fallback.y,
+      };
+    });
+  }, [
+    focusData,
+    ownerLayoutActive,
+    isMobile,
+    publicWorkspace.positions,
+  ]);
+
   const publicInviteSlots = useMemo((): PublicInviteSlotVisual[] => {
     if (
       !focusData ||
@@ -728,10 +766,76 @@ function PublicNetworkCanvas({
     ) {
       return [];
     }
+
     return focusData.availableSlotIds
       .filter((slot): slot is 1 | 2 => slot === 1 || slot === 2)
-      .map((slot) => ({ slot, ...publicInviteSlotPoint(slot) }));
-  }, [focusData]);
+      .map((slot) => {
+        const fallback =
+          publicInviteSlotPoint(slot);
+        const saved =
+          publicWorkspace.positions[
+            `slot:${slot}`
+          ];
+        return {
+          slot,
+          x: saved?.x ?? fallback.x,
+          y: saved?.y ?? fallback.y,
+        };
+      });
+  }, [
+    focusData,
+    publicWorkspace.positions,
+  ]);
+
+  const publicWorkspaceVisibility = useMemo(
+    () =>
+      deriveNetworkWorkspaceVisibility({
+        positionedChildren:
+          positionedPublicChildren,
+        positionedInviteSlots:
+          publicInviteSlots.map((slot) => ({
+            ...slot,
+            state: 'AVAILABLE',
+            inviteeWallet: null,
+          })),
+        groups: publicWorkspace.groups,
+        groupDraft: null,
+        groupingWallet: null,
+        defaultMemberOffset:
+          defaultGroupMemberOffset,
+      }),
+    [
+      positionedPublicChildren,
+      publicInviteSlots,
+      publicWorkspace.groups,
+    ],
+  );
+
+  const togglePublicGroup =
+    useCallback((groupId: string) => {
+      if (!focusData?.publishedLayout) {
+        return;
+      }
+
+      setWorkspaceOverrides((current) => {
+        const source =
+          current[focusKey] ??
+          focusData.publishedLayout
+            ?.workspace ??
+          EMPTY_NETWORK_FOCUS_WORKSPACE;
+        return {
+          ...current,
+          [focusKey]:
+            toggleWorkspaceGroupCollapsed(
+              source,
+              groupId,
+            ),
+        };
+      });
+    }, [
+      focusData,
+      focusKey,
+    ]);
 
   useEffect(() => {
     if (
