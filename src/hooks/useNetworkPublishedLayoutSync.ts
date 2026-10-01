@@ -98,6 +98,8 @@ export function useNetworkPublishedLayoutSync({
     useRef<Promise<void>>(
       Promise.resolve(),
     );
+  const publishableFocusRef =
+    useRef<Set<string>>(new Set());
 
   const resetSyncState = useCallback((
     rootWallet: string | null,
@@ -113,6 +115,8 @@ export function useNetworkPublishedLayoutSync({
         : {};
     publishQueueRef.current =
       Promise.resolve();
+    publishableFocusRef.current =
+      new Set();
   }, []);
 
   useEffect(() => {
@@ -313,7 +317,13 @@ export function useNetworkPublishedLayoutSync({
         !currentFocusKey ||
         currentData
           .publicLayoutPublishingEnabled !==
-          true
+          true ||
+        (
+          !currentData.publishedLayout &&
+          !publishableFocusRef.current.has(
+            currentFocusKey,
+          )
+        )
       ) {
         return;
       }
@@ -569,8 +579,18 @@ export function useNetworkPublishedLayoutSync({
       queuePublishedWorkspace,
     ]);
 
+  const markCurrentFocusPublishable =
+    useCallback(() => {
+      if (currentFocusKey) {
+        publishableFocusRef.current.add(
+          currentFocusKey,
+        );
+      }
+    }, [currentFocusKey]);
+
   return {
     resetSyncState,
+    markCurrentFocusPublishable,
     persistFocusWorkspace,
     updateWorkspaceRuntime,
     flushWorkspaceStore,
