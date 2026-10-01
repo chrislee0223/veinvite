@@ -22,6 +22,7 @@ import { NETWORK_CANVAS_CONTROL_COPY } from '@/lib/i18n/networkCanvasControlCopy
 import { NETWORK_EXPERIENCE_COPY, NETWORK_TOTAL_COPY } from '@/lib/i18n/networkExperienceCopy';
 import { NETWORK_EXPLORE_COPY } from '@/lib/i18n/networkExploreCopy';
 import { NETWORK_HUB_COPY } from '@/lib/i18n/networkHubCopy';
+import { NETWORK_WORKSPACE_COPY } from '@/lib/i18n/networkWorkspaceCopy';
 import { getLocaleDirection } from '@/lib/i18n/locales';
 import type { Locale, SupportedLocale } from '@/lib/i18n/locales';
 import { getVeChainExplorerAddressUrl } from '@/lib/vechainExplorer';
@@ -46,6 +47,22 @@ import {
   networkCanvasRootCenteredFittedView as publicRootCenteredFittedView,
   normalizeNetworkWallet as keyWallet,
 } from '@/lib/networkCanvasGeometry';
+import type {
+  PublishedNetworkLayoutSnapshot,
+} from '@/lib/networkPublishedLayout';
+import {
+  EMPTY_NETWORK_FOCUS_WORKSPACE,
+  deriveNetworkWorkspaceVisibility,
+  groupContainingWallet,
+  toggleWorkspaceGroupCollapsed,
+  type NetworkFocusWorkspace,
+} from '@/lib/networkWorkspace';
+import {
+  defaultGroupMemberOffset,
+} from '@/lib/networkAppViewHelpers';
+import {
+  GroupsControlGlyph,
+} from './NetworkGlyphs';
 import {
   NetworkWalletIdentity,
   NetworkWalletLabel,
@@ -74,6 +91,7 @@ type PublicNetworkData = {
   availableSlots?: number;
   availableSlotIds?: Array<1 | 2>;
   slotAvailabilityKnown?: boolean;
+  publishedLayout?: PublishedNetworkLayoutSnapshot | null;
 };
 
 type DiscoveryRoot = {
@@ -330,6 +348,7 @@ function PublicNetworkCanvas({
   const h = NETWORK_HUB_COPY[locale as SupportedLocale];
   const t = NETWORK_EXPERIENCE_COPY[locale as SupportedLocale];
   const u = NETWORK_CANARY_UI_COPY[locale as SupportedLocale];
+  const w = NETWORK_WORKSPACE_COPY[locale as SupportedLocale];
   const c = NETWORK_CANVAS_CONTROL_COPY[locale as SupportedLocale];
   const profileDirection = getLocaleDirection(locale);
   const root = keyWallet(rootWallet);
@@ -376,6 +395,8 @@ function PublicNetworkCanvas({
   const [stageSize, setStageSize] = useState({ width: 0, height: 0 });
   const [stageStable, setStageStable] = useState(false);
   const [branchError, setBranchError] = useState(false);
+  const [workspaceOverrides, setWorkspaceOverrides] =
+    useState<Record<string, NetworkFocusWorkspace>>({});
   const [searchOpen, setSearchOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [searchState, setSearchState] = useState<
