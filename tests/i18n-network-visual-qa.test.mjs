@@ -8,12 +8,18 @@ const [
   directCoverage,
   renderer,
   visual,
+  providers,
+  hydrationShield,
+  slotQaPage,
 ] = await Promise.all([
   readFile('src/qa/QaNetworkI18nStateHarness.tsx', 'utf8'),
   readFile('src/qa/stateRegistry.ts', 'utf8'),
   readFile('src/qa/directStateCoverage.ts', 'utf8'),
   readFile('src/qa/QaKnownStateRenderer.tsx', 'utf8'),
   readFile('tests/playwright/visual-i18n.spec.ts', 'utf8'),
+  readFile('src/components/AppProviders.tsx', 'utf8'),
+  readFile('src/components/LocaleHydrationShield.tsx', 'utf8'),
+  readFile('src/app/qa/network-slot-visual/page.tsx', 'utf8'),
 ]);
 
 const NETWORK_I18N_STATES = [
@@ -46,4 +52,17 @@ test('Network i18n QA mirrors critical Production geometry without runtime depen
   assert.match(harness, /networkNativeReview/u);
 
   assert.doesNotMatch(harness, /useWalletLauncher|fetch\(|supabase|reward|sybil/iu);
+});
+
+
+test('public slot visual QA bypass is exact-path-only and renders the real Network harness', () => {
+  assert.match(slotQaPage, /QaNetworkI18nStateHarness/u);
+  assert.match(slotQaPage, /NETWORK-I18N-PUBLIC/u);
+  assert.match(providers, /NETWORK_SLOT_VISUAL_QA_PATH = '\/qa\/network-slot-visual'/u);
+  assert.match(providers, /pathname === NETWORK_SLOT_VISUAL_QA_PATH/u);
+  assert.match(hydrationShield, /NETWORK_SLOT_VISUAL_QA_PATH = '\/qa\/network-slot-visual'/u);
+  assert.match(hydrationShield, /pathname === NETWORK_SLOT_VISUAL_QA_PATH/u);
+  assert.doesNotMatch(providers, /pathname\.startsWith\('\/qa'/u);
+  assert.doesNotMatch(hydrationShield, /pathname\.startsWith\('\/qa'/u);
+  assert.match(visual, /\/qa\/network-slot-visual/u);
 });
