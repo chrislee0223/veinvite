@@ -398,6 +398,68 @@ export function AppNetwork({ locale }: { locale: Locale }) {
 
   const currentFocusKey = currentData ? keyWallet(currentData.focusWallet) : '';
   const isMobile = stageSize.width > 0 && stageSize.width < 560;
+
+  useEffect(() => {
+    if (
+      !wallet ||
+      !currentFocusKey ||
+      currentData?.publicLayoutPublishingEnabled !== true ||
+      !currentData.publishedLayout
+    ) {
+      return;
+    }
+
+    const snapshot = currentData.publishedLayout;
+    const localRevision =
+      publishedRevisionsRef.current[currentFocusKey] ?? 0;
+
+    setWorkspaceStore((current) => {
+      const localWorkspace =
+        workspaceForFocus(current, currentFocusKey);
+      const shouldAdopt =
+        networkWorkspaceIsEmpty(localWorkspace) ||
+        (
+          localRevision > 0 &&
+          snapshot.revision > localRevision
+        );
+
+      if (!shouldAdopt) return current;
+
+      const next = withFocusWorkspace(
+        current,
+        currentFocusKey,
+        snapshot.workspace,
+      );
+      workspaceStoreRef.current = next;
+
+      try {
+        window.localStorage.setItem(
+          workspaceStorageKey(wallet),
+          serializeNetworkWorkspaceStore(next),
+        );
+      } catch {
+        // The server copy remains authoritative for already-published layouts.
+      }
+
+      const nextRevisions = {
+        ...publishedRevisionsRef.current,
+        [currentFocusKey]: snapshot.revision,
+      };
+      publishedRevisionsRef.current = nextRevisions;
+      writePublishedRevisionMap(
+        wallet,
+        nextRevisions,
+      );
+
+      return next;
+    });
+  }, [
+    wallet,
+    currentFocusKey,
+    currentData?.publicLayoutPublishingEnabled,
+    currentData?.publishedLayout,
+  ]);
+
   const committedWorkspace = useMemo(
     () => currentFocusKey ? workspaceForFocus(workspaceStore, currentFocusKey) : cloneNetworkFocusWorkspace(null),
     [workspaceStore, currentFocusKey],
