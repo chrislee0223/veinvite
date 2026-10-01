@@ -59,6 +59,10 @@ import {
   usePublicNetworkSlotRetry,
 } from '@/hooks/usePublicNetworkSlotRetry';
 import {
+  PublicNetworkInviteSlotEdges,
+  PublicNetworkInviteSlotNodes,
+} from './PublicNetworkInviteSlots';
+import {
   PublicNetworkOwnerGroups,
 } from './PublicNetworkOwnerGroups';
 import {
@@ -1369,25 +1373,12 @@ function PublicNetworkCanvas({
                 d={publicEdgePath(edge.x1, edge.y1, edge.x2, edge.y2)}
               />
             ))}
-            {publicInviteSlots.map((slot, index) => {
-              const path = publicEdgePath(CENTER_X, ROOT_Y, slot.x, slot.y);
-              const available = slot.state === 'AVAILABLE';
-              return (
-                <g key={`public-slot-edge:${slot.slot}`}>
-                  <path
-                    d={path}
-                    className={available ? 'publicSlotEdgeBase' : 'publicSlotEdgeProgress'}
-                  />
-                  {available ? (
-                    <path
-                      d={path}
-                      className="publicSlotEdgePulse"
-                      style={{ animationDelay: `${index * -0.92}s` }}
-                    />
-                  ) : null}
-                </g>
-              );
-            })}
+            <PublicNetworkInviteSlotEdges
+              slots={publicInviteSlots}
+              centerX={CENTER_X}
+              rootY={ROOT_Y}
+              edgePath={publicEdgePath}
+            />
           </svg>
           {layout.visuals.map((visual) => {
             const member = visual.member;
@@ -1412,31 +1403,14 @@ function PublicNetworkCanvas({
               togglePublicGroup(groupId);
             }}
           />
-          {publicInviteSlots.map((slot) => {
-            const available = slot.state === 'AVAILABLE';
-            const pendingAcceptance = slot.state === 'PENDING';
-            const slotLabel = available
-              ? u.available
-              : pendingAcceptance
-                ? t.pendingAcceptance
-                : t.inProgress;
-
-            return (
-              <div
-                className="publicSlotNode"
-                key={`public-slot-${slot.slot}`}
-                data-slot-id={slot.slot}
-                data-slot-state={slot.state}
-                style={{ left: slot.x, top: slot.y } as CSSProperties}
-                aria-label={slotLabel}
-              >
-                <span className="publicSlotCircle" aria-hidden="true">
-                  {available ? '+' : pendingAcceptance ? '…' : '•'}
-                </span>
-                <strong>{slotLabel}</strong>
-              </div>
-            );
-          })}
+          <PublicNetworkInviteSlotNodes
+            slots={publicInviteSlots}
+            labels={{
+              available: u.available,
+              pending: t.pendingAcceptance,
+              inProgress: t.inProgress,
+            }}
+          />
           {pending ? <div className="pendingBranch" style={{ left: layout.positions.get(pending)?.x ?? CENTER_X, top: (layout.positions.get(pending)?.y ?? ROOT_Y) + 48 } as CSSProperties}><i /><i /><i /></div> : null}
         </div>
         {branchError ? <div className="branchError" data-no-pan="true"><span>{e.maintenance}</span><button type="button" onClick={() => setBranchError(false)} aria-label={c.close}>×</button></div> : null}
