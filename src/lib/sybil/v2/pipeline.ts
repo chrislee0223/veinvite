@@ -16,6 +16,9 @@ import {
   type RecentPreActivationFunding,
 } from '@/lib/sybil/v2/recentFunding';
 import {
+  detectRapidRewardConsolidation,
+} from '@/lib/sybil/v2/rapidRewardConsolidation';
+import {
   detectHistoricalB3trConsolidation,
   detectHistoricalRewardCluster,
 } from '@/lib/sybil/v2/clusterMath';
@@ -921,6 +924,84 @@ async function loadConsolidationSignals(
   }
 
   return findings.map((finding) => finding.signal);
+}
+
+async function loadRapidRewardConsolidationSignals(
+  invitation: InvitationV2Row,
+  protocolDestinations: Set<string>,
+): Promise<SybilV2Signal[]> {
+  if (!invitation.activation_network || !invitation.invitee_wallet) {
+    return [];
+  }
+
+  const wallet = normalizeWallet(invitation.invitee_wallet);
+  const [rewardResult, outflowResult] = await Promise.all([
+    supabaseAdmin
+      .from('sybil_v2_historical_reward_events')
+      .select('block_timestamp,amount_wei')
+      .eq('network', invitation.activation_network)
+      .eq('wallet_address', wallet),
+    supabaseAdmin
+      .from('sybil_v2_preactivation_b3tr_outflows')
+      .select('destination_wallet,block_timestamp,amount_wei')
+      .eq('network', invitation.activation_network)
+      .eq('wallet_address', wallet),
+  ]);
+
+  if (rewardResult.error) {
+    throw new Error(
+      `Rapid reward consolidation rewards could not be loaded: ${rewardResult.error.message}`,
+    );
+  }
+  if (outflowResult.error) {
+    throw new Error(
+      `Rapid reward consolidation outflows could not be loaded: ${outflowResult.error.message}`,
+    );
+  }
+
+  const finding = detectRapidRewardConsolidation({
+    rewards: (rewardResult.data ?? []).map((row) => ({
+      blockTimestamp: String(row.block_timestamp ?? ''),
+      amountWei: String(row.amount_wei ?? ''),
+    })),
+    outflows: (outflowResult.data ?? []).map((row) => ({
+      destinationWallet: String(row.destination_wallet ?? ''),
+      blockTimestamp: String(row.block_timestamp ?? ''),
+      amountWei: String(row.amount_wei ?? ''),
+    })),
+    knownProtocolDestinations: protocolDestinations,
+  });
+
+  if (!finding) return [];
+
+  await insertEvidenceRecord({
+    invitation,
+    subjectWallet: wallet,
+    family: finding.signal.family,
+    signalCode: finding.signal.code,
+    strength: finding.signal.strength,
+    score: finding.signal.score,
+    relatedWallet: finding.dominantDestination,
+    evidence: {
+      rewardEventCount: finding.rewardEventCount,
+      rapidRewardEventCount: finding.rapidRewardEventCount,
+      rapidRewardShareBps: finding.rapidRewardShareBps,
+      rewardSpanSeconds: finding.rewardSpanSeconds,
+      totalRewardWei: finding.totalRewardWei,
+      totalOutflowWei: finding.totalOutflowWei,
+      outflowCoverageBps: finding.outflowCoverageBps,
+      dominantDestinationShareBps:
+        finding.dominantDestinationShareBps,
+      maxDelaySeconds: finding.maxDelaySeconds,
+      behaviorPattern:
+        'RAPID_REWARD_CONSOLIDATION_V1',
+      automaticRestriction: false,
+    },
+    dedupeKey:
+      `sybil-v2:${invitation.invite_code}:historical-rapid-reward-consolidation:${finding.dominantDestination}`,
+  });
+
+  return [finding.signal];
 }
 
 async function loadFundingSignals(
@@ -3616,6 +3697,10 @@ export async function assessSybilV2Referral(
   ) {
     signals.push(...await loadHistoricalRewardSignals(invitation));
     signals.push(...await loadConsolidationSignals(
+      invitation,
+      protocolDestinations,
+    ));
+    signals.push(...await loadRapidRewardConsolidationSignals(
       invitation,
       protocolDestinations,
     ));
