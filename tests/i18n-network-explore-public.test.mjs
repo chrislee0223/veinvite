@@ -14,6 +14,7 @@ const [
   discoverRoute,
   hub,
   explorer,
+  publicSlots,
   exploreCopy,
   hubCopy,
 ] = await Promise.all([
@@ -28,6 +29,7 @@ const [
   readFile(new URL('../src/app/api/network/public/discover/route.ts', import.meta.url), 'utf8'),
   readFile(new URL('../src/components/AppNetworkHub.tsx', import.meta.url), 'utf8'),
   readFile(new URL('../src/components/PublicNetworkExplorer.tsx', import.meta.url), 'utf8'),
+  readFile(new URL('../src/components/PublicNetworkInviteSlots.tsx', import.meta.url), 'utf8'),
   readFile(new URL('../src/lib/i18n/networkExploreCopy.ts', import.meta.url), 'utf8'),
   readFile(new URL('../src/lib/i18n/networkHubCopy.ts', import.meta.url), 'utf8'),
 ]);
@@ -133,7 +135,8 @@ test('My Network and other-user read-only explorer stay isolated', () => {
   assert.doesNotMatch(explorer, /moveWorkspaceMemberToGroup|beginLayoutEdit|groupBuilder/i);
   assert.doesNotMatch(explorer, /QUALIFIED|REWARDED|sybil/i);
   assert.doesNotMatch(explorer, /invitee_wallet|apps_completed|vot3_converted|vote_completed/i);
-  assert.match(explorer, /data-slot-state=\{slot\.state\}/i);
+  assert.doesNotMatch(publicSlots, /invitee_wallet|apps_completed|vot3_converted|vote_completed|sybil/i);
+  assert.match(publicSlots, /data-slot-state=\{slot\.state\}/i);
   assert.match(explorer, /className="networkUtilityRow"/i);
   assert.match(explorer, /className="otherNetworkBadge"/i);
   assert.doesNotMatch(explorer, /className="publicSummary"|className="backMine"|className="publicCluster"/i);
