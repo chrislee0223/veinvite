@@ -12,6 +12,7 @@ const [
   publicExplorer,
   publicOwnerLayoutView,
   publicOwnerGroups,
+  publishedLayoutSyncHook,
 ] = await Promise.all([
   readFile(
     'supabase/migrations/20261001103444_add_public_network_owner_layout_foundation.sql',
@@ -25,6 +26,7 @@ const [
   readFile('src/components/PublicNetworkExplorer.tsx','utf8'),
   readFile('src/lib/networkPublicOwnerLayoutView.ts','utf8'),
   readFile('src/components/PublicNetworkOwnerGroups.tsx','utf8'),
+  readFile('src/hooks/useNetworkPublishedLayoutSync.ts','utf8'),
 ]);
 
 test('published Network layouts default OFF and are never browser-direct tables', () => {
@@ -44,6 +46,8 @@ test('layout publish is owner-authenticated, graph-validated and revision guarde
   assert.match(publishRoute,/expectedRevision/u);
   assert.match(publishRoute,/LAYOUT_REVISION_CONFLICT/u);
   assert.match(publishRoute,/MAX_BODY_BYTES/u);
+  assert.match(publishRoute,/TextEncoder\(\)\.encode\(rawBody\)/u);
+  assert.match(publishRoute,/focusWallet === rootWallet[\s\S]*\? \[1, 2\][\s\S]*: \[\]/u);
   assert.match(publishRoute,/network_layout_publish_wallet/u);
 });
 
@@ -55,9 +59,10 @@ test('layout metadata is optional and cannot take the graph down', () => {
 });
 
 test('legacy local workspaces are not auto-published on hydration', () => {
-  assert.match(appNetwork,/networkWorkspaceIsEmpty\(localWorkspace\)/u);
-  assert.match(appNetwork,/localRevision > 0[\s\S]*snapshot\.revision > localRevision/u);
-  assert.match(appNetwork,/queuePublishedWorkspace\(workspace\)/u);
+  assert.match(publishedLayoutSyncHook,/networkWorkspaceIsEmpty\([\s\S]*localWorkspace/u);
+  assert.match(publishedLayoutSyncHook,/localRevision > 0[\s\S]*snapshot\.revision >[\s\S]*localRevision/u);
+  assert.match(publishedLayoutSyncHook,/publishableFocusRef/u);
+  assert.match(appNetwork,/markCurrentFocusPublishable\(\)[\s\S]*commitCurrentDraftWorkspace\(\)/u);
   assert.doesNotMatch(
     appNetwork,
     /readStoredWorkspace\(wallet\)[\s\S]{0,500}publishNetworkLayout/u,
@@ -65,10 +70,10 @@ test('legacy local workspaces are not auto-published on hydration', () => {
 });
 
 test('published focus snapshots materialize all current child and slot positions', () => {
-  assert.match(appNetwork,/materializeNetworkWorkspaceForPublish/u);
-  assert.match(appNetwork,/currentData\.children\.map/u);
-  assert.match(appNetwork,/inviteSlots\.map/u);
-  assert.match(appNetwork,/publicLayoutPublishingEnabled !==[\s\S]*true/u);
+  assert.match(publishedLayoutSyncHook,/materializeNetworkWorkspaceForPublish/u);
+  assert.match(publishedLayoutSyncHook,/currentData\.children\.map/u);
+  assert.match(publishedLayoutSyncHook,/inviteSlots\.map/u);
+  assert.match(publishedLayoutSyncHook,/publicLayoutPublishingEnabled !==[\s\S]*true/u);
 });
 
 test('Public Network reuses workspace grouping read-only and keeps viewer changes ephemeral', () => {
