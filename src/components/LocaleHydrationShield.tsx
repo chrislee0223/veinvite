@@ -5,6 +5,7 @@ import {
   useRef,
   useState,
 } from 'react';
+import { usePathname } from 'next/navigation';
 
 import { Brand } from './Brand';
 import {
@@ -56,7 +57,19 @@ function hasInteractiveStartupGate(): boolean {
   );
 }
 
+const NETWORK_SLOT_VISUAL_QA_PATH = '/qa/network-slot-visual';
+
 export function LocaleHydrationShield() {
+  const pathname = usePathname();
+
+  if (pathname === NETWORK_SLOT_VISUAL_QA_PATH) {
+    return null;
+  }
+
+  return <LocaleHydrationShieldRuntime />;
+}
+
+function LocaleHydrationShieldRuntime() {
   const [state, setState] = useState<ShieldState>({
     status: 'loading',
   });

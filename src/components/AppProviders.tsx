@@ -4,6 +4,7 @@ import type { ReactNode } from 'react';
 import { useEffect } from 'react';
 import { ChakraProvider, extendTheme } from '@chakra-ui/react';
 import dynamic from 'next/dynamic';
+import { usePathname } from 'next/navigation';
 
 // One reviewed side-effect entrypoint owns locale registration and copy-patch order.
 import '@/lib/i18n/runtimePatches';
@@ -66,11 +67,23 @@ const theme = extendTheme({
   },
 });
 
+const NETWORK_SLOT_VISUAL_QA_PATH = '/qa/network-slot-visual';
+
 export function AppProviders({
   children,
 }: {
   children: ReactNode;
 }) {
+  const pathname = usePathname();
+
+  if (pathname === NETWORK_SLOT_VISUAL_QA_PATH) {
+    return (
+      <ChakraProvider theme={theme}>
+        {children}
+      </ChakraProvider>
+    );
+  }
+
   return (
     <ChakraProvider theme={theme}>
       <VeChainProvider>

@@ -1,0 +1,137 @@
+.edgeBase,
+.edgeProgress,
+.edgePulse {
+  fill: none;
+  stroke-linecap: round;
+  pointer-events: none;
+  vector-effect: non-scaling-stroke;
+}
+
+.edgeBase {
+  stroke: rgba(226, 188, 79, 0.62);
+  stroke-width: 1.05;
+  opacity: 0.5;
+}
+
+.edgeProgress {
+  stroke: rgba(210, 174, 65, 0.48);
+  stroke-width: 1.15;
+  opacity: 0.72;
+}
+
+.edgePulse {
+  stroke: rgba(255, 210, 76, 0.95);
+  stroke-width: 1.55;
+  stroke-dasharray: 5 38;
+  opacity: 0.8;
+  filter: drop-shadow(0 0 2px rgba(244, 183, 40, 0.28));
+  animation: publicSlotFlow 2.45s linear infinite;
+}
+
+.slotNode {
+  position: absolute;
+  z-index: 5;
+  width: 52px;
+  height: 52px;
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+  color: #c79f36;
+}
+
+.slotNode::before {
+  content: '';
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 58px;
+  height: 58px;
+  border-radius: 50%;
+  transform: translate(-50%, -50%);
+  background:
+    radial-gradient(
+      circle,
+      rgba(8, 8, 7, 0.92) 0 86%,
+      rgba(8, 8, 7, 0.54) 91%,
+      rgba(8, 8, 7, 0.15) 96%,
+      rgba(8, 8, 7, 0) 100%
+    );
+  z-index: 0;
+}
+
+.slotCircle {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  display: grid;
+  place-items: center;
+  border: 1px dashed rgba(226, 181, 62, 0.52);
+  border-radius: 50%;
+  box-sizing: border-box;
+  background: #0d0d0b;
+  color: #c79f36;
+  font-size: 0.9rem;
+  animation: publicSlotPulse 5.6s ease-in-out infinite;
+}
+
+.slotNode[data-slot-state='PENDING'] .slotCircle,
+.slotNode[data-slot-state='IN_PROGRESS'] .slotCircle {
+  border-style: solid;
+  border-color: rgba(210, 174, 65, 0.44);
+  color: #a98b46;
+  animation: none;
+  box-shadow: inset 0 0 0 3px rgba(244, 183, 40, 0.025);
+}
+
+.slotNode[data-slot-state='IN_PROGRESS'] .slotCircle {
+  font-size: 0.72rem;
+  color: #d0a644;
+}
+
+.slotNode > strong {
+  position: absolute;
+  left: 50%;
+  top: calc(100% + 5px);
+  z-index: 2;
+  width: 92px;
+  transform: translateX(-50%);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: #a98735;
+  font-size: 0.47rem;
+  font-weight: 800;
+  white-space: nowrap;
+  text-align: center;
+}
+
+.slotNode[data-slot-state='PENDING'] > strong,
+.slotNode[data-slot-state='IN_PROGRESS'] > strong {
+  color: #8f805d;
+}
+
+@keyframes publicSlotFlow {
+  from {
+    stroke-dashoffset: 43;
+  }
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+@keyframes publicSlotPulse {
+  0%,
+  100% {
+    opacity: 0.72;
+    transform: scale(0.98);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.035);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .edgePulse,
+  .slotCircle {
+    animation: none;
+  }
+}

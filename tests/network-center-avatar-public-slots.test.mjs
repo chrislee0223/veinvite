@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import test from 'node:test';
 
-const [network, explorer, publicApi, identity, networkGeometry, ownerLayoutView, slotRetryHook, publicSlots] = await Promise.all([
+const [network, explorer, publicApi, identity, networkGeometry, ownerLayoutView, slotRetryHook, publicSlots, publicSlotStyles] = await Promise.all([
   readFile('src/components/AppNetwork.tsx', 'utf8'),
   readFile('src/components/PublicNetworkExplorer.tsx', 'utf8'),
   readFile('src/app/api/network/public/route.ts', 'utf8'),
@@ -11,6 +11,7 @@ const [network, explorer, publicApi, identity, networkGeometry, ownerLayoutView,
   readFile('src/lib/networkPublicOwnerLayoutView.ts', 'utf8'),
   readFile('src/hooks/usePublicNetworkSlotRetry.ts', 'utf8'),
   readFile('src/components/PublicNetworkInviteSlots.tsx', 'utf8'),
+  readFile('src/components/PublicNetworkInviteSlots.module.css', 'utf8'),
 ]);
 
 test('My Network root stays at the same coordinate with avatar plus one identity line', () => {
@@ -105,13 +106,17 @@ test('friend Network slots share owner coordinates, edges, motion reduction, and
     networkGeometry,
     /NETWORK_CANVAS_CENTER_X \+ 64/,
   );
-  assert.match(explorer, /publicSlotEdgeBase/);
-  assert.match(explorer, /publicSlotEdgeProgress/);
-  assert.match(explorer, /publicSlotEdgePulse/);
+  assert.match(publicSlots, /styles\.edgeBase/);
+  assert.match(publicSlots, /styles\.edgeProgress/);
+  assert.match(publicSlots, /styles\.edgePulse/);
+  assert.match(publicSlots, /styles\.slotNode/);
+  assert.match(publicSlots, /styles\.slotCircle/);
   assert.match(publicSlots, /data-slot-state=\{slot\.state\}/);
-  assert.match(explorer, /publicSlotFlow/);
-  assert.match(explorer, /prefers-reduced-motion:reduce[\s\S]*publicSlotEdgePulse/);
-  assert.match(explorer, /\.publicSlotNode\{[^}]*pointer-events:none/);
+  assert.match(publicSlotStyles, /@keyframes publicSlotFlow/);
+  assert.match(publicSlotStyles, /@media \(prefers-reduced-motion: reduce\)/);
+  assert.match(publicSlotStyles, /\.slotNode\s*\{[\s\S]*pointer-events: none/);
+  assert.match(publicSlotStyles, /\.slotNode\s*\{[\s\S]*width: 52px[\s\S]*height: 52px/);
+  assert.doesNotMatch(explorer, /\.publicSlotNode\{/);
 });
 
 test('public owner layout keeps both occupied and available slots at owner-authored coordinates', () => {

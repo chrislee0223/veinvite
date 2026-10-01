@@ -6,6 +6,8 @@ import type {
   PublicInviteSlotVisual,
 } from '@/lib/networkPublicOwnerLayoutView';
 
+import styles from './PublicNetworkInviteSlots.module.css';
+
 type SlotLabels = {
   available: string;
   pending: string;
@@ -29,7 +31,7 @@ export function PublicNetworkInviteSlotEdges({
   ) => string;
 }) {
   return (
-    <>
+    <g data-public-slot-edges="true">
       {slots.map((slot, index) => {
         const path = edgePath(
           centerX,
@@ -43,19 +45,25 @@ export function PublicNetworkInviteSlotEdges({
         return (
           <g
             key={`public-slot-edge:${slot.slot}`}
+            data-slot-edge-id={slot.slot}
+            data-slot-edge-state={slot.state}
           >
             <path
               d={path}
-              className={
+              className={`${
+                available
+                  ? styles.edgeBase
+                  : styles.edgeProgress
+              } ${
                 available
                   ? 'publicSlotEdgeBase'
                   : 'publicSlotEdgeProgress'
-              }
+              }`}
             />
             {available ? (
               <path
                 d={path}
-                className="publicSlotEdgePulse"
+                className={`${styles.edgePulse} publicSlotEdgePulse`}
                 style={{
                   animationDelay:
                     `${index * -0.92}s`,
@@ -65,7 +73,7 @@ export function PublicNetworkInviteSlotEdges({
           </g>
         );
       })}
-    </>
+    </g>
   );
 }
 
@@ -91,7 +99,7 @@ export function PublicNetworkInviteSlotNodes({
 
         return (
           <div
-            className="publicSlotNode"
+            className={`${styles.slotNode} publicSlotNode`}
             key={`public-slot-${slot.slot}`}
             data-slot-id={slot.slot}
             data-slot-state={slot.state}
@@ -102,7 +110,7 @@ export function PublicNetworkInviteSlotNodes({
             aria-label={slotLabel}
           >
             <span
-              className="publicSlotCircle"
+              className={`${styles.slotCircle} publicSlotCircle`}
               aria-hidden="true"
             >
               {available
