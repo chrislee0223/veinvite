@@ -14,6 +14,7 @@ const [
   discoverRoute,
   hub,
   explorer,
+  publicSlots,
   exploreCopy,
   hubCopy,
 ] = await Promise.all([
@@ -28,6 +29,7 @@ const [
   readFile(new URL('../src/app/api/network/public/discover/route.ts', import.meta.url), 'utf8'),
   readFile(new URL('../src/components/AppNetworkHub.tsx', import.meta.url), 'utf8'),
   readFile(new URL('../src/components/PublicNetworkExplorer.tsx', import.meta.url), 'utf8'),
+  readFile(new URL('../src/components/PublicNetworkInviteSlots.tsx', import.meta.url), 'utf8'),
   readFile(new URL('../src/lib/i18n/networkExploreCopy.ts', import.meta.url), 'utf8'),
   readFile(new URL('../src/lib/i18n/networkHubCopy.ts', import.meta.url), 'utf8'),
 ]);
@@ -48,17 +50,19 @@ test('historical opt-in rollout remains historical while the current reader is d
   );
 });
 
-test('current public reader keeps graph data service-role-only and exposes only empty slot identifiers', () => {
+test('current public reader keeps graph data service-role-only and exposes only anonymous slot state', () => {
   assert.match(defaultPublicMigration, /revoke all on function public\.read_public_referral_network_focus_v1\([\s\S]*from public, anon, authenticated/i);
   assert.match(defaultPublicMigration, /grant execute on function public\.read_public_referral_network_focus_v1\([\s\S]*to service_role/i);
   assert.match(defaultPublicMigration, /revoke all on function public\.read_public_network_discovery_v1\(integer\)[\s\S]*from public, anon, authenticated/i);
   assert.doesNotMatch(emptyRootMigration, /reward_status|sybil_status|apps_completed|vot3_converted|vote_completed|identity_link|mission_|invitations/i);
-  assert.match(publicRoute, /readPublicAvailableSlotIds\(focusWallet\)/i);
-  assert.match(publicRoute, /availableSlotIds/i);
+  assert.match(publicRoute, /readPublicSlotSnapshot\(focusWallet\)/i);
+  assert.match(publicRoute, /slots\?: PublicInviteSlotMetadata\[\]/i);
+  assert.match(publicRoute, /'AVAILABLE' \| 'PENDING' \| 'IN_PROGRESS'/i);
   assert.match(publicRoute, /slotAvailabilityKnown/i);
-  assert.match(publicRoute, /invite_slot, slot_released_at, sybil_status/i);
-  assert.doesNotMatch(publicRoute, /invitee_wallet|apps_completed|vot3_converted|vote_completed/i);
-  assert.match(publicRoute, /Mission,[\s\S]*reward,[\s\S]*anti-Sybil,[\s\S]*security/i);
+  assert.match(publicRoute, /occupiedInviteeWallets/i);
+  assert.match(publicRoute, /payload\.children = payload\.children\.filter/i);
+  assert.doesNotMatch(publicRoute, /apps_completed|vot3_converted|vote_completed/i);
+  assert.match(publicRoute, /Mission progress,[\s\S]*reward,[\s\S]*anti-Sybil detail,[\s\S]*invitee identity/i);
   assert.doesNotMatch(publicRoute, /NETWORK_PRIVATE|FOCUS_NOT_PUBLIC|NETWORK_NOT_FOUND|hasPrivateBranches/i);
 });
 
@@ -129,7 +133,10 @@ test('My Network and other-user read-only explorer stay isolated', () => {
   assert.match(explorer, /onPointerMove/i);
   assert.match(explorer, /pinchRef/i);
   assert.doesNotMatch(explorer, /moveWorkspaceMemberToGroup|beginLayoutEdit|groupBuilder/i);
-  assert.doesNotMatch(explorer, /IN_PROGRESS|QUALIFIED|REWARDED|sybil/i);
+  assert.doesNotMatch(explorer, /QUALIFIED|REWARDED|sybil/i);
+  assert.doesNotMatch(explorer, /invitee_wallet|apps_completed|vot3_converted|vote_completed/i);
+  assert.doesNotMatch(publicSlots, /invitee_wallet|apps_completed|vot3_converted|vote_completed|sybil/i);
+  assert.match(publicSlots, /data-slot-state=\{slot\.state\}/i);
   assert.match(explorer, /className="networkUtilityRow"/i);
   assert.match(explorer, /className="otherNetworkBadge"/i);
   assert.doesNotMatch(explorer, /className="publicSummary"|className="backMine"|className="publicCluster"/i);

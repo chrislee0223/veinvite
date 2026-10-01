@@ -44,6 +44,7 @@ type PublicNetworkPayload = {
   depthLimitReached?: boolean;
   availableSlots?: number;
   availableSlotIds?: Array<1 | 2>;
+  slots?: PublicInviteSlotMetadata[];
   slotAvailabilityKnown?: boolean;
   publishedLayout?: PublishedNetworkLayoutSnapshot | null;
 };
@@ -51,13 +52,27 @@ type PublicNetworkPayload = {
 const PUBLIC_NETWORK_RPC_TIMEOUT_MS = 5_000;
 const PUBLIC_SLOT_LOOKUP_TIMEOUT_MS = 1_500;
 
+type PublicInviteSlotState = 'AVAILABLE' | 'PENDING' | 'IN_PROGRESS';
+
+type PublicInviteSlotMetadata = {
+  slot: 1 | 2;
+  state: PublicInviteSlotState;
+};
+
 type PublicInviteSlotRow = {
   status: 'PENDING_ACCEPTANCE' | 'ACTIVATING' | 'UNDER_REVIEW' | 'COMPLETED';
   eligibility_check_id: string | number | null;
   activation_network: string | null;
+  invitee_wallet: string | null;
   invite_slot: number;
   slot_released_at: string | null;
   sybil_status: 'NOT_CHECKED' | 'CLEAR' | 'REVIEW' | 'BLOCKED';
+  created_at: string;
+};
+
+type PublicInviteSlotSnapshot = {
+  slots: PublicInviteSlotMetadata[];
+  occupiedInviteeWallets: Set<string>;
 };
 
 const PUBLIC_SLOT_ACTIVE_STATUSES: PublicInviteSlotRow['status'][] = [
@@ -80,9 +95,17 @@ function publicSlotOccupies(row: PublicInviteSlotRow): boolean {
   return publicSlotHasEntryProof(row) && row.slot_released_at === null;
 }
 
-async function readPublicAvailableSlotIds(wallet: string): Promise<Array<1 | 2> | null> {
+async function readPublicSlotSnapshot(wallet: string): Promise<PublicInviteSlotSnapshot | null> {
   // The canary mirrors the owner-slot fixture: slot 1 occupied, slot 2 free.
-  if (await isNetworkCanaryWallet(wallet)) return [2];
+  if (await isNetworkCanaryWallet(wallet)) {
+    return {
+      slots: [
+        { slot: 1, state: 'IN_PROGRESS' },
+        { slot: 2, state: 'AVAILABLE' },
+      ],
+      occupiedInviteeWallets: new Set<string>(),
+    };
+  }
 
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), PUBLIC_SLOT_LOOKUP_TIMEOUT_MS);
@@ -90,27 +113,49 @@ async function readPublicAvailableSlotIds(wallet: string): Promise<Array<1 | 2> 
     const { data, error } = await supabaseAdmin
       .from('invitations')
       .select(
-        'status, eligibility_check_id, activation_network, invite_slot, slot_released_at, sybil_status',
+        'status, eligibility_check_id, activation_network, invitee_wallet, invite_slot, slot_released_at, sybil_status, created_at',
       )
       .eq('inviter_wallet', wallet)
       .in('status', PUBLIC_SLOT_ACTIVE_STATUSES)
+      .order('created_at', { ascending: false })
       .abortSignal(controller.signal);
 
     if (error) {
-      console.error('Failed to load public Network slot availability:', error);
+      console.error('Failed to load public Network slot state:', error);
       return null;
     }
 
-    const occupied = new Set<1 | 2>();
+    const occupied = new Map<1 | 2, PublicInviteSlotRow>();
     for (const row of (data ?? []) as PublicInviteSlotRow[]) {
       if (!publicSlotOccupies(row)) continue;
-      occupied.add(row.invite_slot === 2 ? 2 : 1);
+      const slot = row.invite_slot === 2 ? 2 : 1;
+      if (!occupied.has(slot)) occupied.set(slot, row);
     }
 
-    return ([1, 2] as const).filter((slot) => !occupied.has(slot));
+    const occupiedInviteeWallets = new Set<string>();
+    for (const row of occupied.values()) {
+      const inviteeWallet = row.invitee_wallet?.trim().toLowerCase() ?? '';
+      if (/^0x[0-9a-f]{40}$/.test(inviteeWallet)) {
+        occupiedInviteeWallets.add(inviteeWallet);
+      }
+    }
+
+    const slots = ([1, 2] as const).map((slot): PublicInviteSlotMetadata => {
+      const row = occupied.get(slot);
+      if (!row) return { slot, state: 'AVAILABLE' };
+      return {
+        slot,
+        state: row.status === 'PENDING_ACCEPTANCE' ? 'PENDING' : 'IN_PROGRESS',
+      };
+    });
+
+    return {
+      slots,
+      occupiedInviteeWallets,
+    };
   } catch (error) {
     if (!controller.signal.aborted) {
-      console.error('Public Network slot availability lookup failed:', error);
+      console.error('Public Network slot state lookup failed:', error);
     }
     return null;
   } finally {
@@ -200,11 +245,11 @@ export async function GET(request: NextRequest) {
     );
   }
 
-  // Slot availability belongs to whichever wallet is currently centered.
-  // Start it beside the graph read so subnetwork navigation does not create a
-  // second serial wait. Only empty slot IDs are returned; no invitee identity,
-  // mission progress, reward, or anti-Sybil detail enters the browser payload.
-  const availableSlotIdsPromise = readPublicAvailableSlotIds(focusWallet);
+  // Slot state belongs to whichever wallet is currently centered. Start it
+  // beside the graph read so subnetwork navigation does not create a second
+  // serial wait. Invitee identity is used only server-side to avoid rendering
+  // the same in-progress referral twice; it never enters the browser payload.
+  const slotSnapshotPromise = readPublicSlotSnapshot(focusWallet);
 
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), PUBLIC_NETWORK_RPC_TIMEOUT_MS);
@@ -247,11 +292,27 @@ export async function GET(request: NextRequest) {
     return noStoreJson({ code: 'INVALID_WALLET', error: 'Invalid wallet address.' }, 400);
   }
 
-  const availableSlotIds = await availableSlotIdsPromise;
-  payload.slotAvailabilityKnown = availableSlotIds !== null;
-  if (availableSlotIds !== null) {
-    payload.availableSlotIds = availableSlotIds;
-    payload.availableSlots = availableSlotIds.length;
+  const slotSnapshot = await slotSnapshotPromise;
+  payload.slotAvailabilityKnown = slotSnapshot !== null;
+  const availableSlotIds = slotSnapshot
+    ? slotSnapshot.slots
+        .filter((slot) => slot.state === 'AVAILABLE')
+        .map((slot) => slot.slot)
+    : null;
+
+  if (slotSnapshot) {
+    payload.slots = slotSnapshot.slots;
+    payload.availableSlotIds = availableSlotIds ?? [];
+    payload.availableSlots = availableSlotIds?.length ?? 0;
+
+    if (payload.children && slotSnapshot.occupiedInviteeWallets.size > 0) {
+      payload.children = payload.children.filter(
+        (child) =>
+          !slotSnapshot.occupiedInviteeWallets.has(
+            child.wallet.trim().toLowerCase(),
+          ),
+      );
+    }
   }
 
   if (await canUseNetworkPublicLayout(rootWallet)) {
@@ -262,7 +323,9 @@ export async function GET(request: NextRequest) {
           focusWallet,
           allowedWallets: (payload.children ?? [])
             .map((child) => child.wallet),
-          allowedSlotIds: availableSlotIds ?? [],
+          allowedSlotIds: slotSnapshot
+            ? slotSnapshot.slots.map((slot) => slot.slot)
+            : [],
         });
     } catch (error) {
       // Layout is optional display metadata. Never make the public graph fail
@@ -274,9 +337,9 @@ export async function GET(request: NextRequest) {
     }
   }
 
-  // This endpoint exposes referral-graph structure plus only the exact empty
-  // capacity slot IDs needed to mirror the owner's two-slot layout. Mission,
-  // reward, anti-Sybil, security, invitee identity/progress, invitation detail,
-  // and signing data never enter the browser payload.
+  // This endpoint exposes referral-graph structure plus only anonymous slot
+  // state needed to mirror the owner's two-slot layout. Mission progress,
+  // reward, anti-Sybil detail, invitee identity, invitation detail, and signing
+  // data never enter the browser payload.
   return noStoreJson(payload as Record<string, unknown>);
 }
