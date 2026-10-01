@@ -36,6 +36,11 @@ test('published Network layouts default OFF and are never browser-direct tables'
   assert.match(migration,/revoke all on public\.network_public_layouts[\s\S]*from public, anon, authenticated/u);
   assert.match(migration,/grant select, insert, update, delete[\s\S]*to service_role/u);
   assert.match(runtime,/canUseNetworkPublicLayout/u);
+  assert.match(runtime,/select\('enabled, my_mode, public_mode'\)/u);
+  assert.doesNotMatch(
+    runtime,
+    /select\('enabled, my_mode, public_mode, public_layout_mode'\)/u,
+  );
 });
 
 test('layout publish is owner-authenticated, graph-validated and revision guarded', () => {
