@@ -3,6 +3,7 @@
 import { useEffect, useRef } from 'react';
 
 import { INELIGIBLE_INVITER_COPY } from '@/lib/i18n/ineligibleInviterCopy';
+import { INVITER_HOLD_NOTIFICATION_COPY } from '@/lib/i18n/inviterHoldNotificationCopy';
 import { INVITER_SECURITY_NOTIFICATION_COPY } from '@/lib/i18n/inviterSecurityNotificationCopy';
 import { NOTIFICATION_COPY } from '@/lib/i18n/notificationCopy';
 import { NOTIFICATION_V2_COPY } from '@/lib/i18n/notificationV2Copy';
@@ -10,6 +11,7 @@ import { REFERRAL_INVALIDATED_COPY } from '@/lib/i18n/referralInvalidatedCopy';
 import { REFERRAL_RESTORED_COPY } from '@/lib/i18n/referralRestoredCopy';
 import { POST_PAYOUT_SECURITY_NOTIFICATION_COPY } from '@/lib/i18n/postPayoutSecurityNotificationCopy';
 import { SECURITY_NOTIFICATION_COPY } from '@/lib/i18n/securityNotificationCopy';
+import { SECURITY_REVIEW_CLEARED_COPY } from '@/lib/i18n/securityReviewClearedCopy';
 import {
   isRtlLocale,
   type Locale,
@@ -50,6 +52,8 @@ function statusText(
     INELIGIBLE_INVITER_COPY.en;
   const security = SECURITY_NOTIFICATION_COPY[locale];
   const inviterSecurity = INVITER_SECURITY_NOTIFICATION_COPY[locale];
+  const inviterHold = INVITER_HOLD_NOTIFICATION_COPY[locale];
+  const securityCleared = SECURITY_REVIEW_CLEARED_COPY[locale];
   const invalidated = REFERRAL_INVALIDATED_COPY[locale];
   const restored = REFERRAL_RESTORED_COPY[locale];
   const postPayout = POST_PAYOUT_SECURITY_NOTIFICATION_COPY[locale];
@@ -109,6 +113,12 @@ function statusText(
         body: security.reviewBody,
         hint: null,
       };
+    case 'SECURITY_REVIEW_CLEARED':
+      return {
+        title: securityCleared.title,
+        body: securityCleared.body,
+        hint: null,
+      };
     case 'SECURITY_POST_PAYOUT_REVIEW_STARTED':
       return {
         title: postPayout.reviewTitle,
@@ -135,8 +145,8 @@ function statusText(
       };
     case 'SECURITY_INVITER_HOLD':
       return {
-        title: inviterSecurity.holdTitle,
-        body: inviterSecurity.holdBody,
+        title: inviterHold.title,
+        body: inviterHold.body,
         hint: null,
       };
     case 'SECURITY_INVITER_RESTRICTED':
@@ -192,6 +202,9 @@ function shortStatus(
   if (notification.kind === 'SECURITY_REVIEW_STARTED') {
     return SECURITY_NOTIFICATION_COPY[locale].reviewTitle;
   }
+  if (notification.kind === 'SECURITY_REVIEW_CLEARED') {
+    return SECURITY_REVIEW_CLEARED_COPY[locale].title;
+  }
   if (notification.kind === 'SECURITY_POST_PAYOUT_REVIEW_STARTED') {
     return POST_PAYOUT_SECURITY_NOTIFICATION_COPY[locale].reviewTitle;
   }
@@ -205,7 +218,7 @@ function shortStatus(
     return INVITER_SECURITY_NOTIFICATION_COPY[locale].watchTitle;
   }
   if (notification.kind === 'SECURITY_INVITER_HOLD') {
-    return INVITER_SECURITY_NOTIFICATION_COPY[locale].holdTitle;
+    return INVITER_HOLD_NOTIFICATION_COPY[locale].title;
   }
   if (notification.kind === 'SECURITY_INVITER_RESTRICTED') {
     return INVITER_SECURITY_NOTIFICATION_COPY[locale].restrictedTitle;

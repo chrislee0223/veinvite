@@ -10,6 +10,7 @@ import {
 } from 'react';
 
 import { INELIGIBLE_INVITER_COPY } from '@/lib/i18n/ineligibleInviterCopy';
+import { INVITER_HOLD_NOTIFICATION_COPY } from '@/lib/i18n/inviterHoldNotificationCopy';
 import { INVITER_SECURITY_NOTIFICATION_COPY } from '@/lib/i18n/inviterSecurityNotificationCopy';
 import { NOTIFICATION_COPY } from '@/lib/i18n/notificationCopy';
 import { NOTIFICATION_HISTORY_COPY } from '@/lib/i18n/notificationHistoryCopy';
@@ -21,6 +22,7 @@ import { REFERRAL_INVALIDATED_COPY } from '@/lib/i18n/referralInvalidatedCopy';
 import { REFERRAL_RESTORED_COPY } from '@/lib/i18n/referralRestoredCopy';
 import { POST_PAYOUT_SECURITY_NOTIFICATION_COPY } from '@/lib/i18n/postPayoutSecurityNotificationCopy';
 import { SECURITY_NOTIFICATION_COPY } from '@/lib/i18n/securityNotificationCopy';
+import { SECURITY_REVIEW_CLEARED_COPY } from '@/lib/i18n/securityReviewClearedCopy';
 import {
   isRtlLocale,
   type Locale,
@@ -200,6 +202,8 @@ function itemCopy(
   const amount = formatB3trWei(item.rewardAmountWei);
   const security = SECURITY_NOTIFICATION_COPY[locale];
   const inviterSecurity = INVITER_SECURITY_NOTIFICATION_COPY[locale];
+  const inviterHold = INVITER_HOLD_NOTIFICATION_COPY[locale];
+  const securityCleared = SECURITY_REVIEW_CLEARED_COPY[locale];
   const invalidated = REFERRAL_INVALIDATED_COPY[locale];
   const restored = REFERRAL_RESTORED_COPY[locale];
   const postPayout = POST_PAYOUT_SECURITY_NOTIFICATION_COPY[locale];
@@ -246,6 +250,12 @@ function itemCopy(
         body: security.reviewBody,
         hint: null,
       };
+    case 'SECURITY_REVIEW_CLEARED':
+      return {
+        title: securityCleared.title,
+        body: securityCleared.body,
+        hint: null,
+      };
     case 'SECURITY_POST_PAYOUT_REVIEW_STARTED':
       return {
         title: postPayout.reviewTitle,
@@ -272,8 +282,8 @@ function itemCopy(
       };
     case 'SECURITY_INVITER_HOLD':
       return {
-        title: inviterSecurity.holdTitle,
-        body: inviterSecurity.holdBody,
+        title: inviterHold.title,
+        body: inviterHold.body,
         hint: null,
       };
     case 'SECURITY_INVITER_RESTRICTED':

@@ -8,6 +8,7 @@ import {
 } from 'react';
 
 import { InviteNotificationHistoryCenter } from './InviteNotificationHistoryCenter';
+import { useVisiblePeriodicRefresh } from '@/hooks/useVisiblePeriodicRefresh';
 import { useWalletLauncher } from './WalletControl';
 import type { Locale } from '@/lib/i18n/locales';
 import type {
@@ -24,6 +25,9 @@ import {
 import {
   invalidateNetworkSummaryCache,
 } from '@/lib/networkSummaryClientCache';
+import {
+  SECURITY_STATUS_CHANGED_EVENT,
+} from '@/lib/securityStatusClientEvents';
 
 type NotificationResponse = {
   notification?: InviteNotificationPayloadV2 | null;
@@ -47,7 +51,7 @@ type AcknowledgementResult = {
   unreadCount: number;
 };
 
-const REFRESH_MS = 60_000;
+const REFRESH_MS = 30_000;
 const LIFECYCLE_UNAUTHORIZED_BACKOFF_MS = 15_000;
 const LIFECYCLE_REQUEST_LEASE_MS = 5_000;
 const LIFECYCLE_UNAUTHORIZED_BACKOFF_STORAGE_KEY =
@@ -76,6 +80,7 @@ const NOTIFICATION_HISTORY_KINDS = new Set([
   'REWARD_PAID',
   'INVITE_INELIGIBLE',
   'SECURITY_REVIEW_STARTED',
+  'SECURITY_REVIEW_CLEARED',
   'SECURITY_POST_PAYOUT_REVIEW_STARTED',
   'SECURITY_POST_PAYOUT_REVIEW_CLEARED',
   'SECURITY_RESTRICTION_CONFIRMED',
@@ -328,6 +333,8 @@ function notificationRequiresHomeRefresh(
     kind === 'INVITE_INELIGIBLE' ||
     kind === 'REWARD_READY' ||
     kind === 'REWARD_PAID' ||
+    kind === 'SECURITY_RESTRICTION_CONFIRMED' ||
+    kind === 'SECURITY_REVIEW_CLEARED' ||
     kind === 'SECURITY_REFERRAL_INVALIDATED' ||
     kind === 'SECURITY_REFERRAL_RESTORED'
   );
@@ -338,6 +345,8 @@ function notificationRequiresNetworkRefresh(
 ): boolean {
   const kind = effectiveNotificationKind(notification);
   return (
+    kind === 'SECURITY_RESTRICTION_CONFIRMED' ||
+    kind === 'SECURITY_REVIEW_CLEARED' ||
     kind === 'SECURITY_REFERRAL_INVALIDATED' ||
     kind === 'SECURITY_REFERRAL_RESTORED'
   );
@@ -916,37 +925,24 @@ export function InAppInviteNotifications({
     }
   }, [busy, loadHistoryPage, loading, nextCursor, wallet]);
 
+  const refreshVisibleNotifications = useCallback(() => {
+    if (!wallet) return;
+    void loadLatestHistory({ requestWallet: wallet });
+    void refreshLifecycle(true);
+  }, [loadLatestHistory, refreshLifecycle, wallet]);
+
   useEffect(() => {
     if (!wallet) return;
-
-    const requestWallet = wallet;
-    void loadLatestHistory({ requestWallet });
+    void loadLatestHistory({ requestWallet: wallet });
     void refreshLifecycle(true);
-
-    const refreshVisibleNotifications = () => {
-      if (document.visibilityState !== 'visible') return;
-      void loadLatestHistory({ requestWallet });
-      void refreshLifecycle(true);
-    };
-
-    const timer = window.setInterval(
-      refreshVisibleNotifications,
-      REFRESH_MS,
-    );
-
-    document.addEventListener(
-      'visibilitychange',
-      refreshVisibleNotifications,
-    );
-
-    return () => {
-      window.clearInterval(timer);
-      document.removeEventListener(
-        'visibilitychange',
-        refreshVisibleNotifications,
-      );
-    };
   }, [loadLatestHistory, refreshLifecycle, wallet]);
+
+  useVisiblePeriodicRefresh({
+    enabled: Boolean(wallet),
+    intervalMs: REFRESH_MS,
+    onRefresh: refreshVisibleNotifications,
+    customWindowEvent: SECURITY_STATUS_CHANGED_EVENT,
+  });
 
   useEffect(() => {
     const onRewardReceiptAcknowledged = () => {

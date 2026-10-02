@@ -18,6 +18,9 @@ import {
   LegalConsentGate,
 } from '@/components/LegalConsentGate';
 import {
+  useLiveWalletRestriction,
+} from '@/hooks/useLiveWalletRestriction';
+import {
   useWalletAuthentication,
 } from '@/hooks/useWalletAuthentication';
 import {
@@ -26,6 +29,9 @@ import {
   resolveBrowserLocale,
   type Locale,
 } from '@/lib/i18n/locales';
+import {
+  INVITER_HOLD_NOTIFICATION_COPY,
+} from '@/lib/i18n/inviterHoldNotificationCopy';
 import {
   SECURITY_NOTIFICATION_COPY,
 } from '@/lib/i18n/securityNotificationCopy';
@@ -366,9 +372,12 @@ function WalletRestrictionSurface({
 }) {
   const supportedLocale = isLocale(locale) ? locale : 'en';
   const security = SECURITY_NOTIFICATION_COPY[supportedLocale];
+  const inviterHold = INVITER_HOLD_NOTIFICATION_COPY[supportedLocale];
   const session = WALLET_SESSION_COPY[supportedLocale];
   const switchCopy = WALLET_SWITCH_COPY[supportedLocale];
   const permanent = restrictionKind === 'BLACKLIST';
+  const inviterHoldActive =
+    restrictionKind === 'INVITER_ESCALATION_HOLD';
 
   return (
     <div
@@ -425,7 +434,9 @@ function WalletRestrictionSurface({
         >
           {permanent
             ? security.restrictionTitle
-            : security.reviewTitle}
+            : inviterHoldActive
+              ? inviterHold.title
+              : security.reviewTitle}
         </strong>
         <span
           style={{
@@ -436,7 +447,9 @@ function WalletRestrictionSurface({
         >
           {permanent
             ? security.restrictionBody
-            : security.reviewBody}
+            : inviterHoldActive
+              ? inviterHold.body
+              : security.reviewBody}
         </span>
         {permanent ? (
           <RestrictedApprovedRewardClaims
@@ -926,6 +939,20 @@ export function WalletSessionGate({
     verifiedWallet,
     walletAddress,
   ]);
+
+  useLiveWalletRestriction<RestrictionKind>({
+    enabled:
+      !previewMode &&
+      state === 'verified' &&
+      Boolean(verifiedWallet) &&
+      walletAddress === verifiedWallet,
+    walletAddress,
+    verifiedWallet,
+    walletAddressRef,
+    sessionWalletRef,
+    readRestriction: readWalletRestriction,
+    setRestrictionKind,
+  });
 
   const disconnectFromVerification =
     useCallback(async () => {
