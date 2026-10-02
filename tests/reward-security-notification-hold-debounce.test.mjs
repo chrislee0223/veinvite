@@ -25,7 +25,7 @@ test('security HOLD notices wait for a short stabilization window', () => {
   assert.equal(occurrences.length, 3);
   assert.match(
     migration,
-    /h\.kind not in \(\s*'SECURITY_REVIEW_STARTED',\s*'SECURITY_INVITER_HOLD'\s*\)/u,
+    /h\.kind not in \(\s*'SECURITY_REVIEW_STARTED',\s*'SECURITY_POST_PAYOUT_REVIEW_STARTED',\s*'SECURITY_INVITER_HOLD'\s*\)/u,
   );
 });
 
