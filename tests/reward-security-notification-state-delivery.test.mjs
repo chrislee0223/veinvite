@@ -15,9 +15,14 @@ import {
 const read = (path) => readFile(new URL(`../${path}`, import.meta.url), 'utf8');
 
 test('security history is recipient-aware and completes HOLD outcomes', async () => {
-  const sql = await read(
-    'supabase/migrations/20261002053000_complete_security_notification_state_delivery.sql',
-  );
+  const [sql, reinstatementSql] = await Promise.all([
+    read(
+      'supabase/migrations/20261002053000_complete_security_notification_state_delivery.sql',
+    ),
+    read(
+      'supabase/migrations/20261002065500_deliver_invitee_reinstatement_notification.sql',
+    ),
+  ]);
 
   assert.match(sql, /add column if not exists recipient_wallet text/u);
   assert.match(sql, /SECURITY_REVIEW_CLEARED/u);
@@ -30,7 +35,7 @@ test('security history is recipient-aware and completes HOLD outcomes', async ()
     /v_kind in \([\s\S]*'SECURITY_REVIEW_STARTED'[\s\S]*'SECURITY_REVIEW_CLEARED'[\s\S]*'SECURITY_RESTRICTION_CONFIRMED'/u,
   );
   assert.match(
-    sql,
+    reinstatementSql,
     /'SECURITY_REFERRAL_RESTORED'[\s\S]*then 'SECURITY_REVIEW_CLEARED'/u,
   );
   assert.match(sql, /coalesce\(h\.recipient_wallet, h\.inviter_wallet\) = v_wallet/u);
