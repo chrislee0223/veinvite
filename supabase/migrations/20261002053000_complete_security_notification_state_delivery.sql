@@ -215,8 +215,7 @@ begin
        'SECURITY_REVIEW_CLEARED',
        'SECURITY_POST_PAYOUT_REVIEW_STARTED',
        'SECURITY_POST_PAYOUT_REVIEW_CLEARED',
-       'SECURITY_RESTRICTION_CONFIRMED',
-       'SECURITY_REFERRAL_RESTORED'
+       'SECURITY_RESTRICTION_CONFIRMED'
      ) then
     insert into public.invite_notification_history(
       inviter_wallet,
@@ -234,11 +233,7 @@ begin
       v_inviter,
       v_invitee,
       v_code,
-      case
-        when v_kind = 'SECURITY_REFERRAL_RESTORED'
-        then 'SECURITY_REVIEW_CLEARED'
-        else v_kind
-      end,
+      v_kind,
       6,
       p_event_at,
       null,
