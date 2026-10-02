@@ -40,16 +40,16 @@ test('wallet restriction API surfaces pending HOLDs as an actual app gate', () =
   );
 });
 
-test('wallet session gate renders neutral review copy for pending HOLDs', () => {
+test('wallet session gate renders the right review copy for each HOLD scope', () => {
   assert.match(sessionGate, /'PRE_CLAIM_HOLD'/u);
   assert.match(sessionGate, /'POST_PAYOUT_HOLD'/u);
   assert.match(sessionGate, /'INVITER_ESCALATION_HOLD'/u);
-  assert.match(
-    sessionGate,
-    /permanent\s*\? security\.restrictionTitle\s*:\s*security\.reviewTitle/u,
-  );
-  assert.match(
-    sessionGate,
-    /permanent\s*\? security\.restrictionBody\s*:\s*security\.reviewBody/u,
-  );
+  assert.match(sessionGate, /inviterHoldActive/u);
+  assert.match(sessionGate, /INVITER_HOLD_NOTIFICATION_COPY/u);
+  assert.match(sessionGate, /security\.restrictionTitle/u);
+  assert.match(sessionGate, /security\.reviewTitle/u);
+  assert.match(sessionGate, /inviterHold\.title/u);
+  assert.match(sessionGate, /security\.restrictionBody/u);
+  assert.match(sessionGate, /security\.reviewBody/u);
+  assert.match(sessionGate, /inviterHold\.body/u);
 });
