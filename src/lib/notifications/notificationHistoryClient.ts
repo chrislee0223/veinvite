@@ -31,3 +31,36 @@ export function newestUnreadSecurityHistoryId(
     }),
   );
 }
+
+export function effectiveNotificationKind(
+  notification: InviteNotificationHistoryItem,
+): string {
+  return notification.presentationKind ?? notification.kind;
+}
+
+export function notificationRequiresHomeRefresh(
+  notification: InviteNotificationHistoryItem,
+): boolean {
+  const kind = effectiveNotificationKind(notification);
+  return (
+    kind === 'INVITE_INELIGIBLE' ||
+    kind === 'REWARD_READY' ||
+    kind === 'REWARD_PAID' ||
+    kind === 'SECURITY_RESTRICTION_CONFIRMED' ||
+    kind === 'SECURITY_REVIEW_CLEARED' ||
+    kind === 'SECURITY_REFERRAL_INVALIDATED' ||
+    kind === 'SECURITY_REFERRAL_RESTORED'
+  );
+}
+
+export function notificationRequiresNetworkRefresh(
+  notification: InviteNotificationHistoryItem,
+): boolean {
+  const kind = effectiveNotificationKind(notification);
+  return (
+    kind === 'SECURITY_RESTRICTION_CONFIRMED' ||
+    kind === 'SECURITY_REVIEW_CLEARED' ||
+    kind === 'SECURITY_REFERRAL_INVALIDATED' ||
+    kind === 'SECURITY_REFERRAL_RESTORED'
+  );
+}
