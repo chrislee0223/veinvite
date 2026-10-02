@@ -3,9 +3,14 @@ begin;
 alter table public.invite_notification_history
   add column if not exists recipient_wallet text;
 
-update public.invite_notification_history
-set recipient_wallet = lower(inviter_wallet)
-where recipient_wallet is null;
+alter table public.invite_notification_history
+  drop constraint if exists invite_notification_history_recipient_wallet_check;
+alter table public.invite_notification_history
+  add constraint invite_notification_history_recipient_wallet_check
+  check (
+    recipient_wallet is null
+    or recipient_wallet ~ '^0x[0-9a-f]{40}$'
+  );
 
 create or replace function public.fill_invite_notification_recipient_wallet()
 returns trigger
@@ -29,23 +34,21 @@ from public, anon, authenticated, service_role;
 drop trigger if exists invite_notification_history_fill_recipient
 on public.invite_notification_history;
 create trigger invite_notification_history_fill_recipient
-before insert or update of inviter_wallet, recipient_wallet
+before insert
 on public.invite_notification_history
 for each row execute function public.fill_invite_notification_recipient_wallet();
 
-alter table public.invite_notification_history
-  alter column recipient_wallet set not null;
-
-alter table public.invite_notification_history
-  drop constraint if exists invite_notification_history_recipient_wallet_check;
-alter table public.invite_notification_history
-  add constraint invite_notification_history_recipient_wallet_check
-  check (recipient_wallet ~ '^0x[0-9a-f]{40}$');
-
 create index if not exists invite_notification_history_recipient_id_idx
-  on public.invite_notification_history(recipient_wallet, id desc);
+  on public.invite_notification_history(
+    (coalesce(recipient_wallet, inviter_wallet)),
+    id desc
+  );
 create index if not exists invite_notification_history_recipient_event_idx
-  on public.invite_notification_history(recipient_wallet, event_at desc, id desc);
+  on public.invite_notification_history(
+    (coalesce(recipient_wallet, inviter_wallet)),
+    event_at desc,
+    id desc
+  );
 
 alter table public.invite_notification_history
   drop constraint if exists invite_notification_history_kind_check;
@@ -156,7 +159,7 @@ begin
   from public.invite_notification_history h
   where h.invite_code = v_code
     and h.kind = v_kind
-    and h.recipient_wallet = v_inviter
+    and coalesce(h.recipient_wallet, h.inviter_wallet) = v_inviter
     and h.dedupe_key in (v_base_dedupe_key, v_inviter_key)
   order by h.id
   limit 1;
@@ -198,7 +201,7 @@ begin
     where h.dedupe_key = v_inviter_key
       and h.invite_code = v_code
       and h.kind = v_kind
-      and h.recipient_wallet = v_inviter;
+      and coalesce(h.recipient_wallet, h.inviter_wallet) = v_inviter;
   end if;
 
   if v_id is null then
@@ -339,14 +342,15 @@ begin
   left join public.invite_notification_history_reads r
     on r.notification_id = h.id
    and r.inviter_wallet = v_wallet
-  where h.recipient_wallet = v_wallet
+  where coalesce(h.recipient_wallet, h.inviter_wallet) = v_wallet
     and (p_before_id is null or h.id < p_before_id)
     and not (
       h.kind = 'SECURITY_REVIEW_STARTED'
       and exists (
         select 1
         from public.invite_notification_history later
-        where later.recipient_wallet = h.recipient_wallet
+        where coalesce(later.recipient_wallet, later.inviter_wallet)
+              = coalesce(h.recipient_wallet, h.inviter_wallet)
           and later.invite_code = h.invite_code
           and later.kind = 'SECURITY_RESTRICTION_CONFIRMED'
           and later.event_at >= h.event_at
@@ -358,7 +362,8 @@ begin
       and exists (
         select 1
         from public.invite_notification_history later
-        where later.recipient_wallet = h.recipient_wallet
+        where coalesce(later.recipient_wallet, later.inviter_wallet)
+              = coalesce(h.recipient_wallet, h.inviter_wallet)
           and later.invite_code = h.invite_code
           and later.kind = 'SECURITY_INVITER_RESTRICTED'
           and later.event_at >= h.event_at
@@ -389,7 +394,7 @@ begin
   select count(*)
   into v_count
   from public.invite_notification_history h
-  where h.recipient_wallet = v_wallet
+  where coalesce(h.recipient_wallet, h.inviter_wallet) = v_wallet
     and not exists (
       select 1
       from public.invite_notification_history_reads r
@@ -401,7 +406,8 @@ begin
       and exists (
         select 1
         from public.invite_notification_history later
-        where later.recipient_wallet = h.recipient_wallet
+        where coalesce(later.recipient_wallet, later.inviter_wallet)
+              = coalesce(h.recipient_wallet, h.inviter_wallet)
           and later.invite_code = h.invite_code
           and later.kind = 'SECURITY_RESTRICTION_CONFIRMED'
           and later.event_at >= h.event_at
@@ -413,7 +419,8 @@ begin
       and exists (
         select 1
         from public.invite_notification_history later
-        where later.recipient_wallet = h.recipient_wallet
+        where coalesce(later.recipient_wallet, later.inviter_wallet)
+              = coalesce(h.recipient_wallet, h.inviter_wallet)
           and later.invite_code = h.invite_code
           and later.kind = 'SECURITY_INVITER_RESTRICTED'
           and later.event_at >= h.event_at
@@ -461,7 +468,7 @@ begin
   for v_row in
     select h.*
     from public.invite_notification_history h
-    where h.recipient_wallet = v_wallet
+    where coalesce(h.recipient_wallet, h.inviter_wallet) = v_wallet
       and (
         (p_ids is not null and h.id = any(p_ids))
         or (
@@ -480,7 +487,8 @@ begin
         and exists (
           select 1
           from public.invite_notification_history later
-          where later.recipient_wallet = h.recipient_wallet
+          where coalesce(later.recipient_wallet, later.inviter_wallet)
+                = coalesce(h.recipient_wallet, h.inviter_wallet)
             and later.invite_code = h.invite_code
             and later.kind = 'SECURITY_RESTRICTION_CONFIRMED'
             and later.event_at >= h.event_at
@@ -492,7 +500,8 @@ begin
         and exists (
           select 1
           from public.invite_notification_history later
-          where later.recipient_wallet = h.recipient_wallet
+          where coalesce(later.recipient_wallet, later.inviter_wallet)
+                = coalesce(h.recipient_wallet, h.inviter_wallet)
             and later.invite_code = h.invite_code
             and later.kind = 'SECURITY_INVITER_RESTRICTED'
             and later.event_at >= h.event_at
@@ -539,7 +548,7 @@ end;
 $$;
 
 comment on column public.invite_notification_history.recipient_wallet is
-  'Wallet that should see this notification. Existing inviter-facing history is backfilled to the inviter; security lifecycle events may also be delivered directly to the invitee.';
+  'Wallet that should see this notification. NULL preserves legacy append-only rows and is interpreted as inviter_wallet; new rows are populated on insert.';
 
 comment on function public.notify_sybil_v2_referral_security_history() is
   'Appends recipient-aware pre-claim security lifecycle notifications for HOLD, final restriction, and review clearance.';
