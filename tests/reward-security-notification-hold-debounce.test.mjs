@@ -4,7 +4,7 @@ import test from 'node:test';
 
 const migration = await readFile(
   new URL(
-    '../supabase/migrations/20261002102500_debounce_transient_security_hold_notifications.sql',
+    '../supabase/migrations/20261002102428_debounce_transient_security_hold_notifications.sql',
     import.meta.url,
   ),
   'utf8',
@@ -12,7 +12,7 @@ const migration = await readFile(
 
 const acknowledgementAlignment = await readFile(
   new URL(
-    '../supabase/migrations/20261002141500_align_post_payout_hold_acknowledgement.sql',
+    '../supabase/migrations/20261002142123_align_post_payout_hold_acknowledgement.sql',
     import.meta.url,
   ),
   'utf8',
