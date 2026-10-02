@@ -924,61 +924,24 @@ export function InAppInviteNotifications({
     }
   }, [busy, loadHistoryPage, loading, nextCursor, wallet]);
 
+  const refreshVisibleNotifications = useCallback(() => {
+    if (!wallet) return;
+    void loadLatestHistory({ requestWallet: wallet });
+    void refreshLifecycle(true);
+  }, [loadLatestHistory, refreshLifecycle, wallet]);
+
   useEffect(() => {
     if (!wallet) return;
-
-    const requestWallet = wallet;
-    void loadLatestHistory({ requestWallet });
+    void loadLatestHistory({ requestWallet: wallet });
     void refreshLifecycle(true);
-
-    const refreshVisibleNotifications = () => {
-      if (document.visibilityState !== 'visible') return;
-      void loadLatestHistory({ requestWallet });
-      void refreshLifecycle(true);
-    };
-
-    const timer = window.setInterval(
-      refreshVisibleNotifications,
-      REFRESH_MS,
-    );
-
-    document.addEventListener(
-      'visibilitychange',
-      refreshVisibleNotifications,
-    );
-    window.addEventListener(
-      'focus',
-      refreshVisibleNotifications,
-    );
-    window.addEventListener(
-      'pageshow',
-      refreshVisibleNotifications,
-    );
-    window.addEventListener(
-      SECURITY_STATUS_CHANGED_EVENT,
-      refreshVisibleNotifications,
-    );
-
-    return () => {
-      window.clearInterval(timer);
-      document.removeEventListener(
-        'visibilitychange',
-        refreshVisibleNotifications,
-      );
-      window.removeEventListener(
-        'focus',
-        refreshVisibleNotifications,
-      );
-      window.removeEventListener(
-        'pageshow',
-        refreshVisibleNotifications,
-      );
-      window.removeEventListener(
-        SECURITY_STATUS_CHANGED_EVENT,
-        refreshVisibleNotifications,
-      );
-    };
   }, [loadLatestHistory, refreshLifecycle, wallet]);
+
+  useVisiblePeriodicRefresh({
+    enabled: Boolean(wallet),
+    intervalMs: REFRESH_MS,
+    onRefresh: refreshVisibleNotifications,
+    customWindowEvent: SECURITY_STATUS_CHANGED_EVENT,
+  });
 
   useEffect(() => {
     const onRewardReceiptAcknowledged = () => {
