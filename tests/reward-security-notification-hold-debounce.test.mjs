@@ -10,6 +10,14 @@ const migration = await readFile(
   'utf8',
 );
 
+const acknowledgementAlignment = await readFile(
+  new URL(
+    '../supabase/migrations/20261002141500_align_post_payout_hold_acknowledgement.sql',
+    import.meta.url,
+  ),
+  'utf8',
+);
+
 test('security HOLD notices wait for a short stabilization window', () => {
   const occurrences =
     migration.match(/clock_timestamp\(\) - interval '10 seconds'/gu) ?? [];
@@ -57,4 +65,11 @@ test('history, unread count, and acknowledgement share the same HOLD visibility 
       ),
     );
   }
+});
+
+test('post-payout HOLD suppression also applies to mark-all acknowledgement', () => {
+  assert.match(
+    acknowledgementAlignment,
+    /create or replace function public\.acknowledge_invite_notification_history[\s\S]*h\.kind = 'SECURITY_POST_PAYOUT_REVIEW_STARTED'[\s\S]*later\.kind in \('SECURITY_RESTRICTION_CONFIRMED', 'SECURITY_POST_PAYOUT_REVIEW_CLEARED'\)[\s\S]*interval '10 seconds'/u,
+  );
 });
