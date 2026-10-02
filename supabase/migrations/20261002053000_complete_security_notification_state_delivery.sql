@@ -343,6 +343,10 @@ begin
     on r.notification_id = h.id
    and r.inviter_wallet = v_wallet
   where coalesce(h.recipient_wallet, h.inviter_wallet) = v_wallet
+    and (
+      h.kind not in ('SECURITY_REVIEW_STARTED', 'SECURITY_INVITER_HOLD')
+      or h.event_at <= clock_timestamp() - interval '10 seconds'
+    )
     and (p_before_id is null or h.id < p_before_id)
     and not (
       h.kind = 'SECURITY_REVIEW_STARTED'
@@ -352,7 +356,7 @@ begin
         where coalesce(later.recipient_wallet, later.inviter_wallet)
               = coalesce(h.recipient_wallet, h.inviter_wallet)
           and later.invite_code = h.invite_code
-          and later.kind = 'SECURITY_RESTRICTION_CONFIRMED'
+          and later.kind in ('SECURITY_RESTRICTION_CONFIRMED', 'SECURITY_REVIEW_CLEARED')
           and later.event_at >= h.event_at
           and later.event_at <= h.event_at + interval '10 seconds'
       )
@@ -365,7 +369,7 @@ begin
         where coalesce(later.recipient_wallet, later.inviter_wallet)
               = coalesce(h.recipient_wallet, h.inviter_wallet)
           and later.invite_code = h.invite_code
-          and later.kind = 'SECURITY_INVITER_RESTRICTED'
+          and later.kind in ('SECURITY_INVITER_RESTRICTED', 'SECURITY_INVITER_ACCESS_RESTORED')
           and later.event_at >= h.event_at
           and later.event_at <= h.event_at + interval '10 seconds'
       )
@@ -395,6 +399,10 @@ begin
   into v_count
   from public.invite_notification_history h
   where coalesce(h.recipient_wallet, h.inviter_wallet) = v_wallet
+    and (
+      h.kind not in ('SECURITY_REVIEW_STARTED', 'SECURITY_INVITER_HOLD')
+      or h.event_at <= clock_timestamp() - interval '10 seconds'
+    )
     and not exists (
       select 1
       from public.invite_notification_history_reads r
@@ -409,7 +417,7 @@ begin
         where coalesce(later.recipient_wallet, later.inviter_wallet)
               = coalesce(h.recipient_wallet, h.inviter_wallet)
           and later.invite_code = h.invite_code
-          and later.kind = 'SECURITY_RESTRICTION_CONFIRMED'
+          and later.kind in ('SECURITY_RESTRICTION_CONFIRMED', 'SECURITY_REVIEW_CLEARED')
           and later.event_at >= h.event_at
           and later.event_at <= h.event_at + interval '10 seconds'
       )
@@ -422,7 +430,7 @@ begin
         where coalesce(later.recipient_wallet, later.inviter_wallet)
               = coalesce(h.recipient_wallet, h.inviter_wallet)
           and later.invite_code = h.invite_code
-          and later.kind = 'SECURITY_INVITER_RESTRICTED'
+          and later.kind in ('SECURITY_INVITER_RESTRICTED', 'SECURITY_INVITER_ACCESS_RESTORED')
           and later.event_at >= h.event_at
           and later.event_at <= h.event_at + interval '10 seconds'
       )
@@ -469,6 +477,10 @@ begin
     select h.*
     from public.invite_notification_history h
     where coalesce(h.recipient_wallet, h.inviter_wallet) = v_wallet
+    and (
+      h.kind not in ('SECURITY_REVIEW_STARTED', 'SECURITY_INVITER_HOLD')
+      or h.event_at <= clock_timestamp() - interval '10 seconds'
+    )
       and (
         (p_ids is not null and h.id = any(p_ids))
         or (
@@ -490,7 +502,7 @@ begin
           where coalesce(later.recipient_wallet, later.inviter_wallet)
                 = coalesce(h.recipient_wallet, h.inviter_wallet)
             and later.invite_code = h.invite_code
-            and later.kind = 'SECURITY_RESTRICTION_CONFIRMED'
+            and later.kind in ('SECURITY_RESTRICTION_CONFIRMED', 'SECURITY_REVIEW_CLEARED')
             and later.event_at >= h.event_at
             and later.event_at <= h.event_at + interval '10 seconds'
         )
@@ -503,7 +515,7 @@ begin
           where coalesce(later.recipient_wallet, later.inviter_wallet)
                 = coalesce(h.recipient_wallet, h.inviter_wallet)
             and later.invite_code = h.invite_code
-            and later.kind = 'SECURITY_INVITER_RESTRICTED'
+            and later.kind in ('SECURITY_INVITER_RESTRICTED', 'SECURITY_INVITER_ACCESS_RESTORED')
             and later.event_at >= h.event_at
             and later.event_at <= h.event_at + interval '10 seconds'
         )
