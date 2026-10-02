@@ -48,3 +48,21 @@ test('inviter HOLD notifications say review is in progress without claiming acce
     /현재 이용 제한은 없고 평소처럼 계속 초대할 수 있어요/u,
   );
 });
+test('application restriction reads also exclude inviter escalation HOLD', async () => {
+  const source = await readFile(
+    'src/lib/sybil/v2/restrictions.ts',
+    'utf8',
+  );
+
+  const filters =
+    source.match(
+      /\.in\('restriction_kind', \[\s*'PRE_CLAIM_HOLD',\s*'POST_PAYOUT_HOLD',\s*\]\)/gu,
+    ) ?? [];
+
+  assert.equal(
+    filters.length,
+    2,
+    'single- and multi-wallet restriction reads must both exclude inviter HOLD',
+  );
+});
+
