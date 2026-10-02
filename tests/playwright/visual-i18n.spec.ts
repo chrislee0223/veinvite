@@ -179,7 +179,13 @@ for (const locale of HIGH_RISK_LOCALES) {
       await page.setViewportSize(MOBILE_VIEWPORT);
       await page.goto(
         `/qa/state?state=${encodeURIComponent(stateId)}&locale=${encodeURIComponent(locale)}`,
-        { waitUntil: 'domcontentloaded', timeout: 12_000 },
+        {
+          waitUntil: 'domcontentloaded',
+          // Parallel QA-state requests can briefly queue behind Next.js route
+          // compilation on CI. Keep visual assertions strict while allowing
+          // navigation the same cold-start budget as the landing QA route.
+          timeout: 30_000,
+        },
       );
       await captureAndAssert(
         page,
