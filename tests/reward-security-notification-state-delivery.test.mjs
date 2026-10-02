@@ -17,10 +17,10 @@ const read = (path) => readFile(new URL(`../${path}`, import.meta.url), 'utf8');
 test('security history is recipient-aware and completes HOLD outcomes', async () => {
   const [sql, reinstatementSql] = await Promise.all([
     read(
-      'supabase/migrations/20261002053000_complete_security_notification_state_delivery.sql',
+      'supabase/migrations/20261002054758_complete_security_notification_state_delivery.sql',
     ),
     read(
-      'supabase/migrations/20261002065500_deliver_invitee_reinstatement_notification.sql',
+      'supabase/migrations/20261002065105_deliver_invitee_reinstatement_notification.sql',
     ),
   ]);
 
@@ -43,12 +43,12 @@ test('security history is recipient-aware and completes HOLD outcomes', async ()
 
 test('very short HOLD outcomes are delayed and collapsed to the final result', async () => {
   const sql = await read(
-    'supabase/migrations/20261002102500_debounce_transient_security_hold_notifications.sql',
+    'supabase/migrations/20261002102428_debounce_transient_security_hold_notifications.sql',
   );
 
   assert.match(
     sql,
-    /h\.kind not in \('SECURITY_REVIEW_STARTED', 'SECURITY_INVITER_HOLD'\)[\s\S]*clock_timestamp\(\) - interval '10 seconds'/u,
+    /h\.kind not in \('SECURITY_REVIEW_STARTED', 'SECURITY_POST_PAYOUT_REVIEW_STARTED', 'SECURITY_INVITER_HOLD'\)[\s\S]*clock_timestamp\(\) - interval '10 seconds'/u,
   );
   assert.match(
     sql,
