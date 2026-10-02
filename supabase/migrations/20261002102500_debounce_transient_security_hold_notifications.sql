@@ -47,7 +47,7 @@ begin
    and r.inviter_wallet = v_wallet
   where coalesce(h.recipient_wallet, h.inviter_wallet) = v_wallet
     and (
-      h.kind not in ('SECURITY_REVIEW_STARTED', 'SECURITY_INVITER_HOLD')
+      h.kind not in ('SECURITY_REVIEW_STARTED', 'SECURITY_POST_PAYOUT_REVIEW_STARTED', 'SECURITY_INVITER_HOLD')
       or h.event_at <= clock_timestamp() - interval '10 seconds'
     )
     and (p_before_id is null or h.id < p_before_id)
@@ -60,6 +60,19 @@ begin
               = coalesce(h.recipient_wallet, h.inviter_wallet)
           and later.invite_code = h.invite_code
           and later.kind in ('SECURITY_RESTRICTION_CONFIRMED', 'SECURITY_REVIEW_CLEARED')
+          and later.event_at >= h.event_at
+          and later.event_at <= h.event_at + interval '10 seconds'
+      )
+    )
+    and not (
+      h.kind = 'SECURITY_POST_PAYOUT_REVIEW_STARTED'
+      and exists (
+        select 1
+        from public.invite_notification_history later
+        where coalesce(later.recipient_wallet, later.inviter_wallet)
+              = coalesce(h.recipient_wallet, h.inviter_wallet)
+          and later.invite_code = h.invite_code
+          and later.kind in ('SECURITY_RESTRICTION_CONFIRMED', 'SECURITY_POST_PAYOUT_REVIEW_CLEARED')
           and later.event_at >= h.event_at
           and later.event_at <= h.event_at + interval '10 seconds'
       )
@@ -103,7 +116,7 @@ begin
   from public.invite_notification_history h
   where coalesce(h.recipient_wallet, h.inviter_wallet) = v_wallet
     and (
-      h.kind not in ('SECURITY_REVIEW_STARTED', 'SECURITY_INVITER_HOLD')
+      h.kind not in ('SECURITY_REVIEW_STARTED', 'SECURITY_POST_PAYOUT_REVIEW_STARTED', 'SECURITY_INVITER_HOLD')
       or h.event_at <= clock_timestamp() - interval '10 seconds'
     )
     and not exists (
@@ -121,6 +134,19 @@ begin
               = coalesce(h.recipient_wallet, h.inviter_wallet)
           and later.invite_code = h.invite_code
           and later.kind in ('SECURITY_RESTRICTION_CONFIRMED', 'SECURITY_REVIEW_CLEARED')
+          and later.event_at >= h.event_at
+          and later.event_at <= h.event_at + interval '10 seconds'
+      )
+    )
+    and not (
+      h.kind = 'SECURITY_POST_PAYOUT_REVIEW_STARTED'
+      and exists (
+        select 1
+        from public.invite_notification_history later
+        where coalesce(later.recipient_wallet, later.inviter_wallet)
+              = coalesce(h.recipient_wallet, h.inviter_wallet)
+          and later.invite_code = h.invite_code
+          and later.kind in ('SECURITY_RESTRICTION_CONFIRMED', 'SECURITY_POST_PAYOUT_REVIEW_CLEARED')
           and later.event_at >= h.event_at
           and later.event_at <= h.event_at + interval '10 seconds'
       )
@@ -181,7 +207,7 @@ begin
     from public.invite_notification_history h
     where coalesce(h.recipient_wallet, h.inviter_wallet) = v_wallet
     and (
-      h.kind not in ('SECURITY_REVIEW_STARTED', 'SECURITY_INVITER_HOLD')
+      h.kind not in ('SECURITY_REVIEW_STARTED', 'SECURITY_POST_PAYOUT_REVIEW_STARTED', 'SECURITY_INVITER_HOLD')
       or h.event_at <= clock_timestamp() - interval '10 seconds'
     )
       and (
