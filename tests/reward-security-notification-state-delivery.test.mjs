@@ -29,6 +29,10 @@ test('security history is recipient-aware and completes HOLD outcomes', async ()
     sql,
     /v_kind in \([\s\S]*'SECURITY_REVIEW_STARTED'[\s\S]*'SECURITY_REVIEW_CLEARED'[\s\S]*'SECURITY_RESTRICTION_CONFIRMED'/u,
   );
+  assert.match(
+    sql,
+    /'SECURITY_REFERRAL_RESTORED'[\s\S]*then 'SECURITY_REVIEW_CLEARED'/u,
+  );
   assert.match(sql, /coalesce\(h\.recipient_wallet, h\.inviter_wallet\) = v_wallet/u);
 });
 
