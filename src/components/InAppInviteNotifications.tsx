@@ -8,6 +8,7 @@ import {
 } from 'react';
 
 import { InviteNotificationHistoryCenter } from './InviteNotificationHistoryCenter';
+import { useVisiblePeriodicRefresh } from '@/hooks/useVisiblePeriodicRefresh';
 import { useWalletLauncher } from './WalletControl';
 import type { Locale } from '@/lib/i18n/locales';
 import type {
