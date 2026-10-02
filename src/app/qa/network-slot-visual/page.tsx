@@ -62,6 +62,21 @@ export default function QaNetworkSlotVisualPage() {
             background: '#0d0d0b',
           }}
         />
+        <div
+          data-qa-slot-overlap-blocker="true"
+          aria-hidden="true"
+          style={{
+            position: 'absolute',
+            zIndex: 7,
+            left: 112,
+            top: 228,
+            width: 86,
+            height: 58,
+            transform: 'translate(-50%,-50%)',
+            borderRadius: 14,
+            background: 'rgba(80,80,80,.92)',
+          }}
+        />
         <svg
           width="360"
           height="320"

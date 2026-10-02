@@ -59,6 +59,9 @@ import {
   usePublicNetworkSlotRetry,
 } from '@/hooks/usePublicNetworkSlotRetry';
 import {
+  usePublicNetworkResumeRefresh,
+} from '@/hooks/usePublicNetworkResumeRefresh';
+import {
   PublicNetworkInviteSlotEdges,
   PublicNetworkInviteSlotNodes,
 } from './PublicNetworkInviteSlots';
@@ -761,6 +764,22 @@ function PublicNetworkCanvas({
       slotRetryAttemptedRef,
     retryControllerRef:
       slotRetryControllerRef,
+    fetchFocus: fetchPublicNetwork,
+    commit: putCache,
+  });
+
+  usePublicNetworkResumeRefresh({
+    ready:
+      state === 'ready' &&
+      Boolean(focusData),
+    root,
+    focusKey:
+      focusData
+        ? keyWallet(
+            focusData.focusWallet,
+          )
+        : '',
+    blocked: Boolean(pending),
     fetchFocus: fetchPublicNetwork,
     commit: putCache,
   });
