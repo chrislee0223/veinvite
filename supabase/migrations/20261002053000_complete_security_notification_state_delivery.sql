@@ -215,7 +215,8 @@ begin
        'SECURITY_REVIEW_CLEARED',
        'SECURITY_POST_PAYOUT_REVIEW_STARTED',
        'SECURITY_POST_PAYOUT_REVIEW_CLEARED',
-       'SECURITY_RESTRICTION_CONFIRMED'
+       'SECURITY_RESTRICTION_CONFIRMED',
+       'SECURITY_REFERRAL_RESTORED'
      ) then
     insert into public.invite_notification_history(
       inviter_wallet,
@@ -233,14 +234,22 @@ begin
       v_inviter,
       v_invitee,
       v_code,
-      v_kind,
+      case
+        when v_kind = 'SECURITY_REFERRAL_RESTORED'
+        then 'SECURITY_REVIEW_CLEARED'
+        else v_kind
+      end,
       6,
       p_event_at,
       null,
       null,
       false,
       v_inviter,
-      v_invitee_key
+      case
+        when v_kind = 'SECURITY_REFERRAL_RESTORED'
+        then v_invitee_key || ':cleared'
+        else v_invitee_key
+      end
     )
     on conflict (dedupe_key) do nothing;
   end if;
