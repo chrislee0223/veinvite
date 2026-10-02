@@ -29,7 +29,7 @@ test('security history is recipient-aware and completes HOLD outcomes', async ()
     sql,
     /v_kind in \([\s\S]*'SECURITY_REVIEW_STARTED'[\s\S]*'SECURITY_REVIEW_CLEARED'[\s\S]*'SECURITY_RESTRICTION_CONFIRMED'/u,
   );
-  assert.match(sql, /h\.recipient_wallet = v_wallet/u);
+  assert.match(sql, /coalesce\(h\.recipient_wallet, h\.inviter_wallet\) = v_wallet/u);
 });
 
 test('very short HOLD to BLOCK transitions are hidden from visible history', async () => {
