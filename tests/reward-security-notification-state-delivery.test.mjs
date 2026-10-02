@@ -95,6 +95,64 @@ test('notification history follows security changes promptly and accepts CLEAR r
   assert.match(visibleRefresh, /'pageshow'/u);
 });
 
+test('new unread security history auto-opens once without changing the notification UI', async () => {
+  const notifications = await read(
+    'src/components/InAppInviteNotifications.tsx',
+  );
+
+  assert.match(
+    notifications,
+    /function notificationRequiresAutoOpen[\s\S]*readAt === null[\s\S]*startsWith\('SECURITY_'\)/u,
+  );
+  assert.match(
+    notifications,
+    /lastAutoOpenedSecurityHistoryIdRef/u,
+  );
+  assert.match(
+    notifications,
+    /history\.items\.filter\(notificationRequiresAutoOpen\)/u,
+  );
+  assert.match(
+    notifications,
+    /lastAutoOpenedSecurityHistoryIdRef\.current !== latestSecurityId/u,
+  );
+  assert.match(
+    notifications,
+    /isWalletModalOpen[\s\S]*hasBlockingDialogOpen\(\)[\s\S]*notificationCenterIsClosing\(\)/u,
+  );
+  assert.match(
+    notifications,
+    /lastAutoOpenedSecurityHistoryIdRef\.current = latestSecurityId[\s\S]*setOpen\(true\)/u,
+  );
+  assert.match(
+    notifications,
+    /\(cached\?\.items \?\? \[\]\)\.filter\(notificationRequiresAutoOpen\)/u,
+  );
+});
+
+test('transient HOLD debounce remains authoritative before security auto-open', async () => {
+  const debounce = await read(
+    'supabase/migrations/20261002102428_debounce_transient_security_hold_notifications.sql',
+  );
+
+  assert.match(
+    debounce,
+    /clock_timestamp\(\) - interval '10 seconds'/u,
+  );
+  assert.match(
+    debounce,
+    /SECURITY_REVIEW_STARTED/u,
+  );
+  assert.match(
+    debounce,
+    /SECURITY_RESTRICTION_CONFIRMED/u,
+  );
+  assert.match(
+    debounce,
+    /SECURITY_REVIEW_CLEARED/u,
+  );
+});
+
 test('new security outcome copy is localized for every supported locale', () => {
   for (const locale of SUPPORTED_LOCALES) {
     const cleared = SECURITY_REVIEW_CLEARED_COPY[locale];
