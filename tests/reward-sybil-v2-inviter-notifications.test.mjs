@@ -3,6 +3,9 @@ import { readFile } from 'node:fs/promises';
 import test from 'node:test';
 
 import {
+  INVITER_HOLD_NOTIFICATION_COPY,
+} from '../src/lib/i18n/inviterHoldNotificationCopy.ts';
+import {
   INVITER_SECURITY_NOTIFICATION_COPY,
 } from '../src/lib/i18n/inviterSecurityNotificationCopy.ts';
 import {
@@ -113,16 +116,16 @@ test('warm notification cache accepts every inviter security lifecycle kind', as
   }
 });
 
-test('localized inviter security copy covers every supported locale', () => {
+test('localized inviter WATCH and HOLD copy matches actual access posture', () => {
   for (const locale of SUPPORTED_LOCALES) {
     const copy = INVITER_SECURITY_NOTIFICATION_COPY[locale];
+    const hold = INVITER_HOLD_NOTIFICATION_COPY[locale];
     assert.ok(copy, `missing inviter security copy for ${locale}`);
+    assert.ok(hold, `missing inviter HOLD copy for ${locale}`);
 
     for (const field of [
       'watchTitle',
       'watchBody',
-      'holdTitle',
-      'holdBody',
       'restrictedTitle',
       'restrictedBody',
       'restoredTitle',
@@ -133,6 +136,9 @@ test('localized inviter security copy covers every supported locale', () => {
         `missing ${field} for ${locale}`,
       );
     }
+
+    assert.ok(hold.title.trim().length > 0);
+    assert.ok(hold.body.trim().length > 0);
   }
 
   assert.match(
@@ -140,12 +146,8 @@ test('localized inviter security copy covers every supported locale', () => {
     /현재 이용 제한은 없고 평소처럼 계속 초대할 수 있어요/u,
   );
   assert.match(
-    INVITER_SECURITY_NOTIFICATION_COPY.ko.holdBody,
-    /현재 이용 제한은 없고 평소처럼 계속 초대할 수 있어요/u,
-  );
-  assert.equal(
-    INVITER_SECURITY_NOTIFICATION_COPY.ko.holdBody,
-    INVITER_SECURITY_NOTIFICATION_COPY.ko.watchBody,
+    INVITER_HOLD_NOTIFICATION_COPY.ko.body,
+    /VeInvite 이용이 일시적으로 제한돼요/u,
   );
 });
 
