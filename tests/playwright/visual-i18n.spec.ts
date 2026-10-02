@@ -216,6 +216,8 @@ async function assertPublicInviteSlotsVisible(page: Page): Promise<void> {
         visibility: style.visibility,
         opacity: Number(style.opacity || '1'),
         position: style.position,
+        zIndex: Number.parseInt(style.zIndex || '0', 10),
+        pointerEvents: style.pointerEvents,
       };
     }),
   );
@@ -227,6 +229,17 @@ async function assertPublicInviteSlotsVisible(page: Page): Promise<void> {
     expect(metric.visibility).toBe('visible');
     expect(metric.opacity).toBeGreaterThan(0);
     expect(metric.position).toBe('absolute');
+    expect(metric.pointerEvents).toBe('none');
+  }
+
+  const blockerZIndex = await page
+    .locator('[data-qa-slot-overlap-blocker="true"]')
+    .evaluate((element) =>
+      Number.parseInt(getComputedStyle(element).zIndex || '0', 10),
+    );
+  expect(blockerZIndex).toBe(7);
+  for (const metric of slotMetrics) {
+    expect(metric.zIndex).toBeGreaterThan(blockerZIndex);
   }
 
   const states = await slotNodes.evaluateAll((nodes) =>
