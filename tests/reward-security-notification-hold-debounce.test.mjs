@@ -28,6 +28,14 @@ test('fast referral HOLD outcomes collapse to CLEAR or BLOCK', () => {
   );
 });
 
+
+test('fast post-payout HOLD outcomes collapse to cleared or restricted', () => {
+  assert.match(
+    migration,
+    /h\.kind = 'SECURITY_POST_PAYOUT_REVIEW_STARTED'[\s\S]*later\.kind in \('SECURITY_RESTRICTION_CONFIRMED', 'SECURITY_POST_PAYOUT_REVIEW_CLEARED'\)[\s\S]*interval '10 seconds'/u,
+  );
+});
+
 test('fast inviter HOLD outcomes collapse to restored or restricted', () => {
   assert.match(
     migration,
