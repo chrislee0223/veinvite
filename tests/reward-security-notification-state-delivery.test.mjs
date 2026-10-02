@@ -11,6 +11,9 @@ import {
 import {
   SUPPORTED_LOCALES,
 } from '../src/lib/i18n/locales.ts';
+import {
+  newestUnreadSecurityHistoryId,
+} from '../src/lib/notifications/notificationHistoryClient.ts';
 
 const read = (path) => readFile(new URL(`../${path}`, import.meta.url), 'utf8');
 
@@ -41,22 +44,18 @@ test('security history is recipient-aware and completes HOLD outcomes', async ()
   assert.match(sql, /coalesce\(h\.recipient_wallet, h\.inviter_wallet\) = v_wallet/u);
 });
 
-test('very short HOLD outcomes are delayed and collapsed to the final result', async () => {
+test('very short HOLD to BLOCK transitions are hidden from visible history', async () => {
   const sql = await read(
-    'supabase/migrations/20261002102428_debounce_transient_security_hold_notifications.sql',
+    'supabase/migrations/20261002054758_complete_security_notification_state_delivery.sql',
   );
 
   assert.match(
     sql,
-    /h\.kind not in \('SECURITY_REVIEW_STARTED', 'SECURITY_POST_PAYOUT_REVIEW_STARTED', 'SECURITY_INVITER_HOLD'\)[\s\S]*clock_timestamp\(\) - interval '10 seconds'/u,
+    /h\.kind = 'SECURITY_REVIEW_STARTED'[\s\S]*later\.kind = 'SECURITY_RESTRICTION_CONFIRMED'[\s\S]*interval '10 seconds'/u,
   );
   assert.match(
     sql,
-    /h\.kind = 'SECURITY_REVIEW_STARTED'[\s\S]*later\.kind in \('SECURITY_RESTRICTION_CONFIRMED', 'SECURITY_REVIEW_CLEARED'\)[\s\S]*interval '10 seconds'/u,
-  );
-  assert.match(
-    sql,
-    /h\.kind = 'SECURITY_INVITER_HOLD'[\s\S]*later\.kind in \('SECURITY_INVITER_RESTRICTED', 'SECURITY_INVITER_ACCESS_RESTORED'\)[\s\S]*interval '10 seconds'/u,
+    /h\.kind = 'SECURITY_INVITER_HOLD'[\s\S]*later\.kind = 'SECURITY_INVITER_RESTRICTED'[\s\S]*interval '10 seconds'/u,
   );
 });
 
@@ -97,6 +96,70 @@ test('notification history follows security changes promptly and accepts CLEAR r
   assert.match(visibleRefresh, /'visibilitychange'/u);
   assert.match(visibleRefresh, /'focus'/u);
   assert.match(visibleRefresh, /'pageshow'/u);
+});
+
+test('new unread security history auto-opens once without changing the notification UI', async () => {
+  assert.equal(
+    newestUnreadSecurityHistoryId([
+      { id: '9', kind: 'INVITE_ACCEPTED', readAt: null },
+      { id: '10', kind: 'SECURITY_REVIEW_STARTED', readAt: '2026-10-02T00:00:00.000Z' },
+      { id: '11', kind: 'SECURITY_REVIEW_STARTED', readAt: null },
+      { id: '12', kind: 'INVITE_ACCEPTED', presentationKind: 'SECURITY_REVIEW_CLEARED', readAt: null },
+    ]),
+    '12',
+  );
+
+  const notifications = await read(
+    'src/components/InAppInviteNotifications.tsx',
+  );
+
+  assert.match(
+    notifications,
+    /newestUnreadSecurityHistoryId/u,
+  );
+  assert.match(
+    notifications,
+    /lastAutoOpenedSecurityHistoryIdRef/u,
+  );
+  assert.match(
+    notifications,
+    /lastAutoOpenedSecurityHistoryIdRef\.current !== latestSecurityId/u,
+  );
+  assert.match(
+    notifications,
+    /isWalletModalOpen[\s\S]*hasBlockingDialogOpen\(\)[\s\S]*notificationCenterIsClosing\(\)/u,
+  );
+  assert.match(
+    notifications,
+    /lastAutoOpenedSecurityHistoryIdRef\.current = latestSecurityId[\s\S]*setOpen\(true\)/u,
+  );
+  assert.match(
+    notifications,
+    /newestUnreadSecurityHistoryId\(cached\?\.items \?\? \[\]\)/u,
+  );
+});
+
+test('transient HOLD debounce remains authoritative before security auto-open', async () => {
+  const debounce = await read(
+    'supabase/migrations/20261002102428_debounce_transient_security_hold_notifications.sql',
+  );
+
+  assert.match(
+    debounce,
+    /clock_timestamp\(\) - interval '10 seconds'/u,
+  );
+  assert.match(
+    debounce,
+    /SECURITY_REVIEW_STARTED/u,
+  );
+  assert.match(
+    debounce,
+    /SECURITY_RESTRICTION_CONFIRMED/u,
+  );
+  assert.match(
+    debounce,
+    /SECURITY_REVIEW_CLEARED/u,
+  );
 });
 
 test('new security outcome copy is localized for every supported locale', () => {
