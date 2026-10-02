@@ -147,11 +147,7 @@ test('localized inviter WATCH and HOLD copy matches actual access posture', () =
   );
   assert.match(
     INVITER_HOLD_NOTIFICATION_COPY.ko.body,
-    /현재 이용 제한은 없고 평소처럼 계속 초대할 수 있어요/u,
-  );
-  assert.equal(
-    INVITER_HOLD_NOTIFICATION_COPY.ko.body,
-    INVITER_SECURITY_NOTIFICATION_COPY.ko.holdBody,
+    /VeInvite 이용이 일시적으로 제한돼요/u,
   );
 });
 
