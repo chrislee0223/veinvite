@@ -325,6 +325,15 @@ function effectiveNotificationKind(
   return notification.presentationKind ?? notification.kind;
 }
 
+function notificationRequiresAutoOpen(
+  notification: InviteNotificationHistoryItem,
+): boolean {
+  return (
+    notification.readAt === null &&
+    effectiveNotificationKind(notification).startsWith('SECURITY_')
+  );
+}
+
 function notificationRequiresHomeRefresh(
   notification: InviteNotificationHistoryItem,
 ): boolean {
@@ -371,6 +380,8 @@ export function InAppInviteNotifications({
   const openSnapshotRef = useRef<string | null>(null);
   const lastDataRefreshNotificationIdRef =
     useRef<string | null>(null);
+  const lastAutoOpenedSecurityHistoryIdRef =
+    useRef<string | null>(null);
   const activeWalletRef = useRef<string | null>(wallet);
   const historyResolvedRef = useRef(false);
   // Make the newest wallet visible to requests from the prior render before
@@ -394,6 +405,9 @@ export function InAppInviteNotifications({
     shownKeyRef.current = null;
     openSnapshotRef.current = null;
     lastDataRefreshNotificationIdRef.current = null;
+    lastAutoOpenedSecurityHistoryIdRef.current = newestHistoryId(
+      (cached?.items ?? []).filter(notificationRequiresAutoOpen),
+    );
     latestHistoryRequestRef.current = null;
     lifecycleRefreshRef.current = null;
   }, [wallet]);
@@ -415,6 +429,7 @@ export function InAppInviteNotifications({
     shownKeyRef.current = null;
     openSnapshotRef.current = null;
     lastDataRefreshNotificationIdRef.current = null;
+    lastAutoOpenedSecurityHistoryIdRef.current = null;
     latestHistoryRequestRef.current = null;
     lifecycleRefreshRef.current = null;
     window.dispatchEvent(
@@ -532,6 +547,26 @@ export function InAppInviteNotifications({
           sameWallet(activeWalletRef.current, requestWallet)
         ) {
           applyLatestHistory(history, requestWallet);
+
+          const latestSecurityId = newestHistoryId(
+            history.items.filter(notificationRequiresAutoOpen),
+          );
+          if (
+            latestSecurityId &&
+            lastAutoOpenedSecurityHistoryIdRef.current !== latestSecurityId
+          ) {
+            const blocked =
+              isWalletModalOpen ||
+              hasBlockingDialogOpen() ||
+              notificationCenterIsClosing();
+
+            if (!blocked) {
+              lastAutoOpenedSecurityHistoryIdRef.current = latestSecurityId;
+              openSnapshotRef.current = newestHistoryId(history.items);
+              if (!open) setOpen(true);
+            }
+          }
+
           if (surfaceError) setErrorMessage('');
         }
         return history;
@@ -563,7 +598,12 @@ export function InAppInviteNotifications({
         }
       }
     },
-    [applyLatestHistory, loadHistoryPage],
+    [
+      applyLatestHistory,
+      isWalletModalOpen,
+      loadHistoryPage,
+      open,
+    ],
   );
 
   const refreshLifecycle = useCallback(
