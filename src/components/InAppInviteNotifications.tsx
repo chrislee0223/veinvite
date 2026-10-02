@@ -24,6 +24,9 @@ import {
 import {
   invalidateNetworkSummaryCache,
 } from '@/lib/networkSummaryClientCache';
+import {
+  SECURITY_STATUS_CHANGED_EVENT,
+} from '@/lib/securityStatusClientEvents';
 
 type NotificationResponse = {
   notification?: InviteNotificationPayloadV2 | null;
@@ -47,7 +50,7 @@ type AcknowledgementResult = {
   unreadCount: number;
 };
 
-const REFRESH_MS = 60_000;
+const REFRESH_MS = 30_000;
 const LIFECYCLE_UNAUTHORIZED_BACKOFF_MS = 15_000;
 const LIFECYCLE_REQUEST_LEASE_MS = 5_000;
 const LIFECYCLE_UNAUTHORIZED_BACKOFF_STORAGE_KEY =
@@ -76,6 +79,7 @@ const NOTIFICATION_HISTORY_KINDS = new Set([
   'REWARD_PAID',
   'INVITE_INELIGIBLE',
   'SECURITY_REVIEW_STARTED',
+  'SECURITY_REVIEW_CLEARED',
   'SECURITY_POST_PAYOUT_REVIEW_STARTED',
   'SECURITY_POST_PAYOUT_REVIEW_CLEARED',
   'SECURITY_RESTRICTION_CONFIRMED',
@@ -938,11 +942,35 @@ export function InAppInviteNotifications({
       'visibilitychange',
       refreshVisibleNotifications,
     );
+    window.addEventListener(
+      'focus',
+      refreshVisibleNotifications,
+    );
+    window.addEventListener(
+      'pageshow',
+      refreshVisibleNotifications,
+    );
+    window.addEventListener(
+      SECURITY_STATUS_CHANGED_EVENT,
+      refreshVisibleNotifications,
+    );
 
     return () => {
       window.clearInterval(timer);
       document.removeEventListener(
         'visibilitychange',
+        refreshVisibleNotifications,
+      );
+      window.removeEventListener(
+        'focus',
+        refreshVisibleNotifications,
+      );
+      window.removeEventListener(
+        'pageshow',
+        refreshVisibleNotifications,
+      );
+      window.removeEventListener(
+        SECURITY_STATUS_CHANGED_EVENT,
         refreshVisibleNotifications,
       );
     };
