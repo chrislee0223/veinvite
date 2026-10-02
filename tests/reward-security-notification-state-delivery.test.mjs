@@ -20,10 +20,10 @@ const read = (path) => readFile(new URL(`../${path}`, import.meta.url), 'utf8');
 test('security history is recipient-aware and completes HOLD outcomes', async () => {
   const [sql, reinstatementSql] = await Promise.all([
     read(
-      'supabase/migrations/20261002053000_complete_security_notification_state_delivery.sql',
+      'supabase/migrations/20261002054758_complete_security_notification_state_delivery.sql',
     ),
     read(
-      'supabase/migrations/20261002065500_deliver_invitee_reinstatement_notification.sql',
+      'supabase/migrations/20261002065105_deliver_invitee_reinstatement_notification.sql',
     ),
   ]);
 
@@ -46,7 +46,7 @@ test('security history is recipient-aware and completes HOLD outcomes', async ()
 
 test('very short HOLD to BLOCK transitions are hidden from visible history', async () => {
   const sql = await read(
-    'supabase/migrations/20261002053000_complete_security_notification_state_delivery.sql',
+    'supabase/migrations/20261002054758_complete_security_notification_state_delivery.sql',
   );
 
   assert.match(
@@ -141,7 +141,7 @@ test('new unread security history auto-opens once without changing the notificat
 
 test('transient HOLD debounce remains authoritative before security auto-open', async () => {
   const debounce = await read(
-    'supabase/migrations/20261002102500_debounce_transient_security_hold_notifications.sql',
+    'supabase/migrations/20261002102428_debounce_transient_security_hold_notifications.sql',
   );
 
   assert.match(
