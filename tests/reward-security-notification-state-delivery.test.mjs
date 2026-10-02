@@ -41,18 +41,22 @@ test('security history is recipient-aware and completes HOLD outcomes', async ()
   assert.match(sql, /coalesce\(h\.recipient_wallet, h\.inviter_wallet\) = v_wallet/u);
 });
 
-test('very short HOLD to BLOCK transitions are hidden from visible history', async () => {
+test('very short HOLD outcomes are delayed and collapsed to the final result', async () => {
   const sql = await read(
-    'supabase/migrations/20261002053000_complete_security_notification_state_delivery.sql',
+    'supabase/migrations/20261002102500_debounce_transient_security_hold_notifications.sql',
   );
 
   assert.match(
     sql,
-    /h\.kind = 'SECURITY_REVIEW_STARTED'[\s\S]*later\.kind = 'SECURITY_RESTRICTION_CONFIRMED'[\s\S]*interval '10 seconds'/u,
+    /h\.kind not in \('SECURITY_REVIEW_STARTED', 'SECURITY_INVITER_HOLD'\)[\s\S]*clock_timestamp\(\) - interval '10 seconds'/u,
   );
   assert.match(
     sql,
-    /h\.kind = 'SECURITY_INVITER_HOLD'[\s\S]*later\.kind = 'SECURITY_INVITER_RESTRICTED'[\s\S]*interval '10 seconds'/u,
+    /h\.kind = 'SECURITY_REVIEW_STARTED'[\s\S]*later\.kind in \('SECURITY_RESTRICTION_CONFIRMED', 'SECURITY_REVIEW_CLEARED'\)[\s\S]*interval '10 seconds'/u,
+  );
+  assert.match(
+    sql,
+    /h\.kind = 'SECURITY_INVITER_HOLD'[\s\S]*later\.kind in \('SECURITY_INVITER_RESTRICTED', 'SECURITY_INVITER_ACCESS_RESTORED'\)[\s\S]*interval '10 seconds'/u,
   );
 });
 
