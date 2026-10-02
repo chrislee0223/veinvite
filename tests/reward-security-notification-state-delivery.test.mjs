@@ -132,7 +132,7 @@ test('new unread security history auto-opens once without changing the notificat
 
 test('transient HOLD debounce remains authoritative before security auto-open', async () => {
   const debounce = await read(
-    'supabase/migrations/20261002102428_debounce_transient_security_hold_notifications.sql',
+    'supabase/migrations/20261002102500_debounce_transient_security_hold_notifications.sql',
   );
 
   assert.match(
