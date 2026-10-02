@@ -334,8 +334,6 @@ function notificationRequiresHomeRefresh(
     kind === 'REWARD_PAID' ||
     kind === 'SECURITY_RESTRICTION_CONFIRMED' ||
     kind === 'SECURITY_REVIEW_CLEARED' ||
-    kind === 'SECURITY_RESTRICTION_CONFIRMED' ||
-    kind === 'SECURITY_REVIEW_CLEARED' ||
     kind === 'SECURITY_REFERRAL_INVALIDATED' ||
     kind === 'SECURITY_REFERRAL_RESTORED'
   );
@@ -346,6 +344,8 @@ function notificationRequiresNetworkRefresh(
 ): boolean {
   const kind = effectiveNotificationKind(notification);
   return (
+    kind === 'SECURITY_RESTRICTION_CONFIRMED' ||
+    kind === 'SECURITY_REVIEW_CLEARED' ||
     kind === 'SECURITY_REFERRAL_INVALIDATED' ||
     kind === 'SECURITY_REFERRAL_RESTORED'
   );
