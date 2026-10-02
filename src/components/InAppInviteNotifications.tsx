@@ -15,6 +15,10 @@ import type {
   InviteNotificationHistoryItem,
   InviteNotificationHistoryResponse,
 } from '@/lib/notifications/inviteNotificationHistory';
+import {
+  newestHistoryId,
+  newestUnreadSecurityHistoryId,
+} from '@/lib/notifications/notificationHistoryClient';
 import type {
   InviteNotificationPayloadV2,
 } from '@/lib/notifications/inviteNotificationStateV2';
@@ -269,25 +273,6 @@ function clearHistoryCache(wallet: string): void {
   }
 }
 
-function newestHistoryId(
-  items: InviteNotificationHistoryItem[],
-): string | null {
-  let latest: bigint | null = null;
-
-  for (const item of items) {
-    try {
-      const id = BigInt(item.id);
-      if (id > 0n && (latest === null || id > latest)) {
-        latest = id;
-      }
-    } catch {
-      // Invalid server ids are rejected by the history API. Ignore defensively.
-    }
-  }
-
-  return latest?.toString() ?? null;
-}
-
 function historyIdAtOrBefore(id: string, throughId: string): boolean {
   try {
     return BigInt(id) <= BigInt(throughId);
@@ -323,15 +308,6 @@ function effectiveNotificationKind(
   notification: InviteNotificationHistoryItem,
 ): string {
   return notification.presentationKind ?? notification.kind;
-}
-
-function notificationRequiresAutoOpen(
-  notification: InviteNotificationHistoryItem,
-): boolean {
-  return (
-    notification.readAt === null &&
-    effectiveNotificationKind(notification).startsWith('SECURITY_')
-  );
 }
 
 function notificationRequiresHomeRefresh(
@@ -405,9 +381,8 @@ export function InAppInviteNotifications({
     shownKeyRef.current = null;
     openSnapshotRef.current = null;
     lastDataRefreshNotificationIdRef.current = null;
-    lastAutoOpenedSecurityHistoryIdRef.current = newestHistoryId(
-      (cached?.items ?? []).filter(notificationRequiresAutoOpen),
-    );
+    lastAutoOpenedSecurityHistoryIdRef.current =
+      newestUnreadSecurityHistoryId(cached?.items ?? []);
     latestHistoryRequestRef.current = null;
     lifecycleRefreshRef.current = null;
   }, [wallet]);
@@ -548,9 +523,8 @@ export function InAppInviteNotifications({
         ) {
           applyLatestHistory(history, requestWallet);
 
-          const latestSecurityId = newestHistoryId(
-            history.items.filter(notificationRequiresAutoOpen),
-          );
+          const latestSecurityId =
+            newestUnreadSecurityHistoryId(history.items);
           if (
             latestSecurityId &&
             lastAutoOpenedSecurityHistoryIdRef.current !== latestSecurityId
