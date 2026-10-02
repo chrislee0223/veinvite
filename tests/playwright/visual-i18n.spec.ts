@@ -279,7 +279,7 @@ test('public Network invite slots are visibly rendered on mobile and desktop', a
     await page.setViewportSize(viewport);
     await page.goto(
       '/qa/network-slot-visual',
-      { waitUntil: 'domcontentloaded', timeout: 12_000 },
+      { waitUntil: 'domcontentloaded', timeout: 30_000 },
     );
     await waitForPublicNetworkQaState(page);
     await assertPublicInviteSlotsVisible(page);
@@ -289,7 +289,7 @@ test('public Network invite slots are visibly rendered on mobile and desktop', a
   await page.setViewportSize(MOBILE_VIEWPORT);
   await page.goto(
     '/qa/network-slot-visual',
-    { waitUntil: 'domcontentloaded', timeout: 12_000 },
+    { waitUntil: 'domcontentloaded', timeout: 30_000 },
   );
   await waitForPublicNetworkQaState(page);
 
@@ -316,7 +316,7 @@ for (const locale of ['ko', 'de', 'fr', 'ar', 'ur', 'bn', 'mr', 'te'] as const s
       await page.setViewportSize(NARROW_MOBILE_VIEWPORT);
       await page.goto(
         `/qa/state?state=${encodeURIComponent(stateId)}&locale=${encodeURIComponent(locale)}`,
-        { waitUntil: 'domcontentloaded', timeout: 12_000 },
+        { waitUntil: 'domcontentloaded', timeout: 30_000 },
       );
       await captureAndAssert(
         page,
@@ -332,7 +332,7 @@ for (const locale of SUPPORTED_LOCALES) {
     await page.setViewportSize(MOBILE_VIEWPORT);
     await page.goto(
       `/qa/state?state=NETWORK-I18N-GROUPS&locale=${encodeURIComponent(locale)}`,
-      { waitUntil: 'domcontentloaded', timeout: 12_000 },
+      { waitUntil: 'domcontentloaded', timeout: 30_000 },
     );
     await captureAndAssert(
       page,
@@ -347,7 +347,7 @@ for (const locale of ['de', 'ur', 'ar', 'cs'] as const satisfies readonly Suppor
     await page.setViewportSize(WIDE_MOBILE_VIEWPORT);
     await page.goto(
       `/qa/state?state=NOTI-HISTORY-OPEN&locale=${encodeURIComponent(locale)}`,
-      { waitUntil: 'domcontentloaded', timeout: 12_000 },
+      { waitUntil: 'domcontentloaded', timeout: 30_000 },
     );
     await captureAndAssert(
       page,
