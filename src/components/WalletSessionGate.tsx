@@ -27,6 +27,9 @@ import {
   type Locale,
 } from '@/lib/i18n/locales';
 import {
+  INVITER_HOLD_NOTIFICATION_COPY,
+} from '@/lib/i18n/inviterHoldNotificationCopy';
+import {
   SECURITY_NOTIFICATION_COPY,
 } from '@/lib/i18n/securityNotificationCopy';
 import {
@@ -40,6 +43,9 @@ import {
   markWalletConnectIntent,
   settleExplicitWalletDisconnect,
 } from '@/lib/walletConnectionResume';
+import {
+  SECURITY_STATUS_CHANGED_EVENT,
+} from '@/lib/securityStatusClientEvents';
 
 type VerificationState =
   | 'idle'
@@ -83,6 +89,8 @@ export type WalletSessionQaPreview = {
 
 const SESSION_ERROR_SURFACE_DELAY_MS = 600;
 const PASSIVE_DISCONNECT_GRACE_MS = 7_000;
+const RESTRICTION_REFRESH_MS = 30_000;
+const RESTRICTION_RESUME_COOLDOWN_MS = 5_000;
 const SESSION_CLEARED_EVENT =
   'veinvite-wallet-session-cleared';
 const WALLET_SESSION_INVALID_EVENT =
@@ -366,9 +374,12 @@ function WalletRestrictionSurface({
 }) {
   const supportedLocale = isLocale(locale) ? locale : 'en';
   const security = SECURITY_NOTIFICATION_COPY[supportedLocale];
+  const inviterHold = INVITER_HOLD_NOTIFICATION_COPY[supportedLocale];
   const session = WALLET_SESSION_COPY[supportedLocale];
   const switchCopy = WALLET_SWITCH_COPY[supportedLocale];
   const permanent = restrictionKind === 'BLACKLIST';
+  const inviterHoldActive =
+    restrictionKind === 'INVITER_ESCALATION_HOLD';
 
   return (
     <div
@@ -425,7 +436,9 @@ function WalletRestrictionSurface({
         >
           {permanent
             ? security.restrictionTitle
-            : security.reviewTitle}
+            : inviterHoldActive
+              ? inviterHold.title
+              : security.reviewTitle}
         </strong>
         <span
           style={{
@@ -436,7 +449,9 @@ function WalletRestrictionSurface({
         >
           {permanent
             ? security.restrictionBody
-            : security.reviewBody}
+            : inviterHoldActive
+              ? inviterHold.body
+              : security.reviewBody}
         </span>
         {permanent ? (
           <RestrictedApprovedRewardClaims
@@ -553,6 +568,8 @@ export function WalletSessionGate({
   const bootReadyDispatchedRef = useRef(false);
   const sessionWalletRef =
     useRef<string | null>(initialWallet);
+  const restrictionRefreshInFlightRef = useRef(false);
+  const lastRestrictionRefreshAtRef = useRef(0);
 
   useEffect(() => {
     if (previewMode) return;
@@ -922,6 +939,121 @@ export function WalletSessionGate({
   }, [
     initialWallet,
     previewMode,
+    state,
+    verifiedWallet,
+    walletAddress,
+  ]);
+
+  const refreshRestrictionState = useCallback(async () => {
+    if (
+      previewMode ||
+      state !== 'verified' ||
+      !verifiedWallet ||
+      walletAddress !== verifiedWallet ||
+      restrictionRefreshInFlightRef.current
+    ) {
+      return;
+    }
+
+    const now = Date.now();
+    if (
+      now - lastRestrictionRefreshAtRef.current <
+      RESTRICTION_RESUME_COOLDOWN_MS
+    ) {
+      return;
+    }
+
+    restrictionRefreshInFlightRef.current = true;
+    lastRestrictionRefreshAtRef.current = now;
+
+    try {
+      const activeRestriction = await readWalletRestriction();
+
+      if (
+        walletAddressRef.current !== verifiedWallet ||
+        sessionWalletRef.current !== verifiedWallet
+      ) {
+        return;
+      }
+
+      setRestrictionKind((current) => {
+        if (current === activeRestriction) {
+          return current;
+        }
+
+        window.dispatchEvent(
+          new Event(SECURITY_STATUS_CHANGED_EVENT),
+        );
+        return activeRestriction;
+      });
+    } catch (error) {
+      // Keep the last confirmed restriction state on transient failures.
+      // A failed refresh must never silently unlock a held or blocked wallet.
+      console.warn(
+        'Failed to refresh VeInvite participation restriction:',
+        error,
+      );
+    } finally {
+      restrictionRefreshInFlightRef.current = false;
+    }
+  }, [
+    previewMode,
+    state,
+    verifiedWallet,
+    walletAddress,
+  ]);
+
+  useEffect(() => {
+    if (
+      previewMode ||
+      state !== 'verified' ||
+      !verifiedWallet ||
+      walletAddress !== verifiedWallet
+    ) {
+      return;
+    }
+
+    const refreshWhenVisible = () => {
+      if (document.visibilityState !== 'visible') return;
+      void refreshRestrictionState();
+    };
+
+    const timer = window.setInterval(
+      refreshWhenVisible,
+      RESTRICTION_REFRESH_MS,
+    );
+
+    document.addEventListener(
+      'visibilitychange',
+      refreshWhenVisible,
+    );
+    window.addEventListener(
+      'focus',
+      refreshWhenVisible,
+    );
+    window.addEventListener(
+      'pageshow',
+      refreshWhenVisible,
+    );
+
+    return () => {
+      window.clearInterval(timer);
+      document.removeEventListener(
+        'visibilitychange',
+        refreshWhenVisible,
+      );
+      window.removeEventListener(
+        'focus',
+        refreshWhenVisible,
+      );
+      window.removeEventListener(
+        'pageshow',
+        refreshWhenVisible,
+      );
+    };
+  }, [
+    previewMode,
+    refreshRestrictionState,
     state,
     verifiedWallet,
     walletAddress,
