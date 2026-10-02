@@ -11,6 +11,9 @@ import {
 import {
   SUPPORTED_LOCALES,
 } from '../src/lib/i18n/locales.ts';
+import {
+  newestUnreadSecurityHistoryId,
+} from '../src/lib/notifications/notificationHistoryClient.ts';
 
 const read = (path) => readFile(new URL(`../${path}`, import.meta.url), 'utf8');
 
@@ -96,21 +99,27 @@ test('notification history follows security changes promptly and accepts CLEAR r
 });
 
 test('new unread security history auto-opens once without changing the notification UI', async () => {
+  assert.equal(
+    newestUnreadSecurityHistoryId([
+      { id: '9', kind: 'INVITE_ACCEPTED', readAt: null },
+      { id: '10', kind: 'SECURITY_REVIEW_STARTED', readAt: '2026-10-02T00:00:00.000Z' },
+      { id: '11', kind: 'SECURITY_REVIEW_STARTED', readAt: null },
+      { id: '12', kind: 'INVITE_ACCEPTED', presentationKind: 'SECURITY_REVIEW_CLEARED', readAt: null },
+    ]),
+    '12',
+  );
+
   const notifications = await read(
     'src/components/InAppInviteNotifications.tsx',
   );
 
   assert.match(
     notifications,
-    /function notificationRequiresAutoOpen[\s\S]*readAt === null[\s\S]*startsWith\('SECURITY_'\)/u,
+    /newestUnreadSecurityHistoryId/u,
   );
   assert.match(
     notifications,
     /lastAutoOpenedSecurityHistoryIdRef/u,
-  );
-  assert.match(
-    notifications,
-    /history\.items\.filter\(notificationRequiresAutoOpen\)/u,
   );
   assert.match(
     notifications,
@@ -126,7 +135,7 @@ test('new unread security history auto-opens once without changing the notificat
   );
   assert.match(
     notifications,
-    /\(cached\?\.items \?\? \[\]\)\.filter\(notificationRequiresAutoOpen\)/u,
+    /newestUnreadSecurityHistoryId\(cached\?\.items \?\? \[\]\)/u,
   );
 });
 
