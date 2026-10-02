@@ -48,26 +48,31 @@ test('very short HOLD to BLOCK transitions are hidden from visible history', asy
 });
 
 test('wallet restriction state refreshes without requiring a page reload', async () => {
-  const gate = await read('src/components/WalletSessionGate.tsx');
+  const [gate, liveRestriction, visibleRefresh] = await Promise.all([
+    read('src/components/WalletSessionGate.tsx'),
+    read('src/hooks/useLiveWalletRestriction.ts'),
+    read('src/hooks/useVisiblePeriodicRefresh.ts'),
+  ]);
 
-  assert.match(gate, /const RESTRICTION_REFRESH_MS = 30_000/u);
-  assert.match(gate, /const refreshRestrictionState = useCallback/u);
-  assert.match(gate, /await readWalletRestriction\(\)/u);
-  assert.match(gate, /setRestrictionKind\(\(current\) =>/u);
-  assert.match(gate, /SECURITY_STATUS_CHANGED_EVENT/u);
-  assert.match(gate, /'visibilitychange'/u);
-  assert.match(gate, /'focus'/u);
-  assert.match(gate, /'pageshow'/u);
+  assert.match(gate, /useLiveWalletRestriction<RestrictionKind>/u);
+  assert.match(liveRestriction, /const RESTRICTION_REFRESH_MS = 30_000/u);
+  assert.match(liveRestriction, /await readRestriction\(\)/u);
+  assert.match(liveRestriction, /setRestrictionKind\(\(current\) =>/u);
+  assert.match(liveRestriction, /SECURITY_STATUS_CHANGED_EVENT/u);
+  assert.match(visibleRefresh, /'visibilitychange'/u);
+  assert.match(visibleRefresh, /'focus'/u);
+  assert.match(visibleRefresh, /'pageshow'/u);
   assert.match(
-    gate,
-    /failed refresh must never silently unlock a held or blocked wallet/u,
+    liveRestriction,
+    /must never silently unlock a held or blocked wallet/u,
   );
 });
 
 test('notification history follows security changes promptly and accepts CLEAR results', async () => {
-  const notifications = await read(
-    'src/components/InAppInviteNotifications.tsx',
-  );
+  const [notifications, visibleRefresh] = await Promise.all([
+    read('src/components/InAppInviteNotifications.tsx'),
+    read('src/hooks/useVisiblePeriodicRefresh.ts'),
+  ]);
 
   assert.match(notifications, /const REFRESH_MS = 30_000/u);
   assert.match(
@@ -75,9 +80,10 @@ test('notification history follows security changes promptly and accepts CLEAR r
     /NOTIFICATION_HISTORY_KINDS[\s\S]*'SECURITY_REVIEW_CLEARED'/u,
   );
   assert.match(notifications, /SECURITY_STATUS_CHANGED_EVENT/u);
-  assert.match(notifications, /'visibilitychange'/u);
-  assert.match(notifications, /'focus'/u);
-  assert.match(notifications, /'pageshow'/u);
+  assert.match(notifications, /useVisiblePeriodicRefresh/u);
+  assert.match(visibleRefresh, /'visibilitychange'/u);
+  assert.match(visibleRefresh, /'focus'/u);
+  assert.match(visibleRefresh, /'pageshow'/u);
 });
 
 test('new security outcome copy is localized for every supported locale', () => {
