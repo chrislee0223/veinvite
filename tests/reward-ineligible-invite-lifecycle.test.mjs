@@ -58,6 +58,13 @@ const inAppNotifications = readFileSync(
   ),
   'utf8',
 );
+const notificationHistoryClient = readFileSync(
+  new URL(
+    '../src/lib/notifications/notificationHistoryClient.ts',
+    import.meta.url,
+  ),
+  'utf8',
+);
 const homeClient = readFileSync(
   new URL(
     '../src/components/HomeClient.tsx',
@@ -163,8 +170,18 @@ test('notification acknowledgement expands both the function and table constrain
 });
 
 test('terminal rejection acknowledgement refreshes stale Home invite state without reloading the app', () => {
-  assert.match(inAppNotifications, /effectiveNotificationKind\(notification\)/u);
-  assert.match(inAppNotifications, /kind === 'INVITE_INELIGIBLE'/u);
+  assert.match(
+    notificationHistoryClient,
+    /effectiveNotificationKind\(notification\)/u,
+  );
+  assert.match(
+    notificationHistoryClient,
+    /kind === 'INVITE_INELIGIBLE'/u,
+  );
+  assert.match(
+    inAppNotifications,
+    /notificationRequiresHomeRefresh\(notification\)/u,
+  );
   assert.match(inAppNotifications, /const refreshHomeAfterAcknowledgement/u);
   assert.match(inAppNotifications, /if \(refreshHomeAfterAcknowledgement\)/u);
   assert.match(
