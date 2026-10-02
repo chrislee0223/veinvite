@@ -18,6 +18,8 @@ import type {
 import {
   newestHistoryId,
   newestUnreadSecurityHistoryId,
+  notificationRequiresHomeRefresh,
+  notificationRequiresNetworkRefresh,
 } from '@/lib/notifications/notificationHistoryClient';
 import type {
   InviteNotificationPayloadV2,
@@ -301,39 +303,6 @@ function notificationCenterIsClosing(): boolean {
     document.querySelector(
       `#${NOTIFICATION_DIALOG_ID}.notificationHistoryPanel.isClosing`,
     ),
-  );
-}
-
-function effectiveNotificationKind(
-  notification: InviteNotificationHistoryItem,
-): string {
-  return notification.presentationKind ?? notification.kind;
-}
-
-function notificationRequiresHomeRefresh(
-  notification: InviteNotificationHistoryItem,
-): boolean {
-  const kind = effectiveNotificationKind(notification);
-  return (
-    kind === 'INVITE_INELIGIBLE' ||
-    kind === 'REWARD_READY' ||
-    kind === 'REWARD_PAID' ||
-    kind === 'SECURITY_RESTRICTION_CONFIRMED' ||
-    kind === 'SECURITY_REVIEW_CLEARED' ||
-    kind === 'SECURITY_REFERRAL_INVALIDATED' ||
-    kind === 'SECURITY_REFERRAL_RESTORED'
-  );
-}
-
-function notificationRequiresNetworkRefresh(
-  notification: InviteNotificationHistoryItem,
-): boolean {
-  const kind = effectiveNotificationKind(notification);
-  return (
-    kind === 'SECURITY_RESTRICTION_CONFIRMED' ||
-    kind === 'SECURITY_REVIEW_CLEARED' ||
-    kind === 'SECURITY_REFERRAL_INVALIDATED' ||
-    kind === 'SECURITY_REFERRAL_RESTORED'
   );
 }
 
