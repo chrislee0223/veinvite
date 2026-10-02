@@ -59,6 +59,10 @@ export async function loadActiveSybilV2Restriction({
       )
       .eq('wallet_address', wallet)
       .eq('network', network)
+      .in('restriction_kind', [
+        'PRE_CLAIM_HOLD',
+        'POST_PAYOUT_HOLD',
+      ])
       .order('imposed_at', { ascending: false })
       .limit(1),
   ]);
@@ -121,6 +125,10 @@ export async function anyActiveSybilV2Restriction({
       )
       .eq('network', network)
       .in('wallet_address', wallets)
+      .in('restriction_kind', [
+        'PRE_CLAIM_HOLD',
+        'POST_PAYOUT_HOLD',
+      ])
       .order('imposed_at', { ascending: false })
       .limit(1),
   ]);

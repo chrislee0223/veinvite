@@ -5,124 +5,127 @@ export type InviterHoldNotificationCopy = {
   body: string;
 };
 
+// Inviter escalation HOLD is review-only. This copy intentionally mirrors the
+// reviewed HOLD fields in inviterSecurityNotificationCopy; regression tests
+// keep all locales in lockstep without adding a runtime import dependency.
 export const INVITER_HOLD_NOTIFICATION_COPY: Record<
   SupportedLocale,
   InviterHoldNotificationCopy
 > = {
   en: {
-    title: 'Referral activity under review',
-    body: 'Some recent referral activity needs additional verification. VeInvite access is temporarily limited while the review is pending.',
+    title: 'Referral activity check',
+    body: 'Some recent referral activity needs additional verification. Your VeInvite access is not restricted, and you can continue normal invitations.',
   },
   ko: {
     title: '초대 활동 확인 중',
-    body: '최근 일부 초대 활동을 추가 확인하고 있어요. 검토가 끝날 때까지 VeInvite 이용이 일시적으로 제한돼요.',
+    body: '최근 일부 초대 활동을 확인하고 있어요. 현재 이용 제한은 없고 평소처럼 계속 초대할 수 있어요.',
   },
   zh: {
-    title: '邀请活动审核中',
-    body: '近期部分邀请活动需要额外核验。审核期间，VeInvite 使用会暂时受到限制。',
+    title: '邀请活动额外核验',
+    body: '近期部分邀请活动需要额外核验。目前你的 VeInvite 使用未受限制，可以继续正常邀请。',
   },
   hi: {
-    title: 'रेफ़रल गतिविधि की समीक्षा जारी है',
-    body: 'हाल की कुछ रेफ़रल गतिविधि की अतिरिक्त जाँच आवश्यक है। समीक्षा लंबित रहने तक VeInvite का उपयोग अस्थायी रूप से सीमित रहेगा।',
+    title: 'रेफ़रल गतिविधि की अतिरिक्त जाँच',
+    body: 'हाल की कुछ रेफ़रल गतिविधि की अतिरिक्त जाँच आवश्यक है। अभी आपके VeInvite उपयोग पर कोई प्रतिबंध नहीं है और आप सामान्य आमंत्रण जारी रख सकते हैं।',
   },
   es: {
-    title: 'Actividad de invitaciones en revisión',
-    body: 'Parte de la actividad reciente necesita una verificación adicional. El acceso a VeInvite estará limitado temporalmente mientras dure la revisión.',
+    title: 'Revisión adicional de invitaciones',
+    body: 'Parte de la actividad reciente de invitaciones necesita una verificación adicional. Tu acceso a VeInvite no está restringido y puedes seguir invitando normalmente.',
   },
   ja: {
-    title: '招待活動を確認中',
-    body: '最近の一部の招待活動について追加確認が必要です。確認が終わるまで VeInvite の利用は一時的に制限されます。',
+    title: '招待活動の追加確認',
+    body: '最近の一部の招待活動について追加確認を行っています。現在 VeInvite の利用制限はなく、通常どおり招待を続けられます。',
   },
   it: {
-    title: 'Attività degli inviti in revisione',
-    body: 'Alcune attività recenti richiedono una verifica aggiuntiva. L’accesso a VeInvite è temporaneamente limitato durante la revisione.',
+    title: 'Verifica aggiuntiva degli inviti',
+    body: 'Alcune attività di invito recenti richiedono una verifica aggiuntiva. Il tuo accesso a VeInvite non è limitato e puoi continuare a invitare normalmente.',
   },
   tr: {
-    title: 'Davet etkinliği inceleniyor',
-    body: 'Yakın zamandaki bazı davet etkinlikleri ek doğrulama gerektiriyor. İnceleme sonuçlanana kadar VeInvite erişimi geçici olarak sınırlıdır.',
+    title: 'Davet etkinliği ek kontrolü',
+    body: 'Yakın zamandaki bazı davet etkinlikleri ek doğrulama gerektiriyor. VeInvite erişimin şu anda kısıtlı değil ve normal davetlere devam edebilirsin.',
   },
   nl: {
-    title: 'Uitnodigingsactiviteit wordt beoordeeld',
-    body: 'Een deel van de recente activiteit heeft extra controle nodig. VeInvite-toegang is tijdelijk beperkt zolang de beoordeling loopt.',
+    title: 'Extra controle van uitnodigingen',
+    body: 'Een deel van de recente uitnodigingsactiviteit heeft extra controle nodig. Je VeInvite-toegang is niet beperkt en je kunt normaal blijven uitnodigen.',
   },
   de: {
-    title: 'Einladungsaktivität wird geprüft',
-    body: 'Ein Teil der jüngsten Einladungsaktivität benötigt eine zusätzliche Prüfung. Währenddessen ist der VeInvite-Zugang vorübergehend eingeschränkt.',
+    title: 'Zusätzliche Prüfung der Einladungsaktivität',
+    body: 'Ein Teil der jüngsten Einladungsaktivität benötigt eine zusätzliche Prüfung. Dein VeInvite-Zugang ist derzeit nicht eingeschränkt und du kannst normal weiter einladen.',
   },
   fr: {
-    title: 'Activité d’invitation en cours d’examen',
-    body: 'Une partie de l’activité récente nécessite une vérification supplémentaire. L’accès à VeInvite est temporairement limité pendant l’examen.',
+    title: 'Vérification supplémentaire des invitations',
+    body: 'Une partie de l’activité récente d’invitation nécessite une vérification supplémentaire. Votre accès à VeInvite n’est pas restreint et vous pouvez continuer à inviter normalement.',
   },
   ar: {
-    title: 'تتم مراجعة نشاط الدعوات',
-    body: 'تحتاج بعض أنشطة الدعوات الأخيرة إلى تحقق إضافي. سيتم تقييد الوصول إلى VeInvite مؤقتاً أثناء المراجعة.',
+    title: 'تحقق إضافي من نشاط الدعوات',
+    body: 'بعض نشاط الدعوات الأخير يحتاج إلى تحقق إضافي. استخدامك لـ VeInvite غير مقيّد حاليًا ويمكنك متابعة الدعوات بشكل طبيعي.',
   },
   bn: {
-    title: 'রেফারেল কার্যক্রম পর্যালোচনাধীন',
-    body: 'সাম্প্রতিক কিছু রেফারেল কার্যক্রমে অতিরিক্ত যাচাই প্রয়োজন। পর্যালোচনা চলাকালে VeInvite ব্যবহার সাময়িকভাবে সীমিত থাকবে।',
+    title: 'আমন্ত্রণ কার্যক্রমের অতিরিক্ত যাচাই',
+    body: 'সাম্প্রতিক কিছু আমন্ত্রণ কার্যক্রমের অতিরিক্ত যাচাই প্রয়োজন। বর্তমানে আপনার VeInvite ব্যবহারে কোনো সীমাবদ্ধতা নেই এবং স্বাভাবিকভাবে আমন্ত্রণ চালিয়ে যেতে পারেন।',
   },
   pt: {
-    title: 'Atividade de convites em análise',
-    body: 'Parte da atividade recente precisa de verificação adicional. O acesso ao VeInvite fica temporariamente limitado durante a análise.',
+    title: 'Verificação adicional das indicações',
+    body: 'Parte da atividade recente de convites precisa de verificação adicional. Seu acesso ao VeInvite não está restrito e você pode continuar convidando normalmente.',
   },
   ru: {
-    title: 'Активность приглашений проверяется',
-    body: 'Некоторая недавняя активность приглашений требует дополнительной проверки. На время проверки доступ к VeInvite временно ограничен.',
+    title: 'Дополнительная проверка приглашений',
+    body: 'Некоторые недавние действия по приглашениям требуют дополнительной проверки. Доступ к VeInvite сейчас не ограничен, и вы можете продолжать обычные приглашения.',
   },
   id: {
-    title: 'Aktivitas referral sedang ditinjau',
-    body: 'Sebagian aktivitas referral terbaru memerlukan verifikasi tambahan. Akses VeInvite sementara dibatasi selama peninjauan.',
+    title: 'Pemeriksaan tambahan aktivitas undangan',
+    body: 'Sebagian aktivitas undangan terbaru memerlukan verifikasi tambahan. Akses VeInvite Anda tidak dibatasi dan Anda tetap dapat mengundang secara normal.',
   },
   vi: {
-    title: 'Đang xem xét hoạt động giới thiệu',
-    body: 'Một số hoạt động giới thiệu gần đây cần được xác minh thêm. Quyền truy cập VeInvite tạm thời bị hạn chế trong thời gian xem xét.',
+    title: 'Kiểm tra bổ sung hoạt động mời',
+    body: 'Một số hoạt động mời gần đây cần được xác minh thêm. Quyền truy cập VeInvite của bạn hiện không bị hạn chế và bạn vẫn có thể tiếp tục mời bình thường.',
   },
   'zh-tw': {
-    title: '正在審查邀請活動',
-    body: '近期部分邀請活動需要額外驗證。審查期間，VeInvite 使用會暫時受到限制。',
+    title: '邀請活動額外驗證',
+    body: '近期部分邀請活動需要額外驗證。目前你的 VeInvite 使用未受限制，可以繼續正常邀請。',
   },
   sv: {
-    title: 'Inbjudningsaktivitet granskas',
-    body: 'Viss nylig inbjudningsaktivitet behöver extra verifiering. VeInvite-åtkomsten är tillfälligt begränsad medan granskningen pågår.',
+    title: 'Extra kontroll av inbjudningsaktivitet',
+    body: 'Viss nylig inbjudningsaktivitet behöver extra verifiering. Din VeInvite-åtkomst är inte begränsad och du kan fortsätta bjuda in normalt.',
   },
   ro: {
-    title: 'Activitatea invitațiilor este în curs de verificare',
-    body: 'O parte din activitatea recentă necesită verificare suplimentară. Accesul la VeInvite este temporar limitat cât timp analiza este în desfășurare.',
+    title: 'Verificare suplimentară a invitațiilor',
+    body: 'O parte din activitatea recentă de invitații necesită verificare suplimentară. Accesul tău la VeInvite nu este restricționat și poți continua invitațiile în mod normal.',
   },
   ur: {
-    title: 'ریفرل سرگرمی زیرِ جائزہ ہے',
-    body: 'حالیہ کچھ ریفرل سرگرمی کو اضافی تصدیق درکار ہے۔ جائزہ مکمل ہونے تک VeInvite تک رسائی عارضی طور پر محدود رہے گی۔',
+    title: 'دعوتی سرگرمی کی اضافی جانچ',
+    body: 'حالیہ کچھ دعوتی سرگرمی کی اضافی تصدیق درکار ہے۔ فی الحال آپ کی VeInvite رسائی محدود نہیں ہے اور آپ معمول کے مطابق دعوتیں جاری رکھ سکتے ہیں۔',
   },
   pcm: {
-    title: 'Referral activity dey under review',
-    body: 'Some recent referral activity need extra check. VeInvite access go limit small until review finish.',
+    title: 'Extra check for invite activity',
+    body: 'Some recent invite activity need extra check. Your VeInvite access no restrict now, and you fit continue normal invitations.',
   },
   arz: {
-    title: 'نشاط الدعوات تحت المراجعة',
-    body: 'بعض نشاط الدعوات الأخير محتاج مراجعة إضافية. استخدام VeInvite هيبقى محدود مؤقتاً لحد ما المراجعة تخلص.',
+    title: 'مراجعة إضافية لنشاط الدعوات',
+    body: 'في شوية نشاط دعوات حديث محتاج تحقق إضافي. استخدامك لـ VeInvite مش مقيّد دلوقتي وتقدر تكمل الدعوات بشكل طبيعي.',
   },
   mr: {
-    title: 'रेफरल क्रियाकलाप तपासणीमध्ये आहे',
-    body: 'अलीकडील काही रेफरल क्रियाकलापांची अतिरिक्त पडताळणी आवश्यक आहे. तपासणी पूर्ण होईपर्यंत VeInvite वापर तात्पुरता मर्यादित राहील.',
+    title: 'आमंत्रण क्रियाकलापाची अतिरिक्त पडताळणी',
+    body: 'अलीकडील काही आमंत्रण क्रियाकलापांची अतिरिक्त पडताळणी आवश्यक आहे. सध्या तुमच्या VeInvite वापरावर मर्यादा नाही आणि तुम्ही नेहमीप्रमाणे आमंत्रणे देऊ शकता.',
   },
   te: {
-    title: 'రిఫరల్ కార్యకలాపం సమీక్షలో ఉంది',
-    body: 'ఇటీవలి కొన్ని రిఫరల్ కార్యకలాపాలకు అదనపు ధృవీకరణ అవసరం. సమీక్ష పూర్తయ్యే వరకు VeInvite యాక్సెస్ తాత్కాలికంగా పరిమితం అవుతుంది.',
+    title: 'ఆహ్వాన కార్యకలాపానికి అదనపు తనిఖీ',
+    body: 'ఇటీవలి కొన్ని ఆహ్వాన కార్యకలాపాలకు అదనపు ధృవీకరణ అవసరం. ప్రస్తుతం మీ VeInvite వినియోగంపై పరిమితి లేదు మరియు సాధారణంగా ఆహ్వానాలు కొనసాగించవచ్చు.',
   },
   sw: {
-    title: 'Shughuli za rufaa zinakaguliwa',
-    body: 'Baadhi ya shughuli za hivi karibuni zinahitaji uhakiki wa ziada. Ufikiaji wa VeInvite umewekewa kikomo kwa muda wakati ukaguzi unaendelea.',
+    title: 'Ukaguzi wa ziada wa shughuli za mialiko',
+    body: 'Baadhi ya shughuli za hivi karibuni za mialiko zinahitaji uhakiki wa ziada. Ufikiaji wako wa VeInvite haujazuiwa na unaweza kuendelea kualika kawaida.',
   },
   ha: {
-    title: 'Ana duba ayyukan referral',
-    body: 'Wasu ayyukan referral na baya-bayan nan suna bukatar ƙarin tantancewa. Za a takaita amfani da VeInvite na ɗan lokaci har sai an kammala bita.',
+    title: 'Ƙarin duba ga ayyukan gayyata',
+    body: 'Wasu ayyukan gayyata na kwanan nan suna buƙatar ƙarin tantancewa. Ba a takaita amfani da VeInvite naka yanzu ba, kuma za ka iya ci gaba da gayyata yadda aka saba.',
   },
   el: {
-    title: 'Η δραστηριότητα προσκλήσεων ελέγχεται',
-    body: 'Μέρος της πρόσφατης δραστηριότητας χρειάζεται πρόσθετο έλεγχο. Η πρόσβαση στο VeInvite περιορίζεται προσωρινά όσο διαρκεί ο έλεγχος.',
+    title: 'Πρόσθετος έλεγχος δραστηριότητας προσκλήσεων',
+    body: 'Μέρος της πρόσφατης δραστηριότητας προσκλήσεων χρειάζεται πρόσθετη επαλήθευση. Η πρόσβασή σας στο VeInvite δεν είναι περιορισμένη και μπορείτε να συνεχίσετε κανονικά τις προσκλήσεις.',
   },
   cs: {
-    title: 'Aktivita pozvánek se kontroluje',
-    body: 'Část nedávné aktivity vyžaduje dodatečné ověření. Přístup k VeInvite je po dobu kontroly dočasně omezen.',
+    title: 'Dodatečná kontrola aktivity pozvánek',
+    body: 'Část nedávné aktivity pozvánek vyžaduje dodatečné ověření. Přístup k VeInvite není omezen a můžete dál normálně zvát.',
   },
 };
