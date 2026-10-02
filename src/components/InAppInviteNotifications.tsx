@@ -15,12 +15,6 @@ import type {
   InviteNotificationHistoryItem,
   InviteNotificationHistoryResponse,
 } from '@/lib/notifications/inviteNotificationHistory';
-import {
-  newestHistoryId,
-  newestUnreadSecurityHistoryId,
-  notificationRequiresHomeRefresh,
-  notificationRequiresNetworkRefresh,
-} from '@/lib/notifications/notificationHistoryClient';
 import type {
   InviteNotificationPayloadV2,
 } from '@/lib/notifications/inviteNotificationStateV2';
@@ -275,6 +269,25 @@ function clearHistoryCache(wallet: string): void {
   }
 }
 
+function newestHistoryId(
+  items: InviteNotificationHistoryItem[],
+): string | null {
+  let latest: bigint | null = null;
+
+  for (const item of items) {
+    try {
+      const id = BigInt(item.id);
+      if (id > 0n && (latest === null || id > latest)) {
+        latest = id;
+      }
+    } catch {
+      // Invalid server ids are rejected by the history API. Ignore defensively.
+    }
+  }
+
+  return latest?.toString() ?? null;
+}
+
 function historyIdAtOrBefore(id: string, throughId: string): boolean {
   try {
     return BigInt(id) <= BigInt(throughId);
@@ -306,6 +319,39 @@ function notificationCenterIsClosing(): boolean {
   );
 }
 
+function effectiveNotificationKind(
+  notification: InviteNotificationHistoryItem,
+): string {
+  return notification.presentationKind ?? notification.kind;
+}
+
+function notificationRequiresHomeRefresh(
+  notification: InviteNotificationHistoryItem,
+): boolean {
+  const kind = effectiveNotificationKind(notification);
+  return (
+    kind === 'INVITE_INELIGIBLE' ||
+    kind === 'REWARD_READY' ||
+    kind === 'REWARD_PAID' ||
+    kind === 'SECURITY_RESTRICTION_CONFIRMED' ||
+    kind === 'SECURITY_REVIEW_CLEARED' ||
+    kind === 'SECURITY_REFERRAL_INVALIDATED' ||
+    kind === 'SECURITY_REFERRAL_RESTORED'
+  );
+}
+
+function notificationRequiresNetworkRefresh(
+  notification: InviteNotificationHistoryItem,
+): boolean {
+  const kind = effectiveNotificationKind(notification);
+  return (
+    kind === 'SECURITY_RESTRICTION_CONFIRMED' ||
+    kind === 'SECURITY_REVIEW_CLEARED' ||
+    kind === 'SECURITY_REFERRAL_INVALIDATED' ||
+    kind === 'SECURITY_REFERRAL_RESTORED'
+  );
+}
+
 export function InAppInviteNotifications({
   locale,
 }: {
@@ -324,8 +370,6 @@ export function InAppInviteNotifications({
   const shownKeyRef = useRef<string | null>(null);
   const openSnapshotRef = useRef<string | null>(null);
   const lastDataRefreshNotificationIdRef =
-    useRef<string | null>(null);
-  const lastAutoOpenedSecurityHistoryIdRef =
     useRef<string | null>(null);
   const activeWalletRef = useRef<string | null>(wallet);
   const historyResolvedRef = useRef(false);
@@ -350,8 +394,6 @@ export function InAppInviteNotifications({
     shownKeyRef.current = null;
     openSnapshotRef.current = null;
     lastDataRefreshNotificationIdRef.current = null;
-    lastAutoOpenedSecurityHistoryIdRef.current =
-      newestUnreadSecurityHistoryId(cached?.items ?? []);
     latestHistoryRequestRef.current = null;
     lifecycleRefreshRef.current = null;
   }, [wallet]);
@@ -373,7 +415,6 @@ export function InAppInviteNotifications({
     shownKeyRef.current = null;
     openSnapshotRef.current = null;
     lastDataRefreshNotificationIdRef.current = null;
-    lastAutoOpenedSecurityHistoryIdRef.current = null;
     latestHistoryRequestRef.current = null;
     lifecycleRefreshRef.current = null;
     window.dispatchEvent(
@@ -491,25 +532,6 @@ export function InAppInviteNotifications({
           sameWallet(activeWalletRef.current, requestWallet)
         ) {
           applyLatestHistory(history, requestWallet);
-
-          const latestSecurityId =
-            newestUnreadSecurityHistoryId(history.items);
-          if (
-            latestSecurityId &&
-            lastAutoOpenedSecurityHistoryIdRef.current !== latestSecurityId
-          ) {
-            const blocked =
-              isWalletModalOpen ||
-              hasBlockingDialogOpen() ||
-              notificationCenterIsClosing();
-
-            if (!blocked) {
-              lastAutoOpenedSecurityHistoryIdRef.current = latestSecurityId;
-              openSnapshotRef.current = newestHistoryId(history.items);
-              if (!open) setOpen(true);
-            }
-          }
-
           if (surfaceError) setErrorMessage('');
         }
         return history;
@@ -541,12 +563,7 @@ export function InAppInviteNotifications({
         }
       }
     },
-    [
-      applyLatestHistory,
-      isWalletModalOpen,
-      loadHistoryPage,
-      open,
-    ],
+    [applyLatestHistory, loadHistoryPage],
   );
 
   const refreshLifecycle = useCallback(
