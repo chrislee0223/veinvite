@@ -44,7 +44,7 @@ test('unresolved post-vote Sybil integrity requires the full modern mission chec
 test('vote before the third dApp remains a supported mission order', () => {
   assert.match(
     syncInvitation,
-    /Mission ordering is intentionally flexible after the first verified dApp reward/i,
+    /Mission ordering is intentionally flexible after the first verified dApp\s+reward/i,
   );
   assert.match(
     syncInvitation,
