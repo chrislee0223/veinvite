@@ -287,9 +287,9 @@ export const INVITER_SECURITY_NOTIFICATION_COPY: Record<
   },
   el: {
     watchTitle: 'Πρόσθετος έλεγχος δραστηριότητας προσκλήσεων',
-    watchBody: 'Μέρος της πρόσφατης δραστηριότητας προσκλήσεων χρειάζεται πρόσθετη επαλήθευση. Η πρόσβασή σας στο VeInvite δεν είναι περιορισμένη και μπορείτε να συνεχίσετε κανονικά τις προσκλήσεις.',
+    watchBody: 'Μέρος της πρόσφατης δραστηριότητας προσκλήσεων χρειάζεται πρόσθετη επαλήθευση. Η πρόσβασή σου στο VeInvite δεν είναι περιορισμένη και μπορείς να συνεχίσεις κανονικά τις προσκλήσεις.',
     holdTitle: 'Πρόσθετος έλεγχος δραστηριότητας προσκλήσεων',
-    holdBody: 'Μέρος της πρόσφατης δραστηριότητας προσκλήσεων χρειάζεται πρόσθετη επαλήθευση. Η πρόσβασή σας στο VeInvite δεν είναι περιορισμένη και μπορείτε να συνεχίσετε κανονικά τις προσκλήσεις.',
+    holdBody: 'Μέρος της πρόσφατης δραστηριότητας προσκλήσεων χρειάζεται πρόσθετη επαλήθευση. Η πρόσβασή σου στο VeInvite δεν είναι περιορισμένη και μπορείς να συνεχίσεις κανονικά τις προσκλήσεις.',
     restrictedTitle: 'Περιορισμός συμμετοχής στο VeInvite',
     restrictedBody: 'Μετά την εξέταση, περιορίστηκε η μελλοντική συμμετοχή αυτού του πορτοφολιού στο VeInvite. Οι ήδη καταβληθείσες ανταμοιβές δεν αλλάζουν.',
     restoredTitle: 'Η πρόσβαση στο VeInvite αποκαταστάθηκε',
@@ -297,12 +297,12 @@ export const INVITER_SECURITY_NOTIFICATION_COPY: Record<
   },
   cs: {
     watchTitle: 'Dodatečná kontrola aktivity pozvánek',
-    watchBody: 'Část nedávné aktivity pozvánek vyžaduje dodatečné ověření. Přístup k VeInvite není omezen a můžete dál normálně zvát.',
+    watchBody: 'Část nedávné aktivity pozvánek vyžaduje dodatečné ověření. Přístup k VeInvite není omezen a můžeš dál normálně zvát.',
     holdTitle: 'Dodatečná kontrola aktivity pozvánek',
-    holdBody: 'Část nedávné aktivity pozvánek vyžaduje dodatečné ověření. Přístup k VeInvite není omezen a můžete dál normálně zvát.',
+    holdBody: 'Část nedávné aktivity pozvánek vyžaduje dodatečné ověření. Přístup k VeInvite není omezen a můžeš dál normálně zvát.',
     restrictedTitle: 'Účast ve VeInvite omezena',
     restrictedBody: 'Po kontrole byla budoucí účast této peněženky ve VeInvite omezena. Již vyplacené odměny se nezmění.',
     restoredTitle: 'Přístup k VeInvite obnoven',
-    restoredBody: 'Kontrola byla dokončena a omezení účasti ve VeInvite bylo zrušeno. VeInvite můžete znovu normálně používat.',
+    restoredBody: 'Kontrola byla dokončena a omezení účasti ve VeInvite bylo zrušeno. VeInvite můžeš znovu normálně používat.',
   },
 };

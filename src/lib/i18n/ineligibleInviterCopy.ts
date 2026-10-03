@@ -70,8 +70,8 @@ export const INELIGIBLE_INVITER_COPY: Record<
     body: 'Приглашённый вами человек сейчас не соответствует условиям VeInvite, поэтому это приглашение завершено.',
   },
   id: {
-    title: 'Sekarang kamu bisa mengundang teman lain',
-    body: 'Teman yang kamu undang saat ini belum memenuhi persyaratan VeInvite, jadi undangan ini telah berakhir.',
+    title: 'Sekarang Anda dapat mengundang teman lain',
+    body: 'Teman yang Anda undang saat ini belum memenuhi persyaratan VeInvite, jadi undangan ini telah berakhir.',
   },
   vi: {
     title: 'Bạn có thể mời một người bạn khác',

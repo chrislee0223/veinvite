@@ -59,6 +59,19 @@ html[lang='ko'] :is(
   overflow-wrap: normal !important;
 }
 
+/* QA and embedded previews can switch the dialog locale without changing the
+ * document locale. The dialog's own lang attribute is therefore the reliable
+ * source for its wrapping rules. */
+.notificationRoot .notificationCard[lang='ko'] :is(
+  .notificationCopy h2,
+  .notificationCopy p,
+  .notificationHint,
+  .notificationError
+) {
+  word-break: keep-all !important;
+  overflow-wrap: normal !important;
+}
+
 html:is([lang='zh'], [lang='zh-tw'], [lang='ja']) :is(
   .notificationRoot .notificationCopy h2,
   .notificationRoot .notificationCopy p,
@@ -73,6 +86,62 @@ html:is([lang='zh'], [lang='zh-tw'], [lang='ja']) :is(
 ) {
   line-break: strict;
   word-break: normal !important;
+}
+
+.notificationRoot .notificationCard:is(
+  [lang='zh'],
+  [lang='zh-tw'],
+  [lang='ja']
+) :is(
+  .notificationCopy h2,
+  .notificationCopy p,
+  .notificationHint,
+  .notificationError
+) {
+  line-break: strict;
+  word-break: normal !important;
+}
+
+/* Use script-aware line boxes even when only the dialog locale changes.
+ * Buttons may grow vertically so Arabic, Urdu and Indic glyphs do not clip. */
+.notificationRoot .notificationCard:is(
+  [lang='ar'],
+  [lang='arz'],
+  [lang='hi'],
+  [lang='bn'],
+  [lang='mr'],
+  [lang='te']
+) :is(
+  .notificationCopy h2,
+  .notificationCopy p,
+  .notificationHint,
+  .notificationError,
+  .confirmButton
+) {
+  line-height: 1.5 !important;
+}
+
+.notificationRoot .notificationCard[lang='ur'] :is(
+  .notificationCopy h2,
+  .notificationCopy p,
+  .notificationHint,
+  .notificationError,
+  .confirmButton
+) {
+  line-height: 1.65 !important;
+}
+
+.notificationRoot .notificationCard:is(
+  [lang='ar'],
+  [lang='arz'],
+  [lang='ur'],
+  [lang='hi'],
+  [lang='bn'],
+  [lang='mr'],
+  [lang='te']
+) .confirmButton {
+  height: auto !important;
+  padding-block: 9px !important;
 }
 
 /* Amounts are technical strings: preserve them as LTR in RTL locales while

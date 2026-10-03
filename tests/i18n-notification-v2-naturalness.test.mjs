@@ -61,3 +61,26 @@ test('Vietnamese recent-notification wording reads naturally and agrees in numbe
   assert.ok(source.includes("dappProgressTitle: 'Tiến độ của người bạn đã được cập nhật'"));
   assert.ok(source.includes("summaryBody: 'Một số người bạn đã có thêm tiến triển khi bạn không mở ứng dụng. Đây là trạng thái đã xác minh mới nhất của họ.'"));
 });
+
+test('recent notification copy keeps register and plural agreement consistent', () => {
+  for (const expected of [
+    "rewardReadyTitle: 'Votre ami a terminé toutes les missions !'",
+    "summaryBody: 'Varios amigos avanzaron mientras no estabas. Aquí tienes sus estados verificados más recientes.'",
+    "dappProgressTitle: 'Arkadaşının ilerlemesi güncellendi'",
+    "dappProgressTitle: 'Progres teman Anda diperbarui'",
+    "summaryTitle: 'Progrese noi ale prietenilor'",
+    "dappProgressBody: 'Your friend don finish another dApp wey qualify and collect the B3TR reward for am.'",
+  ]) {
+    assert.ok(source.includes(expected), `missing reviewed natural wording: ${expected}`);
+  }
+
+  for (const retired of [
+    "rewardReadyTitle: 'Ton ami",
+    'Temanmu',
+    'Reward-mu',
+    'Arkadaş ilerlemesi',
+    'another correct dApp',
+  ]) {
+    assert.ok(!source.includes(retired), `mixed or awkward wording returned: ${retired}`);
+  }
+});
