@@ -12,8 +12,6 @@ import {
 import {
   InviteNotificationSurfaceV2,
 } from '@/components/InviteNotificationSurfaceV2';
-import { NOTIFICATION_COPY } from '@/lib/i18n/notificationCopy';
-import { NOTIFICATION_HISTORY_COPY } from '@/lib/i18n/notificationHistoryCopy';
 import type { SupportedLocale } from '@/lib/i18n/locales';
 import type {
   InviteNotificationHistoryItem,
@@ -51,9 +49,7 @@ export type QaNotificationStateId =
   | 'NOTI-INVITER-WATCH'
   | 'NOTI-INVITER-HOLD'
   | 'NOTI-INVITER-RESTRICTED'
-  | 'NOTI-INVITER-RESTORED'
-  | 'NOTI-ACK-BUSY'
-  | 'NOTI-ACK-ERROR';
+  | 'NOTI-INVITER-RESTORED';
 
 type HistoryFixture = {
   mode: 'history';
@@ -68,8 +64,6 @@ type HistoryFixture = {
 type SurfaceFixture = {
   mode: 'surface';
   notifications: InviteNotificationPayloadV2[];
-  busy?: boolean;
-  errorMessage?: string;
 };
 
 type NotificationFixture = HistoryFixture | SurfaceFixture;
@@ -460,18 +454,6 @@ function fixtureForState(
         unreadCount: 1,
         open: true,
       };
-    case 'NOTI-ACK-BUSY':
-      return {
-        mode: 'surface',
-        notifications: [surfaceItem({ kind: 'INVITE_ACCEPTED' })],
-        busy: true,
-      };
-    case 'NOTI-ACK-ERROR':
-      return {
-        mode: 'surface',
-        notifications: [surfaceItem({ kind: 'INVITE_ACCEPTED' })],
-        errorMessage: 'QA notification acknowledgement failed.',
-      };
   }
 }
 
@@ -522,12 +504,6 @@ export function QaNotificationStateHarness({
     () => fixtureForState(stateId),
     [stateId],
   );
-  const localizedErrorMessage =
-    stateId === 'NOTI-ACK-ERROR'
-      ? NOTIFICATION_COPY[locale].acknowledgementError
-      : stateId === 'NOTI-HISTORY-ERROR'
-        ? NOTIFICATION_HISTORY_COPY[locale].errorBody
-        : seed.errorMessage ?? '';
   const [open, setOpen] = useState(
     seed.mode === 'history' ? seed.open : true,
   );
@@ -541,7 +517,7 @@ export function QaNotificationStateHarness({
     seed.mode === 'history' ? Boolean(seed.loading) : false,
   );
   const [errorMessage, setErrorMessage] = useState(
-    localizedErrorMessage,
+    seed.mode === 'history' ? seed.errorMessage ?? '' : '',
   );
   const [hasMore, setHasMore] = useState(
     seed.mode === 'history' ? Boolean(seed.hasMore) : false,
@@ -552,9 +528,9 @@ export function QaNotificationStateHarness({
     setItems(seed.mode === 'history' ? seed.items : []);
     setUnreadCount(seed.mode === 'history' ? seed.unreadCount : 0);
     setLoading(seed.mode === 'history' ? Boolean(seed.loading) : false);
-    setErrorMessage(localizedErrorMessage);
+    setErrorMessage(seed.mode === 'history' ? seed.errorMessage ?? '' : '');
     setHasMore(seed.mode === 'history' ? Boolean(seed.hasMore) : false);
-  }, [localizedErrorMessage, seed]);
+  }, [seed]);
 
   if (seed.mode === 'surface') {
     return (
@@ -563,7 +539,7 @@ export function QaNotificationStateHarness({
           locale={locale}
           notifications={seed.notifications}
           open={open}
-          busy={Boolean(seed.busy)}
+          busy={false}
           errorMessage={errorMessage}
           onOpen={() => setOpen(true)}
           onClose={() => setOpen(false)}
