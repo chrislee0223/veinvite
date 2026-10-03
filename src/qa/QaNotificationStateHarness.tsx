@@ -461,9 +461,13 @@ function fixtureForState(
 
 function QaNotificationStage({
   children,
+  embedded = false,
 }: {
   children: React.ReactNode;
+  embedded?: boolean;
 }) {
+  if (embedded) return <>{children}</>;
+
   return (
     <main
       style={{
@@ -492,9 +496,11 @@ function QaNotificationStage({
 export function QaNotificationStateHarness({
   stateId,
   locale,
+  embedded = false,
 }: {
   stateId: QaNotificationStateId;
   locale: SupportedLocale;
+  embedded?: boolean;
 }) {
   const seed = useMemo(
     () => fixtureForState(stateId),
@@ -530,7 +536,7 @@ export function QaNotificationStateHarness({
 
   if (seed.mode === 'surface') {
     return (
-      <QaNotificationStage>
+      <QaNotificationStage embedded={embedded}>
         <InviteNotificationSurfaceV2
           locale={locale}
           notifications={seed.notifications}
@@ -545,7 +551,7 @@ export function QaNotificationStateHarness({
   }
 
   return (
-    <QaNotificationStage>
+    <QaNotificationStage embedded={embedded}>
       <InviteNotificationHistoryCenter
         locale={locale}
         items={items}
