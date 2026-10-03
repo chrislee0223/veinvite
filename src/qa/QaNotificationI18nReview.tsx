@@ -53,8 +53,6 @@ const REVIEW_STATES: Array<{
   { id: 'NOTI-INVITER-HOLD', label: '초대자 참여 임시 HOLD' },
   { id: 'NOTI-INVITER-RESTRICTED', label: '초대자 참여 제한 확정' },
   { id: 'NOTI-INVITER-RESTORED', label: '초대자 참여 복구' },
-  { id: 'NOTI-ACK-BUSY', label: '알림 확인 처리 중' },
-  { id: 'NOTI-ACK-ERROR', label: '알림 확인 실패' },
 ];
 
 const STRESS_LOCALES: SupportedLocale[] = [
