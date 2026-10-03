@@ -40,6 +40,7 @@ export type QaNotificationStateId =
   | 'NOTI-REWARD-PAID'
   | 'NOTI-INELIGIBLE'
   | 'NOTI-SECURITY-REVIEW'
+  | 'NOTI-SECURITY-CLEARED'
   | 'NOTI-POST-PAYOUT-REVIEW'
   | 'NOTI-POST-PAYOUT-CLEARED'
   | 'NOTI-SECURITY-RESTRICTED'
@@ -322,6 +323,19 @@ function fixtureForState(
             id: '11',
             kind: 'SECURITY_REVIEW_STARTED',
             minutes: 4,
+          }),
+        ],
+        unreadCount: 1,
+        open: true,
+      };
+    case 'NOTI-SECURITY-CLEARED':
+      return {
+        mode: 'history',
+        items: [
+          historyItem({
+            id: '21',
+            kind: 'SECURITY_REVIEW_CLEARED',
+            minutes: 5,
           }),
         ],
         unreadCount: 1,

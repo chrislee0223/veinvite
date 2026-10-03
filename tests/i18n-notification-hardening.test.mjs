@@ -78,6 +78,38 @@ test('notification QA lab tracks the same v2 lifecycle as Production', () => {
   assert.doesNotMatch(qaNotificationHarness, /InviteNotificationSurface\s*[,}]/);
 });
 
+test('notification QA preview exposes every harness state and production kind', () => {
+  const previewStates = new Set(
+    [...preview.matchAll(/\{ id: '(NOTI-[^']+)'/gmu)].map(
+      (match) => match[1],
+    ),
+  );
+  const harnessStateBlock = qaNotificationHarness.match(
+    /export type QaNotificationStateId =([\s\S]*?);\n/u,
+  )?.[1] ?? '';
+  const harnessStates = [
+    ...harnessStateBlock.matchAll(/'(NOTI-[^']+)'/gmu),
+  ].map((match) => match[1]);
+
+  assert.ok(harnessStates.length > 0);
+  assert.deepEqual(
+    harnessStates.filter((state) => !previewStates.has(state)),
+    [],
+  );
+
+  const productionKindBlock = read(
+    'src/lib/notifications/inviteNotificationStateV2.ts',
+  ).match(/export type InviteNotificationKindV2 =([\s\S]*?);\n/u)?.[1] ?? '';
+  const productionKinds = [
+    ...productionKindBlock.matchAll(/'([A-Z][A-Z0-9_]+)'/gmu),
+  ].map((match) => match[1]);
+
+  assert.ok(productionKinds.length > 0);
+  for (const kind of productionKinds) {
+    assert.match(qaNotificationHarness, new RegExp(`kind: '${kind}'`, 'u'));
+  }
+});
+
 test('reading the rich reward receipt also clears the duplicate paid bell notification', () => {
   assert.match(receiptSeenRoute, /acknowledge_invite_notification/);
   assert.match(receiptSeenRoute, /INVITE_NOTIFICATION_STAGE\.rewardPaid/);
