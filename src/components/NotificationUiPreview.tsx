@@ -51,8 +51,6 @@ const SCENARIOS: Scenario[] = [
   { id: 'NOTI-INVITER-HOLD', label: '초대자 HOLD' },
   { id: 'NOTI-INVITER-RESTRICTED', label: '초대자 제한' },
   { id: 'NOTI-INVITER-RESTORED', label: '초대자 복구' },
-  { id: 'NOTI-ACK-BUSY', label: '읽음 처리 중' },
-  { id: 'NOTI-ACK-ERROR', label: '읽음 처리 오류' },
 ];
 
 const PREVIEW_WALLET =
