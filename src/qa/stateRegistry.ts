@@ -147,8 +147,6 @@ export const QA_KNOWN_STATES: QaKnownState[] = [
   knownState({ id: 'NOTI-INVITER-HOLD', label: '초대자 참여 임시 HOLD 알림', area: '알림', lifecycle: 'production', coverage: 'missing', kind: 'screen', priority: 'critical', userVisible: true, sourcePaths: [notifications, notificationHistory], scenarioIds: [] }),
   knownState({ id: 'NOTI-INVITER-RESTRICTED', label: '초대자 참여 제한 확정 알림', area: '알림', lifecycle: 'production', coverage: 'missing', kind: 'screen', priority: 'critical', userVisible: true, sourcePaths: [notifications, notificationHistory], scenarioIds: [] }),
   knownState({ id: 'NOTI-INVITER-RESTORED', label: '초대자 참여 복구 알림', area: '알림', lifecycle: 'production', coverage: 'missing', kind: 'screen', priority: 'high', userVisible: true, sourcePaths: [notifications, notificationHistory], scenarioIds: [] }),
-  knownState({ id: 'NOTI-ACK-BUSY', label: '알림 확인 처리 중', area: '알림', lifecycle: 'production', coverage: 'partial', kind: 'feedback', priority: 'high', userVisible: true, sourcePaths: [notifications, notificationSurface], scenarioIds: ['notification-preview'] }),
-  knownState({ id: 'NOTI-ACK-ERROR', label: '알림 확인 실패', area: '알림', lifecycle: 'production', coverage: 'partial', kind: 'feedback', priority: 'high', userVisible: true, sourcePaths: [notifications, notificationSurface], scenarioIds: ['notification-preview'] }),
 
   // Wallet session / authentication gate.
   knownState({ id: 'SESSION-IDLE-BRAND', label: '지갑 세션 초기 준비', area: '지갑·세션', lifecycle: 'production', coverage: 'missing', kind: 'screen', priority: 'high', userVisible: true, sourcePaths: [walletSession], scenarioIds: [] }),
