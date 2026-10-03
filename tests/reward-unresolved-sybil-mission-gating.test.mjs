@@ -4,7 +4,7 @@ import test from 'node:test';
 
 const migration = await readFile(
   new URL(
-    '../supabase/migrations/20261003032000_scope_unresolved_sybil_to_completed_missions.sql',
+    '../supabase/migrations/20261003031841_scope_unresolved_sybil_to_completed_missions.sql',
     import.meta.url,
   ),
   'utf8',
@@ -44,7 +44,7 @@ test('unresolved post-vote Sybil integrity requires the full modern mission chec
 test('vote before the third dApp remains a supported mission order', () => {
   assert.match(
     syncInvitation,
-    /Mission ordering is intentionally flexible/i,
+    /Mission ordering is intentionally flexible after the first verified dApp[\s\S]*?reward/i,
   );
   assert.match(
     syncInvitation,
