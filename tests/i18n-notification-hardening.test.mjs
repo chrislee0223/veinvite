@@ -8,6 +8,7 @@ const ineligibleCopy = read('src/lib/i18n/ineligibleInviterCopy.ts');
 const hardening = read('src/app/notification-i18n-hardening.css');
 const layout = read('src/app/layout.tsx');
 const preview = read('src/components/NotificationUiPreview.tsx');
+const qaNotificationHarness = read('src/qa/QaNotificationStateHarness.tsx');
 const receiptCenter = read('src/components/UnifiedInviteNotificationHistoryCenter.tsx');
 const notifications = read('src/components/InAppInviteNotifications.tsx');
 const receiptSeenRoute = read('src/app/api/rewards/receipts/[id]/seen/route.ts');
@@ -61,14 +62,17 @@ test('fixed notification surfaces avoid compositor-heavy backdrop blur', () => {
 });
 
 test('notification QA lab tracks the same v2 lifecycle as Production', () => {
-  assert.match(preview, /InviteNotificationSurfaceV2/);
-  assert.match(preview, /kind:\s*'DAPP_PROGRESS'/);
-  assert.match(preview, /kind:\s*'REWARD_READY',\s*stage:\s*4/);
-  assert.match(preview, /kind:\s*'INVITE_INELIGIBLE',\s*stage:\s*6/);
-  assert.match(preview, /id:\s*'ineligible'/);
-  assert.doesNotMatch(preview, /DAPP_MISSION_COMPLETED/);
-  assert.doesNotMatch(preview, /ALL_MISSIONS_COMPLETED/);
-  assert.doesNotMatch(preview, /InviteNotificationSurface\s*[,}]/);
+  assert.match(preview, /QaNotificationStateHarness/);
+  assert.match(preview, /NOTI-DAPP-3/);
+  assert.match(preview, /NOTI-REWARD-READY/);
+  assert.match(preview, /NOTI-INELIGIBLE/);
+  assert.match(qaNotificationHarness, /InviteNotificationSurfaceV2/);
+  assert.match(qaNotificationHarness, /kind:\s*'DAPP_PROGRESS'/);
+  assert.match(qaNotificationHarness, /kind:\s*'REWARD_READY'/);
+  assert.match(qaNotificationHarness, /kind:\s*'INVITE_INELIGIBLE'/);
+  assert.doesNotMatch(qaNotificationHarness, /DAPP_MISSION_COMPLETED/);
+  assert.doesNotMatch(qaNotificationHarness, /ALL_MISSIONS_COMPLETED/);
+  assert.doesNotMatch(qaNotificationHarness, /InviteNotificationSurface\s*[,}]/);
 });
 
 test('reading the rich reward receipt also clears the duplicate paid bell notification', () => {
