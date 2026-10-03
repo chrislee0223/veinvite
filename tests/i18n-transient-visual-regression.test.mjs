@@ -4,10 +4,11 @@ import { test } from 'node:test';
 
 const read = (path) => readFileSync(path, 'utf8');
 const locales = read('src/lib/i18n/locales.ts');
-const preview = read('src/components/NotificationUiPreview.tsx');
+const harness = read('src/qa/QaNotificationStateHarness.tsx');
 const surface = read('src/components/InviteNotificationSurfaceV2.tsx');
 const receipt = read('src/components/UnifiedInviteNotificationHistoryCenter.tsx');
 const typography = read('src/app/localized-typography.css');
+const notificationHardening = read('src/app/notification-i18n-hardening.css');
 
 test('VeInvite keeps the reviewed locale matrix in one registry', () => {
   const definitions = [...locales.matchAll(/\{ locale: '([^']+)'/g)].map((match) => match[1]);
@@ -19,8 +20,9 @@ test('VeInvite keeps the reviewed locale matrix in one registry', () => {
 });
 
 test('notification preview uses the selected locale even for temporary error UI', () => {
-  assert.match(preview, /NOTIFICATION_COPY\[locale\]\.acknowledgementError/);
-  assert.doesNotMatch(preview, /테스트용 오류 메시지/);
+  assert.match(harness, /NOTIFICATION_COPY\[locale\]\.acknowledgementError/);
+  assert.match(harness, /NOTIFICATION_HISTORY_COPY\[locale\]\.errorBody/);
+  assert.doesNotMatch(harness, /테스트용 오류 메시지/);
 });
 
 test('transient surfaces stay fluid on narrow mobile screens', () => {
@@ -41,4 +43,11 @@ test('localized typography protects translated words and RTL transient UI', () =
   assert.match(typography, /unicode-bidi:\s*isolate/);
   assert.doesNotMatch(surface, /word-break:\s*break-all/i);
   assert.doesNotMatch(receipt, /word-break:\s*break-all/i);
+});
+
+test('notification modal follows its own locale in embedded previews', () => {
+  assert.match(notificationHardening, /\.notificationCard\[lang='ko'\]/);
+  assert.match(notificationHardening, /\.notificationCard:is\([\s\S]*?\[lang='zh-tw'\]/);
+  assert.match(notificationHardening, /\.notificationCard\[lang='ur'\]/);
+  assert.match(notificationHardening, /\.confirmButton[\s\S]*?padding-block:\s*9px/);
 });

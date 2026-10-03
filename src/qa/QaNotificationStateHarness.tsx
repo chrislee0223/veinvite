@@ -12,6 +12,8 @@ import {
 import {
   InviteNotificationSurfaceV2,
 } from '@/components/InviteNotificationSurfaceV2';
+import { NOTIFICATION_COPY } from '@/lib/i18n/notificationCopy';
+import { NOTIFICATION_HISTORY_COPY } from '@/lib/i18n/notificationHistoryCopy';
 import type { SupportedLocale } from '@/lib/i18n/locales';
 import type {
   InviteNotificationHistoryItem,
@@ -520,6 +522,12 @@ export function QaNotificationStateHarness({
     () => fixtureForState(stateId),
     [stateId],
   );
+  const localizedErrorMessage =
+    stateId === 'NOTI-ACK-ERROR'
+      ? NOTIFICATION_COPY[locale].acknowledgementError
+      : stateId === 'NOTI-HISTORY-ERROR'
+        ? NOTIFICATION_HISTORY_COPY[locale].errorBody
+        : seed.errorMessage ?? '';
   const [open, setOpen] = useState(
     seed.mode === 'history' ? seed.open : true,
   );
@@ -533,7 +541,7 @@ export function QaNotificationStateHarness({
     seed.mode === 'history' ? Boolean(seed.loading) : false,
   );
   const [errorMessage, setErrorMessage] = useState(
-    seed.errorMessage ?? '',
+    localizedErrorMessage,
   );
   const [hasMore, setHasMore] = useState(
     seed.mode === 'history' ? Boolean(seed.hasMore) : false,
@@ -544,9 +552,9 @@ export function QaNotificationStateHarness({
     setItems(seed.mode === 'history' ? seed.items : []);
     setUnreadCount(seed.mode === 'history' ? seed.unreadCount : 0);
     setLoading(seed.mode === 'history' ? Boolean(seed.loading) : false);
-    setErrorMessage(seed.errorMessage ?? '');
+    setErrorMessage(localizedErrorMessage);
     setHasMore(seed.mode === 'history' ? Boolean(seed.hasMore) : false);
-  }, [seed]);
+  }, [localizedErrorMessage, seed]);
 
   if (seed.mode === 'surface') {
     return (

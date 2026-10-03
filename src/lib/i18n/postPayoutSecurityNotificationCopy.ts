@@ -75,7 +75,7 @@ export const POST_PAYOUT_SECURITY_NOTIFICATION_COPY: Record<
     reviewTitle: 'Vérification après la récompense',
     reviewBody: 'Ce parrainage a déjà été payé, mais une activité ultérieure nécessite une vérification de sécurité supplémentaire. Les B3TR déjà versés ne changeront pas pendant la vérification.',
     clearedTitle: 'Vérification supplémentaire terminée',
-    clearedBody: 'La vérification après récompense est terminée sans restriction supplémentaire. Les B3TR déjà versés et ton accès à VeInvite restent inchangés.',
+    clearedBody: 'La vérification après récompense est terminée sans restriction supplémentaire. Les B3TR déjà versés et votre accès à VeInvite restent inchangés.',
   },
   ar: {
     reviewTitle: 'مراجعة إضافية بعد دفع المكافأة',
@@ -183,6 +183,6 @@ export const POST_PAYOUT_SECURITY_NOTIFICATION_COPY: Record<
     reviewTitle: 'Dodatečná kontrola po odměně',
     reviewBody: 'Toto doporučení již bylo vyplaceno, ale pozdější aktivita vyžaduje dodatečnou bezpečnostní kontrolu. Již vyplacené B3TR se během kontroly nezmění.',
     clearedTitle: 'Dodatečná kontrola dokončena',
-    clearedBody: 'Kontrola po odměně byla dokončena bez dalšího omezení. Již vyplacené B3TR i váš přístup k VeInvite zůstávají beze změny.',
+    clearedBody: 'Kontrola po odměně byla dokončena bez dalšího omezení. Již vyplacené B3TR i tvůj přístup k VeInvite zůstávají beze změny.',
   },
 };

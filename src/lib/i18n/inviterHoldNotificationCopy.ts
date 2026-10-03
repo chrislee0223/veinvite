@@ -119,10 +119,10 @@ export const INVITER_HOLD_NOTIFICATION_COPY: Record<
   },
   "el": {
     title: "Πρόσθετος έλεγχος δραστηριότητας προσκλήσεων",
-    body: "Μέρος της πρόσφατης δραστηριότητας προσκλήσεων χρειάζεται πρόσθετη επαλήθευση. Η πρόσβασή σας στο VeInvite δεν είναι περιορισμένη και μπορείτε να συνεχίσετε κανονικά τις προσκλήσεις.",
+    body: "Μέρος της πρόσφατης δραστηριότητας προσκλήσεων χρειάζεται πρόσθετη επαλήθευση. Η πρόσβασή σου στο VeInvite δεν είναι περιορισμένη και μπορείς να συνεχίσεις κανονικά τις προσκλήσεις.",
   },
   "cs": {
     title: "Dodatečná kontrola aktivity pozvánek",
-    body: "Část nedávné aktivity pozvánek vyžaduje dodatečné ověření. Přístup k VeInvite není omezen a můžete dál normálně zvát.",
+    body: "Část nedávné aktivity pozvánek vyžaduje dodatečné ověření. Přístup k VeInvite není omezen a můžeš dál normálně zvát.",
   },
 };

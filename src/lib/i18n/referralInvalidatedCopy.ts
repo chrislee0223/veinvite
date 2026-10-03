@@ -71,7 +71,7 @@ export const REFERRAL_INVALIDATED_COPY: Record<
   },
   id: {
     title: 'Referral dihapus',
-    body: 'Wallet yang kamu undang telah dikonfirmasi sebagai Sybil. Referral ini dihapus dari jumlah referral yang diakui, total reward leaderboard, dan Network. B3TR yang sudah dibayar on-chain tidak berubah.',
+    body: 'Wallet yang Anda undang telah dikonfirmasi sebagai Sybil. Referral ini dihapus dari jumlah referral yang diakui, total reward leaderboard, dan Network. B3TR yang sudah dibayar on-chain tidak berubah.',
   },
   vi: {
     title: 'Đã loại bỏ lượt giới thiệu',
