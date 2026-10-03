@@ -63,91 +63,107 @@ export function NotificationUiPreview() {
 
   return (
     <QaWalletLauncherOverrideProvider value={{ wallet: null }}>
-      <main className="screen">
-        <header className="topBar">
-          <Brand />
-          <div className="topActions">
-            <div className="utilityActions">
-              <QaNotificationStateHarness
-                stateId={stateId}
-                locale={locale}
-                embedded
-              />
-              <select
-                className="languageSelect"
-                value={locale}
-                onChange={(event) =>
-                  setLocale(event.target.value as SupportedLocale)}
-                aria-label={t.languageAria}
-              >
-                {LANGUAGE_OPTIONS.map((option) => (
-                  <option key={option.locale} value={option.locale}>
-                    {option.nativeName}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <button type="button" className="accountChip" aria-label={t.walletAria}>
-              <span className="accountDot" />
-              {PREVIEW_WALLET.slice(0, 6)}···{PREVIEW_WALLET.slice(-4)}
-            </button>
-          </div>
-        </header>
-
-        <section className="missionCard">
-          <div className="cardGlow" />
-          <div className="missionCopy">
-            <h1>{referral.homeTitle}</h1>
-          </div>
-
-          <PublicRewardForecastCard
-            locale={locale}
-            rewardForecastPreview
-          />
-
-          <div className="permanentLinkCard">
-            <div className="linkPreview">
-              https://veinvite.vercel.app/i/preview
-            </div>
-            <div className="linkActions">
-              <button type="button" className="primaryAction compactAction">
-                {t.shareInvite}
-              </button>
-              <button type="button" className="secondaryAction compactAction">
-                {t.copyLink}
-              </button>
-            </div>
-          </div>
-
-          <div className="slotsBlock">
-            <div className="slotsHeading">
-              <strong>{referral.slotsLabel}</strong>
-              <span>1/2</span>
-            </div>
-            <div className="friendSlot detailed">
-              <span className="slotNumber">1</span>
-              <div className="slotCopy">
-                <strong>0xbf4b…9e14</strong>
-                <div className="missionDots" aria-label="5/5">
-                  {Array.from({ length: 5 }, (_, index) => (
-                    <span key={index} className="missionDot done" />
-                  ))}
+      <div className="previewWorkspace">
+        <section
+          className="appViewport"
+          aria-label="실제 앱 미리보기 화면"
+          data-testid="notification-app-viewport"
+        >
+          <main className="screen">
+            <header className="topBar">
+              <Brand />
+              <div className="topActions">
+                <div className="utilityActions">
+                  <QaNotificationStateHarness
+                    stateId={stateId}
+                    locale={locale}
+                    embedded
+                  />
+                  <select
+                    className="languageSelect"
+                    value={locale}
+                    onChange={(event) =>
+                      setLocale(event.target.value as SupportedLocale)}
+                    aria-label={t.languageAria}
+                  >
+                    {LANGUAGE_OPTIONS.map((option) => (
+                      <option key={option.locale} value={option.locale}>
+                        {option.nativeName}
+                      </option>
+                    ))}
+                  </select>
                 </div>
-                <small>최종 확인 완료 · 보상 수령 가능</small>
+                <button type="button" className="accountChip" aria-label={t.walletAria}>
+                  <span className="accountDot" />
+                  {PREVIEW_WALLET.slice(0, 6)}···{PREVIEW_WALLET.slice(-4)}
+                </button>
               </div>
-            </div>
-            <div className="friendSlot available">
-              <span className="slotNumber">2</span>
-              <div className="slotCopy">
-                <strong>친구 초대 가능</strong>
-                <small>영구 초대 링크 공유 ↗</small>
+            </header>
+
+            <section className="missionCard">
+              <div className="cardGlow" />
+              <div className="missionCopy">
+                <h1>{referral.homeTitle}</h1>
               </div>
-              <span className="slotState" aria-hidden="true">↗</span>
+
+              <PublicRewardForecastCard
+                locale={locale}
+                rewardForecastPreview
+              />
+
+              <div className="permanentLinkCard">
+                <div className="linkPreview">
+                  https://veinvite.vercel.app/i/preview
+                </div>
+                <div className="linkActions">
+                  <button type="button" className="primaryAction compactAction">
+                    {t.shareInvite}
+                  </button>
+                  <button type="button" className="secondaryAction compactAction">
+                    {t.copyLink}
+                  </button>
+                </div>
+              </div>
+
+              <div className="slotsBlock">
+                <div className="slotsHeading">
+                  <strong>{referral.slotsLabel}</strong>
+                  <span>1/2</span>
+                </div>
+                <div className="friendSlot detailed">
+                  <span className="slotNumber">1</span>
+                  <div className="slotCopy">
+                    <strong>0xbf4b…9e14</strong>
+                    <div className="missionDots" aria-label="5/5">
+                      {Array.from({ length: 5 }, (_, index) => (
+                        <span key={index} className="missionDot done" />
+                      ))}
+                    </div>
+                    <small>최종 확인 완료 · 보상 수령 가능</small>
+                  </div>
+                </div>
+                <div className="friendSlot available">
+                  <span className="slotNumber">2</span>
+                  <div className="slotCopy">
+                    <strong>친구 초대 가능</strong>
+                    <small>영구 초대 링크 공유 ↗</small>
+                  </div>
+                  <span className="slotState" aria-hidden="true">↗</span>
+                </div>
+              </div>
+            </section>
+
+            <div className="previewNavigationGuard">
+              <AppBottomNavigation
+                activeTab="home"
+                locale={locale}
+                onChange={() => {}}
+              />
             </div>
-          </div>
+          </main>
         </section>
 
-        <section className="qaPanel" aria-label="알림 미리보기 설정">
+        <aside className="qaPanel" aria-label="알림 미리보기 설정">
           <div className="qaHeading">
             <div>
               <span>SAFE QA PREVIEW</span>
@@ -159,6 +175,20 @@ export function NotificationUiPreview() {
             위 화면은 Production과 같은 앱 레이아웃과 실제 알림 컴포넌트를
             사용하고, 알림 내용만 테스트 데이터로 바꿉니다.
           </p>
+          <label className="scenarioPicker">
+            <span>알림 선택</span>
+            <select
+              value={stateId}
+              onChange={(event) =>
+                setStateId(event.target.value as QaNotificationStateId)}
+            >
+              {SCENARIOS.map((scenario) => (
+                <option key={scenario.id} value={scenario.id}>
+                  {scenario.label}
+                </option>
+              ))}
+            </select>
+          </label>
           <div className="scenarioGrid">
             {SCENARIOS.map((scenario) => (
               <button
@@ -171,18 +201,12 @@ export function NotificationUiPreview() {
               </button>
             ))}
           </div>
-        </section>
-
-        <div className="previewNavigationGuard">
-          <AppBottomNavigation
-            activeTab="home"
-            locale={locale}
-            onChange={() => {}}
-          />
-        </div>
+        </aside>
 
         <style jsx>{`
-          .screen { min-height:100svh; box-sizing:border-box; padding:22px 16px 132px; color:#fff; background:radial-gradient(circle at 50% 16%,rgba(244,183,40,.14),transparent 32%),#080807; }
+          .previewWorkspace { height:100dvh; min-height:0; box-sizing:border-box; padding:16px; display:grid; grid-template-columns:minmax(360px,560px) minmax(320px,430px); grid-template-areas:"app controls"; justify-content:center; gap:18px; overflow:hidden; background:#050504; }
+          .appViewport { grid-area:app; position:relative; min-width:0; min-height:0; overflow:hidden; border:1px solid rgba(255,255,255,.09); border-radius:30px; background:#080807; box-shadow:0 28px 90px rgba(0,0,0,.45); transform:translateZ(0); isolation:isolate; }
+          .screen { height:100%; min-height:0; overflow-y:auto; overscroll-behavior:contain; box-sizing:border-box; padding:22px 16px 132px; color:#fff; background:radial-gradient(circle at 50% 16%,rgba(244,183,40,.14),transparent 32%),#080807; }
           .topBar { width:min(100%,520px); margin:0 auto 26px; display:flex; align-items:center; justify-content:space-between; gap:16px; }
           .topActions { min-width:0; display:flex; align-items:center; gap:8px; }
           .utilityActions { min-width:0; display:flex; align-items:center; justify-content:flex-end; gap:8px; }
@@ -213,29 +237,43 @@ export function NotificationUiPreview() {
           .slotState { width:28px; height:28px; display:grid; place-items:center; border-radius:10px; color:#ffd66e; background:rgba(244,183,40,.08); }
           .missionDots { display:flex; align-items:center; gap:9px; }
           .missionDot { width:9px; height:9px; border-radius:50%; background:#f4b728; box-shadow:0 0 10px rgba(244,183,40,.32); }
-          .qaPanel { width:min(100%,520px); box-sizing:border-box; margin:18px auto 0; padding:18px; border:1px solid rgba(255,255,255,.09); border-radius:22px; background:#11110f; }
+          .qaPanel { grid-area:controls; min-width:0; min-height:0; box-sizing:border-box; padding:18px; overflow-y:auto; overscroll-behavior:contain; border:1px solid rgba(255,255,255,.09); border-radius:22px; background:#11110f; color:#fff; }
           .qaHeading { display:flex; align-items:flex-start; justify-content:space-between; gap:12px; }
           .qaHeading span { color:#f4b728; font-size:.62rem; font-weight:950; letter-spacing:.1em; }
           .qaHeading h2 { margin:4px 0 0; font-size:1.05rem; letter-spacing:-.03em; }
           .qaHeading b { flex:0 0 auto; padding:6px 8px; border-radius:999px; background:rgba(54,207,130,.1); color:#77e3ad; font-size:.58rem; }
           .qaPanel p { margin:10px 0 0; color:#8e8a82; font-size:.72rem; line-height:1.55; }
+          .scenarioPicker { display:none; }
           .scenarioGrid { margin-top:14px; display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:7px; }
           .scenarioGrid button { min-height:40px; padding:7px; border:1px solid rgba(255,255,255,.08); border-radius:11px; background:#181714; color:#aaa59b; font:inherit; font-size:.65rem; font-weight:850; }
           .scenarioGrid button.selected { border-color:rgba(244,183,40,.45); background:rgba(244,183,40,.12); color:#ffd66e; }
           .previewNavigationGuard :global(.bottomNavigation button) { pointer-events:none !important; }
+          @media (max-width:900px) {
+            .previewWorkspace { padding:0; grid-template-columns:minmax(0,1fr); grid-template-rows:auto minmax(0,1fr); grid-template-areas:"controls" "app"; gap:0; }
+            .appViewport { width:min(100%,560px); justify-self:center; border-block:0; border-radius:0; }
+            .qaPanel { width:100%; padding:10px 12px; display:flex; align-items:center; gap:12px; overflow:visible; border-width:0 0 1px; border-radius:0; }
+            .qaHeading { flex:1 1 auto; min-width:0; align-items:center; }
+            .qaHeading span,.qaPanel p,.scenarioGrid { display:none; }
+            .qaHeading h2 { margin:0; font-size:.82rem; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+            .qaHeading b { font-size:.52rem; }
+            .scenarioPicker { flex:0 1 230px; min-width:150px; display:grid; gap:3px; }
+            .scenarioPicker>span { color:#8e8a82; font-size:.54rem; font-weight:850; }
+            .scenarioPicker select { width:100%; height:38px; padding:0 28px 0 10px; border:1px solid rgba(244,183,40,.32); border-radius:10px; background:#1a1813; color:#ffd66e; font:inherit; font-size:.68rem; font-weight:850; }
+          }
           @media (max-width:560px) {
             .topBar { align-items:flex-start; }
             .topActions { flex-direction:column; align-items:flex-end; }
             .missionCard { padding:21px 18px; border-radius:26px; }
             .missionCopy h1 { font-size:clamp(1.9rem,10vw,2.6rem); }
-            .scenarioGrid { grid-template-columns:repeat(2,minmax(0,1fr)); }
+            .qaHeading b { display:none; }
+            .scenarioPicker { flex-basis:55%; }
           }
           @media (max-width:360px) {
             .languageSelect { max-width:130px; }
             .accountChip { padding:0 10px; font-size:.65rem; }
           }
         `}</style>
-      </main>
+      </div>
     </QaWalletLauncherOverrideProvider>
   );
 }

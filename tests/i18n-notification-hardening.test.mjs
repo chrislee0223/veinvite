@@ -63,6 +63,9 @@ test('fixed notification surfaces avoid compositor-heavy backdrop blur', () => {
 
 test('notification QA lab tracks the same v2 lifecycle as Production', () => {
   assert.match(preview, /QaNotificationStateHarness/);
+  assert.match(preview, /data-testid="notification-app-viewport"/);
+  assert.match(preview, /transform:translateZ\(0\)/);
+  assert.match(preview, /grid-template-areas:"app controls"/);
   assert.match(preview, /NOTI-DAPP-3/);
   assert.match(preview, /NOTI-REWARD-READY/);
   assert.match(preview, /NOTI-INELIGIBLE/);
