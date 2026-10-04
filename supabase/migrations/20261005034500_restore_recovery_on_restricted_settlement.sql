@@ -388,6 +388,63 @@ revoke all on function public.upsert_reward_recovery_obligation_for_restriction(
 grant execute on function public.upsert_reward_recovery_obligation_for_restriction(uuid)
   to service_role;
 
+create or replace function public.sync_reward_recovery_receipt()
+returns trigger
+language plpgsql
+security definer
+set search_path=pg_catalog,public
+as $
+declare
+  v_invalidation_id uuid;
+  v_restriction_id uuid;
+begin
+  select x.id
+  into v_invalidation_id
+  from public.sybil_v2_referral_invalidations x
+  where x.network=lower(new.network)
+    and x.invite_code=new.invite_code
+    and x.status='ACTIVE'
+  order by x.decided_at desc,x.id desc
+  limit 1;
+
+  if v_invalidation_id is not null then
+    perform public.upsert_reward_recovery_obligation_for_invalidation(
+      v_invalidation_id
+    );
+    return new;
+  end if;
+
+  select r.id
+  into v_restriction_id
+  from public.sybil_v2_wallet_restrictions r
+  join public.invitations i
+    on i.invite_code=new.invite_code
+   and i.invitee_wallet is not null
+   and lower(i.invitee_wallet)=r.wallet_address
+  join public.sybil_v2_referral_assessments a
+    on a.invite_code=i.invite_code
+   and a.network=r.network
+   and a.state='RESTRICTED'
+  where r.network=lower(new.network)
+    and r.related_invite_code=new.invite_code
+    and r.status='ACTIVE'
+    and r.resolved_at is null
+  order by r.imposed_at desc,r.id desc
+  limit 1;
+
+  if v_restriction_id is not null then
+    perform public.upsert_reward_recovery_obligation_for_restriction(
+      v_restriction_id
+    );
+  end if;
+
+  return new;
+end;
+$;
+
+revoke all on function public.sync_reward_recovery_receipt()
+  from public,anon,authenticated,service_role;
+
 create or replace function public.sync_reward_recovery_invalidation()
 returns trigger
 language plpgsql
