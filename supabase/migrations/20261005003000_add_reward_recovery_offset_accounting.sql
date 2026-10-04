@@ -1201,6 +1201,9 @@ alter table public.leaderboard_round_snapshot_rows
   drop constraint if exists leaderboard_round_snapshot_rows_total_reward_wei_check;
 
 alter table public.leaderboard_round_snapshot_rows
+  drop constraint if exists leaderboard_snapshot_rows_reward_check;
+
+alter table public.leaderboard_round_snapshot_rows
   add constraint leaderboard_round_snapshot_rows_total_reward_wei_check
   check (total_reward_wei >= 0::numeric);
 
