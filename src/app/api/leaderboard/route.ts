@@ -23,7 +23,7 @@ const WALLET_PATTERN = /^0x[0-9a-fA-F]{40}$/;
 const LEADERBOARD_SIZE = 100;
 const MAX_GROWTH_ROUNDS = 260;
 const TRANSIENT_AUTH_RETRY_MS = 750;
-const RANKING_ALGORITHM_VERSION = 'paid_referrals_v2';
+const RANKING_ALGORITHM_VERSION = 'recognized_referrals_v3';
 const RANK_MOVEMENTS = new Set<RankMovement>([
   'UP',
   'DOWN',
