@@ -1,0 +1,1 @@
+QA deployment trigger for full-brand X card.
