@@ -42,6 +42,7 @@ const REVIEW_STATES: Array<{
   { id: 'NOTI-COLLAPSED-PROGRESS', label: '여러 단계 동시 확인' },
   { id: 'NOTI-REWARD-READY', label: '보상 준비 알림' },
   { id: 'NOTI-REWARD-PAID', label: '보상 지급 알림' },
+  { id: 'NOTI-REWARD-ADJUSTED', label: '보상 정책 조정 알림' },
   { id: 'NOTI-INELIGIBLE', label: '참여 불가 알림' },
   { id: 'NOTI-SECURITY-REVIEW', label: '보상 전 추가 확인' },
   { id: 'NOTI-POST-PAYOUT-REVIEW', label: '보상 후 추가 확인' },
