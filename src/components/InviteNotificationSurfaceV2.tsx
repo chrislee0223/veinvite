@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, type ReactNode } from 'react';
 
 import { INELIGIBLE_INVITER_COPY } from '@/lib/i18n/ineligibleInviterCopy';
 import { INVITER_HOLD_NOTIFICATION_COPY } from '@/lib/i18n/inviterHoldNotificationCopy';
@@ -18,10 +18,183 @@ import {
   type SupportedLocale,
 } from '@/lib/i18n/locales';
 import type {
+  InviteNotificationKindV2,
   InviteNotificationPayloadV2,
 } from '@/lib/notifications/inviteNotificationStateV2';
 
 const B3TR_SCALE = 10n ** 18n;
+
+type StageIconTone = 'positive' | 'neutral' | 'review' | 'restricted';
+
+function stageIconTone(kind: InviteNotificationKindV2): StageIconTone {
+  switch (kind) {
+    case 'REWARD_READY':
+    case 'REWARD_PAID':
+    case 'SECURITY_REVIEW_CLEARED':
+    case 'SECURITY_POST_PAYOUT_REVIEW_CLEARED':
+    case 'SECURITY_INVITER_ACCESS_RESTORED':
+    case 'SECURITY_REFERRAL_RESTORED':
+      return 'positive';
+    case 'SECURITY_REVIEW_STARTED':
+    case 'SECURITY_POST_PAYOUT_REVIEW_STARTED':
+    case 'SECURITY_INVITER_WATCH':
+    case 'SECURITY_INVITER_HOLD':
+      return 'review';
+    case 'SECURITY_RESTRICTION_CONFIRMED':
+    case 'SECURITY_INVITER_RESTRICTED':
+    case 'SECURITY_REFERRAL_INVALIDATED':
+      return 'restricted';
+    default:
+      return 'neutral';
+  }
+}
+
+function NotificationStageIcon({
+  notification,
+  count,
+}: {
+  notification: InviteNotificationPayloadV2;
+  count: number;
+}) {
+  if (count > 1) {
+    return (
+      <span className="stageIconGraphic stageIconStack" data-notification-icon="multiple">
+        <IconFrame>
+          <rect x="5" y="7" width="12" height="12" rx="2" />
+          <path d="M9 4h9a2 2 0 0 1 2 2v9" />
+        </IconFrame>
+        <span className="stageIconCount">{count > 9 ? '9+' : count}</span>
+      </span>
+    );
+  }
+
+  switch (notification.kind) {
+    case 'INVITE_ACCEPTED':
+      return (
+        <span className="stageIconGraphic" data-notification-icon="invite-accepted">
+          <UserStatusIcon status="check" />
+        </span>
+      );
+    case 'DAPP_PROGRESS':
+      return (
+        <span className="stageIconProgress" data-notification-icon="dapp-progress">
+          {Math.max(0, Math.min(3, notification.dappProgress ?? 0))}<small>/3</small>
+        </span>
+      );
+    case 'VOT3_CONVERTED':
+      return (
+        <span className="stageIconGraphic" data-notification-icon="vot3-converted">
+          <IconFrame>
+            <path d="M4 8h14l-3-3M20 16H6l3 3" />
+          </IconFrame>
+        </span>
+      );
+    case 'REWARD_READY':
+      return (
+        <span className="stageIconGraphic" data-notification-icon="reward-ready">
+          <IconFrame>
+            <path d="M4 10h16v10H4zM3 7h18v3H3zM12 7v13M12 7H8.5a2.5 2.5 0 1 1 2.5-2.5ZM12 7h3.5A2.5 2.5 0 1 0 13 4.5Z" />
+          </IconFrame>
+        </span>
+      );
+    case 'REWARD_PAID':
+      return (
+        <span className="stageIconGraphic" data-notification-icon="reward-paid">
+          <IconFrame>
+            <circle cx="12" cy="12" r="8.5" />
+            <path d="m8.5 12 2.3 2.3 4.9-5" />
+          </IconFrame>
+        </span>
+      );
+    case 'INVITE_INELIGIBLE':
+      return (
+        <span className="stageIconGraphic" data-notification-icon="invite-another-person">
+          <UserStatusIcon status="plus" />
+        </span>
+      );
+    case 'SECURITY_REVIEW_STARTED':
+    case 'SECURITY_POST_PAYOUT_REVIEW_STARTED':
+    case 'SECURITY_INVITER_HOLD':
+      return (
+        <span className="stageIconGraphic" data-notification-icon="security-review">
+          <ShieldStatusIcon status="clock" />
+        </span>
+      );
+    case 'SECURITY_REVIEW_CLEARED':
+    case 'SECURITY_POST_PAYOUT_REVIEW_CLEARED':
+      return (
+        <span className="stageIconGraphic" data-notification-icon="security-cleared">
+          <ShieldStatusIcon status="check" />
+        </span>
+      );
+    case 'SECURITY_RESTRICTION_CONFIRMED':
+    case 'SECURITY_INVITER_RESTRICTED':
+    case 'SECURITY_REFERRAL_INVALIDATED':
+      return (
+        <span className="stageIconGraphic" data-notification-icon="security-restricted">
+          <ShieldStatusIcon status="x" />
+        </span>
+      );
+    case 'SECURITY_INVITER_WATCH':
+      return (
+        <span className="stageIconGraphic" data-notification-icon="security-watch">
+          <IconFrame>
+            <path d="M2.5 12s3.5-5.5 9.5-5.5 9.5 5.5 9.5 5.5-3.5 5.5-9.5 5.5S2.5 12 2.5 12Z" />
+            <circle cx="12" cy="12" r="2.5" />
+          </IconFrame>
+        </span>
+      );
+    case 'SECURITY_INVITER_ACCESS_RESTORED':
+    case 'SECURITY_REFERRAL_RESTORED':
+      return (
+        <span className="stageIconGraphic" data-notification-icon="security-restored">
+          <IconFrame>
+            <path d="M5.2 8.2A8 8 0 1 1 4 14M5.2 8.2V3.8M5.2 8.2h4.4M8.5 12l2.2 2.2 4.8-5" />
+          </IconFrame>
+        </span>
+      );
+  }
+}
+
+function IconFrame({ children }: { children: ReactNode }) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <g
+        stroke="currentColor"
+        strokeWidth="1.8"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      >
+        {children}
+      </g>
+    </svg>
+  );
+}
+
+function UserStatusIcon({ status }: { status: 'check' | 'plus' }) {
+  return (
+    <IconFrame>
+      <circle cx="9" cy="8" r="3" />
+      <path d="M3.5 19c.6-3.2 2.4-5 5.5-5 1.4 0 2.5.3 3.4.9" />
+      {status === 'check' ? (
+        <path d="m14.5 17 2 2 4-4.5" />
+      ) : (
+        <path d="M17.5 13.5v7M14 17h7" />
+      )}
+    </IconFrame>
+  );
+}
+
+function ShieldStatusIcon({ status }: { status: 'check' | 'clock' | 'x' }) {
+  return (
+    <IconFrame>
+      <path d="M12 3 19 6v5c0 4.6-2.7 7.8-7 10-4.3-2.2-7-5.4-7-10V6Z" />
+      {status === 'check' ? <path d="m8.7 12 2.1 2.1 4.5-4.5" /> : null}
+      {status === 'clock' ? <path d="M12 8.5V12l2.3 1.5" /> : null}
+      {status === 'x' ? <path d="m9.5 9.5 5 5m0-5-5 5" /> : null}
+    </IconFrame>
+  );
+}
 
 function formatB3trWei(value: string): string {
   try {
@@ -331,8 +504,14 @@ export function InviteNotificationSurfaceV2({
               ×
             </button>
 
-            <div className="stageIcon" aria-hidden="true">
-              {multiple ? '••' : important ? '✓' : '•'}
+            <div
+              className={`stageIcon ${multiple ? 'neutral' : stageIconTone(primary.kind)}`}
+              aria-hidden="true"
+            >
+              <NotificationStageIcon
+                notification={primary}
+                count={notifications.length}
+              />
             </div>
 
             <div className="notificationCopy">
@@ -397,6 +576,15 @@ export function InviteNotificationSurfaceV2({
         .rewardCard { width:min(100%,430px); border-color:rgba(255,205,80,.4); background:radial-gradient(circle at 50% 16%,rgba(244,183,40,.18),transparent 36%),linear-gradient(155deg,#211a0c,#10100e 70%); }
         .closeButton { position:absolute; top:13px; inset-inline-end:15px; width:34px; height:34px; display:grid; place-items:center; padding:0; border:0; background:transparent; color:#77736f; font:inherit; font-size:1.65rem; cursor:pointer; }
         .stageIcon { width:62px; height:62px; display:grid; place-items:center; border-radius:20px; background:rgba(244,183,40,.15); color:#ffd04a; font-size:1.3rem; font-weight:950; }
+        .stageIcon.positive { background:rgba(67,211,140,.14); color:#68e0a5; }
+        .stageIcon.review { background:rgba(244,183,40,.15); color:#ffd04a; }
+        .stageIcon.restricted { background:rgba(255,105,125,.14); color:#ff7c8d; }
+        .stageIcon :global(.stageIconGraphic) { position:relative; width:32px; height:32px; display:grid; place-items:center; }
+        .stageIcon :global(.stageIconGraphic svg) { width:32px; height:32px; }
+        .stageIcon :global(.stageIconStack svg) { width:29px; height:29px; }
+        .stageIcon :global(.stageIconCount) { position:absolute; inset-inline-end:-8px; bottom:-6px; min-width:20px; height:20px; box-sizing:border-box; padding:0 4px; display:grid; place-items:center; border:2px solid #2c2517; border-radius:999px; background:#ffd04a; color:#17120a; font-size:.58rem; font-weight:950; line-height:1; }
+        .stageIcon :global(.stageIconProgress) { display:flex; align-items:baseline; color:currentColor; font-size:1.28rem; font-variant-numeric:tabular-nums; letter-spacing:-.04em; }
+        .stageIcon :global(.stageIconProgress small) { font-size:.7rem; letter-spacing:-.02em; }
         .notificationCopy { min-width:0; width:100%; }
         .notificationCopy h2 { margin:0; font-size:1.25rem; line-height:1.25; letter-spacing:-.025em; overflow-wrap:anywhere; }
         .notificationCopy p { margin:9px auto 0; max-width:400px; color:#b5b0ba; font-size:.88rem; font-weight:650; line-height:1.55; overflow-wrap:anywhere; }

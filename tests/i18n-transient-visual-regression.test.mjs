@@ -19,10 +19,10 @@ test('VeInvite keeps the reviewed locale matrix in one registry', () => {
   }
 });
 
-test('notification preview uses the selected locale even for temporary error UI', () => {
-  assert.match(harness, /NOTIFICATION_COPY\[locale\]\.acknowledgementError/);
-  assert.match(harness, /NOTIFICATION_HISTORY_COPY\[locale\]\.errorBody/);
-  assert.doesNotMatch(harness, /테스트용 오류 메시지/);
+test('notification preview passes the selected locale to both real notification surfaces', () => {
+  assert.match(harness, /<InviteNotificationSurfaceV2[\s\S]*locale=\{locale\}/);
+  assert.match(harness, /<InviteNotificationHistoryCenter[\s\S]*locale=\{locale\}/);
+  assert.doesNotMatch(harness, /acknowledgementError/);
 });
 
 test('transient surfaces stay fluid on narrow mobile screens', () => {
