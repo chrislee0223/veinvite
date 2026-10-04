@@ -6,17 +6,21 @@ const migrationPath =
   'supabase/migrations/20261005003000_add_reward_recovery_offset_accounting.sql';
 
 async function sources() {
-  const [sql, hardeningSql, history, copy, leaderboard] = await Promise.all([
+  const [sql, hardeningSql, metricsSql, history, copy, leaderboard] = await Promise.all([
     readFile(migrationPath, 'utf8'),
     readFile(
       'supabase/migrations/20261005003050_harden_reward_recovery_reversals.sql',
+      'utf8',
+    ),
+    readFile(
+      'supabase/migrations/20261005023000_align_recovery_settled_referral_metrics.sql',
       'utf8',
     ),
     readFile('src/components/InAppInviteNotifications.tsx', 'utf8'),
     readFile('src/lib/i18n/rewardAdjustedCopy.ts', 'utf8'),
     readFile('src/app/api/leaderboard/route.ts', 'utf8'),
   ]);
-  return { sql, hardeningSql, history, copy, leaderboard };
+  return { sql, hardeningSql, metricsSql, history, copy, leaderboard };
 }
 
 function settle(gross, recovery) {
@@ -210,4 +214,25 @@ test('recovery balance counts append-only allocations even if the referral verdi
   assert.match(reader, /from public\.reward_recovery_allocations a/u);
   assert.doesNotMatch(reader, /reward_recovery_settlements/u);
   assert.match(reader, /o\.status='ACTIVE'/u);
+});
+
+
+test('full-offset legitimate referrals remain visible in activation and round participation metrics', async () => {
+  const { metricsSql } = await sources();
+  assert.match(
+    metricsSql,
+    /get_operator_public_new_user_growth[\s\S]*?settlement_kind = 'FULL_OFFSET'[\s\S]*?net_amount_wei = 0/u,
+  );
+  assert.match(
+    metricsSql,
+    /get_veinvite_vebetter_round_report[\s\S]*?v_completed_onboardings[\s\S]*?reward_recovery_settlements/u,
+  );
+  assert.match(
+    metricsSql,
+    /v_cumulative_completed[\s\S]*?reward_recovery_settlements/u,
+  );
+  assert.match(
+    metricsSql,
+    /is_sybil_v2_referral_invalidated/u,
+  );
 });
