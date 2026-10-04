@@ -92,7 +92,7 @@ test('paid reward receipt shares a verified permanent invite link on X without a
   assert.match(center, /rewardShareUrl/);
   assert.match(center, /<RewardReceiptView/);
   assert.match(rewardReceiptView, /rewardReceiptXIntentUrl/);
-  assert.match(rewardReceiptView, /className="xShare"/);
+  assert.match(rewardReceiptView, /className="notificationXShare"/);
   assert.match(rewardReceiptView, /window\.open\(\s*rewardShareIntentUrl/);
   assert.match(home, /referralLinkVerified \? permanentInviteUrl : ''/);
   assert.match(rewardShare, /https:\/\/x\.com\/intent\/post/);
