@@ -42,6 +42,12 @@ import {
   unique,
 } from '@/lib/sybil/v2/pipelinePrimitives';
 import {
+  applyBehaviorPatternRestriction,
+  applyFunderReturnLoopRestriction,
+  applyRestrictedSiblingReentryRestriction,
+  applySecurityClientInviterRestriction,
+} from '@/lib/sybil/v2/restrictionRpc';
+import {
   SYBIL_V2_ANALYZER_VERSION,
 } from '@/lib/sybil/v2/version';
 import {
@@ -2538,129 +2544,6 @@ async function findFunderReturnLoopHub(
   return eligible[0]?.related_wallet
     ? normalizeWallet(eligible[0].related_wallet)
     : null;
-}
-
-async function applySecurityClientInviterRestriction({
-  invitation,
-  expectedRevision,
-}: {
-  invitation: InvitationV2Row;
-  expectedRevision: number;
-}): Promise<BehaviorPatternRestrictionRpcResult> {
-  if (!invitation.activation_network) {
-    return { changed: false, reason: 'NETWORK_MISSING' };
-  }
-  const { data, error } = await supabaseAdmin.rpc(
-    'apply_sybil_v2_security_client_inviter_restriction',
-    {
-      p_invite_code: invitation.invite_code,
-      p_expected_revision: expectedRevision,
-      p_network: invitation.activation_network,
-    },
-  );
-  if (error) {
-    throw new Error(`Security-client restriction could not be applied: ${error.message}`);
-  }
-  return (data ?? {}) as BehaviorPatternRestrictionRpcResult;
-}
-
-async function applyRestrictedSiblingReentryRestriction({
-  invitation,
-  expectedRevision,
-}: {
-  invitation: InvitationV2Row;
-  expectedRevision: number;
-}): Promise<BehaviorPatternRestrictionRpcResult> {
-  if (!invitation.activation_network) {
-    return { changed: false, reason: 'NETWORK_MISSING' };
-  }
-
-  const { data, error } = await supabaseAdmin.rpc(
-    'apply_sybil_v2_restricted_sibling_reentry_restriction',
-    {
-      p_invite_code: invitation.invite_code,
-      p_expected_revision: expectedRevision,
-      p_network: invitation.activation_network,
-    },
-  );
-
-  if (error) {
-    throw new Error(
-      `Restricted-sibling reentry restriction could not be applied: ${error.message}`,
-    );
-  }
-
-  return (data ?? {}) as BehaviorPatternRestrictionRpcResult;
-}
-
-async function applyFunderReturnLoopRestriction({
-  invitation,
-  expectedRevision,
-  hubWallet,
-}: {
-  invitation: InvitationV2Row;
-  expectedRevision: number;
-  hubWallet: string;
-}): Promise<BehaviorPatternRestrictionRpcResult> {
-  if (!invitation.activation_network) {
-    return {
-      changed: false,
-      reason: 'NETWORK_MISSING',
-    };
-  }
-
-  const { data, error } = await supabaseAdmin.rpc(
-    'apply_sybil_v2_funder_return_loop_restriction',
-    {
-      p_invite_code: invitation.invite_code,
-      p_expected_revision: expectedRevision,
-      p_hub_wallet: normalizeWallet(hubWallet),
-      p_network: invitation.activation_network,
-    },
-  );
-
-  if (error) {
-    throw new Error(
-      `Funder-return loop restriction could not be applied: ${error.message}`,
-    );
-  }
-
-  return (data ?? {}) as BehaviorPatternRestrictionRpcResult;
-}
-
-async function applyBehaviorPatternRestriction({
-  invitation,
-  expectedRevision,
-  hubWallet,
-}: {
-  invitation: InvitationV2Row;
-  expectedRevision: number;
-  hubWallet: string;
-}): Promise<BehaviorPatternRestrictionRpcResult> {
-  if (!invitation.activation_network) {
-    return {
-      changed: false,
-      reason: 'NETWORK_MISSING',
-    };
-  }
-
-  const { data, error } = await supabaseAdmin.rpc(
-    'apply_sybil_v2_behavior_pattern_restriction',
-    {
-      p_invite_code: invitation.invite_code,
-      p_expected_revision: expectedRevision,
-      p_hub_wallet: normalizeWallet(hubWallet),
-      p_network: invitation.activation_network,
-    },
-  );
-
-  if (error) {
-    throw new Error(
-      `Behavior-pattern restriction could not be applied: ${error.message}`,
-    );
-  }
-
-  return (data ?? {}) as BehaviorPatternRestrictionRpcResult;
 }
 
 type VePassportEligibilityContext = {
