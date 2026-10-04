@@ -4,6 +4,7 @@ import test from 'node:test';
 
 const clientSource = readFileSync('src/lib/networkDataClient.ts', 'utf8');
 const networkSource = readFileSync('src/components/AppNetwork.tsx', 'utf8');
+const networkRootCacheSource = readFileSync('src/lib/networkRootClientCache.ts', 'utf8');
 const summaryRoute = readFileSync('src/app/api/network/summary/route.ts', 'utf8');
 const migrationSource = readFileSync(
   'supabase/migrations/20261004111500_harden_network_slot_status_consistency.sql',
