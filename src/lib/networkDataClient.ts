@@ -4,7 +4,6 @@ import type {
 } from '@/lib/networkPublishedLayout';
 
 export type NetworkMemberStatus =
-  | 'HISTORICAL'
   | 'IN_PROGRESS'
   | 'QUALIFIED'
   | 'REWARDED';
