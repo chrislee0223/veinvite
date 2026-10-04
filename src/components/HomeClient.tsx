@@ -867,7 +867,12 @@ export function HomeClient() {
         <Brand />
         <div className="topActions">
           <div className="utilityActions">
-            <InAppInviteNotifications locale={locale} />
+            <InAppInviteNotifications
+              locale={locale}
+              rewardShareUrl={
+                referralLinkVerified ? permanentInviteUrl : ''
+              }
+            />
             <select
               className="languageSelect"
               value={locale}
