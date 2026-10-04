@@ -31,9 +31,9 @@ test('legacy layout-shifting home toast is removed', () => {
 test('success feedback auto-dismisses but errors remain until an explicit action', () => {
   assert.match(snackbar, /const AUTO_DISMISS_MS = 4_000/);
   assert.match(snackbar, /feedback\.kind === 'error'/);
-  assert.match(snackbar, /window\.setTimeout\(onDismiss, AUTO_DISMISS_MS\)/);
+  assert.match(snackbar, /window\.setTimeout\(requestDismiss, AUTO_DISMISS_MS\)/);
   assert.match(snackbar, /visibilitychange/);
-  assert.match(snackbar, /onClick=\{onDismiss\}/);
+  assert.match(snackbar, /onClick=\{requestDismiss\}/);
   assert.match(snackbar, /role=\{feedback\.kind === 'error' \? 'alert' : 'status'\}/);
 });
 
