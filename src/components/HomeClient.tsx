@@ -319,7 +319,6 @@ export function HomeClient() {
           requestedWallet,
         );
       } catch {
-        // Navigation still works while the Network surface is already mounted.
       }
 
       clearFeedback();
@@ -599,10 +598,9 @@ export function HomeClient() {
     return url.toString();
   }, [referralLink, vercelShareToken]);
 
-  const rewardShareUrl = useMemo(() => {
-    if (!referralLink) return '';
-    return `https://veinvite.vercel.app/s/${encodeURIComponent(referralLink.key)}`;
-  }, [referralLink]);
+  const rewardShareUrl = referralLink
+    ? `https://veinvite.vercel.app/s/${encodeURIComponent(referralLink.key)}`
+    : '';
 
   const legacyInviteUrl = useCallback((invite: InviteRecord) => {
     if (typeof window === 'undefined') return '';
@@ -872,9 +870,7 @@ export function HomeClient() {
           <div className="utilityActions">
             <InAppInviteNotifications
               locale={locale}
-              rewardShareUrl={
-                referralLinkVerified ? rewardShareUrl : ''
-              }
+              rewardShareUrl={referralLinkVerified ? rewardShareUrl : ''}
             />
             <select
               className="languageSelect"
