@@ -62,6 +62,93 @@ export async function loadRestrictedSiblingReferralKeys({
   );
 }
 
+export type SharedClientSiblingInvitation = {
+  invite_code: string;
+  inviter_wallet: string;
+  invitee_wallet: string | null;
+  activated_at: string | null;
+  status: string;
+  sybil_status: string;
+  eligibility_check_id: number | string | null;
+  ineligibility_check_id: number | string | null;
+};
+
+export async function loadSharedClientSiblingInvitations({
+  inviterWallet,
+  relatedWallets,
+  excludedWallets,
+  network,
+}: {
+  inviterWallet: string;
+  relatedWallets: string[];
+  excludedWallets: Set<string>;
+  network: VeBetterNetwork | null;
+}): Promise<{
+  siblingInvitations: SharedClientSiblingInvitation[];
+  restrictedSiblingReferrals: Set<string>;
+}> {
+  const siblingInvitationsResult = await supabaseAdmin
+    .from('invitations')
+    .select(
+      'invite_code,inviter_wallet,invitee_wallet,activated_at,status,sybil_status,eligibility_check_id,ineligibility_check_id',
+    )
+    .eq('inviter_wallet', inviterWallet)
+    .in('invitee_wallet', relatedWallets);
+
+  if (siblingInvitationsResult.error) {
+    throw new Error(
+      \`Sibling security-client invitations could not be loaded: \${siblingInvitationsResult.error.message}\`,
+    );
+  }
+
+  const restrictedSiblingReferrals =
+    await loadRestrictedSiblingReferralKeys({
+      network,
+      relatedWallets,
+    });
+
+  const siblingInvitations =
+    ((siblingInvitationsResult.data ?? []) as SharedClientSiblingInvitation[])
+      .filter((row) => {
+        if (
+          typeof row.invitee_wallet !== 'string' ||
+          row.eligibility_check_id === null ||
+          row.ineligibility_check_id !== null
+        ) {
+          return false;
+        }
+
+        const siblingWallet = normalizeWallet(row.invitee_wallet);
+        const peerConfirmedRestricted =
+          restrictedSiblingReferrals.has(
+            restrictedSiblingReferralKey({
+              walletAddress: siblingWallet,
+              inviteCode: String(row.invite_code),
+            }),
+          );
+        const normallyEligible =
+          ['ACTIVATING', 'UNDER_REVIEW', 'COMPLETED'].includes(
+            String(row.status),
+          ) &&
+          row.sybil_status !== 'BLOCKED';
+        const confirmedRestrictedReferral =
+          peerConfirmedRestricted &&
+          ['ACTIVATING', 'UNDER_REVIEW', 'COMPLETED', 'CANCELLED'].includes(
+            String(row.status),
+          );
+
+        return (
+          (normallyEligible || confirmedRestrictedReferral) &&
+          !excludedWallets.has(siblingWallet)
+        );
+      });
+
+  return {
+    siblingInvitations,
+    restrictedSiblingReferrals,
+  };
+}
+
 export function isRestrictedSiblingReentry({
   peerConfirmedRestricted,
   switchGapSeconds,
