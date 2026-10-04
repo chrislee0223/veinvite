@@ -1,0 +1,98 @@
+/*
+ * Country leaderboard spare-space utilization.
+ *
+ * The shared ranking card deliberately reserves inviter-only footer space so
+ * switching tabs never changes the outer card height. The country view has no
+ * current-wallet footer, so reuse only that already-reserved height for more
+ * country rows instead of leaving an empty block.
+ *
+ * Base geometry stays untouched: five rows remain visible when the shared card
+ * has no inviter footer reserve. When reserve space exists, distribute it
+ * across the actual country-row count up to seven rows. Eight and later rows
+ * keep using the existing vertical scroller.
+ */
+
+.leaderboardHub {
+  --country-base-viewport-height: 250px;
+  --country-spare-height: 0px;
+}
+
+.leaderboardHub .countryPanel {
+  --country-visible-row-count: 5;
+}
+
+.leaderboardHub .countryPanel[data-visible-rows='6'] {
+  --country-visible-row-count: 6;
+}
+
+.leaderboardHub .countryPanel[data-visible-rows='7'] {
+  --country-visible-row-count: 7;
+}
+
+/* A hidden inviter context note (connect/unranked) already enlarges the shared
+ * card. Country ranking can safely consume that exact reserved height. */
+.leaderboardHub:has(.impactOnly .rankContextNote) {
+  --country-spare-height: var(--stable-ranking-context-reserve);
+}
+
+/* A trailing current-wallet row reserves the larger inviter card height. */
+.leaderboardHub:has(.impactOnly .trailingCurrent) {
+  --country-spare-height: calc(
+    var(--stable-ranking-trailing-height) - var(--stable-ranking-base-height)
+  );
+}
+
+/* When both footer pieces are present, consume both reserves and no more. */
+.leaderboardHub:has(.impactOnly .trailingCurrent):has(.impactOnly .rankContextNote) {
+  --country-spare-height: calc(
+    var(--stable-ranking-trailing-height) - var(--stable-ranking-base-height)
+      + var(--stable-ranking-context-reserve)
+  );
+}
+
+html body .leaderboardHub:has(.impactOnly .rankContextNote) .countryScroll,
+html body .leaderboardHub:has(.impactOnly .rankContextNote) .countrySkeleton,
+html body .leaderboardHub:has(.impactOnly .rankContextNote) .countryState,
+html body .leaderboardHub:has(.impactOnly .trailingCurrent) .countryScroll,
+html body .leaderboardHub:has(.impactOnly .trailingCurrent) .countrySkeleton,
+html body .leaderboardHub:has(.impactOnly .trailingCurrent) .countryState {
+  height: calc(
+    var(--country-base-viewport-height) + var(--country-spare-height)
+  ) !important;
+  min-height: calc(
+    var(--country-base-viewport-height) + var(--country-spare-height)
+  ) !important;
+  max-height: calc(
+    var(--country-base-viewport-height) + var(--country-spare-height)
+  ) !important;
+}
+
+html body .leaderboardHub:has(.impactOnly .rankContextNote) .countryRow,
+html body .leaderboardHub:has(.impactOnly .rankContextNote) .countryPlaceholderRow,
+html body .leaderboardHub:has(.impactOnly .trailingCurrent) .countryRow,
+html body .leaderboardHub:has(.impactOnly .trailingCurrent) .countryPlaceholderRow {
+  height: calc(
+    (var(--country-base-viewport-height) + var(--country-spare-height))
+      / var(--country-visible-row-count)
+  ) !important;
+  min-height: calc(
+    (var(--country-base-viewport-height) + var(--country-spare-height))
+      / var(--country-visible-row-count)
+  ) !important;
+  max-height: calc(
+    (var(--country-base-viewport-height) + var(--country-spare-height))
+      / var(--country-visible-row-count)
+  ) !important;
+}
+
+@media (max-width: 420px) {
+  .leaderboardHub {
+    --country-base-viewport-height: 230px;
+  }
+}
+
+@media (max-width: 360px) {
+  .leaderboardHub {
+    --country-base-viewport-height: 220px;
+  }
+}
