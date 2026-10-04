@@ -373,10 +373,12 @@ function WalletDetailIdentity({
 export function PublicLeaderboard({
   locale,
   wallet,
+  pendingCurrentWallet = null,
   previewData,
 }: {
   locale: Locale;
   wallet: string | null;
+  pendingCurrentWallet?: string | null;
   previewData?: PublicLeaderboardResponse;
 }) {
   const cacheKey = getPublicLeaderboardCacheKey(wallet);
@@ -626,6 +628,18 @@ export function PublicLeaderboard({
     : false;
   const trailingCurrentUser =
     currentUser && !currentUserInList ? currentUser : null;
+  const pendingCurrentUserInList = pendingCurrentWallet
+    ? displayedLeaders.some(
+        (entry) =>
+          entry.walletAddress.toLowerCase() ===
+          pendingCurrentWallet.toLowerCase(),
+      )
+    : false;
+  const showPendingCurrentUser = Boolean(
+    pendingCurrentWallet &&
+    !pendingCurrentUserInList &&
+    !trailingCurrentUser,
+  );
   const totalUsers = data?.impact.totalActivatedUsers ?? 0;
 
   const movementAria = (entry: PublicLeaderboardEntry): string | null => {
@@ -765,6 +779,28 @@ export function PublicLeaderboard({
     </div>
   );
 
+  const renderPendingCurrentRow = () =>
+    pendingCurrentWallet ? (
+      <div
+        className="rankRow compact current trailingCurrent pendingCurrent"
+        data-current-wallet-pending="true"
+        aria-hidden="true"
+      >
+        <span className="rankStack">
+          <strong className="rankValue">—</strong>
+        </span>
+        <span className="walletCell">
+          <WalletIdentity address={pendingCurrentWallet} eager />
+        </span>
+        <span className="rankMetric completedMetric">
+          <b>—</b>
+        </span>
+        <span className="rankMetric rewardMetric">
+          <b>—</b>
+        </span>
+      </div>
+    ) : null;
+
   const renderSlot = (rank: number) => {
     const entry = leadersByRank.get(rank);
     return entry ? renderRankRow(entry) : renderPlaceholderRow(rank);
@@ -819,18 +855,20 @@ export function PublicLeaderboard({
           </div>
         </div>
 
-        {trailingCurrentUser ? (
+        {trailingCurrentUser || showPendingCurrentUser ? (
           <>
             <div className="rankDivider" aria-hidden="true">
               <span>⋮</span>
             </div>
-            {renderRankRow(trailingCurrentUser, true)}
+            {trailingCurrentUser
+              ? renderRankRow(trailingCurrentUser, true)
+              : renderPendingCurrentRow()}
           </>
         ) : null}
 
-        {!wallet ? (
+        {!wallet && !pendingCurrentWallet ? (
           <p className="rankContextNote">{t.connectForRank}</p>
-        ) : !rankedCurrentUser && !loading ? (
+        ) : !rankedCurrentUser && !loading && !showPendingCurrentUser ? (
           <p className="rankContextNote">{t.unranked}</p>
         ) : null}
       </section>
