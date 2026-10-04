@@ -20,6 +20,7 @@ import { PROGRESS_CLAIM_COPY } from '@/lib/i18n/progressClaimCopy';
 import { REWARD_RECEIPT_COPY } from '@/lib/i18n/rewardReceiptCopy';
 import { REFERRAL_INVALIDATED_COPY } from '@/lib/i18n/referralInvalidatedCopy';
 import { REFERRAL_RESTORED_COPY } from '@/lib/i18n/referralRestoredCopy';
+import { rewardAdjustedCopy } from '@/lib/i18n/rewardAdjustedCopy';
 import { POST_PAYOUT_SECURITY_NOTIFICATION_COPY } from '@/lib/i18n/postPayoutSecurityNotificationCopy';
 import { SECURITY_NOTIFICATION_COPY } from '@/lib/i18n/securityNotificationCopy';
 import { SECURITY_REVIEW_CLEARED_COPY } from '@/lib/i18n/securityReviewClearedCopy';
@@ -202,6 +203,7 @@ function itemCopy(
   const invalidated = REFERRAL_INVALIDATED_COPY[locale];
   const restored = REFERRAL_RESTORED_COPY[locale];
   const postPayout = POST_PAYOUT_SECURITY_NOTIFICATION_COPY[locale];
+  const adjusted = rewardAdjustedCopy(locale);
   const effectiveKind = item.presentationKind ?? item.kind;
 
   switch (effectiveKind) {
@@ -236,6 +238,12 @@ function itemCopy(
         title: copy.rewardTitle,
         body: copy.rewardBody,
         hint: amount ? `${amount} B3TR` : null,
+      };
+    case 'REWARD_ADJUSTED':
+      return {
+        title: adjusted.title,
+        body: adjusted.body,
+        hint: null,
       };
     case 'INVITE_INELIGIBLE':
       return { title: ineligible.title, body: ineligible.body, hint: null };
