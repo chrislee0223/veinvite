@@ -17,11 +17,86 @@ function requireFile(path) {
   }
 }
 
-for (const code of [
-  'us', 'kr', 'cn', 'in', 'es', 'jp',
-  'it', 'tr', 'nl', 'de', 'fr',
+const localeDefinitions = read('src/lib/i18n/locales.ts');
+const languageFlag = read('src/components/LanguageFlag.tsx');
+const countryCodes = read('src/lib/countryCodes.ts');
+const headerLanguageFlags = read('src/app/header-language-flags.css');
+const pinnedFlagBase =
+  'https://cdn.jsdelivr.net/npm/country-flag-icons@1.6.20/3x2';
+
+const localeEntryPattern =
+  /\{ locale: '([^']+)', nativeName: '[^']*', englishName: '[^']*', flagSource: '\/flags\/([a-z]{2})\.svg', flagCountryCode: '([A-Z]{2})', direction:/g;
+const localeEntries = [
+  ...localeDefinitions.matchAll(localeEntryPattern),
+].map((match) => ({
+  locale: match[1],
+  localCode: match[2],
+  countryCode: match[3],
+}));
+const configuredLocaleCount =
+  (localeDefinitions.match(/\{ locale:/g) ?? []).length;
+
+if (
+  configuredLocaleCount === 0 ||
+  localeEntries.length !== configuredLocaleCount
+) {
+  failures.push(
+    'Every configured locale must declare both a local flag fallback and an explicit ISO flagCountryCode.',
+  );
+}
+
+for (const { locale, localCode, countryCode } of localeEntries) {
+  requireFile(`public/flags/${localCode}.svg`);
+
+  if (localCode.toUpperCase() !== countryCode) {
+    failures.push(
+      `Locale ${locale} flag fallback does not match flagCountryCode ${countryCode}.`,
+    );
+  }
+
+  const nativeRule =
+    `option[value='${locale}']:checked) { background-image:url('${pinnedFlagBase}/${countryCode}.svg'),url('/flags/${localCode}.svg') !important; }`;
+  if (!headerLanguageFlags.includes(nativeRule)) {
+    failures.push(
+      `Native language flag fallback is missing the shared pinned source for locale: ${locale}`,
+    );
+  }
+}
+
+if (
+  !/COUNTRY_FLAG_CDN_BASE[\s\S]*country-flag-icons@1\.6\.20\/3x2/.test(countryCodes) ||
+  !/export function countryFlagAssetUrl/.test(countryCodes)
+) {
+  failures.push(
+    'Country and language flags must share one pinned 3:2 country-flag-icons source.',
+  );
+}
+
+if (
+  !/countryFlagAssetUrl/.test(languageFlag) ||
+  !/language\.flagCountryCode/.test(languageFlag) ||
+  !/failedPrimarySource === primarySource/.test(languageFlag) ||
+  !/language\.flagSource/.test(languageFlag)
+) {
+  failures.push(
+    'LanguageFlag must use the shared 3:2 source first and retain the local SVG only as a failure fallback.',
+  );
+}
+
+for (const [locale, countryCode] of [
+  ['bn', 'BD'],
+  ['zh-tw', 'TW'],
+  ['ko', 'KR'],
+  ['es', 'ES'],
 ]) {
-  requireFile(`public/flags/${code}.svg`);
+  const mapping = new RegExp(
+    `locale: '${locale}'[^\\n]*flagCountryCode: '${countryCode}'`,
+  );
+  if (!mapping.test(localeDefinitions)) {
+    failures.push(
+      `Critical flag mapping regressed for locale ${locale}: expected ${countryCode}.`,
+    );
+  }
 }
 
 const spainFlag = read('public/flags/es.svg');
