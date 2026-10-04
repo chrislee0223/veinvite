@@ -341,7 +341,7 @@ export async function loadRestrictedSiblingReentrySignals(
   return [];
 }
 
-export async function applyRestrictedSiblingReentryRestriction({
+async function applyRestrictedSiblingReentryRestrictionRpc({
   invitation,
   expectedRevision,
 }: {
@@ -371,4 +371,49 @@ export async function applyRestrictedSiblingReentryRestriction({
   }
 
   return (data ?? {}) as RestrictedSiblingRestrictionRpcResult;
+}
+
+
+export async function enforceRestrictedSiblingReentryRestriction({
+  invitation,
+  expectedRevision,
+}: {
+  invitation: RestrictedSiblingInvitation;
+  expectedRevision: number;
+}): Promise<{
+  restricted: boolean;
+  revision?: number | string;
+}> {
+  const automatic =
+    await applyRestrictedSiblingReentryRestrictionRpc({
+      invitation,
+      expectedRevision,
+    });
+
+  if (
+    automatic.changed === true &&
+    automatic.state === 'RESTRICTED'
+  ) {
+    return {
+      restricted: true,
+      revision: automatic.revision,
+    };
+  }
+
+  const { data, error } = await supabaseAdmin
+    .from('sybil_v2_referral_assessments')
+    .select('state,revision')
+    .eq('invite_code', invitation.invite_code)
+    .maybeSingle();
+
+  if (error) {
+    throw new Error(
+      `Restricted sibling assessment refresh failed: ${error.message}`,
+    );
+  }
+
+  return {
+    restricted: data?.state === 'RESTRICTED',
+    revision: data?.revision ?? automatic.revision,
+  };
 }
