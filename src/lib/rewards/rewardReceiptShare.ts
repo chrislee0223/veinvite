@@ -189,12 +189,11 @@ export function rewardReceiptXIntentUrl({
   const intent = new URL('https://x.com/intent/post');
   intent.searchParams.set(
     'text',
-    rewardReceiptShareText({ locale, amountB3tr }),
-  );
-  intent.searchParams.set('url', referralUrl);
-  intent.searchParams.set(
-    'hashtags',
-    'VeBetterDAO,B3TR,VeInvite',
+    [
+      rewardReceiptShareText({ locale, amountB3tr }),
+      referralUrl,
+      '#VeBetterDAO #B3TR #VeInvite',
+    ].join('\n\n'),
   );
   return intent.toString();
 }
