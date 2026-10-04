@@ -6,6 +6,10 @@ const pipeline = await readFile(
   'src/lib/sybil/v2/pipeline.ts',
   'utf8',
 );
+const helper = await readFile(
+  'src/lib/sybil/v2/restrictedSiblingReentry.ts',
+  'utf8',
+);
 const migration = await readFile(
   'supabase/migrations/20261004101116_harden_restricted_sibling_reentry.sql',
   'utf8',
@@ -21,20 +25,20 @@ test('restricted sibling reentry requires a confirmed prior referral plus wallet
     /SECURITY_CLIENT_RESTRICTED_SIBLING_REENTRY/u,
   );
   assert.match(
-    pipeline,
-    /peerConfirmedRestricted[\s\S]*restrictedSiblingReentry/u,
+    helper,
+    /peerConfirmedRestricted[\s\S]*currentFirstSeen >= peerLastSeen/u,
   );
   assert.match(
-    pipeline,
-    /ownFirstSeen >= siblingLastSeen/u,
-  );
-  assert.match(
-    pipeline,
+    helper,
     /switchGapSeconds <= 10 \* 60/u,
   );
   assert.match(
-    pipeline,
+    helper,
     /activationGapSeconds <= 10 \* 60/u,
+  );
+  assert.match(
+    helper,
+    /loadRestrictedSiblingReferralKeys/u,
   );
 });
 
