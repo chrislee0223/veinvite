@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 
 export type TransientFeedbackKind = 'success' | 'info' | 'error';
 
@@ -11,6 +11,7 @@ export type TransientFeedback = {
 };
 
 const AUTO_DISMISS_MS = 4_000;
+const EXIT_MS = 140;
 
 export function TransientSnackbar({
   feedback,
@@ -22,6 +23,29 @@ export function TransientSnackbar({
   onDismiss: () => void;
 }) {
   const timerRef = useRef<number | null>(null);
+  const exitTimerRef = useRef<number | null>(null);
+  const [closing, setClosing] = useState(false);
+
+  const finishDismiss = useCallback(() => {
+    if (exitTimerRef.current !== null) {
+      window.clearTimeout(exitTimerRef.current);
+      exitTimerRef.current = null;
+    }
+    setClosing(false);
+    onDismiss();
+  }, [onDismiss]);
+
+  const requestDismiss = useCallback(() => {
+    if (!feedback || closing) return;
+    const reducedMotion =
+      window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false;
+    if (reducedMotion) {
+      finishDismiss();
+      return;
+    }
+    setClosing(true);
+    exitTimerRef.current = window.setTimeout(finishDismiss, EXIT_MS + 40);
+  }, [closing, feedback, finishDismiss]);
 
   useEffect(() => {
     const clearTimer = () => {
@@ -40,7 +64,7 @@ export function TransientSnackbar({
     const schedule = () => {
       clearTimer();
       if (document.visibilityState !== 'visible') return;
-      timerRef.current = window.setTimeout(onDismiss, AUTO_DISMISS_MS);
+      timerRef.current = window.setTimeout(requestDismiss, AUTO_DISMISS_MS);
     };
 
     const handleVisibility = () => {
@@ -55,13 +79,27 @@ export function TransientSnackbar({
       clearTimer();
       document.removeEventListener('visibilitychange', handleVisibility);
     };
-  }, [feedback?.id, feedback?.kind, onDismiss]);
+  }, [feedback?.id, feedback?.kind, requestDismiss]);
+
+  useEffect(() => {
+    setClosing(false);
+    if (exitTimerRef.current !== null) {
+      window.clearTimeout(exitTimerRef.current);
+      exitTimerRef.current = null;
+    }
+  }, [feedback?.id]);
+
+  useEffect(() => () => {
+    if (exitTimerRef.current !== null) {
+      window.clearTimeout(exitTimerRef.current);
+    }
+  }, []);
 
   if (!feedback) return null;
 
   return (
     <aside
-      className={`transientSnackbar ${feedback.kind}`}
+      className={`transientSnackbar ${feedback.kind}${closing ? ' closing' : ''}`}
       role={feedback.kind === 'error' ? 'alert' : 'status'}
       aria-live={feedback.kind === 'error' ? 'assertive' : 'polite'}
       aria-atomic="true"
@@ -70,7 +108,7 @@ export function TransientSnackbar({
         {feedback.kind === 'error' ? '!' : feedback.kind === 'info' ? 'i' : '✓'}
       </span>
       <span className="feedbackText">{feedback.text}</span>
-      <button type="button" className="feedbackClose" aria-label={closeLabel} onClick={onDismiss}>
+      <button type="button" className="feedbackClose" aria-label={closeLabel} onClick={requestDismiss}>
         ×
       </button>
 
@@ -98,6 +136,10 @@ export function TransientSnackbar({
           box-shadow: 0 18px 55px rgba(0,0,0,.46);
           backdrop-filter: blur(16px);
           animation: snackbar-in 180ms ease-out both;
+        }
+        .transientSnackbar.closing {
+          animation: snackbar-out 140ms ease-in both;
+          pointer-events: none;
         }
         .transientSnackbar.success { border-color: rgba(76,220,155,.24); background: rgba(18,34,29,.98); }
         .transientSnackbar.info { border-color: rgba(255,205,80,.24); background: rgba(37,32,20,.98); }
@@ -144,6 +186,10 @@ export function TransientSnackbar({
         @keyframes snackbar-in {
           from { opacity: 0; transform: translate(-50%, 7px); }
           to { opacity: 1; transform: translate(-50%, 0); }
+        }
+        @keyframes snackbar-out {
+          from { opacity: 1; transform: translate(-50%, 0); }
+          to { opacity: 0; transform: translate(-50%, 4px); }
         }
         @media (max-width: 360px) {
           .transientSnackbar { width: calc(100vw - 20px); grid-template-columns: 30px minmax(0,1fr) 42px; gap: 8px; padding-inline: 10px 5px; }
