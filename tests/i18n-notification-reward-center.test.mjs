@@ -15,6 +15,8 @@ const rewardReceiptView = read('src/components/RewardReceiptView.tsx');
 const qaHarness = read('src/qa/QaNotificationStateHarness.tsx');
 const referralPage = read('src/app/r/[key]/page.tsx');
 const referralOg = read('src/app/r/[key]/opengraph-image.tsx');
+const socialReferralPage = read('src/app/s/[key]/page.tsx');
+const socialReferralOg = read('src/app/s/[key]/opengraph-image.tsx');
 const locales = read('src/lib/i18n/locales.ts');
 
 test('notification reward actions are live wallet-scoped state, not cached history authority', () => {
@@ -95,7 +97,8 @@ test('paid reward receipt shares a verified permanent invite link on X without a
   assert.match(rewardReceiptView, /rewardReceiptXIntentUrl/);
   assert.match(rewardReceiptView, /className="notificationXShare"/);
   assert.match(rewardReceiptView, /window\.open\(\s*rewardShareIntentUrl/);
-  assert.match(home, /referralLinkVerified \? permanentInviteUrl : ''/);
+  assert.match(home, /referralLinkVerified \? rewardShareUrl : ''/);
+  assert.match(home, /https:\/\/veinvite\.vercel\.app\/s\//);
   assert.match(rewardShare, /https:\/\/x\.com\/intent\/post/);
   assert.match(rewardShare, /REWARD_RECEIPT_SHARE_COPY/);
   assert.match(rewardShare, /Record<\s*SupportedLocale/);
@@ -135,10 +138,16 @@ test('QA paid-reward state opens the real receipt with fake data and lets the X 
   assert.match(center, /previewRewardReceipt/);
 });
 
-test('permanent referral links render a large X\/Open Graph card', () => {
+test('referral sharing uses a dedicated 1200x600 X large-card route', () => {
   assert.match(referralPage, /card: 'summary_large_image'/);
   assert.match(referralOg, /width: 1200/);
-  assert.match(referralOg, /height: 630/);
+  assert.match(referralOg, /height: 600/);
+  assert.match(socialReferralPage, /card: 'summary_large_image'/);
+  assert.match(socialReferralPage, /images: \[imageUrl\]/);
+  assert.match(socialReferralPage, /width: 1200/);
+  assert.match(socialReferralPage, /height: 600/);
+  assert.match(socialReferralOg, /width: 1200/);
+  assert.match(socialReferralOg, /height: 600/);
 });
 
 test('rollout keeps Home Claim and paid live sync without a duplicate standalone receipt surface', () => {
