@@ -1,0 +1,1 @@
+QA deployment trigger for X card image render verification.
