@@ -11,6 +11,7 @@ const page = read('src/app/page.tsx');
 const home = read('src/components/HomeClient.tsx');
 const activeReceipt = read('src/components/ActiveWalletRewardReceiptNotice.tsx');
 const rewardShare = read('src/lib/rewards/rewardReceiptShare.ts');
+const rewardReceiptView = read('src/components/RewardReceiptView.tsx');
 const qaHarness = read('src/qa/QaNotificationStateHarness.tsx');
 const referralPage = read('src/app/r/[key]/page.tsx');
 const referralOg = read('src/app/r/[key]/opengraph-image.tsx');
@@ -89,9 +90,10 @@ test('reward-ready history is an event while paid history remains reopenable as 
 
 test('paid reward receipt shares a verified permanent invite link on X without acknowledging the receipt', () => {
   assert.match(center, /rewardShareUrl/);
-  assert.match(center, /rewardReceiptXIntentUrl/);
-  assert.match(center, /className="notificationXShare"/);
-  assert.match(center, /window\.open\(\s*rewardShareIntentUrl/);
+  assert.match(center, /<RewardReceiptView/);
+  assert.match(rewardReceiptView, /rewardReceiptXIntentUrl/);
+  assert.match(rewardReceiptView, /className="xShare"/);
+  assert.match(rewardReceiptView, /window\.open\(\s*rewardShareIntentUrl/);
   assert.match(home, /referralLinkVerified \? permanentInviteUrl : ''/);
   assert.match(rewardShare, /https:\/\/x\.com\/intent\/post/);
   assert.match(
@@ -103,11 +105,11 @@ test('paid reward receipt shares a verified permanent invite link on X without a
     /I just received \$\{amountB3tr\} B3TR in referral rewards on VeInvite 🎉/,
   );
 
-  const shareHandlerStart = center.indexOf('const shareRewardOnX');
-  const shareHandlerEnd = center.indexOf('const renderItemContent', shareHandlerStart);
-  const shareHandler = center.slice(shareHandlerStart, shareHandlerEnd);
-  assert.doesNotMatch(shareHandler, /acknowledgeReceipt/);
-  assert.doesNotMatch(shareHandler, /closePanel/);
+  const shareHandlerStart = rewardReceiptView.indexOf('const shareRewardOnX');
+  const shareHandlerEnd = rewardReceiptView.indexOf('return (', shareHandlerStart);
+  const shareHandler = rewardReceiptView.slice(shareHandlerStart, shareHandlerEnd);
+  assert.doesNotMatch(shareHandler, /onAcknowledge/);
+  assert.doesNotMatch(shareHandler, /close/);
 });
 
 test('QA paid-reward state opens the real receipt with fake data and blocks external X navigation', () => {
