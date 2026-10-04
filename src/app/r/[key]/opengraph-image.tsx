@@ -12,61 +12,81 @@ export default function Image() {
     (
       <div
         style={{
-          width: '100%',
-          height: '100%',
+          width: '1200px',
+          height: '630px',
           display: 'flex',
           flexDirection: 'column',
           justifyContent: 'space-between',
-          padding: '72px 78px',
-          background:
-            'radial-gradient(circle at 82% 14%, rgba(244,183,40,.30), transparent 34%), #080807',
+          backgroundColor: '#080807',
           color: '#ffffff',
-          fontFamily: 'Arial, sans-serif',
+          padding: '68px 76px',
+          fontFamily: 'sans-serif',
         }}
       >
         <div
           style={{
             display: 'flex',
             alignItems: 'center',
-            gap: 18,
-            fontSize: 34,
-            fontWeight: 800,
           }}
         >
           <div
             style={{
-              width: 28,
-              height: 28,
-              borderRadius: 9,
-              background: '#f4b728',
+              width: '32px',
+              height: '32px',
+              display: 'flex',
+              borderRadius: '8px',
+              backgroundColor: '#f4b728',
+              marginRight: '16px',
             }}
           />
-          VeInvite
-        </div>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 22 }}>
           <div
             style={{
-              maxWidth: 930,
-              fontSize: 72,
-              lineHeight: 1.04,
-              letterSpacing: '-0.04em',
+              display: 'flex',
+              fontSize: '34px',
               fontWeight: 800,
             }}
           >
-            Invite friends.
-            <br />
-            Earn B3TR.
+            VeInvite
+          </div>
+        </div>
+
+        <div
+          style={{
+            display: 'flex',
+            flexDirection: 'column',
+          }}
+        >
+          <div
+            style={{
+              display: 'flex',
+              fontSize: '76px',
+              lineHeight: 1.02,
+              fontWeight: 800,
+              marginBottom: '24px',
+            }}
+          >
+            Invite friends. Earn B3TR.
           </div>
           <div
             style={{
-              maxWidth: 800,
-              fontSize: 30,
-              lineHeight: 1.35,
+              display: 'flex',
+              fontSize: '30px',
+              lineHeight: 1.3,
               color: '#c5c0b5',
             }}
           >
             Verified onboarding for VeBetterDAO.
           </div>
+        </div>
+
+        <div
+          style={{
+            display: 'flex',
+            fontSize: '24px',
+            color: '#f4b728',
+          }}
+        >
+          veinvite.vercel.app
         </div>
       </div>
     ),
