@@ -48,7 +48,9 @@ if (!/currentUserInList/.test(leaderboard) || !/trailingCurrentUser/.test(leader
   failures.push('Outside-Top-100 current-wallet fallback row is missing.');
 }
 if (
-  !/currentWalletNeedsPrivateLookup/.test(leaderboardHub) ||
+  !/currentWalletInDisplayedRanking/.test(leaderboardHub) ||
+  !/personalizationUnavailable/.test(leaderboardHub) ||
+  !/retryPersonalization/.test(leaderboardHub) ||
   !/pendingCurrentWallet=\{pendingCurrentWallet\}/.test(leaderboardHub) ||
   !/pendingCurrentWallet\?: string \| null/.test(leaderboard) ||
   !/className="rankRow compact current trailingCurrent pendingCurrent"/.test(leaderboard) ||
