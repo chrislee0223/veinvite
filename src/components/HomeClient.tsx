@@ -13,8 +13,7 @@ import {
   AppBottomNavigation,
   type AppTab,
 } from './AppBottomNavigation';
-import { Brand } from './Brand';
-import { InAppInviteNotifications } from './InAppInviteNotifications';
+import { AppHeader } from './AppHeader';
 import { PublicRewardForecastCard } from './PublicRewardForecastCard';
 import {
   TransientSnackbar,
@@ -30,7 +29,6 @@ import { NOTIFICATION_COPY } from '@/lib/i18n/notificationCopy';
 import { PROGRESS_CLAIM_COPY } from '@/lib/i18n/progressClaimCopy';
 import { REFERRAL_LINK_COPY } from '@/lib/i18n/referralLinkCopy';
 import {
-  LANGUAGE_OPTIONS,
   LANGUAGE_STORAGE_KEY,
   isCjkLocale,
   isLocale,
@@ -864,44 +862,18 @@ export function HomeClient() {
 
   return (
     <main className={`screen${activeTab === 'guide' ? ' networkScreen' : ''}`}>
-      <header className="topBar">
-        <Brand />
-        <div className="topActions">
-          <div className="utilityActions">
-            <InAppInviteNotifications
-              locale={locale}
-              rewardShareUrl={referralLinkVerified ? rewardShareUrl : ''}
-            />
-            <select
-              className="languageSelect"
-              value={locale}
-              onChange={(event) =>
-                changeLocale(event.target.value as SupportedLocale)}
-              aria-label={t.languageAria}
-            >
-              {LANGUAGE_OPTIONS.map((option) => (
-                <option key={option.locale} value={option.locale}>
-                  {option.nativeName}
-                </option>
-              ))}
-            </select>
-          </div>
-          {wallet ? (
-            <button
-              type="button"
-              className="accountChip"
-              onClick={() => {
-                clearFeedback();
-                openWallet();
-              }}
-              aria-label={t.walletAria}
-            >
-              <span className="accountDot" />
-              {wallet.slice(0, 6)}···{wallet.slice(-4)}
-            </button>
-          ) : null}
-        </div>
-      </header>
+      <AppHeader
+        locale={locale}
+        wallet={wallet}
+        rewardShareUrl={referralLinkVerified ? rewardShareUrl : ''}
+        languageAria={t.languageAria}
+        walletAria={t.walletAria}
+        onLocaleChange={changeLocale}
+        onWalletOpen={() => {
+          clearFeedback();
+          openWallet();
+        }}
+      />
 
       {activeTab === 'home' ? (
         <section className="missionCard">
@@ -1155,15 +1127,10 @@ export function HomeClient() {
       <style jsx>{`
         .screen { min-height:100svh; box-sizing:border-box; padding:22px 16px 118px; color:#fff; background:radial-gradient(circle at 50% 16%,rgba(244,183,40,.14),transparent 32%),#080807; }
         .screen.networkScreen { height:100svh; min-height:100svh; overflow:hidden; overscroll-behavior:none; display:flex; flex-direction:column; }
-        .topBar { width:min(100%,520px); margin:0 auto 26px; display:flex; align-items:center; justify-content:space-between; gap:16px; }
         .networkTabViewport { width:min(100%,520px); max-height:720px; min-height:0; margin:0 auto; flex:1 1 auto; display:flex; }
         .networkTabViewport :global(.networkHubShell) { width:100%; height:100%; min-height:0; display:flex; }
         .networkTabViewport :global(.networkCanvasPage) { flex:1 1 auto; min-height:0; }
         .topActions { min-width:0; display:flex; align-items:center; gap:8px; }
-        .utilityActions { min-width:0; display:flex; align-items:center; justify-content:flex-end; gap:8px; }
-        .languageSelect { max-width:155px; height:40px; padding:0 28px 0 11px; border:1px solid rgba(255,255,255,.1); border-radius:13px; background:#141625; color:#fff; font:inherit; font-size:.76rem; font-weight:800; cursor:pointer; }
-        .accountChip { min-height:40px; padding:0 13px; display:inline-flex; align-items:center; gap:8px; border:1px solid rgba(255,255,255,.1); border-radius:13px; background:#141625; color:#fff; font:inherit; font-size:.72rem; font-weight:850; cursor:pointer; }
-        .accountDot { width:9px; height:9px; border-radius:50%; background:#f4b728; box-shadow:0 0 14px rgba(244,183,40,.68); }
         .missionCard { position:relative; overflow:hidden; width:min(100%,520px); box-sizing:border-box; margin:0 auto; padding:24px; border:1px solid rgba(255,201,61,.28); border-radius:30px; background:linear-gradient(155deg,rgba(54,40,14,.98),rgba(16,16,14,.99) 66%); box-shadow:0 28px 80px rgba(0,0,0,.44),inset 0 1px 0 rgba(255,255,255,.08); }
         .cardGlow { position:absolute; top:-110px; right:-90px; width:250px; height:250px; border-radius:50%; background:rgba(244,183,40,.22); filter:blur(4px); pointer-events:none; }
         .missionCopy { position:relative; z-index:1; }
