@@ -68,20 +68,23 @@ test('recovery arithmetic preserves the agreed full and partial offset examples'
 });
 
 test('recovery is feature-gated and normal reward liability remains net payable only', async () => {
-  const { sql } = await sources();
+  const { sql, hardeningSql } = await sources();
   assert.match(
     sql,
     /reward_recovery_enabled boolean not null default false/u,
   );
-  assert.match(sql, /v_net := p_amount_wei;/u);
-  assert.match(sql, /v_offset := least\(p_amount_wei,v_recovery_balance\);/u);
-  assert.match(sql, /v_net := p_amount_wei - v_offset;/u);
+  assert.match(hardeningSql, /v_net:=p_amount_wei;/u);
   assert.match(
-    sql,
+    hardeningSql,
+    /v_offset:=least\(p_amount_wei,v_recovery_balance\);/u,
+  );
+  assert.match(hardeningSql, /v_net:=p_amount_wei-v_offset;/u);
+  assert.match(
+    hardeningSql,
     /reserved_amount_wei,[\s\S]*?v_net,[\s\S]*?'AWAITING_CLAIM'/u,
   );
   assert.match(
-    sql,
+    hardeningSql,
     /if v_net>greatest\(p_observed_pool_balance_wei-v_reserved,0\)/u,
   );
 });
