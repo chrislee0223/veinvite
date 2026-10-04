@@ -1127,6 +1127,10 @@ export function HomeClient() {
       <style jsx>{`
         .screen { min-height:100svh; box-sizing:border-box; padding:22px 16px 118px; color:#fff; background:radial-gradient(circle at 50% 16%,rgba(244,183,40,.14),transparent 32%),#080807; }
         .screen.networkScreen { height:100svh; min-height:100svh; overflow:hidden; overscroll-behavior:none; display:flex; flex-direction:column; }
+        .networkTabViewport { width:min(100%,520px); max-height:720px; min-height:0; margin:0 auto; flex:1 1 auto; display:flex; }
+        .networkTabViewport :global(.networkHubShell) { width:100%; height:100%; min-height:0; display:flex; }
+        .networkTabViewport :global(.networkCanvasPage) { flex:1 1 auto; min-height:0; }
+        .topActions { min-width:0; display:flex; align-items:center; gap:8px; }
         .missionCard { position:relative; overflow:hidden; width:min(100%,520px); box-sizing:border-box; margin:0 auto; padding:24px; border:1px solid rgba(255,201,61,.28); border-radius:30px; background:linear-gradient(155deg,rgba(54,40,14,.98),rgba(16,16,14,.99) 66%); box-shadow:0 28px 80px rgba(0,0,0,.44),inset 0 1px 0 rgba(255,255,255,.08); }
         .cardGlow { position:absolute; top:-110px; right:-90px; width:250px; height:250px; border-radius:50%; background:rgba(244,183,40,.22); filter:blur(4px); pointer-events:none; }
         .missionCopy { position:relative; z-index:1; }
