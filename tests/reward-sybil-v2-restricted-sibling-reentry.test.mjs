@@ -42,6 +42,21 @@ test('restricted sibling reentry requires a confirmed prior referral plus wallet
   );
 });
 
+test('high-confidence sibling evidence is evaluated before the medium fallback returns', () => {
+  assert.match(
+    pipeline,
+    /let siblingFallbackSignals: SybilV2Signal\[\] \| null = null/u,
+  );
+  assert.match(
+    pipeline,
+    /if \(immediateSwitch \|\| restrictedSiblingReentry\)[\s\S]*return \{ signals, complete: true \}/u,
+  );
+  assert.match(
+    pipeline,
+    /siblingFallbackSignals \?\?= signals[\s\S]*if \(siblingFallbackSignals\)/u,
+  );
+});
+
 test('generic shared-client siblings remain observation evidence instead of automatic restriction', () => {
   assert.match(
     pipeline,
