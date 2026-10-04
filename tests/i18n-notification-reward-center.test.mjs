@@ -163,7 +163,7 @@ test('paid reward notification keeps amount in the sentence for every supported 
 });
 
 test('receipt mode uses content-height layout and compact secondary explorer action', () => {
-  assert.match(center, /receiptViewActive \? 'hasReceipt' : ''/);
+  assert.match(center, /'notificationHistoryPanel hasReceipt'/);
   assert.match(center, /\.notificationHistoryPanel\.hasReceipt\{height:auto/);
   assert.match(rewardReceiptView, /notificationExplorerLink/);
   assert.doesNotMatch(rewardReceiptView, /notificationReceiptEyebrow/);
