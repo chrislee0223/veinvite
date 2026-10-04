@@ -392,3 +392,24 @@ test('restriction reinstatement follows the agreed reverse-or-manual-review poli
     /'SOURCE_RESTRICTION_REINSTATED_AFTER_CONSUMPTION'[\s\S]*?reward_recovery_review_queue/u,
   );
 });
+
+
+test('late receipt also tops up a restriction-sourced recovery obligation', async () => {
+  const { restrictionRecoverySql } = await sources();
+  const start = restrictionRecoverySql.indexOf(
+    'create or replace function public.sync_reward_recovery_receipt',
+  );
+  const end = restrictionRecoverySql.indexOf(
+    'create or replace function public.sync_reward_recovery_invalidation',
+  );
+  assert.ok(start >= 0 && end > start);
+  const fn = restrictionRecoverySql.slice(start, end);
+  assert.match(
+    fn,
+    /sybil_v2_referral_invalidations[\s\S]*?if v_invalidation_id is not null[\s\S]*?upsert_reward_recovery_obligation_for_invalidation/u,
+  );
+  assert.match(
+    fn,
+    /sybil_v2_wallet_restrictions[\s\S]*?a\.state='RESTRICTED'[\s\S]*?upsert_reward_recovery_obligation_for_restriction/u,
+  );
+});
