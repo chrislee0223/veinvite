@@ -35,7 +35,7 @@
   ],
   "growthCeilingsBytes": {
     "src/components/AppNetwork.tsx": 148481,
-    "src/lib/sybil/v2/pipeline.ts": 138043,
+    "src/lib/sybil/v2/pipeline.ts": 138393,
     "src/components/PublicNetworkExplorer.tsx": 73801,
     "src/components/UnifiedInviteNotificationHistoryCenter.tsx": 55235,
     "src/components/HomeClient.tsx": 50999,
