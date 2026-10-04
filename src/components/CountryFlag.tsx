@@ -2,10 +2,11 @@
 
 import { useState } from 'react';
 
-import { normalizeIsoCountryCode } from '@/lib/countryCodes';
+import {
+  countryFlagAssetUrl,
+  normalizeIsoCountryCode,
+} from '@/lib/countryCodes';
 
-const COUNTRY_FLAG_CDN_BASE =
-  'https://cdn.jsdelivr.net/npm/country-flag-icons@1.6.20/3x2';
 
 export function CountryFlag({ countryCode }: { countryCode: string }) {
   const normalized = countryCode.trim().toUpperCase();
@@ -22,7 +23,7 @@ export function CountryFlag({ countryCode }: { countryCode: string }) {
       {isoCountryCode && !imageFailed ? (
         <img
           className="countryFlagImage"
-          src={`${COUNTRY_FLAG_CDN_BASE}/${isoCountryCode}.svg`}
+          src={countryFlagAssetUrl(isoCountryCode)}
           alt=""
           draggable={false}
           decoding="async"
