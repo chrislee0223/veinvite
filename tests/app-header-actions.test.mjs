@@ -34,11 +34,11 @@ test('external links, wallet chip, and notification bell share the same interact
   );
   assert.match(
     headerSource,
-    /\.headerIconLink:active,\.accountChip:active\{transform:scale\(\.95\)\}/u,
+    /\.headerIconLink:active,\.accountChip:active\{transform:translateY\(0\) scale\(\.97\)\}/u,
   );
   assert.match(
     headerSource,
-    /prefers-reduced-motion:reduce[\s\S]*\.headerIconLink,\.accountChip\{transition:none\}/u,
+    /prefers-reduced-motion:reduce[\s\S]*\.headerIconLink,\.accountChip\{transition:none\}[\s\S]*\.headerIconLink:hover,\.headerIconLink:active,\.accountChip:hover,\.accountChip:active\{transform:none!important\}/u,
   );
 
   assert.match(
@@ -47,11 +47,11 @@ test('external links, wallet chip, and notification bell share the same interact
   );
   assert.match(
     notificationSource,
-    /\.notificationHistoryBell:active\{transform:scale\(\.95\)\}/u,
+    /\.notificationHistoryBell:active\{transform:translateY\(0\) scale\(\.97\)\}/u,
   );
   assert.match(
     notificationSource,
-    /prefers-reduced-motion:reduce[\s\S]*\.notificationHistoryBell,\.notificationHistoryRow\{transition:none\}/u,
+    /prefers-reduced-motion:reduce[\s\S]*\.notificationHistoryBell,\.notificationHistoryRow\{transition:none\}[\s\S]*\.notificationHistoryBell:hover,\.notificationHistoryBell:active\{transform:none!important\}/u,
   );
 });
 
