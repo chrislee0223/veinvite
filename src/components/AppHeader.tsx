@@ -11,26 +11,30 @@ function VoteIcon() {
   return (
     <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
       <path
-        d="M6.5 3.75h8.75L18.5 7v13.25H6.5V3.75Z"
+        d="M7.25 10.25 8.7 4.5h6.6l1.45 5.75"
         stroke="currentColor"
         strokeWidth="1.7"
+        strokeLinecap="round"
         strokeLinejoin="round"
       />
       <path
-        d="M15 3.9V7.2h3.25"
-        stroke="currentColor"
-        strokeWidth="1.7"
-        strokeLinejoin="round"
-      />
-      <path
-        d="m9 12.1 1.55 1.55 3.45-3.7"
+        d="m10.2 7.15 1.35 1.35 2.45-2.65"
         stroke="currentColor"
         strokeWidth="1.8"
         strokeLinecap="round"
         strokeLinejoin="round"
       />
+      <rect
+        x="4"
+        y="10.25"
+        width="16"
+        height="9.25"
+        rx="2"
+        stroke="currentColor"
+        strokeWidth="1.7"
+      />
       <path
-        d="M9 16.8h6"
+        d="M7.25 14h9.5"
         stroke="currentColor"
         strokeWidth="1.7"
         strokeLinecap="round"
@@ -158,18 +162,21 @@ export function AppHeader({
         .externalLinkActions{display:flex;align-items:center;gap:8px}
         .headerIconLink{width:40px;height:40px;flex:0 0 40px;display:grid;place-items:center;box-sizing:border-box;padding:0;border:1px solid rgba(255,255,255,.1);border-radius:13px;background:#141625;color:#b6b2bf;text-decoration:none;cursor:pointer;transition:background-color .15s ease,border-color .15s ease,color .15s ease,transform .15s ease}
         .headerIconLink :global(svg){width:20px;height:20px;display:block}
-        .headerIconLink:focus-visible{outline:2px solid rgba(255,208,74,.8);outline-offset:2px}
-        .headerIconLink:active{transform:scale(.95)}
+        .headerIconLink:focus-visible,.accountChip:focus-visible{outline:2px solid rgba(255,208,74,.8);outline-offset:2px}
+        .headerIconLink:active,.accountChip:active{transform:scale(.95)}
         .languageSelect{max-width:155px;height:40px;padding:0 28px 0 11px;border:1px solid rgba(255,255,255,.1);border-radius:13px;background:#141625;color:#fff;font:inherit;font-size:.76rem;font-weight:800;cursor:pointer}
-        .accountChip{min-height:40px;padding:0 13px;display:inline-flex;align-items:center;gap:8px;border:1px solid rgba(255,255,255,.1);border-radius:13px;background:#141625;color:#fff;font:inherit;font-size:.72rem;font-weight:850;cursor:pointer}
+        .accountChip{min-height:40px;padding:0 13px;display:inline-flex;align-items:center;gap:8px;border:1px solid rgba(255,255,255,.1);border-radius:13px;background:#141625;color:#fff;font:inherit;font-size:.72rem;font-weight:850;cursor:pointer;transition:background-color .15s ease,border-color .15s ease,color .15s ease,transform .15s ease}
         .accountDot{width:9px;height:9px;border-radius:50%;background:#f4b728;box-shadow:0 0 14px rgba(244,183,40,.68)}
         @media (hover:hover) and (pointer:fine){
-          .headerIconLink:hover{border-color:rgba(255,205,80,.28);background:#1a1b29;color:#ffd04a;transform:translateY(-1px)}
+          .headerIconLink:hover,.accountChip:hover{border-color:rgba(255,205,80,.28);background:#1a1b29;transform:translateY(-1px)}
+          .headerIconLink:hover{color:#ffd04a}
         }
         @media (max-width:640px){
           .topBar{align-items:flex-start;gap:10px}
           .topBar :global(.brand span){display:none}
           .topActions{flex:1 1 auto;flex-direction:column;align-items:flex-end;gap:7px}
+        }
+        @media (max-width:560px){
           .utilityActions,.externalLinkActions{gap:6px}
           .headerIconLink{width:34px;height:34px;flex-basis:34px;border-radius:11px}
           .headerIconLink :global(svg){width:18px;height:18px}
@@ -185,7 +192,7 @@ export function AppHeader({
           .languageSelect{width:96px;max-width:96px}
         }
         @media (prefers-reduced-motion:reduce){
-          .headerIconLink{transition:none}
+          .headerIconLink,.accountChip{transition:none}
         }
       `}</style>
     </header>
