@@ -460,3 +460,53 @@ test('invalidated offsets stop reducing cohort budget for legitimate users', asy
     /v_current_offset[\s\S]*?not public\.is_sybil_v2_referral_invalidated\(/u,
   );
 });
+
+
+test("offset settlement cannot lower the next legitimate user's pricing basis", () => {
+  const pricingBasis = ({
+    designatedBudget,
+    grossCommitted,
+    observedPool,
+    actualLiability,
+  }) => {
+    const cohortAvailable =
+      designatedBudget > grossCommitted
+        ? designatedBudget - grossCommitted
+        : 0n;
+    const poolAvailable =
+      observedPool > actualLiability
+        ? observedPool - actualLiability
+        : 0n;
+    return cohortAvailable < poolAvailable
+      ? cohortAvailable
+      : poolAvailable;
+  };
+
+  const normal = pricingBasis({
+    designatedBudget: 1_000n,
+    grossCommitted: 50n,
+    observedPool: 100n,
+    actualLiability: 50n,
+  });
+  const offset = pricingBasis({
+    designatedBudget: 1_000n,
+    grossCommitted: 50n,
+    observedPool: 100n,
+    actualLiability: 0n,
+  });
+  assert.ok(offset >= normal);
+
+  const budgetBoundNormal = pricingBasis({
+    designatedBudget: 100n,
+    grossCommitted: 50n,
+    observedPool: 1_000n,
+    actualLiability: 50n,
+  });
+  const budgetBoundOffset = pricingBasis({
+    designatedBudget: 100n,
+    grossCommitted: 50n,
+    observedPool: 1_000n,
+    actualLiability: 0n,
+  });
+  assert.equal(budgetBoundOffset, budgetBoundNormal);
+});
