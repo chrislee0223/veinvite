@@ -3,6 +3,7 @@ import { readFile } from 'node:fs/promises';
 import test from 'node:test';
 
 const pipeline = await readFile('src/lib/sybil/v2/pipeline.ts','utf8');
+const restrictionRpc = await readFile('src/lib/sybil/v2/restrictionRpc.ts','utf8');
 const migration = await readFile(
   'supabase/migrations/20260929043956_harden_sybil_v2_prevote_classification.sql',
   'utf8',
@@ -29,7 +30,7 @@ test('same-client link stays HOLD evidence while only an immediate inviter-to-in
   assert.match(pipeline, /SECURITY_CLIENT_INVITER_IMMEDIATE_SWITCH/u);
   assert.match(pipeline, /switchGapSeconds <= 10 \* 60/u);
   assert.match(pipeline, /activationGapSeconds <= 10 \* 60/u);
-  assert.match(pipeline, /apply_sybil_v2_security_client_inviter_restriction/u);
+  assert.match(restrictionRpc, /apply_sybil_v2_security_client_inviter_restriction/u);
   assert.match(narrowSameClient, /interval '10 minutes'/u);
   assert.match(narrowSameClient, /SAME_CLIENT_IMMEDIATE_SWITCH_NOT_CONFIRMED/u);
   assert.match(narrowSameClient, /SECURITY_CLIENT_INVITER_IMMEDIATE_SWITCH_V1/u);
