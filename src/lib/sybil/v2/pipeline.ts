@@ -55,6 +55,8 @@ import {
 
 export { SYBIL_V2_ANALYZER_VERSION } from '@/lib/sybil/v2/version';
 const SYBIL_V2_BEHAVIOR_ENFORCEMENT_VERSION = 'behavior-pattern-v2';
+const SYBIL_V2_RESTRICTED_SIBLING_REENTRY_VERSION =
+  'restricted-sibling-reentry-v1';
 const SYBIL_V2_VEPASSPORT_EVIDENCE_VERSION = 'vepassport-v1';
 const VEPASSPORT_RECHECK_INTERVAL_MS = 6 * 60 * 60 * 1000;
 
@@ -2562,6 +2564,35 @@ async function applySecurityClientInviterRestriction({
   return (data ?? {}) as BehaviorPatternRestrictionRpcResult;
 }
 
+async function applyRestrictedSiblingReentryRestriction({
+  invitation,
+  expectedRevision,
+}: {
+  invitation: InvitationV2Row;
+  expectedRevision: number;
+}): Promise<BehaviorPatternRestrictionRpcResult> {
+  if (!invitation.activation_network) {
+    return { changed: false, reason: 'NETWORK_MISSING' };
+  }
+
+  const { data, error } = await supabaseAdmin.rpc(
+    'apply_sybil_v2_restricted_sibling_reentry_restriction',
+    {
+      p_invite_code: invitation.invite_code,
+      p_expected_revision: expectedRevision,
+      p_network: invitation.activation_network,
+    },
+  );
+
+  if (error) {
+    throw new Error(
+      `Restricted-sibling reentry restriction could not be applied: ${error.message}`,
+    );
+  }
+
+  return (data ?? {}) as BehaviorPatternRestrictionRpcResult;
+}
+
 async function applyFunderReturnLoopRestriction({
   invitation,
   expectedRevision,
@@ -3722,10 +3753,15 @@ export async function assessSybilV2Referral(
   const securityClientInviterImmediateSwitch =
     policy.state === 'HOLD' &&
     hasHighSignal(signals, 'SECURITY_CLIENT_INVITER_IMMEDIATE_SWITCH');
+  const restrictedSiblingReentryCandidate =
+    policy.state === 'HOLD' &&
+    hasHighSignal(signals, 'SECURITY_CLIENT_SIBLING_IMMEDIATE_SWITCH');
 
   const evidenceSummary = {
     behaviorPatternEnforcementVersion:
       SYBIL_V2_BEHAVIOR_ENFORCEMENT_VERSION,
+    restrictedSiblingReentryEnforcementVersion:
+      SYBIL_V2_RESTRICTED_SIBLING_REENTRY_VERSION,
     signalCount: signals.length,
     signalCodes: unique(signals.map((signal) => signal.code)),
     evidenceFamilies: policy.evidenceFamilies,
@@ -3763,6 +3799,8 @@ export async function assessSybilV2Referral(
       funderReturnLoopHub !== null,
     securityClientInviterImmediateSwitchAutomaticRestrictionCandidate:
       securityClientInviterImmediateSwitch,
+    restrictedSiblingReentryAutomaticRestrictionCandidate:
+      restrictedSiblingReentryCandidate,
     vePassport: vePassport.snapshot
       ? {
           evidenceVersion:
@@ -3823,6 +3861,7 @@ export async function assessSybilV2Referral(
       behaviorPatternHub !== null ||
       funderReturnLoopHub !== null ||
       securityClientInviterImmediateSwitch ||
+      restrictedSiblingReentryCandidate ||
       vePassport.automaticRestrictionCandidate,
   };
 
@@ -3899,6 +3938,60 @@ export async function assessSybilV2Referral(
         reasonCodes: unique([
           ...policy.reasonCodes,
           'AUTO_VEPASSPORT_SAME_PASSPORT_RESTRICTION',
+        ]),
+        revision:
+          safeRevision(fresh.revision) ??
+          automaticRevision ??
+          revision,
+        clearanceIssued: false,
+        clearanceId: null,
+      };
+    }
+  }
+
+  if (
+    revision !== null &&
+    policy.state === 'HOLD' &&
+    restrictedSiblingReentryCandidate
+  ) {
+    const automatic =
+      await applyRestrictedSiblingReentryRestriction({
+        invitation,
+        expectedRevision: revision,
+      });
+    const automaticRevision =
+      safeRevision(automatic.revision);
+
+    if (
+      automatic.changed === true &&
+      automatic.state === 'RESTRICTED'
+    ) {
+      return {
+        inviteCode: normalizedCode,
+        state: 'RESTRICTED',
+        riskScore: 100,
+        reasonCodes: unique([
+          ...policy.reasonCodes,
+          'AUTO_RESTRICTED_SIBLING_REENTRY_RESTRICTION',
+        ]),
+        revision:
+          automaticRevision ?? revision,
+        clearanceIssued: false,
+        clearanceId: null,
+      };
+    }
+
+    const fresh =
+      await loadAssessment(normalizedCode);
+
+    if (fresh?.state === 'RESTRICTED') {
+      return {
+        inviteCode: normalizedCode,
+        state: 'RESTRICTED',
+        riskScore: 100,
+        reasonCodes: unique([
+          ...policy.reasonCodes,
+          'AUTO_RESTRICTED_SIBLING_REENTRY_RESTRICTION',
         ]),
         revision:
           safeRevision(fresh.revision) ??
@@ -4262,6 +4355,8 @@ export async function runSybilV2PolicyReassessmentBatch(
       const assessment = await loadAssessment(inviteCode);
       const enforcementVersion =
         assessment?.evidence_summary?.behaviorPatternEnforcementVersion;
+      const restrictedSiblingReentryVersion =
+        assessment?.evidence_summary?.restrictedSiblingReentryEnforcementVersion;
       const signalCodes =
         Array.isArray(
           assessment?.evidence_summary
@@ -4270,6 +4365,10 @@ export async function runSybilV2PolicyReassessmentBatch(
           ? assessment?.evidence_summary
               ?.signalCodes
           : [];
+      const hasRestrictedSiblingReentrySignal =
+        signalCodes.includes(
+          'SECURITY_CLIENT_SIBLING_IMMEDIATE_SWITCH',
+        );
       const hasVePassportSignal =
         signalCodes.some(
           (code) =>
@@ -4315,9 +4414,15 @@ export async function runSybilV2PolicyReassessmentBatch(
             VEPASSPORT_RECHECK_INTERVAL_MS
         );
 
+      const restrictedSiblingReentryStale =
+        hasRestrictedSiblingReentrySignal &&
+        restrictedSiblingReentryVersion !==
+          SYBIL_V2_RESTRICTED_SIBLING_REENTRY_VERSION;
+
       if (
         enforcementVersion ===
           SYBIL_V2_BEHAVIOR_ENFORCEMENT_VERSION &&
+        !restrictedSiblingReentryStale &&
         !vePassportStale
       ) {
         continue;
