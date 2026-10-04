@@ -482,7 +482,6 @@ export function InviteNotificationHistoryCenter({
     if (skipRewardActionRequests) {
       actionResolvedRef.current = true;
       setActionResolved(true);
-      setRewardActions([]);
       setActionLoading(false);
       setActionError('');
       return;
