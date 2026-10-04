@@ -42,6 +42,12 @@ import {
   unique,
 } from '@/lib/sybil/v2/pipelinePrimitives';
 import {
+  applyRestrictedSiblingReentryRestriction,
+  isRestrictedSiblingReentry,
+  loadSharedClientSiblingInvitations,
+  restrictedSiblingReferralKey,
+} from '@/lib/sybil/v2/restrictedSiblingReentry';
+import {
   SYBIL_V2_ANALYZER_VERSION,
 } from '@/lib/sybil/v2/version';
 import {
@@ -1934,29 +1940,17 @@ async function loadSecurityIdentitySignals(
         !excludedWallets.has(inviterWallet) &&
         relatedWallets.length > 0
       ) {
-        const siblingInvitationsResult = await supabaseAdmin
-          .from('invitations')
-          .select(
-            'invite_code,inviter_wallet,invitee_wallet,activated_at,status,sybil_status,eligibility_check_id,ineligibility_check_id',
-          )
-          .eq('inviter_wallet', inviterWallet)
-          .in('invitee_wallet', relatedWallets);
+        const {
+          siblingInvitations,
+          restrictedSiblingReferrals,
+        } = await loadSharedClientSiblingInvitations({
+          inviterWallet,
+          relatedWallets,
+          excludedWallets,
+          network: invitation.activation_network,
+        });
 
-        if (siblingInvitationsResult.error) {
-          throw new Error(
-            `Sibling security-client invitations could not be loaded: ${siblingInvitationsResult.error.message}`,
-          );
-        }
-
-        const siblingInvitations = (siblingInvitationsResult.data ?? [])
-          .filter((row) =>
-            typeof row.invitee_wallet === 'string' &&
-            row.eligibility_check_id !== null &&
-            row.ineligibility_check_id === null &&
-            ['ACTIVATING', 'UNDER_REVIEW', 'COMPLETED'].includes(String(row.status)) &&
-            row.sybil_status !== 'BLOCKED' &&
-            !excludedWallets.has(normalizeWallet(row.invitee_wallet)),
-          );
+        let siblingFallbackSignals: SybilV2Signal[] | null = null;
 
         for (const sibling of siblingInvitations) {
           const siblingWallet = normalizeWallet(String(sibling.invitee_wallet));
@@ -2000,6 +1994,22 @@ async function loadSecurityIdentitySignals(
               activationGapSeconds <= 10 * 60 &&
               siblingActivationGapSeconds <= 10 * 60;
 
+            const peerConfirmedRestricted =
+              restrictedSiblingReferrals.has(
+                restrictedSiblingReferralKey({
+                  walletAddress: siblingWallet,
+                  inviteCode: String(sibling.invite_code),
+                }),
+              );
+            const restrictedSiblingReentry =
+              isRestrictedSiblingReentry({
+                peerConfirmedRestricted,
+                switchGapSeconds,
+                activationGapSeconds,
+                currentFirstSeenAt: String(ownRow.first_seen_at),
+                peerLastSeenAt: siblingRow.last_seen_at,
+              });
+
             const signals: SybilV2Signal[] = [{
               code: 'SECURITY_CLIENT_SIBLING_LINK',
               family: 'SECURITY_IDENTITY',
@@ -2011,6 +2021,16 @@ async function loadSecurityIdentitySignals(
             if (immediateSwitch) {
               signals.push({
                 code: 'SECURITY_CLIENT_SIBLING_IMMEDIATE_SWITCH',
+                family: 'SECURITY_IDENTITY',
+                strength: 'HIGH',
+                score: 100,
+                independentKey: sharedClientId,
+              });
+            }
+
+            if (restrictedSiblingReentry) {
+              signals.push({
+                code: 'SECURITY_CLIENT_RESTRICTED_SIBLING_REENTRY',
                 family: 'SECURITY_IDENTITY',
                 strength: 'HIGH',
                 score: 100,
@@ -2032,9 +2052,11 @@ async function loadSecurityIdentitySignals(
                   inviterWallet,
                   peerInviteCode: sibling.invite_code,
                   peerWallet: siblingWallet,
+                  peerConfirmedRestricted,
                   sharedClientId,
                   preVoteDetection: true,
                   immediateSwitch,
+                  restrictedSiblingReentry,
                   switchGapSeconds,
                   activationGapSeconds,
                   peerActivationGapSeconds: siblingActivationGapSeconds,
@@ -2044,8 +2066,19 @@ async function loadSecurityIdentitySignals(
               });
             }
 
-            return { signals, complete: true };
+            if (immediateSwitch || restrictedSiblingReentry) {
+              return { signals, complete: true };
+            }
+
+            siblingFallbackSignals ??= signals;
           }
+        }
+
+        if (siblingFallbackSignals) {
+          return {
+            signals: siblingFallbackSignals,
+            complete: true,
+          };
         }
       }
     }
@@ -3722,6 +3755,9 @@ export async function assessSybilV2Referral(
   const securityClientInviterImmediateSwitch =
     policy.state === 'HOLD' &&
     hasHighSignal(signals, 'SECURITY_CLIENT_INVITER_IMMEDIATE_SWITCH');
+  const securityClientRestrictedSiblingReentry =
+    policy.state === 'HOLD' &&
+    hasHighSignal(signals, 'SECURITY_CLIENT_RESTRICTED_SIBLING_REENTRY');
 
   const evidenceSummary = {
     behaviorPatternEnforcementVersion:
@@ -3763,6 +3799,8 @@ export async function assessSybilV2Referral(
       funderReturnLoopHub !== null,
     securityClientInviterImmediateSwitchAutomaticRestrictionCandidate:
       securityClientInviterImmediateSwitch,
+    securityClientRestrictedSiblingReentryAutomaticRestrictionCandidate:
+      securityClientRestrictedSiblingReentry,
     vePassport: vePassport.snapshot
       ? {
           evidenceVersion:
@@ -3823,6 +3861,7 @@ export async function assessSybilV2Referral(
       behaviorPatternHub !== null ||
       funderReturnLoopHub !== null ||
       securityClientInviterImmediateSwitch ||
+      securityClientRestrictedSiblingReentry ||
       vePassport.automaticRestrictionCandidate,
   };
 
@@ -3904,6 +3943,39 @@ export async function assessSybilV2Referral(
           safeRevision(fresh.revision) ??
           automaticRevision ??
           revision,
+        clearanceIssued: false,
+        clearanceId: null,
+      };
+    }
+  }
+
+  if (
+    revision !== null &&
+    policy.state === 'HOLD' &&
+    securityClientRestrictedSiblingReentry
+  ) {
+    const automatic =
+      await applyRestrictedSiblingReentryRestriction({
+        inviteCode: invitation.invite_code,
+        expectedRevision: revision,
+        network: invitation.activation_network,
+      });
+    const automaticRevision =
+      safeRevision(automatic.revision);
+
+    if (
+      automatic.changed === true &&
+      automatic.state === 'RESTRICTED'
+    ) {
+      return {
+        inviteCode: normalizedCode,
+        state: 'RESTRICTED',
+        riskScore: 100,
+        reasonCodes: unique([
+          ...policy.reasonCodes,
+          'AUTO_RESTRICTED_SIBLING_REENTRY_RESTRICTION',
+        ]),
+        revision: automaticRevision ?? revision,
         clearanceIssued: false,
         clearanceId: null,
       };
