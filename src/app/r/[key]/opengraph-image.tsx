@@ -7,6 +7,8 @@ export const size = {
 };
 export const contentType = 'image/png';
 
+const LOGO_URL = 'https://veinvite.vercel.app/veinvite-logo.webp';
+
 export default function Image() {
   return new ImageResponse(
     (
@@ -17,9 +19,9 @@ export default function Image() {
           display: 'flex',
           flexDirection: 'column',
           justifyContent: 'space-between',
-          backgroundColor: '#080807',
+          backgroundColor: '#0b0b09',
           color: '#ffffff',
-          padding: '68px 76px',
+          padding: '64px 72px 54px',
         }}
       >
         <div
@@ -28,21 +30,24 @@ export default function Image() {
             alignItems: 'center',
           }}
         >
-          <div
+          <img
+            src={LOGO_URL}
+            alt=""
+            width="92"
+            height="92"
             style={{
-              width: '32px',
-              height: '32px',
-              display: 'flex',
-              borderRadius: '8px',
-              backgroundColor: '#f4b728',
-              marginRight: '16px',
+              width: '92px',
+              height: '92px',
+              borderRadius: '24px',
+              marginRight: '26px',
             }}
           />
           <div
             style={{
               display: 'flex',
-              fontSize: '34px',
+              fontSize: '64px',
               fontWeight: 700,
+              letterSpacing: '-2px',
             }}
           >
             VeInvite
@@ -58,9 +63,10 @@ export default function Image() {
           <div
             style={{
               display: 'flex',
-              fontSize: '76px',
+              fontSize: '70px',
               lineHeight: 1.02,
               fontWeight: 700,
+              letterSpacing: '-2px',
               marginBottom: '24px',
             }}
           >
@@ -69,23 +75,44 @@ export default function Image() {
           <div
             style={{
               display: 'flex',
-              fontSize: '30px',
-              lineHeight: 1.3,
-              color: '#c5c0b5',
+              fontSize: '31px',
+              lineHeight: 1.25,
+              color: '#d3d0c8',
             }}
           >
-            Verified onboarding for VeBetterDAO.
+            Invite. Verify. Earn.
           </div>
         </div>
 
         <div
           style={{
             display: 'flex',
-            fontSize: '24px',
-            color: '#f4b728',
+            flexDirection: 'column',
           }}
         >
-          veinvite.vercel.app
+          <div
+            style={{
+              display: 'flex',
+              alignSelf: 'flex-start',
+              borderRadius: '8px',
+              backgroundColor: '#141410',
+              color: '#f4b728',
+              fontSize: '22px',
+              padding: '8px 14px',
+              marginBottom: '18px',
+            }}
+          >
+            VeInvite
+          </div>
+          <div
+            style={{
+              display: 'flex',
+              width: '100%',
+              height: '8px',
+              borderRadius: '999px',
+              backgroundColor: '#f4b728',
+            }}
+          />
         </div>
       </div>
     ),
