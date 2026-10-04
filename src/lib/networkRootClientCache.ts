@@ -1,7 +1,11 @@
+import type { NetworkMemberStatus } from '@/lib/networkDataClient';
+
 export const NETWORK_HEADER_METRICS_UPDATED_EVENT =
   'veinvite-network-header-metrics-updated';
 export const NETWORK_DATA_REFRESH_REQUESTED_EVENT =
   'veinvite-network-data-refresh-requested';
+
+type NetworkCachedMemberStatus = NetworkMemberStatus;
 
 export type NetworkHeaderMetrics = {
   network: number;
@@ -21,7 +25,7 @@ export type NetworkRootSnapshot = {
   };
   children: Array<{
     wallet: string;
-    status: 'IN_PROGRESS' | 'QUALIFIED' | 'REWARDED';
+    status: NetworkCachedMemberStatus;
     joinedAt: string | null;
     network: number;
     direct: number;
