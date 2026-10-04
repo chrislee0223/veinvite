@@ -1058,11 +1058,15 @@ export function InviteNotificationHistoryCenter({
           <section
             id={NOTIFICATION_DIALOG_ID}
             ref={panelRef}
-            className={[
-              'notificationHistoryPanel',
-              receiptViewActive ? 'hasReceipt' : '',
-              closing ? 'isClosing' : '',
-            ].filter(Boolean).join(' ')}
+            className={
+              receiptViewActive
+                ? closing
+                  ? 'notificationHistoryPanel hasReceipt isClosing'
+                  : 'notificationHistoryPanel hasReceipt'
+                : closing
+                  ? 'notificationHistoryPanel isClosing'
+                  : 'notificationHistoryPanel'
+            }
             role="dialog"
             aria-modal="true"
             aria-label={receiptViewActive ? receiptCopy.title : structure.title}
