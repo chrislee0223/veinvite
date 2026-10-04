@@ -232,8 +232,7 @@ AS $function$
   where t.round_id > p.current_round_id - p.history_limit
     and t.round_id >= p.reporting_baseline_round_id
   order by t.round_id desc;
-$function$
-
+$function$;
 
 CREATE OR REPLACE FUNCTION public.get_veinvite_vebetter_round_report(p_network text, p_app_id text, p_vebetter_round_id bigint)
  RETURNS jsonb
@@ -413,7 +412,6 @@ begin
     'queuedCandidatesAwaitingReward', v_queued_candidates
   );
 end;
-$function$
-
+$function$;
 
 commit;
