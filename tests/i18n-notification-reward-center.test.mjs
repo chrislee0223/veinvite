@@ -84,7 +84,7 @@ test('reward-ready history is an event while paid history remains reopenable as 
   assert.match(center, /rewards\/receipts\?inviteCode=\$\{encodeURIComponent\(item\.inviteCode\)\}/);
   assert.doesNotMatch(center, /rewards\/receipts\?limit=50/);
   assert.doesNotMatch(center, /candidate\.inviteCode === item\.inviteCode/);
-  assert.match(center, /getVeChainExplorerTransactionUrl/);
+  assert.match(rewardReceiptView, /getVeChainExplorerTransactionUrl/);
   assert.match(center, /ACKNOWLEDGE_REWARD_RECEIPT/);
 });
 
