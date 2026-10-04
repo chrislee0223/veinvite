@@ -1,5 +1,7 @@
 import 'server-only';
 
+// Server-only RPC transport. Classification policy stays in pipeline/policy;
+// these helpers only invoke already-gated database enforcement functions.
 import { supabaseAdmin } from '@/lib/supabaseServer';
 import { normalizeWallet } from '@/lib/sybil/v2/pipelinePrimitives';
 import type { VeBetterNetwork } from '@/lib/vebetter/network';
