@@ -99,7 +99,13 @@ test('paid reward receipt shares a verified permanent invite link on X without a
   assert.match(rewardShare, /https:\/\/x\.com\/intent\/post/);
   assert.match(rewardShare, /REWARD_RECEIPT_SHARE_COPY/);
   assert.match(rewardShare, /Record<\s*SupportedLocale/);
-  assert.match(rewardShare, /VeBetterDAO,B3TR,VeInvite/);
+  assert.match(rewardShare, /'#VeBetterDAO #B3TR #VeInvite'/);
+  assert.match(
+    rewardShare,
+    /rewardReceiptShareText\(\{ locale, amountB3tr \}\),[\s\S]*referralUrl,[\s\S]*'#VeBetterDAO #B3TR #VeInvite',[\s\S]*\.join\('\\\\n\\\\n'\)/,
+  );
+  assert.doesNotMatch(rewardShare, /searchParams\.set\('url'/);
+  assert.doesNotMatch(rewardShare, /searchParams\.set\(\s*'hashtags'/);
 
   const supportedLocales = [
     ...locales.matchAll(/\{ locale: '([^']+)'/gmu),
