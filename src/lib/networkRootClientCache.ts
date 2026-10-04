@@ -5,6 +5,8 @@ export const NETWORK_HEADER_METRICS_UPDATED_EVENT =
 export const NETWORK_DATA_REFRESH_REQUESTED_EVENT =
   'veinvite-network-data-refresh-requested';
 
+type NetworkCachedMemberStatus = NetworkMemberStatus;
+
 export type NetworkHeaderMetrics = {
   network: number;
 };
@@ -23,7 +25,7 @@ export type NetworkRootSnapshot = {
   };
   children: Array<{
     wallet: string;
-    status: NetworkMemberStatus;
+    status: NetworkCachedMemberStatus;
     joinedAt: string | null;
     network: number;
     direct: number;
