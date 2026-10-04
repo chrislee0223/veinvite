@@ -426,7 +426,7 @@ create or replace function public.enforce_reward_queue_cohort_budget()
 returns trigger
 language plpgsql
 security definer
-set search_path = pg_catalog, public
+set search_path=pg_catalog,public
 as $$
 declare
   v_invitation public.invitations%rowtype;
@@ -437,7 +437,15 @@ declare
   v_current_offset numeric(78,0) := 0;
   v_budget numeric(78,0) := 0;
 begin
-  if new.reserved_amount_wei is null then return new; end if;
+  -- Preserve the existing production semantics: cancelled rows do not hold
+  -- cohort budget and every live budget mutation is serialized per network.
+  if new.reserved_amount_wei is null or new.status='CANCELLED' then
+    return new;
+  end if;
+
+  perform pg_advisory_xact_lock(
+    hashtextextended('veinvite_reward_reservation_' || new.network,0)
+  );
 
   select * into v_invitation
   from public.invitations i
@@ -455,7 +463,7 @@ begin
 
   if not found
      or v_receipt.network<>new.network
-     or v_receipt.vebetter_round_id + 1<>v_invitation.reward_cohort_round_id then
+     or v_receipt.vebetter_round_id+1<>v_invitation.reward_cohort_round_id then
     raise exception 'REWARD_COHORT_FUNDING_MISMATCH';
   end if;
 
@@ -467,7 +475,7 @@ begin
     and a.reward_cohort_round_id=v_invitation.reward_cohort_round_id
     and a.allocation_receipt_id=v_receipt.id;
 
-  v_budget := v_receipt.rewards_allocation_amount_wei + v_adjustment;
+  v_budget:=v_receipt.rewards_allocation_amount_wei+v_adjustment;
 
   select coalesce(sum(q.reserved_amount_wei),0)
   into v_existing_queue
@@ -485,7 +493,6 @@ begin
   from public.reward_recovery_settlements s
   join public.invitations i on i.invite_code=s.invite_code
   where s.network=new.network
-    and s.state='ACTIVE'
     and s.invite_code<>new.invite_code
     and i.reward_funding_allocation_receipt_id=v_receipt.id
     and i.reward_cohort_round_id=v_invitation.reward_cohort_round_id;
@@ -494,13 +501,14 @@ begin
   into v_current_offset
   from public.reward_recovery_settlements s
   where s.invite_code=new.invite_code
-    and s.network=new.network
-    and s.state='ACTIVE';
+    and s.network=new.network;
 
-  if not found then v_current_offset := 0; end if;
+  if not found then
+    v_current_offset:=0;
+  end if;
 
-  if v_existing_queue + v_existing_offset
-     + new.reserved_amount_wei + v_current_offset > v_budget then
+  if v_existing_queue+v_existing_offset+
+     new.reserved_amount_wei+v_current_offset>v_budget then
     raise exception 'REWARD_COHORT_BUDGET_EXCEEDED';
   end if;
 
@@ -509,7 +517,7 @@ end;
 $$;
 
 revoke all on function public.enforce_reward_queue_cohort_budget()
-  from public, anon, authenticated;
+  from public,anon,authenticated;
 grant execute on function public.enforce_reward_queue_cohort_budget()
   to service_role;
 
@@ -527,7 +535,7 @@ create or replace function public.commit_reward_reservation(
 returns jsonb
 language plpgsql
 security definer
-set search_path = pg_catalog, public
+set search_path=pg_catalog,public
 as $$
 declare
   v_code text := upper(btrim(p_invite_code));
@@ -537,7 +545,7 @@ declare
   v_clearance public.sybil_v2_reward_clearances%rowtype;
   v_existing_settlement public.reward_recovery_settlements%rowtype;
   v_settlement public.reward_recovery_settlements%rowtype;
-  v_receipt public.vebetter_round_allocations%rowtype;
+  v_allocation_receipt public.vebetter_round_allocations%rowtype;
   v_obligation record;
   v_entry_class text;
   v_reserved numeric(78,0) := 0;
@@ -589,6 +597,8 @@ begin
   if v_emergency_paused then raise exception 'REWARD_RESERVATION_PAUSED'; end if;
   if v_network='mainnet' and not v_mainnet_enabled then raise exception 'REWARD_RESERVATION_DISABLED'; end if;
 
+  -- Preserve the existing global network reservation lock. Recovery also uses
+  -- a wallet lock below, always after this lock, so lock ordering is stable.
   perform pg_advisory_xact_lock(
     hashtextextended('veinvite_reward_reservation_' || v_network,0)
   );
@@ -702,14 +712,12 @@ begin
     and e.block_number is not null
     and e.tx_index is not null
     and e.clause_index is not null
-    and e.tx_id ~ '^0x[0-9a-fA-F]{64}$'
   order by e.block_number desc,e.tx_index desc,e.clause_index desc
   limit 1;
 
   if v_completion_block is null
      or v_completion_tx_index is null
-     or v_completion_clause_index is null
-     or v_completion_tx_id is null then
+     or v_completion_clause_index is null then
     return jsonb_build_object('reserved',false,'reason','COMPLETION_POSITION_MISSING');
   end if;
 
@@ -735,6 +743,9 @@ begin
     return jsonb_build_object('reserved',false,'reason','ENTRY_PROOF_MISSING');
   end if;
 
+  -- Actual pool liability remains NET-only. This is intentionally unchanged
+  -- for wallets without recovery and prevents a withheld amount from reducing
+  -- funds available for other legitimate users.
   select coalesce(sum(q.reserved_amount_wei),0)
   into v_reserved
   from public.reward_queue_entries q
@@ -761,7 +772,7 @@ begin
         and q.reserved_amount_wei is not null
     );
 
-  v_reserved := v_reserved + v_legacy_payout_reserved;
+  v_reserved:=v_reserved+v_legacy_payout_reserved;
 
   if v_reserved<>p_expected_reserved_before_wei then
     return jsonb_build_object(
@@ -771,59 +782,27 @@ begin
     );
   end if;
 
-  select * into v_receipt
-  from public.vebetter_round_allocations a
-  where a.id=v_invitation.reward_funding_allocation_receipt_id;
-
-  if not found
-     or v_receipt.network<>v_network
-     or v_receipt.vebetter_round_id + 1<>v_invitation.reward_cohort_round_id then
-    raise exception 'REWARD_COHORT_FUNDING_MISMATCH';
-  end if;
-
-  select coalesce(sum(a.amount_wei),0)
-  into v_adjustment
-  from public.reward_cohort_funding_adjustments a
-  where a.network=v_receipt.network
-    and a.app_id=v_receipt.app_id
-    and a.reward_cohort_round_id=v_invitation.reward_cohort_round_id
-    and a.allocation_receipt_id=v_receipt.id;
-
-  v_budget := v_receipt.rewards_allocation_amount_wei + v_adjustment;
-  v_cohort_committed := public.read_reward_cohort_committed_wei(
-    v_network,
-    v_receipt.app_id,
-    v_invitation.reward_cohort_round_id,
-    v_receipt.id
-  );
-
-  if v_cohort_committed + p_amount_wei > v_budget then
-    return jsonb_build_object(
-      'reserved',false,
-      'reason','RECALCULATE',
-      'cohortCommittedWei',v_cohort_committed::text,
-      'cohortBudgetWei',v_budget::text
-    );
-  end if;
-
-  v_net := p_amount_wei;
+  v_net:=p_amount_wei;
 
   if v_recovery_enabled then
     perform pg_advisory_xact_lock(
       hashtextextended(
-        'veinvite_reward_recovery_' || v_network || '_' || lower(v_invitation.inviter_wallet),
+        'veinvite_reward_recovery_' || v_network || '_' ||
+        lower(v_invitation.inviter_wallet),
         0
       )
     );
 
-    v_recovery_balance := public.read_reward_recovery_balance_wei(
+    v_recovery_balance:=public.read_reward_recovery_balance_wei(
       v_network,
       lower(v_invitation.inviter_wallet)
     );
-    v_offset := least(p_amount_wei,v_recovery_balance);
-    v_net := p_amount_wei - v_offset;
+    v_offset:=least(p_amount_wei,v_recovery_balance);
+    v_net:=p_amount_wei-v_offset;
   end if;
 
+  -- Preserve the original pool guard for normal users. Recovery users reserve
+  -- only the amount that will actually be transferred on-chain.
   if v_net>greatest(p_observed_pool_balance_wei-v_reserved,0) then
     return jsonb_build_object(
       'reserved',false,
@@ -833,7 +812,7 @@ begin
     );
   end if;
 
-  v_basis := p_basis || jsonb_build_object(
+  v_basis:=p_basis || jsonb_build_object(
     'observedPoolBalanceWei',p_observed_pool_balance_wei::text,
     'reservedBeforeWei',v_reserved::text,
     'finalizedBlock',p_finalized_block,
@@ -844,6 +823,53 @@ begin
   );
 
   if v_offset>0 then
+    if v_completion_tx_id is null
+       or v_completion_tx_id !~ '^0x[0-9a-f]{64}$' then
+      return jsonb_build_object(
+        'reserved',false,
+        'reason','COMPLETION_TX_ID_MISSING'
+      );
+    end if;
+
+    -- Gross remains the cohort pricing commitment. Net remains the actual
+    -- transfer liability. This keeps same-cohort pricing deterministic while
+    -- ensuring withheld value does not occupy the on-chain payout pool.
+    select * into v_allocation_receipt
+    from public.vebetter_round_allocations a
+    where a.id=v_invitation.reward_funding_allocation_receipt_id;
+
+    if not found
+       or v_allocation_receipt.network<>v_network
+       or v_allocation_receipt.vebetter_round_id+1<>
+          v_invitation.reward_cohort_round_id then
+      raise exception 'REWARD_COHORT_FUNDING_MISMATCH';
+    end if;
+
+    select coalesce(sum(a.amount_wei),0)
+    into v_adjustment
+    from public.reward_cohort_funding_adjustments a
+    where a.network=v_allocation_receipt.network
+      and a.app_id=v_allocation_receipt.app_id
+      and a.reward_cohort_round_id=v_invitation.reward_cohort_round_id
+      and a.allocation_receipt_id=v_allocation_receipt.id;
+
+    v_budget:=v_allocation_receipt.rewards_allocation_amount_wei+v_adjustment;
+    v_cohort_committed:=public.read_reward_cohort_committed_wei(
+      v_network,
+      v_allocation_receipt.app_id,
+      v_invitation.reward_cohort_round_id,
+      v_allocation_receipt.id
+    );
+
+    if v_cohort_committed+p_amount_wei>v_budget then
+      return jsonb_build_object(
+        'reserved',false,
+        'reason','RECALCULATE',
+        'cohortCommittedWei',v_cohort_committed::text,
+        'cohortBudgetWei',v_budget::text
+      );
+    end if;
+
     insert into public.reward_recovery_settlements(
       network,invite_code,recipient_wallet,settlement_kind,state,
       gross_amount_wei,offset_amount_wei,net_amount_wei,sybil_clearance_id,
@@ -868,7 +894,7 @@ begin
     )
     returning * into v_settlement;
 
-    v_remaining_offset := v_offset;
+    v_remaining_offset:=v_offset;
 
     for v_obligation in
       with consumed as (
@@ -876,14 +902,12 @@ begin
           a.obligation_id,
           coalesce(sum(a.amount_wei),0)::numeric as consumed_wei
         from public.reward_recovery_allocations a
-        join public.reward_recovery_settlements s
-          on s.id=a.settlement_id
-         and s.state='ACTIVE'
         group by a.obligation_id
       )
       select
         o.id,
-        greatest(o.amount_wei-coalesce(c.consumed_wei,0),0)::numeric as remaining_wei
+        greatest(o.amount_wei-coalesce(c.consumed_wei,0),0)::numeric
+          as remaining_wei
       from public.reward_recovery_obligations o
       left join consumed c on c.obligation_id=o.id
       where o.network=v_network
@@ -893,7 +917,7 @@ begin
       order by o.created_at,o.id
     loop
       exit when v_remaining_offset<=0;
-      v_take := least(v_remaining_offset,v_obligation.remaining_wei);
+      v_take:=least(v_remaining_offset,v_obligation.remaining_wei);
 
       insert into public.reward_recovery_allocations(
         settlement_id,obligation_id,amount_wei
@@ -901,14 +925,14 @@ begin
         v_settlement.id,v_obligation.id,v_take
       );
 
-      v_remaining_offset := v_remaining_offset-v_take;
+      v_remaining_offset:=v_remaining_offset-v_take;
     end loop;
 
     if v_remaining_offset<>0 then
       raise exception 'REWARD_RECOVERY_ALLOCATION_MISMATCH';
     end if;
 
-    v_basis := v_basis || jsonb_build_object(
+    v_basis:=v_basis || jsonb_build_object(
       'recoverySettlementId',v_settlement.id::text,
       'grossRewardWei',p_amount_wei::text,
       'recoveryOffsetWei',v_offset::text,
@@ -960,6 +984,9 @@ begin
     raise exception 'REWARD_RECOVERY_FULL_OFFSET_STATE_INVALID';
   end if;
 
+  -- Full offset has no token transfer, queue row, payout or receipt. It still
+  -- settles the valid referral, releases the slot and records one bell-only
+  -- policy notice.
   update public.invitations i
   set slot_released_at=coalesce(i.slot_released_at,v_now)
   where i.invite_code=v_code
@@ -1000,7 +1027,7 @@ $$;
 
 revoke all on function public.commit_reward_reservation(
   text,text,numeric,numeric,numeric,text,bigint,bigint,jsonb
-) from public, anon, authenticated;
+) from public,anon,authenticated;
 grant execute on function public.commit_reward_reservation(
   text,text,numeric,numeric,numeric,text,bigint,bigint,jsonb
 ) to service_role;
