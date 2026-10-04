@@ -157,6 +157,7 @@ export function PublicLeaderboardHub({
     status: initialCountry ? 'ready' : 'idle',
     data: initialCountry,
   }));
+  const [personalizationRetryKey, setPersonalizationRetryKey] = useState(0);
 
   useEffect(() => {
     let active = true;
@@ -316,7 +317,7 @@ export function PublicLeaderboardHub({
     return () => {
       active = false;
     };
-  }, [publicData, publicState.confirmed, walletKey]);
+  }, [personalizationRetryKey, publicData, publicState.confirmed, walletKey]);
 
   useEffect(() => {
     setRankingView('inviter');
@@ -386,28 +387,44 @@ export function PublicLeaderboardHub({
     };
   }, [personalization, publicData, walletKey]);
 
-  const currentWalletNeedsPrivateLookup = Boolean(
+  const currentWalletInDisplayedRanking = Boolean(
     walletKey &&
-    publicData &&
-    publicState.confirmed &&
-    publicData.leaders.length >= PUBLIC_RANK_LIMIT &&
-    !publicData.leaders.some(
+    publicData?.leaders.some(
       (entry) => entry.walletAddress.toLowerCase() === walletKey,
-    )
+    ),
+  );
+  const personalizationUnavailable = Boolean(
+    walletKey &&
+    personalization.walletKey === walletKey &&
+    personalization.status === 'unavailable',
   );
   const personalizationPending = Boolean(
     walletKey &&
     (
       personalization.walletKey !== walletKey ||
-      personalization.status === 'pending' ||
-      personalization.status === 'unavailable'
+      personalization.status === 'pending'
     ),
   );
   const pendingCurrentWallet =
-    currentWalletNeedsPrivateLookup && personalizationPending
+    walletKey &&
+    publicData &&
+    !currentWalletInDisplayedRanking &&
+    (personalizationPending || personalizationUnavailable)
       ? wallet
       : null;
-  const displayWallet = personalizationPending ? null : wallet;
+  const displayWallet =
+    personalizationPending || personalizationUnavailable
+      ? null
+      : wallet;
+  const retryPersonalization = useCallback(() => {
+    if (!walletKey) return;
+    setPersonalization({
+      walletKey,
+      status: 'pending',
+      currentUser: null,
+    });
+    setPersonalizationRetryKey((current) => current + 1);
+  }, [walletKey]);
   const countryCopy = COUNTRY_LEADERBOARD_COPY[locale];
   const countryMetricCopy = COUNTRY_ARRIVAL_METRIC_COPY[locale];
   const leaderboardCopy = LEADERBOARD_COPY[locale] ?? LEADERBOARD_COPY.en;
@@ -479,6 +496,14 @@ export function PublicLeaderboardHub({
               pendingCurrentWallet={pendingCurrentWallet}
               previewData={displayData}
             />
+            {personalizationUnavailable ? (
+              <div className="personalizationInlineError" role="status">
+                <span>{leaderboardCopy.loadError}</span>
+                <button type="button" onClick={retryPersonalization}>
+                  {leaderboardCopy.retry}
+                </button>
+              </div>
+            ) : null}
           </div>
         ) : (
           <div className="countryPanel">
@@ -596,6 +621,28 @@ export function PublicLeaderboardHub({
         }
         .leaderboardHub.personalizationPending .rankContextNote {
           display:none !important;
+        }
+        .personalizationInlineError {
+          margin-top:8px;
+          display:flex;
+          align-items:center;
+          justify-content:center;
+          gap:8px;
+          color:#8f8a80;
+          font-size:.68rem;
+          line-height:1.4;
+          text-align:center;
+        }
+        .personalizationInlineError button {
+          min-height:30px;
+          padding:0 9px;
+          border:1px solid rgba(255,205,80,.2);
+          border-radius:9px;
+          background:rgba(244,183,40,.06);
+          color:#e7c86d;
+          font:inherit;
+          font-weight:850;
+          cursor:pointer;
         }
       `}</style>
 
