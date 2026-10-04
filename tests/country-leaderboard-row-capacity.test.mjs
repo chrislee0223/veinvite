@@ -23,7 +23,7 @@ test('country ranking can use five through seven visible rows without changing r
   assert.match(hub, /const COUNTRY_MAX_VISIBLE_ROWS = 7;/);
   assert.match(
     hub,
-    /const countryVisibleRowCount = Math\.min\([\s\S]*COUNTRY_MAX_VISIBLE_ROWS,[\s\S]*Math\.max\(COUNTRY_MIN_VISIBLE_ROWS, countryLeaders\.length\)/,
+    /const countryVisibleRowCount =[\s\S]*countryLeaders\.length > 0[\s\S]*COUNTRY_MAX_VISIBLE_ROWS[\s\S]*Math\.max\(COUNTRY_MIN_VISIBLE_ROWS, countryLeaders\.length\)[\s\S]*: COUNTRY_MAX_VISIBLE_ROWS/,
   );
   assert.match(
     hub,
@@ -60,9 +60,14 @@ test('only inviter-reserved spare height expands the country viewport', () => {
   );
 });
 
-test('expanded country rows fill the reserved viewport and stop at seven before scrolling', () => {
+test('expanded country rows fill the reserve without over-compressing context-only states', () => {
   assert.match(css, /data-visible-rows='6'/);
   assert.match(css, /data-visible-rows='7'/);
+  assert.match(
+    css,
+    /:has\(\.impactOnly \.rankContextNote\):not\(:has\(\.impactOnly \.trailingCurrent\)\)[\s\S]*data-visible-rows='7'[\s\S]*--country-visible-row-count: 6/,
+  );
+  assert.match(css, /\.countrySkeleton \{[\s\S]*overflow: hidden;/);
   assert.match(
     css,
     /\/ var\(--country-visible-row-count\)/,
@@ -81,4 +86,11 @@ test('country capacity guard is loaded after horizontal layout and card stabilit
   assert.ok(stability >= 0);
   assert.ok(horizontal > stability);
   assert.ok(capacity > horizontal);
+});
+
+test('pending current-wallet geometry is mirrored by the hidden inviter measurement surface', () => {
+  assert.match(
+    hub,
+    /className="impactOnly"[\s\S]*pendingCurrentWallet=\{pendingCurrentWallet\}[\s\S]*previewData=\{displayData\}/,
+  );
 });

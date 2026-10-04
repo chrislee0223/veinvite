@@ -434,10 +434,13 @@ export function PublicLeaderboardHub({
     () => countryData?.leaders ?? [],
     [countryData],
   );
-  const countryVisibleRowCount = Math.min(
-    COUNTRY_MAX_VISIBLE_ROWS,
-    Math.max(COUNTRY_MIN_VISIBLE_ROWS, countryLeaders.length),
-  );
+  const countryVisibleRowCount =
+    countryLeaders.length > 0
+      ? Math.min(
+          COUNTRY_MAX_VISIBLE_ROWS,
+          Math.max(COUNTRY_MIN_VISIBLE_ROWS, countryLeaders.length),
+        )
+      : COUNTRY_MAX_VISIBLE_ROWS;
 
   if (!displayData) {
     return <InviterLeaderboard locale={locale} wallet={wallet} />;
@@ -463,6 +466,7 @@ export function PublicLeaderboardHub({
         <InviterLeaderboard
           locale={locale}
           wallet={displayWallet}
+          pendingCurrentWallet={pendingCurrentWallet}
           previewData={displayData}
         />
       </div>
