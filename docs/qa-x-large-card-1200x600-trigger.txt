@@ -1,0 +1,1 @@
+QA deployment trigger for 1200x600 X large card.
