@@ -539,7 +539,7 @@ export function AppSettings({
                 ref={walletConfirmationCancelRef}
                 type="button"
                 className="confirmationCancel"
-                onClick={closeWalletConfirmation}
+                onClick={() => closeWalletConfirmation()}
               >
                 {t.cancel}
               </button>
