@@ -393,7 +393,7 @@ returns trigger
 language plpgsql
 security definer
 set search_path=pg_catalog,public
-as $
+as $function$
 declare
   v_invalidation_id uuid;
   v_restriction_id uuid;
@@ -440,7 +440,7 @@ begin
 
   return new;
 end;
-$;
+$function$;
 
 revoke all on function public.sync_reward_recovery_receipt()
   from public,anon,authenticated,service_role;
