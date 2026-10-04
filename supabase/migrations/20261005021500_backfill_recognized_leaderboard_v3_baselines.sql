@@ -1,9 +1,9 @@
 begin;
 
--- v3 is identical to v2 for every historical snapshot because recovery
--- settlements did not exist before the v3 rollout. Recompute each historical
--- boundary with the v3 reader and require exact row-count/hash parity before
--- publishing a new immutable v3 baseline. Existing v2 snapshots are untouched.
+-- Preserve every immutable v2 snapshot, but use its reviewed round boundary to
+-- publish a fresh v3 baseline under the current recognized-referral policy.
+-- This intentionally re-applies authoritative referral invalidations that may
+-- have been decided after the historical v2 snapshot was published.
 do $$
 declare
   v_source public.leaderboard_round_snapshots%rowtype;
@@ -52,18 +52,6 @@ begin
       v_source.network,
       v_source.round_end_block
     );
-
-    if v_expected_count<>v_source.row_count
-       or v_expected_hash<>v_source.content_sha256 then
-      raise exception
-        'LEADERBOARD_V3_HISTORICAL_PARITY_FAILED network=% round=% expected_count=% source_count=% expected_hash=% source_hash=%',
-        v_source.network,
-        v_source.round_id,
-        v_expected_count,
-        v_source.row_count,
-        v_expected_hash,
-        v_source.content_sha256;
-    end if;
 
     select * into v_target
     from public.leaderboard_round_snapshots s
