@@ -6,6 +6,10 @@ const hub = readFileSync(
   new URL('../src/components/PublicLeaderboardHub.tsx', import.meta.url),
   'utf8',
 );
+const leaderboard = readFileSync(
+  new URL('../src/components/InviterLeaderboard.tsx', import.meta.url),
+  'utf8',
+);
 
 test('public leaderboard paints independently from current-wallet personalization', () => {
   assert.match(hub, /const initialPublic = getCachedPublicLeaderboard\(null\)/);
@@ -59,5 +63,44 @@ test('pending or unavailable personalization cannot fabricate a rank-zero curren
   assert.match(
     hub,
     /leaderboardHub\.personalizationPending \.rankContextNote \{\s*display:none !important;/,
+  );
+});
+
+
+test('outside-top-100 personalization reserves the current-wallet row before private rank resolves', () => {
+  assert.match(
+    hub,
+    /const currentWalletNeedsPrivateLookup = Boolean\([\s\S]*publicState\.confirmed[\s\S]*publicData\.leaders\.length >= PUBLIC_RANK_LIMIT[\s\S]*!publicData\.leaders\.some/,
+  );
+  assert.match(
+    hub,
+    /const pendingCurrentWallet =[\s\S]*currentWalletNeedsPrivateLookup && personalizationPending[\s\S]*\? wallet[\s\S]*: null/,
+  );
+  assert.match(
+    hub,
+    /pendingCurrentWallet=\{pendingCurrentWallet\}/,
+  );
+});
+
+test('pending current-wallet row keeps geometry without fabricating rank or reward values', () => {
+  assert.match(
+    leaderboard,
+    /pendingCurrentWallet\?: string \| null/,
+  );
+  assert.match(
+    leaderboard,
+    /className="rankRow compact current trailingCurrent pendingCurrent"[\s\S]*data-current-wallet-pending="true"/,
+  );
+  assert.match(
+    leaderboard,
+    /<WalletIdentity address=\{pendingCurrentWallet\} eager \/>/,
+  );
+  assert.match(
+    leaderboard,
+    /trailingCurrentUser \|\| showPendingCurrentUser[\s\S]*renderPendingCurrentRow\(\)/,
+  );
+  assert.doesNotMatch(
+    leaderboard,
+    /pendingCurrentWallet[\s\S]{0,500}completedReferrals:\s*0/,
   );
 });
