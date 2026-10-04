@@ -126,7 +126,7 @@ export function RewardReceiptView({
               disabled={acknowledging}
               onClick={onAcknowledge}
             >
-              {acknowledging ? copy.acknowledging : copy.notificationReceiptAcknowledge}
+              {acknowledging ? copy.acknowledging : copy.acknowledge}
             </button>
           ) : null}
         </>
