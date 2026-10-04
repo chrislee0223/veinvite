@@ -26,6 +26,15 @@ export type IsoCountryCode = (typeof ISO_COUNTRY_CODES)[number];
 
 const ISO_COUNTRY_CODE_SET = new Set<string>(ISO_COUNTRY_CODES);
 
+export const COUNTRY_FLAG_CDN_BASE =
+  'https://cdn.jsdelivr.net/npm/country-flag-icons@1.6.20/3x2';
+
+export function countryFlagAssetUrl(
+  countryCode: IsoCountryCode,
+): string {
+  return `${COUNTRY_FLAG_CDN_BASE}/${countryCode}.svg`;
+}
+
 export function normalizeIsoCountryCode(
   value: string,
 ): IsoCountryCode | null {

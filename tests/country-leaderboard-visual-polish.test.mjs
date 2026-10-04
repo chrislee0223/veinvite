@@ -12,6 +12,10 @@ const countryFlag = readFileSync(
   join(root, 'src/components/CountryFlag.tsx'),
   'utf8',
 );
+const countryCodes = readFileSync(
+  join(root, 'src/lib/countryCodes.ts'),
+  'utf8',
+);
 const countryCopy = readFileSync(
   join(root, 'src/lib/i18n/countryLeaderboardCopy.ts'),
   'utf8',
@@ -25,8 +29,10 @@ test('country ranking renders flags instead of country-code badges', () => {
   assert.match(hub, /<CountryFlag countryCode=\{row\.countryCode\} \/>/);
   assert.doesNotMatch(hub, /className="countryCode"/);
   assert.match(countryFlag, /normalizeIsoCountryCode/);
-  assert.match(countryFlag, /country-flag-icons@1\.6\.20\/3x2/);
-  assert.match(countryFlag, /src=\{\`\$\{COUNTRY_FLAG_CDN_BASE\}\/\$\{isoCountryCode\}\.svg\`\}/);
+  assert.match(countryFlag, /countryFlagAssetUrl/);
+  assert.match(countryCodes, /country-flag-icons@1\.6\.20\/3x2/);
+  assert.match(countryCodes, /export function countryFlagAssetUrl/);
+  assert.match(countryFlag, /src=\{countryFlagAssetUrl\(isoCountryCode\)\}/);
   assert.match(countryFlag, /object-fit:contain;/);
   assert.doesNotMatch(countryFlag, /LOCALE_DEFINITIONS/);
   assert.doesNotMatch(countryFlag, /String\.fromCodePoint/);

@@ -1,3 +1,5 @@
+import type { IsoCountryCode } from '@/lib/countryCodes';
+
 export type LocaleDirection = 'ltr' | 'rtl';
 export type LocaleTypography = 'latin' | 'cjk' | 'arabic' | 'indic';
 
@@ -6,6 +8,7 @@ export type LocaleDefinition = {
   nativeName: string;
   englishName: string;
   flagSource: string;
+  flagCountryCode: IsoCountryCode;
   direction: LocaleDirection;
   typography: LocaleTypography;
 };
@@ -16,35 +19,35 @@ export type LocaleDefinition = {
 // group lets layout safeguards follow a script family instead of hard-coding
 // every locale into CSS as the language list grows.
 export const LOCALE_DEFINITIONS = [
-  { locale: 'en', nativeName: 'English', englishName: 'English', flagSource: '/flags/us.svg', direction: 'ltr', typography: 'latin' },
-  { locale: 'ko', nativeName: '한국어', englishName: 'Korean', flagSource: '/flags/kr.svg', direction: 'ltr', typography: 'cjk' },
-  { locale: 'zh', nativeName: '简体中文', englishName: 'Simplified Chinese', flagSource: '/flags/cn.svg', direction: 'ltr', typography: 'cjk' },
-  { locale: 'hi', nativeName: 'हिन्दी', englishName: 'Hindi', flagSource: '/flags/in.svg', direction: 'ltr', typography: 'indic' },
-  { locale: 'es', nativeName: 'Español', englishName: 'Spanish', flagSource: '/flags/es.svg', direction: 'ltr', typography: 'latin' },
-  { locale: 'ja', nativeName: '日本語', englishName: 'Japanese', flagSource: '/flags/jp.svg', direction: 'ltr', typography: 'cjk' },
-  { locale: 'it', nativeName: 'Italiano', englishName: 'Italian', flagSource: '/flags/it.svg', direction: 'ltr', typography: 'latin' },
-  { locale: 'tr', nativeName: 'Türkçe', englishName: 'Turkish', flagSource: '/flags/tr.svg', direction: 'ltr', typography: 'latin' },
-  { locale: 'nl', nativeName: 'Nederlands', englishName: 'Dutch', flagSource: '/flags/nl.svg', direction: 'ltr', typography: 'latin' },
-  { locale: 'de', nativeName: 'Deutsch', englishName: 'German', flagSource: '/flags/de.svg', direction: 'ltr', typography: 'latin' },
-  { locale: 'fr', nativeName: 'Français', englishName: 'French', flagSource: '/flags/fr.svg', direction: 'ltr', typography: 'latin' },
-  { locale: 'ar', nativeName: 'العربية', englishName: 'Arabic', flagSource: '/flags/ae.svg', direction: 'rtl', typography: 'arabic' },
-  { locale: 'bn', nativeName: 'বাংলা', englishName: 'Bengali', flagSource: '/flags/bd.svg', direction: 'ltr', typography: 'indic' },
-  { locale: 'pt', nativeName: 'Português', englishName: 'Portuguese', flagSource: '/flags/br.svg', direction: 'ltr', typography: 'latin' },
-  { locale: 'ru', nativeName: 'Русский', englishName: 'Russian', flagSource: '/flags/ru.svg', direction: 'ltr', typography: 'latin' },
-  { locale: 'id', nativeName: 'Bahasa Indonesia', englishName: 'Indonesian', flagSource: '/flags/id.svg', direction: 'ltr', typography: 'latin' },
-  { locale: 'vi', nativeName: 'Tiếng Việt', englishName: 'Vietnamese', flagSource: '/flags/vn.svg', direction: 'ltr', typography: 'latin' },
-  { locale: 'zh-tw', nativeName: '繁體中文（台灣）', englishName: 'Traditional Chinese (Taiwan)', flagSource: '/flags/tw.svg', direction: 'ltr', typography: 'cjk' },
-  { locale: 'sv', nativeName: 'Svenska', englishName: 'Swedish', flagSource: '/flags/se.svg', direction: 'ltr', typography: 'latin' },
-  { locale: 'ro', nativeName: 'Română', englishName: 'Romanian', flagSource: '/flags/ro.svg', direction: 'ltr', typography: 'latin' },
-  { locale: 'ur', nativeName: 'اردو', englishName: 'Urdu', flagSource: '/flags/pk.svg', direction: 'rtl', typography: 'arabic' },
-  { locale: 'pcm', nativeName: 'Nigerian Pidgin', englishName: 'Nigerian Pidgin', flagSource: '/flags/ng.svg', direction: 'ltr', typography: 'latin' },
-  { locale: 'arz', nativeName: 'العربية المصرية', englishName: 'Egyptian Arabic', flagSource: '/flags/eg.svg', direction: 'rtl', typography: 'arabic' },
-  { locale: 'mr', nativeName: 'मराठी', englishName: 'Marathi', flagSource: '/flags/in.svg', direction: 'ltr', typography: 'indic' },
-  { locale: 'te', nativeName: 'తెలుగు', englishName: 'Telugu', flagSource: '/flags/in.svg', direction: 'ltr', typography: 'indic' },
-  { locale: 'sw', nativeName: 'Kiswahili', englishName: 'Swahili', flagSource: '/flags/ke.svg', direction: 'ltr', typography: 'latin' },
-  { locale: 'ha', nativeName: 'Hausa', englishName: 'Hausa', flagSource: '/flags/ng.svg', direction: 'ltr', typography: 'latin' },
-  { locale: 'el', nativeName: 'Ελληνικά', englishName: 'Greek', flagSource: '/flags/gr.svg', direction: 'ltr', typography: 'latin' },
-  { locale: 'cs', nativeName: 'Čeština', englishName: 'Czech', flagSource: '/flags/cz.svg', direction: 'ltr', typography: 'latin' },
+  { locale: 'en', nativeName: 'English', englishName: 'English', flagSource: '/flags/us.svg', flagCountryCode: 'US', direction: 'ltr', typography: 'latin' },
+  { locale: 'ko', nativeName: '한국어', englishName: 'Korean', flagSource: '/flags/kr.svg', flagCountryCode: 'KR', direction: 'ltr', typography: 'cjk' },
+  { locale: 'zh', nativeName: '简体中文', englishName: 'Simplified Chinese', flagSource: '/flags/cn.svg', flagCountryCode: 'CN', direction: 'ltr', typography: 'cjk' },
+  { locale: 'hi', nativeName: 'हिन्दी', englishName: 'Hindi', flagSource: '/flags/in.svg', flagCountryCode: 'IN', direction: 'ltr', typography: 'indic' },
+  { locale: 'es', nativeName: 'Español', englishName: 'Spanish', flagSource: '/flags/es.svg', flagCountryCode: 'ES', direction: 'ltr', typography: 'latin' },
+  { locale: 'ja', nativeName: '日本語', englishName: 'Japanese', flagSource: '/flags/jp.svg', flagCountryCode: 'JP', direction: 'ltr', typography: 'cjk' },
+  { locale: 'it', nativeName: 'Italiano', englishName: 'Italian', flagSource: '/flags/it.svg', flagCountryCode: 'IT', direction: 'ltr', typography: 'latin' },
+  { locale: 'tr', nativeName: 'Türkçe', englishName: 'Turkish', flagSource: '/flags/tr.svg', flagCountryCode: 'TR', direction: 'ltr', typography: 'latin' },
+  { locale: 'nl', nativeName: 'Nederlands', englishName: 'Dutch', flagSource: '/flags/nl.svg', flagCountryCode: 'NL', direction: 'ltr', typography: 'latin' },
+  { locale: 'de', nativeName: 'Deutsch', englishName: 'German', flagSource: '/flags/de.svg', flagCountryCode: 'DE', direction: 'ltr', typography: 'latin' },
+  { locale: 'fr', nativeName: 'Français', englishName: 'French', flagSource: '/flags/fr.svg', flagCountryCode: 'FR', direction: 'ltr', typography: 'latin' },
+  { locale: 'ar', nativeName: 'العربية', englishName: 'Arabic', flagSource: '/flags/ae.svg', flagCountryCode: 'AE', direction: 'rtl', typography: 'arabic' },
+  { locale: 'bn', nativeName: 'বাংলা', englishName: 'Bengali', flagSource: '/flags/bd.svg', flagCountryCode: 'BD', direction: 'ltr', typography: 'indic' },
+  { locale: 'pt', nativeName: 'Português', englishName: 'Portuguese', flagSource: '/flags/br.svg', flagCountryCode: 'BR', direction: 'ltr', typography: 'latin' },
+  { locale: 'ru', nativeName: 'Русский', englishName: 'Russian', flagSource: '/flags/ru.svg', flagCountryCode: 'RU', direction: 'ltr', typography: 'latin' },
+  { locale: 'id', nativeName: 'Bahasa Indonesia', englishName: 'Indonesian', flagSource: '/flags/id.svg', flagCountryCode: 'ID', direction: 'ltr', typography: 'latin' },
+  { locale: 'vi', nativeName: 'Tiếng Việt', englishName: 'Vietnamese', flagSource: '/flags/vn.svg', flagCountryCode: 'VN', direction: 'ltr', typography: 'latin' },
+  { locale: 'zh-tw', nativeName: '繁體中文（台灣）', englishName: 'Traditional Chinese (Taiwan)', flagSource: '/flags/tw.svg', flagCountryCode: 'TW', direction: 'ltr', typography: 'cjk' },
+  { locale: 'sv', nativeName: 'Svenska', englishName: 'Swedish', flagSource: '/flags/se.svg', flagCountryCode: 'SE', direction: 'ltr', typography: 'latin' },
+  { locale: 'ro', nativeName: 'Română', englishName: 'Romanian', flagSource: '/flags/ro.svg', flagCountryCode: 'RO', direction: 'ltr', typography: 'latin' },
+  { locale: 'ur', nativeName: 'اردو', englishName: 'Urdu', flagSource: '/flags/pk.svg', flagCountryCode: 'PK', direction: 'rtl', typography: 'arabic' },
+  { locale: 'pcm', nativeName: 'Nigerian Pidgin', englishName: 'Nigerian Pidgin', flagSource: '/flags/ng.svg', flagCountryCode: 'NG', direction: 'ltr', typography: 'latin' },
+  { locale: 'arz', nativeName: 'العربية المصرية', englishName: 'Egyptian Arabic', flagSource: '/flags/eg.svg', flagCountryCode: 'EG', direction: 'rtl', typography: 'arabic' },
+  { locale: 'mr', nativeName: 'मराठी', englishName: 'Marathi', flagSource: '/flags/in.svg', flagCountryCode: 'IN', direction: 'ltr', typography: 'indic' },
+  { locale: 'te', nativeName: 'తెలుగు', englishName: 'Telugu', flagSource: '/flags/in.svg', flagCountryCode: 'IN', direction: 'ltr', typography: 'indic' },
+  { locale: 'sw', nativeName: 'Kiswahili', englishName: 'Swahili', flagSource: '/flags/ke.svg', flagCountryCode: 'KE', direction: 'ltr', typography: 'latin' },
+  { locale: 'ha', nativeName: 'Hausa', englishName: 'Hausa', flagSource: '/flags/ng.svg', flagCountryCode: 'NG', direction: 'ltr', typography: 'latin' },
+  { locale: 'el', nativeName: 'Ελληνικά', englishName: 'Greek', flagSource: '/flags/gr.svg', flagCountryCode: 'GR', direction: 'ltr', typography: 'latin' },
+  { locale: 'cs', nativeName: 'Čeština', englishName: 'Czech', flagSource: '/flags/cz.svg', flagCountryCode: 'CZ', direction: 'ltr', typography: 'latin' },
 ] as const satisfies readonly LocaleDefinition[];
 
 export const SUPPORTED_LOCALES = LOCALE_DEFINITIONS.map(
@@ -69,6 +72,7 @@ export type LanguageOption = {
   nativeName: string;
   englishName: string;
   flagSource: string;
+  flagCountryCode: IsoCountryCode;
   direction: LocaleDirection;
   typography: LocaleTypography;
 };
@@ -79,6 +83,7 @@ export const LANGUAGE_OPTIONS: LanguageOption[] =
     nativeName: definition.nativeName,
     englishName: definition.englishName,
     flagSource: definition.flagSource,
+    flagCountryCode: definition.flagCountryCode,
     direction: definition.direction,
     typography: definition.typography,
   }));

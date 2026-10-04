@@ -77,11 +77,13 @@ if (
 
 if (
   !/normalizeIsoCountryCode/.test(countryFlag) ||
-  !/country-flag-icons@1\.6\.20\/3x2/.test(countryFlag) ||
+  !/countryFlagAssetUrl/.test(countryFlag) ||
   !/onError=\{\(\) => setFailedCode\(normalized\)\}/.test(countryFlag) ||
+  !/COUNTRY_FLAG_CDN_BASE[\s\S]*country-flag-icons@1\.6\.20\/3x2/.test(countryCodes) ||
+  !/countryFlagAssetUrl/.test(countryCodes) ||
   /LOCALE_DEFINITIONS|String\.fromCodePoint|countryFlagEmoji/.test(countryFlag)
 ) {
-  failures.push('Country flags must use pinned SVG assets with a vector fallback instead of OS emoji rendering.');
+  failures.push('Country flags must use the shared pinned 3:2 SVG source with a vector fallback instead of OS emoji rendering.');
 }
 if (
   !/'PA'/.test(countryCodes) ||
