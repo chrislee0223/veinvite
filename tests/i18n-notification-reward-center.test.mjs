@@ -112,11 +112,11 @@ test('paid reward receipt shares a verified permanent invite link on X without a
   assert.doesNotMatch(shareHandler, /close/);
 });
 
-test('QA paid-reward state opens the real receipt with fake data and blocks external X navigation', () => {
+test('QA paid-reward state opens the real receipt with fake data and lets the X composer open', () => {
   assert.match(qaHarness, /case 'NOTI-REWARD-PAID':/);
   assert.match(qaHarness, /previewRewardReceipt: QA_REWARD_RECEIPT/);
   assert.match(qaHarness, /amountB3tr: '262\.97'/);
-  assert.match(qaHarness, /onRewardShare: \(\) => \{\}/);
+  assert.doesNotMatch(qaHarness, /onRewardShare: \(\) => \{\}/);
   assert.match(center, /previewRewardReceipt/);
 });
 
