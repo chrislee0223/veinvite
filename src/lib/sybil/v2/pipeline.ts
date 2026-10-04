@@ -1950,6 +1950,8 @@ async function loadSecurityIdentitySignals(
           network: invitation.activation_network,
         });
 
+        let siblingFallbackSignals: SybilV2Signal[] | null = null;
+
         for (const sibling of siblingInvitations) {
           const siblingWallet = normalizeWallet(String(sibling.invitee_wallet));
           const siblingRows = relatedClientRows.filter(
@@ -2064,8 +2066,19 @@ async function loadSecurityIdentitySignals(
               });
             }
 
-            return { signals, complete: true };
+            if (immediateSwitch || restrictedSiblingReentry) {
+              return { signals, complete: true };
+            }
+
+            siblingFallbackSignals ??= signals;
           }
+        }
+
+        if (siblingFallbackSignals) {
+          return {
+            signals: siblingFallbackSignals,
+            complete: true,
+          };
         }
       }
     }
