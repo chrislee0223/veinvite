@@ -42,6 +42,12 @@ import {
   unique,
 } from '@/lib/sybil/v2/pipelinePrimitives';
 import {
+  applyRestrictedSiblingReentryRestriction,
+  isRestrictedSiblingReentry,
+  loadRestrictedSiblingReferralKeys,
+  restrictedSiblingReferralKey,
+} from '@/lib/sybil/v2/restrictedSiblingReentry';
+import {
   SYBIL_V2_ANALYZER_VERSION,
 } from '@/lib/sybil/v2/version';
 import {
@@ -1948,40 +1954,11 @@ async function loadSecurityIdentitySignals(
           );
         }
 
-        let restrictedSiblingRows: Array<{
-          wallet_address: string;
-          related_invite_code: string | null;
-        }> = [];
-
-        if (invitation.activation_network) {
-          const restrictedSiblingResult = await supabaseAdmin
-            .from('sybil_v2_wallet_restrictions')
-            .select('wallet_address,related_invite_code')
-            .eq('network', invitation.activation_network)
-            .eq('status', 'ACTIVE')
-            .in('wallet_address', relatedWallets);
-
-          if (restrictedSiblingResult.error) {
-            throw new Error(
-              `Restricted sibling referrals could not be loaded: ${restrictedSiblingResult.error.message}`,
-            );
-          }
-
-          restrictedSiblingRows =
-            (restrictedSiblingResult.data ?? []) as Array<{
-              wallet_address: string;
-              related_invite_code: string | null;
-            }>;
-        }
-
-        const restrictedSiblingReferrals = new Set(
-          restrictedSiblingRows
-            .filter((row) => row.related_invite_code)
-            .map(
-              (row) =>
-                `${normalizeWallet(row.wallet_address)}:${String(row.related_invite_code).toUpperCase()}`,
-            ),
-        );
+        const restrictedSiblingReferrals =
+          await loadRestrictedSiblingReferralKeys({
+            network: invitation.activation_network,
+            relatedWallets,
+          });
 
         const siblingInvitations = (siblingInvitationsResult.data ?? [])
           .filter((row) => {
@@ -1997,7 +1974,10 @@ async function loadSecurityIdentitySignals(
               normalizeWallet(row.invitee_wallet);
             const peerConfirmedRestricted =
               restrictedSiblingReferrals.has(
-                `${siblingWallet}:${String(row.invite_code).toUpperCase()}`,
+                restrictedSiblingReferralKey({
+                  walletAddress: siblingWallet,
+                  inviteCode: String(row.invite_code),
+                }),
               );
             const normallyEligible =
               ['ACTIVATING', 'UNDER_REVIEW', 'COMPLETED'].includes(
@@ -2058,21 +2038,21 @@ async function loadSecurityIdentitySignals(
               activationGapSeconds <= 10 * 60 &&
               siblingActivationGapSeconds <= 10 * 60;
 
-            const siblingLastSeen =
-              Date.parse(siblingRow.last_seen_at);
             const peerConfirmedRestricted =
               restrictedSiblingReferrals.has(
-                `${siblingWallet}:${String(sibling.invite_code).toUpperCase()}`,
+                restrictedSiblingReferralKey({
+                  walletAddress: siblingWallet,
+                  inviteCode: String(sibling.invite_code),
+                }),
               );
             const restrictedSiblingReentry =
-              peerConfirmedRestricted &&
-              switchGapSeconds !== null &&
-              activationGapSeconds !== null &&
-              !Number.isNaN(ownFirstSeen) &&
-              !Number.isNaN(siblingLastSeen) &&
-              ownFirstSeen >= siblingLastSeen &&
-              switchGapSeconds <= 10 * 60 &&
-              activationGapSeconds <= 10 * 60;
+              isRestrictedSiblingReentry({
+                peerConfirmedRestricted,
+                switchGapSeconds,
+                activationGapSeconds,
+                currentFirstSeenAt: String(ownRow.first_seen_at),
+                peerLastSeenAt: siblingRow.last_seen_at,
+              });
 
             const signals: SybilV2Signal[] = [{
               code: 'SECURITY_CLIENT_SIBLING_LINK',
@@ -2645,35 +2625,6 @@ async function applySecurityClientInviterRestriction({
   if (error) {
     throw new Error(`Security-client restriction could not be applied: ${error.message}`);
   }
-  return (data ?? {}) as BehaviorPatternRestrictionRpcResult;
-}
-
-async function applyRestrictedSiblingReentryRestriction({
-  invitation,
-  expectedRevision,
-}: {
-  invitation: InvitationV2Row;
-  expectedRevision: number;
-}): Promise<BehaviorPatternRestrictionRpcResult> {
-  if (!invitation.activation_network) {
-    return { changed: false, reason: 'NETWORK_MISSING' };
-  }
-
-  const { data, error } = await supabaseAdmin.rpc(
-    'apply_sybil_v2_restricted_sibling_reentry_restriction',
-    {
-      p_invite_code: invitation.invite_code,
-      p_expected_revision: expectedRevision,
-      p_network: invitation.activation_network,
-    },
-  );
-
-  if (error) {
-    throw new Error(
-      `Restricted-sibling reentry restriction could not be applied: ${error.message}`,
-    );
-  }
-
   return (data ?? {}) as BehaviorPatternRestrictionRpcResult;
 }
 
@@ -4038,8 +3989,9 @@ export async function assessSybilV2Referral(
   ) {
     const automatic =
       await applyRestrictedSiblingReentryRestriction({
-        invitation,
+        inviteCode: invitation.invite_code,
         expectedRevision: revision,
+        network: invitation.activation_network,
       });
     const automaticRevision =
       safeRevision(automatic.revision);
