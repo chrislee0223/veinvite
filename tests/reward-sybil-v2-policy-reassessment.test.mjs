@@ -133,17 +133,20 @@ test('cancelled rewards may be policy-reassessed while active liabilities stay e
 
 test('operator CLEAR is automatically revisited only after newer adverse evidence appears', async () => {
   const source = await read('src/lib/sybil/v2/pipeline.ts');
+  const freshness = await read(
+    'src/lib/sybil/v2/assessmentFreshness.ts',
+  );
 
   assert.match(
-    source,
+    freshness,
     /identity_link_status,identity_link_checked_at/u,
   );
   assert.match(
-    source,
+    freshness,
     /\.in\('strength', \['MEDIUM', 'HIGH'\]\)/u,
   );
   assert.match(
-    source,
+    freshness,
     /identityCheckedAt > assessedAt/u,
   );
   assert.match(

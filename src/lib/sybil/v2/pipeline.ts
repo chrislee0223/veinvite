@@ -19,6 +19,10 @@ import {
   loadRapidRewardConsolidationSignals,
 } from '@/lib/sybil/v2/rapidRewardConsolidationEvidence';
 import {
+  enforceRestrictedSiblingReentryRestriction,
+  loadRestrictedSiblingReentrySignals,
+} from '@/lib/sybil/v2/restrictedSiblingReentry';
+import {
   detectHistoricalB3trConsolidation,
   detectHistoricalRewardCluster,
 } from '@/lib/sybil/v2/clusterMath';
@@ -27,6 +31,9 @@ import {
   SYBIL_V2_POLICY_VERSION,
   type SybilV2Signal,
 } from '@/lib/sybil/v2/policy';
+import {
+  hasNewEvidenceForCurrentAssessment,
+} from '@/lib/sybil/v2/assessmentFreshness';
 import {
   appOverlap,
   hasHighSignal,
@@ -3314,118 +3321,6 @@ async function repairOperatorPreVoteFinality({
   return refreshed;
 }
 
-async function hasNewEvidenceForCurrentAssessment(
-  inviteCode: string,
-): Promise<boolean> {
-  const [
-    candidateResult,
-    assessmentResult,
-    invitationResult,
-    evidenceResult,
-  ] = await Promise.all([
-    supabaseAdmin
-      .from('operator_sybil_v2_assessment_candidates')
-      .select('invite_code')
-      .eq('invite_code', inviteCode)
-      .maybeSingle(),
-    supabaseAdmin
-      .from('sybil_v2_referral_assessments')
-      .select('updated_at')
-      .eq('invite_code', inviteCode)
-      .maybeSingle(),
-    supabaseAdmin
-      .from('invitations')
-      .select('identity_link_status,identity_link_checked_at')
-      .eq('invite_code', inviteCode)
-      .maybeSingle(),
-    supabaseAdmin
-      .from('sybil_v2_evidence_records')
-      .select('created_at,strength,score')
-      .eq('invite_code', inviteCode)
-      .in('strength', ['MEDIUM', 'HIGH'])
-      .gt('score', 0)
-      .order('created_at', {
-        ascending: false,
-      })
-      .limit(1)
-      .maybeSingle(),
-  ]);
-
-  if (candidateResult.error) {
-    throw new Error(
-      `Sybil v2 reassessment freshness could not be loaded: ${candidateResult.error.message}`,
-    );
-  }
-  if (assessmentResult.error) {
-    throw new Error(
-      `Sybil v2 assessment freshness could not be loaded: ${assessmentResult.error.message}`,
-    );
-  }
-  if (invitationResult.error) {
-    throw new Error(
-      `Sybil identity freshness could not be loaded: ${invitationResult.error.message}`,
-    );
-  }
-  if (evidenceResult.error) {
-    throw new Error(
-      `Sybil evidence freshness could not be loaded: ${evidenceResult.error.message}`,
-    );
-  }
-
-  if (candidateResult.data) {
-    return true;
-  }
-
-  const assessedAt =
-    typeof assessmentResult.data?.updated_at === 'string'
-      ? Date.parse(
-          assessmentResult.data.updated_at,
-        )
-      : Number.NaN;
-
-  if (Number.isNaN(assessedAt)) {
-    return true;
-  }
-
-  const identityCheckedAt =
-    typeof invitationResult.data
-      ?.identity_link_checked_at === 'string'
-      ? Date.parse(
-          invitationResult.data
-            .identity_link_checked_at,
-        )
-      : Number.NaN;
-  const identityStatus =
-    typeof invitationResult.data
-      ?.identity_link_status === 'string'
-      ? invitationResult.data
-          .identity_link_status
-      : 'UNKNOWN';
-
-  if (
-    ['REVIEW', 'LINKED_EXISTING'].includes(
-      identityStatus,
-    ) &&
-    !Number.isNaN(identityCheckedAt) &&
-    identityCheckedAt > assessedAt
-  ) {
-    return true;
-  }
-
-  const evidenceCreatedAt =
-    typeof evidenceResult.data?.created_at ===
-    'string'
-      ? Date.parse(
-          evidenceResult.data.created_at,
-        )
-      : Number.NaN;
-
-  return (
-    !Number.isNaN(evidenceCreatedAt) &&
-    evidenceCreatedAt > assessedAt
-  );
-}
-
 async function recordAssessment({
   invitation,
   state,
@@ -3649,6 +3544,10 @@ export async function assessSybilV2Referral(
   signals.push(...mission.signals);
   if (mission.complete) completedChecks.push('MISSION_BEHAVIOR');
 
+  signals.push(
+    ...await loadRestrictedSiblingReentrySignals(invitation),
+  );
+
   const security = await loadSecurityIdentitySignals(invitation);
   signals.push(...security.signals);
   if (security.complete) completedChecks.push('SECURITY_IDENTITY');
@@ -3719,6 +3618,12 @@ export async function assessSybilV2Referral(
     policy.state === 'HOLD'
       ? await findFunderReturnLoopHub(invitation)
       : null;
+  const restrictedSiblingReentry =
+    policy.state === 'HOLD' &&
+    hasHighSignal(
+      signals,
+      'SECURITY_CLIENT_RESTRICTED_SIBLING_REENTRY',
+    );
   const securityClientInviterImmediateSwitch =
     policy.state === 'HOLD' &&
     hasHighSignal(signals, 'SECURITY_CLIENT_INVITER_IMMEDIATE_SWITCH');
@@ -3761,6 +3666,8 @@ export async function assessSybilV2Referral(
     funderReturnLoopHub,
     funderReturnLoopAutomaticRestrictionCandidate:
       funderReturnLoopHub !== null,
+    restrictedSiblingReentryAutomaticRestrictionCandidate:
+      restrictedSiblingReentry,
     securityClientInviterImmediateSwitchAutomaticRestrictionCandidate:
       securityClientInviterImmediateSwitch,
     vePassport: vePassport.snapshot
@@ -3822,6 +3729,7 @@ export async function assessSybilV2Referral(
       confirmedClusterHub !== null ||
       behaviorPatternHub !== null ||
       funderReturnLoopHub !== null ||
+      restrictedSiblingReentry ||
       securityClientInviterImmediateSwitch ||
       vePassport.automaticRestrictionCandidate,
   };
@@ -3904,6 +3812,34 @@ export async function assessSybilV2Referral(
           safeRevision(fresh.revision) ??
           automaticRevision ??
           revision,
+        clearanceIssued: false,
+        clearanceId: null,
+      };
+    }
+  }
+
+  if (
+    revision !== null &&
+    policy.state === 'HOLD' &&
+    restrictedSiblingReentry
+  ) {
+    const automatic =
+      await enforceRestrictedSiblingReentryRestriction({
+        invitation,
+        expectedRevision: revision,
+      });
+
+    if (automatic.restricted) {
+      return {
+        inviteCode: normalizedCode,
+        state: 'RESTRICTED',
+        riskScore: 100,
+        reasonCodes: unique([
+          ...policy.reasonCodes,
+          'AUTO_RESTRICTED_SIBLING_REENTRY_RESTRICTION',
+        ]),
+        revision:
+          safeRevision(automatic.revision) ?? revision,
         clearanceIssued: false,
         clearanceId: null,
       };
