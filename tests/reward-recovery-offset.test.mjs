@@ -6,7 +6,7 @@ const migrationPath =
   'supabase/migrations/20261005003000_add_reward_recovery_offset_accounting.sql';
 
 async function sources() {
-  const [sql, hardeningSql, metricsSql, history, copy, leaderboard] = await Promise.all([
+  const [sql, hardeningSql, metricsSql, preserveMetricsSql, history, copy, leaderboard] = await Promise.all([
     readFile(migrationPath, 'utf8'),
     readFile(
       'supabase/migrations/20261005003050_harden_reward_recovery_reversals.sql',
@@ -16,11 +16,23 @@ async function sources() {
       'supabase/migrations/20261005023000_align_recovery_settled_referral_metrics.sql',
       'utf8',
     ),
+    readFile(
+      'supabase/migrations/20261005024000_preserve_legacy_round_metrics_with_recovery.sql',
+      'utf8',
+    ),
     readFile('src/components/InAppInviteNotifications.tsx', 'utf8'),
     readFile('src/lib/i18n/rewardAdjustedCopy.ts', 'utf8'),
     readFile('src/app/api/leaderboard/route.ts', 'utf8'),
   ]);
-  return { sql, hardeningSql, metricsSql, history, copy, leaderboard };
+  return {
+    sql,
+    hardeningSql,
+    metricsSql,
+    preserveMetricsSql,
+    history,
+    copy,
+    leaderboard,
+  };
 }
 
 function settle(gross, recovery) {
@@ -234,5 +246,26 @@ test('full-offset legitimate referrals remain visible in activation and round pa
   assert.match(
     metricsSql,
     /is_sybil_v2_referral_invalidated/u,
+  );
+});
+
+
+test('legacy queue-based round counts stay unchanged and full offsets are additive only', async () => {
+  const { preserveMetricsSql } = await sources();
+  assert.match(
+    preserveMetricsSql,
+    /select count\(distinct q\.invite_code\)[\s\S]*?into v_completed_onboardings[\s\S]*?q\.status <> 'CANCELLED'/u,
+  );
+  assert.match(
+    preserveMetricsSql,
+    /select v_completed_onboardings \+ count\(distinct s\.invite_code\)[\s\S]*?settlement_kind = 'FULL_OFFSET'/u,
+  );
+  assert.match(
+    preserveMetricsSql,
+    /select count\(distinct q\.invite_code\)[\s\S]*?into v_cumulative_completed/u,
+  );
+  assert.match(
+    preserveMetricsSql,
+    /select v_cumulative_completed \+ count\(distinct s\.invite_code\)[\s\S]*?settlement_kind = 'FULL_OFFSET'/u,
   );
 });
