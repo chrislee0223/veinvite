@@ -4,12 +4,14 @@ import test from 'node:test';
 
 const [
   pipeline,
+  restrictionRpc,
   reentryMigration,
   clusterMigration,
   inviterBoundaryMigration,
   inviterReviewOnlyMigration,
 ] = await Promise.all([
   readFile('src/lib/sybil/v2/pipeline.ts', 'utf8'),
+  readFile('src/lib/sybil/v2/restrictionRpc.ts', 'utf8'),
   readFile(
     'supabase/migrations/20261004101116_harden_restricted_sibling_reentry.sql',
     'utf8',
@@ -95,7 +97,7 @@ test('pipeline invokes restricted sibling reentry only from a high immediate sib
     /restrictedSiblingReentryCandidate =[\s\S]*policy\.state === 'HOLD'[\s\S]*SECURITY_CLIENT_SIBLING_IMMEDIATE_SWITCH/u,
   );
   assert.match(
-    pipeline,
+    restrictionRpc,
     /apply_sybil_v2_restricted_sibling_reentry_restriction/u,
   );
   assert.match(
