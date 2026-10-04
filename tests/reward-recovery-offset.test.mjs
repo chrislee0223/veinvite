@@ -6,13 +6,17 @@ const migrationPath =
   'supabase/migrations/20261005003000_add_reward_recovery_offset_accounting.sql';
 
 async function sources() {
-  const [sql, history, copy, leaderboard] = await Promise.all([
+  const [sql, hardeningSql, history, copy, leaderboard] = await Promise.all([
     readFile(migrationPath, 'utf8'),
+    readFile(
+      'supabase/migrations/20261005003050_harden_reward_recovery_reversals.sql',
+      'utf8',
+    ),
     readFile('src/components/InAppInviteNotifications.tsx', 'utf8'),
     readFile('src/lib/i18n/rewardAdjustedCopy.ts', 'utf8'),
     readFile('src/app/api/leaderboard/route.ts', 'utf8'),
   ]);
-  return { sql, history, copy, leaderboard };
+  return { sql, hardeningSql, history, copy, leaderboard };
 }
 
 function settle(gross, recovery) {
@@ -102,39 +106,43 @@ test('historical invalidated paid referrals seed immutable recovery obligations'
   );
 });
 
-test('later invalidation restores offset capacity while reinstatement stops automatic recovery', async () => {
-  const { sql } = await sources();
+test('later invalidation creates a new obligation without rewriting the old settlement', async () => {
+  const { hardeningSql } = await sources();
   assert.match(
-    sql,
-    /set[\s\S]*?state='INVALIDATED'[\s\S]*?where s\.network=lower\(new\.network\)/u,
+    hardeningSql,
+    /REWARD_RECOVERY_SETTLEMENT_IMMUTABLE/u,
   );
   assert.match(
-    sql,
+    hardeningSql,
+    /v_desired :=[\s\S]*?v_settlement\.offset_amount_wei \+[\s\S]*?coalesce\(v_receipt\.amount_wei,0\)/u,
+  );
+  assert.doesNotMatch(
+    hardeningSql,
+    /set[\s\S]*?state='INVALIDATED'/u,
+  );
+  assert.match(
+    hardeningSql,
     /status='FROZEN'[\s\S]*?'SOURCE_INVALIDATION_REINSTATED_AFTER_CONSUMPTION'/u,
   );
   assert.match(
-    sql,
+    hardeningSql,
     /status='REVERSED'[\s\S]*?'SOURCE_INVALIDATION_REINSTATED_BEFORE_CONSUMPTION'/u,
-  );
-  assert.match(
-    sql,
-    /state='REVIEW'[\s\S]*?'SETTLEMENT_INVALIDATION_REINSTATED'/u,
   );
 });
 
 test('gross cohort fairness and net payout liability are separated', async () => {
-  const { sql } = await sources();
+  const { sql, hardeningSql } = await sources();
   assert.match(
     sql,
     /v_queue_committed \+ v_offset_committed/u,
   );
   assert.match(
-    sql,
-    /s\.state='ACTIVE'[\s\S]*?sum\(s\.offset_amount_wei\)/u,
+    hardeningSql,
+    /select coalesce\(sum\(s\.offset_amount_wei\),0\)[\s\S]*?from public\.reward_recovery_settlements s/u,
   );
   assert.match(
-    sql,
-    /v_existing_queue \+ v_existing_offset[\s\S]*?new\.reserved_amount_wei \+ v_current_offset > v_budget/u,
+    hardeningSql,
+    /v_existing_queue\+v_existing_offset\+[\s\S]*?new\.reserved_amount_wei\+v_current_offset>v_budget/u,
   );
 });
 
@@ -170,4 +178,36 @@ test('full-offset user messaging is bell history only and exposes no recovery ba
     sql,
     /reward_amount_wei,dapp_progress,collapsed_progress[\s\S]*?null,[\s\S]*?null,[\s\S]*?false/u,
   );
+});
+
+
+test('a late paid receipt tops an active invalidation obligation up only by actual paid value', async () => {
+  const { hardeningSql } = await sources();
+  assert.match(
+    hardeningSql,
+    /create or replace function public\.sync_reward_recovery_receipt/u,
+  );
+  assert.match(
+    hardeningSql,
+    /after insert on public\.reward_receipts/u,
+  );
+  assert.match(
+    hardeningSql,
+    /greatest\(o\.amount_wei,v_desired\)/u,
+  );
+});
+
+test('recovery balance counts append-only allocations even if the referral verdict later changes', async () => {
+  const { hardeningSql } = await sources();
+  const readerStart = hardeningSql.indexOf(
+    'create or replace function public.read_reward_recovery_balance_wei',
+  );
+  const readerEnd = hardeningSql.indexOf(
+    'create or replace function public.upsert_reward_recovery_obligation_for_invalidation',
+  );
+  assert.ok(readerStart >= 0 && readerEnd > readerStart);
+  const reader = hardeningSql.slice(readerStart, readerEnd);
+  assert.match(reader, /from public\.reward_recovery_allocations a/u);
+  assert.doesNotMatch(reader, /reward_recovery_settlements/u);
+  assert.match(reader, /o\.status='ACTIVE'/u);
 });
