@@ -336,7 +336,7 @@ function fixtureForState(
         open: true,
         previewRewardReceipt: QA_REWARD_RECEIPT,
         rewardShareUrl:
-          'https://veinvite.vercel.app/r/qa-reward-share-preview?xcard=20261004-1953',
+          'https://veinvite.vercel.app/r/qa-reward-share-preview?xcard=20261004-2024',
       };
     case 'NOTI-INELIGIBLE':
       return {
