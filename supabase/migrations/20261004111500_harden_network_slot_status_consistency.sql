@@ -1,7 +1,5 @@
 begin;
 
--- Keep synthetic/canary wallets out of ordinary lifetime Network graphs while
--- leaving the underlying referral audit history untouched.
 create or replace view public.network_visible_referral_edges
 with (security_invoker = true)
 as
@@ -320,7 +318,7 @@ select
     )
   end;
 $function$
-
+;
 
 CREATE OR REPLACE FUNCTION public.read_public_referral_network_focus_v1(p_root_wallet text, p_focus_wallet text DEFAULT NULL::text, p_round_id bigint DEFAULT NULL::bigint, p_round_start_at timestamp with time zone DEFAULT NULL::timestamp with time zone, p_round_end_at timestamp with time zone DEFAULT NULL::timestamp with time zone)
  RETURNS jsonb
@@ -532,6 +530,6 @@ select case
   )
 end;
 $function$
-
+;
 
 commit;
