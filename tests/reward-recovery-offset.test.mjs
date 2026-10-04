@@ -434,3 +434,29 @@ test('historical reinstatement cannot erase a still-active current restriction',
     /a\.state='RESTRICTED'[\s\S]*?r\.status='ACTIVE'/u,
   );
 });
+
+
+test('invalidated offsets stop reducing cohort budget for legitimate users', async () => {
+  const { restrictionRecoverySql } = await sources();
+  const readerStart = restrictionRecoverySql.indexOf(
+    'create or replace function public.read_reward_cohort_committed_wei',
+  );
+  const budgetStart = restrictionRecoverySql.indexOf(
+    'create or replace function public.enforce_reward_queue_cohort_budget',
+  );
+  assert.ok(readerStart >= 0 && budgetStart > readerStart);
+  const reader = restrictionRecoverySql.slice(readerStart, budgetStart);
+  const budget = restrictionRecoverySql.slice(budgetStart);
+  assert.match(
+    reader,
+    /sum\(s\.offset_amount_wei\)[\s\S]*?not public\.is_sybil_v2_referral_invalidated\([\s\S]*?s\.invite_code,[\s\S]*?p_network/u,
+  );
+  assert.match(
+    budget,
+    /v_existing_offset[\s\S]*?not public\.is_sybil_v2_referral_invalidated\([\s\S]*?s\.invite_code,[\s\S]*?new\.network/u,
+  );
+  assert.match(
+    budget,
+    /v_current_offset[\s\S]*?not public\.is_sybil_v2_referral_invalidated\(/u,
+  );
+});
