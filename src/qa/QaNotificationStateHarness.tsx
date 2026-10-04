@@ -20,6 +20,7 @@ import type {
   InviteNotificationPayloadV2,
   InviteNotificationKindV2,
 } from '@/lib/notifications/inviteNotificationStateV2';
+import type { RewardReceipt } from '@/lib/rewards/rewardReceipt';
 
 export type QaNotificationStateId =
   | 'NOTI-BELL-EMPTY'
@@ -59,6 +60,9 @@ type HistoryFixture = {
   loading?: boolean;
   errorMessage?: string;
   hasMore?: boolean;
+  previewRewardReceipt?: RewardReceipt;
+  rewardShareUrl?: string;
+  onRewardShare?: (intentUrl: string) => void;
 };
 
 type SurfaceFixture = {
@@ -71,6 +75,25 @@ type NotificationFixture = HistoryFixture | SurfaceFixture;
 const QA_FRIEND =
   '0x0000000000000000000000000000000000000b01';
 const QA_REWARD_WEI = '262970000000000000000';
+const QA_REWARD_INVITE_CODE = 'QA-NOTI-22';
+const QA_REWARD_RECEIPT: RewardReceipt = {
+  id: 'qa-receipt-1',
+  receiptVersion: 'v1',
+  payoutId: 'qa-payout-1',
+  rewardRoundId: '117',
+  settlementId: 'qa-settlement-1',
+  network: 'mainnet',
+  veBetterRoundId: '117',
+  inviteCode: QA_REWARD_INVITE_CODE,
+  recipientWallet: QA_FRIEND,
+  amountWei: QA_REWARD_WEI,
+  amountB3tr: '262.97',
+  txId: `0x${'a'.repeat(64)}`,
+  paidAt: '2026-10-04T00:00:00.000Z',
+  seen: false,
+  seenAt: null,
+  createdAt: '2026-10-04T00:00:00.000Z',
+};
 
 function minutesAgo(minutes: number): string {
   return new Date(Date.now() - minutes * 60_000).toISOString();
@@ -297,14 +320,24 @@ function fixtureForState(
       };
     case 'NOTI-REWARD-PAID':
       return {
-        mode: 'surface',
-        notifications: [
-          surfaceItem({
-            kind: 'REWARD_PAID',
-            dappProgress: 3,
-            rewardAmountWei: QA_REWARD_WEI,
-          }),
+        mode: 'history',
+        items: [
+          {
+            ...historyItem({
+              id: '22',
+              kind: 'REWARD_PAID',
+              minutes: 2,
+              rewardAmountWei: QA_REWARD_WEI,
+            }),
+            inviteCode: QA_REWARD_INVITE_CODE,
+          },
         ],
+        unreadCount: 1,
+        open: true,
+        previewRewardReceipt: QA_REWARD_RECEIPT,
+        rewardShareUrl:
+          'https://veinvite.vercel.app/r/qa-reward-share-preview',
+        onRewardShare: () => {},
       };
     case 'NOTI-INELIGIBLE':
       return {
@@ -600,6 +633,9 @@ export function QaNotificationStateHarness({
           ]);
           setHasMore(false);
         }}
+        previewRewardReceipt={seed.previewRewardReceipt ?? null}
+        rewardShareUrl={seed.rewardShareUrl ?? ''}
+        onRewardShare={seed.onRewardShare}
       />
     </QaNotificationStage>
   );
