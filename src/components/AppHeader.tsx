@@ -163,13 +163,14 @@ export function AppHeader({
         .headerIconLink{width:40px;height:40px;flex:0 0 40px;display:grid;place-items:center;box-sizing:border-box;padding:0;border:1px solid rgba(255,255,255,.1);border-radius:13px;background:#141625;color:#b6b2bf;text-decoration:none;cursor:pointer;transition:background-color .15s ease,border-color .15s ease,color .15s ease,transform .15s ease}
         .headerIconLink :global(svg){width:20px;height:20px;display:block}
         .headerIconLink:focus-visible,.accountChip:focus-visible{outline:2px solid rgba(255,208,74,.8);outline-offset:2px}
-        .headerIconLink:active,.accountChip:active{transform:scale(.95)}
+        .headerIconLink:active,.accountChip:active{transform:translateY(0) scale(.97)}
         .languageSelect{max-width:155px;height:40px;padding:0 28px 0 11px;border:1px solid rgba(255,255,255,.1);border-radius:13px;background:#141625;color:#fff;font:inherit;font-size:.76rem;font-weight:800;cursor:pointer}
         .accountChip{min-height:40px;padding:0 13px;display:inline-flex;align-items:center;gap:8px;border:1px solid rgba(255,255,255,.1);border-radius:13px;background:#141625;color:#fff;font:inherit;font-size:.72rem;font-weight:850;cursor:pointer;transition:background-color .15s ease,border-color .15s ease,color .15s ease,transform .15s ease}
         .accountDot{width:9px;height:9px;border-radius:50%;background:#f4b728;box-shadow:0 0 14px rgba(244,183,40,.68)}
         @media (hover:hover) and (pointer:fine){
           .headerIconLink:hover,.accountChip:hover{border-color:rgba(255,205,80,.28);background:#1a1b29;transform:translateY(-1px)}
           .headerIconLink:hover{color:#ffd04a}
+          .headerIconLink:active,.accountChip:active{transform:translateY(0) scale(.97)}
         }
         @media (max-width:640px){
           .topBar{align-items:flex-start;gap:10px}
@@ -193,6 +194,7 @@ export function AppHeader({
         }
         @media (prefers-reduced-motion:reduce){
           .headerIconLink,.accountChip{transition:none}
+          .headerIconLink:hover,.headerIconLink:active,.accountChip:hover,.accountChip:active{transform:none!important}
         }
       `}</style>
     </header>
