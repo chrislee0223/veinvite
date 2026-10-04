@@ -19,7 +19,7 @@ import {
   loadRapidRewardConsolidationSignals,
 } from '@/lib/sybil/v2/rapidRewardConsolidationEvidence';
 import {
-  applyRestrictedSiblingReentryRestriction,
+  enforceRestrictedSiblingReentryRestriction,
   loadRestrictedSiblingReentrySignals,
 } from '@/lib/sybil/v2/restrictedSiblingReentry';
 import {
@@ -3933,17 +3933,12 @@ export async function assessSybilV2Referral(
     restrictedSiblingReentry
   ) {
     const automatic =
-      await applyRestrictedSiblingReentryRestriction({
+      await enforceRestrictedSiblingReentryRestriction({
         invitation,
         expectedRevision: revision,
       });
-    const automaticRevision =
-      safeRevision(automatic.revision);
 
-    if (
-      automatic.changed === true &&
-      automatic.state === 'RESTRICTED'
-    ) {
+    if (automatic.restricted) {
       return {
         inviteCode: normalizedCode,
         state: 'RESTRICTED',
@@ -3953,28 +3948,7 @@ export async function assessSybilV2Referral(
           'AUTO_RESTRICTED_SIBLING_REENTRY_RESTRICTION',
         ]),
         revision:
-          automaticRevision ?? revision,
-        clearanceIssued: false,
-        clearanceId: null,
-      };
-    }
-
-    const fresh =
-      await loadAssessment(normalizedCode);
-
-    if (fresh?.state === 'RESTRICTED') {
-      return {
-        inviteCode: normalizedCode,
-        state: 'RESTRICTED',
-        riskScore: 100,
-        reasonCodes: unique([
-          ...policy.reasonCodes,
-          'AUTO_RESTRICTED_SIBLING_REENTRY_RESTRICTION',
-        ]),
-        revision:
-          safeRevision(fresh.revision) ??
-          automaticRevision ??
-          revision,
+          safeRevision(automatic.revision) ?? revision,
         clearanceIssued: false,
         clearanceId: null,
       };
