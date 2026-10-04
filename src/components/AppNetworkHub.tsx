@@ -92,9 +92,9 @@ function StateCard({
         h1{margin:0;color:#f1eee6;font-size:1.05rem;letter-spacing:-.025em}
         p{max-width:410px;margin:9px auto 0;color:#858078;font-size:.72rem;line-height:1.55}
         .stateActions{width:min(100%,330px);margin:20px auto 0;display:grid;gap:8px}
-        .stateActions :global(button){min-height:46px;border-radius:14px;font:inherit;font-size:.72rem;font-weight:900;cursor:pointer}
+        .stateActions :global(button){min-height:46px;border-radius:14px;font:inherit;font-size:.72rem;font-weight:900;cursor:pointer;transition:transform 90ms ease}.stateActions :global(button:active:not(:disabled)){transform:scale(.98)}
         .stateActions :global(.primary){border:0;background:linear-gradient(135deg,#ffd24d,#efa718);color:#17120a}
-        .stateActions :global(.secondary){border:1px solid rgba(255,205,80,.17);background:rgba(244,183,40,.05);color:#d8c17d}
+        .stateActions :global(.secondary){border:1px solid rgba(255,205,80,.17);background:rgba(244,183,40,.05);color:#d8c17d}@media(prefers-reduced-motion:reduce){.stateActions :global(button){transition:none}.stateActions :global(button:active:not(:disabled)){transform:none}}
       `}</style>
     </section>
   );
