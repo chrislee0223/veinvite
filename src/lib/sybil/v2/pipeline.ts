@@ -1948,15 +1948,73 @@ async function loadSecurityIdentitySignals(
           );
         }
 
+        let restrictedSiblingRows: Array<{
+          wallet_address: string;
+          related_invite_code: string | null;
+        }> = [];
+
+        if (invitation.activation_network) {
+          const restrictedSiblingResult = await supabaseAdmin
+            .from('sybil_v2_wallet_restrictions')
+            .select('wallet_address,related_invite_code')
+            .eq('network', invitation.activation_network)
+            .eq('status', 'ACTIVE')
+            .in('wallet_address', relatedWallets);
+
+          if (restrictedSiblingResult.error) {
+            throw new Error(
+              `Restricted sibling referrals could not be loaded: ${restrictedSiblingResult.error.message}`,
+            );
+          }
+
+          restrictedSiblingRows =
+            (restrictedSiblingResult.data ?? []) as Array<{
+              wallet_address: string;
+              related_invite_code: string | null;
+            }>;
+        }
+
+        const restrictedSiblingReferrals = new Set(
+          restrictedSiblingRows
+            .filter((row) => row.related_invite_code)
+            .map(
+              (row) =>
+                `${normalizeWallet(row.wallet_address)}:${String(row.related_invite_code).toUpperCase()}`,
+            ),
+        );
+
         const siblingInvitations = (siblingInvitationsResult.data ?? [])
-          .filter((row) =>
-            typeof row.invitee_wallet === 'string' &&
-            row.eligibility_check_id !== null &&
-            row.ineligibility_check_id === null &&
-            ['ACTIVATING', 'UNDER_REVIEW', 'COMPLETED'].includes(String(row.status)) &&
-            row.sybil_status !== 'BLOCKED' &&
-            !excludedWallets.has(normalizeWallet(row.invitee_wallet)),
-          );
+          .filter((row) => {
+            if (
+              typeof row.invitee_wallet !== 'string' ||
+              row.eligibility_check_id === null ||
+              row.ineligibility_check_id !== null
+            ) {
+              return false;
+            }
+
+            const siblingWallet =
+              normalizeWallet(row.invitee_wallet);
+            const peerConfirmedRestricted =
+              restrictedSiblingReferrals.has(
+                `${siblingWallet}:${String(row.invite_code).toUpperCase()}`,
+              );
+            const normallyEligible =
+              ['ACTIVATING', 'UNDER_REVIEW', 'COMPLETED'].includes(
+                String(row.status),
+              ) &&
+              row.sybil_status !== 'BLOCKED';
+            const confirmedRestrictedReferral =
+              peerConfirmedRestricted &&
+              ['ACTIVATING', 'UNDER_REVIEW', 'COMPLETED', 'CANCELLED'].includes(
+                String(row.status),
+              );
+
+            return (
+              (normallyEligible || confirmedRestrictedReferral) &&
+              !excludedWallets.has(siblingWallet)
+            );
+          });
 
         for (const sibling of siblingInvitations) {
           const siblingWallet = normalizeWallet(String(sibling.invitee_wallet));
@@ -2000,6 +2058,22 @@ async function loadSecurityIdentitySignals(
               activationGapSeconds <= 10 * 60 &&
               siblingActivationGapSeconds <= 10 * 60;
 
+            const siblingLastSeen =
+              Date.parse(siblingRow.last_seen_at);
+            const peerConfirmedRestricted =
+              restrictedSiblingReferrals.has(
+                `${siblingWallet}:${String(sibling.invite_code).toUpperCase()}`,
+              );
+            const restrictedSiblingReentry =
+              peerConfirmedRestricted &&
+              switchGapSeconds !== null &&
+              activationGapSeconds !== null &&
+              !Number.isNaN(ownFirstSeen) &&
+              !Number.isNaN(siblingLastSeen) &&
+              ownFirstSeen >= siblingLastSeen &&
+              switchGapSeconds <= 10 * 60 &&
+              activationGapSeconds <= 10 * 60;
+
             const signals: SybilV2Signal[] = [{
               code: 'SECURITY_CLIENT_SIBLING_LINK',
               family: 'SECURITY_IDENTITY',
@@ -2011,6 +2085,16 @@ async function loadSecurityIdentitySignals(
             if (immediateSwitch) {
               signals.push({
                 code: 'SECURITY_CLIENT_SIBLING_IMMEDIATE_SWITCH',
+                family: 'SECURITY_IDENTITY',
+                strength: 'HIGH',
+                score: 100,
+                independentKey: sharedClientId,
+              });
+            }
+
+            if (restrictedSiblingReentry) {
+              signals.push({
+                code: 'SECURITY_CLIENT_RESTRICTED_SIBLING_REENTRY',
                 family: 'SECURITY_IDENTITY',
                 strength: 'HIGH',
                 score: 100,
@@ -2032,9 +2116,11 @@ async function loadSecurityIdentitySignals(
                   inviterWallet,
                   peerInviteCode: sibling.invite_code,
                   peerWallet: siblingWallet,
+                  peerConfirmedRestricted,
                   sharedClientId,
                   preVoteDetection: true,
                   immediateSwitch,
+                  restrictedSiblingReentry,
                   switchGapSeconds,
                   activationGapSeconds,
                   peerActivationGapSeconds: siblingActivationGapSeconds,
@@ -2559,6 +2645,35 @@ async function applySecurityClientInviterRestriction({
   if (error) {
     throw new Error(`Security-client restriction could not be applied: ${error.message}`);
   }
+  return (data ?? {}) as BehaviorPatternRestrictionRpcResult;
+}
+
+async function applyRestrictedSiblingReentryRestriction({
+  invitation,
+  expectedRevision,
+}: {
+  invitation: InvitationV2Row;
+  expectedRevision: number;
+}): Promise<BehaviorPatternRestrictionRpcResult> {
+  if (!invitation.activation_network) {
+    return { changed: false, reason: 'NETWORK_MISSING' };
+  }
+
+  const { data, error } = await supabaseAdmin.rpc(
+    'apply_sybil_v2_restricted_sibling_reentry_restriction',
+    {
+      p_invite_code: invitation.invite_code,
+      p_expected_revision: expectedRevision,
+      p_network: invitation.activation_network,
+    },
+  );
+
+  if (error) {
+    throw new Error(
+      `Restricted-sibling reentry restriction could not be applied: ${error.message}`,
+    );
+  }
+
   return (data ?? {}) as BehaviorPatternRestrictionRpcResult;
 }
 
@@ -3722,6 +3837,9 @@ export async function assessSybilV2Referral(
   const securityClientInviterImmediateSwitch =
     policy.state === 'HOLD' &&
     hasHighSignal(signals, 'SECURITY_CLIENT_INVITER_IMMEDIATE_SWITCH');
+  const securityClientRestrictedSiblingReentry =
+    policy.state === 'HOLD' &&
+    hasHighSignal(signals, 'SECURITY_CLIENT_RESTRICTED_SIBLING_REENTRY');
 
   const evidenceSummary = {
     behaviorPatternEnforcementVersion:
@@ -3763,6 +3881,8 @@ export async function assessSybilV2Referral(
       funderReturnLoopHub !== null,
     securityClientInviterImmediateSwitchAutomaticRestrictionCandidate:
       securityClientInviterImmediateSwitch,
+    securityClientRestrictedSiblingReentryAutomaticRestrictionCandidate:
+      securityClientRestrictedSiblingReentry,
     vePassport: vePassport.snapshot
       ? {
           evidenceVersion:
@@ -3823,6 +3943,7 @@ export async function assessSybilV2Referral(
       behaviorPatternHub !== null ||
       funderReturnLoopHub !== null ||
       securityClientInviterImmediateSwitch ||
+      securityClientRestrictedSiblingReentry ||
       vePassport.automaticRestrictionCandidate,
   };
 
@@ -3904,6 +4025,38 @@ export async function assessSybilV2Referral(
           safeRevision(fresh.revision) ??
           automaticRevision ??
           revision,
+        clearanceIssued: false,
+        clearanceId: null,
+      };
+    }
+  }
+
+  if (
+    revision !== null &&
+    policy.state === 'HOLD' &&
+    securityClientRestrictedSiblingReentry
+  ) {
+    const automatic =
+      await applyRestrictedSiblingReentryRestriction({
+        invitation,
+        expectedRevision: revision,
+      });
+    const automaticRevision =
+      safeRevision(automatic.revision);
+
+    if (
+      automatic.changed === true &&
+      automatic.state === 'RESTRICTED'
+    ) {
+      return {
+        inviteCode: normalizedCode,
+        state: 'RESTRICTED',
+        riskScore: 100,
+        reasonCodes: unique([
+          ...policy.reasonCodes,
+          'AUTO_RESTRICTED_SIBLING_REENTRY_RESTRICTION',
+        ]),
+        revision: automaticRevision ?? revision,
         clearanceIssued: false,
         clearanceId: null,
       };
