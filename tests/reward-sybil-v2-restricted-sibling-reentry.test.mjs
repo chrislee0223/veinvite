@@ -30,6 +30,11 @@ const [
   ),
 ]);
 
+test('restriction RPC helpers remain server-only', () => {
+  assert.match(restrictionRpc, /import 'server-only';/u);
+  assert.match(restrictionRpc, /supabaseAdmin/u);
+});
+
 test('restricted sibling reentry requires a currently restricted peer from the same inviter', () => {
   assert.match(
     reentryMigration,
