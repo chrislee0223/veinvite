@@ -1197,16 +1197,6 @@ alter table public.invite_notification_history
     'SECURITY_REFERRAL_RESTORED'::text
   ]));
 
-alter table public.leaderboard_round_snapshot_rows
-  drop constraint if exists leaderboard_round_snapshot_rows_total_reward_wei_check;
-
-alter table public.leaderboard_round_snapshot_rows
-  drop constraint if exists leaderboard_snapshot_rows_reward_check;
-
-alter table public.leaderboard_round_snapshot_rows
-  add constraint leaderboard_round_snapshot_rows_total_reward_wei_check
-  check (total_reward_wei >= 0::numeric);
-
 create or replace function public.get_lifetime_recognized_referral_ranking_v3_internal(
   p_network text,
   p_max_block bigint default null
@@ -1648,7 +1638,9 @@ begin
   into v_expected_count,v_expected_hash
   from public.get_lifetime_referral_ranking_by_version(
     v_network,p_round_end_block,p_ranking_algorithm_version
-  );
+  )
+  where total_reward_wei > 0
+     or p_ranking_algorithm_version='paid_referrals_v2';
 
   insert into public.leaderboard_round_snapshots(
     network,round_id,round_end_block,source_checked_through_block,
@@ -1668,7 +1660,9 @@ begin
     reached_count_block,reached_count_tx_id,reached_count_tx_index,reached_count_clause_index
   from public.get_lifetime_referral_ranking_by_version(
     v_network,p_round_end_block,p_ranking_algorithm_version
-  );
+  )
+  where total_reward_wei > 0
+     or p_ranking_algorithm_version='paid_referrals_v2';
 
   select
     count(*)::integer,
