@@ -413,3 +413,24 @@ test('late receipt also tops up a restriction-sourced recovery obligation', asyn
     /sybil_v2_wallet_restrictions[\s\S]*?a\.state='RESTRICTED'[\s\S]*?upsert_reward_recovery_obligation_for_restriction/u,
   );
 });
+
+
+test('historical reinstatement cannot erase a still-active current restriction', async () => {
+  const { restrictionRecoverySql } = await sources();
+  const start = restrictionRecoverySql.indexOf(
+    'create or replace function public.sync_reward_recovery_invalidation',
+  );
+  const end = restrictionRecoverySql.indexOf(
+    'create or replace function public.sync_reward_recovery_restriction',
+  );
+  assert.ok(start >= 0 && end > start);
+  const fn = restrictionRecoverySql.slice(start, end);
+  assert.match(
+    fn,
+    /if new\.status='REINSTATED'[\s\S]*?upsert_reward_recovery_obligation_for_restriction\(r\.id\)/u,
+  );
+  assert.match(
+    fn,
+    /a\.state='RESTRICTED'[\s\S]*?r\.status='ACTIVE'/u,
+  );
+});
