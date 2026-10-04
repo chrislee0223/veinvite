@@ -464,6 +464,28 @@ begin
   end if;
 
   if new.status='REINSTATED' then
+    -- If a current RESTRICTED authority still exists for the same settled
+    -- referral, hand the obligation back to that authority instead of
+    -- reversing it merely because the historical invalidation was reinstated.
+    perform public.upsert_reward_recovery_obligation_for_restriction(r.id)
+    from public.reward_recovery_obligations o
+    join public.reward_recovery_settlements s
+      on s.id=o.source_settlement_id
+    join public.invitations i
+      on i.invite_code=s.invite_code
+    join public.sybil_v2_referral_assessments a
+      on a.invite_code=i.invite_code
+     and a.network=s.network
+     and a.state='RESTRICTED'
+    join public.sybil_v2_wallet_restrictions r
+      on r.network=s.network
+     and r.related_invite_code=i.invite_code
+     and i.invitee_wallet is not null
+     and r.wallet_address=lower(i.invitee_wallet)
+     and r.status='ACTIVE'
+     and r.resolved_at is null
+    where o.source_invalidation_id=new.id;
+
     select o.recipient_wallet,o.network
     into v_wallet,v_network
     from public.reward_recovery_obligations o
