@@ -11,8 +11,9 @@ test('shared app header keeps the three official external destinations', () => {
   assert.match(headerSource, /https:\/\/governance\.vebetterdao\.org\/allocations/u);
   assert.match(headerSource, /https:\/\/x\.com\/Veinvite/u);
   assert.match(headerSource, /https:\/\/t\.me\/Veinvite_vet/u);
-  assert.equal((headerSource.match(/target="_blank"/gu) ?? []).length, 3);
-  assert.equal((headerSource.match(/rel="noopener noreferrer"/gu) ?? []).length, 3);
+  assert.equal((headerSource.match(/target="_blank"/gu) ?? []).length, 1);
+  assert.equal((headerSource.match(/rel="noopener noreferrer"/gu) ?? []).length, 1);
+  assert.match(headerSource, /EXTERNAL_LINKS\.map\(\(link\) =>/u);
 });
 
 test('Vote uses a ballot-box glyph instead of the former document glyph', () => {
