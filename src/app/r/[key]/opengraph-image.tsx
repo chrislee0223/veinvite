@@ -20,7 +20,6 @@ export default function Image() {
           backgroundColor: '#080807',
           color: '#ffffff',
           padding: '68px 76px',
-          fontFamily: 'sans-serif',
         }}
       >
         <div
@@ -43,7 +42,7 @@ export default function Image() {
             style={{
               display: 'flex',
               fontSize: '34px',
-              fontWeight: 800,
+              fontWeight: 700,
             }}
           >
             VeInvite
@@ -61,7 +60,7 @@ export default function Image() {
               display: 'flex',
               fontSize: '76px',
               lineHeight: 1.02,
-              fontWeight: 800,
+              fontWeight: 700,
               marginBottom: '24px',
             }}
           >
