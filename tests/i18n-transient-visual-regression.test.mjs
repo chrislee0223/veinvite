@@ -6,7 +6,8 @@ const read = (path) => readFileSync(path, 'utf8');
 const locales = read('src/lib/i18n/locales.ts');
 const harness = read('src/qa/QaNotificationStateHarness.tsx');
 const surface = read('src/components/InviteNotificationSurfaceV2.tsx');
-const receipt = read('src/components/UnifiedInviteNotificationHistoryCenter.tsx');
+const receiptCenter = read('src/components/UnifiedInviteNotificationHistoryCenter.tsx');
+const receiptView = read('src/components/RewardReceiptView.tsx');
 const typography = read('src/app/localized-typography.css');
 const notificationHardening = read('src/app/notification-i18n-hardening.css');
 
@@ -29,10 +30,10 @@ test('transient surfaces stay fluid on narrow mobile screens', () => {
   assert.match(surface, /width:min\(100%,520px\)/);
   assert.match(surface, /@media \(max-width:560px\)/);
   assert.match(surface, /padding:0;/);
-  assert.match(receipt, /\.notificationHistoryPanel\{[^}]*overflow:hidden/s);
-  assert.match(receipt, /@media\(max-width:560px\)/);
-  assert.match(receipt, /height:calc\(74dvh - env\(safe-area-inset-bottom\)\)/);
-  assert.match(receipt, /\.notificationReceiptView\{padding:16px 14px\}/);
+  assert.match(receiptCenter, /\.notificationHistoryPanel\{[^}]*overflow:hidden/s);
+  assert.match(receiptCenter, /@media\(max-width:560px\)/);
+  assert.match(receiptCenter, /height:calc\(74dvh - env\(safe-area-inset-bottom\)\)/);
+  assert.match(receiptView, /\.notificationReceiptView\{padding:16px 14px\}/);
 });
 
 test('localized typography protects translated words and RTL transient UI', () => {
@@ -42,7 +43,8 @@ test('localized typography protects translated words and RTL transient UI', () =
   assert.match(typography, /html\[dir='rtl'\] \.notificationRoot \.closeButton/);
   assert.match(typography, /unicode-bidi:\s*isolate/);
   assert.doesNotMatch(surface, /word-break:\s*break-all/i);
-  assert.doesNotMatch(receipt, /word-break:\s*break-all/i);
+  assert.doesNotMatch(receiptCenter, /word-break:\s*break-all/i);
+  assert.doesNotMatch(receiptView, /word-break:\s*break-all/i);
 });
 
 test('notification modal follows its own locale in embedded previews', () => {
