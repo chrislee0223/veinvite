@@ -3,7 +3,7 @@ import { ImageResponse } from 'next/og';
 export const alt = 'VeInvite — Invite friends through VeBetterDAO';
 export const size = {
   width: 1200,
-  height: 630,
+  height: 600,
 };
 export const contentType = 'image/png';
 
@@ -15,7 +15,7 @@ export default function Image() {
       <div
         style={{
           width: '1200px',
-          height: '630px',
+          height: '600px',
           display: 'flex',
           flexDirection: 'column',
           justifyContent: 'space-between',
