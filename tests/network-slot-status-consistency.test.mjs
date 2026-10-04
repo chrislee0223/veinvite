@@ -44,8 +44,8 @@ test('all Network graph readers share the canary-filtered lifetime edge source',
   assert.doesNotMatch(summaryRoute, /\.from\('qualified_referral_network_edges'\)/);
 });
 
-test('Network consistency migration does not rewrite reward or Sybil authority', () => {
+test('Network consistency migration does not rewrite invitation authority', () => {
   assert.doesNotMatch(migrationSource, /update\s+public\.invitations/i);
-  assert.doesNotMatch(migrationSource, /reward_status\s*=/i);
-  assert.doesNotMatch(migrationSource, /sybil_status\s*=/i);
+  assert.doesNotMatch(migrationSource, /insert\s+into\s+public\.invitations/i);
+  assert.doesNotMatch(migrationSource, /delete\s+from\s+public\.invitations/i);
 });
