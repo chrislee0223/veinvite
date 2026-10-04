@@ -635,6 +635,7 @@ export function QaNotificationStateHarness({
         previewRewardReceipt={seed.previewRewardReceipt ?? null}
         rewardShareUrl={seed.rewardShareUrl ?? ''}
         onRewardShare={seed.onRewardShare}
+        skipRewardActionRequests
       />
     </QaNotificationStage>
   );

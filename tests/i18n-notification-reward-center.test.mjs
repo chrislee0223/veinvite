@@ -12,6 +12,7 @@ const home = read('src/components/HomeClient.tsx');
 const activeReceipt = read('src/components/ActiveWalletRewardReceiptNotice.tsx');
 const rewardShare = read('src/lib/rewards/rewardReceiptShare.ts');
 const rewardReceiptView = read('src/components/RewardReceiptView.tsx');
+const rewardPaidCopy = read('src/lib/i18n/rewardPaidNotificationCopy.ts');
 const qaHarness = read('src/qa/QaNotificationStateHarness.tsx');
 const referralPage = read('src/app/r/[key]/page.tsx');
 const referralOg = read('src/app/r/[key]/opengraph-image.tsx');
@@ -96,6 +97,7 @@ test('paid reward receipt shares a verified permanent invite link on X without a
   assert.match(center, /<RewardReceiptView/);
   assert.match(rewardReceiptView, /rewardReceiptXIntentUrl/);
   assert.match(rewardReceiptView, /className="notificationXShare"/);
+  assert.doesNotMatch(rewardReceiptView, />𝕏</);
   assert.match(rewardReceiptView, /window\.open\(\s*rewardShareIntentUrl/);
   assert.match(home, /referralLinkVerified \? rewardShareUrl : ''/);
   assert.match(home, /https:\/\/veinvite\.vercel\.app\/s\//);
@@ -135,7 +137,36 @@ test('QA paid-reward state opens the real receipt with fake data and lets the X 
   assert.match(qaHarness, /previewRewardReceipt: QA_REWARD_RECEIPT/);
   assert.match(qaHarness, /amountB3tr: '262\.97'/);
   assert.doesNotMatch(qaHarness, /onRewardShare: \(\) => \{\}/);
-  assert.match(center, /previewRewardReceipt/);
+  assert.match(qaHarness, /skipRewardActionRequests/);
+  assert.match(center, /skipRewardActionRequests/);
+  assert.match(center, /previewRewardReceipt\?\.id === receipt\.id/);
+});
+
+test('paid reward notification keeps amount in the sentence for every supported locale', () => {
+  assert.match(center, /rewardPaidNotificationBody\(locale, amount\)/);
+  assert.match(rewardPaidCopy, /Record<SupportedLocale, string>/);
+  assert.match(rewardPaidCopy, /친구 초대 보상으로 \{amount\} B3TR이 지갑에 지급됐어요\./);
+
+  const supportedLocales = [
+    ...locales.matchAll(/\{ locale: '([^']+)'/gmu),
+  ].map((match) => match[1]);
+  const copyLocales = [
+    ...rewardPaidCopy.matchAll(/^\s*(?:'([^']+)'|([a-z]+)):\s*'/gmu),
+  ]
+    .map((match) => match[1] ?? match[2])
+    .filter((locale) => supportedLocales.includes(locale));
+
+  assert.deepEqual(
+    [...new Set(copyLocales)].sort(),
+    [...supportedLocales].sort(),
+  );
+});
+
+test('receipt mode uses content-height layout and compact secondary explorer action', () => {
+  assert.match(center, /'notificationHistoryPanel hasReceipt'/);
+  assert.match(center, /\.notificationHistoryPanel\.hasReceipt\{height:auto/);
+  assert.match(rewardReceiptView, /notificationExplorerLink/);
+  assert.doesNotMatch(rewardReceiptView, /notificationReceiptEyebrow/);
 });
 
 test('referral sharing uses a dedicated 1200x600 X large-card route', () => {

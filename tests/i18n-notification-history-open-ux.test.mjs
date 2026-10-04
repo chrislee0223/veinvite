@@ -61,7 +61,7 @@ test('reward action loading is present before the notification panel first paint
 });
 
 
-test('notification center opens as one fixed frame instead of growing after the header paints', () => {
+test('notification history keeps a stable frame while reward receipts shrink to their content', () => {
   assert.match(center, /className="notificationHistoryBodyFrame"/);
   assert.match(
     center,
@@ -70,10 +70,19 @@ test('notification center opens as one fixed frame instead of growing after the 
   assert.match(center, /display:flex;flex-direction:column/);
   assert.match(center, /\.notificationHistoryBodyFrame\{flex:1 1 auto;min-height:0;overflow:hidden\}/);
   assert.match(center, /\.notificationHistoryScroll\{height:100%;max-height:none/);
-  assert.match(receiptView, /\.notificationReceiptView\{height:100%;max-height:none/);
+  assert.match(center, /\.notificationHistoryPanel\.hasReceipt\{height:auto/);
+  assert.match(
+    center,
+    /\.notificationHistoryPanel\.hasReceipt \.notificationHistoryBodyFrame\{flex:0 1 auto/,
+  );
+  assert.match(receiptView, /\.notificationReceiptView\{max-height:100%;overflow-y:auto/);
   assert.match(center, /\.notificationHistoryState\{height:100%;min-height:0;box-sizing:border-box/);
   assert.match(
     center,
     /@media\(max-width:560px\)[\s\S]*\.notificationHistoryPanel\{[^}]*height:calc\(74dvh - env\(safe-area-inset-bottom\)\)/,
+  );
+  assert.match(
+    center,
+    /@media\(max-width:560px\)[\s\S]*\.notificationHistoryPanel\.hasReceipt\{height:auto/,
   );
 });
