@@ -16,6 +16,10 @@ const center = [
     'utf8',
   ),
 ].join('\n');
+const receiptView = readFileSync(
+  'src/components/RewardReceiptView.tsx',
+  'utf8',
+);
 
 test('notification history opens from a warm session cache without forcing a visible loader', () => {
   assert.match(controller, /HISTORY_CACHE_PREFIX/);
@@ -65,7 +69,8 @@ test('notification center opens as one fixed frame instead of growing after the 
   );
   assert.match(center, /display:flex;flex-direction:column/);
   assert.match(center, /\.notificationHistoryBodyFrame\{flex:1 1 auto;min-height:0;overflow:hidden\}/);
-  assert.match(center, /\.notificationHistoryScroll,\.notificationReceiptView\{height:100%;max-height:none/);
+  assert.match(center, /\.notificationHistoryScroll\{height:100%;max-height:none/);
+  assert.match(receiptView, /\.notificationReceiptView\{height:100%;max-height:none/);
   assert.match(center, /\.notificationHistoryState\{height:100%;min-height:0;box-sizing:border-box/);
   assert.match(
     center,
