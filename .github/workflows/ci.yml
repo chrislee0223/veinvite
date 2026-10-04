@@ -168,6 +168,7 @@ jobs:
       - name: Standalone regression coverage gate
         run: >-
           node --test
+          tests/app-header-actions.test.mjs
           tests/demo-completion-mission-parity.test.mjs
           tests/invitee-mission-actions.test.mjs
           tests/legacy-invite-claim-retry.test.mjs
