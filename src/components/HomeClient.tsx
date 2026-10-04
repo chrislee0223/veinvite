@@ -13,8 +13,7 @@ import {
   AppBottomNavigation,
   type AppTab,
 } from './AppBottomNavigation';
-import { Brand } from './Brand';
-import { InAppInviteNotifications } from './InAppInviteNotifications';
+import { AppHeader } from './AppHeader';
 import { PublicRewardForecastCard } from './PublicRewardForecastCard';
 import {
   TransientSnackbar,
@@ -30,7 +29,6 @@ import { NOTIFICATION_COPY } from '@/lib/i18n/notificationCopy';
 import { PROGRESS_CLAIM_COPY } from '@/lib/i18n/progressClaimCopy';
 import { REFERRAL_LINK_COPY } from '@/lib/i18n/referralLinkCopy';
 import {
-  LANGUAGE_OPTIONS,
   LANGUAGE_STORAGE_KEY,
   isCjkLocale,
   isLocale,
@@ -72,79 +70,6 @@ const HOME_DATA_REFRESH_REQUESTED_EVENT =
   'veinvite-home-data-refresh-requested';
 const B3TR_DECIMALS = 18n;
 const B3TR_SCALE = 10n ** B3TR_DECIMALS;
-
-function HeaderVoteIcon() {
-  return (
-    <svg
-      viewBox="0 0 24 24"
-      fill="none"
-      aria-hidden="true"
-      className="headerLinkSvg"
-    >
-      <path
-        d="M6.5 3.75h8.75L18.5 7v13.25H6.5V3.75Z"
-        stroke="currentColor"
-        strokeWidth="1.7"
-        strokeLinejoin="round"
-      />
-      <path
-        d="M15 3.9V7.2h3.25"
-        stroke="currentColor"
-        strokeWidth="1.7"
-        strokeLinejoin="round"
-      />
-      <path
-        d="m9 12.1 1.55 1.55 3.45-3.7"
-        stroke="currentColor"
-        strokeWidth="1.8"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-      <path
-        d="M9 16.8h6"
-        stroke="currentColor"
-        strokeWidth="1.7"
-        strokeLinecap="round"
-      />
-    </svg>
-  );
-}
-
-function HeaderXIcon() {
-  return (
-    <svg
-      viewBox="0 0 24 24"
-      aria-hidden="true"
-      className="headerLinkSvg"
-    >
-      <path
-        fill="currentColor"
-        d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231 5.451-6.231Zm-1.161 17.52h1.833L7.084 4.126H5.117L17.083 19.77Z"
-      />
-    </svg>
-  );
-}
-
-function HeaderTelegramIcon() {
-  return (
-    <svg
-      viewBox="0 0 24 24"
-      fill="none"
-      aria-hidden="true"
-      className="headerLinkSvg"
-    >
-      <path
-        d="M21.3 3.7 3.6 10.55c-1.2.48-1.2 1.14-.22 1.44l4.55 1.42 1.76 5.47c.22.62.11.87.77.87.51 0 .74-.23 1.03-.51l2.2-2.13 4.58 3.39c.84.46 1.45.22 1.66-.78L22.9 5.6c.31-1.25-.48-1.82-1.6-1.9Z"
-        fill="currentColor"
-      />
-      <path
-        d="m8.15 13.27 9.98-6.3c.5-.31.96-.14.58.2l-8.24 7.43-.32 3.45-2-4.78Z"
-        fill="#141625"
-      />
-    </svg>
-  );
-}
-
 
 function referralLinkSessionKey(wallet: string): string {
   return `${REFERRAL_LINK_SESSION_PREFIX}${wallet.toLowerCase()}`;
@@ -937,79 +862,18 @@ export function HomeClient() {
 
   return (
     <main className={`screen${activeTab === 'guide' ? ' networkScreen' : ''}`}>
-      <header className="topBar">
-        <Brand />
-        <div className="topActions">
-          <div className="utilityActions">
-            <nav
-              className="externalLinkActions"
-              aria-label="VeInvite external links"
-            >
-              <a
-                className="headerIconLink"
-                href="https://governance.vebetterdao.org/allocations"
-                target="_blank"
-                rel="noopener noreferrer"
-                aria-label="VeBetterDAO Vote"
-                title="VeBetterDAO Vote"
-              >
-                <HeaderVoteIcon />
-              </a>
-              <a
-                className="headerIconLink"
-                href="https://x.com/Veinvite"
-                target="_blank"
-                rel="noopener noreferrer"
-                aria-label="VeInvite on X"
-                title="VeInvite on X"
-              >
-                <HeaderXIcon />
-              </a>
-              <a
-                className="headerIconLink"
-                href="https://t.me/Veinvite_vet"
-                target="_blank"
-                rel="noopener noreferrer"
-                aria-label="VeInvite Telegram"
-                title="VeInvite Telegram"
-              >
-                <HeaderTelegramIcon />
-              </a>
-            </nav>
-            <InAppInviteNotifications
-              locale={locale}
-              rewardShareUrl={referralLinkVerified ? rewardShareUrl : ''}
-            />
-            <select
-              className="languageSelect"
-              value={locale}
-              onChange={(event) =>
-                changeLocale(event.target.value as SupportedLocale)}
-              aria-label={t.languageAria}
-            >
-              {LANGUAGE_OPTIONS.map((option) => (
-                <option key={option.locale} value={option.locale}>
-                  {option.nativeName}
-                </option>
-              ))}
-            </select>
-          </div>
-          {wallet ? (
-            <button
-              type="button"
-              className="accountChip"
-              onClick={() => {
-                clearFeedback();
-                openWallet();
-              }}
-              aria-label={t.walletAria}
-            >
-              <span className="accountDot" />
-              {wallet.slice(0, 6)}···{wallet.slice(-4)}
-            </button>
-          ) : null}
-        </div>
-      </header>
+      <AppHeader
+        locale={locale}
+        wallet={wallet}
+        rewardShareUrl={referralLinkVerified ? rewardShareUrl : ''}
+        languageAria={t.languageAria}
+        walletAria={t.walletAria}
+        onLocaleChange={changeLocale}
+        onWalletOpen={() => {
+          clearFeedback();
+          openWallet();
+        }}
+      />
 
       {activeTab === 'home' ? (
         <section className="missionCard">
@@ -1263,23 +1127,6 @@ export function HomeClient() {
       <style jsx>{`
         .screen { min-height:100svh; box-sizing:border-box; padding:22px 16px 118px; color:#fff; background:radial-gradient(circle at 50% 16%,rgba(244,183,40,.14),transparent 32%),#080807; }
         .screen.networkScreen { height:100svh; min-height:100svh; overflow:hidden; overscroll-behavior:none; display:flex; flex-direction:column; }
-        .topBar { width:min(100%,720px); margin:0 auto 26px; display:flex; align-items:center; justify-content:space-between; gap:16px; }
-        .networkTabViewport { width:min(100%,520px); max-height:720px; min-height:0; margin:0 auto; flex:1 1 auto; display:flex; }
-        .networkTabViewport :global(.networkHubShell) { width:100%; height:100%; min-height:0; display:flex; }
-        .networkTabViewport :global(.networkCanvasPage) { flex:1 1 auto; min-height:0; }
-        .topActions { min-width:0; display:flex; align-items:center; gap:8px; }
-        .utilityActions { min-width:0; display:flex; align-items:center; justify-content:flex-end; gap:8px; }
-        .externalLinkActions { display:flex; align-items:center; gap:8px; }
-        .headerIconLink { width:40px; height:40px; flex:0 0 40px; display:grid; place-items:center; box-sizing:border-box; padding:0; border:1px solid rgba(255,255,255,.1); border-radius:13px; background:#141625; color:#b6b2bf; text-decoration:none; cursor:pointer; transition:background-color .15s ease,border-color .15s ease,color .15s ease,transform .15s ease; }
-        .headerIconLink :global(.headerLinkSvg) { width:20px; height:20px; display:block; }
-        .headerIconLink:focus-visible { outline:2px solid rgba(255,208,74,.8); outline-offset:2px; }
-        .headerIconLink:active { transform:scale(.95); }
-        .languageSelect { max-width:155px; height:40px; padding:0 28px 0 11px; border:1px solid rgba(255,255,255,.1); border-radius:13px; background:#141625; color:#fff; font:inherit; font-size:.76rem; font-weight:800; cursor:pointer; }
-        .accountChip { min-height:40px; padding:0 13px; display:inline-flex; align-items:center; gap:8px; border:1px solid rgba(255,255,255,.1); border-radius:13px; background:#141625; color:#fff; font:inherit; font-size:.72rem; font-weight:850; cursor:pointer; }
-        @media (hover:hover) and (pointer:fine) {
-          .headerIconLink:hover { border-color:rgba(255,205,80,.28); background:#1a1b29; color:#ffd04a; transform:translateY(-1px); }
-        }
-        .accountDot { width:9px; height:9px; border-radius:50%; background:#f4b728; box-shadow:0 0 14px rgba(244,183,40,.68); }
         .missionCard { position:relative; overflow:hidden; width:min(100%,520px); box-sizing:border-box; margin:0 auto; padding:24px; border:1px solid rgba(255,201,61,.28); border-radius:30px; background:linear-gradient(155deg,rgba(54,40,14,.98),rgba(16,16,14,.99) 66%); box-shadow:0 28px 80px rgba(0,0,0,.44),inset 0 1px 0 rgba(255,255,255,.08); }
         .cardGlow { position:absolute; top:-110px; right:-90px; width:250px; height:250px; border-radius:50%; background:rgba(244,183,40,.22); filter:blur(4px); pointer-events:none; }
         .missionCopy { position:relative; z-index:1; }
@@ -1327,14 +1174,6 @@ export function HomeClient() {
         .cancelConfirm { margin-top:16px; border:0; background:transparent; color:#ff7186; font:inherit; font-size:.8rem; font-weight:900; cursor:pointer; }
         @keyframes skeletonPulse { 0%,100% { opacity:.5; } 50% { opacity:1; } }
         @media (max-width:560px) {
-          .topBar { align-items:flex-start; gap:10px; }
-          .topActions { flex:1 1 auto; flex-direction:column; align-items:flex-end; gap:7px; }
-          .utilityActions { gap:6px; }
-          .externalLinkActions { gap:6px; }
-          .headerIconLink { width:34px; height:34px; flex-basis:34px; border-radius:11px; }
-          .headerIconLink :global(.headerLinkSvg) { width:18px; height:18px; }
-          .languageSelect { max-width:108px; height:34px; padding:0 24px 0 9px; border-radius:11px; font-size:.7rem; }
-          .accountChip { min-height:34px; padding:0 10px; border-radius:11px; font-size:.68rem; }
           .missionCard { padding:21px 18px; border-radius:26px; }
           .missionCopy h1 { font-size:clamp(1.9rem,10vw,2.6rem); }
           .missionCopy.cjkCopy h1 { font-size:clamp(1.9rem,9vw,2.4rem); }
@@ -1344,13 +1183,7 @@ export function HomeClient() {
           .claimButton,.processingBadge { width:100%; max-width:none; box-sizing:border-box; }
         }
         @media (max-width:340px) {
-          .utilityActions { gap:4px; }
-          .externalLinkActions { gap:4px; }
-          .languageSelect { width:96px; max-width:96px; }
           .linkActions { grid-template-columns:1fr; }
-        }
-        @media (prefers-reduced-motion: reduce) {
-          .headerIconLink { transition:none; }
         }
       `}</style>
     </main>
