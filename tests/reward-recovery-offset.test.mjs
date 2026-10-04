@@ -81,7 +81,7 @@ test('recovery is feature-gated and normal reward liability remains net payable 
   assert.match(hardeningSql, /v_net:=p_amount_wei-v_offset;/u);
   assert.match(
     hardeningSql,
-    /reserved_amount_wei,[\s\S]*?v_net,[\s\S]*?'AWAITING_CLAIM'/u,
+    /reserved_amount_wei,[\s\S]*?\) values \([\s\S]*?'AWAITING_CLAIM',[\s\S]*?v_net/u,
   );
   assert.match(
     hardeningSql,
