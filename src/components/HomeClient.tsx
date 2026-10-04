@@ -16,6 +16,10 @@ import {
 import { AppHeader } from './AppHeader';
 import { PublicRewardForecastCard } from './PublicRewardForecastCard';
 import {
+  SOFT_FOCUS_MOTION_CSS,
+  softFocusCloseDelay,
+} from './SoftFocusMotion';
+import {
   TransientSnackbar,
   type TransientFeedback,
   type TransientFeedbackKind,
@@ -177,6 +181,8 @@ export function HomeClient() {
   const [vercelShareToken, setVercelShareToken] = useState('');
   const [legacyCancelTarget, setLegacyCancelTarget] =
     useState<InviteRecord | null>(null);
+  const [legacyCancelVisible, setLegacyCancelVisible] = useState(false);
+  const legacyCancelCloseTimerRef = useRef<number | null>(null);
   const [claimPendingCode, setClaimPendingCode] =
     useState<string | null>(null);
   const feedbackIdRef = useRef(0);
@@ -784,10 +790,37 @@ export function HomeClient() {
   };
 
   const closeCancelModal = useCallback(() => {
-    setLegacyCancelTarget(null);
-    window.requestAnimationFrame(() =>
-      cancelTriggerRef.current?.focus(),
-    );
+    if (!legacyCancelTarget || legacyCancelCloseTimerRef.current !== null) {
+      return;
+    }
+    setLegacyCancelVisible(false);
+    legacyCancelCloseTimerRef.current = window.setTimeout(() => {
+      legacyCancelCloseTimerRef.current = null;
+      setLegacyCancelTarget(null);
+      window.requestAnimationFrame(() =>
+        cancelTriggerRef.current?.focus(),
+      );
+    }, softFocusCloseDelay());
+  }, [legacyCancelTarget]);
+
+  useEffect(() => {
+    if (!legacyCancelTarget) return;
+    let revealFrame: number | null = null;
+    const mountFrame = window.requestAnimationFrame(() => {
+      revealFrame = window.requestAnimationFrame(() => {
+        setLegacyCancelVisible(true);
+      });
+    });
+    return () => {
+      window.cancelAnimationFrame(mountFrame);
+      if (revealFrame !== null) window.cancelAnimationFrame(revealFrame);
+    };
+  }, [legacyCancelTarget]);
+
+  useEffect(() => () => {
+    if (legacyCancelCloseTimerRef.current !== null) {
+      window.clearTimeout(legacyCancelCloseTimerRef.current);
+    }
   }, []);
 
   useEffect(() => {
@@ -963,6 +996,7 @@ export function HomeClient() {
                       )}
                     onCancelLegacy={(invite, trigger) => {
                       cancelTriggerRef.current = trigger;
+                      setLegacyCancelVisible(false);
                       setLegacyCancelTarget(invite);
                     }}
                     copyLabel={t.copyLink}
@@ -982,6 +1016,7 @@ export function HomeClient() {
                       )}
                     onCancelLegacy={(invite, trigger) => {
                       cancelTriggerRef.current = trigger;
+                      setLegacyCancelVisible(false);
                       setLegacyCancelTarget(invite);
                     }}
                     copyLabel={t.copyLink}
@@ -1073,7 +1108,8 @@ export function HomeClient() {
 
       {legacyCancelTarget ? (
         <div
-          className="modalBackdrop"
+          className="modalBackdrop veinviteSoftFocusBackdrop"
+          data-open={legacyCancelVisible ? 'true' : 'false'}
           role="presentation"
           onMouseDown={(event) => {
             if (event.target === event.currentTarget) closeCancelModal();
@@ -1081,7 +1117,7 @@ export function HomeClient() {
         >
           <div
             ref={cancelDialogRef}
-            className="modalCard"
+            className="modalCard veinviteSoftFocusPanel"
             role="dialog"
             aria-modal="true"
             aria-labelledby="cancel-dialog-title"
@@ -1112,6 +1148,8 @@ export function HomeClient() {
         </div>
       ) : null}
 
+      <style>{SOFT_FOCUS_MOTION_CSS}</style>
+
       <TransientSnackbar
         feedback={feedback}
         closeLabel={NOTIFICATION_COPY[locale].closeAria}
@@ -1141,7 +1179,8 @@ export function HomeClient() {
         .linkPreviewSkeleton { min-height:38px; box-sizing:border-box; position:relative; overflow:hidden; }
         .linkPreviewSkeleton::after { content:''; position:absolute; top:50%; left:12px; width:68%; height:8px; border-radius:999px; background:rgba(255,255,255,.09); transform:translateY(-50%); animation:skeletonPulse 1.5s ease-in-out infinite; }
         .linkActions { margin-top:11px; display:grid; grid-template-columns:1fr 1fr; gap:9px; }
-        .primaryAction,.secondaryAction { position:relative; z-index:1; width:100%; min-height:56px; border-radius:18px; font:inherit; font-size:.92rem; font-weight:950; cursor:pointer; overflow-wrap:anywhere; }
+        .primaryAction,.secondaryAction { position:relative; z-index:1; width:100%; min-height:56px; border-radius:18px; font:inherit; font-size:.92rem; font-weight:950; cursor:pointer; overflow-wrap:anywhere; transition:transform 90ms ease; }
+        .primaryAction:active:not(:disabled),.secondaryAction:active:not(:disabled),.claimButton:active:not(:disabled),.cancelConfirm:active:not(:disabled){transform:scale(.98)}
         .primaryAction { margin-top:24px; border:0; display:flex; align-items:center; justify-content:center; gap:10px; padding:10px 16px; background:linear-gradient(135deg,#ffd24d,#efa718); color:#17120a; box-shadow:0 16px 35px rgba(190,126,12,.25),inset 0 1px 0 rgba(255,255,255,.22); }
         .primaryAction span { font-size:1.55rem; line-height:1; }
         .primaryAction:disabled { opacity:.42; cursor:not-allowed; box-shadow:none; }
@@ -1167,7 +1206,7 @@ export function HomeClient() {
         .rewardMeta { min-width:0; display:grid; gap:3px; }
         .rewardMeta small { color:#777e79; font-size:.59rem; direction:ltr; overflow:hidden; text-overflow:ellipsis; }
         .rewardMeta strong { color:#e4eee8; font-size:.75rem; overflow-wrap:anywhere; }
-        .claimButton { min-height:38px; padding:0 12px; border:0; border-radius:11px; background:linear-gradient(135deg,#ffd24d,#efa718); color:#17120a; font:inherit; font-size:.65rem; font-weight:950; cursor:pointer; white-space:nowrap; }
+        .claimButton { min-height:38px; padding:0 12px; border:0; border-radius:11px; background:linear-gradient(135deg,#ffd24d,#efa718); color:#17120a; font:inherit; font-size:.65rem; font-weight:950; cursor:pointer; white-space:nowrap; transition:transform 90ms ease; }
         .claimButton:disabled { opacity:.55; cursor:not-allowed; }
         .processingBadge { max-width:130px; padding:6px 8px; border:1px solid rgba(255,255,255,.08); border-radius:10px; background:rgba(255,255,255,.035); color:#9b979f; font-size:.58rem; font-weight:850; text-align:center; overflow-wrap:anywhere; }
         .modalBackdrop { position:fixed; z-index:100; inset:0; display:grid; place-items:center; padding:20px; background:rgba(2,3,10,.78); backdrop-filter:blur(10px); }
@@ -1175,7 +1214,11 @@ export function HomeClient() {
         .warningIcon { width:50px; height:50px; margin:0 auto 15px; border-radius:17px; display:grid; place-items:center; background:rgba(255,91,111,.1); color:#ff7186; font-size:1.2rem; font-weight:950; }
         .modalCard h2 { margin:0; font-size:1.4rem; letter-spacing:-.03em; overflow-wrap:anywhere; }
         .modalCard p { margin:11px 0 0; color:#a39eaf; font-size:.88rem; line-height:1.55; overflow-wrap:anywhere; }
-        .cancelConfirm { margin-top:16px; border:0; background:transparent; color:#ff7186; font:inherit; font-size:.8rem; font-weight:900; cursor:pointer; }
+        .cancelConfirm { margin-top:16px; border:0; background:transparent; color:#ff7186; font:inherit; font-size:.8rem; font-weight:900; cursor:pointer; transition:transform 90ms ease; }
+        @media (prefers-reduced-motion: reduce) {
+          .primaryAction,.secondaryAction,.claimButton,.cancelConfirm { transition:none; }
+          .primaryAction:active:not(:disabled),.secondaryAction:active:not(:disabled),.claimButton:active:not(:disabled),.cancelConfirm:active:not(:disabled) { transform:none; }
+        }
         @keyframes skeletonPulse { 0%,100% { opacity:.5; } 50% { opacity:1; } }
         @media (max-width:560px) {
           .missionCard { padding:21px 18px; border-radius:26px; }
@@ -1332,7 +1375,8 @@ function FriendSlot({
 
 const slotStyles = `
   .friendSlot { width:100%; box-sizing:border-box; min-width:0; min-height:68px; padding:12px; display:grid; grid-template-columns:auto minmax(0,1fr) auto; align-items:center; gap:11px; border:1px solid rgba(255,255,255,.085); border-radius:16px; background:rgba(255,255,255,.035); color:#fff; text-align:left; }
-  button.friendSlot { font:inherit; cursor:pointer; }
+  button.friendSlot { font:inherit; cursor:pointer; transition:transform 90ms ease; }
+  button.friendSlot:active:not(:disabled) { transform:scale(.99); }
   button.friendSlot:disabled { opacity:.55; cursor:not-allowed; }
   .friendSlot.available { border-style:dashed; background:rgba(255,255,255,.022); }
   .friendSlot.review { border-color:rgba(255,205,80,.2); background:rgba(244,183,40,.055); }
@@ -1352,6 +1396,10 @@ const slotStyles = `
   .legacyActions { display:grid; gap:5px; }
   .legacyActions button { min-height:28px; max-width:110px; padding:4px 8px; border:1px solid rgba(255,255,255,.09); border-radius:9px; background:rgba(255,255,255,.04); color:#d9d5df; font:inherit; font-size:.58rem; font-weight:850; overflow-wrap:anywhere; }
   .legacyActions button.danger { color:#ff8292; border-color:rgba(255,113,134,.13); background:rgba(255,91,111,.045); }
+  @media (prefers-reduced-motion: reduce) {
+    button.friendSlot { transition:none; }
+    button.friendSlot:active:not(:disabled) { transform:none; }
+  }
   @media (max-width:360px) {
     .friendSlot.legacy { grid-template-columns:auto minmax(0,1fr); }
     .legacyActions { grid-column:1 / -1; grid-template-columns:1fr 1fr; }
