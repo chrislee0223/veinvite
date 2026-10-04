@@ -1,8 +1,8 @@
 /*
  * Native language selects remain as a resilient data/control fallback, while the
  * app-owned picker progressively enhances them. Any native selector that remains
- * visible uses the same flag assets, so selected flags cannot drift away from
- * LanguageFlag.
+ * visible uses the same pinned 3:2 flag set as LanguageFlag. Local SVGs stay
+ * underneath as a resilient fallback if the CDN image cannot be fetched.
  */
 :is(
   select.languageSelect,
@@ -75,35 +75,35 @@ label.language > span[aria-hidden='true'],
   display: none !important;
 }
 
-:is(select.languageSelect, label.language select, .centeredFlow label select, .appHeader label select):has(option[value='en']:checked) { background-image:url('/flags/us.svg') !important; }
-:is(select.languageSelect, label.language select, .centeredFlow label select, .appHeader label select):has(option[value='ko']:checked) { background-image:url('/flags/kr.svg') !important; }
-:is(select.languageSelect, label.language select, .centeredFlow label select, .appHeader label select):has(option[value='zh']:checked) { background-image:url('/flags/cn.svg') !important; }
-:is(select.languageSelect, label.language select, .centeredFlow label select, .appHeader label select):has(option[value='hi']:checked) { background-image:url('/flags/in.svg') !important; }
-:is(select.languageSelect, label.language select, .centeredFlow label select, .appHeader label select):has(option[value='es']:checked) { background-image:url('/flags/es.svg') !important; }
-:is(select.languageSelect, label.language select, .centeredFlow label select, .appHeader label select):has(option[value='ja']:checked) { background-image:url('/flags/jp.svg') !important; }
-:is(select.languageSelect, label.language select, .centeredFlow label select, .appHeader label select):has(option[value='it']:checked) { background-image:url('/flags/it.svg') !important; }
-:is(select.languageSelect, label.language select, .centeredFlow label select, .appHeader label select):has(option[value='tr']:checked) { background-image:url('/flags/tr.svg') !important; }
-:is(select.languageSelect, label.language select, .centeredFlow label select, .appHeader label select):has(option[value='nl']:checked) { background-image:url('/flags/nl.svg') !important; }
-:is(select.languageSelect, label.language select, .centeredFlow label select, .appHeader label select):has(option[value='de']:checked) { background-image:url('/flags/de.svg') !important; }
-:is(select.languageSelect, label.language select, .centeredFlow label select, .appHeader label select):has(option[value='fr']:checked) { background-image:url('/flags/fr.svg') !important; }
-:is(select.languageSelect, label.language select, .centeredFlow label select, .appHeader label select):has(option[value='ar']:checked) { background-image:url('/flags/ae.svg') !important; }
-:is(select.languageSelect, label.language select, .centeredFlow label select, .appHeader label select):has(option[value='bn']:checked) { background-image:url('/flags/bd.svg') !important; }
-:is(select.languageSelect, label.language select, .centeredFlow label select, .appHeader label select):has(option[value='pt']:checked) { background-image:url('/flags/br.svg') !important; }
-:is(select.languageSelect, label.language select, .centeredFlow label select, .appHeader label select):has(option[value='ru']:checked) { background-image:url('/flags/ru.svg') !important; }
-:is(select.languageSelect, label.language select, .centeredFlow label select, .appHeader label select):has(option[value='id']:checked) { background-image:url('/flags/id.svg') !important; }
-:is(select.languageSelect, label.language select, .centeredFlow label select, .appHeader label select):has(option[value='vi']:checked) { background-image:url('/flags/vn.svg') !important; }
-:is(select.languageSelect, label.language select, .centeredFlow label select, .appHeader label select):has(option[value='zh-tw']:checked) { background-image:url('/flags/tw.svg') !important; }
-:is(select.languageSelect, label.language select, .centeredFlow label select, .appHeader label select):has(option[value='sv']:checked) { background-image:url('/flags/se.svg') !important; }
-:is(select.languageSelect, label.language select, .centeredFlow label select, .appHeader label select):has(option[value='ro']:checked) { background-image:url('/flags/ro.svg') !important; }
-:is(select.languageSelect, label.language select, .centeredFlow label select, .appHeader label select):has(option[value='ur']:checked) { background-image:url('/flags/pk.svg') !important; }
-:is(select.languageSelect, label.language select, .centeredFlow label select, .appHeader label select):has(option[value='pcm']:checked) { background-image:url('/flags/ng.svg') !important; }
-:is(select.languageSelect, label.language select, .centeredFlow label select, .appHeader label select):has(option[value='arz']:checked) { background-image:url('/flags/eg.svg') !important; }
-:is(select.languageSelect, label.language select, .centeredFlow label select, .appHeader label select):has(option[value='mr']:checked) { background-image:url('/flags/in.svg') !important; }
-:is(select.languageSelect, label.language select, .centeredFlow label select, .appHeader label select):has(option[value='te']:checked) { background-image:url('/flags/in.svg') !important; }
-:is(select.languageSelect, label.language select, .centeredFlow label select, .appHeader label select):has(option[value='sw']:checked) { background-image:url('/flags/ke.svg') !important; }
-:is(select.languageSelect, label.language select, .centeredFlow label select, .appHeader label select):has(option[value='ha']:checked) { background-image:url('/flags/ng.svg') !important; }
-:is(select.languageSelect, label.language select, .centeredFlow label select, .appHeader label select):has(option[value='el']:checked) { background-image:url('/flags/gr.svg') !important; }
-:is(select.languageSelect, label.language select, .centeredFlow label select, .appHeader label select):has(option[value='cs']:checked) { background-image:url('/flags/cz.svg') !important; }
+:is(select.languageSelect, label.language select, .centeredFlow label select, .appHeader label select):has(option[value='en']:checked) { background-image:url('https://cdn.jsdelivr.net/npm/country-flag-icons@1.6.20/3x2/US.svg'),url('/flags/us.svg') !important; }
+:is(select.languageSelect, label.language select, .centeredFlow label select, .appHeader label select):has(option[value='ko']:checked) { background-image:url('https://cdn.jsdelivr.net/npm/country-flag-icons@1.6.20/3x2/KR.svg'),url('/flags/kr.svg') !important; }
+:is(select.languageSelect, label.language select, .centeredFlow label select, .appHeader label select):has(option[value='zh']:checked) { background-image:url('https://cdn.jsdelivr.net/npm/country-flag-icons@1.6.20/3x2/CN.svg'),url('/flags/cn.svg') !important; }
+:is(select.languageSelect, label.language select, .centeredFlow label select, .appHeader label select):has(option[value='hi']:checked) { background-image:url('https://cdn.jsdelivr.net/npm/country-flag-icons@1.6.20/3x2/IN.svg'),url('/flags/in.svg') !important; }
+:is(select.languageSelect, label.language select, .centeredFlow label select, .appHeader label select):has(option[value='es']:checked) { background-image:url('https://cdn.jsdelivr.net/npm/country-flag-icons@1.6.20/3x2/ES.svg'),url('/flags/es.svg') !important; }
+:is(select.languageSelect, label.language select, .centeredFlow label select, .appHeader label select):has(option[value='ja']:checked) { background-image:url('https://cdn.jsdelivr.net/npm/country-flag-icons@1.6.20/3x2/JP.svg'),url('/flags/jp.svg') !important; }
+:is(select.languageSelect, label.language select, .centeredFlow label select, .appHeader label select):has(option[value='it']:checked) { background-image:url('https://cdn.jsdelivr.net/npm/country-flag-icons@1.6.20/3x2/IT.svg'),url('/flags/it.svg') !important; }
+:is(select.languageSelect, label.language select, .centeredFlow label select, .appHeader label select):has(option[value='tr']:checked) { background-image:url('https://cdn.jsdelivr.net/npm/country-flag-icons@1.6.20/3x2/TR.svg'),url('/flags/tr.svg') !important; }
+:is(select.languageSelect, label.language select, .centeredFlow label select, .appHeader label select):has(option[value='nl']:checked) { background-image:url('https://cdn.jsdelivr.net/npm/country-flag-icons@1.6.20/3x2/NL.svg'),url('/flags/nl.svg') !important; }
+:is(select.languageSelect, label.language select, .centeredFlow label select, .appHeader label select):has(option[value='de']:checked) { background-image:url('https://cdn.jsdelivr.net/npm/country-flag-icons@1.6.20/3x2/DE.svg'),url('/flags/de.svg') !important; }
+:is(select.languageSelect, label.language select, .centeredFlow label select, .appHeader label select):has(option[value='fr']:checked) { background-image:url('https://cdn.jsdelivr.net/npm/country-flag-icons@1.6.20/3x2/FR.svg'),url('/flags/fr.svg') !important; }
+:is(select.languageSelect, label.language select, .centeredFlow label select, .appHeader label select):has(option[value='ar']:checked) { background-image:url('https://cdn.jsdelivr.net/npm/country-flag-icons@1.6.20/3x2/AE.svg'),url('/flags/ae.svg') !important; }
+:is(select.languageSelect, label.language select, .centeredFlow label select, .appHeader label select):has(option[value='bn']:checked) { background-image:url('https://cdn.jsdelivr.net/npm/country-flag-icons@1.6.20/3x2/BD.svg'),url('/flags/bd.svg') !important; }
+:is(select.languageSelect, label.language select, .centeredFlow label select, .appHeader label select):has(option[value='pt']:checked) { background-image:url('https://cdn.jsdelivr.net/npm/country-flag-icons@1.6.20/3x2/BR.svg'),url('/flags/br.svg') !important; }
+:is(select.languageSelect, label.language select, .centeredFlow label select, .appHeader label select):has(option[value='ru']:checked) { background-image:url('https://cdn.jsdelivr.net/npm/country-flag-icons@1.6.20/3x2/RU.svg'),url('/flags/ru.svg') !important; }
+:is(select.languageSelect, label.language select, .centeredFlow label select, .appHeader label select):has(option[value='id']:checked) { background-image:url('https://cdn.jsdelivr.net/npm/country-flag-icons@1.6.20/3x2/ID.svg'),url('/flags/id.svg') !important; }
+:is(select.languageSelect, label.language select, .centeredFlow label select, .appHeader label select):has(option[value='vi']:checked) { background-image:url('https://cdn.jsdelivr.net/npm/country-flag-icons@1.6.20/3x2/VN.svg'),url('/flags/vn.svg') !important; }
+:is(select.languageSelect, label.language select, .centeredFlow label select, .appHeader label select):has(option[value='zh-tw']:checked) { background-image:url('https://cdn.jsdelivr.net/npm/country-flag-icons@1.6.20/3x2/TW.svg'),url('/flags/tw.svg') !important; }
+:is(select.languageSelect, label.language select, .centeredFlow label select, .appHeader label select):has(option[value='sv']:checked) { background-image:url('https://cdn.jsdelivr.net/npm/country-flag-icons@1.6.20/3x2/SE.svg'),url('/flags/se.svg') !important; }
+:is(select.languageSelect, label.language select, .centeredFlow label select, .appHeader label select):has(option[value='ro']:checked) { background-image:url('https://cdn.jsdelivr.net/npm/country-flag-icons@1.6.20/3x2/RO.svg'),url('/flags/ro.svg') !important; }
+:is(select.languageSelect, label.language select, .centeredFlow label select, .appHeader label select):has(option[value='ur']:checked) { background-image:url('https://cdn.jsdelivr.net/npm/country-flag-icons@1.6.20/3x2/PK.svg'),url('/flags/pk.svg') !important; }
+:is(select.languageSelect, label.language select, .centeredFlow label select, .appHeader label select):has(option[value='pcm']:checked) { background-image:url('https://cdn.jsdelivr.net/npm/country-flag-icons@1.6.20/3x2/NG.svg'),url('/flags/ng.svg') !important; }
+:is(select.languageSelect, label.language select, .centeredFlow label select, .appHeader label select):has(option[value='arz']:checked) { background-image:url('https://cdn.jsdelivr.net/npm/country-flag-icons@1.6.20/3x2/EG.svg'),url('/flags/eg.svg') !important; }
+:is(select.languageSelect, label.language select, .centeredFlow label select, .appHeader label select):has(option[value='mr']:checked) { background-image:url('https://cdn.jsdelivr.net/npm/country-flag-icons@1.6.20/3x2/IN.svg'),url('/flags/in.svg') !important; }
+:is(select.languageSelect, label.language select, .centeredFlow label select, .appHeader label select):has(option[value='te']:checked) { background-image:url('https://cdn.jsdelivr.net/npm/country-flag-icons@1.6.20/3x2/IN.svg'),url('/flags/in.svg') !important; }
+:is(select.languageSelect, label.language select, .centeredFlow label select, .appHeader label select):has(option[value='sw']:checked) { background-image:url('https://cdn.jsdelivr.net/npm/country-flag-icons@1.6.20/3x2/KE.svg'),url('/flags/ke.svg') !important; }
+:is(select.languageSelect, label.language select, .centeredFlow label select, .appHeader label select):has(option[value='ha']:checked) { background-image:url('https://cdn.jsdelivr.net/npm/country-flag-icons@1.6.20/3x2/NG.svg'),url('/flags/ng.svg') !important; }
+:is(select.languageSelect, label.language select, .centeredFlow label select, .appHeader label select):has(option[value='el']:checked) { background-image:url('https://cdn.jsdelivr.net/npm/country-flag-icons@1.6.20/3x2/GR.svg'),url('/flags/gr.svg') !important; }
+:is(select.languageSelect, label.language select, .centeredFlow label select, .appHeader label select):has(option[value='cs']:checked) { background-image:url('https://cdn.jsdelivr.net/npm/country-flag-icons@1.6.20/3x2/CZ.svg'),url('/flags/cz.svg') !important; }
 
 /* Very narrow phones cannot fit the full brand + invitee chip + 155px picker on
  * one row. Stack only the right-hand actions and trim the picker width. */
