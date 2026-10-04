@@ -599,6 +599,11 @@ export function HomeClient() {
     return url.toString();
   }, [referralLink, vercelShareToken]);
 
+  const rewardShareUrl = useMemo(() => {
+    if (!referralLink) return '';
+    return `https://veinvite.vercel.app/s/${encodeURIComponent(referralLink.key)}`;
+  }, [referralLink]);
+
   const legacyInviteUrl = useCallback((invite: InviteRecord) => {
     if (typeof window === 'undefined') return '';
     const url = new URL(`/i/${invite.code}`, window.location.origin);
@@ -868,7 +873,7 @@ export function HomeClient() {
             <InAppInviteNotifications
               locale={locale}
               rewardShareUrl={
-                referralLinkVerified ? permanentInviteUrl : ''
+                referralLinkVerified ? rewardShareUrl : ''
               }
             />
             <select
