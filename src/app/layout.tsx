@@ -25,6 +25,7 @@ import './legal-ui-consistency.css';
 import './leaderboard-mobile-table-tuning.css';
 import './leaderboard-card-height-stability.css';
 import './leaderboard-country-horizontal-balance.css';
+import './leaderboard-country-row-capacity.css';
 import './leaderboard-column-alignment-guard.css';
 import './leaderboard-rtl-hardening.css';
 
