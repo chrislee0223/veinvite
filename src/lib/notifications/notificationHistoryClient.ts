@@ -46,6 +46,7 @@ export function notificationRequiresHomeRefresh(
     kind === 'INVITE_INELIGIBLE' ||
     kind === 'REWARD_READY' ||
     kind === 'REWARD_PAID' ||
+    kind === 'REWARD_ADJUSTED' ||
     kind === 'SECURITY_RESTRICTION_CONFIRMED' ||
     kind === 'SECURITY_REVIEW_CLEARED' ||
     kind === 'SECURITY_REFERRAL_INVALIDATED' ||
@@ -58,6 +59,7 @@ export function notificationRequiresNetworkRefresh(
 ): boolean {
   const kind = effectiveNotificationKind(notification);
   return (
+    kind === 'REWARD_ADJUSTED' ||
     kind === 'SECURITY_RESTRICTION_CONFIRMED' ||
     kind === 'SECURITY_REVIEW_CLEARED' ||
     kind === 'SECURITY_REFERRAL_INVALIDATED' ||
