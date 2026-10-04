@@ -468,7 +468,7 @@ export function PermanentReferralClient({
   };
 
   if (!languageReady) {
-    return <main className="centeredFlow"><Brand compact /></main>;
+    return <main className="centeredFlow inviteStepMotion"><Brand compact /></main>;
   }
 
   if (showLanguageSetup) {
@@ -483,7 +483,7 @@ export function PermanentReferralClient({
 
   if (step === 'loading') {
     return (
-      <Centered locale={locale} onLocaleChange={saveLocale}>
+      <Centered key={step} locale={locale} onLocaleChange={saveLocale}>
         <div className="spinnerLarge" />
         <h1>{t.checkingTitle}</h1>
         <p className="muted">{t.checkingDescription}</p>
@@ -516,7 +516,7 @@ export function PermanentReferralClient({
               : t.tryAgain;
 
     return (
-      <Centered locale={locale} onLocaleChange={saveLocale}>
+      <Centered key={step} locale={locale} onLocaleChange={saveLocale}>
         <div className="errorIcon">×</div>
         <h1>{title}</h1>
         <p className="muted">{description}</p>
@@ -536,7 +536,7 @@ export function PermanentReferralClient({
 
   if (step === 'checking') {
     return (
-      <Centered locale={locale} onLocaleChange={saveLocale}>
+      <Centered key={step} locale={locale} onLocaleChange={saveLocale}>
         <div className="spinnerLarge" />
         <h1>{t.checkingTitle}</h1>
         <p className="muted">{t.checkingDescription}</p>
@@ -551,7 +551,7 @@ export function PermanentReferralClient({
 
   if (step === 'wallet') {
     return (
-      <Centered locale={locale} onLocaleChange={saveLocale}>
+      <Centered key={step} locale={locale} onLocaleChange={saveLocale}>
         <div className="walletVisual" />
         <h1>{t.connectWalletTitle}</h1>
         <p className="muted">{t.connectWalletDescription}</p>
@@ -583,7 +583,7 @@ export function PermanentReferralClient({
   if (step === 'success') {
     const returning = entryClass === 'returning_user';
     return (
-      <Centered locale={locale} onLocaleChange={saveLocale}>
+      <Centered key={step} locale={locale} onLocaleChange={saveLocale}>
         <div className="successCircle">{returning ? '↻' : '✓'}</div>
         <h1>{returning ? t.returningSuccessTitle : t.newSuccessTitle}</h1>
         <p className="muted">
