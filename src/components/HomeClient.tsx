@@ -113,8 +113,6 @@ function writeCachedReferralLink(
       JSON.stringify({ key: link.key, createdAt: link.createdAt }),
     );
   } catch {
-    // Storage can be unavailable in hardened/private browser modes. The server
-    // remains authoritative, so cache failure should never block the Home UI.
   }
 }
 
