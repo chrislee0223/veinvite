@@ -165,7 +165,7 @@ export function RewardReceiptView({
         .notificationHistoryState p{max-width:280px;margin:7px 0 0;color:#77726b;font-size:.66rem;line-height:1.55}
         .notificationXShare:focus-visible,.notificationExplorerLink:focus-visible,.notificationReceiptAcknowledge:focus-visible{outline:2px solid rgba(255,208,74,.8);outline-offset:2px}
         @keyframes notificationHistorySpin{to{transform:rotate(360deg)}}
-        @media(max-width:560px){.notificationReceiptView{padding:18px 14px 16px}.notificationReceiptAmount strong{font-size:1.75rem}}
+        @media(max-width:560px){.notificationReceiptView{padding:16px 14px}.notificationReceiptAmount strong{font-size:1.75rem}}
         @media(prefers-reduced-motion:reduce){.notificationHistorySpinner{animation:none}}
       `}</style>
     </div>
