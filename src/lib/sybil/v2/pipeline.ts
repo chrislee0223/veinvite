@@ -44,7 +44,7 @@ import {
 import {
   applyRestrictedSiblingReentryRestriction,
   isRestrictedSiblingReentry,
-  loadRestrictedSiblingReferralKeys,
+  loadSharedClientSiblingInvitations,
   restrictedSiblingReferralKey,
 } from '@/lib/sybil/v2/restrictedSiblingReentry';
 import {
@@ -1940,61 +1940,15 @@ async function loadSecurityIdentitySignals(
         !excludedWallets.has(inviterWallet) &&
         relatedWallets.length > 0
       ) {
-        const siblingInvitationsResult = await supabaseAdmin
-          .from('invitations')
-          .select(
-            'invite_code,inviter_wallet,invitee_wallet,activated_at,status,sybil_status,eligibility_check_id,ineligibility_check_id',
-          )
-          .eq('inviter_wallet', inviterWallet)
-          .in('invitee_wallet', relatedWallets);
-
-        if (siblingInvitationsResult.error) {
-          throw new Error(
-            `Sibling security-client invitations could not be loaded: ${siblingInvitationsResult.error.message}`,
-          );
-        }
-
-        const restrictedSiblingReferrals =
-          await loadRestrictedSiblingReferralKeys({
-            network: invitation.activation_network,
-            relatedWallets,
-          });
-
-        const siblingInvitations = (siblingInvitationsResult.data ?? [])
-          .filter((row) => {
-            if (
-              typeof row.invitee_wallet !== 'string' ||
-              row.eligibility_check_id === null ||
-              row.ineligibility_check_id !== null
-            ) {
-              return false;
-            }
-
-            const siblingWallet =
-              normalizeWallet(row.invitee_wallet);
-            const peerConfirmedRestricted =
-              restrictedSiblingReferrals.has(
-                restrictedSiblingReferralKey({
-                  walletAddress: siblingWallet,
-                  inviteCode: String(row.invite_code),
-                }),
-              );
-            const normallyEligible =
-              ['ACTIVATING', 'UNDER_REVIEW', 'COMPLETED'].includes(
-                String(row.status),
-              ) &&
-              row.sybil_status !== 'BLOCKED';
-            const confirmedRestrictedReferral =
-              peerConfirmedRestricted &&
-              ['ACTIVATING', 'UNDER_REVIEW', 'COMPLETED', 'CANCELLED'].includes(
-                String(row.status),
-              );
-
-            return (
-              (normallyEligible || confirmedRestrictedReferral) &&
-              !excludedWallets.has(siblingWallet)
-            );
-          });
+        const {
+          siblingInvitations,
+          restrictedSiblingReferrals,
+        } = await loadSharedClientSiblingInvitations({
+          inviterWallet,
+          relatedWallets,
+          excludedWallets,
+          network: invitation.activation_network,
+        });
 
         for (const sibling of siblingInvitations) {
           const siblingWallet = normalizeWallet(String(sibling.invitee_wallet));
