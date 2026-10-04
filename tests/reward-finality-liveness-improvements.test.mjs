@@ -90,7 +90,7 @@ test('notification reward actions use the tested polling policy without dependin
   );
   assert.match(
     notificationCenter,
-    /\[loadRewardActions, open, rewardActionPollingMode\]/,
+    /\[loadRewardActions, open, rewardActionPollingMode, skipRewardActionRequests\]/,
   );
   assert.doesNotMatch(
     notificationCenter,
