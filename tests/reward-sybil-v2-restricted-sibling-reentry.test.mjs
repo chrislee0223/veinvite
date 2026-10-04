@@ -10,6 +10,10 @@ const pipeline = await readFile(
   'src/lib/sybil/v2/pipeline.ts',
   'utf8',
 );
+const reentry = await readFile(
+  'src/lib/sybil/v2/restrictedSiblingReentry.ts',
+  'utf8',
+);
 
 test('incident inviter client aliases are observation-only and cannot sanction by membership', () => {
   assert.match(
@@ -79,27 +83,27 @@ test('pipeline emits high evidence only for restricted sibling wallet replacemen
     /loadRestrictedSiblingReentrySignals/u,
   );
   assert.match(
-    pipeline,
+    reentry,
     /SECURITY_CLIENT_RESTRICTED_SIBLING_REENTRY/u,
   );
   assert.match(
-    pipeline,
+    reentry,
     /sameInviterRestrictedSibling:\s*true/u,
   );
   assert.match(
-    pipeline,
+    reentry,
     /sequentialWalletReplacement:\s*true/u,
   );
   assert.match(
-    pipeline,
+    reentry,
     /switchGapSeconds > 10 \* 60/u,
   );
   assert.match(
-    pipeline,
+    reentry,
     /activationGapSeconds > 10 \* 60/u,
   );
   assert.match(
-    pipeline,
+    reentry,
     /family:\s*'SECURITY_IDENTITY'[\s\S]*strength:\s*'HIGH'[\s\S]*score:\s*100/u,
   );
 });
@@ -107,10 +111,10 @@ test('pipeline emits high evidence only for restricted sibling wallet replacemen
 test('pipeline re-verifies the restricted sibling pattern in the database before restricting', () => {
   assert.match(
     pipeline,
-    /applyRestrictedSiblingReentryRestriction/u,
+    /enforceRestrictedSiblingReentryRestriction/u,
   );
   assert.match(
-    pipeline,
+    reentry,
     /apply_sybil_v2_restricted_sibling_reentry_restriction/u,
   );
   assert.match(
@@ -120,5 +124,13 @@ test('pipeline re-verifies the restricted sibling pattern in the database before
   assert.match(
     pipeline,
     /AUTO_RESTRICTED_SIBLING_REENTRY_RESTRICTION/u,
+  );
+  assert.match(
+    reentry,
+    /sybil_v2_referral_assessments/u,
+  );
+  assert.match(
+    reentry,
+    /data\?\.state === 'RESTRICTED'/u,
   );
 });
