@@ -47,6 +47,15 @@ if (/className="myRankCard"|className="myRankButton"|className="rankPrimary"/.te
 if (!/currentUserInList/.test(leaderboard) || !/trailingCurrentUser/.test(leaderboard) || !/className="rankDivider"/.test(leaderboard)) {
   failures.push('Outside-Top-100 current-wallet fallback row is missing.');
 }
+if (
+  !/currentWalletNeedsPrivateLookup/.test(leaderboardHub) ||
+  !/pendingCurrentWallet=\{pendingCurrentWallet\}/.test(leaderboardHub) ||
+  !/pendingCurrentWallet\?: string \| null/.test(leaderboard) ||
+  !/className="rankRow compact current trailingCurrent pendingCurrent"/.test(leaderboard) ||
+  !/data-current-wallet-pending="true"/.test(leaderboard)
+) {
+  failures.push('Outside-Top-100 current-wallet personalization must reserve a stable trailing row while rank data resolves.');
+}
 if (!/<span>⋮<\/span>/.test(leaderboard)) {
   failures.push('Outside-Top-100 current-wallet row must use the compact vertical ellipsis separator.');
 }

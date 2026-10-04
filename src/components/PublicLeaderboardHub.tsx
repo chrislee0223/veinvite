@@ -386,6 +386,15 @@ export function PublicLeaderboardHub({
     };
   }, [personalization, publicData, walletKey]);
 
+  const currentWalletNeedsPrivateLookup = Boolean(
+    walletKey &&
+    publicData &&
+    publicState.confirmed &&
+    publicData.leaders.length >= PUBLIC_RANK_LIMIT &&
+    !publicData.leaders.some(
+      (entry) => entry.walletAddress.toLowerCase() === walletKey,
+    )
+  );
   const personalizationPending = Boolean(
     walletKey &&
     (
@@ -394,6 +403,10 @@ export function PublicLeaderboardHub({
       personalization.status === 'unavailable'
     ),
   );
+  const pendingCurrentWallet =
+    currentWalletNeedsPrivateLookup && personalizationPending
+      ? wallet
+      : null;
   const displayWallet = personalizationPending ? null : wallet;
   const countryCopy = COUNTRY_LEADERBOARD_COPY[locale];
   const countryMetricCopy = COUNTRY_ARRIVAL_METRIC_COPY[locale];
@@ -463,6 +476,7 @@ export function PublicLeaderboardHub({
             <InviterLeaderboard
               locale={locale}
               wallet={displayWallet}
+              pendingCurrentWallet={pendingCurrentWallet}
               previewData={displayData}
             />
           </div>
