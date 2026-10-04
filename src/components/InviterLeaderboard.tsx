@@ -397,6 +397,8 @@ export function PublicLeaderboard({
   }>({ cacheKey, message: '' });
   const [selectedEntry, setSelectedEntry] =
     useState<PublicLeaderboardEntry | null>(null);
+  const [walletDetailVisible, setWalletDetailVisible] = useState(false);
+  const walletDetailCloseTimerRef = useRef<number | null>(null);
   const [impactOpen, setImpactOpen] = useState(false);
   const [impactVisible, setImpactVisible] = useState(false);
   const [impactClosing, setImpactClosing] = useState(false);
@@ -465,7 +467,24 @@ export function PublicLeaderboard({
     if (impactCloseTimerRef.current !== null) {
       window.clearTimeout(impactCloseTimerRef.current);
     }
+    if (walletDetailCloseTimerRef.current !== null) {
+      window.clearTimeout(walletDetailCloseTimerRef.current);
+    }
   }, []);
+
+  useEffect(() => {
+    if (!selectedEntry) return;
+    let revealFrame: number | null = null;
+    const mountFrame = window.requestAnimationFrame(() => {
+      revealFrame = window.requestAnimationFrame(() => {
+        setWalletDetailVisible(true);
+      });
+    });
+    return () => {
+      window.cancelAnimationFrame(mountFrame);
+      if (revealFrame !== null) window.cancelAnimationFrame(revealFrame);
+    };
+  }, [selectedEntry]);
 
   useEffect(() => {
     if (!impactOpen || impactClosing) return;
@@ -515,15 +534,31 @@ export function PublicLeaderboard({
     }, softFocusCloseDelay());
   }, [impactOpen]);
 
+  const closeWalletDetails = useCallback(() => {
+    if (!selectedEntry || walletDetailCloseTimerRef.current !== null) {
+      return;
+    }
+    setWalletDetailVisible(false);
+    const delay = softFocusCloseDelay();
+    if (delay === 0) {
+      setSelectedEntry(null);
+      window.requestAnimationFrame(() => openerRef.current?.focus());
+      return;
+    }
+    walletDetailCloseTimerRef.current = window.setTimeout(() => {
+      walletDetailCloseTimerRef.current = null;
+      setSelectedEntry(null);
+      window.requestAnimationFrame(() => openerRef.current?.focus());
+    }, delay);
+  }, [selectedEntry]);
+
   const closeDialog = useCallback(() => {
     if (impactOpen) {
       closeImpactDetails();
       return;
     }
-
-    setSelectedEntry(null);
-    window.requestAnimationFrame(() => openerRef.current?.focus());
-  }, [closeImpactDetails, impactOpen]);
+    closeWalletDetails();
+  }, [closeImpactDetails, closeWalletDetails, impactOpen]);
 
   const openWalletDetails = (
     entry: PublicLeaderboardEntry,
@@ -537,6 +572,7 @@ export function PublicLeaderboard({
     setImpactVisible(false);
     setImpactClosing(false);
     setImpactOpen(false);
+    setWalletDetailVisible(false);
     setSelectedEntry(entry);
   };
 
@@ -899,7 +935,8 @@ export function PublicLeaderboard({
 
       {selectedEntry ? (
         <div
-          className="modalBackdrop"
+          className="modalBackdrop veinviteSoftFocusBackdrop"
+          data-open={walletDetailVisible ? 'true' : 'false'}
           role="presentation"
           onMouseDown={(event) => {
             if (event.target === event.currentTarget) closeDialog();
@@ -907,7 +944,7 @@ export function PublicLeaderboard({
         >
           <div
             ref={dialogRef}
-            className="walletDialog"
+            className="walletDialog veinviteSoftFocusPanel"
             role="dialog"
             aria-modal="true"
             aria-labelledby="wallet-dialog-title"
@@ -1030,7 +1067,7 @@ export function PublicLeaderboard({
           box-shadow:0 0 0 3px rgba(244,183,40,.08);
         }
         .impactSummaryButton:active:not(:disabled) {
-          transform:scale(.985);
+          transform:scale(.98);
         }
         .impactSummaryButton:disabled {
           cursor:default;
