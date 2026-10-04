@@ -10,6 +10,10 @@ const claimRoute = read('src/app/api/rewards/claims/route.ts');
 const page = read('src/app/page.tsx');
 const home = read('src/components/HomeClient.tsx');
 const activeReceipt = read('src/components/ActiveWalletRewardReceiptNotice.tsx');
+const rewardShare = read('src/lib/rewards/rewardReceiptShare.ts');
+const qaHarness = read('src/qa/QaNotificationStateHarness.tsx');
+const referralPage = read('src/app/r/[key]/page.tsx');
+const referralOg = read('src/app/r/[key]/opengraph-image.tsx');
 
 test('notification reward actions are live wallet-scoped state, not cached history authority', () => {
   assert.match(actionsRoute, /requireWalletSession/);
@@ -81,6 +85,43 @@ test('reward-ready history is an event while paid history remains reopenable as 
   assert.doesNotMatch(center, /candidate\.inviteCode === item\.inviteCode/);
   assert.match(center, /getVeChainExplorerTransactionUrl/);
   assert.match(center, /ACKNOWLEDGE_REWARD_RECEIPT/);
+});
+
+test('paid reward receipt shares a verified permanent invite link on X without acknowledging the receipt', () => {
+  assert.match(center, /rewardShareUrl/);
+  assert.match(center, /rewardReceiptXIntentUrl/);
+  assert.match(center, /className="notificationXShare"/);
+  assert.match(center, /window\.open\(\s*rewardShareIntentUrl/);
+  assert.match(home, /referralLinkVerified \? permanentInviteUrl : ''/);
+  assert.match(rewardShare, /https:\/\/x\.com\/intent\/post/);
+  assert.match(
+    rewardShare,
+    /VeInvite에서 친구 초대 보상으로 \$\{amountB3tr\} B3TR을 받았어요 🎉/,
+  );
+  assert.match(
+    rewardShare,
+    /I just received \$\{amountB3tr\} B3TR in referral rewards on VeInvite 🎉/,
+  );
+
+  const shareHandlerStart = center.indexOf('const shareRewardOnX');
+  const shareHandlerEnd = center.indexOf('const renderItemContent', shareHandlerStart);
+  const shareHandler = center.slice(shareHandlerStart, shareHandlerEnd);
+  assert.doesNotMatch(shareHandler, /acknowledgeReceipt/);
+  assert.doesNotMatch(shareHandler, /closePanel/);
+});
+
+test('QA paid-reward state opens the real receipt with fake data and blocks external X navigation', () => {
+  assert.match(qaHarness, /case 'NOTI-REWARD-PAID':/);
+  assert.match(qaHarness, /previewRewardReceipt: QA_REWARD_RECEIPT/);
+  assert.match(qaHarness, /amountB3tr: '262\.97'/);
+  assert.match(qaHarness, /onRewardShare: \(\) => \{\}/);
+  assert.match(center, /previewRewardReceipt/);
+});
+
+test('permanent referral links render a large X\/Open Graph card', () => {
+  assert.match(referralPage, /card: 'summary_large_image'/);
+  assert.match(referralOg, /width: 1200/);
+  assert.match(referralOg, /height: 630/);
 });
 
 test('rollout keeps Home Claim and paid live sync without a duplicate standalone receipt surface', () => {
