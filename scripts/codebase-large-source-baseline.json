@@ -1,7 +1,7 @@
 {
   "thresholdBytes": 30000,
-  "capturedFromCommit": "5490e98ea9e5fbc9ff4b0d193b631f099af97b7b",
-  "note": "Known large source files at the stabilization baseline. The cleanup gate blocks new >=30KB source files and prevents selected hotspot files from growing past their reviewed ceilings unless the baseline is intentionally reviewed and updated.",
+  "capturedFromCommit": "244be5862adf8ef50d902bc43c09ef3f32a2faf7",
+  "note": "Known large source files at the reviewed motion-consistency baseline. The cleanup gate blocks new >=30KB source files and prevents selected hotspot files from growing past their reviewed ceilings unless the baseline is intentionally reviewed and updated.",
   "allowedLargeSourceFiles": [
     "src/components/AppNetwork.tsx",
     "src/components/PublicNetworkExplorer.tsx",
@@ -31,15 +31,17 @@
     "src/lib/rewards/automaticRewardPayout.ts",
     "src/lib/i18n/localePacks/ru.ts",
     "src/lib/i18n/inviterSecurityNotificationCopy.ts",
-    "src/lib/i18n/localePacks/ur.ts"
+    "src/lib/i18n/localePacks/ur.ts",
+    "src/components/AppSettings.tsx"
   ],
   "growthCeilingsBytes": {
-    "src/components/AppNetwork.tsx": 148481,
+    "src/components/AppNetwork.tsx": 149032,
     "src/lib/sybil/v2/pipeline.ts": 136533,
     "src/components/PublicNetworkExplorer.tsx": 73801,
     "src/components/UnifiedInviteNotificationHistoryCenter.tsx": 55235,
-    "src/components/HomeClient.tsx": 50999,
+    "src/components/HomeClient.tsx": 51397,
     "src/lib/rewards/automaticRewardPayout.ts": 35358,
-    "src/app/api/cron/vote-reconcile/route.ts": 29756
+    "src/app/api/cron/vote-reconcile/route.ts": 29756,
+    "src/components/AppSettings.tsx": 31969
   }
 }
