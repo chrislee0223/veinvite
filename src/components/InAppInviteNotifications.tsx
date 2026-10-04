@@ -308,8 +308,10 @@ function notificationCenterIsClosing(): boolean {
 
 export function InAppInviteNotifications({
   locale,
+  rewardShareUrl = '',
 }: {
   locale: Locale;
+  rewardShareUrl?: string;
 }) {
   const { wallet, isWalletModalOpen } = useWalletLauncher();
   const [items, setItems] =
@@ -1013,6 +1015,7 @@ export function InAppInviteNotifications({
       onMarkRead={markRead}
       onMarkAll={markAllRead}
       onLoadMore={loadMore}
+      rewardShareUrl={rewardShareUrl}
     />
   );
 }
