@@ -255,6 +255,10 @@ export function AppSettings({
     opener: HTMLButtonElement,
   ) => {
     clearFeedback();
+    if (walletConfirmationCloseTimerRef.current !== null) {
+      window.clearTimeout(walletConfirmationCloseTimerRef.current);
+      walletConfirmationCloseTimerRef.current = null;
+    }
     walletConfirmationOpenerRef.current = opener;
     walletConfirmationRestoreFocusRef.current = true;
     setWalletConfirmationVisible(false);
@@ -409,7 +413,13 @@ export function AppSettings({
 
   const confirmWalletAction = async () => {
     const action = walletConfirmation;
-    if (!action) return;
+    if (
+      !action ||
+      isWalletActionPending ||
+      walletConfirmationCloseTimerRef.current !== null
+    ) {
+      return;
+    }
 
     closeWalletConfirmation(false);
     if (action === 'switch') {
