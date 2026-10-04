@@ -7,7 +7,7 @@ const pipeline = await readFile(
   'utf8',
 );
 const migration = await readFile(
-  'supabase/migrations/20261004095500_harden_restricted_sibling_reentry.sql',
+  'supabase/migrations/20261004101116_harden_restricted_sibling_reentry.sql',
   'utf8',
 );
 const version = await readFile(
