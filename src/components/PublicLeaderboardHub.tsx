@@ -36,7 +36,8 @@ type CountryCache = {
 
 const PUBLIC_RANK_LIMIT = 100;
 const COUNTRY_CACHE_TTL_MS = 60_000;
-const COUNTRY_VISIBLE_ROWS = 5;
+const COUNTRY_MIN_VISIBLE_ROWS = 5;
+const COUNTRY_MAX_VISIBLE_ROWS = 7;
 let countryCache: CountryCache | null = null;
 let countryInFlight: Promise<PublicCountryArrivalResponse> | null = null;
 
@@ -433,6 +434,10 @@ export function PublicLeaderboardHub({
     () => countryData?.leaders ?? [],
     [countryData],
   );
+  const countryVisibleRowCount = Math.min(
+    COUNTRY_MAX_VISIBLE_ROWS,
+    Math.max(COUNTRY_MIN_VISIBLE_ROWS, countryLeaders.length),
+  );
 
   if (!displayData) {
     return <InviterLeaderboard locale={locale} wallet={wallet} />;
@@ -506,7 +511,10 @@ export function PublicLeaderboardHub({
             ) : null}
           </div>
         ) : (
-          <div className="countryPanel">
+          <div
+            className="countryPanel"
+            data-visible-rows={countryVisibleRowCount}
+          >
             <div className="countryHeader" aria-hidden="true">
               <span className="countryHeaderRank">{leaderboardCopy.rank}</span>
               <span className="countryHeaderCountry">{countryCopy.country}</span>
@@ -563,7 +571,7 @@ export function PublicLeaderboardHub({
               </div>
             ) : (
               <div className="countrySkeleton" aria-hidden="true">
-                {Array.from({ length: COUNTRY_VISIBLE_ROWS }, (_, index) => (
+                {Array.from({ length: countryVisibleRowCount }, (_, index) => (
                   <div className="countryPlaceholderRow" key={index}>
                     <strong>—</strong>
                     <span>—</span>
