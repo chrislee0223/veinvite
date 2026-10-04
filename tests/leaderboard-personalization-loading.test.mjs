@@ -67,18 +67,37 @@ test('pending or unavailable personalization cannot fabricate a rank-zero curren
 });
 
 
-test('outside-top-100 personalization reserves the current-wallet row before private rank resolves', () => {
+test('current-wallet row is reserved from first public paint whenever the wallet is absent', () => {
   assert.match(
     hub,
-    /const currentWalletNeedsPrivateLookup = Boolean\([\s\S]*publicState\.confirmed[\s\S]*publicData\.leaders\.length >= PUBLIC_RANK_LIMIT[\s\S]*!publicData\.leaders\.some/,
+    /const currentWalletInDisplayedRanking = Boolean\([\s\S]*publicData\?\.leaders\.some/,
   );
   assert.match(
     hub,
-    /const pendingCurrentWallet =[\s\S]*currentWalletNeedsPrivateLookup && personalizationPending[\s\S]*\? wallet[\s\S]*: null/,
+    /const pendingCurrentWallet =[\s\S]*publicData[\s\S]*!currentWalletInDisplayedRanking[\s\S]*personalizationPending \|\| personalizationUnavailable[\s\S]*\? wallet[\s\S]*: null/,
+  );
+  assert.doesNotMatch(
+    hub,
+    /pendingCurrentWallet[\s\S]{0,500}publicData\.leaders\.length >= PUBLIC_RANK_LIMIT/,
   );
   assert.match(
     hub,
     /pendingCurrentWallet=\{pendingCurrentWallet\}/,
+  );
+});
+
+test('personalization failure stays explicit and retryable instead of silently freezing dashes', () => {
+  assert.match(
+    hub,
+    /const personalizationUnavailable = Boolean\([\s\S]*status === 'unavailable'/,
+  );
+  assert.match(
+    hub,
+    /const retryPersonalization = useCallback\([\s\S]*status: 'pending'[\s\S]*setPersonalizationRetryKey/,
+  );
+  assert.match(
+    hub,
+    /personalizationUnavailable \? \([\s\S]*className="personalizationInlineError"[\s\S]*onClick=\{retryPersonalization\}/,
   );
 });
 
