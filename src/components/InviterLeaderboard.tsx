@@ -458,7 +458,12 @@ export function PublicLeaderboard({
       window.clearTimeout(impactCloseTimerRef.current);
       impactCloseTimerRef.current = null;
     }
+    if (walletDetailCloseTimerRef.current !== null) {
+      window.clearTimeout(walletDetailCloseTimerRef.current);
+      walletDetailCloseTimerRef.current = null;
+    }
     setSelectedEntry(null);
+    setWalletDetailVisible(false);
     setImpactVisible(false);
     setImpactClosing(false);
     setImpactOpen(false);
@@ -570,6 +575,10 @@ export function PublicLeaderboard({
       window.clearTimeout(impactCloseTimerRef.current);
       impactCloseTimerRef.current = null;
     }
+    if (walletDetailCloseTimerRef.current !== null) {
+      window.clearTimeout(walletDetailCloseTimerRef.current);
+      walletDetailCloseTimerRef.current = null;
+    }
     openerRef.current = opener;
     setImpactVisible(false);
     setImpactClosing(false);
@@ -580,8 +589,13 @@ export function PublicLeaderboard({
 
   const openImpactDetails = (opener: HTMLElement) => {
     if (impactOpen) return;
+    if (walletDetailCloseTimerRef.current !== null) {
+      window.clearTimeout(walletDetailCloseTimerRef.current);
+      walletDetailCloseTimerRef.current = null;
+    }
     openerRef.current = opener;
     setSelectedEntry(null);
+    setWalletDetailVisible(false);
     setImpactVisible(false);
     setImpactClosing(false);
     setImpactOpen(true);
