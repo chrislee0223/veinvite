@@ -18,12 +18,13 @@ test('home cancel dialog keeps mounted content through shared enter and exit mot
   assert.match(home, /data-open=\{legacyCancelVisible \? 'true' : 'false'\}/);
 });
 
-test('settings wallet confirmation keeps mounted content through shared enter and exit motion', () => {
+test('settings wallet confirmation keeps mounted content through shared enter and exit motion without duplicate actions', () => {
   assert.match(settings, /walletConfirmationVisible/);
   assert.match(settings, /walletConfirmationCloseTimerRef/);
   assert.match(settings, /confirmationBackdrop veinviteSoftFocusBackdrop/);
   assert.match(settings, /confirmationModal veinviteSoftFocusPanel/);
   assert.match(settings, /closeWalletConfirmation\(false\)/);
+  assert.match(settings, /isWalletActionPending \|\|[\s\S]*walletConfirmationCloseTimerRef\.current !== null/);
 });
 
 test('snackbar has a matched exit motion and skips it for reduced motion', () => {
@@ -43,8 +44,8 @@ test('primary actions use restrained press feedback and disable transforms for r
 
 test('invite onboarding steps use the shared short entrance motion', () => {
   assert.match(globals, /inviteStepIn 150ms/);
-  assert.match(invitee, /centeredFlow inviteStepMotion/);
-  assert.match(permanent, /centeredFlow inviteStepMotion/);
+  assert.match(invitee, /function Centered\([\s\S]*?<main className="centeredFlow inviteStepMotion">/);
+  assert.match(permanent, /function Centered\([\s\S]*?<main className="centeredFlow inviteStepMotion">/);
   assert.match(invitee, /key=\{step\}/);
   assert.match(permanent, /key=\{step\}/);
 });
@@ -56,4 +57,16 @@ test('network panels get restrained entrance motion while reduced-motion removes
   assert.match(network, /prefers-reduced-motion:reduce/);
   assert.match(network, /\.personNode:hover \.nodeCircle[\s\S]*transform:scale\(var\(--network-node-scale,1\)\)!important/);
   assert.match(network, /\.focusNode:hover \.focusCircle[\s\S]*transform:scale\(var\(--network-center-scale,1\)\)!important/);
+});
+
+test('leaderboard wallet detail close timer cannot leak into a newly opened dialog', () => {
+  const leaderboard = readFileSync('src/components/InviterLeaderboard.tsx', 'utf8');
+  assert.match(
+    leaderboard,
+    /openWalletDetails[\s\S]*walletDetailCloseTimerRef\.current !== null[\s\S]*clearTimeout\(walletDetailCloseTimerRef\.current\)/,
+  );
+  assert.match(
+    leaderboard,
+    /openImpactDetails[\s\S]*walletDetailCloseTimerRef\.current !== null[\s\S]*clearTimeout\(walletDetailCloseTimerRef\.current\)/,
+  );
 });

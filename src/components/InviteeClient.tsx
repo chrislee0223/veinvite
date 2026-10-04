@@ -762,7 +762,7 @@ function Centered({
   onLocaleChange: (locale: Locale) => void;
 }) {
   return (
-    <main className="centeredFlow">
+    <main className="centeredFlow inviteStepMotion">
       <LanguageSwitcher locale={locale} onChange={onLocaleChange} />
       <Brand compact />
       {children}
