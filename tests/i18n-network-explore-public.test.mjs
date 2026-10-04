@@ -113,7 +113,7 @@ test('obsolete per-wallet visibility API and settings flow stay deleted', async 
 });
 
 test('Network summary stays lightweight and zero-member wallets continue into the real canvas', () => {
-  assert.match(summaryRoute, /qualified_referral_network_edges/i);
+  assert.match(summaryRoute, /network_visible_referral_edges/i);
   assert.match(summaryRoute, /\.limit\(1\)/i);
   assert.doesNotMatch(summaryRoute, /read_referral_network_focus_v2/i);
   assert.match(hub, /function NetworkGlyph/i);
