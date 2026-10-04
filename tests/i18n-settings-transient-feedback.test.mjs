@@ -19,7 +19,7 @@ test('settings snackbar keeps localized close controls and persistent error beha
   assert.match(settings, /NOTIFICATION_COPY\[locale\]\.closeAria/);
   assert.match(notificationCopy, /export const NOTIFICATION_COPY:\s*Record<Locale, NotificationCopy>/);
   assert.match(snackbar, /feedback\.kind === 'error'/);
-  assert.match(snackbar, /onClick=\{onDismiss\}/);
+  assert.match(snackbar, /onClick=\{requestDismiss\}/);
 });
 
 test('starting another meaningful settings action clears stale transient errors', () => {
