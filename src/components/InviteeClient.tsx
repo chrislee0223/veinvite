@@ -466,7 +466,7 @@ export function InviteeClient({ code }: { code: string }) {
   };
 
   if (!languageReady) {
-    return <main className="centeredFlow"><Brand compact /></main>;
+    return <main className="centeredFlow inviteStepMotion"><Brand compact /></main>;
   }
 
   if (showLanguageSetup) {
@@ -475,7 +475,7 @@ export function InviteeClient({ code }: { code: string }) {
 
   if (step === 'error') {
     return (
-      <Centered locale={locale} onLocaleChange={saveLocale}>
+      <Centered key={step} locale={locale} onLocaleChange={saveLocale}>
         <div className="errorIcon">×</div>
         <h1>{t.errors[errorCode]}</h1>
         <p className="muted">
@@ -496,7 +496,7 @@ export function InviteeClient({ code }: { code: string }) {
 
   if (step === 'review') {
     return (
-      <Centered locale={locale} onLocaleChange={saveLocale}>
+      <Centered key={step} locale={locale} onLocaleChange={saveLocale}>
         <div className="reviewIcon">◷</div>
         <h1>{t.reviewTitle}</h1>
         <p className="muted">{t.reviewDescription}</p>
@@ -506,7 +506,7 @@ export function InviteeClient({ code }: { code: string }) {
 
   if (step === 'checking') {
     return (
-      <Centered locale={locale} onLocaleChange={saveLocale}>
+      <Centered key={step} locale={locale} onLocaleChange={saveLocale}>
         <div className="spinnerLarge" />
         <h1>{t.checkingTitle}</h1>
         <p className="muted">{t.checkingDescription}</p>
@@ -521,7 +521,7 @@ export function InviteeClient({ code }: { code: string }) {
 
   if (step === 'wallet') {
     return (
-      <Centered locale={locale} onLocaleChange={saveLocale}>
+      <Centered key={step} locale={locale} onLocaleChange={saveLocale}>
         <div className="walletVisual" />
         <h1>{t.connectWalletTitle}</h1>
         <p className="muted">{t.connectWalletDescription}</p>
@@ -540,7 +540,7 @@ export function InviteeClient({ code }: { code: string }) {
   if (step === 'success') {
     const isReturning = entryClass === 'returning_user';
     return (
-      <Centered locale={locale} onLocaleChange={saveLocale}>
+      <Centered key={step} locale={locale} onLocaleChange={saveLocale}>
         <div className="successCircle">{isReturning ? '↻' : '✓'}</div>
         <h1>{isReturning ? t.returningSuccessTitle : t.newSuccessTitle}</h1>
         <p className="muted">{isReturning ? t.returningSuccessDescription : t.newSuccessDescription}</p>
@@ -570,7 +570,7 @@ export function InviteeClient({ code }: { code: string }) {
       `${appsCompleted}/${progress.appsRequired}${appsDone ? ' ✓' : ''}`;
 
     return (
-      <main className="appShell">
+      <main key={step} className="appShell inviteStepMotion">
         <header className="appHeader">
           <Brand />
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>

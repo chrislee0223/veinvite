@@ -7,7 +7,7 @@ const source = await readFile(
   'utf8',
 );
 
-test('leaderboard impact dialog uses the shared soft-focus motion without changing wallet details', () => {
+test('leaderboard impact and wallet detail dialogs use the shared soft-focus motion', () => {
   assert.match(source, /SOFT_FOCUS_MOTION_CSS/);
   assert.match(source, /softFocusCloseDelay/);
   assert.match(source, /const \[impactVisible, setImpactVisible\] = useState\(false\)/);
@@ -23,10 +23,12 @@ test('leaderboard impact dialog uses the shared soft-focus motion without changi
   );
 
   const walletDialogBlock = source.match(
-    /\{selectedEntry \? \([\s\S]*?className="walletDialog"[\s\S]*?\) : null\}/,
+    /\{selectedEntry \? \([\s\S]*?className="walletDialog veinviteSoftFocusPanel"[\s\S]*?\) : null\}/,
   );
-  assert.ok(walletDialogBlock, 'wallet detail dialog should still exist');
-  assert.doesNotMatch(walletDialogBlock[0], /veinviteSoftFocusPanel/);
+  assert.ok(walletDialogBlock, 'wallet detail dialog should use shared soft-focus motion');
+  assert.match(source, /data-open=\{walletDetailVisible \? 'true' : 'false'\}/);
+  assert.match(source, /setWalletDetailVisible\(false\)/);
+  assert.match(source, /softFocusCloseDelay\(\)/);
 });
 
 test('impact close preserves focus and blocks duplicate or early-reveal races', () => {
@@ -51,6 +53,6 @@ test('impact modal locks background scrolling and respects reduced motion', () =
   assert.match(source, /document\.body\.style\.overflow = 'hidden'/);
   assert.match(source, /document\.body\.style\.overscrollBehavior = 'none'/);
   assert.match(source, /@media \(prefers-reduced-motion:reduce\)/);
-  assert.match(source, /\.impactSummaryButton:active:not\(:disabled\) \{\s*transform:scale\(\.985\)/);
+  assert.match(source, /\.impactSummaryButton:active:not\(:disabled\) \{\s*transform:scale\(\.98\)/);
   assert.match(source, /SOFT_FOCUS_MOTION_CSS/);
 });

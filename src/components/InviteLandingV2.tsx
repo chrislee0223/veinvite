@@ -114,13 +114,18 @@ export function InviteLandingV2({
         .step.active { color:#fff; }
         .step.active span { border-color:#ffd24d; background:#f4b728; color:#17120a; }
         .line { height:2px; margin-top:16px; border-radius:999px; background:rgba(255,255,255,.08); }
-        .startButton { position:relative; z-index:1; width:100%; min-height:58px; border:0; border-radius:18px; display:flex; align-items:center; justify-content:center; gap:12px; background:linear-gradient(135deg,#ffd24d,#efa718); color:#17120a; font:inherit; font-size:1rem; font-weight:950; cursor:pointer; }
+        .startButton { position:relative; z-index:1; width:100%; min-height:58px; border:0; border-radius:18px; display:flex; align-items:center; justify-content:center; gap:12px; background:linear-gradient(135deg,#ffd24d,#efa718); color:#17120a; font:inherit; font-size:1rem; font-weight:950; cursor:pointer; transition:transform 90ms ease; }
+        .startButton:active:not(:disabled) { transform:scale(.98); }
         .startButton span { font-size:1.75rem; line-height:1; }
         .walletLink { position:relative; z-index:1; display:block; width:100%; margin:15px 0 0; border:0; background:transparent; color:#a9a4bb; font:inherit; font-size:.78rem; font-weight:800; text-decoration:underline; text-underline-offset:4px; cursor:pointer; overflow-wrap:anywhere; }
         .startButton:disabled,.walletLink:disabled { opacity:.48; cursor:not-allowed; }
         .reassurance { width:min(100%,520px); margin:15px 0 0; text-align:center; color:#777387; font-size:.74rem; line-height:1.5; overflow-wrap:anywhere; }
         .demoSelect { width:min(100%,520px); margin-top:16px; color:#9994a7; font-size:.72rem; }
         .demoSelect select { width:100%; margin-top:6px; min-height:42px; border:1px solid rgba(255,255,255,.1); border-radius:12px; background:#151520; color:#fff; padding:0 10px; }
+        @media (prefers-reduced-motion: reduce) {
+          .startButton { transition:none; }
+          .startButton:active:not(:disabled) { transform:none; }
+        }
         @media (max-width:560px) {
           .screen { padding:18px 14px 32px; }
           .topBar { gap:12px; margin-bottom:22px; }
