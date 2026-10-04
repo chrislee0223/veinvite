@@ -9,6 +9,7 @@ import { NOTIFICATION_COPY } from '@/lib/i18n/notificationCopy';
 import { NOTIFICATION_V2_COPY } from '@/lib/i18n/notificationV2Copy';
 import { REFERRAL_INVALIDATED_COPY } from '@/lib/i18n/referralInvalidatedCopy';
 import { REFERRAL_RESTORED_COPY } from '@/lib/i18n/referralRestoredCopy';
+import { rewardAdjustedCopy } from '@/lib/i18n/rewardAdjustedCopy';
 import { POST_PAYOUT_SECURITY_NOTIFICATION_COPY } from '@/lib/i18n/postPayoutSecurityNotificationCopy';
 import { SECURITY_NOTIFICATION_COPY } from '@/lib/i18n/securityNotificationCopy';
 import { SECURITY_REVIEW_CLEARED_COPY } from '@/lib/i18n/securityReviewClearedCopy';
@@ -30,6 +31,7 @@ function stageIconTone(kind: InviteNotificationKindV2): StageIconTone {
   switch (kind) {
     case 'REWARD_READY':
     case 'REWARD_PAID':
+    case 'REWARD_ADJUSTED':
     case 'SECURITY_REVIEW_CLEARED':
     case 'SECURITY_POST_PAYOUT_REVIEW_CLEARED':
     case 'SECURITY_INVITER_ACCESS_RESTORED':
@@ -103,6 +105,14 @@ function NotificationStageIcon({
           <IconFrame>
             <circle cx="12" cy="12" r="8.5" />
             <path d="m8.5 12 2.3 2.3 4.9-5" />
+          </IconFrame>
+        </span>
+      );
+    case 'REWARD_ADJUSTED':
+      return (
+        <span className="stageIconGraphic" data-notification-icon="reward-adjusted">
+          <IconFrame>
+            <path d="M4 10h16v10H4zM3 7h18v3H3zM12 7v13" />
           </IconFrame>
         </span>
       );
@@ -230,6 +240,7 @@ function statusText(
   const invalidated = REFERRAL_INVALIDATED_COPY[locale];
   const restored = REFERRAL_RESTORED_COPY[locale];
   const postPayout = POST_PAYOUT_SECURITY_NOTIFICATION_COPY[locale];
+  const adjusted = rewardAdjustedCopy(locale);
 
   switch (notification.kind) {
     case 'INVITE_ACCEPTED':
@@ -274,6 +285,12 @@ function statusText(
             body: copy.rewardBody,
             hint: null,
           };
+    case 'REWARD_ADJUSTED':
+      return {
+        title: adjusted.title,
+        body: adjusted.body,
+        hint: null,
+      };
     case 'INVITE_INELIGIBLE':
       return {
         title: ineligible.title,
@@ -368,6 +385,9 @@ function shortStatus(
       ? ` · ${formatB3trWei(notification.rewardAmountWei)} B3TR`
       : '';
     return `${NOTIFICATION_COPY[locale].rewardTitle}${amount}`;
+  }
+  if (notification.kind === 'REWARD_ADJUSTED') {
+    return rewardAdjustedCopy(locale).title;
   }
   if (notification.kind === 'INVITE_ACCEPTED') {
     return NOTIFICATION_COPY[locale].acceptedTitle;
