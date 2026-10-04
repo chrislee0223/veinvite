@@ -15,6 +15,7 @@ const rewardReceiptView = read('src/components/RewardReceiptView.tsx');
 const qaHarness = read('src/qa/QaNotificationStateHarness.tsx');
 const referralPage = read('src/app/r/[key]/page.tsx');
 const referralOg = read('src/app/r/[key]/opengraph-image.tsx');
+const locales = read('src/lib/i18n/locales.ts');
 
 test('notification reward actions are live wallet-scoped state, not cached history authority', () => {
   assert.match(actionsRoute, /requireWalletSession/);
@@ -96,13 +97,22 @@ test('paid reward receipt shares a verified permanent invite link on X without a
   assert.match(rewardReceiptView, /window\.open\(\s*rewardShareIntentUrl/);
   assert.match(home, /referralLinkVerified \? permanentInviteUrl : ''/);
   assert.match(rewardShare, /https:\/\/x\.com\/intent\/post/);
-  assert.match(
-    rewardShare,
-    /VeInvite에서 친구 초대 보상으로 \$\{amountB3tr\} B3TR을 받았어요 🎉/,
-  );
-  assert.match(
-    rewardShare,
-    /I just received \$\{amountB3tr\} B3TR in referral rewards on VeInvite 🎉/,
+  assert.match(rewardShare, /REWARD_RECEIPT_SHARE_COPY/);
+  assert.match(rewardShare, /Record<\s*SupportedLocale/);
+  assert.match(rewardShare, /VeBetterDAO,B3TR,VeInvite/);
+
+  const supportedLocales = [
+    ...locales.matchAll(/\{ locale: '([^']+)'/gmu),
+  ].map((match) => match[1]);
+  const shareLocales = [
+    ...rewardShare.matchAll(/^\s*(?:'([^']+)'|([a-z]+)):\s*\{/gmu),
+  ]
+    .map((match) => match[1] ?? match[2])
+    .filter((locale) => supportedLocales.includes(locale));
+
+  assert.deepEqual(
+    [...new Set(shareLocales)].sort(),
+    [...supportedLocales].sort(),
   );
 
   const shareHandlerStart = rewardReceiptView.indexOf('const shareRewardOnX');
