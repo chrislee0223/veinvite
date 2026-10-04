@@ -11,6 +11,7 @@ const migrationSource = readFileSync(
   'utf8',
 );
 
+// Keep cache, graph, and slot status vocabularies aligned.
 test('lifetime Network relationships have a neutral historical state', () => {
   assert.match(clientSource, /\| 'HISTORICAL'/);
   assert.match(migrationSource, /else 'HISTORICAL'\s+end as member_status/);
