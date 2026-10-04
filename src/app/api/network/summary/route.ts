@@ -65,7 +65,7 @@ export async function GET(request: NextRequest) {
   }
 
   const { data, error } = await supabaseAdmin
-    .from('qualified_referral_network_edges')
+    .from('network_visible_referral_edges')
     .select('child_wallet')
     .eq('sponsor_wallet', walletAddress)
     .limit(1);
