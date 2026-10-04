@@ -748,4 +748,171 @@ after insert or update of state
 on public.sybil_v2_referral_assessments
 for each row execute function public.sync_reward_recovery_restricted_assessment();
 
+
+-- BLACK/invalidated referrals must not keep their withheld offset committed
+-- against cohort pricing. Actual positive payouts remain committed through the
+-- queue, but a reversed offset becomes reusable for legitimate referrals.
+create or replace function public.read_reward_cohort_committed_wei(
+  p_network text,
+  p_app_id text,
+  p_reward_cohort_round_id bigint,
+  p_allocation_receipt_id bigint
+)
+returns numeric
+language plpgsql
+stable
+set search_path=pg_catalog,public
+as $function$
+declare
+  v_receipt public.vebetter_round_allocations%rowtype;
+  v_queue_committed numeric(78,0) := 0;
+  v_offset_committed numeric(78,0) := 0;
+begin
+  p_network:=lower(btrim(p_network));
+  p_app_id:=lower(btrim(p_app_id));
+
+  if p_network not in ('mainnet','testnet','testnet-staging') then
+    raise exception 'unsupported network';
+  end if;
+  if p_reward_cohort_round_id is null or p_reward_cohort_round_id<1 then
+    raise exception 'invalid reward cohort round';
+  end if;
+
+  select * into v_receipt
+  from public.vebetter_round_allocations a
+  where a.id=p_allocation_receipt_id
+    and a.network=p_network
+    and a.app_id=p_app_id;
+
+  if not found
+     or v_receipt.vebetter_round_id+1<>p_reward_cohort_round_id then
+    raise exception 'allocation receipt does not fund the requested reward cohort';
+  end if;
+
+  select coalesce(sum(q.reserved_amount_wei),0)
+  into v_queue_committed
+  from public.reward_queue_entries q
+  join public.invitations i on i.invite_code=q.invite_code
+  where q.network=p_network
+    and i.reward_funding_allocation_receipt_id=v_receipt.id
+    and i.reward_cohort_round_id=p_reward_cohort_round_id
+    and q.reserved_amount_wei is not null
+    and q.status in ('AWAITING_CLAIM','QUEUED','ASSIGNED');
+
+  select coalesce(sum(s.offset_amount_wei),0)
+  into v_offset_committed
+  from public.reward_recovery_settlements s
+  join public.invitations i on i.invite_code=s.invite_code
+  where s.network=p_network
+    and i.reward_funding_allocation_receipt_id=v_receipt.id
+    and i.reward_cohort_round_id=p_reward_cohort_round_id
+    and not public.is_sybil_v2_referral_invalidated(
+      s.invite_code,
+      p_network
+    );
+
+  return v_queue_committed+v_offset_committed;
+end;
+$function$;
+
+create or replace function public.enforce_reward_queue_cohort_budget()
+returns trigger
+language plpgsql
+security definer
+set search_path=pg_catalog,public
+as $function$
+declare
+  v_invitation public.invitations%rowtype;
+  v_receipt public.vebetter_round_allocations%rowtype;
+  v_adjustment numeric(78,0) := 0;
+  v_existing_queue numeric(78,0) := 0;
+  v_existing_offset numeric(78,0) := 0;
+  v_current_offset numeric(78,0) := 0;
+  v_budget numeric(78,0) := 0;
+begin
+  if new.reserved_amount_wei is null or new.status='CANCELLED' then
+    return new;
+  end if;
+
+  perform pg_advisory_xact_lock(
+    hashtextextended('veinvite_reward_reservation_' || new.network,0)
+  );
+
+  select * into v_invitation
+  from public.invitations i
+  where i.invite_code=new.invite_code;
+
+  if not found
+     or v_invitation.reward_cohort_round_id is null
+     or v_invitation.reward_funding_allocation_receipt_id is null then
+    raise exception 'REWARD_COHORT_BINDING_REQUIRED';
+  end if;
+
+  select * into v_receipt
+  from public.vebetter_round_allocations a
+  where a.id=v_invitation.reward_funding_allocation_receipt_id;
+
+  if not found
+     or v_receipt.network<>new.network
+     or v_receipt.vebetter_round_id+1<>v_invitation.reward_cohort_round_id then
+    raise exception 'REWARD_COHORT_FUNDING_MISMATCH';
+  end if;
+
+  select coalesce(sum(a.amount_wei),0)
+  into v_adjustment
+  from public.reward_cohort_funding_adjustments a
+  where a.network=v_receipt.network
+    and a.app_id=v_receipt.app_id
+    and a.reward_cohort_round_id=v_invitation.reward_cohort_round_id
+    and a.allocation_receipt_id=v_receipt.id;
+
+  v_budget:=v_receipt.rewards_allocation_amount_wei+v_adjustment;
+
+  select coalesce(sum(q.reserved_amount_wei),0)
+  into v_existing_queue
+  from public.reward_queue_entries q
+  join public.invitations i on i.invite_code=q.invite_code
+  where q.network=new.network
+    and i.reward_funding_allocation_receipt_id=v_receipt.id
+    and i.reward_cohort_round_id=v_invitation.reward_cohort_round_id
+    and q.invite_code<>new.invite_code
+    and q.reserved_amount_wei is not null
+    and q.status in ('AWAITING_CLAIM','QUEUED','ASSIGNED');
+
+  select coalesce(sum(s.offset_amount_wei),0)
+  into v_existing_offset
+  from public.reward_recovery_settlements s
+  join public.invitations i on i.invite_code=s.invite_code
+  where s.network=new.network
+    and s.invite_code<>new.invite_code
+    and i.reward_funding_allocation_receipt_id=v_receipt.id
+    and i.reward_cohort_round_id=v_invitation.reward_cohort_round_id
+    and not public.is_sybil_v2_referral_invalidated(
+      s.invite_code,
+      new.network
+    );
+
+  select coalesce(s.offset_amount_wei,0)
+  into v_current_offset
+  from public.reward_recovery_settlements s
+  where s.invite_code=new.invite_code
+    and s.network=new.network
+    and not public.is_sybil_v2_referral_invalidated(
+      s.invite_code,
+      new.network
+    );
+
+  if not found then
+    v_current_offset:=0;
+  end if;
+
+  if v_existing_queue+v_existing_offset+
+     new.reserved_amount_wei+v_current_offset>v_budget then
+    raise exception 'REWARD_COHORT_BUDGET_EXCEEDED';
+  end if;
+
+  return new;
+end;
+$function$;
+
 commit;
