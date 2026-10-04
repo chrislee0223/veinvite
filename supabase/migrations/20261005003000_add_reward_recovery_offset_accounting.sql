@@ -1638,9 +1638,7 @@ begin
   into v_expected_count,v_expected_hash
   from public.get_lifetime_referral_ranking_by_version(
     v_network,p_round_end_block,p_ranking_algorithm_version
-  )
-  where total_reward_wei > 0
-     or p_ranking_algorithm_version='paid_referrals_v2';
+  );
 
   insert into public.leaderboard_round_snapshots(
     network,round_id,round_end_block,source_checked_through_block,
@@ -1660,9 +1658,7 @@ begin
     reached_count_block,reached_count_tx_id,reached_count_tx_index,reached_count_clause_index
   from public.get_lifetime_referral_ranking_by_version(
     v_network,p_round_end_block,p_ranking_algorithm_version
-  )
-  where total_reward_wei > 0
-     or p_ranking_algorithm_version='paid_referrals_v2';
+  );
 
   select
     count(*)::integer,
