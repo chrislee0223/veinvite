@@ -29,6 +29,18 @@
   --country-visible-row-count: 7;
 }
 
+/* A context-note-only reserve is smaller than a trailing-wallet reserve.
+ * Keep seven-country data scrollable from row 7 instead of compressing all
+ * seven rows too tightly on narrow/localized layouts. */
+.leaderboardHub:has(.impactOnly .rankContextNote):not(:has(.impactOnly .trailingCurrent))
+  .countryPanel[data-visible-rows='7'] {
+  --country-visible-row-count: 6;
+}
+
+.leaderboardHub .countrySkeleton {
+  overflow: hidden;
+}
+
 /* A hidden inviter context note (connect/unranked) already enlarges the shared
  * card. Country ranking can safely consume that exact reserved height. */
 .leaderboardHub:has(.impactOnly .rankContextNote) {

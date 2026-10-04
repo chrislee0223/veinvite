@@ -58,7 +58,7 @@ test('private response never replaces the public ranking snapshot', () => {
 test('pending or unavailable personalization cannot fabricate a rank-zero current user', () => {
   assert.match(
     hub,
-    /const displayWallet = personalizationPending \? null : wallet/,
+    /const displayWallet =[\s\S]*personalizationPending \|\| personalizationUnavailable[\s\S]*\? null[\s\S]*: wallet/,
   );
   assert.match(
     hub,
