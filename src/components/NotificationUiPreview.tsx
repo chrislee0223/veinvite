@@ -39,6 +39,7 @@ const SCENARIOS: Scenario[] = [
   { id: 'NOTI-COLLAPSED-PROGRESS', label: '여러 단계 완료' },
   { id: 'NOTI-REWARD-READY', label: '보상 수령 가능' },
   { id: 'NOTI-REWARD-PAID', label: '보상 지급 완료' },
+  { id: 'NOTI-REWARD-ADJUSTED', label: '보상 정책 조정' },
   { id: 'NOTI-INELIGIBLE', label: '참여 조건 미충족' },
   { id: 'NOTI-SECURITY-REVIEW', label: '시빌 검사 시작' },
   { id: 'NOTI-SECURITY-CLEARED', label: '검토 해제 · 정상 복구' },
