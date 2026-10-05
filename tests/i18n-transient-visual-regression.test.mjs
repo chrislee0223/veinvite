@@ -35,7 +35,9 @@ test('transient surfaces stay fluid on narrow mobile screens', () => {
   assert.match(surface, /padding:0;/);
   assert.match(snackbar, /width: min\(calc\(100vw - 28px\), 520px\)/);
   assert.match(snackbar, /@media \(max-width: 360px\)/);
-  assert.match(snackbar, /padding-inline: 42px 6px/);
+  assert.match(snackbar, /padding-inline: 10px 5px/);
+  assert.match(snackbar, /\.transientSnackbar\.reward \{[\s\S]*padding-inline: 54px;/);
+  assert.match(snackbar, /@media \(max-width: 360px\)[\s\S]*\.transientSnackbar\.reward \{ padding-inline: 48px; \}/);
   assert.match(receiptCenter, /\.notificationHistoryPanel\{[^}]*overflow:hidden/s);
   assert.match(receiptCenter, /@media\(max-width:560px\)/);
   assert.match(receiptCenter, /height:calc\(74dvh - env\(safe-area-inset-bottom\)\)/);

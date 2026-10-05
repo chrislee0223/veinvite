@@ -132,15 +132,15 @@ export function TransientSnackbar({
       aria-live={feedback.kind === 'error' ? 'assertive' : 'polite'}
       aria-atomic="true"
     >
-      <span className="feedbackIcon" aria-hidden="true">
-        {reward
-          ? '✓'
-          : feedback.kind === 'error'
+      {!reward ? (
+        <span className="feedbackIcon" aria-hidden="true">
+          {feedback.kind === 'error'
             ? '!'
             : feedback.kind === 'info'
               ? 'i'
               : '✓'}
-      </span>
+        </span>
+      ) : null}
 
       {reward ? (
         <div className="rewardFeedbackBody">
@@ -219,7 +219,8 @@ export function TransientSnackbar({
         .transientSnackbar.reward {
           grid-template-columns: minmax(0, 1fr);
           align-items: start;
-          padding-block: 14px 16px;
+          gap: 9px;
+          padding-block: 16px;
           padding-inline: 54px;
           border-color: rgba(255,205,80,.28);
           background: linear-gradient(145deg, rgba(35,29,16,.99), rgba(20,20,18,.99));
@@ -238,13 +239,6 @@ export function TransientSnackbar({
         .success .feedbackIcon { background: rgba(54,207,130,.18); color: #7cefc0; }
         .info .feedbackIcon { background: rgba(244,183,40,.17); color: #ffd66e; }
         .error .feedbackIcon { background: rgba(255,100,106,.17); color: #ff9ca0; }
-        .reward .feedbackIcon {
-          position: absolute;
-          top: 14px;
-          inset-inline-start: 14px;
-          background: rgba(244,183,40,.17);
-          color: #ffd66e;
-        }
         .reward .feedbackClose {
           position: absolute;
           top: 7px;
@@ -315,8 +309,8 @@ export function TransientSnackbar({
           grid-column: 1;
           display: grid;
           gap: 7px;
-          margin-top: 2px;
-          padding-block: 0 2px;
+          margin-top: 1px;
+          padding-block: 0 1px;
           padding-inline: 0;
         }
         .rewardShareButton,
@@ -351,7 +345,7 @@ export function TransientSnackbar({
           .transientSnackbar { width: calc(100vw - 20px); grid-template-columns: 30px minmax(0,1fr) 42px; gap: 8px; padding-inline: 10px 5px; }
           .feedbackText { font-size: .75rem; }
           .feedbackClose { width: 42px; height: 42px; }
-          .transientSnackbar.reward { padding-inline: 50px; }
+          .transientSnackbar.reward { padding-inline: 48px; }
           .reward .rewardFeedbackActions { padding-inline: 0; }
         }
         @media (prefers-reduced-motion: reduce) {
