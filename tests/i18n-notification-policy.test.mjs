@@ -32,7 +32,7 @@ test('history never auto-opens and WATCH is internal-only', () => {
   assert.match(policy, /autoOpenHistory: false/u);
   assert.match(
     policy,
-    /SECURITY_INVITER_WATCH:\s*\{[\s\S]*userVisible: false,[\s\S]*persistInHistory: false,[\s\S]*readBehavior: 'none'/u,
+    /SECURITY_INVITER_WATCH:\s*\{[\s\S]*userVisible: false,[\s\S]*showInHistory: false,[\s\S]*readBehavior: 'none'/u,
   );
   assert.match(center, /allowProgrammaticOpen = false/u);
   assert.match(
