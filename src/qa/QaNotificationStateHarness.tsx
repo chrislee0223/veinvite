@@ -12,7 +12,7 @@ import {
 import { TransientSnackbar } from '@/components/TransientSnackbar';
 import type { SupportedLocale } from '@/lib/i18n/locales';
 import { NOTIFICATION_COPY } from '@/lib/i18n/notificationCopy';
-import { rewardPaidNotificationBody } from '@/lib/i18n/rewardPaidNotificationCopy';
+import { REWARD_RECEIPT_COPY } from '@/lib/i18n/rewardReceiptCopy';
 import type {
   InviteNotificationHistoryItem,
 } from '@/lib/notifications/inviteNotificationHistory';
@@ -555,7 +555,7 @@ export function QaNotificationStateHarness({
             id: 1,
             kind: 'reward',
             title: NOTIFICATION_COPY[locale].rewardTitle,
-            text: rewardPaidNotificationBody(locale, '262.97'),
+            text: REWARD_RECEIPT_COPY[locale].description,
             amountB3tr: '262.97',
             shareLabel: rewardReceiptShareLabel(locale),
             confirmLabel: NOTIFICATION_COPY[locale].confirm,
