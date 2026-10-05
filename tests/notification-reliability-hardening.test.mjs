@@ -25,18 +25,12 @@ test('notification acknowledgement uses authoritative remaining unread count', (
   assert.doesNotMatch(controller, /unreadCount - unreadThroughSnapshot\.length/);
 });
 
-test('reward-action loading, cached emptiness and errors stay distinguishable', () => {
-  assert.match(
-    center,
-    /rewardActions\.length === 0 &&\s*actionResolved &&\s*!actionError/,
-  );
-  assert.match(
-    center,
-    /sorted\.length === 0 &&\s*rewardActions\.length === 0 &&\s*actionResolved &&\s*!actionError/,
-  );
-  assert.match(center, /actionLoading && !actionResolved/);
-  assert.match(center, /notificationActionLoading/);
-  assert.match(center, /notificationActionError/);
+test('history loading, emptiness and errors stay distinguishable without Claim UI', () => {
+  assert.match(center, /loading && sorted\.length === 0/);
+  assert.match(center, /errorMessage && sorted\.length === 0/);
+  assert.match(center, /sorted\.length === 0 \? \(/);
+  assert.doesNotMatch(center, /rewardActions/);
+  assert.doesNotMatch(center, /notificationActionLoading/);
 });
 
 test('paid notification receipt lookup is exact, wallet-scoped, and not capped to recent 50', () => {
@@ -51,8 +45,8 @@ test('paid notification receipt lookup is exact, wallet-scoped, and not capped t
   assert.doesNotMatch(center, /rewards\/receipts\?limit=50/);
 });
 
-test('opening the dialog does not retrigger the outer reward-attention request', () => {
-  assert.match(facade, /\}, \[wallet\]\);/);
-  assert.doesNotMatch(facade, /\[wallet,\s*props\.open\]/);
-  assert.match(facade, /response\.status === 401 \|\| response\.status === 403/);
+test('notification facade has no separate reward-attention polling path', () => {
+  assert.match(facade, /UnifiedInviteNotificationHistoryCenter/);
+  assert.doesNotMatch(facade, /reward-actions/);
+  assert.doesNotMatch(facade, /notificationRewardAttentionDot/);
 });
