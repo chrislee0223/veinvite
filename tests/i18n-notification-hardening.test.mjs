@@ -69,7 +69,8 @@ test('notification QA lab tracks the same v2 lifecycle as Production', () => {
   assert.match(preview, /NOTI-DAPP-3/);
   assert.match(preview, /NOTI-REWARD-READY/);
   assert.match(preview, /NOTI-INELIGIBLE/);
-  assert.match(qaNotificationHarness, /InviteNotificationSurfaceV2/);
+  assert.doesNotMatch(qaNotificationHarness, /InviteNotificationSurfaceV2/);
+  assert.match(qaNotificationHarness, /InviteNotificationHistoryCenter/);
   assert.match(qaNotificationHarness, /kind:\s*'DAPP_PROGRESS'/);
   assert.match(qaNotificationHarness, /kind:\s*'REWARD_READY'/);
   assert.match(qaNotificationHarness, /kind:\s*'INVITE_INELIGIBLE'/);
@@ -106,6 +107,13 @@ test('notification QA preview exposes every harness state and production kind', 
 
   assert.ok(productionKinds.length > 0);
   for (const kind of productionKinds) {
+    if (kind === 'SECURITY_INVITER_WATCH') {
+      assert.doesNotMatch(
+        qaNotificationHarness,
+        /kind:\s*'SECURITY_INVITER_WATCH'/u,
+      );
+      continue;
+    }
     assert.match(qaNotificationHarness, new RegExp(`kind: '${kind}'`, 'u'));
   }
 });
