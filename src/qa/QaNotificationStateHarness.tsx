@@ -9,7 +9,10 @@ import {
 import {
   InviteNotificationHistoryCenter,
 } from '@/components/InviteNotificationHistoryCenter';
+import { TransientSnackbar } from '@/components/TransientSnackbar';
 import type { SupportedLocale } from '@/lib/i18n/locales';
+import { NOTIFICATION_COPY } from '@/lib/i18n/notificationCopy';
+import { rewardPaidNotificationBody } from '@/lib/i18n/rewardPaidNotificationCopy';
 import type {
   InviteNotificationHistoryItem,
 } from '@/lib/notifications/inviteNotificationHistory';
@@ -17,6 +20,7 @@ import type {
   InviteNotificationKindV2,
 } from '@/lib/notifications/inviteNotificationStateV2';
 import type { RewardReceipt } from '@/lib/rewards/rewardReceipt';
+import { rewardReceiptShareLabel } from '@/lib/rewards/rewardReceiptShare';
 
 export type QaNotificationStateId =
   | 'NOTI-BELL-EMPTY'
@@ -35,6 +39,7 @@ export type QaNotificationStateId =
   | 'NOTI-COLLAPSED-PROGRESS'
   | 'NOTI-REWARD-READY'
   | 'NOTI-REWARD-PAID'
+  | 'NOTI-REWARD-PAID-POPUP'
   | 'NOTI-REWARD-ADJUSTED'
   | 'NOTI-INELIGIBLE'
   | 'NOTI-SECURITY-REVIEW'
@@ -300,6 +305,13 @@ function fixtureForState(
         rewardShareUrl:
           'https://veinvite.vercel.app/r/qa-reward-share-preview',
       };
+    case 'NOTI-REWARD-PAID-POPUP':
+      return {
+        mode: 'history',
+        items: [],
+        unreadCount: 0,
+        open: false,
+      };
     case 'NOTI-REWARD-ADJUSTED':
       return {
         mode: 'history',
@@ -534,6 +546,28 @@ export function QaNotificationStateHarness({
     setErrorMessage(seed.errorMessage ?? '');
     setHasMore(Boolean(seed.hasMore));
   }, [seed]);
+
+  if (stateId === 'NOTI-REWARD-PAID-POPUP') {
+    return (
+      <QaNotificationStage embedded={embedded}>
+        <TransientSnackbar
+          feedback={{
+            id: 1,
+            kind: 'reward',
+            title: NOTIFICATION_COPY[locale].rewardTitle,
+            text: rewardPaidNotificationBody(locale, '262.97'),
+            amountB3tr: '262.97',
+            shareLabel: rewardReceiptShareLabel(locale),
+            confirmLabel: NOTIFICATION_COPY[locale].confirm,
+            onShare: () => {},
+            onConfirm: () => {},
+          }}
+          closeLabel={NOTIFICATION_COPY[locale].closeAria}
+          onDismiss={() => {}}
+        />
+      </QaNotificationStage>
+    );
+  }
 
   return (
     <QaNotificationStage embedded={embedded}>
