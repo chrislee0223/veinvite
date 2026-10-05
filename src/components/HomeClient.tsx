@@ -112,6 +112,7 @@ export function HomeClient() {
   const [claimPendingCode, setClaimPendingCode] =
     useState<string | null>(null);
   const feedbackIdRef = useRef(0);
+  const deferredFeedbackRef = useRef<TransientFeedback | null>(null);
   const activeWalletRef = useRef<string | null>(wallet);
   const cancelTriggerRef = useRef<HTMLButtonElement | null>(null);
   const cancelDialogRef = useRef<HTMLDivElement | null>(null);
@@ -122,11 +123,16 @@ export function HomeClient() {
   const progressCopy = PROGRESS_CLAIM_COPY[locale];
 
   const clearFeedback = useCallback(() => {
+    deferredFeedbackRef.current = null;
     setFeedback((current) => current?.kind === 'reward' ? current : null);
   }, []);
 
   const dismissFeedback = useCallback(() => {
-    setFeedback(null);
+    setFeedback(() => {
+      const next = deferredFeedbackRef.current;
+      deferredFeedbackRef.current = null;
+      return next;
+    });
   }, []);
 
   const showFeedback = useCallback((
@@ -135,7 +141,13 @@ export function HomeClient() {
   ) => {
     feedbackIdRef.current += 1;
     const next = { id: feedbackIdRef.current, kind, text } as const;
-    setFeedback((current) => current?.kind === 'reward' ? current : next);
+    setFeedback((current) => {
+      if (current?.kind === 'reward') {
+        deferredFeedbackRef.current = next;
+        return current;
+      }
+      return next;
+    });
   }, []);
 
   useRewardPaidTransientFeedback({
@@ -186,6 +198,7 @@ export function HomeClient() {
 
   useEffect(() => {
     activeWalletRef.current = wallet;
+    deferredFeedbackRef.current = null;
     setClaimPendingCode(null);
     setInvites([]);
     setInvitesReady(false);
