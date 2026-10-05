@@ -31,6 +31,7 @@ import {
 import type {
   InviteNotificationHistoryItem,
 } from '@/lib/notifications/inviteNotificationHistory';
+import { NOTIFICATION_POLICY } from '@/lib/notifications/notificationPolicy';
 import {
   notifyRewardClaimSessionInvalid,
 } from '@/lib/rewards/rewardClaimClient';
@@ -373,20 +374,25 @@ export function InviteNotificationHistoryCenter({
   }, [open]);
 
   const visibleItems = useMemo(
-    () => items.filter((item) => item.kind !== 'SECURITY_INVITER_WATCH'),
+    () => items.filter((item) => {
+      const policy = NOTIFICATION_POLICY[item.kind];
+      return policy.userVisible && policy.showInHistory;
+    }),
     [items],
   );
-  const hiddenUnreadWatchCount = useMemo(
-    () => items.filter(
-      (item) =>
-        item.kind === 'SECURITY_INVITER_WATCH' &&
-        item.readAt === null,
-    ).length,
+  const hiddenUnreadCount = useMemo(
+    () => items.filter((item) => {
+      const policy = NOTIFICATION_POLICY[item.kind];
+      return (
+        item.readAt === null &&
+        (!policy.userVisible || !policy.showInHistory)
+      );
+    }).length,
     [items],
   );
   const visibleUnreadCount = Math.max(
     0,
-    unreadCount - hiddenUnreadWatchCount,
+    unreadCount - hiddenUnreadCount,
   );
   const visibleMarkAllAvailable =
     markAllAvailable &&
