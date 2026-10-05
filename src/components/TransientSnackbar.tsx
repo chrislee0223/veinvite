@@ -303,7 +303,8 @@ export function TransientSnackbar({
           display: grid;
           gap: 7px;
           margin-top: 2px;
-          padding: 0 6px 2px 42px;
+          padding-block: 0 2px;
+          padding-inline: 42px 6px;
         }
         .rewardShareButton,
         .rewardConfirmButton {
