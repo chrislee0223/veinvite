@@ -414,13 +414,35 @@ export function InviteNotificationHistoryCenter({
     setRewardActions(initialRewardActions);
   }, [initialRewardActions]);
 
+  const visibleItems = useMemo(
+    () => items.filter((item) => item.kind !== 'SECURITY_INVITER_WATCH'),
+    [items],
+  );
+  const hiddenUnreadWatchCount = useMemo(
+    () => items.filter(
+      (item) =>
+        item.kind === 'SECURITY_INVITER_WATCH' &&
+        item.readAt === null,
+    ).length,
+    [items],
+  );
+  const visibleUnreadCount = Math.max(
+    0,
+    unreadCount - hiddenUnreadWatchCount,
+  );
+  const visibleMarkAllAvailable =
+    markAllAvailable &&
+    visibleItems.some(
+      (item) => item.readAt === null && item.kind !== 'REWARD_PAID',
+    );
+
   const sorted = useMemo(
-    () => [...items].sort((left, right) => {
+    () => [...visibleItems].sort((left, right) => {
       const timeDelta = Date.parse(right.eventAt) - Date.parse(left.eventAt);
       if (Number.isFinite(timeDelta) && timeDelta !== 0) return timeDelta;
       return BigInt(right.id) > BigInt(left.id) ? 1 : -1;
     }),
-    [items],
+    [visibleItems],
   );
 
   const groups = useMemo(() => {
@@ -1050,13 +1072,13 @@ export function InviteNotificationHistoryCenter({
         ref={bellRef}
         type="button"
         className={
-          unreadCount > 0
+          visibleUnreadCount > 0
             ? 'notificationHistoryBell hasUnread'
             : 'notificationHistoryBell'
         }
         aria-label={
-          unreadCount > 0
-            ? `${notificationCopy.bellAria} (${unreadCount})`
+          visibleUnreadCount > 0
+            ? `${notificationCopy.bellAria} (${visibleUnreadCount})`
             : notificationCopy.bellAria
         }
         aria-expanded={visibleOpen}
@@ -1071,9 +1093,9 @@ export function InviteNotificationHistoryCenter({
         }}
       >
         <BellIcon />
-        {unreadCount > 0 ? (
+        {visibleUnreadCount > 0 ? (
           <span className="notificationHistoryBadge">
-            {unreadCount > 99 ? '99+' : unreadCount}
+            {visibleUnreadCount > 99 ? '99+' : visibleUnreadCount}
           </span>
         ) : null}
       </button>
@@ -1131,12 +1153,12 @@ export function InviteNotificationHistoryCenter({
                   </button>
                 ) : null}
                 <h3>{receiptViewActive ? receiptCopy.title : structure.title}</h3>
-                {!receiptViewActive && unreadCount > 0 ? (
-                  <span>{metaCopy.unread} · {unreadCount}</span>
+                {!receiptViewActive && visibleUnreadCount > 0 ? (
+                  <span>{metaCopy.unread} · {visibleUnreadCount}</span>
                 ) : null}
               </div>
               <div className="notificationHistoryHeaderActions">
-                {!receiptViewActive && markAllAvailable ? (
+                {!receiptViewActive && visibleMarkAllAvailable ? (
                   <button
                     type="button"
                     className="notificationHistoryMarkAll"
