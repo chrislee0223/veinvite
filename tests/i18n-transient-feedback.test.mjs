@@ -46,6 +46,14 @@ test('snackbar never changes document flow and stays clear of bottom navigation'
   assert.match(snackbar, /height:\s*44px/);
 });
 
+test('reward payout popup stays centered without a leading success badge', () => {
+  assert.match(snackbar, /\{!reward \? \([\s\S]*className="feedbackIcon"[\s\S]*\) : null\}/);
+  assert.doesNotMatch(snackbar, /\.reward \.feedbackIcon/);
+  assert.match(snackbar, /\.transientSnackbar\.reward \{[\s\S]*grid-template-columns: minmax\(0, 1fr\)/);
+  assert.match(snackbar, /\.transientSnackbar\.reward \{[\s\S]*padding-block: 16px/);
+  assert.match(snackbar, /\.rewardFeedbackBody \{[\s\S]*text-align: center/);
+});
+
 test('feedback is dismissed on meaningful navigation and referral v2 actions', () => {
   assert.match(home, /const changeTab = \(nextTab: AppTab\) => \{\s*clearFeedback\(\)/s);
   assert.match(home, /const copyUrl = async \([\s\S]*?\) => \{[\s\S]*?clearFeedback\(\)/);
