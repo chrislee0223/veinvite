@@ -3,7 +3,6 @@
 import {
   useCallback,
   useEffect,
-  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -17,7 +16,6 @@ import { NOTIFICATION_HISTORY_COPY } from '@/lib/i18n/notificationHistoryCopy';
 import { NOTIFICATION_META_COPY } from '@/lib/i18n/notificationMetaCopy';
 import { NOTIFICATION_V2_COPY } from '@/lib/i18n/notificationV2Copy';
 import { rewardPaidNotificationBody } from '@/lib/i18n/rewardPaidNotificationCopy';
-import { PROGRESS_CLAIM_COPY } from '@/lib/i18n/progressClaimCopy';
 import { REWARD_RECEIPT_COPY } from '@/lib/i18n/rewardReceiptCopy';
 import { REFERRAL_INVALIDATED_COPY } from '@/lib/i18n/referralInvalidatedCopy';
 import { REFERRAL_RESTORED_COPY } from '@/lib/i18n/referralRestoredCopy';
@@ -33,21 +31,8 @@ import {
 import type {
   InviteNotificationHistoryItem,
 } from '@/lib/notifications/inviteNotificationHistory';
-import type {
-  RewardActionItem,
-  RewardActionResponse,
-} from '@/lib/notifications/rewardAction';
 import {
-  getRewardActionPollingMode,
-  rewardActionPollingIntervalMs,
-} from '@/lib/notifications/rewardActionPolling';
-import {
-  reportProductAnalyticsEvent,
-} from '@/lib/productAnalytics';
-import {
-  dispatchRewardClaimUpdated,
   notifyRewardClaimSessionInvalid,
-  reconcileRewardClaimState,
 } from '@/lib/rewards/rewardClaimClient';
 import type { RewardReceipt } from '@/lib/rewards/rewardReceipt';
 import { RewardReceiptView } from './RewardReceiptView';
@@ -58,8 +43,6 @@ const NOTIFICATION_DIALOG_ID = 'veinvite-notification-history';
 const REDUCED_MOTION_QUERY = '(prefers-reduced-motion: reduce)';
 const REWARD_RECEIPT_ACKNOWLEDGED_EVENT =
   'veinvite-reward-receipt-acknowledged';
-const HOME_DATA_REFRESH_REQUESTED_EVENT =
-  'veinvite-home-data-refresh-requested';
 const FOCUSABLE_SELECTOR = [
   'button:not([disabled])',
   'a[href]',
@@ -335,12 +318,9 @@ export function InviteNotificationHistoryCenter({
   onMarkRead,
   onMarkAll,
   onLoadMore,
-  initialRewardActions = null,
-  onRewardActionsChange,
   rewardShareUrl = '',
   previewRewardReceipt = null,
   onRewardShare,
-  skipRewardActionRequests = true,
   allowProgrammaticOpen = false,
 }: {
   locale: Locale;
@@ -358,42 +338,27 @@ export function InviteNotificationHistoryCenter({
   onMarkRead: (id: string) => void | Promise<void>;
   onMarkAll: () => void | Promise<void>;
   onLoadMore: () => void | Promise<void>;
-  initialRewardActions?: RewardActionItem[] | null;
-  onRewardActionsChange?: (actions: RewardActionItem[]) => void;
   rewardShareUrl?: string;
   previewRewardReceipt?: RewardReceipt | null;
   onRewardShare?: (intentUrl: string) => void;
-  skipRewardActionRequests?: boolean;
   allowProgrammaticOpen?: boolean;
 }) {
   const supportedLocale = locale as SupportedLocale;
   const structure = NOTIFICATION_HISTORY_COPY[supportedLocale];
   const metaCopy = NOTIFICATION_META_COPY[supportedLocale];
   const notificationCopy = NOTIFICATION_COPY[supportedLocale];
-  const progressCopy = PROGRESS_CLAIM_COPY[supportedLocale];
   const receiptCopy = REWARD_RECEIPT_COPY[locale];
   const rtl = isRtlLocale(supportedLocale);
   const bellRef = useRef<HTMLButtonElement | null>(null);
   const panelRef = useRef<HTMLElement | null>(null);
   const closeTimerRef = useRef<number | null>(null);
   const onCloseRef = useRef(onClose);
-  const actionRequestRef = useRef(0);
   const receiptRequestRef = useRef(0);
   const receiptAutoAckIdRef = useRef<string | null>(null);
   const [clockTick, setClockTick] = useState(0);
   const [closing, setClosing] = useState(false);
   const [manualOpen, setManualOpen] = useState(false);
   const visibleOpen = open && (manualOpen || allowProgrammaticOpen);
-  const [rewardActions, setRewardActions] = useState<RewardActionItem[]>(
-    () => initialRewardActions ?? [],
-  );
-  const [actionResolved, setActionResolved] = useState(
-    initialRewardActions !== null,
-  );
-  const actionResolvedRef = useRef(initialRewardActions !== null);
-  const [actionLoading, setActionLoading] = useState(false);
-  const [actionError, setActionError] = useState('');
-  const [claimPendingCode, setClaimPendingCode] = useState<string | null>(null);
   const [receipt, setReceipt] = useState<RewardReceipt | null>(null);
   const [receiptLoading, setReceiptLoading] = useState(false);
   const [receiptError, setReceiptError] = useState('');
@@ -406,13 +371,6 @@ export function InviteNotificationHistoryCenter({
   useEffect(() => {
     if (!open) setManualOpen(false);
   }, [open]);
-
-  useEffect(() => {
-    if (initialRewardActions === null) return;
-    actionResolvedRef.current = true;
-    setActionResolved(true);
-    setRewardActions(initialRewardActions);
-  }, [initialRewardActions]);
 
   const visibleItems = useMemo(
     () => items.filter((item) => item.kind !== 'SECURITY_INVITER_WATCH'),
@@ -454,230 +412,17 @@ export function InviteNotificationHistoryCenter({
       ),
       earlier: sorted.filter((item) => dayBucket(item.eventAt, now) === 'earlier'),
     };
-  }, [sorted, clockTick, open]);
+  }, [sorted, clockTick, visibleOpen]);
 
-  const loadRewardActions = useCallback(async () => {
-    const requestId = actionRequestRef.current + 1;
-    actionRequestRef.current = requestId;
-    setActionLoading(true);
-    setActionError('');
-
-    try {
-      const response = await fetch('/api/notifications/reward-actions', {
-        cache: 'no-store',
-      });
-      let body: RewardActionResponse = {};
-      try {
-        body = (await response.json()) as RewardActionResponse;
-      } catch {
-        // Keep malformed server details out of translated UI.
-      }
-
-      if (!response.ok) {
-        if (response.status === 401 || response.status === 403) {
-          notifyRewardClaimSessionInvalid();
-        }
-        if (body.error) {
-          console.warn('VeInvite reward actions request failed:', body.error);
-        }
-        throw new Error(structure.errorBody);
-      }
-      if (actionRequestRef.current !== requestId) return;
-
-      const nextActions = Array.isArray(body.actions) ? body.actions : [];
-      actionResolvedRef.current = true;
-      setActionResolved(true);
-      setRewardActions(nextActions);
-      onRewardActionsChange?.(nextActions);
-    } catch (error) {
-      if (actionRequestRef.current !== requestId) return;
-      console.warn('VeInvite reward actions load failed:', error);
-      if (!actionResolvedRef.current) {
-        setActionError(structure.errorBody);
-      }
-    } finally {
-      if (actionRequestRef.current === requestId) {
-        setActionLoading(false);
-      }
-    }
-  }, [onRewardActionsChange, structure.errorBody]);
-
-  const rewardActionPollingMode =
-    getRewardActionPollingMode(rewardActions);
-
-  useLayoutEffect(() => {
-    if (!visibleOpen) {
-      actionRequestRef.current += 1;
-      receiptRequestRef.current += 1;
-      setActionLoading(false);
-      setActionError('');
-      setReceipt(null);
-      setReceiptLoading(false);
-      setReceiptError('');
-      setReceiptAcknowledging(false);
-      return;
-    }
-
-    if (skipRewardActionRequests) {
-      actionResolvedRef.current = true;
-      setActionResolved(true);
-      setActionLoading(false);
-      setActionError('');
-      setRewardActions([]);
-      return;
-    }
-
-    // Start the reward-action read before the newly opened panel paints.
-    // This keeps the first visible frame structurally complete instead of
-    // inserting an action/loading section one frame later.
-    void loadRewardActions();
-
-    const pollIntervalMs =
-      rewardActionPollingIntervalMs(
-        rewardActionPollingMode,
-      );
-    const timer = window.setInterval(() => {
-      if (document.visibilityState === 'visible') {
-        void loadRewardActions();
-      }
-    }, pollIntervalMs);
-
-    return () => window.clearInterval(timer);
-  }, [loadRewardActions, rewardActionPollingMode, skipRewardActionRequests, visibleOpen]);
-
-  const claimReward = useCallback(async (action: RewardActionItem) => {
-    if (
-      claimPendingCode ||
-      action.status !== 'AWAITING_CLAIM'
-    ) {
-      return;
-    }
-
-    setClaimPendingCode(action.inviteCode);
-    setActionError('');
-    reportProductAnalyticsEvent({
-      eventName: 'reward_claim_started',
-      flowKey: 'home',
-    });
-
-    let failureCode:
-      | 'network'
-      | 'malformed_response'
-      | 'wallet_auth'
-      | 'server'
-      | 'unknown' = 'unknown';
-
-    try {
-      let response: Response;
-      try {
-        response = await fetch('/api/rewards/claims', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ inviteCode: action.inviteCode }),
-        });
-      } catch (error) {
-        failureCode = 'network';
-        throw error;
-      }
-
-      let body: {
-        claim?: { status?: string };
-        error?: string;
-      };
-      try {
-        body = (await response.json()) as {
-          claim?: { status?: string };
-          error?: string;
-        };
-      } catch (error) {
-        failureCode = 'malformed_response';
-        throw error;
-      }
-
-      if (!response.ok) {
-        failureCode =
-          response.status === 401 || response.status === 403
-            ? 'wallet_auth'
-            : response.status >= 500
-              ? 'server'
-              : 'unknown';
-        if (failureCode === 'wallet_auth') {
-          notifyRewardClaimSessionInvalid();
-        }
-        if (body.error) {
-          console.warn('VeInvite notification Claim request failed:', body.error);
-        }
-        throw new Error(progressCopy.claimFailed);
-      }
-
-      setRewardActions((current) => current.map((item) =>
-        item.inviteCode === action.inviteCode
-          ? { ...item, status: 'QUEUED' }
-          : item,
-      ));
-      reportProductAnalyticsEvent({
-        eventName: 'reward_claim_succeeded',
-        outcome: 'success',
-        flowKey: 'home',
-      });
-      dispatchRewardClaimUpdated(action.inviteCode);
-      window.dispatchEvent(
-        new Event(HOME_DATA_REFRESH_REQUESTED_EVENT),
-      );
-      void loadRewardActions();
-    } catch (error) {
-      if (failureCode !== 'wallet_auth') {
-        const reconciliation = await reconcileRewardClaimState(
-          action.inviteCode,
-        );
-
-        const progressed =
-          reconciliation.kind === 'ABSENT' ||
-          (
-            reconciliation.kind === 'ACTION' &&
-            reconciliation.action.status !== 'AWAITING_CLAIM'
-          );
-
-        if (progressed) {
-          if (reconciliation.kind === 'ACTION') {
-            setRewardActions((current) => current.map((item) =>
-              item.inviteCode === action.inviteCode
-                ? { ...item, status: reconciliation.action.status }
-                : item,
-            ));
-          } else {
-            setRewardActions((current) => current.filter(
-              (item) => item.inviteCode !== action.inviteCode,
-            ));
-          }
-          setActionError('');
-          reportProductAnalyticsEvent({
-            eventName: 'reward_claim_succeeded',
-            outcome: 'success',
-            flowKey: 'home',
-          });
-          dispatchRewardClaimUpdated(action.inviteCode);
-          window.dispatchEvent(
-            new Event(HOME_DATA_REFRESH_REQUESTED_EVENT),
-          );
-          void loadRewardActions();
-          return;
-        }
-      }
-
-      reportProductAnalyticsEvent({
-        eventName: 'reward_claim_failed',
-        outcome: 'failure',
-        failureCode,
-        flowKey: 'home',
-      });
-      console.warn('VeInvite notification Claim failed:', error);
-      setActionError(progressCopy.claimFailed);
-      void loadRewardActions();
-    } finally {
-      setClaimPendingCode(null);
-    }
-  }, [claimPendingCode, loadRewardActions, progressCopy.claimFailed]);
+  useEffect(() => {
+    if (visibleOpen) return;
+    receiptRequestRef.current += 1;
+    receiptAutoAckIdRef.current = null;
+    setReceipt(null);
+    setReceiptLoading(false);
+    setReceiptError('');
+    setReceiptAcknowledging(false);
+  }, [visibleOpen]);
 
   const openRewardReceipt = useCallback(async (
     item: InviteNotificationHistoryItem,
@@ -988,83 +733,6 @@ export function InviteNotificationHistoryCenter({
     );
   };
 
-  const renderRewardActions = () => {
-    if (
-      rewardActions.length === 0 &&
-      !actionError
-    ) {
-      return null;
-    }
-
-    return (
-      <section className="notificationActionSection" aria-live="polite">
-        <div className="notificationActionHeading">
-          <strong>{progressCopy.rewardsTitle}</strong>
-          {rewardActions.length > 0 ? <span>{rewardActions.length}</span> : null}
-        </div>
-
-        {rewardActions.map((action) => {
-          const amount = formatB3trWei(action.reservedAmountWei) ?? '—';
-          const pending = claimPendingCode === action.inviteCode;
-          const waiting = action.status === 'AWAITING_CLAIM';
-          const transferConfirmed = Boolean(
-            action.broadcastConfirmedAt &&
-            action.txId,
-          );
-
-          return (
-            <article key={action.inviteCode} className="notificationActionCard">
-              <div className="notificationActionCopy">
-                <span>{progressCopy.rewardAvailable}</span>
-                <strong>{amount} B3TR</strong>
-                <small className="notificationActionMeta">
-                  <span className="notificationActionMetaItem">
-                    <span>{metaCopy.inviteCode}</span>
-                    <span dir="ltr">({action.inviteCode})</span>
-                  </span>
-                  {transferConfirmed ? (
-                    <span
-                      className="notificationActionMetaItem"
-                      title={action.txId ?? undefined}
-                    >
-                      <span>B3TR TX</span>
-                      <span aria-hidden="true">✓</span>
-                    </span>
-                  ) : null}
-                </small>
-              </div>
-              {waiting ? (
-                <button
-                  type="button"
-                  className="notificationClaimButton"
-                  disabled={Boolean(claimPendingCode)}
-                  onClick={() => void claimReward(action)}
-                >
-                  {pending ? progressCopy.claiming : progressCopy.claimReward}
-                </button>
-              ) : (
-                <span className="notificationProcessingBadge">
-                  {transferConfirmed
-                    ? `B3TR ✓ · ${progressCopy.finalCheck}`
-                    : `B3TR → · ${progressCopy.claimQueued}`}
-                </span>
-              )}
-            </article>
-          );
-        })}
-
-        {actionError ? (
-          <div className="notificationActionError" role="alert">
-            <span>{actionError}</span>
-            <button type="button" onClick={() => void loadRewardActions()}>
-              {structure.retry}
-            </button>
-          </div>
-        ) : null}
-      </section>
-    );
-  };
-
   const receiptViewActive = Boolean(receipt || receiptLoading || receiptError);
   return (
     <div className="notificationHistoryRoot">
@@ -1189,16 +857,13 @@ export function InviteNotificationHistoryCenter({
                 rewardShareUrl={rewardShareUrl}
                 onRewardShare={onRewardShare}
               />
-            ) : (
-              loading ||
-              (actionLoading && !actionResolved)
-            ) && items.length === 0 && rewardActions.length === 0 ? (
+            ) : loading && sorted.length === 0 ? (
               <div className="notificationHistoryState" aria-live="polite" aria-busy="true">
                 <span className="notificationHistorySpinner" aria-hidden="true" />
                 <strong>{structure.loadingTitle}</strong>
                 <p>{structure.loadingBody}</p>
               </div>
-            ) : errorMessage && items.length === 0 && rewardActions.length === 0 ? (
+            ) : errorMessage && sorted.length === 0 ? (
               <div className="notificationHistoryState errorState" role="alert">
                 <span className="notificationHistoryStateIcon" aria-hidden="true">!</span>
                 <strong>{structure.errorTitle}</strong>
@@ -1211,25 +876,7 @@ export function InviteNotificationHistoryCenter({
                   {structure.retry}
                 </button>
               </div>
-            ) : actionError &&
-              sorted.length === 0 &&
-              rewardActions.length === 0 ? (
-              <div className="notificationHistoryState errorState" role="alert">
-                <span className="notificationHistoryStateIcon" aria-hidden="true">!</span>
-                <strong>{structure.errorTitle}</strong>
-                <p>{structure.errorBody}</p>
-                <button
-                  type="button"
-                  className="notificationHistoryRetry"
-                  onClick={() => void loadRewardActions()}
-                >
-                  {structure.retry}
-                </button>
-              </div>
-            ) : sorted.length === 0 &&
-              rewardActions.length === 0 &&
-              actionResolved &&
-              !actionError ? (
+            ) : sorted.length === 0 ? (
               <div className="notificationHistoryState">
                 <span className="notificationHistoryEmptyBell" aria-hidden="true">
                   <BellIcon size={22} />
@@ -1239,7 +886,6 @@ export function InviteNotificationHistoryCenter({
               </div>
             ) : (
               <div className="notificationHistoryScroll">
-                {renderRewardActions()}
                 {groups.today.length > 0 ? (
                   <section className="notificationHistoryGroup">
                     <h4>{structure.today}</h4>
