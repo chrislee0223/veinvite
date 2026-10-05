@@ -23,6 +23,7 @@ import {
 import type {
   InviteNotificationPayloadV2,
 } from '@/lib/notifications/inviteNotificationStateV2';
+import { NOTIFICATION_POLICY } from '@/lib/notifications/notificationPolicy';
 import {
   NETWORK_DATA_REFRESH_REQUESTED_EVENT,
   invalidateNetworkRootCache,
@@ -735,7 +736,7 @@ export function InAppInviteNotifications({
 
     const unreadThroughSnapshot = items.filter((notification) =>
       notification.readAt === null &&
-      notification.kind !== 'REWARD_PAID' &&
+      NOTIFICATION_POLICY[notification.kind].readBehavior === 'tap' &&
       historyIdAtOrBefore(notification.id, throughId),
     );
     const refreshHomeAfterAcknowledgement =
@@ -753,7 +754,7 @@ export function InAppInviteNotifications({
       setItems((current) => {
         const updated = current.map((item) =>
           item.readAt === null &&
-          item.kind !== 'REWARD_PAID' &&
+          NOTIFICATION_POLICY[item.kind].readBehavior === 'tap' &&
           historyIdAtOrBefore(item.id, throughId)
             ? { ...item, readAt: now }
             : item,
@@ -905,7 +906,9 @@ export function InAppInviteNotifications({
       items={items}
       unreadCount={unreadCount}
       markAllAvailable={items.some(
-        (item) => item.readAt === null && item.kind !== 'REWARD_PAID',
+        (item) =>
+          item.readAt === null &&
+          NOTIFICATION_POLICY[item.kind].readBehavior === 'tap',
       )}
       open={open}
       loading={loading}
