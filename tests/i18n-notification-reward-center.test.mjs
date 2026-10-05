@@ -101,6 +101,15 @@ test('actual payout uses the common bottom snackbar without colliding with other
   assert.match(paidSync, /for \(const receipt of newReceipts\.reverse\(\)\)/);
 
   assert.match(home, /useRewardPaidTransientFeedback/);
+  assert.match(home, /deferredFeedbackRef/);
+  assert.match(
+    home,
+    /if \(current\?\.kind === 'reward'\) \{[\s\S]*deferredFeedbackRef\.current = next/,
+  );
+  assert.match(
+    home,
+    /const next = deferredFeedbackRef\.current;[\s\S]*return next/,
+  );
   assert.match(rewardPaidTransient, /readRewardPaidToast\(wallet\)/);
   assert.match(rewardPaidTransient, /clearRewardPaidToast\(wallet, payload\.receiptId\)/);
   assert.match(rewardPaidTransient, /setPendingReward\(readRewardPaidToast\(wallet\)\)/);
