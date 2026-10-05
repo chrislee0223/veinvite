@@ -138,16 +138,16 @@ test('finalized receipt tracking can target claimed invites before the initial b
   );
   assert.match(
     paidActivationSync,
-    /if \(targetReceipt\)[\s\S]*requestPaidReload/u,
+    /if \(targetReceipts\.length > 0\)[\s\S]*requestPaidReload/u,
   );
   assert.match(
     paidActivationSync,
     /if \(!initializedRef\.current\)/u,
   );
   assert.ok(
-    paidActivationSync.indexOf('if (targetReceipt)') <
+    paidActivationSync.indexOf('if (targetReceipts.length > 0)') <
       paidActivationSync.indexOf('if (!initializedRef.current)'),
-    'targeted finalized receipt must be checked before baseline initialization',
+    'targeted finalized receipts must be checked before baseline initialization',
   );
 });
 

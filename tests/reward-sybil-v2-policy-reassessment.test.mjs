@@ -81,7 +81,11 @@ test('runtime reassesses stale policy plus same-policy HOLDs missing the current
 });
 
 test('vote recovery reassesses stale policy before current assessment and reward reservation', async () => {
-  const source = await read('src/app/api/cron/vote-reconcile/route.ts');
+  const [source, rewardRecovery] =
+    await Promise.all([
+      read('src/app/api/cron/vote-reconcile/route.ts'),
+      read('src/lib/rewards/rewardReservationRecovery.ts'),
+    ]);
 
   const policy = source.indexOf(
     'await runSybilV2PolicyReassessmentBatch',
@@ -90,14 +94,18 @@ test('vote recovery reassesses stale policy before current assessment and reward
     'await runSybilV2AssessmentBatch',
     policy,
   );
-  const reservation = source.indexOf(
-    'await reserveEligibleReferralRewards',
+  const reservationRecovery = source.indexOf(
+    'await runRewardReservationRecovery',
     assessment,
   );
 
   assert.ok(policy >= 0);
   assert.ok(assessment > policy);
-  assert.ok(reservation > assessment);
+  assert.ok(reservationRecovery > assessment);
+  assert.match(
+    rewardRecovery,
+    /await reserveEligibleReferralRewards\(\)/u,
+  );
 });
 
 
