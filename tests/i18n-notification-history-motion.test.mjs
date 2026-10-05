@@ -64,14 +64,20 @@ test('closing backdrop continues intercepting taps without becoming an extra foc
   );
 });
 
-test('read notifications stay static except paid receipts, which remain reopenable', () => {
-  assert.match(center, /const paid = item\.kind === 'REWARD_PAID'/);
+test('read notifications stay static except receipt-policy rows, which remain reopenable', () => {
   assert.match(
     center,
-    /if \(!unread && !paid\) \{[\s\S]*<div[\s\S]*notificationHistoryRow isRead/,
+    /NOTIFICATION_POLICY\[item\.kind\]\.readBehavior === 'receipt'/,
+  );
+  assert.match(
+    center,
+    /if \(!unread && !receiptAction\) \{[\s\S]*<div[\s\S]*notificationHistoryRow isRead/,
   );
   assert.match(center, /notificationHistoryRow isRead isInteractive/);
-  assert.match(center, /if \(paid\) \{[\s\S]*openRewardReceipt\(item\)/);
+  assert.match(
+    center,
+    /if \(receiptAction\) \{[\s\S]*openRewardReceipt\(item\)/,
+  );
   assert.match(center, /notificationHistoryRow isUnread/);
   assert.doesNotMatch(center, /aria-pressed=/);
   assert.match(center, /notificationHistorySrOnly/);
