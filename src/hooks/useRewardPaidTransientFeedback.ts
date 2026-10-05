@@ -131,6 +131,7 @@ export function useRewardPaidTransientFeedback({
       onConfirm: () => {
         if (wallet) {
           clearRewardPaidToast(wallet, payload.receiptId);
+          setPendingReward(readRewardPaidToast(wallet));
         }
         return acknowledgeReward(payload);
       },
@@ -145,5 +146,6 @@ export function useRewardPaidTransientFeedback({
     referralLinkFailed,
     referralLinkVerified,
     setFeedback,
+    wallet,
   ]);
 }
