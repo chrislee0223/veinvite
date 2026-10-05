@@ -87,8 +87,14 @@ test('paid history uses a natural amount sentence and receipt open marks it read
 });
 
 test('actual payout uses the common bottom snackbar without colliding with other feedback', () => {
-  assert.match(paidSync, /storeRewardPaidToast\(targetReceipt\)/);
-  assert.match(paidSync, /storeRewardPaidToast\(latestReceipt\)/);
+  assert.match(
+    paidSync,
+    /for \(const receipt of \[\.\.\.targetReceipts\]\.reverse\(\)\)[\s\S]{0,220}storeRewardPaidToast\(receipt\)/,
+  );
+  assert.match(
+    paidSync,
+    /for \(const receipt of newReceipts\.reverse\(\)\)[\s\S]{0,160}storeRewardPaidToast\(receipt\)/,
+  );
   assert.match(paidToast, /sessionStorage\.setItem/);
   assert.match(paidToast, /readRewardPaidToast/);
   assert.match(paidToast, /clearRewardPaidToast/);
