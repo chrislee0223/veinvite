@@ -6,10 +6,31 @@ const migrationPath =
   'supabase/migrations/20261005003000_add_reward_recovery_offset_accounting.sql';
 
 async function sources() {
-  const [sql, hardeningSql, metricsSql, preserveMetricsSql, history, copy, leaderboard] = await Promise.all([
+  const [
+    sql,
+    hardeningSql,
+    restrictionSql,
+    repricingSql,
+    metricsSql,
+    preserveMetricsSql,
+    pauseSql,
+    planningAlignmentSql,
+    planningClient,
+    history,
+    copy,
+    leaderboard,
+  ] = await Promise.all([
     readFile(migrationPath, 'utf8'),
     readFile(
       'supabase/migrations/20261005003050_harden_reward_recovery_reversals.sql',
+      'utf8',
+    ),
+    readFile(
+      'supabase/migrations/20261005033258_restore_recovery_on_restricted_settlement.sql',
+      'utf8',
+    ),
+    readFile(
+      'supabase/migrations/20261005124309_guard_recovery_cohort_repricing.sql',
       'utf8',
     ),
     readFile(
@@ -20,6 +41,15 @@ async function sources() {
       'supabase/migrations/20261005024000_preserve_legacy_round_metrics_with_recovery.sql',
       'utf8',
     ),
+    readFile(
+      'supabase/migrations/20261005124900_pause_reward_recovery_for_final_verification.sql',
+      'utf8',
+    ),
+    readFile(
+      'supabase/migrations/20261005125500_align_recovery_settled_planning_and_operator_eligibility.sql',
+      'utf8',
+    ),
+    readFile('src/lib/rewards/predictivePlanning.ts', 'utf8'),
     readFile('src/components/InAppInviteNotifications.tsx', 'utf8'),
     readFile('src/lib/i18n/rewardAdjustedCopy.ts', 'utf8'),
     readFile('src/app/api/leaderboard/route.ts', 'utf8'),
@@ -27,8 +57,13 @@ async function sources() {
   return {
     sql,
     hardeningSql,
+    restrictionSql,
+    repricingSql,
     metricsSql,
     preserveMetricsSql,
+    pauseSql,
+    planningAlignmentSql,
+    planningClient,
     history,
     copy,
     leaderboard,
@@ -271,4 +306,158 @@ test('legacy queue-based round counts stay unchanged and full offsets are additi
     preserveMetricsSql,
     /select v_cumulative_completed \+ count\(distinct s\.invite_code\)[\s\S]*?settlement_kind = 'FULL_OFFSET'/u,
   );
+});
+
+
+test('current restricted referral authority restores only consumed economic value', async () => {
+  const { restrictionSql } = await sources();
+  assert.match(
+    restrictionSql,
+    /create or replace function public\.upsert_reward_recovery_obligation_for_restriction/u,
+  );
+  assert.match(
+    restrictionSql,
+    /v_desired :=[\s\S]*?v_settlement\.offset_amount_wei \+[\s\S]*?coalesce\(v_receipt\.amount_wei,0\)/u,
+  );
+  assert.match(
+    restrictionSql,
+    /A cancelled\/unpaid net amount never becomes debt/u,
+  );
+  assert.match(
+    restrictionSql,
+    /sybil_v2_reward_recovery_restriction_sync/u,
+  );
+  assert.match(
+    restrictionSql,
+    /sybil_v2_reward_recovery_restricted_assessment_sync/u,
+  );
+  assert.match(
+    restrictionSql,
+    /veinvite_reward_recovery_[\s\S]*?v_settlement\.recipient_wallet/u,
+  );
+});
+
+test('recovery cohort repricing rejects stale gross-commitment quotes without changing normal pool liability', async () => {
+  const { repricingSql } = await sources();
+  assert.match(
+    repricingSql,
+    /p_basis \? 'cohortReservedWei'/u,
+  );
+  assert.match(
+    repricingSql,
+    /v_expected_cohort_committed[\s\S]*?cohortReservedWei/u,
+  );
+  assert.match(
+    repricingSql,
+    /if v_cohort_committed<>v_expected_cohort_committed then[\s\S]*?'RECALCULATE'/u,
+  );
+  assert.match(
+    repricingSql,
+    /Actual pool liability remains NET-only/u,
+  );
+  assert.match(
+    repricingSql,
+    /Gross remains the cohort pricing commitment\. Net remains the actual/u,
+  );
+});
+
+test('invalidated or restricted recovery settlements release withheld cohort commitment', async () => {
+  const { repricingSql } = await sources();
+  const committedStart = repricingSql.indexOf(
+    'CREATE OR REPLACE FUNCTION public.read_reward_cohort_committed_wei',
+  );
+  const budgetStart = repricingSql.indexOf(
+    'CREATE OR REPLACE FUNCTION public.enforce_reward_queue_cohort_budget',
+  );
+  assert.ok(committedStart >= 0 && budgetStart > committedStart);
+  const committed = repricingSql.slice(committedStart, budgetStart);
+  assert.match(committed, /reward_recovery_settlements/u);
+  assert.match(committed, /source_settlement_id/u);
+  assert.match(committed, /status='ACTIVE'|status = 'ACTIVE'/u);
+});
+
+test('partial recovery achievement counts immediately but paid B3TR stays receipt-authoritative', async () => {
+  const { repricingSql } = await sources();
+  assert.match(
+    repricingSql,
+    /partial_unpaid_referrals[\s\S]*?0::numeric as amount_wei/u,
+  );
+  assert.match(
+    repricingSql,
+    /s\.settlement_kind='PARTIAL_OFFSET'/u,
+  );
+  assert.match(
+    repricingSql,
+    /not exists \([\s\S]*?from public\.reward_receipts r/u,
+  );
+  assert.match(
+    repricingSql,
+    /select \* from partial_unpaid_referrals/u,
+  );
+});
+
+test('final verification pause is explicit and disaster-recovery reproducible', async () => {
+  const { pauseSql } = await sources();
+  assert.match(
+    pauseSql,
+    /set reward_recovery_enabled = false/u,
+  );
+});
+
+
+test('actual pricing replaces raw queued eligible counts with the recovery-aware cleared count', async () => {
+  const { planningClient } = await sources();
+  assert.match(
+    planningClient,
+    /read_sybil_v2_cleared_unreserved_count/u,
+  );
+  assert.match(
+    planningClient,
+    /queuedEligibleCount:\s*clearedQueuedEligibleCount/u,
+  );
+  assert.match(
+    planningClient,
+    /read_reward_cohort_committed_wei/u,
+  );
+});
+
+test('raw planning and legacy candidate readers exclude recovery-settled referrals', async () => {
+  const { planningAlignmentSql } = await sources();
+  assert.match(
+    planningAlignmentSql,
+    /read_predictive_reward_planning_snapshot[\s\S]*?reward_recovery_settlements/u,
+  );
+  assert.match(
+    planningAlignmentSql,
+    /read_reward_cohort_planning_snapshot[\s\S]*?reward_recovery_settlements/u,
+  );
+  assert.match(
+    planningAlignmentSql,
+    /read_reward_reservation_candidates[\s\S]*?reward_recovery_settlements/u,
+  );
+});
+
+test('operator currently-eligible metrics exclude only fully settled zero-payable referrals', async () => {
+  const { planningAlignmentSql } = await sources();
+  for (const functionName of [
+    'get_operator_round_overview',
+    'get_operator_cumulative_overview',
+    'get_operator_round_inviter_analytics',
+    'get_operator_cumulative_inviter_analytics',
+  ]) {
+    const start = planningAlignmentSql.indexOf(
+      `FUNCTION public.${functionName}`,
+    );
+    assert.ok(start >= 0, `${functionName} must be present`);
+    const next = planningAlignmentSql.indexOf(
+      'CREATE OR REPLACE FUNCTION public.',
+      start + 1,
+    );
+    const body = planningAlignmentSql.slice(
+      start,
+      next >= 0 ? next : planningAlignmentSql.length,
+    );
+    assert.match(body, /settlement_kind='FULL_OFFSET'/u);
+    assert.match(body, /net_amount_wei=0/u);
+  }
 });
