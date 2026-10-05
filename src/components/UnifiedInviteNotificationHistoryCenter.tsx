@@ -397,7 +397,9 @@ export function InviteNotificationHistoryCenter({
   const visibleMarkAllAvailable =
     markAllAvailable &&
     visibleItems.some(
-      (item) => item.readAt === null && item.kind !== 'REWARD_PAID',
+      (item) =>
+        item.readAt === null &&
+        NOTIFICATION_POLICY[item.kind].readBehavior === 'tap',
     );
 
   const sorted = useMemo(
@@ -665,7 +667,9 @@ export function InviteNotificationHistoryCenter({
     unread: boolean,
   ) => {
     const copy = itemCopy(item, supportedLocale);
-    const showMeta = Boolean(copy.hint || item.kind === 'REWARD_PAID');
+    const receiptAction =
+      NOTIFICATION_POLICY[item.kind].readBehavior === 'receipt';
+    const showMeta = Boolean(copy.hint || receiptAction);
 
     return (
       <span className="notificationHistoryContent">
@@ -692,7 +696,7 @@ export function InviteNotificationHistoryCenter({
         {showMeta ? (
           <span className="notificationHistoryMeta">
             {copy.hint ? <b>{copy.hint}</b> : null}
-            {item.kind === 'REWARD_PAID' ? (
+            {receiptAction ? (
               <span className="notificationReceiptAction">
                 <span>{metaCopy.viewReceipt}</span>
                 <em aria-hidden="true">›</em>
@@ -706,10 +710,11 @@ export function InviteNotificationHistoryCenter({
 
   const renderItem = (item: InviteNotificationHistoryItem) => {
     const unread = item.readAt === null;
-    const paid = item.kind === 'REWARD_PAID';
+    const receiptAction =
+      NOTIFICATION_POLICY[item.kind].readBehavior === 'receipt';
     const content = renderItemContent(item, unread);
 
-    if (!unread && !paid) {
+    if (!unread && !receiptAction) {
       return (
         <div key={item.id} className="notificationHistoryRow isRead">
           {content}
@@ -728,7 +733,7 @@ export function InviteNotificationHistoryCenter({
         }
         onClick={() => {
           if (busy) return;
-          if (paid) {
+          if (receiptAction) {
             void openRewardReceipt(item);
             return;
           }
