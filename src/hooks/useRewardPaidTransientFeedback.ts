@@ -16,7 +16,8 @@ import { NOTIFICATION_COPY } from '@/lib/i18n/notificationCopy';
 import { REWARD_RECEIPT_COPY } from '@/lib/i18n/rewardReceiptCopy';
 import type { SupportedLocale } from '@/lib/i18n/locales';
 import {
-  consumeRewardPaidToast,
+  clearRewardPaidToast,
+  readRewardPaidToast,
   type RewardPaidToastPayload,
 } from '@/lib/notifications/rewardPaidToast';
 import type { ReferralLinkRecord } from '@/lib/referralLinks';
@@ -54,7 +55,7 @@ export function useRewardPaidTransientFeedback({
       current?.kind === 'reward' ? null : current,
     );
     setPendingReward(
-      wallet ? consumeRewardPaidToast(wallet) : null,
+      wallet ? readRewardPaidToast(wallet) : null,
     );
   }, [setFeedback, wallet]);
 
@@ -127,7 +128,12 @@ export function useRewardPaidTransientFeedback({
           }
         : {}),
       confirmLabel: NOTIFICATION_COPY[locale].confirm,
-      onConfirm: () => acknowledgeReward(payload),
+      onConfirm: () => {
+        if (wallet) {
+          clearRewardPaidToast(wallet, payload.receiptId);
+        }
+        return acknowledgeReward(payload);
+      },
     });
     setPendingReward(null);
   }, [
