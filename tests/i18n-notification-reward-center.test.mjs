@@ -50,7 +50,10 @@ test('reward action API stays wallet scoped while Claim UI has one Home owner', 
 test('reward-ready is bell history only while paid history stays reopenable', () => {
   assert.match(center, /case 'REWARD_READY':/);
   assert.match(center, /case 'REWARD_PAID':/);
-  assert.match(center, /const paid = item\.kind === 'REWARD_PAID'/);
+  assert.match(
+    center,
+    /NOTIFICATION_POLICY\[item\.kind\]\.readBehavior === 'receipt'/,
+  );
   assert.match(center, /notificationHistoryRow isRead isInteractive/);
   assert.match(center, /openRewardReceipt\(item\)/);
   assert.match(
