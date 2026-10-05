@@ -528,7 +528,8 @@ export function InviteNotificationHistoryCenter({
     } catch (error) {
       if (receiptRequestRef.current !== requestId) return;
       console.warn('VeInvite reward receipt acknowledgement failed:', error);
-      setReceiptError(receiptCopy.error);
+      // Read-state acknowledgement is bookkeeping only. Keep the receipt
+      // usable instead of surfacing a scary payout error to the user.
     } finally {
       if (receiptRequestRef.current === requestId) {
         setReceiptAcknowledging(false);
