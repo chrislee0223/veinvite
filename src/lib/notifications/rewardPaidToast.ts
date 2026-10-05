@@ -1,6 +1,7 @@
 import type { RewardReceipt } from '@/lib/rewards/rewardReceipt';
 
 const STORAGE_PREFIX = 'veinvite:reward-paid-toast:v1:';
+const MAX_PENDING_PAID_TOASTS = 20;
 
 export type RewardPaidToastPayload = {
   receiptId: string;
@@ -34,6 +35,37 @@ function validPayload(value: unknown): value is RewardPaidToastPayload {
   );
 }
 
+function readQueue(wallet: string): RewardPaidToastPayload[] {
+  const raw = window.sessionStorage.getItem(keyForWallet(wallet));
+  if (!raw) return [];
+
+  const parsed = JSON.parse(raw) as unknown;
+  const candidates = Array.isArray(parsed) ? parsed : [parsed];
+
+  return candidates
+    .filter(validPayload)
+    .filter(
+      (payload) =>
+        payload.recipientWallet.toLowerCase() === wallet.toLowerCase(),
+    )
+    .slice(0, MAX_PENDING_PAID_TOASTS);
+}
+
+function writeQueue(
+  wallet: string,
+  queue: RewardPaidToastPayload[],
+): void {
+  const key = keyForWallet(wallet);
+  if (queue.length === 0) {
+    window.sessionStorage.removeItem(key);
+    return;
+  }
+  window.sessionStorage.setItem(
+    key,
+    JSON.stringify(queue.slice(0, MAX_PENDING_PAID_TOASTS)),
+  );
+}
+
 export function storeRewardPaidToast(receipt: RewardReceipt): void {
   try {
     const payload: RewardPaidToastPayload = {
@@ -43,10 +75,12 @@ export function storeRewardPaidToast(receipt: RewardReceipt): void {
       amountWei: receipt.amountWei,
       amountB3tr: receipt.amountB3tr,
     };
-    window.sessionStorage.setItem(
-      keyForWallet(payload.recipientWallet),
-      JSON.stringify(payload),
-    );
+    const queue = readQueue(payload.recipientWallet);
+    if (queue.some((item) => item.receiptId === payload.receiptId)) {
+      return;
+    }
+    queue.push(payload);
+    writeQueue(payload.recipientWallet, queue);
   } catch {
     // The payout remains authoritative even if transient UI state cannot persist.
   }
@@ -58,15 +92,7 @@ export function readRewardPaidToast(
   if (!validWallet(wallet)) return null;
 
   try {
-    const raw = window.sessionStorage.getItem(keyForWallet(wallet));
-    if (!raw) return null;
-
-    const parsed = JSON.parse(raw) as unknown;
-    if (!validPayload(parsed)) return null;
-    if (parsed.recipientWallet.toLowerCase() !== wallet.toLowerCase()) {
-      return null;
-    }
-    return parsed;
+    return readQueue(wallet)[0] ?? null;
   } catch {
     return null;
   }
@@ -79,20 +105,12 @@ export function clearRewardPaidToast(
   if (!validWallet(wallet) || !receiptId) return;
 
   try {
-    const key = keyForWallet(wallet);
-    const raw = window.sessionStorage.getItem(key);
-    if (!raw) return;
-
-    const parsed = JSON.parse(raw) as unknown;
-    if (
-      !validPayload(parsed) ||
-      parsed.recipientWallet.toLowerCase() !== wallet.toLowerCase() ||
-      parsed.receiptId !== receiptId
-    ) {
-      return;
-    }
-
-    window.sessionStorage.removeItem(key);
+    writeQueue(
+      wallet,
+      readQueue(wallet).filter(
+        (payload) => payload.receiptId !== receiptId,
+      ),
+    );
   } catch {
     // The durable bell history remains authoritative if storage is unavailable.
   }
