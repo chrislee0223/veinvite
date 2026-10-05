@@ -7,9 +7,7 @@ const types = read('src/lib/notifications/inviteNotificationStateV2.ts');
 const policy = read('src/lib/notifications/notificationPolicy.ts');
 const center = read('src/components/UnifiedInviteNotificationHistoryCenter.tsx');
 const harness = read('src/qa/QaNotificationStateHarness.tsx');
-const migration = read(
-  'supabase/migrations/20261005062500_hide_internal_watch_notifications.sql',
-);
+const historyRoute = read('src/app/api/notifications/history/route.ts');
 const adjustedCopy = read('src/lib/i18n/rewardAdjustedCopy.ts');
 const paidCopy = read('src/lib/i18n/rewardPaidNotificationCopy.ts');
 const locales = read('src/lib/i18n/locales.ts');
@@ -47,20 +45,18 @@ test('history never auto-opens and WATCH is internal-only', () => {
   );
 });
 
-test('database delivery stops creating WATCH notices and hides historical WATCH rows', () => {
-  const triggerStart = migration.indexOf(
-    'create or replace function public.notify_sybil_v2_inviter_incident_history',
+test('user-facing history filters WATCH while preserving internal audit records', () => {
+  assert.match(historyRoute, /const INTERNAL_WATCH_KIND = 'SECURITY_INVITER_WATCH'/u);
+  assert.match(
+    historyRoute,
+    /batch\.filter\(\(row\) => row\.kind !== INTERNAL_WATCH_KIND\)/u,
   );
-  const triggerEnd = migration.indexOf(
-    'create or replace function public.get_invite_notification_history',
+  assert.match(historyRoute, /countUnreadInternalWatch/u);
+  assert.match(historyRoute, /visibleUnreadCount/u);
+  assert.match(
+    historyRoute,
+    /Math\.max\(0, totalUnread - hiddenUnread\)/u,
   );
-  assert.ok(triggerStart >= 0 && triggerEnd > triggerStart);
-  const triggerBody = migration.slice(triggerStart, triggerEnd);
-  assert.doesNotMatch(triggerBody, /'SECURITY_INVITER_WATCH'/u);
-
-  const watchFilters =
-    migration.match(/h\.kind <> 'SECURITY_INVITER_WATCH'/gu) ?? [];
-  assert.ok(watchFilters.length >= 2);
 });
 
 test('only actual paid rewards get the special transient reward surface', () => {
