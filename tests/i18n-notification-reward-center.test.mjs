@@ -71,11 +71,19 @@ test('paid history uses a natural amount sentence and receipt open marks it read
   assert.match(center, /const receiptAutoAckIdRef = useRef<string \| null>\(null\)/);
   assert.match(center, /void acknowledgeReceipt\(\)/);
   assert.match(center, /ACKNOWLEDGE_REWARD_RECEIPT/);
+  assert.match(
+    center,
+    /Read-state acknowledgement is bookkeeping only/,
+  );
+  assert.doesNotMatch(
+    center,
+    /reward receipt acknowledgement failed:[\s\S]{0,220}setReceiptError\(receiptCopy\.error\)/,
+  );
   assert.doesNotMatch(rewardReceiptView, /notificationReceiptAcknowledge/);
   assert.doesNotMatch(rewardReceiptView, /onAcknowledge/);
 });
 
-test('actual payout uses the common bottom snackbar with X share and confirm', () => {
+test('actual payout uses the common bottom snackbar without colliding with other feedback', () => {
   assert.match(paidSync, /storeRewardPaidToast\(targetReceipt\)/);
   assert.match(paidSync, /storeRewardPaidToast\(latestReceipt\)/);
   assert.match(paidToast, /sessionStorage\.setItem/);
@@ -83,10 +91,13 @@ test('actual payout uses the common bottom snackbar with X share and confirm', (
 
   assert.match(home, /useRewardPaidTransientFeedback/);
   assert.match(rewardPaidTransient, /consumeRewardPaidToast\(wallet\)/);
+  assert.match(rewardPaidTransient, /if \(!pendingReward \|\| feedback\) return/);
+  assert.match(rewardPaidTransient, /shareUnavailable/);
   assert.match(rewardPaidTransient, /kind: 'reward'/);
   assert.match(rewardPaidTransient, /rewardReceiptXIntentUrl/);
   assert.match(rewardPaidTransient, /ACKNOWLEDGE_REWARD_RECEIPT/);
   assert.match(snackbar, /feedback\.kind === 'reward'/);
+  assert.match(snackbar, /feedback\.onShare && feedback\.shareLabel/);
   assert.match(snackbar, /className="rewardShareButton"/);
   assert.match(snackbar, /className="rewardConfirmButton"/);
   assert.match(snackbar, /bottom: calc\(92px \+ env\(safe-area-inset-bottom\)\)/);
