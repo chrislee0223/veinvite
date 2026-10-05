@@ -6,6 +6,7 @@ const read = (path) => readFileSync(path, 'utf8');
 const types = read('src/lib/notifications/inviteNotificationStateV2.ts');
 const policy = read('src/lib/notifications/notificationPolicy.ts');
 const center = read('src/components/UnifiedInviteNotificationHistoryCenter.tsx');
+const controller = read('src/components/InAppInviteNotifications.tsx');
 const harness = read('src/qa/QaNotificationStateHarness.tsx');
 const historyRoute = read('src/app/api/notifications/history/route.ts');
 const adjustedCopy = read('src/lib/i18n/rewardAdjustedCopy.ts');
@@ -43,6 +44,8 @@ test('history never auto-opens and WATCH is internal-only', () => {
     center,
     /items\.filter\(\(item\) => item\.kind !== 'SECURITY_INVITER_WATCH'\)/u,
   );
+  assert.doesNotMatch(controller, /newestUnreadSecurityHistoryId/u);
+  assert.doesNotMatch(controller, /refreshLifecycle\((?:true|false)\)/u);
 });
 
 test('user-facing history filters WATCH while preserving internal audit records', () => {
