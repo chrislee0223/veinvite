@@ -143,6 +143,8 @@ export function HomeClient() {
     locale,
     referralLink,
     referralLinkVerified,
+    referralLinkFailed,
+    feedback,
     setFeedback,
   });
 
