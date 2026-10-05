@@ -16,9 +16,9 @@ export type RewardPaidTransientFeedback = {
   title: string;
   text: string;
   amountB3tr: string;
-  shareLabel: string;
+  shareLabel?: string;
   confirmLabel: string;
-  onShare: () => void;
+  onShare?: () => void;
   onConfirm: () => void | Promise<void>;
 };
 
@@ -165,13 +165,15 @@ export function TransientSnackbar({
 
       {reward ? (
         <div className="rewardFeedbackActions">
-          <button
-            type="button"
-            className="rewardShareButton"
-            onClick={feedback.onShare}
-          >
-            {feedback.shareLabel}
-          </button>
+          {feedback.onShare && feedback.shareLabel ? (
+            <button
+              type="button"
+              className="rewardShareButton"
+              onClick={feedback.onShare}
+            >
+              {feedback.shareLabel}
+            </button>
+          ) : null}
           <button
             type="button"
             className="rewardConfirmButton"
