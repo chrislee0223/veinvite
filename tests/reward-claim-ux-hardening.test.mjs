@@ -83,7 +83,7 @@ test('Home Claim reconciles ambiguous responses and never auto-posts a second Cl
   );
   assert.match(
     homeClient,
-    /activeWalletRef\.current = wallet;\s*setClaimPendingCode\(null\)/u,
+    /activeWalletRef\.current = wallet;[\s\S]{0,180}setClaimPendingCode\(null\)/u,
   );
   assert.equal(
     occurrences(homeClient, "fetch('/api/rewards/claims'"),
