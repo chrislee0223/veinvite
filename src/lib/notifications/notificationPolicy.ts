@@ -13,7 +13,7 @@ export type NotificationTransientSurface =
 
 export type NotificationDeliveryPolicy = {
   userVisible: boolean;
-  persistInHistory: boolean;
+  showInHistory: boolean;
   autoOpenHistory: false;
   transientSurface: NotificationTransientSurface;
   readBehavior: NotificationReadBehavior;
@@ -21,7 +21,7 @@ export type NotificationDeliveryPolicy = {
 
 const HISTORY_TAP: NotificationDeliveryPolicy = {
   userVisible: true,
-  persistInHistory: true,
+  showInHistory: true,
   autoOpenHistory: false,
   transientSurface: 'none',
   readBehavior: 'tap',
@@ -42,7 +42,7 @@ export const NOTIFICATION_POLICY: Record<
   REWARD_READY: HISTORY_TAP,
   REWARD_PAID: {
     userVisible: true,
-    persistInHistory: true,
+    showInHistory: true,
     autoOpenHistory: false,
     transientSurface: 'reward-paid',
     readBehavior: 'receipt',
@@ -56,7 +56,7 @@ export const NOTIFICATION_POLICY: Record<
   SECURITY_RESTRICTION_CONFIRMED: HISTORY_SECURITY,
   SECURITY_INVITER_WATCH: {
     userVisible: false,
-    persistInHistory: false,
+    showInHistory: false,
     autoOpenHistory: false,
     transientSurface: 'none',
     readBehavior: 'none',
