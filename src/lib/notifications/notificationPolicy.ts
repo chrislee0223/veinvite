@@ -11,13 +11,28 @@ export type NotificationTransientSurface =
   | 'none'
   | 'reward-paid';
 
-export type NotificationDeliveryPolicy = {
-  userVisible: boolean;
-  showInHistory: boolean;
-  autoOpenHistory: false;
-  transientSurface: NotificationTransientSurface;
-  readBehavior: NotificationReadBehavior;
-};
+export type NotificationDeliveryPolicy =
+  | {
+      userVisible: true;
+      showInHistory: true;
+      autoOpenHistory: false;
+      transientSurface: 'none';
+      readBehavior: 'tap';
+    }
+  | {
+      userVisible: true;
+      showInHistory: true;
+      autoOpenHistory: false;
+      transientSurface: 'reward-paid';
+      readBehavior: 'receipt';
+    }
+  | {
+      userVisible: false;
+      showInHistory: false;
+      autoOpenHistory: false;
+      transientSurface: 'none';
+      readBehavior: 'none';
+    };
 
 const HISTORY_TAP: NotificationDeliveryPolicy = {
   userVisible: true,
