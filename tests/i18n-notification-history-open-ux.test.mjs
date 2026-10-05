@@ -47,17 +47,11 @@ test('opening the notification dialog focuses the panel without painting the clo
 });
 
 
-test('reward action loading is present before the notification panel first paints', () => {
-  assert.match(center, /useLayoutEffect/);
-  assert.match(
-    center,
-    /useLayoutEffect\(\(\) => \{[\s\S]*void loadRewardActions\(\)/,
-  );
-  assert.doesNotMatch(
-    center,
-    /setRewardActions\(\[\]\)[\s\S]{0,260}if \(!open\)/,
-  );
-  assert.match(center, /\.notificationActionLoading\{min-height:72px/);
+test('notification history no longer owns Claim loading or payout actions', () => {
+  assert.doesNotMatch(center, /useLayoutEffect/);
+  assert.doesNotMatch(center, /loadRewardActions/);
+  assert.doesNotMatch(center, /notificationClaimButton/);
+  assert.doesNotMatch(center, /\/api\/notifications\/reward-actions/);
 });
 
 
@@ -70,7 +64,8 @@ test('notification center opens as one fixed frame instead of growing after the 
   assert.match(center, /display:flex;flex-direction:column/);
   assert.match(center, /\.notificationHistoryBodyFrame\{flex:1 1 auto;min-height:0;overflow:hidden\}/);
   assert.match(center, /\.notificationHistoryScroll\{height:100%;max-height:none/);
-  assert.match(receiptView, /\.notificationReceiptView\{height:100%;max-height:none/);
+  assert.match(receiptView, /\.notificationReceiptView\{max-height:100%;overflow-y:auto/);
+  assert.match(center, /\.notificationHistoryPanel\.hasReceipt\{height:auto;/);
   assert.match(center, /\.notificationHistoryState\{height:100%;min-height:0;box-sizing:border-box/);
   assert.match(
     center,
