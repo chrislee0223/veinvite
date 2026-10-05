@@ -302,17 +302,19 @@ export function HomeClient() {
     if (
       !pendingRewardPaidToast ||
       !referralLinkVerified ||
-      !rewardShareUrl
+      !referralLink
     ) {
       return;
     }
 
     const payload = pendingRewardPaidToast;
     feedbackIdRef.current += 1;
+    const toastRewardShareUrl =
+      `https://veinvite.vercel.app/s/${encodeURIComponent(referralLink.key)}`;
     const shareIntentUrl = rewardReceiptXIntentUrl({
       locale,
       amountB3tr: payload.amountB3tr,
-      referralUrl: rewardShareUrl,
+      referralUrl: toastRewardShareUrl,
     });
 
     setFeedback({
@@ -338,8 +340,8 @@ export function HomeClient() {
     acknowledgeRewardPaidToast,
     locale,
     pendingRewardPaidToast,
+    referralLink,
     referralLinkVerified,
-    rewardShareUrl,
   ]);
 
   useEffect(() => {
