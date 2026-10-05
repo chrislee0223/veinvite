@@ -3399,16 +3399,27 @@ async function issueClearance(
       result.verdict === 'WATCH'
     )
   ) {
-    // A newly issued (or idempotently re-read) current clearance is a second
-    // durable wake-up edge. This closes the race where mission completion
-    // happened before CHAIN_FINALITY and the first continuation exhausted
-    // retries before clearance became available.
-    await enqueueRewardReservationContinuation({
-      inviteCode,
-      detectedAt: new Date().toISOString(),
-      trigger: 'SYBIL_CLEARANCE',
-      assessmentRevision: issuedRevision,
-    });
+    // A current clearance is a second durable wake-up edge. Reservation
+    // continuation delivery is best-effort here: a Queue transport failure
+    // must never roll back or disguise an already-issued security clearance.
+    try {
+      await enqueueRewardReservationContinuation({
+        inviteCode,
+        detectedAt: new Date().toISOString(),
+        trigger: 'SYBIL_CLEARANCE',
+        assessmentRevision: issuedRevision,
+      });
+    } catch (reservationError) {
+      console.error(
+        'Sybil v2 clearance reward reservation continuation could not be published:',
+        {
+          inviteCode,
+          assessmentRevision:
+            issuedRevision,
+          error: reservationError,
+        },
+      );
+    }
   }
 
   return result;
