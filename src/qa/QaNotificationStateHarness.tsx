@@ -20,7 +20,10 @@ import type {
   InviteNotificationKindV2,
 } from '@/lib/notifications/inviteNotificationStateV2';
 import type { RewardReceipt } from '@/lib/rewards/rewardReceipt';
-import { rewardReceiptShareLabel } from '@/lib/rewards/rewardReceiptShare';
+import {
+  rewardReceiptShareLabel,
+  rewardReceiptXIntentUrl,
+} from '@/lib/rewards/rewardReceiptShare';
 
 export type QaNotificationStateId =
   | 'NOTI-BELL-EMPTY'
@@ -559,7 +562,19 @@ export function QaNotificationStateHarness({
             amountB3tr: '262.97',
             shareLabel: rewardReceiptShareLabel(locale),
             confirmLabel: NOTIFICATION_COPY[locale].confirm,
-            onShare: () => {},
+            onShare: () => {
+              const intentUrl = rewardReceiptXIntentUrl({
+                locale,
+                amountB3tr: '262.97',
+                referralUrl:
+                  'https://veinvite.vercel.app/s/qa-reward-share-preview',
+              });
+              window.open(
+                intentUrl,
+                '_blank',
+                'noopener,noreferrer',
+              );
+            },
             onConfirm: () => {},
           }}
           closeLabel={NOTIFICATION_COPY[locale].closeAria}
