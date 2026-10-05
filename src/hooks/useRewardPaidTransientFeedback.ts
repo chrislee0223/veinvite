@@ -13,7 +13,7 @@ import type {
   TransientFeedback,
 } from '@/components/TransientSnackbar';
 import { NOTIFICATION_COPY } from '@/lib/i18n/notificationCopy';
-import { rewardPaidNotificationBody } from '@/lib/i18n/rewardPaidNotificationCopy';
+import { REWARD_RECEIPT_COPY } from '@/lib/i18n/rewardReceiptCopy';
 import type { SupportedLocale } from '@/lib/i18n/locales';
 import {
   consumeRewardPaidToast,
@@ -111,7 +111,7 @@ export function useRewardPaidTransientFeedback({
       id: feedbackIdRef.current,
       kind: 'reward',
       title: NOTIFICATION_COPY[locale].rewardTitle,
-      text: rewardPaidNotificationBody(locale, payload.amountB3tr),
+      text: REWARD_RECEIPT_COPY[locale].description,
       amountB3tr: payload.amountB3tr,
       ...(shareIntentUrl
         ? {
