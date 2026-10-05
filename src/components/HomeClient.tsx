@@ -30,7 +30,6 @@ import {
 } from '@/lib/homeStartupReadiness';
 import { HOME_COPY } from '@/lib/i18n/homeCopy';
 import { NOTIFICATION_COPY } from '@/lib/i18n/notificationCopy';
-import { rewardPaidNotificationBody } from '@/lib/i18n/rewardPaidNotificationCopy';
 import { rewardAdjustedCopy } from '@/lib/i18n/rewardAdjustedCopy';
 import { PROGRESS_CLAIM_COPY } from '@/lib/i18n/progressClaimCopy';
 import { REFERRAL_LINK_COPY } from '@/lib/i18n/referralLinkCopy';
@@ -50,14 +49,7 @@ import {
 } from '@/lib/rewards/rewardClaimClient';
 import { isReferralKey, type ReferralLinkRecord } from '@/lib/referralLinks';
 import type { InviteRecord } from '@/lib/types';
-import {
-  consumeRewardPaidToast,
-  type RewardPaidToastPayload,
-} from '@/lib/notifications/rewardPaidToast';
-import {
-  rewardReceiptShareLabel,
-  rewardReceiptXIntentUrl,
-} from '@/lib/rewards/rewardReceiptShare';
+import { useRewardPaidTransientFeedback } from '@/hooks/useRewardPaidTransientFeedback';
 
 const AppGuide = dynamic(() =>
   import('./AppGuide').then((module) => module.AppGuide),
@@ -80,8 +72,6 @@ const ACTIVE_STATUSES = new Set([
 ]);
 const HOME_REFRESH_MS = 60_000;
 const EVIDENCE_REFRESH_MS = 120_000;
-const REWARD_RECEIPT_ACKNOWLEDGED_EVENT =
-  'veinvite-reward-receipt-acknowledged';
 const HOME_DATA_REFRESH_REQUESTED_EVENT =
   'veinvite-home-data-refresh-requested';
 const B3TR_DECIMALS = 18n;
@@ -189,8 +179,6 @@ export function HomeClient() {
   const [loading, setLoading] = useState(false);
   const [feedback, setFeedback] =
     useState<TransientFeedback | null>(null);
-  const [pendingRewardPaidToast, setPendingRewardPaidToast] =
-    useState<RewardPaidToastPayload | null>(null);
   const [activeTab, setActiveTab] = useState<AppTab>('home');
   const [vercelShareToken, setVercelShareToken] = useState('');
   const [legacyCancelTarget, setLegacyCancelTarget] =
@@ -225,6 +213,14 @@ export function HomeClient() {
     const next = { id: feedbackIdRef.current, kind, text } as const;
     setFeedback((current) => current?.kind === 'reward' ? current : next);
   }, []);
+
+  useRewardPaidTransientFeedback({
+    wallet,
+    locale,
+    referralLink,
+    referralLinkVerified,
+    setFeedback,
+  });
 
   useEffect(() => {
     const saved = window.localStorage.getItem(LANGUAGE_STORAGE_KEY);
@@ -271,79 +267,7 @@ export function HomeClient() {
     setReferralLinkVerified(false);
     setReferralLinkFailed(false);
     setReferralLink(wallet ? readCachedReferralLink(wallet) : null);
-    setPendingRewardPaidToast(
-      wallet ? consumeRewardPaidToast(wallet) : null,
-    );
   }, [wallet]);
-
-  const acknowledgeRewardPaidToast = useCallback(async (
-    payload: RewardPaidToastPayload,
-  ) => {
-    try {
-      const response = await fetch(
-        `/api/rewards/receipts/${encodeURIComponent(payload.receiptId)}/seen`,
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            intent: 'ACKNOWLEDGE_REWARD_RECEIPT',
-          }),
-        },
-      );
-      if (!response.ok) return;
-      window.dispatchEvent(
-        new Event(REWARD_RECEIPT_ACKNOWLEDGED_EVENT),
-      );
-    } catch {
-      // A transient read-state failure must never affect the payout itself.
-    }
-  }, []);
-
-  useEffect(() => {
-    if (
-      !pendingRewardPaidToast ||
-      !referralLinkVerified ||
-      !referralLink
-    ) {
-      return;
-    }
-
-    const payload = pendingRewardPaidToast;
-    feedbackIdRef.current += 1;
-    const toastRewardShareUrl =
-      `https://veinvite.vercel.app/s/${encodeURIComponent(referralLink.key)}`;
-    const shareIntentUrl = rewardReceiptXIntentUrl({
-      locale,
-      amountB3tr: payload.amountB3tr,
-      referralUrl: toastRewardShareUrl,
-    });
-
-    setFeedback({
-      id: feedbackIdRef.current,
-      kind: 'reward',
-      title: NOTIFICATION_COPY[locale].rewardTitle,
-      text: rewardPaidNotificationBody(locale, payload.amountB3tr),
-      amountB3tr: payload.amountB3tr,
-      shareLabel: rewardReceiptShareLabel(locale),
-      confirmLabel: NOTIFICATION_COPY[locale].confirm,
-      onShare: () => {
-        window.open(
-          shareIntentUrl,
-          '_blank',
-          'noopener,noreferrer',
-        );
-        void acknowledgeRewardPaidToast(payload);
-      },
-      onConfirm: () => acknowledgeRewardPaidToast(payload),
-    });
-    setPendingRewardPaidToast(null);
-  }, [
-    acknowledgeRewardPaidToast,
-    locale,
-    pendingRewardPaidToast,
-    referralLink,
-    referralLinkVerified,
-  ]);
 
   useEffect(() => {
     const hasStartupError =
