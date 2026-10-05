@@ -341,6 +341,7 @@ export function InviteNotificationHistoryCenter({
   previewRewardReceipt = null,
   onRewardShare,
   skipRewardActionRequests = true,
+  allowProgrammaticOpen = false,
 }: {
   locale: Locale;
   items: InviteNotificationHistoryItem[];
@@ -363,6 +364,7 @@ export function InviteNotificationHistoryCenter({
   previewRewardReceipt?: RewardReceipt | null;
   onRewardShare?: (intentUrl: string) => void;
   skipRewardActionRequests?: boolean;
+  allowProgrammaticOpen?: boolean;
 }) {
   const supportedLocale = locale as SupportedLocale;
   const structure = NOTIFICATION_HISTORY_COPY[supportedLocale];
@@ -380,6 +382,8 @@ export function InviteNotificationHistoryCenter({
   const receiptAutoAckIdRef = useRef<string | null>(null);
   const [clockTick, setClockTick] = useState(0);
   const [closing, setClosing] = useState(false);
+  const [manualOpen, setManualOpen] = useState(false);
+  const visibleOpen = open && (manualOpen || allowProgrammaticOpen);
   const [rewardActions, setRewardActions] = useState<RewardActionItem[]>(
     () => initialRewardActions ?? [],
   );
@@ -398,6 +402,10 @@ export function InviteNotificationHistoryCenter({
   useEffect(() => {
     onCloseRef.current = onClose;
   }, [onClose]);
+
+  useEffect(() => {
+    if (!open) setManualOpen(false);
+  }, [open]);
 
   useEffect(() => {
     if (initialRewardActions === null) return;
@@ -476,7 +484,7 @@ export function InviteNotificationHistoryCenter({
     getRewardActionPollingMode(rewardActions);
 
   useLayoutEffect(() => {
-    if (!open) {
+    if (!visibleOpen) {
       actionRequestRef.current += 1;
       receiptRequestRef.current += 1;
       setActionLoading(false);
@@ -513,7 +521,7 @@ export function InviteNotificationHistoryCenter({
     }, pollIntervalMs);
 
     return () => window.clearInterval(timer);
-  }, [loadRewardActions, open, rewardActionPollingMode, skipRewardActionRequests]);
+  }, [loadRewardActions, rewardActionPollingMode, skipRewardActionRequests, visibleOpen]);
 
   const claimReward = useCallback(async (action: RewardActionItem) => {
     if (
@@ -772,12 +780,13 @@ export function InviteNotificationHistoryCenter({
       closeTimerRef.current = null;
     }
     setClosing(false);
+    setManualOpen(false);
     onCloseRef.current();
     restoreBellFocus();
   }, [restoreBellFocus]);
 
   const closePanel = useCallback(() => {
-    if (!open || closeTimerRef.current !== null) return;
+    if (!visibleOpen || closeTimerRef.current !== null) return;
 
     receiptRequestRef.current += 1;
     const reducedMotion =
@@ -793,24 +802,24 @@ export function InviteNotificationHistoryCenter({
       finishClose,
       NOTIFICATION_CLOSE_FALLBACK_MS,
     );
-  }, [finishClose, open]);
+  }, [finishClose, visibleOpen]);
 
   useEffect(() => {
-    if (!open) return;
+    if (!visibleOpen) return;
     const timer = window.setInterval(() => {
       setClockTick((value) => value + 1);
     }, 60_000);
     return () => window.clearInterval(timer);
-  }, [open]);
+  }, [visibleOpen]);
 
   useEffect(() => {
-    if (open || !closing) return;
+    if (visibleOpen || !closing) return;
     if (closeTimerRef.current !== null) {
       window.clearTimeout(closeTimerRef.current);
       closeTimerRef.current = null;
     }
     setClosing(false);
-  }, [closing, open]);
+  }, [closing, visibleOpen]);
 
   useEffect(() => () => {
     if (closeTimerRef.current !== null) {
@@ -820,7 +829,7 @@ export function InviteNotificationHistoryCenter({
   }, []);
 
   useEffect(() => {
-    if (!open) return;
+    if (!visibleOpen) return;
 
     const previousOverflow = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
@@ -875,7 +884,7 @@ export function InviteNotificationHistoryCenter({
       document.removeEventListener('keydown', onKeyDown);
       document.body.style.overflow = previousOverflow;
     };
-  }, [closePanel, open, receipt, receiptError, receiptLoading]);
+  }, [closePanel, receipt, receiptError, receiptLoading, visibleOpen]);
 
   const renderItemContent = (
     item: InviteNotificationHistoryItem,
@@ -1050,11 +1059,15 @@ export function InviteNotificationHistoryCenter({
             ? `${notificationCopy.bellAria} (${unreadCount})`
             : notificationCopy.bellAria
         }
-        aria-expanded={open}
-        aria-controls={open ? NOTIFICATION_DIALOG_ID : undefined}
+        aria-expanded={visibleOpen}
+        aria-controls={visibleOpen ? NOTIFICATION_DIALOG_ID : undefined}
         onClick={() => {
-          if (open) closePanel();
-          else onOpen();
+          if (visibleOpen) {
+            closePanel();
+            return;
+          }
+          setManualOpen(true);
+          onOpen();
         }}
       >
         <BellIcon />
@@ -1065,7 +1078,7 @@ export function InviteNotificationHistoryCenter({
         ) : null}
       </button>
 
-      {open ? (
+      {visibleOpen ? (
         <>
           <div
             className={
