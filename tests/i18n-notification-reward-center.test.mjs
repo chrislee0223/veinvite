@@ -11,6 +11,7 @@ const claimRoute = read('src/app/api/rewards/claims/route.ts');
 const invitesRoute = read('src/app/api/invites/route.ts');
 const page = read('src/app/page.tsx');
 const home = read('src/components/HomeClient.tsx');
+const rewardPaidTransient = read('src/hooks/useRewardPaidTransientFeedback.ts');
 const activeReceipt = read('src/components/ActiveWalletRewardReceiptNotice.tsx');
 const paidSync = read('src/components/PaidActivationLiveSync.tsx');
 const paidToast = read('src/lib/notifications/rewardPaidToast.ts');
@@ -80,10 +81,11 @@ test('actual payout uses the common bottom snackbar with X share and confirm', (
   assert.match(paidToast, /sessionStorage\.setItem/);
   assert.match(paidToast, /sessionStorage\.removeItem/);
 
-  assert.match(home, /consumeRewardPaidToast\(wallet\)/);
-  assert.match(home, /kind: 'reward'/);
-  assert.match(home, /rewardReceiptXIntentUrl/);
-  assert.match(home, /ACKNOWLEDGE_REWARD_RECEIPT/);
+  assert.match(home, /useRewardPaidTransientFeedback/);
+  assert.match(rewardPaidTransient, /consumeRewardPaidToast\(wallet\)/);
+  assert.match(rewardPaidTransient, /kind: 'reward'/);
+  assert.match(rewardPaidTransient, /rewardReceiptXIntentUrl/);
+  assert.match(rewardPaidTransient, /ACKNOWLEDGE_REWARD_RECEIPT/);
   assert.match(snackbar, /feedback\.kind === 'reward'/);
   assert.match(snackbar, /className="rewardShareButton"/);
   assert.match(snackbar, /className="rewardConfirmButton"/);
@@ -123,7 +125,7 @@ test('paid reward receipt shares the verified permanent invite link on X', () =>
   assert.match(rewardReceiptView, /rewardReceiptXIntentUrl/);
   assert.match(rewardReceiptView, /className="notificationXShare"/);
   assert.match(rewardReceiptView, /window\.open\(\s*rewardShareIntentUrl/);
-  assert.match(home, /https:\/\/veinvite\.vercel\.app\/s\//);
+  assert.match(rewardPaidTransient, /https:\/\/veinvite\.vercel\.app\/s\//);
   assert.match(rewardShare, /https:\/\/x\.com\/intent\/post/);
   assert.match(rewardShare, /Record<\s*SupportedLocale/);
   assert.match(rewardShare, /'#VeBetterDAO #B3TR #VeInvite'/);
