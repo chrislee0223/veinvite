@@ -377,6 +377,7 @@ export function InviteNotificationHistoryCenter({
   const onCloseRef = useRef(onClose);
   const actionRequestRef = useRef(0);
   const receiptRequestRef = useRef(0);
+  const receiptAutoAckIdRef = useRef<string | null>(null);
   const [clockTick, setClockTick] = useState(0);
   const [closing, setClosing] = useState(false);
   const [rewardActions, setRewardActions] = useState<RewardActionItem[]>(
@@ -653,6 +654,7 @@ export function InviteNotificationHistoryCenter({
   ) => {
     const requestId = receiptRequestRef.current + 1;
     receiptRequestRef.current = requestId;
+    receiptAutoAckIdRef.current = null;
     setReceipt(null);
     setReceiptError('');
 
@@ -755,6 +757,8 @@ export function InviteNotificationHistoryCenter({
 
   useEffect(() => {
     if (!receipt || receipt.seen || receiptAcknowledging) return;
+    if (receiptAutoAckIdRef.current === receipt.id) return;
+    receiptAutoAckIdRef.current = receipt.id;
     void acknowledgeReceipt();
   }, [acknowledgeReceipt, receipt, receiptAcknowledging]);
 
