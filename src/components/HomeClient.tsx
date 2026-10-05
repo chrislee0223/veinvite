@@ -30,6 +30,7 @@ import {
 } from '@/lib/homeStartupReadiness';
 import { HOME_COPY } from '@/lib/i18n/homeCopy';
 import { NOTIFICATION_COPY } from '@/lib/i18n/notificationCopy';
+import { rewardPaidNotificationBody } from '@/lib/i18n/rewardPaidNotificationCopy';
 import { PROGRESS_CLAIM_COPY } from '@/lib/i18n/progressClaimCopy';
 import { REFERRAL_LINK_COPY } from '@/lib/i18n/referralLinkCopy';
 import {
@@ -48,6 +49,14 @@ import {
 } from '@/lib/rewards/rewardClaimClient';
 import { isReferralKey, type ReferralLinkRecord } from '@/lib/referralLinks';
 import type { InviteRecord } from '@/lib/types';
+import {
+  consumeRewardPaidToast,
+  type RewardPaidToastPayload,
+} from '@/lib/notifications/rewardPaidToast';
+import {
+  rewardReceiptShareLabel,
+  rewardReceiptXIntentUrl,
+} from '@/lib/rewards/rewardReceiptShare';
 
 const AppGuide = dynamic(() =>
   import('./AppGuide').then((module) => module.AppGuide),
@@ -70,6 +79,8 @@ const ACTIVE_STATUSES = new Set([
 ]);
 const HOME_REFRESH_MS = 60_000;
 const EVIDENCE_REFRESH_MS = 120_000;
+const REWARD_RECEIPT_ACKNOWLEDGED_EVENT =
+  'veinvite-reward-receipt-acknowledged';
 const HOME_DATA_REFRESH_REQUESTED_EVENT =
   'veinvite-home-data-refresh-requested';
 const B3TR_DECIMALS = 18n;
@@ -177,6 +188,8 @@ export function HomeClient() {
   const [loading, setLoading] = useState(false);
   const [feedback, setFeedback] =
     useState<TransientFeedback | null>(null);
+  const [pendingRewardPaidToast, setPendingRewardPaidToast] =
+    useState<RewardPaidToastPayload | null>(null);
   const [activeTab, setActiveTab] = useState<AppTab>('home');
   const [vercelShareToken, setVercelShareToken] = useState('');
   const [legacyCancelTarget, setLegacyCancelTarget] =
@@ -196,6 +209,10 @@ export function HomeClient() {
   const progressCopy = PROGRESS_CLAIM_COPY[locale];
 
   const clearFeedback = useCallback(() => {
+    setFeedback((current) => current?.kind === 'reward' ? current : null);
+  }, []);
+
+  const dismissFeedback = useCallback(() => {
     setFeedback(null);
   }, []);
 
@@ -204,7 +221,8 @@ export function HomeClient() {
     text: string,
   ) => {
     feedbackIdRef.current += 1;
-    setFeedback({ id: feedbackIdRef.current, kind, text });
+    const next = { id: feedbackIdRef.current, kind, text } as const;
+    setFeedback((current) => current?.kind === 'reward' ? current : next);
   }, []);
 
   useEffect(() => {
@@ -252,7 +270,77 @@ export function HomeClient() {
     setReferralLinkVerified(false);
     setReferralLinkFailed(false);
     setReferralLink(wallet ? readCachedReferralLink(wallet) : null);
+    setPendingRewardPaidToast(
+      wallet ? consumeRewardPaidToast(wallet) : null,
+    );
   }, [wallet]);
+
+  const acknowledgeRewardPaidToast = useCallback(async (
+    payload: RewardPaidToastPayload,
+  ) => {
+    try {
+      const response = await fetch(
+        `/api/rewards/receipts/${encodeURIComponent(payload.receiptId)}/seen`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            intent: 'ACKNOWLEDGE_REWARD_RECEIPT',
+          }),
+        },
+      );
+      if (!response.ok) return;
+      window.dispatchEvent(
+        new Event(REWARD_RECEIPT_ACKNOWLEDGED_EVENT),
+      );
+    } catch {
+      // A transient read-state failure must never affect the payout itself.
+    }
+  }, []);
+
+  useEffect(() => {
+    if (
+      !pendingRewardPaidToast ||
+      !referralLinkVerified ||
+      !rewardShareUrl
+    ) {
+      return;
+    }
+
+    const payload = pendingRewardPaidToast;
+    feedbackIdRef.current += 1;
+    const shareIntentUrl = rewardReceiptXIntentUrl({
+      locale,
+      amountB3tr: payload.amountB3tr,
+      referralUrl: rewardShareUrl,
+    });
+
+    setFeedback({
+      id: feedbackIdRef.current,
+      kind: 'reward',
+      title: NOTIFICATION_COPY[locale].rewardTitle,
+      text: rewardPaidNotificationBody(locale, payload.amountB3tr),
+      amountB3tr: payload.amountB3tr,
+      shareLabel: rewardReceiptShareLabel(locale),
+      confirmLabel: NOTIFICATION_COPY[locale].confirm,
+      onShare: () => {
+        window.open(
+          shareIntentUrl,
+          '_blank',
+          'noopener,noreferrer',
+        );
+        void acknowledgeRewardPaidToast(payload);
+      },
+      onConfirm: () => acknowledgeRewardPaidToast(payload),
+    });
+    setPendingRewardPaidToast(null);
+  }, [
+    acknowledgeRewardPaidToast,
+    locale,
+    pendingRewardPaidToast,
+    referralLinkVerified,
+    rewardShareUrl,
+  ]);
 
   useEffect(() => {
     const hasStartupError =
@@ -1153,7 +1241,7 @@ export function HomeClient() {
       <TransientSnackbar
         feedback={feedback}
         closeLabel={NOTIFICATION_COPY[locale].closeAria}
-        onDismiss={clearFeedback}
+        onDismiss={dismissFeedback}
       />
 
       <AppBottomNavigation
