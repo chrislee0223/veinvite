@@ -6,7 +6,23 @@ const migrationPath =
   'supabase/migrations/20261005003000_add_reward_recovery_offset_accounting.sql';
 
 async function sources() {
-  const [sql, hardeningSql, metricsSql, preserveMetricsSql, history, copy, leaderboard] = await Promise.all([
+  const [
+    sql,
+    hardeningSql,
+    metricsSql,
+    preserveMetricsSql,
+    restrictedRecoverySql,
+    repricingGuardSql,
+    pauseSql,
+    planningAlignmentSql,
+    commitmentAuthoritySql,
+    history,
+    notificationState,
+    notificationClient,
+    predictivePlanning,
+    copy,
+    leaderboard,
+  ] = await Promise.all([
     readFile(migrationPath, 'utf8'),
     readFile(
       'supabase/migrations/20261005003050_harden_reward_recovery_reversals.sql',
@@ -20,7 +36,30 @@ async function sources() {
       'supabase/migrations/20261005024000_preserve_legacy_round_metrics_with_recovery.sql',
       'utf8',
     ),
+    readFile(
+      'supabase/migrations/20261004183258_restore_recovery_on_restricted_settlement.sql',
+      'utf8',
+    ),
+    readFile(
+      'supabase/migrations/20261005034309_guard_recovery_cohort_repricing.sql',
+      'utf8',
+    ),
+    readFile(
+      'supabase/migrations/20261005035609_pause_reward_recovery_for_final_verification.sql',
+      'utf8',
+    ),
+    readFile(
+      'supabase/migrations/20261005040816_align_recovery_settled_planning_and_operator_eligibility.sql',
+      'utf8',
+    ),
+    readFile(
+      'supabase/migrations/20261005042526_align_reward_cohort_planning_commitment_authority.sql',
+      'utf8',
+    ),
     readFile('src/components/InAppInviteNotifications.tsx', 'utf8'),
+    readFile('src/lib/notifications/inviteNotificationStateV2.ts', 'utf8'),
+    readFile('src/lib/notifications/notificationHistoryClient.ts', 'utf8'),
+    readFile('src/lib/rewards/predictivePlanning.ts', 'utf8'),
     readFile('src/lib/i18n/rewardAdjustedCopy.ts', 'utf8'),
     readFile('src/app/api/leaderboard/route.ts', 'utf8'),
   ]);
@@ -29,7 +68,15 @@ async function sources() {
     hardeningSql,
     metricsSql,
     preserveMetricsSql,
+    restrictedRecoverySql,
+    repricingGuardSql,
+    pauseSql,
+    planningAlignmentSql,
+    commitmentAuthoritySql,
     history,
+    notificationState,
+    notificationClient,
+    predictivePlanning,
     copy,
     leaderboard,
   };
@@ -270,5 +317,98 @@ test('legacy queue-based round counts stay unchanged and full offsets are additi
   assert.match(
     preserveMetricsSql,
     /select v_cumulative_completed \+ count\(distinct s\.invite_code\)[\s\S]*?settlement_kind = 'FULL_OFFSET'/u,
+  );
+});
+
+
+test('restricted or later-invalid recovery restores only economic value already consumed', async () => {
+  const { restrictedRecoverySql } = await sources();
+  assert.match(
+    restrictedRecoverySql,
+    /v_desired :=[\s\S]*?v_settlement\.offset_amount_wei \+[\s\S]*?coalesce\(v_receipt\.amount_wei,0\)/u,
+  );
+  assert.match(
+    restrictedRecoverySql,
+    /veinvite_reward_recovery_[\s\S]*?v_settlement\.recipient_wallet/u,
+  );
+  assert.match(
+    restrictedRecoverySql,
+    /SOURCE_RESTRICTION_REINSTATED_AFTER_CONSUMPTION/u,
+  );
+});
+
+test('recovery-enabled reservations reject stale cohort pricing before consuming recovery', async () => {
+  const { repricingGuardSql } = await sources();
+  assert.match(
+    repricingGuardSql,
+    /p_basis \? 'cohortReservedWei'/u,
+  );
+  assert.match(
+    repricingGuardSql,
+    /v_expected_cohort_committed :=[\s\S]*?p_basis->>'cohortReservedWei'/u,
+  );
+  assert.match(
+    repricingGuardSql,
+    /v_cohort_committed<>v_expected_cohort_committed[\s\S]*?'RECALCULATE'/u,
+  );
+  const staleGuard = repricingGuardSql.indexOf(
+    'v_cohort_committed<>v_expected_cohort_committed',
+  );
+  const recoveryLock = repricingGuardSql.indexOf(
+    "'veinvite_reward_recovery_'",
+  );
+  assert.ok(staleGuard >= 0 && recoveryLock > staleGuard);
+});
+
+test('recovery stays paused until final activation is explicitly reviewed', async () => {
+  const { pauseSql } = await sources();
+  assert.match(
+    pauseSql,
+    /set reward_recovery_enabled = false/u,
+  );
+});
+
+test('settled full offsets are not re-counted as unreserved or claimable planning work', async () => {
+  const { planningAlignmentSql } = await sources();
+  assert.match(
+    planningAlignmentSql,
+    /not exists\(select 1 from public\.reward_recovery_settlements s where s\.invite_code=i\.invite_code\)/u,
+  );
+  assert.match(
+    planningAlignmentSql,
+    /settlement_kind='FULL_OFFSET'[\s\S]*?net_amount_wei=0/u,
+  );
+});
+
+test('planning snapshot and application planning share one lifetime gross commitment authority', async () => {
+  const { commitmentAuthoritySql, predictivePlanning } = await sources();
+  assert.match(
+    commitmentAuthoritySql,
+    /v_cohort_reserved := public\.read_reward_cohort_committed_wei/u,
+  );
+  assert.match(
+    predictivePlanning,
+    /'read_reward_cohort_committed_wei'/u,
+  );
+  assert.match(
+    predictivePlanning,
+    /cohortReservedWei = readIntegerString\([\s\S]*?rewardCohortCommittedWei/u,
+  );
+});
+
+test('reward-adjusted notices remain bell-history-only and never join lifecycle auto-open rewards', async () => {
+  const { history, notificationState, notificationClient } = await sources();
+  assert.match(history, /'REWARD_ADJUSTED'/u);
+  assert.match(
+    history,
+    /newestUnreadSecurityHistoryId\(history\.items\)/u,
+  );
+  assert.match(
+    notificationClient,
+    /kind\.startsWith\('SECURITY_'\)/u,
+  );
+  assert.doesNotMatch(
+    notificationState,
+    /kind:\s*'REWARD_ADJUSTED'/u,
   );
 });
