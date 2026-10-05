@@ -32,6 +32,12 @@ export type RewardReservationSweepResult = {
   skipped: number;
 };
 
+export type RewardReservationLiveness = {
+  missingCount: number;
+  oldestRewardEligibleAt: string | null;
+  inviteCodes: string[];
+};
+
 const MAX_RESERVATIONS_PER_SWEEP = 25;
 const MAX_REPRICE_ATTEMPTS = 4;
 
@@ -84,6 +90,22 @@ function readRpcResult(value: unknown): ReservationRpcResult {
   return value as ReservationRpcResult;
 }
 
+function skipCandidate(
+  candidate: ReservationCandidate,
+  reason: string,
+  details: Record<string, unknown> = {},
+): 'skipped' {
+  console.warn(
+    'Reward reservation candidate skipped:',
+    {
+      inviteCode: candidate.invite_code,
+      reason,
+      ...details,
+    },
+  );
+  return 'skipped';
+}
+
 async function readFinalizedBlockNumber(): Promise<number> {
   const { nodeUrl } = getVeBetterNetworkConfig();
   const thor = ThorClient.at(nodeUrl);
@@ -114,6 +136,85 @@ async function loadCandidates(network: string): Promise<ReservationCandidate[]> 
   }
 
   return Array.isArray(data) ? (data as ReservationCandidate[]) : [];
+}
+
+export async function readStaleEligibleRewardReservationLiveness(
+  staleMinutes = 15,
+): Promise<RewardReservationLiveness> {
+  if (
+    !Number.isSafeInteger(staleMinutes) ||
+    staleMinutes < 5 ||
+    staleMinutes > 1440
+  ) {
+    throw new Error(
+      'Reward reservation liveness threshold must be 5-1440 minutes.',
+    );
+  }
+
+  const { network } =
+    getVeBetterNetworkConfig();
+  const { data, error } =
+    await supabaseAdmin.rpc(
+      'read_stale_reward_reservation_liveness',
+      {
+        p_network: network,
+        p_stale_minutes: staleMinutes,
+      },
+    );
+
+  if (error) {
+    throw new Error(
+      `Reward reservation liveness could not be read: ${error.message}`,
+    );
+  }
+
+  const row =
+    Array.isArray(data)
+      ? data[0]
+      : data;
+
+  if (
+    !row ||
+    typeof row !== 'object'
+  ) {
+    throw new Error(
+      'Reward reservation liveness returned malformed data.',
+    );
+  }
+
+  const record =
+    row as Record<string, unknown>;
+  const missingCount =
+    Number(record.missing_count);
+
+  if (
+    !Number.isSafeInteger(missingCount) ||
+    missingCount < 0
+  ) {
+    throw new Error(
+      'Reward reservation liveness returned an invalid count.',
+    );
+  }
+
+  const oldest =
+    record.oldest_reward_eligible_at;
+  const inviteCodes =
+    Array.isArray(record.invite_codes)
+      ? record.invite_codes.filter(
+          (value): value is string =>
+            typeof value === 'string',
+        )
+      : [];
+
+  return {
+    missingCount,
+    oldestRewardEligibleAt:
+      typeof oldest === 'string' &&
+      !Number.isNaN(Date.parse(oldest))
+        ? oldest
+        : null,
+    inviteCodes,
+  };
 }
 
 async function reserveCandidate({
@@ -148,7 +249,10 @@ async function reserveCandidate({
     // the runtime gate for every pricing attempt so a pause activated during a
     // sweep stops the next reservation instead of waiting for the sweep to end.
     if (!(await rewardReservationRuntimeOpen(network))) {
-      return 'skipped';
+      return skipCandidate(
+        candidate,
+        'RUNTIME_CLOSED',
+      );
     }
 
     // Financial authority is cohort-scoped. The public estimate is not trusted
@@ -160,7 +264,10 @@ async function reserveCandidate({
     }
 
     if (pool.distributionPaused) {
-      return 'skipped';
+      return skipCandidate(
+        candidate,
+        'POOL_DISTRIBUTION_PAUSED',
+      );
     }
 
     const planning = await readPredictiveRewardPlanning({
@@ -176,7 +283,10 @@ async function reserveCandidate({
     });
 
     if (!planning.latestAllocation || !planning.forecast || !planning.rewardCohortRoundId) {
-      return 'skipped';
+      return skipCandidate(
+        candidate,
+        'PLANNING_UNAVAILABLE',
+      );
     }
 
     if (
@@ -188,7 +298,10 @@ async function reserveCandidate({
 
     const amountWei = planning.forecast.rewardPerInviteWei;
     if (BigInt(amountWei) <= 0n) {
-      return 'skipped';
+      return skipCandidate(
+        candidate,
+        'NON_POSITIVE_REWARD',
+      );
     }
 
     const basis = {
@@ -243,10 +356,20 @@ async function reserveCandidate({
     if (result.reason === 'AWAITING_FINALITY') {
       return 'awaiting_finality';
     }
-    return 'skipped';
+    return skipCandidate(
+      candidate,
+      'RPC_NOT_RESERVED',
+      {
+        rpcReason:
+          result.reason ?? 'UNKNOWN',
+      },
+    );
   }
 
-  return 'skipped';
+  return skipCandidate(
+    candidate,
+    'REPRICE_EXHAUSTED',
+  );
 }
 
 export async function reserveEligibleReferralRewards(): Promise<RewardReservationSweepResult> {

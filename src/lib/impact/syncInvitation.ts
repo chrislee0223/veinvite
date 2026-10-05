@@ -1079,6 +1079,25 @@ export async function syncInvitationEvidence(
     row.reward_status === 'ELIGIBLE';
 
   if (becameRewardEligible) {
+    const detectedAt =
+      new Date().toISOString();
+
+    try {
+      await enqueueRewardReservationContinuation({
+        inviteCode: row.invite_code,
+        detectedAt,
+        trigger: 'ELIGIBILITY',
+      });
+    } catch (reservationError) {
+      console.error(
+        'Reward reservation eligibility continuation publish failed:',
+        {
+          inviteCode: row.invite_code,
+          error: reservationError,
+        },
+      );
+    }
+
     let sybilV2Enforced = true;
 
     try {
@@ -1095,14 +1114,9 @@ export async function syncInvitationEvidence(
           sybilV2.state === 'WATCH') &&
         sybilV2.clearanceIssued;
 
-      if (!sybilV2Enforced || v2Ready) {
-        await enqueueRewardReservationContinuation({
-          inviteCode: row.invite_code,
-          detectedAt: new Date().toISOString(),
-        });
-      } else {
+      if (sybilV2Enforced && !v2Ready) {
         console.warn(
-          'Reward reservation withheld pending Sybil v2 clearance:',
+          'Reward reservation waiting for Sybil v2 clearance:',
           {
             inviteCode: row.invite_code,
             state: sybilV2.state,
@@ -1112,34 +1126,13 @@ export async function syncInvitationEvidence(
         );
       }
     } catch (sybilV2Error) {
-      if (!sybilV2Enforced) {
-        // Shadow mode must never alter current reward UX. Analysis failures are
-        // observed and retried, while the legacy reservation flow continues.
-        try {
-          await enqueueRewardReservationContinuation({
-            inviteCode: row.invite_code,
-            detectedAt: new Date().toISOString(),
-          });
-        } catch (reservationError) {
-          console.error(
-            'Legacy reward reservation queue failed during Sybil v2 shadow mode:',
-            {
-              inviteCode: row.invite_code,
-              error: reservationError,
-            },
-          );
-        }
-      } else {
-        // Enforcement mode is fail-closed. Eligibility is durable, but reward
-        // readiness waits for a successful current v2 clearance.
-        console.error(
-          'Sybil v2 final assessment failed before reward reservation:',
-          {
-            inviteCode: row.invite_code,
-            error: sybilV2Error,
-          },
-        );
-      }
+      console.error(
+        'Sybil v2 final assessment failed before reward reservation:',
+        {
+          inviteCode: row.invite_code,
+          error: sybilV2Error,
+        },
+      );
     }
   }
 

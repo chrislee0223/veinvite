@@ -185,7 +185,7 @@ const queueCallback = handleCallback(
     }
 
     throw new Error(
-      `Reward reservation continuation remains pending: attempted=${sweep.attempted}, reserved=${sweep.reserved}, awaitingFinality=${sweep.awaitingFinality}, skipped=${sweep.skipped}`,
+      `Reward reservation continuation remains pending: trigger=${message.trigger ?? 'LEGACY'}, assessmentRevision=${message.assessmentRevision ?? 'none'}, attempted=${sweep.attempted}, reserved=${sweep.reserved}, awaitingFinality=${sweep.awaitingFinality}, skipped=${sweep.skipped}`,
     );
   },
   {

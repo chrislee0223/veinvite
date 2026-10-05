@@ -58,27 +58,33 @@ test('shadow mode keeps temporary HOLDs and user security notifications inactive
   );
 });
 
-test('eligible reward flow continues in shadow but fails closed after enforcement', async () => {
+test('eligible reward flow preserves liveness while enforcement remains fail closed', async () => {
   const source = await readFile(
     'src/lib/impact/syncInvitation.ts',
     'utf8',
   );
+  const queue = await readFile(
+    'src/app/api/queues/reward-reservation/route.ts',
+    'utf8',
+  );
 
+  const publishIndex = source.indexOf(
+    'enqueueRewardReservationContinuation',
+  );
+  const assessmentIndex = source.indexOf(
+    'ensureSybilV2ReadyForReward',
+  );
+
+  assert.ok(publishIndex >= 0);
+  assert.ok(assessmentIndex > publishIndex);
+  assert.match(source, /trigger: 'ELIGIBILITY'/u);
   assert.match(
     source,
-    /isSybilV2EnforcementEnabled/u,
+    /if \(sybilV2Enforced && !v2Ready\)/u,
   );
   assert.match(
-    source,
-    /if \(!sybilV2Enforced \|\| v2Ready\)/u,
-  );
-  assert.match(
-    source,
-    /Shadow mode must never alter current reward UX/u,
-  );
-  assert.match(
-    source,
-    /Enforcement mode is fail-closed/u,
+    queue,
+    /if \(sybilV2Enforced\) \{[\s\S]*Sybil v2 clearance is not ready/u,
   );
 });
 

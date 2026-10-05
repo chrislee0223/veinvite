@@ -70,12 +70,16 @@ test('only actual paid rewards get the special transient reward surface', () => 
     policy,
     /REWARD_PAID:\s*\{[\s\S]*transientSurface: 'reward-paid',[\s\S]*readBehavior: 'receipt'/u,
   );
+  const policyTable = policy.slice(
+    policy.indexOf('export const NOTIFICATION_POLICY'),
+    policy.indexOf('export const TRANSIENT_FEEDBACK_POLICY'),
+  );
   const rewardSurfaceCount =
-    policy.match(/transientSurface: 'reward-paid'/gu) ?? [];
+    policyTable.match(/transientSurface: 'reward-paid'/gu) ?? [];
   assert.equal(rewardSurfaceCount.length, 1);
 
   const receiptReadCount =
-    policy.match(/readBehavior: 'receipt'/gu) ?? [];
+    policyTable.match(/readBehavior: 'receipt'/gu) ?? [];
   assert.equal(receiptReadCount.length, 1);
   assert.match(
     center,

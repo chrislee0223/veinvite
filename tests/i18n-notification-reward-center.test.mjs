@@ -87,8 +87,9 @@ test('paid history uses a natural amount sentence and receipt open marks it read
 });
 
 test('actual payout uses the common bottom snackbar without colliding with other feedback', () => {
-  assert.match(paidSync, /storeRewardPaidToast\(targetReceipt\)/);
-  assert.match(paidSync, /storeRewardPaidToast\(latestReceipt\)/);
+  const paidToastStores =
+    paidSync.match(/storeRewardPaidToast\(receipt\)/gu) ?? [];
+  assert.equal(paidToastStores.length, 2);
   assert.match(paidToast, /sessionStorage\.setItem/);
   assert.match(paidToast, /readRewardPaidToast/);
   assert.match(paidToast, /clearRewardPaidToast/);
