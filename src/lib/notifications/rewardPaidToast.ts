@@ -52,16 +52,14 @@ export function storeRewardPaidToast(receipt: RewardReceipt): void {
   }
 }
 
-export function consumeRewardPaidToast(
+export function readRewardPaidToast(
   wallet: string,
 ): RewardPaidToastPayload | null {
   if (!validWallet(wallet)) return null;
 
   try {
-    const key = keyForWallet(wallet);
-    const raw = window.sessionStorage.getItem(key);
+    const raw = window.sessionStorage.getItem(keyForWallet(wallet));
     if (!raw) return null;
-    window.sessionStorage.removeItem(key);
 
     const parsed = JSON.parse(raw) as unknown;
     if (!validPayload(parsed)) return null;
@@ -71,5 +69,31 @@ export function consumeRewardPaidToast(
     return parsed;
   } catch {
     return null;
+  }
+}
+
+export function clearRewardPaidToast(
+  wallet: string,
+  receiptId: string,
+): void {
+  if (!validWallet(wallet) || !receiptId) return;
+
+  try {
+    const key = keyForWallet(wallet);
+    const raw = window.sessionStorage.getItem(key);
+    if (!raw) return;
+
+    const parsed = JSON.parse(raw) as unknown;
+    if (
+      !validPayload(parsed) ||
+      parsed.recipientWallet.toLowerCase() !== wallet.toLowerCase() ||
+      parsed.receiptId !== receiptId
+    ) {
+      return;
+    }
+
+    window.sessionStorage.removeItem(key);
+  } catch {
+    // The durable bell history remains authoritative if storage is unavailable.
   }
 }
