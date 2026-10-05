@@ -40,10 +40,8 @@ test('history never auto-opens and WATCH is internal-only', () => {
     center,
     /const visibleOpen = open && \(manualOpen \|\| allowProgrammaticOpen\)/u,
   );
-  assert.match(
-    center,
-    /items\.filter\(\(item\) => item\.kind !== 'SECURITY_INVITER_WATCH'\)/u,
-  );
+  assert.match(center, /NOTIFICATION_POLICY\[item\.kind\]/u);
+  assert.match(center, /policy\.userVisible && policy\.showInHistory/u);
   assert.doesNotMatch(controller, /newestUnreadSecurityHistoryId/u);
   assert.doesNotMatch(controller, /refreshLifecycle\((?:true|false)\)/u);
 });
