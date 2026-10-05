@@ -98,6 +98,8 @@ test('actual payout uses the common bottom snackbar without colliding with other
   assert.match(rewardPaidTransient, /shareUnavailable/);
   assert.match(rewardPaidTransient, /kind: 'reward'/);
   assert.match(rewardPaidTransient, /rewardReceiptXIntentUrl/);
+  assert.match(rewardPaidTransient, /REWARD_RECEIPT_COPY\[locale\]\.description/);
+  assert.doesNotMatch(rewardPaidTransient, /rewardPaidNotificationBody/);
   assert.match(rewardPaidTransient, /ACKNOWLEDGE_REWARD_RECEIPT/);
   assert.match(snackbar, /feedback\.kind === 'reward'/);
   assert.match(snackbar, /feedback\.onShare && feedback\.shareLabel/);
