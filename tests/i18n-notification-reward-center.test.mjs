@@ -90,10 +90,13 @@ test('actual payout uses the common bottom snackbar without colliding with other
   assert.match(paidSync, /storeRewardPaidToast\(targetReceipt\)/);
   assert.match(paidSync, /storeRewardPaidToast\(latestReceipt\)/);
   assert.match(paidToast, /sessionStorage\.setItem/);
+  assert.match(paidToast, /readRewardPaidToast/);
+  assert.match(paidToast, /clearRewardPaidToast/);
   assert.match(paidToast, /sessionStorage\.removeItem/);
 
   assert.match(home, /useRewardPaidTransientFeedback/);
-  assert.match(rewardPaidTransient, /consumeRewardPaidToast\(wallet\)/);
+  assert.match(rewardPaidTransient, /readRewardPaidToast\(wallet\)/);
+  assert.match(rewardPaidTransient, /clearRewardPaidToast\(wallet, payload\.receiptId\)/);
   assert.match(rewardPaidTransient, /if \(!pendingReward \|\| feedback\) return/);
   assert.match(rewardPaidTransient, /shareUnavailable/);
   assert.match(rewardPaidTransient, /kind: 'reward'/);
