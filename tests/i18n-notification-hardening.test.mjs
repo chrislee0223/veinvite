@@ -125,7 +125,7 @@ test('reading the rich reward receipt also clears the duplicate paid bell notifi
   assert.match(receiptCenter, /window\.dispatchEvent/);
   assert.match(notifications, /veinvite-reward-receipt-acknowledged/);
   assert.match(notifications, /void loadLatestHistory\(\{ requestWallet: wallet \}\)/);
-  assert.match(notifications, /void refreshLifecycle\(false\)/);
+  assert.match(notifications, /void refreshLifecycle\(\)/);
 });
 
 test('notification lifecycle coalesces reload bursts and persists unauthorized backoff', () => {
