@@ -13,6 +13,7 @@ async function sources() {
     preserveMetricsSql,
     restrictionRecoverySql,
     activationSql,
+    repricingGuardSql,
     history,
     copy,
     leaderboard,
@@ -38,6 +39,10 @@ async function sources() {
       'supabase/migrations/20261005025226_enable_reward_recovery_offset.sql',
       'utf8',
     ),
+    readFile(
+      'supabase/migrations/20261005123000_guard_recovery_cohort_repricing.sql',
+      'utf8',
+    ),
     readFile('src/components/InAppInviteNotifications.tsx', 'utf8'),
     readFile('src/lib/i18n/rewardAdjustedCopy.ts', 'utf8'),
     readFile('src/app/api/leaderboard/route.ts', 'utf8'),
@@ -49,6 +54,7 @@ async function sources() {
     preserveMetricsSql,
     restrictionRecoverySql,
     activationSql,
+    repricingGuardSql,
     history,
     copy,
     leaderboard,
@@ -543,5 +549,30 @@ test('activation migration refuses dirty rollout state and verifies source parit
   assert.match(
     activationSql,
     /reward_recovery_enabled=true/u,
+  );
+});
+
+
+test('stale full-offset cohort quote is forced through RECALCULATE', async () => {
+  const { repricingGuardSql } = await sources();
+  assert.match(
+    repricingGuardSql,
+    /p_basis \? 'cohortReservedWei'/u,
+  );
+  assert.match(
+    repricingGuardSql,
+    /v_expected_cohort_committed :=[\s\S]*?p_basis->>'cohortReservedWei'/u,
+  );
+  assert.match(
+    repricingGuardSql,
+    /read_reward_cohort_committed_wei/u,
+  );
+  assert.match(
+    repricingGuardSql,
+    /v_cohort_committed<>v_expected_cohort_committed[\s\S]*?'RECALCULATE'/u,
+  );
+  assert.match(
+    repricingGuardSql,
+    /if v_recovery_enabled then/u,
   );
 });
