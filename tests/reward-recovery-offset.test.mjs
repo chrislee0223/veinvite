@@ -14,6 +14,7 @@ async function sources() {
     restrictionRecoverySql,
     activationSql,
     repricingGuardSql,
+    notificationStateSql,
     history,
     copy,
     leaderboard,
@@ -43,6 +44,10 @@ async function sources() {
       'supabase/migrations/20261005123000_guard_recovery_cohort_repricing.sql',
       'utf8',
     ),
+    readFile(
+      'src/lib/notifications/inviteNotificationStateV2.ts',
+      'utf8',
+    ),
     readFile('src/components/InAppInviteNotifications.tsx', 'utf8'),
     readFile('src/lib/i18n/rewardAdjustedCopy.ts', 'utf8'),
     readFile('src/app/api/leaderboard/route.ts', 'utf8'),
@@ -55,6 +60,7 @@ async function sources() {
     restrictionRecoverySql,
     activationSql,
     repricingGuardSql,
+    notificationStateSql,
     history,
     copy,
     leaderboard,
@@ -575,4 +581,76 @@ test('stale full-offset cohort quote is forced through RECALCULATE', async () =>
     repricingGuardSql,
     /if v_recovery_enabled then/u,
   );
+});
+
+
+test('active settlement-sourced recovery releases invalid referral offset from cohort pricing', async () => {
+  const { repricingGuardSql } = await sources();
+  assert.match(
+    repricingGuardSql,
+    /read_reward_cohort_committed_wei[\s\S]*?reward_recovery_obligations o[\s\S]*?o\.source_settlement_id=s\.id[\s\S]*?o\.status='ACTIVE'/u,
+  );
+  assert.match(
+    repricingGuardSql,
+    /enforce_reward_queue_cohort_budget[\s\S]*?v_existing_offset[\s\S]*?reward_recovery_obligations o[\s\S]*?o\.source_settlement_id=s\.id[\s\S]*?o\.status='ACTIVE'/u,
+  );
+});
+
+test('unpaid partial recovery referral counts as achievement without inventing B3TR', async () => {
+  const { repricingGuardSql } = await sources();
+  assert.match(
+    repricingGuardSql,
+    /partial_unpaid_referrals[\s\S]*?0::numeric as amount_wei[\s\S]*?settlement_kind='PARTIAL_OFFSET'[\s\S]*?net_amount_wei>0/u,
+  );
+  assert.match(
+    repricingGuardSql,
+    /partial_unpaid_referrals[\s\S]*?not exists \([\s\S]*?from public\.reward_receipts r/u,
+  );
+  assert.match(
+    repricingGuardSql,
+    /select \* from partial_unpaid_referrals/u,
+  );
+});
+
+test('public activation counts full and partial recovery settlements while invalidation remains authoritative', async () => {
+  const { repricingGuardSql } = await sources();
+  const growthStart = repricingGuardSql.indexOf(
+    'CREATE OR REPLACE FUNCTION public.get_operator_public_new_user_growth',
+  );
+  assert.ok(growthStart >= 0);
+  const growth = repricingGuardSql.slice(growthStart);
+  assert.match(
+    growth,
+    /from public\.reward_recovery_settlements s[\s\S]*?s\.invite_code = i\.invite_code[\s\S]*?s\.network = p\.network/u,
+  );
+  assert.doesNotMatch(
+    growth,
+    /s\.settlement_kind = 'FULL_OFFSET'[\s\S]{0,120}s\.net_amount_wei = 0/u,
+  );
+  assert.match(
+    growth,
+    /not public\.is_sybil_v2_referral_invalidated/u,
+  );
+});
+
+test('full-offset settlement is not reported as still claimable in operator overview', async () => {
+  const { repricingGuardSql } = await sources();
+  assert.match(
+    repricingGuardSql,
+    /create or replace view public\.operator_analytics_overview[\s\S]*?currently_eligible_referrals/u,
+  );
+  assert.match(
+    repricingGuardSql,
+    /reward_recovery_settlements s[\s\S]*?settlement_kind = 'FULL_OFFSET'::text[\s\S]*?net_amount_wei = \(0\)::numeric/u,
+  );
+});
+
+test('reward-adjusted policy notice is history-only and never lifecycle auto-popup material', async () => {
+  const { notificationStateSql, history } = await sources();
+  assert.match(notificationStateSql, /\| 'REWARD_ADJUSTED'/u);
+  assert.doesNotMatch(
+    notificationStateSql,
+    /kind:\s*'REWARD_ADJUSTED'/u,
+  );
+  assert.match(history, /'REWARD_ADJUSTED'/u);
 });
