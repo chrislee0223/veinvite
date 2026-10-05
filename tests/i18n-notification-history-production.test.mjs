@@ -91,7 +91,7 @@ test('current V2 notifications are materialized without reconstructing raw event
 });
 
 test('production notification center keeps empty history, read states and accessibility complete', () => {
-  assert.match(center, /unreadCount > 99 \? '99\+'/);
+  assert.match(center, /visibleUnreadCount > 99 \? '99\+'/);
   assert.match(center, /isUnread/);
   assert.match(center, /isRead/);
   assert.match(center, /structure\.emptyTitle/);
