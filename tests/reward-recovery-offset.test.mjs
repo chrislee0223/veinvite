@@ -12,6 +12,7 @@ async function sources() {
     metricsSql,
     preserveMetricsSql,
     restrictionRecoverySql,
+    activationSql,
     history,
     copy,
     leaderboard,
@@ -33,6 +34,10 @@ async function sources() {
       'supabase/migrations/20261005034500_restore_recovery_on_restricted_settlement.sql',
       'utf8',
     ),
+    readFile(
+      'supabase/migrations/20261005025226_enable_reward_recovery_offset.sql',
+      'utf8',
+    ),
     readFile('src/components/InAppInviteNotifications.tsx', 'utf8'),
     readFile('src/lib/i18n/rewardAdjustedCopy.ts', 'utf8'),
     readFile('src/app/api/leaderboard/route.ts', 'utf8'),
@@ -43,6 +48,7 @@ async function sources() {
     metricsSql,
     preserveMetricsSql,
     restrictionRecoverySql,
+    activationSql,
     history,
     copy,
     leaderboard,
@@ -509,4 +515,33 @@ test("offset settlement cannot lower the next legitimate user's pricing basis", 
     actualLiability: 0n,
   });
   assert.equal(budgetBoundOffset, budgetBoundNormal);
+});
+
+
+test('activation migration refuses dirty rollout state and verifies source parity', async () => {
+  const { activationSql } = await sources();
+  assert.match(
+    activationSql,
+    /REWARD_RECOVERY_ACTIVATION_OPEN_REVIEWS/u,
+  );
+  assert.match(
+    activationSql,
+    /REWARD_RECOVERY_ACTIVATION_NOT_CLEAN/u,
+  );
+  assert.match(
+    activationSql,
+    /REWARD_RECOVERY_ACTIVATION_ACTIVE_QUEUE/u,
+  );
+  assert.match(
+    activationSql,
+    /REWARD_RECOVERY_ACTIVATION_SOURCE_DRIFT/u,
+  );
+  assert.match(
+    activationSql,
+    /REWARD_RECOVERY_ACTIVATION_BALANCE_DRIFT/u,
+  );
+  assert.match(
+    activationSql,
+    /reward_recovery_enabled=true/u,
+  );
 });
