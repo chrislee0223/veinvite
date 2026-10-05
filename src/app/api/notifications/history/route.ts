@@ -300,7 +300,7 @@ export async function GET(request: NextRequest) {
       loadHistoryRowsWithoutInternalWatch({
         wallet,
         beforeId,
-        limit: limit + 1,
+        limit,
       }),
       supabaseAdmin.rpc('count_invite_notification_history_unread', {
         p_inviter_wallet: wallet,
