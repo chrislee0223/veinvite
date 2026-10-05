@@ -14,6 +14,8 @@ async function sources() {
     metricsSql,
     preserveMetricsSql,
     pauseSql,
+    planningAlignmentSql,
+    planningClient,
     history,
     copy,
     leaderboard,
@@ -43,6 +45,11 @@ async function sources() {
       'supabase/migrations/20261005124900_pause_reward_recovery_for_final_verification.sql',
       'utf8',
     ),
+    readFile(
+      'supabase/migrations/20261005125500_align_recovery_settled_planning_and_operator_eligibility.sql',
+      'utf8',
+    ),
+    readFile('src/lib/rewards/predictivePlanning.ts', 'utf8'),
     readFile('src/components/InAppInviteNotifications.tsx', 'utf8'),
     readFile('src/lib/i18n/rewardAdjustedCopy.ts', 'utf8'),
     readFile('src/app/api/leaderboard/route.ts', 'utf8'),
@@ -55,6 +62,8 @@ async function sources() {
     metricsSql,
     preserveMetricsSql,
     pauseSql,
+    planningAlignmentSql,
+    planningClient,
     history,
     copy,
     leaderboard,
@@ -393,4 +402,62 @@ test('final verification pause is explicit and disaster-recovery reproducible', 
     pauseSql,
     /set reward_recovery_enabled = false/u,
   );
+});
+
+
+test('actual pricing replaces raw queued eligible counts with the recovery-aware cleared count', async () => {
+  const { planningClient } = await sources();
+  assert.match(
+    planningClient,
+    /read_sybil_v2_cleared_unreserved_count/u,
+  );
+  assert.match(
+    planningClient,
+    /queuedEligibleCount:\s*clearedQueuedEligibleCount/u,
+  );
+  assert.match(
+    planningClient,
+    /read_reward_cohort_committed_wei/u,
+  );
+});
+
+test('raw planning and legacy candidate readers exclude recovery-settled referrals', async () => {
+  const { planningAlignmentSql } = await sources();
+  assert.match(
+    planningAlignmentSql,
+    /read_predictive_reward_planning_snapshot[\s\S]*?reward_recovery_settlements/u,
+  );
+  assert.match(
+    planningAlignmentSql,
+    /read_reward_cohort_planning_snapshot[\s\S]*?reward_recovery_settlements/u,
+  );
+  assert.match(
+    planningAlignmentSql,
+    /read_reward_reservation_candidates[\s\S]*?reward_recovery_settlements/u,
+  );
+});
+
+test('operator currently-eligible metrics exclude only fully settled zero-payable referrals', async () => {
+  const { planningAlignmentSql } = await sources();
+  for (const functionName of [
+    'get_operator_round_overview',
+    'get_operator_cumulative_overview',
+    'get_operator_round_inviter_analytics',
+    'get_operator_cumulative_inviter_analytics',
+  ]) {
+    const start = planningAlignmentSql.indexOf(
+      `FUNCTION public.${functionName}`,
+    );
+    assert.ok(start >= 0, `${functionName} must be present`);
+    const next = planningAlignmentSql.indexOf(
+      'CREATE OR REPLACE FUNCTION public.',
+      start + 1,
+    );
+    const body = planningAlignmentSql.slice(
+      start,
+      next >= 0 ? next : planningAlignmentSql.length,
+    );
+    assert.match(body, /settlement_kind='FULL_OFFSET'/u);
+    assert.match(body, /net_amount_wei=0/u);
+  }
 });
