@@ -57,6 +57,11 @@ test('user-facing history filters WATCH while preserving internal audit records'
     historyRoute,
     /Math\.max\(0, totalUnread - hiddenUnread\)/u,
   );
+  assert.match(
+    historyRoute,
+    /loadHistoryRowsWithoutInternalWatch\(\{[\s\S]*?limit,[\s\S]*?\}\)/u,
+  );
+  assert.doesNotMatch(historyRoute, /limit:\s*limit \+ 1/u);
 });
 
 test('only actual paid rewards get the special transient reward surface', () => {
