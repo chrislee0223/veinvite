@@ -3,7 +3,6 @@
 import {
   useCallback,
   useEffect,
-  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -16,7 +15,7 @@ import { NOTIFICATION_COPY } from '@/lib/i18n/notificationCopy';
 import { NOTIFICATION_HISTORY_COPY } from '@/lib/i18n/notificationHistoryCopy';
 import { NOTIFICATION_META_COPY } from '@/lib/i18n/notificationMetaCopy';
 import { NOTIFICATION_V2_COPY } from '@/lib/i18n/notificationV2Copy';
-import { PROGRESS_CLAIM_COPY } from '@/lib/i18n/progressClaimCopy';
+import { rewardPaidNotificationBody } from '@/lib/i18n/rewardPaidNotificationCopy';
 import { REWARD_RECEIPT_COPY } from '@/lib/i18n/rewardReceiptCopy';
 import { REFERRAL_INVALIDATED_COPY } from '@/lib/i18n/referralInvalidatedCopy';
 import { REFERRAL_RESTORED_COPY } from '@/lib/i18n/referralRestoredCopy';
@@ -32,21 +31,9 @@ import {
 import type {
   InviteNotificationHistoryItem,
 } from '@/lib/notifications/inviteNotificationHistory';
-import type {
-  RewardActionItem,
-  RewardActionResponse,
-} from '@/lib/notifications/rewardAction';
+import { NOTIFICATION_POLICY } from '@/lib/notifications/notificationPolicy';
 import {
-  getRewardActionPollingMode,
-  rewardActionPollingIntervalMs,
-} from '@/lib/notifications/rewardActionPolling';
-import {
-  reportProductAnalyticsEvent,
-} from '@/lib/productAnalytics';
-import {
-  dispatchRewardClaimUpdated,
   notifyRewardClaimSessionInvalid,
-  reconcileRewardClaimState,
 } from '@/lib/rewards/rewardClaimClient';
 import type { RewardReceipt } from '@/lib/rewards/rewardReceipt';
 import { RewardReceiptView } from './RewardReceiptView';
@@ -57,8 +44,6 @@ const NOTIFICATION_DIALOG_ID = 'veinvite-notification-history';
 const REDUCED_MOTION_QUERY = '(prefers-reduced-motion: reduce)';
 const REWARD_RECEIPT_ACKNOWLEDGED_EVENT =
   'veinvite-reward-receipt-acknowledged';
-const HOME_DATA_REFRESH_REQUESTED_EVENT =
-  'veinvite-home-data-refresh-requested';
 const FOCUSABLE_SELECTOR = [
   'button:not([disabled])',
   'a[href]',
@@ -236,8 +221,10 @@ function itemCopy(
     case 'REWARD_PAID':
       return {
         title: copy.rewardTitle,
-        body: copy.rewardBody,
-        hint: amount ? `${amount} B3TR` : null,
+        body: amount
+          ? rewardPaidNotificationBody(locale, amount)
+          : copy.rewardBody,
+        hint: null,
       };
     case 'REWARD_ADJUSTED':
       return {
@@ -332,11 +319,10 @@ export function InviteNotificationHistoryCenter({
   onMarkRead,
   onMarkAll,
   onLoadMore,
-  initialRewardActions = null,
-  onRewardActionsChange,
   rewardShareUrl = '',
   previewRewardReceipt = null,
   onRewardShare,
+  allowProgrammaticOpen = false,
 }: {
   locale: Locale;
   items: InviteNotificationHistoryItem[];
@@ -353,37 +339,27 @@ export function InviteNotificationHistoryCenter({
   onMarkRead: (id: string) => void | Promise<void>;
   onMarkAll: () => void | Promise<void>;
   onLoadMore: () => void | Promise<void>;
-  initialRewardActions?: RewardActionItem[] | null;
-  onRewardActionsChange?: (actions: RewardActionItem[]) => void;
   rewardShareUrl?: string;
   previewRewardReceipt?: RewardReceipt | null;
   onRewardShare?: (intentUrl: string) => void;
+  allowProgrammaticOpen?: boolean;
 }) {
   const supportedLocale = locale as SupportedLocale;
   const structure = NOTIFICATION_HISTORY_COPY[supportedLocale];
   const metaCopy = NOTIFICATION_META_COPY[supportedLocale];
   const notificationCopy = NOTIFICATION_COPY[supportedLocale];
-  const progressCopy = PROGRESS_CLAIM_COPY[supportedLocale];
   const receiptCopy = REWARD_RECEIPT_COPY[locale];
   const rtl = isRtlLocale(supportedLocale);
   const bellRef = useRef<HTMLButtonElement | null>(null);
   const panelRef = useRef<HTMLElement | null>(null);
   const closeTimerRef = useRef<number | null>(null);
   const onCloseRef = useRef(onClose);
-  const actionRequestRef = useRef(0);
   const receiptRequestRef = useRef(0);
+  const receiptAutoAckIdRef = useRef<string | null>(null);
   const [clockTick, setClockTick] = useState(0);
   const [closing, setClosing] = useState(false);
-  const [rewardActions, setRewardActions] = useState<RewardActionItem[]>(
-    () => initialRewardActions ?? [],
-  );
-  const [actionResolved, setActionResolved] = useState(
-    initialRewardActions !== null,
-  );
-  const actionResolvedRef = useRef(initialRewardActions !== null);
-  const [actionLoading, setActionLoading] = useState(false);
-  const [actionError, setActionError] = useState('');
-  const [claimPendingCode, setClaimPendingCode] = useState<string | null>(null);
+  const [manualOpen, setManualOpen] = useState(false);
+  const visibleOpen = open && (manualOpen || allowProgrammaticOpen);
   const [receipt, setReceipt] = useState<RewardReceipt | null>(null);
   const [receiptLoading, setReceiptLoading] = useState(false);
   const [receiptError, setReceiptError] = useState('');
@@ -394,19 +370,45 @@ export function InviteNotificationHistoryCenter({
   }, [onClose]);
 
   useEffect(() => {
-    if (initialRewardActions === null) return;
-    actionResolvedRef.current = true;
-    setActionResolved(true);
-    setRewardActions(initialRewardActions);
-  }, [initialRewardActions]);
+    if (!open) setManualOpen(false);
+  }, [open]);
+
+  const visibleItems = useMemo(
+    () => items.filter((item) => {
+      const policy = NOTIFICATION_POLICY[item.kind];
+      return policy.userVisible && policy.showInHistory;
+    }),
+    [items],
+  );
+  const hiddenUnreadCount = useMemo(
+    () => items.filter((item) => {
+      const policy = NOTIFICATION_POLICY[item.kind];
+      return (
+        item.readAt === null &&
+        (!policy.userVisible || !policy.showInHistory)
+      );
+    }).length,
+    [items],
+  );
+  const visibleUnreadCount = Math.max(
+    0,
+    unreadCount - hiddenUnreadCount,
+  );
+  const visibleMarkAllAvailable =
+    markAllAvailable &&
+    visibleItems.some(
+      (item) =>
+        item.readAt === null &&
+        NOTIFICATION_POLICY[item.kind].readBehavior === 'tap',
+    );
 
   const sorted = useMemo(
-    () => [...items].sort((left, right) => {
+    () => [...visibleItems].sort((left, right) => {
       const timeDelta = Date.parse(right.eventAt) - Date.parse(left.eventAt);
       if (Number.isFinite(timeDelta) && timeDelta !== 0) return timeDelta;
       return BigInt(right.id) > BigInt(left.id) ? 1 : -1;
     }),
-    [items],
+    [visibleItems],
   );
 
   const groups = useMemo(() => {
@@ -418,227 +420,24 @@ export function InviteNotificationHistoryCenter({
       ),
       earlier: sorted.filter((item) => dayBucket(item.eventAt, now) === 'earlier'),
     };
-  }, [sorted, clockTick, open]);
+  }, [sorted, clockTick, visibleOpen]);
 
-  const loadRewardActions = useCallback(async () => {
-    const requestId = actionRequestRef.current + 1;
-    actionRequestRef.current = requestId;
-    setActionLoading(true);
-    setActionError('');
-
-    try {
-      const response = await fetch('/api/notifications/reward-actions', {
-        cache: 'no-store',
-      });
-      let body: RewardActionResponse = {};
-      try {
-        body = (await response.json()) as RewardActionResponse;
-      } catch {
-        // Keep malformed server details out of translated UI.
-      }
-
-      if (!response.ok) {
-        if (response.status === 401 || response.status === 403) {
-          notifyRewardClaimSessionInvalid();
-        }
-        if (body.error) {
-          console.warn('VeInvite reward actions request failed:', body.error);
-        }
-        throw new Error(structure.errorBody);
-      }
-      if (actionRequestRef.current !== requestId) return;
-
-      const nextActions = Array.isArray(body.actions) ? body.actions : [];
-      actionResolvedRef.current = true;
-      setActionResolved(true);
-      setRewardActions(nextActions);
-      onRewardActionsChange?.(nextActions);
-    } catch (error) {
-      if (actionRequestRef.current !== requestId) return;
-      console.warn('VeInvite reward actions load failed:', error);
-      if (!actionResolvedRef.current) {
-        setActionError(structure.errorBody);
-      }
-    } finally {
-      if (actionRequestRef.current === requestId) {
-        setActionLoading(false);
-      }
-    }
-  }, [onRewardActionsChange, structure.errorBody]);
-
-  const rewardActionPollingMode =
-    getRewardActionPollingMode(rewardActions);
-
-  useLayoutEffect(() => {
-    if (!open) {
-      actionRequestRef.current += 1;
-      receiptRequestRef.current += 1;
-      setActionLoading(false);
-      setActionError('');
-      setReceipt(null);
-      setReceiptLoading(false);
-      setReceiptError('');
-      setReceiptAcknowledging(false);
-      return;
-    }
-
-    // Start the reward-action read before the newly opened panel paints.
-    // This keeps the first visible frame structurally complete instead of
-    // inserting an action/loading section one frame later.
-    void loadRewardActions();
-
-    const pollIntervalMs =
-      rewardActionPollingIntervalMs(
-        rewardActionPollingMode,
-      );
-    const timer = window.setInterval(() => {
-      if (document.visibilityState === 'visible') {
-        void loadRewardActions();
-      }
-    }, pollIntervalMs);
-
-    return () => window.clearInterval(timer);
-  }, [loadRewardActions, open, rewardActionPollingMode]);
-
-  const claimReward = useCallback(async (action: RewardActionItem) => {
-    if (
-      claimPendingCode ||
-      action.status !== 'AWAITING_CLAIM'
-    ) {
-      return;
-    }
-
-    setClaimPendingCode(action.inviteCode);
-    setActionError('');
-    reportProductAnalyticsEvent({
-      eventName: 'reward_claim_started',
-      flowKey: 'home',
-    });
-
-    let failureCode:
-      | 'network'
-      | 'malformed_response'
-      | 'wallet_auth'
-      | 'server'
-      | 'unknown' = 'unknown';
-
-    try {
-      let response: Response;
-      try {
-        response = await fetch('/api/rewards/claims', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ inviteCode: action.inviteCode }),
-        });
-      } catch (error) {
-        failureCode = 'network';
-        throw error;
-      }
-
-      let body: {
-        claim?: { status?: string };
-        error?: string;
-      };
-      try {
-        body = (await response.json()) as {
-          claim?: { status?: string };
-          error?: string;
-        };
-      } catch (error) {
-        failureCode = 'malformed_response';
-        throw error;
-      }
-
-      if (!response.ok) {
-        failureCode =
-          response.status === 401 || response.status === 403
-            ? 'wallet_auth'
-            : response.status >= 500
-              ? 'server'
-              : 'unknown';
-        if (failureCode === 'wallet_auth') {
-          notifyRewardClaimSessionInvalid();
-        }
-        if (body.error) {
-          console.warn('VeInvite notification Claim request failed:', body.error);
-        }
-        throw new Error(progressCopy.claimFailed);
-      }
-
-      setRewardActions((current) => current.map((item) =>
-        item.inviteCode === action.inviteCode
-          ? { ...item, status: 'QUEUED' }
-          : item,
-      ));
-      reportProductAnalyticsEvent({
-        eventName: 'reward_claim_succeeded',
-        outcome: 'success',
-        flowKey: 'home',
-      });
-      dispatchRewardClaimUpdated(action.inviteCode);
-      window.dispatchEvent(
-        new Event(HOME_DATA_REFRESH_REQUESTED_EVENT),
-      );
-      void loadRewardActions();
-    } catch (error) {
-      if (failureCode !== 'wallet_auth') {
-        const reconciliation = await reconcileRewardClaimState(
-          action.inviteCode,
-        );
-
-        const progressed =
-          reconciliation.kind === 'ABSENT' ||
-          (
-            reconciliation.kind === 'ACTION' &&
-            reconciliation.action.status !== 'AWAITING_CLAIM'
-          );
-
-        if (progressed) {
-          if (reconciliation.kind === 'ACTION') {
-            setRewardActions((current) => current.map((item) =>
-              item.inviteCode === action.inviteCode
-                ? { ...item, status: reconciliation.action.status }
-                : item,
-            ));
-          } else {
-            setRewardActions((current) => current.filter(
-              (item) => item.inviteCode !== action.inviteCode,
-            ));
-          }
-          setActionError('');
-          reportProductAnalyticsEvent({
-            eventName: 'reward_claim_succeeded',
-            outcome: 'success',
-            flowKey: 'home',
-          });
-          dispatchRewardClaimUpdated(action.inviteCode);
-          window.dispatchEvent(
-            new Event(HOME_DATA_REFRESH_REQUESTED_EVENT),
-          );
-          void loadRewardActions();
-          return;
-        }
-      }
-
-      reportProductAnalyticsEvent({
-        eventName: 'reward_claim_failed',
-        outcome: 'failure',
-        failureCode,
-        flowKey: 'home',
-      });
-      console.warn('VeInvite notification Claim failed:', error);
-      setActionError(progressCopy.claimFailed);
-      void loadRewardActions();
-    } finally {
-      setClaimPendingCode(null);
-    }
-  }, [claimPendingCode, loadRewardActions, progressCopy.claimFailed]);
+  useEffect(() => {
+    if (visibleOpen) return;
+    receiptRequestRef.current += 1;
+    receiptAutoAckIdRef.current = null;
+    setReceipt(null);
+    setReceiptLoading(false);
+    setReceiptError('');
+    setReceiptAcknowledging(false);
+  }, [visibleOpen]);
 
   const openRewardReceipt = useCallback(async (
     item: InviteNotificationHistoryItem,
   ) => {
     const requestId = receiptRequestRef.current + 1;
     receiptRequestRef.current = requestId;
+    receiptAutoAckIdRef.current = null;
     setReceipt(null);
     setReceiptError('');
 
@@ -689,6 +488,15 @@ export function InviteNotificationHistoryCenter({
   const acknowledgeReceipt = useCallback(async () => {
     if (!receipt || receipt.seen || receiptAcknowledging) return;
 
+    if (previewRewardReceipt?.id === receipt.id) {
+      setReceipt({
+        ...receipt,
+        seen: true,
+        seenAt: new Date().toISOString(),
+      });
+      return;
+    }
+
     const requestId = receiptRequestRef.current;
     setReceiptAcknowledging(true);
     setReceiptError('');
@@ -722,13 +530,21 @@ export function InviteNotificationHistoryCenter({
     } catch (error) {
       if (receiptRequestRef.current !== requestId) return;
       console.warn('VeInvite reward receipt acknowledgement failed:', error);
-      setReceiptError(receiptCopy.error);
+      // Read-state acknowledgement is bookkeeping only. Keep the receipt
+      // usable instead of surfacing a scary payout error to the user.
     } finally {
       if (receiptRequestRef.current === requestId) {
         setReceiptAcknowledging(false);
       }
     }
-  }, [receipt, receiptAcknowledging, receiptCopy.error]);
+  }, [previewRewardReceipt, receipt, receiptAcknowledging, receiptCopy.error]);
+
+  useEffect(() => {
+    if (!receipt || receipt.seen || receiptAcknowledging) return;
+    if (receiptAutoAckIdRef.current === receipt.id) return;
+    receiptAutoAckIdRef.current = receipt.id;
+    void acknowledgeReceipt();
+  }, [acknowledgeReceipt, receipt, receiptAcknowledging]);
 
   const restoreBellFocus = useCallback(() => {
     window.requestAnimationFrame(() => bellRef.current?.focus());
@@ -740,12 +556,13 @@ export function InviteNotificationHistoryCenter({
       closeTimerRef.current = null;
     }
     setClosing(false);
+    setManualOpen(false);
     onCloseRef.current();
     restoreBellFocus();
   }, [restoreBellFocus]);
 
   const closePanel = useCallback(() => {
-    if (!open || closeTimerRef.current !== null) return;
+    if (!visibleOpen || closeTimerRef.current !== null) return;
 
     receiptRequestRef.current += 1;
     const reducedMotion =
@@ -761,24 +578,24 @@ export function InviteNotificationHistoryCenter({
       finishClose,
       NOTIFICATION_CLOSE_FALLBACK_MS,
     );
-  }, [finishClose, open]);
+  }, [finishClose, visibleOpen]);
 
   useEffect(() => {
-    if (!open) return;
+    if (!visibleOpen) return;
     const timer = window.setInterval(() => {
       setClockTick((value) => value + 1);
     }, 60_000);
     return () => window.clearInterval(timer);
-  }, [open]);
+  }, [visibleOpen]);
 
   useEffect(() => {
-    if (open || !closing) return;
+    if (visibleOpen || !closing) return;
     if (closeTimerRef.current !== null) {
       window.clearTimeout(closeTimerRef.current);
       closeTimerRef.current = null;
     }
     setClosing(false);
-  }, [closing, open]);
+  }, [closing, visibleOpen]);
 
   useEffect(() => () => {
     if (closeTimerRef.current !== null) {
@@ -788,7 +605,7 @@ export function InviteNotificationHistoryCenter({
   }, []);
 
   useEffect(() => {
-    if (!open) return;
+    if (!visibleOpen) return;
 
     const previousOverflow = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
@@ -843,14 +660,16 @@ export function InviteNotificationHistoryCenter({
       document.removeEventListener('keydown', onKeyDown);
       document.body.style.overflow = previousOverflow;
     };
-  }, [closePanel, open, receipt, receiptError, receiptLoading]);
+  }, [closePanel, receipt, receiptError, receiptLoading, visibleOpen]);
 
   const renderItemContent = (
     item: InviteNotificationHistoryItem,
     unread: boolean,
   ) => {
     const copy = itemCopy(item, supportedLocale);
-    const showMeta = Boolean(copy.hint || item.kind === 'REWARD_PAID');
+    const receiptAction =
+      NOTIFICATION_POLICY[item.kind].readBehavior === 'receipt';
+    const showMeta = Boolean(copy.hint || receiptAction);
 
     return (
       <span className="notificationHistoryContent">
@@ -877,7 +696,7 @@ export function InviteNotificationHistoryCenter({
         {showMeta ? (
           <span className="notificationHistoryMeta">
             {copy.hint ? <b>{copy.hint}</b> : null}
-            {item.kind === 'REWARD_PAID' ? (
+            {receiptAction ? (
               <span className="notificationReceiptAction">
                 <span>{metaCopy.viewReceipt}</span>
                 <em aria-hidden="true">›</em>
@@ -891,10 +710,11 @@ export function InviteNotificationHistoryCenter({
 
   const renderItem = (item: InviteNotificationHistoryItem) => {
     const unread = item.readAt === null;
-    const paid = item.kind === 'REWARD_PAID';
+    const receiptAction =
+      NOTIFICATION_POLICY[item.kind].readBehavior === 'receipt';
     const content = renderItemContent(item, unread);
 
-    if (!unread && !paid) {
+    if (!unread && !receiptAction) {
       return (
         <div key={item.id} className="notificationHistoryRow isRead">
           {content}
@@ -913,7 +733,7 @@ export function InviteNotificationHistoryCenter({
         }
         onClick={() => {
           if (busy) return;
-          if (paid) {
+          if (receiptAction) {
             void openRewardReceipt(item);
             return;
           }
@@ -925,83 +745,6 @@ export function InviteNotificationHistoryCenter({
     );
   };
 
-  const renderRewardActions = () => {
-    if (
-      rewardActions.length === 0 &&
-      !actionError
-    ) {
-      return null;
-    }
-
-    return (
-      <section className="notificationActionSection" aria-live="polite">
-        <div className="notificationActionHeading">
-          <strong>{progressCopy.rewardsTitle}</strong>
-          {rewardActions.length > 0 ? <span>{rewardActions.length}</span> : null}
-        </div>
-
-        {rewardActions.map((action) => {
-          const amount = formatB3trWei(action.reservedAmountWei) ?? '—';
-          const pending = claimPendingCode === action.inviteCode;
-          const waiting = action.status === 'AWAITING_CLAIM';
-          const transferConfirmed = Boolean(
-            action.broadcastConfirmedAt &&
-            action.txId,
-          );
-
-          return (
-            <article key={action.inviteCode} className="notificationActionCard">
-              <div className="notificationActionCopy">
-                <span>{progressCopy.rewardAvailable}</span>
-                <strong>{amount} B3TR</strong>
-                <small className="notificationActionMeta">
-                  <span className="notificationActionMetaItem">
-                    <span>{metaCopy.inviteCode}</span>
-                    <span dir="ltr">({action.inviteCode})</span>
-                  </span>
-                  {transferConfirmed ? (
-                    <span
-                      className="notificationActionMetaItem"
-                      title={action.txId ?? undefined}
-                    >
-                      <span>B3TR TX</span>
-                      <span aria-hidden="true">✓</span>
-                    </span>
-                  ) : null}
-                </small>
-              </div>
-              {waiting ? (
-                <button
-                  type="button"
-                  className="notificationClaimButton"
-                  disabled={Boolean(claimPendingCode)}
-                  onClick={() => void claimReward(action)}
-                >
-                  {pending ? progressCopy.claiming : progressCopy.claimReward}
-                </button>
-              ) : (
-                <span className="notificationProcessingBadge">
-                  {transferConfirmed
-                    ? `B3TR ✓ · ${progressCopy.finalCheck}`
-                    : `B3TR → · ${progressCopy.claimQueued}`}
-                </span>
-              )}
-            </article>
-          );
-        })}
-
-        {actionError ? (
-          <div className="notificationActionError" role="alert">
-            <span>{actionError}</span>
-            <button type="button" onClick={() => void loadRewardActions()}>
-              {structure.retry}
-            </button>
-          </div>
-        ) : null}
-      </section>
-    );
-  };
-
   const receiptViewActive = Boolean(receipt || receiptLoading || receiptError);
   return (
     <div className="notificationHistoryRoot">
@@ -1009,31 +752,35 @@ export function InviteNotificationHistoryCenter({
         ref={bellRef}
         type="button"
         className={
-          unreadCount > 0
+          visibleUnreadCount > 0
             ? 'notificationHistoryBell hasUnread'
             : 'notificationHistoryBell'
         }
         aria-label={
-          unreadCount > 0
-            ? `${notificationCopy.bellAria} (${unreadCount})`
+          visibleUnreadCount > 0
+            ? `${notificationCopy.bellAria} (${visibleUnreadCount})`
             : notificationCopy.bellAria
         }
-        aria-expanded={open}
-        aria-controls={open ? NOTIFICATION_DIALOG_ID : undefined}
+        aria-expanded={visibleOpen}
+        aria-controls={visibleOpen ? NOTIFICATION_DIALOG_ID : undefined}
         onClick={() => {
-          if (open) closePanel();
-          else onOpen();
+          if (visibleOpen) {
+            closePanel();
+            return;
+          }
+          setManualOpen(true);
+          onOpen();
         }}
       >
         <BellIcon />
-        {unreadCount > 0 ? (
+        {visibleUnreadCount > 0 ? (
           <span className="notificationHistoryBadge">
-            {unreadCount > 99 ? '99+' : unreadCount}
+            {visibleUnreadCount > 99 ? '99+' : visibleUnreadCount}
           </span>
         ) : null}
       </button>
 
-      {open ? (
+      {visibleOpen ? (
         <>
           <div
             className={
@@ -1048,9 +795,13 @@ export function InviteNotificationHistoryCenter({
             id={NOTIFICATION_DIALOG_ID}
             ref={panelRef}
             className={
-              closing
-                ? 'notificationHistoryPanel isClosing'
-                : 'notificationHistoryPanel'
+              receiptViewActive
+                ? closing
+                  ? 'notificationHistoryPanel hasReceipt isClosing'
+                  : 'notificationHistoryPanel hasReceipt'
+                : closing
+                  ? 'notificationHistoryPanel isClosing'
+                  : 'notificationHistoryPanel'
             }
             role="dialog"
             aria-modal="true"
@@ -1082,12 +833,12 @@ export function InviteNotificationHistoryCenter({
                   </button>
                 ) : null}
                 <h3>{receiptViewActive ? receiptCopy.title : structure.title}</h3>
-                {!receiptViewActive && unreadCount > 0 ? (
-                  <span>{metaCopy.unread} · {unreadCount}</span>
+                {!receiptViewActive && visibleUnreadCount > 0 ? (
+                  <span>{metaCopy.unread} · {visibleUnreadCount}</span>
                 ) : null}
               </div>
               <div className="notificationHistoryHeaderActions">
-                {!receiptViewActive && markAllAvailable ? (
+                {!receiptViewActive && visibleMarkAllAvailable ? (
                   <button
                     type="button"
                     className="notificationHistoryMarkAll"
@@ -1115,21 +866,16 @@ export function InviteNotificationHistoryCenter({
                 receipt={receipt}
                 loading={receiptLoading}
                 error={receiptError}
-                acknowledging={receiptAcknowledging}
-                onAcknowledge={() => void acknowledgeReceipt()}
                 rewardShareUrl={rewardShareUrl}
                 onRewardShare={onRewardShare}
               />
-            ) : (
-              loading ||
-              (actionLoading && !actionResolved)
-            ) && items.length === 0 && rewardActions.length === 0 ? (
+            ) : loading && sorted.length === 0 ? (
               <div className="notificationHistoryState" aria-live="polite" aria-busy="true">
                 <span className="notificationHistorySpinner" aria-hidden="true" />
                 <strong>{structure.loadingTitle}</strong>
                 <p>{structure.loadingBody}</p>
               </div>
-            ) : errorMessage && items.length === 0 && rewardActions.length === 0 ? (
+            ) : errorMessage && sorted.length === 0 ? (
               <div className="notificationHistoryState errorState" role="alert">
                 <span className="notificationHistoryStateIcon" aria-hidden="true">!</span>
                 <strong>{structure.errorTitle}</strong>
@@ -1142,25 +888,7 @@ export function InviteNotificationHistoryCenter({
                   {structure.retry}
                 </button>
               </div>
-            ) : actionError &&
-              sorted.length === 0 &&
-              rewardActions.length === 0 ? (
-              <div className="notificationHistoryState errorState" role="alert">
-                <span className="notificationHistoryStateIcon" aria-hidden="true">!</span>
-                <strong>{structure.errorTitle}</strong>
-                <p>{structure.errorBody}</p>
-                <button
-                  type="button"
-                  className="notificationHistoryRetry"
-                  onClick={() => void loadRewardActions()}
-                >
-                  {structure.retry}
-                </button>
-              </div>
-            ) : sorted.length === 0 &&
-              rewardActions.length === 0 &&
-              actionResolved &&
-              !actionError ? (
+            ) : sorted.length === 0 ? (
               <div className="notificationHistoryState">
                 <span className="notificationHistoryEmptyBell" aria-hidden="true">
                   <BellIcon size={22} />
@@ -1170,7 +898,6 @@ export function InviteNotificationHistoryCenter({
               </div>
             ) : (
               <div className="notificationHistoryScroll">
-                {renderRewardActions()}
                 {groups.today.length > 0 ? (
                   <section className="notificationHistoryGroup">
                     <h4>{structure.today}</h4>
@@ -1214,10 +941,10 @@ export function InviteNotificationHistoryCenter({
 
       <style jsx>{`
         @keyframes notificationHistoryBackdropIn{from{opacity:0}to{opacity:1}}@keyframes notificationHistoryBackdropOut{from{opacity:1}to{opacity:0}}@keyframes notificationHistoryPanelIn{from{opacity:0;transform:translate3d(0,var(--notification-history-enter-y,-7px),0) scale(.985)}to{opacity:1;transform:translate3d(0,0,0) scale(1)}}@keyframes notificationHistoryPanelOut{from{opacity:1;transform:translate3d(0,0,0) scale(1)}to{opacity:0;transform:translate3d(0,var(--notification-history-exit-y,-4px),0) scale(.992)}}@keyframes notificationHistorySpin{to{transform:rotate(360deg)}}
-        .notificationHistoryRoot{position:relative;display:flex;align-items:center}.notificationHistoryBell{position:relative;width:40px;height:40px;flex:0 0 40px;display:grid;place-items:center;padding:0;border:1px solid rgba(255,255,255,.1);border-radius:13px;background:#141625;color:#b6b2bf;cursor:pointer;transition:background-color .15s ease,border-color .15s ease,color .15s ease,transform .15s ease}.notificationHistoryBell.hasUnread{border-color:rgba(255,205,80,.36);color:#ffd04a;box-shadow:0 0 0 3px rgba(244,183,40,.05)}@media(hover:hover) and (pointer:fine){.notificationHistoryBell:hover{border-color:rgba(255,205,80,.28);background:#1a1b29;color:#ffd04a;transform:translateY(-1px)}}.notificationHistoryBell:active{transform:translateY(0) scale(.97)}.notificationHistoryBadge{position:absolute;top:-7px;inset-inline-end:-7px;min-width:19px;height:19px;box-sizing:border-box;padding-inline:5px;display:grid;place-items:center;border:2px solid #080807;border-radius:999px;background:#f4b728;color:#17120a;font-size:.6rem;font-weight:950;line-height:1}.notificationHistoryBackdrop{position:fixed;z-index:140;inset:0;border:0;background:rgba(2,2,2,.66);cursor:default;animation:notificationHistoryBackdropIn 180ms ease-out both}.notificationHistoryBackdrop.isClosing{animation:notificationHistoryBackdropOut 150ms ease-in both}.notificationHistoryPanel{--notification-history-enter-y:-7px;--notification-history-exit-y:-4px;position:absolute;z-index:141;top:50px;inset-inline-end:0;width:min(400px,calc(100vw - 28px));height:min(610px,calc(100dvh - 92px));max-height:min(610px,calc(100dvh - 92px));overflow:hidden;box-sizing:border-box;display:flex;flex-direction:column;border:1px solid rgba(255,205,80,.22);border-radius:22px;background:#11110f;color:#fff;box-shadow:0 32px 90px rgba(0,0,0,.6),inset 0 1px 0 rgba(255,255,255,.055);text-align:start;transform-origin:top center;animation:notificationHistoryPanelIn 210ms cubic-bezier(.16,1,.3,1) both}.notificationHistoryPanel.isClosing{animation:notificationHistoryPanelOut 170ms cubic-bezier(.4,0,1,1) both;pointer-events:none}.notificationHistoryPanel:focus{outline:none}.notificationHistoryHeader{flex:0 0 auto;min-height:62px;padding-block:12px 11px;padding-inline:16px 12px;display:flex;align-items:center;justify-content:space-between;gap:10px;border-bottom:1px solid rgba(255,255,255,.07);background:rgba(244,183,40,.025)}.notificationHistoryHeading{min-width:0;display:flex;align-items:center;gap:8px}.notificationHistoryHeading h3{min-width:0;margin:0;color:#f8f6ef;font-size:.98rem;letter-spacing:-.02em;overflow-wrap:anywhere}.notificationHistoryHeading>span{padding:4px 7px;border-radius:999px;background:rgba(244,183,40,.13);color:#ffd04a;font-size:.56rem;font-weight:900;white-space:nowrap}.notificationHistoryHeaderActions{flex:0 0 auto;display:flex;align-items:center;gap:2px}.notificationHistoryMarkAll{min-height:32px;padding-inline:8px;border:0;background:transparent;color:#a59e91;font:inherit;font-size:.62rem;font-weight:850;cursor:pointer}.notificationHistoryClose,.notificationBackButton{width:34px;height:34px;border:0;background:transparent;color:#77736f;font:inherit;cursor:pointer}.notificationHistoryClose{font-size:1.4rem}.notificationBackButton{display:grid;place-items:center;border-radius:10px;color:#d8bb63;font-size:1rem}.notificationHistoryBodyFrame{flex:1 1 auto;min-height:0;overflow:hidden}.notificationHistoryScroll{height:100%;max-height:none;overflow-y:auto;overscroll-behavior:contain;scrollbar-width:thin;scrollbar-color:#3b3529 transparent}.notificationActionSection{padding:14px 14px 12px;border-bottom:1px solid rgba(255,255,255,.065);background:linear-gradient(180deg,rgba(244,183,40,.065),rgba(244,183,40,.018))}.notificationActionHeading{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:8px;color:#e7d9ae;font-size:.65rem;font-weight:900}.notificationActionHeading span{min-width:20px;height:20px;display:grid;place-items:center;border-radius:999px;background:rgba(244,183,40,.14);color:#ffd04a;font-size:.56rem}.notificationActionCard{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px;border:1px solid rgba(244,183,40,.18);border-radius:15px;background:rgba(8,8,7,.38)}.notificationActionCard+.notificationActionCard{margin-top:8px}.notificationActionCopy{min-width:0;display:grid;gap:3px}.notificationActionCopy>span{color:#aaa39a;font-size:.58rem;font-weight:800}.notificationActionCopy strong{color:#fff3c2;font-size:.88rem;line-height:1.2}.notificationActionCopy small{color:#6f6a62;font-size:.52rem;font-weight:760;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.notificationClaimButton{flex:0 0 auto;min-height:36px;padding-inline:12px;border:0;border-radius:11px;background:#f4b728;color:#17120a;font:inherit;font-size:.62rem;font-weight:950;cursor:pointer}.notificationClaimButton:disabled{opacity:.55;cursor:wait}.notificationProcessingBadge{flex:0 0 auto;max-width:130px;padding:7px 9px;border:1px solid rgba(244,183,40,.15);border-radius:999px;background:rgba(244,183,40,.07);color:#d6bd70;font-size:.55rem;font-weight:900;text-align:center}.notificationActionLoading{min-height:72px;display:flex;align-items:center;justify-content:center;gap:8px;color:#77726b;font-size:.6rem}.notificationMiniSpinner{width:16px;height:16px;border:2px solid rgba(244,183,40,.15);border-top-color:#e6bd4c;border-radius:50%;animation:notificationHistorySpin .8s linear infinite}.notificationActionError{margin-top:8px;padding:8px 10px;display:flex;align-items:center;justify-content:space-between;gap:8px;border-radius:10px;background:rgba(255,110,120,.06);color:#cf8b92;font-size:.56rem}.notificationActionError button{border:0;background:transparent;color:#e9c85f;font:inherit;font-size:.56rem;font-weight:900;cursor:pointer}.notificationHistoryGroup h4{margin:0;padding-block:12px 7px;padding-inline:16px;color:#6f6a62;font-size:.6rem;font-weight:900}.notificationHistoryRow{width:100%;min-width:0;box-sizing:border-box;padding-block:14px 15px;padding-inline:16px;display:block;border:0;border-top:1px solid rgba(255,255,255,.05);background:transparent;color:#fff;text-align:start;font:inherit;cursor:pointer;transition:background .16s ease}.notificationHistoryRow.isUnread{background:rgba(244,183,40,.055)}.notificationHistoryRow.isUnread:hover,.notificationHistoryRow.isInteractive:hover{background:rgba(244,183,40,.075)}.notificationHistoryRow.isRead{background:rgba(255,255,255,.008);cursor:default}.notificationHistoryRow.isRead.isInteractive{cursor:pointer}.notificationHistoryContent{min-width:0;display:block}.notificationHistoryTopLine{min-width:0;display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:start;gap:12px}.notificationHistoryTitleWrap{min-width:0;display:flex;align-items:flex-start;gap:8px}.notificationUnreadDot{flex:0 0 7px;width:7px;height:7px;margin-top:5px;border-radius:50%;background:#ffd04a;box-shadow:0 0 11px rgba(244,183,40,.45)}.notificationHistorySrOnly{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}.notificationHistoryTitle{min-width:0;color:#f5f1e8;font-size:.76rem;font-weight:850;line-height:1.4;letter-spacing:-.012em;overflow-wrap:normal;word-break:keep-all}.notificationHistoryTime{padding-top:1px;color:#746f67;font-size:.56rem;line-height:1.4;white-space:nowrap}.notificationHistoryBody{display:block;margin-top:6px;padding-inline-start:15px;color:#aaa39a;font-size:.65rem;line-height:1.55;overflow-wrap:normal;word-break:keep-all}.notificationHistoryMeta{margin-top:9px;padding-inline-start:15px;display:flex;align-items:center;flex-wrap:wrap;gap:6px}.notificationHistoryMeta b{padding:4px 7px;border:1px solid rgba(244,183,40,.14);border-radius:999px;background:rgba(244,183,40,.07);color:#e8c862;font-size:.56rem;font-weight:900}.notificationHistoryMeta em{color:#9c8b58;font-size:.9rem;font-style:normal;font-weight:900}.notificationHistoryRow.isRead .notificationHistoryTitle{color:#b3ada4;font-weight:760}.notificationHistoryRow.isRead .notificationHistoryBody{color:#716c65}.notificationHistoryRow.isRead .notificationHistoryTime{color:#5e5a55}.notificationHistoryRow.isRead .notificationHistoryMeta b{border-color:rgba(255,255,255,.055);background:rgba(255,255,255,.025);color:#79746d}.notificationHistoryState{height:100%;min-height:0;box-sizing:border-box;padding:36px 24px;display:grid;place-items:center;align-content:center;text-align:center}.notificationHistoryEmptyBell,.notificationHistoryStateIcon{width:54px;height:54px;display:grid;place-items:center;border-radius:18px;background:rgba(244,183,40,.08);color:#d5ae42}.notificationHistoryStateIcon{font-size:1.2rem;font-weight:950}.notificationHistorySpinner{width:32px;height:32px;border:3px solid rgba(244,183,40,.16);border-top-color:#e6bd4c;border-radius:50%;animation:notificationHistorySpin .8s linear infinite}.notificationHistoryState strong{margin-top:14px;color:#ddd8cf;font-size:.9rem}.notificationHistoryState p{max-width:280px;margin:7px 0 0;color:#77726b;font-size:.66rem;line-height:1.55}.notificationHistoryState.errorState .notificationHistoryStateIcon{background:rgba(255,110,120,.08);color:#ff8f9b}.notificationHistoryRetry,.notificationHistoryMore{min-height:38px;margin:16px auto;padding-inline:14px;border:1px solid rgba(244,183,40,.25);border-radius:12px;background:rgba(244,183,40,.08);color:#e9c85f;font:inherit;font-size:.65rem;font-weight:900;cursor:pointer}.notificationHistoryMore{display:block}.notificationHistoryInlineError{padding:12px 16px;display:flex;align-items:center;justify-content:space-between;gap:10px;border-top:1px solid rgba(255,110,120,.12);color:#cf8b92;font-size:.62rem}.notificationHistoryInlineError button{border:0;background:transparent;color:#e9c85f;font:inherit;font-size:.62rem;font-weight:900;cursor:pointer}.notificationHistoryBell:focus-visible,.notificationHistoryMarkAll:focus-visible,.notificationHistoryClose:focus-visible,.notificationBackButton:focus-visible,.notificationHistoryRetry:focus-visible,.notificationHistoryMore:focus-visible,.notificationHistoryRow:focus-visible,.notificationClaimButton:focus-visible{outline:2px solid rgba(255,208,74,.8);outline-offset:2px}.notificationHistoryMarkAll:disabled,.notificationHistoryMore:disabled{opacity:.45;cursor:not-allowed}
-        @media(max-width:560px){.notificationHistoryBell{width:34px;height:34px;flex-basis:34px;border-radius:11px}.notificationHistoryPanel{--notification-history-enter-y:14px;--notification-history-exit-y:8px;position:fixed;z-index:141;top:auto;inset-inline:10px;bottom:max(10px,env(safe-area-inset-bottom));width:auto;height:calc(74dvh - env(safe-area-inset-bottom));max-height:calc(74dvh - env(safe-area-inset-bottom));border-radius:22px;transform-origin:bottom center}.notificationHistoryScroll{max-height:none}.notificationHistoryHeader{padding-inline:14px 9px}.notificationHistoryRow{padding-inline:14px}.notificationHistoryTopLine{gap:8px}.notificationActionCard{align-items:flex-start;flex-direction:column}.notificationClaimButton,.notificationProcessingBadge{width:100%;box-sizing:border-box}.notificationProcessingBadge{max-width:none}}
+        .notificationHistoryRoot{position:relative;display:flex;align-items:center}.notificationHistoryBell{position:relative;width:40px;height:40px;flex:0 0 40px;display:grid;place-items:center;padding:0;border:1px solid rgba(255,255,255,.1);border-radius:13px;background:#141625;color:#b6b2bf;cursor:pointer;transition:background-color .15s ease,border-color .15s ease,color .15s ease,transform .15s ease}.notificationHistoryBell.hasUnread{border-color:rgba(255,205,80,.36);color:#ffd04a;box-shadow:0 0 0 3px rgba(244,183,40,.05)}@media(hover:hover) and (pointer:fine){.notificationHistoryBell:hover{border-color:rgba(255,205,80,.28);background:#1a1b29;color:#ffd04a;transform:translateY(-1px)}}.notificationHistoryBell:active{transform:translateY(0) scale(.97)}.notificationHistoryBadge{position:absolute;top:-7px;inset-inline-end:-7px;min-width:19px;height:19px;box-sizing:border-box;padding-inline:5px;display:grid;place-items:center;border:2px solid #080807;border-radius:999px;background:#f4b728;color:#17120a;font-size:.6rem;font-weight:950;line-height:1}.notificationHistoryBackdrop{position:fixed;z-index:140;inset:0;border:0;background:rgba(2,2,2,.66);cursor:default;animation:notificationHistoryBackdropIn 180ms ease-out both}.notificationHistoryBackdrop.isClosing{animation:notificationHistoryBackdropOut 150ms ease-in both}.notificationHistoryPanel{--notification-history-enter-y:-7px;--notification-history-exit-y:-4px;position:absolute;z-index:141;top:50px;inset-inline-end:0;width:min(400px,calc(100vw - 28px));height:min(610px,calc(100dvh - 92px));max-height:min(610px,calc(100dvh - 92px));overflow:hidden;box-sizing:border-box;display:flex;flex-direction:column;border:1px solid rgba(255,205,80,.22);border-radius:22px;background:#11110f;color:#fff;box-shadow:0 32px 90px rgba(0,0,0,.6),inset 0 1px 0 rgba(255,255,255,.055);text-align:start;transform-origin:top center;animation:notificationHistoryPanelIn 210ms cubic-bezier(.16,1,.3,1) both}.notificationHistoryPanel.hasReceipt{height:auto;max-height:min(610px,calc(100dvh - 92px))}.notificationHistoryPanel.hasReceipt .notificationHistoryBodyFrame{flex:0 1 auto}.notificationHistoryPanel.isClosing{animation:notificationHistoryPanelOut 170ms cubic-bezier(.4,0,1,1) both;pointer-events:none}.notificationHistoryPanel:focus{outline:none}.notificationHistoryHeader{flex:0 0 auto;min-height:62px;padding-block:12px 11px;padding-inline:16px 12px;display:flex;align-items:center;justify-content:space-between;gap:10px;border-bottom:1px solid rgba(255,255,255,.07);background:rgba(244,183,40,.025)}.notificationHistoryHeading{min-width:0;display:flex;align-items:center;gap:8px}.notificationHistoryHeading h3{min-width:0;margin:0;color:#f8f6ef;font-size:.98rem;letter-spacing:-.02em;overflow-wrap:anywhere}.notificationHistoryHeading>span{padding:4px 7px;border-radius:999px;background:rgba(244,183,40,.13);color:#ffd04a;font-size:.56rem;font-weight:900;white-space:nowrap}.notificationHistoryHeaderActions{flex:0 0 auto;display:flex;align-items:center;gap:2px}.notificationHistoryMarkAll{min-height:32px;padding-inline:8px;border:0;background:transparent;color:#a59e91;font:inherit;font-size:.62rem;font-weight:850;cursor:pointer}.notificationHistoryClose,.notificationBackButton{width:34px;height:34px;border:0;background:transparent;color:#77736f;font:inherit;cursor:pointer}.notificationHistoryClose{font-size:1.4rem}.notificationBackButton{display:grid;place-items:center;border-radius:10px;color:#d8bb63;font-size:1rem}.notificationHistoryBodyFrame{flex:1 1 auto;min-height:0;overflow:hidden}.notificationHistoryScroll{height:100%;max-height:none;overflow-y:auto;overscroll-behavior:contain;scrollbar-width:thin;scrollbar-color:#3b3529 transparent}.notificationHistoryGroup h4{margin:0;padding-block:12px 7px;padding-inline:16px;color:#6f6a62;font-size:.6rem;font-weight:900}.notificationHistoryRow{width:100%;min-width:0;box-sizing:border-box;padding-block:14px 15px;padding-inline:16px;display:block;border:0;border-top:1px solid rgba(255,255,255,.05);background:transparent;color:#fff;text-align:start;font:inherit;cursor:pointer;transition:background .16s ease}.notificationHistoryRow.isUnread{background:rgba(244,183,40,.055)}.notificationHistoryRow.isUnread:hover,.notificationHistoryRow.isInteractive:hover{background:rgba(244,183,40,.075)}.notificationHistoryRow.isRead{background:rgba(255,255,255,.008);cursor:default}.notificationHistoryRow.isRead.isInteractive{cursor:pointer}.notificationHistoryContent{min-width:0;display:block}.notificationHistoryTopLine{min-width:0;display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:start;gap:12px}.notificationHistoryTitleWrap{min-width:0;display:flex;align-items:flex-start;gap:8px}.notificationUnreadDot{flex:0 0 7px;width:7px;height:7px;margin-top:5px;border-radius:50%;background:#ffd04a;box-shadow:0 0 11px rgba(244,183,40,.45)}.notificationHistorySrOnly{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}.notificationHistoryTitle{min-width:0;color:#f5f1e8;font-size:.76rem;font-weight:850;line-height:1.4;letter-spacing:-.012em;overflow-wrap:normal;word-break:keep-all}.notificationHistoryTime{padding-top:1px;color:#746f67;font-size:.56rem;line-height:1.4;white-space:nowrap}.notificationHistoryBody{display:block;margin-top:6px;padding-inline-start:15px;color:#aaa39a;font-size:.65rem;line-height:1.55;overflow-wrap:normal;word-break:keep-all}.notificationHistoryMeta{margin-top:9px;padding-inline-start:15px;display:flex;align-items:center;flex-wrap:wrap;gap:6px}.notificationHistoryMeta b{padding:4px 7px;border:1px solid rgba(244,183,40,.14);border-radius:999px;background:rgba(244,183,40,.07);color:#e8c862;font-size:.56rem;font-weight:900}.notificationHistoryMeta em{color:#9c8b58;font-size:.9rem;font-style:normal;font-weight:900}.notificationHistoryRow.isRead .notificationHistoryTitle{color:#b3ada4;font-weight:760}.notificationHistoryRow.isRead .notificationHistoryBody{color:#716c65}.notificationHistoryRow.isRead .notificationHistoryTime{color:#5e5a55}.notificationHistoryRow.isRead .notificationHistoryMeta b{border-color:rgba(255,255,255,.055);background:rgba(255,255,255,.025);color:#79746d}.notificationHistoryState{height:100%;min-height:0;box-sizing:border-box;padding:36px 24px;display:grid;place-items:center;align-content:center;text-align:center}.notificationHistoryEmptyBell,.notificationHistoryStateIcon{width:54px;height:54px;display:grid;place-items:center;border-radius:18px;background:rgba(244,183,40,.08);color:#d5ae42}.notificationHistoryStateIcon{font-size:1.2rem;font-weight:950}.notificationHistorySpinner{width:32px;height:32px;border:3px solid rgba(244,183,40,.16);border-top-color:#e6bd4c;border-radius:50%;animation:notificationHistorySpin .8s linear infinite}.notificationHistoryState strong{margin-top:14px;color:#ddd8cf;font-size:.9rem}.notificationHistoryState p{max-width:280px;margin:7px 0 0;color:#77726b;font-size:.66rem;line-height:1.55}.notificationHistoryState.errorState .notificationHistoryStateIcon{background:rgba(255,110,120,.08);color:#ff8f9b}.notificationHistoryRetry,.notificationHistoryMore{min-height:38px;margin:16px auto;padding-inline:14px;border:1px solid rgba(244,183,40,.25);border-radius:12px;background:rgba(244,183,40,.08);color:#e9c85f;font:inherit;font-size:.65rem;font-weight:900;cursor:pointer}.notificationHistoryMore{display:block}.notificationHistoryInlineError{padding:12px 16px;display:flex;align-items:center;justify-content:space-between;gap:10px;border-top:1px solid rgba(255,110,120,.12);color:#cf8b92;font-size:.62rem}.notificationHistoryInlineError button{border:0;background:transparent;color:#e9c85f;font:inherit;font-size:.62rem;font-weight:900;cursor:pointer}.notificationHistoryBell:focus-visible,.notificationHistoryMarkAll:focus-visible,.notificationHistoryClose:focus-visible,.notificationBackButton:focus-visible,.notificationHistoryRetry:focus-visible,.notificationHistoryMore:focus-visible,.notificationHistoryRow:focus-visible{outline:2px solid rgba(255,208,74,.8);outline-offset:2px}.notificationHistoryMarkAll:disabled,.notificationHistoryMore:disabled{opacity:.45;cursor:not-allowed}
+        @media(max-width:560px){.notificationHistoryPanel.hasReceipt{height:auto;max-height:calc(74dvh - env(safe-area-inset-bottom))}.notificationHistoryBell{width:34px;height:34px;flex-basis:34px;border-radius:11px}.notificationHistoryPanel{--notification-history-enter-y:14px;--notification-history-exit-y:8px;position:fixed;z-index:141;top:auto;inset-inline:10px;bottom:max(10px,env(safe-area-inset-bottom));width:auto;height:calc(74dvh - env(safe-area-inset-bottom));max-height:calc(74dvh - env(safe-area-inset-bottom));border-radius:22px;transform-origin:bottom center}.notificationHistoryScroll{max-height:none}.notificationHistoryHeader{padding-inline:14px 9px}.notificationHistoryRow{padding-inline:14px}.notificationHistoryTopLine{gap:8px}}
         @media(max-width:340px){.notificationHistoryHeader{align-items:flex-start;flex-wrap:wrap;gap:5px;padding-inline:12px 8px}.notificationHistoryHeading{width:100%;gap:6px}.notificationHistoryHeading h3{font-size:.9rem}.notificationHistoryHeading>span{padding:3px 6px;font-size:.52rem}.notificationHistoryHeaderActions{width:100%;justify-content:flex-end}.notificationHistoryMarkAll{min-height:28px;padding-inline:6px;font-size:.56rem}.notificationHistoryClose{width:30px;height:30px}}
-        @media(prefers-reduced-motion:reduce){.notificationHistoryBackdrop,.notificationHistoryPanel{animation:none!important}.notificationHistoryBell,.notificationHistoryRow{transition:none}.notificationHistoryBell:hover,.notificationHistoryBell:active{transform:none!important}.notificationHistorySpinner,.notificationMiniSpinner{animation:none}}
+        @media(prefers-reduced-motion:reduce){.notificationHistoryBackdrop,.notificationHistoryPanel{animation:none!important}.notificationHistoryBell,.notificationHistoryRow{transition:none}.notificationHistoryBell:hover,.notificationHistoryBell:active{transform:none!important}.notificationHistorySpinner{animation:none}}
       `}</style>
     </div>
   );

@@ -44,7 +44,7 @@ test('closing keeps focus and scroll ownership stable until the exit motion comp
   assert.match(center, /document\.body\.style\.overflow = 'hidden'/);
   assert.match(
     center,
-    /if \(!open \|\| closeTimerRef\.current !== null\) return/,
+    /if \(!visibleOpen \|\| closeTimerRef\.current !== null\) return/,
   );
   assert.doesNotMatch(center, /\[closing,\s*finishClose,\s*open\]/);
 });
@@ -64,14 +64,20 @@ test('closing backdrop continues intercepting taps without becoming an extra foc
   );
 });
 
-test('read notifications stay static except paid receipts, which remain reopenable', () => {
-  assert.match(center, /const paid = item\.kind === 'REWARD_PAID'/);
+test('read notifications stay static except receipt-policy rows, which remain reopenable', () => {
   assert.match(
     center,
-    /if \(!unread && !paid\) \{[\s\S]*<div[\s\S]*notificationHistoryRow isRead/,
+    /NOTIFICATION_POLICY\[item\.kind\]\.readBehavior === 'receipt'/,
+  );
+  assert.match(
+    center,
+    /if \(!unread && !receiptAction\) \{[\s\S]*<div[\s\S]*notificationHistoryRow isRead/,
   );
   assert.match(center, /notificationHistoryRow isRead isInteractive/);
-  assert.match(center, /if \(paid\) \{[\s\S]*openRewardReceipt\(item\)/);
+  assert.match(
+    center,
+    /if \(receiptAction\) \{[\s\S]*openRewardReceipt\(item\)/,
+  );
   assert.match(center, /notificationHistoryRow isUnread/);
   assert.doesNotMatch(center, /aria-pressed=/);
   assert.match(center, /notificationHistorySrOnly/);
@@ -80,7 +86,7 @@ test('read notifications stay static except paid receipts, which remain reopenab
 
 test('bell and dialog expose an explicit accessible control relationship', () => {
   assert.match(center, /NOTIFICATION_DIALOG_ID = 'veinvite-notification-history'/);
-  assert.match(center, /aria-controls=\{open \? NOTIFICATION_DIALOG_ID : undefined\}/);
+  assert.match(center, /aria-controls=\{visibleOpen \? NOTIFICATION_DIALOG_ID : undefined\}/);
   assert.match(center, /id=\{NOTIFICATION_DIALOG_ID\}/);
 });
 
@@ -102,9 +108,9 @@ test('mobile motion rises from the bottom and keeps safe-area positioning', () =
 
 test('open notification history refreshes date groups without background minute rerenders', () => {
   assert.match(center, /const \[clockTick, setClockTick\] = useState\(0\)/);
-  assert.match(center, /\[sorted, clockTick, open\]/);
+  assert.match(center, /\[sorted, clockTick, visibleOpen\]/);
   assert.match(
     center,
-    /useEffect\(\(\) => \{\s*if \(!open\) return;\s*const timer = window\.setInterval/,
+    /useEffect\(\(\) => \{\s*if \(!visibleOpen\) return;\s*const timer = window\.setInterval/,
   );
 });

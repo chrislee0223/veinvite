@@ -33,7 +33,7 @@ test('success feedback auto-dismisses but errors remain until an explicit action
   assert.match(snackbar, /feedback\.kind === 'error'/);
   assert.match(snackbar, /window\.setTimeout\(requestDismiss, AUTO_DISMISS_MS\)/);
   assert.match(snackbar, /visibilitychange/);
-  assert.match(snackbar, /onClick=\{requestDismiss\}/);
+  assert.match(snackbar, /onClick=\{reward \? confirmReward : requestDismiss\}/);
   assert.match(snackbar, /role=\{feedback\.kind === 'error' \? 'alert' : 'status'\}/);
 });
 

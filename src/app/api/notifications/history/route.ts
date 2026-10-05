@@ -13,6 +13,8 @@ const DEFAULT_LIMIT = 30;
 const MAX_LIMIT = 50;
 const MAX_ACKNOWLEDGEMENTS = 100;
 const POSITIVE_INTEGER_PATTERN = /^[1-9][0-9]*$/;
+const INTERNAL_WATCH_KIND = 'SECURITY_INVITER_WATCH';
+const INTERNAL_WATCH_PAGE_SIZE = 500;
 
 type NotificationHistoryRow = {
   id: string | number;
@@ -30,6 +32,10 @@ type NotificationHistoryRow = {
 type NotificationHistoryDedupeRow = {
   id: string | number;
   dedupe_key: string;
+};
+
+type NotificationHistoryIdRow = {
+  id: string | number;
 };
 
 const PRESENTATION_KIND_FALLBACKS: Record<string, string> = {
@@ -117,6 +123,148 @@ async function requireWallet(request: NextRequest): Promise<string> {
   return session.walletAddress.toLowerCase();
 }
 
+async function loadHistoryRowsWithoutInternalWatch({
+  wallet,
+  beforeId,
+  limit,
+}: {
+  wallet: string;
+  beforeId: string | null;
+  limit: number;
+}): Promise<{
+  rows: NotificationHistoryRow[];
+  hasMore: boolean;
+}> {
+  const visibleRows: NotificationHistoryRow[] = [];
+  let cursor = beforeId;
+  let exhausted = false;
+
+  while (visibleRows.length <= limit && !exhausted) {
+    const historyResult = await supabaseAdmin.rpc(
+      'get_invite_notification_history',
+      {
+        p_inviter_wallet: wallet,
+        p_before_id: cursor,
+        p_limit: MAX_LIMIT,
+      },
+    );
+
+    if (historyResult.error) {
+      throw new Error(
+        `Notification history could not be loaded: ${historyResult.error.message}`,
+      );
+    }
+
+    const batch = (historyResult.data ?? []) as NotificationHistoryRow[];
+    visibleRows.push(
+      ...batch.filter((row) => row.kind !== INTERNAL_WATCH_KIND),
+    );
+
+    if (batch.length < MAX_LIMIT) {
+      exhausted = true;
+      break;
+    }
+
+    const nextCursor = String(batch[batch.length - 1]?.id ?? '');
+    if (!nextCursor || nextCursor === cursor) {
+      exhausted = true;
+      break;
+    }
+    cursor = nextCursor;
+  }
+
+  return {
+    rows: visibleRows.slice(0, limit),
+    hasMore: visibleRows.length > limit || !exhausted,
+  };
+}
+
+async function loadInternalWatchIdsForWallet(
+  wallet: string,
+): Promise<string[]> {
+  const ids = new Set<string>();
+
+  const loadScope = async (
+    scope: 'recipient' | 'legacy',
+  ): Promise<void> => {
+    let from = 0;
+
+    while (true) {
+      let query = supabaseAdmin
+        .from('invite_notification_history')
+        .select('id')
+        .eq('kind', INTERNAL_WATCH_KIND)
+        .order('id', { ascending: true })
+        .range(from, from + INTERNAL_WATCH_PAGE_SIZE - 1);
+
+      query = scope === 'recipient'
+        ? query.eq('recipient_wallet', wallet)
+        : query.is('recipient_wallet', null).eq('inviter_wallet', wallet);
+
+      const result = await query;
+      if (result.error) {
+        throw new Error(
+          `Internal notification history could not be counted: ${result.error.message}`,
+        );
+      }
+
+      const batch = (result.data ?? []) as NotificationHistoryIdRow[];
+      for (const row of batch) ids.add(String(row.id));
+
+      if (batch.length < INTERNAL_WATCH_PAGE_SIZE) break;
+      from += INTERNAL_WATCH_PAGE_SIZE;
+    }
+  };
+
+  await Promise.all([
+    loadScope('recipient'),
+    loadScope('legacy'),
+  ]);
+
+  return [...ids];
+}
+
+async function countUnreadInternalWatch(
+  wallet: string,
+): Promise<number> {
+  const ids = await loadInternalWatchIdsForWallet(wallet);
+  if (ids.length === 0) return 0;
+
+  const readIds = new Set<string>();
+
+  for (let start = 0; start < ids.length; start += INTERNAL_WATCH_PAGE_SIZE) {
+    const batchIds = ids.slice(start, start + INTERNAL_WATCH_PAGE_SIZE);
+    const readResult = await supabaseAdmin
+      .from('invite_notification_history_reads')
+      .select('notification_id')
+      .eq('inviter_wallet', wallet)
+      .in('notification_id', batchIds);
+
+    if (readResult.error) {
+      throw new Error(
+        `Internal notification read state could not be counted: ${readResult.error.message}`,
+      );
+    }
+
+    for (const row of (readResult.data ?? []) as Array<{
+      notification_id: string | number;
+    }>) {
+      readIds.add(String(row.notification_id));
+    }
+  }
+
+  return ids.length - readIds.size;
+}
+
+async function visibleUnreadCount(
+  wallet: string,
+  totalUnread: number,
+): Promise<number> {
+  if (totalUnread < 1) return 0;
+  const hiddenUnread = await countUnreadInternalWatch(wallet);
+  return Math.max(0, totalUnread - hiddenUnread);
+}
+
 export async function GET(request: NextRequest) {
   let wallet: string;
   try {
@@ -148,29 +296,24 @@ export async function GET(request: NextRequest) {
   const limit = parseLimit(request.nextUrl.searchParams.get('limit'));
 
   try {
-    const [historyResult, unreadResult] = await Promise.all([
-      supabaseAdmin.rpc('get_invite_notification_history', {
-        p_inviter_wallet: wallet,
-        p_before_id: beforeId,
-        p_limit: limit,
+    const [historyPage, unreadResult] = await Promise.all([
+      loadHistoryRowsWithoutInternalWatch({
+        wallet,
+        beforeId,
+        limit,
       }),
       supabaseAdmin.rpc('count_invite_notification_history_unread', {
         p_inviter_wallet: wallet,
       }),
     ]);
 
-    if (historyResult.error) {
-      throw new Error(
-        `Notification history could not be loaded: ${historyResult.error.message}`,
-      );
-    }
     if (unreadResult.error) {
       throw new Error(
         `Notification unread count could not be loaded: ${unreadResult.error.message}`,
       );
     }
 
-    const rows = (historyResult.data ?? []) as NotificationHistoryRow[];
+    const rows = historyPage.rows.slice(0, limit);
     const legacySecurityIds = rows
       .filter(
         (row) =>
@@ -221,11 +364,16 @@ export async function GET(request: NextRequest) {
       };
     });
 
+    const unreadCount = await visibleUnreadCount(
+      wallet,
+      Number(unreadResult.data ?? 0),
+    );
+
     return noStoreJson({
       items,
-      unreadCount: Number(unreadResult.data ?? 0),
+      unreadCount,
       nextCursor:
-        rows.length === limit && rows.length > 0
+        historyPage.hasMore && rows.length > 0
           ? String(rows[rows.length - 1].id)
           : null,
     });
@@ -374,7 +522,10 @@ export async function POST(request: NextRequest) {
     return noStoreJson({
       acknowledged: true,
       result: acknowledgementResult.data,
-      unreadCount: Number(unreadResult.data ?? 0),
+      unreadCount: await visibleUnreadCount(
+        wallet,
+        Number(unreadResult.data ?? 0),
+      ),
     });
   } catch (error) {
     console.error(

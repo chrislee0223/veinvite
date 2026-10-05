@@ -20,8 +20,6 @@ export function RewardReceiptView({
   receipt,
   loading,
   error,
-  acknowledging,
-  onAcknowledge,
   rewardShareUrl = '',
   onRewardShare,
 }: {
@@ -29,8 +27,6 @@ export function RewardReceiptView({
   receipt: RewardReceipt | null;
   loading: boolean;
   error: string;
-  acknowledging: boolean;
-  onAcknowledge: () => void;
   rewardShareUrl?: string;
   onRewardShare?: (intentUrl: string) => void;
 }) {
@@ -73,11 +69,13 @@ export function RewardReceiptView({
         </div>
       ) : receipt ? (
         <>
-          <span className="notificationReceiptEyebrow">{copy.eyebrow}</span>
-          <div className="notificationReceiptAmount">
-            <strong>{receipt.amountB3tr}</strong><span>B3TR</span>
-          </div>
-          <p>{copy.description}</p>
+          <section className="notificationReceiptHero">
+            <div className="notificationReceiptAmount">
+              <strong>{receipt.amountB3tr}</strong>
+              <span>B3TR</span>
+            </div>
+            <p>{copy.description}</p>
+          </section>
           <dl className="notificationReceiptFacts">
             <div>
               <dt>{copy.round}</dt>
@@ -93,17 +91,6 @@ export function RewardReceiptView({
             </div>
           </dl>
 
-          {rewardShareIntentUrl ? (
-            <button
-              type="button"
-              className="notificationXShare"
-              onClick={shareRewardOnX}
-            >
-              <span aria-hidden="true">𝕏</span>
-              {rewardReceiptShareLabel(locale)}
-            </button>
-          ) : null}
-
           {transactionUrl ? (
             <a
               className="notificationExplorerLink"
@@ -115,19 +102,19 @@ export function RewardReceiptView({
             </a>
           ) : null}
 
-          {error ? (
-            <p className="notificationReceiptError" role="alert">{error}</p>
-          ) : null}
-
-          {!receipt.seen ? (
+          {rewardShareIntentUrl ? (
             <button
               type="button"
-              className="notificationReceiptAcknowledge"
-              disabled={acknowledging}
-              onClick={onAcknowledge}
+              className="notificationXShare"
+              aria-label={rewardReceiptShareLabel(locale)}
+              onClick={shareRewardOnX}
             >
-              {acknowledging ? copy.acknowledging : copy.acknowledge}
+              {rewardReceiptShareLabel(locale)}
             </button>
+          ) : null}
+
+          {error ? (
+            <p className="notificationReceiptError" role="alert">{error}</p>
           ) : null}
         </>
       ) : (
@@ -139,30 +126,28 @@ export function RewardReceiptView({
       )}
 
       <style jsx>{`
-        .notificationReceiptView{height:100%;max-height:none;overflow-y:auto;overscroll-behavior:contain;scrollbar-width:thin;scrollbar-color:#3b3529 transparent;padding:18px;box-sizing:border-box}
-        .notificationReceiptEyebrow{display:block;color:#ffd453;font-size:.6rem;font-weight:900;letter-spacing:.065em}
-        .notificationReceiptAmount{margin-top:12px;display:flex;align-items:baseline;gap:7px}
-        .notificationReceiptAmount strong{color:#fff1b0;font-size:1.8rem;line-height:1}
-        .notificationReceiptAmount span{color:#d4b953;font-size:.66rem;font-weight:900}
-        .notificationReceiptView>p{margin:12px 0 0;color:#a8a197;font-size:.66rem;line-height:1.55}
-        .notificationReceiptFacts{margin:16px 0 0;display:grid;gap:8px}
-        .notificationReceiptFacts div{padding:10px 11px;display:flex;align-items:center;justify-content:space-between;gap:12px;border:1px solid rgba(255,255,255,.055);border-radius:11px;background:rgba(255,255,255,.018)}
+        .notificationReceiptView{max-height:100%;overflow-y:auto;overscroll-behavior:contain;scrollbar-width:thin;scrollbar-color:#3b3529 transparent;padding:20px 18px 18px;box-sizing:border-box}
+        .notificationReceiptHero{display:grid;gap:8px}
+        .notificationReceiptAmount{display:flex;align-items:baseline;gap:7px}
+        .notificationReceiptAmount strong{color:#fff1b0;font-size:1.9rem;line-height:1;font-variant-numeric:tabular-nums}
+        .notificationReceiptAmount span{color:#d4b953;font-size:.64rem;font-weight:900;letter-spacing:.02em}
+        .notificationReceiptHero p{margin:0;color:#a8a197;font-size:.67rem;line-height:1.55}
+        .notificationReceiptFacts{margin:14px 0 0;overflow:hidden;border:1px solid rgba(255,255,255,.06);border-radius:13px;background:rgba(255,255,255,.018)}
+        .notificationReceiptFacts div{min-height:39px;padding:9px 11px;box-sizing:border-box;display:flex;align-items:center;justify-content:space-between;gap:14px}
+        .notificationReceiptFacts div+div{border-top:1px solid rgba(255,255,255,.05)}
         .notificationReceiptFacts dt{color:#777168;font-size:.56rem;font-weight:800}
         .notificationReceiptFacts dd{margin:0;color:#d9d2c7;font-size:.6rem;font-weight:850;overflow-wrap:anywhere;text-align:end}
-        .notificationXShare{width:100%;min-height:48px;margin-top:12px;display:flex;align-items:center;justify-content:center;gap:9px;padding:11px 14px;border:1px solid rgba(255,255,255,.16);border-radius:15px;background:#f7f7f5;color:#0b0b0a;font:inherit;font-size:.8rem;font-weight:950;cursor:pointer}
-        .notificationXShare span{font-size:1rem;line-height:1}
-        .notificationExplorerLink{margin-top:12px;min-height:38px;padding-inline:12px;display:flex;align-items:center;justify-content:center;gap:6px;border:1px solid rgba(244,183,40,.22);border-radius:11px;background:rgba(244,183,40,.06);color:#e8c862;text-decoration:none;font-size:.62rem;font-weight:900}
-        .notificationReceiptError{margin:10px 0 0!important;color:#d48b93!important}
-        .notificationReceiptAcknowledge{width:100%;min-height:42px;margin-top:12px;border:0;border-radius:12px;background:#f4b728;color:#17120a;font:inherit;font-size:.66rem;font-weight:950;cursor:pointer}
-        .notificationReceiptAcknowledge:disabled{opacity:.55;cursor:wait}
+        .notificationExplorerLink{width:max-content;max-width:100%;margin-top:9px;display:inline-flex;align-items:center;gap:5px;color:#cdb45e;text-decoration:none;font-size:.59rem;font-weight:850}
+        .notificationXShare{width:100%;min-height:44px;margin-top:14px;padding:10px 14px;border:1px solid rgba(255,255,255,.16);border-radius:12px;background:#f7f7f5;color:#0b0b0a;font:inherit;font-size:.75rem;font-weight:950;cursor:pointer}
+        .notificationReceiptError{margin:8px 0 0!important;color:#d48b93!important;font-size:.6rem!important}
         .notificationHistoryState{height:100%;min-height:0;box-sizing:border-box;padding:36px 24px;display:grid;place-items:center;align-content:center;text-align:center}
         .notificationHistorySpinner{width:32px;height:32px;border:3px solid rgba(244,183,40,.16);border-top-color:#e6bd4c;border-radius:50%;animation:notificationHistorySpin .8s linear infinite}
         .notificationHistoryStateIcon{width:54px;height:54px;display:grid;place-items:center;border-radius:18px;background:rgba(255,110,120,.08);color:#ff8f9b;font-size:1.2rem;font-weight:950}
         .notificationHistoryState strong{margin-top:14px;color:#ddd8cf;font-size:.9rem}
         .notificationHistoryState p{max-width:280px;margin:7px 0 0;color:#77726b;font-size:.66rem;line-height:1.55}
-        .notificationXShare:focus-visible,.notificationExplorerLink:focus-visible,.notificationReceiptAcknowledge:focus-visible{outline:2px solid rgba(255,208,74,.8);outline-offset:2px}
+        .notificationXShare:focus-visible,.notificationExplorerLink:focus-visible{outline:2px solid rgba(255,208,74,.8);outline-offset:2px}
         @keyframes notificationHistorySpin{to{transform:rotate(360deg)}}
-        @media(max-width:560px){.notificationReceiptView{padding:16px 14px}}
+        @media(max-width:560px){.notificationReceiptView{padding:16px 14px}.notificationReceiptAmount strong{font-size:1.75rem}}
         @media(prefers-reduced-motion:reduce){.notificationHistorySpinner{animation:none}}
       `}</style>
     </div>

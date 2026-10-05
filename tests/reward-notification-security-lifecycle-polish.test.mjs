@@ -62,19 +62,12 @@ test('notification cache and data refresh include invalidation and restoration',
   assert.match(network, /void loadRoot\(\)/u);
 });
 
-test('notification action loading does not insert a transient empty section', async () => {
+test('notification history has no duplicate reward-action section', async () => {
   const source = await read('src/components/UnifiedInviteNotificationHistoryCenter.tsx');
-  const start = source.indexOf('const renderRewardActions = () => {');
-  const end = source.indexOf('const receiptViewActive', start);
-  assert.ok(start >= 0);
-  assert.ok(end > start);
-  const body = source.slice(start, end);
-
-  assert.match(
-    body,
-    /rewardActions\.length === 0\s*&&\s*!actionError/u,
-  );
-  assert.doesNotMatch(body, /notificationActionLoading/u);
+  assert.doesNotMatch(source, /renderRewardActions/u);
+  assert.doesNotMatch(source, /rewardActions/u);
+  assert.doesNotMatch(source, /notificationActionLoading/u);
+  assert.doesNotMatch(source, /notificationClaimButton/u);
 });
 
 test('security notification QA covers new lifecycle states at narrow mobile width', async () => {

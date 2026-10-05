@@ -4,6 +4,7 @@ import test from 'node:test';
 
 const [
   source,
+  homeHelpers,
   walletControl,
   walletResume,
   walletRuntime,
@@ -14,6 +15,7 @@ const [
   walletProviderReconciler,
 ] = await Promise.all([
   readFile('src/components/HomeClient.tsx', 'utf8'),
+  readFile('src/lib/homeClientHelpers.ts', 'utf8'),
   readFile('src/components/WalletControl.tsx', 'utf8'),
   readFile('src/components/WalletConnectionResume.tsx', 'utf8'),
   readFile('src/components/WalletRuntimeLifecycle.tsx', 'utf8'),
@@ -25,11 +27,12 @@ const [
 ]);
 
 test('Home restores permanent referral links from wallet-scoped session storage', () => {
-  assert.match(source, /REFERRAL_LINK_SESSION_PREFIX/);
-  assert.match(source, /window\.sessionStorage\.getItem\(referralLinkSessionKey\(wallet\)\)/);
-  assert.match(source, /wallet\.toLowerCase\(\)/);
-  assert.match(source, /isReferralKey\(parsed\.key\)/);
+  assert.match(source, /readCachedReferralLink\(wallet\)/);
   assert.match(source, /writeCachedReferralLink\(requestWallet, linkData\.referralLink\)/);
+  assert.match(homeHelpers, /REFERRAL_LINK_SESSION_PREFIX/);
+  assert.match(homeHelpers, /window\.sessionStorage\.getItem/);
+  assert.match(homeHelpers, /wallet\.toLowerCase\(\)/);
+  assert.match(homeHelpers, /isReferralKey\(parsed\.key\)/);
 });
 
 test('cached links stay non-authoritative until the server verifies them', () => {
@@ -38,6 +41,7 @@ test('cached links stay non-authoritative until the server verifies them', () =>
   assert.match(source, /disabled=\{!referralLinkVerified \|\| !permanentInviteUrl\}/);
   assert.match(source, /shareDisabled=\{!referralLinkVerified \|\| !permanentInviteUrl\}/);
   assert.match(source, /sameWallet\(activeWalletRef\.current, requestWallet\)/);
+  assert.match(homeHelpers, /export function sameWallet/);
 });
 
 test('refresh never claims to create a new link and never guesses slot counts', () => {

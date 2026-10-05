@@ -36,6 +36,7 @@ export interface InviteRecord {
   rewardClaimRequestedAt?: string;
   rewardReservedAmountWei?: string;
   rewardReservedAt?: string;
+  rewardRecoveryOffsetWei?: string;
   appsCompleted?: number;
   vot3Converted?: boolean;
   voteCompleted?: boolean;

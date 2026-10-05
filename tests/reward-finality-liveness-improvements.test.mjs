@@ -67,43 +67,19 @@ test('reward actions expose only canonically confirmed broadcast metadata', () =
   );
 });
 
-test('notification UI distinguishes sent rewards from ordinary payout processing', () => {
-  assert.match(
-    notificationCenter,
-    /const transferConfirmed = Boolean\([\s\S]*action\.broadcastConfirmedAt[\s\S]*action\.txId/,
-  );
-  assert.match(notificationCenter, />B3TR TX</);
-  assert.match(
-    notificationCenter,
-    /transferConfirmed[\s\S]*progressCopy\.finalCheck[\s\S]*progressCopy\.claimQueued/,
-  );
+test('notification history waits for authoritative paid receipts instead of showing queue processing', () => {
+  assert.doesNotMatch(notificationCenter, /action\.broadcastConfirmedAt/u);
+  assert.doesNotMatch(notificationCenter, />B3TR TX</u);
+  assert.doesNotMatch(notificationCenter, /notificationProcessingBadge/u);
+  assert.match(notificationCenter, /case 'REWARD_PAID':/u);
+  assert.match(notificationCenter, /openRewardReceipt\(item\)/u);
 });
 
-test('notification reward actions use the tested polling policy without depending on action array identity', () => {
-  assert.match(
-    notificationCenter,
-    /getRewardActionPollingMode\(rewardActions\)/,
-  );
-  assert.match(
-    notificationCenter,
-    /rewardActionPollingIntervalMs\([\s\S]*rewardActionPollingMode/,
-  );
-  assert.match(
-    notificationCenter,
-    /\[loadRewardActions, open, rewardActionPollingMode\]/,
-  );
-  assert.doesNotMatch(
-    notificationCenter,
-    /\[loadRewardActions, open, rewardActions\]/,
-  );
-  assert.match(
-    notificationCenter,
-    /B3TR ✓ · \$\{progressCopy\.finalCheck\}/,
-  );
-  assert.match(
-    notificationCenter,
-    /B3TR → · \$\{progressCopy\.claimQueued\}/,
-  );
+test('notification history does not poll reward-action state', () => {
+  assert.doesNotMatch(notificationCenter, /getRewardActionPollingMode/u);
+  assert.doesNotMatch(notificationCenter, /rewardActionPollingIntervalMs/u);
+  assert.doesNotMatch(notificationCenter, /loadRewardActions/u);
+  assert.doesNotMatch(notificationCenter, /\/api\/notifications\/reward-actions/u);
 });
 
 test('reward operations monitoring observes the oldest open round', () => {
