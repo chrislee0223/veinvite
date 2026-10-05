@@ -157,6 +157,7 @@ test('QA previews both paid bell history and the real paid bottom popup', () => 
   assert.match(qaHarness, /case 'NOTI-REWARD-PAID-POPUP':/);
   assert.match(qaHarness, /<TransientSnackbar/);
   assert.match(qaHarness, /amountB3tr: '262\.97'/);
+  assert.match(qaHarness, /REWARD_RECEIPT_COPY\[locale\]\.description/);
   assert.match(center, /previewRewardReceipt/);
   assert.match(center, /allowProgrammaticOpen/);
 });
