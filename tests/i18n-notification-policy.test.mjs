@@ -74,6 +74,18 @@ test('only actual paid rewards get the special transient reward surface', () => 
     policy.match(/transientSurface: 'reward-paid'/gu) ?? [];
   assert.equal(rewardSurfaceCount.length, 1);
 
+  const receiptReadCount =
+    policy.match(/readBehavior: 'receipt'/gu) ?? [];
+  assert.equal(receiptReadCount.length, 1);
+  assert.match(
+    center,
+    /NOTIFICATION_POLICY\[item\.kind\]\.readBehavior === 'receipt'/u,
+  );
+  assert.match(
+    controller,
+    /NOTIFICATION_POLICY\[notification\.kind\]\.readBehavior === 'tap'/u,
+  );
+
   assert.match(harness, /'NOTI-REWARD-PAID-POPUP'/u);
   assert.doesNotMatch(harness, /InviteNotificationSurfaceV2/u);
 });
