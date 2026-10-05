@@ -1081,24 +1081,16 @@ export async function syncInvitationEvidence(
   if (becameRewardEligible) {
     const detectedAt =
       new Date().toISOString();
-    let eligibilityContinuationPublished =
-      false;
 
-    // Eligibility itself is durable. Publish the reservation continuation
-    // immediately even when Sybil finality/clearance is still catching up.
-    // The queue consumer remains fail-closed and retries until the current
-    // clearance and chain finality gates are satisfied.
     try {
       await enqueueRewardReservationContinuation({
         inviteCode: row.invite_code,
         detectedAt,
         trigger: 'ELIGIBILITY',
       });
-      eligibilityContinuationPublished =
-        true;
     } catch (reservationError) {
       console.error(
-        'Reward reservation eligibility continuation could not be published:',
+        'Reward reservation eligibility continuation publish failed:',
         {
           inviteCode: row.invite_code,
           error: reservationError,
@@ -1134,30 +1126,6 @@ export async function syncInvitationEvidence(
         );
       }
     } catch (sybilV2Error) {
-      if (
-        !sybilV2Enforced &&
-        !eligibilityContinuationPublished
-      ) {
-        // Shadow mode keeps legacy reward liveness even if the first queue
-        // publication failed. Enforcement mode remains fail-closed and the
-        // five-minute recovery sweep retries the eligible referral.
-        try {
-          await enqueueRewardReservationContinuation({
-            inviteCode: row.invite_code,
-            detectedAt,
-            trigger: 'ELIGIBILITY',
-          });
-        } catch (reservationError) {
-          console.error(
-            'Legacy reward reservation queue failed during Sybil v2 shadow mode:',
-            {
-              inviteCode: row.invite_code,
-              error: reservationError,
-            },
-          );
-        }
-      }
-
       console.error(
         'Sybil v2 final assessment failed before reward reservation:',
         {

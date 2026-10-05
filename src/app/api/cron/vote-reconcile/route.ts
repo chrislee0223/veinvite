@@ -18,9 +18,11 @@ import {
   tryClaimCronJob,
 } from '@/lib/monitoring/cronHeartbeat';
 import {
-  readStaleEligibleRewardReservationLiveness,
   reserveEligibleReferralRewards,
 } from '@/lib/rewards/rewardReservation';
+import {
+  assertRewardReservationLiveness,
+} from '@/lib/rewards/rewardReservationLiveness';
 import { supabaseAdmin } from '@/lib/supabaseServer';
 import {
   runB3trRecipientObservationBatch,
@@ -588,10 +590,7 @@ async function runEventDrivenVoteWatcher() {
         finalizedBlock -
           INITIAL_LOOKBACK_BLOCKS,
       );
-    // A persisted cursor is authoritative. Never jump it forward to a recent
-    // recovery floor after an outage, because doing so can permanently skip
-    // governance votes that happened while the cron was unavailable. Bound
-    // each pass instead and catch up over successive one-minute invocations.
+    // Preserve the persisted cursor so outages cannot skip votes.
     const fromBlock =
       checkpoint === null
         ? recoveryFloor
@@ -1089,11 +1088,7 @@ export async function GET(
     let recoveryFailure:
       unknown | null = null;
 
-    // Analyzer upgrades intentionally make old COMPLETE checkpoints stale.
-    // Publish the live and already-paid evidence backlogs from the existing
-    // five-minute recovery loop so a new analyzer does not take days to reach
-    // every referral. Queue delivery remains idempotent and chain scans stay
-    // isolated from reward reservation in the dedicated queue consumer.
+    // Refresh stale analyzer evidence from the recovery loop.
     try {
       sybilV2EvidenceQueue =
         await enqueueSybilV2EvidenceBacklogBatch(
@@ -1173,37 +1168,15 @@ export async function GET(
     }
 
     try {
-      const reservationLiveness =
-        await readStaleEligibleRewardReservationLiveness(
-          15,
-        );
-
-      if (
-        reservationLiveness.missingCount >
-        0
-      ) {
-        const livenessError =
-          new Error(
-            `CLEAR reward reservation liveness failed for ${reservationLiveness.missingCount} referral(s).`,
-          );
-        recoveryFailure ??=
-          livenessError;
-        console.error(
-          'Vote watcher reward reservation liveness failed:',
-          reservationLiveness,
-        );
-        errors.push(
-          'REWARD_RESERVATION_LIVENESS_FAILED',
-        );
-      }
+      await assertRewardReservationLiveness();
     } catch (error) {
       recoveryFailure ??= error;
       console.error(
-        'Vote watcher reward reservation liveness check failed:',
+        'Vote watcher reward reservation liveness failed:',
         error,
       );
       errors.push(
-        'REWARD_RESERVATION_LIVENESS_CHECK_FAILED',
+        'REWARD_RESERVATION_LIVENESS_FAILED',
       );
     }
 
