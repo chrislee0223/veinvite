@@ -9,15 +9,11 @@ import {
 import {
   InviteNotificationHistoryCenter,
 } from '@/components/InviteNotificationHistoryCenter';
-import {
-  InviteNotificationSurfaceV2,
-} from '@/components/InviteNotificationSurfaceV2';
 import type { SupportedLocale } from '@/lib/i18n/locales';
 import type {
   InviteNotificationHistoryItem,
 } from '@/lib/notifications/inviteNotificationHistory';
 import type {
-  InviteNotificationPayloadV2,
   InviteNotificationKindV2,
 } from '@/lib/notifications/inviteNotificationStateV2';
 import type { RewardReceipt } from '@/lib/rewards/rewardReceipt';
@@ -66,12 +62,7 @@ type HistoryFixture = {
   onRewardShare?: (intentUrl: string) => void;
 };
 
-type SurfaceFixture = {
-  mode: 'surface';
-  notifications: InviteNotificationPayloadV2[];
-};
-
-type NotificationFixture = HistoryFixture | SurfaceFixture;
+type NotificationFixture = HistoryFixture;
 
 const QA_FRIEND =
   '0x0000000000000000000000000000000000000b01';
@@ -131,27 +122,6 @@ function historyItem({
   };
 }
 
-function surfaceItem({
-  kind,
-  dappProgress = null,
-  collapsedProgress = false,
-  rewardAmountWei = null,
-}: {
-  kind: InviteNotificationKindV2;
-  dappProgress?: number | null;
-  collapsedProgress?: boolean;
-  rewardAmountWei?: string | null;
-}): InviteNotificationPayloadV2 {
-  return {
-    inviteCode: 'QA-NOTI-SURFACE',
-    kind,
-    stage: 3,
-    eventAt: minutesAgo(2),
-    rewardAmountWei,
-    dappProgress,
-    collapsedProgress,
-  };
-}
 
 function mixedHistory(): InviteNotificationHistoryItem[] {
   return [
@@ -263,61 +233,52 @@ function fixtureForState(
       };
     case 'NOTI-INVITE-ACCEPTED':
       return {
-        mode: 'surface',
-        notifications: [surfaceItem({ kind: 'INVITE_ACCEPTED' })],
+        mode: 'history',
+        items: [historyItem({ id: '24', kind: 'INVITE_ACCEPTED', minutes: 2 })],
+        unreadCount: 1,
+        open: true,
       };
     case 'NOTI-DAPP-1':
       return {
-        mode: 'surface',
-        notifications: [
-          surfaceItem({ kind: 'DAPP_PROGRESS', dappProgress: 1 }),
-        ],
+        mode: 'history',
+        items: [historyItem({ id: '25', kind: 'DAPP_PROGRESS', minutes: 2, dappProgress: 1 })],
+        unreadCount: 1,
+        open: true,
       };
     case 'NOTI-DAPP-2':
       return {
-        mode: 'surface',
-        notifications: [
-          surfaceItem({ kind: 'DAPP_PROGRESS', dappProgress: 2 }),
-        ],
+        mode: 'history',
+        items: [historyItem({ id: '26', kind: 'DAPP_PROGRESS', minutes: 2, dappProgress: 2 })],
+        unreadCount: 1,
+        open: true,
       };
     case 'NOTI-DAPP-3':
       return {
-        mode: 'surface',
-        notifications: [
-          surfaceItem({ kind: 'DAPP_PROGRESS', dappProgress: 3 }),
-        ],
+        mode: 'history',
+        items: [historyItem({ id: '27', kind: 'DAPP_PROGRESS', minutes: 2, dappProgress: 3 })],
+        unreadCount: 1,
+        open: true,
       };
     case 'NOTI-VOT3':
       return {
-        mode: 'surface',
-        notifications: [
-          surfaceItem({
-            kind: 'VOT3_CONVERTED',
-            dappProgress: 3,
-          }),
-        ],
+        mode: 'history',
+        items: [historyItem({ id: '28', kind: 'VOT3_CONVERTED', minutes: 2, dappProgress: 3 })],
+        unreadCount: 1,
+        open: true,
       };
     case 'NOTI-COLLAPSED-PROGRESS':
       return {
-        mode: 'surface',
-        notifications: [
-          surfaceItem({
-            kind: 'VOT3_CONVERTED',
-            dappProgress: 3,
-            collapsedProgress: true,
-          }),
-        ],
+        mode: 'history',
+        items: [historyItem({ id: '29', kind: 'VOT3_CONVERTED', minutes: 2, dappProgress: 3, collapsedProgress: true })],
+        unreadCount: 1,
+        open: true,
       };
     case 'NOTI-REWARD-READY':
       return {
-        mode: 'surface',
-        notifications: [
-          surfaceItem({
-            kind: 'REWARD_READY',
-            dappProgress: 3,
-            rewardAmountWei: QA_REWARD_WEI,
-          }),
-        ],
+        mode: 'history',
+        items: [historyItem({ id: '30', kind: 'REWARD_READY', minutes: 2, dappProgress: 3, rewardAmountWei: QA_REWARD_WEI })],
+        unreadCount: 1,
+        open: true,
       };
     case 'NOTI-REWARD-PAID':
       return {
@@ -354,8 +315,10 @@ function fixtureForState(
       };
     case 'NOTI-INELIGIBLE':
       return {
-        mode: 'surface',
-        notifications: [surfaceItem({ kind: 'INVITE_INELIGIBLE' })],
+        mode: 'history',
+        items: [historyItem({ id: '31', kind: 'INVITE_INELIGIBLE', minutes: 2 })],
+        unreadCount: 1,
+        open: true,
       };
     case 'NOTI-SECURITY-REVIEW':
       return {
@@ -451,14 +414,8 @@ function fixtureForState(
     case 'NOTI-INVITER-WATCH':
       return {
         mode: 'history',
-        items: [
-          historyItem({
-            id: '13',
-            kind: 'SECURITY_INVITER_WATCH',
-            minutes: 5,
-          }),
-        ],
-        unreadCount: 1,
+        items: [],
+        unreadCount: 0,
         open: true,
       };
     case 'NOTI-INVITER-HOLD':
@@ -551,48 +508,32 @@ export function QaNotificationStateHarness({
     [stateId],
   );
   const [open, setOpen] = useState(
-    seed.mode === 'history' ? seed.open : true,
+    seed.open,
   );
   const [items, setItems] = useState<InviteNotificationHistoryItem[]>(
-    seed.mode === 'history' ? seed.items : [],
+    seed.items,
   );
   const [unreadCount, setUnreadCount] = useState(
-    seed.mode === 'history' ? seed.unreadCount : 0,
+    seed.unreadCount,
   );
   const [loading, setLoading] = useState(
-    seed.mode === 'history' ? Boolean(seed.loading) : false,
+    Boolean(seed.loading),
   );
   const [errorMessage, setErrorMessage] = useState(
-    seed.mode === 'history' ? seed.errorMessage ?? '' : '',
+    seed.errorMessage ?? '',
   );
   const [hasMore, setHasMore] = useState(
-    seed.mode === 'history' ? Boolean(seed.hasMore) : false,
+    Boolean(seed.hasMore),
   );
 
   useEffect(() => {
-    setOpen(seed.mode === 'history' ? seed.open : true);
-    setItems(seed.mode === 'history' ? seed.items : []);
-    setUnreadCount(seed.mode === 'history' ? seed.unreadCount : 0);
-    setLoading(seed.mode === 'history' ? Boolean(seed.loading) : false);
-    setErrorMessage(seed.mode === 'history' ? seed.errorMessage ?? '' : '');
-    setHasMore(seed.mode === 'history' ? Boolean(seed.hasMore) : false);
+    setOpen(seed.open);
+    setItems(seed.items);
+    setUnreadCount(seed.unreadCount);
+    setLoading(Boolean(seed.loading));
+    setErrorMessage(seed.errorMessage ?? '');
+    setHasMore(Boolean(seed.hasMore));
   }, [seed]);
-
-  if (seed.mode === 'surface') {
-    return (
-      <QaNotificationStage embedded={embedded}>
-        <InviteNotificationSurfaceV2
-          locale={locale}
-          notifications={seed.notifications}
-          open={open}
-          busy={false}
-          errorMessage={errorMessage}
-          onOpen={() => setOpen(true)}
-          onClose={() => setOpen(false)}
-        />
-      </QaNotificationStage>
-    );
-  }
 
   return (
     <QaNotificationStage embedded={embedded}>
@@ -649,6 +590,7 @@ export function QaNotificationStateHarness({
         previewRewardReceipt={seed.previewRewardReceipt ?? null}
         rewardShareUrl={seed.rewardShareUrl ?? ''}
         onRewardShare={seed.onRewardShare}
+        allowProgrammaticOpen
       />
     </QaNotificationStage>
   );
