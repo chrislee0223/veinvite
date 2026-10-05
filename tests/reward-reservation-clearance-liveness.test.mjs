@@ -20,7 +20,7 @@ const [
   read('src/app/api/queues/reward-reservation/route.ts'),
   read('src/lib/rewards/rewardReservation.ts'),
   read('src/app/api/cron/vote-reconcile/route.ts'),
-  read('supabase/migrations/20261005154100_add_reward_reservation_liveness_guard_v1.sql'),
+  read('supabase/migrations/20261005162635_add_reward_reservation_liveness_guard_v1.sql'),
 ]);
 
 test('reward eligibility publishes a durable continuation before Sybil finality is ready', () => {
