@@ -33,12 +33,16 @@ export function useRewardPaidTransientFeedback({
   locale,
   referralLink,
   referralLinkVerified,
+  referralLinkFailed,
+  feedback,
   setFeedback,
 }: {
   wallet: string | null;
   locale: SupportedLocale;
   referralLink: ReferralLinkRecord | null;
   referralLinkVerified: boolean;
+  referralLinkFailed: boolean;
+  feedback: TransientFeedback | null;
   setFeedback: Dispatch<SetStateAction<TransientFeedback | null>>;
 }) {
   const [pendingReward, setPendingReward] =
@@ -80,22 +84,27 @@ export function useRewardPaidTransientFeedback({
   }, []);
 
   useEffect(() => {
-    if (
-      !pendingReward ||
-      !referralLinkVerified ||
-      !referralLink
-    ) {
-      return;
-    }
+    if (!pendingReward || feedback) return;
+
+    const shareReady =
+      referralLinkVerified && referralLink !== null;
+    const shareUnavailable =
+      referralLinkFailed && !shareReady;
+
+    // Prefer the verified permanent referral link so the paid popup can
+    // include X sharing. If link verification failed, do not suppress the
+    // actual payout confirmation; show it without the share action.
+    if (!shareReady && !shareUnavailable) return;
 
     const payload = pendingReward;
-    const referralUrl =
-      `https://veinvite.vercel.app/s/${encodeURIComponent(referralLink.key)}`;
-    const shareIntentUrl = rewardReceiptXIntentUrl({
-      locale,
-      amountB3tr: payload.amountB3tr,
-      referralUrl,
-    });
+    const shareIntentUrl = shareReady
+      ? rewardReceiptXIntentUrl({
+          locale,
+          amountB3tr: payload.amountB3tr,
+          referralUrl:
+            `https://veinvite.vercel.app/s/${encodeURIComponent(referralLink.key)}`,
+        })
+      : '';
 
     feedbackIdRef.current += 1;
     setFeedback({
@@ -104,24 +113,30 @@ export function useRewardPaidTransientFeedback({
       title: NOTIFICATION_COPY[locale].rewardTitle,
       text: rewardPaidNotificationBody(locale, payload.amountB3tr),
       amountB3tr: payload.amountB3tr,
-      shareLabel: rewardReceiptShareLabel(locale),
+      ...(shareIntentUrl
+        ? {
+            shareLabel: rewardReceiptShareLabel(locale),
+            onShare: () => {
+              window.open(
+                shareIntentUrl,
+                '_blank',
+                'noopener,noreferrer',
+              );
+              void acknowledgeReward(payload);
+            },
+          }
+        : {}),
       confirmLabel: NOTIFICATION_COPY[locale].confirm,
-      onShare: () => {
-        window.open(
-          shareIntentUrl,
-          '_blank',
-          'noopener,noreferrer',
-        );
-        void acknowledgeReward(payload);
-      },
       onConfirm: () => acknowledgeReward(payload),
     });
     setPendingReward(null);
   }, [
     acknowledgeReward,
+    feedback,
     locale,
     pendingReward,
     referralLink,
+    referralLinkFailed,
     referralLinkVerified,
     setFeedback,
   ]);
