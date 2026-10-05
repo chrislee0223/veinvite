@@ -75,7 +75,7 @@ async function sources() {
     commitmentAuthoritySql,
     history,
     notificationState,
-    notificationClient,
+    notificationPolicy,
     predictivePlanning,
     copy,
     leaderboard,
