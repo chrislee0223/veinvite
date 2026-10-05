@@ -18,14 +18,22 @@ test('notification center keeps Claim ownership out of the bell', () => {
   assert.doesNotMatch(center, /notificationClaimButton/u);
 });
 
-test('programmatic notification opens stay hidden until the user opens the bell', () => {
-  assert.match(center, /allowProgrammaticOpen = false/u);
-  assert.match(center, /const \[manualOpen, setManualOpen\] = useState\(false\)/u);
-  assert.match(
-    center,
-    /const visibleOpen = open && \(manualOpen \|\| allowProgrammaticOpen\)/u,
+test('production notification history only opens from the bell', () => {
+  assert.doesNotMatch(notifications, /newestUnreadSecurityHistoryId/u);
+  assert.doesNotMatch(notifications, /lastAutoOpenedSecurityHistoryIdRef/u);
+  assert.doesNotMatch(notifications, /refreshLifecycle\((?:true|false)\)/u);
+  assert.equal(
+    (notifications.match(/setOpen\(true\)/gu) ?? []).length,
+    1,
   );
-  assert.match(center, /setManualOpen\(true\);[\s\S]*onOpen\(\)/u);
+  assert.match(
+    notifications,
+    /onOpen=\{\(\) => \{[\s\S]*setOpen\(true\)/u,
+  );
+
+  // QA may still explicitly open fixtures, but Production never requests it.
+  assert.match(center, /allowProgrammaticOpen = false/u);
+  assert.match(center, /const visibleOpen = open && \(manualOpen \|\| allowProgrammaticOpen\)/u);
 });
 
 test('Home remains the only visible Claim workflow', () => {
