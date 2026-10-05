@@ -2,6 +2,9 @@ import 'server-only';
 
 import { ThorClient } from '@vechain/sdk-network';
 
+import {
+  enqueueRewardReservationContinuation,
+} from '@/lib/rewards/rewardReservationContinuationQueue';
 import { supabaseAdmin } from '@/lib/supabaseServer';
 import {
   readOnchainFundingSnapshot,
@@ -3382,7 +3385,44 @@ async function issueClearance(
     throw new Error(`Sybil v2 clearance could not be issued: ${error.message}`);
   }
 
-  return (data ?? {}) as ClearanceRpcResult;
+  const result =
+    (data ?? {}) as ClearanceRpcResult;
+  const issuedRevision =
+    safeRevision(
+      result.assessmentRevision,
+    ) ?? revision;
+
+  if (
+    result.issued === true &&
+    (
+      result.verdict === 'CLEAR' ||
+      result.verdict === 'WATCH'
+    )
+  ) {
+    // A current clearance is a second durable wake-up edge. Reservation
+    // continuation delivery is best-effort here: a Queue transport failure
+    // must never roll back or disguise an already-issued security clearance.
+    try {
+      await enqueueRewardReservationContinuation({
+        inviteCode,
+        detectedAt: new Date().toISOString(),
+        trigger: 'SYBIL_CLEARANCE',
+        assessmentRevision: issuedRevision,
+      });
+    } catch (reservationError) {
+      console.error(
+        'Sybil v2 clearance reward reservation continuation could not be published:',
+        {
+          inviteCode,
+          assessmentRevision:
+            issuedRevision,
+          error: reservationError,
+        },
+      );
+    }
+  }
+
+  return result;
 }
 
 export async function assessSybilV2Referral(

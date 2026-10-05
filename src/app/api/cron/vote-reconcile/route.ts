@@ -18,8 +18,9 @@ import {
   tryClaimCronJob,
 } from '@/lib/monitoring/cronHeartbeat';
 import {
-  reserveEligibleReferralRewards,
-} from '@/lib/rewards/rewardReservation';
+  runRewardReservationRecovery,
+  type RewardReservationRecoverySweep,
+} from '@/lib/rewards/rewardReservationRecovery';
 import { supabaseAdmin } from '@/lib/supabaseServer';
 import {
   runB3trRecipientObservationBatch,
@@ -972,11 +973,8 @@ export async function GET(
       >
     > | null = null;
   let rewardReservation:
-    Awaited<
-      ReturnType<
-        typeof reserveEligibleReferralRewards
-      >
-    > | null = null;
+    RewardReservationRecoverySweep | null =
+      null;
   let b3trRecipientObservation:
     Awaited<
       ReturnType<
@@ -1157,19 +1155,15 @@ export async function GET(
       );
     }
 
-    try {
-      rewardReservation =
-        await reserveEligibleReferralRewards();
-    } catch (error) {
-      recoveryFailure ??= error;
-      console.error(
-        'Vote watcher reward reservation recovery failed:',
-        error,
-      );
-      errors.push(
-        'REWARD_RESERVATION_RECOVERY_FAILED',
-      );
-    }
+    const rewardRecovery =
+      await runRewardReservationRecovery();
+    rewardReservation =
+      rewardRecovery.reservation;
+    recoveryFailure ??=
+      rewardRecovery.failure;
+    errors.push(
+      ...rewardRecovery.errors,
+    );
 
     try {
       b3trRecipientObservation =

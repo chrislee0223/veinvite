@@ -166,10 +166,17 @@ test('stale COMPLETE checkpoints cannot satisfy CLEAR decision checks', async ()
 
 
 test('five-minute vote recovery drains stale live and paid analyzer backlogs', async () => {
-  const source = await readFile(
-    'src/app/api/cron/vote-reconcile/route.ts',
-    'utf8',
-  );
+  const [source, rewardRecovery] =
+    await Promise.all([
+      readFile(
+        'src/app/api/cron/vote-reconcile/route.ts',
+        'utf8',
+      ),
+      readFile(
+        'src/lib/rewards/rewardReservationRecovery.ts',
+        'utf8',
+      ),
+    ]);
 
   const liveQueue = source.indexOf(
     'await enqueueSybilV2EvidenceBacklogBatch',
@@ -185,8 +192,8 @@ test('five-minute vote recovery drains stale live and paid analyzer backlogs', a
     'await runSybilV2AssessmentBatch',
     policy,
   );
-  const reservation = source.indexOf(
-    'await reserveEligibleReferralRewards',
+  const reservationRecovery = source.indexOf(
+    'await runRewardReservationRecovery',
     assessment,
   );
 
@@ -194,7 +201,11 @@ test('five-minute vote recovery drains stale live and paid analyzer backlogs', a
   assert.ok(paidQueue > liveQueue);
   assert.ok(policy > paidQueue);
   assert.ok(assessment > policy);
-  assert.ok(reservation > assessment);
+  assert.ok(reservationRecovery > assessment);
+  assert.match(
+    rewardRecovery,
+    /await reserveEligibleReferralRewards\(\)/u,
+  );
   assert.match(
     source,
     /enqueueSybilV2EvidenceBacklogBatch\(\s*50,?\s*\)/u,
