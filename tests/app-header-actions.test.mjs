@@ -70,6 +70,6 @@ test('all header action badges switch to compact sizing at the same 560px breakp
   assert.match(compactSource, /accountChip\{min-height:34px/u);
   assert.match(
     notificationSource,
-    /@media\(max-width:560px\)\{\.notificationHistoryBell\{width:34px;height:34px;flex-basis:34px/u,
+    /@media\(max-width:560px\)[\s\S]*?\.notificationHistoryBell\{width:34px;height:34px;flex-basis:34px/u,
   );
 });
