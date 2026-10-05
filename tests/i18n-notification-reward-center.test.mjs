@@ -92,11 +92,18 @@ test('actual payout uses the common bottom snackbar without colliding with other
   assert.match(paidToast, /sessionStorage\.setItem/);
   assert.match(paidToast, /readRewardPaidToast/);
   assert.match(paidToast, /clearRewardPaidToast/);
+  assert.match(paidToast, /MAX_PENDING_PAID_TOASTS/);
+  assert.match(paidToast, /queue\.some\(\(item\) => item\.receiptId === payload\.receiptId\)/);
   assert.match(paidToast, /sessionStorage\.removeItem/);
+  assert.match(paidSync, /const targetReceipts = snapshot\.receipts\.filter/);
+  assert.match(paidSync, /for \(const receipt of \[\.\.\.targetReceipts\]\.reverse\(\)\)/);
+  assert.match(paidSync, /const newReceipts: RewardReceipt\[\] = \[\]/);
+  assert.match(paidSync, /for \(const receipt of newReceipts\.reverse\(\)\)/);
 
   assert.match(home, /useRewardPaidTransientFeedback/);
   assert.match(rewardPaidTransient, /readRewardPaidToast\(wallet\)/);
   assert.match(rewardPaidTransient, /clearRewardPaidToast\(wallet, payload\.receiptId\)/);
+  assert.match(rewardPaidTransient, /setPendingReward\(readRewardPaidToast\(wallet\)\)/);
   assert.match(rewardPaidTransient, /if \(!pendingReward \|\| feedback\) return/);
   assert.match(rewardPaidTransient, /shareUnavailable/);
   assert.match(rewardPaidTransient, /kind: 'reward'/);
