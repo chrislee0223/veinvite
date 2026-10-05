@@ -11,10 +11,6 @@ import {
 import {
   SUPPORTED_LOCALES,
 } from '../src/lib/i18n/locales.ts';
-import {
-  newestUnreadSecurityHistoryId,
-} from '../src/lib/notifications/notificationHistoryClient.ts';
-
 const read = (path) => readFile(new URL(`../${path}`, import.meta.url), 'utf8');
 
 test('security history is recipient-aware and completes HOLD outcomes', async () => {
@@ -98,48 +94,26 @@ test('notification history follows security changes promptly and accepts CLEAR r
   assert.match(visibleRefresh, /'pageshow'/u);
 });
 
-test('new unread security history auto-opens once without changing the notification UI', async () => {
-  assert.equal(
-    newestUnreadSecurityHistoryId([
-      { id: '9', kind: 'INVITE_ACCEPTED', readAt: null },
-      { id: '10', kind: 'SECURITY_REVIEW_STARTED', readAt: '2026-10-02T00:00:00.000Z' },
-      { id: '11', kind: 'SECURITY_REVIEW_STARTED', readAt: null },
-      { id: '12', kind: 'INVITE_ACCEPTED', presentationKind: 'SECURITY_REVIEW_CLEARED', readAt: null },
-    ]),
-    '12',
-  );
-
+test('new unread security history stays in the bell without auto-opening', async () => {
   const notifications = await read(
     'src/components/InAppInviteNotifications.tsx',
   );
 
-  assert.match(
-    notifications,
-    /newestUnreadSecurityHistoryId/u,
+  assert.doesNotMatch(notifications, /newestUnreadSecurityHistoryId/u);
+  assert.doesNotMatch(notifications, /lastAutoOpenedSecurityHistoryIdRef/u);
+  assert.doesNotMatch(notifications, /notificationCenterIsClosing/u);
+  assert.doesNotMatch(notifications, /refreshLifecycle\((?:true|false)\)/u);
+  assert.equal(
+    (notifications.match(/setOpen\(true\)/gu) ?? []).length,
+    1,
   );
   assert.match(
     notifications,
-    /lastAutoOpenedSecurityHistoryIdRef/u,
-  );
-  assert.match(
-    notifications,
-    /lastAutoOpenedSecurityHistoryIdRef\.current !== latestSecurityId/u,
-  );
-  assert.match(
-    notifications,
-    /isWalletModalOpen[\s\S]*hasBlockingDialogOpen\(\)[\s\S]*notificationCenterIsClosing\(\)/u,
-  );
-  assert.match(
-    notifications,
-    /lastAutoOpenedSecurityHistoryIdRef\.current = latestSecurityId[\s\S]*setOpen\(true\)/u,
-  );
-  assert.match(
-    notifications,
-    /newestUnreadSecurityHistoryId\(cached\?\.items \?\? \[\]\)/u,
+    /onOpen=\{\(\) => \{[\s\S]*setOpen\(true\)/u,
   );
 });
 
-test('transient HOLD debounce remains authoritative before security auto-open', async () => {
+test('transient HOLD debounce remains authoritative before bell delivery', async () => {
   const debounce = await read(
     'supabase/migrations/20261002102428_debounce_transient_security_hold_notifications.sql',
   );
