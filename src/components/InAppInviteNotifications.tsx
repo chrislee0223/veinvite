@@ -17,13 +17,13 @@ import type {
 } from '@/lib/notifications/inviteNotificationHistory';
 import {
   newestHistoryId,
-  newestUnreadSecurityHistoryId,
   notificationRequiresHomeRefresh,
   notificationRequiresNetworkRefresh,
 } from '@/lib/notifications/notificationHistoryClient';
 import type {
   InviteNotificationPayloadV2,
 } from '@/lib/notifications/inviteNotificationStateV2';
+import { NOTIFICATION_POLICY } from '@/lib/notifications/notificationPolicy';
 import {
   NETWORK_DATA_REFRESH_REQUESTED_EVENT,
   invalidateNetworkRootCache,
@@ -98,16 +98,6 @@ const NOTIFICATION_HISTORY_KINDS = new Set([
   'SECURITY_REFERRAL_INVALIDATED',
   'SECURITY_REFERRAL_RESTORED',
 ]);
-
-function notificationSetKey(
-  notifications: InviteNotificationPayloadV2[],
-): string {
-  return notifications
-    .map((item) =>
-      `${item.inviteCode}:${item.kind}:${item.stage}:${item.dappProgress ?? '-'}:${item.eventAt}`,
-    )
-    .join('|');
-}
 
 function readLifecycleTimestamp(key: string): number {
   try {
@@ -299,14 +289,6 @@ function hasBlockingDialogOpen(): boolean {
   );
 }
 
-function notificationCenterIsClosing(): boolean {
-  return Boolean(
-    document.querySelector(
-      `#${NOTIFICATION_DIALOG_ID}.notificationHistoryPanel.isClosing`,
-    ),
-  );
-}
-
 export function InAppInviteNotifications({
   locale,
   rewardShareUrl = '',
@@ -324,11 +306,8 @@ export function InAppInviteNotifications({
   const [loading, setLoading] = useState(false);
   const [busy, setBusy] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
-  const shownKeyRef = useRef<string | null>(null);
   const openSnapshotRef = useRef<string | null>(null);
   const lastDataRefreshNotificationIdRef =
-    useRef<string | null>(null);
-  const lastAutoOpenedSecurityHistoryIdRef =
     useRef<string | null>(null);
   const activeWalletRef = useRef<string | null>(wallet);
   const historyResolvedRef = useRef(false);
@@ -350,11 +329,8 @@ export function InAppInviteNotifications({
     setLoading(false);
     setBusy(false);
     setErrorMessage('');
-    shownKeyRef.current = null;
     openSnapshotRef.current = null;
     lastDataRefreshNotificationIdRef.current = null;
-    lastAutoOpenedSecurityHistoryIdRef.current =
-      newestUnreadSecurityHistoryId(cached?.items ?? []);
     latestHistoryRequestRef.current = null;
     lifecycleRefreshRef.current = null;
   }, [wallet]);
@@ -373,10 +349,8 @@ export function InAppInviteNotifications({
     setLoading(false);
     setBusy(false);
     setErrorMessage('');
-    shownKeyRef.current = null;
     openSnapshotRef.current = null;
     lastDataRefreshNotificationIdRef.current = null;
-    lastAutoOpenedSecurityHistoryIdRef.current = null;
     latestHistoryRequestRef.current = null;
     lifecycleRefreshRef.current = null;
     window.dispatchEvent(
@@ -495,24 +469,6 @@ export function InAppInviteNotifications({
         ) {
           applyLatestHistory(history, requestWallet);
 
-          const latestSecurityId =
-            newestUnreadSecurityHistoryId(history.items);
-          if (
-            latestSecurityId &&
-            lastAutoOpenedSecurityHistoryIdRef.current !== latestSecurityId
-          ) {
-            const blocked =
-              isWalletModalOpen ||
-              hasBlockingDialogOpen() ||
-              notificationCenterIsClosing();
-
-            if (!blocked) {
-              lastAutoOpenedSecurityHistoryIdRef.current = latestSecurityId;
-              openSnapshotRef.current = newestHistoryId(history.items);
-              if (!open) setOpen(true);
-            }
-          }
-
           if (surfaceError) setErrorMessage('');
         }
         return history;
@@ -546,14 +502,12 @@ export function InAppInviteNotifications({
     },
     [
       applyLatestHistory,
-      isWalletModalOpen,
       loadHistoryPage,
-      open,
     ],
   );
 
   const refreshLifecycle = useCallback(
-    async (autoOpen: boolean) => {
+    async () => {
       if (!wallet || lifecycleRefreshBackedOff()) return;
 
       if (lifecycleRefreshRef.current) {
@@ -624,21 +578,6 @@ export function InAppInviteNotifications({
           applyLatestHistory(history, requestWallet);
           setErrorMessage('');
 
-          const key = notificationSetKey(currentNotifications);
-          if (autoOpen && shownKeyRef.current !== key) {
-            const blocked =
-              isWalletModalOpen ||
-              hasBlockingDialogOpen() ||
-              notificationCenterIsClosing();
-
-            if (!blocked) {
-              shownKeyRef.current = key;
-              openSnapshotRef.current = newestHistoryId(history.items);
-              if (!open) {
-                setOpen(true);
-              }
-            }
-          }
         } catch (error) {
           console.warn(
             'VeInvite notification lifecycle refresh failed:',
@@ -662,8 +601,6 @@ export function InAppInviteNotifications({
       invalidateWalletSession,
       loadHistoryPage,
       wallet,
-      isWalletModalOpen,
-      open,
     ],
   );
 
@@ -765,7 +702,7 @@ export function InAppInviteNotifications({
 
         if (wallet) {
           void loadLatestHistory({ requestWallet: wallet });
-          void refreshLifecycle(false);
+          void refreshLifecycle();
         }
       } catch (error) {
         console.warn(
@@ -799,7 +736,7 @@ export function InAppInviteNotifications({
 
     const unreadThroughSnapshot = items.filter((notification) =>
       notification.readAt === null &&
-      notification.kind !== 'REWARD_PAID' &&
+      NOTIFICATION_POLICY[notification.kind].readBehavior === 'tap' &&
       historyIdAtOrBefore(notification.id, throughId),
     );
     const refreshHomeAfterAcknowledgement =
@@ -817,7 +754,7 @@ export function InAppInviteNotifications({
       setItems((current) => {
         const updated = current.map((item) =>
           item.readAt === null &&
-          item.kind !== 'REWARD_PAID' &&
+          NOTIFICATION_POLICY[item.kind].readBehavior === 'tap' &&
           historyIdAtOrBefore(item.id, throughId)
             ? { ...item, readAt: now }
             : item,
@@ -844,7 +781,7 @@ export function InAppInviteNotifications({
 
       if (wallet) {
         void loadLatestHistory({ requestWallet: wallet });
-        void refreshLifecycle(false);
+        void refreshLifecycle();
       }
     } catch (error) {
       console.warn(
@@ -914,13 +851,13 @@ export function InAppInviteNotifications({
   const refreshVisibleNotifications = useCallback(() => {
     if (!wallet) return;
     void loadLatestHistory({ requestWallet: wallet });
-    void refreshLifecycle(true);
+    void refreshLifecycle();
   }, [loadLatestHistory, refreshLifecycle, wallet]);
 
   useEffect(() => {
     if (!wallet) return;
     void loadLatestHistory({ requestWallet: wallet });
-    void refreshLifecycle(true);
+    void refreshLifecycle();
   }, [loadLatestHistory, refreshLifecycle, wallet]);
 
   useVisiblePeriodicRefresh({
@@ -934,10 +871,10 @@ export function InAppInviteNotifications({
     const onRewardReceiptAcknowledged = () => {
       if (!wallet) return;
       void loadLatestHistory({ requestWallet: wallet });
-      void refreshLifecycle(false);
+      void refreshLifecycle();
     };
     const onRewardReservationReady = () => {
-      void refreshLifecycle(true);
+      void refreshLifecycle();
     };
 
     window.addEventListener(
@@ -969,7 +906,9 @@ export function InAppInviteNotifications({
       items={items}
       unreadCount={unreadCount}
       markAllAvailable={items.some(
-        (item) => item.readAt === null && item.kind !== 'REWARD_PAID',
+        (item) =>
+          item.readAt === null &&
+          NOTIFICATION_POLICY[item.kind].readBehavior === 'tap',
       )}
       open={open}
       loading={loading}
@@ -1002,7 +941,7 @@ export function InAppInviteNotifications({
 
         // Reconcile any brand-new lifecycle milestone in the background. The
         // warm/persisted history is visible immediately and never waits here.
-        void refreshLifecycle(false);
+        void refreshLifecycle();
       }}
       onClose={() => setOpen(false)}
       onRetry={() => {
@@ -1011,7 +950,7 @@ export function InAppInviteNotifications({
           visibleLoading: true,
           surfaceError: true,
         });
-        void refreshLifecycle(false);
+        void refreshLifecycle();
       }}
       onMarkRead={markRead}
       onMarkAll={markAllRead}

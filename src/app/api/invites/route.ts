@@ -45,6 +45,7 @@ type RewardQueueRow = {
   claim_requested_at: string | null;
   reserved_amount_wei: string | null;
   reserved_at: string | null;
+  reservation_basis: Record<string, unknown> | null;
 };
 
 const invitationColumns = `
@@ -110,6 +111,14 @@ function toInviteRecord(
       : {}),
     ...(rewardQueue?.reserved_at
       ? { rewardReservedAt: rewardQueue.reserved_at }
+      : {}),
+    ...(typeof rewardQueue?.reservation_basis?.recoveryOffsetWei === 'string' &&
+      /^\\d+$/u.test(rewardQueue.reservation_basis.recoveryOffsetWei) &&
+      BigInt(rewardQueue.reservation_basis.recoveryOffsetWei) > 0n
+      ? {
+          rewardRecoveryOffsetWei:
+            rewardQueue.reservation_basis.recoveryOffsetWei,
+        }
       : {}),
   };
 }
@@ -230,7 +239,7 @@ export async function GET(request: NextRequest) {
     ? await supabaseAdmin
         .from('reward_queue_entries')
         .select(
-          'invite_code, status, claim_requested_at, reserved_amount_wei, reserved_at',
+          'invite_code, status, claim_requested_at, reserved_amount_wei, reserved_at, reservation_basis',
         )
         .in('invite_code', inviteCodes)
     : { data: [] as RewardQueueRow[], error: null };

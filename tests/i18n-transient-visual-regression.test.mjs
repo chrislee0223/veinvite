@@ -6,6 +6,7 @@ const read = (path) => readFileSync(path, 'utf8');
 const locales = read('src/lib/i18n/locales.ts');
 const harness = read('src/qa/QaNotificationStateHarness.tsx');
 const surface = read('src/components/InviteNotificationSurfaceV2.tsx');
+const snackbar = read('src/components/TransientSnackbar.tsx');
 const receiptCenter = read('src/components/UnifiedInviteNotificationHistoryCenter.tsx');
 const receiptView = read('src/components/RewardReceiptView.tsx');
 const typography = read('src/app/localized-typography.css');
@@ -20,9 +21,11 @@ test('VeInvite keeps the reviewed locale matrix in one registry', () => {
   }
 });
 
-test('notification preview passes the selected locale to both real notification surfaces', () => {
-  assert.match(harness, /<InviteNotificationSurfaceV2[\s\S]*locale=\{locale\}/);
+test('notification preview uses production history and transient surfaces', () => {
+  assert.doesNotMatch(harness, /<InviteNotificationSurfaceV2/);
   assert.match(harness, /<InviteNotificationHistoryCenter[\s\S]*locale=\{locale\}/);
+  assert.match(harness, /<TransientSnackbar/);
+  assert.match(harness, /NOTIFICATION_COPY\[locale\]/);
   assert.doesNotMatch(harness, /acknowledgementError/);
 });
 
@@ -30,6 +33,9 @@ test('transient surfaces stay fluid on narrow mobile screens', () => {
   assert.match(surface, /width:min\(100%,520px\)/);
   assert.match(surface, /@media \(max-width:560px\)/);
   assert.match(surface, /padding:0;/);
+  assert.match(snackbar, /width: min\(calc\(100vw - 28px\), 520px\)/);
+  assert.match(snackbar, /@media \(max-width: 360px\)/);
+  assert.match(snackbar, /padding-inline: 42px 6px/);
   assert.match(receiptCenter, /\.notificationHistoryPanel\{[^}]*overflow:hidden/s);
   assert.match(receiptCenter, /@media\(max-width:560px\)/);
   assert.match(receiptCenter, /height:calc\(74dvh - env\(safe-area-inset-bottom\)\)/);

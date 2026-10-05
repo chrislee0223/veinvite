@@ -13,7 +13,7 @@ test('opening the notification center does not wait for lifecycle materializatio
   const openHandler = source.slice(openHandlerStart, openHandlerStart + 1400);
 
   const setOpenIndex = openHandler.indexOf('setOpen(true)');
-  const lifecycleIndex = openHandler.indexOf('void refreshLifecycle(false)');
+  const lifecycleIndex = openHandler.indexOf('void refreshLifecycle()');
   assert.ok(setOpenIndex >= 0);
   assert.ok(lifecycleIndex > setOpenIndex);
   assert.doesNotMatch(openHandler, /await\s+refreshLifecycle/);
@@ -66,7 +66,7 @@ test('mark-all applies server-authoritative unread state before background recon
 
   const localUpdateIndex = markAllBody.indexOf('setUnreadCount(nextUnreadCount)');
   const historyReconcileIndex = markAllBody.indexOf('void loadLatestHistory');
-  const lifecycleReconcileIndex = markAllBody.indexOf('void refreshLifecycle(false)');
+  const lifecycleReconcileIndex = markAllBody.indexOf('void refreshLifecycle()');
   assert.ok(localUpdateIndex >= 0);
   assert.ok(historyReconcileIndex > localUpdateIndex);
   assert.ok(lifecycleReconcileIndex > localUpdateIndex);

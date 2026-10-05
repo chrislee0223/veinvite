@@ -8,35 +8,39 @@ const facade = read('src/components/InviteNotificationHistoryCenter.tsx');
 const center = read('src/components/UnifiedInviteNotificationHistoryCenter.tsx');
 const paidSync = read('src/components/PaidActivationLiveSync.tsx');
 const activeReceipt = read('src/components/ActiveWalletRewardReceiptNotice.tsx');
+const home = read('src/components/HomeClient.tsx');
 
-test('notification center reuses the bell reward-action snapshot before background revalidation', () => {
-  assert.match(facade, /useState<RewardActionItem\[\] \| null>\(null\)/u);
-  assert.match(facade, /initialRewardActions=\{rewardActions\}/u);
-  assert.match(facade, /onRewardActionsChange=\{setRewardActions\}/u);
-  assert.match(center, /initialRewardActions \?\? \[\]/u);
-  assert.match(center, /actionResolvedRef\.current = true/u);
+test('notification center keeps Claim ownership out of the bell', () => {
+  assert.match(facade, /UnifiedInviteNotificationHistoryCenter/u);
+  assert.doesNotMatch(facade, /RewardActionItem/u);
+  assert.doesNotMatch(facade, /reward-actions/u);
+  assert.doesNotMatch(center, /initialRewardActions/u);
+  assert.doesNotMatch(center, /notificationClaimButton/u);
 });
 
-test('notification auto-open yields to wallet and app dialogs', () => {
-  assert.match(notifications, /isWalletModalOpen/u);
-  assert.match(notifications, /function hasBlockingDialogOpen\(\)/u);
-  assert.match(notifications, /notificationCenterIsClosing\(\)/u);
-  assert.match(
-    notifications,
-    /const blocked =\s*isWalletModalOpen \|\|\s*hasBlockingDialogOpen\(\) \|\|\s*notificationCenterIsClosing\(\)/u,
+test('production notification history only opens from the bell', () => {
+  assert.doesNotMatch(notifications, /newestUnreadSecurityHistoryId/u);
+  assert.doesNotMatch(notifications, /lastAutoOpenedSecurityHistoryIdRef/u);
+  assert.doesNotMatch(notifications, /refreshLifecycle\((?:true|false)\)/u);
+  assert.equal(
+    (notifications.match(/setOpen\(true\)/gu) ?? []).length,
+    1,
   );
   assert.match(
     notifications,
-    /onOpen=\{\(\) => \{\s*if \(isWalletModalOpen \|\| hasBlockingDialogOpen\(\)\)/u,
+    /onOpen=\{\(\) => \{[\s\S]*setOpen\(true\)/u,
   );
+
+  // QA may still explicitly open fixtures, but Production never requests it.
+  assert.match(center, /allowProgrammaticOpen = false/u);
+  assert.match(center, /const visibleOpen = open && \(manualOpen \|\| allowProgrammaticOpen\)/u);
 });
 
-test('notification Claim immediately asks Home to reconcile its reward card', () => {
-  assert.match(center, /HOME_DATA_REFRESH_REQUESTED_EVENT/u);
-  const dispatches = center.match(
-    /new Event\(HOME_DATA_REFRESH_REQUESTED_EVENT\)/gu,
-  ) ?? [];
-  assert.ok(dispatches.length >= 2);
+test('Home remains the only visible Claim workflow', () => {
+  assert.match(home, /className="claimButton"/u);
+  assert.match(home, /fetch\('\/api\/rewards\/claims'/u);
+  assert.doesNotMatch(center, /HOME_DATA_REFRESH_REQUESTED_EVENT/u);
+  assert.doesNotMatch(center, /fetch\('\/api\/rewards\/claims'/u);
 });
 
 test('paid-state reload waits until modal work is finished', () => {

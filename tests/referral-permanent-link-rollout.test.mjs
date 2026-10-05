@@ -211,7 +211,10 @@ test('core guide no longer teaches the one-active-invite rule', () => {
 });
 
 test('multiple paid referrals remain independently reopenable from notification history', () => {
-  assert.match(notificationCenter, /const paid = item\.kind === 'REWARD_PAID'/i);
+  assert.match(
+    notificationCenter,
+    /NOTIFICATION_POLICY\[item\.kind\]\.readBehavior === 'receipt'/i,
+  );
   assert.match(notificationCenter, /openRewardReceipt\(item\)/i);
   assert.match(
     notificationCenter,

@@ -18,6 +18,10 @@ const notificationWrapper = readFileSync(
   new URL('../src/components/InviteNotificationHistoryCenter.tsx', import.meta.url),
   'utf8',
 );
+const notificationController = readFileSync(
+  new URL('../src/components/InAppInviteNotifications.tsx', import.meta.url),
+  'utf8',
+);
 const paidActivationSync = readFileSync(
   new URL('../src/components/PaidActivationLiveSync.tsx', import.meta.url),
   'utf8',
@@ -88,22 +92,14 @@ test('Home Claim reconciles ambiguous responses and never auto-posts a second Cl
   );
 });
 
-test('notification Claim survives panel close, sends exact invite identity, and never auto-posts a second Claim', () => {
-  const closeResetStart = notificationCenter.indexOf("if (!open) {");
-  const closeResetEnd = notificationCenter.indexOf('void loadRewardActions();', closeResetStart);
-  assert.ok(closeResetStart >= 0 && closeResetEnd > closeResetStart);
-  const closeResetBlock = notificationCenter.slice(closeResetStart, closeResetEnd);
-
-  assert.doesNotMatch(closeResetBlock, /setClaimPendingCode\(null\)/u);
-  assert.match(notificationCenter, /reconcileRewardClaimState\([\s\S]*action\.inviteCode/u);
-  assert.match(
-    notificationCenter,
-    /dispatchRewardClaimUpdated\(action\.inviteCode\)/u,
-  );
+test('notification history never owns or posts Claim actions', () => {
+  assert.doesNotMatch(notificationCenter, /reconcileRewardClaimState/u);
+  assert.doesNotMatch(notificationCenter, /dispatchRewardClaimUpdated/u);
+  assert.doesNotMatch(notificationCenter, /notificationClaimButton/u);
   assert.equal(
     occurrences(notificationCenter, "fetch('/api/rewards/claims'"),
-    1,
-    'Notification center must issue at most one Claim POST per user click',
+    0,
+    'Claim POSTs must stay owned by Home only',
   );
 });
 
@@ -155,11 +151,10 @@ test('finalized receipt tracking can target claimed invites before the initial b
   );
 });
 
-test('wallet identity remounts notification reward-action state', () => {
-  assert.match(
-    notificationWrapper,
-    /key=\{wallet\?\.toLowerCase\(\) \?\? 'disconnected'\}/u,
-  );
+test('wallet identity resets notification history without a reward-action sub-state', () => {
+  assert.match(notificationWrapper, /UnifiedInviteNotificationHistoryCenter/u);
+  assert.doesNotMatch(notificationWrapper, /RewardActionItem/u);
+  assert.match(notificationController, /useEffect\(\(\) => \{[\s\S]*setItems\(cached\?\.items \?\? \[\]\)[\s\S]*\}, \[wallet\]\)/u);
 });
 
 test('English and Korean queued Claim copy clearly describes processing rather than completion', () => {

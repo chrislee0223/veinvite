@@ -37,7 +37,7 @@ test('receipt requests cannot overwrite a newer or dismissed receipt view', () =
 
 test('receipt authentication failures invalidate the wallet session consistently', () => {
   const authChecks = center.match(/response\.status === 401 \|\| response\.status === 403/g) ?? [];
-  assert.ok(authChecks.length >= 3);
+  assert.ok(authChecks.length >= 2);
   assert.match(center, /notifyRewardClaimSessionInvalid\(\)/u);
 });
 
@@ -46,12 +46,11 @@ test('ambiguous Claim recovery looks up the exact invite receipt instead of only
   assert.doesNotMatch(claimClient, /rewards\/receipts\?limit=50/u);
 });
 
-test('background reward discovery never creates a blank notification body', () => {
-  assert.doesNotMatch(hardening, /notificationActionSection:has\(\.notificationActionLoading\)/u);
-  assert.match(center, /const \[actionResolved, setActionResolved\]/u);
-  assert.match(center, /initialRewardActions/u);
-  assert.match(center, /actionLoading && !actionResolved/u);
-  assert.match(center, /actionResolved &&\s*!actionError/u);
+test('notification history has no duplicate reward-action workflow', () => {
+  assert.doesNotMatch(center, /rewardActions/u);
+  assert.doesNotMatch(center, /notificationActionLoading/u);
+  assert.doesNotMatch(center, /notificationClaimButton/u);
+  assert.doesNotMatch(center, /\/api\/notifications\/reward-actions/u);
   assert.doesNotMatch(
     runtimeFix,
     /notificationActionSection:has\(\.notificationActionLoading\)[\s\S]*display:\s*none/u,

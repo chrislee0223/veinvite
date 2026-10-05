@@ -21,17 +21,6 @@ export function newestHistoryId(
   return latest?.toString() ?? null;
 }
 
-export function newestUnreadSecurityHistoryId(
-  items: InviteNotificationHistoryItem[],
-): string | null {
-  return newestHistoryId(
-    items.filter((item) => {
-      const kind = item.presentationKind ?? item.kind;
-      return item.readAt === null && kind.startsWith('SECURITY_');
-    }),
-  );
-}
-
 export function effectiveNotificationKind(
   notification: InviteNotificationHistoryItem,
 ): string {
