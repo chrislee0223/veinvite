@@ -7,11 +7,13 @@ const read = (path) =>
 
 const [
   syncInvitation,
+  eligibilityContinuation,
   queueHelper,
   queueConsumer,
   vercelConfigRaw,
 ] = await Promise.all([
   read('src/lib/impact/syncInvitation.ts'),
+  read('src/lib/rewards/rewardEligibilityContinuation.ts'),
   read('src/lib/rewards/rewardReservationContinuationQueue.ts'),
   read('src/app/api/queues/reward-reservation/route.ts'),
   read('vercel.json'),
@@ -26,7 +28,15 @@ test('newly eligible completions publish one durable reservation-finality contin
   );
   assert.match(
     syncInvitation,
+    /continueRewardReservationAfterEligibility\([\s\S]*row\.invite_code/,
+  );
+  assert.match(
+    eligibilityContinuation,
     /enqueueRewardReservationContinuation\(\{/,
+  );
+  assert.match(
+    eligibilityContinuation,
+    /trigger: 'ELIGIBILITY'/,
   );
   assert.match(queueHelper, /from '@vercel\/queue'/);
   assert.match(

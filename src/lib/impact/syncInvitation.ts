@@ -4,8 +4,8 @@ import {
   recordVoteImpact,
 } from '@/lib/impact/record';
 import {
-  enqueueRewardReservationContinuation,
-} from '@/lib/rewards/rewardReservationContinuationQueue';
+  continueRewardReservationAfterEligibility,
+} from '@/lib/rewards/rewardEligibilityContinuation';
 import { supabaseAdmin } from '@/lib/supabaseServer';
 import {
   evaluatePostVoteSybilRisk,
@@ -15,11 +15,7 @@ import {
 } from '@/lib/sybil/risk';
 import {
   assessSybilV2Referral,
-  ensureSybilV2ReadyForReward,
 } from '@/lib/sybil/v2/pipeline';
-import {
-  isSybilV2EnforcementEnabled,
-} from '@/lib/sybil/v2/rollout';
 import {
   getVeBetterActivityProgress,
   type QualifyingRewardEvent,
@@ -1079,93 +1075,9 @@ export async function syncInvitationEvidence(
     row.reward_status === 'ELIGIBLE';
 
   if (becameRewardEligible) {
-    const detectedAt =
-      new Date().toISOString();
-    let eligibilityContinuationPublished =
-      false;
-
-    // Eligibility itself is durable. Publish the reservation continuation
-    // immediately even when Sybil finality/clearance is still catching up.
-    // The queue consumer remains fail-closed and retries until the current
-    // clearance and chain finality gates are satisfied.
-    try {
-      await enqueueRewardReservationContinuation({
-        inviteCode: row.invite_code,
-        detectedAt,
-        trigger: 'ELIGIBILITY',
-      });
-      eligibilityContinuationPublished =
-        true;
-    } catch (reservationError) {
-      console.error(
-        'Reward reservation eligibility continuation could not be published:',
-        {
-          inviteCode: row.invite_code,
-          error: reservationError,
-        },
-      );
-    }
-
-    let sybilV2Enforced = true;
-
-    try {
-      sybilV2Enforced =
-        await isSybilV2EnforcementEnabled();
-
-      const sybilV2 =
-        await ensureSybilV2ReadyForReward(
-          row.invite_code,
-        );
-
-      const v2Ready =
-        (sybilV2.state === 'CLEAR' ||
-          sybilV2.state === 'WATCH') &&
-        sybilV2.clearanceIssued;
-
-      if (sybilV2Enforced && !v2Ready) {
-        console.warn(
-          'Reward reservation waiting for Sybil v2 clearance:',
-          {
-            inviteCode: row.invite_code,
-            state: sybilV2.state,
-            riskScore: sybilV2.riskScore,
-            reasonCodes: sybilV2.reasonCodes,
-          },
-        );
-      }
-    } catch (sybilV2Error) {
-      if (
-        !sybilV2Enforced &&
-        !eligibilityContinuationPublished
-      ) {
-        // Shadow mode keeps legacy reward liveness even if the first queue
-        // publication failed. Enforcement mode remains fail-closed and the
-        // five-minute recovery sweep retries the eligible referral.
-        try {
-          await enqueueRewardReservationContinuation({
-            inviteCode: row.invite_code,
-            detectedAt,
-            trigger: 'ELIGIBILITY',
-          });
-        } catch (reservationError) {
-          console.error(
-            'Legacy reward reservation queue failed during Sybil v2 shadow mode:',
-            {
-              inviteCode: row.invite_code,
-              error: reservationError,
-            },
-          );
-        }
-      }
-
-      console.error(
-        'Sybil v2 final assessment failed before reward reservation:',
-        {
-          inviteCode: row.invite_code,
-          error: sybilV2Error,
-        },
-      );
-    }
+    await continueRewardReservationAfterEligibility(
+      row.invite_code,
+    );
   }
 
   return {

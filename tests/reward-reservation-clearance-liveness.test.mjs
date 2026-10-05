@@ -7,49 +7,46 @@ const read = (path) =>
 
 const [
   syncInvitation,
+  eligibilityContinuation,
   sybilPipeline,
   queueHelper,
   queueConsumer,
   reservation,
+  rewardRecovery,
   voteCron,
   migration,
 ] = await Promise.all([
   read('src/lib/impact/syncInvitation.ts'),
+  read('src/lib/rewards/rewardEligibilityContinuation.ts'),
   read('src/lib/sybil/v2/pipeline.ts'),
   read('src/lib/rewards/rewardReservationContinuationQueue.ts'),
   read('src/app/api/queues/reward-reservation/route.ts'),
   read('src/lib/rewards/rewardReservation.ts'),
+  read('src/lib/rewards/rewardReservationRecovery.ts'),
   read('src/app/api/cron/vote-reconcile/route.ts'),
   read('supabase/migrations/20261005162635_add_reward_reservation_liveness_guard_v1.sql'),
 ]);
 
 test('reward eligibility publishes a durable continuation before Sybil finality is ready', () => {
-  const start = syncInvitation.indexOf(
-    'if (becameRewardEligible)',
+  assert.match(
+    syncInvitation,
+    /continueRewardReservationAfterEligibility\([\s\S]*row\.invite_code/u,
   );
-  const end = syncInvitation.indexOf(
-    '\n\n  return {\n    row,',
-    start,
-  );
-  const block = syncInvitation.slice(start, end);
 
-  const publish = block.indexOf(
+  const publish = eligibilityContinuation.indexOf(
     'enqueueRewardReservationContinuation',
   );
-  const assessment = block.indexOf(
+  const assessment = eligibilityContinuation.indexOf(
     'ensureSybilV2ReadyForReward',
   );
 
-  assert.ok(start >= 0 && end > start);
   assert.ok(publish >= 0);
   assert.ok(assessment > publish);
-  assert.match(block, /trigger: 'ELIGIBILITY'/u);
-  assert.doesNotMatch(
-    block,
-    /if \(!sybilV2Enforced \|\| v2Ready\)[\s\S]*enqueueRewardReservationContinuation/u,
+  assert.match(
+    eligibilityContinuation,
+    /trigger: 'ELIGIBILITY'/u,
   );
 });
-
 test('current Sybil clearance is a second revision-scoped reservation wake-up', () => {
   const start = sybilPipeline.indexOf(
     'async function issueClearance',
@@ -118,10 +115,14 @@ test('five-minute recovery detects a stale CLEAR referral missing its reservatio
   );
   assert.match(
     voteCron,
+    /runRewardReservationRecovery/u,
+  );
+  assert.match(
+    rewardRecovery,
     /readStaleEligibleRewardReservationLiveness/u,
   );
   assert.match(
-    voteCron,
+    rewardRecovery,
     /REWARD_RESERVATION_LIVENESS_FAILED/u,
   );
   assert.match(

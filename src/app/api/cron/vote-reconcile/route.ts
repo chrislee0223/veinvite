@@ -18,9 +18,9 @@ import {
   tryClaimCronJob,
 } from '@/lib/monitoring/cronHeartbeat';
 import {
-  readStaleEligibleRewardReservationLiveness,
-  reserveEligibleReferralRewards,
-} from '@/lib/rewards/rewardReservation';
+  runRewardReservationRecovery,
+  type RewardReservationRecoverySweep,
+} from '@/lib/rewards/rewardReservationRecovery';
 import { supabaseAdmin } from '@/lib/supabaseServer';
 import {
   runB3trRecipientObservationBatch,
@@ -973,11 +973,8 @@ export async function GET(
       >
     > | null = null;
   let rewardReservation:
-    Awaited<
-      ReturnType<
-        typeof reserveEligibleReferralRewards
-      >
-    > | null = null;
+    RewardReservationRecoverySweep | null =
+      null;
   let b3trRecipientObservation:
     Awaited<
       ReturnType<
@@ -1158,54 +1155,15 @@ export async function GET(
       );
     }
 
-    try {
-      rewardReservation =
-        await reserveEligibleReferralRewards();
-    } catch (error) {
-      recoveryFailure ??= error;
-      console.error(
-        'Vote watcher reward reservation recovery failed:',
-        error,
-      );
-      errors.push(
-        'REWARD_RESERVATION_RECOVERY_FAILED',
-      );
-    }
-
-    try {
-      const reservationLiveness =
-        await readStaleEligibleRewardReservationLiveness(
-          15,
-        );
-
-      if (
-        reservationLiveness.missingCount >
-        0
-      ) {
-        const livenessError =
-          new Error(
-            `CLEAR reward reservation liveness failed for ${reservationLiveness.missingCount} referral(s).`,
-          );
-        recoveryFailure ??=
-          livenessError;
-        console.error(
-          'Vote watcher reward reservation liveness failed:',
-          reservationLiveness,
-        );
-        errors.push(
-          'REWARD_RESERVATION_LIVENESS_FAILED',
-        );
-      }
-    } catch (error) {
-      recoveryFailure ??= error;
-      console.error(
-        'Vote watcher reward reservation liveness check failed:',
-        error,
-      );
-      errors.push(
-        'REWARD_RESERVATION_LIVENESS_CHECK_FAILED',
-      );
-    }
+    const rewardRecovery =
+      await runRewardReservationRecovery();
+    rewardReservation =
+      rewardRecovery.reservation;
+    recoveryFailure ??=
+      rewardRecovery.failure;
+    errors.push(
+      ...rewardRecovery.errors,
+    );
 
     try {
       b3trRecipientObservation =
