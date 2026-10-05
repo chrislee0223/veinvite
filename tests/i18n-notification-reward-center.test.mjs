@@ -5,12 +5,18 @@ import { test } from 'node:test';
 const read = (path) => readFileSync(path, 'utf8');
 const facade = read('src/components/InviteNotificationHistoryCenter.tsx');
 const center = read('src/components/UnifiedInviteNotificationHistoryCenter.tsx');
+const snackbar = read('src/components/TransientSnackbar.tsx');
 const actionsRoute = read('src/app/api/notifications/reward-actions/route.ts');
 const claimRoute = read('src/app/api/rewards/claims/route.ts');
+const invitesRoute = read('src/app/api/invites/route.ts');
 const page = read('src/app/page.tsx');
 const home = read('src/components/HomeClient.tsx');
 const activeReceipt = read('src/components/ActiveWalletRewardReceiptNotice.tsx');
+const paidSync = read('src/components/PaidActivationLiveSync.tsx');
+const paidToast = read('src/lib/notifications/rewardPaidToast.ts');
 const rewardShare = read('src/lib/rewards/rewardReceiptShare.ts');
+const rewardPaidCopy = read('src/lib/i18n/rewardPaidNotificationCopy.ts');
+const rewardAdjustedCopy = read('src/lib/i18n/rewardAdjustedCopy.ts');
 const rewardReceiptView = read('src/components/RewardReceiptView.tsx');
 const qaHarness = read('src/qa/QaNotificationStateHarness.tsx');
 const referralPage = read('src/app/r/[key]/page.tsx');
@@ -19,126 +25,122 @@ const socialReferralPage = read('src/app/s/[key]/page.tsx');
 const socialReferralOg = read('src/app/s/[key]/opengraph-image.tsx');
 const locales = read('src/lib/i18n/locales.ts');
 
-test('notification reward actions are live wallet-scoped state, not cached history authority', () => {
+test('reward action API stays wallet scoped while Claim UI has one Home owner', () => {
   assert.match(actionsRoute, /requireWalletSession/);
   assert.match(actionsRoute, /\.eq\('recipient_wallet', walletAddress\)/);
   assert.match(
     actionsRoute,
     /\.in\('status', \['AWAITING_CLAIM', 'QUEUED', 'ASSIGNED'\]\)/,
   );
-  assert.match(actionsRoute, /sybil_v2_reward_clearances/);
-  assert.match(
-    actionsRoute,
-    /\.in\('verdict', \['CLEAR', 'WATCH'\]\)/,
-  );
-  assert.match(
-    actionsRoute,
-    /v2Clearance\.invite_code === queue\.invite_code/,
-  );
-  assert.match(
-    actionsRoute,
-    /queue\.sybil_clearance_id === null[\s\S]*invitation\?\.status === 'COMPLETED'[\s\S]*invitation\.reward_status === 'ELIGIBLE'[\s\S]*invitation\.reward_eligible_at !== null[\s\S]*invitation\.sybil_status === 'CLEAR'[\s\S]*invitation\.sybil_checked_at !== null[\s\S]*queue\.eligible_at === invitation\.reward_eligible_at/,
-  );
-  assert.match(actionsRoute, /invitation\.reward_status === 'PAID'/);
   assert.match(actionsRoute, /'Cache-Control': 'no-store'/);
-  assert.match(center, /fetch\('\/api\/notifications\/reward-actions'/);
-  assert.doesNotMatch(center, /sessionStorage/);
-});
 
-test('only awaiting rewards expose Claim while queued and assigned rewards show processing', () => {
-  assert.match(center, /action\.status !== 'AWAITING_CLAIM'/);
-  assert.match(center, /const waiting = action\.status === 'AWAITING_CLAIM'/);
-  assert.match(center, /className="notificationClaimButton"/);
-  assert.match(center, /progressCopy\.claimReward/);
-  assert.match(center, /className="notificationProcessingBadge"/);
-  assert.match(center, /progressCopy\.claimQueued/);
-  assert.match(center, /fetch\('\/api\/rewards\/claims'/);
-
+  assert.match(home, /fetch\('\/api\/rewards\/claims'/);
+  assert.match(home, /className="claimButton"/);
   assert.match(claimRoute, /request_reward_claim/);
   assert.match(claimRoute, /runImmediateClaimRewardPayout/);
+
+  assert.doesNotMatch(center, /\/api\/notifications\/reward-actions/);
+  assert.doesNotMatch(center, /notificationClaimButton/);
+  assert.doesNotMatch(center, /fetch\('\/api\/rewards\/claims'/);
+  assert.doesNotMatch(facade, /\/api\/notifications\/reward-actions/);
+  assert.doesNotMatch(facade, /notificationRewardAttentionDot/);
 });
 
-test('an unresolved Claim stays visible on the bell without piggybacking on history polling', () => {
-  assert.match(facade, /const \{ wallet \} = useWalletLauncher\(\)/);
-  assert.match(facade, /fetch\('\/api\/notifications\/reward-actions'/);
-  assert.match(facade, /action\.status === 'AWAITING_CLAIM'/);
-  assert.match(
-    facade,
-    /needsRewardClaim && props\.unreadCount < 1/,
-  );
-  assert.match(facade, /\[wallet\]/);
-  assert.doesNotMatch(facade, /\[wallet,\s*props\.open\]/);
-  assert.doesNotMatch(facade, /\[props\.items\]/);
-  assert.match(facade, /notificationRewardAttentionDot/);
-  assert.match(facade, /role="status"/);
-  assert.match(facade, /REWARD_RESERVATION_READY_EVENT/);
-  assert.match(facade, /REWARD_CLAIM_UPDATED_EVENT/);
-  assert.match(facade, /WALLET_SESSION_INVALID_EVENT/);
-  assert.match(facade, /document\.visibilityState === 'visible'/);
-  assert.doesNotMatch(facade, /setInterval/);
-});
-
-test('reward-ready history is an event while paid history remains reopenable as a receipt', () => {
+test('reward-ready is bell history only while paid history stays reopenable', () => {
   assert.match(center, /case 'REWARD_READY':/);
-  assert.doesNotMatch(center, /item\.kind === 'REWARD_READY'[\s\S]{0,180}structure\.action/);
+  assert.match(center, /case 'REWARD_PAID':/);
   assert.match(center, /const paid = item\.kind === 'REWARD_PAID'/);
   assert.match(center, /notificationHistoryRow isRead isInteractive/);
   assert.match(center, /openRewardReceipt\(item\)/);
-  assert.match(center, /rewards\/receipts\?inviteCode=\$\{encodeURIComponent\(item\.inviteCode\)\}/);
-  assert.doesNotMatch(center, /rewards\/receipts\?limit=50/);
-  assert.doesNotMatch(center, /candidate\.inviteCode === item\.inviteCode/);
-  assert.match(rewardReceiptView, /getVeChainExplorerTransactionUrl/);
-  assert.match(center, /ACKNOWLEDGE_REWARD_RECEIPT/);
+  assert.match(
+    center,
+    /rewards\/receipts\?inviteCode=\$\{encodeURIComponent\(item\.inviteCode\)\}/,
+  );
+  assert.doesNotMatch(qaHarness, /InviteNotificationSurfaceV2/);
+  assert.match(qaHarness, /case 'NOTI-REWARD-READY':[\s\S]*mode: 'history'/);
 });
 
-test('paid reward receipt shares a verified permanent invite link on X without acknowledging the receipt', () => {
+test('paid history uses a natural amount sentence and receipt open marks it read', () => {
+  assert.match(center, /rewardPaidNotificationBody\(locale, amount\)/);
+  assert.match(rewardPaidCopy, /Record<SupportedLocale, string>/);
+  assert.match(
+    rewardPaidCopy,
+    /친구 초대 보상으로 \{amount\} B3TR이 지갑에 지급됐어요\./,
+  );
+  assert.match(center, /const receiptAutoAckIdRef = useRef<string \| null>\(null\)/);
+  assert.match(center, /void acknowledgeReceipt\(\)/);
+  assert.match(center, /ACKNOWLEDGE_REWARD_RECEIPT/);
+  assert.doesNotMatch(rewardReceiptView, /notificationReceiptAcknowledge/);
+  assert.doesNotMatch(rewardReceiptView, /onAcknowledge/);
+});
+
+test('actual payout uses the common bottom snackbar with X share and confirm', () => {
+  assert.match(paidSync, /storeRewardPaidToast\(targetReceipt\)/);
+  assert.match(paidSync, /storeRewardPaidToast\(latestReceipt\)/);
+  assert.match(paidToast, /sessionStorage\.setItem/);
+  assert.match(paidToast, /sessionStorage\.removeItem/);
+
+  assert.match(home, /consumeRewardPaidToast\(wallet\)/);
+  assert.match(home, /kind: 'reward'/);
+  assert.match(home, /rewardReceiptXIntentUrl/);
+  assert.match(home, /ACKNOWLEDGE_REWARD_RECEIPT/);
+  assert.match(snackbar, /feedback\.kind === 'reward'/);
+  assert.match(snackbar, /className="rewardShareButton"/);
+  assert.match(snackbar, /className="rewardConfirmButton"/);
+  assert.match(snackbar, /bottom: calc\(92px \+ env\(safe-area-inset-bottom\)\)/);
+});
+
+test('partial reward offsets explain the reduced net amount without another bell event', () => {
+  assert.match(invitesRoute, /reservation_basis/);
+  assert.match(invitesRoute, /recoveryOffsetWei/);
+  assert.match(home, /rewardRecoveryOffsetWei/);
+  assert.match(home, /rewardAdjustmentMeta/);
+  assert.match(home, /rewardAdjustedCopy\(locale\)\.title/);
+});
+
+test('reward adjustment and paid copy cover every supported locale', () => {
+  const supportedLocales = [
+    ...locales.matchAll(/\{ locale: '([^']+)'/gmu),
+  ].map((match) => match[1]);
+
+  for (const source of [rewardPaidCopy, rewardAdjustedCopy]) {
+    const translatedLocales = [
+      ...source.matchAll(/^\s*(?:'([^']+)'|([a-z]+)):\s*(?:\{|')/gmu),
+    ]
+      .map((match) => match[1] ?? match[2])
+      .filter((locale) => supportedLocales.includes(locale));
+
+    assert.deepEqual(
+      [...new Set(translatedLocales)].sort(),
+      [...supportedLocales].sort(),
+    );
+  }
+});
+
+test('paid reward receipt shares the verified permanent invite link on X', () => {
   assert.match(center, /rewardShareUrl/);
   assert.match(center, /<RewardReceiptView/);
   assert.match(rewardReceiptView, /rewardReceiptXIntentUrl/);
   assert.match(rewardReceiptView, /className="notificationXShare"/);
   assert.match(rewardReceiptView, /window\.open\(\s*rewardShareIntentUrl/);
-  assert.match(home, /referralLinkVerified \? rewardShareUrl : ''/);
   assert.match(home, /https:\/\/veinvite\.vercel\.app\/s\//);
   assert.match(rewardShare, /https:\/\/x\.com\/intent\/post/);
-  assert.match(rewardShare, /REWARD_RECEIPT_SHARE_COPY/);
   assert.match(rewardShare, /Record<\s*SupportedLocale/);
   assert.match(rewardShare, /'#VeBetterDAO #B3TR #VeInvite'/);
-  assert.match(rewardShare, /rewardReceiptShareText\(\{ locale, amountB3tr \}\)/);
   assert.match(rewardShare, /referralUrl/);
-  assert.match(rewardShare, /\]\.join\('\\n\\n'\)/);
-  assert.doesNotMatch(rewardShare, /searchParams\.set\('url'/);
-  assert.doesNotMatch(rewardShare, /searchParams\.set\(\s*'hashtags'/);
-
-  const supportedLocales = [
-    ...locales.matchAll(/\{ locale: '([^']+)'/gmu),
-  ].map((match) => match[1]);
-  const shareLocales = [
-    ...rewardShare.matchAll(/^\s*(?:'([^']+)'|([a-z]+)):\s*\{/gmu),
-  ]
-    .map((match) => match[1] ?? match[2])
-    .filter((locale) => supportedLocales.includes(locale));
-
-  assert.deepEqual(
-    [...new Set(shareLocales)].sort(),
-    [...supportedLocales].sort(),
-  );
-
-  const shareHandlerStart = rewardReceiptView.indexOf('const shareRewardOnX');
-  const shareHandlerEnd = rewardReceiptView.indexOf('return (', shareHandlerStart);
-  const shareHandler = rewardReceiptView.slice(shareHandlerStart, shareHandlerEnd);
-  assert.doesNotMatch(shareHandler, /onAcknowledge/);
-  assert.doesNotMatch(shareHandler, /close/);
 });
 
-test('QA paid-reward state opens the real receipt with fake data and lets the X composer open', () => {
+test('QA previews both paid bell history and the real paid bottom popup', () => {
   assert.match(qaHarness, /case 'NOTI-REWARD-PAID':/);
   assert.match(qaHarness, /previewRewardReceipt: QA_REWARD_RECEIPT/);
+  assert.match(qaHarness, /case 'NOTI-REWARD-PAID-POPUP':/);
+  assert.match(qaHarness, /<TransientSnackbar/);
   assert.match(qaHarness, /amountB3tr: '262\.97'/);
-  assert.doesNotMatch(qaHarness, /onRewardShare: \(\) => \{\}/);
   assert.match(center, /previewRewardReceipt/);
+  assert.match(center, /allowProgrammaticOpen/);
 });
 
-test('referral sharing uses a dedicated 1200x600 X large-card route', () => {
+test('referral sharing keeps the dedicated 1200x600 X large-card route', () => {
   assert.match(referralPage, /card: 'summary_large_image'/);
   assert.match(referralOg, /width: 1200/);
   assert.match(referralOg, /height: 600/);
@@ -150,9 +152,7 @@ test('referral sharing uses a dedicated 1200x600 X large-card route', () => {
   assert.match(socialReferralOg, /height: 600/);
 });
 
-test('rollout keeps Home Claim and paid live sync without a duplicate standalone receipt surface', () => {
-  assert.match(home, /fetch\('\/api\/rewards\/claims'/);
-  assert.match(home, /className="claimButton"/);
+test('rollout keeps paid live sync without a duplicate standalone receipt surface', () => {
   assert.match(page, /<ActiveWalletRewardReceiptNotice \/>/);
   assert.match(activeReceipt, /<PaidActivationLiveSync/);
   assert.equal(
@@ -160,18 +160,4 @@ test('rollout keeps Home Claim and paid live sync without a duplicate standalone
     false,
   );
   assert.equal(activeReceipt.includes('<RewardReceiptNotice'), false);
-});
-
-
-test('notification reward actions stay visually stable across bell reopen', () => {
-  assert.match(center, /useLayoutEffect/);
-  const openEffectStart = center.indexOf('useLayoutEffect(() => {');
-  const openEffectEnd = center.indexOf('const claimReward = useCallback', openEffectStart);
-  assert.ok(openEffectStart >= 0 && openEffectEnd > openEffectStart);
-  const openEffect = center.slice(openEffectStart, openEffectEnd);
-  assert.match(openEffect, /void loadRewardActions\(\)/);
-  assert.doesNotMatch(openEffect, /setRewardActions\(\[\]\)/);
-  assert.match(center, /initialRewardActions/u);
-  assert.match(center, /actionResolved/u);
-  assert.match(center, /\.notificationActionLoading\{min-height:72px/);
 });
