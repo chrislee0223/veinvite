@@ -38,6 +38,38 @@ const COPY: Partial<Record<SupportedLocale, RewardAdjustedCopy>> = {
     title: 'Davet ödülü güncellemesi',
     body: 'Davet ödülünüz VeInvite ödül politikasına göre ayarlandı. Geçerli davet başarınız kaydedildi.',
   },
+  nl: {
+    title: 'Aanpassing uitnodigingsbeloning',
+    body: 'De beloning voor deze geldige uitnodiging is verrekend met een eerdere beloningsaanpassing, daarom wordt geen nieuwe B3TR overgemaakt. De geldige uitnodiging blijft geregistreerd.',
+  },
+  de: {
+    title: 'Anpassung der Einladungsbelohnung',
+    body: 'Die Belohnung für diese gültige Einladung wurde mit einer früheren Belohnungsanpassung verrechnet. Daher wird kein neues B3TR übertragen. Die gültige Einladung bleibt erfasst.',
+  },
+  fr: {
+    title: 'Ajustement de la récompense de parrainage',
+    body: 'La récompense de ce parrainage valide a été appliquée à un ajustement antérieur, donc aucun nouveau B3TR ne sera versé. Le parrainage valide reste enregistré.',
+  },
+  ar: {
+    title: 'تعديل مكافأة الدعوة',
+    body: 'تم احتساب مكافأة هذه الدعوة الصالحة ضمن تسوية مكافأة سابقة، لذلك لن يتم تحويل B3TR جديد. وستظل الدعوة الصالحة مسجلة.',
+  },
+  bn: {
+    title: 'রেফারেল রিওয়ার্ড সমন্বয়',
+    body: 'এই বৈধ রেফারেলের রিওয়ার্ড আগের একটি রিওয়ার্ড সমন্বয়ে প্রয়োগ করা হয়েছে, তাই নতুন B3TR ট্রান্সফার হবে না। বৈধ রেফারেলটি তবুও রেকর্ড থাকবে।',
+  },
+  pt: {
+    title: 'Ajuste da recompensa de convite',
+    body: 'A recompensa deste convite válido foi aplicada a um ajuste anterior, por isso não haverá nova transferência de B3TR. O convite válido continua registrado.',
+  },
+  ru: {
+    title: 'Корректировка награды за приглашение',
+    body: 'Награда за это действительное приглашение была зачтена в предыдущую корректировку, поэтому новый перевод B3TR не выполняется. Само действительное приглашение остаётся учтённым.',
+  },
+  id: {
+    title: 'Penyesuaian reward referral',
+    body: 'Reward untuk referral yang valid ini diterapkan pada penyesuaian reward sebelumnya, sehingga tidak ada transfer B3TR baru. Referral yang valid tetap tercatat.',
+  },
   vi: {
     title: 'Cập nhật phần thưởng giới thiệu',
     body: 'Phần thưởng giới thiệu của bạn đã được điều chỉnh theo chính sách phần thưởng của VeInvite. Lượt giới thiệu hợp lệ vẫn được ghi nhận.',
