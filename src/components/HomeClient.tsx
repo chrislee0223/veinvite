@@ -47,8 +47,16 @@ import {
   dispatchRewardClaimUpdated,
   reconcileRewardClaimState,
 } from '@/lib/rewards/rewardClaimClient';
-import { isReferralKey, type ReferralLinkRecord } from '@/lib/referralLinks';
+import type { ReferralLinkRecord } from '@/lib/referralLinks';
 import type { InviteRecord } from '@/lib/types';
+import {
+  formatB3trWei,
+  missionFlags,
+  nextMissionLabel,
+  readCachedReferralLink,
+  sameWallet,
+  writeCachedReferralLink,
+} from '@/lib/homeClientHelpers';
 import { useRewardPaidTransientFeedback } from '@/hooks/useRewardPaidTransientFeedback';
 
 const AppGuide = dynamic(() =>
@@ -64,7 +72,6 @@ const PublicLeaderboard = dynamic(() =>
 const VERCEL_SHARE_STORAGE_KEY = 'veinvite_vercel_share';
 const PUBLIC_NETWORK_TARGET_STORAGE_KEY = 'veinvite-network-public-target-v1';
 const VECHAIN_WALLET_PATTERN = /^0x[0-9a-fA-F]{40}$/;
-const REFERRAL_LINK_SESSION_PREFIX = 'veinvite_referral_link_v1:';
 const ACTIVE_STATUSES = new Set([
   'PENDING_ACCEPTANCE',
   'ACTIVATING',
@@ -74,89 +81,6 @@ const HOME_REFRESH_MS = 60_000;
 const EVIDENCE_REFRESH_MS = 120_000;
 const HOME_DATA_REFRESH_REQUESTED_EVENT =
   'veinvite-home-data-refresh-requested';
-const B3TR_DECIMALS = 18n;
-const B3TR_SCALE = 10n ** B3TR_DECIMALS;
-
-function referralLinkSessionKey(wallet: string): string {
-  return `${REFERRAL_LINK_SESSION_PREFIX}${wallet.toLowerCase()}`;
-}
-
-function readCachedReferralLink(wallet: string): ReferralLinkRecord | null {
-  try {
-    const raw = window.sessionStorage.getItem(referralLinkSessionKey(wallet));
-    if (!raw) return null;
-    const parsed = JSON.parse(raw) as {
-      key?: unknown;
-      createdAt?: unknown;
-    };
-    if (
-      typeof parsed.key !== 'string' ||
-      !isReferralKey(parsed.key) ||
-      typeof parsed.createdAt !== 'string'
-    ) {
-      window.sessionStorage.removeItem(referralLinkSessionKey(wallet));
-      return null;
-    }
-    return {
-      key: parsed.key,
-      createdAt: parsed.createdAt,
-      slotsAvailable: 0,
-    };
-  } catch {
-    return null;
-  }
-}
-
-function writeCachedReferralLink(
-  wallet: string,
-  link: ReferralLinkRecord,
-): void {
-  try {
-    window.sessionStorage.setItem(
-      referralLinkSessionKey(wallet),
-      JSON.stringify({ key: link.key, createdAt: link.createdAt }),
-    );
-  } catch {
-  }
-}
-
-function sameWallet(left: string | null, right: string): boolean {
-  return left?.toLowerCase() === right.toLowerCase();
-}
-
-function formatB3trWei(value: string): string {
-  if (!/^\d+$/.test(value)) return '—';
-  const wei = BigInt(value);
-  const whole = wei / B3TR_SCALE;
-  const fraction = (wei % B3TR_SCALE)
-    .toString()
-    .padStart(Number(B3TR_DECIMALS), '0')
-    .slice(0, 2)
-    .replace(/0+$/, '');
-  return fraction ? `${whole}.${fraction}` : whole.toString();
-}
-
-function missionFlags(invite: InviteRecord): boolean[] {
-  const apps = Math.max(0, Math.min(3, invite.appsCompleted ?? 0));
-  return [
-    apps >= 1,
-    apps >= 2,
-    apps >= 3,
-    invite.vot3Converted === true,
-    invite.voteCompleted === true,
-  ];
-}
-
-function nextMissionLabel(invite: InviteRecord): string {
-  const flags = missionFlags(invite);
-  const next = flags.findIndex((done) => !done);
-  if (next === 0) return 'dApp 1/3';
-  if (next === 1) return 'dApp 2/3';
-  if (next === 2) return 'dApp 3/3';
-  if (next === 3) return 'VOT3';
-  if (next === 4) return 'Vote';
-  return '';
-}
 
 export function HomeClient() {
   const {
