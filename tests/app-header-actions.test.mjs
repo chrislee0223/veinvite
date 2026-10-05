@@ -8,7 +8,7 @@ const [headerSource, notificationSource] = await Promise.all([
 ]);
 
 test('shared app header keeps the three official external destinations', () => {
-  assert.match(headerSource, /https:\/\/governance\.vebetterdao\.org\/allocations/u);
+  assert.match(headerSource, /https:\/\/governance\.vebetterdao\.org\/allocations\/vote/u);
   assert.match(headerSource, /https:\/\/x\.com\/Veinvite/u);
   assert.match(headerSource, /https:\/\/t\.me\/Veinvite_vet/u);
   assert.equal((headerSource.match(/target="_blank"/gu) ?? []).length, 1);
