@@ -401,10 +401,8 @@ test('reward-adjusted notices remain bell-history-only with no auto-open path', 
   assert.match(history, /'REWARD_ADJUSTED'/u);
   assert.doesNotMatch(history, /newestUnreadSecurityHistoryId/u);
   assert.doesNotMatch(history, /refreshLifecycle\((?:true|false)\)/u);
-  assert.match(
-    notificationPolicy,
-    /REWARD_ADJUSTED:\s*\{[\s\S]*showInHistory: true,[\s\S]*autoOpenHistory: false,[\s\S]*transientSurface: 'none'/u,
-  );
+  assert.match(notificationPolicy, /const HISTORY_TAP: NotificationDeliveryPolicy = \{[\s\S]*showInHistory: true,[\s\S]*autoOpenHistory: false,[\s\S]*transientSurface: 'none'/u);
+  assert.match(notificationPolicy, /REWARD_ADJUSTED: HISTORY_TAP/u);
   assert.doesNotMatch(
     notificationState,
     /kind:\s*'REWARD_ADJUSTED'/u,
