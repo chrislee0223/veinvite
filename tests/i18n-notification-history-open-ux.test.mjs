@@ -31,7 +31,7 @@ test('notification history opens from a warm session cache without forcing a vis
   assert.ok(openHandler.length > 0);
   assert.doesNotMatch(openHandler, /visibleLoading:\s*true/);
   assert.match(openHandler, /surfaceError:\s*true/);
-  assert.match(openHandler, /void refreshLifecycle\(false\)/);
+  assert.match(openHandler, /void refreshLifecycle\(\)/);
 });
 
 test('opening the notification dialog focuses the panel without painting the close-button focus ring', () => {
