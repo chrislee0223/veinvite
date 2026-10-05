@@ -151,6 +151,17 @@ export async function readStaleEligibleRewardReservationLiveness(
     );
   }
 
+  const runtime =
+    await readRewardRuntimeSafety();
+
+  if (runtime.emergencyRewardsPaused) {
+    return {
+      missingCount: 0,
+      oldestRewardEligibleAt: null,
+      inviteCodes: [],
+    };
+  }
+
   const { network } =
     getVeBetterNetworkConfig();
   const { data, error } =

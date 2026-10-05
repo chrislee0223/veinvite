@@ -108,6 +108,35 @@ test('reservation skip reasons are observable without weakening reward gates', (
   );
 });
 
+test('liveness monitoring is silent during an intentional emergency reward pause', () => {
+  const start = reservation.indexOf(
+    'export async function readStaleEligibleRewardReservationLiveness',
+  );
+  const end = reservation.indexOf(
+    'async function reserveCandidate',
+    start,
+  );
+  const block = reservation.slice(start, end);
+
+  assert.match(
+    block,
+    /await readRewardRuntimeSafety\(\)/u,
+  );
+  assert.match(
+    block,
+    /if \(runtime\.emergencyRewardsPaused\)/u,
+  );
+  assert.match(
+    block,
+    /missingCount: 0/u,
+  );
+  assert.ok(
+    block.indexOf('runtime.emergencyRewardsPaused') <
+      block.indexOf('read_stale_reward_reservation_liveness'),
+    'emergency pause must suppress the stale-reservation RPC before it can alert',
+  );
+});
+
 test('five-minute recovery detects a stale CLEAR referral missing its reservation', () => {
   assert.match(
     reservation,
