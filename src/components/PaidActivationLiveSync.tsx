@@ -167,18 +167,24 @@ export function PaidActivationLiveSync() {
 
     const targetInviteCodes = targetInviteCodesRef.current;
     if (targetInviteCodes.size > 0) {
-      const targetReceipt = snapshot.receipts.find((receipt) =>
+      const targetReceipts = snapshot.receipts.filter((receipt) =>
         typeof receipt.inviteCode === 'string' &&
         targetInviteCodes.has(receipt.inviteCode.trim().toUpperCase()),
       );
 
       // Targeted receipt evidence wins even if the initial background baseline
-      // has not finished yet. This closes the race where a very fast payout
-      // could otherwise become the baseline and never be recognized as new.
-      if (targetReceipt) {
-        targetInviteCodes.clear();
-        storeRewardPaidToast(targetReceipt);
-        return requestPaidReload(snapshot.latestReceiptId ?? targetReceipt.id);
+      // has not finished yet. Preserve every already-finalized target so two
+      // fast payouts cannot collapse into one transient celebration.
+      if (targetReceipts.length > 0) {
+        for (const receipt of [...targetReceipts].reverse()) {
+          targetInviteCodes.delete(
+            receipt.inviteCode.trim().toUpperCase(),
+          );
+          storeRewardPaidToast(receipt);
+        }
+        return requestPaidReload(
+          snapshot.latestReceiptId ?? targetReceipts[0].id,
+        );
       }
     }
 
@@ -196,9 +202,13 @@ export function PaidActivationLiveSync() {
       return false;
     }
 
-    const latestReceipt = snapshot.receipts[0] ?? null;
-    if (latestReceipt) {
-      storeRewardPaidToast(latestReceipt);
+    const newReceipts: RewardReceipt[] = [];
+    for (const receipt of snapshot.receipts) {
+      if (receipt.id === latestReceiptIdRef.current) break;
+      newReceipts.push(receipt);
+    }
+    for (const receipt of newReceipts.reverse()) {
+      storeRewardPaidToast(receipt);
     }
     return requestPaidReload(snapshot.latestReceiptId);
   }, [readLatest, requestPaidReload]);
