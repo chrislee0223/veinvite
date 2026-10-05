@@ -11,6 +11,7 @@ import {
   subscribeRewardClaimUpdated,
 } from '@/lib/rewards/rewardClaimClient';
 import type { RewardReceipt } from '@/lib/rewards/rewardReceipt';
+import { storeRewardPaidToast } from '@/lib/notifications/rewardPaidToast';
 
 const PAID_ACTIVATION_UPDATED_EVENT = 'veinvite-paid-activation-updated';
 const CLAIM_POLL_INTERVAL_MS = 2_000;
@@ -176,6 +177,7 @@ export function PaidActivationLiveSync() {
       // could otherwise become the baseline and never be recognized as new.
       if (targetReceipt) {
         targetInviteCodes.clear();
+        storeRewardPaidToast(targetReceipt);
         return requestPaidReload(snapshot.latestReceiptId ?? targetReceipt.id);
       }
     }
@@ -194,6 +196,10 @@ export function PaidActivationLiveSync() {
       return false;
     }
 
+    const latestReceipt = snapshot.receipts[0] ?? null;
+    if (latestReceipt) {
+      storeRewardPaidToast(latestReceipt);
+    }
     return requestPaidReload(snapshot.latestReceiptId);
   }, [readLatest, requestPaidReload]);
 
