@@ -6,7 +6,19 @@ const migrationPath =
   'supabase/migrations/20261005003000_add_reward_recovery_offset_accounting.sql';
 
 async function sources() {
-  const [sql, hardeningSql, metricsSql, preserveMetricsSql, history, copy, leaderboard] = await Promise.all([
+  const [
+    sql,
+    hardeningSql,
+    metricsSql,
+    preserveMetricsSql,
+    restrictionRecoverySql,
+    activationSql,
+    repricingGuardSql,
+    notificationStateSql,
+    history,
+    copy,
+    leaderboard,
+  ] = await Promise.all([
     readFile(migrationPath, 'utf8'),
     readFile(
       'supabase/migrations/20261005003050_harden_reward_recovery_reversals.sql',
@@ -20,6 +32,22 @@ async function sources() {
       'supabase/migrations/20261005024000_preserve_legacy_round_metrics_with_recovery.sql',
       'utf8',
     ),
+    readFile(
+      'supabase/migrations/20261005034500_restore_recovery_on_restricted_settlement.sql',
+      'utf8',
+    ),
+    readFile(
+      'supabase/migrations/20261005025226_enable_reward_recovery_offset.sql',
+      'utf8',
+    ),
+    readFile(
+      'supabase/migrations/20261005123000_guard_recovery_cohort_repricing.sql',
+      'utf8',
+    ),
+    readFile(
+      'src/lib/notifications/inviteNotificationStateV2.ts',
+      'utf8',
+    ),
     readFile('src/components/InAppInviteNotifications.tsx', 'utf8'),
     readFile('src/lib/i18n/rewardAdjustedCopy.ts', 'utf8'),
     readFile('src/app/api/leaderboard/route.ts', 'utf8'),
@@ -29,6 +57,10 @@ async function sources() {
     hardeningSql,
     metricsSql,
     preserveMetricsSql,
+    restrictionRecoverySql,
+    activationSql,
+    repricingGuardSql,
+    notificationStateSql,
     history,
     copy,
     leaderboard,
@@ -271,4 +303,354 @@ test('legacy queue-based round counts stay unchanged and full offsets are additi
     preserveMetricsSql,
     /select v_cumulative_completed \+ count\(distinct s\.invite_code\)[\s\S]*?settlement_kind = 'FULL_OFFSET'/u,
   );
+});
+
+
+test('a restricted recovery-settled referral restores consumed economic value', async () => {
+  const { restrictionRecoverySql } = await sources();
+  assert.match(
+    restrictionRecoverySql,
+    /create or replace function public\.upsert_reward_recovery_obligation_for_restriction/u,
+  );
+  assert.match(
+    restrictionRecoverySql,
+    /v_desired :=[\s\S]*?v_settlement\.offset_amount_wei \+[\s\S]*?coalesce\(v_receipt\.amount_wei,0\)/u,
+  );
+  assert.match(
+    restrictionRecoverySql,
+    /v_assessment\.state<>'RESTRICTED'/u,
+  );
+  assert.match(
+    restrictionRecoverySql,
+    /source_settlement_id=v_settlement\.id/u,
+  );
+});
+
+test('an unpaid partial offset restores only the consumed offset, never the unpaid net', async () => {
+  const { restrictionRecoverySql } = await sources();
+  const start = restrictionRecoverySql.indexOf(
+    'create or replace function public.upsert_reward_recovery_obligation_for_restriction',
+  );
+  const end = restrictionRecoverySql.indexOf(
+    'create or replace function public.sync_reward_recovery_invalidation',
+  );
+  assert.ok(start >= 0 && end > start);
+  const fn = restrictionRecoverySql.slice(start, end);
+  assert.match(
+    fn,
+    /v_desired :=[\s\S]*?v_settlement\.offset_amount_wei \+[\s\S]*?coalesce\(v_receipt\.amount_wei,0\)/u,
+  );
+  assert.doesNotMatch(fn, /v_settlement\.gross_amount_wei/u);
+  assert.match(
+    fn,
+    /A cancelled\/unpaid net amount never becomes debt/u,
+  );
+});
+
+test('restriction and assessment trigger ordering both restore recovery idempotently', async () => {
+  const { restrictionRecoverySql } = await sources();
+  assert.match(
+    restrictionRecoverySql,
+    /create trigger sybil_v2_reward_recovery_restriction_sync[\s\S]*?after insert or update of status[\s\S]*?sybil_v2_wallet_restrictions/u,
+  );
+  assert.match(
+    restrictionRecoverySql,
+    /create trigger sybil_v2_reward_recovery_restricted_assessment_sync[\s\S]*?after insert or update of state[\s\S]*?sybil_v2_referral_assessments/u,
+  );
+  assert.match(
+    restrictionRecoverySql,
+    /create unique index if not exists reward_recovery_obligations_settlement_uidx/u,
+  );
+  assert.match(
+    restrictionRecoverySql,
+    /o\.source_restriction_id=v_restriction\.id[\s\S]*?or o\.source_settlement_id=v_settlement\.id/u,
+  );
+});
+
+test('formal invalidation and current restriction cannot double-create recovery for one settlement', async () => {
+  const { restrictionRecoverySql } = await sources();
+  assert.match(
+    restrictionRecoverySql,
+    /o\.source_invalidation_id=v_invalidation\.id[\s\S]*?v_settlement\.id is not null[\s\S]*?o\.source_settlement_id=v_settlement\.id/u,
+  );
+  assert.match(
+    restrictionRecoverySql,
+    /source_invalidation_id=v_invalidation\.id,[\s\S]*?source_restriction_id=null/u,
+  );
+  assert.match(
+    restrictionRecoverySql,
+    /num_nonnulls\(source_invalidation_id,source_restriction_id\)=1/u,
+  );
+});
+
+test('recovery balance mutations share the reservation wallet advisory lock', async () => {
+  const { hardeningSql, restrictionRecoverySql } = await sources();
+  assert.match(
+    hardeningSql,
+    /'veinvite_reward_recovery_' \|\| v_network \|\| '_' \|\|[\s\S]*?lower\(v_invitation\.inviter_wallet\)/u,
+  );
+  const lockMatches = restrictionRecoverySql.match(
+    /'veinvite_reward_recovery_'/gu,
+  ) ?? [];
+  assert.ok(lockMatches.length >= 4);
+});
+
+test('restriction reinstatement follows the agreed reverse-or-manual-review policy', async () => {
+  const { restrictionRecoverySql } = await sources();
+  assert.match(
+    restrictionRecoverySql,
+    /status='REVERSED'[\s\S]*?'SOURCE_RESTRICTION_REINSTATED_BEFORE_CONSUMPTION'/u,
+  );
+  assert.match(
+    restrictionRecoverySql,
+    /status='FROZEN'[\s\S]*?'SOURCE_RESTRICTION_REINSTATED_AFTER_CONSUMPTION'/u,
+  );
+  assert.match(
+    restrictionRecoverySql,
+    /'SOURCE_RESTRICTION_REINSTATED_AFTER_CONSUMPTION'[\s\S]*?reward_recovery_review_queue/u,
+  );
+});
+
+
+test('late receipt also tops up a restriction-sourced recovery obligation', async () => {
+  const { restrictionRecoverySql } = await sources();
+  const start = restrictionRecoverySql.indexOf(
+    'create or replace function public.sync_reward_recovery_receipt',
+  );
+  const end = restrictionRecoverySql.indexOf(
+    'create or replace function public.sync_reward_recovery_invalidation',
+  );
+  assert.ok(start >= 0 && end > start);
+  const fn = restrictionRecoverySql.slice(start, end);
+  assert.match(
+    fn,
+    /sybil_v2_referral_invalidations[\s\S]*?if v_invalidation_id is not null[\s\S]*?upsert_reward_recovery_obligation_for_invalidation/u,
+  );
+  assert.match(
+    fn,
+    /sybil_v2_wallet_restrictions[\s\S]*?a\.state='RESTRICTED'[\s\S]*?upsert_reward_recovery_obligation_for_restriction/u,
+  );
+});
+
+
+test('historical reinstatement cannot erase a still-active current restriction', async () => {
+  const { restrictionRecoverySql } = await sources();
+  const start = restrictionRecoverySql.indexOf(
+    'create or replace function public.sync_reward_recovery_invalidation',
+  );
+  const end = restrictionRecoverySql.indexOf(
+    'create or replace function public.sync_reward_recovery_restriction',
+  );
+  assert.ok(start >= 0 && end > start);
+  const fn = restrictionRecoverySql.slice(start, end);
+  assert.match(
+    fn,
+    /if new\.status='REINSTATED'[\s\S]*?upsert_reward_recovery_obligation_for_restriction\(r\.id\)/u,
+  );
+  assert.match(
+    fn,
+    /a\.state='RESTRICTED'[\s\S]*?r\.status='ACTIVE'/u,
+  );
+});
+
+
+test('invalidated offsets stop reducing cohort budget for legitimate users', async () => {
+  const { restrictionRecoverySql } = await sources();
+  const readerStart = restrictionRecoverySql.indexOf(
+    'create or replace function public.read_reward_cohort_committed_wei',
+  );
+  const budgetStart = restrictionRecoverySql.indexOf(
+    'create or replace function public.enforce_reward_queue_cohort_budget',
+  );
+  assert.ok(readerStart >= 0 && budgetStart > readerStart);
+  const reader = restrictionRecoverySql.slice(readerStart, budgetStart);
+  const budget = restrictionRecoverySql.slice(budgetStart);
+  assert.match(
+    reader,
+    /sum\(s\.offset_amount_wei\)[\s\S]*?not public\.is_sybil_v2_referral_invalidated\([\s\S]*?s\.invite_code,[\s\S]*?p_network/u,
+  );
+  assert.match(
+    budget,
+    /v_existing_offset[\s\S]*?not public\.is_sybil_v2_referral_invalidated\([\s\S]*?s\.invite_code,[\s\S]*?new\.network/u,
+  );
+  assert.match(
+    budget,
+    /v_current_offset[\s\S]*?not public\.is_sybil_v2_referral_invalidated\(/u,
+  );
+});
+
+
+test("offset settlement cannot lower the next legitimate user's pricing basis", () => {
+  const pricingBasis = ({
+    designatedBudget,
+    grossCommitted,
+    observedPool,
+    actualLiability,
+  }) => {
+    const cohortAvailable =
+      designatedBudget > grossCommitted
+        ? designatedBudget - grossCommitted
+        : 0n;
+    const poolAvailable =
+      observedPool > actualLiability
+        ? observedPool - actualLiability
+        : 0n;
+    return cohortAvailable < poolAvailable
+      ? cohortAvailable
+      : poolAvailable;
+  };
+
+  const normal = pricingBasis({
+    designatedBudget: 1_000n,
+    grossCommitted: 50n,
+    observedPool: 100n,
+    actualLiability: 50n,
+  });
+  const offset = pricingBasis({
+    designatedBudget: 1_000n,
+    grossCommitted: 50n,
+    observedPool: 100n,
+    actualLiability: 0n,
+  });
+  assert.ok(offset >= normal);
+
+  const budgetBoundNormal = pricingBasis({
+    designatedBudget: 100n,
+    grossCommitted: 50n,
+    observedPool: 1_000n,
+    actualLiability: 50n,
+  });
+  const budgetBoundOffset = pricingBasis({
+    designatedBudget: 100n,
+    grossCommitted: 50n,
+    observedPool: 1_000n,
+    actualLiability: 0n,
+  });
+  assert.equal(budgetBoundOffset, budgetBoundNormal);
+});
+
+
+test('activation migration refuses dirty rollout state and verifies source parity', async () => {
+  const { activationSql } = await sources();
+  assert.match(
+    activationSql,
+    /REWARD_RECOVERY_ACTIVATION_OPEN_REVIEWS/u,
+  );
+  assert.match(
+    activationSql,
+    /REWARD_RECOVERY_ACTIVATION_NOT_CLEAN/u,
+  );
+  assert.match(
+    activationSql,
+    /REWARD_RECOVERY_ACTIVATION_ACTIVE_QUEUE/u,
+  );
+  assert.match(
+    activationSql,
+    /REWARD_RECOVERY_ACTIVATION_SOURCE_DRIFT/u,
+  );
+  assert.match(
+    activationSql,
+    /REWARD_RECOVERY_ACTIVATION_BALANCE_DRIFT/u,
+  );
+  assert.match(
+    activationSql,
+    /reward_recovery_enabled=true/u,
+  );
+});
+
+
+test('stale full-offset cohort quote is forced through RECALCULATE', async () => {
+  const { repricingGuardSql } = await sources();
+  assert.match(
+    repricingGuardSql,
+    /p_basis \? 'cohortReservedWei'/u,
+  );
+  assert.match(
+    repricingGuardSql,
+    /v_expected_cohort_committed :=[\s\S]*?p_basis->>'cohortReservedWei'/u,
+  );
+  assert.match(
+    repricingGuardSql,
+    /read_reward_cohort_committed_wei/u,
+  );
+  assert.match(
+    repricingGuardSql,
+    /v_cohort_committed<>v_expected_cohort_committed[\s\S]*?'RECALCULATE'/u,
+  );
+  assert.match(
+    repricingGuardSql,
+    /if v_recovery_enabled then/u,
+  );
+});
+
+
+test('active settlement-sourced recovery releases invalid referral offset from cohort pricing', async () => {
+  const { repricingGuardSql } = await sources();
+  assert.match(
+    repricingGuardSql,
+    /read_reward_cohort_committed_wei[\s\S]*?reward_recovery_obligations o[\s\S]*?o\.source_settlement_id=s\.id[\s\S]*?o\.status='ACTIVE'/u,
+  );
+  assert.match(
+    repricingGuardSql,
+    /enforce_reward_queue_cohort_budget[\s\S]*?v_existing_offset[\s\S]*?reward_recovery_obligations o[\s\S]*?o\.source_settlement_id=s\.id[\s\S]*?o\.status='ACTIVE'/u,
+  );
+});
+
+test('unpaid partial recovery referral counts as achievement without inventing B3TR', async () => {
+  const { repricingGuardSql } = await sources();
+  assert.match(
+    repricingGuardSql,
+    /partial_unpaid_referrals[\s\S]*?0::numeric as amount_wei[\s\S]*?settlement_kind='PARTIAL_OFFSET'[\s\S]*?net_amount_wei>0/u,
+  );
+  assert.match(
+    repricingGuardSql,
+    /partial_unpaid_referrals[\s\S]*?not exists \([\s\S]*?from public\.reward_receipts r/u,
+  );
+  assert.match(
+    repricingGuardSql,
+    /select \* from partial_unpaid_referrals/u,
+  );
+});
+
+test('public activation counts full and partial recovery settlements while invalidation remains authoritative', async () => {
+  const { repricingGuardSql } = await sources();
+  const growthStart = repricingGuardSql.indexOf(
+    'CREATE OR REPLACE FUNCTION public.get_operator_public_new_user_growth',
+  );
+  assert.ok(growthStart >= 0);
+  const growth = repricingGuardSql.slice(growthStart);
+  assert.match(
+    growth,
+    /from public\.reward_recovery_settlements s[\s\S]*?s\.invite_code = i\.invite_code[\s\S]*?s\.network = p\.network/u,
+  );
+  assert.doesNotMatch(
+    growth,
+    /s\.settlement_kind = 'FULL_OFFSET'[\s\S]{0,120}s\.net_amount_wei = 0/u,
+  );
+  assert.match(
+    growth,
+    /not public\.is_sybil_v2_referral_invalidated/u,
+  );
+});
+
+test('full-offset settlement is not reported as still claimable in operator overview', async () => {
+  const { repricingGuardSql } = await sources();
+  assert.match(
+    repricingGuardSql,
+    /create or replace view public\.operator_analytics_overview[\s\S]*?currently_eligible_referrals/u,
+  );
+  assert.match(
+    repricingGuardSql,
+    /reward_recovery_settlements s[\s\S]*?settlement_kind = 'FULL_OFFSET'::text[\s\S]*?net_amount_wei = \(0\)::numeric/u,
+  );
+});
+
+test('reward-adjusted policy notice is history-only and never lifecycle auto-popup material', async () => {
+  const { notificationStateSql, history } = await sources();
+  assert.match(notificationStateSql, /\| 'REWARD_ADJUSTED'/u);
+  assert.doesNotMatch(
+    notificationStateSql,
+    /kind:\s*'REWARD_ADJUSTED'/u,
+  );
+  assert.match(history, /'REWARD_ADJUSTED'/u);
 });
