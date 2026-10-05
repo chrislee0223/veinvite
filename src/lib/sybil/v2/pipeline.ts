@@ -3403,12 +3403,25 @@ async function issueClearance(
     // durable wake-up edge. This closes the race where mission completion
     // happened before CHAIN_FINALITY and the first continuation exhausted
     // retries before clearance became available.
-    await enqueueRewardReservationContinuation({
-      inviteCode,
-      detectedAt: new Date().toISOString(),
-      trigger: 'SYBIL_CLEARANCE',
-      assessmentRevision: issuedRevision,
-    });
+    try {
+      await enqueueRewardReservationContinuation({
+        inviteCode,
+        detectedAt: new Date().toISOString(),
+        trigger: 'SYBIL_CLEARANCE',
+        assessmentRevision: issuedRevision,
+      });
+    } catch (error) {
+      // Clearance remains authoritative even if its liveness wake-up transport
+      // briefly fails; the five-minute reservation sweep is the recovery path.
+      console.error(
+        'Sybil clearance reward reservation wake-up failed:',
+        {
+          inviteCode,
+          assessmentRevision: issuedRevision,
+          error,
+        },
+      );
+    }
   }
 
   return result;
