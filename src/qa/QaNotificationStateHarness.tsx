@@ -306,7 +306,7 @@ function fixtureForState(
         open: true,
         previewRewardReceipt: QA_REWARD_RECEIPT,
         rewardShareUrl:
-          'https://veinvite.vercel.app/r/qa-reward-share-preview',
+          'https://veinvite.vercel.app/s/qa-reward-share-preview',
       };
     case 'NOTI-REWARD-PAID-POPUP':
       return {
