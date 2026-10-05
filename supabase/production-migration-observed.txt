@@ -160,3 +160,4 @@
 20261004173035 preserve_legacy_round_metrics_with_recovery
 20261004175312 enable_reward_recovery_offset
 20261004183258 restore_recovery_on_restricted_settlement
+20261005034309 guard_recovery_cohort_repricing
