@@ -14,6 +14,26 @@ const COPY: Partial<Record<SupportedLocale, RewardAdjustedCopy>> = {
     title: '초대 보상 안내',
     body: '친구 초대 보상이 VeInvite 보상 정책에 따라 조정되었습니다. 정상 초대 활동은 기록되었습니다.',
   },
+  zh: {
+    title: '邀请奖励调整',
+    body: '本次有效邀请奖励已用于抵扣此前的奖励调整，因此不会新增发放 B3TR。该次有效邀请仍会正常记录。',
+  },
+  hi: {
+    title: 'रेफ़रल रिवॉर्ड समायोजन',
+    body: 'इस वैध रेफ़रल का रिवॉर्ड पिछले रिवॉर्ड समायोजन में लगाया गया है, इसलिए नया B3TR ट्रांसफ़र नहीं होगा। सफल रेफ़रल फिर भी दर्ज रहेगा।',
+  },
+  es: {
+    title: 'Ajuste de recompensa por invitación',
+    body: 'La recompensa de esta invitación válida se aplicó a un ajuste anterior, por lo que no se transferirá B3TR adicional. La invitación válida sigue registrada.',
+  },
+  ja: {
+    title: '招待報酬の調整',
+    body: '今回の有効な招待報酬は以前の報酬調整に充当されたため、新たな B3TR の送金はありません。有効な招待実績はそのまま記録されます。',
+  },
+  it: {
+    title: 'Adeguamento ricompensa invito',
+    body: 'La ricompensa di questo invito valido è stata applicata a un precedente adeguamento, quindi non verranno trasferiti nuovi B3TR. L’invito valido resta registrato.',
+  },
   tr: {
     title: 'Davet ödülü güncellemesi',
     body: 'Davet ödülünüz VeInvite ödül politikasına göre ayarlandı. Geçerli davet başarınız kaydedildi.',
