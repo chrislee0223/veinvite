@@ -18,6 +18,7 @@ import {
   tryClaimCronJob,
 } from '@/lib/monitoring/cronHeartbeat';
 import {
+  readStaleEligibleRewardReservationLiveness,
   reserveEligibleReferralRewards,
 } from '@/lib/rewards/rewardReservation';
 import { supabaseAdmin } from '@/lib/supabaseServer';
@@ -1168,6 +1169,41 @@ export async function GET(
       );
       errors.push(
         'REWARD_RESERVATION_RECOVERY_FAILED',
+      );
+    }
+
+    try {
+      const reservationLiveness =
+        await readStaleEligibleRewardReservationLiveness(
+          15,
+        );
+
+      if (
+        reservationLiveness.missingCount >
+        0
+      ) {
+        const livenessError =
+          new Error(
+            `CLEAR reward reservation liveness failed for ${reservationLiveness.missingCount} referral(s).`,
+          );
+        recoveryFailure ??=
+          livenessError;
+        console.error(
+          'Vote watcher reward reservation liveness failed:',
+          reservationLiveness,
+        );
+        errors.push(
+          'REWARD_RESERVATION_LIVENESS_FAILED',
+        );
+      }
+    } catch (error) {
+      recoveryFailure ??= error;
+      console.error(
+        'Vote watcher reward reservation liveness check failed:',
+        error,
+      );
+      errors.push(
+        'REWARD_RESERVATION_LIVENESS_CHECK_FAILED',
       );
     }
 
