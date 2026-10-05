@@ -18,7 +18,7 @@ async function sources() {
     commitmentAuthoritySql,
     history,
     notificationState,
-    notificationClient,
+    notificationPolicy,
     predictivePlanning,
     copy,
     leaderboard,
@@ -58,7 +58,7 @@ async function sources() {
     ),
     readFile('src/components/InAppInviteNotifications.tsx', 'utf8'),
     readFile('src/lib/notifications/inviteNotificationStateV2.ts', 'utf8'),
-    readFile('src/lib/notifications/notificationHistoryClient.ts', 'utf8'),
+    readFile('src/lib/notifications/notificationPolicy.ts', 'utf8'),
     readFile('src/lib/rewards/predictivePlanning.ts', 'utf8'),
     readFile('src/lib/i18n/rewardAdjustedCopy.ts', 'utf8'),
     readFile('src/app/api/leaderboard/route.ts', 'utf8'),
@@ -237,7 +237,7 @@ test('full-offset user messaging is bell history only and exposes no recovery ba
   assert.match(history, /'REWARD_ADJUSTED'/u);
   assert.match(
     copy,
-    /친구 초대 보상이 VeInvite 보상 정책에 따라 조정되었습니다\. 정상 초대 활동은 기록되었습니다\./u,
+    /이번 정상 초대 보상은 이전 보상 조정에 반영되어 새 B3TR 지급은 없습니다\. 정상 초대 1건은 그대로 인정돼요\./u,
   );
   assert.doesNotMatch(copy, /남음|상계액|빚|debt|remaining recovery/ui);
   assert.match(
@@ -396,16 +396,14 @@ test('planning snapshot and application planning share one lifetime gross commit
   );
 });
 
-test('reward-adjusted notices remain bell-history-only and never join lifecycle auto-open rewards', async () => {
-  const { history, notificationState, notificationClient } = await sources();
+test('reward-adjusted notices remain bell-history-only with no auto-open path', async () => {
+  const { history, notificationState, notificationPolicy } = await sources();
   assert.match(history, /'REWARD_ADJUSTED'/u);
+  assert.doesNotMatch(history, /newestUnreadSecurityHistoryId/u);
+  assert.doesNotMatch(history, /refreshLifecycle\((?:true|false)\)/u);
   assert.match(
-    history,
-    /newestUnreadSecurityHistoryId\(history\.items\)/u,
-  );
-  assert.match(
-    notificationClient,
-    /kind\.startsWith\('SECURITY_'\)/u,
+    notificationPolicy,
+    /REWARD_ADJUSTED:\s*\{[\s\S]*showInHistory: true,[\s\S]*autoOpenHistory: false,[\s\S]*transientSurface: 'none'/u,
   );
   assert.doesNotMatch(
     notificationState,
