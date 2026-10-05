@@ -12,9 +12,6 @@ type Props = ComponentProps<
 
 export function InviteNotificationHistoryCenter(props: Props) {
   return (
-    <UnifiedInviteNotificationHistoryCenter
-      {...props}
-      skipRewardActionRequests
-    />
+    <UnifiedInviteNotificationHistoryCenter {...props} />
   );
 }
