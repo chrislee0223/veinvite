@@ -71,7 +71,7 @@ function TelegramIcon() {
 
 const EXTERNAL_LINKS = [
   {
-    href: 'https://governance.vebetterdao.org/allocations',
+    href: 'https://governance.vebetterdao.org/allocations/vote',
     label: 'VeBetterDAO Vote',
     icon: <VoteIcon />,
   },
