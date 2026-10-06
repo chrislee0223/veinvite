@@ -196,6 +196,17 @@ test('referral sharing keeps the dedicated 1200x600 X large-card route', () => {
   assert.match(socialReferralOg, /height: 600/);
 });
 
+test('referral OG images use the dedicated PNG logo and never WebP', () => {
+  assert.match(referralOg, /veinvite-logo-og\.png/);
+  assert.match(socialReferralOg, /veinvite-logo-og\.png/);
+  assert.doesNotMatch(referralOg, /veinvite-logo\.webp/);
+  assert.doesNotMatch(socialReferralOg, /veinvite-logo\.webp/);
+  assert.equal(
+    readFileSync('public/veinvite-logo-og.png').subarray(1, 4).toString('ascii'),
+    'PNG',
+  );
+});
+
 test('rollout keeps paid live sync without a duplicate standalone receipt surface', () => {
   assert.match(page, /<ActiveWalletRewardReceiptNotice \/>/);
   assert.match(activeReceipt, /<PaidActivationLiveSync/);
