@@ -59,6 +59,10 @@ test('referral wallet bootstrap waits through initial VeWorld restoration but ne
     boundary,
     /VEWORLD_WALLET_BOOTSTRAP_SETTLE_MS\s*=\s*3_500/,
   );
+  assert.match(
+    boundary,
+    /REFERRAL_WALLET_BOOTSTRAP_MAX_HOLD_MS\s*=\s*5_000/,
+  );
   assert.match(boundary, /readPersistedDappKitAccount\(\)/);
   assert.match(boundary, /connection\?\.isInAppBrowser/);
   assert.match(boundary, /connection\?\.isLoading/);
