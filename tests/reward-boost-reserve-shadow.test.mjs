@@ -117,6 +117,8 @@ test('late participants receive pooled protection before boost capacity', () => 
   assert.equal(result.lateCompletionWeightedLiabilityWei, b3tr(490));
   assert.equal(result.lateCompletionStressExtraWei, b3tr(200));
   assert.equal(result.lateCompletionProtectedWei, b3tr(690));
+  assert.equal(result.cohorts[0].lateCompletionProtectedWei, b3tr(690));
+  assert.equal(result.cohorts[0].sweepableWei, b3tr(2310));
   assert.equal(result.reusableAfterLateProtectionWei, b3tr(2310));
 });
 
@@ -308,4 +310,9 @@ test('late protection uses original cohort rates instead of one current rate', (
   assert.equal(result.lateCompletionWeightedLiabilityWei, b3tr(310));
   assert.equal(result.lateCompletionStressExtraWei, b3tr(300));
   assert.equal(result.lateCompletionProtectedWei, b3tr(610));
+  assert.equal(result.cohorts[0].lateCompletionProtectedWei, b3tr(25));
+  assert.equal(result.cohorts[0].sweepableWei, b3tr(1975));
+  assert.equal(result.cohorts[1].lateCompletionProtectedWei, b3tr(585));
+  assert.equal(result.cohorts[1].sweepableWei, b3tr(1415));
+  assert.equal(result.reusableAfterLateProtectionWei, b3tr(3390));
 });
