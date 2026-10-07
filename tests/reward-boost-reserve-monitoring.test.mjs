@@ -65,7 +65,15 @@ test('pending mature sources and stale public forecast are visible warnings', ()
   );
   assert.match(
     monitoring,
-    /planning\.forecast\.pricingBasisWei ===[\s\S]*latestForecastSnapshot\.projectedAllocationWei/,
+    /snapshotReserveNetFlow/,
+  );
+  assert.match(
+    monitoring,
+    /planning\.reserveNetFlowWei ===[\s\S]*snapshotReserveNetFlow/,
+  );
+  assert.doesNotMatch(
+    monitoring,
+    /pricingBasisWei ===[\s\S]*projectedAllocationWei/,
   );
 });
 
