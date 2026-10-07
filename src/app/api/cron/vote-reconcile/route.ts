@@ -18,12 +18,9 @@ import {
   tryClaimCronJob,
 } from '@/lib/monitoring/cronHeartbeat';
 import {
-  syncVeInviteAllocationReceipts,
-} from '@/lib/rewards/allocationAccounting';
-import {
-  runRewardBoostReserveRebalance,
-  type RewardBoostReserveExecutionResult,
-} from '@/lib/rewards/rewardBoostReserveExecution';
+  REWARD_BOOST_REBALANCE_INTERVAL_SECONDS,
+  runScheduledRewardBoostReserveRebalance,
+} from '@/lib/rewards/rewardBoostReserveScheduler';
 import {
   runRewardReservationRecovery,
   type RewardReservationRecoverySweep,
@@ -61,8 +58,6 @@ const MAX_EVENT_CATCHUP_BLOCKS = 3600;
 const FALLBACK_REPLAY_LOOKBACK_BLOCKS = 720;
 const FALLBACK_INTERVAL_SECONDS = 30 * 60;
 const RECOVERY_INTERVAL_SECONDS = 5 * 60;
-const REWARD_BOOST_REBALANCE_INTERVAL_SECONDS =
-  30 * 60;
 const CADENCE_LEASE_SECONDS = 180;
 const RECONCILIATION_LEASE_SECONDS = 600;
 const EVENT_WATCH_LEASE_SECONDS = 180;
@@ -75,8 +70,6 @@ const VOTE_WATCH_FOLLOWUP_JOB =
   'vote-reconcile:sybil-watch-followup';
 const VOTE_FALLBACK_JOB =
   'vote-reconcile:full-fallback';
-const REWARD_BOOST_REBALANCE_JOB =
-  'vote-reconcile:reward-boost-reserve';
 
 const allocationVoteCastEvent =
   new ABIEvent(
@@ -983,15 +976,12 @@ export async function GET(
         typeof runSybilV2AssessmentBatch
       >
     > | null = null;
-  let rewardBoostAllocationSync:
+  let rewardBoostReserve:
     Awaited<
       ReturnType<
-        typeof syncVeInviteAllocationReceipts
+        typeof runScheduledRewardBoostReserveRebalance
       >
     > | null = null;
-  let rewardBoostReserve:
-    RewardBoostReserveExecutionResult | null =
-      null;
   let rewardReservation:
     RewardReservationRecoverySweep | null =
       null;
@@ -1075,61 +1065,13 @@ export async function GET(
     }
   }
 
-  let rewardBoostClaimed = false;
+  rewardBoostReserve =
+    await runScheduledRewardBoostReserveRebalance();
 
-  try {
-    rewardBoostClaimed =
-      await tryClaimCronJob(
-        REWARD_BOOST_REBALANCE_JOB,
-        REWARD_BOOST_REBALANCE_INTERVAL_SECONDS,
-        CADENCE_LEASE_SECONDS,
-      );
-  } catch (error) {
-    console.error(
-      'Reward boost reserve cadence claim failed:',
-      error,
-    );
+  if (rewardBoostReserve.error) {
     errors.push(
-      'REWARD_BOOST_RESERVE_CADENCE_CLAIM_FAILED',
+      rewardBoostReserve.error,
     );
-  }
-
-  if (rewardBoostClaimed) {
-    try {
-      // Allocation receipts are authoritative for reward cohorts. Refresh
-      // finalized claim evidence immediately before reserve rebalancing so a
-      // newly opened VeBetterDAO round can be protected/boosted without
-      // waiting for the daily reconciliation cron.
-      rewardBoostAllocationSync =
-        await syncVeInviteAllocationReceipts();
-
-      rewardBoostReserve =
-        await runRewardBoostReserveRebalance();
-
-      await markCronJobSucceeded(
-        REWARD_BOOST_REBALANCE_JOB,
-      );
-    } catch (error) {
-      console.error(
-        'Reward boost reserve scheduled rebalance failed:',
-        error,
-      );
-      errors.push(
-        'REWARD_BOOST_RESERVE_REBALANCE_FAILED',
-      );
-
-      try {
-        await markCronJobFailed(
-          REWARD_BOOST_REBALANCE_JOB,
-          error,
-        );
-      } catch (heartbeatError) {
-        console.error(
-          'Reward boost reserve heartbeat failure:',
-          heartbeatError,
-        );
-      }
-    }
   }
 
   const voteTriggeredRecovery =
@@ -1404,18 +1346,6 @@ export async function GET(
       },
       eventWatcher,
       fallback,
-      rewardBoostAllocationSync:
-        rewardBoostAllocationSync
-          ? {
-              network:
-                rewardBoostAllocationSync.network,
-              insertedCount:
-                rewardBoostAllocationSync.insertedCount,
-              latestVeBetterRoundId:
-                rewardBoostAllocationSync.latestReceipt
-                  ?.vebetter_round_id ?? null,
-            }
-          : null,
       rewardBoostReserve,
       sybilV2EvidenceQueue,
       sybilV2PaidBackfill,
