@@ -59,6 +59,9 @@ export type RewardBoostReserveShadowResult = {
   reservedExistingWei: string;
   physicalUnreservedPoolWei: string;
   recentCohortProtectedWei: string;
+  existingBankBalanceWei: string;
+  existingBankStressReserveWei: string;
+  existingSourceRetainedProtectionWei: string;
   promotionReserveWei: string;
   longIncompleteCount: number;
   queuedEligibleCount: number;
@@ -175,6 +178,9 @@ export function calculateRewardBoostReserveShadow(input: {
   observedPoolBalanceWei: string;
   reservedExistingWei: string;
   recentCohortProtectedWei?: string;
+  existingBankBalanceWei?: string;
+  existingBankStressReserveWei?: string;
+  existingSourceRetainedProtectionWei?: string;
   cohorts: RewardBoostReserveCohortInput[];
   longIncompleteAfterRounds?: number;
   promotionReserveBps?: number;
@@ -231,6 +237,18 @@ export function calculateRewardBoostReserveShadow(input: {
   const recentCohortProtected = parseWei(
     input.recentCohortProtectedWei ?? '0',
     'recentCohortProtectedWei',
+  );
+  const existingBankBalance = parseWei(
+    input.existingBankBalanceWei ?? '0',
+    'existingBankBalanceWei',
+  );
+  const existingBankStressReserve = parseWei(
+    input.existingBankStressReserveWei ?? '0',
+    'existingBankStressReserveWei',
+  );
+  const existingSourceRetainedProtection = parseWei(
+    input.existingSourceRetainedProtectionWei ?? '0',
+    'existingSourceRetainedProtectionWei',
   );
   let promotionReserveTotal = 0n;
 
@@ -371,12 +389,12 @@ export function calculateRewardBoostReserveShadow(input: {
           weightedLateRecipients + stressExtraRecipientCount,
         );
 
-  let bankStressReserve = 0n;
+  let prospectiveBankStressReserve = 0n;
   for (const cohort of cohortResults) {
     if (cohort.longIncompleteCount <= 0) continue;
     const lateReward = BigInt(cohort.lateRewardWei);
-    if (lateReward > bankStressReserve) {
-      bankStressReserve = lateReward;
+    if (lateReward > prospectiveBankStressReserve) {
+      prospectiveBankStressReserve = lateReward;
     }
   }
 
@@ -386,7 +404,12 @@ export function calculateRewardBoostReserveShadow(input: {
         sum + BigInt(cohort.lateCompletionWeightedLiabilityWei),
       0n,
     );
-  const lateCompletionStressExtra = bankStressReserve;
+  const bankStressReserve =
+    existingBankStressReserve > prospectiveBankStressReserve
+      ? existingBankStressReserve
+      : prospectiveBankStressReserve;
+  const lateCompletionStressExtra =
+    prospectiveBankStressReserve;
   const sourceLateProtected =
     cohortResults.reduce(
       (sum, cohort) =>
@@ -395,16 +418,19 @@ export function calculateRewardBoostReserveShadow(input: {
     );
   const lateCompletionProtected =
     sourceLateProtected + bankStressReserve;
-  const bankDeposit =
+  const prospectiveBankDeposit =
     cohortResults.reduce(
       (sum, cohort) => sum + BigInt(cohort.sweepableWei),
       0n,
     );
+  const bankDeposit =
+    existingBankBalance + prospectiveBankDeposit;
   const reusableAfterLateProtection =
     bankDeposit > bankStressReserve
       ? bankDeposit - bankStressReserve
       : 0n;
   const protectedPhysicalCapacity =
+    existingSourceRetainedProtection +
     promotionReserveTotal +
     sourceLateProtected +
     bankStressReserve +
@@ -453,6 +479,12 @@ export function calculateRewardBoostReserveShadow(input: {
     physicalUnreservedPoolWei: physicalUnreservedPool.toString(),
     recentCohortProtectedWei:
       recentCohortProtected.toString(),
+    existingBankBalanceWei:
+      existingBankBalance.toString(),
+    existingBankStressReserveWei:
+      existingBankStressReserve.toString(),
+    existingSourceRetainedProtectionWei:
+      existingSourceRetainedProtection.toString(),
     promotionReserveWei: promotionReserveTotal.toString(),
     longIncompleteCount,
     queuedEligibleCount: queuedEligibleCountTotal,
