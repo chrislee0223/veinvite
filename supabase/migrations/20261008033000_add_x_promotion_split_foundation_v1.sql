@@ -65,6 +65,10 @@ begin
     raise exception 'REWARD_RUNTIME_CONFIG_MISSING';
   end if;
 
+  if btrim(new.policy_version)<>btrim(v_cfg.reward_x_promotion_policy_version) then
+    raise exception 'REWARD_X_PROMOTION_POLICY_MISMATCH';
+  end if;
+
   if new.mode='LIVE' and not v_cfg.reward_x_promotion_enabled then
     raise exception 'REWARD_X_PROMOTION_LIVE_DISABLED';
   end if;
