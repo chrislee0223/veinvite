@@ -15,6 +15,9 @@ import {
   REWARD_FORECAST_MODEL_VERSION,
 } from '@/lib/rewards/rewardForecastPolicy';
 import {
+  readPredictiveRewardPlanning,
+} from '@/lib/rewards/predictivePlanning';
+import {
   readLatestRewardForecastSnapshot,
   refreshRewardForecastSnapshot,
   type RewardForecastSnapshot,
@@ -127,7 +130,21 @@ async function checkLiveFunding(
       throw new Error('Reward forecast live pool identity does not match the current app.');
     }
 
-    return pool.effectiveRewardPoolWei !== snapshot.observedPoolBalanceWei
+    if (pool.effectiveRewardPoolWei !== snapshot.observedPoolBalanceWei) {
+      return 'changed';
+    }
+
+    const planning = await readPredictiveRewardPlanning({
+      network,
+      appId: VEINVITE_APP_ID,
+      observedPoolBalanceWei: pool.effectiveRewardPoolWei,
+    });
+
+    if (!planning.forecast) {
+      return 'unavailable';
+    }
+
+    return planning.forecast.pricingBasisWei !== snapshot.projectedAllocationWei
       ? 'changed'
       : 'unchanged';
   } catch (error) {
@@ -208,10 +225,10 @@ export async function GET(request: NextRequest) {
       },
     ]);
 
-    // A confirmed on-chain pool balance change is a funding event, so it may
-    // bypass the normal hourly forecasting throttle. This lets allocation or
-    // re-balance changes reach the public estimate quickly without turning the
-    // forecast endpoint into continuous expensive recalculation.
+    // A confirmed physical pool change or logical cohort-funding change is a
+    // funding event, so it may bypass the normal hourly forecasting throttle.
+    // Reserve ledger movement does not change the on-chain pool balance, hence
+    // the explicit refresh path also compares the live cohort pricing basis.
     if (
       fundingChanged ||
       !limited ||
