@@ -3,6 +3,7 @@
 import {
   useCallback,
   useEffect,
+  useRef,
   useState,
   type CSSProperties,
   type ReactNode,
@@ -91,6 +92,32 @@ const VEBETTER_ALLOCATION_VOTING_URL =
   'https://governance.vebetterdao.org/allocations';
 const RESUME_SYNC_COOLDOWN_MS = 5_000;
 
+function resolveInitialInviteStep(
+  invite: InviteRecord,
+  wallet: string | null,
+): Step {
+  if (
+    !wallet ||
+    !invite.inviteeAddress ||
+    invite.inviteeAddress.toLowerCase() !== wallet.toLowerCase()
+  ) {
+    return 'landing';
+  }
+
+  if (invite.status === 'UNDER_REVIEW') {
+    return 'review';
+  }
+
+  if (
+    invite.status === 'ACTIVATING' ||
+    invite.status === 'COMPLETED'
+  ) {
+    return 'missions';
+  }
+
+  return 'landing';
+}
+
 function claimFailureCode(
   response: Response,
   outcome: string | undefined,
@@ -148,6 +175,10 @@ export function InviteeClient({ code }: { code: string }) {
   const [languageReady, setLanguageReady] = useState(false);
   const [showLanguageSetup, setShowLanguageSetup] = useState(true);
   const [claimedThisSession, setClaimedThisSession] = useState(false);
+  const [initialInviteResolved, setInitialInviteResolved] = useState(false);
+  const walletRef = useRef<string | null>(wallet);
+
+  walletRef.current = wallet;
 
   const t = INVITEE_COPY[locale];
   const demoMode = process.env.NEXT_PUBLIC_DEMO_MODE === 'true';
@@ -189,27 +220,52 @@ export function InviteeClient({ code }: { code: string }) {
   }, [languageReady, locale, setKitLanguage]);
 
   useEffect(() => {
-    void loadInviteProgress('read').catch((error: unknown) => {
-      const status = error instanceof InviteRequestError
-        ? error.status
-        : null;
-      const outcome = error instanceof InviteRequestError
-        ? error.outcome
-        : undefined;
+    let active = true;
 
-      // A system-closed ineligible invite keeps its explicit participation
-      // result when the old link is reopened. Only a real 404/410 means the
-      // invitation is unavailable. Temporary database, throttling, or network
-      // failures must not tell the user that a valid invite has expired.
-      setErrorCode(
-        outcome === 'active_existing_user'
-          ? 'existing'
-          : status === 404 || status === 410
-            ? 'invalidLink'
-            : 'eligibility',
-      );
-      setStep('error');
-    });
+    void loadInviteProgress('read')
+      .then((data) => {
+        if (!active || !data.invite) {
+          return;
+        }
+
+        setStep(
+          resolveInitialInviteStep(
+            data.invite,
+            walletRef.current,
+          ),
+        );
+        setInitialInviteResolved(true);
+      })
+      .catch((error: unknown) => {
+        if (!active) {
+          return;
+        }
+
+        const status = error instanceof InviteRequestError
+          ? error.status
+          : null;
+        const outcome = error instanceof InviteRequestError
+          ? error.outcome
+          : undefined;
+
+        // A system-closed ineligible invite keeps its explicit participation
+        // result when the old link is reopened. Only a real 404/410 means the
+        // invitation is unavailable. Temporary database, throttling, or network
+        // failures must not tell the user that a valid invite has expired.
+        setErrorCode(
+          outcome === 'active_existing_user'
+            ? 'existing'
+            : status === 404 || status === 410
+              ? 'invalidLink'
+              : 'eligibility',
+        );
+        setStep('error');
+        setInitialInviteResolved(true);
+      });
+
+    return () => {
+      active = false;
+    };
   }, [loadInviteProgress]);
 
   useEffect(() => {
@@ -465,11 +521,15 @@ export function InviteeClient({ code }: { code: string }) {
   };
 
   if (!languageReady) {
-    return <main className="centeredFlow inviteStepMotion"><Brand compact /></main>;
+    return <InviteStartupSurface />;
   }
 
   if (showLanguageSetup) {
     return <LanguageSelectV2 locale={locale} onSelect={setLocale} onContinue={confirmLanguage} />;
+  }
+
+  if (!initialInviteResolved) {
+    return <InviteStartupSurface />;
   }
 
   if (step === 'error') {
@@ -749,6 +809,24 @@ function missionStatusStyle(
     cursor: actionable ? 'pointer' : 'default',
     unicodeBidi: 'isolate',
   };
+}
+
+function InviteStartupSurface() {
+  return (
+    <div
+      data-veinvite-invite-client-bootstrap="pending"
+      aria-hidden="true"
+      style={{
+        minHeight: '100dvh',
+        display: 'grid',
+        placeItems: 'center',
+        background:
+          'radial-gradient(circle at 50% 38%, rgba(244,183,40,0.10), transparent 32%), #080807',
+      }}
+    >
+      <Brand compact />
+    </div>
+  );
 }
 
 function Centered({
