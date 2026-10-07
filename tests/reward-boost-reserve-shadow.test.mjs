@@ -28,6 +28,7 @@ test('two-round threshold excludes the current and immediately prior cohort', ()
         officialAllocationWei: b3tr(1000),
         promotionFundingWei: '0',
         committedWei: b3tr(200),
+        lateRewardWei: '0',
         lateParticipants: [],
       },
       {
@@ -36,6 +37,7 @@ test('two-round threshold excludes the current and immediately prior cohort', ()
         officialAllocationWei: b3tr(1000),
         promotionFundingWei: '0',
         committedWei: '0',
+        lateRewardWei: '0',
         lateParticipants: [],
       },
     ],
@@ -66,6 +68,7 @@ test('source attribution conserves total reusable funding with promotion', () =>
         officialAllocationWei: b3tr(900),
         promotionFundingWei: b3tr(1200),
         committedWei: b3tr(500),
+        lateRewardWei: '0',
         lateParticipants: [],
       },
     ],
@@ -96,6 +99,7 @@ test('late participants receive pooled protection before boost capacity', () => 
         officialAllocationWei: b3tr(3000),
         promotionFundingWei: '0',
         committedWei: '0',
+        lateRewardWei: b3tr(200),
         lateParticipants: [
           { appsCompleted: 0, vot3Converted: false, voteCompleted: false },
           { appsCompleted: 0, vot3Converted: false, voteCompleted: false },
@@ -107,18 +111,20 @@ test('late participants receive pooled protection before boost capacity', () => 
     ],
   });
 
-  // Weighted expectation is 2.45 users, rounded up to 3, plus one stress user.
+  // Weighted liability is 2.45 × 200 = 490, plus one 200 stress completion.
   assert.equal(result.longIncompleteCount, 5);
   assert.equal(result.lateCompletionProtectedRecipients, 4);
-  assert.equal(result.lateCompletionProtectedWei, b3tr(800));
-  assert.equal(result.reusableAfterLateProtectionWei, b3tr(2200));
+  assert.equal(result.lateCompletionWeightedLiabilityWei, b3tr(490));
+  assert.equal(result.lateCompletionStressExtraWei, b3tr(200));
+  assert.equal(result.lateCompletionProtectedWei, b3tr(690));
+  assert.equal(result.reusableAfterLateProtectionWei, b3tr(2310));
 });
 
 test('15 percent physical safety buffer is protected from boost use', () => {
   const result = calculateRewardBoostReserveShadow({
     currentCohortRoundId: 119,
     currentRewardWei: b3tr(200),
-    currentPricingCapacityWei: b3tr(800),
+    currentPricingCapacityWei: b3tr(400),
     currentStressRecipients: 4,
     observedPoolBalanceWei: b3tr(1000),
     reservedExistingWei: b3tr(200),
@@ -129,6 +135,7 @@ test('15 percent physical safety buffer is protected from boost use', () => {
         officialAllocationWei: b3tr(1000),
         promotionFundingWei: '0',
         committedWei: '0',
+        lateRewardWei: '0',
         lateParticipants: [],
       },
     ],
@@ -140,8 +147,8 @@ test('15 percent physical safety buffer is protected from boost use', () => {
   );
   assert.equal(result.physicalUnreservedPoolWei, b3tr(800));
   assert.equal(result.safetyBufferWei, b3tr(120));
-  assert.equal(result.physicalBoostCapacityWei, b3tr(680));
-  assert.equal(result.boostAvailableWei, b3tr(680));
+  assert.equal(result.physicalBoostCapacityWei, b3tr(280));
+  assert.equal(result.boostAvailableWei, b3tr(280));
 });
 
 test('already committed rewards are never made reusable', () => {
@@ -159,6 +166,7 @@ test('already committed rewards are never made reusable', () => {
         officialAllocationWei: b3tr(1000),
         promotionFundingWei: '0',
         committedWei: b3tr(1000),
+        lateRewardWei: '0',
         lateParticipants: [],
       },
     ],
@@ -184,6 +192,7 @@ test('shadow quote uses boost capacity without spending the bank upfront', () =>
         officialAllocationWei: b3tr(1200),
         promotionFundingWei: '0',
         committedWei: '0',
+        lateRewardWei: '0',
         lateParticipants: [],
       },
     ],
@@ -214,6 +223,7 @@ test('balanced shadow never lets historical reserve exceed fresh cohort pricing 
         officialAllocationWei: b3tr(5000),
         promotionFundingWei: '0',
         committedWei: '0',
+        lateRewardWei: '0',
         lateParticipants: [],
       },
     ],
@@ -241,6 +251,7 @@ test('physical boost headroom excludes the current cohort pricing capacity', () 
         officialAllocationWei: b3tr(500),
         promotionFundingWei: '0',
         committedWei: '0',
+        lateRewardWei: '0',
         lateParticipants: [],
       },
     ],
@@ -255,4 +266,46 @@ test('physical boost headroom excludes the current cohort pricing capacity', () 
       BigInt(result.safetyBufferWei) <=
       BigInt(result.physicalUnreservedPoolWei),
   );
+});
+
+
+test('late protection uses original cohort rates instead of one current rate', () => {
+  const result = calculateRewardBoostReserveShadow({
+    currentCohortRoundId: 119,
+    currentRewardWei: b3tr(200),
+    currentPricingCapacityWei: b3tr(800),
+    currentStressRecipients: 4,
+    observedPoolBalanceWei: b3tr(10000),
+    reservedExistingWei: '0',
+    cohorts: [
+      {
+        rewardCohortRoundId: 116,
+        allocationReceiptId: '20',
+        officialAllocationWei: b3tr(2000),
+        promotionFundingWei: '0',
+        committedWei: '0',
+        lateRewardWei: b3tr(100),
+        lateParticipants: [
+          { appsCompleted: 0, vot3Converted: false, voteCompleted: false },
+        ],
+      },
+      {
+        rewardCohortRoundId: 117,
+        allocationReceiptId: '21',
+        officialAllocationWei: b3tr(2000),
+        promotionFundingWei: '0',
+        committedWei: '0',
+        lateRewardWei: b3tr(300),
+        lateParticipants: [
+          { appsCompleted: 3, vot3Converted: true, voteCompleted: false },
+        ],
+      },
+    ],
+  });
+
+  // 25% × 100 + 95% × 300 = 310 weighted liability.
+  // One unexpected extra completion is protected at the max original rate 300.
+  assert.equal(result.lateCompletionWeightedLiabilityWei, b3tr(310));
+  assert.equal(result.lateCompletionStressExtraWei, b3tr(300));
+  assert.equal(result.lateCompletionProtectedWei, b3tr(610));
 });
