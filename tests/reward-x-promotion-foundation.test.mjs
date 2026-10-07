@@ -63,6 +63,13 @@ test('split is bound to the original reward cohort and wallet', () => {
   );
 });
 
+test('split policy version must match runtime authority', () => {
+  assert.match(
+    migration,
+    /reward_x_promotion_policy_version text not null default 'x-promotion-split-v1'/,
+  );
+});
+
 test('live split cannot be attached after payout creation', () => {
   assert.match(
     migration,
