@@ -16,6 +16,10 @@ import {
   readRewardRuntimeSafety,
 } from '@/lib/rewards/runtimeSafety';
 import {
+  runRewardXPromotionShadowSync,
+  type RewardXPromotionShadowSyncResult,
+} from '@/lib/rewards/rewardXPromotionShadow';
+import {
   recoverSubmittedRewardPayout,
   type SubmittedPayoutRecoveryResult,
 } from '@/lib/rewards/submittedPayoutRecovery';
@@ -270,7 +274,10 @@ export type ScheduledRewardMaintenanceResult = {
     ScheduledSubmittedPayoutRecoveryResult;
   reserve:
     ScheduledRewardBoostReserveResult;
+  xPromotionShadow:
+    RewardXPromotionShadowSyncResult | null;
   errors: string[];
+  warnings: string[];
 };
 
 export async function runScheduledRewardMaintenance():
@@ -280,9 +287,30 @@ Promise<ScheduledRewardMaintenanceResult> {
   const reserve =
     await runScheduledRewardBoostReserveRebalance();
 
+  let xPromotionShadow:
+    RewardXPromotionShadowSyncResult | null =
+      null;
+  const warnings: string[] = [];
+
+  try {
+    xPromotionShadow =
+      await runRewardXPromotionShadowSync(
+        50,
+      );
+  } catch (error) {
+    console.error(
+      'X promotion shadow sync failed:',
+      error,
+    );
+    warnings.push(
+      'X_PROMOTION_SHADOW_SYNC_FAILED',
+    );
+  }
+
   return {
     submittedPayout,
     reserve,
+    xPromotionShadow,
     errors: [
       submittedPayout.error,
       reserve.error,
@@ -290,5 +318,6 @@ Promise<ScheduledRewardMaintenanceResult> {
       (value): value is string =>
         typeof value === 'string',
     ),
+    warnings,
   };
 }
