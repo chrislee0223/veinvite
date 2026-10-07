@@ -154,31 +154,29 @@ export default function Image() {
           <div
             style={{
               position: 'absolute',
-              display: 'flex',
-              top: '116px',
-              right: '50px',
-              color: '#ffc21b',
-              fontSize: '74px',
-              lineHeight: 1,
+              width: '34px',
+              height: '34px',
+              borderRadius: '8px',
+              backgroundColor: '#ffc21b',
+              transform: 'rotate(45deg)',
+              top: '124px',
+              right: '60px',
               zIndex: 3,
             }}
-          >
-            ✦
-          </div>
+          />
           <div
             style={{
               position: 'absolute',
-              display: 'flex',
-              top: '190px',
-              right: '22px',
-              color: '#ffd977',
-              fontSize: '40px',
-              lineHeight: 1,
+              width: '20px',
+              height: '20px',
+              borderRadius: '5px',
+              backgroundColor: '#ffd977',
+              transform: 'rotate(45deg)',
+              top: '196px',
+              right: '30px',
               zIndex: 3,
             }}
-          >
-            ✦
-          </div>
+          />
         </div>
 
         <div
