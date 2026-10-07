@@ -15,7 +15,9 @@ export default async function InvitePage({
   const normalizedCode = code.toUpperCase();
 
   return (
-    <ReferralWalletBootstrapBoundary>
+    <ReferralWalletBootstrapBoundary
+      initialSessionWallet={bootstrap.initialSessionWallet}
+    >
       <WalletSessionGate
         initialSessionWallet={bootstrap.initialSessionWallet}
         initialRestrictionKind={bootstrap.initialRestrictionKind}
