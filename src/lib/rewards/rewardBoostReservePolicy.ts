@@ -233,7 +233,6 @@ export function calculateRewardBoostReserveShadow(input: {
   let reusableOfficial = 0n;
   let reusablePromotion = 0n;
   let weightedLateBps = 0n;
-  let weightedLateLiabilityNumerator = 0n;
   let longIncompleteCount = 0;
   let queuedEligibleCountTotal = 0;
 
@@ -273,14 +272,11 @@ export function calculateRewardBoostReserveShadow(input: {
     let cohortWeightedLateBps =
       BigInt(queuedEligibleCount) * BPS;
     weightedLateBps += BigInt(queuedEligibleCount) * BPS;
-    weightedLateLiabilityNumerator +=
-      lateReward * BigInt(queuedEligibleCount) * BPS;
 
     for (const participant of cohort.lateParticipants) {
       const weightBps = lateParticipantWeightBps(participant);
       cohortWeightedLateBps += weightBps;
       weightedLateBps += weightBps;
-      weightedLateLiabilityNumerator += lateReward * weightBps;
       longIncompleteCount += 1;
     }
 
