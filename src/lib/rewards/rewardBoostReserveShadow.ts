@@ -106,6 +106,8 @@ Promise<RewardBoostReserveShadowSnapshot> {
       result: calculateRewardBoostReserveShadow({
         currentCohortRoundId,
         currentRewardWei: planning.forecast.rewardPerInviteWei,
+        currentPricingCapacityWei: planning.forecast.pricingBasisWei,
+        currentStressRecipients: planning.forecast.stressCompletions,
         observedPoolBalanceWei: pool.effectiveRewardPoolWei,
         reservedExistingWei: planning.reservedExistingWei,
         cohorts: [],
@@ -276,6 +278,8 @@ Promise<RewardBoostReserveShadowSnapshot> {
     result: calculateRewardBoostReserveShadow({
       currentCohortRoundId,
       currentRewardWei: planning.forecast.rewardPerInviteWei,
+      currentPricingCapacityWei: planning.forecast.pricingBasisWei,
+      currentStressRecipients: planning.forecast.stressCompletions,
       observedPoolBalanceWei: pool.effectiveRewardPoolWei,
       reservedExistingWei: planning.reservedExistingWei,
       cohorts,
