@@ -32,7 +32,7 @@ test('reward boost reserve scheduler runs at most every 30 minutes', () => {
   );
 });
 
-test('allocation receipts refresh before reserve rebalance and the scheduler runs before reward recovery', () => {
+test('allocation receipts refresh before reserve rebalance and reward maintenance runs before reward recovery', () => {
   const syncIndex = scheduler.indexOf(
     'await syncVeInviteAllocationReceipts()',
   );
@@ -40,7 +40,7 @@ test('allocation receipts refresh before reserve rebalance and the scheduler run
     'await runRewardBoostReserveRebalance()',
   );
   const scheduleIndex = cron.indexOf(
-    'await runScheduledRewardBoostReserveRebalance()',
+    'await runScheduledRewardMaintenance()',
   );
   const recoveryIndex = cron.indexOf(
     'const voteTriggeredRecovery',
