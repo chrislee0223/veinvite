@@ -1,5 +1,4 @@
 import { InviteeClient } from '@/components/InviteeClient';
-import { InviteInitialVisualBoundary } from '@/components/InviteInitialVisualBoundary';
 import { ReferralWalletBootstrapBoundary } from '@/components/ReferralWalletBootstrapBoundary';
 import { WalletSessionGate } from '@/components/WalletSessionGate';
 import { readWalletSessionBootstrap } from '@/lib/walletSessionBootstrapServer';
@@ -23,9 +22,7 @@ export default async function InvitePage({
         initialSessionWallet={bootstrap.initialSessionWallet}
         initialRestrictionKind={bootstrap.initialRestrictionKind}
       >
-        <InviteInitialVisualBoundary>
-          <InviteeClient code={normalizedCode} />
-        </InviteInitialVisualBoundary>
+        <InviteeClient code={normalizedCode} />
       </WalletSessionGate>
     </ReferralWalletBootstrapBoundary>
   );
