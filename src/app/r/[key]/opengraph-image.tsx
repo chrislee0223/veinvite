@@ -7,7 +7,7 @@ export const size = {
 };
 export const contentType = 'image/png';
 
-const LOGO_URL = 'https://veinvite.vercel.app/veinvite-logo.webp';
+const LOGO_URL = 'https://veinvite.vercel.app/veinvite-logo-og.png';
 
 export default function Image() {
   return new ImageResponse(

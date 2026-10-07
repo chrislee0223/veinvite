@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { test } from 'node:test';
 
 const read = (path) => readFileSync(path, 'utf8');
@@ -188,12 +188,23 @@ test('referral sharing keeps the dedicated 1200x600 X large-card route', () => {
   assert.match(referralPage, /card: 'summary_large_image'/);
   assert.match(referralOg, /width: 1200/);
   assert.match(referralOg, /height: 600/);
+  assert.match(referralOg, /contentType = 'image\/png'/);
+  assert.match(referralOg, /veinvite-logo-og\.png/);
+  assert.doesNotMatch(referralOg, /veinvite-logo\.webp/);
   assert.match(socialReferralPage, /card: 'summary_large_image'/);
   assert.match(socialReferralPage, /images: \[imageUrl\]/);
   assert.match(socialReferralPage, /width: 1200/);
   assert.match(socialReferralPage, /height: 600/);
   assert.match(socialReferralOg, /width: 1200/);
   assert.match(socialReferralOg, /height: 600/);
+  assert.match(socialReferralOg, /contentType = 'image\/png'/);
+  assert.match(socialReferralOg, /veinvite-logo-og\.png/);
+  assert.doesNotMatch(socialReferralOg, /veinvite-logo\.webp/);
+  assert.equal(
+    existsSync('public/veinvite-logo-og.png'),
+    true,
+    'OG renderer PNG logo asset must exist',
+  );
 });
 
 test('rollout keeps paid live sync without a duplicate standalone receipt surface', () => {
