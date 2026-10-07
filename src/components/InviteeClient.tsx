@@ -339,7 +339,6 @@ export function InviteeClient({ code }: { code: string }) {
       flowKey: 'legacy_invite',
     });
     setStep('checking');
-    await new Promise((resolve) => setTimeout(resolve, 850));
 
     let response: Response;
     try {
