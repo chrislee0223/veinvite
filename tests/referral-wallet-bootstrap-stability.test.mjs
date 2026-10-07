@@ -37,7 +37,7 @@ test('direct referral routes bootstrap the verified server session before client
       source,
       /initialRestrictionKind=\{bootstrap\.initialRestrictionKind\}/,
     );
-    assert.match(source, /<ReferralWalletBootstrapBoundary>/);
+    assert.match(source, /<ReferralWalletBootstrapBoundary(?:\s|>)/);
   }
 
   assert.match(bootstrap, /getWalletSessionFromTokens/);
