@@ -125,8 +125,11 @@ test('late participants receive pooled protection before boost capacity', () => 
   assert.equal(result.lateCompletionWeightedLiabilityWei, b3tr(490));
   assert.equal(result.lateCompletionStressExtraWei, b3tr(200));
   assert.equal(result.lateCompletionProtectedWei, b3tr(690));
-  assert.equal(result.cohorts[0].lateCompletionProtectedWei, b3tr(690));
-  assert.equal(result.cohorts[0].sweepableWei, b3tr(2310));
+  assert.equal(result.cohorts[0].lateCompletionStressExtraWei, '0');
+  assert.equal(result.cohorts[0].lateCompletionProtectedWei, b3tr(490));
+  assert.equal(result.cohorts[0].sweepableWei, b3tr(2510));
+  assert.equal(result.bankDepositWei, b3tr(2510));
+  assert.equal(result.bankStressReserveWei, b3tr(200));
   assert.equal(result.reusableAfterLateProtectionWei, b3tr(2310));
 });
 
@@ -328,8 +331,11 @@ test('late protection uses original cohort rates instead of one current rate', (
   assert.equal(result.lateCompletionProtectedWei, b3tr(610));
   assert.equal(result.cohorts[0].lateCompletionProtectedWei, b3tr(25));
   assert.equal(result.cohorts[0].sweepableWei, b3tr(1975));
-  assert.equal(result.cohorts[1].lateCompletionProtectedWei, b3tr(585));
-  assert.equal(result.cohorts[1].sweepableWei, b3tr(1415));
+  assert.equal(result.cohorts[1].lateCompletionProtectedWei, b3tr(285));
+  assert.equal(result.cohorts[1].lateCompletionStressExtraWei, '0');
+  assert.equal(result.cohorts[1].sweepableWei, b3tr(1715));
+  assert.equal(result.bankDepositWei, b3tr(3690));
+  assert.equal(result.bankStressReserveWei, b3tr(300));
   assert.equal(result.reusableAfterLateProtectionWei, b3tr(3390));
 });
 
@@ -360,6 +366,8 @@ test('completed clear but unreserved referrals are fully protected from sweeping
   assert.equal(result.lateCompletionProtectedRecipients, 2);
   assert.equal(result.lateCompletionWeightedLiabilityWei, b3tr(500));
   assert.equal(result.lateCompletionStressExtraWei, '0');
+  assert.equal(result.bankStressReserveWei, '0');
   assert.equal(result.lateCompletionProtectedWei, b3tr(500));
   assert.equal(result.cohorts[0].sweepableWei, b3tr(1500));
+  assert.equal(result.bankDepositWei, b3tr(1500));
 });
