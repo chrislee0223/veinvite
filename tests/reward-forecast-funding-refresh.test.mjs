@@ -62,8 +62,21 @@ test('explicit background refresh detects physical or logical funding changes', 
   );
   assert.match(
     estimateRoute,
-    /planning\.forecast\.pricingBasisWei !== snapshot\.projectedAllocationWei/,
+    /readLatestForecastFundingInput/,
+  );
+  assert.match(
+    estimateRoute,
+    /snapshotReserveNetFlow !==[\s\S]*planning\.reserveNetFlowWei/,
     'reserve ledger changes must invalidate a fresh snapshot even when the physical pool is unchanged',
+  );
+  assert.match(
+    estimateRoute,
+    /snapshotCommitted !==[\s\S]*planning\.cohortReservedWei/,
+    'new fixed reward reservations must also invalidate the logical funding snapshot',
+  );
+  assert.doesNotMatch(
+    estimateRoute,
+    /pricingBasisWei !== snapshot\.projectedAllocationWei/,
   );
   assert.match(
     estimateRoute,
