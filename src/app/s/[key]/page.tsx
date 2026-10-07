@@ -18,7 +18,7 @@ export async function generateMetadata({
   const { key } = await params;
   const encodedKey = encodeURIComponent(key.trim());
   const pageUrl = `${SITE_URL}/s/${encodedKey}`;
-  const imageUrl = `${pageUrl}/opengraph-image`;
+  const imageUrl = `${SITE_URL}/veinvite-og-reward-final.png`;
 
   return {
     title: TITLE,
@@ -44,6 +44,14 @@ export async function generateMetadata({
       title: TITLE,
       description: DESCRIPTION,
       images: [imageUrl],
+    },
+    robots: {
+      index: false,
+      follow: false,
+      googleBot: {
+        index: false,
+        follow: false,
+      },
     },
   };
 }

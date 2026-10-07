@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { createHash } from 'node:crypto';
 import { existsSync, readFileSync } from 'node:fs';
 import { test } from 'node:test';
 
@@ -21,9 +22,7 @@ const rewardAdjustedCopy = read('src/lib/i18n/rewardAdjustedCopy.ts');
 const rewardReceiptView = read('src/components/RewardReceiptView.tsx');
 const qaHarness = read('src/qa/QaNotificationStateHarness.tsx');
 const referralPage = read('src/app/r/[key]/page.tsx');
-const referralOg = read('src/app/r/[key]/opengraph-image.tsx');
 const socialReferralPage = read('src/app/s/[key]/page.tsx');
-const socialReferralOg = read('src/app/s/[key]/opengraph-image.tsx');
 const locales = read('src/lib/i18n/locales.ts');
 
 test('reward action API stays wallet scoped while Claim UI has one Home owner', () => {
@@ -190,44 +189,58 @@ test('QA previews both paid bell history and the real paid bottom popup', () => 
   assert.match(center, /allowProgrammaticOpen/);
 });
 
-test('referral sharing keeps distinct 1200x600 invite and reward X cards', () => {
+test('referral sharing keeps distinct approved static 1200x600 invite and reward X cards', () => {
   assert.ok(referralPage.includes("card: 'summary_large_image'"));
-  assert.ok(referralPage.includes('images: [imageUrl]'));
+  assert.ok(referralPage.includes('veinvite-og-invite-final.png'));
   assert.ok(referralPage.includes('width: 1200'));
   assert.ok(referralPage.includes('height: 600'));
+  assert.ok(referralPage.includes("type: 'image/png'"));
   assert.ok(referralPage.includes("You've been invited to VeInvite"));
-
-  assert.ok(referralOg.includes('width: 1200'));
-  assert.ok(referralOg.includes('height: 600'));
-  assert.ok(referralOg.includes("contentType = 'image/png'"));
-  assert.ok(referralOg.includes('veinvite-logo-og.png'));
-  assert.ok(referralOg.includes('You’ve been invited to VeInvite.'));
-  assert.ok(referralOg.includes('Join. Verify. Earn B3TR.'));
-  assert.equal(referralOg.includes('A friend earned B3TR with VeInvite'), false);
-  assert.equal(referralOg.includes('veinvite-logo.webp'), false);
-  assert.equal(referralOg.includes('✦'), false);
+  assert.ok(referralPage.includes('robots: {'));
+  assert.equal(
+    referralPage.includes('veinvite-og-reward-final.png'),
+    false,
+  );
 
   assert.ok(socialReferralPage.includes("card: 'summary_large_image'"));
-  assert.ok(socialReferralPage.includes('images: [imageUrl]'));
+  assert.ok(socialReferralPage.includes('veinvite-og-reward-final.png'));
   assert.ok(socialReferralPage.includes('width: 1200'));
   assert.ok(socialReferralPage.includes('height: 600'));
+  assert.ok(socialReferralPage.includes("type: 'image/png'"));
   assert.ok(socialReferralPage.includes('A friend earned B3TR with VeInvite'));
-
-  assert.ok(socialReferralOg.includes('width: 1200'));
-  assert.ok(socialReferralOg.includes('height: 600'));
-  assert.ok(socialReferralOg.includes("contentType = 'image/png'"));
-  assert.ok(socialReferralOg.includes('veinvite-logo-og.png'));
-  assert.ok(socialReferralOg.includes('A friend earned B3TR with VeInvite.'));
-  assert.ok(socialReferralOg.includes('Join. Verify. Invite. Earn.'));
-  assert.equal(socialReferralOg.includes('You’ve been invited to VeInvite'), false);
-  assert.equal(socialReferralOg.includes('veinvite-logo.webp'), false);
-  assert.equal(socialReferralOg.includes('✦'), false);
-
+  assert.ok(socialReferralPage.includes('robots: {'));
   assert.equal(
-    existsSync('public/veinvite-logo-og.png'),
-    true,
-    'OG renderer PNG logo asset must exist',
+    socialReferralPage.includes('veinvite-og-invite-final.png'),
+    false,
   );
+
+  const approvedCards = [
+    {
+      path: 'public/veinvite-og-invite-final.png',
+      sha256: 'b0e5568e2b414874b49ff6748bf2ab56d31403786261a496aa96ba6661ac255b',
+    },
+    {
+      path: 'public/veinvite-og-reward-final.png',
+      sha256: '7a8b5a22239a307cf472708485e20b19a0ccde0646d9ccbeb0c3d48e6ef32903',
+    },
+  ];
+
+  for (const card of approvedCards) {
+    assert.equal(
+      existsSync(card.path),
+      true,
+      `approved OG PNG must exist: ${card.path}`,
+    );
+    const image = readFileSync(card.path);
+    assert.equal(image.subarray(0, 8).toString('hex'), '89504e470d0a1a0a');
+    assert.equal(image.readUInt32BE(16), 1200);
+    assert.equal(image.readUInt32BE(20), 600);
+    assert.equal(
+      createHash('sha256').update(image).digest('hex'),
+      card.sha256,
+      `approved OG PNG bytes changed: ${card.path}`,
+    );
+  }
 });
 
 test('rollout keeps paid live sync without a duplicate standalone receipt surface', () => {

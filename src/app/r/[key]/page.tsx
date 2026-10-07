@@ -20,7 +20,7 @@ export async function generateMetadata({
   const { key } = await params;
   const encodedKey = encodeURIComponent(key.trim());
   const pageUrl = `${SITE_URL}/r/${encodedKey}`;
-  const imageUrl = `${pageUrl}/opengraph-image`;
+  const imageUrl = `${SITE_URL}/veinvite-og-invite-final.png`;
 
   return {
     title: TITLE,
