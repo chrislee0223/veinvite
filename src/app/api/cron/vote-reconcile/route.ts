@@ -18,7 +18,6 @@ import {
   tryClaimCronJob,
 } from '@/lib/monitoring/cronHeartbeat';
 import {
-  REWARD_BOOST_REBALANCE_INTERVAL_SECONDS,
   runScheduledRewardBoostReserveRebalance,
 } from '@/lib/rewards/rewardBoostReserveScheduler';
 import {
@@ -976,12 +975,6 @@ export async function GET(
         typeof runSybilV2AssessmentBatch
       >
     > | null = null;
-  let rewardBoostReserve:
-    Awaited<
-      ReturnType<
-        typeof runScheduledRewardBoostReserveRebalance
-      >
-    > | null = null;
   let rewardReservation:
     RewardReservationRecoverySweep | null =
       null;
@@ -1065,13 +1058,11 @@ export async function GET(
     }
   }
 
-  rewardBoostReserve =
-    await runScheduledRewardBoostReserveRebalance();
-
-  if (rewardBoostReserve.error) {
-    errors.push(
-      rewardBoostReserve.error,
-    );
+  const rewardBoostError =
+    (await runScheduledRewardBoostReserveRebalance())
+      .error;
+  if (rewardBoostError) {
+    errors.push(rewardBoostError);
   }
 
   const voteTriggeredRecovery =
@@ -1337,16 +1328,12 @@ export async function GET(
           RECOVERY_INTERVAL_SECONDS / 60,
         watchFollowupMinutes:
           RECOVERY_INTERVAL_SECONDS / 60,
-        rewardBoostReserveMinutes:
-          REWARD_BOOST_REBALANCE_INTERVAL_SECONDS /
-          60,
         fallbackMinutes:
           FALLBACK_INTERVAL_SECONDS / 60,
         basis: 'LAST_SUCCESS',
       },
       eventWatcher,
       fallback,
-      rewardBoostReserve,
       sybilV2EvidenceQueue,
       sybilV2PaidBackfill,
       sybilV2PolicyReassessment,
