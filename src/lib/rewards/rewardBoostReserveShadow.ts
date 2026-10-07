@@ -132,6 +132,7 @@ export async function readRewardBoostReserveShadow(
     adjustmentResult,
     invitationResult,
     restrictionResult,
+    recentAllocationResult,
   ] = await Promise.all([
       supabaseAdmin
         .from('vebetter_round_allocations')
@@ -170,6 +171,22 @@ export async function readRewardBoostReserveShadow(
         .select('wallet_address, status')
         .eq('network', pool.network)
         .eq('status', 'ACTIVE'),
+      supabaseAdmin
+        .from('vebetter_round_allocations')
+        .select(
+          'id, vebetter_round_id, rewards_allocation_amount_wei',
+        )
+        .eq('network', pool.network)
+        .eq('app_id', pool.appId)
+        .gte(
+          'vebetter_round_id',
+          reusableThroughCohortRoundId,
+        )
+        .lte(
+          'vebetter_round_id',
+          currentCohortRoundId - 2,
+        )
+        .order('vebetter_round_id', { ascending: true }),
     ]);
 
   if (allocationResult.error) {
@@ -192,6 +209,11 @@ export async function readRewardBoostReserveShadow(
       `Reward boost reserve restrictions could not be loaded: ${restrictionResult.error.message}`,
     );
   }
+  if (recentAllocationResult.error) {
+    throw new Error(
+      `Reward boost reserve recent allocations could not be loaded: ${recentAllocationResult.error.message}`,
+    );
+  }
 
   const allocations =
     (allocationResult.data ?? []) as AllocationRow[];
@@ -201,6 +223,8 @@ export async function readRewardBoostReserveShadow(
     (invitationResult.data ?? []) as InvitationRow[];
   const restrictions =
     (restrictionResult.data ?? []) as RestrictionRow[];
+  const recentAllocations =
+    (recentAllocationResult.data ?? []) as AllocationRow[];
   const activelyRestrictedWallets = new Set(
     restrictions
       .filter(
@@ -327,6 +351,54 @@ export async function readRewardBoostReserveShadow(
     }),
   );
 
+  const recentCohortProtectedWei = (
+    await Promise.all(
+      recentAllocations.map(async (allocation) => {
+        const allocationReceiptId = integerString(
+          allocation.id,
+          'recent allocation receipt id',
+        );
+        const rewardCohortRoundId =
+          positiveInteger(
+            allocation.vebetter_round_id,
+            'recent VeBetter funding round id',
+          ) + 1;
+
+        const recentPlanning =
+          await readPredictiveRewardPlanning({
+            network: pool.network,
+            appId: pool.appId,
+            observedPoolBalanceWei:
+              pool.effectiveRewardPoolWei,
+            rewardCohortRoundId,
+            allocationReceiptId,
+            includePendingAcceptance: false,
+          });
+
+        if (
+          !recentPlanning.latestAllocation ||
+          recentPlanning.latestAllocation.id !==
+            allocationReceiptId ||
+          recentPlanning.rewardCohortRoundId !==
+            String(rewardCohortRoundId)
+        ) {
+          throw new Error(
+            `Reward boost reserve recent cohort planning is unavailable for cohort ${rewardCohortRoundId}.`,
+          );
+        }
+
+        const designated =
+          BigInt(recentPlanning.designatedBudgetWei);
+        const committed =
+          BigInt(recentPlanning.cohortReservedWei);
+
+        return designated > committed
+          ? designated - committed
+          : 0n;
+      }),
+    )
+  ).reduce((sum, value) => sum + value, 0n);
+
   return {
     generatedAt: new Date().toISOString(),
     network: pool.network,
@@ -340,6 +412,8 @@ export async function readRewardBoostReserveShadow(
       currentStressRecipients: planning.forecast.stressCompletions,
       observedPoolBalanceWei: pool.effectiveRewardPoolWei,
       reservedExistingWei: planning.reservedExistingWei,
+      recentCohortProtectedWei:
+        recentCohortProtectedWei.toString(),
       cohorts,
     }),
   };
