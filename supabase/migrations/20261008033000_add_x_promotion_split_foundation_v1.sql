@@ -50,7 +50,6 @@ create index if not exists reward_x_promotion_splits_source_idx
 create or replace function public.validate_reward_x_promotion_split()
 returns trigger
 language plpgsql
-security definer
 set search_path to 'pg_catalog','public'
 as $function$
 declare
