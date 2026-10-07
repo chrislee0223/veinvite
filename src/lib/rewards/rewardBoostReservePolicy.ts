@@ -292,9 +292,11 @@ export function calculateRewardBoostReserveShadow(input: {
   const reusableAfterLateProtection = reusableGross > lateCompletionProtected
     ? reusableGross - lateCompletionProtected
     : 0n;
+  const protectedPhysicalCapacity =
+    safetyBuffer + lateCompletionProtected + currentPricingCapacity;
   const physicalBoostCapacity =
-    physicalUnreservedPool > safetyBuffer + lateCompletionProtected
-      ? physicalUnreservedPool - safetyBuffer - lateCompletionProtected
+    physicalUnreservedPool > protectedPhysicalCapacity
+      ? physicalUnreservedPool - protectedPhysicalCapacity
       : 0n;
   const boostAvailable = reusableAfterLateProtection < physicalBoostCapacity
     ? reusableAfterLateProtection
