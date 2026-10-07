@@ -6,13 +6,16 @@ const foundationPath =
   'supabase/migrations/20261007043133_add_reward_boost_reserve_foundation.sql';
 const indexPath =
   'supabase/migrations/20261007043311_index_reward_boost_reserve_receipt_fks.sql';
+const hardeningPath =
+  'supabase/migrations/20261007043540_harden_reward_boost_reserve_write_boundary.sql';
 
 async function sources() {
-  const [foundation, indexes] = await Promise.all([
+  const [foundation, indexes, hardening] = await Promise.all([
     readFile(foundationPath, 'utf8'),
     readFile(indexPath, 'utf8'),
+    readFile(hardeningPath, 'utf8'),
   ]);
-  return { foundation, indexes };
+  return { foundation, indexes, hardening };
 }
 
 test('reward boost reserve is staged off while shadow observation is on', async () => {
@@ -136,4 +139,64 @@ test('allocation receipt foreign keys have direct covering indexes', async () =>
     indexes,
     /reward_boost_reserve_ledger_destination_receipt_idx[\s\S]*?destination_allocation_receipt_id/u,
   );
+});
+
+
+test('service role cannot bypass the audited reserve RPC boundary', async () => {
+  const { hardening } = await sources();
+
+  assert.match(
+    hardening,
+    /revoke insert on table public\.reward_boost_reserve_ledger[\s\S]*?from service_role/u,
+  );
+  assert.match(
+    hardening,
+    /revoke usage, select on sequence public\.reward_boost_reserve_ledger_id_seq[\s\S]*?from service_role/u,
+  );
+  assert.match(
+    hardening,
+    /grant execute on function public\.append_reward_boost_reserve_source_sweep/u,
+  );
+  assert.match(
+    hardening,
+    /grant execute on function public\.append_reward_boost_reserve_release/u,
+  );
+});
+
+test('reserve mutation RPCs fail closed while boost is disabled or emergency-paused', async () => {
+  const { hardening } = await sources();
+
+  assert.match(
+    hardening,
+    /if not v_cfg\.reward_boost_reserve_enabled then[\s\S]*?REWARD_BOOST_RESERVE_DISABLED/u,
+  );
+  assert.match(
+    hardening,
+    /if v_cfg\.emergency_rewards_paused then[\s\S]*?REWARD_BOOST_RESERVE_PAUSED/u,
+  );
+  assert.match(
+    hardening,
+    /if p_network='mainnet' and not v_cfg\.mainnet_funded_rewards_enabled then[\s\S]*?REWARD_BOOST_RESERVE_MAINNET_DISABLED/u,
+  );
+});
+
+test('reserve mutation RPCs preserve lock ordering with normal reward reservations', async () => {
+  const { hardening } = await sources();
+
+  for (const marker of [
+    'append_reward_boost_reserve_source_sweep',
+    'append_reward_boost_reserve_release',
+  ]) {
+    const start = hardening.indexOf(marker);
+    assert.ok(start >= 0);
+    const fragment = hardening.slice(start, start + 7000);
+    const rewardLock = fragment.indexOf(
+      "'veinvite_reward_reservation_' || p_network",
+    );
+    const reserveLock = fragment.indexOf(
+      "'veinvite_reward_boost_reserve_' || p_network || '_' || p_app_id",
+    );
+    assert.ok(rewardLock >= 0);
+    assert.ok(reserveLock > rewardLock);
+  }
 });
