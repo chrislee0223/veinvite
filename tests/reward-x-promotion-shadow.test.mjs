@@ -13,6 +13,10 @@ const route = await readFile(
   new URL('../src/app/api/cron/vote-reconcile/route.ts', import.meta.url),
   'utf8',
 );
+const scheduler = await readFile(
+  new URL('../src/lib/rewards/rewardBoostReserveScheduler.ts', import.meta.url),
+  'utf8',
+);
 const reservation = await readFile(
   new URL('../src/lib/rewards/rewardReservation.ts', import.meta.url),
   'utf8',
@@ -84,15 +88,20 @@ test('shadow projection is isolated from core reward authority', () => {
   );
 });
 
-test('shadow cron failures are warnings and cannot fail the reward recovery loop', () => {
-  assert.match(route, /runRewardXPromotionShadowSync/);
-  assert.match(route, /X_PROMOTION_SHADOW_SYNC_FAILED/);
+test('shadow maintenance failures are warnings and cannot fail core reward work', () => {
+  assert.match(scheduler, /runRewardXPromotionShadowSync/);
+  assert.match(scheduler, /X_PROMOTION_SHADOW_SYNC_FAILED/);
   assert.match(
-    route,
+    scheduler,
     /warnings\.push\([\s\S]*X_PROMOTION_SHADOW_SYNC_FAILED/,
   );
   assert.doesNotMatch(
-    route,
+    scheduler,
     /errors\.push\([\s\S]{0,120}X_PROMOTION_SHADOW_SYNC_FAILED/,
+  );
+  assert.match(route, /rewardMaintenance\.warnings/);
+  assert.match(
+    route,
+    /xPromotionShadow:\s*rewardMaintenance\.xPromotionShadow/,
   );
 });
