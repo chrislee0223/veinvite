@@ -61,6 +61,9 @@ export type RewardBoostReserveShadowResult = {
   shadowBoostedPricingCapacityWei: string;
   shadowBoostedRewardWei: string;
   shadowExternalCompletionRewardWei: string;
+  balancedBoostReleaseWei: string;
+  shadowBalancedPricingCapacityWei: string;
+  shadowBalancedRewardWei: string;
   sourceAttributionPolicy: 'PROMOTION_FIRST_CONSERVATIVE';
   cohorts: RewardBoostReserveCohortResult[];
 };
@@ -304,6 +307,20 @@ export function calculateRewardBoostReserveShadow(input: {
     shadowBoostedPricingCapacity /
     BigInt(currentStressRecipients + 1);
 
+  // Balanced shadow policy: historical reserve may match, but not exceed,
+  // the current cohort's fresh pricing capacity. This keeps accumulated
+  // surplus useful across multiple rounds instead of letting one quiet round
+  // consume the entire reserve at once.
+  const balancedBoostRelease =
+    boostAvailable < currentPricingCapacity
+      ? boostAvailable
+      : currentPricingCapacity;
+  const shadowBalancedPricingCapacity =
+    currentPricingCapacity + balancedBoostRelease;
+  const shadowBalancedReward =
+    shadowBalancedPricingCapacity /
+    BigInt(currentStressRecipients);
+
   return {
     modelVersion: REWARD_BOOST_RESERVE_SHADOW_MODEL_VERSION,
     currentCohortRoundId,
@@ -333,6 +350,12 @@ export function calculateRewardBoostReserveShadow(input: {
     shadowBoostedRewardWei: shadowBoostedReward.toString(),
     shadowExternalCompletionRewardWei:
       shadowExternalCompletionReward.toString(),
+    balancedBoostReleaseWei:
+      balancedBoostRelease.toString(),
+    shadowBalancedPricingCapacityWei:
+      shadowBalancedPricingCapacity.toString(),
+    shadowBalancedRewardWei:
+      shadowBalancedReward.toString(),
     sourceAttributionPolicy: 'PROMOTION_FIRST_CONSERVATIVE',
     cohorts: cohortResults.sort(
       (a, b) => a.rewardCohortRoundId - b.rewardCohortRoundId,
