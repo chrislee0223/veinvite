@@ -221,6 +221,9 @@ export function PermanentReferralClient({
     initialQaSeed?.entryClass ?? 'new_user',
   );
   const [claimedInviteCode, setClaimedInviteCode] = useState('');
+  const [initialValidationResolved, setInitialValidationResolved] = useState(
+    previewMode,
+  );
   const t = INVITEE_COPY[locale];
   const referral = REFERRAL_LINK_COPY[locale];
 
@@ -237,6 +240,7 @@ export function PermanentReferralClient({
       setClaimedInviteCode(
         seed.step === 'success' ? 'QA1234' : '',
       );
+      setInitialValidationResolved(true);
       document.documentElement.lang = previewLocale;
       return;
     }
@@ -303,6 +307,8 @@ export function PermanentReferralClient({
     } catch {
       setErrorCode('eligibility');
       setStep('error');
+    } finally {
+      setInitialValidationResolved(true);
     }
   }, [previewMode, referralKey]);
 
@@ -468,7 +474,7 @@ export function PermanentReferralClient({
   };
 
   if (!languageReady) {
-    return <main className="centeredFlow inviteStepMotion"><Brand compact /></main>;
+    return <ReferralStartupSurface />;
   }
 
   if (showLanguageSetup) {
@@ -479,6 +485,10 @@ export function PermanentReferralClient({
         onContinue={confirmLanguage}
       />
     );
+  }
+
+  if (!initialValidationResolved) {
+    return <ReferralStartupSurface />;
   }
 
   if (step === 'loading') {
@@ -616,6 +626,24 @@ export function PermanentReferralClient({
       }}
       onDemoOutcomeChange={() => undefined}
     />
+  );
+}
+
+function ReferralStartupSurface() {
+  return (
+    <div
+      data-veinvite-referral-client-bootstrap="pending"
+      aria-hidden="true"
+      style={{
+        minHeight: '100dvh',
+        display: 'grid',
+        placeItems: 'center',
+        background:
+          'radial-gradient(circle at 50% 38%, rgba(244,183,40,0.10), transparent 32%), #080807',
+      }}
+    >
+      <Brand compact />
+    </div>
   );
 }
 
