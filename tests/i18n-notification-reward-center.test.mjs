@@ -169,10 +169,10 @@ test('paid reward receipt shares the verified permanent invite link on X', () =>
   assert.match(rewardPaidTransient, /https:\/\/veinvite\.vercel\.app\/s\//);
   assert.match(rewardShare, /https:\/\/x\.com\/intent\/post/);
   assert.match(rewardShare, /Record<\s*SupportedLocale/);
-  assert.match(rewardShare, /I just earned \\${amount} #B3TR/);
+  assert.match(rewardShare, /I just earned \${amount} #B3TR/);
   assert.match(rewardShare, /@Veinvite/);
   assert.match(rewardShare, /on #VeBetterDAO/);
-  assert.match(rewardShare, /Invite friends\\. Earn B3TR\\. 👇/);
+  assert.match(rewardShare, /Invite friends\. Earn B3TR\. 👇/);
   assert.match(rewardShare, /'#VeChain #Web3 #Crypto'/);
   assert.match(rewardShare, /formatRewardShareAmount/);
   assert.match(rewardShare, /referralUrl/);
