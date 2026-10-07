@@ -30,7 +30,13 @@ type FundingAdjustmentRow = {
   amount_wei: number | string;
 };
 
+type RestrictionRow = {
+  wallet_address: string | null;
+  status: string | null;
+};
+
 type InvitationRow = {
+  invitee_wallet: string | null;
   reward_cohort_round_id: number | string | null;
   reward_funding_allocation_receipt_id: number | string | null;
   apps_completed: number | null;
@@ -121,8 +127,12 @@ export async function readRewardBoostReserveShadow(
   const maxFundingRoundId =
     reusableThroughCohortRoundId - 1;
 
-  const [allocationResult, adjustmentResult, invitationResult] =
-    await Promise.all([
+  const [
+    allocationResult,
+    adjustmentResult,
+    invitationResult,
+    restrictionResult,
+  ] = await Promise.all([
       supabaseAdmin
         .from('vebetter_round_allocations')
         .select(
@@ -147,7 +157,7 @@ export async function readRewardBoostReserveShadow(
       supabaseAdmin
         .from('invitations')
         .select(
-          'reward_cohort_round_id, reward_funding_allocation_receipt_id, apps_completed, vot3_converted, vote_completed, sybil_status',
+          'invitee_wallet, reward_cohort_round_id, reward_funding_allocation_receipt_id, apps_completed, vot3_converted, vote_completed, sybil_status',
         )
         .eq('activation_network', pool.network)
         .in('status', ['ACTIVATING', 'UNDER_REVIEW'])
@@ -155,6 +165,11 @@ export async function readRewardBoostReserveShadow(
           'reward_cohort_round_id',
           reusableThroughCohortRoundId,
         ),
+      supabaseAdmin
+        .from('sybil_v2_wallet_restrictions')
+        .select('wallet_address, status')
+        .eq('network', pool.network)
+        .eq('status', 'ACTIVE'),
     ]);
 
   if (allocationResult.error) {
@@ -172,6 +187,11 @@ export async function readRewardBoostReserveShadow(
       `Reward boost reserve late participants could not be loaded: ${invitationResult.error.message}`,
     );
   }
+  if (restrictionResult.error) {
+    throw new Error(
+      `Reward boost reserve restrictions could not be loaded: ${restrictionResult.error.message}`,
+    );
+  }
 
   const allocations =
     (allocationResult.data ?? []) as AllocationRow[];
@@ -179,6 +199,17 @@ export async function readRewardBoostReserveShadow(
     (adjustmentResult.data ?? []) as FundingAdjustmentRow[];
   const invitations =
     (invitationResult.data ?? []) as InvitationRow[];
+  const restrictions =
+    (restrictionResult.data ?? []) as RestrictionRow[];
+  const activelyRestrictedWallets = new Set(
+    restrictions
+      .filter(
+        (row) =>
+          row.status === 'ACTIVE' &&
+          typeof row.wallet_address === 'string',
+      )
+      .map((row) => row.wallet_address!.toLowerCase()),
+  );
 
   const promotionByReceipt = new Map<string, bigint>();
   for (const row of adjustments) {
@@ -204,7 +235,13 @@ export async function readRewardBoostReserveShadow(
     if (
       row.reward_funding_allocation_receipt_id === null ||
       row.reward_cohort_round_id === null ||
-      row.sybil_status === 'BLOCKED'
+      row.sybil_status === 'BLOCKED' ||
+      (
+        typeof row.invitee_wallet === 'string' &&
+        activelyRestrictedWallets.has(
+          row.invitee_wallet.toLowerCase(),
+        )
+      )
     ) {
       continue;
     }
