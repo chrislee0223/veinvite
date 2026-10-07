@@ -6,6 +6,7 @@ import {
 import { supabaseAdmin } from '@/lib/supabaseServer';
 
 const INTEGER_PATTERN = /^\d+$/;
+const SIGNED_INTEGER_PATTERN = /^-?\d+$/;
 
 export type PredictiveAllocationSnapshot = {
   id: string;
@@ -32,6 +33,7 @@ export type PredictiveRewardPlanningSnapshot = {
   reservedExistingWei: string;
   cohortReservedWei: string;
   fundingAdjustmentWei: string;
+  reserveNetFlowWei: string;
   designatedBudgetWei: string;
   rewardCohortRoundId: string | null;
   pipeline: RewardPipelineSnapshot;
@@ -56,6 +58,17 @@ function readIntegerString(value: unknown, fieldName: string): string {
   const normalized = String(value ?? '');
   if (!INTEGER_PATTERN.test(normalized)) {
     throw new Error(`${fieldName} must be a non-negative integer.`);
+  }
+  return BigInt(normalized).toString();
+}
+
+function readSignedIntegerString(
+  value: unknown,
+  fieldName: string,
+): string {
+  const normalized = String(value ?? '');
+  if (!SIGNED_INTEGER_PATTERN.test(normalized)) {
+    throw new Error(`${fieldName} must be an integer.`);
   }
   return BigInt(normalized).toString();
 }
@@ -162,6 +175,10 @@ export async function readPredictiveRewardPlanning(input: {
   const record = readRecord(data, 'reward cohort planning snapshot');
   const reservedExistingWei = readIntegerString(record.reservedExistingWei, 'reservedExistingWei');
   const fundingAdjustmentWei = readIntegerString(record.fundingAdjustmentWei, 'fundingAdjustmentWei');
+  const reserveNetFlowWei = readSignedIntegerString(
+    record.reserveNetFlowWei ?? '0',
+    'reserveNetFlowWei',
+  );
   const designatedBudgetWei = readIntegerString(record.designatedBudgetWei, 'designatedBudgetWei');
   const rewardCohortRoundId = record.rewardCohortRoundId === null || record.rewardCohortRoundId === undefined
     ? null
@@ -233,6 +250,7 @@ export async function readPredictiveRewardPlanning(input: {
     ? calculatePredictiveRewardPolicy({
         latestAllocationWei: latestAllocation.rewardsAllocationWei,
         fundingAdjustmentWei,
+        reserveNetFlowWei,
         cohortReservedWei,
         observedPoolBalanceWei: input.observedPoolBalanceWei,
         reservedExistingWei,
@@ -244,6 +262,7 @@ export async function readPredictiveRewardPlanning(input: {
     reservedExistingWei,
     cohortReservedWei,
     fundingAdjustmentWei,
+    reserveNetFlowWei,
     designatedBudgetWei,
     rewardCohortRoundId,
     pipeline,

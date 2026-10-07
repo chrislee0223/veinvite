@@ -86,6 +86,23 @@ export type RewardOperationsHealth = {
     oldestQueuedAt: string | null;
     oldestQueuedAgeSeconds: number | null;
   };
+  reserve: {
+    enabled: boolean;
+    shadowEnabled: boolean;
+    bankBalanceWei: string;
+    bankStressReserveWei: string;
+    ordinaryBoostAvailableWei: string;
+    sourceRetainedProtectionWei: string;
+    recentCohortProtectedWei: string;
+    sourceProtectionCount: number;
+    destinationPlanCount: number;
+    unprotectedMatureSourceCount: number;
+    sourceOverrunCount: number;
+    destinationOverrunCount: number;
+    conservationOk: boolean;
+    stressReserveCovered: boolean;
+    forecastAligned: boolean | null;
+  };
   payoutPipeline: {
     activeRoundId: string | null;
     activeRoundStatus: string | null;
@@ -148,6 +165,52 @@ function stringId(value: unknown): string | null {
   return /^\d+$/.test(normalized)
     ? BigInt(normalized).toString()
     : null;
+}
+
+function record(
+  value: unknown,
+  fieldName: string,
+): Record<string, unknown> {
+  if (
+    !value ||
+    typeof value !== 'object' ||
+    Array.isArray(value)
+  ) {
+    throw new Error(`${fieldName} is malformed.`);
+  }
+  return value as Record<string, unknown>;
+}
+
+function integerString(
+  value: unknown,
+  fieldName: string,
+): string {
+  const normalized = String(value ?? '');
+  if (!/^-?\d+$/.test(normalized)) {
+    throw new Error(`${fieldName} must be an integer.`);
+  }
+  return BigInt(normalized).toString();
+}
+
+function count(
+  value: unknown,
+  fieldName: string,
+): number {
+  const normalized = Number(value);
+  if (!Number.isSafeInteger(normalized) || normalized < 0) {
+    throw new Error(`${fieldName} must be a non-negative integer.`);
+  }
+  return normalized;
+}
+
+function boolean(
+  value: unknown,
+  fieldName: string,
+): boolean {
+  if (typeof value !== 'boolean') {
+    throw new Error(`${fieldName} must be boolean.`);
+  }
+  return value;
 }
 
 export async function readRewardOperationsHealth():
@@ -274,6 +337,8 @@ Promise<RewardOperationsHealth> {
     activeRoundResult,
     signedResult,
     planning,
+    reserveAuditResult,
+    latestForecastSnapshotResult,
   ] = await Promise.all([
     supabaseAdmin
       .from('reward_queue_entries')
@@ -318,6 +383,21 @@ Promise<RewardOperationsHealth> {
       observedPoolBalanceWei:
         pool.effectiveRewardPoolWei,
     }),
+    supabaseAdmin.rpc(
+      'read_reward_boost_reserve_audit_snapshot',
+      {
+        p_network: pool.network,
+        p_app_id: pool.appId,
+      },
+    ),
+    supabaseAdmin
+      .from('reward_forecast_snapshots')
+      .select('input_snapshot, model_version')
+      .eq('network', pool.network)
+      .eq('app_id', pool.appId)
+      .order('generated_at', { ascending: false })
+      .limit(1)
+      .maybeSingle(),
   ]);
 
   if (queueResult.error) {
@@ -336,6 +416,158 @@ Promise<RewardOperationsHealth> {
     throw new Error(
       `Reward operations signed-transaction check failed: ${signedResult.error.message}`,
     );
+  }
+  if (reserveAuditResult.error) {
+    throw new Error(
+      `Reward boost reserve audit check failed: ${reserveAuditResult.error.message}`,
+    );
+  }
+  if (latestForecastSnapshotResult.error) {
+    throw new Error(
+      `Reward forecast reserve-alignment check failed: ${latestForecastSnapshotResult.error.message}`,
+    );
+  }
+
+  const reserveRecord = record(
+    reserveAuditResult.data,
+    'reward boost reserve audit',
+  );
+  const reserveEnabled = boolean(
+    reserveRecord.enabled,
+    'reserve.enabled',
+  );
+  const reserveShadowEnabled = boolean(
+    reserveRecord.shadowEnabled,
+    'reserve.shadowEnabled',
+  );
+  const bankBalanceWei = integerString(
+    reserveRecord.bankBalanceWei,
+    'reserve.bankBalanceWei',
+  );
+  const bankStressReserveWei = integerString(
+    reserveRecord.bankStressReserveWei,
+    'reserve.bankStressReserveWei',
+  );
+  const ordinaryBoostAvailableWei = integerString(
+    reserveRecord.ordinaryBoostAvailableWei,
+    'reserve.ordinaryBoostAvailableWei',
+  );
+  const sourceRetainedProtectionWei = integerString(
+    reserveRecord.sourceRetainedProtectionWei,
+    'reserve.sourceRetainedProtectionWei',
+  );
+  const recentCohortProtectedWei = integerString(
+    reserveRecord.recentCohortProtectedWei,
+    'reserve.recentCohortProtectedWei',
+  );
+  const sourceProtectionCount = count(
+    reserveRecord.sourceProtectionCount,
+    'reserve.sourceProtectionCount',
+  );
+  const destinationPlanCount = count(
+    reserveRecord.destinationPlanCount,
+    'reserve.destinationPlanCount',
+  );
+  const unprotectedMatureSourceCount = count(
+    reserveRecord.unprotectedMatureSourceCount,
+    'reserve.unprotectedMatureSourceCount',
+  );
+  const sourceOverrunCount = count(
+    reserveRecord.sourceOverrunCount,
+    'reserve.sourceOverrunCount',
+  );
+  const destinationOverrunCount = count(
+    reserveRecord.destinationOverrunCount,
+    'reserve.destinationOverrunCount',
+  );
+  const conservationOk = boolean(
+    reserveRecord.conservationOk,
+    'reserve.conservationOk',
+  );
+  const stressReserveCovered = boolean(
+    reserveRecord.stressReserveCovered,
+    'reserve.stressReserveCovered',
+  );
+
+  const latestForecastInput =
+    latestForecastSnapshotResult.data &&
+    typeof latestForecastSnapshotResult.data === 'object' &&
+    !Array.isArray(latestForecastSnapshotResult.data)
+      ? (
+          latestForecastSnapshotResult.data as {
+            input_snapshot?: unknown;
+          }
+        ).input_snapshot
+      : null;
+  const latestForecastInputRecord =
+    latestForecastInput &&
+    typeof latestForecastInput === 'object' &&
+    !Array.isArray(latestForecastInput)
+      ? latestForecastInput as Record<string, unknown>
+      : null;
+  const snapshotReserveNetFlow =
+    latestForecastInputRecord &&
+    latestForecastInputRecord.reserveNetFlowWei !== undefined
+      ? integerString(
+          latestForecastInputRecord.reserveNetFlowWei,
+          'forecast.reserveNetFlowWei',
+        )
+      : null;
+  const forecastAligned =
+    planning.forecast && snapshotReserveNetFlow !== null
+      ? planning.reserveNetFlowWei ===
+        snapshotReserveNetFlow
+      : null;
+
+  if (reserveEnabled) {
+    if (!conservationOk || BigInt(bankBalanceWei) < 0n) {
+      addAlert(
+        alerts,
+        'REWARD_BOOST_RESERVE_CONSERVATION_MISMATCH',
+        'CRITICAL',
+        'Reward boost reserve ledger conservation is invalid.',
+      );
+    }
+    if (!stressReserveCovered) {
+      addAlert(
+        alerts,
+        'REWARD_BOOST_RESERVE_STRESS_UNDERFUNDED',
+        'CRITICAL',
+        'Reward boost reserve balance is below the protected late-completion stress reserve.',
+      );
+    }
+    if (sourceOverrunCount > 0) {
+      addAlert(
+        alerts,
+        'REWARD_BOOST_RESERVE_SOURCE_OVERRUN',
+        'CRITICAL',
+        'A mature source cohort has swept more funding than its immutable protection plan allows.',
+      );
+    }
+    if (destinationOverrunCount > 0) {
+      addAlert(
+        alerts,
+        'REWARD_BOOST_RESERVE_DESTINATION_OVERRUN',
+        'CRITICAL',
+        'A destination cohort has received more boost funding than its immutable release plan allows.',
+      );
+    }
+    if (unprotectedMatureSourceCount > 0) {
+      addAlert(
+        alerts,
+        'REWARD_BOOST_RESERVE_SOURCE_PENDING',
+        'WARNING',
+        'A mature reward cohort is waiting for a source protection snapshot and reserve sweep.',
+      );
+    }
+    if (forecastAligned === false) {
+      addAlert(
+        alerts,
+        'REWARD_BOOST_RESERVE_FORECAST_STALE',
+        'WARNING',
+        'The public reward forecast does not yet reflect the current reserve-adjusted cohort funding.',
+      );
+    }
   }
 
   const queuedCount = queueResult.count ?? 0;
@@ -570,6 +802,23 @@ Promise<RewardOperationsHealth> {
       oldestQueuedAt,
       oldestQueuedAgeSeconds:
         seconds(oldestQueuedAgeMs),
+    },
+    reserve: {
+      enabled: reserveEnabled,
+      shadowEnabled: reserveShadowEnabled,
+      bankBalanceWei,
+      bankStressReserveWei,
+      ordinaryBoostAvailableWei,
+      sourceRetainedProtectionWei,
+      recentCohortProtectedWei,
+      sourceProtectionCount,
+      destinationPlanCount,
+      unprotectedMatureSourceCount,
+      sourceOverrunCount,
+      destinationOverrunCount,
+      conservationOk,
+      stressReserveCovered,
+      forecastAligned,
     },
     payoutPipeline: {
       activeRoundId: stringId(activeRound?.id),

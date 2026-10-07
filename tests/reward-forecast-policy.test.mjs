@@ -141,3 +141,41 @@ test('fails closed on malformed values', () => {
     /voteReadyCount/,
   );
 });
+
+
+test('audited reserve inflow raises public pricing on the same basis as actual reservations', () => {
+  const result = forecast({
+    reserveNetFlowWei: '2000',
+    observedPoolBalanceWei: '10000',
+  });
+
+  assert.equal(result.reserveNetFlowWei, '2000');
+  assert.equal(result.designatedBudgetWei, '10000');
+  assert.equal(result.pricingCapacityWei, '10000');
+  assert.equal(result.estimatedRewardWei, '1666');
+});
+
+test('reserve source outflow lowers public pricing only for the source cohort', () => {
+  const result = forecast({
+    reserveNetFlowWei: '-2000',
+  });
+
+  assert.equal(result.reserveNetFlowWei, '-2000');
+  assert.equal(result.designatedBudgetWei, '6000');
+  assert.equal(result.pricingCapacityWei, '6000');
+  assert.equal(result.estimatedRewardWei, '1000');
+});
+
+test('pre-ledger public forecasts remain unchanged when reserve flow is absent', () => {
+  const result = forecast();
+
+  assert.equal(result.reserveNetFlowWei, '0');
+  assert.equal(result.designatedBudgetWei, '8000');
+});
+
+test('public forecast fails closed if reserve outflow would make cohort funding negative', () => {
+  assert.throws(
+    () => forecast({ reserveNetFlowWei: '-9000' }),
+    /designatedBudgetWei cannot be negative/,
+  );
+});

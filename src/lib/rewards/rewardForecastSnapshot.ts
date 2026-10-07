@@ -244,6 +244,7 @@ export async function refreshRewardForecastSnapshot(input: {
   const forecast = calculateRewardForecastPolicy({
     officialAllocationWei: planning.latestAllocation.rewardsAllocationWei,
     fundingAdjustmentWei: planning.fundingAdjustmentWei,
+    reserveNetFlowWei: planning.reserveNetFlowWei,
     cohortReservedWei: planning.cohortReservedWei,
     observedPoolBalanceWei: pool.effectiveRewardPoolWei,
     reservedExistingWei: planning.reservedExistingWei,
@@ -272,6 +273,7 @@ export async function refreshRewardForecastSnapshot(input: {
     earliestCompletionRoundId,
     officialAllocationWei: planning.latestAllocation.rewardsAllocationWei,
     fundingAdjustmentWei: planning.fundingAdjustmentWei,
+    reserveNetFlowWei: planning.reserveNetFlowWei,
     designatedBudgetWei: planning.designatedBudgetWei,
     cohortReservedWei: planning.cohortReservedWei,
     pipeline,

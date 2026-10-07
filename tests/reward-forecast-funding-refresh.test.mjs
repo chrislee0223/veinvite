@@ -47,7 +47,7 @@ test('normal public estimate serves a fresh snapshot before any live pool RPC', 
   );
 });
 
-test('explicit background refresh still detects pool funding changes', () => {
+test('explicit background refresh detects physical or logical funding changes', () => {
   assert.match(
     estimateRoute,
     /refreshRequested && previousSnapshot[\s\S]*await checkLiveFunding\(previousSnapshot, network\)/,
@@ -55,6 +55,28 @@ test('explicit background refresh still detects pool funding changes', () => {
   assert.match(
     estimateRoute,
     /const fundingChanged = fundingCheck === 'changed'/,
+  );
+  assert.match(
+    estimateRoute,
+    /readPredictiveRewardPlanning/,
+  );
+  assert.match(
+    estimateRoute,
+    /readLatestForecastFundingInput/,
+  );
+  assert.match(
+    estimateRoute,
+    /snapshotReserveNetFlow !==[\s\S]*planning\.reserveNetFlowWei/,
+    'reserve ledger changes must invalidate a fresh snapshot even when the physical pool is unchanged',
+  );
+  assert.match(
+    estimateRoute,
+    /snapshotCommitted !==[\s\S]*planning\.cohortReservedWei/,
+    'new fixed reward reservations must also invalidate the logical funding snapshot',
+  );
+  assert.doesNotMatch(
+    estimateRoute,
+    /pricingBasisWei !== snapshot\.projectedAllocationWei/,
   );
   assert.match(
     estimateRoute,

@@ -136,3 +136,41 @@ test('fails closed on malformed accounting or pipeline data', () => {
     /voteReadyCount/,
   );
 });
+
+
+test('an audited reserve inflow increases this cohort pricing basis', () => {
+  const result = policy({
+    reserveNetFlowWei: '4000',
+    observedPoolBalanceWei: '12000',
+  });
+
+  assert.equal(result.reserveNetFlowWei, '4000');
+  assert.equal(result.designatedBudgetWei, '12000');
+  assert.equal(result.pricingBasisWei, '12000');
+  assert.equal(result.rewardPerInviteWei, '3000');
+});
+
+test('a reserve source sweep reduces only the source cohort logical budget', () => {
+  const result = policy({
+    reserveNetFlowWei: '-2000',
+  });
+
+  assert.equal(result.reserveNetFlowWei, '-2000');
+  assert.equal(result.designatedBudgetWei, '6000');
+  assert.equal(result.pricingBasisWei, '6000');
+  assert.equal(result.rewardPerInviteWei, '1500');
+});
+
+test('reserve net flow defaults to zero for pre-ledger production snapshots', () => {
+  const result = policy();
+
+  assert.equal(result.reserveNetFlowWei, '0');
+  assert.equal(result.designatedBudgetWei, '8000');
+});
+
+test('fails closed if reserve outflow would make the logical budget negative', () => {
+  assert.throws(
+    () => policy({ reserveNetFlowWei: '-9000' }),
+    /designatedBudgetWei cannot be negative/,
+  );
+});

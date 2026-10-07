@@ -17,6 +17,19 @@ type ReservationCandidate = {
   reward_funding_allocation_receipt_id: string | number;
 };
 
+type LateRewardQuote = {
+  protectionId: string;
+  amountWei: string;
+  sourceRewardCohortRoundId: string;
+  sourceAllocationReceiptId: string;
+  baselineEffectiveBudgetWei: string;
+  baselineCommittedWei: string;
+  promotionReserveWei: string;
+  lateWeightedLiabilityWei: string;
+  sourceRevision: string;
+  policyVersion: string;
+};
+
 type ReservationRpcResult = {
   reserved?: boolean;
   reason?: string;
@@ -88,6 +101,100 @@ function readRpcResult(value: unknown): ReservationRpcResult {
     throw new Error('Reward reservation returned malformed data.');
   }
   return value as ReservationRpcResult;
+}
+
+function nonNegativeWeiString(
+  value: unknown,
+  fieldName: string,
+): string {
+  const normalized = String(value ?? '');
+  if (!/^\d+$/.test(normalized)) {
+    throw new Error(`${fieldName} is invalid.`);
+  }
+  return BigInt(normalized).toString();
+}
+
+async function readLateRewardQuote(
+  network: string,
+  inviteCode: string,
+): Promise<LateRewardQuote | null> {
+  const { data, error } = await supabaseAdmin.rpc(
+    'read_reward_boost_reserve_late_quote',
+    {
+      p_network: network,
+      p_invite_code: inviteCode,
+    },
+  );
+
+  if (error) {
+    throw new Error(
+      `Late reward protection quote could not be loaded: ${error.message}`,
+    );
+  }
+
+  if (data === null || data === undefined) {
+    return null;
+  }
+
+  if (
+    typeof data !== 'object' ||
+    Array.isArray(data)
+  ) {
+    throw new Error(
+      'Late reward protection quote is malformed.',
+    );
+  }
+
+  const row = data as Record<string, unknown>;
+  const sourceRevision = String(
+    row.sourceRevision ?? '',
+  ).trim();
+  const policyVersion = String(
+    row.policyVersion ?? '',
+  ).trim();
+
+  if (!sourceRevision || !policyVersion) {
+    throw new Error(
+      'Late reward protection metadata is malformed.',
+    );
+  }
+
+  return {
+    protectionId: positiveId(
+      String(row.protectionId ?? ''),
+      'late reward protection id',
+    ),
+    amountWei: nonNegativeWeiString(
+      row.amountWei,
+      'late reward amount',
+    ),
+    sourceRewardCohortRoundId: positiveId(
+      String(row.sourceRewardCohortRoundId ?? ''),
+      'late reward cohort round id',
+    ),
+    sourceAllocationReceiptId: positiveId(
+      String(row.sourceAllocationReceiptId ?? ''),
+      'late reward allocation receipt id',
+    ),
+    baselineEffectiveBudgetWei: nonNegativeWeiString(
+      row.baselineEffectiveBudgetWei,
+      'late reward baseline budget',
+    ),
+    baselineCommittedWei: nonNegativeWeiString(
+      row.baselineCommittedWei,
+      'late reward baseline commitment',
+    ),
+    promotionReserveWei: nonNegativeWeiString(
+      row.promotionReserveWei,
+      'late reward promotion reserve',
+    ),
+    lateWeightedLiabilityWei: nonNegativeWeiString(
+      row.lateWeightedLiabilityWei,
+      'late reward weighted liability',
+    ),
+    sourceRevision,
+    policyVersion,
+  };
 }
 
 function skipCandidate(
@@ -307,7 +414,28 @@ async function reserveCandidate({
       throw new Error('Reward reservation cohort planning mismatch.');
     }
 
-    const amountWei = planning.forecast.rewardPerInviteWei;
+    const lateQuote = await readLateRewardQuote(
+      network,
+      candidate.invite_code,
+    );
+
+    if (
+      lateQuote &&
+      (
+        lateQuote.sourceRewardCohortRoundId !==
+          rewardCohortRoundId ||
+        lateQuote.sourceAllocationReceiptId !==
+          allocationReceiptId
+      )
+    ) {
+      throw new Error(
+        'Late reward protection cohort mismatch.',
+      );
+    }
+
+    const amountWei =
+      lateQuote?.amountWei ??
+      planning.forecast.rewardPerInviteWei;
     if (BigInt(amountWei) <= 0n) {
       return skipCandidate(
         candidate,
@@ -316,12 +444,15 @@ async function reserveCandidate({
     }
 
     const basis = {
-      quoteKind: 'completion_fixed_reservation_v2_cohort',
+      quoteKind: lateQuote
+        ? 'late_completion_protected_v1'
+        : 'completion_fixed_reservation_v2_cohort',
       rewardCohortRoundId,
       fundingAllocationReceiptId: allocationReceiptId,
       fundingAllocationRoundId: planning.latestAllocation.veBetterRoundId,
       officialAllocationWei: planning.latestAllocation.rewardsAllocationWei,
       fundingAdjustmentWei: planning.fundingAdjustmentWei,
+      reserveNetFlowWei: planning.reserveNetFlowWei,
       designatedBudgetWei: planning.designatedBudgetWei,
       cohortReservedWei: planning.cohortReservedWei,
       observedPoolBalanceWei: pool.effectiveRewardPoolWei,
@@ -331,6 +462,24 @@ async function reserveCandidate({
       expectedCompletions: planning.forecast.expectedCompletions,
       stressCompletions: planning.forecast.stressCompletions,
       pipeline: planning.forecast.pipeline,
+      lateCompletionProtection: lateQuote
+        ? {
+            protectionId: lateQuote.protectionId,
+            protectedAmountWei: lateQuote.amountWei,
+            baselineEffectiveBudgetWei:
+              lateQuote.baselineEffectiveBudgetWei,
+            baselineCommittedWei:
+              lateQuote.baselineCommittedWei,
+            promotionReserveWei:
+              lateQuote.promotionReserveWei,
+            lateWeightedLiabilityWei:
+              lateQuote.lateWeightedLiabilityWei,
+            sourceRevision:
+              lateQuote.sourceRevision,
+            policyVersion:
+              lateQuote.policyVersion,
+          }
+        : null,
       completionPosition: {
         block: completionBlock,
         txIndex: candidate.completion_tx_index,
@@ -339,14 +488,16 @@ async function reserveCandidate({
     };
 
     const { data, error } = await supabaseAdmin.rpc(
-      'commit_reward_reservation',
+      'commit_reward_reservation_with_late_reserve',
       {
         p_invite_code: candidate.invite_code,
         p_network: network,
         p_observed_pool_balance_wei: pool.effectiveRewardPoolWei,
         p_expected_reserved_before_wei: planning.reservedExistingWei,
         p_amount_wei: amountWei,
-        p_algorithm_version: planning.forecast.algorithmVersion,
+        p_algorithm_version: lateQuote
+          ? 'reward-boost-late-protection-v1'
+          : planning.forecast.algorithmVersion,
         p_quote_snapshot_id: null,
         p_finalized_block: finalizedBlock,
         p_basis: basis,

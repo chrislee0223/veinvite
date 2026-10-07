@@ -1,0 +1,496 @@
+import 'server-only';
+
+import {
+  calculateRewardBoostReserveShadow,
+  type RewardBoostReserveCohortInput,
+  type RewardBoostReserveShadowResult,
+} from '@/lib/rewards/rewardBoostReservePolicy';
+import {
+  readPredictiveRewardPlanning,
+} from '@/lib/rewards/predictivePlanning';
+import {
+  readVeInviteRewardPoolStatus,
+  VEINVITE_APP_ID,
+  type VeInviteRewardPoolStatus,
+} from '@/lib/rewards/onchainPool';
+import { supabaseAdmin } from '@/lib/supabaseServer';
+
+const INTEGER_PATTERN = /^\d+$/;
+
+type AllocationRow = {
+  id: number | string;
+  vebetter_round_id: number | string;
+  rewards_allocation_amount_wei: number | string;
+};
+
+type FundingAdjustmentRow = {
+  reward_cohort_round_id: number | string;
+  allocation_receipt_id: number | string;
+  adjustment_type: string;
+  amount_wei: number | string;
+};
+
+type RestrictionRow = {
+  wallet_address: string | null;
+  status: string | null;
+};
+
+type SourceProtectionRow = {
+  source_allocation_receipt_id: number | string;
+};
+
+type InvitationRow = {
+  invitee_wallet: string | null;
+  reward_cohort_round_id: number | string | null;
+  reward_funding_allocation_receipt_id: number | string | null;
+  apps_completed: number | null;
+  vot3_converted: boolean | null;
+  vote_completed: boolean | null;
+  sybil_status: string | null;
+};
+
+function integerString(value: unknown, fieldName: string): string {
+  const normalized = String(value ?? '');
+  if (!INTEGER_PATTERN.test(normalized)) {
+    throw new Error(`${fieldName} must be a non-negative integer.`);
+  }
+  return BigInt(normalized).toString();
+}
+
+function positiveInteger(value: unknown, fieldName: string): number {
+  const normalized = Number(value);
+  if (!Number.isSafeInteger(normalized) || normalized < 1) {
+    throw new Error(`${fieldName} must be a positive safe integer.`);
+  }
+  return normalized;
+}
+
+function nonNegativeCount(value: unknown, fieldName: string): number {
+  const normalized = Number(value ?? 0);
+  if (!Number.isSafeInteger(normalized) || normalized < 0) {
+    throw new Error(`${fieldName} must be a non-negative safe integer.`);
+  }
+  return normalized;
+}
+
+export type RewardBoostReserveShadowSnapshot = {
+  generatedAt: string;
+  network: string;
+  appId: string;
+  writesPerformed: false;
+  transfersPerformed: false;
+  result: RewardBoostReserveShadowResult;
+};
+
+export async function readRewardBoostReserveShadow(
+  providedPool?: VeInviteRewardPoolStatus,
+): Promise<RewardBoostReserveShadowSnapshot> {
+  const pool =
+    providedPool ?? await readVeInviteRewardPoolStatus();
+  const planning = await readPredictiveRewardPlanning({
+    network: pool.network,
+    appId: pool.appId,
+    observedPoolBalanceWei: pool.effectiveRewardPoolWei,
+  });
+
+  if (
+    pool.appId !== VEINVITE_APP_ID ||
+    !planning.latestAllocation ||
+    !planning.rewardCohortRoundId ||
+    !planning.forecast
+  ) {
+    throw new Error('Reward boost reserve shadow planning is unavailable.');
+  }
+
+  const currentCohortRoundId = positiveInteger(
+    planning.rewardCohortRoundId,
+    'current reward cohort round id',
+  );
+  const reusableThroughCohortRoundId =
+    currentCohortRoundId - 2;
+
+  if (reusableThroughCohortRoundId < 1) {
+    return {
+      generatedAt: new Date().toISOString(),
+      network: pool.network,
+      appId: pool.appId,
+      writesPerformed: false,
+      transfersPerformed: false,
+      result: calculateRewardBoostReserveShadow({
+        currentCohortRoundId,
+        currentRewardWei: planning.forecast.rewardPerInviteWei,
+        currentPricingCapacityWei: planning.forecast.pricingBasisWei,
+        currentStressRecipients: planning.forecast.stressCompletions,
+        observedPoolBalanceWei: pool.effectiveRewardPoolWei,
+        reservedExistingWei: planning.reservedExistingWei,
+        cohorts: [],
+      }),
+    };
+  }
+
+  const maxFundingRoundId =
+    reusableThroughCohortRoundId - 1;
+
+  const [
+    allocationResult,
+    adjustmentResult,
+    invitationResult,
+    restrictionResult,
+    recentAllocationResult,
+    protectionResult,
+    auditResult,
+  ] = await Promise.all([
+      supabaseAdmin
+        .from('vebetter_round_allocations')
+        .select(
+          'id, vebetter_round_id, rewards_allocation_amount_wei',
+        )
+        .eq('network', pool.network)
+        .eq('app_id', pool.appId)
+        .lte('vebetter_round_id', maxFundingRoundId)
+        .order('vebetter_round_id', { ascending: true }),
+      supabaseAdmin
+        .from('reward_cohort_funding_adjustments')
+        .select(
+          'reward_cohort_round_id, allocation_receipt_id, adjustment_type, amount_wei',
+        )
+        .eq('network', pool.network)
+        .eq('app_id', pool.appId)
+        .eq('adjustment_type', 'PROMOTION')
+        .lte(
+          'reward_cohort_round_id',
+          reusableThroughCohortRoundId,
+        ),
+      supabaseAdmin
+        .from('invitations')
+        .select(
+          'invitee_wallet, reward_cohort_round_id, reward_funding_allocation_receipt_id, apps_completed, vot3_converted, vote_completed, sybil_status',
+        )
+        .eq('activation_network', pool.network)
+        .in('status', ['ACTIVATING', 'UNDER_REVIEW'])
+        .lte(
+          'reward_cohort_round_id',
+          reusableThroughCohortRoundId,
+        ),
+      supabaseAdmin
+        .from('sybil_v2_wallet_restrictions')
+        .select('wallet_address, status')
+        .eq('network', pool.network)
+        .eq('status', 'ACTIVE'),
+      supabaseAdmin
+        .from('vebetter_round_allocations')
+        .select(
+          'id, vebetter_round_id, rewards_allocation_amount_wei',
+        )
+        .eq('network', pool.network)
+        .eq('app_id', pool.appId)
+        .gte(
+          'vebetter_round_id',
+          reusableThroughCohortRoundId,
+        )
+        .lte(
+          'vebetter_round_id',
+          currentCohortRoundId - 2,
+        )
+        .order('vebetter_round_id', { ascending: true }),
+      supabaseAdmin
+        .from('reward_boost_reserve_source_protections')
+        .select('source_allocation_receipt_id')
+        .eq('network', pool.network)
+        .eq('app_id', pool.appId),
+      supabaseAdmin.rpc(
+        'read_reward_boost_reserve_audit_snapshot',
+        {
+          p_network: pool.network,
+          p_app_id: pool.appId,
+        },
+      ),
+    ]);
+
+  if (allocationResult.error) {
+    throw new Error(
+      `Reward boost reserve allocations could not be loaded: ${allocationResult.error.message}`,
+    );
+  }
+  if (adjustmentResult.error) {
+    throw new Error(
+      `Reward boost reserve funding adjustments could not be loaded: ${adjustmentResult.error.message}`,
+    );
+  }
+  if (invitationResult.error) {
+    throw new Error(
+      `Reward boost reserve late participants could not be loaded: ${invitationResult.error.message}`,
+    );
+  }
+  if (restrictionResult.error) {
+    throw new Error(
+      `Reward boost reserve restrictions could not be loaded: ${restrictionResult.error.message}`,
+    );
+  }
+  if (recentAllocationResult.error) {
+    throw new Error(
+      `Reward boost reserve recent allocations could not be loaded: ${recentAllocationResult.error.message}`,
+    );
+  }
+  if (protectionResult.error) {
+    throw new Error(
+      `Reward boost reserve source protections could not be loaded: ${protectionResult.error.message}`,
+    );
+  }
+  if (auditResult.error) {
+    throw new Error(
+      `Reward boost reserve audit could not be loaded: ${auditResult.error.message}`,
+    );
+  }
+
+  const allocations =
+    (allocationResult.data ?? []) as AllocationRow[];
+  const adjustments =
+    (adjustmentResult.data ?? []) as FundingAdjustmentRow[];
+  const invitations =
+    (invitationResult.data ?? []) as InvitationRow[];
+  const restrictions =
+    (restrictionResult.data ?? []) as RestrictionRow[];
+  const recentAllocations =
+    (recentAllocationResult.data ?? []) as AllocationRow[];
+  const sourceProtections =
+    (protectionResult.data ?? []) as SourceProtectionRow[];
+  const protectedReceiptIds = new Set(
+    sourceProtections.map((row) =>
+      integerString(
+        row.source_allocation_receipt_id,
+        'source protection allocation receipt id',
+      ),
+    ),
+  );
+  const auditRecord =
+    auditResult.data &&
+    typeof auditResult.data === 'object' &&
+    !Array.isArray(auditResult.data)
+      ? auditResult.data as Record<string, unknown>
+      : null;
+
+  if (!auditRecord) {
+    throw new Error(
+      'Reward boost reserve audit is malformed.',
+    );
+  }
+
+  const existingBankBalanceWei = integerString(
+    auditRecord.bankBalanceWei,
+    'reward boost reserve bank balance',
+  );
+  const existingBankStressReserveWei = integerString(
+    auditRecord.bankStressReserveWei,
+    'reward boost reserve bank stress reserve',
+  );
+  const existingSourceRetainedProtectionWei = integerString(
+    auditRecord.sourceRetainedProtectionWei,
+    'reward boost reserve retained source protection',
+  );
+  const activelyRestrictedWallets = new Set(
+    restrictions
+      .filter(
+        (row) =>
+          row.status === 'ACTIVE' &&
+          typeof row.wallet_address === 'string',
+      )
+      .map((row) => row.wallet_address!.toLowerCase()),
+  );
+
+  const promotionByReceipt = new Map<string, bigint>();
+  for (const row of adjustments) {
+    const receiptId = integerString(
+      row.allocation_receipt_id,
+      'funding adjustment allocation receipt id',
+    );
+    const amount = BigInt(
+      integerString(row.amount_wei, 'funding adjustment amount'),
+    );
+    promotionByReceipt.set(
+      receiptId,
+      (promotionByReceipt.get(receiptId) ?? 0n) + amount,
+    );
+  }
+
+  const lateByReceipt = new Map<
+    string,
+    RewardBoostReserveCohortInput['lateParticipants']
+  >();
+
+  for (const row of invitations) {
+    if (
+      row.reward_funding_allocation_receipt_id === null ||
+      row.reward_cohort_round_id === null ||
+      row.sybil_status === 'BLOCKED' ||
+      (
+        typeof row.invitee_wallet === 'string' &&
+        activelyRestrictedWallets.has(
+          row.invitee_wallet.toLowerCase(),
+        )
+      )
+    ) {
+      continue;
+    }
+
+    const receiptId = integerString(
+      row.reward_funding_allocation_receipt_id,
+      'late participant allocation receipt id',
+    );
+    const participants = lateByReceipt.get(receiptId) ?? [];
+    participants.push({
+      appsCompleted: nonNegativeCount(
+        row.apps_completed,
+        'late participant apps completed',
+      ),
+      vot3Converted: row.vot3_converted === true,
+      voteCompleted: row.vote_completed === true,
+    });
+    lateByReceipt.set(receiptId, participants);
+  }
+
+  const cohorts = await Promise.all(
+    allocations
+      .filter(
+        (allocation) =>
+          !protectedReceiptIds.has(
+            integerString(
+              allocation.id,
+              'allocation receipt id',
+            ),
+          ),
+      )
+      .map(async (allocation): Promise<RewardBoostReserveCohortInput> => {
+      const allocationReceiptId = integerString(
+        allocation.id,
+        'allocation receipt id',
+      );
+      const rewardCohortRoundId =
+        positiveInteger(
+          allocation.vebetter_round_id,
+          'VeBetter funding round id',
+        ) + 1;
+
+      const cohortPlanning = await readPredictiveRewardPlanning({
+        network: pool.network,
+        appId: pool.appId,
+        observedPoolBalanceWei: pool.effectiveRewardPoolWei,
+        rewardCohortRoundId,
+        allocationReceiptId,
+        includePendingAcceptance: false,
+      });
+
+      if (
+        !cohortPlanning.latestAllocation ||
+        !cohortPlanning.forecast ||
+        cohortPlanning.latestAllocation.id !== allocationReceiptId ||
+        cohortPlanning.rewardCohortRoundId !== String(rewardCohortRoundId)
+      ) {
+        throw new Error(
+          `Reward boost reserve cohort planning is unavailable for cohort ${rewardCohortRoundId}.`,
+        );
+      }
+
+      return {
+        rewardCohortRoundId,
+        allocationReceiptId,
+        officialAllocationWei: integerString(
+          allocation.rewards_allocation_amount_wei,
+          'official allocation amount',
+        ),
+        promotionFundingWei:
+          (promotionByReceipt.get(allocationReceiptId) ?? 0n).toString(),
+        committedWei: cohortPlanning.cohortReservedWei,
+        // Source protection is deliberately independent of the current
+        // physical pool cap. A temporary pool shortage must not make an old
+        // cohort look cheaper and allow more of its logical budget to be
+        // swept. Physical liquidity is enforced separately when bank boost
+        // capacity is released.
+        lateRewardWei: (
+          (
+            BigInt(cohortPlanning.designatedBudgetWei) >
+            BigInt(cohortPlanning.cohortReservedWei)
+              ? BigInt(cohortPlanning.designatedBudgetWei) -
+                BigInt(cohortPlanning.cohortReservedWei)
+              : 0n
+          ) /
+          BigInt(cohortPlanning.forecast.stressCompletions)
+        ).toString(),
+        queuedEligibleCount:
+          cohortPlanning.pipeline.queuedEligibleCount,
+        lateParticipants:
+          lateByReceipt.get(allocationReceiptId) ?? [],
+      };
+    }),
+  );
+
+  const recentCohortProtectedWei = (
+    await Promise.all(
+      recentAllocations.map(async (allocation) => {
+        const allocationReceiptId = integerString(
+          allocation.id,
+          'recent allocation receipt id',
+        );
+        const rewardCohortRoundId =
+          positiveInteger(
+            allocation.vebetter_round_id,
+            'recent VeBetter funding round id',
+          ) + 1;
+
+        const recentPlanning =
+          await readPredictiveRewardPlanning({
+            network: pool.network,
+            appId: pool.appId,
+            observedPoolBalanceWei:
+              pool.effectiveRewardPoolWei,
+            rewardCohortRoundId,
+            allocationReceiptId,
+            includePendingAcceptance: false,
+          });
+
+        if (
+          !recentPlanning.latestAllocation ||
+          recentPlanning.latestAllocation.id !==
+            allocationReceiptId ||
+          recentPlanning.rewardCohortRoundId !==
+            String(rewardCohortRoundId)
+        ) {
+          throw new Error(
+            `Reward boost reserve recent cohort planning is unavailable for cohort ${rewardCohortRoundId}.`,
+          );
+        }
+
+        const designated =
+          BigInt(recentPlanning.designatedBudgetWei);
+        const committed =
+          BigInt(recentPlanning.cohortReservedWei);
+
+        return designated > committed
+          ? designated - committed
+          : 0n;
+      }),
+    )
+  ).reduce((sum, value) => sum + value, 0n);
+
+  return {
+    generatedAt: new Date().toISOString(),
+    network: pool.network,
+    appId: pool.appId,
+    writesPerformed: false,
+    transfersPerformed: false,
+    result: calculateRewardBoostReserveShadow({
+      currentCohortRoundId,
+      currentRewardWei: planning.forecast.rewardPerInviteWei,
+      currentPricingCapacityWei: planning.forecast.pricingBasisWei,
+      currentStressRecipients: planning.forecast.stressCompletions,
+      observedPoolBalanceWei: pool.effectiveRewardPoolWei,
+      reservedExistingWei: planning.reservedExistingWei,
+      recentCohortProtectedWei:
+        recentCohortProtectedWei.toString(),
+      existingBankBalanceWei,
+      existingBankStressReserveWei,
+      existingSourceRetainedProtectionWei,
+      cohorts,
+    }),
+  };
+}
