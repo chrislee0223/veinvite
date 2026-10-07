@@ -401,3 +401,31 @@ test('recent non-mature cohort liquidity is protected from current boost', () =>
   assert.equal(result.boostAvailableWei, b3tr(100));
   assert.equal(result.shadowBoostedPricingCapacityWei, b3tr(900));
 });
+
+
+test('existing bank authority is included without re-sweeping protected sources', () => {
+  const result = calculateRewardBoostReserveShadow({
+    currentCohortRoundId: 119,
+    currentRewardWei: b3tr(200),
+    currentPricingCapacityWei: b3tr(800),
+    currentStressRecipients: 4,
+    observedPoolBalanceWei: b3tr(5000),
+    reservedExistingWei: '0',
+    recentCohortProtectedWei: b3tr(400),
+    existingBankBalanceWei: b3tr(1000),
+    existingBankStressReserveWei: b3tr(200),
+    existingSourceRetainedProtectionWei: b3tr(300),
+    cohorts: [],
+  });
+
+  assert.equal(result.existingBankBalanceWei, b3tr(1000));
+  assert.equal(result.existingBankStressReserveWei, b3tr(200));
+  assert.equal(
+    result.existingSourceRetainedProtectionWei,
+    b3tr(300),
+  );
+  assert.equal(result.bankDepositWei, b3tr(1000));
+  assert.equal(result.bankStressReserveWei, b3tr(200));
+  assert.equal(result.reusableAfterLateProtectionWei, b3tr(800));
+  assert.equal(result.balancedBoostReleaseWei, b3tr(800));
+});
