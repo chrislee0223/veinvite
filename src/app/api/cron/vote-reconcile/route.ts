@@ -24,9 +24,6 @@ import {
   runRewardReservationRecovery,
   type RewardReservationRecoverySweep,
 } from '@/lib/rewards/rewardReservationRecovery';
-import {
-  runRewardXPromotionShadowSync,
-} from '@/lib/rewards/rewardXPromotionShadow';
 import { supabaseAdmin } from '@/lib/supabaseServer';
 import {
   runB3trRecipientObservationBatch,
@@ -981,12 +978,6 @@ export async function GET(
   let rewardReservation:
     RewardReservationRecoverySweep | null =
       null;
-  let xPromotionShadow:
-    Awaited<
-      ReturnType<
-        typeof runRewardXPromotionShadowSync
-      >
-    > | null = null;
   let b3trRecipientObservation:
     Awaited<
       ReturnType<
@@ -1071,6 +1062,9 @@ export async function GET(
     await runScheduledRewardMaintenance();
   errors.push(
     ...rewardMaintenance.errors,
+  );
+  warnings.push(
+    ...rewardMaintenance.warnings,
   );
 
   const voteTriggeredRecovery =
@@ -1182,24 +1176,6 @@ export async function GET(
     errors.push(
       ...rewardRecovery.errors,
     );
-
-    // Shadow accounting is deliberately downstream of the authoritative
-    // reservation recovery. It only projects already-fixed reservations and
-    // can never block or fail the real reward path.
-    try {
-      xPromotionShadow =
-        await runRewardXPromotionShadowSync(
-          50,
-        );
-    } catch (error) {
-      console.error(
-        'X promotion shadow sync failed:',
-        error,
-      );
-      warnings.push(
-        'X_PROMOTION_SHADOW_SYNC_FAILED',
-      );
-    }
 
     try {
       b3trRecipientObservation =
@@ -1365,7 +1341,8 @@ export async function GET(
       sybilV2PolicyReassessment,
       sybilV2Assessment,
       rewardReservation,
-      xPromotionShadow,
+      xPromotionShadow:
+        rewardMaintenance.xPromotionShadow,
       b3trRecipientObservation,
       sybilV2PostPayout,
       sybilV2WatchFollowup,
