@@ -55,6 +55,8 @@ test('source attribution conserves total reusable funding with promotion', () =>
   const result = calculateRewardBoostReserveShadow({
     currentCohortRoundId: 120,
     currentRewardWei: b3tr(100),
+    currentPricingCapacityWei: b3tr(400),
+    currentStressRecipients: 4,
     observedPoolBalanceWei: b3tr(5000),
     reservedExistingWei: '0',
     cohorts: [
