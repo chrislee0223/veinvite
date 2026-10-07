@@ -371,3 +371,33 @@ test('completed clear but unreserved referrals are fully protected from sweeping
   assert.equal(result.cohorts[0].sweepableWei, b3tr(1500));
   assert.equal(result.bankDepositWei, b3tr(1500));
 });
+
+
+test('recent non-mature cohort liquidity is protected from current boost', () => {
+  const result = calculateRewardBoostReserveShadow({
+    currentCohortRoundId: 119,
+    currentRewardWei: b3tr(200),
+    currentPricingCapacityWei: b3tr(800),
+    currentStressRecipients: 4,
+    observedPoolBalanceWei: b3tr(1000),
+    reservedExistingWei: '0',
+    recentCohortProtectedWei: b3tr(100),
+    cohorts: [
+      {
+        rewardCohortRoundId: 117,
+        allocationReceiptId: '40',
+        officialAllocationWei: b3tr(500),
+        promotionFundingWei: '0',
+        committedWei: '0',
+        lateRewardWei: '0',
+        queuedEligibleCount: 0,
+        lateParticipants: [],
+      },
+    ],
+  });
+
+  assert.equal(result.recentCohortProtectedWei, b3tr(100));
+  assert.equal(result.physicalBoostCapacityWei, b3tr(100));
+  assert.equal(result.boostAvailableWei, b3tr(100));
+  assert.equal(result.shadowBoostedPricingCapacityWei, b3tr(900));
+});
