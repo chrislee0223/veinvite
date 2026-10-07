@@ -157,18 +157,48 @@ export const REWARD_RECEIPT_SHARE_COPY: Record<
   },
 };
 
+export function formatRewardShareAmount(value: string): string {
+  const normalized = value.trim();
+  const match = /^(\d+)(?:\.(\d+))?$/.exec(normalized);
+  if (!match) return normalized;
+
+  const whole = match[1];
+  const fraction = match[2] ?? '';
+  if (fraction.length <= 2) return normalized;
+
+  let cents =
+    BigInt(whole) * 100n +
+    BigInt(fraction.slice(0, 2).padEnd(2, '0'));
+
+  if (fraction[2] >= '5') cents += 1n;
+
+  const roundedWhole = cents / 100n;
+  const roundedFraction = (cents % 100n)
+    .toString()
+    .padStart(2, '0')
+    .replace(/0+$/, '');
+
+  return roundedFraction
+    ? `${roundedWhole.toString()}.${roundedFraction}`
+    : roundedWhole.toString();
+}
+
 export function rewardReceiptShareText({
-  locale,
+  locale: _locale,
   amountB3tr,
 }: {
   locale: SupportedLocale;
   amountB3tr: string;
 }): string {
-  const copy = REWARD_RECEIPT_SHARE_COPY[locale];
+  const amount = formatRewardShareAmount(amountB3tr);
+
   return [
-    copy.received.replace('{amount}', amountB3tr),
-    copy.invite,
-  ].join('\n\n');
+    `I just earned ${amount} #B3TR`,
+    'by inviting a friend with @Veinvite',
+    'on #VeBetterDAO 🎉',
+    '',
+    'Invite friends. Earn B3TR. 👇',
+  ].join('\n');
 }
 
 export function rewardReceiptShareLabel(
@@ -192,7 +222,7 @@ export function rewardReceiptXIntentUrl({
     [
       rewardReceiptShareText({ locale, amountB3tr }),
       referralUrl,
-      '#VeBetterDAO #B3TR #VeInvite',
+      '#VeChain #Web3 #Crypto',
     ].join('\n\n'),
   );
   return intent.toString();
