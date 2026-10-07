@@ -92,3 +92,19 @@ test('settlement fallback reuses vote-reconcile and adds no new Vercel cron', ()
     true,
   );
 });
+
+
+test('settlement fallback records both success and failure heartbeats', () => {
+  assert.match(
+    scheduler,
+    /markCronJobSucceeded\([\s\S]*SUBMITTED_PAYOUT_RECOVERY_JOB/,
+  );
+  assert.match(
+    scheduler,
+    /markCronJobFailed\([\s\S]*SUBMITTED_PAYOUT_RECOVERY_JOB/,
+  );
+  assert.match(
+    scheduler,
+    /SUBMITTED_PAYOUT_RECOVERY_FAILED/,
+  );
+});
