@@ -115,6 +115,13 @@ test('public forecast and actual fixed pricing both use designated cohort fundin
   assert.match(forecastPolicy, /designatedBudget = officialAllocation \+ fundingAdjustment/);
   assert.match(forecastPolicy, /remainingCohortBudget/);
   assert.match(predictivePolicy, /predictive-reserve-v2-cohort/);
-  assert.match(predictivePolicy, /designatedBudget = latestAllocation \+ fundingAdjustment/);
+  assert.match(
+    predictivePolicy,
+    /latestAllocation \+ fundingAdjustment \+ reserveNetFlow/,
+  );
+  assert.match(
+    forecastPolicy,
+    /officialAllocation \+ fundingAdjustment \+ reserveNetFlow/,
+  );
   assert.match(predictivePolicy, /cohortAvailableBudget/);
 });
