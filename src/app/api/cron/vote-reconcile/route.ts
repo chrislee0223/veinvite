@@ -1063,9 +1063,6 @@ export async function GET(
   errors.push(
     ...rewardMaintenance.errors,
   );
-  warnings.push(
-    ...rewardMaintenance.warnings,
-  );
 
   const voteTriggeredRecovery =
     (eventWatcher?.voteDetected ??
@@ -1341,8 +1338,6 @@ export async function GET(
       sybilV2PolicyReassessment,
       sybilV2Assessment,
       rewardReservation,
-      xPromotionShadow:
-        rewardMaintenance.xPromotionShadow,
       b3trRecipientObservation,
       sybilV2PostPayout,
       sybilV2WatchFollowup,
