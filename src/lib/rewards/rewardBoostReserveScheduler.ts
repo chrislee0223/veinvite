@@ -12,6 +12,12 @@ import {
   runRewardBoostReserveRebalance,
   type RewardBoostReserveExecutionResult,
 } from '@/lib/rewards/rewardBoostReserveExecution';
+import {
+  readRewardRuntimeSafety,
+} from '@/lib/rewards/runtimeSafety';
+import {
+  getVeBetterNetworkConfig,
+} from '@/lib/vebetter/network';
 
 export const REWARD_BOOST_REBALANCE_INTERVAL_SECONDS =
   30 * 60;
@@ -28,6 +34,7 @@ export type ScheduledRewardBoostReserveResult = {
     latestVeBetterRoundId: string | null;
   } | null;
   reserve: RewardBoostReserveExecutionResult | null;
+  skippedReason: 'RUNTIME_CLOSED' | null;
   error: string | null;
 };
 
@@ -52,6 +59,7 @@ Promise<ScheduledRewardBoostReserveResult> {
       claimed: false,
       allocationSync: null,
       reserve: null,
+      skippedReason: null,
       error:
         'REWARD_BOOST_RESERVE_CADENCE_CLAIM_FAILED',
     };
@@ -62,11 +70,37 @@ Promise<ScheduledRewardBoostReserveResult> {
       claimed: false,
       allocationSync: null,
       reserve: null,
+      skippedReason: null,
       error: null,
     };
   }
 
   try {
+    const runtime =
+      await readRewardRuntimeSafety();
+    const { network } =
+      getVeBetterNetworkConfig();
+
+    if (
+      runtime.emergencyRewardsPaused ||
+      (
+        network === 'mainnet' &&
+        !runtime.mainnetFundedRewardsEnabled
+      )
+    ) {
+      await markCronJobSucceeded(
+        REWARD_BOOST_REBALANCE_JOB,
+      );
+
+      return {
+        claimed: true,
+        allocationSync: null,
+        reserve: null,
+        skippedReason: 'RUNTIME_CLOSED',
+        error: null,
+      };
+    }
+
     // Finalized AllocationRewardsClaimed evidence defines the reward cohort.
     // Sync it immediately before rebalancing so a newly opened VeBetterDAO
     // round is protected/boosted without waiting for the daily cron.
@@ -89,6 +123,7 @@ Promise<ScheduledRewardBoostReserveResult> {
             ?.vebetter_round_id ?? null,
       },
       reserve,
+      skippedReason: null,
       error: null,
     };
   } catch (error) {
@@ -113,6 +148,7 @@ Promise<ScheduledRewardBoostReserveResult> {
       claimed: true,
       allocationSync: null,
       reserve: null,
+      skippedReason: null,
       error:
         'REWARD_BOOST_RESERVE_REBALANCE_FAILED',
     };
