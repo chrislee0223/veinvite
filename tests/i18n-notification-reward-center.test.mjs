@@ -190,22 +190,37 @@ test('QA previews both paid bell history and the real paid bottom popup', () => 
   assert.match(center, /allowProgrammaticOpen/);
 });
 
-test('referral sharing keeps the dedicated 1200x600 X large-card route', () => {
+test('referral sharing keeps distinct 1200x600 invite and reward X cards', () => {
   assert.match(referralPage, /card: 'summary_large_image'/);
+  assert.match(referralPage, /images: \[imageUrl\]/);
+  assert.match(referralPage, /width: 1200/);
+  assert.match(referralPage, /height: 600/);
+  assert.match(referralPage, /You've been invited to VeInvite/);
+
   assert.match(referralOg, /width: 1200/);
   assert.match(referralOg, /height: 600/);
-  assert.match(referralOg, /contentType = 'image\/png'/);
-  assert.match(referralOg, /veinvite-logo-og\.png/);
-  assert.doesNotMatch(referralOg, /veinvite-logo\.webp/);
+  assert.match(referralOg, /contentType = 'image\\/png'/);
+  assert.match(referralOg, /veinvite-logo-og\\.png/);
+  assert.match(referralOg, /You’ve been invited to VeInvite\\./);
+  assert.match(referralOg, /Join\\. Verify\\. Earn B3TR\\./);
+  assert.doesNotMatch(referralOg, /A friend earned B3TR with VeInvite/);
+  assert.doesNotMatch(referralOg, /veinvite-logo\\.webp/);
+
   assert.match(socialReferralPage, /card: 'summary_large_image'/);
   assert.match(socialReferralPage, /images: \[imageUrl\]/);
   assert.match(socialReferralPage, /width: 1200/);
   assert.match(socialReferralPage, /height: 600/);
+  assert.match(socialReferralPage, /A friend earned B3TR with VeInvite/);
+
   assert.match(socialReferralOg, /width: 1200/);
   assert.match(socialReferralOg, /height: 600/);
-  assert.match(socialReferralOg, /contentType = 'image\/png'/);
-  assert.match(socialReferralOg, /veinvite-logo-og\.png/);
-  assert.doesNotMatch(socialReferralOg, /veinvite-logo\.webp/);
+  assert.match(socialReferralOg, /contentType = 'image\\/png'/);
+  assert.match(socialReferralOg, /veinvite-logo-og\\.png/);
+  assert.match(socialReferralOg, /A friend earned B3TR with VeInvite\\./);
+  assert.match(socialReferralOg, /Join\\. Verify\\. Invite\\. Earn\\./);
+  assert.doesNotMatch(socialReferralOg, /You’ve been invited to VeInvite/);
+  assert.doesNotMatch(socialReferralOg, /veinvite-logo\\.webp/);
+
   assert.equal(
     existsSync('public/veinvite-logo-og.png'),
     true,

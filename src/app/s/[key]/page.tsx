@@ -4,7 +4,11 @@ import { PermanentReferralClient } from '@/components/PermanentReferralClient';
 import { WalletSessionGate } from '@/components/WalletSessionGate';
 
 const SITE_URL = 'https://veinvite.vercel.app';
-const CARD_ALT = 'VeInvite — Invite friends and earn B3TR';
+const TITLE = 'A friend earned B3TR with VeInvite';
+const DESCRIPTION =
+  'See how referrals turn into rewards. Join VeInvite on VeBetterDAO.';
+const CARD_ALT =
+  'A friend earned B3TR with VeInvite — Join. Verify. Invite. Earn.';
 
 export async function generateMetadata({
   params,
@@ -17,13 +21,11 @@ export async function generateMetadata({
   const imageUrl = `${pageUrl}/opengraph-image`;
 
   return {
-    title: 'VeInvite',
-    description:
-      'Invite your friends through VeInvite and help them get started with VeBetterDAO.',
+    title: TITLE,
+    description: DESCRIPTION,
     openGraph: {
-      title: 'VeInvite',
-      description:
-        'Invite your friends through VeInvite and help them get started with VeBetterDAO.',
+      title: TITLE,
+      description: DESCRIPTION,
       url: pageUrl,
       siteName: 'VeInvite',
       type: 'website',
@@ -39,9 +41,8 @@ export async function generateMetadata({
     },
     twitter: {
       card: 'summary_large_image',
-      title: 'VeInvite',
-      description:
-        'Invite your friends through VeInvite and help them get started with VeBetterDAO.',
+      title: TITLE,
+      description: DESCRIPTION,
       images: [imageUrl],
     },
   };
