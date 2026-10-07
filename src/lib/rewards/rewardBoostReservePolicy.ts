@@ -21,6 +21,7 @@ export type RewardBoostReserveCohortInput = {
   promotionFundingWei: string;
   committedWei: string;
   lateRewardWei: string;
+  queuedEligibleCount: number;
   lateParticipants: RewardBoostReserveLateParticipant[];
 };
 
@@ -31,6 +32,7 @@ export type RewardBoostReserveCohortResult = {
   promotionFundingWei: string;
   committedWei: string;
   lateRewardWei: string;
+  queuedEligibleCount: number;
   reusableOfficialWei: string;
   reusablePromotionWei: string;
   reusableTotalWei: string;
@@ -261,7 +263,16 @@ export function calculateRewardBoostReserveShadow(input: {
     reusableOfficial += remainder.reusableOfficial;
     reusablePromotion += remainder.reusablePromotion;
 
-    let cohortWeightedLateBps = 0n;
+    const queuedEligibleCount = safeCount(
+      cohort.queuedEligibleCount,
+      'cohort.queuedEligibleCount',
+    );
+    let cohortWeightedLateBps =
+      BigInt(queuedEligibleCount) * BPS;
+    weightedLateBps += BigInt(queuedEligibleCount) * BPS;
+    weightedLateLiabilityNumerator +=
+      lateReward * BigInt(queuedEligibleCount) * BPS;
+
     for (const participant of cohort.lateParticipants) {
       const weightBps = lateParticipantWeightBps(participant);
       cohortWeightedLateBps += weightBps;
@@ -291,6 +302,7 @@ export function calculateRewardBoostReserveShadow(input: {
         'cohort.committedWei',
       ).toString(),
       lateRewardWei: lateReward.toString(),
+      queuedEligibleCount,
       reusableOfficialWei: remainder.reusableOfficial.toString(),
       reusablePromotionWei: remainder.reusablePromotion.toString(),
       reusableTotalWei: remainder.reusableTotal.toString(),
