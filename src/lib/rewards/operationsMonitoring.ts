@@ -13,9 +13,6 @@ import {
   readPredictiveRewardPlanning,
 } from '@/lib/rewards/predictivePlanning';
 import {
-  readLatestRewardForecastSnapshot,
-} from '@/lib/rewards/rewardForecastSnapshot';
-import {
   readRewardRuntimeSafety,
 } from '@/lib/rewards/runtimeSafety';
 import { supabaseAdmin } from '@/lib/supabaseServer';
@@ -341,7 +338,7 @@ Promise<RewardOperationsHealth> {
     signedResult,
     planning,
     reserveAuditResult,
-    latestForecastSnapshot,
+    latestForecastSnapshotResult,
   ] = await Promise.all([
     supabaseAdmin
       .from('reward_queue_entries')
@@ -393,10 +390,14 @@ Promise<RewardOperationsHealth> {
         p_app_id: pool.appId,
       },
     ),
-    readLatestRewardForecastSnapshot({
-      network: pool.network,
-      appId: pool.appId,
-    }),
+    supabaseAdmin
+      .from('reward_forecast_snapshots')
+      .select('input_snapshot, model_version')
+      .eq('network', pool.network)
+      .eq('app_id', pool.appId)
+      .order('generated_at', { ascending: false })
+      .limit(1)
+      .maybeSingle(),
   ]);
 
   if (queueResult.error) {
@@ -419,6 +420,11 @@ Promise<RewardOperationsHealth> {
   if (reserveAuditResult.error) {
     throw new Error(
       `Reward boost reserve audit check failed: ${reserveAuditResult.error.message}`,
+    );
+  }
+  if (latestForecastSnapshotResult.error) {
+    throw new Error(
+      `Reward forecast reserve-alignment check failed: ${latestForecastSnapshotResult.error.message}`,
     );
   }
 
@@ -483,10 +489,34 @@ Promise<RewardOperationsHealth> {
     'reserve.stressReserveCovered',
   );
 
+  const latestForecastInput =
+    latestForecastSnapshotResult.data &&
+    typeof latestForecastSnapshotResult.data === 'object' &&
+    !Array.isArray(latestForecastSnapshotResult.data)
+      ? (
+          latestForecastSnapshotResult.data as {
+            input_snapshot?: unknown;
+          }
+        ).input_snapshot
+      : null;
+  const latestForecastInputRecord =
+    latestForecastInput &&
+    typeof latestForecastInput === 'object' &&
+    !Array.isArray(latestForecastInput)
+      ? latestForecastInput as Record<string, unknown>
+      : null;
+  const snapshotReserveNetFlow =
+    latestForecastInputRecord &&
+    latestForecastInputRecord.reserveNetFlowWei !== undefined
+      ? integerString(
+          latestForecastInputRecord.reserveNetFlowWei,
+          'forecast.reserveNetFlowWei',
+        )
+      : null;
   const forecastAligned =
-    planning.forecast && latestForecastSnapshot
-      ? planning.forecast.pricingBasisWei ===
-        latestForecastSnapshot.projectedAllocationWei
+    planning.forecast && snapshotReserveNetFlow !== null
+      ? planning.reserveNetFlowWei ===
+        snapshotReserveNetFlow
       : null;
 
   if (reserveEnabled) {
