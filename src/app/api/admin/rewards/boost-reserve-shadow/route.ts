@@ -4,9 +4,9 @@ import {
 } from 'next/server';
 
 import {
-  canOperateVeInviteRewards,
-  readVeInviteRewardPoolStatus,
-} from '@/lib/rewards/onchainPool';
+  isVeInviteRewardOperator,
+  readVeInviteOperatorAccess,
+} from '@/lib/rewards/operatorAccess';
 import {
   readRewardBoostReserveShadow,
 } from '@/lib/rewards/rewardBoostReserveShadow';
@@ -23,13 +23,13 @@ export async function GET(
   try {
     const session =
       await requireWalletSession({ request });
-    const pool =
-      await readVeInviteRewardPoolStatus();
+    const access =
+      await readVeInviteOperatorAccess();
 
     if (
-      !canOperateVeInviteRewards(
+      !isVeInviteRewardOperator(
         session.walletAddress,
-        pool,
+        access,
       )
     ) {
       return NextResponse.json(
