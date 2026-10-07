@@ -205,6 +205,11 @@ test('referral sharing keeps distinct 1200x600 invite and reward X cards', () =>
   assert.ok(referralOg.includes('Join. Verify. Earn B3TR.'));
   assert.equal(referralOg.includes('A friend earned B3TR with VeInvite'), false);
   assert.equal(referralOg.includes('veinvite-logo.webp'), false);
+  assert.equal(
+    referralOg.includes('✦'),
+    false,
+    'invite OG must not require a dynamic glyph font',
+  );
 
   assert.ok(socialReferralPage.includes("card: 'summary_large_image'"));
   assert.ok(socialReferralPage.includes('images: [imageUrl]'));
@@ -220,6 +225,11 @@ test('referral sharing keeps distinct 1200x600 invite and reward X cards', () =>
   assert.ok(socialReferralOg.includes('Join. Verify. Invite. Earn.'));
   assert.equal(socialReferralOg.includes('You’ve been invited to VeInvite'), false);
   assert.equal(socialReferralOg.includes('veinvite-logo.webp'), false);
+  assert.equal(
+    socialReferralOg.includes('✦'),
+    false,
+    'reward OG must not require a dynamic glyph font',
+  );
 
   assert.equal(
     existsSync('public/veinvite-logo-og.png'),
