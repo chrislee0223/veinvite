@@ -223,3 +223,36 @@ test('balanced shadow never lets historical reserve exceed fresh cohort pricing 
   assert.equal(result.balancedBoostReleaseWei, b3tr(800));
   assert.equal(result.shadowBalancedRewardWei, b3tr(400));
 });
+
+
+test('physical boost headroom excludes the current cohort pricing capacity', () => {
+  const result = calculateRewardBoostReserveShadow({
+    currentCohortRoundId: 119,
+    currentRewardWei: b3tr(200),
+    currentPricingCapacityWei: b3tr(800),
+    currentStressRecipients: 4,
+    observedPoolBalanceWei: b3tr(1000),
+    reservedExistingWei: '0',
+    safetyBufferBps: 1500,
+    cohorts: [
+      {
+        rewardCohortRoundId: 117,
+        allocationReceiptId: '12',
+        officialAllocationWei: b3tr(500),
+        promotionFundingWei: '0',
+        committedWei: '0',
+        lateParticipants: [],
+      },
+    ],
+  });
+
+  // 1,000 physical - 150 safety - 800 current pricing = 50 extra boost.
+  assert.equal(result.physicalBoostCapacityWei, b3tr(50));
+  assert.equal(result.boostAvailableWei, b3tr(50));
+  assert.equal(result.shadowBoostedPricingCapacityWei, b3tr(850));
+  assert.ok(
+    BigInt(result.shadowBoostedPricingCapacityWei) +
+      BigInt(result.safetyBufferWei) <=
+      BigInt(result.physicalUnreservedPoolWei),
+  );
+});
