@@ -35,6 +35,10 @@ type RestrictionRow = {
   status: string | null;
 };
 
+type SourceProtectionRow = {
+  source_allocation_receipt_id: number | string;
+};
+
 type InvitationRow = {
   invitee_wallet: string | null;
   reward_cohort_round_id: number | string | null;
@@ -133,6 +137,8 @@ export async function readRewardBoostReserveShadow(
     invitationResult,
     restrictionResult,
     recentAllocationResult,
+    protectionResult,
+    auditResult,
   ] = await Promise.all([
       supabaseAdmin
         .from('vebetter_round_allocations')
@@ -187,6 +193,18 @@ export async function readRewardBoostReserveShadow(
           currentCohortRoundId - 2,
         )
         .order('vebetter_round_id', { ascending: true }),
+      supabaseAdmin
+        .from('reward_boost_reserve_source_protections')
+        .select('source_allocation_receipt_id')
+        .eq('network', pool.network)
+        .eq('app_id', pool.appId),
+      supabaseAdmin.rpc(
+        'read_reward_boost_reserve_audit_snapshot',
+        {
+          p_network: pool.network,
+          p_app_id: pool.appId,
+        },
+      ),
     ]);
 
   if (allocationResult.error) {
@@ -214,6 +232,16 @@ export async function readRewardBoostReserveShadow(
       `Reward boost reserve recent allocations could not be loaded: ${recentAllocationResult.error.message}`,
     );
   }
+  if (protectionResult.error) {
+    throw new Error(
+      `Reward boost reserve source protections could not be loaded: ${protectionResult.error.message}`,
+    );
+  }
+  if (auditResult.error) {
+    throw new Error(
+      `Reward boost reserve audit could not be loaded: ${auditResult.error.message}`,
+    );
+  }
 
   const allocations =
     (allocationResult.data ?? []) as AllocationRow[];
@@ -225,6 +253,41 @@ export async function readRewardBoostReserveShadow(
     (restrictionResult.data ?? []) as RestrictionRow[];
   const recentAllocations =
     (recentAllocationResult.data ?? []) as AllocationRow[];
+  const sourceProtections =
+    (protectionResult.data ?? []) as SourceProtectionRow[];
+  const protectedReceiptIds = new Set(
+    sourceProtections.map((row) =>
+      integerString(
+        row.source_allocation_receipt_id,
+        'source protection allocation receipt id',
+      ),
+    ),
+  );
+  const auditRecord =
+    auditResult.data &&
+    typeof auditResult.data === 'object' &&
+    !Array.isArray(auditResult.data)
+      ? auditResult.data as Record<string, unknown>
+      : null;
+
+  if (!auditRecord) {
+    throw new Error(
+      'Reward boost reserve audit is malformed.',
+    );
+  }
+
+  const existingBankBalanceWei = integerString(
+    auditRecord.bankBalanceWei,
+    'reward boost reserve bank balance',
+  );
+  const existingBankStressReserveWei = integerString(
+    auditRecord.bankStressReserveWei,
+    'reward boost reserve bank stress reserve',
+  );
+  const existingSourceRetainedProtectionWei = integerString(
+    auditRecord.sourceRetainedProtectionWei,
+    'reward boost reserve retained source protection',
+  );
   const activelyRestrictedWallets = new Set(
     restrictions
       .filter(
@@ -287,7 +350,17 @@ export async function readRewardBoostReserveShadow(
   }
 
   const cohorts = await Promise.all(
-    allocations.map(async (allocation): Promise<RewardBoostReserveCohortInput> => {
+    allocations
+      .filter(
+        (allocation) =>
+          !protectedReceiptIds.has(
+            integerString(
+              allocation.id,
+              'allocation receipt id',
+            ),
+          ),
+      )
+      .map(async (allocation): Promise<RewardBoostReserveCohortInput> => {
       const allocationReceiptId = integerString(
         allocation.id,
         'allocation receipt id',
@@ -414,6 +487,9 @@ export async function readRewardBoostReserveShadow(
       reservedExistingWei: planning.reservedExistingWei,
       recentCohortProtectedWei:
         recentCohortProtectedWei.toString(),
+      existingBankBalanceWei,
+      existingBankStressReserveWei,
+      existingSourceRetainedProtectionWei,
       cohorts,
     }),
   };
