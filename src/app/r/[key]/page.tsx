@@ -69,7 +69,9 @@ export default async function PermanentReferralPage({
   ]);
 
   return (
-    <ReferralWalletBootstrapBoundary>
+    <ReferralWalletBootstrapBoundary
+      initialSessionWallet={bootstrap.initialSessionWallet}
+    >
       <WalletSessionGate
         initialSessionWallet={bootstrap.initialSessionWallet}
         initialRestrictionKind={bootstrap.initialRestrictionKind}
