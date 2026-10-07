@@ -14,6 +14,7 @@ import {
 
 const BROWSER_WALLET_BOOTSTRAP_SETTLE_MS = 350;
 const VEWORLD_WALLET_BOOTSTRAP_SETTLE_MS = 3_500;
+const REFERRAL_WALLET_BOOTSTRAP_MAX_HOLD_MS = 5_000;
 
 /**
  * Direct referral routes are opened outside Home and can otherwise reveal their
@@ -33,6 +34,20 @@ export function ReferralWalletBootstrapBoundary({
   const [settled, setSettled] = useState(
     Boolean(walletAddress),
   );
+
+  useEffect(() => {
+    if (settled) {
+      return;
+    }
+
+    const fallbackTimer = window.setTimeout(() => {
+      setSettled(true);
+    }, REFERRAL_WALLET_BOOTSTRAP_MAX_HOLD_MS);
+
+    return () => {
+      window.clearTimeout(fallbackTimer);
+    };
+  }, [settled]);
 
   useEffect(() => {
     if (settled) {
