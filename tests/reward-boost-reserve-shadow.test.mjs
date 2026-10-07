@@ -4,7 +4,7 @@ import test from 'node:test';
 import {
   calculateRewardBoostReserveShadow,
   REWARD_BOOST_RESERVE_LONG_INCOMPLETE_ROUNDS,
-  REWARD_BOOST_RESERVE_SAFETY_BUFFER_BPS,
+  REWARD_BOOST_RESERVE_PROMOTION_RESERVE_BPS,
 } from '../src/lib/rewards/rewardBoostReservePolicy.ts';
 
 const E18 = 10n ** 18n;
@@ -79,7 +79,11 @@ test('source attribution conserves total reusable funding with promotion', () =>
 
   assert.equal(result.reusableOfficialWei, b3tr(900));
   assert.equal(result.reusablePromotionWei, b3tr(700));
+  assert.equal(result.promotionReserveWei, b3tr(180));
+  assert.equal(result.cohorts[0].promotionReserveWei, b3tr(180));
+  assert.equal(result.cohorts[0].sweepablePromotionWei, b3tr(520));
   assert.equal(result.reusableGrossWei, b3tr(1600));
+  assert.equal(result.reusableAfterLateProtectionWei, b3tr(1420));
   assert.equal(
     BigInt(result.reusableOfficialWei) +
       BigInt(result.reusablePromotionWei),
@@ -126,20 +130,20 @@ test('late participants receive pooled protection before boost capacity', () => 
   assert.equal(result.reusableAfterLateProtectionWei, b3tr(2310));
 });
 
-test('15 percent physical safety buffer is protected from boost use', () => {
+test('15 percent of original promotion funding stays as emergency reserve', () => {
   const result = calculateRewardBoostReserveShadow({
     currentCohortRoundId: 119,
     currentRewardWei: b3tr(200),
     currentPricingCapacityWei: b3tr(400),
     currentStressRecipients: 4,
-    observedPoolBalanceWei: b3tr(1000),
-    reservedExistingWei: b3tr(200),
+    observedPoolBalanceWei: b3tr(3000),
+    reservedExistingWei: '0',
     cohorts: [
       {
         rewardCohortRoundId: 117,
         allocationReceiptId: '4',
-        officialAllocationWei: b3tr(1000),
-        promotionFundingWei: '0',
+        officialAllocationWei: '0',
+        promotionFundingWei: b3tr(1000),
         committedWei: '0',
         lateRewardWei: '0',
         queuedEligibleCount: 0,
@@ -149,13 +153,15 @@ test('15 percent physical safety buffer is protected from boost use', () => {
   });
 
   assert.equal(
-    result.safetyBufferBps,
-    REWARD_BOOST_RESERVE_SAFETY_BUFFER_BPS,
+    result.promotionReserveBps,
+    REWARD_BOOST_RESERVE_PROMOTION_RESERVE_BPS,
   );
-  assert.equal(result.physicalUnreservedPoolWei, b3tr(800));
-  assert.equal(result.safetyBufferWei, b3tr(120));
-  assert.equal(result.physicalBoostCapacityWei, b3tr(280));
-  assert.equal(result.boostAvailableWei, b3tr(280));
+  assert.equal(result.promotionReserveWei, b3tr(150));
+  assert.equal(result.cohorts[0].promotionReserveWei, b3tr(150));
+  assert.equal(result.cohorts[0].sweepablePromotionWei, b3tr(850));
+  assert.equal(result.reusableAfterLateProtectionWei, b3tr(850));
+  assert.equal(result.physicalBoostCapacityWei, b3tr(2450));
+  assert.equal(result.boostAvailableWei, b3tr(850));
 });
 
 test('already committed rewards are never made reusable', () => {
@@ -245,7 +251,7 @@ test('balanced shadow never lets historical reserve exceed fresh cohort pricing 
 });
 
 
-test('physical boost headroom excludes the current cohort pricing capacity', () => {
+test('physical boost headroom excludes current pricing and promotion reserve', () => {
   const result = calculateRewardBoostReserveShadow({
     currentCohortRoundId: 119,
     currentRewardWei: b3tr(200),
@@ -253,13 +259,12 @@ test('physical boost headroom excludes the current cohort pricing capacity', () 
     currentStressRecipients: 4,
     observedPoolBalanceWei: b3tr(1000),
     reservedExistingWei: '0',
-    safetyBufferBps: 1500,
     cohorts: [
       {
         rewardCohortRoundId: 117,
         allocationReceiptId: '12',
-        officialAllocationWei: b3tr(500),
-        promotionFundingWei: '0',
+        officialAllocationWei: '0',
+        promotionFundingWei: b3tr(500),
         committedWei: '0',
         lateRewardWei: '0',
         queuedEligibleCount: 0,
@@ -268,17 +273,17 @@ test('physical boost headroom excludes the current cohort pricing capacity', () 
     ],
   });
 
-  // 1,000 physical - 150 safety - 800 current pricing = 50 extra boost.
-  assert.equal(result.physicalBoostCapacityWei, b3tr(50));
-  assert.equal(result.boostAvailableWei, b3tr(50));
-  assert.equal(result.shadowBoostedPricingCapacityWei, b3tr(850));
+  // 1,000 physical - 800 current pricing - 75 promotion reserve = 125.
+  assert.equal(result.promotionReserveWei, b3tr(75));
+  assert.equal(result.physicalBoostCapacityWei, b3tr(125));
+  assert.equal(result.boostAvailableWei, b3tr(125));
+  assert.equal(result.shadowBoostedPricingCapacityWei, b3tr(925));
   assert.ok(
     BigInt(result.shadowBoostedPricingCapacityWei) +
-      BigInt(result.safetyBufferWei) <=
+      BigInt(result.promotionReserveWei) <=
       BigInt(result.physicalUnreservedPoolWei),
   );
 });
-
 
 test('late protection uses original cohort rates instead of one current rate', () => {
   const result = calculateRewardBoostReserveShadow({
