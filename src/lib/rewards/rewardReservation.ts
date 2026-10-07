@@ -518,6 +518,17 @@ async function reserveCandidate({
     if (result.reason === 'AWAITING_FINALITY') {
       return 'awaiting_finality';
     }
+    if (result.reason === 'RESERVE_UNDERFUNDED') {
+      return skipCandidate(
+        candidate,
+        'RESERVE_UNDERFUNDED',
+        {
+          // This referral remains eligible and will be retried by the normal
+          // recovery sweep after the reserve bank receives more funding.
+          rpcReason: result.reason,
+        },
+      );
+    }
     return skipCandidate(
       candidate,
       'RPC_NOT_RESERVED',
