@@ -58,6 +58,7 @@ export type RewardBoostReserveShadowResult = {
   observedPoolBalanceWei: string;
   reservedExistingWei: string;
   physicalUnreservedPoolWei: string;
+  recentCohortProtectedWei: string;
   promotionReserveWei: string;
   longIncompleteCount: number;
   queuedEligibleCount: number;
@@ -173,6 +174,7 @@ export function calculateRewardBoostReserveShadow(input: {
   currentStressRecipients: number;
   observedPoolBalanceWei: string;
   reservedExistingWei: string;
+  recentCohortProtectedWei?: string;
   cohorts: RewardBoostReserveCohortInput[];
   longIncompleteAfterRounds?: number;
   promotionReserveBps?: number;
@@ -226,6 +228,10 @@ export function calculateRewardBoostReserveShadow(input: {
   const physicalUnreservedPool = observedPool > reservedExisting
     ? observedPool - reservedExisting
     : 0n;
+  const recentCohortProtected = parseWei(
+    input.recentCohortProtectedWei ?? '0',
+    'recentCohortProtectedWei',
+  );
   let promotionReserveTotal = 0n;
 
   const reusableThroughCohortRoundId =
@@ -402,6 +408,7 @@ export function calculateRewardBoostReserveShadow(input: {
     promotionReserveTotal +
     sourceLateProtected +
     bankStressReserve +
+    recentCohortProtected +
     currentPricingCapacity;
   const physicalBoostCapacity =
     physicalUnreservedPool > protectedPhysicalCapacity
@@ -444,6 +451,8 @@ export function calculateRewardBoostReserveShadow(input: {
     observedPoolBalanceWei: observedPool.toString(),
     reservedExistingWei: reservedExisting.toString(),
     physicalUnreservedPoolWei: physicalUnreservedPool.toString(),
+    recentCohortProtectedWei:
+      recentCohortProtected.toString(),
     promotionReserveWei: promotionReserveTotal.toString(),
     longIncompleteCount,
     queuedEligibleCount: queuedEligibleCountTotal,
