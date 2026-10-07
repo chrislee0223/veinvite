@@ -80,3 +80,27 @@ test('reserve automation reuses the existing minute cron instead of adding a new
     true,
   );
 });
+
+
+test('intentional reward runtime closure skips reserve work without failing the cron', () => {
+  assert.match(
+    scheduler,
+    /readRewardRuntimeSafety/,
+  );
+  assert.match(
+    scheduler,
+    /runtime\.emergencyRewardsPaused/,
+  );
+  assert.match(
+    scheduler,
+    /!runtime\.mainnetFundedRewardsEnabled/,
+  );
+  assert.match(
+    scheduler,
+    /skippedReason: 'RUNTIME_CLOSED'/,
+  );
+  assert.match(
+    scheduler,
+    /markCronJobSucceeded\([\s\S]*REWARD_BOOST_REBALANCE_JOB/,
+  );
+});
