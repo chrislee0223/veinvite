@@ -70,6 +70,14 @@ test('split policy version must match runtime authority', () => {
   );
 });
 
+test('runtime policy authority is enforced fail-closed', () => {
+  assert.match(migration, /REWARD_X_PROMOTION_POLICY_MISMATCH/);
+  assert.match(
+    migration,
+    /btrim\(new\.policy_version\)<>btrim\(v_cfg\.reward_x_promotion_policy_version\)/,
+  );
+});
+
 test('live split cannot be attached after payout creation', () => {
   assert.match(
     migration,
