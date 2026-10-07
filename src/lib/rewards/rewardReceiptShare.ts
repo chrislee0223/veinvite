@@ -159,7 +159,7 @@ export const REWARD_RECEIPT_SHARE_COPY: Record<
 
 export function formatRewardShareAmount(value: string): string {
   const normalized = value.trim();
-  const match = /^(\\d+)(?:\\.(\\d+))?$/.exec(normalized);
+  const match = /^(\d+)(?:\.(\d+))?$/.exec(normalized);
   if (!match) return normalized;
 
   const whole = match[1];
