@@ -18,7 +18,7 @@ import {
   tryClaimCronJob,
 } from '@/lib/monitoring/cronHeartbeat';
 import {
-  runScheduledRewardBoostReserveRebalance,
+  runScheduledRewardMaintenance,
 } from '@/lib/rewards/rewardBoostReserveScheduler';
 import {
   runRewardReservationRecovery,
@@ -1058,12 +1058,11 @@ export async function GET(
     }
   }
 
-  const rewardBoostError =
-    (await runScheduledRewardBoostReserveRebalance())
-      .error;
-  if (rewardBoostError) {
-    errors.push(rewardBoostError);
-  }
+  const rewardMaintenance =
+    await runScheduledRewardMaintenance();
+  errors.push(
+    ...rewardMaintenance.errors,
+  );
 
   const voteTriggeredRecovery =
     (eventWatcher?.voteDetected ??
