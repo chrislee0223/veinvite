@@ -88,20 +88,18 @@ test('shadow projection is isolated from core reward authority', () => {
   );
 });
 
-test('shadow maintenance failures are warnings and cannot fail core reward work', () => {
+test('shadow maintenance is fail-soft and leaves the cron route untouched', () => {
   assert.match(scheduler, /runRewardXPromotionShadowSync/);
-  assert.match(scheduler, /X_PROMOTION_SHADOW_SYNC_FAILED/);
   assert.match(
     scheduler,
-    /warnings\.push\([\s\S]*X_PROMOTION_SHADOW_SYNC_FAILED/,
+    /console\.warn\([\s\S]*X promotion shadow sync failed/,
   );
   assert.doesNotMatch(
     scheduler,
-    /errors\.push\([\s\S]{0,120}X_PROMOTION_SHADOW_SYNC_FAILED/,
+    /errors\.push\([\s\S]{0,160}X promotion shadow sync failed/,
   );
-  assert.match(route, /rewardMaintenance\.warnings/);
-  assert.match(
+  assert.doesNotMatch(
     route,
-    /xPromotionShadow:\s*rewardMaintenance\.xPromotionShadow/,
+    /rewardXPromotionShadow|xPromotionShadow|X_PROMOTION_SHADOW/,
   );
 });
