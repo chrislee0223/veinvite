@@ -1,5 +1,5 @@
 export const PREDICTIVE_REWARD_ALGORITHM_VERSION =
-  'predictive-reserve-v2-cohort';
+  'predictive-reserve-v3-boost-bank';
 
 const BPS = 10_000;
 const STRESS_GROWTH_BPS = 12_500;
