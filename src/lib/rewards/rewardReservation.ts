@@ -322,6 +322,7 @@ async function reserveCandidate({
       fundingAllocationRoundId: planning.latestAllocation.veBetterRoundId,
       officialAllocationWei: planning.latestAllocation.rewardsAllocationWei,
       fundingAdjustmentWei: planning.fundingAdjustmentWei,
+      reserveNetFlowWei: planning.reserveNetFlowWei,
       designatedBudgetWei: planning.designatedBudgetWei,
       cohortReservedWei: planning.cohortReservedWei,
       observedPoolBalanceWei: pool.effectiveRewardPoolWei,
