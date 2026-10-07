@@ -1,7 +1,9 @@
 import type { Metadata } from 'next';
 
 import { PermanentReferralClient } from '@/components/PermanentReferralClient';
+import { ReferralWalletBootstrapBoundary } from '@/components/ReferralWalletBootstrapBoundary';
 import { WalletSessionGate } from '@/components/WalletSessionGate';
+import { readWalletSessionBootstrap } from '@/lib/walletSessionBootstrapServer';
 
 const SITE_URL = 'https://veinvite.vercel.app';
 const TITLE = "You've been invited to VeInvite";
@@ -61,11 +63,19 @@ export default async function PermanentReferralPage({
 }: {
   params: Promise<{ key: string }>;
 }) {
-  const { key } = await params;
+  const [{ key }, bootstrap] = await Promise.all([
+    params,
+    readWalletSessionBootstrap(),
+  ]);
 
   return (
-    <WalletSessionGate>
-      <PermanentReferralClient referralKey={key.trim()} />
-    </WalletSessionGate>
+    <ReferralWalletBootstrapBoundary>
+      <WalletSessionGate
+        initialSessionWallet={bootstrap.initialSessionWallet}
+        initialRestrictionKind={bootstrap.initialRestrictionKind}
+      >
+        <PermanentReferralClient referralKey={key.trim()} />
+      </WalletSessionGate>
+    </ReferralWalletBootstrapBoundary>
   );
 }

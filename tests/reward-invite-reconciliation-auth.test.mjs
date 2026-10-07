@@ -88,6 +88,6 @@ test('passive invite reads stay public but reveal details only to the verified r
   assert.match(getBody, /toPublicProgress\(\)/u);
   assert.match(inviteRoute, /inviterAddress: ''/u);
   assert.match(inviteRoute, /row\.invitee_wallet\?\.toLowerCase\(\)/u);
-  assert.match(invitePage, /<WalletSessionGate>/u);
+  assert.match(invitePage, /<WalletSessionGate(?:\s|>)/u);
   assert.match(invitePage, /<InviteeClient code=\{normalizedCode\} \/>/u);
 });
