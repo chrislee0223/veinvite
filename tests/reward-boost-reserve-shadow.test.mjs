@@ -17,6 +17,8 @@ test('two-round threshold excludes the current and immediately prior cohort', ()
   const result = calculateRewardBoostReserveShadow({
     currentCohortRoundId: 119,
     currentRewardWei: b3tr(200),
+    currentPricingCapacityWei: b3tr(800),
+    currentStressRecipients: 4,
     observedPoolBalanceWei: b3tr(6000),
     reservedExistingWei: b3tr(200),
     cohorts: [
@@ -81,6 +83,8 @@ test('late participants receive pooled protection before boost capacity', () => 
   const result = calculateRewardBoostReserveShadow({
     currentCohortRoundId: 119,
     currentRewardWei: b3tr(200),
+    currentPricingCapacityWei: b3tr(800),
+    currentStressRecipients: 4,
     observedPoolBalanceWei: b3tr(6000),
     reservedExistingWei: b3tr(200),
     cohorts: [
@@ -101,7 +105,7 @@ test('late participants receive pooled protection before boost capacity', () => 
     ],
   });
 
-  // Weighted expectation is 2.85 users, rounded up to 3, plus one stress user.
+  // Weighted expectation is 2.45 users, rounded up to 3, plus one stress user.
   assert.equal(result.longIncompleteCount, 5);
   assert.equal(result.lateCompletionProtectedRecipients, 4);
   assert.equal(result.lateCompletionProtectedWei, b3tr(800));
@@ -112,6 +116,8 @@ test('15 percent physical safety buffer is protected from boost use', () => {
   const result = calculateRewardBoostReserveShadow({
     currentCohortRoundId: 119,
     currentRewardWei: b3tr(200),
+    currentPricingCapacityWei: b3tr(800),
+    currentStressRecipients: 4,
     observedPoolBalanceWei: b3tr(1000),
     reservedExistingWei: b3tr(200),
     cohorts: [
@@ -140,6 +146,8 @@ test('already committed rewards are never made reusable', () => {
   const result = calculateRewardBoostReserveShadow({
     currentCohortRoundId: 119,
     currentRewardWei: b3tr(200),
+    currentPricingCapacityWei: b3tr(800),
+    currentStressRecipients: 4,
     observedPoolBalanceWei: b3tr(3000),
     reservedExistingWei: '0',
     cohorts: [
@@ -156,4 +164,31 @@ test('already committed rewards are never made reusable', () => {
 
   assert.equal(result.reusableGrossWei, '0');
   assert.equal(result.boostAvailableWei, '0');
+});
+
+
+test('shadow quote uses boost capacity without spending the bank upfront', () => {
+  const result = calculateRewardBoostReserveShadow({
+    currentCohortRoundId: 119,
+    currentRewardWei: b3tr(200),
+    currentPricingCapacityWei: b3tr(800),
+    currentStressRecipients: 4,
+    observedPoolBalanceWei: b3tr(6000),
+    reservedExistingWei: '0',
+    cohorts: [
+      {
+        rewardCohortRoundId: 117,
+        allocationReceiptId: '9',
+        officialAllocationWei: b3tr(1200),
+        promotionFundingWei: '0',
+        committedWei: '0',
+        lateParticipants: [],
+      },
+    ],
+  });
+
+  assert.equal(result.boostAvailableWei, b3tr(1200));
+  assert.equal(result.shadowBoostedPricingCapacityWei, b3tr(2000));
+  assert.equal(result.shadowBoostedRewardWei, b3tr(500));
+  assert.equal(result.shadowExternalCompletionRewardWei, b3tr(400));
 });
