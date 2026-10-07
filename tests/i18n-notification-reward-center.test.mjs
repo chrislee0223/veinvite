@@ -190,22 +190,37 @@ test('QA previews both paid bell history and the real paid bottom popup', () => 
   assert.match(center, /allowProgrammaticOpen/);
 });
 
-test('referral sharing keeps the dedicated 1200x600 X large-card route', () => {
-  assert.match(referralPage, /card: 'summary_large_image'/);
-  assert.match(referralOg, /width: 1200/);
-  assert.match(referralOg, /height: 600/);
-  assert.match(referralOg, /contentType = 'image\/png'/);
-  assert.match(referralOg, /veinvite-logo-og\.png/);
-  assert.doesNotMatch(referralOg, /veinvite-logo\.webp/);
-  assert.match(socialReferralPage, /card: 'summary_large_image'/);
-  assert.match(socialReferralPage, /images: \[imageUrl\]/);
-  assert.match(socialReferralPage, /width: 1200/);
-  assert.match(socialReferralPage, /height: 600/);
-  assert.match(socialReferralOg, /width: 1200/);
-  assert.match(socialReferralOg, /height: 600/);
-  assert.match(socialReferralOg, /contentType = 'image\/png'/);
-  assert.match(socialReferralOg, /veinvite-logo-og\.png/);
-  assert.doesNotMatch(socialReferralOg, /veinvite-logo\.webp/);
+test('referral sharing keeps distinct 1200x600 invite and reward X cards', () => {
+  assert.ok(referralPage.includes("card: 'summary_large_image'"));
+  assert.ok(referralPage.includes('images: [imageUrl]'));
+  assert.ok(referralPage.includes('width: 1200'));
+  assert.ok(referralPage.includes('height: 600'));
+  assert.ok(referralPage.includes("You've been invited to VeInvite"));
+
+  assert.ok(referralOg.includes('width: 1200'));
+  assert.ok(referralOg.includes('height: 600'));
+  assert.ok(referralOg.includes("contentType = 'image/png'"));
+  assert.ok(referralOg.includes('veinvite-logo-og.png'));
+  assert.ok(referralOg.includes('You’ve been invited to VeInvite.'));
+  assert.ok(referralOg.includes('Join. Verify. Earn B3TR.'));
+  assert.equal(referralOg.includes('A friend earned B3TR with VeInvite'), false);
+  assert.equal(referralOg.includes('veinvite-logo.webp'), false);
+
+  assert.ok(socialReferralPage.includes("card: 'summary_large_image'"));
+  assert.ok(socialReferralPage.includes('images: [imageUrl]'));
+  assert.ok(socialReferralPage.includes('width: 1200'));
+  assert.ok(socialReferralPage.includes('height: 600'));
+  assert.ok(socialReferralPage.includes('A friend earned B3TR with VeInvite'));
+
+  assert.ok(socialReferralOg.includes('width: 1200'));
+  assert.ok(socialReferralOg.includes('height: 600'));
+  assert.ok(socialReferralOg.includes("contentType = 'image/png'"));
+  assert.ok(socialReferralOg.includes('veinvite-logo-og.png'));
+  assert.ok(socialReferralOg.includes('A friend earned B3TR with VeInvite.'));
+  assert.ok(socialReferralOg.includes('Join. Verify. Invite. Earn.'));
+  assert.equal(socialReferralOg.includes('You’ve been invited to VeInvite'), false);
+  assert.equal(socialReferralOg.includes('veinvite-logo.webp'), false);
+
   assert.equal(
     existsSync('public/veinvite-logo-og.png'),
     true,
