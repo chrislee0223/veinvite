@@ -1,5 +1,5 @@
 export const REWARD_BOOST_RESERVE_SHADOW_MODEL_VERSION =
-  'reward-boost-reserve-shadow-v1';
+  'reward-boost-reserve-shadow-v2';
 
 export const REWARD_BOOST_RESERVE_LONG_INCOMPLETE_ROUNDS = 2;
 export const REWARD_BOOST_RESERVE_PROMOTION_RESERVE_BPS = 1_500;
