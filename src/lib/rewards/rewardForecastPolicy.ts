@@ -26,6 +26,7 @@ export type RewardForecastPolicy = {
   modelVersion: string;
   officialAllocationWei: string;
   fundingAdjustmentWei: string;
+  reserveNetFlowWei: string;
   designatedBudgetWei: string;
   cohortReservedWei: string;
   projectedAllocationWei: string;
@@ -65,6 +66,13 @@ const STRESS_WEIGHTS_BPS = {
 function parseWei(value: string, fieldName: string): bigint {
   if (!/^\d+$/.test(value)) {
     throw new Error(`${fieldName} must be a non-negative integer string.`);
+  }
+  return BigInt(value);
+}
+
+function parseSignedWei(value: string, fieldName: string): bigint {
+  if (!/^-?\d+$/.test(value)) {
+    throw new Error(`${fieldName} must be an integer string.`);
   }
   return BigInt(value);
 }
@@ -173,6 +181,7 @@ function blendBootstrapWithHistory(historyAverage: number | null, historyCount: 
 export function calculateRewardForecastPolicy(input: {
   officialAllocationWei: string;
   fundingAdjustmentWei: string;
+  reserveNetFlowWei?: string;
   cohortReservedWei: string;
   observedPoolBalanceWei: string;
   reservedExistingWei: string;
@@ -182,6 +191,10 @@ export function calculateRewardForecastPolicy(input: {
 }): RewardForecastPolicy {
   const officialAllocation = parseWei(input.officialAllocationWei, 'officialAllocationWei');
   const fundingAdjustment = parseWei(input.fundingAdjustmentWei, 'fundingAdjustmentWei');
+  const reserveNetFlow = parseSignedWei(
+    input.reserveNetFlowWei ?? '0',
+    'reserveNetFlowWei',
+  );
   const cohortReserved = parseWei(input.cohortReservedWei, 'cohortReservedWei');
   const observedPoolBalance = parseWei(input.observedPoolBalanceWei, 'observedPoolBalanceWei');
   const reservedExisting = parseWei(input.reservedExistingWei, 'reservedExistingWei');
@@ -198,7 +211,12 @@ export function calculateRewardForecastPolicy(input: {
     pendingAcceptanceStressBps: safeCount(input.pipeline.pendingAcceptanceStressBps, 'pendingAcceptanceStressBps'),
   };
 
-  const designatedBudget = officialAllocation + fundingAdjustment;
+  const designatedBudgetSigned =
+    officialAllocation + fundingAdjustment + reserveNetFlow;
+  if (designatedBudgetSigned < 0n) {
+    throw new Error('designatedBudgetWei cannot be negative.');
+  }
+  const designatedBudget = designatedBudgetSigned;
   const remainingCohortBudget = designatedBudget > cohortReserved
     ? designatedBudget - cohortReserved
     : 0n;
@@ -261,6 +279,7 @@ export function calculateRewardForecastPolicy(input: {
     modelVersion: REWARD_FORECAST_MODEL_VERSION,
     officialAllocationWei: officialAllocation.toString(),
     fundingAdjustmentWei: fundingAdjustment.toString(),
+    reserveNetFlowWei: reserveNetFlow.toString(),
     designatedBudgetWei: designatedBudget.toString(),
     cohortReservedWei: cohortReserved.toString(),
     // Legacy storage/API names are retained for compatibility. In v2 they are
