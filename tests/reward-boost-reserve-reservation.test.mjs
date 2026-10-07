@@ -70,3 +70,19 @@ test('ordinary completion pricing remains the existing cohort forecast path', ()
     /planning\.forecast\.rewardPerInviteWei/,
   );
 });
+
+
+test('underfunded late reserve skips only that candidate for later retry', () => {
+  assert.match(
+    reservationServer,
+    /result\.reason === 'RESERVE_UNDERFUNDED'/,
+  );
+  assert.match(
+    reservationServer,
+    /skipCandidate\([\s\S]*'RESERVE_UNDERFUNDED'/,
+  );
+  assert.match(
+    reservationServer,
+    /will be retried by the normal[\s\S]*recovery sweep/,
+  );
+});

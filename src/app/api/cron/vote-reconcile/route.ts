@@ -18,6 +18,9 @@ import {
   tryClaimCronJob,
 } from '@/lib/monitoring/cronHeartbeat';
 import {
+  runScheduledRewardBoostReserveRebalance,
+} from '@/lib/rewards/rewardBoostReserveScheduler';
+import {
   runRewardReservationRecovery,
   type RewardReservationRecoverySweep,
 } from '@/lib/rewards/rewardReservationRecovery';
@@ -1053,6 +1056,13 @@ export async function GET(
         );
       }
     }
+  }
+
+  const rewardBoostError =
+    (await runScheduledRewardBoostReserveRebalance())
+      .error;
+  if (rewardBoostError) {
+    errors.push(rewardBoostError);
   }
 
   const voteTriggeredRecovery =

@@ -41,7 +41,7 @@
     "src/components/UnifiedInviteNotificationHistoryCenter.tsx": 55235,
     "src/components/HomeClient.tsx": 51397,
     "src/lib/rewards/automaticRewardPayout.ts": 35358,
-    "src/app/api/cron/vote-reconcile/route.ts": 29756,
+    "src/app/api/cron/vote-reconcile/route.ts": 29931,
     "src/components/AppSettings.tsx": 32280
   }
 }
