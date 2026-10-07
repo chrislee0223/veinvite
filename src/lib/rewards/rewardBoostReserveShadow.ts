@@ -237,19 +237,23 @@ export async function readRewardBoostReserveShadow(
           'VeBetter funding round id',
         ) + 1;
 
-      const { data, error } = await supabaseAdmin.rpc(
-        'read_reward_cohort_committed_wei',
-        {
-          p_network: pool.network,
-          p_app_id: pool.appId,
-          p_reward_cohort_round_id: rewardCohortRoundId,
-          p_allocation_receipt_id: allocationReceiptId,
-        },
-      );
+      const cohortPlanning = await readPredictiveRewardPlanning({
+        network: pool.network,
+        appId: pool.appId,
+        observedPoolBalanceWei: pool.effectiveRewardPoolWei,
+        rewardCohortRoundId,
+        allocationReceiptId,
+        includePendingAcceptance: false,
+      });
 
-      if (error) {
+      if (
+        !cohortPlanning.latestAllocation ||
+        !cohortPlanning.forecast ||
+        cohortPlanning.latestAllocation.id !== allocationReceiptId ||
+        cohortPlanning.rewardCohortRoundId !== String(rewardCohortRoundId)
+      ) {
         throw new Error(
-          `Reward boost reserve cohort commitment could not be loaded for cohort ${rewardCohortRoundId}: ${error.message}`,
+          `Reward boost reserve cohort planning is unavailable for cohort ${rewardCohortRoundId}.`,
         );
       }
 
@@ -262,10 +266,8 @@ export async function readRewardBoostReserveShadow(
         ),
         promotionFundingWei:
           (promotionByReceipt.get(allocationReceiptId) ?? 0n).toString(),
-        committedWei: integerString(
-          data,
-          'reward cohort committed amount',
-        ),
+        committedWei: cohortPlanning.cohortReservedWei,
+        lateRewardWei: cohortPlanning.forecast.rewardPerInviteWei,
         lateParticipants:
           lateByReceipt.get(allocationReceiptId) ?? [],
       };
