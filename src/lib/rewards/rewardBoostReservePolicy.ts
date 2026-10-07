@@ -42,6 +42,8 @@ export type RewardBoostReserveShadowResult = {
   reusableThroughCohortRoundId: number;
   safetyBufferBps: number;
   currentRewardWei: string;
+  currentPricingCapacityWei: string;
+  currentStressRecipients: number;
   observedPoolBalanceWei: string;
   reservedExistingWei: string;
   physicalUnreservedPoolWei: string;
@@ -56,6 +58,9 @@ export type RewardBoostReserveShadowResult = {
   reusableAfterLateProtectionWei: string;
   physicalBoostCapacityWei: string;
   boostAvailableWei: string;
+  shadowBoostedPricingCapacityWei: string;
+  shadowBoostedRewardWei: string;
+  shadowExternalCompletionRewardWei: string;
   sourceAttributionPolicy: 'PROMOTION_FIRST_CONSERVATIVE';
   cohorts: RewardBoostReserveCohortResult[];
 };
@@ -145,6 +150,8 @@ function sourceSeparatedRemainder(input: RewardBoostReserveCohortInput) {
 export function calculateRewardBoostReserveShadow(input: {
   currentCohortRoundId: number;
   currentRewardWei: string;
+  currentPricingCapacityWei: string;
+  currentStressRecipients: number;
   observedPoolBalanceWei: string;
   reservedExistingWei: string;
   cohorts: RewardBoostReserveCohortInput[];
@@ -178,6 +185,17 @@ export function calculateRewardBoostReserveShadow(input: {
   }
 
   const currentReward = parseWei(input.currentRewardWei, 'currentRewardWei');
+  const currentPricingCapacity = parseWei(
+    input.currentPricingCapacityWei,
+    'currentPricingCapacityWei',
+  );
+  const currentStressRecipients = safeCount(
+    input.currentStressRecipients,
+    'currentStressRecipients',
+  );
+  if (currentStressRecipients < 1) {
+    throw new Error('currentStressRecipients must be at least 1.');
+  }
   const observedPool = parseWei(
     input.observedPoolBalanceWei,
     'observedPoolBalanceWei',
@@ -278,6 +296,13 @@ export function calculateRewardBoostReserveShadow(input: {
   const boostAvailable = reusableAfterLateProtection < physicalBoostCapacity
     ? reusableAfterLateProtection
     : physicalBoostCapacity;
+  const shadowBoostedPricingCapacity =
+    currentPricingCapacity + boostAvailable;
+  const shadowBoostedReward =
+    shadowBoostedPricingCapacity / BigInt(currentStressRecipients);
+  const shadowExternalCompletionReward =
+    shadowBoostedPricingCapacity /
+    BigInt(currentStressRecipients + 1);
 
   return {
     modelVersion: REWARD_BOOST_RESERVE_SHADOW_MODEL_VERSION,
@@ -286,6 +311,8 @@ export function calculateRewardBoostReserveShadow(input: {
     reusableThroughCohortRoundId,
     safetyBufferBps,
     currentRewardWei: currentReward.toString(),
+    currentPricingCapacityWei: currentPricingCapacity.toString(),
+    currentStressRecipients,
     observedPoolBalanceWei: observedPool.toString(),
     reservedExistingWei: reservedExisting.toString(),
     physicalUnreservedPoolWei: physicalUnreservedPool.toString(),
@@ -301,6 +328,11 @@ export function calculateRewardBoostReserveShadow(input: {
       reusableAfterLateProtection.toString(),
     physicalBoostCapacityWei: physicalBoostCapacity.toString(),
     boostAvailableWei: boostAvailable.toString(),
+    shadowBoostedPricingCapacityWei:
+      shadowBoostedPricingCapacity.toString(),
+    shadowBoostedRewardWei: shadowBoostedReward.toString(),
+    shadowExternalCompletionRewardWei:
+      shadowExternalCompletionReward.toString(),
     sourceAttributionPolicy: 'PROMOTION_FIRST_CONSERVATIVE',
     cohorts: cohortResults.sort(
       (a, b) => a.rewardCohortRoundId - b.rewardCohortRoundId,
