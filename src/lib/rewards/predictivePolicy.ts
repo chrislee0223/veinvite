@@ -23,6 +23,7 @@ export type PredictiveRewardPolicy = {
   stressCompletions: number;
   latestAllocationWei: string;
   fundingAdjustmentWei: string;
+  reserveNetFlowWei: string;
   designatedBudgetWei: string;
   cohortReservedWei: string;
   cohortAvailableBudgetWei: string;
@@ -59,6 +60,14 @@ const STRESS_WEIGHTS_BPS: Record<keyof RewardPipelineSnapshot, number> = {
 function parseWei(value: string, fieldName: string): bigint {
   if (!/^\d+$/.test(value)) {
     throw new Error(`${fieldName} must be a non-negative integer string.`);
+  }
+
+  return BigInt(value);
+}
+
+function parseSignedWei(value: string, fieldName: string): bigint {
+  if (!/^-?\d+$/.test(value)) {
+    throw new Error(`${fieldName} must be an integer string.`);
   }
 
   return BigInt(value);
@@ -156,6 +165,7 @@ function safeNumber(value: bigint, fieldName: string): number {
 export function calculatePredictiveRewardPolicy(input: {
   latestAllocationWei: string;
   fundingAdjustmentWei: string;
+  reserveNetFlowWei?: string;
   cohortReservedWei: string;
   observedPoolBalanceWei: string;
   reservedExistingWei: string;
@@ -168,6 +178,10 @@ export function calculatePredictiveRewardPolicy(input: {
   const fundingAdjustment = parseWei(
     input.fundingAdjustmentWei,
     'fundingAdjustmentWei',
+  );
+  const reserveNetFlow = parseSignedWei(
+    input.reserveNetFlowWei ?? '0',
+    'reserveNetFlowWei',
   );
   const cohortReserved = parseWei(
     input.cohortReservedWei,
@@ -183,7 +197,14 @@ export function calculatePredictiveRewardPolicy(input: {
   );
   const pipeline = normalizePipeline(input.pipeline);
 
-  const designatedBudget = latestAllocation + fundingAdjustment;
+  const designatedBudgetSigned =
+    latestAllocation + fundingAdjustment + reserveNetFlow;
+
+  if (designatedBudgetSigned < 0n) {
+    throw new Error('designatedBudgetWei cannot be negative.');
+  }
+
+  const designatedBudget = designatedBudgetSigned;
   const cohortAvailableBudget =
     designatedBudget > cohortReserved
       ? designatedBudget - cohortReserved
@@ -258,6 +279,7 @@ export function calculatePredictiveRewardPolicy(input: {
     ),
     latestAllocationWei: latestAllocation.toString(),
     fundingAdjustmentWei: fundingAdjustment.toString(),
+    reserveNetFlowWei: reserveNetFlow.toString(),
     designatedBudgetWei: designatedBudget.toString(),
     cohortReservedWei: cohortReserved.toString(),
     cohortAvailableBudgetWei: cohortAvailableBudget.toString(),
