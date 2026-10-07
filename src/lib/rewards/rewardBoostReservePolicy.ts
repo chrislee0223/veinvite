@@ -69,6 +69,8 @@ export type RewardBoostReserveShadowResult = {
   reusableOfficialWei: string;
   reusablePromotionWei: string;
   reusableGrossWei: string;
+  bankDepositWei: string;
+  bankStressReserveWei: string;
   reusableAfterLateProtectionWei: string;
   physicalBoostCapacityWei: string;
   boostAvailableWei: string;
@@ -363,33 +365,13 @@ export function calculateRewardBoostReserveShadow(input: {
           weightedLateRecipients + stressExtraRecipientCount,
         );
 
-  let stressCohortIndex = -1;
-  let stressCohortReward = 0n;
-  for (let index = 0; index < cohortResults.length; index += 1) {
-    const cohort = cohortResults[index];
+  let bankStressReserve = 0n;
+  for (const cohort of cohortResults) {
     if (cohort.longIncompleteCount <= 0) continue;
     const lateReward = BigInt(cohort.lateRewardWei);
-    if (lateReward > stressCohortReward) {
-      stressCohortReward = lateReward;
-      stressCohortIndex = index;
+    if (lateReward > bankStressReserve) {
+      bankStressReserve = lateReward;
     }
-  }
-
-  if (stressCohortIndex >= 0) {
-    const cohort = cohortResults[stressCohortIndex];
-    const weightedLiability = BigInt(
-      cohort.lateCompletionWeightedLiabilityWei,
-    );
-    const protectedWei = weightedLiability + stressCohortReward;
-    const reusableTotal = BigInt(cohort.reusableTotalWei);
-
-    cohort.lateCompletionStressExtraWei = stressCohortReward.toString();
-    cohort.lateCompletionProtectedWei = protectedWei.toString();
-    cohort.sweepableWei =
-      (reusableTotal > protectedWei
-        ? reusableTotal - protectedWei
-        : 0n
-      ).toString();
   }
 
   const lateCompletionWeightedLiability =
@@ -398,22 +380,28 @@ export function calculateRewardBoostReserveShadow(input: {
         sum + BigInt(cohort.lateCompletionWeightedLiabilityWei),
       0n,
     );
-  const lateCompletionStressExtra =
-    stressCohortIndex >= 0 ? stressCohortReward : 0n;
-  const lateCompletionProtected =
+  const lateCompletionStressExtra = bankStressReserve;
+  const sourceLateProtected =
     cohortResults.reduce(
       (sum, cohort) =>
         sum + BigInt(cohort.lateCompletionProtectedWei),
       0n,
     );
-  const reusableAfterLateProtection =
+  const lateCompletionProtected =
+    sourceLateProtected + bankStressReserve;
+  const bankDeposit =
     cohortResults.reduce(
       (sum, cohort) => sum + BigInt(cohort.sweepableWei),
       0n,
     );
+  const reusableAfterLateProtection =
+    bankDeposit > bankStressReserve
+      ? bankDeposit - bankStressReserve
+      : 0n;
   const protectedPhysicalCapacity =
     promotionReserveTotal +
-    lateCompletionProtected +
+    sourceLateProtected +
+    bankStressReserve +
     currentPricingCapacity;
   const physicalBoostCapacity =
     physicalUnreservedPool > protectedPhysicalCapacity
@@ -469,6 +457,8 @@ export function calculateRewardBoostReserveShadow(input: {
     reusableOfficialWei: reusableOfficial.toString(),
     reusablePromotionWei: reusablePromotion.toString(),
     reusableGrossWei: reusableGross.toString(),
+    bankDepositWei: bankDeposit.toString(),
+    bankStressReserveWei: bankStressReserve.toString(),
     reusableAfterLateProtectionWei:
       reusableAfterLateProtection.toString(),
     physicalBoostCapacityWei: physicalBoostCapacity.toString(),
