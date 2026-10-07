@@ -26,6 +26,10 @@ test('referral startup skips delay when no wallet restoration is expected', () =
     boundary,
     /Boolean\(initialSessionWallet \|\| walletAddress\)/,
   );
+  assert.match(
+    boundary,
+    /if \(connection\?\.isLoading\) \{\s*return;/s,
+  );
 });
 
 test('permanent referral hides initial validation behind the stable brand surface', () => {
