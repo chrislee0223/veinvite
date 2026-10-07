@@ -72,6 +72,13 @@ export function ReferralWalletBootstrapBoundary({
       readPersistedDappKitAccount(),
     );
 
+    // Never release the referral client while VeChainKit still reports an
+    // active provider bootstrap. The 5-second fallback remains the only escape
+    // hatch for a genuinely stuck provider.
+    if (connection?.isLoading) {
+      return;
+    }
+
     // A settled provider with no persisted VeWorld account has nothing to
     // restore. Release immediately instead of adding a fixed 350 ms delay.
     if (!hasPersistedWallet && !connection?.isLoading) {
