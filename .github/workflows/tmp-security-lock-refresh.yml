@@ -1,0 +1,36 @@
+name: Temporary security lock refresh
+
+on:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  generate-lock:
+    if: github.head_ref == 'fix/og-png-logo-rendering'
+    runs-on: ubuntu-latest
+    timeout-minutes: 6
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Use Node.js 24
+        uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Refresh lockfile security fixes
+        run: npm audit fix --package-lock-only --ignore-scripts
+
+      - name: Verify no high or critical audit findings
+        run: npm audit --audit-level=high
+
+      - name: Upload refreshed lockfile
+        uses: actions/upload-artifact@v4
+        with:
+          name: refreshed-package-lock
+          path: package-lock.json
+          if-no-files-found: error
+          retention-days: 1
