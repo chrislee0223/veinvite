@@ -6,6 +6,10 @@ const cron = await readFile(
   new URL('../src/app/api/cron/vote-reconcile/route.ts', import.meta.url),
   'utf8',
 );
+const scheduler = await readFile(
+  new URL('../src/lib/rewards/rewardBoostReserveScheduler.ts', import.meta.url),
+  'utf8',
+);
 const vercel = JSON.parse(
   await readFile(
     new URL('../vercel.json', import.meta.url),
@@ -13,27 +17,30 @@ const vercel = JSON.parse(
   ),
 );
 
-test('reward boost reserve rebalances from the existing vote cron every 30 minutes', () => {
+test('reward boost reserve scheduler runs at most every 30 minutes', () => {
   assert.match(
-    cron,
+    scheduler,
     /REWARD_BOOST_REBALANCE_INTERVAL_SECONDS\s*=\s*30 \* 60/,
   );
   assert.match(
-    cron,
+    scheduler,
     /vote-reconcile:reward-boost-reserve/,
   );
   assert.match(
-    cron,
+    scheduler,
     /tryClaimCronJob\([\s\S]*REWARD_BOOST_REBALANCE_JOB[\s\S]*REWARD_BOOST_REBALANCE_INTERVAL_SECONDS/,
   );
 });
 
-test('allocation receipts refresh before reserve rebalance and before reward recovery', () => {
-  const syncIndex = cron.indexOf(
+test('allocation receipts refresh before reserve rebalance and the scheduler runs before reward recovery', () => {
+  const syncIndex = scheduler.indexOf(
     'await syncVeInviteAllocationReceipts()',
   );
-  const rebalanceIndex = cron.indexOf(
+  const rebalanceIndex = scheduler.indexOf(
     'await runRewardBoostReserveRebalance()',
+  );
+  const scheduleIndex = cron.indexOf(
+    'await runScheduledRewardBoostReserveRebalance()',
   );
   const recoveryIndex = cron.indexOf(
     'const voteTriggeredRecovery',
@@ -41,20 +48,21 @@ test('allocation receipts refresh before reserve rebalance and before reward rec
 
   assert.ok(syncIndex >= 0);
   assert.ok(rebalanceIndex > syncIndex);
-  assert.ok(recoveryIndex > rebalanceIndex);
+  assert.ok(scheduleIndex >= 0);
+  assert.ok(recoveryIndex > scheduleIndex);
 });
 
 test('reserve rebalance heartbeat releases failed work for the next minute retry', () => {
   assert.match(
-    cron,
+    scheduler,
     /markCronJobSucceeded\([\s\S]*REWARD_BOOST_REBALANCE_JOB/,
   );
   assert.match(
-    cron,
+    scheduler,
     /markCronJobFailed\([\s\S]*REWARD_BOOST_REBALANCE_JOB/,
   );
   assert.match(
-    cron,
+    scheduler,
     /REWARD_BOOST_RESERVE_REBALANCE_FAILED/,
   );
 });
