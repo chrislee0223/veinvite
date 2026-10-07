@@ -193,4 +193,33 @@ test('shadow quote uses boost capacity without spending the bank upfront', () =>
   assert.equal(result.shadowBoostedPricingCapacityWei, b3tr(2000));
   assert.equal(result.shadowBoostedRewardWei, b3tr(500));
   assert.equal(result.shadowExternalCompletionRewardWei, b3tr(400));
+  assert.equal(result.balancedBoostReleaseWei, b3tr(800));
+  assert.equal(result.shadowBalancedPricingCapacityWei, b3tr(1600));
+  assert.equal(result.shadowBalancedRewardWei, b3tr(400));
+});
+
+
+test('balanced shadow never lets historical reserve exceed fresh cohort pricing capacity', () => {
+  const result = calculateRewardBoostReserveShadow({
+    currentCohortRoundId: 119,
+    currentRewardWei: b3tr(200),
+    currentPricingCapacityWei: b3tr(800),
+    currentStressRecipients: 4,
+    observedPoolBalanceWei: b3tr(10000),
+    reservedExistingWei: '0',
+    cohorts: [
+      {
+        rewardCohortRoundId: 117,
+        allocationReceiptId: '10',
+        officialAllocationWei: b3tr(5000),
+        promotionFundingWei: '0',
+        committedWei: '0',
+        lateParticipants: [],
+      },
+    ],
+  });
+
+  assert.equal(result.boostAvailableWei, b3tr(5000));
+  assert.equal(result.balancedBoostReleaseWei, b3tr(800));
+  assert.equal(result.shadowBalancedRewardWei, b3tr(400));
 });
