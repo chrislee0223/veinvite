@@ -304,7 +304,21 @@ export async function readRewardBoostReserveShadow(
         promotionFundingWei:
           (promotionByReceipt.get(allocationReceiptId) ?? 0n).toString(),
         committedWei: cohortPlanning.cohortReservedWei,
-        lateRewardWei: cohortPlanning.forecast.rewardPerInviteWei,
+        // Source protection is deliberately independent of the current
+        // physical pool cap. A temporary pool shortage must not make an old
+        // cohort look cheaper and allow more of its logical budget to be
+        // swept. Physical liquidity is enforced separately when bank boost
+        // capacity is released.
+        lateRewardWei: (
+          (
+            BigInt(cohortPlanning.designatedBudgetWei) >
+            BigInt(cohortPlanning.cohortReservedWei)
+              ? BigInt(cohortPlanning.designatedBudgetWei) -
+                BigInt(cohortPlanning.cohortReservedWei)
+              : 0n
+          ) /
+          BigInt(cohortPlanning.forecast.stressCompletions)
+        ).toString(),
         queuedEligibleCount:
           cohortPlanning.pipeline.queuedEligibleCount,
         lateParticipants:
