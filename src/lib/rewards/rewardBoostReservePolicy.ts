@@ -58,6 +58,7 @@ export type RewardBoostReserveShadowResult = {
   physicalUnreservedPoolWei: string;
   safetyBufferWei: string;
   longIncompleteCount: number;
+  queuedEligibleCount: number;
   lateCompletionWeightedBps: string;
   lateCompletionProtectedRecipients: number;
   lateCompletionWeightedLiabilityWei: string;
@@ -234,6 +235,7 @@ export function calculateRewardBoostReserveShadow(input: {
   let weightedLateBps = 0n;
   let weightedLateLiabilityNumerator = 0n;
   let longIncompleteCount = 0;
+  let queuedEligibleCountTotal = 0;
 
   const cohortResults: RewardBoostReserveCohortResult[] = [];
 
@@ -267,6 +269,7 @@ export function calculateRewardBoostReserveShadow(input: {
       cohort.queuedEligibleCount,
       'cohort.queuedEligibleCount',
     );
+    queuedEligibleCountTotal += queuedEligibleCount;
     let cohortWeightedLateBps =
       BigInt(queuedEligibleCount) * BPS;
     weightedLateBps += BigInt(queuedEligibleCount) * BPS;
@@ -326,13 +329,18 @@ export function calculateRewardBoostReserveShadow(input: {
     ceilDiv(weightedLateBps, BPS),
     'lateCompletionWeightedRecipients',
   );
+  const protectedCandidateCount =
+    longIncompleteCount + queuedEligibleCountTotal;
+  const stressExtraRecipientCount =
+    longIncompleteCount > 0
+      ? REWARD_BOOST_RESERVE_LATE_STRESS_EXTRA_RECIPIENTS
+      : 0;
   const lateCompletionProtectedRecipients =
-    longIncompleteCount === 0
+    protectedCandidateCount === 0
       ? 0
       : Math.min(
-          longIncompleteCount,
-          weightedLateRecipients +
-            REWARD_BOOST_RESERVE_LATE_STRESS_EXTRA_RECIPIENTS,
+          protectedCandidateCount,
+          weightedLateRecipients + stressExtraRecipientCount,
         );
 
   let stressCohortIndex = -1;
@@ -428,6 +436,7 @@ export function calculateRewardBoostReserveShadow(input: {
     physicalUnreservedPoolWei: physicalUnreservedPool.toString(),
     safetyBufferWei: safetyBuffer.toString(),
     longIncompleteCount,
+    queuedEligibleCount: queuedEligibleCountTotal,
     lateCompletionWeightedBps: weightedLateBps.toString(),
     lateCompletionProtectedRecipients,
     lateCompletionWeightedLiabilityWei:
