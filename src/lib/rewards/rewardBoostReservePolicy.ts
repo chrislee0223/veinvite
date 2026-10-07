@@ -2,7 +2,7 @@ export const REWARD_BOOST_RESERVE_SHADOW_MODEL_VERSION =
   'reward-boost-reserve-shadow-v1';
 
 export const REWARD_BOOST_RESERVE_LONG_INCOMPLETE_ROUNDS = 2;
-export const REWARD_BOOST_RESERVE_SAFETY_BUFFER_BPS = 1_500;
+export const REWARD_BOOST_RESERVE_PROMOTION_RESERVE_BPS = 1_500;
 export const REWARD_BOOST_RESERVE_LATE_STRESS_EXTRA_RECIPIENTS = 1;
 
 const BPS = 10_000n;
@@ -35,6 +35,8 @@ export type RewardBoostReserveCohortResult = {
   queuedEligibleCount: number;
   reusableOfficialWei: string;
   reusablePromotionWei: string;
+  promotionReserveWei: string;
+  sweepablePromotionWei: string;
   reusableTotalWei: string;
   lateCompletionWeightedBps: string;
   lateCompletionWeightedLiabilityWei: string;
@@ -49,14 +51,14 @@ export type RewardBoostReserveShadowResult = {
   currentCohortRoundId: number;
   longIncompleteAfterRounds: number;
   reusableThroughCohortRoundId: number;
-  safetyBufferBps: number;
+  promotionReserveBps: number;
   currentRewardWei: string;
   currentPricingCapacityWei: string;
   currentStressRecipients: number;
   observedPoolBalanceWei: string;
   reservedExistingWei: string;
   physicalUnreservedPoolWei: string;
-  safetyBufferWei: string;
+  promotionReserveWei: string;
   longIncompleteCount: number;
   queuedEligibleCount: number;
   lateCompletionWeightedBps: string;
@@ -171,7 +173,7 @@ export function calculateRewardBoostReserveShadow(input: {
   reservedExistingWei: string;
   cohorts: RewardBoostReserveCohortInput[];
   longIncompleteAfterRounds?: number;
-  safetyBufferBps?: number;
+  promotionReserveBps?: number;
 }): RewardBoostReserveShadowResult {
   const currentCohortRoundId = safeRound(
     input.currentCohortRoundId,
@@ -180,9 +182,9 @@ export function calculateRewardBoostReserveShadow(input: {
   const longIncompleteAfterRounds =
     input.longIncompleteAfterRounds ??
     REWARD_BOOST_RESERVE_LONG_INCOMPLETE_ROUNDS;
-  const safetyBufferBps =
-    input.safetyBufferBps ??
-    REWARD_BOOST_RESERVE_SAFETY_BUFFER_BPS;
+  const promotionReserveBps =
+    input.promotionReserveBps ??
+    REWARD_BOOST_RESERVE_PROMOTION_RESERVE_BPS;
 
   if (
     !Number.isSafeInteger(longIncompleteAfterRounds) ||
@@ -192,11 +194,11 @@ export function calculateRewardBoostReserveShadow(input: {
     throw new Error('longIncompleteAfterRounds is invalid.');
   }
   if (
-    !Number.isSafeInteger(safetyBufferBps) ||
-    safetyBufferBps < 0 ||
-    safetyBufferBps > 5_000
+    !Number.isSafeInteger(promotionReserveBps) ||
+    promotionReserveBps < 0 ||
+    promotionReserveBps > 5_000
   ) {
-    throw new Error('safetyBufferBps is invalid.');
+    throw new Error('promotionReserveBps is invalid.');
   }
 
   const currentReward = parseWei(input.currentRewardWei, 'currentRewardWei');
@@ -222,10 +224,7 @@ export function calculateRewardBoostReserveShadow(input: {
   const physicalUnreservedPool = observedPool > reservedExisting
     ? observedPool - reservedExisting
     : 0n;
-  const safetyBuffer = ceilDiv(
-    physicalUnreservedPool * BigInt(safetyBufferBps),
-    BPS,
-  );
+  let promotionReserveTotal = 0n;
 
   const reusableThroughCohortRoundId =
     currentCohortRoundId - longIncompleteAfterRounds;
@@ -256,6 +255,26 @@ export function calculateRewardBoostReserveShadow(input: {
     }
 
     const remainder = sourceSeparatedRemainder(cohort);
+    const promotionFunding = parseWei(
+      cohort.promotionFundingWei,
+      'cohort.promotionFundingWei',
+    );
+    const cohortPromotionReserve = remainder.reusablePromotion <
+      ceilDiv(
+        promotionFunding * BigInt(promotionReserveBps),
+        BPS,
+      )
+      ? remainder.reusablePromotion
+      : ceilDiv(
+          promotionFunding * BigInt(promotionReserveBps),
+          BPS,
+        );
+    const sweepablePromotion =
+      remainder.reusablePromotion > cohortPromotionReserve
+        ? remainder.reusablePromotion - cohortPromotionReserve
+        : 0n;
+    promotionReserveTotal += cohortPromotionReserve;
+
     const lateReward = parseWei(
       cohort.lateRewardWei,
       'cohort.lateRewardWei',
@@ -292,10 +311,7 @@ export function calculateRewardBoostReserveShadow(input: {
         cohort.officialAllocationWei,
         'cohort.officialAllocationWei',
       ).toString(),
-      promotionFundingWei: parseWei(
-        cohort.promotionFundingWei,
-        'cohort.promotionFundingWei',
-      ).toString(),
+      promotionFundingWei: promotionFunding.toString(),
       committedWei: parseWei(
         cohort.committedWei,
         'cohort.committedWei',
@@ -304,7 +320,11 @@ export function calculateRewardBoostReserveShadow(input: {
       queuedEligibleCount,
       reusableOfficialWei: remainder.reusableOfficial.toString(),
       reusablePromotionWei: remainder.reusablePromotion.toString(),
-      reusableTotalWei: remainder.reusableTotal.toString(),
+      promotionReserveWei: cohortPromotionReserve.toString(),
+      sweepablePromotionWei: sweepablePromotion.toString(),
+      reusableTotalWei: (
+        remainder.reusableOfficial + sweepablePromotion
+      ).toString(),
       lateCompletionWeightedBps: cohortWeightedLateBps.toString(),
       lateCompletionWeightedLiabilityWei:
         cohortWeightedLateLiability.toString(),
@@ -312,9 +332,13 @@ export function calculateRewardBoostReserveShadow(input: {
       lateCompletionProtectedWei:
         cohortWeightedLateLiability.toString(),
       sweepableWei:
-        (remainder.reusableTotal > cohortWeightedLateLiability
-          ? remainder.reusableTotal - cohortWeightedLateLiability
-          : 0n
+        (
+          remainder.reusableOfficial + sweepablePromotion >
+            cohortWeightedLateLiability
+            ? remainder.reusableOfficial +
+              sweepablePromotion -
+              cohortWeightedLateLiability
+            : 0n
         ).toString(),
       longIncompleteCount: cohort.lateParticipants.length,
     });
@@ -388,7 +412,9 @@ export function calculateRewardBoostReserveShadow(input: {
       0n,
     );
   const protectedPhysicalCapacity =
-    safetyBuffer + lateCompletionProtected + currentPricingCapacity;
+    promotionReserveTotal +
+    lateCompletionProtected +
+    currentPricingCapacity;
   const physicalBoostCapacity =
     physicalUnreservedPool > protectedPhysicalCapacity
       ? physicalUnreservedPool - protectedPhysicalCapacity
@@ -423,14 +449,14 @@ export function calculateRewardBoostReserveShadow(input: {
     currentCohortRoundId,
     longIncompleteAfterRounds,
     reusableThroughCohortRoundId,
-    safetyBufferBps,
+    promotionReserveBps,
     currentRewardWei: currentReward.toString(),
     currentPricingCapacityWei: currentPricingCapacity.toString(),
     currentStressRecipients,
     observedPoolBalanceWei: observedPool.toString(),
     reservedExistingWei: reservedExisting.toString(),
     physicalUnreservedPoolWei: physicalUnreservedPool.toString(),
-    safetyBufferWei: safetyBuffer.toString(),
+    promotionReserveWei: promotionReserveTotal.toString(),
     longIncompleteCount,
     queuedEligibleCount: queuedEligibleCountTotal,
     lateCompletionWeightedBps: weightedLateBps.toString(),
