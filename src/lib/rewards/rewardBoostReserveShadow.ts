@@ -268,6 +268,8 @@ export async function readRewardBoostReserveShadow(
           (promotionByReceipt.get(allocationReceiptId) ?? 0n).toString(),
         committedWei: cohortPlanning.cohortReservedWei,
         lateRewardWei: cohortPlanning.forecast.rewardPerInviteWei,
+        queuedEligibleCount:
+          cohortPlanning.pipeline.queuedEligibleCount,
         lateParticipants:
           lateByReceipt.get(allocationReceiptId) ?? [],
       };
