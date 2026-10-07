@@ -11,6 +11,7 @@ import {
 import {
   readVeInviteRewardPoolStatus,
   VEINVITE_APP_ID,
+  type VeInviteRewardPoolStatus,
 } from '@/lib/rewards/onchainPool';
 import { supabaseAdmin } from '@/lib/supabaseServer';
 
@@ -71,9 +72,11 @@ export type RewardBoostReserveShadowSnapshot = {
   result: RewardBoostReserveShadowResult;
 };
 
-export async function readRewardBoostReserveShadow():
-Promise<RewardBoostReserveShadowSnapshot> {
-  const pool = await readVeInviteRewardPoolStatus();
+export async function readRewardBoostReserveShadow(
+  providedPool?: VeInviteRewardPoolStatus,
+): Promise<RewardBoostReserveShadowSnapshot> {
+  const pool =
+    providedPool ?? await readVeInviteRewardPoolStatus();
   const planning = await readPredictiveRewardPlanning({
     network: pool.network,
     appId: pool.appId,
