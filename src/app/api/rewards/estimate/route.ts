@@ -22,6 +22,7 @@ import {
   refreshRewardForecastSnapshot,
   type RewardForecastSnapshot,
 } from '@/lib/rewards/rewardForecastSnapshot';
+import { supabaseAdmin } from '@/lib/supabaseServer';
 import { getVeBetterNetworkConfig } from '@/lib/vebetter/network';
 
 export const dynamic = 'force-dynamic';
@@ -120,6 +121,52 @@ async function bestEffortAllocationSync() {
   }
 }
 
+function snapshotString(
+  value: unknown,
+): string | null {
+  if (value === null || value === undefined) {
+    return null;
+  }
+  const normalized = String(value);
+  return /^-?\d+$/.test(normalized)
+    ? BigInt(normalized).toString()
+    : null;
+}
+
+async function readLatestForecastFundingInput(input: {
+  network: string;
+  appId: string;
+}): Promise<Record<string, unknown> | null> {
+  const { data, error } = await supabaseAdmin
+    .from('reward_forecast_snapshots')
+    .select('input_snapshot')
+    .eq('network', input.network)
+    .eq('app_id', input.appId)
+    .order('generated_at', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (error) {
+    throw new Error(
+      `Reward forecast funding input could not be loaded: ${error.message}`,
+    );
+  }
+
+  const raw =
+    data &&
+    typeof data === 'object' &&
+    !Array.isArray(data)
+      ? (data as { input_snapshot?: unknown })
+          .input_snapshot
+      : null;
+
+  return raw &&
+    typeof raw === 'object' &&
+    !Array.isArray(raw)
+      ? raw as Record<string, unknown>
+      : null;
+}
+
 async function checkLiveFunding(
   snapshot: RewardForecastSnapshot,
   network: string,
@@ -140,13 +187,64 @@ async function checkLiveFunding(
       observedPoolBalanceWei: pool.effectiveRewardPoolWei,
     });
 
-    if (!planning.forecast) {
+    if (
+      !planning.forecast ||
+      !planning.latestAllocation ||
+      !planning.rewardCohortRoundId
+    ) {
       return 'unavailable';
     }
 
-    return planning.forecast.pricingBasisWei !== snapshot.projectedAllocationWei
-      ? 'changed'
-      : 'unchanged';
+    const fundingInput =
+      await readLatestForecastFundingInput({
+        network,
+        appId: VEINVITE_APP_ID,
+      });
+
+    if (!fundingInput) {
+      return 'changed';
+    }
+
+    const snapshotRound =
+      snapshotString(
+        fundingInput.rewardCohortRoundId,
+      );
+    const snapshotOfficial =
+      snapshotString(
+        fundingInput.officialAllocationWei,
+      );
+    const snapshotAdjustment =
+      snapshotString(
+        fundingInput.fundingAdjustmentWei,
+      );
+    const snapshotReserveNetFlow =
+      snapshotString(
+        fundingInput.reserveNetFlowWei,
+      );
+    const snapshotDesignated =
+      snapshotString(
+        fundingInput.designatedBudgetWei,
+      );
+    const snapshotCommitted =
+      snapshotString(
+        fundingInput.cohortReservedWei,
+      );
+
+    const changed =
+      snapshotRound !==
+        planning.rewardCohortRoundId ||
+      snapshotOfficial !==
+        planning.latestAllocation.rewardsAllocationWei ||
+      snapshotAdjustment !==
+        planning.fundingAdjustmentWei ||
+      snapshotReserveNetFlow !==
+        planning.reserveNetFlowWei ||
+      snapshotDesignated !==
+        planning.designatedBudgetWei ||
+      snapshotCommitted !==
+        planning.cohortReservedWei;
+
+    return changed ? 'changed' : 'unchanged';
   } catch (error) {
     // A transient node read must never blank a previously valid public
     // estimate. Explicit refresh callers receive the last value as stale and
