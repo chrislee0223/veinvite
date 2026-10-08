@@ -116,12 +116,16 @@ test('startup preference sync shares one short-lived session probe', () => {
     /generation !== probeGeneration/,
   );
   assert.match(
-    walletGate,
-    /handleSessionCleared[\s\S]*clearWalletSessionClientProbeCache\(\)/,
+    sessionProbe,
+    /SESSION_CLEARED_EVENT[\s\S]*veinvite-wallet-session-cleared/,
   );
   assert.match(
-    walletGate,
-    /handleInvalidWalletSession[\s\S]*clearWalletSessionClientProbeCache\(\)/,
+    sessionProbe,
+    /SESSION_INVALID_EVENT[\s\S]*veinvite-wallet-session-invalid/,
+  );
+  assert.match(
+    sessionProbe,
+    /ensureProbeInvalidationListeners\(\)/,
   );
 });
 
