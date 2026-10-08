@@ -3,6 +3,7 @@ import { cookies } from 'next/headers';
 import {
   CURRENT_PRIVACY_VERSION,
   CURRENT_TERMS_VERSION,
+  type InitialLegalConsentStatus,
 } from '@/lib/legalConsent';
 import { supabaseAdmin } from '@/lib/supabaseServer';
 import {
@@ -15,11 +16,6 @@ import {
   LEGACY_WALLET_SESSION_COOKIE_NAME,
   WALLET_SESSION_COOKIE_NAME,
 } from '@/lib/walletAuthServer';
-
-export type InitialLegalConsentStatus =
-  | 'accepted'
-  | 'missing'
-  | null;
 
 export type WalletSessionBootstrap = {
   initialSessionWallet: string | null;
