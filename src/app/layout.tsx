@@ -5,6 +5,7 @@ import { AppProviders } from '@/components/AppProviders';
 import { LocaleDocumentSync } from '@/components/LocaleDocumentSync';
 import { LocaleHydrationShield } from '@/components/LocaleHydrationShield';
 import { UsageAnalyticsTracker } from '@/components/UsageAnalyticsTracker';
+import { INVITE_OG_IMAGE_URL } from '@/lib/socialShareCard';
 import './globals.css';
 import './header-language-flags.css';
 import './localized-typography.css';
@@ -33,7 +34,7 @@ const siteUrl = 'https://veinvite.vercel.app';
 const title = 'VeInvite | Verified onboarding for VeBetterDAO';
 const description =
   'VeInvite verifies referral onboarding using wallet entry history, qualifying VeBetterDAO activity, and governance participation.';
-const defaultImageUrl = `${siteUrl}/veinvite-og-invite-final.png`;
+const defaultImageUrl = INVITE_OG_IMAGE_URL;
 const defaultImageAlt = 'VeInvite — Verified onboarding for VeBetterDAO';
 
 export const viewport: Viewport = {

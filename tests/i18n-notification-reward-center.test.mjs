@@ -25,6 +25,7 @@ const rootLayout = read('src/app/layout.tsx');
 const legacyInvitePage = read('src/app/i/[code]/page.tsx');
 const referralPage = read('src/app/r/[key]/page.tsx');
 const socialReferralPage = read('src/app/s/[key]/page.tsx');
+const socialCard = read('src/lib/socialShareCard.ts');
 const locales = read('src/lib/i18n/locales.ts');
 
 test('reward action API stays wallet scoped while Claim UI has one Home owner', () => {
@@ -167,7 +168,17 @@ test('paid reward receipt shares the verified permanent invite link on X', () =>
   assert.match(rewardReceiptView, /rewardReceiptXIntentUrl/);
   assert.match(rewardReceiptView, /className="notificationXShare"/);
   assert.match(rewardReceiptView, /window\.open\(\s*rewardShareIntentUrl/);
-  assert.match(rewardPaidTransient, /https:\/\/veinvite\.vercel\.app\/s\//);
+  assert.match(rewardPaidTransient, /buildProductionSharePageUrl/);
+  assert.match(
+    rewardPaidTransient,
+    /amountB3tr: payload\.amountB3tr/,
+  );
+  assert.match(
+    rewardReceiptView,
+    /amountB3tr: receipt\.amountB3tr/,
+  );
+  assert.doesNotMatch(rewardPaidTransient, /262\.97/);
+  assert.doesNotMatch(home, /262\.97/);
   assert.match(rewardShare, /https:\/\/x\.com\/intent\/post/);
   assert.match(rewardShare, /Record<\s*SupportedLocale/);
   assert.match(rewardShare, /I just earned \${amount} #B3TR/);
@@ -191,52 +202,59 @@ test('QA previews both paid bell history and the real paid bottom popup', () => 
   assert.match(center, /allowProgrammaticOpen/);
 });
 
-test('general and invite links keep the approved 1200x600 invite card while reward shares stay distinct', () => {
+test('general and invite links use cache-busted approved 1200x600 cards while reward shares stay distinct', () => {
+  assert.match(socialCard, /SOCIAL_SHARE_CARD_VERSION = '20261008b'/);
+  assert.match(socialCard, /searchParams\.set\('v', SOCIAL_SHARE_CARD_VERSION\)/);
+  assert.ok(socialCard.includes('veinvite-og-invite-v2.png'));
+  assert.ok(socialCard.includes('veinvite-og-reward-v2.png'));
+
   assert.ok(rootLayout.includes("card: 'summary_large_image'"));
-  assert.ok(rootLayout.includes('veinvite-og-invite-final.png'));
+  assert.ok(rootLayout.includes('INVITE_OG_IMAGE_URL'));
   assert.ok(rootLayout.includes('width: 1200'));
   assert.ok(rootLayout.includes('height: 600'));
   assert.ok(rootLayout.includes("type: 'image/png'"));
 
   assert.ok(legacyInvitePage.includes("card: 'summary_large_image'"));
-  assert.ok(legacyInvitePage.includes('veinvite-og-invite-final.png'));
-  assert.ok(legacyInvitePage.includes('width: 1200'));
-  assert.ok(legacyInvitePage.includes('height: 600'));
-  assert.ok(legacyInvitePage.includes("type: 'image/png'"));
-  assert.ok(legacyInvitePage.includes("You've been invited to VeInvite"));
+  assert.ok(legacyInvitePage.includes('INVITE_OG_IMAGE_URL'));
+  assert.ok(legacyInvitePage.includes("const TITLE = 'Join VeInvite'"));
+  assert.ok(legacyInvitePage.includes('buildProductionSharePageUrl'));
   assert.ok(legacyInvitePage.includes('robots: {'));
 
   assert.ok(referralPage.includes("card: 'summary_large_image'"));
-  assert.ok(referralPage.includes('veinvite-og-invite-final.png'));
+  assert.ok(referralPage.includes('INVITE_OG_IMAGE_URL'));
+  assert.ok(referralPage.includes("const TITLE = 'Join VeInvite'"));
+  assert.ok(referralPage.includes("buildProductionSharePageUrl('r', key)"));
   assert.ok(referralPage.includes('width: 1200'));
   assert.ok(referralPage.includes('height: 600'));
   assert.ok(referralPage.includes("type: 'image/png'"));
-  assert.ok(referralPage.includes("You've been invited to VeInvite"));
   assert.ok(referralPage.includes('robots: {'));
-  assert.equal(
-    referralPage.includes('veinvite-og-reward-final.png'),
-    false,
-  );
+  assert.equal(referralPage.includes('REWARD_OG_IMAGE_URL'), false);
 
   assert.ok(socialReferralPage.includes("card: 'summary_large_image'"));
-  assert.ok(socialReferralPage.includes('veinvite-og-reward-final.png'));
+  assert.ok(socialReferralPage.includes('REWARD_OG_IMAGE_URL'));
+  assert.ok(
+    socialReferralPage.includes("const TITLE = 'Earn B3TR with VeInvite'"),
+  );
+  assert.ok(
+    socialReferralPage.includes("buildProductionSharePageUrl('s', key)"),
+  );
   assert.ok(socialReferralPage.includes('width: 1200'));
   assert.ok(socialReferralPage.includes('height: 600'));
   assert.ok(socialReferralPage.includes("type: 'image/png'"));
-  assert.ok(socialReferralPage.includes('A friend earned B3TR with VeInvite'));
   assert.ok(socialReferralPage.includes('robots: {'));
-  assert.equal(
-    socialReferralPage.includes('veinvite-og-invite-final.png'),
-    false,
-  );
+  assert.equal(socialReferralPage.includes('INVITE_OG_IMAGE_URL'), false);
+
+  assert.match(home, /SOCIAL_SHARE_CARD_VERSION/);
+  assert.match(home, /buildProductionSharePageUrl\('s', referralLink\.key\)/);
+  assert.match(home, /searchParams\.set\('v', SOCIAL_SHARE_CARD_VERSION\)/);
 
   const approvedCards = [
     {
-      path: 'public/veinvite-og-invite-final.png',
+      path: 'public/veinvite-og-invite-v2.png',
       sha256: '2a2bba53ad02a8e57c398ff1d5da6cba68732de26c074d4fdca21da793409c37',
     },
     {
-      path: 'public/veinvite-og-reward-final.png',
+      path: 'public/veinvite-og-reward-v2.png',
       sha256: '9904e5f38265271ec01b93d464ed05e9afc96476a61af54e5113a8ac77d86531',
     },
   ];
