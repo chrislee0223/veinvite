@@ -171,3 +171,4 @@
 20261007083307 fail_soft_underfunded_late_reserve
 20261007183558 add_x_promotion_split_foundation_v1
 20261007184824 add_x_promotion_shadow_projection_v1
+20261008014706 harden_x_promotion_runtime_audit_v1
