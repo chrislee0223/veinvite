@@ -88,3 +88,22 @@ test('opportunity table remains server-only', () => {
     /grant select,insert on table public\.reward_x_promotion_opportunities\s+to service_role/,
   );
 });
+
+test('direct opportunity inserts are guarded by DB invariants and security', () => {
+  assert.match(
+    migration,
+    /before insert on public\.reward_x_promotion_opportunities/,
+  );
+  assert.match(
+    migration,
+    /REWARD_X_PROMOTION_OPPORTUNITY_OBLIGATION_MISMATCH/,
+  );
+  assert.match(
+    migration,
+    /REWARD_X_PROMOTION_OPPORTUNITY_SECURITY_NOT_CLEAR/,
+  );
+  assert.match(
+    migration,
+    /public\.is_sybil_v2_referral_invalidated/,
+  );
+});
