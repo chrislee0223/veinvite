@@ -16,6 +16,7 @@ import {
   readRewardRuntimeSafety,
 } from '@/lib/rewards/runtimeSafety';
 import {
+  runRewardXPromotionShadowAudit,
   runRewardXPromotionShadowSync,
 } from '@/lib/rewards/rewardXPromotionShadow';
 import {
@@ -284,14 +285,27 @@ Promise<ScheduledRewardMaintenanceResult> {
     await runScheduledRewardBoostReserveRebalance();
 
   try {
-    await runRewardXPromotionShadowSync(
-      50,
-    );
+    const shadow =
+      await runRewardXPromotionShadowSync(
+        50,
+      );
+
+    if (shadow.enabled) {
+      const audit =
+        await runRewardXPromotionShadowAudit();
+
+      if (!audit.ok) {
+        console.warn(
+          'X promotion shadow invariant audit detected a mismatch:',
+          audit,
+        );
+      }
+    }
   } catch (error) {
-    // Shadow projection is observability only. Never let it fail or delay
-    // authoritative reward maintenance.
+    // Shadow projection and audit are observability only. Never let either
+    // failure delay or fail authoritative reward maintenance.
     console.warn(
-      'X promotion shadow sync failed:',
+      'X promotion shadow maintenance failed:',
       error,
     );
   }
