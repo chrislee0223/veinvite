@@ -3,6 +3,8 @@
 import { useEffect } from 'react';
 import { useWallet } from '@vechain/vechain-kit';
 
+import { hasCurrentWalletSession } from '@/lib/walletSessionClientProbe';
+
 const APP_READY_EVENT = 'veinvite-app-ready';
 const WALLET_SESSION_READY_EVENT =
   'veinvite-wallet-session-ready';
@@ -48,10 +50,18 @@ export function WalletCountryObservationSync() {
       syncStarted = true;
 
       try {
-        // The protected endpoint remains authoritative and binds the write to
-        // expectedWallet. This effect only starts after VeInvite publishes a
-        // verified session/app-ready signal, so a separate session probe would
-        // duplicate the same server validation during startup.
+        const sessionReady =
+          await hasCurrentWalletSession(walletAddress);
+
+        if (!sessionReady) {
+          syncStarted = false;
+          return;
+        }
+
+        if (cancelled) {
+          return;
+        }
+
         await recordCountry(walletAddress);
       } catch (error) {
         if (cancelled) return;
@@ -78,6 +88,11 @@ export function WalletCountryObservationSync() {
       WALLET_SESSION_READY_EVENT,
       handleWalletSessionReady,
     );
+
+    // Re-entry may restore the authenticated cookie before the wallet-ready
+    // event is observed. The shared probe coalesces this check with language
+    // sync instead of issuing a second identical session request.
+    void syncCountry();
 
     return () => {
       cancelled = true;
