@@ -2,13 +2,16 @@ import type { Metadata } from 'next';
 
 import { PermanentReferralClient } from '@/components/PermanentReferralClient';
 import { WalletSessionGate } from '@/components/WalletSessionGate';
+import {
+  buildProductionSharePageUrl,
+  REWARD_OG_IMAGE_URL,
+} from '@/lib/socialShareCard';
 
-const SITE_URL = 'https://veinvite.vercel.app';
-const TITLE = 'A friend earned B3TR with VeInvite';
+const TITLE = 'Earn B3TR with VeInvite';
 const DESCRIPTION =
-  'See how referrals turn into rewards. Join VeInvite on VeBetterDAO.';
+  'Invite. Verify. Earn. Turn genuine referrals into B3TR rewards.';
 const CARD_ALT =
-  'A friend earned B3TR with VeInvite — Join. Verify. Invite. Earn.';
+  'Earn B3TR with VeInvite — Invite. Verify. Earn.';
 
 export async function generateMetadata({
   params,
@@ -16,9 +19,8 @@ export async function generateMetadata({
   params: Promise<{ key: string }>;
 }): Promise<Metadata> {
   const { key } = await params;
-  const encodedKey = encodeURIComponent(key.trim());
-  const pageUrl = `${SITE_URL}/s/${encodedKey}`;
-  const imageUrl = `${SITE_URL}/veinvite-og-reward-final.png`;
+  const pageUrl = buildProductionSharePageUrl('s', key);
+  const imageUrl = REWARD_OG_IMAGE_URL;
 
   return {
     title: TITLE,

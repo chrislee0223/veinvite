@@ -3,14 +3,17 @@ import type { Metadata } from 'next';
 import { PermanentReferralClient } from '@/components/PermanentReferralClient';
 import { ReferralWalletBootstrapBoundary } from '@/components/ReferralWalletBootstrapBoundary';
 import { WalletSessionGate } from '@/components/WalletSessionGate';
+import {
+  buildProductionSharePageUrl,
+  INVITE_OG_IMAGE_URL,
+} from '@/lib/socialShareCard';
 import { readWalletSessionBootstrap } from '@/lib/walletSessionBootstrapServer';
 
-const SITE_URL = 'https://veinvite.vercel.app';
-const TITLE = "You've been invited to VeInvite";
+const TITLE = 'Join VeInvite';
 const DESCRIPTION =
-  'Join VeInvite, complete missions, and start earning B3TR on VeBetterDAO.';
+  'Verify. Explore. Earn B3TR. Complete missions and start earning rewards.';
 const CARD_ALT =
-  "You've been invited to VeInvite — Join. Verify. Earn B3TR.";
+  'Join VeInvite — Verify. Explore. Earn B3TR.';
 
 export async function generateMetadata({
   params,
@@ -18,9 +21,8 @@ export async function generateMetadata({
   params: Promise<{ key: string }>;
 }): Promise<Metadata> {
   const { key } = await params;
-  const encodedKey = encodeURIComponent(key.trim());
-  const pageUrl = `${SITE_URL}/r/${encodedKey}`;
-  const imageUrl = `${SITE_URL}/veinvite-og-invite-final.png`;
+  const pageUrl = buildProductionSharePageUrl('r', key);
+  const imageUrl = INVITE_OG_IMAGE_URL;
 
   return {
     title: TITLE,

@@ -58,6 +58,10 @@ import {
   writeCachedReferralLink,
 } from '@/lib/homeClientHelpers';
 import { useRewardPaidTransientFeedback } from '@/hooks/useRewardPaidTransientFeedback';
+import {
+  buildProductionSharePageUrl,
+  SOCIAL_SHARE_CARD_VERSION,
+} from '@/lib/socialShareCard';
 
 const AppGuide = dynamic(() =>
   import('./AppGuide').then((module) => module.AppGuide),
@@ -550,6 +554,7 @@ export function HomeClient() {
       `/r/${referralLink.key}`,
       window.location.origin,
     );
+    url.searchParams.set('v', SOCIAL_SHARE_CARD_VERSION);
     if (vercelShareToken) {
       url.searchParams.set('_vercel_share', vercelShareToken);
     }
@@ -557,12 +562,13 @@ export function HomeClient() {
   }, [referralLink, vercelShareToken]);
 
   const rewardShareUrl = referralLink
-    ? `https://veinvite.vercel.app/s/${encodeURIComponent(referralLink.key)}`
+    ? buildProductionSharePageUrl('s', referralLink.key)
     : '';
 
   const legacyInviteUrl = useCallback((invite: InviteRecord) => {
     if (typeof window === 'undefined') return '';
     const url = new URL(`/i/${invite.code}`, window.location.origin);
+    url.searchParams.set('v', SOCIAL_SHARE_CARD_VERSION);
     if (vercelShareToken) {
       url.searchParams.set('_vercel_share', vercelShareToken);
     }

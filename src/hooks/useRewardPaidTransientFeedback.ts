@@ -25,6 +25,7 @@ import {
   rewardReceiptShareLabel,
   rewardReceiptXIntentUrl,
 } from '@/lib/rewards/rewardReceiptShare';
+import { buildProductionSharePageUrl } from '@/lib/socialShareCard';
 
 const REWARD_RECEIPT_ACKNOWLEDGED_EVENT =
   'veinvite-reward-receipt-acknowledged';
@@ -102,8 +103,10 @@ export function useRewardPaidTransientFeedback({
       ? rewardReceiptXIntentUrl({
           locale,
           amountB3tr: payload.amountB3tr,
-          referralUrl:
-            `https://veinvite.vercel.app/s/${encodeURIComponent(referralLink.key)}`,
+          referralUrl: buildProductionSharePageUrl(
+            's',
+            referralLink.key,
+          ),
         })
       : '';
 
