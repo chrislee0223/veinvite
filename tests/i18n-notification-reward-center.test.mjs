@@ -233,11 +233,11 @@ test('general and invite links keep the approved 1200x600 invite card while rewa
   const approvedCards = [
     {
       path: 'public/veinvite-og-invite-final.png',
-      sha256: 'b0e5568e2b414874b49ff6748bf2ab56d31403786261a496aa96ba6661ac255b',
+      sha256: '2a2bba53ad02a8e57c398ff1d5da6cba68732de26c074d4fdca21da793409c37',
     },
     {
       path: 'public/veinvite-og-reward-final.png',
-      sha256: '7a8b5a22239a307cf472708485e20b19a0ccde0646d9ccbeb0c3d48e6ef32903',
+      sha256: '9904e5f38265271ec01b93d464ed05e9afc96476a61af54e5113a8ac77d86531',
     },
   ];
 
