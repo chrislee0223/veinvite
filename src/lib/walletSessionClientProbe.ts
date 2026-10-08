@@ -19,10 +19,43 @@ type InFlightProbe = {
 
 let lastSuccessfulProbe: SuccessfulProbe | null = null;
 let inFlightProbe: InFlightProbe | null = null;
+let probeGeneration = 0;
+let invalidationListenersInstalled = false;
+
+const SESSION_CLEARED_EVENT =
+  'veinvite-wallet-session-cleared';
+const SESSION_INVALID_EVENT =
+  'veinvite-wallet-session-invalid';
+
+export function clearWalletSessionClientProbeCache() {
+  probeGeneration += 1;
+  lastSuccessfulProbe = null;
+  inFlightProbe = null;
+}
+
+function ensureProbeInvalidationListeners() {
+  if (
+    invalidationListenersInstalled ||
+    typeof window === 'undefined'
+  ) {
+    return;
+  }
+
+  invalidationListenersInstalled = true;
+  window.addEventListener(
+    SESSION_CLEARED_EVENT,
+    clearWalletSessionClientProbeCache,
+  );
+  window.addEventListener(
+    SESSION_INVALID_EVENT,
+    clearWalletSessionClientProbeCache,
+  );
+}
 
 export async function hasCurrentWalletSession(
   expectedWallet: string,
 ): Promise<boolean> {
+  ensureProbeInvalidationListeners();
   const normalizedWallet =
     expectedWallet.trim().toLowerCase();
   const recent = lastSuccessfulProbe;
@@ -40,6 +73,7 @@ export async function hasCurrentWalletSession(
     return inFlightProbe.promise;
   }
 
+  const generation = probeGeneration;
   const run = (async () => {
     try {
       const response = await fetch('/api/auth/session', {
@@ -48,6 +82,11 @@ export async function hasCurrentWalletSession(
       });
       const body =
         (await response.json().catch(() => ({}))) as SessionResponse;
+
+      if (generation !== probeGeneration) {
+        return false;
+      }
+
       const matches =
         response.ok &&
         body.authenticated === true &&

@@ -106,6 +106,27 @@ test('startup preference sync shares one short-lived session probe', () => {
   assert.match(sessionProbe, /fetch\('\/api\/auth\/session'/);
   assert.match(sessionProbe, /inFlightProbe/);
   assert.match(sessionProbe, /SESSION_PROBE_CACHE_MS\s*=\s*2_000/);
+  assert.match(
+    sessionProbe,
+    /clearWalletSessionClientProbeCache/,
+  );
+  assert.match(sessionProbe, /probeGeneration \+= 1/);
+  assert.match(
+    sessionProbe,
+    /generation !== probeGeneration/,
+  );
+  assert.match(
+    sessionProbe,
+    /SESSION_CLEARED_EVENT[\s\S]*veinvite-wallet-session-cleared/,
+  );
+  assert.match(
+    sessionProbe,
+    /SESSION_INVALID_EVENT[\s\S]*veinvite-wallet-session-invalid/,
+  );
+  assert.match(
+    sessionProbe,
+    /ensureProbeInvalidationListeners\(\)/,
+  );
 });
 
 test('runtime version check waits for startup and browser idle time', () => {
@@ -123,6 +144,18 @@ test('runtime version check waits for startup and browser idle time', () => {
   assert.match(
     runtimeGuard,
     /STARTUP_VERSION_CHECK_TIMEOUT_MS = 2_000/,
+  );
+  assert.match(
+    runtimeGuard,
+    /STARTUP_VERSION_FAILSAFE_MS = 10_000/,
+  );
+  assert.match(
+    runtimeGuard,
+    /startupFailsafeId = window\.setTimeout\([\s\S]*void checkVersion\(true\)[\s\S]*STARTUP_VERSION_FAILSAFE_MS/s,
+  );
+  assert.match(
+    runtimeGuard,
+    /clearStartupFailsafe\(\)[\s\S]*scheduleCheck\(true\)/,
   );
   assert.doesNotMatch(
     runtimeGuard,
