@@ -1,6 +1,11 @@
 import { cookies } from 'next/headers';
 
 import {
+  CURRENT_PRIVACY_VERSION,
+  CURRENT_TERMS_VERSION,
+} from '@/lib/legalConsent';
+import { supabaseAdmin } from '@/lib/supabaseServer';
+import {
   loadActiveSybilV2Restriction,
   type ActiveSybilV2Restriction,
 } from '@/lib/sybil/v2/restrictions';
@@ -11,17 +16,43 @@ import {
   WALLET_SESSION_COOKIE_NAME,
 } from '@/lib/walletAuthServer';
 
+export type InitialLegalConsentStatus =
+  | 'accepted'
+  | 'missing'
+  | null;
+
 export type WalletSessionBootstrap = {
   initialSessionWallet: string | null;
   initialRestrictionKind:
     | ActiveSybilV2Restriction['restriction_kind']
     | null;
+  initialLegalConsentStatus: InitialLegalConsentStatus;
 };
 
+async function readInitialLegalConsentStatus(
+  walletAddress: string,
+): Promise<Exclude<InitialLegalConsentStatus, null>> {
+  const { data, error } = await supabaseAdmin
+    .from('wallet_legal_consents')
+    .select('accepted_at')
+    .eq('wallet_address', walletAddress.toLowerCase())
+    .eq('terms_version', CURRENT_TERMS_VERSION)
+    .eq('privacy_version', CURRENT_PRIVACY_VERSION)
+    .maybeSingle();
+
+  if (error) {
+    throw new Error(
+      `Legal consent bootstrap failed: ${error.message}`,
+    );
+  }
+
+  return data ? 'accepted' : 'missing';
+}
+
 /**
- * Direct referral routes do not render through Home, so they need their own
- * server-side session bootstrap. Supplying the already verified wallet keeps
- * WalletSessionGate stable while the client wallet provider restores.
+ * Server-side startup bootstrap shared by Home and direct referral routes.
+ * Session validation stays authoritative, while restriction and current legal
+ * consent are resolved in parallel once the wallet session is known.
  */
 export async function readWalletSessionBootstrap():
   Promise<WalletSessionBootstrap> {
@@ -43,7 +74,7 @@ export async function readWalletSessionBootstrap():
     await getWalletSessionFromTokens(sessionTokens).catch(
       (error) => {
         console.error(
-          'Failed to bootstrap direct-referral wallet session:',
+          'Failed to bootstrap VeInvite wallet session:',
           error,
         );
         return null;
@@ -52,22 +83,41 @@ export async function readWalletSessionBootstrap():
   const initialSessionWallet =
     initialSession?.walletAddress ?? null;
 
-  const initialRestriction = initialSessionWallet
-    ? await loadActiveSybilV2Restriction({
+  if (!initialSessionWallet) {
+    return {
+      initialSessionWallet: null,
+      initialRestrictionKind: null,
+      initialLegalConsentStatus: null,
+    };
+  }
+
+  const [initialRestriction, initialLegalConsentStatus] =
+    await Promise.all([
+      loadActiveSybilV2Restriction({
         walletAddress: initialSessionWallet,
         network: getVeBetterNetwork(),
       }).catch((error) => {
         console.error(
-          'Failed to bootstrap direct-referral participation restriction:',
+          'Failed to bootstrap VeInvite participation restriction:',
           error,
         );
         return null;
-      })
-    : null;
+      }),
+      readInitialLegalConsentStatus(
+        initialSessionWallet,
+      ).catch((error) => {
+        console.error(
+          'Failed to bootstrap VeInvite legal consent:',
+          error,
+        );
+        return null;
+      }),
+    ]);
 
   return {
     initialSessionWallet,
     initialRestrictionKind:
       initialRestriction?.restriction_kind ?? null,
+    initialLegalConsentStatus,
   };
 }
