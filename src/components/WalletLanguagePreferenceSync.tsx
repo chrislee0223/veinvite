@@ -37,32 +37,6 @@ type PreferenceResponse = {
   error?: string;
 };
 
-type SessionResponse = {
-  authenticated?: boolean;
-  walletAddress?: string;
-};
-
-async function hasCurrentWalletSession(
-  expectedWallet: string,
-): Promise<boolean> {
-  try {
-    const response = await fetch('/api/auth/session', {
-      credentials: 'include',
-      cache: 'no-store',
-    });
-    const body =
-      (await response.json().catch(() => ({}))) as SessionResponse;
-
-    return (
-      response.ok &&
-      body.authenticated === true &&
-      body.walletAddress?.toLowerCase() === expectedWallet
-    );
-  } catch {
-    return false;
-  }
-}
-
 async function postLanguageState({
   expectedWallet,
   intent,
@@ -238,22 +212,10 @@ export function WalletLanguagePreferenceSync() {
       syncStarted = true;
 
       try {
-        // The wallet provider can become visible a few frames before the
-        // authenticated VeInvite cookie belongs to that wallet. Probe the
-        // read-only session endpoint first so protected preference APIs never
-        // generate expected 401s or run against a previous-wallet session.
-        const sessionReady =
-          await hasCurrentWalletSession(walletAddress);
-
-        if (!sessionReady) {
-          syncStarted = false;
-          return;
-        }
-
-        if (cancelled) {
-          return;
-        }
-
+        // Startup only reaches this path after VeInvite publishes a verified
+        // session/app-ready signal. The preference endpoint independently
+        // validates the active browser session, so an extra /api/auth/session
+        // probe would duplicate the same authorization round trip.
         const response = await fetch(
           '/api/preferences/language',
           { cache: 'no-store' },
@@ -411,11 +373,6 @@ export function WalletLanguagePreferenceSync() {
       WALLET_SESSION_READY_EVENT,
       handleWalletSessionReady,
     );
-
-    // This immediate pass only probes the read-only session endpoint. Existing
-    // authenticated sessions on non-Home routes still sync, while first-login
-    // flows wait for wallet-session-ready before touching protected APIs.
-    void syncPreference();
 
     return () => {
       cancelled = true;
