@@ -21,6 +21,8 @@ const rewardPaidCopy = read('src/lib/i18n/rewardPaidNotificationCopy.ts');
 const rewardAdjustedCopy = read('src/lib/i18n/rewardAdjustedCopy.ts');
 const rewardReceiptView = read('src/components/RewardReceiptView.tsx');
 const qaHarness = read('src/qa/QaNotificationStateHarness.tsx');
+const rootLayout = read('src/app/layout.tsx');
+const legacyInvitePage = read('src/app/i/[code]/page.tsx');
 const referralPage = read('src/app/r/[key]/page.tsx');
 const socialReferralPage = read('src/app/s/[key]/page.tsx');
 const locales = read('src/lib/i18n/locales.ts');
@@ -189,7 +191,21 @@ test('QA previews both paid bell history and the real paid bottom popup', () => 
   assert.match(center, /allowProgrammaticOpen/);
 });
 
-test('referral sharing keeps distinct approved static 1200x600 invite and reward X cards', () => {
+test('general and invite links keep the approved 1200x600 invite card while reward shares stay distinct', () => {
+  assert.ok(rootLayout.includes("card: 'summary_large_image'"));
+  assert.ok(rootLayout.includes('veinvite-og-invite-final.png'));
+  assert.ok(rootLayout.includes('width: 1200'));
+  assert.ok(rootLayout.includes('height: 600'));
+  assert.ok(rootLayout.includes("type: 'image/png'"));
+
+  assert.ok(legacyInvitePage.includes("card: 'summary_large_image'"));
+  assert.ok(legacyInvitePage.includes('veinvite-og-invite-final.png'));
+  assert.ok(legacyInvitePage.includes('width: 1200'));
+  assert.ok(legacyInvitePage.includes('height: 600'));
+  assert.ok(legacyInvitePage.includes("type: 'image/png'"));
+  assert.ok(legacyInvitePage.includes("You've been invited to VeInvite"));
+  assert.ok(legacyInvitePage.includes('robots: {'));
+
   assert.ok(referralPage.includes("card: 'summary_large_image'"));
   assert.ok(referralPage.includes('veinvite-og-invite-final.png'));
   assert.ok(referralPage.includes('width: 1200'));
