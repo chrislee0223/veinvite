@@ -130,6 +130,7 @@ export type RewardXPromotionShadowAuditResult = {
     sourceBinding: number;
     activationWindow: number;
     policyVersion: number;
+    missingProjection: number;
   };
 };
 
@@ -249,6 +250,10 @@ Promise<RewardXPromotionShadowAuditResult> {
       policyVersion: nonNegativeInteger(
         violations.policyVersion,
         'policy version violation count',
+      ),
+      missingProjection: nonNegativeInteger(
+        violations.missingProjection,
+        'missing projection violation count',
       ),
     },
   };
