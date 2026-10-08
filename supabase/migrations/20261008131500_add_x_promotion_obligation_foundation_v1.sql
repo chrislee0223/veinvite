@@ -234,7 +234,7 @@ begin
     insert into public.reward_x_promotion_obligation_events(
       obligation_id,invite_code,network,previous_state,new_state,reason,database_actor
     ) values (
-      new.id,new.invite_code,new.network,null,new.financial_state,'CREATED',current_user
+      new.id,new.invite_code,new.network,null,new.financial_state,'CREATED',session_user
     );
   elsif old.financial_state is distinct from new.financial_state then
     insert into public.reward_x_promotion_obligation_events(
@@ -250,7 +250,7 @@ begin
         when new.financial_state='RELEASED' then new.release_reason
         else 'STATE_TRANSITION'
       end,
-      current_user
+      session_user
     );
   end if;
 
