@@ -107,3 +107,149 @@ export async function runRewardXPromotionShadowSync(
         : null,
   };
 }
+
+
+export type RewardXPromotionShadowAuditResult = {
+  ok: boolean;
+  network: string;
+  shadowEnabled: boolean;
+  liveEnabled: boolean;
+  policyVersion: string;
+  shadowStartedAt: string | null;
+  liveStartedAt: string | null;
+  totalCount: number;
+  shadowCount: number;
+  liveCount: number;
+  reservationWei: string;
+  baseWei: string;
+  promotionWei: string;
+  violations: {
+    conservation: number;
+    calculation: number;
+    queueBinding: number;
+    sourceBinding: number;
+    activationWindow: number;
+    policyVersion: number;
+  };
+};
+
+function booleanField(
+  value: unknown,
+  fieldName: string,
+): boolean {
+  if (typeof value !== 'boolean') {
+    throw new Error(`X promotion shadow ${fieldName} is invalid.`);
+  }
+  return value;
+}
+
+export async function runRewardXPromotionShadowAudit():
+Promise<RewardXPromotionShadowAuditResult> {
+  const { network } = getVeBetterNetworkConfig();
+  const { data, error } = await supabaseAdmin.rpc(
+    'read_reward_x_promotion_shadow_audit',
+    {
+      p_network: network,
+    },
+  );
+
+  if (error) {
+    throw new Error(
+      `X promotion shadow audit failed: ${error.message}`,
+    );
+  }
+
+  if (!data || typeof data !== 'object' || Array.isArray(data)) {
+    throw new Error('X promotion shadow audit returned malformed data.');
+  }
+
+  const row = data as Record<string, unknown>;
+  const resultNetwork = String(row.network ?? '').toLowerCase();
+  const policyVersion = String(row.policyVersion ?? '').trim();
+  const rawViolations = row.violations;
+
+  if (
+    resultNetwork !== network ||
+    !policyVersion ||
+    !rawViolations ||
+    typeof rawViolations !== 'object' ||
+    Array.isArray(rawViolations)
+  ) {
+    throw new Error('X promotion shadow audit identity is invalid.');
+  }
+
+  const violations =
+    rawViolations as Record<string, unknown>;
+
+  return {
+    ok: booleanField(row.ok, 'audit status'),
+    network: resultNetwork,
+    shadowEnabled: booleanField(
+      row.shadowEnabled,
+      'shadow enabled state',
+    ),
+    liveEnabled: booleanField(
+      row.liveEnabled,
+      'live enabled state',
+    ),
+    policyVersion,
+    shadowStartedAt:
+      typeof row.shadowStartedAt === 'string'
+        ? row.shadowStartedAt
+        : null,
+    liveStartedAt:
+      typeof row.liveStartedAt === 'string'
+        ? row.liveStartedAt
+        : null,
+    totalCount: nonNegativeInteger(
+      row.totalCount,
+      'total split count',
+    ),
+    shadowCount: nonNegativeInteger(
+      row.shadowCount,
+      'shadow split count',
+    ),
+    liveCount: nonNegativeInteger(
+      row.liveCount,
+      'live split count',
+    ),
+    reservationWei: weiString(
+      row.reservationWei,
+      'audit reservation amount',
+    ),
+    baseWei: weiString(
+      row.baseWei,
+      'audit base amount',
+    ),
+    promotionWei: weiString(
+      row.promotionWei,
+      'audit promotion amount',
+    ),
+    violations: {
+      conservation: nonNegativeInteger(
+        violations.conservation,
+        'conservation violation count',
+      ),
+      calculation: nonNegativeInteger(
+        violations.calculation,
+        'calculation violation count',
+      ),
+      queueBinding: nonNegativeInteger(
+        violations.queueBinding,
+        'queue binding violation count',
+      ),
+      sourceBinding: nonNegativeInteger(
+        violations.sourceBinding,
+        'source binding violation count',
+      ),
+      activationWindow: nonNegativeInteger(
+        violations.activationWindow,
+        'activation window violation count',
+      ),
+      policyVersion: nonNegativeInteger(
+        violations.policyVersion,
+        'policy version violation count',
+      ),
+    },
+  };
+}

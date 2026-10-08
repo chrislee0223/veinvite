@@ -92,11 +92,11 @@ test('shadow maintenance is fail-soft and leaves the cron route untouched', () =
   assert.match(scheduler, /runRewardXPromotionShadowSync/);
   assert.match(
     scheduler,
-    /console\.warn\([\s\S]*X promotion shadow sync failed/,
+    /console\.warn\([\s\S]*X promotion shadow maintenance failed/,
   );
   assert.doesNotMatch(
     scheduler,
-    /errors\.push\([\s\S]{0,160}X promotion shadow sync failed/,
+    /errors\.push\([\s\S]{0,200}X promotion shadow maintenance failed/,
   );
   assert.doesNotMatch(
     route,
