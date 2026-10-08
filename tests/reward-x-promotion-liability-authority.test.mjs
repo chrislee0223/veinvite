@@ -10,6 +10,21 @@ const migration = await readFile(
   'utf8',
 );
 
+function functionSection(name, nextName = null) {
+  const marker = `CREATE OR REPLACE FUNCTION public.${name}`;
+  const start = migration.indexOf(marker);
+  assert.notEqual(start, -1, `missing function ${name}`);
+
+  if (!nextName) return migration.slice(start);
+
+  const next = migration.indexOf(
+    `CREATE OR REPLACE FUNCTION public.${nextName}`,
+    start + marker.length,
+  );
+  assert.notEqual(next, -1, `missing next function ${nextName}`);
+  return migration.slice(start, next);
+}
+
 const authorityCalls =
   migration.match(/read_outstanding_reward_liability\(/g) ?? [];
 
@@ -34,9 +49,10 @@ test('all four reward planning and commit paths share one liability authority', 
 });
 
 test('reservation commit uses authoritative liability before its pool guard', () => {
-  const fn = migration.match(
-    /CREATE OR REPLACE FUNCTION public\.commit_reward_reservation[\s\S]*?\$function\$/i,
-  )?.[0] ?? '';
+  const fn = functionSection(
+    'commit_reward_reservation',
+    'prepare_reward_cohort_batch',
+  );
   assert.match(fn, /v_reserved := public\.read_outstanding_reward_liability/);
   assert.match(
     fn,
@@ -45,9 +61,10 @@ test('reservation commit uses authoritative liability before its pool guard', ()
 });
 
 test('batch keeps payout creation unchanged while only centralizing pool liability', () => {
-  const fn = migration.match(
-    /CREATE OR REPLACE FUNCTION public\.prepare_reward_cohort_batch[\s\S]*?\$function\$/i,
-  )?.[0] ?? '';
+  const fn = functionSection(
+    'prepare_reward_cohort_batch',
+    'read_predictive_reward_planning_snapshot',
+  );
   assert.match(
     fn,
     /v_reserved_existing := public\.read_outstanding_reward_liability/,
@@ -59,14 +76,19 @@ test('batch keeps payout creation unchanged while only centralizing pool liabili
 });
 
 test('planning snapshots use the same authority', () => {
-  const predictive = migration.match(
-    /CREATE OR REPLACE FUNCTION public\.read_predictive_reward_planning_snapshot[\s\S]*?\$function\$/i,
-  )?.[0] ?? '';
-  const cohort = migration.match(
-    /CREATE OR REPLACE FUNCTION public\.read_reward_cohort_planning_snapshot[\s\S]*?\$function\$/i,
-  )?.[0] ?? '';
-  assert.match(predictive, /v_reserved := public\.read_outstanding_reward_liability/);
-  assert.match(cohort, /v_reserved := public\.read_outstanding_reward_liability/);
+  const predictive = functionSection(
+    'read_predictive_reward_planning_snapshot',
+    'read_reward_cohort_planning_snapshot',
+  );
+  const cohort = functionSection('read_reward_cohort_planning_snapshot');
+  assert.match(
+    predictive,
+    /v_reserved := public\.read_outstanding_reward_liability/,
+  );
+  assert.match(
+    cohort,
+    /v_reserved := public\.read_outstanding_reward_liability/,
+  );
 });
 
 test('this migration does not enable X promotion or alter live payout amount selection', () => {
@@ -80,8 +102,8 @@ test('this migration does not enable X promotion or alter live payout amount sel
   );
 });
 
-
 test('each replacement function is terminated as a standalone migration statement', () => {
-  const definitions = migration.match(/CREATE OR REPLACE FUNCTION[\s\S]*?\$function\$;/gi) ?? [];
+  const definitions =
+    migration.match(/end;\n\$function\$;/g) ?? [];
   assert.equal(definitions.length, 4);
 });
