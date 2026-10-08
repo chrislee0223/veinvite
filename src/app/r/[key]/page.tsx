@@ -75,6 +75,7 @@ export default async function PermanentReferralPage({
       <WalletSessionGate
         initialSessionWallet={bootstrap.initialSessionWallet}
         initialRestrictionKind={bootstrap.initialRestrictionKind}
+        initialLegalConsentStatus={bootstrap.initialLegalConsentStatus}
       >
         <PermanentReferralClient referralKey={key.trim()} />
       </WalletSessionGate>
