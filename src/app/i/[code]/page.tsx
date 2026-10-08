@@ -21,6 +21,7 @@ export default async function InvitePage({
       <WalletSessionGate
         initialSessionWallet={bootstrap.initialSessionWallet}
         initialRestrictionKind={bootstrap.initialRestrictionKind}
+        initialLegalConsentStatus={bootstrap.initialLegalConsentStatus}
       >
         <InviteeClient code={normalizedCode} />
       </WalletSessionGate>

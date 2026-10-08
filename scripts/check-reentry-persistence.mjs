@@ -14,6 +14,7 @@ const languageMigration = read('supabase/migrations/20260901112500_persist_walle
 const appProviders = read('src/components/AppProviders.tsx');
 const rootLayout = read('src/app/layout.tsx');
 const homePage = read('src/app/page.tsx');
+const walletBootstrapServer = read('src/lib/walletSessionBootstrapServer.ts');
 const hydrationShield = read('src/components/LocaleHydrationShield.tsx');
 const walletRuntime = read('src/components/WalletRuntimeLifecycle.tsx');
 const homeStartupReadiness = read('src/lib/homeStartupReadiness.ts');
@@ -101,7 +102,12 @@ if (
 if (!/\/api\/auth\/session/.test(walletAuth) || !/session\.authenticated/.test(walletAuth)) {
   failures.push('Wallet authentication must reuse a valid existing server session before requesting a fresh wallet signature.');
 }
-if (!/cookies\(\)/.test(homePage) || !/getWalletSessionFromTokens/.test(homePage) || !/initialSessionWallet/.test(homePage)) {
+if (
+  !/readWalletSessionBootstrap/.test(homePage) ||
+  !/initialSessionWallet/.test(homePage) ||
+  !/cookies\(\)/.test(walletBootstrapServer) ||
+  !/getWalletSessionFromTokens/.test(walletBootstrapServer)
+) {
   failures.push('The home page must validate the persistent wallet session server-side before the client wallet provider reconnects.');
 }
 if (!/data-veinvite-session-bootstrap/.test(homePage)) {

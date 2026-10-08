@@ -15,6 +15,7 @@ import {
   readStoredLanguage,
   writeStoredLanguage,
 } from '@/lib/i18n/languageStorage';
+import { hasCurrentWalletSession } from '@/lib/walletSessionClientProbe';
 
 const SET_LANGUAGE_INTENT =
   'SET_WALLET_LANGUAGE_PREFERENCE';
@@ -36,32 +37,6 @@ type PreferenceResponse = {
   language?: unknown;
   error?: string;
 };
-
-type SessionResponse = {
-  authenticated?: boolean;
-  walletAddress?: string;
-};
-
-async function hasCurrentWalletSession(
-  expectedWallet: string,
-): Promise<boolean> {
-  try {
-    const response = await fetch('/api/auth/session', {
-      credentials: 'include',
-      cache: 'no-store',
-    });
-    const body =
-      (await response.json().catch(() => ({}))) as SessionResponse;
-
-    return (
-      response.ok &&
-      body.authenticated === true &&
-      body.walletAddress?.toLowerCase() === expectedWallet
-    );
-  } catch {
-    return false;
-  }
-}
 
 async function postLanguageState({
   expectedWallet,
@@ -238,10 +213,6 @@ export function WalletLanguagePreferenceSync() {
       syncStarted = true;
 
       try {
-        // The wallet provider can become visible a few frames before the
-        // authenticated VeInvite cookie belongs to that wallet. Probe the
-        // read-only session endpoint first so protected preference APIs never
-        // generate expected 401s or run against a previous-wallet session.
         const sessionReady =
           await hasCurrentWalletSession(walletAddress);
 
@@ -412,9 +383,9 @@ export function WalletLanguagePreferenceSync() {
       handleWalletSessionReady,
     );
 
-    // This immediate pass only probes the read-only session endpoint. Existing
-    // authenticated sessions on non-Home routes still sync, while first-login
-    // flows wait for wallet-session-ready before touching protected APIs.
+    // Re-entry may restore the authenticated cookie before the wallet-ready
+    // event is observed. Country sync uses the same short-lived session probe,
+    // so both startup observers share one authorization round trip.
     void syncPreference();
 
     return () => {

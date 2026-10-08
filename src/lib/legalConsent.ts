@@ -22,3 +22,8 @@ export const LEGACY_LEGAL_STORAGE_KEY =
 export type LegalConsentSource =
   | 'ui'
   | 'legacy-local-storage';
+
+export type InitialLegalConsentStatus =
+  | 'accepted'
+  | 'missing'
+  | null;

@@ -5,9 +5,20 @@ import { useCallback, useEffect, useRef } from 'react';
 const CLIENT_RELEASE = process.env.NEXT_PUBLIC_APP_RELEASE ?? 'dev';
 const CHECK_COOLDOWN_MS = 15_000;
 const CACHE_BUST_PARAM = '__veinvite_release';
+const APP_READY_EVENT = 'veinvite-app-ready';
+const PROVIDER_READY_EVENT = 'veinvite-provider-ready';
+const STARTUP_VERSION_CHECK_TIMEOUT_MS = 2_000;
 
 type RuntimeVersionPayload = {
   release?: string;
+};
+
+type IdleCapableWindow = Window & {
+  requestIdleCallback?: (
+    callback: () => void,
+    options?: { timeout?: number },
+  ) => number;
+  cancelIdleCallback?: (id: number) => void;
 };
 
 function cleanCacheBustParam() {
@@ -59,22 +70,104 @@ export function RuntimeVersionGuard() {
   }, []);
 
   useEffect(() => {
-    void checkVersion(true);
+    const idleWindow = window as IdleCapableWindow;
+    let idleId: number | null = null;
+    let fallbackId: number | null = null;
+    let scheduled = false;
 
-    const onVisible = () => {
-      if (document.visibilityState === 'visible') void checkVersion();
+    const clearScheduledCheck = () => {
+      if (
+        idleId !== null &&
+        typeof idleWindow.cancelIdleCallback === 'function'
+      ) {
+        idleWindow.cancelIdleCallback(idleId);
+      }
+      if (fallbackId !== null) {
+        window.clearTimeout(fallbackId);
+      }
+      idleId = null;
+      fallbackId = null;
+      scheduled = false;
     };
-    const onFocus = () => void checkVersion();
-    const onPageShow = () => void checkVersion(true);
+
+    const scheduleCheck = (force = false) => {
+      if (reloadingRef.current || scheduled) {
+        return;
+      }
+
+      scheduled = true;
+      const run = () => {
+        idleId = null;
+        fallbackId = null;
+        scheduled = false;
+        void checkVersion(force);
+      };
+
+      if (typeof idleWindow.requestIdleCallback === 'function') {
+        idleId = idleWindow.requestIdleCallback(run, {
+          timeout: STARTUP_VERSION_CHECK_TIMEOUT_MS,
+        });
+        return;
+      }
+
+      fallbackId = window.setTimeout(
+        run,
+        STARTUP_VERSION_CHECK_TIMEOUT_MS,
+      );
+    };
+
+    const scheduleWhenStartupAllows = () => {
+      const isHome = window.location.pathname === '/';
+      const ready = isHome
+        ? document.documentElement.dataset.veinviteAppReady === 'true'
+        : document.documentElement.dataset.veinviteProviderReady === 'true';
+
+      if (ready) {
+        scheduleCheck(true);
+      }
+    };
+
+    const startupReady = () => {
+      const isHome = window.location.pathname === '/';
+
+      return isHome
+        ? document.documentElement.dataset.veinviteAppReady === 'true'
+        : document.documentElement.dataset.veinviteProviderReady === 'true';
+    };
+    const scheduleAfterStartup = (force = false) => {
+      if (startupReady()) {
+        scheduleCheck(force);
+      }
+    };
+    const onVisible = () => {
+      if (document.visibilityState === 'visible') {
+        scheduleAfterStartup();
+      }
+    };
+    const onFocus = () => scheduleAfterStartup();
+    const onPageShow = () => scheduleAfterStartup(true);
+    const onAppReady = () => scheduleCheck(true);
+    const onProviderReady = () => {
+      if (window.location.pathname !== '/') {
+        scheduleCheck(true);
+      }
+    };
 
     document.addEventListener('visibilitychange', onVisible);
     window.addEventListener('focus', onFocus);
     window.addEventListener('pageshow', onPageShow);
+    window.addEventListener(APP_READY_EVENT, onAppReady);
+    window.addEventListener(PROVIDER_READY_EVENT, onProviderReady);
+
+    scheduleWhenStartupAllows();
 
     return () => {
+      clearScheduledCheck();
       document.removeEventListener('visibilitychange', onVisible);
       window.removeEventListener('focus', onFocus);
       window.removeEventListener('pageshow', onPageShow);
+      window.removeEventListener(APP_READY_EVENT, onAppReady);
+      window.removeEventListener(PROVIDER_READY_EVENT, onProviderReady);
     };
   }, [checkVersion]);
 

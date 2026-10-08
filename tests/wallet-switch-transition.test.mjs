@@ -321,8 +321,8 @@ test('wallet switching re-arms readiness without replaying the global loading sh
   );
 });
 
-test('wallet-scoped preference observers preflight the current authenticated session before protected APIs', async () => {
-  const [languageClient, countryClient] = await Promise.all([
+test('wallet-scoped preference observers share one authenticated session preflight before protected APIs', async () => {
+  const [languageClient, countryClient, sharedProbe] = await Promise.all([
     readFile(
       new URL(
         '../src/components/WalletLanguagePreferenceSync.tsx',
@@ -337,14 +337,32 @@ test('wallet-scoped preference observers preflight the current authenticated ses
       ),
       'utf8',
     ),
+    readFile(
+      new URL(
+        '../src/lib/walletSessionClientProbe.ts',
+        import.meta.url,
+      ),
+      'utf8',
+    ),
   ]);
 
   for (const source of [languageClient, countryClient]) {
     assert.match(
       source,
-      /hasCurrentWalletSession[\s\S]*fetch\('\/api\/auth\/session'[\s\S]*body\.authenticated === true[\s\S]*body\.walletAddress\?\.toLowerCase\(\) === expectedWallet/,
+      /hasCurrentWalletSession\(walletAddress\)/,
+    );
+    assert.doesNotMatch(
+      source,
+      /fetch\('\/api\/auth\/session'/,
     );
   }
+
+  assert.match(
+    sharedProbe,
+    /fetch\('\/api\/auth\/session'[\s\S]*body\.authenticated === true[\s\S]*body\.walletAddress\?\.toLowerCase\(\) === normalizedWallet/,
+  );
+  assert.match(sharedProbe, /inFlightProbe/);
+  assert.match(sharedProbe, /SESSION_PROBE_CACHE_MS\s*=\s*2_000/);
 
   assert.match(
     languageClient,
