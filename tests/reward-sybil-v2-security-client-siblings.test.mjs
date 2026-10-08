@@ -8,6 +8,7 @@ const [
   inviterMigration,
   learnedPatternMigration,
   reviewedBehaviorPatterns,
+  protocolDestinations,
   policy,
 ] = await Promise.all([
   readFile('src/lib/sybil/v2/pipeline.ts', 'utf8'),
@@ -25,6 +26,10 @@ const [
   ),
   readFile(
     'src/lib/sybil/v2/reviewedBehaviorPatterns.ts',
+    'utf8',
+  ),
+  readFile(
+    'src/lib/sybil/v2/protocolDestinations.ts',
     'utf8',
   ),
   readFile('src/lib/sybil/v2/policy.ts', 'utf8'),
@@ -168,11 +173,11 @@ test('learned automatic restriction preserves reward finality and service-role-o
 
 test('known shared swap infrastructure is excluded from Sybil hub inference', () => {
   assert.match(
-    pipeline,
+    protocolDestinations,
     /0xda5a60c8559a37eab5950a4ace9b77c25f6fde80/u,
   );
   assert.match(
-    pipeline,
+    protocolDestinations,
     /0xc6de3b8e4a9bf4a6756e60f5cb6705cb7d3c1649/u,
   );
   assert.match(
