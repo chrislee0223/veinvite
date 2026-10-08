@@ -8,6 +8,7 @@ const CACHE_BUST_PARAM = '__veinvite_release';
 const APP_READY_EVENT = 'veinvite-app-ready';
 const PROVIDER_READY_EVENT = 'veinvite-provider-ready';
 const STARTUP_VERSION_CHECK_TIMEOUT_MS = 2_000;
+const STARTUP_VERSION_FAILSAFE_MS = 10_000;
 
 type RuntimeVersionPayload = {
   release?: string;
@@ -25,7 +26,11 @@ function cleanCacheBustParam() {
   const url = new URL(window.location.href);
   if (!url.searchParams.has(CACHE_BUST_PARAM)) return;
   url.searchParams.delete(CACHE_BUST_PARAM);
-  window.history.replaceState(window.history.state, '', `${url.pathname}${url.search}${url.hash}`);
+  window.history.replaceState(
+    window.history.state,
+    '',
+    `${url.pathname}${url.search}${url.hash}`,
+  );
 }
 
 export function RuntimeVersionGuard() {
@@ -49,7 +54,11 @@ export function RuntimeVersionGuard() {
 
       const payload = await response.json() as RuntimeVersionPayload;
       const serverRelease = payload.release?.trim();
-      if (!serverRelease || serverRelease === 'dev' || CLIENT_RELEASE === 'dev') {
+      if (
+        !serverRelease ||
+        serverRelease === 'dev' ||
+        CLIENT_RELEASE === 'dev'
+      ) {
         cleanCacheBustParam();
         return;
       }
@@ -61,7 +70,10 @@ export function RuntimeVersionGuard() {
 
       reloadingRef.current = true;
       const url = new URL(window.location.href);
-      url.searchParams.set(CACHE_BUST_PARAM, serverRelease.slice(0, 12));
+      url.searchParams.set(
+        CACHE_BUST_PARAM,
+        serverRelease.slice(0, 12),
+      );
       window.location.replace(url.toString());
     } catch {
       // Version checks are intentionally non-blocking. A transient network
@@ -72,7 +84,8 @@ export function RuntimeVersionGuard() {
   useEffect(() => {
     const idleWindow = window as IdleCapableWindow;
     let idleId: number | null = null;
-    let fallbackId: number | null = null;
+    let idleFallbackId: number | null = null;
+    let startupFailsafeId: number | null = null;
     let scheduled = false;
 
     const clearScheduledCheck = () => {
@@ -82,12 +95,19 @@ export function RuntimeVersionGuard() {
       ) {
         idleWindow.cancelIdleCallback(idleId);
       }
-      if (fallbackId !== null) {
-        window.clearTimeout(fallbackId);
+      if (idleFallbackId !== null) {
+        window.clearTimeout(idleFallbackId);
       }
       idleId = null;
-      fallbackId = null;
+      idleFallbackId = null;
       scheduled = false;
+    };
+
+    const clearStartupFailsafe = () => {
+      if (startupFailsafeId !== null) {
+        window.clearTimeout(startupFailsafeId);
+        startupFailsafeId = null;
+      }
     };
 
     const scheduleCheck = (force = false) => {
@@ -98,7 +118,7 @@ export function RuntimeVersionGuard() {
       scheduled = true;
       const run = () => {
         idleId = null;
-        fallbackId = null;
+        idleFallbackId = null;
         scheduled = false;
         void checkVersion(force);
       };
@@ -110,21 +130,10 @@ export function RuntimeVersionGuard() {
         return;
       }
 
-      fallbackId = window.setTimeout(
+      idleFallbackId = window.setTimeout(
         run,
         STARTUP_VERSION_CHECK_TIMEOUT_MS,
       );
-    };
-
-    const scheduleWhenStartupAllows = () => {
-      const isHome = window.location.pathname === '/';
-      const ready = isHome
-        ? document.documentElement.dataset.veinviteAppReady === 'true'
-        : document.documentElement.dataset.veinviteProviderReady === 'true';
-
-      if (ready) {
-        scheduleCheck(true);
-      }
     };
 
     const startupReady = () => {
@@ -134,21 +143,35 @@ export function RuntimeVersionGuard() {
         ? document.documentElement.dataset.veinviteAppReady === 'true'
         : document.documentElement.dataset.veinviteProviderReady === 'true';
     };
+
     const scheduleAfterStartup = (force = false) => {
-      if (startupReady()) {
-        scheduleCheck(force);
+      if (!startupReady()) {
+        return false;
       }
+
+      clearStartupFailsafe();
+      scheduleCheck(force);
+      return true;
     };
+
     const onVisible = () => {
       if (document.visibilityState === 'visible') {
         scheduleAfterStartup();
       }
     };
-    const onFocus = () => scheduleAfterStartup();
-    const onPageShow = () => scheduleAfterStartup(true);
-    const onAppReady = () => scheduleCheck(true);
+    const onFocus = () => {
+      scheduleAfterStartup();
+    };
+    const onPageShow = () => {
+      scheduleAfterStartup(true);
+    };
+    const onAppReady = () => {
+      clearStartupFailsafe();
+      scheduleCheck(true);
+    };
     const onProviderReady = () => {
       if (window.location.pathname !== '/') {
+        clearStartupFailsafe();
         scheduleCheck(true);
       }
     };
@@ -159,9 +182,24 @@ export function RuntimeVersionGuard() {
     window.addEventListener(APP_READY_EVENT, onAppReady);
     window.addEventListener(PROVIDER_READY_EVENT, onProviderReady);
 
-    scheduleWhenStartupAllows();
+    if (!scheduleAfterStartup(true)) {
+      startupFailsafeId = window.setTimeout(() => {
+        startupFailsafeId = null;
+
+        if (startupReady()) {
+          scheduleCheck(true);
+          return;
+        }
+
+        // Emergency recovery only: if an old/incompatible client never reaches
+        // the normal startup-ready signals, still allow one version check so a
+        // newer deployment can self-recover. Normal startup never waits on this.
+        void checkVersion(true);
+      }, STARTUP_VERSION_FAILSAFE_MS);
+    }
 
     return () => {
+      clearStartupFailsafe();
       clearScheduledCheck();
       document.removeEventListener('visibilitychange', onVisible);
       window.removeEventListener('focus', onFocus);
