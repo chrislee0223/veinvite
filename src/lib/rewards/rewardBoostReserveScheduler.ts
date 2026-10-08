@@ -16,6 +16,9 @@ import {
   readRewardRuntimeSafety,
 } from '@/lib/rewards/runtimeSafety';
 import {
+  runRewardXPromotionShadowSync,
+} from '@/lib/rewards/rewardXPromotionShadow';
+import {
   recoverSubmittedRewardPayout,
   type SubmittedPayoutRecoveryResult,
 } from '@/lib/rewards/submittedPayoutRecovery';
@@ -279,6 +282,19 @@ Promise<ScheduledRewardMaintenanceResult> {
     await runScheduledSubmittedPayoutRecovery();
   const reserve =
     await runScheduledRewardBoostReserveRebalance();
+
+  try {
+    await runRewardXPromotionShadowSync(
+      50,
+    );
+  } catch (error) {
+    // Shadow projection is observability only. Never let it fail or delay
+    // authoritative reward maintenance.
+    console.warn(
+      'X promotion shadow sync failed:',
+      error,
+    );
+  }
 
   return {
     submittedPayout,
