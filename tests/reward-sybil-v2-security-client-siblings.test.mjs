@@ -7,6 +7,7 @@ const [
   migration,
   inviterMigration,
   learnedPatternMigration,
+  reviewedBehaviorPatterns,
   policy,
 ] = await Promise.all([
   readFile('src/lib/sybil/v2/pipeline.ts', 'utf8'),
@@ -20,6 +21,10 @@ const [
   ),
   readFile(
     'supabase/migrations/20261008153842_learn_reviewed_sybil_patterns_v1.sql',
+    'utf8',
+  ),
+  readFile(
+    'src/lib/sybil/v2/reviewedBehaviorPatterns.ts',
     'utf8',
   ),
   readFile('src/lib/sybil/v2/policy.ts', 'utf8'),
@@ -114,7 +119,11 @@ test('reviewed sibling-farming behavior only auto-restricts with independent sam
   );
   assert.match(
     pipeline,
-    /applySecurityClientSiblingPatternRestriction/u,
+    /applyReviewedSiblingSyncRewardRestriction/u,
+  );
+  assert.match(
+    reviewedBehaviorPatterns,
+    /apply_sybil_v2_security_client_sibling_pattern_restriction/u,
   );
   assert.match(
     learnedPatternMigration,
