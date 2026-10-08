@@ -42,7 +42,6 @@ import {
 import {
   WALLET_SWITCH_COPY,
 } from '@/lib/i18n/walletSwitchCopy';
-import { clearWalletSessionClientProbeCache } from '@/lib/walletSessionClientProbe';
 import {
   isWalletSessionMismatch,
   markWalletConnectIntent,
@@ -623,7 +622,6 @@ export function WalletSessionGate({
     if (previewMode) return;
 
     const handleSessionCleared = () => {
-      clearWalletSessionClientProbeCache();
       attemptRef.current += 1;
       autoAttemptedWalletRef.current = null;
       bootReadyDispatchedRef.current = false;
@@ -891,7 +889,6 @@ export function WalletSessionGate({
     if (previewMode) return;
 
     const handleInvalidWalletSession = () => {
-      clearWalletSessionClientProbeCache();
       attemptRef.current += 1;
       autoAttemptedWalletRef.current = null;
       bootReadyDispatchedRef.current = false;
