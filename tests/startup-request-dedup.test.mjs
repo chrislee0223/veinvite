@@ -11,6 +11,7 @@ const [
   legalGate,
   languageSync,
   countrySync,
+  sessionProbe,
   runtimeGuard,
 ] = await Promise.all([
   readFile(
@@ -43,6 +44,10 @@ const [
   ),
   readFile(
     new URL('../src/components/WalletCountryObservationSync.tsx', import.meta.url),
+    'utf8',
+  ),
+  readFile(
+    new URL('../src/lib/walletSessionClientProbe.ts', import.meta.url),
     'utf8',
   ),
   readFile(
@@ -91,12 +96,16 @@ test('legal consent skips the client GET when server state is already known', ()
   );
 });
 
-test('startup preference sync no longer performs duplicate session probes', () => {
+test('startup preference sync shares one short-lived session probe', () => {
   for (const source of [languageSync, countrySync]) {
-    assert.doesNotMatch(source, /hasCurrentWalletSession/);
+    assert.match(source, /hasCurrentWalletSession/);
     assert.doesNotMatch(source, /fetch\('\/api\/auth\/session'/);
     assert.match(source, /WALLET_SESSION_READY_EVENT/);
   }
+
+  assert.match(sessionProbe, /fetch\('\/api\/auth\/session'/);
+  assert.match(sessionProbe, /inFlightProbe/);
+  assert.match(sessionProbe, /SESSION_PROBE_CACHE_MS\s*=\s*2_000/);
 });
 
 test('runtime version check waits for startup and browser idle time', () => {
