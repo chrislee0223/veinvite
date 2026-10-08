@@ -19,6 +19,13 @@ type InFlightProbe = {
 
 let lastSuccessfulProbe: SuccessfulProbe | null = null;
 let inFlightProbe: InFlightProbe | null = null;
+let probeGeneration = 0;
+
+export function clearWalletSessionClientProbeCache() {
+  probeGeneration += 1;
+  lastSuccessfulProbe = null;
+  inFlightProbe = null;
+}
 
 export async function hasCurrentWalletSession(
   expectedWallet: string,
@@ -40,6 +47,7 @@ export async function hasCurrentWalletSession(
     return inFlightProbe.promise;
   }
 
+  const generation = probeGeneration;
   const run = (async () => {
     try {
       const response = await fetch('/api/auth/session', {
@@ -48,6 +56,11 @@ export async function hasCurrentWalletSession(
       });
       const body =
         (await response.json().catch(() => ({}))) as SessionResponse;
+
+      if (generation !== probeGeneration) {
+        return false;
+      }
+
       const matches =
         response.ok &&
         body.authenticated === true &&
