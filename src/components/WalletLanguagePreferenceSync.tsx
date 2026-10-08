@@ -15,6 +15,7 @@ import {
   readStoredLanguage,
   writeStoredLanguage,
 } from '@/lib/i18n/languageStorage';
+import { hasCurrentWalletSession } from '@/lib/walletSessionClientProbe';
 
 const SET_LANGUAGE_INTENT =
   'SET_WALLET_LANGUAGE_PREFERENCE';
@@ -212,10 +213,18 @@ export function WalletLanguagePreferenceSync() {
       syncStarted = true;
 
       try {
-        // Startup only reaches this path after VeInvite publishes a verified
-        // session/app-ready signal. The preference endpoint independently
-        // validates the active browser session, so an extra /api/auth/session
-        // probe would duplicate the same authorization round trip.
+        const sessionReady =
+          await hasCurrentWalletSession(walletAddress);
+
+        if (!sessionReady) {
+          syncStarted = false;
+          return;
+        }
+
+        if (cancelled) {
+          return;
+        }
+
         const response = await fetch(
           '/api/preferences/language',
           { cache: 'no-store' },
@@ -373,6 +382,11 @@ export function WalletLanguagePreferenceSync() {
       WALLET_SESSION_READY_EVENT,
       handleWalletSessionReady,
     );
+
+    // Re-entry may restore the authenticated cookie before the wallet-ready
+    // event is observed. Country sync uses the same short-lived session probe,
+    // so both startup observers share one authorization round trip.
+    void syncPreference();
 
     return () => {
       cancelled = true;
