@@ -114,6 +114,14 @@ test('runtime version check waits for startup and browser idle time', () => {
   assert.match(runtimeGuard, /PROVIDER_READY_EVENT/);
   assert.match(
     runtimeGuard,
+    /window\.location\.pathname !== '\/'/,
+  );
+  assert.match(
+    runtimeGuard,
+    /veinviteAppReady === 'true'/,
+  );
+  assert.match(
+    runtimeGuard,
     /STARTUP_VERSION_CHECK_TIMEOUT_MS = 2_000/,
   );
   assert.doesNotMatch(
