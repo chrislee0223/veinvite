@@ -9,6 +9,13 @@ const migration = await readFile(
   ),
   'utf8',
 );
+const completenessMigration = await readFile(
+  new URL(
+    '../supabase/migrations/20261008130500_harden_x_promotion_shadow_completeness_v1.sql',
+    import.meta.url,
+  ),
+  'utf8',
+);
 const moduleSource = await readFile(
   new URL('../src/lib/rewards/rewardXPromotionShadow.ts', import.meta.url),
   'utf8',
@@ -49,6 +56,10 @@ test('shadow audit is service-only and validates its response shape', () => {
   assert.match(moduleSource, /X promotion shadow audit identity is invalid/);
   assert.match(moduleSource, /conservation violation count/);
   assert.match(moduleSource, /activation window violation count/);
+  assert.match(moduleSource, /missing projection violation count/);
+  assert.match(completenessMigration, /missingProjection/);
+  assert.match(completenessMigration, /missing_projection/);
+  assert.match(moduleSource, /violations\.missingProjection/);
 });
 
 test('scheduled audit remains observability-only and fail-soft', () => {
