@@ -12,6 +12,7 @@ import {
   LEGAL_CONSENT_COPY,
 } from '@/lib/i18n/legalConsentCopy';
 import type { Locale } from '@/lib/i18n/locales';
+import type { InitialLegalConsentStatus } from '@/lib/walletSessionBootstrapServer';
 import {
   CURRENT_PRIVACY_VERSION,
   CURRENT_TERMS_VERSION,
@@ -56,6 +57,7 @@ type Props = {
   locale: Locale;
   onDisconnect: () => Promise<void>;
   isDisconnecting: boolean;
+  initialConsentStatus?: InitialLegalConsentStatus;
   qaPreview?: LegalConsentQaPreview | null;
 };
 
@@ -504,6 +506,7 @@ export function LegalConsentGate({
   locale,
   onDisconnect,
   isDisconnecting,
+  initialConsentStatus = null,
   qaPreview = null,
 }: Props) {
   const previewMode = qaPreview !== null;
@@ -562,11 +565,41 @@ export function LegalConsentGate({
     const controller =
       new AbortController();
 
+    const resolveMissingConsent = async () => {
+      if (
+        hasLegacyCurrentConsent(
+          walletAddress,
+        )
+      ) {
+        await recordConsent(
+          'legacy-local-storage',
+        );
+
+        if (active) {
+          setState('accepted');
+        }
+        return;
+      }
+
+      setState('required');
+    };
+
     const load = async () => {
       setIsExiting(false);
+
+      if (initialConsentStatus === 'accepted') {
+        setState('accepted');
+        return;
+      }
+
       setState('checking');
 
       try {
+        if (initialConsentStatus === 'missing') {
+          await resolveMissingConsent();
+          return;
+        }
+
         const response = await fetch(
           '/api/legal/consent',
           {
@@ -604,22 +637,7 @@ export function LegalConsentGate({
           return;
         }
 
-        if (
-          hasLegacyCurrentConsent(
-            walletAddress,
-          )
-        ) {
-          await recordConsent(
-            'legacy-local-storage',
-          );
-
-          if (active) {
-            setState('accepted');
-          }
-          return;
-        }
-
-        setState('required');
+        await resolveMissingConsent();
       } catch (error) {
         if (
           !active ||
@@ -644,6 +662,7 @@ export function LegalConsentGate({
       controller.abort();
     };
   }, [
+    initialConsentStatus,
     previewMode,
     recordConsent,
     reloadToken,
