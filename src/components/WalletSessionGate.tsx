@@ -23,6 +23,7 @@ import {
 import {
   useWalletAuthentication,
 } from '@/hooks/useWalletAuthentication';
+import type { InitialLegalConsentStatus } from '@/lib/legalConsent';
 import {
   LANGUAGE_STORAGE_KEY,
   isLocale,
@@ -514,11 +515,13 @@ export function WalletSessionGate({
   children,
   initialSessionWallet = null,
   initialRestrictionKind = null,
+  initialLegalConsentStatus = null,
   qaPreview = null,
 }: {
   children: ReactNode;
   initialSessionWallet?: string | null;
   initialRestrictionKind?: RestrictionKind | null;
+  initialLegalConsentStatus?: InitialLegalConsentStatus;
   qaPreview?: WalletSessionQaPreview | null;
 }) {
   const previewMode = qaPreview !== null;
@@ -1162,6 +1165,11 @@ export function WalletSessionGate({
         locale={locale}
         onDisconnect={disconnectFromVerification}
         isDisconnecting={isDisconnecting}
+        initialConsentStatus={
+          walletAddress === initialWallet
+            ? initialLegalConsentStatus
+            : null
+        }
       >
         {children}
       </LegalConsentGate>
