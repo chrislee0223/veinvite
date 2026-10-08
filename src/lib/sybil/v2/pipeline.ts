@@ -26,6 +26,9 @@ import {
   loadRestrictedSiblingReentrySignals,
 } from '@/lib/sybil/v2/restrictedSiblingReentry';
 import {
+  applyReviewedSiblingSyncRewardRestriction,
+} from '@/lib/sybil/v2/reviewedBehaviorPatterns';
+import {
   detectHistoricalB3trConsolidation,
   detectHistoricalRewardCluster,
 } from '@/lib/sybil/v2/clusterMath';
@@ -2574,35 +2577,6 @@ async function applySecurityClientInviterRestriction({
   return (data ?? {}) as BehaviorPatternRestrictionRpcResult;
 }
 
-async function applySecurityClientSiblingPatternRestriction({
-  invitation,
-  expectedRevision,
-}: {
-  invitation: InvitationV2Row;
-  expectedRevision: number;
-}): Promise<BehaviorPatternRestrictionRpcResult> {
-  if (!invitation.activation_network) {
-    return { changed: false, reason: 'NETWORK_MISSING' };
-  }
-
-  const { data, error } = await supabaseAdmin.rpc(
-    'apply_sybil_v2_security_client_sibling_pattern_restriction',
-    {
-      p_invite_code: invitation.invite_code,
-      p_expected_revision: expectedRevision,
-      p_network: invitation.activation_network,
-    },
-  );
-
-  if (error) {
-    throw new Error(
-      `Security-client sibling pattern restriction could not be applied: ${error.message}`,
-    );
-  }
-
-  return (data ?? {}) as BehaviorPatternRestrictionRpcResult;
-}
-
 async function applyFunderReturnLoopRestriction({
   invitation,
   expectedRevision,
@@ -3960,18 +3934,14 @@ export async function assessSybilV2Referral(
     policy.state === 'HOLD' &&
     securityClientSiblingSyncRewardCandidate
   ) {
-    const automatic =
-      await applySecurityClientSiblingPatternRestriction({
-        invitation,
+    const reviewedPattern =
+      await applyReviewedSiblingSyncRewardRestriction({
+        inviteCode: invitation.invite_code,
+        network: invitation.activation_network,
         expectedRevision: revision,
       });
-    const automaticRevision =
-      safeRevision(automatic.revision);
 
-    if (
-      automatic.changed === true &&
-      automatic.state === 'RESTRICTED'
-    ) {
+    if (reviewedPattern.restricted) {
       return {
         inviteCode: normalizedCode,
         state: 'RESTRICTED',
@@ -3981,26 +3951,7 @@ export async function assessSybilV2Referral(
           'AUTO_SECURITY_CLIENT_SIBLING_SYNC_REWARD_RESTRICTION',
         ]),
         revision:
-          automaticRevision ?? revision,
-        clearanceIssued: false,
-        clearanceId: null,
-      };
-    }
-
-    const fresh = await loadAssessment(normalizedCode);
-    if (fresh?.state === 'RESTRICTED') {
-      return {
-        inviteCode: normalizedCode,
-        state: 'RESTRICTED',
-        riskScore: 100,
-        reasonCodes: unique([
-          ...policy.reasonCodes,
-          'AUTO_SECURITY_CLIENT_SIBLING_SYNC_REWARD_RESTRICTION',
-        ]),
-        revision:
-          safeRevision(fresh.revision) ??
-          automaticRevision ??
-          revision,
+          safeRevision(reviewedPattern.revision) ?? revision,
         clearanceIssued: false,
         clearanceId: null,
       };
