@@ -260,7 +260,9 @@ function knownProtocolDestinations(): Set<string> {
     '0x76ca782b59c74d088c7d2cce2f211bc00836c602', // VOT3
     '0x8692410da301a9b796b68a58ff660d51e979c6fa', // gas abstraction paymaster
     '0xf9a1bc92e0eeee598b9fdb45397107b1f05f6cc1', // VeSwap router
-    '0xf21dd7108d93af56fab07423efb90f4a3604da89', // BetterSwap aggregator
+    '0xf21dd7108d93af56fab07423efb90f4a3604da89', // legacy BetterSwap routing target
+    '0xda5a60c8559a37eab5950a4ace9b77c25f6fde80', // BetterSwap aggregator
+    '0xc6de3b8e4a9bf4a6756e60f5cb6705cb7d3c1649', // canonical VeChain AMM pool
   ]);
 }
 
@@ -2572,6 +2574,35 @@ async function applySecurityClientInviterRestriction({
   return (data ?? {}) as BehaviorPatternRestrictionRpcResult;
 }
 
+async function applySecurityClientSiblingPatternRestriction({
+  invitation,
+  expectedRevision,
+}: {
+  invitation: InvitationV2Row;
+  expectedRevision: number;
+}): Promise<BehaviorPatternRestrictionRpcResult> {
+  if (!invitation.activation_network) {
+    return { changed: false, reason: 'NETWORK_MISSING' };
+  }
+
+  const { data, error } = await supabaseAdmin.rpc(
+    'apply_sybil_v2_security_client_sibling_pattern_restriction',
+    {
+      p_invite_code: invitation.invite_code,
+      p_expected_revision: expectedRevision,
+      p_network: invitation.activation_network,
+    },
+  );
+
+  if (error) {
+    throw new Error(
+      `Security-client sibling pattern restriction could not be applied: ${error.message}`,
+    );
+  }
+
+  return (data ?? {}) as BehaviorPatternRestrictionRpcResult;
+}
+
 async function applyFunderReturnLoopRestriction({
   invitation,
   expectedRevision,
@@ -3667,6 +3698,16 @@ export async function assessSybilV2Referral(
   const securityClientInviterImmediateSwitch =
     policy.state === 'HOLD' &&
     hasHighSignal(signals, 'SECURITY_CLIENT_INVITER_IMMEDIATE_SWITCH');
+  // A synchronized reward pattern is not enough to auto-restrict by itself.
+  // It only opens the server-side sibling-pattern verifier, which additionally
+  // requires the same inviter, one shared security client, an immediate wallet
+  // switch near both activations, and the same synchronized-reward dApp.
+  const securityClientSiblingSyncRewardCandidate =
+    policy.state === 'HOLD' &&
+    hasHighSignal(
+      signals,
+      'HISTORICAL_SYNCHRONIZED_REWARD_CLUSTER',
+    );
 
   const evidenceSummary = {
     behaviorPatternEnforcementVersion:
@@ -3710,6 +3751,8 @@ export async function assessSybilV2Referral(
       restrictedSiblingReentry,
     securityClientInviterImmediateSwitchAutomaticRestrictionCandidate:
       securityClientInviterImmediateSwitch,
+    securityClientSiblingSyncRewardProbeCandidate:
+      securityClientSiblingSyncRewardCandidate,
     vePassport: vePassport.snapshot
       ? {
           evidenceVersion:
@@ -3906,6 +3949,58 @@ export async function assessSybilV2Referral(
           'AUTO_SECURITY_CLIENT_INVITER_RESTRICTION',
         ]),
         revision: automaticRevision ?? revision,
+        clearanceIssued: false,
+        clearanceId: null,
+      };
+    }
+  }
+
+  if (
+    revision !== null &&
+    policy.state === 'HOLD' &&
+    securityClientSiblingSyncRewardCandidate
+  ) {
+    const automatic =
+      await applySecurityClientSiblingPatternRestriction({
+        invitation,
+        expectedRevision: revision,
+      });
+    const automaticRevision =
+      safeRevision(automatic.revision);
+
+    if (
+      automatic.changed === true &&
+      automatic.state === 'RESTRICTED'
+    ) {
+      return {
+        inviteCode: normalizedCode,
+        state: 'RESTRICTED',
+        riskScore: 100,
+        reasonCodes: unique([
+          ...policy.reasonCodes,
+          'AUTO_SECURITY_CLIENT_SIBLING_SYNC_REWARD_RESTRICTION',
+        ]),
+        revision:
+          automaticRevision ?? revision,
+        clearanceIssued: false,
+        clearanceId: null,
+      };
+    }
+
+    const fresh = await loadAssessment(normalizedCode);
+    if (fresh?.state === 'RESTRICTED') {
+      return {
+        inviteCode: normalizedCode,
+        state: 'RESTRICTED',
+        riskScore: 100,
+        reasonCodes: unique([
+          ...policy.reasonCodes,
+          'AUTO_SECURITY_CLIENT_SIBLING_SYNC_REWARD_RESTRICTION',
+        ]),
+        revision:
+          safeRevision(fresh.revision) ??
+          automaticRevision ??
+          revision,
         clearanceIssued: false,
         clearanceId: null,
       };
