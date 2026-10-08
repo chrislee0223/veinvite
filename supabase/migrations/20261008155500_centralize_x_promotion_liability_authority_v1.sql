@@ -507,7 +507,7 @@ begin
     'sybilClearanceId',case when v_sybil_v2_enforced then v_clearance.id else null end
   );
 end;
-$function$
+$function$;
 
 
 CREATE OR REPLACE FUNCTION public.prepare_reward_cohort_batch(p_network text, p_app_id text, p_pool_balance_wei numeric, p_allocation_receipt_id bigint, p_expected_completions integer, p_stress_completions integer, p_reward_per_invite_wei numeric, p_algorithm_version text, p_pipeline_snapshot jsonb)
@@ -680,7 +680,7 @@ begin
     'rewardCohortRoundId',v_receipt.vebetter_round_id + 1
   );
 end;
-$function$
+$function$;
 
 
 CREATE OR REPLACE FUNCTION public.read_predictive_reward_planning_snapshot(p_network text, p_app_id text)
@@ -755,7 +755,7 @@ begin
     ) end
   );
 end;
-$function$
+$function$;
 
 
 CREATE OR REPLACE FUNCTION public.read_reward_cohort_planning_snapshot(p_network text, p_app_id text, p_reward_cohort_round_id bigint DEFAULT NULL::bigint, p_allocation_receipt_id bigint DEFAULT NULL::bigint)
