@@ -7,6 +7,7 @@ export type InviteNotificationHistoryItem = {
   inviteCode: string;
   kind: InviteNotificationKindV2;
   presentationKind?: InviteNotificationKindV2;
+  recipientRole?: 'inviter' | 'invitee';
   stage: number;
   eventAt: string;
   rewardAmountWei: string | null;

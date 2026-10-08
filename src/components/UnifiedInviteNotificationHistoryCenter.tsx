@@ -259,11 +259,10 @@ function itemCopy(
         hint: null,
       };
     case 'SECURITY_RESTRICTION_CONFIRMED':
-      return {
-        title: security.restrictionTitle,
-        body: security.restrictionBody,
-        hint: null,
-      };
+      // The inviter stays eligible to invite again. Only the invitee is blocked.
+      return item.recipientRole === 'inviter'
+        ? { title: ineligible.title, body: ineligible.body, hint: null }
+        : { title: security.restrictionTitle, body: security.restrictionBody, hint: null };
     case 'SECURITY_INVITER_WATCH':
       return {
         title: inviterSecurity.watchTitle,

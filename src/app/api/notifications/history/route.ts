@@ -341,6 +341,23 @@ export async function GET(request: NextRequest) {
       }
     }
 
+    const restrictedCodes = [...new Set(rows
+      .filter((row) => row.kind === 'SECURITY_RESTRICTION_CONFIRMED')
+      .map((row) => row.invite_code))];
+    const inviterByCode = new Map<string, string>();
+    if (restrictedCodes.length > 0) {
+      const rolesResult = await supabaseAdmin
+        .from('invitations')
+        .select('invite_code,inviter_wallet')
+        .in('invite_code', restrictedCodes);
+      if (rolesResult.error) {
+        throw new Error(`Notification recipient role lookup failed: ${rolesResult.error.message}`);
+      }
+      for (const invitation of rolesResult.data ?? []) {
+        inviterByCode.set(invitation.invite_code, invitation.inviter_wallet.toLowerCase());
+      }
+    }
+
     const items = rows.map((row) => {
       const rawKind = row.kind;
       const presentationKind = presentationHistoryKind(
@@ -352,6 +369,9 @@ export async function GET(request: NextRequest) {
         id: String(row.id),
         inviteCode: row.invite_code,
         kind: compatibleHistoryKind(rawKind),
+        recipientRole: rawKind === 'SECURITY_RESTRICTION_CONFIRMED'
+          ? inviterByCode.get(row.invite_code) === wallet ? 'inviter' : 'invitee'
+          : undefined,
         presentationKind,
         stage: Number(row.stage),
         eventAt: row.event_at,
