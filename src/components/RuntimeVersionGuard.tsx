@@ -127,20 +127,37 @@ export function RuntimeVersionGuard() {
       }
     };
 
-    const onVisible = () => {
-      if (document.visibilityState === 'visible') {
-        scheduleCheck();
+    const startupReady = () => {
+      const isHome = window.location.pathname === '/';
+
+      return isHome
+        ? document.documentElement.dataset.veinviteAppReady === 'true'
+        : document.documentElement.dataset.veinviteProviderReady === 'true';
+    };
+    const scheduleAfterStartup = (force = false) => {
+      if (startupReady()) {
+        scheduleCheck(force);
       }
     };
-    const onFocus = () => scheduleCheck();
-    const onPageShow = () => scheduleCheck(true);
-    const onStartupReady = () => scheduleCheck(true);
+    const onVisible = () => {
+      if (document.visibilityState === 'visible') {
+        scheduleAfterStartup();
+      }
+    };
+    const onFocus = () => scheduleAfterStartup();
+    const onPageShow = () => scheduleAfterStartup(true);
+    const onAppReady = () => scheduleCheck(true);
+    const onProviderReady = () => {
+      if (window.location.pathname !== '/') {
+        scheduleCheck(true);
+      }
+    };
 
     document.addEventListener('visibilitychange', onVisible);
     window.addEventListener('focus', onFocus);
     window.addEventListener('pageshow', onPageShow);
-    window.addEventListener(APP_READY_EVENT, onStartupReady);
-    window.addEventListener(PROVIDER_READY_EVENT, onStartupReady);
+    window.addEventListener(APP_READY_EVENT, onAppReady);
+    window.addEventListener(PROVIDER_READY_EVENT, onProviderReady);
 
     scheduleWhenStartupAllows();
 
@@ -149,8 +166,8 @@ export function RuntimeVersionGuard() {
       document.removeEventListener('visibilitychange', onVisible);
       window.removeEventListener('focus', onFocus);
       window.removeEventListener('pageshow', onPageShow);
-      window.removeEventListener(APP_READY_EVENT, onStartupReady);
-      window.removeEventListener(PROVIDER_READY_EVENT, onStartupReady);
+      window.removeEventListener(APP_READY_EVENT, onAppReady);
+      window.removeEventListener(PROVIDER_READY_EVENT, onProviderReady);
     };
   }, [checkVersion]);
 
