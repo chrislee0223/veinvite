@@ -173,3 +173,4 @@
 20261007184824 add_x_promotion_shadow_projection_v1
 20261008014706 harden_x_promotion_runtime_audit_v1
 20261008021442 fix_x_promotion_exact_floor_v1
+20261008023433 add_x_promotion_shadow_audit_v1
