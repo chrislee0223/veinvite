@@ -2,7 +2,15 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import test from 'node:test';
 
-const [pipeline, migration, inviterMigration, policy] = await Promise.all([
+const [
+  pipeline,
+  migration,
+  inviterMigration,
+  learnedPatternMigration,
+  reviewedBehaviorPatterns,
+  protocolDestinations,
+  policy,
+] = await Promise.all([
   readFile('src/lib/sybil/v2/pipeline.ts', 'utf8'),
   readFile(
     'supabase/migrations/20260929213000_detect_same_inviter_security_client_siblings.sql',
@@ -10,6 +18,18 @@ const [pipeline, migration, inviterMigration, policy] = await Promise.all([
   ),
   readFile(
     'supabase/migrations/20260929214500_review_same_client_sibling_inviter.sql',
+    'utf8',
+  ),
+  readFile(
+    'supabase/migrations/20261008153842_learn_reviewed_sybil_patterns_v1.sql',
+    'utf8',
+  ),
+  readFile(
+    'src/lib/sybil/v2/reviewedBehaviorPatterns.ts',
+    'utf8',
+  ),
+  readFile(
+    'src/lib/sybil/v2/protocolDestinations.ts',
     'utf8',
   ),
   readFile('src/lib/sybil/v2/policy.ts', 'utf8'),
@@ -94,4 +114,85 @@ test('the downstream inviter is review-only when an immediate sibling cluster ap
   assert.doesNotMatch(inviterMigration, /reward_status\s*=\s*'FORFEITED'/u);
   assert.match(inviterMigration, /reward_status <> 'PAID'/u);
   assert.match(inviterMigration, /q\.status = 'ASSIGNED'/u);
+});
+
+
+test('reviewed sibling-farming behavior only auto-restricts with independent same-app corroboration', () => {
+  assert.match(
+    pipeline,
+    /HISTORICAL_SYNCHRONIZED_REWARD_CLUSTER/u,
+  );
+  assert.match(
+    pipeline,
+    /applyReviewedSiblingSyncRewardRestriction/u,
+  );
+  assert.match(
+    reviewedBehaviorPatterns,
+    /apply_sybil_v2_security_client_sibling_pattern_restriction/u,
+  );
+  assert.match(
+    learnedPatternMigration,
+    /same-inviter wallets immediately switched/u,
+  );
+  assert.match(
+    learnedPatternMigration,
+    /peer_sync\.app_id = subject_sync\.app_id/u,
+  );
+  assert.match(
+    learnedPatternMigration,
+    /HISTORICAL_SYNCHRONIZED_REWARD_CLUSTER/u,
+  );
+  assert.match(
+    learnedPatternMigration,
+    /<= 600/u,
+  );
+  assert.match(
+    learnedPatternMigration,
+    /AUTO_SECURITY_CLIENT_SIBLING_SYNC_REWARD_RESTRICTION/u,
+  );
+});
+
+test('learned automatic restriction preserves reward finality and service-role-only execution', () => {
+  assert.match(
+    learnedPatternMigration,
+    /v_invitation\.reward_status = 'PAID'/u,
+  );
+  assert.match(
+    learnedPatternMigration,
+    /q\.status = 'ASSIGNED'/u,
+  );
+  assert.match(
+    learnedPatternMigration,
+    /revoke all on function public\.apply_sybil_v2_security_client_sibling_pattern_restriction/u,
+  );
+  assert.match(
+    learnedPatternMigration,
+    /grant execute on function public\.apply_sybil_v2_security_client_sibling_pattern_restriction[\s\S]*to service_role/u,
+  );
+});
+
+test('known shared swap infrastructure is excluded from Sybil hub inference', () => {
+  assert.match(
+    protocolDestinations,
+    /0xda5a60c8559a37eab5950a4ace9b77c25f6fde80/u,
+  );
+  assert.match(
+    protocolDestinations,
+    /0xc6de3b8e4a9bf4a6756e60f5cb6705cb7d3c1649/u,
+  );
+  assert.match(
+    learnedPatternMigration,
+    /Known BetterSwap aggregator contract/u,
+  );
+  assert.match(
+    learnedPatternMigration,
+    /Known VeChain AMM pool contract/u,
+  );
+});
+
+test('reviewed behavior update advances the Sybil policy version', () => {
+  assert.match(
+    policy,
+    /SYBIL_V2_POLICY_VERSION = 'sybil-v2\.17'/u,
+  );
 });

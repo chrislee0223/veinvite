@@ -26,6 +26,13 @@ import {
   loadRestrictedSiblingReentrySignals,
 } from '@/lib/sybil/v2/restrictedSiblingReentry';
 import {
+  applyReviewedSiblingSyncRewardRestriction,
+} from '@/lib/sybil/v2/reviewedBehaviorPatterns';
+import {
+  knownProtocolDestinations,
+  loadKnownProtocolDestinations,
+} from '@/lib/sybil/v2/protocolDestinations';
+import {
   detectHistoricalB3trConsolidation,
   detectHistoricalRewardCluster,
 } from '@/lib/sybil/v2/clusterMath';
@@ -247,46 +254,6 @@ export type SybilV2AssessmentResult = {
   clearanceIssued: boolean;
   clearanceId: string | null;
 };
-
-function knownProtocolDestinations(): Set<string> {
-  const config = getVeBetterNetworkConfig();
-  return new Set([
-    '0x0000000000000000000000000000000000000000',
-    config.b3trAddress.toLowerCase(),
-    config.vot3Address.toLowerCase(),
-    config.x2EarnAppsAddress.toLowerCase(),
-    config.x2EarnRewardsPoolAddress.toLowerCase(),
-    config.xAllocationVotingAddress.toLowerCase(),
-    '0x76ca782b59c74d088c7d2cce2f211bc00836c602', // VOT3
-    '0x8692410da301a9b796b68a58ff660d51e979c6fa', // gas abstraction paymaster
-    '0xf9a1bc92e0eeee598b9fdb45397107b1f05f6cc1', // VeSwap router
-    '0xf21dd7108d93af56fab07423efb90f4a3604da89', // BetterSwap aggregator
-  ]);
-}
-
-async function loadKnownProtocolDestinations(
-  network: VeBetterNetwork,
-): Promise<Set<string>> {
-  const destinations = knownProtocolDestinations();
-  const { data, error } = await supabaseAdmin
-    .from('sybil_v2_cluster_hub_allowlist')
-    .select('wallet_address')
-    .eq('network', network);
-
-  if (error) {
-    throw new Error(
-      `Sybil protocol allowlist could not be loaded: ${error.message}`,
-    );
-  }
-
-  for (const row of data ?? []) {
-    if (typeof row.wallet_address === 'string') {
-      destinations.add(normalizeWallet(row.wallet_address));
-    }
-  }
-
-  return destinations;
-}
 
 async function loadInvitation(inviteCode: string): Promise<InvitationV2Row | null> {
   const { data, error } = await supabaseAdmin
@@ -3667,6 +3634,16 @@ export async function assessSybilV2Referral(
   const securityClientInviterImmediateSwitch =
     policy.state === 'HOLD' &&
     hasHighSignal(signals, 'SECURITY_CLIENT_INVITER_IMMEDIATE_SWITCH');
+  // A synchronized reward pattern is not enough to auto-restrict by itself.
+  // It only opens the server-side sibling-pattern verifier, which additionally
+  // requires the same inviter, one shared security client, an immediate wallet
+  // switch near both activations, and the same synchronized-reward dApp.
+  const securityClientSiblingSyncRewardCandidate =
+    policy.state === 'HOLD' &&
+    hasHighSignal(
+      signals,
+      'HISTORICAL_SYNCHRONIZED_REWARD_CLUSTER',
+    );
 
   const evidenceSummary = {
     behaviorPatternEnforcementVersion:
@@ -3710,6 +3687,8 @@ export async function assessSybilV2Referral(
       restrictedSiblingReentry,
     securityClientInviterImmediateSwitchAutomaticRestrictionCandidate:
       securityClientInviterImmediateSwitch,
+    securityClientSiblingSyncRewardProbeCandidate:
+      securityClientSiblingSyncRewardCandidate,
     vePassport: vePassport.snapshot
       ? {
           evidenceVersion:
@@ -3906,6 +3885,35 @@ export async function assessSybilV2Referral(
           'AUTO_SECURITY_CLIENT_INVITER_RESTRICTION',
         ]),
         revision: automaticRevision ?? revision,
+        clearanceIssued: false,
+        clearanceId: null,
+      };
+    }
+  }
+
+  if (
+    revision !== null &&
+    policy.state === 'HOLD' &&
+    securityClientSiblingSyncRewardCandidate
+  ) {
+    const reviewedPattern =
+      await applyReviewedSiblingSyncRewardRestriction({
+        inviteCode: invitation.invite_code,
+        network: invitation.activation_network,
+        expectedRevision: revision,
+      });
+
+    if (reviewedPattern.restricted) {
+      return {
+        inviteCode: normalizedCode,
+        state: 'RESTRICTED',
+        riskScore: 100,
+        reasonCodes: unique([
+          ...policy.reasonCodes,
+          'AUTO_SECURITY_CLIENT_SIBLING_SYNC_REWARD_RESTRICTION',
+        ]),
+        revision:
+          safeRevision(reviewedPattern.revision) ?? revision,
         clearanceIssued: false,
         clearanceId: null,
       };

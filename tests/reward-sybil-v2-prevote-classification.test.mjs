@@ -3,6 +3,10 @@ import { readFile } from 'node:fs/promises';
 import test from 'node:test';
 
 const pipeline = await readFile('src/lib/sybil/v2/pipeline.ts','utf8');
+const protocolDestinations = await readFile(
+  'src/lib/sybil/v2/protocolDestinations.ts',
+  'utf8',
+);
 const migration = await readFile(
   'supabase/migrations/20260929043956_harden_sybil_v2_prevote_classification.sql',
   'utf8',
@@ -14,11 +18,21 @@ const narrowSameClient = await readFile(
 const policy = await readFile('src/lib/sybil/v2/policy.ts','utf8');
 
 test('known protocol/service wallets are excluded from Sybil hub inference', () => {
-  for (const suffix of ['0836c602','e979c6fa','f05f6cc1','3604da89']) {
-    assert.match(pipeline, new RegExp(suffix, 'u'));
+  for (const suffix of [
+    '0836c602',
+    'e979c6fa',
+    'f05f6cc1',
+    '3604da89',
+    'f6fde80',
+    '3c1649',
+  ]) {
+    assert.match(protocolDestinations, new RegExp(suffix, 'u'));
   }
   assert.match(pipeline, /loadKnownProtocolDestinations/u);
-  assert.match(pipeline, /from\('sybil_v2_cluster_hub_allowlist'\)/u);
+  assert.match(
+    protocolDestinations,
+    /from\('sybil_v2_cluster_hub_allowlist'\)/u,
+  );
   assert.match(pipeline, /protocolDestinations\.has\(funder\)/u);
   assert.match(migration, /sybil_v2_cluster_hub_allowlist/u);
 });
@@ -63,5 +77,5 @@ test('association-only high funding linkage cannot HOLD by itself', () => {
     policy,
     /!ASSOCIATION_ONLY_HIGH_CODES\.has\(signal\.code\)/u,
   );
-  assert.match(policy, /SYBIL_V2_POLICY_VERSION = 'sybil-v2\.16'/u);
+  assert.match(policy, /SYBIL_V2_POLICY_VERSION = 'sybil-v2\.17'/u);
 });

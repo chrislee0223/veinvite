@@ -9,8 +9,8 @@ const migration = await readFile(
   'utf8',
 );
 
-test('Sybil v2.11 policy never emits WATCH for a new reward decision', () => {
-  assert.match(policy, /SYBIL_V2_POLICY_VERSION = 'sybil-v2\.16'/u);
+test('current Sybil v2 policy never emits WATCH for a new reward decision', () => {
+  assert.match(policy, /SYBIL_V2_POLICY_VERSION = 'sybil-v2\.17'/u);
 
   const evaluateStart = policy.indexOf(
     'export function evaluateSybilV2Policy',
