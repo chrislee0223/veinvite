@@ -79,3 +79,9 @@ test('this migration does not enable X promotion or alter live payout amount sel
     /base_amount_wei\s*,\s*'PENDING'/i,
   );
 });
+
+
+test('each replacement function is terminated as a standalone migration statement', () => {
+  const definitions = migration.match(/CREATE OR REPLACE FUNCTION[\s\S]*?\$function\$;/gi) ?? [];
+  assert.equal(definitions.length, 4);
+});
