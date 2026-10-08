@@ -33,6 +33,8 @@ const siteUrl = 'https://veinvite.vercel.app';
 const title = 'VeInvite | Verified onboarding for VeBetterDAO';
 const description =
   'VeInvite verifies referral onboarding using wallet entry history, qualifying VeBetterDAO activity, and governance participation.';
+const defaultImageUrl = `${siteUrl}/veinvite-og-invite-final.png`;
+const defaultImageAlt = 'VeInvite — Verified onboarding for VeBetterDAO';
 
 export const viewport: Viewport = {
   width: 'device-width',
@@ -58,11 +60,21 @@ export const metadata: Metadata = {
     url: siteUrl,
     siteName: 'VeInvite',
     type: 'website',
+    images: [
+      {
+        url: defaultImageUrl,
+        width: 1200,
+        height: 600,
+        alt: defaultImageAlt,
+        type: 'image/png',
+      },
+    ],
   },
   twitter: {
-    card: 'summary',
+    card: 'summary_large_image',
     title,
     description,
+    images: [defaultImageUrl],
   },
   robots: {
     index: true,
