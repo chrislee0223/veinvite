@@ -12,7 +12,7 @@ import {
   LEGAL_CONSENT_COPY,
 } from '@/lib/i18n/legalConsentCopy';
 import type { Locale } from '@/lib/i18n/locales';
-import type { InitialLegalConsentStatus } from '@/lib/walletSessionBootstrapServer';
+import type { InitialLegalConsentStatus } from '@/lib/legalConsent';
 import {
   CURRENT_PRIVACY_VERSION,
   CURRENT_TERMS_VERSION,
