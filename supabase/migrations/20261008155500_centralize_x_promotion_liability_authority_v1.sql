@@ -964,5 +964,4 @@ begin
     ) end
   );
 end;
-$function$
-
+$function$;
