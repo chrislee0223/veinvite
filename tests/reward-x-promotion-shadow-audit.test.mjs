@@ -9,6 +9,13 @@ const migration = await readFile(
   ),
   'utf8',
 );
+const hardeningMigration = await readFile(
+  new URL(
+    '../supabase/migrations/20261008130500_harden_x_promotion_shadow_completeness_v1.sql',
+    import.meta.url,
+  ),
+  'utf8',
+);
 const moduleSource = await readFile(
   new URL('../src/lib/rewards/rewardXPromotionShadow.ts', import.meta.url),
   'utf8',
@@ -64,5 +71,41 @@ test('scheduled audit remains observability-only and fail-soft', () => {
   assert.doesNotMatch(
     scheduler,
     /errors\.push\([\s\S]{0,240}X promotion shadow/,
+  );
+});
+
+
+test('shadow audit fails closed when a required projection is missing', () => {
+  assert.match(hardeningMigration, /v_missing_projection integer := 0/);
+  assert.match(
+    hardeningMigration,
+    /not exists \([\s\S]*public\.reward_x_promotion_splits/,
+  );
+  assert.match(
+    hardeningMigration,
+    /and v_missing_projection=0/,
+  );
+  assert.match(
+    hardeningMigration,
+    /'missingProjection',v_missing_projection/,
+  );
+  assert.match(
+    moduleSource,
+    /missingProjection: nonNegativeInteger/,
+  );
+});
+
+test('a live start permanently closes the original shadow window', () => {
+  assert.match(
+    hardeningMigration,
+    /v_cfg\.reward_x_promotion_live_started_at is not null[\s\S]*v_queue\.reserved_at >= v_cfg\.reward_x_promotion_live_started_at/,
+  );
+  assert.match(
+    hardeningMigration,
+    /v_cfg\.reward_x_promotion_live_started_at is null[\s\S]*q\.reserved_at<v_cfg\.reward_x_promotion_live_started_at/,
+  );
+  assert.doesNotMatch(
+    hardeningMigration,
+    /not v_cfg\.reward_x_promotion_enabled[\s\S]{0,160}q\.reserved_at<v_cfg\.reward_x_promotion_live_started_at/,
   );
 });
