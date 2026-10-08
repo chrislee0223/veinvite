@@ -1,0 +1,109 @@
+import assert from 'node:assert/strict';
+import { readFile } from 'node:fs/promises';
+import test from 'node:test';
+
+const migration = await readFile(
+  new URL(
+    '../supabase/migrations/20261008155500_centralize_x_promotion_liability_authority_v1.sql',
+    import.meta.url,
+  ),
+  'utf8',
+);
+
+function functionSection(name, nextName = null) {
+  const marker = `CREATE OR REPLACE FUNCTION public.${name}`;
+  const start = migration.indexOf(marker);
+  assert.notEqual(start, -1, `missing function ${name}`);
+
+  if (!nextName) return migration.slice(start);
+
+  const next = migration.indexOf(
+    `CREATE OR REPLACE FUNCTION public.${nextName}`,
+    start + marker.length,
+  );
+  assert.notEqual(next, -1, `missing next function ${nextName}`);
+  return migration.slice(start, next);
+}
+
+const authorityCalls =
+  migration.match(/read_outstanding_reward_liability\(/g) ?? [];
+
+test('all four reward planning and commit paths share one liability authority', () => {
+  assert.equal(authorityCalls.length, 4);
+  assert.match(
+    migration,
+    /create or replace function public\.commit_reward_reservation/i,
+  );
+  assert.match(
+    migration,
+    /create or replace function public\.prepare_reward_cohort_batch/i,
+  );
+  assert.match(
+    migration,
+    /create or replace function public\.read_predictive_reward_planning_snapshot/i,
+  );
+  assert.match(
+    migration,
+    /create or replace function public\.read_reward_cohort_planning_snapshot/i,
+  );
+});
+
+test('reservation commit uses authoritative liability before its pool guard', () => {
+  const fn = functionSection(
+    'commit_reward_reservation',
+    'prepare_reward_cohort_batch',
+  );
+  assert.match(fn, /v_reserved := public\.read_outstanding_reward_liability/);
+  assert.match(
+    fn,
+    /if v_reserved<>p_expected_reserved_before_wei[\s\S]*if v_net>greatest\(p_observed_pool_balance_wei-v_reserved,0\)/,
+  );
+});
+
+test('batch keeps payout creation unchanged while only centralizing pool liability', () => {
+  const fn = functionSection(
+    'prepare_reward_cohort_batch',
+    'read_predictive_reward_planning_snapshot',
+  );
+  assert.match(
+    fn,
+    /v_reserved_existing := public\.read_outstanding_reward_liability/,
+  );
+  assert.match(
+    fn,
+    /select v_round_id,q\.invite_code,q\.recipient_wallet,q\.reserved_amount_wei,'PENDING'/,
+  );
+});
+
+test('planning snapshots use the same authority', () => {
+  const predictive = functionSection(
+    'read_predictive_reward_planning_snapshot',
+    'read_reward_cohort_planning_snapshot',
+  );
+  const cohort = functionSection('read_reward_cohort_planning_snapshot');
+  assert.match(
+    predictive,
+    /v_reserved := public\.read_outstanding_reward_liability/,
+  );
+  assert.match(
+    cohort,
+    /v_reserved := public\.read_outstanding_reward_liability/,
+  );
+});
+
+test('this migration does not enable X promotion or alter live payout amount selection', () => {
+  assert.doesNotMatch(
+    migration,
+    /set\s+reward_x_promotion_enabled\s*=\s*true/i,
+  );
+  assert.doesNotMatch(
+    migration,
+    /base_amount_wei\s*,\s*'PENDING'/i,
+  );
+});
+
+test('each replacement function is terminated as a standalone migration statement', () => {
+  const definitions =
+    migration.match(/end;\n\$function\$;/g) ?? [];
+  assert.equal(definitions.length, 4);
+});
