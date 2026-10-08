@@ -39,6 +39,108 @@ grant select,insert on table public.reward_x_promotion_opportunities
 grant usage,select on sequence public.reward_x_promotion_opportunities_id_seq
   to service_role;
 
+create or replace function public.validate_reward_x_promotion_opportunity_insert()
+returns trigger
+language plpgsql
+set search_path to 'pg_catalog','public'
+as $function$
+declare
+  v_obligation public.reward_x_promotion_obligations%rowtype;
+  v_split public.reward_x_promotion_splits%rowtype;
+  v_payout public.reward_payouts%rowtype;
+  v_invitation public.invitations%rowtype;
+begin
+  select * into v_obligation
+  from public.reward_x_promotion_obligations o
+  where o.id=new.obligation_id;
+
+  if not found
+     or v_obligation.invite_code<>new.invite_code
+     or v_obligation.network<>new.network
+     or v_obligation.recipient_wallet<>new.recipient_wallet
+     or v_obligation.promotion_amount_wei<>new.promotion_amount_wei
+     or v_obligation.policy_version<>new.policy_version
+     or v_obligation.financial_state<>'HELD'
+     or v_obligation.held_at is null
+     or new.opened_at<v_obligation.held_at then
+    raise exception 'REWARD_X_PROMOTION_OPPORTUNITY_OBLIGATION_MISMATCH';
+  end if;
+
+  select * into v_split
+  from public.reward_x_promotion_splits x
+  where x.id=new.split_id;
+
+  if not found
+     or v_split.id<>v_obligation.split_id
+     or v_split.invite_code<>new.invite_code
+     or v_split.network<>new.network
+     or v_split.recipient_wallet<>new.recipient_wallet
+     or v_split.promotion_amount_wei<>new.promotion_amount_wei
+     or v_split.policy_version<>new.policy_version
+     or v_split.policy_version<>'x-promotion-split-v1'
+     or v_split.mode<>'LIVE' then
+    raise exception 'REWARD_X_PROMOTION_OPPORTUNITY_SPLIT_MISMATCH';
+  end if;
+
+  if new.offer_window_seconds<>86400
+     or new.post_deadline_at<>
+        new.opened_at+make_interval(secs=>new.offer_window_seconds) then
+    raise exception 'REWARD_X_PROMOTION_OPPORTUNITY_WINDOW_MISMATCH';
+  end if;
+
+  select * into v_payout
+  from public.reward_payouts p
+  where p.invite_code=new.invite_code
+    and p.status='PAID';
+
+  if not found
+     or v_payout.amount_wei<>v_split.base_amount_wei
+     or v_payout.paid_at is null
+     or not exists (
+       select 1
+       from public.reward_receipts r
+       where r.payout_id=v_payout.id
+         and r.invite_code=new.invite_code
+         and r.network=new.network
+         and r.recipient_wallet=new.recipient_wallet
+         and r.amount_wei=v_split.base_amount_wei
+         and r.paid_at is not null
+     ) then
+    raise exception 'REWARD_X_PROMOTION_OPPORTUNITY_BASE_PROOF_MISSING';
+  end if;
+
+  select * into v_invitation
+  from public.invitations i
+  where i.invite_code=new.invite_code;
+
+  if not found
+     or public.is_sybil_v2_referral_invalidated(new.invite_code,new.network)
+     or exists (
+       select 1
+       from public.sybil_v2_wallet_restrictions r
+       where r.network=new.network
+         and r.status='ACTIVE'
+         and r.wallet_address in (
+           lower(new.recipient_wallet),
+           lower(v_invitation.invitee_wallet)
+         )
+     ) then
+    raise exception 'REWARD_X_PROMOTION_OPPORTUNITY_SECURITY_NOT_CLEAR';
+  end if;
+
+  return new;
+end;
+$function$;
+
+revoke all on function public.validate_reward_x_promotion_opportunity_insert()
+  from public,anon,authenticated,service_role;
+
+drop trigger if exists validate_reward_x_promotion_opportunity_insert_trigger
+  on public.reward_x_promotion_opportunities;
+create trigger validate_reward_x_promotion_opportunity_insert_trigger
+before insert on public.reward_x_promotion_opportunities
+for each row execute function public.validate_reward_x_promotion_opportunity_insert();
+
 create or replace function public.reject_reward_x_promotion_opportunity_mutation()
 returns trigger
 language plpgsql
