@@ -172,6 +172,10 @@ test('wallet session gate checks participation restrictions before rendering the
     'utf8',
   );
   const page = await readFile('src/app/page.tsx', 'utf8');
+  const bootstrap = await readFile(
+    'src/lib/walletSessionBootstrapServer.ts',
+    'utf8',
+  );
 
   assert.match(gate, /readWalletRestriction/u);
   assert.match(gate, /WalletRestrictionSurface/u);
@@ -179,7 +183,8 @@ test('wallet session gate checks participation restrictions before rendering the
   assert.match(route, /loadActiveSybilV2Restriction/u);
   assert.match(route, /reviewPending/u);
   assert.match(page, /initialRestrictionKind/u);
-  assert.match(page, /loadActiveSybilV2Restriction/u);
+  assert.match(page, /readWalletSessionBootstrap/u);
+  assert.match(bootstrap, /loadActiveSybilV2Restriction/u);
 });
 
 
