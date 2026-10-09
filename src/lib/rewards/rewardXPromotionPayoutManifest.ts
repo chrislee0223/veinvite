@@ -1,3 +1,5 @@
+import 'server-only';
+
 import { createHash } from 'node:crypto';
 
 import { Interface } from 'ethers';
@@ -251,8 +253,8 @@ export function buildXPromotionPayoutManifest(
     publicProofId:
       normalizedProofId,
     proof: proofText,
-    proofTypes: [...proofTypes],
-    proofValues: [...proofValues],
+    proofTypes: ['text', 'link'],
+    proofValues: [proofText, proofLink],
     impactCodes,
     impactValues,
     description:
