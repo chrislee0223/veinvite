@@ -75,10 +75,11 @@ test('intent creation rechecks current Sybil safety and uses the per-invite lock
 });
 
 test('foundation does not add signing, broadcast, settlement or PAID transition', () => {
-  assert.doesNotMatch(migration, /raw_tx_hex/i);
-  assert.doesNotMatch(migration, /broadcast/i);
-  assert.doesNotMatch(migration, /transaction_settlement/i);
-  assert.doesNotMatch(migration, /financial_state\s*=\s*'PAID'/i);
+  const executableMigration = migration.replace(/^--.*$/gmu, '');
+  assert.doesNotMatch(executableMigration, /raw_tx_hex/i);
+  assert.doesNotMatch(executableMigration, /broadcast/i);
+  assert.doesNotMatch(executableMigration, /transaction_settlement/i);
+  assert.doesNotMatch(executableMigration, /financial_state\s*=\s*'PAID'/i);
 });
 
 test('intent table is server-only and direct service-role INSERT is not granted', () => {
