@@ -6,6 +6,7 @@ import {
   normalizeRewardXPromotionPublicProofId,
   VEINVITE_X_PROMOTION_PROOF_DESCRIPTION,
 } from '@/lib/rewards/rewardXPromotionProof';
+import { formatWeiAsB3tr } from '@/lib/reporting/roundReport';
 import {
   getVeChainExplorerAddressUrl,
   getVeChainExplorerTransactionUrl,
@@ -20,8 +21,6 @@ export const metadata: Metadata = {
   robots: { index: false, follow: false },
 };
 
-const B3TR_SCALE = 10n ** 18n;
-
 function formatDate(raw: unknown): string {
   const date = new Date(String(raw ?? ''));
   return Number.isNaN(date.getTime())
@@ -33,24 +32,6 @@ function shorten(value: string): string {
   return value.length <= 18
     ? value
     : `${value.slice(0, 10)}…${value.slice(-8)}`;
-}
-
-function formatB3tr(raw: unknown): string {
-  const value = String(raw ?? '');
-  if (!/^\d+$/.test(value)) return '—';
-
-  const amount = BigInt(value);
-  const whole = amount / B3TR_SCALE;
-  const remainder = amount % B3TR_SCALE;
-
-  if (remainder === 0n) return whole.toString();
-
-  const fraction = remainder
-    .toString()
-    .padStart(18, '0')
-    .replace(/0+$/u, '');
-
-  return `${whole}.${fraction}`;
 }
 
 function safeXUrl(
@@ -245,7 +226,7 @@ export default async function RewardXPromotionProofPage({
             </a>
           </Fact>
           <Fact label="Amount">
-            {formatB3tr(intent.amount_wei)} B3TR
+            {formatWeiAsB3tr(String(intent.amount_wei), 18)} B3TR
           </Fact>
           <Fact label="Source reward cohort">
             #{String(intent.source_reward_cohort_round_id)}
