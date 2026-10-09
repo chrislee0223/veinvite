@@ -67,6 +67,9 @@ test('mobile auth sends server diagnostic codes to visible support UI without ch
   assert.match(hook, /class WalletAuthenticationFailure extends Error/);
   assert.match(hook, /\^AUTH_\[A-Z0-9_\]/);
   assert.match(hook, /verified\.referenceId/);
+  assert.match(hook, /challenge\.code === 'RATE_LIMITED'/);
+  assert.match(hook, /verified\.code === 'RATE_LIMITED'/);
+  assert.match(gate, /AUTH_RATE_LIMITED/);
   assert.match(hook, /failureStage = 'AUTH_CHALLENGE_REQUEST'/);
   assert.match(hook, /failureStage = 'AUTH_WALLET_SIGNATURE'/);
   assert.match(hook, /failureStage = 'AUTH_SESSION_PERSISTENCE'/);
