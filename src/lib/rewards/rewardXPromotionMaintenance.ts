@@ -629,7 +629,7 @@ Promise<RewardXPromotionMaintenanceResult> {
       'read_reward_x_promotion_pending_post_candidates_v1',
       {
         p_network: network,
-        p_limit: 10,
+        p_limit: 3,
       },
     ),
     network,
@@ -665,7 +665,7 @@ Promise<RewardXPromotionMaintenanceResult> {
       'read_reward_x_promotion_final_post_candidates_v1',
       {
         p_network: network,
-        p_limit: 10,
+        p_limit: 3,
       },
     ),
     network,
