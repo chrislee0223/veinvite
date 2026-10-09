@@ -29,6 +29,7 @@ import {
 import {
   buildWalletAuthTypedData,
 } from '@/lib/walletAuthTypedData';
+import { walletVerifyFailureCodeForMessage } from '@/lib/walletAuthFailureCodes';
 import {
   LEGACY_WALLET_SESSION_COOKIE_NAME,
   WALLET_SESSION_COOKIE_NAME,
@@ -105,36 +106,11 @@ function hashSessionToken(
     .digest('hex');
 }
 
-// Stable non-secret reason codes let support correlate a failed wallet
-// proof without recording addresses, signatures, nonces, or session cookies.
-const WALLET_VERIFY_FAILURE_CODES: Readonly<Record<string, string>> = {
-  "Invalid JSON body.": "AUTH_INVALID_JSON",
-  "walletAddress, nonce, and wallet proof are required.": "AUTH_MISSING_PROOF",
-  "Invalid wallet authentication request.": "AUTH_INVALID_REQUEST",
-  "Failed to verify wallet.": "AUTH_CHALLENGE_STORAGE_ERROR",
-  "Wallet verification request was not found.": "AUTH_CHALLENGE_NOT_FOUND",
-  "Wallet verification request was already used.": "AUTH_CHALLENGE_USED",
-  "Wallet verification request has expired.": "AUTH_CHALLENGE_EXPIRED",
-  "Wallet verification request is no longer valid. Please start verification again.": "AUTH_CONTEXT_CHANGED",
-  "Unsupported wallet proof type.": "AUTH_UNSUPPORTED_PROOF",
-  "Wallet proof types cannot be mixed.": "AUTH_MIXED_PROOF",
-  "Invalid typed wallet signature.": "AUTH_TYPED_SIGNATURE_INVALID",
-  "The typed signature does not match the connected wallet.": "AUTH_TYPED_SIGNER_MISMATCH",
-  "VeWorld certificate proof is missing.": "AUTH_CERTIFICATE_MISSING",
-  "Wallet proof signatures do not match.": "AUTH_CERTIFICATE_SIGNATURE_MISMATCH",
-  "Invalid wallet signature.": "AUTH_MESSAGE_SIGNATURE_INVALID",
-  "The signature does not match the connected wallet.": "AUTH_MESSAGE_SIGNER_MISMATCH",
-  "Failed to create wallet session.": "AUTH_SESSION_ISSUE_FAILED",
-  "Wallet verification request is no longer valid.": "AUTH_SESSION_CHALLENGE_CONFLICT",
-};
-
 function jsonError(
   message: string,
   status: number,
 ) {
-  const code =
-    WALLET_VERIFY_FAILURE_CODES[message] ??
-    'AUTH_CERTIFICATE_INVALID';
+  const code = walletVerifyFailureCodeForMessage(message);
   const referenceId = randomBytes(8).toString('hex');
 
   // This is intentionally the only denial log: no proof material or user
