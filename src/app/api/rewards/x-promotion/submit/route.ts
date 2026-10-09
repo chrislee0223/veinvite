@@ -43,7 +43,7 @@ async function invalidateSubmission(
   inviteCode: string,
   postId: string,
   reason: string,
-) {
+): Promise<boolean> {
   const { error } = await supabaseAdmin.rpc(
     'invalidate_reward_x_promotion_post_submission_v1',
     {
@@ -63,7 +63,10 @@ async function invalidateSubmission(
         error: error.message,
       },
     );
+    return false;
   }
+
+  return true;
 }
 
 function pendingResponse(
@@ -328,11 +331,20 @@ export async function POST(
     }
 
     if (lookup.status === 'NOT_FOUND') {
-      await invalidateSubmission(
-        inviteCode,
-        parsedPost.postId,
-        lookup.reason,
-      );
+      const invalidated =
+        await invalidateSubmission(
+          inviteCode,
+          parsedPost.postId,
+          lookup.reason,
+        );
+
+      if (!invalidated) {
+        return pendingResponse(
+          'INVALIDATION_RETRY_REQUIRED',
+          inviteCode,
+          parsedPost.postId,
+        );
+      }
 
       return terminalResponse(
         'This X Post could not be found.',
@@ -343,11 +355,20 @@ export async function POST(
     }
 
     if (!lookup.isOriginalPost) {
-      await invalidateSubmission(
-        inviteCode,
-        parsedPost.postId,
-        'POST_NOT_ORIGINAL',
-      );
+      const invalidated =
+        await invalidateSubmission(
+          inviteCode,
+          parsedPost.postId,
+          'POST_NOT_ORIGINAL',
+        );
+
+      if (!invalidated) {
+        return pendingResponse(
+          'INVALIDATION_RETRY_REQUIRED',
+          inviteCode,
+          parsedPost.postId,
+        );
+      }
 
       return terminalResponse(
         'Only an original public X Post can qualify.',
@@ -364,11 +385,20 @@ export async function POST(
       );
 
     if (!matchedUrl) {
-      await invalidateSubmission(
-        inviteCode,
-        parsedPost.postId,
-        'SHARE_TOKEN_MISSING',
-      );
+      const invalidated =
+        await invalidateSubmission(
+          inviteCode,
+          parsedPost.postId,
+          'SHARE_TOKEN_MISSING',
+        );
+
+      if (!invalidated) {
+        return pendingResponse(
+          'INVALIDATION_RETRY_REQUIRED',
+          inviteCode,
+          parsedPost.postId,
+        );
+      }
 
       return terminalResponse(
         'The X Post does not contain the required VeInvite promotion link.',
@@ -414,11 +444,20 @@ export async function POST(
                 : null;
 
       if (terminalReason) {
-        await invalidateSubmission(
-          inviteCode,
-          parsedPost.postId,
-          terminalReason,
-        );
+        const invalidated =
+          await invalidateSubmission(
+            inviteCode,
+            parsedPost.postId,
+            terminalReason,
+          );
+
+        if (!invalidated) {
+          return pendingResponse(
+            'INVALIDATION_RETRY_REQUIRED',
+            inviteCode,
+            parsedPost.postId,
+          );
+        }
 
         return terminalResponse(
           'This X Post does not meet the promotion verification requirements.',
