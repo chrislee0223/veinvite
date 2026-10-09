@@ -59,7 +59,27 @@ type VerifyResponse = {
   walletAddress?: string;
   expiresAt?: string;
   error?: string;
+  code?: string;
+  referenceId?: string;
 };
+
+// A stable, non-secret support code is more useful than a generic failure
+// screen. Preserve the original error message for existing recovery paths.
+export class WalletAuthenticationFailure extends Error {
+  readonly code: string;
+  readonly referenceId: string | null;
+
+  constructor(
+    message: string,
+    code: string,
+    referenceId: string | null = null,
+  ) {
+    super(message);
+    this.name = 'WalletAuthenticationFailure';
+    this.code = code;
+    this.referenceId = referenceId;
+  }
+}
 
 type WalletCertificate = {
   purpose: 'agreement';
@@ -264,6 +284,7 @@ export function useWalletAuthentication() {
         };
 
         let run!: Promise<void>;
+        let failureStage = 'AUTH_SESSION_CHECK';
 
         run = (async () => {
           setIsAuthenticating(true);
@@ -296,6 +317,7 @@ export function useWalletAuthentication() {
               );
             }
 
+            failureStage = 'AUTH_CHALLENGE_REQUEST';
             const challengeResponse =
               await fetch(
                 '/api/auth/challenge',
@@ -342,6 +364,7 @@ export function useWalletAuthentication() {
               | 'message'
               | undefined;
 
+            failureStage = 'AUTH_WALLET_PROVIDER';
             if (
               connection.isConnectedWithDappKit
             ) {
@@ -429,6 +452,7 @@ export function useWalletAuthentication() {
                 );
 
               if (shouldUseVeWorldTypedData) {
+                failureStage = 'AUTH_WALLET_SIGNATURE';
                 const typedData =
                   buildWalletAuthTypedData({
                     walletAddress,
@@ -463,9 +487,11 @@ export function useWalletAuthentication() {
                 proofType =
                   'typed_data';
               } else {
+                failureStage = 'AUTH_WALLET_SIGNATURE';
                 await signCertificateFallback();
               }
             } else {
+              failureStage = 'AUTH_WALLET_SIGNATURE';
               signature =
                 await withTimeout(
                   signMessage(
@@ -490,6 +516,7 @@ export function useWalletAuthentication() {
 
             assertStillCurrent();
 
+            failureStage = 'AUTH_SERVER_VERIFICATION';
             const verifyResponse =
               await fetch(
                 '/api/auth/verify',
@@ -525,9 +552,20 @@ export function useWalletAuthentication() {
                 ?.toLowerCase() !==
                 walletAddress
             ) {
-              throw new Error(
-                verified.error ||
-                  'Wallet verification failed.',
+              const code =
+                typeof verified.code === 'string' &&
+                /^AUTH_[A-Z0-9_]{1,80}$/.test(verified.code)
+                  ? verified.code
+                  : 'AUTH_SERVER_VERIFICATION';
+              const referenceId =
+                typeof verified.referenceId === 'string' &&
+                /^[0-9a-f]{16}$/.test(verified.referenceId)
+                  ? verified.referenceId
+                  : null;
+              throw new WalletAuthenticationFailure(
+                verified.error || 'Wallet verification failed.',
+                code,
+                referenceId,
               );
             }
 
@@ -535,6 +573,7 @@ export function useWalletAuthentication() {
             // returns the newly issued persistent cookie. This catches cookie
             // storage problems immediately instead of surprising the user with
             // another phone signature after the next refresh.
+            failureStage = 'AUTH_SESSION_PERSISTENCE';
             const persistedSession =
               await readCurrentSession();
 
@@ -577,14 +616,24 @@ export function useWalletAuthentication() {
             outcome: 'success',
           });
         } catch (error) {
-          if (!isCancelledAuthentication(error)) {
-            reportProductAnalyticsEvent({
-              eventName: 'wallet_auth_failed',
-              outcome: 'failure',
-              failureCode: 'wallet_auth',
-            });
+          if (isCancelledAuthentication(error)) {
+            throw error;
           }
-          throw error;
+
+          reportProductAnalyticsEvent({
+            eventName: 'wallet_auth_failed',
+            outcome: 'failure',
+            failureCode: 'wallet_auth',
+          });
+
+          throw error instanceof WalletAuthenticationFailure
+            ? error
+            : new WalletAuthenticationFailure(
+                error instanceof Error
+                  ? error.message
+                  : 'Wallet verification failed.',
+                failureStage,
+              );
         } finally {
           clearActiveWalletAuthentication(run);
         }
