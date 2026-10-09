@@ -58,11 +58,12 @@ function hasInteractiveStartupGate(): boolean {
 }
 
 const NETWORK_SLOT_VISUAL_QA_PATH = '/qa/network-slot-visual';
+const NOTIFICATION_LAYOUT_QA_PATH = '/qa/notification-state';
 
 export function LocaleHydrationShield() {
   const pathname = usePathname();
 
-  if (pathname === NETWORK_SLOT_VISUAL_QA_PATH) {
+  if (pathname === NETWORK_SLOT_VISUAL_QA_PATH || pathname === NOTIFICATION_LAYOUT_QA_PATH) {
     return null;
   }
 
