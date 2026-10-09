@@ -26,17 +26,18 @@ const migration = await readFile(
   'utf8',
 );
 
-test('X lookup uses the official v2 Post lookup endpoint and required fields', () => {
+test('X lookup uses the official v2 Post lookup endpoint and tweet fields', () => {
   assert.match(
     adapter,
     /https:\/\/api\.x\.com\/2\/tweets\/\$\{postId\}/,
   );
-  assert.match(adapter, /'post\.fields'/);
+  assert.match(adapter, /'tweet\.fields'/);
   assert.match(adapter, /'created_at'/);
   assert.match(adapter, /'entities'/);
-  assert.match(adapter, /'expansions'/);
   assert.match(adapter, /'author_id'/);
-  assert.match(adapter, /'referenced_posts'/);
+  assert.match(adapter, /'referenced_tweets'/);
+  assert.doesNotMatch(adapter, /'post\.fields'/);
+  assert.doesNotMatch(adapter, /referenced_posts/);
 });
 
 test('missing credentials and transient X failures never become terminal invalidation', () => {
@@ -47,23 +48,20 @@ test('missing credentials and transient X failures never become terminal invalid
   assert.match(route, /status: 202/);
 });
 
-test('author and referenced Post identity are requested as expansions', () => {
-  const postFieldsStart = adapter.indexOf(
-    "endpoint.searchParams.set(\n    'post.fields'",
-  );
-  const expansionsStart = adapter.indexOf(
-    "endpoint.searchParams.set(\n    'expansions'",
+test('author and referenced Post identity use canonical Tweet fields', () => {
+  const fieldsStart = adapter.indexOf(
+    "endpoint.searchParams.set(\n    'tweet.fields'",
   );
 
-  assert.ok(postFieldsStart >= 0);
-  assert.ok(expansionsStart > postFieldsStart);
-
-  const postFieldsBlock = adapter.slice(
-    postFieldsStart,
-    expansionsStart,
+  assert.ok(fieldsStart >= 0);
+  const fieldsBlock = adapter.slice(
+    fieldsStart,
+    adapter.indexOf('const controller', fieldsStart),
   );
-  assert.doesNotMatch(postFieldsBlock, /author_id/);
-  assert.doesNotMatch(postFieldsBlock, /referenced_posts/);
+
+  assert.match(fieldsBlock, /author_id/);
+  assert.match(fieldsBlock, /referenced_tweets/);
+  assert.doesNotMatch(fieldsBlock, /referenced_posts/);
 });
 
 test('submission is persisted before the external X lookup', () => {
