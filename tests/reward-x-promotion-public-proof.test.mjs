@@ -72,6 +72,14 @@ test('paid X promotion proof must match the immutable payout intent', () => {
   );
   assert.match(
     page,
+    /receipt\.network/,
+  );
+  assert.match(
+    page,
+    /receipt\.recipient_wallet/,
+  );
+  assert.match(
+    page,
     /receipt\.x_post_id/,
   );
   assert.match(
@@ -102,5 +110,13 @@ test('public X proof does not expose private anti-abuse evidence', () => {
   assert.match(
     page,
     /does not expose device, IP,[\s\S]*location, or internal anti-abuse signals/,
+  );
+});
+
+
+test('public X Post link must still identify the verified Post', () => {
+  assert.match(
+    page,
+    /url\.pathname\.split\('\/'\)\.includes\(expectedPostId\)/,
   );
 });
