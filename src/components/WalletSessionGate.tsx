@@ -22,7 +22,11 @@ import {
 } from '@/hooks/useLiveWalletRestriction';
 import {
   useWalletAuthentication,
+  WalletAuthenticationFailure,
 } from '@/hooks/useWalletAuthentication';
+import {
+  releaseCancelledWalletAuthenticationAfterDisconnect,
+} from '@/lib/walletAuthenticationCoordinator';
 import type { InitialLegalConsentStatus } from '@/lib/legalConsent';
 import {
   LANGUAGE_STORAGE_KEY,
@@ -89,6 +93,7 @@ export type WalletSessionQaPreview = {
 };
 
 const SESSION_ERROR_SURFACE_DELAY_MS = 600;
+const WALLET_AUTH_SLOW_NOTICE_MS = 45_000;
 const PASSIVE_DISCONNECT_GRACE_MS = 7_000;
 const SESSION_CLEARED_EVENT =
   'veinvite-wallet-session-cleared';
@@ -175,6 +180,8 @@ export function WalletSessionSurface({
   hasError,
   walletMismatch,
   isDisconnecting,
+  errorCode = null,
+  referenceId = null,
   onRetry,
   onSecondary,
 }: {
@@ -182,6 +189,8 @@ export function WalletSessionSurface({
   hasError: boolean;
   walletMismatch: boolean;
   isDisconnecting: boolean;
+  errorCode?: string | null;
+  referenceId?: string | null;
   onRetry: () => void;
   onSecondary: () => void;
 }) {
@@ -260,9 +269,11 @@ export function WalletSessionSurface({
         >
           {walletMismatch
             ? switchT.title
-            : hasError
-              ? t.errorTitle
-              : t.checkingTitle}
+            : hasError && errorCode === 'AUTH_PARTICIPATION_CHECK'
+              ? t.participationErrorTitle
+              : hasError
+                ? t.errorTitle
+                : t.checkingTitle}
         </strong>
 
         <span
@@ -274,10 +285,31 @@ export function WalletSessionSurface({
         >
           {walletMismatch
             ? switchT.description
-            : hasError
-              ? t.errorDescription
-              : t.checkingDescription}
+            : hasError && errorCode === 'AUTH_RATE_LIMITED'
+              ? t.rateLimitDescription
+              : hasError && errorCode === 'AUTH_VERIFICATION_SLOW'
+                ? t.slowVerificationDescription
+                : hasError && errorCode === 'AUTH_PARTICIPATION_CHECK'
+                  ? t.participationErrorDescription
+                  : hasError
+                    ? t.errorDescription
+                    : t.checkingDescription}
         </span>
+
+        {hasError && !walletMismatch && errorCode ? (
+          <span
+            data-veinvite-wallet-auth-error-code={errorCode}
+            style={{
+              fontSize: '0.78rem',
+              opacity: 0.72,
+              overflowWrap: 'anywhere',
+              fontFamily: 'monospace',
+            }}
+          >
+            {errorCode}
+            {referenceId ? ` · Ref: ${referenceId}` : ''}
+          </span>
+        ) : null}
 
         {!hasError ? (
           <span
@@ -546,6 +578,10 @@ export function WalletSessionGate({
     useState<VerificationState>(
       initialWallet ? 'verified' : 'idle',
     );
+  const [errorDetails, setErrorDetails] = useState<{
+    code: string;
+    referenceId: string | null;
+  } | null>(null);
   const [verifiedWallet, setVerifiedWallet] =
     useState<string | null>(initialWallet);
   const [restrictionKind, setRestrictionKind] =
@@ -799,10 +835,26 @@ export function WalletSessionGate({
     const attempt = attemptRef.current + 1;
     attemptRef.current = attempt;
 
+    setErrorDetails(null);
     setState('checking');
+
+    let checkingParticipation = false;
+    // Do not cancel a still-open VeWorld signing prompt to show this status.
+    // The global coordinator remains the authority for deduplicating retries.
+    const slowNotice = window.setTimeout(() => {
+      if (attemptRef.current !== attempt) return;
+      setErrorDetails({
+        code: checkingParticipation
+          ? 'AUTH_PARTICIPATION_CHECK'
+          : 'AUTH_VERIFICATION_SLOW',
+        referenceId: null,
+      });
+      setState('error');
+    }, WALLET_AUTH_SLOW_NOTICE_MS);
 
     try {
       await ensureWalletSession(walletAddress);
+      checkingParticipation = true;
       const activeRestriction = await readWalletRestriction();
 
       if (attemptRef.current !== attempt) {
@@ -813,6 +865,7 @@ export function WalletSessionGate({
       setRestrictionKind(activeRestriction);
       setVerifiedWallet(walletAddress);
       setState('verified');
+      setErrorDetails(null);
       bootReadyDispatchedRef.current = true;
       window.dispatchEvent(
         new Event(WALLET_SESSION_READY_EVENT),
@@ -823,12 +876,19 @@ export function WalletSessionGate({
       }
 
       console.error(
-        'Wallet ownership verification failed:',
+        'VeInvite wallet access check failed:',
         error,
       );
 
       setVerifiedWallet(null);
       setRestrictionKind(null);
+      setErrorDetails(
+        checkingParticipation
+          ? { code: 'AUTH_PARTICIPATION_CHECK', referenceId: null }
+          : error instanceof WalletAuthenticationFailure
+            ? { code: error.code, referenceId: error.referenceId }
+            : { code: 'AUTH_GATE_UNEXPECTED_FAILURE', referenceId: null },
+      );
       pendingErrorTimerRef.current = window.setTimeout(() => {
         pendingErrorTimerRef.current = null;
 
@@ -838,6 +898,8 @@ export function WalletSessionGate({
 
         setState('error');
       }, SESSION_ERROR_SURFACE_DELAY_MS);
+    } finally {
+      window.clearTimeout(slowNotice);
     }
   }, [
     ensureWalletSession,
@@ -994,6 +1056,7 @@ export function WalletSessionGate({
           );
         }
 
+        releaseCancelledWalletAuthenticationAfterDisconnect();
         setState('idle');
       } catch (error) {
         console.error(
@@ -1048,6 +1111,7 @@ export function WalletSessionGate({
           );
         }
 
+        releaseCancelledWalletAuthenticationAfterDisconnect();
         markWalletConnectIntent();
         openConnectModal();
         setState('idle');
@@ -1208,6 +1272,8 @@ export function WalletSessionGate({
       hasError={hasError}
       walletMismatch={walletMismatch}
       isDisconnecting={isDisconnecting}
+      errorCode={errorDetails?.code}
+      referenceId={errorDetails?.referenceId}
       onRetry={() => {
         void retryVerification();
       }}

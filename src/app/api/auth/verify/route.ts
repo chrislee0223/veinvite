@@ -29,6 +29,7 @@ import {
 import {
   buildWalletAuthTypedData,
 } from '@/lib/walletAuthTypedData';
+import { walletVerifyFailureCodeForMessage } from '@/lib/walletAuthFailureCodes';
 import {
   LEGACY_WALLET_SESSION_COOKIE_NAME,
   WALLET_SESSION_COOKIE_NAME,
@@ -109,8 +110,19 @@ function jsonError(
   message: string,
   status: number,
 ) {
+  const code = walletVerifyFailureCodeForMessage(message);
+  const referenceId = randomBytes(8).toString('hex');
+
+  // This is intentionally the only denial log: no proof material or user
+  // identifier is present. Reference IDs are fresh per failed response.
+  console.warn('Wallet verification denied.', {
+    code,
+    status,
+    referenceId,
+  });
+
   return NextResponse.json(
-    { error: message },
+    { error: message, code, referenceId },
     {
       status,
       headers: {

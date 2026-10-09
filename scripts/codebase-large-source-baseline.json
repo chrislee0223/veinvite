@@ -1,7 +1,7 @@
 {
   "thresholdBytes": 30000,
   "capturedFromCommit": "76c45daa7f95cb13da09a28ed81d8db492ee407d",
-  "note": "Known large source files at the reviewed motion-consistency baseline. The cleanup gate blocks new >=30KB source files and prevents selected hotspot files from growing past their reviewed ceilings unless the baseline is intentionally reviewed and updated.",
+  "note": "Reviewed auth incident diagnostic change: WalletSessionGate.tsx crossed 30KB to distinguish proof errors from participation checks and show privacy-safe support codes. Extract the gate UI in a separate follow-up refactor; no increase to guarded hotspot ceilings.",
   "allowedLargeSourceFiles": [
     "src/components/AppNetwork.tsx",
     "src/components/PublicNetworkExplorer.tsx",
@@ -32,7 +32,8 @@
     "src/lib/i18n/localePacks/ru.ts",
     "src/lib/i18n/inviterSecurityNotificationCopy.ts",
     "src/lib/i18n/localePacks/ur.ts",
-    "src/components/AppSettings.tsx"
+    "src/components/AppSettings.tsx",
+    "src/components/WalletSessionGate.tsx"
   ],
   "growthCeilingsBytes": {
     "src/components/AppNetwork.tsx": 149032,

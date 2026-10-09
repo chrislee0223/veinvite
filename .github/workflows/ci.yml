@@ -147,6 +147,9 @@ jobs:
       - name: Wallet session continuity gate
         run: node scripts/check-wallet-session-continuity.mjs
 
+      - name: Wallet auth failure diagnostics gate
+        run: node --experimental-strip-types --test tests/wallet-auth-failure-diagnostics.test.mjs tests/wallet-auth-confirmed-disconnect.test.mjs
+
       - name: VeWorld startup readiness gate
         run: node --experimental-strip-types --test tests/home-startup-readiness.test.mjs tests/home-startup-performance.test.mjs tests/home-startup-placeholder-regression.test.mjs tests/first-paint-startup-shell.test.mjs tests/wallet-first-login-transition.test.mjs tests/wallet-switch-transition.test.mjs tests/startup-request-dedup.test.mjs
 
