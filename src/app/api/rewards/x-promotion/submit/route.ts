@@ -104,7 +104,6 @@ function terminalResponse(
         postId,
         state: 'INVALID',
         samePostRetryable: false,
-        canSubmitAnotherPost: true,
         reason,
       },
     },
