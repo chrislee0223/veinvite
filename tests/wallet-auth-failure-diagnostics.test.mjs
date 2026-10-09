@@ -6,6 +6,7 @@ import {
   WALLET_VERIFY_FAILURE_CODES,
   walletVerifyFailureCodeForMessage,
 } from '../src/lib/walletAuthFailureCodes.ts';
+import { WALLET_SESSION_COPY } from '../src/lib/i18n/walletSessionCopy.ts';
 
 test('wallet verification denials have stable, non-secret and distinct support codes', () => {
   const entries = Object.entries(WALLET_VERIFY_FAILURE_CODES);
@@ -80,4 +81,35 @@ test('mobile auth sends server diagnostic codes to visible support UI without ch
   assert.doesNotMatch(hook, /await connectV2\(/);
   assert.match(hook, /await requestTypedData\(/);
   assert.match(hook, /proofType =\s*'typed_data'/);
+});
+
+test('wallet recovery and post-auth check copy exists in every supported locale', async () => {
+  const locales = ['en', 'ko', 'zh', 'hi', 'es', 'ja', 'it', 'tr', 'nl', 'de', 'fr'];
+  for (const locale of locales) {
+    const copy = WALLET_SESSION_COPY[locale];
+    assert.ok(copy, `missing wallet locale: ${locale}`);
+    for (const key of [
+      'participationErrorTitle',
+      'participationErrorDescription',
+      'slowVerificationDescription',
+      'rateLimitDescription',
+    ]) {
+      assert.ok(copy[key]?.trim()?.length >= 8, `missing ${locale}.${key}`);
+    }
+  }
+
+  const gate = await readFile(
+    new URL('../src/components/WalletSessionGate.tsx', import.meta.url),
+    'utf8',
+  );
+  for (const key of [
+    'participationErrorTitle',
+    'participationErrorDescription',
+    'slowVerificationDescription',
+    'rateLimitDescription',
+  ]) {
+    assert.match(gate, new RegExp(`t\\.${key}`));
+  }
+  assert.match(gate, /AUTH_GATE_UNEXPECTED_FAILURE/);
+  assert.doesNotMatch(gate, /AUTH_WALLET_REQUEST_CANCELLED/);
 });
