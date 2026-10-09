@@ -39,7 +39,8 @@ test('known protocol/service wallets are excluded from Sybil hub inference', () 
 
 test('same-client link stays HOLD evidence while only an immediate inviter-to-invitee switch auto-restricts', () => {
   assert.match(pipeline, /security_client_wallet_observations/u);
-  assert.match(pipeline, /preVoteDetection: true/u);
+  assert.ok(pipeline.includes('preVoteDetection,'));
+  assert.ok(pipeline.includes('sharedClientPreVoteObservation('));
   assert.match(pipeline, /SECURITY_CLIENT_INVITER_IMMEDIATE_SWITCH/u);
   assert.match(pipeline, /switchGapSeconds <= 10 \* 60/u);
   assert.match(pipeline, /activationGapSeconds <= 10 \* 60/u);

@@ -20,6 +20,8 @@ import {
 } from '@/lib/sybil/v2/recentFunding';
 import {
   inspectSecurityClientTiming,
+  sharedClientPreVoteObservation,
+  strictSequentialClientSwitchGapSeconds,
 } from '@/lib/sybil/v2/securityClientTiming';
 import {
   loadRapidRewardConsolidationSignals,
@@ -58,7 +60,6 @@ import {
   safeNonNegativeBlock,
   safePositiveBlock,
   safeRevision,
-  sequentialWalletSwitchGapSeconds,
   unique,
 } from '@/lib/sybil/v2/pipelinePrimitives';
 import {
@@ -1950,7 +1951,7 @@ async function loadSecurityIdentitySignals(
             );
             if (!ownRow) continue;
 
-            const switchGapSeconds = sequentialWalletSwitchGapSeconds({
+            const switchGapSeconds = strictSequentialClientSwitchGapSeconds({
               leftFirstSeenAt: String(ownRow.first_seen_at),
               leftLastSeenAt: String(ownRow.last_seen_at),
               rightFirstSeenAt: siblingRow.first_seen_at,
@@ -2012,7 +2013,11 @@ async function loadSecurityIdentitySignals(
                   peerInviteCode: sibling.invite_code,
                   peerWallet: siblingWallet,
                   sharedClientId,
-                  preVoteDetection: true,
+                  preVoteDetection: sharedClientPreVoteObservation({
+                    leftFirstSeenAt: ownRow.first_seen_at,
+                    rightFirstSeenAt: siblingRow.first_seen_at,
+                    voteCompletedAt: invitation.vote_completed_at,
+                  }).preVoteDetection,
                   immediateSwitch,
                   switchGapSeconds,
                   activationGapSeconds,
@@ -2122,7 +2127,7 @@ async function loadSecurityIdentitySignals(
               );
               if (!rightRow) continue;
 
-              const switchGapSeconds = sequentialWalletSwitchGapSeconds({
+              const switchGapSeconds = strictSequentialClientSwitchGapSeconds({
                 leftFirstSeenAt: leftRow.first_seen_at,
                 leftLastSeenAt: leftRow.last_seen_at,
                 rightFirstSeenAt: rightRow.first_seen_at,
