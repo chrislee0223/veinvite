@@ -152,6 +152,17 @@ test('candidate scans paginate and cannot starve entries beyond a fixed first pa
   assert.match(candidates, /offset \+= PAGE_SIZE/);
 });
 
+test('candidate history checks batch settled and already-used ids', () => {
+  assert.match(
+    candidates,
+    /\.in\('intent_id', intentIds\)/,
+  );
+  assert.match(
+    candidates,
+    /\.in\('verification_id', verificationIds\)/,
+  );
+});
+
 test('unsigned existing intent must remain payable before executor can select it', () => {
   const start = candidates.indexOf(
     'export async function findPayablePromotionIntentId',
