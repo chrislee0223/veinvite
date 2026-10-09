@@ -21,6 +21,11 @@ test('mission attribution remains derived from the existing reward-authoritative
   assert.match(activity, /qualifyingRewardEvents\.length < 3/);
   assert.match(activity, /uniqueAppIds\.has/);
   assert.match(activity, /BigInt\(amountWei\) <= 0n/);
+  assert.match(activity, /VEINVITE_APP_ID/);
+  assert.match(
+    activity,
+    /normalizedAppId ===[\s\S]*VEINVITE_APP_ID\.toLowerCase\(\)[\s\S]*continue;/,
+  );
   assert.match(impactRecord, /invite_impact_events/);
   assert.match(impactRecord, /onConflict:\s*'event_key'/);
   assert.match(impactRecord, /ignoreDuplicates:\s*true/);
@@ -128,4 +133,16 @@ test('operator aggregation supports later dApp adoption analysis without exposin
   assert.match(migration, /new_participant_count bigint/);
   assert.match(migration, /returning_participant_count bigint/);
   assert.match(migration, /total_reward_wei numeric/);
+});
+
+
+test('VeInvite self-funded rewards cannot satisfy the external dApp mission', () => {
+  assert.match(
+    activity,
+    /VeInvite-funded rewards[\s\S]*not evidence that the user[\s\S]*explored another VeBetter dApp/,
+  );
+  assert.match(
+    activity,
+    /normalizedAppId ===[\s\S]*VEINVITE_APP_ID\.toLowerCase\(\)[\s\S]*continue;[\s\S]*uniqueAppIds\.has/,
+  );
 });
