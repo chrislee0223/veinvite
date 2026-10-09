@@ -1829,8 +1829,20 @@ async function loadSecurityIdentitySignals(
         );
         if (!inviteeRow) continue;
 
+        const inviterFirstSeen = Date.parse(String(inviterRow.first_seen_at));
         const inviterLastSeen = Date.parse(String(inviterRow.last_seen_at));
         const inviteeFirstSeen = Date.parse(String(inviteeRow.first_seen_at));
+        const voteCompletedAt = invitation.vote_completed_at
+          ? Date.parse(invitation.vote_completed_at)
+          : Number.NaN;
+        // Client cookies are pseudonymous and may be shared AFTER the vote.
+        // Do not label all shared-client matches as pre-vote evidence.
+        const sharedClientFirstSeen = Math.max(inviterFirstSeen, inviteeFirstSeen);
+        const preVoteDetection =
+          Number.isFinite(sharedClientFirstSeen) &&
+          Number.isFinite(voteCompletedAt)
+            ? sharedClientFirstSeen <= voteCompletedAt
+            : null;
         const switchGapSeconds =
           Number.isNaN(inviterLastSeen) || Number.isNaN(inviteeFirstSeen)
             ? null
@@ -1876,7 +1888,11 @@ async function loadSecurityIdentitySignals(
             evidence: {
               sameInviterClient: true,
               sharedClientId,
-              preVoteDetection: true,
+              preVoteDetection,
+              sharedClientFirstSeenAt: Number.isFinite(sharedClientFirstSeen)
+                ? new Date(sharedClientFirstSeen).toISOString()
+                : null,
+              voteCompletedAt: invitation.vote_completed_at,
               immediateSwitch,
               switchGapSeconds,
               activationGapSeconds,
