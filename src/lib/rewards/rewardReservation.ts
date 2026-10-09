@@ -5,10 +5,6 @@ import { ThorClient } from '@vechain/sdk-network';
 import { readVeInviteRewardPoolStatus, VEINVITE_APP_ID } from '@/lib/rewards/onchainPool';
 import { readPredictiveRewardPlanning } from '@/lib/rewards/predictivePlanning';
 import { readRewardRuntimeSafety } from '@/lib/rewards/runtimeSafety';
-import {
-  runRewardXPromotionShadowAudit,
-  runRewardXPromotionShadowSync,
-} from '@/lib/rewards/rewardXPromotionShadow';
 import { supabaseAdmin } from '@/lib/supabaseServer';
 import { getVeBetterNetworkConfig } from '@/lib/vebetter/network';
 
@@ -549,38 +545,6 @@ async function reserveCandidate({
   );
 }
 
-async function runRewardXPromotionShadowObservability(): Promise<void> {
-  try {
-    const sync =
-      await runRewardXPromotionShadowSync(250);
-
-    if (!sync.enabled) {
-      return;
-    }
-
-    const audit =
-      await runRewardXPromotionShadowAudit();
-
-    if (!audit.ok) {
-      console.warn(
-        'X promotion shadow audit reported invariant violations:',
-        {
-          network: audit.network,
-          policyVersion: audit.policyVersion,
-          violations: audit.violations,
-        },
-      );
-    }
-  } catch (error) {
-    // Shadow projection is deliberately non-authoritative. A projection or
-    // audit failure must never roll back, delay, or change a real reservation.
-    console.error(
-      'X promotion shadow observability failed after reward reservation sweep:',
-      error,
-    );
-  }
-}
-
 export async function reserveEligibleReferralRewards(): Promise<RewardReservationSweepResult> {
   const { network } = getVeBetterNetworkConfig();
 
@@ -609,8 +573,6 @@ export async function reserveEligibleReferralRewards(): Promise<RewardReservatio
     else if (outcome === 'awaiting_finality') result.awaitingFinality += 1;
     else result.skipped += 1;
   }
-
-  await runRewardXPromotionShadowObservability();
 
   return result;
 }
