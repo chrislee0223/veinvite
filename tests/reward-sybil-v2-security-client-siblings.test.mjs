@@ -43,8 +43,8 @@ test('same-inviter sibling wallets on one security client are detected before pa
   assert.match(pipeline, /sameInviterSibling:\s*true/u);
   assert.match(pipeline, /switchGapSeconds <= 10 \* 60/u);
   assert.match(pipeline, /peerActivationGapSeconds/u);
-  assert.match(pipeline, /preVoteDetection: sharedClientPreVoteObservation\\(/u);
-  assert.match(pipeline, /strictSequentialClientSwitchGapSeconds\\(/u);
+  assert.ok(pipeline.includes('preVoteDetection: sharedClientPreVoteObservation('));
+  assert.ok(pipeline.includes('strictSequentialClientSwitchGapSeconds('));
 });
 
 test('generic sibling sharing is medium while an immediate switch is high evidence', () => {
