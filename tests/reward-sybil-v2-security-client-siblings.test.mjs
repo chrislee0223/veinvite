@@ -10,6 +10,7 @@ const [
   reviewedBehaviorPatterns,
   protocolDestinations,
   policy,
+  overlapFixMigration,
 ] = await Promise.all([
   readFile('src/lib/sybil/v2/pipeline.ts', 'utf8'),
   readFile(
@@ -33,6 +34,7 @@ const [
     'utf8',
   ),
   readFile('src/lib/sybil/v2/policy.ts', 'utf8'),
+  readFile('supabase/migrations/20261009141000_harden_overlapping_security_client_siblings_v1.sql', 'utf8'),
 ]);
 
 test('same-inviter sibling wallets on one security client are detected before payout', () => {
@@ -196,4 +198,15 @@ test('reviewed behavior update advances the Sybil policy version', () => {
     policy,
     /SYBIL_V2_POLICY_VERSION = 'sybil-v2\.17'/u,
   );
+});
+
+test('current DB security-client functions reject overlapping observation windows', () => {
+  assert.match(overlapFixMigration, /CREATE OR REPLACE FUNCTION public\.review_security_client_sibling_inviter_cluster/u);
+  assert.match(overlapFixMigration, /CREATE OR REPLACE FUNCTION public\.apply_sybil_v2_security_client_sibling_pattern_restriction/u);
+  assert.match(overlapFixMigration, /v_switch_gap_seconds := null;/u);
+  assert.match(overlapFixMigration, /when peer_obs\.first_seen_at > own_obs\.last_seen_at then/u);
+  assert.match(overlapFixMigration, /when own_obs\.first_seen_at > peer_obs\.last_seen_at then/u);
+  assert.match(overlapFixMigration, /else null/u);
+  assert.doesNotMatch(overlapFixMigration, /v_switch_gap_seconds := 0;/u);
+  assert.match(overlapFixMigration, /'preVoteDetection', case/u);
 });
