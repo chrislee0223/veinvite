@@ -21,9 +21,9 @@ import {
   runScheduledRewardMaintenance,
 } from '@/lib/rewards/rewardBoostReserveScheduler';
 import {
-  runRewardReservationRecovery,
-  type RewardReservationRecoverySweep,
-} from '@/lib/rewards/rewardReservationRecovery';
+  runRewardRecoveryMaintenance,
+  type RewardRecoveryMaintenanceSweep,
+} from '@/lib/rewards/rewardRecoveryMaintenance';
 import { supabaseAdmin } from '@/lib/supabaseServer';
 import {
   runB3trRecipientObservationBatch,
@@ -976,7 +976,7 @@ export async function GET(
       >
     > | null = null;
   let rewardReservation:
-    RewardReservationRecoverySweep | null =
+    RewardRecoveryMaintenanceSweep | null =
       null;
   let b3trRecipientObservation:
     Awaited<
@@ -1165,7 +1165,7 @@ export async function GET(
     }
 
     const rewardRecovery =
-      await runRewardReservationRecovery();
+      await runRewardRecoveryMaintenance();
     rewardReservation =
       rewardRecovery.reservation;
     recoveryFailure ??=
