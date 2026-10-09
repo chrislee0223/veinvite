@@ -16,6 +16,9 @@ import {
   readRewardRuntimeSafety,
 } from '@/lib/rewards/runtimeSafety';
 import {
+  runRewardXPromotionMaintenance,
+} from '@/lib/rewards/rewardXPromotionMaintenance';
+import {
   runRewardXPromotionShadowAudit,
   runRewardXPromotionShadowSync,
 } from '@/lib/rewards/rewardXPromotionShadow';
@@ -306,6 +309,17 @@ Promise<ScheduledRewardMaintenanceResult> {
     // failure delay or fail authoritative reward maintenance.
     console.warn(
       'X promotion shadow maintenance failed:',
+      error,
+    );
+  }
+
+  try {
+    await runRewardXPromotionMaintenance();
+  } catch (error) {
+    // X promotion is optional and subordinate to the core referral reward.
+    // A verification/API failure must never fail or delay core maintenance.
+    console.warn(
+      'X promotion verification maintenance failed:',
       error,
     );
   }
