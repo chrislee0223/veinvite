@@ -13,6 +13,7 @@ const [
   queueConsumer,
   reservation,
   rewardRecovery,
+  rewardMaintenance,
   voteCron,
   migration,
 ] = await Promise.all([
@@ -23,6 +24,7 @@ const [
   read('src/app/api/queues/reward-reservation/route.ts'),
   read('src/lib/rewards/rewardReservation.ts'),
   read('src/lib/rewards/rewardReservationRecovery.ts'),
+  read('src/lib/rewards/rewardRecoveryMaintenance.ts'),
   read('src/app/api/cron/vote-reconcile/route.ts'),
   read('supabase/migrations/20261005162635_add_reward_reservation_liveness_guard_v1.sql'),
 ]);
@@ -144,6 +146,10 @@ test('five-minute recovery detects a stale CLEAR referral missing its reservatio
   );
   assert.match(
     voteCron,
+    /runRewardRecoveryMaintenance/u,
+  );
+  assert.match(
+    rewardMaintenance,
     /runRewardReservationRecovery/u,
   );
   assert.match(
