@@ -93,6 +93,12 @@ test('only original Posts with the unique VeInvite URL can pass initial verifica
   assert.match(route, /SHARE_TOKEN_MISSING/);
 });
 
+test('terminal verdict is not exposed unless invalidation persisted', () => {
+  assert.match(route, /Promise<boolean>/);
+  assert.match(route, /INVALIDATION_RETRY_REQUIRED/);
+  assert.match(route, /if \(!invalidated\)/);
+});
+
 test('terminal submission invalidation is narrow and does not release the reward obligation', () => {
   assert.match(
     migration,
