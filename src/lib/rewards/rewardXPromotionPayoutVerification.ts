@@ -55,9 +55,11 @@ export function toRewardVerifierManifest(
 export async function verifyFinalizedXPromotionTransactionOnChain({
   txId,
   manifest,
+  manifestCreatedAt,
 }: {
   txId: string;
   manifest: XPromotionPayoutManifest;
+  manifestCreatedAt: string | Date;
 }): Promise<VerifiedRewardTransaction> {
   return verifyFinalizedRewardTransactionOnChain({
     txId,
@@ -65,7 +67,6 @@ export async function verifyFinalizedXPromotionTransactionOnChain({
       toRewardVerifierManifest(manifest),
     operatorWallet:
       manifest.operatorWallet,
-    manifestCreatedAt:
-      new Date(),
+    manifestCreatedAt,
   });
 }
