@@ -1173,9 +1173,6 @@ export async function GET(
     errors.push(
       ...rewardRecovery.errors,
     );
-    warnings.push(
-      ...rewardRecovery.warnings,
-    );
 
     try {
       b3trRecipientObservation =
