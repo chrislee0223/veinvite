@@ -56,6 +56,10 @@
       "schedule": "* * * * *"
     },
     {
+      "path": "/api/cron/x-promotion-maintenance",
+      "schedule": "*/5 * * * *"
+    },
+    {
       "path": "/api/cron/analytics-maintenance",
       "schedule": "47 0 * * *"
     },
