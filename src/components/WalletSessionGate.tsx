@@ -24,6 +24,9 @@ import {
   useWalletAuthentication,
   WalletAuthenticationFailure,
 } from '@/hooks/useWalletAuthentication';
+import {
+  releaseCancelledWalletAuthenticationAfterDisconnect,
+} from '@/lib/walletAuthenticationCoordinator';
 import type { InitialLegalConsentStatus } from '@/lib/legalConsent';
 import {
   LANGUAGE_STORAGE_KEY,
@@ -90,6 +93,7 @@ export type WalletSessionQaPreview = {
 };
 
 const SESSION_ERROR_SURFACE_DELAY_MS = 600;
+const WALLET_AUTH_SLOW_NOTICE_MS = 45_000;
 const PASSIVE_DISCONNECT_GRACE_MS = 7_000;
 const SESSION_CLEARED_EVENT =
   'veinvite-wallet-session-cleared';
@@ -279,7 +283,11 @@ export function WalletSessionSurface({
         >
           {walletMismatch
             ? switchT.description
-            : hasError && errorCode === 'AUTH_PARTICIPATION_CHECK'
+            : hasError && errorCode === 'AUTH_VERIFICATION_SLOW'
+              ? locale === 'ko'
+                ? '지갑 인증 응답이 지연되고 있어요. 지갑 앱에서 서명을 승인하거나 취소한 뒤 다시 시도하세요. 계속되면 지갑 연결을 해제하고 다시 연결해 주세요.'
+                : 'Wallet verification is taking longer than expected. Finish or cancel the wallet request, then retry. You can also disconnect and reconnect.'
+              : hasError && errorCode === 'AUTH_PARTICIPATION_CHECK'
               ? locale === 'ko'
                 ? '지갑 인증은 완료됐지만 참여 자격을 확인하지 못했어요. 잠시 후 다시 시도해 주세요.'
                 : 'Your wallet was verified, but we could not check participation access. Please try again.'
@@ -831,6 +839,17 @@ export function WalletSessionGate({
     setState('checking');
 
     let checkingParticipation = false;
+    // Do not cancel a still-open VeWorld signing prompt to show this status.
+    // The global coordinator remains the authority for deduplicating retries.
+    const slowNotice = window.setTimeout(() => {
+      if (attemptRef.current !== attempt) return;
+      setErrorDetails({
+        code: 'AUTH_VERIFICATION_SLOW',
+        referenceId: null,
+      });
+      setState('error');
+    }, WALLET_AUTH_SLOW_NOTICE_MS);
+
     try {
       await ensureWalletSession(walletAddress);
       checkingParticipation = true;
@@ -877,6 +896,8 @@ export function WalletSessionGate({
 
         setState('error');
       }, SESSION_ERROR_SURFACE_DELAY_MS);
+    } finally {
+      window.clearTimeout(slowNotice);
     }
   }, [
     ensureWalletSession,
@@ -1033,6 +1054,7 @@ export function WalletSessionGate({
           );
         }
 
+        releaseCancelledWalletAuthenticationAfterDisconnect();
         setState('idle');
       } catch (error) {
         console.error(
@@ -1087,6 +1109,7 @@ export function WalletSessionGate({
           );
         }
 
+        releaseCancelledWalletAuthenticationAfterDisconnect();
         markWalletConnectIntent();
         openConnectModal();
         setState('idle');
