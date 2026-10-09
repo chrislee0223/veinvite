@@ -59,6 +59,25 @@ test('signing rechecks pool safety and total outstanding liability', () => {
   assert.match(source, /rewardDistributors/);
 });
 
+test('stale manifest target or signer drift is rejected before signing', () => {
+  assert.match(
+    source,
+    /manifest target no longer matches runtime/,
+  );
+  assert.match(
+    source,
+    /manifest signer no longer matches runtime/,
+  );
+  assert.match(
+    source,
+    /x2EarnRewardsPoolAddress/,
+  );
+  assert.match(
+    source,
+    /manifest\.operatorWallet\.toLowerCase\(\) !== distributorAddress/,
+  );
+});
+
 test('LIVE, security and core priority are rechecked immediately before private-key use', () => {
   const runtime = source.indexOf('runtimeBeforeSign');
   const security = source.indexOf('securityBeforeSign', runtime);
