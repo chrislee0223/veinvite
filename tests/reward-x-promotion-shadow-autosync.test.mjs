@@ -21,17 +21,25 @@ test('reward maintenance runs shadow projection after reservation recovery', () 
   assert.ok(auditIndex > shadowIndex);
 });
 
-test('shadow failures remain warnings and never poison reward recovery', () => {
-  assert.match(helper, /X_PROMOTION_SHADOW_SYNC_FAILED/);
-  assert.match(helper, /X_PROMOTION_SHADOW_AUDIT_VIOLATION/);
-  assert.match(helper, /Shadow accounting is non-authoritative/);
+test('shadow failures are log-only and never poison reward recovery', () => {
+  assert.match(
+    helper,
+    /X promotion shadow audit reported invariant violations/,
+  );
+  assert.match(
+    helper,
+    /X promotion shadow sync\/audit failed/,
+  );
+  assert.match(
+    helper,
+    /Shadow accounting is non-authoritative/,
+  );
   assert.doesNotMatch(helper, /rewardRecovery\.failure\s*=/);
   assert.doesNotMatch(helper, /rewardRecovery\.errors\.push/);
 });
 
-test('vote cron consumes combined maintenance result without direct shadow logic', () => {
+test('vote cron consumes combined maintenance without direct shadow logic', () => {
   assert.match(cron, /await runRewardRecoveryMaintenance\(\)/);
-  assert.match(cron, /warnings\.push\([\s\S]*\.\.\.rewardRecovery\.warnings/);
   assert.doesNotMatch(cron, /runRewardXPromotionShadowSync/);
   assert.doesNotMatch(cron, /runRewardXPromotionShadowAudit/);
 });
