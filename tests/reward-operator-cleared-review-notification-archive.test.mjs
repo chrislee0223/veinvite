@@ -17,5 +17,8 @@ test('all three history functions share guarded operator-clear closure',()=>{
 test('history represents ended review without updating immutable audits or claiming a reward',()=>{
  assert.match(source,/then 'SECURITY_REVIEW_CLEARED' else/);
  assert.match(source,/greatest\(resolved_review.updated_at, h.event_at\)/);
- assert.doesNotMatch(source,/\b(?:update|delete|insert)\s+(?:into\s+|from\s+)?public\.(?:invitations|reward_payouts|invite_notification_history_reads|invite_notification_history|sybil_v2_referral_assessments)\b/i);
+ assert.doesNotMatch(source,/\b(?:update|delete)\s+(?:from\s+)?public\.(?:invitations|reward_payouts|invite_notification_history_reads|invite_notification_history|sybil_v2_referral_assessments)\b/i);
+ assert.doesNotMatch(source,/\binsert\s+into\s+public\.(?:invitations|reward_payouts|invite_notification_history|sybil_v2_referral_assessments)\b/i);
+ // The unchanged acknowledgement RPC intentionally inserts actual user-read receipts.
+ assert.equal((source.match(/insert into public\.invite_notification_history_reads/g)||[]).length,1);
 });
