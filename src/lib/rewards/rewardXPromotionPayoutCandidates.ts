@@ -166,19 +166,32 @@ export async function findEligibleFinalPromotionVerificationId(
       );
     }
 
-    for (const row of query.data ?? []) {
-      const existing = await supabaseAdmin
-        .from('reward_x_promotion_payout_intents')
-        .select('id')
-        .eq('verification_id', row.id)
-        .maybeSingle();
+    const rows = query.data ?? [];
+    const verificationIds = rows.map((row) =>
+      positiveId(row.id, 'verification id'),
+    );
+    const existing = verificationIds.length === 0
+      ? { data: [], error: null }
+      : await supabaseAdmin
+          .from('reward_x_promotion_payout_intents')
+          .select('verification_id')
+          .in('verification_id', verificationIds);
 
-      if (existing.error) {
-        throw new Error(
-          `X promotion intent candidate check failed: ${existing.error.message}`,
-        );
-      }
-      if (existing.data) continue;
+    if (existing.error) {
+      throw new Error(
+        `X promotion intent candidate check failed: ${existing.error.message}`,
+      );
+    }
+
+    const usedVerificationIds = new Set(
+      (existing.data ?? []).map((row) =>
+        positiveId(row.verification_id, 'used verification id'),
+      ),
+    );
+
+    for (const row of rows) {
+      const verificationId = positiveId(row.id, 'verification id');
+      if (usedVerificationIds.has(verificationId)) continue;
 
       const obligation = await supabaseAdmin
         .from('reward_x_promotion_obligations')
@@ -198,6 +211,6 @@ export async function findEligibleFinalPromotionVerificationId(
       }
     }
 
-    if ((query.data?.length ?? 0) < PAGE_SIZE) return null;
+    if (rows.length < PAGE_SIZE) return null;
   }
 }
