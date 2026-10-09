@@ -19,6 +19,9 @@ import {
   type RecentPreActivationFunding,
 } from '@/lib/sybil/v2/recentFunding';
 import {
+  inspectSecurityClientTiming,
+} from '@/lib/sybil/v2/securityClientTiming';
+import {
   loadRapidRewardConsolidationSignals,
 } from '@/lib/sybil/v2/rapidRewardConsolidationEvidence';
 import {
@@ -1829,22 +1832,19 @@ async function loadSecurityIdentitySignals(
         );
         if (!inviteeRow) continue;
 
-        const inviterLastSeen = Date.parse(String(inviterRow.last_seen_at));
-        const inviteeFirstSeen = Date.parse(String(inviteeRow.first_seen_at));
-        const switchGapSeconds =
-          Number.isNaN(inviterLastSeen) || Number.isNaN(inviteeFirstSeen)
-            ? null
-            : (inviteeFirstSeen - inviterLastSeen) / 1000;
-        const activationGapSeconds =
-          Number.isNaN(activationAt) || Number.isNaN(inviteeFirstSeen)
-            ? null
-            : Math.abs(activationAt - inviteeFirstSeen) / 1000;
-        const immediateSwitch =
-          switchGapSeconds !== null &&
-          activationGapSeconds !== null &&
-          switchGapSeconds >= 0 &&
-          switchGapSeconds <= 10 * 60 &&
-          activationGapSeconds <= 10 * 60;
+        const {
+          switchGapSeconds,
+          activationGapSeconds,
+          immediateSwitch,
+          preVoteDetection,
+          sharedClientFirstSeenAt,
+        } = inspectSecurityClientTiming({
+          inviterFirstSeenAt: String(inviterRow.first_seen_at),
+          inviterLastSeenAt: String(inviterRow.last_seen_at),
+          inviteeFirstSeenAt: String(inviteeRow.first_seen_at),
+          activatedAt: invitation.activated_at,
+          voteCompletedAt: invitation.vote_completed_at,
+        });
 
         const signals: SybilV2Signal[] = [{
           code: 'SECURITY_CLIENT_INVITER_LINK',
@@ -1876,7 +1876,9 @@ async function loadSecurityIdentitySignals(
             evidence: {
               sameInviterClient: true,
               sharedClientId,
-              preVoteDetection: true,
+              preVoteDetection,
+              sharedClientFirstSeenAt,
+              voteCompletedAt: invitation.vote_completed_at,
               immediateSwitch,
               switchGapSeconds,
               activationGapSeconds,
