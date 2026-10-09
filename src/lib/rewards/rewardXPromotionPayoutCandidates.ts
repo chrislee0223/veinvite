@@ -13,19 +13,25 @@ function positiveId(value: unknown, name: string): string {
   return BigInt(normalized).toString();
 }
 
-async function hasSettlement(intentId: string) {
+async function settledIntentIds(intentIds: string[]) {
+  if (intentIds.length === 0) return new Set<string>();
+
   const query = await supabaseAdmin
     .from('reward_x_promotion_payout_settlements')
-    .select('id')
-    .eq('intent_id', intentId)
-    .maybeSingle();
+    .select('intent_id')
+    .in('intent_id', intentIds);
 
   if (query.error) {
     throw new Error(
       `X promotion settlement lookup failed: ${query.error.message}`,
     );
   }
-  return Boolean(query.data);
+
+  return new Set(
+    (query.data ?? []).map((row) =>
+      positiveId(row.intent_id, 'settled intent id'),
+    ),
+  );
 }
 
 async function securityClear(inviteCode: unknown, network: VeBetterNetwork) {
@@ -61,12 +67,17 @@ export async function findCommittedPromotionIntentId(
       );
     }
 
-    for (const row of query.data ?? []) {
-      const intentId = positiveId(row.intent_id, 'intent id');
-      if (!(await hasSettlement(intentId))) return intentId;
+    const rows = query.data ?? [];
+    const intentIds = rows.map((row) =>
+      positiveId(row.intent_id, 'intent id'),
+    );
+    const settled = await settledIntentIds(intentIds);
+
+    for (const intentId of intentIds) {
+      if (!settled.has(intentId)) return intentId;
     }
 
-    if ((query.data?.length ?? 0) < PAGE_SIZE) return null;
+    if (rows.length < PAGE_SIZE) return null;
   }
 }
 
@@ -87,9 +98,15 @@ export async function findPayablePromotionIntentId(
       );
     }
 
-    for (const row of query.data ?? []) {
+    const rows = query.data ?? [];
+    const intentIds = rows.map((row) =>
+      positiveId(row.id, 'intent id'),
+    );
+    const settled = await settledIntentIds(intentIds);
+
+    for (const row of rows) {
       const intentId = positiveId(row.id, 'intent id');
-      if (await hasSettlement(intentId)) continue;
+      if (settled.has(intentId)) continue;
 
       const [obligation, verification] = await Promise.all([
         supabaseAdmin
@@ -126,7 +143,7 @@ export async function findPayablePromotionIntentId(
       if (await securityClear(row.invite_code, network)) return intentId;
     }
 
-    if ((query.data?.length ?? 0) < PAGE_SIZE) return null;
+    if (rows.length < PAGE_SIZE) return null;
   }
 }
 
