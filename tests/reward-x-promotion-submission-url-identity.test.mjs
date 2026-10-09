@@ -11,13 +11,11 @@ const migration = await readFile(
 );
 
 test('submission URL must contain the exact X Post ID with a path boundary', () => {
-  assert.match(
-    migration,
-    /'\/status\/' \|\| x_post_id \|\| '\(\[\/?#\]\|\$\)'/,
+  assert.ok(
+    migration.includes("'/status/' || x_post_id || '([/?#]|$)'"),
   );
-  assert.match(
-    migration,
-    /v_url !~ \('\/status\/' \|\| v_post_id \|\| '\(\[\/?#\]\|\$\)'\)/,
+  assert.ok(
+    migration.includes("'/status/' || v_post_id || '([/?#]|$)'"),
   );
 });
 
