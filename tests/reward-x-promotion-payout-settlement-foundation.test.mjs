@@ -41,6 +41,25 @@ test('promotion payout signing is live-gated and security-gated', () => {
   );
 });
 
+test('signed transaction and submission are persisted atomically', () => {
+  assert.match(
+    migration,
+    /register_reward_x_promotion_signed_submission_v1/,
+  );
+  assert.match(
+    migration,
+    /insert into public\.reward_x_promotion_payout_signed_transactions[\s\S]*insert into public\.reward_x_promotion_payout_submissions/,
+  );
+  assert.match(
+    migration,
+    /REWARD_X_PROMOTION_SIGNED_SUBMISSION_PARTIAL_OR_MISMATCH/,
+  );
+  assert.doesNotMatch(
+    migration,
+    /create or replace function public\.register_reward_x_promotion_submission_v1/,
+  );
+});
+
 test('promotion tx id cannot be reused by referral payout journals', () => {
   assert.match(
     migration,
@@ -92,6 +111,17 @@ test('signed promotion transaction prevents release', () => {
     migration,
     /REWARD_X_PROMOTION_SIGNED_TX_PREVENTS_RELEASE/,
   );
+});
+
+test('promotion receipt financial record is immutable and has no mutable read flag', () => {
+  const receiptStart = migration.indexOf(
+    'create table if not exists public.reward_x_promotion_receipts',
+  );
+  const receiptEnd = migration.indexOf(
+    'create index if not exists reward_x_promotion_payout_settlements_paid_idx',
+  );
+  const receiptSchema = migration.slice(receiptStart, receiptEnd);
+  assert.doesNotMatch(receiptSchema, /seen_at/);
 });
 
 test('finalization is not blocked by the live runtime switch', () => {
