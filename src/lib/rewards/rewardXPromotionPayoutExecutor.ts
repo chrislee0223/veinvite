@@ -486,6 +486,30 @@ async function signAndJournal(
     throw new Error('X promotion payout gas estimate is outside the conservative limit.');
   }
 
+  const [runtimeBeforeSign, securityBeforeSign] = await Promise.all([
+    readRuntimeGate(),
+    supabaseAdmin.rpc(
+      'reward_x_promotion_security_clear_v1',
+      {
+        p_invite_code: manifest.inviteCode,
+        p_network: network,
+      },
+    ),
+  ]);
+
+  if (!runtimeBeforeSign.liveEnabled || !runtimeBeforeSign.liveStartedAt) {
+    throw new Error('X promotion LIVE was disabled before signing.');
+  }
+  if (securityBeforeSign.error) {
+    throw new Error(
+      `X promotion security pre-sign check failed: ${securityBeforeSign.error.message}`,
+    );
+  }
+  if (securityBeforeSign.data !== true) {
+    throw new Error('X promotion security clearance changed before signing.');
+  }
+  if (await coreRewardWorkPending(network)) return null;
+
   const body = await thor.transactions.buildTransactionBody(
     clauses,
     gasResult.totalGas,
