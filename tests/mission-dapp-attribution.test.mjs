@@ -129,3 +129,23 @@ test('operator aggregation supports later dApp adoption analysis without exposin
   assert.match(migration, /returning_participant_count bigint/);
   assert.match(migration, /total_reward_wei numeric/);
 });
+
+
+test('X promotion compensation cannot advance the three-dApp mission', () => {
+  assert.match(
+    activity,
+    /isVeInviteXPromotionStructuredProof/,
+  );
+  assert.match(
+    activity,
+    /isXPromotionRewardEvent\([\s\S]*continue;/,
+  );
+  assert.match(
+    activity,
+    /if \(appId !== VEINVITE_APP_ID\)[\s\S]*return false;/,
+  );
+  assert.doesNotMatch(
+    activity,
+    /if \(normalizedAppId === VEINVITE_APP_ID\)\s*\{?\s*continue;/,
+  );
+});
