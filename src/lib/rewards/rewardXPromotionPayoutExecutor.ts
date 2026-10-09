@@ -433,8 +433,16 @@ async function signAndJournal(
     readOutstandingLiability(network, manifest.appId),
   ]);
 
-  if (pool.appId.toLowerCase() !== manifest.appId.toLowerCase()) {
-    throw new Error('X promotion payout resolved a different VeInvite app.');
+  if (
+    manifest.network !== network ||
+    pool.appId.toLowerCase() !== manifest.appId.toLowerCase() ||
+    pool.x2EarnRewardsPoolAddress.toLowerCase() !==
+      manifest.x2EarnRewardsPoolAddress.toLowerCase()
+  ) {
+    throw new Error('X promotion payout manifest target no longer matches runtime.');
+  }
+  if (manifest.operatorWallet.toLowerCase() !== distributorAddress) {
+    throw new Error('X promotion payout manifest signer no longer matches runtime.');
   }
   if (network === 'mainnet' && !pool.mainnetFundedRewardsEnabled) {
     throw new Error('Mainnet funded rewards were disabled before X promotion signing.');
