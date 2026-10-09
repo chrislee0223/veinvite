@@ -121,3 +121,13 @@ test('foundation creates no payout path and keeps tables server-only', () => {
     /grant select on table public\.reward_x_promotion_post_verifications to service_role/,
   );
 });
+
+
+test('VeInvite expanded URL regex uses one regex escape per hostname dot', () => {
+  assert.ok(
+    migration.includes("^https://veinvite\\.vercel\\.app/"),
+  );
+  assert.ok(
+    !migration.includes("^https://veinvite\\\\.vercel\\\\.app/"),
+  );
+});
