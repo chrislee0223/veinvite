@@ -1,7 +1,12 @@
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import test from 'node:test';
-import { inspectSecurityClientTiming } from '../src/lib/sybil/v2/securityClientTiming.ts';
+import {
+  inspectSecurityClientTiming,
+  sharedClientPreVoteObservation,
+  strictSequentialClientSwitchGapSeconds,
+} from '../src/lib/sybil/v2/securityClientTiming.ts';
+import { selectRotatingObservationCandidates } from '../src/lib/sybil/v2/observationScheduling.ts';
 
 const observer = await readFile(
   'src/lib/sybil/v2/postVoteFunding.ts', 'utf8',
@@ -100,7 +105,7 @@ test('historical client timing and legacy allowlist annotations remain non-scori
   assert.ok(cron.includes('sharedClientChronology,'));
   assert.ok(cron.includes('excludedLegacyProtocolEvidence,'));
   assert.ok(cron.includes(".eq('activation_network', 'mainnet')"));
-  assert.ok(cron.includes('.slice(0, MAX_BATCH * 4)'));
+  assert.ok(cron.includes('selectRotatingObservationCandidates({'));
   assert.ok(cron.includes('if (scanned >= MAX_BATCH) break'));
 });
 
@@ -109,9 +114,81 @@ test('daily cron uses a secret, production isolation and bounded processing', ()
   assert.match(cron, /process\.env\.CRON_SECRET/u);
   assert.match(cron, /process\.env\.VERCEL_ENV !== 'production'/u);
   assert.match(cron, /const MAX_BATCH = 5/u);
-  assert.match(cron, /\.limit\(500\)/u);
+  assert.match(cron, /\.range\(offset, offset \+ CANDIDATE_PAGE_SIZE - 1\)/u);
+  assert.match(cron, /Observation candidate cap reached/u);
+  assert.match(cron, /status: failures.length \? 503 : 200/u);
+  assert.match(cron, /console\.error\('Sybil funding observation failed for referral'/u);
   assert.ok(configuration.crons.some(
     (task) => task.path === '/api/cron/sybil-post-vote-observation' &&
       task.schedule === '12 1 * * *',
   ));
+});
+
+test('overlapping browser observation windows cannot prove a rapid sibling switch', () => {
+  const base = {
+    leftFirstSeenAt: '2026-09-17T16:00:00Z',
+    leftLastSeenAt: '2026-09-20T16:00:00Z',
+    rightFirstSeenAt: '2026-09-18T16:00:00Z',
+    rightLastSeenAt: '2026-09-21T16:00:00Z',
+  };
+  assert.equal(strictSequentialClientSwitchGapSeconds(base), null);
+  assert.equal(strictSequentialClientSwitchGapSeconds({
+    ...base,
+    rightFirstSeenAt: '2026-09-20T16:00:00Z',
+  }), null);
+  assert.equal(strictSequentialClientSwitchGapSeconds({
+    ...base,
+    rightFirstSeenAt: '2026-09-20T16:02:00Z',
+    rightLastSeenAt: '2026-09-20T16:03:00Z',
+  }), 120);
+  assert.equal(strictSequentialClientSwitchGapSeconds({
+    ...base,
+    leftFirstSeenAt: '2026-09-21T16:02:00Z',
+    leftLastSeenAt: '2026-09-21T16:03:00Z',
+  }), 120);
+  assert.equal(strictSequentialClientSwitchGapSeconds({
+    ...base,
+    leftFirstSeenAt: 'bad date',
+  }), null);
+});
+
+test('shared browser timing is calculated against the actual subject vote', () => {
+  const args = {
+    leftFirstSeenAt: '2026-09-18T16:00:00Z',
+    rightFirstSeenAt: '2026-09-21T16:24:41Z',
+    voteCompletedAt: '2026-09-21T09:24:40Z',
+  };
+  const late = sharedClientPreVoteObservation(args);
+  assert.equal(late.preVoteDetection, false);
+  assert.equal(late.sharedClientFirstSeenAt, '2026-09-21T16:24:41.000Z');
+  assert.equal(sharedClientPreVoteObservation({
+    ...args, voteCompletedAt: null,
+  }).preVoteDetection, null);
+  assert.equal(sharedClientPreVoteObservation({
+    ...args, voteCompletedAt: '2026-09-22T00:00:00Z',
+  }).preVoteDetection, true);
+  assert.match(pipeline, /strictSequentialClientSwitchGapSeconds\(/u);
+  assert.match(pipeline, /preVoteDetection: sharedClientPreVoteObservation\(/u);
+});
+
+test('daily bounded backlog rotates and progresses past permanent early failures', () => {
+  const referrals = Array.from({ length: 61 }, (_, i) => i + 1);
+  const first = selectRotatingObservationCandidates({
+    pending: referrals, epochDay: 20500, maxAttempts: 20,
+  });
+  const next = selectRotatingObservationCandidates({
+    pending: referrals, epochDay: 20501, maxAttempts: 20,
+  });
+  assert.equal(first.length, 20);
+  assert.equal(new Set(first).size, 20);
+  assert.notDeepEqual(first, next);
+  assert.equal(selectRotatingObservationCandidates({
+    pending: [], epochDay: 20500, maxAttempts: 20,
+  }).length, 0);
+  assert.deepEqual(selectRotatingObservationCandidates({
+    pending: [1, 2], epochDay: 20500, maxAttempts: 20,
+  }).sort(), [1, 2]);
+  assert.throws(() => selectRotatingObservationCandidates({
+    pending: [1], epochDay: 20500, maxAttempts: 0,
+  }));
 });
