@@ -656,7 +656,7 @@ begin
     join public.invitations i
       on i.invite_code=o.invite_code
     where o.network=v_network
-      and o.financial_state='HELD'
+      and o.financial_state in ('RESERVED','HELD')
       and (
         public.is_sybil_v2_referral_invalidated(
           o.invite_code,
@@ -687,7 +687,8 @@ begin
     where o.invite_code=v_candidate.invite_code
     for update;
 
-    if not found or v_obligation.financial_state<>'HELD' then
+    if not found
+       or v_obligation.financial_state not in ('RESERVED','HELD') then
       continue;
     end if;
 
