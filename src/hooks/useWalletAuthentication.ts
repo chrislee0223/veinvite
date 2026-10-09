@@ -627,7 +627,14 @@ export function useWalletAuthentication() {
           });
         } catch (error) {
           if (isCancelledAuthentication(error)) {
-            throw error;
+            // Cancellation is not a failed proof and must not be counted as
+            // a security rejection. Still tell the user which action occurred.
+            throw new WalletAuthenticationFailure(
+              error instanceof Error
+                ? error.message
+                : 'Wallet verification was cancelled.',
+              'AUTH_WALLET_REQUEST_CANCELLED',
+            );
           }
 
           reportProductAnalyticsEvent({
