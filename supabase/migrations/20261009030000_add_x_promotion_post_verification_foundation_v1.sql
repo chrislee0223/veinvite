@@ -59,7 +59,7 @@ create table if not exists public.reward_x_promotion_post_verifications (
   matched_expanded_url text not null
     check (
       char_length(matched_expanded_url) between 1 and 2048
-      and matched_expanded_url ~* '^https://veinvite\\.vercel\\.app/'
+      and matched_expanded_url ~* '^https://veinvite\.vercel\.app/'
     ),
   initial_verified_at timestamptz not null,
   retention_seconds integer not null default 86400
@@ -344,7 +344,7 @@ begin
     raise exception 'REWARD_X_PROMOTION_POST_CREATED_AT_REQUIRED';
   end if;
   if char_length(v_url) not between 1 and 2048
-     or v_url !~* '^https://veinvite\\.vercel\\.app/' then
+     or v_url !~* '^https://veinvite\.vercel\.app/' then
     raise exception 'REWARD_X_PROMOTION_MATCHED_URL_INVALID';
   end if;
 
@@ -540,7 +540,7 @@ begin
     raise exception 'REWARD_X_PROMOTION_POST_IDENTITY_INVALID';
   end if;
   if char_length(v_url) not between 1 and 2048
-     or v_url !~* '^https://veinvite\\.vercel\\.app/' then
+     or v_url !~* '^https://veinvite\.vercel\.app/' then
     raise exception 'REWARD_X_PROMOTION_MATCHED_URL_INVALID';
   end if;
 
