@@ -16,6 +16,19 @@ const scheduler = await readFile(
   ),
   'utf8',
 );
+const cronRoute = await readFile(
+  new URL(
+    '../src/app/api/cron/x-promotion-maintenance/route.ts',
+    import.meta.url,
+  ),
+  'utf8',
+);
+const vercelConfig = JSON.parse(
+  await readFile(
+    new URL('../vercel.json', import.meta.url),
+    'utf8',
+  ),
+);
 const reservation = await readFile(
   new URL('../src/lib/rewards/rewardReservation.ts', import.meta.url),
   'utf8',
@@ -126,28 +139,55 @@ test('non-terminal Sybil uncertainty goes to review rather than release', () => 
   assert.match(worker, /SECURITY_NOT_CLEAR/);
 });
 
-test('scheduler keeps X promotion verification fail-soft', () => {
-  assert.match(scheduler, /runRewardXPromotionMaintenance/);
-  assert.match(
+test('X promotion maintenance is isolated from core reward cron', () => {
+  assert.doesNotMatch(
     scheduler,
-    /X promotion verification maintenance failed/,
+    /rewardXPromotionMaintenance|runRewardXPromotionMaintenance/,
+  );
+  assert.match(
+    cronRoute,
+    /runRewardXPromotionMaintenance/,
+  );
+  assert.match(
+    cronRoute,
+    /export const maxDuration = 120/,
   );
 
-  const blockStart = scheduler.indexOf(
-    'await runRewardXPromotionMaintenance();',
-  );
-  const blockEnd = scheduler.indexOf(
-    '\n\n  return {',
-    blockStart,
-  );
-  const block = scheduler.slice(blockStart, blockEnd);
+  const configuredCron =
+    vercelConfig.crons.find(
+      (item) =>
+        item.path ===
+        '/api/cron/x-promotion-maintenance',
+    );
 
-  assert.doesNotMatch(block, /errors\.push/);
-  assert.match(block, /console\.warn/);
+  assert.deepEqual(
+    configuredCron,
+    {
+      path:
+        '/api/cron/x-promotion-maintenance',
+      schedule:
+        '*/5 * * * *',
+    },
+  );
+});
+
+test('isolated cron uses the existing secret boundary and heartbeat', () => {
+  assert.match(cronRoute, /process\.env\.CRON_SECRET/);
+  assert.match(cronRoute, /timingSafeEqual/);
+  assert.match(cronRoute, /markCronJobStarted/);
+  assert.match(cronRoute, /markCronJobSucceeded/);
+  assert.match(cronRoute, /markCronJobFailed/);
+});
+
+test('verification batch size is bounded for the isolated cron', () => {
+  const candidateLimits =
+    [...worker.matchAll(/p_limit: 3,/g)];
+
+  assert.equal(candidateLimits.length, 2);
 });
 
 test('core reservation, Claim and referral payout remain isolated', () => {
-  for (const source of [reservation, claim, payout]) {
+  for (const source of [reservation, claim, payout, scheduler]) {
     assert.doesNotMatch(
       source,
       /rewardXPromotionMaintenance|runRewardXPromotionMaintenance/,
