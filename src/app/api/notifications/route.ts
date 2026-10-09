@@ -36,6 +36,7 @@ const invitationColumns = `
   vote_completed,
   vote_completed_at,
   reward_status,
+  sybil_status,
   eligibility_check_id,
   activation_network,
   ineligibility_check_id,
@@ -43,6 +44,7 @@ const invitationColumns = `
 ` as const;
 
 type InvitationRow = InviteNotificationSource & {
+  sybil_status: string;
   eligibility_check_id: string | number | null;
   activation_network: string | null;
 };
@@ -239,7 +241,12 @@ async function loadUnreadNotifications(
 
   const unread = invitations
     .map((invitation) =>
-      deriveUnreadInviteNotificationV2({
+      // The security decision already creates a durable recipient-aware alert.
+      // Do not produce a second, generic ineligible notice for the same block.
+      invitation.sybil_status === 'BLOCKED' &&
+      invitation.reward_status === 'FORFEITED'
+        ? null
+        : deriveUnreadInviteNotificationV2({
         invitation,
         paidReward: paidByInvite.get(invitation.invite_code) ?? null,
         rewardReady: queueByInvite.get(invitation.invite_code) ?? null,
