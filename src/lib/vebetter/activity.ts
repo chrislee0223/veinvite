@@ -2,6 +2,9 @@ import { ABIEvent } from '@vechain/sdk-core';
 import { ThorClient } from '@vechain/sdk-network';
 
 import {
+  VEINVITE_APP_ID,
+} from '@/lib/rewards/onchainPool';
+import {
   createTransactionIndexResolver,
   type ChainEventPosition,
 } from '@/lib/vebetter/eventOrder';
@@ -279,6 +282,18 @@ export async function getVeBetterActivityProgress({
 
       const normalizedAppId =
         appId.toLowerCase();
+
+      // VeInvite-funded rewards (including the optional X promotion payout)
+      // are incentives from this onboarding app, not evidence that the user
+      // explored another VeBetter dApp. Excluding VeInvite's own app id also
+      // prevents a wallet that is simultaneously an inviter and invitee from
+      // advancing its three-dApp mission with its referral-side reward.
+      if (
+        normalizedAppId ===
+        VEINVITE_APP_ID.toLowerCase()
+      ) {
+        continue;
+      }
 
       if (
         uniqueAppIds.has(
