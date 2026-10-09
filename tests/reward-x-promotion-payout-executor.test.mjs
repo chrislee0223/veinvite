@@ -59,6 +59,26 @@ test('signing rechecks pool safety and total outstanding liability', () => {
   assert.match(source, /rewardDistributors/);
 });
 
+test('LIVE, security and core priority are rechecked immediately before private-key use', () => {
+  const runtime = source.indexOf('runtimeBeforeSign');
+  const security = source.indexOf('securityBeforeSign', runtime);
+  const core = source.indexOf('coreRewardWorkPending(network)', security);
+  const key = source.indexOf('Hex.of(privateKeyHex).bytes', core);
+
+  assert.ok(runtime >= 0);
+  assert.ok(security > runtime);
+  assert.ok(core > security);
+  assert.ok(key > core);
+  assert.match(
+    source,
+    /X promotion security clearance changed before signing/,
+  );
+  assert.match(
+    source,
+    /X promotion LIVE was disabled before signing/,
+  );
+});
+
 test('signed transaction is atomically journaled before any broadcast', () => {
   const journal = source.indexOf(
     'register_reward_x_promotion_signed_submission_v1',
