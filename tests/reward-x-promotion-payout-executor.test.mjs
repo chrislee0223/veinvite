@@ -106,21 +106,23 @@ test('signed transaction is atomically journaled before any broadcast', () => {
 });
 
 test('committed signed transaction recovery does not depend on new signing gates', () => {
-  const recovery =
-    source.indexOf(
-      'if (\n      state.signedTransaction &&\n      state.submission',
-    );
-  const runtimeGate =
-    source.indexOf(
-      'const runtime =\n    await readRuntimeGate',
-    );
-
-  assert.ok(recovery >= 0);
-  assert.ok(runtimeGate > recovery);
-  assert.match(
-    source,
-    /raw_tx_hex/,
+  const committedLookup = source.indexOf(
+    'findCommittedUnsettledIntentId',
+    source.indexOf('export async function runRewardXPromotionPayout'),
   );
+  const committedRecovery = source.indexOf(
+    'recoverCommittedLocked',
+    committedLookup,
+  );
+  const runtimeGate = source.indexOf(
+    'const runtime = await readRuntimeGate',
+    committedRecovery,
+  );
+
+  assert.ok(committedLookup >= 0);
+  assert.ok(committedRecovery > committedLookup);
+  assert.ok(runtimeGate > committedRecovery);
+  assert.match(source, /raw_tx_hex/);
   assert.match(
     source,
     /verifyFinalizedXPromotionTransactionOnChain/,
@@ -132,22 +134,47 @@ test('committed signed transaction recovery does not depend on new signing gates
 });
 
 test('executor reuses the exact signed transaction instead of resigning on retry', () => {
-  assert.match(
-    source,
-    /Transaction\.decode/,
-  );
-  assert.match(
-    source,
-    /getTransaction\(txId\)/,
-  );
-  assert.match(
-    source,
-    /sendTransaction/,
-  );
+  assert.match(source, /Transaction\.decode/);
+  assert.match(source, /getTransaction\(txId\)/);
+  assert.match(source, /sendTransaction/);
   assert.match(
     source,
     /VeChain returned a different transaction id/,
   );
+});
+
+test('journaled raw transaction identity is verified before broadcast', () => {
+  const decode = source.indexOf('Transaction.decode');
+  const identityCheck = source.indexOf(
+    'decodedTxId !== txId',
+    decode,
+  );
+  const send = source.indexOf(
+    'sendTransaction',
+    decode,
+  );
+
+  assert.ok(decode >= 0);
+  assert.ok(identityCheck > decode);
+  assert.ok(send > identityCheck);
+  assert.match(
+    source,
+    /Journaled X promotion raw transaction does not match its transaction id/,
+  );
+});
+
+test('already committed promotion payouts are selected before fresh intents', () => {
+  const committed = source.indexOf(
+    'findCommittedUnsettledIntentId',
+    source.indexOf('export async function runRewardXPromotionPayout'),
+  );
+  const fresh = source.indexOf(
+    'findUnsettledIntentId',
+    committed + 1,
+  );
+
+  assert.ok(committed >= 0);
+  assert.ok(fresh > committed);
 });
 
 test('promotion executor is not yet wired into lifecycle cron', () => {
