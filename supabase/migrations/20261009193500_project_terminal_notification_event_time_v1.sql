@@ -266,6 +266,6 @@ AND final_outcome.dedupe_key like 'security-v2:%:SECURITY_INVITER_ACCESS_RESTORE
   from history_page
   order by history_page.id desc;
 end;
-$function$
+$function$;
 
 COMMIT;
