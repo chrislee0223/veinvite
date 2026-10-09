@@ -261,18 +261,23 @@ begin
       on x.id=u.opportunity_id
     join public.reward_x_promotion_obligations o
       on o.id=u.obligation_id
+    left join lateral (
+      select max(a.attempted_at) as latest_attempt_at
+      from public.reward_x_promotion_verification_attempts a
+      where a.submission_id=u.id
+        and a.phase='INITIAL_RETRY'
+    ) retry on true
     where u.network=v_network
       and u.submission_state='PENDING'
       and o.financial_state='HELD'
       and u.submitted_at <= now()-interval '10 minutes'
-      and not exists (
-        select 1
-        from public.reward_x_promotion_verification_attempts a
-        where a.submission_id=u.id
-          and a.phase='INITIAL_RETRY'
-          and a.attempted_at > now()-interval '15 minutes'
+      and (
+        retry.latest_attempt_at is null
+        or retry.latest_attempt_at <= now()-interval '15 minutes'
       )
-    order by u.submitted_at,u.id
+    order by
+      coalesce(retry.latest_attempt_at,u.submitted_at),
+      u.id
     limit v_limit
   ) c;
 
@@ -334,18 +339,23 @@ begin
       on x.id=p.opportunity_id
     join public.reward_x_promotion_obligations o
       on o.id=p.obligation_id
+    left join lateral (
+      select max(a.attempted_at) as latest_attempt_at
+      from public.reward_x_promotion_verification_attempts a
+      where a.verification_id=p.id
+        and a.phase='FINAL_CHECK'
+    ) retry on true
     where p.network=v_network
       and p.verification_state in ('INITIAL_VERIFIED','REVIEW_REQUIRED')
       and p.verify_after<=now()
       and o.financial_state='HELD'
-      and not exists (
-        select 1
-        from public.reward_x_promotion_verification_attempts a
-        where a.verification_id=p.id
-          and a.phase='FINAL_CHECK'
-          and a.attempted_at > now()-interval '60 minutes'
+      and (
+        retry.latest_attempt_at is null
+        or retry.latest_attempt_at <= now()-interval '60 minutes'
       )
-    order by p.verify_after,p.id
+    order by
+      coalesce(retry.latest_attempt_at,p.verify_after),
+      p.id
     limit v_limit
   ) c;
 
@@ -631,6 +641,7 @@ declare
   v_obligation public.reward_x_promotion_obligations%rowtype;
   v_invitation public.invitations%rowtype;
   v_terminal boolean;
+  v_invitation_found boolean;
   v_now timestamptz;
   v_considered integer := 0;
   v_released integer := 0;
@@ -642,8 +653,26 @@ begin
   for v_candidate in
     select o.invite_code
     from public.reward_x_promotion_obligations o
+    join public.invitations i
+      on i.invite_code=o.invite_code
     where o.network=v_network
       and o.financial_state='HELD'
+      and (
+        public.is_sybil_v2_referral_invalidated(
+          o.invite_code,
+          v_network
+        )
+        or exists (
+          select 1
+          from public.sybil_v2_wallet_restrictions r
+          where r.network=v_network
+            and r.status='ACTIVE'
+            and r.wallet_address in (
+              lower(o.recipient_wallet),
+              lower(i.invitee_wallet)
+            )
+        )
+      )
     order by o.id
     limit v_limit
   loop
@@ -665,6 +694,7 @@ begin
     select * into v_invitation
     from public.invitations i
     where i.invite_code=v_candidate.invite_code;
+    v_invitation_found:=found;
 
     v_terminal :=
       public.is_sybil_v2_referral_invalidated(
@@ -672,7 +702,7 @@ begin
         v_network
       )
       or (
-        found and exists (
+        v_invitation_found and exists (
           select 1
           from public.sybil_v2_wallet_restrictions r
           where r.network=v_network
