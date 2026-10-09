@@ -296,6 +296,22 @@ export async function GET(request: NextRequest) {
   const limit = parseLimit(request.nextUrl.searchParams.get('limit'));
 
   try {
+    // A verified payout receipt is the source of truth for paid alerts.
+    // Reconcile only on first-page history reads; failures must not hide
+    // previously recorded notifications or affect reward accounting.
+    if (beforeId === null) {
+      const { error: reconciliationError } = await supabaseAdmin.rpc(
+        'reconcile_verified_paid_reward_history',
+        { p_inviter_wallet: wallet },
+      );
+      if (reconciliationError) {
+        console.error(
+          'Receipt-verified paid notification reconciliation failed:',
+          reconciliationError.message,
+        );
+      }
+    }
+
     const [historyPage, unreadResult] = await Promise.all([
       loadHistoryRowsWithoutInternalWatch({
         wallet,
