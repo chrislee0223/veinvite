@@ -71,7 +71,7 @@ test('submission is persisted before the external X lookup', () => {
     'record_reward_x_promotion_post_submission_v1',
   );
   const lookupIndex = route.indexOf(
-    'lookupXPromotionPost',
+    'await lookupXPromotionPost(',
   );
 
   assert.ok(recordIndex >= 0);
