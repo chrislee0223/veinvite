@@ -32,7 +32,6 @@ test('X lookup uses the official v2 Post lookup endpoint and required fields', (
     /https:\/\/api\.x\.com\/2\/tweets\/\$\{postId\}/,
   );
   assert.match(adapter, /'post\.fields'/);
-  assert.match(adapter, /'post\\.fields'/);
   assert.match(adapter, /'created_at'/);
   assert.match(adapter, /'entities'/);
   assert.match(adapter, /'expansions'/);
