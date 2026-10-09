@@ -71,7 +71,7 @@ test('browser evidence first discovered after a completed vote stays post-vote',
   assert.equal(timing.preVoteDetection, false);
   assert.equal(timing.immediateSwitch, false);
   assert.equal(timing.sharedClientFirstSeenAt, '2026-09-21T16:24:41.000Z');
-  assert.match(pipeline, /inspectSecurityClientTiming\\(/u);
+  assert.ok(pipeline.includes('inspectSecurityClientTiming('));
   assert.match(pipeline, /preVoteDetection,/u);
   assert.doesNotMatch(pipeline, /preVoteDetection: true/u);
 });
@@ -96,13 +96,13 @@ test('client wallet replacement does not fabricate a vote timestamp', () => {
 });
 
 test('historical client timing and legacy allowlist annotations remain non-scoring', () => {
-  assert.match(cron, /loadSharedClientChronology\\(/u);
-  assert.match(cron, /inspectSecurityClientTiming\\(/u);
-  assert.match(cron, /sharedClientChronology,/u);
-  assert.match(cron, /excludedLegacyProtocolEvidence,/u);
-  assert.match(cron, /\\.eq\\('activation_network', 'mainnet'\\)/u);
-  assert.match(cron, /\\.slice\\(0, MAX_BATCH \\* 4\\)/u);
-  assert.match(cron, /if \\(scanned >= MAX_BATCH\\) break/u);
+  assert.ok(cron.includes('loadSharedClientChronology('));
+  assert.ok(cron.includes('inspectSecurityClientTiming('));
+  assert.ok(cron.includes('sharedClientChronology,'));
+  assert.ok(cron.includes('excludedLegacyProtocolEvidence,'));
+  assert.ok(cron.includes(".eq('activation_network', 'mainnet')"));
+  assert.ok(cron.includes('.slice(0, MAX_BATCH * 4)'));
+  assert.ok(cron.includes('if (scanned >= MAX_BATCH) break'));
 });
 
 test('daily cron uses a secret, production isolation and bounded processing', () => {
