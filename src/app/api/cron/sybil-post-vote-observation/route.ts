@@ -3,6 +3,7 @@ import { timingSafeEqual } from 'node:crypto';
 import { NextRequest, NextResponse } from 'next/server';
 
 import { supabaseAdmin } from '@/lib/supabaseServer';
+import { selectRotatingObservationCandidates } from '@/lib/sybil/v2/observationScheduling';
 import { inspectSecurityClientTiming } from '@/lib/sybil/v2/securityClientTiming';
 import {
   readPostVoteFundingObservation,
@@ -17,6 +18,10 @@ import {
 const SCAN_VERSION = 'post-vote-funding-observation-v1';
 const COMPLETION_CODE = 'POST_VOTE_FUNDING_OBSERVATION_COMPLETE';
 const MAX_BATCH = 5;
+const MAX_ATTEMPTS = 20;
+const CANDIDATE_PAGE_SIZE = 200;
+const MAX_CANDIDATES = 2_000;
+const COMPLETED_LOOKUP_BATCH = 100;
 const INVITE_CODE_PATTERN = /^[A-HJ-NP-Z2-9]{7}$/u;
 
 type Candidate = {
@@ -75,6 +80,48 @@ async function loadSharedClientChronology(candidate: Candidate) {
         }),
       })),
   );
+}
+
+async function readCandidates(): Promise<Candidate[]> {
+  const candidates: Candidate[] = [];
+  for (let offset = 0; offset < MAX_CANDIDATES; offset += CANDIDATE_PAGE_SIZE) {
+    const { data, error } = await supabaseAdmin
+      .from('invitations')
+      .select('invite_code,invitee_wallet,inviter_wallet,activation_network,activation_block,vote_completed_block,vote_completed_at')
+      .eq('vote_completed', true)
+      .eq('activation_network', 'mainnet')
+      .not('invitee_wallet', 'is', null)
+      .not('vote_completed_block', 'is', null)
+      .order('vote_completed_at', { ascending: true })
+      .order('invite_code', { ascending: true })
+      .range(offset, offset + CANDIDATE_PAGE_SIZE - 1);
+    if (error) {
+      throw new Error(`Observation candidate lookup failed: ${error.message}`);
+    }
+    const page = (data ?? []) as Candidate[];
+    candidates.push(...page.filter((row) => INVITE_CODE_PATTERN.test(row.invite_code)));
+    if (page.length < CANDIDATE_PAGE_SIZE) return candidates;
+  }
+  // Do not silently ignore newer referrals when the historical backlog grows.
+  throw new Error('Observation candidate cap reached; increase pagination capacity.');
+}
+
+async function readCompleted(candidates: Candidate[]): Promise<Set<string>> {
+  const done = new Set<string>();
+  for (let offset = 0; offset < candidates.length; offset += COMPLETED_LOOKUP_BATCH) {
+    const codes = candidates.slice(offset, offset + COMPLETED_LOOKUP_BATCH)
+      .map((row) => row.invite_code);
+    const { data, error } = await supabaseAdmin
+      .from('sybil_v2_evidence_records')
+      .select('invite_code')
+      .in('invite_code', codes)
+      .eq('signal_code', COMPLETION_CODE);
+    if (error) {
+      throw new Error(`Observation marker lookup failed: ${error.message}`);
+    }
+    for (const row of data ?? []) done.add(row.invite_code);
+  }
+  return done;
 }
 
 async function persistObservation({
@@ -224,53 +271,37 @@ export async function GET(request: NextRequest) {
   }
 
   try {
-    const { data: invitations, error: inviteError } = await supabaseAdmin
-      .from('invitations')
-      .select('invite_code,invitee_wallet,inviter_wallet,activation_network,activation_block,vote_completed_block,vote_completed_at')
-      .eq('vote_completed', true)
-      .eq('activation_network', 'mainnet')
-      .not('invitee_wallet', 'is', null)
-      .not('vote_completed_block', 'is', null)
-      .order('vote_completed_at', { ascending: false })
-      .limit(500);
-
-    if (inviteError) {
-      throw new Error(`Observation candidate lookup failed: ${inviteError.message}`);
-    }
-    const candidates = ((invitations ?? []) as Candidate[])
-      .filter((row) => INVITE_CODE_PATTERN.test(row.invite_code));
+    const candidates = await readCandidates();
     if (candidates.length === 0) {
       return NextResponse.json({ ok: true, considered: 0, scanned: 0, failures: 0 });
     }
 
-    const { data: completed, error: completedError } = await supabaseAdmin
-      .from('sybil_v2_evidence_records')
-      .select('invite_code')
-      .in('invite_code', candidates.map((row) => row.invite_code))
-      .eq('signal_code', COMPLETION_CODE);
-    if (completedError) {
-      throw new Error(`Observation audit marker lookup failed: ${completedError.message}`);
-    }
-    const done = new Set((completed ?? []).map((row) => row.invite_code));
-    const pending = candidates.filter((row) => !done.has(row.invite_code))
-      .slice(0, MAX_BATCH * 4);
+    const done = await readCompleted(candidates);
+    const pending = candidates.filter((row) => !done.has(row.invite_code));
+    const selected = selectRotatingObservationCandidates({
+      pending,
+      epochDay: Math.floor(Date.now() / 86_400_000),
+      maxAttempts: MAX_ATTEMPTS,
+    });
     const protocolSources = await loadKnownProtocolDestinations('mainnet');
     let scanned = 0;
     const failures: Array<{ inviteCode: string; reason: string }> = [];
     let attempts = 0;
-    for (const candidate of pending) {
+    for (const candidate of selected) {
       if (scanned >= MAX_BATCH) break;
       attempts += 1;
       try {
         await persistObservation({ candidate, protocolSources });
         scanned += 1;
       } catch (failure) {
-        failures.push({
+        const reason = failure instanceof Error
+          ? failure.message.slice(0, 200)
+          : 'Unknown observation failure';
+        console.error('Sybil funding observation failed for referral', {
           inviteCode: candidate.invite_code,
-          reason: failure instanceof Error
-            ? failure.message.slice(0, 200)
-            : 'Unknown observation failure',
+          reason,
         });
+        failures.push({ inviteCode: candidate.invite_code, reason });
       }
     }
     return NextResponse.json({
@@ -281,7 +312,10 @@ export async function GET(request: NextRequest) {
       scanned,
       failures,
       observationOnly: true,
-    }, { headers: { 'Cache-Control': 'no-store' } });
+    }, {
+      status: failures.length ? 503 : 200,
+      headers: { 'Cache-Control': 'no-store' },
+    });
   } catch (error) {
     console.error('Sybil post-vote observational audit failed:', error);
     return NextResponse.json({
