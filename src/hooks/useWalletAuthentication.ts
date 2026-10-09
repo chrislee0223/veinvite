@@ -53,6 +53,7 @@ type ChallengeResponse = {
   origin?: string;
   network?: string;
   error?: string;
+  code?: string;
 };
 
 type VerifyResponse = {
@@ -346,9 +347,14 @@ export function useWalletAuthentication() {
               !challenge.nonce ||
               !challenge.expiresAt
             ) {
-              throw new Error(
+              throw new WalletAuthenticationFailure(
                 challenge.error ||
                   'Could not create wallet verification.',
+                challenge.code === 'RATE_LIMITED'
+                  ? 'AUTH_RATE_LIMITED'
+                  : challenge.code === 'RATE_LIMIT_UNAVAILABLE'
+                    ? 'AUTH_RATE_LIMIT_UNAVAILABLE'
+                    : failureStage,
               );
             }
 
@@ -553,10 +559,14 @@ export function useWalletAuthentication() {
                 walletAddress
             ) {
               const code =
-                typeof verified.code === 'string' &&
-                /^AUTH_[A-Z0-9_]{1,80}$/.test(verified.code)
-                  ? verified.code
-                  : 'AUTH_SERVER_VERIFICATION';
+                verified.code === 'RATE_LIMITED'
+                  ? 'AUTH_RATE_LIMITED'
+                  : verified.code === 'RATE_LIMIT_UNAVAILABLE'
+                    ? 'AUTH_RATE_LIMIT_UNAVAILABLE'
+                    : typeof verified.code === 'string' &&
+                        /^AUTH_[A-Z0-9_]{1,80}$/.test(verified.code)
+                      ? verified.code
+                      : 'AUTH_SERVER_VERIFICATION';
               const referenceId =
                 typeof verified.referenceId === 'string' &&
                 /^[0-9a-f]{16}$/.test(verified.referenceId)
