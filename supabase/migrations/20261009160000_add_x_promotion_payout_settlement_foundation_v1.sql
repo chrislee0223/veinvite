@@ -81,7 +81,6 @@ create table if not exists public.reward_x_promotion_receipts (
   x_author_id text not null check (x_author_id ~ '^[0-9]{1,32}$'),
   tx_id text not null unique check (tx_id ~ '^0x[0-9a-f]{64}$'),
   paid_at timestamptz not null,
-  seen_at timestamptz,
   created_at timestamptz not null default now()
 );
 
@@ -326,7 +325,7 @@ begin
 end;
 $function$;
 
-create or replace function public.register_reward_x_promotion_signed_transaction_v1(
+create or replace function public.register_reward_x_promotion_signed_submission_v1(
   p_intent_id bigint,
   p_tx_id text,
   p_operator_wallet text,
@@ -342,8 +341,10 @@ declare
   v_obligation public.reward_x_promotion_obligations%rowtype;
   v_verification public.reward_x_promotion_post_verifications%rowtype;
   v_checkpoint public.reward_x_promotion_payout_checkpoints%rowtype;
-  v_existing public.reward_x_promotion_payout_signed_transactions%rowtype;
-  v_created public.reward_x_promotion_payout_signed_transactions%rowtype;
+  v_existing_signed public.reward_x_promotion_payout_signed_transactions%rowtype;
+  v_existing_submission public.reward_x_promotion_payout_submissions%rowtype;
+  v_signed public.reward_x_promotion_payout_signed_transactions%rowtype;
+  v_submission public.reward_x_promotion_payout_submissions%rowtype;
   v_cfg public.reward_runtime_config%rowtype;
 begin
   p_tx_id:=lower(btrim(coalesce(p_tx_id,'')));
@@ -354,7 +355,7 @@ begin
      or p_tx_id !~ '^0x[0-9a-f]{64}$'
      or p_operator_wallet !~ '^0x[0-9a-f]{40}$'
      or p_raw_tx_hex !~ '^0x[0-9a-f]+$' then
-    raise exception 'REWARD_X_PROMOTION_SIGNED_TRANSACTION_INVALID';
+    raise exception 'REWARD_X_PROMOTION_SIGNED_SUBMISSION_INVALID';
   end if;
 
   select * into v_intent
@@ -379,20 +380,33 @@ begin
     raise exception 'REWARD_X_PROMOTION_LIVE_DISABLED';
   end if;
 
-  select * into v_existing
+  select * into v_existing_signed
   from public.reward_x_promotion_payout_signed_transactions s
   where s.intent_id=p_intent_id;
 
-  if found then
-    if v_existing.tx_id=p_tx_id
-       and v_existing.operator_wallet=p_operator_wallet
-       and v_existing.raw_tx_hex=p_raw_tx_hex then
+  select * into v_existing_submission
+  from public.reward_x_promotion_payout_submissions s
+  where s.intent_id=p_intent_id;
+
+  if v_existing_signed.id is not null
+     or v_existing_submission.id is not null then
+    if v_existing_signed.id is not null
+       and v_existing_submission.id is not null
+       and v_existing_signed.tx_id=p_tx_id
+       and v_existing_signed.operator_wallet=p_operator_wallet
+       and v_existing_signed.raw_tx_hex=p_raw_tx_hex
+       and v_existing_submission.signed_transaction_id=v_existing_signed.id
+       and v_existing_submission.tx_id=p_tx_id
+       and v_existing_submission.operator_wallet=p_operator_wallet then
       return jsonb_build_object(
-        'created',false,'signedTransactionId',v_existing.id,
-        'intentId',p_intent_id,'txId',v_existing.tx_id
+        'created',false,
+        'signedTransactionId',v_existing_signed.id,
+        'submissionId',v_existing_submission.id,
+        'intentId',p_intent_id,
+        'txId',p_tx_id
       );
     end if;
-    raise exception 'REWARD_X_PROMOTION_SIGNED_TRANSACTION_IMMUTABLE_MISMATCH';
+    raise exception 'REWARD_X_PROMOTION_SIGNED_SUBMISSION_PARTIAL_OR_MISMATCH';
   end if;
 
   if exists (
@@ -417,7 +431,8 @@ begin
 
   select * into v_obligation
   from public.reward_x_promotion_obligations o
-  where o.id=v_intent.obligation_id;
+  where o.id=v_intent.obligation_id
+  for update;
 
   select * into v_verification
   from public.reward_x_promotion_post_verifications p
@@ -441,99 +456,21 @@ begin
   ) values (
     v_intent.id,v_intent.network,p_tx_id,p_operator_wallet,p_raw_tx_hex
   )
-  returning * into v_created;
-
-  return jsonb_build_object(
-    'created',true,'signedTransactionId',v_created.id,
-    'intentId',p_intent_id,'txId',p_tx_id
-  );
-end;
-$function$;
-
-create or replace function public.register_reward_x_promotion_submission_v1(
-  p_intent_id bigint,
-  p_tx_id text,
-  p_operator_wallet text
-)
-returns jsonb
-language plpgsql
-security definer
-set search_path to 'pg_catalog','public'
-as $function$
-declare
-  v_intent public.reward_x_promotion_payout_intents%rowtype;
-  v_signed public.reward_x_promotion_payout_signed_transactions%rowtype;
-  v_existing public.reward_x_promotion_payout_submissions%rowtype;
-  v_created public.reward_x_promotion_payout_submissions%rowtype;
-  v_cfg public.reward_runtime_config%rowtype;
-begin
-  p_tx_id:=lower(btrim(coalesce(p_tx_id,'')));
-  p_operator_wallet:=lower(btrim(coalesce(p_operator_wallet,'')));
-
-  if p_intent_id is null or p_intent_id<1
-     or p_tx_id !~ '^0x[0-9a-f]{64}$'
-     or p_operator_wallet !~ '^0x[0-9a-f]{40}$' then
-    raise exception 'REWARD_X_PROMOTION_SUBMISSION_INVALID';
-  end if;
-
-  select * into v_intent
-  from public.reward_x_promotion_payout_intents i
-  where i.id=p_intent_id;
-
-  if not found then
-    raise exception 'REWARD_X_PROMOTION_PAYOUT_INTENT_MISSING';
-  end if;
-
-  perform pg_advisory_xact_lock(
-    hashtextextended('veinvite_x_promotion_' || v_intent.invite_code,0)
-  );
-
-  select * into v_cfg
-  from public.reward_runtime_config
-  where id=1;
-
-  if not found
-     or not v_cfg.reward_x_promotion_enabled
-     or v_cfg.reward_x_promotion_live_started_at is null then
-    raise exception 'REWARD_X_PROMOTION_LIVE_DISABLED';
-  end if;
-
-  select * into v_existing
-  from public.reward_x_promotion_payout_submissions s
-  where s.intent_id=p_intent_id;
-
-  if found then
-    if v_existing.tx_id=p_tx_id
-       and v_existing.operator_wallet=p_operator_wallet then
-      return jsonb_build_object(
-        'created',false,'submissionId',v_existing.id,
-        'intentId',p_intent_id,'txId',v_existing.tx_id
-      );
-    end if;
-    raise exception 'REWARD_X_PROMOTION_SUBMISSION_IMMUTABLE_MISMATCH';
-  end if;
-
-  select * into v_signed
-  from public.reward_x_promotion_payout_signed_transactions s
-  where s.intent_id=p_intent_id;
-
-  if not found
-     or v_signed.tx_id<>p_tx_id
-     or v_signed.operator_wallet<>p_operator_wallet
-     or v_signed.network<>v_intent.network then
-    raise exception 'REWARD_X_PROMOTION_SIGNED_TRANSACTION_MISSING';
-  end if;
+  returning * into v_signed;
 
   insert into public.reward_x_promotion_payout_submissions(
     intent_id,signed_transaction_id,network,tx_id,operator_wallet
   ) values (
     v_intent.id,v_signed.id,v_intent.network,p_tx_id,p_operator_wallet
   )
-  returning * into v_created;
+  returning * into v_submission;
 
   return jsonb_build_object(
-    'created',true,'submissionId',v_created.id,
-    'intentId',p_intent_id,'txId',p_tx_id
+    'created',true,
+    'signedTransactionId',v_signed.id,
+    'submissionId',v_submission.id,
+    'intentId',p_intent_id,
+    'txId',p_tx_id
   );
 end;
 $function$;
@@ -807,13 +744,9 @@ revoke all on function public.create_reward_x_promotion_payout_checkpoint_v1(big
   from PUBLIC,anon,authenticated;
 grant execute on function public.create_reward_x_promotion_payout_checkpoint_v1(bigint,text,bigint,bigint)
   to service_role;
-revoke all on function public.register_reward_x_promotion_signed_transaction_v1(bigint,text,text,text)
+revoke all on function public.register_reward_x_promotion_signed_submission_v1(bigint,text,text,text)
   from PUBLIC,anon,authenticated;
-grant execute on function public.register_reward_x_promotion_signed_transaction_v1(bigint,text,text,text)
-  to service_role;
-revoke all on function public.register_reward_x_promotion_submission_v1(bigint,text,text)
-  from PUBLIC,anon,authenticated;
-grant execute on function public.register_reward_x_promotion_submission_v1(bigint,text,text)
+grant execute on function public.register_reward_x_promotion_signed_submission_v1(bigint,text,text,text)
   to service_role;
 revoke all on function public.finalize_reward_x_promotion_payout_v1(
   bigint,text,text,text,bigint,bigint,text,bigint,integer
@@ -825,7 +758,7 @@ revoke all on function public.guard_reward_x_promotion_obligation_mutation()
   from public,anon,authenticated,service_role;
 
 comment on table public.reward_x_promotion_payout_signed_transactions is
-  'Immutable signed raw transaction journal for one X Promotion payout intent. It is separate from referral payout journals but uses the same distributor wallet and runtime lock.';
+  'Immutable signed raw transaction journal for one X Promotion payout intent. Signed transaction and submission rows are created atomically after one final current-security check.';
 comment on table public.reward_x_promotion_payout_settlements is
   'Immutable finalized on-chain settlement proof for one X Promotion payout intent.';
 comment on table public.reward_x_promotion_receipts is
