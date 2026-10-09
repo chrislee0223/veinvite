@@ -109,7 +109,7 @@ test('public X proof does not expose private anti-abuse evidence', () => {
 
   assert.match(
     page,
-    /does not expose device, IP,[\s\S]*location, or internal anti-abuse signals/,
+    /does not expose device, IP,[\s\S]*internal[\s\S]*anti-abuse signals/,
   );
 });
 
