@@ -67,3 +67,19 @@ test('verification adapter never changes recipient, amount, pool or operator ide
     /operatorWallet:\s*manifest\.operatorWallet/,
   );
 });
+
+
+test('finality verification uses the immutable DB manifest creation time', () => {
+  assert.match(
+    source,
+    /manifestCreatedAt: string \| Date/,
+  );
+  assert.match(
+    source,
+    /manifestCreatedAt,\s*\n\s*\}\);/,
+  );
+  assert.doesNotMatch(
+    source,
+    /manifestCreatedAt:\s*new Date\(\)/,
+  );
+});
