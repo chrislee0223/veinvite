@@ -20,7 +20,7 @@ type XPostData = {
   entities?: {
     urls?: XUrlEntity[];
   };
-  referenced_posts?: XReferencedPost[];
+  referenced_tweets?: XReferencedPost[];
 };
 
 export type XPromotionPostLookup =
@@ -149,17 +149,12 @@ export async function lookupXPromotionPost(
     new URL(`https://api.x.com/2/tweets/${postId}`);
 
   endpoint.searchParams.set(
-    'post.fields',
+    'tweet.fields',
     [
       'created_at',
       'entities',
-    ].join(','),
-  );
-  endpoint.searchParams.set(
-    'expansions',
-    [
       'author_id',
-      'referenced_posts',
+      'referenced_tweets',
     ].join(','),
   );
 
@@ -264,7 +259,7 @@ export async function lookupXPromotionPost(
     createdAt: new Date(data.created_at).toISOString(),
     expandedUrls: safeExpandedUrls(data),
     isOriginalPost:
-      !Array.isArray(data.referenced_posts) ||
-      data.referenced_posts.length === 0,
+      !Array.isArray(data.referenced_tweets) ||
+      data.referenced_tweets.length === 0,
   };
 }
