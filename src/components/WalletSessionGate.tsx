@@ -292,8 +292,8 @@ export function WalletSessionSurface({
                 : hasError && errorCode === 'AUTH_PARTICIPATION_CHECK'
                   ? t.participationErrorDescription
                   : hasError
-                ? t.errorDescription
-                : t.checkingDescription}
+                    ? t.errorDescription
+                    : t.checkingDescription}
         </span>
 
         {hasError && !walletMismatch && errorCode ? (
