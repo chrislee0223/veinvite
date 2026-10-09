@@ -1,10 +1,17 @@
 import { ABIEvent } from '@vechain/sdk-core';
 import { ThorClient } from '@vechain/sdk-network';
+import { Interface } from 'ethers';
 
 import {
   createTransactionIndexResolver,
   type ChainEventPosition,
 } from '@/lib/vebetter/eventOrder';
+import {
+  VEINVITE_APP_ID,
+} from '@/lib/rewards/onchainPool';
+import {
+  isVeInviteXPromotionStructuredProof,
+} from '@/lib/rewards/rewardXPromotionProof';
 import {
   getVeBetterNetworkConfig,
 } from '@/lib/vebetter/network';
@@ -14,6 +21,10 @@ const PAGE_SIZE = 1000;
 const rewardDistributedEvent = new ABIEvent(
   'event RewardDistributed(uint256 amount, bytes32 indexed appId, address indexed receiver, string proof, address indexed distributor)',
 );
+
+const rewardDistributedProofInterface = new Interface([
+  'event RewardDistributed(uint256 amount,bytes32 indexed appId,address indexed receiver,string proof,address indexed distributor)',
+]);
 
 type RawEventLog = {
   data?: string;
@@ -152,6 +163,44 @@ function getEventTxId(
   return txId;
 }
 
+
+function isXPromotionRewardEvent(
+  log: RawEventLog,
+  appId: string,
+): boolean {
+  if (appId !== VEINVITE_APP_ID) {
+    return false;
+  }
+
+  if (
+    !Array.isArray(log.topics) ||
+    typeof log.data !== 'string'
+  ) {
+    return false;
+  }
+
+  try {
+    const parsed =
+      rewardDistributedProofInterface.parseLog({
+        topics: log.topics,
+        data: log.data,
+      });
+
+    return Boolean(
+      parsed &&
+      parsed.name === 'RewardDistributed' &&
+      isVeInviteXPromotionStructuredProof(
+        String(parsed.args[3]),
+      ),
+    );
+  } catch {
+    // Only a positively identified VeInvite X Promotion reward is excluded.
+    // Unknown or malformed third-party proof formats remain governed by the
+    // existing positive-B3TR / distinct-app mission rules.
+    return false;
+  }
+}
+
 export async function getVeBetterActivityProgress({
   receiverAddress,
   activationBlock,
@@ -279,6 +328,19 @@ export async function getVeBetterActivityProgress({
 
       const normalizedAppId =
         appId.toLowerCase();
+
+      // X Promotion is optional VeInvite marketing compensation, not evidence
+      // that this wallet explored another dApp. Exclude only a cryptographically
+      // emitted VeInvite RewardDistributed event carrying the exact promotion
+      // structured-proof namespace; do not blanket-exclude the VeInvite app id.
+      if (
+        isXPromotionRewardEvent(
+          log,
+          normalizedAppId,
+        )
+      ) {
+        continue;
+      }
 
       if (
         uniqueAppIds.has(
