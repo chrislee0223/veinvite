@@ -95,6 +95,16 @@ test('client wallet replacement does not fabricate a vote timestamp', () => {
   assert.equal(verified.preVoteDetection, true);
 });
 
+test('historical client timing and legacy allowlist annotations remain non-scoring', () => {
+  assert.match(cron, /loadSharedClientChronology\\(/u);
+  assert.match(cron, /inspectSecurityClientTiming\\(/u);
+  assert.match(cron, /sharedClientChronology,/u);
+  assert.match(cron, /excludedLegacyProtocolEvidence,/u);
+  assert.match(cron, /\\.eq\\('activation_network', 'mainnet'\\)/u);
+  assert.match(cron, /\\.slice\\(0, MAX_BATCH \\* 4\\)/u);
+  assert.match(cron, /if \\(scanned >= MAX_BATCH\\) break/u);
+});
+
 test('daily cron uses a secret, production isolation and bounded processing', () => {
   assert.match(cron, /timingSafeEqual/u);
   assert.match(cron, /process\.env\.CRON_SECRET/u);
