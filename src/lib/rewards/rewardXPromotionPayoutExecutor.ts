@@ -303,60 +303,64 @@ async function findUnsettledIntentId(
 async function findFinalVerificationId(
   network: VeBetterNetwork,
 ): Promise<string | null> {
-  const query = await supabaseAdmin
-    .from('reward_x_promotion_post_verifications')
-    .select('id,invite_code,obligation_id')
-    .eq('network', network)
-    .eq('verification_state', 'FINAL_VERIFIED')
-    .is('invalidated_at', null)
-    .order('final_verified_at', { ascending: true })
-    .limit(25);
+  const pageSize = 25;
+  for (let offset = 0; ; offset += pageSize) {
+    const query = await supabaseAdmin
+      .from('reward_x_promotion_post_verifications')
+      .select('id,invite_code,obligation_id')
+      .eq('network', network)
+      .eq('verification_state', 'FINAL_VERIFIED')
+      .is('invalidated_at', null)
+      .order('final_verified_at', { ascending: true })
+      .range(offset, offset + pageSize - 1);
 
-  if (query.error) {
-    throw new Error(
-      `Final X promotion verifications could not be loaded: ${query.error.message}`,
-    );
+    if (query.error) {
+      throw new Error(
+        `Final X promotion verifications could not be loaded: ${query.error.message}`,
+      );
+    }
+
+    for (const row of query.data ?? []) {
+      const existing = await supabaseAdmin
+        .from('reward_x_promotion_payout_intents')
+        .select('id')
+        .eq('verification_id', row.id)
+        .maybeSingle();
+      if (existing.error) {
+        throw new Error(
+          `X promotion intent candidate check failed: ${existing.error.message}`,
+        );
+      }
+      if (existing.data) continue;
+
+      const obligation = await supabaseAdmin
+        .from('reward_x_promotion_obligations')
+        .select('financial_state')
+        .eq('id', row.obligation_id)
+        .maybeSingle();
+      if (obligation.error) {
+        throw new Error(
+          `X promotion obligation candidate check failed: ${obligation.error.message}`,
+        );
+      }
+      if (obligation.data?.financial_state !== 'HELD') continue;
+
+      const security = await supabaseAdmin.rpc(
+        'reward_x_promotion_security_clear_v1',
+        { p_invite_code: row.invite_code, p_network: network },
+      );
+      if (security.error) {
+        throw new Error(
+          `X promotion security candidate check failed: ${security.error.message}`,
+        );
+      }
+      if (security.data === true) {
+        return positiveId(row.id, 'verification id');
+      }
+    }
+
+    if ((query.data?.length ?? 0) < pageSize) return null;
   }
-
-  for (const row of query.data ?? []) {
-    const existing = await supabaseAdmin
-      .from('reward_x_promotion_payout_intents')
-      .select('id')
-      .eq('verification_id', row.id)
-      .maybeSingle();
-    if (existing.error) {
-      throw new Error(
-        `X promotion intent candidate check failed: ${existing.error.message}`,
-      );
-    }
-    if (existing.data) continue;
-
-    const obligation = await supabaseAdmin
-      .from('reward_x_promotion_obligations')
-      .select('financial_state')
-      .eq('id', row.obligation_id)
-      .maybeSingle();
-    if (obligation.error) {
-      throw new Error(
-        `X promotion obligation candidate check failed: ${obligation.error.message}`,
-      );
-    }
-    if (obligation.data?.financial_state !== 'HELD') continue;
-
-    const security = await supabaseAdmin.rpc(
-      'reward_x_promotion_security_clear_v1',
-      { p_invite_code: row.invite_code, p_network: network },
-    );
-    if (security.error) {
-      throw new Error(
-        `X promotion security candidate check failed: ${security.error.message}`,
-      );
-    }
-    if (security.data === true) {
-      return positiveId(row.id, 'verification id');
-    }
-  }
-  return null;
 }
 
 async function createIntent(verificationId: string) {
