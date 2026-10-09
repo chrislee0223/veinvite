@@ -67,7 +67,7 @@ const LIFECYCLE_REQUEST_LEASE_STORAGE_KEY =
 let lifecycleUnauthorizedUntil = 0;
 let lifecycleRequestLeaseUntil = 0;
 const HISTORY_PAGE_SIZE = 30;
-const HISTORY_CACHE_PREFIX = 'veinvite:notification-history:v4:';
+const HISTORY_CACHE_PREFIX = 'veinvite:notification-history:v5:';
 const WALLET_SESSION_INVALID_EVENT =
   'veinvite-wallet-session-invalid';
 const REWARD_RECEIPT_ACKNOWLEDGED_EVENT =
