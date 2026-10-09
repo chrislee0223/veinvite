@@ -62,6 +62,10 @@ test('forecast seed failures and cold reads stay isolated from Home startup', ()
   assert.match(seedServer, /\(\) => controller\.abort\(\)/);
   assert.match(seedServer, /signal: controller\.signal/);
   assert.match(seedServer, /controller\.signal\.aborted/);
+  assert.match(seedServer, /FORECAST_SEED_SLOW_READ_WARN_MS = 750/);
+  assert.match(seedServer, /performance\.now\(\)/);
+  assert.match(seedServer, /seed read was slow/);
+  assert.match(seedServer, /startup budget after/);
   assert.match(
     seedServer,
     /Public reward forecast seed exceeded the/,

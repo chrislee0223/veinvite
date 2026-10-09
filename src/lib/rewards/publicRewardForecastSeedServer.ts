@@ -14,6 +14,7 @@ const FORECAST_SEED_MAX_AGE_MS = 24 * 60 * 60_000;
 // only a few milliseconds. Keep the wait bounded, but leave enough room for a
 // cold TLS/HTTP connection so the very first visitor also receives a seed.
 const FORECAST_SEED_STARTUP_TIMEOUT_MS = 1_200;
+const FORECAST_SEED_SLOW_READ_WARN_MS = 750;
 
 const readCachedPublicRewardForecastSeed = unstable_cache(
   async (
@@ -26,12 +27,21 @@ const readCachedPublicRewardForecastSeed = unstable_cache(
       FORECAST_SEED_STARTUP_TIMEOUT_MS,
     );
 
+    const startedAt = performance.now();
+
     try {
       const snapshot = await readLatestRewardForecastSnapshot({
         network,
         appId,
         signal: controller.signal,
       });
+      const elapsedMs = Math.round(performance.now() - startedAt);
+      if (elapsedMs >= FORECAST_SEED_SLOW_READ_WARN_MS) {
+        console.warn(
+          `Public reward forecast seed read was slow (${elapsedMs}ms) before the ${FORECAST_SEED_STARTUP_TIMEOUT_MS}ms Home startup budget.`,
+        );
+      }
+
       if (!snapshot) return null;
       if (snapshot.modelVersion !== REWARD_FORECAST_MODEL_VERSION) {
         return null;
@@ -55,7 +65,7 @@ const readCachedPublicRewardForecastSeed = unstable_cache(
     } catch (error) {
       if (controller.signal.aborted) {
         console.warn(
-          `Public reward forecast seed exceeded the ${FORECAST_SEED_STARTUP_TIMEOUT_MS}ms Home startup budget.`,
+          `Public reward forecast seed exceeded the ${FORECAST_SEED_STARTUP_TIMEOUT_MS}ms Home startup budget after ${Math.round(performance.now() - startedAt)}ms.`,
         );
         return null;
       }
