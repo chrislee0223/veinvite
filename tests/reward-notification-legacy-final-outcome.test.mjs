@@ -23,5 +23,5 @@ test('historical preclaim BLACK reviews show completed invite copy without new n
 test('reward receipts and read audit are not rewritten, v4 cache invalidates stale projections',()=>{
  assert.doesNotMatch(migration,/\b(?:update|delete)\s+(?:from\s+)?public\.invite_notification_history_reads\b/i);
  assert.doesNotMatch(migration,/h\.kind in \([^)]*'REWARD_PAID'/);
- assert.match(client,/HISTORY_CACHE_PREFIX = 'veinvite:notification-history:v5:'/);
+ assert.match(client,/HISTORY_CACHE_PREFIX = 'veinvite:notification-history:v6:'/);
 });
