@@ -8,12 +8,12 @@ const client = readFileSync('src/components/InAppInviteNotifications.tsx','utf8'
 test('only projection-changed reviews get the real terminal outcome timestamp',()=>{
   assert.match(sql,/with history_page as materialized/);
   assert.match(sql,/h.kind as recorded_kind/);
-  assert.match(sql,/history_page.recorded_kind = 'SECURITY_REVIEW_STARTED'[\\s\\S]*?history_page.kind = 'SECURITY_REVIEW_CLEARED'/);
+  assert.match(sql,/history_page.recorded_kind = 'SECURITY_REVIEW_STARTED'[\s\S]*?history_page.kind = 'SECURITY_REVIEW_CLEARED'/);
   assert.match(sql,/select resolved_review.updated_at/);
-  assert.match(sql,/history_page.recorded_kind = 'SECURITY_REVIEW_STARTED'[\\s\\S]*?history_page.kind = 'INVITE_INELIGIBLE'/);
+  assert.match(sql,/history_page.recorded_kind = 'SECURITY_REVIEW_STARTED'[\s\S]*?history_page.kind = 'INVITE_INELIGIBLE'/);
   assert.match(sql,/select terminal_invite.slot_released_at/);
   assert.match(sql,/else history_page.event_at/);
-  assert.match(sql,/from history_page\\s+order by history_page.id desc/);
+  assert.match(sql,/from history_page\s+order by history_page.id desc/);
 });
 
 test('does not alter history, read receipts, financial or Sybil rows',()=>{
