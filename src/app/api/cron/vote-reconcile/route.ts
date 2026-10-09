@@ -21,13 +21,9 @@ import {
   runScheduledRewardMaintenance,
 } from '@/lib/rewards/rewardBoostReserveScheduler';
 import {
-  runRewardXPromotionShadowAudit,
-  runRewardXPromotionShadowSync,
-} from '@/lib/rewards/rewardXPromotionShadow';
-import {
-  runRewardReservationRecovery,
-  type RewardReservationRecoverySweep,
-} from '@/lib/rewards/rewardReservationRecovery';
+  runRewardRecoveryMaintenance,
+  type RewardRecoveryMaintenanceSweep,
+} from '@/lib/rewards/rewardRecoveryMaintenance';
 import { supabaseAdmin } from '@/lib/supabaseServer';
 import {
   runB3trRecipientObservationBatch,
@@ -980,20 +976,8 @@ export async function GET(
       >
     > | null = null;
   let rewardReservation:
-    RewardReservationRecoverySweep | null =
+    RewardRecoveryMaintenanceSweep | null =
       null;
-  let xPromotionShadowSync:
-    Awaited<
-      ReturnType<
-        typeof runRewardXPromotionShadowSync
-      >
-    > | null = null;
-  let xPromotionShadowAudit:
-    Awaited<
-      ReturnType<
-        typeof runRewardXPromotionShadowAudit
-      >
-    > | null = null;
   let b3trRecipientObservation:
     Awaited<
       ReturnType<
@@ -1181,7 +1165,7 @@ export async function GET(
     }
 
     const rewardRecovery =
-      await runRewardReservationRecovery();
+      await runRewardRecoveryMaintenance();
     rewardReservation =
       rewardRecovery.reservation;
     recoveryFailure ??=
@@ -1189,45 +1173,9 @@ export async function GET(
     errors.push(
       ...rewardRecovery.errors,
     );
-
-    try {
-      xPromotionShadowSync =
-        await runRewardXPromotionShadowSync(
-          250,
-        );
-
-      if (xPromotionShadowSync.enabled) {
-        xPromotionShadowAudit =
-          await runRewardXPromotionShadowAudit();
-
-        if (!xPromotionShadowAudit.ok) {
-          console.warn(
-            'X promotion shadow audit reported invariant violations:',
-            {
-              network:
-                xPromotionShadowAudit.network,
-              policyVersion:
-                xPromotionShadowAudit.policyVersion,
-              violations:
-                xPromotionShadowAudit.violations,
-            },
-          );
-          warnings.push(
-            'X_PROMOTION_SHADOW_AUDIT_VIOLATION',
-          );
-        }
-      }
-    } catch (error) {
-      // Shadow accounting is deliberately non-authoritative. It must never
-      // change the success/failure result of reservation recovery.
-      console.error(
-        'X promotion shadow sync/audit failed:',
-        error,
-      );
-      warnings.push(
-        'X_PROMOTION_SHADOW_SYNC_FAILED',
-      );
-    }
+    warnings.push(
+      ...rewardRecovery.warnings,
+    );
 
     try {
       b3trRecipientObservation =
@@ -1393,8 +1341,6 @@ export async function GET(
       sybilV2PolicyReassessment,
       sybilV2Assessment,
       rewardReservation,
-      xPromotionShadowSync,
-      xPromotionShadowAudit,
       b3trRecipientObservation,
       sybilV2PostPayout,
       sybilV2WatchFollowup,
