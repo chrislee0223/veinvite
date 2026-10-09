@@ -53,7 +53,10 @@ function formatB3tr(raw: unknown): string {
   return `${whole}.${fraction}`;
 }
 
-function safeXUrl(raw: unknown): string | null {
+function safeXUrl(
+  raw: unknown,
+  expectedPostId: string,
+): string | null {
   try {
     const url = new URL(String(raw ?? ''));
     const allowedHosts = new Set([
@@ -64,7 +67,8 @@ function safeXUrl(raw: unknown): string | null {
     ]);
 
     return url.protocol === 'https:' &&
-      allowedHosts.has(url.hostname.toLowerCase())
+      allowedHosts.has(url.hostname.toLowerCase()) &&
+      url.pathname.split('/').includes(expectedPostId)
       ? url.toString()
       : null;
   } catch {
@@ -164,7 +168,7 @@ export default async function RewardXPromotionProofPage({
     supabaseAdmin
       .from('reward_x_promotion_receipts')
       .select(
-        'tx_id, paid_at, amount_wei, network, public_proof_id, x_post_id, x_author_id',
+        'tx_id, paid_at, amount_wei, network, recipient_wallet, public_proof_id, x_post_id, x_author_id',
       )
       .eq('intent_id', intent.id)
       .maybeSingle(),
@@ -189,6 +193,9 @@ export default async function RewardXPromotionProofPage({
       String(receipt.public_proof_id ?? '').toLowerCase() !==
         publicProofId ||
       String(receipt.amount_wei) !== String(intent.amount_wei) ||
+      String(receipt.network) !== String(intent.network) ||
+      String(receipt.recipient_wallet).toLowerCase() !==
+        String(intent.recipient_wallet).toLowerCase() ||
       String(receipt.x_post_id) !== String(intent.x_post_id) ||
       String(receipt.x_author_id) !== String(intent.x_author_id)
     )
@@ -202,8 +209,10 @@ export default async function RewardXPromotionProofPage({
     intent.network === 'mainnet' ? 'mainnet' : 'testnet';
   const recipientWallet =
     String(intent.recipient_wallet).toLowerCase();
-  const postUrl =
-    safeXUrl(submissionResult.data?.submitted_post_url);
+  const postUrl = safeXUrl(
+    submissionResult.data?.submitted_post_url,
+    String(intent.x_post_id),
+  );
   const txId =
     receipt?.tx_id ? String(receipt.tx_id).toLowerCase() : null;
   const finalized = Boolean(receipt);
