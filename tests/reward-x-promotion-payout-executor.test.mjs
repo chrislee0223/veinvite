@@ -184,6 +184,27 @@ test('committed payout scan prioritizes the newest signed journal entries', () =
   );
 });
 
+test('final verification candidate scan paginates beyond the first page', () => {
+  const start = source.indexOf(
+    'async function findFinalVerificationId',
+  );
+  const end = source.indexOf(
+    'async function createIntent',
+    start,
+  );
+  const block = source.slice(start, end);
+
+  assert.match(block, /const pageSize = 25/);
+  assert.match(
+    block,
+    /\.range\(offset, offset \+ pageSize - 1\)/,
+  );
+  assert.match(
+    block,
+    /offset \+= pageSize/,
+  );
+});
+
 test('already committed promotion payouts are selected before fresh intents', () => {
   const committed = source.indexOf(
     'findCommittedUnsettledIntentId',
