@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import test from 'node:test';
+import { inspectSecurityClientTiming } from '../src/lib/sybil/v2/securityClientTiming.ts';
 
 const observer = await readFile(
   'src/lib/sybil/v2/postVoteFunding.ts', 'utf8',
@@ -59,12 +60,39 @@ test('legacy allowlisted protocol sink evidence is audit-tagged, never deleted o
   assert.doesNotMatch(cron, /\.delete\(/u);
 });
 
-test('same-client evidence reports when a relationship was actually observed', () => {
-  assert.match(pipeline, /const sharedClientFirstSeen = Math\.max\(inviterFirstSeen, inviteeFirstSeen\)/u);
-  assert.match(pipeline, /sharedClientFirstSeen <= voteCompletedAt/u);
-  assert.match(pipeline, /sharedClientFirstSeenAt:/u);
+test('browser evidence first discovered after a completed vote stays post-vote', () => {
+  const timing = inspectSecurityClientTiming({
+    inviterFirstSeenAt: '2026-09-21T16:24:41Z',
+    inviterLastSeenAt: '2026-10-01T03:39:48Z',
+    inviteeFirstSeenAt: '2026-09-17T07:24:04Z',
+    activatedAt: '2026-09-17T07:24:17Z',
+    voteCompletedAt: '2026-09-21T09:24:40Z',
+  });
+  assert.equal(timing.preVoteDetection, false);
+  assert.equal(timing.immediateSwitch, false);
+  assert.equal(timing.sharedClientFirstSeenAt, '2026-09-21T16:24:41.000Z');
+  assert.match(pipeline, /inspectSecurityClientTiming\\(/u);
   assert.match(pipeline, /preVoteDetection,/u);
   assert.doesNotMatch(pipeline, /preVoteDetection: true/u);
+});
+
+test('client wallet replacement does not fabricate a vote timestamp', () => {
+  const args = {
+    inviterFirstSeenAt: '2026-09-18T16:41:19Z',
+    inviterLastSeenAt: '2026-09-18T16:42:30Z',
+    inviteeFirstSeenAt: '2026-09-18T16:43:33Z',
+    activatedAt: '2026-09-18T16:43:43Z',
+    voteCompletedAt: null,
+  };
+  const unknown = inspectSecurityClientTiming(args);
+  assert.equal(unknown.preVoteDetection, null);
+  assert.equal(unknown.immediateSwitch, true);
+  assert.equal(unknown.switchGapSeconds, 63);
+  assert.equal(unknown.activationGapSeconds, 10);
+  const verified = inspectSecurityClientTiming({
+    ...args, voteCompletedAt: '2026-09-19T00:00:00Z',
+  });
+  assert.equal(verified.preVoteDetection, true);
 });
 
 test('daily cron uses a secret, production isolation and bounded processing', () => {
