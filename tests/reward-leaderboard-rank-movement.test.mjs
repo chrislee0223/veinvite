@@ -40,6 +40,10 @@ const voteReconcileCron = await readFile(
   new URL('../src/app/api/cron/vote-reconcile/route.ts', import.meta.url),
   'utf8',
 );
+const xPromotionMaintenanceCron = await readFile(
+  new URL('../src/app/api/cron/x-promotion-maintenance/route.ts', import.meta.url),
+  'utf8',
+);
 const vercelConfig = await readFile(
   new URL('../vercel.json', import.meta.url),
   'utf8',
@@ -155,7 +159,7 @@ test('leaderboard snapshots run only after round growth reporting succeeds', () 
 
 test('leaderboard publication remains owned by reconcile while maintenance and Sybil backfill stay isolated', () => {
   const config = JSON.parse(vercelConfig);
-  assert.equal(config.crons.length, 4);
+  assert.equal(config.crons.length, 5);
 
   const reconciliationCron = config.crons.find(
     (entry) => entry.path === '/api/cron/reconcile',
@@ -172,6 +176,9 @@ test('leaderboard publication remains owned by reconcile while maintenance and S
   const voteReconciliationCron = config.crons.find(
     (entry) => entry.path === '/api/cron/vote-reconcile',
   );
+  const xPromotionCron = config.crons.find(
+    (entry) => entry.path === '/api/cron/x-promotion-maintenance',
+  );
 
   assert.deepEqual(reconciliationCron, {
     path: '/api/cron/reconcile',
@@ -185,6 +192,10 @@ test('leaderboard publication remains owned by reconcile while maintenance and S
     path: '/api/cron/analytics-maintenance',
     schedule: '47 0 * * *',
   });
+  assert.deepEqual(xPromotionCron, {
+    path: '/api/cron/x-promotion-maintenance',
+    schedule: '*/15 * * * *',
+  });
   assert.equal(sybilBackfillCron, undefined);
   assert.deepEqual(sybilPostVoteCron, {
     path: '/api/cron/sybil-post-vote-observation',
@@ -195,6 +206,8 @@ test('leaderboard publication remains owned by reconcile while maintenance and S
   assert.match(cron, /publishLeaderboardRoundSnapshots/);
   assert.doesNotMatch(voteReconcileCron, /publishLeaderboardRoundSnapshots/);
   assert.doesNotMatch(voteReconcileCron, /maintainRoundGrowthSnapshots/);
+  assert.doesNotMatch(xPromotionMaintenanceCron, /publishLeaderboardRoundSnapshots/);
+  assert.doesNotMatch(xPromotionMaintenanceCron, /maintainRoundGrowthSnapshots/);
   assert.match(analyticsCron, /finalize_long_term_analytics/);
   assert.match(analyticsCron, /mode: 'MIXED_MAINTENANCE'/);
   assert.match(analyticsCron, /analyticsMode: 'NON_DESTRUCTIVE'/);
