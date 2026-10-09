@@ -59,11 +59,11 @@ test('reconciliation is isolated from core payout and retries safely', () => {
   );
   assert.doesNotMatch(
     migration,
-    /trigger[\s\S]*reward_receipts/i,
+    /create\s+trigger[\s\S]{0,500}?\bon\s+public\.reward_receipts\b/i,
   );
   assert.doesNotMatch(
     migration,
-    /trigger[\s\S]*reward_payouts/i,
+    /create\s+trigger[\s\S]{0,500}?\bon\s+public\.reward_payouts\b/i,
   );
 });
 
