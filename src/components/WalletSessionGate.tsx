@@ -269,9 +269,13 @@ export function WalletSessionSurface({
         >
           {walletMismatch
             ? switchT.title
-            : hasError
-              ? t.errorTitle
-              : t.checkingTitle}
+            : hasError && errorCode === 'AUTH_PARTICIPATION_CHECK'
+              ? locale === 'ko'
+                ? '참여 상태를 확인할 수 없어요'
+                : 'Participation check unavailable'
+              : hasError
+                ? t.errorTitle
+                : t.checkingTitle}
         </strong>
 
         <span
@@ -880,7 +884,7 @@ export function WalletSessionGate({
       }
 
       console.error(
-        'Wallet ownership verification failed:',
+        'VeInvite wallet access check failed:',
         error,
       );
 
@@ -891,7 +895,7 @@ export function WalletSessionGate({
           ? { code: 'AUTH_PARTICIPATION_CHECK', referenceId: null }
           : error instanceof WalletAuthenticationFailure
             ? { code: error.code, referenceId: error.referenceId }
-            : { code: 'AUTH_WALLET_REQUEST_CANCELLED', referenceId: null },
+            : { code: 'AUTH_GATE_UNEXPECTED_FAILURE', referenceId: null },
       );
       pendingErrorTimerRef.current = window.setTimeout(() => {
         pendingErrorTimerRef.current = null;
