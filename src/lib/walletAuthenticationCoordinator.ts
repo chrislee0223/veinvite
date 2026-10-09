@@ -67,6 +67,24 @@ export function clearActiveWalletAuthentication(
   emitActivityChange();
 }
 
+// Only after the wallet SDK confirms an explicit disconnect may a cancelled
+// and unresolved wallet-owned signing prompt stop blocking a future session.
+// The generation check still rejects any late signature from that old prompt.
+// Never invoke this for a passive provider gap or a mere display timeout.
+export function releaseCancelledWalletAuthenticationAfterDisconnect(): boolean {
+  const active = activeAuthentication;
+  if (
+    !active ||
+    isWalletAuthenticationGenerationCurrent(active.generation)
+  ) {
+    return false;
+  }
+
+  activeAuthentication = null;
+  emitActivityChange();
+  return true;
+}
+
 export function cancelActiveWalletAuthentication():
 ActiveWalletAuthentication | null {
   authenticationGeneration += 1;
