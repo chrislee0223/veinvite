@@ -166,7 +166,7 @@ test('stale COMPLETE checkpoints cannot satisfy CLEAR decision checks', async ()
 
 
 test('five-minute vote recovery drains stale live and paid analyzer backlogs', async () => {
-  const [source, rewardRecovery] =
+  const [source, rewardRecovery, rewardMaintenance] =
     await Promise.all([
       readFile(
         'src/app/api/cron/vote-reconcile/route.ts',
@@ -174,6 +174,10 @@ test('five-minute vote recovery drains stale live and paid analyzer backlogs', a
       ),
       readFile(
         'src/lib/rewards/rewardReservationRecovery.ts',
+        'utf8',
+      ),
+      readFile(
+        'src/lib/rewards/rewardRecoveryMaintenance.ts',
         'utf8',
       ),
     ]);
@@ -193,7 +197,7 @@ test('five-minute vote recovery drains stale live and paid analyzer backlogs', a
     policy,
   );
   const reservationRecovery = source.indexOf(
-    'await runRewardReservationRecovery',
+    'await runRewardRecoveryMaintenance',
     assessment,
   );
 
@@ -202,6 +206,10 @@ test('five-minute vote recovery drains stale live and paid analyzer backlogs', a
   assert.ok(policy > paidQueue);
   assert.ok(assessment > policy);
   assert.ok(reservationRecovery > assessment);
+  assert.match(
+    rewardMaintenance,
+    /await runRewardReservationRecovery\(\)/u,
+  );
   assert.match(
     rewardRecovery,
     /await reserveEligibleReferralRewards\(\)/u,

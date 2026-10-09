@@ -81,10 +81,11 @@ test('runtime reassesses stale policy plus same-policy HOLDs missing the current
 });
 
 test('vote recovery reassesses stale policy before current assessment and reward reservation', async () => {
-  const [source, rewardRecovery] =
+  const [source, rewardRecovery, rewardMaintenance] =
     await Promise.all([
       read('src/app/api/cron/vote-reconcile/route.ts'),
       read('src/lib/rewards/rewardReservationRecovery.ts'),
+      read('src/lib/rewards/rewardRecoveryMaintenance.ts'),
     ]);
 
   const policy = source.indexOf(
@@ -95,13 +96,17 @@ test('vote recovery reassesses stale policy before current assessment and reward
     policy,
   );
   const reservationRecovery = source.indexOf(
-    'await runRewardReservationRecovery',
+    'await runRewardRecoveryMaintenance',
     assessment,
   );
 
   assert.ok(policy >= 0);
   assert.ok(assessment > policy);
   assert.ok(reservationRecovery > assessment);
+  assert.match(
+    rewardMaintenance,
+    /await runRewardReservationRecovery\(\)/u,
+  );
   assert.match(
     rewardRecovery,
     /await reserveEligibleReferralRewards\(\)/u,

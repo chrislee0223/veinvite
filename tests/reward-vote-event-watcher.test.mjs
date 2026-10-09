@@ -16,6 +16,13 @@ const rewardRecovery = await readFile(
   ),
   'utf8',
 );
+const rewardMaintenance = await readFile(
+  new URL(
+    '../src/lib/rewards/rewardRecoveryMaintenance.ts',
+    import.meta.url,
+  ),
+  'utf8',
+);
 const vercelConfig = JSON.parse(
   await readFile(
     new URL('../vercel.json', import.meta.url),
@@ -118,6 +125,10 @@ test('watcher keeps bounded catch-up and event-replay recovery safety nets', () 
   );
   assert.match(
     route,
+    /runRewardRecoveryMaintenance/,
+  );
+  assert.match(
+    rewardMaintenance,
     /runRewardReservationRecovery/,
   );
   assert.match(
