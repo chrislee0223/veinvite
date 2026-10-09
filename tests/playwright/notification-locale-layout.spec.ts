@@ -127,7 +127,7 @@ for (const locale of SUPPORTED_LOCALES) {
   for (const state of FULL_LANGUAGE_STATES) {
     test('all 29 locales: notification ' + locale + ' / ' + state, async ({ page }) => {
       await page.setViewportSize(NARROW);
-      await page.goto('/qa/state?state=' + state + '&locale=' + locale, {
+      await page.goto('/qa/notification-state?state=' + state + '&locale=' + locale, {
         waitUntil: 'domcontentloaded',
         timeout: 30_000,
       });
@@ -143,7 +143,7 @@ for (const locale of HIGH_RISK_LOCALES) {
   for (const state of EXTRA_STATES) {
     test('high-risk scripts: notification ' + locale + ' / ' + state, async ({ page }) => {
       await page.setViewportSize(WIDE);
-      await page.goto('/qa/state?state=' + state + '&locale=' + locale, {
+      await page.goto('/qa/notification-state?state=' + state + '&locale=' + locale, {
         waitUntil: 'domcontentloaded',
         timeout: 30_000,
       });
