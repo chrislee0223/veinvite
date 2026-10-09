@@ -261,7 +261,7 @@ async function findCommittedUnsettledIntentId(
     .from('reward_x_promotion_payout_signed_transactions')
     .select('intent_id')
     .eq('network', network)
-    .order('id', { ascending: true })
+    .order('id', { ascending: false })
     .limit(100);
 
   if (signed.error) {
@@ -639,6 +639,14 @@ function isNotFoundError(error: unknown) {
 }
 
 async function broadcastExactSignedTransaction(txId: string, rawTxHex: string) {
+  const signed = Transaction.decode(Hex.of(rawTxHex).bytes, true);
+  const decodedTxId = signed.id.toString().toLowerCase();
+  if (decodedTxId !== txId) {
+    throw new Error(
+      'Journaled X promotion raw transaction does not match its transaction id.',
+    );
+  }
+
   const { nodeUrl } = getVeBetterNetworkConfig();
   const thor = ThorClient.at(nodeUrl);
 
@@ -646,14 +654,6 @@ async function broadcastExactSignedTransaction(txId: string, rawTxHex: string) {
     if (await thor.transactions.getTransaction(txId)) return false;
   } catch (error) {
     if (!isNotFoundError(error)) throw error;
-  }
-
-  const signed = Transaction.decode(Hex.of(rawTxHex).bytes, true);
-  const decodedTxId = signed.id.toString().toLowerCase();
-  if (decodedTxId !== txId) {
-    throw new Error(
-      'Journaled X promotion raw transaction does not match its transaction id.',
-    );
   }
 
   const sent = await thor.transactions.sendTransaction(signed);
