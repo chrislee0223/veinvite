@@ -149,6 +149,10 @@ test('journaled raw transaction identity is verified before broadcast', () => {
     'decodedTxId !== txId',
     decode,
   );
+  const chainLookup = source.indexOf(
+    'getTransaction(txId)',
+    decode,
+  );
   const send = source.indexOf(
     'sendTransaction',
     decode,
@@ -156,10 +160,27 @@ test('journaled raw transaction identity is verified before broadcast', () => {
 
   assert.ok(decode >= 0);
   assert.ok(identityCheck > decode);
-  assert.ok(send > identityCheck);
+  assert.ok(chainLookup > identityCheck);
+  assert.ok(send > chainLookup);
   assert.match(
     source,
     /Journaled X promotion raw transaction does not match its transaction id/,
+  );
+});
+
+test('committed payout scan prioritizes the newest signed journal entries', () => {
+  const start = source.indexOf(
+    'async function findCommittedUnsettledIntentId',
+  );
+  const end = source.indexOf(
+    'async function findUnsettledIntentId',
+    start,
+  );
+  const block = source.slice(start, end);
+
+  assert.match(
+    block,
+    /order\('id', \{ ascending: false \}\)/,
   );
 });
 
