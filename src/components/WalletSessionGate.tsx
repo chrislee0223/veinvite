@@ -844,7 +844,9 @@ export function WalletSessionGate({
     const slowNotice = window.setTimeout(() => {
       if (attemptRef.current !== attempt) return;
       setErrorDetails({
-        code: 'AUTH_VERIFICATION_SLOW',
+        code: checkingParticipation
+          ? 'AUTH_PARTICIPATION_CHECK'
+          : 'AUTH_VERIFICATION_SLOW',
         referenceId: null,
       });
       setState('error');
