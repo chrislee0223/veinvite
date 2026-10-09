@@ -17,15 +17,12 @@ export type RewardRecoveryMaintenanceResult = {
     RewardRecoveryMaintenanceSweep | null;
   failure: unknown | null;
   errors: string[];
-  warnings: string[];
 };
 
 export async function runRewardRecoveryMaintenance():
 Promise<RewardRecoveryMaintenanceResult> {
   const rewardRecovery =
     await runRewardReservationRecovery();
-  const warnings: string[] = [];
-
   try {
     const shadowSync =
       await runRewardXPromotionShadowSync(250);
@@ -45,9 +42,6 @@ Promise<RewardRecoveryMaintenanceResult> {
               shadowAudit.violations,
           },
         );
-        warnings.push(
-          'X_PROMOTION_SHADOW_AUDIT_VIOLATION',
-        );
       }
     }
   } catch (error) {
@@ -56,9 +50,6 @@ Promise<RewardRecoveryMaintenanceResult> {
     console.error(
       'X promotion shadow sync/audit failed:',
       error,
-    );
-    warnings.push(
-      'X_PROMOTION_SHADOW_SYNC_FAILED',
     );
   }
 
@@ -69,6 +60,5 @@ Promise<RewardRecoveryMaintenanceResult> {
       rewardRecovery.failure,
     errors:
       rewardRecovery.errors,
-    warnings,
   };
 }
