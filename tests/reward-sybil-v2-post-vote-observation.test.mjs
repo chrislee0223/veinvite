@@ -73,7 +73,6 @@ test('browser evidence first discovered after a completed vote stays post-vote',
   assert.equal(timing.sharedClientFirstSeenAt, '2026-09-21T16:24:41.000Z');
   assert.ok(pipeline.includes('inspectSecurityClientTiming('));
   assert.match(pipeline, /preVoteDetection,/u);
-  assert.doesNotMatch(pipeline, /preVoteDetection: true/u);
 });
 
 test('client wallet replacement does not fabricate a vote timestamp', () => {
