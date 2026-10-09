@@ -283,7 +283,11 @@ export function WalletSessionSurface({
         >
           {walletMismatch
             ? switchT.description
-            : hasError && errorCode === 'AUTH_VERIFICATION_SLOW'
+            : hasError && errorCode === 'AUTH_RATE_LIMITED'
+              ? locale === 'ko'
+                ? '인증 시도 횟수가 많아 잠시 제한됐어요. 잠시 기다린 뒤 다시 시도해 주세요.'
+                : 'Too many verification attempts. Please wait before trying again.'
+              : hasError && errorCode === 'AUTH_VERIFICATION_SLOW'
               ? locale === 'ko'
                 ? '지갑 인증 응답이 지연되고 있어요. 지갑 앱에서 서명을 승인하거나 취소한 뒤 다시 시도하세요. 계속되면 지갑 연결을 해제하고 다시 연결해 주세요.'
                 : 'Wallet verification is taking longer than expected. Finish or cancel the wallet request, then retry. You can also disconnect and reconnect.'
