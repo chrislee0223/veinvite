@@ -4,7 +4,9 @@ import test from 'node:test';
 import {
   Wallet,
   verifyTypedData,
+  getBytes,
 } from 'ethers';
+import { Certificate } from '@vechain/sdk-core';
 
 import {
   buildWalletAuthTypedData,
@@ -63,5 +65,48 @@ test('fresh and database-reloaded expiry strings verify the same EIP-712 signatu
     recovered.toLowerCase(),
     walletAddress,
     'a fresh challenge signature must verify against the Supabase-reloaded representation',
+  );
+});
+
+test('native VeChain agreement certificate cryptographically binds wallet, challenge and origin', () => {
+  const key = '0x0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef';
+  const signer = new Wallet(key).address.toLowerCase();
+  const content = 'Verify your wallet for VeInvite\\nNonce: one-time-sample';
+  const timestamp = 1791559433;
+  const certificate = Certificate.of({
+    purpose: 'agreement',
+    payload: { type: 'text', content },
+    domain: 'veinvite.vercel.app',
+    timestamp,
+    signer,
+  });
+  certificate.sign(getBytes(key));
+
+  const proof = {
+    purpose: certificate.purpose,
+    payload: certificate.payload,
+    domain: certificate.domain,
+    timestamp: certificate.timestamp,
+    signer: certificate.signer,
+    signature: certificate.signature,
+  };
+  assert.doesNotThrow(() => Certificate.of(proof).verify());
+  assert.throws(
+    () => Certificate.of({
+      ...proof,
+      payload: { type: 'text', content: content + ' modified' },
+    }).verify(),
+    'a changed one-time challenge invalidates the proof',
+  );
+  assert.throws(
+    () => Certificate.of({ ...proof, domain: 'evil.example' }).verify(),
+    'a changed signing origin invalidates the proof',
+  );
+  assert.throws(
+    () => Certificate.of({
+      ...proof,
+      signer: '0x0000000000000000000000000000000000000001',
+    }).verify(),
+    'another address cannot claim ownership',
   );
 });
