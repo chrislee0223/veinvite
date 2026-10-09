@@ -22,6 +22,7 @@ import {
 } from '@/hooks/useLiveWalletRestriction';
 import {
   useWalletAuthentication,
+  WalletAuthenticationFailure,
 } from '@/hooks/useWalletAuthentication';
 import type { InitialLegalConsentStatus } from '@/lib/legalConsent';
 import {
@@ -175,6 +176,8 @@ export function WalletSessionSurface({
   hasError,
   walletMismatch,
   isDisconnecting,
+  errorCode = null,
+  referenceId = null,
   onRetry,
   onSecondary,
 }: {
@@ -182,6 +185,8 @@ export function WalletSessionSurface({
   hasError: boolean;
   walletMismatch: boolean;
   isDisconnecting: boolean;
+  errorCode?: string | null;
+  referenceId?: string | null;
   onRetry: () => void;
   onSecondary: () => void;
 }) {
@@ -274,10 +279,29 @@ export function WalletSessionSurface({
         >
           {walletMismatch
             ? switchT.description
-            : hasError
-              ? t.errorDescription
-              : t.checkingDescription}
+            : hasError && errorCode === 'AUTH_PARTICIPATION_CHECK'
+              ? locale === 'ko'
+                ? '지갑 인증은 완료됐지만 참여 자격을 확인하지 못했어요. 잠시 후 다시 시도해 주세요.'
+                : 'Your wallet was verified, but we could not check participation access. Please try again.'
+              : hasError
+                ? t.errorDescription
+                : t.checkingDescription}
         </span>
+
+        {hasError && !walletMismatch && errorCode ? (
+          <span
+            data-veinvite-wallet-auth-error-code={errorCode}
+            style={{
+              fontSize: '0.78rem',
+              opacity: 0.72,
+              overflowWrap: 'anywhere',
+              fontFamily: 'monospace',
+            }}
+          >
+            {errorCode}
+            {referenceId ? ` · Ref: ${referenceId}` : ''}
+          </span>
+        ) : null}
 
         {!hasError ? (
           <span
@@ -546,6 +570,10 @@ export function WalletSessionGate({
     useState<VerificationState>(
       initialWallet ? 'verified' : 'idle',
     );
+  const [errorDetails, setErrorDetails] = useState<{
+    code: string;
+    referenceId: string | null;
+  } | null>(null);
   const [verifiedWallet, setVerifiedWallet] =
     useState<string | null>(initialWallet);
   const [restrictionKind, setRestrictionKind] =
@@ -799,10 +827,13 @@ export function WalletSessionGate({
     const attempt = attemptRef.current + 1;
     attemptRef.current = attempt;
 
+    setErrorDetails(null);
     setState('checking');
 
+    let checkingParticipation = false;
     try {
       await ensureWalletSession(walletAddress);
+      checkingParticipation = true;
       const activeRestriction = await readWalletRestriction();
 
       if (attemptRef.current !== attempt) {
@@ -813,6 +844,7 @@ export function WalletSessionGate({
       setRestrictionKind(activeRestriction);
       setVerifiedWallet(walletAddress);
       setState('verified');
+      setErrorDetails(null);
       bootReadyDispatchedRef.current = true;
       window.dispatchEvent(
         new Event(WALLET_SESSION_READY_EVENT),
@@ -829,6 +861,13 @@ export function WalletSessionGate({
 
       setVerifiedWallet(null);
       setRestrictionKind(null);
+      setErrorDetails(
+        checkingParticipation
+          ? { code: 'AUTH_PARTICIPATION_CHECK', referenceId: null }
+          : error instanceof WalletAuthenticationFailure
+            ? { code: error.code, referenceId: error.referenceId }
+            : { code: 'AUTH_WALLET_REQUEST_CANCELLED', referenceId: null },
+      );
       pendingErrorTimerRef.current = window.setTimeout(() => {
         pendingErrorTimerRef.current = null;
 
@@ -1208,6 +1247,8 @@ export function WalletSessionGate({
       hasError={hasError}
       walletMismatch={walletMismatch}
       isDisconnecting={isDisconnecting}
+      errorCode={errorDetails?.code}
+      referenceId={errorDetails?.referenceId}
       onRetry={() => {
         void retryVerification();
       }}
