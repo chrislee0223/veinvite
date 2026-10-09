@@ -34,6 +34,6 @@ test('security copy differentiates inviter from restricted invitee', () => {
   assert.match(ui, /title: ineligible\.title, body: ineligible\.body/u);
   assert.match(ui, /title: security\.restrictionTitle/u);
 });
-test('cached history invalidates old role-less response', () => {
-  assert.match(controller, /HISTORY_CACHE_PREFIX = 'veinvite:notification-history:v2:'/u);
+test('cached history invalidates older role and supersession states', () => {
+  assert.match(controller, /HISTORY_CACHE_PREFIX = 'veinvite:notification-history:v3:'/u);
 });
