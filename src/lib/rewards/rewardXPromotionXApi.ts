@@ -151,9 +151,14 @@ export async function lookupXPromotionPost(
   endpoint.searchParams.set(
     'post.fields',
     [
-      'author_id',
       'created_at',
       'entities',
+    ].join(','),
+  );
+  endpoint.searchParams.set(
+    'expansions',
+    [
+      'author_id',
       'referenced_posts',
     ].join(','),
   );
