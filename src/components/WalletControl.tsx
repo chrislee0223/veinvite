@@ -24,6 +24,9 @@ import {
   reportProductAnalyticsEvent,
 } from '@/lib/productAnalytics';
 import {
+  releaseCancelledWalletAuthenticationAfterDisconnect,
+} from '@/lib/walletAuthenticationCoordinator';
+import {
   markWalletConnectIntent,
   settleExplicitWalletDisconnect,
 } from '@/lib/walletConnectionResume';
@@ -184,6 +187,8 @@ export function useWalletLauncher() {
         'Wallet disconnect did not finish.',
       );
     }
+
+    releaseCancelledWalletAuthenticationAfterDisconnect();
   }, [
     clearWalletSession,
     disconnect,
