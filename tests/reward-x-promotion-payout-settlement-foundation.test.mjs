@@ -137,3 +137,19 @@ test('finalization is not blocked by the live runtime switch', () => {
     /reward_x_promotion_enabled/,
   );
 });
+
+
+test('terminal Sybil release skips atomically committed promotion payouts', () => {
+  assert.match(
+    migration,
+    /release_terminal_reward_x_promotion_security_v1/,
+  );
+  assert.match(
+    migration,
+    /reward_x_promotion_payout_signed_transactions/,
+  );
+  assert.match(
+    migration,
+    /committedSkippedCount/,
+  );
+});
