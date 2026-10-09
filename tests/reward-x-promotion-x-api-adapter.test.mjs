@@ -32,9 +32,11 @@ test('X lookup uses the official v2 Post lookup endpoint and required fields', (
     /https:\/\/api\.x\.com\/2\/tweets\/\$\{postId\}/,
   );
   assert.match(adapter, /'post\.fields'/);
-  assert.match(adapter, /'author_id'/);
+  assert.match(adapter, /'post\\.fields'/);
   assert.match(adapter, /'created_at'/);
   assert.match(adapter, /'entities'/);
+  assert.match(adapter, /'expansions'/);
+  assert.match(adapter, /'author_id'/);
   assert.match(adapter, /'referenced_posts'/);
 });
 
@@ -44,6 +46,25 @@ test('missing credentials and transient X failures never become terminal invalid
   assert.match(adapter, /X_API_UNAVAILABLE/);
   assert.match(route, /lookup\.status === 'RETRY'/);
   assert.match(route, /status: 202/);
+});
+
+test('author and referenced Post identity are requested as expansions', () => {
+  const postFieldsStart = adapter.indexOf(
+    "endpoint.searchParams.set(\n    'post.fields'",
+  );
+  const expansionsStart = adapter.indexOf(
+    "endpoint.searchParams.set(\n    'expansions'",
+  );
+
+  assert.ok(postFieldsStart >= 0);
+  assert.ok(expansionsStart > postFieldsStart);
+
+  const postFieldsBlock = adapter.slice(
+    postFieldsStart,
+    expansionsStart,
+  );
+  assert.doesNotMatch(postFieldsBlock, /author_id/);
+  assert.doesNotMatch(postFieldsBlock, /referenced_posts/);
 });
 
 test('submission is persisted before the external X lookup', () => {
