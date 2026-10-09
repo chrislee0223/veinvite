@@ -734,6 +734,162 @@ begin
 end;
 $function$;
 
+
+create or replace function public.release_terminal_reward_x_promotion_security_v1(
+  p_network text,
+  p_limit integer default 25
+)
+returns jsonb
+language plpgsql
+set search_path to 'pg_catalog','public'
+as $function$
+declare
+  v_network text := lower(btrim(coalesce(p_network,'')));
+  v_limit integer := greatest(1,least(coalesce(p_limit,25),100));
+  v_candidate record;
+  v_obligation public.reward_x_promotion_obligations%rowtype;
+  v_invitation public.invitations%rowtype;
+  v_terminal boolean;
+  v_invitation_found boolean;
+  v_now timestamptz;
+  v_considered integer := 0;
+  v_released integer := 0;
+  v_committed_skipped integer := 0;
+begin
+  if v_network not in ('mainnet','testnet','testnet-staging') then
+    raise exception 'UNSUPPORTED_NETWORK';
+  end if;
+
+  for v_candidate in
+    select o.invite_code
+    from public.reward_x_promotion_obligations o
+    join public.invitations i
+      on i.invite_code=o.invite_code
+    where o.network=v_network
+      and o.financial_state in ('RESERVED','HELD')
+      and not exists (
+        select 1
+        from public.reward_x_promotion_payout_signed_transactions s
+        join public.reward_x_promotion_payout_intents pi
+          on pi.id=s.intent_id
+        where pi.obligation_id=o.id
+      )
+      and (
+        public.is_sybil_v2_referral_invalidated(
+          o.invite_code,
+          v_network
+        )
+        or exists (
+          select 1
+          from public.sybil_v2_wallet_restrictions r
+          where r.network=v_network
+            and r.status='ACTIVE'
+            and r.wallet_address in (
+              lower(o.recipient_wallet),
+              lower(i.invitee_wallet)
+            )
+        )
+      )
+    order by o.id
+    limit v_limit
+  loop
+    v_considered:=v_considered+1;
+
+    perform pg_advisory_xact_lock(
+      hashtextextended('veinvite_x_promotion_' || v_candidate.invite_code,0)
+    );
+
+    select * into v_obligation
+    from public.reward_x_promotion_obligations o
+    where o.invite_code=v_candidate.invite_code
+    for update;
+
+    if not found
+       or v_obligation.financial_state not in ('RESERVED','HELD') then
+      continue;
+    end if;
+
+    -- The atomic signed+submission journal is the irreversible payout
+    -- commitment boundary. Once it exists, do not release the liability even
+    -- if security turns terminal afterward; chain settlement/recovery must
+    -- reconcile that committed transaction instead.
+    if exists (
+      select 1
+      from public.reward_x_promotion_payout_signed_transactions s
+      join public.reward_x_promotion_payout_intents pi
+        on pi.id=s.intent_id
+      where pi.obligation_id=v_obligation.id
+    ) then
+      v_committed_skipped:=v_committed_skipped+1;
+      continue;
+    end if;
+
+    select * into v_invitation
+    from public.invitations i
+    where i.invite_code=v_candidate.invite_code;
+    v_invitation_found:=found;
+
+    v_terminal :=
+      public.is_sybil_v2_referral_invalidated(
+        v_candidate.invite_code,
+        v_network
+      )
+      or (
+        v_invitation_found and exists (
+          select 1
+          from public.sybil_v2_wallet_restrictions r
+          where r.network=v_network
+            and r.status='ACTIVE'
+            and r.wallet_address in (
+              lower(v_obligation.recipient_wallet),
+              lower(v_invitation.invitee_wallet)
+            )
+        )
+      );
+
+    if not v_terminal then
+      continue;
+    end if;
+
+    v_now:=clock_timestamp();
+
+    update public.reward_x_promotion_post_submissions s
+    set submission_state='INVALID',
+        verified_at=null,
+        invalidated_at=v_now,
+        state_reason='SECURITY_TERMINAL',
+        updated_at=v_now
+    where s.invite_code=v_candidate.invite_code
+      and s.submission_state='PENDING';
+
+    update public.reward_x_promotion_post_verifications p
+    set verification_state='INVALID',
+        final_verified_at=null,
+        invalidated_at=v_now,
+        state_reason='SECURITY_TERMINAL',
+        updated_at=v_now
+    where p.invite_code=v_candidate.invite_code
+      and p.verification_state in ('INITIAL_VERIFIED','REVIEW_REQUIRED');
+
+    update public.reward_x_promotion_obligations o
+    set financial_state='RELEASED',
+        released_at=v_now,
+        release_reason='SYBIL_TERMINAL',
+        updated_at=v_now
+    where o.id=v_obligation.id;
+
+    v_released:=v_released+1;
+  end loop;
+
+  return jsonb_build_object(
+    'network',v_network,
+    'consideredCount',v_considered,
+    'releasedCount',v_released,
+    'committedSkippedCount',v_committed_skipped
+  );
+end;
+$function$;
+
 revoke all on function public.reject_reward_x_promotion_payout_journal_mutation()
   from public,anon,authenticated,service_role;
 revoke all on function public.reward_x_promotion_security_clear_v1(text,text)
