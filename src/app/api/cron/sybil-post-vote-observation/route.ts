@@ -3,6 +3,7 @@ import { timingSafeEqual } from 'node:crypto';
 import { NextRequest, NextResponse } from 'next/server';
 
 import { supabaseAdmin } from '@/lib/supabaseServer';
+import { inspectSecurityClientTiming } from '@/lib/sybil/v2/securityClientTiming';
 import {
   readPostVoteFundingObservation,
 } from '@/lib/sybil/v2/postVoteFunding';
@@ -25,6 +26,7 @@ type Candidate = {
   activation_network: string | null;
   activation_block: number | string | null;
   vote_completed_block: number | string | null;
+  vote_completed_at: string | null;
 };
 
 function authenticated(request: NextRequest): boolean {
@@ -43,6 +45,36 @@ function validBlock(raw: number | string | null): number | null {
     : raw;
   return typeof value === 'number' &&
     Number.isSafeInteger(value) && value > 0 ? value : null;
+}
+
+async function loadSharedClientChronology(candidate: Candidate) {
+  const subject = candidate.invitee_wallet?.trim().toLowerCase();
+  if (!subject) return [];
+  const [inviteeResult, inviterResult] = await Promise.all([
+    supabaseAdmin.from('security_client_wallet_observations')
+      .select('client_id,first_seen_at,last_seen_at')
+      .eq('wallet_address', subject),
+    supabaseAdmin.from('security_client_wallet_observations')
+      .select('client_id,first_seen_at,last_seen_at')
+      .eq('wallet_address', candidate.inviter_wallet.toLowerCase()),
+  ]);
+  if (inviteeResult.error || inviterResult.error) {
+    throw new Error('Shared-client timing audit could not be loaded.');
+  }
+  return (inviteeResult.data ?? []).flatMap((invitee) =>
+    (inviterResult.data ?? [])
+      .filter((inviter) => inviter.client_id === invitee.client_id)
+      .map((inviter) => ({
+        clientId: invitee.client_id,
+        ...inspectSecurityClientTiming({
+          inviterFirstSeenAt: inviter.first_seen_at,
+          inviterLastSeenAt: inviter.last_seen_at,
+          inviteeFirstSeenAt: invitee.first_seen_at,
+          activatedAt: null,
+          voteCompletedAt: candidate.vote_completed_at,
+        }),
+      })),
+  );
 }
 
 async function persistObservation({
@@ -131,6 +163,7 @@ async function persistObservation({
   if (oldError) {
     throw new Error(`Legacy protocol evidence audit failed: ${oldError.message}`);
   }
+  const sharedClientChronology = await loadSharedClientChronology(candidate);
   const excludedLegacyProtocolEvidence = (oldEvidence ?? [])
     .filter((row) => row.related_wallet &&
       protocolSources.has(String(row.related_wallet).toLowerCase()))
@@ -154,6 +187,7 @@ async function persistObservation({
         scanVersion: SCAN_VERSION,
         ...observation,
         excludedLegacyProtocolEvidence,
+        sharedClientChronology,
         observationalOnly: true,
         automaticRestriction: false,
         rewardOrSybilStatusModified: false,
@@ -192,8 +226,9 @@ export async function GET(request: NextRequest) {
   try {
     const { data: invitations, error: inviteError } = await supabaseAdmin
       .from('invitations')
-      .select('invite_code,invitee_wallet,inviter_wallet,activation_network,activation_block,vote_completed_block')
+      .select('invite_code,invitee_wallet,inviter_wallet,activation_network,activation_block,vote_completed_block,vote_completed_at')
       .eq('vote_completed', true)
+      .eq('activation_network', 'mainnet')
       .not('invitee_wallet', 'is', null)
       .not('vote_completed_block', 'is', null)
       .order('vote_completed_at', { ascending: false })
@@ -218,11 +253,14 @@ export async function GET(request: NextRequest) {
     }
     const done = new Set((completed ?? []).map((row) => row.invite_code));
     const pending = candidates.filter((row) => !done.has(row.invite_code))
-      .slice(0, MAX_BATCH);
+      .slice(0, MAX_BATCH * 4);
     const protocolSources = await loadKnownProtocolDestinations('mainnet');
     let scanned = 0;
     const failures: Array<{ inviteCode: string; reason: string }> = [];
+    let attempts = 0;
     for (const candidate of pending) {
+      if (scanned >= MAX_BATCH) break;
+      attempts += 1;
       try {
         await persistObservation({ candidate, protocolSources });
         scanned += 1;
@@ -239,6 +277,7 @@ export async function GET(request: NextRequest) {
       ok: failures.length === 0,
       considered: candidates.length,
       pending: pending.length,
+      attempts,
       scanned,
       failures,
       observationOnly: true,
