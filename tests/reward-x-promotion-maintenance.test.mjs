@@ -30,21 +30,31 @@ const payout = await readFile(
 );
 
 test('maintenance is a no-op before X promotion LIVE activation', () => {
-  const gateIndex = worker.indexOf(
+  const runStart = worker.indexOf(
+    'export async function runRewardXPromotionMaintenance',
+  );
+  assert.ok(runStart >= 0);
+
+  const runBody = worker.slice(runStart);
+  const gateIndex = runBody.indexOf(
     'if (!(await liveEnabled()))',
   );
-  const securityIndex = worker.indexOf(
+  const securityIndex = runBody.indexOf(
     "'release_terminal_reward_x_promotion_security_v1'",
   );
-  const lookupIndex = worker.indexOf(
-    'await lookupXPromotionPost(',
+  const pendingReadIndex = runBody.indexOf(
+    "'read_reward_x_promotion_pending_post_candidates_v1'",
+  );
+  const finalReadIndex = runBody.indexOf(
+    "'read_reward_x_promotion_final_post_candidates_v1'",
   );
 
   assert.ok(gateIndex >= 0);
   assert.ok(securityIndex > gateIndex);
-  assert.ok(lookupIndex > gateIndex);
+  assert.ok(pendingReadIndex > gateIndex);
+  assert.ok(finalReadIndex > gateIndex);
   assert.match(
-    worker.slice(gateIndex, securityIndex),
+    runBody.slice(gateIndex, securityIndex),
     /enabled: false/,
   );
 });
