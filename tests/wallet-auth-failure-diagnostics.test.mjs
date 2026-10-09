@@ -113,3 +113,28 @@ test('wallet recovery and post-auth check copy exists in every supported locale'
   assert.match(gate, /AUTH_GATE_UNEXPECTED_FAILURE/);
   assert.doesNotMatch(gate, /AUTH_WALLET_REQUEST_CANCELLED/);
 });
+
+test('supplemental wallet language packs include all four recovery and participation fields', async () => {
+  const locales = [
+    'ar', 'bn', 'cs', 'ha', 'id', 'mr', 'pt', 'ro',
+    'ru', 'sv', 'sw', 'te', 'ur', 'vi', 'zh-tw',
+  ];
+
+  for (const locale of locales) {
+    const source = await readFile(
+      new URL(`../src/lib/i18n/localePacks/${locale}.ts`, import.meta.url),
+      'utf8',
+    );
+    const marker = source.indexOf('  walletSession: {');
+    assert.ok(marker !== -1, `no wallet session section for ${locale}`);
+    const section = source.slice(marker, source.indexOf('  },', marker));
+    for (const key of [
+      'participationErrorTitle',
+      'participationErrorDescription',
+      'slowVerificationDescription',
+      'rateLimitDescription',
+    ]) {
+      assert.match(section, new RegExp(`\\b${key}: ['"]`), `${locale} is missing ${key}`);
+    }
+  }
+});
