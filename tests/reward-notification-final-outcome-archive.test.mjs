@@ -26,5 +26,5 @@ test('history list, unread totals and mark-all stay consistent', () => {
   assert.match(sql, /acknowledge_invite_notification_history/u);
 });
 test('stale v2 client read-state cache invalidated', () => {
-  assert.match(client, /HISTORY_CACHE_PREFIX = 'veinvite:notification-history:v5:'/u);
+  assert.match(client, /HISTORY_CACHE_PREFIX = 'veinvite:notification-history:v6:'/u);
 });
