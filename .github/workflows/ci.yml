@@ -289,12 +289,7 @@ jobs:
 
       - name: Visual and multilingual browser QA
         if: steps.browser-scope.outputs.run_browser == 'true'
-        run: |
-          if [ "${{ github.head_ref }}" = "audit/notification-i18n-layout-20261009" ]; then
-            npx playwright test tests/playwright/notification-i18n-layout-audit.spec.ts
-          else
-            npm run test:playwright
-          fi
+        run: npm run test:playwright
 
       - name: Upload Playwright QA evidence
         if: always() && steps.browser-scope.outputs.run_browser == 'true'
@@ -352,7 +347,7 @@ jobs:
           exit 1
 
       - name: Wallet auth cryptographic regression gate
-        run: node --experimental-strip-types --test tests/wallet-auth-typed-data-crypto.test.mjs
+        run: node --experimental-strip-types --test tests/wallet-auth-typed-data-crypto.test.mjs tests/wallet-auth-server-certificate-contract.test.mjs
 
       - name: Dependency security gate
         shell: bash
