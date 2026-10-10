@@ -48,6 +48,13 @@ type VerificationRow = {
   invalidated_at: string | null;
 };
 
+type PromotionOfferStatus =
+  | 'DISABLED'
+  | 'NOT_ELIGIBLE'
+  | 'PREPARING'
+  | 'AVAILABLE'
+  | 'CLOSED';
+
 type PromotionState =
   | 'OPEN'
   | 'SUBMISSION_GRACE'
@@ -192,9 +199,104 @@ export async function GET(
       opportunity.data as unknown as OpportunityRow | null;
 
     if (!opportunityRow) {
+      const splitResult =
+        await supabaseAdmin
+          .from('reward_x_promotion_splits')
+          .select('id,promotion_amount_wei')
+          .eq('invite_code', inviteCode)
+          .eq('recipient_wallet', wallet)
+          .eq('mode', 'LIVE')
+          .maybeSingle();
+
+      if (splitResult.error) {
+        throw new Error(
+          `X promotion split state could not be loaded: ${splitResult.error.message}`,
+        );
+      }
+
+      let offerStatus: PromotionOfferStatus =
+        newOffersEnabled
+          ? 'NOT_ELIGIBLE'
+          : 'DISABLED';
+      let pendingPromotionAmountWei: string | null = null;
+      let pendingPromotionAmountB3tr: string | null = null;
+
+      if (splitResult.data) {
+        const splitAmountWei =
+          String(
+            splitResult.data.promotion_amount_wei ?? '',
+          );
+
+        if (
+          !/^\d+$/u.test(splitAmountWei)
+        ) {
+          throw new Error(
+            'Stored X promotion split amount is malformed.',
+          );
+        }
+
+        if (BigInt(splitAmountWei) > 0n) {
+          pendingPromotionAmountWei =
+            splitAmountWei;
+          pendingPromotionAmountB3tr =
+            formatWeiAsB3tr(
+              splitAmountWei,
+              18,
+            );
+
+          const obligationResult =
+            await supabaseAdmin
+              .from('reward_x_promotion_obligations')
+              .select('financial_state')
+              .eq(
+                'split_id',
+                splitResult.data.id,
+              )
+              .eq('invite_code', inviteCode)
+              .eq('recipient_wallet', wallet)
+              .maybeSingle();
+
+          if (obligationResult.error) {
+            throw new Error(
+              `X promotion obligation state could not be loaded: ${obligationResult.error.message}`,
+            );
+          }
+
+          const financialState =
+            obligationResult.data
+              ? String(
+                  obligationResult.data
+                    .financial_state ?? '',
+                )
+              : '';
+
+          if (
+            !financialState ||
+            financialState === 'RESERVED' ||
+            financialState === 'HELD'
+          ) {
+            offerStatus = 'PREPARING';
+          } else if (
+            financialState === 'RELEASED' ||
+            financialState === 'PAID'
+          ) {
+            offerStatus = 'CLOSED';
+          } else {
+            throw new Error(
+              'Stored X promotion obligation state is invalid.',
+            );
+          }
+        } else {
+          offerStatus = 'NOT_ELIGIBLE';
+        }
+      }
+
       return NextResponse.json(
         {
           newOffersEnabled,
+          offerStatus,
+          pendingPromotionAmountWei,
+          pendingPromotionAmountB3tr,
           promotion: null,
         },
         {
@@ -332,6 +434,9 @@ export async function GET(
     return NextResponse.json(
       {
         newOffersEnabled,
+        offerStatus: 'AVAILABLE' satisfies PromotionOfferStatus,
+        pendingPromotionAmountWei: null,
+        pendingPromotionAmountB3tr: null,
         promotion: {
           inviteCode,
           state,
