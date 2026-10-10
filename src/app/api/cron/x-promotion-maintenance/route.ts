@@ -324,10 +324,9 @@ export async function GET(
       },
     },
     {
-      // Per-job heartbeat state is authoritative for operational failures.
-      // Keep the cron request successful so one optional sub-job does not
-      // cause Vercel to retry and duplicate the other sub-job.
-      status: 200,
+      // Preserve the existing lifecycle failure signal. A payout-only
+      // failure is isolated to its own heartbeat and does not fail the route.
+      status: lifecycle.ok ? 200 : 500,
       headers: {
         'Cache-Control':
           'no-store',
