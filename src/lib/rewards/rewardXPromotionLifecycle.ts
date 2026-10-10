@@ -427,7 +427,7 @@ async function processPendingCandidate(
 
   const { error } =
     await supabaseAdmin.rpc(
-      'record_reward_x_promotion_initial_post_verification_v1',
+      'record_reward_x_promotion_initial_post_verification_v2',
       {
         p_invite_code:
           candidate.inviteCode,
@@ -625,7 +625,7 @@ async function processFinalCandidate(
 
   const { error } =
     await supabaseAdmin.rpc(
-      'finalize_reward_x_promotion_post_verification_v1',
+      'finalize_reward_x_promotion_post_verification_v2',
       {
         p_invite_code:
           candidate.inviteCode,
