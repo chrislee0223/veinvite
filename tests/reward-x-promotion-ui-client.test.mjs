@@ -78,3 +78,16 @@ test('pending verification does not ask the user to resubmit the same Post', () 
   assert.match(action, /promotion\.state === 'REVIEW_REQUIRED'/);
   assert.match(action, /copy\.retrying/);
 });
+
+
+test('promotion eligibility does not depend on the referral-link UI being ready', () => {
+  assert.match(action, /rewardShareUrl \|\| VEINVITE_SITE_URL/);
+  assert.match(
+    receipt,
+    /\{receipt \? \([\s\S]*<RewardXPromotionReceiptAction/,
+  );
+  assert.doesNotMatch(
+    receipt,
+    /\{receipt && rewardShareIntentUrl \? \([\s\S]*<RewardXPromotionReceiptAction/,
+  );
+});
