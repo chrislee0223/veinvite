@@ -150,7 +150,7 @@ export function TransientSnackbar({
       {reward ? (
         <div className="rewardFeedbackBody">
           <strong>{feedback.title}</strong>
-          <div className="rewardFeedbackAmount">
+          <div className="rewardFeedbackAmount" dir="ltr" style={{ unicodeBidi: 'isolate' }}>
             +{feedback.amountB3tr} <span>B3TR</span>
           </div>
           <p>{feedback.text}</p>
@@ -295,11 +295,6 @@ export function TransientSnackbar({
           font-weight: 950;
           line-height: 1.1;
           font-variant-numeric: tabular-nums;
-        }
-        /* Preserve technical B3TR amounts in LTR order inside Arabic/Urdu. */
-        .transientSnackbar[dir='rtl'] .rewardFeedbackAmount {
-          direction: ltr;
-          unicode-bidi: isolate;
         }
         .rewardFeedbackAmount span {
           font-size: .68rem;
