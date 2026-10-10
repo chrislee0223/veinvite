@@ -58,3 +58,19 @@ test('protected QA review can render all locales at real 320 and 390 iframe widt
   assert.match(qaLayout, /isQaStudioAccessAllowed/u);
   assert.match(qaLayout, /notFound\(\)/u);
 });
+
+const snackbar = readFileSync('src/components/TransientSnackbar.tsx', 'utf8');
+const home = readFileSync('src/components/HomeClient.tsx', 'utf8');
+const qa = readFileSync('src/qa/QaNotificationStateHarness.tsx', 'utf8');
+const qaFeedback = readFileSync('src/qa/QaHomeFeedbackHarness.tsx', 'utf8');
+
+test('reward popup owns language direction independently from surrounding layout', () => {
+  assert.match(snackbar, /lang=\{locale\}/);
+  assert.match(snackbar, /dir=\{locale \? \(isRtlLocale\(locale\) \? 'rtl' : 'ltr'\) : undefined\}/);
+  assert.doesNotMatch(snackbar, /direction: inherit;/);
+  assert.match(snackbar, /\.transientSnackbar\[dir='rtl'\] \.rewardFeedbackAmount/);
+  assert.match(snackbar, /unicode-bidi: isolate/);
+  assert.match(home, /<TransientSnackbar\s+feedback=\{feedback\}\s+locale=\{locale\}/);
+  assert.match(qa, /<TransientSnackbar\s+locale=\{locale\}/);
+  assert.match(qaFeedback, /<TransientSnackbar\s+locale=\{locale\}/);
+});

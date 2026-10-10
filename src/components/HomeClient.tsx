@@ -1120,6 +1120,7 @@ export function HomeClient() {
 
       <TransientSnackbar
         feedback={feedback}
+        locale={locale}
         closeLabel={NOTIFICATION_COPY[locale].closeAria}
         onDismiss={dismissFeedback}
       />

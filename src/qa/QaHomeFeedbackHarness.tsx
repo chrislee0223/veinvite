@@ -77,6 +77,7 @@ export function QaHomeFeedbackHarness({
         locale={locale}
       />
       <TransientSnackbar
+        locale={locale}
         feedback={{
           id: 1,
           kind: fixture.kind,

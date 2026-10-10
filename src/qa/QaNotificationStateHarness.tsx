@@ -554,6 +554,7 @@ export function QaNotificationStateHarness({
     return (
       <QaNotificationStage embedded={embedded}>
         <TransientSnackbar
+          locale={locale}
           feedback={{
             id: 1,
             kind: 'reward',
