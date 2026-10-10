@@ -4,6 +4,13 @@ import { rewardReceiptXIntentUrl } from '@/lib/rewards/rewardReceiptShare';
 const SHARE_TOKEN_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/u;
 
+export type RewardXPromotionOfferStatus =
+  | 'DISABLED'
+  | 'NOT_ELIGIBLE'
+  | 'PREPARING'
+  | 'AVAILABLE'
+  | 'CLOSED';
+
 export type RewardXPromotionState =
   | 'OPEN'
   | 'SUBMISSION_GRACE'
@@ -29,8 +36,19 @@ export type RewardXPromotion = {
   paidAt: string | null;
 };
 
+export type RewardXPromotionSnapshot = {
+  newOffersEnabled: boolean;
+  offerStatus: RewardXPromotionOfferStatus;
+  pendingPromotionAmountWei: string | null;
+  pendingPromotionAmountB3tr: string | null;
+  promotion: RewardXPromotion | null;
+};
+
 type RewardXPromotionResponse = {
   newOffersEnabled?: boolean;
+  offerStatus?: RewardXPromotionOfferStatus;
+  pendingPromotionAmountWei?: string | null;
+  pendingPromotionAmountB3tr?: string | null;
   promotion?: RewardXPromotion | null;
   error?: string;
 };
@@ -81,7 +99,7 @@ export function buildRewardXPromotionIntentUrl({
 
 export async function loadRewardXPromotion(
   inviteCode: string,
-): Promise<RewardXPromotion | null> {
+): Promise<RewardXPromotionSnapshot> {
   const response = await fetch(
     `/api/rewards/x-promotion?inviteCode=${encodeURIComponent(inviteCode)}`,
     {
@@ -98,7 +116,24 @@ export async function loadRewardXPromotion(
     );
   }
 
-  return body.promotion ?? null;
+  const offerStatus =
+    body.offerStatus ??
+    (body.promotion ? 'AVAILABLE' : 'DISABLED');
+
+  return {
+    newOffersEnabled:
+      body.newOffersEnabled === true,
+    offerStatus,
+    pendingPromotionAmountWei:
+      typeof body.pendingPromotionAmountWei === 'string'
+        ? body.pendingPromotionAmountWei
+        : null,
+    pendingPromotionAmountB3tr:
+      typeof body.pendingPromotionAmountB3tr === 'string'
+        ? body.pendingPromotionAmountB3tr
+        : null,
+    promotion: body.promotion ?? null,
+  };
 }
 
 export async function submitRewardXPromotionPost({
