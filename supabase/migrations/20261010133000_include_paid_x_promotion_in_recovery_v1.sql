@@ -644,14 +644,23 @@ begin
         o.amount_wei as obligation_wei,
         o.status as obligation_status
       from promo p
-      left join public.reward_recovery_obligations o
-        on (
+      left join lateral (
+        select o.*
+        from public.reward_recovery_obligations o
+        where (
           (p.authority_kind='INVALIDATION'
             and o.source_invalidation_id=p.authority_id)
           or
           (p.authority_kind='RESTRICTION'
             and o.source_restriction_id=p.authority_id)
         )
+        order by
+          case when o.status='ACTIVE' then 0 else 1 end,
+          o.amount_wei desc,
+          o.created_at desc,
+          o.id
+        limit 1
+      ) o on true
       where p.authority_id is not null
         and (
           o.id is null
