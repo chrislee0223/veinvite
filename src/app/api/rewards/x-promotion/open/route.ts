@@ -227,6 +227,29 @@ export async function POST(
         );
       }
 
+      if (
+        message.includes(
+          'REWARD_X_PROMOTION_BASE_PAYOUT_MISMATCH',
+        ) ||
+        message.includes(
+          'REWARD_X_PROMOTION_BASE_RECEIPT_MISSING',
+        )
+      ) {
+        return NextResponse.json(
+          {
+            newOffersEnabled: true,
+            promotion: null,
+            reason: 'RETRY_LATER',
+          },
+          {
+            status: 202,
+            headers: {
+              'Cache-Control': 'no-store',
+            },
+          },
+        );
+      }
+
       throw new Error(
         `X promotion obligation could not be activated: ${message}`,
       );
