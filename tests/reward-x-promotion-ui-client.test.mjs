@@ -40,8 +40,17 @@ test('promotion state and Post submission use the existing wallet-bound server A
 
 test('receipt action fails soft to ordinary X sharing when promotion state cannot load', () => {
   assert.match(action, /setLoadFailed\(true\)/);
-  assert.match(action, /setPromotion\(null\)/);
-  assert.match(action, /if \(!promotion\) \{[\s\S]*return ordinaryShare\(\)/);
+  assert.match(action, /offerStatus: 'DISABLED'/);
+  assert.match(action, /if \(loadFailed\) \{[\s\S]*return ordinaryShare\(\)/);
+});
+
+test('pending opportunity materialization never falls through to ordinary sharing', () => {
+  assert.match(action, /snapshot\?\.offerStatus !== 'PREPARING'/);
+  assert.match(action, /30_000/);
+  assert.match(
+    action,
+    /snapshot\.offerStatus === 'PREPARING'[\s\S]*copy\.preparing/,
+  );
 });
 
 test('promotion share never acknowledges or mutates the core reward receipt', () => {
