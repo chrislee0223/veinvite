@@ -40,7 +40,10 @@ test('user X promotion state is read-only and isolated from core reward authorit
   );
 });
 
-test('share token is exposed only while the offer is open', () => {
+test('share token is validated and exposed only while the offer is open', () => {
+  assert.match(route, /UUID_PATTERN/);
+  assert.match(route, /Stored X promotion share token is malformed/);
+
   assert.match(
     route,
     /shareToken:[\s\S]*state === 'OPEN'/,
