@@ -20,6 +20,9 @@ import {
   runRewardXPromotionPayout,
   type RewardXPromotionPayoutResult,
 } from '@/lib/rewards/rewardXPromotionPayoutExecutor';
+import {
+  runRewardXPromotionRecoveryMaintenance,
+} from '@/lib/rewards/rewardXPromotionRecovery';
 
 export const maxDuration = 300;
 
@@ -27,11 +30,15 @@ const LIFECYCLE_JOB_NAME =
   'x-promotion-lifecycle';
 const PAYOUT_JOB_NAME =
   'x-promotion-payout';
+const RECOVERY_JOB_NAME =
+  'x-promotion-recovery';
 const MIN_SUCCESS_INTERVAL_SECONDS =
   10 * 60;
 const LIFECYCLE_LEASE_SECONDS =
   12 * 60;
 const PAYOUT_LEASE_SECONDS =
+  12 * 60;
+const RECOVERY_LEASE_SECONDS =
   12 * 60;
 
 type JobResult = {
@@ -282,6 +289,84 @@ Promise<JobResult> {
   }
 }
 
+
+async function runRecoveryJob():
+Promise<JobResult> {
+  let claimed: boolean;
+
+  try {
+    claimed = await claimJob(
+      RECOVERY_JOB_NAME,
+      RECOVERY_LEASE_SECONDS,
+    );
+  } catch (error) {
+    console.error(
+      'Failed to claim X promotion recovery cron:',
+      error,
+    );
+    return {
+      ok: false,
+      skipped: false,
+      error:
+        'X promotion recovery lease could not be claimed.',
+    };
+  }
+
+  if (!claimed) {
+    return {
+      ok: true,
+      skipped: true,
+      reason:
+        'NOT_DUE_OR_ALREADY_RUNNING',
+    };
+  }
+
+  try {
+    await markCronJobStarted(
+      RECOVERY_JOB_NAME,
+    );
+
+    const result =
+      await runRewardXPromotionRecoveryMaintenance();
+
+    await markCronJobSucceeded(
+      RECOVERY_JOB_NAME,
+    );
+
+    return {
+      ok: true,
+      skipped: false,
+      result,
+    };
+  } catch (error) {
+    console.error(
+      'X promotion recovery maintenance failed:',
+      error,
+    );
+
+    try {
+      await markCronJobFailed(
+        RECOVERY_JOB_NAME,
+        error,
+      );
+    } catch (
+      heartbeatError
+    ) {
+      console.error(
+        'Failed to record X promotion recovery cron failure:',
+        heartbeatError,
+      );
+    }
+
+    return {
+      ok: false,
+      skipped: false,
+      error:
+        'X promotion recovery maintenance failed.',
+    };
+  }
+}
+
 export async function GET(
   request: NextRequest,
 ) {
@@ -312,20 +397,24 @@ export async function GET(
     await runLifecycleJob();
   const payout =
     await runPayoutJob();
+  const recovery =
+    await runRecoveryJob();
 
   return NextResponse.json(
     {
       ok:
         lifecycle.ok &&
-        payout.ok,
+        payout.ok &&
+        recovery.ok,
       jobs: {
         lifecycle,
         payout,
+        recovery,
       },
     },
     {
-      // Preserve the existing lifecycle failure signal. A payout-only
-      // failure is isolated to its own heartbeat and does not fail the route.
+      // Preserve the existing lifecycle failure signal. Payout/recovery-only
+      // failures are isolated to their own heartbeats and do not fail the route.
       status: lifecycle.ok ? 200 : 500,
       headers: {
         'Cache-Control':
