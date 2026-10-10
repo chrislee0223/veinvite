@@ -362,7 +362,7 @@ for (const locale of SUPPORTED_LOCALES) {
   test(`reward paid popup all-locale narrow layout and direction: ${locale}`, async ({ page }, testInfo) => {
     await page.setViewportSize({ width: 320, height: 568 });
     await page.goto(
-      `/qa/state?state=NOTI-REWARD-PAID-POPUP&locale=${encodeURIComponent(locale)}`,
+      `/qa/notification-state?state=NOTI-REWARD-PAID-POPUP&locale=${encodeURIComponent(locale)}`,
       { waitUntil: 'domcontentloaded', timeout: 30_000 },
     );
     const popup = page.locator('.transientSnackbar.reward');
