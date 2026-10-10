@@ -16,15 +16,38 @@ import {
 import {
   runRewardXPromotionLifecycleMaintenance,
 } from '@/lib/rewards/rewardXPromotionLifecycle';
+import {
+  runRewardXPromotionPayout,
+  type RewardXPromotionPayoutResult,
+} from '@/lib/rewards/rewardXPromotionPayoutExecutor';
 
-export const maxDuration = 180;
+export const maxDuration = 300;
 
-const JOB_NAME =
+const LIFECYCLE_JOB_NAME =
   'x-promotion-lifecycle';
+const PAYOUT_JOB_NAME =
+  'x-promotion-payout';
 const MIN_SUCCESS_INTERVAL_SECONDS =
   10 * 60;
-const LEASE_SECONDS =
+const LIFECYCLE_LEASE_SECONDS =
   12 * 60;
+const PAYOUT_LEASE_SECONDS =
+  12 * 60;
+
+type JobResult = {
+  ok: boolean;
+  skipped: boolean;
+  reason?: string;
+  result?: unknown;
+  error?: string;
+};
+
+const PAYOUT_FAILURE_STATUSES =
+  new Set<RewardXPromotionPayoutResult['status']>([
+    'NOT_CONFIGURED',
+    'NOT_REGISTERED',
+    'MANUAL_INTERVENTION_REQUIRED',
+  ]);
 
 function secureEquals(
   a: string,
@@ -84,6 +107,181 @@ function authorizeCron(
   };
 }
 
+async function claimJob(
+  jobName: string,
+  leaseSeconds: number,
+): Promise<boolean> {
+  return tryClaimCronJob(
+    jobName,
+    MIN_SUCCESS_INTERVAL_SECONDS,
+    leaseSeconds,
+  );
+}
+
+async function runLifecycleJob():
+Promise<JobResult> {
+  let claimed: boolean;
+
+  try {
+    claimed = await claimJob(
+      LIFECYCLE_JOB_NAME,
+      LIFECYCLE_LEASE_SECONDS,
+    );
+  } catch (error) {
+    console.error(
+      'Failed to claim X promotion lifecycle cron:',
+      error,
+    );
+    return {
+      ok: false,
+      skipped: false,
+      error:
+        'X promotion lifecycle lease could not be claimed.',
+    };
+  }
+
+  if (!claimed) {
+    return {
+      ok: true,
+      skipped: true,
+      reason:
+        'NOT_DUE_OR_ALREADY_RUNNING',
+    };
+  }
+
+  try {
+    await markCronJobStarted(
+      LIFECYCLE_JOB_NAME,
+    );
+
+    const result =
+      await runRewardXPromotionLifecycleMaintenance();
+
+    await markCronJobSucceeded(
+      LIFECYCLE_JOB_NAME,
+    );
+
+    return {
+      ok: true,
+      skipped: false,
+      result,
+    };
+  } catch (error) {
+    console.error(
+      'X promotion lifecycle maintenance failed:',
+      error,
+    );
+
+    try {
+      await markCronJobFailed(
+        LIFECYCLE_JOB_NAME,
+        error,
+      );
+    } catch (
+      heartbeatError
+    ) {
+      console.error(
+        'Failed to record X promotion lifecycle cron failure:',
+        heartbeatError,
+      );
+    }
+
+    return {
+      ok: false,
+      skipped: false,
+      error:
+        'X promotion lifecycle maintenance failed.',
+    };
+  }
+}
+
+async function runPayoutJob():
+Promise<JobResult> {
+  let claimed: boolean;
+
+  try {
+    claimed = await claimJob(
+      PAYOUT_JOB_NAME,
+      PAYOUT_LEASE_SECONDS,
+    );
+  } catch (error) {
+    console.error(
+      'Failed to claim X promotion payout cron:',
+      error,
+    );
+    return {
+      ok: false,
+      skipped: false,
+      error:
+        'X promotion payout lease could not be claimed.',
+    };
+  }
+
+  if (!claimed) {
+    return {
+      ok: true,
+      skipped: true,
+      reason:
+        'NOT_DUE_OR_ALREADY_RUNNING',
+    };
+  }
+
+  try {
+    await markCronJobStarted(
+      PAYOUT_JOB_NAME,
+    );
+
+    const result =
+      await runRewardXPromotionPayout();
+
+    if (
+      PAYOUT_FAILURE_STATUSES.has(
+        result.status,
+      )
+    ) {
+      throw new Error(
+        `X promotion payout requires operator attention: ${result.status}${result.reason ? ` - ${result.reason}` : ''}`,
+      );
+    }
+
+    await markCronJobSucceeded(
+      PAYOUT_JOB_NAME,
+    );
+
+    return {
+      ok: true,
+      skipped: false,
+      result,
+    };
+  } catch (error) {
+    console.error(
+      'X promotion payout maintenance failed:',
+      error,
+    );
+
+    try {
+      await markCronJobFailed(
+        PAYOUT_JOB_NAME,
+        error,
+      );
+    } catch (
+      heartbeatError
+    ) {
+      console.error(
+        'Failed to record X promotion payout cron failure:',
+        heartbeatError,
+      );
+    }
+
+    return {
+      ok: false,
+      skipped: false,
+      error:
+        'X promotion payout maintenance failed.',
+    };
+  }
+}
+
 export async function GET(
   request: NextRequest,
 ) {
@@ -107,110 +305,33 @@ export async function GET(
     );
   }
 
-  let claimed = false;
+  // Keep lifecycle and payout monitoring independent. A failure in the
+  // optional payout worker must not hide or overwrite lifecycle health.
+  // Sequential execution avoids races with opportunity/security transitions.
+  const lifecycle =
+    await runLifecycleJob();
+  const payout =
+    await runPayoutJob();
 
-  try {
-    claimed =
-      await tryClaimCronJob(
-        JOB_NAME,
-        MIN_SUCCESS_INTERVAL_SECONDS,
-        LEASE_SECONDS,
-      );
-  } catch (error) {
-    console.error(
-      'Failed to claim X promotion lifecycle cron:',
-      error,
-    );
-
-    return NextResponse.json(
-      {
-        error:
-          'X promotion lifecycle lease could not be claimed.',
+  return NextResponse.json(
+    {
+      ok:
+        lifecycle.ok &&
+        payout.ok,
+      jobs: {
+        lifecycle,
+        payout,
       },
-      {
-        status: 500,
-        headers: {
-          'Cache-Control':
-            'no-store',
-        },
+    },
+    {
+      // Per-job heartbeat state is authoritative for operational failures.
+      // Keep the cron request successful so one optional sub-job does not
+      // cause Vercel to retry and duplicate the other sub-job.
+      status: 200,
+      headers: {
+        'Cache-Control':
+          'no-store',
       },
-    );
-  }
-
-  if (!claimed) {
-    return NextResponse.json(
-      {
-        ok: true,
-        skipped: true,
-        reason:
-          'NOT_DUE_OR_ALREADY_RUNNING',
-      },
-      {
-        headers: {
-          'Cache-Control':
-            'no-store',
-        },
-      },
-    );
-  }
-
-  try {
-    await markCronJobStarted(
-      JOB_NAME,
-    );
-
-    const result =
-      await runRewardXPromotionLifecycleMaintenance();
-
-    await markCronJobSucceeded(
-      JOB_NAME,
-    );
-
-    return NextResponse.json(
-      {
-        ok: true,
-        skipped: false,
-        result,
-      },
-      {
-        headers: {
-          'Cache-Control':
-            'no-store',
-        },
-      },
-    );
-  } catch (error) {
-    console.error(
-      'X promotion lifecycle maintenance failed:',
-      error,
-    );
-
-    try {
-      await markCronJobFailed(
-        JOB_NAME,
-        error,
-      );
-    } catch (
-      heartbeatError
-    ) {
-      console.error(
-        'Failed to record X promotion lifecycle cron failure:',
-        heartbeatError,
-      );
-    }
-
-    return NextResponse.json(
-      {
-        error:
-          'X promotion lifecycle maintenance failed.',
-      },
-      {
-        status: 500,
-        headers: {
-          'Cache-Control':
-            'no-store',
-        },
-      },
-    );
-  }
+    },
+  );
 }
