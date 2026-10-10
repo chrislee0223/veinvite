@@ -64,7 +64,9 @@ test('slow VeWorld prompt is shown as still pending with disconnect but without 
   assert.match(gate, /\{hasError \? \([\s\S]*onClick=\{onRetry\}/);
   assert.match(gate, /isSlow=\{isSlow\}/);
   assert.match(gate, /const slowNotice = window\.setTimeout\([\s\S]*setState\('slow'\)/);
-  assert.doesNotMatch(gate, /const slowNotice = window\.setTimeout\([\s\S]{0,450}setState\('error'\)/);
+  // Only the participation API, not the still-live signing prompt, may
+  // transition to its retryable timeout state.
+  assert.match(gate, /if \(checkingParticipation\) \{[\s\S]*?setState\('error'\);[\s\S]*?return;[\s\S]*?setState\('slow'\)/);
 });
 
 test('provider reconciliation holds its lock until original transport settles', async () => {
