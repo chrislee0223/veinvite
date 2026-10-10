@@ -170,7 +170,7 @@ begin
 
   return v_obligation.id;
 end;
-$function$
+$function$;
 
 
 CREATE OR REPLACE FUNCTION public.upsert_reward_recovery_obligation_for_restriction(p_restriction_id uuid)
@@ -376,7 +376,7 @@ begin
 
   return v_obligation.id;
 end;
-$function$
+$function$;
 
 
 
