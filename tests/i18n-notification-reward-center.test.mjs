@@ -20,6 +20,7 @@ const rewardShare = read('src/lib/rewards/rewardReceiptShare.ts');
 const rewardPaidCopy = read('src/lib/i18n/rewardPaidNotificationCopy.ts');
 const rewardAdjustedCopy = read('src/lib/i18n/rewardAdjustedCopy.ts');
 const rewardReceiptView = read('src/components/RewardReceiptView.tsx');
+const rewardXPromotionAction = read('src/components/RewardXPromotionReceiptAction.tsx');
 const qaHarness = read('src/qa/QaNotificationStateHarness.tsx');
 const rootLayout = read('src/app/layout.tsx');
 const legacyInvitePage = read('src/app/i/[code]/page.tsx');
@@ -166,8 +167,10 @@ test('paid reward receipt shares the verified permanent invite link on X', () =>
   assert.match(center, /rewardShareUrl/);
   assert.match(center, /<RewardReceiptView/);
   assert.match(rewardReceiptView, /rewardReceiptXIntentUrl/);
-  assert.match(rewardReceiptView, /className="notificationXShare"/);
-  assert.match(rewardReceiptView, /window\.open\(\s*rewardShareIntentUrl/);
+  assert.match(rewardReceiptView, /<RewardXPromotionReceiptAction/);
+  assert.match(rewardXPromotionAction, /className="notificationXShare/);
+  assert.match(rewardXPromotionAction, /window\.open\(/);
+  assert.match(rewardXPromotionAction, /ordinaryShareIntentUrl/);
   assert.match(rewardPaidTransient, /buildProductionSharePageUrl/);
   assert.match(
     rewardPaidTransient,
