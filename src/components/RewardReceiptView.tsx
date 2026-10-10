@@ -233,6 +233,21 @@ export function RewardReceiptView({
                     : promotionCopy.released
     : '';
 
+  const promotionHeadingText = promotion
+    ? promotion.state === 'OPEN'
+      ? promotionCopy.shareBonus.replace(
+          '{amount}',
+          promotion.amountB3tr,
+        )
+      : promotionStatusText
+    : '';
+
+  const showPromotionAmount = Boolean(
+    promotion &&
+    promotion.state !== 'EXPIRED' &&
+    promotion.state !== 'RELEASED',
+  );
+
   return (
     <div className="notificationReceiptView">
       {loading ? (
@@ -278,16 +293,15 @@ export function RewardReceiptView({
           {promotion ? (
             <section className="notificationXPromotion" aria-live="polite">
               <div className="notificationXPromotionHeading">
-                <strong>
-                  {promotionCopy.shareBonus.replace(
-                    '{amount}',
-                    promotion.amountB3tr,
-                  )}
-                </strong>
-                <span>+{promotion.amountB3tr} B3TR</span>
+                <strong>{promotionHeadingText}</strong>
+                {showPromotionAmount ? (
+                  <span>+{promotion.amountB3tr} B3TR</span>
+                ) : null}
               </div>
 
-              <p>{promotionStatusText}</p>
+              {promotion.state === 'OPEN' ? (
+                <p>{promotionStatusText}</p>
+              ) : null}
 
               {promotion.state === 'OPEN' && promotionShareIntentUrl ? (
                 <button
