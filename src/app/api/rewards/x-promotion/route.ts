@@ -13,6 +13,41 @@ import {
 const INVITE_CODE_PATTERN = /^[A-HJ-NP-Z2-9]{7}$/u;
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/u;
 
+type OpportunityRow = {
+  id: string | number;
+  obligation_id: string | number;
+  promotion_amount_wei: string | number;
+  opened_at: string;
+  post_deadline_at: string;
+  submission_grace_seconds: number;
+  share_token: string;
+};
+
+type ObligationRow = {
+  id: string | number;
+  financial_state: string;
+  held_at: string | null;
+  released_at: string | null;
+  paid_at: string | null;
+};
+
+type SubmissionRow = {
+  id: string | number;
+  submission_state: string;
+  submitted_at: string;
+  verified_at: string | null;
+  invalidated_at: string | null;
+};
+
+type VerificationRow = {
+  id: string | number;
+  verification_state: string;
+  initial_verified_at: string;
+  verify_after: string;
+  final_verified_at: string | null;
+  invalidated_at: string | null;
+};
+
 type PromotionState =
   | 'OPEN'
   | 'SUBMISSION_GRACE'
@@ -153,7 +188,10 @@ export async function GET(
       );
     }
 
-    if (!opportunity.data) {
+    const opportunityRow =
+      opportunity.data as unknown as OpportunityRow | null;
+
+    if (!opportunityRow) {
       return NextResponse.json(
         {
           newOffersEnabled,
@@ -169,11 +207,11 @@ export async function GET(
     }
 
     const amountWei =
-      String(opportunity.data.promotion_amount_wei ?? '');
+      String(opportunityRow.promotion_amount_wei ?? '');
     const graceSeconds =
-      Number(opportunity.data.submission_grace_seconds);
+      Number(opportunityRow.submission_grace_seconds);
     const deadlineAt =
-      safeIso(opportunity.data.post_deadline_at);
+      safeIso(opportunityRow.post_deadline_at);
 
     if (
       !/^\d+$/u.test(amountWei) ||
@@ -199,7 +237,7 @@ export async function GET(
         )
         .eq(
           'id',
-          opportunity.data.obligation_id,
+          opportunityRow.obligation_id,
         )
         .single(),
       supabaseAdmin
@@ -209,7 +247,7 @@ export async function GET(
         )
         .eq(
           'opportunity_id',
-          opportunity.data.id,
+          opportunityRow.id,
         )
         .order('id', { ascending: false })
         .limit(1)
@@ -221,7 +259,7 @@ export async function GET(
         )
         .eq(
           'opportunity_id',
-          opportunity.data.id,
+          opportunityRow.id,
         )
         .order('id', { ascending: false })
         .limit(1)
@@ -244,8 +282,15 @@ export async function GET(
       );
     }
 
+    const obligationRow =
+      obligation.data as unknown as ObligationRow;
+    const submissionRow =
+      submission.data as unknown as SubmissionRow | null;
+    const verificationRow =
+      verification.data as unknown as VerificationRow | null;
+
     const financialState =
-      String(obligation.data.financial_state ?? '');
+      String(obligationRow.financial_state ?? '');
     if (
       !['RESERVED', 'HELD', 'RELEASED', 'PAID'].includes(
         financialState,
@@ -257,7 +302,7 @@ export async function GET(
     }
 
     const shareToken = String(
-      opportunity.data.share_token ?? '',
+      opportunityRow.share_token ?? '',
     ).toLowerCase();
 
     if (!UUID_PATTERN.test(shareToken)) {
@@ -269,15 +314,15 @@ export async function GET(
     const state = readState({
       financialState,
       submissionState:
-        submission.data
+        submissionRow
           ? String(
-              submission.data.submission_state ?? '',
+              submissionRow.submission_state ?? '',
             )
           : null,
       verificationState:
-        verification.data
+        verificationRow
           ? String(
-              verification.data.verification_state ?? '',
+              verificationRow.verification_state ?? '',
             )
           : null,
       postDeadlineAt: deadlineAt,
@@ -294,7 +339,7 @@ export async function GET(
           amountB3tr:
             formatWeiAsB3tr(amountWei, 18),
           openedAt:
-            safeIso(opportunity.data.opened_at),
+            safeIso(opportunityRow.opened_at),
           postDeadlineAt: deadlineAt,
           submissionGraceSeconds:
             graceSeconds,
@@ -306,14 +351,14 @@ export async function GET(
               : null,
           submittedAt:
             safeIso(
-              submission.data?.submitted_at,
+              submissionRow?.submitted_at,
             ),
           verifyAfter:
             safeIso(
-              verification.data?.verify_after,
+              verificationRow?.verify_after,
             ),
           paidAt:
-            safeIso(obligation.data.paid_at),
+            safeIso(obligationRow.paid_at),
         },
       },
       {
