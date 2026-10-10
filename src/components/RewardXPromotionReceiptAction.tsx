@@ -9,6 +9,9 @@ import {
 
 import type { SupportedLocale } from '@/lib/i18n/locales';
 import {
+  formatRewardShareAmount,
+} from '@/lib/rewards/rewardReceiptShare';
+import {
   buildRewardXPromotionIntentUrl,
   loadRewardXPromotion,
   submitRewardXPromotionPost,
@@ -202,10 +205,13 @@ export function RewardXPromotionReceiptAction({
     return ordinaryShare();
   }
 
+  const promotionDisplayAmount =
+    formatRewardShareAmount(promotion.amountB3tr);
+
   if (promotion.state === 'PAID') {
     return (
       <div className="promotionStatus paid" role="status">
-        <strong>{copy.paid(promotion.amountB3tr)}</strong>
+        <strong>{copy.paid(promotionDisplayAmount)}</strong>
         <style jsx>{styles}</style>
       </div>
     );
@@ -276,7 +282,7 @@ export function RewardXPromotionReceiptAction({
           className="notificationXShare promotion"
           onClick={() => openIntent(promotionIntentUrl)}
         >
-          {copy.promo(promotion.amountB3tr)}
+          {copy.promo(promotionDisplayAmount)}
         </button>
       ) : null}
 
