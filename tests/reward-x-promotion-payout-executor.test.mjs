@@ -26,13 +26,15 @@ const cron = await readFile(
   'utf8',
 );
 
-test('new X promotion signing requires independent worker and DB LIVE gates', () => {
+test('new X promotion signing requires worker, DB LIVE and DB payout gates', () => {
   assert.match(source, /VEINVITE_X_PROMOTION_PAYOUT_WORKER_ENABLED/);
   assert.match(source, /VEINVITE_AUTOMATIC_REWARDS_ENABLED/);
   assert.match(
     source,
-    /reward_x_promotion_enabled,reward_x_promotion_live_started_at/,
+    /reward_x_promotion_enabled,reward_x_promotion_payout_enabled,reward_x_promotion_live_started_at/,
   );
+  assert.match(source, /payoutEnabled/);
+  assert.match(source, /X promotion payout is disabled/);
   assert.match(source, /X promotion LIVE is disabled/);
 });
 
@@ -95,6 +97,10 @@ test('LIVE, security and core priority are rechecked immediately before private-
   assert.match(
     source,
     /X promotion LIVE was disabled before signing/,
+  );
+  assert.match(
+    source,
+    /X promotion payout was disabled before signing/,
   );
 });
 
@@ -218,4 +224,32 @@ test('already committed promotion payouts are selected before fresh intents', ()
 test('promotion executor is not yet wired into lifecycle cron', () => {
   assert.doesNotMatch(cron, /rewardXPromotionPayoutExecutor/);
   assert.doesNotMatch(cron, /runRewardXPromotionPayout/);
+});
+
+
+test('committed exact-tx recovery remains before new payout gating', () => {
+  const exported = source.indexOf(
+    'export async function runRewardXPromotionPayout',
+  );
+  const committedLookup = source.indexOf(
+    'findCommittedPromotionIntentId',
+    exported,
+  );
+  const recovery = source.indexOf(
+    'recoverCommittedLocked',
+    committedLookup,
+  );
+  const runtimeGate = source.indexOf(
+    'const runtime = await readRuntimeGate',
+    recovery,
+  );
+  const payoutGate = source.indexOf(
+    '!runtime.payoutEnabled',
+    runtimeGate,
+  );
+
+  assert.ok(committedLookup >= 0);
+  assert.ok(recovery > committedLookup);
+  assert.ok(runtimeGate > recovery);
+  assert.ok(payoutGate > runtimeGate);
 });
