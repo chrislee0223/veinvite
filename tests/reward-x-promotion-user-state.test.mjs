@@ -18,11 +18,11 @@ test('LIVE gate controls new availability without hiding existing obligations', 
   assert.doesNotMatch(route, /if \(!live\)[\s\S]{0,300}promotion: null/);
   assert.match(
     route,
-    /if \(!opportunity\.data\)[\s\S]*live,[\s\S]*promotion: null/,
+    /if \(!opportunity\.data\)[\s\S]*newOffersEnabled,[\s\S]*promotion: null/,
   );
   assert.match(
     route,
-    /live,[\s\S]*promotion: \{/,
+    /newOffersEnabled,[\s\S]*promotion: \{/,
   );
 });
 
