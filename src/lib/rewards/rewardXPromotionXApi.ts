@@ -1,6 +1,9 @@
 import 'server-only';
 
 const X_POST_ID_PATTERN = /^[0-9]{1,32}$/u;
+const REFERRAL_KEY_PATTERN = /^(?:[A-Za-z0-9_-]{16}|[A-Za-z0-9_-]{22,64})$/u;
+const PROMOTION_TOKEN_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/u;
+const PROMOTION_QUERY_PARAM = 'xp';
 const X_API_TIMEOUT_MS = 8_000;
 
 type XReferencedPost = {
@@ -104,19 +107,43 @@ export function findVeInvitePromotionUrl(
 ): string | null {
   const token = shareToken.trim().toLowerCase();
 
-  if (!token) return null;
+  if (!PROMOTION_TOKEN_PATTERN.test(token)) {
+    return null;
+  }
 
   for (const candidate of expandedUrls) {
     try {
       const url = new URL(candidate);
 
       if (
-        url.protocol === 'https:' &&
-        url.hostname.toLowerCase() === 'veinvite.vercel.app' &&
-        url.toString().toLowerCase().includes(token)
+        url.protocol !== 'https:' ||
+        url.hostname.toLowerCase() !== 'veinvite.vercel.app'
       ) {
-        return url.toString();
+        continue;
       }
+
+      const match =
+        /^\/s\/([^/?#]+)\/?$/u.exec(url.pathname);
+      if (
+        !match ||
+        !REFERRAL_KEY_PATTERN.test(match[1])
+      ) {
+        continue;
+      }
+
+      const promotionTokens =
+        url.searchParams.getAll(
+          PROMOTION_QUERY_PARAM,
+        );
+
+      if (
+        promotionTokens.length !== 1 ||
+        promotionTokens[0]?.trim().toLowerCase() !== token
+      ) {
+        continue;
+      }
+
+      return url.toString();
     } catch {
       // Ignore malformed X entity URLs.
     }
