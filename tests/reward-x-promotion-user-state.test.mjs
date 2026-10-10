@@ -43,7 +43,7 @@ test('user X promotion state is read-only and isolated from core reward authorit
 test('share token is validated and exposed only while the offer is open', () => {
   assert.match(
     route,
-    /now <= postDeadline[\s\S]*'OPEN'[\s\S]*'SUBMISSION_GRACE'/,
+    /now <= postDeadline[\s\S]*'OPEN'[\s\S]*'SUBMISSION_GRACE'[\s\S]*'EXPIRED'/,
   );
   assert.match(route, /UUID_PATTERN/);
   assert.match(route, /Stored X promotion share token is malformed/);
@@ -63,6 +63,7 @@ test('promotion state preserves verification and terminal outcomes', () => {
     'REVIEW_REQUIRED',
     'PAYOUT_PENDING',
     'PAID',
+    'EXPIRED',
     'RELEASED',
   ]) {
     assert.match(route, new RegExp(`'${state}'`));
