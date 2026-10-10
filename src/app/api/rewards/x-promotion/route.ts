@@ -15,6 +15,7 @@ const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3
 
 type PromotionState =
   | 'OPEN'
+  | 'SUBMISSION_GRACE'
   | 'VERIFYING'
   | 'RETENTION'
   | 'REVIEW_REQUIRED'
@@ -57,12 +58,18 @@ function readState({
   if (verificationState === 'INITIAL_VERIFIED') return 'RETENTION';
   if (submissionState === 'PENDING') return 'VERIFYING';
 
-  const deadline =
-    Date.parse(postDeadlineAt) +
-    submissionGraceSeconds * 1000;
+  const postDeadline =
+    Date.parse(postDeadlineAt);
+  const now = Date.now();
 
-  return Date.now() <= deadline
-    ? 'OPEN'
+  if (now <= postDeadline) {
+    return 'OPEN';
+  }
+
+  return now <=
+    postDeadline +
+      submissionGraceSeconds * 1000
+    ? 'SUBMISSION_GRACE'
     : 'RELEASED';
 }
 
