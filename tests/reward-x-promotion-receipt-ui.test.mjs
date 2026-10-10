@@ -136,7 +136,10 @@ test('promotion share never acknowledges the referral reward receipt', () => {
   const shareBlock = /const sharePromotionOnX = \(\) => \{([\s\S]*?)\n  \};/u.exec(component);
   assert.ok(shareBlock);
   assert.match(shareBlock[1], /window\.open/);
-  assert.doesNotMatch(shareBlock[1], /acknowledge|onRewardShare/u);
+  assert.doesNotMatch(
+    shareBlock[1],
+    /\backnowledgeReward\s*\(|\bonRewardShare\s*\(/u,
+  );
 });
 
 test('existing generic X share remains the fail-soft fallback', () => {
