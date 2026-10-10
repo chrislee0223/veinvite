@@ -148,7 +148,7 @@ function readDistributorIdentity(): DistributorIdentity {
 async function readRuntimeGate() {
   const query = await supabaseAdmin
     .from('reward_runtime_config')
-    .select('reward_x_promotion_enabled,reward_x_promotion_live_started_at')
+    .select('reward_x_promotion_payout_enabled,reward_x_promotion_live_started_at')
     .eq('id', 1)
     .single();
 
@@ -159,7 +159,7 @@ async function readRuntimeGate() {
   }
 
   return {
-    liveEnabled: query.data.reward_x_promotion_enabled === true,
+    payoutEnabled: query.data.reward_x_promotion_payout_enabled === true,
     liveStartedAt:
       typeof query.data.reward_x_promotion_live_started_at === 'string'
         ? query.data.reward_x_promotion_live_started_at
@@ -505,8 +505,8 @@ async function signAndJournal(
     ),
   ]);
 
-  if (!runtimeBeforeSign.liveEnabled || !runtimeBeforeSign.liveStartedAt) {
-    throw new Error('X promotion LIVE was disabled before signing.');
+  if (!runtimeBeforeSign.payoutEnabled || !runtimeBeforeSign.liveStartedAt) {
+    throw new Error('X promotion payout signing was disabled before signing.');
   }
   if (securityBeforeSign.error) {
     throw new Error(
@@ -692,9 +692,9 @@ async function recoverCommittedLocked(
 /**
  * Dormant pre-LIVE executor.
  *
- * No cron or route imports this module yet. New signing needs BOTH the dedicated
- * worker env flag and DB LIVE. The current DB activation interlock still blocks
- * LIVE, so merging this module cannot transfer B3TR.
+ * No cron or route imports this module yet. Fresh signing needs BOTH the dedicated
+ * worker env flag and the independent DB payout gate. The current DB activation
+ * interlock still blocks creation of new LIVE offers, so this remains dormant.
  *
  * An already signed+journaled transaction is different: recovery may rebroadcast
  * and finalize that exact immutable transaction even after new signing is
@@ -719,9 +719,9 @@ Promise<RewardXPromotionPayoutResult> {
   }
 
   const runtime = await readRuntimeGate();
-  if (!runtime.liveEnabled || !runtime.liveStartedAt) {
+  if (!runtime.payoutEnabled || !runtime.liveStartedAt) {
     return result(network, 'DISABLED', {
-      reason: 'X promotion LIVE is disabled.',
+      reason: 'X promotion payout signing is disabled.',
     });
   }
 
