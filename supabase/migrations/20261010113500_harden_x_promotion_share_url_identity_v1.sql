@@ -2,6 +2,27 @@
 -- URL for both initial and final X promotion verification.
 -- LIVE and payout remain disabled while this migration is introduced.
 
+do $
+declare
+  v_live boolean;
+  v_payout boolean;
+begin
+  select
+    reward_x_promotion_enabled,
+    reward_x_promotion_payout_enabled
+  into v_live,v_payout
+  from public.reward_runtime_config
+  where id=1;
+
+  if not found then
+    raise exception 'REWARD_RUNTIME_CONFIG_MISSING';
+  end if;
+
+  if coalesce(v_live,false) or coalesce(v_payout,false) then
+    raise exception 'REWARD_X_PROMOTION_URL_HARDENING_REQUIRES_LIVE_AND_PAYOUT_DISABLED';
+  end if;
+end $;
+
 create or replace function public.reward_x_promotion_share_url_matches_v1(
   p_url text,
   p_share_token uuid,
