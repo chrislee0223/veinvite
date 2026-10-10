@@ -11,6 +11,9 @@ import {
   findPayablePromotionIntentId,
 } from '@/lib/rewards/rewardXPromotionPayoutCandidates';
 import {
+  reconcileRewardXPromotionRecoveryBestEffort,
+} from '@/lib/rewards/rewardXPromotionRecovery';
+import {
   buildXPromotionPayoutManifest,
   type XPromotionPayoutManifest,
 } from '@/lib/rewards/rewardXPromotionPayoutManifest';
@@ -642,6 +645,11 @@ async function finalizeIfPossible(
   if (error) {
     throw new Error(`X promotion payout settlement failed: ${error.message}`);
   }
+
+  await reconcileRewardXPromotionRecoveryBestEffort(
+    String(state.intent.invite_code),
+  );
+
   return 'PAID' as const;
 }
 
@@ -651,6 +659,10 @@ async function recoverCommittedLocked(
 ): Promise<RewardXPromotionPayoutResult> {
   const state = await loadIntentState(intentId);
   if (state.settlement) {
+    await reconcileRewardXPromotionRecoveryBestEffort(
+      String(state.intent.invite_code),
+    );
+
     return result(network, 'PAID', {
       intentId,
       manifestId: state.manifest ? String(state.manifest.id) : null,
@@ -694,10 +706,11 @@ async function recoverCommittedLocked(
 }
 
 /**
- * Dormant pre-LIVE executor.
+ * Guarded X promotion payout executor.
  *
- * No cron or route imports this module yet. New signing needs the dedicated
- * worker env flag, DB LIVE, and the independent DB payout gate. The current DB
+ * The maintenance cron may call this while the feature is dormant. New signing
+ * still needs the dedicated worker env flag, DB LIVE, and the independent DB
+ * payout gate. The current DB
  * activation interlock still blocks LIVE, so this module cannot transfer B3TR.
  *
  * An already signed+journaled transaction is different: recovery may rebroadcast
