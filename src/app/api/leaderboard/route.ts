@@ -61,6 +61,11 @@ type GrowthRow = {
   cumulative_activated_returning_users: number | string;
 };
 
+type PromotionTotalRow = {
+  wallet_address: string;
+  total_promotion_reward_wei: string;
+};
+
 function parseCount(
   value: number | string,
   fieldName: string,
@@ -239,6 +244,102 @@ function wait(milliseconds: number) {
   return new Promise<void>((resolve) => {
     setTimeout(resolve, milliseconds);
   });
+}
+
+async function addPaidXPromotionTotals({
+  entries,
+  network,
+}: {
+  entries: PublicLeaderboardEntry[];
+  network: VeBetterNetwork;
+}): Promise<PublicLeaderboardEntry[]> {
+  const wallets = Array.from(
+    new Set(
+      entries.map((entry) =>
+        entry.walletAddress.toLowerCase(),
+      ),
+    ),
+  );
+
+  if (wallets.length === 0) {
+    return entries;
+  }
+
+  const readPromotionTotals = () =>
+    supabaseAdmin.rpc(
+      'get_paid_reward_x_promotion_totals_v1',
+      {
+        p_network: network,
+        p_wallets: wallets,
+      },
+    );
+
+  try {
+    let result = await readPromotionTotals();
+
+    if (isTransientAuthClockSkew(result.error)) {
+      await wait(TRANSIENT_AUTH_RETRY_MS);
+      result = await readPromotionTotals();
+    }
+
+    if (result.error) {
+      console.error(
+        'Paid X promotion leaderboard totals could not be loaded; core referral totals remain available:',
+        result.error,
+      );
+      return entries;
+    }
+
+    const totals = new Map<string, bigint>();
+
+    for (const row of
+      (result.data ?? []) as PromotionTotalRow[]) {
+      const wallet =
+        row.wallet_address.trim().toLowerCase();
+      const amount =
+        row.total_promotion_reward_wei;
+
+      if (
+        !WALLET_PATTERN.test(wallet) ||
+        !/^\d+$/.test(amount)
+      ) {
+        throw new Error(
+          'Paid X promotion leaderboard totals returned malformed data.',
+        );
+      }
+
+      totals.set(
+        wallet,
+        (totals.get(wallet) ?? 0n) +
+          BigInt(amount),
+      );
+    }
+
+    return entries.map((entry) => {
+      const promotionWei =
+        totals.get(
+          entry.walletAddress.toLowerCase(),
+        ) ?? 0n;
+
+      if (promotionWei === 0n) {
+        return entry;
+      }
+
+      return {
+        ...entry,
+        totalRewardWei: (
+          BigInt(entry.totalRewardWei) +
+          promotionWei
+        ).toString(),
+      };
+    });
+  } catch (error) {
+    console.error(
+      'Paid X promotion leaderboard totals were ignored after a malformed optional read:',
+      error,
+    );
+    return entries;
+  }
 }
 
 function normalizeComparison({
@@ -576,6 +677,11 @@ export async function GET(
     if (!comparison.available) {
       entries = entries.map((entry) => withoutMovement(entry));
     }
+
+    entries = await addPaidXPromotionTotals({
+      entries,
+      network: round.network,
+    });
 
     const growthRows = (
       (growthResult.data ?? []) as GrowthRow[]
