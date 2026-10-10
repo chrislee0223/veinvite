@@ -10,14 +10,19 @@ const route = await readFile(
   'utf8',
 );
 
-test('user X promotion state is hidden while LIVE is disabled', () => {
+test('LIVE gate controls new availability without hiding existing obligations', () => {
   assert.match(
     route,
     /reward_x_promotion_enabled,reward_x_promotion_live_started_at/,
   );
+  assert.doesNotMatch(route, /if \(!live\)[\s\S]{0,300}promotion: null/);
   assert.match(
     route,
-    /if \(!live\)[\s\S]*live: false,[\s\S]*promotion: null/,
+    /if \(!opportunity\.data\)[\s\S]*live,[\s\S]*promotion: null/,
+  );
+  assert.match(
+    route,
+    /live,[\s\S]*promotion: \{/,
   );
 });
 
