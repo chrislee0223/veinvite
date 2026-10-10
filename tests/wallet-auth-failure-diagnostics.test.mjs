@@ -49,6 +49,13 @@ test('proof rejection diagnostics expose reference and reason without wallet or 
   assert.match(route, /walletVerifyFailureCodeForMessage\(message\)/);
   assert.match(route, /const referenceId = randomBytes\(8\)\.toString\('hex'\)/);
   assert.match(route, /console\.warn\('Wallet verification denied\.', \{\s*code,\s*status,\s*referenceId,/);
+  assert.match(route, /certificateVerificationDiagnostic/);
+  assert.match(route, /proofHexChars/);
+  assert.match(route, /proofHasHexPrefix/);
+  assert.match(route, /proofIsHex/);
+  assert.match(route, /timestampSafeInteger/);
+  assert.match(route, /domainPresent/);
+  assert.match(route, /signerPresent/);
   assert.match(route, /\{ error: message, code, referenceId \}/);
   const logStart = route.indexOf("console.warn('Wallet verification denied.'");
   const logEnd = route.indexOf('});', logStart);
@@ -81,6 +88,22 @@ test('mobile auth sends server diagnostic codes to visible support UI without ch
   assert.doesNotMatch(hook, /await connectV2\(/);
   assert.match(hook, /await requestCertificate\(/);
   assert.match(hook, /proofType =\s*'certificate'/);
+  assert.match(
+    hook,
+    /verification\.body\.code ===[\s\S]*'AUTH_CERTIFICATE_SIGNATURE_INVALID'/,
+  );
+  assert.match(
+    hook,
+    /retryCertificateProof =[\s\S]*signCertificateFallback/,
+  );
+  assert.match(
+    hook,
+    /Exactly one recovery prompt/,
+  );
+  assert.doesNotMatch(
+    hook,
+    /AUTH_CERTIFICATE_SIGNATURE_INVALID[\s\S]{0,1200}\/api\/auth\/challenge/,
+  );
   assert.doesNotMatch(hook, /await requestTypedData\(/);
 });
 
@@ -138,4 +161,42 @@ test('supplemental wallet language packs include all four recovery and participa
       assert.match(section, new RegExp(`\\b${key}: ['"]`), `${locale} is missing ${key}`);
     }
   }
+});
+
+
+test('certificate recovery keeps the original challenge and retries only the wallet proof once', async () => {
+  const hook = await readFile(
+    new URL('../src/hooks/useWalletAuthentication.ts', import.meta.url),
+    'utf8',
+  );
+
+  assert.match(
+    hook,
+    /The failed challenge is still unused[\s\S]*retry only the wallet[\s\S]*certificate once/,
+  );
+  assert.match(
+    hook,
+    /retrySigner !== walletAddress[\s\S]*retryDappSigner !==[\s\S]*walletAddress/,
+  );
+  assert.match(
+    hook,
+    /await retryCertificateProof\(\)[\s\S]*verification =[\s\S]*await verifyCurrentProof\(\)/,
+  );
+
+  const retryMarker = hook.indexOf(
+    "verification.body.code ===",
+  );
+  const retrySection = hook.slice(
+    retryMarker,
+    retryMarker + 4200,
+  );
+  assert.equal(
+    (retrySection.match(/await retryCertificateProof\(\)/g) ?? []).length,
+    1,
+    'invalid certificates must open at most one recovery signing prompt',
+  );
+  assert.doesNotMatch(
+    retrySection,
+    /fetch\([\s\S]*\/api\/auth\/challenge/,
+  );
 });
