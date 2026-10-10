@@ -24,9 +24,6 @@ import {
 import {
   reportProductAnalyticsEvent,
 } from '@/lib/productAnalytics';
-import {
-  buildWalletAuthTypedData,
-} from '@/lib/walletAuthTypedData';
 import { USAGE_ANALYTICS_WALLET_AUTH_EVENT } from '@/lib/usageAnalyticsPreference';
 
 const WALLET_PATTERN =
@@ -173,8 +170,6 @@ export function useWalletAuthentication() {
   } = useVeChainKitWallet();
   const {
     account: dappKitAccount,
-    source: dappKitSource,
-    requestTypedData,
     requestCertificate,
   } = useDappKitWallet();
 
@@ -450,52 +445,14 @@ export function useWalletAuthentication() {
                     'certificate';
                 };
 
-              const shouldUseVeWorldTypedData =
-                dappKitSource === 'veworld' &&
-                Boolean(
-                  challenge.origin &&
-                    challenge.network,
-                );
-
-              if (shouldUseVeWorldTypedData) {
-                failureStage = 'AUTH_WALLET_SIGNATURE';
-                const typedData =
-                  buildWalletAuthTypedData({
-                    walletAddress,
-                    nonce:
-                      challenge.nonce,
-                    expiresAt:
-                      challenge.expiresAt,
-                    origin:
-                      challenge.origin!,
-                    network:
-                      challenge.network!,
-                    message:
-                      challenge.message,
-                  });
-
-                // The wallet is already connected at this point. Calling
-                // connectV2() again re-enters VeWorld's connection/login flow
-                // and can show a second login screen even though the first
-                // connection succeeded. Request only the EIP-712 signature
-                // from the established signer instead.
-                signature =
-                  await requestTypedData(
-                    typedData.domain,
-                    typedData.types,
-                    typedData.value,
-                    {
-                      signer,
-                    },
-                  );
-
-                assertStillCurrent();
-                proofType =
-                  'typed_data';
-              } else {
-                failureStage = 'AUTH_WALLET_SIGNATURE';
-                await signCertificateFallback();
-              }
+              // VeWorld's EIP-712 signing path produced typed-signer
+              // mismatches in production for otherwise connected accounts.
+              // Use DAppKit's native VeChain certificate challenge instead.
+              // The server checks the signer, origin, nonce-bound message,
+              // timestamp and cryptographic signature before issuing a cookie.
+              // This does NOT admit an unverified wallet or bypass Sybil checks.
+              failureStage = 'AUTH_WALLET_SIGNATURE';
+              await signCertificateFallback();
             } else {
               failureStage = 'AUTH_WALLET_SIGNATURE';
               signature =
@@ -659,8 +616,6 @@ export function useWalletAuthentication() {
         account?.address,
         connection.isConnectedWithDappKit,
         dappKitAccount,
-        dappKitSource,
-        requestTypedData,
         requestCertificate,
         signMessage,
       ],

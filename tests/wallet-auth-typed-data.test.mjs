@@ -14,15 +14,18 @@ const [
   readFile('src/lib/walletAuthTypedData.ts', 'utf8'),
 ]);
 
-test('VeWorld ownership auth uses one established-wallet EIP-712 prompt', () => {
-  assert.match(authHook, /dappKitSource === 'veworld'/);
-  assert.match(authHook, /await requestTypedData\(/);
-  assert.match(authHook, /typedData\.domain/);
-  assert.match(authHook, /typedData\.types/);
-  assert.match(authHook, /typedData\.value/);
+test('VeWorld ownership auth uses a single native, challenge-bound certificate prompt', () => {
+  assert.match(authHook, /connection\.isConnectedWithDappKit/);
+  assert.match(authHook, /await requestCertificate\(/);
+  assert.match(authHook, /content:\s*challenge\.message!/);
+  assert.match(authHook, /signer,/);
+  assert.match(authHook, /certResponse\.annex\.domain/);
+  assert.match(authHook, /certResponse\.annex\.timestamp/);
+  assert.match(authHook, /certResponse\.annex\.signer/);
+  assert.match(authHook, /proofType\s*=\s*'certificate'/);
+  assert.doesNotMatch(authHook, /await requestTypedData\(/);
   assert.doesNotMatch(authHook, /await connectV2\(/);
   assert.doesNotMatch(authHook, /getPendingVeWorldWalletHandoffDelay/);
-  assert.match(authHook, /proofType\s*=\s*'typed_data'/);
 });
 
 test('wallet auth expiry is canonicalized before entering EIP-712 values', () => {

@@ -79,8 +79,9 @@ test('mobile auth sends server diagnostic codes to visible support UI without ch
   assert.match(gate, /referenceId=\{errorDetails\?\.referenceId\}/);
   assert.match(gate, /await ensureWalletSession\(walletAddress\);\s*checkingParticipation = true;\s*const activeRestriction = await readWalletRestriction/);
   assert.doesNotMatch(hook, /await connectV2\(/);
-  assert.match(hook, /await requestTypedData\(/);
-  assert.match(hook, /proofType =\s*'typed_data'/);
+  assert.match(hook, /await requestCertificate\(/);
+  assert.match(hook, /proofType =\s*'certificate'/);
+  assert.doesNotMatch(hook, /await requestTypedData\(/);
 });
 
 test('wallet recovery and post-auth check copy exists in every supported locale', async () => {

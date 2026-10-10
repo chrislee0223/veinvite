@@ -447,6 +447,10 @@ test('external VeWorld handoff has no artificial auth stability window or reconn
   );
   assert.match(
     authHook,
+    /await requestCertificate\(/,
+  );
+  assert.doesNotMatch(
+    authHook,
     /await requestTypedData\(/,
   );
 });

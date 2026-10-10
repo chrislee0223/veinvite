@@ -15,7 +15,7 @@ for (const locale of SUPPORTED_LOCALES) {
   for (const scenario of tests) {
     test('notification layout audit / ' + locale + ' / ' + scenario.state + ' / ' + scenario.width, async ({ page }) => {
       await page.setViewportSize({ width: scenario.width, height: scenario.height });
-      await page.goto('/qa/state?state=' + scenario.state + '&locale=' + locale, {
+      await page.goto('/qa/notification-state?state=' + scenario.state + '&locale=' + locale, {
         waitUntil: 'domcontentloaded', timeout: 30_000,
       });
       const selector = scenario.state === 'NOTI-REWARD-PAID-POPUP'
