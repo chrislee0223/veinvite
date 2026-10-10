@@ -65,3 +65,12 @@ test('open route cannot mutate or execute core referral payout authority', () =>
     /finalize_reward_payout_manifest|prepare_reward_cohort_batch|request_reward_claim/,
   );
 });
+
+test('base payout proof propagation remains retryable and non-terminal', () => {
+  assert.match(route, /REWARD_X_PROMOTION_BASE_PAYOUT_MISMATCH/);
+  assert.match(route, /REWARD_X_PROMOTION_BASE_RECEIPT_MISSING/);
+  assert.match(
+    route,
+    /reason: 'RETRY_LATER'[\s\S]*status: 202/,
+  );
+});
