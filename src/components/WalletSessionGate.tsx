@@ -849,10 +849,17 @@ export function WalletSessionGate({
     // Do not cancel a still-open VeWorld signing prompt to show this status.
     // The global coordinator remains the authority for deduplicating retries.
     const slowNotice = window.setTimeout(() => {
-      if (attemptRef.current !== attempt || checkingParticipation) return;
-      // The wallet promise is still active. Showing an "error" with Retry
-      // would just reattach to that same signing promise and look broken.
-      // Keep the valid request alive and offer only confirmed disconnect.
+      if (attemptRef.current !== attempt) return;
+      if (checkingParticipation) {
+        // A slow participation lookup is NOT a wallet signing prompt.
+        // Retain its existing recoverable error surface instead of leaving
+        // the verified wallet hidden behind a perpetual loading screen.
+        setErrorDetails({ code: 'AUTH_PARTICIPATION_CHECK', referenceId: null });
+        setState('error');
+        return;
+      }
+      // An actual VeWorld signature is still active. Retry would only join
+      // that same promise; show waiting and allow confirmed disconnect.
       setErrorDetails(null);
       setState('slow');
     }, WALLET_AUTH_SLOW_NOTICE_MS);
