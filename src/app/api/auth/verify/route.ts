@@ -90,9 +90,53 @@ function hashSessionToken(
     .digest('hex');
 }
 
+type WalletVerificationDiagnostic = {
+  proofHexChars: number;
+  proofHasHexPrefix: boolean;
+  proofIsHex: boolean;
+  timestampSafeInteger: boolean;
+  domainPresent: boolean;
+  signerPresent: boolean;
+};
+
+function certificateVerificationDiagnostic(
+  certificate: WalletCertificate,
+): WalletVerificationDiagnostic {
+  const proof =
+    certificate.signature?.trim() ?? '';
+  const proofWithoutPrefix =
+    proof.startsWith('0x')
+      ? proof.slice(2)
+      : proof;
+
+  return {
+    proofHexChars:
+      proofWithoutPrefix.length,
+    proofHasHexPrefix:
+      proof.startsWith('0x'),
+    proofIsHex:
+      /^[0-9a-f]+$/iu.test(
+        proofWithoutPrefix,
+      ),
+    timestampSafeInteger:
+      Number.isSafeInteger(
+        certificate.timestamp,
+      ),
+    domainPresent:
+      Boolean(
+        certificate.domain?.trim(),
+      ),
+    signerPresent:
+      Boolean(
+        certificate.signer?.trim(),
+      ),
+  };
+}
+
 function jsonError(
   message: string,
   status: number,
+  diagnostic?: WalletVerificationDiagnostic,
 ) {
   const code = walletVerifyFailureCodeForMessage(message);
   const referenceId = randomBytes(8).toString('hex');
@@ -103,6 +147,9 @@ function jsonError(
     code,
     status,
     referenceId,
+    ...(diagnostic
+      ? { diagnostic }
+      : {}),
   });
 
   return NextResponse.json(
@@ -394,6 +441,12 @@ export async function POST(
       return jsonError(
         certificateError,
         401,
+        certificateError ===
+          'Invalid VeWorld certificate signature.'
+          ? certificateVerificationDiagnostic(
+              body.certificate,
+            )
+          : undefined,
       );
     }
   } else {
