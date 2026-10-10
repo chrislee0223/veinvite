@@ -4,21 +4,53 @@
 
 create or replace function public.reward_x_promotion_share_url_matches_v1(
   p_url text,
-  p_share_token uuid
+  p_share_token uuid,
+  p_recipient_wallet text,
+  p_require_active boolean
 )
 returns boolean
-language sql
-immutable
+language plpgsql
+stable
 strict
 set search_path to 'pg_catalog','public'
 as $function$
-  select
-    lower(btrim(p_url)) ~ (
-      '^https://veinvite\.vercel\.app/s/' ||
-      '([a-z0-9_-]{16}|[a-z0-9_-]{22,64})/?\?xp=' ||
-      lower(p_share_token::text) ||
-      '$'
-    );
+declare
+  v_url text := btrim(p_url);
+  v_wallet text := lower(btrim(p_recipient_wallet));
+  v_match text[];
+  v_referral_key text;
+  v_token text;
+begin
+  if v_wallet !~ '^0x[0-9a-f]{40}$' then
+    return false;
+  end if;
+
+  select regexp_match(
+    v_url,
+    '^https://veinvite\.vercel\.app/s/([A-Za-z0-9_-]{16}|[A-Za-z0-9_-]{22,64})/?\?xp=([0-9a-fA-F-]{36})$'
+  )
+  into v_match;
+
+  if v_match is null or cardinality(v_match)<>2 then
+    return false;
+  end if;
+
+  v_referral_key:=v_match[1];
+  v_token:=lower(v_match[2]);
+
+  if v_token<>lower(p_share_token::text) then
+    return false;
+  end if;
+
+  return exists (
+    select 1
+    from public.referral_links r
+    where r.referral_key=v_referral_key
+      and lower(r.inviter_wallet)=v_wallet
+      and r.status<>'REVOKED'
+      and (not p_require_active or r.status='ACTIVE')
+  );
+end;
 $function$;
 
 alter table public.reward_x_promotion_post_verifications
@@ -44,16 +76,19 @@ as $function$
 declare
   v_code text := upper(btrim(coalesce(p_invite_code,'')));
   v_token uuid;
+  v_recipient_wallet text;
 begin
-  select o.share_token
-  into v_token
+  select o.share_token,o.recipient_wallet
+  into v_token,v_recipient_wallet
   from public.reward_x_promotion_opportunities o
   where o.invite_code=v_code;
 
   if not found
      or not public.reward_x_promotion_share_url_matches_v1(
        p_matched_expanded_url,
-       v_token
+       v_token,
+       v_recipient_wallet,
+       true
      ) then
     raise exception 'REWARD_X_PROMOTION_MATCHED_URL_IDENTITY_INVALID';
   end if;
@@ -82,16 +117,23 @@ as $function$
 declare
   v_code text := upper(btrim(coalesce(p_invite_code,'')));
   v_token uuid;
+  v_recipient_wallet text;
+  v_initial_url text;
 begin
-  select o.share_token
-  into v_token
+  select o.share_token,o.recipient_wallet,p.matched_expanded_url
+  into v_token,v_recipient_wallet,v_initial_url
   from public.reward_x_promotion_opportunities o
+  join public.reward_x_promotion_post_verifications p
+    on p.opportunity_id=o.id
   where o.invite_code=v_code;
 
   if not found
+     or btrim(p_matched_expanded_url)<>btrim(v_initial_url)
      or not public.reward_x_promotion_share_url_matches_v1(
        p_matched_expanded_url,
-       v_token
+       v_token,
+       v_recipient_wallet,
+       false
      ) then
     raise exception 'REWARD_X_PROMOTION_MATCHED_URL_IDENTITY_INVALID';
   end if;
@@ -105,10 +147,8 @@ begin
 end;
 $function$;
 
-revoke all on function public.reward_x_promotion_share_url_matches_v1(text,uuid)
-  from public,anon,authenticated;
-grant execute on function public.reward_x_promotion_share_url_matches_v1(text,uuid)
-  to service_role;
+revoke all on function public.reward_x_promotion_share_url_matches_v1(text,uuid,text,boolean)
+  from public,anon,authenticated,service_role;
 
 revoke all on function public.record_reward_x_promotion_initial_post_verification_v1(text,text,text,timestamptz,text)
   from public,anon,authenticated,service_role;
@@ -125,5 +165,7 @@ revoke all on function public.finalize_reward_x_promotion_post_verification_v2(t
 grant execute on function public.finalize_reward_x_promotion_post_verification_v2(text,text,text,text)
   to service_role;
 
-comment on function public.reward_x_promotion_share_url_matches_v1(text,uuid) is
-  'Accepts only the canonical VeInvite referral share URL /s/<referral-key>?xp=<exact opportunity token>.';
+drop function if exists public.reward_x_promotion_share_url_matches_v1(text,uuid);
+
+comment on function public.reward_x_promotion_share_url_matches_v1(text,uuid,text,boolean) is
+  'Accepts only the canonical VeInvite referral share URL /s/<owned-referral-key>?xp=<exact opportunity token>; initial verification can require the key to remain ACTIVE.';
