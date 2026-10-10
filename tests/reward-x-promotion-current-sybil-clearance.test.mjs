@@ -10,6 +10,14 @@ const migration = await readFile(
   'utf8',
 );
 
+const urlHardening = await readFile(
+  new URL(
+    '../supabase/migrations/20261010113500_harden_x_promotion_share_url_identity_v1.sql',
+    import.meta.url,
+  ),
+  'utf8',
+);
+
 test('X promotion final verification requires LIVE to remain disabled during migration', () => {
   assert.match(
     migration,
@@ -58,17 +66,17 @@ test('final verification still blocks invalidated and actively restricted referr
   );
 });
 
-test('final verifier remains server-only', () => {
+test('final verifier remains server-only and the legacy v1 entrypoint is closed', () => {
   assert.match(
     migration,
     /security definer/,
   );
   assert.match(
-    migration,
-    /revoke all on function public\.finalize_reward_x_promotion_post_verification_v1\(text,text,text,text\)[\s\S]*from public,anon,authenticated/,
+    urlHardening,
+    /revoke all on function public\.finalize_reward_x_promotion_post_verification_v1\(text,text,text,text\)[\s\S]*from public,anon,authenticated,service_role/,
   );
   assert.match(
-    migration,
-    /grant execute on function public\.finalize_reward_x_promotion_post_verification_v1\(text,text,text,text\)[\s\S]*to service_role/,
+    urlHardening,
+    /grant execute on function public\.finalize_reward_x_promotion_post_verification_v2\(text,text,text,text\)[\s\S]*to service_role/,
   );
 });

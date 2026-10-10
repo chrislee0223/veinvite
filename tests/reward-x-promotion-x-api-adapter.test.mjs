@@ -117,3 +117,18 @@ test('X API adapter does not expose credentials to the client', () => {
   assert.match(adapter, /import 'server-only'/);
   assert.doesNotMatch(route, /NEXT_PUBLIC_X_API/i);
 });
+
+
+test('promotion URL matching requires the canonical referral path and exact xp token', () => {
+  assert.match(adapter, /REFERRAL_KEY_PATTERN/);
+  assert.match(adapter, /PROMOTION_TOKEN_PATTERN/);
+  assert.match(adapter, /PROMOTION_QUERY_PARAM = 'xp'/);
+  assert.match(adapter, /REFERRAL_KEY_PATTERN\.test\(match\[1\]\)/);
+  assert.match(adapter, /url\.pathname/);
+  assert.match(adapter, /searchParams\.getAll/);
+  assert.match(adapter, /promotionTokens\.length !== 1/);
+  assert.doesNotMatch(
+    adapter,
+    /url\.toString\(\)\.toLowerCase\(\)\.includes\(token\)/,
+  );
+});

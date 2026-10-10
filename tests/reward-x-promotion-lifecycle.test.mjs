@@ -76,7 +76,7 @@ test('final verification checks the same author and promotion URL again', () => 
   );
   assert.match(
     lifecycle,
-    /finalize_reward_x_promotion_post_verification_v1/,
+    /finalize_reward_x_promotion_post_verification_v2/,
   );
 });
 
