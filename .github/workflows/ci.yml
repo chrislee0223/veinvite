@@ -347,7 +347,7 @@ jobs:
           exit 1
 
       - name: Wallet auth cryptographic regression gate
-        run: node --experimental-strip-types --test tests/wallet-auth-typed-data-crypto.test.mjs
+        run: node --experimental-strip-types --test tests/wallet-auth-typed-data-crypto.test.mjs tests/wallet-auth-server-certificate-contract.test.mjs
 
       - name: Dependency security gate
         shell: bash

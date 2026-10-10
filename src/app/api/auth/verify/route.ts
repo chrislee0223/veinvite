@@ -11,7 +11,6 @@ import {
   verifyMessage,
   verifyTypedData,
 } from 'ethers';
-import { Certificate } from '@vechain/sdk-core';
 
 import {
   enforceRateLimits,
@@ -30,6 +29,7 @@ import {
   buildWalletAuthTypedData,
 } from '@/lib/walletAuthTypedData';
 import { walletVerifyFailureCodeForMessage } from '@/lib/walletAuthFailureCodes';
+import { verifyVeWorldCertificate, type WalletCertificate } from '@/lib/walletCertificateVerification';
 import {
   LEGACY_WALLET_SESSION_COOKIE_NAME,
   WALLET_SESSION_COOKIE_NAME,
@@ -38,10 +38,6 @@ import {
 const SESSION_LIFETIME_DAYS = 30;
 const SESSION_LIFETIME_SECONDS =
   SESSION_LIFETIME_DAYS * 24 * 60 * 60;
-const CERTIFICATE_CLOCK_SKEW_MS =
-  2 * 60 * 1000;
-const CERTIFICATE_CHALLENGE_WINDOW_MS =
-  10 * 60 * 1000;
 const VERIFY_IP_LIMIT = 30;
 const VERIFY_IP_WINDOW_SECONDS = 60;
 const VERIFY_WALLET_LIMIT = 10;
@@ -57,18 +53,6 @@ type WalletChallengeRow = {
   message: string | null;
   origin: string | null;
   network: string | null;
-};
-
-type WalletCertificate = {
-  purpose?: string;
-  payload?: {
-    type?: string;
-    content?: string;
-  };
-  domain?: string;
-  timestamp?: number;
-  signer?: string;
-  signature?: string;
 };
 
 type VerifyRequestBody = {
@@ -132,152 +116,6 @@ function jsonError(
   );
 }
 
-function certificateDomainMatchesOrigin(
-  domain: string,
-  origin: string,
-): boolean {
-  const rawDomain =
-    domain.trim().toLowerCase();
-
-  if (!rawDomain) {
-    return false;
-  }
-
-  try {
-    const originUrl =
-      new URL(origin);
-    let certificateHost = rawDomain;
-
-    if (
-      /^[a-z][a-z0-9+.-]*:\/\//i.test(
-        rawDomain,
-      )
-    ) {
-      certificateHost =
-        new URL(rawDomain).host
-          .toLowerCase();
-    } else if (
-      rawDomain.includes('/') ||
-      rawDomain.includes('?') ||
-      rawDomain.includes('#')
-    ) {
-      return false;
-    }
-
-    return (
-      certificateHost ===
-        originUrl.host.toLowerCase() ||
-      certificateHost ===
-        originUrl.hostname.toLowerCase()
-    );
-  } catch {
-    return false;
-  }
-}
-
-function verifyVeWorldCertificate({
-  certificate,
-  challenge,
-  walletAddress,
-  now,
-}: {
-  certificate: WalletCertificate;
-  challenge: WalletChallengeRow;
-  walletAddress: string;
-  now: Date;
-}): string | null {
-  if (
-    certificate.purpose !==
-      'agreement' ||
-    certificate.payload?.type !==
-      'text' ||
-    certificate.payload.content !==
-      challenge.message ||
-    !certificate.domain ||
-    !certificate.signer ||
-    !certificate.signature ||
-    !Number.isSafeInteger(
-      certificate.timestamp,
-    ) ||
-    !certificate.timestamp ||
-    certificate.timestamp <= 0
-  ) {
-    return 'Invalid VeWorld certificate payload.';
-  }
-
-  let certificateSigner: string;
-
-  try {
-    certificateSigner =
-      normalizeAddress(
-        certificate.signer,
-      );
-  } catch {
-    return 'Invalid VeWorld certificate signer.';
-  }
-
-  if (
-    certificateSigner !==
-    walletAddress
-  ) {
-    return 'The certificate does not match the connected wallet.';
-  }
-
-  if (
-    !certificateDomainMatchesOrigin(
-      certificate.domain,
-      challenge.origin || '',
-    )
-  ) {
-    return 'The VeWorld certificate was signed for a different site.';
-  }
-
-  const expiresAtMs =
-    new Date(
-      challenge.expires_at,
-    ).getTime();
-  // VeWorld certificates use Unix seconds. Convert only for local Date-based
-  // freshness checks; the SDK signature verifier must receive the original
-  // seconds value because that exact timestamp is part of the signed payload.
-  const certificateTimestampSeconds =
-    certificate.timestamp;
-  const certificateTimestampMs =
-    certificateTimestampSeconds * 1000;
-
-  if (
-    certificateTimestampMs <
-      expiresAtMs -
-        CERTIFICATE_CHALLENGE_WINDOW_MS ||
-    certificateTimestampMs >
-      now.getTime() +
-        CERTIFICATE_CLOCK_SKEW_MS
-  ) {
-    return 'The VeWorld certificate timestamp is outside the verification window.';
-  }
-
-  try {
-    Certificate.of({
-      purpose: 'agreement',
-      payload: {
-        type: 'text',
-        content:
-          certificate.payload.content,
-      },
-      domain:
-        certificate.domain,
-      timestamp:
-        certificateTimestampSeconds,
-      signer:
-        certificateSigner,
-      signature:
-        certificate.signature,
-    }).verify();
-  } catch {
-    return 'Invalid VeWorld certificate signature.';
-  }
-
-  return null;
-}
 
 export async function POST(
   request: NextRequest,
