@@ -5,9 +5,9 @@ import { REWARD_RECEIPT_COPY } from '@/lib/i18n/rewardReceiptCopy';
 import type { SupportedLocale } from '@/lib/i18n/locales';
 import type { RewardReceipt } from '@/lib/rewards/rewardReceipt';
 import {
-  rewardReceiptShareLabel,
   rewardReceiptXIntentUrl,
 } from '@/lib/rewards/rewardReceiptShare';
+import { RewardXPromotionReceiptAction } from './RewardXPromotionReceiptAction';
 import { getVeChainExplorerTransactionUrl } from '@/lib/vechainExplorer';
 
 function shortTx(value: string): string {
@@ -46,19 +46,6 @@ export function RewardReceiptView({
           referralUrl: rewardShareUrl,
         })
       : '';
-
-  const shareRewardOnX = () => {
-    if (!rewardShareIntentUrl) return;
-    if (onRewardShare) {
-      onRewardShare(rewardShareIntentUrl);
-      return;
-    }
-    window.open(
-      rewardShareIntentUrl,
-      '_blank',
-      'noopener,noreferrer',
-    );
-  };
 
   return (
     <div className="notificationReceiptView">
@@ -102,15 +89,15 @@ export function RewardReceiptView({
             </a>
           ) : null}
 
-          {rewardShareIntentUrl ? (
-            <button
-              type="button"
-              className="notificationXShare"
-              aria-label={rewardReceiptShareLabel(locale)}
-              onClick={shareRewardOnX}
-            >
-              {rewardReceiptShareLabel(locale)}
-            </button>
+          {receipt ? (
+            <RewardXPromotionReceiptAction
+              locale={locale}
+              inviteCode={receipt.inviteCode}
+              baseRewardAmountB3tr={receipt.amountB3tr}
+              rewardShareUrl={rewardShareUrl}
+              ordinaryShareIntentUrl={rewardShareIntentUrl}
+              onShare={onRewardShare}
+            />
           ) : null}
 
           {error ? (

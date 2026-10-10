@@ -74,3 +74,20 @@ test('promotion state preserves verification and terminal outcomes', () => {
     assert.match(route, new RegExp(`'${state}'`));
   }
 });
+
+
+test('missing opportunity distinguishes grandfathered rewards from materialization lag', () => {
+  assert.match(route, /type PromotionOfferStatus/);
+  assert.match(route, /'DISABLED'/);
+  assert.match(route, /'NOT_ELIGIBLE'/);
+  assert.match(route, /'PREPARING'/);
+  assert.match(route, /'AVAILABLE'/);
+  assert.match(route, /'CLOSED'/);
+  assert.match(route, /reward_x_promotion_splits/);
+  assert.match(route, /reward_x_promotion_obligations/);
+  assert.match(
+    route,
+    /financialState === 'RESERVED'[\s\S]*financialState === 'HELD'/,
+  );
+  assert.match(route, /pendingPromotionAmountB3tr/);
+});
