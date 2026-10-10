@@ -14,8 +14,8 @@ set search_path to 'pg_catalog','public'
 as $function$
   select
     lower(btrim(p_url)) ~ (
-      '^https://veinvite\\.vercel\\.app/s/' ||
-      '([a-z0-9_-]{16}|[a-z0-9_-]{22,64})/?\\?xp=' ||
+      '^https://veinvite\.vercel\.app/s/' ||
+      '([a-z0-9_-]{16}|[a-z0-9_-]{22,64})/?\?xp=' ||
       lower(p_share_token::text) ||
       '$'
     );
@@ -26,7 +26,7 @@ alter table public.reward_x_promotion_post_verifications
   add constraint reward_x_promotion_post_verifications_canonical_share_url_check
     check (
       lower(btrim(matched_expanded_url)) ~
-      '^https://veinvite\\.vercel\\.app/s/([a-z0-9_-]{16}|[a-z0-9_-]{22,64})/?\\?xp=[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$'
+      '^https://veinvite\.vercel\.app/s/([a-z0-9_-]{16}|[a-z0-9_-]{22,64})/?\?xp=[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$'
     );
 
 create or replace function public.record_reward_x_promotion_initial_post_verification_v2(
