@@ -9,9 +9,6 @@ import {
   type RewardRoundForManifest,
 } from '@/lib/rewards/payoutManifest';
 import {
-  syncRewardXPromotionOpportunitiesAfterCoreSettlement,
-} from '@/lib/rewards/rewardXPromotionPostSettlement';
-import {
   RewardTransactionVerificationError,
   verifyFinalizedRewardTransactionOnChain,
 } from '@/lib/rewards/transactionVerification';
@@ -388,10 +385,6 @@ Promise<SubmittedPayoutRecoveryResult> {
     }
 
     if (settlementResult.data) {
-      await syncRewardXPromotionOpportunitiesAfterCoreSettlement(
-        network,
-      );
-
       return {
         status: 'PAID',
         roundId,
@@ -573,10 +566,6 @@ Promise<SubmittedPayoutRecoveryResult> {
         `Submitted payout settlement failed: ${finalizeError.message}`,
       );
     }
-
-    await syncRewardXPromotionOpportunitiesAfterCoreSettlement(
-      network,
-    );
 
     return {
       status: 'PAID',
