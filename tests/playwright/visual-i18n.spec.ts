@@ -356,3 +356,23 @@ for (const locale of ['de', 'ur', 'ar', 'cs'] as const satisfies readonly Suppor
     );
   });
 }
+
+// Reward paid popup is outside the history dialog and must own its locale direction.
+for (const locale of SUPPORTED_LOCALES) {
+  test(`reward paid popup all-locale narrow layout and direction: ${locale}`, async ({ page }, testInfo) => {
+    await page.setViewportSize({ width: 320, height: 568 });
+    await page.goto(
+      `/qa/notification-state?state=NOTI-REWARD-PAID-POPUP&locale=${encodeURIComponent(locale)}`,
+      { waitUntil: 'domcontentloaded', timeout: 30_000 },
+    );
+    const popup = page.locator('.transientSnackbar.reward');
+    await expect(popup).toBeVisible();
+    await expect(popup).toHaveAttribute('lang', locale);
+    const expectedDirection = ['ar', 'arz', 'ur'].includes(locale) ? 'rtl' : 'ltr';
+    await expect(popup).toHaveAttribute('dir', expectedDirection);
+    expect(await popup.evaluate((el) => getComputedStyle(el).direction)).toBe(expectedDirection);
+    expect(await popup.locator('.rewardFeedbackAmount')
+      .evaluate((el) => getComputedStyle(el).direction)).toBe('ltr');
+    await captureAndAssert(page, testInfo, `reward-popup-${locale}-320`);
+  });
+}

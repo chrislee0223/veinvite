@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { isRtlLocale, type SupportedLocale } from '@/lib/i18n/locales';
 
 export type TransientFeedbackKind = 'success' | 'info' | 'error';
 
@@ -32,10 +33,12 @@ const EXIT_MS = 140;
 export function TransientSnackbar({
   feedback,
   closeLabel,
+  locale,
   onDismiss,
 }: {
   feedback: TransientFeedback | null;
   closeLabel: string;
+  locale?: SupportedLocale;
   onDismiss: () => void;
 }) {
   const timerRef = useRef<number | null>(null);
@@ -128,6 +131,8 @@ export function TransientSnackbar({
   return (
     <aside
       className={`transientSnackbar ${feedback.kind}${closing ? ' closing' : ''}`}
+      lang={locale}
+      dir={locale ? (isRtlLocale(locale) ? 'rtl' : 'ltr') : undefined}
       role={feedback.kind === 'error' ? 'alert' : 'status'}
       aria-live={feedback.kind === 'error' ? 'assertive' : 'polite'}
       aria-atomic="true"
@@ -145,7 +150,7 @@ export function TransientSnackbar({
       {reward ? (
         <div className="rewardFeedbackBody">
           <strong>{feedback.title}</strong>
-          <div className="rewardFeedbackAmount">
+          <div className="rewardFeedbackAmount" dir="ltr" style={{ unicodeBidi: 'isolate' }}>
             +{feedback.amountB3tr} <span>B3TR</span>
           </div>
           <p>{feedback.text}</p>
@@ -200,7 +205,6 @@ export function TransientSnackbar({
           gap: 10px;
           padding-block: 8px;
           padding-inline: 12px 6px;
-          direction: inherit;
           border: 1px solid rgba(255,255,255,.12);
           border-radius: 17px;
           background: rgba(24,26,30,.97);
