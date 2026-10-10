@@ -23,6 +23,9 @@ import {
   readPredictiveRewardPlanning,
 } from '@/lib/rewards/predictivePlanning';
 import {
+  syncRewardXPromotionOpportunitiesAfterCoreSettlement,
+} from '@/lib/rewards/rewardXPromotionPostSettlement';
+import {
   RewardTransactionVerificationError,
   verifyFinalizedRewardTransactionOnChain,
 } from '@/lib/rewards/transactionVerification';
@@ -1060,6 +1063,10 @@ async function finalizeIfPossible({
     );
   }
 
+  await syncRewardXPromotionOpportunitiesAfterCoreSettlement(
+    manifest.network,
+  );
+
   return 'PAID';
 }
 
@@ -1372,6 +1379,10 @@ export async function runAutomaticRewardPayout(
     );
 
     if (state.settlement) {
+      await syncRewardXPromotionOpportunitiesAfterCoreSettlement(
+        network,
+      );
+
       return {
         status: 'PAID',
         network,
