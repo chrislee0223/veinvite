@@ -220,3 +220,15 @@ test('recovery maintenance surfaces unresolved candidates while the per-payout h
     /reconciliation failed after settlement/,
   );
 });
+
+
+test('recovery migration can only be installed while X LIVE and payout are disabled', () => {
+  assert.match(
+    migration,
+    /reward_x_promotion_enabled,reward_x_promotion_payout_enabled/,
+  );
+  assert.match(
+    migration,
+    /REWARD_X_PROMOTION_RECOVERY_MIGRATION_REQUIRES_LIVE_AND_PAYOUT_DISABLED/,
+  );
+});
