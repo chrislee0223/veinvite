@@ -123,7 +123,8 @@ test('promotion URL matching requires the canonical referral path and exact xp t
   assert.match(adapter, /REFERRAL_KEY_PATTERN/);
   assert.match(adapter, /PROMOTION_TOKEN_PATTERN/);
   assert.match(adapter, /PROMOTION_QUERY_PARAM = 'xp'/);
-  assert.match(adapter, /\^\\\/s\\\/\(\[\^\/?#\]\+\)\\\/?\$/);
+  assert.match(adapter, /REFERRAL_KEY_PATTERN\.test\(match\[1\]\)/);
+  assert.match(adapter, /url\.pathname/);
   assert.match(adapter, /searchParams\.getAll/);
   assert.match(adapter, /promotionTokens\.length !== 1/);
   assert.doesNotMatch(
