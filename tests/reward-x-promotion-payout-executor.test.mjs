@@ -221,9 +221,14 @@ test('already committed promotion payouts are selected before fresh intents', ()
   assert.ok(fresh > committed);
 });
 
-test('promotion executor is not yet wired into lifecycle cron', () => {
-  assert.doesNotMatch(cron, /rewardXPromotionPayoutExecutor/);
-  assert.doesNotMatch(cron, /runRewardXPromotionPayout/);
+test('promotion executor is wired through the existing maintenance cron without bypassing gates', () => {
+  assert.match(cron, /rewardXPromotionPayoutExecutor/);
+  assert.match(cron, /runRewardXPromotionPayout/);
+  assert.match(cron, /x-promotion-payout/);
+  assert.match(cron, /PAYOUT_FAILURE_STATUSES/);
+  assert.match(cron, /MANUAL_INTERVENTION_REQUIRED/);
+  assert.match(cron, /NOT_CONFIGURED/);
+  assert.match(cron, /NOT_REGISTERED/);
 });
 
 
