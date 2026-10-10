@@ -11,6 +11,7 @@ import {
 } from '@/lib/walletAuthServer';
 
 const INVITE_CODE_PATTERN = /^[A-HJ-NP-Z2-9]{7}$/u;
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/u;
 
 type PromotionState =
   | 'OPEN'
@@ -262,6 +263,16 @@ export async function GET(
       );
     }
 
+    const shareToken = String(
+      opportunity.data.share_token ?? '',
+    ).toLowerCase();
+
+    if (!UUID_PATTERN.test(shareToken)) {
+      throw new Error(
+        'Stored X promotion share token is malformed.',
+      );
+    }
+
     const state = readState({
       financialState,
       submissionState:
@@ -297,7 +308,7 @@ export async function GET(
           shareToken:
             state === 'OPEN'
               ? String(
-                  opportunity.data.share_token ?? '',
+                  shareToken,
                 )
               : null,
           submittedAt:
