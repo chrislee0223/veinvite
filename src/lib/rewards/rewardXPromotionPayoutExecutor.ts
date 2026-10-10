@@ -696,9 +696,9 @@ async function recoverCommittedLocked(
 /**
  * Dormant pre-LIVE executor.
  *
- * No cron or route imports this module yet. New signing needs BOTH the dedicated
- * worker env flag and DB LIVE. The current DB activation interlock still blocks
- * LIVE, so merging this module cannot transfer B3TR.
+ * No cron or route imports this module yet. New signing needs the dedicated
+ * worker env flag, DB LIVE, and the independent DB payout gate. The current DB
+ * activation interlock still blocks LIVE, so this module cannot transfer B3TR.
  *
  * An already signed+journaled transaction is different: recovery may rebroadcast
  * and finalize that exact immutable transaction even after new signing is
