@@ -412,7 +412,7 @@ export async function POST(
       data: verificationData,
       error: verificationError,
     } = await supabaseAdmin.rpc(
-      'record_reward_x_promotion_initial_post_verification_v1',
+      'record_reward_x_promotion_initial_post_verification_v2',
       {
         p_invite_code: inviteCode,
         p_x_post_id: lookup.postId,
