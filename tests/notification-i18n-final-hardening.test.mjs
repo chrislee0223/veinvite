@@ -68,8 +68,8 @@ test('reward popup owns language direction independently from surrounding layout
   assert.match(snackbar, /lang=\{locale\}/);
   assert.match(snackbar, /dir=\{locale \? \(isRtlLocale\(locale\) \? 'rtl' : 'ltr'\) : undefined\}/);
   assert.doesNotMatch(snackbar, /direction: inherit;/);
-  assert.match(snackbar, /\.transientSnackbar\[dir='rtl'\] \.rewardFeedbackAmount/);
-  assert.match(snackbar, /unicode-bidi: isolate/);
+  assert.match(snackbar, /className="rewardFeedbackAmount" dir="ltr"/);
+  assert.match(snackbar, /style=\{\{ unicodeBidi: 'isolate' \}\}/);
   assert.match(home, /<TransientSnackbar\s+feedback=\{feedback\}\s+locale=\{locale\}/);
   assert.match(qa, /<TransientSnackbar\s+locale=\{locale\}/);
   assert.match(qaFeedback, /<TransientSnackbar\s+locale=\{locale\}/);
