@@ -17,6 +17,7 @@ import {
   WALLET_SESSION_COOKIE_NAME,
 } from '@/lib/walletAuthServer';
 import { supabaseAdmin } from '@/lib/supabaseServer';
+import { settleOptionalSecurityObservation } from '@/lib/securityClientBestEffort';
 
 const SLIDING_SESSION_LIFETIME_DAYS = 30;
 const SLIDING_SESSION_LIFETIME_SECONDS =
@@ -159,11 +160,20 @@ export async function GET(
       },
     );
 
-    await ensureSecurityClientForWallet({
-      request,
-      response,
-      walletAddress: session.walletAddress,
-    });
+    const observation = await settleOptionalSecurityObservation(
+      () => ensureSecurityClientForWallet({
+        request,
+        response,
+        walletAddress: session.walletAddress,
+      }),
+    );
+    if (observation !== 'ok') {
+      // Supplemental Sybil observation is not authentication authority.
+      // Never log wallet/session identifiers or block the verified response.
+      console.warn('Optional security client observation incomplete.', {
+        outcome: observation,
+      });
+    }
 
     return response;
   } catch (error) {
@@ -401,11 +411,20 @@ export async function POST(
       });
     }
 
-    await ensureSecurityClientForWallet({
-      request,
-      response,
-      walletAddress: session.walletAddress,
-    });
+    const observation = await settleOptionalSecurityObservation(
+      () => ensureSecurityClientForWallet({
+        request,
+        response,
+        walletAddress: session.walletAddress,
+      }),
+    );
+    if (observation !== 'ok') {
+      // Supplemental Sybil observation is not authentication authority.
+      // Never log wallet/session identifiers or block the verified response.
+      console.warn('Optional security client observation incomplete.', {
+        outcome: observation,
+      });
+    }
 
     return response;
   } catch (error) {

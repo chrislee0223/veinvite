@@ -59,7 +59,11 @@ test('stalled verification shows a recoverable status but never aborts or restar
     readFile(new URL('../src/lib/walletAuthenticationCoordinator.ts', import.meta.url), 'utf8'),
   ]);
   assert.match(gate, /WALLET_AUTH_SLOW_NOTICE_MS = 45_000/);
-  assert.match(gate, /code: checkingParticipation[\s\S]*'AUTH_VERIFICATION_SLOW'/);
+  assert.match(gate, /setState\('slow'\)/);
+  assert.match(gate, /const isSlow = state === 'slow'/);
+  assert.match(gate, /isSlow=\{isSlow\}/);
+  assert.match(gate, /if \(checkingParticipation\) \{/);
+  assert.match(gate, /setErrorDetails\(\{ code: 'AUTH_PARTICIPATION_CHECK', referenceId: null \}\)/);
   assert.match(gate, /window\.clearTimeout\(slowNotice\)/);
   assert.match(gate, /releaseCancelledWalletAuthenticationAfterDisconnect\(\);/);
   assert.match(control, /if \(!released\)[\s\S]*releaseCancelledWalletAuthenticationAfterDisconnect\(\)/);

@@ -79,12 +79,20 @@ test(
   'security-client observation is recorded only after a verified wallet session exists and survives logout',
   () => {
     const calls = sessionRoute.match(
-      /await ensureSecurityClientForWallet\(\{/g,
+      /\(\) => ensureSecurityClientForWallet\(\{/g,
+    );
+    const guards = sessionRoute.match(
+      /await settleOptionalSecurityObservation\(/g,
     );
     assert.equal(
       calls?.length,
       2,
-      'authenticated GET and renewal POST should record the relationship',
+      'authenticated GET and renewal POST should attempt to record the relationship',
+    );
+    assert.equal(
+      guards?.length,
+      2,
+      'supplemental observation must not reject or hang an authenticated response',
     );
     assert.match(
       sessionRoute,

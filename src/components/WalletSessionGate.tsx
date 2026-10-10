@@ -55,6 +55,7 @@ import {
 type VerificationState =
   | 'idle'
   | 'checking'
+  | 'slow'
   | 'verified'
   | 'error';
 
@@ -178,6 +179,7 @@ function WalletSessionBrandSurface() {
 export function WalletSessionSurface({
   locale,
   hasError,
+  isSlow = false,
   walletMismatch,
   isDisconnecting,
   errorCode = null,
@@ -187,6 +189,7 @@ export function WalletSessionSurface({
 }: {
   locale: Locale;
   hasError: boolean;
+  isSlow?: boolean;
   walletMismatch: boolean;
   isDisconnecting: boolean;
   errorCode?: string | null;
@@ -258,7 +261,9 @@ export function WalletSessionSurface({
             ? '↔'
             : hasError
               ? '!'
-              : '✓'}
+              : isSlow
+                ? '…'
+                : '✓'}
         </div>
 
         <strong
@@ -285,7 +290,9 @@ export function WalletSessionSurface({
         >
           {walletMismatch
             ? switchT.description
-            : hasError && errorCode === 'AUTH_RATE_LIMITED'
+            : isSlow
+              ? t.slowVerificationDescription
+              : hasError && errorCode === 'AUTH_RATE_LIMITED'
               ? t.rateLimitDescription
               : hasError && errorCode === 'AUTH_VERIFICATION_SLOW'
                 ? t.slowVerificationDescription
@@ -843,13 +850,18 @@ export function WalletSessionGate({
     // The global coordinator remains the authority for deduplicating retries.
     const slowNotice = window.setTimeout(() => {
       if (attemptRef.current !== attempt) return;
-      setErrorDetails({
-        code: checkingParticipation
-          ? 'AUTH_PARTICIPATION_CHECK'
-          : 'AUTH_VERIFICATION_SLOW',
-        referenceId: null,
-      });
-      setState('error');
+      if (checkingParticipation) {
+        // A slow participation lookup is NOT a wallet signing prompt.
+        // Retain its existing recoverable error surface instead of leaving
+        // the verified wallet hidden behind a perpetual loading screen.
+        setErrorDetails({ code: 'AUTH_PARTICIPATION_CHECK', referenceId: null });
+        setState('error');
+        return;
+      }
+      // An actual VeWorld signature is still active. Retry would only join
+      // that same promise; show waiting and allow confirmed disconnect.
+      setErrorDetails(null);
+      setState('slow');
     }, WALLET_AUTH_SLOW_NOTICE_MS);
 
     try {
@@ -1191,6 +1203,7 @@ export function WalletSessionGate({
       sessionWalletRef.current ||
       verifiedWallet ||
       state === 'checking' ||
+      state === 'slow' ||
       state === 'verified'
     ) {
       return <WalletSessionBrandSurface />;
@@ -1259,6 +1272,7 @@ export function WalletSessionGate({
   }
 
   const hasError = state === 'error';
+  const isSlow = state === 'slow';
   const walletMismatch =
     hasError &&
     isWalletSessionMismatch(
@@ -1270,6 +1284,7 @@ export function WalletSessionGate({
     <WalletSessionSurface
       locale={locale}
       hasError={hasError}
+      isSlow={isSlow}
       walletMismatch={walletMismatch}
       isDisconnecting={isDisconnecting}
       errorCode={errorDetails?.code}
