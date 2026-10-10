@@ -127,21 +127,6 @@ export async function GET(
         runtime.data.reward_x_promotion_live_started_at,
       ) !== null;
 
-    if (!live) {
-      return NextResponse.json(
-        {
-          live: false,
-          promotion: null,
-        },
-        {
-          status: 200,
-          headers: {
-            'Cache-Control': 'no-store',
-          },
-        },
-      );
-    }
-
     const opportunity =
       await supabaseAdmin
         .from('reward_x_promotion_opportunities')
@@ -171,7 +156,7 @@ export async function GET(
     if (!opportunity.data) {
       return NextResponse.json(
         {
-          live: true,
+          live,
           promotion: null,
         },
         {
@@ -301,7 +286,7 @@ export async function GET(
 
     return NextResponse.json(
       {
-        live: true,
+        live,
         promotion: {
           inviteCode,
           state,
