@@ -364,6 +364,9 @@ export function useWalletAuthentication() {
               | 'certificate'
               | 'message'
               | undefined;
+            let retryCertificateProof:
+              | (() => Promise<void>)
+              | null = null;
 
             failureStage = 'AUTH_WALLET_PROVIDER';
             if (
@@ -451,6 +454,8 @@ export function useWalletAuthentication() {
               // The server checks the signer, origin, nonce-bound message,
               // timestamp and cryptographic signature before issuing a cookie.
               // This does NOT admit an unverified wallet or bypass Sybil checks.
+              retryCertificateProof =
+                signCertificateFallback;
               failureStage = 'AUTH_WALLET_SIGNATURE';
               await signCertificateFallback();
             } else {
@@ -480,34 +485,112 @@ export function useWalletAuthentication() {
             assertStillCurrent();
 
             failureStage = 'AUTH_SERVER_VERIFICATION';
+
+            const verifyCurrentProof =
+              async () => {
+                const response =
+                  await fetch(
+                    '/api/auth/verify',
+                    {
+                      method: 'POST',
+                      credentials: 'include',
+                      headers: {
+                        'Content-Type':
+                          'application/json',
+                      },
+                      body: JSON.stringify({
+                        walletAddress,
+                        nonce:
+                          challenge.nonce,
+                        signature,
+                        proofType,
+                        certificate,
+                      }),
+                      signal:
+                        controller.signal,
+                    },
+                  );
+
+                const body =
+                  await readJson<VerifyResponse>(
+                    response,
+                  );
+
+                assertStillCurrent();
+
+                return {
+                  response,
+                  body,
+                };
+              };
+
+            let verification =
+              await verifyCurrentProof();
+
+            // A VeWorld certificate can rarely come back with a proof that
+            // fails SDK cryptographic verification even though its signer,
+            // domain, timestamp and challenge payload are otherwise valid.
+            // The failed challenge is still unused, so retry only the wallet
+            // certificate once. Do not create or invalidate a challenge here:
+            // that would add a second race with wallet/provider reconciliation.
+            if (
+              !verification.response.ok &&
+              verification.body.code ===
+                'AUTH_CERTIFICATE_SIGNATURE_INVALID' &&
+              proofType === 'certificate' &&
+              retryCertificateProof
+            ) {
+              failureStage =
+                'AUTH_WALLET_SIGNATURE';
+
+              await withTimeout(
+                waitForWalletProviderReconciliation(),
+                WALLET_PROVIDER_SETTLE_TIMEOUT_MS,
+                'Wallet connection is still synchronizing. Please try again.',
+              );
+              assertStillCurrent();
+
+              const retrySigner =
+                account?.address
+                  ?.trim()
+                  .toLowerCase() ||
+                walletAddress;
+              const retryDappSigner =
+                dappKitAccount
+                  ?.trim()
+                  .toLowerCase() ||
+                null;
+
+              if (
+                retrySigner !== walletAddress ||
+                retryDappSigner !==
+                  walletAddress
+              ) {
+                throw new Error(
+                  'Wallet connection changed during verification. Please reconnect the wallet and try again.',
+                );
+              }
+
+              await wait(
+                WALLET_SIGNATURE_SETTLE_MS,
+              );
+              assertStillCurrent();
+
+              // Exactly one recovery prompt. A second invalid proof is returned
+              // to the user instead of opening an authentication loop.
+              await retryCertificateProof();
+
+              assertStillCurrent();
+              failureStage =
+                'AUTH_SERVER_VERIFICATION';
+              verification =
+                await verifyCurrentProof();
+            }
+
             const verifyResponse =
-              await fetch(
-                '/api/auth/verify',
-                {
-                  method: 'POST',
-                  credentials: 'include',
-                  headers: {
-                    'Content-Type':
-                      'application/json',
-                  },
-                  body: JSON.stringify({
-                    walletAddress,
-                    nonce:
-                      challenge.nonce,
-                    signature,
-                    proofType,
-                    certificate,
-                  }),
-                  signal: controller.signal,
-                },
-              );
-
+              verification.response;
             const verified =
-              await readJson<VerifyResponse>(
-                verifyResponse,
-              );
-
-            assertStillCurrent();
+              verification.body;
 
             if (
               !verifyResponse.ok ||
