@@ -88,6 +88,31 @@ test('provider reconciliation holds its lock until original transport settles', 
   assert.equal(nextDone, true);
 });
 
+test('queued provider retries time out without opening overlapping wallet operations', async () => {
+  let settleOriginal;
+  let secondInvoked = false;
+  const first = runWalletProviderReconciliation(
+    () => new Promise((resolve) => { settleOriginal = resolve; }),
+  );
+  await assert.rejects(
+    runWalletProviderReconciliation(async () => {
+      secondInvoked = true;
+    }, 15),
+    /synchronization is still pending/,
+  );
+  assert.equal(secondInvoked, false);
+  // A timed-out waiter must never clear the original transport lock.
+  let waitFinished = false;
+  const waiting = waitForWalletProviderReconciliation().then(() => {
+    waitFinished = true;
+  });
+  await Promise.resolve();
+  assert.equal(waitFinished, false);
+  settleOriginal();
+  await Promise.all([first, waiting]);
+  assert.equal(waitFinished, true);
+});
+
 test('pending global signing lock cannot be silently freed by UI delay', () => {
   const pending = new Promise(() => {});
   const generation = createWalletAuthenticationGeneration();
