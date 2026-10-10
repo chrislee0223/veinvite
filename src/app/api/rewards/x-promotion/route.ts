@@ -121,7 +121,7 @@ export async function GET(
       );
     }
 
-    const live =
+    const newOffersEnabled =
       runtime.data.reward_x_promotion_enabled === true &&
       safeIso(
         runtime.data.reward_x_promotion_live_started_at,
@@ -156,7 +156,7 @@ export async function GET(
     if (!opportunity.data) {
       return NextResponse.json(
         {
-          live,
+          newOffersEnabled,
           promotion: null,
         },
         {
@@ -286,7 +286,7 @@ export async function GET(
 
     return NextResponse.json(
       {
-        live,
+        newOffersEnabled,
         promotion: {
           inviteCode,
           state,
