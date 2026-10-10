@@ -88,7 +88,7 @@ for (const locale of SUPPORTED_LOCALES) {
 for (const locale of ['ar', 'ur', 'de', 'el', 'ko', 'vi', 'te', 'fr'] as const) {
   test('notification desktop audit / ' + locale, async ({ page }) => {
     await page.setViewportSize({ width: 1280, height: 900 });
-    await page.goto('/qa/state?state=NOTI-REFERRAL-RESTORED&locale=' + locale);
+    await page.goto('/qa/notification-state?state=NOTI-REFERRAL-RESTORED&locale=' + locale);
     await expect(page.locator('.notificationHistoryPanel')).toBeVisible();
     const bounds = await page.locator('.notificationHistoryPanel').boundingBox();
     expect(bounds).not.toBeNull();
