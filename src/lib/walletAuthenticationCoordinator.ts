@@ -120,12 +120,33 @@ export async function waitForWalletProviderReconciliation(): Promise<void> {
 
 export async function runWalletProviderReconciliation<T>(
   operation: () => Promise<T>,
+  queueTimeoutMs = 5_000,
 ): Promise<T> {
+  const deadline = Date.now() + queueTimeoutMs;
   while (activeWalletProviderReconciliation) {
+    const previous = activeWalletProviderReconciliation;
+    let timeout: ReturnType<typeof setTimeout> | undefined;
     try {
-      await activeWalletProviderReconciliation;
-    } catch {
-      // A failed reconciliation still releases the transport lock.
+      const settled = await Promise.race([
+        previous.then(
+          () => true,
+          () => true,
+        ),
+        new Promise<false>((resolve) => {
+          timeout = setTimeout(
+            () => resolve(false),
+            Math.max(0, deadline - Date.now()),
+          );
+        }),
+      ]);
+      if (!settled) {
+        // Reject only the queued attempt. Never release a wallet transport
+        // operation that has not actually settled, or a late signer could race
+        // a new account reconciliation.
+        throw new Error('Wallet provider synchronization is still pending.');
+      }
+    } finally {
+      if (timeout !== undefined) clearTimeout(timeout);
     }
   }
 
