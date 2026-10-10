@@ -15,13 +15,17 @@ import {
   buildRewardXPromotionIntentUrl,
   loadRewardXPromotion,
   submitRewardXPromotionPost,
-  type RewardXPromotion,
+  type RewardXPromotionSnapshot,
 } from '@/lib/rewards/rewardXPromotionClient';
 
 function copyFor(locale: SupportedLocale) {
   if (locale === 'ko') {
     return {
       loading: 'X 공유 혜택 확인 중…',
+      preparing: (amount: string | null) =>
+        amount
+          ? `X 공유 보너스 +${amount} B3TR 준비 중…`
+          : 'X 공유 보너스 준비 중…',
       share: 'X에 공유',
       promo: (amount: string) =>
         `X에 공유하고 +${amount} B3TR`,
@@ -45,6 +49,10 @@ function copyFor(locale: SupportedLocale) {
 
   return {
     loading: 'Checking X sharing benefit…',
+    preparing: (amount: string | null) =>
+      amount
+        ? `Preparing +${amount} B3TR X sharing bonus…`
+        : 'Preparing X sharing bonus…',
     share: 'Share on X',
     promo: (amount: string) =>
       `Share on X and earn +${amount} B3TR`,
@@ -83,8 +91,8 @@ export function RewardXPromotionReceiptAction({
 }) {
   const copy = copyFor(locale);
   const requestIdRef = useRef(0);
-  const [promotion, setPromotion] =
-    useState<RewardXPromotion | null | undefined>(undefined);
+  const [snapshot, setSnapshot] =
+    useState<RewardXPromotionSnapshot | undefined>(undefined);
   const [loadFailed, setLoadFailed] = useState(false);
   const [postUrl, setPostUrl] = useState('');
   const [submitting, setSubmitting] = useState(false);
@@ -111,7 +119,7 @@ export function RewardXPromotionReceiptAction({
     try {
       const next = await loadRewardXPromotion(inviteCode);
       if (requestIdRef.current !== requestId) return;
-      setPromotion(next);
+      setSnapshot(next);
     } catch (error) {
       if (requestIdRef.current !== requestId) return;
       console.warn(
@@ -119,12 +127,18 @@ export function RewardXPromotionReceiptAction({
         error,
       );
       setLoadFailed(true);
-      setPromotion(null);
+      setSnapshot({
+        newOffersEnabled: false,
+        offerStatus: 'DISABLED',
+        pendingPromotionAmountWei: null,
+        pendingPromotionAmountB3tr: null,
+        promotion: null,
+      });
     }
   }, [inviteCode]);
 
   useEffect(() => {
-    setPromotion(undefined);
+    setSnapshot(undefined);
     setPostUrl('');
     setSubmitError('');
     void refresh();
@@ -133,6 +147,26 @@ export function RewardXPromotionReceiptAction({
       requestIdRef.current += 1;
     };
   }, [refresh]);
+
+  useEffect(() => {
+    if (
+      loadFailed ||
+      snapshot?.offerStatus !== 'PREPARING'
+    ) {
+      return;
+    }
+
+    const timer = window.setTimeout(
+      () => void refresh(),
+      30_000,
+    );
+
+    return () => window.clearTimeout(timer);
+  }, [
+    loadFailed,
+    refresh,
+    snapshot?.offerStatus,
+  ]);
 
   const submitPost = useCallback(async () => {
     if (!postUrl.trim() || submitting) return;
@@ -167,7 +201,7 @@ export function RewardXPromotionReceiptAction({
     submitting,
   ]);
 
-  if (promotion === undefined) {
+  if (snapshot === undefined) {
     return (
       <button
         type="button"
@@ -194,7 +228,33 @@ export function RewardXPromotionReceiptAction({
     ) : null
   );
 
+  if (loadFailed) {
+    return ordinaryShare();
+  }
+
+  const promotion = snapshot.promotion;
+
   if (!promotion) {
+    if (snapshot.offerStatus === 'PREPARING') {
+      const pendingAmount =
+        snapshot.pendingPromotionAmountB3tr
+          ? formatRewardShareAmount(
+              snapshot.pendingPromotionAmountB3tr,
+            )
+          : null;
+
+      return (
+        <div
+          className="promotionStatus"
+          role="status"
+          aria-live="polite"
+        >
+          <strong>{copy.preparing(pendingAmount)}</strong>
+          <style jsx>{styles}</style>
+        </div>
+      );
+    }
+
     return ordinaryShare();
   }
 
