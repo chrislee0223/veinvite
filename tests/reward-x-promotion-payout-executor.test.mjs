@@ -26,14 +26,14 @@ const cron = await readFile(
   'utf8',
 );
 
-test('new X promotion signing requires independent worker and DB LIVE gates', () => {
+test('new X promotion signing requires independent worker and DB payout gates', () => {
   assert.match(source, /VEINVITE_X_PROMOTION_PAYOUT_WORKER_ENABLED/);
   assert.match(source, /VEINVITE_AUTOMATIC_REWARDS_ENABLED/);
   assert.match(
     source,
-    /reward_x_promotion_enabled,reward_x_promotion_live_started_at/,
+    /reward_x_promotion_payout_enabled,reward_x_promotion_live_started_at/,
   );
-  assert.match(source, /X promotion LIVE is disabled/);
+  assert.match(source, /X promotion payout signing is disabled/);
 });
 
 test('promotion payout shares the core global signer lock', () => {
@@ -94,7 +94,7 @@ test('LIVE, security and core priority are rechecked immediately before private-
   );
   assert.match(
     source,
-    /X promotion LIVE was disabled before signing/,
+    /X promotion payout signing was disabled before signing/,
   );
 });
 
