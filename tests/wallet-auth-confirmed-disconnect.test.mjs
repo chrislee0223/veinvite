@@ -62,7 +62,8 @@ test('stalled verification shows a recoverable status but never aborts or restar
   assert.match(gate, /setState\('slow'\)/);
   assert.match(gate, /const isSlow = state === 'slow'/);
   assert.match(gate, /isSlow=\{isSlow\}/);
-  assert.match(gate, /if \(attemptRef\.current !== attempt \|\| checkingParticipation\) return/);
+  assert.match(gate, /if \(checkingParticipation\) \{/);
+  assert.match(gate, /setErrorDetails\(\{ code: 'AUTH_PARTICIPATION_CHECK', referenceId: null \}\)/);
   assert.match(gate, /window\.clearTimeout\(slowNotice\)/);
   assert.match(gate, /releaseCancelledWalletAuthenticationAfterDisconnect\(\);/);
   assert.match(control, /if \(!released\)[\s\S]*releaseCancelledWalletAuthenticationAfterDisconnect\(\)/);
