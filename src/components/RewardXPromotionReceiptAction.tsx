@@ -8,6 +8,7 @@ import {
 } from 'react';
 
 import type { SupportedLocale } from '@/lib/i18n/locales';
+import { VEINVITE_SITE_URL } from '@/lib/socialShareCard';
 import {
   formatRewardShareAmount,
 } from '@/lib/rewards/rewardReceiptShare';
@@ -323,7 +324,8 @@ export function RewardXPromotionReceiptAction({
         buildRewardXPromotionIntentUrl({
           locale,
           baseRewardAmountB3tr,
-          rewardShareUrl,
+          rewardShareUrl:
+            rewardShareUrl || VEINVITE_SITE_URL,
           shareToken: promotion.shareToken,
         });
     } catch (error) {
