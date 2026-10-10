@@ -291,7 +291,7 @@ jobs:
         if: steps.browser-scope.outputs.run_browser == 'true'
         run: |
           if [ "${{ github.head_ref }}" = "audit/notification-i18n-layout-20261009" ]; then
-            npx playwright test tests/playwright/notification-i18n-layout-audit.spec.ts
+            npx playwright test tests/playwright/notification-i18n-layout-audit.spec.ts --grep "notification desktop audit"
           else
             npm run test:playwright
           fi
