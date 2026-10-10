@@ -21,6 +21,7 @@ type PromotionState =
   | 'REVIEW_REQUIRED'
   | 'PAYOUT_PENDING'
   | 'PAID'
+  | 'EXPIRED'
   | 'RELEASED';
 
 function parseInviteCode(value: string | null): string {
@@ -70,7 +71,7 @@ function readState({
     postDeadline +
       submissionGraceSeconds * 1000
     ? 'SUBMISSION_GRACE'
-    : 'RELEASED';
+    : 'EXPIRED';
 }
 
 export async function GET(
