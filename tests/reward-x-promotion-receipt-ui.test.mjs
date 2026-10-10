@@ -142,7 +142,7 @@ test('promotion share never acknowledges the referral reward receipt', () => {
 test('existing generic X share remains the fail-soft fallback', () => {
   assert.match(
     component,
-    /\} : rewardShareIntentUrl \? \(/,
+    /\) : rewardShareIntentUrl \? \(/,
   );
   assert.match(
     component,
