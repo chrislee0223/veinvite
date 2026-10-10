@@ -2,7 +2,7 @@
 -- URL for both initial and final X promotion verification.
 -- LIVE and payout remain disabled while this migration is introduced.
 
-do $
+do $guard$
 declare
   v_live boolean;
   v_payout boolean;
@@ -21,7 +21,7 @@ begin
   if coalesce(v_live,false) or coalesce(v_payout,false) then
     raise exception 'REWARD_X_PROMOTION_URL_HARDENING_REQUIRES_LIVE_AND_PAYOUT_DISABLED';
   end if;
-end $;
+end $guard$;
 
 create or replace function public.reward_x_promotion_share_url_matches_v1(
   p_url text,
