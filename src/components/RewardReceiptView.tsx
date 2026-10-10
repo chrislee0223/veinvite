@@ -89,7 +89,7 @@ export function RewardReceiptView({
             </a>
           ) : null}
 
-          {receipt && rewardShareIntentUrl ? (
+          {receipt ? (
             <RewardXPromotionReceiptAction
               locale={locale}
               inviteCode={receipt.inviteCode}
