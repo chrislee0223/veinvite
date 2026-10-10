@@ -11,6 +11,7 @@ import { InviteRejectionPreview } from './InviteRejectionPreview';
 import { NotificationUiPreview } from './NotificationUiPreview';
 import { PublicLeaderboard } from './PublicLeaderboard';
 import { UiTestLab } from './UiTestLab';
+import { XPromotionUiPreview } from './XPromotionUiPreview';
 import {
   LANGUAGE_STORAGE_KEY,
   isLocale,
@@ -23,7 +24,7 @@ import type {
 } from '@/lib/types';
 
 type PreviewMode = 'public' | 'participant';
-type ParticipantView = 'states' | 'notifications' | 'canvas' | 'eligibility';
+type ParticipantView = 'states' | 'notifications' | 'canvas' | 'eligibility' | 'x-promotion';
 
 const TEST_WALLET = '0x1234567890abcdef1234567890abcdef12345678';
 const TOKEN_WEI = 10n ** 18n;
@@ -52,6 +53,11 @@ const PARTICIPANT_VIEWS: Array<{
     id: 'eligibility',
     label: '자격 거절',
     description: '기존 활성 사용자 등 참여 불가 화면',
+  },
+  {
+    id: 'x-promotion',
+    label: 'X 보너스',
+    description: '기본 보상 이후 X Promotion 전체 상태',
   },
 ];
 
@@ -248,6 +254,8 @@ export function UiTestHub() {
               <NotificationUiPreview />
             ) : participantView === 'canvas' ? (
               <InfiniteReferralCanvasPreview />
+            ) : participantView === 'x-promotion' ? (
+              <XPromotionUiPreview />
             ) : (
               <InviteRejectionPreview />
             )}
@@ -411,7 +419,7 @@ export function UiTestHub() {
           width:min(100%,760px);
           margin:0 auto 18px;
           display:grid;
-          grid-template-columns:repeat(4,1fr);
+          grid-template-columns:repeat(5,1fr);
           gap:7px;
         }
         .cleanUiTest .participantTabs button {
