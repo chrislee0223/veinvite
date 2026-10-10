@@ -434,7 +434,7 @@ export async function GET(
     return NextResponse.json(
       {
         newOffersEnabled,
-        offerStatus: 'AVAILABLE' satisfies PromotionOfferStatus,
+        offerStatus: 'AVAILABLE',
         pendingPromotionAmountWei: null,
         pendingPromotionAmountB3tr: null,
         promotion: {
