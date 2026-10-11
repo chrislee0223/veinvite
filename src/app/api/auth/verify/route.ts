@@ -29,6 +29,7 @@ import {
   buildWalletAuthTypedData,
 } from '@/lib/walletAuthTypedData';
 import { walletVerifyFailureCodeForMessage } from '@/lib/walletAuthFailureCodes';
+import { walletChallengeTraceId } from '@/lib/walletChallengeTrace';
 import { verifyVeWorldCertificate, type WalletCertificate } from '@/lib/walletCertificateVerification';
 import {
   LEGACY_WALLET_SESSION_COOKIE_NAME,
@@ -137,6 +138,7 @@ function jsonError(
   message: string,
   status: number,
   diagnostic?: WalletVerificationDiagnostic,
+  challengeTraceId?: string,
 ) {
   const code = walletVerifyFailureCodeForMessage(message);
   const referenceId = randomBytes(8).toString('hex');
@@ -149,6 +151,9 @@ function jsonError(
     referenceId,
     ...(diagnostic
       ? { diagnostic }
+      : {}),
+    ...(challengeTraceId
+      ? { challengeTraceId }
       : {}),
   });
 
@@ -290,6 +295,10 @@ export async function POST(
       401,
     );
   }
+
+  // One anonymous ID per challenge links failed proofs and later success,
+  // without exposing the wallet, nonce, certificate, or signature in logs.
+  const challengeTraceId = walletChallengeTraceId(challenge);
 
   if (challenge.used_at) {
     return jsonError(
@@ -447,6 +456,7 @@ export async function POST(
               body.certificate,
             )
           : undefined,
+        challengeTraceId,
       );
     }
   } else {
@@ -489,6 +499,7 @@ export async function POST(
     'Wallet proof verified.',
     {
       proofType,
+      challengeTraceId,
     },
   );
 
