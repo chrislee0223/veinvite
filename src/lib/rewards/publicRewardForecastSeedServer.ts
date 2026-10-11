@@ -9,11 +9,10 @@ import { getVeBetterNetworkConfig } from '@/lib/vebetter/network';
 const FORECAST_SEED_CACHE_SECONDS = 5 * 60;
 const FORECAST_SEED_STALE_MS = 60 * 60_000;
 const FORECAST_SEED_MAX_AGE_MS = 24 * 60 * 60_000;
-// Production verification showed that a cold Vercel -> Supabase connection can
-// exceed the original 450 ms budget even though the database RPC itself takes
-// only a few milliseconds. Keep the wait bounded, but leave enough room for a
-// cold TLS/HTTP connection so the very first visitor also receives a seed.
-const FORECAST_SEED_STARTUP_TIMEOUT_MS = 1_200;
+// This optional cache refresh continues after the Home render's separate
+// 400ms prefill budget. Allow cold Vercel -> Supabase transport more time,
+// while staying below the forecast RPC's own 5-second safety timeout.
+const FORECAST_SEED_BACKGROUND_TIMEOUT_MS = 4_500;
 
 const readCachedPublicRewardForecastSeed = unstable_cache(
   async (
@@ -23,7 +22,7 @@ const readCachedPublicRewardForecastSeed = unstable_cache(
     const controller = new AbortController();
     const timeoutId = setTimeout(
       () => controller.abort(),
-      FORECAST_SEED_STARTUP_TIMEOUT_MS,
+      FORECAST_SEED_BACKGROUND_TIMEOUT_MS,
     );
 
     try {
@@ -53,15 +52,16 @@ const readCachedPublicRewardForecastSeed = unstable_cache(
         stale: ageMs > FORECAST_SEED_STALE_MS,
       };
     } catch (error) {
-      // Throw rather than cache a transient failure as a valid null snapshot.
-      // The public Home wrapper below converts it to a safe optional fallback,
-      // while an existing successful Next.js cache entry remains eligible.
-      if (controller.signal.aborted) {
-        throw new Error(
-          `Public reward forecast seed transport exceeded ${FORECAST_SEED_STARTUP_TIMEOUT_MS}ms.`,
-        );
+      // Next.js revalidates unstable_cache after the page can already have
+      // rendered. Throwing from here creates an uncaught cache revalidation
+      // ERROR cluster even though this seed is only a presentation hint.
+      // Always settle this optional cache callback safely; the client fetch
+      // remains responsible for retrying/refreshing the public estimate.
+      if (!controller.signal.aborted) {
+        const message = error instanceof Error ? error.message : 'unknown error';
+        console.warn('Public reward forecast seed could not be loaded:', message);
       }
-      throw error;
+      return null;
     } finally {
       clearTimeout(timeoutId);
     }
