@@ -147,6 +147,8 @@ test('a refreshed forecast is propagated into the currently visible card', () =>
   );
   assert.match(
     forecastCard,
-    /setForecast\(result\)/,
+  // A late background response must not overwrite a newer visible estimate.
+  assert.match(forecastCard, /setForecast\(\(current\) => pickPreferredForecast\(current, result\)/);
+  assert.match(forecastCard, /pickPreferredForecast\(cachedForecast, result\)/);
   );
 });
