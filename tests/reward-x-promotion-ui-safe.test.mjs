@@ -19,9 +19,12 @@ const route = await readFile(
   'utf8',
 );
 
-test('promotion share URL preserves the production share page and adds only the opaque token', () => {
+test('promotion share URL matches the production verifier contract', () => {
   assert.match(client, /hostname\.toLowerCase\(\) !== 'veinvite\.vercel\.app'/);
-  assert.match(client, /url\.searchParams\.set\('xpromo', shareToken\.toLowerCase\(\)\)/);
+  assert.match(client, /REFERRAL_PATH_PATTERN/);
+  assert.match(client, /url\.searchParams\.has\('xp'\)/);
+  assert.match(client, /url\.searchParams\.set\('xp', shareToken\.toLowerCase\(\)\)/);
+  assert.doesNotMatch(client, /searchParams\.set\('xpromo'/);
   assert.match(client, /SHARE_TOKEN_PATTERN/);
 });
 
@@ -43,13 +46,12 @@ test('feature loading and failures preserve the existing ordinary X share UX', (
   );
 });
 
-test('promotion sharing can use the VeInvite fallback URL before referral-link warmup', () => {
-  assert.match(action, /rewardShareUrl \|\| VEINVITE_SITE_URL/);
-  assert.match(action, /promotionShareBaseUrl/);
-  assert.doesNotMatch(
+test('promotion sharing waits for the canonical referral URL', () => {
+  assert.match(
     action,
-    /Boolean\(promotion\.shareToken\)[\s\S]{0,100}Boolean\(rewardShareUrl\)/,
+    /Boolean\(promotion\.shareToken\)[\s\S]{0,120}Boolean\(rewardShareUrl\)/,
   );
+  assert.doesNotMatch(action, /VEINVITE_SITE_URL/);
 });
 
 test('only real promotion states replace ordinary sharing', () => {
@@ -97,4 +99,28 @@ test('missing opportunity distinguishes disabled or legacy receipts from materia
   assert.match(route, /reward_x_promotion_splits/);
   assert.match(route, /reward_x_promotion_obligations/);
   assert.match(route, /pendingPromotionAmountB3tr/);
+});
+
+test('all supported locales have dedicated X promotion copy', async () => {
+  const localesSource = await readFile(
+    new URL('../src/lib/i18n/locales.ts', import.meta.url),
+    'utf8',
+  );
+  const copySource = await readFile(
+    new URL('../src/lib/i18n/rewardXPromotionCopy.ts', import.meta.url),
+    'utf8',
+  );
+
+  const locales = [
+    ...localesSource.matchAll(/\{ locale: '([^']+)'/gmu),
+  ].map((match) => match[1]).sort();
+  const copyKeys = [
+    ...copySource.matchAll(/^\s*(?:'([^']+)'|([a-z]+)):\s*\{/gmu),
+  ]
+    .map((match) => match[1] ?? match[2])
+    .filter(Boolean)
+    .sort();
+
+  assert.deepEqual(copyKeys, locales);
+  assert.match(action, /REWARD_X_PROMOTION_COPY\[locale\]/);
 });
