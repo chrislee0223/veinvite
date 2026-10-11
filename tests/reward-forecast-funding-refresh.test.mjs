@@ -145,10 +145,13 @@ test('a refreshed forecast is propagated into the currently visible card', () =>
     forecastCard,
     /window\.addEventListener\([\s\S]*REWARD_FORECAST_UPDATED_EVENT[\s\S]*syncRefreshedForecast/s,
   );
+  // A late background response must not overwrite a newer visible estimate.
   assert.match(
     forecastCard,
-  // A late background response must not overwrite a newer visible estimate.
-  assert.match(forecastCard, /setForecast\(\(current\) => pickPreferredForecast\(current, result\)/);
-  assert.match(forecastCard, /pickPreferredForecast\(cachedForecast, result\)/);
+    /setForecast\(\(current\) => pickPreferredForecast\(current, result\)/,
+  );
+  assert.match(
+    forecastCard,
+    /pickPreferredForecast\(cachedForecast, result\)/,
   );
 });
