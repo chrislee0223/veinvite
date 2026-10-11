@@ -360,6 +360,8 @@ export function RewardXPromotionReceiptAction({
       <div className="postSubmitRow">
         <input
           type="url"
+          dir="ltr"
+          spellCheck={false}
           value={postUrl}
           placeholder={promotionCopy.postUrlPlaceholder}
           inputMode="url"
@@ -429,7 +431,8 @@ const styles = `
     margin:8px 1px 0;
     color:#8f887f;
     font-size:.58rem;
-    line-height:1.45
+    line-height:1.45;
+    overflow-wrap:anywhere
   }
   .postSubmitRow{
     margin-top:9px;
@@ -473,7 +476,8 @@ const styles = `
     background:rgba(244,183,40,.045);
     color:#c9b675;
     font-size:.62rem;
-    line-height:1.45
+    line-height:1.45;
+    overflow-wrap:anywhere
   }
   .promotionStatus.paid{
     border-color:rgba(76,220,155,.16);
