@@ -280,17 +280,15 @@ export async function GET(request: NextRequest) {
         const splitPromotionWei =
           integerWei(promotionSplit.promotion_amount_wei);
 
-        const validSplit = Boolean(
+        if (
           splitReservationWei === amount &&
-          baseAmountWei &&
+          baseAmountWei !== null &&
           BigInt(baseAmountWei) > 0n &&
           splitPromotionWei !== null &&
-          BigInt(baseAmountWei ?? '0') +
-            BigInt(splitPromotionWei ?? '0') ===
-            BigInt(amount),
-        );
-
-        if (validSplit) {
+          BigInt(baseAmountWei) +
+            BigInt(splitPromotionWei) ===
+            BigInt(amount)
+        ) {
           claimAmountWei = baseAmountWei;
           promotionAmountWei = splitPromotionWei;
         } else {
