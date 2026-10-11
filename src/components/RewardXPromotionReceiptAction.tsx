@@ -312,10 +312,11 @@ export function RewardXPromotionReceiptAction({
     );
   }
 
+  const promotionShareBaseUrl =
+    rewardShareUrl || VEINVITE_SITE_URL;
   const canOpenShare =
     promotion.state === 'OPEN' &&
-    Boolean(promotion.shareToken) &&
-    Boolean(rewardShareUrl);
+    Boolean(promotion.shareToken);
 
   let promotionIntentUrl = '';
   if (canOpenShare && promotion.shareToken) {
@@ -325,7 +326,7 @@ export function RewardXPromotionReceiptAction({
           locale,
           baseRewardAmountB3tr,
           rewardShareUrl:
-            rewardShareUrl || VEINVITE_SITE_URL,
+            promotionShareBaseUrl,
           shareToken: promotion.shareToken,
         });
     } catch (error) {
